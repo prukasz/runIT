@@ -46,4 +46,5 @@ m3 = code.add_math(expression=' "gains[2]" +0 ', en=sel_q.out[2])
 sub = code.subscribe("selector", "enable", "gains", ton.out[0])
 forr = code.add_for(expr="i=0; i<9; i+=1", en=ton.out[0])
 
-code.generate("test_dump.txt", subscriptions=sub)
+if __name__ == "__main__":
+    code.generate("test_dump.txt", subscriptions=sub)

@@ -5,6 +5,9 @@ import re  # Dodano do obsługi regex
 from bleak import BleakScanner, BleakClient, BleakError
 from MessageDispatch import notification_handler, set_display_mode, DisplayMode
 
+# Build the Code object so AccessManager has contexts registered for alias resolution
+import test  # noqa: F401  — side-effect: populates AccessManager with contexts & aliases
+
 set_display_mode(DisplayMode.PRETTY)
 
 DEVICE_NAME = "SKIBIDI"

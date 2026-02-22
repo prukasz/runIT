@@ -140,48 +140,66 @@ def _find_alias(entry: PublishEntry) -> str:
 def _format_publish(entries: list[PublishEntry]) -> str:
     """Format PUBLISH entries for human-readable display."""
     lines = []
-    lines.append(f"{_C.CYAN}{_C.BOLD}╔══ PUBLISH ═══════════════════════════════════════╗{_C.RESET}")
+    lines.append(f"{_C.CYAN}{_C.BOLD}╔══ PUBLISH ═════════════════════════════════════════════════════════════════════════════╗{_C.RESET}")
+
+    # ── pre-compute column widths for alignment ──
+    col_type: list[str] = []
+    col_alias: list[str] = []
+    for e in entries:
+        if e.mem_type in [t.value for t in mem_types_t]:
+            col_type.append(mem_types_to_str_map.get(mem_types_t(e.mem_type), f"type({e.mem_type})"))
+        else:
+            col_type.append(f"type({e.mem_type})")
+        col_alias.append(_find_alias(e))
+
+    max_type_w  = max((len(s) for s in col_type),  default=4)
+    max_alias_w = max((len(s) for s in col_alias if s), default=0)
+    max_idx_w   = max((len(str(e.inst_idx)) for e in entries), default=1)
 
     for i, e in enumerate(entries):
-        type_name = mem_types_to_str_map.get(mem_types_t(e.mem_type), f"type({e.mem_type})") if e.mem_type in [t.value for t in mem_types_t] else f"type({e.mem_type})"
-        upd_str = f"{_C.GREEN}● upd{_C.RESET}" if e.updated else f"{_C.DIM}○    {_C.RESET}"
+        type_name = col_type[i]
+        alias_name = col_alias[i]
 
-        # Variable alias — dynamic lookup from ctx + inst_idx
-        alias_name = _find_alias(e)
-        alias = f' "{_C.YELLOW}{alias_name}{_C.RESET}"' if alias_name else ""
+        upd = f"{_C.GREEN}●{_C.RESET}" if e.updated else f"{_C.DIM}○{_C.RESET}"
+        alias_col = f"{_C.YELLOW}{alias_name:<{max_alias_w}}{_C.RESET}" if alias_name else f"{' ':<{max_alias_w}}"
 
-        header = f"  {upd_str} ctx={e.context} idx={e.inst_idx:<4} {_C.BLUE}{type_name:>5}{_C.RESET}{alias}"
+        prefix = (
+            f"  {upd} "
+            f"ctx={e.context} "
+            f"idx={e.inst_idx:<{max_idx_w}} "
+            f"{_C.BLUE}{type_name:<{max_type_w}}{_C.RESET} "
+            f"{alias_col}"
+        )
 
         if len(e.values) == 0:
-            lines.append(f"{header}  → {_C.DIM}(no data){_C.RESET}")
+            val_str = f"{_C.DIM}(no data){_C.RESET}"
         elif len(e.values) == 1:
             val = e.values[0]
             if isinstance(val, float):
-                lines.append(f"{header}  → {_C.WHITE}{_C.BOLD}{val:>12.4f}{_C.RESET}")
+                val_str = f"{_C.WHITE}{_C.BOLD}{val:.4f}{_C.RESET}"
             elif isinstance(val, bool):
-                v = f"{_C.GREEN}TRUE" if val else f"{_C.RED}FALSE"
-                lines.append(f"{header}  → {v}{_C.RESET}")
+                val_str = f"{_C.GREEN}TRUE{_C.RESET}" if val else f"{_C.RED}FALSE{_C.RESET}"
             else:
-                lines.append(f"{header}  → {_C.WHITE}{_C.BOLD}{val}{_C.RESET}")
+                val_str = f"{_C.WHITE}{_C.BOLD}{val}{_C.RESET}"
         else:
-            # Array — show compact
             if len(e.values) <= 10:
                 if isinstance(e.values[0], float):
                     arr_str = ", ".join(f"{v:.3f}" for v in e.values)
                 else:
                     arr_str = ", ".join(str(v) for v in e.values)
-                lines.append(f"{header}  → [{_C.WHITE}{arr_str}{_C.RESET}]  ({len(e.values)} el)")
             else:
-                # Show first 5 + last 3
                 if isinstance(e.values[0], float):
                     head = ", ".join(f"{v:.3f}" for v in e.values[:5])
                     tail = ", ".join(f"{v:.3f}" for v in e.values[-3:])
                 else:
                     head = ", ".join(str(v) for v in e.values[:5])
                     tail = ", ".join(str(v) for v in e.values[-3:])
-                lines.append(f"{header}  → [{_C.WHITE}{head}, ... {tail}{_C.RESET}]  ({len(e.values)} el)")
+                arr_str = f"{head}, …, {tail}"
+            val_str = f"[{_C.WHITE}{arr_str}{_C.RESET}] ({len(e.values)} el)"
 
-    lines.append(f"{_C.CYAN}╚══════════════════════════════════════════════════╝{_C.RESET}")
+        lines.append(f"{prefix} → {val_str}")
+
+    lines.append(f"{_C.CYAN}╚════════════════════════════════════════════════════════════════════════════════════════╝{_C.RESET}")
     return "\n".join(lines)
 
 
@@ -257,30 +275,35 @@ def _parse_error_log(payload: bytes) -> List[ErrorLogEntry]:
 def _format_error_log(entries: List[ErrorLogEntry]) -> str:
     """Format error log entries for display."""
     lines = []
-    lines.append(f"{_C.RED}{_C.BOLD}╔══ ERROR LOG ═════════════════════════════════════╗{_C.RESET}")
+    lines.append(f"{_C.RED}{_C.BOLD}╔══ ERROR LOG ═══════════════════════════════════════════════════════════════════════════╗{_C.RESET}")
 
-    for e in entries:
-        # Severity badge
+    # ── pre-compute column widths ──
+    err_strs   = [_err_to_str(e.code)  for e in entries]
+    owner_strs = [_owner_to_str(e.owner) for e in entries]
+    max_err_w   = max((len(s) for s in err_strs),   default=5)
+    max_owner_w = max((len(s) for s in owner_strs), default=5)
+    max_idx_w   = max((len(str(e.owner_idx)) for e in entries), default=1)
+
+    for i, e in enumerate(entries):
+        # Severity badge — fixed 5-char label
         if e.abort:
-            badge = f"{_C.BG_RED}{_C.WHITE}{_C.BOLD} ABORT {_C.RESET}"
+            badge = f"{_C.BG_RED}{_C.WHITE}{_C.BOLD}ABORT{_C.RESET}"
         elif e.warning:
-            badge = f"{_C.BG_YELLOW}{_C.BOLD} WARN  {_C.RESET}"
+            badge = f"{_C.BG_YELLOW}{_C.BOLD} WARN{_C.RESET}"
         elif e.notice:
-            badge = f"{_C.DIM} note  {_C.RESET}"
+            badge = f"{_C.DIM} note{_C.RESET}"
         else:
-            badge = f"{_C.RED} ERROR {_C.RESET}"
-
-        err_str = _err_to_str(e.code)
-        owner_str = _owner_to_str(e.owner)
+            badge = f"{_C.RED}ERROR{_C.RESET}"
 
         lines.append(
-            f"  {badge} {_C.RED}{err_str}{_C.RESET}"
-            f"  ← {_C.YELLOW}{owner_str}{_C.RESET}"
-            f"{'[' + str(e.owner_idx) + ']'}"
-            f"  {_C.DIM}t={e.time_ms}ms cyc={e.cycle} d={e.depth}{_C.RESET}"
+            f"  {badge} "
+            f"{_C.RED}{err_strs[i]:<{max_err_w}}{_C.RESET} "
+            f"← {_C.YELLOW}{owner_strs[i]:<{max_owner_w}}{_C.RESET}"
+            f"[{e.owner_idx:<{max_idx_w}}] "
+            f"{_C.DIM}t={e.time_ms}ms cyc={e.cycle} d={e.depth}{_C.RESET}"
         )
 
-    lines.append(f"{_C.RED}╚══════════════════════════════════════════════════╝{_C.RESET}")
+    lines.append(f"{_C.RED}╚════════════════════════════════════════════════════════════════════════════════════════╝{_C.RESET}")
     return "\n".join(lines)
 
 
@@ -343,20 +366,25 @@ def _parse_status_log(payload: bytes) -> List[StatusLogEntry]:
 def _format_status_log(entries: List[StatusLogEntry]) -> str:
     """Format status log entries for display."""
     lines = []
-    lines.append(f"{_C.GREEN}{_C.BOLD}╔══ STATUS LOG ════════════════════════════════════╗{_C.RESET}")
+    lines.append(f"{_C.GREEN}{_C.BOLD}╔══ STATUS LOG ══════════════════════════════════════════════════════════════════════════╗{_C.RESET}")
 
-    for e in entries:
-        log_str = _log_to_str(e.log)
-        owner_str = _owner_to_str(e.owner)
+    # ── pre-compute column widths ──
+    log_strs   = [_log_to_str(e.log)     for e in entries]
+    owner_strs = [_owner_to_str(e.owner) for e in entries]
+    max_log_w   = max((len(s) for s in log_strs),   default=4)
+    max_owner_w = max((len(s) for s in owner_strs), default=5)
+    max_idx_w   = max((len(str(e.owner_idx)) for e in entries), default=1)
 
+    for i, e in enumerate(entries):
         lines.append(
-            f"  {_C.GREEN}ℹ{_C.RESET} {_C.WHITE}{log_str}{_C.RESET}"
-            f"  ← {_C.YELLOW}{owner_str}{_C.RESET}"
-            f"{'[' + str(e.owner_idx) + ']'}"
-            f"  {_C.DIM}t={e.time_ms}ms cyc={e.cycle}{_C.RESET}"
+            f"  {_C.GREEN}ℹ{_C.RESET} "
+            f"{_C.WHITE}{log_strs[i]:<{max_log_w}}{_C.RESET} "
+            f"← {_C.YELLOW}{owner_strs[i]:<{max_owner_w}}{_C.RESET}"
+            f"[{e.owner_idx:<{max_idx_w}}] "
+            f"{_C.DIM}t={e.time_ms}ms cyc={e.cycle}{_C.RESET}"
         )
 
-    lines.append(f"{_C.GREEN}╚══════════════════════════════════════════════════╝{_C.RESET}")
+    lines.append(f"{_C.GREEN}╚════════════════════════════════════════════════════════════════════════════════════════╝{_C.RESET}")
     return "\n".join(lines)
 
 
