@@ -4,6 +4,7 @@ from typing import List, Optional, Callable
 from dataclasses import dataclass
 
 from Enums import mem_types_t, packet_header_t, mem_types_size, mem_types_pack_map, mem_types_map,  mem_types_to_str_map, emu_err_t, OWNER_NAMES, LOG_NAMES
+from MemAcces import AccessManager
 
 class DisplayMode(IntEnum):
     PRETTY = 0   # nicely formatted, coloured output (default)
@@ -121,6 +122,21 @@ def _parse_publish(payload: bytes) -> list[PublishEntry]:
     return entries
 
 
+def _find_alias(entry: PublishEntry) -> str:
+    """Resolve alias dynamically from ctx + mem_type + inst_idx."""
+    manager = AccessManager.get_instance()
+    for ctx in manager.contexts:
+        if ctx.ctx_id == entry.context:
+            try:
+                t = mem_types_t(entry.mem_type)
+                instances = ctx.storage.get(t, [])
+                if entry.inst_idx < len(instances):
+                    return instances[entry.inst_idx].alias or ""
+            except (ValueError, KeyError):
+                pass
+    return ""
+
+
 def _format_publish(entries: list[PublishEntry]) -> str:
     """Format PUBLISH entries for human-readable display."""
     lines = []
@@ -130,10 +146,9 @@ def _format_publish(entries: list[PublishEntry]) -> str:
         type_name = mem_types_to_str_map.get(mem_types_t(e.mem_type), f"type({e.mem_type})") if e.mem_type in [t.value for t in mem_types_t] else f"type({e.mem_type})"
         upd_str = f"{_C.GREEN}● upd{_C.RESET}" if e.updated else f"{_C.DIM}○    {_C.RESET}"
 
-        # Variable alias from registry
-        alias = ""
-        if _alias_registry and i < len(_alias_registry):
-            alias = f' "{_C.YELLOW}{_alias_registry[i]}{_C.RESET}"'
+        # Variable alias — dynamic lookup from ctx + inst_idx
+        alias_name = _find_alias(e)
+        alias = f' "{_C.YELLOW}{alias_name}{_C.RESET}"' if alias_name else ""
 
         header = f"  {upd_str} ctx={e.context} idx={e.inst_idx:<4} {_C.BLUE}{type_name:>5}{_C.RESET}{alias}"
 
