@@ -1,7 +1,19 @@
-file(GLOB_RECURSE srcs "main.c" "*.c" "ble/*.c")
-idf_component_register(SRCS "${srcs}"
-                    PRIV_REQUIRES spi_flash
-                    INCLUDE_DIRS "ble/include" "i2c_tasks/include"
-                    REQUIRES pca9685 pcf8575 driver ads1115 mpu6050 bt servo_manager esc_manager nvs_flash emulator)
+set(srcs
+    "main.c"
+    "../components/drivers_manager/manager_ble/manager_ble.c"
+    "../components/drivers_abstraction/a_ble_driver/a_ble.c"
+    "../components/drivers_abstraction/a_ble_driver/gap.c"
+    "../components/drivers_abstraction/a_ble_driver/gatt_svc.c"
+)
+
+idf_component_register(
+    SRCS "${srcs}"
+    INCLUDE_DIRS
+        "."
+        "../components/drivers_manager/manager_ble/include"
+        "../components/drivers_abstraction/a_ble_driver/include"
+        "../components/status/include"
+    REQUIRES bt nvs_flash
+)
 
                     
