@@ -52,7 +52,7 @@ async def main():
             try:
                 await send_message(client, write_char, f"TEST_{counter:03d}")
                 counter += 1
-                await asyncio.sleep(2)
+                await asyncio.sleep(0.1)
             except KeyboardInterrupt:
                 print("\nDisconnecting...")
                 break

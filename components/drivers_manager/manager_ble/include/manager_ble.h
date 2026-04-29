@@ -6,6 +6,23 @@
 #include <esp_err.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <freertos/task.h>  
+
+typedef struct{
+    EventGroupHandle_t m_ble_events;
+    EventBits_t m_ble_bits_tx_start;
+    EventBits_t m_ble_bits_tx_done;
+    EventBits_t m_ble_bits_on_rx; 
+    EventBits_t m_ble_bits_on_connect;
+    EventBits_t m_ble_bits_on_disconnect;
+    EventBits_t m_ble_bits_on_mtu_update;
+    EventBits_t m_ble_bits_on_connection_failed;
+    EventBits_t m_ble_bits_on_indication_timeout;
+    EventBits_t m_ble_bits_on_indication_complete;
+    EventBits_t m_ble_bits_on_notify_complete;
+    uint8_t task_priority;
+    uint32_t task_stack_size;
+}m_ble_cfg_t;
 
 #define MAX_TX_BUFFERS 3
 
@@ -18,7 +35,7 @@
  * @param bits_rx_received Bit mask for indicating RX data reception
  * @param task_priority Task priority for the BLE manager task
  */
-void m_ble_init(EventGroupHandle_t events_to_set, EventGroupHandle_t events_to_wait, uint32_t bits_tx_start, uint32_t bits_tx_done, uint32_t bits_rx_received, UBaseType_t task_priority);
+void m_ble_init(m_ble_cfg_t *config);
 
 /**
  * @brief Sets the RX buffer for incoming BLE data

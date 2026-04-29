@@ -19,12 +19,12 @@ typedef struct{
 
 void send_indication();
 void chr_send_indication(indicate_status_t *indicate_status, int16_t chr_conn_handle, int16_t chr_val_handle);
-int gatt_send_notify(const uint8_t *data, size_t len);
-uint16_t gatt_get_vm_out_conn_handle(void);
-uint16_t gatt_get_vm_out_val_handle(void);
-bool gatt_can_send_vm_out_indication(void);
-void gatt_notify_ready(void);
+uint16_t a_ble_get_tx_conn_handle(void);
+uint16_t a_ble_get_tx_val_handle(void);
+bool gatt_can_send_tx_indication(void);
 
-void gatt_svc_add_callback_on_write(esp_err_t (*callback)(const uint8_t* data, size_t len));
+/* Callback function pointer for write operations on the RX characteristic */
+void a_ble_add_callback_on_write(esp_err_t (*callback)(struct ble_gatt_access_ctxt *ctxt));
+   
 
 

@@ -12,9 +12,8 @@
 
 // The struct pushed to the queue representing a waiting Driver Task
 typedef struct {
-    TaskHandle_t driver_task; // The task that will actually perform the I2C operations
-    
-    // --- Periodic Control ---
+    uint8_t driver_id;
+    EventBits_t commnad;
     bool is_periodic;         // true if this driver should be re-added to the next scan cycle
     bool* keep_alive;         // Pointer to boolean. Manager drops the task if this is false.
 } m_i2c_driver_job_t;
@@ -45,6 +44,17 @@ status_err_report_t m_i2c_init(
 
 i2c_master_bus_handle_t m_i2c_get_bus_handle(uint8_t bus_num);
 TaskHandle_t m_i2c_get_manager_task(uint8_t bus_num);
+
+status_err_report_t m_i2c_add_driver(
+    bool bus, 
+    i2c_device_config_t dev_config, 
+    TaskFunction_t task_func, 
+    const char* task_name, 
+    uint32_t stack_depth, 
+    uint8_t priority, 
+    bool is_periodic,
+    uint8_t* out_id
+);
 
 i2c_master_dev_handle_t m_i2c_get_dev_handle_by_id(uint8_t id);
 bool m_i2c_get_id_by_address(bool bus, uint16_t device_address, uint8_t* out_id);

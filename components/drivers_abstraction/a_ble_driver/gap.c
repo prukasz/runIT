@@ -2,6 +2,29 @@
 #include "common.h"
 #include "gatt_svc.h"
 
+typedef struct {
+    ble_cb_t on_tx_complete;
+    ble_cb_t on_subscribe;
+    ble_cb_t on_disconnect;
+    ble_cb_t on_connect;
+    ble_cb_t on_mtu_update;
+} ble_callbacks_t;
+
+static ble_callbacks_t ble_callbacks;
+
+void a_ble_add_callback_on_tx_complete(ble_cb_t callback){
+    ble_callbacks.on_tx_complete = callback;
+}
+void a_ble_add_callback_on_connect(ble_cb_t callback){
+    ble_callbacks.on_connect = callback;
+}
+void a_ble_add_callback_on_disconnect(ble_cb_t callback){
+    ble_callbacks.on_disconnect = callback;
+}
+void a_ble_add_callback_on_mtu_update(ble_cb_t callback){
+    ble_callbacks.on_mtu_update = callback;
+}
+
 
 static int ble_gap_advertising_start(void);  
 static int ble_gap_configure_advertising(void);                          // Starts BLE advertising
@@ -76,6 +99,7 @@ static int gap_event_handler(struct ble_gap_event *event, void *arg) {
 
     switch (event->type) {  
     case BLE_GAP_EVENT_CONNECT:
+        ble_callbacks.on_connect(event);
         if (event->connect.status == 0) {//aka success
             int rc = ble_gap_conn_find(event->connect.conn_handle, &desc);//retrieve details of conncetion into descriptor
             if (rc != 0) {
@@ -92,22 +116,21 @@ static int gap_event_handler(struct ble_gap_event *event, void *arg) {
         else { return ble_gap_advertising_start();} //start adv if fail
 
     case BLE_GAP_EVENT_DISCONNECT:
-        return ble_gap_advertising_start(); //if device disconnect start advertising again
+        ble_callbacks.on_disconnect(event);
+        break;
     case BLE_GAP_EVENT_CONN_UPDATE:
         return ble_gap_conn_find(event->conn_update.conn_handle, &desc);
     case BLE_GAP_EVENT_ADV_COMPLETE: //if adv time ended
         return ble_gap_advertising_start();
     case BLE_GAP_EVENT_NOTIFY_TX:  //when notify transmision is finished
-        if (event->notify_tx.indication && event->notify_tx.status == BLE_HS_EDONE) { 
-        }
+        ble_callbacks.on_tx_complete(event);
         return 0;
     case BLE_GAP_EVENT_SUBSCRIBE: //if subscribed to characteristics cccd
         gatt_svr_subscribe_cb(event);
         return 0;
     case BLE_GAP_EVENT_MTU:
-         ESP_LOGI(TAG, "Negotiated MTU: conn_handle=%d mtu=%d",
-                 event->mtu.conn_handle, event->mtu.value);
-            return 0;
+        ble_callbacks.on_mtu_update(event);
+        return 0;
     }
     return 0;
 }

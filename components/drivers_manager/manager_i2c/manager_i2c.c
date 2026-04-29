@@ -1,3 +1,4 @@
+#include "sdkconfig.h"
 #include "manager_i2c.h"
 #include "esp_log.h"
 #include "driver/i2c_master.h"
@@ -28,6 +29,16 @@ i2c_master_dev_handle_t m_i2c_get_dev_handle_by_id(uint8_t id) {
     return NULL;
 }
 
+TaskHandle_t m_i2c_get_dev_task(uint8_t id){
+    for (int i = 0; i < M_I2C_MAX_DEVICES; i++) {
+        
+        if (driver_registry[i].is_active && driver_registry[i].id == id) {
+            return driver_registry[i].task_handle;
+        }
+    }
+    return NULL;
+}
+
 bool m_i2c_get_id_by_address(bool bus, uint16_t device_address, uint8_t* out_id) {
     for (int i = 0; i < M_I2C_MAX_DEVICES; i++) {
         if (driver_registry[i].is_active && 
@@ -52,6 +63,7 @@ bool m_i2c_set_active_state(uint8_t id, bool new_state) {
     }
     return false; 
 }
+
 
 
 static void i2c_manager_task(void* params) {
@@ -87,19 +99,18 @@ static void i2c_manager_task(void* params) {
                     }
                 }
 
+
                 if (should_execute) {
                     // 3. WAKE UP THE DRIVER TASK (Give it the "Token")
-                    xTaskNotifyGive(current_job.driver_task);
+                    TaskHandle_t driver_task = m_i2c_get_dev_task(current_job.driver_id);
+                    xTaskNotify(driver_task, current_job.commnad, 0);
                     
-                    // 4. WAIT FOR THE DRIVER TASK TO FINISH ITS I2C OPERATIONS
                     if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(100)) == 0) {
                     }
                 }
 
-                // 5. Periodic Re-queue Logic (ALWAYS re-queue if periodic)
+                //return task if task is periodic so next cycle ready
                 if (current_job.is_periodic) {
-                    // Push to the back of the queue for the NEXT scan cycle, 
-                    // regardless of whether it was executed or skipped this time.
                     xQueueSend(jobs, &current_job, 0);
                 }
             }
@@ -133,7 +144,7 @@ status_err_report_t m_i2c_init(
     };
     err = i2c_new_master_bus(&manager_bus_0.bus_cfg, &manager_bus_0.bus);
     if (err != ESP_OK) { STA_ERR_RETURN_PUSH(STA_ERR_S_C((uint16_t)err, OWN_m_i2c_init)); }
-
+    ESP_LOGI(TAG, "I2C Bus 0 initialized on SDA: %d, SCL: %d", sda_0, scl_0);
     // --- Bus 1 Init ---
     manager_bus_1.queue          = i2c_bus1_queue;
     manager_bus_1.events_to_wait = wait_group_1;
@@ -146,18 +157,26 @@ status_err_report_t m_i2c_init(
     };
     err = i2c_new_master_bus(&manager_bus_1.bus_cfg, &manager_bus_1.bus);
     if (err != ESP_OK) { STA_ERR_RETURN_PUSH(STA_ERR_S_C((uint16_t)err, OWN_m_i2c_init)); }
-    
-    // --- Create Manager Tasks ---
-    if (xTaskCreatePinnedToCore(i2c_manager_task, "i2c_mgr_0", 4096, &manager_bus_0, priority_bus0, &manager_bus_0.manager_task, 1) != pdPASS) {
-        STA_ERR_RETURN_PUSH(STA_ERR_S_C(ERR_ESP_ERR_NO_MEM, OWN_m_i2c_init));
-    }
-    if (xTaskCreatePinnedToCore(i2c_manager_task, "i2c_mgr_1", 4096, &manager_bus_1, priority_bus1, &manager_bus_1.manager_task, 0) != pdPASS) {
-        STA_ERR_RETURN_PUSH(STA_ERR_S_C(ERR_ESP_ERR_NO_MEM, OWN_m_i2c_init));
-    }
+    ESP_LOGI(TAG, "I2C Bus 1 initialized on SDA: %d, SCL: %d", sda_1, scl_1);
 
-    return (status_err_report_t){.code = 0}; 
+    // --- Create Manager Tasks ---
+    if (xTaskCreatePinnedToCore(i2c_manager_task, "i2c_mgr_0", 8192, &manager_bus_0, priority_bus0, &manager_bus_0.manager_task, 1) != pdPASS) {
+        STA_ERR_RETURN_PUSH(STA_ERR_S_C(ERR_ESP_ERR_NO_MEM, OWN_m_i2c_init));
+    }
+    if (xTaskCreatePinnedToCore(i2c_manager_task, "i2c_mgr_1", 8192, &manager_bus_1, priority_bus1, &manager_bus_1.manager_task, 0) != pdPASS) {
+        STA_ERR_RETURN_PUSH(STA_ERR_S_C(ERR_ESP_ERR_NO_MEM, OWN_m_i2c_init));
+    }
+    ESP_LOGI(TAG, "I2C Manager tasks created for both buses");
+    return STA_ERR_OK;
 }
 
+i2c_master_bus_handle_t m_i2c_get_bus_handle(uint8_t bus_num) {
+    return (bus_num == 0) ? manager_bus_0.bus : manager_bus_1.bus;
+}
+
+TaskHandle_t m_i2c_get_manager_task(uint8_t bus_num) {
+    return (bus_num == 0) ? manager_bus_0.manager_task : manager_bus_1.manager_task;
+}
 
 static uint8_t s_next_driver_id = 1;
 
@@ -168,7 +187,9 @@ status_err_report_t m_i2c_add_driver(
     const char* task_name, 
     uint32_t stack_depth, 
     uint8_t priority, 
-    bool is_periodic) 
+    bool is_periodic,
+    uint8_t* out_id
+) 
 {
     esp_err_t err;
 
@@ -208,10 +229,12 @@ status_err_report_t m_i2c_add_driver(
         STA_ERR_RETURN_PUSH(STA_ERR_S_C(ERR_I2C_DEV_ADD_FAIL, OWN_m_i2c_add_driver));
     }
 
-    // 5. Auto-Queue if Periodic
+    // in case of periodic operation
+    *out_id = driver_registry[slot].id;
     if (is_periodic) {
         m_i2c_driver_job_t initial_job = {
-            .driver_task = driver_registry[slot].task_handle,
+            .driver_id = driver_registry[slot].id,
+            .commnad = 1,
             .is_periodic = true,
             .keep_alive = &driver_registry[slot].is_active //from dev 
         };
@@ -219,7 +242,6 @@ status_err_report_t m_i2c_add_driver(
         QueueHandle_t target_queue = (bus == 0) ? manager_bus_0.queue : manager_bus_1.queue;
         xQueueSend(target_queue, &initial_job, portMAX_DELAY);
     }
-
     ESP_LOGI(TAG, "Driver '%s' added! ID: %u, Addr: 0x%02X", task_name, driver_registry[slot].id, dev_config.device_address);
     return STA_ERR_OK;
 }

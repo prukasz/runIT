@@ -4,8 +4,80 @@
 #include "gatt_svc.h"
 #include "nimble/nimble_port.h"
 #include "nvs_flash.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
+#include "freertos/ringbuf.h"
 
 #define TAG  __FILE_NAME__
+
+static RingbufHandle_t a_ble_rx_buffer = NULL;  
+static a_ble_events_t a_ble_events;
+static uint16_t a_ble_mtu_size = 527;
+
+void a_ble_add_rx_buffer(RingbufHandle_t rb) {
+    a_ble_rx_buffer = rb;
+}
+
+
+static int _ble_disconnect(struct ble_gap_event *event) {
+    if (event->disconnect.reason != BLE_HS_EDONE) {
+        xEventGroupSetBits(a_ble_events.ble_event, a_ble_events.bits_connection_failed); // Clear all bits to reset state
+        ESP_LOGW(TAG, "Disconnected: reason=%d", event->disconnect.reason);
+    } else {
+        ESP_LOGI(TAG, "Disconnected: reason=EDONE");
+    }
+    ESP_LOGI(TAG, "Starting advertising...");
+    return ble_gap_reconfigure_advertising();
+}
+
+static int _ble_on_tx_complete(struct ble_gap_event *event) {
+    if (event->notify_tx.indication && event->notify_tx.status == BLE_HS_EDONE) {
+        // Notify that notification complete
+        xTaskNotify(a_ble_events.ble_manager_task_handle, a_ble_events.bits_indication_complete, eSetBits);
+    } else if (!event->notify_tx.indication && event->notify_tx.status == 0) {
+        // Notify that notification complete
+        xTaskNotify(a_ble_events.ble_manager_task_handle, a_ble_events.bits_notify_complete, eSetBits);
+    } else if (event->notify_tx.indication && event->notify_tx.status == BLE_HS_ETIMEOUT) {
+        // Notify that indication  failed
+        xTaskNotify(a_ble_events.ble_manager_task_handle, a_ble_events.bits_indication_timeout, eSetBits);
+    }
+    return 0;
+}
+
+static int _ble_mtu_update(struct ble_gap_event *event) {
+    a_ble_mtu_size = event->mtu.value;
+    ESP_LOGI(TAG, "MTU updated: conn_handle=%d mtu=%d", event->mtu.conn_handle, event->mtu.value);  
+    xEventGroupSetBits(a_ble_events.ble_event, a_ble_events.bits_mtu_update);
+    return 0;
+}
+
+static int _ble_on_connect(struct ble_gap_event *event) {
+    xEventGroupSetBits(a_ble_events.ble_event, a_ble_events.bits_connected);
+        ESP_LOGI(TAG, "Connected: conn_handle=%d", event->connect.conn_handle);
+        return 0;
+    return 0;
+}
+
+
+
+static int _ble_on_rx(struct ble_gatt_access_ctxt *ctxt) {
+    size_t len = OS_MBUF_PKTLEN(ctxt->om);
+             
+    if (len > 0) {
+        if (a_ble_rx_buffer == NULL) {
+            return 1;
+        }
+        uint8_t data_buffer[a_ble_mtu_size];
+        os_mbuf_copydata(ctxt->om, 0, len, data_buffer);
+
+        if (xRingbufferSend(a_ble_rx_buffer, data_buffer, len, 0) != pdTRUE) {
+            xEventGroupSetBits(a_ble_events.ble_event, a_ble_events.bits_rx_failed);
+        }
+
+        xEventGroupSetBits(a_ble_events.ble_event, a_ble_events.bits_rx_received);
+    }
+    return 0;
+}
 
 
 void ble_store_config_init(void);
@@ -13,7 +85,6 @@ static void on_stack_reset(int reason); // Called on BLE stack reset
 static void on_stack_sync(void);        // Called when stack syncs with controller
 static void nimble_host_config_init(void); // Initialize NimBLE host callbacks
 static void nimble_host_task(void *param); // NimBLE host task loop
-
 
 static void on_stack_reset(int reason){
     ESP_LOGW(TAG, "stack reset reason: %d", reason);
@@ -61,7 +132,15 @@ esp_err_t a_ble_set_name(const char* name){
 * @brief Start BLE
 * @return ESP_OK on Success
 */
-esp_err_t a_ble_init(void){
+esp_err_t a_ble_init(a_ble_events_t *events) {\
+    //store all events
+    a_ble_events = *events;
+    //add callbacks for events
+    a_ble_add_callback_on_connect(&_ble_on_connect);
+    a_ble_add_callback_on_tx_complete(&_ble_on_tx_complete);
+    a_ble_add_callback_on_disconnect(&_ble_disconnect);
+    a_ble_add_callback_on_mtu_update(&_ble_mtu_update);
+    a_ble_add_callback_on_write(&_ble_on_rx);
 
     esp_err_t res;
     res = nvs_flash_init();
@@ -81,10 +160,7 @@ esp_err_t a_ble_init(void){
     // Configure NimBLE host callbacks
     nimble_host_config_init();  
     xTaskCreate(nimble_host_task, "BLE", 4*1024, NULL, 3, NULL);
-// Initialize with no-op callback
-    res = a_ble_set_name("runit");
-
-    return res;
+    return a_ble_set_name("runit");
 }
 
 /**
@@ -109,10 +185,12 @@ esp_err_t a_ble_send_notification(uint16_t conn_handle, uint16_t chr_val_handle,
     int rc = ble_gatts_notify_custom(conn_handle, chr_val_handle, om);
 
     if (rc != 0) {
-        ESP_LOGE(TAG, "Notify error: %i", rc);
         if (rc == BLE_HS_ENOMEM) {
              return ESP_ERR_NO_MEM;
+        } else if (rc == BLE_HS_ENOTCONN) {
+             return 6; // Return ENOTCONN code gracefully without printing error logs 
         }
+        ESP_LOGE(TAG, "Notify error: %i", rc);
         return ESP_FAIL; 
     }
     return ESP_OK;
@@ -151,14 +229,8 @@ esp_err_t a_ble_send_indication(uint16_t conn_handle, uint16_t chr_val_handle, c
     return ESP_OK;
 }
 
-void a_ble_add_callback_on_write(esp_err_t (*callback)(const uint8_t* data, size_t len)) {
-    gatt_svc_add_callback_on_write(callback);
-}
 
-uint16_t a_ble_get_vm_out_conn_handle(void) {
-    return gatt_get_vm_out_conn_handle();
-}
 
-uint16_t a_ble_get_vm_out_val_handle(void) {
-    return gatt_get_vm_out_val_handle();
-}
+
+
+
