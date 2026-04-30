@@ -58,7 +58,8 @@ typedef enum {
     ERR_NO_MEM                      = 9,      /*!< Custom out of memory */
     ERR_INVALID_ARG                 = 10,     /*!< Custom invalid argument */
     ERR_I2C_DEV_REG_FULL,  
-    ERR_I2C_DEV_ADD_FAIL,         
+    ERR_I2C_DEV_ADD_FAIL,      
+    ERR_I2C_DEV_MNT_F,   
     /* --- Standard ESP-IDF Error Codes (Prefixed) --- */
     ERR_ESP_ERR_NO_MEM              = 0x101,  /*!< Out of memory */
     ERR_ESP_ERR_INVALID_ARG         = 0x102,  /*!< Invalid argument */

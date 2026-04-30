@@ -61,7 +61,7 @@ void m_ble_buff_register_tx(RingbufHandle_t tx_buffer, uint8_t priority);
  * @param len The length of the data
  * @return ESP_OK on success, otherwise an error code
  */
-esp_err_t m_ble_tx_enqueue(RingbufHandle_t tx_buffer, const uint8_t* data, size_t len);
+esp_err_t m_ble_tx_enqueue(RingbufHandle_t tx_buffer, const uint8_t* data, size_t len, bool return_when_full);
 
 /**
  * @brief Enqueues received data into the RX buffer, set Received event bit
@@ -79,3 +79,4 @@ esp_err_t m_ble_rx_enqueue(const uint8_t* data, size_t len);
  */
 esp_err_t m_ble_rx_dequeue(uint8_t* data, size_t* len);
 
+esp_err_t m_ble_tx_dequeue(RingbufHandle_t tx_buffer, uint8_t* data, size_t* len);

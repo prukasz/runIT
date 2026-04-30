@@ -9,40 +9,23 @@
 
 #define TAG __FILE_NAME__
 
-/*****************************************************************************************/
 
-TaskHandle_t m_ble_task_handle = NULL;
+/*****************************************************************************************/
+/*Global Variables*/
+static TaskHandle_t m_ble_task_handle = NULL;
 
 static m_ble_cfg_t *cfg = NULL;
 
 static RingbufHandle_t m_ble_rx_buffer = NULL;
+
+// tx_buffers storage
 static RingbufHandle_t m_ble_tx_buffers[MAX_TX_BUFFERS] = {0};
 
 /*****************************************************************************************/
 
-static esp_err_t m_ble_rb_enqueue(RingbufHandle_t rb, const uint8_t *data, size_t len) {
-    if (xRingbufferSend(rb, data, len, pdMS_TO_TICKS(100)) != pdTRUE) { return ESP_ERR_NO_MEM; }
-    return ESP_OK;
-}
-
-static esp_err_t m_ble_rb_dequeue(RingbufHandle_t rb, uint8_t *data, size_t *len) {
-    size_t item_size = 0;
-    void *item = xRingbufferReceive(rb, &item_size, 0);
-    if (item == NULL) { return ESP_ERR_NOT_FOUND; }
-
-    if (item_size > *len) {
-        vRingbufferReturnItem(rb, item);
-        return ESP_ERR_INVALID_SIZE;
-    }
-
-    memcpy(data, item, item_size);
-    *len = item_size;
-
-    vRingbufferReturnItem(rb, item);
-    return ESP_OK;
-}
-
-
+/**
+ * @brief This task is responsible for sending BLE data from assigned buffers
+ */
 static void m_ble_task(void *pvParameters) {
     (void)pvParameters;
     while (1) {
@@ -55,8 +38,10 @@ static void m_ble_task(void *pvParameters) {
             portMAX_DELAY);
 
         bool data_sent;
+        /*DEBUG*/
         uint64_t start_time = esp_timer_get_time();
         uint32_t send_count = 0;
+        /*DEBUG*/
         do {
             uint8_t tx_data[512] = {0};
             data_sent = false;
@@ -65,7 +50,7 @@ static void m_ble_task(void *pvParameters) {
                 if (m_ble_tx_buffers[i] == NULL) continue;
 
                 size_t tx_len = sizeof(tx_data);
-                esp_err_t deq_res = m_ble_rb_dequeue(m_ble_tx_buffers[i], tx_data, &tx_len);
+                esp_err_t deq_res = m_ble_tx_dequeue(m_ble_tx_buffers[i], tx_data, &tx_len);
                 
                 if (deq_res == ESP_OK) {
                     uint16_t conn_handle = a_ble_get_tx_conn_handle();
@@ -75,7 +60,9 @@ static void m_ble_task(void *pvParameters) {
                     esp_err_t send_res = a_ble_send_notification(conn_handle, val_handle, tx_data, tx_len); 
                     if (send_res == ESP_OK) { 
                         data_sent = true;
+                        /*DEBUG*/
                         send_count++;
+                        /*DEBUG*/
                         break; 
                     }else if (send_res == ESP_ERR_NO_MEM) {
                         xEventGroupWaitBits(
@@ -85,7 +72,7 @@ static void m_ble_task(void *pvParameters) {
                             pdFALSE,
                             pdMS_TO_TICKS(100)
                         );
-                            goto REPEAT; // Retry sending the same data after being notified of completion or timeout
+                            goto REPEAT; // Retry sending the same data after being notified of completion or timeout 
                     } else {
                         if (send_res != 6) {
                             ESP_LOGE(TAG, "Fatal send error: %s", esp_err_to_name(send_res));
@@ -95,8 +82,9 @@ static void m_ble_task(void *pvParameters) {
                 }
             }
         } while (data_sent); // Keep looping until ALL buffers are completely empty
-
+        /*DEBUG*/
         ESP_LOGI(TAG, "BLE Task: Completed sending data cnt %lu queued data in %lld us", send_count, (esp_timer_get_time() - start_time));
+        /*DEBUG*/
         xEventGroupSetBits(cfg->m_ble_events, cfg->m_ble_bits_tx_done);
     }
 }
@@ -124,7 +112,7 @@ void m_ble_init(m_ble_cfg_t *config) {
         ESP_LOGE(TAG, "Failed to initialize BLE driver: %s", esp_err_to_name(err));
         return;
     }
-    ESP_LOGI(TAG, "BLE driver and manager initialized successfully, register buffers now->");
+    ESP_LOGI(TAG, "BLE driver and manager initialized successfully, please register buffers now->");
 }
 
 void m_ble_buff_register_rx(RingbufHandle_t rx_buffer) {
@@ -143,33 +131,73 @@ void m_ble_buff_register_tx(RingbufHandle_t tx_buffer, uint8_t priority) {
 }
 
 
-esp_err_t m_ble_tx_enqueue(RingbufHandle_t tx_buffer, const uint8_t* data, size_t len) { 
-    if (tx_buffer == NULL) {
-        return ESP_ERR_INVALID_ARG;
+esp_err_t m_ble_tx_enqueue(RingbufHandle_t tx_buffer, const uint8_t* data, size_t len, bool return_when_full) { 
+    if (tx_buffer == NULL) { return ESP_ERR_INVALID_ARG;}
+
+    uint32_t wait_time_ms = return_when_full ? 100 : 0;
+
+    //add data to ringbuffer, if fails return error
+    if (xRingbufferSend(tx_buffer, data, len, pdMS_TO_TICKS(wait_time_ms)) != pdTRUE) {
+         return ESP_ERR_NO_MEM;
     }
-    
-    esp_err_t res = m_ble_rb_enqueue(tx_buffer, data, len);
-    if (res == ESP_OK) {
-        xEventGroupSetBits(cfg->m_ble_events, cfg->m_ble_bits_tx_start);
-    }
-    return res;
+    //signal manager task that data is in buffer
+    xEventGroupSetBits(cfg->m_ble_events, cfg->m_ble_bits_tx_start);
+    return ESP_OK; 
 }
 
 
+
+
 esp_err_t m_ble_rx_enqueue(const uint8_t* data, size_t len) {
-    if (m_ble_rx_buffer == NULL) {
-        return ESP_ERR_INVALID_STATE;
+    if (m_ble_rx_buffer == NULL) { return ESP_ERR_INVALID_ARG;}
+
+    //add data to ringbuffer, if fails return error
+    if (xRingbufferSend(m_ble_rx_buffer, data, len, 0) != pdTRUE) {
+         return ESP_ERR_NO_MEM;
     }
-    esp_err_t res = m_ble_rb_enqueue(m_ble_rx_buffer, data, len);
-    if (res == ESP_OK) {
-        xEventGroupSetBits(cfg->m_ble_events, cfg->m_ble_bits_on_rx);
-    }
-    return res;
+    //signal other task that data is in buffer
+    xEventGroupSetBits(cfg->m_ble_events, cfg->m_ble_bits_on_rx);
+    return ESP_OK;
 }
 
 esp_err_t m_ble_rx_dequeue(uint8_t* data, size_t* len) {
     if (m_ble_rx_buffer == NULL) {
-        return ESP_ERR_INVALID_STATE;
+        return ESP_ERR_INVALID_ARG;
     }
-    return m_ble_rb_dequeue(m_ble_rx_buffer, data, len);
+
+    size_t item_size = 0;
+    void *item = xRingbufferReceive(m_ble_rx_buffer, &item_size, 0);
+    if (item == NULL) { return ESP_ERR_NOT_FOUND; }
+
+    if (item_size > *len) {
+        vRingbufferReturnItem(m_ble_rx_buffer, item);
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    memcpy(data, item, item_size);
+    *len = item_size;
+
+    vRingbufferReturnItem(m_ble_rx_buffer, item);
+    return ESP_OK;
+}
+
+esp_err_t m_ble_tx_dequeue(RingbufHandle_t tx_buffer, uint8_t* data, size_t* len) {
+    if (tx_buffer == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    size_t item_size = 0;
+    void *item = xRingbufferReceive(tx_buffer, &item_size, 0);
+    if (item == NULL) { return ESP_ERR_NOT_FOUND; }
+
+    if (item_size > *len) {
+        vRingbufferReturnItem(tx_buffer, item);
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    memcpy(data, item, item_size);
+    *len = item_size;
+
+    vRingbufferReturnItem(tx_buffer, item);
+    return ESP_OK;
 }
