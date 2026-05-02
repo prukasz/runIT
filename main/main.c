@@ -9,6 +9,7 @@
 #include "manager_ble.h"
 #include "a_ble.h"
 #include "esp_timer.h"
+#include "interface_dispatcher.h"
 
 static const char *TAG = "MAIN";
 
@@ -27,6 +28,10 @@ static const char *TAG = "MAIN";
 #define EVENT_BIT_BLE_CONNECTED        (1 << 6)
 #define EVENT_BIT_BLE_CONNECTION_FAILED (1 << 7)
 
+#define EVENT_BIT_INTERFACE_CMD_COMPLETE   (1 << 8)
+#define EVENT_BIT_INTERFACE_CMD_ERROR      (1 << 9)
+#define EVENT_BIT_INTERFACE_CMD_STOP       (1 << 10)
+
 static EventGroupHandle_t s_events_set = NULL;
 static EventGroupHandle_t s_events_wait = NULL;
 static RingbufHandle_t s_tx_buffer = NULL;
@@ -37,28 +42,28 @@ static uint32_t s_send_counter = 0;
 /**
  * @brief Task to receive and display BLE messages
  */
-static void rx_display_task(void *pvParameters) {
-    (void)pvParameters;
-    uint8_t data[256];
+// static void rx_display_task(void *pvParameters) {
+//     (void)pvParameters;
+//     uint8_t data[256];
     
-    ESP_LOGI(TAG, "RX Display task started");
+//     ESP_LOGI(TAG, "RX Display task started");
     
-    while (1) {
-        xEventGroupWaitBits(s_events_set, EVENT_BIT_BLE_RX, pdTRUE, pdFALSE, portMAX_DELAY);
+//     while (1) {
+//         xEventGroupWaitBits(s_events_set, EVENT_BIT_BLE_RX, pdTRUE, pdFALSE, portMAX_DELAY);
         
-        size_t len = sizeof(data);
-        esp_err_t ret = m_ble_rx_dequeue(data, &len);
-        if (ret == ESP_OK && len > 0) {
-            ESP_LOGI(TAG, "RX Message (%u bytes): ", (unsigned)len);
-            printf("ASCII: ");
-            for (size_t i = 0; i < len; i++) {
-                if (data[i] >= 32 && data[i] < 127) printf("%c", data[i]);
-                else printf(".");
-            }
-            printf("\n");
-        }
-    }
-}
+//         size_t len = sizeof(data);
+//         esp_err_t ret = m_ble_rx_dequeue(data, &len);
+//         if (ret == ESP_OK && len > 0) {
+//             ESP_LOGI(TAG, "RX Message (%u bytes): ", (unsigned)len);
+//             printf("ASCII: ");
+//             for (size_t i = 0; i < len; i++) {
+//                 if (data[i] >= 32 && data[i] < 127) printf("%c", data[i]);
+//                 else printf(".");
+//             }
+//             printf("\n");
+//         }
+//     }
+// }
 
 /**
  * @brief Task to send periodic test messages (Speed Test Mode)
@@ -121,11 +126,24 @@ void app_main(void) {
     m_ble_buff_register_tx(s_tx_buffer, 0);    // Priority 0: Normal TX Data
 
     ESP_LOGI(TAG, "BLE manager initialized");
+
+    interface_cfg_t interface_cfg = {0};
+    interface_cfg.connection_events = s_events_set;
+    interface_cfg.connection_bits_rx = EVENT_BIT_BLE_RX;
+    interface_cfg.interface_bits_on_complete = EVENT_BIT_INTERFACE_CMD_COMPLETE;
+    interface_cfg.interface_bits_on_error = EVENT_BIT_INTERFACE_CMD_ERROR;
+    interface_cfg.interface_bits_on_stop = EVENT_BIT_INTERFACE_CMD_STOP;
+    interface_cfg.task_priority = 4;
+    interface_cfg.task_stack_size = 4096;
+    interface_init(&interface_cfg);
+
+    interface_buff_register_rx(s_rx_buffer);
         
     vTaskDelay(pdMS_TO_TICKS(500));
     xEventGroupWaitBits(s_events_set, EVENT_BIT_BLE_CONNECTED, pdFALSE, pdFALSE, portMAX_DELAY);
-    xTaskCreate(&rx_display_task, "rx_display", 4096, NULL, 5, NULL);
-    xTaskCreate(&tx_periodic_task, "tx_periodic", 4096, NULL, 4, NULL);
+    // xTaskCreate(&rx_display_task, "rx_display", 4096, NULL, 5, NULL);
+    // xTaskCreate(&tx_periodic_task, "tx_periodic", 4096, NULL, 4, NULL);
+    
     
     ESP_LOGI(TAG, "=== Test started, waiting for BLE connections ===");
     
