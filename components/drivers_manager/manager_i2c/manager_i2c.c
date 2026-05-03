@@ -145,27 +145,27 @@ status_err_report_t m_i2c_init(m_i2c_config_t* bus0_config, m_i2c_config_t* bus1
     bus_aperiodic_queue_1 = xQueueCreate(manager_bus_cfg_1->queue_size_aperiodic, sizeof(m_i2c_driver_job_t));
 
     if (!bus_periodic_queue_0 || !bus_periodic_queue_1 || !bus_aperiodic_queue_0 || !bus_aperiodic_queue_1) {
-        STA_ERR_RETURN_PUSH(STA_ERR_S_C(ERR_ESP_ERR_NO_MEM, OWN_m_i2c_init));
+        STA_RET_PUSH_LOG(STA_C(ERR_ESP_ERR_NO_MEM, OWN_m_i2c_init, 0), "Failed to create queues");
     }
 
     err = i2c_new_master_bus(&manager_bus_cfg_0->bus_cfg, &bus_handle_0);
-    if (err != ESP_OK) { STA_ERR_RETURN_PUSH(STA_ERR_S_C((uint16_t)err, OWN_m_i2c_init)); }
-    ESP_LOGI(TAG, "I2C Bus 0 initialized on SDA: %d, SCL: %d", manager_bus_cfg_0->bus_cfg.sda_io_num, manager_bus_cfg_0->bus_cfg.scl_io_num);
+    if (err != ESP_OK) { STA_RET_PUSH_LOG(STA_C((uint16_t)err, OWN_m_i2c_init, 0),
+         "Failed to initialize I2C Bus 0 sda %d, scl %d", manager_bus_cfg_0->bus_cfg.sda_io_num, manager_bus_cfg_0->bus_cfg.scl_io_num); }
 
     
     err = i2c_new_master_bus(&manager_bus_cfg_1->bus_cfg, &bus_handle_1);
-    if (err != ESP_OK) { STA_ERR_RETURN_PUSH(STA_ERR_S_C((uint16_t)err, OWN_m_i2c_init)); }
-    ESP_LOGI(TAG, "I2C Bus 1 initialized on SDA: %d, SCL: %d", manager_bus_cfg_1->bus_cfg.sda_io_num, manager_bus_cfg_1->bus_cfg.scl_io_num);
+    if (err != ESP_OK) { STA_RET_PUSH_LOG(STA_C((uint16_t)err, OWN_m_i2c_init, 0),
+         "Failed to initialize I2C Bus 1 sda %d, scl %d", manager_bus_cfg_1->bus_cfg.sda_io_num, manager_bus_cfg_1->bus_cfg.scl_io_num); }
 
     // --- Create Manager Tasks ---
     if (xTaskCreatePinnedToCore(i2c_manager_task, "i2c_mgr_0", manager_bus_cfg_0->task_stack_size, manager_bus_cfg_0, manager_bus_cfg_0->task_priority, &manager_task_handle_0, 1) != pdPASS) {
-        STA_ERR_RETURN_PUSH(STA_ERR_S_C(ERR_ESP_ERR_NO_MEM, OWN_m_i2c_init));
+        STA_RET_PUSH_LOG(STA_C(ERR_ESP_ERR_NO_MEM, OWN_m_i2c_init, 0), "Failed to create manager task for bus 0");
     }
     if (xTaskCreatePinnedToCore(i2c_manager_task, "i2c_mgr_1", manager_bus_cfg_1->task_stack_size, manager_bus_cfg_1, manager_bus_cfg_1->task_priority, &manager_task_handle_1, 0) != pdPASS) {
-        STA_ERR_RETURN_PUSH(STA_ERR_S_C(ERR_ESP_ERR_NO_MEM, OWN_m_i2c_init));
+        STA_RET_PUSH_LOG(STA_C(ERR_ESP_ERR_NO_MEM, OWN_m_i2c_init, 0), "Failed to create manager task for bus 1");
     }
-    ESP_LOGI(TAG, "I2C Manager tasks created for both buses");
-    return STA_ERR_OK;
+    STA_RET_PUSH_LOG(STA_I(STA_I2C_INITILAIZED, OWN_m_i2c_init, 0), "I2C Manager initialized successfully");
+    return STA_OK;
 }
 
 i2c_master_bus_handle_t m_i2c_get_bus_handle(uint8_t bus_num) {
@@ -203,13 +203,13 @@ status_err_report_t m_i2c_add_driver(
         }
     }
 
-    if (slot == -1) {STA_ERR_RETURN_PUSH(STA_ERR_S_C(ERR_I2C_DEV_REG_FULL, OWN_m_i2c_add_driver));}
+    if (slot == -1) {STA_RET_PUSH_LOG(STA_C(ERR_I2C_DEV_REG_FULL, OWN_m_i2c_add_driver, M_I2C_MAX_DEVICES), "Failed to add I2C driver: registry full");}
 
     i2c_master_bus_handle_t target_bus_handle = m_i2c_get_bus_handle(bus ? 1 : 0);
     i2c_master_dev_handle_t new_dev_handle;
     
     err = i2c_master_bus_add_device(target_bus_handle, &dev_config, &new_dev_handle);
-    if (err != ESP_OK) {STA_ERR_RETURN_PUSH(STA_ERR_S_C((uint16_t)err, OWN_m_i2c_add_driver));}
+    if (err != ESP_OK) {STA_RET_PUSH_LOG(STA_C((uint16_t)err, OWN_m_i2c_add_driver, dev_config.device_address), "Failed to add I2C device to bus %d: %02X", bus ? 1 : 0, dev_config.device_address);}
 
     driver_registry[slot].dev_cfg = dev_config;
     driver_registry[slot].dev_handle = new_dev_handle;
@@ -231,8 +231,8 @@ status_err_report_t m_i2c_add_driver(
         xQueueSend(target_queue, &initial_job, portMAX_DELAY);
     }
     
-    ESP_LOGI(TAG, "Driver added! ID: %u, Addr: 0x%02X", driver_registry[slot].id, dev_config.device_address);
-    return STA_ERR_OK;
+    STA_RET_PUSH_LOG(STA_I(STA_I2C_DRIVER_ADDED, OWN_m_i2c_add_driver, dev_config.device_address), "Driver added to bus %d with address 0x%02X", bus ? 1 : 0, dev_config.device_address);
+    return STA_OK;
 }
 status_err_report_t m_i2c_enqueue_aperiodic_job(uint8_t id) {
     for (int i = 0; i < M_I2C_MAX_DEVICES; i++) {
@@ -244,8 +244,8 @@ status_err_report_t m_i2c_enqueue_aperiodic_job(uint8_t id) {
             };
             QueueHandle_t target_queue = (driver_registry[i].bus == 0) ? bus_aperiodic_queue_0 : bus_aperiodic_queue_1;
             xQueueSend(target_queue, &job, 0);
-            return STA_ERR_OK;
+            return STA_OK;
         }
     }
-    return STA_ERR_S_C(ERR_I2C_DEV_MNT_F, OWN_m_i2c_add_driver);
+    STA_RET_PUSH_LOG(STA_E(ERR_I2C_DEV_NOT_FOUND, OWN_m_i2c_add_driver, id), "Failed to enqueue aperiodic job: driver with ID %d not found", id);    
 }

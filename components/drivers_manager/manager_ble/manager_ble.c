@@ -169,11 +169,6 @@ esp_err_t m_ble_rx_dequeue(uint8_t* data, size_t* len) {
     void *item = xRingbufferReceive(m_ble_rx_buffer, &item_size, 0);
     if (item == NULL) { return ESP_ERR_NOT_FOUND; }
 
-    if (item_size > *len) {
-        vRingbufferReturnItem(m_ble_rx_buffer, item);
-        return ESP_ERR_INVALID_SIZE;
-    }
-
     memcpy(data, item, item_size);
     *len = item_size;
 
@@ -189,11 +184,6 @@ esp_err_t m_ble_tx_dequeue(RingbufHandle_t tx_buffer, uint8_t* data, size_t* len
     size_t item_size = 0;
     void *item = xRingbufferReceive(tx_buffer, &item_size, 0);
     if (item == NULL) { return ESP_ERR_NOT_FOUND; }
-
-    if (item_size > *len) {
-        vRingbufferReturnItem(tx_buffer, item);
-        return ESP_ERR_INVALID_SIZE;
-    }
 
     memcpy(data, item, item_size);
     *len = item_size;

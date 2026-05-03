@@ -55,7 +55,7 @@ static interface_dev_cfg_func interface_dev_cfg_setter_table[255] = {
     [DEV_TYPE_ADS]           = NULL, // To be implemented
     [DEV_TYPE_DAC]           = NULL, // To be implemented
     [DEV_TYPE_TCA]           = NULL, // To be implemented
-    [DEV_TYPE_PCA]           = pca9685_parse_cfg_packet, // To be implemented
+    [DEV_TYPE_PCA]           = NULL, // To be implemented
     [DEV_TYPE_INA]           = NULL, // To be implemented
     [DEV_TYPE_AP]            = NULL, // To be implemented
 };

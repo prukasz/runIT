@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <esp_random.h>
 
+
+#include "manager_i2c.h"
 #include "manager_ble.h"
 #include "a_ble.h"
 #include "esp_timer.h"
@@ -25,10 +27,16 @@ static const char *TAG = "MAIN";
 #define EVENT_BIT_BLE_IND_TIMEOUT       (1 << 5) 
 #define EVENT_BIT_BLE_CONNECTED         (1 << 6)
 #define EVENT_BIT_BLE_CONNECTION_FAILED (1 << 7)
+#define EVENT_BIT_BLE_DISCONNECTED      (1 << 8)
+#define EVENT_BIT_BLE_MTU_UPDATED       (1 << 9)
 
 #define EVENT_BIT_INTERFACE_CMD_COMPLETE   (1 << 8)
 #define EVENT_BIT_INTERFACE_CMD_ERROR      (1 << 9)
 #define EVENT_BIT_INTERFACE_CMD_STOP       (1 << 10)
+
+#define EVENT_BIT_I2C_PROCESS (1 << 11)
+#define EVENT_BIT_I2C_DONE    (1 << 12)
+#define EVENT_BIT_I2C_TIMEOUT (1 << 13)
 
 static EventGroupHandle_t s_events_set = NULL;
 static EventGroupHandle_t s_events_wait = NULL;
@@ -36,31 +44,34 @@ static RingbufHandle_t s_tx_buffer = NULL;
 static RingbufHandle_t s_rx_buffer = NULL;
 static uint32_t s_send_counter = 0;
 
+static uint8_t s_driver1_id = 0;
+static uint8_t s_driver2_id = 0;
+
 /**
  * @brief Task to receive and display BLE messages
  */
-// static void rx_display_task(void *pvParameters) {
-//     (void)pvParameters;
-//     uint8_t data[256];
+static void rx_display_task(void *pvParameters) {
+    (void)pvParameters;
+    uint8_t data[256];
     
-//     ESP_LOGI(TAG, "RX Display task started");
+    ESP_LOGI(TAG, "RX Display task started");
     
-//     while (1) {
-//         xEventGroupWaitBits(s_events_set, EVENT_BIT_BLE_RX, pdTRUE, pdFALSE, portMAX_DELAY);
+    while (1) {
+        xEventGroupWaitBits(s_events_set, EVENT_BIT_BLE_RX, pdTRUE, pdFALSE, portMAX_DELAY);
         
-//         size_t len = sizeof(data);
-//         esp_err_t ret = m_ble_rx_dequeue(data, &len);
-//         if (ret == ESP_OK && len > 0) {
-//             ESP_LOGI(TAG, "RX Message (%u bytes): ", (unsigned)len);
-//             printf("ASCII: ");
-//             for (size_t i = 0; i < len; i++) {
-//                 if (data[i] >= 32 && data[i] < 127) printf("%c", data[i]);
-//                 else printf(".");
-//             }
-//             printf("\n");
-//         }
-//     }
-// }
+        size_t len = sizeof(data);
+        esp_err_t ret = m_ble_rx_dequeue(data, &len);
+        if (ret == ESP_OK && len > 0) {
+            ESP_LOGI(TAG, "RX Message (%u bytes): ", (unsigned)len);
+            printf("ASCII: ");
+            for (size_t i = 0; i < len; i++) {
+                if (data[i] >= 32 && data[i] < 127) printf("%c", data[i]);
+                else printf(".");
+            }
+            printf("\n");
+        }
+    }
+}
 
 /**
  * @brief Task to send periodic test messages (Speed Test Mode)
@@ -124,12 +135,12 @@ static void i2c_trigger_task(void *pvParameters) {
     uint32_t counter = 0;
     while(1) {
         // 1. Tick the manager every 100ms so it processes the periodic queue
-        vTaskDelay(pdMS_TO_TICKS(100)); 
-        xEventGroupSetBits(s_i2c_events, EVENT_BIT_I2C_PROCESS);
+        vTaskDelay(pdMS_TO_TICKS(1000)); 
+        xEventGroupSetBits(s_events_set, EVENT_BIT_I2C_PROCESS);
 
         counter++;
-        
-        // 2. Every 20 ticks (2 seconds), enqueue the aperiodic driver 2
+
+        // 2. Every 20 ticks (2 seconds), enqueue the aperiodic driver 2        
         if (counter % 20 == 0) {
             ESP_LOGI(TAG, "--- Enqueuing Driver 2 Aperiodic Job ---");
             m_i2c_enqueue_aperiodic_job(s_driver2_id);
@@ -182,11 +193,66 @@ void app_main(void) {
     interface_init(&interface_cfg);
 
     interface_buff_register_rx(s_rx_buffer);
-        
+
+    // --- I2C Manager Init ---
+    m_i2c_config_t bus0_config = {
+        .m_i2c_events = s_events_set,
+        .m_i2c_bits_queue_process = EVENT_BIT_I2C_PROCESS,
+        .m_i2c_bits_queue_done = EVENT_BIT_I2C_DONE,
+        .m_i2c_bits_queue_timeout = EVENT_BIT_I2C_TIMEOUT,
+        .m_i2c_bits_emergency_stop = 0,
+        .m_i2c_bus_num = 0,
+        .task_priority = 10,
+        .task_stack_size = 4096,
+        .core = true,
+        .queue_size_aperiodic = 10,
+        .queue_size_periodic = 10,
+        .bus_cfg = {
+            .i2c_port =  I2C_NUM_0,
+            .sda_io_num = 18,
+            .scl_io_num = 19,
+            .clk_source = I2C_CLK_SRC_DEFAULT,
+            .glitch_ignore_cnt = 7,
+            .intr_priority = 0,
+            .trans_queue_depth = 0,
+            .flags = {
+                .enable_internal_pullup = true,
+            }
+        }
+    };
+
+    m_i2c_config_t bus1_config = bus0_config; 
+    bus1_config.m_i2c_bus_num = I2C_NUM_1;
+    bus1_config.bus_cfg.i2c_port = I2C_NUM_1;
+    bus1_config.bus_cfg.sda_io_num = 4;
+    bus1_config.bus_cfg.scl_io_num = 5;
+
+    m_i2c_init(&bus0_config, &bus1_config);
+
+    // Add drivers
+    i2c_device_config_t dummy_dev_config = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = 0x40, // Dummy Address
+        .scl_speed_hz = 100000,
+    };
+    
+    m_i2c_add_driver(0, dummy_dev_config, dummy_driver1_task, true, &s_driver1_id);
+
+    i2c_device_config_t dummy_dev2_config = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = 0x41, // Dummy Address
+        .scl_speed_hz = 100000,
+    };
+    
+    m_i2c_add_driver(0, dummy_dev2_config, dummy_driver2_task, false, &s_driver2_id);
+
+    // Start testing
+    xTaskCreate(i2c_trigger_task, "i2c_trigger", 2048, NULL, 5, NULL);
+
     vTaskDelay(pdMS_TO_TICKS(500));
     xEventGroupWaitBits(s_events_set, EVENT_BIT_BLE_CONNECTED, pdFALSE, pdFALSE, portMAX_DELAY);
-    // xTaskCreate(&rx_display_task, "rx_display", 4096, NULL, 5, NULL);
-    // xTaskCreate(&tx_periodic_task, "tx_periodic", 4096, NULL, 4, NULL);
+    //xTaskCreate(&rx_display_task, "rx_display", 4096, NULL, 5, NULL);
+    xTaskCreate(&tx_periodic_task, "tx_periodic", 4096, NULL, 4, NULL);
     
     
     ESP_LOGI(TAG, "=== BLE Connected, Data Exchange Started ===");
