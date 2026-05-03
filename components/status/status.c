@@ -6,11 +6,13 @@
 
 status_manager_flags_t s_err_manager_flags = {0};
 RingbufHandle_t s_err_buffer_handle = NULL;
+RingbufHandle_t s_status_buffer_handle = NULL;
 TaskHandle_t s_manager_task_handle = NULL;
-static EventGroupHandle_t s_events_to_set = NULL;
-static EventGroupHandle_t s_events_to_wait = NULL;
+
 static uint32_t s_set_bits = 0;
 static uint32_t s_wait_bits = 0;
+
+static m_status_cfg_t *s_manager_events;
 
 void s_manager_cgf_i(bool en_log, bool en_rep) {
     s_err_manager_flags.log_i = en_log;
@@ -31,23 +33,19 @@ void s_manager_cgf_c(bool en_log, bool en_rep) {
 static void s_manager_task(void *pvParameters) {
 
     while (1) {
-        xEventGroupWaitBits(s_events_to_wait, s_wait_bits, pdTRUE, pdFALSE, portMAX_DELAY);
+        xEventGroupWaitBits(s_manager_events->events, s_manager_events->bits_task_run, pdTRUE, pdFALSE, portMAX_DELAY);
         
         ESP_LOGI("s_manager_task", "Event received, processing...");
 
-        xEventGroupSetBits(s_events_to_set, s_set_bits);
+        xEventGroupSetBits(s_manager_events->events, s_manager_events->bits_task_done);
     }
 
 }
 
-void s_manager_init(EventGroupHandle_t events_to_set, EventGroupHandle_t events_to_wait, uint32_t set_bits, 
-    uint32_t wait_bits, RingbufHandle_t buffer) {
-    s_events_to_set = events_to_set;
-    s_events_to_wait = events_to_wait;
-    s_set_bits = set_bits;
-    s_wait_bits = wait_bits;
-    s_err_buffer_handle = buffer;
-    xTaskCreate(&s_manager_task, "s_manager_task", 4096, NULL, 4, &s_manager_task_handle);
+void s_manager_init(m_status_cfg_t* events, RingbufHandle_t err_buffer, RingbufHandle_t status_buffer) {
+    s_manager_events = events;
+    s_err_buffer_handle = err_buffer;
+    xTaskCreate(&s_manager_task, "s_manager_task", s_manager_events->task_stack_size, NULL, s_manager_events->task_priority, &s_manager_task_handle);
 }
 
 

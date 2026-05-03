@@ -194,16 +194,7 @@ esp_err_t a_ble_send_notification(uint16_t conn_handle, uint16_t chr_val_handle,
     return ESP_OK;
 }
 
-/**
-* @brief Sent indication on chosen characteristic 
-* @param conn_handle  connection
-* @param chr_val_handle  characteristic
-* @param data  data buffer to send
-* @param len  of data buffer
-* @return ESP_OK on Success
-* @return ESP_ERR_NO_MEM where os_buff full
-* @return ESP_FAIL on fail
-*/
+
 esp_err_t a_ble_send_indication(uint16_t conn_handle, uint16_t chr_val_handle, const uint8_t *data, size_t len) {
     if (data == NULL || len == 0) {
         return ESP_ERR_INVALID_ARG;

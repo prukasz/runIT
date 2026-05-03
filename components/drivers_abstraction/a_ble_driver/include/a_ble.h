@@ -55,10 +55,6 @@ esp_err_t a_ble_send_notification(uint16_t conn_handle, uint16_t chr_val_handle,
  */
 esp_err_t a_ble_send_indication(uint16_t conn_handle, uint16_t chr_val_handle, const uint8_t *data, size_t len);
 
-/** @brief Register a callback function to be called when a write is received on the RX characteristic
- *  @param callback The callback function to register
- *  @return ESP_OK on success, otherwise an error code
- */
 
 /** @brief Get the connection handle for the tx characteristic
  *  @return The connection handle, or 0 if not connected

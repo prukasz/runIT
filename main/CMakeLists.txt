@@ -5,6 +5,7 @@ set(srcs
     "../components/drivers_abstraction/a_ble_driver/gap.c"
     "../components/drivers_abstraction/a_ble_driver/gatt_svc.c"
     "../components/drivers_manager/manager_i2c/manager_i2c.c"
+    "../components/interface/interface_dispatcher.c"
 )
 
 idf_component_register(
@@ -15,6 +16,7 @@ idf_component_register(
         "../components/drivers_abstraction/a_ble_driver/include"
         "../components/status/include"
         "../components/drivers_manager/manager_i2c/include"
+        "../components/interface/include"
     REQUIRES bt nvs_flash driver
 )
 

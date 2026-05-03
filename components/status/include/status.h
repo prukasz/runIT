@@ -38,6 +38,14 @@ typedef struct{
     uint8_t _reserved:2;
 }status_manager_flags_t;
 
+typedef struct{
+    EventGroupHandle_t events;
+    EventBits_t bits_task_run;
+    EventBits_t bits_task_done;
+    uint32_t task_stack_size; 
+    uint8_t task_priority;
+}m_status_cfg_t;
+
 extern status_manager_flags_t s_err_manager_flags;
 extern RingbufHandle_t s_err_buffer_handle;
 typedef enum {
