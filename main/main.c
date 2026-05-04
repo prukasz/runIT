@@ -14,6 +14,7 @@
 #include "interface_dispatcher.h"
 #include "tca6424a_mock.h"
 #include "tca6424a.h"
+#include "tca_wrapper.h"
 
 static const char *TAG = "MAIN";
 
@@ -113,12 +114,14 @@ static void test_tca6424_mock_task(void *pvParameters) {
     // Configure Port 1 and Port 2 as Inputs (0xFF), Port 0 as Outputs (0x00)
     tca_preset_cfg(tca_dev_handle, 0xFFFFFF, 0xFFFF00, true); // 0xFFFFFF mask, 0xFFFF00 state
 
-    // Test output updates on Port 0
-    tca_preset_pins(tca_dev_handle, 0x000000FF, 0x000000A5, true); 
+    tca_wrapper_init(tca_dev_handle);
 
-    // Register callbacks
-    tca_register_pin_callback(tca_dev_handle, 23, test_pin_interrupt, TCA_ON_FALLING_EDGE, (void*)23);
-    tca_register_pin_callback(tca_dev_handle, 22, test_pin_interrupt, TCA_ON_CHANGE, (void*)22);
+    // Test output updates via wrapper
+    io_sys_led_set(0, true);
+
+    // Register callbacks via wrapper
+    io_sys_usb_callback_set(test_pin_interrupt, (void*)21); // PD_INT is pin 21
+    io_sys_drv_callback_set(0, test_pin_interrupt, (void*)11); // DRV1_FAULT is pin 11
 
     bool pin_level = true;
     bool toggle = true;
@@ -127,11 +130,12 @@ static void test_tca6424_mock_task(void *pvParameters) {
         
         pin_level = !pin_level;
 
-        // Toggle mock pins
-        tca_mock_set_pin_level(23, pin_level);
-        tca_mock_set_pin_level(22, pin_level);
+        // Toggle mock pins for our wrapper callbacks
+        tca_mock_set_pin_level(21, pin_level); // PD_INT
+        tca_mock_set_pin_level(11, pin_level); // DRV1_FAULT
         
-        tca_preset_pins(tca_dev_handle, 0x000000FF, toggle ? 0x000000A5 : 0x0000005A, false);
+        io_sys_led_set(0, toggle);
+        io_sys_led_set(1, !toggle);
         toggle = !toggle;
         // Simulating the ISR trigger check inside the TCA task loop naturally
         if (tca_get_int_pin_level() == 0) {
@@ -221,7 +225,7 @@ void app_main(void) {
     bus1_config->bus_cfg.i2c_port = I2C_NUM_1;
     bus1_config->bus_cfg.sda_io_num = 21;
     bus1_config->bus_cfg.scl_io_num = 20;
-    
+
 
     m_i2c_init(bus0_config, bus1_config);
 
@@ -231,7 +235,7 @@ void app_main(void) {
 
 
     /*************************TCA Config********************************** */
-
+    gpio_install_isr_service(0); // Default interrupt service with no flags
     tca_handle_t tca_dev_handle = tca_new(20, GPIO_NUM_8); // I2C address 0x20, interrupt pin GPIO4
    
     status_err_report_t rep = m_i2c_add_driver(0, tca_dev_handle->i2c_dev_config, tca_dev_handle->task_handle, true, NULL);
@@ -244,7 +248,7 @@ void app_main(void) {
     /*************************TCA Config********************************** */
    
 
-
+    ESP_LOGI(TAG, "handle size %d", sizeof(TaskHandle_t));
     vTaskDelay(pdMS_TO_TICKS(500));
     xEventGroupWaitBits(events, EVENT_BIT_BLE_CONNECTED, pdFALSE, pdFALSE, portMAX_DELAY);
     //xTaskCreate(&rx_display_task, "rx_display", 4096, NULL, 5, NULL);

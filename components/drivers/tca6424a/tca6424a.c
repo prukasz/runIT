@@ -2,9 +2,9 @@
 #include "manager_i2c.h"
 
 #include "tca6424a_mock.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "driver/gpio.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <driver/gpio.h>
 
 #include <esp_log.h>
 
@@ -214,7 +214,10 @@ void tca_task(void* dev_handle){
         // 2. MANAGER TASK UPDATE CHECK
         // ---------------------------------------------------------
         if (notification_value != 0) {
-            TaskHandle_t caller_task = (TaskHandle_t)notification_value;
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
+            TaskHandle_t caller_task = (TaskHandle_t)(uintptr_t)notification_value;
+            #pragma GCC diagnostic pop
             if (handle->to_update.p0_to_update || handle->to_update.p1_to_update || handle->to_update.p2_to_update) {
                 _tca_update_ports(handle);
                 handle->to_update.p0_to_update = 0;
@@ -266,7 +269,7 @@ tca_handle_t tca_new(uint8_t i2c_address, gpio_num_t int_pin) {
     xTaskCreate(tca_task, NULL, 4096, handle, 10, &handle->task_handle);
     handle->i2c_dev_config.device_address = i2c_address;
     handle->i2c_dev_config.scl_speed_hz = 100000;
-    handle->i2c_dev_config.dev_addr_length = I2C_ADDR_BIT_7;
+    handle->i2c_dev_config.dev_addr_length = I2C_ADDR_BIT_LEN_7;
     init_tca_interrupt(handle, int_pin);
     return handle;
 } 
