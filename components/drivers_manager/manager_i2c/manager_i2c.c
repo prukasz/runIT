@@ -21,12 +21,18 @@ static QueueHandle_t bus_aperiodic_queue_1 = NULL;
 /* Private variables */
 
 /* Driver slots */
+/**
+ * @brief This struct holds one "device" represented by task 
+ * @param driver_id: the ID of the driver/device
+ * @param is_periodic: whether this device should be re-added to the periodic queue after processing
+ * @param keep_alive: pointer to a boolean. If false, manager will not notify the task and will remove it from the queue (used for emergency stop or if task is deleted)
+ * @param task_handle: the TaskHandle_t of the driver task to notify "do your job"
+ */
 typedef struct{
     TaskHandle_t task_handle;
-    i2c_device_config_t dev_cfg;
     i2c_master_dev_handle_t dev_handle;
-    void* driver_handle;
     uint8_t id;
+    uint8_t i2_address; 
     bool is_active;
     bool bus;
 }m_i2c_driver_slot;
@@ -59,12 +65,13 @@ bool m_i2c_get_id_by_address(bool bus, uint16_t device_address, uint8_t* out_id)
     for (int i = 0; i < M_I2C_MAX_DEVICES; i++) {
         if (driver_registry[i].is_active && 
             driver_registry[i].bus == bus && 
-            driver_registry[i].dev_cfg.device_address == device_address) 
+            driver_registry[i].i2_address == device_address) 
         {
             if (out_id != NULL) {
                 *out_id = driver_registry[i].id;
             }
             return true;
+            
         }
     }
     return false; 
@@ -105,7 +112,7 @@ static void i2c_manager_task(void* params) {
 
                 if (current_job.keep_alive){
                     TaskHandle_t driver_task = m_i2c_get_dev_task(current_job.driver_id);
-                    xTaskNotify(driver_task, (uint32_t)manager_task_handle, eSetBits);
+                    xTaskNotify(driver_task, (uint32_t)manager_task_handle, eSetValueWithOverwrite);
                     if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(50)) != pdTRUE) {
                         xEventGroupSetBits(manager->m_i2c_events, manager->m_i2c_bits_queue_timeout);
                     }
@@ -121,7 +128,7 @@ static void i2c_manager_task(void* params) {
 
                 if (current_job.keep_alive){
                     TaskHandle_t driver_task = m_i2c_get_dev_task(current_job.driver_id);
-                    xTaskNotify(driver_task, (uint32_t)manager_task_handle , eSetBits);
+                    xTaskNotify(driver_task, (uint32_t)manager_task_handle , eSetValueWithOverwrite);
                     if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(50)) != pdTRUE) {
                         xEventGroupSetBits(manager->m_i2c_events, manager->m_i2c_bits_queue_timeout);
                     }
@@ -131,6 +138,7 @@ static void i2c_manager_task(void* params) {
             }
         }
         xEventGroupSetBits(manager->m_i2c_events, manager->m_i2c_bits_queue_done);
+        portYIELD();
     }
 }
 
@@ -177,30 +185,33 @@ TaskHandle_t m_i2c_get_manager_task(uint8_t bus_num) {
 }
 
 
-static uint8_t s_next_driver_id = 1;
+static uint8_t _next_driver_id = 1;
 
 status_err_report_t m_i2c_add_driver(
     bool bus, 
     i2c_device_config_t dev_config, 
-    TaskFunction_t task_func, 
+    TaskHandle_t task_func,
     bool is_periodic,
     uint8_t* out_id
 ) 
 {
     esp_err_t err;
 
-    // 1. Find an empty slot in the registry
     int slot = -1;
+    uint8_t i2c_addr = dev_config.device_address & 0x7F; // Mask to 7 bits for registry storage
+    for (int i = 0; i < M_I2C_MAX_DEVICES; i++) {
+        if (driver_registry[i].i2_address == i2c_addr && driver_registry[i].bus == bus) {
+            STA_RET_PUSH_LOG(STA_C(ERR_I2C_DEV_ADDR_CONFLICT, OWN_m_i2c_add_driver, dev_config.device_address), 
+                "Failed to add I2C driver: address conflict at 0x%02X", dev_config.device_address);
+        }
+    }
+
     for (int i = 0; i < M_I2C_MAX_DEVICES; i++) {
         if (!driver_registry[i].is_active && driver_registry[i].id == 0) { 
             // id == 0 means completely uninitialized
             slot = i;
             break;
-        } else if (!driver_registry[i].is_active) {
-            // Overwrite a previously deleted slot
-            slot = i; 
-            break;
-        }
+        };
     }
 
     if (slot == -1) {STA_RET_PUSH_LOG(STA_C(ERR_I2C_DEV_REG_FULL, OWN_m_i2c_add_driver, M_I2C_MAX_DEVICES), "Failed to add I2C driver: registry full");}
@@ -211,15 +222,15 @@ status_err_report_t m_i2c_add_driver(
     err = i2c_master_bus_add_device(target_bus_handle, &dev_config, &new_dev_handle);
     if (err != ESP_OK) {STA_RET_PUSH_LOG(STA_C((uint16_t)err, OWN_m_i2c_add_driver, dev_config.device_address), "Failed to add I2C device to bus %d: %02X", bus ? 1 : 0, dev_config.device_address);}
 
-    driver_registry[slot].dev_cfg = dev_config;
+    driver_registry[slot].i2_address = i2c_addr;
     driver_registry[slot].dev_handle = new_dev_handle;
     driver_registry[slot].bus = bus;
-    driver_registry[slot].id = s_next_driver_id++;
+    driver_registry[slot].id = _next_driver_id++;
     driver_registry[slot].is_active = true;
 
     // in case of periodic operation
-    *out_id = driver_registry[slot].id;
-    xTaskCreate(task_func, NULL, 2048, NULL, 5, &driver_registry[slot].task_handle);
+    if (out_id) *out_id = driver_registry[slot].id;
+    driver_registry[slot].task_handle = task_func;
     if (is_periodic) {
         m_i2c_driver_job_t initial_job = {
             .driver_id = driver_registry[slot].id,
