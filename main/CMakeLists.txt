@@ -9,6 +9,7 @@ set(srcs
     "../components/mocks/tca/tca6424a_mock.c"
     "../components/drivers/tca6424a/tca6424a.c"
     "../components/drivers_manager/manager_gpio/tca_wrapper.c"
+    "../components/mocks/tps/tps55289_mock.c"
 )
 
 idf_component_register(
@@ -21,6 +22,7 @@ idf_component_register(
         "../components/drivers_manager/manager_i2c/include"
         "../components/interface/include"
         "../components/mocks/tca/include"
+        "../components/mocks/tps/include"
         "../components/drivers/tca6424a/include"
         "../components/drivers_manager/manager_gpio/include"
     REQUIRES bt nvs_flash driver
