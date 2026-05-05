@@ -15,6 +15,7 @@
 #include "tca6424a_mock.h"
 #include "tca6424a.h"
 #include "tca_wrapper.h"
+#include "ina3221.h"
 
 static const char *TAG = "MAIN";
 
@@ -145,6 +146,28 @@ static void test_tca6424_mock_task(void *pvParameters) {
     }
 }
 
+void test_ina3221_task(void *pvParameters) {
+    ESP_LOGI(TAG, "Starting INA3221 test task.");
+    ina3221_handle_t ina_handle = (ina3221_handle_t)pvParameters;
+
+    while(1) {
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        
+        // Request bus and shunt updates using task notification
+        ina3221_update_buses_readings(ina_handle, false);
+        ina3221_update_shunts_readings(ina_handle, false);
+
+        // Print readings
+        for (int i = 0; i < 3; i++) {
+            ESP_LOGI(TAG, "Channel %d: Bus = %.2f mV, Shunt = %.2f mV, Current = %.2f mA",
+                     i + 1,
+                     ina_handle->data.bus_voltage[i],
+                     ina_handle->data.shunt_voltage[i],
+                     ina_handle->data.shunt_current[i]);
+        }
+    }
+}
+
 /* ==================================================================== */
 /*                              MAIN APP                                */
 /* ==================================================================== */
@@ -211,8 +234,8 @@ void app_main(void) {
     bus0_config->queue_size_aperiodic = 10;
     bus0_config->queue_size_periodic = 10;
     bus0_config->bus_cfg.i2c_port = I2C_NUM_0;
-    bus0_config->bus_cfg.sda_io_num = 18;
-    bus0_config->bus_cfg.scl_io_num = 19;
+    bus0_config->bus_cfg.sda_io_num = 5;
+    bus0_config->bus_cfg.scl_io_num = 4;
     bus0_config->bus_cfg.clk_source = I2C_CLK_SRC_DEFAULT;
     bus0_config->bus_cfg.glitch_ignore_cnt = 7;
     bus0_config->bus_cfg.intr_priority = 0;
@@ -238,7 +261,9 @@ void app_main(void) {
     gpio_install_isr_service(0); // Default interrupt service with no flags
     tca_handle_t tca_dev_handle = tca_new(20, GPIO_NUM_8); // I2C address 0x20, interrupt pin GPIO4
    
-    status_err_report_t rep = m_i2c_add_driver(0, tca_dev_handle->i2c_dev_config, tca_dev_handle->task_handle, true, NULL);
+
+    status_err_report_t rep = m_i2c_add_driver(0, tca_dev_handle->i2c_dev_config, &tca_dev_handle->i2c_dev_handle, tca_dev_handle->task_handle, true, NULL);
+    
     if (STA_IS_OK(rep))
         {
             ESP_LOGI(TAG, "TCA6424A driver added successfully to I2C Manager");
@@ -246,6 +271,31 @@ void app_main(void) {
     xTaskCreate(test_tca6424_mock_task, "tca_mock_test", 4096, tca_dev_handle, 5, NULL);
 
     /*************************TCA Config********************************** */
+
+    /*************************INA3221 Config********************************** */
+    // Initialize INA3221 device
+    ina3221_handle_t ina_handle = ina3221_new(INA3221_I2C_ADDR_GND);
+    
+    
+
+    status_err_report_t ina_rep = m_i2c_add_driver(0, ina_handle->i2c_device_config, &ina_handle->i2c_master_dev_handle, ina_handle->task_handle, true, NULL);
+    
+    if (STA_IS_OK(ina_rep)) {
+        ESP_LOGI(TAG, "INA3221 driver added successfully to I2C Manager");
+    }
+
+    // Set configuration: enable bus and shunt, continuous mode
+    ina3221_set_options(ina_handle, true, true, true);
+    ina3221_enable_channel(ina_handle, true, true, true);
+    
+    // Set shunt resistors (e.g. 10 mOhm)
+            ina3221_set_shunt_resistor(ina_handle, 100, INA3221_CHANNEL_ALL);
+
+    // Create a task to read INA3221
+    extern void test_ina3221_task(void *pvParameters);
+    xTaskCreate(test_ina3221_task, "ina_test", 4096, ina_handle, 5, NULL);
+    /*************************INA3221 Config********************************** */
+
    
 
     ESP_LOGI(TAG, "handle size %d", sizeof(TaskHandle_t));

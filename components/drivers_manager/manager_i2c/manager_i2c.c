@@ -190,6 +190,7 @@ static uint8_t _next_driver_id = 1;
 status_err_report_t m_i2c_add_driver(
     bool bus, 
     i2c_device_config_t dev_config, 
+    i2c_master_dev_handle_t* out_dev_handle,
     TaskHandle_t task_func,
     bool is_periodic,
     uint8_t* out_id
@@ -227,6 +228,7 @@ status_err_report_t m_i2c_add_driver(
     driver_registry[slot].bus = bus;
     driver_registry[slot].id = _next_driver_id++;
     driver_registry[slot].is_active = true;
+    *out_dev_handle = new_dev_handle;
 
     // in case of periodic operation
     if (out_id) *out_id = driver_registry[slot].id;

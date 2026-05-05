@@ -43,6 +43,7 @@ status_err_report_t m_i2c_init(m_i2c_config_t* bus0_config, m_i2c_config_t* bus1
 status_err_report_t m_i2c_add_driver(
     bool bus, 
     i2c_device_config_t dev_config, 
+    i2c_master_dev_handle_t* out_dev_handle,
     TaskHandle_t task_func, 
     bool is_periodic,
     uint8_t* out_id

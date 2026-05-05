@@ -8,7 +8,9 @@ set(srcs
     "../components/interface/interface_dispatcher.c"
     "../components/mocks/tca/tca6424a_mock.c"
     "../components/drivers/tca6424a/tca6424a.c"
-    "../components/drivers_manager/manager_gpio/tca_wrapper.c"
+    "../components/drivers/ina3221/ina3221.c"
+    "../components/drivers_manager/wrappers/tca6424a/tca6424a_wrapper.c"
+    "../components/drivers_manager/wrappers/ina3221/ina3221_wrapper.c"
 )
 
 idf_component_register(
@@ -22,7 +24,9 @@ idf_component_register(
         "../components/interface/include"
         "../components/mocks/tca/include"
         "../components/drivers/tca6424a/include"
-        "../components/drivers_manager/manager_gpio/include"
+        "../components/drivers/ina3221/include"
+        "../components/drivers_manager/wrappers/tca6424a/include"
+        "../components/drivers_manager/wrappers/ina3221/include"
     REQUIRES bt nvs_flash driver
 )
 
