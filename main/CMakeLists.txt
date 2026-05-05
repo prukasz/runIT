@@ -11,6 +11,8 @@ set(srcs
     "../components/drivers/ina3221/ina3221.c"
     "../components/drivers_manager/wrappers/tca6424a/tca6424a_wrapper.c"
     "../components/drivers_manager/wrappers/ina3221/ina3221_wrapper.c"
+    "../components/drivers_manager/manager_gpio/tca_wrapper.c"
+    "../components/mocks/tps/tps55289_mock.c"
 )
 
 idf_component_register(
@@ -23,6 +25,7 @@ idf_component_register(
         "../components/drivers_manager/manager_i2c/include"
         "../components/interface/include"
         "../components/mocks/tca/include"
+        "../components/mocks/tps/include"
         "../components/drivers/tca6424a/include"
         "../components/drivers/ina3221/include"
         "../components/drivers_manager/wrappers/tca6424a/include"
