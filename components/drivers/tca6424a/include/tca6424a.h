@@ -1,5 +1,7 @@
 #pragma once
 #include <stdint.h>
+#include <stdbool.h>
+#include <esp_err.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <driver/i2c_master.h>
@@ -35,19 +37,19 @@ typedef struct {
     void* callback_args[24];
 }tca_data_t;
 
-typedef tca_data_t* tca_handle_t;
+typedef tca_data_t* tca6424a_handle_t;
 
 void tca_task(void* dev_handle);
 
 void tca_isr_callback(void* arg); 
 
-esp_err_t tca_register_pin_callback(tca_handle_t handle, uint8_t pin, void (*cb)(void*), tca_interrupt_mode_e mode, void* arg);
+esp_err_t tca_register_pin_callback(tca6424a_handle_t handle, uint32_t pin_mask, void (*cb)(void*), tca_interrupt_mode_e mode, void* arg);
 
-esp_err_t tca_preset_pins(tca_handle_t handle, uint32_t pins_mask, uint32_t pins_state, bool update_now);
-esp_err_t tca_preset_cfg(tca_handle_t handle, uint32_t cfg_mask, uint32_t cfg_state, bool update_now);
-esp_err_t tca_preset_polarity(tca_handle_t handle, uint32_t polarity_mask, uint32_t polarity_state, bool update_now);
+esp_err_t tca_preset_pins(tca6424a_handle_t handle, uint32_t pins_mask, uint32_t pins_state, bool update_now);
+esp_err_t tca_preset_cfg(tca6424a_handle_t handle, uint32_t cfg_mask, uint32_t cfg_state, bool update_now);
+esp_err_t tca_preset_polarity(tca6424a_handle_t handle, uint32_t polarity_mask, uint32_t polarity_state, bool update_now);
 
-tca_handle_t tca_new(uint8_t i2c_address, gpio_num_t int_pin);
+tca6424a_handle_t tca_new(uint8_t i2c_address);
 
 
 

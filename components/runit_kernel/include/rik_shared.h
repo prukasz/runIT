@@ -1,0 +1,120 @@
+#pragma once
+#include <freertos/ringbuf.h>
+#include <driver/gpio.h>
+
+extern uint8_t rik_ina_id;
+extern uint8_t rik_tca_id;
+extern uint8_t rik_tps_0_id;
+extern uint8_t rik_tps_1_id;
+
+extern RingbufHandle_t rik_buff_status;
+extern RingbufHandle_t rik_buff_tx;
+extern RingbufHandle_t rik_buff_rx;
+
+/**************************BLE*********************************************/
+#define EVENT_BIT_BLE_START             (1 << 0)
+#define EVENT_BIT_BLE_DONE              (1 << 1)
+#define EVENT_BIT_BLE_RX                (1 << 2)
+#define EVENT_BIT_BLE_NOTIFY_DONE       (1 << 3) 
+#define EVENT_BIT_BLE_IND_DONE          (1 << 4) 
+#define EVENT_BIT_BLE_IND_TIMEOUT       (1 << 5) 
+#define EVENT_BIT_BLE_CONNECTED         (1 << 6)
+#define EVENT_BIT_BLE_CONNECTION_FAILED (1 << 7)
+#define EVENT_BIT_BLE_DISCONNECTED      (1 << 8)
+#define EVENT_BIT_BLE_MTU_UPDATED       (1 << 9)
+/**************************BLE*********************************************/
+
+
+/**************************CMD INTERFACE *********************************/
+#define EVENT_BIT_INTERFACE_CMD_COMPLETE   (1 << 8)
+#define EVENT_BIT_INTERFACE_CMD_ERROR      (1 << 9)
+#define EVENT_BIT_INTERFACE_CMD_STOP       (1 << 10)
+/**************************CMD INTERFACE *********************************/
+
+
+/**************************I2C *********************************/
+#define EVENT_BIT_I2C_PROCESS   (1 << 11)
+#define EVENT_BIT_I2C_DONE      (1 << 12)
+#define EVENT_BIT_I2C_TIMEOUT   (1 << 13)
+#define EVENT_BIT_I2C_EMERGENCY (1<< 14)
+/**************************I2C *********************************/
+
+/**************************STATUS *********************************/
+#define EVENT_BIT_STATUS_RUN    (1 << 15)
+#define EVENT_BIT_STATUS_DONE   (1 << 16)
+/**************************STATUS *********************************/
+
+
+#define GPIO_NUM_40 40
+#define GPIO_NUM_41 41
+#define GPIO_NUM_42 42   
+#define GPIO_NUM_43 43
+#define GPIO_NUM_44 44
+#define GPIO_NUM_45 45
+#define GPIO_NUM_46 46
+#define GPIO_NUM_47 47
+#define GPIO_NUM_48 48
+
+// ---------------------------------------------------------
+// Interrupts and Alerts
+// ---------------------------------------------------------
+#define IO_SYS_PIN_TCA6424_nINT    GPIO_NUM_9
+#define IO_SYS_PIN_TCA6424_nRESET  GPIO_NUM_8
+#define IO_SYS_PIN_ADS_ALERT       GPIO_NUM_42
+
+// ---------------------------------------------------------
+// Motor Driver 1 - Current Sense (IPROPI)
+// ---------------------------------------------------------
+#define IO_SYS_PIN_DRV_1_IPROPI_1  GPIO_NUM_7
+#define IO_SYS_PIN_DRV_1_IPROPI_2  GPIO_NUM_6
+#define IO_SYS_PIN_DRV_1_IPROPI_3  GPIO_NUM_5
+#define IO_SYS_PIN_DRV_1_IPROPI_4  GPIO_NUM_4
+
+// ---------------------------------------------------------
+// Motor Driver 1 - Inputs (IN)
+// ---------------------------------------------------------
+#define IO_SYS_PIN_DRV_1_IN1       GPIO_NUM_21
+#define IO_SYS_PIN_DRV_1_IN2       GPIO_NUM_47
+#define IO_SYS_PIN_DRV_1_IN3       GPIO_NUM_48
+#define IO_SYS_PIN_DRV_1_IN4       GPIO_NUM_45
+
+// ---------------------------------------------------------
+// Motor Driver 1 - Enables (EN)
+// ---------------------------------------------------------
+#define IO_SYS_PIN_DRV_1_EN1       GPIO_NUM_38
+#define IO_SYS_PIN_DRV_1_EN2       GPIO_NUM_39
+#define IO_SYS_PIN_DRV_1_EN3       GPIO_NUM_2
+#define IO_SYS_PIN_DRV_1_EN4       GPIO_NUM_1
+
+// ---------------------------------------------------------
+// External SPI Bus
+// ---------------------------------------------------------
+#define IO_SYS_PIN_USR_SPI_CS0_10   GPIO_NUM_10
+#define IO_SYS_PIN_USR_SPI_MOSI_11  GPIO_NUM_11
+#define IO_SYS_PIN_USR_SPI_SCK_12   GPIO_NUM_12
+#define IO_SYS_PIN_USR_SPI_MISO_13  GPIO_NUM_13
+#define IO_SYS_PIN_USR_SPI_CS1_14   GPIO_NUM_14
+
+// ---------------------------------------------------------
+// I2C Buses
+// ---------------------------------------------------------
+// Internal I2C (Connects to internal sensors/expanders)
+#define IO_SYS_PIN_INT_I2C_SDA   GPIO_NUM_15
+#define IO_SYS_PIN_INT_I2C_SCL   GPIO_NUM_16
+
+// External I2C (Connects to the J_EXT_I2C header)
+#define IO_SYS_PIN_USR_I2C_SDA   GPIO_NUM_40
+#define IO_SYS_PIN_USR_I2C_SCL   GPIO_NUM_41
+
+
+// ---------------------------------------------------------
+// UART0 (Console / External UART)
+// ---------------------------------------------------------
+#define IO_SYS_PIN_EXT_UART_TX   GPIO_NUM_43 
+#define IO_SYS_PIN_EXT_UART_RX   GPIO_NUM_44
+
+
+#define IO_SYS_PIN_USR_3   GPIO_NUM_3   // Connected to J_MISC1 Pin 1
+#define IO_SYS_PIN_USR_17   GPIO_NUM_17  // Connected to J_MISC1 Pin 2
+#define IO_SYS_PIN_USR_18  GPIO_NUM_18  // Connected to J_MISC1 Pin 3
+#define IO_SYS_PIN_USR_46  GPIO_NUM_46  // Connected to J_MISC1 Pin 4

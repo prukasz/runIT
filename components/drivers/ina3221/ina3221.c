@@ -1,12 +1,11 @@
 #include "ina3221.h"
-#include "esp_log.h"
 #include <string.h>
 
 
 #define TAG __FILE_NAME__
 
 #define INA3221_I2C_TIMEOUT 20 //ms
-#define I2C_FREQ_HZ 400000 
+#define I2C_FREQ_HZ 400000  // 1000khz possible
 
 #define INA3221_REG_CONFIG                      (0x00)
 #define INA3221_REG_SHUNTVOLTAGE_1              (0x01)
@@ -20,7 +19,7 @@
 #define INA3221_REG_VALID_POWER_LOWER_LIMIT     (0x11)
 
 void ina3221_task(void *arg);
-
+        
 /*************Helper macros ***************************************/
 #define RETURN_ON_ERROR(x) do {        \
     esp_err_t __err_rc = (x);          \
@@ -114,8 +113,13 @@ ina3221_handle_t ina3221_new(uint8_t i2c_address)
     handle->shunt_val_cfg[0] = 100;
     handle->shunt_val_cfg[1] = 100;
     handle->shunt_val_cfg[2] = 100;
-    //create dereffered calls task
-    xTaskCreate(ina3221_task, NULL, 4096, handle, 5, &handle->driver_task_handle);
+    //create deferred calls task and ensure it was created
+    handle->driver_task_handle = NULL;
+    if (xTaskCreate(ina3221_task, "ina3221_task", 4096, handle, 5, &handle->driver_task_handle) != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create INA3221 task");
+        free(handle);
+        return NULL;
+    }
     return handle;
 }
 
@@ -274,7 +278,6 @@ esp_err_t ina3221_get_sum_shunt_value(ina3221_handle_t handle, bool immediate)
 
 void ina3221_cfg_periodic_reading(ina3221_handle_t handle, bool bus_voltage, bool current, bool current_sum, bool status)
 {
-    CHECK_ARG(handle);
     handle->to_update.read_bus_voltage = bus_voltage;
     handle->to_update.read_bus_voltage_periodic = bus_voltage;
     handle->to_update.read_current = current;
@@ -305,6 +308,7 @@ esp_err_t ina3221_set_warning_alert(ina3221_handle_t handle, ina3221_channel_t c
     float limit_mv = (current_mA * handle->shunt_val_cfg[channel]) / 1000.0f;
 
     int16_t raw_count = (int16_t)(limit_mv / 0.04f); // 40uV -> LSB
+    ESP_LOGI(TAG, "Setting warning alert for channel %d: current=%.2fmA, limit_mv=%.2fmV, raw_count=%d", channel + 1, current_mA, limit_mv, raw_count);
 
     uint16_t reg_val = raw_count << 3; // Shift left by 3 to align with register format
 
@@ -327,6 +331,7 @@ esp_err_t ina3221_set_sum_warning_alert(ina3221_handle_t handle, float voltage_m
  * @brief Task to handle deferred readings and alerts for INA3221
  * Wait for notification, then chek what is requested and execute, after execution notify back the caller task
  */
+
 void ina3221_task(void *arg)
 {
     ina3221_handle_t handle = (ina3221_handle_t)arg;
@@ -337,19 +342,60 @@ void ina3221_task(void *arg)
         notification_value = 0;
         xTaskNotifyWait(0, 0xFFFFFFFF, &notification_value, portMAX_DELAY);
         if (notification_value == 0) {
-            ina3221_get_status(handle, true); // Update status on alert notification
-            if (handle->alert_critical) {
-                ESP_LOGW(TAG, "Critical alert triggered!");
-                handle->alert_critical = false; // Clear flag after handling
-                handle->user_callback[0] ? handle->user_callback[0](handle->user_callback_arg[0]) : (void)0; // Call user callback if set
-            } else if (handle->alert_warning) {
-                ESP_LOGW(TAG, "Warning alert triggered!");
-                handle->alert_warning = false; // Clear flag after handling
-                handle->user_callback[1] ? handle->user_callback[1](handle->user_callback_arg[1]) : (void)0; // Call user callback if set
+            // 1. Read the Mask/Enable register directly into the handle's union
+            // This clears the hardware alert latch and populates our bitfields
+            if (_ina3221_read(handle, INA3221_REG_MASK, &handle->mask.mask_register) != ESP_OK) {
+                continue; // I2C failed, skip processing
             }
-        }
+            // // =========================================================================
+            // // DEBUG: PRINT EVERY SINGLE FLAG IN THE REGISTER
+            // // =========================================================================
+            // ESP_LOGI(TAG, "--- INA3221 MASK/ENABLE REG (0x0F) DEBUG ---");
+            // ESP_LOGI(TAG, "RAW HEX VALUE: 0x%04X", handle->mask.mask_register);
+            // ESP_LOGI(TAG, "CONFIG BITS -> WEN(Warning Enable): %d | CEN(Critical Enable): %d", 
+            //          handle->mask.wen, handle->mask.cen);
+            // ESP_LOGI(TAG, "SUM ENABLES -> SCC1: %d | SCC2: %d | SCC3: %d", 
+            //          handle->mask.scc1, handle->mask.scc2, handle->mask.scc3);
+            // ESP_LOGI(TAG, "GEN FLAGS   -> CVRF(Conv Ready): %d | TCF(Timing): %d | PVF(Power Valid): %d | SF(Sum Alert): %d", 
+            //          handle->mask.cvrf, handle->mask.tcf, handle->mask.pvf, handle->mask.sf);
+            // ESP_LOGI(TAG, "CRITICAL    -> CF_RAW: %d (CH1:%d, CH2:%d, CH3:%d)", 
+            //          handle->mask.cf, (handle->mask.cf & 0x04)>>2, (handle->mask.cf & 0x02)>>1, handle->mask.cf & 0x01);
+            // ESP_LOGI(TAG, "WARNING     -> WF_RAW: %d (CH1:%d, CH2:%d, CH3:%d)", 
+            //          handle->mask.wf, (handle->mask.wf & 0x04)>>2, (handle->mask.wf & 0x02)>>1, handle->mask.wf & 0x01);
+            // ESP_LOGI(TAG, "--------------------------------------------");
+            // =========================================================================
 
-        if (notification_value != 0) {
+            bool crit_flags[3] = {handle->mask.cf & 0x04, handle->mask.cf & 0x02, handle->mask.cf & 0x01};
+            bool warn_flags[3] = {handle->mask.wf & 0x04, handle->mask.wf & 0x02, handle->mask.wf & 0x01};
+            bool sum_alert     = handle->mask.sf;
+
+
+            // 3. Use already implemented functions to fetch new data 
+            // If ANY channel triggered a warning/critical, we update all basic readings
+            if (handle->mask.cf || handle->mask.wf) {
+                ina3221_update_buses_readings(handle, true);
+                ina3221_update_shunts_readings(handle, true);
+            }
+
+            // If the sum alert triggered, update the sum specifically
+            if (sum_alert) {
+                ina3221_get_sum_shunt_value(handle, true);
+            }
+
+            // 4. Handle Callbacks and Logging
+            if (handle->alert_critical) {
+                ESP_LOGW(TAG, "Critical Alert! CF1:%d CF2:%d CF3:%d", crit_flags[0], crit_flags[1], crit_flags[2]);
+                handle->alert_critical = false; 
+                if (handle->user_callback[0]) handle->user_callback[0](handle->user_callback_arg[0]);
+            } 
+            
+            if (handle->alert_warning) {
+                ESP_LOGW(TAG, "Warning Alert! WF1:%d WF2:%d WF3:%d SUM:%d", warn_flags[0], warn_flags[1], warn_flags[2], sum_alert);
+                handle->alert_warning = false; 
+                if (handle->user_callback[1]) handle->user_callback[1](handle->user_callback_arg[1]);
+            }
+        } 
+        else {
             #pragma GCC diagnostic push
             #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
             TaskHandle_t caller_task = (TaskHandle_t)(uintptr_t)notification_value;
@@ -387,27 +433,26 @@ void ina3221_task(void *arg)
     }
 }
 
-void ina3221_isr_callback_critical(void *arg)
+IRAM_ATTR void ina3221_isr_callback_critical(void *arg)
 {
     ina3221_handle_t handle = (ina3221_handle_t)arg;
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     handle->alert_critical = true; 
-    vTaskNotifyGiveFromISR(handle->driver_task_handle, &xHigherPriorityTaskWoken);
+    xTaskNotifyFromISR(handle->driver_task_handle, 0, eSetBits, &xHigherPriorityTaskWoken);
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
-void ina3221_isr_callback_warning(void *arg)
+IRAM_ATTR void ina3221_isr_callback_warning(void *arg)
 {
     ina3221_handle_t handle = (ina3221_handle_t)arg;  
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     handle->alert_warning = true; 
-    vTaskNotifyGiveFromISR(handle->driver_task_handle, &xHigherPriorityTaskWoken);
+    xTaskNotifyFromISR(handle->driver_task_handle, 0, eSetBits, &xHigherPriorityTaskWoken);
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
 void ina3221_register_user_callback(ina3221_handle_t handle, void (*callback)(void *), void *arg, bool is_critical)
 {
-    CHECK_ARG(handle);
     if (is_critical) {
         handle->user_callback[0] = callback;
         handle->user_callback_arg[0] = arg;

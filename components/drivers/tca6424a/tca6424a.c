@@ -1,10 +1,8 @@
 #include "tca6424a.h"
-#include "manager_i2c.h"
 
 #include "tca6424a_mock.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <driver/gpio.h>
 
 #include <esp_log.h>
 
@@ -30,11 +28,11 @@
 
 #define TAG __FILE_NAME__
 
-static esp_err_t _tca_update_ports(tca_handle_t handle);
-static esp_err_t _tca_update_config(tca_handle_t handle);
-static esp_err_t _tca_update_polarity(tca_handle_t handle);
+static esp_err_t _tca_update_ports(tca6424a_handle_t handle);
+static esp_err_t _tca_update_config(tca6424a_handle_t handle);
+static esp_err_t _tca_update_polarity(tca6424a_handle_t handle);
 
-esp_err_t tca_preset_pins(tca_handle_t handle, uint32_t pins_mask, uint32_t pins_state, bool update_now) {
+esp_err_t tca_preset_pins(tca6424a_handle_t handle, uint32_t pins_mask, uint32_t pins_state, bool update_now) {
     uint8_t p0_mask = (pins_mask & _PORT0_MASK);
     if (p0_mask) {
         uint8_t p0_state = (pins_state & _PORT0_MASK);
@@ -66,7 +64,7 @@ esp_err_t tca_preset_pins(tca_handle_t handle, uint32_t pins_mask, uint32_t pins
     return ESP_OK;
 }
 
-esp_err_t tca_preset_cfg(tca_handle_t handle, uint32_t cfg_mask, uint32_t cfg_state, bool update_now) {
+esp_err_t tca_preset_cfg(tca6424a_handle_t handle, uint32_t cfg_mask, uint32_t cfg_state, bool update_now) {
     uint8_t cfg0_mask = (cfg_mask & _PORT0_MASK);
     if (cfg0_mask) {
         uint8_t cfg0_state = (cfg_state & _PORT0_MASK);
@@ -93,7 +91,7 @@ esp_err_t tca_preset_cfg(tca_handle_t handle, uint32_t cfg_mask, uint32_t cfg_st
     return ESP_OK; 
 }
 
-esp_err_t tca_preset_polarity(tca_handle_t handle, uint32_t polarity_mask, uint32_t polarity_state, bool update_now) {
+esp_err_t tca_preset_polarity(tca6424a_handle_t handle, uint32_t polarity_mask, uint32_t polarity_state, bool update_now) {
     uint8_t pol0_mask = (polarity_mask & _PORT0_MASK);
     if (pol0_mask) {
         uint8_t pol0_state = (polarity_state & _PORT0_MASK);
@@ -120,23 +118,23 @@ esp_err_t tca_preset_polarity(tca_handle_t handle, uint32_t polarity_mask, uint3
     return ESP_OK;
 }
 
-static esp_err_t _tca_update_port(tca_handle_t handle, uint8_t port){
+static esp_err_t _tca_update_port(tca6424a_handle_t handle, uint8_t port){
     return (esp_err_t)tca_transmit(handle->i2c_dev_handle, (uint8_t[]){TCA6424A_REG_OUTPUT_PORT0 + port, handle->output[port]}, 2, 10);
 }
 
-static esp_err_t _tca_update_ports(tca_handle_t handle){
+static esp_err_t _tca_update_ports(tca6424a_handle_t handle){
     return (esp_err_t)tca_transmit(handle->i2c_dev_handle, (uint8_t[]){TCA6424A_REG_OUTPUT_PORT0 | TCA6424A_AUTO_INCREMENT, handle->output[0], handle->output[1], handle->output[2]}, 4, 10);
 }
 
-static esp_err_t _tca_update_inputs(tca_handle_t handle){
+static esp_err_t _tca_update_inputs(tca6424a_handle_t handle){
     return tca_transmit_receive(handle->i2c_dev_handle, (uint8_t[]){TCA6424A_REG_INPUT_PORT0 | TCA6424A_AUTO_INCREMENT}, 1, handle->last_read_input, 3, 10);
 }
 
-static esp_err_t _tca_update_config(tca_handle_t handle){
+static esp_err_t _tca_update_config(tca6424a_handle_t handle){
     return tca_transmit(handle->i2c_dev_handle, (uint8_t[]){TCA6424A_REG_CONFIG_PORT0 | TCA6424A_AUTO_INCREMENT, handle->config[0], handle->config[1], handle->config[2]}, 4, 10);
 }
 
-static esp_err_t _tca_update_polarity(tca_handle_t handle){
+static esp_err_t _tca_update_polarity(tca6424a_handle_t handle){
     return tca_transmit(handle->i2c_dev_handle, (uint8_t[]){TCA6424A_REG_POLARITY_PORT0 | TCA6424A_AUTO_INCREMENT, handle->polarity_cfg[0], handle->polarity_cfg[1], handle->polarity_cfg[2]}, 4, 10);
 }
 
@@ -144,7 +142,7 @@ static esp_err_t _tca_update_polarity(tca_handle_t handle){
 
 // ISR Callback sets the volatile flag and wakes the task without changing the notification value
 void tca_isr_callback(void* arg) {
-    tca_handle_t handle = (tca_handle_t)arg;
+    tca6424a_handle_t handle = (tca6424a_handle_t)arg;
     BaseType_t high_task_wakeup = pdFALSE;
     
     // Flag that a hardware interrupt occurred
@@ -158,7 +156,7 @@ void tca_isr_callback(void* arg) {
 }
 
 void tca_task(void* dev_handle){
-    tca_handle_t handle = (tca_handle_t)dev_handle;
+    tca6424a_handle_t handle = (tca6424a_handle_t)dev_handle;
     
     // Clear the flag on boot just in case
     handle->interrupt_present = false;
@@ -240,36 +238,26 @@ void tca_task(void* dev_handle){
     }
 }
 
-static void init_tca_interrupt(tca_handle_t handle, gpio_num_t int_pin) {
-    gpio_config_t io_conf = {
-        .intr_type = GPIO_INTR_NEGEDGE,      
-        .pin_bit_mask = (1ULL << int_pin),
-        .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,  
-        .pull_down_en = GPIO_PULLDOWN_DISABLE
-    };
-    gpio_config(&io_conf);
-    gpio_isr_handler_add(int_pin, tca_isr_callback, (void*)handle);
-}
 
-esp_err_t tca_register_pin_callback(tca_handle_t handle, uint8_t pin, void (*cb)(void*), tca_interrupt_mode_e mode, void* arg) {
+esp_err_t tca_register_pin_callback(tca6424a_handle_t handle, uint32_t pin_mask, void (*cb)(void*), tca_interrupt_mode_e mode, void* arg) {
+    uint8_t pin = __builtin_ctz(pin_mask); 
     if (pin < 24) {
         handle->pin_trigger_modes[pin] = mode;
         handle->callbacks[pin] = cb;
         handle->callback_args[pin] = arg;
         return ESP_OK;
+        ESP_LOGI(TAG, "Registered callback for pin %d with mode %d", pin, mode);
     }
 
     ESP_LOGW(TAG, "Attempted to register callback for invalid pin %d, available pins are 0-23", pin);    
     return ESP_ERR_INVALID_ARG;
 }
 
-tca_handle_t tca_new(uint8_t i2c_address, gpio_num_t int_pin) {
-    tca_handle_t handle = calloc(1, sizeof(tca_data_t));
+tca6424a_handle_t tca_new(uint8_t i2c_address) {
+    tca6424a_handle_t handle = calloc(1, sizeof(tca_data_t));
     xTaskCreate(tca_task, NULL, 4096, handle, 10, &handle->task_handle);
     handle->i2c_dev_config.device_address = i2c_address;
     handle->i2c_dev_config.scl_speed_hz = 100000;
     handle->i2c_dev_config.dev_addr_length = I2C_ADDR_BIT_LEN_7;
-    init_tca_interrupt(handle, int_pin);
     return handle;
-} 
+}

@@ -1,21 +1,17 @@
 #pragma once 
 #include <stdint.h>
 #include <stdbool.h>
+#include <esp_err.h>
 #include <freertos/FreeRTOS.h>
+#include <freertos/event_groups.h>
 #include <freertos/ringbuf.h>
 #include <freertos/task.h>
+#include <esp_log.h>
+#include <stddef.h>
 
 /* =========================================================================
  * STATUS & ERROR MANAGEMENT MACROS
  * ========================================================================= */
-
-typedef struct{
-    EventGroupHandle_t events;
-    EventBits_t bits_task_run;
-    EventBits_t bits_task_done;
-    uint32_t task_stack_size; 
-    uint8_t task_priority;
-}m_status_cfg_t;
 
 typedef struct{
     uint8_t log_i:1;
@@ -83,6 +79,10 @@ typedef enum{
     OWN_m_i2c_init,
     OWN_m_i2c_add_driver,
     OWN_m_i2c_enqueue_aperiodic_job,
+    OWN_rik_i2c_start_tca6424a,
+    OWN_rik_i2c_start_ina3221,
+    OWN_rik_init_intr_esp,
+    OWN_ina3221_wrapper_init,
 }status_owner_e;
 
 
@@ -110,13 +110,13 @@ typedef struct{
         uint8_t my_depth:6;
         uint8_t  _reserved;
     }details;                //2
-}status_err_report_t;
+}status_rep_t;
 
 extern RingbufHandle_t _status_buffer_handle;
 extern status_manager_log_cfg _status_log_flags;
 
 
-static __always_inline void _sta_push_overwrite(RingbufHandle_t rb, const status_err_report_t *item) {
+static __always_inline void _sta_push_overwrite(RingbufHandle_t rb, const status_rep_t *item) {
     if (rb == NULL) {
         return;
     }
@@ -134,7 +134,7 @@ static __always_inline void _sta_push_overwrite(RingbufHandle_t rb, const status
 
 /*Error struct creation - for non VM scenarios*/
 #define _STA_X(_code, _owner, _origin_info, _severity, _depth) \
-    (status_err_report_t){ \
+    (status_rep_t){ \
         .e_code = (_code), \
         .e_owner = (_owner), \
         .track = { .origin_info = (_origin_info) }, \
@@ -144,7 +144,7 @@ static __always_inline void _sta_push_overwrite(RingbufHandle_t rb, const status
 
 
 /*base error macros*/
-#define STA_OK ((status_err_report_t){0})
+#define STA_OK ((status_rep_t){0})
 #define STA_I(code, e_owner, origin_info) _STA_X((code), (e_owner), (origin_info), 0, 0)
 #define STA_E(code, e_owner, origin_info) _STA_X((code), (e_owner), (origin_info), 1, 0)
 #define STA_C(code, e_owner, origin_info) _STA_X((code), (e_owner), (origin_info), 2, 0)
@@ -157,7 +157,7 @@ static __always_inline void _sta_push_overwrite(RingbufHandle_t rb, const status
 
 /*give error with incremented depth by 1*/
 #define STA_PASS_ERR(err) ({ \
-    status_err_report_t _err_copy = (err); \
+    status_rep_t _err_copy = (err); \
     if (STA_IS_ERR(_err_copy)) { \
         _err_copy.details.my_depth++; \
     } \
@@ -167,7 +167,7 @@ static __always_inline void _sta_push_overwrite(RingbufHandle_t rb, const status
 
 /*Push error to buffer*/
 #define STA_PUSH(err) do { \
-    status_err_report_t _sta_err = (err); \
+    status_rep_t _sta_err = (err); \
     if (_status_buffer_handle != NULL) { \
         if (((_sta_err.details.severity == 0) && _status_log_flags.rep_i) || \
             ((_sta_err.details.severity == 1) && _status_log_flags.rep_w) || \
@@ -180,14 +180,14 @@ static __always_inline void _sta_push_overwrite(RingbufHandle_t rb, const status
 
 /*Push error to buffer and return*/
 #define STA_RET_PUSH(err) ({ \
-    status_err_report_t _sta_err = (err); \
+    status_rep_t _sta_err = (err); \
     STA_PUSH(_sta_err); \
     return _sta_err; \
 })
 
 /*Push error to buffer, ESP_LOG, and return*/
 #define STA_RET_PUSH_LOG(err, fmt, ...) ({ \
-    status_err_report_t _sta_err = (err); \
+    status_rep_t _sta_err = (err); \
     if (_sta_err.e_code != 0) { \
         STA_PUSH(_sta_err); \
         if ((_sta_err.details.severity == 0) && _status_log_flags.log_i) { \
@@ -201,10 +201,21 @@ static __always_inline void _sta_push_overwrite(RingbufHandle_t rb, const status
     return _sta_err; \
 })
 
-void status_manager_init(m_status_cfg_t* events, RingbufHandle_t status_buffer);
+#define STA_C_RET_ON_ESP_ERR_PUSH_LOG(err, e_owner, origin_info) ({\
+    esp_err_t _esp_err = (err); \
+    if (_esp_err != ESP_OK) { \
+        STA_RET_PUSH_LOG(STA_C(_esp_err, (e_owner), (origin_info)), "ESP error: %s", esp_err_to_name(_esp_err)); \
+    } \
+})
 
-TaskHandle_t status_manager_get_task_handle(void);
+#define STA_C_RET_ON_ESP_ERR(err, e_owner, origin_info) ({\
+    esp_err_t _esp_err = (err); \
+    if (_esp_err != ESP_OK) { \
+        return STA_C(_esp_err, (e_owner), (origin_info)); \
+    } \
+})
 
+void status_manager_init(RingbufHandle_t status_buffer);
 void status_manager_cgf_i(bool en_log, bool en_rep);
 void status_manager_cgf_w(bool en_log, bool en_rep);
 void status_manager_cgf_c(bool en_log, bool en_rep);

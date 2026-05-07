@@ -1,6 +1,19 @@
-# The following lines of boilerplate have to be in your project's
-# CMakeLists in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.16)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(combined_test)
+
+# Ignore the VM folder totally
+set(EXCLUDE_COMPONENTS "vm")
+
+# Point directly to the folders in your project root
+list(APPEND EXTRA_COMPONENT_DIRS 
+    "components/status"
+    "components/runit_kernel"
+    "components/packet_interface"
+    "components/mocks"
+    "components/managers"
+    "components/drivers"
+    "components/drivers_wrappers/wrappers"
+)
+
+project(runIT)

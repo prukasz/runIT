@@ -1,9 +1,9 @@
 #pragma once
 
-#include <stdbool.h>
-#include "driver/i2c_master.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "driver/i2c_master.h"
+#include <esp_log.h>
 
 #define INA3221_I2C_ADDR_GND 0x40 // A0 to GND
 #define INA3221_I2C_ADDR_VS  0x41 // A0 to Vs+
