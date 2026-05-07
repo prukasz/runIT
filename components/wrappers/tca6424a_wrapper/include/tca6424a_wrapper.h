@@ -41,59 +41,59 @@
  * @param led_num LED number (0 or 1)
  * @param state true to turn on, false to turn off
  */
-esp_err_t io_sys_led_set(bool led_num, bool state);
+esp_err_t io_sys_periph_set_led(bool led_num, bool state);
 
 /**
  * @brief Enable or disable PWM output of PCA9685
  * @param state true to enable, false to disable
  */
-esp_err_t io_sys_pwm_en(bool state);
+esp_err_t io_sys_periph_en_pca9685(bool state);
 
 /**
  * @brief Enable or disable voltage regulator output (TPS55289)
  * @param vreg_num Voltage regulator number (0 or 1)
  * @param state true to enable, false to disable
  */
-esp_err_t io_sys_vreg_en(bool vreg_num, bool state);
+esp_err_t io_sys_preriph_en_tps55289(bool vreg_num, bool state);
 
 /**
  * @brief Select mode for overcurrent protection on DRV outputs
  * @param mode mode "1" or "0"
  */
-esp_err_t io_sys_drv_ocpm(bool mode);
+esp_err_t io_sys_periph_set_drv_ocpm(bool mode);
 
 /**
  * @brief Enable or disable sleep mode for DRV
  * @param drv_num Driver number (0 or 1)
  * @param state true to enable, false to disable
  */
-esp_err_t io_sys_drv_sleep(bool drv_num, bool state);
+esp_err_t io_sys_periph_en_drv(bool drv_num, bool state);
 
 /**
  * @brief Set active LM73100
  * @param drv_num Driver number (0 or 1)
  * @param sup_num Supply number (0 or 1)
  */
-esp_err_t io_sys_drv_set_suplly(bool drv_num, bool sup_num);
+esp_err_t io_sys_periph_set_drv_supply(bool drv_num, bool sup_num);
 
 /**
  * @brief Turn off both LM73100
  * @param drv_num Driver number (0 or 1)
  */
-esp_err_t io_sys_drv_reset_supply(bool drv_num);
+esp_err_t io_sys_periph_reset_drv_supply(bool drv_num);
 
 /**
  * @brief Register callback for DRV fault pin
  * @param drv_num Driver number (0 or 1)
  */
-esp_err_t io_sys_callback_drv_set(bool drv_num, void (*drv_callback)(void* arg), void* arg);
+esp_err_t io_sys_callback_set_drv(bool drv_num, void (*drv_callback)(void* arg), void* arg);
 
 /**
  * @brief Register callback for AP33772s PD interrupt pin
  * @param usb_callback Function pointer to the callback function
  * @param arg Argument to be passed to the callback function
  */
-esp_err_t io_sys_callback_usb_set(void (*usb_callback)(void* arg), void* arg);
+esp_err_t io_sys_callback_set_usb(void (*usb_callback)(void* arg), void* arg);
 
 /**
  * @brief Register callback for INA3221 warning pin 
@@ -101,7 +101,9 @@ esp_err_t io_sys_callback_usb_set(void (*usb_callback)(void* arg), void* arg);
  * @param arg_x Argument to be passed to the callback function (e.g. ina3221 handle)
  * @warning Callback provided by ina3221 driver
  */
-esp_err_t io_sys_callback_ina3221_set(void (*ina_callback_c)(void* arg), void* arg_c, void (*ina_callback_w)(void* arg), void* arg_w);
+esp_err_t io_sys_callback_set_ina3221(void (*ina_callback_c)(void* arg), void* arg_c,
+ void (*ina_callback_w)(void* arg), void* arg_w);
 
+esp_err_t io_sys_tca6424a_init(void* dev);
 
-esp_err_t tca_wrapper_init(void* dev);
+esp_err_t io_sys_callback_set_tps55289(bool vreg_num, void (*tps_callback)(void* arg), void* arg);

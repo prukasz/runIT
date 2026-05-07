@@ -2,9 +2,9 @@
 #include <stdint.h>
 #include "esp_err.h"
 
-typedef void (*tps_int_cb_t)(int level, void* args);
+typedef void (*tps_int_cb_t)(void* args);
 
-void set_tps_int_callback(uint8_t i2c_addr, tps_int_cb_t cb, void* args);
+void tps_mock_set_intr_callback(uint8_t i2c_addr, tps_int_cb_t cb, void* args);
 
 // Funkcje do ręcznego zrzucania błędów
 void tps_trigger_ovp(uint8_t i2c_addr);

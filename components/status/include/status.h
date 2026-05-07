@@ -83,6 +83,7 @@ typedef enum{
     OWN_rik_i2c_start_ina3221,
     OWN_rik_init_intr_esp,
     OWN_ina3221_wrapper_init,
+    OWN_rik_i2c_start_tsp55289,
 }status_owner_e;
 
 

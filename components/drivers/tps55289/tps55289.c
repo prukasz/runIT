@@ -1,8 +1,9 @@
 #include "tps55289.h"
 #include <string.h>
 #include "esp_log.h"
+#include "tps55289_mock.h"
 
-#define TAG "TPS55289"
+#define TAG __FILE_NAME__
 
 #define TPS55289_I2C_TIMEOUT 20 // ms
 #define I2C_FREQ_HZ 400000      // 400kHz
@@ -23,7 +24,12 @@ void tps55289_task(void *arg);
 static esp_err_t _tps55289_read(tps55289_handle_t handle, const uint8_t reg, uint8_t *val)
 {
     CHECK_ARG(val);
-    RETURN_ON_ERROR(i2c_master_transmit_receive(handle->i2c_master_dev_handle, (uint8_t[]){reg}, 1, val, 1, TPS55289_I2C_TIMEOUT));
+    
+    // Pobranie adresu z konfiguracji uchwytu
+    uint8_t i2c_addr = handle->i2c_device_config.device_address;
+    
+    // Wywołanie mocka zamiast sprzętowego I2C
+    RETURN_ON_ERROR(tps_transmit_receive(i2c_addr, (uint8_t[]){reg}, 1, val, 1, TPS55289_I2C_TIMEOUT));
     
     if (reg < TPS55289_REG_MAX) {
         handle->reg_cache[reg] = *val;
@@ -35,7 +41,12 @@ static esp_err_t _tps55289_read(tps55289_handle_t handle, const uint8_t reg, uin
 static esp_err_t _tps55289_write(tps55289_handle_t handle, uint8_t reg, uint8_t val)
 {
     uint8_t buf[2] = { reg, val };
-    RETURN_ON_ERROR(i2c_master_transmit(handle->i2c_master_dev_handle, buf, 2, TPS55289_I2C_TIMEOUT));
+    
+    // Pobranie adresu z konfiguracji uchwytu
+    uint8_t i2c_addr = handle->i2c_device_config.device_address;
+    
+    // Wywołanie mocka zamiast sprzętowego I2C
+    RETURN_ON_ERROR(tps_transmit(i2c_addr, buf, 2, TPS55289_I2C_TIMEOUT));
     
     if (reg < TPS55289_REG_MAX) {
         handle->reg_cache[reg] = val;
@@ -81,7 +92,7 @@ tps55289_handle_t tps55289_new(uint8_t i2c_address)
     handle->shunt_resistor_mohm = 10; // Domyślnie 10 mOhm zgodnie z wymaganiami
     handle->driver_task_handle = NULL;
     
-    if (xTaskCreate(tps55289_task, "tps55289_task", 3072, handle, 5, &handle->driver_task_handle) != pdPASS) {
+    if (xTaskCreate(tps55289_task, NULL, 4096, handle, 5, &handle->driver_task_handle) != pdPASS) {
         ESP_LOGE(TAG, "Failed to create TPS55289 task");
         free(handle);
         return NULL;

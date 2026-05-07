@@ -9,6 +9,7 @@
 #include "status.h"
 #include "rik_shared.h"
 #include "rik_interrupts.h"
+#include "tps55289_mock.h"
 
 
 #define TAG __FILE_NAME__
@@ -34,6 +35,9 @@ void status_gen_status_err(void* params){
        
         tca_mock_set_pin_level(IO_TCA_INA3221_CRIT, true);
 
+        tps_trigger_ocp(0x74);
+        tps_trigger_scp(0x75);
+
         STA_PUSH(STA_E(0xDEAD, 0, 0));
         STA_PUSH(STA_E(0xDEAD, 0, 0));
         STA_PUSH(STA_E(0xDEAD, 0, 0));
@@ -51,6 +55,8 @@ void status_gen_status_err(void* params){
         xEventGroupSetBits(rik_events, EVENT_BIT_BLE_START);
     }
 }
+
+
 
 esp_err_t rik_start() {
     rik_buff_tx = xRingbufferCreate(TX_BUFFER_SIZE, RINGBUF_TYPE_NOSPLIT);
@@ -81,9 +87,11 @@ esp_err_t rik_start() {
     if (err != ESP_OK) return err;
     status_rep_t tca_res = rik_i2c_start_tca6424a(0x22, 0);
     status_rep_t ina_res = rik_i2c_start_ina3221(0x40, 0);
+    status_rep_t tps_res = rik_i2c_start_tsp55289(0x74, 0x75, 0);
     if (STA_IS_ERR(tca_res)) ESP_LOGI(TAG, "Failed to start TCA6424A: e_code=%d, severity=%d", tca_res.e_code, tca_res.details.severity);
     rik_init_intr_esp();
     rik_init_intr_tca6424a();
+    rik_init_intr_tps55289();
 
     xTaskCreate(status_gen_status_err, "status_gen_status_err", 4096, NULL, 5, NULL);
     return ESP_OK;

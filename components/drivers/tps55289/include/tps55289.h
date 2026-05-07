@@ -43,8 +43,7 @@ typedef struct
     /* I2C master device handle, needs to be initialized/added to bus by user */
     i2c_master_dev_handle_t i2c_master_dev_handle;
 
-    /* Rezystancja bocznikowa (shunt) w miliomach (mOhm). Domyślnie: 10 */
-    uint16_t shunt_resistor_mohm;
+    uint16_t shunt_resistor_mohm; //10mohm default,
 
     /**
      * @brief Pamięć podręczna (cache) wszystkich rejestrów.
@@ -104,47 +103,42 @@ tps55289_handle_t tps55289_new(uint8_t i2c_address);
 void tps55289_delete(tps55289_handle_t handle);
 
 /**
- * @brief Opcjonalnie nadpisuje domyślną wartość 10 mOhm.
+ * @brief set shunt 
  */
 void tps55289_set_shunt_resistor(tps55289_handle_t handle, uint16_t resistance_mOhm);
 
 /**
- * @brief Synchronizuje wszystkie rejestry z układu sprzętowego do lokalnego cache.
+ * @brief Synchronizuje all registiers
  */
 esp_err_t tps55289_sync_all_registers(tps55289_handle_t handle);
 
-// =========================================================================
-// API KONFIGURACJI PARAMETRÓW ZASILACZA
-// =========================================================================
-
 /**
- * @brief Włącza lub wyłącza wyjście przetwornicy (Output Enable)
+ * @brief On or Off of output stage (OE)
  */
 esp_err_t tps55289_set_output_enable(tps55289_handle_t handle, bool enable);
 
 /**
- * @brief Ustawia limit prądu na podstawie przypisanego bocznika (domyślnie 10 mOhm).
- * @param enable Czy limit ma być aktywny
- * @param limit_ma Pożądany limit prądu w miliamperach. Zostanie zaokrąglony do możliwości układu.
+ * @brief Set current limit based on desired mA and shunt resistor value.
+ * @param enable Is current limit enabled (devide tries to hold the limit and drops voltage)
+ * @param limit_ma Current limit in mA
  */
 esp_err_t tps55289_set_current_limit(tps55289_handle_t handle, bool enable, uint16_t limit_ma);
 
 /**
- * @brief Ustawia surowe napięcie referencyjne dla układu.
- * W układzie z wewnętrznym dzielnikiem sprzętowym definiuje to napięcie wyjściowe (VOUT).
- * @param ref_val Wartość 16-bitowa, która zostanie wpisana do LSB (0x00) i MSB (0x01).
+ * @brief Raw vout set 
+ * @param ref_val raw voltage
  */
 esp_err_t tps55289_set_vref_raw(tps55289_handle_t handle, uint16_t ref_val);
 
 /**
- * @brief Ustawia tryby pracy.
- * @param fpwm true = Forced PWM, false = Auto PFM/PWM (lepsza sprawność przy małych obciążeniach)
- * @param hiccup true = Włącza tryb Hiccup przy zwarciu (SCP)
+ * @brief Working mode
+ * @param fpwm true = Forced PWM, false = Auto PFM/PWM
+ * @param hiccup true = shut down and retry in a while, else latch-off
  */
 esp_err_t tps55289_set_mode(tps55289_handle_t handle, bool fpwm, bool hiccup);
 
 /**
- * @brief Aktywuje lub dezaktywuje maski sprzętowe, które wystawiają przerwanie (INT) przy awarii.
+ * @brief Activate or deactivate fault masks for SCP, OCP, OVP. Mask ignore the fault condition on status register and alert pin.
  */
 esp_err_t tps55289_set_fault_masks(tps55289_handle_t handle, bool mask_scp, bool mask_ocp, bool mask_ovp);
 

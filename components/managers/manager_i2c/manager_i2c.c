@@ -19,7 +19,6 @@ static QueueHandle_t bus_periodic_queue_1 = NULL;
 static QueueHandle_t bus_aperiodic_queue_0 = NULL;
 static QueueHandle_t bus_aperiodic_queue_1 = NULL;
 /* Private variables */
-
 /* Driver slots */
 /**
  * @brief This struct holds one "device" represented by task 
@@ -50,6 +49,7 @@ i2c_master_dev_handle_t m_i2c_get_master_dev_handle_by_id(uint8_t id) {
         }
     }
     return NULL;
+    
 }
 
 TaskHandle_t m_i2c_get_dev_task(uint8_t id){

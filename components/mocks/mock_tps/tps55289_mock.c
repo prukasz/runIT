@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include "esp_log.h"
 
-static const char *TAG = "TPS_MOCK";
+#define TAG __FILE_NAME__
 
 #define TPS55289_REG_REF_LSB     0x00
 #define TPS55289_REG_REF_MSB     0x01
@@ -49,7 +49,7 @@ static tps55289_state_t* get_device_by_addr(uint8_t addr) {
     return NULL;
 }
 
-void set_tps_int_callback(uint8_t i2c_addr, tps_int_cb_t cb, void* args) {
+void tps_mock_set_intr_callback(uint8_t i2c_addr, tps_int_cb_t cb, void* args) {
     tps55289_state_t* dev = get_device_by_addr(i2c_addr);
     if (dev) {
         dev->int_callback = cb;
@@ -72,7 +72,7 @@ static void update_tps_int_status(tps55289_state_t* dev) {
         ESP_LOGW(TAG, "TPS55289 [0x%02X] INT Pin: %s", dev->i2c_addr, dev->int_active ? "LOW (FAULT)" : "HIGH (NORMAL)");
         
         if (dev->int_callback) {
-            dev->int_callback(dev->int_active ? 0 : 1, dev->int_callback_args);
+            dev->int_callback(dev->int_callback_args);
         }
     }
 }
@@ -117,6 +117,7 @@ esp_err_t tps_transmit(uint8_t i2c_addr, const uint8_t *write_buffer, size_t wri
         ESP_LOGE(TAG, "TRANSMIT: Address 0x%02X not recognized!", i2c_addr);
         return ESP_ERR_NOT_FOUND;
     }
+    
 
     uint8_t reg_addr = write_buffer[0];
     ESP_LOGI(TAG, "TRANSMIT [0x%02X] Base REG: 0x%02X, Len: %d", i2c_addr, reg_addr, (int)write_buffer_len - 1);
