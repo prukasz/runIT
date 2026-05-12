@@ -1,5 +1,7 @@
 #include "interface_dispatcher.h"
 #include "interface_commands.h"
+#include "rik_tx_rx.h"
+#include "rtos_utils.h"
 
 #define TAG __FILENAME__
 
@@ -46,26 +48,16 @@ void interface_buff_register_rx(RingbufHandle_t rx_buffer) {
 
 static void interface_task(void* pvParameters){
         while (1) {
-
-        xEventGroupWaitBits(
-            _cfg->connection_events,
-            _cfg->connection_bits_rx,  
-            pdTRUE,  
-            pdFALSE,
-            portMAX_DELAY
-        );
-        
         uint8_t cmd_data[527];
         size_t cmd_len = 0;
+        status_rep_t ret = RIK_RX_WAIT(cmd_data, sizeof(cmd_data), &cmd_len);
         ESP_LOGI(TAG, "Received event to process interface command");
-        esp_err_t ret = interface_rx_dequeue(cmd_data, &cmd_len);
-        if (ret == ESP_OK && cmd_len > 0) {
+        if (ret.e_code == ESP_OK && cmd_len > 0) {
             _interface_dispatch_cmd(cmd_data, cmd_len);
         }
         else {
-            ESP_LOGW(TAG, "%s", esp_err_to_name(ret));
+            ESP_LOGW(TAG, "%s", esp_err_to_name(ret.e_code));
         }
-
     }
 }
 
@@ -74,29 +66,6 @@ void interface_init(interface_cfg_t *config){
     xTaskCreate(&interface_task, "interface_task", _cfg->task_stack_size, NULL, _cfg->task_priority, &interface_task_handle);
     ESP_LOGI(TAG, "Interface dispatcher initialized successfully");
 }
-
-
-
-static esp_err_t _interface_rb_dequeue(RingbufHandle_t rb, uint8_t *data, size_t *len) {
-    size_t item_size = 0;
-    void *item = xRingbufferReceive(rb, &item_size, 0);
-    if (item == NULL) { return ESP_ERR_NOT_FOUND; }
-
-    memcpy(data, item, item_size);
-    *len = item_size;
-
-    vRingbufferReturnItem(rb, item);
-    return ESP_OK;
-}
-
-esp_err_t interface_rx_dequeue(uint8_t* data, size_t* len) {
-    if (_interface_rx_buffer == NULL) {
-        return ESP_ERR_INVALID_STATE;
-    }
-    return _interface_rb_dequeue(_interface_rx_buffer, data, len);
-}
-
-
 
 TaskHandle_t interface_get_task_handle(){
     return interface_task_handle;

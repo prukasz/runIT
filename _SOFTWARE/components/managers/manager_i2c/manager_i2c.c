@@ -151,7 +151,6 @@ static void i2c_manager_task(void* params) {
 
 status_rep_t m_i2c_init(m_i2c_config_t* bus0_config, m_i2c_config_t* bus1_config) 
 {
-    esp_err_t err;
     manager_bus_cfg_0 = bus0_config;
     manager_bus_cfg_1 = bus1_config;
     bus_periodic_queue_0 = xQueueCreate(manager_bus_cfg_0->queue_size_periodic, sizeof(m_i2c_driver_job_t));

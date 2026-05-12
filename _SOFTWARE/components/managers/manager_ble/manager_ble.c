@@ -4,9 +4,19 @@
 #include <esp_log.h>
 #include <string.h>
 #include "esp_timer.h"
-
+#include "rtos_utils.h"
 
 #define TAG __FILE_NAME__
+
+
+#define BIT_ON_INDICATION_COMPLETE (1 << 0)
+#define BIT_ON_INDICATION_TIMEOUT (1 << 1)
+#define BIT_ON_NOTIFICATION_COMPLETE (1 << 2)
+#define BIT_START_TX (1 << 3)
+
+#define BLE_TASK_STACK_SIZE 8*1024
+#define BLE_TASK_PRIORITY 5
+
 
 typedef struct{
     RingbufHandle_t tx_buff;
@@ -26,23 +36,19 @@ static RingbufHandle_t m_ble_rx_buffer = NULL;
 // tx_buffers storage
 static _tx_buff_slot_t m_ble_tx_buffers[MAX_TX_BUFFERS] = {0};
 
+static esp_err_t m_ble_tx_dequeue(uint8_t priority_idx, uint8_t* data, size_t* len, size_t max_payload);
+
 /*****************************************************************************************/
 
 /**
  * @brief This task is responsible for sending BLE data from assigned buffers
  */
 
-static void m_ble_task(void *pvParameters) {
+static void m_ble_task_func(void *pvParameters) {
     (void)pvParameters;
     while (1) {
-        // Wait for a signal that data has been queued
-        xEventGroupWaitBits(
-            cfg->ble_cfg.event_group,
-            cfg->m_ble_bits_tx_start,
-            pdTRUE,  
-            pdFALSE,
-            portMAX_DELAY);
-
+        
+        R_EVENT_AWAIT_ANY(cfg->event_group, cfg->bit_tx_start, WAIT_FOREVER);
         bool data_sent;
         /*DEBUG*/
         uint64_t start_time = esp_timer_get_time();
@@ -86,13 +92,7 @@ static void m_ble_task(void *pvParameters) {
                         break; 
                     } else if (send_res == ESP_ERR_NO_MEM) {
                         // BLE controller ran out of memory, wait for TX complete events
-                        xEventGroupWaitBits(
-                            cfg->ble_cfg.event_group,
-                            cfg->ble_cfg.bits.bit_notify_complete | cfg->ble_cfg.bits.bit_indication_complete | cfg->ble_cfg.bits.bit_indication_timeout,
-                            pdTRUE,  
-                            pdFALSE,
-                            pdMS_TO_TICKS(100)
-                        );
+                        R_EVENT_AWAIT_ANY(cfg->event_group, BIT_ON_INDICATION_COMPLETE | BIT_ON_NOTIFICATION_COMPLETE | BIT_ON_INDICATION_TIMEOUT, MSEC(1000));
                         goto REPEAT; // Retry sending the same data
                     } else {
                         if (send_res != 6) {
@@ -105,19 +105,37 @@ static void m_ble_task(void *pvParameters) {
         } while (data_sent); // Keep looping until ALL buffers are completely empty
         
         /*DEBUG*/
-        ESP_LOGI(TAG, "BLE Task: Completed sending %lu packets of data in %lld us", send_count, (esp_timer_get_time() - start_time));
-        xEventGroupSetBits(cfg->ble_cfg.event_group, cfg->m_ble_bits_tx_done);\
-        xTaskNotifyGive(cfg->ble_cfg.supervisor_task_handle); // Notify supervisor that TX batch is done
+        //ESP_LOGI(TAG, "BLE Task: Completed sending %lu packets of data in %lld us", send_count, (esp_timer_get_time() - start_time));
+        xEventGroupSetBits(cfg->event_group, cfg->bit_tx_done);\
+        xTaskNotifyGive(cfg->supervisor_task_handle); // Notify supervisor that TX batch is done
     }
 }
+
+R_TASK_DEFINE(m_ble_task, BLE_TASK_STACK_SIZE);
+
+a_ble_host_cfg_t host_cfg = {0};
 
 esp_err_t m_ble_init(m_ble_cfg_t *config) {
     cfg = config;
     ESP_LOGI(TAG, "Starting BLE manager task...");
-    xTaskCreate(&m_ble_task, "m_ble_task", cfg->task_stack_size, NULL, cfg->task_priority, &cfg->manager_task_handle);
+    R_TASK_START_ON_CORE(m_ble_task, &m_ble_task_func, NULL, BLE_TASK_PRIORITY, 0);
+    cfg->manager_task_handle = m_ble_task;
     ESP_LOGI(TAG, "Initializing BLE stack...");
 
-    esp_err_t err = a_ble_init(&(cfg->ble_cfg));
+    host_cfg.manager_task_handle = m_ble_task;
+    host_cfg.supervisor_task_handle = cfg->supervisor_task_handle;
+    host_cfg.event_group = cfg->event_group;
+    host_cfg.host_bits.bit_on_connect = cfg->bit_on_connect;
+    host_cfg.host_bits.bit_on_disconnect = cfg->bit_on_disconnect;
+    host_cfg.host_bits.bit_on_connection_failed = cfg->bit_on_connection_failed;
+    host_cfg.host_bits.bit_on_mtu_change = cfg->bit_on_mtu_change;
+    host_cfg.host_bits.bit_on_rx_received = cfg->bit_on_rx_received;
+    host_cfg.host_bits.bit_on_rx_failed = cfg->bit_on_rx_failed;
+    host_cfg.tx_bits.bit_on_indication_complete = BIT_ON_INDICATION_COMPLETE;
+    host_cfg.tx_bits.bit_on_indication_timeout = BIT_ON_INDICATION_TIMEOUT;
+    host_cfg.tx_bits.bit_on_notification_complete = BIT_ON_NOTIFICATION_COMPLETE;
+
+    esp_err_t err = a_ble_init(&host_cfg);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize BLE driver: %s", esp_err_to_name(err));
         return err;
@@ -153,46 +171,29 @@ esp_err_t m_ble_tx_enqueue(RingbufHandle_t tx_buffer, const uint8_t* data, size_
 
     //add data to ringbuffer, if fails return error
     if (xRingbufferSend(tx_buffer, data, len, pdMS_TO_TICKS(wait_time_ms)) != pdTRUE) {
-         return ESP_ERR_NO_MEM;
+        return ESP_ERR_NO_MEM;
     }
-    //signal manager task that data is in buffer
-    xEventGroupSetBits(cfg->ble_cfg.event_group, cfg->m_ble_bits_tx_start);
+    R_EVENT_SET(cfg->event_group, cfg->bit_tx_start);
     return ESP_OK; 
 }
 
 
-esp_err_t m_ble_rx_enqueue(const uint8_t* data, size_t len) {
-    if (m_ble_rx_buffer == NULL) { return ESP_ERR_INVALID_ARG;}
+// static esp_err_t m_ble_rx_enqueue(const uint8_t* data, size_t len) {
+//     if (m_ble_rx_buffer == NULL) { return ESP_ERR_INVALID_ARG;}
 
-    //add data to ringbuffer, if fails return error
-    if (xRingbufferSend(m_ble_rx_buffer, data, len, 0) != pdTRUE) {
-         return ESP_ERR_NO_MEM;
-    }
-    //signal other task that data is in buffer
-    xEventGroupSetBits(cfg->ble_cfg.event_group, cfg->ble_cfg.bits.bit_rx_received);
-    //notify supervisor task 
-    xTaskNotifyGive(cfg->ble_cfg.supervisor_task_handle);
-    return ESP_OK;
-}
+//     //add data to ringbuffer, if fails return error
+//     if (xRingbufferSend(m_ble_rx_buffer, data, len, 0) != pdTRUE) {
+//          return ESP_ERR_NO_MEM;
+//     }
+//     //signal other task that data is in buffer
+//     xEventGroupSetBits(cfg->ble_cfg.event_group, cfg->ble_cfg.bits.bit_rx_received);
+//     //notify supervisor task 
+//     xTaskNotifyGive(cfg->ble_cfg.supervisor_task_handle);
+//     return ESP_OK;
+// }
 
-esp_err_t m_ble_rx_dequeue(uint8_t* data, size_t* len) {
-    if (m_ble_rx_buffer == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
 
-    size_t item_size = 0;
-    void *item = xRingbufferReceive(m_ble_rx_buffer, &item_size, 0);
-    if (item == NULL) { return ESP_ERR_NOT_FOUND; }
-
-    memcpy(data, item, item_size);
-    *len = item_size;
-
-    vRingbufferReturnItem(m_ble_rx_buffer, item);
-    return ESP_OK;
-}
-
-// Note: Update your header file to match this new signature if you have one.
-esp_err_t m_ble_tx_dequeue(uint8_t priority_idx, uint8_t* data, size_t* len, size_t max_payload) {
+static esp_err_t m_ble_tx_dequeue(uint8_t priority_idx, uint8_t* data, size_t* len, size_t max_payload) {
     if (priority_idx >= MAX_TX_BUFFERS) return ESP_ERR_INVALID_ARG;
     
     _tx_buff_slot_t *slot = &m_ble_tx_buffers[priority_idx];

@@ -4,5 +4,5 @@ idf_component_register(
          "gatt_svc.c"
     INCLUDE_DIRS "include"
     PRIV_INCLUDE_DIRS "."
-    REQUIRES bt nvs_flash esp_ringbuf
+    REQUIRES bt nvs_flash esp_ringbuf utils
 )

@@ -28,13 +28,13 @@ typedef struct{
 /**
  * @brief Remote error / status report struct
  * @param e_code: UINT16_t Error code (status_err_code_e)
- * @param e_owner: UINT16_t Enum for error origin (status_owner_e)
+ * @param e_owner: UINT32_t Enum for error origin (status_owner_e)
  * @param track: Union for error tracking info (e.g. for for more info about owner)
  * @param details: (bitfield) severity (0-Info, 1-Warning, 2-Critical), depth (for error propagation tracking)
  */
 typedef struct{
-    status_code_e e_code;    //4
-    status_owner_e e_owner;   //2
+    uint32_t e_code;    //
+    uint32_t e_owner;   //4
     union 
     {
         struct {

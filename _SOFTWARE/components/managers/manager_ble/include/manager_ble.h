@@ -11,14 +11,21 @@
 #define MAX_TX_BUFFERS 3
 
 typedef struct{
-    a_ble_host_cfg_t ble_cfg;
-    TaskHandle_t manager_task_handle;
-    uint8_t task_priority;
-    uint32_t task_stack_size;
-    EventBits_t m_ble_bits_tx_start;
-    EventBits_t m_ble_bits_tx_done;
-} m_ble_cfg_t;
 
+    EventBits_t bit_on_connect;
+    EventBits_t bit_on_disconnect;
+    EventBits_t bit_on_connection_failed;
+    EventBits_t bit_on_mtu_change;
+    EventBits_t bit_on_rx_received;
+    EventBits_t bit_on_rx_failed;
+    EventBits_t bit_tx_start;
+    EventBits_t bit_tx_done;
+
+    TaskHandle_t manager_task_handle;
+    TaskHandle_t supervisor_task_handle;
+    EventGroupHandle_t event_group;
+
+} m_ble_cfg_t;
 
 
 /**
@@ -55,29 +62,3 @@ void m_ble_buff_register_tx(RingbufHandle_t tx_buffer, RingbufferType_t buff_typ
  * @return ESP_OK on success, otherwise an error code
  */
 esp_err_t m_ble_tx_enqueue(RingbufHandle_t tx_buffer, const uint8_t* data, size_t len, bool return_when_full);
-
-/**
- * @brief Enqueues received data into the RX buffer, set Received event bit
- * @param data The data to enqueue
- * @param len The length of the data
- * @return ESP_OK on success, otherwise an error code
- */
-esp_err_t m_ble_rx_enqueue(const uint8_t* data, size_t len);
-
-/**
- * @brief Dequeues data from the RX buffer
- * @param data The buffer to store the dequeued data
- * @param len Pointer to store the length of the dequeued data
- * @return ESP_OK on success, otherwise an error code
- */
-esp_err_t m_ble_rx_dequeue(uint8_t* data, size_t* len);
-
-/**
- * @brief Dequeues and optionally packs data from a priority TX buffer up to the MTU limit
- * @param priority_idx The priority index of the registered buffer (0 to MAX_TX_BUFFERS-1)
- * @param data Pointer to the output buffer to hold the dequeued payload
- * @param len Pointer to store the final length of the payload
- * @param max_payload The maximum allowable bytes to pack (usually MTU - 3)
- * @return ESP_OK on success, ESP_ERR_NOT_FOUND if empty, or other error code
- */
-esp_err_t m_ble_tx_dequeue(uint8_t priority_idx, uint8_t* data, size_t* len, size_t max_payload);
