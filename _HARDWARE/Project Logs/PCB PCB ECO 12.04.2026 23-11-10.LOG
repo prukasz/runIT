@@ -1,0 +1,7 @@
+Removed Member From Class: ClassName=NoRelief Member=TP1
+Added Component: Designator=TP2(TP)
+Add Pin To Net: Unknown Pin: Pin TP2-1
+Added Pin To Net: NetName=EN Pin=U5-1
+Added Net: Name=EN
+Added Member To Class: ClassName=NoRelief Member=Component TP2 TP
+Added Member To Class: ClassName=U_DCDC3 Member=Component TP2 TP

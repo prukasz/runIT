@@ -1,0 +1,4 @@
+Removed Pin From Net: NetName=ADS_ALERT Pin=U11-12
+Added Pin To Net: NetName=ADS_ALERT Pin=U11-35
+Added Pin To Net: NetName=GPIO8 Pin=U11-12
+Added Net: Name=GPIO8

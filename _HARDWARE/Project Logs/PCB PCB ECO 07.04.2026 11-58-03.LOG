@@ -1,0 +1,4 @@
+Removed Pin From Net: NetName=EXTERNAL_SPI_CS0 Pin=D22-4
+Added Pin To Net: NetName=EXTERNAL_SPI_CS0 Pin=D22-6
+Added Pin To Net: NetName=NetD22_4 Pin=D22-4
+Added Net: Name=NetD22_4

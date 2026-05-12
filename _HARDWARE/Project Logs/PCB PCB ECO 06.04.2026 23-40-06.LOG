@@ -1,0 +1,16 @@
+Added Component: Designator=R65(R_0603)
+Add component (AddParameter): Name = "Casing"; Value = "0603"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "Power"; Value = "100mW"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "Tolerance"; Value = "1%"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "Value"; Value = "3k09"; VariantName = "[No Variations]"
+Added Component: Designator=R66(R_0603)
+Add component (AddParameter): Name = "Casing"; Value = "0603"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "Power"; Value = "100mW"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "Tolerance"; Value = "1%"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "Value"; Value = "3k09"; VariantName = "[No Variations]"
+Added Pin To Net: NetName=INTERNAL_I2C_SCL Pin=R65-1
+Added Pin To Net: NetName=3V5 Pin=R65-2
+Added Pin To Net: NetName=INTERNAL_I2C_SDA Pin=R66-1
+Added Pin To Net: NetName=3V5 Pin=R66-2
+Added Member To Class: ClassName=U_MCU Member=Component R65 3k09
+Added Member To Class: ClassName=U_MCU Member=Component R66 3k09

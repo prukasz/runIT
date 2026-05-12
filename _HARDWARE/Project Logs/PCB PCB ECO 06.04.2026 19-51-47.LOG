@@ -1,0 +1,7 @@
+Added Pin To Net: NetName=P17 Pin=U9A-27
+Added Pin To Net: NetName=P17 Pin=U9B-27
+Change Net Name : Old Net Name=P17 New Net Name=DRVs_OCPM
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 

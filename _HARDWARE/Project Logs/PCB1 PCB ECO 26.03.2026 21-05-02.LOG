@@ -1,0 +1,124 @@
+Add component: Footprint Not Found CUI_TB001-500-02BE
+Add component: Footprint Not Found CUI_TB001-500-02BE
+Add component: Footprint Not Found CUI_TB001-500-02BE
+Add component: Footprint Not Found CUI_TB001-500-02BE
+Added Component: Designator=JP1_U_PowerIO_1(Jumper)
+Added Component: Designator=JP1_U_PowerIO_2(Jumper)
+Added Component: Designator=JP2_U_PowerIO_1(Jumper)
+Added Component: Designator=JP2_U_PowerIO_2(Jumper)
+Add component: Footprint Not Found DDW0044E-IPC_A
+Add component: Footprint Not Found DDW0044E-IPC_A
+Added Component: Designator=U17(DAC53202_RTE0016C)
+Added Pin To Net: NetName=3V3 Pin=JP1_U_PowerIO_1-1
+Added Pin To Net: NetName=3V3 Pin=JP1_U_PowerIO_2-1
+Added Net: Name=3V3
+Added Pin To Net: NetName=3V3_FILTER Pin=U17-15
+Added Net: Name=3V3_FILTER
+Added Pin To Net: NetName=CAP Pin=U17-13
+Added Net: Name=CAP
+Added Pin To Net: NetName=DRV_MODE_U_PowerIO_1 Pin=JP1_U_PowerIO_1-2
+Added Pin To Net: NetName=DRV_MODE_U_PowerIO_1 Pin=JP2_U_PowerIO_1-2
+Added Net: Name=DRV_MODE_U_PowerIO_1
+Added Pin To Net: NetName=DRV_MODE_U_PowerIO_2 Pin=JP1_U_PowerIO_2-2
+Added Pin To Net: NetName=DRV_MODE_U_PowerIO_2 Pin=JP2_U_PowerIO_2-2
+Added Net: Name=DRV_MODE_U_PowerIO_2
+Added Net: Name=DRVs_OCPM
+Added Net: Name=DVR_1_VM
+Added Net: Name=DVR_2_VM
+Added Pin To Net: NetName=GND Pin=JP2_U_PowerIO_1-1
+Added Pin To Net: NetName=GND Pin=JP2_U_PowerIO_2-1
+Added Pin To Net: NetName=GND Pin=U17-7
+Added Pin To Net: NetName=GND Pin=U17-14
+Added Pin To Net: NetName=GND Pin=U17-17
+Added Net: Name=GND
+Added Pin To Net: NetName=I2C_INTERNAL_SCL Pin=U17-6
+Added Net: Name=I2C_INTERNAL_SCL
+Added Pin To Net: NetName=I2C_INTERNAL_SDA Pin=U17-8
+Added Net: Name=I2C_INTERNAL_SDA
+Added Net: Name=NetC32_U_PowerIO_1_1
+Added Net: Name=NetC32_U_PowerIO_2_1
+Added Net: Name=NetC35_U_PowerIO_1_1
+Added Net: Name=NetC35_U_PowerIO_1_2
+Added Net: Name=NetC35_U_PowerIO_2_1
+Added Net: Name=NetC35_U_PowerIO_2_2
+Added Net: Name=NetC36_U_PowerIO_1_2
+Added Net: Name=NetC36_U_PowerIO_2_2
+Added Net: Name=NetC49_U_MuxVM_1_2
+Added Net: Name=NetC49_U_MuxVM_2_2
+Added Net: Name=NetC52_U_MuxVM_1_2
+Added Net: Name=NetC52_U_MuxVM_2_2
+Added Net: Name=NetFB1_U_PowerIO_1_1
+Added Net: Name=NetFB1_U_PowerIO_2_1
+Added Net: Name=NetFB2_U_PowerIO_1_1
+Added Net: Name=NetFB2_U_PowerIO_2_1
+Added Net: Name=NetFB3_U_PowerIO_1_1
+Added Net: Name=NetFB3_U_PowerIO_2_1
+Added Net: Name=NetFB4_U_PowerIO_1_1
+Added Net: Name=NetFB4_U_PowerIO_2_1
+Added Net: Name=NetR29_U_PowerIO_1_2
+Added Net: Name=NetR29_U_PowerIO_2_2
+Added Net: Name=NetR30_U_PowerIO_1_2
+Added Net: Name=NetR30_U_PowerIO_2_2
+Added Net: Name=NetR31_U_PowerIO_1_2
+Added Net: Name=NetR31_U_PowerIO_2_2
+Added Net: Name=NetR32_U_PowerIO_1_2
+Added Net: Name=NetR32_U_PowerIO_2_2
+Added Net: Name=NetR33_U_PowerIO_1_2
+Added Net: Name=NetR33_U_PowerIO_2_2
+Added Net: Name=NetR47_U_MuxVM_1_2
+Added Net: Name=NetR47_U_MuxVM_2_2
+Added Net: Name=NetR48_U_MuxVM_1_2
+Added Net: Name=NetR48_U_MuxVM_2_2
+Added Net: Name=NetU10_U_PowerIO_1_34
+Added Net: Name=NetU10_U_PowerIO_1_35
+Added Net: Name=NetU10_U_PowerIO_1_36
+Added Net: Name=NetU10_U_PowerIO_1_37
+Added Net: Name=NetU10_U_PowerIO_1_38
+Added Net: Name=NetU10_U_PowerIO_1_39
+Added Net: Name=NetU10_U_PowerIO_1_40
+Added Net: Name=NetU10_U_PowerIO_1_41
+Added Net: Name=NetU10_U_PowerIO_1_42
+Added Net: Name=NetU10_U_PowerIO_2_34
+Added Net: Name=NetU10_U_PowerIO_2_35
+Added Net: Name=NetU10_U_PowerIO_2_36
+Added Net: Name=NetU10_U_PowerIO_2_37
+Added Net: Name=NetU10_U_PowerIO_2_38
+Added Net: Name=NetU10_U_PowerIO_2_39
+Added Net: Name=NetU10_U_PowerIO_2_40
+Added Net: Name=NetU10_U_PowerIO_2_41
+Added Net: Name=NetU10_U_PowerIO_2_42
+Added Net: Name=NetU14_U_MuxVM_1_1
+Added Net: Name=NetU14_U_MuxVM_1_2
+Added Net: Name=NetU14_U_MuxVM_2_1
+Added Net: Name=NetU14_U_MuxVM_2_2
+Added Net: Name=OUT1_U_PowerIO_1
+Added Net: Name=OUT1_U_PowerIO_2
+Added Net: Name=OUT2_U_PowerIO_1
+Added Net: Name=OUT2_U_PowerIO_2
+Added Net: Name=OUT3_U_PowerIO_1
+Added Net: Name=OUT3_U_PowerIO_2
+Added Net: Name=OUT4_U_PowerIO_1
+Added Net: Name=OUT4_U_PowerIO_2
+Added Pin To Net: NetName=VREF1 Pin=U17-1
+Added Pin To Net: NetName=VREF1 Pin=U17-2
+Added Net: Name=VREF1
+Added Pin To Net: NetName=VREF2 Pin=U17-11
+Added Pin To Net: NetName=VREF2 Pin=U17-12
+Added Net: Name=VREF2
+Added Pin To Net: NetName=VREF Pin=U17-16
+Added Net: Name=VREF
+Added Net: Name=VREG5
+Added Net: Name=VREG
+Added Net: Name=VSUP
+Added Class: Name=U_DAC
+Added Class: Name=U_MuxVM_1
+Added Class: Name=U_MuxVM_2
+Added Class: Name=U_PowerIO_1
+Added Class: Name=U_PowerIO_2
+Added Class: Name=DRVPowerOutputs
+Added Class: Name=MuxVM
+Added Rule: Name=Schematic Supply Nets
+Added Rule: Name=Schematic Supply Nets_1
+Added Rule: Name=Schematic Supply Nets_2
+Added Rule: Name=Schematic Supply Nets_3
+Added Rule: Name=Schematic Supply Nets_4

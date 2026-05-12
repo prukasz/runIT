@@ -1,0 +1,6 @@
+Change Component Kind : Designator=JP5A Old Kind=Jumper New Kind=Standard
+Change Component Kind : Designator=JP5B Old Kind=Jumper New Kind=Standard
+Change Component Kind : Designator=JP6A Old Kind=Jumper New Kind=Standard
+Change Component Kind : Designator=JP6B Old Kind=Jumper New Kind=Standard
+Added Pin To Net: NetName=VREG Pin=JP5A-1
+Added Pin To Net: NetName=VREG5 Pin=JP5B-1

@@ -1,0 +1,5 @@
+Removed Pin From Net: NetName=P6 Pin=U8-8
+Removed Pin From Net: NetName=P5 Pin=U8-9
+Added Pin To Net: NetName=P5 Pin=U8-8
+Added Pin To Net: NetName=P6 Pin=U8-9
+Added Member To Class: ClassName=Reg5 Member=Component R7B (R7) 100k

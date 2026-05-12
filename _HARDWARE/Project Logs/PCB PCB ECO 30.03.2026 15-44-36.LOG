@@ -1,0 +1,27 @@
+Removed Member From Class: ClassName=U_USBPD Member=JP?
+Change Component Designator: OldDesignator=D? NewDesignator=D24
+Change Component Designator: OldDesignator=JP? NewDesignator=JP10
+Change Component Designator: OldDesignator=JP? NewDesignator=JP11
+Change Component Designator: OldDesignator=JP? NewDesignator=JP12
+Change Component Designator: OldDesignator=JP? NewDesignator=JP13
+Change Component Designator: OldDesignator=JP? NewDesignator=JP14
+Change Component Designator: OldDesignator=JP? NewDesignator=JP15
+Change Component Designator: OldDesignator=JP? NewDesignator=JP16
+Change Component Designator: OldDesignator=JP? NewDesignator=JP17
+Change Component Designator: OldDesignator=JP?_U_MuxVM_1 NewDesignator=JP18_U_MuxVM_1
+Change Component Designator: OldDesignator=JP?_U_MuxVM_1 NewDesignator=JP19_U_MuxVM_1
+Change Component Designator: OldDesignator=JP?_U_MuxVM_2 NewDesignator=JP18_U_MuxVM_2
+Change Component Designator: OldDesignator=JP?_U_MuxVM_2 NewDesignator=JP19_U_MuxVM_2
+Change Net Name : Old Net Name=NetJP?_1 New Net Name=NetJP11_1
+Added Pin To Net: NetName=NetJP15_1 Pin=JP15-1
+Added Pin To Net: NetName=NetJP15_1 Pin=U7-6
+Added Net: Name=NetJP15_1
+Added Member To Class: ClassName=U_USBPD Member=Component JP10 JUMPER
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP11 JUMPER
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP12 JUMPER
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP14 JUMPER
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP15 JUMPER
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP16 JUMPER
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP17 JUMPER
+Added Member To Class: ClassName=U_MuxVM_2 Member=Component JP18_U_MuxVM_2 (JP18) JUMPER
+Added Member To Class: ClassName=U_MuxVM_1 Member=Component JP19_U_MuxVM_1 (JP19) JUMPER

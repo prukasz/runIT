@@ -1,0 +1,3 @@
+Change Component Description : Designator=U6 Old Description=2.7-V to 23-V, 28-mâ„ New Description=2.7-V to 23-V, 28-mâ„|, 5.5-A eFuse with integrated reverse polarity protection 10-VQFN-HR -40 to 125
+Change Component Description : Designator=U7 Old Description=2.7-V to 23-V, 28-mâ„ New Description=2.7-V to 23-V, 28-mâ„|, 5.5-A eFuse with integrated reverse polarity protection 10-VQFN-HR -40 to 125
+Added Pin To Net: NetName=OUT3_PROT_U_PowerIO_2 Pin=J8_U_PowerIO_2-2

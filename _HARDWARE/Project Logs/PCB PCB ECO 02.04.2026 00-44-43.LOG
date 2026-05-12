@@ -1,0 +1,4 @@
+Removed Pin From Net: NetName=PWM_PROT_0 Pin=D15-1
+Removed Pin From Net: NetName=PWM_PROT_1 Pin=D15-3
+Added Pin To Net: NetName=PWM_PROT_1 Pin=D15-1
+Added Pin To Net: NetName=PWM_PROT_0 Pin=D15-3

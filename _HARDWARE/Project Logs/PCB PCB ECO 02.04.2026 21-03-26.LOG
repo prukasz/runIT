@@ -1,0 +1,12 @@
+Change Component Footprint: Designator=D1 Old Footprint=SMBJSERIES_LTF New Footprint=CR_0A-M389A_VIS
+Change Component Footprint: Designator=D2 Old Footprint=SMBJSERIES_LTF New Footprint=CR_0A-M389A_VIS
+Change Component Footprint: Designator=D6 Old Footprint=SMBJSERIES_LTF New Footprint=CR_0A-M389A_VIS
+Change Component Footprint: Designator=D24 Old Footprint=SMBJSERIES_LTF New Footprint=CR_0A-M389A_VIS
+Change Component Comment : Designator=D1 Old Comment=SMBJ20A New Comment=MSMP20A-M3/89A
+Change Component Comment : Designator=D2 Old Comment=SMBJ20A New Comment=MSMP20A-M3/89A
+Change Component Comment : Designator=D6 Old Comment=SMBJ20A New Comment=MSMP20A-M3/89A
+Change Component Comment : Designator=D24 Old Comment=SMBJ20A New Comment=MSMP20A-M3/89A
+Change Component Description : Designator=D1 Old Description=22V min Breakdown New Description=22V Breakdown MSMP20A-M3/89A
+Change Component Description : Designator=D2 Old Description=22V min Breakdown New Description=22V Breakdown MSMP20A-M3/89A
+Change Component Description : Designator=D6 Old Description=22V min Breakdown New Description=22V Breakdown MSMP20A-M3/89A
+Change Component Description : Designator=D24 Old Description=22V min Breakdown New Description=22V Breakdown MSMP20A-M3/89A

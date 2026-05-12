@@ -1,0 +1,123 @@
+Removed Pin From Net: NetName=VSUP Pin=C8_U_DCDCreg5-1
+Removed Pin From Net: NetName=VSUP Pin=C9_U_DCDCreg5-2
+Removed Pin From Net: NetName=VSUP Pin=C10_U_DCDCreg5-2
+Removed Pin From Net: NetName=3V5 Pin=C19-2
+Removed Pin From Net: NetName=VSUP Pin=C20-2
+Removed Pin From Net: NetName=VSUP Pin=C21-2
+Removed Pin From Net: NetName=3V5 Pin=C22-2
+Removed Pin From Net: NetName=3V5 Pin=C23-2
+Removed Pin From Net: NetName=VREG Pin=C48_U_MuxVM_1-2
+Removed Pin From Net: NetName=VREG5 Pin=C48_U_MuxVM_2-2
+Removed Pin From Net: NetName=VSUP Pin=C51_U_MuxVM_1-2
+Removed Pin From Net: NetName=VSUP Pin=C51_U_MuxVM_2-2
+Removed Pin From Net: NetName=3V5 Pin=L2-2
+Removed Pin From Net: NetName=VREG5 Pin=R10_U_DCDCreg5-2
+Removed Pin From Net: NetName=VREG Pin=R10_U_DCDCreg-2
+Removed Pin From Net: NetName=3V5 Pin=R12-2
+Removed Pin From Net: NetName=3V5 Pin=R13-2
+Removed Pin From Net: NetName=VSUP Pin=R16-2
+Removed Pin From Net: NetName=VUSB Pin=R17-2
+Removed Pin From Net: NetName=VSUP Pin=U4_U_DCDCreg5-7
+Removed Pin From Net: NetName=VREG5 Pin=U4_U_DCDCreg5-13
+Removed Pin From Net: NetName=VREG Pin=U4_U_DCDCreg-13
+Removed Pin From Net: NetName=VSUP Pin=U5-8
+Removed Pin From Net: NetName=VUSB Pin=U6-5
+Removed Pin From Net: NetName=VSUP_SENS+ Pin=U6-6
+Removed Pin From Net: NetName=VSUP_SENS+ Pin=U7-6
+Removed Pin From Net: NetName=VSUP Pin=U8-11
+Removed Pin From Net: NetName=VREG Pin=U13_U_MuxVM_1-5
+Removed Pin From Net: NetName=VREG5 Pin=U13_U_MuxVM_2-5
+Removed Pin From Net: NetName=VSUP Pin=U14_U_MuxVM_1-5
+Removed Pin From Net: NetName=VSUP Pin=U14_U_MuxVM_2-5
+Added Component: Designator=D?(SMBJSeries_LTF)
+Add component (AddParameter): Name = "ComponentLink1Description"; Value = "Datasheet"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "ComponentLink1URL"; Value = "https://www.bourns.com/docs/product-datasheets/smbj.pdf"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "ComponentLink2Description"; Value = "Supplier"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "ComponentLink2URL"; Value = "https://www.mouser.pl/ProductDetail/Bourns/SMBJ22A?qs=%252Bf8Cd6aE5bxYX21zv65pDQ%3D%3D"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "Value"; Value = "22V"; VariantName = "[No Variations]"
+Added Component: Designator=JP?(Jumper)
+Added Component: Designator=JP?(Jumper)
+Added Component: Designator=JP?(Jumper)
+Added Component: Designator=JP?(Jumper)
+Added Component: Designator=JP?(Jumper)
+Added Component: Designator=JP?(Jumper)
+Added Component: Designator=JP?(Jumper)
+Added Component: Designator=JP?(Jumper)
+Added Component: Designator=JP?_U_MuxVM_1(Jumper)
+Added Component: Designator=JP?_U_MuxVM_1(Jumper)
+Added Component: Designator=JP?_U_MuxVM_2(Jumper)
+Added Component: Designator=JP?_U_MuxVM_2(Jumper)
+Added Pin To Net: NetName=GND Pin=D?-A
+Added Pin To Net: NetName=3V5 Pin=D?-K
+Added Pin To Net: NetName=3V5 Pin=R19-2
+Added Pin To Net: NetName=3V5 Pin=R23-2
+Change Net Name : Old Net Name=3V3_FILTER_ADC New Net Name=3V5_ILTER_ADC
+Change Net Name : Old Net Name=3V3_FILTER_DAC New Net Name=3V5FILTER_DAC
+Change Net Name : Old Net Name=VSUP New Net Name=VSUP_U_DCDCreg
+Change Net Name : Old Net Name=VUSB New Net Name=V_BUS_OUT
+Add Net: Net with name "3V5" already exists
+Added Pin To Net: NetName=NetC48_U_MuxVM_1_2 Pin=C48_U_MuxVM_1-2
+Added Pin To Net: NetName=NetC48_U_MuxVM_1_2 Pin=JP?_U_MuxVM_1-2
+Added Pin To Net: NetName=NetC48_U_MuxVM_1_2 Pin=U13_U_MuxVM_1-5
+Added Net: Name=NetC48_U_MuxVM_1_2
+Added Pin To Net: NetName=NetC48_U_MuxVM_2_2 Pin=C48_U_MuxVM_2-2
+Added Pin To Net: NetName=NetC48_U_MuxVM_2_2 Pin=JP?_U_MuxVM_2-2
+Added Pin To Net: NetName=NetC48_U_MuxVM_2_2 Pin=U13_U_MuxVM_2-5
+Added Net: Name=NetC48_U_MuxVM_2_2
+Added Pin To Net: NetName=NetC51_U_MuxVM_1_2 Pin=C51_U_MuxVM_1-2
+Added Pin To Net: NetName=NetC51_U_MuxVM_1_2 Pin=JP?_U_MuxVM_1-2
+Added Pin To Net: NetName=NetC51_U_MuxVM_1_2 Pin=U14_U_MuxVM_1-5
+Added Net: Name=NetC51_U_MuxVM_1_2
+Added Pin To Net: NetName=NetC51_U_MuxVM_2_2 Pin=C51_U_MuxVM_2-2
+Added Pin To Net: NetName=NetC51_U_MuxVM_2_2 Pin=JP?_U_MuxVM_2-2
+Added Pin To Net: NetName=NetC51_U_MuxVM_2_2 Pin=U14_U_MuxVM_2-5
+Added Net: Name=NetC51_U_MuxVM_2_2
+Added Pin To Net: NetName=NetJP?_1 Pin=JP?-1
+Added Pin To Net: NetName=NetJP?_1 Pin=U6-6
+Added Net: Name=NetJP?_1
+Add Net: Net with name "NetJP?_1" already exists
+Added Pin To Net: NetName=VOUT_U_DCDCreg5 Pin=JP?-1
+Added Pin To Net: NetName=VOUT_U_DCDCreg5 Pin=R10_U_DCDCreg5-2
+Added Pin To Net: NetName=VOUT_U_DCDCreg5 Pin=U4_U_DCDCreg5-13
+Added Net: Name=VOUT_U_DCDCreg5
+Added Pin To Net: NetName=VOUT_U_DCDCreg Pin=JP?-1
+Added Pin To Net: NetName=VOUT_U_DCDCreg Pin=R10_U_DCDCreg-2
+Added Pin To Net: NetName=VOUT_U_DCDCreg Pin=U4_U_DCDCreg-13
+Added Net: Name=VOUT_U_DCDCreg
+Added Pin To Net: NetName=VSUP Pin=C20-2
+Added Pin To Net: NetName=VSUP Pin=C21-2
+Added Pin To Net: NetName=VSUP Pin=JP?-1
+Added Pin To Net: NetName=VSUP Pin=JP?-1
+Added Pin To Net: NetName=VSUP Pin=JP?_U_MuxVM_1-1
+Added Pin To Net: NetName=VSUP Pin=JP?_U_MuxVM_2-1
+Added Pin To Net: NetName=VSUP Pin=R16-2
+Added Pin To Net: NetName=VSUP Pin=U5-8
+Added Pin To Net: NetName=VSUP Pin=U8-11
+Added Net: Name=VSUP
+Added Pin To Net: NetName=VSUP_U_DCDCreg5 Pin=C8_U_DCDCreg5-1
+Added Pin To Net: NetName=VSUP_U_DCDCreg5 Pin=C9_U_DCDCreg5-2
+Added Pin To Net: NetName=VSUP_U_DCDCreg5 Pin=C10_U_DCDCreg5-2
+Added Pin To Net: NetName=VSUP_U_DCDCreg5 Pin=JP?-2
+Added Pin To Net: NetName=VSUP_U_DCDCreg5 Pin=U4_U_DCDCreg5-7
+Added Net: Name=VSUP_U_DCDCreg5
+Added Pin To Net: NetName=VUSB Pin=JP?-2
+Added Pin To Net: NetName=VUSB Pin=R17-2
+Added Pin To Net: NetName=VUSB Pin=U6-5
+Added Net: Name=VUSB
+Added Member To Class: ClassName=U_PowerAssembly Member=Component D? SMBJ20A
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP? JUMPER
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP? JUMPER
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP? JUMPER
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP? JUMPER
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP? JUMPER
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP? JUMPER
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP? JUMPER
+Added Member To Class: ClassName=U_USBPD Member=Component JP? JUMPER
+Added Member To Class: ClassName=U_MuxVM_1 Member=Component JP?_U_MuxVM_1 (JP?) JUMPER
+Added Member To Class: ClassName=U_MuxVM_1 Member=Component JP?_U_MuxVM_1 (JP?) JUMPER
+Added Member To Class: ClassName=U_MuxVM_2 Member=Component JP?_U_MuxVM_2 (JP?) JUMPER
+Added Member To Class: ClassName=U_MuxVM_2 Member=Component JP?_U_MuxVM_2 (JP?) JUMPER
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 

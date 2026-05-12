@@ -1,0 +1,17 @@
+Change Component Comment : Designator=R15 Old Comment=R_169k New Comment=169k
+Change Component Comment : Designator=R21 Old Comment=R_169k New Comment=169k
+Change Component Designator: OldDesignator=F_1 NewDesignator=F1
+Change component parameters: Designator = "R15" ("R15"); Footprint = "R_0603"; UniqueID = "\QJONJVLH\FAKVNOAM" ("\QJONJVLH\FAKVNOAM")
+Change component parameters (AddParameter): Name = "Casing"; Value = "0603"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Power"; Value = "100mW"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Tolerance"; Value = "1%"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = "169k"; VariantName = "[No Variations]"
+Change component parameters: Designator = "R21" ("R21"); Footprint = "R_0603"; UniqueID = "\QJONJVLH\YXUJYBOX" ("\QJONJVLH\YXUJYBOX")
+Change component parameters (AddParameter): Name = "Casing"; Value = "0603"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Power"; Value = "100mW"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Tolerance"; Value = "1%"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = "169k"; VariantName = "[No Variations]"
+Added Member To Class: ClassName=NoRelief Member=Component C1 10u 25V
+Added Member To Class: ClassName=NoRelief Member=Component Q1 DMG7430LFG
+Added Member To Class: ClassName=NoRelief Member=Component Q2 DMG7430LFG
+Added Member To Class: ClassName=NoRelief Member=Component R1 27R

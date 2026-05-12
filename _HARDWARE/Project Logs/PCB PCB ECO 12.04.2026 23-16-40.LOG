@@ -1,0 +1,14 @@
+Removed Pin From Net: NetName=FB Pin=TP2-1
+Removed Member From Class: ClassName=NoRelief Member=TP2
+Removed Member From Class: ClassName=U_DCDC3 Member=TP2
+Added Component: Designator=TP3(TP)
+Added Component: Designator=TP4(TP)
+Added Component: Designator=TP5(TP)
+Added Pin To Net: NetName=VREF1 Pin=TP2-1
+Added Pin To Net: NetName=VREF2 Pin=TP3-1
+Added Pin To Net: NetName=P11 Pin=TP4-1
+Added Pin To Net: NetName=P10 Pin=TP5-1
+Added Member To Class: ClassName=U_PowerOutputsAssembly Member=Component TP2 TP
+Added Member To Class: ClassName=U_PowerOutputsAssembly Member=Component TP3 TP
+Added Member To Class: ClassName=U_PowerOutputsAssembly Member=Component TP4 TP
+Added Member To Class: ClassName=U_PowerOutputsAssembly Member=Component TP5 TP

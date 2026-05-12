@@ -1,0 +1,6 @@
+Added Component: Designator=TP1(TP)
+Added Component: Designator=TP2(TP)
+Add Pin To Net: Unknown Pin: Pin TP1-1
+Add Pin To Net: Unknown Pin: Pin TP2-1
+Added Member To Class: ClassName=U_DCDC3 Member=Component TP1 TP
+Added Member To Class: ClassName=U_DCDC3 Member=Component TP2 TP

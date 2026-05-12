@@ -1,0 +1,31 @@
+Change Component Designator: OldDesignator=C38 NewDesignator=C_BULK_PWM
+Change Component Designator: OldDesignator=D_OUT_A_U_PowerIO_1 NewDesignator=OUT_A_U_PowerIO_1
+Change Component Designator: OldDesignator=D_OUT_A_U_PowerIO_2 NewDesignator=OUT_A_U_PowerIO_2
+Change Component Designator: OldDesignator=D_OUT_B_U_PowerIO_1 NewDesignator=OUT_B_U_PowerIO_1
+Change Component Designator: OldDesignator=D_OUT_B_U_PowerIO_2 NewDesignator=OUT_B_U_PowerIO_2
+Change Component Designator: OldDesignator=F1 NewDesignator=F_USB
+Change Component Designator: OldDesignator=F3 NewDesignator=F_XT
+Change Component Designator: OldDesignator=F4 NewDesignator=F_ST
+Change Component Designator: OldDesignator=J9 NewDesignator=J_PWM_S
+Change Component Designator: OldDesignator=J10 NewDesignator=J_PWM_VSUP
+Change Component Designator: OldDesignator=J11 NewDesignator=J_PWM_GND
+Change Component Designator: OldDesignator=J12 NewDesignator=J_UART
+Change Component Designator: OldDesignator=J13 NewDesignator=J_EXT_I2C
+Change Component Designator: OldDesignator=J14 NewDesignator=J_SPI
+Change Component Designator: OldDesignator=J15 NewDesignator=J_IN_1_2
+Change Component Designator: OldDesignator=J16 NewDesignator=J_IN_2_3
+Change Component Designator: OldDesignator=J17 NewDesignator=J_IN_4_5
+Change Component Designator: OldDesignator=J18 NewDesignator=J_IN_6_7
+Change Component Designator: OldDesignator=L2 NewDesignator=L_3V5
+Change Component Designator: OldDesignator=R1 NewDesignator=R_CC2
+Change Component Designator: OldDesignator=R2 NewDesignator=RCC1
+Change Component Designator: OldDesignator=R3 NewDesignator=R_SUSB
+Change Component Designator: OldDesignator=R10_U_DCDCreg5 NewDesignator=R_S2_U_DCDCreg5
+Change Component Designator: OldDesignator=R10_U_DCDCreg NewDesignator=R_S2_U_DCDCreg
+Change Component Designator: OldDesignator=R16 NewDesignator=R_S1
+Change Component Designator: OldDesignator=SW1 NewDesignator=SW_IO0
+Change Component Designator: OldDesignator=SW2 NewDesignator=SW_EN
+Change Net Name : Old Net Name=NetSW1_1 New Net Name=NetSW_IO0_1
+Change Net Name : Old Net Name=NetSW1_4 New Net Name=NetSW_IO0_4
+Change Net Name : Old Net Name=NetSW2_1 New Net Name=NetSW_EN_1
+Change Net Name : Old Net Name=NetSW2_4 New Net Name=NetSW_EN_4

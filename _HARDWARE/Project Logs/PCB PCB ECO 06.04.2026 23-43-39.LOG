@@ -1,0 +1,19 @@
+Removed Pin From Net: NetName=3V3PROT Pin=J_SPI1-1
+Removed Pin From Net: NetName=EXTERNAL_SPI_CS0 Pin=J_SPI1-2
+Removed Pin From Net: NetName=EXTERNAL_SPI_MOSI Pin=J_SPI1-3
+Removed Pin From Net: NetName=EXTERNAL_SPI_SCK Pin=J_SPI1-4
+Removed Pin From Net: NetName=EXTERNAL_SPI_MISO Pin=J_SPI1-5
+Removed Pin From Net: NetName=EXTERNAL_SPI_CS1 Pin=J_SPI1-6
+Removed Pin From Net: NetName=GND Pin=J_SPI1-7
+Removed Pin From Net: NetName=GND Pin=J_SPI1-8
+Removed Member From Class: ClassName=U_MCU Member=J_SPI1
+Added Component: Designator=J_SPI?(goldpin8)
+Added Pin To Net: NetName=GND Pin=J_SPI?-1
+Added Pin To Net: NetName=GND Pin=J_SPI?-2
+Added Pin To Net: NetName=EXTERNAL_SPI_CS1 Pin=J_SPI?-3
+Added Pin To Net: NetName=EXTERNAL_SPI_MISO Pin=J_SPI?-4
+Added Pin To Net: NetName=EXTERNAL_SPI_SCK Pin=J_SPI?-5
+Added Pin To Net: NetName=EXTERNAL_SPI_MOSI Pin=J_SPI?-6
+Added Pin To Net: NetName=EXTERNAL_SPI_CS0 Pin=J_SPI?-7
+Added Pin To Net: NetName=3V3PROT Pin=J_SPI?-8
+Added Member To Class: ClassName=U_MCU Member=Component J_SPI? Goldpin

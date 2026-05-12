@@ -1,0 +1,16 @@
+Removed Pin From Net: NetName=DRV_1_IPROPI_1 Pin=U11-4
+Removed Pin From Net: NetName=DRV_1_IPROPI_2 Pin=U11-5
+Removed Pin From Net: NetName=DRV_1_IPROPI_3 Pin=U11-6
+Removed Pin From Net: NetName=DRV_1_IPROPI_4 Pin=U11-7
+Removed Pin From Net: NetName=DRV_1_EN1 Pin=U11-23
+Removed Pin From Net: NetName=DRV_1_EN2 Pin=U11-24
+Removed Pin From Net: NetName=DRV_1_EN3 Pin=U11-25
+Removed Pin From Net: NetName=DRV_1_EN4 Pin=U11-26
+Added Pin To Net: NetName=DRV_1_IPROPI_4 Pin=U11-4
+Added Pin To Net: NetName=DRV_1_IPROPI_3 Pin=U11-5
+Added Pin To Net: NetName=DRV_1_IPROPI_2 Pin=U11-6
+Added Pin To Net: NetName=DRV_1_IPROPI_1 Pin=U11-7
+Added Pin To Net: NetName=DRV_1_IN1 Pin=U11-23
+Added Pin To Net: NetName=DRV_1_IN2 Pin=U11-24
+Added Pin To Net: NetName=DRV_1_IN3 Pin=U11-25
+Added Pin To Net: NetName=DRV_1_IN4 Pin=U11-26
