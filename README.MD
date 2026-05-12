@@ -4,7 +4,7 @@
 
 ---
 
- #czym jest runIT?
+ # czym jest runIT?
 
 **runIT** to kontroler łączący pogranicze **IoT**, modelarstwa **RC** oraz **automatyki**.
 
