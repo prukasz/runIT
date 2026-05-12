@@ -1,0 +1,4 @@
+Added Component: Designator=PWM_60h(Jumper)
+Added Component: Designator=PWM_70h(Jumper)
+Added Member To Class: ClassName=U_PWMExpander Member=Component PWM_60h JUMPER
+Added Member To Class: ClassName=U_PWMExpander Member=Component PWM_70h JUMPER

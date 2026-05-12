@@ -1,0 +1,6 @@
+Change Component Designator: OldDesignator=J7_U_PowerIO_1 NewDesignator=D_OUT_A_U_PowerIO_1
+Change Component Designator: OldDesignator=J7_U_PowerIO_2 NewDesignator=D_OUT_A_U_PowerIO_2
+Change Component Designator: OldDesignator=J8_U_PowerIO_1 NewDesignator=D_OUT_B_U_PowerIO_1
+Change Component Designator: OldDesignator=J8_U_PowerIO_2 NewDesignator=D_OUT_B_U_PowerIO_2
+Change Component Description : Designator=U6 Old Description=2.7-V to 23-V, 28-mâ„ New Description=2.7-V to 23-V, 28-mâ„|, 5.5-A eFuse with integrated reverse polarity protection 10-VQFN-HR -40 to 125
+Change Component Description : Designator=U7 Old Description=2.7-V to 23-V, 28-mâ„ New Description=2.7-V to 23-V, 28-mâ„|, 5.5-A eFuse with integrated reverse polarity protection 10-VQFN-HR -40 to 125

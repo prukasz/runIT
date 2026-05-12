@@ -1,0 +1,34 @@
+Removed Pin From Net: NetName=DVR_1_VM Pin=C50A-1
+Removed Pin From Net: NetName=DVR_2_VM Pin=C50B-1
+Change Component Comment : Designator=C34A Old Comment=10nF 25V New Comment=10nF 35V
+Change Component Comment : Designator=C34B Old Comment=10nF 25V New Comment=10nF 35V
+Change Component Comment : Designator=C36A Old Comment=10nF 25V New Comment=10nF 35V
+Change Component Comment : Designator=C36B Old Comment=10nF 25V New Comment=10nF 35V
+Change component parameters: Designator = "C34A" ("C34"); Footprint = "0603_CAP"; UniqueID = "\JSKGTNTT\YULIZLTC\XFNRZTCG" ("\JSKGTNTT\YULIZLTC\XFNRZTCG")
+Change component parameters (AddParameter): Name = "Casing"; Value = "0603"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Dielectrtic"; Value = "X7R"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Tolerance"; Value = "5%"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = "10nF"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Voltage"; Value = "35V"; VariantName = "[No Variations]"
+Change component parameters: Designator = "C34B" ("C34"); Footprint = "0603_CAP"; UniqueID = "\JSKGTNTT\WHIDIEHS\XFNRZTCG" ("\JSKGTNTT\WHIDIEHS\XFNRZTCG")
+Change component parameters (AddParameter): Name = "Casing"; Value = "0603"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Dielectrtic"; Value = "X7R"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Tolerance"; Value = "5%"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = "10nF"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Voltage"; Value = "35V"; VariantName = "[No Variations]"
+Change component parameters: Designator = "C36A" ("C36"); Footprint = "0603_CAP"; UniqueID = "\JSKGTNTT\YULIZLTC\ZERABEGO" ("\JSKGTNTT\YULIZLTC\ZERABEGO")
+Change component parameters (AddParameter): Name = "Casing"; Value = "0603"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Dielectrtic"; Value = "X7R"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Tolerance"; Value = "5%"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = "10nF"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Voltage"; Value = "35V"; VariantName = "[No Variations]"
+Change component parameters: Designator = "C36B" ("C36"); Footprint = "0603_CAP"; UniqueID = "\JSKGTNTT\WHIDIEHS\ZERABEGO" ("\JSKGTNTT\WHIDIEHS\ZERABEGO")
+Change component parameters (AddParameter): Name = "Casing"; Value = "0603"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Dielectrtic"; Value = "X7R"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Tolerance"; Value = "5%"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = "10nF"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Voltage"; Value = "35V"; VariantName = "[No Variations]"
+Added Pin To Net: NetName=NetC50A_1 Pin=C50A-1
+Added Net: Name=NetC50A_1
+Added Pin To Net: NetName=NetC50B_1 Pin=C50B-1
+Added Net: Name=NetC50B_1

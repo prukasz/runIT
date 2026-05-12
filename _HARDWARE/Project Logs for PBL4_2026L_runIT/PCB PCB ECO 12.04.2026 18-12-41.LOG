@@ -1,0 +1,38 @@
+Change component parameters: Designator = "D5" ("D5"); Footprint = "DIONM5127X229N"; UniqueID = "\QJONJVLH\HWMMKFAG" ("\QJONJVLH\HWMMKFAG")
+Change component parameters (AddParameter): Name = "Casing"; Value = "SMA (DO-214AC)"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "ClassName"; Value = "NoRelief"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Reverse standoff voltage"; Value = "20V"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "VFm"; Value = "380mV@1000mA"; VariantName = "[No Variations]"
+Change component parameters: Designator = "EN_VREG1" ("EN_VREG1"); Footprint = "JUMPER"; UniqueID = "\QJONJVLH\IXRXNVCF" ("\QJONJVLH\IXRXNVCF")
+Change component parameters (AddParameter): Name = "ClassName"; Value = "NoRelief"; VariantName = "[No Variations]"
+Change component parameters: Designator = "EN_VREG2" ("EN_VREG2"); Footprint = "JUMPER"; UniqueID = "\QJONJVLH\BMHTHUNH" ("\QJONJVLH\BMHTHUNH")
+Change component parameters (AddParameter): Name = "ClassName"; Value = "NoRelief"; VariantName = "[No Variations]"
+Change component parameters: Designator = "F_1" ("F_1"); Footprint = "1812"; UniqueID = "\QJONJVLH\KFJFJFRV" ("\QJONJVLH\KFJFJFRV")
+Change component parameters (AddParameter): Name = "ClassName"; Value = "NoRelief"; VariantName = "[No Variations]"
+Change component parameters: Designator = "F_ST1" ("F_ST1"); Footprint = "0603_FUSE"; UniqueID = "\QJONJVLH\HQJOBRSR" ("\QJONJVLH\HQJOBRSR")
+Change component parameters (AddParameter): Name = "ClassName"; Value = "NoRelief"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Current"; Value = "7A"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Manufacturer"; Value = "Bel fuse Inc."; VariantName = "[No Variations]"
+Change component parameters: Designator = "F_XT1" ("F_XT1"); Footprint = "0603_FUSE"; UniqueID = "\QJONJVLH\DUTDFXBO" ("\QJONJVLH\DUTDFXBO")
+Change component parameters (AddParameter): Name = "ClassName"; Value = "NoRelief"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Current"; Value = "7A"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Manufacturer"; Value = "Bel fuse Inc."; VariantName = "[No Variations]"
+Change component parameters: Designator = "R_S2" ("R_S2"); Footprint = "R_1206"; UniqueID = "\QJONJVLH\HBOYEXLU" ("\QJONJVLH\HBOYEXLU")
+Change component parameters (AddParameter): Name = "Casing"; Value = "1206"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "ClassName"; Value = "NoRelief"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Power"; Value = "250mW"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Tolerance"; Value = "1%"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = "10mR"; VariantName = "[No Variations]"
+Change component parameters: Designator = "U6" ("U6"); Footprint = "RPW0010A-MFG"; UniqueID = "\QJONJVLH\NGWNMOJT" ("\QJONJVLH\NGWNMOJT")
+Change component parameters (AddParameter): Name = "ClassName"; Value = "NoRelief"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Manufacturer"; Value = "Texas Instruments"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Manufacturer_Part_Number"; Value = "TPS259474LRPWR"; VariantName = "[No Variations]"
+Change component parameters: Designator = "U7" ("U7"); Footprint = "RPW0010A-MFG"; UniqueID = "\QJONJVLH\VSQQDHLY" ("\QJONJVLH\VSQQDHLY")
+Change component parameters (AddParameter): Name = "ClassName"; Value = "NoRelief"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Manufacturer"; Value = "Texas Instruments"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Manufacturer_Part_Number"; Value = "TPS259474LRPWR"; VariantName = "[No Variations]"
+Change component parameters: Designator = "U8" ("U8"); Footprint = "RGV16_2P16X2P16"; UniqueID = "\QJONJVLH\KTAPZTRW" ("\QJONJVLH\KTAPZTRW")
+Change component parameters (AddParameter): Name = "ClassName"; Value = "NoRelief"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Datasheet"; Value = "https://www.ti.com/lit/gpn/ina3221"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Manufacturer"; Value = "Texas Instruments"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Manufacturer_Part_Number"; Value = "INA3221AIRGVR"; VariantName = "[No Variations]"

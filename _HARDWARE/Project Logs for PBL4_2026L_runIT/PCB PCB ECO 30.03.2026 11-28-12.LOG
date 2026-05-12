@@ -1,0 +1,71 @@
+Removed Pin From Net: NetName=INTERNAL_I2C_SDA Pin=R*3-1
+Removed Pin From Net: NetName=3V5 Pin=R*3-2
+Removed Pin From Net: NetName=INTERNAL_I2C_SCL Pin=R*4-1
+Removed Pin From Net: NetName=3V5 Pin=R*4-2
+Removed Member From Class: ClassName=U_MCU Member=R*3
+Removed Member From Class: ClassName=U_MCU Member=R*4
+Add component: Footprint Not Found R_0603
+Add component: Footprint Not Found R_0603
+Add component: Footprint Not Found R_0603
+Add component: Footprint Not Found R_0603
+Add component: Footprint Not Found R_0603
+Add component: Footprint Not Found R_0603
+Add component: Footprint Not Found R_0603
+Add component: Footprint Not Found R_0603
+Add component: Footprint Not Found W-QFN4040-24_Type_A1_DIO
+Add component: Footprint Not Found DCK0003A-IPC_A
+Add component: Footprint Not Found DCK0003A-IPC_A
+Add Pin To Net: Unknown Pin: Pin D5-1
+Add Pin To Net: Unknown Pin: Pin D5-2
+Add Pin To Net: Unknown Pin: Pin R3-1
+Add Pin To Net: Unknown Pin: Pin R3-2
+Add Pin To Net: Unknown Pin: Pin R50-1
+Add Pin To Net: Unknown Pin: Pin R50-2
+Add Pin To Net: Unknown Pin: Pin R51-1
+Add Pin To Net: Unknown Pin: Pin R51-2
+Add Pin To Net: Unknown Pin: Pin R52-1
+Add Pin To Net: Unknown Pin: Pin R52-2
+Add Pin To Net: Unknown Pin: Pin R53-1
+Add Pin To Net: Unknown Pin: Pin R53-2
+Add Pin To Net: Unknown Pin: Pin R62-1
+Add Pin To Net: Unknown Pin: Pin R62-2
+Add Pin To Net: Unknown Pin: Pin R63-1
+Add Pin To Net: Unknown Pin: Pin R63-2
+Add Pin To Net: Unknown Pin: Pin R64-1
+Add Pin To Net: Unknown Pin: Pin R64-2
+Add Pin To Net: Unknown Pin: Pin R65-1
+Add Pin To Net: Unknown Pin: Pin R65-2
+Add Pin To Net: Unknown Pin: Pin U1-1
+Add Pin To Net: Unknown Pin: Pin U1-3
+Add Pin To Net: Unknown Pin: Pin U1-4
+Add Pin To Net: Unknown Pin: Pin U1-5
+Add Pin To Net: Unknown Pin: Pin U1-8
+Add Pin To Net: Unknown Pin: Pin U1-9
+Add Pin To Net: Unknown Pin: Pin U1-12
+Add Pin To Net: Unknown Pin: Pin U1-13
+Add Pin To Net: Unknown Pin: Pin U1-15
+Add Pin To Net: Unknown Pin: Pin U1-16
+Add Pin To Net: Unknown Pin: Pin U1-17
+Add Pin To Net: Unknown Pin: Pin U1-20
+Add Pin To Net: Unknown Pin: Pin U1-22
+Add Pin To Net: Unknown Pin: Pin U1-23
+Add Pin To Net: Unknown Pin: Pin U1-24
+Add Pin To Net: Unknown Pin: Pin U1-25
+Add Pin To Net: Unknown Pin: Pin U2-1
+Add Pin To Net: Unknown Pin: Pin U2-2
+Add Pin To Net: Unknown Pin: Pin U2-3
+Add Pin To Net: Unknown Pin: Pin U3-1
+Add Pin To Net: Unknown Pin: Pin U3-2
+Add Pin To Net: Unknown Pin: Pin U3-3
+Add Class Member: Failed to add class member : Component R3 CRF0805-FZ-R005ELF
+Add Class Member: Failed to add class member : Component R50 51k
+Add Class Member: Failed to add class member : Component R51 51k
+Add Class Member: Failed to add class member : Component R52 51k
+Add Class Member: Failed to add class member : Component R53 51k
+Add Class Member: Failed to add class member : Component R62 51k
+Add Class Member: Failed to add class member : Component R63 51k
+Add Class Member: Failed to add class member : Component R64 51k
+Add Class Member: Failed to add class member : Component R65 51k
+Add Class Member: Failed to add class member : Component U1 AP33772SDKZ-13
+Add Class Member: Failed to add class member : Component U2 TPD2E2U06DCKR
+Add Class Member: Failed to add class member : Component U3 TPD2E2U06DCKR

@@ -1,0 +1,144 @@
+Add Pin To Net: Unknown Pin: Pin D5-2
+Change Net Name : Old Net Name=NetC6_U_DCDCreg5_1 New Net Name=BOOT1_U_DCDCreg5
+Change Net Name : Old Net Name=NetC6_U_DCDCreg_1 New Net Name=BOOT1_U_DCDCreg
+Change Net Name : Old Net Name=NetC7_U_DCDCreg5_1 New Net Name=BOOT2_U_DCDCreg5
+Change Net Name : Old Net Name=NetC7_U_DCDCreg_1 New Net Name=BOOT2_U_DCDCreg
+Change Net Name : Old Net Name=NetC17_U_DCDCreg5_2 New Net Name=INT_VCC_U_DCDCreg5
+Change Net Name : Old Net Name=NetC17_U_DCDCreg_2 New Net Name=INT_VCC_U_DCDCreg
+Change Net Name : Old Net Name=NetC18_1 New Net Name=SW
+Change Net Name : Old Net Name=NetC18_2 New Net Name=C_BOOT
+Change Net Name : Old Net Name=NetC19_1 New Net Name=FB
+Change Net Name : Old Net Name=NetC25_2 New Net Name=C_ITIMER_USB
+Change Net Name : Old Net Name=NetC27_2 New Net Name=C_ITIMER_EXT
+Change Net Name : Old Net Name=NetC32_U_PowerIO_1_1 New Net Name=VCP_U_PowerIO_1
+Change Net Name : Old Net Name=NetC32_U_PowerIO_2_1 New Net Name=VCP_U_PowerIO_2
+Change Net Name : Old Net Name=NetC35_U_PowerIO_1_1 New Net Name=CPL_U_PowerIO_1
+Change Net Name : Old Net Name=NetC35_U_PowerIO_1_2 New Net Name=CPH_U_PowerIO_1
+Change Net Name : Old Net Name=NetC35_U_PowerIO_2_1 New Net Name=CPL_U_PowerIO_2
+Change Net Name : Old Net Name=NetC35_U_PowerIO_2_2 New Net Name=CPH_U_PowerIO_2
+Change Net Name : Old Net Name=NetC36_U_PowerIO_1_2 New Net Name=C_DVDD_U_PowerIO_1
+Change Net Name : Old Net Name=NetC36_U_PowerIO_2_2 New Net Name=C_DVDD_U_PowerIO_2
+Change Net Name : Old Net Name=NetC49_U_MuxVM_1_2 New Net Name=C_DVDT_A_U_MuxVM_1
+Change Net Name : Old Net Name=NetC49_U_MuxVM_2_2 New Net Name=C_DVDT_A_U_MuxVM_2
+Change Net Name : Old Net Name=NetC52_U_MuxVM_1_2 New Net Name=C_DVDT_B_U_MuxVM_1
+Change Net Name : Old Net Name=NetC52_U_MuxVM_2_2 New Net Name=C_DVDT_B_U_MuxVM_2
+Change Net Name : Old Net Name=NetC*1_U_DCDCreg5_2 New Net Name=COMP_U_DCDCreg5
+Change Net Name : Old Net Name=NetC*1_U_DCDCreg_2 New Net Name=COMP_U_DCDCreg
+Change Net Name : Old Net Name=NetC*2_U_DCDCreg5_2 New Net Name=C_COMP_U_DCDCreg5
+Change Net Name : Old Net Name=NetC*2_U_DCDCreg_2 New Net Name=C_COMP_U_DCDCreg
+Change Net Name : Old Net Name=NetC*3_2 New Net Name=C_SS
+Change Net Name : Old Net Name=NetFB1_U_PowerIO_1_1 New Net Name=OUT1_U_PowerIO_1
+Change Net Name : Old Net Name=NetFB1_U_PowerIO_2_1 New Net Name=OUT1_U_PowerIO_2
+Change Net Name : Old Net Name=NetFB2_U_PowerIO_1_1 New Net Name=OUT2_U_PowerIO_1
+Change Net Name : Old Net Name=NetFB2_U_PowerIO_2_1 New Net Name=OUT2_U_PowerIO_2
+Change Net Name : Old Net Name=NetFB3_U_PowerIO_1_1 New Net Name=OUT3_U_PowerIO_1
+Change Net Name : Old Net Name=NetFB3_U_PowerIO_2_1 New Net Name=OUT3_U_PowerIO_2
+Change Net Name : Old Net Name=NetFB4_U_PowerIO_1_1 New Net Name=OUT4_U_PowerIO_1
+Change Net Name : Old Net Name=NetFB4_U_PowerIO_2_1 New Net Name=OUT4_U_PowerIO_2
+Change Net Name : Old Net Name=NetJP7_1 New Net Name=TC_ADDR
+Change Net Name : Old Net Name=NetQ1_4 New Net Name=MOS_G
+Change Net Name : Old Net Name=NetR4_1 New Net Name=VOUT
+Change Net Name : Old Net Name=NetR7_2 New Net Name=LED
+Change Net Name : Old Net Name=NetR15_2 New Net Name=TPS_MODE
+Change Net Name : Old Net Name=NetR22_1 New Net Name=TPS_EXT_EN
+Change Net Name : Old Net Name=NetR27_U_PowerIO_2_2 New Net Name=IPROPI4_U_PowerIO_2
+Change Net Name : Old Net Name=NetR28_U_PowerIO_2_2 New Net Name=IPROPI3_U_PowerIO_2
+Change Net Name : Old Net Name=NetR29_U_PowerIO_2_2 New Net Name=IPROPI2_U_PowerIO_2
+Change Net Name : Old Net Name=NetR30_U_PowerIO_2_2 New Net Name=IPROPI1_U_PowerIO_2
+Change Net Name : Old Net Name=NetR46_1 New Net Name=TCA6424_nINT
+Change Net Name : Old Net Name=NetR47_1 New Net Name=TCA6424_nRESET
+Change Net Name : Old Net Name=NetU4_U_DCDCreg5_1 New Net Name=EN_U_DCDCreg5
+Change Net Name : Old Net Name=NetU4_U_DCDCreg_1 New Net Name=EN_U_DCDCreg
+Change Net Name : Old Net Name=NetU9_U_PowerIO_2_34 New Net Name=DRV_2_EN4
+Change Net Name : Old Net Name=NetU9_U_PowerIO_2_35 New Net Name=DRV_2_EN3
+Change Net Name : Old Net Name=NetU9_U_PowerIO_2_36 New Net Name=DRV_2_EN2
+Change Net Name : Old Net Name=NetU9_U_PowerIO_2_37 New Net Name=DRV_2_EN1
+Change Net Name : Old Net Name=NetU9_U_PowerIO_2_38 New Net Name=DRV_2_IN4
+Change Net Name : Old Net Name=NetU9_U_PowerIO_2_39 New Net Name=DRV_2_IN3
+Change Net Name : Old Net Name=NetU9_U_PowerIO_2_40 New Net Name=DRV_2_IN2
+Change Net Name : Old Net Name=NetU9_U_PowerIO_2_41 New Net Name=DRV_2_IN1
+Change Net Name : Old Net Name=NetU11_10 New Net Name=GPIO17
+Change Net Name : Old Net Name=NetU11_11 New Net Name=GPIO18
+Change Net Name : Old Net Name=NetU11_15 New Net Name=GPIO3
+Change Net Name : Old Net Name=NetU11_16 New Net Name=GPIO46
+Change Net Name : Old Net Name=NetU11_17 New Net Name=GPIO9
+Change Net Name : Old Net Name=NetU11_31 New Net Name=GPIO38
+Change Net Name : Old Net Name=NetU11_32 New Net Name=GPIO39
+Change Net Name : Old Net Name=NetU11_35 New Net Name=GPIO42
+Change Net Name : Old Net Name=NetU11_38 New Net Name=GPIO2
+Change Net Name : Old Net Name=NetU11_39 New Net Name=GPIO1
+Change Net Name : Old Net Name=OUT1_U_PowerIO_1 New Net Name=OUT1_PROT_U_PowerIO_1
+Change Net Name : Old Net Name=OUT1_U_PowerIO_2 New Net Name=OUT1_PROT_U_PowerIO_2
+Change Net Name : Old Net Name=OUT2_U_PowerIO_1 New Net Name=OUT2_PROT_U_PowerIO_1
+Change Net Name : Old Net Name=OUT2_U_PowerIO_2 New Net Name=OUT2_PROT_U_PowerIO_2
+Change Net Name : Old Net Name=OUT3_U_PowerIO_1 New Net Name=OUT3_PROT_U_PowerIO_1
+Change Net Name : Old Net Name=OUT3_U_PowerIO_2 New Net Name=OUT3_PROT_U_PowerIO_2
+Change Net Name : Old Net Name=OUT4_U_PowerIO_1 New Net Name=OUT4_PROT_U_PowerIO_1
+Change Net Name : Old Net Name=OUT4_U_PowerIO_2 New Net Name=OUT4_PROT_U_PowerIO_2
+Added Pin To Net: NetName=3V5_F Pin=F2-1
+Added Net: Name=3V5_F
+Added Pin To Net: NetName=NetD18_6 Pin=D18-6
+Added Net: Name=NetD18_6
+Added Pin To Net: NetName=NetJ1_A8 Pin=J1-A8
+Added Net: Name=NetJ1_A8
+Added Pin To Net: NetName=NetJ1_B8 Pin=J1-B8
+Added Net: Name=NetJ1_B8
+Added Pin To Net: NetName=NetR44_2 Pin=R44-2
+Added Net: Name=NetR44_2
+Added Pin To Net: NetName=NetR45_2 Pin=R45-2
+Added Net: Name=NetR45_2
+Added Pin To Net: NetName=NetR49_U_MuxVM_1_2 Pin=R49_U_MuxVM_1-2
+Added Pin To Net: NetName=NetR49_U_MuxVM_1_2 Pin=U14_U_MuxVM_1-9
+Added Net: Name=NetR49_U_MuxVM_1_2
+Added Pin To Net: NetName=NetR49_U_MuxVM_2_2 Pin=R49_U_MuxVM_2-2
+Added Pin To Net: NetName=NetR49_U_MuxVM_2_2 Pin=U14_U_MuxVM_2-9
+Added Net: Name=NetR49_U_MuxVM_2_2
+Added Pin To Net: NetName=NetSW1_1 Pin=SW1-1
+Added Net: Name=NetSW1_1
+Added Pin To Net: NetName=NetSW1_4 Pin=SW1-4
+Added Net: Name=NetSW1_4
+Added Pin To Net: NetName=NetSW2_1 Pin=SW2-1
+Added Net: Name=NetSW2_1
+Added Pin To Net: NetName=NetSW2_4 Pin=SW2-4
+Added Net: Name=NetSW2_4
+Added Pin To Net: NetName=NetU1_6 Pin=U1-6
+Added Net: Name=NetU1_6
+Added Pin To Net: NetName=NetU1_18 Pin=U1-18
+Added Net: Name=NetU1_18
+Added Pin To Net: NetName=NetU1_19 Pin=U1-19
+Added Net: Name=NetU1_19
+Added Pin To Net: NetName=NetU4_U_DCDCreg5_16 Pin=U4_U_DCDCreg5-16
+Added Net: Name=NetU4_U_DCDCreg5_16
+Added Pin To Net: NetName=NetU4_U_DCDCreg_16 Pin=U4_U_DCDCreg-16
+Added Net: Name=NetU4_U_DCDCreg_16
+Added Pin To Net: NetName=NetU5_1 Pin=U5-1
+Added Net: Name=NetU5_1
+Added Pin To Net: NetName=NetU5_4 Pin=U5-4
+Added Net: Name=NetU5_4
+Added Pin To Net: NetName=NetU8_10 Pin=U8-10
+Added Net: Name=NetU8_10
+Added Pin To Net: NetName=NetU8_13 Pin=U8-13
+Added Net: Name=NetU8_13
+Added Pin To Net: NetName=NetU11_28 Pin=U11-28
+Added Net: Name=NetU11_28
+Added Pin To Net: NetName=NetU11_29 Pin=U11-29
+Added Net: Name=NetU11_29
+Added Pin To Net: NetName=NetU11_30 Pin=U11-30
+Added Net: Name=NetU11_30
+Added Pin To Net: NetName=NetU13_U_MuxVM_1_3 Pin=U13_U_MuxVM_1-3
+Added Net: Name=NetU13_U_MuxVM_1_3
+Added Pin To Net: NetName=NetU13_U_MuxVM_2_3 Pin=U13_U_MuxVM_2-3
+Added Net: Name=NetU13_U_MuxVM_2_3
+Added Pin To Net: NetName=NetU14_U_MuxVM_1_3 Pin=U14_U_MuxVM_1-3
+Added Net: Name=NetU14_U_MuxVM_1_3
+Added Pin To Net: NetName=NetU14_U_MuxVM_2_3 Pin=U14_U_MuxVM_2-3
+Added Net: Name=NetU14_U_MuxVM_2_3
+Added Pin To Net: NetName=NetU16_5 Pin=U16-5
+Added Net: Name=NetU16_5
+Added Pin To Net: NetName=R_LM_IMON_U_MuxVM_1 Pin=R48_U_MuxVM_1-2
+Added Pin To Net: NetName=R_LM_IMON_U_MuxVM_1 Pin=U13_U_MuxVM_1-9
+Added Net: Name=R_LM_IMON_U_MuxVM_1
+Added Pin To Net: NetName=R_LM_IMON_U_MuxVM_2 Pin=R48_U_MuxVM_2-2
+Added Pin To Net: NetName=R_LM_IMON_U_MuxVM_2 Pin=U13_U_MuxVM_2-9
+Added Net: Name=R_LM_IMON_U_MuxVM_2
+Change Class Name : Old Net Name=N000-1_[0..27] New Net Name=P[0..27]

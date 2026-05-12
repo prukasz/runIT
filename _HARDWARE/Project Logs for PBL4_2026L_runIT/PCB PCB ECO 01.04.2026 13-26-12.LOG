@@ -1,0 +1,10 @@
+Added Component: Designator=J_MISC(goldpin4)
+Added Pin To Net: NetName=NetJ_MISC_1 Pin=J_MISC-1
+Added Net: Name=NetJ_MISC_1
+Added Pin To Net: NetName=NetJ_MISC_2 Pin=J_MISC-2
+Added Net: Name=NetJ_MISC_2
+Added Pin To Net: NetName=NetJ_MISC_3 Pin=J_MISC-3
+Added Net: Name=NetJ_MISC_3
+Added Pin To Net: NetName=NetJ_MISC_4 Pin=J_MISC-4
+Added Net: Name=NetJ_MISC_4
+Added Member To Class: ClassName=U_MCU Member=Component J_MISC Goldpin

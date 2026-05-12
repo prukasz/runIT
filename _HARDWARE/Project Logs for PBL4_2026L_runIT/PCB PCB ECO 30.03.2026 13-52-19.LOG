@@ -1,0 +1,14 @@
+Added Pin To Net: NetName=P7 Pin=R31_U_PowerIO_1-2
+Added Pin To Net: NetName=P6 Pin=R31_U_PowerIO_2-2
+Added Pin To Net: NetName=P7 Pin=U9_U_PowerIO_1-26
+Added Pin To Net: NetName=P4 Pin=U9_U_PowerIO_1-42
+Added Pin To Net: NetName=P6 Pin=U9_U_PowerIO_2-26
+Added Pin To Net: NetName=P5 Pin=U9_U_PowerIO_2-42
+Added Pin To Net: NetName=DRV_1_SET_VM_A Pin=U12-1
+Added Pin To Net: NetName=DRV_1_SET_VM_B Pin=U12-2
+Added Pin To Net: NetName=DRV_2_SET_VM_A Pin=U12-3
+Added Pin To Net: NetName=DRV_2_SET_VM_B Pin=U12-4
+Change Net Name : Old Net Name=DRV_1_SET_VM_A New Net Name=P0
+Change Net Name : Old Net Name=DRV_1_SET_VM_B New Net Name=P1
+Change Net Name : Old Net Name=DRV_2_SET_VM_A New Net Name=P2
+Change Net Name : Old Net Name=DRV_2_SET_VM_B New Net Name=P3

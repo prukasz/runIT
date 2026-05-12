@@ -1,0 +1,12 @@
+Removed Pin From Net: NetName=USB_D_N Pin=U2-1
+Removed Pin From Net: NetName=USB_D_P Pin=U2-2
+Removed Pin From Net: NetName=GND Pin=U2-3
+Added Component: Designator=U2(DCK0003A-MFG)
+Add component (AddParameter): Name = "Copyright"; Value = "Copyright (C) 2026 Ultra Librarian. All rights reserved."; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "Manufacturer_Name"; Value = "Texas Instruments"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "Manufacturer_Part_Number"; Value = "TPD2E2U06DCKR"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "RefDes"; Value = "RefDes"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "TYPE"; Value = "TYPE"; VariantName = "[No Variations]"
+Added Pin To Net: NetName=USB_D_P Pin=U2-1
+Added Pin To Net: NetName=USB_D_N Pin=U2-2
+Added Pin To Net: NetName=GND Pin=U2-3

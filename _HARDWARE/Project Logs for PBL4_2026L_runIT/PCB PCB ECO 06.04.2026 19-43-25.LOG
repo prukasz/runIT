@@ -1,0 +1,27 @@
+Removed Pin From Net: NetName=P12 Pin=R28A-2
+Removed Pin From Net: NetName=P11 Pin=R28B-2
+Removed Pin From Net: NetName=P12 Pin=U9A-26
+Removed Pin From Net: NetName=P4 Pin=U9A-42
+Removed Pin From Net: NetName=P11 Pin=U9B-26
+Removed Pin From Net: NetName=P5 Pin=U9B-42
+Removed Pin From Net: NetName=P13 Pin=U12-12
+Removed Pin From Net: NetName=P14 Pin=U12-13
+Removed Pin From Net: NetName=P15 Pin=U12-14
+Removed Pin From Net: NetName=P16 Pin=U12-15
+Add Pin To Net: Unknown Pin: Pin C38A-1
+Added Pin To Net: NetName=P12 Pin=R28B-2
+Added Pin To Net: NetName=P11 Pin=U9A-42
+Added Pin To Net: NetName=P12 Pin=U9B-26
+Added Pin To Net: NetName=P10 Pin=U9B-42
+Added Pin To Net: NetName=P13 Pin=U12-13
+Added Pin To Net: NetName=P14 Pin=U12-14
+Added Pin To Net: NetName=P15 Pin=U12-15
+Added Pin To Net: NetName=P16 Pin=U12-16
+Change Net Name : Old Net Name=P13 New Net Name=P14
+Change Net Name : Old Net Name=P14 New Net Name=P15
+Change Net Name : Old Net Name=P15 New Net Name=P16
+Change Net Name : Old Net Name=P16 New Net Name=P17
+Added Pin To Net: NetName=P13 Pin=R28A-2
+Added Pin To Net: NetName=P13 Pin=U9A-26
+Added Pin To Net: NetName=P13 Pin=U12-12
+Added Net: Name=P13

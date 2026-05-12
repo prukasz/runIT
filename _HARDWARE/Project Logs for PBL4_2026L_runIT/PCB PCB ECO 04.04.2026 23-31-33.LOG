@@ -1,0 +1,4 @@
+Removed Pin From Net: NetName=VREG Pin=JP5A-1
+Removed Pin From Net: NetName=VSUP Pin=JP6A-1
+Added Pin To Net: NetName=VSUP Pin=JP5A-1
+Added Pin To Net: NetName=VREG Pin=JP6A-1

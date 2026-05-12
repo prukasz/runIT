@@ -1,0 +1,17 @@
+Added Pin To Net: NetName=3V5_OUT Pin=C19-2
+Added Pin To Net: NetName=3V5_OUT Pin=C22-2
+Added Pin To Net: NetName=3V5_OUT Pin=C23-2
+Added Pin To Net: NetName=3V5_OUT Pin=JP?-1
+Added Pin To Net: NetName=3V5_OUT Pin=L2-2
+Added Pin To Net: NetName=3V5_OUT Pin=R12-2
+Added Pin To Net: NetName=3V5_OUT Pin=R13-2
+Added Net: Name=3V5_OUT
+Add Net: Net with name "NetJP?_1" already exists
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP? JUMPER
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP? JUMPER
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP? JUMPER
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP? JUMPER
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP? JUMPER
+Added Member To Class: ClassName=U_PowerAssembly Member=Component JP? JUMPER
+Added Member To Class: ClassName=U_MuxVM_1 Member=Component JP?_U_MuxVM_1 (JP?) JUMPER
+Added Member To Class: ClassName=U_MuxVM_2 Member=Component JP?_U_MuxVM_2 (JP?) JUMPER

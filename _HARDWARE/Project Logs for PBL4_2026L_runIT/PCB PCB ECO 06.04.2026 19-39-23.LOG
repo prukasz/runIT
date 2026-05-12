@@ -1,0 +1,10 @@
+Removed Pin From Net: NetName=P7 Pin=R28A-2
+Removed Pin From Net: NetName=P6 Pin=R28B-2
+Removed Pin From Net: NetName=P7 Pin=U9A-26
+Removed Pin From Net: NetName=P6 Pin=U9B-26
+Add Pin To Net: Unknown Pin: Pin C38A-1
+Added Pin To Net: NetName=P12 Pin=R28A-2
+Added Pin To Net: NetName=P11 Pin=R28B-2
+Added Pin To Net: NetName=P12 Pin=U9A-26
+Added Pin To Net: NetName=P11 Pin=U9B-26
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 

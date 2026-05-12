@@ -1,0 +1,21 @@
+Removed Pin From Net: NetName=P13 Pin=U12-12
+Removed Pin From Net: NetName=P14 Pin=U12-13
+Removed Pin From Net: NetName=P15 Pin=U12-14
+Removed Pin From Net: NetName=P16 Pin=U12-15
+Add Pin To Net: Unknown Pin: Pin C38A-1
+Added Pin To Net: NetName=P15 Pin=U12-12
+Added Pin To Net: NetName=P16 Pin=U12-13
+Added Pin To Net: NetName=P13 Pin=U12-14
+Added Pin To Net: NetName=P14 Pin=U12-15
+Change Net Name : Old Net Name=P13 New Net Name=P15
+Change Net Name : Old Net Name=P14 New Net Name=P16
+Change Net Name : Old Net Name=P15 New Net Name=P13
+Change Net Name : Old Net Name=P16 New Net Name=P14
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 

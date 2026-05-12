@@ -1,0 +1,8 @@
+Removed Member From Class: ClassName=Reg5 Member=C8A
+Removed Member From Class: ClassName=Reg Member=C10B
+Removed Member From Class: ClassName=Reg Member=C15B
+Removed Member From Class: ClassName=Reg5 Member=C17A
+Added Member To Class: ClassName=Reg5 Member=Component C8B (C8) A768EB107M1ELAS036
+Added Member To Class: ClassName=Reg Member=Component C15A (C15) 22u 25V
+Added Member To Class: ClassName=Reg5 Member=Component C17B (C17) 4u7 16V
+Added Member To Class: ClassName=Q2 Member=Component JP1B (JP1) JUMPER

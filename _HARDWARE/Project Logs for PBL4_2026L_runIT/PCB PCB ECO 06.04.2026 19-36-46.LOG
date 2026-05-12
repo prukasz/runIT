@@ -1,0 +1,9 @@
+Removed Pin From Net: NetName=P13 Pin=U12-12
+Removed Pin From Net: NetName=P14 Pin=U12-13
+Add Pin To Net: Unknown Pin: Pin C38A-1
+Added Pin To Net: NetName=P14 Pin=U12-12
+Added Pin To Net: NetName=P13 Pin=U12-13
+Change Net Name : Old Net Name=P13 New Net Name=P14
+Change Net Name : Old Net Name=P14 New Net Name=P13
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 

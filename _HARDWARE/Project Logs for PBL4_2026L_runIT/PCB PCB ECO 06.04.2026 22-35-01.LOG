@@ -1,0 +1,8 @@
+Removed Pin From Net: NetName=EXTERNAL_SPI_SCK Pin=D23-1
+Removed Pin From Net: NetName=EXTERNAL_SPI_MOSI Pin=D23-3
+Removed Pin From Net: NetName=EXTERNAL_SPI_SCK Pin=J_SPI1-3
+Removed Pin From Net: NetName=EXTERNAL_SPI_MOSI Pin=J_SPI1-4
+Added Pin To Net: NetName=EXTERNAL_SPI_MOSI Pin=D23-1
+Added Pin To Net: NetName=EXTERNAL_SPI_SCK Pin=D23-3
+Added Pin To Net: NetName=EXTERNAL_SPI_MOSI Pin=J_SPI1-3
+Added Pin To Net: NetName=EXTERNAL_SPI_SCK Pin=J_SPI1-4

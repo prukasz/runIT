@@ -1,0 +1,24 @@
+Removed Pin From Net: NetName=GND Pin=C38A-
+Removed Pin From Net: NetName=P0 Pin=U12-1
+Removed Pin From Net: NetName=P1 Pin=U12-2
+Removed Pin From Net: NetName=P2 Pin=U12-3
+Removed Pin From Net: NetName=P3 Pin=U12-4
+Change Component Description : Designator=U6 Old Description=2.7-V to 23-V, 28-mâ„ New Description=2.7-V to 23-V, 28-mâ„|, 5.5-A eFuse with integrated reverse polarity protection 10-VQFN-HR -40 to 125
+Change Component Description : Designator=U7 Old Description=2.7-V to 23-V, 28-mâ„ New Description=2.7-V to 23-V, 28-mâ„|, 5.5-A eFuse with integrated reverse polarity protection 10-VQFN-HR -40 to 125
+Add Pin To Net: Unknown Pin: Pin C38A-1
+Added Pin To Net: NetName=P0 Pin=U12-12
+Added Pin To Net: NetName=P1 Pin=U12-13
+Added Pin To Net: NetName=P2 Pin=U12-14
+Added Pin To Net: NetName=P3 Pin=U12-15
+Change Net Name : Old Net Name=P0 New Net Name=P13
+Change Net Name : Old Net Name=P1 New Net Name=P14
+Change Net Name : Old Net Name=P2 New Net Name=P15
+Change Net Name : Old Net Name=P3 New Net Name=P16
+Added Pin To Net: NetName=P0 Pin=U12-1
+Added Net: Name=P0
+Added Pin To Net: NetName=P1 Pin=U12-2
+Added Net: Name=P1
+Added Pin To Net: NetName=P2 Pin=U12-3
+Added Net: Name=P2
+Added Pin To Net: NetName=P3 Pin=U12-4
+Added Net: Name=P3

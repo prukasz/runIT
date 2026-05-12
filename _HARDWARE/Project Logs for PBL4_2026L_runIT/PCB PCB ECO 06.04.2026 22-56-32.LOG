@@ -1,0 +1,17 @@
+Removed Pin From Net: NetName=CHIP_PU Pin=D22-1
+Removed Pin From Net: NetName=IO0 Pin=D22-3
+Removed Member From Class: ClassName=U_MCU Member=C51
+Removed Member From Class: ClassName=U_MCU Member=C52
+Removed Member From Class: ClassName=U_ADCHighVoltageInputsSchDoc Member=JP6
+Added Pin To Net: NetName=IO0 Pin=D22-1
+Added Pin To Net: NetName=CHIP_PU Pin=D22-3
+Added Member To Class: ClassName=U_MCU Member=Component C47 100n 25V
+Added Member To Class: ClassName=U_MCU Member=Component C48 100n 25V
+Added Member To Class: ClassName=U_MCU Member=Component C49 100n 25V
+Added Member To Class: ClassName=U_MuxVM_1 Member=Component C54A (C54) 3n3 25V
+Added Member To Class: ClassName=U_MuxVM_2 Member=Component C55B (C55) 35PX470MEFC10X12.5
+Added Member To Class: ClassName=U_ADCHighVoltageInputsSchDoc Member=Component C59 1uF_10V
+Added Member To Class: ClassName=U_DAC Member=Component C64 22u 10V
+Added Member To Class: ClassName=U_DAC Member=Component C65 1uF_10V
+Added Member To Class: ClassName=U_ADCHighVoltageInputsSchDoc Member=Component JP5 JUMPER
+Added Member To Class: ClassName=U_PowerOutputsAssembly Member=Component JP7 JUMPER

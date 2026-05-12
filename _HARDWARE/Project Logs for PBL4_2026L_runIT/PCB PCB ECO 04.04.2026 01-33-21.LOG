@@ -1,0 +1,12 @@
+Removed Pin From Net: NetName=VSUP Pin=U8-11
+Removed Pin From Net: NetName=VSUP_SENS+ Pin=U8-12
+Removed Pin From Net: NetName=VREG Pin=U8-14
+Removed Pin From Net: NetName=REG_R_SENS+ Pin=U8-15
+Added Pin To Net: NetName=VREG Pin=U8-11
+Added Pin To Net: NetName=REG_R_SENS+ Pin=U8-12
+Added Pin To Net: NetName=VSUP Pin=U8-14
+Added Pin To Net: NetName=VSUP_SENS+ Pin=U8-15
+Added Member To Class: ClassName=U_PowerAssembly Member=Component D25 MSMP20A-M3/89A
+Added Member To Class: ClassName=U_PowerAssembly Member=Component D26 MSMP20A-M3/89A
+Added Member To Class: ClassName=U_PowerAssembly Member=Component D27 MSMP20A-M3/89A
+Added Member To Class: ClassName=U_PowerAssembly Member=Component J_SUP TB001-500-02BE

@@ -1,0 +1,18 @@
+Removed Pin From Net: NetName=DRV_2_EN4 Pin=U10-12
+Removed Pin From Net: NetName=DRV_2_IN4 Pin=U10-13
+Removed Pin From Net: NetName=DRV_2_EN3 Pin=U10-14
+Removed Pin From Net: NetName=DRV_2_IN3 Pin=U10-15
+Removed Pin From Net: NetName=DRV_2_EN2 Pin=U10-16
+Removed Pin From Net: NetName=DRV_2_IN2 Pin=U10-17
+Removed Pin From Net: NetName=DRV_2_EN1 Pin=U10-18
+Removed Pin From Net: NetName=DRV_2_IN1 Pin=U10-19
+Change Component Description : Designator=U6 Old Description=2.7-V to 23-V, 28-mâ„ New Description=2.7-V to 23-V, 28-mâ„|, 5.5-A eFuse with integrated reverse polarity protection 10-VQFN-HR -40 to 125
+Change Component Description : Designator=U7 Old Description=2.7-V to 23-V, 28-mâ„ New Description=2.7-V to 23-V, 28-mâ„|, 5.5-A eFuse with integrated reverse polarity protection 10-VQFN-HR -40 to 125
+Added Pin To Net: NetName=DRV_2_IN1 Pin=U10-12
+Added Pin To Net: NetName=DRV_2_IN2 Pin=U10-13
+Added Pin To Net: NetName=DRV_2_IN3 Pin=U10-14
+Added Pin To Net: NetName=DRV_2_IN4 Pin=U10-15
+Added Pin To Net: NetName=DRV_2_EN1 Pin=U10-16
+Added Pin To Net: NetName=DRV_2_EN2 Pin=U10-17
+Added Pin To Net: NetName=DRV_2_EN3 Pin=U10-18
+Added Pin To Net: NetName=DRV_2_EN4 Pin=U10-19

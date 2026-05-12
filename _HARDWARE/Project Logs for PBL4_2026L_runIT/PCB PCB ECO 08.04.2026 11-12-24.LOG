@@ -1,0 +1,5 @@
+Change Component Designator: OldDesignator=C43 NewDesignator=C?
+Change Component Designator: OldDesignator=D28 NewDesignator=D?
+Change Component Designator: OldDesignator=J_SPI1 NewDesignator=J_SPI?
+Change Component Description : Designator=U6 Old Description=2.7-V to 23-V, 28-mâ„ New Description=2.7-V to 23-V, 28-mâ„|, 5.5-A eFuse with integrated reverse polarity protection 10-VQFN-HR -40 to 125
+Change Component Description : Designator=U7 Old Description=2.7-V to 23-V, 28-mâ„ New Description=2.7-V to 23-V, 28-mâ„|, 5.5-A eFuse with integrated reverse polarity protection 10-VQFN-HR -40 to 125

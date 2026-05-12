@@ -1,0 +1,3 @@
+Removed Member From Class: ClassName=P[0..27] Member=P25
+Added Pin To Net: NetName=INT_3V Pin=U12-22
+Added Member To Class: ClassName=P[0..27] Member=Element[-1]: 

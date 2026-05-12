@@ -1,0 +1,9 @@
+Change Component Footprint: Designator=F_ST Old Footprint=RUEF500 New Footprint=0603_FUSE
+Change Component Footprint: Designator=F_USB Old Footprint=RUEF500 New Footprint=0603_FUSE
+Change Component Footprint: Designator=F_XT Old Footprint=RUEF500 New Footprint=0603_FUSE
+Change Component Comment : Designator=F_ST Old Comment=RUEF500 New Comment=0686F7000-01
+Change Component Comment : Designator=F_USB Old Comment=RUEF500 New Comment=0686F7000-01
+Change Component Comment : Designator=F_XT Old Comment=RUEF500 New Comment=0686F7000-01
+Added Member To Class: ClassName=U_USBPD Member=Component C3 1uF_10V
+Added Member To Class: ClassName=U_USBPD Member=Component R_CC2 5k1
+Added Member To Class: ClassName=U_USBPD Member=Component R_SUSB CRF0805-FZ-R005ELF
