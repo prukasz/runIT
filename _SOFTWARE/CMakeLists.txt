@@ -14,6 +14,7 @@ list(APPEND EXTRA_COMPONENT_DIRS
     "components/managers"
     "components/drivers"
     "components/wrappers"
+    "components/utils"
 )
 
 project(runIT)

@@ -20,8 +20,7 @@ typedef enum { GLOBAL_OWNER_MAP(X_ENUM) } status_owner_e;
     X(ERR_UNKNOWN, 0x00FF, "UNKNOWN_ERROR") \
     I2C_ERROR_MAP(X) \
     RIK_ERROR_MAP(X) \
-    INA3221_ERROR_MAP(X) \
-    
+    INA3221_ERROR_MAP(X)
 #define X_ENUM(name, value, str_name) name = value,
 typedef enum { GLOBAL_ERROR_MAP(X_ENUM) } status_code_e;
 #undef X_ENUM

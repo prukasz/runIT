@@ -9,32 +9,24 @@
 
 /*******************************BLE CFG********************************************/
 static m_ble_cfg_t rik_ble_cfg = {
-    .ble_cfg = {
-        .event_group = NULL, // To be assigned in start function
-        .bits = {
-            .bit_indication_complete = EVENT_BIT_BLE_IND_DONE,
-            .bit_notify_complete = EVENT_BIT_BLE_NOTIFY_DONE,
-            .bit_indication_timeout = EVENT_BIT_BLE_IND_TIMEOUT,
-            .bit_connected = EVENT_BIT_BLE_CONNECTED,
-            .bit_connection_failed = EVENT_BIT_BLE_CONNECTION_FAILED,
-            .bit_disconnected = EVENT_BIT_BLE_DISCONNECTED,
-            .bit_mtu_update = EVENT_BIT_BLE_MTU_UPDATED,
-            .bit_rx_received = EVENT_BIT_BLE_RX,
-            .bit_rx_failed = EVENT_BIT_BLE_RX_FAILED
-        },
-        .supervisor_task_handle = NULL, // To be assigned in BLE manager task/ To be assigned in BLE manager task
-    },
-    .m_ble_bits_tx_start = EVENT_BIT_BLE_START,
-    .m_ble_bits_tx_done = EVENT_BIT_BLE_DONE,
-    .task_priority = 4,
-    .task_stack_size = 8192
+    .bit_on_connect = EVENT_BIT_BLE_CONNECTED,
+    .bit_on_disconnect = EVENT_BIT_BLE_DISCONNECTED,
+    .bit_on_connection_failed = EVENT_BIT_BLE_CONNECTION_FAILED,
+    .bit_on_mtu_change = EVENT_BIT_BLE_MTU_UPDATED,
+    .bit_on_rx_received = EVENT_BIT_BLE_ON_RX,
+    .bit_on_rx_failed = EVENT_BIT_BLE_ON_RX_FAILED,
+    .bit_tx_start = EVENT_BIT_BLE_TX_START,
+    .bit_tx_done = EVENT_BIT_BLE_TX_DONE,
+    .manager_task_handle = NULL,
+    .supervisor_task_handle = NULL,
+    .event_group = NULL
 
 };
 /*******************************BLE CFG********************************************/
 
 status_rep_t rik_start_ble(EventGroupHandle_t connection_events, TaskHandle_t supervisor_task_handle) {
-    rik_ble_cfg.ble_cfg.event_group = connection_events;
-    rik_ble_cfg.ble_cfg.supervisor_task_handle = supervisor_task_handle;
+    rik_ble_cfg.event_group = connection_events;
+    rik_ble_cfg.supervisor_task_handle = supervisor_task_handle;
     m_ble_buff_register_rx(rik_buff_rx);
     m_ble_buff_register_tx(rik_buff_tx, RINGBUF_TYPE_NOSPLIT, false, 0, 0, 0); 
     m_ble_buff_register_tx(rik_buff_status, RINGBUF_TYPE_BYTEBUF, true, 0xEE, sizeof(status_rep_t), 1); 
@@ -124,7 +116,7 @@ status_rep_t rik_start_i2c(EventGroupHandle_t i2c_rik_events_0,
 
 static interface_cfg_t interface_cfg = {
     .connection_events = NULL,
-    .connection_bits_rx = EVENT_BIT_BLE_RX,
+    .connection_bits_rx = EVENT_BIT_BLE_ON_RX,
     .interface_bits_on_complete = EVENT_BIT_INTERFACE_CMD_COMPLETE,
     .interface_bits_on_error = EVENT_BIT_INTERFACE_CMD_ERROR,
     .interface_bits_on_stop = EVENT_BIT_INTERFACE_CMD_STOP,

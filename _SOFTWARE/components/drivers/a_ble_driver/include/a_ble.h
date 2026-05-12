@@ -7,24 +7,29 @@
 #include <freertos/event_groups.h>
 #include <freertos/ringbuf.h>
 
-
+/*bits to notify supervisor task and set events*/
 typedef struct{
-    EventBits_t bit_indication_complete;
-    EventBits_t bit_notify_complete;
-    EventBits_t bit_indication_timeout;
-    EventBits_t bit_connected;
-    EventBits_t bit_connection_failed;
-    EventBits_t bit_disconnected;
-    EventBits_t bit_mtu_update;
-    EventBits_t bit_rx_received;
-    EventBits_t bit_rx_failed;
-}a_ble_host_bits_t;
+    EventBits_t bit_on_connect;
+    EventBits_t bit_on_disconnect;
+    EventBits_t bit_on_connection_failed;
+    EventBits_t bit_on_mtu_change;
+    EventBits_t bit_on_rx_received;
+    EventBits_t bit_on_rx_failed;
+}a_ble_host_status_bits_t;
+
+/*bits to notify tx task*/
+typedef struct{
+    uint32_t bit_on_indication_complete;
+    uint32_t bit_on_indication_timeout;
+    uint32_t bit_on_notification_complete;
+}a_ble_tx_status_bits_t;
 
 typedef struct{
     TaskHandle_t manager_task_handle;
     TaskHandle_t supervisor_task_handle;
     EventGroupHandle_t event_group;
-    a_ble_host_bits_t bits;
+    a_ble_host_status_bits_t host_bits;
+    a_ble_tx_status_bits_t tx_bits;
 }a_ble_host_cfg_t;
 
 /** @brief Add a receive buffer to the BLE driver

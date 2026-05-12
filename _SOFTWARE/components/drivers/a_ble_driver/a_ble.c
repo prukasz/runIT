@@ -3,6 +3,7 @@
 #include "gatt_svc.h"
 #include "nimble/nimble_port.h"
 #include "nvs_flash.h"
+#include "rtos_utils.h"
 
 
 #define TAG  __FILE_NAME__
@@ -23,17 +24,18 @@ void a_ble_add_rx_buffer(RingbufHandle_t rb) {
 static int _ble_on_disconnect(struct ble_gap_event *event) {
     if (event->disconnect.reason != BLE_HS_EDONE) {
         if (event->disconnect.reason >= 0x0200 && event->disconnect.reason <= 0x02FF) {
-
             ESP_LOGW(TAG, "Disconnected: HCI Reason=0x%02X", (event->disconnect.reason - 0x0200));
         } else {
             ESP_LOGW(TAG, "Disconnected: Host Reason=%d", event->disconnect.reason);
         }
         //Notify that there is no present connection (failed)
-        xEventGroupSetBits(host_cfg->event_group, host_cfg->bits.bit_connection_failed); 
+
+        xEventGroupSetBits(host_cfg->event_group, host_cfg->host_bits.bit_on_connection_failed); 
+        
     
     }else{
         //notify that there is no present connection (disconnected but not failed)
-        xEventGroupSetBits(host_cfg->event_group, host_cfg->bits.bit_disconnected); 
+        xEventGroupSetBits(host_cfg->event_group, host_cfg->host_bits.bit_on_disconnect); 
     }
     //wake up supervisor task to handle this event
     xTaskNotifyGive(host_cfg->supervisor_task_handle);
@@ -43,13 +45,13 @@ static int _ble_on_disconnect(struct ble_gap_event *event) {
 static int _ble_on_tx_complete(struct ble_gap_event *event) {
     if (event->notify_tx.indication && event->notify_tx.status == BLE_HS_EDONE) {
         // Notify that notification process complete
-        xEventGroupSetBits(host_cfg->event_group, host_cfg->bits.bit_indication_complete);
+        R_EVENT_SET(host_cfg->event_group, host_cfg->tx_bits.bit_on_indication_complete);
     } else if (!event->notify_tx.indication && event->notify_tx.status == 0) {
         // Notify that notification process complete
-        xEventGroupSetBits(host_cfg->event_group, host_cfg->bits.bit_notify_complete);
+        R_EVENT_SET(host_cfg->event_group, host_cfg->tx_bits.bit_on_notification_complete);
     } else if (event->notify_tx.indication && event->notify_tx.status == BLE_HS_ETIMEOUT) {
         // Notify that indication failed
-        xEventGroupSetBits(host_cfg->event_group, host_cfg->bits.bit_indication_timeout);
+        R_EVENT_SET(host_cfg->event_group, host_cfg->tx_bits.bit_on_indication_timeout);
     }
     return 0;
 }
@@ -58,7 +60,7 @@ static int _ble_on_mtu_update(struct ble_gap_event *event) {
     a_ble_mtu_size = event->mtu.value;
     ESP_LOGI(TAG, "MTU updated: conn_handle=%d mtu=%d", event->mtu.conn_handle, event->mtu.value);  
     // Notify that MTU update complete only manager 
-    xEventGroupSetBits(host_cfg->event_group, host_cfg->bits.bit_mtu_update);
+    R_EVENT_SET(host_cfg->event_group, host_cfg->host_bits.bit_on_mtu_change);
     return 0;
 }
 
@@ -66,11 +68,11 @@ static int _ble_on_mtu_update(struct ble_gap_event *event) {
 static int _ble_on_connect(struct ble_gap_event *event) {
     if (event->connect.status == 0) {
         ESP_LOGI(TAG, "Connected: conn_handle=%d", event->connect.conn_handle);
-        xEventGroupSetBits(host_cfg->event_group, host_cfg->bits.bit_connected);
+        R_EVENT_SET(host_cfg->event_group, host_cfg->host_bits.bit_on_connect);
         xTaskNotifyGive(host_cfg->supervisor_task_handle);
     } else {
         ESP_LOGW(TAG, "Connection failed: status=%d", event->connect.status);
-        xEventGroupSetBits(host_cfg->event_group, host_cfg->bits.bit_connection_failed);
+        R_EVENT_SET(host_cfg->event_group, host_cfg->host_bits.bit_on_connection_failed);
         xTaskNotifyGive(host_cfg->supervisor_task_handle);
     }
     return 0;
@@ -89,9 +91,12 @@ static int _ble_on_rx(struct ble_gatt_access_ctxt *ctxt) {
         os_mbuf_copydata(ctxt->om, 0, len, data_buffer);
 
         if (xRingbufferSend(a_ble_rx_buffer, data_buffer, len, 0) != pdTRUE) {
-            xTaskNotify(host_cfg->manager_task_handle, host_cfg->bits.bit_rx_failed, eSetBits);
+            R_EVENT_SET(host_cfg->event_group, host_cfg->host_bits.bit_on_rx_failed);
+            R_NOTIFY_SEND(host_cfg->supervisor_task_handle, 0);
+        } else {
+            R_EVENT_SET(host_cfg->event_group, host_cfg->host_bits.bit_on_rx_received);
+            R_NOTIFY_SEND(host_cfg->supervisor_task_handle, 0);
         }
-        xTaskNotify(host_cfg->manager_task_handle, host_cfg->bits.bit_rx_received, eSetBits);
     }
     return 0;
 }

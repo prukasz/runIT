@@ -7,31 +7,37 @@ extern uint8_t rik_tca_id;
 extern uint8_t rik_tps_0_id;
 extern uint8_t rik_tps_1_id;
 
+extern bool _rik_ble_active;
+extern bool _rik_wifi_active;
+
 extern RingbufHandle_t rik_buff_status;
 extern RingbufHandle_t rik_buff_tx;
 extern RingbufHandle_t rik_buff_rx;
+extern RingbufHandle_t rik_buff_log;
 
 
 /*Event group of data interfaces */
 /**************************BLE*********************************************/
-#define EVENT_BIT_BLE_START             (1 << 0)
-#define EVENT_BIT_BLE_DONE              (1 << 1)
-#define EVENT_BIT_BLE_RX                (1 << 2)
-#define EVENT_BIT_BLE_NOTIFY_DONE       (1 << 3) 
-#define EVENT_BIT_BLE_IND_DONE          (1 << 4) 
-#define EVENT_BIT_BLE_IND_TIMEOUT       (1 << 5) 
-#define EVENT_BIT_BLE_CONNECTED         (1 << 6)
-#define EVENT_BIT_BLE_CONNECTION_FAILED (1 << 7)
-#define EVENT_BIT_BLE_DISCONNECTED      (1 << 8)
-#define EVENT_BIT_BLE_MTU_UPDATED       (1 << 9)
-#define EVENT_BIT_BLE_RX_FAILED         (1 << 10)
+#define EVENT_BIT_BLE_TX_START          (1 << 0)
+#define EVENT_BIT_BLE_TX_DONE           (1 << 1)
+#define EVENT_BIT_BLE_ON_RX             (1 << 2)
+#define EVENT_BIT_BLE_ON_RX_FAILED      (1 << 3)
+
+#define EVENT_BIT_BLE_CONNECTED         (1 << 4)
+#define EVENT_BIT_BLE_CONNECTION_FAILED (1 << 5)
+#define EVENT_BIT_BLE_DISCONNECTED      (1 << 6)
+#define EVENT_BIT_BLE_MTU_UPDATED       (1 << 7)
+
 /**************************BLE*********************************************/
+
+
 /**************************I2C *********************************/
-#define EVENT_BIT_I2C_PROCESS   (1 << 11)
-#define EVENT_BIT_I2C_DONE      (1 << 12)
-#define EVENT_BIT_I2C_TIMEOUT   (1 << 13)
-#define EVENT_BIT_I2C_EMERGENCY (1 << 14)
+#define EVENT_BIT_I2C_PROCESS   (1 << 8)
+#define EVENT_BIT_I2C_DONE      (1 << 9)
+#define EVENT_BIT_I2C_EMERGENCY (1 << 10)
+#define EVENT_BIT_I2C_TIMEOUT   (1 << 11)
 /**************************I2C *********************************/
+
 /*Event group of data interfaces */
 
 
