@@ -46,7 +46,7 @@ typedef enum{
     DEV_TYPE_AP  = 0x09,
 }device_type_t;
 
-static interface_dev_cfg_func interface_dev_cfg_setter_table[255] = {
+static interface_dev_cfg_func interface_dev_cfg_setter_table[256] = {
     [DEV_TYPE_TPS]           = NULL, // To be implemented
     [DEV_TYPE_DRV]           = NULL, // To be implemented
     [DEV_TYPE_LM]            = NULL, // To be implemented
@@ -58,7 +58,7 @@ static interface_dev_cfg_func interface_dev_cfg_setter_table[255] = {
     [DEV_TYPE_AP]            = NULL, // To be implemented
 };
 
-static interface_parse_func parse_dispatch_table[255] = {
+static interface_parse_func parse_dispatch_table[256] = {
     [PACKET_H_DEV_CFG]           = interface_parse_cmd_dev_cfg,
     [PACKET_H_DEV_RESET]         = NULL, // To be implemented
     [PACKET_H_DEV_EMER_STOP]     = NULL, // To be implemented

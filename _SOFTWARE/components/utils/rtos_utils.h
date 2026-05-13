@@ -12,6 +12,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 /**
  * @brief Creates a static ESP-IDF Ringbuffer.
  */
@@ -129,14 +130,14 @@ TaskHandle_t name = NULL
  * @brief Waits for ANY of the specified bits to be set, then clears them.
  * @usage if (R_EVENT_AWAIT_ANY(rik_events, BIT_WIFI | BIT_BLE, WAIT_FOREVER)) { ... }
  */
-#define R_EVENT_AWAIT_ANY(group, bits, timeout_ms) \
-    xEventGroupWaitBits((group), (bits), pdTRUE, pdFALSE, pdMS_TO_TICKS(timeout_ms))
+#define R_EVENT_AWAIT_ANY(group, bits, timeout_ticks) \
+    xEventGroupWaitBits((group), (bits), pdTRUE, pdFALSE, (timeout_ticks))
 
 /**
  * @brief Waits for ALL of the specified bits to be set simultaneously, then clears them.
  */
-#define R_EVENT_AWAIT_ALL(group, bits, timeout_ms) \
-    xEventGroupWaitBits((group), (bits), pdTRUE, pdTRUE, pdMS_TO_TICKS(timeout_ms))
+#define R_EVENT_AWAIT_ALL(group, bits, timeout_ticks) \
+    xEventGroupWaitBits((group), (bits), pdTRUE, pdTRUE, (timeout_ticks))
 
 
 #define SECONDS(sec)     pdMS_TO_TICKS((sec) * 1000)
@@ -157,18 +158,18 @@ TaskHandle_t name = NULL
 
 /**
  * @brief Waits for a notification. Clears the value on exit.
- * @param timeout_ms How long to wait.
- * @param out_val Pointer to a uint32_t to store the received value.
+ * @param timeout_ticks How long to wait in FreeRTOS ticks.
+ * @param out_val_ptr Pointer to a uint32_t to store the received value.
  * @return pdTRUE if received, pdFALSE if timed out.
  */
-#define R_NOTIFY_AWAIT(timeout_ms, out_val_ptr) \
-    xTaskNotifyWait(0x00, ULONG_MAX, (out_val_ptr), pdMS_TO_TICKS(timeout_ms))
+#define R_NOTIFY_AWAIT(timeout_ticks, out_val_ptr) \
+    xTaskNotifyWait(0x00, ULONG_MAX, (out_val_ptr), (timeout_ticks))
 
-#define R_TIMER_DEFINE(name, period_ms, auto_reload, callback_func) \
+#define R_TIMER_DEFINE(name, period_ticks, auto_reload, callback_func) \
     static StaticTimer_t _##name##_buffer; \
     TimerHandle_t name = NULL; \
     __attribute__((constructor)) static void _init_##name(void) { \
-        name = xTimerCreateStatic(#name, pdMS_TO_TICKS(period_ms), \
+        name = xTimerCreateStatic(#name, (period_ticks), \
              (auto_reload) ? pdTRUE : pdFALSE, NULL, (callback_func), &_##name##_buffer); \
     } \
 
@@ -180,10 +181,10 @@ TaskHandle_t name = NULL
 
 /**
  * @brief Locks a mutex/semaphore. Returns true if successful, false if timed out.
- * @usage if ( R_MUTEX_LOCK(i2c_bus, 100) ) { ... }
+ * @usage if ( R_MUTEX_LOCK(i2c_bus, MSEC(100)) ) { ... }
  */
-#define R_MUTEX_LOCK(mutex_handle, timeout_ms) \
-    (xSemaphoreTake((mutex_handle), pdMS_TO_TICKS(timeout_ms)) == pdTRUE)
+#define R_MUTEX_LOCK(mutex_handle, timeout_ticks) \
+    (xSemaphoreTake((mutex_handle), (timeout_ticks)))
 
 /**
  * @brief Unlocks a mutex/semaphore.
@@ -205,21 +206,21 @@ TaskHandle_t name = NULL
  * @brief Pushes an item to a queue. Returns true if successful.
  * @usage R_QUEUE_SEND(sensor_queue, &my_data, WAIT_FOREVER);
  */
-#define R_QUEUE_SEND(queue_handle, item_ptr, timeout_ms) \
-    (xQueueSend((queue_handle), (item_ptr), pdMS_TO_TICKS(timeout_ms)) == pdTRUE)
+#define R_QUEUE_SEND(queue_handle, item_ptr, timeout_ticks) \
+    (xQueueSend((queue_handle), (item_ptr), (timeout_ticks)))
 
 /**
  * @brief Pulls an item from a queue. Returns true if data was received.
- * @usage if ( R_QUEUE_RECEIVE(sensor_queue, &my_data, 500) ) { ... }
+ * @usage if ( R_QUEUE_RECEIVE(sensor_queue, &my_data, MSEC(500)) ) { ... }
  */
-#define R_QUEUE_RECEIVE(queue_handle, item_ptr, timeout_ms) \
-    (xQueueReceive((queue_handle), (item_ptr), pdMS_TO_TICKS(timeout_ms)) == pdTRUE)
+#define R_QUEUE_RECEIVE(queue_handle, item_ptr, timeout_ticks) \
+    (xQueueReceive((queue_handle), (item_ptr), (timeout_ticks)))
 
 /**
  * @brief Looks at the next item in the queue WITHOUT removing it.
  */
-#define R_QUEUE_PEEK(queue_handle, item_ptr, timeout_ms) \
-    (xQueuePeek((queue_handle), (item_ptr), pdMS_TO_TICKS(timeout_ms)) == pdTRUE)
+#define R_QUEUE_PEEK(queue_handle, item_ptr, timeout_ticks) \
+    (xQueuePeek((queue_handle), (item_ptr), (timeout_ticks)))
 
 #ifdef __cplusplus
 }

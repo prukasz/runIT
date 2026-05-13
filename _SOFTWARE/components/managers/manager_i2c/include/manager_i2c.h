@@ -27,12 +27,7 @@ typedef struct {
     EventBits_t m_i2c_bits_queue_timeout;
     EventBits_t m_i2c_bits_emergency_stop;
     i2c_master_bus_config_t bus_cfg;
-    uint8_t m_i2c_bus_num;
-    uint8_t task_priority;
-    uint32_t task_stack_size;
-    bool core;
-    uint8_t queue_size_aperiodic;
-    uint8_t queue_size_periodic;
+    TaskHandle_t manager_task_handle;
 } m_i2c_config_t;
 
 /**

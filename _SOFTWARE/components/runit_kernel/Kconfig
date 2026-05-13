@@ -32,4 +32,5 @@ config CONNECT_TPS55289_INT_MOCK
     bool "Connect TPS55289 mock interrupts"
     default y
 
+
 endmenu

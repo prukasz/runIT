@@ -13,6 +13,7 @@
 #include "rtos_utils.h"
 #include "rik_scheduler.h"  
 #include "rik_logs.h"
+#include "rik_tx_rx.h"
 
 #define TAG "RIK_MAIN"
 
@@ -21,47 +22,39 @@
 #define STATUS_BUFFER_SIZE 2560
 #define LOG_BUFFER_SIZE    2560
 
-
-// Ring Buffers
+/***********************STATIC GLOBAL BUFFERS ***********************************/
 R_RINGBUFFER_DEFINE(rik_buff_tx,     TX_BUFFER_SIZE,     RINGBUF_TYPE_NOSPLIT);
 R_RINGBUFFER_DEFINE(rik_buff_rx,     RX_BUFFER_SIZE,     RINGBUF_TYPE_NOSPLIT);
 R_RINGBUFFER_DEFINE(rik_buff_status, STATUS_BUFFER_SIZE, RINGBUF_TYPE_BYTEBUF);
 R_RINGBUFFER_DEFINE(rik_buff_log,    LOG_BUFFER_SIZE,    RINGBUF_TYPE_NOSPLIT);
+/***********************STATIC GLOBAL BUFFERS ***********************************/
 
-// Event Groups
+/***********************STATIC GLOBAL EVENT GROUPS ******************************/
 R_EVENT_GROUP_DEFINE(rik_events_communication);
 R_EVENT_GROUP_DEFINE(rik_events_processing);
 R_EVENT_GROUP_DEFINE(rik_i2c_events_0);
 R_EVENT_GROUP_DEFINE(rik_i2c_events_1);
-
-/* =====================================================================
- * 2. TASKS & FUNCTIONS
- * ===================================================================== */
+/***********************STATIC GLOBAL EVENT GROUPS ******************************/
 
 /* packing tester */
-void status_gen_status_err(void* params){
+void test(void* params){
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(100));
        
         tps_trigger_ocp(0x74);
         tps_trigger_scp(0x75);
 
-        // Assuming STA_P is a macro that pushes to a queue/buffer
         STA_P(STA_E(0xDEAD, 0, 0));
-        STA_P(STA_E(0xDEAD, 0, 0));
-        STA_P(STA_E(0xDEAD, 0, 0));
-        STA_P(STA_E(0xDEAD, 0, 0));
-        STA_P(STA_E(0xDEAD, 0, 0));
-        STA_P(STA_E(0xDEAD, 0, 0));
-        STA_P(STA_E(0xDEAD, 0, 0));
-        STA_P(STA_E(0xDEAD, 0, 0));
-        
         ESP_LOGW(TAG, "Generated error with code 0xDEAD and tca interrupts");
+
         vTaskDelay(pdMS_TO_TICKS(5000)); 
-        
+
         xEventGroupSetBits(rik_events_communication, EVENT_BIT_BLE_TX_START);
     }
 }
+
+R_TASK_DEFINE(test_task, 4096);
+
 bool _rik_ble_active;
 bool _rik_wifi_active;
 esp_err_t rik_start(void) {
@@ -81,8 +74,6 @@ esp_err_t rik_start(void) {
                         IO_SYS_PIN_USR_I2C_SDA, IO_SYS_PIN_USR_I2C_SCL);
     if (!STA_IS_OK(rep)) return rep.e_code;
 
-    // 4. Start Interface
-    rik_start_interface(rik_events_processing);
 
 #ifdef CONFIG_CONNECT_TCA6424A
     status_rep_t tca_res = rik_i2c_start_tca6424a(0x22, 0);
@@ -112,14 +103,8 @@ esp_err_t rik_start(void) {
 
     // 5. System Interrupts & Tester Task
     rik_init_intr_esp();
-    xTaskCreate(status_gen_status_err, "status_gen_status_err", 4096, NULL, 5, NULL);
-    
-    R_EVENT_AWAIT_ANY(rik_events_communication, EVENT_BIT_BLE_CONNECTED, WAIT_FOREVER);
-    rik_start_interface(rik_events_communication); // Initialize BLE-related interrupts after BLE is connected to avoid spurious events during startup
-    esp_log_set_vprintf(rik_log_vprintf);
-    _rik_ble_active = true;
-    rik_log_remote_enable(true);
-    esp_log_level_set("*", ESP_LOG_INFO);
+
+    R_TASK_START_ON_CORE(test_task, test, NULL, 5, 0);
     
     return ESP_OK;
 }

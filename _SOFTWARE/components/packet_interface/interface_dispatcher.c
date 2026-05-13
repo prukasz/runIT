@@ -30,7 +30,8 @@ esp_err_t interface_parse_cmd_dev_cfg(const uint8_t *packet_data, const uint16_t
 
 static void _interface_dispatch_cmd(uint8_t *cmd_data, size_t cmd_len){
     uint16_t packet_len = cmd_len-1; /*skip header*/
-    uint8_t *packet_data = cmd_data+1; /*skip header*/
+    uint8_t* packet_data = cmd_data+1; /*skip header*/
+    ESP_LOGI(TAG, "Dispatching command with header: %u and data length: %u", cmd_data[0], (unsigned)packet_len);
     interface_parse_func parse_func = parse_dispatch_table[cmd_data[0]];
     if(parse_func == NULL){
         ESP_LOGW(TAG, "No parser found for command header: %u", cmd_data[0]);

@@ -20,7 +20,6 @@ static m_ble_cfg_t rik_ble_cfg = {
     .manager_task_handle = NULL,
     .supervisor_task_handle = NULL,
     .event_group = NULL
-
 };
 /*******************************BLE CFG********************************************/
 
@@ -29,7 +28,8 @@ status_rep_t rik_start_ble(EventGroupHandle_t connection_events, TaskHandle_t su
     rik_ble_cfg.supervisor_task_handle = supervisor_task_handle;
     m_ble_buff_register_rx(rik_buff_rx);
     m_ble_buff_register_tx(rik_buff_tx, RINGBUF_TYPE_NOSPLIT, false, 0, 0, 0); 
-    m_ble_buff_register_tx(rik_buff_status, RINGBUF_TYPE_BYTEBUF, true, 0xEE, sizeof(status_rep_t), 1); 
+    m_ble_buff_register_tx(rik_buff_status, RINGBUF_TYPE_BYTEBUF, true, 0xEE, sizeof(status_rep_t), 1);
+    m_ble_buff_register_tx(rik_buff_log, RINGBUF_TYPE_NOSPLIT, false, 0, 0, 2); 
 
     esp_err_t err = m_ble_init(&rik_ble_cfg);
     if (err != ESP_OK) {
@@ -47,12 +47,6 @@ static m_i2c_config_t rik_i2c_cfg_0 = {
     .m_i2c_bits_queue_done = EVENT_BIT_I2C_DONE,
     .m_i2c_bits_queue_timeout = EVENT_BIT_I2C_TIMEOUT,
     .m_i2c_bits_emergency_stop = EVENT_BIT_I2C_EMERGENCY,
-    .m_i2c_bus_num = 0,
-    .task_priority = 3,
-    .task_stack_size = 8192,
-    .core = true,
-    .queue_size_aperiodic = 20,
-    .queue_size_periodic = 10,
     .bus_cfg = {
         .i2c_port = I2C_NUM_0,
         .sda_io_num = -1, 
@@ -73,12 +67,6 @@ static m_i2c_config_t rik_i2c_cfg_1 = {
     .m_i2c_bits_queue_done = EVENT_BIT_I2C_DONE,
     .m_i2c_bits_queue_timeout = EVENT_BIT_I2C_TIMEOUT,
     .m_i2c_bits_emergency_stop = EVENT_BIT_I2C_EMERGENCY,
-    .m_i2c_bus_num = 1,
-    .task_priority = 3,
-    .task_stack_size = 8192,
-    .core = true,
-    .queue_size_aperiodic = 20,
-    .queue_size_periodic = 10,
     .bus_cfg = {
         .i2c_port = I2C_NUM_1,
         .sda_io_num = -1,

@@ -2,22 +2,32 @@
 #include "manager_i2c.h"
 #include "esp_log.h"
 #include "driver/i2c_master.h"
+#include "rtos_utils.h"
 #define TAG __FILE_NAME__
 
 /* Private variables */
 static m_i2c_config_t *manager_bus_cfg_0;
 static m_i2c_config_t *manager_bus_cfg_1;
 
-static TaskHandle_t manager_task_handle_0 = NULL;
-static TaskHandle_t manager_task_handle_1 = NULL;
+#define I2C_MANAGER_TASK_STACK_SIZE 2048
+#define M_I2C_QUEUE_SIZE_PERIODIC 10
+#define M_I2C_QUEUE_SIZE_APERIODIC 20
+#define M_I2C_TASK_PRIORITY 4
+
+
+R_TASK_DEFINE(i2c_manager_task_0, 2048);
+R_TASK_DEFINE(i2c_manager_task_1, 2048);
+R_QUEUE_DEFINE(bus_periodic_queue_0, M_I2C_QUEUE_SIZE_PERIODIC, sizeof(m_i2c_driver_job_t));
+R_QUEUE_DEFINE(bus_periodic_queue_1, M_I2C_QUEUE_SIZE_PERIODIC, sizeof(m_i2c_driver_job_t));
+R_QUEUE_DEFINE(bus_aperiodic_queue_0, M_I2C_QUEUE_SIZE_APERIODIC, sizeof(m_i2c_driver_job_t));
+R_QUEUE_DEFINE(bus_aperiodic_queue_1, M_I2C_QUEUE_SIZE_APERIODIC, sizeof(m_i2c_driver_job_t));
+
 
 static i2c_master_bus_handle_t bus_handle_0 = NULL;
 static i2c_master_bus_handle_t bus_handle_1 = NULL;
 
-static QueueHandle_t bus_periodic_queue_0 = NULL;
-static QueueHandle_t bus_periodic_queue_1 = NULL;
-static QueueHandle_t bus_aperiodic_queue_0 = NULL;
-static QueueHandle_t bus_aperiodic_queue_1 = NULL;
+
+
 /* Private variables */
 /* Driver slots */
 /**
@@ -63,7 +73,6 @@ TaskHandle_t m_i2c_get_dev_task(uint8_t id){
 }
 
 
-
 bool m_i2c_get_id_by_address(bool bus, uint16_t device_address, uint8_t* out_id) {
     for (int i = 0; i < M_I2C_MAX_DEVICES; i++) {
         if (driver_registry[i].is_active && 
@@ -90,13 +99,12 @@ bool m_i2c_set_active_state(uint8_t id, bool new_state) {
     return false; 
 }
 
-
 static void i2c_manager_task(void* params) {
     m_i2c_config_t* manager = (m_i2c_config_t*)params;
     QueueHandle_t j_periodic;
     QueueHandle_t j_aperiodic;
     TaskHandle_t manager_task_handle = xTaskGetCurrentTaskHandle();
-    if (manager->m_i2c_bus_num == 0) {
+    if (manager->bus_cfg.i2c_port == I2C_NUM_0) {
         j_periodic = bus_periodic_queue_0;
         j_aperiodic = bus_aperiodic_queue_0;
     }else{
@@ -104,13 +112,12 @@ static void i2c_manager_task(void* params) {
         j_aperiodic = bus_aperiodic_queue_1;
     }
     while (1) {
-        xEventGroupWaitBits(manager->m_i2c_events, manager->m_i2c_bits_queue_process, pdTRUE, pdFALSE, portMAX_DELAY);
-        
+        R_EVENT_AWAIT_ANY(manager->m_i2c_events, manager->m_i2c_bits_queue_process, WAIT_FOREVER); 
         uint32_t items_in_aperiodic = uxQueueMessagesWaiting(j_aperiodic);
         for (UBaseType_t i = 0; i < items_in_aperiodic; i++) {
             m_i2c_driver_job_t current_job;
             
-            if (xQueueReceive(j_aperiodic, &current_job, 0) == pdTRUE) {
+            if (R_QUEUE_RECEIVE(j_aperiodic, &current_job, NO_WAIT) == pdTRUE) {
                 
                 TaskHandle_t driver_task = m_i2c_get_dev_task(current_job.driver_id);
                 if (current_job.keep_alive){
@@ -118,10 +125,11 @@ static void i2c_manager_task(void* params) {
                         ESP_LOGE(TAG, "Manager Task: Driver task handle is NULL for driver ID %d, skipping notify", current_job.driver_id);
                         continue;
                     } else {
-                        xTaskNotify(driver_task, (uint32_t)manager_task_handle, eSetValueWithOverwrite);
+                        R_NOTIFY_SEND(driver_task, (uint32_t)manager_task_handle);
                     }
-                    if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(50)) != pdTRUE) {
-                        xEventGroupSetBits(manager->m_i2c_events, manager->m_i2c_bits_queue_timeout);
+                    uint32_t notify_value;
+                    if (!IS_OK(R_NOTIFY_AWAIT(MSEC(50), &notify_value))) {
+                        R_EVENT_SET(manager->m_i2c_events, manager->m_i2c_bits_queue_timeout);
                     }
                 }
             }
@@ -130,22 +138,21 @@ static void i2c_manager_task(void* params) {
         for (UBaseType_t i = 0; i < items_in_periodic; i++) {
             m_i2c_driver_job_t current_job;
             
-            if (xQueueReceive(j_periodic, &current_job, 0) == pdTRUE) {
+            if ( R_QUEUE_RECEIVE(j_periodic, &current_job, NO_WAIT) == pdTRUE) {
                 
-
+                uint32_t notify_value;
                 if (current_job.keep_alive){
                     TaskHandle_t driver_task = m_i2c_get_dev_task(current_job.driver_id);
-                    xTaskNotify(driver_task, (uint32_t)manager_task_handle , eSetValueWithOverwrite);
-                    if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(50)) != pdTRUE) {
-                        xEventGroupSetBits(manager->m_i2c_events, manager->m_i2c_bits_queue_timeout);
-                    }
+                    R_NOTIFY_SEND(driver_task, (uint32_t)manager_task_handle);
+                    if (!IS_OK(R_NOTIFY_AWAIT(MSEC(50), &notify_value))) {
+                        R_EVENT_SET(manager->m_i2c_events, manager->m_i2c_bits_queue_timeout);
+                    }           
                     
                 }
-                xQueueSend(j_periodic, &current_job, 0);
+                R_QUEUE_SEND(j_periodic, &current_job, NO_WAIT); // re-add to the end of the queue for next round
             }
         }
-        xEventGroupSetBits(manager->m_i2c_events, manager->m_i2c_bits_queue_done);
-        portYIELD();
+        R_EVENT_SET(manager->m_i2c_events, manager->m_i2c_bits_queue_done);
     }
 }
 
@@ -153,27 +160,15 @@ status_rep_t m_i2c_init(m_i2c_config_t* bus0_config, m_i2c_config_t* bus1_config
 {
     manager_bus_cfg_0 = bus0_config;
     manager_bus_cfg_1 = bus1_config;
-    bus_periodic_queue_0 = xQueueCreate(manager_bus_cfg_0->queue_size_periodic, sizeof(m_i2c_driver_job_t));
-    bus_periodic_queue_1 = xQueueCreate(manager_bus_cfg_1->queue_size_periodic, sizeof(m_i2c_driver_job_t));
-    bus_aperiodic_queue_0 = xQueueCreate(manager_bus_cfg_0->queue_size_aperiodic, sizeof(m_i2c_driver_job_t));
-    bus_aperiodic_queue_1 = xQueueCreate(manager_bus_cfg_1->queue_size_aperiodic, sizeof(m_i2c_driver_job_t));
-
-    if (!bus_periodic_queue_0 || !bus_periodic_queue_1 || !bus_aperiodic_queue_0 || !bus_aperiodic_queue_1) {
-        return STA_C(ESP_ERR_NO_MEM, OWNER_MANAGER_I2C, 0);
-    }
-
-    STA_RET_ON_ESP_ERR(i2c_new_master_bus(&manager_bus_cfg_0->bus_cfg, &bus_handle_0), OWNER_I2C_BUS_0, 0);
-
-
+    manager_bus_cfg_0->manager_task_handle = i2c_manager_task_0;
+    manager_bus_cfg_1->manager_task_handle = i2c_manager_task_1;
     
+    STA_RET_ON_ESP_ERR(i2c_new_master_bus(&manager_bus_cfg_0->bus_cfg, &bus_handle_0), OWNER_I2C_BUS_0, 0);
     STA_RET_ON_ESP_ERR(i2c_new_master_bus(&manager_bus_cfg_1->bus_cfg, &bus_handle_1), OWNER_I2C_BUS_1, 0);
-  
-    if (xTaskCreatePinnedToCore(i2c_manager_task, "i2c_mgr_0", manager_bus_cfg_0->task_stack_size, manager_bus_cfg_0, manager_bus_cfg_0->task_priority, &manager_task_handle_0, 1) != pdPASS) {
-        return STA_C(ESP_ERR_NO_MEM, OWNER_MANAGER_I2C, 0);
-    }
-    if (xTaskCreatePinnedToCore(i2c_manager_task, "i2c_mgr_1", manager_bus_cfg_1->task_stack_size, manager_bus_cfg_1, manager_bus_cfg_1->task_priority, &manager_task_handle_1, 0) != pdPASS) {
-        return STA_C(ERR_I2C_DEV_ADDR_CONFLICT, OWNER_MANAGER_I2C, 0);
-    }
+
+    R_TASK_START_ON_CORE(i2c_manager_task_0, &i2c_manager_task, bus0_config, M_I2C_TASK_PRIORITY, 0);
+    R_TASK_START_ON_CORE(i2c_manager_task_1, &i2c_manager_task, bus1_config, M_I2C_TASK_PRIORITY, 1);
+    
     ESP_LOGI(TAG, "I2C Manager initialized successfully");
     return STA_OK;
 }
@@ -183,7 +178,7 @@ i2c_master_bus_handle_t m_i2c_get_bus_handle(uint8_t bus_num) {
 }
 
 TaskHandle_t m_i2c_get_manager_task(uint8_t bus_num) {
-    return (bus_num == 0) ? manager_task_handle_0 : manager_task_handle_1;
+    return (bus_num == 0) ? manager_bus_cfg_0->manager_task_handle : manager_bus_cfg_1->manager_task_handle;
 }
 
 
@@ -251,7 +246,7 @@ status_rep_t m_i2c_add_driver(
         };
         
         QueueHandle_t target_queue = (bus == 0) ? bus_periodic_queue_0 : bus_periodic_queue_1;
-        xQueueSend(target_queue, &initial_job, portMAX_DELAY);
+        R_QUEUE_SEND(target_queue, &initial_job, WAIT_FOREVER);
     }
     
     ESP_LOGI(TAG, "Driver added with ID %d for I2C address 0x%02X on bus %d", driver_registry[slot].id, i2c_addr, bus ? 1 : 0);
@@ -268,7 +263,7 @@ status_rep_t m_i2c_enqueue_aperiodic_job(uint8_t id) {
                 .keep_alive = &driver_registry[i].is_active
             };
             QueueHandle_t target_queue = (driver_registry[i].bus == 0) ? bus_aperiodic_queue_0 : bus_aperiodic_queue_1;
-            xQueueSend(target_queue, &job, 0);
+            R_QUEUE_SEND(target_queue, &job, NO_WAIT);
             return STA_OK;
         }
     }

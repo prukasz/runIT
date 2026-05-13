@@ -90,8 +90,7 @@ static int _ble_on_rx(struct ble_gatt_access_ctxt *ctxt) {
         uint8_t data_buffer[a_ble_mtu_size];
         os_mbuf_copydata(ctxt->om, 0, len, data_buffer);
 
-        if (xRingbufferSend(a_ble_rx_buffer, data_buffer, len, 0) != pdTRUE) {
-            R_EVENT_SET(host_cfg->event_group, host_cfg->host_bits.bit_on_rx_failed);
+        if (xRingbufferSend(a_ble_rx_buffer, data_buffer, len, 0) != pdTRUE) {            R_EVENT_SET(host_cfg->event_group, host_cfg->host_bits.bit_on_rx_failed);
             R_NOTIFY_SEND(host_cfg->supervisor_task_handle, 0);
         } else {
             R_EVENT_SET(host_cfg->event_group, host_cfg->host_bits.bit_on_rx_received);

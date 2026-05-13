@@ -22,20 +22,35 @@ static rik_log_cfg_pkt_t rik_log_cfg_pkt;
  */
 int rik_log_vprintf(const char *fmt, va_list args) {
     char buf[512];
-    int len = vsnprintf(buf, sizeof(buf), fmt, args);
+    va_list args_copy;
+    va_copy(args_copy, args);
+    int len = vsnprintf(buf, sizeof(buf), fmt, args_copy);
+    va_end(args_copy);
     if (len > 0) {
-        RIK_TX_NO_WAIT(buf, len);
+        RIK_TX_LOG_NO_WAIT(buf, len);
     }
     if (rik_log_cfg_pkt.mirror_on_serial) {
         return vprintf(fmt, args);
     }
     return 0;
 }
+void rik_log_set_level(esp_log_level_t level) {
+    rik_log_cfg_pkt.esp_log_level = level;
+    esp_log_level_set("*", level);
+}
+
+void rik_enable_log_mirroring(bool enable) {
+    rik_log_cfg_pkt.mirror_on_serial = enable;
+}
+
 void rik_log_remote_enable(bool enable){
+    enable ? esp_log_set_vprintf(rik_log_vprintf) : esp_log_set_vprintf(vprintf);
     rik_log_cfg_pkt.enable_stream = enable;
     rik_log_cfg_pkt.mirror_on_serial = enable; // For simplicity, mirror to serial when streaming is enabled
-    rik_log_cfg_pkt.esp_log_level = ESP_LOG_WARN; // Default log level,
+    rik_log_cfg_pkt.esp_log_level = ESP_LOG_INFO; // Default log level
+    esp_log_level_set("*", rik_log_cfg_pkt.esp_log_level);
 }
+
 
 
 status_rep_t rik_parse_log_cfg(const uint8_t *packet_data, const uint16_t packet_len){

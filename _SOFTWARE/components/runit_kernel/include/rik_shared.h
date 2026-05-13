@@ -15,6 +15,10 @@ extern RingbufHandle_t rik_buff_tx;
 extern RingbufHandle_t rik_buff_rx;
 extern RingbufHandle_t rik_buff_log;
 
+extern EventGroupHandle_t rik_events_communication;
+extern EventGroupHandle_t rik_events_processing;
+extern EventGroupHandle_t rik_i2c_events_0;
+extern EventGroupHandle_t rik_i2c_events_1;
 
 /*Event group of data interfaces */
 /**************************BLE*********************************************/
