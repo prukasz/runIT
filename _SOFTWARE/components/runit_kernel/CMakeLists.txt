@@ -1,7 +1,26 @@
 idf_component_register(
-    SRCS "rik_devices.c" "rik_interrupts.c" "rik_modules.c" "rik_main.c"
+    SRCS "rik_configs.c" "rik_devices.c" "rik_interrupts.c" "rik_modules.c" "rik_main.c"
         "rik_interrupts.c" "rik_logs.c" "rik_scheduler.c"
         
     INCLUDE_DIRS "include"
-    REQUIRES ina3221_wrapper tca6424a_wrapper manager_i2c manager_ble packet_interface mock_tca freertos esp_driver_gpio tps55289 mock_tps ads7128 utils
+    REQUIRES 
+    manager_i2c
+    manager_ble
+    manager_io
+    manager_power
+
+    packet_interface
+    
+    freertos
+    esp_driver_gpio
+
+    tca6424a 
+    ina3221
+    tps55289
+
+    mock_tca
+    mock_tps
+ 
+
+    utils
 )

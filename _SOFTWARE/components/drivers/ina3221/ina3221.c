@@ -288,7 +288,7 @@ void ina3221_cfg_periodic_reading(ina3221_handle_t handle, bool bus_voltage, boo
     handle->to_update.read_status_periodic = status;
 }
 
-esp_err_t ina3221_set_critical_alert(ina3221_handle_t handle, ina3221_channel_t channel, float current_mA)
+esp_err_t ina3221_set_critical_alert(ina3221_handle_t handle, ina3221_channel_t channel, uint32_t current_mA)
 {
     CHECK_ARG(handle);
 
@@ -301,7 +301,7 @@ esp_err_t ina3221_set_critical_alert(ina3221_handle_t handle, ina3221_channel_t 
     return _ina3221_write(handle, INA3221_REG_CRITICAL_ALERT_1 + channel * 2, reg_val);
 }
 
-esp_err_t ina3221_set_warning_alert(ina3221_handle_t handle, ina3221_channel_t channel, float current_mA)
+esp_err_t ina3221_set_warning_alert(ina3221_handle_t handle, ina3221_channel_t channel, uint32_t current_mA)
 {
     CHECK_ARG(handle);
 
@@ -315,7 +315,7 @@ esp_err_t ina3221_set_warning_alert(ina3221_handle_t handle, ina3221_channel_t c
     return _ina3221_write(handle, INA3221_REG_WARNING_ALERT_1 + channel * 2, reg_val);
 }
 
-esp_err_t ina3221_set_sum_warning_alert(ina3221_handle_t handle, float voltage_mv)
+esp_err_t ina3221_set_sum_warning_alert(ina3221_handle_t handle, uint32_t voltage_mv)
 {
     CHECK_ARG(handle);
  
@@ -433,7 +433,7 @@ void ina3221_task(void *arg)
     }
 }
 
-IRAM_ATTR void ina3221_isr_callback_critical(void *arg)
+void ina3221_isr_callback_critical(void *arg)
 {
     ina3221_handle_t handle = (ina3221_handle_t)arg;
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
@@ -441,8 +441,7 @@ IRAM_ATTR void ina3221_isr_callback_critical(void *arg)
     xTaskNotifyFromISR(handle->driver_task_handle, 0, eSetBits, &xHigherPriorityTaskWoken);
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
-
-IRAM_ATTR void ina3221_isr_callback_warning(void *arg)
+void ina3221_isr_callback_warning(void *arg)
 {
     ina3221_handle_t handle = (ina3221_handle_t)arg;  
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;

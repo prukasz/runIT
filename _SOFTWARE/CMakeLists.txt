@@ -16,5 +16,4 @@ list(APPEND EXTRA_COMPONENT_DIRS
     "components/wrappers"
     "components/utils"
 )
-
 project(runIT)

@@ -11,9 +11,6 @@
 #include "status_codes.h"
 
 
-
-
-
 typedef struct{
     uint8_t log_i:1;
     uint8_t log_w:1;

@@ -1,6 +1,10 @@
 #pragma once
 #include "stdint.h"
 
+
+/*************************pakiety przeniesione do odpowiedniego managera ****************/
+ 
+
 //Logs and status report configuration packet structure
 typedef struct{
     bool enable_stream;
@@ -20,61 +24,7 @@ typedef struct{
 
 //TPS55289 Configuration packet structure
 //other params are hidden from user
-typedef struct{
-    struct{
-        uint8_t i2c_address;
-        uint8_t bus_num;
-        uint8_t opt_dev_id;  //from device register
-    }dev_identifier;
-    bool  off_on_fault; 
-    uint32_t in_voltage_expected_mv;
-    uint32_t current_limit_ma; 
- //or retry on fault
-}rik_cfg_pkt_tps55289_t;   
 
-
-
-//Total board power configuration packet structure 
-/**
- * uint32 może być bo to jest konfiguracja i nie trzeba oszczędzać miejsca w pakiecie
- * tu są chyba wszystkie możliwe ustawienia dla użytkownika 
- * trzeba dobrać teraz parametry
- */
-typedef struct {
-    /* --- Voltage & Current (32-bit integers) --- */
-    uint32_t in_voltage_expected_mv;
-    uint32_t in_voltage_warning_mv;    
-    uint32_t in_voltage_to_negotiate_mv; 
-    uint32_t in_current_to_negotiate_ma; 
-    uint32_t in_voltage_critical_mv;   
-    uint32_t power_budget_ma;           
-
-    /* --- Power (32-bit integers) --- */
-    uint32_t power_warning_in_mW;          
-    uint32_t power_critical_in_mW;
-    uint32_t power_warning_tps_0_mW;
-    uint32_t power_critical_tps_0_mW;
-    uint32_t power_warning_tps_1_mW;
-    uint32_t power_critical_tps_1_mW;   
-
-    uint32_t on_scp;  // 1 shutdown, 0 self recover
-    uint32_t on_ovp;  // 1 shutdown, 0 self recover
-
-    struct {   
-        uint32_t under_voltage:1;
-        uint32_t over_budget_total:1;
-        uint32_t over_budget_tps_0:1;
-        uint32_t over_budget_tps_1:1;
-        uint32_t _reserved:28;
-    } behavior_on_warning;
-    struct {   
-        uint32_t under_voltage:1;
-        uint32_t over_budget_total:1;
-        uint32_t over_budget_tps_0:1;
-        uint32_t over_budget_tps_1:1;
-        uint32_t _reserved:28;
-    } behavior_on_critical;
-} rik_cfg_pkt_power_t;
 
 typedef struct{
     bool drv_0_enable;
@@ -89,3 +39,10 @@ typedef struct{
 
 
 //ADS7128 Configuration packet structure
+// typedef struct{
+//     struct{
+//         uint8_t i2c_address;
+//         uint8_t bus_num;
+//         uint8_t opt_dev_id;  //from device register
+//     }dev_identifier;
+// } rik_cfg_pkt_ads7128_t;

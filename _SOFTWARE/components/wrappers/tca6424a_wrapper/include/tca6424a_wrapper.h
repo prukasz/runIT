@@ -1,8 +1,5 @@
 #pragma once 
-#include <stdint.h>
-#include <esp_err.h>
-#include "tca6424a.h"
-
+#include "status.h"
 
 #define IO_TCA_PWM_nOE    1LU //0
 
@@ -36,74 +33,57 @@
 #define IO_TCA_LED_1   (1LU << 23)   //27
 #define IO_TCA_LED_2   (1LU << 22)   //26
 
+#define MODE_RISING_EDGE 1
+#define MODE_FALLING_EDGE 2
+#define MODE_ANY_EDGE 3
+
+extern void tca_isr_callback(void* arg);
+
 /**
  * @brief Set one of onboard LEDs
  * @param led_num LED number (0 or 1)
  * @param state true to turn on, false to turn off
  */
-esp_err_t io_sys_periph_set_led(bool led_num, bool state);
+status_rep_t sys_io_set_led(bool led_num, bool state);
+
 
 /**
- * @brief Enable or disable PWM output of PCA9685
- * @param state true to enable, false to disable
+ * @brief Set the state of one or more expander pins defined in the outputs_mask (e.g. IO_TCA_REGA_EN, IO_TCA_DRV1_SLEEP, etc.)
+ * @param pin_mask Bitmask of the pin(s) to set (use IO_TCA
+ * @note only pins as output allowed
  */
-esp_err_t io_sys_periph_en_pca9685(bool state);
-
+status_rep_t sys_io_expander_set_pin(uint32_t pin_mask, bool state);
 /**
- * @brief Enable or disable voltage regulator output (TPS55289)
- * @param vreg_num Voltage regulator number (0 or 1)
- * @param state true to enable, false to disable
+ * @brief Register callback for expander pin interrupts (on pin change)
+ * @param pin_mask Bitmask of the pin(s) to register the callback for (use IO_TCA_ defines)
+ * @param mode Interrupt mode: MODE_RISING_EDGE, MODE_FALLING_EDGE, or MODE_ANY_EDGE (1,2,3)
  */
-esp_err_t io_sys_preriph_en_tps55289(bool vreg_num, bool state);
+void sys_io_expander_set_pin_callback(uint32_t pin_mask, uint32_t mode, void (*callback)(void* arg), void* arg);
 
-/**
- * @brief Select mode for overcurrent protection on DRV outputs
- * @param mode mode "1" or "0"
- */
-esp_err_t io_sys_periph_set_drv_ocpm(bool mode);
+// status_rep_t io_sys_periph_reset_drv_supply(bool drv_num);
 
-/**
- * @brief Enable or disable sleep mode for DRV
- * @param drv_num Driver number (0 or 1)
- * @param state true to enable, false to disable
- */
-esp_err_t io_sys_periph_en_drv(bool drv_num, bool state);
+// /**
+//  * @brief Register callback for DRV fault pin
+//  * @param drv_num Driver number (0 or 1)
+//  */
+// status_rep_t io_sys_callback_set_drv(bool drv_num, void (*drv_callback)(void* arg), void* arg);
 
-/**
- * @brief Set active LM73100
- * @param drv_num Driver number (0 or 1)
- * @param sup_num Supply number (0 or 1)
- */
-esp_err_t io_sys_periph_set_drv_supply(bool drv_num, bool sup_num);
+// /**
+//  * @brief Register callback for AP33772s PD interrupt pin
+//  * @param usb_callback Function pointer to the callback function
+//  * @param arg Argument to be passed to the callback function
+//  */
+// status_rep_t io_sys_callback_set_usb(void (*usb_callback)(void* arg), void* arg);
 
-/**
- * @brief Turn off both LM73100
- * @param drv_num Driver number (0 or 1)
- */
-esp_err_t io_sys_periph_reset_drv_supply(bool drv_num);
+// /**
+//  * @brief Register callback for INA3221 warning pin 
+//  * @param ina_callbac_x Function pointer to the callback function
+//  * @param arg_x Argument to be passed to the callback function (e.g. ina3221 handle)
+//  * @warning Callback provided by ina3221 driver
+//  */
+// status_rep_t io_sys_callback_set_ina3221(void (*ina_callback_c)(void* arg), void* arg_c,
+//  void (*ina_callback_w)(void* arg), void* arg_w);
 
-/**
- * @brief Register callback for DRV fault pin
- * @param drv_num Driver number (0 or 1)
- */
-esp_err_t io_sys_callback_set_drv(bool drv_num, void (*drv_callback)(void* arg), void* arg);
+// status_rep_t sys_io_init_expander(void* dev);
 
-/**
- * @brief Register callback for AP33772s PD interrupt pin
- * @param usb_callback Function pointer to the callback function
- * @param arg Argument to be passed to the callback function
- */
-esp_err_t io_sys_callback_set_usb(void (*usb_callback)(void* arg), void* arg);
-
-/**
- * @brief Register callback for INA3221 warning pin 
- * @param ina_callbac_x Function pointer to the callback function
- * @param arg_x Argument to be passed to the callback function (e.g. ina3221 handle)
- * @warning Callback provided by ina3221 driver
- */
-esp_err_t io_sys_callback_set_ina3221(void (*ina_callback_c)(void* arg), void* arg_c,
- void (*ina_callback_w)(void* arg), void* arg_w);
-
-esp_err_t io_sys_tca6424a_init(void* dev);
-
-esp_err_t io_sys_callback_set_tps55289(bool vreg_num, void (*tps_callback)(void* arg), void* arg);
+// status_rep_t io_sys_callback_set_tps55289(bool vreg_num, void (*tps_callback)(void* arg), void* arg);

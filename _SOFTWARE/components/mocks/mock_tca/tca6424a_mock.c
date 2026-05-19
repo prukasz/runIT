@@ -132,20 +132,23 @@ esp_err_t tca_transmit_receive(i2c_master_dev_handle_t handle, const uint8_t *wr
     return ESP_OK;
 }
 
-void tca_mock_set_pin_level(uint32_t pin_mask, bool level) {
-    uint8_t pin = __builtin_ctz(pin_mask); // Convert pin mask to pin number (0-23)
+
+
+void tca_mock_set_pin_level(void * pin_cfg) {
+    tca6424a_mock_pin_cfg_t *cfg = (tca6424a_mock_pin_cfg_t *)pin_cfg;
+    uint8_t pin = __builtin_ctz(cfg->pin_mask); // Convert pin mask to pin number (0-23)
     if (pin >= 24) return;
     uint8_t port = pin / 8;
     uint8_t bit = pin % 8;
     
     uint8_t old_val = tca_state.input[port];
-    if (level) {
+    if (cfg->level) {
         tca_state.input[port] |= (1 << bit);
     } else {
         tca_state.input[port] &= ~(1 << bit);
     }
     if (old_val != tca_state.input[port]) {
-        ESP_LOGD(TAG, "[Symulator] Nowy stan fizyczny wejscia. Pin %d z portu %d: %d", pin, port, level);
+        ESP_LOGD(TAG, "[Symulator] Nowy stan fizyczny wejscia. Pin %d z portu %d: %d", pin, port, cfg->level);
         update_int_status();
     }
 }

@@ -4,11 +4,10 @@
 #include "freertos/event_groups.h"
 #include "freertos/ringbuf.h"
 #include "rik_modules.h"
-#include "rik_onboard_drivers.h"
+#include "rik_devices.h"
 #include "status.h"
 #include "rik_shared.h"
 #include "rik_interrupts.h"
-#include "tps55289_mock.h"
 #include "manager_ble.h"
 #include "rtos_utils.h"
 #include "rik_scheduler.h"  
@@ -36,24 +35,6 @@ R_EVENT_GROUP_DEFINE(rik_i2c_events_0);
 R_EVENT_GROUP_DEFINE(rik_i2c_events_1);
 /***********************STATIC GLOBAL EVENT GROUPS ******************************/
 
-/* packing tester */
-void test(void* params){
-    while (1) {
-        vTaskDelay(pdMS_TO_TICKS(100));
-       
-        tps_trigger_ocp(0x74);
-        tps_trigger_scp(0x75);
-
-        STA_P(STA_E(0xDEAD, 0, 0));
-        ESP_LOGW(TAG, "Generated error with code 0xDEAD and tca interrupts");
-
-        vTaskDelay(pdMS_TO_TICKS(5000)); 
-
-        xEventGroupSetBits(rik_events_communication, EVENT_BIT_BLE_TX_START);
-    }
-}
-
-R_TASK_DEFINE(test_task, 4096);
 
 bool _rik_ble_active;
 bool _rik_wifi_active;
@@ -75,36 +56,20 @@ esp_err_t rik_start(void) {
     if (!STA_IS_OK(rep)) return rep.e_code;
 
 
-#ifdef CONFIG_CONNECT_TCA6424A
+    #ifdef CONFIG_CONNECT_TCA6424A
     status_rep_t tca_res = rik_i2c_start_tca6424a(0x22, 0);
-    if (!STA_IS_OK(tca_res)) {
-        ESP_LOGI(TAG, "Failed to start TCA6424A: e_code=%d, severity=%d", 
-                 tca_res.e_code, tca_res.details.severity);
-    }
-    rik_init_pins_callbacks_tca6424a();
-#endif
+        if (!STA_IS_OK(tca_res)) {
+            ESP_LOGI(TAG, "Failed to start TCA6424A: e_code=%d, severity=%d", 
+                    tca_res.e_code, tca_res.details.severity);
+        }
+    #endif
+    rik_start_power_manager();
+    rik_start_interface(rik_events_communication);
+
     
-#ifdef CONFIG_CONNECT_INA3221
-    status_rep_t ina_res = rik_i2c_start_ina3221(0x40, 0);
-    if (!STA_IS_OK(ina_res)) {
-        ESP_LOGI(TAG, "Failed to start INA3221: e_code=%d, severity=%d", 
-                 ina_res.e_code, ina_res.details.severity);
-    }
-#endif
-
-#ifdef CONFIG_CONNECT_TPS55289
-    status_rep_t tps_res = rik_i2c_start_tsp55289(0x74, 0x75, 0);
-    if (!STA_IS_OK(tps_res)) {
-        ESP_LOGI(TAG, "Failed to start TPS55289: e_code=%d, severity=%d", 
-                 tps_res.e_code, tps_res.details.severity);
-    }
-    rik_init_usr_callbacks_tps55289();
-#endif
-
     // 5. System Interrupts & Tester Task
     rik_init_intr_esp();
 
-    R_TASK_START_ON_CORE(test_task, test, NULL, 5, 0);
     
     return ESP_OK;
 }

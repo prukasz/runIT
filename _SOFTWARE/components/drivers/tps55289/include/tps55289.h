@@ -46,8 +46,7 @@ typedef struct
     uint16_t shunt_resistor_mohm; //10mohm default,
 
     /**
-     * @brief Pamięć podręczna (cache) wszystkich rejestrów.
-     * Automatycznie aktualizowana podczas operacji read/write.
+     * @brief Cache of register values to minimize I2C reads
      */
     uint8_t reg_cache[TPS55289_REG_MAX];
 
@@ -125,10 +124,10 @@ esp_err_t tps55289_set_output_enable(tps55289_handle_t handle, bool enable);
 esp_err_t tps55289_set_current_limit(tps55289_handle_t handle, bool enable, uint16_t limit_ma);
 
 /**
- * @brief Raw vout set 
- * @param ref_val raw voltage
+ * @brief Set the output voltage 
+ * @param voltage_mv Target voltage in millivolts
  */
-esp_err_t tps55289_set_vref_raw(tps55289_handle_t handle, uint16_t ref_val);
+esp_err_t tps55289_set_voltage(tps55289_handle_t handle, uint16_t voltage_mv);
 
 /**
  * @brief Working mode

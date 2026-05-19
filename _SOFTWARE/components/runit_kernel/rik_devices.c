@@ -1,6 +1,9 @@
 #include "manager_i2c.h"
-#include "rik_onboard_drivers.h"
+#include "rik_devices.h"
 #include "rik_shared.h"
+#include "tca6424a.h"
+#include "ina3221.h"
+#include "tps55289.h"
 
 
 #define TCA_MOCK
@@ -29,7 +32,6 @@ status_rep_t rik_i2c_start_tca6424a(uint8_t i2c_addres, bool bus_num){
     STA_RET_ON_ERR(m_i2c_add_driver(bus_num, tca6424a_handle->i2c_dev_config,
         &tca6424a_handle->i2c_dev_handle, (void*)tca6424a_handle,
         tca6424a_handle->task_handle, true, &rik_tca_id));
-    STA_RET_ON_ESP_ERR(io_sys_tca6424a_init((void*)tca6424a_handle), OWNER_RIK_DRIVER_INIT_TCA6424A, i2c_addres);
     ESP_LOGI(TAG, "TCA6424A started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_addres);
     return STA_OK;
 }
@@ -46,12 +48,11 @@ status_rep_t rik_i2c_start_ina3221(uint8_t i2c_addres, bool bus_num){
     STA_RET_ON_ERR(m_i2c_add_driver(bus_num, ina3221_handle->i2c_device_config,
         &ina3221_handle->i2c_master_dev_handle, (void*)ina3221_handle,
         ina3221_handle->driver_task_handle, true, &rik_ina_id));
-    STA_RET_ON_ERR(ina3221_wrapper_init(ina3221_handle));
     ESP_LOGI(TAG, "INA3221 started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_addres);
     return STA_OK;
 }
 
-status_rep_t rik_i2c_start_tsp55289(uint8_t i2c_adders_0, uint8_t i2c_adders_1, bool bus_num){
+status_rep_t rik_i2c_start_tps55289(uint8_t i2c_adders_0, uint8_t i2c_adders_1, bool bus_num){
     #ifndef TPS_MOCK
         STA_RET_ON_ESP_ERR(m_i2c_device_present(bus_num, i2c_adders_0), OWNER_RIK_DRIVER_INIT_TPS55289, i2c_adders_0);
         STA_RET_ON_ESP_ERR(m_i2c_device_present(bus_num, i2c_adders_1), OWNER_RIK_DRIVER_INIT_TPS55289, i2c_adders_1);

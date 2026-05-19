@@ -174,12 +174,45 @@ esp_err_t tps55289_set_current_limit(tps55289_handle_t handle, bool enable, uint
     return _tps55289_write(handle, TPS55289_REG_IOUT_LIMIT, final_reg_data);
 }
 
-esp_err_t tps55289_set_vref_raw(tps55289_handle_t handle, uint16_t ref_val)
+esp_err_t tps55289_set_voltage(tps55289_handle_t handle, uint16_t voltage_mv)
 {
     CHECK_ARG(handle);
+    
+    uint8_t vout_fs = handle->reg_cache[TPS55289_REG_VOUT_FS];
+    bool is_external_fb = (vout_fs & 0x80) != 0; // Bit 7: FB
+    
+    uint16_t ref_val = 0;
+    
+    if (is_external_fb) {
+        // Fallback for external divider, assuming 10mV/stepp default
+        ESP_LOGW(TAG, "External FB used, assuming 10mV step");
+        if (voltage_mv < 800) voltage_mv = 800;
+        ref_val = (voltage_mv - 800) / 10;
+    } else {
+        uint8_t intfb = vout_fs & 0x03; // Bits [1:0]: INTFB
+        float step_mv = 10.0f;
+        uint16_t min_vout_mv = 800;
+        
+        switch (intfb) {
+            case 0x00: step_mv = 2.5f; min_vout_mv = 200; break;
+            case 0x01: step_mv = 5.0f; min_vout_mv = 400; break;
+            case 0x02: step_mv = 7.5f; min_vout_mv = 600; break;
+            case 0x03: step_mv = 10.0f; min_vout_mv = 800; break;
+        }
+        
+        if (voltage_mv < min_vout_mv) voltage_mv = min_vout_mv;
+        ref_val = (uint16_t)((voltage_mv - min_vout_mv) / step_mv);
+    }
+    
+    // Protect 11-bit DAC limit (0x07FF = 2047)
+    if (ref_val > 0x07FF) {
+        ref_val = 0x07FF;
+        ESP_LOGW(TAG, "Voltage request exceeded maximum DAC value, clamping to 0x07FF.");
+    }
+    
     // Wpisuje 11-bitową wartość LSB i MSB
     uint8_t lsb = ref_val & 0xFF;
-    uint8_t msb = (ref_val >> 8) & 0xFF; // Gwarantuje wpis tylko max 8 bitów
+    uint8_t msb = (ref_val >> 8) & 0xFF;
 
     RETURN_ON_ERROR(_tps55289_write(handle, TPS55289_REG_REF_LSB, lsb));
     RETURN_ON_ERROR(_tps55289_write(handle, TPS55289_REG_REF_MSB, msb));

@@ -295,7 +295,7 @@ esp_err_t ina3221_get_sum_shunt_value(ina3221_handle_t handle, bool immediate);
  * @param current Value to set (mA) // max : 163800/shunt (mOhm)
  * @return ESP_OK to indicate success
  */
-esp_err_t ina3221_set_critical_alert(ina3221_handle_t handle, ina3221_channel_t channel, float current_mA);
+esp_err_t ina3221_set_critical_alert(ina3221_handle_t handle, ina3221_channel_t channel, uint32_t current_mA);
 
 /**
  * @brief Set Warning alert, update immidiately
@@ -305,7 +305,7 @@ esp_err_t ina3221_set_critical_alert(ina3221_handle_t handle, ina3221_channel_t 
  * @param current Value to set (mA)  // max : 163800/shunt (mOhm)
  * @return ESP_OK to indicate success
  */
-esp_err_t ina3221_set_warning_alert(ina3221_handle_t handle, ina3221_channel_t channel, float current_mA);
+esp_err_t ina3221_set_warning_alert(ina3221_handle_t handle, ina3221_channel_t channel, uint32_t current_mA);
 
 /**
  * @brief Set Sum Warning alert, update immidiately
@@ -314,7 +314,7 @@ esp_err_t ina3221_set_warning_alert(ina3221_handle_t handle, ina3221_channel_t c
  * @param voltage voltage to set (mV) //  max : 655.32
  * @return ESP_OK to indicate success
  */
-esp_err_t ina3221_set_sum_warning_alert(ina3221_handle_t handle, float voltage_mv);
+esp_err_t ina3221_set_sum_warning_alert(ina3221_handle_t handle, uint32_t voltage_mv);
 
 
 /**

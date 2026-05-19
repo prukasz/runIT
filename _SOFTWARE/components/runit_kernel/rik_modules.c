@@ -1,9 +1,11 @@
 #include "rik_modules.h"
 #include "manager_i2c.h"
 #include "manager_ble.h"
+#include "manager_power.h"
+#include "rik_devices.h"
 #include "interface_dispatcher.h"
 #include "rik_shared.h"
-#include "esp_log.h" // Dodano dla ESP_LOGI
+#include "esp_log.h"
 
 #define TAG __FILE_NAME__
 
@@ -102,6 +104,7 @@ status_rep_t rik_start_i2c(EventGroupHandle_t i2c_rik_events_0,
     return STA_OK;
 }
 
+/*******************INTERFACE CONFIG******************************** */
 static interface_cfg_t interface_cfg = {
     .connection_events = NULL,
     .connection_bits_rx = EVENT_BIT_BLE_ON_RX,
@@ -111,11 +114,63 @@ static interface_cfg_t interface_cfg = {
     .task_priority = 4,
     .task_stack_size = 4096
 };
+/*******************INTERFACE CONFIG******************************** */
+
 
 void rik_start_interface(EventGroupHandle_t events){
     interface_cfg.connection_events = events;
     interface_init(&interface_cfg);
     interface_buff_register_rx(rik_buff_rx);
+}
+
+
+/****************POWER MANAGER CONFIG******************************** */
+static manager_pwr_config_t manager_pwr_config = {
+    .reg_driver_handle_0 = NULL,
+    .reg_driver_handle_1 = NULL,
+    .power_monitor_handle = NULL,
+    .reg0_ovp.ctx = NULL,
+    .reg0_ovp.handler = NULL,
+    .reg0_ocp.ctx = NULL,
+    .reg0_ocp.handler = NULL,
+    .reg0_scp.ctx = NULL,
+    .reg0_scp.handler = NULL,
+    .reg1_ovp.ctx = NULL,
+    .reg1_ovp.handler = NULL,
+    .reg1_ocp.ctx = NULL,
+    .reg1_ocp.handler = NULL,
+    .reg1_scp.ctx = NULL,
+    .reg1_scp.handler = NULL,
+    .power_warning.ctx = NULL,
+    .power_warning.handler = NULL,
+    .power_critical.ctx = NULL,
+    .power_critical.handler = NULL
+};
+/****************POWER MANAGER CONFIG******************************** */
+
+status_rep_t rik_start_power_manager() {
+
+    #ifdef CONFIG_CONNECT_INA3221
+        status_rep_t ina_res = rik_i2c_start_ina3221(0x40, 0);
+        if (!STA_IS_OK(ina_res)) {
+            ESP_LOGI(TAG, "Failed to start INA3221: e_code=%d, severity=%d", 
+                    ina_res.e_code, ina_res.details.severity);
+        }
+    #endif
+
+    #ifdef CONFIG_CONNECT_TPS55289
+        status_rep_t tps_res = rik_i2c_start_tps55289(0x74, 0x75, 0);
+        if (!STA_IS_OK(tps_res)) {
+            ESP_LOGI(TAG, "Failed to start TPS55289: e_code=%d, severity=%d", 
+                    tps_res.e_code, tps_res.details.severity);
+        }
+    #endif
+
+    manager_pwr_config.reg_driver_handle_0 = m_i2c_get_dev_handle(rik_tps_0_id);
+    manager_pwr_config.reg_driver_handle_1 = m_i2c_get_dev_handle(rik_tps_1_id);
+    manager_pwr_config.power_monitor_handle = m_i2c_get_dev_handle(rik_ina_id);
+
+    return manager_pwr_init(&manager_pwr_config);
 }
 
 

@@ -6,10 +6,15 @@
 #include "driver/i2c_master.h"
 
 
+
+typedef struct{
+    uint32_t pin_mask;
+    bool level;
+}tca6424a_mock_pin_cfg_t;
 /**
  * @brief Set the given pin to HIGH or LOW, generating interrupt accordingly.
  */
-void tca_mock_set_pin_level(uint32_t pin_mask, bool level);
+void tca_mock_set_pin_level(void * pin_cfg);
 
 /**
  * @brief Mock I2C transmit function.

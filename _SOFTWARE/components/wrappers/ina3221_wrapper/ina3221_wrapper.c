@@ -1,101 +1,103 @@
 #include "ina3221_wrapper.h"
-#include "esp_log.h"
-#include "status.h"
-
+#include "ina3221.h"
 
 #define TAG __FILE_NAME__
 
 static ina3221_handle_t _ina_handle = NULL;
 
-status_rep_t ina3221_wrapper_init(ina3221_handle_t handle)
+status_rep_t sys_pwr_init_monitor(void* handle)
 {
-    _ina_handle = handle;
+    _ina_handle = (ina3221_handle_t)handle;
     if (!_ina_handle) { return STA_C(ESP_ERR_INVALID_ARG, OWNER_INA3221_WRAPPER_INIT, _ina_handle->i2c_device_config.device_address); }
     
     STA_RET_ON_ESP_ERR(ina3221_set_options(_ina_handle, 1, 1 ,1), OWNER_INA3221_WRAPPER_INIT, _ina_handle->i2c_device_config.device_address);
     
     STA_RET_ON_ESP_ERR(ina3221_enable_latch_pin(_ina_handle, true, true),
     OWNER_INA3221_WRAPPER_INIT, _ina_handle->i2c_device_config.device_address);
-    STA_RET_ON_ESP_ERR(ina3221_set_warning_alert(_ina_handle, 0, 200.0f),
+    STA_RET_ON_ESP_ERR(ina3221_set_warning_alert(_ina_handle, 0, 200),
     OWNER_INA3221_WRAPPER_INIT, _ina_handle->i2c_device_config.device_address);
-    STA_RET_ON_ESP_ERR(ina3221_set_critical_alert(_ina_handle, 0, 1000.0f),
+    STA_RET_ON_ESP_ERR(ina3221_set_critical_alert(_ina_handle, 0, 1000),
     OWNER_INA3221_WRAPPER_INIT, _ina_handle->i2c_device_config.device_address);
     return STA_OK;
 }
 
-status_rep_t io_sys_periph_set_ina3221_pwr_crit(uint8_t channel_num, float power_w)
+static status_rep_t _calculate_limit_ma(uint8_t channel, uint32_t power_mw, uint32_t expected_voltage_mv, uint32_t *out_limit_ma)
 {
-    float bus_v0_mv = 0;
+    if (!_ina_handle) {
+        return STA_C(ESP_ERR_INVALID_STATE, OWNER_INA3221_WRAPPER_SET_LIMITS, channel);
+    }
 
-    // Force a read of the bus voltage to ensure our calculation is accurate
-    STA_RET_ON_ERR(io_sys_periph_get_ina3221_bus_voltage(0, &bus_v0_mv, true));
+    if (expected_voltage_mv == 0) {
+        uint32_t bus_mv = 0;
+        STA_RET_ON_ERR(sys_pwr_get_voltage(channel, &bus_mv, true));
+        expected_voltage_mv = (uint32_t)bus_mv;
+    }
 
-    float bus_v0_volts = bus_v0_mv / 1000.0f;
-    float limit_amps = power_w / bus_v0_volts;
-    float limit_ma = limit_amps * 1000.0f;
+    if (expected_voltage_mv == 0) {
+        ESP_LOGE(TAG, "Cannot calculate limit for CH%d: Bus voltage is 0mV", channel);
+        return STA_C(ESP_ERR_INVALID_ARG, OWNER_INA3221_WRAPPER_SET_LIMITS, channel);
+    }
 
-    ESP_LOGI(TAG, "Setting CH%d Warning Limit to %.2f mA (based on %.2f W at %.2f V)", channel_num, limit_ma, power_w, bus_v0_volts);
-
-    STA_RET_ON_ESP_ERR(ina3221_set_warning_alert(_ina_handle, channel_num, limit_ma), OWNER_INA3221_WRAPPER_SET_LIMITS, channel_num);
+    *out_limit_ma = (power_mw * 1000) / expected_voltage_mv;
     return STA_OK;
 }
 
-status_rep_t io_sys_periph_ina3221_set_pwr_warning(uint8_t channel_num, float power_w)
+static status_rep_t _set_alert(uint8_t channel, uint32_t power_mw, uint32_t expected_voltage_mv, bool is_critical)
 {
-    float bus_v0_mv = 0;
-
-    // Force a read of the bus voltage to ensure our calculation is accurate
-    STA_RET_ON_ERR(io_sys_periph_get_ina3221_bus_voltage(0, &bus_v0_mv, true));
-
-    float bus_v0_volts = bus_v0_mv / 1000.0f;
-    float limit_amps = power_w / bus_v0_volts;
-    float limit_ma = limit_amps * 1000.0f;
-
-    ESP_LOGI(TAG, "Setting CH%d Warning Limit to %.2f mA (based on %.2f W at %.2f V)", channel_num, limit_ma, power_w, bus_v0_volts);
-    STA_RET_ON_ESP_ERR(ina3221_set_warning_alert(_ina_handle, channel_num, limit_ma), OWNER_INA3221_WRAPPER_SET_LIMITS, channel_num);
-    return STA_OK;
-}
+    uint32_t limit_ma = 0;
+    STA_RET_ON_ERR(_calculate_limit_ma(channel, power_mw, expected_voltage_mv, &limit_ma));
     
+    ESP_LOGI(TAG, "Setting %s Limit for CH%d: %lu mA (%lu mW at %lu mV)", 
+             is_critical ? "CRIT" : "WARN", channel, limit_ma, power_mw, expected_voltage_mv);
 
-status_rep_t io_sys_periph_get_ina3221_bus_voltage(uint8_t bus_num, float* voltage_mv, bool force_update)
-{
-    if (force_update) {
-        // Calling this with 'true' blocks and executes the I2C transaction immediately 
-        STA_RET_ON_ESP_ERR(ina3221_update_buses_readings(_ina_handle, true), OWNER_INA3221_WRAPPER_READ, _ina_handle->i2c_device_config.device_address);
+    if (is_critical) {
+        STA_RET_ON_ESP_ERR(ina3221_set_critical_alert(_ina_handle, channel, limit_ma), OWNER_INA3221_WRAPPER_SET_LIMITS, channel);
     } else {
-        // If false, flag the task to update it in the background for next time
-        STA_RET_ON_ESP_ERR(ina3221_update_buses_readings(_ina_handle, false), OWNER_INA3221_WRAPPER_READ, _ina_handle->i2c_device_config.device_address);
+        STA_RET_ON_ESP_ERR(ina3221_set_warning_alert(_ina_handle, channel, limit_ma), OWNER_INA3221_WRAPPER_SET_LIMITS, channel);
     }
-
-    *voltage_mv = _ina_handle->last_readings.bus_voltage[bus_num];
     return STA_OK;
 }
 
-status_rep_t io_sys_periph_ina3221_get_shunt_voltage(uint8_t channel_num, float* voltage_mv, bool force_update)
+// --- REG 0 (TPS0) ---
+status_rep_t sys_pwr_set_warning_reg_0(uint32_t power_mw, uint32_t expected_voltage_mv) {
+    return _set_alert(INA_BUS_TPS0, power_mw, expected_voltage_mv, false);
+}
+
+status_rep_t sys_pwr_set_crit_reg_0(uint32_t power_mw, uint32_t expected_voltage_mv) {
+    return _set_alert(INA_BUS_TPS0, power_mw, expected_voltage_mv, true);
+}
+
+// --- REG 1 (TPS1) ---
+status_rep_t sys_pwr_set_warning_reg_1(uint32_t power_mw, uint32_t expected_voltage_mv) {
+    return _set_alert(INA_BUS_TPS1, power_mw, expected_voltage_mv, false);
+}
+
+status_rep_t sys_pwr_set_crit_reg_1(uint32_t power_mw, uint32_t expected_voltage_mv) {
+    return _set_alert(INA_BUS_TPS1, power_mw, expected_voltage_mv, true);
+}
+
+// --- TOTAL (VSUP) ---
+status_rep_t sys_pwr_set_warning_total(uint32_t power_mw, uint32_t expected_voltage_mv) {
+    return _set_alert(INA_BUS_VSUP, power_mw, expected_voltage_mv, false);
+}
+
+status_rep_t sys_pwr_set_crit_total(uint32_t power_mw, uint32_t expected_voltage_mv) {
+    return _set_alert(INA_BUS_VSUP, power_mw, expected_voltage_mv, true);
+}
+
+    
+status_rep_t sys_pwr_get_voltage(uint8_t bus_num, uint32_t* voltage_mv, bool force_update)
 {
-    if (!_ina_handle || !voltage_mv || channel_num > 2) return STA_C(ESP_ERR_INVALID_ARG, OWNER_INA3221_WRAPPER_READ, _ina_handle->i2c_device_config.device_address);
-
-    if (force_update) {
-        STA_RET_ON_ESP_ERR(ina3221_update_shunts_readings(_ina_handle, true), OWNER_INA3221_WRAPPER_READ, _ina_handle->i2c_device_config.device_address);
-    } else {
-        STA_RET_ON_ESP_ERR(ina3221_update_shunts_readings(_ina_handle, false), OWNER_INA3221_WRAPPER_READ, _ina_handle->i2c_device_config.device_address);
-    }
-
-    *voltage_mv = _ina_handle->last_readings.shunt_voltage[channel_num];
+    if (!_ina_handle || !voltage_mv || bus_num > 2) return STA_C(ESP_ERR_INVALID_ARG, OWNER_INA3221_WRAPPER_READ, _ina_handle->i2c_device_config.device_address);
+    STA_RET_ON_ESP_ERR(ina3221_update_buses_readings(_ina_handle, force_update), OWNER_INA3221_WRAPPER_READ, _ina_handle->i2c_device_config.device_address);
+    *voltage_mv = (uint32_t)_ina_handle->last_readings.bus_voltage[bus_num];
     return STA_OK;
 }
 
-status_rep_t io_sys_periph_ina3221_get_current(uint8_t channel_num, float* current_ma, bool force_update)
+status_rep_t sys_pwr_get_current(uint8_t channel_num, uint32_t* current_ma, bool force_update)
 {
     if (!_ina_handle || !current_ma || channel_num > 2) return STA_C(ESP_ERR_INVALID_ARG, OWNER_INA3221_WRAPPER_READ, _ina_handle->i2c_device_config.device_address);
-
-    if (force_update) {
-        // Updating shunts automatically recalculates the current in the driver
-        STA_RET_ON_ESP_ERR(ina3221_update_shunts_readings(_ina_handle, true), OWNER_INA3221_WRAPPER_READ, _ina_handle->i2c_device_config.device_address);
-    } else {
-        STA_RET_ON_ESP_ERR(ina3221_update_shunts_readings(_ina_handle, false), OWNER_INA3221_WRAPPER_READ, _ina_handle->i2c_device_config.device_address);
-    }
-
-    *current_ma = _ina_handle->last_readings.shunt_current[channel_num];
+    STA_RET_ON_ESP_ERR(ina3221_update_shunts_readings(_ina_handle, force_update), OWNER_INA3221_WRAPPER_READ, _ina_handle->i2c_device_config.device_address);
+    *current_ma = (uint32_t)_ina_handle->last_readings.shunt_current[channel_num];
     return STA_OK;
 }

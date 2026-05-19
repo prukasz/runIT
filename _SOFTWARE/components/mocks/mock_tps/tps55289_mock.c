@@ -22,8 +22,8 @@ typedef struct {
     uint8_t i2c_addr;
     uint8_t registers[0x10];
     bool int_active; // true = fault (LOW pin), false = normal (HIGH pin)
-    tps_int_cb_t int_callback;
-    void* int_callback_args;
+    tps_int_cb_t int_callback[2];
+    void* int_callback_args[2];
 } tps55289_state_t;
 
 #define TPS_DEFAULT_REGS { \
@@ -39,8 +39,8 @@ typedef struct {
 
 // Statyczna inicjalizacja mocków dla adresów 0x74 i 0x75
 static tps55289_state_t tps_devices[2] = {
-    { .i2c_addr = TPS_ADDR_1, .registers = TPS_DEFAULT_REGS, .int_active = false, .int_callback = NULL, .int_callback_args = NULL },
-    { .i2c_addr = TPS_ADDR_2, .registers = TPS_DEFAULT_REGS, .int_active = false, .int_callback = NULL, .int_callback_args = NULL }
+    { .i2c_addr = TPS_ADDR_1, .registers = TPS_DEFAULT_REGS, .int_active = false, .int_callback = {NULL, NULL}, .int_callback_args = {NULL, NULL} },
+    { .i2c_addr = TPS_ADDR_2, .registers = TPS_DEFAULT_REGS, .int_active = false, .int_callback = {NULL, NULL}, .int_callback_args = {NULL, NULL} }
 };
 
 static tps55289_state_t* get_device_by_addr(uint8_t addr) {
@@ -49,11 +49,13 @@ static tps55289_state_t* get_device_by_addr(uint8_t addr) {
     return NULL;
 }
 
-void tps_mock_set_intr_callback(uint8_t i2c_addr, tps_int_cb_t cb, void* args) {
+void tps_mock_set_intr_callbacks(uint8_t i2c_addr, tps_int_cb_t cb_active, void* args_active, tps_int_cb_t cb_inactive, void* args_inactive) {
     tps55289_state_t* dev = get_device_by_addr(i2c_addr);
     if (dev) {
-        dev->int_callback = cb;
-        dev->int_callback_args = args;
+        dev->int_callback[0] = cb_active;
+        dev->int_callback_args[0] = args_active;
+        dev->int_callback[1] = cb_inactive;
+        dev->int_callback_args[1] = args_inactive;
     }
 }
 
@@ -70,9 +72,10 @@ static void update_tps_int_status(tps55289_state_t* dev) {
     if (fault_condition != dev->int_active) {
         dev->int_active = fault_condition;
         ESP_LOGW(TAG, "TPS55289 [0x%02X] INT Pin: %s", dev->i2c_addr, dev->int_active ? "LOW (FAULT)" : "HIGH (NORMAL)");
-        
-        if (dev->int_callback) {
-            dev->int_callback(dev->int_callback_args);
+
+        uint8_t cb_idx = dev->int_active ? 0 : 1;
+        if (dev->int_callback[cb_idx]) {
+            dev->int_callback[cb_idx](dev->int_callback_args[cb_idx]);
         }
     }
 }

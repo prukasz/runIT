@@ -1,6 +1,6 @@
 idf_component_register(
-    SRCS "tca6424a_wrapper.c"
+    SRCS "manager_io.c"
     INCLUDE_DIRS "include"
-    REQUIRES status 
     PRIV_REQUIRES tca6424a mock_tca
+    REQUIRES status tca6424a_wrapper
 )

@@ -1,5 +1,14 @@
+
+file(GLOB code_items RELATIVE ${CMAKE_CURRENT_LIST_DIR} "codes/*")
+set(code_dirs "")
+foreach(item ${code_items})
+    if(IS_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/${item}")
+        list(APPEND code_dirs "${item}")
+    endif()
+endforeach()
+
 idf_component_register(
     SRCS "status.c"
-    INCLUDE_DIRS "include"
-    REQUIRES esp_ringbuf freertos esp_common manager_i2c runit_kernel ina3221_wrapper
+    INCLUDE_DIRS "include" ${code_dirs} "codes"
+    REQUIRES esp_ringbuf
 )
