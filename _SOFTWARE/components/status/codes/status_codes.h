@@ -4,7 +4,6 @@
 #include "manager_power_errors.h"
 
 
-
 #define GLOBAL_OWNER_MAP(X) \
     X(OWNER_SYSTEM_CORE, 0x0001, "SYSTEM_CORE") \
     X(OWNER_ESP, 0x0002, "ESP_IDF") \
