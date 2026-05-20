@@ -57,7 +57,7 @@ static esp_err_t _ads_update_alert_config(ads_handle_t handle, uint8_t channel) 
 }
 
 static esp_err_t _ads_update_ch_analog_value(ads_handle_t handle, uint8_t *channel) {
-    uint8_t ch = builtin_ctz(*channel) + 1;
+    uint8_t ch = __builtin_ctz(*channel) + 1;
 
     // Odczyt 16 bajtów zaczynając od RECENT_CH0_LSB (0xA0) do MSB kanału 7 (0xAF)
     uint8_t buf[2] = {0};
@@ -215,7 +215,7 @@ esp_err_t ads_analog_ch_read(ads_handle_t handle, uint8_t pin_mask, bool update_
     memcpy(&handle->read_analog, &pin_mask, sizeof(uint8_t));
 
     if (update_now) {
-        while(*(uint8_t*)&handle->read_analog);
+        while(*(uint8_t*)(&(handle->read_analog)))
         {
             _ads_update_ch_analog_value(handle, (uint8_t*)&handle->read_analog);
         } // Wait if a read is already in progress
@@ -274,8 +274,8 @@ void ads_task(void* arg) {
                 handle->to_update.alert_config_to_update = 0;
             }
 
-            while(*(uint8_t*)&handle->read_analog){
-                _ads_update_ch_analog_value(handle, *(uint8_t*)&handle->read_analog);
+            while(*(uint8_t*)(&(handle->read_analog))){
+                _ads_update_ch_analog_value(handle, (uint8_t*)&handle->read_analog);
             }
             xTaskNotifyGive(caller_task);
         }
