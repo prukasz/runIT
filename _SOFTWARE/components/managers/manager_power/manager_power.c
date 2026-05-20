@@ -7,6 +7,7 @@
 #include "provider_gpio_expander.h"
 #include "tca6424a_mock.h"
 #include "tps55289_mock.h"
+// #include "rik_shared.h"
 
 #define TAG __FILE_NAME__
 
@@ -151,39 +152,30 @@ status_rep_t manager_pwr_init(manager_pwr_config_t *config){
     sys_pwr_init_reg(config->reg_driver_handle_0, config->reg_driver_handle_1);
     /****init current monitor and regulators ****/
 
-    sys_io_set_led(0,0);
-
-    /*****Callbacks related to interrupt power devices connected*****/
-    _sys_expander_gpio_set_callback(IO_TCA_REGA_INT, MODE_FALLING_EDGE, tps55289_isr_callback_fault, config->reg_driver_handle_0); 
-    _sys_expander_gpio_set_callback(IO_TCA_REGB_INT, MODE_FALLING_EDGE, tps55289_isr_callback_fault, config->reg_driver_handle_1);
-    _sys_expander_gpio_set_callback(IO_TCA_INA3221_WARN, MODE_FALLING_EDGE, ina3221_isr_callback_critical, config->power_monitor_handle);
-    _sys_expander_gpio_set_callback(IO_TCA_INA3221_CRIT, MODE_FALLING_EDGE, ina3221_isr_callback_critical, config->power_monitor_handle);
-    /*****Callbacks related to interrupt power devices connected*****/
-
     return STA_OK;
 } 
 
 
-tca6424a_mock_pin_cfg_t tps0_fault = {
-    .pin_mask = IO_TCA_REGA_INT,
-    .level = false
-};
-tca6424a_mock_pin_cfg_t tps1_fault = {
-    .pin_mask = IO_TCA_REGB_INT,
-    .level = false
-};
-tca6424a_mock_pin_cfg_t tps0_no_fault = {
-    .pin_mask = IO_TCA_REGA_INT, // No pin
-    .level = true
-};
-tca6424a_mock_pin_cfg_t tps1_no_fault = {
-    .pin_mask = IO_TCA_REGB_INT, // No pin
-    .level = true
-};
+// tca6424a_mock_pin_cfg_t tps0_fault = {
+//     // .pin_mask = SYS_IO_,
+//     .level = false
+// };
+// tca6424a_mock_pin_cfg_t tps1_fault = {
+//     .pin_mask = IO_TCA_REGB_INT,
+//     .level = false
+// };
+// tca6424a_mock_pin_cfg_t tps0_no_fault = {
+//     .pin_mask = IO_TCA_REGA_INT, // No pin
+//     .level = true
+// };
+// tca6424a_mock_pin_cfg_t tps1_no_fault = {
+//     .pin_mask = IO_TCA_REGB_INT, // No pin
+//     .level = true
+// };
 
-void manager_pwr_mocks_link(){
-    tps_mock_set_intr_callbacks(0x74, &tca_mock_set_pin_level, &tps0_fault, &tca_mock_set_pin_level, &tps0_no_fault);
-    tps_mock_set_intr_callbacks(0x75, &tca_mock_set_pin_level, &tps1_fault, &tca_mock_set_pin_level, &tps1_no_fault);
+// void manager_pwr_mocks_link(){
+//     tps_mock_set_intr_callbacks(0x74, &tca_mock_set_pin_level, &tps0_fault, &tca_mock_set_pin_level, &tps0_no_fault);
+//     tps_mock_set_intr_callbacks(0x75, &tca_mock_set_pin_level, &tps1_fault, &tca_mock_set_pin_level, &tps1_no_fault);
 
-}
+// }
 

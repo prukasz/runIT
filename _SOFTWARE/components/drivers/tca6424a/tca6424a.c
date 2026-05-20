@@ -142,7 +142,7 @@ static esp_err_t _tca_update_polarity(tca6424a_handle_t handle){
 // ... [Keep your existing defines and preset functions exactly as they were] ...
 
 // ISR Callback sets the volatile flag and wakes the task without changing the notification value
-void tca_isr_callback(void* arg) {
+void provider_gpio_expander_int_callback(void* arg) {
     tca6424a_handle_t handle = (tca6424a_handle_t)arg;
     BaseType_t high_task_wakeup = pdFALSE;
     

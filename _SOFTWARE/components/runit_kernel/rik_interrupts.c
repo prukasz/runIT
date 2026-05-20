@@ -27,8 +27,8 @@ status_rep_t rik_init_intr_esp(void){
     STA_RET_ON_ESP_ERR(gpio_install_isr_service(0), OWNER_RIK_INTERRUPTS_CONFIG, 0);
     STA_RET_ON_ESP_ERR(gpio_config(&_gpio_cfg_9), OWNER_RIK_INTERRUPTS_CONFIG, 9);
     STA_RET_ON_ESP_ERR(gpio_config(&_gpio_cfg_42), OWNER_RIK_INTERRUPTS_CONFIG, 42);
-    STA_RET_ON_ESP_ERR(gpio_isr_handler_add(IO_SYS_PIN_TCA6424_nINT, &tca_isr_callback, m_i2c_get_dev_handle(rik_tca_id)), OWNER_RIK_INTERRUPTS_CONFIG, IO_SYS_PIN_TCA6424_nINT);
-    STA_RET_ON_ESP_ERR(gpio_isr_handler_add(IO_SYS_PIN_ADS_ALERT, NULL, NULL), OWNER_RIK_INTERRUPTS_CONFIG, IO_SYS_PIN_ADS_ALERT);
+    //STA_RET_ON_ESP_ERR(gpio_isr_handler_add(IO_SYS_PIN_TCA6424_nINT, &tca_isr_callback, m_i2c_get_dev_handle(rik_gpio_expander_id)), OWNER_RIK_INTERRUPTS_CONFIG, IO_SYS_PIN_TCA6424_nINT);
+    //STA_RET_ON_ESP_ERR(gpio_isr_handler_add(IO_SYS_PIN_ADS_ALERT, NULL, NULL), OWNER_RIK_INTERRUPTS_CONFIG, IO_SYS_PIN_ADS_ALERT);
     return STA_OK;
 }
 

@@ -4,25 +4,26 @@
 #define MAX_IO_PORTS 8
 
 typedef enum{
-    GPIO_MODE_OUTPUT_PUSH_PULL = 1,
-    GPIO_MODE_OUTPUT_OPEN_DRAIN = 2,
-    GPIO_MODE_INPUT_PULLUP = 3,
-    GPIO_MODE_INPUT_PULLDOWN = 4,
-    GPIO_MODE_PWM = 5,
-    GPIO_MODE_ADC = 6
+    SYS_GPIO_MODE_INPUT = 0,
+    SYS_GPIO_MODE_OUTPUT_PUSH_PULL = 1,
+    SYS_GPIO_MODE_OUTPUT_OPEN_DRAIN = 2,
+    SYS_GPIO_MODE_INPUT_PULLUP = 3,
+    SYS_GPIO_MODE_INPUT_PULLDOWN = 4,
+    SYS_GPIO_MODE_PWM = 5,
+    SYS_GPIO_MODE_ADC = 6
 }sys_gpio_mode_e;
 
 typedef enum{
-    GPIO_MODE_RISING_EDGE = 0,
-    GPIO_MODE_FALLING_EDGE = 1,
-    GPIO_MODE_BOTH_EDGES = 2,
-    GPIO_MODE_LEVEL_HIGH = 3,
-    GPIO_MODE_LEVEL_LOW = 4
+    SYS_GPIO_MODE_RISING_EDGE = 0,
+    SYS_GPIO_MODE_FALLING_EDGE = 1,
+    SYS_GPIO_MODE_BOTH_EDGES = 2,
+    SYS_GPIO_MODE_LEVEL_HIGH = 3,
+    SYS_GPIO_MODE_LEVEL_LOW = 4
 }sys_gpio_int_mode_e;
 
 typedef enum{
-    GPIO_IO_ADC_WINDOW_OUTSIDE = 0,
-    GPIO_IO_ADC_WINDOW_INSIDE = 1,
+    SYS_GPIO_ADC_WINDOW_OUTSIDE = 0,
+    SYS_GPIO_ADC_WINDOW_INSIDE = 1,
 }sys_gpio_adc_int_mode_e;
 
 typedef struct{
@@ -44,7 +45,7 @@ typedef status_rep_t (*gpio_func_callback_add)(uint64_t pin_mask, uint32_t mode,
 typedef status_rep_t (*io_func_pwm_set_duty)(uint64_t pin_mask, uint32_t duty_cycle);
 typedef status_rep_t (*io_func_pwm_set_freq)(uint64_t pin_mask, uint32_t freq_hz);
 typedef status_rep_t (*io_func_adc_read)(uint64_t pin_mask, uint32_t* out_mv);
-typedef status_rep_t (*io_func_adc_register_callback)(uint64_t pin_mask, sys_io_adc_int_config_t* adc_int_config);
+typedef status_rep_t (*io_func_adc_register_callback)(uint64_t pin_mask, void* adc_int_config);
 typedef void (*io_driver_dereffered_update)(bool yes_or_no);
 
 typedef struct {
@@ -77,7 +78,7 @@ status_rep_t sys_io_set_pwm_duty(uint8_t port_id, uint64_t pin_mask, uint32_t du
 status_rep_t sys_io_set_pwm_freq(uint8_t port_id, uint64_t pin_mask, uint32_t freq_hz);
 
 status_rep_t sys_io_adc_read(uint8_t port_id, uint64_t pin_mask, uint32_t* out_mv);
-status_rep_t sys_io_adc_register_callback(uint8_t port_id, uint64_t pin_mask, sys_io_adc_int_config_t* adc_int_config);
+status_rep_t sys_io_adc_register_callback(uint8_t port_id, uint64_t pin_mask, void* adc_int_config);
 
 status_rep_t sys_io_set_global_protection(bool is_enabled);
 
