@@ -56,16 +56,18 @@ static esp_err_t _ads_update_alert_config(ads_handle_t handle, uint8_t channel) 
     return ESP_OK;
 }
 
-static esp_err_t _ads_update_ch_analog_value(ads_handle_t handle, uint8_t channel) {
-    if (channel < 1 || channel > 8) return ESP_ERR_INVALID_ARG;
+static esp_err_t _ads_update_ch_analog_value(ads_handle_t handle, uint8_t *channel) {
+    uint8_t ch = builtin_ctz(*channel) + 1;
 
     // Odczyt 16 bajtów zaczynając od RECENT_CH0_LSB (0xA0) do MSB kanału 7 (0xAF)
     uint8_t buf[2] = {0};
 
-    esp_err_t ret = ads_transmit_receive(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SINGLE_REGISTER_READ, RECENT_CH0_LSB_ADDRESS + (channel - 1) * 2}, 2, buf, 2, ADS7128_I2C_TIMEOUT);
+    esp_err_t ret = ads_transmit_receive(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SINGLE_REGISTER_READ, RECENT_CH0_LSB_ADDRESS + (ch - 1) * 2}, 2, buf, 2, ADS7128_I2C_TIMEOUT);
     if (ret == ESP_OK) {
-        handle->recent_analog_values[channel - 1] = buf[0] | (buf[1] << 8);
+        handle->recent_analog_values[ch - 1] = buf[0] | (buf[1] << 8);
     }
+
+    *channel = *channel & ~(1 << (ch - 1)); // Clear the bit for the channel we just read
     return ret;
 }
 
@@ -81,7 +83,7 @@ static esp_err_t _ads_update_recent_gpi_values(ads_handle_t handle){
 static esp_err_t _ads_check_alert(ads_handle_t handle, uint8_t* channel){
     uint8_t buf = 0;
     RETURN_ON_ERROR(ads_transmit_receive(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SINGLE_REGISTER_READ, EVENT_FLAG_ADDRESS}, 2, &buf, 1, ADS7128_I2C_TIMEOUT));
-    *channel = __builtin_clz(buf);
+    *channel = __builtin_ctz(buf);
     RETURN_ON_ERROR(ads_transmit(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_CLEAR_BIT, EVENT_HIGH_FLAG_ADDRESS, 1<<(*channel)}, 3, ADS7128_I2C_TIMEOUT));
     RETURN_ON_ERROR(ads_transmit(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_CLEAR_BIT, EVENT_LOW_FLAG_ADDRESS, 1<<(*channel)}, 3, ADS7128_I2C_TIMEOUT));
 
@@ -170,6 +172,12 @@ esp_err_t ads_set_alert_cfg(ads_handle_t handle, uint8_t channel, uint16_t h_thr
     if (channel-1 > 7) return ESP_ERR_INVALID_ARG;
     
     ads7128_ch_alert_config_t* alert_cfg = &handle->alert_configs[channel-1];
+    
+    h_thres = (h_thres & 0xFF00) | ((h_thres & 0x000F) << 4) | ((h_thres & 0x00F0) >> 4);
+    l_thres = (l_thres & 0xFF00) | ((l_thres & 0x000F) << 4) | ((l_thres & 0x00F0) >> 4);
+
+    h_thres = __builtin_bswap16(h_thres);
+    h_thres = __builtin_bswap16(l_thres);
     memcpy(&alert_cfg->histeresis_config, &h_thres, 1);
     memcpy(&alert_cfg->h_thres_msb, ((uint8_t*)&h_thres) + 1, 1);
     memcpy(&alert_cfg->event_count_config, &l_thres, 1);
@@ -198,6 +206,24 @@ esp_err_t ads_register_alert_callback(ads_handle_t handle, uint8_t pin_mask, voi
     return ESP_OK;
 }
 
+esp_err_t ads_analog_ch_read(ads_handle_t handle, uint8_t pin_mask, bool update_now)
+{
+    if (!handle) return ESP_ERR_INVALID_ARG;
+    uint8_t pin = __builtin_ctz(pin_mask); // Get index of least significant set bit
+    if (pin > 7) return ESP_ERR_INVALID_ARG;
+
+    memcpy(&handle->read_analog, &pin_mask, sizeof(uint8_t));
+
+    if (update_now) {
+        while(*(uint8_t*)&handle->read_analog);
+        {
+            _ads_update_ch_analog_value(handle, (uint8_t*)&handle->read_analog);
+        } // Wait if a read is already in progress
+    }
+
+    return ESP_OK;
+}
+
 
 void ads_task(void* arg) {
     ads_handle_t handle = (ads_handle_t)arg;
@@ -219,21 +245,7 @@ void ads_task(void* arg) {
             }
         }
         
-        if(notification_value == 0) 
-        {
-            for (int i = 1; i <= 8; i++) {
-                _ads_update_ch_analog_value(handle, i);
-            }
-            _ads_update_recent_gpi_values(handle);
-
-            uint8_t gpi_val = *(uint8_t*)&handle->recent_gpi_values;
-            ESP_LOGI(TAG, "Updated recent analog values: CH0=%d, CH1=%d, CH2=%d, CH3=%d, CH4=%d, CH5=%d, CH6=%d, CH7=%d",
-                handle->recent_analog_values[0], handle->recent_analog_values[1], handle->recent_analog_values[2], handle->recent_analog_values[3],
-                handle->recent_analog_values[4], handle->recent_analog_values[5], handle->recent_analog_values[6], handle->recent_analog_values[7]);
-
-            ESP_LOGI(TAG, "Updated recent GPI values: 0x%02X", gpi_val);
-        }
-        else
+        if(notification_value != 0) 
         {
             #pragma GCC diagnostic push
             #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
@@ -260,6 +272,10 @@ void ads_task(void* arg) {
                     _ads_update_alert_config(handle, ch);
                 }
                 handle->to_update.alert_config_to_update = 0;
+            }
+
+            while(*(uint8_t*)&handle->read_analog){
+                _ads_update_ch_analog_value(handle, *(uint8_t*)&handle->read_analog);
             }
             xTaskNotifyGive(caller_task);
         }

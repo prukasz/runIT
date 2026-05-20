@@ -39,7 +39,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <driver/i2c_master.h>
-
+#include <stdbool.h>
+#include <esp_err.h>
 
 //**********************************************************************************
 //
@@ -2168,7 +2169,19 @@ typedef struct {
         uint8_t pin_cfg_to_update          : 1;
         uint8_t config_to_update           : 1;
         uint8_t alert_config_to_update     : 1;
+        uint8_t reserved                     : 4;
     } to_update;
+
+    struct {
+        uint8_t ch0 : 1;
+        uint8_t ch1 : 1;
+        uint8_t ch2 : 1;
+        uint8_t ch3 : 1;
+        uint8_t ch4 : 1;
+        uint8_t ch5 : 1;
+        uint8_t ch6 : 1;
+        uint8_t ch7 : 1;
+    } read_analog;
 
     volatile bool alert_triggered;
 

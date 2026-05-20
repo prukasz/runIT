@@ -1,5 +1,4 @@
 #include "provider_gpio_expander.h"
-#include "status.h"
 #include "tca6424a.h"
 
 static tca6424a_handle_t _tca_handle = NULL;
