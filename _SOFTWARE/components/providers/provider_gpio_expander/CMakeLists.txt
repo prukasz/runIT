@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "tca6424a_wrapper.c"
+    SRCS "provider_gpio_expander.c"
     INCLUDE_DIRS "include"
     REQUIRES status 
     PRIV_REQUIRES tca6424a mock_tca

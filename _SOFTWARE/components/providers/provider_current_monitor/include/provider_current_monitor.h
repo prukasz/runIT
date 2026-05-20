@@ -45,5 +45,3 @@ status_rep_t sys_pwr_get_current(uint8_t channel_num, uint32_t* current_ma, bool
 
 extern void ina3221_isr_callback_critical(void *arg);
 extern void ina3221_isr_callback_warning(void *arg);
-
-

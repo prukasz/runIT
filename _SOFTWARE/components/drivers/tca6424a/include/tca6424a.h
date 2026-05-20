@@ -7,9 +7,9 @@
 #include <driver/i2c_master.h>
 
 typedef enum {
-    TCA_ON_RISING_EDGE = 1,
-    TCA_ON_FALLING_EDGE =2,
-    TCA_ON_CHANGE = 3
+    TCA_ON_RISING_EDGE = 0,
+    TCA_ON_FALLING_EDGE =1,
+    TCA_ON_CHANGE = 2, 
 }tca_interrupt_mode_e;
 
 typedef struct {
@@ -48,8 +48,11 @@ esp_err_t tca_register_pin_callback(tca6424a_handle_t handle, uint32_t pin_mask,
 esp_err_t tca_preset_pins(tca6424a_handle_t handle, uint32_t pins_mask, uint32_t pins_state, bool update_now);
 esp_err_t tca_preset_cfg(tca6424a_handle_t handle, uint32_t cfg_mask, uint32_t cfg_state, bool update_now);
 esp_err_t tca_preset_polarity(tca6424a_handle_t handle, uint32_t polarity_mask, uint32_t polarity_state, bool update_now);
-
+esp_err_t tca_get_pin_level(tca6424a_handle_t handle, uint32_t *out_level, bool force_update);
+uint32_t tca_get_pin_output(tca6424a_handle_t handle);
 tca6424a_handle_t tca_new(uint8_t i2c_address);
+
+
 
 
 

@@ -57,7 +57,7 @@ esp_err_t rik_start(void) {
 
 
     #ifdef CONFIG_CONNECT_TCA6424A
-    status_rep_t tca_res = rik_i2c_start_tca6424a(0x22, 0);
+    status_rep_t tca_res = rik_gpio_expander_start(0x22, 0);
         if (!STA_IS_OK(tca_res)) {
             ESP_LOGI(TAG, "Failed to start TCA6424A: e_code=%d, severity=%d", 
                     tca_res.e_code, tca_res.details.severity);

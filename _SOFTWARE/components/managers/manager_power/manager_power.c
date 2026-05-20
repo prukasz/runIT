@@ -2,9 +2,9 @@
 #include "manager_io.h"
 #include "manager_power_config.h"
 #include "string.h"
-#include "tps55289_wrapper.h"
-#include "ina3221_wrapper.h"
-#include "tca6424a_wrapper.h"
+#include "provider_voltage_regulator.h"
+#include "provider_current_monitor.h"
+#include "provider_gpio_expander.h"
 #include "tca6424a_mock.h"
 #include "tps55289_mock.h"
 
@@ -21,6 +21,7 @@
         RETURN_INVALID_ARG((val), (name), (owner)); \
     } \
 } while (0)
+
 
 #define MAX_CURRENT_MA 5500
 #define MIN_VOLTAGE_MV 4500
@@ -153,10 +154,10 @@ status_rep_t manager_pwr_init(manager_pwr_config_t *config){
     sys_io_set_led(0,0);
 
     /*****Callbacks related to interrupt power devices connected*****/
-    sys_io_expander_set_pin_callback(IO_TCA_REGA_INT, MODE_FALLING_EDGE, tps55289_isr_callback_fault, config->reg_driver_handle_0); 
-    sys_io_expander_set_pin_callback(IO_TCA_REGB_INT, MODE_FALLING_EDGE, tps55289_isr_callback_fault, config->reg_driver_handle_1);
-    sys_io_expander_set_pin_callback(IO_TCA_INA3221_WARN, MODE_FALLING_EDGE, ina3221_isr_callback_critical, config->power_monitor_handle);
-    sys_io_expander_set_pin_callback(IO_TCA_INA3221_CRIT, MODE_FALLING_EDGE, ina3221_isr_callback_critical, config->power_monitor_handle);
+    _sys_expander_gpio_set_callback(IO_TCA_REGA_INT, MODE_FALLING_EDGE, tps55289_isr_callback_fault, config->reg_driver_handle_0); 
+    _sys_expander_gpio_set_callback(IO_TCA_REGB_INT, MODE_FALLING_EDGE, tps55289_isr_callback_fault, config->reg_driver_handle_1);
+    _sys_expander_gpio_set_callback(IO_TCA_INA3221_WARN, MODE_FALLING_EDGE, ina3221_isr_callback_critical, config->power_monitor_handle);
+    _sys_expander_gpio_set_callback(IO_TCA_INA3221_CRIT, MODE_FALLING_EDGE, ina3221_isr_callback_critical, config->power_monitor_handle);
     /*****Callbacks related to interrupt power devices connected*****/
 
     return STA_OK;

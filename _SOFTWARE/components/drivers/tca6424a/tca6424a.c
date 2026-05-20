@@ -91,6 +91,7 @@ esp_err_t tca_preset_cfg(tca6424a_handle_t handle, uint32_t cfg_mask, uint32_t c
     return ESP_OK; 
 }
 
+
 esp_err_t tca_preset_polarity(tca6424a_handle_t handle, uint32_t polarity_mask, uint32_t polarity_state, bool update_now) {
     uint8_t pol0_mask = (polarity_mask & _PORT0_MASK);
     if (pol0_mask) {
@@ -253,6 +254,7 @@ esp_err_t tca_register_pin_callback(tca6424a_handle_t handle, uint32_t pin_mask,
     return ESP_ERR_INVALID_ARG;
 }
 
+
 tca6424a_handle_t tca_new(uint8_t i2c_address) {
     tca6424a_handle_t handle = calloc(1, sizeof(tca_data_t));
     xTaskCreate(tca_task, NULL, 4096, handle, 10, &handle->task_handle);
@@ -260,4 +262,24 @@ tca6424a_handle_t tca_new(uint8_t i2c_address) {
     handle->i2c_dev_config.scl_speed_hz = 100000;
     handle->i2c_dev_config.dev_addr_length = I2C_ADDR_BIT_LEN_7;
     return handle;
+}
+
+
+esp_err_t tca_get_pin_level(tca6424a_handle_t handle, uint32_t *out_level, bool force_update) {
+    if (force_update) {
+        esp_err_t err = _tca_update_inputs(handle);
+        if (err != ESP_OK) {
+            return err;
+        }
+    }
+    *out_level = (handle->last_read_input[2] << 16) | 
+                  (handle->last_read_input[1] << 8) | 
+            handle->last_read_input[0];
+    return ESP_OK;
+}
+
+uint32_t tca_get_pin_output(tca6424a_handle_t handle) {
+    return (handle->output[2] << 16) | 
+           (handle->output[1] << 8) | 
+            handle->output[0];
 }

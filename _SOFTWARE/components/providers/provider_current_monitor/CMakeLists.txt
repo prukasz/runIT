@@ -1,6 +1,6 @@
 idf_component_register(
-    SRCS "tps55289_wrapper.c"
+    SRCS "provider_current_monitor.c"
     INCLUDE_DIRS "include"
+    PRIV_REQUIRES ina3221 
     REQUIRES status
-    PRIV_REQUIRES tps55289 mock_tps
 )

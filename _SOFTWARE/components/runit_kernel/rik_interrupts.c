@@ -1,5 +1,5 @@
 #include "rik_interrupts.h"
-#include "tca6424a_wrapper.h"
+#include "provider_gpio_expander.h"
 #include "manager_i2c.h"
 #include "rik_shared.h"
 
