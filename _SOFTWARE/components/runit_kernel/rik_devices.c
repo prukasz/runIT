@@ -7,6 +7,8 @@
 #include "provider_gpio_expander.h"
 #include "manager_io.h"
 #include "rtos_utils.h"
+#include "provider_adc.h"
+#include "ads7128_mock.h"
 
 
 #define TCA_MOCK
@@ -17,10 +19,12 @@ uint8_t rik_gpio_expander_id;
 uint8_t rik_tps_0_id;
 uint8_t rik_tps_1_id;
 
-uint8_t rik_gpio_expander_port_id = 0xFF; //invalid port id as default
 
+uint8_t rik_gpio_expander_port_id = 0xFF; //invalid port id as default
+uint8_t rik_adc_expander_port_id = 0xFF; //invalid port id as default
 
 static void* gpio_expander_handle = NULL;
+static void* adc_expander_handle = NULL;
 static ina3221_handle_t ina3221_handle = NULL;
 static tps55289_handle_t tps55289_handle_0 = NULL;
 static tps55289_handle_t tps55289_handle_1 = NULL;
@@ -53,17 +57,25 @@ void callback(void* arg){
     
 void test_task_func(void* arg){
     while(1){
+        ads_simulate_voltage(0, 4096);
         tca6424a_mock_pin_cfg_t pin_cfg = {
             .pin_mask = 0x01, // Pin 0
             .level = 1
         };
-        tca_mock_set_pin_level(&pin_cfg); // Simulate interrupt on pin 0
+        //tca_mock_set_pin_level(&pin_cfg); // Simulate interrupt on pin 0
         vTaskDelay(pdMS_TO_TICKS(1000));
         tca6424a_mock_pin_cfg_t pin_cfg_clear = {
             .pin_mask = 0x01, // Pin 0
             .level = 0
         };
-        tca_mock_set_pin_level(&pin_cfg_clear);
+        //tca_mock_set_pin_level(&pin_cfg_clear);
+        
+
+         ads_simulate_voltage(0, 0);
+
+        uint32_t adc_value = 0;
+        sys_io_adc_read(rik_adc_expander_port_id, 1, &adc_value, 1);
+        ESP_LOGI(TAG, "ADC value: %lu", (unsigned long)adc_value); // Trigger a read to test the setup
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
@@ -151,5 +163,62 @@ status_rep_t rik_i2c_start_tps55289(uint8_t i2c_adders_0, uint8_t i2c_adders_1, 
         &tps55289_handle_1->i2c_master_dev_handle, (void*)tps55289_handle_1,
         tps55289_handle_1->driver_task_handle, true, &rik_tps_1_id));
     ESP_LOGI(TAG, "TPS55289 started on bus %d with addresses 0x%02X and 0x%02X", bus_num ? 1 : 0, i2c_adders_0, i2c_adders_1);
+    return STA_OK;
+}
+
+extern void ads_isr_callback(void* arg);
+
+status_rep_t rik_i2c_start_adc(uint8_t i2c_addres, bool bus_num){
+    adc_expander_handle = provider_adc_expander_new_handle(i2c_addres);
+    if (!adc_expander_handle) return STA_C(ESP_ERR_NO_MEM, 0, i2c_addres);
+
+    i2c_device_config_t* dev_config = provider_adc_expander_get_i2c_dev_config();
+    i2c_master_dev_handle_t*  master_dev_handle = provider_adc_expander_get_i2c_dev_handle();
+    TaskHandle_t task_handle = provider_adc_expander_get_task_handle();
+
+    STA_RET_ON_ERR(m_i2c_add_driver(
+        bus_num, 
+        *dev_config,
+        master_dev_handle,
+        adc_expander_handle,
+        task_handle,
+        true, 
+        &rik_adc_expander_port_id
+    ));
+
+    STA_RET_ON_ERR(manager_io_register_new_port(
+        &(io_port_dispatch_t){
+            .mode_func = NULL,
+            .set_func = NULL,
+            .read_func = NULL,
+            .toggle_func = NULL,
+            .callback_add_func = NULL,
+            .pwm_set_duty_func = NULL,
+            .pwm_set_freq_func = NULL,
+            .adc_read_func = &_sys_adc_expander_read,
+            .adc_callback_add_func = &_sys_adc_expander_register_callback,
+            .dereffered_update = &_sys_adc_expander_delay_updates,
+            .protected_pins = 0,
+        },
+        &rik_adc_expander_port_id
+    
+    ));
+
+     sys_io_adc_int_config_t adc_int_config = {
+          .adc_event_counter_threshold = 1,
+            .adc_threshold_down_mv = 2000,
+            .adc_threshold_hysteresis_mv = 15,
+            .adc_threshold_up_mv = 3000,  
+            .adc_window_mode = SYS_GPIO_ADC_WINDOW_OUTSIDE,
+            .callback = callback,
+            .arg = NULL
+    };
+
+    sys_io_adc_register_callback(rik_adc_expander_port_id, 1, &adc_int_config);
+    init_ads_mock();
+    set_ads_alert_callback(ads_isr_callback, adc_expander_handle);
+
+    
+    ESP_LOGI(TAG, "ADC expander started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_addres);
     return STA_OK;
 }

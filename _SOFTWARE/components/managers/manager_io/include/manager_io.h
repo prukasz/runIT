@@ -44,7 +44,7 @@ typedef status_rep_t (*gpio_func_toggle)(uint64_t pin_mask);
 typedef status_rep_t (*gpio_func_callback_add)(uint64_t pin_mask, uint32_t mode, void (*callback)(void* arg), void* arg);
 typedef status_rep_t (*io_func_pwm_set_duty)(uint64_t pin_mask, uint32_t duty_cycle);
 typedef status_rep_t (*io_func_pwm_set_freq)(uint64_t pin_mask, uint32_t freq_hz);
-typedef status_rep_t (*io_func_adc_read)(uint64_t pin_mask, uint32_t* out_mv);
+typedef status_rep_t (*io_func_adc_read)(uint64_t pin_mask, uint32_t* out_mv, uint8_t max_results_num);
 typedef status_rep_t (*io_func_adc_register_callback)(uint64_t pin_mask, void* adc_int_config);
 typedef void (*io_driver_dereffered_update)(bool yes_or_no);
 
@@ -77,7 +77,7 @@ status_rep_t sys_gpio_register_callback(uint8_t port_id, uint64_t pin_mask, uint
 status_rep_t sys_io_set_pwm_duty(uint8_t port_id, uint64_t pin_mask, uint32_t duty_cycle);
 status_rep_t sys_io_set_pwm_freq(uint8_t port_id, uint64_t pin_mask, uint32_t freq_hz);
 
-status_rep_t sys_io_adc_read(uint8_t port_id, uint64_t pin_mask, uint32_t* out_mv);
+status_rep_t sys_io_adc_read(uint8_t port_id, uint64_t pin_mask, uint32_t* out_mv, uint8_t max_results_num);
 status_rep_t sys_io_adc_register_callback(uint8_t port_id, uint64_t pin_mask, void* adc_int_config);
 
 status_rep_t sys_io_set_global_protection(bool is_enabled);

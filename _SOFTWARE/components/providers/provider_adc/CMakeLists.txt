@@ -1,4 +1,6 @@
 idf_component_register(
+    SRCS "provider_adc_expander.c"
     INCLUDE_DIRS "include"
-    PRIV_REQUIRES ads7128 mock_ads
+    PRIV_REQUIRES ads7128 mock_ads 
+    REQUIRES status
 )

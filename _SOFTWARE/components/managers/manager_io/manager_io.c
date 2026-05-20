@@ -98,10 +98,10 @@ status_rep_t sys_io_set_pwm_freq(uint8_t port_id, uint64_t pin_mask, uint32_t fr
 
 
 /****************** System wide ADC functions ***************************************/
-status_rep_t sys_io_adc_read(uint8_t port_id, uint64_t pin_mask, uint32_t* out_mv){
+status_rep_t sys_io_adc_read(uint8_t port_id, uint64_t pin_mask, uint32_t* out_mv, uint8_t max_results_num){
     if (port_id >= MAX_IO_PORTS) return STA_E(ERR_MANAGER_IO_INVALID_PORT, OWNER_MANAGER_IO, 0);
     if (port_registry[port_id].adc_read_func == NULL) return STA_E(ERR_MANAGER_IO_FUNC_NULL, OWNER_MANAGER_IO, 0);
-    return port_registry[port_id].adc_read_func(pin_mask, out_mv);
+    return port_registry[port_id].adc_read_func(pin_mask, out_mv, max_results_num);
 }
 
 status_rep_t sys_io_adc_register_callback(uint8_t port_id, uint64_t pin_mask, void* adc_int_config){

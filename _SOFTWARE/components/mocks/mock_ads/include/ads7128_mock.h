@@ -21,12 +21,11 @@ void ads_simulate_voltage(uint8_t pin, uint16_t voltage);
  */
 int ads_get_alert_pin_level(void);
 
-typedef void (*ads_alert_cb_t)(void);
 
 /**
  * @brief Set the callback for ALERT pin changes.
  */
-void set_ads_alert_callback(ads_alert_cb_t cb);
+void set_ads_alert_callback(void (*cb)(void*), void* arg);
 
 /**
  * @brief Mock I2C transmit function for ADS7128.

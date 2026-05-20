@@ -63,6 +63,7 @@ esp_err_t rik_start(void) {
                     tca_res.e_code, tca_res.details.severity);
         }
     #endif
+    rik_i2c_start_adc(0x10, 0);
     
     //rik_start_power_manager();
     rik_start_interface(rik_events_communication);

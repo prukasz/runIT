@@ -121,10 +121,12 @@ static const char *TAG = "ADS_MOCK";
 
 static uint8_t ads_registers[ADS_REG_MAX_ADDR];
 static bool alert_active = false;
-static ads_alert_cb_t alert_callback = NULL;
+static  void (*alert_callback)(void*) = NULL;
+static void* args;
 
-void set_ads_alert_callback(ads_alert_cb_t cb) {
+void set_ads_alert_callback(void (*cb)(void*), void* arg) {
     alert_callback = cb;
+    args = arg;
 }
 
 int ads_get_alert_pin_level(void) {
@@ -181,7 +183,7 @@ void ads_simulate_voltage(uint8_t pin, uint16_t voltage) {
         alert_active = should_alert;
         ESP_LOGW(TAG, "[Symulator] Stan pinu ALERT zmieniony na: %s", alert_active ? "AKTYWNY (LOW)" : "NIEAKTYWNY (HIGH)");
         if (alert_active && alert_callback) {
-            alert_callback();
+            alert_callback(args);
         }
     }
 }

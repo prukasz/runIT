@@ -14,11 +14,12 @@ idf_component_register(
     freertos
     esp_driver_gpio
 
-   
+    mock_ads
     ina3221
     tps55289
 
     provider_gpio_expander
+    provider_adc
     mock_tps
  
 

@@ -23,3 +23,5 @@ status_rep_t rik_i2c_start_ina3221(uint8_t i2c_addres, bool bus_num);
 status_rep_t rik_i2c_start_tps55289(uint8_t i2c_adders_0, uint8_t i2c_adders_1, bool bus_num);
 
 
+status_rep_t rik_i2c_start_adc(uint8_t i2c_addres, bool bus_num);
+

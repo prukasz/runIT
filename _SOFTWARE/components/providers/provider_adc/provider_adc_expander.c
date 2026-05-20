@@ -32,13 +32,13 @@ void _sys_adc_expander_delay_updates(bool dereffered_mode){
     _dereffered_mode = dereffered_mode;
 }
 
-status_rep_t _sys_adc_expander_read(uint64_t pin_mask, uint32_t* out_mv, uint32_t max_results_num)
+status_rep_t _sys_adc_expander_read(uint64_t pin_mask, uint32_t* out_mv, uint8_t max_results_num)
 {
     ads_analog_ch_read(_ads_handle, (uint8_t)pin_mask, !_dereffered_mode);
     
     uint8_t pos = 0;
     
-    for(uint32_t i = 0; i < 8; i++){
+    for(uint8_t i = 0; i < 8; i++){
         if((uint8_t)pin_mask & (1 << i)){
             if(pos >= max_results_num){
                 break;
@@ -78,8 +78,13 @@ status_rep_t _sys_adc_expander_register_callback(uint64_t pin_mask, void* adc_in
     return STA_OK;
 }
 
-i2c_master_dev_handle_t provider_adc_expander_get_i2c_dev_handle(){
-    return _ads_handle->i2c_dev_handle;
+void * provider_adc_expander_new_handle(uint8_t i2c_addr){
+    _ads_handle = ads_new(i2c_addr);
+    return (void*)_ads_handle;
+}
+
+i2c_master_dev_handle_t *provider_adc_expander_get_i2c_dev_handle(){
+    return &_ads_handle->i2c_dev_handle;
 }
 
 TaskHandle_t provider_adc_expander_get_task_handle(){
@@ -87,5 +92,5 @@ TaskHandle_t provider_adc_expander_get_task_handle(){
 }
 
 i2c_device_config_t* provider_adc_expander_get_i2c_dev_config(){
-    return _ads_handle->i2c_dev_config;
+    return &_ads_handle->i2c_dev_config;
 }

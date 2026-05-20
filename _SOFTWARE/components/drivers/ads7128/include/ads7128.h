@@ -2217,6 +2217,8 @@ esp_err_t ads_set_gpio_cfg(ads_handle_t handle, uint8_t gpio_cfg, bool update_no
 
 void ads_isr_callback(void* arg);
 
+esp_err_t ads_analog_ch_read(ads_handle_t handle, uint8_t pin_mask, bool update_now);
+
 esp_err_t ads_register_alert_callback(ads_handle_t handle, uint8_t pin_mask, void (*cb)(void*), void* arg);
 
 #endif /* ADS7128_H_ */
