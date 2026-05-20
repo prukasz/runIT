@@ -85,7 +85,7 @@ static status_rep_t validate_regulator_config(const sys_pwr_cfg_regulator_t* con
         power_budget_remaining_mW -= power_budget.reg_0_budget_mW; 
     }
     if (current_power_mW > power_budget_remaining_mW) {
-        ESP_LOGW(TAG, "Regulator %u power limit %u mW exceeds remaining power budget %u mW", config->reg_num, current_power_mW, power_budget_remaining_mW);
+        // ESP_LOGW(TAG, "Regulator %u power limit %u mW exceeds remaining power budget %u mW", config->reg_num, current_power_mW, power_budget_remaining_mW);
         RETURN_INVALID_ARG(current_power_mW, power_limit_mW, OWNER_MANAGER_PWR);
     }
     if (config->reg_num == 0) {

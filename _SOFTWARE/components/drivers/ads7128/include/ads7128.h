@@ -2076,13 +2076,68 @@
     #define OP_CODE_CONTINUOUS_REGISTER_READ                ((uint8_t) 0x30)
     #define OP_CODE_CONTINUOUS_REGISTER_WRITE               ((uint8_t) 0x28)
 
+typedef enum {
+    ALERT_MODE_OUT_OF_BAND = 0,
+    ALERT_MODE_IN_BAND     = 1,
+} ads7128_alert_mode_t;
+
+typedef struct {
+    uint8_t rms_en :1;
+    uint8_t crc_en :1;
+    uint8_t stats_en :1;
+    uint8_t dwc_en :1;
+    uint8_t cnvst :1;
+    uint8_t ch_rst :1;
+    uint8_t cal :1;
+    uint8_t rst :1;
+} ads_config_t;
+
+typedef struct
+{
+    uint8_t h_thres_lsb : 4;
+    uint8_t hist : 4;
+} ch_histeresis_config_t;
+
+typedef struct
+{
+    uint8_t l_thres_lsb : 4;
+    uint8_t event_cnt : 4;
+} ch_event_count_config_t;
+
+
+typedef struct {
+    ch_histeresis_config_t histeresis_config;
+    uint8_t h_thres_msb;
+
+    ch_event_count_config_t event_count_config;
+    uint8_t l_thres_msb;
+
+    ads7128_alert_mode_t mode;  // Warunek wyzwolenia przerwania
+
+    bool route_to_alert_pin;  // Czy alert ma być sygnalizowany na pinie ALERT (jeśli false, alert będzie tylko rejestrowany wewnętrznie i można go odczytać przez I2C)
+} ads7128_ch_alert_config_t;
+
 
 typedef struct {
     i2c_master_dev_handle_t  i2c_dev_handle;
     i2c_device_config_t      i2c_dev_config;
     TaskHandle_t             task_handle;
     
+    ads_config_t config = {
+        .rms_en = 0,
+        .crc_en = 0,
+        .stats_en = 0,
+        .dwc_en = 1,
+        .cnvst = 0,
+        .ch_rst = 0,
+        .cal = 0,
+        .rst = 0
+    };
+
     uint16_t recent_analog_values[8];
+    ads7128_ch_alert_config_t alert_configs[8];
+
+    
     
     struct {
         uint8_t ch0 : 1;
@@ -2118,10 +2173,16 @@ typedef struct {
     } gpio_cfg;      // Input / Output (można pominąć konfigurację wyjść, ale rejestr istnieje z wejściami) Always should be 0
 
     struct {
-        uint8_t cfg_to_update         : 1;
-        uint8_t _reserved             : 7;
+        uint8_t gpio_cfg_to_update         : 1;
+        uint8_t pin_cfg_to_update          : 1;
+        uint8_t config_to_update           : 1;
+        uint8_t alert_config_to_update     : 1;
     } to_update;
 
+    volatile bool alert_triggered;
+
+    void (*callbacks[8])(void* arg);
+    void* callback_args[8];
 } ads_data_t;
 
 typedef ads_data_t* ads_handle_t;
@@ -2142,6 +2203,16 @@ ads_handle_t ads_new(uint8_t i2c_address);
  * @param update_now Flag to indicate if the configuration should be updated immediately
  * @return ESP_OK on success, ESP_ERR_INVALID_ARG on failure
  */
-esp_err_t ads_set_cfg(ads_handle_t handle, uint8_t pin_cfg, uint8_t gpio_cfg, bool update_now);
+esp_err_t ads_set_cfg(ads_handle_t handle, uint8_t cfg, bool update_now);
+
+esp_err_t ads_set_alert_cfg(ads_handle_t handle, uint8_t channel, uint16_t h_thres, uint16_t l_thres, ads7128_alert_mode_t mode, bool route_to_alert_pin, bool update_now);
+
+esp_err_t ads_set_pin_cfg(ads_handle_t handle, uint8_t pin_cfg, bool update_now);
+
+esp_err_t ads_set_gpio_cfg(ads_handle_t handle, uint8_t gpio_cfg, bool update_now);
+
+void ads_isr_callback(void* arg);
+
+esp_err_t ads_register_alert_callback(ads_handle_t handle, uint8_t pin_mask, void (*cb)(void*), void* arg);
 
 #endif /* ADS7128_H_ */
