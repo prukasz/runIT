@@ -14,11 +14,11 @@ idf_component_register(
     freertos
     esp_driver_gpio
 
-    tca6424a 
+   
     ina3221
     tps55289
 
-    mock_tca
+    provider_gpio_expander
     mock_tps
  
 

@@ -1,5 +1,7 @@
 #include "manager_io.h"
 
+#define TAG __FILE_NAME__
+
 static io_port_dispatch_t port_registry[MAX_IO_PORTS] = {0};
 static uint8_t next_free_port = 0;
 static bool global_io_is_protected = false;
@@ -32,6 +34,7 @@ status_rep_t manager_io_register_new_port(io_port_dispatch_t *port_dispatch, uin
         *out_port_id = next_free_port;
     }
     next_free_port++;
+    ESP_LOGI(TAG, "Registered new IO port with ID %d", next_free_port - 1);
     return STA_OK;
 }
 
@@ -101,7 +104,7 @@ status_rep_t sys_io_adc_read(uint8_t port_id, uint64_t pin_mask, uint32_t* out_m
     return port_registry[port_id].adc_read_func(pin_mask, out_mv);
 }
 
-status_rep_t sys_io_adc_register_callback(uint8_t port_id, uint64_t pin_mask, sys_io_adc_int_config_t* adc_int_config){
+status_rep_t sys_io_adc_register_callback(uint8_t port_id, uint64_t pin_mask, void* adc_int_config){
     if (port_id >= MAX_IO_PORTS) return STA_E(ERR_MANAGER_IO_INVALID_PORT, OWNER_MANAGER_IO, 0);
     if (port_registry[port_id].adc_callback_add_func == NULL) return STA_E(ERR_MANAGER_IO_FUNC_NULL, OWNER_MANAGER_IO, 0);
     if (global_io_is_protected && (pin_mask & port_registry[port_id].protected_pins)) return STA_E(ERR_MANAGER_IO_PIN_PROTECTED, OWNER_MANAGER_IO, 0);

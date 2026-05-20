@@ -151,15 +151,6 @@ status_rep_t manager_pwr_init(manager_pwr_config_t *config){
     sys_pwr_init_reg(config->reg_driver_handle_0, config->reg_driver_handle_1);
     /****init current monitor and regulators ****/
 
-    sys_io_set_led(0,0);
-
-    /*****Callbacks related to interrupt power devices connected*****/
-    _sys_expander_gpio_set_callback(IO_TCA_REGA_INT, MODE_FALLING_EDGE, tps55289_isr_callback_fault, config->reg_driver_handle_0); 
-    _sys_expander_gpio_set_callback(IO_TCA_REGB_INT, MODE_FALLING_EDGE, tps55289_isr_callback_fault, config->reg_driver_handle_1);
-    _sys_expander_gpio_set_callback(IO_TCA_INA3221_WARN, MODE_FALLING_EDGE, ina3221_isr_callback_critical, config->power_monitor_handle);
-    _sys_expander_gpio_set_callback(IO_TCA_INA3221_CRIT, MODE_FALLING_EDGE, ina3221_isr_callback_critical, config->power_monitor_handle);
-    /*****Callbacks related to interrupt power devices connected*****/
-
     return STA_OK;
 } 
 

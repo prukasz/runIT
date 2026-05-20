@@ -3,9 +3,45 @@
 #include <driver/gpio.h>
 
 extern uint8_t rik_ina_id;
-extern uint8_t rik_tca_id;
+extern uint8_t rik_gpio_expander_id;
 extern uint8_t rik_tps_0_id;
 extern uint8_t rik_tps_1_id;
+
+extern uint8_t rik_gpio_expander_port_id; 
+
+#define SYS_IO_MAKE_PIN(port, pin) ((((uint32_t)(port)) << 8) | ((pin) & 0xFF))
+
+#define RIK_IO_PIN_PWM_EXPANDER_nOE  SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 0)
+
+#define RIK_IO_PIN_REGA_INT   SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 1)
+#define RIK_IO_PIN_REGA_EN   SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 17) //21
+
+#define RIK_IO_PIN_REGB_INT   SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 2) //2
+#define RIK_IO_PIN_REGB_EN   SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 16) //20
+
+#define RIK_IO_PIN_VUSB_OK    SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 3)  //3
+#define RIK_IO_PIN_VEXT_OK    SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 4)  //4
+
+#define RIK_IO_PIN_POWER_MONITOR_WARN    SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 5) //5
+#define RIK_IO_PIN_MONITOR_CRIT   SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 6) //6
+
+#define RIK_IO_PIN_DRV_OCPM  SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 7) //7
+
+#define RIK_IO_PIN_DRV2_SLEEP   SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 8)  //10
+#define RIK_IO_PIN_DRV2_FAULT   SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 10)  //12
+#define RIK_IO_PIN_DRV2_VMA_REGA SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 12)  //14
+#define RIK_IO_PIN_DRV2_VMB_VSUP SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 13)  //15
+
+#define RIK_IO_PIN_DRV1_SLEEP   SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 9)  //11
+#define RIK_IO_PIN_DRV1_FAULT   SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 11)  //13
+#define RIK_IO_PIN_DRV1_VMA_VSUP SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 14) //16
+#define RIK_IO_PIN_DRV1_VMB_REGB SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 15) //17
+
+#define RIK_IO_PIN_PD_INT  SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 21)   //25
+
+#define RIK_IO_PIN_LED_1  SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 23)   //27
+#define RIK_IO_PIN_LED_2   SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 22)   //26
+
 
 extern bool _rik_ble_active;
 extern bool _rik_wifi_active;
