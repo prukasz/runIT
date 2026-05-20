@@ -13,7 +13,7 @@ list(APPEND EXTRA_COMPONENT_DIRS
     "components/mocks"
     "components/managers"
     "components/drivers"
-    "components/wrappers"
+    "components/providers"
     "components/utils"
 )
 project(runIT)

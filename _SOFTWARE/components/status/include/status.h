@@ -27,7 +27,7 @@ typedef struct{
  * @param e_code: UINT16_t Error code (status_err_code_e)
  * @param e_owner: UINT32_t Enum for error origin (status_owner_e)
  * @param track: Union for error tracking info (e.g. for for more info about owner)
- * @param details: (bitfield) severity (0-Info, 1-Warning, 2-Critical), depth (for error propagation tracking)
+ * @param details: (bitfield) severity (0-Info, 1-Warning, 2-Critical)
  */
 typedef struct{
     uint32_t e_code;    //
@@ -35,50 +35,55 @@ typedef struct{
     union 
     {
         struct {
-            uint16_t ui_block_id;     
-            uint16_t ui_node_id;     
+            uint32_t ui_block_id;     
+            uint32_t ui_node_id;     
         }vm;
-        uint32_t origin_info; //4
+        uint64_t origin_info; //8
     }track;
        //2
     struct{
-        uint8_t severity:2;
-        uint8_t my_depth:6;
-        uint8_t  _reserved;
+        uint8_t   severity : 2;
+        uint8_t  _reserved : 6;
     }details;                //2
 }status_rep_t;
 
 void _sta_push_overwrite(const status_rep_t *item);
 
 /*Error struct creation - for non VM scenarios*/
-#define _STA_X(_code, _owner, _origin_info, _severity, _depth) \
+#define _STA_X(_code, _owner, _origin_info, _severity) \
     (status_rep_t){ \
         .e_code = (_code), \
         .e_owner = (_owner), \
         .track = { .origin_info = (_origin_info) }, \
-        .details = { .severity = (_severity), .my_depth = (_depth), ._reserved = 0 } \
+        .details = { .severity = (_severity), ._reserved = 0 } \
     }
 /*Error struct creation - for non VM scenarios*/
 
 
 
 #define STA_OK ((status_rep_t){0})
-#define STA_I(code, e_owner, origin_info) _STA_X((code), (e_owner), (origin_info), 0, 0)
-#define STA_E(code, e_owner, origin_info) _STA_X((code), (e_owner), (origin_info), 1, 0)
-#define STA_C(code, e_owner, origin_info) _STA_X((code), (e_owner), (origin_info), 2, 0)
+#define STA_I(code, e_owner, origin_info) _STA_X((code), (e_owner), (origin_info), 0)
+#define STA_E(code, e_owner, origin_info) _STA_X((code), (e_owner), (origin_info), 1)
+#define STA_C(code, e_owner, origin_info) _STA_X((code), (e_owner), (origin_info), 2)
 
 /* Checking macros */
 #define STA_IS_OK(err)  (((err).e_code == 0) || ((err).details.severity == 0))
 
 /**
- * @brief Macro to check a status_rep_t for error, if error is present, increment depth and return the status_rep_t
+# * @brief Macro to check a status_rep_t for error and return the status_rep_t
  * @param status The status_rep_t to check
  */
 #define STA_RET_ON_ERR(status) do { \
     status_rep_t _sta_check = (status); \
     if (!STA_IS_OK(_sta_check)) { \
-        _sta_check.details.my_depth++; \
         return _sta_check; \
+    } \
+} while(0)
+
+#define STA_RP_ON_ERR(status) do { \
+    status_rep_t _sta_rp_check = (status); \
+    if (!STA_IS_OK(_sta_rp_check)) { \
+        STA_RP(_sta_rp_check); \
     } \
 } while(0)
 
