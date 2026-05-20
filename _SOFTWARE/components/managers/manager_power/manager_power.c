@@ -7,6 +7,7 @@
 #include "provider_gpio_expander.h"
 #include "tca6424a_mock.h"
 #include "tps55289_mock.h"
+// #include "rik_shared.h"
 
 #define TAG __FILE_NAME__
 
@@ -155,26 +156,26 @@ status_rep_t manager_pwr_init(manager_pwr_config_t *config){
 } 
 
 
-tca6424a_mock_pin_cfg_t tps0_fault = {
-    .pin_mask = IO_TCA_REGA_INT,
-    .level = false
-};
-tca6424a_mock_pin_cfg_t tps1_fault = {
-    .pin_mask = IO_TCA_REGB_INT,
-    .level = false
-};
-tca6424a_mock_pin_cfg_t tps0_no_fault = {
-    .pin_mask = IO_TCA_REGA_INT, // No pin
-    .level = true
-};
-tca6424a_mock_pin_cfg_t tps1_no_fault = {
-    .pin_mask = IO_TCA_REGB_INT, // No pin
-    .level = true
-};
+// tca6424a_mock_pin_cfg_t tps0_fault = {
+//     // .pin_mask = SYS_IO_,
+//     .level = false
+// };
+// tca6424a_mock_pin_cfg_t tps1_fault = {
+//     .pin_mask = IO_TCA_REGB_INT,
+//     .level = false
+// };
+// tca6424a_mock_pin_cfg_t tps0_no_fault = {
+//     .pin_mask = IO_TCA_REGA_INT, // No pin
+//     .level = true
+// };
+// tca6424a_mock_pin_cfg_t tps1_no_fault = {
+//     .pin_mask = IO_TCA_REGB_INT, // No pin
+//     .level = true
+// };
 
-void manager_pwr_mocks_link(){
-    tps_mock_set_intr_callbacks(0x74, &tca_mock_set_pin_level, &tps0_fault, &tca_mock_set_pin_level, &tps0_no_fault);
-    tps_mock_set_intr_callbacks(0x75, &tca_mock_set_pin_level, &tps1_fault, &tca_mock_set_pin_level, &tps1_no_fault);
+// void manager_pwr_mocks_link(){
+//     tps_mock_set_intr_callbacks(0x74, &tca_mock_set_pin_level, &tps0_fault, &tca_mock_set_pin_level, &tps0_no_fault);
+//     tps_mock_set_intr_callbacks(0x75, &tca_mock_set_pin_level, &tps1_fault, &tca_mock_set_pin_level, &tps1_no_fault);
 
-}
+// }
 
