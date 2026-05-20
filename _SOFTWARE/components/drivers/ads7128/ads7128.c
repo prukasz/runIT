@@ -78,6 +78,16 @@ static esp_err_t _ads_update_recent_gpi_values(ads_handle_t handle){
     return ret;
 }
 
+static esp_err_t _ads_check_alert(ads_handle_t handle, uint8_t* channel){
+    uint8_t buf = 0;
+    RETURN_ON_ERROR(ads_transmit_receive(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SINGLE_REGISTER_READ, EVENT_FLAG_ADDRESS}, 2, &buf, 1, ADS7128_I2C_TIMEOUT));
+    *channel = __builtin_clz(buf);
+    RETURN_ON_ERROR(ads_transmit(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_CLEAR_BIT, EVENT_HIGH_FLAG_ADDRESS, 1<<(*channel)}, 3, ADS7128_I2C_TIMEOUT));
+    RETURN_ON_ERROR(ads_transmit(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_CLEAR_BIT, EVENT_LOW_FLAG_ADDRESS, 1<<(*channel)}, 3, ADS7128_I2C_TIMEOUT));
+
+    return ESP_OK;
+}
+
 void ads_isr_callback(void* arg) {
     ads_handle_t handle = (ads_handle_t)arg;
     BaseType_t high_task_wakeup = pdFALSE;
@@ -105,6 +115,7 @@ ads_handle_t ads_new(uint8_t i2c_address) {
 
     memset(&handle->pin_cfg, 0, sizeof(handle->pin_cfg)); // Default: all channels as analog inputs
     memset(&handle->gpio_cfg, 0, sizeof(handle->gpio_cfg)); // Default: all channels as inputs
+    memset(&handle->config, 16, sizeof(handle->config));
 
     xTaskCreate(ads_task, NULL, 4096, handle, 5, &handle->task_handle);
     return handle;
@@ -166,10 +177,10 @@ esp_err_t ads_set_alert_cfg(ads_handle_t handle, uint8_t channel, uint16_t h_thr
     alert_cfg->mode = mode;
     alert_cfg->route_to_alert_pin = route_to_alert_pin;
 
-    handle->to_update.alert_cfg_to_update = 1;
+    handle->to_update.alert_config_to_update = 1;
     
     if (update_now) {
-        handle->to_update.alert_cfg_to_update = 0;
+        handle->to_update.alert_config_to_update = 0;
         _ads_update_alert_config(handle, channel);
     }
     return ESP_OK;
@@ -195,6 +206,19 @@ void ads_task(void* arg) {
         uint32_t notification_value = 0;
         xTaskNotifyWait(0, 0xFFFFFFFF, &notification_value, portMAX_DELAY);
 
+        if(handle->alert_triggered)
+        {
+            handle->alert_triggered = false;
+            uint8_t channel;
+
+            _ads_check_alert(handle, &channel);
+
+            if(handle->callbacks[channel])
+            {
+                handle->callbacks[channel](handle->callback_args[channel]);
+            }
+        }
+        
         if(notification_value == 0) 
         {
             for (int i = 1; i <= 8; i++) {

@@ -2123,16 +2123,7 @@ typedef struct {
     i2c_device_config_t      i2c_dev_config;
     TaskHandle_t             task_handle;
     
-    ads_config_t config = {
-        .rms_en = 0,
-        .crc_en = 0,
-        .stats_en = 0,
-        .dwc_en = 1,
-        .cnvst = 0,
-        .ch_rst = 0,
-        .cal = 0,
-        .rst = 0
-    };
+    ads_config_t config;
 
     uint16_t recent_analog_values[8];
     ads7128_ch_alert_config_t alert_configs[8];
