@@ -56,7 +56,7 @@ void callback(void* arg){
     
 void test_task_func(void* arg){
     while(1){
-        ads_simulate_voltage(0, 4096);
+        ads_simulate_voltage(0, 2137);
         tca6424a_mock_pin_cfg_t pin_cfg = {
             .pin_mask = 0x01, // Pin 0
             .level = 1
@@ -70,12 +70,6 @@ void test_task_func(void* arg){
         //tca_mock_set_pin_level(&pin_cfg_clear);
         
         STA_P(STA_C(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFF));
-        STA_P(STA_C(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFF));
-        STA_P(STA_C(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFF));
-        STA_P(STA_C(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFF));
-        STA_P(STA_C(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFF));
-        ads_simulate_voltage(0, 0);
-
         uint32_t adc_value = 0;
         sys_io_adc_read(rik_adc_expander_port_id, 1, &adc_value, 1);
         ESP_LOGI(TAG, "ADC value: %lu", (unsigned long)adc_value); // Trigger a read to test the setup

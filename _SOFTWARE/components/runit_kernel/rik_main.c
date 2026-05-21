@@ -13,6 +13,7 @@
 #include "rik_scheduler.h"  
 #include "rik_logs.h"
 #include "rik_tx_rx.h"
+#include "rik_status_handler.h"
 
 #define TAG "RIK_MAIN"
 
@@ -45,6 +46,7 @@ esp_err_t rik_start(void) {
     status_rep_t rep;
 
     // 1. Start BLE
+    rik_status_handler_start(rik_buff_status, rik_scheduler_get_task_handle());
     rik_scheduler_start(); // Start the scheduler before initializing BLE to ensure it's ready for task creation
     rep = rik_start_ble(rik_events_wireless, rik_scheduler_get_task_handle());
     if (!STA_IS_OK(rep)) return rep.e_code;
@@ -63,7 +65,7 @@ esp_err_t rik_start(void) {
             ESP_LOGI(TAG, "Failed to start TCA6424A: e_code=%d, severity=%d", 
                     tca_res.e_code, tca_res.details.severity);
         }
-    #endif
+   #endif
     rik_i2c_start_adc(0x10, 0);
     
     rik_start_power_manager();

@@ -1,11 +1,12 @@
 #pragma once
 
+// Move I2C owner IDs out of the C000 error base to C100.. to avoid overlaps
 #define I2C_OWNER_MAP(X) \
-    X(OWNER_MANAGER_I2C,     0xC000, "I2C_MANAGER") \
-    X(OWNER_I2C_BUS_0,       0xC001, "I2C_BUS_0") \
-    X(OWNER_I2C_BUS_1,       0xC002, "I2C_BUS_1") \
-    X(OWNER_I2C_SENSOR_TASK, 0xC003, "I2C_SENSOR_TASK")\
-    X(OWNER_I2C_ADD_DRIVER,  0xC004, "I2C_ADD_DRIVER")
+    X(OWNER_MANAGER_I2C,     0xC100, "I2C_MANAGER") \
+    X(OWNER_I2C_BUS_0,       0xC101, "I2C_BUS_0") \
+    X(OWNER_I2C_BUS_1,       0xC102, "I2C_BUS_1") \
+    X(OWNER_I2C_SENSOR_TASK, 0xC103, "I2C_SENSOR_TASK")\
+    X(OWNER_I2C_ADD_DRIVER,  0xC104, "I2C_ADD_DRIVER")
     
 
 #define I2C_ERROR_MAP(X) \

@@ -1,5 +1,6 @@
 #include "rik_status_handler.h"
 #include "rtos_utils.h"
+#include <inttypes.h>
 
 R_TASK_DEFINE(rik_status_handler_task, 4096);
 R_QUEUE_DEFINE(status_queue, 20, sizeof(status_rep_t));
@@ -16,10 +17,15 @@ void status_handler_task(void* params) {
     while (1) {
         if (xQueueReceive(status_queue, &current_report, portMAX_DELAY) == pdTRUE) {
 
-            ESP_LOGE("STATUS", "Critical error! Code: %lu, Owner: %lu, Origin Info: %lu", 
-                     current_report.e_code, 
-                     current_report.e_owner, 
-                     current_report.track.origin_info);
+            ESP_LOGE(
+                "STATUS",
+                "Critical error! Owner: %s (0x%04" PRIX32 "), Code: %s (0x%04" PRIX32 "), Origin Info: %" PRIu64,
+                status_owner_to_name(current_report.e_owner),
+                current_report.e_owner,
+                status_error_to_name(current_report.e_code),
+                current_report.e_code,
+                (uint64_t)current_report.track.origin_info
+            );
             
             if (_supervisor_task_handle != NULL) {
                 R_NOTIFY_SEND(_supervisor_task_handle, 0);
