@@ -7,9 +7,8 @@
 #include "provider_gpio_expander.h"
 #include "manager_io.h"
 #include "rtos_utils.h"
-#include "provider_adc.h"
+#include "provider_adc_expander.h"
 #include "ads7128_mock.h"
-
 
 #define TCA_MOCK
 #define TPS_MOCK
@@ -70,8 +69,12 @@ void test_task_func(void* arg){
         };
         //tca_mock_set_pin_level(&pin_cfg_clear);
         
-
-         ads_simulate_voltage(0, 0);
+        STA_P(STA_C(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFF));
+        STA_P(STA_C(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFF));
+        STA_P(STA_C(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFF));
+        STA_P(STA_C(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFF));
+        STA_P(STA_C(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFF));
+        ads_simulate_voltage(0, 0);
 
         uint32_t adc_value = 0;
         sys_io_adc_read(rik_adc_expander_port_id, 1, &adc_value, 1);
@@ -201,13 +204,11 @@ status_rep_t rik_i2c_start_adc(uint8_t i2c_addres, bool bus_num){
             .protected_pins = 0,
         },
         &rik_adc_expander_port_id
-    
     ));
 
      sys_io_adc_int_config_t adc_int_config = {
           .adc_event_counter_threshold = 1,
-            .adc_threshold_down_mv = 2000,
-            .adc_threshold_hysteresis_mv = 15,
+            .adc_threshold_down_mv = 2000,            .adc_threshold_hysteresis_mv = 15,
             .adc_threshold_up_mv = 3000,  
             .adc_window_mode = SYS_GPIO_ADC_WINDOW_OUTSIDE,
             .callback = callback,

@@ -22,12 +22,11 @@ typedef struct {
 // The Configuration Structure for a Bus Manager
 typedef struct {
     EventGroupHandle_t m_i2c_events;
-    EventBits_t m_i2c_bits_queue_process;
-    EventBits_t m_i2c_bits_queue_done;
-    EventBits_t m_i2c_bits_queue_timeout;
-    EventBits_t m_i2c_bits_emergency_stop;
+    EventBits_t m_i2c_bit_queue_process;
+    EventBits_t m_i2c_bit_queue_done;
     i2c_master_bus_config_t bus_cfg;
     TaskHandle_t manager_task_handle;
+    TaskHandle_t supervisor_task_handle;
 } m_i2c_config_t;
 
 /**
@@ -47,8 +46,8 @@ status_rep_t m_i2c_add_driver(
 );
 
 i2c_master_dev_handle_t m_i2c_get_master_dev_handle_by_id(uint8_t id);
-bool m_i2c_get_id_by_address(bool bus, uint16_t device_address, uint8_t* out_id);
-bool m_i2c_set_active_state(uint8_t id, bool new_state);
+bool m_i2c_get_driver_id_by_address(bool bus, uint16_t device_address, uint8_t* out_id);
+bool m_i2c_set_driver_state(uint8_t id, bool new_state);
 status_rep_t m_i2c_enqueue_aperiodic_job(uint8_t id);
 
 status_rep_t m_i2c_device_present(bool bus_num, uint8_t i2c_addres);

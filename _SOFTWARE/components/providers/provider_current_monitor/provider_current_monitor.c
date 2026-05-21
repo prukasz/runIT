@@ -7,8 +7,11 @@ static ina3221_handle_t _ina_handle = NULL;
 
 status_rep_t sys_pwr_init_monitor(void* handle)
 {
+    if (!handle) {
+        return STA_C(ESP_ERR_INVALID_ARG, OWNER_PROVIDER_CURRENT_MONITOR_INIT, 0);
+    }
+
     _ina_handle = (ina3221_handle_t)handle;
-    if (!_ina_handle) { return STA_C(ESP_ERR_INVALID_ARG, OWNER_PROVIDER_CURRENT_MONITOR_INIT, _ina_handle->i2c_device_config.device_address); }
     
     STA_RET_ON_ESP_ERR(ina3221_set_options(_ina_handle, 1, 1 ,1), OWNER_PROVIDER_CURRENT_MONITOR_INIT, _ina_handle->i2c_device_config.device_address);
     
@@ -88,7 +91,9 @@ status_rep_t sys_pwr_set_crit_total(uint32_t power_mw, uint32_t expected_voltage
     
 status_rep_t sys_pwr_get_voltage(uint8_t bus_num, uint32_t* voltage_mv, bool force_update)
 {
-    if (!_ina_handle || !voltage_mv || bus_num > 2) return STA_C(ESP_ERR_INVALID_ARG, OWNER_PROVIDER_CURRENT_MONITOR_READ, _ina_handle->i2c_device_config.device_address);
+    uint32_t device_address = _ina_handle ? _ina_handle->i2c_device_config.device_address : 0;
+
+    if (!_ina_handle || !voltage_mv || bus_num > 2) return STA_C(ESP_ERR_INVALID_ARG, OWNER_PROVIDER_CURRENT_MONITOR_READ, device_address);
     STA_RET_ON_ESP_ERR(ina3221_update_buses_readings(_ina_handle, force_update), OWNER_PROVIDER_CURRENT_MONITOR_READ, _ina_handle->i2c_device_config.device_address);
     *voltage_mv = (uint32_t)_ina_handle->last_readings.bus_voltage[bus_num];
     return STA_OK;
@@ -96,7 +101,9 @@ status_rep_t sys_pwr_get_voltage(uint8_t bus_num, uint32_t* voltage_mv, bool for
 
 status_rep_t sys_pwr_get_current(uint8_t channel_num, uint32_t* current_ma, bool force_update)
 {
-    if (!_ina_handle || !current_ma || channel_num > 2) return STA_C(ESP_ERR_INVALID_ARG, OWNER_PROVIDER_CURRENT_MONITOR_READ, _ina_handle->i2c_device_config.device_address);
+    uint32_t device_address = _ina_handle ? _ina_handle->i2c_device_config.device_address : 0;
+
+    if (!_ina_handle || !current_ma || channel_num > 2) return STA_C(ESP_ERR_INVALID_ARG, OWNER_PROVIDER_CURRENT_MONITOR_READ, device_address);
     STA_RET_ON_ESP_ERR(ina3221_update_shunts_readings(_ina_handle, force_update), OWNER_PROVIDER_CURRENT_MONITOR_READ, _ina_handle->i2c_device_config.device_address);
     *current_ma = (uint32_t)_ina_handle->last_readings.shunt_current[channel_num];
     return STA_OK;

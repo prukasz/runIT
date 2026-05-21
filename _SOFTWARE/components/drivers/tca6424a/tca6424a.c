@@ -217,25 +217,43 @@ void tca_task(void* dev_handle){
             #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
             TaskHandle_t caller_task = (TaskHandle_t)(uintptr_t)notification_value;
             #pragma GCC diagnostic pop
+            esp_err_t err;
             if (handle->to_update.p0_to_update || handle->to_update.p1_to_update || handle->to_update.p2_to_update) {
-                _tca_update_ports(handle);
+                err =_tca_update_ports(handle);
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to update ports in task");
+                    xTaskNotify(caller_task, 1, eSetBits);
+                    goto TASK_END;
+                }
                 handle->to_update.p0_to_update = 0;
                 handle->to_update.p1_to_update = 0;
                 handle->to_update.p2_to_update = 0;
             }
 
             if (handle->to_update.cfg_to_update) {
-                _tca_update_config(handle);
+                err = _tca_update_config(handle);
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to update config in task");
+                    xTaskNotify(caller_task, 1, eSetBits);
+                    goto TASK_END;
+                }
                 handle->to_update.cfg_to_update = 0;
             }
 
             if (handle->to_update.cfg_polarity_to_update) {
-                _tca_update_polarity(handle);
+                err = _tca_update_polarity(handle);
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to update polarity in task");
+                    xTaskNotify(caller_task, 1, eSetBits);
+                    goto TASK_END;
+                }
                 handle->to_update.cfg_polarity_to_update = 0;
             }
 
-            xTaskNotifyGive(caller_task);
+            xTaskNotify(caller_task, 0, eSetBits);
         }
+        TASK_END:
+        continue;
     }
 }
 

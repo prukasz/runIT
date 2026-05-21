@@ -10,7 +10,7 @@ config CONNECT_TCA6424A_MOCK
 
 config CONNECT_INA3221
     bool "Connect INA3221"
-    default n
+    default y
 
 config CONNECT_INA3221_INT_MOCK
     bool "Connect INA3221 I2C mock interrupts"

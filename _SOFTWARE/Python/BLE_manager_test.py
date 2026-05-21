@@ -3,7 +3,7 @@ from bleak import BleakScanner, BleakClient
 
 DEVICE_NAME = "runit"
 UUID_WRITE = "00000000-0000-0000-0000-000000000003"   # TX (write to device)
-UUID_READ  = "00000000-0000-0000-0000-000000000002"   # RX (read from device)
+UUID_READ  = "00000000-0000-0000-0000-000000000002"   # RX (read from device)}]
 
 async def rx_handler(sender, data: bytearray):
     """Handle received notifications."""
@@ -52,7 +52,7 @@ async def main():
             try:
                 await send_message(client, write_char, f"TEST_{counter:03d}")
                 counter += 1
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(1)
             except KeyboardInterrupt:
                 print("\nDisconnecting...")
                 break

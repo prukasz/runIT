@@ -22,24 +22,25 @@ void a_ble_add_rx_buffer(RingbufHandle_t rb) {
 
 
 static int _ble_on_disconnect(struct ble_gap_event *event) {
-    if (event->disconnect.reason != BLE_HS_EDONE) {
-        if (event->disconnect.reason >= 0x0200 && event->disconnect.reason <= 0x02FF) {
-            ESP_LOGW(TAG, "Disconnected: HCI Reason=0x%02X", (event->disconnect.reason - 0x0200));
-        } else {
-            ESP_LOGW(TAG, "Disconnected: Host Reason=%d", event->disconnect.reason);
-        }
-        //Notify that there is no present connection (failed)
+    int reason = event->disconnect.reason;
 
-        xEventGroupSetBits(host_cfg->event_group, host_cfg->host_bits.bit_on_connection_failed); 
-        
-    
-    }else{
-        //notify that there is no present connection (disconnected but not failed)
-        xEventGroupSetBits(host_cfg->event_group, host_cfg->host_bits.bit_on_disconnect); 
+    // 1. Log the disconnect reason
+    if (reason >= 0x0200 && reason <= 0x02FF) {
+        ESP_LOGI(TAG, "Disconnected: HCI Reason=0x%02X", (reason - 0x0200));
+    } else {
+        ESP_LOGI(TAG, "Disconnected: Host Reason=%d", reason);
     }
-    //wake up supervisor task to handle this event
-    xTaskNotifyGive(host_cfg->supervisor_task_handle);
-    return ble_gap_reconfigure_advertising();
+
+    if (reason == BLE_HS_EDONE || reason == 0x0213 || reason == 0x0216) {
+        xEventGroupSetBits(host_cfg->event_group, host_cfg->host_bits.bit_on_disconnect); 
+    } else {
+        ESP_LOGW(TAG, "Connection failed or dropped unexpectedly!");
+        xEventGroupSetBits(host_cfg->event_group, host_cfg->host_bits.bit_on_connection_failed); 
+    }
+    xEventGroupClearBits(host_cfg->event_group, host_cfg->host_bits.bit_on_connect);
+    ble_gap_reconfigure_advertising();
+    R_NOTIFY_SEND(host_cfg->supervisor_task_handle, 0);
+    return 0;
 }
 
 static int _ble_on_tx_complete(struct ble_gap_event *event) {
@@ -61,6 +62,7 @@ static int _ble_on_mtu_update(struct ble_gap_event *event) {
     ESP_LOGI(TAG, "MTU updated: conn_handle=%d mtu=%d", event->mtu.conn_handle, event->mtu.value);  
     // Notify that MTU update complete only manager 
     R_EVENT_SET(host_cfg->event_group, host_cfg->host_bits.bit_on_mtu_change);
+    R_NOTIFY_SEND(host_cfg->supervisor_task_handle, 0);
     return 0;
 }
 
@@ -69,12 +71,11 @@ static int _ble_on_connect(struct ble_gap_event *event) {
     if (event->connect.status == 0) {
         ESP_LOGI(TAG, "Connected: conn_handle=%d", event->connect.conn_handle);
         R_EVENT_SET(host_cfg->event_group, host_cfg->host_bits.bit_on_connect);
-        xTaskNotifyGive(host_cfg->supervisor_task_handle);
     } else {
         ESP_LOGW(TAG, "Connection failed: status=%d", event->connect.status);
         R_EVENT_SET(host_cfg->event_group, host_cfg->host_bits.bit_on_connection_failed);
-        xTaskNotifyGive(host_cfg->supervisor_task_handle);
     }
+    R_NOTIFY_SEND(host_cfg->supervisor_task_handle, 0);
     return 0;
 }
 
@@ -91,10 +92,8 @@ static int _ble_on_rx(struct ble_gatt_access_ctxt *ctxt) {
         os_mbuf_copydata(ctxt->om, 0, len, data_buffer);
 
         if (xRingbufferSend(a_ble_rx_buffer, data_buffer, len, 0) != pdTRUE) {            R_EVENT_SET(host_cfg->event_group, host_cfg->host_bits.bit_on_rx_failed);
-            R_NOTIFY_SEND(host_cfg->supervisor_task_handle, 0);
         } else {
             R_EVENT_SET(host_cfg->event_group, host_cfg->host_bits.bit_on_rx_received);
-            R_NOTIFY_SEND(host_cfg->supervisor_task_handle, 0);
         }
     }
     return 0;

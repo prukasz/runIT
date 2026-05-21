@@ -29,28 +29,29 @@ R_RINGBUFFER_DEFINE(rik_buff_log,    LOG_BUFFER_SIZE,    RINGBUF_TYPE_NOSPLIT);
 /***********************STATIC GLOBAL BUFFERS ***********************************/
 
 /***********************STATIC GLOBAL EVENT GROUPS ******************************/
-R_EVENT_GROUP_DEFINE(rik_events_communication);
-R_EVENT_GROUP_DEFINE(rik_events_processing);
-R_EVENT_GROUP_DEFINE(rik_i2c_events_0);
-R_EVENT_GROUP_DEFINE(rik_i2c_events_1);
-/***********************STATIC GLOBAL EVENT GROUPS ******************************/
-
+R_EVENT_GROUP_DEFINE(rik_events_wireless);
 
 bool _rik_ble_active;
 bool _rik_wifi_active;
+
+R_EVENT_GROUP_DEFINE(rik_events_wired);
+R_EVENT_GROUP_DEFINE(rik_events_data_processing);
+R_EVENT_GROUP_DEFINE(rik_events_vm);
+/***********************STATIC GLOBAL EVENT GROUPS ******************************/
+
+
+
 esp_err_t rik_start(void) {
     status_rep_t rep;
 
     // 1. Start BLE
     rik_scheduler_start(); // Start the scheduler before initializing BLE to ensure it's ready for task creation
-    rep = rik_start_ble(rik_events_communication, rik_scheduler_get_task_handle());
+    rep = rik_start_ble(rik_events_wireless, rik_scheduler_get_task_handle());
     if (!STA_IS_OK(rep)) return rep.e_code;
 
-    // 2. Start Status Manager
-    rik_start_status();
-
+    xEventGroupWaitBits(rik_events_wireless, EVENT_BIT_BLE_CONNECTED, pdFALSE, pdFALSE, portMAX_DELAY);
     // 3. Start I2C Drivers
-    rep = rik_start_i2c(rik_i2c_events_0, rik_i2c_events_1, 
+    rep = rik_start_i2c(rik_scheduler_get_task_handle(), rik_events_wired, rik_events_wired, 
                         IO_SYS_PIN_INT_I2C_SDA, IO_SYS_PIN_INT_I2C_SCL, 
                         IO_SYS_PIN_USR_I2C_SDA, IO_SYS_PIN_USR_I2C_SCL);
     if (!STA_IS_OK(rep)) return rep.e_code;
@@ -65,9 +66,8 @@ esp_err_t rik_start(void) {
     #endif
     rik_i2c_start_adc(0x10, 0);
     
-    //rik_start_power_manager();
-    rik_start_interface(rik_events_communication);
-
+    rik_start_power_manager();
+    rik_start_interface(rik_events_wireless);
     
     // 5. System Interrupts & Tester Task
     rik_init_intr_esp();

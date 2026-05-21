@@ -9,12 +9,10 @@
 #include <esp_log.h>
 #include <stddef.h>
 #include "status_codes.h"
+#include "freertos/queue.h"
 
 
 typedef struct{
-    uint8_t log_i:1;
-    uint8_t log_w:1;
-    uint8_t log_c:1;
     uint8_t rep_i:1;
     uint8_t rep_w:1;
     uint8_t rep_c:1;
@@ -127,11 +125,11 @@ void _sta_push_overwrite(const status_rep_t *item);
     esp_err_t _esp_err = (esp_err_expr); \
     status_rep_t _mapped_sta = STA_OK; \
     if (_esp_err != ESP_OK) { \
-        _mapped_sta = STA_E(_esp_err, (e_owner), (origin_info)); \
+        _mapped_sta = STA_C(_esp_err, (e_owner), (origin_info)); \
     } \
     _mapped_sta; \
 })
 
-void status_manager_init(RingbufHandle_t status_buffer);
-void status_manager_connection_update(bool connected);
-
+void status_assign_buffer(RingbufHandle_t status_buffer, QueueHandle_t status_queue);
+void status_mutex_lock();
+void status_mutex_unlock();

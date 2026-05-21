@@ -1,6 +1,6 @@
 idf_component_register(
-    SRCS "rik_configs.c" "rik_devices.c" "rik_interrupts.c" "rik_modules.c" "rik_main.c"
-        "rik_interrupts.c" "rik_logs.c" "rik_scheduler.c"
+    SRCS "rik_status_handler.c" "rik_configs.c" "rik_devices.c" "rik_interrupts.c" "rik_modules.c" "rik_main.c"
+        "rik_interrupts.c" "rik_logs.c" "rik_scheduler.c" "rik_status_handler.c"
         
     INCLUDE_DIRS "include"
     REQUIRES 
@@ -19,7 +19,8 @@ idf_component_register(
     tps55289
 
     provider_gpio_expander
-    provider_adc
+    provider_adc_expander
+    provider_gpio_esp
     mock_tps
  
 

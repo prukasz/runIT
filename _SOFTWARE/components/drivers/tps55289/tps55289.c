@@ -301,10 +301,11 @@ void tps55289_task(void *arg)
         
         if (notification_value == 0) {
             uint8_t raw_status;
-            if (_tps55289_read(handle, TPS55289_REG_STATUS, &raw_status) != ESP_OK) {
-                continue; 
+            esp_err_t err = _tps55289_read(handle, TPS55289_REG_STATUS, &raw_status); 
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "Failed to read status register in interrupt handler");
+                goto TASK_END;
             }
-            
             _tps55289_parse_status(handle, raw_status);
 
             if (handle->alert_fault) {
@@ -334,16 +335,22 @@ void tps55289_task(void *arg)
             #pragma GCC diagnostic pop
             
             if (handle->to_update.read_status) {
-                tps55289_get_status(handle, true);
+                esp_err_t err = tps55289_get_status(handle, true);
+                if (err != ESP_OK) {
+                    xTaskNotify(caller_task, 1, eSetBits);
+                    goto TASK_END;
+                }
                 if (!handle->to_update.read_status_periodic) {
                     handle->to_update.read_status = 0; 
                 }
             }
             
             if (caller_task) {
-                xTaskNotifyGive(caller_task);
+                xTaskNotify(caller_task, 0, eSetBits);
             }
         }
+        TASK_END:
+        continue;
     }
 }
 

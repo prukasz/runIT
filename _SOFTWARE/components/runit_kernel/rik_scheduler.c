@@ -12,31 +12,61 @@
 
 #define TAG __FILE_NAME__
 
+void process_wireless_events(){
+    EventBits_t flags_wireless = xEventGroupGetBits(rik_events_wireless);
+    EventBits_t flags_vm = xEventGroupGetBits(rik_events_vm);
+    if ((flags_wireless & EVENT_BIT_BLE_CONNECTED) &&!_rik_ble_active) {
+        _rik_ble_active = true;
+        ESP_LOGI(TAG, "BLE Connected");
+        xEventGroupClearBits(rik_events_wireless, EVENT_BIT_BLE_CONNECTION_FAILED | EVENT_BIT_BLE_DISCONNECTED);
+        rik_log_remote_enable(true);
+
+        // Allow data processing and tell vm 
+
+        R_EVENT_SET(rik_events_vm, EVENT_BIT_VM_WIRELESS_CONNECTION_PRESENT);
+
+    }
+    if (flags_wireless & EVENT_BIT_BLE_DISCONNECTED && _rik_ble_active) {
+        _rik_ble_active = false;
+        ESP_LOGI(TAG, "BLE Disconnected");
+        xEventGroupClearBits(rik_events_wireless, EVENT_BIT_BLE_CONNECTED);
+        if (flags_vm & EVENT_BIT_VM_ONLINE_MODE) {
+            //connection lost while in online mode 
+            R_EVENT_SET(rik_events_vm, EVENT_BIT_VM_EMERGENCY);
+        }
+
+    }
+    if (flags_wireless & EVENT_BIT_BLE_CONNECTION_FAILED && _rik_ble_active) {
+        ESP_LOGI(TAG, "BLE Connection Failed");
+        _rik_ble_active = false;
+        xEventGroupClearBits(rik_events_wireless, EVENT_BIT_BLE_CONNECTED);
+        R_EVENT_SET(rik_events_vm, EVENT_BIT_VM_EMERGENCY);
+
+    }
+    if (flags_wireless & EVENT_BIT_BLE_MTU_UPDATED) {
+        ESP_LOGI(TAG, "BLE MTU Updated");
+        xEventGroupClearBits(rik_events_wireless, EVENT_BIT_BLE_MTU_UPDATED);
+    }
+
+    if (flags_wireless & EVENT_BIT_BLE_ON_RX_FAILED) {
+        ESP_LOGI(TAG, "BLE data receive failed");
+        if (flags_vm & EVENT_BIT_VM_ONLINE_MODE) {
+            R_EVENT_SET(rik_events_vm, EVENT_BIT_VM_EMERGENCY);
+        }
+        xEventGroupClearBits(rik_events_wireless, EVENT_BIT_BLE_ON_RX_FAILED);
+    }
+}
+
+
+
+
 void rik_scheduler(void* args){
+    uint32_t notification_value;
     while (1)
     {   
-        R_NOTIFY_AWAIT(WAIT_FOREVER, NULL); 
-        EventBits_t current_bits = xEventGroupGetBits(rik_events_communication);
-        if(current_bits & EVENT_BIT_BLE_CONNECTED){
-            ESP_LOGI(TAG, "BLE Connected event received");
-            _rik_ble_active = true;
-            rik_start_interface(rik_events_communication); // Initialize BLE-related interrupts after BLE is connected to avoid spurious events during startup
-            rik_log_remote_enable(true);
-
-            R_EVENT_CLEAR(rik_events_communication, EVENT_BIT_BLE_CONNECTED);
-        }else if (current_bits & EVENT_BIT_BLE_CONNECTION_FAILED)
-        {
-            ESP_LOGI(TAG, "BLE Connection Failed event received");
-                    _rik_ble_active = false;
-            R_EVENT_CLEAR(rik_events_communication, EVENT_BIT_BLE_CONNECTION_FAILED);
-        }else if (current_bits & EVENT_BIT_BLE_DISCONNECTED)
-        {
-            ESP_LOGI(TAG, "BLE Disconnected event received");
-            _rik_ble_active = false;
-            R_EVENT_CLEAR(rik_events_communication, EVENT_BIT_BLE_DISCONNECTED);
-        }
-        
-    
+        if (R_NOTIFY_AWAIT(WAIT_FOREVER, &notification_value) == pdTRUE){
+        process_wireless_events();
+        }   
     } 
 }
 

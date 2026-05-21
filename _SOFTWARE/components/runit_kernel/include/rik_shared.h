@@ -45,16 +45,17 @@ extern uint8_t rik_gpio_expander_port_id;
 
 extern bool _rik_ble_active;
 extern bool _rik_wifi_active;
+extern bool _rik_emergency_state_active;
 
 extern RingbufHandle_t rik_buff_status;
 extern RingbufHandle_t rik_buff_tx;
 extern RingbufHandle_t rik_buff_rx;
 extern RingbufHandle_t rik_buff_log;
 
-extern EventGroupHandle_t rik_events_communication;
-extern EventGroupHandle_t rik_events_processing;
-extern EventGroupHandle_t rik_i2c_events_0;
-extern EventGroupHandle_t rik_i2c_events_1;
+extern EventGroupHandle_t rik_events_wireless;
+extern EventGroupHandle_t rik_events_data_processing;
+extern EventGroupHandle_t rik_events_wired;
+extern EventGroupHandle_t rik_events_vm;
 
 /*Event group of data interfaces */
 /**************************BLE*********************************************/
@@ -67,34 +68,40 @@ extern EventGroupHandle_t rik_i2c_events_1;
 #define EVENT_BIT_BLE_CONNECTION_FAILED (1 << 5)
 #define EVENT_BIT_BLE_DISCONNECTED      (1 << 6)
 #define EVENT_BIT_BLE_MTU_UPDATED       (1 << 7)
-
 /**************************BLE*********************************************/
 
 
 /**************************I2C *********************************/
-#define EVENT_BIT_I2C_PROCESS   (1 << 8)
-#define EVENT_BIT_I2C_DONE      (1 << 9)
-#define EVENT_BIT_I2C_EMERGENCY (1 << 10)
-#define EVENT_BIT_I2C_TIMEOUT   (1 << 11)
+#define EVENT_BIT_I2C_PROCESS_0   (1 << 0)
+#define EVENT_BIT_I2C_PROCESS_1   (1 << 1)
+#define EVENT_BIT_I2C_DONE_0      (1 << 2)
+#define EVENT_BIT_I2C_DONE_1      (1 << 3)
 /**************************I2C *********************************/
 
 /*Event group of data interfaces */
 
-
-/*Event group of data processing / vm */
-/**************************CMD INTERFACE *********************************/
-#define EVENT_BIT_INTERFACE_CMD_START      (1 << 0)
-#define EVENT_BIT_INTERFACE_CMD_COMPLETE   (1 << 1)
-#define EVENT_BIT_INTERFACE_CMD_ERROR      (1 << 2)
-#define EVENT_BIT_INTERFACE_CMD_STOP       (1 << 3)
-/**************************CMD INTERFACE *********************************/
-
 /**************************VM INTERFACE  *********************************/
-#define EVENT_BIT_VM_RUN        (1 << 8)
-#define EVENT_BIT_VM_STOP       (1 << 9)
-#define EVENT_BIT_VM_ERROR      (1 << 10)
-#define EVENT_BIT_VM_EMERGENCY  (1 << 11)
+#define EVENT_BIT_VM_WIRELESS_CONNECTION_PRESENT (1 << 0) // rik -> vm
+#define EVENT_BIT_VM_READY          (1 << 1) // vm -> rik
+#define EVENT_BIT_VM_OFFLINE_MODE   (1 << 2) // vm -> rik  invoked by remote
+#define EVENT_BIT_VM_ONLINE_MODE    (1 << 3) // vm -> rik  invoked by remote
+#define EVENT_BIT_VM_CMD_COMPLETE   (1 << 4) // vm -> rik
+#define EVENT_BIT_VM_STOP           (1 << 9) // rik -> vm
+#define EVENT_BIT_VM_EMERGENCY      (1 << 11) // rik -> vm
 /*************************VM  INTERFACE  *********************************/
+
+
+/************************STATUS HANDLER ACTIONS **************************/
+#define EVENT_BIT_I2C_FAILURE               (1<<1)
+#define EVENT_BIT_GPIO_FAILURE              (1<<2)
+#define EVENT_BIT_ADC_FAILURE               (1<<3)
+#define EVENT_BIT_PWM_FAILURE               (1<<4)
+#define EVENT_BIT_POWER_FAILURE             (1<<5)
+#define EVENT_BIT_VM_FAILURE_USER           (1<<6)
+#define EVENT_BIT_VM_FAILURE_ENGINE         (1<<7)
+#define EVENT_BIT_DATA_PROCESSING_FAILURE   (1<<8)
+/************************STATUS HANDLER ACTIONS **************************/
+
 
 /*Event group of data processing / vm */
 

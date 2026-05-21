@@ -6,14 +6,12 @@
 #define TAG __FILENAME__
 
 /*****************************************************************************************/
-TaskHandle_t interface_task_handle = NULL;
-
 static interface_cfg_t *_cfg = NULL;
 
 static RingbufHandle_t _interface_rx_buffer = NULL;
-
 /*****************************************************************************************/
 
+R_TASK_DEFINE(interface_task, 4096);
 
 esp_err_t interface_parse_cmd_dev_cfg(const uint8_t *packet_data, const uint16_t packet_len){
     ESP_LOGI(TAG, "Parsing device config command with data length: %u", (unsigned)packet_len);
@@ -46,8 +44,7 @@ void interface_buff_register_rx(RingbufHandle_t rx_buffer) {
 }
 
 
-
-static void interface_task(void* pvParameters){
+static void interface_task_func(void* pvParameters){
         while (1) {
         uint8_t cmd_data[527];
         size_t cmd_len = 0;
@@ -63,11 +60,10 @@ static void interface_task(void* pvParameters){
 }
 
 void interface_init(interface_cfg_t *config){
-    _cfg = config;
-    xTaskCreate(&interface_task, "interface_task", _cfg->task_stack_size, NULL, _cfg->task_priority, &interface_task_handle);
-    ESP_LOGI(TAG, "Interface dispatcher initialized successfully");
+    R_TASK_START_ON_CORE(interface_task, interface_task_func, NULL, 5, 0);
+    ESP_LOGI(TAG, "Interface task started");
 }
 
 TaskHandle_t interface_get_task_handle(){
-    return interface_task_handle;
+    return interface_task;
 }

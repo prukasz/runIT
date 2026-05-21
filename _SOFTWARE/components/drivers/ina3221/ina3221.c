@@ -345,7 +345,8 @@ void ina3221_task(void *arg)
             // 1. Read the Mask/Enable register directly into the handle's union
             // This clears the hardware alert latch and populates our bitfields
             if (_ina3221_read(handle, INA3221_REG_MASK, &handle->mask.mask_register) != ESP_OK) {
-                continue; // I2C failed, skip processing
+                ESP_LOGE(TAG, "Failed to read mask register in task");
+                goto TASK_END;
             }
             // // =========================================================================
             // // DEBUG: PRINT EVERY SINGLE FLAG IN THE REGISTER
@@ -372,14 +373,27 @@ void ina3221_task(void *arg)
 
             // 3. Use already implemented functions to fetch new data 
             // If ANY channel triggered a warning/critical, we update all basic readings
+            esp_err_t err;
             if (handle->mask.cf || handle->mask.wf) {
-                ina3221_update_buses_readings(handle, true);
-                ina3221_update_shunts_readings(handle, true);
+                err = ina3221_update_buses_readings(handle, true);
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to read bus voltages in task");
+                    goto TASK_END;
+                }
+                err = ina3221_update_shunts_readings(handle, true);
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to read shunt voltages in task");
+                    goto TASK_END;
+                }
             }
 
             // If the sum alert triggered, update the sum specifically
             if (sum_alert) {
-                ina3221_get_sum_shunt_value(handle, true);
+                err = ina3221_get_sum_shunt_value(handle, true);
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to read sum shunt value in task");
+                    goto TASK_END;
+                }
             }
 
             // 4. Handle Callbacks and Logging
@@ -400,36 +414,53 @@ void ina3221_task(void *arg)
             #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
             TaskHandle_t caller_task = (TaskHandle_t)(uintptr_t)notification_value;
             #pragma GCC diagnostic pop
-            
+            esp_err_t err;
             if (handle->to_update.read_bus_voltage) {
-                ina3221_update_buses_readings(handle, true);
+                err = ina3221_update_buses_readings(handle, true);
                 if (!handle->to_update.read_bus_voltage_periodic) {
                     handle->to_update.read_bus_voltage = 0;  // Clear flag after execution
                 }
             }
 
             if (handle->to_update.read_current) {
-                ina3221_update_shunts_readings(handle, true);
+                err = ina3221_update_shunts_readings(handle, true);
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to read shunt voltages in task");
+                    xTaskNotify(caller_task, 1, eSetBits);
+                    goto TASK_END;
+                }
                 if (!handle->to_update.read_current_periodic) {
                     handle->to_update.read_current = 0;  // Clear flag after execution
                 }
             }
 
             if (handle->to_update.read_current_sum) {
-                ina3221_get_sum_shunt_value(handle, true);
+                err = ina3221_get_sum_shunt_value(handle, true);
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to read sum shunt value in task");
+                    xTaskNotify(caller_task, 1, eSetBits);
+                    goto TASK_END;
+                }
                 if (!handle->to_update.read_current_sum_periodic) {
                     handle->to_update.read_current_sum = 0; // Clear flag after execution
                 }
             }
 
             if (handle->to_update.read_status) {
-                ina3221_get_status(handle, true);
+                err = ina3221_get_status(handle, true);
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to read status in task");
+                    xTaskNotify(caller_task, 1, eSetBits);
+                    goto TASK_END;
+                }
                 if (!handle->to_update.read_status_periodic) {
                     handle->to_update.read_status = 0; // Clear flag after execution
                 }
             }
-            xTaskNotifyGive(caller_task);
+            xTaskNotify(caller_task, 0, eSetBits);
         }
+        TASK_END:
+        continue;
     }
 }
 
