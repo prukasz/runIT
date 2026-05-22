@@ -14,6 +14,7 @@
 #include "rik_logs.h"
 #include "rik_tx_rx.h"
 #include "rik_status_handler.h"
+#include "esp_adc_config.h"
 
 #define TAG "RIK_MAIN"
 
@@ -72,6 +73,9 @@ esp_err_t rik_start(void) {
     rik_start_interface(rik_events_wireless);
     
     // 5. System Interrupts & Tester Task
+
+    esp_adc_start();
+    set_active_adc_channels(0xFF);
     rik_init_intr_esp();
 
     

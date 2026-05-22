@@ -32,7 +32,6 @@ typedef struct{
     uint32_t adc_threshold_hysteresis_mv;
     uint32_t adc_event_counter_threshold;
     uint32_t adc_window_mode; //0: outside window, 1: inside window
-    //add here window type 
     void (*callback)(void* arg);
     void* arg;
 }sys_io_adc_int_config_t;

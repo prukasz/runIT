@@ -7,7 +7,6 @@
 #include "provider_gpio_expander.h"
 #include "tca6424a_mock.h"
 #include "tps55289_mock.h"
-// #include "rik_shared.h"
 
 #define TAG __FILE_NAME__
 

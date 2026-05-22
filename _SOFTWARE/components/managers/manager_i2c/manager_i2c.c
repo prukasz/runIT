@@ -297,5 +297,5 @@ status_rep_t m_i2c_device_present(bool bus, uint8_t device_address) {
     if (err == ESP_OK) {
         return STA_OK;
     }
-    return STA_C(ERR_I2C_DEV_NOT_FOUND, OWNER_I2C_ADD_DRIVER, device_address);
+    return STA_W(ERR_I2C_DEV_NOT_FOUND, OWNER_I2C_ADD_DRIVER, device_address);
 }

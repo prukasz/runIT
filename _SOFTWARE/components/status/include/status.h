@@ -61,7 +61,7 @@ void _sta_push_overwrite(const status_rep_t *item);
 
 #define STA_OK ((status_rep_t){0})
 #define STA_I(code, e_owner, origin_info) _STA_X((code), (e_owner), (origin_info), 0)
-#define STA_E(code, e_owner, origin_info) _STA_X((code), (e_owner), (origin_info), 1)
+#define STA_W(code, e_owner, origin_info) _STA_X((code), (e_owner), (origin_info), 1)
 #define STA_C(code, e_owner, origin_info) _STA_X((code), (e_owner), (origin_info), 2)
 
 /* Checking macros */
@@ -89,7 +89,7 @@ void _sta_push_overwrite(const status_rep_t *item);
 #define STA_RET_ON_ESP_ERR(esp_err_expr, e_owner, origin_info) do { \
     esp_err_t _esp_err = (esp_err_expr); \
     if (_esp_err != ESP_OK) { \
-        return STA_E(_esp_err, (e_owner), (origin_info)); \
+        return STA_C(_esp_err, (e_owner), (origin_info)); \
     } \
 } while(0)
 

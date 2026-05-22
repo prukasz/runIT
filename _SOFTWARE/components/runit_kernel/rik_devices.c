@@ -9,6 +9,7 @@
 #include "rtos_utils.h"
 #include "provider_adc_expander.h"
 #include "ads7128_mock.h"
+#include "provider_gpio_esp.h"
 
 #define TCA_MOCK
 #define TPS_MOCK
@@ -31,52 +32,6 @@ static tps55289_handle_t tps55289_handle_1 = NULL;
 
 #define TAG __FILE_NAME__
 
-
-void callback(void* arg){
-    ESP_LOGI(TAG, "Interrupt received with arg: %p", arg);
-    bool pin_level;
-    manager_io_enter_mode_dereffered(); // Enter dereffered mode to allow immediate pin state reading
-    sys_gpio_read_level(0, 1, &pin_level); // Read the level of pin 0 and print it
-    ESP_LOGI(TAG, "Pin level is: %d", pin_level);
-     // Exit dereffered mode to resume normal operation
-    tca6424a_mock_pin_cfg_t pin_cfg = {
-            .pin_mask = 0x01, // Pin 0
-            .level = 1
-        };
-    tca_mock_set_pin_level(&pin_cfg);
-
-
-    sys_gpio_read_level(0, 1, &pin_level); // Read the level of pin 0 and print it
-    ESP_LOGI(TAG, "Pin level is: %d", pin_level);
-
-    manager_io_exit_mode_dereffered();
-
-   
-}
-    
-void test_task_func(void* arg){
-    while(1){
-        ads_simulate_voltage(0, 2137);
-        tca6424a_mock_pin_cfg_t pin_cfg = {
-            .pin_mask = 0x01, // Pin 0
-            .level = 1
-        };
-        //tca_mock_set_pin_level(&pin_cfg); // Simulate interrupt on pin 0
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        tca6424a_mock_pin_cfg_t pin_cfg_clear = {
-            .pin_mask = 0x01, // Pin 0
-            .level = 0
-        };
-        //tca_mock_set_pin_level(&pin_cfg_clear);
-        
-        STA_P(STA_C(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFF));
-        uint32_t adc_value = 0;
-        sys_io_adc_read(rik_adc_expander_port_id, 1, &adc_value, 1);
-        ESP_LOGI(TAG, "ADC value: %lu", (unsigned long)adc_value); // Trigger a read to test the setup
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-}
-R_TASK_DEFINE(test_task, 4096);
 
 status_rep_t rik_gpio_expander_start(uint8_t i2c_addres, bool bus_num){
 
@@ -119,9 +74,7 @@ status_rep_t rik_gpio_expander_start(uint8_t i2c_addres, bool bus_num){
         &rik_gpio_expander_port_id
     ));
     tca_mock_set_intr_callback(provider_gpio_expander_int_callback, gpio_expander_handle);
-    sys_gpio_set_mode(0, 1, SYS_GPIO_MODE_INPUT); // Set pin 0 as input for PD_INT
-    sys_gpio_register_callback(0, 1, SYS_GPIO_MODE_FALLING_EDGE, callback, gpio_expander_handle); // Register callback for falling edge on pin 0
-    R_TASK_START(test_task, test_task_func, NULL,5);
+    sys_gpio_set_mode(0, 1, SYS_GPIO_MODE_INPUT); // Set pin 0 as input for PD_INT // Register callback for falling edge on pin 0
     ESP_LOGI(TAG, "GPIO expander started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_addres);
     return STA_OK;
 }
@@ -205,7 +158,7 @@ status_rep_t rik_i2c_start_adc(uint8_t i2c_addres, bool bus_num){
             .adc_threshold_down_mv = 2000,            .adc_threshold_hysteresis_mv = 15,
             .adc_threshold_up_mv = 3000,  
             .adc_window_mode = SYS_GPIO_ADC_WINDOW_OUTSIDE,
-            .callback = callback,
+            .callback = NULL,
             .arg = NULL
     };
 
