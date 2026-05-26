@@ -3,34 +3,26 @@ menu "RunIT Kernel Configuration"
 config CONNECT_TCA6424A
     bool "Connect TCA6424A"
     default y
-
-config CONNECT_TCA6424A_MOCK
-    bool "Connect TCA6424A I2C mock"
+config CONNECT_TPS55289_0
+    bool "Connect TPS55289_0"
     default y
-
+config CONNECT_TPS55289_1
+    bool "Connect TPS55289_1"
+    default y
 config CONNECT_INA3221
     bool "Connect INA3221"
     default y
-
-config CONNECT_INA3221_INT_MOCK
-    bool "Connect INA3221 I2C mock interrupts"
-    default n
-
-config CONNECT_TPS55289
-    bool "Connect TPS55289"
+config CONNECT_ADS7218
+    bool "Connect ADS7218"
     default y
-
-config CONNECT_TPS55289_MOCK
-    bool "Connect TPS55289 mock"
+config USE_MOCK_TCA6424A
+    bool "Use mock TCA6424A driver (for testing without hardware)"
     default y
-
-config CONNECT_TPS55289_MOCK
-    bool "Connect TPS55289 mock"
+config USE_MOCK_TPS55289
+    bool "Use mock TPS55289 driver (for testing without hardware)"
     default y
-
-config CONNECT_TPS55289_INT_MOCK
-    bool "Connect TPS55289 mock interrupts"
+config USE_MOCK_ADS7218
+    bool "Use mock ADS7218 driver (for testing without hardware)"
     default y
-
 
 endmenu

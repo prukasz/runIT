@@ -64,7 +64,7 @@ static __inline status_rep_t rik_tx_send(RingbufHandle_t buff, const uint8_t* da
  */
 #define RIK_TX_BLE_WAIT(data_ptr, len) rik_tx_send(rik_buff_tx, (const void*)(data_ptr), (len), 1, 0)
 
-#define RIK_TX_LOG_NO_WAIT(data_ptr, len) rik_tx_send(rik_buff_log, (const void*)(data_ptr), (len), 0, 1)
+#define RIK_TX_LOG_NO_WAIT(data_ptr, len) rik_tx_send(rik_buff_esp_log, (const void*)(data_ptr), (len), 0, 1)
 
 /**
  * @brief receive data from rx buffer

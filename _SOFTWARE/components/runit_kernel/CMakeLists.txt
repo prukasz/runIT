@@ -1,6 +1,6 @@
 idf_component_register(
-    SRCS "rik_status_handler.c" "rik_configs.c" "rik_devices.c" "rik_interrupts.c" "rik_modules.c" "rik_main.c"
-        "rik_interrupts.c" "rik_logs.c" "rik_scheduler.c" "rik_status_handler.c"
+    SRCS "rik_status_handler.c" "rik_devices.c" "rik_interrupts.c" "rik_modules.c" "rik_main.c"
+        "rik_interrupts.c" "rik_logs.c" "rik_scheduler.c" "rik_status_handler.c" "rik_devices_link.c"
         
     INCLUDE_DIRS "include"
     REQUIRES 
@@ -21,6 +21,8 @@ idf_component_register(
     provider_gpio_expander
     provider_adc_expander
     provider_gpio_esp
+    provider_current_monitor
+    provider_voltage_regulator
     mock_tps
  
 

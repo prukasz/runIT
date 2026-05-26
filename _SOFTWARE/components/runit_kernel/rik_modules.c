@@ -6,6 +6,10 @@
 #include "interface_dispatcher.h"
 #include "rik_shared.h"
 #include "esp_log.h"
+#include "provider_adc_expander.h"
+#include "provider_gpio_esp.h"
+#include "provider_gpio_expander.h"
+#include "sdkconfig.h"
 
 #define TAG __FILE_NAME__
 
@@ -31,7 +35,7 @@ status_rep_t rik_start_ble(EventGroupHandle_t connection_events, TaskHandle_t su
     m_ble_buff_register_rx(rik_buff_rx);
     m_ble_buff_register_tx(rik_buff_tx, RINGBUF_TYPE_NOSPLIT, false, 0, 0, 0); 
     m_ble_buff_register_tx(rik_buff_status, RINGBUF_TYPE_BYTEBUF, true, 0xEE, sizeof(status_rep_t), 1);
-    m_ble_buff_register_tx(rik_buff_log, RINGBUF_TYPE_NOSPLIT, false, 0, 0, 2); 
+    m_ble_buff_register_tx(rik_buff_esp_log, RINGBUF_TYPE_NOSPLIT, false, 0, 0, 2); 
 
     esp_err_t err = m_ble_init(&rik_ble_cfg);
     if (err != ESP_OK) {
@@ -97,8 +101,7 @@ status_rep_t rik_start_i2c(TaskHandle_t supervisor_task_handle, EventGroupHandle
     return m_i2c_init(&rik_i2c_cfg_0, &rik_i2c_cfg_1);
 }
 
-/*******************INTERFACE CONFIG******************************** */
-
+// /*******************INTERFACE CONFIG******************************** */
 
 
 void rik_start_interface(EventGroupHandle_t events){
@@ -107,47 +110,23 @@ void rik_start_interface(EventGroupHandle_t events){
 }
 
 
-/****************POWER MANAGER CONFIG******************************** */
-static manager_pwr_config_t manager_pwr_config = {
-    .reg_driver_handle_0 = NULL,
-    .reg_driver_handle_1 = NULL,
-    .power_monitor_handle = NULL,
-    .reg0_ovp.ctx = NULL,
-    .reg0_ovp.handler = NULL,
-    .reg0_ocp.ctx = NULL,
-    .reg0_ocp.handler = NULL,
-    .reg0_scp.ctx = NULL,
-    .reg0_scp.handler = NULL,
-    .reg1_ovp.ctx = NULL,
-    .reg1_ovp.handler = NULL,
-    .reg1_ocp.ctx = NULL,
-    .reg1_ocp.handler = NULL,
-    .reg1_scp.ctx = NULL,
-    .reg1_scp.handler = NULL,
-    .power_warning.ctx = NULL,
-    .power_warning.handler = NULL,
-    .power_critical.ctx = NULL,
-    .power_critical.handler = NULL
-};
-/****************POWER MANAGER CONFIG******************************** */
+// /****************POWER MANAGER CONFIG******************************** */
+
+// /****************POWER MANAGER CONFIG******************************** */
 
 status_rep_t rik_start_power_manager() {
+    return manager_pwr_init();
+}
 
-    STA_RP_ON_ERR(rik_i2c_start_ina3221(0x40, 0));
-
-    #ifdef CONFIG_CONNECT_TPS55289
-        status_rep_t tps_res = rik_i2c_start_tps55289(0x74, 0x75, 0);
-        if (!STA_IS_OK(tps_res)) {
-            ESP_LOGI(TAG, "Failed to start TPS55289: e_code=%d, severity=%d", 
-                    tps_res.e_code, tps_res.details.severity);
-        }
-    #endif
-
-    manager_pwr_config.reg_driver_handle_0 = m_i2c_get_dev_handle(rik_tps_0_id);
-    manager_pwr_config.reg_driver_handle_1 = m_i2c_get_dev_handle(rik_tps_1_id);
-    manager_pwr_config.power_monitor_handle = m_i2c_get_dev_handle(rik_ina_id);
-    
-    return manager_pwr_init(&manager_pwr_config);
+status_rep_t rik_start_io_manager() {
+    STA_RET_ON_ERR(rik_gpio_esp_start());
+#if defined(CONFIG_CONNECT_TCA6424A) && CONFIG_CONNECT_TCA6424A
+    STA_RET_ON_ERR(rik_gpio_expander_start(0x11, 0));
+#endif
+#ifdef CONFIG_CONNECT_ADS7218
+    STA_RET_ON_ERR(rik_adc_expander_start(0x12, 0));
+#endif
+    //STA_RET_ON_ERR(rik_pwm_expander_start(0x13, 0)); //to apply later
     return STA_OK;
 }
 

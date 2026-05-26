@@ -11,7 +11,13 @@ RingbufHandle_t _status_buffer = NULL;
 
 #define SEVERITY_CRITICAL 2
 
-void status_handler_task(void* params) {
+static void _handle_prov_errors(status_rep_t* status){
+
+}
+
+
+
+static void status_handler_task(void* params) {
     status_rep_t current_report;
 
     while (1) {

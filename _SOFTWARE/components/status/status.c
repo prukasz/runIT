@@ -33,7 +33,7 @@ void _sta_push_overwrite(const status_rep_t *_sta_err) {
         default: break; 
     }
 
-    if (severity == 2 && _status_queue_handle != NULL) {
+    if (severity >= 1 && _status_queue_handle != NULL) {
         // Try to send to the front (top) of the queue.
         while (xQueueSendToFront(_status_queue_handle, _sta_err, 0) != pdTRUE) {
             status_rep_t dummy;

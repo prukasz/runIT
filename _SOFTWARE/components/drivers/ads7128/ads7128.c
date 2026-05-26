@@ -21,15 +21,15 @@
 void ads_task(void* arg);
 
 static esp_err_t _ads_update_config(ads_handle_t handle) {
-    return ads_transmit(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SINGLE_REGISTER_WRITE, GENERAL_CFG_ADDRESS, *(uint8_t*)&handle->config}, 3, ADS7128_I2C_TIMEOUT);
+    return ads_mock_transmit(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SINGLE_REGISTER_WRITE, GENERAL_CFG_ADDRESS, *(uint8_t*)&handle->config}, 3, ADS7128_I2C_TIMEOUT);
 }
 
 static esp_err_t _ads_update_gpio_config(ads_handle_t handle) {
-    return ads_transmit(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SINGLE_REGISTER_WRITE, GPIO_CFG_ADDRESS, *(uint8_t*)&handle->gpio_cfg}, 3, ADS7128_I2C_TIMEOUT);
+    return ads_mock_transmit(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SINGLE_REGISTER_WRITE, GPIO_CFG_ADDRESS, *(uint8_t*)&handle->gpio_cfg}, 3, ADS7128_I2C_TIMEOUT);
 }
 
 static esp_err_t _ads_update_pin_config(ads_handle_t handle) {
-    return ads_transmit(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SINGLE_REGISTER_WRITE, PIN_CFG_ADDRESS, *(uint8_t*)&handle->pin_cfg}, 3, ADS7128_I2C_TIMEOUT);
+    return ads_mock_transmit(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SINGLE_REGISTER_WRITE, PIN_CFG_ADDRESS, *(uint8_t*)&handle->pin_cfg}, 3, ADS7128_I2C_TIMEOUT);
 }
 
 static esp_err_t _ads_update_alert_config(ads_handle_t handle, uint8_t channel) {
@@ -45,12 +45,12 @@ static esp_err_t _ads_update_alert_config(ads_handle_t handle, uint8_t channel) 
     memcpy(&buf[4], &alert_cfg->event_count_config, 1);
     buf[5] = alert_cfg->l_thres_msb;
 
-    RETURN_ON_ERROR(ads_transmit(handle->i2c_dev_handle, buf, 6, ADS7128_I2C_TIMEOUT));
+    RETURN_ON_ERROR(ads_mock_transmit(handle->i2c_dev_handle, buf, 6, ADS7128_I2C_TIMEOUT));
 
     if(alert_cfg->route_to_alert_pin){
-        RETURN_ON_ERROR(ads_transmit(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SET_BIT, ALERT_CH_SEL_ADDRESS, 1 << (channel - 1)}, 3, ADS7128_I2C_TIMEOUT));
+        RETURN_ON_ERROR(ads_mock_transmit(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SET_BIT, ALERT_CH_SEL_ADDRESS, 1 << (channel - 1)}, 3, ADS7128_I2C_TIMEOUT));
     } else {
-        RETURN_ON_ERROR(ads_transmit(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_CLEAR_BIT, ALERT_CH_SEL_ADDRESS, 1 << (channel - 1)}, 3, ADS7128_I2C_TIMEOUT));
+        RETURN_ON_ERROR(ads_mock_transmit(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_CLEAR_BIT, ALERT_CH_SEL_ADDRESS, 1 << (channel - 1)}, 3, ADS7128_I2C_TIMEOUT));
     }
 
     return ESP_OK;
@@ -62,7 +62,7 @@ static esp_err_t _ads_update_ch_analog_value(ads_handle_t handle, uint8_t *chann
     // Odczyt 16 bajtów zaczynając od RECENT_CH0_LSB (0xA0) do MSB kanału 7 (0xAF)
     uint8_t buf[2] = {0};
 
-    esp_err_t ret = ads_transmit_receive(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SINGLE_REGISTER_READ, RECENT_CH0_LSB_ADDRESS + (ch - 1) * 2}, 2, buf, 2, ADS7128_I2C_TIMEOUT);
+    esp_err_t ret = ads_mock_transmit_receive(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SINGLE_REGISTER_READ, RECENT_CH0_LSB_ADDRESS + (ch - 1) * 2}, 2, buf, 2, ADS7128_I2C_TIMEOUT);
     if (ret == ESP_OK) {
         handle->recent_analog_values[ch - 1] = buf[0] | (buf[1] << 8);
     }
@@ -73,7 +73,7 @@ static esp_err_t _ads_update_ch_analog_value(ads_handle_t handle, uint8_t *chann
 
 static esp_err_t _ads_update_recent_gpi_values(ads_handle_t handle){
     uint8_t buf[1] = {0};
-    esp_err_t ret = ads_transmit_receive(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SINGLE_REGISTER_READ, GPI_VALUE_ADDRESS}, 2, buf, 1, ADS7128_I2C_TIMEOUT);
+    esp_err_t ret = ads_mock_transmit_receive(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SINGLE_REGISTER_READ, GPI_VALUE_ADDRESS}, 2, buf, 1, ADS7128_I2C_TIMEOUT);
     if (ret == ESP_OK) {
        memcpy(&handle->recent_gpi_values, buf, 1);
     }
@@ -82,10 +82,10 @@ static esp_err_t _ads_update_recent_gpi_values(ads_handle_t handle){
 
 static esp_err_t _ads_check_alert(ads_handle_t handle, uint8_t* channel){
     uint8_t buf = 0;
-    RETURN_ON_ERROR(ads_transmit_receive(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SINGLE_REGISTER_READ, EVENT_FLAG_ADDRESS}, 2, &buf, 1, ADS7128_I2C_TIMEOUT));
+    RETURN_ON_ERROR(ads_mock_transmit_receive(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SINGLE_REGISTER_READ, EVENT_FLAG_ADDRESS}, 2, &buf, 1, ADS7128_I2C_TIMEOUT));
     *channel = __builtin_ctz(buf);
-    RETURN_ON_ERROR(ads_transmit(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_CLEAR_BIT, EVENT_HIGH_FLAG_ADDRESS, 1<<(*channel)}, 3, ADS7128_I2C_TIMEOUT));
-    RETURN_ON_ERROR(ads_transmit(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_CLEAR_BIT, EVENT_LOW_FLAG_ADDRESS, 1<<(*channel)}, 3, ADS7128_I2C_TIMEOUT));
+    RETURN_ON_ERROR(ads_mock_transmit(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_CLEAR_BIT, EVENT_HIGH_FLAG_ADDRESS, 1<<(*channel)}, 3, ADS7128_I2C_TIMEOUT));
+    RETURN_ON_ERROR(ads_mock_transmit(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_CLEAR_BIT, EVENT_LOW_FLAG_ADDRESS, 1<<(*channel)}, 3, ADS7128_I2C_TIMEOUT));
 
     return ESP_OK;
 }

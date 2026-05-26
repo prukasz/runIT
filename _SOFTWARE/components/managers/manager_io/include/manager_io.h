@@ -89,34 +89,34 @@ status_rep_t sys_io_set_global_protection(bool is_enabled);
  * - Bits 0..7  : Pin Index (0-63)
  */
 #define SYS_IO_MAKE_PIN(port, pin) ((((uint32_t)(port)) << 8) | ((pin) & 0xFF))
-#define SYS_IO_GET_PORT(pin32) ((uint8_t)(((pin32) >> 8) & 0xFF))
-#define SYS_IO_GET_MASK(pin32) (1ULL << ((pin32) & 0x3F))
+#define SYS_IO_GET_PORT(pin) ((uint8_t)(((pin) >> 8) & 0xFF))
+#define SYS_IO_GET_MASK(pin) (1ULL << ((pin) & 0xFF))
 
-#define SYS_GPIO_SET_MODE(pin32, mode) \
-    sys_gpio_set_mode(SYS_IO_GET_PORT(pin32), SYS_IO_GET_MASK(pin32), (mode))
+#define SYS_GPIO_SET_MODE(pin, mode) \
+    sys_gpio_set_mode(SYS_IO_GET_PORT(pin), SYS_IO_GET_MASK(pin), (mode))
 
-#define SYS_GPIO_SET_LEVEL(pin32, level) \
-    sys_gpio_set_level(SYS_IO_GET_PORT(pin32), SYS_IO_GET_MASK(pin32), (level))
+#define SYS_GPIO_SET_LEVEL(pin, level) \
+    sys_gpio_set_level(SYS_IO_GET_PORT(pin), SYS_IO_GET_MASK(pin), (level))
 
-#define SYS_GPIO_READ_LEVEL(pin32, out_level) \
-    sys_gpio_read_level(SYS_IO_GET_PORT(pin32), SYS_IO_GET_MASK(pin32), (out_level))
+#define SYS_GPIO_READ_LEVEL(pin, out_level) \
+    sys_gpio_read_level(SYS_IO_GET_PORT(pin), SYS_IO_GET_MASK(pin), (out_level))
 
-#define SYS_GPIO_TOGGLE(pin32) \
-    sys_gpio_toggle(SYS_IO_GET_PORT(pin32), SYS_IO_GET_MASK(pin32))
+#define SYS_GPIO_TOGGLE(pin) \
+    sys_gpio_toggle(SYS_IO_GET_PORT(pin), SYS_IO_GET_MASK(pin))
 
-#define SYS_GPIO_REGISTER_CALLBACK(pin32, mode, cb, arg) \
-    sys_gpio_register_callback(SYS_IO_GET_PORT(pin32), SYS_IO_GET_MASK(pin32), (mode), (cb), (arg))
+#define SYS_GPIO_REGISTER_CALLBACK(pin, mode, cb, arg) \
+    sys_gpio_register_callback(SYS_IO_GET_PORT(pin), SYS_IO_GET_MASK(pin), (mode), (cb), (arg))
 
-#define SYS_IO_SET_PWM_DUTY(pin32, duty) \
-    sys_io_set_pwm_duty(SYS_IO_GET_PORT(pin32), SYS_IO_GET_MASK(pin32), (duty))
+#define SYS_IO_SET_PWM_DUTY(pin, duty) \
+    sys_io_set_pwm_duty(SYS_IO_GET_PORT(pin), SYS_IO_GET_MASK(pin), (duty))
 
-#define SYS_IO_SET_PWM_FREQ(pin32, freq) \
-    sys_io_set_pwm_freq(SYS_IO_GET_PORT(pin32), SYS_IO_GET_MASK(pin32), (freq))
+#define SYS_IO_SET_PWM_FREQ(pin, freq) \
+    sys_io_set_pwm_freq(SYS_IO_GET_PORT(pin), SYS_IO_GET_MASK(pin), (freq))
 
-#define SYS_IO_ADC_READ(pin32, out_mv) \
-    sys_io_adc_read(SYS_IO_GET_PORT(pin32), SYS_IO_GET_MASK(pin32), (out_mv))
+#define SYS_IO_ADC_READ(pin, out_mv) \
+    sys_io_adc_read(SYS_IO_GET_PORT(pin), SYS_IO_GET_MASK(pin), (out_mv), 1)
 
-#define SYS_IO_ADC_REGISTER_CALLBACK(pin32, config) \
-    sys_io_adc_register_callback(SYS_IO_GET_PORT(pin32), SYS_IO_GET_MASK(pin32), (config))
+#define SYS_IO_ADC_REGISTER_CALLBACK(pin, config) \
+    sys_io_adc_register_callback(SYS_IO_GET_PORT(pin), SYS_IO_GET_MASK(pin), (config))
 
 

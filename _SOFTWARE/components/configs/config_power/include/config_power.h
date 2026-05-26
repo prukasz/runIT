@@ -1,9 +1,8 @@
 #pragma once 
-#include <stdint.h>
-
+#include "status.h"
+              // The specific handle/struct to pass to it
 #define MANAGER_PWR_PACKET_TYPE_POWER_CONFIG 0x01
 #define MANAGER_PWR_PACKET_TYPE_REGULATOR_CONFIG 0x02
-
 typedef struct {
     uint32_t output_voltage_expected_mv;
     uint32_t current_limit_ma; 
@@ -11,7 +10,7 @@ typedef struct {
     bool off_on_fault; 
     uint8_t reg_num; // 0 or 1
     bool output_enable;
-} sys_pwr_cfg_regulator_t;   
+} m_pwr_cfg_pkt_regulator_t;   
 
 typedef struct {
     uint32_t input_voltage_expected_mv;
@@ -43,4 +42,4 @@ typedef struct {
         uint32_t over_budget_reg_1:1;
         uint32_t _reserved:28;
     } behavior_on_critical;
-} sys_pwr_cfg_power_t;
+} m_pwr_cfg_pkt_limits_t;

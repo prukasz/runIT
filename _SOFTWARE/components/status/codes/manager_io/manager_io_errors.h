@@ -1,14 +1,23 @@
 #pragma once 
-#include "provider_gpio_expander_errors.h"
 
-#define MANAGER_IO_OWNER_MAP(X) \
-    X( OWNER_MANAGER_IO, 0xD000, "OWNER_MANAGER_IO")\
-    PROVIDER_GPIO_EXPANDER_OWNER_MAP(X)
 
-#define MANAGER_IO_ERROR_MAP(X)\
-    X(ERR_MANAGER_IO_BASE,        0xD000, "ERR_MANAGER_IO_BASE")\
-    X(ERR_MANAGER_IO_NO_FREE_PORT, 0xD001, "No free IO port available")\
-    X(ERR_MANAGER_IO_INVALID_PORT, 0xD002, "Invalid IO port ID")\
-    X(ERR_MANAGER_IO_FUNC_NULL,    0xD003, "IO port function is NULL")\
-    X(ERR_MANAGER_IO_PIN_PROTECTED,0xD004, "IO pin operation blocked by protection lock")\
-    PROVIDER_GPIO_EXPANDER_ERROR_MAP(X)
+#define IO_OWNER_MAP(X) \
+    X(OWNER_IO_MANAGER, 0xe200, "OWNER_IO_MANAGER")\
+    X(OWNER_IO_PORT_INIT, 0xe201, "OWNER_IO_PORT_INIT")\
+    X(OWNER_IO_PORT_SET, 0xe202, "OWNER_IO_PORT_SET")\
+    X(OWNER_IO_PORT_READ, 0xe203, "OWNER_IO_PORT_READ")\
+    X(OWNER_IO_PORT_TOGGLE, 0xe204, "OWNER_IO_PORT_TOGGLE")\
+    X(OWNER_IO_PORT_CALLBACK, 0xe205, "OWNER_IO_PORT_CALLBACK")\
+    X(OWNER_IO_PORT_CONFIGURE, 0xe206, "OWNER_IO_PORT_CONFIGURE")
+
+#define IO_ERROR_MAP(X) \
+    X(IO_ERR_BASE, 0xE200, "IO_ERR_BASE")\
+    X(IO_ERR_NO_FREE_PORT, 0xE201, "No free IO port available")\
+    X(IO_ERR_PORT_INVALID, 0xE202, "Invalid IO port ID")\
+    X(IO_ERR_FEATURE_UNSUPPORTED, 0xE203, "IO feature is unsupported")\
+    X(IO_ERR_PIN_PROTECTED, 0xE204, "IO pin operation blocked by protection lock")\
+    X(IO_ERR_PIN_UNSUPPORTED, 0xE205, "IO pin is unsupported")\
+    X(IO_ERR_MODE_UNSUPPORTED, 0xE206, "IO mode is unsupported")\
+    X(IO_ERR_UPDATE_FAILED, 0xE207, "IO update failed")\
+    X(IO_ERR_PIN_IN_USE, 0xE208, "IO pin is already in use")\
+    X(IO_ERR_ARG_INVALID, 0xE209, "Invalid argument provided for IO operation")

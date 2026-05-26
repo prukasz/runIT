@@ -8,6 +8,7 @@
 #include "rik_error_codes.h"
 #include "manager_io_errors.h"
 #include "manager_power_errors.h"
+#include "providers_errors.h"
 
 // 1. Define the Global Maps (No trailing backslash on the last line!)
 #define GLOBAL_OWNER_MAP(X) \
@@ -16,7 +17,8 @@
     I2C_OWNER_MAP(X) \
     RIK_OWNER_MAP(X) \
     MANAGER_PWR_OWNER_MAP(X) \
-    MANAGER_IO_OWNER_MAP(X)
+    PROVIDER_OWNER_MAP(X)\
+    IO_OWNER_MAP(X)
 
 #define GLOBAL_ERROR_MAP(X) \
     X(ERR_OK, 0x0000, "OK") \
@@ -24,8 +26,8 @@
     X(ERR_ESP, 0x0100, "ESP_ERROR") \
     I2C_ERROR_MAP(X) \
     RIK_ERROR_MAP(X) \
-    MANAGER_PWR_ERROR_MAP(X) \
-    MANAGER_IO_ERROR_MAP(X)
+    PWR_ERROR_MAP(X) \
+    IO_ERROR_MAP(X)
 
 // 2. Generate the Enums
 #define X_ENUM(name, value, str_name) name = value,

@@ -124,16 +124,16 @@ static bool alert_active = false;
 static  void (*alert_callback)(void*) = NULL;
 static void* args;
 
-void set_ads_alert_callback(void (*cb)(void*), void* arg) {
+void ads_mock_add_alert_callback(void (*cb)(void*), void* arg) {
     alert_callback = cb;
     args = arg;
 }
 
-int ads_get_alert_pin_level(void) {
+int ads_mock_get_alert_pin_level(void) {
     return alert_active ? 0 : 1; 
 }
 
-void ads_simulate_voltage(uint8_t pin, uint16_t voltage) {
+void ads_mock_simulate_voltage(uint8_t pin, uint16_t voltage) {
     if (pin >= 8) return;
     
     // Zapisz LSB i MSB dla wybranego kanału do rejestrów RECENT
@@ -188,18 +188,7 @@ void ads_simulate_voltage(uint8_t pin, uint16_t voltage) {
     }
 }
 
-void init_ads_mock(void)
-{
-    memset(ads_registers, 0, sizeof(ads_registers));
-    
-    // Ustawienia początkowe rejestrów
-    ads_registers[ADS7128_REG_SYSTEM_STATUS] = 0x00;
-    ads_registers[ADS7128_REG_GENERAL_CFG]   = 0x00;
-    
-    ESP_LOGI(TAG, "ADS7128 mock initialized.");
-}
-
-esp_err_t ads_transmit(i2c_master_dev_handle_t handle, const uint8_t *write_buffer, size_t write_buffer_len, int xfer_timeout_ms)
+esp_err_t ads_mock_transmit(i2c_master_dev_handle_t handle, const uint8_t *write_buffer, size_t write_buffer_len, int xfer_timeout_ms)
 {
     if (write_buffer_len == 0) return ESP_ERR_INVALID_ARG;
 
@@ -233,7 +222,7 @@ esp_err_t ads_transmit(i2c_master_dev_handle_t handle, const uint8_t *write_buff
     return ESP_OK;
 }
 
-esp_err_t ads_transmit_receive(i2c_master_dev_handle_t handle, const uint8_t *write_buffer, size_t write_buffer_len, uint8_t *read_buffer, size_t read_buffer_len, int xfer_timeout_ms)
+esp_err_t ads_mock_transmit_receive(i2c_master_dev_handle_t handle, const uint8_t *write_buffer, size_t write_buffer_len, uint8_t *read_buffer, size_t read_buffer_len, int xfer_timeout_ms)
 {
     if (write_buffer_len == 0 || read_buffer_len == 0) return ESP_ERR_INVALID_ARG;
     // Założenie - write_buffer zawiera adres rejestru do odczytu
@@ -243,6 +232,8 @@ esp_err_t ads_transmit_receive(i2c_master_dev_handle_t handle, const uint8_t *wr
         reg_addr = write_buffer[1];
     }
 
+    //!!!!!!!
+    //czemu i dlaczego takie wartości z uint 8 porwnanie 
     if (reg_addr < ADS_REG_MAX_ADDR) {
         for (size_t i = 0; i < read_buffer_len && (reg_addr + i) < ADS_REG_MAX_ADDR; i++) {
             read_buffer[i] = ads_registers[reg_addr + i];

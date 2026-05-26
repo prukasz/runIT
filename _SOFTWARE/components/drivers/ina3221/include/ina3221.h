@@ -134,10 +134,13 @@ typedef struct
 
     /**
      * @brief User-defined callbacks for handling alerts
+     * Index mapping: (channel * 2 + (is_critical ? 1 : 0))
+     * - Index 0,2,4: Warning for CH1, CH2, CH3
+     * - Index 1,3,5: Critical for CH1, CH2, CH3
      */
-    void (*user_callback[2])(void *arg);
+    void (*user_callback[6])(void *arg);
 
-    void *user_callback_arg[2];
+    void *user_callback_arg[6];
 
     
     /*Flag for critical pin triggered*/
@@ -292,20 +295,20 @@ esp_err_t ina3221_get_sum_shunt_value(ina3221_handle_t handle, bool immediate);
  * @nosubgrouping Alert when average measurement(s) is greater than the set value
  * @param handle Device descriptor
  * @param channel Select channel value to set
- * @param current Value to set (mA) // max : 163800/shunt (mOhm)
+ * @param current Value to set (mA). Negative values are allowed for reverse current thresholds.
  * @return ESP_OK to indicate success
  */
-esp_err_t ina3221_set_critical_alert(ina3221_handle_t handle, ina3221_channel_t channel, uint32_t current_mA);
+esp_err_t ina3221_set_critical_alert(ina3221_handle_t handle, ina3221_channel_t channel, int32_t current_mA);
 
 /**
  * @brief Set Warning alert, update immidiately
  * Alert when average measurement(s) is greater
  * @param handle Device descriptor
  * @param channel Select channel value to set
- * @param current Value to set (mA)  // max : 163800/shunt (mOhm)
+ * @param current Value to set (mA). Negative values are allowed for reverse current thresholds.
  * @return ESP_OK to indicate success
  */
-esp_err_t ina3221_set_warning_alert(ina3221_handle_t handle, ina3221_channel_t channel, uint32_t current_mA);
+esp_err_t ina3221_set_warning_alert(ina3221_handle_t handle, ina3221_channel_t channel, int32_t current_mA);
 
 /**
  * @brief Set Sum Warning alert, update immidiately
@@ -332,10 +335,11 @@ void ina3221_cfg_periodic_reading(ina3221_handle_t handle, bool bus_voltage, boo
  * @param handle INA3221 handle
  * @param callback User callback function to be called when alert is triggered, can be NULL to just clear the callback
  * @param arg Argument to be passed to the user callback function
+ * @param channel Target channel (0-2 for CH1, CH2, CH3)
  * @param is_critical Whether the callback is for critical alerts (true) or warning alerts (false)
  * @note Callback invoked after driver task receives alert;
  */
-void ina3221_register_user_callback(ina3221_handle_t handle, void (*callback)(void *), void *arg, bool is_critical);
+void ina3221_register_user_callback(ina3221_handle_t handle, void (*callback)(void *), void *arg, uint8_t channel, bool is_critical);
 
 
 /**

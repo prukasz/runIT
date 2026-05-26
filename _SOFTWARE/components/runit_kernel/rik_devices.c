@@ -1,50 +1,78 @@
 #include "manager_i2c.h"
 #include "rik_devices.h"
-#include "rik_shared.h"
-#include "ina3221.h"
-#include "tps55289.h"
-#include "tca6424a_mock.h"
-#include "provider_gpio_expander.h"
 #include "manager_io.h"
 #include "rtos_utils.h"
+#include "rik_shared.h"
+#include "provider_gpio_expander.h"
 #include "provider_adc_expander.h"
-#include "ads7128_mock.h"
 #include "provider_gpio_esp.h"
+#include "provider_current_monitor.h"
+#include "provider_voltage_regulator.h"
+#include "sdkconfig.h"
+#include "tca6424a_mock.h"
+#include "ads7128_mock.h"
 
-#define TCA_MOCK
-#define TPS_MOCK
+#define TAG __FILE_NAME__
 
-uint8_t rik_ina_id;
+uint8_t rik_current_monitor_id;
 uint8_t rik_gpio_expander_id;
-uint8_t rik_tps_0_id;
-uint8_t rik_tps_1_id;
+uint8_t rik_vreg0_id;
+uint8_t rik_vreg1_id;
 
 
 uint8_t rik_gpio_expander_port_id = 0xFF; //invalid port id as default
 uint8_t rik_adc_expander_port_id = 0xFF; //invalid port id as default
+uint8_t rik_gpio_esp_port_id = 0xFF; //invalid port id as default
 
 static void* gpio_expander_handle = NULL;
 static void* adc_expander_handle = NULL;
-static ina3221_handle_t ina3221_handle = NULL;
-static tps55289_handle_t tps55289_handle_0 = NULL;
-static tps55289_handle_t tps55289_handle_1 = NULL;
+static void* current_monitor_handle = NULL;
+static void* vreg0_handle = NULL;
+static void* vreg1_handle = NULL;
 
 
-#define TAG __FILE_NAME__
+status_rep_t rik_gpio_esp_start(void){
+    esp_err_t err = p_gpio_esp_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize GPIO ESP provider");
+        return STA_C(err, OWNER_RIK_DRIVER_INIT, 0);
+    }
+    STA_RET_ON_ERR(manager_io_register_new_port(
+        &(io_port_dispatch_t){
+            .mode_func = &p_gpio_esp_set_pin_mode,
+            .set_func = &p_gpio_esp_set_level,
+            .read_func = &p_gpio_esp_read_level,
+            .toggle_func = &p_gpio_esp_pin_toggle,
+            .callback_add_func = &p_gpio_esp_register_callback,
+            .pwm_set_duty_func = NULL,
+            .pwm_set_freq_func = NULL,
+            .adc_read_func = &p_gpio_esp_adc_read,
+            .adc_callback_add_func = &p_gpio_esp_adc_register_callback,
+            .dereffered_update = &p_gpio_esp_suppress_updates,
+            .protected_pins = 0,
+        },
+        &rik_gpio_esp_port_id
+    ));
+    
+    ESP_LOGI(TAG, "GPIO ESP provider started with port ID %d", rik_gpio_esp_port_id);
+    return STA_OK;
+}
 
 
 status_rep_t rik_gpio_expander_start(uint8_t i2c_addres, bool bus_num){
 
-    #ifndef TCA_MOCK
-        STA_RET_ON_ESP_ERR(m_i2c_device_present(bus_num, i2c_addres), OWNER_RIK_DRIVER_INIT_TCA6424A, i2c_addres);
+#if !CONFIG_USE_MOCK_TCA6424A
+        if(!STA_IS_OK(m_i2c_device_present(bus_num, i2c_addres))) {
+            return STA_C(ERR_I2C_DEV_NOT_FOUND, OWNER_RIK_DRIVER_INIT_TCA6424A, i2c_addres);
+        }
         ESP_LOGI(TAG, "TCA6424A detected on bus %d at address 0x%02X", bus_num ? 1 : 0, i2c_addres);
-    #endif
-    gpio_expander_handle = provider_gpio_expander_new_handle(i2c_addres);
+#endif
+    gpio_expander_handle = p_gpio_expander_new(i2c_addres);
     if (!gpio_expander_handle) return STA_C(ESP_ERR_NO_MEM, OWNER_RIK_DRIVER_INIT_TCA6424A, i2c_addres);
 
-    i2c_device_config_t* dev_config = provider_gpio_expander_get_i2c_dev_config();
-    i2c_master_dev_handle_t*  master_dev_handle = provider_gpio_expander_get_i2c_dev_handle();
-    TaskHandle_t task_handle = provider_gpio_expander_get_task_handle();
+    i2c_device_config_t* dev_config = p_gpio_expander_get_i2c_dev_config();
+    i2c_master_dev_handle_t*  master_dev_handle = p_gpio_expander_get_i2c_dev_handle();
+    TaskHandle_t task_handle = p_gpio_expander_get_task_handle();
 
     STA_RET_ON_ERR(m_i2c_add_driver(
         bus_num, 
@@ -59,72 +87,121 @@ status_rep_t rik_gpio_expander_start(uint8_t i2c_addres, bool bus_num){
     
     STA_RET_ON_ERR(manager_io_register_new_port(
         &(io_port_dispatch_t){
-            .mode_func = &_sys_expander_configure_pins,
-            .set_func = &_sys_io_expander_set_pin,
-            .read_func = &_sys_io_expander_read_pin,
-            .toggle_func = &_sys_io_expander_toggle_pin,
-            .callback_add_func = &_sys_expander_gpio_set_callback,
+            .mode_func = &p_gpio_expander_configure_pins,
+            .set_func = &p_gpio_expander_set_pins,
+            .read_func = &p_gpio_epander_read_pin,
+            .toggle_func = &p_gpio_expander_toggle_pin,
+            .callback_add_func = &p_gpio_expander_set_pin_callback,
             .pwm_set_duty_func = NULL,
             .pwm_set_freq_func = NULL,
             .adc_read_func = NULL,
             .adc_callback_add_func = NULL,
             .protected_pins = 0,
-            .dereffered_update = _sys_expander_gpio_delay_updates
+            .dereffered_update = p_gpio_expander_suppress_updates
         },
         &rik_gpio_expander_port_id
     ));
-    tca_mock_set_intr_callback(provider_gpio_expander_int_callback, gpio_expander_handle);
-    sys_gpio_set_mode(0, 1, SYS_GPIO_MODE_INPUT); // Set pin 0 as input for PD_INT // Register callback for falling edge on pin 0
+#if CONFIG_USE_MOCK_TCA6424A
+        tca_mock_set_intr_callback(provider_gpio_expander_int_callback, gpio_expander_handle);
+#endif
     ESP_LOGI(TAG, "GPIO expander started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_addres);
     return STA_OK;
 }
 
 
-status_rep_t rik_i2c_start_ina3221(uint8_t i2c_addres, bool bus_num){
-
-    STA_RET_ON_ERR(m_i2c_device_present(bus_num, i2c_addres));
+status_rep_t rik_current_monitor_start(uint8_t i2c_addres, bool bus_num){
+#if CONFIG_CONNECT_INA3221
+    if (!STA_IS_OK(m_i2c_device_present(bus_num, i2c_addres))) {
+        return STA_C(ERR_I2C_DEV_NOT_FOUND, OWNER_RIK_DRIVER_INIT_INA3221, i2c_addres);
+    }
     ESP_LOGI(TAG, "INA3221 detected on bus %d at address 0x%02X", bus_num ? 1 : 0, i2c_addres);
+#else
+    return STA_C(IO_ERR_FEATURE_UNSUPPORTED, OWNER_RIK_DRIVER_INIT_CURRENT_MONITOR, i2c_addres);
+#endif
+    i2c_device_config_t* dev_config = p_current_monitor_get_i2c_dev_config();
+    i2c_master_dev_handle_t*  master_dev_handle = p_current_monitor_get_i2c_dev_handle();
+    TaskHandle_t task_handle = p_current_monitor_get_task_handle();
 
-    ina3221_handle = ina3221_new(i2c_addres);
-    if (!ina3221_handle) return STA_C(ESP_ERR_NO_MEM, OWNER_RIK_DRIVER_INIT_INA3221, i2c_addres);
+    current_monitor_handle = p_current_monitor_new(i2c_addres);
 
-    STA_RET_ON_ERR(m_i2c_add_driver(bus_num, ina3221_handle->i2c_device_config,
-        &ina3221_handle->i2c_master_dev_handle, (void*)ina3221_handle,
-        ina3221_handle->driver_task_handle, true, &rik_ina_id));
+    if (!current_monitor_handle) return STA_C(ESP_ERR_NO_MEM, OWNER_RIK_DRIVER_INIT_CURRENT_MONITOR, i2c_addres);
+
+    STA_RET_ON_ERR(m_i2c_add_driver(
+        bus_num,
+        *dev_config,
+        master_dev_handle,
+        current_monitor_handle,
+        task_handle,
+        true,
+        &rik_current_monitor_id
+    ));
     ESP_LOGI(TAG, "INA3221 started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_addres);
     return STA_OK;
 }
 
-status_rep_t rik_i2c_start_tps55289(uint8_t i2c_adders_0, uint8_t i2c_adders_1, bool bus_num){
-    #ifndef TPS_MOCK
-        STA_RET_ON_ESP_ERR(m_i2c_device_present(bus_num, i2c_adders_0), OWNER_RIK_DRIVER_INIT_TPS55289, i2c_adders_0);
-        STA_RET_ON_ESP_ERR(m_i2c_device_present(bus_num, i2c_adders_1), OWNER_RIK_DRIVER_INIT_TPS55289, i2c_adders_1);
-    #endif
-    tps55289_handle_0 = tps55289_new(i2c_adders_0);
-    if (!tps55289_handle_0) return STA_C(ESP_ERR_NO_MEM, OWNER_RIK_DRIVER_INIT_TPS55289, i2c_adders_0);
-    tps55289_handle_1 = tps55289_new(i2c_adders_1);
-    if (!tps55289_handle_1) return STA_C(ESP_ERR_NO_MEM, OWNER_RIK_DRIVER_INIT_TPS55289, i2c_adders_1);
+status_rep_t rik_regs_start(uint8_t i2c_adders_0, uint8_t i2c_adders_1, bool bus_num){
+#if !CONFIG_USE_MOCK_TPS55289
+        STA_RET_ON_ERR(m_i2c_device_present(bus_num, i2c_adders_0));
+        STA_RET_ON_ERR(m_i2c_device_present(bus_num, i2c_adders_1));
+#endif
+
+
+    i2c_device_config_t* dev_config;
+    i2c_master_dev_handle_t*  master_dev_handle;
+    TaskHandle_t task_handle;
+
+#if CONFIG_CONNECT_TPS55289_0
+    vreg0_handle = p_vreg_0_new();
+    if (!vreg0_handle) return STA_C(ESP_ERR_NO_MEM, OWNER_RIK_DRIVER_INIT_TPS55289, i2c_adders_0);
     
-    STA_RET_ON_ERR(m_i2c_add_driver(bus_num, tps55289_handle_0->i2c_device_config,
-        &tps55289_handle_0->i2c_master_dev_handle, (void*)tps55289_handle_0,
-        tps55289_handle_0->driver_task_handle, true, &rik_tps_0_id));
+    dev_config = p_vreg_get_i2c_dev_config(0);
+    master_dev_handle = p_vreg_get_i2c_dev_handle(0);
+    task_handle = p_vreg_get_task_handle(0);
+
+    STA_RET_ON_ERR(m_i2c_add_driver(
+        bus_num, 
+        *dev_config,
+        master_dev_handle,
+        vreg0_handle,
+        task_handle, 
+        true,
+        &rik_vreg0_id
+    ));
+    ESP_LOGI(TAG, "TPS55289 regulator 0 started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_adders_0);
+#endif
+
+#if CONFIG_CONNECT_TPS55289_1
+    vreg1_handle = p_vreg_1_new();
+    if (!vreg1_handle) return STA_C(ESP_ERR_NO_MEM, OWNER_RIK_DRIVER_INIT_TPS55289, i2c_adders_1);
     
-    STA_RET_ON_ERR(m_i2c_add_driver(bus_num, tps55289_handle_1->i2c_device_config,
-        &tps55289_handle_1->i2c_master_dev_handle, (void*)tps55289_handle_1,
-        tps55289_handle_1->driver_task_handle, true, &rik_tps_1_id));
-    ESP_LOGI(TAG, "TPS55289 started on bus %d with addresses 0x%02X and 0x%02X", bus_num ? 1 : 0, i2c_adders_0, i2c_adders_1);
+    dev_config = p_vreg_get_i2c_dev_config(1);
+    master_dev_handle = p_vreg_get_i2c_dev_handle(1);
+    task_handle = p_vreg_get_task_handle(1);
+
+    STA_RET_ON_ERR(m_i2c_add_driver(
+        bus_num, 
+        *dev_config,
+        master_dev_handle,
+        vreg0_handle,
+        task_handle, 
+        true,
+        &rik_vreg1_id
+    ));
+
+    ESP_LOGI(TAG, "TPS55289 regulator 1 started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_adders_1);
+#endif
     return STA_OK;
 }
 
 extern void ads_isr_callback(void* arg);
 
-status_rep_t rik_i2c_start_adc(uint8_t i2c_addres, bool bus_num){
-    adc_expander_handle = provider_adc_expander_new_handle(i2c_addres);
+status_rep_t rik_adc_expander_start(uint8_t i2c_addres, bool bus_num){
+    adc_expander_handle = p_adc_expander_new_handle(i2c_addres);
     if (!adc_expander_handle) return STA_C(ESP_ERR_NO_MEM, 0, i2c_addres);
 
-    i2c_device_config_t* dev_config = provider_adc_expander_get_i2c_dev_config();
-    i2c_master_dev_handle_t*  master_dev_handle = provider_adc_expander_get_i2c_dev_handle();
-    TaskHandle_t task_handle = provider_adc_expander_get_task_handle();
+    i2c_device_config_t* dev_config = p_adc_expander_get_i2c_dev_config();
+    i2c_master_dev_handle_t*  master_dev_handle = p_adc_expander_get_i2c_dev_handle();
+    TaskHandle_t task_handle = p_adc_expander_get_task_handle();
 
     STA_RET_ON_ERR(m_i2c_add_driver(
         bus_num, 
@@ -145,28 +222,15 @@ status_rep_t rik_i2c_start_adc(uint8_t i2c_addres, bool bus_num){
             .callback_add_func = NULL,
             .pwm_set_duty_func = NULL,
             .pwm_set_freq_func = NULL,
-            .adc_read_func = &_sys_adc_expander_read,
-            .adc_callback_add_func = &_sys_adc_expander_register_callback,
-            .dereffered_update = &_sys_adc_expander_delay_updates,
+            .adc_read_func = &p_adc_expander_read_voltage,
+            .adc_callback_add_func = &p_adc_expander_register_callback,
+            .dereffered_update = &p_adc_expander_delay_updates,
             .protected_pins = 0,
         },
         &rik_adc_expander_port_id
     ));
 
-     sys_io_adc_int_config_t adc_int_config = {
-          .adc_event_counter_threshold = 1,
-            .adc_threshold_down_mv = 2000,            .adc_threshold_hysteresis_mv = 15,
-            .adc_threshold_up_mv = 3000,  
-            .adc_window_mode = SYS_GPIO_ADC_WINDOW_OUTSIDE,
-            .callback = NULL,
-            .arg = NULL
-    };
-
-    sys_io_adc_register_callback(rik_adc_expander_port_id, 1, &adc_int_config);
-    init_ads_mock();
-    set_ads_alert_callback(ads_isr_callback, adc_expander_handle);
-
-    
+    ads_mock_add_alert_callback(ads_isr_callback, adc_expander_handle);
     ESP_LOGI(TAG, "ADC expander started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_addres);
     return STA_OK;
 }

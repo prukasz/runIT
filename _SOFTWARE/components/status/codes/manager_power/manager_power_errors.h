@@ -1,14 +1,22 @@
 #pragma once
-#include "provider_current_monitor_errors.h"
-#include "provider_voltage_regulator_errors.h"
 
 #define MANAGER_PWR_OWNER_MAP(X) \
-    X( OWNER_MANAGER_PWR, 0xB000, "OWNER_MANAGER_PWR")\
-    PROVIDER_CURRENT_MONITOR_OWNER_MAP(X) \
-    PROVIDER_VREG_OWNER_MAP(X) 
+    X(OWNER_MANAGER_PWR, 0xe300, "OWNER_MANAGER_PWR") \
+    X(OWNER_MANAGER_PWR_READ, 0xe301, "OWNER_MANAGER_PWR_READ") \
+    X(OWNER_MANAGER_PWR_SET_PARAM, 0xe302, "OWNER_MANAGER_PWR_SET_PARAM") \
+    X(OWNER_MANAGER_PWR_EN, 0xe303, "OWNER_MANAGER_PWR_EN") \
+    X(OWNER_MANAGER_PWR_REGISTER_CALLBACK, 0xe304, "OWNER_MANAGER_PWR_REGISTER_CALLBACK") \
+    X(OWNER_MANAGER_PWR_PARSE_PACKET, 0xe305, "OWNER_MANAGER_PWR_PARSE_PACKET") 
 
-#define MANAGER_PWR_ERROR_MAP(X)\
-    X(ERR_MANAGER_PWR_BASE,        0xB000, "ERR_MANAGER_PWR_BASE")\
-    PROVIDER_CURRENT_MONITOR_ERROR_MAP(X)\
-    PROVIDER_VREG_ERROR_MAP(X) 
-    
+
+#define PWR_ERROR_MAP(X) \
+    X(PWR_ERR_BASE, 0xE300, "PWR_ERR_BASE")\
+    X(PWR_ERR_DEVICE_NOT_FOUND, 0xE301, "PWR device not found")\
+    X(PWR_ERR_INVALID_PARAM, 0xE302, "Invalid PWR configuration parameter")\
+    X(PWR_ERR_FEATURE_UNSUPPORTED, 0xE303, "PWR feature is unsupported at the moment")\
+    X(PWR_ERR_FEATURE_PROTECTED, 0xE304, "PWR operation blocked")\
+    X(PWR_ERR_MODE_UNSUPPORTED, 0xE305, "PWR mode is unsupported")\
+    X(PWR_ERR_UPDATE_FAILED, 0xE307, "PWR update failed")\
+    X(PWE_ERR_PARSE_NOT_FOUND, 0xE308, "PWR config packet parse failed - no matching config found")
+
+

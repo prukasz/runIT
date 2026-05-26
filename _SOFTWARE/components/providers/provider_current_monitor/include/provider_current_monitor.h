@@ -1,5 +1,6 @@
 #pragma once
 #include "status.h"
+#include "driver/i2c_master.h"
 
 #define INA_BUS_TPS1 0 
 #define INA_BUS_VSUP 1
@@ -9,39 +10,39 @@
 
 #define INA_I2C_ADDR 0x40
 
-/**
- * @brief Configure ina3221 to runIT and bind handle do prepared functions
- */
-status_rep_t sys_pwr_init_monitor(void* handle);
-/**
- * @brief Get the bus voltage in millivolts. If force_update is true, force read
- * @param bus_num Bus number (0-2)
- * @param voltage_mv Pointer to uint32_t to store the voltage in millivolts
- */
-status_rep_t sys_pwr_get_voltage(uint8_t bus_num, uint32_t* voltage_mv, bool force_update);
+
+void* p_current_monitor_new(uint8_t i2c_addr);
+
+i2c_device_config_t* p_current_monitor_get_i2c_dev_config(void);
+i2c_master_dev_handle_t*p_current_monitor_get_i2c_dev_handle(void);
+TaskHandle_t p_current_monitor_get_task_handle(void);
 
 
-status_rep_t sys_pwr_set_warning_reg_0(uint32_t power_mw, uint32_t expected_voltage_mv);
+status_rep_t p_current_monitor_set_crit(uint8_t channel, int32_t current_mA);
+status_rep_t p_current_monitor_set_crit(uint8_t channel, int32_t current_mA);
+status_rep_t p_current_monitor_set_warning(uint8_t channel, int32_t current_mA);
 
-status_rep_t sys_pwr_set_crit_reg_0(uint32_t power_mw, uint32_t expected_voltage_mv);
+status_rep_t p_current_monitor_get_voltage(uint8_t channel, uint32_t* voltage_mv, bool force_update);
 
-// --- REG 1 (TPS1) ---
-status_rep_t sys_pwr_set_warning_reg_1(uint32_t power_mw, uint32_t expected_voltage_mv);
-
-status_rep_t sys_pwr_set_crit_reg_1(uint32_t power_mw, uint32_t expected_voltage_mv);
-
-// --- TOTAL (VSUP) ---
-status_rep_t sys_pwr_set_warning_total(uint32_t power_mw, uint32_t expected_voltage_mv);
-
-status_rep_t sys_pwr_set_crit_total(uint32_t power_mw, uint32_t expected_voltage_mv);
-
+status_rep_t p_current_monitor_get_current(uint8_t channel, int32_t* current_ma, bool force_update);
 
 /**
- * @brief Gets the calculated Current in milliamps
- * @param channel_num Channel number (0-2)
+ * @brief Register a warning alert callback for a specific channel
+ * @param channel Target channel (0-2)
+ * @param callback Function to invoke when warning alert occurs on this channel
+ * @param ctx User context passed to callback
+ * @return Status code
  */
-status_rep_t sys_pwr_get_current(uint8_t channel_num, uint32_t* current_ma, bool force_update);
+status_rep_t p_current_monitor_register_warning_callback(uint8_t channel, void (*callback)(void*), void* ctx);
 
+/**
+ * @brief Register a critical alert callback for a specific channel
+ * @param channel Target channel (0-2)
+ * @param callback Function to invoke when critical alert occurs on this channel
+ * @param ctx User context passed to callback
+ * @return Status code
+ */
+status_rep_t p_current_monitor_register_critical_callback(uint8_t channel, void (*callback)(void*), void* ctx);
 
 extern void ina3221_isr_callback_critical(void *arg);
 extern void ina3221_isr_callback_warning(void *arg);

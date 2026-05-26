@@ -288,29 +288,29 @@ void ina3221_cfg_periodic_reading(ina3221_handle_t handle, bool bus_voltage, boo
     handle->to_update.read_status_periodic = status;
 }
 
-esp_err_t ina3221_set_critical_alert(ina3221_handle_t handle, ina3221_channel_t channel, uint32_t current_mA)
+esp_err_t ina3221_set_critical_alert(ina3221_handle_t handle, ina3221_channel_t channel, int32_t current_mA)
 {
     CHECK_ARG(handle);
 
-    float limit_mv = (current_mA * handle->shunt_val_cfg[channel]) / 1000.0f;
+    float limit_mv = ((float)current_mA * handle->shunt_val_cfg[channel]) / 1000.0f;
 
     int16_t raw_count = (int16_t)(limit_mv / 0.04f); // 40uV -> LSB
 
-    uint16_t reg_val = raw_count << 3; // Shift left by 3 to align with register format
+    uint16_t reg_val = ((uint16_t)raw_count) << 3; // Shift left by 3 to align with register format
 
     return _ina3221_write(handle, INA3221_REG_CRITICAL_ALERT_1 + channel * 2, reg_val);
 }
 
-esp_err_t ina3221_set_warning_alert(ina3221_handle_t handle, ina3221_channel_t channel, uint32_t current_mA)
+esp_err_t ina3221_set_warning_alert(ina3221_handle_t handle, ina3221_channel_t channel, int32_t current_mA)
 {
     CHECK_ARG(handle);
 
-    float limit_mv = (current_mA * handle->shunt_val_cfg[channel]) / 1000.0f;
+    float limit_mv = ((float)current_mA * handle->shunt_val_cfg[channel]) / 1000.0f;
 
     int16_t raw_count = (int16_t)(limit_mv / 0.04f); // 40uV -> LSB
-    ESP_LOGI(TAG, "Setting warning alert for channel %d: current=%.2fmA, limit_mv=%.2fmV, raw_count=%d", channel + 1, current_mA, limit_mv, raw_count);
+    ESP_LOGI(TAG, "Setting warning alert for channel %d: current=%ldmA, limit_mv=%.2fmV, raw_count=%d", channel + 1, (long)current_mA, limit_mv, raw_count);
 
-    uint16_t reg_val = raw_count << 3; // Shift left by 3 to align with register format
+    uint16_t reg_val = ((uint16_t)raw_count) << 3; // Shift left by 3 to align with register format
 
     return _ina3221_write(handle, INA3221_REG_WARNING_ALERT_1 + channel * 2, reg_val);
 }
@@ -396,17 +396,33 @@ void ina3221_task(void *arg)
                 }
             }
 
-            // 4. Handle Callbacks and Logging
+            // 4. Handle Callbacks and Logging - invoke per-channel per-alert-type callbacks
             if (handle->alert_critical) {
                 ESP_LOGW(TAG, "Critical Alert! CF1:%d CF2:%d CF3:%d", crit_flags[0], crit_flags[1], crit_flags[2]);
                 handle->alert_critical = false; 
-                if (handle->user_callback[0]) handle->user_callback[0](handle->user_callback_arg[0]);
+                // Invoke critical callbacks for each channel that triggered
+                for (int ch = 0; ch < 3; ch++) {
+                    if (crit_flags[ch]) {
+                        int idx = ch * 2 + 1; // Critical callback index for this channel
+                        if (handle->user_callback[idx]) {
+                            handle->user_callback[idx](handle->user_callback_arg[idx]);
+                        }
+                    }
+                }
             } 
             
             if (handle->alert_warning) {
                 ESP_LOGW(TAG, "Warning Alert! WF1:%d WF2:%d WF3:%d SUM:%d", warn_flags[0], warn_flags[1], warn_flags[2], sum_alert);
                 handle->alert_warning = false; 
-                if (handle->user_callback[1]) handle->user_callback[1](handle->user_callback_arg[1]);
+                // Invoke warning callbacks for each channel that triggered
+                for (int ch = 0; ch < 3; ch++) {
+                    if (warn_flags[ch]) {
+                        int idx = ch * 2; // Warning callback index for this channel
+                        if (handle->user_callback[idx]) {
+                            handle->user_callback[idx](handle->user_callback_arg[idx]);
+                        }
+                    }
+                }
             }
         } 
         else {
@@ -481,13 +497,14 @@ void ina3221_isr_callback_warning(void *arg)
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
-void ina3221_register_user_callback(ina3221_handle_t handle, void (*callback)(void *), void *arg, bool is_critical)
+void ina3221_register_user_callback(ina3221_handle_t handle, void (*callback)(void *), void *arg, uint8_t channel, bool is_critical)
 {
-    if (is_critical) {
-        handle->user_callback[0] = callback;
-        handle->user_callback_arg[0] = arg;
-    } else {
-        handle->user_callback[1] = callback;
-        handle->user_callback_arg[1] = arg;
+    if (channel > 2) {
+        ESP_LOGE(TAG, "Invalid channel %d, must be 0-2", channel);
+        return;
     }
+    // Map channel and alert type to callback index: (channel * 2 + (is_critical ? 1 : 0))
+    uint8_t idx = channel * 2 + (is_critical ? 1 : 0);
+    handle->user_callback[idx] = callback;
+    handle->user_callback_arg[idx] = arg;
 }

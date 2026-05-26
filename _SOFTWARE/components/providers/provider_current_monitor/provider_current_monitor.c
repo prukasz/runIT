@@ -5,106 +5,86 @@
 
 static ina3221_handle_t _ina_handle = NULL;
 
-status_rep_t sys_pwr_init_monitor(void* handle)
-{
-    if (!handle) {
-        return STA_C(ESP_ERR_INVALID_ARG, OWNER_PROVIDER_CURRENT_MONITOR_INIT, 0);
-    }
-
-    _ina_handle = (ina3221_handle_t)handle;
-    
-    STA_RET_ON_ESP_ERR(ina3221_set_options(_ina_handle, 1, 1 ,1), OWNER_PROVIDER_CURRENT_MONITOR_INIT, _ina_handle->i2c_device_config.device_address);
-    
-    STA_RET_ON_ESP_ERR(ina3221_enable_latch_pin(_ina_handle, true, true),
-    OWNER_PROVIDER_CURRENT_MONITOR_INIT, _ina_handle->i2c_device_config.device_address);
-    STA_RET_ON_ESP_ERR(ina3221_set_warning_alert(_ina_handle, 0, 200),
-    OWNER_PROVIDER_CURRENT_MONITOR_INIT, _ina_handle->i2c_device_config.device_address);
-    STA_RET_ON_ESP_ERR(ina3221_set_critical_alert(_ina_handle, 0, 1000),
-    OWNER_PROVIDER_CURRENT_MONITOR_INIT, _ina_handle->i2c_device_config.device_address);
-    return STA_OK;
+void* p_current_monitor_new(uint8_t i2c_addr) {
+    _ina_handle = ina3221_new(i2c_addr);
+    return _ina_handle;
 }
 
-static status_rep_t _calculate_limit_ma(uint8_t channel, uint32_t power_mw, uint32_t expected_voltage_mv, uint32_t *out_limit_ma)
-{
-    if (!_ina_handle) {
-        return STA_C(ESP_ERR_INVALID_STATE, OWNER_PROVIDER_CURRENT_MONITOR_SET_LIMITS, channel);
-    }
-
-    if (expected_voltage_mv == 0) {
-        uint32_t bus_mv = 0;
-        STA_RET_ON_ERR(sys_pwr_get_voltage(channel, &bus_mv, true));
-        expected_voltage_mv = (uint32_t)bus_mv;
-    }
-
-    if (expected_voltage_mv == 0) {
-        ESP_LOGE(TAG, "Cannot calculate limit for CH%d: Bus voltage is 0mV", channel);
-        return STA_C(ESP_ERR_INVALID_ARG, OWNER_PROVIDER_CURRENT_MONITOR_SET_LIMITS, channel);
-    }
-
-    *out_limit_ma = (power_mw * 1000) / expected_voltage_mv;
-    return STA_OK;
+i2c_device_config_t* p_current_monitor_get_i2c_dev_config(void){
+    return &(_ina_handle->i2c_device_config);
+}
+i2c_master_dev_handle_t*p_current_monitor_get_i2c_dev_handle(void){
+    return &(_ina_handle->i2c_master_dev_handle);
+}
+TaskHandle_t p_current_monitor_get_task_handle(void){
+    return _ina_handle->driver_task_handle;
 }
 
-static status_rep_t _set_alert(uint8_t channel, uint32_t power_mw, uint32_t expected_voltage_mv, bool is_critical)
+
+static status_rep_t _set_alert(uint8_t channel, int32_t current_mA, bool is_critical)
 {
-    uint32_t limit_ma = 0;
-    STA_RET_ON_ERR(_calculate_limit_ma(channel, power_mw, expected_voltage_mv, &limit_ma));
-    
-    ESP_LOGI(TAG, "Setting %s Limit for CH%d: %lu mA (%lu mW at %lu mV)", 
-             is_critical ? "CRIT" : "WARN", channel, limit_ma, power_mw, expected_voltage_mv);
+    if (!_ina_handle) return STA_C(PWR_ERR_DEVICE_NOT_FOUND, OWNER_PROVIDER_CURRENT_MONITOR, 0);
+    if (channel > 2) return STA_C(PWR_ERR_INVALID_PARAM, OWNER_PROVIDER_CURRENT_MONITOR, channel);
+
+    ESP_LOGI(TAG, "Setting %s current limit for CH%d: %ld mA", is_critical ? "CRIT" : "WARN", channel, (long)current_mA);
 
     if (is_critical) {
-        STA_RET_ON_ESP_ERR(ina3221_set_critical_alert(_ina_handle, channel, limit_ma), OWNER_PROVIDER_CURRENT_MONITOR_SET_LIMITS, channel);
+        STA_RET_ON_ESP_ERR(ina3221_set_critical_alert(_ina_handle, channel, current_mA), OWNER_PROVIDER_CURRENT_MONITOR, channel);
     } else {
-        STA_RET_ON_ESP_ERR(ina3221_set_warning_alert(_ina_handle, channel, limit_ma), OWNER_PROVIDER_CURRENT_MONITOR_SET_LIMITS, channel);
+        STA_RET_ON_ESP_ERR(ina3221_set_warning_alert(_ina_handle, channel, current_mA), OWNER_PROVIDER_CURRENT_MONITOR, channel);
     }
     return STA_OK;
 }
 
-// --- REG 0 (TPS0) ---
-status_rep_t sys_pwr_set_warning_reg_0(uint32_t power_mw, uint32_t expected_voltage_mv) {
-    return _set_alert(INA_BUS_TPS0, power_mw, expected_voltage_mv, false);
+status_rep_t p_current_monitor_set_warning(uint8_t channel, int32_t current_mA) {
+    return _set_alert(channel, current_mA, false);
 }
 
-status_rep_t sys_pwr_set_crit_reg_0(uint32_t power_mw, uint32_t expected_voltage_mv) {
-    return _set_alert(INA_BUS_TPS0, power_mw, expected_voltage_mv, true);
+status_rep_t p_current_monitor_set_crit(uint8_t channel, int32_t current_mA) {
+    return _set_alert(channel, current_mA, true);
 }
 
-// --- REG 1 (TPS1) ---
-status_rep_t sys_pwr_set_warning_reg_1(uint32_t power_mw, uint32_t expected_voltage_mv) {
-    return _set_alert(INA_BUS_TPS1, power_mw, expected_voltage_mv, false);
-}
-
-status_rep_t sys_pwr_set_crit_reg_1(uint32_t power_mw, uint32_t expected_voltage_mv) {
-    return _set_alert(INA_BUS_TPS1, power_mw, expected_voltage_mv, true);
-}
-
-// --- TOTAL (VSUP) ---
-status_rep_t sys_pwr_set_warning_total(uint32_t power_mw, uint32_t expected_voltage_mv) {
-    return _set_alert(INA_BUS_VSUP, power_mw, expected_voltage_mv, false);
-}
-
-status_rep_t sys_pwr_set_crit_total(uint32_t power_mw, uint32_t expected_voltage_mv) {
-    return _set_alert(INA_BUS_VSUP, power_mw, expected_voltage_mv, true);
-}
-
-    
-status_rep_t sys_pwr_get_voltage(uint8_t bus_num, uint32_t* voltage_mv, bool force_update)
+status_rep_t p_current_monitor_get_voltage(uint8_t channel, uint32_t* voltage_mv, bool force_update)
 {
-    uint32_t device_address = _ina_handle ? _ina_handle->i2c_device_config.device_address : 0;
-
-    if (!_ina_handle || !voltage_mv || bus_num > 2) return STA_C(ESP_ERR_INVALID_ARG, OWNER_PROVIDER_CURRENT_MONITOR_READ, device_address);
-    STA_RET_ON_ESP_ERR(ina3221_update_buses_readings(_ina_handle, force_update), OWNER_PROVIDER_CURRENT_MONITOR_READ, _ina_handle->i2c_device_config.device_address);
-    *voltage_mv = (uint32_t)_ina_handle->last_readings.bus_voltage[bus_num];
+    if (!_ina_handle) return STA_C(PWR_ERR_DEVICE_NOT_FOUND, OWNER_PROVIDER_CURRENT_MONITOR, 0);
+    if(channel > 2 || !voltage_mv) return STA_C(PWR_ERR_INVALID_PARAM, OWNER_PROVIDER_CURRENT_MONITOR, channel);
+    STA_RET_ON_ESP_ERR(ina3221_update_buses_readings(_ina_handle, force_update), OWNER_PROVIDER_CURRENT_MONITOR, _ina_handle->i2c_device_config.device_address);
+    *voltage_mv = (uint32_t)_ina_handle->last_readings.bus_voltage[channel];
     return STA_OK;
 }
 
-status_rep_t sys_pwr_get_current(uint8_t channel_num, uint32_t* current_ma, bool force_update)
+status_rep_t p_current_monitor_get_current(uint8_t channel, int32_t* current_ma, bool force_update)
 {
-    uint32_t device_address = _ina_handle ? _ina_handle->i2c_device_config.device_address : 0;
+    if(!_ina_handle) return STA_C(PWR_ERR_DEVICE_NOT_FOUND, OWNER_PROVIDER_CURRENT_MONITOR, 0);
+    if(channel > 2 || !current_ma) return STA_C(PWR_ERR_INVALID_PARAM, OWNER_PROVIDER_CURRENT_MONITOR, channel);
+    STA_RET_ON_ESP_ERR(ina3221_update_shunts_readings(_ina_handle, force_update), OWNER_PROVIDER_CURRENT_MONITOR, _ina_handle->i2c_device_config.device_address);
+    *current_ma = (int32_t)_ina_handle->last_readings.shunt_current[channel];
+    return STA_OK;
+}
 
-    if (!_ina_handle || !current_ma || channel_num > 2) return STA_C(ESP_ERR_INVALID_ARG, OWNER_PROVIDER_CURRENT_MONITOR_READ, device_address);
-    STA_RET_ON_ESP_ERR(ina3221_update_shunts_readings(_ina_handle, force_update), OWNER_PROVIDER_CURRENT_MONITOR_READ, _ina_handle->i2c_device_config.device_address);
-    *current_ma = (uint32_t)_ina_handle->last_readings.shunt_current[channel_num];
+status_rep_t p_current_monitor_add_cb_warning(uint8_t channel, void (*callback)(void*), void* ctx) {
+    if (!_ina_handle) return STA_C(PWR_ERR_DEVICE_NOT_FOUND, OWNER_PROVIDER_CURRENT_MONITOR, 0);
+    if(channel > 2) return STA_C(PWR_ERR_INVALID_PARAM, OWNER_PROVIDER_CURRENT_MONITOR, channel);
+    ina3221_register_user_callback(_ina_handle, callback, ctx, channel, false);
+    return STA_OK;
+}
+
+/**
+ * @brief Register a warning alert callback for a specific channel
+ */
+status_rep_t p_current_monitor_register_warning_callback(uint8_t channel, void (*callback)(void*), void* ctx) {
+    if (!_ina_handle) return STA_C(PWR_ERR_DEVICE_NOT_FOUND, OWNER_PROVIDER_CURRENT_MONITOR, 0);
+    if(channel > 2) return STA_C(PWR_ERR_INVALID_PARAM, OWNER_PROVIDER_CURRENT_MONITOR, channel);
+    ina3221_register_user_callback(_ina_handle, callback, ctx, channel, false);
+    return STA_OK;
+}
+
+/**
+ * @brief Register a critical alert callback for a specific channel
+ */
+status_rep_t p_current_monitor_register_critical_callback(uint8_t channel, void (*callback)(void*), void* ctx) {
+    if (!_ina_handle) return STA_C(PWR_ERR_DEVICE_NOT_FOUND, OWNER_PROVIDER_CURRENT_MONITOR, 0);
+    if(channel > 2) return STA_C(PWR_ERR_INVALID_PARAM, OWNER_PROVIDER_CURRENT_MONITOR, channel);
+    ina3221_register_user_callback(_ina_handle, callback, ctx, channel, true);
     return STA_OK;
 }

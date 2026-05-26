@@ -2,14 +2,19 @@
 #include <freertos/ringbuf.h>
 #include <driver/gpio.h>
 
-extern uint8_t rik_ina_id;
+extern uint8_t rik_current_monitor_id;
 extern uint8_t rik_gpio_expander_id;
-extern uint8_t rik_tps_0_id;
-extern uint8_t rik_tps_1_id;
+extern uint8_t rik_vreg0_id;
+extern uint8_t rik_vreg1_id;
 
 extern uint8_t rik_gpio_expander_port_id; 
+extern uint8_t rik_adc_expander_port_id;
+extern uint8_t rik_gpio_esp_port_id;
 
 #define SYS_IO_MAKE_PIN(port, pin) ((((uint32_t)(port)) << 8) | ((pin) & 0xFF))
+#define SYS_IO_GET_PORT(pin) (((pin) >> 8) & 0xFF)
+#define SYS_IO_GET_NUM_ONLY(pin) ((pin) & 0xFF)
+#define SYS_IO_GET_PIN_MASK(pin) (1ULL << SYS_IO_GET_NUM_ONLY(pin))
 
 #define RIK_IO_PIN_PWM_EXPANDER_nOE  SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 0)
 
@@ -42,6 +47,80 @@ extern uint8_t rik_gpio_expander_port_id;
 #define RIK_IO_PIN_LED_1  SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 23)   //27
 #define RIK_IO_PIN_LED_2   SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 22)   //26
 
+/**********ADC EXPANDER ******************************/
+#define RIK_IO_PIN_ADC_0  SYS_IO_MAKE_PIN(rik_adc_expander_port_id, 0)
+#define RIK_IO_PIN_ADC_1  SYS_IO_MAKE_PIN(rik_adc_expander_port_id, 1)
+#define RIK_IO_PIN_ADC_2  SYS_IO_MAKE_PIN(rik_adc_expander_port_id, 2)
+#define RIK_IO_PIN_ADC_3  SYS_IO_MAKE_PIN(rik_adc_expander_port_id, 3)
+#define RIK_IO_PIN_ADC_4  SYS_IO_MAKE_PIN(rik_adc_expander_port_id, 4)
+#define RIK_IO_PIN_ADC_5  SYS_IO_MAKE_PIN(rik_adc_expander_port_id, 5)
+#define RIK_IO_PIN_ADC_6  SYS_IO_MAKE_PIN(rik_adc_expander_port_id, 6)
+#define RIK_IO_PIN_ADC_7  SYS_IO_MAKE_PIN(rik_adc_expander_port_id, 7)
+
+#define RIK_IO_PIN_GPIO_EXPANDER_nINT       SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 9)
+#define RIK_IO_PIN_GPIO_EXPANDER_nRESET     SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 8)
+#define RIK_IO_PIN_ADC_EXPANDER_ALERT       SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 42)
+
+// ---------------------------------------------------------
+// Motor Driver 1 - Current Sense (IPROPI)
+// ---------------------------------------------------------
+#define RIK_IO_PIN_DRV_1_IPROPI_1     SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 7)
+#define RIK_IO_PIN_DRV_1_IPROPI_2     SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 6)
+#define RIK_IO_PIN_DRV_1_IPROPI_3     SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 5)
+#define RIK_IO_PIN_DRV_1_IPROPI_4     SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 4)
+
+// ---------------------------------------------------------
+// Motor Driver 1 - Inputs (IN)
+// ---------------------------------------------------------
+#define RIK_IO_PIN_DRV_1_IN1          SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 21)
+#define RIK_IO_PIN_DRV_1_IN2          SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 47)
+#define RIK_IO_PIN_DRV_1_IN3          SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 48)
+#define RIK_IO_PIN_DRV_1_IN4          SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 45)
+
+// ---------------------------------------------------------
+// Motor Driver 1 - Enables (EN)
+// ---------------------------------------------------------
+#define RIK_IO_PIN_DRV_1_EN1          SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 38)
+#define RIK_IO_PIN_DRV_1_EN2          SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 39)
+#define RIK_IO_PIN_DRV_1_EN3          SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 2)
+#define RIK_IO_PIN_DRV_1_EN4          SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 1)
+
+// ---------------------------------------------------------
+// External SPI Bus
+// ---------------------------------------------------------
+#define RIK_IO_PIN_USR_SPI_CS0_10     SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 10)
+#define RIK_IO_PIN_USR_SPI_MOSI_11    SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 11)
+#define RIK_IO_PIN_USR_SPI_SCK_12     SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 12)
+#define RIK_IO_PIN_USR_SPI_MISO_13    SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 13)
+#define RIK_IO_PIN_USR_SPI_CS1_14     SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 14)
+
+// ---------------------------------------------------------
+// I2C Buses
+// ---------------------------------------------------------
+// Internal I2C (Connects to internal sensors/expanders)
+#define RIK_IO_PIN_INTERNAL_I2C_SDA        SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 15)
+#define RIK_IO_PIN_INTERNAL_I2C_SCL        SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 16)
+
+// External I2C (Connects to the J_EXT_I2C header)
+#define RIK_IO_PIN_USR_I2C_SDA        SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 40)
+#define RIK_IO_PIN_USR_I2C_SCL        SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 41)
+
+
+// ---------------------------------------------------------
+// UART0 (Console / External UART)
+// ---------------------------------------------------------
+#define RIK_IO_PIN_EXT_UART_TX        SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 43)
+#define RIK_IO_PIN_EXT_UART_RX        SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 44)
+
+
+// ---------------------------------------------------------
+// Miscellaneous External User Pins
+// ---------------------------------------------------------
+#define RIK_IO_PIN_USR_3              SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 3)   // Connected to J_MISC1 Pin 1
+#define RIK_IO_PIN_USR_17             SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 17)  // Connected to J_MISC1 Pin 2
+#define RIK_IO_PIN_USR_18             SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 18)  // Connected to J_MISC1 Pin 3
+#define RIK_IO_PIN_USR_46             SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 46)  // Connected to J_MISC1 Pin 4
+
 
 extern bool _rik_ble_active;
 extern bool _rik_wifi_active;
@@ -50,7 +129,7 @@ extern bool _rik_emergency_state_active;
 extern RingbufHandle_t rik_buff_status;
 extern RingbufHandle_t rik_buff_tx;
 extern RingbufHandle_t rik_buff_rx;
-extern RingbufHandle_t rik_buff_log;
+extern RingbufHandle_t rik_buff_esp_log;
 
 extern EventGroupHandle_t rik_events_wireless;
 extern EventGroupHandle_t rik_events_data_processing;
@@ -103,80 +182,3 @@ extern EventGroupHandle_t rik_events_vm;
 /************************STATUS HANDLER ACTIONS **************************/
 
 
-/*Event group of data processing / vm */
-
-
-
-#define GPIO_NUM_40 40
-#define GPIO_NUM_41 41
-#define GPIO_NUM_42 42   
-#define GPIO_NUM_43 43
-#define GPIO_NUM_44 44
-#define GPIO_NUM_45 45
-#define GPIO_NUM_46 46
-#define GPIO_NUM_47 47
-#define GPIO_NUM_48 48
-
-// ---------------------------------------------------------
-// Interrupts and Alerts
-// ---------------------------------------------------------
-#define IO_SYS_PIN_TCA6424_nINT    GPIO_NUM_9
-#define IO_SYS_PIN_TCA6424_nRESET  GPIO_NUM_8
-#define IO_SYS_PIN_ADS_ALERT       GPIO_NUM_42
-
-// ---------------------------------------------------------
-// Motor Driver 1 - Current Sense (IPROPI)
-// ---------------------------------------------------------
-#define IO_SYS_PIN_DRV_1_IPROPI_1  GPIO_NUM_7
-#define IO_SYS_PIN_DRV_1_IPROPI_2  GPIO_NUM_6
-#define IO_SYS_PIN_DRV_1_IPROPI_3  GPIO_NUM_5
-#define IO_SYS_PIN_DRV_1_IPROPI_4  GPIO_NUM_4
-
-// ---------------------------------------------------------
-// Motor Driver 1 - Inputs (IN)
-// ---------------------------------------------------------
-#define IO_SYS_PIN_DRV_1_IN1       GPIO_NUM_21
-#define IO_SYS_PIN_DRV_1_IN2       GPIO_NUM_47
-#define IO_SYS_PIN_DRV_1_IN3       GPIO_NUM_48
-#define IO_SYS_PIN_DRV_1_IN4       GPIO_NUM_45
-
-// ---------------------------------------------------------
-// Motor Driver 1 - Enables (EN)
-// ---------------------------------------------------------
-#define IO_SYS_PIN_DRV_1_EN1       GPIO_NUM_38
-#define IO_SYS_PIN_DRV_1_EN2       GPIO_NUM_39
-#define IO_SYS_PIN_DRV_1_EN3       GPIO_NUM_2
-#define IO_SYS_PIN_DRV_1_EN4       GPIO_NUM_1
-
-// ---------------------------------------------------------
-// External SPI Bus
-// ---------------------------------------------------------
-#define IO_SYS_PIN_USR_SPI_CS0_10   GPIO_NUM_10
-#define IO_SYS_PIN_USR_SPI_MOSI_11  GPIO_NUM_11
-#define IO_SYS_PIN_USR_SPI_SCK_12   GPIO_NUM_12
-#define IO_SYS_PIN_USR_SPI_MISO_13  GPIO_NUM_13
-#define IO_SYS_PIN_USR_SPI_CS1_14   GPIO_NUM_14
-
-// ---------------------------------------------------------
-// I2C Buses
-// ---------------------------------------------------------
-// Internal I2C (Connects to internal sensors/expanders)
-#define IO_SYS_PIN_INT_I2C_SDA   GPIO_NUM_15
-#define IO_SYS_PIN_INT_I2C_SCL   GPIO_NUM_16
-
-// External I2C (Connects to the J_EXT_I2C header)
-#define IO_SYS_PIN_USR_I2C_SDA   GPIO_NUM_40
-#define IO_SYS_PIN_USR_I2C_SCL   GPIO_NUM_41
-
-
-// ---------------------------------------------------------
-// UART0 (Console / External UART)
-// ---------------------------------------------------------
-#define IO_SYS_PIN_EXT_UART_TX   GPIO_NUM_43 
-#define IO_SYS_PIN_EXT_UART_RX   GPIO_NUM_44
-
-
-#define IO_SYS_PIN_USR_3   GPIO_NUM_3   // Connected to J_MISC1 Pin 1
-#define IO_SYS_PIN_USR_17   GPIO_NUM_17  // Connected to J_MISC1 Pin 2
-#define IO_SYS_PIN_USR_18  GPIO_NUM_18  // Connected to J_MISC1 Pin 3
-#define IO_SYS_PIN_USR_46  GPIO_NUM_46  // Connected to J_MISC1 Pin 4

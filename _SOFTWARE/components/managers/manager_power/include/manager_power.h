@@ -1,30 +1,38 @@
 #pragma once 
 #include "status.h"
 
-typedef struct {
-    void (*handler)(void *ctx); // The function to call
-    void *ctx;                  // The specific handle/struct to pass to it
-} pwr_event_cb_t;
 
-typedef struct {
+typedef enum{
+    MANAGER_PWR_CB_REG0_OVP,
+    MANAGER_PWR_CB_REG0_OCP,
+    MANAGER_PWR_CB_REG0_SCP,
 
-    void* reg_driver_handle_0; // Handle to the regulator driver (e.g., tps55289_handle_t)
-    void* reg_driver_handle_1; // Handle to the regulator driver (e.g., tps55289_handle_t)
-    void* power_monitor_handle; // Handle to the power monitoring driver (e.g., ina3221_handle_t)
-    //
-    pwr_event_cb_t reg0_ovp;
-    pwr_event_cb_t reg0_ocp;
-    pwr_event_cb_t reg0_scp;
-    
-    //
-    pwr_event_cb_t reg1_ovp;
-    pwr_event_cb_t reg1_ocp;
-    pwr_event_cb_t reg1_scp;
+    MANAGER_PWR_CB_REG1_OVP,
+    MANAGER_PWR_CB_REG1_OCP,
+    MANAGER_PWR_CB_REG1_SCP,
 
-    //
-    pwr_event_cb_t power_warning;
-    pwr_event_cb_t power_critical;
+    MANAGER_PWR_CB_POWER_CH0_WARNING,
+    MANAGER_PWR_CB_POWER_CH0_CRITICAL,
+    MANAGER_PWR_CB_POWER_CH1_WARNING,
+    MANAGER_PWR_CB_POWER_CH1_CRITICAL,
+    MANAGER_PWR_CB_POWER_CH2_WARNING,
+    MANAGER_PWR_CB_POWER_CH2_CRITICAL
+} manager_pwr_cb_type_e;
 
-} manager_pwr_config_t;
 
-status_rep_t manager_pwr_init(manager_pwr_config_t *config);
+void manager_pwr_freeze_mode(bool freeze);
+status_rep_t manager_pwr_init();
+status_rep_t manager_pwr_add_cb(manager_pwr_cb_type_e cb_type, void (*handler)(void *), void* ctx);
+
+status_rep_t sys_pwr_set_bus_current_warning(uint8_t channel, int32_t current_mA);
+status_rep_t sys_pwr_set_bus_current_critical(uint8_t channel, int32_t current_mA);
+status_rep_t sys_pwr_set_bus_power_warning(uint8_t channel, int32_t power_mW);
+status_rep_t sys_pwr_set_bus_power_critical(uint8_t channel, int32_t power_mW);
+status_rep_t sys_pwr_get_bus_voltage(uint8_t channel, uint32_t *voltage_mV);
+status_rep_t sys_pwr_get_bus_current(uint8_t channel, int32_t *current_mA);
+
+status_rep_t sys_pwr_set_verg_voltage(bool regulator_id, uint32_t voltage_mv);
+status_rep_t sys_pwr_set_verg_current_limit(bool regulator_id, uint32_t current_ma);
+status_rep_t sys_pwr_enable_verg(bool regulator_id, bool enable);
+
+ 
