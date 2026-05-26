@@ -118,6 +118,10 @@ extern uint8_t rik_gpio_esp_port_id;
 #define RIK_IO_PIN_USR_18             SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 18)  // Connected to J_MISC1 Pin 3
 #define RIK_IO_PIN_USR_46             SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 46)  // Connected to J_MISC1 Pin 4
 
+#define RIK_CHANNEL_VREG0 0 
+#define RIK_CHANNEL_TOTAL 1
+#define RIK_CHANNEL_VREG1 2
+
 
 extern bool _rik_ble_active;
 extern bool _rik_wifi_active;

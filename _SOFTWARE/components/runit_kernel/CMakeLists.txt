@@ -9,7 +9,7 @@ idf_component_register(
     manager_io
     manager_power
 
-    packet_interface
+    
     
     freertos
     esp_driver_gpio
@@ -27,4 +27,5 @@ idf_component_register(
  
 
     utils
+    PRIV_REQUIRES packet_interface
 )

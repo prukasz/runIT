@@ -10,6 +10,7 @@
 #include <freertos/task.h> 
 #include <esp_log.h>
 #include "string.h"
+#include "status.h"
 
 /*
 INFO:
@@ -27,9 +28,9 @@ typedef struct{
 }interface_cfg_t;
 
 
-typedef esp_err_t (*interface_parse_func)(const uint8_t *packet_data, const uint16_t packet_len);
+typedef status_rep_t (*interface_parse_func)(const uint8_t *packet_data, const uint16_t packet_len);
 
-typedef esp_err_t (*interface_dev_cfg_func)(const uint8_t *packet_data, const uint16_t packet_len);
+typedef status_rep_t (*interface_dev_cfg_func)(const uint8_t *packet_data, const uint16_t packet_len);
 
 
 /**
@@ -38,7 +39,7 @@ typedef esp_err_t (*interface_dev_cfg_func)(const uint8_t *packet_data, const ui
  * @param packet_len Length of the packet data
  * @note Data can be recevied either by BLE or WIFI, source is irrelevant both uses same buffer
  */
-esp_err_t interface_parse_cmd_dev_cfg(const uint8_t *packet_data, const uint16_t packet_len);
+status_rep_t interface_parse_cmd_dev_cfg(const uint8_t *packet_data, const uint16_t packet_len);
 
 /**
  * @brief Registers the RX buffer for command packet reception

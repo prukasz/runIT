@@ -157,22 +157,22 @@ status_rep_t manager_pwr_add_cb(manager_pwr_cb_type_e cb_type, void (*handler)(v
         case MANAGER_PWR_CB_REG1_SCP:
             status = p_vreg_register_scp_callback(1, handler, ctx);
             break;
-        case MANAGER_PWR_CB_POWER_CH0_WARNING:
+        case MANAGER_PWR_CB_CURRENT_CH0_WARNING:
             status = p_current_monitor_register_warning_callback(0, handler, ctx);
             break;
-        case MANAGER_PWR_CB_POWER_CH0_CRITICAL:
+        case MANAGER_PWR_CB_CURRENT_CH0_CRITICAL:
             status = p_current_monitor_register_critical_callback(0, handler, ctx);
             break;
-        case MANAGER_PWR_CB_POWER_CH1_WARNING:
+        case MANAGER_PWR_CB_CURRENT_CH1_WARNING:
             status = p_current_monitor_register_warning_callback(1, handler, ctx);
             break;
-        case MANAGER_PWR_CB_POWER_CH1_CRITICAL:
+        case MANAGER_PWR_CB_CURRENT_CH1_CRITICAL:
             status = p_current_monitor_register_critical_callback(1, handler, ctx);
             break;
-        case MANAGER_PWR_CB_POWER_CH2_WARNING:
+        case MANAGER_PWR_CB_CURRENT_CH2_WARNING:
             status = p_current_monitor_register_warning_callback(2, handler, ctx);
             break;
-        case MANAGER_PWR_CB_POWER_CH2_CRITICAL:
+        case MANAGER_PWR_CB_CURRENT_CH2_CRITICAL:
             status = p_current_monitor_register_critical_callback(2, handler, ctx);
             break; 
         default:
