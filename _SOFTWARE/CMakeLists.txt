@@ -19,6 +19,3 @@ list(APPEND EXTRA_COMPONENT_DIRS
 )
 project(runIT)
 
-# Disable treating format string warnings as errors
-add_compile_options(-Wno-error=format)
-idf_build_set_property(COMPILE_OPTIONS "-Wno-error=format" APPEND)
