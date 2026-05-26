@@ -46,6 +46,7 @@ R_EVENT_GROUP_DEFINE(rik_events_vm);
 void task_read_adc(void* arg){
     while(1){
         uint32_t adc_value[4];
+        bool level;
         // uint32_t adc_expander_value[8];
 
         // for (int i = 0; i < 8; i++) {
@@ -60,8 +61,9 @@ void task_read_adc(void* arg){
         //   SYS_IO_GET_PIN_MASK(RIK_IO_PIN_ADC_4) | SYS_IO_GET_PIN_MASK(RIK_IO_PIN_ADC_5) |
         //    SYS_IO_GET_PIN_MASK(RIK_IO_PIN_ADC_6) | 
         //    SYS_IO_GET_PIN_MASK(RIK_IO_PIN_ADC_7), adc_expander_value, 8);
-        SYS_GPIO_SET_LEVEL(RIK_IO_PIN_GPIO_EXPANDER_nINT, 1);
+        
         vTaskDelay(pdMS_TO_TICKS(1000));
+        SYS_GPIO_TOGGLE(RIK_IO_PIN_GPIO_EXPANDER_nRESET);
        
         ESP_LOGI(TAG, "ADC Value: %u, %u, %u, %u", adc_value[0], adc_value[1], adc_value[2], adc_value[3]);
         // ESP_LOGI(TAG, "ADC Expander Value: %u, %u, %u, %u, %u, %u, %u, %u", adc_expander_value[0], adc_expander_value[1], adc_expander_value[2], adc_expander_value[3],
@@ -113,7 +115,7 @@ esp_err_t rik_start(void) {
 
     rik_start_interface(rik_events_wireless);
 
-    rep = rik_link_devices();
+    rep = rik_link_pins();
     if (!STA_IS_OK(rep)) {
         STA_P(rep);
         ESP_LOGE(TAG, "Failed to link devices");
@@ -121,6 +123,5 @@ esp_err_t rik_start(void) {
     }
     manager_io_exit_mode_dereffered();
     R_TASK_START(adc_task, task_read_adc, NULL, 5);
-    
     return ESP_OK;
 }

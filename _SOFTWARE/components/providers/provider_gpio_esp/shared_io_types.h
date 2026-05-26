@@ -41,6 +41,7 @@ typedef struct {
         pin_adc_data_t adc_cfg;
         pin_pwm_data_t pwm_cfg;
     } hw; 
+    uint64_t last_isr_time;
 } sys_pin_obj_t;
 
 // 5. The Global Registry Array (64 pins max on ESP32)

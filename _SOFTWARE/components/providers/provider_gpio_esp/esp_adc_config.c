@@ -16,9 +16,9 @@
 
 #define TAG __FILE_NAME__
 
-#define ADC_SAMPLE_FREQ_HZ 2000
-#define ADC_FRAME_SIZE_BYTES 80
-#define IIR_ALPHA 0.4f
+#define ADC_SAMPLE_FREQ_HZ 20000
+#define ADC_FRAME_SIZE_BYTES 800
+#define IIR_ALPHA 0.5f
 
 R_MUTEX_DEFINE(adc_mutex);
 R_TASK_DEFINE(adc_processing_task, 4096);

@@ -3,8 +3,12 @@
 #include "manager_power.h"
 #include "rik_shared.h"
 
+void simple_callback(void* arg){
+    ESP_LOGI("SIMPLE_CALLBACK", "Callback triggered with arg: %p", arg);
+}
 
-status_rep_t rik_link_devices(void){
+
+status_rep_t rik_link_pins(void){
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_PWM_EXPANDER_nOE, SYS_GPIO_MODE_OUTPUT_PUSH_PULL));
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_REGA_EN, SYS_GPIO_MODE_OUTPUT_PUSH_PULL));
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_REGB_EN, SYS_GPIO_MODE_OUTPUT_PUSH_PULL));
@@ -30,9 +34,8 @@ status_rep_t rik_link_devices(void){
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_DRV_1_IN3, SYS_GPIO_MODE_OUTPUT_PUSH_PULL));
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_DRV_1_IN4, SYS_GPIO_MODE_OUTPUT_PUSH_PULL));
     
-    STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_GPIO_EXPANDER_nINT, SYS_GPIO_MODE_OUTPUT_PUSH_PULL));
-
-
+    STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_GPIO_EXPANDER_nRESET, SYS_GPIO_MODE_OUTPUT_PUSH_PULL));
+ 
     //********************INPUTS*************************** */
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_REGA_INT, SYS_GPIO_MODE_INPUT));
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_REGB_INT, SYS_GPIO_MODE_INPUT));
@@ -47,6 +50,8 @@ status_rep_t rik_link_devices(void){
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_DRV2_FAULT, SYS_GPIO_MODE_INPUT));
 
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_PD_INT, SYS_GPIO_MODE_INPUT));
+    
+    STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_GPIO_EXPANDER_nINT, SYS_GPIO_MODE_INPUT_PULLUP));
 
     /*****************ADC INPUTS **********************************/
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_DRV_1_IPROPI_1, SYS_GPIO_MODE_ADC));
@@ -56,3 +61,8 @@ status_rep_t rik_link_devices(void){
 
     return STA_OK;
 }
+
+status_rep_t rik_link_callbacks(void){
+    
+}
+

@@ -6,12 +6,12 @@
 #include "soc/gpio_struct.h"
 #include "driver/gpio.h"
 
-// Your custom headers
 #include "shared_io_types.h"
 #include "esp_adc_config.h" 
 #include "provider_gpio_esp.h"
 #include "rtos_utils.h"
 #include "esp_adc/adc_continuous.h"
+#include "esp_timer.h"
 
 #define TAG __FILE_NAME__
 
@@ -29,8 +29,6 @@ static uint64_t cached_pin_levels = 0;
 
 // THE UNIFIED REGISTRY: Instant O(1) lookup. NULL means the pin is completely free.
 sys_pin_obj_t* pin_registry[64] = {NULL};
-
-
 
 // --- FreeRTOS ISR Dispatcher ---
 
@@ -50,13 +48,24 @@ static void gpio_dispatcher_task_function(void* arg) {
     }
 }
 
+#define DEBOUNCE_TIME_US 5000 
+
 // Ultra-fast ISR Trampoline
 static void IRAM_ATTR _gpio_pin_isr_trampoline(void* arg) {
     sys_pin_obj_t* pin = (sys_pin_obj_t*)arg;
     
+    // --- DEBOUNCE LOGIC ---
+    uint64_t current_time = esp_timer_get_time(); // Time in microseconds
+    if ((current_time - pin->last_isr_time) < DEBOUNCE_TIME_US) {
+        // It hasn't been 50ms since the last interrupt. This is a bounce.
+        return; // Exit immediately, do not push to queue
+    }
+    // Update the timestamp for the next valid press
+    pin->last_isr_time = current_time; 
+    // ----------------------
+    
     BaseType_t high_task_wakeup = pdFALSE;
     // Push the pin object pointer to the background task
-    
     xQueueSendFromISR(gpio_evt_queue, &pin, &high_task_wakeup);
 
     // Force immediate context switch to the dispatcher task if it was waiting
@@ -64,11 +73,8 @@ static void IRAM_ATTR _gpio_pin_isr_trampoline(void* arg) {
         portYIELD_FROM_ISR();
     }
 }
-
 // Must be called during system startup to initialize the driver
 esp_err_t p_gpio_esp_init(void) {
-
-    
     // 2. Start the background dispatcher task (Priority 10)
     R_TASK_START(gpio_dispatcher_task, gpio_dispatcher_task_function, NULL, 5);
     esp_adc_start();
@@ -80,7 +86,6 @@ esp_err_t p_gpio_esp_init(void) {
 
     return ESP_OK;
 }
-
 
 // --- GPIO Configuration and Hardware API ---
 
@@ -117,21 +122,38 @@ esp_err_t normal_io_configure(uint64_t pin_mask, uint32_t mode) {
 
         // Set hardware-specific fields inside the union
         new_pin->hw.gpio_cfg.pin_bit_mask = pin;
-        new_pin->hw.gpio_cfg.mode = (mode & (SYS_GPIO_MODE_INPUT | SYS_GPIO_MODE_INPUT_PULLUP | SYS_GPIO_MODE_INPUT_PULLDOWN)) ? GPIO_MODE_INPUT : GPIO_MODE_OUTPUT;
+        
+        // [FIX APPLIED] Safely route modes using strict equality, not bitwise &
+        if (mode == SYS_GPIO_MODE_INPUT || 
+            mode == SYS_GPIO_MODE_INPUT_PULLUP || 
+            mode == SYS_GPIO_MODE_INPUT_PULLDOWN) {
+            new_pin->hw.gpio_cfg.mode = GPIO_MODE_INPUT;
+        } else if (mode == SYS_GPIO_MODE_OUTPUT_OPEN_DRAIN) {
+            new_pin->hw.gpio_cfg.mode = GPIO_MODE_OUTPUT_OD;
+        } else if (mode == SYS_GPIO_MODE_OUTPUT_PUSH_PULL) {
+            new_pin->hw.gpio_cfg.mode = GPIO_MODE_OUTPUT; // Push-Pull
+        } else {
+            ESP_LOGE(TAG, "Invalid GPIO mode requested: %lu", (unsigned long)mode);
+            free(new_pin);
+            return ESP_ERR_INVALID_ARG;
+        }
+
+        // Safely map pull resistors based on exact mode matches
         new_pin->hw.gpio_cfg.pull_up_en = (mode == SYS_GPIO_MODE_INPUT_PULLUP) ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE;
         new_pin->hw.gpio_cfg.pull_down_en = (mode == SYS_GPIO_MODE_INPUT_PULLDOWN) ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE;
         new_pin->hw.gpio_cfg.intr_type = GPIO_INTR_DISABLE;
 
+
         // Apply config to hardware
         esp_err_t err = gpio_config(&new_pin->hw.gpio_cfg);
         if (err != ESP_OK) {
+            ESP_LOGE(TAG, "gpio_config failed for pin %d with error %d", i, err);
             free(new_pin);
-            // Note: If configuring multiple pins at once, you may want to 
-            // loop backwards here to free previously allocated pins in this mask.
+            // Note: If configuring multiple pins at once, you may want to loop backwards to free previously allocated pins.
             return err;
         }
         
-        ESP_LOGI(TAG, "Configured GPIO pin %d with mode %lu", i, (unsigned long)mode);
+        ESP_LOGI(TAG, "Configured GPIO pin %d successfully", i);
 
         // Save safely in our unified array
         pin_registry[i] = new_pin;
@@ -153,11 +175,9 @@ status_rep_t p_gpio_esp_set_pin_mode(uint64_t pin_mask, uint32_t mode) {
                 return STA_C(IO_ERR_PIN_IN_USE, OWNER_PROVIDER_GPIO_ESP, pin_mask);
             }
 
-
             for (int i = 0; i < 64; i++) {
                 if ((pin_mask & (1ULL << i)) == 0) continue;
                 
-
                 sys_pin_obj_t* new_pin = calloc(1, sizeof(sys_pin_obj_t));
                 if (new_pin == NULL) {
                     return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_ESP, ESP_ERR_NO_MEM);
@@ -176,13 +196,13 @@ status_rep_t p_gpio_esp_set_pin_mode(uint64_t pin_mask, uint32_t mode) {
             
             return STA_OK;
         }
-    }else if (mode == SYS_GPIO_MODE_PWM) {
+    } else if (mode == SYS_GPIO_MODE_PWM) {
         // Placeholder: Apply PWM logic via PWM module
         return STA_OK;
-    } else{
+    } else {
         esp_err_t err = normal_io_configure(pin_mask, mode);
         if (err != ESP_OK) {
-        return STA_FROM_ESP(err, OWNER_PROVIDER_GPIO_ESP, pin_mask);
+            return STA_FROM_ESP(err, OWNER_PROVIDER_GPIO_ESP, pin_mask);
         }
     }
 
@@ -190,6 +210,7 @@ status_rep_t p_gpio_esp_set_pin_mode(uint64_t pin_mask, uint32_t mode) {
 }
 
 status_rep_t p_gpio_esp_set_level(uint64_t pin_mask, bool level) {
+    // [FIX APPLIED] Pass 1: Pre-validate all pins atomically
     for (int i = 0; i < 64; i++) {
         if ((pin_mask & (1ULL << i)) == 0) continue;
         
@@ -198,6 +219,11 @@ status_rep_t p_gpio_esp_set_level(uint64_t pin_mask, bool level) {
         if (pin_obj == NULL || (pin_obj->pin_mode != SYS_GPIO_MODE_OUTPUT_PUSH_PULL && pin_obj->pin_mode != SYS_GPIO_MODE_OUTPUT_OPEN_DRAIN)) {
             return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, (uint64_t)(1ULL << i));
         }
+    }
+
+    // Pass 2: Apply states safely
+    for (int i = 0; i < 64; i++) {
+        if ((pin_mask & (1ULL << i)) == 0) continue;
 
         if (suspend_updates) {
             if (level)
@@ -208,12 +234,12 @@ status_rep_t p_gpio_esp_set_level(uint64_t pin_mask, bool level) {
             pending_pin_level_updates |= (1ULL << i);
             continue;
         }
+        ESP_LOGI(TAG, "Setting GPIO pin %d to level %d", i, level);
         esp_err_t err = gpio_set_level(i, level);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to set level on pin %d: %d", i, err);
             return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_ESP, err);
         }
-
         if (level)
             cached_pin_levels |= (1ULL << i);
         else
@@ -227,7 +253,9 @@ status_rep_t p_gpio_esp_read_level(uint64_t pin_mask, bool* level) {
         if ((pin_mask & (1ULL << i)) == 0) continue;
 
         sys_pin_obj_t* pin_obj = pin_registry[i];
-        if (pin_obj == NULL || (pin_obj->pin_mode != SYS_GPIO_MODE_ADC && pin_obj->pin_mode != SYS_GPIO_MODE_PWM))  {
+        
+        // [FIX APPLIED] Reject ADC and PWM, allow all digital INPUT and OUTPUT modes
+        if (pin_obj == NULL || pin_obj->pin_mode == SYS_GPIO_MODE_ADC || pin_obj->pin_mode == SYS_GPIO_MODE_PWM) {
             return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, (uint64_t)(1ULL << i));
         }
 
@@ -288,9 +316,8 @@ status_rep_t p_gpio_esp_pin_toggle(uint64_t pin_mask) {
             return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, (uint32_t)(1ULL << i));
         }
 
-        bool current_level;
-        status_rep_t st = p_gpio_esp_read_level(1ULL << i, &current_level);
-        if (!STA_IS_OK(st)) return st;
+        bool current_level = cached_pin_levels & (1ULL << i);
+
 
         STA_RET_ON_ERR(p_gpio_esp_set_level(1ULL << i, !current_level));
     }
