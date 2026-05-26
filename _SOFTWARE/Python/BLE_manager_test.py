@@ -20,6 +20,12 @@ async def send_message(client, write_char, message: str):
     await client.write_gatt_char(write_char, data, response=True)
     print(f"[TX] Sent: {message} ({data.hex().upper()})")
 
+
+async def send_bytes(client, write_char, data: bytes):
+    """Send raw bytes to the device."""
+    await client.write_gatt_char(write_char, data, response=True)
+    print(f"[TX] Sent bytes: {data.hex().upper()}")
+
 async def main():
     print("Scanning for device...")
     device = await BleakScanner.find_device_by_filter(
@@ -46,13 +52,28 @@ async def main():
         print(f"Notify on: {UUID_READ}")
         print(f"Write to : {UUID_WRITE}")
 
-        # Send test messages every 2 seconds
-        counter = 0
+        # Interactive mode: send a single hex packet (or multiple) instead of spamming
+        print("Enter hex bytes to send (e.g. '0A0BFF'), or 'q' to quit.")
+        loop = asyncio.get_running_loop()
         while True:
             try:
-                await send_message(client, write_char, f"TEST_{counter:03d}")
-                counter += 1
-                await asyncio.sleep(1)
+                user = await loop.run_in_executor(None, input, "> ")
+                if user is None:
+                    continue
+                user = user.strip()
+                if user.lower() in ('q', 'quit', 'exit'):
+                    print("Disconnecting...")
+                    break
+                # allow spaces in hex input
+                hexstr = user.replace(' ', '')
+                if len(hexstr) == 0:
+                    continue
+                try:
+                    b = bytes.fromhex(hexstr)
+                except ValueError:
+                    print("Invalid hex. Example valid input: 0A 0B FF")
+                    continue
+                await send_bytes(client, write_char, b)
             except KeyboardInterrupt:
                 print("\nDisconnecting...")
                 break

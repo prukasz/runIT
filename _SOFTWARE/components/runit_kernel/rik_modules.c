@@ -4,6 +4,8 @@
 #include "manager_power.h"
 #include "rik_devices.h"
 #include "interface_dispatcher.h"
+#include "config_power.h"
+#include "config_io.h"
 #include "rik_shared.h"
 #include "esp_log.h"
 #include "provider_adc_expander.h"
@@ -105,6 +107,9 @@ status_rep_t rik_start_i2c(TaskHandle_t supervisor_task_handle, EventGroupHandle
 
 
 void rik_start_interface(EventGroupHandle_t events){
+    /* register config parsers before starting the interface */
+    cfg_pwr_init();
+    cfg_io_init();
     interface_init(NULL);
     interface_buff_register_rx(rik_buff_rx);
 }
@@ -126,6 +131,7 @@ status_rep_t rik_start_io_manager() {
 #ifdef CONFIG_CONNECT_ADS7218
     STA_RET_ON_ERR(rik_adc_expander_start(0x12, 0));
 #endif
+    rik_regs_start(0x74, 0x75, 0); //to apply later
     //STA_RET_ON_ERR(rik_pwm_expander_start(0x13, 0)); //to apply later
     return STA_OK;
 }

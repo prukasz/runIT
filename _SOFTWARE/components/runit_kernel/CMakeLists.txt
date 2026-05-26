@@ -27,5 +27,5 @@ idf_component_register(
  
 
     utils
-    PRIV_REQUIRES packet_interface
+    PRIV_REQUIRES packet_interface config_io config_power
 )

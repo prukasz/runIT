@@ -60,6 +60,16 @@ void interface_buff_register_rx(RingbufHandle_t rx_buffer);
 void interface_init(interface_cfg_t *config);
 
 /**
+ * @brief Register a parser function for a packet header at runtime
+ */
+status_rep_t interface_register_parser(uint8_t header, interface_parse_func f);
+
+/**
+ * @brief Unregister a previously registered parser
+ */
+status_rep_t interface_unregister_parser(uint8_t header);
+
+/**
  * @brief Dequeues received command packets from the RX buffer
  * @param data Buffer to store the dequeued data
  * @param len Pointer to variable that holds the length of the data buffer
