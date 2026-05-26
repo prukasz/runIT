@@ -54,8 +54,8 @@ void task_read_adc(void* arg){
         // }
         // Simulate 1000mV on ADC channel 0
         
-        sys_io_adc_read(rik_gpio_esp_port_id,SYS_IO_GET_PIN_MASK(RIK_IO_PIN_DRV_1_IPROPI_1)|SYS_IO_GET_PIN_MASK(RIK_IO_PIN_DRV_1_IPROPI_2)|
-        SYS_IO_GET_PIN_MASK(RIK_IO_PIN_DRV_1_IPROPI_3)|SYS_IO_GET_PIN_MASK(RIK_IO_PIN_DRV_1_IPROPI_4), adc_value, 4);
+        sys_io_adc_read(rik_gpio_esp_port_id,SYS_IO_GET_MASK(RIK_IO_PIN_DRV_1_IPROPI_1)|SYS_IO_GET_MASK(RIK_IO_PIN_DRV_1_IPROPI_2)|
+        SYS_IO_GET_MASK(RIK_IO_PIN_DRV_1_IPROPI_3)|SYS_IO_GET_MASK(RIK_IO_PIN_DRV_1_IPROPI_4), adc_value, 4);
         // sys_io_adc_read(rik_adc_expander_port_id, SYS_IO_GET_PIN_MASK(RIK_IO_PIN_ADC_0) | SYS_IO_GET_PIN_MASK(RIK_IO_PIN_ADC_1) |
         //  SYS_IO_GET_PIN_MASK(RIK_IO_PIN_ADC_2) | SYS_IO_GET_PIN_MASK(RIK_IO_PIN_ADC_3) |
         //   SYS_IO_GET_PIN_MASK(RIK_IO_PIN_ADC_4) | SYS_IO_GET_PIN_MASK(RIK_IO_PIN_ADC_5) |
@@ -89,10 +89,10 @@ esp_err_t rik_start(void) {
         rik_scheduler_get_task_handle(),
         rik_events_wired,
         rik_events_wired, 
-        SYS_IO_GET_NUM_ONLY(RIK_IO_PIN_INTERNAL_I2C_SDA),
-        SYS_IO_GET_NUM_ONLY(RIK_IO_PIN_INTERNAL_I2C_SCL), 
-        SYS_IO_GET_NUM_ONLY(RIK_IO_PIN_USR_I2C_SDA),
-        SYS_IO_GET_NUM_ONLY(RIK_IO_PIN_USR_I2C_SCL)
+        SYS_IO_GET_PIN(RIK_IO_PIN_INTERNAL_I2C_SDA),
+        SYS_IO_GET_PIN(RIK_IO_PIN_INTERNAL_I2C_SCL), 
+        SYS_IO_GET_PIN(RIK_IO_PIN_USR_I2C_SDA),
+        SYS_IO_GET_PIN(RIK_IO_PIN_USR_I2C_SCL)
     );
     if (!STA_IS_OK(rep)) {
         STA_P(rep);
@@ -127,7 +127,9 @@ esp_err_t rik_start(void) {
         ESP_LOGE(TAG, "Failed to link interrupts");
         return ESP_FAIL;
     }
-    manager_io_exit_mode_dereffered();
+    manager_io_unfreeze();
     R_TASK_START(adc_task, task_read_adc, NULL, 5);
+    manager_io_freeze();
+    manager_io_unfreeze();
     return ESP_OK;
 }

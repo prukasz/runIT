@@ -7,8 +7,8 @@
 #define ratio vref/4096.0f
 
 status_rep_t p_adc_expander_read_voltage(uint64_t pin_mask, uint32_t* out_mv, uint8_t max_results_num);
-status_rep_t p_adc_expander_register_callback(uint64_t pin_mask, void* adc_int_config);
-void p_adc_expander_delay_updates(bool dereffered_mode);
+status_rep_t p_adc_expander_register_callback(uint8_t pin_mask, void* adc_int_config);
+void p_adc_expander_freeze(bool freeze);
 
 void * p_adc_expander_new_handle(uint8_t i2c_addr);
 

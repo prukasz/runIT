@@ -12,10 +12,6 @@ extern uint8_t rik_gpio_expander_port_id;
 extern uint8_t rik_adc_expander_port_id;
 extern uint8_t rik_gpio_esp_port_id;
 
-#define SYS_IO_MAKE_PIN(port, pin) ((((uint32_t)(port)) << 8) | ((pin) & 0xFF))
-#define SYS_IO_GET_PORT(pin) (((pin) >> 8) & 0xFF)
-#define SYS_IO_GET_NUM_ONLY(pin) ((pin) & 0xFF)
-#define SYS_IO_GET_PIN_MASK(pin) (1ULL << SYS_IO_GET_NUM_ONLY(pin))
 
 #define RIK_IO_PIN_PWM_EXPANDER_nOE  SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 0)
 

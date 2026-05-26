@@ -4,7 +4,7 @@
 
 
 static ads_handle_t _ads_handle = NULL;
-static bool _dereffered_mode = false;
+static bool _freeze = false;
 
 
 static inline uint16_t clamp_uint16(uint16_t val, uint16_t min, uint16_t max) {
@@ -19,13 +19,13 @@ static inline uint8_t clamp_uint8(uint8_t val, uint8_t min, uint8_t max) {
     return val;
 }
 
-void p_adc_expander_delay_updates(bool dereffered_mode){
-    _dereffered_mode = dereffered_mode;
+void p_adc_expander_freeze(bool freeze){
+    _freeze = freeze;
 }
 
 status_rep_t p_adc_expander_read_voltage(uint64_t pin_mask, uint32_t* out_mv, uint8_t max_results_num)
 {
-    ads_analog_ch_read(_ads_handle, (uint8_t)pin_mask, !_dereffered_mode);
+    ads_analog_ch_read(_ads_handle, (uint8_t)pin_mask, !_freeze);
     
     uint8_t pos = 0;
     
@@ -42,10 +42,10 @@ status_rep_t p_adc_expander_read_voltage(uint64_t pin_mask, uint32_t* out_mv, ui
     return STA_OK;
 }
 
-status_rep_t p_adc_expander_register_callback(uint64_t pin_mask, void* adc_int_config)
+status_rep_t p_adc_expander_register_callback(uint8_t pin, void* adc_int_config)
 {
     sys_io_adc_int_config_t* config = (sys_io_adc_int_config_t*)adc_int_config;
-    uint8_t channel = __builtin_ctz(pin_mask) + 1;
+    uint8_t channel = pin+1;
     uint16_t h_thres = clamp_uint16((uint16_t)(config->adc_threshold_up_mv)/(ratio), 0, 4095);
     uint16_t l_thres = clamp_uint16((uint16_t)(config->adc_threshold_down_mv)/(ratio), 0, 4095);
     uint8_t hist = clamp_uint8((uint8_t)(config->adc_threshold_hysteresis_mv)/(ratio*8), 0, 15);
@@ -54,7 +54,7 @@ status_rep_t p_adc_expander_register_callback(uint64_t pin_mask, void* adc_int_c
     h_thres = h_thres | hist<<4;
     l_thres = l_thres | event_cnt<<4;
 
-    esp_err_t ret = ads_set_alert_cfg(_ads_handle, channel, h_thres, l_thres, config->adc_window_mode, 1, !_dereffered_mode);
+    esp_err_t ret = ads_set_alert_cfg(_ads_handle, channel, h_thres, l_thres, config->adc_window_mode, 1, !_freeze);
 
     if(ret != ESP_OK){
         return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_ADC_EXPANDER, ret);

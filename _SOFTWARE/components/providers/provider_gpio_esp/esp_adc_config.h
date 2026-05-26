@@ -36,7 +36,7 @@ esp_err_t esp_adc_set_active_channels(uint16_t channel_mask);
  * @param freeze or not chache updates
  * @return ESP_OK on success, ESP_ERR_INVALID_ARG if channel is invalid/uninitialized.
  */
-void esp_adc_suspend_results(bool freeze);
+void esp_adc_freeze_results(bool freeze);
 
 /**
  * @brief Get voltage from cached values ig channel active 

@@ -49,7 +49,7 @@ status_rep_t rik_gpio_esp_start(void){
             .pwm_set_freq_func = NULL,
             .adc_read_func = &p_gpio_esp_adc_read,
             .adc_callback_add_func = &p_gpio_esp_adc_register_callback,
-            .dereffered_update = &p_gpio_esp_suppress_updates,
+            .freeze = &p_gpio_esp_freeze_updates,
             .protected_pins = 0,
         },
         &rik_gpio_esp_port_id
@@ -99,7 +99,7 @@ status_rep_t rik_gpio_expander_start(uint8_t i2c_addres, bool bus_num){
             .adc_read_func = NULL,
             .adc_callback_add_func = NULL,
             .protected_pins = 0,
-            .dereffered_update = p_gpio_expander_suppress_updates
+            .freeze = p_gpio_expander_freeze
         },
         &rik_gpio_expander_port_id
     ));
@@ -226,7 +226,7 @@ status_rep_t rik_adc_expander_start(uint8_t i2c_addres, bool bus_num){
             .pwm_set_freq_func = NULL,
             .adc_read_func = &p_adc_expander_read_voltage,
             .adc_callback_add_func = &p_adc_expander_register_callback,
-            .dereffered_update = &p_adc_expander_delay_updates,
+            .freeze = &p_adc_expander_freeze,
             .protected_pins = 0,
         },
         &rik_adc_expander_port_id

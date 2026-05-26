@@ -31,7 +31,7 @@ static adc_cali_handle_t cali_handles[10] = {NULL};
 static float internal_raw_filtered[10] = {0};
 static uint16_t last_channels_mask = 0;
 static bool is_adc_running = false;
-static bool is_update_suspended = false;
+static bool _freeze = false;
 
 static esp_err_t configure_adc_pattern(uint16_t channel_mask);
 
@@ -51,7 +51,7 @@ esp_err_t esp_adc_add_intr_pin(uint8_t channel, void* sys_io_adc_int_config)
     
     if (pin_obj == NULL) {
         R_MUTEX_UNLOCK(adc_mutex);
-        return ESP_ERR_INVALID_ARG; 
+        return ESP_ERR_NOT_FOUND; 
     }
 
     // Configure the union data specifically for ADC
@@ -84,9 +84,9 @@ exit:
     return err;
 }
 
-void esp_adc_suspend_results(bool suspend)
+void esp_adc_freeze_results(bool freeze)
 {
-    is_update_suspended = suspend;
+    _freeze = freeze;
 }
 
 static esp_err_t configure_adc_pattern(uint16_t channel_mask)
@@ -188,7 +188,7 @@ static void adc_processing_task_function(void *pvParameters)
                             adc_cfg->adc_last_read_mv = (uint16_t)voltage_mv;
                             
                             // Only update cache and evaluate alerts if NOT frozen
-                            if (!is_update_suspended) { adc_cfg->adc_cached_mv = (uint16_t)voltage_mv; }
+                            if (!_freeze) { adc_cfg->adc_cached_mv = (uint16_t)voltage_mv; }
 
                             if (pin_obj->callback != NULL) {
                                 bool condition_met = false;

@@ -5,7 +5,9 @@
 #include "manager_i2c.h"
 
 
-
+void adc_callback(void*arg){
+    ESP_LOGI("adc callback", "invoked");
+}
 
 status_rep_t rik_link_pins(void){
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_PWM_EXPANDER_nOE, SYS_GPIO_MODE_OUTPUT_PUSH_PULL));
@@ -78,5 +80,16 @@ status_rep_t rik_link_interrupts(void){
     STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_ADC_EXPANDER_ALERT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_adc_expander_intr_pin_callback, m_i2c_get_dev_handle(rik_adc_expander_id)));
     STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_REGA_INT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_vreg_intr_pin_fault_callback, m_i2c_get_dev_handle(rik_vreg0_id)));
     STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_REGB_INT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_vreg_intr_pin_fault_callback, m_i2c_get_dev_handle(rik_vreg1_id)));
+    sys_io_adc_int_config_t adc_cfg= {
+        .adc_threshold_up_mv = 4000,
+        .adc_threshold_down_mv =2000, 
+        .adc_threshold_hysteresis_mv = 100,
+        .adc_event_counter_threshold = 2,
+        .adc_window_mode = SYS_GPIO_ADC_WINDOW_OUTSIDE,
+        .callback = adc_callback, 
+        .arg = NULL
+    };
+    STA_RET_ON_ERR(SYS_IO_ADC_REGISTER_CALLBACK(RIK_IO_PIN_DRV_1_IPROPI_1, &adc_cfg));
+
     return STA_OK;
 }
