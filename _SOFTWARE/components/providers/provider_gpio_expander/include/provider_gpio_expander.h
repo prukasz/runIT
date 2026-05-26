@@ -22,5 +22,4 @@ i2c_master_dev_handle_t * p_gpio_expander_get_i2c_dev_handle();
 TaskHandle_t p_gpio_expander_get_task_handle();
 i2c_device_config_t* p_gpio_expander_get_i2c_dev_config();
 
-extern void provider_gpio_expander_int_callback(void* arg);
 

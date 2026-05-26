@@ -216,7 +216,11 @@ status_rep_t p_gpio_esp_set_level(uint64_t pin_mask, bool level) {
         
         sys_pin_obj_t* pin_obj = pin_registry[i];
 
-        if (pin_obj == NULL || (pin_obj->pin_mode != SYS_GPIO_MODE_OUTPUT_PUSH_PULL && pin_obj->pin_mode != SYS_GPIO_MODE_OUTPUT_OPEN_DRAIN)) {
+        if (pin_obj == NULL) {
+            return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, (uint64_t)(1ULL << i));
+        }
+
+        if (pin_obj->pin_mode != SYS_GPIO_MODE_OUTPUT_PUSH_PULL && pin_obj->pin_mode != SYS_GPIO_MODE_OUTPUT_OPEN_DRAIN) {
             return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, (uint64_t)(1ULL << i));
         }
     }
@@ -255,7 +259,11 @@ status_rep_t p_gpio_esp_read_level(uint64_t pin_mask, bool* level) {
         sys_pin_obj_t* pin_obj = pin_registry[i];
         
         // [FIX APPLIED] Reject ADC and PWM, allow all digital INPUT and OUTPUT modes
-        if (pin_obj == NULL || pin_obj->pin_mode == SYS_GPIO_MODE_ADC || pin_obj->pin_mode == SYS_GPIO_MODE_PWM) {
+        if (pin_obj == NULL) {
+            return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, (uint64_t)(1ULL << i));
+        }
+
+        if (pin_obj->pin_mode == SYS_GPIO_MODE_ADC || pin_obj->pin_mode == SYS_GPIO_MODE_PWM) {
             return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, (uint64_t)(1ULL << i));
         }
 
@@ -312,7 +320,10 @@ status_rep_t p_gpio_esp_pin_toggle(uint64_t pin_mask) {
         if ((pin_mask & (1ULL << i)) == 0) continue;
 
         sys_pin_obj_t* pin_obj = pin_registry[i];
-        if (pin_obj == NULL || (pin_obj->pin_mode != SYS_GPIO_MODE_OUTPUT_PUSH_PULL && pin_obj->pin_mode != SYS_GPIO_MODE_OUTPUT_OPEN_DRAIN)) {
+        if (pin_obj == NULL) {
+            return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, (uint32_t)(1ULL << i));
+        }
+        if (pin_obj->pin_mode != SYS_GPIO_MODE_OUTPUT_PUSH_PULL && pin_obj->pin_mode != SYS_GPIO_MODE_OUTPUT_OPEN_DRAIN) {
             return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, (uint32_t)(1ULL << i));
         }
 
@@ -338,6 +349,10 @@ status_rep_t p_gpio_esp_adc_register_callback(uint64_t pin_mask, void* adc_int_c
             return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, (uint64_t)(1ULL << i));
         }
 
+        if (pin_registry[i] == NULL) {
+            return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, (uint64_t)(1ULL << i));
+        }
+
         esp_err_t err = esp_adc_add_intr_pin((uint8_t)channel, adc_int_config);
         if (err != ESP_OK) {
             return STA_FROM_ESP(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_ESP, err);
@@ -354,8 +369,12 @@ status_rep_t p_gpio_esp_adc_read(uint64_t pin_mask, uint32_t* out_mv, uint8_t ma
         if ((pin_mask & (1ULL << i)) == 0) continue;
 
         sys_pin_obj_t* pin_obj = pin_registry[i];
-        if (pin_obj == NULL || pin_obj->pin_mode != SYS_GPIO_MODE_ADC) {
-            continue;
+        if (pin_obj == NULL) {
+            return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, (uint64_t)(1ULL << i));
+        }
+
+        if (pin_obj->pin_mode != SYS_GPIO_MODE_ADC) {
+            return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, (uint64_t)(1ULL << i));
         }
 
         uint16_t mv = 0;
@@ -380,16 +399,16 @@ status_rep_t p_gpio_esp_register_callback(uint64_t pin_mask, uint32_t mode, void
 
         sys_pin_obj_t* pin_obj = pin_registry[i];
         if (pin_obj == NULL) {
-            return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, (uint64_t)(1ULL << i));
+            return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, (uint64_t)(1ULL << i));
         }
 
         gpio_int_type_t intr_type = GPIO_INTR_DISABLE;
         switch (mode) {
-            case SYS_GPIO_MODE_RISING_EDGE:  intr_type = GPIO_INTR_POSEDGE; break;
-            case SYS_GPIO_MODE_FALLING_EDGE: intr_type = GPIO_INTR_NEGEDGE; break;
-            case SYS_GPIO_MODE_BOTH_EDGES:   intr_type = GPIO_INTR_ANYEDGE; break;
-            case SYS_GPIO_MODE_LEVEL_HIGH:   intr_type = GPIO_INTR_HIGH_LEVEL; break;
-            case SYS_GPIO_MODE_LEVEL_LOW:    intr_type = GPIO_INTR_LOW_LEVEL; break;
+            case SYS_GPIO_INTR_MODE_RISING_EDGE:  intr_type = GPIO_INTR_POSEDGE; break;
+            case SYS_GPIO_INTR_MODE_FALLING_EDGE: intr_type = GPIO_INTR_NEGEDGE; break;
+            case SYS_GPIO_INTR_MODE_BOTH_EDGES:   intr_type = GPIO_INTR_ANYEDGE; break;
+            case SYS_GPIO_INTR_MODE_LEVEL_HIGH:   intr_type = GPIO_INTR_HIGH_LEVEL; break;
+            case SYS_GPIO_INTR_MODE_LEVEL_LOW:    intr_type = GPIO_INTR_LOW_LEVEL; break;
             default: return STA_C(IO_ERR_MODE_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, mode);
         }
 

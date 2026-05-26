@@ -6,6 +6,7 @@ extern uint8_t rik_current_monitor_id;
 extern uint8_t rik_gpio_expander_id;
 extern uint8_t rik_vreg0_id;
 extern uint8_t rik_vreg1_id;
+extern uint8_t rik_adc_expander_id;
 
 extern uint8_t rik_gpio_expander_port_id; 
 extern uint8_t rik_adc_expander_port_id;
@@ -135,6 +136,7 @@ extern EventGroupHandle_t rik_events_wireless;
 extern EventGroupHandle_t rik_events_data_processing;
 extern EventGroupHandle_t rik_events_wired;
 extern EventGroupHandle_t rik_events_vm;
+
 
 /*Event group of data interfaces */
 /**************************BLE*********************************************/

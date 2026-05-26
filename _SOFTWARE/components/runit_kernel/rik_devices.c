@@ -18,6 +18,7 @@ uint8_t rik_current_monitor_id;
 uint8_t rik_gpio_expander_id;
 uint8_t rik_vreg0_id;
 uint8_t rik_vreg1_id;
+uint8_t rik_adc_expander_id;
 
 
 uint8_t rik_gpio_expander_port_id = 0xFF; //invalid port id as default
@@ -58,6 +59,7 @@ status_rep_t rik_gpio_esp_start(void){
     return STA_OK;
 }
 
+extern void p_gpio_expander_intr_pin_callback(void* arg);
 
 status_rep_t rik_gpio_expander_start(uint8_t i2c_addres, bool bus_num){
 
@@ -102,7 +104,7 @@ status_rep_t rik_gpio_expander_start(uint8_t i2c_addres, bool bus_num){
         &rik_gpio_expander_port_id
     ));
 #if CONFIG_USE_MOCK_TCA6424A
-        tca_mock_set_intr_callback(provider_gpio_expander_int_callback, gpio_expander_handle);
+        tca_mock_set_intr_callback(p_gpio_expander_intr_pin_callback, gpio_expander_handle);
 #endif
     ESP_LOGI(TAG, "GPIO expander started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_addres);
     return STA_OK;
@@ -193,7 +195,7 @@ status_rep_t rik_regs_start(uint8_t i2c_adders_0, uint8_t i2c_adders_1, bool bus
     return STA_OK;
 }
 
-extern void ads_isr_callback(void* arg);
+extern void p_adc_expander_intr_pin_callback(void* arg);
 
 status_rep_t rik_adc_expander_start(uint8_t i2c_addres, bool bus_num){
     adc_expander_handle = p_adc_expander_new_handle(i2c_addres);
@@ -210,7 +212,7 @@ status_rep_t rik_adc_expander_start(uint8_t i2c_addres, bool bus_num){
         adc_expander_handle,
         task_handle,
         true, 
-        &rik_adc_expander_port_id
+        &rik_adc_expander_id
     ));
 
     STA_RET_ON_ERR(manager_io_register_new_port(
@@ -230,7 +232,7 @@ status_rep_t rik_adc_expander_start(uint8_t i2c_addres, bool bus_num){
         &rik_adc_expander_port_id
     ));
 
-    ads_mock_add_alert_callback(ads_isr_callback, adc_expander_handle);
+    ads_mock_add_alert_callback(p_adc_expander_intr_pin_callback, adc_expander_handle);
     ESP_LOGI(TAG, "ADC expander started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_addres);
     return STA_OK;
 }

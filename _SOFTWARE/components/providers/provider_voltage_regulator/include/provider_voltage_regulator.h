@@ -16,4 +16,4 @@ status_rep_t p_vreg_register_ocp_callback(bool reg_num, void (*callback)(void*),
 status_rep_t p_vreg_register_scp_callback(bool reg_num, void (*callback)(void*), void* ctx);
 
 
-extern void tps55289_isr_callback_fault(void *arg);
+extern void p_vreg_intr_pin_fault_callback(void *arg);

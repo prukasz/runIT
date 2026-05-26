@@ -90,7 +90,7 @@ static esp_err_t _ads_check_alert(ads_handle_t handle, uint8_t* channel){
     return ESP_OK;
 }
 
-void ads_isr_callback(void* arg) {
+void p_adc_expander_intr_pin_callback(void* arg) {
     ads_handle_t handle = (ads_handle_t)arg;
     BaseType_t high_task_wakeup = pdFALSE;
     

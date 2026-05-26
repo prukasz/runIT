@@ -2215,7 +2215,7 @@ esp_err_t ads_set_pin_cfg(ads_handle_t handle, uint8_t pin_cfg, bool update_now)
 
 esp_err_t ads_set_gpio_cfg(ads_handle_t handle, uint8_t gpio_cfg, bool update_now);
 
-void ads_isr_callback(void* arg);
+void p_adc_expander_intr_pin_callback(void* arg);
 
 esp_err_t ads_analog_ch_read(ads_handle_t handle, uint8_t pin_mask, bool update_now);
 

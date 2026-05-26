@@ -146,4 +146,4 @@ esp_err_t tps55289_set_fault_masks(tps55289_handle_t handle, bool mask_scp, bool
 esp_err_t tps55289_get_status(tps55289_handle_t handle, bool immediate);
 void tps55289_cfg_periodic_reading(tps55289_handle_t handle, bool status);
 void tps55289_register_user_callback(tps55289_handle_t handle, tps55289_fault_type_t type, void (*callback)(void *), void *arg);
-void tps55289_isr_callback_fault(void *arg);
+void p_vreg_intr_pin_fault_callback(void *arg);

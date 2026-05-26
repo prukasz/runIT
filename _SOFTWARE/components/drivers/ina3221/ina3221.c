@@ -480,7 +480,7 @@ void ina3221_task(void *arg)
     }
 }
 
-void ina3221_isr_callback_critical(void *arg)
+void p_current_monitor_intr_pin_crit_callback(void *arg)
 {
     ina3221_handle_t handle = (ina3221_handle_t)arg;
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
@@ -488,7 +488,7 @@ void ina3221_isr_callback_critical(void *arg)
     xTaskNotifyFromISR(handle->driver_task_handle, 0, eSetBits, &xHigherPriorityTaskWoken);
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
-void ina3221_isr_callback_warning(void *arg)
+void p_current_monitor_intr_pin_warning_callback(void *arg)
 {
     ina3221_handle_t handle = (ina3221_handle_t)arg;  
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;

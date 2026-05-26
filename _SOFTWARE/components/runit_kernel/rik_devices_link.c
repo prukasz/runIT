@@ -2,10 +2,9 @@
 #include "manager_io.h"
 #include "manager_power.h"
 #include "rik_shared.h"
+#include "manager_i2c.h"
 
-void simple_callback(void* arg){
-    ESP_LOGI("SIMPLE_CALLBACK", "Callback triggered with arg: %p", arg);
-}
+
 
 
 status_rep_t rik_link_pins(void){
@@ -52,6 +51,8 @@ status_rep_t rik_link_pins(void){
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_PD_INT, SYS_GPIO_MODE_INPUT));
     
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_GPIO_EXPANDER_nINT, SYS_GPIO_MODE_INPUT_PULLUP));
+    
+    STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_ADC_EXPANDER_ALERT, SYS_GPIO_MODE_INPUT_PULLUP));
 
     /*****************ADC INPUTS **********************************/
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_DRV_1_IPROPI_1, SYS_GPIO_MODE_ADC));
@@ -62,7 +63,20 @@ status_rep_t rik_link_pins(void){
     return STA_OK;
 }
 
-status_rep_t rik_link_callbacks(void){
-    
-}
 
+extern void p_gpio_expander_intr_pin_callback(void* arg);
+extern void p_current_monitor_intr_pin_warning_callback(void *arg);
+extern void p_current_monitor_intr_pin_crit_callback(void *arg);
+extern void p_vreg_intr_pin_fault_callback(void *arg);
+extern void p_adc_expander_intr_pin_callback(void* arg);
+
+status_rep_t rik_link_interrupts(void){
+
+    STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_GPIO_EXPANDER_nINT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_gpio_expander_intr_pin_callback, m_i2c_get_dev_handle(rik_gpio_expander_id)));
+    STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_POWER_MONITOR_WARN, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_current_monitor_intr_pin_warning_callback, m_i2c_get_dev_handle(rik_current_monitor_id)));
+    STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_MONITOR_CRIT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_current_monitor_intr_pin_crit_callback, m_i2c_get_dev_handle(rik_current_monitor_id)));
+    STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_ADC_EXPANDER_ALERT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_adc_expander_intr_pin_callback, m_i2c_get_dev_handle(rik_adc_expander_id)));
+    STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_REGA_INT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_vreg_intr_pin_fault_callback, m_i2c_get_dev_handle(rik_vreg0_id)));
+    STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_REGB_INT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_vreg_intr_pin_fault_callback, m_i2c_get_dev_handle(rik_vreg1_id)));
+    return STA_OK;
+}

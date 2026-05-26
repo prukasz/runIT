@@ -41,7 +41,7 @@ typedef tca_data_t* tca6424a_handle_t;
 
 void tca_task(void* dev_handle);
 
-void provider_gpio_expander_int_callback(void* arg); 
+void p_gpio_expander_intr_pin_callback(void* arg); 
 
 esp_err_t tca_register_pin_callback(tca6424a_handle_t handle, uint32_t pin_mask, void (*cb)(void*), tca_interrupt_mode_e mode, void* arg);
 

@@ -44,5 +44,5 @@ status_rep_t p_current_monitor_register_warning_callback(uint8_t channel, void (
  */
 status_rep_t p_current_monitor_register_critical_callback(uint8_t channel, void (*callback)(void*), void* ctx);
 
-extern void ina3221_isr_callback_critical(void *arg);
+extern void p_current_monitor_intr_pin_crit_callback(void *arg);
 extern void ina3221_isr_callback_warning(void *arg);

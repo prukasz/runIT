@@ -14,17 +14,17 @@ typedef enum{
 }sys_gpio_mode_e;
 
 typedef enum{
-    SYS_GPIO_MODE_RISING_EDGE = 0,
-    SYS_GPIO_MODE_FALLING_EDGE = 1,
-    SYS_GPIO_MODE_BOTH_EDGES = 2,
-    SYS_GPIO_MODE_LEVEL_HIGH = 3,
-    SYS_GPIO_MODE_LEVEL_LOW = 4
-}sys_gpio_int_mode_e;
+    SYS_GPIO_INTR_MODE_RISING_EDGE = 0,
+    SYS_GPIO_INTR_MODE_FALLING_EDGE = 1,
+    SYS_GPIO_INTR_MODE_BOTH_EDGES = 2,
+    SYS_GPIO_INTR_MODE_LEVEL_HIGH = 3,
+    SYS_GPIO_INTR_MODE_LEVEL_LOW = 4
+}sys_gpio_intr_mode_e;
 
 typedef enum{
     SYS_GPIO_ADC_WINDOW_OUTSIDE = 0,
     SYS_GPIO_ADC_WINDOW_INSIDE = 1,
-}sys_gpio_adc_int_mode_e;
+}sys_gpio_adc_intr_mode_e;
 
 typedef struct{
     uint32_t adc_threshold_up_mv;

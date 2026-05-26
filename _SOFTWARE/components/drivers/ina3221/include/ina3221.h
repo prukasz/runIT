@@ -347,7 +347,7 @@ void ina3221_register_user_callback(ina3221_handle_t handle, void (*callback)(vo
  * @param arg INA3221 handle
  * @note This function is called in ISR context, it will set alert flag and notify driver
  */
-void ina3221_isr_callback_critical(void *arg);
+void p_current_monitor_intr_pin_crit_callback(void *arg);
 
 /**
  * @breif GPIO isr callback 

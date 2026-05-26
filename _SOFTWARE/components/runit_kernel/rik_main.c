@@ -121,6 +121,12 @@ esp_err_t rik_start(void) {
         ESP_LOGE(TAG, "Failed to link devices");
         return ESP_FAIL;
     }
+    rep = rik_link_interrupts();
+    if (!STA_IS_OK(rep)) {
+        STA_P(rep);
+        ESP_LOGE(TAG, "Failed to link interrupts");
+        return ESP_FAIL;
+    }
     manager_io_exit_mode_dereffered();
     R_TASK_START(adc_task, task_read_adc, NULL, 5);
     return ESP_OK;

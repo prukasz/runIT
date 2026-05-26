@@ -354,7 +354,7 @@ void tps55289_task(void *arg)
     }
 }
 
-IRAM_ATTR void tps55289_isr_callback_fault(void *arg)
+IRAM_ATTR void p_vreg_intr_pin_fault_callback(void *arg)
 {
     tps55289_handle_t handle = (tps55289_handle_t)arg;
     if (!handle) return;
