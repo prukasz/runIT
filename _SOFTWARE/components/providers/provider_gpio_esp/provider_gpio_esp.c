@@ -160,7 +160,7 @@ status_rep_t p_gpio_esp_set_pin_mode(uint8_t pin, uint32_t mode) {
             return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, pin);
         } else {
             if (!verify_pin_free(pin_mask)) {
-                return STA_C(IO_ERR_PIN_IN_USE, OWNER_PROVIDER_GPIO_ESP, pin);
+                return STA_C(IO_ERR_PIN_IN_OTHER_USE, OWNER_PROVIDER_GPIO_ESP, pin);
             }
             sys_pin_obj_t* new_pin = calloc(1, sizeof(sys_pin_obj_t));
             if (new_pin == NULL) {
@@ -220,7 +220,6 @@ status_rep_t p_gpio_esp_set_level(uint64_t pin_mask, bool level) {
             pending_pin_level_updates |= (1ULL << i);
             continue;
         }
-        ESP_LOGI(TAG, "Setting GPIO pin %d to level %d", i, level);
         esp_err_t err = gpio_set_level(i, level);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to set level on pin %d: %d", i, err);
@@ -393,9 +392,9 @@ status_rep_t p_gpio_esp_register_callback(uint8_t pin, uint32_t mode, void (*cal
         default: return STA_C(IO_ERR_MODE_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, mode);
     }
 
-    // Store callback details in the unified struct
-    pin_obj->callback = callback;
-    pin_obj->callback_arg = arg;
+    // store if any new provided
+    if(callback)pin_obj->callback = callback;
+    if(arg)pin_obj->callback_arg = arg;
 
         // Apply hardware interrupt settings
     esp_err_t err = gpio_set_intr_type((gpio_num_t)pin, intr_type);

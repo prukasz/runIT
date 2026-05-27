@@ -1,5 +1,6 @@
 #include "provider_pwm_expander.h"
 #include "manager_io.h"
+#include "pca9685.h"
 #include "esp_log.h"
 
 #define TAG __FILE_NAME__
@@ -41,7 +42,6 @@ status_rep_t p_pca9685_pwm_set_duty(uint64_t pin_mask, uint32_t duty_cycle) {
     if (duty_cycle > PCA9685_MAX_PWM_VALUE) {
         duty_cycle = PCA9685_MAX_PWM_VALUE;
     }
-
     // Aplikowanie wartości PWM dla każdego bitu w masce
     for(uint8_t i = 0; i < PCA9685_CHANNEL_ALL; i++) {
         if (pin_mask & (1ULL << i)) {
@@ -62,7 +62,6 @@ status_rep_t p_pca9685_pwm_set_freq(uint64_t pin_mask, uint32_t freq_hz) {
     
     // Częstotliwość w PCA9685 jest globalna, więc ignorujemy pin_mask, ale zachowujemy spójność API
     (void)pin_mask; 
-
     esp_err_t err = pca9685_set_pwm_frequency(_pca_handle, (uint16_t)freq_hz, !_freeze);
     if (err != ESP_OK) {
         return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_PWM_EXPANDER, err);
@@ -103,4 +102,11 @@ status_rep_t p_pca9685_toggle_pins(uint64_t pin_mask) {
         }
     }
     return STA_OK;
+}
+
+void p_pca9685_notify_to_update(void) {
+    if (_pca_handle) {
+        // Powiadomienie zadania sterującego o potrzebie aktualizacji (np. po odblokowaniu)
+        xTaskNotify(_pca_handle->driver_task_handle, 0, eNoAction);
+    }
 }

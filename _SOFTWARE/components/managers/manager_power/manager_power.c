@@ -131,6 +131,22 @@ status_rep_t sys_pwr_get_bus_current(uint8_t channel, int32_t *current_mA){
     }
     return STA_OK;
 }
+
+status_rep_t sys_pwr_current_monitor_reset_callbacks(void) {
+    status_rep_t status = p_current_monitor_reset_callbacks();
+    if (!STA_IS_OK(status)) {
+        ESP_LOGW(TAG, "Failed to reset current monitor callbacks");
+        if (status.e_code == PWR_ERR_DEVICE_NOT_FOUND) {
+            ESP_LOGW(TAG, "Current monitor device not found for resetting callbacks");
+            STA_RP(STA_C(PWR_ERR_DEVICE_NOT_FOUND, OWNER_MANAGER_PWR, 0));
+        }
+        status.details.severity = 1;
+        STA_P(status);
+        STA_RP(STA_C(PWR_ERR_UPDATE_FAILED, OWNER_MANAGER_PWR, 0));
+    }
+    ESP_LOGI(TAG, "Current monitor callbacks reset successfully");
+    return STA_OK;
+}
     
 status_rep_t manager_pwr_init(){
     return STA_OK;
@@ -157,22 +173,22 @@ status_rep_t manager_pwr_add_cb(manager_pwr_cb_type_e cb_type, void (*handler)(v
         case MANAGER_PWR_CB_REG1_SCP:
             status = p_vreg_register_scp_callback(1, handler, ctx);
             break;
-        case MANAGER_PWR_CB_CURRENT_CH0_WARNING:
+        case MANAGER_PWR_CB_CURRENT_REG0_WARNING:
             status = p_current_monitor_register_warning_callback(0, handler, ctx);
             break;
-        case MANAGER_PWR_CB_CURRENT_CH0_CRITICAL:
+        case MANAGER_PWR_CB_CURRENT_REG0_CRITICAL:
             status = p_current_monitor_register_critical_callback(0, handler, ctx);
             break;
-        case MANAGER_PWR_CB_CURRENT_CH1_WARNING:
+        case MANAGER_PWR_CB_CURRENT_SYS_WARNING:
             status = p_current_monitor_register_warning_callback(1, handler, ctx);
             break;
-        case MANAGER_PWR_CB_CURRENT_CH1_CRITICAL:
+        case MANAGER_PWR_CB_CURRENT_SYS_CRITICAL:
             status = p_current_monitor_register_critical_callback(1, handler, ctx);
             break;
-        case MANAGER_PWR_CB_CURRENT_CH2_WARNING:
+        case MANAGER_PWR_CB_CURRENT_REG1_WARNING:
             status = p_current_monitor_register_warning_callback(2, handler, ctx);
             break;
-        case MANAGER_PWR_CB_CURRENT_CH2_CRITICAL:
+        case MANAGER_PWR_CB_CURRENT_REG1_CRITICAL:
             status = p_current_monitor_register_critical_callback(2, handler, ctx);
             break; 
         default:

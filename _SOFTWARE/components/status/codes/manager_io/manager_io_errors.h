@@ -18,5 +18,5 @@
     X(IO_ERR_PIN_UNSUPPORTED, 0xE205, "IO pin is unsupported")\
     X(IO_ERR_MODE_UNSUPPORTED, 0xE206, "IO mode is unsupported")\
     X(IO_ERR_UPDATE_FAILED, 0xE207, "IO update failed")\
-    X(IO_ERR_PIN_IN_USE, 0xE208, "IO pin is already in use")\
+    X(IO_ERR_PIN_IN_OTHER_USE, 0xE208, "IO pin is already in use")\
     X(IO_ERR_PIN_NOT_CONFIGURED, 0xE209, "IO pin is not configured")

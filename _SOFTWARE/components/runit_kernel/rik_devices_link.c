@@ -2,12 +2,12 @@
 #include "manager_io.h"
 #include "manager_power.h"
 #include "rik_shared.h"
+#include "rik_system_ctrl.h"
 #include "manager_i2c.h"
+#include "manager_power.h"
 
 
-void adc_callback(void*arg){
-    ESP_LOGI("adc callback", "invoked");
-}
+
 
 status_rep_t rik_link_pins(void){
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_PWM_EXPANDER_nOE, SYS_GPIO_MODE_OUTPUT_PUSH_PULL));
@@ -44,8 +44,8 @@ status_rep_t rik_link_pins(void){
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_VUSB_OK, SYS_GPIO_MODE_INPUT));
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_VEXT_OK, SYS_GPIO_MODE_INPUT));
 
-    STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_POWER_MONITOR_WARN, SYS_GPIO_MODE_INPUT));
-    STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_MONITOR_CRIT, SYS_GPIO_MODE_INPUT));
+    STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_CURRENT_MONITOR_WARN, SYS_GPIO_MODE_INPUT));
+    STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_CURRENT_MONITOR_CRIT, SYS_GPIO_MODE_INPUT));
 
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_DRV2_FAULT, SYS_GPIO_MODE_INPUT));
     STA_RET_ON_ERR(SYS_GPIO_SET_MODE(RIK_IO_PIN_DRV2_FAULT, SYS_GPIO_MODE_INPUT));
@@ -65,31 +65,33 @@ status_rep_t rik_link_pins(void){
     return STA_OK;
 }
 
-
+/* callbacks from dirvers */
 extern void p_gpio_expander_intr_pin_callback(void* arg);
 extern void p_current_monitor_intr_pin_warning_callback(void *arg);
 extern void p_current_monitor_intr_pin_crit_callback(void *arg);
 extern void p_vreg_intr_pin_fault_callback(void *arg);
 extern void p_adc_expander_intr_pin_callback(void* arg);
+/* callbacks from dirvers */
 
 status_rep_t rik_link_interrupts(void){
-
     STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_GPIO_EXPANDER_nINT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_gpio_expander_intr_pin_callback, m_i2c_get_dev_handle(rik_gpio_expander_id)));
-    STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_POWER_MONITOR_WARN, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_current_monitor_intr_pin_warning_callback, m_i2c_get_dev_handle(rik_current_monitor_id)));
-    STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_MONITOR_CRIT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_current_monitor_intr_pin_crit_callback, m_i2c_get_dev_handle(rik_current_monitor_id)));
+    STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_GPIO_EXPANDER_nINT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_current_monitor_intr_pin_warning_callback, m_i2c_get_dev_handle(rik_current_monitor_id)));
+    STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_GPIO_EXPANDER_nINT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_current_monitor_intr_pin_crit_callback, m_i2c_get_dev_handle(rik_current_monitor_id)));
     STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_ADC_EXPANDER_ALERT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_adc_expander_intr_pin_callback, m_i2c_get_dev_handle(rik_adc_expander_id)));
     STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_REGA_INT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_vreg_intr_pin_fault_callback, m_i2c_get_dev_handle(rik_vreg0_id)));
     STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_REGB_INT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_vreg_intr_pin_fault_callback, m_i2c_get_dev_handle(rik_vreg1_id)));
-    // sys_io_adc_int_config_t adc_cfg= {
-    //     .adc_threshold_up_mv = 4000,
-    //     .adc_threshold_down_mv =2000, 
-    //     .adc_threshold_hysteresis_mv = 100,
-    //     .adc_event_counter_threshold = 2,
-    //     .adc_window_mode = SYS_GPIO_ADC_WINDOW_OUTSIDE,
-    //     .callback = adc_callback, 
-    //     .arg = NULL
-    // };
-    // STA_RET_ON_ERR(SYS_IO_ADC_REGISTER_CALLBACK(RIK_IO_PIN_DRV_1_IPROPI_1, &adc_cfg));
-
+    STA_RET_ON_ERR(manager_pwr_add_cb(MANAGER_PWR_CB_REG0_OVP, rik_callback_vreg, (void*)MANAGER_PWR_CB_REG0_OVP));
+    STA_RET_ON_ERR(manager_pwr_add_cb(MANAGER_PWR_CB_REG0_OCP, rik_callback_vreg, (void*)MANAGER_PWR_CB_REG0_OCP));
+    STA_RET_ON_ERR(manager_pwr_add_cb(MANAGER_PWR_CB_REG0_SCP, rik_callback_vreg, (void*)MANAGER_PWR_CB_REG0_SCP));
+    STA_RET_ON_ERR(manager_pwr_add_cb(MANAGER_PWR_CB_REG1_OVP, rik_callback_vreg, (void*)MANAGER_PWR_CB_REG1_OVP));
+    STA_RET_ON_ERR(manager_pwr_add_cb(MANAGER_PWR_CB_REG1_OCP, rik_callback_vreg, (void*)MANAGER_PWR_CB_REG1_OCP));
+    STA_RET_ON_ERR(manager_pwr_add_cb(MANAGER_PWR_CB_REG1_SCP, rik_callback_vreg, (void*)MANAGER_PWR_CB_REG1_SCP));
+    STA_RET_ON_ERR(manager_pwr_add_cb(MANAGER_PWR_CB_CURRENT_REG0_WARNING, rik_callback_current_monitor, (void*)MANAGER_PWR_CB_CURRENT_REG0_WARNING));
+    STA_RET_ON_ERR(manager_pwr_add_cb(MANAGER_PWR_CB_CURRENT_REG0_CRITICAL, rik_callback_current_monitor, (void*)MANAGER_PWR_CB_CURRENT_REG0_CRITICAL));
+    STA_RET_ON_ERR(manager_pwr_add_cb(MANAGER_PWR_CB_CURRENT_SYS_WARNING, rik_callback_current_monitor, (void*)MANAGER_PWR_CB_CURRENT_SYS_WARNING));
+    STA_RET_ON_ERR(manager_pwr_add_cb(MANAGER_PWR_CB_CURRENT_SYS_CRITICAL, rik_callback_current_monitor, (void*)MANAGER_PWR_CB_CURRENT_SYS_CRITICAL));
+    STA_RET_ON_ERR(manager_pwr_add_cb(MANAGER_PWR_CB_CURRENT_REG1_WARNING, rik_callback_current_monitor, (void*)MANAGER_PWR_CB_CURRENT_REG1_WARNING));
+    STA_RET_ON_ERR(manager_pwr_add_cb(MANAGER_PWR_CB_CURRENT_REG1_CRITICAL, rik_callback_current_monitor, (void*)MANAGER_PWR_CB_CURRENT_REG1_CRITICAL));
+    STA_RET_ON_ERR(sys_pwr_set_bus_current_critical(RIK_CHANNEL_VREG0, 50));
     return STA_OK;
 }

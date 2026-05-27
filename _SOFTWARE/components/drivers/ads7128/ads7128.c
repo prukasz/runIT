@@ -200,9 +200,10 @@ esp_err_t ads_register_alert_callback(ads_handle_t handle, uint8_t pin_mask, voi
     uint8_t pin = __builtin_ctz(pin_mask); // Get index of least significant set bit
     if (pin > 7) return ESP_ERR_INVALID_ARG; // Ensure it's within 0-7
 
-    handle->callbacks[pin] = cb;
-    handle->callback_args[pin] = arg;
+    //override existing if new provided 
 
+    if(cb)handle->callbacks[pin] = cb;
+    if(arg) handle->callback_args[pin] = arg;
     return ESP_OK;
 }
 
@@ -277,7 +278,9 @@ void ads_task(void* arg) {
             while(*(uint8_t*)(&(handle->read_analog))){
                 _ads_update_ch_analog_value(handle, (uint8_t*)&handle->read_analog);
             }
-            xTaskNotifyGive(caller_task);
+             // Notify caller task that the requested operation is complete
+            xTaskNotify(caller_task, 0, eNoAction);
         }
-}
+        
+    }
 }

@@ -2,7 +2,7 @@
 #include "status.h"
 
 
-typedef enum{
+typedef enum manager_pwr_cb_type_e{
     MANAGER_PWR_CB_REG0_OVP,
     MANAGER_PWR_CB_REG0_OCP,
     MANAGER_PWR_CB_REG0_SCP,
@@ -11,12 +11,12 @@ typedef enum{
     MANAGER_PWR_CB_REG1_OCP,
     MANAGER_PWR_CB_REG1_SCP,
 
-    MANAGER_PWR_CB_CURRENT_CH0_WARNING,
-    MANAGER_PWR_CB_CURRENT_CH0_CRITICAL,
-    MANAGER_PWR_CB_CURRENT_CH1_WARNING,
-    MANAGER_PWR_CB_CURRENT_CH1_CRITICAL,
-    MANAGER_PWR_CB_CURRENT_CH2_WARNING,
-    MANAGER_PWR_CB_CURRENT_CH2_CRITICAL
+    MANAGER_PWR_CB_CURRENT_REG0_WARNING,
+    MANAGER_PWR_CB_CURRENT_REG0_CRITICAL,
+    MANAGER_PWR_CB_CURRENT_REG1_WARNING,
+    MANAGER_PWR_CB_CURRENT_REG1_CRITICAL,
+    MANAGER_PWR_CB_CURRENT_SYS_WARNING,
+    MANAGER_PWR_CB_CURRENT_SYS_CRITICAL
 } manager_pwr_cb_type_e;
 
 
@@ -30,6 +30,7 @@ status_rep_t sys_pwr_set_bus_power_warning(uint8_t channel, int32_t power_mW);
 status_rep_t sys_pwr_set_bus_power_critical(uint8_t channel, int32_t power_mW);
 status_rep_t sys_pwr_get_bus_voltage(uint8_t channel, uint32_t *voltage_mV);
 status_rep_t sys_pwr_get_bus_current(uint8_t channel, int32_t *current_mA);
+status_rep_t sys_pwr_current_monitor_reset_callbacks(void);
 
 status_rep_t sys_pwr_set_verg_voltage(bool regulator_id, uint32_t voltage_mv);
 status_rep_t sys_pwr_set_verg_current_limit(bool regulator_id, uint32_t current_ma);

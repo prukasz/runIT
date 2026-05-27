@@ -21,6 +21,14 @@ void status_assign_buffer(RingbufHandle_t status_buffer, QueueHandle_t status_qu
     };
 }
 
+void status_set_rep_mode(bool rep_i, bool rep_w, bool rep_c){
+    _status_log_flags = (status_manager_log_cfg){
+        .rep_i = rep_i,
+        .rep_w = rep_w,
+        .rep_c = rep_c,
+    };
+}
+
 
 void _sta_push_overwrite(const status_rep_t *_sta_err) {
     uint8_t severity = _sta_err->details.severity;
@@ -33,7 +41,7 @@ void _sta_push_overwrite(const status_rep_t *_sta_err) {
         default: break; 
     }
 
-    if (severity >= 1 && _status_queue_handle != NULL) {
+    if (severity >= 1 && _status_queue_handle != NULL && should_add) {
         // Try to send to the front (top) of the queue.
         while (xQueueSendToFront(_status_queue_handle, _sta_err, 0) != pdTRUE) {
             status_rep_t dummy;

@@ -1,25 +1,29 @@
 #include "manager_io.h"
+#include "rtos_utils.h"
 
 #define TAG __FILE_NAME__
+
 
 static io_port_dispatch_t port_registry[MAX_IO_PORTS] = {0};
 static uint8_t next_free_port = 0;
 static bool global_io_is_protected = false;
 
 void manager_io_freeze(void){
-    for (uint8_t i = 0; i < next_free_port; i++) {
-        if (port_registry[i].freeze) {
-            port_registry[i].freeze(true);
+        for (uint8_t i = 0; i < next_free_port; i++) {
+            if (port_registry[i].freeze) {
+                port_registry[i].freeze(true);
+            }
         }
-    }
+    
 }
 
 void manager_io_unfreeze(void){
-    for (uint8_t i = 0; i < next_free_port; i++) {
-        if (port_registry[i].freeze) {
-            port_registry[i].freeze(false);
+
+        for (uint8_t i = 0; i < next_free_port; i++) {
+            if (port_registry[i].freeze) {
+                port_registry[i].freeze(false);
+            }
         }
-    }
 }
 
 
@@ -119,14 +123,28 @@ status_rep_t sys_io_set_pwm_duty(uint8_t port_id, uint64_t pin_mask, uint32_t du
     if (port_id >= MAX_IO_PORTS) return STA_W(IO_ERR_PORT_INVALID, OWNER_IO_MANAGER, 0);
     if (port_registry[port_id].pwm_set_duty_func == NULL) return STA_W(IO_ERR_FEATURE_UNSUPPORTED, OWNER_IO_MANAGER, 0);
     if (global_io_is_protected && (pin_mask & port_registry[port_id].protected_pins)) return STA_W(IO_ERR_PIN_PROTECTED, OWNER_IO_MANAGER, 0);
-    return port_registry[port_id].pwm_set_duty_func(pin_mask, duty_cycle);
+    status_rep_t result = port_registry[port_id].pwm_set_duty_func(pin_mask, duty_cycle);
+    if (!STA_IS_OK(result)) {
+        ESP_LOGW(TAG, "Failed to set PWM duty cycle for port %d, pin mask 0x%016llX: e_code=%u, e_owner=%u", port_id, pin_mask, result.e_code, result.e_owner);
+        result.details.severity = 1; // Mark as warning
+        STA_P(result);
+        STA_RP(STA_C(result.e_code, OWNER_IO_MANAGER, pin_mask));
+    }
+    return STA_OK;
 }
 
 status_rep_t sys_io_set_pwm_freq(uint8_t port_id, uint64_t pin_mask, uint32_t freq_hz){
     if (port_id >= MAX_IO_PORTS) return STA_W(IO_ERR_PORT_INVALID, OWNER_IO_MANAGER, 0);
     if (port_registry[port_id].pwm_set_freq_func == NULL) return STA_W(IO_ERR_FEATURE_UNSUPPORTED, OWNER_IO_MANAGER, 0);
     if (global_io_is_protected && (pin_mask & port_registry[port_id].protected_pins)) return STA_W(IO_ERR_PIN_PROTECTED, OWNER_IO_MANAGER, 0);
-    return port_registry[port_id].pwm_set_freq_func(pin_mask, freq_hz);
+    status_rep_t result = port_registry[port_id].pwm_set_freq_func(pin_mask, freq_hz);
+    if (!STA_IS_OK(result)) {
+        ESP_LOGW(TAG, "Failed to set PWM frequency for port %d, pin mask 0x%016llX: e_code=%u, e_owner=%u", port_id, pin_mask, result.e_code, result.e_owner);
+        result.details.severity = 1; // Mark as warning
+        STA_P(result);
+        STA_RP(STA_C(result.e_code, OWNER_IO_MANAGER, pin_mask));
+    }
+    return STA_OK;
 }
 /****************** System wide PWM functions ***************************************/
 
@@ -150,7 +168,14 @@ status_rep_t sys_io_adc_register_callback(uint8_t port_id, uint8_t pin, void* ad
     if (port_id >= MAX_IO_PORTS) return STA_W(IO_ERR_PORT_INVALID, OWNER_IO_PORT_CALLBACK, port_id);
     if (port_registry[port_id].adc_callback_add_func == NULL) return STA_W(IO_ERR_FEATURE_UNSUPPORTED, OWNER_IO_PORT_CALLBACK, 0);
     if (global_io_is_protected && (1ULL << pin & port_registry[port_id].protected_pins)) return STA_W(IO_ERR_PIN_PROTECTED, OWNER_IO_PORT_CALLBACK, port_registry[port_id].protected_pins);
-    return port_registry[port_id].adc_callback_add_func(pin, adc_int_config);
+    status_rep_t result =  port_registry[port_id].adc_callback_add_func(pin, adc_int_config);
+    if (!STA_IS_OK(result)) {
+        ESP_LOGW(TAG, "Failed to register ADC callback for port %d, pin %d: e_code=%u, e_owner=%u", port_id, pin, result.e_code, result.e_owner);
+        result.details.severity = 1; // Mark as warning
+        STA_P(result);
+        STA_RP(STA_C(result.e_code, OWNER_IO_PORT_CALLBACK, pin));
+    }
+    return STA_OK;
 }
 /****************** System wide ADC functions ***************************************/
 

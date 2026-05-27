@@ -109,6 +109,7 @@ static void i2c_manager_task_function(void* params) {
         j_periodic = bus_periodic_queue_1;
         j_aperiodic = bus_aperiodic_queue_1;
     }
+    uint32_t bus_owner = (manager->bus_cfg.i2c_port == I2C_NUM_0) ? OWNER_I2C_BUS_0 : OWNER_I2C_BUS_0;
     while (1) {
         R_EVENT_AWAIT_ANY(manager->m_i2c_events, manager->m_i2c_bit_queue_process, WAIT_FOREVER); 
         uint32_t items_in_aperiodic = uxQueueMessagesWaiting(j_aperiodic);
@@ -117,54 +118,54 @@ static void i2c_manager_task_function(void* params) {
             
             if (R_QUEUE_RECEIVE(j_aperiodic, &current_job, NO_WAIT) == pdTRUE) {
                 
+                uint32_t notify_value = 0;
                 TaskHandle_t driver_task = m_i2c_get_driver_task(current_job.driver_id);
                 if (current_job.keep_alive){
                     if (driver_task == NULL) { 
-                        continue;
+                        ESP_LOGW(TAG, "Driver task %d not found during aperiodic cycle", current_job.driver_id);
                     } else {
                         R_NOTIFY_SEND(driver_task, (uint32_t)manager_task_handle);
-                    }
-                    uint32_t notify_value;
-                    if (!IS_OK(R_NOTIFY_AWAIT(MSEC(50), &notify_value))) {
-                        ///ADD HERE STAUTS 
-                        break; 
-                    }else{
-                        if (notify_value != 0) {
-                            ESP_LOGW(TAG, "Driver task %d on bus %d failed to update", current_job.driver_id, manager->bus_cfg.i2c_port);
-                            ///ADD HERE STAUTS 
-                            continue;
+                        if (!IS_OK(R_NOTIFY_AWAIT(MSEC(50), &notify_value))) {
+                            ESP_LOGE(TAG, "Driver task %d on bus %d failed to respond in time", current_job.driver_id, manager->bus_cfg.i2c_port);
+                            STA_P(STA_C(ERR_I2C_TIMEOUT, bus_owner , current_job.driver_id));
+                        }else if (notify_value != 0){
+                            ESP_LOGE(TAG, "Driver task %d on bus %d failed to update", current_job.driver_id, manager->bus_cfg.i2c_port);
+                            STA_P(STA_C(ERR_I2C_TRANSMISSION_FAILURE, bus_owner , current_job.driver_id));
                         }
                     } 
                 }
             }
         }
+
         uint32_t items_in_periodic = uxQueueMessagesWaiting(j_periodic);
         for (UBaseType_t i = 0; i < items_in_periodic; i++) {
             m_i2c_driver_job_t current_job;
-            
+
             if (R_QUEUE_RECEIVE(j_periodic, &current_job, NO_WAIT) == pdTRUE) {
                 
-                uint32_t notify_value;
+                uint32_t notify_value = 0;
                 if (current_job.keep_alive){
                     TaskHandle_t driver_task = m_i2c_get_driver_task(current_job.driver_id);
-                    R_NOTIFY_SEND(driver_task, (uint32_t)manager_task_handle);
-                    if (!IS_OK(R_NOTIFY_AWAIT(MSEC(50), &notify_value))) {
-                        //ADD FAILURE STATUS
-                        break;
+                    if (driver_task == NULL) {
+                        ESP_LOGW(TAG, "Driver task %d not found during periodic cycle", current_job.driver_id);
                     }else{
-                        if (notify_value != 0) {
-                            ESP_LOGW(TAG, "Driver task %d on bus %d failed to update", current_job.driver_id, manager->bus_cfg.i2c_port);
-                            //ADD FAILURE STATUS
-                            continue;
+                        R_NOTIFY_SEND(driver_task, (uint32_t)manager_task_handle);
+                        if (!IS_OK(R_NOTIFY_AWAIT(MSEC(50), &notify_value))) {
+                            ESP_LOGE(TAG, "Driver task %d on bus %d failed to respond in time", current_job.driver_id, manager->bus_cfg.i2c_port);
+                            STA_P(STA_C(ERR_I2C_TIMEOUT, bus_owner , current_job.driver_id));
+                        }else if (notify_value != 0){
+                            ESP_LOGE(TAG, "Driver task %d on bus %d failed to update", current_job.driver_id, manager->bus_cfg.i2c_port);
+                            STA_P(STA_C(ERR_I2C_TRANSMISSION_FAILURE, bus_owner , current_job.driver_id));
                         }
-                    }          
-                }
-                R_QUEUE_SEND(j_periodic, &current_job, NO_WAIT); // re-add to the end of the queue for next round
+                    }
+                   
+                } 
+                R_QUEUE_SEND(j_periodic, &current_job, NO_WAIT);           
             }
         }
-        R_EVENT_SET(manager->m_i2c_events, manager->m_i2c_bit_queue_done);
-        R_NOTIFY_SEND(manager->supervisor_task_handle, 0);
     }
+    R_EVENT_SET(manager->m_i2c_events, manager->m_i2c_bit_queue_done);
+    R_NOTIFY_SEND(manager->supervisor_task_handle, 0);
 }
 
 status_rep_t m_i2c_init(m_i2c_config_t* bus0_config, m_i2c_config_t* bus1_config) 

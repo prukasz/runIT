@@ -17,6 +17,8 @@
 #include "rik_devices_link.h"
 #include "manager_io.h"
 #include "ads7128_mock.h"
+#include "manager_power.h"
+#include "esp_timer.h"
 
 #define TAG "RIK_MAIN"
 
@@ -43,31 +45,30 @@ R_EVENT_GROUP_DEFINE(rik_events_data_processing);
 R_EVENT_GROUP_DEFINE(rik_events_vm);
 /***********************STATIC GLOBAL EVENT GROUPS ******************************/
 
+
+
 void task_read_adc(void* arg){
     while(1){
         uint32_t adc_value[4];
-        bool level;
-        // uint32_t adc_expander_value[8];
 
-        // for (int i = 0; i < 8; i++) {
-        //     ads_mock_simulate_voltage(i, 1000 + i * 100); // Simulate different voltages on each channel
-        // }
-        // Simulate 1000mV on ADC channel 0
-        
+
         sys_io_adc_read(rik_gpio_esp_port_id,SYS_IO_GET_MASK(RIK_IO_PIN_DRV_1_IPROPI_1)|SYS_IO_GET_MASK(RIK_IO_PIN_DRV_1_IPROPI_2)|
         SYS_IO_GET_MASK(RIK_IO_PIN_DRV_1_IPROPI_3)|SYS_IO_GET_MASK(RIK_IO_PIN_DRV_1_IPROPI_4), adc_value, 4);
-        // sys_io_adc_read(rik_adc_expander_port_id, SYS_IO_GET_PIN_MASK(RIK_IO_PIN_ADC_0) | SYS_IO_GET_PIN_MASK(RIK_IO_PIN_ADC_1) |
-        //  SYS_IO_GET_PIN_MASK(RIK_IO_PIN_ADC_2) | SYS_IO_GET_PIN_MASK(RIK_IO_PIN_ADC_3) |
-        //   SYS_IO_GET_PIN_MASK(RIK_IO_PIN_ADC_4) | SYS_IO_GET_PIN_MASK(RIK_IO_PIN_ADC_5) |
-        //    SYS_IO_GET_PIN_MASK(RIK_IO_PIN_ADC_6) | 
-        //    SYS_IO_GET_PIN_MASK(RIK_IO_PIN_ADC_7), adc_expander_value, 8);
-        
+
+        STA_P(SYS_IO_SET_PWM_FREQ(RIK_PWM_EXPANDER_USER_CHANNEL_7, 50));
         vTaskDelay(pdMS_TO_TICKS(1000));
         SYS_GPIO_TOGGLE(RIK_IO_PIN_GPIO_EXPANDER_nRESET);
-       
+        STA_P(SYS_IO_SET_PWM_DUTY(RIK_PWM_EXPANDER_USER_CHANNEL_7, 200));
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        STA_P(SYS_IO_SET_PWM_DUTY(RIK_PWM_EXPANDER_USER_CHANNEL_7, 300));
+        
+        uint32_t voltage = 0;
+        int32_t current = 0;
+        sys_pwr_get_bus_current(RIK_CHANNEL_VREG0, &current);
+        sys_pwr_get_bus_voltage(RIK_CHANNEL_VREG0, &voltage);
+        ESP_LOGI(TAG, "Voltage Regulator 0 Voltage: %u mV, current: %d", voltage, current);
         ESP_LOGI(TAG, "ADC Value: %u, %u, %u, %u", adc_value[0], adc_value[1], adc_value[2], adc_value[3]);
-        // ESP_LOGI(TAG, "ADC Expander Value: %u, %u, %u, %u, %u, %u, %u, %u", adc_expander_value[0], adc_expander_value[1], adc_expander_value[2], adc_expander_value[3],
-        //  adc_expander_value[4], adc_expander_value[5], adc_expander_value[6], adc_expander_value[7]);
+
     }
 }
 
@@ -131,5 +132,9 @@ esp_err_t rik_start(void) {
     R_TASK_START(adc_task, task_read_adc, NULL, 5);
     manager_io_freeze();
     manager_io_unfreeze();
+
+    R_EVENT_SET(rik_events_wired, EVENT_BIT_I2C_PROCESS_0); // Trigger data processing after initial setup
+    R_EVENT_AWAIT_ALL(rik_events_wired, EVENT_BIT_I2C_DONE_0, WAIT_FOREVER);
+    
     return ESP_OK;
 }

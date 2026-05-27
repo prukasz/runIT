@@ -90,10 +90,12 @@ status_rep_t rik_start_i2c(TaskHandle_t supervisor_task_handle, EventGroupHandle
     gpio_num_t sda_gpio_0, gpio_num_t scl_gpio_0,
     gpio_num_t sda_gpio_1, gpio_num_t scl_gpio_1)
 { 
+    rik_i2c_cfg_0.supervisor_task_handle = supervisor_task_handle;
     rik_i2c_cfg_0.m_i2c_events = i2c_events_bus_0;
     rik_i2c_cfg_0.bus_cfg.sda_io_num = sda_gpio_0;
     rik_i2c_cfg_0.bus_cfg.scl_io_num = scl_gpio_0;
 
+    rik_i2c_cfg_1.supervisor_task_handle = supervisor_task_handle;
     rik_i2c_cfg_1.m_i2c_events = i2c_events_bus_1;
     rik_i2c_cfg_1.bus_cfg.sda_io_num = sda_gpio_1;
     rik_i2c_cfg_1.bus_cfg.scl_io_num = scl_gpio_1;
@@ -120,6 +122,8 @@ void rik_start_interface(EventGroupHandle_t events){
 // /****************POWER MANAGER CONFIG******************************** */
 
 status_rep_t rik_start_power_manager() {
+    rik_regs_start(0x74, 0x75, 0);
+    rik_current_monitor_start(0x40, 0);
     return manager_pwr_init();
 }
 
@@ -131,8 +135,9 @@ status_rep_t rik_start_io_manager() {
 #ifdef CONFIG_CONNECT_ADS7218
     STA_RET_ON_ERR(rik_adc_expander_start(0x12, 0));
 #endif
-    rik_regs_start(0x74, 0x75, 0); //to apply later
-    //STA_RET_ON_ERR(rik_pwm_expander_start(0x13, 0)); //to apply later
+    
+    p_pwm_expadner_start(0x60, 0); 
     return STA_OK;
+    
 }
 

@@ -1,7 +1,7 @@
 #pragma once 
 #include "status.h"
 #include "driver/i2c_master.h"
-#include "pca9685.h"
+
 
 /**
  * @brief Initialize the PCA9685 provider
@@ -24,3 +24,4 @@ status_rep_t p_pca9685_pwm_set_duty(uint64_t pin_mask, uint32_t duty_cycle);
 status_rep_t p_pca9685_pwm_set_freq(uint64_t pin_mask, uint32_t freq_hz);
 status_rep_t p_pca9685_set_pins(uint64_t pin_mask, bool state);
 status_rep_t p_pca9685_toggle_pins(uint64_t pin_mask);
+void p_pca9685_notify_to_update(void);

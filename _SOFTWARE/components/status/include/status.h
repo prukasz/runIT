@@ -130,6 +130,16 @@ void _sta_push_overwrite(const status_rep_t *item);
     _mapped_sta; \
 })
 
+#define STA_P_ON_ERR(status) do { \
+    status_rep_t _sta_p_check = (status); \
+    if (!STA_IS_OK(_sta_p_check)) { \
+        STA_P(_sta_p_check); \
+    } \
+} while(0)
+
 void status_assign_buffer(RingbufHandle_t status_buffer, QueueHandle_t status_queue);
+void status_set_rep_mode(bool rep_i, bool rep_w, bool rep_c);
+#define STATUS_SUSPEND() status_set_rep_mode(0,0,0)
+#define STATUS_RESUME()  status_set_rep_mode(1,1,1)
 void status_mutex_lock();
 void status_mutex_unlock();

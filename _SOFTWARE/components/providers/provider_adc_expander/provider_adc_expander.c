@@ -85,3 +85,4 @@ TaskHandle_t p_adc_expander_get_task_handle(){
 i2c_device_config_t* p_adc_expander_get_i2c_dev_config(){
     return &_ads_handle->i2c_dev_config;
 }
+

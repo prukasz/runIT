@@ -321,6 +321,15 @@ esp_err_t ina3221_set_sum_warning_alert(ina3221_handle_t handle, uint32_t voltag
 
 
 /**
+ * @brief Reset alert hardware settings and flags
+ * Disables warning and critical alert latches, reads mask register to clear alert flags,
+ * and resets internal alert flags
+ * @param handle INA3221 handle
+ * @return ESP_OK to indicate success
+ */
+esp_err_t ina3221_reset_alerts(ina3221_handle_t handle);
+
+/**
  * @brief Configure periodic readings for INA3221
  * @param handle INA3221 handle
  * @param bus_voltage Whether to read bus voltage periodically

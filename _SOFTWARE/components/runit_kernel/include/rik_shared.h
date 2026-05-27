@@ -7,10 +7,12 @@ extern uint8_t rik_gpio_expander_id;
 extern uint8_t rik_vreg0_id;
 extern uint8_t rik_vreg1_id;
 extern uint8_t rik_adc_expander_id;
+extern uint8_t rik_pwm_expander_id;
 
 extern uint8_t rik_gpio_expander_port_id; 
 extern uint8_t rik_adc_expander_port_id;
 extern uint8_t rik_gpio_esp_port_id;
+extern uint8_t rik_pwm_expander_port_id;
 
 
 #define RIK_IO_PIN_PWM_EXPANDER_nOE  SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 0)
@@ -24,8 +26,8 @@ extern uint8_t rik_gpio_esp_port_id;
 #define RIK_IO_PIN_VUSB_OK    SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 3)  //3
 #define RIK_IO_PIN_VEXT_OK    SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 4)  //4
 
-#define RIK_IO_PIN_POWER_MONITOR_WARN    SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 5) //5
-#define RIK_IO_PIN_MONITOR_CRIT   SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 6) //6
+#define RIK_IO_PIN_CURRENT_MONITOR_WARN    SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 5) //5
+#define RIK_IO_PIN_CURRENT_MONITOR_CRIT   SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 6) //6
 
 #define RIK_IO_PIN_DRV_OCPM  SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 7) //7
 
@@ -82,6 +84,28 @@ extern uint8_t rik_gpio_esp_port_id;
 #define RIK_IO_PIN_DRV_1_EN3          SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 2)
 #define RIK_IO_PIN_DRV_1_EN4          SYS_IO_MAKE_PIN(rik_gpio_esp_port_id, 1)
 
+
+// ---------------------------------------------------------
+// PWM Expander Channels (PCA9685)
+// ---------------------------------------------------------
+#define RIK_PWM_EXPANDER_USER_CHANNEL_0  SYS_IO_MAKE_PIN(rik_pwm_expander_port_id, 0)
+#define RIK_PWM_EXPANDER_USER_CHANNEL_1  SYS_IO_MAKE_PIN(rik_pwm_expander_port_id, 1)
+#define RIK_PWM_EXPANDER_USER_CHANNEL_2  SYS_IO_MAKE_PIN(rik_pwm_expander_port_id, 2)
+#define RIK_PWM_EXPANDER_USER_CHANNEL_3  SYS_IO_MAKE_PIN(rik_pwm_expander_port_id, 3)
+#define RIK_PWM_EXPANDER_USER_CHANNEL_4  SYS_IO_MAKE_PIN(rik_pwm_expander_port_id, 4)
+#define RIK_PWM_EXPANDER_USER_CHANNEL_5  SYS_IO_MAKE_PIN(rik_pwm_expander_port_id, 5)
+#define RIK_PWM_EXPANDER_USER_CHANNEL_6  SYS_IO_MAKE_PIN(rik_pwm_expander_port_id, 6)
+#define RIK_PWM_EXPANDER_USER_CHANNEL_7  SYS_IO_MAKE_PIN(rik_pwm_expander_port_id, 7)
+#define RIK_IO_PIN_DRV_2_IN1  SYS_IO_MAKE_PIN(rik_pwm_expander_port_id, 8)
+#define RIK_IO_PIN_DRV_2_IN2  SYS_IO_MAKE_PIN(rik_pwm_expander_port_id, 9)
+#define RIK_IO_PIN_DRV_2_IN3 SYS_IO_MAKE_PIN(rik_pwm_expander_port_id, 10)
+#define RIK_IO_PIN_DRV_2_IN4 SYS_IO_MAKE_PIN(rik_pwm_expander_port_id, 11)
+#define RIK_IO_PIN_DRV_2_EN1 SYS_IO_MAKE_PIN(rik_pwm_expander_port_id, 12)
+#define RIK_IO_PIN_DRV_2_EN2 SYS_IO_MAKE_PIN(rik_pwm_expander_port_id, 13)
+#define RIK_IO_PIN_DRV_2_EN3 SYS_IO_MAKE_PIN(rik_pwm_expander_port_id, 14)
+#define RIK_IO_PIN_DRV_2_EN4 SYS_IO_MAKE_PIN(rik_pwm_expander_port_id, 15)
+
+
 // ---------------------------------------------------------
 // External SPI Bus
 // ---------------------------------------------------------
@@ -123,6 +147,7 @@ extern uint8_t rik_gpio_esp_port_id;
 #define RIK_CHANNEL_VREG1 2
 
 
+
 extern bool _rik_ble_active;
 extern bool _rik_wifi_active;
 extern bool _rik_emergency_state_active;
@@ -136,7 +161,6 @@ extern EventGroupHandle_t rik_events_wireless;
 extern EventGroupHandle_t rik_events_data_processing;
 extern EventGroupHandle_t rik_events_wired;
 extern EventGroupHandle_t rik_events_vm;
-
 
 /*Event group of data interfaces */
 /**************************BLE*********************************************/

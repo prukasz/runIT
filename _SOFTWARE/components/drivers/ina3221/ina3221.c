@@ -326,6 +326,26 @@ esp_err_t ina3221_set_sum_warning_alert(ina3221_handle_t handle, uint32_t voltag
     return _ina3221_write(handle, INA3221_REG_SHUNT_VOLTAGE_SUM_LIMIT, reg_val);
 }
 
+esp_err_t ina3221_reset_alerts(ina3221_handle_t handle)
+{
+    CHECK_ARG(handle);
+
+    /* Disable both critical and warning alert latches to stop new alerts from latching */
+    handle->mask.cen = 0;  // Disable critical latch
+    handle->mask.wen = 0;  // Disable warning latch
+    RETURN_ON_ERROR(write_mask(handle));
+
+    /* Read mask register to clear any pending alert flags (mask register is read-to-clear) */
+    RETURN_ON_ERROR(_ina3221_read(handle, INA3221_REG_MASK, &handle->mask.mask_register));
+
+    /* Clear internal alert flags */
+    handle->alert_critical = false;
+    handle->alert_warning = false;
+
+    ESP_LOGI(TAG, "INA3221 alerts reset: latches disabled, flags cleared");
+    return ESP_OK;
+}
+
 
 /**
  * @brief Task to handle deferred readings and alerts for INA3221
@@ -425,7 +445,7 @@ void ina3221_task(void *arg)
                 }
             }
         } 
-        else {
+        else if (notification_value) {
             #pragma GCC diagnostic push
             #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
             TaskHandle_t caller_task = (TaskHandle_t)(uintptr_t)notification_value;

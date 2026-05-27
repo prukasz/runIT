@@ -44,5 +44,12 @@ status_rep_t p_current_monitor_register_warning_callback(uint8_t channel, void (
  */
 status_rep_t p_current_monitor_register_critical_callback(uint8_t channel, void (*callback)(void*), void* ctx);
 
+/**
+ * @brief Reset current monitor callbacks for all channels
+ * Clears all registered warning and critical alert callbacks
+ * @return Status code
+ */
+status_rep_t p_current_monitor_reset_callbacks(void);
+
 extern void p_current_monitor_intr_pin_crit_callback(void *arg);
 extern void ina3221_isr_callback_warning(void *arg);

@@ -229,7 +229,6 @@ esp_err_t pca9685_set_pwm_value(pca9685_handle_t handle, uint8_t channel, uint16
         buf[2] = full_on ? LED_FULL_ON_OFF : 0;
         buf[3] = raw & 0xFF;
         buf[4] = full_off ? (LED_FULL_ON_OFF | (raw >> 8)) : (raw >> 8);
-
         return i2c_master_transmit(handle->i2c_dev_handle, buf, sizeof(buf), PCA9685_TIMEOUT_MS);
     } 
     else {
@@ -241,8 +240,6 @@ esp_err_t pca9685_set_pwm_value(pca9685_handle_t handle, uint8_t channel, uint16
         }
         
         handle->to_update.update_pwm = 1;
-        // Wysłanie 0 oznacza: nie blokuj mnie, zrób to w tle
-        xTaskNotify(handle->driver_task_handle, 0, eSetBits);
         return ESP_OK;
     }
 }
@@ -316,7 +313,6 @@ esp_err_t pca9685_set_pwm_frequency(pca9685_handle_t handle, uint16_t freq, bool
         return _pca9685_set_prescaler_blocking(handle, prescaler);
     } else {
         handle->to_update.update_prescaler = 1;
-        xTaskNotify(handle->driver_task_handle, 0, eSetBits);
         return ESP_OK;
     }
 }
@@ -331,7 +327,6 @@ esp_err_t pca9685_set_output_inverted(pca9685_handle_t handle, bool inverted, bo
         return _update_reg(handle->i2c_dev_handle, REG_MODE2, MODE2_INVRT_BIT, val);
     } else {
         handle->to_update.update_mode2 = 1;
-        xTaskNotify(handle->driver_task_handle, 0, eSetBits);
         return ESP_OK;
     }
 }
@@ -346,7 +341,6 @@ esp_err_t pca9685_set_output_open_drain(pca9685_handle_t handle, bool od, bool i
         return _update_reg(handle->i2c_dev_handle, REG_MODE2, MODE2_OUTDRV_BIT, val);
     } else {
         handle->to_update.update_mode2 = 1;
-        xTaskNotify(handle->driver_task_handle, 0, eSetBits);
         return ESP_OK;
     }
 }

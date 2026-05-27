@@ -30,3 +30,5 @@ status_rep_t rik_regs_start(uint8_t i2c_adders_0, uint8_t i2c_adders_1, bool bus
 
 status_rep_t rik_adc_expander_start(uint8_t i2c_addres, bool bus_num);
 
+status_rep_t p_pwm_expadner_start(uint8_t i2c_addres, bool bus_num);
+
