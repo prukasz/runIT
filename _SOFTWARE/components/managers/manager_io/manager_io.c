@@ -1,6 +1,7 @@
 #include "manager_io.h"
 #include "rtos_utils.h"
 
+
 #define TAG __FILE_NAME__
 
 
@@ -178,6 +179,24 @@ status_rep_t sys_io_adc_register_callback(uint8_t port_id, uint8_t pin, void* ad
     return STA_OK;
 }
 /****************** System wide ADC functions ***************************************/
+
+status_rep_t sys_io_reset_all(void) {
+    for (uint8_t i = 0; i < next_free_port; i++) {
+        if (port_registry[i].reset) {
+            status_rep_t result = port_registry[i].reset();
+            if (!STA_IS_OK(result)) {
+                ESP_LOGW(TAG, "Failed to reset IO port %d: e_code=%u, e_owner=%u", i, result.e_code, result.e_owner);
+                result.details.severity = 1; // Mark as warning
+                STA_P(result);
+                // Continue resetting other ports even if one fails
+            } else {
+                ESP_LOGI(TAG, "Reset IO port %d successfully", i);
+            }
+        }
+    }
+    return STA_OK;
+}
+
 
 
 

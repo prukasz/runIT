@@ -19,6 +19,7 @@
 #include "ads7128_mock.h"
 #include "manager_power.h"
 #include "esp_timer.h"
+#include "rik_system_ctrl.h"
 
 #define TAG "RIK_MAIN"
 
@@ -135,6 +136,12 @@ esp_err_t rik_start(void) {
 
     R_EVENT_SET(rik_events_wired, EVENT_BIT_I2C_PROCESS_0); // Trigger data processing after initial setup
     R_EVENT_AWAIT_ALL(rik_events_wired, EVENT_BIT_I2C_DONE_0, WAIT_FOREVER);
+    sys_pwr_set_bus_current_critical(RIK_CHANNEL_VREG0, 50);
+    
+    vTaskDelay(MSEC(1000)); // Allow some time for processing before starting the VM
+    ESP_LOGW(TAG, "reset devices to default configuration");
+    devices_default_config();
+    //sys_pwr_set_bus_current_critical(RIK_CHANNEL_VREG0, 50);
     
     return ESP_OK;
 }

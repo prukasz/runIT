@@ -159,8 +159,6 @@ typedef struct
         uint8_t read_current_periodic     :1;
         uint8_t read_current_sum          :1;
         uint8_t read_current_sum_periodic :1;
-        uint8_t read_status               :1;
-        uint8_t read_status_periodic      :1;
     }to_update;
     
 } _ina3221_data_t;
@@ -181,7 +179,7 @@ ina3221_handle_t ina3221_new(uint8_t i2c_address);
  * @param immediate Immediate or deferred update
  * @return ESP_OK to indicate success
  */
-esp_err_t ina3221_get_status(ina3221_handle_t handle, bool immediate);
+esp_err_t ina3221_get_status(ina3221_handle_t handle);
 
 /**
  * @brief Set options for bus and shunt, update immidiately
@@ -290,15 +288,7 @@ esp_err_t ina3221_update_shunts_readings(ina3221_handle_t handle, bool immediate
  */
 esp_err_t ina3221_get_sum_shunt_value(ina3221_handle_t handle, bool immediate);
 
-/**
- * @brief Set Critical alert, update immidiately
- * @nosubgrouping Alert when average measurement(s) is greater than the set value
- * @param handle Device descriptor
- * @param channel Select channel value to set
- * @param current Value to set (mA). Negative values are allowed for reverse current thresholds.
- * @return ESP_OK to indicate success
- */
-esp_err_t ina3221_set_critical_alert(ina3221_handle_t handle, ina3221_channel_t channel, int32_t current_mA);
+
 
 /**
  * @brief Set Warning alert, update immidiately
@@ -306,9 +296,10 @@ esp_err_t ina3221_set_critical_alert(ina3221_handle_t handle, ina3221_channel_t 
  * @param handle Device descriptor
  * @param channel Select channel value to set
  * @param current Value to set (mA). Negative values are allowed for reverse current thresholds.
+ * @param is_critical Set to true to configure critical alert, false for warning alert
  * @return ESP_OK to indicate success
  */
-esp_err_t ina3221_set_warning_alert(ina3221_handle_t handle, ina3221_channel_t channel, int32_t current_mA);
+esp_err_t ina3221_set_alert(ina3221_handle_t handle, ina3221_channel_t channel, int32_t current_mA, bool is_critical);
 
 /**
  * @brief Set Sum Warning alert, update immidiately
@@ -337,7 +328,7 @@ esp_err_t ina3221_reset_alerts(ina3221_handle_t handle);
  * @param current_sum Whether to read sum current periodically
  * @param status Whether to read status periodically
  */
-void ina3221_cfg_periodic_reading(ina3221_handle_t handle, bool bus_voltage, bool current, bool current_sum, bool status);
+esp_err_t ina3221_cfg_periodic_reading(ina3221_handle_t handle, bool bus_voltage, bool current, bool current_sum);
 
 /**
  * @brief Register user callback for alert events

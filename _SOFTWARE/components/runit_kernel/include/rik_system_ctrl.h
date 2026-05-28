@@ -11,6 +11,8 @@ status_rep_t handle_vm_stop(void);
 void rik_callback_current_monitor(void* param);
 void rik_callback_vreg(void* param);
 
+status_rep_t devices_default_config(void);
+
 
 typedef enum{
     SYS_CTRL_AUTOMATIC = 0x00,  //<- Predefined

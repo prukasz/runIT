@@ -26,55 +26,40 @@ void ina3221_task(void *arg);
     if (__err_rc != ESP_OK) return __err_rc; \
 } while (0)
 
-#define CHECK_ARG(VAL) do { if (!(VAL)) return ESP_ERR_INVALID_ARG; } while (0)
+#define CHECK_HANDLE(VAL) do { if (!(VAL)) return ESP_ERR_INVALID_ARG; } while (0)
 
 /*************Helper macros ***************************************/
 
 /********************Internal functions ***************************************/
 
 /**Ina3221 doesn't support auto increment */
-/**
- * @brief Read 16-bit value from INA3221 register
- * @note INA3221 uses big-endian format, so we need to swap bytes after reading
- * @param handle Device descriptor
- * @param reg Register address to read from
- * @param val Pointer to store the read value
- * @return ESP_OK to indicate success
- */
+
 static esp_err_t _ina3221_read(ina3221_handle_t handle, const uint8_t reg, uint16_t * val)
 {
-    CHECK_ARG(val);
+    CHECK_HANDLE(val);
     RETURN_ON_ERROR(i2c_master_transmit_receive(handle->i2c_master_dev_handle, (uint8_t[]){reg}, 1, (uint8_t*)val, 2, INA3221_I2C_TIMEOUT));
     *val = (*val >> 8) | (*val << 8);  // Swap
     return ESP_OK;
 }
 
-/**
- * @brief Write 16-bit value to INA3221 register
- * @note INA3221 uses big-endian format, so we need to swap bytes before writing
- * @param handle Device descriptor
- * @param reg Register address to write to
- * @param val Value to write
- * @return ESP_OK to indicate success
- */
 static esp_err_t _ina3221_write(ina3221_handle_t handle, uint8_t reg, uint16_t val)
 {
-    CHECK_ARG(val);
+    CHECK_HANDLE(handle);
     uint8_t buf[3];
     buf[0] = reg;
-    buf[1] = (val >> 8) & 0xFF; // [FIX] Big-endian: High byte first
-    buf[2] = val & 0xFF;        // [FIX] Big-endian: Low byte second
+    buf[1] = (val >> 8) & 0xFF; 
+    buf[2] = val & 0xFF;        
 
     RETURN_ON_ERROR(i2c_master_transmit(handle->i2c_master_dev_handle, buf, 3, INA3221_I2C_TIMEOUT));
     return ESP_OK;
 }
 
-static esp_err_t write_config(ina3221_handle_t handle)
+static inline esp_err_t write_config(ina3221_handle_t handle)
 {
     return _ina3221_write(handle, INA3221_REG_CONFIG, handle->config.config_register);
 }
 
-static esp_err_t write_mask(ina3221_handle_t handle)
+static inline esp_err_t write_mask(ina3221_handle_t handle)
 {
     return _ina3221_write(handle, INA3221_REG_MASK, handle->mask.mask_register & INA3221_MASK_CONFIG);
 }
@@ -83,19 +68,15 @@ static esp_err_t write_mask(ina3221_handle_t handle)
 
 ina3221_handle_t ina3221_new(uint8_t i2c_address)
 {
-    ina3221_handle_t handle = malloc(sizeof(_ina3221_data_t));
-    if (!handle)
-    {
-        ESP_LOGE(TAG, "Failed to allocate memory for INA3221 handle");
-        return NULL;
-    }
-
-    memset(handle, 0, sizeof(_ina3221_data_t));
-
     if (i2c_address < INA3221_I2C_ADDR_GND || i2c_address > INA3221_I2C_ADDR_SCL)
     {
         ESP_LOGE(TAG, "Invalid I2C address, must be between 0x40 and 0x43, provided: 0x%02x", i2c_address);
-        free(handle);
+        return NULL;
+    }
+    ina3221_handle_t handle = calloc(1, sizeof(_ina3221_data_t));
+    if (!handle)
+    {
+        ESP_LOGE(TAG, "Failed to allocate memory for INA3221 handle");
         return NULL;
     }
 
@@ -109,12 +90,12 @@ ina3221_handle_t ina3221_new(uint8_t i2c_address)
     handle->mask.mask_register = INA3221_DEFAULT_MASK;
     handle->config.config_register = INA3221_DEFAULT_CONFIG;
     
-    // Default assumption: 100 mOhm -> devkit 
     handle->shunt_val_cfg[0] = 100;
     handle->shunt_val_cfg[1] = 100;
     handle->shunt_val_cfg[2] = 100;
-    //create deferred calls task and ensure it was created
+
     handle->driver_task_handle = NULL;
+
     if (xTaskCreate(ina3221_task, "ina3221_task", 4096, handle, 5, &handle->driver_task_handle) != pdPASS) {
         ESP_LOGE(TAG, "Failed to create INA3221 task");
         free(handle);
@@ -123,24 +104,13 @@ ina3221_handle_t ina3221_new(uint8_t i2c_address)
     return handle;
 }
 
-esp_err_t ina3221_handle_trigger(ina3221_handle_t handle)
-{
-    return write_config(handle);
-}
-
-esp_err_t ina3221_get_status(ina3221_handle_t handle, bool immediate)
+esp_err_t ina3221_get_status(ina3221_handle_t handle)
 {   
-    CHECK_ARG(handle);
-    if (!immediate) {
-        handle->to_update.read_status = 1; 
-        return ESP_OK; 
-    }
     return _ina3221_read(handle, INA3221_REG_MASK, &handle->mask.mask_register);
 }
 
 esp_err_t ina3221_set_options(ina3221_handle_t handle, bool bus, bool mode, bool shunt_val_cfg)
 {
-    CHECK_ARG(handle);
     handle->config.mode = mode;
     handle->config.ebus = bus;
     handle->config.esht = shunt_val_cfg;
@@ -149,7 +119,6 @@ esp_err_t ina3221_set_options(ina3221_handle_t handle, bool bus, bool mode, bool
 
 esp_err_t ina3221_enable_channel(ina3221_handle_t handle, bool ch1, bool ch2, bool ch3)
 {
-    CHECK_ARG(handle);
     handle->config.ch1 = ch1;
     handle->config.ch2 = ch2;
     handle->config.ch3 = ch3;
@@ -170,7 +139,6 @@ void ina3221_set_shunt_resistor(ina3221_handle_t handle, uint16_t resistance_mOh
 
 esp_err_t ina3221_enable_channel_sum(ina3221_handle_t handle, bool ch1, bool ch2, bool ch3)
 {
-    CHECK_ARG(handle);
     handle->mask.scc1 = ch1;
     handle->mask.scc2 = ch2;
     handle->mask.scc3 = ch3;
@@ -179,7 +147,6 @@ esp_err_t ina3221_enable_channel_sum(ina3221_handle_t handle, bool ch1, bool ch2
 
 esp_err_t ina3221_enable_latch_pin(ina3221_handle_t handle, bool warning, bool critical)
 {
-    CHECK_ARG(handle);
     handle->mask.wen = warning;
     handle->mask.cen = critical;
     return write_mask(handle);
@@ -187,37 +154,36 @@ esp_err_t ina3221_enable_latch_pin(ina3221_handle_t handle, bool warning, bool c
 
 esp_err_t ina3221_set_average(ina3221_handle_t handle, ina3221_avg_t avg)
 {
-    CHECK_ARG(handle);
     handle->config.avg = avg;
     return write_config(handle);
 }
 
 esp_err_t ina3221_set_bus_conversion_time(ina3221_handle_t handle, ina3221_ct_t ct)
 {
-    CHECK_ARG(handle);
     handle->config.vbus = ct;
     return write_config(handle);
 }
 
 esp_err_t ina3221_set_shunt_conversion_time(ina3221_handle_t handle, ina3221_ct_t ct)
 {
-    CHECK_ARG(handle);
     handle->config.vsht = ct;
     return write_config(handle);
 }
 
 esp_err_t ina3221_reset(ina3221_handle_t handle)
 {
-    CHECK_ARG(handle);
     handle->config.config_register = INA3221_DEFAULT_CONFIG;
     handle->mask.mask_register = INA3221_DEFAULT_CONFIG;
     handle->config.rst = 1;
+    for (int i = 0; i < 6; i++) {
+        handle->user_callback[i] = NULL;
+        handle->user_callback_arg[i] = NULL;
+    }
     return write_config(handle);
 }
 
 esp_err_t ina3221_update_buses_readings(ina3221_handle_t handle, bool immediate)
 {
-    CHECK_ARG(handle);
     if (!immediate) {
         handle->to_update.read_bus_voltage = 1;
         return ESP_OK;
@@ -226,9 +192,7 @@ esp_err_t ina3221_update_buses_readings(ina3221_handle_t handle, bool immediate)
     int16_t raw;
     for (int channel = 0; channel < 3; channel++) {
         RETURN_ON_ERROR(_ina3221_read(handle, INA3221_REG_BUSVOLTAGE_1 + (channel * 2), (uint16_t *)&raw));
-    
         raw = raw >> 3; 
-
         handle->last_readings.bus_voltage[channel] = raw * 8.0f; // 8mV -> LSB
     }
     return ESP_OK;
@@ -236,8 +200,6 @@ esp_err_t ina3221_update_buses_readings(ina3221_handle_t handle, bool immediate)
 
 esp_err_t ina3221_update_shunts_readings(ina3221_handle_t handle, bool immediate)
 {
-    CHECK_ARG(handle);
-
     if(!immediate){
         handle->to_update.read_current = 1;
         return ESP_OK;
@@ -258,8 +220,6 @@ esp_err_t ina3221_update_shunts_readings(ina3221_handle_t handle, bool immediate
 
 esp_err_t ina3221_get_sum_shunt_value(ina3221_handle_t handle, bool immediate)
 {
-    CHECK_ARG(handle && handle->last_readings.sum_shunt_voltage);
-
     if (!immediate) {
         handle->to_update.read_current_sum = 1; 
         return ESP_OK; 
@@ -276,81 +236,39 @@ esp_err_t ina3221_get_sum_shunt_value(ina3221_handle_t handle, bool immediate)
 }
 
 
-void ina3221_cfg_periodic_reading(ina3221_handle_t handle, bool bus_voltage, bool current, bool current_sum, bool status)
+esp_err_t ina3221_cfg_periodic_reading(ina3221_handle_t handle, bool bus_voltage, bool current, bool current_sum)
 {
+    CHECK_HANDLE(handle);
     handle->to_update.read_bus_voltage = bus_voltage;
     handle->to_update.read_bus_voltage_periodic = bus_voltage;
     handle->to_update.read_current = current;
     handle->to_update.read_current_periodic = current;
     handle->to_update.read_current_sum = current_sum;
     handle->to_update.read_current_sum_periodic = current_sum;
-    handle->to_update.read_status = status;
-    handle->to_update.read_status_periodic = status;
+    return ESP_OK;
 }
 
-esp_err_t ina3221_set_critical_alert(ina3221_handle_t handle, ina3221_channel_t channel, int32_t current_mA)
+esp_err_t ina3221_set_alert(ina3221_handle_t handle, ina3221_channel_t channel, int32_t current_mA, bool is_critical)
 {
-    CHECK_ARG(handle);
-
     float limit_mv = ((float)current_mA * handle->shunt_val_cfg[channel]) / 1000.0f;
 
     int16_t raw_count = (int16_t)(limit_mv / 0.04f); // 40uV -> LSB
 
-    uint16_t reg_val = ((uint16_t)raw_count) << 3; // Shift left by 3 to align with register format
-
-    return _ina3221_write(handle, INA3221_REG_CRITICAL_ALERT_1 + channel * 2, reg_val);
-}
-
-esp_err_t ina3221_set_warning_alert(ina3221_handle_t handle, ina3221_channel_t channel, int32_t current_mA)
-{
-    CHECK_ARG(handle);
-
-    float limit_mv = ((float)current_mA * handle->shunt_val_cfg[channel]) / 1000.0f;
-
-    int16_t raw_count = (int16_t)(limit_mv / 0.04f); // 40uV -> LSB
-    ESP_LOGI(TAG, "Setting warning alert for channel %d: current=%ldmA, limit_mv=%.2fmV, raw_count=%d", channel + 1, (long)current_mA, limit_mv, raw_count);
-
-    uint16_t reg_val = ((uint16_t)raw_count) << 3; // Shift left by 3 to align with register format
-
-    return _ina3221_write(handle, INA3221_REG_WARNING_ALERT_1 + channel * 2, reg_val);
+    uint16_t reg_val = ((uint16_t)raw_count) << 3; // Shift left by 3 to align with register format// Ensure latches are enabled for alerts
+    RETURN_ON_ERROR(ina3221_enable_latch_pin(handle, true, true));
+    uint8_t alert_offset = is_critical ? INA3221_REG_CRITICAL_ALERT_1 : INA3221_REG_WARNING_ALERT_1; // Critical alerts are at odd offsets, warning at even
+    return _ina3221_write(handle, alert_offset + channel * 2, reg_val);
 }
 
 esp_err_t ina3221_set_sum_warning_alert(ina3221_handle_t handle, uint32_t voltage_mv)
 {
-    CHECK_ARG(handle);
- 
     int16_t raw_count = (int16_t)(voltage_mv / 0.04f); // 40uV -> LSB
-
     uint16_t reg_val = raw_count << 1; // Shift left by 1 to align with register format (Sum register has 15-bit resolution)
-
     return _ina3221_write(handle, INA3221_REG_SHUNT_VOLTAGE_SUM_LIMIT, reg_val);
 }
 
-esp_err_t ina3221_reset_alerts(ina3221_handle_t handle)
-{
-    CHECK_ARG(handle);
-
-    /* Disable both critical and warning alert latches to stop new alerts from latching */
-    handle->mask.cen = 0;  // Disable critical latch
-    handle->mask.wen = 0;  // Disable warning latch
-    RETURN_ON_ERROR(write_mask(handle));
-
-    /* Read mask register to clear any pending alert flags (mask register is read-to-clear) */
-    RETURN_ON_ERROR(_ina3221_read(handle, INA3221_REG_MASK, &handle->mask.mask_register));
-
-    /* Clear internal alert flags */
-    handle->alert_critical = false;
-    handle->alert_warning = false;
-
-    ESP_LOGI(TAG, "INA3221 alerts reset: latches disabled, flags cleared");
-    return ESP_OK;
-}
 
 
-/**
- * @brief Task to handle deferred readings and alerts for INA3221
- * Wait for notification, then chek what is requested and execute, after execution notify back the caller task
- */
 
 void ina3221_task(void *arg)
 {
@@ -368,24 +286,6 @@ void ina3221_task(void *arg)
                 ESP_LOGE(TAG, "Failed to read mask register in task");
                 goto TASK_END;
             }
-            // // =========================================================================
-            // // DEBUG: PRINT EVERY SINGLE FLAG IN THE REGISTER
-            // // =========================================================================
-            // ESP_LOGI(TAG, "--- INA3221 MASK/ENABLE REG (0x0F) DEBUG ---");
-            // ESP_LOGI(TAG, "RAW HEX VALUE: 0x%04X", handle->mask.mask_register);
-            // ESP_LOGI(TAG, "CONFIG BITS -> WEN(Warning Enable): %d | CEN(Critical Enable): %d", 
-            //          handle->mask.wen, handle->mask.cen);
-            // ESP_LOGI(TAG, "SUM ENABLES -> SCC1: %d | SCC2: %d | SCC3: %d", 
-            //          handle->mask.scc1, handle->mask.scc2, handle->mask.scc3);
-            // ESP_LOGI(TAG, "GEN FLAGS   -> CVRF(Conv Ready): %d | TCF(Timing): %d | PVF(Power Valid): %d | SF(Sum Alert): %d", 
-            //          handle->mask.cvrf, handle->mask.tcf, handle->mask.pvf, handle->mask.sf);
-            // ESP_LOGI(TAG, "CRITICAL    -> CF_RAW: %d (CH1:%d, CH2:%d, CH3:%d)", 
-            //          handle->mask.cf, (handle->mask.cf & 0x04)>>2, (handle->mask.cf & 0x02)>>1, handle->mask.cf & 0x01);
-            // ESP_LOGI(TAG, "WARNING     -> WF_RAW: %d (CH1:%d, CH2:%d, CH3:%d)", 
-            //          handle->mask.wf, (handle->mask.wf & 0x04)>>2, (handle->mask.wf & 0x02)>>1, handle->mask.wf & 0x01);
-            // ESP_LOGI(TAG, "--------------------------------------------");
-            // =========================================================================
-
             bool crit_flags[3] = {handle->mask.cf & 0x04, handle->mask.cf & 0x02, handle->mask.cf & 0x01};
             bool warn_flags[3] = {handle->mask.wf & 0x04, handle->mask.wf & 0x02, handle->mask.wf & 0x01};
             bool sum_alert     = handle->mask.sf;
@@ -418,7 +318,7 @@ void ina3221_task(void *arg)
 
             // 4. Handle Callbacks and Logging - invoke per-channel per-alert-type callbacks
             if (handle->alert_critical) {
-                ESP_LOGW(TAG, "Critical Alert! CF1:%d CF2:%d CF3:%d", crit_flags[0], crit_flags[1], crit_flags[2]);
+                ESP_LOGI(TAG, "Critical Alert! CF1:%d CF2:%d CF3:%d", crit_flags[0], crit_flags[1], crit_flags[2]);
                 handle->alert_critical = false; 
                 // Invoke critical callbacks for each channel that triggered
                 for (int ch = 0; ch < 3; ch++) {
@@ -432,7 +332,7 @@ void ina3221_task(void *arg)
             } 
             
             if (handle->alert_warning) {
-                ESP_LOGW(TAG, "Warning Alert! WF1:%d WF2:%d WF3:%d SUM:%d", warn_flags[0], warn_flags[1], warn_flags[2], sum_alert);
+                ESP_LOGI(TAG, "Warning Alert! WF1:%d WF2:%d WF3:%d SUM:%d", warn_flags[0], warn_flags[1], warn_flags[2], sum_alert);
                 handle->alert_warning = false; 
                 // Invoke warning callbacks for each channel that triggered
                 for (int ch = 0; ch < 3; ch++) {
@@ -479,18 +379,6 @@ void ina3221_task(void *arg)
                 }
                 if (!handle->to_update.read_current_sum_periodic) {
                     handle->to_update.read_current_sum = 0; // Clear flag after execution
-                }
-            }
-
-            if (handle->to_update.read_status) {
-                err = ina3221_get_status(handle, true);
-                if (err != ESP_OK) {
-                    ESP_LOGE(TAG, "Failed to read status in task");
-                    xTaskNotify(caller_task, 1, eSetBits);
-                    goto TASK_END;
-                }
-                if (!handle->to_update.read_status_periodic) {
-                    handle->to_update.read_status = 0; // Clear flag after execution
                 }
             }
             xTaskNotify(caller_task, 0, eSetBits);

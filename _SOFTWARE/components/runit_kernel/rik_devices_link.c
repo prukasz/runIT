@@ -92,6 +92,5 @@ status_rep_t rik_link_interrupts(void){
     STA_RET_ON_ERR(manager_pwr_add_cb(MANAGER_PWR_CB_CURRENT_SYS_CRITICAL, rik_callback_current_monitor, (void*)MANAGER_PWR_CB_CURRENT_SYS_CRITICAL));
     STA_RET_ON_ERR(manager_pwr_add_cb(MANAGER_PWR_CB_CURRENT_REG1_WARNING, rik_callback_current_monitor, (void*)MANAGER_PWR_CB_CURRENT_REG1_WARNING));
     STA_RET_ON_ERR(manager_pwr_add_cb(MANAGER_PWR_CB_CURRENT_REG1_CRITICAL, rik_callback_current_monitor, (void*)MANAGER_PWR_CB_CURRENT_REG1_CRITICAL));
-    STA_RET_ON_ERR(sys_pwr_set_bus_current_critical(RIK_CHANNEL_VREG0, 50));
     return STA_OK;
 }

@@ -77,14 +77,6 @@ typedef struct
     /* Flag for INT/Fault pin triggered - signals the task to check status */
     bool alert_fault;
 
-    /**
-     * @brief Flags for deferred operation in task
-     */
-    struct {
-        uint8_t read_status          : 1;
-        uint8_t read_status_periodic : 1;
-    } to_update;
-
 } _tps55289_data_t;
 
 typedef _tps55289_data_t* tps55289_handle_t;
@@ -143,7 +135,6 @@ esp_err_t tps55289_set_fault_masks(tps55289_handle_t handle, bool mask_scp, bool
 
 // =========================================================================
 
-esp_err_t tps55289_get_status(tps55289_handle_t handle, bool immediate);
-void tps55289_cfg_periodic_reading(tps55289_handle_t handle, bool status);
+esp_err_t tps55289_get_status(tps55289_handle_t handle);
 void tps55289_register_user_callback(tps55289_handle_t handle, tps55289_fault_type_t type, void (*callback)(void *), void *arg);
 void p_vreg_intr_pin_fault_callback(void *arg);

@@ -132,19 +132,19 @@ status_rep_t sys_pwr_get_bus_current(uint8_t channel, int32_t *current_mA){
     return STA_OK;
 }
 
-status_rep_t sys_pwr_current_monitor_reset_callbacks(void) {
-    status_rep_t status = p_current_monitor_reset_callbacks();
+status_rep_t sys_pwr_current_monitor_reset(void) {
+    status_rep_t status = p_current_monitor_reset();
     if (!STA_IS_OK(status)) {
-        ESP_LOGW(TAG, "Failed to reset current monitor callbacks");
+        ESP_LOGW(TAG, "Failed to reset current monitor");
         if (status.e_code == PWR_ERR_DEVICE_NOT_FOUND) {
-            ESP_LOGW(TAG, "Current monitor device not found for resetting callbacks");
+            ESP_LOGW(TAG, "Current monitor device not found for resetting");
             STA_RP(STA_C(PWR_ERR_DEVICE_NOT_FOUND, OWNER_MANAGER_PWR, 0));
         }
         status.details.severity = 1;
         STA_P(status);
         STA_RP(STA_C(PWR_ERR_UPDATE_FAILED, OWNER_MANAGER_PWR, 0));
     }
-    ESP_LOGI(TAG, "Current monitor callbacks reset successfully");
+    ESP_LOGI(TAG, "Current monitor reset successfully");
     return STA_OK;
 }
     

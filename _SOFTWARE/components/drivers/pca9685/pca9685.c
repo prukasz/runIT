@@ -7,7 +7,7 @@
 
 #define TAG "PCA9685"
 
-#define CHECK_ARG(VAL) do { if (!(VAL)) return ESP_ERR_INVALID_ARG; } while (0)
+#define CHECK_HANDLE(VAL) do { if (!(VAL)) return ESP_ERR_INVALID_ARG; } while (0)
 #define RETURN_ON_ERROR(x) do {        \
     esp_err_t __err_rc = (x);          \
     if (__err_rc != ESP_OK) return __err_rc; \
@@ -64,8 +64,8 @@ static inline esp_err_t _update_reg(i2c_master_dev_handle_t dev_handle, uint8_t 
     return ESP_OK;
 }
 
-// Stara blokująca funkcja do preskalera (używana jeśli immediate == true)
-static esp_err_t _pca9685_set_prescaler_blocking(pca9685_handle_t handle, uint8_t prescaler_val)
+
+static esp_err_t _pca9685_set_prescaler(pca9685_handle_t handle, uint8_t prescaler_val)
 {
     uint8_t mode;
     RETURN_ON_ERROR(i2c_master_transmit_receive(handle->i2c_dev_handle, (uint8_t[]){ REG_MODE1 }, 1, &mode, 1, PCA9685_TIMEOUT_MS));
@@ -80,6 +80,11 @@ static esp_err_t _pca9685_set_prescaler_blocking(pca9685_handle_t handle, uint8_
 /*******************************************************************************
  * CORE INITIALIZATION & TASK
  ******************************************************************************/
+
+esp_err_t pca9685_enable_auto_increment(pca9685_handle_t handle)
+{
+    return _update_reg(handle->i2c_dev_handle, REG_MODE1, MODE1_AI, MODE1_AI);
+}
 
 pca9685_handle_t pca9685_new(uint8_t i2c_address)
 {
@@ -105,9 +110,6 @@ pca9685_handle_t pca9685_new(uint8_t i2c_address)
     handle->sub_value[2] = PCA9685_SB3_DEFAULT;
     handle->allcalladr   = PCA9685_ALLCALLADR_DEFAULT;
     
-    // Ustawienie flag do odłożonej inicjalizacji (Lazy Init)
-    handle->mode1.AI = 1; 
-    handle->to_update.update_mode1 = 1; 
 
     // Utworzenie dedykowanego Taska w tle
     if (xTaskCreate(pca9685_task, "pca9685_task", 4096, handle, 5, &handle->driver_task_handle) != pdPASS) {
@@ -137,60 +139,14 @@ void pca9685_task(void *arg)
 
         esp_err_t err = ESP_OK;
 
-        // --- 1. Odłożona inicjalizacja sprzętowa (MODE1 / Auto-Increment) ---
-        if (handle->to_update.update_mode1) {
-            err = i2c_master_transmit(handle->i2c_dev_handle, 
-                                      (uint8_t[]){REG_MODE1, handle->mode1.reg_val}, 
-                                      2, PCA9685_TIMEOUT_MS);
-            if (err != ESP_OK) {
-                ESP_LOGE(TAG, "Hardware auto-init failed (MODE1)");
-                goto TASK_RESPOND;
-            }
-            handle->to_update.update_mode1 = 0;
-        }
-
-        // --- 2. Asynchroniczna zmiana logiki wyjść (MODE2) ---
-        if (handle->to_update.update_mode2) {
-            err = i2c_master_transmit(handle->i2c_dev_handle, 
-                                      (uint8_t[]){REG_MODE2, handle->mode2.reg_val}, 
-                                      2, PCA9685_TIMEOUT_MS);
-            if (err != ESP_OK) {
-                ESP_LOGE(TAG, "Failed to update MODE2 in background");
-                goto TASK_RESPOND;
-            }
-            handle->to_update.update_mode2 = 0;
-        }
-
-        // --- 3. Asynchroniczna zmiana częstotliwości (Prescaler) ---
-        if (handle->to_update.update_prescaler) {
-            uint8_t sleep_mode = (handle->mode1.reg_val & ~MODE1_RESTART_BIT) | MODE1_SLEEP_BIT;
-            
-            // Krok A: Uśpij
-            err = i2c_master_transmit(handle->i2c_dev_handle, (uint8_t[]){REG_MODE1, sleep_mode}, 2, PCA9685_TIMEOUT_MS);
-            // Krok B: Zapisz nowy preskaler
-            if (err == ESP_OK) {
-                err = i2c_master_transmit(handle->i2c_dev_handle, (uint8_t[]){REG_PRE_SCALE, handle->prescale}, 2, PCA9685_TIMEOUT_MS);
-            }
-            // Krok C: Wybudź
-            if (err == ESP_OK) {
-                err = i2c_master_transmit(handle->i2c_dev_handle, (uint8_t[]){REG_MODE1, handle->mode1.reg_val}, 2, PCA9685_TIMEOUT_MS);
-            }
-
-            if (err != ESP_OK) {
-                ESP_LOGE(TAG, "Failed to update Prescaler in background");
-                goto TASK_RESPOND;
-            }
-            handle->to_update.update_prescaler = 0;
-        }
-
         // --- 4. Asynchroniczna zmiana wartości PWM ---
-        if (handle->to_update.update_pwm) {
+        if (handle->to_update.update_pwm_duty) {
             err = pca9685_update_pwm_values(handle, handle->pwm_update_mask);
             if (err != ESP_OK) {
                 ESP_LOGE(TAG, "Failed to update PWM values in background");
                 goto TASK_RESPOND;
             }
-            handle->to_update.update_pwm = 0;
+            handle->to_update.update_pwm_duty = 0;
             handle->pwm_update_mask = 0;
         }
 
@@ -206,47 +162,11 @@ TASK_RESPOND:
  * PWM CONTROL FUNCTIONS
  ******************************************************************************/
 
-esp_err_t pca9685_set_pwm_value(pca9685_handle_t handle, uint8_t channel, uint16_t value, bool immediate)
-{
-    CHECK_ARG(handle && channel <= PCA9685_CHANNEL_ALL && value <= PCA9685_MAX_PWM_VALUE);
-    
-    // Zapisz wartość w lokalnym cache
-    if (channel < PCA9685_CHANNEL_ALL) {
-        handle->channel_pwm_value[channel] = value;
-    }
 
-    if (immediate) {
-        // Transmisja natychmiastowa (blokująca)
-        uint8_t reg = (channel == PCA9685_CHANNEL_ALL) ? REG_ALL_LED : REG_LED_N(channel);
-
-        bool full_on  = (value == PCA9685_MAX_PWM_VALUE);
-        bool full_off = (value == 0);
-        uint16_t raw = full_on ? 0x0FFF : value;
-
-        uint8_t buf[5];
-        buf[0] = reg;
-        buf[1] = 0;
-        buf[2] = full_on ? LED_FULL_ON_OFF : 0;
-        buf[3] = raw & 0xFF;
-        buf[4] = full_off ? (LED_FULL_ON_OFF | (raw >> 8)) : (raw >> 8);
-        return i2c_master_transmit(handle->i2c_dev_handle, buf, sizeof(buf), PCA9685_TIMEOUT_MS);
-    } 
-    else {
-        // Asynchroniczne zlecenie do Taska
-        if (channel == PCA9685_CHANNEL_ALL) {
-            handle->pwm_update_mask = 0xFFFF; // Wszystkie
-        } else {
-            handle->pwm_update_mask |= (1 << channel); // Wybrany
-        }
-        
-        handle->to_update.update_pwm = 1;
-        return ESP_OK;
-    }
-}
 
 esp_err_t pca9685_update_pwm_values(pca9685_handle_t handle, uint16_t bitmask)
 {
-    CHECK_ARG(handle);
+    CHECK_HANDLE(handle);
 
     // Pełen update (szybka wysyłka całego bloku rejestrów, wymaga włączonego AI)
     if (bitmask == 0 || bitmask == 0xFFFF)
@@ -293,56 +213,63 @@ esp_err_t pca9685_update_pwm_values(pca9685_handle_t handle, uint16_t bitmask)
     return ESP_OK;
 }
 
+esp_err_t pca9685_set_pwm_value(pca9685_handle_t handle, uint8_t channel, uint16_t value, bool immediate)
+{
+    CHECK_HANDLE(handle && channel <= PCA9685_CHANNEL_ALL && value <= PCA9685_MAX_PWM_VALUE);
+    
+    // Zapisz wartość w lokalnym cache
+    if (channel < PCA9685_CHANNEL_ALL) {
+        handle->channel_pwm_value[channel] = value;
+    }
+
+    if (immediate) {
+        return pca9685_update_pwm_values(handle, (channel == PCA9685_CHANNEL_ALL) ? 0xFFFF : (1 << channel));
+    } 
+    else {
+        // Asynchroniczne zlecenie do Taska
+        if (channel == PCA9685_CHANNEL_ALL) {
+            handle->pwm_update_mask = 0xFFFF; // Wszystkie
+        } else {
+            handle->pwm_update_mask |= (1 << channel); // Wybrany
+        }
+        handle->to_update.update_pwm_duty = 1;
+        return ESP_OK;
+    }
+}
+
 /*******************************************************************************
- * CONFIGURATION FUNCTIONS (Z opcją immediate)
+ * CONFIGURATION FUNCTIONS 
  ******************************************************************************/
 
-esp_err_t pca9685_set_pwm_frequency(pca9685_handle_t handle, uint16_t freq, bool immediate)
+esp_err_t pca9685_set_pwm_frequency(pca9685_handle_t handle, uint16_t freq)
 {
-    CHECK_ARG(handle && freq != 0);
+    CHECK_HANDLE(handle && freq != 0);
     
     // Obliczanie wartości preskalera
     uint8_t prescaler = (uint8_t)(round((float)PCA9685_INTERNAL_FREQ / (PCA9685_MAX_PWM_VALUE * freq))) - 1;
-    CHECK_ARG(prescaler >= MIN_PRESCALER);
+    CHECK_HANDLE(prescaler >= MIN_PRESCALER);
 
     // Zmiana w lokalnym cache
     handle->freq = freq;
     handle->prescale = prescaler;
 
-    if (immediate) {
-        return _pca9685_set_prescaler_blocking(handle, prescaler);
-    } else {
-        handle->to_update.update_prescaler = 1;
-        return ESP_OK;
-    }
+    return _pca9685_set_prescaler(handle, prescaler);
 }
 
-esp_err_t pca9685_set_output_inverted(pca9685_handle_t handle, bool inverted, bool immediate)
+esp_err_t pca9685_set_output_inverted(pca9685_handle_t handle, bool inverted)
 {
-    CHECK_ARG(handle);
+    CHECK_HANDLE(handle);
     handle->mode2.INVRT = inverted ? 1 : 0;
-
-    if (immediate) {
-        uint8_t val = inverted ? MODE2_INVRT_BIT : 0;
-        return _update_reg(handle->i2c_dev_handle, REG_MODE2, MODE2_INVRT_BIT, val);
-    } else {
-        handle->to_update.update_mode2 = 1;
-        return ESP_OK;
-    }
+    uint8_t val = inverted ? MODE2_INVRT_BIT : 0;
+    return _update_reg(handle->i2c_dev_handle, REG_MODE2, MODE2_INVRT_BIT, val);
 }
 
-esp_err_t pca9685_set_output_open_drain(pca9685_handle_t handle, bool od, bool immediate)
+esp_err_t pca9685_set_output_open_drain(pca9685_handle_t handle, bool od)
 {
-    CHECK_ARG(handle);
+    CHECK_HANDLE(handle);
     handle->mode2.OUTDRV = od ? 0 : 1; 
-
-    if (immediate) {
-        uint8_t val = od ? 0 : MODE2_OUTDRV_BIT; // open-drain = 0, totem-pole = 1
-        return _update_reg(handle->i2c_dev_handle, REG_MODE2, MODE2_OUTDRV_BIT, val);
-    } else {
-        handle->to_update.update_mode2 = 1;
-        return ESP_OK;
-    }
+    uint8_t val = od ? 0 : MODE2_OUTDRV_BIT; // open-drain = 0, totem-pole = 1
+    return _update_reg(handle->i2c_dev_handle, REG_MODE2, MODE2_OUTDRV_BIT, val);
 }
 
 /*******************************************************************************
@@ -351,7 +278,7 @@ esp_err_t pca9685_set_output_open_drain(pca9685_handle_t handle, bool od, bool i
 
 esp_err_t pca9685_get_prescaler_and_freq(pca9685_handle_t handle)
 {
-    CHECK_ARG(handle);
+    CHECK_HANDLE(handle);
     RETURN_ON_ERROR(i2c_master_transmit_receive(handle->i2c_dev_handle, (uint8_t[]){ REG_PRE_SCALE }, 1, &handle->prescale, 1, PCA9685_TIMEOUT_MS));
     handle->freq = (uint16_t)(PCA9685_INTERNAL_FREQ / ((uint32_t)PCA9685_MAX_PWM_VALUE * (handle->prescale + 1)));
     return ESP_OK;
@@ -359,7 +286,7 @@ esp_err_t pca9685_get_prescaler_and_freq(pca9685_handle_t handle)
 
 esp_err_t pca9685_set_subaddress(pca9685_handle_t handle, uint8_t num, uint8_t address_val, bool en)
 {
-    CHECK_ARG(handle);
+    CHECK_HANDLE(handle);
     if (num > MAX_SUBADDR) { return ESP_ERR_INVALID_ARG; }
 
     uint8_t reg = REG_SUBADR1 + num;
@@ -378,7 +305,7 @@ esp_err_t pca9685_set_subaddress(pca9685_handle_t handle, uint8_t num, uint8_t a
 
 esp_err_t pca9685_restart(pca9685_handle_t handle)
 {
-    CHECK_ARG(handle);
+    CHECK_HANDLE(handle);
     uint8_t mode;
     RETURN_ON_ERROR(i2c_master_transmit_receive(handle->i2c_dev_handle, (uint8_t[]){ REG_MODE1 }, 1, &mode, 1, PCA9685_TIMEOUT_MS));
 
@@ -398,7 +325,7 @@ esp_err_t pca9685_restart(pca9685_handle_t handle)
 
 esp_err_t pca9685_sleep(pca9685_handle_t handle, bool sleep)
 {
-    CHECK_ARG(handle);
+    CHECK_HANDLE(handle);
     uint8_t val = sleep ? MODE1_SLEEP_BIT : 0;
     ESP_ERROR_CHECK(_update_reg(handle->i2c_dev_handle, REG_MODE1, (uint8_t)MODE1_SLEEP_BIT, val));
     if (!sleep) { esp_rom_delay_us(WAKEUP_DELAY_US); }
@@ -407,7 +334,7 @@ esp_err_t pca9685_sleep(pca9685_handle_t handle, bool sleep)
 
 esp_err_t pca9685_read_modes_reg(pca9685_handle_t handle)
 {
-    CHECK_ARG(handle);
+    CHECK_HANDLE(handle);
     RETURN_ON_ERROR(i2c_master_transmit_receive(handle->i2c_dev_handle,
          (uint8_t[]){ REG_MODE1 }, 1, &handle->mode1.reg_val, 1, PCA9685_TIMEOUT_MS));
     RETURN_ON_ERROR(i2c_master_transmit_receive(handle->i2c_dev_handle,
@@ -418,7 +345,7 @@ esp_err_t pca9685_read_modes_reg(pca9685_handle_t handle)
 
 esp_err_t pca9685_write_modes_reg(pca9685_handle_t handle, uint8_t reg)
 {
-    CHECK_ARG(handle);
+    CHECK_HANDLE(handle);
     if (reg == 1) {
         return i2c_master_transmit(handle->i2c_dev_handle, (uint8_t[]){REG_MODE1, handle->mode1.reg_val}, 2, PCA9685_TIMEOUT_MS); 
     }

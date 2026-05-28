@@ -46,6 +46,7 @@ typedef status_rep_t (*io_func_pwm_set_freq)(uint64_t pin_mask, uint32_t freq_hz
 typedef status_rep_t (*io_func_adc_read)(uint64_t pin_mask, uint32_t* out_mv, uint8_t max_results_num);
 typedef status_rep_t (*io_func_adc_register_callback)(uint8_t pin, void* adc_int_config);
 typedef void (*io_driver_freeze_updates)(bool yes_or_no);
+typedef status_rep_t (*io_driver_reset)(void);
 
 typedef struct {
     gpio_func_mode mode_func;
@@ -58,6 +59,7 @@ typedef struct {
     io_func_adc_read adc_read_func;
     io_func_adc_register_callback adc_callback_add_func;
     io_driver_freeze_updates freeze;
+    io_driver_reset reset;
     uint64_t protected_pins;
 } io_port_dispatch_t;
 
@@ -80,6 +82,13 @@ status_rep_t sys_io_adc_read(uint8_t port_id, uint64_t pin_mask, uint32_t* out_m
 status_rep_t sys_io_adc_register_callback(uint8_t port_id, uint8_t pin, void* adc_int_config);
 
 status_rep_t sys_io_set_global_protection(bool is_enabled);
+
+/**
+ * @brief Reset all IO providers to default state (callbacks, alert settings, PWM to 0)
+ * Skips GPIO expander since it has dedicated reset pins
+ * @return Status code
+ */
+status_rep_t sys_io_reset_all(void);
 
 /**
  * Single-Pin Macro Wrappers

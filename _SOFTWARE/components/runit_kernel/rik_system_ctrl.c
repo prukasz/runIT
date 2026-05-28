@@ -3,6 +3,7 @@
 #include "manager_power.h"
 #include "rik_shared.h"
 #include "rtos_utils.h"
+#include "rik_devices_link.h"
 
 #define TAG __FILE_NAME__
 
@@ -50,10 +51,12 @@ status_rep_t devices_default_config(void){
     sys_pwr_enable_verg(0,0);
     sys_pwr_enable_verg(1,0);
     /*******VREGS******************************************** */
-    sys_pwr_current_monitor_reset_callbacks();
+    sys_pwr_current_monitor_reset();
     /* gpio expander reset */
     SYS_GPIO_SET_LEVEL(RIK_IO_PIN_GPIO_EXPANDER_nRESET, 0);
-    
+    sys_io_reset_all();
+    rik_link_pins();
+    rik_link_interrupts();
 
     return STA_OK;
 }

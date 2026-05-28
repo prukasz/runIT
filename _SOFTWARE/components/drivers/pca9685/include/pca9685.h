@@ -75,11 +75,8 @@ typedef struct _pca9685_data_t {
 
     /* Flagi operacji odłożonych w czasie */
     struct {
-        uint8_t update_pwm       : 1;
-        uint8_t update_mode1     : 1;
-        uint8_t update_mode2     : 1;
-        uint8_t update_prescaler : 1;
-        uint8_t _reserved        : 4;
+        uint16_t update_pwm_duty;
+        bool update_mode1;
     } to_update;
 
 } _pca9685_data_t;
@@ -135,7 +132,7 @@ esp_err_t pca9685_sleep(pca9685_handle_t handle, bool sleep);
 * @param inverted false for normal behaviour
 * @return esp_err_t ESP_OK on success
 */
-esp_err_t pca9685_set_output_inverted(pca9685_handle_t handle, bool inverted, bool immediate);
+esp_err_t pca9685_set_output_inverted(pca9685_handle_t handle, bool inverted);
 
 /**
 * @brief set outputs behaviour 
@@ -143,7 +140,7 @@ esp_err_t pca9685_set_output_inverted(pca9685_handle_t handle, bool inverted, bo
 * @param od true for open drain false for totempole
 * @return esp_err_t ESP_OK on success
 */
-esp_err_t pca9685_set_output_open_drain(pca9685_handle_t handle, bool od, bool immediate);
+esp_err_t pca9685_set_output_open_drain(pca9685_handle_t handle, bool od);
 
 /**
 * @brief set global PWM frequency 
@@ -151,7 +148,7 @@ esp_err_t pca9685_set_output_open_drain(pca9685_handle_t handle, bool od, bool i
 * @param freq frequency (24-1526)Hz
 * @return esp_err_t ESP_OK on success
 */
-esp_err_t pca9685_set_pwm_frequency(pca9685_handle_t handle, uint16_t freq, bool immediate);
+esp_err_t pca9685_set_pwm_frequency(pca9685_handle_t handle, uint16_t freq);
 
 
 /**
@@ -175,3 +172,6 @@ esp_err_t pca9685_read_modes_reg(pca9685_handle_t handle);
 * @return esp_err_t ESP_OK on success
 */
 esp_err_t pca9685_write_modes_reg(pca9685_handle_t handle, uint8_t reg);
+
+
+esp_err_t pca9685_enable_auto_increment(pca9685_handle_t handle);

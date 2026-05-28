@@ -163,9 +163,10 @@ static void i2c_manager_task_function(void* params) {
                 R_QUEUE_SEND(j_periodic, &current_job, NO_WAIT);           
             }
         }
+        R_EVENT_SET(manager->m_i2c_events, manager->m_i2c_bit_queue_done);
+         R_NOTIFY_SEND(manager->supervisor_task_handle, 0);
     }
-    R_EVENT_SET(manager->m_i2c_events, manager->m_i2c_bit_queue_done);
-    R_NOTIFY_SEND(manager->supervisor_task_handle, 0);
+ 
 }
 
 status_rep_t m_i2c_init(m_i2c_config_t* bus0_config, m_i2c_config_t* bus1_config) 

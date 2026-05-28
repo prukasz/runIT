@@ -24,4 +24,10 @@ status_rep_t p_pca9685_pwm_set_duty(uint64_t pin_mask, uint32_t duty_cycle);
 status_rep_t p_pca9685_pwm_set_freq(uint64_t pin_mask, uint32_t freq_hz);
 status_rep_t p_pca9685_set_pins(uint64_t pin_mask, bool state);
 status_rep_t p_pca9685_toggle_pins(uint64_t pin_mask);
-void p_pca9685_notify_to_update(void);
+/**
+ * @brief Reset all PWM expander channels to 0 (off)
+ * @return Status code
+ */
+status_rep_t p_pca9685_reset(void);
+
+status_rep_t p_current_monitor_configure(void);

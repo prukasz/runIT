@@ -54,6 +54,7 @@ status_rep_t rik_gpio_esp_start(void){
             .adc_read_func = &p_gpio_esp_adc_read,
             .adc_callback_add_func = &p_gpio_esp_adc_register_callback,
             .freeze = &p_gpio_esp_freeze_updates,
+            .reset = &p_gpio_esp_reset_all,
             .protected_pins = 0,
         },
         &rik_gpio_esp_port_id
@@ -103,7 +104,8 @@ status_rep_t rik_gpio_expander_start(uint8_t i2c_addres, bool bus_num){
             .adc_read_func = NULL,
             .adc_callback_add_func = NULL,
             .protected_pins = 0,
-            .freeze = p_gpio_expander_freeze
+            .freeze = p_gpio_expander_freeze,
+            .reset = NULL
         },
         &rik_gpio_expander_port_id
     ));
@@ -141,6 +143,8 @@ status_rep_t rik_current_monitor_start(uint8_t i2c_addres, bool bus_num){
         true,
         &rik_current_monitor_id
     ));
+
+    STA_RET_ON_ERR(p_current_monitor_configure());
     ESP_LOGI(TAG, "INA3221 started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_addres);
     return STA_OK;
 }
@@ -231,6 +235,7 @@ status_rep_t rik_adc_expander_start(uint8_t i2c_addres, bool bus_num){
             .adc_read_func = &p_adc_expander_read_voltage,
             .adc_callback_add_func = &p_adc_expander_register_callback,
             .freeze = &p_adc_expander_freeze,
+            .reset = &p_adc_expander_reset_all,
             .protected_pins = 0,
         },
         &rik_adc_expander_port_id
@@ -273,6 +278,7 @@ status_rep_t p_pwm_expadner_start(uint8_t i2c_addres, bool bus_num){
             .adc_read_func = NULL,
             .adc_callback_add_func = NULL,
             .freeze = p_pca9685_freeze,
+            .reset = p_pca9685_reset,
             .protected_pins = 0,
         },
         &rik_pwm_expander_port_id

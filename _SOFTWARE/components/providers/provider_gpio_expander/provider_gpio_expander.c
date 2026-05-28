@@ -6,13 +6,14 @@ static tca6424a_handle_t _tca_handle = NULL;
 
 static bool freeze = false;
 
-
+#define CHECK_HANDLE(VAL, ret_val) do { if (!(VAL)) return STA_C(IO_ERR_DEVICE_NOT_FOUND, OWNER_PROVIDER_CURRENT_MONITOR, (ret_val)); } while (0)
 
 void p_gpio_expander_freeze(bool freeze){
     freeze = freeze;
 }
 
 status_rep_t p_gpio_expander_configure_pins(uint8_t pin, uint32_t mode) {
+    CHECK_HANDLE(_tca_handle, 0);
     uint32_t tca_cfg_state = 0; // Default state container
 
     // Translate the generic sys_gpio_mode_e to TCA6424A hardware logic
@@ -31,7 +32,7 @@ status_rep_t p_gpio_expander_configure_pins(uint8_t pin, uint32_t mode) {
 
     // Pass the translated tca_cfg_state (0s or 1s) to the driver.
     // tca_preset_cfg will use the pin_mask to apply this state only to the targeted pins.
-    esp_err_t err = tca_preset_cfg(_tca_handle, 1UL << pin, tca_cfg_state, !freeze);
+    esp_err_t err = tca_preset_cfg(_tca_handle, 1UL << pin, tca_cfg_state);
     
     if (err != ESP_OK) {
         return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_EXPANDER, err);
@@ -40,7 +41,8 @@ status_rep_t p_gpio_expander_configure_pins(uint8_t pin, uint32_t mode) {
 }
 
 status_rep_t p_gpio_expander_set_pins(uint64_t pin_mask, bool state){
-    esp_err_t err = tca_preset_pins(_tca_handle, (uint32_t)pin_mask, state ? (uint32_t)pin_mask : 0, !freeze);
+    CHECK_HANDLE(_tca_handle, 0);
+    esp_err_t err = tca_set_pins(_tca_handle, (uint32_t)pin_mask, state ? (uint32_t)pin_mask : 0, !freeze);
     if (err != ESP_OK) {
         return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_EXPANDER, err);
     }
@@ -48,8 +50,9 @@ status_rep_t p_gpio_expander_set_pins(uint64_t pin_mask, bool state){
 }
 
 status_rep_t p_gpio_expander_read_pins(uint64_t* out_mask){
+    CHECK_HANDLE(_tca_handle, 0);
     uint32_t temp_mask = 0;
-    esp_err_t err = tca_get_pin_level(_tca_handle, &temp_mask, !freeze);
+    esp_err_t err = tca_get_pins(_tca_handle, &temp_mask, !freeze);
     if (err != ESP_OK) {
         return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_EXPANDER, err);
     }
@@ -58,8 +61,9 @@ status_rep_t p_gpio_expander_read_pins(uint64_t* out_mask){
 }
 
 status_rep_t p_gpio_epander_read_pin(uint64_t pin_mask, uint64_t* out_mask){
+    CHECK_HANDLE(_tca_handle, 0);
     uint32_t level = 0;
-    esp_err_t err = tca_get_pin_level(_tca_handle, &level, !freeze);
+    esp_err_t err = tca_get_pins(_tca_handle, &level, !freeze);
     if (err != ESP_OK) {
         return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_EXPANDER, err);
     }
@@ -68,9 +72,10 @@ status_rep_t p_gpio_epander_read_pin(uint64_t pin_mask, uint64_t* out_mask){
 }
 
 status_rep_t p_gpio_expander_toggle_pin(uint64_t pin_mask){
+    CHECK_HANDLE(_tca_handle, 0);
     uint32_t current_level = tca_get_pin_output(_tca_handle);
     uint32_t new_level = (current_level ^ (uint32_t)pin_mask) & (uint32_t)pin_mask; 
-    esp_err_t err = tca_preset_pins(_tca_handle, (uint32_t)pin_mask, new_level, !freeze);
+    esp_err_t err = tca_set_pins(_tca_handle, (uint32_t)pin_mask, new_level, !freeze);
     if (err != ESP_OK) {
         return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_EXPANDER, err);
     }
@@ -79,6 +84,7 @@ status_rep_t p_gpio_expander_toggle_pin(uint64_t pin_mask){
 
 
 status_rep_t p_gpio_expander_set_pin_callback(uint8_t pin, uint32_t mode, void (*callback)(void* arg), void* arg){
+    CHECK_HANDLE(_tca_handle, 0);
     if (mode >= 3) {
         return STA_C(IO_ERR_MODE_UNSUPPORTED, OWNER_PROVIDER_GPIO_EXPANDER, mode);
     }

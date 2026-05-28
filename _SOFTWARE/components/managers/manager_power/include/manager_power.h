@@ -30,7 +30,7 @@ status_rep_t sys_pwr_set_bus_power_warning(uint8_t channel, int32_t power_mW);
 status_rep_t sys_pwr_set_bus_power_critical(uint8_t channel, int32_t power_mW);
 status_rep_t sys_pwr_get_bus_voltage(uint8_t channel, uint32_t *voltage_mV);
 status_rep_t sys_pwr_get_bus_current(uint8_t channel, int32_t *current_mA);
-status_rep_t sys_pwr_current_monitor_reset_callbacks(void);
+status_rep_t sys_pwr_current_monitor_reset(void);
 
 status_rep_t sys_pwr_set_verg_voltage(bool regulator_id, uint32_t voltage_mv);
 status_rep_t sys_pwr_set_verg_current_limit(bool regulator_id, uint32_t current_ma);
