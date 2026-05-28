@@ -82,6 +82,29 @@ status_rep_t p_gpio_expander_toggle_pin(uint64_t pin_mask){
     return STA_OK;
 }
 
+status_rep_t p_gpio_expander_reset_pin(uint8_t pin){
+    CHECK_HANDLE(_tca_handle, 0);
+    if (pin >= 24) {
+        return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_EXPANDER, pin);
+    }
+
+    _tca_handle->callbacks[pin] = NULL;
+    _tca_handle->callback_args[pin] = NULL;
+    _tca_handle->pin_trigger_modes[pin] = 0;
+
+    esp_err_t err = tca_set_pins(_tca_handle, 1UL << pin, 0, !freeze);
+    if (err != ESP_OK) {
+        return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_EXPANDER, err);
+    }
+
+    err = tca_preset_cfg(_tca_handle, 1UL << pin, 1UL << pin);
+    if (err != ESP_OK) {
+        return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_EXPANDER, err);
+    }
+
+    return STA_OK;
+}
+
 
 status_rep_t p_gpio_expander_set_pin_callback(uint8_t pin, uint32_t mode, void (*callback)(void* arg), void* arg){
     CHECK_HANDLE(_tca_handle, 0);

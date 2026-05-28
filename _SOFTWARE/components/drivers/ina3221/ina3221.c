@@ -173,13 +173,19 @@ esp_err_t ina3221_set_shunt_conversion_time(ina3221_handle_t handle, ina3221_ct_
 esp_err_t ina3221_reset(ina3221_handle_t handle)
 {
     handle->config.config_register = INA3221_DEFAULT_CONFIG;
-    handle->mask.mask_register = INA3221_DEFAULT_CONFIG;
+    
+    // FIX: Use the correct default mask
+    handle->mask.mask_register = INA3221_DEFAULT_MASK; 
     handle->config.rst = 1;
+    
     for (int i = 0; i < 6; i++) {
         handle->user_callback[i] = NULL;
         handle->user_callback_arg[i] = NULL;
     }
-    return write_config(handle);
+    
+    esp_err_t err = write_config(handle);
+    
+    return err;
 }
 
 esp_err_t ina3221_update_buses_readings(ina3221_handle_t handle, bool immediate)
@@ -255,7 +261,7 @@ esp_err_t ina3221_set_alert(ina3221_handle_t handle, ina3221_channel_t channel, 
     int16_t raw_count = (int16_t)(limit_mv / 0.04f); // 40uV -> LSB
 
     uint16_t reg_val = ((uint16_t)raw_count) << 3; // Shift left by 3 to align with register format// Ensure latches are enabled for alerts
-    RETURN_ON_ERROR(ina3221_enable_latch_pin(handle, true, true));
+    //RETURN_ON_ERROR(ina3221_enable_latch_pin(handle, true, true));
     uint8_t alert_offset = is_critical ? INA3221_REG_CRITICAL_ALERT_1 : INA3221_REG_WARNING_ALERT_1; // Critical alerts are at odd offsets, warning at even
     return _ina3221_write(handle, alert_offset + channel * 2, reg_val);
 }

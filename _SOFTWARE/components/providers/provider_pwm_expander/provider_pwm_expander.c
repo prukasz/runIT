@@ -61,6 +61,7 @@ status_rep_t p_pca9685_pwm_set_duty(uint64_t pin_mask, uint32_t duty_cycle) {
             }
         }
     }
+    
     return STA_OK;
 }
 

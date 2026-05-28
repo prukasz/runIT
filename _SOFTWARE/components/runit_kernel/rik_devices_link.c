@@ -74,9 +74,10 @@ extern void p_adc_expander_intr_pin_callback(void* arg);
 /* callbacks from dirvers */
 
 status_rep_t rik_link_interrupts(void){
+    //!!!!!!!!weryfikacja na PCB -> INNE PINY !!!!!!
     STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_GPIO_EXPANDER_nINT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_gpio_expander_intr_pin_callback, m_i2c_get_dev_handle(rik_gpio_expander_id)));
     STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_GPIO_EXPANDER_nINT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_current_monitor_intr_pin_warning_callback, m_i2c_get_dev_handle(rik_current_monitor_id)));
-    STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_GPIO_EXPANDER_nINT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_current_monitor_intr_pin_crit_callback, m_i2c_get_dev_handle(rik_current_monitor_id)));
+    STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_CURRENT_MONITOR_CRIT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_current_monitor_intr_pin_crit_callback, m_i2c_get_dev_handle(rik_current_monitor_id)));
     STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_ADC_EXPANDER_ALERT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_adc_expander_intr_pin_callback, m_i2c_get_dev_handle(rik_adc_expander_id)));
     STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_REGA_INT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_vreg_intr_pin_fault_callback, m_i2c_get_dev_handle(rik_vreg0_id)));
     STA_RET_ON_ERR(SYS_GPIO_REGISTER_CALLBACK(RIK_IO_PIN_REGB_INT, SYS_GPIO_INTR_MODE_FALLING_EDGE, p_vreg_intr_pin_fault_callback, m_i2c_get_dev_handle(rik_vreg1_id)));

@@ -15,18 +15,18 @@
 
 #define TAG __FILE_NAME__
 
-static uint8_t rik_current_monitor_id;
-static uint8_t rik_gpio_expander_id;
-static uint8_t rik_vreg0_id;
-static uint8_t rik_vreg1_id;
-static uint8_t rik_adc_expander_id;
-static uint8_t rik_pwm_expander_id;
+ uint8_t rik_current_monitor_id;
+ uint8_t rik_gpio_expander_id;
+ uint8_t rik_vreg0_id;
+ uint8_t rik_vreg1_id;
+ uint8_t rik_adc_expander_id;
+ uint8_t rik_pwm_expander_id;
 
 
-static uint8_t rik_gpio_expander_port_id = 0xFF; 
-static uint8_t rik_adc_expander_port_id = 0xFF; 
-static uint8_t rik_gpio_esp_port_id = 0xFF;
-static uint8_t rik_pwm_expander_port_id = 0xFF; 
+ uint8_t rik_gpio_expander_port_id = 0xFF; 
+ uint8_t rik_adc_expander_port_id = 0xFF; 
+ uint8_t rik_gpio_esp_port_id = 0xFF;
+ uint8_t rik_pwm_expander_port_id = 0xFF; 
 
 static void* gpio_expander_handle = NULL;
 static void* adc_expander_handle = NULL;
@@ -44,6 +44,7 @@ status_rep_t rik_gpio_esp_start(void){
             .set_func = &p_gpio_esp_set_level,
             .read_func = &p_gpio_esp_read_level,
             .toggle_func = &p_gpio_esp_pin_toggle,
+            .reset_pin_func = &p_gpio_esp_reset_pin,
             .callback_add_func = &p_gpio_esp_register_callback,
             .pwm_set_duty_func = NULL,
             .pwm_set_freq_func = NULL,
@@ -92,6 +93,7 @@ status_rep_t rik_gpio_expander_start(uint8_t i2c_addres, bool bus_num){
             .set_func = &p_gpio_expander_set_pins,
             .read_func = &p_gpio_epander_read_pin,
             .toggle_func = &p_gpio_expander_toggle_pin,
+            .reset_pin_func = &p_gpio_expander_reset_pin,
             .callback_add_func = &p_gpio_expander_set_pin_callback,
             .pwm_set_duty_func = NULL,
             .pwm_set_freq_func = NULL,
@@ -99,6 +101,7 @@ status_rep_t rik_gpio_expander_start(uint8_t i2c_addres, bool bus_num){
             .adc_callback_add_func = NULL,
             .protected_pins = 0,
             .freeze = p_gpio_expander_freeze,
+            .reset_pin_func = &p_gpio_expander_reset_pin,
             .reset = NULL
         },
         &rik_gpio_expander_port_id
@@ -136,8 +139,7 @@ status_rep_t rik_current_monitor_start(uint8_t i2c_addres, bool bus_num){
         true,
         &rik_current_monitor_id
     ));
-
-    STA_RET_ON_ERR(p_current_monitor_configure());
+    //p_current_monitor_reset();
     ESP_LOGI(TAG, "INA3221 started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_addres);
     return STA_OK;
 }

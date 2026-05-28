@@ -104,6 +104,23 @@ status_rep_t sys_gpio_toggle(uint8_t port_id, uint64_t pin_mask){
     return STA_OK;
 }
 
+status_rep_t sys_gpio_reset_pin(uint8_t port_id, uint8_t pin){
+    if (pin >= 64) return STA_W(IO_ERR_PIN_UNSUPPORTED, OWNER_IO_PORT_CONFIGURE, pin);
+    uint64_t pin_mask = (1ULL << pin);
+    if (port_id >= MAX_IO_PORTS) return STA_W(IO_ERR_PORT_INVALID, OWNER_IO_PORT_CONFIGURE, port_id);
+    if (port_registry[port_id].reset_pin_func == NULL) return STA_W(IO_ERR_FEATURE_UNSUPPORTED, OWNER_IO_PORT_CONFIGURE, 0);
+    if (global_io_is_protected && (pin_mask & port_registry[port_id].protected_pins)) return STA_W(IO_ERR_PIN_PROTECTED, OWNER_IO_PORT_CONFIGURE, port_registry[port_id].protected_pins);
+
+    status_rep_t result = port_registry[port_id].reset_pin_func(pin);
+    if (!STA_IS_OK(result)) {
+        ESP_LOGW(TAG, "Failed to reset pin for port %d, pin %d: e_code=%u, e_owner=%u", port_id, pin, result.e_code, result.e_owner);
+        result.details.severity = 1;
+        STA_P(result);
+        STA_RP(STA_C(result.e_code, OWNER_IO_PORT_CONFIGURE, pin));
+    }
+    return STA_OK;
+}
+
 status_rep_t sys_gpio_register_callback(uint8_t port_id, uint8_t pin, uint32_t mode, void (*callback)(void* arg), void* arg){
     if (port_id >= MAX_IO_PORTS) return STA_W(IO_ERR_PORT_INVALID, OWNER_IO_PORT_CALLBACK, port_id);
     if (port_registry[port_id].callback_add_func == NULL) return STA_W(IO_ERR_FEATURE_UNSUPPORTED, OWNER_IO_PORT_CALLBACK, 0);

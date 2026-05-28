@@ -7,7 +7,6 @@
 #include "rik_devices.h"
 #include "status.h"
 #include "rik_shared.h"
-#include "rik_interrupts.h"
 #include "manager_ble.h"
 #include "rtos_utils.h"
 #include "rik_scheduler.h"  
@@ -16,10 +15,10 @@
 #include "rik_status_handler.h"
 #include "rik_devices_link.h"
 #include "manager_io.h"
-#include "ads7128_mock.h"
 #include "manager_power.h"
 #include "esp_timer.h"
 #include "rik_system_ctrl.h"
+#include "vm_demo.h"
 
 #define TAG "RIK_MAIN"
 
@@ -45,35 +44,6 @@ R_EVENT_GROUP_DEFINE(rik_events_wired);
 R_EVENT_GROUP_DEFINE(rik_events_data_processing);
 R_EVENT_GROUP_DEFINE(rik_events_vm);
 /***********************STATIC GLOBAL EVENT GROUPS ******************************/
-
-
-
-void task_read_adc(void* arg){
-    while(1){
-        uint32_t adc_value[4];
-
-
-        sys_io_adc_read(rik_gpio_esp_port_id,SYS_IO_GET_MASK(RIK_IO_PIN_DRV_1_IPROPI_1)|SYS_IO_GET_MASK(RIK_IO_PIN_DRV_1_IPROPI_2)|
-        SYS_IO_GET_MASK(RIK_IO_PIN_DRV_1_IPROPI_3)|SYS_IO_GET_MASK(RIK_IO_PIN_DRV_1_IPROPI_4), adc_value, 4);
-
-        STA_P(SYS_IO_SET_PWM_FREQ(RIK_PWM_EXPANDER_USER_CHANNEL_7, 50));
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        SYS_GPIO_TOGGLE(RIK_IO_PIN_GPIO_EXPANDER_nRESET);
-        STA_P(SYS_IO_SET_PWM_DUTY(RIK_PWM_EXPANDER_USER_CHANNEL_7, 200));
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        STA_P(SYS_IO_SET_PWM_DUTY(RIK_PWM_EXPANDER_USER_CHANNEL_7, 300));
-        
-        uint32_t voltage = 0;
-        int32_t current = 0;
-        sys_pwr_get_bus_current(RIK_CHANNEL_VREG0, &current);
-        sys_pwr_get_bus_voltage(RIK_CHANNEL_VREG0, &voltage);
-        ESP_LOGI(TAG, "Voltage Regulator 0 Voltage: %u mV, current: %d", voltage, current);
-        ESP_LOGI(TAG, "ADC Value: %u, %u, %u, %u", adc_value[0], adc_value[1], adc_value[2], adc_value[3]);
-
-    }
-}
-
-R_TASK_DEFINE(adc_task, 4096);
 
 
 esp_err_t rik_start(void) {
@@ -129,19 +99,8 @@ esp_err_t rik_start(void) {
         ESP_LOGE(TAG, "Failed to link interrupts");
         return ESP_FAIL;
     }
-    manager_io_unfreeze();
-    R_TASK_START(adc_task, task_read_adc, NULL, 5);
-    manager_io_freeze();
-    manager_io_unfreeze();
 
-    R_EVENT_SET(rik_events_wired, EVENT_BIT_I2C_PROCESS_0); // Trigger data processing after initial setup
-    R_EVENT_AWAIT_ALL(rik_events_wired, EVENT_BIT_I2C_DONE_0, WAIT_FOREVER);
-    sys_pwr_set_bus_current_critical(RIK_CHANNEL_VREG0, 50);
-    
-    vTaskDelay(MSEC(1000)); // Allow some time for processing before starting the VM
-    ESP_LOGW(TAG, "reset devices to default configuration");
-    devices_default_config();
-    //sys_pwr_set_bus_current_critical(RIK_CHANNEL_VREG0, 50);
-    
+    vTaskDelay(MSEC(1000)); 
+    vm_demo_start();
     return ESP_OK;
 }

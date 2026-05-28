@@ -1,9 +1,12 @@
 #pragma once
 #include "status.h"
 
-#define CFG_IO_TYPE_GPIO_MODE 1
-#define CFG_IO_TYPE_GPIO_ADC_ALERT 2
-#define CFG_IO_TYPE_GPIO_PWM_FREQ 3
+
+typedef enum{
+    CFG_IO_TYPE_GPIO_MODE = 0,
+    CFG_IO_TYPE_GPIO_ADC_ALERT = 1,
+    CFG_IO_TYPE_GPIO_PWM_FREQ = 2,
+}cfg_io_packet_type_e;
 
 typedef struct __attribute__((packed)){
     uint64_t pin_id;
@@ -11,7 +14,7 @@ typedef struct __attribute__((packed)){
 }cfg_io_gpio_mode_t;
 
 typedef struct __attribute__((packed)){
-    uint64_t pin_id;
+    uint32_t pin_id;
     struct{
         uint32_t adc_threshold_up_mv;
         uint32_t adc_threshold_down_mv;

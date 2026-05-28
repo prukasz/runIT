@@ -46,12 +46,14 @@ void rik_enable_log_mirroring(bool enable) {
 void rik_log_remote_enable(bool enable){
     enable ? esp_log_set_vprintf(rik_log_vprintf) : esp_log_set_vprintf(vprintf);
     rik_log_cfg_pkt.enable_stream = enable;
-    rik_log_cfg_pkt.mirror_on_serial = enable; // For simplicity, mirror to serial when streaming is enabled
+    rik_log_cfg_pkt.mirror_on_serial = false; // For simplicity, mirror to serial when streaming is enabled
     rik_log_cfg_pkt.esp_log_level = ESP_LOG_INFO; // Default log level
     esp_log_level_set("*", rik_log_cfg_pkt.esp_log_level);
 }
 
-
+esp_log_level_t rik_get_esp_log_level(){
+    return rik_log_cfg_pkt.esp_log_level;
+}
 
 status_rep_t rik_parse_log_cfg(const uint8_t *packet_data, const uint16_t packet_len){
     if(packet_len != sizeof(rik_log_cfg_pkt_t)){

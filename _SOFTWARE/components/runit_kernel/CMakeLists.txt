@@ -1,6 +1,6 @@
 idf_component_register(
-    SRCS "rik_status_handler.c" "rik_devices.c" "rik_interrupts.c" "rik_modules.c" "rik_main.c"
-        "rik_interrupts.c" "rik_logs.c" "rik_scheduler.c" "rik_status_handler.c" "rik_devices_link.c" "rik_system_ctrl.c"
+    SRCS "rik_status_handler.c" "rik_devices.c" "rik_modules.c" "rik_main.c"
+     "rik_logs.c" "rik_scheduler.c" "rik_status_handler.c" "rik_devices_link.c" "rik_system_ctrl.c"
         
     INCLUDE_DIRS "include"
     REQUIRES 
@@ -15,8 +15,7 @@ idf_component_register(
     esp_driver_gpio
 
     mock_ads
-    ina3221
-    tps55289
+
 
     provider_gpio_expander
     provider_adc_expander
@@ -25,7 +24,7 @@ idf_component_register(
     provider_voltage_regulator
     provider_pwm_expander
     mock_tps
- 
+    vm_demo
 
     utils
     PRIV_REQUIRES packet_interface config_io config_power

@@ -10,6 +10,8 @@ status_rep_t p_gpio_esp_read_level(uint64_t pin_mask, uint64_t* out_level);
 
 status_rep_t p_gpio_esp_pin_toggle(uint64_t pin_mask);
 
+status_rep_t p_gpio_esp_reset_pin(uint8_t pin);
+
 status_rep_t p_gpio_esp_register_callback(uint8_t pin, uint32_t mode, void (*callback)(void* arg), void* arg);
 
 status_rep_t provider_gpio_esp_set_pwm_duty(uint64_t pin_mask, uint32_t duty_cycle);

@@ -4,8 +4,11 @@
 #include "rik_shared.h"
 #include "rtos_utils.h"
 #include "rik_devices_link.h"
+#include "vm_demo.h"
 
 #define TAG __FILE_NAME__
+
+extern TaskHandle_t vm_demo_task;
 
 static rik_sys_ctrl_cfg_t system_ctrl_config = {0};
 
@@ -27,6 +30,9 @@ void rik_devices_freeze(){
 void rik_devices_unfreeze(){
     manager_io_unfreeze();
     manager_pwr_freeze_mode(0);
+    R_EVENT_CLEAR(rik_events_wired, EVENT_BIT_I2C_DONE_0 | EVENT_BIT_I2C_DONE_1);
+    R_EVENT_SET(rik_events_wired, EVENT_BIT_I2C_PROCESS_0|EVENT_BIT_I2C_PROCESS_1);
+    R_EVENT_AWAIT_ALL(rik_events_wired,EVENT_BIT_I2C_DONE_0 | EVENT_BIT_I2C_DONE_1, MSEC(200));
 }
 
 
@@ -53,11 +59,10 @@ status_rep_t devices_default_config(void){
     /*******VREGS******************************************** */
     sys_pwr_current_monitor_reset();
     /* gpio expander reset */
-    SYS_GPIO_SET_LEVEL(RIK_IO_PIN_GPIO_EXPANDER_nRESET, 0);
+    SYS_GPIO_RESET_PIN(RIK_IO_PIN_GPIO_EXPANDER_nRESET);
     sys_io_reset_all();
     rik_link_pins();
     rik_link_interrupts();
-
     return STA_OK;
 }
 
@@ -67,7 +72,7 @@ status_rep_t handle_vm_stop(void){
     R_EVENT_SET(rik_events_vm, EVENT_BIT_VM_STOP);
     R_EVENT_SET(rik_events_vm, EVENT_BIT_VM_EMERGENCY);
     ESP_LOGW(TAG, "VM stopped");
-
+    vTaskSuspend(vm_demo_task);
     STATUS_RESUME();
     return STA_OK;
 }
@@ -89,7 +94,7 @@ void activate_ctrl_mode(manager_pwr_cb_type_e callback_type) {
                 case MANAGER_PWR_CB_CURRENT_REG0_WARNING:
                 case MANAGER_PWR_CB_CURRENT_SYS_WARNING:
                 case MANAGER_PWR_CB_CURRENT_REG1_WARNING: {
-                    ESP_LOGW(TAG, "Triggering VM callbacks");
+                    vm_callback_power_event((void*)callback_type);
                     break;
                 }
                 case MANAGER_PWR_CB_REG0_OVP:
@@ -123,7 +128,7 @@ void activate_ctrl_mode(manager_pwr_cb_type_e callback_type) {
         }
         
         case SYS_CTRL_VM_CALLBACKS_ONLY: {
-            ESP_LOGW(TAG, "Triggering VM callbacks");
+            vm_callback_power_event((void*)callback_type);
             break;
         }
         
@@ -185,3 +190,15 @@ void rik_callback_current_monitor(void* param){
     activate_ctrl_mode(type);
 }
 
+
+void rik_callback_adc(void* param){
+    sys_pin_t pin = (sys_pin_t)(uintptr_t)param;
+    uint8_t port = SYS_IO_GET_PORT(pin);
+    uint8_t pin_num = SYS_IO_GET_PIN(pin);
+    ESP_LOGW(TAG, "ADC callback triggered for pin %d on port %d", pin_num, port);
+}
+
+
+void rik_sys_ctrl_set_cfg(rik_sys_ctrl_cfg_t* cfg){
+    memcpy(&system_ctrl_config, cfg, sizeof(rik_sys_ctrl_cfg_t));
+}

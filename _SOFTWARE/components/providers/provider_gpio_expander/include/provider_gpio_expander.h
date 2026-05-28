@@ -17,6 +17,7 @@ status_rep_t p_gpio_expander_configure_pins(uint8_t pin, uint32_t mode);
 status_rep_t p_gpio_expander_read_pins(uint64_t* out_mask);
 status_rep_t p_gpio_epander_read_pin(uint64_t pin_mask, uint64_t* out_mask);
 status_rep_t p_gpio_expander_toggle_pin(uint64_t pin_mask);
+status_rep_t p_gpio_expander_reset_pin(uint8_t pin);
 
 i2c_master_dev_handle_t * p_gpio_expander_get_i2c_dev_handle();
 TaskHandle_t p_gpio_expander_get_task_handle();

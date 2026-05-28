@@ -318,6 +318,35 @@ status_rep_t p_gpio_esp_pin_toggle(uint64_t pin_mask) {
     return STA_OK;
 }
 
+status_rep_t p_gpio_esp_reset_pin(uint8_t pin) {
+    if (pin >= 64) {
+        return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, pin);
+    }
+    uint64_t pin_mask = 1ULL << pin;
+    if ((pin_mask & ~AVIABLE_GPIO_MASK) != 0) {
+        return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, pin);
+    }
+
+    sys_pin_obj_t* pin_obj = pin_registry[pin];
+    gpio_reset_pin((gpio_num_t)pin);
+
+    if (pin_obj != NULL) {
+        gpio_isr_handler_remove((gpio_num_t)pin);
+        gpio_set_intr_type((gpio_num_t)pin, GPIO_INTR_DISABLE);
+
+        if (pin_obj->pin_mode == SYS_GPIO_MODE_ADC) {
+            uint8_t channel = pin_obj->hw.adc_cfg.adc_channel;
+            esp_adc_bind_pin_obj(channel, NULL);
+        }
+
+        free(pin_obj);
+        pin_registry[pin] = NULL;
+    }
+
+    ESP_LOGI(TAG, "Reset GPIO pin %d", pin);
+    return STA_OK;
+}
+
 status_rep_t p_gpio_esp_adc_register_callback(uint8_t pin, void* adc_int_config) {
 
     if ((ADC_GPIO_MASK & (1ULL << pin)) == 0) {
@@ -407,28 +436,11 @@ status_rep_t p_gpio_esp_register_callback(uint8_t pin, uint32_t mode, void (*cal
 status_rep_t p_gpio_esp_reset_all(void) {
     /* Comprehensive GPIO reset: disable interrupts, clear callbacks, reset to default modes and free resources */
     for (int i = 0; i < 64; i++) {
-        sys_pin_obj_t* pin_obj = pin_registry[i];
-        if (pin_obj != NULL) {
-            /* Reset hardware pin configuration to defaults */
-            gpio_reset_pin((gpio_num_t)i);
-
-            /* Remove any ISR handler registered for this pin */
-            gpio_isr_handler_remove((gpio_num_t)i);
-
-            /* Disable interrupts explicitly (safe no-op if already removed) */
-            gpio_set_intr_type((gpio_num_t)i, GPIO_INTR_DISABLE);
-
-            /* If this pin was used as ADC, unbind it from ADC driver */
-            if (pin_obj->pin_mode == SYS_GPIO_MODE_ADC) {
-                uint8_t channel = pin_obj->hw.adc_cfg.adc_channel;
-                esp_adc_bind_pin_obj(channel, NULL); // clear binding
+        if (pin_registry[i] != NULL) {
+            status_rep_t result = p_gpio_esp_reset_pin((uint8_t)i);
+            if (!STA_IS_OK(result)) {
+                ESP_LOGW(TAG, "Failed to reset GPIO pin %d during provider reset: e_code=%u, e_owner=%u", i, result.e_code, result.e_owner);
             }
-
-            /* Free registry object and clear pointer */
-            free(pin_obj);
-            pin_registry[i] = NULL;
-
-            ESP_LOGI(TAG, "Reset and freed GPIO pin %d", i);
         }
     }
     ESP_LOGI(TAG, "GPIO ESP provider reset: all pins reset and resources freed");

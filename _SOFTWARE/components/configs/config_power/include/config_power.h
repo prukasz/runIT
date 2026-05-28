@@ -1,14 +1,17 @@
 #pragma once 
 #include "status.h"
-              // The specific handle/struct to pass to it
-#define CFG_PWR_TYPE_REG_EN 1
-#define CFG_PWR_TYPE_REG_SETTINGS 2
-#define CFG_PWR_TYPE_REG_LIMITS 3
-#define CFG_PWR_TYPE_REG_BEHAVIOR 4
 
-#define CFG_PWR_TYPE_SUPPLY 11
-#define CFG_PWR_TYPE_SUPPLY_LIMITS 12
-#define CFG_PWR_TYPE_SUPPLY_BEHAVIOR 13
+
+typedef enum{
+    CFG_PWR_TYPE_REG_EN = 1,
+    CFG_PWR_TYPE_REG_SETTINGS = 2,
+    CFG_PWR_TYPE_REG_LIMITS = 3,
+    CFG_PWR_TYPE_REG_BEHAVIOR = 4,
+
+    CFG_PWR_TYPE_SUPPLY = 11,
+    CFG_PWR_TYPE_SUPPLY_LIMITS = 12,
+    CFG_PWR_TYPE_SUPPLY_BEHAVIOR = 13
+}cfg_pwr_packet_type_e;
 
 typedef struct __attribute__((packed)){
     uint8_t regulator_num; //0 or 1

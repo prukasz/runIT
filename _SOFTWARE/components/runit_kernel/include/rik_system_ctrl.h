@@ -10,6 +10,7 @@ status_rep_t handle_vm_stop(void);
 
 void rik_callback_current_monitor(void* param);
 void rik_callback_vreg(void* param);
+void rik_callback_adc(void* param);
 
 status_rep_t devices_default_config(void);
 
@@ -37,3 +38,6 @@ typedef struct __attribute__((packed)) rik_sys_ctrl_cfg_t {
     uint8_t crt_current_SYS_PWR_WARN;
     uint8_t crt_current_SYS_PWR_CRIT;
 }rik_sys_ctrl_cfg_t;
+
+
+void rik_sys_ctrl_set_cfg(rik_sys_ctrl_cfg_t* cfg);

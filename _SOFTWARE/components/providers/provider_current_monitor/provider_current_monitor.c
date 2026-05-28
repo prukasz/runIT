@@ -98,7 +98,10 @@ status_rep_t p_current_monitor_reset(void) {
  
     /* Reset hardware alert settings: disable latches, clear flags */
     STA_RET_ON_ESP_ERR(ina3221_reset(_ina_handle), OWNER_PROVIDER_CURRENT_MONITOR, _ina_handle->i2c_device_config.device_address);
-    
+    STA_RET_ON_ESP_ERR(ina3221_set_options(_ina_handle, 0, 1,1), OWNER_PROVIDER_CURRENT_MONITOR, _ina_handle->i2c_device_config.device_address);
+    STA_RET_ON_ESP_ERR(ina3221_set_options(_ina_handle, 1, 1,1), OWNER_PROVIDER_CURRENT_MONITOR, _ina_handle->i2c_device_config.device_address);
+    STA_RET_ON_ESP_ERR(ina3221_set_options(_ina_handle, 2, 1,1), OWNER_PROVIDER_CURRENT_MONITOR, _ina_handle->i2c_device_config.device_address);
+    STA_RET_ON_ESP_ERR(ina3221_enable_latch_pin(_ina_handle, 1, 1), OWNER_PROVIDER_CURRENT_MONITOR, _ina_handle->i2c_device_config.device_address);
     /* Clear all 6 callbacks (3 channels × 2 alert types: warning + critical) */
     for (uint8_t i = 0; i < 6; i++) {
         _ina_handle->user_callback[i] = NULL;

@@ -36,10 +36,13 @@ typedef struct{
     void* arg;
 }sys_io_adc_int_config_t;
 
+typedef uint16_t sys_pin_t;
+
 typedef status_rep_t (*gpio_func_mode)(uint8_t pin, uint32_t mode);
 typedef status_rep_t (*gpio_func_set)(uint64_t pins_mask, bool state);
 typedef status_rep_t (*gpio_func_read)(uint64_t pins_mask, uint64_t* out_levels);
 typedef status_rep_t (*gpio_func_toggle)(uint64_t pins_mask);
+typedef status_rep_t (*gpio_func_reset_pin)(uint8_t pin);
 typedef status_rep_t (*gpio_func_callback_add)(uint8_t pin, uint32_t mode, void (*callback)(void* arg), void* arg);
 typedef status_rep_t (*io_func_pwm_set_duty)(uint64_t pin_mask, uint32_t duty_cycle);
 typedef status_rep_t (*io_func_pwm_set_freq)(uint64_t pin_mask, uint32_t freq_hz);
@@ -53,6 +56,7 @@ typedef struct {
     gpio_func_set set_func;
     gpio_func_read read_func;
     gpio_func_toggle toggle_func;
+    gpio_func_reset_pin reset_pin_func;
     gpio_func_callback_add callback_add_func;
     io_func_pwm_set_duty pwm_set_duty_func;
     io_func_pwm_set_freq pwm_set_freq_func;
@@ -73,6 +77,7 @@ status_rep_t sys_gpio_set_mode(uint8_t port_id, uint8_t pin, uint32_t mode);
 status_rep_t sys_gpio_set_level(uint8_t port_id, uint64_t pin_mask, bool level);
 status_rep_t sys_gpio_read_level(uint8_t port_id, uint64_t pin_mask, uint64_t* out_levels);
 status_rep_t sys_gpio_toggle(uint8_t port_id, uint64_t pin_mask);
+status_rep_t sys_gpio_reset_pin(uint8_t port_id, uint8_t pin);
 status_rep_t sys_gpio_register_callback(uint8_t port_id, uint8_t pin, uint32_t mode, void (*callback)(void* arg), void* arg);
 
 status_rep_t sys_io_set_pwm_duty(uint8_t port_id, uint64_t pin_mask, uint32_t duty_cycle);
@@ -129,6 +134,12 @@ status_rep_t sys_io_reset_all(void);
  */
 #define SYS_GPIO_TOGGLE(pin) \
     sys_gpio_toggle(SYS_IO_GET_PORT(pin), SYS_IO_GET_MASK(pin))
+
+/**
+ * @brief Single pin reset, provide encoded pin (auto port fetch)
+ */
+#define SYS_GPIO_RESET_PIN(pin) \
+    sys_gpio_reset_pin(SYS_IO_GET_PORT(pin), SYS_IO_GET_PIN(pin))
 
 /**
  * @brief Single pin register callback, provide encoded pin (auto port fetch)
