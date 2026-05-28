@@ -74,17 +74,11 @@ static void IRAM_ATTR _gpio_pin_isr_trampoline(void* arg) {
     }
 }
 // Must be called during system startup to initialize the driver
-esp_err_t p_gpio_esp_init(void) {
-    // 2. Start the background dispatcher task (Priority 10)
+status_rep_t p_gpio_esp_init(void) {
     R_TASK_START(gpio_dispatcher_task, gpio_dispatcher_task_function, NULL, 5);
-    esp_adc_start();
-
-    esp_err_t err = gpio_install_isr_service(0);
-    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) { 
-        return err;
-    }
-
-    return ESP_OK;
+    STA_RET_ON_ESP_ERR(esp_adc_start(), OWNER_PROVIDER_GPIO_ESP, 0);
+    STA_RET_ON_ESP_ERR(gpio_install_isr_service(0), OWNER_PROVIDER_GPIO_ESP, 0);
+    return STA_OK;
 }
 
 // --- GPIO Configuration and Hardware API ---

@@ -22,7 +22,7 @@ status_rep_t p_gpio_esp_adc_register_callback(uint8_t pin, void* adc_int_config)
 
 void p_gpio_esp_freeze_updates(bool freeze);
 
-esp_err_t p_gpio_esp_init(void);
+status_rep_t p_gpio_esp_init(void);
 
 /**
  * @brief Reset all GPIO ESP provider callbacks and interrupt settings

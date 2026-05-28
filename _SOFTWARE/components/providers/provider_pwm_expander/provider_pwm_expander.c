@@ -31,7 +31,7 @@ void p_pca9685_freeze(bool freeze) {
     _freeze = freeze;
 }
 
-status_rep_t p_current_monitor_configure(void) {
+status_rep_t p_pca9685_configure(void) {
     CHECK_HANDLE(_pca_handle, 0);
     esp_err_t err = pca9685_enable_auto_increment(_pca_handle);
     if (err != ESP_OK) {

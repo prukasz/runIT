@@ -15,18 +15,18 @@
 
 #define TAG __FILE_NAME__
 
-uint8_t rik_current_monitor_id;
-uint8_t rik_gpio_expander_id;
-uint8_t rik_vreg0_id;
-uint8_t rik_vreg1_id;
-uint8_t rik_adc_expander_id;
-uint8_t rik_pwm_expander_id;
+static uint8_t rik_current_monitor_id;
+static uint8_t rik_gpio_expander_id;
+static uint8_t rik_vreg0_id;
+static uint8_t rik_vreg1_id;
+static uint8_t rik_adc_expander_id;
+static uint8_t rik_pwm_expander_id;
 
 
-uint8_t rik_gpio_expander_port_id = 0xFF; //invalid port id as default
-uint8_t rik_adc_expander_port_id = 0xFF; //invalid port id as default
-uint8_t rik_gpio_esp_port_id = 0xFF; //invalid port id as default
-uint8_t rik_pwm_expander_port_id = 0xFF; //invalid port id as default
+static uint8_t rik_gpio_expander_port_id = 0xFF; 
+static uint8_t rik_adc_expander_port_id = 0xFF; 
+static uint8_t rik_gpio_esp_port_id = 0xFF;
+static uint8_t rik_pwm_expander_port_id = 0xFF; 
 
 static void* gpio_expander_handle = NULL;
 static void* adc_expander_handle = NULL;
@@ -37,11 +37,7 @@ static void* pwm_expander_handle = NULL;
 
 
 status_rep_t rik_gpio_esp_start(void){
-    esp_err_t err = p_gpio_esp_init();
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize GPIO ESP provider");
-        return STA_C(err, OWNER_RIK_DRIVER_INIT, 0);
-    }
+    STA_RET_ON_ERR(p_gpio_esp_init());
     STA_RET_ON_ERR(manager_io_register_new_port(
         &(io_port_dispatch_t){
             .mode_func = &p_gpio_esp_set_pin_mode,
@@ -59,7 +55,7 @@ status_rep_t rik_gpio_esp_start(void){
         },
         &rik_gpio_esp_port_id
     ));
-    
+
     ESP_LOGI(TAG, "GPIO ESP provider started with port ID %d", rik_gpio_esp_port_id);
     return STA_OK;
 }
@@ -69,9 +65,7 @@ extern void p_gpio_expander_intr_pin_callback(void* arg);
 status_rep_t rik_gpio_expander_start(uint8_t i2c_addres, bool bus_num){
 
 #if !CONFIG_USE_MOCK_TCA6424A
-        if(!STA_IS_OK(m_i2c_device_present(bus_num, i2c_addres))) {
-            return STA_C(ERR_I2C_DEV_NOT_FOUND, OWNER_RIK_DRIVER_INIT_TCA6424A, i2c_addres);
-        }
+        STA_RET_ON_ERR(m_i2c_device_present(bus_num, i2c_addres));
         ESP_LOGI(TAG, "TCA6424A detected on bus %d at address 0x%02X", bus_num ? 1 : 0, i2c_addres);
 #endif
     gpio_expander_handle = p_gpio_expander_new(i2c_addres);
@@ -119,9 +113,8 @@ status_rep_t rik_gpio_expander_start(uint8_t i2c_addres, bool bus_num){
 
 status_rep_t rik_current_monitor_start(uint8_t i2c_addres, bool bus_num){
 
-    if (!STA_IS_OK(m_i2c_device_present(bus_num, i2c_addres))) {
-        STA_RP(STA_C(ERR_I2C_DEV_NOT_FOUND, OWNER_RIK_DRIVER_INIT_CURRENT_MONITOR, i2c_addres));
-    }
+    STA_RET_ON_ERR(m_i2c_device_present(bus_num, i2c_addres));
+
     ESP_LOGI(TAG, "INA3221 detected on bus %d at address 0x%02X", bus_num ? 1 : 0, i2c_addres);
 
     current_monitor_handle = p_current_monitor_new(i2c_addres);
@@ -247,11 +240,9 @@ status_rep_t rik_adc_expander_start(uint8_t i2c_addres, bool bus_num){
 }
 
 status_rep_t p_pwm_expadner_start(uint8_t i2c_addres, bool bus_num){
-    pwm_expander_handle = p_pca9685_new(i2c_addres);
-    if (!STA_IS_OK(m_i2c_device_present(bus_num, i2c_addres))) {
-        STA_RP(STA_C(ERR_I2C_DEV_NOT_FOUND, OWNER_RIK_DRIVER_INIT, i2c_addres));
-    }
+    STA_RET_ON_ERR(m_i2c_device_present(bus_num, i2c_addres));
     ESP_LOGI(TAG, "PCA9685 detected on bus %d at address 0x%02X", bus_num ? 1 : 0, i2c_addres);
+    pwm_expander_handle = p_pca9685_new(i2c_addres);
     i2c_device_config_t* dev_config = p_pca9685_get_i2c_dev_config();
     i2c_master_dev_handle_t*  master_dev_handle = p_pca9685_get_i2c_dev_handle();
     TaskHandle_t task_handle = p_pca9685_get_task_handle();
@@ -284,7 +275,7 @@ status_rep_t p_pwm_expadner_start(uint8_t i2c_addres, bool bus_num){
         &rik_pwm_expander_port_id
 
     ));
-    //void p_pca9685_notify_to_update(void);   
+    p_pca9685_configure();
     ESP_LOGI(TAG, "PWM expander started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_addres);
     return STA_OK;
 }

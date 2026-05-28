@@ -30,4 +30,4 @@ status_rep_t p_pca9685_toggle_pins(uint64_t pin_mask);
  */
 status_rep_t p_pca9685_reset(void);
 
-status_rep_t p_current_monitor_configure(void);
+status_rep_t p_pca9685_configure(void);
