@@ -9,13 +9,12 @@ set(EXCLUDE_COMPONENTS "vm")
 list(APPEND EXTRA_COMPONENT_DIRS 
     "components/status"
     "components/runit_kernel"
-    "components/packet_interface"
+    "components/interface"
     "components/mocks"
     "components/managers"
     "components/drivers"
     "components/providers"
     "components/utils"
-    "components/configs"
     "components/features"
     "components/vm_demo"
 )

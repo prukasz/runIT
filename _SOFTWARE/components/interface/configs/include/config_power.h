@@ -65,4 +65,4 @@ typedef struct __attribute__((packed)){
 
 
 status_rep_t cfg_pwr_process_packet(const uint8_t* packet_data, uint16_t packet_len);
-status_rep_t cfg_pwr_init(void);
+

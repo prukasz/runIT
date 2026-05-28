@@ -78,6 +78,3 @@ status_rep_t cfg_pwr_process_packet(const uint8_t* packet_data, uint16_t packet_
     return STA_OK;
 }
 
-status_rep_t cfg_pwr_init(void){
-    return interface_register_parser(PACKET_H_CFG_PWR, cfg_pwr_process_packet);
-}

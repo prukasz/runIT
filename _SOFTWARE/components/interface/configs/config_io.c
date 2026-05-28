@@ -40,7 +40,3 @@ status_rep_t cfg_io_process_packet(const uint8_t* packet_data, uint16_t packet_l
     }
     return STA_OK;
 }
-
-status_rep_t cfg_io_init(void){
-    return interface_register_parser(PACKET_H_CFG_IO, cfg_io_process_packet);
-}

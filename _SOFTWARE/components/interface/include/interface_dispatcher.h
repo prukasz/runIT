@@ -12,10 +12,6 @@
 #include "string.h"
 #include "status.h"
 
-/*
-INFO:
-Receive and manage (redirect) received commanads
-*/
 
 typedef struct{
     EventGroupHandle_t connection_events;
@@ -31,15 +27,6 @@ typedef struct{
 typedef status_rep_t (*interface_parse_func)(const uint8_t *packet_data, const uint16_t packet_len);
 
 typedef status_rep_t (*interface_dev_cfg_func)(const uint8_t *packet_data, const uint16_t packet_len);
-
-
-/**
- * @brief Redirects received command packets to appropriate config setters based on dev type
- * @param packet_data Raw data received (excluding header)
- * @param packet_len Length of the packet data
- * @note Data can be recevied either by BLE or WIFI, source is irrelevant both uses same buffer
- */
-status_rep_t interface_parse_cmd_dev_cfg(const uint8_t *packet_data, const uint16_t packet_len);
 
 /**
  * @brief Registers the RX buffer for command packet reception
@@ -59,15 +46,6 @@ void interface_buff_register_rx(RingbufHandle_t rx_buffer);
  */
 void interface_init(interface_cfg_t *config);
 
-/**
- * @brief Register a parser function for a packet header at runtime
- */
-status_rep_t interface_register_parser(uint8_t header, interface_parse_func f);
-
-/**
- * @brief Unregister a previously registered parser
- */
-status_rep_t interface_unregister_parser(uint8_t header);
 
 /**
  * @brief Dequeues received command packets from the RX buffer

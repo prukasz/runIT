@@ -9,23 +9,24 @@ idf_component_register(
     manager_io
     manager_power
 
-    
-    
+
     freertos
     esp_driver_gpio
 
+
+
+    mock_tps
+    vm_demo
+
+ 
+    PRIV_REQUIRES 
     mock_ads
-
-
+    interface
+    utils 
     provider_gpio_expander
     provider_adc_expander
     provider_gpio_esp
     provider_current_monitor
     provider_voltage_regulator
     provider_pwm_expander
-    mock_tps
-    vm_demo
-
-    utils
-    PRIV_REQUIRES packet_interface config_io config_power
 )

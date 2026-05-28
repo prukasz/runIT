@@ -30,4 +30,3 @@ typedef struct __attribute__((packed)){
 }cfg_io_gpio_pwm_freq_t;
 
 status_rep_t cfg_io_process_packet(const uint8_t* packet_data, uint16_t packet_len);
-status_rep_t cfg_io_init(void);

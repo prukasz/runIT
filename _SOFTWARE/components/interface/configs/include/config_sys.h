@@ -51,6 +51,5 @@ typedef enum{
     CFG_SYS_TYPE_DEVICE_DEFAULT = 2,
 }cfg_sys_packet_type_e;
 
-/* Function declarations */
+
 status_rep_t cfg_sys_process_packet(const uint8_t* packet_data, uint16_t packet_len);
-status_rep_t cfg_sys_init(void);

@@ -11,10 +11,11 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent  # _SOFTWARE folder
 OUTPUT_FILE = Path(__file__).parent / "ConfigTypes.py"
 
 HEADER_SOURCES = [
-    PROJECT_ROOT / "components" / "packet_interface"/ "include"/ "interface_commands.h",
-    PROJECT_ROOT / "components" / "configs" / "config_power" / "include" / "config_power.h",
-    PROJECT_ROOT / "components" / "configs" / "config_io" / "include" / "config_io.h",
-    PROJECT_ROOT / "components" / "configs" / "config_sys" / "include" / "config_sys.h"
+    PROJECT_ROOT / "components" / "interface" /"include"/ "interface_commands.h",
+    PROJECT_ROOT / "components" / "interface"/ "configs" /"include"/ "config_sys.h",
+    PROJECT_ROOT / "components" / "interface"/ "configs" /"include"/ "config_io.h",
+    PROJECT_ROOT / "components" / "interface"/ "configs" /"include"/ "config_power.h",
+    
 ]
 
 # Maps C types to ctypes equivalents

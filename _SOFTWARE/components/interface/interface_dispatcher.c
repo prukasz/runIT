@@ -1,5 +1,8 @@
 #include "interface_dispatcher.h"
 #include "interface_commands.h"
+#include "config_sys.h"
+#include "config_io.h"
+#include "config_power.h"
 #include "rik_tx_rx.h"
 #include "rtos_utils.h"
 
@@ -12,19 +15,13 @@ static interface_cfg_t *_cfg = NULL;
 static RingbufHandle_t _interface_rx_buffer = NULL;
 /*****************************************************************************************/
 
-static interface_parse_func parse_dispatch_table[256] = { 0 };
+static interface_parse_func parse_dispatch_table[256] = { 
+    [PACKET_H_CFG_PWR] = cfg_pwr_process_packet,
+    [PACKET_H_CFG_IO] = cfg_io_process_packet,
+    [PACKET_H_CFG_SYS] = cfg_sys_process_packet,
+};
 
-status_rep_t interface_register_parser(uint8_t header, interface_parse_func f){
-    if(header >= 256) return STA_W(PWE_ERR_PARSE_NOT_FOUND, OWNER_RIK_DRIVER_INIT, header);
-    parse_dispatch_table[header] = f;
-    return STA_OK;
-}
 
-status_rep_t interface_unregister_parser(uint8_t header){
-    if(header >= 256) return STA_W(PWE_ERR_PARSE_NOT_FOUND, OWNER_RIK_DRIVER_INIT, header);
-    parse_dispatch_table[header] = NULL;
-    return STA_OK;
-}
 
 
 R_TASK_DEFINE(interface_task, 4096);

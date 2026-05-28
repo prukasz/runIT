@@ -110,8 +110,6 @@ status_rep_t rik_start_i2c(TaskHandle_t supervisor_task_handle, EventGroupHandle
 
 void rik_start_interface(EventGroupHandle_t events){
     /* register config parsers before starting the interface */
-    cfg_pwr_init();
-    cfg_io_init();
     interface_init(NULL);
     interface_buff_register_rx(rik_buff_rx);
 }
