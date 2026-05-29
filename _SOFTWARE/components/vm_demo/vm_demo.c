@@ -16,7 +16,6 @@ void vm_demo_task_func(void* args){
     sys_pwr_set_bus_current_critical(RIK_CHANNEL_VREG0, 1100);
     SYS_IO_SET_PWM_FREQ(RIK_PWM_EXPANDER_USER_CHANNEL_7, 50);
     uint32_t adc_value[4];
-    rik_enable_log_mirroring(false);
     while (1)
     {
         rik_devices_freeze();

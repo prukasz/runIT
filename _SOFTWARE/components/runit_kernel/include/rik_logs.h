@@ -1,6 +1,13 @@
 #pragma once
 
+#include <stdarg.h>
+#include <stdbool.h>
+#include "esp_log.h"
+
 int rik_log_vprintf(const char *fmt, va_list args);
 
-void rik_log_remote_enable(bool enable);
-void rik_enable_log_mirroring(bool enable);
+void sys_log_remote_enable(bool enable);
+void sys_log_mirror_on_serial(bool enable);
+
+
+void sys_log_set_level(esp_log_level_t level);

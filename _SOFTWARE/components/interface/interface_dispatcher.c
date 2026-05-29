@@ -24,7 +24,7 @@ static interface_parse_func parse_dispatch_table[256] = {
 
 
 
-R_TASK_DEFINE(interface_task, 4096);
+R_TASK_DEFINE(interface_task, 8096);
 
 void interface_buff_register_rx(RingbufHandle_t rx_buffer) {
     _interface_rx_buffer = rx_buffer;
@@ -51,7 +51,7 @@ static void interface_task_func(void* pvParameters){
 }
 
 void interface_init(interface_cfg_t *config){
-    R_TASK_START_ON_CORE(interface_task, interface_task_func, NULL, 5, 0);
+    R_TASK_START_ON_CORE(interface_task, interface_task_func, NULL, 4, 0);
     ESP_LOGI(TAG, "Interface task started");
 }
 

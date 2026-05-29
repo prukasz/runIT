@@ -44,6 +44,7 @@ status_rep_t p_gpio_expander_set_pins(uint64_t pin_mask, bool state){
     CHECK_HANDLE(_tca_handle, 0);
     esp_err_t err = tca_set_pins(_tca_handle, (uint32_t)pin_mask, state ? (uint32_t)pin_mask : 0, !freeze);
     if (err != ESP_OK) {
+        ESP_LOGE("GPIO EXPANDER", "Failed to read pins from GPIO expander: %s", esp_err_to_name(err));
         return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_EXPANDER, err);
     }
     return STA_OK;
@@ -54,6 +55,7 @@ status_rep_t p_gpio_expander_read_pins(uint64_t* out_mask){
     uint32_t temp_mask = 0;
     esp_err_t err = tca_get_pins(_tca_handle, &temp_mask, !freeze);
     if (err != ESP_OK) {
+        ESP_LOGE("GPIO EXPANDER", "Failed to read pins from GPIO expander: %s", esp_err_to_name(err));
         return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_EXPANDER, err);
     }
     *out_mask = (uint64_t)temp_mask;

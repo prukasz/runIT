@@ -48,7 +48,7 @@ status_rep_t stop_devices(void){
     return STA_OK;
 }
 
-status_rep_t devices_default_config(void){
+status_rep_t sys_devices_default_config(void){
     /*******VREGS******************************************** */
     sys_pwr_set_verg_current_limit(0, 200);
     sys_pwr_set_verg_current_limit(1, 200);
@@ -57,12 +57,13 @@ status_rep_t devices_default_config(void){
     sys_pwr_enable_verg(0,0);
     sys_pwr_enable_verg(1,0);
     /*******VREGS******************************************** */
-    sys_pwr_current_monitor_reset();
+    //sys_pwr_current_monitor_reset();
     /* gpio expander reset */
     SYS_GPIO_RESET_PIN(RIK_IO_PIN_GPIO_EXPANDER_nRESET);
     sys_io_reset_all();
     rik_link_pins();
     rik_link_interrupts();
+    ESP_LOGI(TAG, "Devices default configuration applied");
     return STA_OK;
 }
 

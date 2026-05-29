@@ -19,7 +19,7 @@ void process_wireless_events(){
         _rik_ble_active = true;
         ESP_LOGI(TAG, "BLE Connected");
         xEventGroupClearBits(rik_events_wireless, EVENT_BIT_BLE_CONNECTION_FAILED | EVENT_BIT_BLE_DISCONNECTED);
-        rik_log_remote_enable(true);
+        sys_log_remote_enable(true);
 
         // Allow data processing and tell vm 
 

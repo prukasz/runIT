@@ -15,6 +15,13 @@ class packet_header_t(IntEnum):
 # CONFIG_SYS CONFIGURATION STRUCTURES
 # ============================================================================
 
+class cfg_sys_packet_type_e(IntEnum):
+    CFG_SYS_TYPE_LOG_CONFIG = 0
+    CFG_SYS_TYPE_SYSTEM_CTRL = 1
+    CFG_SYS_TYPE_DEVICE_DEFAULT = 2
+    CFG_SYS_TYPE_VM_RUN = 3
+    CFG_SYS_TYPE_VM_STOP = 4
+
 class cfg_log_level_e(IntEnum):
     CFG_ESP_LOG_NONE = 0
     CFG_ESP_LOG_ERROR = 1
@@ -31,11 +38,6 @@ class cfg_sys_ctrl_mode_e(IntEnum):
     CFG_SYS_SYS_CTRL_STOP = 0x03
     CFG_SYS_CTRL_ENTER_EMERGENCY = 0x04
     CFG_SYS_CTRL_DISABLE_DEVICE = 0x05
-
-class cfg_sys_packet_type_e(IntEnum):
-    CFG_SYS_TYPE_LOG_CONFIG = 0
-    CFG_SYS_TYPE_SYSTEM_CTRL = 1
-    CFG_SYS_TYPE_DEVICE_DEFAULT = 2
 
 class cfg_log_t(ct.LittleEndianStructure):
     _pack_ = 1
@@ -70,12 +72,32 @@ class cfg_io_packet_type_e(IntEnum):
     CFG_IO_TYPE_GPIO_MODE = 0
     CFG_IO_TYPE_GPIO_ADC_ALERT = 1
     CFG_IO_TYPE_GPIO_PWM_FREQ = 2
+    CFG_IO_TYPE_GPIO_RESET = 3
+
+class cfg_io_adc_window_mode_e(IntEnum):
+    CFG_IO_ADC_WINDOW_OUTSIDE = 0
+    CFG_IO_ADC_WINDOW_INSIDE = 1
+
+class cfg_io_gpio_mode_e(IntEnum):
+    CFG_GPIO_MODE_INPUT = 0
+    CFG_GPIO_MODE_OUTPUT_PUSH_PULL = 1
+    CFG_GPIO_MODE_OUTPUT_OPEN_DRAIN = 2
+    CFG_GPIO_MODE_INPUT_PULLUP = 3
+    CFG_GPIO_MODE_INPUT_PULLDOWN = 4
+    CFG_GPIO_MODE_PWM = 5
+    CFG_GPIO_MODE_ADC = 6
 
 class cfg_io_gpio_mode_t(ct.LittleEndianStructure):
     _pack_ = 1
     _fields_ = [
-        ("pin_id", ct.c_uint64),
+        ("pin_id", ct.c_uint32),
         ("mode", ct.c_uint32),
+    ]
+
+class cfg_io_gpio_reset_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("pin_id", ct.c_uint32),
     ]
 
 class cfg_io_gpio_adc_alert_t(ct.LittleEndianStructure):

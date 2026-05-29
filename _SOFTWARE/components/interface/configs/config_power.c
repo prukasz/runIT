@@ -23,13 +23,13 @@
 } while (0)
 
 
-#define MAX_CURRENT_MA 5500
+#define MAX_CURRENT_MA 10000
 #define MIN_VOLTAGE_MV 4500
 #define MAX_VOLTAGE_MV 20000
 
 
 status_rep_t cfg_pwr_process_packet(const uint8_t* packet_data, uint16_t packet_len){
-    switch(packet_data[0]){ // Assuming first byte is packet type
+    switch(packet_data[0]){
         case CFG_PWR_TYPE_REG_EN: {
             bool reg_en = packet_data[2];
             uint8_t reg_num = packet_data[1];
@@ -40,8 +40,12 @@ status_rep_t cfg_pwr_process_packet(const uint8_t* packet_data, uint16_t packet_
         case CFG_PWR_TYPE_REG_SETTINGS:{
             cfg_pwr_reg_settings_t settings;
             memcpy(&settings, packet_data + 1, sizeof(cfg_pwr_reg_settings_t));
-            CHECK_PARAMETER_RANGE(settings.voltage_mv, MIN_VOLTAGE_MV, MAX_VOLTAGE_MV, settings.regulator_num, OWNER_MANAGER_PWR_PARSE_PACKET);
-            CHECK_PARAMETER_RANGE(settings.current_limit_ma, 0, MAX_CURRENT_MA, settings.regulator_num, OWNER_MANAGER_PWR_PARSE_PACKET);
+            /* Validate regulator number (must be 0 or 1) */
+            if (settings.regulator_num > 1) {
+                RETURN_INVALID_ARG(settings.regulator_num, regulator_num, OWNER_MANAGER_PWR_PARSE_PACKET);
+            }
+            CHECK_PARAMETER_RANGE(settings.voltage_mv, MIN_VOLTAGE_MV, MAX_VOLTAGE_MV, voltage_mv, OWNER_MANAGER_PWR_PARSE_PACKET);
+            CHECK_PARAMETER_RANGE(settings.current_limit_ma, 0, MAX_CURRENT_MA, current_limit_ma, OWNER_MANAGER_PWR_PARSE_PACKET);
 
             STA_RET_ON_ERR(sys_pwr_set_verg_voltage(settings.regulator_num, settings.voltage_mv));
             return sys_pwr_set_verg_current_limit(settings.regulator_num, settings.current_limit_ma);

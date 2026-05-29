@@ -102,5 +102,6 @@ esp_err_t rik_start(void) {
 
     vTaskDelay(MSEC(1000)); 
     vm_demo_start();
+    //sys_devices_default_config();
     return ESP_OK;
 }

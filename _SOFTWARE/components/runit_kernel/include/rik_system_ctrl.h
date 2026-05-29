@@ -12,7 +12,7 @@ void rik_callback_current_monitor(void* param);
 void rik_callback_vreg(void* param);
 void rik_callback_adc(void* param);
 
-status_rep_t devices_default_config(void);
+status_rep_t sys_devices_default_config(void);
 
 
 typedef enum{
