@@ -19,15 +19,15 @@ status_rep_t cfg_io_process_packet(const uint8_t* packet_data, uint16_t packet_l
             cfg_io_gpio_adc_alert_t settings;
             memcpy(&settings, packet_data + 1, sizeof(cfg_io_gpio_adc_alert_t));
             sys_io_adc_int_config_t adc_cfg = {
-                    .adc_threshold_up_mv = settings.cfg.adc_threshold_up_mv,
-                    .adc_threshold_down_mv = settings.cfg.adc_threshold_down_mv,
-                    .adc_threshold_hysteresis_mv = settings.cfg.adc_threshold_hysteresis_mv,
-                    .adc_event_counter_threshold = settings.cfg.adc_event_counter_threshold,
-                    .adc_window_mode = settings.cfg.adc_window_mode,
+                    .adc_threshold_up_mv = settings.adc_threshold_up_mv,
+                    .adc_threshold_down_mv = settings.adc_threshold_down_mv,
+                    .adc_threshold_hysteresis_mv = settings.adc_threshold_hysteresis_mv,
+                    .adc_event_counter_threshold = settings.adc_event_counter_threshold,
+                    .adc_window_mode = settings.adc_window_mode,
                     .callback = rik_callback_adc, // Placeholder callback
                     .arg = (void*)settings.pin_id // Placeholder argument
             };
-            return SYS_IO_ADC_REGISTER_CALLBACK(settings.pin_id, &adc_cfg);
+            SYS_IO_ADC_REGISTER_CALLBACK(settings.pin_id, &adc_cfg);
             ESP_LOGI(TAG, "Registered ADC alert for pin %d with thresholds [%d mV, %d mV] and hysteresis %d mV",
                      settings.pin_id, adc_cfg.adc_threshold_down_mv, adc_cfg.adc_threshold_up_mv, adc_cfg.adc_threshold_hysteresis_mv);
             return STA_OK;

@@ -37,13 +37,11 @@ typedef struct __attribute__((packed)){
 
 typedef struct __attribute__((packed)){
     uint32_t pin_id;
-    struct{
-        uint32_t adc_threshold_up_mv;
-        uint32_t adc_threshold_down_mv;
-        uint32_t adc_threshold_hysteresis_mv;
-        uint32_t adc_event_counter_threshold;  
-        uint32_t adc_window_mode;     
-    }cfg;
+    uint32_t adc_threshold_up_mv;
+    uint32_t adc_threshold_down_mv;
+    uint32_t adc_threshold_hysteresis_mv;
+    uint32_t adc_event_counter_threshold;  
+    uint32_t adc_window_mode;     
 }cfg_io_gpio_adc_alert_t;
 
 typedef struct __attribute__((packed)){

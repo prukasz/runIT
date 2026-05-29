@@ -18,22 +18,15 @@ void vm_demo_task_func(void* args){
     uint32_t adc_value[4];
     while (1)
     {
-        rik_devices_freeze();
-        f_servo_set_angle(servo_1, -90);
-        f_servo_set_angle(servo_2, 90);
-        rik_devices_unfreeze();
-        vTaskDelay(MSEC(1000));
-        rik_devices_freeze();
-        f_servo_set_angle(servo_1, 90);
-        f_servo_set_angle(servo_2, -90);
-        rik_devices_unfreeze();
-        vTaskDelay(MSEC(1000));
         sys_io_adc_read(rik_gpio_esp_port_id,SYS_IO_GET_MASK(RIK_IO_PIN_DRV_1_IPROPI_1)|SYS_IO_GET_MASK(RIK_IO_PIN_DRV_1_IPROPI_2)|
         SYS_IO_GET_MASK(RIK_IO_PIN_DRV_1_IPROPI_3)|SYS_IO_GET_MASK(RIK_IO_PIN_DRV_1_IPROPI_4), adc_value, 4);
         ESP_LOGI("VM", "ADC readings - IPROPI 1: %d mV, IPROPI 2: %d mV, IPROPI 3: %d mV, IPROPI 4: %d mV", adc_value[0], adc_value[1], adc_value[2], adc_value[3]);
         int32_t adc_value_1;
         sys_pwr_get_bus_current(RIK_CHANNEL_VREG0, &adc_value_1);
+        f_servo_set_angle(servo_1, adc_value[3]/(3155.0f/180.0f) - 90.0f);
+        f_servo_set_angle(servo_2, -(adc_value[3]/(3155.0f/180.0f) - 90.0f));
         ESP_LOGI("VM", "Current reading from power manager for VREG0: %d mA", adc_value_1);
+        vTaskDelay(MSEC(100));
     }
 }
 

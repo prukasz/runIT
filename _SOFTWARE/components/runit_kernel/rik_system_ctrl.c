@@ -181,13 +181,13 @@ void rik_callback_vreg(void* param){
 
 void rik_callback_current_monitor(void* param){
     manager_pwr_cb_type_e type = (manager_pwr_cb_type_e)(uintptr_t)param;
-    rik_devices_freeze();
+    //rik_devices_freeze();
     int32_t current_mA[3];
     sys_pwr_get_bus_current(RIK_CHANNEL_VREG0, &current_mA[0]);
     sys_pwr_get_bus_current(RIK_CHANNEL_TOTAL, &current_mA[1]);
     sys_pwr_get_bus_current(RIK_CHANNEL_VREG1, &current_mA[2]);
     ESP_LOGW(TAG, "Current monitor callback triggered for type %d. Current readings - VREG0: %d mA, TOTAL: %d mA, VREG1: %d mA", type, current_mA[0], current_mA[1], current_mA[2]);
-    rik_devices_unfreeze();
+    //rik_devices_unfreeze();
     activate_ctrl_mode(type);
 }
 

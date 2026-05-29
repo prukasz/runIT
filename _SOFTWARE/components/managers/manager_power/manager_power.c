@@ -79,7 +79,7 @@ status_rep_t sys_pwr_set_bus_power_warning(uint8_t channel, int32_t power_mW){
 }
 status_rep_t sys_pwr_set_bus_power_critical(uint8_t channel, int32_t power_mW){
     uint32_t voltage_mv = 0;
-    status_rep_t status = p_current_monitor_get_voltage(channel, &voltage_mv, !_is_in_freeze_mode);
+    status_rep_t status = p_current_monitor_get_voltage(channel, &voltage_mv, true);
     if(!STA_IS_OK(status)){
         if(status.e_code == PWR_ERR_DEVICE_NOT_FOUND){
             ESP_LOGW(TAG, "Current monitor device not found for setting power critical limit");

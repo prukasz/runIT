@@ -104,6 +104,7 @@ class cfg_io_gpio_adc_alert_t(ct.LittleEndianStructure):
     _pack_ = 1
     _fields_ = [
         ("pin_id", ct.c_uint32),
+        ("adc_threshold_up_mv", ct.c_uint32),
         ("adc_threshold_down_mv", ct.c_uint32),
         ("adc_threshold_hysteresis_mv", ct.c_uint32),
         ("adc_event_counter_threshold", ct.c_uint32),
