@@ -23,4 +23,10 @@ i2c_master_dev_handle_t * p_gpio_expander_get_i2c_dev_handle();
 TaskHandle_t p_gpio_expander_get_task_handle();
 i2c_device_config_t* p_gpio_expander_get_i2c_dev_config();
 
+/**
+ * @brief Set the port ID for the GPIO expander provider
+ * @param port_id The port ID assigned by the IO manager
+ */
+void p_gpio_expander_set_port_id(uint8_t port_id);
+
 

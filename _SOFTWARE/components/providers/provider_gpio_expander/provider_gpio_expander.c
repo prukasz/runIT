@@ -2,18 +2,29 @@
 #include "tca6424a.h"
 #include "manager_io.h"
 
+#define TAG __FILE_NAME__
+#undef OWNER
+#define OWNER OWNER_PROVIDER_GPIO_EXPANDER
+
+
 static tca6424a_handle_t _tca_handle = NULL;
 
-static bool freeze = false;
-
-#define CHECK_HANDLE(VAL, ret_val) do { if (!(VAL)) return STA_C(IO_ERR_DEVICE_NOT_FOUND, OWNER_PROVIDER_CURRENT_MONITOR, (ret_val)); } while (0)
+static bool _freeze = false;
+static uint8_t my_port_id = 0xFF;  // Port ID assigned by IO manager
+static uint32_t configured_pins = 0;
 
 void p_gpio_expander_freeze(bool freeze){
-    freeze = freeze;
+    _freeze = freeze;
 }
 
 status_rep_t p_gpio_expander_configure_pins(uint8_t pin, uint32_t mode) {
-    CHECK_HANDLE(_tca_handle, 0);
+    CHECK_HANDLE_R(_tca_handle);
+    CHECK_ARG_R(pin, 0, 23, SYS_IO_MAKE_INFO(my_port_id, pin, mode));
+
+    if (configured_pins & (1UL << pin)) {
+        return STA_C(IO_ERR_PIN_IN_OTHER_USE, OWNER_PROVIDER_GPIO_EXPANDER, SYS_IO_MAKE_INFO(my_port_id, pin, mode));
+    }
+
     uint32_t tca_cfg_state = 0; // Default state container
 
     // Translate the generic sys_gpio_mode_e to TCA6424A hardware logic
@@ -27,95 +38,71 @@ status_rep_t p_gpio_expander_configure_pins(uint8_t pin, uint32_t mode) {
             break;
 
         default:
-            return STA_C(IO_ERR_MODE_UNSUPPORTED, OWNER_PROVIDER_GPIO_EXPANDER, mode);
+            return STA_C(IO_ERR_MODE_UNSUPPORTED, OWNER_PROVIDER_GPIO_EXPANDER, SYS_IO_MAKE_INFO(my_port_id, pin, mode));
     }
 
-    // Pass the translated tca_cfg_state (0s or 1s) to the driver.
-    // tca_preset_cfg will use the pin_mask to apply this state only to the targeted pins.
-    esp_err_t err = tca_preset_cfg(_tca_handle, 1UL << pin, tca_cfg_state);
-    
-    if (err != ESP_OK) {
-        return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_EXPANDER, err);
-    }
+    CHECK_ESP_CALL_R(tca_preset_cfg(_tca_handle, 1UL << pin, tca_cfg_state));
+    configured_pins |= (1UL << pin);
     return STA_OK;
 }
 
 status_rep_t p_gpio_expander_set_pins(uint64_t pin_mask, bool state){
-    CHECK_HANDLE(_tca_handle, 0);
-    esp_err_t err = tca_set_pins(_tca_handle, (uint32_t)pin_mask, state ? (uint32_t)pin_mask : 0, !freeze);
-    if (err != ESP_OK) {
-        ESP_LOGE("GPIO EXPANDER", "Failed to read pins from GPIO expander: %s", esp_err_to_name(err));
-        return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_EXPANDER, err);
-    }
+    CHECK_HANDLE_R(_tca_handle);
+    CHECK_ESP_CALL_R(tca_set_pins(_tca_handle, (uint32_t)pin_mask, state ? (uint32_t)pin_mask : 0, !_freeze));
+
     return STA_OK;
 }
 
 status_rep_t p_gpio_expander_read_pins(uint64_t* out_mask){
-    CHECK_HANDLE(_tca_handle, 0);
+    CHECK_HANDLE_R(_tca_handle);
     uint32_t temp_mask = 0;
-    esp_err_t err = tca_get_pins(_tca_handle, &temp_mask, !freeze);
-    if (err != ESP_OK) {
-        ESP_LOGE("GPIO EXPANDER", "Failed to read pins from GPIO expander: %s", esp_err_to_name(err));
-        return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_EXPANDER, err);
-    }
+    CHECK_ESP_CALL_R(tca_get_pins(_tca_handle, &temp_mask, !_freeze));
+    
     *out_mask = (uint64_t)temp_mask;
     return STA_OK;
 }
 
 status_rep_t p_gpio_epander_read_pin(uint64_t pin_mask, uint64_t* out_mask){
-    CHECK_HANDLE(_tca_handle, 0);
+    CHECK_HANDLE_R(_tca_handle);
     uint32_t level = 0;
-    esp_err_t err = tca_get_pins(_tca_handle, &level, !freeze);
-    if (err != ESP_OK) {
-        return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_EXPANDER, err);
-    }
+    CHECK_ESP_CALL_R(tca_get_pins(_tca_handle, &level, !_freeze));
+    
     *out_mask = level & (uint32_t)pin_mask;
     return STA_OK;
 }
 
 status_rep_t p_gpio_expander_toggle_pin(uint64_t pin_mask){
-    CHECK_HANDLE(_tca_handle, 0);
+    CHECK_HANDLE_R(_tca_handle);
     uint32_t current_level = tca_get_pin_output(_tca_handle);
     uint32_t new_level = (current_level ^ (uint32_t)pin_mask) & (uint32_t)pin_mask; 
-    esp_err_t err = tca_set_pins(_tca_handle, (uint32_t)pin_mask, new_level, !freeze);
-    if (err != ESP_OK) {
-        return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_EXPANDER, err);
-    }
+    CHECK_ESP_CALL_R(tca_set_pins(_tca_handle, (uint32_t)pin_mask, new_level, !_freeze));
+    
     return STA_OK;
 }
 
 status_rep_t p_gpio_expander_reset_pin(uint8_t pin){
-    CHECK_HANDLE(_tca_handle, 0);
-    if (pin >= 24) {
-        return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_EXPANDER, pin);
-    }
+    CHECK_HANDLE_R(_tca_handle);
+    CHECK_ARG_R(pin, 0, 23, SYS_IO_MAKE_INFO(my_port_id, pin, 0)); 
 
     _tca_handle->callbacks[pin] = NULL;
     _tca_handle->callback_args[pin] = NULL;
     _tca_handle->pin_trigger_modes[pin] = 0;
+    configured_pins &= ~(1UL << pin);
 
-    esp_err_t err = tca_set_pins(_tca_handle, 1UL << pin, 0, !freeze);
-    if (err != ESP_OK) {
-        return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_EXPANDER, err);
-    }
-
-    err = tca_preset_cfg(_tca_handle, 1UL << pin, 1UL << pin);
-    if (err != ESP_OK) {
-        return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_EXPANDER, err);
-    }
-
+    CHECK_ESP_CALL_R(tca_set_pins(_tca_handle, 1UL << pin, 0, !_freeze));
+    CHECK_ESP_CALL_R(tca_preset_cfg(_tca_handle, 1UL << pin, 1UL << pin));
+  
     return STA_OK;
 }
 
 
 status_rep_t p_gpio_expander_set_pin_callback(uint8_t pin, uint32_t mode, void (*callback)(void* arg), void* arg){
-    CHECK_HANDLE(_tca_handle, 0);
+    CHECK_HANDLE_R(_tca_handle);
+    CHECK_ARG_R(pin, 0, 24, SYS_IO_MAKE_INFO(my_port_id, pin, 0)); 
     if (mode >= 3) {
-        return STA_C(IO_ERR_MODE_UNSUPPORTED, OWNER_PROVIDER_GPIO_EXPANDER, mode);
+        return STA_C(IO_ERR_MODE_UNSUPPORTED, OWNER_PROVIDER_GPIO_EXPANDER, SYS_IO_MAKE_INFO(my_port_id, pin, mode));
     }
-    if (tca_register_pin_callback(_tca_handle, 1UL << pin, callback, mode, arg) != ESP_OK) {
-        return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_EXPANDER, pin);
-    }
+    CHECK_ESP_CALL_R(tca_register_pin_callback(_tca_handle, 1UL << pin, callback, mode, arg) != ESP_OK);
     return STA_OK;
 }
 
@@ -135,6 +122,11 @@ TaskHandle_t p_gpio_expander_get_task_handle(){
 
 i2c_device_config_t* p_gpio_expander_get_i2c_dev_config(){
     return &_tca_handle->i2c_dev_config;
+}
+
+void p_gpio_expander_set_port_id(uint8_t port_id) {
+    my_port_id = port_id;
+    ESP_LOGI(TAG, "GPIO expander provider port ID set to %d", port_id);
 }
 
 

@@ -12,6 +12,7 @@ typedef enum{
     SYS_GPIO_MODE_PWM = 5,
     SYS_GPIO_MODE_ADC = 6
 }sys_gpio_mode_e;
+extern const char* const io_mode_string[];
 
 typedef enum{
     SYS_GPIO_INTR_MODE_RISING_EDGE = 0,
@@ -25,6 +26,25 @@ typedef enum{
     SYS_GPIO_ADC_WINDOW_OUTSIDE = 0,
     SYS_GPIO_ADC_WINDOW_INSIDE = 1,
 }sys_gpio_adc_intr_mode_e;
+
+typedef enum{
+    IO_FEATURE_MODE = 0,
+    IO_FEATURE_SET,
+    IO_FEATURE_READ,
+    IO_FEATURE_TOGGLE,
+    IO_FEATURE_RESET_PIN,
+    IO_FEATURE_CALLBACK_ADD,
+    IO_FEATURE_PWM_SET_DUTY,
+    IO_FEATURE_PWM_SET_FREQ,
+    IO_FEATURE_ADC_READ,
+    IO_FEATURE_ADC_REGISTER_CALLBACK,
+    IO_FEATURE_FREEZE,
+    IO_FEATURE_RESET
+}sys_io_feature_e;
+extern const char* const io_feature_string[];
+
+const char* sys_io_mode_to_string(sys_gpio_mode_e mode);
+const char* sys_io_feature_to_string(sys_io_feature_e feature);
 
 typedef struct{
     uint32_t adc_threshold_up_mv;
@@ -68,8 +88,8 @@ typedef struct {
 } io_port_dispatch_t;
 
 
-void manager_io_freeze(void);
-void manager_io_unfreeze(void);
+void manager_io_freeze(bool yes_or_no);
+void sys_io_set_protected_pins(uint8_t port_id, uint64_t pin_mask);
 
 status_rep_t manager_io_register_new_port(io_port_dispatch_t *port_dispatch, uint8_t* out_port_id);
 
@@ -86,7 +106,7 @@ status_rep_t sys_io_set_pwm_freq(uint8_t port_id, uint64_t pin_mask, uint32_t fr
 status_rep_t sys_io_adc_read(uint8_t port_id, uint64_t pin_mask, uint32_t* out_mv, uint8_t max_results_num);
 status_rep_t sys_io_adc_register_callback(uint8_t port_id, uint8_t pin, void* adc_int_config);
 
-status_rep_t sys_io_set_global_protection(bool is_enabled);
+status_rep_t sys_io_enable_global_protection(bool is_enabled);
 
 /**
  * @brief Reset all IO providers to default state (callbacks, alert settings, PWM to 0)
@@ -102,10 +122,15 @@ status_rep_t sys_io_reset_all(void);
  * - Bits 8..15 : Port ID
  * - Bits 0..7  : Pin Index (0-63)
  */
-#define SYS_IO_MAKE_PIN(port, pin) ((((uint64_t)(port)) << 8) | ((pin) & 0xFF))
+#define SYS_IO_MAKE_PIN(port, pin) ((((uint16_t)(port)) << 8) | ((pin) & 0xFF))
 #define SYS_IO_GET_PORT(pin) ((uint8_t)(((pin) >> 8) & 0xFF))
 #define SYS_IO_GET_PIN(pin) ((uint8_t)((pin) & 0xFF))
 #define SYS_IO_GET_MASK(pin) (1ULL << ((pin) & 0xFF))
+#define SYS_IO_MAKE_INFO(port, pin, extra) \
+    ((((uint64_t)(port) & 0xFF) << 8) | \
+     (((uint64_t)(pin)  & 0xFF) )  | \
+     ((((uint64_t)(extra) & 0xFF) << 16)))
+#define SYS_IO_GET_INFO_EXTRA(info) ((uint8_t)((info) >> 16))
 
 /**
  * @brief Single pin set mode, provide encoded pin (auto port fetch)
@@ -148,7 +173,7 @@ status_rep_t sys_io_reset_all(void);
     sys_gpio_register_callback(SYS_IO_GET_PORT(pin), SYS_IO_GET_PIN(pin), (mode), (cb), (arg))
 
 
-#define SYS_IO_SET_PWM_DUTY(pin, duty) \
+    #define SYS_IO_SET_PWM_DUTY(pin, duty) \
     sys_io_set_pwm_duty(SYS_IO_GET_PORT(pin), SYS_IO_GET_MASK(pin), (duty))
 
 #define SYS_IO_SET_PWM_FREQ(pin, freq) \

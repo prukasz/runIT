@@ -5,80 +5,95 @@
 #include "manager_power.h"
 #include "config_power.h"
 #include "rik_shared.h"
+#include "rik_system_ctrl.h"
 #include "interface_dispatcher.h"
 #include "interface_commands.h"
 
 #define TAG __FILE_NAME__
 
-#define IN_RANGE(val, min, max) ((val) >= (min) && (val) <= (max)) 
-#define RETURN_INVALID_ARG(val, name, owner) do { \
-    ESP_LOGE(TAG, "Invalid argument %s: %lu", #name, (uint64_t)(val)); \
-    return STA_W(PWR_ERR_INVALID_PARAM, owner, (val)); \
-} while (0)
-
-#define CHECK_PARAMETER_RANGE(val, min, max, name, owner) do { \
-    if (!IN_RANGE((val), (min), (max))) { \
-        RETURN_INVALID_ARG((val), (name), (owner)); \
-    } \
-} while (0)
-
-
 #define MAX_CURRENT_MA 10000
 #define MIN_VOLTAGE_MV 4500
 #define MAX_VOLTAGE_MV 20000
 
+#undef OWNER
+#define OWNER OWNER_MANAGER_PWR_PARSE_PACKET
+
+#define CHECK_AND_RETURN(r) do { \
+    status_rep_t _r = (r); \
+    if (STA_IS_ERR(_r)) { \
+        return STA_W(PWE_ERR_PARSE_FAILED, OWNER, _r.e_code); \
+    } \
+    return _r; \
+} while(0)
 
 status_rep_t cfg_pwr_process_packet(const uint8_t* packet_data, uint16_t packet_len){
+    status_rep_t r = STA_OK;
     switch(packet_data[0]){
         case CFG_PWR_TYPE_REG_EN: {
-            bool reg_en = packet_data[2];
-            uint8_t reg_num = packet_data[1];
-            uint64_t reg_pin = (reg_num == 0) ? RIK_IO_PIN_REGA_EN : RIK_IO_PIN_REGB_EN;
-            STA_RET_ON_ERR(SYS_GPIO_SET_LEVEL(reg_pin , reg_en));
-            return sys_pwr_enable_verg(reg_num, reg_en);
+            cfg_pwr_reg_en_t settings;
+            memcpy(&settings, packet_data+1, sizeof(cfg_pwr_reg_en_t));
+            if (settings.en_reg_0 || settings.en_reg_1){            
+                r = SYS_GPIO_SET_LEVEL(RIK_IO_PIN_REGA_EN, settings.en_reg_0);
+                r = SYS_GPIO_SET_LEVEL(RIK_IO_PIN_REGB_EN, settings.en_reg_1);
+            }
+            r = sys_pwr_enable_verg(0, settings.en_reg_0);
+            r = sys_pwr_enable_verg(1, settings.en_reg_1);
+            CHECK_AND_RETURN(r);
         }
         case CFG_PWR_TYPE_REG_SETTINGS:{
             cfg_pwr_reg_settings_t settings;
             memcpy(&settings, packet_data + 1, sizeof(cfg_pwr_reg_settings_t));
-            /* Validate regulator number (must be 0 or 1) */
-            if (settings.regulator_num > 1) {
-                RETURN_INVALID_ARG(settings.regulator_num, regulator_num, OWNER_MANAGER_PWR_PARSE_PACKET);
-            }
-            CHECK_PARAMETER_RANGE(settings.voltage_mv, MIN_VOLTAGE_MV, MAX_VOLTAGE_MV, voltage_mv, OWNER_MANAGER_PWR_PARSE_PACKET);
-            CHECK_PARAMETER_RANGE(settings.current_limit_ma, 0, MAX_CURRENT_MA, current_limit_ma, OWNER_MANAGER_PWR_PARSE_PACKET);
-
-            STA_RET_ON_ERR(sys_pwr_set_verg_voltage(settings.regulator_num, settings.voltage_mv));
-            return sys_pwr_set_verg_current_limit(settings.regulator_num, settings.current_limit_ma);
+            r = sys_pwr_set_verg_voltage(0, settings.voltage_reg_0_mV);
+            r = sys_pwr_set_verg_voltage(1, settings.voltage_reg_1_mV);
+            r = sys_pwr_set_verg_current_limit(0, settings.current_limit_reg_0_mA);
+            r = sys_pwr_set_verg_current_limit(1,  settings.current_limit_reg_1_mA);
+            CHECK_AND_RETURN(r);
         }
         case CFG_PWR_TYPE_REG_LIMITS:{
             cfg_pwr_reg_limits_t settings;
             memcpy(&settings, packet_data + 1, sizeof(cfg_pwr_reg_limits_t));
-            STA_RET_ON_ERR(sys_pwr_set_bus_power_warning(0, settings.power_warning_reg_0_mW));
-            STA_RET_ON_ERR(sys_pwr_set_bus_power_critical(0, settings.power_critical_reg_0_mW));
-            STA_RET_ON_ERR(sys_pwr_set_bus_power_warning(1, settings.power_warning_reg_1_mW));
-            return sys_pwr_set_bus_power_critical(1, settings.power_critical_reg_1_mW);
+            r = sys_pwr_set_bus_power_warning(RIK_CHANNEL_VREG0, settings.power_warning_reg_0_mW);
+            r = sys_pwr_set_bus_power_warning(RIK_CHANNEL_VREG1, settings.power_warning_reg_1_mW);
+            r = sys_pwr_set_bus_power_critical(RIK_CHANNEL_VREG0, settings.power_critical_reg_0_mW);
+            r = sys_pwr_set_bus_power_critical(RIK_CHANNEL_VREG1, settings.power_critical_reg_1_mW);
+            CHECK_AND_RETURN(r);
         }
         case CFG_PWR_TYPE_REG_BEHAVIOR:{
-            ESP_LOGW(TAG, "Received regulator behavior config packet - behavior configuration not implemented yet");
-            return STA_OK;
+            rik_sys_ctrl_power_cfg_t* prev_cfg = sys_ctrl_get_power_cfg();
+            cfg_pwr_reg_behavior_t settings;
+            memcpy(&settings, packet_data + 1, sizeof(cfg_pwr_reg_behavior_t));
+            prev_cfg->crt_reg0_ocp = settings.behavior_reg0_ocp;
+            prev_cfg->crt_reg0_ovp = settings.behavior_reg0_ovp;
+            prev_cfg->crt_reg0_scp = settings.behavior_reg0_scp;
+            prev_cfg->crt_reg1_ocp = settings.behavior_reg1_ocp;
+            prev_cfg->crt_reg1_ovp = settings.behavior_reg1_ovp;
+            prev_cfg->crt_reg1_scp = settings.behavior_reg1_scp;
+            CHECK_AND_RETURN(r);
         }
         case CFG_PWR_TYPE_SUPPLY:{
-            ESP_LOGW(TAG, "Received supply config packet - supply configuration not implemented yet");
-            return STA_OK;
+            cfg_pwr_supply_t settings;
+            memcpy(&settings, packet_data + 1, sizeof(settings));
+            r = sys_pwr_set_bus_current_warning(RIK_CHANNEL_TOTAL, settings.input_current_warning_mA);
+            r = sys_pwr_set_bus_current_critical(RIK_CHANNEL_TOTAL, settings.input_current_critical_mA);
+            /* add better config later when usb controller will work */
+            CHECK_AND_RETURN(r);
         }
-        case CFG_PWR_TYPE_SUPPLY_LIMITS:{
-            cfg_pwr_supply_limits_t limits;
-            memcpy(&limits, packet_data + 1, sizeof(cfg_pwr_supply_limits_t));
-            STA_RET_ON_ERR(sys_pwr_set_bus_power_warning(RIK_CHANNEL_TOTAL, limits.power_warning_total_mW));
-            return sys_pwr_set_bus_power_critical(RIK_CHANNEL_TOTAL, limits.power_critical_total_mW);
+        case CFG_PWR_TYPE_CURRENT_BEHAVIOR:{
+            rik_sys_ctrl_power_cfg_t* prev_cfg = sys_ctrl_get_power_cfg();
+            cfg_pwr_current_behavior_t settings;
+            memcpy(&settings, packet_data + 1, sizeof(cfg_pwr_current_behavior_t));
+            prev_cfg->crt_current_REG0_CRIT = settings.behavior_current_REG0_CRIT;
+            prev_cfg->crt_current_REG0_WARN = settings.behavior_current_REG0_WARN;
+            prev_cfg->crt_current_REG1_CRIT = settings.behavior_current_REG1_CRIT;
+            prev_cfg->crt_current_REG1_WARN = settings.behavior_current_REG1_WARN;
+            prev_cfg->crt_current_SYS_PWR_CRIT = settings.behavior_current_SYS_PWR_CRIT;
+            prev_cfg->crt_current_SYS_PWR_WARN = settings.behavior_current_SYS_PWR_WARN;
+            CHECK_AND_RETURN(r);
         }
-        case CFG_PWR_TYPE_SUPPLY_BEHAVIOR:{
-            ESP_LOGW(TAG, "Received supply behavior config packet - behavior configuration not implemented yet");
-            return STA_OK;
-        }
-
+        default:
         return STA_W(PWE_ERR_PARSE_NOT_FOUND, OWNER_MANAGER_PWR_PARSE_PACKET, packet_data[0]);
     }
     return STA_OK;
 }
 
+ 

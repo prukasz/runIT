@@ -212,11 +212,10 @@ esp_err_t ads_mock_transmit(i2c_master_dev_handle_t handle, const uint8_t *write
         }
         
         // Zapis danych na kolejne rejestry
-        if (reg_addr < ADS_REG_MAX_ADDR) {
+
             for (size_t i = data_start_idx; i < write_buffer_len && (reg_addr + i - data_start_idx) < ADS_REG_MAX_ADDR; i++) {
                 ads_registers[reg_addr + i - data_start_idx] = write_buffer[i];
             }
-        }
     }
 
     return ESP_OK;
@@ -232,13 +231,10 @@ esp_err_t ads_mock_transmit_receive(i2c_master_dev_handle_t handle, const uint8_
         reg_addr = write_buffer[1];
     }
 
-    //!!!!!!!
-    //czemu i dlaczego takie wartości z uint 8 porwnanie 
-    if (reg_addr < ADS_REG_MAX_ADDR) {
         for (size_t i = 0; i < read_buffer_len && (reg_addr + i) < ADS_REG_MAX_ADDR; i++) {
             read_buffer[i] = ads_registers[reg_addr + i];
         }
-    }
+
 
     return ESP_OK;
 }

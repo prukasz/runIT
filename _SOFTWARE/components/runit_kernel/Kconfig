@@ -1,28 +1,134 @@
-menu "RunIT Kernel Configuration"
+menu "RunIT Configurations"
 
-config CONNECT_TCA6424A
-    bool "Connect TCA6424A"
-    default y
-config CONNECT_TPS55289_0
-    bool "Connect TPS55289_0"
-    default y
-config CONNECT_TPS55289_1
-    bool "Connect TPS55289_1"
-    default y
-config CONNECT_INA3221
-    bool "Connect INA3221"
-    default y
-config CONNECT_ADS7218
-    bool "Connect ADS7218"
-    default y
-config USE_MOCK_TCA6424A
-    bool "Use mock TCA6424A driver (for testing without hardware)"
-    default y
-config USE_MOCK_TPS55289
-    bool "Use mock TPS55289 driver (for testing without hardware)"
-    default y
-config USE_MOCK_ADS7218
-    bool "Use mock ADS7218 driver (for testing without hardware)"
-    default y
+    menu "Device Connectivity"
+        config CONNECT_TCA6424A
+            bool "Connect TCA6424A"
+            default y
+        config CONNECT_TPS55289_0
+            bool "Connect TPS55289_0"
+            default y
+        config CONNECT_TPS55289_1
+            bool "Connect TPS55289_1"
+            default y
+        config CONNECT_INA3221
+            bool "Connect INA3221"
+            default y
+        config CONNECT_ADS7128
+            bool "Connect ADS7128"
+            default y
+        config CONNECT_PCA9685
+            bool "Connect PCA9685"
+            default y
+    endmenu
+
+    menu "Mock Drivers (for testing without hardware)"
+        config USE_MOCK_TCA6424A
+            bool "Use mock TCA6424A driver"
+            default y
+        config USE_MOCK_TPS55289
+            bool "Use mock TPS55289 driver"
+            default y
+        config USE_MOCK_ADS7128
+            bool "Use mock ADS7128 driver"
+            default y
+    endmenu
+
+    menu "I2C Addresses"
+        config I2C_ADDR_TCA6424A
+            int "TCA6424A (0x23 to 3v5, 0x22 to GND)"
+            default 35
+        config I2C_ADDR_INA3221
+            int "INA3221 (0x40 only)"
+            default 64
+        config I2C_ADDR_PCA9685
+            int "PCA9685 (0x70 to 3v5, 0x60 to GND)"
+            default 96
+        config I2C_ADDR_ADS7128
+            int "ADS7128 (0x10 float, 0x17 to decap)"
+            default 16
+        config I2C_ADDR_TPS55289_0
+            int "TPS55289_0"
+            default 116
+        config I2C_ADDR_TPS55289_1
+            int "TPS55289_1"
+            default 117
+        config I2C_ADDR_DAC5202
+            int "DAC5202"
+            default 72
+        config I2C_ADDR_AP33772S
+            int "AP33772S"
+            default 82
+    endmenu
+
+    menu "Hardware Configuration"
+        config DRV_0_RISE_MODE
+            int "Driver 0 rise mode (0=140ns, 1=70ns)"
+            default 0
+        config DRV_1_RISE_MODE
+            int "Driver 1 rise mode (0=140ns, 1=70ns)"
+            default 0
+        config TPS55289_1_MAX_VOLTAGE
+            int "TPS55289_1 max voltage (mV) - supply for PWM expander, <6V recommended with servos"
+            default 6000
+        
+    endmenu
+
+    menu "ESP GPIO / ADC Settings"
+        config ESP_ADC_SAMPLE_RATE_HZ
+            int "Sampling rate for ESP ADC (Hz)"
+            default 20000
+        config ESP_ADC_FRAME_SIZE_BYTES
+            int "Size of each ADC data frame (bytes)"
+            default 800
+        config ESP_ADC_IIR_ALPHA 
+            float "IIR filter alpha for ESP ADC"
+            default 0.5
+        config ESP_GPIO_DEBOUNCE_TIME_US
+            int "Debounce time for GPIO interrupts (microseconds)"
+            default 5000
+        config PRIORITY_ESP_ADC_TASK
+            int "Priority of the ESP ADC task"
+            default 10
+        config MAX_PENDING_GPIO_ESP_INTR
+            int "Maximum pending GPIO ESP interrupts in queue"
+            default 10
+    endmenu
+
+
+    menu "Task Priorities"
+        config PRIORITY_STATUS_TASK
+            int "Priority of the status handler task"
+            default 24
+        config PRIORITY_INTERFACE_TASK
+            int "Priority of the main interface task"
+            default 22
+        config PRIORITY_I2C_MANAGER_TASK
+            int "Priority of the I2C manager task"
+            default 21
+        config PRIORITY_BLE_MANAGER_TASK
+            int "Priority of the BLE manager task"
+            default 22
+        config PRIORITY_TCA6424A_TASK
+            int "Priority of the TCA6424A task"
+            default 20
+    endmenu
+
+    menu "Buffer Sizes"
+        config BUFFER_SIZE_STATUS_REP
+            int "Size of the status reports buffer (bytes)"
+            default 2048
+        config BUFFER_SIZE_TX
+            int "Size of the transmission buffer (bytes)"
+            default 2048
+        config BUFFER_SIZE_RX
+            int "Size of the reception buffer (bytes)"
+            default 2048
+        config BUFFER_SIZE_ESP_LOG
+            int "Size of the ESP log buffer (bytes)"
+            default 4096
+        config MAX_PENDING_STATUS_REP
+            int "Maximum pending status reports in queue"
+            default 20
+    endmenu
 
 endmenu

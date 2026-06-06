@@ -7,7 +7,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#define PCA9685_I2C_DEFAULT_FREQUENCY   400000 //1MHz not working right now
+#define PCA9685_I2C_DEFAULT_FREQUENCY   100000 //1MHz not working right now
 #define PCA9685_MAX_PWM_VALUE           4095   
 #define PCA9685_TIMEOUT_MS              100
 #define PCA9685_CHANNEL_ALL             16

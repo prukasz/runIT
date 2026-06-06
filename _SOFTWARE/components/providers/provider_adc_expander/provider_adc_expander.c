@@ -3,11 +3,11 @@
 #include "ads7128.h"
 
 
+#undef OWNER
+#define OWNER OWNER_PROVIDER_ADC_EXPANDER
+
 static ads_handle_t _ads_handle = NULL;
 static bool _freeze = false;
-
-#define CHECK_HANDLE(VAL) do { if (!(VAL)) return STA_C(PWR_ERR_DEVICE_NOT_FOUND, OWNER_PROVIDER_ADC_EXPANDER, 0); } while (0)
-#define CHECK_CHANNEL(CHANNEL) do { if ((CHANNEL) > 2) return STA_C(PWR_ERR_INVALID_PARAM, OWNER_PROVIDER_ADC_EXPANDER, (CHANNEL)); } while (0)
 
 
 static inline uint16_t clamp_uint16(uint16_t val, uint16_t min, uint16_t max) {
@@ -28,8 +28,8 @@ void p_adc_expander_freeze(bool freeze){
 
 status_rep_t p_adc_expander_read_voltage(uint64_t pin_mask, uint32_t* out_mv, uint8_t max_results_num)
 {
-    CHECK_HANDLE(_ads_handle);
-    ads_analog_ch_read(_ads_handle, (uint8_t)pin_mask, !_freeze);
+    CHECK_HANDLE_R(_ads_handle);
+    CHECK_ESP_CALL_R(ads_analog_ch_read(_ads_handle, (uint8_t)pin_mask, !_freeze));
     
     uint8_t pos = 0;
     
@@ -48,7 +48,7 @@ status_rep_t p_adc_expander_read_voltage(uint64_t pin_mask, uint32_t* out_mv, ui
 
 status_rep_t p_adc_expander_register_callback(uint8_t pin, void* adc_int_config)
 {
-    CHECK_HANDLE(_ads_handle);
+    CHECK_HANDLE_R(_ads_handle);
     sys_io_adc_int_config_t* config = (sys_io_adc_int_config_t*)adc_int_config;
     uint8_t channel = pin+1;
     uint16_t h_thres = clamp_uint16((uint16_t)(config->adc_threshold_up_mv)/(ratio), 0, 4095);
@@ -59,23 +59,14 @@ status_rep_t p_adc_expander_register_callback(uint8_t pin, void* adc_int_config)
     h_thres = h_thres | hist<<4;
     l_thres = l_thres | event_cnt<<4;
 
-    esp_err_t ret = ads_set_alert_cfg(_ads_handle, channel, h_thres, l_thres, config->adc_window_mode, 1, !_freeze);
-
-    if(ret != ESP_OK){
-        return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_ADC_EXPANDER, ret);
-    }
-
-    ret = ads_register_alert_callback(_ads_handle, 1<<(channel-1), config->callback, config->arg);
-
-    if(ret != ESP_OK){
-        return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_ADC_EXPANDER, ret);
-    }
+    CHECK_ESP_CALL_R(ads_set_alert_cfg(_ads_handle, channel, h_thres, l_thres, config->adc_window_mode, 1, !_freeze));
+    CHECK_ESP_CALL_R(ads_register_alert_callback(_ads_handle, 1<<(channel-1), config->callback, config->arg));
 
     return STA_OK;
 }
 
 status_rep_t p_adc_expander_reset_all(void) {
-    CHECK_HANDLE(_ads_handle);
+    CHECK_HANDLE_R(_ads_handle);
     /* Reset all 8 ADC channels: clear thresholds, hysteresis, event counters, and disable alerts */
     for (uint8_t ch = 0; ch < 8; ch++) {
         /* Clear all alert configuration for this channel */
@@ -89,10 +80,8 @@ status_rep_t p_adc_expander_reset_all(void) {
         _ads_handle->alert_configs[ch].route_to_alert_pin = false;
         
         /* Disable alert on hardware (set all thresholds to 0, window mode OUTSIDE) */
-        esp_err_t ret = ads_set_alert_cfg(_ads_handle, ch + 1, 0, 0, 0, 0, true);
-        if (ret != ESP_OK) {
-            return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_ADC_EXPANDER, ret);
-        }
+        CHECK_ESP_CALL_R(ads_set_alert_cfg(_ads_handle, ch + 1, 0, 0, 0, 0, true));
+
         
         /* Clear callbacks and arguments */
         _ads_handle->callbacks[ch] = NULL;

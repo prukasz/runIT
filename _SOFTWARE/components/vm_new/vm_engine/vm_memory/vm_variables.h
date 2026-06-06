@@ -3,6 +3,7 @@
 #include <stdbool.h>
 
 
+#define VAR_TYPES_COUNT 8
 
 typedef enum {
     VAR_U8     = 0,
@@ -16,14 +17,14 @@ typedef enum {
 } vm_var_types_t;
 
 static const uint8_t VM_VAR_TYPE_SIZES[VAR_TYPES_COUNT] = {
-    1, // U8
-    2, // U16
-    4, // U32
-    2, // I16
-    4, // I32
-    1, // B
-    4, // F
-    1  // STRING (Size of 1 char, handled dynamically)
+    sizeof(uint8_t), // U8
+    sizeof(uint16_t), // U16
+    sizeof(uint32_t),
+    sizeof(int16_t), // I16
+    sizeof(int32_t), // I32
+    sizeof(bool), // B
+    sizeof(float), // F
+    1,
 };
 
 /* Forward declaration for accessors */
@@ -40,7 +41,6 @@ typedef struct {
 typedef struct {
     uint16_t el_cnt;   /*count of elements (type defined in instance)*/
     uint16_t dims_cnt; /*N dimensional*/
-
     /*
     * N*uint32_t dimension size 
     * el_cnt * element (type defined in instance)
@@ -102,7 +102,7 @@ typedef struct {
 typedef union {
     vm_var_accessor_t *by_reference; /*Index is other accessor*/
     uint32_t        value;        /*Index is static value*/
-} vm_var_index_type;
+} vm_var_index_type_t;
 
 
 /**
@@ -116,7 +116,7 @@ typedef struct {
     
     uint32_t cached_flat_index; /* Stored resolution of N-dimensional math */
     
-    vm_var_index_type indices[];   /* Flexible array of indices */
+    vm_var_index_type_t indices[];   /* Flexible array of indices */
 } vm_var_accessor_array_t;
 
 /**

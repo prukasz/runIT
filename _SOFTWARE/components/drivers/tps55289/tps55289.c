@@ -14,15 +14,15 @@
     if (__err_rc != ESP_OK) return __err_rc; \
 } while (0)
 
-#define CHECK_HANDLE(VAL) do { if (!(VAL)) return ESP_ERR_INVALID_ARG; } while (0)
+#define CHECK_HANDLE_R(VAL) do { if (!(VAL)) return ESP_ERR_INVALID_ARG; } while (0)
 /************* Helper macros ***************************************/
 
 /******************** Internal functions ***************************************/
 
 static esp_err_t _tps55289_read(tps55289_handle_t handle, const uint8_t reg, uint8_t *val)
 {
-    CHECK_HANDLE(val);
-    CHECK_HANDLE(handle);
+    CHECK_HANDLE_R(val);
+    CHECK_HANDLE_R(handle);
     
     uint8_t i2c_addr = handle->i2c_device_config.device_address;
 
@@ -41,7 +41,7 @@ static esp_err_t _tps55289_read(tps55289_handle_t handle, const uint8_t reg, uin
 
 static esp_err_t _tps55289_write(tps55289_handle_t handle, uint8_t reg, uint8_t val)
 {
-    CHECK_HANDLE(handle);
+    CHECK_HANDLE_R(handle);
     uint8_t buf[2] = { reg, val };
 
     uint8_t i2c_addr = handle->i2c_device_config.device_address;
@@ -89,7 +89,7 @@ void tps55289_set_shunt_resistor(tps55289_handle_t handle, uint16_t resistance_m
 
 esp_err_t tps55289_sync_all_registers(tps55289_handle_t handle)
 {
-    CHECK_HANDLE(handle);
+    CHECK_HANDLE_R(handle);
     uint8_t temp;
     for (uint8_t reg = 0; reg < TPS55289_REG_MAX; reg++) {
         RETURN_ON_ERROR(_tps55289_read(handle, reg, &temp));
@@ -100,7 +100,7 @@ esp_err_t tps55289_sync_all_registers(tps55289_handle_t handle)
 
 esp_err_t tps55289_set_output_enable(tps55289_handle_t handle, bool enable)
 {
-    CHECK_HANDLE(handle);
+    CHECK_HANDLE_R(handle);
     uint8_t mode = handle->reg_cache[TPS55289_REG_MODE];
     if (enable) mode |= 0x80; // Bit 7: OE
     else mode &= ~0x80;
@@ -109,7 +109,7 @@ esp_err_t tps55289_set_output_enable(tps55289_handle_t handle, bool enable)
 
 esp_err_t tps55289_set_current_limit(tps55289_handle_t handle, bool enable, uint16_t limit_ma)
 {
-    CHECK_HANDLE(handle);
+    CHECK_HANDLE_R(handle);
     
     float target_v_ilim_mv = (limit_ma * handle->shunt_resistor_mohm) / 1000.0f;
     
@@ -136,7 +136,7 @@ esp_err_t tps55289_set_current_limit(tps55289_handle_t handle, bool enable, uint
 
 esp_err_t tps55289_set_voltage(tps55289_handle_t handle, uint16_t voltage_mv)
 {
-    CHECK_HANDLE(handle);
+    CHECK_HANDLE_R(handle);
     
     uint8_t vout_fs = handle->reg_cache[TPS55289_REG_VOUT_FS];
     bool is_external_fb = (vout_fs & 0x80) != 0; // Bit 7: FB
@@ -181,7 +181,7 @@ esp_err_t tps55289_set_voltage(tps55289_handle_t handle, uint16_t voltage_mv)
 
 esp_err_t tps55289_set_mode(tps55289_handle_t handle, bool fpwm, bool hiccup)
 {
-    CHECK_HANDLE(handle);
+    CHECK_HANDLE_R(handle);
     uint8_t mode = handle->reg_cache[TPS55289_REG_MODE];
     
     if (fpwm) mode |= 0x10; // Bit 4: FPWM (1) / Auto PFM (0)
@@ -195,7 +195,7 @@ esp_err_t tps55289_set_mode(tps55289_handle_t handle, bool fpwm, bool hiccup)
 
 esp_err_t tps55289_set_fault_masks(tps55289_handle_t handle, bool mask_scp, bool mask_ocp, bool mask_ovp)
 {
-    CHECK_HANDLE(handle);
+    CHECK_HANDLE_R(handle);
     uint8_t cdc = handle->reg_cache[TPS55289_REG_CDC];
 
     if (mask_scp) cdc |= 0x80; else cdc &= ~0x80;
@@ -209,7 +209,7 @@ esp_err_t tps55289_set_fault_masks(tps55289_handle_t handle, bool mask_scp, bool
 
 esp_err_t tps55289_get_status(tps55289_handle_t handle)
 {   
-    CHECK_HANDLE(handle);
+    CHECK_HANDLE_R(handle);
 
     uint8_t raw;
     esp_err_t err = _tps55289_read(handle, TPS55289_REG_STATUS, &raw);

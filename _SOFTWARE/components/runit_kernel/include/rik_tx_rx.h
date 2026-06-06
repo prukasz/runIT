@@ -4,6 +4,8 @@
 #include "rik_shared.h"
 #include "string.h"
 
+#undef OWNER
+#define OWNER OWNER_RIK_TX_SEND
 /**
  * @brief send data via remote interface
  * @param data buffer with data
@@ -16,14 +18,14 @@ static __inline status_rep_t rik_tx_send(RingbufHandle_t buff, const uint8_t* da
     if (!data || !len || !buff){ return STA_C(ESP_ERR_INVALID_ARG, OWNER_RIK_TX_SEND, 0);}
     if (interface == 0){
         if(_rik_ble_active){ 
-            rep = STA_FROM_ESP(m_ble_tx_enqueue(buff, data, len, 0), OWNER_RIK_TX_SEND, return_on_full);
+            rep = STA_FROM_ESP(m_ble_tx_enqueue(buff, data, len, 0));
         }else if(_rik_wifi_active){
             //rep = wifi send function
         }else{
             return STA_C(ERR_INTERFACE_UNAVAILABLE, OWNER_RIK_TX_SEND, 0);
         }
     }else if(interface == 1){
-    rep = STA_FROM_ESP(m_ble_tx_enqueue(buff, data, len, 0), OWNER_RIK_TX_SEND, return_on_full);
+    rep = STA_FROM_ESP(m_ble_tx_enqueue(buff, data, len, 0));
     }else if(interface == 2){
         //rep = wifi send function
     }else{

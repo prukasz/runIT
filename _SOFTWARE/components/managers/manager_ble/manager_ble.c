@@ -5,6 +5,7 @@
 #include <string.h>
 #include "esp_timer.h"
 #include "rtos_utils.h"
+#include "sdkconfig.h"
 
 #define TAG __FILE_NAME__
 
@@ -15,7 +16,7 @@
 #define BIT_START_TX (1 << 3)
 
 #define BLE_TASK_STACK_SIZE 4096
-#define BLE_TASK_PRIORITY 5
+
 
 R_TASK_DEFINE(m_ble_task, BLE_TASK_STACK_SIZE);
 
@@ -25,7 +26,7 @@ typedef struct{
     RingbufferType_t buff_type;
     size_t item_size; //const size of items in the buffer, used for auto-packing
     bool auto_pack;
-    uint8_t auto_pack_header;
+    uint8_t header;
 }_tx_buff_slot_t;
 
 
@@ -120,7 +121,7 @@ a_ble_host_cfg_t host_cfg = {0};
 esp_err_t m_ble_init(m_ble_cfg_t *config) {
     cfg = config;
     ESP_LOGI(TAG, "Starting BLE manager task...");
-    R_TASK_START_ON_CORE(m_ble_task, &m_ble_task_func, NULL, BLE_TASK_PRIORITY, 0);
+    R_TASK_START_ON_CORE(m_ble_task, &m_ble_task_func, NULL, CONFIG_PRIORITY_BLE_MANAGER_TASK, 0);
     cfg->manager_task_handle = m_ble_task;
     ESP_LOGI(TAG, "Initializing BLE stack...");
 
@@ -152,12 +153,12 @@ void m_ble_buff_register_rx(RingbufHandle_t rx_buffer) {
     ESP_LOGI(TAG, "Registered RX buffer with BLE driver");
 }
 
-void m_ble_buff_register_tx(RingbufHandle_t tx_buffer, RingbufferType_t buff_type, bool auto_pack, uint8_t auto_pack_header, size_t item_size, uint8_t priority) {
+void m_ble_buff_register_tx(RingbufHandle_t tx_buffer, RingbufferType_t buff_type, bool auto_pack, uint8_t header, size_t item_size, uint8_t priority) {
     if (priority < MAX_TX_BUFFERS) {
         m_ble_tx_buffers[priority].tx_buff = tx_buffer;
         m_ble_tx_buffers[priority].buff_type = buff_type;
         m_ble_tx_buffers[priority].auto_pack = auto_pack;
-        m_ble_tx_buffers[priority].auto_pack_header = auto_pack_header;
+        m_ble_tx_buffers[priority].header = header;
         m_ble_tx_buffers[priority].item_size = item_size;
         ESP_LOGI(TAG, "Registered TX buffer with priority %u", priority);
         return;
@@ -180,6 +181,7 @@ esp_err_t m_ble_tx_enqueue(RingbufHandle_t tx_buffer, const uint8_t* data, size_
 
 static esp_err_t m_ble_tx_dequeue(uint8_t priority_idx, uint8_t* data, size_t* len, size_t max_payload) {
     if (priority_idx >= MAX_TX_BUFFERS) return ESP_ERR_INVALID_ARG;
+    if (max_payload == 0) return ESP_ERR_INVALID_SIZE;
     
     _tx_buff_slot_t *slot = &m_ble_tx_buffers[priority_idx];
     if (slot->tx_buff == NULL) {
@@ -195,14 +197,23 @@ static esp_err_t m_ble_tx_dequeue(uint8_t priority_idx, uint8_t* data, size_t* l
         void *item = xRingbufferReceive(slot->tx_buff, &item_size, 0);
         if (item == NULL) { return ESP_ERR_NOT_FOUND; }
 
-        size_t copy_len = (item_size > max_payload) ? max_payload : item_size;
-        memcpy(data, item, copy_len);
-        *len = copy_len;
+        if (max_payload < 1) {
+            vRingbufferReturnItem(slot->tx_buff, item);
+            return ESP_ERR_INVALID_SIZE;
+        }
+
+        data[0] = slot->header;
+        size_t payload_cap = max_payload - 1;
+        size_t copy_len = (item_size > payload_cap) ? payload_cap : item_size;
+        if (copy_len > 0) {
+            memcpy(&data[1], item, copy_len);
+        }
+        *len = copy_len + 1;
         
         vRingbufferReturnItem(slot->tx_buff, item);
         
-        if (item_size > max_payload) {
-            ESP_LOGW(TAG, "NOSPLIT item truncated from %zu to %zu bytes (MTU limit)", item_size, copy_len);
+        if (item_size > payload_cap) {
+            ESP_LOGW(TAG, "NOSPLIT item truncated from %zu to %zu bytes (MTU/header limit)", item_size, copy_len);
         }
         return ESP_OK;
     } 
@@ -257,7 +268,7 @@ static esp_err_t m_ble_tx_dequeue(uint8_t priority_idx, uint8_t* data, size_t* l
         }
 
         // 4. Attach the header byte to the very beginning
-        data[0] = slot->auto_pack_header;
+        data[0] = slot->header;
         *len = current_offset; // Total size is data + 1 byte header
         
         return ESP_OK;

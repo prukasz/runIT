@@ -17,6 +17,7 @@ list(APPEND EXTRA_COMPONENT_DIRS
     "components/utils"
     "components/features"
     "components/vm_demo"
+    "components/vm_new"
 )
 project(runIT)
 

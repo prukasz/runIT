@@ -1,19 +1,33 @@
 #pragma once 
 #include "status.h"
 
-void rik_devices_freeze();
-void rik_devices_unfreeze();
+/************** USER AVIABLE *********************/
+//stop update of devices
+void sys_freeze();
+//resume update of devices, and wait till update of pending is done 
+void sys_unfreeze();
 
-status_rep_t stop_devices(void);
+//disable peripherials
+void sys_stop_or_resume(bool stop, bool reset_prev_state);
+#define SYS_STOP() sys_stop_or_resume(1, 0);
+//resume peripherials
+#define SYS_RESUME() sys_stop_or_resume(0, 0);
+void sys_devices_default_config(void);
+/************** USER AVIABLE *********************/
 
 status_rep_t handle_vm_stop(void);
-
-void rik_callback_current_monitor(void* param);
-void rik_callback_vreg(void* param);
+void rik_callback_manager_pwr(void* param);
 void rik_callback_adc(void* param);
+void rik_callback_gpio(void* param);
 
-status_rep_t sys_devices_default_config(void);
-
+/* Registration API for VM system callbacks. Kernel will invoke these when events occur.
+ * VM component should register its handlers via these setters to avoid direct symbol
+ * dependencies between the kernel and VM components.
+ */
+typedef void (*vm_sys_cb_t)(void *arg);
+void rik_register_vm_sys_power(vm_sys_cb_t cb);
+void rik_register_vm_sys_adc(vm_sys_cb_t cb);
+void rik_register_vm_sys_gpio(vm_sys_cb_t cb);
 
 typedef enum{
     SYS_CTRL_AUTOMATIC = 0x00,  //<- Predefined
@@ -24,7 +38,7 @@ typedef enum{
     SYS_CTRL_DISABLE_DEVICE = 0x05, //<- Disable specific device (if possible)
 }rik_sys_ctrl_flags_e;
 
-typedef struct __attribute__((packed)) rik_sys_ctrl_cfg_t {
+typedef struct __attribute__((packed)) rik_sys_ctrl_power_cfg_t {
     uint8_t crt_reg0_ovp;
     uint8_t crt_reg0_ocp;
     uint8_t crt_reg0_scp;
@@ -37,7 +51,7 @@ typedef struct __attribute__((packed)) rik_sys_ctrl_cfg_t {
     uint8_t crt_current_REG1_CRIT;
     uint8_t crt_current_SYS_PWR_WARN;
     uint8_t crt_current_SYS_PWR_CRIT;
-}rik_sys_ctrl_cfg_t;
+}rik_sys_ctrl_power_cfg_t;
 
 
-void rik_sys_ctrl_set_cfg(rik_sys_ctrl_cfg_t* cfg);
+rik_sys_ctrl_power_cfg_t* sys_ctrl_get_power_cfg(void);

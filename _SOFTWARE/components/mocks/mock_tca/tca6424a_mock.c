@@ -113,7 +113,7 @@ esp_err_t tca_transmit_receive(i2c_master_dev_handle_t handle, const uint8_t *wr
         uint8_t val = 0;
         uint8_t port = reg_addr % 4;
 
-        if (reg_addr >= TCA6424A_REG_INPUT_PORT0 && reg_addr <= TCA6424A_REG_INPUT_PORT2) {
+        if (reg_addr <= TCA6424A_REG_INPUT_PORT2) {
             tca_state.last_read_input[port] = tca_state.input[port];
             val = tca_state.input[port] ^ tca_state.polarity[port];
             ESP_LOGI(TAG, "  <- IN Port %d = 0x%02X", port, val);

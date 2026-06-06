@@ -13,11 +13,8 @@
 #include "rtos_utils.h"
 #include "manager_io.h"
 
-#define TAG "ESP_ADC_CONFIG"
+#define TAG __FILE_NAME__
 
-#define ADC_SAMPLE_FREQ_HZ 20000
-#define ADC_FRAME_SIZE_BYTES 800
-#define IIR_ALPHA 0.5f
 
 R_MUTEX_DEFINE(adc_mutex);
 R_TASK_DEFINE(adc_processing_task, 4096);
@@ -65,7 +62,7 @@ static esp_err_t reconfigure_adc_hardware(uint16_t channel_mask) {
 
     adc_continuous_handle_cfg_t handle_cfg = {
         .max_store_buf_size = 4096,
-        .conv_frame_size = ADC_FRAME_SIZE_BYTES,
+        .conv_frame_size = CONFIG_ESP_ADC_FRAME_SIZE_BYTES,
     };
     
     esp_err_t err = adc_continuous_new_handle(&handle_cfg, &adc_handle);
@@ -74,7 +71,7 @@ static esp_err_t reconfigure_adc_hardware(uint16_t channel_mask) {
     adc_continuous_config_t adc_config = {
         .pattern_num = pattern_count,
         .adc_pattern = adc_pattern,
-        .sample_freq_hz = ADC_SAMPLE_FREQ_HZ,
+        .sample_freq_hz = CONFIG_ESP_ADC_SAMPLE_RATE_HZ,
         .conv_mode = ADC_CONV_SINGLE_UNIT_1,
         .format = ADC_DIGI_OUTPUT_FORMAT_TYPE2,
     };
@@ -165,7 +162,7 @@ esp_err_t esp_adc_set_active_channels(uint16_t channel_mask)
 static void adc_processing_task_function(void *pvParameters)
 {
     (void)pvParameters;
-    uint8_t raw_buffer[ADC_FRAME_SIZE_BYTES];
+    uint8_t raw_buffer[CONFIG_ESP_ADC_FRAME_SIZE_BYTES];
     uint32_t ret_num = 0;
 
     // Do the initial hardware configuration here so THIS task owns the driver Mutex.
@@ -194,7 +191,7 @@ static void adc_processing_task_function(void *pvParameters)
         // 2. Normal ADC Reading
         if (R_MUTEX_LOCK(adc_mutex, MSEC(20)) == pdTRUE) {
             if (is_adc_running && adc_handle != NULL && !_needs_hardware_reconfig) {
-                esp_err_t ret = adc_continuous_read(adc_handle, raw_buffer, ADC_FRAME_SIZE_BYTES, &ret_num, MSEC(10));
+                esp_err_t ret = adc_continuous_read(adc_handle, raw_buffer, CONFIG_ESP_ADC_FRAME_SIZE_BYTES, &ret_num, MSEC(10));
 
                 if (ret == ESP_OK || ret == ESP_ERR_INVALID_STATE) {
                     uint32_t channel_sums[10] = {0};
@@ -216,7 +213,7 @@ static void adc_processing_task_function(void *pvParameters)
                         if (channel_counts[chan] > 0 && pin_obj != NULL && pin_obj->pin_mode == SYS_GPIO_MODE_ADC) {
                             
                             uint32_t coarse_raw = channel_sums[chan] / channel_counts[chan];
-                            internal_raw_filtered[chan] = (IIR_ALPHA * (float)coarse_raw) + ((1.0f - IIR_ALPHA) * internal_raw_filtered[chan]);
+                            internal_raw_filtered[chan] = (CONFIG_ESP_ADC_IIR_ALPHA * (float)coarse_raw) + ((1.0f - CONFIG_ESP_ADC_IIR_ALPHA) * internal_raw_filtered[chan]);
 
                             if (cali_handles[chan] != NULL) {
                                 int voltage_mv = 0;
@@ -283,7 +280,7 @@ esp_err_t esp_adc_start(void)
     }
 
     adc_task_spawned = true;
-    R_TASK_START_ON_CORE(adc_processing_task, adc_processing_task_function, NULL, 5, 0);
+    R_TASK_START_ON_CORE(adc_processing_task, adc_processing_task_function, NULL, CONFIG_PRIORITY_ESP_ADC_TASK, 0);
     return ESP_OK;
 }
 

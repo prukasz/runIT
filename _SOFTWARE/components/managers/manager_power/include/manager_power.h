@@ -20,7 +20,7 @@ typedef enum manager_pwr_cb_type_e{
 } manager_pwr_cb_type_e;
 
 
-void manager_pwr_freeze_mode(bool freeze);
+void manager_pwr_freeze(bool freeze);
 status_rep_t manager_pwr_init();
 status_rep_t manager_pwr_add_cb(manager_pwr_cb_type_e cb_type, void (*handler)(void *), void* ctx);
 

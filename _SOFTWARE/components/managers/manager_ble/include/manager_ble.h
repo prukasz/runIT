@@ -46,12 +46,12 @@ void m_ble_buff_register_rx(RingbufHandle_t rx_buffer);
  * @param tx_buffer The ring buffer handle to use for TX data
  * @param buff_type The type of ring buffer (NOSPLIT for messages, BYTEBUF for data streams)
  * @param auto_pack Set to true to automatically pack data up to MTU size (requires BYTEBUF)
- * @param auto_pack_header A 1-byte header to prepend to auto-packed streams
+ * @param header A 1-byte header to prepend to every TX packet
  * @param item_size The exact size in bytes of the structs being packed (to prevent slicing)
  * @param priority The priority level for this TX buffer (0 = highest)
  * @note up to MAX_TX_BUFFERS can be registered. No buffs with same priority.
  */
-void m_ble_buff_register_tx(RingbufHandle_t tx_buffer, RingbufferType_t buff_type, bool auto_pack, uint8_t auto_pack_header, size_t item_size, uint8_t priority);
+void m_ble_buff_register_tx(RingbufHandle_t tx_buffer, RingbufferType_t buff_type, bool auto_pack, uint8_t header, size_t item_size, uint8_t priority);
 
 /**
  * @brief Enqueues data into a specific TX buffer and wakes up the BLE task

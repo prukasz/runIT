@@ -10,7 +10,6 @@
 #define TAG __FILE_NAME__
 
 /*****************************************************************************************/
-static interface_cfg_t *_cfg = NULL;
 
 static RingbufHandle_t _interface_rx_buffer = NULL;
 /*****************************************************************************************/
@@ -50,7 +49,7 @@ static void interface_task_func(void* pvParameters){
     }
 }
 
-void interface_init(interface_cfg_t *config){
+void interface_init(){
     R_TASK_START_ON_CORE(interface_task, interface_task_func, NULL, 4, 0);
     ESP_LOGI(TAG, "Interface task started");
 }

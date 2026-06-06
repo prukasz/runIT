@@ -6,10 +6,10 @@ from bleak import BleakScanner, BleakClient
 from ConfigTypes import (
     packet_header_t,
     cfg_pwr_packet_type_e, cfg_pwr_reg_en_t, cfg_pwr_reg_settings_t, cfg_pwr_reg_limits_t, 
-    cfg_pwr_reg_behavior_t, cfg_pwr_supply_t, cfg_pwr_supply_limits_t, cfg_pwr_supply_behavior_t,
+    cfg_pwr_reg_behavior_t, cfg_pwr_supply_t, cfg_pwr_current_behavior_t, cfg_pwr_error_behavior_e,
     cfg_io_packet_type_e, cfg_io_gpio_mode_t, cfg_io_gpio_adc_alert_t, cfg_io_gpio_pwm_freq_t, cfg_io_gpio_reset_t,
-    cfg_io_adc_window_mode_e, cfg_io_gpio_mode_e,
-    cfg_sys_packet_type_e, cfg_log_t, cfg_system_ctrl_t, cfg_log_level_e
+    cfg_io_adc_window_mode_e, cfg_io_gpio_mode_e, cfg_gpio_intr_mode_e, cfg_gpio_intr_mode_t,
+    cfg_sys_packet_type_e, cfg_log_t, cfg_log_level_e
 )
 
 # ============================================================================
@@ -18,6 +18,21 @@ from ConfigTypes import (
 DEVICE_NAME = "runit"
 UUID_WRITE = "00000000-0000-0000-0000-000000000003"
 UUID_READ  = "00000000-0000-0000-0000-000000000002"
+
+# ============================================================================
+# PARSOWANIE ENUMÓW
+# ============================================================================
+def parse_enum(enum_cls, val_str):
+    try:
+        return int(val_str)
+    except ValueError:
+        val_str_upper = val_str.upper()
+        if val_str_upper in enum_cls.__members__:
+            return enum_cls[val_str_upper].value
+        for name, member in enum_cls.__members__.items():
+            if name.endswith(val_str_upper) or name.endswith("_" + val_str_upper):
+                return member.value
+        raise ValueError(f"Nieznana wartość '{val_str}' dla enuma {enum_cls.__name__}")
 
 # ============================================================================
 # BUDOWANIE PAKIETU
@@ -36,20 +51,19 @@ def print_help():
     print("  pwr_en <reg_num> <en(0/1)>            - Włącz/Wyłącz regulator")
     print("  pwr_set <reg_num> <mV> <mA>           - Ustaw napięcie (mV) i limit prądu (mA)")
     print("  pwr_lim <w0> <c0> <w1> <c1>           - Ustaw limity mocy (mW) dla reg 0 i 1 (ostrzegawcze i krytyczne)")
-    print("  pwr_beh <reg> <w> <c> <scp> <ovp> <ocp> - Ustaw zachowanie regulatora (flagi 0/1)")
+    print("  pwr_reg_beh <ovp0> <ocp0> <scp0> <ovp1> <ocp1> <scp1> - Ustaw zachowanie błędów regulatorów (enum np. AUTOMATIC, STOP)")
+    print("  pwr_cur_beh <w0> <c0> <w1> <c1> <wsys> <csys> - Ustaw zachowanie dla ostrzeżeń i błędów prądowych (enum np. AUTOMATIC, STOP)")
     print("  sup_set <v> <c> <wv> <wc> <nv> <nc>   - Skonfiguruj zasilanie główne (supply)")
-    print("  sup_lim <w_tot> <c_tot>               - Ustaw całkowite limity mocy zasilania (mW)")
-    print("  sup_beh <w> <c>                       - Ustaw zachowanie głównego zasilania (flagi 0/1)")
     
     print("\nIO (Piny):")
-    print("  io_mode <pin_id> <mode>               - Ustaw tryb pinu (np. 6 dla ADC)")
-    print("  io_adc <pin_id> <up_mV> <down_mV> <hyst_mV> <count> <win_mode(0/1)> - Konfiguruj alert ADC")
+    print("  io_mode <pin_id> <mode>               - Ustaw tryb pinu (enum np. ADC, INPUT_PULLUP, OUTPUT_PUSH_PULL)")
+    print("  io_adc <pin_id> <up_mV> <down_mV> <hyst_mV> <count> <win_mode> - Konfiguruj alert ADC (enum OUTSIDE, INSIDE)")
+    print("  io_intr <pin_id> <mode>               - Ustaw przerwanie na pinie (enum np. RISING_EDGE, BOTH_EDGES)")
     print("  io_pwm <pin_id> <freq_hz>             - Ustaw częstotliwość PWM pinu")
     print("  io_reset <pin_id>                     - Zresetuj pin")
     
     print("\nSYS (System):")
-    print("  sys_log <str(0/1)> <mir(0/1)> <lvl>   - Skonfiguruj logi (Stream, Mirror, Level 0-5)")
-    print("  sys_ctrl <ovp0> <ocp0> <scp0> <ovp1> <ocp1> <scp1> <w0> <c0> <w1> <c1> <wsys> <csys> - Ustawienia kontroli INA3221")
+    print("  sys_log <str(0/1)> <mir(0/1)> <lvl>   - Skonfiguruj logi (Stream, Mirror, Level enum np. INFO, DEBUG)")
     print("  sys_def                               - Przywróć domyślne ustawienia urządzeń")
     print("  sys_vm_run                            - Uruchom maszynę wirtualną (demo)")
     print("  sys_vm_stop                           - Zatrzymaj maszynę wirtualną")
@@ -88,10 +102,12 @@ def parse_command(user_input: str) -> list:
                                      power_warning_reg_1_mW=int(parts[3]), power_critical_reg_1_mW=int(parts[4]))
             packets.append(build_packet(packet_header_t.PACKET_H_CFG_PWR, cfg_pwr_packet_type_e.CFG_PWR_TYPE_REG_LIMITS, s))
 
-        elif cmd == "pwr_beh":
-            s = cfg_pwr_reg_behavior_t(reg_number=int(parts[1]), over_budget_warning=int(parts[2]), 
-                                       over_budget_critical=int(parts[3]), off_on_short_circuit=int(parts[4]),
-                                       off_on_over_voltage=int(parts[5]), off_on_over_current=int(parts[6]))
+        elif cmd == "pwr_reg_beh":
+            s = cfg_pwr_reg_behavior_t(
+                behavior_reg0_ovp=parse_enum(cfg_pwr_error_behavior_e, parts[1]), behavior_reg0_ocp=parse_enum(cfg_pwr_error_behavior_e, parts[2]),
+                behavior_reg0_scp=parse_enum(cfg_pwr_error_behavior_e, parts[3]), behavior_reg1_ovp=parse_enum(cfg_pwr_error_behavior_e, parts[4]),
+                behavior_reg1_ocp=parse_enum(cfg_pwr_error_behavior_e, parts[5]), behavior_reg1_scp=parse_enum(cfg_pwr_error_behavior_e, parts[6])
+            )
             packets.append(build_packet(packet_header_t.PACKET_H_CFG_PWR, cfg_pwr_packet_type_e.CFG_PWR_TYPE_REG_BEHAVIOR, s))
 
         elif cmd == "sup_set":
@@ -100,29 +116,36 @@ def parse_command(user_input: str) -> list:
                                  input_voltage_to_negotiate_mv=int(parts[5]), input_current_to_negotiate_ma=int(parts[6]))
             packets.append(build_packet(packet_header_t.PACKET_H_CFG_PWR, cfg_pwr_packet_type_e.CFG_PWR_TYPE_SUPPLY, s))
 
-        elif cmd == "sup_lim":
-            s = cfg_pwr_supply_limits_t(power_warning_total_mW=int(parts[1]), power_critical_total_mW=int(parts[2]))
-            packets.append(build_packet(packet_header_t.PACKET_H_CFG_PWR, cfg_pwr_packet_type_e.CFG_PWR_TYPE_SUPPLY_LIMITS, s))
-
-        elif cmd == "sup_beh":
-            s = cfg_pwr_supply_behavior_t(over_budget_warning=int(parts[1]), over_budget_critical=int(parts[2]))
-            packets.append(build_packet(packet_header_t.PACKET_H_CFG_PWR, cfg_pwr_packet_type_e.CFG_PWR_TYPE_SUPPLY_BEHAVIOR, s))
+        elif cmd == "pwr_cur_beh":
+            s = cfg_pwr_current_behavior_t(
+                behavior_current_REG0_WARN=parse_enum(cfg_pwr_error_behavior_e, parts[1]), behavior_current_REG0_CRIT=parse_enum(cfg_pwr_error_behavior_e, parts[2]),
+                behavior_current_REG1_WARN=parse_enum(cfg_pwr_error_behavior_e, parts[3]), behavior_current_REG1_CRIT=parse_enum(cfg_pwr_error_behavior_e, parts[4]),
+                behavior_current_SYS_PWR_WARN=parse_enum(cfg_pwr_error_behavior_e, parts[5]), behavior_current_SYS_PWR_CRIT=parse_enum(cfg_pwr_error_behavior_e, parts[6])
+            )
+            packets.append(build_packet(packet_header_t.PACKET_H_CFG_PWR, cfg_pwr_packet_type_e.CFG_PWR_TYPE_CURRENT_BEHAVIOR, s))
 
         # ================= IO COMMANDS =================
         elif cmd == "io_mode":
-            s = cfg_io_gpio_mode_t(pin_id=int(parts[1]), mode=int(parts[2]))
+            mode = parse_enum(cfg_io_gpio_mode_e, parts[2])
+            s = cfg_io_gpio_mode_t(pin_id=int(parts[1]), mode=mode)
             packets.append(build_packet(packet_header_t.PACKET_H_CFG_IO, cfg_io_packet_type_e.CFG_IO_TYPE_GPIO_MODE, s))
             
         elif cmd == "io_adc":
+            win_mode = parse_enum(cfg_io_adc_window_mode_e, parts[6])
             s = cfg_io_gpio_adc_alert_t(
                 pin_id=int(parts[1]), 
                 adc_threshold_up_mv=int(parts[2]),
                 adc_threshold_down_mv=int(parts[3]), 
                 adc_threshold_hysteresis_mv=int(parts[4]), 
                 adc_event_counter_threshold=int(parts[5]),
-                adc_window_mode=int(parts[6])
+                adc_window_mode=win_mode
             )
             packets.append(build_packet(packet_header_t.PACKET_H_CFG_IO, cfg_io_packet_type_e.CFG_IO_TYPE_GPIO_ADC_ALERT, s))
+
+        elif cmd == "io_intr":
+            mode = parse_enum(cfg_gpio_intr_mode_e, parts[2])
+            s = cfg_gpio_intr_mode_t(pin_id=int(parts[1]), cfg_gpio_intr_mode=mode)
+            packets.append(build_packet(packet_header_t.PACKET_H_CFG_IO, cfg_io_packet_type_e.CFG_IO_TYPE_GPIO_INTERRUPT, s))
 
         elif cmd == "io_pwm":
             s = cfg_io_gpio_pwm_freq_t(pin_id=int(parts[1]), freq_hz=int(parts[2]))
@@ -134,18 +157,9 @@ def parse_command(user_input: str) -> list:
 
         # ================= SYS COMMANDS =================
         elif cmd == "sys_log":
-            s = cfg_log_t(enable_stream=bool(int(parts[1])), mirror_on_serial=bool(int(parts[2])), esp_log_level=int(parts[3]))
+            lvl = parse_enum(cfg_log_level_e, parts[3])
+            s = cfg_log_t(enable_stream=bool(int(parts[1])), mirror_on_serial=bool(int(parts[2])), esp_log_level=lvl)
             packets.append(build_packet(packet_header_t.PACKET_H_CFG_SYS, cfg_sys_packet_type_e.CFG_SYS_TYPE_LOG_CONFIG, s))
-
-        elif cmd == "sys_ctrl":
-            s = cfg_system_ctrl_t(
-                crt_reg0_ovp=int(parts[1]), crt_reg0_ocp=int(parts[2]), crt_reg0_scp=int(parts[3]),
-                crt_reg1_ovp=int(parts[4]), crt_reg1_ocp=int(parts[5]), crt_reg1_scp=int(parts[6]),
-                crt_current_REG0_WARN=int(parts[7]), crt_current_REG0_CRIT=int(parts[8]),
-                crt_current_REG1_WARN=int(parts[9]), crt_current_REG1_CRIT=int(parts[10]),
-                crt_current_SYS_PWR_WARN=int(parts[11]), crt_current_SYS_PWR_CRIT=int(parts[12])
-            )
-            packets.append(build_packet(packet_header_t.PACKET_H_CFG_SYS, cfg_sys_packet_type_e.CFG_SYS_TYPE_SYSTEM_CTRL, s))
 
         elif cmd == "sys_def":
             packets.append(build_packet(packet_header_t.PACKET_H_CFG_SYS, cfg_sys_packet_type_e.CFG_SYS_TYPE_DEVICE_DEFAULT))
@@ -181,12 +195,20 @@ def parse_command(user_input: str) -> list:
 
         elif cmd == "demo_ina3221":
             print("[*] Konfiguracja układu zasilania i INA3221...")
-            s_ctrl = cfg_system_ctrl_t(
-                crt_reg0_ovp=1, crt_reg0_ocp=1, crt_reg0_scp=1, crt_reg1_ovp=1, crt_reg1_ocp=1, crt_reg1_scp=1,
-                crt_current_REG0_WARN=85, crt_current_REG0_CRIT=100, crt_current_REG1_WARN=85, crt_current_REG1_CRIT=100,
-                crt_current_SYS_PWR_WARN=90, crt_current_SYS_PWR_CRIT=110
+            
+            s_cur = cfg_pwr_current_behavior_t(
+                behavior_current_REG0_WARN=cfg_pwr_error_behavior_e.CFG_CTRL_AUTOMATIC, behavior_current_REG0_CRIT=cfg_pwr_error_behavior_e.CFG_CTRL_ENTER_EMERGENCY,
+                behavior_current_REG1_WARN=cfg_pwr_error_behavior_e.CFG_CTRL_AUTOMATIC, behavior_current_REG1_CRIT=cfg_pwr_error_behavior_e.CFG_CTRL_ENTER_EMERGENCY,
+                behavior_current_SYS_PWR_WARN=cfg_pwr_error_behavior_e.CFG_CTRL_AUTOMATIC, behavior_current_SYS_PWR_CRIT=cfg_pwr_error_behavior_e.CFG_CTRL_STOP
             )
-            packets.append(build_packet(packet_header_t.PACKET_H_CFG_SYS, cfg_sys_packet_type_e.CFG_SYS_TYPE_SYSTEM_CTRL, s_ctrl))
+            packets.append(build_packet(packet_header_t.PACKET_H_CFG_PWR, cfg_pwr_packet_type_e.CFG_PWR_TYPE_CURRENT_BEHAVIOR, s_cur))
+            
+            s_reg = cfg_pwr_reg_behavior_t(
+                behavior_reg0_ovp=cfg_pwr_error_behavior_e.CFG_CTRL_AUTOMATIC, behavior_reg0_ocp=cfg_pwr_error_behavior_e.CFG_CTRL_AUTOMATIC,
+                behavior_reg0_scp=cfg_pwr_error_behavior_e.CFG_CTRL_STOP, behavior_reg1_ovp=cfg_pwr_error_behavior_e.CFG_CTRL_AUTOMATIC,
+                behavior_reg1_ocp=cfg_pwr_error_behavior_e.CFG_CTRL_AUTOMATIC, behavior_reg1_scp=cfg_pwr_error_behavior_e.CFG_CTRL_STOP
+            )
+            packets.append(build_packet(packet_header_t.PACKET_H_CFG_PWR, cfg_pwr_packet_type_e.CFG_PWR_TYPE_REG_BEHAVIOR, s_reg))
             
             s_lim = cfg_pwr_reg_limits_t(
                 power_warning_reg_0_mW=1200, power_critical_reg_0_mW=1500,

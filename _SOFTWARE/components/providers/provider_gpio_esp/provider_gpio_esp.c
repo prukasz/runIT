@@ -14,18 +14,21 @@
 #include "esp_timer.h"
 
 #define TAG __FILE_NAME__
+#undef OWNER
+#define OWNER OWNER_PROVIDER_GPIO_ESP
 
 // ESP32 specific masks
 #define AVIABLE_GPIO_MASK (SOC_GPIO_VALID_GPIO_MASK & ~(0ULL | BIT19 | BIT20)) 
 #define ADC_GPIO_MASK     (0ULL | BIT0 | BIT1 | BIT2 | BIT3 | BIT4 | BIT5 | BIT6 | BIT7 | BIT8 | BIT9)
 
-R_QUEUE_DEFINE(gpio_evt_queue, 20, sizeof(sys_pin_obj_t*));
+R_QUEUE_DEFINE(gpio_evt_queue, CONFIG_MAX_PENDING_GPIO_ESP_INTR, sizeof(sys_pin_obj_t*));
 R_TASK_DEFINE(gpio_dispatcher_task, 4096);
 
 // --- State Variables ---
 static bool _freeze = false;
 static uint64_t pending_pin_level_updates = 0;
 static uint64_t cached_pin_levels = 0;
+static uint8_t my_port_id = 0xFF;  // Port ID assigned by IO manager
 
 // THE UNIFIED REGISTRY: Instant O(1) lookup. NULL means the pin is completely free.
 sys_pin_obj_t* pin_registry[64] = {NULL};
@@ -48,7 +51,7 @@ static void gpio_dispatcher_task_function(void* arg) {
     }
 }
 
-#define DEBOUNCE_TIME_US 5000 
+
 
 // Ultra-fast ISR Trampoline
 static void IRAM_ATTR _gpio_pin_isr_trampoline(void* arg) {
@@ -56,7 +59,7 @@ static void IRAM_ATTR _gpio_pin_isr_trampoline(void* arg) {
     
     // --- DEBOUNCE LOGIC ---
     uint64_t current_time = esp_timer_get_time(); // Time in microseconds
-    if ((current_time - pin->last_isr_time) < DEBOUNCE_TIME_US) {
+    if ((current_time - pin->last_isr_time) < CONFIG_ESP_GPIO_DEBOUNCE_TIME_US) {
         // It hasn't been 50ms since the last interrupt. This is a bounce.
         return; // Exit immediately, do not push to queue
     }
@@ -75,9 +78,9 @@ static void IRAM_ATTR _gpio_pin_isr_trampoline(void* arg) {
 }
 // Must be called during system startup to initialize the driver
 status_rep_t p_gpio_esp_init(void) {
-    R_TASK_START(gpio_dispatcher_task, gpio_dispatcher_task_function, NULL, 5);
-    STA_RET_ON_ESP_ERR(esp_adc_start(), OWNER_PROVIDER_GPIO_ESP, 0);
-    STA_RET_ON_ESP_ERR(gpio_install_isr_service(0), OWNER_PROVIDER_GPIO_ESP, 0);
+    R_TASK_START_ON_CORE(gpio_dispatcher_task, gpio_dispatcher_task_function, NULL, CONFIG_MAX_PENDING_GPIO_ESP_INTR, 0);
+    CHECK_ESP_CALL_R(esp_adc_start());
+    CHECK_ESP_CALL_R(gpio_install_isr_service(0));
     return STA_OK;
 }
 
@@ -146,19 +149,19 @@ esp_err_t normal_io_configure(uint8_t pin, uint32_t mode) {
 status_rep_t p_gpio_esp_set_pin_mode(uint8_t pin, uint32_t mode) {
     uint64_t pin_mask = 1ULL << pin;
     if ((pin_mask & ~AVIABLE_GPIO_MASK) != 0) {
-        return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, pin);
+        return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, pin, mode));
     }
      
     if (mode == SYS_GPIO_MODE_ADC) {
         if ((pin_mask & ~ADC_GPIO_MASK) != 0) {
-            return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, pin);
+            return STA_C(IO_ERR_MODE_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, pin, mode));
         } else {
             if (!verify_pin_free(pin_mask)) {
-                return STA_C(IO_ERR_PIN_IN_OTHER_USE, OWNER_PROVIDER_GPIO_ESP, pin);
+                return STA_C(IO_ERR_PIN_IN_OTHER_USE, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, pin, mode));
             }
             sys_pin_obj_t* new_pin = calloc(1, sizeof(sys_pin_obj_t));
             if (new_pin == NULL) {
-                return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_ESP, ESP_ERR_NO_MEM);
+                return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, pin, mode));
             }
             adc_channel_t channel = 0;
             adc_unit_t unit = 0;
@@ -177,10 +180,7 @@ status_rep_t p_gpio_esp_set_pin_mode(uint8_t pin, uint32_t mode) {
         // Placeholder: Apply PWM logic via PWM module
             return STA_OK;
         } else {
-        esp_err_t err = normal_io_configure(pin, mode);
-        if (err != ESP_OK) {
-            return STA_FROM_ESP(err, OWNER_PROVIDER_GPIO_ESP, pin);
-        }
+        CHECK_ESP_CALL_R(normal_io_configure(pin, mode));
     }
     return STA_OK;
 }
@@ -193,11 +193,11 @@ status_rep_t p_gpio_esp_set_level(uint64_t pin_mask, bool level) {
         sys_pin_obj_t* pin_obj = pin_registry[i];
 
         if (pin_obj == NULL) {
-            return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, (uint64_t)(1ULL << i));
+            return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, i, 0));
         }
 
         if (pin_obj->pin_mode != SYS_GPIO_MODE_OUTPUT_PUSH_PULL && pin_obj->pin_mode != SYS_GPIO_MODE_OUTPUT_OPEN_DRAIN) {
-            return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, (uint64_t)(1ULL << i));
+            return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, i, 0));
         }
     }
 
@@ -217,7 +217,7 @@ status_rep_t p_gpio_esp_set_level(uint64_t pin_mask, bool level) {
         esp_err_t err = gpio_set_level(i, level);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to set level on pin %d: %d", i, err);
-            return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_ESP, err);
+            return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, i, 0));
         }
         if (level)
             cached_pin_levels |= (1ULL << i);
@@ -234,11 +234,11 @@ status_rep_t p_gpio_esp_read_level(uint64_t pin_mask, uint64_t* out_level) {
         sys_pin_obj_t* pin_obj = pin_registry[i];
 
         if (pin_obj == NULL) {
-            return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, (uint64_t)(1ULL << i));
+            return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, i, 0));
         }
 
         if (pin_obj->pin_mode == SYS_GPIO_MODE_ADC || pin_obj->pin_mode == SYS_GPIO_MODE_PWM) {
-            return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, (uint64_t)(1ULL << i));
+            return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, i, 0));
         }
 
         if (_freeze) {
@@ -296,10 +296,10 @@ status_rep_t p_gpio_esp_pin_toggle(uint64_t pin_mask) {
 
         sys_pin_obj_t* pin_obj = pin_registry[i];
         if (pin_obj == NULL) {
-            return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, (uint32_t)(1ULL << i));
+            return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, i, 0));
         }
         if (pin_obj->pin_mode != SYS_GPIO_MODE_OUTPUT_PUSH_PULL && pin_obj->pin_mode != SYS_GPIO_MODE_OUTPUT_OPEN_DRAIN) {
-            return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, (uint32_t)(1ULL << i));
+            return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, i, 0));
         }
 
         bool current_level = cached_pin_levels & (1ULL << i);
@@ -313,18 +313,18 @@ status_rep_t p_gpio_esp_pin_toggle(uint64_t pin_mask) {
             pending_pin_level_updates |= (1ULL << i);
             continue;
         }
-        STA_RET_ON_ERR(p_gpio_esp_set_level(1ULL << i, !current_level));
+        STA_R_ON_ERR(p_gpio_esp_set_level(1ULL << i, !current_level));
     }
     return STA_OK;
 }
 
 status_rep_t p_gpio_esp_reset_pin(uint8_t pin) {
     if (pin >= 64) {
-        return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, pin);
+        return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, pin, 0));
     }
     uint64_t pin_mask = 1ULL << pin;
     if ((pin_mask & ~AVIABLE_GPIO_MASK) != 0) {
-        return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, pin);
+        return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, pin, 0));
     }
 
     sys_pin_obj_t* pin_obj = pin_registry[pin];
@@ -350,11 +350,11 @@ status_rep_t p_gpio_esp_reset_pin(uint8_t pin) {
 status_rep_t p_gpio_esp_adc_register_callback(uint8_t pin, void* adc_int_config) {
 
     if ((ADC_GPIO_MASK & (1ULL << pin)) == 0) {
-        return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, pin);
+        return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, pin, 0));
     }
 
     if (pin_registry[pin] == NULL) {
-        return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, pin);
+        return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, pin, 0));
     }
     adc_channel_t channel;
     adc_unit_t unit;
@@ -362,13 +362,13 @@ status_rep_t p_gpio_esp_adc_register_callback(uint8_t pin, void* adc_int_config)
     esp_err_t err = esp_adc_add_intr_pin((uint8_t)channel, adc_int_config);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to register ADC interrupt for pin %d: %s", pin, esp_err_to_name(err));
-        return STA_FROM_ESP(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_ESP, err);
+        return STA_FROM_ESP(IO_ERR_UPDATE_FAILED);
     }
     return STA_OK;
 }
 
 status_rep_t p_gpio_esp_adc_read(uint64_t pin_mask, uint32_t* out_mv, uint8_t max_results_num) {
-    if (out_mv == NULL || max_results_num == 0) return STA_C(IO_ERR_PORT_INVALID, OWNER_PROVIDER_GPIO_ESP, 0);
+    CHECK_NOT_NULL_R(out_mv);
 
     uint8_t written = 0;
     for (int i = 0; i < 64 && written < max_results_num; i++) {
@@ -376,24 +376,22 @@ status_rep_t p_gpio_esp_adc_read(uint64_t pin_mask, uint32_t* out_mv, uint8_t ma
 
         sys_pin_obj_t* pin_obj = pin_registry[i];
         if (pin_obj == NULL) {
-            return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, (uint64_t)(1ULL << i));
+            return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, i, 0));
         }
 
         if (pin_obj->pin_mode != SYS_GPIO_MODE_ADC) {
-            return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, (uint64_t)(1ULL << i));
+            return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, i, 0));
         }
 
         uint16_t mv = 0;
-        esp_err_t err = esp_adc_get_mv((uint8_t)pin_obj->hw.adc_cfg.adc_channel, &mv);
-        if (err != ESP_OK) {
-            return STA_FROM_ESP(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_ESP, err);
-        }
+        CHECK_ESP_CALL_R(esp_adc_get_mv((uint8_t)pin_obj->hw.adc_cfg.adc_channel, &mv));
+        
 
         out_mv[written++] = mv;
     }
 
     if (written == 0) {
-        return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, pin_mask);
+        return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, __builtin_ctz(pin_mask), 0));
     }
 
     return STA_OK;
@@ -402,7 +400,7 @@ status_rep_t p_gpio_esp_adc_read(uint64_t pin_mask, uint32_t* out_mv, uint8_t ma
 status_rep_t p_gpio_esp_register_callback(uint8_t pin, uint32_t mode, void (*callback)(void* arg), void* arg) {
     sys_pin_obj_t* pin_obj = pin_registry[pin];
     if (pin_obj == NULL) {
-        return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, pin);
+        return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, pin, 0));
     }
 
     gpio_int_type_t intr_type = GPIO_INTR_DISABLE;
@@ -412,7 +410,7 @@ status_rep_t p_gpio_esp_register_callback(uint8_t pin, uint32_t mode, void (*cal
         case SYS_GPIO_INTR_MODE_BOTH_EDGES:   intr_type = GPIO_INTR_ANYEDGE; break;
         case SYS_GPIO_INTR_MODE_LEVEL_HIGH:   intr_type = GPIO_INTR_HIGH_LEVEL; break;
         case SYS_GPIO_INTR_MODE_LEVEL_LOW:    intr_type = GPIO_INTR_LOW_LEVEL; break;
-        default: return STA_C(IO_ERR_MODE_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, mode);
+        default: return STA_C(IO_ERR_MODE_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, pin, mode));
     }
 
     // store if any new provided
@@ -420,16 +418,9 @@ status_rep_t p_gpio_esp_register_callback(uint8_t pin, uint32_t mode, void (*cal
     if(arg)pin_obj->callback_arg = arg;
 
         // Apply hardware interrupt settings
-    esp_err_t err = gpio_set_intr_type((gpio_num_t)pin, intr_type);
-    if (err != ESP_OK) {
-        return STA_FROM_ESP(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_ESP, err);
-    }
-
-        // Add the routing trampoline 
-    err = gpio_isr_handler_add((gpio_num_t)pin, _gpio_pin_isr_trampoline, pin_obj);
-    if (err != ESP_OK) {
-        return STA_FROM_ESP(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_ESP, err);
-    }
+    CHECK_ESP_CALL_R(gpio_set_intr_type((gpio_num_t)pin, intr_type));
+    CHECK_ESP_CALL_R(gpio_isr_handler_add((gpio_num_t)pin, _gpio_pin_isr_trampoline, pin_obj));
+    ESP_LOGI(TAG, "Registered callback for GPIO pin %d with mode %d", pin, mode);
     return STA_OK;
 }
 
@@ -445,4 +436,9 @@ status_rep_t p_gpio_esp_reset_all(void) {
     }
     ESP_LOGI(TAG, "GPIO ESP provider reset: all pins reset and resources freed");
     return STA_OK;
+}
+
+void p_gpio_esp_set_port_id(uint8_t port_id) {
+    my_port_id = port_id;
+    ESP_LOGI(TAG, "GPIO ESP provider port ID set to %d", port_id);
 }

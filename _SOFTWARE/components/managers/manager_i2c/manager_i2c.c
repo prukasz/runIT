@@ -1,4 +1,4 @@
-#include "manager_i2c.h"
+    #include "manager_i2c.h"
 #include "sdkconfig.h"
 #include "esp_log.h"
 #include "rtos_utils.h"
@@ -7,7 +7,6 @@
 #define I2C_MANAGER_TASK_STACK_SIZE 4096
 #define M_I2C_QUEUE_SIZE_PERIODIC 10
 #define M_I2C_QUEUE_SIZE_APERIODIC 20
-#define M_I2C_TASK_PRIORITY 4
 
 /*********Private handles ************************/
 static m_i2c_config_t *manager_bus_cfg_0;
@@ -168,7 +167,8 @@ static void i2c_manager_task_function(void* params) {
     }
  
 }
-
+#undef OWNER
+#define OWNER OWNER_I2C_BUS_0
 status_rep_t m_i2c_init(m_i2c_config_t* bus0_config, m_i2c_config_t* bus1_config) 
 {
     manager_bus_cfg_0 = bus0_config;
@@ -176,11 +176,15 @@ status_rep_t m_i2c_init(m_i2c_config_t* bus0_config, m_i2c_config_t* bus1_config
     manager_bus_cfg_0->manager_task_handle = i2c_manager_task_0;
     manager_bus_cfg_1->manager_task_handle = i2c_manager_task_1;
     
-    STA_RP_ON_ERR(STA_FROM_ESP(i2c_new_master_bus(&manager_bus_cfg_0->bus_cfg, &bus_handle_0), OWNER_I2C_BUS_0, 0));
-    STA_RP_ON_ERR(STA_FROM_ESP(i2c_new_master_bus(&manager_bus_cfg_1->bus_cfg, &bus_handle_1), OWNER_I2C_BUS_1, 0));
+    CHECK_ESP_CALL_R(i2c_new_master_bus(&manager_bus_cfg_0->bus_cfg, &bus_handle_0));
 
-    R_TASK_START_ON_CORE(i2c_manager_task_0, &i2c_manager_task_function, bus0_config, M_I2C_TASK_PRIORITY, 0);
-    R_TASK_START_ON_CORE(i2c_manager_task_1, &i2c_manager_task_function, bus1_config, M_I2C_TASK_PRIORITY, 1);
+#undef OWNER
+#define OWNER OWNER_I2C_BUS_1
+
+    CHECK_ESP_CALL_R(i2c_new_master_bus(&manager_bus_cfg_1->bus_cfg, &bus_handle_1));
+
+    R_TASK_START_ON_CORE(i2c_manager_task_0, &i2c_manager_task_function, bus0_config, CONFIG_PRIORITY_I2C_MANAGER_TASK, 0);
+    R_TASK_START_ON_CORE(i2c_manager_task_1, &i2c_manager_task_function, bus1_config, CONFIG_PRIORITY_I2C_MANAGER_TASK, 1);
     
     ESP_LOGI(TAG, "I2C Manager initialized successfully on both buses");
 
@@ -198,6 +202,8 @@ TaskHandle_t m_i2c_get_manager_task(uint8_t bus_num) {
 
 static uint8_t _next_driver_id = 1;
 
+#undef OWNER
+#define OWNER OWNER_I2C_ADD_DRIVER
 status_rep_t m_i2c_add_driver(
     bool bus, 
     i2c_device_config_t dev_config, 
@@ -208,9 +214,10 @@ status_rep_t m_i2c_add_driver(
     uint8_t* out_id
 ) 
 {
-    if (task_func == NULL || out_master_dev_handle == NULL || dev_handle == NULL || out_id == NULL) {
-        STA_RP(STA_C(ESP_ERR_INVALID_ARG, OWNER_I2C_ADD_DRIVER, 0));
-    }
+    CHECK_HANDLE_R(out_master_dev_handle);
+    CHECK_NOT_NULL_R(task_func);
+    CHECK_NOT_NULL_R(out_id);
+    CHECK_NOT_NULL_R(dev_handle);
 
     int slot = -1;
     uint8_t i2c_addr = dev_config.device_address & 0x7F; // Mask to 7 bits for registry storage
@@ -237,7 +244,7 @@ status_rep_t m_i2c_add_driver(
     i2c_master_bus_handle_t target_bus_handle = m_i2c_get_bus_handle(bus ? 1 : 0);
     i2c_master_dev_handle_t new_dev_handle;
     
-    STA_RP_ON_ERR(STA_FROM_ESP(i2c_master_bus_add_device(target_bus_handle, &dev_config, &new_dev_handle), OWNER_I2C_ADD_DRIVER, dev_config.device_address));
+    CHECK_ESP_CALL_R(i2c_master_bus_add_device(target_bus_handle, &dev_config, &new_dev_handle));
     
     driver_registry[slot].i2c_address = i2c_addr;
     driver_registry[slot].master_dev_handle = new_dev_handle;
@@ -294,10 +301,10 @@ void* m_i2c_get_dev_handle(uint8_t id) {
     return NULL; 
 }
 
+#undef OWNER
+#define OWNER OWNER_I2C_ADD_DRIVER
 status_rep_t m_i2c_device_present(bool bus, uint8_t device_address) {
-    esp_err_t err = i2c_master_probe(m_i2c_get_bus_handle(bus ? 1 : 0), device_address, 100);
-    if (err == ESP_OK) {
-        return STA_OK;
-    }
-    return STA_C(ERR_I2C_DEV_NOT_FOUND, OWNER_I2C_ADD_DRIVER, device_address);
+    ESP_LOGI(TAG, "Probing for device at address 0x%02X on bus %d", device_address, bus ? 1 : 0);
+    CHECK_ESP_CALL_R(i2c_master_probe(m_i2c_get_bus_handle(bus ? 1 : 0), device_address, 100));
+    return STA_OK;
 }

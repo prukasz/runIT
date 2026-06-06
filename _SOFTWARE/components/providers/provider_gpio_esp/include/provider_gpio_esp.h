@@ -26,8 +26,5 @@ void p_gpio_esp_freeze_updates(bool freeze);
 
 status_rep_t p_gpio_esp_init(void);
 
-/**
- * @brief Reset all GPIO ESP provider callbacks and interrupt settings
- * @return Status code
- */
 status_rep_t p_gpio_esp_reset_all(void);
+void p_gpio_esp_set_port_id(uint8_t port_id);

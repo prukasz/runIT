@@ -13,16 +13,6 @@
 #include "status.h"
 
 
-typedef struct{
-    EventGroupHandle_t connection_events;
-    EventBits_t connection_bits_rx;
-    EventBits_t interface_bits_on_complete;
-    EventBits_t interface_bits_on_error;
-    EventBits_t interface_bits_on_stop;
-    uint8_t task_priority;
-    uint32_t task_stack_size;
-}interface_cfg_t;
-
 
 typedef status_rep_t (*interface_parse_func)(const uint8_t *packet_data, const uint16_t packet_len);
 
@@ -44,15 +34,9 @@ void interface_buff_register_rx(RingbufHandle_t rx_buffer);
  * @param task_priority Task priority for the interface dispatcher task
  * @param task_stack_size Stack size for the interface dispatcher task
  */
-void interface_init(interface_cfg_t *config);
+void interface_init();
 
 
-/**
- * @brief Dequeues received command packets from the RX buffer
- * @param data Buffer to store the dequeued data
- * @param len Pointer to variable that holds the length of the data buffer
- */
-esp_err_t interface_rx_dequeue(uint8_t* data, size_t* len);
 
 /**
  * @brief Gets the task handle of the interface dispatcher task

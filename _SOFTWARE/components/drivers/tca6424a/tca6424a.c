@@ -34,14 +34,14 @@
     if (__err_rc != ESP_OK) return __err_rc; \
 } while (0)
 
-#define CHECK_HANDLE(VAL) do { if (!(VAL)) return ESP_ERR_INVALID_ARG; } while (0)
+#define CHECK_HANDLE_R(VAL) do { if (!(VAL)) return ESP_ERR_INVALID_ARG; } while (0)
 
 static esp_err_t _tca_update_port(tca6424a_handle_t handle, uint8_t port){
     return (esp_err_t)tca_transmit(handle->i2c_dev_handle, (uint8_t[]){TCA6424A_REG_OUTPUT_PORT0 + port, handle->output[port]}, 2, 10);
 }
 
 static esp_err_t _tca_update_ports(tca6424a_handle_t handle){
-    CHECK_HANDLE(handle);
+    CHECK_HANDLE_R(handle);
     #if CONFIG_USE_MOCK_TCA6424A
     return tca_transmit(handle->i2c_dev_handle, (uint8_t[]){TCA6424A_REG_OUTPUT_PORT0 | TCA6424A_AUTO_INCREMENT, handle->output[0], handle->output[1], handle->output[2]}, 4, 10);
     #else
@@ -51,7 +51,7 @@ static esp_err_t _tca_update_ports(tca6424a_handle_t handle){
 
 
 static esp_err_t _tca_update_inputs(tca6424a_handle_t handle){
-    CHECK_HANDLE(handle);
+    CHECK_HANDLE_R(handle);
     #if GONFIG_USE_MOCK_TCA6424A
     return tca_transmit_receive(handle->i2c_dev_handle, (uint8_t[]){TCA6424A_REG_INPUT_PORT0 | TCA6424A_AUTO_INCREMENT}, 1, handle->last_read_input, 3, 10);
     #else
@@ -60,7 +60,7 @@ static esp_err_t _tca_update_inputs(tca6424a_handle_t handle){
 }
 
 static esp_err_t _tca_update_config(tca6424a_handle_t handle){
-    CHECK_HANDLE(handle);
+    CHECK_HANDLE_R(handle);
     return tca_transmit(handle->i2c_dev_handle, (uint8_t[]){TCA6424A_REG_CONFIG_PORT0 | TCA6424A_AUTO_INCREMENT, handle->config[0], handle->config[1], handle->config[2]}, 4, 10);
     #if CONFIG_USE_MOCK_TCA6424A
     return tca_transmit(handle->i2c_dev_handle, (uint8_t[]){TCA6424A_REG_CONFIG_PORT0 | TCA6424A_AUTO_INCREMENT, handle->config[0], handle->config[1], handle->config[2]}, 4, 10);
@@ -70,7 +70,7 @@ static esp_err_t _tca_update_config(tca6424a_handle_t handle){
 }
 
 static esp_err_t _tca_update_polarity(tca6424a_handle_t handle){
-    CHECK_HANDLE(handle);
+    CHECK_HANDLE_R(handle);
     #if CONFIG_USE_MOCK_TCA6424A
     return tca_transmit(handle->i2c_dev_handle, (uint8_t[]){TCA6424A_REG_POLARITY_PORT0 | TCA6424A_AUTO_INCREMENT, handle->polarity_cfg[0], handle->polarity_cfg[1], handle->polarity_cfg[2]}, 4, 10);
     #else

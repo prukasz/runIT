@@ -14,7 +14,7 @@
     if (__err_rc != ESP_OK) return __err_rc; \
 } while (0)
 
-#define CHECK_HANDLE(VAL) do { if (!(VAL)) return ESP_ERR_INVALID_ARG; } while (0)
+#define CHECK_HANDLE_R(VAL) do { if (!(VAL)) return ESP_ERR_INVALID_ARG; } while (0)
 /***************Helper Macros ***************************************/
 
 // Forward declaration

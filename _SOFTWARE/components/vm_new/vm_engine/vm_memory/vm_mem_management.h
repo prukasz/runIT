@@ -1,13 +1,12 @@
 #pragma once
 #include <stdint.h>
-
-#include "vm_config.h"
 #include "vm_variables.h"
-
+#define TYPES_CNT 8
+#define CONTEXTS_CNT 8
 
 typedef struct{
     uint8_t *_pool_start;
-    uint8_t *netx_free;
+    uint8_t *next_free;
     uint32_t size_cap;
 }vm_linear_allocator_t;
 

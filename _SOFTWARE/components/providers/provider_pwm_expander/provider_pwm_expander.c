@@ -5,10 +5,11 @@
 
 #define TAG __FILE_NAME__
 
-#define CHECK_HANDLE(VAL, ret_val) do { if (!(VAL)) return STA_C(IO_ERR_DEVICE_NOT_FOUND, OWNER_PROVIDER_PWM_EXPANDER, (ret_val)); } while (0)
-
+#undef OWNER
+#define OWNER OWNER_PROVIDER_PWM_EXPANDER
 static pca9685_handle_t _pca_handle = NULL;
 static bool _freeze = false;
+
 
 void* p_pca9685_new(uint8_t i2c_addr) {
     _pca_handle = pca9685_new(i2c_addr);
@@ -32,7 +33,7 @@ void p_pca9685_freeze(bool freeze) {
 }
 
 status_rep_t p_pca9685_configure(void) {
-    CHECK_HANDLE(_pca_handle, 0);
+    CHECK_HANDLE_R(_pca_handle);
     esp_err_t err = pca9685_enable_auto_increment(_pca_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to enable auto-increment on PCA9685 during configuration");
@@ -46,7 +47,7 @@ status_rep_t p_pca9685_configure(void) {
  ******************************************************************************/
 
 status_rep_t p_pca9685_pwm_set_duty(uint64_t pin_mask, uint32_t duty_cycle) {
-    CHECK_HANDLE(_pca_handle, 0);
+    CHECK_HANDLE_R(_pca_handle);
     // Zabezpieczenie przed przekroczeniem 12-bitowej rozdzielczości PCA9685
     if (duty_cycle > PCA9685_MAX_PWM_VALUE) {
         duty_cycle = PCA9685_MAX_PWM_VALUE;
@@ -66,7 +67,7 @@ status_rep_t p_pca9685_pwm_set_duty(uint64_t pin_mask, uint32_t duty_cycle) {
 }
 
 status_rep_t p_pca9685_pwm_set_freq(uint64_t pin_mask, uint32_t freq_hz) {
-    CHECK_HANDLE(_pca_handle, 0);
+    CHECK_HANDLE_R(_pca_handle);
     // Częstotliwość w PCA9685 jest globalna, więc ignorujemy pin_mask, ale zachowujemy spójność API
     (void)pin_mask; 
     esp_err_t err = pca9685_set_pwm_frequency(_pca_handle, (uint16_t)freq_hz);
@@ -90,7 +91,7 @@ status_rep_t p_pca9685_set_pins(uint64_t pin_mask, bool state) {
 }
 
 status_rep_t p_pca9685_toggle_pins(uint64_t pin_mask) {
-    CHECK_HANDLE(_pca_handle, 0);
+    CHECK_HANDLE_R(_pca_handle);
 
     for (uint8_t i = 0; i < PCA9685_CHANNEL_ALL; i++) {
         if (pin_mask & (1ULL << i)) {
@@ -111,7 +112,7 @@ status_rep_t p_pca9685_toggle_pins(uint64_t pin_mask) {
 
 
 status_rep_t p_pca9685_reset(void) {
-    CHECK_HANDLE(_pca_handle, 0);
+    CHECK_HANDLE_R(_pca_handle);
 
     /* Reset all PWM channels to 0 (off) */
     for (uint8_t i = 0; i < PCA9685_CHANNEL_ALL; i++) {

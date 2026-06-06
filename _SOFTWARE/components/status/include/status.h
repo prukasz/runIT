@@ -47,7 +47,9 @@ typedef struct{
 
 void _sta_push_overwrite(const status_rep_t *item);
 
-/*Error struct creation - for non VM scenarios*/
+/**
+ * @brief Non VM version
+ */
 #define _STA_X(_code, _owner, _origin_info, _severity) \
     (status_rep_t){ \
         .e_code = (_code), \
@@ -55,7 +57,6 @@ void _sta_push_overwrite(const status_rep_t *item);
         .track = { .origin_info = (_origin_info) }, \
         .details = { .severity = (_severity), ._reserved = 0 } \
     }
-/*Error struct creation - for non VM scenarios*/
 
 
 
@@ -66,37 +67,11 @@ void _sta_push_overwrite(const status_rep_t *item);
 
 /* Checking macros */
 #define STA_IS_OK(err)  (((err).e_code == 0) || ((err).details.severity == 0))
-
-/**
-# * @brief Macro to check a status_rep_t for error and return the status_rep_t
- * @param status The status_rep_t to check
- */
-#define STA_RET_ON_ERR(status) do { \
-    status_rep_t _sta_check = (status); \
-    if (!STA_IS_OK(_sta_check)) { \
-        return _sta_check; \
-    } \
-} while(0)
-
-#define STA_RP_ON_ERR(status) do { \
-    status_rep_t _sta_rp_check = (status); \
-    if (!STA_IS_OK(_sta_rp_check)) { \
-        STA_RP(_sta_rp_check); \
-    } \
-} while(0)
-
-
-#define STA_RET_ON_ESP_ERR(esp_err_expr, e_owner, origin_info) do { \
-    esp_err_t _esp_err = (esp_err_expr); \
-    if (_esp_err != ESP_OK) { \
-        return STA_C(_esp_err, (e_owner), (origin_info)); \
-    } \
-} while(0)
+#define STA_IS_ERR(err)  (((err).e_code != 0) && ((err).details.severity > 0))
 
 
 /**
  * @brief Macro to push a status_rep_t to the buffer
- * @param status The status_rep_t to push
  */
 #define STA_P(status) do { \
     status_rep_t _sta_p = (status); \
@@ -104,10 +79,7 @@ void _sta_push_overwrite(const status_rep_t *item);
 } while(0)
 
 /**
- * @brief Macro to create a status_rep_t from an esp_err_t expression and push it to the buffer, then return it
- * @param esp_err_expr Expression that evaluates to an esp_err_t
- * @param e_owner Enum value representing the owner of the error (status_origin_e)
- * @param origin_info Additional info about the error origin 
+ * @brief Return and Push if error
  */
 #define STA_RP(status) do { \
     status_rep_t _sta_rp = (status); \
@@ -116,26 +88,181 @@ void _sta_push_overwrite(const status_rep_t *item);
 } while(0)
 
 /**
- * @brief Macro to convert esp_err_t to status_rep_t with specified owner and origin info
- * @param esp_err_expr Expression that evaluates to an esp_err_t
- * @param e_owner Enum value representing the owner of the error (status_origin_e)
- * @param origin_info Additional info about the error origin 
+ * @brief Return if status is error, otherwise continue
  */
-#define STA_FROM_ESP(esp_err_expr, e_owner, origin_info) ({ \
+#define STA_R_ON_ERR(status) do { \
+    status_rep_t _sta_check = (status); \
+    if (_sta_check.e_code != 0) { \
+        return _sta_check; \
+    } \
+} while(0)
+
+/**
+ * @brief Push status to buffer if it's an error,cuontinue anyway
+ */
+#define STA_P_ON_ERR(status) do { \
+    status_rep_t _sta_p_check = (status); \
+    if (_sta_p_check.e_code != 0) { \
+        STA_P(_sta_p_check); \
+    } \
+} while(0)
+
+/**
+ * @brief Push status to buffer if it's an error and return, otherwise continue
+ */
+#define STA_RP_ON_ERR(status) do { \
+    status_rep_t _sta_rp_check = (status); \
+    if (_sta_rp_check.e_code != 0) { \
+        STA_RP(_sta_rp_check); \
+    } \
+} while(0)
+
+
+
+
+/**
+ * @brief Macro to wrap an esp_err_t call and convert it to status_rep_t
+ * @note OWNER required
+ * @note esp_err_t is stored in origin_info
+ */
+#define STA_FROM_ESP(esp_err_expr) ({ \
     esp_err_t _esp_err = (esp_err_expr); \
     status_rep_t _mapped_sta = STA_OK; \
     if (_esp_err != ESP_OK) { \
-        _mapped_sta = STA_C(_esp_err, (e_owner), (origin_info)); \
+        _mapped_sta = STA_C(ERR_ESP, OWNER, _esp_err); \
     } \
     _mapped_sta; \
 })
 
-#define STA_P_ON_ERR(status) do { \
-    status_rep_t _sta_p_check = (status); \
-    if (!STA_IS_OK(_sta_p_check)) { \
-        STA_P(_sta_p_check); \
+/**
+ * @brief Macro to check if status is ESP_ERR, mark as warning and add to buffer
+ * @note OWNER required, overrides severity to warning, return true if it's an ESP_ERR and was pushed to buffer, false otherwise
+ */
+#define STA_P_ON_ESP_ERR(status) ({ \
+    __typeof__(status) _s = (status); \
+    bool _is_esp_err = (_s.e_code == ERR_ESP); \
+    if (_is_esp_err) { \
+        _s.details.severity = 1; \
+        STA_P(_s); \
+    } \
+    _is_esp_err; \
+})
+
+
+
+/**
+ * @brief check if handle exists if not return error 
+ * @note OWNER required, returns ERR_MISSING_HANDLE if handle is NULL,
+ * @note LOGGING
+ */
+#define CHECK_HANDLE_R(handle) do { \
+    if ((handle) == NULL) { \
+        ESP_LOGE(__FILE_NAME__, "%s: No device handle for '%s'", __func__, #handle); \
+        return STA_C(ERR_MISSING_HANDLE, OWNER, 0); \
     } \
 } while(0)
+
+/**
+ * @brief check if ptr exists if not return error 
+ * @note OWNER required, returns ERR_INVALID_ARG if ptr is NULL,
+ * @note LOGGING
+ */
+#define CHECK_NOT_NULL_R(ptr) do { \
+    if ((ptr) == NULL) { \
+        ESP_LOGE(__FILE_NAME__, "%s: Pointer '%s' is NULL", __func__, #ptr); \
+        return STA_C(ERR_INVALID_ARG, OWNER, 0); \
+    } \
+} while(0)
+
+/**
+ * @brief check if arg in range else return error
+ * @note OWNER required, returns ERR_INVALID_ARG if out of range,
+ * @note LOGGING 
+ */
+#define CHECK_ARG_R(arg, min_val, max_val, override_return) do { \
+    __typeof__(arg) _a = (arg); \
+    __typeof__(min_val) _min = (min_val); \
+    __typeof__(max_val) _max = (max_val); \
+    \
+    if (_a < _min || _a > _max) { \
+        ESP_LOGE(__FILE_NAME__, "%s: Argument '%s' out of range [%lld, %lld] (Got: %lld)", \
+                 __func__, #arg, (int64_t)_min, (int64_t)_max, (int64_t)_a); \
+        return STA_C(ERR_INVALID_ARG, OWNER, (override_return) ?  (int64_t)(override_return) : (int64_t)_a); \
+    } \
+} while(0)
+
+/**
+ * @brief check if arg in range else return error and push to buffer
+ * @note OWNER required, returns ERR_INVALID_ARG if out of range,
+ * @note LOGGING
+ */
+#define CHECK_ARG_RP(arg, min_val, max_val, override_return) do { \
+    __typeof__(arg) _a = (arg); \
+    __typeof__(min_val) _min = (min_val); \
+    __typeof__(max_val) _max = (max_val); \
+    \
+    if (_a < _min || _a > _max) { \
+        ESP_LOGE(__FILE_NAME__, "%s: Argument '%s' out of range [%lld, %lld] (Got: %lld)", \
+                 __func__, #arg, (int64_t)_min, (int64_t)_max, (int64_t)_a); \
+        STA_RP(STA_C(ERR_INVALID_ARG, OWNER, (override_return) ?  (int64_t)(override_return) : (int64_t)_a)); \
+    } \
+} while(0)
+
+/**
+ * @brief check if is returned esp_err if yes then wrap into status and return
+ * @note OWNER required, returns ERR_ESP if esp_err is not ESP_OK,
+ * @note LOGGING
+ */
+#define CHECK_ESP_CALL_R(esp_err_call) do { \
+    esp_err_t _err = (esp_err_call); \
+    if (_err != ESP_OK) { \
+        ESP_LOGE(__FILE_NAME__, "%s: ESP API Failed '%s' -> %s (0x%x)", \
+                 __func__, #esp_err_call, esp_err_to_name(_err), _err); \
+        return STA_C(ERR_ESP, OWNER, _err); \
+    } \
+} while(0)
+
+/**
+ * @brief check if is returned esp_err if yes then wrap into status and return
+ * @note OWNER required, returns ERR_ESP if esp_err is not ESP_OK,
+ * @note LOGGING
+ */
+#define CHECK_ESP_CALL_P(esp_err_call) do { \
+    esp_err_t _err = (esp_err_call); \
+    if (_err != ESP_OK) { \
+        ESP_LOGE(__FILE_NAME__, "%s: ESP API Failed '%s' -> %s (0x%x)", \
+                 __func__, #esp_err_call, esp_err_to_name(_err), _err); \
+        STA_P(STA_C(ERR_ESP, OWNER, _err)); \
+    } \
+} while(0)
+
+/**
+ * @brief check if is returned esp_err if yes then wrap into status and return
+ * @note OWNER required, returns ERR_ESP if esp_err is not ESP_OK,
+ * @note LOGGING
+ */
+#define CHECK_ESP_CALL_RP(esp_err_call) do { \
+    esp_err_t _err = (esp_err_call); \
+    if (_err != ESP_OK) { \
+        ESP_LOGE(__FILE_NAME__, "%s: ESP API Failed '%s' -> %s (0x%x)", \
+                 __func__, #esp_err_call, esp_err_to_name(_err), _err); \
+        STA_RP(STA_C(ERR_ESP, OWNER, _err)); \
+    } \
+} while(0)
+
+
+/**
+ * clamp to min max
+ */
+#define CLAMP(val, min_val, max_val) ({ \
+    __typeof__(val) _val = (val); \
+    __typeof__(min_val) _min = (min_val); \
+    __typeof__(max_val) _max = (max_val); \
+    (_val < _min) ? (__typeof__(val))_min : \
+    (_val > _max) ? (__typeof__(val))_max : _val; \
+})
+
+
 
 void status_assign_buffer(RingbufHandle_t status_buffer, QueueHandle_t status_queue);
 void status_set_rep_mode(bool rep_i, bool rep_w, bool rep_c);

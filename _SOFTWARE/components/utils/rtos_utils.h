@@ -8,6 +8,8 @@
 #include "freertos/stream_buffer.h"
 #include "freertos/message_buffer.h"
 #include "freertos/ringbuf.h"
+#include "sdkconfig.h"
+
 
 #ifdef __cplusplus
 extern "C" {

@@ -4,7 +4,7 @@
 
 #define TAG __FILE_NAME__
 
-#define INA3221_I2C_TIMEOUT 20 //ms
+#define INA3221_I2C_TIMEOUT 40 //ms
 #define I2C_FREQ_HZ 400000  // 1000khz possible
 
 #define INA3221_REG_CONFIG                      (0x00)
@@ -26,7 +26,7 @@ void ina3221_task(void *arg);
     if (__err_rc != ESP_OK) return __err_rc; \
 } while (0)
 
-#define CHECK_HANDLE(VAL) do { if (!(VAL)) return ESP_ERR_INVALID_ARG; } while (0)
+#define CHECK_HANDLE_R(VAL) do { if (!(VAL)) return ESP_ERR_INVALID_ARG; } while (0)
 
 /*************Helper macros ***************************************/
 
@@ -36,7 +36,7 @@ void ina3221_task(void *arg);
 
 static esp_err_t _ina3221_read(ina3221_handle_t handle, const uint8_t reg, uint16_t * val)
 {
-    CHECK_HANDLE(val);
+    CHECK_HANDLE_R(val);
     RETURN_ON_ERROR(i2c_master_transmit_receive(handle->i2c_master_dev_handle, (uint8_t[]){reg}, 1, (uint8_t*)val, 2, INA3221_I2C_TIMEOUT));
     *val = (*val >> 8) | (*val << 8);  // Swap
     return ESP_OK;
@@ -44,7 +44,7 @@ static esp_err_t _ina3221_read(ina3221_handle_t handle, const uint8_t reg, uint1
 
 static esp_err_t _ina3221_write(ina3221_handle_t handle, uint8_t reg, uint16_t val)
 {
-    CHECK_HANDLE(handle);
+    CHECK_HANDLE_R(handle);
     uint8_t buf[3];
     buf[0] = reg;
     buf[1] = (val >> 8) & 0xFF; 
@@ -244,7 +244,7 @@ esp_err_t ina3221_get_sum_shunt_value(ina3221_handle_t handle, bool immediate)
 
 esp_err_t ina3221_cfg_periodic_reading(ina3221_handle_t handle, bool bus_voltage, bool current, bool current_sum)
 {
-    CHECK_HANDLE(handle);
+    CHECK_HANDLE_R(handle);
     handle->to_update.read_bus_voltage = bus_voltage;
     handle->to_update.read_bus_voltage_periodic = bus_voltage;
     handle->to_update.read_current = current;
