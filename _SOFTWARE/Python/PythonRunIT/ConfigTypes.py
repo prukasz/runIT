@@ -38,6 +38,10 @@ class cfg_log_t(ct.LittleEndianStructure):
         ("mirror_on_serial", ct.c_bool),
         ("esp_log_level", ct.c_uint8),
     ]
+    _hints_ = {
+        "esp_log_level": cfg_log_level_e,
+    }
+    _packet_header_ = cfg_sys_packet_type_e.CFG_SYS_TYPE_LOG_CONFIG
 
 # ============================================================================
 # CONFIG_IO CONFIGURATION STRUCTURES
@@ -76,6 +80,10 @@ class cfg_io_gpio_mode_t(ct.LittleEndianStructure):
         ("pin_id", ct.c_uint32),
         ("mode", ct.c_uint32),
     ]
+    _hints_ = {
+        "mode": cfg_io_gpio_mode_e,
+    }
+    _packet_header_ = cfg_io_packet_type_e.CFG_IO_TYPE_GPIO_MODE
 
 class cfg_gpio_intr_mode_t(ct.LittleEndianStructure):
     _pack_ = 1
@@ -83,12 +91,17 @@ class cfg_gpio_intr_mode_t(ct.LittleEndianStructure):
         ("pin_id", ct.c_uint32),
         ("cfg_gpio_intr_mode", ct.c_uint32),
     ]
+    _hints_ = {
+        "cfg_gpio_intr_mode": cfg_gpio_intr_mode_e,
+    }
+    _packet_header_ = cfg_io_packet_type_e.CFG_IO_TYPE_GPIO_INTERRUPT
 
 class cfg_io_gpio_reset_t(ct.LittleEndianStructure):
     _pack_ = 1
     _fields_ = [
         ("pin_id", ct.c_uint32),
     ]
+    _packet_header_ = cfg_io_packet_type_e.CFG_IO_TYPE_GPIO_RESET
 
 class cfg_io_gpio_adc_alert_t(ct.LittleEndianStructure):
     _pack_ = 1
@@ -100,6 +113,10 @@ class cfg_io_gpio_adc_alert_t(ct.LittleEndianStructure):
         ("adc_event_counter_threshold", ct.c_uint32),
         ("adc_window_mode", ct.c_uint32),
     ]
+    _hints_ = {
+        "adc_window_mode": cfg_io_adc_window_mode_e,
+    }
+    _packet_header_ = cfg_io_packet_type_e.CFG_IO_TYPE_GPIO_ADC_ALERT
 
 class cfg_io_gpio_pwm_freq_t(ct.LittleEndianStructure):
     _pack_ = 1
@@ -107,6 +124,7 @@ class cfg_io_gpio_pwm_freq_t(ct.LittleEndianStructure):
         ("pin_id", ct.c_uint64),
         ("freq_hz", ct.c_uint32),
     ]
+    _packet_header_ = cfg_io_packet_type_e.CFG_IO_TYPE_GPIO_PWM_FREQ
 
 # ============================================================================
 # CONFIG_POWER CONFIGURATION STRUCTURES
@@ -134,6 +152,7 @@ class cfg_pwr_reg_en_t(ct.LittleEndianStructure):
         ("en_reg_0", ct.c_uint8),
         ("en_reg_1", ct.c_uint8),
     ]
+    _packet_header_ = cfg_pwr_packet_type_e.CFG_PWR_TYPE_REG_EN
 
 class cfg_pwr_reg_settings_t(ct.LittleEndianStructure):
     _pack_ = 1
@@ -143,6 +162,7 @@ class cfg_pwr_reg_settings_t(ct.LittleEndianStructure):
         ("current_limit_reg_0_mA", ct.c_uint32),
         ("current_limit_reg_1_mA", ct.c_uint32),
     ]
+    _packet_header_ = cfg_pwr_packet_type_e.CFG_PWR_TYPE_REG_SETTINGS
 
 class cfg_pwr_reg_limits_t(ct.LittleEndianStructure):
     _pack_ = 1
@@ -152,6 +172,7 @@ class cfg_pwr_reg_limits_t(ct.LittleEndianStructure):
         ("power_warning_reg_1_mW", ct.c_uint32),
         ("power_critical_reg_1_mW", ct.c_uint32),
     ]
+    _packet_header_ = cfg_pwr_packet_type_e.CFG_PWR_TYPE_REG_LIMITS
 
 class cfg_pwr_reg_behavior_t(ct.LittleEndianStructure):
     _pack_ = 1
@@ -163,6 +184,15 @@ class cfg_pwr_reg_behavior_t(ct.LittleEndianStructure):
         ("behavior_reg1_ocp", ct.c_uint8),
         ("behavior_reg1_scp", ct.c_uint8),
     ]
+    _hints_ = {
+        "behavior_reg0_ovp": cfg_pwr_error_behavior_e,
+        "behavior_reg0_ocp": cfg_pwr_error_behavior_e,
+        "behavior_reg0_scp": cfg_pwr_error_behavior_e,
+        "behavior_reg1_ovp": cfg_pwr_error_behavior_e,
+        "behavior_reg1_ocp": cfg_pwr_error_behavior_e,
+        "behavior_reg1_scp": cfg_pwr_error_behavior_e,
+    }
+    _packet_header_ = cfg_pwr_packet_type_e.CFG_PWR_TYPE_REG_BEHAVIOR
 
 class cfg_pwr_supply_t(ct.LittleEndianStructure):
     _pack_ = 1
@@ -176,6 +206,7 @@ class cfg_pwr_supply_t(ct.LittleEndianStructure):
         ("input_voltage_to_negotiate_mv", ct.c_uint32),
         ("input_current_to_negotiate_ma", ct.c_uint32),
     ]
+    _packet_header_ = cfg_pwr_packet_type_e.CFG_PWR_TYPE_SUPPLY
 
 class cfg_pwr_current_behavior_t(ct.LittleEndianStructure):
     _pack_ = 1
@@ -187,3 +218,12 @@ class cfg_pwr_current_behavior_t(ct.LittleEndianStructure):
         ("behavior_current_SYS_PWR_WARN", ct.c_uint8),
         ("behavior_current_SYS_PWR_CRIT", ct.c_uint8),
     ]
+    _hints_ = {
+        "behavior_current_REG0_WARN": cfg_pwr_error_behavior_e,
+        "behavior_current_REG0_CRIT": cfg_pwr_error_behavior_e,
+        "behavior_current_REG1_WARN": cfg_pwr_error_behavior_e,
+        "behavior_current_REG1_CRIT": cfg_pwr_error_behavior_e,
+        "behavior_current_SYS_PWR_WARN": cfg_pwr_error_behavior_e,
+        "behavior_current_SYS_PWR_CRIT": cfg_pwr_error_behavior_e,
+    }
+    _packet_header_ = cfg_pwr_packet_type_e.CFG_PWR_TYPE_CURRENT_BEHAVIOR

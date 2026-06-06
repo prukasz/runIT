@@ -26,8 +26,8 @@ typedef enum {
 typedef struct __attribute__((packed)){
     bool enable_stream;
     bool mirror_on_serial;
-    uint8_t esp_log_level;
-} cfg_log_t;
+    uint8_t esp_log_level; //@cfg_log_level_e
+} cfg_log_t; //@cfg_sys_packet_type_e CFG_SYS_TYPE_LOG_CONFIG
 
 
 status_rep_t cfg_sys_process_packet(const uint8_t* packet_data, uint16_t packet_len);

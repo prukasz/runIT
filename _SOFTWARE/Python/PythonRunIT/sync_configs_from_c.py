@@ -132,10 +132,11 @@ def parse_enum_fields(body: str) -> List[EnumField]:
 # ============================================================================
 
 class StructField:
-    def __init__(self, c_type: str, name: str, bitwidth: Optional[int] = None):
+    def __init__(self, c_type: str, name: str, bitwidth: Optional[int] = None, enum_hint: Optional[str] = None):
         self.c_type = c_type.strip()
         self.name = name.strip()
         self.bitwidth = bitwidth
+        self.enum_hint = enum_hint.strip() if enum_hint else None
 
     def to_ctypes(self) -> str:
         ct_type = C_TYPE_MAP.get(self.c_type, f"ct.c_uint32  # Unknown: {self.c_type}")
@@ -149,9 +150,11 @@ class StructField:
         return f"StructField({self.name}: {self.c_type}, bitwidth={self.bitwidth})"
 
 class StructDefinition:
-    def __init__(self, name: str, fields: List[StructField]):
+    def __init__(self, name: str, fields: List[StructField], packet_header_enum: Optional[str] = None, packet_header_val: Optional[str] = None):
         self.name = name
         self.fields = fields
+        self.packet_header_enum = packet_header_enum
+        self.packet_header_val = packet_header_val
 
     def to_python_class(self) -> str:
         lines = [f"class {self.name}(ct.LittleEndianStructure):"]
@@ -163,6 +166,18 @@ class StructDefinition:
             lines.append(f"        {field.to_ctypes()},")
         
         lines.append("    ]")
+        
+        # Generowanie słownika hintów dla GUI/CLI
+        hints = [f for f in self.fields if f.enum_hint]
+        if hints:
+            lines.append("    _hints_ = {")
+            for field in hints:
+                lines.append(f'        "{field.name}": {field.enum_hint},')
+            lines.append("    }")
+            
+        if self.packet_header_enum and self.packet_header_val:
+            lines.append(f"    _packet_header_ = {self.packet_header_enum}.{self.packet_header_val}")
+            
         lines.append("")
         
         return "\n".join(lines)
@@ -193,38 +208,36 @@ def extract_struct_definition(text: str, start_pos: int) -> Optional[Tuple[Struc
     
     struct_body = text[brace_start + 1:pos - 1]
     
-    closing_match = re.search(r'}\s*(\w+)\s*;', text[pos - 1:])
+    closing_match = re.search(r'}\s*(\w+)\s*;\s*(?://@\s*(\w+)\s+(\w+))?', text[pos - 1:])
     if not closing_match:
         return None
     
     struct_name = closing_match.group(1)
+    packet_header_enum = closing_match.group(2)
+    packet_header_val = closing_match.group(3)
     end_pos = pos - 1 + closing_match.end()
     
     fields = parse_struct_fields(struct_body)
     
-    return StructDefinition(struct_name, fields), end_pos
+    return StructDefinition(struct_name, fields, packet_header_enum, packet_header_val), end_pos
 
 def parse_struct_fields(body: str) -> List[StructField]:
     fields = []
     
-    body_no_comments = re.sub(r'//.*?$', '', body, flags=re.MULTILINE)
-    body_no_comments = re.sub(r'/\*.*?\*/', '', body_no_comments, flags=re.DOTALL)
+    # Usuwamy tylko wielolinijkowe komentarze, aby nie wpaść w pułapkę
+    body_no_comments = re.sub(r'/\*.*?\*/', '', body, flags=re.DOTALL)
     
-    field_lines = body_no_comments.split(';')
+    # Szukamy wzorca: [Typ] [Nazwa][Opcjonalny rozmiar bitowy] ; [Opcjonalnie: //@nazwa_enuma]
+    pattern = r'(\w+(?:\s+\w+)*?)\s+(\w+)(?:\s*:\s*(\d+))?\s*;\s*(?://@\s*(\w+))?'
     
-    for line in field_lines:
-        line = line.strip()
-        if not line or line.startswith('struct'):
-            continue
+    for match in re.finditer(pattern, body_no_comments):
+        c_type = match.group(1).strip()
+        if c_type == 'struct': continue
+        field_name = match.group(2).strip()
+        bitwidth = int(match.group(3)) if match.group(3) else None
+        enum_hint = match.group(4)
         
-        match = re.match(r'(\w+(?:\s+\w+)*?)\s+(\w+)(?:\s*:\s*(\d+))?$', line)
-        
-        if match:
-            c_type = match.group(1).strip()
-            field_name = match.group(2).strip()
-            bitwidth = int(match.group(3)) if match.group(3) else None
-            
-            fields.append(StructField(c_type, field_name, bitwidth))
+        fields.append(StructField(c_type, field_name, bitwidth, enum_hint))
     
     return fields
 

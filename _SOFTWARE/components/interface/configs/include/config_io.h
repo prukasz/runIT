@@ -35,18 +35,18 @@ typedef enum{
 
 typedef struct __attribute__((packed)){
     uint32_t pin_id;
-    uint32_t mode; 
-}cfg_io_gpio_mode_t;
+    uint32_t mode; //@cfg_io_gpio_mode_e
+}cfg_io_gpio_mode_t; //@cfg_io_packet_type_e CFG_IO_TYPE_GPIO_MODE
 
 
 typedef struct __attribute__((packed)){
     uint32_t pin_id;
-    uint32_t cfg_gpio_intr_mode;
-}cfg_gpio_intr_mode_t;
+    uint32_t cfg_gpio_intr_mode; //@cfg_gpio_intr_mode_e
+}cfg_gpio_intr_mode_t; //@cfg_io_packet_type_e CFG_IO_TYPE_GPIO_INTERRUPT
 
 typedef struct __attribute__((packed)){
     uint32_t pin_id;
-}cfg_io_gpio_reset_t;
+}cfg_io_gpio_reset_t; //@cfg_io_packet_type_e CFG_IO_TYPE_GPIO_RESET
 
 
 typedef struct __attribute__((packed)){
@@ -55,12 +55,12 @@ typedef struct __attribute__((packed)){
     uint32_t adc_threshold_down_mv;
     uint32_t adc_threshold_hysteresis_mv;
     uint32_t adc_event_counter_threshold;  
-    uint32_t adc_window_mode;     
-}cfg_io_gpio_adc_alert_t;
+    uint32_t adc_window_mode; //@cfg_io_adc_window_mode_e
+}cfg_io_gpio_adc_alert_t; //@cfg_io_packet_type_e CFG_IO_TYPE_GPIO_ADC_ALERT
 
 typedef struct __attribute__((packed)){
     uint64_t pin_id;
     uint32_t freq_hz;
-}cfg_io_gpio_pwm_freq_t;
+}cfg_io_gpio_pwm_freq_t; //@cfg_io_packet_type_e CFG_IO_TYPE_GPIO_PWM_FREQ
 
 status_rep_t cfg_io_process_packet(const uint8_t* packet_data, uint16_t packet_len);
