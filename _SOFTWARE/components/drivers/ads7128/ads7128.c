@@ -211,7 +211,6 @@ esp_err_t ads_analog_ch_read(ads_handle_t handle, uint8_t pin_mask, bool update_
 {
     if (!handle) return ESP_ERR_INVALID_ARG;
     uint8_t pin = __builtin_ctz(pin_mask); // Get index of least significant set bit
-    if (pin > 7) return ESP_ERR_INVALID_ARG;
 
     memcpy(&handle->read_analog, &pin_mask, sizeof(uint8_t));
 

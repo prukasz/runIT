@@ -21,3 +21,5 @@ i2c_device_config_t* p_adc_expander_get_i2c_dev_config();
  * @return Status code
  */
 status_rep_t p_adc_expander_reset_all(void);
+
+void p_adc_expander_set_port_id(uint8_t port_id);

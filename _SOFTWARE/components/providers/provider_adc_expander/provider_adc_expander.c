@@ -8,6 +8,11 @@
 
 static ads_handle_t _ads_handle = NULL;
 static bool _freeze = false;
+static uint8_t my_port_id = 0xFF;
+
+void p_adc_expander_set_port_id(uint8_t port_id){
+    my_port_id = port_id;
+}
 
 
 static inline uint16_t clamp_uint16(uint16_t val, uint16_t min, uint16_t max) {
@@ -26,9 +31,18 @@ void p_adc_expander_freeze(bool freeze){
     _freeze = freeze;
 }
 
-status_rep_t p_adc_expander_read_voltage(uint64_t pin_mask, uint32_t* out_mv, uint8_t max_results_num)
-{
+status_rep_t p_adc_expander_read_voltage(uint64_t pin_mask, uint32_t* out_mv, uint8_t max_results_num){
     CHECK_HANDLE_R(_ads_handle);
+    
+    if (pin_mask & 0xFFFFFFFFFFFFFF00) {
+        pin_mask &= 0xFFFFFFFFFFFFFF00;
+        for(uint8_t i = 0; i < 64; i++){
+            if(pin_mask & (1ULL << i)){
+                return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_ADC_EXPANDER, SYS_IO_MAKE_INFO(my_port_id, i, 0));
+            }
+            }
+    }
+
     CHECK_ESP_CALL_R(ads_analog_ch_read(_ads_handle, (uint8_t)pin_mask, !_freeze));
     
     uint8_t pos = 0;
@@ -110,4 +124,3 @@ TaskHandle_t p_adc_expander_get_task_handle(){
 i2c_device_config_t* p_adc_expander_get_i2c_dev_config(){
     return &_ads_handle->i2c_dev_config;
 }
-

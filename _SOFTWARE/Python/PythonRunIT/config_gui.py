@@ -80,9 +80,8 @@ class ConfigGUI(tk.Tk):
         
         ttk.Label(packet_frame, text="Typ Payloadu:").grid(row=2, column=0, padx=10, pady=5, sticky=tk.E)
         self.struct_var = tk.StringVar()
-        self.struct_cb = ttk.Combobox(packet_frame, textvariable=self.struct_var, state="readonly", width=40)
-        self.struct_cb.grid(row=2, column=1, padx=10, pady=5, sticky=tk.W)
-        self.struct_cb.bind("<<ComboboxSelected>>", self.on_struct_select)
+        self.struct_entry = ttk.Entry(packet_frame, textvariable=self.struct_var, state="readonly", width=43)
+        self.struct_entry.grid(row=2, column=1, padx=10, pady=5, sticky=tk.W)
 
         # === ŚRODEK 2: Formularz ze zmiennymi ===
         self.form_frame = ttk.LabelFrame(self, text="Dane Payloadu")
@@ -104,7 +103,6 @@ class ConfigGUI(tk.Tk):
             name: cls for name, cls in inspect.getmembers(ConfigTypes, inspect.isclass)
             if issubclass(cls, ct.LittleEndianStructure) and cls is not ct.LittleEndianStructure
         }
-        self.struct_cb['values'] = ["[Brak Payloadu]"] + list(self.all_structs.keys())
         
         if self.major_cb['values']:
             self.major_cb.current(0)
@@ -122,6 +120,7 @@ class ConfigGUI(tk.Tk):
         if "PWR" in major_name: return ConfigTypes.cfg_pwr_packet_type_e
         if "IO" in major_name: return ConfigTypes.cfg_io_packet_type_e
         if "SYS" in major_name: return ConfigTypes.cfg_sys_packet_type_e
+        if "TESTS" in major_name: return ConfigTypes.cfg_test_packet_type_e
         return None
 
     def on_major_select(self, event):
@@ -162,11 +161,7 @@ class ConfigGUI(tk.Tk):
                 elif "SYSTEM_CTRL" in minor_name: best_match = "cfg_system_ctrl_t"
                 elif "VM_" in minor_name or "DEFAULT" in minor_name: best_match = "[Brak Payloadu]"
         
-        if best_match in self.struct_cb['values']:
-            self.struct_var.set(best_match)
-        else:
-            self.struct_var.set("[Brak Payloadu]")
-            
+        self.struct_var.set(best_match)
         self.on_struct_select(None)
 
     def on_struct_select(self, event):
@@ -188,20 +183,58 @@ class ConfigGUI(tk.Tk):
             
             ttk.Label(self.form_frame, text=field_name + ":").grid(row=i, column=0, padx=10, pady=4, sticky=tk.E)
             
-            var = tk.StringVar()
-            self.field_vars[field_name] = (var, field_type)
+            if "pin_id" in field_name:
+                pin_frame = ttk.Frame(self.form_frame)
+                pin_frame.grid(row=i, column=1, padx=10, pady=4, sticky=tk.W)
+
+                port_var = tk.StringVar(value="0")
+                pin_num_var = tk.StringVar(value="0")
+                
+                ttk.Label(pin_frame, text="Port:").pack(side=tk.LEFT)
+                port_entry = ttk.Entry(pin_frame, textvariable=port_var, width=5)
+                port_entry.pack(side=tk.LEFT, padx=(0, 5))
+
+                ttk.Label(pin_frame, text="Pin:").pack(side=tk.LEFT)
+                pin_num_entry = ttk.Entry(pin_frame, textvariable=pin_num_var, width=5)
+                pin_num_entry.pack(side=tk.LEFT, padx=(0, 10))
+
+                calc_label_var = tk.StringVar()
+                ttk.Label(pin_frame, text="=").pack(side=tk.LEFT)
+                calc_label = ttk.Label(pin_frame, textvariable=calc_label_var, font=("Consolas", 9), foreground="blue")
+                calc_label.pack(side=tk.LEFT, padx=5)
+
+                def update_pin_id(*args):
+                    try:
+                        port = int(port_var.get() or "0")
+                        pin = int(pin_num_var.get() or "0")
+                        pin_id = (port << 8) | pin
+                        calc_label_var.set(f"{pin_id} (0x{pin_id:04X})")
+                    except ValueError:
+                        calc_label_var.set("Błąd")
+
+                port_var.trace_add("write", update_pin_id)
+                pin_num_var.trace_add("write", update_pin_id)
+                update_pin_id()
+
+                self.field_vars[field_name] = ((port_var, pin_num_var), field_type)
             
-            if field_name in hints:
+            elif field_name in hints:
+                var = tk.StringVar()
+                self.field_vars[field_name] = (var, field_type)
                 enum_cls = hints[field_name]
                 enum_names = [e.name for e in enum_cls]
                 cb = ttk.Combobox(self.form_frame, textvariable=var, values=enum_names, state="readonly", width=42)
                 if enum_names: cb.current(0)
                 cb.grid(row=i, column=1, padx=10, pady=4, sticky=tk.W)
             elif field_type == ct.c_bool:
+                var = tk.StringVar()
+                self.field_vars[field_name] = (var, field_type)
                 cb = ttk.Combobox(self.form_frame, textvariable=var, values=["False", "True"], state="readonly", width=42)
                 cb.current(0)
                 cb.grid(row=i, column=1, padx=10, pady=4, sticky=tk.W)
             else:
+                var = tk.StringVar()
+                self.field_vars[field_name] = (var, field_type)
                 ent = ttk.Entry(self.form_frame, textvariable=var, width=45)
                 ent.insert(0, "0")
                 ent.grid(row=i, column=1, padx=10, pady=4, sticky=tk.W)
@@ -226,6 +259,19 @@ class ConfigGUI(tk.Tk):
             inst = struct_cls()
             
             for field_name, (var, f_type) in self.field_vars.items():
+                # Specjalna obsługa kalkulatora pin_id
+                if isinstance(var, tuple):
+                    port_var, pin_num_var = var
+                    try:
+                        port = int(port_var.get() or "0")
+                        pin = int(pin_num_var.get() or "0")
+                        pin_id = (port << 8) | pin
+                        setattr(inst, field_name, pin_id)
+                        continue # Przejdź do następnego pola
+                    except ValueError:
+                        self.log(f"Błąd: Nieprawidłowy numer portu lub pinu dla '{field_name}'")
+                        return
+
                 val_str = var.get().strip()
                 if not val_str:
                     self.log(f"Błąd: Wypełnij pole '{field_name}'")

@@ -3,6 +3,7 @@
 #include "config_sys.h"
 #include "config_io.h"
 #include "config_power.h"
+#include "config_tests.h"
 #include "rik_tx_rx.h"
 #include "rtos_utils.h"
 
@@ -18,6 +19,7 @@ static interface_parse_func parse_dispatch_table[256] = {
     [PACKET_H_CFG_PWR] = cfg_pwr_process_packet,
     [PACKET_H_CFG_IO] = cfg_io_process_packet,
     [PACKET_H_CFG_SYS] = cfg_sys_process_packet,
+    [PACKET_H_CFG_TESTS] = cfg_tests_process_packet,
 };
 
 

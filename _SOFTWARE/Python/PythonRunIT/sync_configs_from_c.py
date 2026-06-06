@@ -15,6 +15,7 @@ HEADER_SOURCES = [
     PROJECT_ROOT / "components" / "interface"/ "configs" /"include"/ "config_sys.h",
     PROJECT_ROOT / "components" / "interface"/ "configs" /"include"/ "config_io.h",
     PROJECT_ROOT / "components" / "interface"/ "configs" /"include"/ "config_power.h",
+    PROJECT_ROOT / "components" / "interface"/ "configs" /"include"/ "config_tests.h",
     
 ]
 

@@ -246,7 +246,9 @@ status_rep_t rik_adc_expander_start(uint8_t i2c_addres, bool bus_num){
         },
         &rik_adc_expander_port_id
     ));
-
+    
+    p_adc_expander_set_port_id(rik_adc_expander_port_id);
+ 
 #if CONFIG_USE_MOCK_ADS7128
     ads_mock_add_alert_callback(p_adc_expander_intr_pin_callback, adc_expander_handle);
 #endif
