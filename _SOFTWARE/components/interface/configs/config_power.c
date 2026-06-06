@@ -90,6 +90,34 @@ status_rep_t cfg_pwr_process_packet(const uint8_t* packet_data, uint16_t packet_
             prev_cfg->crt_current_SYS_PWR_WARN = settings.behavior_current_SYS_PWR_WARN;
             CHECK_AND_RETURN(r);
         }
+        case CFG_PWR_TYPE_GET_REG_VOLTAGE: {
+            cfg_pwr_get_reg_voltage_t settings;
+            memcpy(&settings, packet_data + 1, sizeof(cfg_pwr_get_reg_voltage_t));
+            uint32_t val = 0;
+            r = sys_pwr_get_bus_voltage(settings.regulator_num, &val);
+            ESP_LOGI(TAG, "sys_pwr_get_bus_voltage reg=%d -> %lu mV", settings.regulator_num, (unsigned long)val);
+            CHECK_AND_RETURN(r);
+        }
+        case CFG_PWR_TYPE_GET_REG_CURRENT: {
+            cfg_pwr_get_reg_current_t settings;
+            memcpy(&settings, packet_data + 1, sizeof(cfg_pwr_get_reg_current_t));
+            int32_t val = 0;
+            r = sys_pwr_get_bus_current(settings.regulator_num, &val);
+            ESP_LOGI(TAG, "sys_pwr_get_bus_current reg=%d -> %ld mA", settings.regulator_num, (long)val);
+            CHECK_AND_RETURN(r);
+        }
+        case CFG_PWR_TYPE_GET_SYS_VOLTAGE: {
+            uint32_t val = 0;
+            r = sys_pwr_get_bus_voltage(RIK_CHANNEL_TOTAL, &val);
+            ESP_LOGI(TAG, "sys_pwr_get_bus_voltage (SYS) -> %lu mV", (unsigned long)val);
+            CHECK_AND_RETURN(r);
+        }
+        case CFG_PWR_TYPE_GET_SYS_CURRENT: {
+            int32_t val = 0;
+            r = sys_pwr_get_bus_current(RIK_CHANNEL_TOTAL, &val);
+            ESP_LOGI(TAG, "sys_pwr_get_bus_current (SYS) -> %ld mA", (long)val);
+            CHECK_AND_RETURN(r);
+        }
         default:
         return STA_W(PWE_ERR_PARSE_NOT_FOUND, OWNER_MANAGER_PWR_PARSE_PACKET, packet_data[0]);
     }

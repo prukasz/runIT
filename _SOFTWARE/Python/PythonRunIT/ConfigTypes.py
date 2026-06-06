@@ -52,6 +52,12 @@ class cfg_io_packet_type_e(IntEnum):
     CFG_IO_TYPE_GPIO_INTERRUPT = 2
     CFG_IO_TYPE_GPIO_PWM_FREQ = 3
     CFG_IO_TYPE_GPIO_RESET = 4
+    CFG_IO_TYPE_GPIO_SET_LEVEL = 5
+    CFG_IO_TYPE_GPIO_GET_LEVEL = 6
+    CFG_IO_TYPE_GPIO_TOGGLE = 7
+    CFG_IO_TYPE_ADC_READ_MV = 8
+    CFG_IO_TYPE_GPIO_PWM_DUTY = 9
+    CFG_IO_TYPE_RESET_ALL = 10
 
 class cfg_io_adc_window_mode_e(IntEnum):
     OUTSIDE_WINDOW = 0
@@ -125,6 +131,43 @@ class cfg_io_gpio_pwm_freq_t(ct.LittleEndianStructure):
     ]
     _packet_header_ = cfg_io_packet_type_e.CFG_IO_TYPE_GPIO_PWM_FREQ
 
+class cfg_io_gpio_set_level_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("pin_id", ct.c_uint32),
+        ("level", ct.c_bool),
+    ]
+    _packet_header_ = cfg_io_packet_type_e.CFG_IO_TYPE_GPIO_SET_LEVEL
+
+class cfg_io_gpio_get_level_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("pin_id", ct.c_uint32),
+    ]
+    _packet_header_ = cfg_io_packet_type_e.CFG_IO_TYPE_GPIO_GET_LEVEL
+
+class cfg_io_gpio_toggle_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("pin_id", ct.c_uint32),
+    ]
+    _packet_header_ = cfg_io_packet_type_e.CFG_IO_TYPE_GPIO_TOGGLE
+
+class cfg_io_adc_read_mv_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("pin_id", ct.c_uint32),
+    ]
+    _packet_header_ = cfg_io_packet_type_e.CFG_IO_TYPE_ADC_READ_MV
+
+class cfg_io_gpio_pwm_duty_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("pin_id", ct.c_uint64),
+        ("duty_cycle", ct.c_uint32),
+    ]
+    _packet_header_ = cfg_io_packet_type_e.CFG_IO_TYPE_GPIO_PWM_DUTY
+
 # ============================================================================
 # CONFIG_POWER CONFIGURATION STRUCTURES
 # ============================================================================
@@ -136,6 +179,10 @@ class cfg_pwr_packet_type_e(IntEnum):
     CFG_PWR_TYPE_REG_BEHAVIOR = 4
     CFG_PWR_TYPE_SUPPLY = 11
     CFG_PWR_TYPE_CURRENT_BEHAVIOR = 13
+    CFG_PWR_TYPE_GET_REG_VOLTAGE = 14
+    CFG_PWR_TYPE_GET_REG_CURRENT = 15
+    CFG_PWR_TYPE_GET_SYS_VOLTAGE = 16
+    CFG_PWR_TYPE_GET_SYS_CURRENT = 17
 
 class cfg_pwr_error_behavior_e(IntEnum):
     AUTOMATIC = 0
@@ -226,3 +273,17 @@ class cfg_pwr_current_behavior_t(ct.LittleEndianStructure):
         "behavior_current_SYS_PWR_CRIT": cfg_pwr_error_behavior_e,
     }
     _packet_header_ = cfg_pwr_packet_type_e.CFG_PWR_TYPE_CURRENT_BEHAVIOR
+
+class cfg_pwr_get_reg_voltage_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("regulator_num", ct.c_uint8),
+    ]
+    _packet_header_ = cfg_pwr_packet_type_e.CFG_PWR_TYPE_GET_REG_VOLTAGE
+
+class cfg_pwr_get_reg_current_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("regulator_num", ct.c_uint8),
+    ]
+    _packet_header_ = cfg_pwr_packet_type_e.CFG_PWR_TYPE_GET_REG_CURRENT

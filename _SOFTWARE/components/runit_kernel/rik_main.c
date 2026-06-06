@@ -54,6 +54,6 @@ esp_err_t rik_start(void) {
     rik_link_interrupts();
 
     vTaskDelay(MSEC(1000)); 
-    vm_demo_start();
+    //vm_demo_start();
     return ESP_OK;
 }
