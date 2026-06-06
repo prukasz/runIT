@@ -23,13 +23,12 @@ class cfg_sys_packet_type_e(IntEnum):
     CFG_SYS_TYPE_VM_STOP = 4
 
 class cfg_log_level_e(IntEnum):
-    CFG_ESP_LOG_NONE = 0
-    CFG_ESP_LOG_ERROR = 1
-    CFG_ESP_LOG_WARN = 2
-    CFG_ESP_LOG_INFO = 3
-    CFG_ESP_LOG_DEBUG = 4
-    CFG_ESP_LOG_VERBOSE = 5
-    CFG_SP_LOG_MAX = 6
+    LOG_NONE = 0
+    LOG_ERROR = 1
+    LOG_WARN = 2
+    LOG_INFO = 3
+    LOG_DEBUG = 4
+    LOG_VERBOSE = 5
 
 class cfg_log_t(ct.LittleEndianStructure):
     _pack_ = 1
@@ -55,24 +54,24 @@ class cfg_io_packet_type_e(IntEnum):
     CFG_IO_TYPE_GPIO_RESET = 4
 
 class cfg_io_adc_window_mode_e(IntEnum):
-    CFG_IO_ADC_WINDOW_OUTSIDE = 0
-    CFG_IO_ADC_WINDOW_INSIDE = 1
+    OUTSIDE_WINDOW = 0
+    INSIDE_WINDOW = 1
 
 class cfg_io_gpio_mode_e(IntEnum):
-    CFG_GPIO_MODE_INPUT = 0
-    CFG_GPIO_MODE_OUTPUT_PUSH_PULL = 1
-    CFG_GPIO_MODE_OUTPUT_OPEN_DRAIN = 2
-    CFG_GPIO_MODE_INPUT_PULLUP = 3
-    CFG_GPIO_MODE_INPUT_PULLDOWN = 4
-    CFG_GPIO_MODE_PWM = 5
-    CFG_GPIO_MODE_ADC = 6
+    INPUT = 0
+    OUTPUT_PUSH_PULL = 1
+    OUTPUT_OPEN_DRAIN = 2
+    INPUT_PULLUP = 3
+    INPUT_PULLDOWN = 4
+    PWM = 5
+    ADC = 6
 
 class cfg_gpio_intr_mode_e(IntEnum):
-    CFG_GPIO_INTR_MODE_RISING_EDGE = 0
-    CFG_GPIO_INTR_MODE_FALLING_EDGE = 1
-    CFG_GPIO_INTR_MODE_BOTH_EDGES = 2
-    CFG_GPIO_INTR_MODE_LEVEL_HIGH = 3
-    CFG_GPIO_INTR_MODE_LEVEL_LOW = 4
+    RISING_EDGE = 0
+    FALLING_EDGE = 1
+    BOTH_EDGES = 2
+    LEVEL_HIGH = 3
+    LEVEL_LOW = 4
 
 class cfg_io_gpio_mode_t(ct.LittleEndianStructure):
     _pack_ = 1
@@ -139,12 +138,12 @@ class cfg_pwr_packet_type_e(IntEnum):
     CFG_PWR_TYPE_CURRENT_BEHAVIOR = 13
 
 class cfg_pwr_error_behavior_e(IntEnum):
-    CFG_CTRL_AUTOMATIC = 0
-    CFG_CTRL_SKIP_EVENT = 1
-    CFG_CTRL_VM_CALLBACKS_ONLY = 2
-    CFG_CTRL_STOP = 3
-    CFG_CTRL_ENTER_EMERGENCY = 4
-    CFG_CTRL_DISABLE_DEVICE = 5
+    AUTOMATIC = 0
+    IGNORE = 1
+    VM_CALLBACKS_ONLY = 2
+    STOP = 3
+    EMERGENCY = 4
+    DISABLE_DEVICE = 5
 
 class cfg_pwr_reg_en_t(ct.LittleEndianStructure):
     _pack_ = 1

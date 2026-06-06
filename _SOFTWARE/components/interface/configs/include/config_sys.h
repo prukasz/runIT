@@ -13,13 +13,12 @@ typedef enum{
 
 
 typedef enum {
-    CFG_ESP_LOG_NONE    = 0,   
-    CFG_ESP_LOG_ERROR   = 1,   
-    CFG_ESP_LOG_WARN    = 2, 
-    CFG_ESP_LOG_INFO    = 3,   
-    CFG_ESP_LOG_DEBUG   = 4,    
-    CFG_ESP_LOG_VERBOSE = 5,    
-    CFG_SP_LOG_MAX      = 6,   
+    LOG_NONE    = 0,   
+    LOG_ERROR   = 1,   
+    LOG_WARN    = 2, 
+    LOG_INFO    = 3,   
+    LOG_DEBUG   = 4,    
+    LOG_VERBOSE = 5,    
 } cfg_log_level_e;
 
 

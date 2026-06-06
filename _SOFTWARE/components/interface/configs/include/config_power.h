@@ -13,12 +13,12 @@ typedef enum{
 }cfg_pwr_packet_type_e;
 
 typedef enum{
-    CFG_CTRL_AUTOMATIC         = 0,  //<- Predefined
-    CFG_CTRL_SKIP_EVENT        = 1, //<- Ignore 
-    CFG_CTRL_VM_CALLBACKS_ONLY = 2, //<- Trigger vm (coed etc)
-    CFG_CTRL_STOP              = 3,  //<- Stop devices
-    CFG_CTRL_ENTER_EMERGENCY   = 4, //<- Stop devices + trigger emergency event (reset all devices, stop vm, etc)
-    CFG_CTRL_DISABLE_DEVICE    = 5, //<- Disable specific device (if possible)
+    AUTOMATIC         = 0,  //<- Predefined
+    IGNORE        = 1, //<- Ignore 
+    VM_CALLBACKS_ONLY = 2, //<- Trigger vm (coed etc)
+    STOP              = 3,  //<- Stop devices
+    EMERGENCY   = 4, //<- Stop devices + trigger emergency event (reset all devices, stop vm, etc)
+    DISABLE_DEVICE    = 5, //<- Disable specific device (if possible)
 }cfg_pwr_error_behavior_e;
 
 /******************* REGULATORS  *************************/

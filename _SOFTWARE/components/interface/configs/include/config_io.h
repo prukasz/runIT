@@ -11,26 +11,26 @@ typedef enum{
 }cfg_io_packet_type_e;
 
 typedef enum{
-    CFG_IO_ADC_WINDOW_OUTSIDE = 0,
-    CFG_IO_ADC_WINDOW_INSIDE = 1,
+    OUTSIDE_WINDOW = 0,
+    INSIDE_WINDOW = 1,
 }cfg_io_adc_window_mode_e;
 
 typedef enum{
-    CFG_GPIO_MODE_INPUT = 0,
-    CFG_GPIO_MODE_OUTPUT_PUSH_PULL = 1,
-    CFG_GPIO_MODE_OUTPUT_OPEN_DRAIN = 2,
-    CFG_GPIO_MODE_INPUT_PULLUP = 3,
-    CFG_GPIO_MODE_INPUT_PULLDOWN = 4,
-    CFG_GPIO_MODE_PWM = 5,
-    CFG_GPIO_MODE_ADC = 6
+    INPUT = 0,
+    OUTPUT_PUSH_PULL = 1,
+    OUTPUT_OPEN_DRAIN = 2,
+    INPUT_PULLUP = 3,
+    INPUT_PULLDOWN = 4,
+    PWM = 5,
+    ADC = 6
 }cfg_io_gpio_mode_e;
 
 typedef enum{
-    CFG_GPIO_INTR_MODE_RISING_EDGE  = 0,
-    CFG_GPIO_INTR_MODE_FALLING_EDGE = 1,
-    CFG_GPIO_INTR_MODE_BOTH_EDGES   = 2,
-    CFG_GPIO_INTR_MODE_LEVEL_HIGH   = 3,
-    CFG_GPIO_INTR_MODE_LEVEL_LOW    = 4
+    RISING_EDGE  = 0,
+    FALLING_EDGE = 1,
+    BOTH_EDGES   = 2,
+    LEVEL_HIGH   = 3,
+    LEVEL_LOW    = 4
 }cfg_gpio_intr_mode_e;
 
 typedef struct __attribute__((packed)){
