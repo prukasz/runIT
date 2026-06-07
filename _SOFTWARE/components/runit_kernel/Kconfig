@@ -111,6 +111,9 @@ menu "RunIT Configurations"
         config PRIORITY_TCA6424A_TASK
             int "Priority of the TCA6424A task"
             default 20
+        config PRIORITY_SCHEDULER_TASK
+            int "Priority of scheduler task"
+            default 21 
     endmenu
 
     menu "Buffer Sizes"

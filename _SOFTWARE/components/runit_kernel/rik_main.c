@@ -12,6 +12,7 @@
 #include "manager_power.h"
 #include "vm_demo.h"
 #include "rik_system_ctrl.h"
+#include "vm_main.h"
 
 #define TAG __FILE_NAME__
 
@@ -54,6 +55,18 @@ esp_err_t rik_start(void) {
     rik_link_interrupts();
 
     vTaskDelay(MSEC(1000)); 
-    //vm_demo_start();
+    vm_config_t vm_cfg = {
+        .bit_vm_cmd_complete = EVENT_BIT_VM_CMD_COMPLETE,
+        .bit_vm_emergency = EVENT_BIT_VM_EMERGENCY,
+        .bit_vm_offline_mode = EVENT_BIT_VM_OFFLINE_MODE,
+        .bit_vm_online_mode = EVENT_BIT_VM_ONLINE_MODE,
+        .bit_vm_ready = EVENT_BIT_VM_READY,
+        .bit_vm_reset = EVENT_BIT_VM_READY,
+        .bit_vm_run = EVENT_BIT_VM_RUN,
+        .bit_vm_stop = EVENT_BIT_VM_STOP,
+        .bit_vm_wireless_connection_present = EVENT_BIT_VM_WIRELESS_CONNECTION_PRESENT,
+        .vm_event_group = rik_events_vm
+    };
+    vm_start(&vm_cfg);
     return ESP_OK;
 }

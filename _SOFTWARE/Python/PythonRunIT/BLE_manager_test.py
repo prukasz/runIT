@@ -7,7 +7,6 @@ UUID_READ  = "00000000-0000-0000-0000-000000000002"   # RX (read from device)}]
 
 async def rx_handler(sender, data: bytearray):
     """Handle received notifications."""
-    print(f"[RX] {len(data)} bytes: {data.hex().upper()}")
     try:
         print(f"[ASCII] {data.decode('utf-8', errors='replace')}")
     except:

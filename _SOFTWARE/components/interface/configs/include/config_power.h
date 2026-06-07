@@ -7,7 +7,6 @@ typedef enum{
     CFG_PWR_TYPE_REG_SETTINGS = 2,
     CFG_PWR_TYPE_REG_LIMITS = 3,
     CFG_PWR_TYPE_REG_BEHAVIOR = 4,
-
     CFG_PWR_TYPE_SUPPLY = 11,
     CFG_PWR_TYPE_CURRENT_BEHAVIOR = 13
 }cfg_pwr_packet_type_e;
@@ -23,8 +22,8 @@ typedef enum{
 
 /******************* REGULATORS  *************************/
 typedef struct __attribute__((packed)){
-    uint8_t en_reg_0;
-    uint8_t en_reg_1;
+    bool en_reg_0;
+    bool en_reg_1;
 }cfg_pwr_reg_en_t; //@cfg_pwr_packet_type_e CFG_PWR_TYPE_REG_EN
 
 typedef struct __attribute__((packed)){

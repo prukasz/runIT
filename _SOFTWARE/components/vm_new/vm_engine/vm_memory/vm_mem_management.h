@@ -17,7 +17,6 @@ typedef struct{
 }vm_buff_t;
 
 
-
 typedef struct{
     vm_linear_allocator_t var_data[TYPES_CNT];
 
@@ -28,7 +27,7 @@ typedef struct{
     vm_var_accessor_t **accessors;
 }vm_mem_context_t;
 
-extern vm_mem_context_t vm_mem_t[CONTEXTS_CNT];
+
 
 
 

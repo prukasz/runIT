@@ -240,7 +240,6 @@ def parse_command(user_input: str) -> list:
 # HANDLERY BLE
 # ============================================================================
 async def rx_handler(sender, data: bytearray):
-    print(f"\n[RX] {len(data)} bajtów: {data.hex().upper()}")
     try:
         print(f"[ASCII] {data.decode('utf-8', errors='replace')}")
     except:

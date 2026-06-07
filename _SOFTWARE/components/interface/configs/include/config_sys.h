@@ -5,10 +5,10 @@
 /* Packet type enumeration */
 typedef enum{
     CFG_SYS_TYPE_LOG_CONFIG = 0,
-    CFG_SYS_TYPE_SYSTEM_CTRL = 1,
-    CFG_SYS_TYPE_DEVICE_DEFAULT = 2,
-    CFG_SYS_TYPE_VM_RUN = 3, // <----demo 
-    CFG_SYS_TYPE_VM_STOP = 4, //<----demo
+    CFG_SYS_TYPE_DEVICE_DEFAULT = 1,
+    CFG_SYS_TYPE_VM_RUN = 2, // <----demo 
+    CFG_SYS_TYPE_VM_STOP = 3, //<----demo
+    CFG_SYS_TYPE_VM_EMERGENCY = 4,
 }cfg_sys_packet_type_e;
 
 

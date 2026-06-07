@@ -18,10 +18,10 @@ class packet_header_t(IntEnum):
 
 class cfg_sys_packet_type_e(IntEnum):
     CFG_SYS_TYPE_LOG_CONFIG = 0
-    CFG_SYS_TYPE_SYSTEM_CTRL = 1
-    CFG_SYS_TYPE_DEVICE_DEFAULT = 2
-    CFG_SYS_TYPE_VM_RUN = 3
-    CFG_SYS_TYPE_VM_STOP = 4
+    CFG_SYS_TYPE_DEVICE_DEFAULT = 1
+    CFG_SYS_TYPE_VM_RUN = 2
+    CFG_SYS_TYPE_VM_STOP = 3
+    CFG_SYS_TYPE_VM_EMERGENCY = 4
 
 class cfg_log_level_e(IntEnum):
     LOG_NONE = 0
@@ -149,8 +149,8 @@ class cfg_pwr_error_behavior_e(IntEnum):
 class cfg_pwr_reg_en_t(ct.LittleEndianStructure):
     _pack_ = 1
     _fields_ = [
-        ("en_reg_0", ct.c_uint8),
-        ("en_reg_1", ct.c_uint8),
+        ("en_reg_0", ct.c_bool),
+        ("en_reg_1", ct.c_bool),
     ]
     _packet_header_ = cfg_pwr_packet_type_e.CFG_PWR_TYPE_REG_EN
 

@@ -126,6 +126,7 @@ TaskHandle_t name = NULL
 } while(0)
 
 #define R_EVENT_SET(group, bits)   xEventGroupSetBits((group), (bits))
+
 #define R_EVENT_CLEAR(group, bits) xEventGroupClearBits((group), (bits))
 
 /**

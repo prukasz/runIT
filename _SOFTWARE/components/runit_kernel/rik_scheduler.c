@@ -7,8 +7,9 @@
 #include "rik_logs.h"
 #include "rik_modules.h"
 
-#define SCHEDULER_TASK_STACK_SIZE 4096  
-#define SCHEDULER_TASK_PRIORITY 5
+#define SCHEDULER_TASK_STACK_SIZE 4096
+R_TASK_DEFINE(rik_scheduler_task, SCHEDULER_TASK_STACK_SIZE);
+
 
 #define TAG __FILE_NAME__
 
@@ -19,9 +20,8 @@ void process_wireless_events(){
         _rik_ble_active = true;
         ESP_LOGI(TAG, "BLE Connected");
         xEventGroupClearBits(rik_events_wireless, EVENT_BIT_BLE_CONNECTION_FAILED | EVENT_BIT_BLE_DISCONNECTED);
-        sys_log_remote_enable(true);
 
-        // Allow data processing and tell vm 
+        sys_log_remote_enable(true);
 
         R_EVENT_SET(rik_events_vm, EVENT_BIT_VM_WIRELESS_CONNECTION_PRESENT);
 
@@ -30,16 +30,17 @@ void process_wireless_events(){
         _rik_ble_active = false;
         ESP_LOGI(TAG, "BLE Disconnected");
         xEventGroupClearBits(rik_events_wireless, EVENT_BIT_BLE_CONNECTED);
+        sys_log_remote_enable(false);
         if (flags_vm & EVENT_BIT_VM_ONLINE_MODE) {
             //connection lost while in online mode 
             R_EVENT_SET(rik_events_vm, EVENT_BIT_VM_EMERGENCY);
         }
-
     }
     if (flags_wireless & EVENT_BIT_BLE_CONNECTION_FAILED && _rik_ble_active) {
         ESP_LOGI(TAG, "BLE Connection Failed");
         _rik_ble_active = false;
         xEventGroupClearBits(rik_events_wireless, EVENT_BIT_BLE_CONNECTED);
+        sys_log_remote_enable(false);
         R_EVENT_SET(rik_events_vm, EVENT_BIT_VM_EMERGENCY);
 
     }
@@ -70,10 +71,10 @@ void rik_scheduler(void* args){
     } 
 }
 
-R_TASK_DEFINE(rik_scheduler_task, SCHEDULER_TASK_STACK_SIZE);
+
 
 void rik_scheduler_start() {
-    R_TASK_START_ON_CORE(rik_scheduler_task, rik_scheduler, NULL, SCHEDULER_TASK_PRIORITY, 0);
+    R_TASK_START_ON_CORE(rik_scheduler_task, rik_scheduler, NULL, CONFIG_PRIORITY_SCHEDULER_TASK, 0);
 }
 
 TaskHandle_t rik_scheduler_get_task_handle() {

@@ -3,9 +3,9 @@
 
 static vm_callbacks_list_t *_cb_list_get(vm_callback_types_t callback_type)
 {
-    if (current_code == NULL) return NULL;
+    if (vm_active_code == NULL) return NULL;
     if (callback_type >= 6) return NULL;
-    return &current_code->callback_lists[callback_type];
+    return &vm_active_code->callback_lists[callback_type];
 }
 
 static void _cb_list_add(vm_code_section_callback_t **cb_list, size_t *current_count, vm_code_section_callback_t cb)
@@ -71,7 +71,7 @@ status_rep_t vm_callback_section_remove(vm_code_section_t *section, uint32_t eve
 #undef OWNER
 
 void vm_callback_sys_gpio(void *arg){
-    vm_callbacks_list_t gpio_cb_list = current_code->callback_lists[VM_SYS_CALLBACK_GPIO];
+    vm_callbacks_list_t gpio_cb_list = vm_active_code->callback_lists[VM_SYS_CALLBACK_GPIO];
     uint32_t pin_num = (uint32_t)arg;
     for(size_t i = 0; i < gpio_cb_list.list_size; i++){
         vm_code_section_callback_t *cb = (vm_code_section_callback_t*)gpio_cb_list.vm_callback_section_list + i;
@@ -82,7 +82,7 @@ void vm_callback_sys_gpio(void *arg){
 }
 
 void vm_callback_sys_adc(void *arg){
-    vm_callbacks_list_t adc_cb_list = current_code->callback_lists[VM_SYS_CALLBACK_ADC];
+    vm_callbacks_list_t adc_cb_list = vm_active_code->callback_lists[VM_SYS_CALLBACK_ADC];
     uint32_t pin_num = (uint32_t)arg;
     for(size_t i = 0; i < adc_cb_list.list_size; i++){
         vm_code_section_callback_t *cb = (vm_code_section_callback_t*)adc_cb_list.vm_callback_section_list + i;
@@ -93,7 +93,7 @@ void vm_callback_sys_adc(void *arg){
 }
 
 void vm_callback_sys_power(void *arg){
-    vm_callbacks_list_t power_cb_list = current_code->callback_lists[VM_SYS_CALLBACK_POWER_EVENT];
+    vm_callbacks_list_t power_cb_list = vm_active_code->callback_lists[VM_SYS_CALLBACK_POWER_EVENT];
     uint32_t pwr_event_type = (uint32_t)arg;
     for(size_t i = 0; i < power_cb_list.list_size; i++){
         vm_code_section_callback_t *cb = (vm_code_section_callback_t*)power_cb_list.vm_callback_section_list + i;

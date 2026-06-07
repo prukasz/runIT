@@ -2,6 +2,7 @@
 #include "rik_system_ctrl.h"
 #include "rik_logs.h"
 #include "config_sys.h"
+#include "rtos_utils.h"
 
 extern TaskHandle_t vm_demo_task;
 
@@ -25,13 +26,16 @@ status_rep_t cfg_sys_process_packet(const uint8_t* packet_data, uint16_t packet_
             return STA_OK;
         }
         case CFG_SYS_TYPE_VM_RUN: {
-            ESP_LOGW(TAG, "Received VM_RUN command - starting VM demo");
-            vTaskResume(vm_demo_task);
+            R_EVENT_SET(rik_events_vm, EVENT_BIT_VM_RUN);
             return STA_OK;
         }
         case CFG_SYS_TYPE_VM_STOP: {
-            ESP_LOGW(TAG, "Received VM_STOP command - stopping VM demo");
-            return handle_vm_stop();
+            R_EVENT_SET(rik_events_vm, EVENT_BIT_VM_STOP);
+            return STA_OK;
+        }
+        case CFG_SYS_TYPE_VM_EMERGENCY:{
+            R_EVENT_SET(rik_events_vm, EVENT_BIT_VM_EMERGENCY);  
+            return STA_OK;
         }
     }
     

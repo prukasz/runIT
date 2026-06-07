@@ -2,8 +2,7 @@
 #include <stdint.h>
 #include "vm_blocks_core.h"
 #include "rtos_utils.h"
-
-R_MUTEX_DEFINE(vm_mutex_code_running);
+#include "vm_mem_management.h"
 
 /**
  * Node is single execution point in code, it can be simple block or lot of self dependent blocks.
@@ -32,7 +31,8 @@ typedef struct{
 typedef struct{ 
     uint16_t nodes_cnt;             /* count of nodes in section*/
     uint8_t priority;              
-    volatile uint8_t pending_execution;       /*is section pending for execution flag*/
+    volatile bool pending_execution;    
+    bool is_idle;   /*is section pending for execution flag*/
     /* when counter over predefined val execution is given to lower priority section
     to prevent only one loop runnning, reseted after other section has been executed, increased after execution*/
     volatile uint8_t wtd_cnt;  
@@ -57,16 +57,20 @@ typedef struct {
     vm_block_data_t   *blocks_storage;   /*storage for all blocks*/
     vm_code_node_t    *nodes_storage;         /* The actual flat storage of all nodes */
     vm_code_section_t *sections_storage;    /* storage for all sections */
-    vm_callbacks_list_t callback_lists[6];         
+    vm_callbacks_list_t callback_lists[6];    
+    vm_mem_context_t vm_mem_t[CONTEXTS_CNT];     
 } vm_code_t;
 
-static vm_code_t *current_code; 
+static vm_code_t *vm_active_code; 
+
 void vm_code_set_active(vm_code_t *code){
-    current_code = code;
+    vm_active_code = code;
 }
+
 void vm_code_clear_active(){
-    current_code = NULL;
+    vm_active_code = NULL;
 }
+
 
 
 

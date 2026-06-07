@@ -29,4 +29,5 @@ idf_component_register(
     provider_current_monitor
     provider_voltage_regulator
     provider_pwm_expander
+    vm_new
 )

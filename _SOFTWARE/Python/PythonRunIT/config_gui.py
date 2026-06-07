@@ -321,11 +321,10 @@ class ConfigGUI(tk.Tk):
         self.loop.run_forever()
 
     def rx_handler(self, sender, data: bytearray):
-        self.log(f"[RX HEX] {len(data)} bajtów: {data.hex().upper()}")
         try:
             ascii_data = data.decode('utf-8', errors='replace').strip()
             if ascii_data:
-                self.log(f"[RX ASCII] {ascii_data}")
+                self.log(f"[RX] {ascii_data}")
         except: pass
 
     async def connect_task(self):
