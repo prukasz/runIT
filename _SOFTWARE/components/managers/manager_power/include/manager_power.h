@@ -36,4 +36,10 @@ status_rep_t sys_pwr_set_verg_voltage(bool regulator_id, uint32_t voltage_mv);
 status_rep_t sys_pwr_set_verg_current_limit(bool regulator_id, uint32_t current_ma);
 status_rep_t sys_pwr_enable_verg(bool regulator_id, bool enable);
 
+status_rep_t sys_pwr_set_pd_voltage_current(uint32_t voltage_mv, uint32_t current_ma);
+status_rep_t sys_pwr_get_pd_voltage(uint32_t *voltage_mv);
+status_rep_t sys_pwr_get_pd_current(int32_t *current_ma);
+
+
+
  

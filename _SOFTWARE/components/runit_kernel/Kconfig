@@ -1,6 +1,6 @@
 menu "RunIT Configurations"
 
-    menu "Device Connectivity"
+    menu "Peripherials"
         config CONNECT_TCA6424A
             bool "Connect TCA6424A"
             default y
@@ -18,6 +18,9 @@ menu "RunIT Configurations"
             default y
         config CONNECT_PCA9685
             bool "Connect PCA9685"
+            default y
+        config  CONNECT_AP33772S
+            bool "Connect ap33772s pd sink controller"
             default y
     endmenu
 

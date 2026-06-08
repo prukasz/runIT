@@ -101,13 +101,8 @@ void sys_devices_default_config(void){
 }
 
 status_rep_t handle_vm_stop(void){
-    STATUS_SUSPEND();
-    sys_unfreeze();
     R_EVENT_SET(rik_events_vm, EVENT_BIT_VM_STOP);
-    R_EVENT_SET(rik_events_vm, EVENT_BIT_VM_EMERGENCY);
     ESP_LOGW(TAG, "VM stopped");
-    vTaskSuspend(vm_demo_task);
-    STATUS_RESUME();
     return STA_OK;
 }
 

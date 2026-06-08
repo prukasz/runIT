@@ -53,10 +53,7 @@ static void m_ble_task_func(void *pvParameters) {
         
         R_EVENT_AWAIT_ANY(cfg->event_group, cfg->bit_tx_start, WAIT_FOREVER);
         bool data_sent;
-        /*DEBUG*/
-        uint64_t start_time = esp_timer_get_time();
-        uint32_t send_count = 0;
-        /*DEBUG*/
+
         
         do {
             uint8_t tx_data[527] = {0};
@@ -89,9 +86,7 @@ static void m_ble_task_func(void *pvParameters) {
                     esp_err_t send_res = a_ble_send_notification(conn_handle, val_handle, tx_data, tx_len); 
                     if (send_res == ESP_OK) { 
                         data_sent = true;
-                        /*DEBUG*/
-                        send_count++;
-                        /*DEBUG*/
+
                         break; 
                     } else if (send_res == ESP_ERR_NO_MEM) {
                         // BLE controller ran out of memory, wait for TX complete events
@@ -107,8 +102,6 @@ static void m_ble_task_func(void *pvParameters) {
             }
         } while (data_sent); // Keep looping until ALL buffers are completely empty
         
-        /*DEBUG*/
-        //ESP_LOGI(TAG, "BLE Task: Completed sending %lu packets of data in %lld us", send_count, (esp_timer_get_time() - start_time));
         R_EVENT_SET(cfg->event_group, cfg->bit_tx_done);
         R_NOTIFY_SEND(cfg->supervisor_task_handle, 0); // Notify supervisor that TX batch is done
     }

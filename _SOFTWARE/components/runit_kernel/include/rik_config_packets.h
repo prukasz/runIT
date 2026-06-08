@@ -39,11 +39,9 @@ typedef struct{
 } rik_cfg_pkt_drv_t;
 
 
-//ADS7128 Configuration packet structure
-// typedef struct{
-//     struct{
-//         uint8_t i2c_address;
-//         uint8_t bus_num;
-//         uint8_t opt_dev_id;  //from device register
-//     }dev_identifier;
-// } rik_cfg_pkt_ads7128_t;
+//Power Delivery Configuration packet structure
+typedef struct{
+    uint32_t pd_voltage_mv;
+    uint32_t pd_current_ma;
+} rik_cfg_pkt_pd_t;
+

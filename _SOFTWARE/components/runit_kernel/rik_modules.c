@@ -117,12 +117,16 @@ void rik_start_interface(EventGroupHandle_t events){
 #undef OWNER
 #define OWNER OWNER_RIK_DRIVER_INIT_POWER_MANAGER
 status_rep_t rik_start_power_manager() {
-#if CONFIG_CONNECT_TPS55289_0 || CONFIG_CONNECT_TPS55289_1
-    STA_RP_ON_ERR(rik_p_vreg_start(CONFIG_I2C_ADDR_TPS55289_0, CONFIG_I2C_ADDR_TPS55289_1, 0));
-#endif
-#if CONFIG_CONNECT_INA3221
-    STA_RP_ON_ERR(rik_current_monitor_start(CONFIG_I2C_ADDR_INA3221, 0));
-#endif
+    #if CONFIG_CONNECT_TPS55289_0 || CONFIG_CONNECT_TPS55289_1
+        STA_RP_ON_ERR(rik_p_vreg_start(CONFIG_I2C_ADDR_TPS55289_0, CONFIG_I2C_ADDR_TPS55289_1, 0));
+    #endif
+    #if CONFIG_CONNECT_INA3221
+        STA_RP_ON_ERR(rik_current_monitor_start(CONFIG_I2C_ADDR_INA3221, 0));
+    #endif
+    #if CONFIG_CONNECT_AP33772S
+        STA_RP_ON_ERR(rik_p_power_delivery_start(CONFIG_I2C_ADDR_AP33772S, 0));
+    #endif
+
     STA_RP_ON_ERR(manager_pwr_init());
     ESP_LOGI(TAG, "Power manager initialized successfully");
     return STA_OK;
@@ -148,4 +152,3 @@ status_rep_t rik_start_io_manager() {
     return STA_OK;
 }
 /**************IO MANAGER CONFIG************************************* */
-

@@ -23,6 +23,10 @@ static void handle_manager_io_errors(status_rep_t* status){
     uint8_t pin_num = SYS_IO_GET_PIN(pin_info);
     uint8_t info_extra = SYS_IO_GET_INFO_EXTRA(pin_info);
     switch (status->e_code){
+        case ERR_MISSING_HANDLE:{
+            ESP_LOGW(TAG, "Missing handle for %s", status_owner_to_name(status->e_owner));
+            break;
+        }
         case IO_ERR_NO_FREE_PORT:{
             ESP_LOGE(TAG, "No free IO ports available, device didn't register");
             SYS_STOP();
@@ -79,8 +83,7 @@ static void handle_manager_io_errors(status_rep_t* status){
 static void handle_manager_pwr_errors(status_rep_t* status){
     switch (status->e_code){
         case ERR_MISSING_HANDLE:{
-            ESP_LOGE(TAG, "Critical error: Missing handle for %s, device didn't", status_owner_to_name(status->e_owner));
-            handle_vm_stop();
+            ESP_LOGE(TAG, "Missing handle for %s, device isn't connected or initialization failed ", status_owner_to_name(status->e_owner));
             break;
         }
         case ERR_INVALID_ARG:{
@@ -97,8 +100,12 @@ static void handle_manager_pwr_errors(status_rep_t* status){
             handle_vm_stop();
             break;
         }
+        case PWE_ERR_PARSE_FAILED:{
+            ESP_LOGW(TAG, "Failed to parse power config packet from %s. Original error code: %s", status_owner_to_name(status->e_owner), status_error_to_name(status->track.origin_info));
+            break;
+        }
         default:{
-            ESP_LOGW(TAG, "unhandled error from power manager: %s %s", status_error_to_name(status->e_code), status_owner_to_name(status->e_code));
+            ESP_LOGW(TAG, "unhandled error from power manager: %s %s", status_error_to_name(status->e_code), status_owner_to_name(status->e_owner));
             break;
         }
     }
@@ -117,9 +124,10 @@ static void status_handler_task(void* params) {
                 continue;
             }
             uint32_t owner_type = current_report.e_owner & 0xFF00;
-            if (owner_type == OWNER_IO_MANAGER) {
+        // 0xE200 -> IO Providers (Except Power Delivery 0xe217), 0xE900 -> Power Providers
+        if (owner_type == OWNER_IO_MANAGER || (owner_type == 0xE200 && current_report.e_owner != OWNER_PROVIDER_POWER_DELIVERY)) {
                 handle_manager_io_errors(&current_report);
-            }else if (owner_type == OWNER_MANAGER_PWR) {
+        }else if (owner_type == OWNER_MANAGER_PWR || owner_type == 0xE900 || current_report.e_owner == OWNER_PROVIDER_POWER_DELIVERY) {
                 handle_manager_pwr_errors(&current_report);
             } else {
                 ESP_LOGW(TAG, "Unhandled status owner type: %s", status_owner_to_name(current_report.e_owner));

@@ -8,6 +8,7 @@ extern uint8_t rik_vreg0_id;
 extern uint8_t rik_vreg1_id;
 extern uint8_t rik_adc_expander_id;
 extern uint8_t rik_pwm_expander_id;
+extern uint8_t rik_power_delivery_id;
 
 extern uint8_t rik_gpio_expander_port_id; 
 extern uint8_t rik_adc_expander_port_id;
@@ -209,5 +210,3 @@ extern EventGroupHandle_t rik_events_vm;
 #define EVENT_BIT_VM_FAILURE_ENGINE         (1<<7)
 #define EVENT_BIT_DATA_PROCESSING_FAILURE   (1<<8)
 /************************STATUS HANDLER ACTIONS **************************/
-
-

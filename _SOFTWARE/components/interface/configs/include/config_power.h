@@ -8,7 +8,10 @@ typedef enum{
     CFG_PWR_TYPE_REG_LIMITS = 3,
     CFG_PWR_TYPE_REG_BEHAVIOR = 4,
     CFG_PWR_TYPE_SUPPLY = 11,
-    CFG_PWR_TYPE_CURRENT_BEHAVIOR = 13
+    CFG_PWR_TYPE_CURRENT_BEHAVIOR = 13,
+    CFG_PWR_TYPE_TEST_SET_PD = 14,
+    CFG_PWR_TYPE_TEST_GET_PD_VOLTAGE = 15,
+    CFG_PWR_TYPE_TEST_GET_PD_CURRENT = 16
 }cfg_pwr_packet_type_e;
 
 typedef enum{
@@ -73,6 +76,12 @@ typedef struct __attribute__((packed)){
     uint8_t behavior_current_SYS_PWR_CRIT; //@cfg_pwr_error_behavior_e
 } cfg_pwr_current_behavior_t; //@cfg_pwr_packet_type_e CFG_PWR_TYPE_CURRENT_BEHAVIOR
 /******************* SUPPLY SETTINGS  *************************/
+
+/******************* PD TESTS *************************/
+typedef struct __attribute__((packed)){
+    uint32_t pd_voltage_mv;
+    uint32_t pd_current_ma;
+} cfg_pwr_test_set_pd_t; //@cfg_pwr_packet_type_e CFG_PWR_TYPE_TEST_SET_PD
 
 
 status_rep_t cfg_pwr_process_packet(const uint8_t* packet_data, uint16_t packet_len);

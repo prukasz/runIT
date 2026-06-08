@@ -90,6 +90,25 @@ status_rep_t cfg_pwr_process_packet(const uint8_t* packet_data, uint16_t packet_
             prev_cfg->crt_current_SYS_PWR_WARN = settings.behavior_current_SYS_PWR_WARN;
             CHECK_AND_RETURN(r);
         }
+        case CFG_PWR_TYPE_TEST_SET_PD:{
+            cfg_pwr_test_set_pd_t settings;
+            memcpy(&settings, packet_data + 1, sizeof(cfg_pwr_test_set_pd_t));
+            r = sys_pwr_set_pd_voltage_current(settings.pd_voltage_mv, settings.pd_current_ma);
+            ESP_LOGI(TAG, "Test PD Set: %lumV, %lumA max", (unsigned long)settings.pd_voltage_mv, (unsigned long)settings.pd_current_ma);
+            CHECK_AND_RETURN(r);
+        }
+        case CFG_PWR_TYPE_TEST_GET_PD_VOLTAGE:{
+            uint32_t voltage_mv = 0;
+            r = sys_pwr_get_pd_voltage(&voltage_mv);
+            ESP_LOGI(TAG, "Test PD Get Voltage: %lumV", (unsigned long)voltage_mv);
+            CHECK_AND_RETURN(r);
+        }
+        case CFG_PWR_TYPE_TEST_GET_PD_CURRENT:{
+            int32_t current_ma = 0;
+            r = sys_pwr_get_pd_current(&current_ma);
+            ESP_LOGI(TAG, "Test PD Get Current: %ldmA", (long)current_ma);
+            CHECK_AND_RETURN(r);
+        }
         default:
         return STA_W(PWE_ERR_PARSE_NOT_FOUND, OWNER_MANAGER_PWR_PARSE_PACKET, packet_data[0]);
     }

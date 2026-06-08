@@ -12,6 +12,7 @@
 #include "tca6424a_mock.h"
 #include "ads7128_mock.h"
 #include "provider_pwm_expander.h"
+#include "provider_power_delivery.h"
 
 #define TAG __FILE_NAME__
 
@@ -21,6 +22,7 @@ uint8_t rik_vreg0_id;
 uint8_t rik_vreg1_id;
 uint8_t rik_adc_expander_id;
 uint8_t rik_pwm_expander_id;
+uint8_t rik_power_delivery_id;
 
 uint8_t rik_gpio_expander_port_id = 0xFF; 
 uint8_t rik_adc_expander_port_id = 0xFF; 
@@ -33,6 +35,7 @@ static void* current_monitor_handle = NULL;
 static void* vreg0_handle = NULL;
 static void* vreg1_handle = NULL;
 static void* pwm_expander_handle = NULL;
+static void* power_delivery_handle = NULL;
 
 
 status_rep_t rik_p_gpio_esp_start(void){
@@ -61,6 +64,38 @@ status_rep_t rik_p_gpio_esp_start(void){
     return STA_OK;
 }
 
+
+#undef OWNER
+#define OWNER OWNER_PROVIDER_POWER_DELIVERY
+status_rep_t rik_p_power_delivery_start(uint8_t i2c_addr, bool bus_num){
+
+    STA_R_ON_ERR(m_i2c_device_present(bus_num, i2c_addr));
+    ESP_LOGI(TAG, "AP33772S detected on bus %d at address 0x%02X", bus_num ? 1 : 0, i2c_addr);
+
+    power_delivery_handle = p_power_delivery_new();
+    CHECK_HANDLE_R(power_delivery_handle);
+
+    i2c_device_config_t* dev_config = p_power_delivery_get_i2c_dev_config();
+    i2c_master_dev_handle_t* master_dev_handle = p_power_delivery_get_i2c_dev_handle();
+    TaskHandle_t task_handle = p_power_delivery_get_task_handle();
+
+    STA_R_ON_ERR(m_i2c_add_driver(
+        bus_num,
+        *dev_config,
+        master_dev_handle,
+        power_delivery_handle,
+        task_handle,
+        true,
+        &rik_power_delivery_id
+    ));
+    status_rep_t status = p_power_delivery_begin();
+    if(STA_P_ON_ESP_ERR(status)){
+        STA_RP(STA_C(PWR_ERR_UPDATE_FAILED, OWNER_MANAGER_PWR_CONFIG_PD, status.e_code));
+    }
+    STA_RP_ON_ERR(status); 
+    ESP_LOGI(TAG, "Power delivery (AP33772S) started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_addr);
+    return STA_OK;
+}
 extern void p_gpio_expander_intr_pin_callback(void* arg);
 #undef OWNER
 #define OWNER OWNER_RIK_DRIVER_INIT_GPIO_EXPANDER
@@ -296,5 +331,3 @@ status_rep_t p_pwm_expadner_start(uint8_t i2c_addres, bool bus_num){
     ESP_LOGI(TAG, "PWM expander started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_addres);
     return STA_OK;
 }
-
-

@@ -137,6 +137,9 @@ class cfg_pwr_packet_type_e(IntEnum):
     CFG_PWR_TYPE_REG_BEHAVIOR = 4
     CFG_PWR_TYPE_SUPPLY = 11
     CFG_PWR_TYPE_CURRENT_BEHAVIOR = 13
+    CFG_PWR_TYPE_TEST_SET_PD = 14
+    CFG_PWR_TYPE_TEST_GET_PD_VOLTAGE = 15
+    CFG_PWR_TYPE_TEST_GET_PD_CURRENT = 16
 
 class cfg_pwr_error_behavior_e(IntEnum):
     AUTOMATIC = 0
@@ -227,6 +230,14 @@ class cfg_pwr_current_behavior_t(ct.LittleEndianStructure):
         "behavior_current_SYS_PWR_CRIT": cfg_pwr_error_behavior_e,
     }
     _packet_header_ = cfg_pwr_packet_type_e.CFG_PWR_TYPE_CURRENT_BEHAVIOR
+
+class cfg_pwr_test_set_pd_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("pd_voltage_mv", ct.c_uint32),
+        ("pd_current_ma", ct.c_uint32),
+    ]
+    _packet_header_ = cfg_pwr_packet_type_e.CFG_PWR_TYPE_TEST_SET_PD
 
 # ============================================================================
 # CONFIG_TESTS CONFIGURATION STRUCTURES

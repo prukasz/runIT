@@ -32,3 +32,8 @@ status_rep_t rik_adc_expander_start(uint8_t i2c_addres, bool bus_num);
 
 status_rep_t p_pwm_expadner_start(uint8_t i2c_addres, bool bus_num);
 
+/**
+ * @brief First create device handle and structure, then add to manager and init wrapper if exist
+ * @param bus_num: I2C bus number (0 or 1) 
+ */
+status_rep_t rik_p_power_delivery_start(uint8_t i2c_addr, bool bus_num);
