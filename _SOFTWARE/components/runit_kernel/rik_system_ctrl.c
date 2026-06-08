@@ -63,11 +63,15 @@ void sys_stop_or_resume(bool stop, bool reset_prev_state){
     STATUS_SUSPEND();
     sys_unfreeze();
     if(stop){
+        #if CONFIG_CONNECT_TCA6424A
         sys_gpio_read_level(rik_gpio_expander_port_id, OFF_GPIO_EXPANDER_MASK, &prev_state);
         sys_gpio_set_level(rik_gpio_expander_port_id, OFF_GPIO_EXPANDER_MASK, 0);
         ESP_LOGI(TAG, "Stopped devices, saved level %016" PRIx64, prev_state);
+        #endif
     }else{
+        #if CONFIG_CONNECT_TCA6424A
         sys_gpio_set_level(rik_gpio_expander_port_id, OFF_GPIO_EXPANDER_MASK, prev_state);
+        #endif
         ESP_LOGI(TAG, "Resumed devices, level %016" PRIx64, prev_state);
     }
     STATUS_RESUME();

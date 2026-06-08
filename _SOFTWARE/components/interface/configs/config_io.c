@@ -15,18 +15,16 @@
     if (STA_IS_ERR(_r)) { \
         return STA_W(IO_ERR_PARSE_FAILED, OWNER, _r.e_code); \
     } \
-    return _r; \
 } while(0)
 
 
 status_rep_t cfg_io_process_packet(const uint8_t* packet_data, uint16_t packet_len){
-    status_rep_t r = STA_OK;
     switch(packet_data[0]){ 
         case CFG_IO_TYPE_GPIO_MODE: {
             cfg_io_gpio_mode_t settings;
             memcpy(&settings, packet_data + 1, sizeof(cfg_io_gpio_mode_t));
-            r = SYS_GPIO_SET_MODE(settings.pin_id, settings.mode);
-            CHECK_AND_RETURN(r);
+            CHECK_AND_RETURN(SYS_GPIO_SET_MODE(settings.pin_id, settings.mode));
+            break;
         }
         case CFG_IO_TYPE_GPIO_ADC_ALERT: {
             cfg_io_gpio_adc_alert_t settings;
@@ -40,33 +38,34 @@ status_rep_t cfg_io_process_packet(const uint8_t* packet_data, uint16_t packet_l
                     .callback = rik_callback_adc, 
                     .arg = (void*)settings.pin_id 
             };
-            r = SYS_IO_ADC_REGISTER_CALLBACK(settings.pin_id, &adc_cfg);
+            CHECK_AND_RETURN(SYS_IO_ADC_REGISTER_CALLBACK(settings.pin_id, &adc_cfg));
             ESP_LOGI(TAG, "Registering ADC alert for pin %d with thresholds [%d mV, %d mV] and hysteresis %d mV",
                      settings.pin_id, adc_cfg.adc_threshold_down_mv, adc_cfg.adc_threshold_up_mv, adc_cfg.adc_threshold_hysteresis_mv);
-            CHECK_AND_RETURN(r);
+            break;
         }
         case CFG_IO_TYPE_GPIO_INTERRUPT:{
             cfg_gpio_intr_mode_t settings;
             memcpy(&settings, packet_data +1, sizeof(cfg_gpio_intr_mode_t));
-            r = SYS_GPIO_REGISTER_CALLBACK(settings.pin_id, settings.cfg_gpio_intr_mode, rik_callback_gpio, (void*)settings.pin_id);
-            CHECK_AND_RETURN(r);
+            CHECK_AND_RETURN(SYS_GPIO_REGISTER_CALLBACK(settings.pin_id, settings.cfg_gpio_intr_mode, rik_callback_gpio, (void*)settings.pin_id));
+            break;
         }
 
         case CFG_IO_TYPE_GPIO_PWM_FREQ: {
             cfg_io_gpio_pwm_freq_t settings;
             memcpy(&settings, packet_data + 1, sizeof(cfg_io_gpio_pwm_freq_t));
-            r = SYS_IO_SET_PWM_FREQ(settings.pin_id, settings.freq_hz);
-            CHECK_AND_RETURN(r);
+            CHECK_AND_RETURN(SYS_IO_SET_PWM_FREQ(settings.pin_id, settings.freq_hz));
+            break;
         }
         case CFG_IO_TYPE_GPIO_RESET: {
             cfg_io_gpio_reset_t settings;
             memcpy(&settings, packet_data + 1, sizeof(cfg_io_gpio_reset_t));
-            r = SYS_GPIO_RESET_PIN(settings.pin_id);
+            CHECK_AND_RETURN(SYS_GPIO_RESET_PIN(settings.pin_id));
             ESP_LOGI(TAG, "Resetting GPIO pin %d", settings.pin_id);
-            CHECK_AND_RETURN(r);
+            break;
         }
         
         default:
+            break;
     }
     return STA_OK;
 }

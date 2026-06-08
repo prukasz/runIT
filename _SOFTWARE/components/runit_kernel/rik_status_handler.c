@@ -56,8 +56,6 @@ static void handle_manager_io_errors(status_rep_t* status){
         }
         case IO_ERR_MODE_UNSUPPORTED:{
             ESP_LOGE(TAG, "Unsupported mode %s, on port %d, pin %d", sys_io_mode_to_string(info_extra), port_id, pin_num);
-            handle_vm_stop();
-            SYS_STOP();
             break;
         }
         case IO_ERR_UPDATE_FAILED:{

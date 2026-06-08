@@ -94,14 +94,14 @@ static esp_err_t reconfigure_adc_hardware(uint16_t channel_mask) {
 esp_err_t esp_adc_add_intr_pin(uint8_t channel, void* sys_io_adc_int_config)
 {
     sys_io_adc_int_config_t* adc_pin_cfg = (sys_io_adc_int_config_t*)sys_io_adc_int_config;
-    if (channel >= 10 || adc_pin_cfg == NULL) return ESP_ERR_INVALID_ARG;
-
+    if (channel >= 10) return  ESP_ERR_INVALID_ARG;
+    if (adc_pin_cfg == NULL) return ESP_ERR_INVALID_STATE;
     if (R_MUTEX_LOCK(adc_mutex, WAIT_FOREVER) != pdTRUE) return ESP_FAIL;
 
     sys_pin_obj_t* pin_obj = adc_chan_refs[channel];
     if (pin_obj == NULL) {
         R_MUTEX_UNLOCK(adc_mutex);
-        return ESP_ERR_NOT_FOUND; 
+        return ESP_ERR_INVALID_STATE; 
     }
 
     pin_obj->hw.adc_cfg.adc_treshold_h_mv = adc_pin_cfg->adc_threshold_up_mv;

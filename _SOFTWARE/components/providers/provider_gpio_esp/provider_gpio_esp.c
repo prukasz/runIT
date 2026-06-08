@@ -122,7 +122,7 @@ esp_err_t normal_io_configure(uint8_t pin, uint32_t mode) {
         new_pin->hw.gpio_cfg.mode = GPIO_MODE_OUTPUT; // Push-Pull
     } else {
         ESP_LOGE(TAG, "Invalid GPIO mode requested: %lu", (unsigned long)mode);
-         free(new_pin);
+        free(new_pin);
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -159,14 +159,20 @@ status_rep_t p_gpio_esp_set_pin_mode(uint8_t pin, uint32_t mode) {
             if (!verify_pin_free(pin_mask)) {
                 return STA_C(IO_ERR_PIN_IN_OTHER_USE, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, pin, mode));
             }
+            
+            adc_channel_t channel = 0;
+            adc_unit_t unit = 0;
+            esp_err_t err = adc_continuous_io_to_channel(pin, &unit, &channel);
+            if (err != ESP_OK || unit != ADC_UNIT_1) {
+                ESP_LOGE(TAG, "Pin %d is not a valid ADC1 channel", pin);
+                return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, pin, mode));
+            }
+
             sys_pin_obj_t* new_pin = calloc(1, sizeof(sys_pin_obj_t));
             if (new_pin == NULL) {
                 return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, pin, mode));
             }
-            adc_channel_t channel = 0;
-            adc_unit_t unit = 0;
 
-            adc_continuous_io_to_channel(pin, &unit, &channel);
             new_pin->io_num = pin;
             new_pin->pin_mode = mode;
             new_pin->hw.adc_cfg.adc_channel =  (uint8_t)channel;
@@ -177,9 +183,11 @@ status_rep_t p_gpio_esp_set_pin_mode(uint8_t pin, uint32_t mode) {
             
             return STA_OK;
         }else if (mode == SYS_GPIO_MODE_PWM) {
-        // Placeholder: Apply PWM logic via PWM module
-            return STA_OK;
+            return STA_W(IO_ERR_MODE_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, SYS_GPIO_MODE_PWM);
         } else {
+        if (!verify_pin_free(pin_mask)) {
+            return STA_C(IO_ERR_PIN_IN_OTHER_USE, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, pin, mode));
+        }
         CHECK_ESP_CALL_R(normal_io_configure(pin, mode));
     }
     return STA_OK;
@@ -353,16 +361,18 @@ status_rep_t p_gpio_esp_adc_register_callback(uint8_t pin, void* adc_int_config)
         return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, pin, 0));
     }
 
-    if (pin_registry[pin] == NULL) {
+    sys_pin_obj_t* pin_obj = pin_registry[pin];
+    if (pin_obj == NULL) {
         return STA_C(IO_ERR_PIN_NOT_CONFIGURED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, pin, 0));
     }
-    adc_channel_t channel;
-    adc_unit_t unit;
-    adc_continuous_io_to_channel(pin, &unit, &channel);
-    esp_err_t err = esp_adc_add_intr_pin((uint8_t)channel, adc_int_config);
+
+    if (pin_obj->pin_mode != SYS_GPIO_MODE_ADC) {
+        return STA_C(IO_ERR_PIN_UNSUPPORTED, OWNER_PROVIDER_GPIO_ESP, SYS_IO_MAKE_INFO(my_port_id, pin, pin_obj->pin_mode));
+    }
+    esp_err_t err = esp_adc_add_intr_pin((uint8_t)pin_obj->hw.adc_cfg.adc_channel, adc_int_config);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to register ADC interrupt for pin %d: %s", pin, esp_err_to_name(err));
-        return STA_FROM_ESP(IO_ERR_UPDATE_FAILED);
+        return STA_C(IO_ERR_UPDATE_FAILED, OWNER_PROVIDER_GPIO_ESP, err);
     }
     return STA_OK;
 }
