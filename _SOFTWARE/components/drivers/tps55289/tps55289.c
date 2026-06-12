@@ -6,7 +6,7 @@
 #define TAG __FILE_NAME__
 
 #define TPS55289_I2C_TIMEOUT 20 // ms
-#define I2C_FREQ_HZ 400000      // 400kHz
+#define I2C_FREQ_HZ 100000      // 400kHz
 
 /************* Helper macros ***************************************/
 #define RETURN_ON_ERROR(x) do {        \
@@ -101,7 +101,8 @@ esp_err_t tps55289_sync_all_registers(tps55289_handle_t handle)
 esp_err_t tps55289_set_output_enable(tps55289_handle_t handle, bool enable)
 {
     CHECK_HANDLE_R(handle);
-    uint8_t mode = handle->reg_cache[TPS55289_REG_MODE];
+    uint8_t mode;
+    RETURN_ON_ERROR(_tps55289_read(handle, TPS55289_REG_MODE, &mode));
     if (enable) mode |= 0x80; // Bit 7: OE
     else mode &= ~0x80;
     return _tps55289_write(handle, TPS55289_REG_MODE, mode);
@@ -138,7 +139,8 @@ esp_err_t tps55289_set_voltage(tps55289_handle_t handle, uint16_t voltage_mv)
 {
     CHECK_HANDLE_R(handle);
     
-    uint8_t vout_fs = handle->reg_cache[TPS55289_REG_VOUT_FS];
+    uint8_t vout_fs;
+    RETURN_ON_ERROR(_tps55289_read(handle, TPS55289_REG_VOUT_FS, &vout_fs));
     bool is_external_fb = (vout_fs & 0x80) != 0; // Bit 7: FB
     
     uint16_t ref_val = 0;
@@ -182,7 +184,8 @@ esp_err_t tps55289_set_voltage(tps55289_handle_t handle, uint16_t voltage_mv)
 esp_err_t tps55289_set_mode(tps55289_handle_t handle, bool fpwm, bool hiccup)
 {
     CHECK_HANDLE_R(handle);
-    uint8_t mode = handle->reg_cache[TPS55289_REG_MODE];
+    uint8_t mode;
+    RETURN_ON_ERROR(_tps55289_read(handle, TPS55289_REG_MODE, &mode));
     
     if (fpwm) mode |= 0x10; // Bit 4: FPWM (1) / Auto PFM (0)
     else mode &= ~0x10;
@@ -196,7 +199,8 @@ esp_err_t tps55289_set_mode(tps55289_handle_t handle, bool fpwm, bool hiccup)
 esp_err_t tps55289_set_fault_masks(tps55289_handle_t handle, bool mask_scp, bool mask_ocp, bool mask_ovp)
 {
     CHECK_HANDLE_R(handle);
-    uint8_t cdc = handle->reg_cache[TPS55289_REG_CDC];
+    uint8_t cdc;
+    RETURN_ON_ERROR(_tps55289_read(handle, TPS55289_REG_CDC, &cdc));
 
     if (mask_scp) cdc |= 0x80; else cdc &= ~0x80;
     if (mask_ocp) cdc |= 0x40; else cdc &= ~0x40;

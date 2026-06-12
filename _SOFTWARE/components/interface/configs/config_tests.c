@@ -1,6 +1,7 @@
 #include "config_tests.h"
 #include "manager_io.h"
 #include "manager_power.h"
+#include "rik_system_ctrl.h"
 #include "rik_shared.h"
 #include "esp_log.h"
 #include <string.h>
@@ -45,6 +46,7 @@ status_rep_t cfg_tests_process_packet(const uint8_t* packet_data, uint16_t packe
             cfg_test_adc_read_mv_t settings;
             memcpy(&settings, packet_data + 1, sizeof(cfg_test_adc_read_mv_t));
             uint32_t val = 0;
+            sys_unfreeze();
             CHECK_AND_RETURN(SYS_IO_ADC_READ(settings.pin_id, &val));
             ESP_LOGI(TAG, "SYS_IO_ADC_READ pin_id=%lu -> %lu mV", (unsigned long)settings.pin_id, (unsigned long)val);
             break;

@@ -20,12 +20,12 @@ void* p_vreg_1_new(void){
 }
 
 i2c_device_config_t* p_vreg_get_i2c_dev_config(bool reg_num){
-    if (reg_num == 0) return vreg_handle_0 ? &vreg_handle_0->i2c_device_config : NULL;
-    return vreg_handle_1 ? &vreg_handle_1->i2c_device_config : NULL;
+    if (reg_num == 0) return vreg_handle_0 ? &(vreg_handle_0->i2c_device_config) : NULL;
+    return vreg_handle_1 ? &(vreg_handle_1->i2c_device_config) : NULL;
 }
 i2c_master_dev_handle_t*p_vreg_get_i2c_dev_handle(bool reg_num){
-    if (reg_num == 0) return vreg_handle_0 ? &vreg_handle_0->i2c_master_dev_handle : NULL;
-    return vreg_handle_1 ? &vreg_handle_1->i2c_master_dev_handle : NULL;
+    if (reg_num == 0) return vreg_handle_0 ? &(vreg_handle_0->i2c_master_dev_handle): NULL;
+    return vreg_handle_1 ? &(vreg_handle_1->i2c_master_dev_handle): NULL;
 }
 TaskHandle_t p_vreg_get_task_handle(bool reg_num){
     if (reg_num == 0) return vreg_handle_0 ? vreg_handle_0->driver_task_handle : NULL;

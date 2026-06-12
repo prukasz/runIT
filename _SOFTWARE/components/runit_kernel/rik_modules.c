@@ -138,6 +138,7 @@ status_rep_t rik_start_power_manager() {
 #undef OWNER
 #define OWNER OWNER_RIK_DRIVER_INIT_IO_MANAGER
 status_rep_t rik_start_io_manager() {
+    
     STA_RP_ON_ERR(rik_p_gpio_esp_start());
 #if CONFIG_CONNECT_TCA6424A
     STA_RP_ON_ERR(rik_p_gpio_expander_start(CONFIG_I2C_ADDR_TCA6424A, 0));

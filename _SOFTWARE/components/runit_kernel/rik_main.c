@@ -68,5 +68,6 @@ esp_err_t rik_start(void) {
         .vm_event_group = rik_events_vm
     };
     vm_start(&vm_cfg);
+    sys_unfreeze();
     return ESP_OK;
 }

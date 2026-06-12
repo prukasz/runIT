@@ -102,7 +102,7 @@ extern void p_gpio_expander_intr_pin_callback(void* arg);
 status_rep_t rik_p_gpio_expander_start(uint8_t i2c_addres, bool bus_num){
 
 #if !CONFIG_USE_MOCK_TCA6424A
-        STA_RET_ON_ERR(m_i2c_device_present(bus_num, i2c_addres));
+        STA_RP_ON_ERR(m_i2c_device_present(bus_num, i2c_addres));
         ESP_LOGI(TAG, "TCA6424A detected on bus %d at address 0x%02X", bus_num ? 1 : 0, i2c_addres);
 #endif
     gpio_expander_handle = p_gpio_expander_new(i2c_addres);
@@ -182,12 +182,6 @@ status_rep_t rik_current_monitor_start(uint8_t i2c_addres, bool bus_num){
 #undef OWNER
 #define OWNER OWNER_RIK_DRIVER_INIT_VREG
 status_rep_t rik_p_vreg_start(uint8_t i2c_adders_0, uint8_t i2c_adders_1, bool bus_num){
-#if !CONFIG_USE_MOCK_TPS55289 && CONFIG_CONNECT_TPS55289_0
-        STA_R_ON_ERR(m_i2c_device_present(bus_num, i2c_adders_0));
-#endif
-#if !CONFIG_USE_MOCK_TPS55289 && CONFIG_CONNECT_TPS55289_1
-        STA_R_ON_ERR(m_i2c_device_present(bus_num, i2c_adders_1));
-#endif
 
     i2c_device_config_t* dev_config;
     i2c_master_dev_handle_t*  master_dev_handle;
@@ -215,7 +209,7 @@ status_rep_t rik_p_vreg_start(uint8_t i2c_adders_0, uint8_t i2c_adders_1, bool b
 #if CONFIG_CONNECT_TPS55289_1
     vreg1_handle = p_vreg_1_new();
     CHECK_HANDLE_R(vreg1_handle);
-    
+
     dev_config = p_vreg_get_i2c_dev_config(1);
     master_dev_handle = p_vreg_get_i2c_dev_handle(1);
     task_handle = p_vreg_get_task_handle(1);
@@ -224,13 +218,19 @@ status_rep_t rik_p_vreg_start(uint8_t i2c_adders_0, uint8_t i2c_adders_1, bool b
         bus_num, 
         *dev_config,
         master_dev_handle,
-        vreg0_handle,
+        vreg1_handle,
         task_handle, 
         true,
         &rik_vreg1_id
     ));
 
     ESP_LOGI(TAG, "TPS55289 regulator 1 started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_adders_1);
+#endif
+#if !CONFIG_USE_MOCK_TPS55289 && CONFIG_CONNECT_TPS55289_0
+        STA_R_ON_ERR(m_i2c_device_present(bus_num, i2c_adders_0));
+#endif
+#if !CONFIG_USE_MOCK_TPS55289 && CONFIG_CONNECT_TPS55289_1
+        STA_R_ON_ERR(m_i2c_device_present(bus_num, i2c_adders_1));
 #endif
     return STA_OK;
 }
@@ -303,7 +303,7 @@ status_rep_t p_pwm_expadner_start(uint8_t i2c_addres, bool bus_num){
         bus_num, 
         *dev_config,
         master_dev_handle,
-        adc_expander_handle,
+        pwm_expander_handle,
         task_handle,
         true, 
         &rik_pwm_expander_id
