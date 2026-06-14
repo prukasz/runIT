@@ -1,9 +1,0 @@
-Change Component Kind : Designator=EN_VREG5 Old Kind=Jumper New Kind=Standard
-Change Component Kind : Designator=EN_VREG Old Kind=Jumper New Kind=Standard
-Change Component Kind : Designator=OUT_3V3 Old Kind=Jumper New Kind=Standard
-Change Component Kind : Designator=OUT_VREG5 Old Kind=Jumper New Kind=Standard
-Change Component Kind : Designator=OUT_VREG Old Kind=Jumper New Kind=Standard
-Added Pin To Net: NetName=VSUP_U_DCDCreg Pin=EN_VREG-2
-Added Pin To Net: NetName=3V5 Pin=OUT_3V3-2
-Added Pin To Net: NetName=VREG5 Pin=OUT_VREG5-2
-Added Pin To Net: NetName=VREG Pin=OUT_VREG-2

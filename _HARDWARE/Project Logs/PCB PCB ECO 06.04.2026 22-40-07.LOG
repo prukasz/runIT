@@ -1,4 +1,0 @@
-Removed Pin From Net: NetName=EXTERNAL_TXD0 Pin=J_UART1-2
-Removed Pin From Net: NetName=EXTERNAL_RXD0 Pin=J_UART1-3
-Added Pin To Net: NetName=EXTERNAL_RXD0 Pin=J_UART1-2
-Added Pin To Net: NetName=EXTERNAL_TXD0 Pin=J_UART1-3

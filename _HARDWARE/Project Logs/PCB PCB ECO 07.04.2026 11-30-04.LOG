@@ -1,4 +1,0 @@
-Removed Pin From Net: NetName=GND Pin=C43-1
-Removed Pin From Net: NetName=3V3PROT Pin=C43-2
-Removed Member From Class: ClassName=U_MCU Member=C43
-Added Member To Class: ClassName=U_GPIOExpander Member=Component JP4 JUMPER

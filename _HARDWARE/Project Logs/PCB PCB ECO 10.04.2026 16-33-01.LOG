@@ -1,8 +1,0 @@
-Change component parameters: Designator = "C42" ("C42"); Footprint = "CAP_PKPZ_10X12P5_LOW_RUB"; UniqueID = "\TZDEMZSY\TMMBSKRE" ("\TZDEMZSY\TMMBSKRE")
-Change component parameters (AddParameter): Name = "Casing"; Value = ""; VariantName = "[No Variations]"
-Change component parameters (AddParameter): Name = "Dielectric"; Value = ""; VariantName = "[No Variations]"
-Change component parameters (AddParameter): Name = "Manufacturer"; Value = "Rubycon"; VariantName = "[No Variations]"
-Change component parameters (AddParameter): Name = "Technology"; Value = ""; VariantName = "[No Variations]"
-Change component parameters (AddParameter): Name = "Tolerance"; Value = "20%"; VariantName = "[No Variations]"
-Change component parameters (AddParameter): Name = "Value"; Value = "470u"; VariantName = "[No Variations]"
-Change component parameters (AddParameter): Name = "Voltage"; Value = "35V"; VariantName = "[No Variations]"

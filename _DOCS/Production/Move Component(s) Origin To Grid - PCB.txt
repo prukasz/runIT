@@ -1,5 +1,0 @@
-Move Component Origin to Grid
-Filename     : C:\Users\krolp\Documents\runIT\_HARDWARE\PCB.PcbDoc
-Date         : 02.04.2026
-Time         : 00:08:12
-Time Elapsed : 00:00:00

@@ -1,4 +1,0 @@
-Removed Pin From Net: NetName=NetTP1_1 Pin=TP1-17
-Removed Member From Class: ClassName=NoRelief Member=J1
-Add Pin To Net: Unknown Pin: Pin TP1-1
-Added Class: Name=ThickRelief

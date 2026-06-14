@@ -1,8 +1,0 @@
-Replace Part C57 C_22uF_10V in C:\Users\krolp\Documents\runIT\_HARDWARE\DAC.SchDoc with C_22uF_10V from Common.SchLib
-Replace Part C58 C_1uF_10V in C:\Users\krolp\Documents\runIT\_HARDWARE\DAC.SchDoc with C_1uF_10V from Common.SchLib
-Replace Part C59 C_100nF_10V in C:\Users\krolp\Documents\runIT\_HARDWARE\DAC.SchDoc with C_100nF_10V from Common.SchLib
-Replace Part C60 C_1uF_10V in C:\Users\krolp\Documents\runIT\_HARDWARE\DAC.SchDoc with C_1uF_10V from Common.SchLib
-Replace Part C61 C_1uF_10V in C:\Users\krolp\Documents\runIT\_HARDWARE\DAC.SchDoc with C_1uF_10V from Common.SchLib
-Replace Part L4 L_1mH in C:\Users\krolp\Documents\runIT\_HARDWARE\DAC.SchDoc with L_1mH from IOLib.SchLib
-Replace Part R66 R_10k in C:\Users\krolp\Documents\runIT\_HARDWARE\DAC.SchDoc with R_10k from Common.SchLib
-Replace Part U16 IC_dac53202_DAC53202RTER in C:\Users\krolp\Documents\runIT\_HARDWARE\DAC.SchDoc with IC_dac53202_DAC53202RTER from IOLib.SchLib

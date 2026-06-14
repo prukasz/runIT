@@ -1,8 +1,0 @@
-Added Component: Designator=R64(R_0603)
-Add component (AddParameter): Name = "Casing"; Value = "0603"; VariantName = "[No Variations]"
-Add component (AddParameter): Name = "Power"; Value = "100mW"; VariantName = "[No Variations]"
-Add component (AddParameter): Name = "Tolerance"; Value = "1%"; VariantName = "[No Variations]"
-Add component (AddParameter): Name = "Value"; Value = "10k"; VariantName = "[No Variations]"
-Added Pin To Net: NetName=ADS_ALERT Pin=R64-1
-Added Pin To Net: NetName=3V5 Pin=R64-2
-Added Member To Class: ClassName=U_ADCHighVoltageInputsSchDoc Member=Component R64 10k

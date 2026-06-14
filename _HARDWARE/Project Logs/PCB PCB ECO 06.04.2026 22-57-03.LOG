@@ -1,4 +1,0 @@
-Removed Pin From Net: NetName=IO0 Pin=D22-1
-Removed Pin From Net: NetName=CHIP_PU Pin=D22-3
-Added Pin To Net: NetName=CHIP_PU Pin=D22-1
-Added Pin To Net: NetName=IO0 Pin=D22-3

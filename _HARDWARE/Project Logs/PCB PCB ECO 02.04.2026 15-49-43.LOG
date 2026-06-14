@@ -1,5 +1,0 @@
-Removed Pin From Net: NetName=CC1 Pin=U3-1
-Removed Pin From Net: NetName=CC2 Pin=U3-2
-Added Pin To Net: NetName=CC2 Pin=U3-1
-Added Pin To Net: NetName=CC1 Pin=U3-2
-Added Member To Class: ClassName=U_USBPD Member=Component U2 TPD2E2U06DCKR

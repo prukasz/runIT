@@ -1,6 +1,0 @@
-Removed Member From Class: ClassName=DRVPowerOutputs Member=Q1
-Removed Member From Class: ClassName=DRVPowerOutputs Member=Q2
-Change Class Name : Old Net Name=Q1 New Net Name=DRV1
-Change Class Name : Old Net Name=Q2 New Net Name=DRV2
-Added Member To Class: ClassName=DRVPowerOutputs Member=DRV1 (DRVPowerOutputs.SchDoc)
-Added Member To Class: ClassName=DRVPowerOutputs Member=DRV2 (DRVPowerOutputs.SchDoc)

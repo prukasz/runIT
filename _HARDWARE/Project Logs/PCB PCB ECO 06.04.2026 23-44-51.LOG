@@ -1,8 +1,0 @@
-Removed Pin From Net: NetName=EXTERNAL_SPI_CS1 Pin=J_SPI?-3
-Removed Pin From Net: NetName=EXTERNAL_SPI_MISO Pin=J_SPI?-4
-Removed Pin From Net: NetName=EXTERNAL_SPI_MOSI Pin=J_SPI?-6
-Removed Pin From Net: NetName=EXTERNAL_SPI_CS0 Pin=J_SPI?-7
-Added Pin To Net: NetName=EXTERNAL_SPI_CS0 Pin=J_SPI?-3
-Added Pin To Net: NetName=EXTERNAL_SPI_MOSI Pin=J_SPI?-4
-Added Pin To Net: NetName=EXTERNAL_SPI_MISO Pin=J_SPI?-6
-Added Pin To Net: NetName=EXTERNAL_SPI_CS1 Pin=J_SPI?-7

@@ -1,4 +1,0 @@
-Change Component Description : Designator=U6 Old Description=2.7-V to 23-V, 28-mâ„ New Description=2.7-V to 23-V, 28-mâ„|, 5.5-A eFuse with integrated reverse polarity protection 10-VQFN-HR -40 to 125
-Change Component Description : Designator=U7 Old Description=2.7-V to 23-V, 28-mâ„ New Description=2.7-V to 23-V, 28-mâ„|, 5.5-A eFuse with integrated reverse polarity protection 10-VQFN-HR -40 to 125
-Added Member To Class: ClassName=U_PWMExpander Member=Component PWM_60h JUMPER
-Added Member To Class: ClassName=U_PWMExpander Member=Component PWM_70h JUMPER
