@@ -10,7 +10,6 @@
 #include "rik_modules.h"
 #include "manager_io.h"
 #include "manager_power.h"
-#include "vm_demo.h"
 #include "rik_system_ctrl.h"
 #include "vm_main.h"
 

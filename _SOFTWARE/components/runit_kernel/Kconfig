@@ -27,18 +27,6 @@ menu "RunIT Configurations"
             default y
     endmenu
 
-    menu "Mock Drivers (for testing without hardware)"
-        config USE_MOCK_TCA6424A
-            bool "Use mock TCA6424A driver"
-            default y
-        config USE_MOCK_TPS55289
-            bool "Use mock TPS55289 driver"
-            default y
-        config USE_MOCK_ADS7128
-            bool "Use mock ADS7128 driver"
-            default y
-    endmenu
-
     menu "I2C Addresses"
         config I2C_ADDR_TCA6424A
             int "TCA6424A (0x23 to 3v5, 0x22 to GND)"

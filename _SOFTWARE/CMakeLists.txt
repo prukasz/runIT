@@ -10,13 +10,11 @@ list(APPEND EXTRA_COMPONENT_DIRS
     "components/status"
     "components/runit_kernel"
     "components/interface"
-    "components/mocks"
     "components/managers"
     "components/drivers"
     "components/providers"
     "components/utils"
     "components/features"
-    "components/vm_demo"
     "components/vm_new"
 )
 project(runIT)

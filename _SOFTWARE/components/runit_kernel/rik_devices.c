@@ -10,8 +10,6 @@
 #include "provider_voltage_regulator.h"
 #include "provider_dac_expander.h"
 #include "sdkconfig.h"
-#include "tca6424a_mock.h"
-#include "ads7128_mock.h"
 #include "provider_pwm_expander.h"
 #include "provider_power_delivery.h"
 
@@ -104,10 +102,9 @@ extern void p_gpio_expander_intr_pin_callback(void* arg);
 #define OWNER OWNER_RIK_DRIVER_INIT_GPIO_EXPANDER
 status_rep_t rik_p_gpio_expander_start(uint8_t i2c_addres, bool bus_num){
 
-#if !CONFIG_USE_MOCK_TCA6424A
-        STA_RP_ON_ERR(m_i2c_device_present(bus_num, i2c_addres));
-        ESP_LOGI(TAG, "TCA6424A detected on bus %d at address 0x%02X", bus_num ? 1 : 0, i2c_addres);
-#endif
+    STA_RP_ON_ERR(m_i2c_device_present(bus_num, i2c_addres));
+    ESP_LOGI(TAG, "TCA6424A detected on bus %d at address 0x%02X", bus_num ? 1 : 0, i2c_addres);
+
     gpio_expander_handle = p_gpio_expander_new(i2c_addres);
     CHECK_HANDLE_R(gpio_expander_handle);
 
@@ -147,9 +144,7 @@ status_rep_t rik_p_gpio_expander_start(uint8_t i2c_addres, bool bus_num){
     ));
 
     p_gpio_expander_set_port_id(rik_gpio_expander_port_id);
-#if CONFIG_USE_MOCK_TCA6424A
-        tca_mock_set_intr_callback(p_gpio_expander_intr_pin_callback, gpio_expander_handle);
-#endif
+
     ESP_LOGI(TAG, "GPIO expander started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_addres);
     return STA_OK;
 }
@@ -229,10 +224,10 @@ status_rep_t rik_p_vreg_start(uint8_t i2c_adders_0, uint8_t i2c_adders_1, bool b
 
     ESP_LOGI(TAG, "TPS55289 regulator 1 started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_adders_1);
 #endif
-#if !CONFIG_USE_MOCK_TPS55289 && CONFIG_CONNECT_TPS55289_0
+#if CONFIG_CONNECT_TPS55289_0
         STA_R_ON_ERR(m_i2c_device_present(bus_num, i2c_adders_0));
 #endif
-#if !CONFIG_USE_MOCK_TPS55289 && CONFIG_CONNECT_TPS55289_1
+#if CONFIG_CONNECT_TPS55289_1
         STA_R_ON_ERR(m_i2c_device_present(bus_num, i2c_adders_1));
 #endif
     return STA_OK;
@@ -245,10 +240,8 @@ extern void p_adc_expander_intr_pin_callback(void* arg);
 #define OWNER OWNER_RIK_DRIVER_INIT_ADC_EXPANDER
 status_rep_t rik_adc_expander_start(uint8_t i2c_addres, bool bus_num){
 
-    #if !CONFIG_USE_MOCK_ADS7128
-        STA_R_ON_ERR(m_i2c_device_present(bus_num, i2c_addres));
-        ESP_LOGI(TAG, "ADS7128 detected on bus %d at address 0x%02X", bus_num ? 1 : 0, i2c_addres);
-    #endif
+    STA_R_ON_ERR(m_i2c_device_present(bus_num, i2c_addres));
+    ESP_LOGI(TAG, "ADS7128 detected on bus %d at address 0x%02X", bus_num ? 1 : 0, i2c_addres);
 
     adc_expander_handle = p_adc_expander_new_handle(i2c_addres);
     CHECK_HANDLE_R(adc_expander_handle);
@@ -286,10 +279,6 @@ status_rep_t rik_adc_expander_start(uint8_t i2c_addres, bool bus_num){
     ));
     
     p_adc_expander_set_port_id(rik_adc_expander_port_id);
- 
-#if CONFIG_USE_MOCK_ADS7128
-    ads_mock_add_alert_callback(p_adc_expander_intr_pin_callback, adc_expander_handle);
-#endif
     ESP_LOGI(TAG, "ADC expander started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_addres);
     return STA_OK;
 }

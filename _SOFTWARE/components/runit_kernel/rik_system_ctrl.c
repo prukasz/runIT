@@ -4,13 +4,10 @@
 #include "rik_shared.h"
 #include "rtos_utils.h"
 #include "rik_devices_link.h"
-#include "vm_demo.h"
 #include "sdkconfig.h"
 #include <inttypes.h>
 
 #define TAG __FILE_NAME__
-
-extern TaskHandle_t vm_demo_task;
 
 static rik_sys_ctrl_power_cfg_t system_ctrl_config = {0};
 
@@ -126,7 +123,6 @@ void sys_handle_pwr_callbacks(manager_pwr_cb_type_e callback_type) {
                 case MANAGER_PWR_CB_CURRENT_SYS_WARNING:
                 case MANAGER_PWR_CB_CURRENT_REG1_WARNING: {
                     if (s_vm_sys_power_cb) s_vm_sys_power_cb((void*)callback_type);
-                    vm_callback_power_event((void*)callback_type);
                     break;
                 }
                 case MANAGER_PWR_CB_REG0_OVP:
@@ -160,7 +156,6 @@ void sys_handle_pwr_callbacks(manager_pwr_cb_type_e callback_type) {
 
         case SYS_CTRL_VM_CALLBACKS_ONLY: {
             if (s_vm_sys_power_cb) s_vm_sys_power_cb((void*)callback_type);
-            vm_callback_power_event((void*)callback_type);
             break;
         }
 

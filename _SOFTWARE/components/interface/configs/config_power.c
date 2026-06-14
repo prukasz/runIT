@@ -30,30 +30,44 @@ status_rep_t cfg_pwr_process_packet(const uint8_t* packet_data, uint16_t packet_
         case CFG_PWR_TYPE_REG_EN: {
             cfg_pwr_reg_en_t settings;
             memcpy(&settings, packet_data+1, sizeof(cfg_pwr_reg_en_t));
-            if (settings.en_reg_0 || settings.en_reg_1){            
-                //CHECK_AND_RETURN(SYS_GPIO_SET_LEVEL(RIK_IO_PIN_REGA_EN, settings.en_reg_0));
+            #if CONFIG_CONNECT_TPS55289_0
+                ESP_LOGI(TAG, "Enabling VREG0");          
+                CHECK_AND_RETURN(SYS_GPIO_SET_LEVEL(RIK_IO_PIN_REGA_EN, settings.en_reg_0));
+                CHECK_AND_RETURN(sys_pwr_enable_verg(1, settings.en_reg_1));
+            #endif
+            #if CONFIG_CONNECT_TPS55289_1
+                ESP_LOGI(TAG, "Enabling VREG1");
                 CHECK_AND_RETURN(SYS_GPIO_SET_LEVEL(RIK_IO_PIN_REGB_EN, settings.en_reg_1));
-            }
-            //CHECK_AND_RETURN(sys_pwr_enable_verg(0, settings.en_reg_0));
-            CHECK_AND_RETURN(sys_pwr_enable_verg(1, settings.en_reg_1));
+                CHECK_AND_RETURN(sys_pwr_enable_verg(0, settings.en_reg_0));
+            #endif
             break;
         }
         case CFG_PWR_TYPE_REG_SETTINGS:{
             cfg_pwr_reg_settings_t settings;
             memcpy(&settings, packet_data + 1, sizeof(cfg_pwr_reg_settings_t));
-            //CHECK_AND_RETURN(sys_pwr_set_verg_voltage(0, settings.voltage_reg_0_mV));
-            CHECK_AND_RETURN(sys_pwr_set_verg_voltage(1, settings.voltage_reg_1_mV));
-            //CHECK_AND_RETURN(sys_pwr_set_verg_current_limit(0, settings.current_limit_reg_0_mA));
-            CHECK_AND_RETURN(sys_pwr_set_verg_current_limit(1,  settings.current_limit_reg_1_mA));
+            #if CONFIG_CONNECT_TPS55289_0
+                ESP_LOGI(TAG, "configuring VREG0, voltage %d mV, current %d mA", settings.voltage_reg_0_mV, settings.current_limit_reg_0_mA);
+                CHECK_AND_RETURN(sys_pwr_set_verg_voltage(0, settings.voltage_reg_0_mV));
+                CHECK_AND_RETURN(sys_pwr_set_verg_current_limit(0, settings.current_limit_reg_0_mA));
+            #endif
+            #if CONFIG_CONNECT_TPS55289_1
+            ESP_LOGI(TAG, "configuring VREG1, voltage %d mV, current %d mA", settings.voltage_reg_1_mV, settings.current_limit_reg_1_mA);
+                CHECK_AND_RETURN(sys_pwr_set_verg_voltage(1, settings.voltage_reg_1_mV));
+                CHECK_AND_RETURN(sys_pwr_set_verg_current_limit(1,  settings.current_limit_reg_1_mA));
+            #endif
             break;
         }
         case CFG_PWR_TYPE_REG_LIMITS:{
             cfg_pwr_reg_limits_t settings;
             memcpy(&settings, packet_data + 1, sizeof(cfg_pwr_reg_limits_t));
-            //CHECK_AND_RETURN(sys_pwr_set_bus_power_warning(RIK_CHANNEL_VREG0, settings.power_warning_reg_0_mW));
-            CHECK_AND_RETURN(sys_pwr_set_bus_power_warning(RIK_CHANNEL_VREG1, settings.power_warning_reg_1_mW));
-           // CHECK_AND_RETURN(sys_pwr_set_bus_power_critical(RIK_CHANNEL_VREG0, settings.power_critical_reg_0_mW));
-            CHECK_AND_RETURN(sys_pwr_set_bus_power_critical(RIK_CHANNEL_VREG1, settings.power_critical_reg_1_mW));
+            #if CONFIG_CONNECT_TPS55289_0
+                CHECK_AND_RETURN(sys_pwr_set_bus_power_warning(RIK_CHANNEL_VREG0, settings.power_warning_reg_0_mW));
+                CHECK_AND_RETURN(sys_pwr_set_bus_power_critical(RIK_CHANNEL_VREG0, settings.power_critical_reg_0_mW));
+            #endif
+            #if CONFIG_CONNECT_TPS55289_1
+                CHECK_AND_RETURN(sys_pwr_set_bus_power_warning(RIK_CHANNEL_VREG1, settings.power_warning_reg_1_mW));
+                CHECK_AND_RETURN(sys_pwr_set_bus_power_critical(RIK_CHANNEL_VREG1, settings.power_critical_reg_1_mW));
+            #endif
             break;
         }
         case CFG_PWR_TYPE_REG_BEHAVIOR:{

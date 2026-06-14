@@ -1,6 +1,5 @@
 #include "provider_voltage_regulator.h"
 #include "tps55289.h"
-#include "tps55289_mock.h"
 
 #define TAG __FILE_NAME__
 #undef OWNER

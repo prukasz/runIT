@@ -1,7 +1,7 @@
 #include "ads7128.h"
 #include <esp_log.h>
 #include <string.h>
-#include "ads7128_mock.h"
+
 
 #define TAG __FILE_NAME__
 

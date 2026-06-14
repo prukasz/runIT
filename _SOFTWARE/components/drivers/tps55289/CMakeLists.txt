@@ -1,5 +1,5 @@
 idf_component_register(
     SRCS "tps55289.c"
     INCLUDE_DIRS "include"
-    REQUIRES esp_driver_i2c mock_tps
+    REQUIRES esp_driver_i2c
 )
