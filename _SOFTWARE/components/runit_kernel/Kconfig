@@ -22,6 +22,9 @@ menu "RunIT Configurations"
         config  CONNECT_AP33772S
             bool "Connect ap33772s pd sink controller"
             default y
+        config CONNECT_DAC53202
+            bool "Connect DAC53202"
+            default y
     endmenu
 
     menu "Mock Drivers (for testing without hardware)"
@@ -55,7 +58,7 @@ menu "RunIT Configurations"
         config I2C_ADDR_TPS55289_1
             int "TPS55289_1"
             default 117
-        config I2C_ADDR_DAC5202
+        config I2C_ADDR_DAC53202
             int "DAC5202"
             default 72
         config I2C_ADDR_AP33772S

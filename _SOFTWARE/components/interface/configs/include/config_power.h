@@ -11,7 +11,9 @@ typedef enum{
     CFG_PWR_TYPE_CURRENT_BEHAVIOR = 13,
     CFG_PWR_TYPE_TEST_SET_PD = 14,
     CFG_PWR_TYPE_TEST_GET_PD_VOLTAGE = 15,
-    CFG_PWR_TYPE_TEST_GET_PD_CURRENT = 16
+    CFG_PWR_TYPE_TEST_GET_PD_CURRENT = 16,
+    CFG_PWR_TYPE_SET_DAC_VOLTAGE = 17,
+    CFG_PWR_TYPE_GET_DAC_VOLTAGE = 18
 }cfg_pwr_packet_type_e;
 
 typedef enum{
@@ -82,6 +84,12 @@ typedef struct __attribute__((packed)){
     uint32_t pd_voltage_mv;
     uint32_t pd_current_ma;
 } cfg_pwr_test_set_pd_t; //@cfg_pwr_packet_type_e CFG_PWR_TYPE_TEST_SET_PD
+
+/******************* DAC VOLTAGE *************************/
+typedef struct __attribute__((packed)){
+    uint8_t channel;
+    uint32_t voltage_mv;
+} cfg_pwr_set_dac_voltage_t; //@cfg_pwr_packet_type_e CFG_PWR_TYPE_SET_DAC_VOLTAGE
 
 
 status_rep_t cfg_pwr_process_packet(const uint8_t* packet_data, uint16_t packet_len);

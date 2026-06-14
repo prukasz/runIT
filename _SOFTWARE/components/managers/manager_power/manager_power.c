@@ -5,6 +5,7 @@
 #include "provider_current_monitor.h"
 #include "provider_power_delivery.h"
 #include "provider_gpio_expander.h"
+#include "provider_dac_expander.h"
 #include "math.h"
 #include "sdkconfig.h"
 
@@ -192,6 +193,35 @@ status_rep_t sys_pwr_current_monitor_reset(void) {
 status_rep_t manager_pwr_init(){
     return STA_OK;
 } 
+
+#undef OWNER
+#define OWNER OWNER_MANAGER_PWR_SET_DAC
+status_rep_t sys_pwr_set_dac_voltage(uint8_t channel, uint32_t voltage_mv){
+    CHECK_ARG_RP(channel, 0, 1, 0); 
+    
+    status_rep_t status = p_dac_expander_set_channel_mv(channel, voltage_mv);
+    if(STA_P_ON_ESP_ERR(status)){
+        STA_RP(STA_C(PWR_ERR_UPDATE_FAILED, OWNER, status.e_code));
+    }
+    STA_RP_ON_ERR(status);
+    return STA_OK;
+}
+
+#undef OWNER
+#define OWNER OWNER_MANAGER_PWR_GET_DAC
+status_rep_t sys_pwr_get_dac_voltage(uint8_t channel, uint32_t *voltage_mv){
+    CHECK_ARG_RP(channel, 0, 1, 0);
+    CHECK_NOT_NULL_R(voltage_mv);
+    
+    status_rep_t status = p_dac_expander_get_channel_mv(channel, voltage_mv);
+    if(STA_P_ON_ESP_ERR(status)){
+        STA_RP(STA_C(PWR_ERR_UPDATE_FAILED, OWNER, status.e_code));
+    }
+    STA_RP_ON_ERR(status);
+    return STA_OK;
+}
+
+#undef OWNER
 
 #undef OWNER
 #define OWNER OWNER_MANAGER_PWR_REGISTER_CALLBACK

@@ -126,6 +126,9 @@ status_rep_t rik_start_power_manager() {
     #if CONFIG_CONNECT_AP33772S
         STA_RP_ON_ERR(rik_p_power_delivery_start(CONFIG_I2C_ADDR_AP33772S, 0));
     #endif
+    #if CONFIG_CONNECT_DAC53202
+        STA_RP_ON_ERR(rik_p_dac_expander_start(CONFIG_I2C_ADDR_DAC53202, 0));
+    #endif
 
     STA_RP_ON_ERR(manager_pwr_init());
     ESP_LOGI(TAG, "Power manager initialized successfully");

@@ -30,5 +30,6 @@ idf_component_register(
     provider_voltage_regulator
     provider_pwm_expander
     provider_power_delivery
+    provider_dac_expander
     vm_new
 )

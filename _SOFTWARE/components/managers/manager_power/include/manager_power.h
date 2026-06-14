@@ -40,6 +40,9 @@ status_rep_t sys_pwr_set_pd_voltage_current(uint32_t voltage_mv, uint32_t curren
 status_rep_t sys_pwr_get_pd_voltage(uint32_t *voltage_mv);
 status_rep_t sys_pwr_get_pd_current(int32_t *current_ma);
 
+status_rep_t sys_pwr_set_dac_voltage(uint8_t channel, uint32_t voltage_mv);
+status_rep_t sys_pwr_get_dac_voltage(uint8_t channel, uint32_t *voltage_mv);
+
 
 
  

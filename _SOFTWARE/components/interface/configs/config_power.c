@@ -107,6 +107,20 @@ status_rep_t cfg_pwr_process_packet(const uint8_t* packet_data, uint16_t packet_
             ESP_LOGI(TAG, "Test PD Get Current: %ldmA", (long)current_ma);
             break;
         }
+        case CFG_PWR_TYPE_SET_DAC_VOLTAGE:{
+            cfg_pwr_set_dac_voltage_t settings;
+            memcpy(&settings, packet_data + 1, sizeof(cfg_pwr_set_dac_voltage_t));
+            CHECK_AND_RETURN(sys_pwr_set_dac_voltage(settings.channel, settings.voltage_mv));
+            ESP_LOGI(TAG, "Set DAC Voltage: Channel %u, %lumV", settings.channel, (unsigned long)settings.voltage_mv);
+            break;
+        }
+        case CFG_PWR_TYPE_GET_DAC_VOLTAGE:{
+            uint8_t channel = packet_data[1];
+            uint32_t voltage_mv = 0;
+            CHECK_AND_RETURN(sys_pwr_get_dac_voltage(channel, &voltage_mv));
+            ESP_LOGI(TAG, "Get DAC Voltage: Channel %u, %lumV", channel, (unsigned long)voltage_mv);
+            break;
+        }
         default:
         return STA_W(PWE_ERR_PARSE_NOT_FOUND, OWNER_MANAGER_PWR_PARSE_PACKET, packet_data[0]);
     }

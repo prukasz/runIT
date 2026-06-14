@@ -20,4 +20,3 @@ list(APPEND EXTRA_COMPONENT_DIRS
     "components/vm_new"
 )
 project(runIT)
-
