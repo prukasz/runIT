@@ -4201,14 +4201,6 @@ CONFIG_CONNECT_DAC53202=y
 # end of Peripherials
 
 #
-# Mock Drivers (for testing without hardware)
-#
-# CONFIG_USE_MOCK_TCA6424A is not set
-# CONFIG_USE_MOCK_TPS55289 is not set
-# CONFIG_USE_MOCK_ADS7128 is not set
-# end of Mock Drivers (for testing without hardware)
-
-#
 # I2C Addresses
 #
 # default:
