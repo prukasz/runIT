@@ -60,7 +60,7 @@ static m_i2c_config_t rik_i2c_cfg_0 = {
         .intr_priority = 0, 
         .trans_queue_depth = 0,
         .flags = {
-            .enable_internal_pullup = true,
+            .enable_internal_pullup = false,
         }
     }
 };
@@ -78,7 +78,7 @@ static m_i2c_config_t rik_i2c_cfg_1 = {
         .intr_priority = 0, 
         .trans_queue_depth = 0,
         .flags = {
-            .enable_internal_pullup = true,
+            .enable_internal_pullup = false,
         }
     }
 };

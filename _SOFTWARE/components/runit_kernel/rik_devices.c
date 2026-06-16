@@ -86,7 +86,7 @@ status_rep_t rik_p_power_delivery_start(uint8_t i2c_addr, bool bus_num){
         master_dev_handle,
         power_delivery_handle,
         task_handle,
-        true,
+        false,
         &rik_power_delivery_id
     ));
     status_rep_t status = p_power_delivery_begin();
@@ -198,7 +198,7 @@ status_rep_t rik_p_vreg_start(uint8_t i2c_adders_0, uint8_t i2c_adders_1, bool b
         master_dev_handle,
         vreg0_handle,
         task_handle, 
-        true,
+        false,
         &rik_vreg0_id
     ));
     ESP_LOGI(TAG, "TPS55289 regulator 0 started on bus %d with address 0x%02X", bus_num ? 1 : 0, i2c_adders_0);
@@ -218,7 +218,7 @@ status_rep_t rik_p_vreg_start(uint8_t i2c_adders_0, uint8_t i2c_adders_1, bool b
         master_dev_handle,
         vreg1_handle,
         task_handle, 
-        true,
+        false,
         &rik_vreg1_id
     ));
 

@@ -34,8 +34,8 @@ extern uint8_t rik_pwm_expander_port_id;
 
 #define RIK_IO_PIN_DRV2_SLEEP   SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 8)  //10
 #define RIK_IO_PIN_DRV2_FAULT   SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 10)  //12
-#define RIK_IO_PIN_DRV2_VMA_REGA SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 12)  //14
-#define RIK_IO_PIN_DRV2_VMB_VSUP SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 13)  //15
+#define RIK_IO_PIN_DRV2_VMA_REGA SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 13)  //15
+#define RIK_IO_PIN_DRV2_VMB_VSUP SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 12)  //14
 
 #define RIK_IO_PIN_DRV1_SLEEP   SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 9)  //11
 #define RIK_IO_PIN_DRV1_FAULT   SYS_IO_MAKE_PIN(rik_gpio_expander_port_id, 11)  //13

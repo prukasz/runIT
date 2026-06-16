@@ -33,12 +33,12 @@ status_rep_t cfg_pwr_process_packet(const uint8_t* packet_data, uint16_t packet_
             #if CONFIG_CONNECT_TPS55289_0
                 ESP_LOGI(TAG, "Enabling VREG0");          
                 CHECK_AND_RETURN(SYS_GPIO_SET_LEVEL(RIK_IO_PIN_REGA_EN, settings.en_reg_0));
-                CHECK_AND_RETURN(sys_pwr_enable_verg(1, settings.en_reg_1));
+                CHECK_AND_RETURN(sys_pwr_enable_verg(0, settings.en_reg_0));
             #endif
             #if CONFIG_CONNECT_TPS55289_1
                 ESP_LOGI(TAG, "Enabling VREG1");
                 CHECK_AND_RETURN(SYS_GPIO_SET_LEVEL(RIK_IO_PIN_REGB_EN, settings.en_reg_1));
-                CHECK_AND_RETURN(sys_pwr_enable_verg(0, settings.en_reg_0));
+                CHECK_AND_RETURN(sys_pwr_enable_verg(1, settings.en_reg_1));
             #endif
             break;
         }

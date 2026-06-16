@@ -140,6 +140,8 @@ class cfg_pwr_packet_type_e(IntEnum):
     CFG_PWR_TYPE_TEST_SET_PD = 14
     CFG_PWR_TYPE_TEST_GET_PD_VOLTAGE = 15
     CFG_PWR_TYPE_TEST_GET_PD_CURRENT = 16
+    CFG_PWR_TYPE_SET_DAC_VOLTAGE = 17
+    CFG_PWR_TYPE_GET_DAC_VOLTAGE = 18
 
 class cfg_pwr_error_behavior_e(IntEnum):
     AUTOMATIC = 0
@@ -238,6 +240,14 @@ class cfg_pwr_test_set_pd_t(ct.LittleEndianStructure):
         ("pd_current_ma", ct.c_uint32),
     ]
     _packet_header_ = cfg_pwr_packet_type_e.CFG_PWR_TYPE_TEST_SET_PD
+
+class cfg_pwr_set_dac_voltage_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("channel", ct.c_uint8),
+        ("voltage_mv", ct.c_uint32),
+    ]
+    _packet_header_ = cfg_pwr_packet_type_e.CFG_PWR_TYPE_SET_DAC_VOLTAGE
 
 # ============================================================================
 # CONFIG_TESTS CONFIGURATION STRUCTURES

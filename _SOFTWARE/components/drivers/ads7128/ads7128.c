@@ -59,14 +59,15 @@ static esp_err_t _ads_update_alert_config(ads_handle_t handle, uint8_t channel) 
 static esp_err_t _ads_update_ch_analog_value(ads_handle_t handle, uint8_t *channel) {
     uint8_t ch = __builtin_ctz(*channel) + 1;
 
+    ESP_LOGI(TAG,  "channel : %d", ch);
     // Odczyt 16 bajtów zaczynając od RECENT_CH0_LSB (0xA0) do MSB kanału 7 (0xAF)
     uint8_t buf[2] = {0};
 
-    esp_err_t ret = i2c_master_transmit_receive(handle->i2c_dev_handle, (uint8_t[]){OP_CODE_SINGLE_REGISTER_READ, RECENT_CH0_LSB_ADDRESS + (ch-1) * 2}, 2, buf, 2, ADS7128_I2C_TIMEOUT);
+    esp_err_t ret = i2c_master_transmit_receive(handle->i2c_dev_handle, (uint8_t[]){RECENT_CH0_LSB_ADDRESS + (ch-1) * 2}, 1, buf, 2, ADS7128_I2C_TIMEOUT);
     if (ret == ESP_OK) {
-        handle->recent_analog_values[ch - 1] = buf[0] | (buf[1] << 8);
+        handle->recent_analog_values[ch - 1] = ((uint16_t)buf[0] | (uint16_t)(buf[1] << 8))<<4;
     }
-
+    
     *channel = *channel & ~(1 << (ch - 1)); // Clear the bit for the channel we just read
     return ret;
 }

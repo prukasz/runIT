@@ -47,7 +47,7 @@ menu "RunIT Configurations"
             int "TPS55289_1"
             default 117
         config I2C_ADDR_DAC53202
-            int "DAC5202"
+            int "DAC53202"
             default 72
         config I2C_ADDR_AP33772S
             int "AP33772S"

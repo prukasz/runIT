@@ -5,7 +5,7 @@
 #define TAG __FILE_NAME__
 
 #define INA3221_I2C_TIMEOUT 40 //ms
-#define I2C_FREQ_HZ 400000  // 1000khz possible
+#define I2C_FREQ_HZ 100000  // 1000khz possible
 
 #define INA3221_REG_CONFIG                      (0x00)
 #define INA3221_REG_SHUNTVOLTAGE_1              (0x01)
@@ -90,9 +90,9 @@ ina3221_handle_t ina3221_new(uint8_t i2c_address)
     handle->mask.mask_register = INA3221_DEFAULT_MASK;
     handle->config.config_register = INA3221_DEFAULT_CONFIG;
     
-    handle->shunt_val_cfg[0] = 100;
-    handle->shunt_val_cfg[1] = 100;
-    handle->shunt_val_cfg[2] = 100;
+    handle->shunt_val_cfg[0] = 10;
+    handle->shunt_val_cfg[1] = 10;
+    handle->shunt_val_cfg[2] = 10;
 
     handle->driver_task_handle = NULL;
 
