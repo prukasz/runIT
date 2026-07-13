@@ -6,6 +6,6 @@ dependencies.lock
 
 .vscode/
 .devcontainter/
-.*
+
 __pycache__/
 *.pyc

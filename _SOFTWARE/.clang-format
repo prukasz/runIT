@@ -1,0 +1,9 @@
+BasedOnStyle: Google
+ColumnLimit: 300
+PointerAlignment: Left
+SortIncludes: true
+IncludeBlocks: Merge
+BreakBeforeBraces: Attach
+AlignAfterOpenBracket: DontAlign
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortFunctionsOnASingleLine: None

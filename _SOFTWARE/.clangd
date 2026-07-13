@@ -1,0 +1,19 @@
+CompileFlags:
+    Add:
+        [
+            -ferror-limit=99999,
+            -Wno-implicit-function-declaration,
+        ]
+    Remove:
+        - -mlongcalls
+        - -mdisable-hardware-atomics
+        - -mno-target-align
+        - -fno-shrink-wrap
+        - -fstrict-volatile-bitfields
+        - -fno-tree-switch-conversion
+        - -fzero-init-padding-bits=all
+        - -fno-malloc-dce
+Diagnostics:
+    Suppress:
+        - pp_file_not_found
+        - unused-includes{"name":"ESP-IDF (clangd)","icon":"settings-view-bar-icon","settings":"{\"settings\":\"{}\"}","extensions":"[{\"identifier\":{\"id\":\"espressif.esp-idf-extension\",\"uuid\":\"2f6509f0-2abc-4e12-91e8-91b6ff24c654\"},\"displayName\":\"ESP-IDF\",\"applicationScoped\":false},{\"identifier\":{\"id\":\"llvm-vs-code-extensions.vscode-clangd\"},\"displayName\":\"clangd\",\"applicationScoped\":false}]","globalState":"{\"storage\":{}}"}

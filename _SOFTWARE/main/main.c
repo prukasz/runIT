@@ -1,22 +1,18 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <esp_log.h>
-#include "status.h"
+#include "rik_main.h"
 
-#include "runit.h"
-
-static const char *TAG = __FILE_NAME__;
+#define TAG __FILE_NAME__
 
 void app_main(void) {
-    ESP_LOGI(TAG, "=== System Core Started ===");
+    ESP_LOGI(TAG, "=== RIK ===");
 
-    runit_start();
-    /* TODO: Call Status/Error handler Init */
-    /* TODO: Call BLE Manager Init */
+    rik_start();
 
-    ESP_LOGI(TAG, "Minimal initialization complete. Entering idle loop.");
+    ESP_LOGI(TAG, "RIK Started");
 
     while (1) {
         vTaskDelay(portMAX_DELAY);
     }
+
 }
