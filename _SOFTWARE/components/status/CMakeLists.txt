@@ -11,5 +11,5 @@ idf_component_register(
     SRCS "status.c" "codes/status_codes.c"
     INCLUDE_DIRS "include" ${code_dirs} "codes"
     REQUIRES esp_ringbuf
-    PRIV_REQUIRES utils
+    PRIV_REQUIRES utils ble
 )

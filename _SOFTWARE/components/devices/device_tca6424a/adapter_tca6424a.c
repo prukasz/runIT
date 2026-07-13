@@ -1,0 +1,393 @@
+#include <stdint.h>
+#include <stdlib.h>
+#include "device_tca6424a.h"
+#include "driver_tca6424a.h"
+#include "esp_log.h"
+#include "status.h"
+#include "sys_device.h"
+#include "sys_i2c.h"
+#include "sys_io.h"
+
+static const char* TAG = __FILE_NAME__;
+
+#define PINS_COUNT 24
+#define PINS_MASK ((1UL << PINS_COUNT) - 1)
+#undef OWNER
+#define OWNER OWNER_DEVICE_TCA6424A
+
+typedef struct tca_adapter_ctx_t {
+  sys_device_adapter_base_t base;
+
+  uint8_t reset_gpio_device_id;
+  sys_io_pin_num_t reset_pin_num;
+  uint8_t intr_gpio_device_id;
+  sys_io_pin_num_t intr_pin_num;
+
+  uint32_t cached_inputs;
+  uint32_t frozen_outputs_mask;
+  uint32_t frozen_outputs_state;
+  uint32_t configured_pins;  // 24-bit bitmask tracking pin usage
+
+  sys_io_isr_callback_t callbacks[24];
+  void* callback_args[24];
+  sys_io_intr_mode_e intr_modes[24];
+} tca_adapter_ctx_t;
+
+static void tca_on_change_handler(void* handle, uint32_t rising_edges, uint32_t falling_edges) {
+  tca_adapter_ctx_t* ctx = (tca_adapter_ctx_t*)handle;
+  if (!ctx) return;
+
+  uint32_t changed_bits = rising_edges | falling_edges;
+  for (uint8_t i = 0; i < PINS_COUNT; i++) {
+    if (!(changed_bits & (1UL << i))) continue;
+
+    if (!ctx->callbacks[i]) continue;
+
+    bool trigger = false;
+    sys_io_intr_mode_e mode = ctx->intr_modes[i];
+
+    if (mode == SYS_IO_INTR_MODE_RISING_EDGE && (rising_edges & (1UL << i))) {
+      trigger = true;
+    } else if (mode == SYS_IO_INTR_MODE_FALLING_EDGE && (falling_edges & (1UL << i))) {
+      trigger = true;
+    } else if (mode == SYS_IO_INTR_MODE_BOTH_EDGES) {
+      trigger = true;
+    }
+
+    if (trigger) {
+      sys_io_intr_event_t event = {.device_id = ctx->base.device_id, .pin_num = i, .triggered_by = mode, .user_arg = ctx->callback_args[i]};
+      ctx->callbacks[i](&event);
+    }
+  }
+}
+
+status_rep_t contract_io_tca6424a_set_mode(void* handle, sys_io_pin_num_t pin, sys_io_mode_e mode) {
+  SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
+  VERIFY_PIN_R(pin, PINS_MASK);
+
+  uint32_t tca_cfg_state = 0;
+
+  switch (mode) {
+    case SYS_IO_MODE_OUTPUT_PUSH_PULL:
+      tca_cfg_state = 0x00000000;
+      break;
+    case SYS_IO_MODE_INPUT:
+      tca_cfg_state = 0xFFFFFFFF;
+      break;
+    default:
+      return STA_C(ERR_SYS_IO_MODE_UNAVAILABLE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, mode), STATUS_PAYLOAD_DEVICE);
+  }
+
+  SYS_DEV_CHECK_DRIVER_CALL(tca_preset_cfg(hw, 1UL << pin, tca_cfg_state), ctx);
+  ctx->configured_pins |= (1UL << pin);
+
+  return STA_OK;
+}
+
+status_rep_t contract_io_tca6424a_set_level(void* handle, sys_io_pin_num_t pin, bool level) {
+  SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
+  VERIFY_PIN_R(pin, PINS_MASK);
+
+  uint32_t pin_mask = (1UL << pin);
+  uint32_t state_mask = level ? pin_mask : 0;
+
+  IF_SYS_DEV_FROZEN(ctx) {
+    ctx->frozen_outputs_mask |= pin_mask;
+    ctx->frozen_outputs_state = (ctx->frozen_outputs_state & ~pin_mask) | state_mask;
+    return STA_OK;
+  }
+
+  SYS_DEV_CHECK_DRIVER_CALL(tca_set_pins(hw, pin_mask, state_mask), ctx);
+  return STA_OK;
+}
+
+status_rep_t contract_io_tca6424a_get_level(void* handle, sys_io_pin_num_t pin, bool* level) {
+  SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
+  CHECK_HANDLE_R(level);
+  VERIFY_PIN_R(pin, PINS_MASK);
+
+  uint32_t pin_mask = (1UL << pin);
+  uint32_t all_levels = 0;
+
+  IF_SYS_DEV_FROZEN(ctx) {
+    all_levels = ctx->cached_inputs;
+  }
+  else {
+    SYS_DEV_CHECK_DRIVER_CALL(tca_get_pins(hw, &all_levels), ctx);
+    ctx->cached_inputs = all_levels;
+  }
+
+  *level = (all_levels & pin_mask) ? true : false;
+  return STA_OK;
+}
+
+status_rep_t contract_io_tca6424a_toggle(void* handle, sys_io_pin_num_t pin) {
+  SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
+  VERIFY_PIN_R(pin, PINS_MASK);
+
+  uint32_t pin_mask = (1UL << pin);
+  bool is_high;
+
+  if (ctx->base.is_frozen && (ctx->frozen_outputs_mask & pin_mask)) {
+    is_high = (ctx->frozen_outputs_state & pin_mask) != 0;
+  } else {
+    uint32_t current_outputs = tca_get_pin_output(hw);
+    is_high = (current_outputs & pin_mask) != 0;
+  }
+
+  return contract_io_tca6424a_set_level(handle, pin, !is_high);
+}
+
+status_rep_t contract_io_tca6424a_reset_pin(void* handle, sys_io_pin_num_t pin) {
+  SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
+  VERIFY_PIN_R(pin, PINS_MASK);
+
+  ctx->callbacks[pin] = NULL;
+  ctx->callback_args[pin] = NULL;
+  ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
+  ctx->configured_pins &= ~(1UL << pin);
+
+  SYS_DEV_CHECK_DRIVER_CALL(tca_set_pins(hw, 1UL << pin, 0), ctx);
+  SYS_DEV_CHECK_DRIVER_CALL(tca_preset_cfg(hw, 1UL << pin, 1UL << pin), ctx);
+
+  return STA_OK;
+}
+
+status_rep_t d_tca6424a_driver_reset(void* handle) {
+  SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
+  for (uint8_t i = 0; i < PINS_COUNT; i++) {
+    STA_R_ON_ERR(contract_io_tca6424a_reset_pin(handle, i));
+  }
+  return STA_OK;
+}
+
+status_rep_t contract_io_tca6424a_configure_intr(void* handle, sys_io_pin_num_t pin, const sys_io_intr_config_t* config) {
+  SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
+  VERIFY_PIN_R(pin, PINS_MASK);
+
+  if (config->mode == SYS_IO_INTR_DISABLE || config->callback == NULL) {
+    ctx->callbacks[pin] = NULL;
+    ctx->callback_args[pin] = NULL;
+    ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
+    return STA_OK;
+  }
+
+  ctx->callbacks[pin] = config->callback;
+  ctx->callback_args[pin] = config->user_ctx;
+  ctx->intr_modes[pin] = config->mode;
+
+  return STA_OK;
+}
+
+static sys_io_vtable_t io_tca_vtable = {.io_reset = contract_io_tca6424a_reset_pin,
+    .io_set_mode = contract_io_tca6424a_set_mode,
+    .io_configure_intr = contract_io_tca6424a_configure_intr,
+    .io_set_level = contract_io_tca6424a_set_level,
+    .io_get_level = contract_io_tca6424a_get_level,
+    .io_toggle = contract_io_tca6424a_toggle,
+    .io_get_voltage = NULL,
+    .io_set_voltage = NULL,
+    .io_set_pwm_frequency = NULL,
+    .io_set_pwm_duty = NULL,
+    .protected_pins = 0};
+
+static status_rep_t device_freeze(void* handle) {
+  SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
+  IF_SYS_DEV_FROZEN(ctx) {
+    return STA_OK;
+  }
+  SYS_DEV_CTX_FREEZE(ctx);
+  SYS_DEV_CHECK_DRIVER_CALL(tca_get_pins(hw, &ctx->cached_inputs), ctx);
+  ctx->frozen_outputs_mask = 0;
+  ctx->frozen_outputs_state = 0;
+  return STA_OK;
+}
+
+static status_rep_t device_sync(void* handle) {
+  SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
+  SYS_DEV_CTX_UNFREEZE(ctx);
+  SYS_DEV_CHECK_DRIVER_CALL(tca_get_pins(hw, &ctx->cached_inputs), ctx);
+  if (ctx->frozen_outputs_mask != 0) {
+    SYS_DEV_CHECK_DRIVER_CALL(tca_set_pins(hw, ctx->frozen_outputs_mask, ctx->frozen_outputs_state), ctx);
+    ctx->frozen_outputs_mask = 0;
+  }
+  return STA_OK;
+}
+
+static status_rep_t device_uninstall(void* handle) {
+  SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
+
+  IF_PIN(ctx->reset_pin_num) {
+    SYS_IO_UNLOCK_PIN(ctx->reset_gpio_device_id, ctx->reset_pin_num);
+    STA_R_ON_ERR(sys_io_reset(ctx->reset_gpio_device_id, ctx->reset_pin_num));
+  }
+  IF_PIN(ctx->intr_pin_num) {
+    SYS_IO_UNLOCK_PIN(ctx->intr_gpio_device_id, ctx->intr_pin_num);
+    STA_R_ON_ERR(sys_io_reset(ctx->intr_gpio_device_id, ctx->intr_pin_num));
+  }
+
+  STA_R_ON_ERR(sys_i2c_remove_driver(hw));
+  d_tca6424a_delete(hw);
+  free(ctx);
+  return STA_OK;
+}
+
+static status_rep_t device_reset(void* handle) {
+  SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
+
+  IF_PIN(ctx->reset_pin_num) {
+    WITH_PIN_UNLOCKED(ctx->reset_gpio_device_id, ctx->reset_pin_num) {
+      STA_R_ON_ERR(SYS_IO_LOW(ctx->reset_gpio_device_id, ctx->reset_pin_num));
+      vTaskDelay(pdMS_TO_TICKS(10));
+      STA_R_ON_ERR(SYS_IO_HIGH(ctx->reset_gpio_device_id, ctx->reset_pin_num));
+      vTaskDelay(pdMS_TO_TICKS(10));
+    }
+  }
+  ctx->cached_inputs = 0;
+  ctx->configured_pins = 0;
+  ctx->frozen_outputs_mask = 0;
+  ctx->frozen_outputs_state = 0;
+  return d_tca6424a_driver_reset(handle);
+}
+
+static status_rep_t device_error_handler(void* handle, status_rep_t* error) {
+  SYS_DEV_CHECK_NOT_NULL_R(error);
+
+  if (error->e_code == ERR_SYS_IO_PIN_DOES_NOT_EXIST) {
+    uint32_t pin = SYS_IO_UNPACK_PIN(error->payload);
+    ESP_LOGW(TAG, "Configuration Warning: Pin %lu does not exist. Available IO: 0..23.", pin);
+    return *error;
+  } else if (error->e_code == ERR_SYS_IO_MODE_UNAVAILABLE) {
+    uint32_t pin = SYS_IO_UNPACK_PIN(error->payload);
+    uint32_t mode = SYS_IO_UNPACK_EXTRA(error->payload);
+    const char* mode_str = (mode < 9) ? sys_io_mode_e_to_string[mode] : "UNKNOWN";
+    ESP_LOGW(TAG, "Pin %lu can be configured only as SYS_IO_MODE_OUTPUT_PUSH_PULL or SYS_IO_MODE_INPUT, %s not supported.", pin, mode_str);
+    return *error;
+  } else if (error->e_code == ERR_NOT_SUPPORTED) {
+    ESP_LOGW(TAG, "Available functions: set_mode, configure_intr, set_level, get_level, toggle");
+    return *error;
+  }
+  return *error;
+}
+
+static status_rep_t device_suspend(void* handle) {
+  SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
+  IF_PIN(ctx->reset_pin_num) {
+    WITH_PIN_UNLOCKED(ctx->reset_gpio_device_id, ctx->reset_pin_num) {
+      STA_R_ON_ERR(SYS_IO_LOW(ctx->reset_gpio_device_id, ctx->reset_pin_num));
+    }
+  }
+  return STA_OK;
+}
+
+static status_rep_t device_resume(void* handle) {
+  SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
+  CHECK_HANDLE_R(ctx);
+  IF_PIN(ctx->reset_pin_num) {
+    WITH_PIN_UNLOCKED(ctx->reset_gpio_device_id, ctx->reset_pin_num) {
+      STA_R_ON_ERR(SYS_IO_HIGH(ctx->reset_gpio_device_id, ctx->reset_pin_num));
+    }
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+  SYS_DEV_CHECK_DRIVER_CALL(tca_restore_state(hw), ctx);
+  return STA_OK;
+}
+
+static void* adapter_install_fallback(tca_adapter_ctx_t* ctx) {
+  if (ctx) {
+    IF_PIN(ctx->intr_pin_num) {
+      SYS_IO_UNLOCK_PIN(ctx->intr_gpio_device_id, ctx->intr_pin_num);
+      sys_io_reset(ctx->intr_gpio_device_id, ctx->intr_pin_num);
+    }
+    IF_PIN(ctx->reset_pin_num) {
+      SYS_IO_UNLOCK_PIN(ctx->reset_gpio_device_id, ctx->reset_pin_num);
+      sys_io_reset(ctx->reset_gpio_device_id, ctx->reset_pin_num);
+    }
+    if (ctx->base.hw_handle) {
+      sys_i2c_remove_driver(ctx->base.hw_handle);
+      d_tca6424a_delete((tca6424a_handle_t)(ctx->base.hw_handle));
+    }
+    free(ctx);
+  }
+  return NULL;
+}
+
+static void* device_install(void** args) {
+  SYS_DEV_ARG_UNPACK(uint8_t, device_id, args, 0);
+  SYS_DEV_ARG_UNPACK(bool, i2c_bus, args, 1);
+  SYS_DEV_ARG_UNPACK(uint8_t, i2c_addr, args, 2);
+  SYS_DEV_ARG_UNPACK(uint8_t, intr_io_device, args, 3);
+  SYS_DEV_ARG_UNPACK(sys_io_pin_num_t, intr_io_num, args, 4);
+  SYS_DEV_ARG_UNPACK(sys_io_mode_e, intr_io_mode, args, 5);
+  SYS_DEV_ARG_UNPACK(uint8_t, rst_io_device, args, 6);
+  SYS_DEV_ARG_UNPACK(sys_io_pin_num_t, rst_io_num, args, 7);
+  SYS_DEV_ARG_UNPACK(sys_io_mode_e, rst_io_mode, args, 8);
+
+  tca_adapter_ctx_t* ctx = sys_device_allocate_ctx(sizeof(tca_adapter_ctx_t), args);
+  if (!ctx) return NULL;
+
+  ctx->base.hw_handle = d_tca6424a_new(i2c_addr, i2c_bus);
+  if (!ctx->base.hw_handle) {
+    free(ctx);
+    return NULL;
+  }
+
+  ctx->intr_gpio_device_id = intr_io_device;
+  ctx->intr_pin_num = intr_io_num;
+  ctx->reset_gpio_device_id = rst_io_device;
+  ctx->reset_pin_num = rst_io_num;
+
+  tca6424a_handle_t hw = (tca6424a_handle_t)(ctx->base.hw_handle);
+  tca_register_on_change_callback(hw, tca_on_change_handler, ctx);
+
+  if (STA_IS_ERR(sys_i2c_add_driver(ctx->base.hw_handle))) {
+    return adapter_install_fallback(ctx);
+  }
+
+  IF_PIN(rst_io_num) {
+    if (STA_IS_ERR(sys_io_set_mode(rst_io_device, rst_io_num, rst_io_mode))) {
+      return adapter_install_fallback(ctx);
+    }
+    SYS_IO_HIGH(rst_io_device, rst_io_num);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    SYS_IO_LOCK_PIN(rst_io_device, rst_io_num);
+  }
+
+  IF_PIN(intr_io_num) {
+    if (STA_IS_ERR(sys_io_set_mode(intr_io_device, intr_io_num, intr_io_mode))) {
+      return adapter_install_fallback(ctx);
+    }
+    sys_io_intr_config_t config = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE, .callback = (sys_io_isr_callback_t)(void*)d_tca6424a_intr_pin_callback, .user_ctx = hw};
+    if (STA_IS_ERR(sys_io_configure_intr(intr_io_device, intr_io_num, &config))) {
+      return adapter_install_fallback(ctx);
+    }
+    SYS_IO_LOCK_PIN(intr_io_device, intr_io_num);
+  }
+
+  if (STA_IS_ERR(sys_io_register_driver(device_id, ctx, &io_tca_vtable))) {
+    ESP_LOGE(TAG, "Failed to register TCA6424A to IO Manager on device_id %ld", device_id);
+    return adapter_install_fallback(ctx);
+  }
+
+  ESP_LOGI(TAG, "TCA6424A successfully installed as IO device %ld", device_id);
+  return ctx;
+}
+
+status_rep_t d_tca6424a_create(uint8_t device_id, bool i2c_bus, uint8_t i2c_addr, uint8_t intr_io_device, sys_io_pin_num_t intr_io_num, sys_io_mode_e intr_io_mode, uint8_t rst_io_device, sys_io_pin_num_t rst_io_num, sys_io_mode_e rst_io_mode) {
+  void* args[] = {SYS_DEV_ARG_PACK(device_id), SYS_DEV_ARG_PACK(i2c_bus), SYS_DEV_ARG_PACK(i2c_addr), SYS_DEV_ARG_PACK(intr_io_device), SYS_DEV_ARG_PACK(intr_io_num), SYS_DEV_ARG_PACK(intr_io_mode), SYS_DEV_ARG_PACK(rst_io_device), SYS_DEV_ARG_PACK(rst_io_num), SYS_DEV_ARG_PACK(rst_io_mode)};
+
+  sys_device_t dev = {.device_id = device_id,
+      .role = SYS_DEV_ROLE_IO,
+      .name = "TCA6424A_GPIO",
+      .install_args = args,
+      .install_device = device_install,
+      .uninstall_device = device_uninstall,
+      .reset_device = device_reset,
+      .error_handler = device_error_handler,
+      .suspend_device = device_suspend,
+      .resume_device = device_resume,
+      .freeze_device = device_freeze,
+      .sync_device = device_sync};
+
+  return sys_device_install(&dev);
+}

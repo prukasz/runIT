@@ -1,76 +1,49 @@
 #include "status.h"
-#include "freertos/task.h"
+#include <stdint.h>
 #include "freertos/event_groups.h"
 #include "freertos/semphr.h"
-#include "rtos_utils.h"
+#include "freertos/task.h"
+#include "sys_ble.h"
+#include "utils.h"
 
-status_manager_log_cfg _status_log_flags = {0};
-RingbufHandle_t _status_buffer_handle = NULL;
-QueueHandle_t _status_queue_handle = NULL;
+static struct {
+  uint8_t rep_level;
+  uint8_t last_rep_level;
+  uint8_t status_buffer_id;
+  uint16_t status_char_uuid;
+  QueueHandle_t status_queue_handle;
+} status_config;
 
-
-R_MUTEX_DEFINE(status_lock)
-
-void status_assign_buffer(RingbufHandle_t status_buffer, QueueHandle_t status_queue) {
-    _status_buffer_handle = status_buffer;
-    _status_queue_handle = status_queue;
-    _status_log_flags = (status_manager_log_cfg){
-        .rep_i = 1,
-        .rep_w = 1,
-        .rep_c = 1,
-    };
+void status_assign_error_tx(uint16_t char_uuid, uint8_t buffer_id, QueueHandle_t status_queue) {
+  status_config.status_char_uuid = char_uuid;
+  status_config.status_buffer_id = buffer_id;
+  status_config.status_queue_handle = status_queue;
 }
 
-void status_set_rep_mode(bool rep_i, bool rep_w, bool rep_c){
-    _status_log_flags = (status_manager_log_cfg){
-        .rep_i = rep_i,
-        .rep_w = rep_w,
-        .rep_c = rep_c,
-    };
+void status_set_rep_mode(uint8_t rep_level) {
+  status_config.rep_level = rep_level;
+  status_config.last_rep_level = rep_level;
 }
 
+void status_suspend() {
+  status_config.last_rep_level = status_config.rep_level;
+  status_config.rep_level = 0xFF;  // set to rep none
+}
+void status_resume() { status_config.rep_level = status_config.last_rep_level; }
 
-void _sta_push_overwrite(const status_rep_t *_sta_err) {
-    uint8_t severity = _sta_err->details.severity;
-    bool should_add = false;
-
-    switch (severity) {
-        case 0: should_add = _status_log_flags.rep_i; break;
-        case 1: should_add = _status_log_flags.rep_w; break;
-        case 2: should_add = _status_log_flags.rep_c; break;
-        default: break; 
+void _sta_push(const status_rep_t* _sta_err) {
+  if (_sta_err->details.severity >= status_config.rep_level && status_config.status_queue_handle != NULL) {
+    while (xQueueSendToFront(status_config.status_queue_handle, _sta_err, 0) != pdTRUE) {
+      status_rep_t dummy;
+      if (xQueueReceive(status_config.status_queue_handle, &dummy, 0) != pdTRUE) {
+        break;
+      }
     }
 
-    if (severity >= 1 && _status_queue_handle != NULL && should_add) {
-        // Try to send to the front (top) of the queue.
-        while (xQueueSendToFront(_status_queue_handle, _sta_err, 0) != pdTRUE) {
-            status_rep_t dummy;
-            if (xQueueReceive(_status_queue_handle, &dummy, 0) != pdTRUE) {
-                break; 
-            }
-        }
+    if (status_config.status_char_uuid != 0) {
+      status_suspend();  // avoid circular errors
+      sys_ble_char_send(status_config.status_char_uuid, status_config.status_buffer_id, (const uint8_t*)_sta_err, sizeof(status_rep_t), true);
+      status_resume();
     }
-
-    if (should_add && R_MUTEX_LOCK(status_lock, MSEC(10)) && _status_buffer_handle != NULL) {
-        while (xRingbufferSend(_status_buffer_handle, _sta_err, sizeof(*_sta_err), 0) != pdTRUE) {
-            size_t old_size = 0;
-            void *old_item = xRingbufferReceive(_status_buffer_handle, &old_size, 0);
-            if (old_item != NULL) {
-                vRingbufferReturnItem(_status_buffer_handle, old_item);
-            } else {
-                break; 
-            }
-        }
-        R_MUTEX_UNLOCK(status_lock);
-    }
+  }
 }
-
-void status_mutex_lock() {
-    R_MUTEX_LOCK(status_lock, portMAX_DELAY);
-}
-void status_mutex_unlock() {
-    R_MUTEX_UNLOCK(status_lock);
-}
-
-
-

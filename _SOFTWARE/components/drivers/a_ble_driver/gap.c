@@ -3,30 +3,6 @@
 
 #define TAG __FILE_NAME__
 
-typedef struct {
-    ble_cb_t on_tx_complete;
-    ble_cb_t on_subscribe;
-    ble_cb_t on_disconnect;
-    ble_cb_t on_connect;
-    ble_cb_t on_mtu_update;
-} ble_callbacks_t;
-
-static ble_callbacks_t ble_callbacks;
-
-void a_ble_add_callback_on_tx_complete(ble_cb_t callback){
-    ble_callbacks.on_tx_complete = callback;
-}
-void a_ble_add_callback_on_connect(ble_cb_t callback){
-    ble_callbacks.on_connect = callback;
-}
-void a_ble_add_callback_on_disconnect(ble_cb_t callback){
-    ble_callbacks.on_disconnect = callback;
-}
-void a_ble_add_callback_on_mtu_update(ble_cb_t callback){
-    ble_callbacks.on_mtu_update = callback;
-}
-
-
 static int ble_gap_advertising_start(void);  
 static int ble_gap_configure_advertising(void);                          // Starts BLE advertising
 static int gap_event_handler(struct ble_gap_event *event, void *arg); // Handles GAP events
@@ -41,7 +17,6 @@ static uint8_t esp_uri[] = {
 };
 
 static int ble_gap_configure_advertising(void){  
-    
     const char *name;
     struct ble_hs_adv_fields adv_fields  = {0};  
     struct ble_hs_adv_fields rsp_fields  = {0};
@@ -69,11 +44,10 @@ static int ble_gap_configure_advertising(void){
     rsp_fields.device_addr_is_present = 1;
     rsp_fields.uri = esp_uri;
     rsp_fields.uri_len = sizeof(esp_uri);
-        rsp_fields.adv_itvl = BLE_GAP_ADV_ITVL_MS(500);
+    rsp_fields.adv_itvl = BLE_GAP_ADV_ITVL_MS(500);
     rsp_fields.adv_itvl_is_present = 1;
     adv_configured = true;
     return ble_gap_adv_rsp_set_fields(&rsp_fields);
-
 }
 
 static int ble_gap_advertising_start(void) {
@@ -95,12 +69,11 @@ static int ble_gap_advertising_start(void) {
 }
 
 static int gap_event_handler(struct ble_gap_event *event, void *arg) {
-
     struct ble_gap_conn_desc desc; 
 
     switch (event->type) {  
     case BLE_GAP_EVENT_CONNECT:
-        ble_callbacks.on_connect(event);
+        a_ble_on_connect(event);
         if (event->connect.status == 0) {//aka success
             int rc = ble_gap_conn_find(event->connect.conn_handle, &desc);//retrieve details of conncetion into descriptor
             if (rc != 0) {
@@ -117,20 +90,20 @@ static int gap_event_handler(struct ble_gap_event *event, void *arg) {
         else { return ble_gap_advertising_start();} //start adv if fail
 
     case BLE_GAP_EVENT_DISCONNECT:
-        ble_callbacks.on_disconnect(event);
+        a_ble_on_disconnect(event);
         break;
     case BLE_GAP_EVENT_CONN_UPDATE:
         return ble_gap_conn_find(event->conn_update.conn_handle, &desc);
     case BLE_GAP_EVENT_ADV_COMPLETE: //if adv time ended
         return ble_gap_advertising_start();
     case BLE_GAP_EVENT_NOTIFY_TX:  //when notify transmision is finished
-        ble_callbacks.on_tx_complete(event);
+        a_ble_on_tx_complete(event);
         return 0;
     case BLE_GAP_EVENT_SUBSCRIBE: //if subscribed to characteristics cccd
         gatt_svr_subscribe_cb(event);
         return 0;
     case BLE_GAP_EVENT_MTU:
-        ble_callbacks.on_mtu_update(event);
+        a_ble_on_mtu_update(event);
         return 0;
     }
     return 0;
@@ -138,11 +111,11 @@ static int gap_event_handler(struct ble_gap_event *event, void *arg) {
 
 /* Public functions */
 int ble_gap_advertising_init(void) { // Initializes device address and starts advertising
-    int rc = ble_hs_util_ensure_addr(0); //ensures has valid address (bt MAC), if not set genetate
+    int rc = ble_hs_util_ensure_addr(0); //ensures has valid address (bt MAC), if not set generate
     if (rc != 0) return rc;
     rc = ble_hs_id_infer_auto(0, &own_addr_type); //best addr type for advertising
     if (rc != 0) return rc;
-    rc = ble_hs_id_copy_addr(own_addr_type, addr_val, NULL); //copy addres for reuse
+    rc = ble_hs_id_copy_addr(own_addr_type, addr_val, NULL); //copy address for reuse
     if (rc != 0) return rc;
     rc = ble_gap_configure_advertising();
     if (rc != 0) return rc;
@@ -170,8 +143,3 @@ int ble_gap_reconfigure_advertising(void) {
 
     return ble_gap_advertising_init();
 }
-
-
-
-
-

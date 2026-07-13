@@ -1,7 +1,0 @@
-#include "vm_restore.h"
-#include "vm_code.h"
-#include "rik_shared.h"
-#include "manager_io.h"
-#include "manager_power.h"
-#include "rik_system_ctrl.h"
-#include "rtos_utils.h"
