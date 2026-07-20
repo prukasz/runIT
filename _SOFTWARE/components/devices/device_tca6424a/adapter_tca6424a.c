@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include "device_tca6424a.h"
 #include "driver_tca6424a.h"
 #include "esp_log.h"
@@ -30,13 +31,20 @@ typedef struct tca_adapter_ctx_t {
 
   uint16_t route_masks[24];
   sys_io_intr_mode_e intr_modes[24];
+  own_funct_t own_funcs[24];
 } tca_adapter_ctx_t;
 
-static void tca_on_change_handler(void* handle, uint32_t rising_edges, uint32_t falling_edges) {
-  tca_adapter_ctx_t* ctx = (tca_adapter_ctx_t*)handle;
-  if (!ctx) return;
+static status_rep_t device_event_handler(void* handle, cb_event_t* event) {
+  SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
 
-  uint32_t changed_bits = rising_edges | falling_edges;
+  uint32_t current_state = 0;
+  SYS_DEV_CHECK_DRIVER_CALL(tca_get_pins(hw, &current_state), ctx);
+
+  uint32_t previous_state = ctx->cached_inputs;
+  uint32_t changed_bits = current_state ^ previous_state;
+  uint32_t rising_edges = changed_bits & current_state;
+  uint32_t falling_edges = changed_bits & ~current_state;
+
   for (uint8_t i = 0; i < PINS_COUNT; i++) {
     if (!(changed_bits & (1UL << i))) continue;
 
@@ -53,10 +61,17 @@ static void tca_on_change_handler(void* handle, uint32_t rising_edges, uint32_t 
     }
 
     if (trigger) {
-      bool level = (rising_edges & (1UL << i)) != 0;
-      SYS_IO_CB(ctx, i, mode, level, ctx->route_masks[i]);
+      if (ctx->own_funcs[i].own_func) {
+        SYS_CB_OWN(ctx->own_funcs[i]);
+      } else {
+        bool level = (rising_edges & (1UL << i)) != 0;
+        SYS_IO_CB(ctx, i, mode, level, ctx->route_masks[i]);
+      }
     }
   }
+
+  ctx->cached_inputs = current_state;
+  return STA_OK;
 }
 
 status_rep_t contract_io_tca6424a_set_mode(void* handle, sys_io_pin_num_t pin, sys_io_mode_e mode) {
@@ -142,6 +157,7 @@ status_rep_t contract_io_tca6424a_reset_pin(void* handle, sys_io_pin_num_t pin) 
 
   ctx->route_masks[pin] = 0;
   ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
+  memset(&ctx->own_funcs[pin], 0, sizeof(own_funct_t));
   ctx->configured_pins &= ~(1UL << pin);
 
   SYS_DEV_CHECK_DRIVER_CALL(tca_set_pins(hw, 1UL << pin, 0), ctx);
@@ -165,11 +181,13 @@ status_rep_t contract_io_tca6424a_configure_intr(void* handle, sys_io_pin_num_t 
   if (config->mode == SYS_IO_INTR_DISABLE) {
     ctx->route_masks[pin] = 0;
     ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
+    memset(&ctx->own_funcs[pin], 0, sizeof(own_funct_t));
     return STA_OK;
   }
 
   ctx->route_masks[pin] = config->route_mask;
   ctx->intr_modes[pin] = config->mode;
+  ctx->own_funcs[pin] = config->own_func;
 
   return STA_OK;
 }
@@ -357,9 +375,6 @@ static status_rep_t device_install(void** args, void** out_device_handle) {
   ctx->reset_gpio_device_id = rst_io_device;
   ctx->reset_pin_num = rst_io_num;
 
-  tca6424a_handle_t hw = (tca6424a_handle_t)(ctx->base.hw_handle);
-  tca_register_on_change_callback(hw, tca_on_change_handler, ctx);
-
   status_rep_t status = sys_i2c_add_driver(ctx->base.hw_handle);
   if (STA_IS_ERR(status)) {
     goto fail;
@@ -386,7 +401,10 @@ static status_rep_t device_install(void** args, void** out_device_handle) {
     if (STA_IS_ERR(status)) {
       goto fail;
     }
-    sys_io_intr_config_t config = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
+    sys_io_intr_config_t config = {
+        .mode = SYS_IO_INTR_MODE_FALLING_EDGE,
+        .own_func = {.own_func = device_event_handler, .device_handle = ctx},
+    };
     status = sys_io_configure_intr(intr_io_device, intr_io_num, &config);
     if (STA_IS_ERR(status)) {
       goto fail;
@@ -399,6 +417,10 @@ static status_rep_t device_install(void** args, void** out_device_handle) {
     ESP_LOGE(TAG, "Failed to register TCA6424A to IO Manager on device_id %ld", (long)device_id);
     goto fail;
   }
+
+  uint32_t initial_inputs = 0;
+  SYS_DEV_CHECK_DRIVER_CALL(tca_get_pins(ctx->base.hw_handle, &initial_inputs), ctx);
+  ctx->cached_inputs = initial_inputs;
 
   ESP_LOGI(TAG, "TCA6424A successfully installed as IO device %ld", (long)device_id);
   *out_device_handle = ctx;

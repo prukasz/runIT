@@ -4,6 +4,7 @@
 #include <freertos/ringbuf.h>
 #include <freertos/semphr.h>
 #include "status.h"
+#include "sys_callbacks.h"
 
 #define MAX_TX_BUFFERS 4
 
@@ -39,15 +40,22 @@ typedef struct {
   bool is_indication;
 } sys_ble_tx_buf_cfg_t;
 
-typedef void (*sys_ble_connect_cb_t)(uint16_t conn_handle);
-typedef void (*sys_ble_disconnect_cb_t)(uint16_t conn_handle, int reason);
-typedef void (*sys_ble_failure_cb_t)(esp_err_t error_code);
+typedef enum sys_ble_events_e {
+  SYS_BLE_EVENT_CONNECT = 0,
+  SYS_BLE_EVENT_DISCONNECT,
+  SYS_BLE_EVENT_FAILURE,
+  SYS_BLE_EVENT_MAX
+} sys_ble_events_e;
 
-typedef struct {
-  sys_ble_connect_cb_t on_connect;
-  sys_ble_disconnect_cb_t on_disconnect;
-  sys_ble_failure_cb_t on_failure;
-} sys_ble_callbacks_t;
+#define SYS_BLE_CB(event_id, event_value, mask)           \
+  do {                                                    \
+    cb_event_t __cb_evt = {0};                            \
+    __cb_evt.head.callback_type = CALLBACK_BLE;           \
+    __cb_evt.head.route_to.route_mask = (mask);           \
+    __cb_evt.event.ble.event = (event_id);                \
+    __cb_evt.event.ble.value = (event_value);             \
+    sys_callback_trigger(&__cb_evt);                      \
+  } while (0)
 
 typedef struct {
   uint8_t buffer_id;
@@ -70,10 +78,18 @@ typedef struct {
 /**
  * @brief Initialize the BLE Manager abstraction layer and register connection callbacks.
  *
- * @param callbacks Pointer to structure containing connection event callbacks.
  * @return status_rep_t Status report (STA_OK on success, or Critical/Warning error status).
  */
-status_rep_t sys_ble_init(const sys_ble_callbacks_t* callbacks);
+status_rep_t sys_ble_init(void);
+
+/**
+ * @brief Add a callback route for a BLE event.
+ *
+ * @param on_event The event to route.
+ * @param route_mask The callback route mask.
+ * @return status_rep_t Status report.
+ */
+status_rep_t sys_ble_add_callback(sys_ble_events_e on_event, uint16_t route_mask);
 
 /**
  * @brief Create and register a new BLE GATT service config in the manager.

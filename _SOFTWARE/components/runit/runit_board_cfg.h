@@ -65,9 +65,8 @@ status_rep_t sys_power_static_config(void) {
   return STA_OK;
 }
 
-sys_ble_callbacks_t sys_ble_callbacks = {0};
 status_rep_t sys_ble_static_config() {
-  STA_R_ON_ERR(sys_ble_init(&sys_ble_callbacks));
+  STA_R_ON_ERR(sys_ble_init());
 
   sys_ble_svc_cfg_t runit_svc_cfg = {.uuid = SYS_BLE_SVC_RUNIT, .is_primary = true};
   STA_R_ON_ERR(sys_ble_service_create(&runit_svc_cfg));

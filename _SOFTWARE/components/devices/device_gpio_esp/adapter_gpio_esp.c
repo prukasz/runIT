@@ -51,7 +51,11 @@ static void IRAM_ATTR _gpio_pin_isr_trampoline(void* arg) {
   pin->last_isr_time = current_time;
 
   int level = gpio_get_level((gpio_num_t)pin->io_num);
-  SYS_IO_CB(ctx, pin->io_num, pin->intr_config.mode, level, pin->intr_config.route_mask);
+  if (pin->intr_config.own_func.own_func) {
+    SYS_CB_OWN(pin->intr_config.own_func);
+  } else {
+    SYS_IO_CB(ctx, pin->io_num, pin->intr_config.mode, level, pin->intr_config.route_mask);
+  }
 }
 
 // --- VTABLE Implementations (IO Contract) ---

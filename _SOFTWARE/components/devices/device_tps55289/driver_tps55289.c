@@ -50,23 +50,15 @@ static void _tps55289_parse_status(tps55289_handle_t handle, uint8_t raw_status)
     handle->last_status.op_mode = (raw_status & 0x03);
 }
 
-void tps55289_driver_task(void *arg)
+esp_err_t tps55289_get_status(tps55289_handle_t handle)
 {
-    tps55289_handle_t handle = (tps55289_handle_t)arg;
-    uint32_t notification_value;
-
-    while (1) {
-        xTaskNotifyWait(0, 0xFFFFFFFF, &notification_value, portMAX_DELAY);
-        
-        uint8_t raw_status = 0;
-        if (_tps55289_read(handle, TPS55289_REG_STATUS, &raw_status, 1) == ESP_OK) {
-            _tps55289_parse_status(handle, raw_status);
-
-            if ((handle->last_status.ovp || handle->last_status.ocp || handle->last_status.scp) && handle->on_fault_cb) {
-                handle->on_fault_cb(handle->on_fault_arg, handle->last_status.ovp, handle->last_status.ocp, handle->last_status.scp);
-            }
-        }
+    CHECK_HANDLE(handle);
+    uint8_t raw_status = 0;
+    esp_err_t err = _tps55289_read(handle, TPS55289_REG_STATUS, &raw_status, 1);
+    if (err == ESP_OK) {
+        _tps55289_parse_status(handle, raw_status);
     }
+    return err;
 }
 
 tps55289_handle_t tps55289_new(uint8_t i2c_address, bool i2c_bus_num)
@@ -87,22 +79,12 @@ tps55289_handle_t tps55289_new(uint8_t i2c_address, bool i2c_bus_num)
     handle->header.i2c_device_config.scl_speed_hz = 400000;
     handle->header.bus_num = i2c_bus_num;
 
-    // Create RTOS Task
-    if (xTaskCreate(tps55289_driver_task, "tps55289_task", 2048, handle, 5, &handle->driver_task) != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create TPS55289 task");
-        free(handle);
-        return NULL;
-    }
-
     return handle;
 }
 
 void tps55289_delete(tps55289_handle_t handle)
 {
     if (handle) {
-        if (handle->driver_task) {
-            vTaskDelete(handle->driver_task);
-        }
         free(handle);
     }
 }
@@ -193,20 +175,3 @@ esp_err_t tps55289_set_fault_masks(tps55289_handle_t handle, bool mask_scp, bool
     return _tps55289_write(handle, TPS55289_REG_CDC, &cdc, 1);
 }
 
-void tps55289_register_on_fault_callback(tps55289_handle_t handle, void (*callback)(void *, bool, bool, bool), void* arg)
-{
-    if (handle) {
-        handle->on_fault_cb = callback;
-        handle->on_fault_arg = arg;
-    }
-}
-
-
-void IRAM_ATTR tps55289_isr_handler(tps55289_handle_t handle)
-{
-    if (handle && handle->driver_task) {
-        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-        xTaskNotifyFromISR(handle->driver_task, 0, eNoAction, &xHigherPriorityTaskWoken);
-        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-    }
-}

@@ -1,4 +1,5 @@
 #include "driver_ina3221.h"
+#include <stdint.h>
 #include <string.h>
 
 #define TAG __FILE_NAME__
@@ -49,11 +50,17 @@ static esp_err_t _ina3221_write(ina3221_handle_t handle, uint8_t reg, uint16_t v
   return ESP_OK;
 }
 
-static inline esp_err_t write_config(ina3221_handle_t handle) { return _ina3221_write(handle, INA3221_REG_CONFIG, handle->config.config_register); }
+static inline esp_err_t write_config(ina3221_handle_t handle) {
+  return _ina3221_write(handle, INA3221_REG_CONFIG, handle->config.config_register);
+}
 
-static inline esp_err_t write_mask(ina3221_handle_t handle) { return _ina3221_write(handle, INA3221_REG_MASK, handle->mask.mask_register & INA3221_MASK_CONFIG); }
+static inline esp_err_t write_mask(ina3221_handle_t handle) {
+  return _ina3221_write(handle, INA3221_REG_MASK, handle->mask.mask_register & INA3221_MASK_CONFIG);
+}
 
-esp_err_t ina3221_get_status(ina3221_handle_t handle) { return _ina3221_read(handle, INA3221_REG_MASK, &handle->mask.mask_register); }
+esp_err_t ina3221_get_status(ina3221_handle_t handle) {
+  return _ina3221_read(handle, INA3221_REG_MASK, &handle->mask.mask_register);
+}
 
 esp_err_t ina3221_set_options(ina3221_handle_t handle, bool bus, bool mode, bool shunt_val_cfg) {
   handle->config.mode = mode;
@@ -114,7 +121,7 @@ esp_err_t ina3221_reset(ina3221_handle_t handle) {
   return write_config(handle);
 }
 
-esp_err_t ina3221_read_bus_voltage(ina3221_handle_t handle, uint8_t channel, float* out_mv) {
+esp_err_t ina3221_read_bus_voltage(ina3221_handle_t handle, uint8_t channel, int32_t* out_mv) {
   CHECK_HANDLE_R(handle);
   CHECK_HANDLE_R(out_mv);
   if (channel >= 3) return ESP_ERR_INVALID_ARG;
@@ -122,11 +129,11 @@ esp_err_t ina3221_read_bus_voltage(ina3221_handle_t handle, uint8_t channel, flo
   int16_t raw;
   RETURN_ON_ERROR(_ina3221_read(handle, INA3221_REG_BUSVOLTAGE_1 + (channel * 2), (uint16_t*)&raw));
   raw = raw >> 3;
-  *out_mv = raw * 8.0f;  // 8mV -> LSB
+  *out_mv = (int32_t)(raw * 8.0f);  // 8mV -> LSB
   return ESP_OK;
 }
 
-esp_err_t ina3221_read_shunt_current(ina3221_handle_t handle, uint8_t channel, float* out_ma) {
+esp_err_t ina3221_read_shunt_current(ina3221_handle_t handle, uint8_t channel, int32_t* out_ma) {
   CHECK_HANDLE_R(handle);
   CHECK_HANDLE_R(out_ma);
   if (channel >= 3) return ESP_ERR_INVALID_ARG;
@@ -135,7 +142,7 @@ esp_err_t ina3221_read_shunt_current(ina3221_handle_t handle, uint8_t channel, f
   RETURN_ON_ERROR(_ina3221_read(handle, INA3221_REG_SHUNTVOLTAGE_1 + (channel * 2), (uint16_t*)&raw));
   raw = raw >> 3;
   float mvolts = raw * 0.04f;  // 40uV -> LSB
-  *out_ma = (mvolts * 1000.0f) / handle->shunt_val_cfg[channel];
+  *out_ma = (int32_t)(mvolts * 1000.0f) / handle->shunt_val_cfg[channel];
   return ESP_OK;
 }
 
@@ -193,7 +200,9 @@ ina3221_handle_t ina3221_new(uint8_t i2c_address, bool i2c_bus_num) {
   return handle;
 }
 
-void ina3221_delete(ina3221_handle_t handle) { free(handle); }
+void ina3221_delete(ina3221_handle_t handle) {
+  free(handle);
+}
 
 esp_err_t ina3221_start(ina3221_handle_t handle) {
   if (!handle) return ESP_ERR_INVALID_ARG;

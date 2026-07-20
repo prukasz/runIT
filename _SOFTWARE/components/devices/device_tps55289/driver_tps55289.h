@@ -21,7 +21,6 @@
 
 typedef struct _tps55289_data_t {
   sys_i2c_driver_header_t header;
-  TaskHandle_t driver_task;
   uint16_t shunt_resistor_mohm;
   uint8_t reg_cache[8];
   struct {
@@ -31,9 +30,6 @@ typedef struct _tps55289_data_t {
     bool ovp;
     uint8_t op_mode;
   } last_status;
-
-  void (*on_fault_cb)(void *arg, bool ovp, bool ocp, bool scp);
-  void *on_fault_arg;
 } _tps55289_data_t;
 
 typedef _tps55289_data_t *tps55289_handle_t;
@@ -50,9 +46,5 @@ esp_err_t tps55289_set_voltage(tps55289_handle_t handle, uint16_t voltage_mv);
 esp_err_t tps55289_set_mode(tps55289_handle_t handle, bool fpwm, bool hiccup);
 esp_err_t tps55289_set_fault_masks(tps55289_handle_t handle, bool mask_scp,
                                    bool mask_ocp, bool mask_ovp);
-void tps55289_register_on_fault_callback(tps55289_handle_t handle,
-                                         void (*callback)(void *, bool, bool,
-                                                          bool),
-                                         void *arg);
 
-void tps55289_isr_handler(tps55289_handle_t handle);
+esp_err_t tps55289_get_status(tps55289_handle_t handle);

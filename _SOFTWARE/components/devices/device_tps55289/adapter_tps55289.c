@@ -25,21 +25,23 @@ typedef struct {
   bool last_enable_state;
   bool is_current_limit_enabled;
 
-  uint16_t route_masks[3]; // For OVP, OCP, SCP
+  uint16_t route_masks[3];  // For OVP, OCP, SCP
 } tps_adapter_ctx_t;
 
-static void tps55289_on_fault_handler(void* arg, bool ovp, bool ocp, bool scp) {
-  tps_adapter_ctx_t* ctx = (tps_adapter_ctx_t*)arg;
-  if (!ctx) return;
-  if (ovp) {
+static status_rep_t device_event_handler(void* handle, cb_event_t* event) {
+  SYS_DEV_GET_ADAPTER_CONTEXT(tps_adapter_ctx_t, tps55289_handle_t, ctx, hw, handle);
+  SYS_DEV_CHECK_DRIVER_CALL(tps55289_get_status(hw), ctx);
+
+  if (hw->last_status.ovp) {
     SYS_PWR_CB(ctx, 0, SYS_PWR_EVENT_OVP, ctx->last_voltage_mv, ctx->route_masks[0]);
   }
-  if (ocp) {
+  if (hw->last_status.ocp) {
     SYS_PWR_CB(ctx, 0, SYS_PWR_EVENT_OCP_CRITICAL, ctx->last_current_limit_ma, ctx->route_masks[1]);
   }
-  if (scp) {
+  if (hw->last_status.scp) {
     SYS_PWR_CB(ctx, 0, SYS_PWR_EVENT_SPC, 0, ctx->route_masks[2]);
   }
+  return STA_OK;
 }
 
 // --- VREG Contract Implementations ---
@@ -227,20 +229,20 @@ static status_rep_t device_install(void** args, void** out_device_handle) {
   ctx->is_current_limit_enabled = true;
 
   status_rep_t status = sys_i2c_device_present(ctx->base.hw_handle);
-  if (!STA_IS_OK(status)) {
+  if (STA_IS_ERR(status)) {
     status = STA_C(ERR_I2C_DEV_NOT_FOUND, OWNER, DEV_ERR_PACK(ctx->base.device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
     goto fail;
   }
 
   status = sys_i2c_add_driver(ctx->base.hw_handle);
-  if (!STA_IS_OK(status)) {
+  if (STA_IS_ERR(status)) {
     goto fail;
   }
 
   // Configure enable pin
   IF_PIN(en_io_num) {
     status = sys_io_set_mode(en_io_device, en_io_num, en_io_mode);
-    if (!STA_IS_OK(status)) {
+    if (STA_IS_ERR(status)) {
       goto fail;
     }
     SYS_IO_HIGH(en_io_device, en_io_num);
@@ -250,22 +252,23 @@ static status_rep_t device_install(void** args, void** out_device_handle) {
   // Configure interrupt pin & callback
   IF_PIN(intr_io_num) {
     status = sys_io_set_mode(intr_io_device, intr_io_num, intr_io_mode);
-    if (!STA_IS_OK(status)) {
+    if (STA_IS_ERR(status)) {
       goto fail;
     }
-    sys_io_intr_config_t config = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
+    sys_io_intr_config_t config = {
+        .mode = SYS_IO_INTR_MODE_FALLING_EDGE,
+        .own_func = {.own_func = device_event_handler, .device_handle = ctx},
+    };
     status = sys_io_configure_intr(intr_io_device, intr_io_num, &config);
-    if (!STA_IS_OK(status)) {
+    if (STA_IS_ERR(status)) {
       goto fail;
     }
   }
   SYS_IO_LOCK_PIN(intr_io_device, intr_io_num);
-  // Register faults callbacks
-  tps55289_register_on_fault_callback(ctx->base.hw_handle, tps55289_on_fault_handler, ctx);
 
   // Register to sys_power
   status = sys_power_register_vreg(device_id, ctx, &s_tps_vreg_contract);
-  if (!STA_IS_OK(status)) {
+  if (STA_IS_ERR(status)) {
     goto fail;
   }
 

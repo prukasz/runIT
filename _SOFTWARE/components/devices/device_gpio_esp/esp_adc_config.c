@@ -173,7 +173,11 @@ static void process_adc_channel(int pin, int chan, uint32_t sum, uint16_t count,
 
   if (condition_met && !adc_cfg->alert_was_triggered) {
     adc_cfg->alert_was_triggered = true;
-    SYS_IO_CB(&gpio_esp_ctx, pin_obj->io_num, wt, voltage_mv, pin_obj->intr_config.route_mask);
+    if (pin_obj->intr_config.own_func.own_func) {
+      SYS_CB_OWN(pin_obj->intr_config.own_func);
+    } else {
+      SYS_IO_CB(&gpio_esp_ctx, pin_obj->io_num, wt, voltage_mv, pin_obj->intr_config.route_mask);
+    }
   } else if (reset_condition_met) {
     adc_cfg->alert_was_triggered = false;
   }

@@ -13,6 +13,7 @@
 static const char* TAG = __FILE_NAME__;
 #undef OWNER
 #define OWNER OWNER_DEVICE_PCA9685
+#define PINS_MASK 0xFFFF
 
 typedef struct pca_adapter_ctx_t {
   sys_device_adapter_base_t base;
@@ -30,7 +31,7 @@ typedef struct pca_adapter_ctx_t {
 // --- VTABLE Implementations (IO Contract) ---
 static status_rep_t contract_io_pca9685_set_pwm_duty(void* handle, sys_io_pin_num_t pin, uint32_t duty) {
   SYS_DEV_GET_ADAPTER_CONTEXT(pca_adapter_ctx_t, pca9685_handle_t, ctx, hw, handle);
-  VERIFY_PIN_R(pin, 0xFFFF);
+  VERIFY_PIN_R(pin, PINS_MASK);
 
   if (duty > PCA9685_MAX_PWM_VALUE) {
     duty = PCA9685_MAX_PWM_VALUE;
@@ -53,7 +54,6 @@ static status_rep_t contract_io_pca9685_set_pwm_frequency(void* handle, sys_io_p
     ctx->frozen_freq_dirty = true;
     return STA_OK;
   }
-
   SYS_DEV_CHECK_DRIVER_CALL(pca9685_set_pwm_frequency(hw, (uint16_t)frequency_HZ), ctx);
   return STA_OK;
 }
@@ -66,7 +66,7 @@ static status_rep_t contract_io_pca9685_set_level(void* handle, sys_io_pin_num_t
 static status_rep_t contract_io_pca9685_get_level(void* handle, sys_io_pin_num_t pin, bool* level) {
   SYS_DEV_GET_ADAPTER_CONTEXT(pca_adapter_ctx_t, pca9685_handle_t, ctx, hw, handle);
   CHECK_HANDLE_R(level);
-  VERIFY_PIN_R(pin, 0xFFFF);
+  VERIFY_PIN_R(pin, PINS_MASK);
 
   uint16_t current_val;
   if (ctx->base.is_frozen && (ctx->frozen_outputs_mask & (1 << pin))) {
@@ -81,7 +81,7 @@ static status_rep_t contract_io_pca9685_get_level(void* handle, sys_io_pin_num_t
 
 static status_rep_t contract_io_pca9685_toggle(void* handle, sys_io_pin_num_t pin) {
   SYS_DEV_GET_ADAPTER_CONTEXT(pca_adapter_ctx_t, pca9685_handle_t, ctx, hw, handle);
-  VERIFY_PIN_R(pin, 0xFFFF);
+  VERIFY_PIN_R(pin, PINS_MASK);
 
   uint16_t current_val;
   if (ctx->base.is_frozen && (ctx->frozen_outputs_mask & (1 << pin))) {
@@ -221,34 +221,7 @@ static status_rep_t device_sync(void* handle) {
 }
 
 static status_rep_t device_error_handler(void* handle, status_rep_t* error) {
-  if (!error) return STA_OK;
-
-  pca_adapter_ctx_t* ctx = (pca_adapter_ctx_t*)handle;
-  if (!ctx) {
-    ESP_LOGE(TAG, "Missing context handle");
-    return STA_C(ERR_DEV_MISSING_HANDLE, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
-  }
-
-  uint32_t e_code = error->e_code;
-  uint64_t payload = error->payload;
-  switch (e_code) {
-    case ERR_DEV_DEP_ERR:
-    case ERR_DEV_DRIVER_ERR: {
-      if (e_code == ERR_DEV_DEP_ERR) {
-        ESP_LOGE(TAG, "Encountered dependency error on device %u: %s, suspending device ID: %u", DEV_ERR_GET_DEP(payload), status_error_to_name(DEV_ERR_GET_CODE(payload)), ctx->base.device_id);
-      } else {
-        ESP_LOGE(TAG, "Encountered driver error: %s, suspending device ID: %u", esp_err_to_name(DEV_ERR_GET_CODE(payload)), ctx->base.device_id);
-      }
-
-      status_suspend();
-      sys_device_suspend(ctx->base.device_id);
-      status_resume();
-      return STA_OK;
-    }
-    default:
-      break;
-  }
-  return *error;
+  return STA_OK;
 }
 
 static status_rep_t device_install(void** args, void** out_device_handle) {

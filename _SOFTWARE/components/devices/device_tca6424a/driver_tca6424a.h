@@ -19,21 +19,9 @@ typedef struct {
   uint8_t output[3];
   uint8_t polarity_cfg[3];
   uint8_t config[3];
-
-  volatile bool interrupt_present;
-
-  TaskHandle_t driver_task;
-
-  void (*on_change_cb)(void* arg, uint32_t rising, uint32_t falling);
-  void* on_change_arg;
 } tca_data_t;
 
 typedef tca_data_t* tca6424a_handle_t;
-
-void tca_task(void* dev_handle);
-void d_tca6424a_intr_pin_callback(void* arg);
-
-esp_err_t tca_register_on_change_callback(tca6424a_handle_t handle, void (*cb)(void*, uint32_t, uint32_t), void* arg);
 
 esp_err_t tca_set_pins(tca6424a_handle_t handle, uint32_t pins_mask, uint32_t pins_state);
 esp_err_t tca_preset_cfg(tca6424a_handle_t handle, uint32_t cfg_mask, uint32_t cfg_state);

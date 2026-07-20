@@ -129,64 +129,7 @@ esp_err_t tca_restore_state(tca6424a_handle_t handle) {
   return _tca_update_polarity(handle);
 }
 
-/*******************************************************************************
- * ISR & RTOS TASK
- ******************************************************************************/
 
-void d_tca6424a_intr_pin_callback(void* arg) {
-  tca6424a_handle_t handle = (tca6424a_handle_t)arg;
-  BaseType_t high_task_wakeup = pdFALSE;
-
-  handle->interrupt_present = true;
-
-  xTaskNotifyFromISR(handle->driver_task, 0, eNoAction, &high_task_wakeup);
-
-  if (high_task_wakeup) {
-    portYIELD_FROM_ISR();
-  }
-}
-
-void tca_task(void* dev_handle) {
-  tca6424a_handle_t handle = (tca6424a_handle_t)dev_handle;
-  handle->interrupt_present = false;
-
-  uint32_t previous_state = 0;
-  bool first_run = true;
-
-  while (1) {
-    xTaskNotifyWait(0, 0xFFFFFFFF, NULL, portMAX_DELAY);
-
-    if (first_run) {
-      _tca_update_inputs(handle);
-      previous_state = (handle->last_read_input[2] << 16) | (handle->last_read_input[1] << 8) | handle->last_read_input[0];
-      first_run = false;
-    }
-
-    if (handle->interrupt_present) {
-      handle->interrupt_present = false;
-
-      if (_tca_update_inputs(handle) == ESP_OK) {
-        uint32_t current_state = (handle->last_read_input[2] << 16) | (handle->last_read_input[1] << 8) | handle->last_read_input[0];
-
-        uint32_t changed_bits = current_state ^ previous_state;
-        uint32_t rising_edges = changed_bits & current_state;
-        uint32_t falling_edges = changed_bits & ~current_state;
-
-        if (changed_bits && handle->on_change_cb) {
-          handle->on_change_cb(handle->on_change_arg, rising_edges, falling_edges);
-        }
-        previous_state = current_state;
-      }
-    }
-  }
-}
-
-esp_err_t tca_register_on_change_callback(tca6424a_handle_t handle, void (*cb)(void*, uint32_t, uint32_t), void* arg) {
-  if (!handle) return ESP_ERR_INVALID_ARG;
-  handle->on_change_cb = cb;
-  handle->on_change_arg = arg;
-  return ESP_OK;
-}
 
 /*******************************************************************************
  * TWO-PHASE INITIALIZATION
@@ -204,19 +147,12 @@ tca6424a_handle_t d_tca6424a_new(uint8_t i2c_address, bool i2c_bus_num) {
   handle->header.i2c_device_config.dev_addr_length = I2C_ADDR_BIT_LEN_7;
   handle->header.bus_num = i2c_bus_num;
 
-  if (xTaskCreate(tca_task, "tca_task", 4096, handle, 10, &handle->driver_task) != pdPASS) {
-    ESP_LOGE(TAG, "Failed to create TCA6424A task");
-    free(handle);
-    return NULL;
-  }
+  tca_restore_state(handle);
 
   return handle;
 }
 
 void d_tca6424a_delete(tca6424a_handle_t handle) {
   if (!handle) return;
-  if (handle->driver_task) {
-    vTaskDelete(handle->driver_task);
-  }
   free(handle);
 }

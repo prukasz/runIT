@@ -58,7 +58,7 @@ typedef struct {
 
 typedef struct {
     sys_ble_svc_node_t *services;
-    sys_ble_callbacks_t callbacks;
+    uint16_t route_masks[SYS_BLE_EVENT_MAX];
     bool initialized;
     bool driver_started;
     uint16_t conn_handle;
@@ -108,19 +108,12 @@ static esp_err_t populate_svc_def(struct ble_gatt_svc_def *svc_def, const sys_bl
 /*****************************************************************************************/
 
 #define OWNER OWNER_SYS_BLE_CREATE
-status_rep_t sys_ble_init(const sys_ble_callbacks_t *callbacks) {
+status_rep_t sys_ble_init(void) {
     R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
     
     if (g_ble_ctx.initialized) {
-        if (callbacks) {
-            g_ble_ctx.callbacks = *callbacks;
-        }
         R_MUTEX_UNLOCK(sys_ble_mutex);
         return STA_OK;
-    }
-    
-    if (callbacks) {
-        g_ble_ctx.callbacks = *callbacks;
     }
     
     g_ble_ctx.tx_event_group = xEventGroupCreate();
@@ -133,6 +126,16 @@ status_rep_t sys_ble_init(const sys_ble_callbacks_t *callbacks) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
     
     ESP_LOGI(TAG, "BLE Manager initialized successfully");
+    return STA_OK;
+}
+
+status_rep_t sys_ble_add_callback(sys_ble_events_e on_event, uint16_t route_mask) {
+    if (on_event >= SYS_BLE_EVENT_MAX) {
+        return STA_C(ERR_INVALID_ARG, OWNER, 0, STATUS_PAYLOAD_UNKNOWN);
+    }
+    R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+    g_ble_ctx.route_masks[on_event] = route_mask;
+    R_MUTEX_UNLOCK(sys_ble_mutex);
     return STA_OK;
 }
 #undef OWNER
@@ -657,37 +660,31 @@ static void sys_ble_on_driver_connect(uint16_t conn_handle) {
     R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
     g_ble_ctx.conn_handle = conn_handle;
     g_ble_ctx.is_connected = true;
-    sys_ble_callbacks_t cbs = g_ble_ctx.callbacks;
+    uint16_t mask = g_ble_ctx.route_masks[SYS_BLE_EVENT_CONNECT];
     R_MUTEX_UNLOCK(sys_ble_mutex);
     
     xEventGroupSetBits(g_ble_ctx.tx_event_group, BIT_START_TX);
     
-    if (cbs.on_connect) {
-        cbs.on_connect(conn_handle);
-    }
+    SYS_BLE_CB(SYS_BLE_EVENT_CONNECT, conn_handle, mask);
 }
 
 static void sys_ble_on_driver_disconnect(uint16_t conn_handle, int reason) {
     R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
     g_ble_ctx.conn_handle = 0;
     g_ble_ctx.is_connected = false;
-    sys_ble_callbacks_t cbs = g_ble_ctx.callbacks;
+    uint16_t mask = g_ble_ctx.route_masks[SYS_BLE_EVENT_DISCONNECT];
     R_MUTEX_UNLOCK(sys_ble_mutex);
     
-    if (cbs.on_disconnect) {
-        cbs.on_disconnect(conn_handle, reason);
-    }
+    SYS_BLE_CB(SYS_BLE_EVENT_DISCONNECT, reason, mask);
 }
 
 static void sys_ble_on_driver_failure(esp_err_t error) {
     R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
     g_ble_ctx.last_error = error;
-    sys_ble_callbacks_t cbs = g_ble_ctx.callbacks;
+    uint16_t mask = g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE];
     R_MUTEX_UNLOCK(sys_ble_mutex);
     
-    if (cbs.on_failure) {
-        cbs.on_failure(error);
-    }
+    SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, error, mask);
 }
 
 static int sys_ble_gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle,
@@ -711,11 +708,9 @@ static int sys_ble_gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle,
                 ESP_LOGW(TAG, "RX buffer overflow on char uuid 0x%04X", char_node->cfg.uuid);
                 R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
                 g_ble_ctx.rx_overflow_count++;
-                sys_ble_callbacks_t cbs = g_ble_ctx.callbacks;
+                uint16_t mask = g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE];
                 R_MUTEX_UNLOCK(sys_ble_mutex);
-                if (cbs.on_failure) {
-                    cbs.on_failure(ESP_FAIL);
-                }
+                SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, ESP_FAIL, mask);
             } else {
                 xSemaphoreGive(char_node->rx_sem);
             }
@@ -791,11 +786,9 @@ static void sys_ble_task_func(void *pvParameters) {
                     } else {
                         R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
                         g_ble_ctx.last_error = send_res;
-                        sys_ble_callbacks_t cbs = g_ble_ctx.callbacks;
+                        uint16_t mask = g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE];
                         R_MUTEX_UNLOCK(sys_ble_mutex);
-                        if (cbs.on_failure) {
-                            cbs.on_failure(send_res);
-                        }
+                        SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, send_res, mask);
                         R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
                         break;
                     }

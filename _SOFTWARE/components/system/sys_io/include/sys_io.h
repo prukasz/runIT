@@ -81,6 +81,7 @@ typedef struct {
 typedef struct sys_io_intr_config_t {
   sys_io_intr_mode_e mode;
   uint16_t route_mask;
+  own_funct_t own_func;
   union {
     sys_io_adc_int_config_t adc;
   };
