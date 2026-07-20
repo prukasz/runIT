@@ -75,7 +75,7 @@ status_rep_t contract_io_tca6424a_set_mode(void* handle, sys_io_pin_num_t pin, s
       tca_cfg_state = 0xFFFFFFFF;
       break;
     default:
-      return STA_C(ERR_SYS_IO_MODE_UNAVAILABLE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, mode), STATUS_PAYLOAD_DEVICE);
+      return STA_C(ERR_SYS_IO_MODE_UNAVAILABLE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, mode), STATUS_PAYLOAD_DEV_IO_ERR);
   }
 
   SYS_DEV_CHECK_DRIVER_CALL(tca_preset_cfg(hw, 1UL << pin, tca_cfg_state), ctx);
@@ -251,21 +251,47 @@ static status_rep_t device_reset(void* handle) {
 }
 
 static status_rep_t device_error_handler(void* handle, status_rep_t* error) {
-  SYS_DEV_CHECK_NOT_NULL_R(error);
+  if (!error) return STA_OK;
 
-  if (error->e_code == ERR_SYS_IO_PIN_DOES_NOT_EXIST) {
-    uint32_t pin = SYS_IO_UNPACK_PIN(error->payload);
-    ESP_LOGW(TAG, "Configuration Warning: Pin %lu does not exist. Available IO: 0..23.", pin);
-    return *error;
-  } else if (error->e_code == ERR_SYS_IO_MODE_UNAVAILABLE) {
-    uint32_t pin = SYS_IO_UNPACK_PIN(error->payload);
-    uint32_t mode = SYS_IO_UNPACK_EXTRA(error->payload);
-    const char* mode_str = (mode < 9) ? sys_io_mode_e_to_string[mode] : "UNKNOWN";
-    ESP_LOGW(TAG, "Pin %lu can be configured only as SYS_IO_MODE_OUTPUT_PUSH_PULL or SYS_IO_MODE_INPUT, %s not supported.", pin, mode_str);
-    return *error;
-  } else if (error->e_code == ERR_NOT_SUPPORTED) {
-    ESP_LOGW(TAG, "Available functions: set_mode, configure_intr, set_level, get_level, toggle");
-    return *error;
+  tca_adapter_ctx_t* ctx = (tca_adapter_ctx_t*)handle;
+  if (!ctx) {
+    ESP_LOGE(TAG, "Missing context handle");
+    return STA_C(ERR_DEV_MISSING_HANDLE, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
+  }
+
+  uint32_t e_code = error->e_code;
+  uint64_t payload = error->payload;
+  switch (e_code) {
+    case ERR_DEV_DEP_ERR:
+    case ERR_DEV_DRIVER_ERR: {
+      if (e_code == ERR_DEV_DEP_ERR) {
+        ESP_LOGE(TAG, "Encountered dependency error on device %u: %s, suspending device ID: %u", DEV_ERR_GET_DEP(payload), status_error_to_name(DEV_ERR_GET_CODE(payload)), ctx->base.device_id);
+      } else {
+        ESP_LOGE(TAG, "Encountered driver error: %s, suspending device ID: %u", esp_err_to_name(DEV_ERR_GET_CODE(payload)), ctx->base.device_id);
+      }
+
+      status_suspend();
+      sys_device_suspend(ctx->base.device_id);
+      status_resume();
+      return STA_OK;
+    }
+    case ERR_SYS_IO_PIN_DOES_NOT_EXIST: {
+      uint32_t pin = SYS_IO_UNPACK_PIN(payload);
+      ESP_LOGW(TAG, "Configuration Warning (device ID: %u): Pin %lu does not exist. Available IO: 0..23.", ctx->base.device_id, pin);
+      return STA_OK;
+    }
+    case ERR_SYS_IO_MODE_UNAVAILABLE: {
+      uint32_t pin = SYS_IO_UNPACK_PIN(payload);
+      uint32_t mode = SYS_IO_UNPACK_EXTRA(payload);
+      const char* mode_str = (mode < 9) ? sys_io_mode_e_to_string[mode] : "UNKNOWN";
+      ESP_LOGW(TAG, "Pin %lu (device ID: %u) can be configured only as SYS_IO_MODE_OUTPUT_PUSH_PULL or SYS_IO_MODE_INPUT, %s not supported.", pin, ctx->base.device_id, mode_str);
+      return STA_OK;
+    }
+    case ERR_NOT_SUPPORTED:
+      ESP_LOGW(TAG, "Available functions for device ID %u: set_mode, configure_intr, set_level, get_level, toggle", ctx->base.device_id);
+      return STA_OK;
+    default:
+      break;
   }
   return *error;
 }
@@ -293,7 +319,7 @@ static status_rep_t device_resume(void* handle) {
   return STA_OK;
 }
 
-static void* adapter_install_fallback(tca_adapter_ctx_t* ctx) {
+static void adapter_install_fallback(tca_adapter_ctx_t* ctx) {
   if (ctx) {
     IF_PIN(ctx->intr_pin_num) {
       SYS_IO_UNLOCK_PIN(ctx->intr_gpio_device_id, ctx->intr_pin_num);
@@ -309,10 +335,9 @@ static void* adapter_install_fallback(tca_adapter_ctx_t* ctx) {
     }
     free(ctx);
   }
-  return NULL;
 }
 
-static void* device_install(void** args) {
+static status_rep_t device_install(void** args, void** out_device_handle) {
   SYS_DEV_ARG_UNPACK(uint8_t, device_id, args, 0);
   SYS_DEV_ARG_UNPACK(bool, i2c_bus, args, 1);
   SYS_DEV_ARG_UNPACK(uint8_t, i2c_addr, args, 2);
@@ -324,12 +349,12 @@ static void* device_install(void** args) {
   SYS_DEV_ARG_UNPACK(sys_io_mode_e, rst_io_mode, args, 8);
 
   tca_adapter_ctx_t* ctx = sys_device_allocate_ctx(sizeof(tca_adapter_ctx_t), args);
-  if (!ctx) return NULL;
+  if (!ctx) return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
 
   ctx->base.hw_handle = d_tca6424a_new(i2c_addr, i2c_bus);
   if (!ctx->base.hw_handle) {
     free(ctx);
-    return NULL;
+    return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
   }
 
   ctx->intr_gpio_device_id = intr_io_device;
@@ -340,37 +365,54 @@ static void* device_install(void** args) {
   tca6424a_handle_t hw = (tca6424a_handle_t)(ctx->base.hw_handle);
   tca_register_on_change_callback(hw, tca_on_change_handler, ctx);
 
-  if (STA_IS_ERR(sys_i2c_add_driver(ctx->base.hw_handle))) {
-    return adapter_install_fallback(ctx);
+  status_rep_t status = sys_i2c_add_driver(ctx->base.hw_handle);
+  if (!STA_IS_OK(status)) {
+    goto fail;
   }
 
   IF_PIN(rst_io_num) {
-    if (STA_IS_ERR(sys_io_set_mode(rst_io_device, rst_io_num, rst_io_mode))) {
-      return adapter_install_fallback(ctx);
+    status = sys_io_set_mode(rst_io_device, rst_io_num, rst_io_mode);
+    if (!STA_IS_OK(status)) {
+      goto fail;
     }
     SYS_IO_HIGH(rst_io_device, rst_io_num);
     vTaskDelay(pdMS_TO_TICKS(10));
     SYS_IO_LOCK_PIN(rst_io_device, rst_io_num);
   }
 
+  status = sys_i2c_device_present(ctx->base.hw_handle);
+  if (STA_IS_ERR(status)) {
+    status = STA_C(ERR_I2C_DEV_NOT_FOUND, OWNER, DEV_ERR_PACK(ctx->base.device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
+    goto fail;
+  }
+
   IF_PIN(intr_io_num) {
-    if (STA_IS_ERR(sys_io_set_mode(intr_io_device, intr_io_num, intr_io_mode))) {
-      return adapter_install_fallback(ctx);
+    status = sys_io_set_mode(intr_io_device, intr_io_num, intr_io_mode);
+    if (!STA_IS_OK(status)) {
+      goto fail;
     }
     sys_io_intr_config_t config = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE, .callback = (sys_io_isr_callback_t)(void*)d_tca6424a_intr_pin_callback, .user_ctx = hw};
-    if (STA_IS_ERR(sys_io_configure_intr(intr_io_device, intr_io_num, &config))) {
-      return adapter_install_fallback(ctx);
+    status = sys_io_configure_intr(intr_io_device, intr_io_num, &config);
+    if (!STA_IS_OK(status)) {
+      goto fail;
     }
     SYS_IO_LOCK_PIN(intr_io_device, intr_io_num);
   }
 
-  if (STA_IS_ERR(sys_io_register_driver(device_id, ctx, &io_tca_vtable))) {
-    ESP_LOGE(TAG, "Failed to register TCA6424A to IO Manager on device_id %ld", device_id);
-    return adapter_install_fallback(ctx);
+  status = sys_io_register_driver(device_id, ctx, &io_tca_vtable);
+  if (!STA_IS_OK(status)) {
+    ESP_LOGE(TAG, "Failed to register TCA6424A to IO Manager on device_id %ld", (long)device_id);
+    goto fail;
   }
 
-  ESP_LOGI(TAG, "TCA6424A successfully installed as IO device %ld", device_id);
-  return ctx;
+  ESP_LOGI(TAG, "TCA6424A successfully installed as IO device %ld", (long)device_id);
+  *out_device_handle = ctx;
+  return STA_OK;
+
+fail:
+  adapter_install_fallback(ctx);
+  *out_device_handle = NULL;
+  return status;
 }
 
 status_rep_t d_tca6424a_create(uint8_t device_id, bool i2c_bus, uint8_t i2c_addr, uint8_t intr_io_device, sys_io_pin_num_t intr_io_num, sys_io_mode_e intr_io_mode, uint8_t rst_io_device, sys_io_pin_num_t rst_io_num, sys_io_mode_e rst_io_mode) {

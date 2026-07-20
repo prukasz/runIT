@@ -1,0 +1,39 @@
+#pragma once
+
+#define STATUS_PAYLOAD_DEV_SOLO 0
+#define STATUS_PAYLOAD_DEV_ESP 1
+#define STATUS_PAYLOAD_DEV_DEP 2
+
+// Pack macros
+#define DEV_ERR_PACK(dev_id, dep_dev_id, err_code) ((((uint64_t)(dev_id) & 0xFF) << 56) | (((uint64_t)(dep_dev_id) & 0xFF) << 48) | ((uint32_t)(err_code)))
+
+// Get macros
+#define DEV_ERR_GET_DEV(payload) ((uint8_t)((payload) >> 56))
+#define DEV_ERR_GET_DEP(payload) ((uint8_t)((payload) >> 48))
+#define DEV_ERR_GET_CODE(payload) ((uint32_t)(payload))
+
+#define SYS_DEVICE_OWNER_MAP(X)                                           \
+  X(OWNER_SYS_DEVICE_BASE, 0xA100, "DEVICE_BASE")                         \
+  X(OWNER_SYS_DEVICE_INSTALL, 0xA101, "OWNER_SYS_DEVICE_INSTALL")         \
+  X(OWNER_SYS_DEVICE_UNINSTALL, 0xA102, "OWNER_SYS_DEVICE_UNINSTALL")     \
+  X(OWNER_SYS_DEVICE_RESET, 0xA103, "OWNER_SYS_DEVICE_RESET")             \
+  X(OWNER_SYS_DEVICE_GET_BY_ID, 0xA104, "OWNER_SYS_DEVICE_GET_BY_ID")     \
+  X(OWNER_SYS_DEVICE_SUSPEND, 0xA105, "OWNER_SYS_DEVICE_SUSPEND")         \
+  X(OWNER_SYS_DEVICE_RESUME, 0xA106, "OWNER_SYS_DEVICE_RESUME")           \
+  X(OWNER_SYS_DEVICE_SUSPEND_ALL, 0xA107, "OWNER_SYS_DEVICE_SUSPEND_ALL") \
+  X(OWNER_SYS_DEVICE_RESUME_ALL, 0xA108, "OWNER_SYS_DEVICE_RESUME_ALL")   \
+  X(OWNER_SYS_DEVICE_FREEZE, 0xA109, "OWNER_SYS_DEVICE_FREEZE")           \
+  X(OWNER_SYS_DEVICE_SYNC, 0xA10A, "OWNER_SYS_DEVICE_SYNC")               \
+  X(OWNER_SYS_DEVICE_FREEZE_ALL, 0xA10B, "OWNER_SYS_DEVICE_FREEZE_ALL")   \
+  X(OWNER_SYS_DEVICE_SYNC_ALL, 0xA10C, "OWNER_SYS_DEVICE_SYNC_ALL")
+
+#define SYS_DEVICE_ERROR_MAP(X)                                   \
+  X(ERR_DEV_BASE, 0xA100, "ERR_DEV_BASE")                         \
+  X(ERR_DEV_ALREADY_EXISTS, 0xA101, "ERR_DEV_ALREADY_EXISTS")     \
+  X(ERR_DEV_NOT_FOUND, 0xA102, "ERR_DEV_NOT_FOUND")               \
+  X(ERR_DEV_NOT_INSTALLED, 0xA103, "ERR_DEV_NOT_INSTALLED")       \
+  X(ERR_DEV_SUSPENDED, 0xA104, "ERR_DEV_SUSPENDED")               \
+  X(ERR_DEV_DRIVER_ERR, 0xA105, "ERR_DEV_DRIVER_ERR")             \
+  X(ERR_DEV_DEP_ERR, 0xA106, "ERR_DEV_DEP_ERR")                   \
+  X(ERR_DEV_FEATURE_NOT_FOUND, 0xA107, "ERR_DEV_FEATURE_NOT_FOUND") \
+  X(ERR_DEV_MISSING_HANDLE, 0xA108, "ERR_DEV_MISSING_HANDLE")

@@ -261,7 +261,8 @@ static status_rep_t device_sync(void* handle) {
 
 static status_rep_t device_error_handler(void* handle, status_rep_t* error) {
   ESP_LOGE(TAG, "Device error caught: owner=%d, code=%d", error->e_owner, error->e_code);
-  return device_reset(handle);
+  (void)device_reset(handle);
+  return STA_OK;
 }
 
 // =============================================================================
@@ -269,7 +270,7 @@ static status_rep_t device_error_handler(void* handle, status_rep_t* error) {
 // Unpacks creation arguments, allocates context, registers driver, and applies defaults.
 // =============================================================================
 
-static void* device_install(void** args) {
+static status_rep_t device_install(void** args, void** out_device_handle) {
   SYS_DEV_ARG_UNPACK(uint8_t, device_id, args, 0);
   SYS_DEV_ARG_UNPACK(bool, i2c_bus, args, 1);
   SYS_DEV_ARG_UNPACK(uint8_t, i2c_addr, args, 2);
@@ -281,7 +282,7 @@ static void* device_install(void** args) {
   SYS_DEV_ARG_UNPACK(sys_io_mode_e, rst_io_mode, args, 8);
 
   example_adapter_ctx_t* ctx = sys_device_allocate_ctx(sizeof(example_adapter_ctx_t), args);
-  if (!ctx) return NULL;
+  if (!ctx) return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
 
   ctx->intr_gpio_device_id = intr_io_device;
   ctx->intr_pin_num = intr_io_num;
@@ -291,20 +292,22 @@ static void* device_install(void** args) {
   ctx->base.hw_handle = example_driver_new(i2c_addr, i2c_bus);
   if (!ctx->base.hw_handle) {
     free(ctx);
-    return NULL;
+    return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
   }
 
   // Bind register fault callbacks
   example_handle_t hw = (example_handle_t)(ctx->base.hw_handle);
   example_driver_register_change_callback(hw, example_on_change_handler, ctx);
 
-  if (STA_IS_ERR(sys_i2c_add_driver(ctx->base.hw_handle))) {
+  status_rep_t status = sys_i2c_add_driver(ctx->base.hw_handle);
+  if (!STA_IS_OK(status)) {
     goto fail;
   }
 
   // Setup HW reset pin
   IF_PIN(rst_io_num) {
-    if (STA_IS_ERR(sys_io_set_mode(rst_io_device, rst_io_num, rst_io_mode))) {
+    status = sys_io_set_mode(rst_io_device, rst_io_num, rst_io_mode);
+    if (!STA_IS_OK(status)) {
       goto fail;
     }
     SYS_IO_HIGH(rst_io_device, rst_io_num);
@@ -314,7 +317,8 @@ static void* device_install(void** args) {
 
   // Setup HW interrupt pin
   IF_PIN(intr_io_num) {
-    if (STA_IS_ERR(sys_io_set_mode(intr_io_device, intr_io_num, intr_io_mode))) {
+    status = sys_io_set_mode(intr_io_device, intr_io_num, intr_io_mode);
+    if (!STA_IS_OK(status)) {
       goto fail;
     }
     sys_io_intr_config_t config = {
@@ -322,22 +326,26 @@ static void* device_install(void** args) {
         .callback = (sys_io_isr_callback_t)(void*)example_adapter_isr,
         .user_ctx = ctx
     };
-    if (STA_IS_ERR(sys_io_configure_intr(intr_io_device, intr_io_num, &config))) {
+    status = sys_io_configure_intr(intr_io_device, intr_io_num, &config);
+    if (!STA_IS_OK(status)) {
       goto fail;
     }
     SYS_IO_LOCK_PIN(intr_io_device, intr_io_num);
   }
 
   // Register device to the central sys_io manager
-  if (STA_IS_ERR(sys_io_register_driver(device_id, ctx, &io_example_vtable))) {
+  status = sys_io_register_driver(device_id, ctx, &io_example_vtable);
+  if (!STA_IS_OK(status)) {
     goto fail;
   }
 
-  return ctx;
+  *out_device_handle = ctx;
+  return STA_OK;
 
 fail:
   device_uninstall(ctx);
-  return NULL;
+  *out_device_handle = NULL;
+  return status;
 }
 
 // =============================================================================

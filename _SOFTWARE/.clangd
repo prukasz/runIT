@@ -1,6 +1,8 @@
 CompileFlags:
+    CompilationDatabase: build
     Add:
         [
+            -std=gnu23,
             -ferror-limit=99999,
             -Wno-implicit-function-declaration,
         ]

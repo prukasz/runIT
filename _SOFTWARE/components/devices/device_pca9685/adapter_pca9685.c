@@ -1,8 +1,11 @@
+#include <stdint.h>
 #include <stdlib.h>
 #include "device_pca9685.h"
 #include "driver_pca9685.h"
+#include "esp_err.h"
 #include "esp_log.h"
 #include "status.h"
+#include "status_codes.h"
 #include "sys_device.h"
 #include "sys_i2c.h"
 #include "sys_io.h"
@@ -22,7 +25,6 @@ typedef struct pca_adapter_ctx_t {
   // OE pin config
   uint8_t oe_device_id;
   sys_io_pin_num_t oe_pin_num;
-  bool has_oe_pin;
 } pca_adapter_ctx_t;
 
 // --- VTABLE Implementations (IO Contract) ---
@@ -119,11 +121,11 @@ static status_rep_t device_uninstall(void* handle) {
   // Put chip to sleep
   esp_err_t err = pca9685_sleep(hw, true);
   if (err != ESP_OK) {
-    status = STA_C(ERR_ESP, OWNER, err, STATUS_PAYLOAD_DEVICE);
+    status = STA_C(ERR_DEV_DRIVER_ERR, OWNER, DEV_ERR_PACK(ctx->base.device_id, 0, err), STATUS_PAYLOAD_DEV_ESP);
   }
-
+  status_suspend();
   // Disable outputs if OE pin exists (set HIGH)
-  if (ctx->has_oe_pin) {
+  IF_PIN(ctx->oe_pin_num) {
     SYS_IO_UNLOCK_PIN(ctx->oe_device_id, ctx->oe_pin_num);
     r = SYS_IO_HIGH(ctx->oe_device_id, ctx->oe_pin_num);
     if (STA_IS_ERR(r)) status = r;
@@ -135,7 +137,7 @@ static status_rep_t device_uninstall(void* handle) {
   if (STA_IS_ERR(r)) status = r;
   r = sys_i2c_remove_driver(ctx->base.hw_handle);
   if (STA_IS_ERR(r)) status = r;
-
+  status_resume();
   free(hw);
   free(ctx);
   return status;
@@ -157,7 +159,7 @@ static status_rep_t device_reset(void* handle) {
 static status_rep_t device_suspend(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(pca_adapter_ctx_t, pca9685_handle_t, ctx, hw, handle);
 
-  if (ctx->has_oe_pin) {
+  IF_PIN(ctx->oe_pin_num) {
     WITH_PIN_UNLOCKED(ctx->oe_device_id, ctx->oe_pin_num) {
       SYS_IO_HIGH(ctx->oe_device_id, ctx->oe_pin_num);
     }
@@ -174,7 +176,7 @@ static status_rep_t device_resume(void* handle) {
 
   pca9685_sleep(hw, false);
 
-  if (ctx->has_oe_pin) {
+  IF_PIN(ctx->oe_pin_num) {
     WITH_PIN_UNLOCKED(ctx->oe_device_id, ctx->oe_pin_num) {
       SYS_IO_LOW(ctx->oe_device_id, ctx->oe_pin_num);
     }
@@ -186,7 +188,9 @@ static status_rep_t device_resume(void* handle) {
 
 static status_rep_t device_freeze(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(pca_adapter_ctx_t, pca9685_handle_t, ctx, hw, handle);
-  IF_SYS_DEV_FROZEN(ctx) { return STA_OK; }
+  IF_SYS_DEV_FROZEN(ctx) {
+    return STA_OK;
+  }
   SYS_DEV_CTX_FREEZE(ctx);
   ctx->frozen_outputs_mask = 0;
   ctx->frozen_freq_dirty = false;
@@ -217,57 +221,97 @@ static status_rep_t device_sync(void* handle) {
 }
 
 static status_rep_t device_error_handler(void* handle, status_rep_t* error) {
-  return device_reset(handle);
+  if (!error) return STA_OK;
+
+  pca_adapter_ctx_t* ctx = (pca_adapter_ctx_t*)handle;
+  if (!ctx) {
+    ESP_LOGE(TAG, "Missing context handle");
+    return STA_C(ERR_DEV_MISSING_HANDLE, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
+  }
+
+  uint32_t e_code = error->e_code;
+  uint64_t payload = error->payload;
+  switch (e_code) {
+    case ERR_DEV_DEP_ERR:
+    case ERR_DEV_DRIVER_ERR: {
+      if (e_code == ERR_DEV_DEP_ERR) {
+        ESP_LOGE(TAG, "Encountered dependency error on device %u: %s, suspending device ID: %u", DEV_ERR_GET_DEP(payload), status_error_to_name(DEV_ERR_GET_CODE(payload)), ctx->base.device_id);
+      } else {
+        ESP_LOGE(TAG, "Encountered driver error: %s, suspending device ID: %u", esp_err_to_name(DEV_ERR_GET_CODE(payload)), ctx->base.device_id);
+      }
+
+      status_suspend();
+      sys_device_suspend(ctx->base.device_id);
+      status_resume();
+      return STA_OK;
+    }
+    default:
+      break;
+  }
+  return *error;
 }
 
-static void* device_install(void** args) {
+static status_rep_t device_install(void** args, void** out_device_handle) {
   pca_adapter_ctx_t* ctx = sys_device_allocate_ctx(sizeof(pca_adapter_ctx_t), args);
-  if (!ctx) return NULL;
+  if (!ctx) return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
 
   ctx->base.hw_handle = pca9685_new(SYS_DEV_ARG_UNPACK_VAL(uint8_t, args, 2), SYS_DEV_ARG_UNPACK_VAL(bool, args, 1));
   if (!ctx->base.hw_handle) {
     free(ctx);
-    return NULL;
+    return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
   }
 
   pca9685_handle_t hw = (pca9685_handle_t)(ctx->base.hw_handle);
 
-  if (pca9685_start(hw) != ESP_OK) {
+  status_rep_t status = STA_FROM_ESP(pca9685_start(hw));
+  if (STA_IS_ERR(status)) {
+    status = STA_C(ERR_DEV_DRIVER_ERR, OWNER, DEV_ERR_PACK(ctx->base.device_id, 0, (esp_err_t)status.payload), STATUS_PAYLOAD_DEV_ESP);
     goto fail;
   }
 
-  if (STA_IS_ERR(sys_i2c_add_driver(ctx->base.hw_handle))) {
+  status = sys_i2c_add_driver(ctx->base.hw_handle);
+  if (STA_IS_ERR(status)) {
+    status = STA_C(ERR_DEV_DEP_ERR, OWNER, DEV_ERR_PACK(ctx->base.device_id, 0xFF, status.e_code), STATUS_PAYLOAD_DEV_DEP);
+    goto fail;
+  }
+
+  status = sys_i2c_device_present(ctx->base.hw_handle);
+  if (STA_IS_ERR(status)) {
+    status = STA_C(ERR_I2C_DEV_NOT_FOUND, OWNER, DEV_ERR_PACK(ctx->base.device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
     goto fail;
   }
 
   // Setup OE pin details
   sys_io_pin_num_t oe_io_num = SYS_DEV_ARG_UNPACK_VAL(sys_io_pin_num_t, args, 4);
+  ctx->oe_pin_num = oe_io_num;
   IF_PIN(oe_io_num) {
     ctx->oe_device_id = SYS_DEV_ARG_UNPACK_VAL(uint8_t, args, 3);
-    ctx->oe_pin_num = oe_io_num;
-    ctx->has_oe_pin = true;
-    if (STA_IS_ERR(sys_io_set_mode(ctx->oe_device_id, ctx->oe_pin_num, SYS_DEV_ARG_UNPACK_VAL(sys_io_mode_e, args, 5)))) {
+    status = sys_io_set_mode(ctx->oe_device_id, ctx->oe_pin_num, SYS_DEV_ARG_UNPACK_VAL(sys_io_mode_e, args, 5));
+    if (STA_IS_ERR(status)) {
+      status = STA_C(ERR_DEV_DEP_ERR, OWNER, DEV_ERR_PACK(ctx->base.device_id, ctx->oe_device_id, status.e_code), STATUS_PAYLOAD_DEV_DEP);
       goto fail;
     }
     SYS_IO_LOW(ctx->oe_device_id, ctx->oe_pin_num);
     SYS_IO_LOCK_PIN(ctx->oe_device_id, ctx->oe_pin_num);
-  } else {
-    ctx->has_oe_pin = false;
   }
 
   // Register with IO Manager VFS
   uint8_t device_id = SYS_DEV_ARG_UNPACK_VAL(uint8_t, args, 0);
-  if (STA_IS_ERR(sys_io_register_driver(device_id, ctx, &io_pca_vtable))) {
+  status = sys_io_register_driver(device_id, ctx, &io_pca_vtable);
+  if (STA_IS_ERR(status)) {
     ESP_LOGE(TAG, "Failed to register PCA9685 to IO Manager on device ID %d", device_id);
+    status = STA_C(ERR_DEV_DEP_ERR, OWNER, DEV_ERR_PACK(ctx->base.device_id, device_id, status.e_code), STATUS_PAYLOAD_DEV_DEP);
     goto fail;
   }
 
   ESP_LOGI(TAG, "PCA9685 successfully installed as Device ID %d", device_id);
-  return ctx;
+  *out_device_handle = ctx;
+  return STA_OK;
 
 fail:
   device_uninstall(ctx);
-  return NULL;
+  *out_device_handle = NULL;
+  return status;
 }
 
 // --- Exposed Initialization API ---

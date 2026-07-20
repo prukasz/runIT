@@ -190,7 +190,8 @@ static status_rep_t adapter_reset_device(void* driver_handle) {
 
 static status_rep_t adapter_error_handler(void* driver_handle, status_rep_t* error) {
   ESP_LOGE(TAG, "Device error: code=%lu, owner=%lu", error->e_code, error->e_owner);
-  return adapter_reset_device(driver_handle);
+  (void)adapter_reset_device(driver_handle);
+  return STA_OK;
 }
 
 static status_rep_t adapter_suspend_device(void* driver_handle) {
@@ -223,7 +224,7 @@ static status_rep_t adapter_sync_device(void* driver_handle) {
   return STA_OK;
 }
 
-static void* adapter_install_fallback(device_ads_t* ctx) {
+static void adapter_install_fallback(device_ads_t* ctx) {
   if (ctx) {
     IF_PIN(ctx->intr_pin_num) {
       sys_io_reset(ctx->intr_gpio_device_id, ctx->intr_pin_num);
@@ -234,17 +235,16 @@ static void* adapter_install_fallback(device_ads_t* ctx) {
     }
     free(ctx);
   }
-  return NULL;
 }
 
-static void* p_ads7128_install(void** args) {
+static status_rep_t p_ads7128_install(void** args, void** out_device_handle) {
   device_ads_t* ctx = sys_device_allocate_ctx(sizeof(device_ads_t), &args[2]);
-  if (!ctx) return NULL;
+  if (!ctx) return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
 
   ctx->base.hw_handle = ads_new(SYS_DEV_ARG_UNPACK_VAL(uint8_t, args, 0), SYS_DEV_ARG_UNPACK_VAL(bool, args, 1));
   if (!ctx->base.hw_handle) {
     free(ctx);
-    return NULL;
+    return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
   }
 
   uint32_t vref_mv = SYS_DEV_ARG_UNPACK_VAL(uint32_t, args, 6);
@@ -259,36 +259,53 @@ static void* p_ads7128_install(void** args) {
 
   ads_handle_t hw = get_hw_handle(ctx);
 
-  if (STA_IS_ERR(sys_i2c_add_driver(ctx->base.hw_handle))) {
-    return adapter_install_fallback(ctx);
+  status_rep_t status = sys_i2c_add_driver(ctx->base.hw_handle);
+  if (!STA_IS_OK(status)) {
+    goto fail;
   }
 
-  if (ads_start(hw) != ESP_OK) {
-    return adapter_install_fallback(ctx);
+  status = sys_i2c_device_present(ctx->base.hw_handle);
+  if (STA_IS_ERR(status)) {
+    status = STA_C(ERR_I2C_DEV_NOT_FOUND, OWNER, DEV_ERR_PACK(ctx->base.device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
+    goto fail;
+  }
+
+  status = STA_FROM_ESP(ads_start(hw));
+  if (!STA_IS_OK(status)) {
+    goto fail;
   }
 
   IF_PIN(intr_pin_num) {
-    if (STA_IS_ERR(sys_io_set_mode(intr_gpio_device_id, intr_pin_num, SYS_DEV_ARG_UNPACK_VAL(sys_io_mode_e, args, 5)))) {
-      return adapter_install_fallback(ctx);
+    status = sys_io_set_mode(intr_gpio_device_id, intr_pin_num, SYS_DEV_ARG_UNPACK_VAL(sys_io_mode_e, args, 5));
+    if (!STA_IS_OK(status)) {
+      goto fail;
     }
     sys_io_intr_config_t config = {
       .mode = SYS_IO_INTR_MODE_FALLING_EDGE,
       .callback = (sys_io_isr_callback_t)(void*)p_adc_expander_intr_pin_callback,
-      .user_ctx = hw // The driver expects the hw handle as the arg in its ISR wrapper
+      .user_ctx = hw
     };
-    if (STA_IS_ERR(sys_io_configure_intr(intr_gpio_device_id, intr_pin_num, &config))) {
-      return adapter_install_fallback(ctx);
+    status = sys_io_configure_intr(intr_gpio_device_id, intr_pin_num, &config);
+    if (!STA_IS_OK(status)) {
+      goto fail;
     }
   }
 
   uint32_t device_id = SYS_DEV_ARG_UNPACK_VAL(uint32_t, args, 2);
-  if (STA_IS_ERR(sys_io_register_driver(device_id, ctx, (sys_io_vtable_t*)&s_adc_vtable))) {
-    ESP_LOGE(TAG, "Failed to register ADS7128 to IO Manager on device_id %lu", device_id);
-    return adapter_install_fallback(ctx);
+  status = sys_io_register_driver(device_id, ctx, (sys_io_vtable_t*)&s_adc_vtable);
+  if (!STA_IS_OK(status)) {
+    ESP_LOGE(TAG, "Failed to register ADS7128 to IO Manager on device_id %lu", (unsigned long)device_id);
+    goto fail;
   }
 
-  ESP_LOGI(TAG, "ADS7128 successfully installed as IO device %lu", device_id);
-  return ctx;
+  ESP_LOGI(TAG, "ADS7128 successfully installed as IO device %lu", (unsigned long)device_id);
+  *out_device_handle = ctx;
+  return STA_OK;
+
+fail:
+  adapter_install_fallback(ctx);
+  *out_device_handle = NULL;
+  return status;
 }
 
 status_rep_t d_ads7128_create(uint8_t device_id, bool i2c_bus, uint8_t i2c_addr, uint8_t intr_io_device, sys_io_pin_num_t intr_io_num, sys_io_mode_e intr_io_mode, uint32_t vref_mv) {

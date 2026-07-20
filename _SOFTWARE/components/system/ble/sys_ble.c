@@ -11,6 +11,11 @@
 
 static const char *TAG = __FILE_NAME__;
 
+#undef R_MUTEX_LOCK
+#undef R_MUTEX_UNLOCK
+#define R_MUTEX_LOCK(mutex_handle, timeout_ticks) R_RECURSIVE_MUTEX_LOCK(mutex_handle, timeout_ticks)
+#define R_MUTEX_UNLOCK(mutex_handle) R_RECURSIVE_MUTEX_UNLOCK(mutex_handle)
+
 #define CONFIG_PRIORITY_BLE_MANAGER_TASK 5
 #define BLE_TASK_STACK_SIZE 4096
 #define MAX_TOTAL_TX_SLOTS 24
@@ -21,7 +26,7 @@ static const char *TAG = __FILE_NAME__;
 #define BIT_START_TX                  (1 << 3)
 
 R_TASK_DEFINE(m_ble_task, BLE_TASK_STACK_SIZE);
-R_MUTEX_DEFINE(sys_ble_mutex);
+R_RECURSIVE_MUTEX_DEFINE(sys_ble_mutex);
 
 typedef struct sys_ble_char_node {
     sys_ble_char_cfg_t cfg;
@@ -139,7 +144,7 @@ status_rep_t sys_ble_service_create(const sys_ble_svc_cfg_t *cfg) {
     
     if (find_svc_by_uuid(cfg->uuid)) {
         R_MUTEX_UNLOCK(sys_ble_mutex);
-        return STA_C(ERR_ALREADY_EXISTS, OWNER, cfg->uuid, STATUS_PAYLOAD_UNKNOWN);
+        return STA_C(ERR_DEV_ALREADY_EXISTS, OWNER, cfg->uuid, STATUS_PAYLOAD_UNKNOWN);
     }
     
     sys_ble_svc_node_t *new_svc = calloc(1, sizeof(sys_ble_svc_node_t));
@@ -224,7 +229,7 @@ status_rep_t sys_ble_char_create(uint16_t svc_uuid, const sys_ble_char_create_t 
     
     if (find_char_by_uuid(cfg->info.uuid)) {
         R_MUTEX_UNLOCK(sys_ble_mutex);
-        return STA_C(ERR_ALREADY_EXISTS, OWNER, cfg->info.uuid, STATUS_PAYLOAD_UNKNOWN);
+        return STA_C(ERR_DEV_ALREADY_EXISTS, OWNER, cfg->info.uuid, STATUS_PAYLOAD_UNKNOWN);
     }
     
     sys_ble_char_node_t *new_char = calloc(1, sizeof(sys_ble_char_node_t));
@@ -318,7 +323,7 @@ status_rep_t sys_ble_char_assign_tx_buffer(uint16_t char_uuid, const sys_ble_tx_
     for (int i = 0; i < c->tx_slot_count; i++) {
         if (c->tx_slots[i].buffer_id == buf_cfg->buffer_id) {
             R_MUTEX_UNLOCK(sys_ble_mutex);
-            return STA_C(ERR_ALREADY_EXISTS, OWNER, buf_cfg->buffer_id, STATUS_PAYLOAD_UNKNOWN);
+            return STA_C(ERR_DEV_ALREADY_EXISTS, OWNER, buf_cfg->buffer_id, STATUS_PAYLOAD_UNKNOWN);
         }
     }
     
@@ -484,7 +489,10 @@ status_rep_t sys_ble_database_sync(void) {
         
         R_TASK_START_ON_CORE(m_ble_task, &sys_ble_task_func, &g_ble_ctx, CONFIG_PRIORITY_BLE_MANAGER_TASK, 0);
         
+        R_MUTEX_UNLOCK(sys_ble_mutex);
         esp_err_t err = a_ble_init(&host_cfg, svcs);
+        R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to start BLE Driver: %d", err);
             free_compiled_gatt_db(svcs);
@@ -513,7 +521,10 @@ status_rep_t sys_ble_database_sync(void) {
             }
             
             // Register dynamically using NimBLE runtime dynamic service API
+            R_MUTEX_UNLOCK(sys_ble_mutex);
             int rc = ble_gatts_add_dynamic_svcs(svcs);
+            R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+
             if (rc != 0) {
                 ESP_LOGE(TAG, "Failed to dynamically add service UUID 0x%04X: %d", s->cfg.uuid, rc);
                 free_compiled_gatt_db(svcs);

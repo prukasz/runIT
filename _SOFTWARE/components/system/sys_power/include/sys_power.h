@@ -3,9 +3,15 @@
 #include <stdint.h>
 #include "status.h"
 
-#define SYS_POWER_LIMIT_MV 21000
-#define SYS_POWER_LIMIT_MA 5500
-#define SYS_POWER_BUDGET_MW (21 * 5500)
+uint32_t sys_power_get_limit_mv(void);
+uint32_t sys_power_get_limit_ma(void);
+uint32_t sys_power_get_budget_mw(void);
+
+#define SYS_POWER_LIMIT_MV sys_power_get_limit_mv()
+#define SYS_POWER_LIMIT_MA sys_power_get_limit_ma()
+#define SYS_POWER_BUDGET_MW sys_power_get_budget_mw()
+
+status_rep_t sys_power_set_limits(uint32_t max_mv, uint32_t max_ma, uint32_t max_mw);
 
 typedef enum sys_power_events_e {
   SYS_PWR_EVENT_NONE = 0,
@@ -16,11 +22,6 @@ typedef enum sys_power_events_e {
   SYS_PWR_EVENT_OCP_CRITICAL = 5,
   SYS_PWR_EVENT_OTP = 6,
 } sys_power_events_e;
-
-typedef enum sys_h_bridge_mode_e {
-  SYS_H_BRIDGE_MODE_NORMAL = 0,  // normal H bridge
-  SYS_H_BRIDGE_MODE_HALF = 1,    // half H bridge
-} sys_h_bridge_mode_e;
 
 /* ========================================================================== *
  * KONTRAKTY DOMENOWE (VTABLES)
@@ -45,13 +46,6 @@ typedef struct sys_power_usb_pd_contract {
   status_rep_t (*get_limits)(void* device_handle, uint32_t* out_mV, uint32_t* out_mA);
 } sys_power_usb_pd_contract;
 
-typedef struct sys_h_bridge_contract_t {
-  status_rep_t (*forward)(void* device_handle, sys_h_bridge_mode_e mode, uint16_t duty, uint8_t h_id);
-  status_rep_t (*backwards)(void* device_handle, sys_h_bridge_mode_e mode, uint16_t duty, uint8_t h_id);
-  status_rep_t (*brake)(void* device_handle, uint16_t duty, uint8_t h_id);
-  status_rep_t (*coast)(void* device_handle, uint16_t duty, uint8_t h_id);
-} sys_h_bridge_contract_t;
-
 /* ========================================================================== *
  * API SYSTEMOWE (APLIKACYJNE)
  * ========================================================================== */
@@ -60,7 +54,6 @@ typedef struct sys_h_bridge_contract_t {
 status_rep_t sys_power_register_vreg(uint8_t device_id, void* handle, const sys_power_vreg_contract* contract);
 status_rep_t sys_power_register_monitor(uint8_t device_id, void* handle, const sys_power_monitor_contract* contract);
 status_rep_t sys_power_register_usb_pd(uint8_t device_id, void* handle, const sys_power_usb_pd_contract* contract);
-status_rep_t sys_h_bridge_register(uint8_t device_id, void* handle, const sys_h_bridge_contract_t* contract);
 
 status_rep_t sys_power_unregister(uint8_t device_id);
 status_rep_t sys_power_budget_update_source(uint32_t max_mV, uint32_t max_mA);
@@ -80,10 +73,3 @@ status_rep_t sys_power_monitor_add_callback(uint8_t device_id, uint8_t channel, 
 status_rep_t sys_power_usb_pd_set(uint8_t device_id, uint32_t voltage_mV, uint32_t current_mA);
 status_rep_t sys_power_usb_pd_list(uint8_t device_id);
 status_rep_t sys_power_usb_pd_get_limits(uint8_t device_id, uint32_t* out_mV, uint32_t* out_mA);
-
-status_rep_t sys_power_h_bridge_unregister(uint8_t device_id);
-status_rep_t sys_power_h_bridge_forward(uint8_t device_id, sys_h_bridge_mode_e mode, uint16_t duty, uint8_t h_id);
-status_rep_t sys_power_h_bridge_backwards(uint8_t device_id, sys_h_bridge_mode_e mode, uint16_t duty, uint8_t h_id);
-status_rep_t sys_power_h_bridge_brake(uint8_t device_id, uint16_t duty, uint8_t h_id);
-status_rep_t sys_power_h_bridge_coast(uint8_t device_id, uint16_t duty, uint8_t h_id);
-status_rep_t sys_power_h_bridge_set_current_limit(uint8_t device_id, uint16_t current_mA);

@@ -1,3 +1,4 @@
+// INA3221 device adapter implementation
 #include <stdlib.h>
 #include "device_ina3221.h"
 #include "driver_ina3221.h"
@@ -64,7 +65,7 @@ static void ina3221_adapter_isr(void* arg) {
 static status_rep_t contract_monitor_ina3221_get_voltage(void* device_handle, uint8_t channel, int32_t* out_mV) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, device_handle);
   CHECK_HANDLE_R(out_mV);
-  if (channel >= 3) return STA_C(ERR_INVALID_ARG, OWNER, channel, STATUS_PAYLOAD_DEVICE);
+  if (channel >= 3) return STA_C(ERR_INVALID_ARG, OWNER, channel, STATUS_PAYLOAD_DEV_SOLO);
 
   IF_SYS_DEV_FROZEN(ctx) {
     *out_mV = ctx->cached_voltage[channel];
@@ -80,7 +81,7 @@ static status_rep_t contract_monitor_ina3221_get_voltage(void* device_handle, ui
 static status_rep_t contract_monitor_ina3221_get_current(void* device_handle, uint8_t channel, int32_t* out_mA) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, device_handle);
   CHECK_HANDLE_R(out_mA);
-  if (channel >= 3) return STA_C(ERR_INVALID_ARG, OWNER, channel, STATUS_PAYLOAD_DEVICE);
+  if (channel >= 3) return STA_C(ERR_INVALID_ARG, OWNER, channel, STATUS_PAYLOAD_DEV_SOLO);
 
   IF_SYS_DEV_FROZEN(ctx) {
     *out_mA = ctx->cached_current[channel];
@@ -95,7 +96,7 @@ static status_rep_t contract_monitor_ina3221_get_current(void* device_handle, ui
 
 static status_rep_t contract_monitor_ina3221_add_callback(void* device_handle, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, void (*callback)(uint8_t device_id, sys_power_events_e triggered_by)) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, device_handle);
-  if (channel >= 3) return STA_C(ERR_INVALID_ARG, OWNER, channel, STATUS_PAYLOAD_DEVICE);
+  if (channel >= 3) return STA_C(ERR_INVALID_ARG, OWNER, channel, STATUS_PAYLOAD_DEV_SOLO);
 
   if (on_event == SYS_PWR_EVENT_OCP_CRITICAL) {
     ctx->power_callback_crit[channel] = callback;
@@ -104,7 +105,7 @@ static status_rep_t contract_monitor_ina3221_add_callback(void* device_handle, u
     ctx->power_callback_warn[channel] = callback;
     SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_alert(hw, channel, trigger_value, false), ctx);
   } else {
-    return STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, on_event, STATUS_PAYLOAD_DEVICE);
+    return STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, on_event, STATUS_PAYLOAD_DEV_SOLO);
   }
 
   return STA_OK;
@@ -187,10 +188,11 @@ static status_rep_t device_sync(void* handle) {
 }
 
 static status_rep_t device_error_handler(void* handle, status_rep_t* error) {
-  return device_reset(handle);
+  (void)device_reset(handle);
+  return STA_OK;
 }
 
-static void* device_install(void** args) {
+static status_rep_t device_install(void** args, void** out_device_handle) {
   SYS_DEV_ARG_UNPACK(uint8_t, device_id, args, 0);
   SYS_DEV_ARG_UNPACK(bool, i2c_bus, args, 1);
   SYS_DEV_ARG_UNPACK(uint8_t, i2c_addr, args, 2);
@@ -202,7 +204,7 @@ static void* device_install(void** args) {
   SYS_DEV_ARG_UNPACK(sys_io_mode_e, warn_io_mode, args, 8);
 
   ina_adapter_ctx_t* ctx = sys_device_allocate_ctx(sizeof(ina_adapter_ctx_t), args);
-  if (!ctx) return NULL;
+  if (!ctx) return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
 
   ctx->crit_gpio_device_id = crit_io_device;
   ctx->crit_gpio_pin_num = crit_io_num;
@@ -212,42 +214,55 @@ static void* device_install(void** args) {
   ctx->base.hw_handle = ina3221_new(i2c_addr, i2c_bus);
   if (!ctx->base.hw_handle) {
     free(ctx);
-    return NULL;
+    return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
   }
 
-  if (STA_IS_ERR(sys_i2c_add_driver(ctx->base.hw_handle))) {
+  status_rep_t status = sys_i2c_add_driver(ctx->base.hw_handle);
+  if (!STA_IS_OK(status)) {
+    goto fail;
+  }
+
+  status = sys_i2c_device_present(ctx->base.hw_handle);
+  if (STA_IS_ERR(status)) {
+    status = STA_C(ERR_I2C_DEV_NOT_FOUND, OWNER, DEV_ERR_PACK(ctx->base.device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
     goto fail;
   }
 
   ina3221_handle_t hw = (ina3221_handle_t)(ctx->base.hw_handle);
-  if (ina3221_start(hw) != ESP_OK) {
+  status = STA_FROM_ESP(ina3221_start(hw));
+  if (!STA_IS_OK(status)) {
     goto fail;
   }
 
   // Configure critical alert interrupt pin
   IF_PIN(crit_io_num) {
-    if (STA_IS_ERR(sys_io_set_mode(crit_io_device, crit_io_num, crit_io_mode))) {
+    status = sys_io_set_mode(crit_io_device, crit_io_num, crit_io_mode);
+    if (!STA_IS_OK(status)) {
       goto fail;
     }
     sys_io_intr_config_t intr_cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE, .callback = (sys_io_isr_callback_t)(void*)ina3221_adapter_isr, .user_ctx = ctx};
-    if (STA_IS_ERR(sys_io_configure_intr(crit_io_device, crit_io_num, &intr_cfg))) {
+    status = sys_io_configure_intr(crit_io_device, crit_io_num, &intr_cfg);
+    if (!STA_IS_OK(status)) {
       goto fail;
     }
   }
 
   // Configure warning alert interrupt pin
   IF_PIN(warn_io_num) {
-    if (STA_IS_ERR(sys_io_set_mode(warn_io_device, warn_io_num, warn_io_mode))) {
+    status = sys_io_set_mode(warn_io_device, warn_io_num, warn_io_mode);
+    if (!STA_IS_OK(status)) {
       goto fail;
     }
     sys_io_intr_config_t intr_cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE, .callback = (sys_io_isr_callback_t)(void*)ina3221_adapter_isr, .user_ctx = ctx};
-    if (STA_IS_ERR(sys_io_configure_intr(warn_io_device, warn_io_num, &intr_cfg))) {
+    status = sys_io_configure_intr(warn_io_device, warn_io_num, &intr_cfg);
+    if (!STA_IS_OK(status)) {
       goto fail;
     }
   }
 
   // Register with sys_power
-  if (STA_IS_ERR(sys_power_register_monitor(device_id, ctx, &s_ina_monitor_contract))) {
+  status = sys_power_register_monitor(device_id, ctx, &s_ina_monitor_contract);
+  if (!STA_IS_OK(status)) {
     goto fail;
   }
 
@@ -256,11 +271,13 @@ static void* device_install(void** args) {
   ina3221_enable_latch_pin(hw, true, true);
   ina3221_set_options(hw, true, true, true);
 
-  return ctx;
+  *out_device_handle = ctx;
+  return STA_OK;
 
 fail:
   device_uninstall(ctx);
-  return NULL;
+  *out_device_handle = NULL;
+  return status;
 }
 
 // --- Exposed Initialization API ---

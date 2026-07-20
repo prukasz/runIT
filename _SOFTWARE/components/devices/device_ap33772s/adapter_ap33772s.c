@@ -106,7 +106,7 @@ static status_rep_t negotiate_pdo(ap_adapter_ctx_t* ctx, uint32_t voltage_mv, ui
     return STA_FROM_ESP(err);
   }
 
-  return STA_C(ERR_INVALID_ARG, OWNER, voltage_mv, STATUS_PAYLOAD_DEVICE);
+  return STA_C(ERR_INVALID_ARG, OWNER, voltage_mv, STATUS_PAYLOAD_DEV_SOLO);
 }
 
 static status_rep_t d_ap33772s_set_voltage(void* device_handle, uint32_t voltage_mV) {
@@ -213,7 +213,7 @@ static status_rep_t d_ap33772s_get_telemetry_voltage(void* device_handle, uint8_
   CHECK_HANDLE_R(hw);
 
   int vol = ap33772s_read_voltage(hw);
-  if (vol < 0) return STA_C(ERR_SYS_POWER_BASE, OWNER, 0, STATUS_PAYLOAD_DEVICE);
+  if (vol < 0) return STA_C(ERR_SYS_POWER_BASE, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
   *out_mV = vol;
   return STA_OK;
 }
@@ -232,7 +232,7 @@ static status_rep_t d_ap33772s_get_telemetry_current(void* device_handle, uint8_
   CHECK_HANDLE_R(hw);
 
   int curr = ap33772s_read_current(hw);
-  if (curr < 0) return STA_C(ERR_SYS_POWER_BASE, OWNER, 0, STATUS_PAYLOAD_DEVICE);
+  if (curr < 0) return STA_C(ERR_SYS_POWER_BASE, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
   *out_mA = curr;
   return STA_OK;
 }
@@ -268,7 +268,8 @@ static status_rep_t adapter_reset_device(void* driver_handle) {
 
 static status_rep_t adapter_error_handler(void* driver_handle, status_rep_t* error) {
   ESP_LOGE(TAG, "Device error: code=%d, owner=%d", error->e_code, error->e_owner);
-  return adapter_reset_device(driver_handle);
+  (void)adapter_reset_device(driver_handle);
+  return STA_OK;
 }
 
 static status_rep_t adapter_suspend_device(void* driver_handle) {
@@ -302,7 +303,7 @@ static status_rep_t adapter_sync_device(void* driver_handle) {
   return STA_OK;
 }
 
-static void* fallback_install(ap_adapter_ctx_t* ctx) {
+static void fallback_install(ap_adapter_ctx_t* ctx) {
   if (ctx) {
     IF_PIN(ctx->intr_gpio_pin_num) {
       sys_io_reset(ctx->intr_gpio_device_id, ctx->intr_gpio_pin_num);
@@ -313,10 +314,9 @@ static void* fallback_install(ap_adapter_ctx_t* ctx) {
     }
     free(ctx);
   }
-  return NULL;
 }
 
-static void* d_ap33772s_install(void** install_args) {
+static status_rep_t d_ap33772s_install(void** install_args, void** out_device_handle) {
   uint8_t sys_dev_id = (uint8_t)(uintptr_t)install_args[0];
   bool i2c_bus_num = (bool)(uintptr_t)install_args[1];
   uint8_t i2c_address = (uint8_t)(uintptr_t)install_args[2];
@@ -325,7 +325,7 @@ static void* d_ap33772s_install(void** install_args) {
   sys_io_mode_e int_gpio_mode = (sys_io_mode_e)(uintptr_t)install_args[5];
 
   ap_adapter_ctx_t* ctx = sys_device_allocate_ctx(sizeof(ap_adapter_ctx_t), install_args);
-  if (!ctx) return NULL;
+  if (!ctx) return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
 
   ctx->last_voltage_mv = 5000;
   ctx->last_current_ma = 500;
@@ -335,7 +335,8 @@ static void* d_ap33772s_install(void** install_args) {
 
   ctx->base.hw_handle = ap33772s_new(i2c_bus_num);
   if (!ctx->base.hw_handle) {
-    return fallback_install(ctx);
+    free(ctx);
+    return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
   }
 
   ap33772s_handle_t hw = get_hw_handle(ctx);
@@ -344,43 +345,63 @@ static void* d_ap33772s_install(void** install_args) {
   hw->header.transmit = sys_i2c_master_transmit;
   hw->header.transmit_receive = sys_i2c_master_transmit_receive;
 
-  if (ap33772s_start(hw) != ESP_OK) {
-    return fallback_install(ctx);
+  status_rep_t status = STA_FROM_ESP(ap33772s_start(hw));
+  if (!STA_IS_OK(status)) {
+    goto fail;
   }
 
-  if (STA_IS_ERR(sys_i2c_add_driver(ctx->base.hw_handle))) {
-    return fallback_install(ctx);
+  status = sys_i2c_add_driver(ctx->base.hw_handle);
+  if (!STA_IS_OK(status)) {
+    goto fail;
+  }
+
+  status = sys_i2c_device_present(ctx->base.hw_handle);
+  if (STA_IS_ERR(status)) {
+    status = STA_C(ERR_I2C_DEV_NOT_FOUND, OWNER, DEV_ERR_PACK(ctx->base.device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
+    goto fail;
   }
 
   IF_PIN(int_pin_num) {
-    if (STA_IS_ERR(sys_io_set_mode(int_gpio_device_id, int_pin_num, int_gpio_mode))) {
-      return fallback_install(ctx);
+    status = sys_io_set_mode(int_gpio_device_id, int_pin_num, int_gpio_mode);
+    if (!STA_IS_OK(status)) {
+      goto fail;
     }
     sys_io_intr_config_t config = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE, .callback = (sys_io_isr_callback_t)(void*)ap33772s_adapter_isr, .user_ctx = ctx};
-    if (STA_IS_ERR(sys_io_configure_intr(int_gpio_device_id, int_pin_num, &config))) {
-      return fallback_install(ctx);
+    status = sys_io_configure_intr(int_gpio_device_id, int_pin_num, &config);
+    if (!STA_IS_OK(status)) {
+      goto fail;
     }
   }
 
-  if (ap33772s_begin(hw) != ESP_OK) {
-    return fallback_install(ctx);
+  status = STA_FROM_ESP(ap33772s_begin(hw));
+  if (!STA_IS_OK(status)) {
+    goto fail;
   }
 
-  if (STA_IS_ERR(sys_power_register_vreg(sys_dev_id, ctx, &s_ap_vreg_contract))) {
-    return fallback_install(ctx);
+  status = sys_power_register_vreg(sys_dev_id, ctx, &s_ap_vreg_contract);
+  if (!STA_IS_OK(status)) {
+    goto fail;
   }
 
-  if (STA_IS_ERR(sys_power_register_usb_pd(sys_dev_id, ctx, &s_ap_usb_pd_contract))) {
+  status = sys_power_register_usb_pd(sys_dev_id, ctx, &s_ap_usb_pd_contract);
+  if (!STA_IS_OK(status)) {
     sys_power_unregister(sys_dev_id);
-    return fallback_install(ctx);
+    goto fail;
   }
 
-  if (STA_IS_ERR(sys_power_register_monitor(sys_dev_id, ctx, &s_ap_monitor_contract))) {
+  status = sys_power_register_monitor(sys_dev_id, ctx, &s_ap_monitor_contract);
+  if (!STA_IS_OK(status)) {
     sys_power_unregister(sys_dev_id);
-    return fallback_install(ctx);
+    goto fail;
   }
 
-  return ctx;
+  *out_device_handle = ctx;
+  return STA_OK;
+
+fail:
+  fallback_install(ctx);
+  *out_device_handle = NULL;
+  return status;
 }
 
 // --- 6. Exposed Initialization API ---

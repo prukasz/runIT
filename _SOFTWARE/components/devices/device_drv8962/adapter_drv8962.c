@@ -5,8 +5,6 @@
 #include "esp_log.h"
 #include "status.h"
 #include "status_codes.h"
-#include "sys_device.h"
-#include "sys_h_bridge.h"
 #include "sys_io.h"
 #include "sys_power.h"
 
@@ -37,7 +35,6 @@ typedef struct {
 } drv8962_adapter_ctx_t;
 
 // Forward declaration of VTable
-static const sys_h_bridge_contract_t h_bridge_contract;
 static const sys_power_monitor_contract monitor_contract;
 
 static void drv8962_fault_isr_callback(const sys_io_intr_event_t* event) {
@@ -45,7 +42,7 @@ static void drv8962_fault_isr_callback(const sys_io_intr_event_t* event) {
   if (!ctx) return;
 
   ESP_LOGE(TAG, "DRV8962 FAULT PIN TRIGGERED (active low) on Device ID: %u", ctx->base.device_id);
-  status_rep_t err = STA_C(ERR_HARDWARE_FAULT, OWNER, ctx->base.device_id, STATUS_PAYLOAD_DEVICE);
+  status_rep_t err = STA_C(ERR_HARDWARE_FAULT, OWNER, ctx->base.device_id, STATUS_PAYLOAD_DEV_SOLO);
 
   sys_device_t* dev = sys_device_get_by_id(ctx->base.device_id);
   if (dev && dev->error_handler) {
@@ -104,133 +101,6 @@ static status_rep_t write_output_channel(drv8962_adapter_ctx_t* ctx, uint8_t cha
 
   return STA_OK;
 }
-
-// --- VREG/H-Bridge Contract Implementations ---
-
-static status_rep_t contract_h_bridge_forward(void* device_handle, sys_h_bridge_mode_e mode, uint16_t duty, uint8_t h_id) {
-  SYS_DEV_GET_ADAPTER_CONTEXT(drv8962_adapter_ctx_t, void*, ctx, hw, device_handle);
-
-  if (mode == SYS_H_BRIDGE_MODE_NORMAL) {
-    CHECK_ARG_R(h_id, 0, 1, h_id);
-    uint8_t a = h_id * 2;
-    uint8_t b = h_id * 2 + 1;
-
-    if (ctx->base.is_frozen) {
-      ctx->frozen_in_duty[a] = 65535;
-      ctx->frozen_en_state[a] = true;
-      ctx->frozen_in_duty[b] = duty;
-      ctx->frozen_en_state[b] = true;
-      ctx->frozen_outputs_dirty = true;
-    } else {
-      ctx->driver.in_duty[a] = 65535;
-      ctx->driver.en_state[a] = true;
-      ctx->driver.in_duty[b] = duty;
-      ctx->driver.en_state[b] = true;
-      STA_R_ON_ERR(write_output_channel(ctx, a, 65535, true));
-      STA_R_ON_ERR(write_output_channel(ctx, b, duty, true));
-    }
-  } else {
-    CHECK_ARG_R(h_id, 0, 3, h_id);
-    if (ctx->base.is_frozen) {
-      ctx->frozen_in_duty[h_id] = duty;
-      ctx->frozen_en_state[h_id] = true;
-      ctx->frozen_outputs_dirty = true;
-    } else {
-      ctx->driver.in_duty[h_id] = duty;
-      ctx->driver.en_state[h_id] = true;
-      STA_R_ON_ERR(write_output_channel(ctx, h_id, duty, true));
-    }
-  }
-  return STA_OK;
-}
-
-static status_rep_t contract_h_bridge_backwards(void* device_handle, sys_h_bridge_mode_e mode, uint16_t duty, uint8_t h_id) {
-  SYS_DEV_GET_ADAPTER_CONTEXT(drv8962_adapter_ctx_t, void*, ctx, hw, device_handle);
-
-  if (mode == SYS_H_BRIDGE_MODE_NORMAL) {
-    CHECK_ARG_R(h_id, 0, 1, h_id);
-    uint8_t a = h_id * 2;
-    uint8_t b = h_id * 2 + 1;
-
-    if (ctx->base.is_frozen) {
-      ctx->frozen_in_duty[a] = duty;
-      ctx->frozen_en_state[a] = true;
-      ctx->frozen_in_duty[b] = 65535;
-      ctx->frozen_en_state[b] = true;
-      ctx->frozen_outputs_dirty = true;
-    } else {
-      ctx->driver.in_duty[a] = duty;
-      ctx->driver.en_state[a] = true;
-      ctx->driver.in_duty[b] = 65535;
-      ctx->driver.en_state[b] = true;
-      STA_R_ON_ERR(write_output_channel(ctx, a, duty, true));
-      STA_R_ON_ERR(write_output_channel(ctx, b, 65535, true));
-    }
-  } else {
-    // For half H-Bridge, backwards behaves exactly like forward (direction does not matter)
-    CHECK_ARG_R(h_id, 0, 3, h_id);
-    if (ctx->base.is_frozen) {
-      ctx->frozen_in_duty[h_id] = duty;
-      ctx->frozen_en_state[h_id] = true;
-      ctx->frozen_outputs_dirty = true;
-    } else {
-      ctx->driver.in_duty[h_id] = duty;
-      ctx->driver.en_state[h_id] = true;
-      STA_R_ON_ERR(write_output_channel(ctx, h_id, duty, true));
-    }
-  }
-  return STA_OK;
-}
-
-static status_rep_t contract_h_bridge_brake(void* device_handle, uint16_t duty, uint8_t h_id) {
-  SYS_DEV_GET_ADAPTER_CONTEXT(drv8962_adapter_ctx_t, void*, ctx, hw, device_handle);
-  CHECK_ARG_R(h_id, 0, 1, h_id);
-
-  uint8_t a = h_id * 2;
-  uint8_t b = h_id * 2 + 1;
-
-  if (ctx->base.is_frozen) {
-    ctx->frozen_in_duty[a] = 65535;
-    ctx->frozen_en_state[a] = true;
-    ctx->frozen_in_duty[b] = 65535;
-    ctx->frozen_en_state[b] = true;
-    ctx->frozen_outputs_dirty = true;
-  } else {
-    ctx->driver.in_duty[a] = 65535;
-    ctx->driver.en_state[a] = true;
-    ctx->driver.in_duty[b] = 65535;
-    ctx->driver.en_state[b] = true;
-    STA_R_ON_ERR(write_output_channel(ctx, a, 65535, true));
-    STA_R_ON_ERR(write_output_channel(ctx, b, 65535, true));
-  }
-  return STA_OK;
-}
-
-static status_rep_t contract_h_bridge_coast(void* device_handle, uint16_t duty, uint8_t h_id) {
-  SYS_DEV_GET_ADAPTER_CONTEXT(drv8962_adapter_ctx_t, void*, ctx, hw, device_handle);
-  CHECK_ARG_R(h_id, 0, 1, h_id);
-
-  uint8_t a = h_id * 2;
-  uint8_t b = h_id * 2 + 1;
-
-  if (ctx->base.is_frozen) {
-    ctx->frozen_in_duty[a] = 0;
-    ctx->frozen_en_state[a] = false;
-    ctx->frozen_in_duty[b] = 0;
-    ctx->frozen_en_state[b] = false;
-    ctx->frozen_outputs_dirty = true;
-  } else {
-    ctx->driver.in_duty[a] = 0;
-    ctx->driver.en_state[a] = false;
-    ctx->driver.in_duty[b] = 0;
-    ctx->driver.en_state[b] = false;
-    STA_R_ON_ERR(write_output_channel(ctx, a, 0, false));
-    STA_R_ON_ERR(write_output_channel(ctx, b, 0, false));
-  }
-  return STA_OK;
-}
-
-static const sys_h_bridge_contract_t h_bridge_contract = {.forward = contract_h_bridge_forward, .backwards = contract_h_bridge_backwards, .brake = contract_h_bridge_brake, .coast = contract_h_bridge_coast};
 
 // --- sys_power_monitor_contract Implementations ---
 
@@ -291,7 +161,7 @@ static status_rep_t contract_monitor_add_callback(void* device_handle, uint8_t c
   uint32_t r_ohms = ctx->config.r_ipropi_ohms[channel];
 
   if (r_ohms == 0) {
-    return STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, channel, STATUS_PAYLOAD_DEVICE);
+    return STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, channel, STATUS_PAYLOAD_DEV_SOLO);
   }
 
   ctx->monitor_callbacks[channel] = callback;
@@ -360,9 +230,6 @@ static status_rep_t device_uninstall(void* handle) {
     if (STA_IS_ERR(r)) status = r;
   }
 
-  r = sys_h_bridge_unregister(ctx->base.device_id);
-  if (STA_IS_ERR(r)) status = r;
-
   r = sys_power_unregister(ctx->base.device_id);
   if (STA_IS_ERR(r)) status = r;
 
@@ -396,7 +263,8 @@ static status_rep_t device_reset(void* handle) {
 
 static status_rep_t device_error_handler(void* handle, status_rep_t* error) {
   ESP_LOGE(TAG, "DRV8962 Error triggered: code=%d", error->e_code);
-  return device_reset(handle);
+  (void)device_reset(handle);
+  return STA_OK;
 }
 
 static status_rep_t device_suspend(void* handle) {
@@ -460,19 +328,18 @@ static status_rep_t device_sync(void* handle) {
   return STA_OK;
 }
 
-static void* adapter_install_fallback(drv8962_adapter_ctx_t* ctx) {
+static void adapter_install_fallback(drv8962_adapter_ctx_t* ctx) {
   if (ctx) {
     device_uninstall(ctx);
   }
-  return NULL;
 }
 
-static void* device_install(void** args) {
+static status_rep_t device_install(void** args, void** out_device_handle) {
   SYS_DEV_ARG_UNPACK(uint8_t, device_id, args, 0);
   SYS_DEV_ARG_UNPACK(drv8962_config_t*, config, args, 1);
 
   drv8962_adapter_ctx_t* ctx = calloc(1, sizeof(drv8962_adapter_ctx_t));
-  if (!ctx) return NULL;
+  if (!ctx) return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
 
   ctx->base.device_id = device_id;
   ctx->base.hw_handle = (void*)&ctx->driver;
@@ -480,21 +347,26 @@ static void* device_install(void** args) {
 
   drv8962_driver_init(&ctx->driver, config->mode_val, config->ocpm_val);
 
+  status_rep_t status = STA_OK;
+
   // Configure sleep, mode, and ocpm pins
   IF_PIN(config->nsleep_pin) {
-    if (STA_IS_ERR(sys_io_set_mode(config->nsleep_device, config->nsleep_pin, SYS_IO_MODE_OUTPUT_PUSH_PULL))) goto fail;
+    status = sys_io_set_mode(config->nsleep_device, config->nsleep_pin, SYS_IO_MODE_OUTPUT_PUSH_PULL);
+    if (!STA_IS_OK(status)) goto fail;
     WITH_PIN_UNLOCKED(config->nsleep_device, config->nsleep_pin) { sys_io_set_level(config->nsleep_device, config->nsleep_pin, true); }
     SYS_IO_LOCK_PIN(config->nsleep_device, config->nsleep_pin);
   }
 
   IF_PIN(config->mode_pin) {
-    if (STA_IS_ERR(sys_io_set_mode(config->mode_device, config->mode_pin, SYS_IO_MODE_OUTPUT_PUSH_PULL))) goto fail;
+    status = sys_io_set_mode(config->mode_device, config->mode_pin, SYS_IO_MODE_OUTPUT_PUSH_PULL);
+    if (!STA_IS_OK(status)) goto fail;
     WITH_PIN_UNLOCKED(config->mode_device, config->mode_pin) { sys_io_set_level(config->mode_device, config->mode_pin, config->mode_val); }
     SYS_IO_LOCK_PIN(config->mode_device, config->mode_pin);
   }
 
   IF_PIN(config->ocpm_pin) {
-    if (STA_IS_ERR(sys_io_set_mode(config->ocpm_device, config->ocpm_pin, SYS_IO_MODE_OUTPUT_PUSH_PULL))) goto fail;
+    status = sys_io_set_mode(config->ocpm_device, config->ocpm_pin, SYS_IO_MODE_OUTPUT_PUSH_PULL);
+    if (!STA_IS_OK(status)) goto fail;
     WITH_PIN_UNLOCKED(config->ocpm_device, config->ocpm_pin) { sys_io_set_level(config->ocpm_device, config->ocpm_pin, config->ocpm_val); }
     SYS_IO_LOCK_PIN(config->ocpm_device, config->ocpm_pin);
   }
@@ -502,45 +374,52 @@ static void* device_install(void** args) {
   // Configure output enable and input pins
   for (int i = 0; i < 4; i++) {
     IF_PIN(config->en_pins[i]) {
-      if (STA_IS_ERR(sys_io_set_mode(config->en_devices[i], config->en_pins[i], SYS_IO_MODE_OUTPUT_PUSH_PULL))) goto fail;
+      status = sys_io_set_mode(config->en_devices[i], config->en_pins[i], SYS_IO_MODE_OUTPUT_PUSH_PULL);
+      if (!STA_IS_OK(status)) goto fail;
       WITH_PIN_UNLOCKED(config->en_devices[i], config->en_pins[i]) { sys_io_set_level(config->en_devices[i], config->en_pins[i], false); }
       SYS_IO_LOCK_PIN(config->en_devices[i], config->en_pins[i]);
     }
     IF_PIN(config->in_pins[i]) {
-      if (STA_IS_ERR(sys_io_set_mode(config->in_devices[i], config->in_pins[i], SYS_IO_MODE_OUTPUT_PUSH_PULL))) goto fail;
+      status = sys_io_set_mode(config->in_devices[i], config->in_pins[i], SYS_IO_MODE_OUTPUT_PUSH_PULL);
+      if (!STA_IS_OK(status)) goto fail;
       WITH_PIN_UNLOCKED(config->in_devices[i], config->in_pins[i]) { sys_io_set_level(config->in_devices[i], config->in_pins[i], false); }
       SYS_IO_LOCK_PIN(config->in_devices[i], config->in_pins[i]);
     }
     IF_PIN(config->ipropi_pins[i]) {
-      if (STA_IS_ERR(sys_io_set_mode(config->ipropi_devices[i], config->ipropi_pins[i], SYS_IO_MODE_ADC))) goto fail;
+      status = sys_io_set_mode(config->ipropi_devices[i], config->ipropi_pins[i], SYS_IO_MODE_ADC);
+      if (!STA_IS_OK(status)) goto fail;
       SYS_IO_LOCK_PIN(config->ipropi_devices[i], config->ipropi_pins[i]);
     }
   }
 
   // Configure fault interrupt
   IF_PIN(config->nfault_pin) {
-    if (STA_IS_ERR(sys_io_set_mode(config->nfault_device, config->nfault_pin, SYS_IO_MODE_INPUT_PULLUP))) goto fail;
+    status = sys_io_set_mode(config->nfault_device, config->nfault_pin, SYS_IO_MODE_INPUT_PULLUP);
+    if (!STA_IS_OK(status)) goto fail;
     sys_io_intr_config_t fault_intr = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE, .callback = drv8962_fault_isr_callback, .user_ctx = ctx};
-    if (STA_IS_ERR(sys_io_configure_intr(config->nfault_device, config->nfault_pin, &fault_intr))) goto fail;
+    status = sys_io_configure_intr(config->nfault_device, config->nfault_pin, &fault_intr);
+    if (!STA_IS_OK(status)) goto fail;
     SYS_IO_LOCK_PIN(config->nfault_device, config->nfault_pin);
   }
 
-  // Register to global power & H-Bridge registries
-  if (STA_IS_ERR(sys_power_register_monitor(device_id, ctx, &monitor_contract))) goto fail;
-  if (STA_IS_ERR(sys_h_bridge_register(device_id, ctx, &h_bridge_contract))) goto fail;
+  // Register to global power registry
+  status = sys_power_register_monitor(device_id, ctx, &monitor_contract);
+  if (!STA_IS_OK(status)) goto fail;
 
-  return ctx;
+  *out_device_handle = ctx;
+  return STA_OK;
 
 fail:
   adapter_install_fallback(ctx);
-  return NULL;
+  *out_device_handle = NULL;
+  return status;
 }
 
 status_rep_t d_drv8962_create(uint8_t device_id, const drv8962_config_t* config) {
   CHECK_NOT_NULL_RP(config);
 
   drv8962_config_t* config_copy = malloc(sizeof(drv8962_config_t));
-  if (!config_copy) return STA_C(ERR_NO_MEM, OWNER, device_id, STATUS_PAYLOAD_DEVICE);
+  if (!config_copy) return STA_C(ERR_NO_MEM, OWNER, device_id, STATUS_PAYLOAD_DEV_SOLO);
   *config_copy = *config;
 
   // Since we package this pointer, we must also free it on uninstall. But wait!

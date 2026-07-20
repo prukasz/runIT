@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include "device_gpio_esp.h"
 #include "driver/gpio.h"
 #include "esp_adc/adc_cali.h"
@@ -25,10 +26,10 @@ static uint64_t pin_bitmask = SOC_GPIO_VALID_GPIO_MASK;
 #undef OWNER
 #define OWNER OWNER_DEVICE_GPIO_ESP
 
-#define GET_PIN_OBJ_R(pin, pin_obj)                                                                       \
-  esp_pin_obj_t* pin_obj = pin_registry[pin];                                                             \
-  if ((pin_obj) == NULL) {                                                                                \
-    return STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, (pin), 0), STATUS_PAYLOAD_DEVICE); \
+#define GET_PIN_OBJ_R(pin, pin_obj)                                                                                              \
+  esp_pin_obj_t* pin_obj = pin_registry[pin];                                                                                    \
+  if ((pin_obj) == NULL) {                                                                                                       \
+    return STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, (pin), 0), STATUS_PAYLOAD_DEV_SOLO); \
   }
 
 esp_pin_obj_t* pin_registry[GPIO_NUM_MAX] = {0};
@@ -129,12 +130,12 @@ static status_rep_t contract_io_gpio_esp_set_mode(void* handle, sys_io_pin_num_t
   }
 
   if (pin_busy) {
-    return STA_C(ERR_SYS_IO_PIN_IN_OTHER_USE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEVICE);
+    return STA_C(ERR_SYS_IO_PIN_IN_OTHER_USE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEV_SOLO);
   }
 
   esp_pin_obj_t* new_pin = calloc(1, sizeof(esp_pin_obj_t));
   if (new_pin == NULL) {
-    return STA_C(ERR_NO_MEM, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEVICE);
+    return STA_C(ERR_NO_MEM, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEV_SOLO);
   }
   new_pin->io_num = pin;
   new_pin->pin_mode = mode;
@@ -145,7 +146,7 @@ static status_rep_t contract_io_gpio_esp_set_mode(void* handle, sys_io_pin_num_t
     esp_err_t err = adc_continuous_io_to_channel(pin, &unit, &channel);
     if (err != ESP_OK || unit != ADC_UNIT_1) {
       free(new_pin);
-      return STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, err), STATUS_PAYLOAD_DEVICE);
+      return STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, err), STATUS_PAYLOAD_DEV_SOLO);
     }
 
     adc_cali_curve_fitting_config_t cali_config = {
@@ -157,7 +158,7 @@ static status_rep_t contract_io_gpio_esp_set_mode(void* handle, sys_io_pin_num_t
     esp_err_t cali_err = adc_cali_create_scheme_curve_fitting(&cali_config, &new_pin->hw.adc_cfg.cali_handle);
     if (cali_err != ESP_OK) {
       free(new_pin);
-      return STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, cali_err), STATUS_PAYLOAD_DEVICE);
+      return STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, cali_err), STATUS_PAYLOAD_DEV_SOLO);
     }
 
     if (R_MUTEX_LOCK(gpio_mutex, portMAX_DELAY) == pdTRUE) {
@@ -172,7 +173,7 @@ static status_rep_t contract_io_gpio_esp_set_mode(void* handle, sys_io_pin_num_t
       }
       adc_cali_delete_scheme_curve_fitting(new_pin->hw.adc_cfg.cali_handle);
       free(new_pin);
-      return STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, update_err), STATUS_PAYLOAD_DEVICE);
+      return STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, update_err), STATUS_PAYLOAD_DEV_SOLO);
     }
     return STA_OK;
   }
@@ -210,13 +211,13 @@ static status_rep_t contract_io_gpio_esp_set_mode(void* handle, sys_io_pin_num_t
       break;
     default:
       free(new_pin);
-      return STA_C(ERR_NOT_SUPPORTED, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEVICE);
+      return STA_C(ERR_NOT_SUPPORTED, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEV_SOLO);
   }
 
   esp_err_t err = gpio_config(&cfg);
   if (err != ESP_OK) {
     free(new_pin);
-    return STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, err), STATUS_PAYLOAD_DEVICE);
+    return STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, err), STATUS_PAYLOAD_DEV_SOLO);
   }
 
   new_pin->hw.gpio_cfg = cfg;
@@ -235,12 +236,12 @@ static status_rep_t contract_io_gpio_esp_configure_intr(void* handle, sys_io_pin
   bool is_adc = false;
 
   if (R_MUTEX_LOCK(gpio_mutex, portMAX_DELAY) != pdTRUE) {
-    return STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEVICE);
+    return STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEV_SOLO);
   }
 
   esp_pin_obj_t* pin_obj = pin_registry[pin];
   if (pin_obj == NULL) {
-    status = STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEVICE);
+    status = STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEV_SOLO);
     goto cleanup;
   }
 
@@ -271,7 +272,7 @@ static status_rep_t contract_io_gpio_esp_configure_intr(void* handle, sys_io_pin
       intr_type = GPIO_INTR_ANYEDGE;
       break;
     default:
-      status = STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, config->mode), STATUS_PAYLOAD_DEVICE);
+      status = STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, config->mode), STATUS_PAYLOAD_DEV_SOLO);
       goto cleanup;
   }
 
@@ -279,13 +280,13 @@ static status_rep_t contract_io_gpio_esp_configure_intr(void* handle, sys_io_pin
 
   esp_err_t err = gpio_set_intr_type((gpio_num_t)pin, intr_type);
   if (err != ESP_OK) {
-    status = STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, err), STATUS_PAYLOAD_DEVICE);
+    status = STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, err), STATUS_PAYLOAD_DEV_SOLO);
     goto cleanup;
   }
 
   err = gpio_isr_handler_add((gpio_num_t)pin, _gpio_pin_isr_trampoline, pin_obj);
   if (err != ESP_OK) {
-    status = STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, err), STATUS_PAYLOAD_DEVICE);
+    status = STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, err), STATUS_PAYLOAD_DEV_SOLO);
     goto cleanup;
   }
 
@@ -294,7 +295,7 @@ cleanup:
   if (STA_IS_OK(status) && is_adc) {
     esp_err_t update_err = esp_adc_update_active_channels();
     if (update_err != ESP_OK) {
-      return STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, update_err), STATUS_PAYLOAD_DEVICE);
+      return STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, update_err), STATUS_PAYLOAD_DEV_SOLO);
     }
   }
   return status;
@@ -305,17 +306,17 @@ static status_rep_t contract_io_gpio_esp_set_level(void* handle, sys_io_pin_num_
 
   status_rep_t status = STA_OK;
   if (R_MUTEX_LOCK(gpio_mutex, portMAX_DELAY) != pdTRUE) {
-    return STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEVICE);
+    return STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEV_SOLO);
   }
 
   esp_pin_obj_t* pin_obj = pin_registry[pin];
   if (pin_obj == NULL) {
-    status = STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEVICE);
+    status = STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEV_SOLO);
     goto cleanup;
   }
 
   if (pin_obj->pin_mode != SYS_IO_MODE_OUTPUT_PUSH_PULL && pin_obj->pin_mode != SYS_IO_MODE_OUTPUT_OPEN_DRAIN) {
-    status = STA_C(ERR_SYS_IO_PIN_IN_OTHER_USE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEVICE);
+    status = STA_C(ERR_SYS_IO_PIN_IN_OTHER_USE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEV_SOLO);
     goto cleanup;
   }
 
@@ -331,7 +332,7 @@ static status_rep_t contract_io_gpio_esp_set_level(void* handle, sys_io_pin_num_
   else {
     esp_err_t err = gpio_set_level((gpio_num_t)pin, level);
     if (err != ESP_OK) {
-      status = STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, err), STATUS_PAYLOAD_DEVICE);
+      status = STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, err), STATUS_PAYLOAD_DEV_SOLO);
       goto cleanup;
     }
     if (level) {
@@ -352,17 +353,17 @@ static status_rep_t contract_io_gpio_esp_get_level(void* handle, sys_io_pin_num_
 
   status_rep_t status = STA_OK;
   if (R_MUTEX_LOCK(gpio_mutex, portMAX_DELAY) != pdTRUE) {
-    return STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEVICE);
+    return STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEV_SOLO);
   }
 
   esp_pin_obj_t* pin_obj = pin_registry[pin];
   if (pin_obj == NULL) {
-    status = STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEVICE);
+    status = STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEV_SOLO);
     goto cleanup;
   }
 
   if (pin_obj->pin_mode == SYS_IO_MODE_ADC || pin_obj->pin_mode == SYS_IO_MODE_PWM || pin_obj->pin_mode == SYS_IO_MODE_DAC) {
-    status = STA_C(ERR_SYS_IO_PIN_IN_OTHER_USE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEVICE);
+    status = STA_C(ERR_SYS_IO_PIN_IN_OTHER_USE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEV_SOLO);
     goto cleanup;
   }
 
@@ -377,7 +378,7 @@ static status_rep_t contract_io_gpio_esp_get_level(void* handle, sys_io_pin_num_
   else {
     int val = gpio_get_level((gpio_num_t)pin);
     if (val < 0) {
-      status = STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, val), STATUS_PAYLOAD_DEVICE);
+      status = STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, val), STATUS_PAYLOAD_DEV_SOLO);
       goto cleanup;
     }
     *level = (val > 0);
@@ -400,12 +401,12 @@ static status_rep_t contract_io_gpio_esp_get_voltage(void* handle, sys_io_pin_nu
 
   status_rep_t status = STA_OK;
   if (R_MUTEX_LOCK(gpio_mutex, portMAX_DELAY) != pdTRUE) {
-    return STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEVICE);
+    return STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEV_SOLO);
   }
 
   esp_pin_obj_t* pin_obj = pin_registry[pin];
   if (pin_obj == NULL) {
-    status = STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEVICE);
+    status = STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, 0), STATUS_PAYLOAD_DEV_SOLO);
     goto cleanup;
   }
 
@@ -413,7 +414,7 @@ static status_rep_t contract_io_gpio_esp_get_voltage(void* handle, sys_io_pin_nu
 
   esp_err_t err = esp_adc_get_mv(pin, out_mV);
   if (err != ESP_OK) {
-    return STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, err), STATUS_PAYLOAD_DEVICE);
+    return STA_C(ERR_HARDWARE_FAULT, OWNER, SYS_IO_MAKE_INFO(ctx->base.device_id, pin, err), STATUS_PAYLOAD_DEV_SOLO);
   }
   return STA_OK;
 
@@ -502,7 +503,9 @@ static status_rep_t device_resume(void* handle) {
 }
 
 static status_rep_t device_freeze(void* handle) {
-  IF_SYS_DEV_FROZEN(ctx) { return STA_OK; }
+  IF_SYS_DEV_FROZEN(ctx) {
+    return STA_OK;
+  }
   SYS_DEV_CTX_FREEZE(ctx);
 
   ctx->cached_inputs = 0;
@@ -539,11 +542,12 @@ static status_rep_t device_sync(void* handle) {
 }
 
 static status_rep_t device_error_handler(void* handle, status_rep_t* error) {
-  ESP_LOGE(TAG, "GPIO ESP Error: owner=%d, code=%d", error->e_owner, error->e_code);
-  return device_reset(handle);
+  ESP_LOGE(TAG, "GPIO ESP Error: owner=%s, code=%s", status_owner_to_name(error->e_owner), status_error_to_name(error->e_code));
+  (void)device_reset(handle);
+  return STA_OK;
 }
 
-static void* device_install(void** args) {
+static status_rep_t device_install(void** args, void** out_device_handle) {
   SYS_DEV_ARG_UNPACK(uint8_t, device_id, args, 0);
 
   memset(&gpio_esp_ctx, 0, sizeof(gpio_esp_ctx_t));
@@ -558,15 +562,18 @@ static void* device_install(void** args) {
 
   esp_adc_start();
 
-  if (STA_IS_ERR(sys_io_register_driver(device_id, ctx, &io_gpio_esp_vtable))) {
+  status_rep_t status = sys_io_register_driver(device_id, ctx, &io_gpio_esp_vtable);
+  if (!STA_IS_OK(status)) {
     goto fail;
   }
 
-  return ctx;
+  *out_device_handle = ctx;
+  return STA_OK;
 
 fail:
   device_uninstall(ctx);
-  return NULL;
+  *out_device_handle = NULL;
+  return status;
 }
 
 // --- Exposed Initialization API ---

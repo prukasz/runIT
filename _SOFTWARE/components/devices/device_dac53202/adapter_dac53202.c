@@ -151,37 +151,49 @@ static status_rep_t device_sync(void* handle) {
 
 static status_rep_t device_error_handler(void* handle, status_rep_t* error) {
   ESP_LOGE(TAG, "Device error: code=%d, owner=%d", error->e_code, error->e_owner);
-  return device_reset(handle);
+  (void)device_reset(handle);
+  return STA_OK;
 }
 
-static void* device_install(void** args) {
+static status_rep_t device_install(void** args, void** out_device_handle) {
   dac_adapter_ctx_t* ctx = sys_device_allocate_ctx(sizeof(dac_adapter_ctx_t), args);
-  if (!ctx) return NULL;
+  if (!ctx) return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
 
   ctx->base.hw_handle = dac53202_new(SYS_DEV_ARG_UNPACK_VAL(uint8_t, args, 2), SYS_DEV_ARG_UNPACK_VAL(bool, args, 1));
   if (!ctx->base.hw_handle) {
     free(ctx);
-    return NULL;
+    return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
   }
 
-  if (STA_IS_ERR(sys_i2c_add_driver(ctx->base.hw_handle))) {
+  status_rep_t status = sys_i2c_add_driver(ctx->base.hw_handle);
+  if (!STA_IS_OK(status)) {
     goto fail;
   }
 
-  if (STA_IS_ERR(sys_io_register_driver(SYS_DEV_ARG_UNPACK_VAL(uint8_t, args, 0), ctx, &io_dac_vtable))) {
+  status = sys_i2c_device_present(ctx->base.hw_handle);
+  if (STA_IS_ERR(status)) {
+    status = STA_C(ERR_I2C_DEV_NOT_FOUND, OWNER, DEV_ERR_PACK(ctx->base.device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
+    goto fail;
+  }
+
+  status = sys_io_register_driver(SYS_DEV_ARG_UNPACK_VAL(uint8_t, args, 0), ctx, &io_dac_vtable);
+  if (!STA_IS_OK(status)) {
     goto fail;
   }
 
   dac53202_handle_t hw = (dac53202_handle_t)(ctx->base.hw_handle);
-  if (dac53202_preset_cfg(hw, 0x03, 0x03) != ESP_OK) {
+  status = STA_FROM_ESP(dac53202_preset_cfg(hw, 0x03, 0x03));
+  if (!STA_IS_OK(status)) {
     goto fail;
   }
 
-  return ctx;
+  *out_device_handle = ctx;
+  return STA_OK;
 
 fail:
   device_uninstall(ctx);
-  return NULL;
+  *out_device_handle = NULL;
+  return status;
 }
 
 // --- Exposed Initialization API ---

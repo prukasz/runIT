@@ -59,7 +59,7 @@ static status_rep_t contract_vreg_tps55289_set_enable(void* device_handle, bool 
   if (state) {
     IF_PIN(ctx->en_gpio_pin_num) {
       WITH_PIN_UNLOCKED(ctx->en_gpio_device_id, ctx->en_gpio_pin_num) {
-        STA_R_ON_ERR(sys_io_set_level(ctx->en_gpio_device_id, ctx->en_gpio_pin_num, state));
+        SYS_DEV_CHECK_DEP_CALL(sys_io_set_level(ctx->en_gpio_device_id, ctx->en_gpio_pin_num, state), ctx, ctx->en_gpio_device_id);
       }
     }
     vTaskDelay(pdMS_TO_TICKS(10));
@@ -68,7 +68,7 @@ static status_rep_t contract_vreg_tps55289_set_enable(void* device_handle, bool 
     SYS_DEV_CHECK_DRIVER_CALL(tps55289_set_output_enable(hw, state), ctx);
     IF_PIN(ctx->en_gpio_pin_num) {
       WITH_PIN_UNLOCKED(ctx->en_gpio_device_id, ctx->en_gpio_pin_num) {
-        STA_R_ON_ERR(sys_io_set_level(ctx->en_gpio_device_id, ctx->en_gpio_pin_num, state));
+        SYS_DEV_CHECK_DEP_CALL(sys_io_set_level(ctx->en_gpio_device_id, ctx->en_gpio_pin_num, state), ctx, ctx->en_gpio_device_id);
       }
     }
   }
@@ -146,8 +146,35 @@ static status_rep_t device_reset(void* handle) {
 }
 
 static status_rep_t device_error_handler(void* handle, status_rep_t* error) {
-  ESP_LOGE(TAG, "Device error: code=%d, owner=%d", error->e_code, error->e_owner);
-  return device_reset(handle);
+  if (!error) return STA_OK;
+
+  tps_adapter_ctx_t* ctx = (tps_adapter_ctx_t*)handle;
+  if (!ctx) {
+    ESP_LOGE(TAG, "Missing context handle");
+    return STA_C(ERR_DEV_MISSING_HANDLE, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
+  }
+
+  uint32_t e_code = error->e_code;
+  uint64_t payload = error->payload;
+  switch (e_code) {
+    case ERR_DEV_DEP_ERR:
+    case ERR_DEV_DRIVER_ERR: {
+      if (e_code == ERR_DEV_DEP_ERR) {
+        ESP_LOGE(TAG, "Encountered dependency error on device %u: %s, suspending device ID: %u", DEV_ERR_GET_DEP(payload), status_error_to_name(DEV_ERR_GET_CODE(payload)), ctx->base.device_id);
+      } else {
+        ESP_LOGE(TAG, "Encountered driver error: %s, suspending device ID: %u", esp_err_to_name(DEV_ERR_GET_CODE(payload)), ctx->base.device_id);
+      }
+
+      status_suspend();
+      sys_device_suspend(ctx->base.device_id);
+      status_resume();
+      return STA_OK;
+    }
+    default:
+      ESP_LOGE(TAG, "TPS55289 error code: %s for device ID: %u", status_error_to_name(e_code), ctx->base.device_id);
+      break;
+  }
+  return *error;
 }
 
 static status_rep_t device_suspend(void* handle) {
@@ -156,7 +183,7 @@ static status_rep_t device_suspend(void* handle) {
   SYS_DEV_CHECK_DRIVER_CALL(tps55289_set_output_enable(hw, false), ctx);
   IF_PIN(ctx->en_gpio_pin_num) {
     WITH_PIN_UNLOCKED(ctx->en_gpio_device_id, ctx->en_gpio_pin_num) {
-      STA_R_ON_ERR(SYS_IO_LOW(ctx->en_gpio_device_id, ctx->en_gpio_pin_num));
+      SYS_DEV_CHECK_DEP_CALL(sys_io_set_level(ctx->en_gpio_device_id, ctx->en_gpio_pin_num, false), ctx, ctx->en_gpio_device_id);
     }
   }
 
@@ -168,7 +195,7 @@ static status_rep_t device_resume(void* handle) {
 
   IF_PIN(ctx->en_gpio_pin_num) {
     WITH_PIN_UNLOCKED(ctx->en_gpio_device_id, ctx->en_gpio_pin_num) {
-      STA_R_ON_ERR(SYS_IO_HIGH(ctx->en_gpio_device_id, ctx->en_gpio_pin_num));
+      SYS_DEV_CHECK_DEP_CALL(SYS_IO_HIGH(ctx->en_gpio_device_id, ctx->en_gpio_pin_num), ctx, ctx->en_gpio_device_id);
     }
   }
   SYS_DEV_CHECK_DRIVER_CALL(tps55289_set_output_enable(hw, ctx->last_enable_state), ctx);
@@ -178,7 +205,7 @@ static status_rep_t device_resume(void* handle) {
   return STA_OK;
 }
 
-static void* device_install(void** args) {
+static status_rep_t device_install(void** args, void** out_device_handle) {
   SYS_DEV_ARG_UNPACK(uint8_t, device_id, args, 0);
   SYS_DEV_ARG_UNPACK(bool, i2c_bus, args, 1);
   SYS_DEV_ARG_UNPACK(uint8_t, i2c_addr, args, 2);
@@ -190,7 +217,7 @@ static void* device_install(void** args) {
   SYS_DEV_ARG_UNPACK(sys_io_mode_e, en_io_mode, args, 8);
 
   tps_adapter_ctx_t* ctx = sys_device_allocate_ctx(sizeof(tps_adapter_ctx_t), args);
-  if (!ctx) return NULL;
+  if (!ctx) return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
 
   ctx->intr_gpio_device_id = intr_io_device;
   ctx->intr_gpio_pin_num = intr_io_num;
@@ -200,7 +227,7 @@ static void* device_install(void** args) {
   ctx->base.hw_handle = tps55289_new(i2c_addr, i2c_bus);
   if (!ctx->base.hw_handle) {
     free(ctx);
-    return NULL;
+    return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_DEV_SOLO);
   }
 
   ctx->last_voltage_mv = 5000;
@@ -208,13 +235,21 @@ static void* device_install(void** args) {
   ctx->last_enable_state = false;
   ctx->is_current_limit_enabled = true;
 
-  if (STA_IS_ERR(sys_i2c_device_present(ctx->base.hw_handle)) || STA_IS_ERR(sys_i2c_add_driver(ctx->base.hw_handle))) {
+  status_rep_t status = sys_i2c_device_present(ctx->base.hw_handle);
+  if (!STA_IS_OK(status)) {
+    status = STA_C(ERR_I2C_DEV_NOT_FOUND, OWNER, DEV_ERR_PACK(ctx->base.device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
+    goto fail;
+  }
+
+  status = sys_i2c_add_driver(ctx->base.hw_handle);
+  if (!STA_IS_OK(status)) {
     goto fail;
   }
 
   // Configure enable pin
   IF_PIN(en_io_num) {
-    if (STA_IS_ERR(sys_io_set_mode(en_io_device, en_io_num, en_io_mode))) {
+    status = sys_io_set_mode(en_io_device, en_io_num, en_io_mode);
+    if (!STA_IS_OK(status)) {
       goto fail;
     }
     SYS_IO_HIGH(en_io_device, en_io_num);
@@ -223,11 +258,13 @@ static void* device_install(void** args) {
 
   // Configure interrupt pin & callback
   IF_PIN(intr_io_num) {
-    if (STA_IS_ERR(sys_io_set_mode(intr_io_device, intr_io_num, intr_io_mode))) {
+    status = sys_io_set_mode(intr_io_device, intr_io_num, intr_io_mode);
+    if (!STA_IS_OK(status)) {
       goto fail;
     }
     sys_io_intr_config_t config = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE, .callback = (sys_io_isr_callback_t)(void*)tps55289_adapter_isr, .user_ctx = ctx};
-    if (STA_IS_ERR(sys_io_configure_intr(intr_io_device, intr_io_num, &config))) {
+    status = sys_io_configure_intr(intr_io_device, intr_io_num, &config);
+    if (!STA_IS_OK(status)) {
       goto fail;
     }
   }
@@ -236,7 +273,8 @@ static void* device_install(void** args) {
   tps55289_register_on_fault_callback(ctx->base.hw_handle, tps55289_on_fault_handler, ctx);
 
   // Register to sys_power
-  if (STA_IS_ERR(sys_power_register_vreg(device_id, ctx, &s_tps_vreg_contract))) {
+  status = sys_power_register_vreg(device_id, ctx, &s_tps_vreg_contract);
+  if (!STA_IS_OK(status)) {
     goto fail;
   }
 
@@ -246,11 +284,13 @@ static void* device_install(void** args) {
   tps55289_set_current_limit(hw, true, 100);
   tps55289_set_voltage(hw, 5000);
 
-  return ctx;
+  *out_device_handle = ctx;
+  return STA_OK;
 
 fail:
   device_uninstall(ctx);
-  return NULL;
+  *out_device_handle = NULL;
+  return status;
 }
 
 // --- Exposed Initialization API ---

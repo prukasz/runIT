@@ -17,70 +17,93 @@ extern "C" {
 /**
  * @brief Creates a static ESP-IDF Ringbuffer.
  */
-#define R_RINGBUFFER_DEFINE(name, buffer_size, type)                           \
-  static uint8_t _##name##_storage[(buffer_size)] __attribute__((aligned(4))); \
-  static StaticRingbuffer_t _##name##_struct;                                  \
-  RingbufHandle_t name = NULL;                                                 \
-  __attribute__((constructor)) static void _init_##name(void) { name = xRingbufferCreateStatic((buffer_size), (type), _##name##_storage, &_##name##_struct); }
+#define R_RINGBUFFER_DEFINE(name, buffer_size, type)                                             \
+  static uint8_t _##name##_storage[(buffer_size)] __attribute__((aligned(4)));                   \
+  static StaticRingbuffer_t _##name##_struct;                                                    \
+  RingbufHandle_t name = NULL;                                                                   \
+  __attribute__((constructor)) static void _init_##name(void) {                                  \
+    name = xRingbufferCreateStatic((buffer_size), (type), _##name##_storage, &_##name##_struct); \
+  }
 
 /**
  * @brief Creates a static Event Group.
  */
-#define R_EVENT_GROUP_DEFINE(name)            \
-  static StaticEventGroup_t _##name##_buffer; \
-  EventGroupHandle_t name = NULL;             \
-  __attribute__((constructor)) static void _init_##name(void) { name = xEventGroupCreateStatic(&_##name##_buffer); }
+#define R_EVENT_GROUP_DEFINE(name)                              \
+  static StaticEventGroup_t _##name##_buffer;                   \
+  EventGroupHandle_t name = NULL;                               \
+  __attribute__((constructor)) static void _init_##name(void) { \
+    name = xEventGroupCreateStatic(&_##name##_buffer);          \
+  }
 
 /**
  * @brief Creates a static Mutex.
  */
-#define R_MUTEX_DEFINE(name)                 \
-  static StaticSemaphore_t _##name##_buffer; \
-  SemaphoreHandle_t name = NULL;             \
-  __attribute__((constructor)) static void _init_##name(void) { name = xSemaphoreCreateMutexStatic(&_##name##_buffer); }
+#define R_MUTEX_DEFINE(name)                                    \
+  static StaticSemaphore_t _##name##_buffer;                    \
+  SemaphoreHandle_t name = NULL;                                \
+  __attribute__((constructor)) static void _init_##name(void) { \
+    name = xSemaphoreCreateMutexStatic(&_##name##_buffer);      \
+  }
+
+#define R_RECURSIVE_MUTEX_DEFINE(name)                          \
+  static StaticSemaphore_t _##name##_buffer;                    \
+  SemaphoreHandle_t name = NULL;                                \
+  __attribute__((constructor)) static void _init_##name(void) { \
+    name = xSemaphoreCreateRecursiveMutexStatic(&_##name##_buffer); \
+  }
 
 /**
  * @brief Creates a static Binary Semaphore.
  */
-#define R_BINARY_SEM_DEFINE(name)            \
-  static StaticSemaphore_t _##name##_buffer; \
-  SemaphoreHandle_t name = NULL;             \
-  __attribute__((constructor)) static void _init_##name(void) { name = xSemaphoreCreateBinaryStatic(&_##name##_buffer); }
+#define R_BINARY_SEM_DEFINE(name)                               \
+  static StaticSemaphore_t _##name##_buffer;                    \
+  SemaphoreHandle_t name = NULL;                                \
+  __attribute__((constructor)) static void _init_##name(void) { \
+    name = xSemaphoreCreateBinaryStatic(&_##name##_buffer);     \
+  }
 
 /**
  * @brief Creates a static Counting Semaphore.
  */
-#define R_COUNTING_SEM_DEFINE(name, max_count, initial_count) \
-  static StaticSemaphore_t _##name##_buffer;                  \
-  SemaphoreHandle_t name = NULL;                              \
-  __attribute__((constructor)) static void _init_##name(void) { name = xSemaphoreCreateCountingStatic((max_count), (initial_count), &_##name##_buffer); }
+#define R_COUNTING_SEM_DEFINE(name, max_count, initial_count)                               \
+  static StaticSemaphore_t _##name##_buffer;                                                \
+  SemaphoreHandle_t name = NULL;                                                            \
+  __attribute__((constructor)) static void _init_##name(void) {                             \
+    name = xSemaphoreCreateCountingStatic((max_count), (initial_count), &_##name##_buffer); \
+  }
 
 /**
  * @brief Creates a static Queue.
  */
-#define R_QUEUE_DEFINE(name, length, item_size)                                         \
-  static uint8_t _##name##_storage[(length) * (item_size)] __attribute__((aligned(4))); \
-  static StaticQueue_t _##name##_buffer;                                                \
-  QueueHandle_t name = NULL;                                                            \
-  __attribute__((constructor)) static void _init_##name(void) { name = xQueueCreateStatic((length), (item_size), _##name##_storage, &_##name##_buffer); }
+#define R_QUEUE_DEFINE(name, length, item_size)                                             \
+  static uint8_t _##name##_storage[(length) * (item_size)] __attribute__((aligned(4)));     \
+  static StaticQueue_t _##name##_buffer;                                                    \
+  QueueHandle_t name = NULL;                                                                \
+  __attribute__((constructor)) static void _init_##name(void) {                             \
+    name = xQueueCreateStatic((length), (item_size), _##name##_storage, &_##name##_buffer); \
+  }
 
 /**
  * @brief Creates a static Stream Buffer.
  */
-#define R_STREAM_BUFFER_DEFINE(name, buffer_size, trigger_level)               \
-  static uint8_t _##name##_storage[(buffer_size)] __attribute__((aligned(4))); \
-  static StaticStreamBuffer_t _##name##_buffer;                                \
-  StreamBufferHandle_t name = NULL;                                            \
-  __attribute__((constructor)) static void _init_##name(void) { name = xStreamBufferCreateStatic((buffer_size), (trigger_level), _##name##_storage, &_##name##_buffer); }
+#define R_STREAM_BUFFER_DEFINE(name, buffer_size, trigger_level)                                            \
+  static uint8_t _##name##_storage[(buffer_size)] __attribute__((aligned(4)));                              \
+  static StaticStreamBuffer_t _##name##_buffer;                                                             \
+  StreamBufferHandle_t name = NULL;                                                                         \
+  __attribute__((constructor)) static void _init_##name(void) {                                             \
+    name = xStreamBufferCreateStatic((buffer_size), (trigger_level), _##name##_storage, &_##name##_buffer); \
+  }
 
 /**
  * @brief Creates a static Message Buffer.
  */
-#define R_MESSAGE_BUFFER_DEFINE(name, buffer_size)                             \
-  static uint8_t _##name##_storage[(buffer_size)] __attribute__((aligned(4))); \
-  static StaticMessageBuffer_t _##name##_buffer;                               \
-  MessageBufferHandle_t name = NULL;                                           \
-  __attribute__((constructor)) static void _init_##name(void) { name = xMessageBufferCreateStatic((buffer_size), _##name##_storage, &_##name##_buffer); }
+#define R_MESSAGE_BUFFER_DEFINE(name, buffer_size)                                          \
+  static uint8_t _##name##_storage[(buffer_size)] __attribute__((aligned(4)));              \
+  static StaticMessageBuffer_t _##name##_buffer;                                            \
+  MessageBufferHandle_t name = NULL;                                                        \
+  __attribute__((constructor)) static void _init_##name(void) {                             \
+    name = xMessageBufferCreateStatic((buffer_size), _##name##_storage, &_##name##_buffer); \
+  }
 
 #define R_TASK_DEFINE(name, stack_words)             \
   static StackType_t _##name##_stack[(stack_words)]; \
@@ -137,10 +160,12 @@ extern "C" {
  */
 #define R_NOTIFY_AWAIT(timeout_ticks, out_val_ptr) xTaskNotifyWait(0x00, ULONG_MAX, (out_val_ptr), (timeout_ticks))
 
-#define R_TIMER_DEFINE(name, period_ticks, auto_reload, callback_func) \
-  static StaticTimer_t _##name##_buffer;                               \
-  TimerHandle_t name = NULL;                                           \
-  __attribute__((constructor)) static void _init_##name(void) { name = xTimerCreateStatic(#name, (period_ticks), (auto_reload) ? pdTRUE : pdFALSE, NULL, (callback_func), &_##name##_buffer); }
+#define R_TIMER_DEFINE(name, period_ticks, auto_reload, callback_func)                                                            \
+  static StaticTimer_t _##name##_buffer;                                                                                          \
+  TimerHandle_t name = NULL;                                                                                                      \
+  __attribute__((constructor)) static void _init_##name(void) {                                                                   \
+    name = xTimerCreateStatic(#name, (period_ticks), (auto_reload) ? pdTRUE : pdFALSE, NULL, (callback_func), &_##name##_buffer); \
+  }
 
 #define R_TIMER_START(name) xTimerStart(name, 0)
 #define R_TIMER_STOP(name) xTimerStop(name, 0)
@@ -152,12 +177,14 @@ extern "C" {
  * @usage if ( R_MUTEX_LOCK(i2c_bus, MSEC(100)) ) { ... }
  */
 #define R_MUTEX_LOCK(mutex_handle, timeout_ticks) (xSemaphoreTake((mutex_handle), (timeout_ticks)))
+#define R_RECURSIVE_MUTEX_LOCK(mutex_handle, timeout_ticks) (xSemaphoreTakeRecursive((mutex_handle), (timeout_ticks)))
 
 /**
  * @brief Unlocks a mutex/semaphore.
  * @usage R_MUTEX_UNLOCK(i2c_bus);
  */
 #define R_MUTEX_UNLOCK(mutex_handle) xSemaphoreGive((mutex_handle))
+#define R_RECURSIVE_MUTEX_UNLOCK(mutex_handle) xSemaphoreGiveRecursive((mutex_handle))
 
 /**
  * @brief Gives a semaphore from an ISR and triggers a context switch if needed.
