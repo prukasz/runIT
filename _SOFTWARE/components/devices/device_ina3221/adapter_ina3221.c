@@ -24,42 +24,9 @@ typedef struct {
   int32_t cached_voltage[3];
   int32_t cached_current[3];
 
-  void (*power_callback_crit[3])(uint8_t device_id, sys_power_events_e triggered_by);
-  void (*power_callback_warn[3])(uint8_t device_id, sys_power_events_e triggered_by);
+  uint16_t route_masks_crit[3];
+  uint16_t route_masks_warn[3];
 } ina_adapter_ctx_t;
-
-static void ina3221_adapter_isr(void* arg) {
-  ina_adapter_ctx_t* ctx = (ina_adapter_ctx_t*)arg;
-  if (!ctx) return;
-  ina3221_handle_t hw = (ina3221_handle_t)(ctx->base.hw_handle);
-  if (!hw) return;
-
-  if (ina3221_get_status(hw) != ESP_OK) return;
-
-  ina3221_mask_t mask = hw->mask;
-
-  for (int ch = 0; ch < 3; ch++) {
-    bool has_crit = false;
-    bool has_warn = false;
-    if (ch == 0) {
-      has_crit = (mask.cf & 0x04) != 0;
-      has_warn = (mask.wf & 0x04) != 0;
-    } else if (ch == 1) {
-      has_crit = (mask.cf & 0x02) != 0;
-      has_warn = (mask.wf & 0x02) != 0;
-    } else {
-      has_crit = (mask.cf & 0x01) != 0;
-      has_warn = (mask.wf & 0x01) != 0;
-    }
-
-    if (has_crit && ctx->power_callback_crit[ch]) {
-      ctx->power_callback_crit[ch](ctx->base.device_id, SYS_PWR_EVENT_OCP_CRITICAL);
-    }
-    if (has_warn && ctx->power_callback_warn[ch]) {
-      ctx->power_callback_warn[ch](ctx->base.device_id, SYS_PWR_EVENT_OCP_WARNING);
-    }
-  }
-}
 
 // --- sys_power_monitor_contract Implementations ---
 static status_rep_t contract_monitor_ina3221_get_voltage(void* device_handle, uint8_t channel, int32_t* out_mV) {
@@ -94,15 +61,15 @@ static status_rep_t contract_monitor_ina3221_get_current(void* device_handle, ui
   return STA_OK;
 }
 
-static status_rep_t contract_monitor_ina3221_add_callback(void* device_handle, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, void (*callback)(uint8_t device_id, sys_power_events_e triggered_by)) {
+static status_rep_t contract_monitor_ina3221_add_callback(void* device_handle, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, uint16_t route_mask) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, device_handle);
   if (channel >= 3) return STA_C(ERR_INVALID_ARG, OWNER, channel, STATUS_PAYLOAD_DEV_SOLO);
 
   if (on_event == SYS_PWR_EVENT_OCP_CRITICAL) {
-    ctx->power_callback_crit[channel] = callback;
+    ctx->route_masks_crit[channel] = route_mask;
     SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_alert(hw, channel, trigger_value, true), ctx);
   } else if (on_event == SYS_PWR_EVENT_OCP_WARNING) {
-    ctx->power_callback_warn[channel] = callback;
+    ctx->route_masks_warn[channel] = route_mask;
     SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_alert(hw, channel, trigger_value, false), ctx);
   } else {
     return STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, on_event, STATUS_PAYLOAD_DEV_SOLO);
@@ -146,8 +113,8 @@ static status_rep_t device_reset(void* handle) {
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_options(hw, true, true, true), ctx);
 
   for (int i = 0; i < 3; i++) {
-    ctx->power_callback_crit[i] = NULL;
-    ctx->power_callback_warn[i] = NULL;
+    ctx->route_masks_crit[i] = 0;
+    ctx->route_masks_warn[i] = 0;
   }
   return STA_OK;
 }
@@ -168,7 +135,9 @@ static status_rep_t device_resume(void* handle) {
 
 static status_rep_t device_freeze(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
-  IF_SYS_DEV_FROZEN(ctx) { return STA_OK; }
+  IF_SYS_DEV_FROZEN(ctx) {
+    return STA_OK;
+  }
   SYS_DEV_CTX_FREEZE(ctx);
   for (int i = 0; i < 3; i++) {
     float mv = 0;
@@ -240,7 +209,7 @@ static status_rep_t device_install(void** args, void** out_device_handle) {
     if (!STA_IS_OK(status)) {
       goto fail;
     }
-    sys_io_intr_config_t intr_cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE, .callback = (sys_io_isr_callback_t)(void*)ina3221_adapter_isr, .user_ctx = ctx};
+    sys_io_intr_config_t intr_cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
     status = sys_io_configure_intr(crit_io_device, crit_io_num, &intr_cfg);
     if (!STA_IS_OK(status)) {
       goto fail;
@@ -253,7 +222,7 @@ static status_rep_t device_install(void** args, void** out_device_handle) {
     if (!STA_IS_OK(status)) {
       goto fail;
     }
-    sys_io_intr_config_t intr_cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE, .callback = (sys_io_isr_callback_t)(void*)ina3221_adapter_isr, .user_ctx = ctx};
+    sys_io_intr_config_t intr_cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
     status = sys_io_configure_intr(warn_io_device, warn_io_num, &intr_cfg);
     if (!STA_IS_OK(status)) {
       goto fail;

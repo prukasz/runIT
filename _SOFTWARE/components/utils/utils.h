@@ -198,11 +198,19 @@ extern "C" {
     }                                             \
   } while (0)
 
-/**
- * @brief Pushes an item to a queue. Returns true if successful.
- * @usage R_QUEUE_SEND(sensor_queue, &my_data, WAIT_FOREVER);
- */
 #define R_QUEUE_SEND(queue_handle, item_ptr, timeout_ticks) (xQueueSend((queue_handle), (item_ptr), (timeout_ticks)))
+
+/**
+ * @brief Pushes an item to a queue from an ISR and yields if a context switch is required.
+ */
+#define R_QUEUE_SEND_ISR(queue_handle, item_ptr)      \
+  do {                                                \
+    BaseType_t _woken = pdFALSE;                      \
+    xQueueSendFromISR((queue_handle), (item_ptr), &_woken); \
+    if (_woken) {                                     \
+      portYIELD_FROM_ISR();                           \
+    }                                                 \
+  } while (0)
 
 /**
  * @brief Pulls an item from a queue. Returns true if data was received.

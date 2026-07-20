@@ -113,13 +113,5 @@ esp_err_t ads_read_event_flags(ads_handle_t handle, uint8_t* out_flags) {
 }
 
 void p_adc_expander_intr_pin_callback(void* arg) {
-  const sys_io_intr_event_t* event = (const sys_io_intr_event_t*)arg;
-  if (event) {
-    ads_handle_t handle = (ads_handle_t)event->user_arg;
-    if (handle && handle->task_handle) {
-      BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-      vTaskNotifyGiveFromISR(handle->task_handle, &xHigherPriorityTaskWoken);
-      portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-    }
-  }
+  (void)arg;
 }

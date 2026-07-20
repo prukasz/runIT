@@ -1,9 +1,10 @@
+#include <stdlib.h>
 #include "device_ads7128.h"
 #include "driver_ads7128.h"
-#include "sys_io.h"
-#include "sys_device.h"
-#include <stdlib.h>
 #include "esp_log.h"
+#include "sys_device.h"
+#include "sys_io.h"
+
 
 static const char* TAG = __FILE_NAME__;
 
@@ -26,8 +27,7 @@ struct device_ads_t {
   uint8_t intr_gpio_device_id;
   sys_io_pin_num_t intr_pin_num;
   uint16_t cached_analog_values[8];
-  sys_io_isr_callback_t callbacks[8];
-  void* callback_args[8];
+  uint16_t route_masks[8];
   sys_io_intr_mode_e intr_modes[8];
   ads_pin_ctx_t pin_contexts[8];
 };
@@ -53,15 +53,9 @@ static void adapter_on_alert_cb(void* arg) {
   if (pctx && pctx->ctx) {
     device_ads_t* ctx = pctx->ctx;
     uint8_t pin = pctx->pin;
-    sys_io_isr_callback_t cb = ctx->callbacks[pin];
-    if (cb) {
-      sys_io_intr_event_t event = {
-        .device_id = ctx->base.device_id,
-        .pin_num = pin,
-        .triggered_by = ctx->intr_modes[pin],
-        .user_arg = ctx->callback_args[pin]
-      };
-      cb(&event);
+    sys_io_intr_mode_e mode = ctx->intr_modes[pin];
+    if (mode != SYS_IO_INTR_DISABLE) {
+      SYS_IO_CB(ctx, pin, mode, 0, ctx->route_masks[pin]);
     }
   }
 }
@@ -77,7 +71,8 @@ static status_rep_t p_adc_expander_read_voltage(void* handle, sys_io_pin_num_t p
   uint16_t raw;
   IF_SYS_DEV_FROZEN(ctx) {
     raw = ctx->cached_analog_values[pin];
-  } else {
+  }
+  else {
     // Read and update raw data using driver function
     uint8_t channel_mask = (1 << pin);
     SYS_DEV_CHECK_DRIVER_CALL(ads_analog_ch_read(hw, channel_mask, true), ctx);
@@ -94,9 +89,8 @@ static status_rep_t p_adc_expander_configure_intr(void* handle, sys_io_pin_num_t
 
   VERIFY_PIN_R(pin, 0xFF);
 
-  if (config->mode == SYS_IO_INTR_DISABLE || config->callback == NULL) {
-    ctx->callbacks[pin] = NULL;
-    ctx->callback_args[pin] = NULL;
+  if (config->mode == SYS_IO_INTR_DISABLE) {
+    ctx->route_masks[pin] = 0;
     ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
     SYS_DEV_CHECK_DRIVER_CALL(ads_set_alert_cfg(hw, pin + 1, 0, 0, 0, false, true), ctx);
     SYS_DEV_CHECK_DRIVER_CALL(ads_register_alert_callback(hw, 1 << pin, NULL, NULL), ctx);
@@ -104,15 +98,14 @@ static status_rep_t p_adc_expander_configure_intr(void* handle, sys_io_pin_num_t
   }
 
   // Store user callback locally in the adapter
-  ctx->callbacks[pin] = config->callback;
-  ctx->callback_args[pin] = config->user_ctx;
+  ctx->route_masks[pin] = config->route_mask;
   ctx->intr_modes[pin] = config->mode;
 
   // Setup the pin routing context
   ctx->pin_contexts[pin].ctx = ctx;
   ctx->pin_contexts[pin].pin = pin;
 
-  uint8_t channel = pin + 1; // Assuming ADS7128 driver expects channels 1-8
+  uint8_t channel = pin + 1;  // Assuming ADS7128 driver expects channels 1-8
 
   uint16_t h_thres = clamp_uint16((uint16_t)(config->adc.adc_threshold_up_mV / ctx->ratio), 0, 4095);
   uint16_t l_thres = clamp_uint16((uint16_t)(config->adc.adc_threshold_down_mV / ctx->ratio), 0, 4095);
@@ -131,17 +124,7 @@ static status_rep_t p_adc_expander_configure_intr(void* handle, sys_io_pin_num_t
 }
 
 static const sys_io_vtable_t s_adc_vtable = {
-  .io_get_voltage = p_adc_expander_read_voltage,
-  .io_configure_intr = p_adc_expander_configure_intr,
-  .io_reset = NULL,
-  .io_set_mode = NULL,
-  .io_set_level = NULL,
-  .io_get_level = NULL,
-  .io_toggle = NULL,
-  .io_set_voltage = NULL,
-  .io_set_pwm_frequency = NULL,
-  .io_set_pwm_duty = NULL
-};
+    .io_get_voltage = p_adc_expander_read_voltage, .io_configure_intr = p_adc_expander_configure_intr, .io_reset = NULL, .io_set_mode = NULL, .io_set_level = NULL, .io_get_level = NULL, .io_toggle = NULL, .io_set_voltage = NULL, .io_set_pwm_frequency = NULL, .io_set_pwm_duty = NULL};
 
 // --- 3. System Device Manager Callback Implementations ---
 
@@ -179,8 +162,7 @@ static status_rep_t adapter_reset_device(void* driver_handle) {
 
     SYS_DEV_CHECK_DRIVER_CALL(ads_set_alert_cfg(hw, ch + 1, 0, 0, 0, 0, true), ctx);
 
-    ctx->callbacks[ch] = NULL;
-    ctx->callback_args[ch] = NULL;
+    ctx->route_masks[ch] = 0;
     ctx->intr_modes[ch] = SYS_IO_INTR_DISABLE;
   }
 
@@ -250,17 +232,17 @@ static status_rep_t p_ads7128_install(void** args, void** out_device_handle) {
   uint32_t vref_mv = SYS_DEV_ARG_UNPACK_VAL(uint32_t, args, 6);
   ctx->vref_mv = vref_mv;
   ctx->ratio = (float)vref_mv / 4095.0f;
-  
+
   uint8_t intr_gpio_device_id = SYS_DEV_ARG_UNPACK_VAL(uint8_t, args, 3);
   ctx->intr_gpio_device_id = intr_gpio_device_id;
-  
+
   sys_io_pin_num_t intr_pin_num = SYS_DEV_ARG_UNPACK_VAL(sys_io_pin_num_t, args, 4);
   ctx->intr_pin_num = intr_pin_num;
 
   ads_handle_t hw = get_hw_handle(ctx);
 
   status_rep_t status = sys_i2c_add_driver(ctx->base.hw_handle);
-  if (!STA_IS_OK(status)) {
+  if (STA_IS_ERR(status)) {
     goto fail;
   }
 
@@ -271,29 +253,25 @@ static status_rep_t p_ads7128_install(void** args, void** out_device_handle) {
   }
 
   status = STA_FROM_ESP(ads_start(hw));
-  if (!STA_IS_OK(status)) {
+  if (STA_IS_ERR(status)) {
     goto fail;
   }
 
   IF_PIN(intr_pin_num) {
     status = sys_io_set_mode(intr_gpio_device_id, intr_pin_num, SYS_DEV_ARG_UNPACK_VAL(sys_io_mode_e, args, 5));
-    if (!STA_IS_OK(status)) {
+    if (STA_IS_ERR(status)) {
       goto fail;
     }
-    sys_io_intr_config_t config = {
-      .mode = SYS_IO_INTR_MODE_FALLING_EDGE,
-      .callback = (sys_io_isr_callback_t)(void*)p_adc_expander_intr_pin_callback,
-      .user_ctx = hw
-    };
+    sys_io_intr_config_t config = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
     status = sys_io_configure_intr(intr_gpio_device_id, intr_pin_num, &config);
-    if (!STA_IS_OK(status)) {
+    if (STA_IS_ERR(status)) {
       goto fail;
     }
   }
 
   uint32_t device_id = SYS_DEV_ARG_UNPACK_VAL(uint32_t, args, 2);
   status = sys_io_register_driver(device_id, ctx, (sys_io_vtable_t*)&s_adc_vtable);
-  if (!STA_IS_OK(status)) {
+  if (STA_IS_ERR(status)) {
     ESP_LOGE(TAG, "Failed to register ADS7128 to IO Manager on device_id %lu", (unsigned long)device_id);
     goto fail;
   }
@@ -309,30 +287,20 @@ fail:
 }
 
 status_rep_t d_ads7128_create(uint8_t device_id, bool i2c_bus, uint8_t i2c_addr, uint8_t intr_io_device, sys_io_pin_num_t intr_io_num, sys_io_mode_e intr_io_mode, uint32_t vref_mv) {
-  void* args[] = {
-    SYS_DEV_ARG_PACK(i2c_addr),
-    SYS_DEV_ARG_PACK(i2c_bus),
-    SYS_DEV_ARG_PACK(device_id),
-    SYS_DEV_ARG_PACK(intr_io_device),
-    SYS_DEV_ARG_PACK(intr_io_num),
-    SYS_DEV_ARG_PACK(intr_io_mode),
-    SYS_DEV_ARG_PACK(vref_mv)
-  };
+  void* args[] = {SYS_DEV_ARG_PACK(i2c_addr), SYS_DEV_ARG_PACK(i2c_bus), SYS_DEV_ARG_PACK(device_id), SYS_DEV_ARG_PACK(intr_io_device), SYS_DEV_ARG_PACK(intr_io_num), SYS_DEV_ARG_PACK(intr_io_mode), SYS_DEV_ARG_PACK(vref_mv)};
 
-  sys_device_t dev = {
-    .device_id = device_id,
-    .role = SYS_DEV_ROLE_IO,
-    .name = "ADS7128_ADC",
-    .install_args = args,
-    .install_device = p_ads7128_install,
-    .uninstall_device = adapter_uninstall_device,
-    .reset_device = adapter_reset_device,
-    .error_handler = adapter_error_handler,
-    .suspend_device = adapter_suspend_device,
-    .resume_device = adapter_resume_device,
-    .freeze_device = adapter_freeze_device,
-    .sync_device = adapter_sync_device
-  };
+  sys_device_t dev = {.device_id = device_id,
+      .role = SYS_DEV_ROLE_IO,
+      .name = "ADS7128_ADC",
+      .install_args = args,
+      .install_device = p_ads7128_install,
+      .uninstall_device = adapter_uninstall_device,
+      .reset_device = adapter_reset_device,
+      .error_handler = adapter_error_handler,
+      .suspend_device = adapter_suspend_device,
+      .resume_device = adapter_resume_device,
+      .freeze_device = adapter_freeze_device,
+      .sync_device = adapter_sync_device};
 
   return sys_device_install(&dev);
 }

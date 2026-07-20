@@ -28,19 +28,12 @@ typedef struct ap_adapter_ctx_t {
   uint32_t last_current_ma;
   bool is_enabled;
 
-  void (*power_callback_event)(uint8_t device_id, sys_power_events_e triggered_by);
+  uint16_t route_mask;
 } ap_adapter_ctx_t;
 
 #define get_hw_handle(ctx) ((ap33772s_handle_t)((ctx)->base.hw_handle))
 
-static void ap33772s_adapter_isr(void* arg) {
-  ap_adapter_ctx_t* ctx = (ap_adapter_ctx_t*)arg;
-  if (!ctx) return;
-  ap33772s_handle_t hw = get_hw_handle(ctx);
-  if (hw) {
-    ap33772s_intr_handler(hw);
-  }
-}
+// ap33772s_adapter_isr removed as it is handled by the system callbacks framework
 
 // --- 2. VREG Contract Implementations ---
 
@@ -123,10 +116,10 @@ static status_rep_t d_ap33772s_set_current(void* device_handle, uint32_t current
   return negotiate_pdo(ctx, ctx->last_voltage_mv, ctx->last_current_ma);
 }
 
-static status_rep_t d_ap33772s_add_callback(void* device_handle, sys_power_events_e on_event, void (*callback)(uint8_t device_id, sys_power_events_e triggered_by)) {
+static status_rep_t d_ap33772s_add_callback(void* device_handle, sys_power_events_e on_event, uint16_t route_mask) {
   ap_adapter_ctx_t* ctx = (ap_adapter_ctx_t*)device_handle;
   CHECK_HANDLE_R(ctx);
-  ctx->power_callback_event = callback;
+  ctx->route_mask = route_mask;
   return STA_OK;
 }
 
@@ -366,7 +359,7 @@ static status_rep_t d_ap33772s_install(void** install_args, void** out_device_ha
     if (!STA_IS_OK(status)) {
       goto fail;
     }
-    sys_io_intr_config_t config = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE, .callback = (sys_io_isr_callback_t)(void*)ap33772s_adapter_isr, .user_ctx = ctx};
+    sys_io_intr_config_t config = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
     status = sys_io_configure_intr(int_gpio_device_id, int_pin_num, &config);
     if (!STA_IS_OK(status)) {
       goto fail;

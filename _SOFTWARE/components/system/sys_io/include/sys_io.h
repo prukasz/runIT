@@ -1,5 +1,6 @@
 #pragma once
 #include "status.h"
+#include "sys_callbacks.h"
 
 #define SYS_GPIO_NONE 0xFF
 #define IF_PIN(pin_num) if (((pin_num)) != SYS_GPIO_NONE)
@@ -22,6 +23,19 @@
 #define SYS_IO_UNPACK_EXTRA(info) ((uint64_t)(info) & 0xFFFFFFFF)
 
 #define SYS_IO_TOGGLE(device_id, pin_num) sys_io_toggle((device_id), (pin_num))
+
+#define SYS_IO_CB(_ctx, _pin, _event, _value, _route_mask)    \
+  do {                                                        \
+    cb_event_t __cb_evt;                                      \
+    memset(&__cb_evt, 0, sizeof(__cb_evt));                   \
+    __cb_evt.head.callback_type = CALLBACK_IO;                \
+    __cb_evt.head.route_to.route_mask = (_route_mask);        \
+    __cb_evt.event.io.device_id = (_ctx)->base.device_id;     \
+    __cb_evt.event.io.pin_id = (_pin);                        \
+    __cb_evt.event.io.trigger_event = (_event);               \
+    __cb_evt.event.io.trigger_value = (_value);               \
+    sys_callback_trigger(&__cb_evt);                          \
+  } while (0)
 
 #define VERIFY_PIN_R(pin, pinmask)                                                                                \
   do {                                                                                                            \
@@ -55,15 +69,6 @@ typedef enum sys_io_intr_mode_e {
 
 typedef uint8_t sys_io_pin_num_t;
 
-typedef struct {
-  uint8_t device_id;
-  sys_io_pin_num_t pin_num;
-  sys_io_intr_mode_e triggered_by;
-  void* user_arg;
-} sys_io_intr_event_t;
-
-typedef void (*sys_io_isr_callback_t)(const sys_io_intr_event_t* event);
-
 /*interrupt config for adc*/
 typedef struct {
   uint16_t adc_threshold_up_mV;
@@ -75,8 +80,7 @@ typedef struct {
 /*overall config for io interrupt*/
 typedef struct sys_io_intr_config_t {
   sys_io_intr_mode_e mode;
-  sys_io_isr_callback_t callback;
-  void* user_ctx;
+  uint16_t route_mask;
   union {
     sys_io_adc_int_config_t adc;
   };

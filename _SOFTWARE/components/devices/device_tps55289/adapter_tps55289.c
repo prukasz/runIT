@@ -25,29 +25,20 @@ typedef struct {
   bool last_enable_state;
   bool is_current_limit_enabled;
 
-  void (*power_callback_ovp)(uint8_t device_id, sys_power_events_e triggered_by);
-  void (*power_callback_ocp)(uint8_t device_id, sys_power_events_e triggered_by);
-  void (*power_callback_scp)(uint8_t device_id, sys_power_events_e triggered_by);
+  uint16_t route_masks[3]; // For OVP, OCP, SCP
 } tps_adapter_ctx_t;
 
 static void tps55289_on_fault_handler(void* arg, bool ovp, bool ocp, bool scp) {
   tps_adapter_ctx_t* ctx = (tps_adapter_ctx_t*)arg;
   if (!ctx) return;
-  if (ovp && ctx->power_callback_ovp) {
-    ctx->power_callback_ovp(ctx->base.device_id, SYS_PWR_EVENT_OVP);
+  if (ovp) {
+    SYS_PWR_CB(ctx, 0, SYS_PWR_EVENT_OVP, ctx->last_voltage_mv, ctx->route_masks[0]);
   }
-  if (ocp && ctx->power_callback_ocp) {
-    ctx->power_callback_ocp(ctx->base.device_id, SYS_PWR_EVENT_OCP_CRITICAL);
+  if (ocp) {
+    SYS_PWR_CB(ctx, 0, SYS_PWR_EVENT_OCP_CRITICAL, ctx->last_current_limit_ma, ctx->route_masks[1]);
   }
-  if (scp && ctx->power_callback_scp) {
-    ctx->power_callback_scp(ctx->base.device_id, SYS_PWR_EVENT_SPC);
-  }
-}
-
-static void tps55289_adapter_isr(void* arg) {
-  tps_adapter_ctx_t* ctx = (tps_adapter_ctx_t*)arg;
-  if (ctx && ctx->base.hw_handle) {
-    tps55289_isr_handler(ctx->base.hw_handle);
+  if (scp) {
+    SYS_PWR_CB(ctx, 0, SYS_PWR_EVENT_SPC, 0, ctx->route_masks[2]);
   }
 }
 
@@ -92,18 +83,18 @@ static status_rep_t contract_vreg_tps55289_set_current(void* device_handle, uint
   return STA_OK;
 }
 
-static status_rep_t contract_vreg_tps55289_add_callback(void* device_handle, sys_power_events_e on_event, void (*callback)(uint8_t device_id, sys_power_events_e triggered_by)) {
+static status_rep_t contract_vreg_tps55289_add_callback(void* device_handle, sys_power_events_e on_event, uint16_t route_mask) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tps_adapter_ctx_t, tps55289_handle_t, ctx, hw, device_handle);
 
   if (on_event == SYS_PWR_EVENT_OVP) {
-    ctx->power_callback_ovp = callback;
+    ctx->route_masks[0] = route_mask;
   } else if (on_event == SYS_PWR_EVENT_OCP_CRITICAL) {
-    ctx->power_callback_ocp = callback;
+    ctx->route_masks[1] = route_mask;
   } else if (on_event == SYS_PWR_EVENT_SPC) {
-    ctx->power_callback_scp = callback;
+    ctx->route_masks[2] = route_mask;
   }
 
-  tps55289_set_fault_masks(hw, ctx->power_callback_scp == NULL, ctx->power_callback_ocp == NULL, ctx->power_callback_ovp == NULL);
+  tps55289_set_fault_masks(hw, ctx->route_masks[2] == 0, ctx->route_masks[1] == 0, ctx->route_masks[0] == 0);
   return STA_OK;
 }
 
@@ -262,7 +253,7 @@ static status_rep_t device_install(void** args, void** out_device_handle) {
     if (!STA_IS_OK(status)) {
       goto fail;
     }
-    sys_io_intr_config_t config = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE, .callback = (sys_io_isr_callback_t)(void*)tps55289_adapter_isr, .user_ctx = ctx};
+    sys_io_intr_config_t config = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
     status = sys_io_configure_intr(intr_io_device, intr_io_num, &config);
     if (!STA_IS_OK(status)) {
       goto fail;

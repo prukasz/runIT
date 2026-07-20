@@ -243,7 +243,7 @@ status_rep_t sys_vreg_set_current(uint8_t device_id, uint32_t current_mA) {
 
 #undef OWNER
 #define OWNER OWNER_SYS_VREG_ADD_CALLBACK
-status_rep_t sys_vreg_add_callback(uint8_t device_id, sys_power_events_e on_event, void (*callback)(uint8_t device_id, sys_power_events_e triggered_by)) { SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_VREG, sys_power_vreg_contract, add_callback, on_event, callback); }
+status_rep_t sys_vreg_add_callback(uint8_t device_id, sys_power_events_e on_event, uint16_t route_mask) { SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_VREG, sys_power_vreg_contract, add_callback, on_event, route_mask); }
 
 /* ========================================================================== *
  * MONITOR API
@@ -265,8 +265,8 @@ status_rep_t sys_power_monitor_get_current(uint8_t device_id, uint8_t channel, i
 
 #undef OWNER
 #define OWNER OWNER_SYS_POWER_MONITOR_ADD_CALLBACK
-status_rep_t sys_power_monitor_add_callback(uint8_t device_id, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, void (*callback)(uint8_t device_id, sys_power_events_e triggered_by)) {
-  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_MONITOR, sys_power_monitor_contract, add_callback, channel, trigger_value, on_event, callback);
+status_rep_t sys_power_monitor_add_callback(uint8_t device_id, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, uint16_t route_mask) {
+  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_MONITOR, sys_power_monitor_contract, add_callback, channel, trigger_value, on_event, route_mask);
 }
 
 /* ========================================================================== *

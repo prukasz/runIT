@@ -28,8 +28,7 @@ typedef struct tca_adapter_ctx_t {
   uint32_t frozen_outputs_state;
   uint32_t configured_pins;  // 24-bit bitmask tracking pin usage
 
-  sys_io_isr_callback_t callbacks[24];
-  void* callback_args[24];
+  uint16_t route_masks[24];
   sys_io_intr_mode_e intr_modes[24];
 } tca_adapter_ctx_t;
 
@@ -41,11 +40,10 @@ static void tca_on_change_handler(void* handle, uint32_t rising_edges, uint32_t 
   for (uint8_t i = 0; i < PINS_COUNT; i++) {
     if (!(changed_bits & (1UL << i))) continue;
 
-    if (!ctx->callbacks[i]) continue;
+    sys_io_intr_mode_e mode = ctx->intr_modes[i];
+    if (mode == SYS_IO_INTR_DISABLE) continue;
 
     bool trigger = false;
-    sys_io_intr_mode_e mode = ctx->intr_modes[i];
-
     if (mode == SYS_IO_INTR_MODE_RISING_EDGE && (rising_edges & (1UL << i))) {
       trigger = true;
     } else if (mode == SYS_IO_INTR_MODE_FALLING_EDGE && (falling_edges & (1UL << i))) {
@@ -55,8 +53,8 @@ static void tca_on_change_handler(void* handle, uint32_t rising_edges, uint32_t 
     }
 
     if (trigger) {
-      sys_io_intr_event_t event = {.device_id = ctx->base.device_id, .pin_num = i, .triggered_by = mode, .user_arg = ctx->callback_args[i]};
-      ctx->callbacks[i](&event);
+      bool level = (rising_edges & (1UL << i)) != 0;
+      SYS_IO_CB(ctx, i, mode, level, ctx->route_masks[i]);
     }
   }
 }
@@ -142,8 +140,7 @@ status_rep_t contract_io_tca6424a_reset_pin(void* handle, sys_io_pin_num_t pin) 
   SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
   VERIFY_PIN_R(pin, PINS_MASK);
 
-  ctx->callbacks[pin] = NULL;
-  ctx->callback_args[pin] = NULL;
+  ctx->route_masks[pin] = 0;
   ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
   ctx->configured_pins &= ~(1UL << pin);
 
@@ -165,15 +162,13 @@ status_rep_t contract_io_tca6424a_configure_intr(void* handle, sys_io_pin_num_t 
   SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
   VERIFY_PIN_R(pin, PINS_MASK);
 
-  if (config->mode == SYS_IO_INTR_DISABLE || config->callback == NULL) {
-    ctx->callbacks[pin] = NULL;
-    ctx->callback_args[pin] = NULL;
+  if (config->mode == SYS_IO_INTR_DISABLE) {
+    ctx->route_masks[pin] = 0;
     ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
     return STA_OK;
   }
 
-  ctx->callbacks[pin] = config->callback;
-  ctx->callback_args[pin] = config->user_ctx;
+  ctx->route_masks[pin] = config->route_mask;
   ctx->intr_modes[pin] = config->mode;
 
   return STA_OK;
@@ -366,13 +361,13 @@ static status_rep_t device_install(void** args, void** out_device_handle) {
   tca_register_on_change_callback(hw, tca_on_change_handler, ctx);
 
   status_rep_t status = sys_i2c_add_driver(ctx->base.hw_handle);
-  if (!STA_IS_OK(status)) {
+  if (STA_IS_ERR(status)) {
     goto fail;
   }
 
   IF_PIN(rst_io_num) {
     status = sys_io_set_mode(rst_io_device, rst_io_num, rst_io_mode);
-    if (!STA_IS_OK(status)) {
+    if (STA_IS_ERR(status)) {
       goto fail;
     }
     SYS_IO_HIGH(rst_io_device, rst_io_num);
@@ -388,19 +383,19 @@ static status_rep_t device_install(void** args, void** out_device_handle) {
 
   IF_PIN(intr_io_num) {
     status = sys_io_set_mode(intr_io_device, intr_io_num, intr_io_mode);
-    if (!STA_IS_OK(status)) {
+    if (STA_IS_ERR(status)) {
       goto fail;
     }
-    sys_io_intr_config_t config = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE, .callback = (sys_io_isr_callback_t)(void*)d_tca6424a_intr_pin_callback, .user_ctx = hw};
+    sys_io_intr_config_t config = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
     status = sys_io_configure_intr(intr_io_device, intr_io_num, &config);
-    if (!STA_IS_OK(status)) {
+    if (STA_IS_ERR(status)) {
       goto fail;
     }
     SYS_IO_LOCK_PIN(intr_io_device, intr_io_num);
   }
 
   status = sys_io_register_driver(device_id, ctx, &io_tca_vtable);
-  if (!STA_IS_OK(status)) {
+  if (STA_IS_ERR(status)) {
     ESP_LOGE(TAG, "Failed to register TCA6424A to IO Manager on device_id %ld", (long)device_id);
     goto fail;
   }

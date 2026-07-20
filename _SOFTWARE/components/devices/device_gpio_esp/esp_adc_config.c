@@ -148,7 +148,7 @@ static void process_adc_channel(int pin, int chan, uint32_t sum, uint16_t count,
     adc_cfg->adc_cached_mv = (uint16_t)voltage_mv;
   }
 
-  if (pin_obj->intr_config.callback == NULL) return;
+  if (pin_obj->intr_config.mode == SYS_IO_INTR_DISABLE) return;
 
   bool condition_met = false;
   bool reset_condition_met = false;
@@ -173,8 +173,7 @@ static void process_adc_channel(int pin, int chan, uint32_t sum, uint16_t count,
 
   if (condition_met && !adc_cfg->alert_was_triggered) {
     adc_cfg->alert_was_triggered = true;
-    sys_io_intr_event_t event = {.pin_num = pin_obj->io_num, .triggered_by = (sys_io_intr_mode_e)wt, .user_arg = pin_obj->intr_config.user_ctx};
-    pin_obj->intr_config.callback(&event);
+    SYS_IO_CB(&gpio_esp_ctx, pin_obj->io_num, wt, voltage_mv, pin_obj->intr_config.route_mask);
   } else if (reset_condition_met) {
     adc_cfg->alert_was_triggered = false;
   }
@@ -203,40 +202,37 @@ static void adc_processing_task_function(void* pvParameters) {
       }
     }
 
-    if (R_MUTEX_LOCK(adc_mutex, MSEC(20)) == pdTRUE) {
-      if (is_adc_running && adc_handle != NULL && !_needs_hardware_reconfig) {
-        esp_err_t ret = adc_continuous_read(adc_handle, raw_buffer, CONFIG_ESP_ADC_FRAME_SIZE_BYTES, &ret_num, MSEC(10));
+    if (is_adc_running && adc_handle != NULL && !_needs_hardware_reconfig) {
+      esp_err_t ret = adc_continuous_read(adc_handle, raw_buffer, CONFIG_ESP_ADC_FRAME_SIZE_BYTES, &ret_num, MSEC(10));
 
-        if (ret == ESP_OK || ret == ESP_ERR_INVALID_STATE) {
-          uint32_t channel_sums[10] = {0};
-          uint16_t channel_counts[10] = {0};
+      if (ret == ESP_OK || ret == ESP_ERR_INVALID_STATE) {
+        uint32_t channel_sums[10] = {0};
+        uint16_t channel_counts[10] = {0};
 
-          for (int i = 0; i < (int)ret_num; i += SOC_ADC_DIGI_RESULT_BYTES) {
-            adc_digi_output_data_t* p = (adc_digi_output_data_t*)&raw_buffer[i];
-            uint8_t chan = p->type2.channel;
+        for (int i = 0; i < (int)ret_num; i += SOC_ADC_DIGI_RESULT_BYTES) {
+          adc_digi_output_data_t* p = (adc_digi_output_data_t*)&raw_buffer[i];
+          uint8_t chan = p->type2.channel;
 
-            if (chan < 10) {
-              channel_sums[chan] += p->type2.data;
-              channel_counts[chan]++;
-            }
-          }
-
-          if (R_MUTEX_LOCK(gpio_mutex, MSEC(5)) == pdTRUE) {
-            for (int pin = 0; pin < GPIO_NUM_MAX; pin++) {
-              esp_pin_obj_t* pin_obj = pin_registry[pin];
-              if (pin_obj && pin_obj->pin_mode == SYS_IO_MODE_ADC) {
-                adc_unit_t unit;
-                adc_channel_t chan;
-                if (adc_continuous_io_to_channel(pin, &unit, &chan) == ESP_OK && unit == ADC_UNIT_1) {
-                  process_adc_channel(pin, chan, channel_sums[chan], channel_counts[chan], pin_obj);
-                }
-              }
-            }
-            R_MUTEX_UNLOCK(gpio_mutex);
+          if (chan < 10) {
+            channel_sums[chan] += p->type2.data;
+            channel_counts[chan]++;
           }
         }
+
+        if (R_MUTEX_LOCK(gpio_mutex, MSEC(5)) == pdTRUE) {
+          for (int pin = 0; pin < GPIO_NUM_MAX; pin++) {
+            esp_pin_obj_t* pin_obj = pin_registry[pin];
+            if (pin_obj && pin_obj->pin_mode == SYS_IO_MODE_ADC) {
+              adc_unit_t unit;
+              adc_channel_t chan;
+              if (adc_continuous_io_to_channel(pin, &unit, &chan) == ESP_OK && unit == ADC_UNIT_1) {
+                process_adc_channel(pin, chan, channel_sums[chan], channel_counts[chan], pin_obj);
+              }
+            }
+          }
+          R_MUTEX_UNLOCK(gpio_mutex);
+        }
       }
-      R_MUTEX_UNLOCK(adc_mutex);
     }
     vTaskDelay(pdMS_TO_TICKS(10));
   }
@@ -252,21 +248,11 @@ esp_err_t esp_adc_start() {
 }
 
 esp_err_t esp_adc_get_mv(uint8_t pin, uint32_t* out_mv) {
-  if (pin_registry[pin] == NULL || out_mv == NULL) {
-    return ESP_ERR_INVALID_ARG;
-  }
+  if (out_mv == NULL || pin >= GPIO_NUM_MAX) return ESP_ERR_INVALID_ARG;
   esp_pin_obj_t* pin_obj = pin_registry[pin];
-  if (pin_obj->pin_mode != SYS_IO_MODE_ADC) {
+  if (pin_obj == NULL || pin_obj->pin_mode != SYS_IO_MODE_ADC) {
     return ESP_ERR_INVALID_ARG;
   }
-  if (R_MUTEX_LOCK(adc_mutex, WAIT_FOREVER) == pdTRUE) {
-    if (gpio_esp_ctx.base.is_frozen) {
-      *out_mv = pin_obj->hw.adc_cfg.adc_cached_mv;
-    } else {
-      *out_mv = pin_obj->hw.adc_cfg.adc_last_read_mv;
-    }
-    R_MUTEX_UNLOCK(adc_mutex);
-    return ESP_OK;
-  }
-  return ESP_FAIL;
+  *out_mv = gpio_esp_ctx.base.is_frozen ? pin_obj->hw.adc_cfg.adc_cached_mv : pin_obj->hw.adc_cfg.adc_last_read_mv;
+  return ESP_OK;
 }
