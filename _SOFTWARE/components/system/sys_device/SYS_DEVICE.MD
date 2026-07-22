@@ -3,7 +3,7 @@
 IMPORTANT: If you modify the source files in this component (sys_device.h or sys_device.c), you must update this documentation to reflect the changes.
 
 ## Overview
-The Device is the core unit of the runIT system architecture. A device represents any hardware object (control registers, power regulators, sensors, expanders) managed by the system. The sys_device component provides a unified management framework, standardized error propagation via status_rep_t, and life-cycle operations (reset, suspend, resume, freeze, sync).
+The Device is the core unit of the runIT system architecture. A device represents any hardware object (control registers, power regulators, sensors, expanders) managed by the system. The `sys_device` component provides a unified management framework, standardized error propagation via `status_rep_t`, and life-cycle operations (install, uninstall, reset, suspend, resume, freeze, sync).
 
 ### Directory Map
 ```
@@ -12,7 +12,8 @@ components/system/sys_device/
 ├── SYS_DEVICE.MD       # This documentation
 ├── sys_device.c        # Manager implementation and registry storage
 └── include/
-    └── sys_device.h    # Core contracts, macros, and API declarations
+    ├── sys_device.h    # Core contracts, macros, and API declarations
+    └── sys_device_status_codes.h # Status codes and error payload definitions
 ```
 
 ---
@@ -27,10 +28,9 @@ Hardware Driver (hw) -> Device Adapter (ctx) -> Device Manager (sys_device_t) ->
 ### Example: Setting a GPIO output level
 1. The user calls `sys_io_set_level(device_id, pin, level)`.
 2. The system retrieves the device instance via `sys_device_get_by_id(device_id)`.
-3. The system checks if the device supports the I/O feature contract and contains the `io_set_level` function pointer.
-4. The system executes the contract function: `contract->io_set_level(dev->device_handle, pin, level)`.
-5. The device adapter receives the call, extracts its local hardware instance (`hw_handle`), and forwards the command to the driver layer: `driver_set_level(ctx->hw_handle, pin, level)`.
-6. The hardware driver writes to the physical hardware register.
+3. The system checks if the device is installed, not suspended, and supports the I/O feature contract (`SYS_DEVICE_CONTRACT_IO`).
+4. The system executes the contract function: `vtable->io_set_level(dev->device_handle, pin, level)`.
+5. The device adapter receives the call, extracts its local hardware instance (`hw_handle`), and forwards the command to the driver layer.
 
 ---
 
@@ -55,6 +55,14 @@ typedef struct sys_device_t {
   void* device_handle;          // Instance-specific adapter context pointer
   const char* name;             // Human-readable device name
   void** install_args;          // Array of installation parameters for re-initialization
+  bool is_suspended;            // True if device is currently suspended
+  bool is_installed;            // True if device is registered and installed
+  struct {                      // Automatic error action configuration flags
+    uint8_t suspend_on : 2;
+    uint8_t reset_on : 2;
+    uint8_t uinstall_on : 2;
+    uint8_t emergency_action_on : 2;
+  } err_cfg;
 
   // Lifecycle Callbacks
   status_rep_t (*install_device)(void** install_args, void** out_device_handle);
@@ -67,10 +75,10 @@ typedef struct sys_device_t {
   status_rep_t (*sync_device)(void* device_handle);
 
   // Feature Contracts
-  // 0: IO (sys_io_vtable_t)
-  // 1: POWER_VREG
-  // 2: POWER_MONITOR
-  // 3: POWER_USB_PD
+  // 0: SYS_DEVICE_CONTRACT_IO (sys_io_vtable_t)
+  // 1: SYS_DEVICE_CONTRACT_POWER_VREG (sys_power_vreg_contract)
+  // 2: SYS_DEVICE_CONTRACT_POWER_MONITOR (sys_power_monitor_contract)
+  // 3: SYS_DEVICE_CONTRACT_POWER_USB_PD (sys_power_usb_pd_contract)
   void* contracts[4];
 } sys_device_t;
 ```
@@ -80,47 +88,48 @@ typedef struct sys_device_t {
 ## Utility Macros
 
 ### Diagnostic & Handle Verification
-* **`SYS_DEV_MAKE_ERR_INFO(dev_id, err)`**: Packs a 16-bit device ID and 32-bit driver error code into a single 64-bit status payload.
-* **`SYS_DEV_CHECK_HANDLE_R(handle)`**: Asserts `handle` is not NULL. On failure, logs an error and returns a critical `status_rep_t` (`STATUS_PAYLOAD_DEVICE`).
-* **`SYS_DEV_CHECK_HANDLE_RP(handle)`**: Same as `SYS_DEV_CHECK_HANDLE_R` but additionally pushes the error report to the system status queue.
-* **`SYS_DEV_STA_W / C / I(code, owner, info)`**: Wraps `STA_W/C/I` to construct warning, critical, or info reports with `STATUS_PAYLOAD_DEVICE` preset.
+* **`SYS_DEV_CHECK_HANDLE_R(handle, dev_id)`**: Asserts `handle` is not NULL. Returns `ERR_DEV_MISSING_HANDLE` on failure.
+* **`SYS_DEV_CHECK_HANDLE_RP(handle, dev_id)`**: Same as `SYS_DEV_CHECK_HANDLE_R`, but additionally pushes the error report to the system status queue (`STA_P`).
+* **`SYS_DEV_STA_W / C / I(code, owner, info)`**: Wraps `STA_W/C/I` to construct warning, critical, or info reports with `STATUS_PAYLOAD_DEV_ESP` preset.
 
-### Driver Call Verification
-* **`SYS_DEV_CHECK_DRIVER_CALL(driver_call, ctx)`**: Evaluates an `esp_err_t` driver call. If it is not `ESP_OK`, logs the failure, builds a `status_rep_t` containing the packed error info, and returns it.
+### Driver & Dependency Call Verification
+* **`SYS_DEV_CHECK_DRIVER_CALL(driver_call, ctx)`**: Evaluates an `esp_err_t` driver call. If not `ESP_OK`, builds a `status_rep_t` with `STATUS_PAYLOAD_DEV_ESP` payload containing the device ID and ESP error code, and returns it.
+* **`SYS_DEV_CHECK_DEP_CALL(status_call, ctx, dep_dev_id)`**: Evaluates a dependent device `status_rep_t` call. If an error is returned, logs the dependency failure and packages a `STATUS_PAYLOAD_DEV_DEP` error.
 
 ### Feature Dispatching
-* **`IF_SYS_DEV_AND_FEATURE(device_id, contract_type, contract_struct_type, func_member, dev_ptr, vtable_ptr)`**: Evaluates if the device ID exists, supports the specified contract, and implements the function member. Used as an inline `if` statement block.
-* **`SYS_DEV_DISPATCH(dev_id, contract_enum, contract_type, func_name, ...)`**: Dispatches a function call down to the device contract. If the device does not exist or does not support the contract, propagates an `ERR_NOT_SUPPORTED` warning.
+* **`IF_SYS_DEV_AND_FEATURE(device_id, contract_type, contract_struct_type, func_member, dev_ptr, vtable_ptr)`**: Evaluates if the device ID exists, is installed, not suspended, supports the specified contract, and implements the function member.
+* **`SYS_DEV_DISPATCH(dev_id, contract_enum, contract_type, func_name, ...)`**: Dispatches a function call down to the device contract. If the device is missing, uninstalled, or suspended, returns the appropriate status report (`ERR_DEV_NOT_FOUND`, `ERR_DEV_NOT_INSTALLED`, `ERR_DEV_SUSPENDED`, or `ERR_NOT_SUPPORTED`).
 
 ### Parameter Packing / Unpacking
 * **`SYS_DEV_ARG_PACK(val)`**: Casts a value to a generic `void*`.
 * **`SYS_DEV_ARG_UNPACK(type, var, args, index)`**: Extracts a value of specified type from the `void**` installation arguments array.
 * **`SYS_DEV_ARG_UNPACK_VAL(type, args, index)`**: Utility expression that casts an array index directly to the target type.
 
-### Adapter State & Double Buffering
+### Adapter Context Allocation & Double Buffering
 * **`SYS_DEV_GET_ADAPTER_CONTEXT(ctx_type, hw_type, ctx_var, hw_var, input_handle)`**: Declares and checks both the adapter context pointer (`ctx_var`) and driver-level hardware handle (`hw_var`) from `input_handle`.
-* **`IF_SYS_DEV_FROZEN(ctx)`**: Evaluates if the adapter context has the frozen state enabled.
-* **`SYS_DEV_CTX_FREEZE(ctx)`**: Sets the `base.is_frozen` flag to true.
-* **`SYS_DEV_CTX_UNFREEZE(ctx)`**: Sets the `base.is_frozen` flag to false.
+* **`IF_SYS_DEV_FROZEN(ctx)`**: Evaluates if the adapter context has the frozen state enabled (`base.is_frozen`).
+* **`SYS_DEV_CTX_FREEZE(ctx)`** / **`SYS_DEV_CTX_UNFREEZE(ctx)`**: Sets `base.is_frozen` state boolean.
 
 ---
 
 ## Manager API Functions
 
-### Installation & Lifecycle Management
-* **`sys_device_install(sys_device_t* device)`**: Allocates and registers a new device entry in the system registry, then executes its custom `install_device` function.
+### Helper & Lifecycle Management
+* **`sys_device_allocate_ctx(total_size, install_args)`**: Allocates memory for an adapter context, initializes its base structure, and copies installation arguments.
+* **`sys_device_install(sys_device_t* device)`**: Registers a new device entry in the system registry (up to `MAX_DEVICE_ID = 127`) and executes its custom `install_device` function.
 * **`sys_device_uninstall(uint8_t device_id)`**: Calls `uninstall_device` to release internal driver references and removes the device from the registry.
-* **`sys_device_reset(uint8_t device_id)`**: Invokes the device-specific reset handler to restore hardware to a default operational state.
+* **`sys_device_reset(uint8_t device_id)`**: Invokes the device-specific reset handler.
 
 ### Suspend & Resume
-* **`sys_device_suspend(uint8_t device_id)`**: Suspends the target device, saving current configuration context.
-* **`sys_device_resume(uint8_t device_id)`**: Restores a suspended device back to its pre-suspended configuration state.
+* **`sys_device_suspend(uint8_t device_id)`**: Suspends the target device, setting `is_suspended = true`.
+* **`sys_device_resume(uint8_t device_id)`**: Restores a suspended device, setting `is_suspended = false`.
 * **`sys_device_suspend_all()`** / **`sys_device_resume_all()`**: Broadcasts suspend or resume actions to all registered devices.
 
 ### Double Buffering (Freeze & Sync)
-* **`sys_device_freeze(uint8_t device_id)`**: Activates freeze mode. Commands affecting the hardware are cached in the adapter context rather than being immediately executed.
+* **`sys_device_freeze(uint8_t device_id)`**: Activates freeze mode on the target device context.
 * **`sys_device_sync(uint8_t device_id)`**: Pushes cached actions to physical hardware registers and exits freeze mode.
 * **`sys_device_freeze_all()`** / **`sys_device_sync_all()`**: Broadcasts freeze or sync commands to all registered devices.
 
-### Registry Query
+### Registry Query & Error Handling
 * **`sys_device_get_by_id(uint8_t device_id)`**: Returns a pointer to the registered `sys_device_t` structure matching the provided ID, or `NULL` if not found.
+* **`sys_device_generic_error_handler(dev, err)`**: Default fallback error handler for unhandled device errors, evaluating `err_cfg` actions (suspend, reset, uninstall).

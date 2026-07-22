@@ -1,12 +1,12 @@
 #pragma once
 #include <freertos/FreeRTOS.h>
-#include <freertos/event_groups.h>
 #include <freertos/ringbuf.h>
 #include <freertos/semphr.h>
 #include "status.h"
+#include "sys_ble_status_codes.h"
 #include "sys_callbacks.h"
 
-#define MAX_TX_BUFFERS 4
+#define MAX_TX_BUFFERS 3
 
 typedef enum { RINGBUF_TYPE_NOSPLIT_BUF = RINGBUF_TYPE_NOSPLIT, RINGBUF_TYPE_BYTE_BUF = RINGBUF_TYPE_BYTEBUF } sys_ble_ringbuf_type_e;
 
@@ -29,50 +29,39 @@ typedef struct {
   size_t rx_buffer_size;  // Size of RX ring buffer (0 if write/notify is disabled)
 } sys_ble_char_create_t;
 
+#include "sys_buffers.h"
+
 typedef struct {
-  uint8_t buffer_id;
-  RingbufferType_t buff_type;  // RINGBUF_TYPE_NOSPLIT or RINGBUF_TYPE_BYTEBUF
+  uint16_t buffer_id;
   size_t size;
-  bool auto_pack;
-  uint8_t header;
-  size_t item_size;
-  uint8_t priority;
   bool is_indication;
+  sys_tx_buff_t tx_buff;
 } sys_ble_tx_buf_cfg_t;
 
-typedef enum sys_ble_events_e {
-  SYS_BLE_EVENT_CONNECT = 0,
-  SYS_BLE_EVENT_DISCONNECT,
-  SYS_BLE_EVENT_FAILURE,
-  SYS_BLE_EVENT_MAX
-} sys_ble_events_e;
+typedef enum sys_ble_events_e { SYS_BLE_EVENT_CONNECT = 0, SYS_BLE_EVENT_DISCONNECT, SYS_BLE_EVENT_FAILURE, SYS_BLE_EVENT_MAX } sys_ble_events_e;
 
-#define SYS_BLE_CB(event_id, event_value, mask)           \
-  do {                                                    \
-    cb_event_t __cb_evt = {0};                            \
-    __cb_evt.head.callback_type = CALLBACK_BLE;           \
-    __cb_evt.head.route_to.route_mask = (mask);           \
-    __cb_evt.event.ble.event = (event_id);                \
-    __cb_evt.event.ble.value = (event_value);             \
-    sys_callback_trigger(&__cb_evt);                      \
+#define SYS_BLE_CB(event_id, event_value, mask) \
+  do {                                          \
+    cb_event_t __cb_evt = {0};                  \
+    __cb_evt.head.callback_type = CALLBACK_BLE; \
+    __cb_evt.head.route_to.route_mask = (mask); \
+    __cb_evt.event.ble.event = (event_id);      \
+    __cb_evt.event.ble.value = (event_value);   \
+    sys_callback_trigger(&__cb_evt);            \
   } while (0)
 
 typedef struct {
-  uint8_t buffer_id;
-  RingbufHandle_t tx_buff;
-  RingbufferType_t buff_type;
-  size_t item_size;
-  bool auto_pack;
-  uint8_t header;
-  uint8_t priority;
+  uint16_t buffer_id;
   bool is_indication;
+  sys_tx_buff_t tx_buff;
 } sys_ble_tx_slot_t;
+
+
 
 typedef struct {
   bool is_connected;
   uint16_t mtu_size;
   uint32_t rx_overflow_count;
-  esp_err_t last_error;
 } sys_ble_status_t;
 
 /**
@@ -174,7 +163,7 @@ status_rep_t sys_ble_char_rx_dequeue(uint16_t char_uuid, uint8_t* buffer, size_t
  *                          If false, blocks for up to 100ms waiting for space.
  * @return status_rep_t Status report (STA_OK on success, or error status).
  */
-status_rep_t sys_ble_char_send(uint16_t char_uuid, uint8_t buffer_id, const uint8_t* data, size_t len, bool return_when_full);
+status_rep_t sys_ble_char_send(uint16_t char_uuid, uint16_t buffer_id, const uint8_t* data, size_t len, bool return_when_full);
 
 /**
  * @brief Compile the GATT database definitions and synchronize with the NimBLE host stack.

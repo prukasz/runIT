@@ -3,7 +3,7 @@
 IMPORTANT: If you modify the source files in this component (sys_ble.h or sys_ble.c), you must update this documentation to reflect the changes.
 
 ## Overview
-The `sys_ble` component implements a robust, asynchronous wrapper around the NimBLE host stack for Bluetooth Low Energy (BLE) operations. It abstracts GATT database compilation, connection lifecycle tracking, and memory management. It features non-blocking, priority-based transmission queues (TX ring buffers) and thread-safe reception buffers (RX ring buffers) to decouple application logic from BLE stack execution.
+The `sys_ble` component implements a robust, asynchronous wrapper around the NimBLE host stack for Bluetooth Low Energy (BLE) operations. It abstracts GATT database compilation, connection lifecycle tracking, and memory management. It features non-blocking, priority-based transmission slots using `sys_tx_buff_t` ring buffers and thread-safe reception buffers (RX ring buffers) to decouple application logic from BLE stack execution.
 
 ### Directory Map
 ```
@@ -12,28 +12,36 @@ components/system/ble/
 ├── SYS_BLE.MD             # This documentation
 ├── sys_ble.c              # Core NimBLE host integrations and thread workers
 └── include/
-    └── sys_ble.h          # GATT configuration, queue, and API definitions
+    ├── sys_ble.h          # GATT configuration, TX/RX slot definitions, and API declarations
+    └── sys_ble_status_codes.h # BLE system owner and status codes definitions
 ```
 
 ---
 
 ## Architecture & Concept
 
-### Asynchronous Priority TX Slots
-To prevent blocking the calling thread during BLE packet transmission, `sys_ble` implements a priority queue slots system:
-* Up to 4 custom TX buffers (`MAX_TX_BUFFERS`) can be assigned to characteristics.
-* Outputs can use either split-free ring buffers (`RINGBUF_TYPE_NOSPLIT`) or byte ring buffers (`RINGBUF_TYPE_BYTEBUF`).
-* Transmissions support automatic packet header packaging (`auto_pack`) and priority scheduling levels to prioritize high-priority alerts over diagnostic debug prints.
+### Asynchronous TX Slots (sys_tx_buff_t)
+To prevent blocking the calling thread during BLE packet transmission, `sys_ble` implements priority-capable transmission slots:
+* Up to 3 custom TX buffers (`MAX_TX_BUFFERS = 3`) can be assigned per characteristic.
+* Transmit buffers use `sys_tx_buff_t` structures from `sys_buffers`, supporting both split-free ring buffers (`RINGBUF_TYPE_NOSPLIT_BUF`) and byte ring buffers (`RINGBUF_TYPE_BYTE_BUF`).
+* Transmissions support automatic packet header prepending (`tx_buff.header`) and can be sent as Notifications or Indications.
+
+### Dynamic Callback Event Routing
+BLE events (connect, disconnect, stack failure) trigger callback notifications via `SYS_BLE_CB`:
+```c
+SYS_BLE_CB(event_id, event_value, mask);
+```
+Submodules subscribe to events using `sys_ble_add_callback(...)`.
 
 ### Thread-Safe RX Queuing
 When data is written by a peer to a characteristic:
 1. The NimBLE callback writes the payload directly into the characteristic's dedicated RX ring buffer.
-2. The manager signals the registered FreeRTOS binary semaphore (`on_rx_semaphore`).
+2. The manager signals the registered FreeRTOS binary semaphore (`rx_sem`).
 3. The client application wakes up, reads the data using `sys_ble_char_rx_dequeue(...)`, and processes it.
 
 ---
 
-## Core Data Structures
+## Core Data Structures & Enums
 
 ### Service Configuration (sys_ble_svc_cfg_t)
 ```c
@@ -46,42 +54,65 @@ typedef struct {
 ### Characteristic Creation (sys_ble_char_create_t)
 ```c
 typedef struct {
-  sys_ble_char_cfg_t info; // Properties (UUID, read/write/notify flags, descriptor name)
-  size_t rx_buffer_size;   // Dedicated RX buffer allocation size
+  sys_ble_char_cfg_t info; // Properties (UUID, read/write/notify/indicate flags, descriptor name)
+  size_t rx_buffer_size;   // Dedicated RX ring buffer allocation size
 } sys_ble_char_create_t;
 ```
 
 ### TX Buffer Configuration (sys_ble_tx_buf_cfg_t)
 ```c
 typedef struct {
-  uint8_t buffer_id;           // Unique buffer identifier (0 to 3)
-  RingbufferType_t buff_type;  // RINGBUF_TYPE_NOSPLIT or RINGBUF_TYPE_BYTEBUF
-  size_t size;                 // Queue memory capacity (bytes)
-  bool auto_pack;              // Automatic item fragmentation/packaging
-  uint8_t header;              // Optional standard packet header ID
-  size_t item_size;            // Size of each transmission item (bytes) / only for autopack
-  uint8_t priority;            // Queue priority level (higher level sent first)
-  bool is_indication;          // Notify (false) or Indicate (true) transfer type
+  uint16_t buffer_id;      // Unique buffer slot identifier
+  size_t size;             // Ring buffer capacity (bytes)
+  bool is_indication;      // Notify (false) or Indicate (true) transfer mode
+  sys_tx_buff_t tx_buff;   // Embedded system buffer descriptor (ringbuf handle, type, header, item size)
 } sys_ble_tx_buf_cfg_t;
 ```
+
+### BLE Status (sys_ble_status_t)
+```c
+typedef struct {
+  bool is_connected;
+  uint16_t mtu_size;
+  uint32_t rx_overflow_count;
+} sys_ble_status_t;
+```
+
+### BLE Events (sys_ble_events_e)
+```c
+typedef enum sys_ble_events_e {
+  SYS_BLE_EVENT_CONNECT = 0,
+  SYS_BLE_EVENT_DISCONNECT,
+  SYS_BLE_EVENT_FAILURE,
+  SYS_BLE_EVENT_MAX
+} sys_ble_events_e;
+```
+
+---
+
+## Utility Macros
+
+* **`SYS_BLE_CB(event_id, event_value, mask)`**: Construct a `cb_event_t` with `CALLBACK_BLE` type, attach route mask, and post event to `sys_callback_trigger`.
 
 ---
 
 ## API Functions
 
 ### Initialization & Lifecycle APIs
-* **`sys_ble_init(callbacks)`**:
-  Initializes the underlying controller, registers connection/disconnection callbacks, and spawns the background BLE worker threads.
+* **`sys_ble_init()`**:
+  Initializes controller and NimBLE host stack, initializes RX/TX mutexes, and spawns background BLE worker tasks.
+* **`sys_ble_add_callback(on_event, route_mask)`**:
+  Registers an event route mask for BLE stack events (`SYS_BLE_EVENT_CONNECT`, `SYS_BLE_EVENT_DISCONNECT`, etc.).
 * **`sys_ble_database_sync()`**:
-  Compiles the temporary GATT services and characteristics database definitions and registers them live to the active NimBLE stack. Must be called after changing GATT layouts.
+  Compiles temporary GATT services and characteristics database definitions and registers them live to the active NimBLE stack. Must be called after changing GATT layouts.
 * **`sys_ble_get_status(out_status)`**:
-  Fetches MTU size, active connection state, RX overflow count telemetry, and the last error state.
+  Fetches MTU size, active connection state, and RX overflow count telemetry.
 
 ### GATT Service APIs
 * **`sys_ble_service_create(cfg)`**:
-  Declares a new service definition.
+  Declares a new GATT service definition.
 * **`sys_ble_service_remove(svc_uuid)`**:
-  Removes a service definition (and its children characteristics) from the registry.
+  Removes a service definition (and its child characteristics) from the registry.
 
 ### GATT Characteristic APIs
 * **`sys_ble_char_create(svc_uuid, cfg)`**:
@@ -97,4 +128,4 @@ typedef struct {
 * **`sys_ble_char_rx_dequeue(char_uuid, buffer, max_len, out_len)`**:
   Safely pulls incoming peer write data from the characteristic's RX ring buffer.
 * **`sys_ble_char_send(char_uuid, buffer_id, data, len, return_when_full)`**:
-  Queues data for transmission as a notification or indication. Blocks for up to 100ms if `return_when_full` is false.
+  Queues data for transmission into the specified TX ring buffer slot.

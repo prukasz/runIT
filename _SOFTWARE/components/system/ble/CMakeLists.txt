@@ -1,5 +1,7 @@
 idf_component_register(
     SRCS "sys_ble.c"
+         "sys_ble_stack.c"
     INCLUDE_DIRS "include"
-    REQUIRES esp_ringbuf a_ble_driver sys_device status utils callbacks
+                 "."
+    REQUIRES bt nvs_flash esp_ringbuf sys_device status utils callbacks sys_buffers
 )

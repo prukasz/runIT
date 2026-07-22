@@ -86,7 +86,13 @@ void _sta_push(const status_rep_t* item);
   } while (0)
 
 #define STA_R_ON_ERR(status) STA_X_ON_ERR(status, 1, 0)
-#define STA_P_ON_ERR(status) STA_X_ON_ERR(status, 0, 1)
+#define STA_P_ON_ERR(status)           \
+  do {                                 \
+    status_rep_t __sta_p_x = (status); \
+    if (__sta_p_x.e_code != 0) {       \
+      STA_P(__sta_p_x);                \
+    }                                  \
+  } while (0)
 #define STA_RP_ON_ERR(status) STA_X_ON_ERR(status, 1, 1)
 
 /* --- Handle / null-pointer checks (R, P configurable) --- */

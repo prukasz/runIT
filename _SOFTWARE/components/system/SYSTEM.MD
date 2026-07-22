@@ -11,7 +11,11 @@ components/system/
 ├── SYSTEM.MD             # This master architecture documentation
 ├── ble/                  # BLE Manager & NimBLE host abstraction
 │   └── SYS_BLE.MD        # BLE manager documentation
+├── callbacks/            # Dynamic event callback routing & execution queue
+│   └── SYS_CALLBACKS.MD  # Callback system documentation
 ├── error_handler/        # System-wide diagnostics & event handlers
+├── sys_buffers/          # Shared FreeRTOS ring buffer payload formatter
+│   └── SYS_BUFFERS.MD    # Buffer manager documentation
 ├── sys_device/           # Polymorphic central device registry
 │   └── SYS_DEVICE.MD     # Device manager documentation
 ├── sys_i2c/              # Physical I2C master bus routing & transactions
@@ -27,7 +31,7 @@ components/system/
 
 ## Architecture & Data Flow
 
-The diagram below illustrates how submodules in the `system` component isolate the high-level application code from the low-level physical device drivers and ESP-IDF stack.
+The diagram below illustrates how submodules in the `system` component isolate high-level application code from low-level physical device drivers and ESP-IDF stack.
 
 ```mermaid
 graph TD
@@ -42,6 +46,8 @@ graph TD
         sys_io[sys_io<br/>GPIO / Interrupts]
         sys_ble[sys_ble<br/>TX/RX Queues]
         sys_i2c[sys_i2c<br/>Master Bus Mgr]
+        sys_cb[callbacks<br/>Event Queue Task]
+        sys_buf[sys_buffers<br/>Ringbuffer Format]
     end
 
     subgraph DRV [Driver Adapter Layer]
@@ -73,7 +79,10 @@ graph TD
 
     sys_i2c -->|Probe / Transmit| idf_i2c
     sys_io -->|Pin operations| idf_gpio
+    sys_io -->|Trigger ISR events| sys_cb
+    sys_pwr -->|Trigger telemetry alerts| sys_cb
     sys_ble -->|Async Task| idf_ble
+    sys_ble -->|Format Packets| sys_buf
 ```
 
 ---
@@ -91,25 +100,36 @@ Acts as the central registry for all hardware modules present on the board.
 
 ### 2. I/O Manager ([sys_io](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/sys_io/SYS_IO.MD))
 Coordinates physical and expanded pin states.
-* **Abstract Addressing**: Translates high-level device ID and pin index offsets (e.g. ESP GPIO vs. TCA6424A expander pins) dynamically.
-* **Interrupt Routing**: Handles ISR configurations (ADC threshold window events and edge-trigger events).
+* **Abstract Addressing**: Translates high-level device ID and pin index offsets (e.g. ESP GPIO vs. expander pins) dynamically.
+* **Interrupt & Safety Locking**: Handles ISR configurations (`SYS_IO_CB`) and safety lock scopes (`WITH_PIN_UNLOCKED`).
 
 ### 3. Power Manager ([sys_power](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/sys_power/SYS_POWER.MD))
 Implements safety boundaries and telemetry collection.
-* **Power Budget Allocation**: Protects circuits against brownouts by tracking and limiting total regulator power allocation (`allocated_mW`).
-* **Safety Thresholds**: Lockable write-once configuration thresholds set at startup.
+* **Power Budget Allocation**: Protects circuits against brownouts by tracking total regulator power budget (`SYS_POWER_BUDGET_MW`).
+* **Safety Thresholds**: Lockable write-once configuration thresholds set at startup (`SYS_POWER_LIMIT_MV`, `SYS_POWER_LIMIT_MA`).
 
 ### 4. I2C Bus Manager ([sys_i2c](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/sys_i2c/SYS_I2C.MD))
-Coordinates shared communication buses (Bus 0 for internal circuits, Bus 1 for external ports).
+Coordinates shared communication buses (`SYS_I2C_BUS0` for internal circuits, `SYS_I2C_BUS1` for external ports).
 * **Fault Tolerance**: Automatic retries on timeout or response errors during read/write restart sequences.
-* **Polymorphic Device Registry**: Automatically sets transmission callbacks (`transmit` and `transmit_receive`) on target drivers.
+* **Polymorphic Device Registry**: Automatically sets transmission callbacks (`transmit` and `transmit_receive`) on target drivers via `sys_i2c_driver_header_t`.
 
 ### 5. BLE Asynchronous Manager ([sys_ble](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/ble/SYS_BLE.MD))
 Encapsulates NimBLE configurations.
-* **Non-Blocking Sends**: Queues outgoing indications/notifications into priority TX slots.
+* **Non-Blocking Sends**: Queues outgoing indications/notifications into priority TX slots (`sys_tx_buff_t`).
 * **Event Notifications**: Dequeues incoming GATT writes into RX ring buffers, waking client worker threads via semaphores.
 
-### 6. Error & Status Logger ([error_handler](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/error_handler/))
-Central endpoint for catching warnings and critical diagnostics.
-* Logs `status_rep_t` events.
-* Coordinates safety overrides and fallback modes when hardware protections trigger.
+### 6. Dynamic Callback Manager ([callbacks](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/callbacks/SYS_CALLBACKS.MD))
+Provides asynchronous ISR and thread-safe event queue processing.
+* Enqueues `io`, `pwr`, `ble`, or `own_func` events into a FreeRTOS static queue.
+* Dispatches queued events asynchronously inside `sys_cb_task`.
+
+### 7. Transmit Buffer Manager ([sys_buffers](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/sys_buffers/SYS_BUFFERS.MD))
+Formats FreeRTOS ring buffer packets into contiguous byte arrays.
+* Prepends header ID bytes to output buffer array frames.
+* Handles both `RINGBUF_TYPE_NOSPLIT` items and `RINGBUF_TYPE_BYTEBUF` payload packing.
+
+### 8. Error & Status Logger (`error_handler/`)
+Central endpoint for catching warnings and critical diagnostics (ignored for documentation for now).
+
+### 9. System Interface (`sys_interface/`)
+Decoder dispatcher for incoming packets (ignored for documentation for now).

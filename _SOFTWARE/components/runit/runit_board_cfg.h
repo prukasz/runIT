@@ -77,19 +77,19 @@ status_rep_t sys_ble_static_config() {
   sys_ble_char_create_t runit_chr_cfg_tx = {.info = {.uuid = SYS_BLE_CHR_RUNIT_TX, .is_notify = true, .desc = "runit TX"}, .rx_buffer_size = 0};
   STA_R_ON_ERR(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_tx));
 
-  sys_ble_tx_buf_cfg_t runit_buff_cfg_tx = {.buffer_id = 0, .buff_type = RINGBUF_TYPE_NOSPLIT, .size = 1024, .auto_pack = false, .header = 0, .priority = 1, .is_indication = false};
+  sys_ble_tx_buf_cfg_t runit_buff_cfg_tx = {.buffer_id = 0, .size = 1024, .is_indication = false, .tx_buff = {.type = RINGBUF_TYPE_NOSPLIT, .const_item_size = 0, .header = 0}};
   STA_R_ON_ERR(sys_ble_char_assign_tx_buffer(SYS_BLE_CHR_RUNIT_TX, &runit_buff_cfg_tx));
 
   sys_ble_char_create_t runit_chr_cfg_status = {.info = {.uuid = SYS_BLE_CHT_RUNIT_STATUS, .is_notify = true, .desc = "runit Status"}, .rx_buffer_size = 0};
   STA_R_ON_ERR(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_status));
 
-  sys_ble_tx_buf_cfg_t runit_buff_cfg_status = {.buffer_id = 0, .buff_type = RINGBUF_TYPE_BYTE_BUF, .size = 512, .auto_pack = true, .header = PACKET_HEADER_STATUS, .item_size = sizeof(status_rep_t), .priority = 1, .is_indication = false};
+  sys_ble_tx_buf_cfg_t runit_buff_cfg_status = {.buffer_id = 0, .size = 512, .is_indication = false, .tx_buff = {.type = RINGBUF_TYPE_BYTE_BUF, .const_item_size = sizeof(status_rep_t), .header = PACKET_HEADER_STATUS}};
   STA_R_ON_ERR(sys_ble_char_assign_tx_buffer(SYS_BLE_CHT_RUNIT_STATUS, &runit_buff_cfg_status));
 
   sys_ble_char_create_t runit_chr_cfg_logs = {.info = {.uuid = SYS_BLE_CHR_RUNIT_LOGS, .is_notify = true, .desc = "runit LOGS"}, .rx_buffer_size = 0};
   STA_R_ON_ERR(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_logs));
 
-  sys_ble_tx_buf_cfg_t runit_buff_cfg_logs = {.buffer_id = 0, .buff_type = RINGBUF_TYPE_NOSPLIT, .size = 2048, .auto_pack = false, .header = 0, .priority = 2, .is_indication = false};
+  sys_ble_tx_buf_cfg_t runit_buff_cfg_logs = {.buffer_id = 0, .size = 2048, .is_indication = false, .tx_buff = {.type = RINGBUF_TYPE_NOSPLIT, .const_item_size = 0, .header = 0}};
   STA_R_ON_ERR(sys_ble_char_assign_tx_buffer(SYS_BLE_CHR_RUNIT_LOGS, &runit_buff_cfg_logs));
 
   STA_R_ON_ERR(sys_ble_database_sync());
