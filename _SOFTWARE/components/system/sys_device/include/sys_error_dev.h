@@ -1,0 +1,26 @@
+#pragma once
+#include <stdint.h>
+
+#define SYS_DEVICE_OWNER_MAP(X)                                           \
+  X(OWNER_SYS_DEVICE_BASE, 0xA100, "DEVICE_BASE")                         \
+  X(OWNER_SYS_DEVICE_INSTALL, 0xA101, "OWNER_SYS_DEVICE_INSTALL")         \
+  X(OWNER_SYS_DEVICE_UNINSTALL, 0xA102, "OWNER_SYS_DEVICE_UNINSTALL")     \
+  X(OWNER_SYS_DEVICE_RESET, 0xA103, "OWNER_SYS_DEVICE_RESET")             \
+  X(OWNER_SYS_DEVICE_GET_BY_ID, 0xA104, "OWNER_SYS_DEVICE_GET_BY_ID")     \
+  X(OWNER_SYS_DEVICE_SUSPEND, 0xA105, "OWNER_SYS_DEVICE_SUSPEND")         \
+  X(OWNER_SYS_DEVICE_RESUME, 0xA106, "OWNER_SYS_DEVICE_RESUME")           \
+  X(OWNER_SYS_DEVICE_SUSPEND_ALL, 0xA107, "OWNER_SYS_DEVICE_SUSPEND_ALL") \
+  X(OWNER_SYS_DEVICE_RESUME_ALL, 0xA108, "OWNER_SYS_DEVICE_RESUME_ALL")   \
+  X(OWNER_SYS_DEVICE_FREEZE, 0xA109, "OWNER_SYS_DEVICE_FREEZE")           \
+  X(OWNER_SYS_DEVICE_SYNC, 0xA10A, "OWNER_SYS_DEVICE_SYNC")               \
+  X(OWNER_SYS_DEVICE_FREEZE_ALL, 0xA10B, "OWNER_SYS_DEVICE_FREEZE_ALL")   \
+  X(OWNER_SYS_DEVICE_SYNC_ALL, 0xA10C, "OWNER_SYS_DEVICE_SYNC_ALL")
+
+#define SYS_ERROR_DEV_MAP(X) \
+    X(ERR_DEV_NO_HANDLE, struct { uint8_t dev_id; }) \
+    X(ERR_DEV_NOT_FOUND, struct { uint8_t dev_id; }) \
+    X(ERR_DEV_ALREADY_EXIST, struct { uint8_t dev_id; }) \
+    X(ERR_DEV_FEATURE_UNAVAILABLE, struct { uint8_t dev_id; uint8_t contract_id; uint8_t feature_id; }) \
+    X(ERR_DEV_SUSPENDED, struct { uint8_t dev_id; }) \
+    X(ERR_DEV_NOT_INSTALLED, struct { uint8_t dev_id; }) \
+    X(ERR_DEV_INSTALL_FAILED, struct { uint8_t dev_id; })

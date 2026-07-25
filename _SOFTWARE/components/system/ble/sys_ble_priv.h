@@ -81,49 +81,39 @@ void sys_ble_free_char_node(sys_ble_char_node_t* c);
 void sys_ble_free_compiled_gatt_db(struct ble_gatt_svc_def* svcs);
 
 /* Stack functions implemented in sys_ble_stack.c */
-status_rep_t sys_ble_stack_init(struct ble_gatt_svc_def* svcs);
-status_rep_t sys_ble_send_raw(uint16_t conn_handle, uint16_t chr_val_handle, const uint8_t* data, size_t len, bool indicate);
-status_rep_t sys_ble_reconfigure_advertising(void);
-status_rep_t sys_ble_advertising_init(void);
-status_rep_t populate_svc_def(struct ble_gatt_svc_def* svc_def, const sys_ble_svc_node_t* s);
-status_rep_t sys_ble_set_name(const char* name);
+err_h sys_ble_stack_init(struct ble_gatt_svc_def* svcs);
+err_h sys_ble_send_raw(uint16_t conn_handle, uint16_t chr_val_handle, const uint8_t* data, size_t len, bool indicate);
+err_h sys_ble_reconfigure_advertising(void);
+err_h sys_ble_advertising_init(void);
+err_h populate_svc_def(struct ble_gatt_svc_def* svc_def, const sys_ble_svc_node_t* s);
+err_h sys_ble_set_name(const char* name);
 
 
-#define CHECK_BLE_CALL_X(nimble_call, R, P)                                                       \
+#define CHECK_BLE_CALL(nimble_call)                                                               \
   do {                                                                                            \
     int __rc = (nimble_call);                                                                     \
     if (__rc != 0) {                                                                              \
       ESP_LOGE(__FILE_NAME__, "%s: NimBLE call failed '%s' -> %d", __func__, #nimble_call, __rc); \
-      status_rep_t __sta_err = STA_C(ERR_BLE_STACK_FAILED, OWNER, __rc, STATUS_PAYLOAD_UNKNOWN);  \
-      _STA_EMIT(__sta_err, (R), (P));                                                             \
+      SE_RET_ERR(ERR_BLE_STACK_FAILED, __rc);                                                        \
     }                                                                                             \
   } while (0)
 
-#define CHECK_BLE_CALL_R(nimble_call) CHECK_BLE_CALL_X(nimble_call, 1, 0)
-#define CHECK_BLE_CALL_RP(nimble_call) CHECK_BLE_CALL_X(nimble_call, 1, 1)
-
-#define CHECK_BLE_CHAR_FIND_X(var, uuid, mutex_unlock, R, P)                                           \
+#define CHECK_BLE_CHAR_FIND(var, uuid, mutex_unlock)                                                  \
   do {                                                                                                 \
     (var) = sys_ble_find_char_by_uuid(uuid);                                                          \
     if ((var) == NULL) {                                                                               \
       ESP_LOGE(__FILE_NAME__, "%s: Characteristic UUID 0x%04X not found", __func__, (uuid));          \
       if (mutex_unlock) R_MUTEX_UNLOCK(sys_ble_mutex);                                                \
-      status_rep_t __sta_err = STA_C(ERR_NOT_FOUND, OWNER, (uuid), STATUS_PAYLOAD_BLE_CHAR);          \
-      _STA_EMIT(__sta_err, (R), (P));                                                                  \
+      SE_RET_ERR(ERR_BASE_NOT_FOUND, uuid);                                                              \
     }                                                                                                  \
   } while (0)
 
-#define CHECK_BLE_CHAR_FIND_R(var, uuid, mutex_unlock) CHECK_BLE_CHAR_FIND_X(var, uuid, mutex_unlock, 1, 0)
-
-#define CHECK_BLE_SVC_FIND_X(var, uuid, mutex_unlock, R, P)                                            \
+#define CHECK_BLE_SVC_FIND(var, uuid, mutex_unlock)                                                   \
   do {                                                                                                 \
     (var) = sys_ble_find_svc_by_uuid(uuid);                                                           \
     if ((var) == NULL) {                                                                               \
       ESP_LOGE(__FILE_NAME__, "%s: Service UUID 0x%04X not found", __func__, (uuid));                 \
       if (mutex_unlock) R_MUTEX_UNLOCK(sys_ble_mutex);                                                \
-      status_rep_t __sta_err = STA_C(ERR_NOT_FOUND, OWNER, (uuid), STATUS_PAYLOAD_BLE_SVC);           \
-      _STA_EMIT(__sta_err, (R), (P));                                                                  \
+      SE_RET_ERR(ERR_BASE_NOT_FOUND, uuid);                                                              \
     }                                                                                                  \
   } while (0)
-
-#define CHECK_BLE_SVC_FIND_R(var, uuid, mutex_unlock) CHECK_BLE_SVC_FIND_X(var, uuid, mutex_unlock, 1, 0)

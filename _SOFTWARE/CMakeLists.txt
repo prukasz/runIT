@@ -6,11 +6,9 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 # Point directly to the folders in your project root
 list(APPEND EXTRA_COMPONENT_DIRS 
-    "components/drivers"
     "components/system"
     "components/devices"
     "components/runit"
-    "components/drivers"
     "components/utils"
     "components/status"
     "components/codecs"

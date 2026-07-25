@@ -46,11 +46,9 @@ typedef enum callback_type_e {
 
 ### Callback Header (sys_callback_head_t)
 ```c
-typedef struct sys_callback_t {
-  uint16_t callback_type;
-  struct {
-    uint16_t route_mask : 16;
-  } route_to;
+typedef struct sys_callback_head_t {
+  uint16_t callback_type; /* callback_type_e value */
+  uint16_t route_mask;    /* Bitmask for destination routing */
 } sys_callback_head_t;
 ```
 
@@ -75,10 +73,12 @@ typedef struct ble_event_t {
   int32_t value;
 } ble_event_t;
 
-typedef struct own_funct_t {
-  status_rep_t (*own_func)(void* device_handle, struct cb_event_t* event);
+typedef struct own_func_t {
+  err_h (*own_func)(void* device_handle, struct cb_event_t* event);
   void* device_handle;
-} own_funct_t;
+} own_func_t;
+
+typedef own_func_t own_funct_t;
 ```
 
 ### Unified Callback Event (cb_event_t)
@@ -88,8 +88,8 @@ typedef struct cb_event_t {
   union {
     io_event_t io;
     pwr_event_t pwr;
-    own_funct_t own_func;
     ble_event_t ble;
+    own_func_t own_func;
   } event;
 } cb_event_t;
 ```
@@ -113,5 +113,5 @@ typedef struct cb_event_t {
   Allocates the static FreeRTOS event queue (`CALLBACK_QUEUE_LEN = 16`) and launches the dedicated `sys_cb_task` background worker thread.
 
 ### Event Triggering
-* **`sys_callback_trigger(cb_event_t* event)`**:
+* **`sys_callback_trigger(const cb_event_t* event)`**:
   Enqueues an event object into the callback processing queue. Safe to call from both task context and ISR context.

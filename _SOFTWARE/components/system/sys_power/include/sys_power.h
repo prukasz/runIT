@@ -1,7 +1,7 @@
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>
-#include "status.h"
+#include "sys_error.h"
 
 #include "sys_callbacks.h"
 
@@ -18,7 +18,7 @@ uint32_t sys_power_get_budget_mw(void);
     cb_event_t __cb_evt;                                                      \
     memset(&__cb_evt, 0, sizeof(__cb_evt));                                   \
     __cb_evt.head.callback_type = CALLBACK_PWR;                               \
-    __cb_evt.head.route_to.route_mask = (_route_mask);                        \
+    __cb_evt.head.route_mask = (_route_mask);                        \
     __cb_evt.event.pwr.device_id = (_ctx)->base.device_id;                    \
     __cb_evt.event.pwr.channel_id = (_chan);                                  \
     __cb_evt.event.pwr.trigger_event = (_event);                              \
@@ -26,7 +26,7 @@ uint32_t sys_power_get_budget_mw(void);
     sys_callback_trigger(&__cb_evt);                                          \
   } while (0)
 
-status_rep_t sys_power_set_limits(uint32_t max_mv, uint32_t max_ma, uint32_t max_mw);
+err_h sys_power_set_limits(uint32_t max_mv, uint32_t max_ma, uint32_t max_mw);
 
 typedef enum sys_power_events_e {
   SYS_PWR_EVENT_NONE = 0,
@@ -43,22 +43,22 @@ typedef enum sys_power_events_e {
  * ========================================================================== */
 
 typedef struct sys_power_vreg_contract {
-  status_rep_t (*set_enable)(void* device_handle, bool state);
-  status_rep_t (*set_voltage)(void* device_handle, uint32_t voltage_mV);
-  status_rep_t (*set_current)(void* device_handle, uint32_t current_mA);
-  status_rep_t (*add_callback)(void* device_handle, sys_power_events_e on_event, uint16_t route_mask);
+  err_h (*set_enable)(void* device_handle, bool state);
+  err_h (*set_voltage)(void* device_handle, uint32_t voltage_mV);
+  err_h (*set_current)(void* device_handle, uint32_t current_mA);
+  err_h (*add_callback)(void* device_handle, sys_power_events_e on_event, uint16_t route_mask);
 } sys_power_vreg_contract;
 
 typedef struct sys_power_monitor_contract {
-  status_rep_t (*get_voltage)(void* device_handle, uint8_t channel, int32_t* out_mV);
-  status_rep_t (*get_current)(void* device_handle, uint8_t channel, int32_t* out_mA);
-  status_rep_t (*add_callback)(void* device_handle, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, uint16_t route_mask);
+  err_h (*get_voltage)(void* device_handle, uint8_t channel, int32_t* out_mV);
+  err_h (*get_current)(void* device_handle, uint8_t channel, int32_t* out_mA);
+  err_h (*add_callback)(void* device_handle, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, uint16_t route_mask);
 } sys_power_monitor_contract;
 
 typedef struct sys_power_usb_pd_contract {
-  status_rep_t (*set_settings)(void* device_handle, uint32_t voltage_mV, uint32_t current_mA);
-  status_rep_t (*list_options)(void* device_handle);
-  status_rep_t (*get_limits)(void* device_handle, uint32_t* out_mV, uint32_t* out_mA);
+  err_h (*set_settings)(void* device_handle, uint32_t voltage_mV, uint32_t current_mA);
+  err_h (*list_options)(void* device_handle);
+  err_h (*get_limits)(void* device_handle, uint32_t* out_mV, uint32_t* out_mA);
 } sys_power_usb_pd_contract;
 
 /* ========================================================================== *
@@ -66,25 +66,25 @@ typedef struct sys_power_usb_pd_contract {
  * ========================================================================== */
 
 // --- Rejestracja (Używane przez Adaptery) ---
-status_rep_t sys_power_register_vreg(uint8_t device_id, void* handle, const sys_power_vreg_contract* contract);
-status_rep_t sys_power_register_monitor(uint8_t device_id, void* handle, const sys_power_monitor_contract* contract);
-status_rep_t sys_power_register_usb_pd(uint8_t device_id, void* handle, const sys_power_usb_pd_contract* contract);
+err_h sys_power_register_vreg(uint8_t device_id, void* handle, const sys_power_vreg_contract* contract);
+err_h sys_power_register_monitor(uint8_t device_id, void* handle, const sys_power_monitor_contract* contract);
+err_h sys_power_register_usb_pd(uint8_t device_id, void* handle, const sys_power_usb_pd_contract* contract);
 
-status_rep_t sys_power_unregister(uint8_t device_id);
-status_rep_t sys_power_budget_update_source(uint32_t max_mV, uint32_t max_mA);
+err_h sys_power_unregister(uint8_t device_id);
+err_h sys_power_budget_update_source(uint32_t max_mV, uint32_t max_mA);
 
 // --- VREG API ---
-status_rep_t sys_vreg_set_enable(uint8_t device_id, bool state);
-status_rep_t sys_vreg_set_voltage(uint8_t device_id, uint32_t voltage_mV);
-status_rep_t sys_vreg_set_current(uint8_t device_id, uint32_t current_mA);
-status_rep_t sys_vreg_add_callback(uint8_t device_id, sys_power_events_e on_event, uint16_t route_mask);
+err_h sys_vreg_set_enable(uint8_t device_id, bool state);
+err_h sys_vreg_set_voltage(uint8_t device_id, uint32_t voltage_mV);
+err_h sys_vreg_set_current(uint8_t device_id, uint32_t current_mA);
+err_h sys_vreg_add_callback(uint8_t device_id, sys_power_events_e on_event, uint16_t route_mask);
 
 // --- Monitor API ---
-status_rep_t sys_power_monitor_get_voltage(uint8_t device_id, uint8_t channel, int32_t* out_mV);
-status_rep_t sys_power_monitor_get_current(uint8_t device_id, uint8_t channel, int32_t* out_mA);
-status_rep_t sys_power_monitor_add_callback(uint8_t device_id, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, uint16_t route_mask);
+err_h sys_power_monitor_get_voltage(uint8_t device_id, uint8_t channel, int32_t* out_mV);
+err_h sys_power_monitor_get_current(uint8_t device_id, uint8_t channel, int32_t* out_mA);
+err_h sys_power_monitor_add_callback(uint8_t device_id, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, uint16_t route_mask);
 
 // --- USB PD API ---
-status_rep_t sys_power_usb_pd_set(uint8_t device_id, uint32_t voltage_mV, uint32_t current_mA);
-status_rep_t sys_power_usb_pd_list(uint8_t device_id);
-status_rep_t sys_power_usb_pd_get_limits(uint8_t device_id, uint32_t* out_mV, uint32_t* out_mA);
+err_h sys_power_usb_pd_set(uint8_t device_id, uint32_t voltage_mV, uint32_t current_mA);
+err_h sys_power_usb_pd_list(uint8_t device_id);
+err_h sys_power_usb_pd_get_limits(uint8_t device_id, uint32_t* out_mV, uint32_t* out_mA);

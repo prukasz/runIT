@@ -1,20 +1,22 @@
 #pragma once
-#include "status.h"
+#include "sys_error.h"
 #include "sys_io.h"
+
+/**
+ * @brief Configuration for INA3221 Current/Voltage Monitor device.
+ */
+typedef struct d_ina3221_cfg_t {
+  uint8_t device_id;
+  bool i2c_bus;
+  uint8_t i2c_addr;
+  sys_io_pin_ref_t crit_pin;
+  sys_io_pin_ref_t warn_pin;
+} d_ina3221_cfg_t;
 
 /**
  * @brief Initialize and register the INA3221 Current/Voltage Monitor device.
  *
- * @param device_id Unique ID for this device in the sys_device manager
- * @param i2c_bus I2C bus number (0 or 1)
- * @param i2c_addr I2C address of the INA3221 (typically 0x40 to 0x43)
- * @param crit_io_device System device ID of the GPIO controlling Critical Alert (0xFF if none)
- * @param crit_io_num Pin number of the Critical Alert pin
- * @param crit_io_mode GPIO mode to initialize Critical Alert pin into
- * @param warn_io_device System device ID of the GPIO controlling Warning Alert (0xFF if none)
- * @param warn_io_num Pin number of the Warning Alert pin
- * @param warn_io_mode GPIO mode to initialize Warning Alert pin into
- *
- * @return status_rep_t Status of the registration
+ * @param cfg Configuration struct
+ * @return err_h Status of the registration
  */
-status_rep_t d_ina3221_create(uint8_t device_id, bool i2c_bus, uint8_t i2c_addr, uint8_t crit_io_device, sys_io_pin_num_t crit_io_num, sys_io_mode_e crit_io_mode, uint8_t warn_io_device, sys_io_pin_num_t warn_io_num, sys_io_mode_e warn_io_mode);
+err_h d_ina3221_create(const d_ina3221_cfg_t* cfg);

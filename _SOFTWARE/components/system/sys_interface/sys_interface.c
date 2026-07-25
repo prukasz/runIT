@@ -1,32 +1,34 @@
 #include "sys_interface.h"
 #include "dec_sys.h"
-#include "status.h"
+#include "sys_error.h"
 
-status_rep_t convert_to_packet(const uint8_t* data, size_t len, void* packet, size_t packet_size) {
+#undef OWNER
+#define OWNER OWNER_SYS_INTERFACE_DECODE
+
+err_h convert_to_packet(const uint8_t* data, size_t len, void* packet, size_t packet_size) {
   if (len < packet_size) {
-    return STA_C(ERR_INVALID_SIZE, OWNER_SYS_INTERFACE_DECODE, len, STATUS_PAYLOAD_UNKNOWN);
+    SE_RET_ERR(ERR_INVALID_VAL_UI32, (uint32_t)len, (uint32_t)packet_size, UINT32_MAX);
   }
   memcpy(packet, data, packet_size);
-  return STA_OK;
+  return NULL;
 }
 
 #define DECODE_CASE(header, packet_type, decoder_func)                                     \
   case header: {                                                                           \
     packet_type packet;                                                                    \
-    status_rep_t err = convert_to_packet(data + 1, len - 1, &packet, sizeof(packet_type)); \
-    if (err.e_code != 0) return err;                                                       \
+    err_h err = convert_to_packet(data + 1, len - 1, &packet, sizeof(packet_type)); \
+    if (SE_IS_ERR(err)) return err;                                                           \
     return decoder_func(&packet);                                                          \
   }
 
-status_rep_t sys_interface_decode(uint8_t* data, size_t len) {
+err_h sys_interface_decode(uint8_t* data, size_t len) {
   if (len == 0) {
-    return STA_C(ERR_INVALID_SIZE, OWNER_SYS_INTERFACE_DECODE, len, STATUS_PAYLOAD_UNKNOWN);
+    SE_RET_ERR(ERR_INVALID_VAL_UI32, 0, 1, UINT32_MAX);
   }
 
   switch (data[0]) {
     SYS_PACKET_LIST(DECODE_CASE)
     default:
-      return STA_C(ERR_NOT_FOUND, OWNER_SYS_INTERFACE_DECODE, data[0], STATUS_PAYLOAD_UNKNOWN);
+      SE_RET_ERR(ERR_BASE_NOT_FOUND, data[0]);
   }
 }
-

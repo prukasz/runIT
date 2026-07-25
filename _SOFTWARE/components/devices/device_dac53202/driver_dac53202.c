@@ -12,7 +12,7 @@ static const char* TAG = __FILE_NAME__;
 #define DAC53202_REG_DAC_CH0_DATA   0x1C
 #define DAC53202_REG_DAC_CH1_DATA   0x1F
 
-#define CHECK_HANDLE(h) do { if (!(h)) return ESP_ERR_INVALID_ARG; } while(0)
+#define CHECK_DRV_HANDLE(h) do { if (!(h)) return ESP_ERR_INVALID_ARG; } while(0)
 
 static esp_err_t _dac53202_write_reg(dac53202_handle_t handle, uint8_t reg, uint16_t data)
 {
@@ -45,14 +45,14 @@ void dac53202_delete(dac53202_handle_t handle)
 
 esp_err_t dac53202_preset_cfg(dac53202_handle_t handle, uint8_t channel_mask, uint8_t power_on_mask)
 {
-  CHECK_HANDLE(handle);
+  CHECK_DRV_HANDLE(handle);
   handle->common_config = (channel_mask << 8) | power_on_mask;
   return _dac53202_write_reg(handle, DAC53202_REG_COMMON_CONFIG, handle->common_config);
 }
 
 esp_err_t dac53202_set_voltage_raw(dac53202_handle_t handle, uint8_t channel_mask, uint16_t raw_value)
 {
-  CHECK_HANDLE(handle);
+  CHECK_DRV_HANDLE(handle);
 
   if (channel_mask & 0x01) {
     handle->channel_raw_value[0] = raw_value;
@@ -70,7 +70,7 @@ esp_err_t dac53202_set_voltage_raw(dac53202_handle_t handle, uint8_t channel_mas
 
 esp_err_t dac53202_set_voltage_mv(dac53202_handle_t handle, uint8_t channel_mask, uint16_t voltage_mv)
 {
-  CHECK_HANDLE(handle);
+  CHECK_DRV_HANDLE(handle);
   
   if (voltage_mv > DAC53202_VREF_MV) {
     voltage_mv = DAC53202_VREF_MV;
@@ -84,8 +84,8 @@ esp_err_t dac53202_set_voltage_mv(dac53202_handle_t handle, uint8_t channel_mask
 
 esp_err_t dac53202_get_voltage_mv(dac53202_handle_t handle, uint8_t channel, uint16_t *voltage_mv)
 {
-  CHECK_HANDLE(handle);
-  CHECK_HANDLE(voltage_mv);
+  CHECK_DRV_HANDLE(handle);
+  CHECK_DRV_HANDLE(voltage_mv);
   if (channel > 1) return ESP_ERR_INVALID_ARG;
 
   uint16_t raw_value_12bit = handle->channel_raw_value[channel] >> 4;

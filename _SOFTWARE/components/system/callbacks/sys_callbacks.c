@@ -36,45 +36,43 @@ static void sys_cb_task(void* pvParameters) {
   }
 }
 
-status_rep_t sys_callbacks_init(void) {
+err_h sys_callbacks_init(void) {
   if (s_callback_queue != NULL) {
-    return STA_OK;
+    return NULL;
   }
 
   s_callback_queue = xQueueCreateStatic(CALLBACK_QUEUE_LEN, sizeof(cb_event_t), s_callback_queue_storage, &s_callback_queue_buffer);
-  if (!s_callback_queue) {
-    return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_UNKNOWN);
-  }
+  SE_CHECK_IF_ALLOCATED(s_callback_queue);
 
   R_TASK_START_ON_CORE(s_callback_task_handle, sys_cb_task, NULL, 5, 0);
 
   ESP_LOGI(TAG, "Callback system initialized successfully");
-  return STA_OK;
+  return NULL;
 }
 
-status_rep_t sys_callback_trigger(cb_event_t* event) {
+err_h sys_callback_trigger(const cb_event_t* event) {
   if (!event) {
-    return STA_C(ERR_INVALID_ARG, OWNER, 0, STATUS_PAYLOAD_UNKNOWN);
+    SE_RET_ERR(ERR_INVALID_VAL_UI32, 0, 1, UINT32_MAX);
   }
 
   if (!s_callback_queue) {
-    return STA_C(ERR_INVALID_STATE, OWNER, 0, STATUS_PAYLOAD_UNKNOWN);
+    SE_RET_ERR(ERR_BASE_INVALID_STATE, 0);
   }
 
   BaseType_t in_isr = xPortInIsrContext();
   if (in_isr) {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     if (xQueueSendFromISR(s_callback_queue, event, &xHigherPriorityTaskWoken) != pdTRUE) {
-      return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_UNKNOWN);
+      SE_RET_ERR(ERR_BASE_NO_MEM, 0);
     }
     if (xHigherPriorityTaskWoken) {
       portYIELD_FROM_ISR();
     }
   } else {
     if (xQueueSend(s_callback_queue, event, portMAX_DELAY) != pdTRUE) {
-      return STA_C(ERR_NO_MEM, OWNER, 0, STATUS_PAYLOAD_UNKNOWN);
+      SE_RET_ERR(ERR_BASE_NO_MEM, 0);
     }
   }
 
-  return STA_OK;
+  return NULL;
 }

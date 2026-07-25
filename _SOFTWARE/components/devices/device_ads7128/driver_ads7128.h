@@ -11,14 +11,6 @@
 
 //**********************************************************************************
 //
-// Function prototypes
-//
-//**********************************************************************************
-
-
-
-//**********************************************************************************
-//
 // Device commands
 //
 //**********************************************************************************
@@ -2044,131 +2036,127 @@
 #define OP_CODE_CONTINUOUS_REGISTER_READ                ((uint8_t) 0x30)
 #define OP_CODE_CONTINUOUS_REGISTER_WRITE               ((uint8_t) 0x28)
 
+//**********************************************************************************
+//
+// Driver types
+//
+//**********************************************************************************
+
+#define ADS7128_CH_COUNT 8
+#define ADS7128_CH_MASK_ALL ((uint8_t)0xFF)
+#define ADS7128_MAX_CODE ((uint16_t)0x0FFF)
+
+/* Region watched by the digital window comparator (EVENT_RGN bit of a channel) */
 typedef enum {
-    ALERT_MODE_OUT_OF_BAND = 0,
-    ALERT_MODE_IN_BAND     = 1,
-} ads7128_alert_mode_t;
+    ADS7128_ALERT_OUT_OF_BAND = 0,  // flag set below the low or above the high threshold
+    ADS7128_ALERT_IN_BAND = 1,      // flag set while the code sits between both thresholds
+} ads7128_alert_region_e;
+
+/* Conversion mode the chip is running in.
+ * The window comparator only evaluates codes that the ADC actually converts, so
+ * the driver keeps the chip in autonomous mode for as long as any alert is armed
+ * and falls back to manual (host-triggered) conversions otherwise. */
+typedef enum {
+    ADS7128_CONV_MANUAL = 0,      // host starts every conversion, channel from MANUAL_CHID
+    ADS7128_CONV_AUTONOMOUS = 1,  // device sequences AUTO_SEQ_CH_SEL on its own clock
+} ads7128_conv_mode_e;
+
+/* Window comparator settings of a single channel. Thresholds are raw 12-bit
+ * codes; hysteresis and event_count are the raw 4-bit register fields. */
+typedef struct {
+    bool enabled;         // route this channel to the ALERT pin (ALERT_CH_SEL)
+    uint16_t high_th;     // 12-bit high threshold, 0xFFF disables the high side
+    uint16_t low_th;      // 12-bit low threshold, 0x000 disables the low side
+    uint8_t hysteresis;   // 4-bit, applied as [hysteresis, 000b] on both thresholds
+    uint8_t event_count;  // 4-bit, alert after n+1 consecutive violations
+    ads7128_alert_region_e region;
+} ads7128_alert_cfg_t;
+
+/* Snapshot of the three event flag registers */
+typedef struct {
+    uint8_t any;   // EVENT_FLAG, read-only OR of the two below
+    uint8_t high;  // EVENT_HIGH_FLAG
+    uint8_t low;   // EVENT_LOW_FLAG
+} ads7128_event_flags_t;
 
 typedef struct {
-    uint8_t rms_en :1;
-    uint8_t crc_en :1;
-    uint8_t stats_en :1;
-    uint8_t dwc_en :1;
-    uint8_t cnvst :1;
-    uint8_t ch_rst :1;
-    uint8_t cal :1;
-    uint8_t rst :1;
-} ads_config_t;
+    sys_i2c_driver_header_t header;  // MUST be first: sys_i2c casts the handle to it
 
-typedef struct {
-    uint8_t h_thres_lsb : 4;
-    uint8_t hist : 4;
-} ch_histeresis_config_t;
+    /* Shadow of the chip configuration, replayed by ads_restore_state() */
+    uint8_t seq_ch_mask;      // AUTO_SEQ_CH_SEL: channels sampled in autonomous mode
+    uint8_t alert_ch_mask;    // ALERT_CH_SEL: channels driving the ALERT pin
+    uint8_t event_rgn;        // EVENT_RGN: 1 = in-band alert for that channel
+    uint8_t osr;              // OSR_CFG: oversampling ratio, one of OSR_x
+    uint8_t clk_div;          // OPMODE_CFG: autonomous sampling rate, 0..15
+    bool low_power_osc;       // OPMODE_CFG: OSC_SEL
+    bool alert_push_pull;     // ALERT_PIN_CFG: ALERT_DRIVE
+    bool alert_active_high;   // ALERT_PIN_CFG: ALERT_LOGIC
+    ads7128_alert_cfg_t alerts[ADS7128_CH_COUNT];
 
-typedef struct {
-    uint8_t l_thres_lsb : 4;
-    uint8_t event_cnt : 4;
-} ch_event_count_config_t;
-
-typedef struct {
-    ch_histeresis_config_t histeresis_config;
-    uint8_t h_thres_msb;
-
-    ch_event_count_config_t event_count_config;
-    uint8_t l_thres_msb;
-
-    ads7128_alert_mode_t mode;  // Warunek wyzwolenia przerwania
-    bool route_to_alert_pin;  // Czy alert ma być sygnalizowany na pinie ALERT
-} ads7128_ch_alert_config_t;
-
-typedef struct {
-    // 1. INHERITANCE: Klasa bazowa na samym początku!
-    sys_i2c_driver_header_t header;
-    
-    ads_config_t config;
-
-    uint16_t recent_analog_values[8];
-    ads7128_ch_alert_config_t alert_configs[8];
-
-    struct {
-        uint8_t ch0 : 1;
-        uint8_t ch1 : 1;
-        uint8_t ch2 : 1;
-        uint8_t ch3 : 1;
-        uint8_t ch4 : 1;
-        uint8_t ch5 : 1;
-        uint8_t ch6 : 1;
-        uint8_t ch7 : 1;
-    } recent_gpi_values;
-
-    struct {
-        uint8_t ch0 : 1;
-        uint8_t ch1 : 1;
-        uint8_t ch2 : 1;
-        uint8_t ch3 : 1;
-        uint8_t ch4 : 1;
-        uint8_t ch5 : 1;
-        uint8_t ch6 : 1;
-        uint8_t ch7 : 1;
-    } pin_cfg;       // Analog (0) / Digital (1)
-
-    struct {
-        uint8_t ch0 : 1;
-        uint8_t ch1 : 1;
-        uint8_t ch2 : 1;
-        uint8_t ch3 : 1;
-        uint8_t ch4 : 1;
-        uint8_t ch5 : 1;
-        uint8_t ch6 : 1;
-        uint8_t ch7 : 1;
-    } gpio_cfg;      // Input / Output 
-
-    struct {
-        uint8_t gpio_cfg_to_update         : 1;
-        uint8_t pin_cfg_to_update          : 1;
-        uint8_t config_to_update           : 1;
-        uint8_t alert_config_to_update     : 1;
-        uint8_t reserved                   : 4;
-    } to_update;
-
-    struct {
-        uint8_t ch0 : 1;
-        uint8_t ch1 : 1;
-        uint8_t ch2 : 1;
-        uint8_t ch3 : 1;
-        uint8_t ch4 : 1;
-        uint8_t ch5 : 1;
-        uint8_t ch6 : 1;
-        uint8_t ch7 : 1;
-    } read_analog;
-
-    volatile bool alert_triggered;
-
-    void (*callbacks[8])(void* arg);
-    void* callback_args[8];
-    TaskHandle_t task_handle;
+    ads7128_conv_mode_e conv_mode;            // mode currently programmed into the chip
+    uint16_t recent_codes[ADS7128_CH_COUNT];  // last 12-bit code read per channel
 } ads_data_t;
 
 typedef ads_data_t* ads_handle_t;
 
+//**********************************************************************************
+//
+// Function prototypes
+//
+//**********************************************************************************
+
 /**
- * @brief (Faza 1) Initialize a new ADS7128 device descriptor configuration
- * @param i2c_bus_num Numer magistrali I2C (0 lub 1)
+ * @brief (Phase 1) Allocate a device descriptor with the power-up defaults
+ * @param i2c_bus_num I2C bus number (0 or 1)
  */
 ads_handle_t ads_new(uint8_t i2c_address, bool i2c_bus_num);
 
+void ads_delete(ads_handle_t handle);
+
 /**
- * @brief (Faza 2) Register to I2C manager and start RTOS task
+ * @brief (Phase 2) Reset the chip and push the shadow configuration to it
  */
 esp_err_t ads_start(ads_handle_t handle);
 
-esp_err_t ads_set_cfg(ads_handle_t handle, uint8_t cfg, bool update_now);
-esp_err_t ads_set_alert_cfg(ads_handle_t handle, uint8_t channel, uint16_t h_thres, uint16_t l_thres, ads7128_alert_mode_t mode, bool route_to_alert_pin, bool update_now);
-esp_err_t ads_set_pin_cfg(ads_handle_t handle, uint8_t pin_cfg, bool update_now);
-esp_err_t ads_set_gpio_cfg(ads_handle_t handle, uint8_t gpio_cfg, bool update_now);
-void p_adc_expander_intr_pin_callback(void* arg);
-esp_err_t ads_analog_ch_read(ads_handle_t handle, uint8_t pin_mask, bool update_now);
-esp_err_t ads_register_alert_callback(ads_handle_t handle, uint8_t pin_mask, void (*cb)(void*), void* arg);
-void ads_delete(ads_handle_t handle);
-esp_err_t ads_read_event_flags(ads_handle_t handle, uint8_t* out_flags);
+/**
+ * @brief Software-reset the chip (GENERAL_CFG.RST) and reload the defaults
+ */
+esp_err_t ads_reset(ads_handle_t handle);
+
+/**
+ * @brief Write the whole shadow configuration back to the chip
+ */
+esp_err_t ads_restore_state(ads_handle_t handle);
+
+esp_err_t ads_set_sampling(ads_handle_t handle, uint8_t osr, bool low_power_osc, uint8_t clk_div);
+esp_err_t ads_set_alert_pin_cfg(ads_handle_t handle, bool push_pull, bool active_high);
+
+/**
+ * @brief Arm the window comparator of one channel and route it to the ALERT pin
+ */
+esp_err_t ads_set_alert_cfg(ads_handle_t handle, uint8_t channel, const ads7128_alert_cfg_t* cfg);
+
+/**
+ * @brief Disarm one channel: thresholds back to default, channel off the ALERT pin
+ */
+esp_err_t ads_clear_alert_cfg(ads_handle_t handle, uint8_t channel);
+
+/**
+ * @brief Read one channel, from the conversion data frame (manual mode) or from
+ *        the RECENT_CHx registers (autonomous mode). Also updates recent_codes.
+ */
+esp_err_t ads_read_channel(ads_handle_t handle, uint8_t channel, uint16_t* out_code);
+
+/**
+ * @brief Refresh recent_codes for every channel in ch_mask
+ */
+esp_err_t ads_read_channels(ads_handle_t handle, uint8_t ch_mask);
+
+esp_err_t ads_get_event_flags(ads_handle_t handle, ads7128_event_flags_t* out_flags);
+
+/**
+ * @brief Clear the latched event flags (write-1-to-clear), releasing the ALERT pin
+ */
+esp_err_t ads_clear_event_flags(ads_handle_t handle, uint8_t high_mask, uint8_t low_mask);
+
 #endif /* ADS7128_H_ */

@@ -19,7 +19,7 @@ static const char* TAG = "AP33772S";
   } while (0)
 
 #undef CHECK_HANDLE_R
-#define CHECK_HANDLE_R(VAL)                 \
+#define CHECK_DRV_HANDLE(VAL)                 \
   do {                                      \
     if (!(VAL)) return ESP_ERR_INVALID_ARG; \
   } while (0)
@@ -27,15 +27,15 @@ static const char* TAG = "AP33772S";
 /******************** Internal Platform Communications *************************/
 
 static esp_err_t _ap33772s_read(ap33772s_handle_t handle, uint8_t reg, uint8_t* buf, size_t len) {
-  CHECK_HANDLE_R(handle);
-  CHECK_HANDLE_R(buf);
+  CHECK_DRV_HANDLE(handle);
+  CHECK_DRV_HANDLE(buf);
   // Użycie Twojego wrappera I2C
   return sys_i2c_master_transmit_receive(handle, &reg, 1, buf, len);
 }
 
 static esp_err_t _ap33772s_write(ap33772s_handle_t handle, uint8_t reg, const uint8_t* buf, size_t len) {
-  CHECK_HANDLE_R(handle);
-  CHECK_HANDLE_R(buf);
+  CHECK_DRV_HANDLE(handle);
+  CHECK_DRV_HANDLE(buf);
 
   if (len > 31) return ESP_ERR_INVALID_ARG;  // Sanity check for stack buffer size
 
@@ -157,8 +157,8 @@ esp_err_t ap33772s_start(ap33772s_handle_t handle) {
   if (!handle) return ESP_ERR_INVALID_ARG;
 
   // 1. Rejestracja w I2C Manager
-  status_rep_t init_status = sys_i2c_add_driver(handle);
-  if (STA_IS_ERR(init_status)) {
+  err_h init_status = sys_i2c_add_driver(handle);
+  if ((init_status != NULL)) {
     ESP_LOGE(TAG, "I2C Manager rejected AP33772S on bus %d", handle->header.bus_num);
     return ESP_FAIL;
   }
@@ -185,7 +185,7 @@ void ap33772s_delete(ap33772s_handle_t handle) {
 /******************** API Drivers Configurations *************************/
 
 esp_err_t ap33772s_begin(ap33772s_handle_t handle) {
-  CHECK_HANDLE_R(handle);
+  CHECK_DRV_HANDLE(handle);
 
   if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -233,7 +233,7 @@ void ap33772s_log_profiles(ap33772s_handle_t handle) {
 }
 
 esp_err_t ap33772s_set_fixed_pdo(ap33772s_handle_t handle, int pdo_index, int max_current_ma) {
-  CHECK_HANDLE_R(handle);
+  CHECK_DRV_HANDLE(handle);
   if (max_current_ma <= 0 || pdo_index < 1 || pdo_index > 13) return ESP_ERR_INVALID_ARG;
 
   handle->avs_active = false;  // Disable any active keep-alives
@@ -267,7 +267,7 @@ esp_err_t ap33772s_set_fixed_pdo(ap33772s_handle_t handle, int pdo_index, int ma
 }
 
 esp_err_t ap33772s_set_pps_pdo(ap33772s_handle_t handle, int pdo_index, int target_voltage_mv, int max_current_ma) {
-  CHECK_HANDLE_R(handle);
+  CHECK_DRV_HANDLE(handle);
   if (pdo_index < 1 || pdo_index > 7) return ESP_ERR_INVALID_ARG;
 
   handle->avs_active = false;  // Disable any active keep-alives
@@ -300,7 +300,7 @@ esp_err_t ap33772s_set_pps_pdo(ap33772s_handle_t handle, int pdo_index, int targ
 }
 
 esp_err_t ap33772s_set_avs_pdo(ap33772s_handle_t handle, int pdo_index, int target_voltage_mv, int max_current_ma) {
-  CHECK_HANDLE_R(handle);
+  CHECK_DRV_HANDLE(handle);
   if (pdo_index < 8 || pdo_index > 13) return ESP_ERR_INVALID_ARG;
 
   src_spr_and_epr_pdo_fields_t active_pdo = handle->src_pdo_array[pdo_index - 1];

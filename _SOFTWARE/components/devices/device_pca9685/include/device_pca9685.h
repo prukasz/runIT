@@ -1,19 +1,25 @@
 #pragma once
-#include "status.h"
+#include "sys_error.h"
 #include "sys_io.h"
+
+/**
+ * @brief PCA9685 PWM expander configuration.
+ *
+ * @warning A board without OE control MUST spell it `.oe_pin = SYS_IO_PIN_NONE`.
+ *          Omitting the field zero-fills it to device 0 / pin 0, which is a real
+ *          pin on a real device - not "unused".
+ */
+typedef struct d_pca9685_cfg_t {
+  uint8_t device_id;      /* MUST be first - SYS_DEVICE_CREATE reads it */
+  bool i2c_bus;           /* I2C bus number (0 or 1) */
+  uint8_t i2c_addr;       /* 7-bit I2C address of the PCA9685 */
+  sys_io_pin_ref_t oe_pin; /* Output-Enable pin, or SYS_IO_PIN_NONE */
+} d_pca9685_cfg_t;
 
 /**
  * @brief Initialize and register the PCA9685 PWM Expander device.
  *
- * @param device_id Unique ID for this device in the sys_device manager
- * @param i2c_bus I2C bus number (0 or 1)
- * @param i2c_addr I2C address of the PCA9685
- * @param oe_io_device System device ID of the GPIO controlling OE (0xFF if none)
- * @param oe_io_num Pin number of the OE control pin
- * @param oe_io_mode IO Manager mode to configure the OE pin to
- *
- * @return status_rep_t Status of the registration
+ * @param cfg Device configuration; copied, so it may be a compound literal.
+ * @return err_h Status of the registration
  */
-status_rep_t d_pca9685_create(uint8_t device_id, bool i2c_bus,
-                              uint8_t i2c_addr, uint8_t oe_io_device,
-                              sys_io_pin_num_t oe_io_num, sys_io_mode_e oe_io_mode);
+err_h d_pca9685_create(const d_pca9685_cfg_t* cfg);

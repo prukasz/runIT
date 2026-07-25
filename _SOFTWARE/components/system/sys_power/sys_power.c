@@ -1,8 +1,8 @@
 #include "sys_power.h"
 #include <string.h>
 #include "esp_log.h"
-#include "status.h"
 #include "sys_device.h"
+#include "sys_error.h"
 
 static const char* TAG = __FILE_NAME__;
 
@@ -32,19 +32,26 @@ static uint32_t s_power_limit_ma = 5500;
 static uint32_t s_power_budget_mw = 115500;
 static bool s_limits_locked = false;
 
-uint32_t sys_power_get_limit_mv(void) { return s_power_limit_mv; }
-uint32_t sys_power_get_limit_ma(void) { return s_power_limit_ma; }
-uint32_t sys_power_get_budget_mw(void) { return s_power_budget_mw; }
+uint32_t sys_power_get_limit_mv(void) {
+  return s_power_limit_mv;
+}
+uint32_t sys_power_get_limit_ma(void) {
+  return s_power_limit_ma;
+}
+uint32_t sys_power_get_budget_mw(void) {
+  return s_power_budget_mw;
+}
 
-status_rep_t sys_power_set_limits(uint32_t max_mv, uint32_t max_ma, uint32_t max_mw) {
+#define OWNER OWNER_SYS_POWER_BASE
+err_h sys_power_set_limits(uint32_t max_mv, uint32_t max_ma, uint32_t max_mw) {
   if (s_limits_locked) {
-    return STA_C(ERR_INVALID_STATE, OWNER_SYS_POWER_BUDGET_UPDATE_SOURCE, 0, STATUS_PAYLOAD_UNKNOWN);
+    SE_RET_ERR(ERR_BASE_INVALID_STATE, 0);
   }
   s_power_limit_mv = max_mv;
   s_power_limit_ma = max_ma;
   s_power_budget_mw = max_mw;
   s_limits_locked = true;
-  return STA_OK;
+  return NULL;
 }
 
 /* ========================================================================== *
@@ -53,7 +60,7 @@ status_rep_t sys_power_set_limits(uint32_t max_mv, uint32_t max_ma, uint32_t max
 
 #undef OWNER
 #define OWNER OWNER_SYS_POWER_BUDGET_UPDATE_SOURCE
-status_rep_t sys_power_budget_update_source(uint32_t max_mV, uint32_t max_mA) {
+err_h sys_power_budget_update_source(uint32_t max_mV, uint32_t max_mA) {
   s_budget.source_max_mV = max_mV;
   s_budget.source_max_mA = max_mA;
 
@@ -63,10 +70,10 @@ status_rep_t sys_power_budget_update_source(uint32_t max_mV, uint32_t max_mA) {
 
   if (s_budget.allocated_mW > s_budget.total_budget_mW && !s_budget.ignore_limits) {
     ESP_LOGE(TAG, "CRITICAL: Allocated power (%lu mW) exceeds new budget!", s_budget.allocated_mW);
-    return STA_C(ERR_POWER_BUDGET_EXCEEDED, OWNER, 0, STATUS_PAYLOAD_UNKNOWN);
+    SE_RET_ERR(ERR_POWER_BUDGET_EXCEEDED, 0);
   }
 
-  return STA_OK;
+  return NULL;
 }
 
 void sys_power_budget_set_ignore(bool ignore) {
@@ -94,56 +101,56 @@ void sys_power_budget_reset(void) {
 
 #undef OWNER
 #define OWNER OWNER_SYS_POWER_REGISTER_VREG
-status_rep_t sys_power_register_vreg(uint8_t device_id, void* handle, const sys_power_vreg_contract* contract) {
-  CHECK_ARG_RP(device_id, 0, MAX_DEVICE_ID + 1, 0);
-  CHECK_NOT_NULL_RP(contract);
+err_h sys_power_register_vreg(uint8_t device_id, void* handle, const sys_power_vreg_contract* contract) {
+  SE_CHECK_IN_RANGE(device_id, 0, MAX_DEVICE_ID);
+  SE_CHECK_NOT_NULL(contract);
 
   sys_device_t* dev = sys_device_get_by_id(device_id);
-  if (!dev) return STA_C(ERR_DEV_NOT_FOUND, OWNER, DEV_ERR_PACK(device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
+  if (!dev) SE_RET_ERR(ERR_DEV_NOT_FOUND, device_id);
 
   dev->device_handle = handle;
   dev->contracts[SYS_DEVICE_CONTRACT_POWER_VREG] = (void*)contract;
 
   ESP_LOGI(TAG, "VREG registered for device_id: %u", device_id);
-  return STA_OK;
+  return NULL;
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_POWER_REGISTER_MONITOR
-status_rep_t sys_power_register_monitor(uint8_t device_id, void* handle, const sys_power_monitor_contract* contract) {
-  CHECK_ARG_RP(device_id, 0, MAX_DEVICE_ID + 1, 0);
-  CHECK_NOT_NULL_RP(contract);
+err_h sys_power_register_monitor(uint8_t device_id, void* handle, const sys_power_monitor_contract* contract) {
+  SE_CHECK_IN_RANGE(device_id, 0, MAX_DEVICE_ID);
+  SE_CHECK_NOT_NULL(contract);
 
   sys_device_t* dev = sys_device_get_by_id(device_id);
-  if (!dev) return STA_C(ERR_DEV_NOT_FOUND, OWNER, DEV_ERR_PACK(device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
+  if (!dev) SE_RET_ERR(ERR_DEV_NOT_FOUND, device_id);
 
   dev->device_handle = handle;
   dev->contracts[SYS_DEVICE_CONTRACT_POWER_MONITOR] = (void*)contract;
 
   ESP_LOGI(TAG, "Monitor registered for device_id: %u", device_id);
-  return STA_OK;
+  return NULL;
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_POWER_REGISTER_USB_PD
-status_rep_t sys_power_register_usb_pd(uint8_t device_id, void* handle, const sys_power_usb_pd_contract* contract) {
-  CHECK_ARG_RP(device_id, 0, MAX_DEVICE_ID + 1, 0);
-  CHECK_NOT_NULL_RP(contract);
+err_h sys_power_register_usb_pd(uint8_t device_id, void* handle, const sys_power_usb_pd_contract* contract) {
+  SE_CHECK_IN_RANGE(device_id, 0, MAX_DEVICE_ID);
+  SE_CHECK_NOT_NULL(contract);
 
   sys_device_t* dev = sys_device_get_by_id(device_id);
-  if (!dev) return STA_C(ERR_DEV_NOT_FOUND, OWNER, DEV_ERR_PACK(device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
+  if (!dev) SE_RET_ERR(ERR_DEV_NOT_FOUND, device_id);
 
   dev->device_handle = handle;
   dev->contracts[SYS_DEVICE_CONTRACT_POWER_USB_PD] = (void*)contract;
 
   ESP_LOGI(TAG, "USB PD registered for device_id: %u", device_id);
-  return STA_OK;
+  return NULL;
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_POWER_UNREGISTER
-status_rep_t sys_power_unregister(uint8_t device_id) {
-  CHECK_ARG_RP(device_id, 0, MAX_DEVICE_ID + 1, 0);
+err_h sys_power_unregister(uint8_t device_id) {
+  SE_CHECK_IN_RANGE(device_id, 0, MAX_DEVICE_ID);
 
   sys_device_t* dev = sys_device_get_by_id(device_id);
   if (dev) {
@@ -162,7 +169,7 @@ status_rep_t sys_power_unregister(uint8_t device_id) {
   }
 
   memset(p_dev, 0, sizeof(sys_power_device_t));
-  return STA_OK;
+  return NULL;
 }
 
 /* ========================================================================== *
@@ -171,17 +178,19 @@ status_rep_t sys_power_unregister(uint8_t device_id) {
 
 #undef OWNER
 #define OWNER OWNER_SYS_VREG_SET_ENABLE
-status_rep_t sys_vreg_set_enable(uint8_t device_id, bool state) { SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_VREG, sys_power_vreg_contract, set_enable, state); }
+err_h sys_vreg_set_enable(uint8_t device_id, bool state) {
+  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_VREG, sys_power_vreg_contract, set_enable, state);
+}
 
 #undef OWNER
 #define OWNER OWNER_SYS_VREG_SET_VOLTAGE
-status_rep_t sys_vreg_set_voltage(uint8_t device_id, uint32_t voltage_mV) {
-  if (voltage_mV > SYS_POWER_LIMIT_MV) return STA_C(ERR_INVALID_ARG, OWNER, voltage_mV, STATUS_PAYLOAD_UNKNOWN);
+err_h sys_vreg_set_voltage(uint8_t device_id, uint32_t voltage_mV) {
+  SE_CHECK_IN_RANGE(voltage_mV, 0, SYS_POWER_LIMIT_MV);
 
   sys_device_t* dev = sys_device_get_by_id(device_id);
-  if (!dev) return STA_C(ERR_DEV_NOT_FOUND, OWNER, DEV_ERR_PACK(device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
-  if (!dev->is_installed) return STA_C(ERR_DEV_NOT_INSTALLED, OWNER, DEV_ERR_PACK(device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
-  if (dev->is_suspended) return STA_C(ERR_DEV_SUSPENDED, OWNER, DEV_ERR_PACK(device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
+  if (!dev) SE_RET_ERR(ERR_DEV_NOT_FOUND, device_id);
+  if (!SYS_DEV_IS_INSTALLED(dev)) SE_RET_ERR(ERR_DEV_NOT_INSTALLED, device_id);
+  if (SYS_DEV_IS_SUSPENDED(dev)) SE_RET_ERR(ERR_DEV_SUSPENDED, device_id);
 
   IF_SYS_DEV_AND_FEATURE(device_id, SYS_DEVICE_CONTRACT_POWER_VREG, sys_power_vreg_contract, set_voltage, dev_ptr, vreg) {
     sys_power_device_t* p_dev = &s_power_registry[device_id];
@@ -191,31 +200,32 @@ status_rep_t sys_vreg_set_voltage(uint8_t device_id, uint32_t voltage_mV) {
       uint32_t projected_total_mW = (s_budget.allocated_mW - p_dev->allocated_mW) + requested_mW;
       if (projected_total_mW > s_budget.total_budget_mW) {
         ESP_LOGE(TAG, "VREG %u Budget Exceeded! Req: %lu mW", device_id, requested_mW);
-        return STA_C(ERR_POWER_BUDGET_EXCEEDED, OWNER, device_id, STATUS_PAYLOAD_UNKNOWN);
+        SE_RET_ERR(ERR_POWER_BUDGET_EXCEEDED, device_id);
       }
     }
 
-    status_rep_t hw_status = vreg->set_voltage(dev->device_handle, voltage_mV);
-    if (STA_IS_OK(hw_status)) {
+    err_h hw_status = vreg->set_voltage(dev->device_handle, voltage_mV);
+    if (hw_status == NULL) {
       s_budget.allocated_mW = (s_budget.allocated_mW - p_dev->allocated_mW) + requested_mW;
       p_dev->target_mV = voltage_mV;
       p_dev->allocated_mW = requested_mW;
+      return NULL;
     }
-    return hw_status;
+    SE_RET_IF_ERR(hw_status);
   }
 
-  return STA_C(ERR_NOT_SUPPORTED, OWNER, device_id, STATUS_PAYLOAD_UNKNOWN);
+  SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_VREG_SET_CURRENT
-status_rep_t sys_vreg_set_current(uint8_t device_id, uint32_t current_mA) {
-  if (current_mA > SYS_POWER_LIMIT_MA) return STA_C(ERR_INVALID_ARG, OWNER, current_mA, STATUS_PAYLOAD_UNKNOWN);
+err_h sys_vreg_set_current(uint8_t device_id, uint32_t current_mA) {
+  SE_CHECK_IN_RANGE(current_mA, 0, SYS_POWER_LIMIT_MA);
 
   sys_device_t* dev = sys_device_get_by_id(device_id);
-  if (!dev) return STA_C(ERR_DEV_NOT_FOUND, OWNER, DEV_ERR_PACK(device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
-  if (!dev->is_installed) return STA_C(ERR_DEV_NOT_INSTALLED, OWNER, DEV_ERR_PACK(device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
-  if (dev->is_suspended) return STA_C(ERR_DEV_SUSPENDED, OWNER, DEV_ERR_PACK(device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
+  if (!dev) SE_RET_ERR(ERR_DEV_NOT_FOUND, device_id);
+  if (!SYS_DEV_IS_INSTALLED(dev)) SE_RET_ERR(ERR_DEV_NOT_INSTALLED, device_id);
+  if (SYS_DEV_IS_SUSPENDED(dev)) SE_RET_ERR(ERR_DEV_SUSPENDED, device_id);
 
   IF_SYS_DEV_AND_FEATURE(device_id, SYS_DEVICE_CONTRACT_POWER_VREG, sys_power_vreg_contract, set_current, dev_ptr, vreg) {
     sys_power_device_t* p_dev = &s_power_registry[device_id];
@@ -225,25 +235,28 @@ status_rep_t sys_vreg_set_current(uint8_t device_id, uint32_t current_mA) {
       uint32_t projected_total_mW = (s_budget.allocated_mW - p_dev->allocated_mW) + requested_mW;
       if (projected_total_mW > s_budget.total_budget_mW) {
         ESP_LOGE(TAG, "VREG %u Budget Exceeded! Req: %lu mW", device_id, requested_mW);
-        return STA_C(ERR_POWER_BUDGET_EXCEEDED, OWNER, device_id, STATUS_PAYLOAD_UNKNOWN);
+        SE_RET_ERR(ERR_POWER_BUDGET_EXCEEDED, device_id);
       }
     }
 
-    status_rep_t hw_status = vreg->set_current(dev->device_handle, current_mA);
-    if (STA_IS_OK(hw_status)) {
+    err_h hw_status = vreg->set_current(dev->device_handle, current_mA);
+    if (hw_status == NULL) {
       s_budget.allocated_mW = (s_budget.allocated_mW - p_dev->allocated_mW) + requested_mW;
       p_dev->target_mA = current_mA;
       p_dev->allocated_mW = requested_mW;
+      return NULL;
     }
-    return hw_status;
+    SE_RET_IF_ERR(hw_status);
   }
 
-  return STA_C(ERR_NOT_SUPPORTED, OWNER, device_id, STATUS_PAYLOAD_UNKNOWN);
+  SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_VREG_ADD_CALLBACK
-status_rep_t sys_vreg_add_callback(uint8_t device_id, sys_power_events_e on_event, uint16_t route_mask) { SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_VREG, sys_power_vreg_contract, add_callback, on_event, route_mask); }
+err_h sys_vreg_add_callback(uint8_t device_id, sys_power_events_e on_event, uint16_t route_mask) {
+  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_VREG, sys_power_vreg_contract, add_callback, on_event, route_mask);
+}
 
 /* ========================================================================== *
  * MONITOR API
@@ -251,21 +264,21 @@ status_rep_t sys_vreg_add_callback(uint8_t device_id, sys_power_events_e on_even
 
 #undef OWNER
 #define OWNER OWNER_SYS_POWER_MONITOR_GET_VOLTAGE
-status_rep_t sys_power_monitor_get_voltage(uint8_t device_id, uint8_t channel, int32_t* out_mV) {
-  CHECK_NOT_NULL_RP((void*)out_mV);
+err_h sys_power_monitor_get_voltage(uint8_t device_id, uint8_t channel, int32_t* out_mV) {
+  SE_CHECK_NOT_NULL(out_mV);
   SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_MONITOR, sys_power_monitor_contract, get_voltage, channel, out_mV);
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_POWER_MONITOR_GET_CURRENT
-status_rep_t sys_power_monitor_get_current(uint8_t device_id, uint8_t channel, int32_t* out_mA) {
-  CHECK_NOT_NULL_RP((void*)out_mA);
+err_h sys_power_monitor_get_current(uint8_t device_id, uint8_t channel, int32_t* out_mA) {
+  SE_CHECK_NOT_NULL(out_mA);
   SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_MONITOR, sys_power_monitor_contract, get_current, channel, out_mA);
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_POWER_MONITOR_ADD_CALLBACK
-status_rep_t sys_power_monitor_add_callback(uint8_t device_id, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, uint16_t route_mask) {
+err_h sys_power_monitor_add_callback(uint8_t device_id, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, uint16_t route_mask) {
   SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_MONITOR, sys_power_monitor_contract, add_callback, channel, trigger_value, on_event, route_mask);
 }
 
@@ -275,29 +288,34 @@ status_rep_t sys_power_monitor_add_callback(uint8_t device_id, uint8_t channel, 
 
 #undef OWNER
 #define OWNER OWNER_SYS_POWER_USB_PD_SET
-status_rep_t sys_power_usb_pd_set(uint8_t device_id, uint32_t voltage_mV, uint32_t current_mA) { SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_USB_PD, sys_power_usb_pd_contract, set_settings, voltage_mV, current_mA); }
+err_h sys_power_usb_pd_set(uint8_t device_id, uint32_t voltage_mV, uint32_t current_mA) {
+  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_USB_PD, sys_power_usb_pd_contract, set_settings, voltage_mV, current_mA);
+}
 
 #undef OWNER
 #define OWNER OWNER_SYS_POWER_USB_PD_LIST
-status_rep_t sys_power_usb_pd_list(uint8_t device_id) { SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_USB_PD, sys_power_usb_pd_contract, list_options); }
+err_h sys_power_usb_pd_list(uint8_t device_id) {
+  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_USB_PD, sys_power_usb_pd_contract, list_options);
+}
 
 #undef OWNER
 #define OWNER OWNER_SYS_POWER_USB_PD_GET_LIMITS
-status_rep_t sys_power_usb_pd_get_limits(uint8_t device_id, uint32_t* out_mV, uint32_t* out_mA) {
-  CHECK_NOT_NULL_RP((void*)out_mV);
-  CHECK_NOT_NULL_RP((void*)out_mA);
+err_h sys_power_usb_pd_get_limits(uint8_t device_id, uint32_t* out_mV, uint32_t* out_mA) {
+  SE_CHECK_NOT_NULL(out_mV);
+  SE_CHECK_NOT_NULL(out_mA);
 
   sys_device_t* dev = sys_device_get_by_id(device_id);
-  if (!dev) return STA_C(ERR_DEV_NOT_FOUND, OWNER, DEV_ERR_PACK(device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
-  if (!dev->is_installed) return STA_C(ERR_DEV_NOT_INSTALLED, OWNER, DEV_ERR_PACK(device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
-  if (dev->is_suspended) return STA_C(ERR_DEV_SUSPENDED, OWNER, DEV_ERR_PACK(device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
+  if (!dev) SE_RET_ERR(ERR_DEV_NOT_FOUND, device_id);
+  if (!SYS_DEV_IS_INSTALLED(dev)) SE_RET_ERR(ERR_DEV_NOT_INSTALLED, device_id);
+  if (SYS_DEV_IS_SUSPENDED(dev)) SE_RET_ERR(ERR_DEV_SUSPENDED, device_id);
 
   IF_SYS_DEV_AND_FEATURE(device_id, SYS_DEVICE_CONTRACT_POWER_USB_PD, sys_power_usb_pd_contract, get_limits, dev_ptr, usb_pd) {
-    status_rep_t stat = usb_pd->get_limits(dev_ptr->device_handle, out_mV, out_mA);
-    if (STA_IS_OK(stat)) {
+    err_h err = usb_pd->get_limits(dev_ptr->device_handle, out_mV, out_mA);
+    if (SE_IS_OK(err)) {
       sys_power_budget_update_source(*out_mV, *out_mA);
+      return NULL;
     }
-    return stat;
+    SE_RET_IF_ERR(err);
   }
-  return STA_C(ERR_NOT_SUPPORTED, OWNER, device_id, STATUS_PAYLOAD_UNKNOWN);
+  SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);
 }

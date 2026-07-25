@@ -23,7 +23,7 @@ static const char* TAG = __FILE_NAME__;
   } while (0)
 
 #undef CHECK_HANDLE_R
-#define CHECK_HANDLE_R(VAL)                 \
+#define CHECK_DRV_HANDLE(VAL)                 \
   do {                                      \
     if (!(VAL)) return ESP_ERR_INVALID_ARG; \
   } while (0)
@@ -33,25 +33,25 @@ static const char* TAG = __FILE_NAME__;
 #define TCA_TRANSMIT_RECEIVE(handle, tx_buf, tx_size, rx_buf, rx_size) ((handle)->header.transmit_receive ? (handle)->header.transmit_receive((handle), (tx_buf), (tx_size), (rx_buf), (rx_size)) : ESP_ERR_INVALID_STATE)
 
 static esp_err_t _tca_update_ports(tca6424a_handle_t handle) {
-  CHECK_HANDLE_R(handle);
+  CHECK_DRV_HANDLE(handle);
   uint8_t buf[4] = {TCA6424A_REG_OUTPUT_PORT0 | TCA6424A_AUTO_INCREMENT, handle->output[0], handle->output[1], handle->output[2]};
   return TCA_TRANSMIT(handle, buf, 4);
 }
 
 static esp_err_t _tca_update_inputs(tca6424a_handle_t handle) {
-  CHECK_HANDLE_R(handle);
+  CHECK_DRV_HANDLE(handle);
   uint8_t reg = TCA6424A_REG_INPUT_PORT0 | TCA6424A_AUTO_INCREMENT;
   return TCA_TRANSMIT_RECEIVE(handle, &reg, 1, handle->last_read_input, 3);
 }
 
 static esp_err_t _tca_update_config(tca6424a_handle_t handle) {
-  CHECK_HANDLE_R(handle);
+  CHECK_DRV_HANDLE(handle);
   uint8_t buf[4] = {TCA6424A_REG_CONFIG_PORT0 | TCA6424A_AUTO_INCREMENT, handle->config[0], handle->config[1], handle->config[2]};
   return TCA_TRANSMIT(handle, buf, 4);
 }
 
 static esp_err_t _tca_update_polarity(tca6424a_handle_t handle) {
-  CHECK_HANDLE_R(handle);
+  CHECK_DRV_HANDLE(handle);
   uint8_t buf[4] = {TCA6424A_REG_POLARITY_PORT0 | TCA6424A_AUTO_INCREMENT, handle->polarity_cfg[0], handle->polarity_cfg[1], handle->polarity_cfg[2]};
   return TCA_TRANSMIT(handle, buf, 4);
 }

@@ -1,12 +1,19 @@
 #pragma once
 
-#include "status.h"
+#include "sys_error.h"
+
+/**
+ * @brief Configuration for native ESP32 GPIO device.
+ */
+typedef struct d_gpio_esp_cfg_t {
+  uint8_t device_id; /**< MUST be first member */
+} d_gpio_esp_cfg_t;
 
 /**
  * @brief Register and install the native ESP32 GPIO device.
  *
- * @param device_id The unique device ID to register under the device and IO
- * managers.
- * @return status_rep_t Status report of the operation.
+ * @param cfg Pointer to device configuration struct
+ * @return err_h Status report of the operation.
  */
-status_rep_t d_gpio_esp_create(uint8_t device_id);
+err_h d_gpio_esp_create(const d_gpio_esp_cfg_t* cfg);
+

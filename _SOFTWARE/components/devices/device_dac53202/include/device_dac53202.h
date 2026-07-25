@@ -1,15 +1,22 @@
 #pragma once
-#include "status.h"
+#include "sys_error.h"
 #include <stdbool.h>
 #include <stdint.h>
 
 /**
+ * @brief Configuration for DAC53202 device.
+ */
+typedef struct d_dac53202_cfg_t {
+  uint8_t device_id; /**< MUST be first member */
+  bool i2c_bus;
+  uint8_t i2c_addr;
+} d_dac53202_cfg_t;
+
+/**
  * @brief Initialize and register the DAC53202 device.
  *
- * @param device_id Unique ID for this device in the sys_device manager
- * @param i2c_bus I2C bus number (0 or 1)
- * @param i2c_addr I2C address of the DAC53202
- *
- * @return status_rep_t Status of the registration
+ * @param cfg Pointer to device configuration struct
+ * @return err_h Status of the registration
  */
-status_rep_t d_dac53202_create(uint8_t device_id, bool i2c_bus, uint8_t i2c_addr);
+err_h d_dac53202_create(const d_dac53202_cfg_t* cfg);
+

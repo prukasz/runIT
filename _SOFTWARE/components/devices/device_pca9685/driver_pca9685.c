@@ -60,12 +60,6 @@ pca9685_handle_t pca9685_new(uint8_t i2c_address, bool i2c_bus_num) {
 esp_err_t pca9685_start(pca9685_handle_t handle) {
   CHECK_DRV_HANDLE(handle);
 
-  status_rep_t init_status = sys_i2c_add_driver(&handle->header);
-  if (STA_IS_ERR(init_status)) {
-    ESP_LOGE(TAG, "I2C Manager rejected PCA9685 on bus %d", handle->header.bus_num);
-    return ESP_FAIL;
-  }
-
   RETURN_ON_ERROR(pca9685_sleep(handle, false));
   RETURN_ON_ERROR(pca9685_enable_auto_increment(handle));
 

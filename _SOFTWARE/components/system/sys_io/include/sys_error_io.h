@@ -1,13 +1,5 @@
 #pragma once
-
-#define STATUS_PAYLOAD_DEV_IO_ERR 2
-#define STATUS_PAYLOAD_SYS_IO STATUS_PAYLOAD_DEV_IO_ERR
-
-#define STA_PAYLOAD_MAKE_DEV_IO_ERR(dev_id, pin, extra) (((uint64_t)(dev_id) << 40) | ((uint64_t)(pin) << 32) | ((uint64_t)(extra) & 0xFFFFFFFF))
-#define STA_PAYLOAD_GET_DEV_IO_ID(payload) ((uint8_t)((payload) >> 40))
-#define STA_PAYLOAD_GET_DEV_IO_PIN(payload) ((uint8_t)(((payload) >> 32) & 0xFF))
-#define STA_PAYLOAD_GET_DEV_IO_EXTRA(payload) ((uint32_t)((payload) & 0xFFFFFFFF))
-
+#include <stdint.h>
 
 #define SYS_IO_OWNER_MAP(X)                                                   \
   X(OWNER_SYS_IO_BASE, 0xA300, "OWNER_SYS_IO_BASE")                           \
@@ -26,9 +18,10 @@
   X(OWNER_SYS_IO_SET_PWM_DUTY, 0xA30D, "OWNER_SYS_IO_SET_PWM_DUTY")           \
   X(OWNER_SYS_IO_UNREGISTER_DRIVER, 0xA30E, "OWNER_SYS_IO_UNREGISTER_DRIVER")
 
-#define SYS_IO_ERROR_MAP(X)                                                         \
-  X(ERR_SYS_IO_BASE, 0xA300, "ERR_SYS_IO_BASE")                               \
-  X(ERR_SYS_IO_FEATURE_UNAVAILABLE, 0xA301, "ERR_SYS_IO_FEATURE_UNAVAILABLE") \
-  X(ERR_SYS_IO_PIN_IN_OTHER_USE, 0xA302, "ERR_SYS_IO_PIN_IN_OTHER_USE")       \
-  X(ERR_SYS_IO_PIN_DOES_NOT_EXIST, 0xA303, "ERR_SYS_IO_PIN_DOES_NOT_EXIST")   \
-  X(ERR_SYS_IO_MODE_UNAVAILABLE, 0xA304, "ERR_SYS_IO_MODE_UNAVAILABLE")
+#define SYS_ERROR_IO_MAP(X)                                                                \
+  X(ERR_IO_PIN_UNCONFIGURED, struct { uint8_t dev_id; uint8_t pin_num; })                  \
+  X(ERR_IO_PIN_UNAVAILABLE, struct { uint8_t dev_id; uint8_t pin_num; })                   \
+  X(ERR_IO_PIN_ALREADY_IN_USE, struct { uint8_t dev_id; uint8_t pin_num; uint8_t mode; })   \
+  X(ERR_IO_PIN_FEATURE_UNSUPPORTED, struct { uint8_t dev_id; uint8_t pin_num; })           \
+  X(ERR_IO_PIN_LOCKED, struct { uint8_t dev_id; uint8_t pin_id; })                        \
+  X(ERR_IO_PIN_MODE_UNSUPPORTED, struct { uint8_t dev_id; uint8_t pin_id; uint8_t mode; })

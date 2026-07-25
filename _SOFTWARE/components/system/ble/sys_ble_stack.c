@@ -1,4 +1,4 @@
-#include "status.h"
+#include "sys_error.h"
 #include "sys_ble_priv.h"
 
 static const char* TAG = __FILE_NAME__;
@@ -60,24 +60,24 @@ static int ble_gap_advertising_start(void) {
 }
 
 #define OWNER OWNER_SYS_BLE_ADV
-status_rep_t sys_ble_advertising_init(void) {
-  CHECK_BLE_CALL_R(ble_hs_util_ensure_addr(0));
-  CHECK_BLE_CALL_R(ble_hs_id_infer_auto(0, &own_addr_type));
-  CHECK_BLE_CALL_R(ble_hs_id_copy_addr(own_addr_type, addr_val, NULL));
-  CHECK_BLE_CALL_R(ble_gap_configure_advertising());
-  CHECK_BLE_CALL_R(ble_gap_advertising_start());
+err_h sys_ble_advertising_init(void) {
+  CHECK_BLE_CALL(ble_hs_util_ensure_addr(0));
+  CHECK_BLE_CALL(ble_hs_id_infer_auto(0, &own_addr_type));
+  CHECK_BLE_CALL(ble_hs_id_copy_addr(own_addr_type, addr_val, NULL));
+  CHECK_BLE_CALL(ble_gap_configure_advertising());
+  CHECK_BLE_CALL(ble_gap_advertising_start());
   ESP_LOGI(TAG, "BLE Advertising started, own_addr_type=%d, MAC: %02X:%02X:%02X:%02X:%02X:%02X", own_addr_type, addr_val[5], addr_val[4], addr_val[3], addr_val[2], addr_val[1], addr_val[0]);
-  return STA_OK;
+  return NULL;
 }
 
-status_rep_t sys_ble_reconfigure_advertising(void) {
+err_h sys_ble_reconfigure_advertising(void) {
   adv_configured = false;
-  if (!ble_hs_synced()) return STA_OK;
+  if (!ble_hs_synced()) return NULL;
 
   if (ble_gap_adv_active()) {
     int rc = ble_gap_adv_stop();
     if (rc != 0 && rc != BLE_HS_EALREADY) {
-      return STA_C(ERR_BLE_ADV_FAILED, OWNER, rc, STATUS_PAYLOAD_UNKNOWN);
+      SE_RET_ERR(ERR_BLE_ADV_FAILED, rc);
     }
   }
   return sys_ble_advertising_init();
@@ -125,7 +125,7 @@ static int gap_event_handler(struct ble_gap_event* event, void* arg) {
         xSemaphoreGive(sys_ble_tx_sem);
         SYS_BLE_CB(SYS_BLE_EVENT_CONNECT, event->connect.conn_handle, g_ble_ctx.route_masks[SYS_BLE_EVENT_CONNECT]);
       } else {
-        ESP_LOGW(TAG, "Connection failed: status=%d", event->connect.status);
+        ESP_LOGW(TAG, "Connection failed: err = %d", event->connect.status);
         SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, ESP_FAIL, g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE]);
         sys_ble_advertising_init();
       }
@@ -183,7 +183,8 @@ static void on_stack_reset(int reason) {
 
 static void on_stack_sync(void) {
   ESP_LOGI(TAG, "NimBLE host synced with controller, starting advertising...");
-  STA_P_ON_ERR(sys_ble_advertising_init());
+  err_h err = sys_ble_advertising_init();
+  if (err) SE_push_to_handler(err);
 }
 
 static void nimble_host_config_init(void) {
@@ -210,23 +211,23 @@ static void nimble_host_task(void* param) {
 }
 
 #define OWNER OWNER_SYS_BLE_STACK
-status_rep_t sys_ble_set_name(const char* name) {
-  CHECK_NOT_NULL_R(name);
+err_h sys_ble_set_name(const char* name) {
+  SE_CHECK_NOT_NULL(name);
   int res = ble_svc_gap_device_name_set(name);
   if (res == 0) {
     if (ble_hs_synced()) {
       sys_ble_reconfigure_advertising();
     }
     ESP_LOGI(TAG, "Name set to %s", name);
-    return STA_OK;
+    return NULL;
   }
   ESP_LOGE(TAG, "Failed to set BLE device name, res=%d", res);
-  return STA_C(ERR_BLE_STACK_FAILED, OWNER, res, STATUS_PAYLOAD_UNKNOWN);
+  SE_RET_ERR(ERR_BLE_STACK_FAILED, res);
 }
 
-status_rep_t sys_ble_stack_init(struct ble_gatt_svc_def* svcs) {
-  CHECK_ESP_CALL_R(nvs_flash_init());
-  CHECK_ESP_CALL_R(nimble_port_init());
+err_h sys_ble_stack_init(struct ble_gatt_svc_def* svcs) {
+  SE_RET_IF_ESP_ERR(nvs_flash_init());
+  SE_RET_IF_ESP_ERR(nimble_port_init());
 
   nimble_host_config_init();
 
@@ -234,33 +235,33 @@ status_rep_t sys_ble_stack_init(struct ble_gatt_svc_def* svcs) {
   ble_svc_gatt_init();
   ble_att_set_preferred_mtu(BLE_ATT_MTU_MAX);
 
-  CHECK_BLE_CALL_R(ble_gatts_count_cfg(svcs));
-  CHECK_BLE_CALL_R(ble_gatts_add_svcs(svcs));
+  CHECK_BLE_CALL(ble_gatts_count_cfg(svcs));
+  CHECK_BLE_CALL(ble_gatts_add_svcs(svcs));
 
   nimble_port_freertos_init(nimble_host_task);
   sys_ble_set_name("runit");
 
   R_TASK_START_ON_CORE(m_ble_task, &sys_ble_task_func, &g_ble_ctx, CONFIG_PRIORITY_BLE_MANAGER_TASK, 0);
-  return STA_OK;
+  return NULL;
 }
 #undef OWNER
 
 #define OWNER OWNER_SYS_BLE_SEND
-status_rep_t sys_ble_send_raw(uint16_t conn_handle, uint16_t chr_val_handle, const uint8_t* data, size_t len, bool indicate) {
-  CHECK_NOT_NULL_R(data);
-  if (len == 0) return STA_OK;
+err_h sys_ble_send_raw(uint16_t conn_handle, uint16_t chr_val_handle, const uint8_t* data, size_t len, bool indicate) {
+  SE_CHECK_NOT_NULL(data);
+  if (len == 0) return NULL;
 
   struct os_mbuf* om = ble_hs_mbuf_from_flat(data, len);
-  if (om == NULL) return STA_C(ERR_NO_MEM, OWNER, len, STATUS_PAYLOAD_UNKNOWN);
+  SE_CHECK_IF_ALLOCATED(om);
 
   int rc = indicate ? ble_gatts_indicate_custom(conn_handle, chr_val_handle, om) : ble_gatts_notify_custom(conn_handle, chr_val_handle, om);
 
   if (rc != 0) {
-    if (rc == BLE_HS_ENOMEM) return STA_C(ERR_NO_MEM, OWNER, rc, STATUS_PAYLOAD_UNKNOWN);
-    if (rc == BLE_HS_ENOTCONN) return STA_C(ERR_INVALID_STATE, OWNER, rc, STATUS_PAYLOAD_UNKNOWN);
-    return STA_C(ERR_BLE_STACK_FAILED, OWNER, rc, STATUS_PAYLOAD_UNKNOWN);
+    if (rc == BLE_HS_ENOMEM) SE_RET_ERR(ERR_BASE_NO_MEM, rc);
+    if (rc == BLE_HS_ENOTCONN) SE_RET_ERR(ERR_BASE_INVALID_STATE, 0);
+    SE_RET_ERR(ERR_BLE_STACK_FAILED, rc);
   }
-  return STA_OK;
+  return NULL;
 }
 #undef OWNER
 
@@ -356,18 +357,18 @@ static struct ble_gatt_chr_def* compile_chars(const sys_ble_char_node_t* chars_h
 }
 
 #define OWNER OWNER_SYS_BLE_SERVICE_CREATE
-status_rep_t populate_svc_def(struct ble_gatt_svc_def* svc_def, const sys_ble_svc_node_t* s) {
-  CHECK_NOT_NULL_R(svc_def);
-  CHECK_NOT_NULL_R(s);
+err_h populate_svc_def(struct ble_gatt_svc_def* svc_def, const sys_ble_svc_node_t* s) {
+  SE_CHECK_NOT_NULL(svc_def);
+  SE_CHECK_NOT_NULL(s);
 
   svc_def->type = s->cfg.is_primary ? BLE_GATT_SVC_TYPE_PRIMARY : BLE_GATT_SVC_TYPE_SECONDARY;
   svc_def->uuid = malloc_uuid(s->cfg.uuid);
-  if (!svc_def->uuid) return STA_C(ERR_NO_MEM, OWNER, s->cfg.uuid, STATUS_PAYLOAD_UNKNOWN);
+  SE_CHECK_IF_ALLOCATED(svc_def->uuid);
 
   bool ok = false;
   svc_def->characteristics = compile_chars(s->chars, &ok);
-  if (!ok) return STA_C(ERR_NO_MEM, OWNER, s->cfg.uuid, STATUS_PAYLOAD_UNKNOWN);
-  return STA_OK;
+  if (!ok) SE_RET_ERR(ERR_BASE_NO_MEM, s->cfg.uuid);
+  return NULL;
 }
 #undef OWNER
 
@@ -402,8 +403,8 @@ void sys_ble_free_compiled_gatt_db(struct ble_gatt_svc_def* svcs) {
 
 static bool try_send_slot(sys_ble_tx_slot_t* slot, sys_ble_char_node_t* c, size_t max_payload, uint8_t* tx_data) {
   size_t tx_len = 0;
-  status_rep_t deq_res = sys_buff_prepare_tx(&slot->tx_buff, tx_data, max_payload, &tx_len);
-  if (STA_IS_ERR(deq_res) || tx_len == 0) return false;
+  err_h deq_res = sys_buff_prepare_tx(&slot->tx_buff, tx_data, max_payload, &tx_len);
+  if ((deq_res != NULL) || tx_len == 0) return false;
 
   uint16_t conn_handle;
   uint16_t val_handle;
@@ -413,18 +414,18 @@ static bool try_send_slot(sys_ble_tx_slot_t* slot, sys_ble_char_node_t* c, size_
   val_handle = c->val_handle;
   R_MUTEX_UNLOCK(sys_ble_mutex);
 
-  status_rep_t send_sta;
+  err_h send_sta;
   do {
     send_sta = sys_ble_send_raw(conn_handle, val_handle, tx_data, tx_len, slot->is_indication);
-    if (send_sta.e_code == ERR_NO_MEM) {
+    if (send_sta != NULL && send_sta->tag == ERR_BASE_NO_MEM) {
       vTaskDelay(pdMS_TO_TICKS(10));
     }
-  } while (send_sta.e_code == ERR_NO_MEM && g_ble_ctx.is_connected);
+  } while (send_sta != NULL && send_sta->tag == ERR_BASE_NO_MEM && g_ble_ctx.is_connected);
 
-  if (STA_IS_OK(send_sta)) {
+  if (send_sta == NULL) {
     return true;
-  } else if (send_sta.e_code != ERR_NO_MEM) {
-    SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, send_sta.e_code, g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE]);
+  } else if (send_sta->tag != ERR_BASE_NO_MEM) {
+    SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, send_sta->tag, g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE]);
   }
   return false;
 }

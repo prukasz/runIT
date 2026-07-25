@@ -1,4 +1,3 @@
-
 file(GLOB code_items RELATIVE ${CMAKE_CURRENT_LIST_DIR} "codes/*")
 set(code_dirs "")
 foreach(item ${code_items})
@@ -8,7 +7,7 @@ foreach(item ${code_items})
 endforeach()
 
 idf_component_register(
-    SRCS "status.c" "codes/status_codes.c"
+    SRCS "sys_error.c"
     INCLUDE_DIRS "include" ${code_dirs} "codes"
                  "../system/sys_device/include"
                  "../system/sys_io/include"

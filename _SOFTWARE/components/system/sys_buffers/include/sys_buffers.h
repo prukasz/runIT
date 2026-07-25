@@ -3,7 +3,7 @@
 #include <freertos/ringbuf.h>
 #include <stddef.h>
 #include <stdint.h>
-#include "status.h"
+#include "sys_error.h"
 
 typedef struct sys_tx_buff_t {
   RingbufHandle_t buff;
@@ -38,17 +38,17 @@ typedef struct sys_tx_buff_t {
  *
  * @param tx_buff Pointer to a sys_tx_buff_t descriptor template (initialized via SYS_BUF_*_ITEM).
  * @param size Ringbuffer memory allocation size in bytes.
- * @return status_rep_t STA_OK on success, or ERR_NO_MEM / ERR_INVALID_SIZE on failure.
+ * @return err_h NULL on success, or ERR_NO_MEM / ERR_INVALID_SIZE on failure.
  */
-status_rep_t sys_buff_init(sys_tx_buff_t* tx_buff, size_t size);
+err_h sys_buff_init(sys_tx_buff_t* tx_buff, size_t size);
 
 /**
  * @brief Deallocate and release the ringbuffer memory of a transmit buffer descriptor.
  *
  * @param tx_buff Pointer to sys_tx_buff_t descriptor.
- * @return status_rep_t STA_OK on success.
+ * @return err_h NULL on success.
  */
-status_rep_t sys_buff_free(sys_tx_buff_t* tx_buff);
+err_h sys_buff_free(sys_tx_buff_t* tx_buff);
 
 /**
  * @brief One-liner value-returning buffer initialization helper.
@@ -68,6 +68,6 @@ sys_tx_buff_t sys_buff_tx_init(sys_tx_buff_t item, size_t size);
  * @param buffer Pointer to the destination byte buffer.
  * @param max_size Maximum size of the destination byte buffer.
  * @param out_len Pointer to store the resulting payload length.
- * @return status_rep_t Returns STA_OK on success, ERR_NOT_FOUND if empty, ERR_INVALID_SIZE if payload is too large.
+ * @return err_h Returns NULL on success, ERR_NOT_FOUND if empty, ERR_INVALID_SIZE if payload is too large.
  */
-status_rep_t sys_buff_prepare_tx(sys_tx_buff_t* tx_buff, uint8_t* buffer, size_t max_size, size_t* out_len);
+err_h sys_buff_prepare_tx(sys_tx_buff_t* tx_buff, uint8_t* buffer, size_t max_size, size_t* out_len);

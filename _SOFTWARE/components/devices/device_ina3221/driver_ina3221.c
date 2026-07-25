@@ -27,20 +27,20 @@
   } while (0)
 
 #undef CHECK_HANDLE_R
-#define CHECK_HANDLE_R(VAL)                 \
+#define CHECK_DRV_HANDLE(VAL)                 \
   do {                                      \
     if (!(VAL)) return ESP_ERR_INVALID_ARG; \
   } while (0)
 
 static esp_err_t _ina3221_read(ina3221_handle_t handle, const uint8_t reg, uint16_t* val) {
-  CHECK_HANDLE_R(val);
+  CHECK_DRV_HANDLE(val);
   RETURN_ON_ERROR(sys_i2c_master_transmit_receive(handle, (uint8_t[]){reg}, 1, (uint8_t*)val, 2));
   *val = (*val >> 8) | (*val << 8);  // Swap bytes
   return ESP_OK;
 }
 
 static esp_err_t _ina3221_write(ina3221_handle_t handle, uint8_t reg, uint16_t val) {
-  CHECK_HANDLE_R(handle);
+  CHECK_DRV_HANDLE(handle);
   uint8_t buf[3];
   buf[0] = reg;
   buf[1] = (val >> 8) & 0xFF;
@@ -122,8 +122,8 @@ esp_err_t ina3221_reset(ina3221_handle_t handle) {
 }
 
 esp_err_t ina3221_read_bus_voltage(ina3221_handle_t handle, uint8_t channel, int32_t* out_mv) {
-  CHECK_HANDLE_R(handle);
-  CHECK_HANDLE_R(out_mv);
+  CHECK_DRV_HANDLE(handle);
+  CHECK_DRV_HANDLE(out_mv);
   if (channel >= 3) return ESP_ERR_INVALID_ARG;
 
   int16_t raw;
@@ -134,8 +134,8 @@ esp_err_t ina3221_read_bus_voltage(ina3221_handle_t handle, uint8_t channel, int
 }
 
 esp_err_t ina3221_read_shunt_current(ina3221_handle_t handle, uint8_t channel, int32_t* out_ma) {
-  CHECK_HANDLE_R(handle);
-  CHECK_HANDLE_R(out_ma);
+  CHECK_DRV_HANDLE(handle);
+  CHECK_DRV_HANDLE(out_ma);
   if (channel >= 3) return ESP_ERR_INVALID_ARG;
 
   int16_t raw;
@@ -147,8 +147,8 @@ esp_err_t ina3221_read_shunt_current(ina3221_handle_t handle, uint8_t channel, i
 }
 
 esp_err_t ina3221_read_sum_shunt_voltage(ina3221_handle_t handle, float* out_mv) {
-  CHECK_HANDLE_R(handle);
-  CHECK_HANDLE_R(out_mv);
+  CHECK_DRV_HANDLE(handle);
+  CHECK_DRV_HANDLE(out_mv);
 
   int16_t raw;
   RETURN_ON_ERROR(_ina3221_read(handle, INA3221_REG_SHUNT_VOLTAGE_SUM, (uint16_t*)&raw));
@@ -207,8 +207,8 @@ void ina3221_delete(ina3221_handle_t handle) {
 esp_err_t ina3221_start(ina3221_handle_t handle) {
   if (!handle) return ESP_ERR_INVALID_ARG;
 
-  status_rep_t init_status = sys_i2c_add_driver(&handle->header);
-  if (STA_IS_ERR(init_status)) {
+  err_h init_status = sys_i2c_add_driver(&handle->header);
+  if ((init_status != NULL)) {
     ESP_LOGE(TAG, "I2C Manager rejected INA3221 on bus %d", handle->header.bus_num);
     return ESP_FAIL;
   }

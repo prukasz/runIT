@@ -5,6 +5,8 @@
 #include "driver/gpio.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "sys_device.h"
 #include "sys_io.h"
 
@@ -39,14 +41,27 @@ typedef struct {
   uint64_t last_isr_time;
 } esp_pin_obj_t;
 
+#include "device_gpio_esp.h"
+
 typedef struct {
   sys_device_adapter_base_t base;
+  d_gpio_esp_cfg_t cfg;
   uint64_t cached_inputs;
   uint64_t pending_outputs;
   uint64_t current_outputs;
-  uint64_t current_inputs;
 } gpio_esp_ctx_t;
 
-extern esp_pin_obj_t* pin_registry[GPIO_NUM_MAX];
+// Static pin pool: one fixed-size slot per GPIO, indexed by pin number.
+// `configured_pins` is the source of truth for "is this slot live" - a slot's
+// struct contents are only meaningful while its bit is set. Callers must hold
+// gpio_mutex around any read/write of pin_pool[] or configured_pins.
+extern esp_pin_obj_t pin_pool[GPIO_NUM_MAX];
+extern uint64_t configured_pins;
+
+// Returns the pin's object if configured, else NULL. Caller must hold gpio_mutex.
+static inline esp_pin_obj_t* pin_obj_get(sys_io_pin_num_t pin) {
+  return (configured_pins & (1ULL << pin)) ? &pin_pool[pin] : NULL;
+}
+
 extern gpio_esp_ctx_t gpio_esp_ctx;
 extern SemaphoreHandle_t gpio_mutex;

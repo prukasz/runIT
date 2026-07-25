@@ -94,7 +94,7 @@ uint16_t compute_active_channels_mask(void) {
   uint16_t mask = 0;
   if (R_MUTEX_LOCK(gpio_mutex, portMAX_DELAY) == pdTRUE) {
     for (int i = 0; i < GPIO_NUM_MAX; i++) {
-      esp_pin_obj_t* pin_obj = pin_registry[i];
+      esp_pin_obj_t* pin_obj = pin_obj_get(i);
       if (pin_obj && pin_obj->pin_mode == SYS_IO_MODE_ADC) {
         adc_unit_t unit;
         adc_channel_t chan;
@@ -225,7 +225,7 @@ static void adc_processing_task_function(void* pvParameters) {
 
         if (R_MUTEX_LOCK(gpio_mutex, MSEC(5)) == pdTRUE) {
           for (int pin = 0; pin < GPIO_NUM_MAX; pin++) {
-            esp_pin_obj_t* pin_obj = pin_registry[pin];
+            esp_pin_obj_t* pin_obj = pin_obj_get(pin);
             if (pin_obj && pin_obj->pin_mode == SYS_IO_MODE_ADC) {
               adc_unit_t unit;
               adc_channel_t chan;
@@ -247,13 +247,15 @@ static void adc_processing_task_function(void* pvParameters) {
 // =========================================================================
 
 esp_err_t esp_adc_start() {
-  R_TASK_START_ON_CORE(adc_processing_task, adc_processing_task_function, NULL, CONFIG_PRIORITY_ESP_ADC_TASK, 0);
+  if (adc_processing_task == NULL) {
+    R_TASK_START_ON_CORE(adc_processing_task, adc_processing_task_function, NULL, CONFIG_PRIORITY_ESP_ADC_TASK, 0);
+  }
   return ESP_OK;
 }
 
 esp_err_t esp_adc_get_mv(uint8_t pin, uint32_t* out_mv) {
   if (out_mv == NULL || pin >= GPIO_NUM_MAX) return ESP_ERR_INVALID_ARG;
-  esp_pin_obj_t* pin_obj = pin_registry[pin];
+  esp_pin_obj_t* pin_obj = pin_obj_get(pin);
   if (pin_obj == NULL || pin_obj->pin_mode != SYS_IO_MODE_ADC) {
     return ESP_ERR_INVALID_ARG;
   }

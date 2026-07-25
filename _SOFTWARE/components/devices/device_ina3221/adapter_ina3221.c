@@ -1,21 +1,20 @@
 // INA3221 device adapter implementation
 #include "device_ina3221.h"
 #include "driver_ina3221.h"
+#include "esp_log.h"
 #include "sys_device.h"
 #include "sys_i2c.h"
 #include "sys_io.h"
 #include "sys_power.h"
 
+static const char* TAG = __FILE_NAME__;
 #undef OWNER
 #define OWNER OWNER_DEVICE_INA3221
 
 typedef struct {
   sys_device_adapter_base_t base;
 
-  uint8_t crit_gpio_device_id;
-  sys_io_pin_num_t crit_gpio_pin_num;
-  uint8_t warn_gpio_device_id;
-  sys_io_pin_num_t warn_gpio_pin_num;
+  d_ina3221_cfg_t cfg;
 
   // Cached readings when frozen
   int32_t cached_voltage[3];
@@ -25,37 +24,39 @@ typedef struct {
   uint16_t route_masks_warn[3];
 } ina_adapter_ctx_t;
 
-static status_rep_t device_event_handler(void* handle, cb_event_t* event);
+enum { INA_STEP_I2C_ADDED = 0, INA_STEP_CRIT_READY = 1, INA_STEP_WARN_READY = 2 };
 
-static status_rep_t contract_monitor_ina3221_get_voltage(void* device_handle, uint8_t channel, int32_t* out_mV) {
+static err_h device_event_handler(void* handle, cb_event_t* event);
+
+static err_h contract_monitor_ina3221_get_voltage(void* device_handle, uint8_t channel, int32_t* out_mV) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, device_handle);
-  CHECK_HANDLE_R(out_mV);
-  if (channel >= 3) return STA_C(ERR_INVALID_ARG, OWNER, channel, STATUS_PAYLOAD_DEV_SOLO);
+  SE_CHECK_HANDLE(out_mV);
+  SE_CHECK_IN_RANGE(channel, 0, 2);
 
   IF_SYS_DEV_FROZEN(ctx) {
     *out_mV = ctx->cached_voltage[channel];
-    return STA_OK;
+    return NULL;
   }
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_read_bus_voltage(hw, channel, out_mV), ctx);
-  return STA_OK;
+  return NULL;
 }
 
-static status_rep_t contract_monitor_ina3221_get_current(void* device_handle, uint8_t channel, int32_t* out_mA) {
+static err_h contract_monitor_ina3221_get_current(void* device_handle, uint8_t channel, int32_t* out_mA) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, device_handle);
-  CHECK_HANDLE_R(out_mA);
-  if (channel >= 3) return STA_C(ERR_INVALID_ARG, OWNER, channel, STATUS_PAYLOAD_DEV_SOLO);
+  SE_CHECK_HANDLE(out_mA);
+  SE_CHECK_IN_RANGE(channel, 0, 2);
 
   IF_SYS_DEV_FROZEN(ctx) {
     *out_mA = ctx->cached_current[channel];
-    return STA_OK;
+    return NULL;
   }
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_read_shunt_current(hw, channel, out_mA), ctx);
-  return STA_OK;
+  return NULL;
 }
 
-static status_rep_t contract_monitor_ina3221_add_callback(void* device_handle, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, uint16_t route_mask) {
+static err_h contract_monitor_ina3221_add_callback(void* device_handle, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, uint16_t route_mask) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, device_handle);
-  if (channel >= 3) return STA_C(ERR_INVALID_ARG, OWNER, channel, STATUS_PAYLOAD_DEV_SOLO);
+  SE_CHECK_IN_RANGE(channel, 0, 2);
 
   if (on_event == SYS_PWR_EVENT_OCP_CRITICAL) {
     ctx->route_masks_crit[channel] = route_mask;
@@ -64,37 +65,38 @@ static status_rep_t contract_monitor_ina3221_add_callback(void* device_handle, u
     ctx->route_masks_warn[channel] = route_mask;
     SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_alert(hw, channel, trigger_value, false), ctx);
   } else {
-    return STA_C(ERR_SYS_IO_FEATURE_UNAVAILABLE, OWNER, on_event, STATUS_PAYLOAD_DEV_SOLO);
+    SE_RET_ERR(ERR_DEV_FEATURE_UNAVAILABLE, SYS_DEV_GET_ID(ctx), 0, on_event);
   }
 
-  return STA_OK;
+  return NULL;
 }
 
 static const sys_power_monitor_contract s_ina_monitor_contract = {.get_voltage = contract_monitor_ina3221_get_voltage, .get_current = contract_monitor_ina3221_get_current, .add_callback = contract_monitor_ina3221_add_callback};
 
 // --- sys_device_t VTable Implementations ---
-static status_rep_t device_uninstall(void* handle) {
+static err_h device_uninstall(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
-  status_rep_t status = STA_OK;
-  status_rep_t r;
-  IF_PIN(ctx->crit_gpio_pin_num) {
-    r = sys_io_reset(ctx->crit_gpio_device_id, ctx->crit_gpio_pin_num);
-    if (STA_IS_ERR(r)) status = r;
+  err_h err = NULL;
+
+  IF_SYS_DEV_STEP_DONE(ctx, INA_STEP_CRIT_READY) {
+    SYS_IO_REF_UNLOCK(ctx->cfg.crit_pin);
+    SYS_DEV_TEARDOWN_STEP(err, SYS_IO_REF_RESET(ctx->cfg.crit_pin));
   }
-  IF_PIN(ctx->warn_gpio_pin_num) {
-    r = sys_io_reset(ctx->warn_gpio_device_id, ctx->warn_gpio_pin_num);
-    if (STA_IS_ERR(r)) status = r;
+  IF_SYS_DEV_STEP_DONE(ctx, INA_STEP_WARN_READY) {
+    SYS_IO_REF_UNLOCK(ctx->cfg.warn_pin);
+    SYS_DEV_TEARDOWN_STEP(err, SYS_IO_REF_RESET(ctx->cfg.warn_pin));
   }
-  r = sys_power_unregister(ctx->base.device_id);
-  if (STA_IS_ERR(r)) status = r;
-  r = sys_i2c_remove_driver(ctx->base.hw_handle);
-  if (STA_IS_ERR(r)) status = r;
-  ina3221_delete(hw);
+  if (ctx->base.hw_handle) {
+    IF_SYS_DEV_STEP_DONE(ctx, INA_STEP_I2C_ADDED) {
+      SYS_DEV_TEARDOWN_STEP(err, sys_i2c_remove_driver(ctx->base.hw_handle));
+    }
+    ina3221_delete(hw);
+  }
   free(ctx);
-  return status;
+  return err;
 }
 
-static status_rep_t device_reset(void* handle) {
+static err_h device_reset(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
 
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_reset(hw), ctx);
@@ -108,144 +110,107 @@ static status_rep_t device_reset(void* handle) {
     ctx->cached_current[i] = 0;
     ctx->cached_voltage[i] = 0;
   }
-  return STA_OK;
+  return NULL;
 }
 
-static status_rep_t device_suspend(void* handle) {
+static err_h device_suspend(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
   // Put INA3221 into power-down mode (mode = 0 in config)
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_options(hw, false, false, false), ctx);
-  return STA_OK;
+  return NULL;
 }
 
-static status_rep_t device_resume(void* handle) {
+static err_h device_resume(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
   // Put INA3221 back into continuous mode (mode = 1)
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_options(hw, true, true, true), ctx);
-  return STA_OK;
+  return NULL;
 }
 
-static status_rep_t device_freeze(void* handle) {
+static err_h device_freeze(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
   IF_SYS_DEV_FROZEN(ctx) {
-    return STA_OK;
+    return NULL;
   }
   SYS_DEV_CTX_FREEZE(ctx);
   for (int i = 0; i < 3; i++) {
     SYS_DEV_CHECK_DRIVER_CALL(ina3221_read_bus_voltage(hw, i, &ctx->cached_voltage[i]), ctx);
     SYS_DEV_CHECK_DRIVER_CALL(ina3221_read_shunt_current(hw, i, &ctx->cached_current[i]), ctx);
   }
-  return STA_OK;
+  return NULL;
 }
 
-static status_rep_t device_sync(void* handle) {
+static err_h device_sync(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
   SYS_DEV_CTX_UNFREEZE(ctx);
-  return STA_OK;
+  return NULL;
 }
 
-static status_rep_t device_error_handler(void* handle, status_rep_t* error) {
+static err_h device_error_handler(void* handle, err_h error) {
   (void)device_reset(handle);
-  return STA_OK;
+  return NULL;
 }
 
-static status_rep_t device_install(void** args, void** out_device_handle) {
-  SYS_DEV_ARG_UNPACK(uint8_t, device_id, args, 0);
-  SYS_DEV_ARG_UNPACK(bool, i2c_bus, args, 1);
-  SYS_DEV_ARG_UNPACK(uint8_t, i2c_addr, args, 2);
-  SYS_DEV_ARG_UNPACK(uint8_t, crit_io_device, args, 3);
-  SYS_DEV_ARG_UNPACK(sys_io_pin_num_t, crit_io_num, args, 4);
-  SYS_DEV_ARG_UNPACK(sys_io_mode_e, crit_io_mode, args, 5);
-  SYS_DEV_ARG_UNPACK(uint8_t, warn_io_device, args, 6);
-  SYS_DEV_ARG_UNPACK(sys_io_pin_num_t, warn_io_num, args, 7);
-  SYS_DEV_ARG_UNPACK(sys_io_mode_e, warn_io_mode, args, 8);
+static err_h device_install(const void* cfg_blob, void** out_device_handle) {
+  const d_ina3221_cfg_t* cfg = (const d_ina3221_cfg_t*)cfg_blob;
+  SE_CHECK_NOT_NULL(cfg);
+  SE_CHECK_NOT_NULL(out_device_handle);
 
-  ina_adapter_ctx_t* ctx = sys_device_allocate_ctx(sizeof(ina_adapter_ctx_t), args);
-  SYS_DEV_CHECK_HANDLE_R(ctx, device_id);
+  SYS_DEV_CTX_NEW(ina_adapter_ctx_t, ctx, cfg);
+  err_h err = NULL;
 
-  ctx->crit_gpio_device_id = crit_io_device;
-  ctx->crit_gpio_pin_num = crit_io_num;
-  ctx->warn_gpio_device_id = warn_io_device;
-  ctx->warn_gpio_pin_num = warn_io_num;
-
-  ctx->base.hw_handle = ina3221_new(i2c_addr, i2c_bus);
+  ctx->base.hw_handle = ina3221_new(ctx->cfg.i2c_addr, ctx->cfg.i2c_bus);
   if (!ctx->base.hw_handle) {
     free(ctx);
-    return STA_C(ERR_DEV_MISSING_HANDLE, OWNER, DEV_ERR_PACK(device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
-  }
-
-  status_rep_t status = sys_i2c_add_driver(ctx->base.hw_handle);
-  if (STA_IS_ERR(status)) {
-    goto fail;
-  }
-
-  status = sys_i2c_device_present(ctx->base.hw_handle);
-  if (STA_IS_ERR(status)) {
-    status = STA_C(ERR_I2C_DEV_NOT_FOUND, OWNER, DEV_ERR_PACK(ctx->base.device_id, 0, 0), STATUS_PAYLOAD_DEV_SOLO);
-    goto fail;
+    SE_RET_ERR(ERR_DEV_NO_HANDLE, cfg->device_id);
   }
 
   ina3221_handle_t hw = (ina3221_handle_t)(ctx->base.hw_handle);
-  status = STA_FROM_ESP(ina3221_start(hw));
-  if (STA_IS_ERR(status)) {
-    goto fail;
-  }
+
+  SYS_DEV_INSTALL_STEP(sys_i2c_add_driver(ctx->base.hw_handle), "i2c add driver");
+  SYS_DEV_STEP_DONE(ctx, INA_STEP_I2C_ADDED);
+
+  SYS_DEV_INSTALL_STEP(sys_i2c_device_present(ctx->base.hw_handle), "probe i2c device");
+  SYS_DEV_INSTALL_STEP(SE_CONVERT_ESP(ina3221_start(hw)), "start ina3221");
 
   // Configure critical alert interrupt pin
-  IF_PIN(crit_io_num) {
-    status = sys_io_set_mode(crit_io_device, crit_io_num, crit_io_mode);
-    if (STA_IS_ERR(status)) {
-      goto fail;
-    }
+  IF_PIN_REF(ctx->cfg.crit_pin) {
+    SYS_DEV_INSTALL_STEP(SYS_IO_REF_SET_MODE(ctx->cfg.crit_pin), "crit pin mode");
     sys_io_intr_config_t intr_cfg = {
         .mode = SYS_IO_INTR_MODE_FALLING_EDGE,
         .own_func = {.own_func = device_event_handler, .device_handle = ctx},
     };
-    status = sys_io_configure_intr(crit_io_device, crit_io_num, &intr_cfg);
-    if (STA_IS_ERR(status)) {
-      goto fail;
-    }
-    SYS_IO_LOCK_PIN(crit_io_device, crit_io_num);
+    SYS_DEV_INSTALL_STEP(sys_io_configure_intr(ctx->cfg.crit_pin.device_id, ctx->cfg.crit_pin.pin, &intr_cfg), "crit pin intr");
+    SYS_IO_REF_LOCK(ctx->cfg.crit_pin);
+    SYS_DEV_STEP_DONE(ctx, INA_STEP_CRIT_READY);
   }
 
   // Configure warning alert interrupt pin
-  IF_PIN(warn_io_num) {
-    status = sys_io_set_mode(warn_io_device, warn_io_num, warn_io_mode);
-    if (STA_IS_ERR(status)) {
-      goto fail;
-    }
+  IF_PIN_REF(ctx->cfg.warn_pin) {
+    SYS_DEV_INSTALL_STEP(SYS_IO_REF_SET_MODE(ctx->cfg.warn_pin), "warn pin mode");
     sys_io_intr_config_t intr_cfg = {
         .mode = SYS_IO_INTR_MODE_FALLING_EDGE,
         .own_func = {.own_func = device_event_handler, .device_handle = ctx},
     };
-    status = sys_io_configure_intr(warn_io_device, warn_io_num, &intr_cfg);
-    if (STA_IS_ERR(status)) {
-      goto fail;
-    }
-    SYS_IO_LOCK_PIN(warn_io_device, warn_io_num);
-  }
-
-  // Register with sys_power
-  status = sys_power_register_monitor(device_id, ctx, &s_ina_monitor_contract);
-  if (STA_IS_ERR(status)) {
-    goto fail;
+    SYS_DEV_INSTALL_STEP(sys_io_configure_intr(ctx->cfg.warn_pin.device_id, ctx->cfg.warn_pin.pin, &intr_cfg), "warn pin intr");
+    SYS_IO_REF_LOCK(ctx->cfg.warn_pin);
+    SYS_DEV_STEP_DONE(ctx, INA_STEP_WARN_READY);
   }
 
   // Initialize INA3221 defaults
-  ina3221_reset(hw);
-  ina3221_enable_latch_pin(hw, true, true);
-  ina3221_set_options(hw, true, true, true);
+  SYS_DEV_INSTALL_STEP(SE_CONVERT_ESP(ina3221_reset(hw)), "ina3221 reset");
+  SYS_DEV_INSTALL_STEP(SE_CONVERT_ESP(ina3221_enable_latch_pin(hw, true, true)), "ina3221 enable latch");
+  SYS_DEV_INSTALL_STEP(SE_CONVERT_ESP(ina3221_set_options(hw, true, true, true)), "ina3221 set options");
 
   *out_device_handle = ctx;
-  return STA_OK;
+  return NULL;
 
 fail:
-  device_uninstall(ctx);
-  *out_device_handle = NULL;
-  return status;
+  SYS_DEV_INSTALL_FAIL(err, cfg->device_id, out_device_handle, device_uninstall, ctx);
+  return NULL;
 }
 
-static status_rep_t device_event_handler(void* handle, cb_event_t* event) {
+static err_h device_event_handler(void* handle, cb_event_t* event) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
   // Read and clear alert flags from the mask/status register
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_get_status(hw), ctx);
@@ -267,25 +232,19 @@ static status_rep_t device_event_handler(void* handle, cb_event_t* event) {
       SYS_PWR_CB(ctx, ch, SYS_PWR_EVENT_OCP_WARNING, ma_val, ctx->route_masks_warn[ch]);
     }
   }
-  return STA_OK;
+  return NULL;
 }
+
+static const sys_device_class_t s_ina3221_class = {
+    .name = "INA3221_PWR_MONITOR",
+    .roles = SYS_DEV_ROLE_PWR,
+    .contracts = {[SYS_DEVICE_CONTRACT_POWER_MONITOR] = (void*)&s_ina_monitor_contract},
+    .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume, .freeze = device_freeze, .sync = device_sync, .error_handler = device_error_handler},
+};
 
 // --- Exposed Initialization API ---
-status_rep_t d_ina3221_create(uint8_t device_id, bool i2c_bus, uint8_t i2c_addr, uint8_t crit_io_device, sys_io_pin_num_t crit_io_num, sys_io_mode_e crit_io_mode, uint8_t warn_io_device, sys_io_pin_num_t warn_io_num, sys_io_mode_e warn_io_mode) {
-  void* args[] = {SYS_DEV_ARG_PACK(device_id), SYS_DEV_ARG_PACK(i2c_bus), SYS_DEV_ARG_PACK(i2c_addr), SYS_DEV_ARG_PACK(crit_io_device), SYS_DEV_ARG_PACK(crit_io_num), SYS_DEV_ARG_PACK(crit_io_mode), SYS_DEV_ARG_PACK(warn_io_device), SYS_DEV_ARG_PACK(warn_io_num), SYS_DEV_ARG_PACK(warn_io_mode)};
-
-  sys_device_t dev = {.device_id = device_id,
-      .role = SYS_DEV_ROLE_PWR,
-      .name = "INA3221_PWR_MONITOR",
-      .install_args = args,
-      .install_device = device_install,
-      .uninstall_device = device_uninstall,
-      .reset_device = device_reset,
-      .error_handler = device_error_handler,
-      .suspend_device = device_suspend,
-      .resume_device = device_resume,
-      .freeze_device = device_freeze,
-      .sync_device = device_sync};
-
-  return sys_device_install(&dev);
+err_h d_ina3221_create(const d_ina3221_cfg_t* cfg) {
+  SE_CHECK_NOT_NULL(cfg);
+  return SYS_DEVICE_CREATE(&s_ina3221_class, cfg);
 }
+// 291

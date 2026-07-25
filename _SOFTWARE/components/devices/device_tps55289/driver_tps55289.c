@@ -6,7 +6,7 @@ static const char * TAG = __FILE_NAME__;
 
 
 
-#define CHECK_HANDLE(h) do { if (!(h)) return ESP_ERR_INVALID_ARG; } while(0)
+#define CHECK_DRV_HANDLE(h) do { if (!(h)) return ESP_ERR_INVALID_ARG; } while(0)
 
 static esp_err_t _tps55289_read(tps55289_handle_t handle, uint8_t reg, uint8_t *data, size_t len)
 {
@@ -52,7 +52,7 @@ static void _tps55289_parse_status(tps55289_handle_t handle, uint8_t raw_status)
 
 esp_err_t tps55289_get_status(tps55289_handle_t handle)
 {
-    CHECK_HANDLE(handle);
+    CHECK_DRV_HANDLE(handle);
     uint8_t raw_status = 0;
     esp_err_t err = _tps55289_read(handle, TPS55289_REG_STATUS, &raw_status, 1);
     if (err == ESP_OK) {
@@ -99,7 +99,7 @@ void tps55289_set_shunt_resistor(tps55289_handle_t handle, uint16_t resistance_m
 
 esp_err_t tps55289_set_output_enable(tps55289_handle_t handle, bool enable)
 {
-    CHECK_HANDLE(handle);
+    CHECK_DRV_HANDLE(handle);
     uint8_t mode = 0;
     _tps55289_read(handle, TPS55289_REG_MODE, &mode, 1);
     if (enable) mode |= 0x80;
@@ -109,7 +109,7 @@ esp_err_t tps55289_set_output_enable(tps55289_handle_t handle, bool enable)
 
 esp_err_t tps55289_set_current_limit(tps55289_handle_t handle, bool enable, uint16_t limit_ma)
 {
-    CHECK_HANDLE(handle);
+    CHECK_DRV_HANDLE(handle);
     float target_v_ilim_mv = (limit_ma * handle->shunt_resistor_mohm) / 1000.0f;
     if (target_v_ilim_mv > 63.5f) target_v_ilim_mv = 63.5f;
 
@@ -122,7 +122,7 @@ esp_err_t tps55289_set_current_limit(tps55289_handle_t handle, bool enable, uint
 
 esp_err_t tps55289_set_voltage(tps55289_handle_t handle, uint16_t voltage_mv)
 {
-    CHECK_HANDLE(handle);
+    CHECK_DRV_HANDLE(handle);
     uint8_t vout_fs = 0;
     _tps55289_read(handle, TPS55289_REG_VOUT_FS, &vout_fs, 1);
     bool is_external_fb = (vout_fs & 0x80) != 0;
@@ -156,7 +156,7 @@ esp_err_t tps55289_set_voltage(tps55289_handle_t handle, uint16_t voltage_mv)
 
 esp_err_t tps55289_set_mode(tps55289_handle_t handle, bool fpwm, bool hiccup)
 {
-    CHECK_HANDLE(handle);
+    CHECK_DRV_HANDLE(handle);
     uint8_t mode = 0;
     _tps55289_read(handle, TPS55289_REG_MODE, &mode, 1);
     if (fpwm) mode |= 0x02; else mode &= ~0x02;
@@ -166,7 +166,7 @@ esp_err_t tps55289_set_mode(tps55289_handle_t handle, bool fpwm, bool hiccup)
 
 esp_err_t tps55289_set_fault_masks(tps55289_handle_t handle, bool mask_scp, bool mask_ocp, bool mask_ovp)
 {
-    CHECK_HANDLE(handle);
+    CHECK_DRV_HANDLE(handle);
     uint8_t cdc = 0;
     _tps55289_read(handle, TPS55289_REG_CDC, &cdc, 1);
     if (mask_scp) cdc |= 0x80; else cdc &= ~0x80;
