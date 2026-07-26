@@ -336,7 +336,6 @@ fail:
 // The IO contract is declared here, not registered imperatively during install.
 static const sys_device_class_t s_ads7128_class = {
     .name = "ADS7128_ADC",
-    .roles = SYS_DEV_ROLE_IO,
     .contracts = {[SYS_DEVICE_CONTRACT_IO] = (void*)&io_ads_vtable},
     .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume, .freeze = device_freeze, .sync = device_sync, .error_handler = device_error_handler},
 };

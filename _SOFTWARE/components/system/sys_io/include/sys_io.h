@@ -4,16 +4,13 @@
 
 #define SYS_GPIO_NONE 0xFF
 #define IF_PIN(pin_num) if (((pin_num)) != SYS_GPIO_NONE)
-#define SYS_IO_HIGH(device_id, pin_num) sys_io_set_level((device_id), (pin_num), true)
-#define SYS_IO_LOW(device_id, pin_num) sys_io_set_level((device_id), (pin_num), false)
-#define SYS_IO_TOGGLE(device_id, pin_num) sys_io_toggle((device_id), (pin_num))
 
 #define SYS_IO_CB(_ctx, _pin, _event, _value, _route_mask) \
   do {                                                     \
     cb_event_t __cb_evt;                                   \
     memset(&__cb_evt, 0, sizeof(__cb_evt));                \
     __cb_evt.head.callback_type = CALLBACK_IO;             \
-    __cb_evt.head.route_mask = (_route_mask);     \
+    __cb_evt.head.route_mask = (_route_mask);              \
     __cb_evt.event.io.device_id = (_ctx)->base.device_id;  \
     __cb_evt.event.io.pin_id = (_pin);                     \
     __cb_evt.event.io.trigger_event = (_event);            \
@@ -21,10 +18,10 @@
     sys_callback_trigger(&__cb_evt);                       \
   } while (0)
 
-#define VERIFY_PIN(dev_id, pin, pinmask)                 \
+#define VERIFY_PIN(dev_id, pin, pinmask)                   \
   do {                                                     \
     if (((pin) >= 64) || !((1ULL << (pin)) & (pinmask))) { \
-      SE_RET_ERR(ERR_IO_PIN_UNAVAILABLE, (dev_id), (pin));    \
+      SE_RET_ERR(ERR_IO_PIN_UNAVAILABLE, (dev_id), (pin)); \
     }                                                      \
   } while (0)
 
@@ -66,7 +63,7 @@ typedef uint8_t sys_io_pin_num_t;
  */
 typedef struct sys_io_pin_ref_t {
   uint8_t device_id;
-  sys_io_pin_num_t pin;  /* SYS_GPIO_NONE when unused */
+  sys_io_pin_num_t pin; /* SYS_GPIO_NONE when unused */
   sys_io_mode_e mode;
 } sys_io_pin_ref_t;
 
@@ -126,6 +123,7 @@ typedef struct sys_io_device_t {
 err_h sys_io_reset(uint8_t device_id, sys_io_pin_num_t pin);
 err_h sys_io_set_mode(uint8_t device_id, sys_io_pin_num_t pin, sys_io_mode_e mode);
 err_h sys_io_configure_intr(uint8_t device_id, sys_io_pin_num_t pin, const sys_io_intr_config_t* config);
+
 err_h sys_io_set_level(uint8_t device_id, sys_io_pin_num_t pin, bool level);
 err_h sys_io_get_level(uint8_t device_id, sys_io_pin_num_t pin, bool* level);
 err_h sys_io_toggle(uint8_t device_id, sys_io_pin_num_t pin);
@@ -135,22 +133,21 @@ err_h sys_io_set_voltage(uint8_t device_id, sys_io_pin_num_t pin, uint32_t volta
 
 err_h sys_io_set_pwm_frequency(uint8_t device_id, sys_io_pin_num_t pin, uint32_t frequency_HZ);
 err_h sys_io_set_pwm_duty(uint8_t device_id, sys_io_pin_num_t pin, uint32_t duty);
+#define SYS_IO_HIGH(device_id, pin_num) sys_io_set_level((device_id), (pin_num), true)
+#define SYS_IO_LOW(device_id, pin_num) sys_io_set_level((device_id), (pin_num), false)
 
-err_h sys_io_register_driver(uint8_t device_id, void* handle, sys_io_vtable_t* dispatch_table);
-err_h sys_io_unregister_driver(uint8_t device_id);
-
-#define SYS_IO_UNLOCK_PIN(dev_id, pin)                                                            \
-  do {                                                                                            \
-    sys_device_t* __d = sys_device_get_by_id((dev_id));                                           \
-    sys_io_vtable_t* __v = __d ? (sys_io_vtable_t*)__d->contracts[SYS_DEVICE_CONTRACT_IO] : NULL; \
-    if (__v) __v->protected_pins &= ~(1ULL << (pin));                                             \
+#define SYS_IO_UNLOCK_PIN(dev_id, pin)                                                                 \
+  do {                                                                                                 \
+    sys_device_t* __d = sys_device_get_by_id((dev_id));                                                \
+    sys_io_vtable_t* __v = __d ? (sys_io_vtable_t*)__d->cls->contracts[SYS_DEVICE_CONTRACT_IO] : NULL; \
+    if (__v) __v->protected_pins &= ~(1ULL << (pin));                                                  \
   } while (0)
 
-#define SYS_IO_LOCK_PIN(dev_id, pin)                                                              \
-  do {                                                                                            \
-    sys_device_t* __d = sys_device_get_by_id((dev_id));                                           \
-    sys_io_vtable_t* __v = __d ? (sys_io_vtable_t*)__d->contracts[SYS_DEVICE_CONTRACT_IO] : NULL; \
-    if (__v) __v->protected_pins |= (1ULL << (pin));                                              \
+#define SYS_IO_LOCK_PIN(dev_id, pin)                                                                   \
+  do {                                                                                                 \
+    sys_device_t* __d = sys_device_get_by_id((dev_id));                                                \
+    sys_io_vtable_t* __v = __d ? (sys_io_vtable_t*)__d->cls->contracts[SYS_DEVICE_CONTRACT_IO] : NULL; \
+    if (__v) __v->protected_pins |= (1ULL << (pin));                                                   \
   } while (0)
 
 #define WITH_PIN_UNLOCKED(dev_id, pin)                                                                                                         \

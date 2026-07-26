@@ -37,8 +37,9 @@ When task prompts mention specific system concepts or keywords without explicit 
 | `ble`, `bluetooth`, `nimble`, `gatt`, `characteristic`, `service` | `components/system/ble` | [SYS_BLE.MD](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/ble/SYS_BLE.MD) | [sys_ble.h](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/ble/include/sys_ble.h) |
 | `buffer`, `ringbuf`, `queue`, `storage` | `components/system/sys_buffers` | [SYS_BUFFERS.MD](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/sys_buffers/SYS_BUFFERS.MD) | [sys_buffers.h](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/sys_buffers/include/sys_buffers.h) |
 | `callback`, `route`, `event`, `isr`, `trampoline` | `components/system/callbacks` | [SYS_CALLBACKS.MD](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/callbacks/SYS_CALLBACKS.MD) | [sys_callbacks.h](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/callbacks/include/sys_callbacks.h) |
-| `interface`, `codec`, `decode`, `packet`, `protocol` | `components/system/sys_interface` | [SYS_INTERFACE.MD](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/sys_interface/SYS_INTERFACE.MD) | [sys_interface.h](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/sys_interface/include/sys_interface.h) |
-| `error`, `status`, `owner`, `tag`, `trace`, `SE_` | `components/status` | — | [sys_error.h](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/status/include/sys_error.h), [status.h](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/status/include/status.h) |
+| `interface`, `route`, `class header`, `dispatch`, `packet`, `protocol` | `components/system/sys_interface` | [SYS_INTERFACE.MD](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/sys_interface/SYS_INTERFACE.MD) | [sys_interface.h](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/sys_interface/include/sys_interface.h) |
+| `codec`, `decoder`, `encoder`, `payload`, `wire format`, `HEADER_packet_` | `components/codecs` | [CODECS.MD](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/codecs/CODECS.MD) | [dec_sys_contracts.h](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/codecs/decoders/dec_sys_contracts.h) |
+| `error`, `status`, `owner`, `tag`, `trace`, `SE_` | `components/sys_errors` | [SYS_ERRORS.MD](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/sys_errors/SYS_ERRORS.MD) | [sys_error.h](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/sys_errors/include/sys_error.h) |
 | `board`, `config`, `defs`, `start`, `runit` | `components/runit` | — | [runit_board_cfg.h](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/runit/runit_board_cfg.h), [runit.c](file:///c:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/runit/runit.c) |
 
 ---
@@ -78,6 +79,7 @@ When task prompts mention specific system concepts or keywords without explicit 
 
 ### 3. Documentation & Skill Maintenance
 - **Self-Updating Skill File**: Update `SKILL.md` whenever structural edits occur (new component directories, submodules, or device drivers).
+- **Automatic Submodule Documentation Sync**: Whenever modifying component source files (`.h`, `.c`), automatically update the corresponding component `.MD` files (e.g. `SYS_IO.MD`, `SYS_DEVICE.MD`, `SYS_CALLBACKS.MD` and others) to reflect API signatures, struct definitions, macros, function declarations, or subsystem behaviors. Do not require the user to ask — keep docs and code in sync proactively.
 - **Missing Submodule Handling**: If an unlisted C component is encountered, ask the user for its purpose, create its missing `.MD` documentation file, and document its main API usage examples.
 - **User Guidelines Persistence**: Append any user corrections or new architectural instructions to `SKILL.md` immediately.
 - **Ask Before Guessing**: Never guess the purpose of unknown registers, hardware logic, or schemas; ask the user for clarification and record the answer.
@@ -90,12 +92,12 @@ When task prompts mention specific system concepts or keywords without explicit 
 ## 4. Build & Environment Verification
 
 ### Verified Build Command
-Run this command from PowerShell to compile the project under ESP-IDF 6.0:
+Run this command from the project root (`_SOFTWARE`), directly in PowerShell — do NOT wrap it in a nested `powershell -Command "..."` call. `export.ps1` writes its activation banner in a way that a nested shell misclassifies as a `NativeCommandError`, causing a spurious non-zero exit code even though the build succeeds. Do not pipe/redirect its stderr (e.g. `2>&1`) either, for the same reason.
 ```powershell
-powershell -Command ". C:\esp\v6.0.1\esp-idf\export.ps1; idf.py build"
+. C:\esp\v6.0.1\esp-idf\export.ps1; idf.py build
 ```
 
 ### Flash & Monitor Command
 ```powershell
-powershell -Command ". C:\esp\v6.0.1\esp-idf\export.ps1; idf.py -p COM<X> flash monitor"
+. C:\esp\v6.0.1\esp-idf\export.ps1; idf.py -p COM<X> flash monitor
 ```

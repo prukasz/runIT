@@ -26,8 +26,12 @@ Interrupt / Hardware Event -> sys_callback_trigger() -> Static FreeRTOS Queue ->
 
 ### Dynamic Callback Event Routing
 1. Hardware drivers or system submodules construct a generic `cb_event_t` containing a header (`sys_callback_head_t`) and an event payload union (`io`, `pwr`, `ble`, or `own_func`).
-2. The event is posted via `sys_callback_trigger(event)`. If called from an ISR context (`xPortInIsrContext()`), `sys_callback_trigger` automatically routes through `xQueueSendFromISR` with high-priority task unblocking (`portYIELD_FROM_ISR`).
-3. The static background task (`sys_cb_task`) dequeues events sequentially and dispatches them based on the `callback_type`.
+2. The event is posted via `sys_callback_trigger(event)`. If called from an ISR context (`xPortInIsrContext()`), it routes through `xQueueSendFromISR` with high-priority task unblocking (`portYIELD_FROM_ISR`); otherwise it blocks on `xQueueSend` up to `portMAX_DELAY`. Returns `ERR_INVALID_VAL_UI32` for a NULL event, `ERR_BASE_INVALID_STATE` if `sys_callbacks_init()` hasn't run yet, or `ERR_BASE_NO_MEM` if the send itself fails (queue full).
+3. The static background task (`sys_cb_task`, created via the `utils` component's `R_TASK_DEFINE` / `R_TASK_START_ON_CORE` wrappers) dequeues events sequentially via `R_QUEUE_RECEIVE(..., WAIT_FOREVER)` and switches on `callback_type`.
+
+**Current dispatch is a skeleton for `CALLBACK_IO` / `CALLBACK_PWR` / `CALLBACK_BLE`**: the task only `ESP_LOGI`s their payload fields — there is no per-route subscriber table yet, despite `route_mask` already existing on the header for that purpose. `CALLBACK_OWN_FUNC` is the only type that's actually wired end-to-end: the task invokes `event.event.own_func.own_func(device_handle, &event)` directly. This is what `sys_ble`'s callback-mode RX delivery builds on — see [[SYS_BLE.MD]].
+
+Every error raised inside `sys_callbacks.c` is tagged `OWNER_SYS_DEVICE_BASE` — `callbacks` has no dedicated owner map of its own yet, so it currently borrows this owner id from [[SYS_DEVICE.MD]] rather than defining `OWNER_SYS_CALLBACKS_*` tags.
 
 ---
 
@@ -41,6 +45,7 @@ typedef enum callback_type_e {
   CALLBACK_PWR      = 2,
   CALLBACK_BLE      = 3,
   CALLBACK_OWN_FUNC = 4,
+  CALLBACK_MAX
 } callback_type_e;
 ```
 
@@ -108,10 +113,12 @@ typedef struct cb_event_t {
 
 ## Manager API Functions
 
+Both return `err_h` (`NULL` on success), per the [[runit]] skill's function return signature convention.
+
 ### Initialization & Queue Management
-* **`sys_callbacks_init()`**:
-  Allocates the static FreeRTOS event queue (`CALLBACK_QUEUE_LEN = 16`) and launches the dedicated `sys_cb_task` background worker thread.
+* **`err_h sys_callbacks_init(void)`**:
+  Idempotent — returns `NULL` immediately if already initialized. Otherwise allocates the static FreeRTOS event queue (`CALLBACK_QUEUE_LEN = 16`, sized for `cb_event_t`) and launches `sys_cb_task` (4096-word stack, priority 5, pinned to core 0). Returns `ERR_BASE_NO_MEM` if the static queue create fails.
 
 ### Event Triggering
-* **`sys_callback_trigger(const cb_event_t* event)`**:
-  Enqueues an event object into the callback processing queue. Safe to call from both task context and ISR context.
+* **`err_h sys_callback_trigger(const cb_event_t* event)`**:
+  Enqueues an event object into the callback processing queue. Safe to call from both task context and ISR context (see routing rule above).

@@ -195,7 +195,6 @@ fail:
 
 static const sys_device_class_t s_dac53202_class = {
     .name = "DAC53202",
-    .roles = SYS_DEV_ROLE_IO,
     .contracts = {[SYS_DEVICE_CONTRACT_IO] = (void*)&io_dac_vtable},
     .ops = {
         .install = device_install,

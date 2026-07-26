@@ -15,6 +15,7 @@ idf_component_register(
                  "../system/sys_i2c/include"
                  "../system/ble/include"
                  "../system/sys_interface/include"
+                 "../system/sys_buffers/include"
     REQUIRES esp_ringbuf
     PRIV_REQUIRES utils ble
 )

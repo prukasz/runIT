@@ -23,17 +23,33 @@
 
 #define BLE_GAP_APPEARANCE_GENERIC_TAG 0x0200
 
+/* Internal-only: one TX slot's buffer. tx_buff.header doubles as the slot's
+   identifier (see sys_ble_char_send()/sys_ble_char_assign_tx_buffer()). */
+typedef struct {
+  bool is_indication;
+  sys_buff_t tx_buff;
+} sys_ble_tx_slot_t;
+
 typedef struct sys_ble_char_node {
   sys_ble_char_cfg_t cfg;
   uint16_t val_handle;
 
-  // RX buffer
-  RingbufHandle_t rx_buff;
+  // RX buffer (header unused - RX frames are dequeued via sys_buff_pop_raw())
+  sys_buff_t rx_buff;
   SemaphoreHandle_t rx_sem;
+  own_func_t rx_handler;  // Optional: dispatched via SYS_CB_OWN() on each RX write, in addition to rx_buff/rx_sem
+
+  // Last value actually sent (post-framing), served back on a GATT read
+  uint8_t last_val[527];
+  size_t last_val_len;
 
   // TX buffers
   sys_ble_tx_slot_t tx_slots[MAX_TX_BUFFERS];
   uint8_t tx_slot_count;
+
+  // Dynamic (re)compile bookkeeping - see sys_ble_database_sync()
+  bool pending_add;     // true from creation until the owning service is next successfully (re)compiled
+  bool pending_remove;  // set by sys_ble_char_remove() instead of freeing, when the owning service is already live
 
   struct sys_ble_char_node* next;
 } sys_ble_char_node_t;
@@ -42,6 +58,7 @@ typedef struct sys_ble_svc_node {
   sys_ble_svc_cfg_t cfg;
   sys_ble_char_node_t* chars;
   bool registered;
+  bool dirty;  // true when a characteristic was added/removed while registered == true; tells sync() to recompile
   struct ble_gatt_svc_def* compiled_def;  // Heap allocated for this specific service
   struct sys_ble_svc_node* next;
 } sys_ble_svc_node_t;

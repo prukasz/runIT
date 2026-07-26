@@ -338,7 +338,6 @@ fail:
 
 static const sys_device_class_t s_ap33772s_class = {
     .name = "AP33772S",
-    .roles = SYS_DEV_ROLE_PWR,
     .contracts = {[SYS_DEVICE_CONTRACT_POWER_VREG] = (void*)&s_ap_vreg_contract, [SYS_DEVICE_CONTRACT_POWER_USB_PD] = (void*)&s_ap_usb_pd_contract, [SYS_DEVICE_CONTRACT_POWER_MONITOR] = (void*)&s_ap_monitor_contract},
     .ops = {.install = device_install, .uninstall = device_uninstall, .reset = adapter_reset_device, .suspend = adapter_suspend_device, .resume = adapter_resume_device, .freeze = adapter_freeze_device, .sync = adapter_sync_device, .error_handler = adapter_error_handler},
 };

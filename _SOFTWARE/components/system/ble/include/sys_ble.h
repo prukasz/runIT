@@ -1,14 +1,11 @@
 #pragma once
 #include <freertos/FreeRTOS.h>
-#include <freertos/ringbuf.h>
 #include <freertos/semphr.h>
 #include "sys_error.h"
 #include "sys_error_ble.h"
 #include "sys_callbacks.h"
 
 #define MAX_TX_BUFFERS 3
-
-typedef enum { RINGBUF_TYPE_NOSPLIT_BUF = RINGBUF_TYPE_NOSPLIT, RINGBUF_TYPE_BYTE_BUF = RINGBUF_TYPE_BYTEBUF } sys_ble_ringbuf_type_e;
 
 typedef struct {
   uint16_t uuid;  // 16-bit UUID
@@ -29,13 +26,10 @@ typedef struct {
   size_t rx_buffer_size;  // Size of RX ring buffer (0 if write/notify is disabled)
 } sys_ble_char_create_t;
 
-#include "sys_buffers.h"
-
 typedef struct {
-  uint16_t buffer_id;
-  size_t size;
+  uint8_t header;   // stream tag; also identifies this TX slot within its characteristic
+  size_t size;      // ring buffer capacity in bytes
   bool is_indication;
-  sys_tx_buff_t tx_buff;
 } sys_ble_tx_buf_cfg_t;
 
 typedef enum sys_ble_events_e { SYS_BLE_EVENT_CONNECT = 0, SYS_BLE_EVENT_DISCONNECT, SYS_BLE_EVENT_FAILURE, SYS_BLE_EVENT_MAX } sys_ble_events_e;
@@ -51,18 +45,62 @@ typedef enum sys_ble_events_e { SYS_BLE_EVENT_CONNECT = 0, SYS_BLE_EVENT_DISCONN
   } while (0)
 
 typedef struct {
-  uint16_t buffer_id;
-  bool is_indication;
-  sys_tx_buff_t tx_buff;
-} sys_ble_tx_slot_t;
-
-
-
-typedef struct {
   bool is_connected;
   uint16_t mtu_size;
   uint32_t rx_overflow_count;
 } sys_ble_status_t;
+
+/* ========================================================================== *
+ * Unified Declarative Channel API
+ * ========================================================================== */
+
+/**
+ * @brief Reserved service UUID meaning "use the lazily-created default service".
+ *
+ * Passed as sys_ble_channel_cfg_t.svc_uuid when the caller doesn't care about
+ * GATT service grouping. The service is created on first use.
+ */
+#define SYS_BLE_SVC_DEFAULT_AUTO 0xFEFE
+
+typedef enum {
+  SYS_BLE_RX_MODE_NONE = 0,     // RX disabled (rx_buffer_size ignored)
+  SYS_BLE_RX_MODE_POLL,         // App drains via sys_ble_char_rx_dequeue()/sys_ble_char_get_rx_semaphore()
+  SYS_BLE_RX_MODE_CALLBACK,     // rx_handler is dispatched (via the callbacks system) on each incoming write
+} sys_ble_rx_mode_e;
+
+/**
+ * @brief Declarative description of one BLE "data channel": a characteristic
+ * plus its RX/TX plumbing, collapsing what otherwise takes several manual
+ * sys_ble_service_create() / sys_ble_char_create() / sys_ble_char_assign_tx_buffer()
+ * calls into a single sys_ble_channel_create() call.
+ */
+typedef struct {
+  uint16_t svc_uuid;  // 0 or SYS_BLE_SVC_DEFAULT_AUTO to use the lazily-created default service
+  sys_ble_char_cfg_t chr;
+  size_t rx_buffer_size;  // 0 if rx_mode == SYS_BLE_RX_MODE_NONE
+  sys_ble_rx_mode_e rx_mode;
+  own_func_t rx_handler;  // used only when rx_mode == SYS_BLE_RX_MODE_CALLBACK
+
+  const sys_ble_tx_buf_cfg_t* tx_bufs;  // optional array, NULL/0 count if the channel is RX-only
+  uint8_t tx_buf_count;
+} sys_ble_channel_cfg_t;
+
+/**
+ * @brief Create a BLE data channel (service-if-needed + characteristic + TX
+ * buffers + RX delivery mode) from one declarative config.
+ *
+ * Reuses an existing service if cfg->svc_uuid already exists (unlike the raw
+ * sys_ble_service_create(), which errors on a duplicate), or lazily creates
+ * the default service when cfg->svc_uuid is 0 or SYS_BLE_SVC_DEFAULT_AUTO.
+ *
+ * @param cfg Channel configuration.
+ * @param sync_now If true, calls sys_ble_database_sync() before returning -
+ *                  use for a single dynamic post-boot addition. If false,
+ *                  the caller must call sys_ble_database_sync() once after
+ *                  batching several sys_ble_channel_create() calls.
+ * @return err_h Status report (NULL on success, or error status).
+ */
+err_h sys_ble_channel_create(const sys_ble_channel_cfg_t* cfg, bool sync_now);
 
 /**
  * @brief Initialize the BLE Manager abstraction layer and register connection callbacks.
@@ -123,7 +161,7 @@ err_h sys_ble_char_remove(uint16_t svc_uuid, uint16_t char_uuid);
  * TX ring buffers allow non-blocking queueing of outgoing BLE indications and notifications.
  *
  * @param char_uuid 16-bit UUID of the characteristic.
- * @param buf_cfg Pointer to TX buffer configuration (size, priority, type, header, etc.).
+ * @param buf_cfg Pointer to TX buffer configuration (header, size, indicate/notify).
  * @return err_h Status report (NULL on success, or error status).
  */
 err_h sys_ble_char_assign_tx_buffer(uint16_t char_uuid, const sys_ble_tx_buf_cfg_t* buf_cfg);
@@ -151,19 +189,36 @@ err_h sys_ble_char_get_rx_semaphore(uint16_t char_uuid, SemaphoreHandle_t* out_s
 err_h sys_ble_char_rx_dequeue(uint16_t char_uuid, uint8_t* buffer, size_t max_len, size_t* out_len);
 
 /**
+ * @brief Test/debug utility: inject raw bytes into a characteristic's RX buffer
+ * as if a peer had written them.
+ *
+ * Takes the exact same push-then-signal path as a real GATT write
+ * (sys_ble_gatt_access_cb()'s BLE_GATT_ACCESS_OP_WRITE_CHR branch), so it
+ * exercises the full RX pipeline - ring buffer, semaphore, and any consumer
+ * bound via sys_ble_char_rx_dequeue() or sys_interface_bind_ble_rx() - without
+ * needing a connected peer.
+ *
+ * @param char_uuid 16-bit UUID of the characteristic (must have rx_buffer_size > 0).
+ * @param data Pointer to the raw bytes to inject.
+ * @param len Length of the raw bytes.
+ * @return err_h Status report (NULL on success, or error status).
+ */
+err_h sys_ble_char_rx_inject(uint16_t char_uuid, const uint8_t* data, size_t len);
+
+/**
  * @brief Send data by enqueuing it into a characteristic's TX ring buffer.
  *
  * The background BLE task will dequeue this data and transmit it as notification or indication.
  *
  * @param char_uuid 16-bit UUID of the characteristic.
- * @param buffer_id ID of the buffer slot (typically 0).
+ * @param header Header byte identifying which TX slot to enqueue into (see sys_ble_char_assign_tx_buffer()).
  * @param data Pointer to the data payload to send.
  * @param len Length of the data payload.
  * @param return_when_full If true, returns immediately if the buffer is full (non-blocking).
  *                          If false, blocks for up to 100ms waiting for space.
  * @return err_h Status report (NULL on success, or error status).
  */
-err_h sys_ble_char_send(uint16_t char_uuid, uint16_t buffer_id, const uint8_t* data, size_t len, bool return_when_full);
+err_h sys_ble_char_send(uint16_t char_uuid, uint8_t header, const uint8_t* data, size_t len, bool return_when_full);
 
 /**
  * @brief Compile the GATT database definitions and synchronize with the NimBLE host stack.

@@ -13,50 +13,8 @@ static const char* TAG = __FILE_NAME__;
   is reachable from ISR-adjacent code, where a mutex cannot be taken.*/
 static sys_device_t* s_device_registry[MAX_DEVICE_ID + 1] = {NULL};
 
-/*Resolve a lifecycle op / name for either style: class-based or legacy inline.*/
-#define DEV_OP(d, new_f, old_f) ((d)->cls ? (d)->cls->ops.new_f : (d)->old_f)
-#define DEV_NAME(d) ((d)->cls ? (d)->cls->name : (d)->name)
-
-#undef OWNER
-#define OWNER OWNER_SYS_DEVICE_INSTALL
-err_h sys_device_install(sys_device_t* device) {
-  SE_CHECK_NOT_NULL(device);
-  SE_CHECK_NOT_NULL(device->install_device);
-  SE_CHECK_IN_RANGE(device->device_id, 0, MAX_DEVICE_ID);
-
-  if (s_device_registry[device->device_id] != NULL) {
-    SE_RET_ERR(ERR_DEV_ALREADY_EXIST, device->device_id);
-  }
-
-  sys_device_t* new_dev = (sys_device_t*)calloc(1, sizeof(sys_device_t));
-  SE_CHECK_IF_ALLOCATED(new_dev);
-
-  *new_dev = *device;
-  memset(new_dev->contracts, 0, sizeof(new_dev->contracts));
-  /*Legacy path owns no config: install_args points at the caller's stack and
-    must never be freed or read after install returns.*/
-  new_dev->cls = NULL;
-  new_dev->cfg = NULL;
-  new_dev->cfg_size = 0;
-  new_dev->state = SYS_DEV_STATE_INSTALLING;
-  s_device_registry[device->device_id] = new_dev;
-
-  ESP_LOGI(TAG, "Installing device: %s (ID: %u)", new_dev->name, new_dev->device_id);
-
-  err_h install_status = new_dev->install_device(new_dev->install_args, &new_dev->device_handle);
-
-  if (SE_IS_ERR(install_status)) {
-    ESP_LOGE(TAG, "Failed to install %s (ID: %u)", new_dev->name, new_dev->device_id);
-
-    s_device_registry[device->device_id] = NULL;
-    free(new_dev);
-    SE_RET_IF_ERR(install_status);
-  }
-
-  new_dev->state = SYS_DEV_STATE_INSTALLED;
-
-  return NULL;
-}
+#define DEV_OP(d, f) ((d)->cls->ops.f)
+#define DEV_NAME(d) ((d)->cls->name)
 
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_INSTALL
@@ -86,14 +44,11 @@ err_h sys_device_install_cfg(const sys_device_class_t* cls, uint8_t device_id, c
 
   new_dev->device_id = device_id;
   new_dev->cls = cls;
-  new_dev->role = (sys_device_role_e)cls->roles;
 
-  /*Publish contracts before install: adapters (and their dependencies) may
-    look this device up mid-install. The state stays INSTALLING until install
-    succeeds, so SYS_DEV_DISPATCH still refuses it in the meantime.*/
-  for (int i = 0; i < SYS_DEVICE_CONTRACT_MAX; i++) {
-    new_dev->contracts[i] = cls->contracts[i];
-  }
+  /*cls is set before install: adapters (and their dependencies) may look this
+    device up mid-install and read dev->cls->contracts[]. The state stays
+    INSTALLING until install succeeds, so SYS_DEV_DISPATCH still refuses it in
+    the meantime.*/
   new_dev->state = SYS_DEV_STATE_INSTALLING;
   s_device_registry[device_id] = new_dev;
 
@@ -131,7 +86,7 @@ err_h sys_device_reset(uint8_t device_id) {
   if (!SYS_DEV_IS_INSTALLED(dev)) SE_RET_ERR(ERR_DEV_NOT_INSTALLED, device_id);
   if (SYS_DEV_IS_SUSPENDED(dev)) SE_RET_ERR(ERR_DEV_SUSPENDED, device_id);
 
-  err_h (*fn)(void*) = DEV_OP(dev, reset, reset_device);
+  err_h (*fn)(void*) = DEV_OP(dev, reset);
   if (!fn) SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);
 
   ESP_LOGW(TAG, "Resetting device: %s", DEV_NAME(dev));
@@ -152,7 +107,7 @@ err_h sys_device_uninstall(uint8_t device_id) {
     dev->state = SYS_DEV_STATE_NONE;
     s_device_registry[device_id] = NULL;  // Zwolnienie indeksu
 
-    err_h (*fn)(void*) = DEV_OP(dev, uninstall, uninstall_device);
+    err_h (*fn)(void*) = DEV_OP(dev, uninstall);
     if (fn) {
       fn(dev->device_handle);
     }
@@ -174,7 +129,7 @@ err_h sys_device_suspend(uint8_t device_id) {
   if (!SYS_DEV_IS_INSTALLED(dev)) SE_RET_ERR(ERR_DEV_NOT_INSTALLED, device_id);
   if (SYS_DEV_IS_SUSPENDED(dev)) return NULL;
 
-  err_h (*fn)(void*) = DEV_OP(dev, suspend, suspend_device);
+  err_h (*fn)(void*) = DEV_OP(dev, suspend);
   if (!fn) SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);
   ESP_LOGI(TAG, "Suspending device: %s", DEV_NAME(dev));
   err_h err = fn(dev->device_handle);
@@ -191,7 +146,7 @@ err_h sys_device_resume(uint8_t device_id) {
   if (!SYS_DEV_IS_INSTALLED(dev)) SE_RET_ERR(ERR_DEV_NOT_INSTALLED, device_id);
   if (!SYS_DEV_IS_SUSPENDED(dev)) return NULL;
 
-  err_h (*fn)(void*) = DEV_OP(dev, resume, resume_device);
+  err_h (*fn)(void*) = DEV_OP(dev, resume);
   if (!fn) SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);
   ESP_LOGI(TAG, "Resuming device: %s", DEV_NAME(dev));
   err_h err = fn(dev->device_handle);
@@ -206,7 +161,7 @@ err_h sys_device_suspend_all(void) {
   for (int i = 0; i <= MAX_DEVICE_ID; i++) {
     sys_device_t* dev = sys_device_get_by_id(i);
     if (!dev || !SYS_DEV_IS_READY(dev)) continue;
-    err_h (*fn)(void*) = DEV_OP(dev, suspend, suspend_device);
+    err_h (*fn)(void*) = DEV_OP(dev, suspend);
     if (fn) {
       err_h ret = fn(dev->device_handle);
       if (SE_IS_ERR(ret)) {
@@ -225,7 +180,7 @@ err_h sys_device_resume_all(void) {
   for (int i = 0; i <= MAX_DEVICE_ID; i++) {
     sys_device_t* dev = sys_device_get_by_id(i);
     if (!dev || !SYS_DEV_IS_SUSPENDED(dev)) continue;
-    err_h (*fn)(void*) = DEV_OP(dev, resume, resume_device);
+    err_h (*fn)(void*) = DEV_OP(dev, resume);
     if (fn) {
       err_h ret = fn(dev->device_handle);
       if (SE_IS_ERR(ret)) {
@@ -246,7 +201,7 @@ err_h sys_device_freeze(uint8_t device_id) {
   if (!SYS_DEV_IS_INSTALLED(dev)) SE_RET_ERR(ERR_DEV_NOT_INSTALLED, device_id);
   if (SYS_DEV_IS_SUSPENDED(dev)) SE_RET_ERR(ERR_DEV_SUSPENDED, device_id);
 
-  err_h (*fn)(void*) = DEV_OP(dev, freeze, freeze_device);
+  err_h (*fn)(void*) = DEV_OP(dev, freeze);
   if (!fn) SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);
   ESP_LOGD(TAG, "Freezing device: %s", DEV_NAME(dev));
   err_h err = fn(dev->device_handle);
@@ -262,7 +217,7 @@ err_h sys_device_sync(uint8_t device_id) {
   if (!SYS_DEV_IS_INSTALLED(dev)) SE_RET_ERR(ERR_DEV_NOT_INSTALLED, device_id);
   if (SYS_DEV_IS_SUSPENDED(dev)) SE_RET_ERR(ERR_DEV_SUSPENDED, device_id);
 
-  err_h (*fn)(void*) = DEV_OP(dev, sync, sync_device);
+  err_h (*fn)(void*) = DEV_OP(dev, sync);
   if (!fn) SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);
   ESP_LOGD(TAG, "Syncing device: %s", DEV_NAME(dev));
   err_h err = fn(dev->device_handle);
@@ -276,7 +231,7 @@ err_h sys_device_freeze_all(void) {
   for (int i = 0; i <= MAX_DEVICE_ID; i++) {
     sys_device_t* dev = sys_device_get_by_id(i);
     if (!dev || !SYS_DEV_IS_READY(dev)) continue;
-    err_h (*fn)(void*) = DEV_OP(dev, freeze, freeze_device);
+    err_h (*fn)(void*) = DEV_OP(dev, freeze);
     if (fn) {
       err_h ret = fn(dev->device_handle);
       if (SE_IS_ERR(ret)) {
@@ -294,7 +249,7 @@ err_h sys_device_sync_all(void) {
   for (int i = 0; i <= MAX_DEVICE_ID; i++) {
     sys_device_t* dev = sys_device_get_by_id(i);
     if (!dev || !SYS_DEV_IS_READY(dev)) continue;
-    err_h (*fn)(void*) = DEV_OP(dev, sync, sync_device);
+    err_h (*fn)(void*) = DEV_OP(dev, sync);
     if (fn) {
       err_h ret = fn(dev->device_handle);
       if (SE_IS_ERR(ret)) {

@@ -261,7 +261,6 @@ fail:
 // The IO contract is declared here, not registered imperatively during install.
 static const sys_device_class_t s_pca9685_class = {
     .name = "PCA9685_PWM_EXPANDER",
-    .roles = SYS_DEV_ROLE_IO,
     .contracts = {[SYS_DEVICE_CONTRACT_IO] = (void*)&io_pca_vtable},
     .ops = {.install = device_install,
         .uninstall = device_uninstall,

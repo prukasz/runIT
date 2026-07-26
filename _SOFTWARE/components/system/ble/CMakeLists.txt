@@ -3,5 +3,5 @@ idf_component_register(
          "sys_ble_stack.c"
     INCLUDE_DIRS "include"
                  "."
-    REQUIRES bt nvs_flash esp_ringbuf sys_device status utils callbacks sys_buffers
+    REQUIRES bt nvs_flash esp_ringbuf sys_device sys_errors utils callbacks sys_buffers
 )

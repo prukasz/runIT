@@ -3,70 +3,74 @@
 IMPORTANT: If you modify the source files in this component (sys_buffers.h or sys_buffers.c), you must update this documentation to reflect the changes.
 
 ## Overview
-The `sys_buffers` component provides standard ring-buffer payload formatting, initialization, and extraction tools for physical transmission channels (such as BLE notifications/indications or serial interfaces). It wraps FreeRTOS Ringbuffer primitives, automatically prepending protocol header bytes and packing items into output array buffers for network stack consumption.
+The `sys_buffers` component provides a variable-length item ring buffer for physical transmission channels (such as BLE notifications/indications or serial interfaces). It wraps a single FreeRTOS `RINGBUF_TYPE_NOSPLIT` ringbuffer per descriptor - every push/pop moves one whole item, so message boundaries are never split or coalesced - and optionally prepends a protocol header byte on dequeue.
 
 ### Directory Map
 ```
 components/system/sys_buffers/
 ├── CMakeLists.txt
 ├── SYS_BUFFERS.MD       # This documentation
-├── sys_buffers.c        # Buffer allocation, payload extraction, and item packing implementation
+├── sys_buffers.c        # Buffer allocation and item push/pop implementation
 └── include/
-    └── sys_buffers.h    # sys_tx_buff_t descriptor struct, initializer macros, and function prototypes
+    ├── sys_buffers.h       # sys_buff_t descriptor struct and function prototypes
+    └── sys_error_buffers.h # SYS_BUFFERS_OWNER_MAP / SYS_ERROR_BUFFERS_MAP (see [[SYS_ERRORS.MD]])
 ```
 
 ---
 
 ## Architecture & Concept
 
-Data packaging flow:
+Data flow:
 ```
-Ringbuffer (FreeRTOS) -> sys_buff_prepare_tx() -> Header byte [0] + Data Payload [1..N] -> Output Buffer
+Push: caller -> sys_buff_push() -> Ringbuffer (FreeRTOS, RINGBUF_TYPE_NOSPLIT)
+Pop (framed):  Ringbuffer -> sys_buff_pop_framed() -> Header byte [0] + Item [1..N] -> Output Buffer
+Pop (raw):     Ringbuffer -> sys_buff_pop_raw()    -> Item [0..N-1]                 -> Output Buffer
 ```
 
-### Buffer Extraction Modes
-1. **`RINGBUF_TYPE_NOSPLIT` Mode (Dynamic Variable-Size Items)**:
-   - Fetches a single complete payload item from the ring buffer using `xRingbufferReceive`.
-   - Writes `tx_buff->header` byte to `buffer[0]`.
-   - Copies item payload bytes into `buffer[1]`.
-   - Automatically truncates items exceeding `max_size - 1` bytes and logs a warning.
-2. **`RINGBUF_TYPE_BYTEBUF` Mode (Auto-Packing Fixed-Size Items)**:
-   - Calculates `max_bytes` aligned to multiples of `const_item_size` that can fit within `max_size - 1`.
-   - Pulls contiguous chunks up to `max_bytes` using `xRingbufferReceiveUpTo`.
-   - Writes `tx_buff->header` byte to `buffer[0]` and appends consecutive item payloads starting at `buffer[1]`.
+Every item is pushed and popped whole. An item that doesn't fit in the destination buffer on pop (`max_size` too small) is truncated and counted in `sys_buff_t.truncated` - it is never split across two pops.
 
 ---
 
-## Core Data Structures & Initializer Macros
+## Core Data Structures
 
-### Transmit Buffer Descriptor (sys_tx_buff_t)
+### Buffer Descriptor (sys_buff_t)
 ```c
-typedef struct sys_tx_buff_t {
-  RingbufHandle_t buff;       // FreeRTOS Ringbuffer handle
-  RingbufferType_t type;      // RINGBUF_TYPE_NOSPLIT or RINGBUF_TYPE_BYTEBUF
-  size_t const_item_size;     // Fixed size per item (used for BYTEBUF packing)
-  uint8_t header;             // Standard packet header byte prepended to output
-} sys_tx_buff_t;
+typedef struct {
+  RingbufHandle_t buff;       // FreeRTOS Ringbuffer handle (RINGBUF_TYPE_NOSPLIT)
+  uint8_t header;              // Prepended to frames by sys_buff_pop_framed()
+  uint32_t truncated;          // Count of items truncated on pop
+} sys_buff_t;
 ```
-
-### Initializer Macros
-* **`SYS_BUF_FIXED_ITEM(header, item_size)`**:
-  Constructs a compound literal `sys_tx_buff_t` configured for auto-packing fixed-size payload items (`RINGBUF_TYPE_BYTEBUF`).
-* **`SYS_BUF_DYNAMIC_ITEM(header)`**:
-  Constructs a compound literal `sys_tx_buff_t` configured for variable-size payload items (`RINGBUF_TYPE_NOSPLIT`).
 
 ---
 
 ## Manager API Functions
 
 ### Allocation & Initialization APIs
-* **`sys_buff_init(sys_tx_buff_t* tx_buff, size_t size)`**:
-  Allocates the underlying FreeRTOS ringbuffer memory for a `sys_tx_buff_t` descriptor. Returns `STA_OK` on success, or `ERR_NO_MEM` on failure.
-* **`sys_buff_tx_init(sys_tx_buff_t item, size_t size)`**:
-  Value-returning one-liner initialization helper. Allocates and returns a populated `sys_tx_buff_t` struct.
-* **`sys_buff_free(sys_tx_buff_t* tx_buff)`**:
-  Frees the underlying FreeRTOS ringbuffer memory and resets `buff = NULL`.
+* **`sys_buff_init(sys_buff_t* buff, uint8_t header, size_t size)`**:
+  Allocates the underlying FreeRTOS ringbuffer memory for a `sys_buff_t` descriptor and records its header byte. Returns `NULL` on success, or `ERR_NO_MEM`/`ERR_INVALID_VAL_UI32` on failure.
+* **`sys_buff_free(sys_buff_t* buff)`**:
+  Frees the underlying FreeRTOS ringbuffer memory and resets `buff->buff = NULL`.
 
-### Payload Formatting APIs
-* **`sys_buff_prepare_tx(tx_buff, buffer, max_size, out_len)`**:
-  Dequeues data from `tx_buff->buff`, inserts `tx_buff->header` as the leading byte in `buffer[0]`, copies payload data into `buffer[1..out_len-1]`, and returns `STA_OK`. Returns `ERR_NOT_FOUND` if the ring buffer is empty, or `ERR_INVALID_SIZE` if `max_size < 2`.
+### Payload APIs
+* **`sys_buff_push(sys_buff_t* buff, const void* data, size_t len, uint32_t wait_ms)`**:
+  Enqueues one variable-length item. Returns `ERR_NO_MEM` if the item doesn't fit within `wait_ms`.
+* **`sys_buff_pop_framed(sys_buff_t* buff, uint8_t* buffer, size_t max_size, size_t* out_len)`**:
+  Dequeues one item, writing `buff->header` to `buffer[0]` and the item payload to `buffer[1..out_len-1]`. Returns `ERR_NOT_FOUND` if empty, `ERR_INVALID_VAL_UI32` if `max_size < 2`.
+* **`sys_buff_pop_raw(sys_buff_t* buff, uint8_t* buffer, size_t max_size, size_t* out_len)`**:
+  Dequeues one item verbatim (no header byte). Returns `ERR_NOT_FOUND` if empty, `ERR_INVALID_VAL_UI32` if `max_size < 1`.
+
+Both pop functions truncate (and count in `buff->truncated`) an item that exceeds the space available in `buffer` rather than failing or splitting it across calls.
+
+---
+
+## Error Handling
+`sys_buffers.c` tags every error it raises with function-specific owner tags declared in `sys_error_buffers.h` (`SYS_BUFFERS_OWNER_MAP`, ID range `0xA700`–`0xA705`):
+* `OWNER_SYS_BUFFERS_BASE` (`0xA700`): Module base owner.
+* `OWNER_SYS_BUFF_INIT` (`0xA701`): `sys_buff_init()` owner.
+* `OWNER_SYS_BUFF_FREE` (`0xA702`): `sys_buff_free()` owner.
+* `OWNER_SYS_BUFF_PUSH` (`0xA703`): `sys_buff_push()` owner.
+* `OWNER_SYS_BUFF_POP_FRAMED` (`0xA704`): `sys_buff_pop_framed()` owner.
+* `OWNER_SYS_BUFF_POP_RAW` (`0xA705`): `sys_buff_pop_raw()` owner.
+
+It currently raises base error tags (`ERR_INVALID_VAL_UI32`, `ERR_BASE_NO_MEM`, `ERR_BASE_NOT_FOUND`); `SYS_ERROR_BUFFERS_MAP` is reserved for future buffer-specific error payload structures.

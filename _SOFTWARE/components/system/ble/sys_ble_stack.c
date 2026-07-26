@@ -276,12 +276,12 @@ static int sys_ble_gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle, st
   if (ctxt->op == BLE_GATT_ACCESS_OP_WRITE_CHR) {
     size_t len = OS_MBUF_PKTLEN(ctxt->om);
     if (len > 0) {
-      if (!char_node->rx_buff) return BLE_ATT_ERR_WRITE_NOT_PERMITTED;
+      if (!char_node->rx_buff.buff) return BLE_ATT_ERR_WRITE_NOT_PERMITTED;
       uint8_t data_buffer[512];
       size_t copy_len = len > sizeof(data_buffer) ? sizeof(data_buffer) : len;
       os_mbuf_copydata(ctxt->om, 0, copy_len, data_buffer);
 
-      if (xRingbufferSend(char_node->rx_buff, data_buffer, copy_len, 0) != pdTRUE) {
+      if (SE_IS_ERR(sys_buff_push(&char_node->rx_buff, data_buffer, copy_len, 0))) {
         ESP_LOGW(TAG, "RX buffer overflow on char uuid 0x%04X", char_node->cfg.uuid);
         R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
         g_ble_ctx.rx_overflow_count++;
@@ -289,11 +289,21 @@ static int sys_ble_gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle, st
         SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, ESP_FAIL, g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE]);
       } else {
         xSemaphoreGive(char_node->rx_sem);
+        if (char_node->rx_handler.own_func) {
+          SYS_CB_OWN(char_node->rx_handler);
+        }
       }
     }
     return 0;
   } else if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR) {
-    return 0;
+    if (!char_node->cfg.is_read) return 0;
+
+    R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+    size_t val_len = char_node->last_val_len;
+    int rc = val_len > 0 ? os_mbuf_append(ctxt->om, char_node->last_val, val_len) : 0;
+    R_MUTEX_UNLOCK(sys_ble_mutex);
+
+    return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
   }
   return BLE_ATT_ERR_UNLIKELY;
 }
@@ -403,7 +413,7 @@ void sys_ble_free_compiled_gatt_db(struct ble_gatt_svc_def* svcs) {
 
 static bool try_send_slot(sys_ble_tx_slot_t* slot, sys_ble_char_node_t* c, size_t max_payload, uint8_t* tx_data) {
   size_t tx_len = 0;
-  err_h deq_res = sys_buff_prepare_tx(&slot->tx_buff, tx_data, max_payload, &tx_len);
+  err_h deq_res = sys_buff_pop_framed(&slot->tx_buff, tx_data, max_payload, &tx_len);
   if ((deq_res != NULL) || tx_len == 0) return false;
 
   uint16_t conn_handle;
@@ -423,6 +433,13 @@ static bool try_send_slot(sys_ble_tx_slot_t* slot, sys_ble_char_node_t* c, size_
   } while (send_sta != NULL && send_sta->tag == ERR_BASE_NO_MEM && g_ble_ctx.is_connected);
 
   if (send_sta == NULL) {
+    /* Snapshot the framed bytes actually sent, so a later GATT read on this
+       characteristic can serve the same value (post sys_buff_pop_framed's
+       header-prepend, i.e. exactly what went over the air). */
+    R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+    memcpy(c->last_val, tx_data, tx_len);
+    c->last_val_len = tx_len;
+    R_MUTEX_UNLOCK(sys_ble_mutex);
     return true;
   } else if (send_sta->tag != ERR_BASE_NO_MEM) {
     SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, send_sta->tag, g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE]);

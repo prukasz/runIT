@@ -11,6 +11,7 @@
 #include "sys_error_power.h"
 #include "sys_error_ble.h"
 #include "sys_error_interface.h"
+#include "sys_error_buffers.h"
 
 // Combine all error maps into one global map.
 // This allows us to auto-generate the enums and the individual payload structures.
@@ -21,7 +22,8 @@
     SYS_ERROR_I2C_MAP(X) \
     SYS_ERROR_POWER_MAP(X) \
     SYS_ERROR_BLE_MAP(X) \
-    SYS_ERROR_INTERFACE_MAP(X)
+    SYS_ERROR_INTERFACE_MAP(X) \
+    SYS_ERROR_BUFFERS_MAP(X)
 
 // Combine all owner maps
 #define SYS_OWNER_MAP(X) \
@@ -31,6 +33,7 @@
     SYS_POWER_OWNER_MAP(X) \
     SYS_BLE_OWNER_MAP(X) \
     SYS_INTERFACE_OWNER_MAP(X) \
+    SYS_BUFFERS_OWNER_MAP(X) \
     PROVIDER_OWNER_MAP(X)
 
 #define X_OWNER_ENUM(tag, id, name) tag = id,

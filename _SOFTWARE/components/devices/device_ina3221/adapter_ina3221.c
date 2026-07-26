@@ -237,7 +237,6 @@ static err_h device_event_handler(void* handle, cb_event_t* event) {
 
 static const sys_device_class_t s_ina3221_class = {
     .name = "INA3221_PWR_MONITOR",
-    .roles = SYS_DEV_ROLE_PWR,
     .contracts = {[SYS_DEVICE_CONTRACT_POWER_MONITOR] = (void*)&s_ina_monitor_contract},
     .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume, .freeze = device_freeze, .sync = device_sync, .error_handler = device_error_handler},
 };

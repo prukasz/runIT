@@ -3,133 +3,117 @@
 IMPORTANT: If you modify the source files in this component (sys_device.h or sys_device.c), you must update this documentation to reflect the changes.
 
 ## Overview
-The Device is the core unit of the runIT system architecture. A device represents any hardware object (control registers, power regulators, sensors, expanders) managed by the system. The `sys_device` component provides a unified management framework, standardized error propagation via `status_rep_t`, and life-cycle operations (install, uninstall, reset, suspend, resume, freeze, sync).
+The `sys_device` component is the central registry and lifecycle manager for every hardware device instance in runIT. Device drivers/adapters describe themselves declaratively as a `sys_device_class_t` (name, roles, feature contracts, lifecycle ops) and hand a typed config struct to `sys_device_install_cfg()` (via the `SYS_DEVICE_CREATE()` wrapper); `sys_device` owns the registry slot, the heap copy of the config, and dispatch of every subsequent lifecycle/feature call by `device_id`.
 
 ### Directory Map
 ```
 components/system/sys_device/
 ├── CMakeLists.txt
-├── SYS_DEVICE.MD       # This documentation
-├── sys_device.c        # Manager implementation and registry storage
+├── SYS_DEVICE.MD         # This documentation
+├── sys_device.c          # Registry, install/uninstall, dispatch, suspend/resume/freeze/sync
 └── include/
-    ├── sys_device.h    # Core contracts, macros, and API declarations
-    └── sys_device_status_codes.h # Status codes and error payload definitions
+    ├── sys_device.h      # Contracts, class/instance structs, dispatch & adapter-construction macros
+    └── sys_error_dev.h   # sys_device owner map and ERR_DEV_* error tag map
 ```
 
 ---
 
 ## Architecture & Concept
 
-All hardware interaction follows a strict multi-level dispatch pipeline:
-```
-Hardware Driver (hw) -> Device Adapter (ctx) -> Device Manager (sys_device_t) -> Feature Contracts (sys_io, sys_power, etc.)
-```
+### Class vs. Instance
+* **`sys_device_class_t`** — everything about a device *type* that is a compile-time constant: `name`, `roles` (bitmask of `sys_device_role_e`), the four feature `contracts[]` vtables, and the `sys_device_ops_t` lifecycle function table. Declared once per device type as a `static const`.
+* **`sys_device_t`** — one *instance* in the registry: `device_id`, a pointer back to its `cls`, a manager-owned heap copy of the typed config (`cfg`/`cfg_size`), `state`, `device_handle`. Contracts are not copied onto the instance; lookups go through `dev->cls->contracts[]`.
 
-### Example: Setting a GPIO output level
-1. The user calls `sys_io_set_level(device_id, pin, level)`.
-2. The system retrieves the device instance via `sys_device_get_by_id(device_id)`.
-3. The system checks if the device is installed, not suspended, and supports the I/O feature contract (`SYS_DEVICE_CONTRACT_IO`).
-4. The system executes the contract function: `vtable->io_set_level(dev->device_handle, pin, level)`.
-5. The device adapter receives the call, extracts its local hardware instance (`hw_handle`), and forwards the command to the driver layer.
+Contracts are declarative: `sys_device` sets `cls` on the instance before running `cls->ops.install` — an adapter never calls something like `sys_io_register_driver()` / `sys_power_register_*()` itself.
+
+`DEV_OP(d, f)` / `DEV_NAME(d)` in sys_device.c are thin shorthands for `d->cls->ops.f` / `d->cls->name`.
+
+### Registry
+A fixed array `s_device_registry[MAX_DEVICE_ID + 1]` (128 slots) indexed by `device_id`. Mutations (install/uninstall) are init/config-context only; `sys_device_get_by_id()` is a lock-free read, since it sits on the hot dispatch path and must remain reachable from ISR-adjacent code where a mutex cannot be taken.
+
+### Lifecycle State
+```c
+typedef enum sys_device_state_e {
+  SYS_DEV_STATE_NONE = 0,
+  SYS_DEV_STATE_INSTALLING,
+  SYS_DEV_STATE_INSTALLED,
+  SYS_DEV_STATE_SUSPENDED,
+} sys_device_state_e;
+```
+`INSTALLING` is registry-findable but not ready: `cls` is set and the instance is in the registry before `ops.install` runs, so a dependency device may look this device up mid-install and read its contracts via `dev->cls->contracts[]`, while `SYS_DEV_DISPATCH` / `SYS_DEV_IS_READY` still refuse it until install succeeds. Ordering matters — `SYS_DEV_IS_INSTALLED(d)` tests `state >= SYS_DEV_STATE_INSTALLED`.
+
+### Contracts
+```c
+typedef enum { SYS_DEVICE_CONTRACT_IO = 0, SYS_DEVICE_CONTRACT_POWER_VREG = 1, SYS_DEVICE_CONTRACT_POWER_MONITOR = 2, SYS_DEVICE_CONTRACT_POWER_USB_PD = 3, SYS_DEVICE_CONTRACT_MAX = 4 } sys_device_contract_type_e;
+```
+A device's capabilities are determined by its contracts (the four vtable slots above, defined by `sys_io` / `sys_power`). A device may implement more than one contract (e.g. a combined VREG + monitor chip).
+
+### Lifecycle Ops
+```c
+typedef struct sys_device_ops_t {
+  err_h (*install)(const void* cfg, void** out_device_handle);
+  err_h (*uninstall)(void* device_handle);
+  err_h (*reset)(void* device_handle);
+  err_h (*suspend)(void* device_handle);
+  err_h (*resume)(void* device_handle);
+  err_h (*freeze)(void* device_handle);
+  err_h (*sync)(void* device_handle);
+  err_h (*error_handler)(void* device_handle, err_h error);
+} sys_device_ops_t;
+```
+Any op left NULL causes the corresponding manager call to return `ERR_BASE_NOT_SUPPORTED` for that device.
 
 ---
 
-## Core Data Structures
+## Device State Query & Dispatch Macros
 
-### sys_device_adapter_base_t
-Every custom device adapter context struct must begin with this base struct as its first member, named exactly `base`.
+* **`SYS_DEV_IS_READY(d)`** / **`SYS_DEV_IS_INSTALLED(d)`** / **`SYS_DEV_IS_SUSPENDED(d)`**: State predicates on a `sys_device_t*`.
+* **`SYS_DEV_GET_CONTRACT(dev, type)`**: Fetches `dev->cls->contracts[type]`, or NULL if `dev` is NULL.
+* **`IF_SYS_DEV_AND_FEATURE(device_id, contract_type, contract_struct_type, func_member, dev_ptr, vtable_ptr)`**: Single-iteration for-loop pair that looks up the device and its contract vtable, binding `dev_ptr`/`vtable_ptr`, and only enters the body if the device is ready and `func_member` is non-NULL. Used by `sys_io`/`sys_power` to guard a feature call without duplicating the ready/contract/null checks inline.
+* **`SYS_DEV_DISPATCH(dev_id, contract_enum, contract_type, func_name, ...)`**: The standard feature-call dispatcher — looks the device up (`ERR_DEV_NOT_FOUND`), checks installed (`ERR_DEV_NOT_INSTALLED`) and not suspended (`ERR_DEV_SUSPENDED`), resolves the contract vtable and function (`ERR_DEV_FEATURE_UNAVAILABLE` if either is missing), then calls it and propagates its result via `SE_RET_IF_ERR`. Must be used inside a function whose body is exactly this macro (it unconditionally `return`s).
+
+---
+
+## Error & Failure Handling Macros
+
+* **`SYS_DEV_CHECK_HANDLE(handle, dev_id)`**: Returns `ERR_DEV_NO_HANDLE` if `handle` is NULL.
+* **`SYS_DEV_GET_ADAPTER_CONTEXT(ctx_type, hw_type, ctx_var, hw_var, input_handle)`**: Casts `input_handle` to the adapter's context type, checks it's non-NULL, then extracts and checks its `hw_handle`. The standard first line of every adapter feature function.
+* **`RET_IF_DEV_ERR(err_ptr, ctx)`** / **`RET_IF_DEV_INSTALL_FAIL(err_ptr, device_id)`**: Wrap a nested failure as `ERR_DEV_DEP_FAILED` carrying `dev_id`, then return it.
+* **`SYS_DEV_CHECK_DRIVER_CALL(driver_call, ctx)`**: Runs a raw driver call, converts an `esp_err_t` failure via `SE_CONVERT_ESP`, and wraps/returns it as a dependency failure tagged with `ctx`'s device_id — the default way to call into a `driver_xxx.c` function from an adapter.
+* **`SYS_DEV_INSTALL_FAIL(err, device_id, out_handle, uninstall_fn, ctx)`**: Called once from the `fail:` label of an `install` implementation after `err` is set. NULLs `*out_handle`, and if `ctx` was allocated, suspends error reporting (teardown noise would bury the real cause) and rolls back via `uninstall_fn(ctx)`, then reports `err` wrapped with `device_id`. `uninstall_fn` must tolerate any subset of `ctx`'s fields being unset, and must never early-return on a failing teardown step — it has to free everything regardless.
+
+---
+
+## Adapter Construction & Installation Step Helpers
+
+Adapter contexts are expected to embed a `sys_device_adapter_base_t base` as their first member:
 ```c
 typedef struct {
-  void* hw_handle;      // Pointer to the underlying driver-level handle
-  uint8_t device_id;    // Unique user-assigned ID for the device instance
-  bool is_frozen;       // True if device updates are currently queued/frozen
+  void* hw_handle;
+  uint8_t device_id;
+  bool is_frozen;
+  uint16_t steps_done; /* adapter-defined bitmask of completed install steps */
 } sys_device_adapter_base_t;
 ```
 
-### sys_device_t
-The unified device contract instance struct.
-```c
-typedef struct sys_device_t {
-  uint8_t device_id;            // Unique device identifier (0 to 127)
-  sys_device_role_e role;       // SYS_DEV_ROLE_DEF, SYS_DEV_ROLE_IO, SYS_DEV_ROLE_PWR, SYS_DEV_ROLE_USER
-  void* device_handle;          // Instance-specific adapter context pointer
-  const char* name;             // Human-readable device name
-  void** install_args;          // Array of installation parameters for re-initialization
-  bool is_suspended;            // True if device is currently suspended
-  bool is_installed;            // True if device is registered and installed
-  struct {                      // Automatic error action configuration flags
-    uint8_t suspend_on : 2;
-    uint8_t reset_on : 2;
-    uint8_t uinstall_on : 2;
-    uint8_t emergency_action_on : 2;
-  } err_cfg;
-
-  // Lifecycle Callbacks
-  status_rep_t (*install_device)(void** install_args, void** out_device_handle);
-  status_rep_t (*error_handler)(void* device_handle, status_rep_t* error);
-  status_rep_t (*uninstall_device)(void* device_handle);
-  status_rep_t (*reset_device)(void* device_handle);
-  status_rep_t (*suspend_device)(void* device_handle);
-  status_rep_t (*resume_device)(void* device_handle);
-  status_rep_t (*freeze_device)(void* device_handle);
-  status_rep_t (*sync_device)(void* device_handle);
-
-  // Feature Contracts
-  // 0: SYS_DEVICE_CONTRACT_IO (sys_io_vtable_t)
-  // 1: SYS_DEVICE_CONTRACT_POWER_VREG (sys_power_vreg_contract)
-  // 2: SYS_DEVICE_CONTRACT_POWER_MONITOR (sys_power_monitor_contract)
-  // 3: SYS_DEVICE_CONTRACT_POWER_USB_PD (sys_power_usb_pd_contract)
-  void* contracts[4];
-} sys_device_t;
-```
-
----
-
-## Utility Macros
-
-### Diagnostic & Handle Verification
-* **`SYS_DEV_CHECK_HANDLE_R(handle, dev_id)`**: Asserts `handle` is not NULL. Returns `ERR_DEV_MISSING_HANDLE` on failure.
-* **`SYS_DEV_CHECK_HANDLE_RP(handle, dev_id)`**: Same as `SYS_DEV_CHECK_HANDLE_R`, but additionally pushes the error report to the system status queue (`STA_P`).
-* **`SYS_DEV_STA_W / C / I(code, owner, info)`**: Wraps `STA_W/C/I` to construct warning, critical, or info reports with `STATUS_PAYLOAD_DEV_ESP` preset.
-
-### Driver & Dependency Call Verification
-* **`SYS_DEV_CHECK_DRIVER_CALL(driver_call, ctx)`**: Evaluates an `esp_err_t` driver call. If not `ESP_OK`, builds a `status_rep_t` with `STATUS_PAYLOAD_DEV_ESP` payload containing the device ID and ESP error code, and returns it.
-* **`SYS_DEV_CHECK_DEP_CALL(status_call, ctx, dep_dev_id)`**: Evaluates a dependent device `status_rep_t` call. If an error is returned, logs the dependency failure and packages a `STATUS_PAYLOAD_DEV_DEP` error.
-
-### Feature Dispatching
-* **`IF_SYS_DEV_AND_FEATURE(device_id, contract_type, contract_struct_type, func_member, dev_ptr, vtable_ptr)`**: Evaluates if the device ID exists, is installed, not suspended, supports the specified contract, and implements the function member.
-* **`SYS_DEV_DISPATCH(dev_id, contract_enum, contract_type, func_name, ...)`**: Dispatches a function call down to the device contract. If the device is missing, uninstalled, or suspended, returns the appropriate status report (`ERR_DEV_NOT_FOUND`, `ERR_DEV_NOT_INSTALLED`, `ERR_DEV_SUSPENDED`, or `ERR_NOT_SUPPORTED`).
-
-### Parameter Packing / Unpacking
-* **`SYS_DEV_ARG_PACK(val)`**: Casts a value to a generic `void*`.
-* **`SYS_DEV_ARG_UNPACK(type, var, args, index)`**: Extracts a value of specified type from the `void**` installation arguments array.
-* **`SYS_DEV_ARG_UNPACK_VAL(type, args, index)`**: Utility expression that casts an array index directly to the target type.
-
-### Adapter Context Allocation & Double Buffering
-* **`SYS_DEV_GET_ADAPTER_CONTEXT(ctx_type, hw_type, ctx_var, hw_var, input_handle)`**: Declares and checks both the adapter context pointer (`ctx_var`) and driver-level hardware handle (`hw_var`) from `input_handle`.
-* **`IF_SYS_DEV_FROZEN(ctx)`**: Evaluates if the adapter context has the frozen state enabled (`base.is_frozen`).
-* **`SYS_DEV_CTX_FREEZE(ctx)`** / **`SYS_DEV_CTX_UNFREEZE(ctx)`**: Sets `base.is_frozen` state boolean.
+* **`SYS_DEV_CTX_NEW(ctx_type, ctx_var, cfg_ptr)`**: Allocates and zero-inits a `ctx_type`, copies `*cfg_ptr` into `ctx_var->cfg`, and sets `ctx_var->base.device_id` from `cfg_ptr->device_id`. Requires `ctx_type`'s first member to be `sys_device_adapter_base_t base`, a `cfg` member matching the config type, and the config's first member to be `uint8_t device_id`. Declares `ctx_var`, so it can't sit inside an unbraced `if`, and must appear before any `goto fail` that would jump over it.
+* **`SYS_DEV_STEP_DONE(ctx, bit)`** / **`IF_SYS_DEV_STEP_DONE(ctx, bit)`**: Set/test a bit in `steps_done`, so teardown can roll back exactly what was built instead of inferring it from field sentinels.
+* **`SYS_DEV_INSTALL_STEP(expr, what)`**: Runs one install step; on error, logs `what` and `goto fail`. Requires `err_h err`, a `fail:` label, and `TAG` in scope.
+* **`SYS_DEV_TEARDOWN_STEP(err_acc, expr)`**: Runs one teardown step, keeping only the *first* error seen in `err_acc`. Never early-returns — every subsequent teardown step still runs even if an earlier one failed.
+* **`SYS_DEVICE_CREATE(cls_ptr, cfg_ptr)`**: Shorthand for `sys_device_install_cfg(cls_ptr, cfg_ptr->device_id, cfg_ptr, sizeof(*cfg_ptr))`. Requires `cfg_ptr`'s first member to be `uint8_t device_id`. This is the standard way a `d_xxx_create()` function installs its device.
 
 ---
 
 ## Manager API Functions
 
-### Helper & Lifecycle Management
-* **`sys_device_allocate_ctx(total_size, install_args)`**: Allocates memory for an adapter context, initializes its base structure, and copies installation arguments.
-* **`sys_device_install(sys_device_t* device)`**: Registers a new device entry in the system registry (up to `MAX_DEVICE_ID = 127`) and executes its custom `install_device` function.
-* **`sys_device_uninstall(uint8_t device_id)`**: Calls `uninstall_device` to release internal driver references and removes the device from the registry.
-* **`sys_device_reset(uint8_t device_id)`**: Invokes the device-specific reset handler.
+* **`sys_device_install_cfg(cls, device_id, cfg, cfg_size)`**: Heap-copies `cfg`, sets `cls` on the instance, marks it `INSTALLING`, then runs `cls->ops.install`. On failure the registry slot and heap copy are freed and the error is returned; on success state becomes `INSTALLED`. Prefer `SYS_DEVICE_CREATE()`.
+* **`sys_device_uninstall(device_id)`**: Removes the registry entry, runs the device's `uninstall` op, then frees the config copy and the instance. Config is freed only *after* the adapter has torn down, since it may still read its own copy of the config until then.
+* **`sys_device_reset(device_id)`** / **`sys_device_suspend(device_id)`** / **`sys_device_resume(device_id)`** / **`sys_device_freeze(device_id)`** / **`sys_device_sync(device_id)`**: Single-device lifecycle calls; each checks found/installed/not-suspended (where relevant) before invoking the corresponding op, and returns `ERR_BASE_NOT_SUPPORTED` if the device doesn't implement it. `suspend`/`resume` no-op (return `NULL`) if the device is already in the target state.
+* **`sys_device_suspend_all()`** / **`sys_device_resume_all()`** / **`sys_device_freeze_all()`** / **`sys_device_sync_all()`**: Sweep the whole registry, applying the op to every eligible device (ready, or suspended for `resume_all`), propagating the first failure via `SE_RET_IF_ERR` but otherwise continuing.
+* **`sys_device_get_by_id(device_id)`**: Lock-free registry lookup; returns `NULL` if out of range or unset.
 
-### Suspend & Resume
-* **`sys_device_suspend(uint8_t device_id)`**: Suspends the target device, setting `is_suspended = true`.
-* **`sys_device_resume(uint8_t device_id)`**: Restores a suspended device, setting `is_suspended = false`.
-* **`sys_device_suspend_all()`** / **`sys_device_resume_all()`**: Broadcasts suspend or resume actions to all registered devices.
+---
 
-### Double Buffering (Freeze & Sync)
-* **`sys_device_freeze(uint8_t device_id)`**: Activates freeze mode on the target device context.
-* **`sys_device_sync(uint8_t device_id)`**: Pushes cached actions to physical hardware registers and exits freeze mode.
-* **`sys_device_freeze_all()`** / **`sys_device_sync_all()`**: Broadcasts freeze or sync commands to all registered devices.
+## Error Ownership
 
-### Registry Query & Error Handling
-* **`sys_device_get_by_id(uint8_t device_id)`**: Returns a pointer to the registered `sys_device_t` structure matching the provided ID, or `NULL` if not found.
-* **`sys_device_generic_error_handler(dev, err)`**: Default fallback error handler for unhandled device errors, evaluating `err_cfg` actions (suspend, reset, uninstall).
+Every function in `sys_device.c` sets `#undef OWNER` / `#define OWNER OWNER_SYS_DEVICE_<FUNCTION>` immediately before its body, per the [[runit]] skill's module owner tagging convention — e.g. `sys_device_reset()` tags errors as `OWNER_SYS_DEVICE_RESET`. See `sys_error_dev.h` for the full `SYS_DEVICE_OWNER_MAP` and the `SYS_ERROR_DEV_MAP` tags (`ERR_DEV_NO_HANDLE`, `ERR_DEV_NOT_FOUND`, `ERR_DEV_ALREADY_EXIST`, `ERR_DEV_FEATURE_UNAVAILABLE`, `ERR_DEV_SUSPENDED`, `ERR_DEV_NOT_INSTALLED`, `ERR_DEV_INSTALL_FAILED`).

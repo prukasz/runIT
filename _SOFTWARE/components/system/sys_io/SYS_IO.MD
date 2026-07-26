@@ -3,29 +3,31 @@
 IMPORTANT: If you modify the source files in this component (sys_io.h or sys_io.c), you must update this documentation to reflect the changes.
 
 ## Overview
-The `sys_io` component provides a unified, hardware-agnostic API for managing and interacting with general-purpose and specialized input/output pins. It supports digital input/output, analog-to-digital conversion (ADC), digital-to-analog conversion (DAC), pulse-width modulation (PWM), and configurable interrupts. It features a built-in safety protection model to lock pins and prevent conflicts between system submodules, along with integration into the central `callbacks` event system.
+The `sys_io` component provides a unified, hardware-agnostic API for digital I/O, ADC, DAC, PWM, and configurable interrupts across any device installed in the `sys_device` registry. A driver publishes an `sys_io_vtable_t` as its `SYS_DEVICE_CONTRACT_IO` contract (see [[SYS_DEVICE.MD]]); `sys_io`'s manager functions look the device up by `device_id`, validate its state and per-pin lock status, then dispatch straight into the vtable. It also owns a scoped pin-locking model that lets one submodule reserve a pin against use by another, and integrates pin-level events into the central `callbacks` system.
 
 ### Directory Map
 ```
 components/system/sys_io/
 ├── CMakeLists.txt
 ├── SYS_IO.MD           # This documentation
-├── sys_io.c            # Dispatch pipeline, string mappers, and safety validation
+├── sys_io.c            # Dispatch pipeline (SYS_IO_DISPATCH) and mode/intr name tables
 └── include/
-    ├── sys_io.h        # Vtable contract, enums, macros, and API declarations
-    └── sys_io_status_codes.h # IO owner map, error codes, and payload unpack macros
+    ├── sys_io.h        # Vtable contract, pin_ref_t, macros, and API declarations
+    └── sys_error_io.h  # sys_io owner map and ERR_IO_* error tag map
 ```
 
 ---
 
 ## Architecture & Concept
 
-Drivers register themselves to the I/O Manager under a unique `device_id` by implementing the `sys_io_vtable_t` function table. Applications and system submodules interact with I/O functionalities strictly via manager APIs, which check safety boundaries and delegate down to the registered device driver handle.
+Unlike `sys_device`, `sys_io` keeps no registry of its own: `device_handle` lives on the `sys_device_t` instance, and the vtable is read straight off the class (`dev->cls->contracts[SYS_DEVICE_CONTRACT_IO]`) — set once at class-definition time on the device's `sys_device_class_t`, no per-instance copy involved.
+
+Every manager call (`SYS_IO_DISPATCH` in sys_io.c) goes through the same pipeline: resolve the device, check it's installed and not suspended, check the target pin isn't locked, then call the vtable function and propagate its `err_h` result.
 
 ### Scoped Pin Protection (Locking)
-* A driver vtable contains a 64-bit `protected_pins` mask.
-* If a bit is set in `protected_pins`, calls targeting that pin will return `ERR_SYS_IO_PIN_IN_OTHER_USE` immediately.
-* Temporary access to a protected pin (e.g. for emergency overrides) can be obtained via scoped unlocking macros (`WITH_PIN_UNLOCKED`).
+* Each vtable instance carries a 64-bit `protected_pins` mask (bit `n` = pin `n` locked).
+* If the targeted pin's bit is set, `SYS_IO_DISPATCH` returns `ERR_IO_PIN_LOCKED` before ever reaching the driver.
+* Temporary access to a locked pin (e.g. for an emergency override or a dependent device's setup step) is obtained via the scoped `WITH_PIN_UNLOCKED` / `WITH_REF_UNLOCKED` macros, which unlock only if the pin was actually locked and always restore the previous state on scope exit — nesting-safe by construction since each scope remembers whether it did the unlocking.
 
 ---
 
@@ -45,6 +47,7 @@ typedef enum sys_io_mode_e {
   SYS_IO_MODE_DAC = 8
 } sys_io_mode_e;
 ```
+String form available via `sys_io_mode_e_to_string[]`.
 
 ### Interrupt Modes (sys_io_intr_mode_e)
 ```c
@@ -57,6 +60,7 @@ typedef enum sys_io_intr_mode_e {
   SYS_IO_INTR_ADC_WINDOW_INSIDE = 5,
 } sys_io_intr_mode_e;
 ```
+String form available via `sys_io_intr_mode_e_to_string[]`.
 
 ### Interrupt Configuration Structs
 ```c
@@ -69,35 +73,49 @@ typedef struct {
 
 typedef struct sys_io_intr_config_t {
   sys_io_intr_mode_e mode;  // Interrupt edge or threshold mode
-  uint16_t route_mask;       // Callback event routing mask
-  own_funct_t own_func;      // Optional custom callback function pointer struct
+  uint16_t route_mask;      // Callback event routing mask
+  own_funct_t own_func;     // Optional custom callback function pointer struct
   union {
     sys_io_adc_int_config_t adc; // ADC window threshold parameters
   };
 } sys_io_intr_config_t;
 ```
 
+### Pin Reference (sys_io_pin_ref_t)
+Collapses the `(device_id, pin, mode)` triple device configs used to pass as three separate positional args, so callers name what they mean instead of counting.
+```c
+typedef struct sys_io_pin_ref_t {
+  uint8_t device_id;
+  sys_io_pin_num_t pin;  /* SYS_GPIO_NONE when unused */
+  sys_io_mode_e mode;
+} sys_io_pin_ref_t;
+```
+**Warning**: an unused pin ref must be spelled `SYS_IO_PIN_NONE` / `SYS_IO_PIN_NONE_INIT`. Omitting a pin ref from a designated initializer zero-fills it to `{device 0, pin 0, SYS_IO_MODE_INPUT}` — device 0 and pin 0 are both real, so a silent omission means "drive pin 0", not "unused".
+* **`SYS_IO_PIN(dev_id, pin_num, pin_mode)`** / **`SYS_IO_PIN_NONE`**: Compound-literal forms, for automatic storage inside function bodies.
+* **`SYS_IO_PIN_INIT(dev_id, pin_num, pin_mode)`** / **`SYS_IO_PIN_NONE_INIT`**: Brace-only forms, for file-scope/static initializers where a compound literal isn't a constant expression.
+
 ### Driver Interface Contract (sys_io_vtable_t)
-Drivers must bind their physical functions to this table during installation.
+Drivers bind their physical functions to this table and publish it as their `SYS_DEVICE_CONTRACT_IO` contract.
 ```c
 typedef struct sys_io_vtable_t {
-  status_rep_t (*io_reset)(void* handle, sys_io_pin_num_t pin);
-  status_rep_t (*io_set_mode)(void* handle, sys_io_pin_num_t pin, sys_io_mode_e mode);
-  status_rep_t (*io_configure_intr)(void* handle, sys_io_pin_num_t pin, const sys_io_intr_config_t* config);
+  err_h (*io_reset)(void* handle, sys_io_pin_num_t pin);
+  err_h (*io_set_mode)(void* handle, sys_io_pin_num_t pin, sys_io_mode_e mode);
+  err_h (*io_configure_intr)(void* handle, sys_io_pin_num_t pin, const sys_io_intr_config_t* config);
 
-  status_rep_t (*io_set_level)(void* handle, sys_io_pin_num_t pin, bool level);
-  status_rep_t (*io_get_level)(void* handle, sys_io_pin_num_t pin, bool* level);
-  status_rep_t (*io_toggle)(void* handle, sys_io_pin_num_t pin);
+  err_h (*io_set_level)(void* handle, sys_io_pin_num_t pin, bool level);
+  err_h (*io_get_level)(void* handle, sys_io_pin_num_t pin, bool* level);
+  err_h (*io_toggle)(void* handle, sys_io_pin_num_t pin);
 
-  status_rep_t (*io_get_voltage)(void* handle, sys_io_pin_num_t pin, uint32_t* out_mV);
-  status_rep_t (*io_set_voltage)(void* handle, sys_io_pin_num_t pin, uint32_t voltage_mV);
+  err_h (*io_get_voltage)(void* handle, sys_io_pin_num_t pin, uint32_t* out_mV);
+  err_h (*io_set_voltage)(void* handle, sys_io_pin_num_t pin, uint32_t voltage_mV);
 
-  status_rep_t (*io_set_pwm_frequency)(void* handle, sys_io_pin_num_t pin, uint32_t frequency_HZ);
-  status_rep_t (*io_set_pwm_duty)(void* handle, sys_io_pin_num_t pin, uint32_t duty);
+  err_h (*io_set_pwm_frequency)(void* handle, sys_io_pin_num_t pin, uint32_t frequency_HZ);
+  err_h (*io_set_pwm_duty)(void* handle, sys_io_pin_num_t pin, uint32_t duty);
 
-  uint64_t protected_pins; // 64-bit bitmask of protected pins (0 to 63)
+  uint64_t protected_pins; // 64-bit bitmask of locked pins (0 to 63)
 } sys_io_vtable_t;
 ```
+Any function left NULL causes `SYS_IO_DISPATCH` to fall through to `ERR_BASE_NOT_SUPPORTED` for that pin/device.
 
 ---
 
@@ -108,24 +126,22 @@ typedef struct sys_io_vtable_t {
 * **`IF_PIN(pin_num)`**: Checks if a pin is mapped (`pin_num != SYS_GPIO_NONE`).
 * **`SYS_IO_HIGH(device_id, pin_num)`** / **`SYS_IO_LOW(device_id, pin_num)`**: Direct setters for digital output levels.
 * **`SYS_IO_TOGGLE(device_id, pin_num)`**: Inverts output level.
+* **`VERIFY_PIN(dev_id, pin, pinmask)`**: Returns `ERR_IO_PIN_UNAVAILABLE` if `pin >= 64` or the corresponding bit is unset in `pinmask` — the standard first check inside a driver's own functions, ahead of the manager's own dispatch checks.
+
+### Pin Reference Operations
+Pass an lvalue only — `(ref)` is evaluated more than once.
+* **`IF_PIN_REF(ref)`**: `IF_PIN((ref).pin)`.
+* **`SYS_IO_REF_SET_MODE(ref)`** / **`SYS_IO_REF_HIGH(ref)`** / **`SYS_IO_REF_LOW(ref)`** / **`SYS_IO_REF_RESET(ref)`**: Manager calls addressed via the ref's `(device_id, pin[, mode])`.
+* **`SYS_IO_REF_LOCK(ref)`** / **`SYS_IO_REF_UNLOCK(ref)`** / **`WITH_REF_UNLOCKED(ref)`**: Lock helpers addressed via the ref.
 
 ### Event Callback Macro
-* **`SYS_IO_CB(_ctx, _pin, _event, _value, _route_mask)`**: Constructs a `cb_event_t` with `CALLBACK_IO` type, populates `io` payload fields, and triggers `sys_callback_trigger`.
-
-### Status & Check Wrappers
-* **`SYS_IO_STA_W / C / I(code, owner, info)`**: Constructs a warning, critical, or info report with `STATUS_PAYLOAD_SYS_IO` preset.
-* **`SYS_IO_CHECK_NOT_NULL_R / RP(ptr)`**: Checks if a pointer is NULL.
-* **`SYS_IO_CHECK_HANDLE_R / RP(handle)`**: Checks if a handle is NULL.
-* **`VERIFY_PIN_R(pin, pinmask)`**: Validates if `pin < 64` and is enabled inside the device's physical `pinmask`. On failure, returns `ERR_SYS_IO_PIN_DOES_NOT_EXIST`.
-
-### Data Packing & Unpacking
-* **`SYS_IO_MAKE_INFO(dev_id, pin_num, extra)`**: Packs a 16-bit device ID, 8-bit pin number, and 32-bit auxiliary debug value into a single 64-bit status payload.
-* **`SYS_IO_UNPACK_DEV_ID(info)`** / **`SYS_IO_UNPACK_PIN(info)`** / **`SYS_IO_UNPACK_EXTRA(info)`**: Payload field extractors.
+* **`SYS_IO_CB(_ctx, _pin, _event, _value, _route_mask)`**: Constructs a `cb_event_t` with `CALLBACK_IO` type, populates the `io` payload fields (`device_id` taken from `(_ctx)->base.device_id`), and triggers `sys_callback_trigger`.
 
 ### Safety Lock Scopes
-* **`SYS_IO_LOCK_PIN(dev_id, pin)`**: Adds a pin to the driver's `protected_pins` bitmask.
-* **`SYS_IO_UNLOCK_PIN(dev_id, pin)`**: Removes a pin from the driver's `protected_pins` bitmask.
-* **`WITH_PIN_UNLOCKED(dev_id, pin)`**: Scoped block that temporarily unlocks the pin and guarantees re-locking the pin upon scope exit:
+Resolve the device's IO vtable via `sys_device_get_by_id()` / `SYS_DEV_GET_CONTRACT()`, so they operate directly on the published contract rather than a local copy.
+* **`SYS_IO_LOCK_PIN(dev_id, pin)`**: Sets the pin's bit in the vtable's `protected_pins`.
+* **`SYS_IO_UNLOCK_PIN(dev_id, pin)`**: Clears the pin's bit.
+* **`WITH_PIN_UNLOCKED(dev_id, pin)`**: Scoped block — unlocks the pin only if it was locked, runs the body, then restores the prior lock state on exit:
   ```c
   WITH_PIN_UNLOCKED(dev_id, pin_num) {
       sys_io_set_level(dev_id, pin_num, true);
@@ -136,21 +152,25 @@ typedef struct sys_io_vtable_t {
 
 ## Manager API Functions
 
+All return `err_h` (`NULL` on success). Every dispatched call routes through `SYS_IO_DISPATCH`, which returns `ERR_DEV_NOT_FOUND`, `ERR_DEV_NOT_INSTALLED`, `ERR_DEV_SUSPENDED`, or `ERR_IO_PIN_LOCKED` before ever reaching the driver, and `ERR_BASE_NOT_SUPPORTED` if the vtable slot is NULL.
+
 ### Digital & Control Actions
-* **`sys_io_reset(uint8_t device_id, sys_io_pin_num_t pin)`**: Resets the pin to default configurations.
-* **`sys_io_set_mode(uint8_t device_id, sys_io_pin_num_t pin, sys_io_mode_e mode)`**: Sets pin mode.
-* **`sys_io_configure_intr(uint8_t device_id, sys_io_pin_num_t pin, const sys_io_intr_config_t* config)`**: Configures pin interrupts and callback route mask.
-* **`sys_io_set_level(uint8_t device_id, sys_io_pin_num_t pin, bool level)`** / **`sys_io_get_level(uint8_t device_id, sys_io_pin_num_t pin, bool* level)`**: Reads or writes digital pin levels.
-* **`sys_io_toggle(uint8_t device_id, sys_io_pin_num_t pin)`**: Inverts digital output level.
+* **`sys_io_reset(device_id, pin)`**: Resets the pin to its default configuration.
+* **`sys_io_set_mode(device_id, pin, mode)`**: Sets pin mode.
+* **`sys_io_configure_intr(device_id, pin, config)`**: Configures pin interrupts and callback route mask.
+* **`sys_io_set_level(device_id, pin, level)`** / **`sys_io_get_level(device_id, pin, out_level)`**: Writes or reads a digital pin level.
+* **`sys_io_toggle(device_id, pin)`**: Inverts digital output level.
 
 ### Analog (ADC / DAC) Actions
-* **`sys_io_get_voltage(uint8_t device_id, sys_io_pin_num_t pin, uint32_t* out_mV)`**: Reads analog voltage (in mV).
-* **`sys_io_set_voltage(uint8_t device_id, sys_io_pin_num_t pin, uint32_t voltage_mV)`**: Outputs analog voltage (in mV).
+* **`sys_io_get_voltage(device_id, pin, out_mV)`**: Reads analog voltage (mV).
+* **`sys_io_set_voltage(device_id, pin, voltage_mV)`**: Outputs analog voltage (mV).
 
 ### PWM Control Actions
-* **`sys_io_set_pwm_frequency(uint8_t device_id, sys_io_pin_num_t pin, uint32_t frequency_HZ)`**: Configures target PWM frequency.
-* **`sys_io_set_pwm_duty(uint8_t device_id, sys_io_pin_num_t pin, uint32_t duty)`**: Updates PWM output duty cycle.
+* **`sys_io_set_pwm_frequency(device_id, pin, frequency_HZ)`**: Configures target PWM frequency.
+* **`sys_io_set_pwm_duty(device_id, pin, duty)`**: Updates PWM output duty cycle.
 
-### Driver Registration APIs
-* **`sys_io_register_driver(uint8_t device_id, void* handle, sys_io_vtable_t* dispatch_table)`**: Registers a device instance to the I/O Manager under a unique ID.
-* **`sys_io_unregister_driver(uint8_t device_id)`**: Unregisters the device from the I/O Manager.
+---
+
+## Error Ownership
+
+Every function in `sys_io.c` sets `#undef OWNER` / `#define OWNER OWNER_SYS_IO_<FUNCTION>` immediately before its body, per the [[runit]] skill's module owner tagging convention. See `sys_error_io.h` for the full `SYS_IO_OWNER_MAP` and the `SYS_ERROR_IO_MAP` tags (`ERR_IO_PIN_UNCONFIGURED`, `ERR_IO_PIN_UNAVAILABLE`, `ERR_IO_PIN_ALREADY_IN_USE`, `ERR_IO_PIN_FEATURE_UNSUPPORTED`, `ERR_IO_PIN_LOCKED`, `ERR_IO_PIN_MODE_UNSUPPORTED`).

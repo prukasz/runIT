@@ -351,7 +351,6 @@ fail:
 
 static const sys_device_class_t s_tca6424a_class = {
     .name = "TCA6424A_IO_EXP",
-    .roles = SYS_DEV_ROLE_IO,
     .contracts = {[SYS_DEVICE_CONTRACT_IO] = (void*)&io_tca_vtable},
     .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume, .freeze = device_freeze, .sync = device_sync, .error_handler = device_error_handler},
 };

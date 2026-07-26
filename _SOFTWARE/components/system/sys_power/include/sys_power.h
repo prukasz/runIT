@@ -65,12 +65,6 @@ typedef struct sys_power_usb_pd_contract {
  * API SYSTEMOWE (APLIKACYJNE)
  * ========================================================================== */
 
-// --- Rejestracja (Używane przez Adaptery) ---
-err_h sys_power_register_vreg(uint8_t device_id, void* handle, const sys_power_vreg_contract* contract);
-err_h sys_power_register_monitor(uint8_t device_id, void* handle, const sys_power_monitor_contract* contract);
-err_h sys_power_register_usb_pd(uint8_t device_id, void* handle, const sys_power_usb_pd_contract* contract);
-
-err_h sys_power_unregister(uint8_t device_id);
 err_h sys_power_budget_update_source(uint32_t max_mV, uint32_t max_mA);
 
 // --- VREG API ---

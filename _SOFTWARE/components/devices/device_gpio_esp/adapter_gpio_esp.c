@@ -491,7 +491,6 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
 
 static const sys_device_class_t s_gpio_esp_class = {
     .name = "GPIO_ESP_NATIVE",
-    .roles = SYS_DEV_ROLE_IO,
     .contracts = {[SYS_DEVICE_CONTRACT_IO] = (void*)&io_gpio_esp_vtable},
     .ops = {
         .install = device_install,

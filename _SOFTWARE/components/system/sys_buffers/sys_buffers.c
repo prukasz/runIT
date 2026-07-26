@@ -1,104 +1,97 @@
 #include "sys_buffers.h"
 #include <esp_log.h>
 #include <string.h>
-#include "utils.h"
 #include "sys_error.h"
+#include "utils.h"
 
 static const char* TAG = __FILE_NAME__;
 
-#ifndef OWNER_SYS_BUFFERS
-#define OWNER_SYS_BUFFERS 0
-#endif
-
-#define OWNER OWNER_SYS_BUFFERS
-
-err_h sys_buff_init(sys_tx_buff_t* tx_buff, size_t size) {
-  SE_CHECK_NOT_NULL(tx_buff);
+#undef OWNER
+#define OWNER OWNER_SYS_BUFF_INIT
+err_h sys_buff_init(sys_buff_t* buff, uint8_t header, size_t size) {
+  SE_CHECK_NOT_NULL(buff);
   if (size == 0) {
     SE_RET_ERR(ERR_INVALID_VAL_UI32, 0, 1, UINT32_MAX);
   }
 
-  tx_buff->buff = xRingbufferCreate(size, tx_buff->type);
-  SE_CHECK_IF_ALLOCATED(tx_buff->buff);
+  buff->header = header;
+  buff->truncated = 0;
+  buff->buff = xRingbufferCreate(size, RINGBUF_TYPE_NOSPLIT);
+  SE_CHECK_IF_ALLOCATED(buff->buff);
 
   return NULL;
 }
 
-err_h sys_buff_free(sys_tx_buff_t* tx_buff) {
-  SE_CHECK_NOT_NULL(tx_buff);
-  if (tx_buff->buff) {
-    vRingbufferDelete(tx_buff->buff);
-    tx_buff->buff = NULL;
+#undef OWNER
+#define OWNER OWNER_SYS_BUFF_FREE
+err_h sys_buff_free(sys_buff_t* buff) {
+  SE_CHECK_NOT_NULL(buff);
+  if (buff->buff) {
+    vRingbufferDelete(buff->buff);
+    buff->buff = NULL;
   }
   return NULL;
 }
 
-sys_tx_buff_t sys_buff_tx_init(sys_tx_buff_t item, size_t size) {
-  item.buff = (size > 0) ? xRingbufferCreate(size, item.type) : NULL;
-  return item;
+#undef OWNER
+#define OWNER OWNER_SYS_BUFF_PUSH
+err_h sys_buff_push(sys_buff_t* buff, const void* data, size_t len, uint32_t wait_ms) {
+  SE_CHECK_NOT_NULL(buff);
+  SE_CHECK_NOT_NULL(data);
+  if (len == 0) return NULL;
+
+  if (xRingbufferSend(buff->buff, data, len, pdMS_TO_TICKS(wait_ms)) != pdTRUE) {
+    SE_RET_ERR(ERR_BASE_NO_MEM, len);
+  }
+  return NULL;
 }
 
-err_h sys_buff_prepare_tx(sys_tx_buff_t* tx_buff, uint8_t* buffer, size_t max_size, size_t* out_len) {
-  SE_CHECK_NOT_NULL(tx_buff);
-  SE_CHECK_NOT_NULL(buffer);
-  SE_CHECK_NOT_NULL(out_len);
-
-  if (max_size < 2) {
+/* Shared by sys_buff_pop_framed()/sys_buff_pop_raw() - pops one whole item and
+   copies it into buffer, optionally prefixed with buff->header. Truncates and
+   counts items that don't fit past prefix within max_size. */
+static err_h sys_buff_pop(sys_buff_t* buff, uint8_t* buffer, size_t max_size, bool with_header, size_t* out_len) {
+  size_t prefix = with_header ? 1 : 0;
+  if (max_size < prefix + 1) {
     SE_RET_ERR(ERR_INVALID_VAL_UI32, max_size, 1, UINT32_MAX);
   }
 
-  if (tx_buff->type == RINGBUF_TYPE_NOSPLIT) {
-    size_t item_size = 0;
-    void* item = xRingbufferReceive(tx_buff->buff, &item_size, 0);
-    if (!item) {
-      SE_RET_ERR(ERR_BASE_NOT_FOUND, 0);
-    }
-
-    size_t copy_len = (item_size > max_size - 1) ? (max_size - 1) : item_size;
-    if (item_size > max_size - 1) {
-      ESP_LOGW(TAG, "NOSPLIT item truncated from %zu to %zu bytes", item_size, max_size - 1);
-    }
-
-    buffer[0] = tx_buff->header;
-    memcpy(&buffer[1], item, copy_len);
-    *out_len = copy_len + 1;
-
-    vRingbufferReturnItem(tx_buff->buff, item);
-    return NULL;
-
-  } else if (tx_buff->type == RINGBUF_TYPE_BYTEBUF) {
-    size_t item_size = tx_buff->const_item_size;
-    if (item_size == 0) {
-      SE_RET_ERR(ERR_BASE_INVALID_STATE, 0);
-    }
-
-    size_t max_bytes = ((max_size - 1) / item_size) * item_size;
-    if (max_bytes == 0) {
-      SE_RET_ERR(ERR_INVALID_VAL_UI32, max_size, 1, UINT32_MAX);
-    }
-
-    buffer[0] = tx_buff->header;
-    size_t total = 0;
-
-    while (total < max_bytes) {
-      size_t recv_size = 0;
-      void* item = xRingbufferReceiveUpTo(tx_buff->buff, &recv_size, 0, max_bytes - total);
-      if (!item) break;
-
-      memcpy(&buffer[1 + total], item, recv_size);
-      total += recv_size;
-      vRingbufferReturnItem(tx_buff->buff, item);
-    }
-
-    if (total == 0) {
-      SE_RET_ERR(ERR_BASE_NOT_FOUND, 0);
-    }
-
-    *out_len = 1 + total;
-    return NULL;
+  size_t item_size = 0;
+  void* item = xRingbufferReceive(buff->buff, &item_size, 0);
+  if (!item) {
+    SE_RET_ERR(ERR_BASE_NOT_FOUND, 0);
   }
 
-  SE_RET_ERR(ERR_INVALID_VAL_UI32, tx_buff->type, 0, 1);
+  size_t avail = max_size - prefix;
+  size_t copy_len = (item_size > avail) ? avail : item_size;
+  if (item_size > avail) {
+    buff->truncated++;
+    ESP_LOGW(TAG, "Item truncated from %zu to %zu bytes", item_size, avail);
+  }
+
+  if (with_header) buffer[0] = buff->header;
+  memcpy(&buffer[prefix], item, copy_len);
+  *out_len = copy_len + prefix;
+
+  vRingbufferReturnItem(buff->buff, item);
+  return NULL;
+}
+
+#undef OWNER
+#define OWNER OWNER_SYS_BUFF_POP_FRAMED
+err_h sys_buff_pop_framed(sys_buff_t* buff, uint8_t* buffer, size_t max_size, size_t* out_len) {
+  SE_CHECK_NOT_NULL(buff);
+  SE_CHECK_NOT_NULL(buffer);
+  SE_CHECK_NOT_NULL(out_len);
+  return sys_buff_pop(buff, buffer, max_size, true, out_len);
+}
+
+#undef OWNER
+#define OWNER OWNER_SYS_BUFF_POP_RAW
+err_h sys_buff_pop_raw(sys_buff_t* buff, uint8_t* buffer, size_t max_size, size_t* out_len) {
+  SE_CHECK_NOT_NULL(buff);
+  SE_CHECK_NOT_NULL(buffer);
+  SE_CHECK_NOT_NULL(out_len);
+  return sys_buff_pop(buff, buffer, max_size, false, out_len);
 }
 
 #undef OWNER

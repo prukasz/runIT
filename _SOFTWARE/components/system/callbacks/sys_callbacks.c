@@ -27,6 +27,9 @@ static void sys_cb_task(void* pvParameters) {
         ESP_LOGI(TAG, "Received IO Event: Device ID %u, Pin %u, Event %u, Val %ld", event.event.io.device_id, event.event.io.pin_id, event.event.io.trigger_event, (long)event.event.io.trigger_value);
       } else if (event.head.callback_type == CALLBACK_PWR) {
         ESP_LOGI(TAG, "Received PWR Event: Device ID %u, Channel %u, Event %u, Val %ld", event.event.pwr.device_id, event.event.pwr.channel_id, event.event.pwr.trigger_event, (long)event.event.pwr.trigger_value);
+      } else if (event.head.callback_type == CALLBACK_BLE) {
+        // Dummy / skeleton handler logic, same as CALLBACK_IO / CALLBACK_PWR above
+        ESP_LOGI(TAG, "Received BLE Event: Event %lu, Val %ld", (unsigned long)event.event.ble.event, (long)event.event.ble.value);
       } else if (event.head.callback_type == CALLBACK_OWN_FUNC) {
         if (event.event.own_func.own_func) {
           event.event.own_func.own_func(event.event.own_func.device_handle, &event);

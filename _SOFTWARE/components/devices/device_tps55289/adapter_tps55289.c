@@ -232,7 +232,6 @@ fail:
 
 static const sys_device_class_t s_tps55289_class = {
     .name = "TPS55289_VREG",
-    .roles = SYS_DEV_ROLE_PWR,
     .contracts = {[SYS_DEVICE_CONTRACT_POWER_VREG] = (void*)&s_tps_vreg_contract},
     .ops = {
         .install = device_install,

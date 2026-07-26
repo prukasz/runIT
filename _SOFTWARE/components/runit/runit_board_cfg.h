@@ -118,19 +118,19 @@ err_h sys_ble_static_config() {
   sys_ble_char_create_t runit_chr_cfg_tx = {.info = {.uuid = SYS_BLE_CHR_RUNIT_TX, .is_notify = true, .desc = "runit TX"}, .rx_buffer_size = 0};
   SE_ORIGIN_CALL(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_tx));
 
-  sys_ble_tx_buf_cfg_t runit_buff_cfg_tx = {.buffer_id = 0, .size = 1024, .is_indication = false, .tx_buff = {.type = RINGBUF_TYPE_NOSPLIT, .const_item_size = 0, .header = 0}};
+  sys_ble_tx_buf_cfg_t runit_buff_cfg_tx = {.header = PACKET_HEADER_TX, .size = 1024, .is_indication = false};
   SE_ORIGIN_CALL(sys_ble_char_assign_tx_buffer(SYS_BLE_CHR_RUNIT_TX, &runit_buff_cfg_tx));
 
   sys_ble_char_create_t runit_chr_cfg_status = {.info = {.uuid = SYS_BLE_CHT_RUNIT_STATUS, .is_notify = true, .desc = "runit Status"}, .rx_buffer_size = 0};
   SE_ORIGIN_CALL(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_status));
 
-  sys_ble_tx_buf_cfg_t runit_buff_cfg_status = {.buffer_id = 0, .size = 512, .is_indication = false, .tx_buff = {.type = RINGBUF_TYPE_BYTE_BUF, .const_item_size = sizeof(err_h), .header = PACKET_HEADER_STATUS}};
+  sys_ble_tx_buf_cfg_t runit_buff_cfg_status = {.header = PACKET_HEADER_STATUS, .size = 512, .is_indication = false};
   SE_ORIGIN_CALL(sys_ble_char_assign_tx_buffer(SYS_BLE_CHT_RUNIT_STATUS, &runit_buff_cfg_status));
 
   sys_ble_char_create_t runit_chr_cfg_logs = {.info = {.uuid = SYS_BLE_CHR_RUNIT_LOGS, .is_notify = true, .desc = "runit LOGS"}, .rx_buffer_size = 0};
   SE_ORIGIN_CALL(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_logs));
 
-  sys_ble_tx_buf_cfg_t runit_buff_cfg_logs = {.buffer_id = 0, .size = 2048, .is_indication = false, .tx_buff = {.type = RINGBUF_TYPE_NOSPLIT, .const_item_size = 0, .header = 0}};
+  sys_ble_tx_buf_cfg_t runit_buff_cfg_logs = {.header = PACKET_HEADER_LOGS, .size = 2048, .is_indication = false};
   SE_ORIGIN_CALL(sys_ble_char_assign_tx_buffer(SYS_BLE_CHR_RUNIT_LOGS, &runit_buff_cfg_logs));
 
   SE_ORIGIN_CALL(sys_ble_database_sync());

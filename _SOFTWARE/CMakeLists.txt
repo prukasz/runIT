@@ -10,7 +10,7 @@ list(APPEND EXTRA_COMPONENT_DIRS
     "components/devices"
     "components/runit"
     "components/utils"
-    "components/status"
+    "components/sys_errors"
     "components/codecs"
 )
 project(runIT)
