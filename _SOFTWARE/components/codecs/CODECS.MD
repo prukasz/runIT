@@ -5,9 +5,11 @@
 | Directory | Contents |
 | :--- | :--- |
 | `decoders/` | Inbound packet tables — one header per class byte. |
-| `encoders/` | Outbound packet builders (currently empty). |
+| `encoders/` | Outbound packet builders — one header per outbound stream. |
 
 The split of responsibility: `sys_interface` owns the **class byte** (`0xXX`) and the transport plumbing; a codec header owns its **packet bytes** (`0xYY`), payload layouts, and the mapping to `sys_*` API calls.
+
+Encoders are the mirror image: they take an in-RAM structure and *fill a caller-supplied buffer*. They never transmit — pushing the buffer into a TX ring (`sys_ble_char_send()`) is the caller's job. They also carry **no class byte**: an outbound stream is already identified by the TX slot header byte that `sys_buff_pop_framed()` prepends (see `sys_ble_char_assign_tx_buffer()`).
 
 ---
 
@@ -49,8 +51,103 @@ Every decoder logs what it is about to do at `ESP_LOGI` under the tag `dec_sys_c
 | `0x10`–`0x19` | Device lifecycle | `sys_device_uninstall/reset/suspend/resume/freeze/sync` (+ `_all` variants) |
 | `0x20`–`0x2F` | IO | `sys_io_reset/set_mode/set_level/get_level/toggle/get_voltage/set_voltage/set_pwm_frequency/set_pwm_duty` |
 | `0x30`–`0x3F` | Power | `sys_power_budget_update_source`, `sys_vreg_set_enable/voltage/current`, `sys_power_monitor_get_voltage/current`, `sys_power_usb_pd_set/list/get_limits` |
+| `0x40`–`0x47` | Device installation | `d_gpio_esp_create`, `d_pca9685_create`, `d_tca6424a_create`, `d_tps55289_create`, `d_ina3221_create`, `d_ap33772s_create`, `d_dac53202_create`, `d_ads7128_create` |
 
 Unmapped packet bytes raise `ERR_INTERFACE_UNKNOWN_PACKET` (owner `OWNER_DEC_SYS_CONTRACTS`) and log a warning.
+
+---
+
+## `decoders/dec_sys_device_install.h` — class `0x01`, packets `0x40`–`0x47`
+
+Split out from `dec_sys_contracts.h` into its own file: one packet per device type, each payload that device's own `d_xxx_cfg_t` flattened directly onto the wire in field order. This is what lets a device be attached dynamically (at boot via a [[SYS_ACTIONS.MD]] boot action, or any time after) instead of only through the hardcoded `*_static_config()` calls in `runit.c`.
+
+Still the **same class byte** (`0x01`) and the **same dispatcher** (`dec_sys_contracts_decode()`) as `dec_sys_contracts.h` — `dec_sys_contracts.h` just `#include`s this file and folds its `SYS_CONTRACTS_INSTALL_PACKET_LIST(X)` into its own `SYS_CONTRACTS_PACKET_LIST(X)`, the same way `sys_error_codes.h` folds several modules' maps into one `SYS_ERROR_MAP(X)`. The split exists purely so `dec_sys_contracts.h` doesn't have to carry all 8 device headers' includes; it changes nothing about the wire format. Tagged `OWNER_DEC_SYS_DEVICE_INSTALL` (`0xA612`), logged under `dec_sys_device_install` — distinct from `dec_sys_contracts`'s own tag/owner, since it's a separate file.
+
+**No nested struct fields in any packet payload — scalars only.** `sys_io_pin_ref_t` (inter-device pin dependencies — e.g. a regulator's enable pin, wired through a GPIO expander) is not `__packed` (its `sys_io_mode_e` field is int-sized) and, even if it were, would still be a nested type inside the payload. Every pin reference is instead flattened to three plain fields, named `<name>_device_id`, `<name>_pin`, `<name>_mode`, reassembled into a real `sys_io_pin_ref_t` only in the decoder via `pin_ref_from_wire(device_id, pin, mode)`. This keeps every payload struct walkable as a flat list of `uint8_t`/`uint16_t`/`uint32_t`/`bool` fields — deliberately, so future tooling that generates encoders/decoders from these payloads never has to special-case a nested type.
+
+```c
+static inline sys_io_pin_ref_t pin_ref_from_wire(uint8_t device_id, uint8_t pin, uint8_t mode);
+```
+
+**An unused pin must be encoded as `pin == SYS_GPIO_NONE`** (`SYS_GPIO_NONE` = `0xFF`) — `device_id`/`mode` are ignored whenever that's true, exactly like `SYS_IO_PIN_NONE` on the C side. Sending all-zero fields means "device 0, pin 0" — a real pin, not "none".
+
+| Packet | Byte | Payload (after `device_id`, `i2c_bus`, `i2c_addr` where present) |
+| :--- | :--- | :--- |
+| Install `gpio_esp` | `0x40` | *(none — `device_id` only)* |
+| Install `pca9685` | `0x41` | `oe_pin_device_id, oe_pin_pin, oe_pin_mode` |
+| Install `tca6424a` | `0x42` | `intr_pin_{device_id,pin,mode}, rst_pin_{device_id,pin,mode}` |
+| Install `tps55289` | `0x43` | `intr_pin_{device_id,pin,mode}, en_pin_{device_id,pin,mode}` |
+| Install `ina3221` | `0x44` | `crit_pin_{device_id,pin,mode}, warn_pin_{device_id,pin,mode}` |
+| Install `ap33772s` | `0x45` | `intr_pin_{device_id,pin,mode}` |
+| Install `dac53202` | `0x46` | *(none)* |
+| Install `ads7128` | `0x47` | `intr_pin_{device_id,pin,mode}; uint32_t vref_mv` |
+
+`i2c_bus` is a single byte (`0` = `SYS_I2C_BUS0`/internal, `1` = `SYS_I2C_BUS1`/external). Example — install a PCA9685 as device 5 on the internal bus at I2C address `0x40`, no OE pin: `01 41 05 00 40 00 FF 00`.
+
+---
+
+## `decoders/dec_sys_actions.h` — class `0x03`
+
+Control-packet table for [[SYS_ACTIONS.MD]]'s record/stop/remove/bind wire protocol. Same shape as `dec_sys_contracts.h` (a `SYS_ACTIONS_PACKET_LIST` X-macro expanded into a switch), just with `sys_actions.h` in place of `sys_io.h`/`sys_device.h`/`sys_power.h` as the thing being wrapped.
+
+| Packet | Byte | Payload | Calls |
+| :--- | :--- | :--- | :--- |
+| Record | `0x01` | `uint8_t action_id` | `sys_actions_record_start(action_id)` |
+| Stop | `0x02` | `uint8_t action_id` | `sys_actions_record_stop(action_id)` (persists to NVS) |
+| Remove | `0x03` | `uint8_t action_id` | `sys_actions_remove(action_id)` |
+| Bind to state | `0x04` | `uint8_t action_id; uint8_t state;` | `sys_actions_bind_state(action_id, (sys_state_e)state)` |
+
+`SYS_ACTIONS_CLASS_HEADER` (`0x03`) is defined in `sys_actions.h`, not this file — unlike `SYS_CONTRACTS_CLASS_HEADER` (owned by the codec because it spans three unrelated system components), sys_actions' class is 1:1 with a single component, so the constant lives with that component's own public contract. `dec_sys_actions.h` just includes `sys_actions.h` to use it.
+
+Registered by `sys_actions_init()`, not `sys_interface_init()` — see the boot-ordering note in [[SYS_ACTIONS.MD]].
+
+---
+
+## `encoders/enc_sys_errors.h` — error chain telemetry
+
+Flattens an `err_h` chain into one self-describing packet so the client can rebuild the whole stack trace and log it there — the firmware never has to spend flash on human-readable strings.
+
+```c
+err_h enc_sys_errors_encode_chain(err_h chain, uint8_t* out_buf, size_t out_max, size_t* out_len);
+```
+
+### Wire format
+
+```
++--------- packet header (3 B) ---------+
+| u8 version | u8 node_count | u8 depth |
++---------------------------------------+
+| node[0] | node[1] | ... | node[n-1]   |
++---------------------------------------+
+
+node record:
++----------------+--------------+----------------+-------------+
+| u8 payload_len | u16 tag (LE) | u16 owner (LE) | payload ... |
++----------------+--------------+----------------+-------------+
+```
+
+| Field | Meaning |
+| :--- | :--- |
+| `version` | `ENC_SYS_ERRORS_FMT_VERSION` — bumped on any layout change. |
+| `node_count` | Node records present in this packet. |
+| `depth` | Full length of the walked chain. `depth > node_count` ⇒ truncated (buffer full, or `ENC_SYS_ERRORS_MAX_NODES` = 16 reached). |
+| `payload_len` | `SE_get_payload_size(tag)`, repeated on the wire so a client with a stale tag table can still skip an unknown node. |
+| `tag` / `owner` | `err_tag_e` / `sys_owner_e` values. |
+| `payload` | The node's payload struct copied verbatim. |
+
+Nodes are emitted **outermost first** (the `SE_ORIGIN_CALL` frame), each following record being the previous one's `next_cause`. That pointer is stripped — ordering carries it — and there is deliberately **no index byte**: records are contiguous and `node_count` bounds them, so an index would only restate the loop counter.
+
+### Design notes
+
+* **Encode before anything else.** Every error the function can raise is raised *before* the chain is walked (the "not even one node fit" case is checked after). `SE_*` macros allocate from the same ring the chain lives in, so allocating mid-walk could clobber the nodes being encoded. The handler task in `sys_error.c` follows the same rule: encode → serial trace → send.
+* **`ENC_SYS_ERRORS_MAX_NODES`** hard-stops traversal. Error nodes live in a lock-free ring with no free, so a chain held too long can have a `next_cause` overwritten into a cycle.
+* **Truncation is not an error.** The walk stops once a record no longer fits but keeps counting `depth`, so the client always learns how much it lost.
+
+### Client side (Python `ctypes`)
+
+Payload structs are **not** `__packed` — they are plain C structs, so mirror them with a default-alignment `ctypes.Structure` (*not* `_pack_ = 1`). The three fixed fields of a node record are little-endian and unaligned: `struct.unpack_from("<BHH", buf, off)`.
+
+Errors: `ERR_NULL_PTR`, `ERR_INTERFACE_ENC_BUF_TOO_SMALL` (`got`/`need`). Owner: `OWNER_ENC_SYS_ERRORS` (`0xA620`).
 
 ---
 
@@ -64,3 +161,5 @@ Copy the shape of `dec_sys_contracts.h`:
 4. Register it at boot: `sys_interface_register_class(<NAME>_CLASS_HEADER, dec_<name>_decode, "<name>")`.
 
 Note that a decoder header defines `OWNER` for the rest of the translation unit; any `.c` including it must re-`#define OWNER` afterwards (as `sys_interface.c` does).
+
+**Splitting a class across files.** If one class's packet table grows too large for one header, split it the way `dec_sys_device_install.h` splits off from `dec_sys_contracts.h`: give the split-out file its own `OWNER`/log tag and its own `SOME_NAME_PACKET_LIST(X)`, then have the original file `#include` it and fold that list into its own via `SOME_NAME_PACKET_LIST(X)` as one line inside its own `X`-macro definition (same technique `sys_error_codes.h` uses to combine multiple modules' `SYS_ERROR_*_MAP(X)`s into one `SYS_ERROR_MAP(X)`). The class byte, dispatcher function, and registration call stay in the original file — only packet declarations move.

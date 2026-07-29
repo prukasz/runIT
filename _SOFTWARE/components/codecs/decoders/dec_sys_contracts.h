@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include <sys/cdefs.h>
+#include "dec_sys_device_install.h"
 #include "sys_ble.h"
 #include "sys_device.h"
 #include "sys_error.h"
@@ -27,6 +28,8 @@
 #include "sys_io.h"
 #include "sys_power.h"
 
+// dec_sys_device_install.h leaves OWNER set to OWNER_DEC_SYS_DEVICE_INSTALL;
+// take it back so this file's own SE_* macros are tagged as dec_sys_contracts.
 #undef OWNER
 #define OWNER OWNER_DEC_SYS_CONTRACTS
 
@@ -386,6 +389,8 @@ static inline err_h decoder_packet_sys_power_usb_pd_get_limits_t(packet_sys_powe
 // ==========================================================================
 // Central packet list - X-macro expanded into the class dispatcher below
 // ==========================================================================
+// Device installation packets (0x40 - 0x47) live in dec_sys_device_install.h;
+// SYS_CONTRACTS_INSTALL_PACKET_LIST(X) is folded in below rather than repeated here.
 
 #define SYS_CONTRACTS_PACKET_LIST(X)                                                                                                          \
   X(HEADER_packet_sys_device_uninstall_t, packet_sys_device_uninstall_t, decoder_packet_sys_device_uninstall_t)                               \
@@ -415,7 +420,8 @@ static inline err_h decoder_packet_sys_power_usb_pd_get_limits_t(packet_sys_powe
   X(HEADER_packet_sys_power_monitor_get_current_t, packet_sys_power_monitor_get_current_t, decoder_packet_sys_power_monitor_get_current_t)    \
   X(HEADER_packet_sys_power_usb_pd_set_t, packet_sys_power_usb_pd_set_t, decoder_packet_sys_power_usb_pd_set_t)                               \
   X(HEADER_packet_sys_power_usb_pd_list_t, packet_sys_power_usb_pd_list_t, decoder_packet_sys_power_usb_pd_list_t)                            \
-  X(HEADER_packet_sys_power_usb_pd_get_limits_t, packet_sys_power_usb_pd_get_limits_t, decoder_packet_sys_power_usb_pd_get_limits_t)
+  X(HEADER_packet_sys_power_usb_pd_get_limits_t, packet_sys_power_usb_pd_get_limits_t, decoder_packet_sys_power_usb_pd_get_limits_t)            \
+  SYS_CONTRACTS_INSTALL_PACKET_LIST(X)
 
 #define SYS_CONTRACTS_DECODE_CASE(header, packet_type, decoder_func)                    \
   case header: {                                                                        \

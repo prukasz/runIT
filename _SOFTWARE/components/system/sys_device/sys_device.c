@@ -81,10 +81,7 @@ sys_device_t* sys_device_get_by_id(uint8_t device_id) {
 #define OWNER OWNER_SYS_DEVICE_RESET
 err_h sys_device_reset(uint8_t device_id) {
   sys_device_t* dev = sys_device_get_by_id(device_id);
-
-  if (!dev) SE_RET_ERR(ERR_DEV_NOT_FOUND, device_id);
-  if (!SYS_DEV_IS_INSTALLED(dev)) SE_RET_ERR(ERR_DEV_NOT_INSTALLED, device_id);
-  if (SYS_DEV_IS_SUSPENDED(dev)) SE_RET_ERR(ERR_DEV_SUSPENDED, device_id);
+  SYS_DEV_REQUIRE_ACTIVE(dev, device_id);
 
   err_h (*fn)(void*) = DEV_OP(dev, reset);
   if (!fn) SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);
@@ -117,6 +114,35 @@ err_h sys_device_uninstall(uint8_t device_id) {
     free(dev->cfg);
     free(dev);
     return NULL;
+  }
+  return NULL;
+}
+
+#undef OWNER
+#define OWNER OWNER_SYS_DEVICE_RESET_ALL
+err_h sys_device_reset_all(void) {
+  for (int i = 0; i <= MAX_DEVICE_ID; i++) {
+    sys_device_t* dev = sys_device_get_by_id(i);
+    if (!dev || !SYS_DEV_IS_READY(dev)) continue;
+    err_h (*fn)(void*) = DEV_OP(dev, reset);
+    if (fn) {
+      ESP_LOGW(TAG, "Resetting device: %s", DEV_NAME(dev));
+      err_h ret = fn(dev->device_handle);
+      if (SE_IS_ERR(ret)) {
+        ESP_LOGE(TAG, "Failed to reset device: %s", DEV_NAME(dev));
+        SE_RET_IF_ERR(ret);
+      }
+    }
+  }
+  return NULL;
+}
+
+#undef OWNER
+#define OWNER OWNER_SYS_DEVICE_UNINSTALL_ALL
+err_h sys_device_uninstall_all(void) {
+  for (int i = 0; i <= MAX_DEVICE_ID; i++) {
+    if (!s_device_registry[i]) continue;
+    SE_RET_IF_ERR(sys_device_uninstall((uint8_t)i));
   }
   return NULL;
 }
@@ -197,9 +223,7 @@ err_h sys_device_resume_all(void) {
 #define OWNER OWNER_SYS_DEVICE_FREEZE
 err_h sys_device_freeze(uint8_t device_id) {
   sys_device_t* dev = sys_device_get_by_id(device_id);
-  if (!dev) SE_RET_ERR(ERR_DEV_NOT_FOUND, device_id);
-  if (!SYS_DEV_IS_INSTALLED(dev)) SE_RET_ERR(ERR_DEV_NOT_INSTALLED, device_id);
-  if (SYS_DEV_IS_SUSPENDED(dev)) SE_RET_ERR(ERR_DEV_SUSPENDED, device_id);
+  SYS_DEV_REQUIRE_ACTIVE(dev, device_id);
 
   err_h (*fn)(void*) = DEV_OP(dev, freeze);
   if (!fn) SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);
@@ -213,9 +237,7 @@ err_h sys_device_freeze(uint8_t device_id) {
 #define OWNER OWNER_SYS_DEVICE_SYNC
 err_h sys_device_sync(uint8_t device_id) {
   sys_device_t* dev = sys_device_get_by_id(device_id);
-  if (!dev) SE_RET_ERR(ERR_DEV_NOT_FOUND, device_id);
-  if (!SYS_DEV_IS_INSTALLED(dev)) SE_RET_ERR(ERR_DEV_NOT_INSTALLED, device_id);
-  if (SYS_DEV_IS_SUSPENDED(dev)) SE_RET_ERR(ERR_DEV_SUSPENDED, device_id);
+  SYS_DEV_REQUIRE_ACTIVE(dev, device_id);
 
   err_h (*fn)(void*) = DEV_OP(dev, sync);
   if (!fn) SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);

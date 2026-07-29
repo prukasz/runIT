@@ -457,7 +457,6 @@ static void sys_ble_task_func(void* pvParameters) {
 
     do {
       data_sent = false;
-      memset(tx_data, 0, sizeof(tx_data));
 
       R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
       uint16_t current_mtu = g_ble_ctx.mtu_size;

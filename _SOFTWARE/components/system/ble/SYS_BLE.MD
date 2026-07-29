@@ -49,7 +49,7 @@ Up to `MAX_TX_BUFFERS` (3) TX ring buffers can be assigned per characteristic, e
 A characteristic with `is_read` set serves back whatever was last sent through it: `try_send_slot()` snapshots the framed bytes (post header-prepend, i.e. exactly what went out over the air) into the node's `last_val`/`last_val_len` after every successful TX. `sys_ble_gatt_access_cb()`'s `BLE_GATT_ACCESS_OP_READ_CHR` branch serves that snapshot. A characteristic that's never been sent on reads as empty. There is no app-supplied "getter" mechanism — reads only ever mirror the last notified/indicated value.
 
 ### Stack-Level Callback Events
-`SYS_BLE_CB(event_id, event_value, mask)` posts a `CALLBACK_BLE` event for connect/disconnect/failure (`sys_ble_events_e`), routed through `sys_ble_add_callback()`'s stored `route_mask`. `sys_cb_task` currently only logs these (skeleton dispatch, same as `CALLBACK_IO`/`CALLBACK_PWR` — see [[SYS_CALLBACKS.MD]]); no real per-route subscriber table exists yet for any of the three.
+`SYS_BLE_CB(event_id, event_value, mask)` posts a `CALLBACK_BLE` event for connect/disconnect/failure (`sys_ble_events_e`), routed through `sys_ble_add_callback()`'s stored `route_mask`. `sys_cb_task` dispatches it through the static route table (see [[SYS_CALLBACKS.MD]]): bit `SYS_CB_ROUTE_LOGGER` reaches the generic `ESP_LOGI` logger, bit `SYS_CB_ROUTE_BLE` reaches `sys_cb_route_ble()` (currently a stub — no BLE-specific routing logic yet).
 
 ---
 

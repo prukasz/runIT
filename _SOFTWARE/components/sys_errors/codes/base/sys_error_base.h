@@ -2,6 +2,11 @@
 #include <stdint.h>
 #include "esp_err.h"
 
+// Owners for the sys_errors component itself (config + telemetry plumbing).
+#define SYS_ERRORS_OWNER_MAP(X)                                 \
+  X(OWNER_SYS_ERRORS_BASE, 0xA800, "OWNER_SYS_ERRORS_BASE")     \
+  X(OWNER_SYS_ERRORS_CONFIG, 0xA801, "OWNER_SYS_ERRORS_CONFIG")
+
 #define SYS_ERROR_BASE_MAP(X)                                                       \
   X(ERR_NO_HANDLE, struct { uint8_t unused; })                                      \
   X(ERR_NULL_PTR, struct { uint8_t unused; })                                       \

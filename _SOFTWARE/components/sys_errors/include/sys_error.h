@@ -56,6 +56,110 @@ bool SE_is_suspended(void);
 const char* SE_get_owner_name(uint32_t owner);
 const char* SE_get_tag_name(err_tag_e tag);
 
+/**
+ * @brief Size of the payload struct generated for @p tag.
+ *
+ * A node does not store its own payload length — it is a property of the tag.
+ * Used by the error encoder to know how many bytes after `sys_err_t` belong to
+ * the node, and to put that length on the wire for the client.
+ *
+ * @param tag Error tag.
+ * @return size_t `sizeof(err_payload_<tag>_t)`, or 0 for an unknown tag.
+ */
+size_t SE_get_payload_size(err_tag_e tag);
+
+// ---------------------------------------------------------
+// 3b. Logging / Telemetry Configuration
+// ---------------------------------------------------------
+
+/** @brief Stack buffer the log hook renders one line into; a longer line is truncated on BLE only (serial still gets it whole). */
+#define SE_LOG_LINE_MAX 256
+
+/** @brief Compile-time ceiling for sys_error_cfg_t.errors.packet_max (static encode buffer). */
+#define SE_ERR_PACKET_MAX 244
+
+/**
+ * @brief Where logs and error chains go.
+ *
+ * Deliberately flat, and deliberately without per-sink level fields: level
+ * selection is `esp_log`'s job — `global_level` plus any per-tag
+ * `esp_log_level_set()` the application makes — so a line that reaches the hook
+ * is a line every enabled sink wants. What is left is a set of routing
+ * switches small enough to be applied remotely as one packet payload, in the
+ * style of the decoder structs in [[CODECS.MD]].
+ */
+typedef struct {
+  /** @brief Applied verbatim as `esp_log_level_set("*", global_level)` — the only level filter in the path. */
+  esp_log_level_t global_level;
+
+  struct {
+    bool mirror_on_serial;  /**< Keep writing lines to the original sink (UART/stdout). Clear it to make BLE the only log sink. */
+    bool ble_enable;        /**< Also push each rendered line to a BLE characteristic, one line per notification. */
+    uint16_t char_uuid;     /**< Target characteristic (required when ble_enable). */
+    uint8_t tx_header;      /**< TX slot header byte identifying the log stream (see sys_ble_char_assign_tx_buffer()). */
+  } logs;
+
+  struct {
+    bool serial_trace;    /**< Print the decoded owner/tag stack trace with ESP_LOGE. */
+    bool ble_enable;      /**< Encode each chain with enc_sys_errors_encode_chain() and push it to a BLE characteristic. */
+    uint16_t char_uuid;   /**< Target characteristic (required when ble_enable). */
+    uint8_t tx_header;    /**< TX slot header byte identifying the error stream. */
+    uint16_t packet_max;  /**< Largest encoded packet; clamped to SE_ERR_PACKET_MAX. Longer chains are truncated, never split. */
+  } errors;
+} sys_error_cfg_t;
+
+/**
+ * @brief Boot defaults: serial only, nothing on BLE.
+ *
+ * These are the settings in force before the first SE_configure() call, so a
+ * board that never calls it behaves exactly as it did before telemetry existed.
+ */
+#define SYS_ERROR_CFG_DEFAULT()                                                                                        \
+  ((sys_error_cfg_t){                                                                                                  \
+      .global_level = ESP_LOG_INFO,                                                                                    \
+      .logs = {.mirror_on_serial = true, .ble_enable = false, .char_uuid = 0, .tx_header = 0},                         \
+      .errors = {.serial_trace = true, .ble_enable = false, .char_uuid = 0, .tx_header = 0, .packet_max = SE_ERR_PACKET_MAX}})
+
+/**
+ * @brief Apply a logging/telemetry configuration.
+ *
+ * Idempotent and callable at any time after SE_init(); every call re-points
+ * the `esp_log` vprintf hook to `se_log_vprintf` (a no-op past the first, same
+ * function each time), so it only ever needs to swap the routing switches.
+ * Note that clearing both `logs.mirror_on_serial` and `logs.ble_enable`
+ * silences log output entirely — the hook stays installed and simply drops
+ * every line.
+ *
+ * @param cfg Configuration to apply.
+ * @return err_h NULL on success, ERR_NULL_PTR for a NULL @p cfg, or
+ *               ERR_INVALID_VAL_UI32 if a stream is enabled without a
+ *               characteristic UUID.
+ *
+ * Example:
+ * @code
+ * SE_ORIGIN_CALL(SE_configure(&(sys_error_cfg_t){
+ *     .global_level = ESP_LOG_INFO,
+ *     .logs = {.mirror_on_serial = true, .ble_enable = true,
+ *              .char_uuid = SYS_BLE_CHR_RUNIT_LOGS, .tx_header = PACKET_HEADER_LOGS},
+ *     .errors = {.serial_trace = true, .ble_enable = true,
+ *                .char_uuid = SYS_BLE_CHR_RUNIT_LOGS, .tx_header = PACKET_HEADER_ERRORS,
+ *                .packet_max = SE_ERR_PACKET_MAX},
+ * }));
+ *
+ * // Per-tag filtering stays where it belongs - in esp_log itself:
+ * esp_log_level_set("sys_i2c", ESP_LOG_DEBUG);
+ * @endcode
+ */
+err_h SE_configure(const sys_error_cfg_t* cfg);
+
+/**
+ * @brief Read back the configuration currently in force (post-clamping).
+ *
+ * @param out_cfg Destination struct.
+ * @return err_h NULL on success, or ERR_NULL_PTR.
+ */
+err_h SE_get_config(sys_error_cfg_t* out_cfg);
+
 // ---------------------------------------------------------
 // 4. Core Macros (Call-ready, implicitly use 'OWNER')
 // ---------------------------------------------------------

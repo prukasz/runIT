@@ -7,7 +7,7 @@ foreach(item ${code_items})
 endforeach()
 
 idf_component_register(
-    SRCS "sys_error.c"
+    SRCS "sys_error.c" "sys_error_handler.c"
     INCLUDE_DIRS "include" ${code_dirs} "codes"
                  "../system/sys_device/include"
                  "../system/sys_io/include"
@@ -16,6 +16,11 @@ idf_component_register(
                  "../system/ble/include"
                  "../system/sys_interface/include"
                  "../system/sys_buffers/include"
+                 "../system/sys_states/include"
+                 "../system/sys_actions/include"
+                 # codecs is header-only and REQUIRES sys_errors, so pulling in the
+                 # error encoder as a plain include dir avoids a component cycle.
+                 "../codecs/encoders"
     REQUIRES esp_ringbuf
     PRIV_REQUIRES utils ble
 )

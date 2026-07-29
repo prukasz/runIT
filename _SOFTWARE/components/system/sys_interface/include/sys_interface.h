@@ -65,6 +65,10 @@ err_h sys_interface_init(void);
 /**
  * @brief Bind a decoder table to a class byte.
  *
+ * Classes are only ever appended, never removed - there is no unregister.
+ * Register everything at boot, before sys_interface_bind_ble_rx() starts the
+ * RX pump (the registry is a flat array with linear search, not mutex-protected).
+ *
  * @param class_header Class byte (0xXX) this handler owns.
  * @param handler Handler invoked with the class byte stripped.
  * @param name Human-readable class name used in logs (may be NULL).
@@ -79,14 +83,6 @@ err_h sys_interface_init(void);
 err_h sys_interface_register_class(uint8_t class_header, sys_interface_handler_f handler, const char* name);
 
 /**
- * @brief Release a class byte previously bound with sys_interface_register_class().
- *
- * @param class_header Class byte to release.
- * @return err_h NULL on success, or ERR_INTERFACE_UNKNOWN_CLASS if it wasn't bound.
- */
-err_h sys_interface_unregister_class(uint8_t class_header);
-
-/**
  * @brief Route one complete frame to the handler registered for its class byte.
  *
  * @param data Pointer to the raw frame (class byte at data[0]).
@@ -98,18 +94,59 @@ err_h sys_interface_unregister_class(uint8_t class_header);
 err_h sys_interface_decode(const uint8_t* data, size_t len);
 
 /**
- * @brief Attach a BLE characteristic's RX buffer as a frame source.
+ * @brief Non-invasive frame observer.
  *
- * Spawns a worker task that blocks on the characteristic's RX semaphore, drains
- * every queued peer write (one buffer item is one whole frame, never split or
- * coalesced) and feeds each one to sys_interface_decode(). Decoder errors are
- * emitted through SE_ORIGIN_CALL() so a bad frame never stops the pump.
+ * Called with every complete frame sys_interface_decode() receives (class byte
+ * included, before dispatch) - purely an observer, it cannot affect decode's
+ * return value or control flow, and only one tap can be registered at a time
+ * (a later call to sys_interface_set_tap() replaces the previous one). Used by
+ * `sys_actions` to record live traffic; see [[SYS_ACTIONS.MD]].
+ *
+ * @param frame Full frame bytes, class byte at frame[0].
+ * @param len Total frame length.
+ */
+typedef void (*sys_interface_tap_f)(const uint8_t* frame, size_t len);
+
+/**
+ * @brief Register (or clear, with NULL) the frame tap. See sys_interface_tap_f.
+ */
+void sys_interface_set_tap(sys_interface_tap_f tap);
+
+/**
+ * @brief Suspend/resume the RX pump's dispatch of newly drained frames.
+ *
+ * Nesting-safe via a depth counter, the same shape as SE_suspend()/SE_resume().
+ * This is a best-effort signal, not a hard synchronization barrier: while
+ * suspended, sys_interface_bind_ble_rx()'s worker task still drains each
+ * characteristic's RX buffer (so it can't overflow) but drops every frame
+ * instead of decoding it, logging a warning per drop. It does not wait for an
+ * in-flight sys_interface_decode() call to finish before returning.
+ *
+ * Used by `sys_actions_invoke()` so a replayed packet sequence can't interleave
+ * with live incoming traffic - see [[SYS_ACTIONS.MD]].
+ */
+void sys_interface_suspend_rx(void);
+void sys_interface_resume_rx(void);
+bool sys_interface_is_rx_suspended(void);
+
+/**
+ * @brief Attach a BLE characteristic's RX buffer as the frame source.
+ *
+ * Starts the single static worker task (there is only one RX pump - a second
+ * call fails with ERR_BASE_INVALID_STATE) that blocks on the characteristic's
+ * RX semaphore, drains every queued peer write (one buffer item is one whole
+ * frame, never split or coalesced) and feeds each one to sys_interface_decode().
+ * Decoder errors are emitted through SE_ORIGIN_CALL() so a bad frame never
+ * stops the pump.
  *
  * @param char_uuid 16-bit UUID of the characteristic to drain (must have been
  *                  created with a non-zero rx_buffer_size).
- * @param max_frame_len Largest frame accepted; longer items are truncated by the buffer.
- * @return err_h NULL on success, ERR_BASE_NO_MEM if the frame buffer or task
- *               could not be allocated, or the sys_ble lookup error.
+ * @param max_frame_len Largest frame accepted, up to SYS_INTERFACE_RX_FRAME_CAP
+ *                       (512); longer items are truncated by the buffer.
+ * @return err_h NULL on success, ERR_INVALID_VAL_UI32 if max_frame_len is 0 or
+ *               exceeds the cap, ERR_BASE_INVALID_STATE if already bound or the
+ *               characteristic has no RX buffer, ERR_BASE_NO_MEM if the task
+ *               failed to start, or the sys_ble lookup error.
  *
  * Example:
  * @code

@@ -1,6 +1,4 @@
 #include "runit.h"
-#include <stdarg.h>
-#include <stdio.h>
 #include <string.h>
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
@@ -9,6 +7,7 @@
 #include "freertos/projdefs.h"
 #include "runit_board_cfg.h"
 #include "runit_board_defs.h"
+#include "sys_actions.h"
 #include "sys_interface.h"
 // dec_sys_contracts.h leaves OWNER set to OWNER_DEC_SYS_CONTRACTS; runit.c doesn't
 // emit its own SE_* errors, but undef it so that stays explicit rather than implicit.
@@ -23,46 +22,33 @@ static const char* TAG = "runit_app";
     }                                                                                                            \
   } while (0)
 
-static vprintf_like_t s_previous_vprintf = NULL;
-static bool s_in_ble_log = false;
-
-static int runit_ble_log_vprintf(const char *fmt, va_list args) {
-  int ret = 0;
-  if (s_previous_vprintf != NULL) {
-    va_list args_copy;
-    va_copy(args_copy, args);
-    ret = s_previous_vprintf(fmt, args_copy);
-    va_end(args_copy);
-  } else {
-    va_list args_copy;
-    va_copy(args_copy, args);
-    ret = vprintf(fmt, args_copy);
-    va_end(args_copy);
-  }
-
-  if (s_in_ble_log) {
-    return ret;
-  }
-
-  s_in_ble_log = true;
-
-  char log_buf[256];
-  va_list args_copy2;
-  va_copy(args_copy2, args);
-  int len = vsnprintf(log_buf, sizeof(log_buf), fmt, args_copy2);
-  va_end(args_copy2);
-
-  if (len > 0) {
-    size_t send_len = (size_t)len;
-    if (send_len >= sizeof(log_buf)) {
-      send_len = sizeof(log_buf) - 1;
-    }
-    sys_ble_char_send(SYS_BLE_CHR_RUNIT_LOGS, PACKET_HEADER_LOGS, (const uint8_t*)log_buf, send_len, true);
-  }
-
-  s_in_ble_log = false;
-  return ret;
-}
+/**
+ * @brief Board-level logging / error-telemetry policy.
+ *
+ * Logs are mirrored on serial and streamed as whole lines to the LOGS
+ * characteristic; error chains go out the same characteristic under their own
+ * TX header, encoded by enc_sys_errors_encode_chain() for client-side
+ * reconstruction. Filtering is global_level only - use esp_log_level_set() for
+ * per-tag overrides. See SYS_ERRORS.MD for the full field reference.
+ */
+static const sys_error_cfg_t s_runit_error_cfg = {
+    .global_level = ESP_LOG_INFO,
+    .logs =
+        {
+            .mirror_on_serial = true,
+            .ble_enable = true,
+            .char_uuid = SYS_BLE_CHR_RUNIT_LOGS,
+            .tx_header = PACKET_HEADER_LOGS,
+        },
+    .errors =
+        {
+            .serial_trace = true,
+            .ble_enable = true,
+            .char_uuid = SYS_BLE_CHR_RUNIT_LOGS,
+            .tx_header = PACKET_HEADER_ERRORS,
+            .packet_max = SE_ERR_PACKET_MAX,
+        },
+};
 
 static void runit_adc_test_task(void* arg) {
   (void)arg;
@@ -120,7 +106,9 @@ void runit_start(void) {
   CHECK_AND_LOG(sys_power_static_config());
   CHECK_AND_LOG(sys_ble_static_config());
 
-  s_previous_vprintf = esp_log_set_vprintf(runit_ble_log_vprintf);
+  // Must come after sys_ble_static_config(): the log/error streams reference
+  // characteristics and TX slots that it creates.
+  CHECK_AND_LOG(SE_configure(&s_runit_error_cfg));
 
   // Configure ESP GPIO pins 5, 6, 7 as ADC mode
   CHECK_AND_LOG(sys_io_set_mode(DEVICE_ID_GPIO_ESP, 5, SYS_IO_MODE_ADC));
@@ -129,6 +117,9 @@ void runit_start(void) {
 
   // Route inbound BLE frames into the packet interface: [class 0xXX][packet 0xYY][payload]
   CHECK_AND_LOG(sys_interface_init());
+  // Must come before sys_interface_bind_ble_rx(): class registration and the
+  // recording tap are boot-only, not safe against a running RX pump.
+  CHECK_AND_LOG(sys_actions_init());
   CHECK_AND_LOG(sys_interface_bind_ble_rx(SYS_BLE_CHR_RUNIT_RX, RUNIT_BLE_RX_FRAME_MAX));
 
   // Spawn ADC test task

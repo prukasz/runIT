@@ -30,6 +30,7 @@
 #define PACKET_HEADER_STATUS 0x01  //@STATIC_PACKET_HEADER
 #define PACKET_HEADER_TX 0x02      //@STATIC_PACKET_HEADER
 #define PACKET_HEADER_LOGS 0x03    //@STATIC_PACKET_HEADER
+#define PACKET_HEADER_ERRORS 0x04  //@STATIC_PACKET_HEADER
 
 /* Largest inbound frame accepted from SYS_BLE_CHR_RUNIT_RX - matches its rx_buffer_size */
 #define RUNIT_BLE_RX_FRAME_MAX 512

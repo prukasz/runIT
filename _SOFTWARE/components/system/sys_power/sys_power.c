@@ -111,9 +111,7 @@ err_h sys_vreg_set_voltage(uint8_t device_id, uint32_t voltage_mV) {
   SE_CHECK_IN_RANGE(voltage_mV, 0, SYS_POWER_LIMIT_MV);
 
   sys_device_t* dev = sys_device_get_by_id(device_id);
-  if (!dev) SE_RET_ERR(ERR_DEV_NOT_FOUND, device_id);
-  if (!SYS_DEV_IS_INSTALLED(dev)) SE_RET_ERR(ERR_DEV_NOT_INSTALLED, device_id);
-  if (SYS_DEV_IS_SUSPENDED(dev)) SE_RET_ERR(ERR_DEV_SUSPENDED, device_id);
+  SYS_DEV_REQUIRE_ACTIVE(dev, device_id);
 
   IF_SYS_DEV_AND_FEATURE(device_id, SYS_DEVICE_CONTRACT_POWER_VREG, sys_power_vreg_contract, set_voltage, dev_ptr, vreg) {
     sys_power_device_t* p_dev = &s_power_registry[device_id];
@@ -146,9 +144,7 @@ err_h sys_vreg_set_current(uint8_t device_id, uint32_t current_mA) {
   SE_CHECK_IN_RANGE(current_mA, 0, SYS_POWER_LIMIT_MA);
 
   sys_device_t* dev = sys_device_get_by_id(device_id);
-  if (!dev) SE_RET_ERR(ERR_DEV_NOT_FOUND, device_id);
-  if (!SYS_DEV_IS_INSTALLED(dev)) SE_RET_ERR(ERR_DEV_NOT_INSTALLED, device_id);
-  if (SYS_DEV_IS_SUSPENDED(dev)) SE_RET_ERR(ERR_DEV_SUSPENDED, device_id);
+  SYS_DEV_REQUIRE_ACTIVE(dev, device_id);
 
   IF_SYS_DEV_AND_FEATURE(device_id, SYS_DEVICE_CONTRACT_POWER_VREG, sys_power_vreg_contract, set_current, dev_ptr, vreg) {
     sys_power_device_t* p_dev = &s_power_registry[device_id];
@@ -228,9 +224,7 @@ err_h sys_power_usb_pd_get_limits(uint8_t device_id, uint32_t* out_mV, uint32_t*
   SE_CHECK_NOT_NULL(out_mA);
 
   sys_device_t* dev = sys_device_get_by_id(device_id);
-  if (!dev) SE_RET_ERR(ERR_DEV_NOT_FOUND, device_id);
-  if (!SYS_DEV_IS_INSTALLED(dev)) SE_RET_ERR(ERR_DEV_NOT_INSTALLED, device_id);
-  if (SYS_DEV_IS_SUSPENDED(dev)) SE_RET_ERR(ERR_DEV_SUSPENDED, device_id);
+  SYS_DEV_REQUIRE_ACTIVE(dev, device_id);
 
   IF_SYS_DEV_AND_FEATURE(device_id, SYS_DEVICE_CONTRACT_POWER_USB_PD, sys_power_usb_pd_contract, get_limits, dev_ptr, usb_pd) {
     err_h err = usb_pd->get_limits(dev_ptr->device_handle, out_mV, out_mA);

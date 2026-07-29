@@ -26,10 +26,21 @@ Interrupt / Hardware Event -> sys_callback_trigger() -> Static FreeRTOS Queue ->
 
 ### Dynamic Callback Event Routing
 1. Hardware drivers or system submodules construct a generic `cb_event_t` containing a header (`sys_callback_head_t`) and an event payload union (`io`, `pwr`, `ble`, or `own_func`).
-2. The event is posted via `sys_callback_trigger(event)`. If called from an ISR context (`xPortInIsrContext()`), it routes through `xQueueSendFromISR` with high-priority task unblocking (`portYIELD_FROM_ISR`); otherwise it blocks on `xQueueSend` up to `portMAX_DELAY`. Returns `ERR_INVALID_VAL_UI32` for a NULL event, `ERR_BASE_INVALID_STATE` if `sys_callbacks_init()` hasn't run yet, or `ERR_BASE_NO_MEM` if the send itself fails (queue full).
-3. The static background task (`sys_cb_task`, created via the `utils` component's `R_TASK_DEFINE` / `R_TASK_START_ON_CORE` wrappers) dequeues events sequentially via `R_QUEUE_RECEIVE(..., WAIT_FOREVER)` and switches on `callback_type`.
+2. The event is posted via `sys_callback_trigger(event)`. If called from an ISR context (`xPortInIsrContext()`), it routes through `xQueueSendFromISR` with high-priority task unblocking (`portYIELD_FROM_ISR`); otherwise it blocks on `xQueueSend` up to `portMAX_DELAY`. Returns `ERR_INVALID_VAL_UI32` for a NULL event, or `ERR_BASE_NO_MEM` if the send itself fails (queue full). The queue (`s_callback_queue`) is defined via the `utils` component's `R_QUEUE_DEFINE` — it's constructor-created and live before `app_main()` runs, so a trigger fired before `sys_callbacks_init()` has started the consumer task simply waits in the queue rather than being rejected.
+3. The static background task (`sys_cb_task`, created via the `utils` component's `R_TASK_DEFINE` / `R_TASK_START_ON_CORE` wrappers) dequeues events sequentially via `R_QUEUE_RECEIVE(..., WAIT_FOREVER)`.
 
-**Current dispatch is a skeleton for `CALLBACK_IO` / `CALLBACK_PWR` / `CALLBACK_BLE`**: the task only `ESP_LOGI`s their payload fields — there is no per-route subscriber table yet, despite `route_mask` already existing on the header for that purpose. `CALLBACK_OWN_FUNC` is the only type that's actually wired end-to-end: the task invokes `event.event.own_func.own_func(device_handle, &event)` directly. This is what `sys_ble`'s callback-mode RX delivery builds on — see [[SYS_BLE.MD]].
+**`CALLBACK_OWN_FUNC` bypasses routing entirely**: the task invokes `event.event.own_func.own_func(device_handle, &event)` directly and moves on, unaffected by `route_mask`. This is what `sys_ble`'s callback-mode RX delivery builds on — see [[SYS_BLE.MD]].
+
+**Every other event type goes through the static route table** (`s_route_table[SYS_CB_ROUTE_COUNT]` in sys_callbacks.c): for bit `i` set in `event.head.route_mask`, `sys_cb_task` calls `s_route_table[i](&event)` if a handler is registered there, silently skipping unset bits and empty slots. The index constants live in `sys_callbacks.h` so callers building a `route_mask` (e.g. the `route_mask` argument threaded through `sys_vreg_add_callback()`, `sys_ble_add_callback()`, `SYS_IO_CB()`) can target specific routes with `SYS_CB_ROUTE_BIT(idx)`:
+
+| Index | Macro | Handler | Status |
+| :--- | :--- | :--- | :--- |
+| 0 | `SYS_CB_ROUTE_LOGGER` | `sys_cb_route_logger` | Implemented — `ESP_LOGI`s `IO`/`PWR`/`BLE` payload fields (the old skeleton logic, unchanged in behavior, moved here) |
+| 1 | `SYS_CB_ROUTE_BLE` | `sys_cb_route_ble` | Registered stub — body is a `TODO`, no routing logic yet |
+| 2 | `SYS_CB_ROUTE_WIFI` | — | Reserved, not implemented — no entry in `s_route_table`, WiFi doesn't exist yet |
+| 3–15 | — | — | Unassigned — free for progressive expansion |
+
+`route_mask` is a `uint16_t` (`SYS_CB_ROUTE_COUNT` = 16), so index range is 0–15. A caller that never sets any route bit (`route_mask == 0`) gets no dispatch at all for that event — this is opt-in per event source, not a broadcast default.
 
 Every error raised inside `sys_callbacks.c` is tagged `OWNER_SYS_DEVICE_BASE` — `callbacks` has no dedicated owner map of its own yet, so it currently borrows this owner id from [[SYS_DEVICE.MD]] rather than defining `OWNER_SYS_CALLBACKS_*` tags.
 
@@ -56,6 +67,16 @@ typedef struct sys_callback_head_t {
   uint16_t route_mask;    /* Bitmask for destination routing */
 } sys_callback_head_t;
 ```
+
+### Route Table Indices (sys_callbacks.h)
+```c
+#define SYS_CB_ROUTE_LOGGER 0
+#define SYS_CB_ROUTE_BLE    1
+#define SYS_CB_ROUTE_WIFI   2
+#define SYS_CB_ROUTE_COUNT  16
+#define SYS_CB_ROUTE_BIT(idx) (1u << (idx))
+```
+See [Dynamic Callback Event Routing](#dynamic-callback-event-routing) above for how these map to `s_route_table`.
 
 ### Submodule Event Payloads
 ```c
@@ -117,7 +138,7 @@ Both return `err_h` (`NULL` on success), per the [[runit]] skill's function retu
 
 ### Initialization & Queue Management
 * **`err_h sys_callbacks_init(void)`**:
-  Idempotent — returns `NULL` immediately if already initialized. Otherwise allocates the static FreeRTOS event queue (`CALLBACK_QUEUE_LEN = 16`, sized for `cb_event_t`) and launches `sys_cb_task` (4096-word stack, priority 5, pinned to core 0). Returns `ERR_BASE_NO_MEM` if the static queue create fails.
+  The event queue (`CALLBACK_QUEUE_LEN = 16`, sized for `cb_event_t`) is already live by the time this is called — it's defined via `R_QUEUE_DEFINE`, constructor-created before `app_main()`. This function's only job is to start the consumer task (`sys_cb_task`, 4096-word stack, priority 5, pinned to core 0) via `R_TASK_START_ON_CORE`, guarded so a repeat call doesn't start it twice. Always returns `NULL`.
 
 ### Event Triggering
 * **`err_h sys_callback_trigger(const cb_event_t* event)`**:

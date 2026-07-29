@@ -86,7 +86,9 @@ err_h sys_device_install_cfg(const sys_device_class_t* cls, uint8_t device_id, c
 #define SYS_DEVICE_CREATE(cls_ptr, cfg_ptr) sys_device_install_cfg((cls_ptr), (cfg_ptr)->device_id, (cfg_ptr), sizeof(*(cfg_ptr)))
 
 err_h sys_device_uninstall(uint8_t device_id);
+err_h sys_device_uninstall_all(void);
 err_h sys_device_reset(uint8_t device_id);
+err_h sys_device_reset_all(void);
 err_h sys_device_suspend(uint8_t device_id);
 err_h sys_device_resume(uint8_t device_id);
 err_h sys_device_suspend_all(void);
@@ -147,6 +149,26 @@ sys_device_t* sys_device_get_by_id(uint8_t device_id);
       if (SYS_DEV_IS_READY(dev_ptr) && vtable_ptr->func_member)
 
 /**
+ * @brief Guard for a device pointer already fetched via sys_device_get_by_id().
+ * Returns ERR_DEV_NOT_FOUND / ERR_DEV_NOT_INSTALLED / ERR_DEV_SUSPENDED from the
+ * calling function if the device isn't installed and un-suspended. Shared by
+ * SYS_DEV_DISPATCH and any hand-rolled dispatch that needs the same check
+ * wrapped around non-vtable logic (e.g. sys_power's budget accounting).
+ */
+#define SYS_DEV_REQUIRE_ACTIVE(dev, device_id)                    \
+  do {                                                            \
+    if ((dev) == NULL) {                                          \
+      SE_RET_ERR(ERR_DEV_NOT_FOUND, (device_id));                 \
+    }                                                              \
+    if (!SYS_DEV_IS_INSTALLED(dev)) {                              \
+      SE_RET_ERR(ERR_DEV_NOT_INSTALLED, (device_id));              \
+    }                                                              \
+    if (SYS_DEV_IS_SUSPENDED(dev)) {                                \
+      SE_RET_ERR(ERR_DEV_SUSPENDED, (device_id));                  \
+    }                                                              \
+  } while (0)
+
+/**
  * @brief Can handle most function from contract by invoking selected function with provided arguments
  * Integrated error handling
  */
@@ -154,15 +176,7 @@ sys_device_t* sys_device_get_by_id(uint8_t device_id);
 #define SYS_DEV_DISPATCH(dev_id, contract_enum, contract_type, func_name, ...)           \
   do {                                                                                   \
     sys_device_t* __disp_dev = sys_device_get_by_id((dev_id));                           \
-    if (__disp_dev == NULL) {                                                            \
-      SE_RET_ERR(ERR_DEV_NOT_FOUND, (dev_id));                                           \
-    }                                                                                    \
-    if (!SYS_DEV_IS_INSTALLED(__disp_dev)) {                                             \
-      SE_RET_ERR(ERR_DEV_NOT_INSTALLED, (dev_id));                                       \
-    }                                                                                    \
-    if (SYS_DEV_IS_SUSPENDED(__disp_dev)) {                                              \
-      SE_RET_ERR(ERR_DEV_SUSPENDED, (dev_id));                                           \
-    }                                                                                    \
+    SYS_DEV_REQUIRE_ACTIVE(__disp_dev, (dev_id));                                        \
     contract_type* __vtable = (contract_type*)__disp_dev->cls->contracts[contract_enum]; \
     if (__vtable == NULL || __vtable->func_name == NULL) {                               \
       SE_RET_ERR(ERR_DEV_FEATURE_UNAVAILABLE, (dev_id), (uint8_t)(contract_enum), 0);    \

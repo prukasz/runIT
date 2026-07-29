@@ -133,6 +133,11 @@ err_h sys_ble_static_config() {
   sys_ble_tx_buf_cfg_t runit_buff_cfg_logs = {.header = PACKET_HEADER_LOGS, .size = 2048, .is_indication = false};
   SE_ORIGIN_CALL(sys_ble_char_assign_tx_buffer(SYS_BLE_CHR_RUNIT_LOGS, &runit_buff_cfg_logs));
 
+  // Encoded error chains share the LOGS characteristic - the TX slot header is
+  // what tells the two streams apart on the client side.
+  sys_ble_tx_buf_cfg_t runit_buff_cfg_errors = {.header = PACKET_HEADER_ERRORS, .size = 1024, .is_indication = false};
+  SE_ORIGIN_CALL(sys_ble_char_assign_tx_buffer(SYS_BLE_CHR_RUNIT_LOGS, &runit_buff_cfg_errors));
+
   SE_ORIGIN_CALL(sys_ble_database_sync());
   ESP_LOGI("static_config", "BLE initialized");
   return NULL;

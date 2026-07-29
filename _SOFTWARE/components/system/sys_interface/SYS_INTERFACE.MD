@@ -26,7 +26,8 @@ The decoder tables themselves live in the `codecs` component (`components/codecs
 | Class | Owner | Handler |
 | :--- | :--- | :--- |
 | `0x01` | System contracts (`sys_device` / `sys_io` / `sys_power`) | `dec_sys_contracts_decode()` — registered by `sys_interface_init()` |
-| `0x02`+ | Free — VM bytecode, dynamic device/callback creation, etc. | register your own |
+| `0x03` | System actions (record/stop/remove) | `dec_sys_actions_decode()` — registered by `sys_actions_init()`, see [[SYS_ACTIONS.MD]] |
+| `0x02`, `0x04`+ | Free — VM bytecode, dynamic device/callback creation, etc. | register your own |
 
 Up to `SYS_INTERFACE_MAX_CLASSES` (8) classes can be bound at once. The registry is a flat array with linear search — it is not mutex-protected, so register all classes during boot rather than from concurrent tasks.
 
@@ -39,7 +40,9 @@ BLE peer write
    -> characteristic rx_buff (sys_buff_t, one write = one whole item)
    -> rx_sem given
    -> sys_if_rx worker task            (sys_interface_bind_ble_rx)
+   -> [dropped if sys_interface_is_rx_suspended()]
    -> sys_interface_decode(frame, len) (strips class byte 0xXX)
+   -> [tap, if set, sees the full frame here - non-invasive, does not affect the below]
    -> class handler                    (e.g. dec_sys_contracts_decode)
    -> convert_to_packet()              (length-checked memcpy into the payload struct)
    -> decoder_packet_xxx_t()           (calls the sys_* contract API)
@@ -57,21 +60,28 @@ Errors from a decoder are emitted with `SE_ORIGIN_CALL()` inside the worker task
 Clears the class registry and binds class `0x01` to the system contracts table. Call once at boot, before any other `sys_interface` call.
 
 ### `err_h sys_interface_register_class(uint8_t class_header, sys_interface_handler_f handler, const char* name)`
-Binds a decoder table to a class byte. `name` is used in logs only and may be `NULL`.
+Binds a decoder table to a class byte. `name` is used in logs only and may be `NULL`. Classes are only ever appended (`s_classes[0..s_class_count-1]`, a plain incrementing count, no free-slot search) — there is no unregister. Register everything at boot, before `sys_interface_bind_ble_rx()` starts the RX pump.
 
 * `ERR_INTERFACE_CLASS_TAKEN` — that class byte is already bound.
 * `ERR_INTERFACE_NO_CLASS_SLOTS` — all `SYS_INTERFACE_MAX_CLASSES` slots are in use.
-
-### `err_h sys_interface_unregister_class(uint8_t class_header)`
-Frees a class slot. Returns `ERR_INTERFACE_UNKNOWN_CLASS` if it wasn't bound.
 
 ### `err_h sys_interface_decode(const uint8_t* data, size_t len)`
 Routes one complete frame. Returns `ERR_INTERFACE_SHORT_FRAME` on an empty frame, `ERR_INTERFACE_UNKNOWN_CLASS` for an unregistered class byte, or the handler's own error chain.
 
 ### `err_h sys_interface_bind_ble_rx(uint16_t char_uuid, size_t max_frame_len)`
-Attaches a BLE characteristic's RX buffer as a frame source: spawns a `sys_if_rx` worker task that blocks on the characteristic's `rx_sem`, drains every queued write, and feeds each to `sys_interface_decode()`. One task and one `max_frame_len` heap buffer per bound characteristic.
+Attaches a BLE characteristic's RX buffer as the frame source: starts the single static `sys_if_rx` worker task (`R_TASK_DEFINE`/`R_TASK_START`, no heap allocation) that blocks on the characteristic's `rx_sem`, drains every queued write into a static frame buffer, and feeds each to `sys_interface_decode()`. There is only one RX pump — `max_frame_len` must be `<= SYS_INTERFACE_RX_FRAME_CAP` (512).
 
-Fails with `ERR_BASE_INVALID_STATE` if the characteristic exists but was created with `rx_buffer_size == 0`, or `ERR_BASE_NO_MEM` if the buffer/task can't be allocated. The binding is permanent — there is no unbind.
+Fails with `ERR_INVALID_VAL_UI32` if `max_frame_len` is 0 or exceeds the cap, `ERR_BASE_INVALID_STATE` if already bound or the characteristic exists but was created with `rx_buffer_size == 0`, or `ERR_BASE_NO_MEM` if the task fails to start. The binding is permanent — there is no unbind.
+
+### `void sys_interface_set_tap(sys_interface_tap_f tap)`
+Registers (or, with `NULL`, clears) a single non-invasive observer called with every complete frame `sys_interface_decode()` receives — class byte included, before dispatch. It cannot affect decode's return value or control flow. Only one tap can be registered at a time; a later call replaces the previous one. This is what [[SYS_ACTIONS.MD]] uses to record live traffic without sys_interface knowing anything about actions.
+
+```c
+typedef void (*sys_interface_tap_f)(const uint8_t* frame, size_t len);
+```
+
+### `void sys_interface_suspend_rx(void)` / `void sys_interface_resume_rx(void)` / `bool sys_interface_is_rx_suspended(void)`
+Nesting-safe suspend of the RX pump's dispatch, same depth-counter shape as `SE_suspend()`/`SE_resume()` in [[SYS_ERRORS.MD]]. This is a **best-effort signal, not a hard barrier**: while suspended, `sys_interface_bind_ble_rx()`'s worker task still drains each characteristic's RX buffer (so it can't overflow) but drops every frame instead of decoding it, logging a warning per drop — it does not wait for an in-flight `sys_interface_decode()` call to finish. Used by `sys_actions_invoke()` so a replayed packet sequence can't interleave with live incoming traffic.
 
 ### `err_h convert_to_packet(const uint8_t* data, size_t len, void* packet, size_t packet_size)`
 Length-checked copy of raw bytes into a `__packed` payload struct. Returns `ERR_INTERFACE_SHORT_FRAME` (carrying `got`/`need`) if the frame is too short. Used by the `X`-macro-generated decode cases; rarely called directly.
@@ -121,6 +131,7 @@ Multi-byte payload fields are little-endian and **not** naturally aligned — ev
 | `ERR_INTERFACE_UNKNOWN_PACKET` | `uint8_t class_header; uint8_t packet_header;` | Class matched, packet byte unmapped in its table. |
 | `ERR_INTERFACE_CLASS_TAKEN` | `uint8_t class_header;` | Class byte already bound. |
 | `ERR_INTERFACE_NO_CLASS_SLOTS` | `uint8_t class_header;` | Registry full. |
+| `ERR_INTERFACE_ENC_BUF_TOO_SMALL` | `uint32_t got; uint32_t need;` | An encoder's destination buffer cannot hold even one record. |
 
 | Owner | ID |
 | :--- | :--- |
@@ -129,3 +140,7 @@ Multi-byte payload fields are little-endian and **not** naturally aligned — ev
 | `OWNER_SYS_INTERFACE_CLASS` | `0xA602` |
 | `OWNER_SYS_INTERFACE_SOURCE` | `0xA603` |
 | `OWNER_DEC_SYS_CONTRACTS` | `0xA610` |
+| `OWNER_DEC_SYS_ACTIONS` | `0xA611` |
+| `OWNER_ENC_SYS_ERRORS` | `0xA620` |
+
+Codec owners live here (rather than in `codecs`, which is header-only and has no error map of its own): `0xA61x` for decoders, `0xA62x` for encoders.
