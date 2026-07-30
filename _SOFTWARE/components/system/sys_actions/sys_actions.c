@@ -38,8 +38,8 @@ typedef struct sys_action_t {
 } sys_action_t;
 
 typedef struct {
-  uint8_t action_ids[SYS_STATE_MAX][SYS_ACTIONS_MAX_BOUND_PER_STATE];
-  uint8_t counts[SYS_STATE_MAX];
+  uint8_t action_ids[SYS_STATES_ID_SPACE][SYS_ACTIONS_MAX_BOUND_PER_STATE];
+  uint8_t counts[SYS_STATES_ID_SPACE];
 } sys_actions_bind_map_t;
 
 // R_MUTEX_DEFINE constructs this before app_main() runs, per the runit skill's
@@ -179,8 +179,15 @@ static err_h append_packet_locked(sys_action_t* a, const uint8_t* frame, size_t 
 }
 
 // ---------------------------------------------------------
-// Recording tap - fires for every frame sys_interface_decode() sees.
+// Recording tap - drains sys_interface's tap buffer on its own schedule,
+// instead of running inline inside the RX receiver task. See SYS_INTERFACE.MD.
 // ---------------------------------------------------------
+
+#define SYS_ACTIONS_TAP_BUFFER_SIZE 1024
+#define SYS_ACTIONS_TAP_TASK_STACK 4096
+#define SYS_ACTIONS_TAP_POLL_MS 20
+
+R_TASK_DEFINE(s_actions_tap_task_handle, SYS_ACTIONS_TAP_TASK_STACK);
 
 static void sys_actions_on_frame(const uint8_t* frame, size_t len) {
   // Never record our own control packets - otherwise a live "stop recording"
@@ -199,6 +206,25 @@ static void sys_actions_on_frame(const uint8_t* frame, size_t len) {
   R_MUTEX_UNLOCK(s_actions_mutex);
 }
 
+static void sys_actions_tap_task(void* arg) {
+  (void)arg;
+  uint8_t frame[SYS_INTERFACE_RX_FRAME_CAP];
+
+  while (1) {
+    size_t len = 0;
+    err_h err = sys_interface_tap_poll(frame, sizeof(frame), &len);
+    if (SE_IS_ERR(err)) {
+      SE_ORIGIN_CALL(err);
+      continue;
+    }
+    if (len == 0) {
+      vTaskDelay(pdMS_TO_TICKS(SYS_ACTIONS_TAP_POLL_MS));
+      continue;
+    }
+    sys_actions_on_frame(frame, len);
+  }
+}
+
 // ---------------------------------------------------------
 // Public API
 // ---------------------------------------------------------
@@ -210,7 +236,13 @@ err_h sys_actions_init(void) {
   SE_RET_IF_ERR(load_bind_map());
 
   SE_RET_IF_ERR(sys_interface_register_class(SYS_ACTIONS_CLASS_HEADER, dec_sys_actions_decode, "sys_actions"));
-  sys_interface_set_tap(sys_actions_on_frame);
+  SE_RET_IF_ERR(sys_interface_tap_enable(SYS_ACTIONS_TAP_BUFFER_SIZE));
+  if (s_actions_tap_task_handle == NULL) {
+    R_TASK_START(s_actions_tap_task_handle, sys_actions_tap_task, NULL, 4);
+    if (s_actions_tap_task_handle == NULL) {
+      SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+    }
+  }
 
   // Boot action: action 0 is always loaded from NVS and invoked here, if
   // anything is stored under it. Nothing stored yet is the normal first-boot
@@ -382,8 +414,8 @@ err_h sys_actions_invoke(uint8_t action_id) {
 }
 
 err_h sys_actions_bind_state(uint8_t action_id, sys_state_e state) {
-  if (state >= SYS_STATE_MAX) {
-    SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = (uint32_t)state, .min = 0, .max = SYS_STATE_MAX - 1);
+  if (state >= SYS_STATES_ID_SPACE) {
+    SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = (uint32_t)state, .min = 0, .max = SYS_STATES_ID_SPACE - 1);
   }
 
   R_MUTEX_LOCK(s_actions_mutex, WAIT_FOREVER);
@@ -415,8 +447,8 @@ err_h sys_actions_bind_state(uint8_t action_id, sys_state_e state) {
 }
 
 err_h sys_actions_invoke_for_state(sys_state_e state) {
-  if (state >= SYS_STATE_MAX) {
-    SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = (uint32_t)state, .min = 0, .max = SYS_STATE_MAX - 1);
+  if (state >= SYS_STATES_ID_SPACE) {
+    SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = (uint32_t)state, .min = 0, .max = SYS_STATES_ID_SPACE - 1);
   }
 
   R_MUTEX_LOCK(s_actions_mutex, WAIT_FOREVER);

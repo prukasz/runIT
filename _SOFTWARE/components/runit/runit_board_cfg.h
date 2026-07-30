@@ -20,6 +20,7 @@ Pin configs and device id / adresses shall not be changed
 #include "sys_ble.h"
 #include "sys_error.h"
 #include "sys_i2c.h"
+#include "sys_interface.h"
 #include "sys_io.h"
 #include "sys_power.h"
 
@@ -112,7 +113,7 @@ err_h sys_ble_static_config() {
   sys_ble_svc_cfg_t runit_svc_cfg = {.uuid = SYS_BLE_SVC_RUNIT, .is_primary = true};
   SE_ORIGIN_CALL(sys_ble_service_create(&runit_svc_cfg));
 
-  sys_ble_char_create_t runit_chr_cfg_rx = {.info = {.uuid = SYS_BLE_CHR_RUNIT_RX, .is_write = true, .desc = "runit RX"}, .rx_buffer_size = 512};
+  sys_ble_char_create_t runit_chr_cfg_rx = {.info = {.uuid = SYS_BLE_CHR_RUNIT_RX, .is_write = true, .desc = "runit RX"}, .rx_buffer_size = 512, .rx_notify_sem = sys_interface_get_rx_wake_sem()};
   SE_ORIGIN_CALL(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_rx));
 
   sys_ble_char_create_t runit_chr_cfg_tx = {.info = {.uuid = SYS_BLE_CHR_RUNIT_TX, .is_notify = true, .desc = "runit TX"}, .rx_buffer_size = 0};

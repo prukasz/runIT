@@ -38,15 +38,18 @@ NimBLE's own dynamic-registration primitives (`ble_gatts_add_dynamic_svcs`/`ble_
 
 `sys_ble_char_create()`/`sys_ble_char_remove()` set the dirty/pending flags but never touch NimBLE directly — only `sys_ble_database_sync()` does.
 
+### RX Notification: Caller-Supplied Semaphore
+Rather than `sys_ble` allocating its own per-characteristic (or shared) wake primitive, a characteristic's RX notification is pure dependency injection: `sys_ble_char_create_t.rx_notify_sem` takes a `SemaphoreHandle_t` the *caller* already owns (`NULL` = no notification, poll-only). On every successful peer write (`sys_ble_gatt_access_cb()`) or `sys_ble_char_rx_inject()`, `sys_ble` does `xSemaphoreGive(rx_notify_sem)` if it's non-NULL - that's the entire mechanism, no event group, no bitmask, no `sys_ble`-owned RTOS object at all. In practice, the handle passed is almost always `sys_interface_get_rx_wake_sem()` (see [[SYS_INTERFACE.MD]]), so BLE knows nothing about `sys_interface` and vice versa; `sys_ble` just gives whatever handle it was configured with.
+
 ### Two RX Delivery Modes
-* **Poll** — the peer's write lands in the characteristic's dedicated RX buffer (`rx_buff`, a `sys_buff_t` - one GATT write is one item, so a single `sys_ble_char_rx_dequeue()` call always returns exactly one peer write, never a partial or coalesced one) and its binary semaphore (`rx_sem`) is signaled; the app drains it with `sys_ble_char_rx_dequeue()` on its own schedule/task. Rather than hand-rolling that task, call `sys_interface_bind_ble_rx(char_uuid, max_frame_len)` ([[SYS_INTERFACE.MD]]) — it spawns the pump, blocks on `rx_sem`, and feeds every frame to `sys_interface_decode()`. Simple, latency-tolerant, no callback infrastructure needed.
+* **Poll** — the peer's write lands in the characteristic's dedicated RX buffer (`rx_buff`, a `sys_buff_t` - one GATT write is one item, so a single `sys_ble_char_rx_dequeue()` call always returns exactly one peer write, never a partial or coalesced one) and, if it was created with one, `rx_notify_sem` is given. The app drains the buffer with `sys_ble_char_rx_dequeue()` on its own schedule/task. Rather than hand-rolling that task, call `sys_interface_bind_ble_rx(char_uuid, max_frame_len)` ([[SYS_INTERFACE.MD]]) — it registers with the shared RX receiver, and if the characteristic was created with `rx_notify_sem = sys_interface_get_rx_wake_sem()`, that receiver wakes near-instantly on every write. Simple, low-latency, no callback infrastructure needed.
 * **Callback** — if the characteristic node has an `rx_handler` (`own_func_t`) set, every successful write also dispatches it via `SYS_CB_OWN()` — i.e. through the *existing* `CALLBACK_OWN_FUNC` path already handled by `sys_cb_task` in [[SYS_CALLBACKS.MD]], with zero changes needed to the callback dispatcher. Lower latency, no hand-rolled polling task required; the handler still calls `sys_ble_char_rx_dequeue()` itself to get the bytes (the callback is a wakeup, not a data-carrying event) and typically hands them to `sys_interface_decode()`.
 
 ### Asynchronous TX Slots
 Up to `MAX_TX_BUFFERS` (3) TX ring buffers can be assigned per characteristic, each identified by its configured header byte (there is no separate slot ID - the header doubles as the key). `sys_ble_char_send()` enqueues into the matching slot (non-blocking) and wakes the dedicated `sys_ble_task_func` task, which flattens all active slots (`sys_ble_rebuild_active_tx_slots()`), dequeues via `sys_buff_pop_framed()` (prepends the slot's configured header byte), and sends via `ble_gatts_notify_custom`/`ble_gatts_indicate_custom` with retry-on-`BLE_HS_ENOMEM` backoff. Every TX/RX buffer in `sys_ble` is a variable-length item buffer (`sys_buff_t` from [[SYS_BUFFERS.MD]]) - a message is always pushed and popped whole, never split or auto-packed.
 
-### GATT Reads
-A characteristic with `is_read` set serves back whatever was last sent through it: `try_send_slot()` snapshots the framed bytes (post header-prepend, i.e. exactly what went out over the air) into the node's `last_val`/`last_val_len` after every successful TX. `sys_ble_gatt_access_cb()`'s `BLE_GATT_ACCESS_OP_READ_CHR` branch serves that snapshot. A characteristic that's never been sent on reads as empty. There is no app-supplied "getter" mechanism — reads only ever mirror the last notified/indicated value.
+### No GATT Reads
+`sys_ble` characteristics are write/notify/indicate only — there is no `is_read` and no plain GATT-read support. `sys_ble_gatt_access_cb()` only ever handles `BLE_GATT_ACCESS_OP_WRITE_CHR`; nothing sets `BLE_GATT_CHR_F_READ`, so NimBLE never routes a read to it. An earlier version mirrored the last-sent TX payload back on read (`last_val`/`last_val_len`, one 527-byte buffer per characteristic node); it was removed since nothing in this codebase ever set `is_read`, and unlike notify/indicate it costs a `memcpy` on every single TX send whether or not the characteristic is readable. If a client genuinely needs pull-based "what's the current value" instead of subscribing to notifications, that's the tradeoff to weigh before reintroducing it - notify/indicate need an active subscription and only deliver on the server's schedule, while a GATT read needs no subscription and can be issued by the client at will (e.g. immediately after connecting, before the first notification fires).
 
 ### Stack-Level Callback Events
 `SYS_BLE_CB(event_id, event_value, mask)` posts a `CALLBACK_BLE` event for connect/disconnect/failure (`sys_ble_events_e`), routed through `sys_ble_add_callback()`'s stored `route_mask`. `sys_cb_task` dispatches it through the static route table (see [[SYS_CALLBACKS.MD]]): bit `SYS_CB_ROUTE_LOGGER` reaches the generic `ESP_LOGI` logger, bit `SYS_CB_ROUTE_BLE` reaches `sys_cb_route_ble()` (currently a stub — no BLE-specific routing logic yet).
@@ -61,13 +64,14 @@ typedef struct { uint16_t uuid; bool is_primary; } sys_ble_svc_cfg_t;
 
 typedef struct {
   uint16_t uuid;
-  bool is_read, is_write, is_indicate, is_notify;
+  bool is_write, is_indicate, is_notify;
   const char* desc;  // Optional GATT descriptor 0x2901
 } sys_ble_char_cfg_t;
 
 typedef struct {
   sys_ble_char_cfg_t info;
-  size_t rx_buffer_size;  // 0 if write/notify is disabled
+  size_t rx_buffer_size;             // 0 if write/notify is disabled
+  SemaphoreHandle_t rx_notify_sem;   // given on each peer write if non-NULL - caller-owned (see RX Notification above)
 } sys_ble_char_create_t;
 ```
 
@@ -91,6 +95,7 @@ typedef struct {
   size_t rx_buffer_size;
   sys_ble_rx_mode_e rx_mode;
   own_func_t rx_handler;           // used only when rx_mode == SYS_BLE_RX_MODE_CALLBACK
+  SemaphoreHandle_t rx_notify_sem; // see sys_ble_char_create_t.rx_notify_sem
   const sys_ble_tx_buf_cfg_t* tx_bufs;
   uint8_t tx_buf_count;
 } sys_ble_channel_cfg_t;
@@ -145,9 +150,9 @@ typedef enum sys_ble_events_e { SYS_BLE_EVENT_CONNECT = 0, SYS_BLE_EVENT_DISCONN
 * **`sys_ble_service_create(cfg)`** / **`sys_ble_service_remove(svc_uuid)`**: Declare/remove a GATT service; remove deletes it live from NimBLE immediately if already registered.
 * **`sys_ble_char_create(svc_uuid, cfg)`** / **`sys_ble_char_remove(svc_uuid, char_uuid)`**: Declare/remove a characteristic under a service. If the parent service is already live, these mark it `dirty` (create) or defer the free via `pending_remove` (remove) rather than touching NimBLE directly — the next `sys_ble_database_sync()` call does the actual recompile.
 * **`sys_ble_char_assign_tx_buffer(char_uuid, buf_cfg)`**: Allocates a TX buffer slot keyed by `buf_cfg->header` (up to `MAX_TX_BUFFERS` per characteristic).
-* **`sys_ble_char_get_rx_semaphore(char_uuid, out_sem)`**: Fetches the RX semaphore handle for poll-mode consumers. The handle is non-NULL exactly when the characteristic was created with `rx_buffer_size > 0`, so it doubles as a non-destructive "does this characteristic accept RX?" probe.
+* **`sys_ble_char_check_rx_enabled(char_uuid)`**: Non-destructive probe — fails with `ERR_BASE_INVALID_STATE` unless the characteristic was created with `rx_buffer_size > 0`. Doesn't report `rx_notify_sem`; the caller already knows what it passed in at creation time.
 * **`sys_ble_char_rx_dequeue(char_uuid, buffer, max_len, out_len)`**: Pulls one item (one peer write) from the characteristic's RX buffer, via `sys_buff_pop_raw()`.
-* **`sys_ble_char_rx_inject(char_uuid, data, len)`**: Test/debug utility — pushes raw bytes into a characteristic's RX buffer and signals `rx_sem`, the exact same push-then-signal path `sys_ble_gatt_access_cb()` takes for a real peer write. Lets you exercise the full RX pipeline (buffer, semaphore, `sys_interface_bind_ble_rx()` pump) from firmware code with no BLE peer connected.
+* **`sys_ble_char_rx_inject(char_uuid, data, len)`**: Test/debug utility — pushes raw bytes into a characteristic's RX buffer and gives its `rx_notify_sem` (if any), the exact same push-then-signal path `sys_ble_gatt_access_cb()` takes for a real peer write. Lets you exercise the full RX pipeline from firmware code with no BLE peer connected.
 * **`sys_ble_char_send(char_uuid, header, data, len, return_when_full)`**: Enqueues data into the TX slot identified by `header` for the background task to notify/indicate; also becomes the value served on a subsequent GATT read.
 * **`sys_ble_database_sync()`**: Compiles and (re)registers all pending registry changes with NimBLE — see the three-case dispatch above. Must be called after any create/remove.
 * **`sys_ble_get_status(out_status)`**: Connection state, MTU, RX overflow count.

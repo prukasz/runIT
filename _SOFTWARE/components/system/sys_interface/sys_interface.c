@@ -5,22 +5,24 @@
 #include <freertos/task.h>
 #include "dec_sys_contracts.h"
 #include "sys_ble.h"
+#include "sys_buffers.h"
 #include "sys_error.h"
 #include "utils.h"
 
-
 static const char* TAG = "sys_interface";
 
-/** @brief Stack depth of the worker task spawned by sys_interface_bind_ble_rx(). */
+/** @brief Stack depth of the shared RX receiver task. */
 #define SYS_INTERFACE_RX_TASK_STACK 4096
-/** @brief Priority of the worker task spawned by sys_interface_bind_ble_rx(). */
+/** @brief Priority of the shared RX receiver task. */
 #define SYS_INTERFACE_RX_TASK_PRIO 5
-/** @brief Semaphore wait slice; also the fallback poll period if no semaphore exists. */
+/** @brief Wait/poll period: how long the receiver blocks on the wake semaphore before re-checking every source anyway. */
 #define SYS_INTERFACE_RX_WAIT_MS 100
-/** @brief Largest frame sys_interface_bind_ble_rx() can be bound with - sized to the one caller (RUNIT_BLE_RX_FRAME_MAX). */
-#define SYS_INTERFACE_RX_FRAME_CAP 512
 
 R_TASK_DEFINE(s_interface_rx_task_handle, SYS_INTERFACE_RX_TASK_STACK);
+
+// Owned by sys_interface (not any one transport) so any producer can share
+// it - see sys_interface_get_rx_wake_sem().
+R_BINARY_SEM_DEFINE(s_rx_wake_sem);
 
 typedef struct {
   uint8_t class_header;
@@ -33,15 +35,16 @@ typedef struct {
 static sys_interface_class_t s_classes[SYS_INTERFACE_MAX_CLASSES];
 static size_t s_class_count = 0;
 
-static sys_interface_tap_f s_tap = NULL;
+// Tap buffer: populated only by the receiver task (see sys_interface_receiver_task()),
+// drained by whoever polls sys_interface_tap_poll(). Never touched from inside
+// sys_interface_decode() itself, so a direct decode() call (e.g. sys_actions'
+// replay) is never tapped - see SYS_ACTIONS.MD.
+static sys_buff_t s_tap_buff;
+static bool s_tap_enabled = false;
 
 // Nesting-safe, same shape as sys_error.c's SE_suspend()/SE_resume() - a
-// best-effort signal to sys_interface_ble_rx_task(), not a hard barrier.
+// best-effort signal to sys_interface_receiver_task(), not a hard barrier.
 static volatile int8_t s_rx_suspend_depth = 0;
-
-void sys_interface_set_tap(sys_interface_tap_f tap) {
-  s_tap = tap;
-}
 
 void sys_interface_suspend_rx(void) {
   s_rx_suspend_depth++;
@@ -56,14 +59,19 @@ bool sys_interface_is_rx_suspended(void) {
 }
 
 typedef struct {
-  uint16_t char_uuid;
-  size_t max_frame_len;
+  sys_interface_rx_dequeue_f dequeue_fn;
+  void* ctx;
   uint8_t* frame;
-  SemaphoreHandle_t rx_sem;
-} sys_interface_ble_src_t;
+  size_t max_frame_len;
+  const char* name;
+} sys_interface_rx_source_t;
 
-static sys_interface_ble_src_t s_ble_src;
-static uint8_t s_ble_rx_frame[SYS_INTERFACE_RX_FRAME_CAP];
+// Sources are only ever appended (0..s_rx_source_count-1), never removed -
+// same plain-count shape as s_classes[] above, for the same reason (setup-time
+// bookkeeping, no need for a free-slot scan or unregister).
+static sys_interface_rx_source_t s_rx_sources[SYS_INTERFACE_MAX_RX_SOURCES];
+static size_t s_rx_source_count = 0;
+static uint8_t s_rx_frames[SYS_INTERFACE_MAX_RX_SOURCES][SYS_INTERFACE_RX_FRAME_CAP];
 
 #undef OWNER
 #define OWNER OWNER_SYS_INTERFACE_DECODE
@@ -81,8 +89,6 @@ err_h sys_interface_decode(const uint8_t* data, size_t len) {
   if (len == 0) {
     SE_RET_ERR(ERR_INTERFACE_SHORT_FRAME, .got = 0, .need = 1);
   }
-
-  if (s_tap) s_tap(data, len);
 
   const uint8_t class_header = data[0];
   for (size_t i = 0; i < s_class_count; i++) {
@@ -127,64 +133,130 @@ err_h sys_interface_init(void) {
 }
 #undef OWNER
 
+#define OWNER OWNER_SYS_INTERFACE_DECODE
+err_h sys_interface_tap_enable(size_t buf_size) {
+  if (s_tap_enabled) return NULL;
+  SE_RET_IF_ERR(sys_buff_init(&s_tap_buff, 0, buf_size));
+  s_tap_enabled = true;
+  return NULL;
+}
+
+void sys_interface_tap_disable(void) {
+  if (!s_tap_enabled) return;
+  s_tap_enabled = false;
+  sys_buff_free(&s_tap_buff);
+}
+
+err_h sys_interface_tap_poll(uint8_t* buf, size_t max_len, size_t* out_len) {
+  SE_CHECK_NOT_NULL(buf);
+  SE_CHECK_NOT_NULL(out_len);
+  if (!s_tap_enabled) {
+    *out_len = 0;
+    return NULL;
+  }
+
+  err_h pop_res = sys_buff_pop_raw(&s_tap_buff, buf, max_len, out_len);
+  if (SE_IS_ERR(pop_res)) {
+    if (pop_res->tag == ERR_BASE_NOT_FOUND) {
+      *out_len = 0;
+      return NULL;
+    }
+    return pop_res;
+  }
+  return NULL;
+}
+#undef OWNER
+
 #define OWNER OWNER_SYS_INTERFACE_SOURCE
 
-static void sys_interface_ble_rx_task(void* arg) {
-  sys_interface_ble_src_t* src = (sys_interface_ble_src_t*)arg;
-  ESP_LOGI(TAG, "RX pump started on characteristic 0x%04X (%s)", src->char_uuid, src->rx_sem ? "event-driven" : "polled");
+SemaphoreHandle_t sys_interface_get_rx_wake_sem(void) {
+  return s_rx_wake_sem;
+}
+
+// Single receiver task, all sources processed by this task.
+// Task can be woken up by triggering shared semaphore, though pooled every 100ms for non semaphore sources
+// When woken up checks all buffs
+static void sys_interface_receiver_task(void* arg) {
+  (void)arg;
+  ESP_LOGI(TAG, "RX receiver started");
 
   while (1) {
-    if (src->rx_sem != NULL) {
-      xSemaphoreTake(src->rx_sem, pdMS_TO_TICKS(SYS_INTERFACE_RX_WAIT_MS));
-    } else {
-      vTaskDelay(pdMS_TO_TICKS(SYS_INTERFACE_RX_WAIT_MS));
+    BaseType_t got_signal = xSemaphoreTake(s_rx_wake_sem, pdMS_TO_TICKS(SYS_INTERFACE_RX_WAIT_MS));
+
+    if (sys_interface_is_rx_suspended()) {
+      // give time for other users but still mark that packet not processes
+      if (got_signal) {
+        vTaskDelay(pdMS_TO_TICKS(1));
+        xSemaphoreGive(s_rx_wake_sem);
+      }
+      continue;
     }
 
-    // One semaphore give may cover several queued writes - drain until empty.
-    while (1) {
-      size_t len = 0;
-      if (SE_IS_ERR(sys_ble_char_rx_dequeue(src->char_uuid, src->frame, src->max_frame_len, &len))) break;
-      if (len == 0) break;
+    for (size_t i = 0; i < s_rx_source_count; i++) {
+      sys_interface_rx_source_t* src = &s_rx_sources[i];
 
-      if (sys_interface_is_rx_suspended()) {
-        ESP_LOGW(TAG, "RX suspended - dropping %u byte frame from characteristic 0x%04X", (unsigned)len, src->char_uuid);
-        continue;
+      // drain evertyhing empty
+      while (1) {
+        size_t len = 0;
+        if (SE_IS_ERR(src->dequeue_fn(src->ctx, src->frame, src->max_frame_len, &len))) break;
+        if (len == 0) break;
+
+        ESP_LOGI(TAG, "RX frame [%u bytes] from source %s", (unsigned)len, src->name ? src->name : "unnamed");
+
+        if (s_tap_enabled) {
+          err_h tap_err = sys_buff_push(&s_tap_buff, src->frame, len, 0);
+          if (SE_IS_ERR(tap_err)) {
+            ESP_LOGW(TAG, "tap buffer full - dropping tapped copy of %u byte frame from %s", (unsigned)len, src->name ? src->name : "unnamed");
+          }
+        }
+
+        SE_ORIGIN_CALL(sys_interface_decode(src->frame, len));
       }
-
-      ESP_LOGI(TAG, "RX frame [%u bytes] from characteristic 0x%04X", (unsigned)len, src->char_uuid);
-      SE_ORIGIN_CALL(sys_interface_decode(src->frame, len));
     }
   }
 }
 
-err_h sys_interface_bind_ble_rx(uint16_t char_uuid, size_t max_frame_len) {
+err_h sys_interface_register_rx_source(sys_interface_rx_dequeue_f dequeue_fn, void* ctx, size_t max_frame_len, const char* name) {
+  SE_CHECK_NOT_NULL(dequeue_fn);
   if (max_frame_len == 0 || max_frame_len > SYS_INTERFACE_RX_FRAME_CAP) {
     SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = (uint32_t)max_frame_len, .min = 1, .max = SYS_INTERFACE_RX_FRAME_CAP);
   }
-  if (s_interface_rx_task_handle != NULL) {
-    ESP_LOGE(TAG, "sys_interface_bind_ble_rx() already bound - only one BLE RX source is supported");
-    SE_RET_ERR(ERR_BASE_INVALID_STATE, 0);
+  if (s_rx_source_count >= SYS_INTERFACE_MAX_RX_SOURCES) {
+    SE_RET_ERR(ERR_INTERFACE_NO_SOURCE_SLOTS, 0);
   }
 
-  // Non-destructive probe: errors if the characteristic doesn't exist, and the
-  // handle is NULL exactly when RX is disabled (rx_buffer_size == 0).
-  SemaphoreHandle_t rx_sem = NULL;
-  SE_RET_IF_ERR(sys_ble_char_get_rx_semaphore(char_uuid, &rx_sem));
-  if (rx_sem == NULL) {
-    ESP_LOGE(TAG, "characteristic 0x%04X has no RX buffer - nothing to bind", char_uuid);
-    SE_RET_ERR(ERR_BASE_INVALID_STATE, 0);
-  }
+  sys_interface_rx_source_t* src = &s_rx_sources[s_rx_source_count];
+  src->dequeue_fn = dequeue_fn;
+  src->ctx = ctx;
+  src->frame = s_rx_frames[s_rx_source_count];
+  src->max_frame_len = max_frame_len;
+  src->name = name;
 
-  s_ble_src.char_uuid = char_uuid;
-  s_ble_src.max_frame_len = max_frame_len;
-  s_ble_src.rx_sem = rx_sem;
-  s_ble_src.frame = s_ble_rx_frame;
+  ESP_LOGI(TAG, "registered RX source: %s (slot %u)", name ? name : "unnamed", (unsigned)s_rx_source_count);
+  s_rx_source_count++;
 
-  R_TASK_START(s_interface_rx_task_handle, sys_interface_ble_rx_task, &s_ble_src, SYS_INTERFACE_RX_TASK_PRIO);
   if (s_interface_rx_task_handle == NULL) {
-    SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+    R_TASK_START(s_interface_rx_task_handle, sys_interface_receiver_task, NULL, SYS_INTERFACE_RX_TASK_PRIO);
+    if (s_interface_rx_task_handle == NULL) {
+      s_rx_source_count--;  // roll back - nothing will ever drain this slot otherwise
+      SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+    }
   }
 
   return NULL;
+}
+
+// char_uuid fits in a pointer-sized value, so it's carried as ctx directly
+// rather than through an extra per-source allocation.
+static err_h sys_ble_rx_dequeue_adapter(void* ctx, uint8_t* buf, size_t max_len, size_t* out_len) {
+  uint16_t char_uuid = (uint16_t)(uintptr_t)ctx;
+  return sys_ble_char_rx_dequeue(char_uuid, buf, max_len, out_len);
+}
+
+err_h sys_interface_bind_ble_rx(uint16_t char_uuid, size_t max_frame_len) {
+  // Verify that char can even receive before add
+  SE_RET_IF_ERR(sys_ble_char_check_rx_enabled(char_uuid));
+
+  return sys_interface_register_rx_source(sys_ble_rx_dequeue_adapter, (void*)(uintptr_t)char_uuid, max_frame_len, "ble_rx");
 }
 #undef OWNER

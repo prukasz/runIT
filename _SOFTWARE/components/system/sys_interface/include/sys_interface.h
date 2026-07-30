@@ -1,4 +1,6 @@
 #pragma once
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -27,6 +29,12 @@
 
 /** @brief Maximum number of class handlers registrable at once. */
 #define SYS_INTERFACE_MAX_CLASSES 8
+
+/** @brief Maximum number of RX frame sources registrable at once (see sys_interface_register_rx_source()). */
+#define SYS_INTERFACE_MAX_RX_SOURCES 4
+
+/** @brief Largest frame any registered RX source can produce. */
+#define SYS_INTERFACE_RX_FRAME_CAP 512
 
 /**
  * @brief Class handler signature.
@@ -94,33 +102,50 @@ err_h sys_interface_register_class(uint8_t class_header, sys_interface_handler_f
 err_h sys_interface_decode(const uint8_t* data, size_t len);
 
 /**
- * @brief Non-invasive frame observer.
+ * @brief Enable the frame tap: every live frame the RX receiver task decodes
+ * (class byte included, before dispatch) is also pushed into a small internal
+ * ring buffer for a consumer to pull at its own pace via sys_interface_tap_poll().
  *
- * Called with every complete frame sys_interface_decode() receives (class byte
- * included, before dispatch) - purely an observer, it cannot affect decode's
- * return value or control flow, and only one tap can be registered at a time
- * (a later call to sys_interface_set_tap() replaces the previous one). Used by
- * `sys_actions` to record live traffic; see [[SYS_ACTIONS.MD]].
+ * Unlike the old push-callback design, the tap never runs consumer code
+ * inline inside the receiver task - it only ever copies bytes into a buffer,
+ * so a slow or blocking consumer can't stall RX. Only one tap buffer exists;
+ * calling this again while already enabled is a no-op. Frames replayed via
+ * sys_actions_invoke() (or any other direct sys_interface_decode() call that
+ * doesn't go through the receiver task) are never tapped - see [[SYS_ACTIONS.MD]].
  *
- * @param frame Full frame bytes, class byte at frame[0].
- * @param len Total frame length.
+ * @param buf_size Ring buffer capacity in bytes.
+ * @return err_h NULL on success, or ERR_BASE_NO_MEM.
  */
-typedef void (*sys_interface_tap_f)(const uint8_t* frame, size_t len);
+err_h sys_interface_tap_enable(size_t buf_size);
+
+/** @brief Disable the tap and free its buffer. No-op if not enabled. */
+void sys_interface_tap_disable(void);
 
 /**
- * @brief Register (or clear, with NULL) the frame tap. See sys_interface_tap_f.
+ * @brief Pull one tapped frame, if any is pending.
+ *
+ * Non-blocking. Call in a loop (from your own task) until *out_len == 0.
+ *
+ * @param buf Destination buffer.
+ * @param max_len Capacity of @p buf - a longer frame is truncated.
+ * @param out_len Set to the popped frame's length, or 0 if nothing is
+ *                pending (including when the tap isn't enabled).
+ * @return err_h Status report (NULL on success).
  */
-void sys_interface_set_tap(sys_interface_tap_f tap);
+err_h sys_interface_tap_poll(uint8_t* buf, size_t max_len, size_t* out_len);
 
 /**
- * @brief Suspend/resume the RX pump's dispatch of newly drained frames.
+ * @brief Suspend/resume the RX receiver's dispatch of newly drained frames.
  *
  * Nesting-safe via a depth counter, the same shape as SE_suspend()/SE_resume().
  * This is a best-effort signal, not a hard synchronization barrier: while
- * suspended, sys_interface_bind_ble_rx()'s worker task still drains each
- * characteristic's RX buffer (so it can't overflow) but drops every frame
- * instead of decoding it, logging a warning per drop. It does not wait for an
- * in-flight sys_interface_decode() call to finish before returning.
+ * suspended, the receiver task does not drain any registered source at all -
+ * frames simply accumulate in each source's own buffer (e.g. a BLE
+ * characteristic's rx_buff) rather than being dropped, up to that buffer's
+ * own capacity. If the wake semaphore (sys_interface_get_rx_wake_sem()) was
+ * actually given while suspended, the receiver waits 1ms and gives it back
+ * before looping, so resume notices the still-pending data within ~1ms
+ * instead of waiting for the next full poll tick.
  *
  * Used by `sys_actions_invoke()` so a replayed packet sequence can't interleave
  * with live incoming traffic - see [[SYS_ACTIONS.MD]].
@@ -130,23 +155,91 @@ void sys_interface_resume_rx(void);
 bool sys_interface_is_rx_suspended(void);
 
 /**
- * @brief Attach a BLE characteristic's RX buffer as the frame source.
+ * @brief Non-blocking drain callback for a source registered with
+ * sys_interface_register_rx_source().
  *
- * Starts the single static worker task (there is only one RX pump - a second
- * call fails with ERR_BASE_INVALID_STATE) that blocks on the characteristic's
- * RX semaphore, drains every queued peer write (one buffer item is one whole
- * frame, never split or coalesced) and feeds each one to sys_interface_decode().
- * Decoder errors are emitted through SE_ORIGIN_CALL() so a bad frame never
- * stops the pump.
+ * Called repeatedly by the RX receiver task until it reports nothing
+ * pending, so it must never block. Pop at most one whole frame into @p buf
+ * (up to @p max_len bytes) and report its length via @p out_len.
+ *
+ * @param ctx Opaque context, passed through unchanged from registration.
+ * @param buf Destination buffer, at least @p max_len bytes.
+ * @param max_len Capacity of @p buf.
+ * @param out_len Set to the popped frame's length, or 0 if nothing is pending.
+ * @return err_h NULL if @p out_len was set (even to 0 for "nothing pending"),
+ *               or an error chain to abort this source's drain for the
+ *               current tick (logged, not propagated - the receiver moves on
+ *               to the next source and tries again next tick).
+ */
+typedef err_h (*sys_interface_rx_dequeue_f)(void* ctx, uint8_t* buf, size_t max_len, size_t* out_len);
+
+/**
+ * @brief Get the RX receiver's shared wake semaphore.
+ *
+ * A binary semaphore, owned by sys_interface (not any one transport):
+ * any producer that wants the receiver to wake immediately instead of
+ * waiting for its next poll tick gives this handle when it has data (e.g.
+ * pass it as sys_ble_char_create_t.rx_notify_sem). The receiver always does
+ * a full scan of every registered source on each wake regardless of which
+ * producer gave it, so there is no per-source bit or identity to assign -
+ * any number of producers can share this one handle.
+ *
+ * @return SemaphoreHandle_t The shared semaphore (always valid - constructed at load time).
+ */
+SemaphoreHandle_t sys_interface_get_rx_wake_sem(void);
+
+/**
+ * @brief Register a frame source with the shared RX receiver.
+ *
+ * The receiver is a single static task (started lazily on the first
+ * successful registration - never more than one, regardless of how many
+ * sources are registered) that drains every registered source's queued
+ * frames (dequeue_fn called until it reports nothing pending) and feeds each
+ * to sys_interface_decode() via SE_ORIGIN_CALL() - a bad frame never stops
+ * it. Up to SYS_INTERFACE_MAX_RX_SOURCES may be registered, and registration
+ * may happen any time after sys_interface_init(), including well after boot
+ * - e.g. when a WiFi or LoRa driver comes up. There is no unregister.
+ *
+ * The receiver blocks on sys_interface_get_rx_wake_sem() with a
+ * SYS_INTERFACE_RX_WAIT_MS (100ms) timeout, so it wakes near-instantly for
+ * any source whose producer gives that semaphore, and is otherwise
+ * re-checked every tick regardless - which is what catches a source whose
+ * producer never gives the semaphore at all (pure polling).
+ *
+ * @param dequeue_fn Non-blocking drain callback, see sys_interface_rx_dequeue_f.
+ * @param ctx Opaque context passed back to dequeue_fn on every call.
+ * @param max_frame_len Largest frame this source can produce, up to SYS_INTERFACE_RX_FRAME_CAP.
+ * @param name Used in logs only, may be NULL.
+ * @return err_h NULL on success, ERR_NULL_PTR if dequeue_fn is NULL,
+ *               ERR_INVALID_VAL_UI32 if max_frame_len is out of range,
+ *               ERR_INTERFACE_NO_SOURCE_SLOTS if the registry is full, or
+ *               ERR_BASE_NO_MEM if the receiver task failed to start (first
+ *               registration only).
+ *
+ * Example - a hypothetical LoRa driver feeding the same router as BLE:
+ * @code
+ * SE_ORIGIN_CALL(sys_interface_register_rx_source(lora_rx_dequeue, lora_ctx, 256, "lora"));
+ * @endcode
+ */
+err_h sys_interface_register_rx_source(sys_interface_rx_dequeue_f dequeue_fn, void* ctx, size_t max_frame_len, const char* name);
+
+/**
+ * @brief Attach a BLE characteristic's RX buffer as a frame source.
+ *
+ * Thin convenience wrapper around sys_interface_register_rx_source() - see
+ * its docs for the shared receiver's behavior. May be called more than once
+ * (for different characteristics), up to SYS_INTERFACE_MAX_RX_SOURCES total
+ * across every registered source, BLE or otherwise.
  *
  * @param char_uuid 16-bit UUID of the characteristic to drain (must have been
- *                  created with a non-zero rx_buffer_size).
+ *                  created with a non-zero rx_buffer_size). To get a
+ *                  near-instant wake for this source, create it with
+ *                  rx_notify_sem = sys_interface_get_rx_wake_sem().
  * @param max_frame_len Largest frame accepted, up to SYS_INTERFACE_RX_FRAME_CAP
  *                       (512); longer items are truncated by the buffer.
- * @return err_h NULL on success, ERR_INVALID_VAL_UI32 if max_frame_len is 0 or
- *               exceeds the cap, ERR_BASE_INVALID_STATE if already bound or the
- *               characteristic has no RX buffer, ERR_BASE_NO_MEM if the task
- *               failed to start, or the sys_ble lookup error.
+ * @return err_h NULL on success, ERR_BASE_INVALID_STATE if the characteristic
+ *               has no RX buffer, the sys_ble lookup error, or any error from
+ *               sys_interface_register_rx_source().
  *
  * Example:
  * @code

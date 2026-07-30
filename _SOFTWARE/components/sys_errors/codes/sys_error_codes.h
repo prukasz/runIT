@@ -26,6 +26,7 @@
     SYS_ERROR_BLE_MAP(X) \
     SYS_ERROR_INTERFACE_MAP(X) \
     SYS_ERROR_BUFFERS_MAP(X) \
+    SYS_ERROR_STATES_MAP(X) \
     SYS_ERROR_ACTIONS_MAP(X)
 
 // Combine all owner maps

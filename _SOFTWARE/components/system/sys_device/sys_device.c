@@ -20,17 +20,17 @@ static sys_device_t* s_device_registry[MAX_DEVICE_ID + 1] = {NULL};
  * active (found + installed + not suspended, via SYS_DEV_REQUIRE_ACTIVE) and
  * errors with ERR_BASE_NOT_SUPPORTED if op_field isn't implemented. Used by
  * reset/freeze/sync, none of which change dev->state on success. */
-#define SYS_DEV_LIFECYCLE_OP(device_id, op_field, verb, log_level)                    \
-  do {                                                                                \
-    sys_device_t* __disp_dev = sys_device_get_by_id((device_id));                     \
-    SYS_DEV_REQUIRE_ACTIVE(__disp_dev, (device_id));                                  \
-    err_h (*__disp_fn)(void*) = DEV_OP(__disp_dev, op_field);                         \
-    if (!__disp_fn) {                                                                 \
-      SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);                                          \
-    }                                                                                 \
-    ESP_LOG_LEVEL((log_level), TAG, "%s device: %s", (verb), DEV_NAME(__disp_dev));   \
-    SE_RET_IF_ERR(__disp_fn(__disp_dev->device_handle));                              \
-    return NULL;                                                                      \
+#define SYS_DEV_LIFECYCLE_OP(device_id, op_field, verb, log_level)                  \
+  do {                                                                              \
+    sys_device_t* __disp_dev = sys_device_get_by_id((device_id));                   \
+    SYS_DEV_REQUIRE_ACTIVE(__disp_dev, (device_id));                                \
+    err_h (*__disp_fn)(void*) = DEV_OP(__disp_dev, op_field);                       \
+    if (!__disp_fn) {                                                               \
+      SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);                                        \
+    }                                                                               \
+    ESP_LOG_LEVEL((log_level), TAG, "%s device: %s", (verb), DEV_NAME(__disp_dev)); \
+    SE_RET_IF_ERR(__disp_fn(__disp_dev->device_handle));                            \
+    return NULL;                                                                    \
   } while (0)
 
 /* Shared skeleton for suspend/resume: only found+installed is required (not
@@ -44,13 +44,12 @@ static sys_device_t* s_device_registry[MAX_DEVICE_ID + 1] = {NULL};
     if (!SYS_DEV_IS_INSTALLED(__disp_dev)) SE_RET_ERR(ERR_DEV_NOT_INSTALLED, (device_id));   \
     if (skip_expr) return NULL;                                                              \
     err_h (*__disp_fn)(void*) = DEV_OP(__disp_dev, op_field);                                \
-    if (!__disp_fn) SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);                                    \
+    if (!__disp_fn) SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);                                   \
     ESP_LOG_LEVEL((log_level), TAG, "%s device: %s", (verb), DEV_NAME(__disp_dev));          \
     SE_RET_IF_ERR(__disp_fn(__disp_dev->device_handle));                                     \
     __disp_dev->state = (new_state);                                                         \
     return NULL;                                                                             \
   } while (0)
-
 /* Shared skeleton for a MAX_DEVICE_ID sweep: silently skips devices that
  * aren't eligible (eligible_expr, may reference __disp_dev) or don't
  * implement op_field, aborts the sweep and returns on the first failure, and
@@ -59,21 +58,21 @@ static sys_device_t* s_device_registry[MAX_DEVICE_ID + 1] = {NULL};
  * sys_device_reset_all()'s pre-call log line - the only _all variant that has
  * one; the rest only log on failure. */
 #define SYS_DEV_LIFECYCLE_OP_ALL(op_field, verb_gerund, verb_base, eligible_expr, log_before, new_state) \
-  do {                                                                                                    \
-    for (int __i = 0; __i <= MAX_DEVICE_ID; __i++) {                                                      \
-      sys_device_t* __disp_dev = sys_device_get_by_id((uint8_t)__i);                                       \
-      if (!__disp_dev || !(eligible_expr)) continue;                                                       \
-      err_h (*__disp_fn)(void*) = DEV_OP(__disp_dev, op_field);                                            \
-      if (!__disp_fn) continue;                                                                            \
-      if (log_before) ESP_LOGW(TAG, "%s device: %s", (verb_gerund), DEV_NAME(__disp_dev));                 \
-      err_h __disp_ret = __disp_fn(__disp_dev->device_handle);                                              \
-      if (SE_IS_ERR(__disp_ret)) {                                                                          \
-        ESP_LOGE(TAG, "Failed to %s device: %s", (verb_base), DEV_NAME(__disp_dev));                        \
-        SE_RET_IF_ERR(__disp_ret);                                                                          \
-      }                                                                                                     \
-      if ((new_state) != SYS_DEV_STATE_NONE) __disp_dev->state = (new_state);                               \
-    }                                                                                                       \
-    return NULL;                                                                                            \
+  do {                                                                                                   \
+    for (int __i = 0; __i <= MAX_DEVICE_ID; __i++) {                                                     \
+      sys_device_t* __disp_dev = sys_device_get_by_id((uint8_t)__i);                                     \
+      if (!__disp_dev || !(eligible_expr)) continue;                                                     \
+      err_h (*__disp_fn)(void*) = DEV_OP(__disp_dev, op_field);                                          \
+      if (!__disp_fn) continue;                                                                          \
+      if (log_before) ESP_LOGW(TAG, "%s device: %s", (verb_gerund), DEV_NAME(__disp_dev));               \
+      err_h __disp_ret = __disp_fn(__disp_dev->device_handle);                                           \
+      if (SE_IS_ERR(__disp_ret)) {                                                                       \
+        ESP_LOGE(TAG, "Failed to %s device: %s", (verb_base), DEV_NAME(__disp_dev));                     \
+        SE_RET_IF_ERR(__disp_ret);                                                                       \
+      }                                                                                                  \
+      if ((new_state) != SYS_DEV_STATE_NONE) __disp_dev->state = (new_state);                            \
+    }                                                                                                    \
+    return NULL;                                                                                         \
   } while (0)
 
 #undef OWNER
@@ -231,5 +230,3 @@ err_h sys_device_freeze_all(void) {
 err_h sys_device_sync_all(void) {
   SYS_DEV_LIFECYCLE_OP_ALL(sync, "Syncing", "sync", SYS_DEV_IS_READY(__disp_dev), false, SYS_DEV_STATE_NONE);
 }
-
-

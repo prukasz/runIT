@@ -17,4 +17,5 @@
   X(ERR_INTERFACE_UNKNOWN_PACKET, struct { uint8_t class_header; uint8_t packet_header; })                 \
   X(ERR_INTERFACE_CLASS_TAKEN, struct { uint8_t class_header; })                                           \
   X(ERR_INTERFACE_NO_CLASS_SLOTS, struct { uint8_t class_header; })                                        \
-  X(ERR_INTERFACE_ENC_BUF_TOO_SMALL, struct { uint32_t got; uint32_t need; })
+  X(ERR_INTERFACE_ENC_BUF_TOO_SMALL, struct { uint32_t got; uint32_t need; })                                \
+  X(ERR_INTERFACE_NO_SOURCE_SLOTS, struct { uint8_t unused; })

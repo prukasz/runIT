@@ -21,13 +21,14 @@
 
 /**
  * @brief Initialize sys_actions: registers its control-packet class with
- * sys_interface, installs the recording tap, loads the state->action binding
- * map from NVS, and - if action id 0 has anything stored - loads and invokes
- * it as the "boot action" (see the Overview in SYS_ACTIONS.MD).
+ * sys_interface, enables the recording tap and starts its polling task,
+ * loads the state->action binding map from NVS, and - if action id 0 has
+ * anything stored - loads and invokes it as the "boot action" (see the
+ * Overview in SYS_ACTIONS.MD).
  *
  * Must be called after sys_interface_init() and before
  * sys_interface_bind_ble_rx() - class registration is boot-only, not
- * concurrency-safe against a running RX pump (see SYS_INTERFACE.MD).
+ * concurrency-safe against a running RX receiver (see SYS_INTERFACE.MD).
  */
 err_h sys_actions_init(void);
 
@@ -97,7 +98,7 @@ err_h sys_actions_record_stop(uint8_t action_id);
  * sys_interface_decode() - each stored frame is fed back exactly as if it had
  * just arrived over the wire.
  *
- * sys_interface's RX pump is suspended for the duration
+ * sys_interface's RX receiver is suspended for the duration
  * (sys_interface_suspend_rx()/_resume_rx()) so live traffic cannot interleave
  * with the replay - see the caveat on that suspend being best-effort, not a
  * hard barrier, in sys_interface.h.
@@ -105,7 +106,7 @@ err_h sys_actions_record_stop(uint8_t action_id);
  * @return err_h NULL if every stored frame decoded without error,
  *               ERR_ACTION_NOT_FOUND if action_id has nothing saved in NVS, or
  *               the first failing frame's error chain (replay stops there; the
- *               RX pump is resumed regardless of outcome).
+ *               RX receiver is resumed regardless of outcome).
  */
 err_h sys_actions_invoke(uint8_t action_id);
 

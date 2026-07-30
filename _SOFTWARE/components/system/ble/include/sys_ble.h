@@ -14,7 +14,6 @@ typedef struct {
 
 typedef struct {
   uint16_t uuid;  // 16-bit UUID
-  bool is_read;
   bool is_write;
   bool is_indicate;
   bool is_notify;
@@ -23,7 +22,8 @@ typedef struct {
 
 typedef struct {
   sys_ble_char_cfg_t info;
-  size_t rx_buffer_size;  // Size of RX ring buffer (0 if write/notify is disabled)
+  size_t rx_buffer_size;         // Size of RX ring buffer (0 if write/notify is disabled)
+  SemaphoreHandle_t rx_notify_sem;  // Given (xSemaphoreGive) on each peer write, if non-NULL - caller-owned, e.g. sys_interface_get_rx_wake_sem(). Only meaningful when rx_buffer_size > 0.
 } sys_ble_char_create_t;
 
 typedef struct {
@@ -64,7 +64,7 @@ typedef struct {
 
 typedef enum {
   SYS_BLE_RX_MODE_NONE = 0,     // RX disabled (rx_buffer_size ignored)
-  SYS_BLE_RX_MODE_POLL,         // App drains via sys_ble_char_rx_dequeue()/sys_ble_char_get_rx_semaphore()
+  SYS_BLE_RX_MODE_POLL,         // App drains via sys_ble_char_rx_dequeue(), optionally woken by its own rx_notify_sem
   SYS_BLE_RX_MODE_CALLBACK,     // rx_handler is dispatched (via the callbacks system) on each incoming write
 } sys_ble_rx_mode_e;
 
@@ -79,7 +79,8 @@ typedef struct {
   sys_ble_char_cfg_t chr;
   size_t rx_buffer_size;  // 0 if rx_mode == SYS_BLE_RX_MODE_NONE
   sys_ble_rx_mode_e rx_mode;
-  own_func_t rx_handler;  // used only when rx_mode == SYS_BLE_RX_MODE_CALLBACK
+  own_func_t rx_handler;         // used only when rx_mode == SYS_BLE_RX_MODE_CALLBACK
+  SemaphoreHandle_t rx_notify_sem;  // see sys_ble_char_create_t.rx_notify_sem
 
   const sys_ble_tx_buf_cfg_t* tx_bufs;  // optional array, NULL/0 count if the channel is RX-only
   uint8_t tx_buf_count;
@@ -167,15 +168,17 @@ err_h sys_ble_char_remove(uint16_t svc_uuid, uint16_t char_uuid);
 err_h sys_ble_char_assign_tx_buffer(uint16_t char_uuid, const sys_ble_tx_buf_cfg_t* buf_cfg);
 
 /**
- * @brief Get the RX semaphore handle associated with a characteristic.
+ * @brief Probe whether a characteristic accepts RX.
  *
- * This binary semaphore is given by the manager whenever a peer writes data to the characteristic.
+ * Non-destructive: fails with ERR_BASE_INVALID_STATE if the characteristic
+ * was created with rx_buffer_size == 0. Doesn't report rx_notify_sem - the
+ * caller already knows what it passed in at creation time.
  *
  * @param char_uuid 16-bit UUID of the characteristic.
- * @param out_sem Pointer to store the FreeRTOS semaphore handle.
- * @return err_h Status report (NULL on success, or error status).
+ * @return err_h Status report (NULL if RX-enabled, ERR_BASE_INVALID_STATE if
+ *               not, or the sys_ble lookup error).
  */
-err_h sys_ble_char_get_rx_semaphore(uint16_t char_uuid, SemaphoreHandle_t* out_sem);
+err_h sys_ble_char_check_rx_enabled(uint16_t char_uuid);
 
 /**
  * @brief Dequeue incoming data written by a peer to a characteristic's RX buffer.
@@ -194,9 +197,9 @@ err_h sys_ble_char_rx_dequeue(uint16_t char_uuid, uint8_t* buffer, size_t max_le
  *
  * Takes the exact same push-then-signal path as a real GATT write
  * (sys_ble_gatt_access_cb()'s BLE_GATT_ACCESS_OP_WRITE_CHR branch), so it
- * exercises the full RX pipeline - ring buffer, semaphore, and any consumer
- * bound via sys_ble_char_rx_dequeue() or sys_interface_bind_ble_rx() - without
- * needing a connected peer.
+ * exercises the full RX pipeline - ring buffer, rx_notify_sem (if any), and
+ * any consumer bound via sys_ble_char_rx_dequeue() or sys_interface_bind_ble_rx()
+ * - without needing a connected peer.
  *
  * @param char_uuid 16-bit UUID of the characteristic (must have rx_buffer_size > 0).
  * @param data Pointer to the raw bytes to inject.

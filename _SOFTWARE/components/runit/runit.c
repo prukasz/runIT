@@ -9,6 +9,7 @@
 #include "runit_board_defs.h"
 #include "sys_actions.h"
 #include "sys_interface.h"
+#include "sys_states.h"
 // dec_sys_contracts.h leaves OWNER set to OWNER_DEC_SYS_CONTRACTS; runit.c doesn't
 // emit its own SE_* errors, but undef it so that stays explicit rather than implicit.
 #undef OWNER
@@ -73,14 +74,14 @@ static void runit_adc_test_task(void* arg) {
 /**
  * @brief One-shot injection test: pushes crafted class-0x01 frames straight into
  * the RUNIT_RX ring buffer via sys_ble_char_rx_inject(), exercising the full
- * pipeline (buffer -> semaphore -> sys_if_rx pump -> sys_interface_decode ->
+ * pipeline (buffer -> shared RX pump (polled) -> sys_interface_decode ->
  * dec_sys_contracts) without a connected BLE peer. Exercises PCA9685 (PWM
- * output) and gpio_esp (ADC input) - watch the sys_if_rx/dec_sys_contracts
+ * output) and gpio_esp (ADC input) - watch the sys_interface/dec_sys_contracts
  * ESP_LOGI lines for the result of each injected frame.
  */
 static void runit_injection_test_task(void* arg) {
   (void)arg;
-  vTaskDelay(pdMS_TO_TICKS(500));  // let sys_interface_bind_ble_rx()'s pump task start first
+  vTaskDelay(pdMS_TO_TICKS(500));  // let sys_interface_bind_ble_rx()'s RX pump task start first
   ESP_LOGI(TAG, "Injection test: pushing crafted frames into RUNIT_RX buffer");
 
   // PCA9685 (device 3, channel 0): set PWM duty to half scale. class 0x01 / packet 0x28.
@@ -120,6 +121,7 @@ void runit_start(void) {
   // Must come before sys_interface_bind_ble_rx(): class registration and the
   // recording tap are boot-only, not safe against a running RX pump.
   CHECK_AND_LOG(sys_actions_init());
+  CHECK_AND_LOG(sys_states_init());
   CHECK_AND_LOG(sys_interface_bind_ble_rx(SYS_BLE_CHR_RUNIT_RX, RUNIT_BLE_RX_FRAME_MAX));
 
   // Spawn ADC test task

@@ -288,22 +288,13 @@ static int sys_ble_gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle, st
         R_MUTEX_UNLOCK(sys_ble_mutex);
         SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, ESP_FAIL, g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE]);
       } else {
-        xSemaphoreGive(char_node->rx_sem);
+        if (char_node->rx_notify_sem) xSemaphoreGive(char_node->rx_notify_sem);
         if (char_node->rx_handler.own_func) {
           SYS_CB_OWN(char_node->rx_handler);
         }
       }
     }
     return 0;
-  } else if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR) {
-    if (!char_node->cfg.is_read) return 0;
-
-    R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
-    size_t val_len = char_node->last_val_len;
-    int rc = val_len > 0 ? os_mbuf_append(ctxt->om, char_node->last_val, val_len) : 0;
-    R_MUTEX_UNLOCK(sys_ble_mutex);
-
-    return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
   }
   return BLE_ATT_ERR_UNLIKELY;
 }
@@ -345,7 +336,6 @@ static struct ble_gatt_chr_def* compile_chars(const sys_ble_char_node_t* chars_h
     chr_defs[idx].val_handle = (uint16_t*)&c->val_handle;
 
     uint16_t flags = 0;
-    if (c->cfg.is_read) flags |= BLE_GATT_CHR_F_READ;
     if (c->cfg.is_write) flags |= BLE_GATT_CHR_F_WRITE;
     if (c->cfg.is_indicate) flags |= BLE_GATT_CHR_F_INDICATE;
     if (c->cfg.is_notify) flags |= BLE_GATT_CHR_F_NOTIFY;
@@ -433,13 +423,6 @@ static bool try_send_slot(sys_ble_tx_slot_t* slot, sys_ble_char_node_t* c, size_
   } while (send_sta != NULL && send_sta->tag == ERR_BASE_NO_MEM && g_ble_ctx.is_connected);
 
   if (send_sta == NULL) {
-    /* Snapshot the framed bytes actually sent, so a later GATT read on this
-       characteristic can serve the same value (post sys_buff_pop_framed's
-       header-prepend, i.e. exactly what went over the air). */
-    R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
-    memcpy(c->last_val, tx_data, tx_len);
-    c->last_val_len = tx_len;
-    R_MUTEX_UNLOCK(sys_ble_mutex);
     return true;
   } else if (send_sta->tag != ERR_BASE_NO_MEM) {
     SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, send_sta->tag, g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE]);

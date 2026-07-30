@@ -53,7 +53,6 @@ void sys_ble_rebuild_active_tx_slots(void) {
 void sys_ble_free_char_node(sys_ble_char_node_t* c) {
   if (!c) return;
   sys_buff_free(&c->rx_buff);
-  if (c->rx_sem) vSemaphoreDelete(c->rx_sem);
   for (int i = 0; i < c->tx_slot_count; i++) {
     sys_buff_free(&c->tx_slots[i].tx_buff);
   }
@@ -176,14 +175,13 @@ err_h sys_ble_char_create(uint16_t svc_uuid, const sys_ble_char_create_t* cfg) {
 
   if (cfg->rx_buffer_size > 0) {
     err_h rx_buf_err = sys_buff_init(&new_char->rx_buff, 0, cfg->rx_buffer_size);
-    new_char->rx_sem = xSemaphoreCreateBinary();
-    if (SE_IS_ERR(rx_buf_err) || !new_char->rx_sem) {
+    if (SE_IS_ERR(rx_buf_err)) {
       sys_buff_free(&new_char->rx_buff);
-      if (new_char->rx_sem) vSemaphoreDelete(new_char->rx_sem);
       free(new_char);
       R_MUTEX_UNLOCK(sys_ble_mutex);
       SE_RET_ERR(ERR_BASE_NO_MEM, cfg->info.uuid);
     }
+    new_char->rx_notify_sem = cfg->rx_notify_sem;
   }
 
   new_char->pending_add = true;
@@ -257,14 +255,17 @@ err_h sys_ble_char_assign_tx_buffer(uint16_t char_uuid, const sys_ble_tx_buf_cfg
 #undef OWNER
 
 #define OWNER OWNER_SYS_BLE_GET_STATUS
-err_h sys_ble_char_get_rx_semaphore(uint16_t char_uuid, SemaphoreHandle_t* out_sem) {
-  SE_CHECK_NOT_NULL(out_sem);
+err_h sys_ble_char_check_rx_enabled(uint16_t char_uuid) {
   R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
 
   sys_ble_char_node_t* c = NULL;
   CHECK_BLE_CHAR_FIND(c, char_uuid, true);
 
-  *out_sem = c->rx_sem;
+  if (!c->rx_buff.buff) {
+    R_MUTEX_UNLOCK(sys_ble_mutex);
+    SE_RET_ERR(ERR_BASE_INVALID_STATE, char_uuid);
+  }
+
   R_MUTEX_UNLOCK(sys_ble_mutex);
   return NULL;
 }
@@ -313,12 +314,12 @@ err_h sys_ble_char_rx_inject(uint16_t char_uuid, const uint8_t* data, size_t len
     SE_RET_ERR(ERR_BASE_INVALID_STATE, char_uuid);
   }
   sys_buff_t* rx_buff = &c->rx_buff;
-  SemaphoreHandle_t rx_sem = c->rx_sem;
+  SemaphoreHandle_t rx_notify_sem = c->rx_notify_sem;
   R_MUTEX_UNLOCK(sys_ble_mutex);
 
   SE_RET_IF_ERR(sys_buff_push(rx_buff, data, len, 0));
   ESP_LOGI(TAG, "Injected %u bytes into RX buffer of characteristic UUID 0x%04X", (unsigned)len, char_uuid);
-  xSemaphoreGive(rx_sem);
+  if (rx_notify_sem) xSemaphoreGive(rx_notify_sem);
   return NULL;
 }
 
@@ -558,7 +559,7 @@ err_h sys_ble_channel_create(const sys_ble_channel_cfg_t* cfg, bool sync_now) {
     }
   }
 
-  sys_ble_char_create_t chr_cfg = {.info = cfg->chr, .rx_buffer_size = cfg->rx_buffer_size};
+  sys_ble_char_create_t chr_cfg = {.info = cfg->chr, .rx_buffer_size = cfg->rx_buffer_size, .rx_notify_sem = cfg->rx_notify_sem};
   SE_RET_IF_ERR(sys_ble_char_create(svc_uuid, &chr_cfg));
 
   for (uint8_t i = 0; i < cfg->tx_buf_count; i++) {

@@ -36,12 +36,8 @@ typedef struct sys_ble_char_node {
 
   // RX buffer (header unused - RX frames are dequeued via sys_buff_pop_raw())
   sys_buff_t rx_buff;
-  SemaphoreHandle_t rx_sem;
-  own_func_t rx_handler;  // Optional: dispatched via SYS_CB_OWN() on each RX write, in addition to rx_buff/rx_sem
-
-  // Last value actually sent (post-framing), served back on a GATT read
-  uint8_t last_val[527];
-  size_t last_val_len;
+  SemaphoreHandle_t rx_notify_sem;  // caller-owned, given on each peer write if non-NULL (see sys_ble_char_create_t.rx_notify_sem)
+  own_func_t rx_handler;            // Optional: dispatched via SYS_CB_OWN() on each RX write, in addition to rx_buff/rx_notify_sem
 
   // TX buffers
   sys_ble_tx_slot_t tx_slots[MAX_TX_BUFFERS];
