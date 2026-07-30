@@ -48,7 +48,7 @@ Entering a custom state with nothing bound to it yet is not an error - it's a no
 
 | State | Action | Notes |
 | :--- | :--- | :--- |
-| `SYS_STATE_NONE` | *(none)* | Initial value before the first `sys_states_enter()` call. Not a valid target — no registered action, so entering it returns `ERR_BASE_NOT_SUPPORTED`. |
+| `SYS_STATE_BOOT` | *(none)* | Initial value before the first `sys_states_enter()` call. No base action is registered for it yet, so entering it explicitly returns `ERR_BASE_NOT_SUPPORTED`. |
 | `SYS_STATE_FROZEN` | `sys_device_freeze_all()` | Freezes every ready device. Does **not** change device `state` — see the freeze/suspend note below. |
 | `SYS_STATE_RESUME` | `sys_device_resume_all()` **then** `sys_device_sync_all()` | Normal operation. Both calls are needed: `resume_all()` only lifts a *suspend*, `sync_all()` only lifts a *freeze* — see [[SYS_DEVICE.MD]]. |
 | `SYS_STATE_SUSPENDED` | `sys_device_suspend_all()` | Suspends every ready device. |
@@ -69,7 +69,7 @@ After a state's own base action succeeds, `sys_states_enter()` calls `sys_action
 
 * **No auto-transition.** `SYS_STATE_RESET` and `SYS_STATE_HARD_RESET` are one-shot sweeps represented as ordinary states: after either succeeds, `sys_states_get_current()` reports `SYS_STATE_RESET`/`SYS_STATE_HARD_RESET`, not `SYS_STATE_RESUME`. Call `sys_states_enter(SYS_STATE_RESUME)` explicitly for that. This was a deliberate choice to keep the module mechanical (run-action-then-record) rather than encode a state machine's transition graph; revisit if a caller needs "reset and immediately treat as resumed" as a single call.
 * **Freeze/suspend orthogonality is not sys_states' problem to solve** — it's inherent to `sys_device` (see [[SYS_DEVICE.MD]]'s note). `SYS_STATE_RESUME`'s action accounts for it by calling both sweeps; any future state that needs to "undo" a frozen-or-suspended mix should do the same.
-* **`runit_start()` calls `sys_states_init()`** right after `sys_actions_init()`, before `sys_interface_bind_ble_rx()` - loads any persisted custom state bitmask. `sys_states_enter()` is never called automatically; the module starts at `SYS_STATE_NONE` until something calls it.
+* **`runit_start()` calls `sys_states_init()`** right after `sys_actions_init()`, before `sys_interface_bind_ble_rx()` - loads any persisted custom state bitmask. `sys_states_enter()` is never called automatically; the module starts at `SYS_STATE_BOOT` until something calls it.
 * **`sys_states` REQUIRES `sys_actions` for real** (a genuine link dependency — `sys_states.c` calls `sys_actions_invoke_for_state()`). The reverse is not true: `sys_actions.h` references `sys_state_e` as a type only, resolved via a plain include-dir path rather than a component `REQUIRES`, specifically to avoid a circular component dependency — see the note in [[SYS_ACTIONS.MD]].
 * **`s_states_mutex` (`R_MUTEX_DEFINE`) guards only the custom-state bitmask.** `s_current_state` and the built-in `s_state_actions[]`/`s_state_names[]` tables stay lock-free — `s_state_actions[]`/`s_state_names[]` are read-only after compile time, and `s_current_state` is a single word written only from `sys_states_enter()`. The mutex exists purely because `sys_states_create()` (a write) can race with `sys_states_enter()`/`sys_states_get_name()` (reads) touching `s_custom_states_mask` from different tasks.
 
@@ -79,7 +79,7 @@ After a state's own base action succeeds, `sys_states_enter()` calls `sys_action
 
 ```c
 typedef enum sys_state_e {
-  SYS_STATE_NONE = 0,
+  SYS_STATE_BOOT = 0,
   SYS_STATE_FROZEN,
   SYS_STATE_RESUME,
   SYS_STATE_SUSPENDED,
@@ -104,7 +104,7 @@ const char* sys_states_get_name(sys_state_e state);
 
 * **`sys_states_init()`**: Opens the `"sys_states"` NVS namespace and loads any persisted custom states bitmask. Call once at boot, before creating or entering any custom state.
 * **`sys_states_create(out_state)`**: Claims the next free custom-state slot, persists the updated bitmask to NVS, and returns the assigned ID via `out_state`. Returns `ERR_NULL_PTR` if `out_state` is `NULL`, or `ERR_STATE_NO_CUSTOM_SLOTS` if all `SYS_STATES_MAX_CUSTOM` slots are used.
-* **`sys_states_enter(state)`**: For a built-in state, runs its base action then its bound actions (see above). For a custom state, runs only its bound actions (a no-op if none are bound). Returns `NULL` on success, `ERR_INVALID_VAL_UI32` if `state >= SYS_STATES_ID_SPACE`, `ERR_STATE_UNKNOWN` if `state` is an unused custom slot, `ERR_BASE_NOT_SUPPORTED` if a built-in state has no registered action (only `SYS_STATE_NONE`), or whatever the underlying `sys_device_*_all()` call or a bound action returned on failure.
+* **`sys_states_enter(state)`**: For a built-in state, runs its base action then its bound actions (see above). For a custom state, runs only its bound actions (a no-op if none are bound). Returns `NULL` on success, `ERR_INVALID_VAL_UI32` if `state >= SYS_STATES_ID_SPACE`, `ERR_STATE_UNKNOWN` if `state` is an unused custom slot, `ERR_BASE_NOT_SUPPORTED` if a built-in state has no registered action (only `SYS_STATE_BOOT`), or whatever the underlying `sys_device_*_all()` call or a bound action returned on failure.
 * **`sys_states_get_current()`**: Last state successfully entered.
 * **`sys_states_get_name(state)`**: Name string for logging - built-in name, `"CUSTOM"` for valid custom states, or `"UNKNOWN"` if out of range or an unused custom slot.
 

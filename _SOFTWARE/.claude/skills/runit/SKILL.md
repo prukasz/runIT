@@ -87,6 +87,7 @@ When task prompts mention specific system concepts or keywords without explicit 
 - **User Guidelines Persistence**: Append any user corrections or new architectural instructions to `SKILL.md` immediately.
 - **Ask Before Guessing**: Never guess the purpose of unknown registers, hardware logic, or schemas; ask the user for clarification and record the answer.
 - **Doxygen Header Style**: Format header and macro comments using Doxygen syntax (`@brief`, `@param`, `@return`), including minimal usage examples for new APIs.
+- **User Comment Ownership**: Never edit or rewrite a comment the user personally wrote/introduced (per section/block) — leave that block exactly as they wrote it, even if it later looks stale after a related code change. Adding a brand-new comment of your own is fine, but keep it visually separate from the user's block rather than folding into it. Prefer one large `/* ... */` block comment over scattering many `//` line comments when adding your own explanation.
 
 
 

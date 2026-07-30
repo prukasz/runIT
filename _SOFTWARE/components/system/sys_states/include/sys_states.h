@@ -77,7 +77,7 @@ err_h sys_states_create(sys_state_e* out_state);
  */
 err_h sys_states_enter(sys_state_e state);
 
-/** @brief The last state successfully entered; `SYS_STATE_NONE` before the first call. */
+/** @brief The last state successfully entered; `SYS_STATE_BOOT` before the first call. */
 sys_state_e sys_states_get_current(void);
 
 /** @brief Human-readable name for `state` (built-in name or "CUSTOM"), or "UNKNOWN" if out of range/unused. */
