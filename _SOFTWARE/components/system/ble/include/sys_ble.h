@@ -1,11 +1,10 @@
 #pragma once
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#include "sys_callbacks.h"
 #include "sys_error.h"
 #include "sys_error_ble.h"
-#include "sys_callbacks.h"
-
-#define MAX_TX_BUFFERS 3
+#include <sdkconfig.h>
 
 typedef struct {
   uint16_t uuid;  // 16-bit UUID
@@ -22,26 +21,27 @@ typedef struct {
 
 typedef struct {
   sys_ble_char_cfg_t info;
-  size_t rx_buffer_size;         // Size of RX ring buffer (0 if write/notify is disabled)
+  size_t rx_buffer_size;            // Size of RX ring buffer (0 if write/notify is disabled)
   SemaphoreHandle_t rx_notify_sem;  // Given (xSemaphoreGive) on each peer write, if non-NULL - caller-owned, e.g. sys_interface_get_rx_wake_sem(). Only meaningful when rx_buffer_size > 0.
 } sys_ble_char_create_t;
 
 typedef struct {
-  uint8_t header;   // stream tag; also identifies this TX slot within its characteristic
-  size_t size;      // ring buffer capacity in bytes
+  uint8_t header;  // stream tag; also identifies this TX slot within its characteristic
+  size_t size;     // ring buffer capacity in bytes
   bool is_indication;
 } sys_ble_tx_buf_cfg_t;
 
 typedef enum sys_ble_events_e { SYS_BLE_EVENT_CONNECT = 0, SYS_BLE_EVENT_DISCONNECT, SYS_BLE_EVENT_FAILURE, SYS_BLE_EVENT_MAX } sys_ble_events_e;
 
-#define SYS_BLE_CB(event_id, event_value, mask) \
-  do {                                          \
-    cb_event_t __cb_evt = {0};                  \
-    __cb_evt.head.callback_type = CALLBACK_BLE; \
-    __cb_evt.head.route_mask = (mask); \
-    __cb_evt.event.ble.event = (event_id);      \
-    __cb_evt.event.ble.value = (event_value);   \
-    sys_callback_trigger(&__cb_evt);            \
+#define SYS_BLE_CB(event_id, event_value, mask, action_mask) \
+  do {                                                        \
+    cb_event_t __cb_evt = {0};                                \
+    __cb_evt.head.callback_type = CALLBACK_BLE;                \
+    __cb_evt.head.route_mask = (mask);                        \
+    __cb_evt.head.action_id = (action_mask);                  \
+    __cb_evt.event.ble.event = (event_id);                    \
+    __cb_evt.event.ble.value = (event_value);                 \
+    sys_callback_trigger(&__cb_evt);                          \
   } while (0)
 
 typedef struct {
@@ -63,9 +63,9 @@ typedef struct {
 #define SYS_BLE_SVC_DEFAULT_AUTO 0xFEFE
 
 typedef enum {
-  SYS_BLE_RX_MODE_NONE = 0,     // RX disabled (rx_buffer_size ignored)
-  SYS_BLE_RX_MODE_POLL,         // App drains via sys_ble_char_rx_dequeue(), optionally woken by its own rx_notify_sem
-  SYS_BLE_RX_MODE_CALLBACK,     // rx_handler is dispatched (via the callbacks system) on each incoming write
+  SYS_BLE_RX_MODE_NONE = 0,  // RX disabled (rx_buffer_size ignored)
+  SYS_BLE_RX_MODE_POLL,      // App drains via sys_ble_char_rx_dequeue(), optionally woken by its own rx_notify_sem
+  SYS_BLE_RX_MODE_CALLBACK,  // rx_handler is dispatched (via the callbacks system) on each incoming write
 } sys_ble_rx_mode_e;
 
 /**
@@ -79,7 +79,7 @@ typedef struct {
   sys_ble_char_cfg_t chr;
   size_t rx_buffer_size;  // 0 if rx_mode == SYS_BLE_RX_MODE_NONE
   sys_ble_rx_mode_e rx_mode;
-  own_func_t rx_handler;         // used only when rx_mode == SYS_BLE_RX_MODE_CALLBACK
+  own_func_t rx_handler;            // used only when rx_mode == SYS_BLE_RX_MODE_CALLBACK
   SemaphoreHandle_t rx_notify_sem;  // see sys_ble_char_create_t.rx_notify_sem
 
   const sys_ble_tx_buf_cfg_t* tx_bufs;  // optional array, NULL/0 count if the channel is RX-only
@@ -115,9 +115,11 @@ err_h sys_ble_init(void);
  *
  * @param on_event The event to route.
  * @param route_mask The callback route mask.
+ * @param action_mask Bitmask of sys_actions ids to invoke (bit i -> action id
+ *                     i, via sys_actions_invoke()); 0 means none.
  * @return err_h Status report.
  */
-err_h sys_ble_add_callback(sys_ble_events_e on_event, uint16_t route_mask);
+err_h sys_ble_add_callback(sys_ble_events_e on_event, uint16_t route_mask, uint64_t action_mask);
 
 /**
  * @brief Create and register a new BLE GATT service config in the manager.

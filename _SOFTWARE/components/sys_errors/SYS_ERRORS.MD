@@ -61,11 +61,19 @@ Error nodes are allocated from a fixed-size (`ERR_BUF_SIZE`, 1024 bytes) lock-fr
 
 The error queue (`s_err_queue`, `ERR_QUEUE_LEN` = 32) is a static FreeRTOS queue defined via the `utils` component's `R_QUEUE_DEFINE` — it's live before `app_main()` runs (constructor-initialized), so nothing needs to guard its creation, including `SE_push_to_handler()` calls that happen to land before `SE_init()`. `SE_init()` starts the background consumer task (`sys_error_handler_task`), statically allocated via `R_TASK_DEFINE` / `R_TASK_START` (see [[runit]] skill), guarded so a repeat call doesn't start it twice.
 
-The task reads a fresh copy of the config via `SE_get_config()` each time it wakes (rather than reaching into `sys_error.c`'s internal `s_cfg`, keeping the two files decoupled to the public API) and, per that configuration, (a) encodes the chain into a wire packet, (b) logs each node (owner name, owner ID, tag name, tag ID) via `ESP_LOGE`, and (c) pushes the encoded packet to a BLE TX slot — **in that order**, because both (b) and (c) can themselves allocate from the same ring the chain lives in.
+The task reads a fresh copy of the config via `SE_get_config()` each time it wakes (rather than reaching into `sys_error.c`'s internal `s_cfg`, keeping the two files decoupled to the public API) and, per that configuration, (a) encodes the chain into a wire packet, (b) logs each node (owner name, owner ID, tag name, tag ID, and — whenever `SE_get_payload_size(tag) > 0` — up to 16 raw payload bytes as hex) via `ESP_LOGE`, and (c) pushes the encoded packet to a BLE TX slot — **in that order**, because both (b) and (c) can themselves allocate from the same ring the chain lives in.
+
+The payload dump is deliberately generic (raw hex, no per-tag decoding) — a tag-specific human-readable translation belongs closer to whoever actually cares about that tag, not in the shared handler. See `adapter_pca9685.c`'s `explain_root_cause()` for that pattern: it decodes a handful of common root-cause tags (`ERR_ESP_ERR` via `esp_err_to_name()`, the `ERR_DEV_*` family's `dev_id`, `ERR_IO_PIN_UNAVAILABLE`'s `dev_id`/`pin_num`) into a plain-English line on top of the raw owner/tag, as an example other adapters' `error_handler` implementations can follow once their own classification logic lands.
 
 `SE_push_to_handler(err)` enqueues a completed chain; it is ISR-safe (uses `xQueueSendFromISR` when called from ISR context) and is a no-op while suspended (`SE_suspend()` / `SE_resume()`, nesting-safe via a depth counter, implemented in sys_error.c). A push that happens before `SE_init()` has started the task simply waits in the queue rather than being dropped.
 
 This is the file to extend for new dispatch behavior (additional sinks, per-owner filtering, rate limiting, etc.) — see the note in the Overview above.
+
+### Device-Error Dispatch Hook
+
+Before the encode/log/send steps above, every dequeued chain is run through `dispatch_device_owned_error()`: a **basic** detection pass that walks the chain looking for the first node whose `tag == ERR_DEV_DEP_FAILED` *and* whose `owner` falls in the device-provider range (`devices_owners.h`'s `PROVIDER_OWNER_MAP`, `0xD0xx` — tested via `(owner & 0xFF00) == (OWNER_DEVICE_BASE & 0xFF00)`). `ERR_DEV_DEP_FAILED` is the only device-raised tag guaranteed to carry a `dev_id` payload (see `RET_IF_DEV_ERR` in [[SYS_DEVICE.MD]]), which is why detection keys off that specific tag rather than the owner range alone. On the first match, `dev_id` is extracted from that node's payload and handed to a registered hook — `err_h (*se_device_error_hook_t)(uint8_t device_id, err_h error)` — then the scan stops; **the rest of the chain is not scanned further, but encode/log/send below still run over the whole chain regardless**, unaffected by this pass.
+
+`SE_register_device_error_hook(hook)` stores the hook (a single slot, last registration wins). `sys_device` registers `sys_device_report_error()` here from a load-time `__attribute__((constructor))` function (matching the [[runit]] skill's static-construction convention), rather than `sys_errors` calling into `sys_device` directly — `sys_device` already `REQUIRES sys_errors`, so the reverse would be a circular component dependency. This is the same indirection pattern `sys_callbacks` uses for `sys_cb_register_route()` (see [[SYS_CALLBACKS.MD]]) to let a lower-level component be called into by a higher-level one without a compile-time dependency in that direction.
 
 ---
 
@@ -176,6 +184,7 @@ Common tags available to every module regardless of submodule-specific maps: `ER
 void SE_init(void);
 err_h SE_alloc_bytes(size_t payload_size, err_tag_e tag, uint32_t owner);
 void SE_push_to_handler(err_h err);
+void SE_register_device_error_hook(se_device_error_hook_t hook);
 
 void SE_suspend(void);
 void SE_resume(void);

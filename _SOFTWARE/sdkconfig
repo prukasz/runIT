@@ -3042,6 +3042,96 @@ CONFIG_WL_SECTOR_SIZE_4096=y
 # default:
 CONFIG_WL_SECTOR_SIZE=4096
 # end of Wear Levelling
+
+#
+# System Configuration
+#
+
+#
+# BLE Manager Options
+#
+# default:
+CONFIG_SYS_BLE_MANAGER_TASK_PRIO=5
+# default:
+CONFIG_SYS_BLE_TASK_STACK_SIZE=4096
+# default:
+CONFIG_SYS_BLE_MAX_TOTAL_TX_SLOTS=24
+# default:
+CONFIG_SYS_BLE_MAX_TX_BUFFERS=3
+# end of BLE Manager Options
+
+#
+# Callbacks System Options
+#
+# default:
+CONFIG_SYS_CB_QUEUE_LEN=16
+# default:
+CONFIG_SYS_CB_TASK_STACK_SIZE=4096
+# default:
+CONFIG_SYS_CB_TASK_PRIO=5
+# default:
+CONFIG_SYS_CB_ROUTE_COUNT=16
+# end of Callbacks System Options
+
+#
+# System Actions Options
+#
+# default:
+CONFIG_SYS_ACTIONS_TAP_BUFFER_SIZE=1024
+# default:
+CONFIG_SYS_ACTIONS_TAP_TASK_STACK=4096
+# default:
+CONFIG_SYS_ACTIONS_TAP_TASK_PRIO=4
+# default:
+CONFIG_SYS_ACTIONS_TAP_POLL_MS=20
+# default:
+CONFIG_SYS_ACTIONS_ID_SPACE=64
+# default:
+CONFIG_SYS_ACTIONS_STATIC_SLOTS=16
+# end of System Actions Options
+
+#
+# System Device Options
+#
+# default:
+CONFIG_SYS_DEVICE_MAX_ID=127
+# end of System Device Options
+
+#
+# System I2C Options
+#
+# default:
+CONFIG_SYS_I2C_DEFAULT_TIMEOUT_MS=50
+# end of System I2C Options
+
+#
+# System Interface Options
+#
+# default:
+CONFIG_SYS_INTERFACE_RX_TASK_STACK_SIZE=4096
+# default:
+CONFIG_SYS_INTERFACE_RX_TASK_PRIO=5
+# default:
+CONFIG_SYS_INTERFACE_RX_WAIT_MS=100
+# default:
+CONFIG_SYS_INTERFACE_MAX_CLASSES=8
+# default:
+CONFIG_SYS_INTERFACE_MAX_RX_SOURCES=4
+# default:
+CONFIG_SYS_INTERFACE_RX_FRAME_CAP=512
+# end of System Interface Options
+
+#
+# System Power Management Options
+#
+# default:
+CONFIG_SYS_POWER_DEFAULT_LIMIT_MV=21000
+# default:
+CONFIG_SYS_POWER_DEFAULT_LIMIT_MA=5500
+# default:
+CONFIG_SYS_POWER_DEFAULT_BUDGET_MW=115500
+# end of System Power Management Options
+# end of System Configuration
 # end of Component config
 
 # CONFIG_IDF_EXPERIMENTAL_FEATURES is not set

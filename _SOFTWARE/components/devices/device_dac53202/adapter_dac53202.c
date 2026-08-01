@@ -157,9 +157,25 @@ static err_h device_sync(void* handle) {
 }
 
 static err_h device_error_handler(void* handle, err_h error) {
-  if (!error) return NULL;
-  ESP_LOGE(TAG, "DAC53202 Error: owner=%u, tag=%d", (unsigned int)error->owner, (int)error->tag);
-  return error;
+  dac_adapter_ctx_t* ctx = (dac_adapter_ctx_t*)handle;
+  SYS_DEV_CHECK_HANDLE(ctx, 0);
+  sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(ctx));
+  if (!dev) return NULL;
+
+  if (dev->generate_error_callback) {
+    // TODO: report to the VM via the callback system. Payload should carry
+    // at least: device_id, and the root cause's tag/owner - walk
+    // error->next_cause to the end, since a wrapper like ERR_DEV_DEP_FAILED
+    // only carries dev_id, not the underlying failure's tag/owner. Always
+    // attach device_id explicitly (the root cause itself may not carry one).
+    return NULL;
+  }
+
+  if (dev->use_error_handler) {
+    // TODO: classify `error` into a sys_device_err_level_e (critical/
+    // warning/notice) and sys_actions_invoke(dev->actions[level]).
+  }
+  return NULL;
 }
 
 static err_h device_install(const void* cfg_blob, void** out_device_handle) {

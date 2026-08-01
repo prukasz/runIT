@@ -4,9 +4,22 @@
 #include "sys_device.h"
 #include "sys_error.h"
 
+static const char* TAG = "SYS_IO";
+
 const char* const sys_io_mode_e_to_string[] = {"INPUT", "INPUT_PULLUP", "INPUT_PULLDOWN", "OUTPUT_PUSH_PULL", "OUTPUT_OPEN_DRAIN", "OUTPUT_OPEN_DRAIN_PULLUP", "PWM", "ADC", "DAC"};
 
 const char* const sys_io_intr_mode_e_to_string[] = {"DISABLE", "RISING_EDGE", "FALLING_EDGE", "BOTH_EDGES", "ADC_WINDOW_OUTSIDE", "ADC_WINDOW_INSIDE"};
+
+// Dummy callback-event handler for SYS_CB_ROUTE_IO - logs and nothing else,
+// a placeholder until sys_io has something real to route IO events to.
+static void sys_io_cb_dummy_log(const cb_event_t* event) {
+  if (event->head.callback_type != CALLBACK_IO) return;
+  ESP_LOGI(TAG, "IO event: device %u, pin %u, event %u, val %ld", event->event.io.device_id, event->event.io.pin_id, event->event.io.trigger_event, (long)event->event.io.trigger_value);
+}
+
+__attribute__((constructor)) static void sys_io_cb_route_register(void) {
+  sys_cb_register_route(SYS_CB_ROUTE_IO, sys_io_cb_dummy_log);
+}
 
 // Custom dispatch macro that enforces the protected_pins check
 #define SYS_IO_DISPATCH(dev_id, func_name, pin_num, ...)                                                      \

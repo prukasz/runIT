@@ -3,7 +3,7 @@
 
 static const char* TAG = __FILE_NAME__;
 
-R_TASK_DEFINE(m_ble_task, BLE_TASK_STACK_SIZE);
+R_TASK_DEFINE(m_ble_task, CONFIG_SYS_BLE_TASK_STACK_SIZE);
 
 /* GAP Advertising State */
 static uint8_t own_addr_type;
@@ -123,10 +123,10 @@ static int gap_event_handler(struct ble_gap_event* event, void* arg) {
         R_MUTEX_UNLOCK(sys_ble_mutex);
 
         xSemaphoreGive(sys_ble_tx_sem);
-        SYS_BLE_CB(SYS_BLE_EVENT_CONNECT, event->connect.conn_handle, g_ble_ctx.route_masks[SYS_BLE_EVENT_CONNECT]);
+        SYS_BLE_CB(SYS_BLE_EVENT_CONNECT, event->connect.conn_handle, g_ble_ctx.route_masks[SYS_BLE_EVENT_CONNECT], g_ble_ctx.action_masks[SYS_BLE_EVENT_CONNECT]);
       } else {
         ESP_LOGW(TAG, "Connection failed: err = %d", event->connect.status);
-        SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, ESP_FAIL, g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE]);
+        SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, ESP_FAIL, g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE], g_ble_ctx.action_masks[SYS_BLE_EVENT_FAILURE]);
         sys_ble_advertising_init();
       }
       return 0;
@@ -144,7 +144,7 @@ static int gap_event_handler(struct ble_gap_event* event, void* arg) {
       g_ble_ctx.is_connected = false;
       R_MUTEX_UNLOCK(sys_ble_mutex);
 
-      SYS_BLE_CB(SYS_BLE_EVENT_DISCONNECT, reason, g_ble_ctx.route_masks[SYS_BLE_EVENT_DISCONNECT]);
+      SYS_BLE_CB(SYS_BLE_EVENT_DISCONNECT, reason, g_ble_ctx.route_masks[SYS_BLE_EVENT_DISCONNECT], g_ble_ctx.action_masks[SYS_BLE_EVENT_DISCONNECT]);
       sys_ble_reconfigure_advertising();
       break;
     }
@@ -241,7 +241,7 @@ err_h sys_ble_stack_init(struct ble_gatt_svc_def* svcs) {
   nimble_port_freertos_init(nimble_host_task);
   sys_ble_set_name("runit");
 
-  R_TASK_START_ON_CORE(m_ble_task, &sys_ble_task_func, &g_ble_ctx, CONFIG_PRIORITY_BLE_MANAGER_TASK, 0);
+  R_TASK_START_ON_CORE(m_ble_task, &sys_ble_task_func, &g_ble_ctx, CONFIG_SYS_BLE_MANAGER_TASK_PRIO, 0);
   return NULL;
 }
 #undef OWNER
@@ -281,12 +281,14 @@ static int sys_ble_gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle, st
       size_t copy_len = len > sizeof(data_buffer) ? sizeof(data_buffer) : len;
       os_mbuf_copydata(ctxt->om, 0, copy_len, data_buffer);
 
-      if (SE_IS_ERR(sys_buff_push(&char_node->rx_buff, data_buffer, copy_len, 0))) {
+      err_h push_err = sys_buff_push(&char_node->rx_buff, data_buffer, copy_len, 0);
+      if (SE_IS_ERR(push_err)) {
         ESP_LOGW(TAG, "RX buffer overflow on char uuid 0x%04X", char_node->cfg.uuid);
+        SE_ORIGIN_CALL(push_err);
         R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
         g_ble_ctx.rx_overflow_count++;
         R_MUTEX_UNLOCK(sys_ble_mutex);
-        SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, ESP_FAIL, g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE]);
+        SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, ESP_FAIL, g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE], g_ble_ctx.action_masks[SYS_BLE_EVENT_FAILURE]);
       } else {
         if (char_node->rx_notify_sem) xSemaphoreGive(char_node->rx_notify_sem);
         if (char_node->rx_handler.own_func) {
@@ -425,7 +427,7 @@ static bool try_send_slot(sys_ble_tx_slot_t* slot, sys_ble_char_node_t* c, size_
   if (send_sta == NULL) {
     return true;
   } else if (send_sta->tag != ERR_BASE_NO_MEM) {
-    SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, send_sta->tag, g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE]);
+    SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, send_sta->tag, g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE], g_ble_ctx.action_masks[SYS_BLE_EVENT_FAILURE]);
   }
   return false;
 }

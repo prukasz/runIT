@@ -27,6 +27,7 @@ typedef struct tca_adapter_ctx_t {
   uint32_t configured_pins;  // 24-bit bitmask tracking pin usage
 
   uint16_t route_masks[24];
+  uint64_t action_masks[24];
   sys_io_intr_mode_e intr_modes[24];
   own_funct_t own_funcs[24];
 } tca_adapter_ctx_t;
@@ -64,7 +65,7 @@ static err_h device_event_handler(void* handle, cb_event_t* event) {
         SYS_CB_OWN(ctx->own_funcs[i]);
       } else {
         bool level = (rising_edges & (1UL << i)) != 0;
-        SYS_IO_CB(ctx, i, mode, level, ctx->route_masks[i]);
+        SYS_IO_CB(ctx, i, mode, level, ctx->route_masks[i], ctx->action_masks[i]);
       }
     }
   }
@@ -155,6 +156,7 @@ err_h contract_io_tca6424a_reset_pin(void* handle, sys_io_pin_num_t pin) {
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, PINS_MASK);
 
   ctx->route_masks[pin] = 0;
+  ctx->action_masks[pin] = 0;
   ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
   memset(&ctx->own_funcs[pin], 0, sizeof(own_funct_t));
   ctx->configured_pins &= ~(1UL << pin);
@@ -179,12 +181,14 @@ err_h contract_io_tca6424a_configure_intr(void* handle, sys_io_pin_num_t pin, co
 
   if (config->mode == SYS_IO_INTR_DISABLE) {
     ctx->route_masks[pin] = 0;
+    ctx->action_masks[pin] = 0;
     ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
     memset(&ctx->own_funcs[pin], 0, sizeof(own_funct_t));
     return NULL;
   }
 
   ctx->route_masks[pin] = config->route_mask;
+  ctx->action_masks[pin] = config->action_mask;
   ctx->intr_modes[pin] = config->mode;
   ctx->own_funcs[pin] = config->own_func;
 
@@ -270,11 +274,25 @@ static err_h device_reset(void* handle) {
 }
 
 static err_h device_error_handler(void* handle, err_h error) {
-  if (!error) return NULL;
   tca_adapter_ctx_t* ctx = (tca_adapter_ctx_t*)handle;
   SYS_DEV_CHECK_HANDLE(ctx, 0);
-  ESP_LOGE(TAG, "TCA6424A Error: owner=%u, tag=%d for device ID %u", (unsigned int)error->owner, (int)error->tag, SYS_DEV_GET_ID(ctx));
-  return error;
+  sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(ctx));
+  if (!dev) return NULL;
+
+  if (dev->generate_error_callback) {
+    // TODO: report to the VM via the callback system. Payload should carry
+    // at least: device_id, and the root cause's tag/owner - walk
+    // error->next_cause to the end, since a wrapper like ERR_DEV_DEP_FAILED
+    // only carries dev_id, not the underlying failure's tag/owner. Always
+    // attach device_id explicitly (the root cause itself may not carry one).
+    return NULL;
+  }
+
+  if (dev->use_error_handler) {
+    // TODO: classify `error` into a sys_device_err_level_e (critical/
+    // warning/notice) and sys_actions_invoke(dev->actions[level]).
+  }
+  return NULL;
 }
 
 static err_h device_suspend(void* handle) {

@@ -9,41 +9,19 @@
 #define TAG "SYS_CB"
 #define OWNER OWNER_SYS_DEVICE_BASE
 
-#define CALLBACK_QUEUE_LEN 16
-R_QUEUE_DEFINE(s_callback_queue, CALLBACK_QUEUE_LEN, sizeof(cb_event_t));
+#include <sdkconfig.h>
 
-R_TASK_DEFINE(s_callback_task_handle, 4096);
+R_QUEUE_DEFINE(s_callback_queue, CONFIG_SYS_CB_QUEUE_LEN, sizeof(cb_event_t));
 
-typedef void (*sys_cb_route_func_t)(const cb_event_t* event);
+R_TASK_DEFINE(s_callback_task_handle, CONFIG_SYS_CB_TASK_STACK_SIZE);
 
-static void sys_cb_route_logger(const cb_event_t* event) {
-  switch (event->head.callback_type) {
-    case CALLBACK_IO:
-      ESP_LOGI(TAG, "Received IO Event: Device ID %u, Pin %u, Event %u, Val %ld", event->event.io.device_id, event->event.io.pin_id, event->event.io.trigger_event, (long)event->event.io.trigger_value);
-      break;
-    case CALLBACK_PWR:
-      ESP_LOGI(TAG, "Received PWR Event: Device ID %u, Channel %u, Event %u, Val %ld", event->event.pwr.device_id, event->event.pwr.channel_id, event->event.pwr.trigger_event, (long)event->event.pwr.trigger_value);
-      break;
-    case CALLBACK_BLE:
-      ESP_LOGI(TAG, "Received BLE Event: Event %lu, Val %ld", (unsigned long)event->event.ble.event, (long)event->event.ble.value);
-      break;
-    default:
-      break;
-  }
-}
-
-static void sys_cb_route_ble(const cb_event_t* event) {
-  (void)event;
-  // TODO: BLE-specific routing logic. Stub for now - see SYS_CALLBACKS.MD.
-}
-
-// Bit i of an event's route_mask selects s_route_table[i]. Slots left NULL
-// (e.g. SYS_CB_ROUTE_WIFI) are silently skipped by sys_cb_task, not an error -
-// this is how new routes get added progressively without touching the task.
-static const sys_cb_route_func_t s_route_table[SYS_CB_ROUTE_COUNT] = {
-    [SYS_CB_ROUTE_LOGGER] = sys_cb_route_logger,
-    [SYS_CB_ROUTE_BLE] = sys_cb_route_ble,
-};
+// Bit i of an event's route_mask selects s_route_table[i]. Slots nobody
+// registers into (e.g. SYS_CB_ROUTE_WIFI) are silently skipped by sys_cb_task,
+// not an error. Filled at runtime by sys_cb_register_route() - each owning
+// component (sys_io, sys_power, ble) plugs its own handler in from a
+// load-time constructor rather than sys_callbacks knowing about them at
+// compile time (see sys_callbacks.h).
+static sys_cb_route_func_t s_route_table[CONFIG_SYS_CB_ROUTE_COUNT];
 
 static void sys_cb_task(void* pvParameters) {
   (void)pvParameters;
@@ -54,12 +32,12 @@ static void sys_cb_task(void* pvParameters) {
 
     if (event.head.callback_type == CALLBACK_OWN_FUNC) {
       if (event.event.own_func.own_func) {
-        event.event.own_func.own_func(event.event.own_func.device_handle, &event);
+        SE_ORIGIN_CALL(event.event.own_func.own_func(event.event.own_func.device_handle, &event));
       }
       continue;
     }
 
-    for (int i = 0; i < SYS_CB_ROUTE_COUNT; i++) {
+    for (int i = 0; i < CONFIG_SYS_CB_ROUTE_COUNT; i++) {
       if ((event.head.route_mask & SYS_CB_ROUTE_BIT(i)) && s_route_table[i]) {
         s_route_table[i](&event);
       }
@@ -67,9 +45,15 @@ static void sys_cb_task(void* pvParameters) {
   }
 }
 
+err_h sys_cb_register_route(uint8_t route_idx, sys_cb_route_func_t fn) {
+  SE_CHECK_IN_RANGE(route_idx, 0, CONFIG_SYS_CB_ROUTE_COUNT - 1);
+  s_route_table[route_idx] = fn;
+  return NULL;
+}
+
 err_h sys_callbacks_init(void) {
   if (s_callback_task_handle == NULL) {
-    R_TASK_START_ON_CORE(s_callback_task_handle, sys_cb_task, NULL, 5, 0);
+    R_TASK_START_ON_CORE(s_callback_task_handle, sys_cb_task, NULL, CONFIG_SYS_CB_TASK_PRIO, 0);
   }
 
   ESP_LOGI(TAG, "Callback system initialized successfully");

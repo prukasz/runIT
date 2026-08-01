@@ -71,7 +71,7 @@ static void IRAM_ATTR _gpio_pin_isr_trampoline(void* arg) {
   if (pin->intr_config.own_func.own_func) {
     SYS_CB_OWN(pin->intr_config.own_func);
   } else {
-    SYS_IO_CB(ctx, pin->io_num, pin->intr_config.mode, level, pin->intr_config.route_mask);
+    SYS_IO_CB(ctx, pin->io_num, pin->intr_config.mode, level, pin->intr_config.route_mask, pin->intr_config.action_mask);
   }
 }
 
@@ -459,9 +459,24 @@ static err_h device_resume(void* handle) {
 }
 
 static err_h device_error_handler(void* handle, err_h error) {
-  if (!error) return NULL;
-  ESP_LOGE(TAG, "GPIO ESP Error: owner=%u, tag=%d", (unsigned int)error->owner, (int)error->tag);
-  return error;
+  (void)handle; /* singleton adapter - gpio_esp_ctx is the one instance */
+  sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(&gpio_esp_ctx));
+  if (!dev) return NULL;
+
+  if (dev->generate_error_callback) {
+    // TODO: report to the VM via the callback system. Payload should carry
+    // at least: device_id, and the root cause's tag/owner - walk
+    // error->next_cause to the end, since a wrapper like ERR_DEV_DEP_FAILED
+    // only carries dev_id, not the underlying failure's tag/owner. Always
+    // attach device_id explicitly (the root cause itself may not carry one).
+    return NULL;
+  }
+
+  if (dev->use_error_handler) {
+    // TODO: classify `error` into a sys_device_err_level_e (critical/
+    // warning/notice) and sys_actions_invoke(dev->actions[level]).
+  }
+  return NULL;
 }
 
 static err_h device_install(const void* cfg_blob, void** out_device_handle) {

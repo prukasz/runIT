@@ -145,11 +145,11 @@ static int se_log_vprintf(const char* fmt, va_list args) {
 err_h SE_configure(const sys_error_cfg_t* cfg) {
   SE_CHECK_NOT_NULL(cfg);
 
-  if (cfg->logs.ble_enable && cfg->logs.char_uuid == 0) {
-    SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = 0, .min = 1, .max = 0xFFFF);
+  if (cfg->logs.ble_enable) {
+    SE_CHECK_IN_RANGE(cfg->logs.char_uuid, 1, 0xFFFF);
   }
-  if (cfg->errors.ble_enable && cfg->errors.char_uuid == 0) {
-    SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = 0, .min = 1, .max = 0xFFFF);
+  if (cfg->errors.ble_enable) {
+    SE_CHECK_IN_RANGE(cfg->errors.char_uuid, 1, 0xFFFF);
   }
 
   sys_error_cfg_t applied = *cfg;

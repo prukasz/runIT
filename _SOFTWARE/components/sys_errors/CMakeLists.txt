@@ -16,7 +16,6 @@ idf_component_register(
                  "../system/ble/include"
                  "../system/sys_interface/include"
                  "../system/sys_buffers/include"
-                 "../system/sys_states/include"
                  "../system/sys_actions/include"
                  # codecs is header-only and REQUIRES sys_errors, so pulling in the
                  # error encoder as a plain include dir avoids a component cycle.

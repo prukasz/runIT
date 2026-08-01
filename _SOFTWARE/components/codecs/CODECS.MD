@@ -49,6 +49,8 @@ Every decoder logs what it is about to do at `ESP_LOGI` under the tag `dec_sys_c
 | Range | Domain | API |
 | :--- | :--- | :--- |
 | `0x10`–`0x19` | Device lifecycle | `sys_device_uninstall/reset/suspend/resume/freeze/sync` (+ `_all` variants) |
+| `0x1A` | Device error handling | `sys_device_set_error_handling` — `device_id, use_error_handler, generate_error_callback, actions[3]`; see [[SYS_DEVICE.MD]]'s "Per-Instance Error Handling" |
+| `0x1B`–`0x1F` | *(free)* | |
 | `0x20`–`0x2F` | IO | `sys_io_reset/set_mode/set_level/get_level/toggle/get_voltage/set_voltage/set_pwm_frequency/set_pwm_duty` |
 | `0x30`–`0x3F` | Power | `sys_power_budget_update_source`, `sys_vreg_set_enable/voltage/current`, `sys_power_monitor_get_voltage/current`, `sys_power_usb_pd_set/list/get_limits` |
 | `0x40`–`0x47` | Device installation | `d_gpio_esp_create`, `d_pca9685_create`, `d_tca6424a_create`, `d_tps55289_create`, `d_ina3221_create`, `d_ap33772s_create`, `d_dac53202_create`, `d_ads7128_create` |
@@ -88,18 +90,17 @@ static inline sys_io_pin_ref_t pin_ref_from_wire(uint8_t device_id, uint8_t pin,
 
 ## `decoders/dec_sys_actions.h` — class `0x03`
 
-Control-packet table for [[SYS_ACTIONS.MD]]'s record/stop/remove/bind wire protocol. Same shape as `dec_sys_contracts.h` (a `SYS_ACTIONS_PACKET_LIST` X-macro expanded into a switch), just with `sys_actions.h` in place of `sys_io.h`/`sys_device.h`/`sys_power.h` as the thing being wrapped.
+Control-packet table for [[SYS_ACTIONS.MD]]'s record/stop/remove wire protocol. Same shape as `dec_sys_contracts.h` (a `SYS_ACTIONS_PACKET_LIST` X-macro expanded into a switch), just with `sys_actions.h` in place of `sys_io.h`/`sys_device.h`/`sys_power.h` as the thing being wrapped.
 
 | Packet | Byte | Payload | Calls |
 | :--- | :--- | :--- | :--- |
 | Record | `0x01` | `uint8_t action_id` | `sys_actions_record_start(action_id)` |
 | Stop | `0x02` | `uint8_t action_id` | `sys_actions_record_stop(action_id)` (persists to NVS) |
 | Remove | `0x03` | `uint8_t action_id` | `sys_actions_remove(action_id)` |
-| Bind to state | `0x04` | `uint8_t action_id; uint8_t state;` | `sys_actions_bind_state(action_id, (sys_state_e)state)` |
 
 `SYS_ACTIONS_CLASS_HEADER` (`0x03`) is defined in `sys_actions.h`, not this file — unlike `SYS_CONTRACTS_CLASS_HEADER` (owned by the codec because it spans three unrelated system components), sys_actions' class is 1:1 with a single component, so the constant lives with that component's own public contract. `dec_sys_actions.h` just includes `sys_actions.h` to use it.
 
-Registered by `sys_actions_init()`, not `sys_interface_init()` — see the boot-ordering note in [[SYS_ACTIONS.MD]].
+Registered by `sys_actions_init()`, not `sys_interface_init()` — see the boot-ordering note in [[SYS_ACTIONS.MD]]. There is no separate "bind action to state" class anymore — the `sys_states` component that used to own it was folded into `sys_actions` (a hardcoded behavior is now just a bound static function on an action id, see [[SYS_ACTIONS.MD]]), so class `0x04` is free again.
 
 ---
 

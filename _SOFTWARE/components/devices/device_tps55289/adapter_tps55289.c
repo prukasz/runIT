@@ -22,7 +22,8 @@ typedef struct {
   bool last_enable_state;
   bool is_current_limit_enabled;
 
-  uint16_t route_masks[3];  // For OVP, OCP, SCP
+  uint16_t route_masks[3];   // For OVP, OCP, SCP
+  uint64_t action_masks[3];  // For OVP, OCP, SCP
 } tps_adapter_ctx_t;
 
 enum { TPS_STEP_I2C_ADDED = 0, TPS_STEP_EN_READY = 1, TPS_STEP_INTR_READY = 2 };
@@ -32,13 +33,13 @@ static err_h device_event_handler(void* handle, cb_event_t* event) {
   SYS_DEV_CHECK_DRIVER_CALL(tps55289_get_status(hw), ctx);
 
   if (hw->last_status.ovp) {
-    SYS_PWR_CB(ctx, 0, SYS_PWR_EVENT_OVP, ctx->last_voltage_mv, ctx->route_masks[0]);
+    SYS_PWR_CB(ctx, 0, SYS_PWR_EVENT_OVP, ctx->last_voltage_mv, ctx->route_masks[0], ctx->action_masks[0]);
   }
   if (hw->last_status.ocp) {
-    SYS_PWR_CB(ctx, 0, SYS_PWR_EVENT_OCP_CRITICAL, ctx->last_current_limit_ma, ctx->route_masks[1]);
+    SYS_PWR_CB(ctx, 0, SYS_PWR_EVENT_OCP_CRITICAL, ctx->last_current_limit_ma, ctx->route_masks[1], ctx->action_masks[1]);
   }
   if (hw->last_status.scp) {
-    SYS_PWR_CB(ctx, 0, SYS_PWR_EVENT_SPC, 0, ctx->route_masks[2]);
+    SYS_PWR_CB(ctx, 0, SYS_PWR_EVENT_SPC, 0, ctx->route_masks[2], ctx->action_masks[2]);
   }
   return NULL;
 }
@@ -70,7 +71,7 @@ static err_h contract_vreg_tps55289_set_enable(void* device_handle, bool state) 
 
 static err_h contract_vreg_tps55289_set_voltage(void* device_handle, uint32_t voltage_mV) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tps_adapter_ctx_t, tps55289_handle_t, ctx, hw, device_handle);
-  if ((voltage_mV) < (DEVICE_TPS55289_MIN_VOLTAGE_MV) || (voltage_mV) > (DEVICE_TPS55289_MAX_VOLTAGE_MV)) SE_RET_ERR(ERR_INVALID_VAL_UI32, voltage_mV, DEVICE_TPS55289_MIN_VOLTAGE_MV, DEVICE_TPS55289_MAX_VOLTAGE_MV);
+  SE_CHECK_IN_RANGE(voltage_mV, DEVICE_TPS55289_MIN_VOLTAGE_MV, DEVICE_TPS55289_MAX_VOLTAGE_MV);
   ctx->last_voltage_mv = voltage_mV;
   SYS_DEV_CHECK_DRIVER_CALL(tps55289_set_voltage(hw, voltage_mV), ctx);
   return NULL;
@@ -78,21 +79,24 @@ static err_h contract_vreg_tps55289_set_voltage(void* device_handle, uint32_t vo
 
 static err_h contract_vreg_tps55289_set_current(void* device_handle, uint32_t current_mA) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tps_adapter_ctx_t, tps55289_handle_t, ctx, hw, device_handle);
-  if ((current_mA) < (DEVICE_TPS55289_MIN_CURRENT_MA) || (current_mA) > (DEVICE_TPS55289_MAX_CURRENT_MA)) SE_RET_ERR(ERR_INVALID_VAL_UI32, current_mA, DEVICE_TPS55289_MIN_CURRENT_MA, DEVICE_TPS55289_MAX_CURRENT_MA);
+  SE_CHECK_IN_RANGE(current_mA, DEVICE_TPS55289_MIN_CURRENT_MA, DEVICE_TPS55289_MAX_CURRENT_MA);
   ctx->last_current_limit_ma = current_mA;
   SYS_DEV_CHECK_DRIVER_CALL(tps55289_set_current_limit(hw, ctx->is_current_limit_enabled, current_mA), ctx);
   return NULL;
 }
 
-static err_h contract_vreg_tps55289_add_callback(void* device_handle, sys_power_events_e on_event, uint16_t route_mask) {
+static err_h contract_vreg_tps55289_add_callback(void* device_handle, sys_power_events_e on_event, uint16_t route_mask, uint64_t action_mask) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tps_adapter_ctx_t, tps55289_handle_t, ctx, hw, device_handle);
 
   if (on_event == SYS_PWR_EVENT_OVP) {
     ctx->route_masks[0] = route_mask;
+    ctx->action_masks[0] = action_mask;
   } else if (on_event == SYS_PWR_EVENT_OCP_CRITICAL) {
     ctx->route_masks[1] = route_mask;
+    ctx->action_masks[1] = action_mask;
   } else if (on_event == SYS_PWR_EVENT_SPC) {
     ctx->route_masks[2] = route_mask;
+    ctx->action_masks[2] = action_mask;
   }
 
   tps55289_set_fault_masks(hw, ctx->route_masks[2] == 0, ctx->route_masks[1] == 0, ctx->route_masks[0] == 0);
@@ -136,11 +140,25 @@ static err_h device_reset(void* handle) {
 }
 
 static err_h device_error_handler(void* handle, err_h error) {
-  if (!error) return NULL;
   tps_adapter_ctx_t* ctx = (tps_adapter_ctx_t*)handle;
   SYS_DEV_CHECK_HANDLE(ctx, 0);
-  ESP_LOGE(TAG, "TPS55289 Error: owner=%u, tag=%d for device ID %u", (unsigned int)error->owner, (int)error->tag, SYS_DEV_GET_ID(ctx));
-  return error;
+  sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(ctx));
+  if (!dev) return NULL;
+
+  if (dev->generate_error_callback) {
+    // TODO: report to the VM via the callback system. Payload should carry
+    // at least: device_id, and the root cause's tag/owner - walk
+    // error->next_cause to the end, since a wrapper like ERR_DEV_DEP_FAILED
+    // only carries dev_id, not the underlying failure's tag/owner. Always
+    // attach device_id explicitly (the root cause itself may not carry one).
+    return NULL;
+  }
+
+  if (dev->use_error_handler) {
+    // TODO: classify `error` into a sys_device_err_level_e (critical/
+    // warning/notice) and sys_actions_invoke(dev->actions[level]).
+  }
+  return NULL;
 }
 
 static err_h device_suspend(void* handle) {

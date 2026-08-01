@@ -216,7 +216,70 @@ static err_h device_sync(void* handle) {
   return NULL;
 }
 
+// Test implementation for the sys_device error-handling scheme (see
+// SYS_DEVICE.MD's "Per-Instance Error Handling") - explains the root cause
+// unconditionally (whichever branch below is taken, if any), since a wrapper
+// like ERR_DEV_DEP_FAILED only tells us *that* something failed, not *what*.
+static void explain_root_cause(uint8_t device_id, err_h error) {
+  err_h root = error;
+  while (root && root->next_cause) root = root->next_cause;
+  if (!root) return;
+  ESP_LOGE(TAG, "PCA9685 (device %u) error root cause: owner=%s (0x%04X), tag=%s (%d)", device_id, SE_get_owner_name(root->owner), (unsigned int)root->owner, SE_get_tag_name(root->tag), (int)root->tag);
+
+  // Plain-English translation for a handful of simple, common root-cause
+  // tags - "simple" meaning a payload of one or two scalar fields, cheap to
+  // decode by hand without a generic tag-by-tag decoder table.
+  switch (root->tag) {
+    case ERR_ESP_ERR: {
+      esp_err_t code = ((err_payload_ERR_ESP_ERR_t*)root->payload)->esp_code;
+      ESP_LOGE(TAG, "  -> underlying ESP-IDF error: %s (0x%x) - likely a bus/driver fault (e.g. disconnected I2C device)", esp_err_to_name(code), code);
+      break;
+    }
+    case ERR_DEV_NOT_FOUND:
+      ESP_LOGE(TAG, "  -> device %u is not registered", ((err_payload_ERR_DEV_NOT_FOUND_t*)root->payload)->dev_id);
+      break;
+    case ERR_DEV_NOT_INSTALLED:
+      ESP_LOGE(TAG, "  -> device %u is registered but not installed", ((err_payload_ERR_DEV_NOT_INSTALLED_t*)root->payload)->dev_id);
+      break;
+    case ERR_DEV_SUSPENDED:
+      ESP_LOGE(TAG, "  -> device %u is suspended", ((err_payload_ERR_DEV_SUSPENDED_t*)root->payload)->dev_id);
+      break;
+    case ERR_DEV_NO_HANDLE:
+      ESP_LOGE(TAG, "  -> device %u has no handle (installed but handle is NULL)", ((err_payload_ERR_DEV_NO_HANDLE_t*)root->payload)->dev_id);
+      break;
+    case ERR_IO_PIN_UNAVAILABLE: {
+      err_payload_ERR_IO_PIN_UNAVAILABLE_t* p = (err_payload_ERR_IO_PIN_UNAVAILABLE_t*)root->payload;
+      ESP_LOGE(TAG, "  -> pin %u is not available on device %u (out of range or unmapped)", p->pin_num, p->dev_id);
+      break;
+    }
+    case ERR_BASE_NOT_SUPPORTED:
+      ESP_LOGE(TAG, "  -> the operation isn't implemented for this device (NULL vtable slot)");
+      break;
+    default:
+      break;  // no translation for this tag yet - the owner/tag line above still stands
+  }
+}
+
 static err_h device_error_handler(void* handle, err_h error) {
+  pca_adapter_ctx_t* ctx = (pca_adapter_ctx_t*)handle;
+  SYS_DEV_CHECK_HANDLE(ctx, 0);
+  sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(ctx));
+  if (!dev) return NULL;
+
+  explain_root_cause(SYS_DEV_GET_ID(ctx), error);
+
+  if (dev->generate_error_callback) {
+    // TODO: report to the VM via the callback system. Payload should carry
+    // at least: device_id, and the root cause's tag/owner (as explained
+    // above). Always attach device_id explicitly (the root cause itself may
+    // not carry one).
+    return NULL;
+  }
+
+  if (dev->use_error_handler) {
+    // TODO: classify `error` into a sys_device_err_level_e (critical/
+    // warning/notice) and sys_actions_invoke(dev->actions[level]).
+  }
   return NULL;
 }
 

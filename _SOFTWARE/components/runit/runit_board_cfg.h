@@ -8,20 +8,11 @@ Board specific hardware configurations
 Pin configs and device id / adresses shall not be changed
 ****************************************************** */
 
-#include "device_ads7128.h"
-#include "device_ap33772s.h"
-#include "device_dac53202.h"
-#include "device_gpio_esp.h"
-#include "device_ina3221.h"
-#include "device_pca9685.h"
-#include "device_tca6424a.h"
-#include "device_tps55289.h"
 #include "runit_board_defs.h"
 #include "sys_ble.h"
 #include "sys_error.h"
 #include "sys_i2c.h"
 #include "sys_interface.h"
-#include "sys_io.h"
 #include "sys_power.h"
 
 #define RUNIT_BOARD_POWER_LIMIT_MV 21000
@@ -48,62 +39,10 @@ err_h sys_start_i2c(void) {
   return sys_i2c_init(&bus0_cfg, &bus1_cfg);
 }
 
-err_h sys_io_static_config(void) {
-  SE_ORIGIN_CALL(d_gpio_esp_create(&(d_gpio_esp_cfg_t){
-      .device_id = DEVICE_ID_GPIO_ESP,
-  }));
-  // SE_ORIGIN_CALL(d_tca6424a_create(&(d_tca6424a_cfg_t){
-  //     .device_id = DEVICE_ID_TCA6424A,
-  //     .i2c_bus = SYS_I2C_BUS_INTERNAL,
-  //     .i2c_addr = 0x23,
-  //     .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 9, SYS_IO_MODE_INPUT),
-  //     .rst_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 8, SYS_IO_MODE_OUTPUT_PUSH_PULL),
-  // }));
-  SE_ORIGIN_CALL(d_pca9685_create(&(d_pca9685_cfg_t){
-      .device_id = DEVICE_ID_PCA9685,
-      .i2c_bus = SYS_I2C_BUS_INTERNAL,
-      .i2c_addr = 0x60,
-      .oe_pin = SYS_IO_PIN_NONE,  // rev 1.0: OE not driven by the expander
-  }));
-  // SE_ORIGIN_CALL(d_dac53202_create(&(d_dac53202_cfg_t){
-  //     .device_id = DEVICE_ID_DAC53202,
-  //     .i2c_bus = SYS_I2C_BUS_INTERNAL,
-  //     .i2c_addr = 0x13,
-  // }));
-  ESP_LOGI("static_config", "io initialized");
-  return NULL;
-}
-/*Static definition of power devices (board mounted)*/
+/*System-level power budget config (board mounted) - device creation lives in runit_board_devices.h*/
 err_h sys_power_static_config(void) {
   SE_ORIGIN_CALL(sys_power_set_limits(RUNIT_BOARD_POWER_LIMIT_MV, RUNIT_BOARD_POWER_LIMIT_MA, RUNIT_BOARD_POWER_BUDGET_MW));
-  // SE_ORIGIN_CALL(d_tps55289_create(&(d_tps55289_cfg_t){
-  //     .device_id = DEVICE_ID_TPS55289_0,
-  //     .i2c_bus = SYS_I2C_BUS_INTERNAL,
-  //     .i2c_addr = 0x74,
-  //     .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 1, SYS_IO_MODE_INPUT),
-  //     .en_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 17, SYS_IO_MODE_OUTPUT_PUSH_PULL),
-  // }));
-  // SE_ORIGIN_CALL(d_tps55289_create(&(d_tps55289_cfg_t){
-  //     .device_id = DEVICE_ID_TPS55289_1,
-  //     .i2c_bus = SYS_I2C_BUS_INTERNAL,
-  //     .i2c_addr = 0x75,
-  //     .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 2, SYS_IO_MODE_INPUT),
-  //     .en_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 16, SYS_IO_MODE_OUTPUT_PUSH_PULL),
-  // }));
-  // SE_ORIGIN_CALL(d_ina3221_create(&(d_ina3221_cfg_t){
-  //     .device_id = DEVICE_ID_INA3221,
-  //     .i2c_bus = SYS_I2C_BUS_INTERNAL,
-  //     .i2c_addr = 0x60,
-  //     .crit_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 5, SYS_IO_MODE_INPUT),
-  //     .warn_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 6, SYS_IO_MODE_INPUT),
-  // }));
-  // SE_ORIGIN_CALL(d_ap33772s_create(&(d_ap33772s_cfg_t){
-  //     .device_id = DEVICE_ID_AP33772S,
-  //     .i2c_bus = SYS_I2C_BUS_INTERNAL,
-  //     .i2c_addr = 0x14,
-  //     .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 12, SYS_IO_MODE_INPUT),
-  // }));
-  ESP_LOGI("static_config", "power initialized");
+  ESP_LOGI("static_config", "power limits configured");
   return NULL;
 }
 

@@ -25,11 +25,24 @@ typedef struct {
 } sys_power_device_t;
 
 static sys_power_budget_t s_budget = {0};
-static sys_power_device_t s_power_registry[MAX_DEVICE_ID + 1] = {0};
+static sys_power_device_t s_power_registry[CONFIG_SYS_DEVICE_MAX_ID + 1] = {0};
 
-static uint32_t s_power_limit_mv = 21000;
-static uint32_t s_power_limit_ma = 5500;
-static uint32_t s_power_budget_mw = 115500;
+#include <sdkconfig.h>
+
+// Dummy callback-event handler for SYS_CB_ROUTE_PWR - logs and nothing else,
+// a placeholder until sys_power has something real to route PWR events to.
+static void sys_power_cb_dummy_log(const cb_event_t* event) {
+  if (event->head.callback_type != CALLBACK_PWR) return;
+  ESP_LOGI(TAG, "PWR event: device %u, channel %u, event %u, val %ld", event->event.pwr.device_id, event->event.pwr.channel_id, event->event.pwr.trigger_event, (long)event->event.pwr.trigger_value);
+}
+
+__attribute__((constructor)) static void sys_power_cb_route_register(void) {
+  sys_cb_register_route(SYS_CB_ROUTE_PWR, sys_power_cb_dummy_log);
+}
+
+static uint32_t s_power_limit_mv = CONFIG_SYS_POWER_DEFAULT_LIMIT_MV;
+static uint32_t s_power_limit_ma = CONFIG_SYS_POWER_DEFAULT_LIMIT_MA;
+static uint32_t s_power_budget_mw = CONFIG_SYS_POWER_DEFAULT_BUDGET_MW;
 static bool s_limits_locked = false;
 
 uint32_t sys_power_get_limit_mv(void) {
@@ -87,7 +100,7 @@ void sys_power_budget_reset(void) {
   s_budget.total_budget_mW = 0;
   s_budget.allocated_mW = 0;
 
-  for (int i = 0; i <= MAX_DEVICE_ID; i++) {
+  for (int i = 0; i <= CONFIG_SYS_DEVICE_MAX_ID; i++) {
     s_power_registry[i].target_mV = 0;
     s_power_registry[i].target_mA = 0;
     s_power_registry[i].allocated_mW = 0;
@@ -173,8 +186,8 @@ err_h sys_vreg_set_current(uint8_t device_id, uint32_t current_mA) {
 
 #undef OWNER
 #define OWNER OWNER_SYS_VREG_ADD_CALLBACK
-err_h sys_vreg_add_callback(uint8_t device_id, sys_power_events_e on_event, uint16_t route_mask) {
-  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_VREG, sys_power_vreg_contract, add_callback, on_event, route_mask);
+err_h sys_vreg_add_callback(uint8_t device_id, sys_power_events_e on_event, uint16_t route_mask, uint64_t action_mask) {
+  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_VREG, sys_power_vreg_contract, add_callback, on_event, route_mask, action_mask);
 }
 
 /* ========================================================================== *
@@ -197,8 +210,8 @@ err_h sys_power_monitor_get_current(uint8_t device_id, uint8_t channel, int32_t*
 
 #undef OWNER
 #define OWNER OWNER_SYS_POWER_MONITOR_ADD_CALLBACK
-err_h sys_power_monitor_add_callback(uint8_t device_id, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, uint16_t route_mask) {
-  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_MONITOR, sys_power_monitor_contract, add_callback, channel, trigger_value, on_event, route_mask);
+err_h sys_power_monitor_add_callback(uint8_t device_id, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, uint16_t route_mask, uint64_t action_mask) {
+  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_MONITOR, sys_power_monitor_contract, add_callback, channel, trigger_value, on_event, route_mask, action_mask);
 }
 
 /* ========================================================================== *

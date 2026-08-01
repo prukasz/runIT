@@ -10,9 +10,7 @@ static const char* TAG = __FILE_NAME__;
 #define OWNER OWNER_SYS_BUFF_INIT
 err_h sys_buff_init(sys_buff_t* buff, uint8_t header, size_t size) {
   SE_CHECK_NOT_NULL(buff);
-  if (size == 0) {
-    SE_RET_ERR(ERR_INVALID_VAL_UI32, 0, 1, UINT32_MAX);
-  }
+  SE_CHECK_IN_RANGE(size, 1, UINT32_MAX);
 
   buff->header = header;
   buff->truncated = 0;
@@ -51,9 +49,7 @@ err_h sys_buff_push(sys_buff_t* buff, const void* data, size_t len, uint32_t wai
    counts items that don't fit past prefix within max_size. */
 static err_h sys_buff_pop(sys_buff_t* buff, uint8_t* buffer, size_t max_size, bool with_header, size_t* out_len) {
   size_t prefix = with_header ? 1 : 0;
-  if (max_size < prefix + 1) {
-    SE_RET_ERR(ERR_INVALID_VAL_UI32, max_size, 1, UINT32_MAX);
-  }
+  SE_CHECK_IN_RANGE(max_size, prefix + 1, UINT32_MAX);
 
   size_t item_size = 0;
   void* item = xRingbufferReceive(buff->buff, &item_size, 0);

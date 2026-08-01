@@ -27,14 +27,7 @@
  * the registered handler, so a handler always sees `0xYY` at `data[0]`.
  */
 
-/** @brief Maximum number of class handlers registrable at once. */
-#define SYS_INTERFACE_MAX_CLASSES 8
-
-/** @brief Maximum number of RX frame sources registrable at once (see sys_interface_register_rx_source()). */
-#define SYS_INTERFACE_MAX_RX_SOURCES 4
-
-/** @brief Largest frame any registered RX source can produce. */
-#define SYS_INTERFACE_RX_FRAME_CAP 512
+#include <sdkconfig.h>
 
 /**
  * @brief Class handler signature.

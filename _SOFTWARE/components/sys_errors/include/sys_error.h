@@ -47,6 +47,18 @@ err_h SE_alloc_bytes(size_t payload_size, err_tag_e tag, uint32_t owner);
 // Pushes the final error chain to the error handler task/queue
 void SE_push_to_handler(err_h err);
 
+/**
+ * @brief Hook the error handler task calls for the first device-owned node
+ * found in a chain it's about to print/send (see sys_error_handler.c) - lets
+ * sys_device dispatch to that device's own error handling without sys_errors
+ * depending on sys_device (which already depends on sys_errors, so the
+ * reverse would be circular). Registered once via
+ * SE_register_device_error_hook(), typically from a load-time constructor
+ * per the [[runit]] skill's static-construction convention.
+ */
+typedef err_h (*se_device_error_hook_t)(uint8_t device_id, err_h error);
+void SE_register_device_error_hook(se_device_error_hook_t hook);
+
 // Suspend/Resume error processing
 void SE_suspend(void);
 void SE_resume(void);

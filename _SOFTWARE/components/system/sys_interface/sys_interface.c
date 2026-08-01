@@ -11,14 +11,9 @@
 
 static const char* TAG = "sys_interface";
 
-/** @brief Stack depth of the shared RX receiver task. */
-#define SYS_INTERFACE_RX_TASK_STACK 4096
-/** @brief Priority of the shared RX receiver task. */
-#define SYS_INTERFACE_RX_TASK_PRIO 5
-/** @brief Wait/poll period: how long the receiver blocks on the wake semaphore before re-checking every source anyway. */
-#define SYS_INTERFACE_RX_WAIT_MS 100
+#include <sdkconfig.h>
 
-R_TASK_DEFINE(s_interface_rx_task_handle, SYS_INTERFACE_RX_TASK_STACK);
+R_TASK_DEFINE(s_interface_rx_task_handle, CONFIG_SYS_INTERFACE_RX_TASK_STACK_SIZE);
 
 // Owned by sys_interface (not any one transport) so any producer can share
 // it - see sys_interface_get_rx_wake_sem().
@@ -32,7 +27,7 @@ typedef struct {
 
 // Classes are only ever appended (0..s_class_count-1), never removed - setup-
 // only bookkeeping, so a plain count replaces the old in_use-flag + free-slot scan.
-static sys_interface_class_t s_classes[SYS_INTERFACE_MAX_CLASSES];
+static sys_interface_class_t s_classes[CONFIG_SYS_INTERFACE_MAX_CLASSES];
 static size_t s_class_count = 0;
 
 // Tap buffer: populated only by the receiver task (see sys_interface_receiver_task()),
@@ -69,9 +64,9 @@ typedef struct {
 // Sources are only ever appended (0..s_rx_source_count-1), never removed -
 // same plain-count shape as s_classes[] above, for the same reason (setup-time
 // bookkeeping, no need for a free-slot scan or unregister).
-static sys_interface_rx_source_t s_rx_sources[SYS_INTERFACE_MAX_RX_SOURCES];
+static sys_interface_rx_source_t s_rx_sources[CONFIG_SYS_INTERFACE_MAX_RX_SOURCES];
 static size_t s_rx_source_count = 0;
-static uint8_t s_rx_frames[SYS_INTERFACE_MAX_RX_SOURCES][SYS_INTERFACE_RX_FRAME_CAP];
+static uint8_t s_rx_frames[CONFIG_SYS_INTERFACE_MAX_RX_SOURCES][CONFIG_SYS_INTERFACE_RX_FRAME_CAP];
 
 #undef OWNER
 #define OWNER OWNER_SYS_INTERFACE_DECODE
@@ -112,7 +107,7 @@ err_h sys_interface_register_class(uint8_t class_header, sys_interface_handler_f
       SE_RET_ERR(ERR_INTERFACE_CLASS_TAKEN, .class_header = class_header);
     }
   }
-  if (s_class_count >= SYS_INTERFACE_MAX_CLASSES) {
+  if (s_class_count >= CONFIG_SYS_INTERFACE_MAX_CLASSES) {
     SE_RET_ERR(ERR_INTERFACE_NO_CLASS_SLOTS, .class_header = class_header);
   }
 
@@ -181,7 +176,7 @@ static void sys_interface_receiver_task(void* arg) {
   ESP_LOGI(TAG, "RX receiver started");
 
   while (1) {
-    BaseType_t got_signal = xSemaphoreTake(s_rx_wake_sem, pdMS_TO_TICKS(SYS_INTERFACE_RX_WAIT_MS));
+    BaseType_t got_signal = xSemaphoreTake(s_rx_wake_sem, pdMS_TO_TICKS(CONFIG_SYS_INTERFACE_RX_WAIT_MS));
 
     if (sys_interface_is_rx_suspended()) {
       // give time for other users but still mark that packet not processes
@@ -198,7 +193,11 @@ static void sys_interface_receiver_task(void* arg) {
       // drain evertyhing empty
       while (1) {
         size_t len = 0;
-        if (SE_IS_ERR(src->dequeue_fn(src->ctx, src->frame, src->max_frame_len, &len))) break;
+        err_h dq_err = src->dequeue_fn(src->ctx, src->frame, src->max_frame_len, &len);
+        if (SE_IS_ERR(dq_err)) {
+          SE_ORIGIN_CALL(dq_err);
+          break;
+        }
         if (len == 0) break;
 
         ESP_LOGI(TAG, "RX frame [%u bytes] from source %s", (unsigned)len, src->name ? src->name : "unnamed");
@@ -218,10 +217,8 @@ static void sys_interface_receiver_task(void* arg) {
 
 err_h sys_interface_register_rx_source(sys_interface_rx_dequeue_f dequeue_fn, void* ctx, size_t max_frame_len, const char* name) {
   SE_CHECK_NOT_NULL(dequeue_fn);
-  if (max_frame_len == 0 || max_frame_len > SYS_INTERFACE_RX_FRAME_CAP) {
-    SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = (uint32_t)max_frame_len, .min = 1, .max = SYS_INTERFACE_RX_FRAME_CAP);
-  }
-  if (s_rx_source_count >= SYS_INTERFACE_MAX_RX_SOURCES) {
+  SE_CHECK_IN_RANGE(max_frame_len, 1, CONFIG_SYS_INTERFACE_RX_FRAME_CAP);
+  if (s_rx_source_count >= CONFIG_SYS_INTERFACE_MAX_RX_SOURCES) {
     SE_RET_ERR(ERR_INTERFACE_NO_SOURCE_SLOTS, 0);
   }
 
@@ -236,7 +233,7 @@ err_h sys_interface_register_rx_source(sys_interface_rx_dequeue_f dequeue_fn, vo
   s_rx_source_count++;
 
   if (s_interface_rx_task_handle == NULL) {
-    R_TASK_START(s_interface_rx_task_handle, sys_interface_receiver_task, NULL, SYS_INTERFACE_RX_TASK_PRIO);
+    R_TASK_START(s_interface_rx_task_handle, sys_interface_receiver_task, NULL, CONFIG_SYS_INTERFACE_RX_TASK_PRIO);
     if (s_interface_rx_task_handle == NULL) {
       s_rx_source_count--;  // roll back - nothing will ever drain this slot otherwise
       SE_RET_ERR(ERR_BASE_NO_MEM, 0);

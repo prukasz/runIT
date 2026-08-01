@@ -28,6 +28,7 @@ typedef struct ap_adapter_ctx_t {
   bool is_enabled;
 
   uint16_t route_mask;
+  uint64_t action_mask;
 } ap_adapter_ctx_t;
 
 enum { AP33772S_STEP_I2C_ADDED = 0, AP33772S_STEP_INTR_READY = 1 };
@@ -113,10 +114,11 @@ static err_h d_ap33772s_set_current(void* device_handle, uint32_t current_mA) {
   return negotiate_pdo(ctx, ctx->last_voltage_mv, ctx->last_current_ma);
 }
 
-static err_h d_ap33772s_add_callback(void* device_handle, sys_power_events_e on_event, uint16_t route_mask) {
+static err_h d_ap33772s_add_callback(void* device_handle, sys_power_events_e on_event, uint16_t route_mask, uint64_t action_mask) {
   ap_adapter_ctx_t* ctx = (ap_adapter_ctx_t*)device_handle;
   SE_CHECK_HANDLE(ctx);
   ctx->route_mask = route_mask;
+  ctx->action_mask = action_mask;
   return NULL;
 }
 
@@ -252,9 +254,25 @@ static err_h adapter_reset_device(void* driver_handle) {
 }
 
 static err_h adapter_error_handler(void* driver_handle, err_h error) {
-  if (!error) return NULL;
-  ESP_LOGE(TAG, "AP33772S Error: owner=%u, tag=%d", (unsigned int)error->owner, (int)error->tag);
-  return error;
+  ap_adapter_ctx_t* ctx = (ap_adapter_ctx_t*)driver_handle;
+  SYS_DEV_CHECK_HANDLE(ctx, 0);
+  sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(ctx));
+  if (!dev) return NULL;
+
+  if (dev->generate_error_callback) {
+    // TODO: report to the VM via the callback system. Payload should carry
+    // at least: device_id, and the root cause's tag/owner - walk
+    // error->next_cause to the end, since a wrapper like ERR_DEV_DEP_FAILED
+    // only carries dev_id, not the underlying failure's tag/owner. Always
+    // attach device_id explicitly (the root cause itself may not carry one).
+    return NULL;
+  }
+
+  if (dev->use_error_handler) {
+    // TODO: classify `error` into a sys_device_err_level_e (critical/
+    // warning/notice) and sys_actions_invoke(dev->actions[level]).
+  }
+  return NULL;
 }
 
 static err_h adapter_suspend_device(void* driver_handle) {

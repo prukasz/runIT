@@ -3,8 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "sys_error.h"
-
-#define MAX_DEVICE_ID 127
+#include <sdkconfig.h>
 typedef enum { SYS_DEVICE_CONTRACT_IO = 0, SYS_DEVICE_CONTRACT_POWER_VREG = 1, SYS_DEVICE_CONTRACT_POWER_MONITOR = 2, SYS_DEVICE_CONTRACT_POWER_USB_PD = 3, SYS_DEVICE_CONTRACT_MAX = 4 } sys_device_contract_type_e;
 
 /*Lifecycle callbacks, shared by every instance of a device type*/
@@ -48,6 +47,18 @@ typedef enum sys_device_state_e {
 } sys_device_state_e;
 
 /**
+ * @brief Severity level a device's own cls->ops.error_handler classifies an
+ * error into, selecting which of sys_device_t.actions[] to invoke. Only
+ * meaningful when sys_device_t.use_error_handler is set - see
+ * sys_device_report_error().
+ */
+typedef enum sys_device_err_level_e {
+  SYS_DEV_ERR_CRITICAL = 0,
+  SYS_DEV_ERR_WARNING = 1,
+  SYS_DEV_ERR_NOTICE = 2,
+} sys_device_err_level_e;
+
+/**
  * @brief Main device object with all necessary data and structures
  */
 typedef struct sys_device_t {
@@ -59,6 +70,13 @@ typedef struct sys_device_t {
 
   sys_device_state_e state;
   void* device_handle;
+
+  /**
+   * @brief Per-instance error handling mode - see sys_device_report_error().
+   */
+  uint8_t actions[3];           /* sys_actions ids indexed by sys_device_err_level_e; only consulted when use_error_handler is set */
+  bool use_error_handler;       /* true: cls->ops.error_handler classifies the error and invokes actions[level] */
+  bool generate_error_callback; /* true: cls->ops.error_handler reports to the VM via callback instead - takes priority over use_error_handler */
 } sys_device_t;
 
 /**
@@ -99,6 +117,50 @@ err_h sys_device_freeze_all(void);
 err_h sys_device_sync_all(void);
 
 sys_device_t* sys_device_get_by_id(uint8_t device_id);
+
+/**
+ * @brief Report an error that occurred on device_id to that device's own
+ * error handling, per its per-instance flags:
+ *
+ * - generate_error_callback set: cls->ops.error_handler is expected to only
+ *   report the error to the VM via the callback system and return -
+ *   use_error_handler/actions[] are not consulted. Takes priority over
+ *   use_error_handler when both happen to be set.
+ * - use_error_handler set (and generate_error_callback is not): cls->ops.error_handler
+ *   is expected to classify error into a sys_device_err_level_e and invoke
+ *   sys_actions_invoke(dev->actions[level]).
+ * - Neither flag set, device_id not found, or no error_handler bound: no-op,
+ *   returns NULL.
+ *
+ * Classification and the actual callback/action dispatch are the per-adapter
+ * error_handler's job (an empty stub in every adapter for now, ready to be
+ * filled in) - sys_device only owns the flag check and the call-through,
+ * since it cannot depend on sys_actions or the callbacks system itself
+ * (both already depend on sys_device, so the reverse would be circular).
+ *
+ * @return err_h Whatever cls->ops.error_handler returns, or NULL.
+ */
+err_h sys_device_report_error(uint8_t device_id, err_h error);
+
+/**
+ * @brief Set device_id's per-instance error handling mode in one call - see
+ * sys_device_t and sys_device_report_error(). Deliberately one function
+ * covering all three fields together (rather than a setter per field) so it
+ * maps 1:1 onto a single future wire packet - decoders in this codebase are
+ * one layer deep, each packet handler making exactly one API call with the
+ * packet's fields as arguments (see [[CODECS.MD]]).
+ *
+ * @param device_id Target device; must already be registered.
+ * @param use_error_handler New value for sys_device_t.use_error_handler.
+ * @param generate_error_callback New value for sys_device_t.generate_error_callback.
+ * @param actions Copied into dev->actions[3]; each entry must be
+ *                < CONFIG_SYS_ACTIONS_ID_SPACE. Pass NULL to leave
+ *                actions[] zeroed (equivalent to {0, 0, 0}).
+ * @return err_h NULL on success, ERR_DEV_NOT_FOUND if device_id isn't
+ *               registered, or ERR_INVALID_VAL_UI32 if an actions[] entry is
+ *               out of range.
+ */
+err_h sys_device_set_error_handling(uint8_t device_id, bool use_error_handler, bool generate_error_callback, const uint8_t actions[3]);
 
 /* ========================================================================== *
  * Field accessors - helpers

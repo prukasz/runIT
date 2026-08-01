@@ -16,10 +16,7 @@
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 #include "sys_buffers.h"
-
-#define CONFIG_PRIORITY_BLE_MANAGER_TASK 5
-#define BLE_TASK_STACK_SIZE 4096
-#define MAX_TOTAL_TX_SLOTS 24
+#include <sdkconfig.h>
 
 #define BLE_GAP_APPEARANCE_GENERIC_TAG 0x0200
 
@@ -40,7 +37,7 @@ typedef struct sys_ble_char_node {
   own_func_t rx_handler;            // Optional: dispatched via SYS_CB_OWN() on each RX write, in addition to rx_buff/rx_notify_sem
 
   // TX buffers
-  sys_ble_tx_slot_t tx_slots[MAX_TX_BUFFERS];
+  sys_ble_tx_slot_t tx_slots[CONFIG_SYS_BLE_MAX_TX_BUFFERS];
   uint8_t tx_slot_count;
 
   // Dynamic (re)compile bookkeeping - see sys_ble_database_sync()
@@ -54,7 +51,7 @@ typedef struct sys_ble_svc_node {
   sys_ble_svc_cfg_t cfg;
   sys_ble_char_node_t* chars;
   bool registered;
-  bool dirty;  // true when a characteristic was added/removed while registered == true; tells sync() to recompile
+  bool dirty;                             // true when a characteristic was added/removed while registered == true; tells sync() to recompile
   struct ble_gatt_svc_def* compiled_def;  // Heap allocated for this specific service
   struct sys_ble_svc_node* next;
 } sys_ble_svc_node_t;
@@ -67,6 +64,7 @@ typedef struct {
 typedef struct {
   sys_ble_svc_node_t* services;
   uint16_t route_masks[SYS_BLE_EVENT_MAX];
+  uint64_t action_masks[SYS_BLE_EVENT_MAX]; /* Bitmask of sys_actions ids to invoke per event: 0 means none */
   bool initialized;
   bool driver_started;
   uint16_t conn_handle;
@@ -75,7 +73,7 @@ typedef struct {
   uint32_t rx_overflow_count;
 
   // Flat compiled active TX slots
-  sys_ble_active_slot_t tx_slots[MAX_TOTAL_TX_SLOTS];
+  sys_ble_active_slot_t tx_slots[CONFIG_SYS_BLE_MAX_TOTAL_TX_SLOTS];
   uint8_t tx_slot_count;
 
   // Pointer to compiled GATT database definitions for initial cleanup
@@ -101,32 +99,31 @@ err_h sys_ble_advertising_init(void);
 err_h populate_svc_def(struct ble_gatt_svc_def* svc_def, const sys_ble_svc_node_t* s);
 err_h sys_ble_set_name(const char* name);
 
-
 #define CHECK_BLE_CALL(nimble_call)                                                               \
   do {                                                                                            \
     int __rc = (nimble_call);                                                                     \
     if (__rc != 0) {                                                                              \
       ESP_LOGE(__FILE_NAME__, "%s: NimBLE call failed '%s' -> %d", __func__, #nimble_call, __rc); \
-      SE_RET_ERR(ERR_BLE_STACK_FAILED, __rc);                                                        \
+      SE_RET_ERR(ERR_BLE_STACK_FAILED, __rc);                                                     \
     }                                                                                             \
   } while (0)
 
-#define CHECK_BLE_CHAR_FIND(var, uuid, mutex_unlock)                                                  \
-  do {                                                                                                 \
-    (var) = sys_ble_find_char_by_uuid(uuid);                                                          \
-    if ((var) == NULL) {                                                                               \
-      ESP_LOGE(__FILE_NAME__, "%s: Characteristic UUID 0x%04X not found", __func__, (uuid));          \
-      if (mutex_unlock) R_MUTEX_UNLOCK(sys_ble_mutex);                                                \
-      SE_RET_ERR(ERR_BASE_NOT_FOUND, uuid);                                                              \
-    }                                                                                                  \
+#define CHECK_BLE_CHAR_FIND(var, uuid, mutex_unlock)                                         \
+  do {                                                                                       \
+    (var) = sys_ble_find_char_by_uuid(uuid);                                                 \
+    if ((var) == NULL) {                                                                     \
+      ESP_LOGE(__FILE_NAME__, "%s: Characteristic UUID 0x%04X not found", __func__, (uuid)); \
+      if (mutex_unlock) R_MUTEX_UNLOCK(sys_ble_mutex);                                       \
+      SE_RET_ERR(ERR_BASE_NOT_FOUND, uuid);                                                  \
+    }                                                                                        \
   } while (0)
 
-#define CHECK_BLE_SVC_FIND(var, uuid, mutex_unlock)                                                   \
-  do {                                                                                                 \
-    (var) = sys_ble_find_svc_by_uuid(uuid);                                                           \
-    if ((var) == NULL) {                                                                               \
-      ESP_LOGE(__FILE_NAME__, "%s: Service UUID 0x%04X not found", __func__, (uuid));                 \
-      if (mutex_unlock) R_MUTEX_UNLOCK(sys_ble_mutex);                                                \
-      SE_RET_ERR(ERR_BASE_NOT_FOUND, uuid);                                                              \
-    }                                                                                                  \
+#define CHECK_BLE_SVC_FIND(var, uuid, mutex_unlock)                                   \
+  do {                                                                                \
+    (var) = sys_ble_find_svc_by_uuid(uuid);                                           \
+    if ((var) == NULL) {                                                              \
+      ESP_LOGE(__FILE_NAME__, "%s: Service UUID 0x%04X not found", __func__, (uuid)); \
+      if (mutex_unlock) R_MUTEX_UNLOCK(sys_ble_mutex);                                \
+      SE_RET_ERR(ERR_BASE_NOT_FOUND, uuid);                                           \
+    }                                                                                 \
   } while (0)

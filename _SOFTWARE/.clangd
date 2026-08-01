@@ -48,7 +48,6 @@ CompileFlags:
             -IC:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/ble/include,
             -IC:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/sys_interface/include,
             -IC:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/sys_buffers/include,
-            -IC:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/sys_states/include,
             -IC:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/sys_actions/include,
             -IC:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/system/callbacks/include,
             -IC:/Users/krolp/Documents/runIT_main/_SOFTWARE/components/sys_errors/include,

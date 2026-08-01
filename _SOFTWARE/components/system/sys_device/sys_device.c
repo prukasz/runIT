@@ -11,7 +11,16 @@ static const char* TAG = __FILE_NAME__;
 /*Registry mutations (install / uninstall) are init/config context only.
   Reads are lock-free: sys_device_get_by_id() sits on the hot dispatch path and
   is reachable from ISR-adjacent code, where a mutex cannot be taken.*/
-static sys_device_t* s_device_registry[MAX_DEVICE_ID + 1] = {NULL};
+static sys_device_t* s_device_registry[CONFIG_SYS_DEVICE_MAX_ID + 1] = {NULL};
+
+// Registers sys_device_report_error() as sys_errors' device-error hook (see
+// sys_error.h) at load time, per the [[runit]] skill's static-construction
+// convention - lets sys_error_handler_task dispatch device-owned chains
+// without sys_errors depending on sys_device (which already depends on
+// sys_errors, so the reverse would be circular).
+__attribute__((constructor)) static void sys_device_register_error_hook(void) {
+  SE_register_device_error_hook(sys_device_report_error);
+}
 
 #define DEV_OP(d, f) ((d)->cls->ops.f)
 #define DEV_NAME(d) ((d)->cls->name)
@@ -59,7 +68,7 @@ static sys_device_t* s_device_registry[MAX_DEVICE_ID + 1] = {NULL};
  * one; the rest only log on failure. */
 #define SYS_DEV_LIFECYCLE_OP_ALL(op_field, verb_gerund, verb_base, eligible_expr, log_before, new_state) \
   do {                                                                                                   \
-    for (int __i = 0; __i <= MAX_DEVICE_ID; __i++) {                                                     \
+    for (int __i = 0; __i <= CONFIG_SYS_DEVICE_MAX_ID; __i++) {                                                     \
       sys_device_t* __disp_dev = sys_device_get_by_id((uint8_t)__i);                                     \
       if (!__disp_dev || !(eligible_expr)) continue;                                                     \
       err_h (*__disp_fn)(void*) = DEV_OP(__disp_dev, op_field);                                          \
@@ -80,7 +89,7 @@ static sys_device_t* s_device_registry[MAX_DEVICE_ID + 1] = {NULL};
 err_h sys_device_install_cfg(const sys_device_class_t* cls, uint8_t device_id, const void* cfg, size_t cfg_size) {
   SE_CHECK_NOT_NULL(cls);
   SE_CHECK_NOT_NULL(cls->ops.install);
-  SE_CHECK_IN_RANGE(device_id, 0, MAX_DEVICE_ID);
+  SE_CHECK_IN_RANGE(device_id, 0, CONFIG_SYS_DEVICE_MAX_ID);
 
   if (s_device_registry[device_id] != NULL) {
     SE_RET_ERR(ERR_DEV_ALREADY_EXIST, device_id);
@@ -131,9 +140,43 @@ err_h sys_device_install_cfg(const sys_device_class_t* cls, uint8_t device_id, c
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_GET_BY_ID
 sys_device_t* sys_device_get_by_id(uint8_t device_id) {
-  if (device_id > MAX_DEVICE_ID) return NULL;
+  if (device_id > CONFIG_SYS_DEVICE_MAX_ID) return NULL;
   sys_device_t* found_device = s_device_registry[device_id];
   return found_device;
+}
+
+#undef OWNER
+#define OWNER OWNER_SYS_DEVICE_REPORT_ERROR
+err_h sys_device_report_error(uint8_t device_id, err_h error) {
+  sys_device_t* dev = sys_device_get_by_id(device_id);
+  if (!dev) return NULL;
+  if (!dev->generate_error_callback && !dev->use_error_handler) return NULL;
+  if (!dev->cls->ops.error_handler) return NULL;
+  return dev->cls->ops.error_handler(dev->device_handle, error);
+}
+
+#undef OWNER
+#define OWNER OWNER_SYS_DEVICE_SET_ERROR_HANDLING
+err_h sys_device_set_error_handling(uint8_t device_id, bool use_error_handler, bool generate_error_callback, const uint8_t actions[3]) {
+  sys_device_t* dev = sys_device_get_by_id(device_id);
+  if (!dev) {
+    SE_RET_ERR(ERR_DEV_NOT_FOUND, device_id);
+  }
+
+  if (actions) {
+    for (int i = 0; i < 3; i++) {
+      SE_CHECK_IN_RANGE(actions[i], 0, CONFIG_SYS_ACTIONS_ID_SPACE - 1);
+    }
+  }
+
+  dev->use_error_handler = use_error_handler;
+  dev->generate_error_callback = generate_error_callback;
+  if (actions) {
+    memcpy(dev->actions, actions, sizeof(dev->actions));
+  } else {
+    memset(dev->actions, 0, sizeof(dev->actions));
+  }
+  return NULL;
 }
 
 #undef OWNER
@@ -145,7 +188,7 @@ err_h sys_device_reset(uint8_t device_id) {
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_UNINSTALL
 err_h sys_device_uninstall(uint8_t device_id) {
-  SE_CHECK_IN_RANGE(device_id, 0, MAX_DEVICE_ID);
+  SE_CHECK_IN_RANGE(device_id, 0, CONFIG_SYS_DEVICE_MAX_ID);
 
   sys_device_t* dev = s_device_registry[device_id];
 
@@ -176,7 +219,7 @@ err_h sys_device_reset_all(void) {
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_UNINSTALL_ALL
 err_h sys_device_uninstall_all(void) {
-  for (int i = 0; i <= MAX_DEVICE_ID; i++) {
+  for (int i = 0; i <= CONFIG_SYS_DEVICE_MAX_ID; i++) {
     if (!s_device_registry[i]) continue;
     SE_RET_IF_ERR(sys_device_uninstall((uint8_t)i));
   }

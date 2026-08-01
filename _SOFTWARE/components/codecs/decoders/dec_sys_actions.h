@@ -13,7 +13,7 @@
  * sys_interface_decode(), which then hands the remaining bytes to
  * dec_sys_actions_decode() with data[0] == 0xYY.
  *
- * This table only carries the record/stop/remove/bind control packets - the
+ * This table only carries the record/stop/remove control packets - the
  * decoders are thin wrappers straight into sys_actions.h, same shape as
  * dec_sys_contracts.h wrapping sys_device/sys_io/sys_power.
  */
@@ -60,22 +60,10 @@ static inline err_h decoder_packet_sys_actions_remove_t(packet_sys_actions_remov
   return sys_actions_remove(packet->action_id);
 }
 
-#define HEADER_packet_sys_actions_bind_state_t 0x04
-typedef struct __packed {
-  uint8_t action_id;
-  uint8_t state; /* sys_state_e */
-} packet_sys_actions_bind_state_t;
-
-static inline err_h decoder_packet_sys_actions_bind_state_t(packet_sys_actions_bind_state_t* packet) {
-  ESP_LOGI(DEC_SYS_ACTIONS_TAG, "binding action %u to state %u", packet->action_id, packet->state);
-  return sys_actions_bind_state(packet->action_id, (sys_state_e)packet->state);
-}
-
 #define SYS_ACTIONS_PACKET_LIST(X)                                                                         \
   X(HEADER_packet_sys_actions_record_t, packet_sys_actions_record_t, decoder_packet_sys_actions_record_t)   \
   X(HEADER_packet_sys_actions_stop_t, packet_sys_actions_stop_t, decoder_packet_sys_actions_stop_t)         \
-  X(HEADER_packet_sys_actions_remove_t, packet_sys_actions_remove_t, decoder_packet_sys_actions_remove_t)   \
-  X(HEADER_packet_sys_actions_bind_state_t, packet_sys_actions_bind_state_t, decoder_packet_sys_actions_bind_state_t)
+  X(HEADER_packet_sys_actions_remove_t, packet_sys_actions_remove_t, decoder_packet_sys_actions_remove_t)
 
 #define SYS_ACTIONS_DECODE_CASE(header, packet_type, decoder_func)                  \
   case header: {                                                                   \
@@ -92,9 +80,8 @@ static inline err_h decoder_packet_sys_actions_bind_state_t(packet_sys_actions_b
  * @return err_h NULL on success, ERR_INTERFACE_UNKNOWN_PACKET for an unmapped
  *               header, or the decoder's own error chain.
  *
- * Examples:
- *   Start recording action 5:            `03 01 05`
- *   Bind action 5 to state 9 (EMERGENCY): `03 04 05 09`
+ * Example:
+ *   Start recording action 5: `03 01 05`
  */
 static inline err_h dec_sys_actions_decode(const uint8_t* data, size_t len) {
   if (len == 0) {

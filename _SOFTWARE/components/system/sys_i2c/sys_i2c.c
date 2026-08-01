@@ -66,18 +66,18 @@ err_h sys_i2c_device_present(void* hw_handle) {
   return NULL;
 }
 
-#define SYS_I2C_DEFAULT_TIMEOUT_MS 50
+#include <sdkconfig.h>
 
 esp_err_t sys_i2c_master_transmit(void* hw_handle, const uint8_t* write_buffer, size_t write_size) {
   if (!hw_handle) return ESP_ERR_INVALID_ARG;
   sys_i2c_driver_header_t* header = (sys_i2c_driver_header_t*)hw_handle;
   if (!header->i2c_master_dev_handle) return ESP_ERR_INVALID_STATE;
-  return i2c_master_transmit(header->i2c_master_dev_handle, write_buffer, write_size, SYS_I2C_DEFAULT_TIMEOUT_MS);
+  return i2c_master_transmit(header->i2c_master_dev_handle, write_buffer, write_size, CONFIG_SYS_I2C_DEFAULT_TIMEOUT_MS);
 }
 
 esp_err_t sys_i2c_master_transmit_receive(void* hw_handle, const uint8_t* write_buffer, size_t write_size, uint8_t* read_buffer, size_t read_size) {
   if (!hw_handle) return ESP_ERR_INVALID_ARG;
   sys_i2c_driver_header_t* header = (sys_i2c_driver_header_t*)hw_handle;
   if (!header->i2c_master_dev_handle) return ESP_ERR_INVALID_STATE;
-  return i2c_master_transmit_receive(header->i2c_master_dev_handle, write_buffer, write_size, read_buffer, read_size, SYS_I2C_DEFAULT_TIMEOUT_MS);
+  return i2c_master_transmit_receive(header->i2c_master_dev_handle, write_buffer, write_size, read_buffer, read_size, CONFIG_SYS_I2C_DEFAULT_TIMEOUT_MS);
 }

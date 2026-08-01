@@ -12,7 +12,6 @@
 #include "sys_error_ble.h"
 #include "sys_error_interface.h"
 #include "sys_error_buffers.h"
-#include "sys_error_states.h"
 #include "sys_error_actions.h"
 
 // Combine all error maps into one global map.
@@ -26,7 +25,6 @@
     SYS_ERROR_BLE_MAP(X) \
     SYS_ERROR_INTERFACE_MAP(X) \
     SYS_ERROR_BUFFERS_MAP(X) \
-    SYS_ERROR_STATES_MAP(X) \
     SYS_ERROR_ACTIONS_MAP(X)
 
 // Combine all owner maps
@@ -39,7 +37,6 @@
     SYS_BLE_OWNER_MAP(X) \
     SYS_INTERFACE_OWNER_MAP(X) \
     SYS_BUFFERS_OWNER_MAP(X) \
-    SYS_STATES_OWNER_MAP(X) \
     SYS_ACTIONS_OWNER_MAP(X) \
     PROVIDER_OWNER_MAP(X)
 

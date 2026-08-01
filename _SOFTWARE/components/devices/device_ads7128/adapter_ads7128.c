@@ -31,6 +31,7 @@ typedef struct ads_adapter_ctx_t {
 
   uint16_t cached_codes[PINS_COUNT];  // snapshot served while the device is frozen
   uint16_t route_masks[PINS_COUNT];
+  uint64_t action_masks[PINS_COUNT];
   sys_io_intr_mode_e intr_modes[PINS_COUNT];
   own_funct_t own_funcs[PINS_COUNT];
 } ads_adapter_ctx_t;
@@ -88,7 +89,7 @@ static err_h device_event_handler(void* handle, cb_event_t* event) {
     if (ctx->own_funcs[pin].own_func) {
       SYS_CB_OWN(ctx->own_funcs[pin]);
     } else {
-      SYS_IO_CB(ctx, pin, mode, (int32_t)code_to_mv(ctx, code), ctx->route_masks[pin]);
+      SYS_IO_CB(ctx, pin, mode, (int32_t)code_to_mv(ctx, code), ctx->route_masks[pin], ctx->action_masks[pin]);
     }
   }
 
@@ -134,6 +135,7 @@ static err_h contract_io_ads7128_configure_intr(void* handle, sys_io_pin_num_t p
 
   if (config->mode == SYS_IO_INTR_DISABLE) {
     ctx->route_masks[pin] = 0;
+    ctx->action_masks[pin] = 0;
     ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
     memset(&ctx->own_funcs[pin], 0, sizeof(own_funct_t));
     SYS_DEV_CHECK_DRIVER_CALL(ads_clear_alert_cfg(hw, pin), ctx);
@@ -159,6 +161,7 @@ static err_h contract_io_ads7128_configure_intr(void* handle, sys_io_pin_num_t p
   SYS_DEV_CHECK_DRIVER_CALL(ads_set_alert_cfg(hw, pin, &alert), ctx);
 
   ctx->route_masks[pin] = config->route_mask;
+  ctx->action_masks[pin] = config->action_mask;
   ctx->intr_modes[pin] = config->mode;
   ctx->own_funcs[pin] = config->own_func;
 
@@ -170,6 +173,7 @@ static err_h contract_io_ads7128_reset_pin(void* handle, sys_io_pin_num_t pin) {
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, PINS_MASK);
 
   ctx->route_masks[pin] = 0;
+  ctx->action_masks[pin] = 0;
   ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
   ctx->cached_codes[pin] = 0;
   memset(&ctx->own_funcs[pin], 0, sizeof(own_funct_t));
@@ -218,6 +222,7 @@ static err_h device_reset(void* handle) {
 
   for (uint8_t pin = 0; pin < PINS_COUNT; pin++) {
     ctx->route_masks[pin] = 0;
+    ctx->action_masks[pin] = 0;
     ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
     ctx->cached_codes[pin] = 0;
     memset(&ctx->own_funcs[pin], 0, sizeof(own_funct_t));
@@ -270,11 +275,25 @@ static err_h device_sync(void* handle) {
 }
 
 static err_h device_error_handler(void* handle, err_h error) {
-  if (!error) return NULL;
   ads_adapter_ctx_t* ctx = (ads_adapter_ctx_t*)handle;
   SYS_DEV_CHECK_HANDLE(ctx, 0);
-  ESP_LOGE(TAG, "ADS7128 Error: owner=%u, tag=%d for device ID %u", (unsigned int)error->owner, (int)error->tag, SYS_DEV_GET_ID(ctx));
-  return error;
+  sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(ctx));
+  if (!dev) return NULL;
+
+  if (dev->generate_error_callback) {
+    // TODO: report to the VM via the callback system. Payload should carry
+    // at least: device_id, and the root cause's tag/owner - walk
+    // error->next_cause to the end, since a wrapper like ERR_DEV_DEP_FAILED
+    // only carries dev_id, not the underlying failure's tag/owner. Always
+    // attach device_id explicitly (the root cause itself may not carry one).
+    return NULL;
+  }
+
+  if (dev->use_error_handler) {
+    // TODO: classify `error` into a sys_device_err_level_e (critical/
+    // warning/notice) and sys_actions_invoke(dev->actions[level]).
+  }
+  return NULL;
 }
 
 static err_h device_install(const void* cfg_blob, void** out_device_handle) {

@@ -74,6 +74,7 @@ typedef struct {
 typedef struct sys_io_intr_config_t {
   sys_io_intr_mode_e mode;  // Interrupt edge or threshold mode
   uint16_t route_mask;      // Callback event routing mask
+  uint64_t action_mask;     // Bitmask of sys_actions ids to invoke (bit i -> action id i); 0 means none
   own_funct_t own_func;     // Optional custom callback function pointer struct
   union {
     sys_io_adc_int_config_t adc; // ADC window threshold parameters
@@ -135,7 +136,7 @@ Pass an lvalue only — `(ref)` is evaluated more than once.
 * **`SYS_IO_REF_LOCK(ref)`** / **`SYS_IO_REF_UNLOCK(ref)`** / **`WITH_REF_UNLOCKED(ref)`**: Lock helpers addressed via the ref.
 
 ### Event Callback Macro
-* **`SYS_IO_CB(_ctx, _pin, _event, _value, _route_mask)`**: Constructs a `cb_event_t` with `CALLBACK_IO` type, populates the `io` payload fields (`device_id` taken from `(_ctx)->base.device_id`), and triggers `sys_callback_trigger`.
+* **`SYS_IO_CB(_ctx, _pin, _event, _value, _route_mask, _action_mask)`**: Constructs a `cb_event_t` with `CALLBACK_IO` type, populates the `io` payload fields (`device_id` taken from `(_ctx)->base.device_id`) plus `head.route_mask`/`head.action_id`, and triggers `sys_callback_trigger`. `_action_mask` is a bitmask of `sys_actions` ids (bit *i* selects action id *i*) carried through on `cb_event_t.head.action_id` — not yet dispatched to `sys_actions_invoke()` by `sys_cb_task` (see [[SYS_CALLBACKS.MD]]).
 
 ### Safety Lock Scopes
 Resolve the device's IO vtable via `sys_device_get_by_id()` / `SYS_DEV_GET_CONTRACT()`, so they operate directly on the published contract rather than a local copy.

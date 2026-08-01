@@ -1,0 +1,192 @@
+menu "System Configuration"
+
+    menu "BLE Manager Options"
+        config SYS_BLE_MANAGER_TASK_PRIO
+            int "BLE Manager Task Priority"
+            default 5
+            range 1 24
+            help
+              Priority of the BLE manager task.
+
+        config SYS_BLE_TASK_STACK_SIZE
+            int "BLE Task Stack Size (bytes)"
+            default 4096
+            range 1024 32768
+            help
+              Stack size in bytes for the BLE manager task.
+
+        config SYS_BLE_MAX_TOTAL_TX_SLOTS
+            int "Maximum Total Active BLE TX Slots"
+            default 24
+            range 1 128
+            help
+              Maximum compiled active TX slots in GATT database.
+
+        config SYS_BLE_MAX_TX_BUFFERS
+            int "Maximum TX Buffers per Characteristic"
+            default 3
+            range 1 16
+            help
+              Maximum TX buffers allocated per characteristic node.
+    endmenu
+
+    menu "Callbacks System Options"
+        config SYS_CB_QUEUE_LEN
+            int "Callback Event Queue Length"
+            default 16
+            range 4 256
+            help
+              Queue capacity for callback event dispatcher.
+
+        config SYS_CB_TASK_STACK_SIZE
+            int "Callback Task Stack Size (bytes)"
+            default 4096
+            range 1024 32768
+            help
+              Stack size in bytes for callback task.
+
+        config SYS_CB_TASK_PRIO
+            int "Callback Task Priority"
+            default 5
+            range 1 24
+            help
+              Priority of callback task.
+
+        config SYS_CB_ROUTE_COUNT
+            int "Callback Route Table Slots"
+            default 16
+            range 1 64
+            help
+              Route table size (number of callback routing slots).
+    endmenu
+
+    menu "System Actions Options"
+        config SYS_ACTIONS_TAP_BUFFER_SIZE
+            int "Actions Tap Buffer Size (bytes)"
+            default 1024
+            range 128 16384
+            help
+              Actions tap ring buffer capacity in bytes.
+
+        config SYS_ACTIONS_TAP_TASK_STACK
+            int "Actions Tap Task Stack Size (bytes)"
+            default 4096
+            range 1024 32768
+            help
+              Stack size in bytes for actions tap task.
+
+        config SYS_ACTIONS_TAP_TASK_PRIO
+            int "Actions Tap Task Priority"
+            default 4
+            range 1 24
+            help
+              Priority of actions tap task.
+
+        config SYS_ACTIONS_TAP_POLL_MS
+            int "Actions Tap Poll Interval (ms)"
+            default 20
+            range 1 1000
+            help
+              Polling interval in milliseconds for actions tap task.
+
+        config SYS_ACTIONS_ID_SPACE
+            int "Total Action ID Space Size"
+            default 64
+            range 8 256
+            help
+              Total action ID space (0..ID_SPACE-1).
+
+        config SYS_ACTIONS_STATIC_SLOTS
+            int "Static Action Slots Count"
+            default 16
+            range 1 64
+            help
+              Number of static action slots (0..STATIC_SLOTS-1).
+    endmenu
+
+    menu "System Device Options"
+        config SYS_DEVICE_MAX_ID
+            int "Maximum Device ID"
+            default 127
+            range 15 255
+            help
+              Maximum allowable device ID in system registry.
+    endmenu
+
+    menu "System I2C Options"
+        config SYS_I2C_DEFAULT_TIMEOUT_MS
+            int "Default I2C Timeout (ms)"
+            default 50
+            range 5 5000
+            help
+              Default timeout in ms for I2C master transmit/receive operations.
+    endmenu
+
+    menu "System Interface Options"
+        config SYS_INTERFACE_RX_TASK_STACK_SIZE
+            int "RX Receiver Task Stack Size (bytes)"
+            default 4096
+            range 1024 32768
+            help
+              Stack size in bytes for shared RX receiver task.
+
+        config SYS_INTERFACE_RX_TASK_PRIO
+            int "RX Receiver Task Priority"
+            default 5
+            range 1 24
+            help
+              Priority of shared RX receiver task.
+
+        config SYS_INTERFACE_RX_WAIT_MS
+            int "RX Receiver Task Wait/Poll Period (ms)"
+            default 100
+            range 10 1000
+            help
+              Wait/poll period in ms for RX receiver task.
+
+        config SYS_INTERFACE_MAX_CLASSES
+            int "Maximum Registered Class Handlers"
+            default 8
+            range 2 32
+            help
+              Maximum number of registered class handlers.
+
+        config SYS_INTERFACE_MAX_RX_SOURCES
+            int "Maximum Registered RX Sources"
+            default 4
+            range 1 16
+            help
+              Maximum number of registered RX frame sources.
+
+        config SYS_INTERFACE_RX_FRAME_CAP
+            int "Maximum RX Frame Capacity (bytes)"
+            default 512
+            range 64 4096
+            help
+              Maximum frame size accepted by RX receiver.
+    endmenu
+
+    menu "System Power Management Options"
+        config SYS_POWER_DEFAULT_LIMIT_MV
+            int "Default Power Voltage Limit (mV)"
+            default 21000
+            range 0 50000
+            help
+              Default system power voltage limit in mV.
+
+        config SYS_POWER_DEFAULT_LIMIT_MA
+            int "Default Power Current Limit (mA)"
+            default 5500
+            range 0 20000
+            help
+              Default system power current limit in mA.
+
+        config SYS_POWER_DEFAULT_BUDGET_MW
+            int "Default Power Budget Limit (mW)"
+            default 115500
+            range 0 1000000
+            help
+              Default system power budget limit in mW.
+    endmenu
+
+endmenu

@@ -60,7 +60,7 @@ typedef struct sys_power_vreg_contract {
   status_rep_t (*set_enable)(void* device_handle, bool state);
   status_rep_t (*set_voltage)(void* device_handle, uint32_t voltage_mV);
   status_rep_t (*set_current)(void* device_handle, uint32_t current_mA);
-  status_rep_t (*add_callback)(void* device_handle, sys_power_events_e on_event, uint16_t route_mask);
+  status_rep_t (*add_callback)(void* device_handle, sys_power_events_e on_event, uint16_t route_mask, uint64_t action_mask);
 } sys_power_vreg_contract;
 ```
 
@@ -70,7 +70,7 @@ Reads real-time telemetry and registers hardware alerts.
 typedef struct sys_power_monitor_contract {
   status_rep_t (*get_voltage)(void* device_handle, uint8_t channel, int32_t* out_mV);
   status_rep_t (*get_current)(void* device_handle, uint8_t channel, int32_t* out_mA);
-  status_rep_t (*add_callback)(void* device_handle, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, uint16_t route_mask);
+  status_rep_t (*add_callback)(void* device_handle, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, uint16_t route_mask, uint64_t action_mask);
 } sys_power_monitor_contract;
 ```
 
@@ -89,8 +89,8 @@ typedef struct sys_power_usb_pd_contract {
 ## Utility Macros
 
 ### Callback Trigger Macro
-* **`SYS_PWR_CB(_ctx, _chan, _event, _value, _route_mask)`**:
-  Constructs a `cb_event_t` with `CALLBACK_PWR` type, sets `pwr` payload parameters, and triggers `sys_callback_trigger`.
+* **`SYS_PWR_CB(_ctx, _chan, _event, _value, _route_mask, _action_mask)`**:
+  Constructs a `cb_event_t` with `CALLBACK_PWR` type, sets `pwr` payload parameters plus `head.route_mask`/`head.action_id`, and triggers `sys_callback_trigger`. `_action_mask` is a bitmask of `sys_actions` ids (bit *i* selects action id *i*) carried on `cb_event_t.head.action_id` — not yet dispatched to `sys_actions_invoke()` by `sys_cb_task` (see [[SYS_CALLBACKS.MD]]).
 
 ---
 
@@ -107,12 +107,12 @@ Device adapters publish their contracts declaratively via `sys_device_class_t.co
 * **`sys_vreg_set_enable(device_id, state)`**: Enables/disables target power rail.
 * **`sys_vreg_set_voltage(device_id, voltage_mV)`**: Updates regulator output voltage (subject to budget audit).
 * **`sys_vreg_set_current(device_id, current_mA)`**: Configures regulator current limit threshold.
-* **`sys_vreg_add_callback(device_id, on_event, route_mask)`**: Subscribes a callback route mask to hardware protection flags.
+* **`sys_vreg_add_callback(device_id, on_event, route_mask, action_mask)`**: Subscribes a callback route mask (and a `sys_actions` action_mask, carried through on the fired `cb_event_t.head.action_id`) to hardware protection flags.
 
 ### Telemetry (Monitor) APIs
 * **`sys_power_monitor_get_voltage(device_id, channel, out_mV)`**: Fetches channel voltage.
 * **`sys_power_monitor_get_current(device_id, channel, out_mA)`**: Fetches channel current.
-* **`sys_power_monitor_add_callback(device_id, channel, trigger_value, on_event, route_mask)`**: Sets telemetry threshold warnings.
+* **`sys_power_monitor_add_callback(device_id, channel, trigger_value, on_event, route_mask, action_mask)`**: Sets telemetry threshold warnings, and the `sys_actions` action_mask to carry on the fired event.
 
 ### USB Power Delivery (USB-PD) APIs
 * **`sys_power_usb_pd_set(device_id, voltage_mV, current_mA)`**: Initiates power negotiation request.

@@ -52,7 +52,7 @@ Up to `MAX_TX_BUFFERS` (3) TX ring buffers can be assigned per characteristic, e
 `sys_ble` characteristics are write/notify/indicate only — there is no `is_read` and no plain GATT-read support. `sys_ble_gatt_access_cb()` only ever handles `BLE_GATT_ACCESS_OP_WRITE_CHR`; nothing sets `BLE_GATT_CHR_F_READ`, so NimBLE never routes a read to it. An earlier version mirrored the last-sent TX payload back on read (`last_val`/`last_val_len`, one 527-byte buffer per characteristic node); it was removed since nothing in this codebase ever set `is_read`, and unlike notify/indicate it costs a `memcpy` on every single TX send whether or not the characteristic is readable. If a client genuinely needs pull-based "what's the current value" instead of subscribing to notifications, that's the tradeoff to weigh before reintroducing it - notify/indicate need an active subscription and only deliver on the server's schedule, while a GATT read needs no subscription and can be issued by the client at will (e.g. immediately after connecting, before the first notification fires).
 
 ### Stack-Level Callback Events
-`SYS_BLE_CB(event_id, event_value, mask)` posts a `CALLBACK_BLE` event for connect/disconnect/failure (`sys_ble_events_e`), routed through `sys_ble_add_callback()`'s stored `route_mask`. `sys_cb_task` dispatches it through the static route table (see [[SYS_CALLBACKS.MD]]): bit `SYS_CB_ROUTE_LOGGER` reaches the generic `ESP_LOGI` logger, bit `SYS_CB_ROUTE_BLE` reaches `sys_cb_route_ble()` (currently a stub — no BLE-specific routing logic yet).
+`SYS_BLE_CB(event_id, event_value, mask, action_mask)` posts a `CALLBACK_BLE` event for connect/disconnect/failure (`sys_ble_events_e`), routed through `sys_ble_add_callback()`'s stored `route_mask` / `action_mask`. `sys_cb_task` dispatches it through the static route table (see [[SYS_CALLBACKS.MD]]): bit `SYS_CB_ROUTE_LOGGER` reaches the generic `ESP_LOGI` logger, bit `SYS_CB_ROUTE_BLE` reaches `sys_cb_route_ble()` (currently a stub — no BLE-specific routing logic yet). `action_mask` is carried on the event's `head.action_id` (bitmask of `sys_actions` ids, bit *i* -> action id *i*) but `sys_cb_task` does not yet invoke `sys_actions` from it — the plumbing is in place, the dispatch isn't wired up yet.
 
 ---
 
@@ -112,7 +112,7 @@ typedef enum sys_ble_events_e { SYS_BLE_EVENT_CONNECT = 0, SYS_BLE_EVENT_DISCONN
 
 ## Utility Macros
 
-* **`SYS_BLE_CB(event_id, event_value, mask)`**: Constructs a `cb_event_t` with `CALLBACK_BLE` type and triggers it via `sys_callback_trigger` — used only for stack-level events (connect/disconnect/failure), not per-characteristic data.
+* **`SYS_BLE_CB(event_id, event_value, mask, action_mask)`**: Constructs a `cb_event_t` with `CALLBACK_BLE` type and triggers it via `sys_callback_trigger` — used only for stack-level events (connect/disconnect/failure), not per-characteristic data.
 
 ---
 
@@ -146,7 +146,7 @@ typedef enum sys_ble_events_e { SYS_BLE_EVENT_CONNECT = 0, SYS_BLE_EVENT_DISCONN
 
 ### Low-Level APIs (manual control — existing callers, still fully supported)
 * **`sys_ble_init()`**: Idempotent manager init.
-* **`sys_ble_add_callback(on_event, route_mask)`**: Registers a route mask for a stack-level `sys_ble_events_e`.
+* **`sys_ble_add_callback(on_event, route_mask, action_mask)`**: Registers a route mask and a `sys_actions` action_mask for a stack-level `sys_ble_events_e`.
 * **`sys_ble_service_create(cfg)`** / **`sys_ble_service_remove(svc_uuid)`**: Declare/remove a GATT service; remove deletes it live from NimBLE immediately if already registered.
 * **`sys_ble_char_create(svc_uuid, cfg)`** / **`sys_ble_char_remove(svc_uuid, char_uuid)`**: Declare/remove a characteristic under a service. If the parent service is already live, these mark it `dirty` (create) or defer the free via `pending_remove` (remove) rather than touching NimBLE directly — the next `sys_ble_database_sync()` call does the actual recompile.
 * **`sys_ble_char_assign_tx_buffer(char_uuid, buf_cfg)`**: Allocates a TX buffer slot keyed by `buf_cfg->header` (up to `MAX_TX_BUFFERS` per characteristic).

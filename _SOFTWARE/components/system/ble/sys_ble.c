@@ -7,6 +7,17 @@ sys_ble_ctx_t g_ble_ctx = {.mtu_size = 527};
 R_MUTEX_DEFINE(sys_ble_mutex);
 R_BINARY_SEM_DEFINE(sys_ble_tx_sem);
 
+// Dummy callback-event handler for SYS_CB_ROUTE_BLE - logs and nothing else,
+// a placeholder until ble has something real to route BLE stack events to.
+static void sys_ble_cb_dummy_log(const cb_event_t* event) {
+  if (event->head.callback_type != CALLBACK_BLE) return;
+  ESP_LOGI(TAG, "BLE event: event %lu, val %ld", (unsigned long)event->event.ble.event, (long)event->event.ble.value);
+}
+
+__attribute__((constructor)) static void sys_ble_cb_route_register(void) {
+  sys_cb_register_route(SYS_CB_ROUTE_BLE, sys_ble_cb_dummy_log);
+}
+
 /*****************************************************************************************/
 /* Helper Data Structure Management                                                      */
 /*****************************************************************************************/
@@ -39,7 +50,7 @@ void sys_ble_rebuild_active_tx_slots(void) {
     sys_ble_char_node_t* c;
     LL_FOREACH(s->chars, c) {
       for (int i = 0; i < c->tx_slot_count; i++) {
-        if (g_ble_ctx.tx_slot_count < MAX_TOTAL_TX_SLOTS) {
+        if (g_ble_ctx.tx_slot_count < CONFIG_SYS_BLE_MAX_TOTAL_TX_SLOTS) {
           g_ble_ctx.tx_slots[g_ble_ctx.tx_slot_count].slot = &c->tx_slots[i];
           g_ble_ctx.tx_slots[g_ble_ctx.tx_slot_count].chr = c;
           g_ble_ctx.tx_slot_count++;
@@ -77,13 +88,12 @@ err_h sys_ble_init(void) {
   return NULL;
 }
 
-err_h sys_ble_add_callback(sys_ble_events_e on_event, uint16_t route_mask) {
-  if (on_event >= SYS_BLE_EVENT_MAX) {
-    SE_RET_ERR(ERR_INVALID_VAL_UI32, 0, 1, UINT32_MAX);
-  }
+err_h sys_ble_add_callback(sys_ble_events_e on_event, uint16_t route_mask, uint64_t action_mask) {
+  SE_CHECK_IN_RANGE((uint32_t)on_event, 0, SYS_BLE_EVENT_MAX - 1);
 
   R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
   g_ble_ctx.route_masks[on_event] = route_mask;
+  g_ble_ctx.action_masks[on_event] = action_mask;
   R_MUTEX_UNLOCK(sys_ble_mutex);
 
   return NULL;
@@ -232,7 +242,7 @@ err_h sys_ble_char_assign_tx_buffer(uint16_t char_uuid, const sys_ble_tx_buf_cfg
   sys_ble_char_node_t* c = NULL;
   CHECK_BLE_CHAR_FIND(c, char_uuid, false);
 
-  if (c->tx_slot_count >= MAX_TX_BUFFERS) {
+  if (c->tx_slot_count >= CONFIG_SYS_BLE_MAX_TX_BUFFERS) {
     SE_RET_ERR(ERR_BASE_NO_MEM, char_uuid);
   }
 

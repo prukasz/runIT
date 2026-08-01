@@ -147,6 +147,20 @@ static inline err_h decoder_packet_sys_device_sync_all_t(packet_sys_device_sync_
   return sys_device_sync_all();
 }
 
+#define HEADER_packet_sys_device_set_error_handling_t 0x1A
+typedef struct __packed {
+  uint8_t device_id;
+  uint8_t use_error_handler;       // bool on the wire
+  uint8_t generate_error_callback; // bool on the wire
+  uint8_t actions[3];              // sys_actions ids, indexed by sys_device_err_level_e
+} packet_sys_device_set_error_handling_t;
+
+static inline err_h decoder_packet_sys_device_set_error_handling_t(packet_sys_device_set_error_handling_t* packet) {
+  ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "setting error handling (dev %u): use_error_handler=%d, generate_error_callback=%d, actions=[%u,%u,%u]", packet->device_id,
+           packet->use_error_handler != 0, packet->generate_error_callback != 0, packet->actions[0], packet->actions[1], packet->actions[2]);
+  return sys_device_set_error_handling(packet->device_id, packet->use_error_handler != 0, packet->generate_error_callback != 0, packet->actions);
+}
+
 // ==========================================================================
 // IO Control Packet decoders (0x20 - 0x2F)
 // ==========================================================================
@@ -403,6 +417,7 @@ static inline err_h decoder_packet_sys_power_usb_pd_get_limits_t(packet_sys_powe
   X(HEADER_packet_sys_device_sync_t, packet_sys_device_sync_t, decoder_packet_sys_device_sync_t)                                              \
   X(HEADER_packet_sys_device_freeze_all_t, packet_sys_device_freeze_all_t, decoder_packet_sys_device_freeze_all_t)                            \
   X(HEADER_packet_sys_device_sync_all_t, packet_sys_device_sync_all_t, decoder_packet_sys_device_sync_all_t)                                  \
+  X(HEADER_packet_sys_device_set_error_handling_t, packet_sys_device_set_error_handling_t, decoder_packet_sys_device_set_error_handling_t)     \
   X(HEADER_packet_sys_io_reset_t, packet_sys_io_reset_t, decoder_packet_sys_io_reset_t)                                                       \
   X(HEADER_packet_sys_io_set_mode_t, packet_sys_io_set_mode_t, decoder_packet_sys_io_set_mode_t)                                              \
   X(HEADER_packet_sys_io_set_level_t, packet_sys_io_set_level_t, decoder_packet_sys_io_set_level_t)                                           \
