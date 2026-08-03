@@ -7,8 +7,49 @@ from enum import IntEnum
 
 
 class DecoderClass(IntEnum):
+    SYS_ACTIONS = 0x03
     SYS_CONTRACTS = 0x01
 
+
+# ============================================================================
+# dec_sys_actions.h (class 0x03 - SYS_ACTIONS)
+# ============================================================================
+
+class packet_sys_actions_record_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("action_id", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_ACTIONS
+    _packet_header_ = 0x01
+    _action_name_ = "sys_actions_record"
+
+class packet_sys_actions_stop_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("action_id", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_ACTIONS
+    _packet_header_ = 0x02
+    _action_name_ = "sys_actions_stop"
+
+class packet_sys_actions_remove_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("action_id", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_ACTIONS
+    _packet_header_ = 0x03
+    _action_name_ = "sys_actions_remove"
+
+class packet_sys_actions_execute_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("action_id", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_ACTIONS
+    _packet_header_ = 0x04
+    _action_name_ = "sys_actions_execute"
 
 # ============================================================================
 # dec_sys_contracts.h (class 0x01 - SYS_CONTRACTS)
@@ -103,6 +144,18 @@ class packet_sys_device_sync_all_t(ct.LittleEndianStructure):
     _class_header_ = DecoderClass.SYS_CONTRACTS
     _packet_header_ = 0x19
     _action_name_ = "sys_device_sync_all"
+
+class packet_sys_device_set_error_handling_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("device_id", ct.c_uint8),
+        ("use_error_handler", ct.c_uint8),
+        ("generate_error_callback", ct.c_uint8),
+        ("actions", ct.c_uint8 * 3),
+    ]
+    _class_header_ = DecoderClass.SYS_CONTRACTS
+    _packet_header_ = 0x1A
+    _action_name_ = "sys_device_set_error_handling"
 
 class packet_sys_io_reset_t(ct.LittleEndianStructure):
     _pack_ = 1
@@ -289,10 +342,132 @@ class packet_sys_power_usb_pd_get_limits_t(ct.LittleEndianStructure):
     _action_name_ = "sys_power_usb_pd_get_limits"
 
 # ============================================================================
+# dec_sys_device_install.h (class 0x01 - SYS_CONTRACTS)
+# ============================================================================
+
+class packet_sys_device_install_gpio_esp_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("device_id", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_CONTRACTS
+    _packet_header_ = 0x40
+    _action_name_ = "sys_device_install_gpio_esp"
+
+class packet_sys_device_install_pca9685_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("device_id", ct.c_uint8),
+        ("i2c_bus", ct.c_uint8),
+        ("i2c_addr", ct.c_uint8),
+        ("oe_pin_device_id", ct.c_uint8),
+        ("oe_pin_pin", ct.c_uint8),
+        ("oe_pin_mode", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_CONTRACTS
+    _packet_header_ = 0x41
+    _action_name_ = "sys_device_install_pca9685"
+
+class packet_sys_device_install_tca6424a_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("device_id", ct.c_uint8),
+        ("i2c_bus", ct.c_uint8),
+        ("i2c_addr", ct.c_uint8),
+        ("intr_pin_device_id", ct.c_uint8),
+        ("intr_pin_pin", ct.c_uint8),
+        ("intr_pin_mode", ct.c_uint8),
+        ("rst_pin_device_id", ct.c_uint8),
+        ("rst_pin_pin", ct.c_uint8),
+        ("rst_pin_mode", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_CONTRACTS
+    _packet_header_ = 0x42
+    _action_name_ = "sys_device_install_tca6424a"
+
+class packet_sys_device_install_tps55289_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("device_id", ct.c_uint8),
+        ("i2c_bus", ct.c_uint8),
+        ("i2c_addr", ct.c_uint8),
+        ("intr_pin_device_id", ct.c_uint8),
+        ("intr_pin_pin", ct.c_uint8),
+        ("intr_pin_mode", ct.c_uint8),
+        ("en_pin_device_id", ct.c_uint8),
+        ("en_pin_pin", ct.c_uint8),
+        ("en_pin_mode", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_CONTRACTS
+    _packet_header_ = 0x43
+    _action_name_ = "sys_device_install_tps55289"
+
+class packet_sys_device_install_ina3221_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("device_id", ct.c_uint8),
+        ("i2c_bus", ct.c_uint8),
+        ("i2c_addr", ct.c_uint8),
+        ("crit_pin_device_id", ct.c_uint8),
+        ("crit_pin_pin", ct.c_uint8),
+        ("crit_pin_mode", ct.c_uint8),
+        ("warn_pin_device_id", ct.c_uint8),
+        ("warn_pin_pin", ct.c_uint8),
+        ("warn_pin_mode", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_CONTRACTS
+    _packet_header_ = 0x44
+    _action_name_ = "sys_device_install_ina3221"
+
+class packet_sys_device_install_ap33772s_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("device_id", ct.c_uint8),
+        ("i2c_bus", ct.c_uint8),
+        ("i2c_addr", ct.c_uint8),
+        ("intr_pin_device_id", ct.c_uint8),
+        ("intr_pin_pin", ct.c_uint8),
+        ("intr_pin_mode", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_CONTRACTS
+    _packet_header_ = 0x45
+    _action_name_ = "sys_device_install_ap33772s"
+
+class packet_sys_device_install_dac53202_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("device_id", ct.c_uint8),
+        ("i2c_bus", ct.c_uint8),
+        ("i2c_addr", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_CONTRACTS
+    _packet_header_ = 0x46
+    _action_name_ = "sys_device_install_dac53202"
+
+class packet_sys_device_install_ads7128_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("device_id", ct.c_uint8),
+        ("i2c_bus", ct.c_uint8),
+        ("i2c_addr", ct.c_uint8),
+        ("intr_pin_device_id", ct.c_uint8),
+        ("intr_pin_pin", ct.c_uint8),
+        ("intr_pin_mode", ct.c_uint8),
+        ("vref_mv", ct.c_uint32),
+    ]
+    _class_header_ = DecoderClass.SYS_CONTRACTS
+    _packet_header_ = 0x47
+    _action_name_ = "sys_device_install_ads7128"
+
+# ============================================================================
 # Registry - every generated packet struct, source order. Drives the GUI's
 # class -> packet -> form auto command builder.
 # ============================================================================
 PACKET_REGISTRY = [
+    packet_sys_actions_record_t,
+    packet_sys_actions_stop_t,
+    packet_sys_actions_remove_t,
+    packet_sys_actions_execute_t,
     packet_sys_device_uninstall_t,
     packet_sys_device_reset_t,
     packet_sys_device_suspend_t,
@@ -303,6 +478,7 @@ PACKET_REGISTRY = [
     packet_sys_device_sync_t,
     packet_sys_device_freeze_all_t,
     packet_sys_device_sync_all_t,
+    packet_sys_device_set_error_handling_t,
     packet_sys_io_reset_t,
     packet_sys_io_set_mode_t,
     packet_sys_io_set_level_t,
@@ -321,4 +497,12 @@ PACKET_REGISTRY = [
     packet_sys_power_usb_pd_set_t,
     packet_sys_power_usb_pd_list_t,
     packet_sys_power_usb_pd_get_limits_t,
+    packet_sys_device_install_gpio_esp_t,
+    packet_sys_device_install_pca9685_t,
+    packet_sys_device_install_tca6424a_t,
+    packet_sys_device_install_tps55289_t,
+    packet_sys_device_install_ina3221_t,
+    packet_sys_device_install_ap33772s_t,
+    packet_sys_device_install_dac53202_t,
+    packet_sys_device_install_ads7128_t,
 ]

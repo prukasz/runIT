@@ -8,6 +8,8 @@
 
 static const char* TAG = __FILE_NAME__;
 
+const char* const sys_device_contract_type_e_to_string[] = {"IO", "POWER_VREG", "POWER_MONITOR", "POWER_USB_PD"};
+
 /*Registry mutations (install / uninstall) are init/config context only.
   Reads are lock-free: sys_device_get_by_id() sits on the hot dispatch path and
   is reachable from ISR-adjacent code, where a mutex cannot be taken.*/
@@ -65,23 +67,36 @@ __attribute__((constructor)) static void sys_device_register_error_hook(void) {
  * optionally updates dev->state on each success (new_state, or
  * SYS_DEV_STATE_NONE to leave it untouched). log_before reproduces
  * sys_device_reset_all()'s pre-call log line - the only _all variant that has
- * one; the rest only log on failure. */
-#define SYS_DEV_LIFECYCLE_OP_ALL(op_field, verb_gerund, verb_base, eligible_expr, log_before, new_state) \
-  do {                                                                                                   \
-    for (int __i = 0; __i <= CONFIG_SYS_DEVICE_MAX_ID; __i++) {                                                     \
-      sys_device_t* __disp_dev = sys_device_get_by_id((uint8_t)__i);                                     \
-      if (!__disp_dev || !(eligible_expr)) continue;                                                     \
-      err_h (*__disp_fn)(void*) = DEV_OP(__disp_dev, op_field);                                          \
-      if (!__disp_fn) continue;                                                                          \
-      if (log_before) ESP_LOGW(TAG, "%s device: %s", (verb_gerund), DEV_NAME(__disp_dev));               \
-      err_h __disp_ret = __disp_fn(__disp_dev->device_handle);                                           \
-      if (SE_IS_ERR(__disp_ret)) {                                                                       \
-        ESP_LOGE(TAG, "Failed to %s device: %s", (verb_base), DEV_NAME(__disp_dev));                     \
-        SE_RET_IF_ERR(__disp_ret);                                                                       \
-      }                                                                                                  \
-      if ((new_state) != SYS_DEV_STATE_NONE) __disp_dev->state = (new_state);                            \
-    }                                                                                                    \
-    return NULL;                                                                                         \
+ * one; the rest only log on failure.
+ *
+ * `reverse` picks sweep direction. Device ids are assigned in dependency
+ * order - a device's sys_io_pin_ref_t (oe_pin/rst_pin/en_pin/...) always
+ * points at a lower-id device (see runit_board_devices.h) - so a
+ * dependent's own op can call back into a lower-id device's sys_io while
+ * that op runs (e.g. tca6424a's suspend drives its rst_pin low, which is a
+ * gpio_esp pin). Going low-to-high id would suspend the dependency (low id)
+ * before the dependent (high id) gets a chance to touch it, failing with
+ * ERR_DEV_SUSPENDED. Convention: tear-down ops (suspend, uninstall) sweep
+ * high id -> low id so dependents finish before their dependencies go down;
+ * bring-up ops (resume) sweep low -> high so dependencies are already up
+ * when a dependent resumes. */
+#define SYS_DEV_LIFECYCLE_OP_ALL(op_field, verb_gerund, verb_base, eligible_expr, log_before, new_state, reverse)  \
+  do {                                                                                                             \
+    for (int __k = 0; __k <= CONFIG_SYS_DEVICE_MAX_ID; __k++) {                                                    \
+      int __i = (reverse) ? (CONFIG_SYS_DEVICE_MAX_ID - __k) : __k;                                                \
+      sys_device_t* __disp_dev = sys_device_get_by_id((uint8_t)__i);                                               \
+      if (!__disp_dev || !(eligible_expr)) continue;                                                               \
+      err_h (*__disp_fn)(void*) = DEV_OP(__disp_dev, op_field);                                                    \
+      if (!__disp_fn) continue;                                                                                    \
+      if (log_before) ESP_LOGW(TAG, "%s device: %s", (verb_gerund), DEV_NAME(__disp_dev));                         \
+      err_h __disp_ret = __disp_fn(__disp_dev->device_handle);                                                     \
+      if (SE_IS_ERR(__disp_ret)) {                                                                                 \
+        ESP_LOGE(TAG, "Failed to %s device: %s", (verb_base), DEV_NAME(__disp_dev));                               \
+        SE_RET_IF_ERR(__disp_ret);                                                                                 \
+      }                                                                                                            \
+      if ((new_state) != SYS_DEV_STATE_NONE) __disp_dev->state = (new_state);                                      \
+    }                                                                                                              \
+    return NULL;                                                                                                   \
   } while (0)
 
 #undef OWNER
@@ -213,13 +228,18 @@ err_h sys_device_uninstall(uint8_t device_id) {
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_RESET_ALL
 err_h sys_device_reset_all(void) {
-  SYS_DEV_LIFECYCLE_OP_ALL(reset, "Resetting", "reset", SYS_DEV_IS_READY(__disp_dev), true, SYS_DEV_STATE_NONE);
+  SYS_DEV_LIFECYCLE_OP_ALL(reset, "Resetting", "reset", SYS_DEV_IS_READY(__disp_dev), true, SYS_DEV_STATE_NONE, false);
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_UNINSTALL_ALL
 err_h sys_device_uninstall_all(void) {
-  for (int i = 0; i <= CONFIG_SYS_DEVICE_MAX_ID; i++) {
+  // High id -> low id, same dependency-order reasoning as
+  // SYS_DEV_LIFECYCLE_OP_ALL's reverse sweep: device_uninstall() releases
+  // pin-ref locks on whatever lower-id device it depends on (e.g.
+  // tca6424a's rst_pin lives on gpio_esp), so a dependent must finish
+  // uninstalling before its dependency is torn down.
+  for (int i = CONFIG_SYS_DEVICE_MAX_ID; i >= 0; i--) {
     if (!s_device_registry[i]) continue;
     SE_RET_IF_ERR(sys_device_uninstall((uint8_t)i));
   }
@@ -241,13 +261,13 @@ err_h sys_device_resume(uint8_t device_id) {
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_SUSPEND_ALL
 err_h sys_device_suspend_all(void) {
-  SYS_DEV_LIFECYCLE_OP_ALL(suspend, "Suspending", "suspend", SYS_DEV_IS_READY(__disp_dev), false, SYS_DEV_STATE_SUSPENDED);
+  SYS_DEV_LIFECYCLE_OP_ALL(suspend, "Suspending", "suspend", SYS_DEV_IS_READY(__disp_dev), false, SYS_DEV_STATE_SUSPENDED, true);
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_RESUME_ALL
 err_h sys_device_resume_all(void) {
-  SYS_DEV_LIFECYCLE_OP_ALL(resume, "Resuming", "resume", SYS_DEV_IS_SUSPENDED(__disp_dev), false, SYS_DEV_STATE_INSTALLED);
+  SYS_DEV_LIFECYCLE_OP_ALL(resume, "Resuming", "resume", SYS_DEV_IS_SUSPENDED(__disp_dev), false, SYS_DEV_STATE_INSTALLED, false);
 }
 
 #undef OWNER
@@ -265,11 +285,11 @@ err_h sys_device_sync(uint8_t device_id) {
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_FREEZE_ALL
 err_h sys_device_freeze_all(void) {
-  SYS_DEV_LIFECYCLE_OP_ALL(freeze, "Freezing", "freeze", SYS_DEV_IS_READY(__disp_dev), false, SYS_DEV_STATE_NONE);
+  SYS_DEV_LIFECYCLE_OP_ALL(freeze, "Freezing", "freeze", SYS_DEV_IS_READY(__disp_dev), false, SYS_DEV_STATE_NONE, false);
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_SYNC_ALL
 err_h sys_device_sync_all(void) {
-  SYS_DEV_LIFECYCLE_OP_ALL(sync, "Syncing", "sync", SYS_DEV_IS_READY(__disp_dev), false, SYS_DEV_STATE_NONE);
+  SYS_DEV_LIFECYCLE_OP_ALL(sync, "Syncing", "sync", SYS_DEV_IS_READY(__disp_dev), false, SYS_DEV_STATE_NONE, false);
 }

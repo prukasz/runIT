@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <stdio.h>
 #include "esp_err.h"
 
 #define SYS_BLE_OWNER_MAP(X) \
@@ -23,3 +24,15 @@
   X(ERR_BLE_HARDWARE_FAULT, struct { esp_err_t rc; }) /* reserved, currently unused */ \
   X(ERR_BLE_ADV_FAILED, struct { esp_err_t rc; }) \
   X(ERR_BLE_GATT_FAILED, struct { esp_err_t rc; })
+
+/** @brief Human-readable descriptions for the sys_ble tags - see SE_describe_payload() in sys_error.h. */
+#define SYS_ERROR_BLE_LOGGER_MAP(X) \
+  X(ERR_BLE_STACK_FAILED)           \
+  X(ERR_BLE_HARDWARE_FAULT)         \
+  X(ERR_BLE_ADV_FAILED)             \
+  X(ERR_BLE_GATT_FAILED)
+
+#define LOG_BODY_ERR_BLE_STACK_FAILED(p, out, out_size) snprintf((out), (out_size), "NimBLE stack call failed: %s (0x%x)", esp_err_to_name((p)->rc), (p)->rc)
+#define LOG_BODY_ERR_BLE_HARDWARE_FAULT(p, out, out_size) snprintf((out), (out_size), "BLE hardware fault: %s (0x%x)", esp_err_to_name((p)->rc), (p)->rc)
+#define LOG_BODY_ERR_BLE_ADV_FAILED(p, out, out_size) snprintf((out), (out_size), "BLE advertising failed: %s (0x%x)", esp_err_to_name((p)->rc), (p)->rc)
+#define LOG_BODY_ERR_BLE_GATT_FAILED(p, out, out_size) snprintf((out), (out_size), "BLE GATT call failed: %s (0x%x)", esp_err_to_name((p)->rc), (p)->rc)

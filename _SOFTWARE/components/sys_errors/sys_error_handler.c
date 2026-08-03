@@ -73,16 +73,21 @@ static void sys_error_handler_task(void* arg) {
         // per-tag pretty-printer lives closer to whoever cares about a
         // specific tag (e.g. adapter_pca9685.c's explain_root_cause()),
         // not here; this is just "show whatever bytes exist, if any".
-        size_t psize = SE_get_payload_size(curr->tag);
-        if (psize > 0) {
-          char hex[3 * 16 + 1] = {0};
-          size_t show = psize > 16 ? 16 : psize;
-          for (size_t b = 0; b < show; b++) {
-            snprintf(&hex[b * 3], 4, "%02X ", curr->payload[b]);
-          }
-          ESP_LOGE(TAG, "  [%d] Owner: %s (0x%04X), Tag: %s (%d), Payload[%u]: %s%s", depth++, SE_get_owner_name(curr->owner), (unsigned int)curr->owner, SE_get_tag_name(curr->tag), (int)curr->tag, (unsigned)psize, hex, psize > 16 ? "..." : "");
+        char desc[96] = {0};
+        if (SE_describe_payload(curr->tag, curr->payload, desc, sizeof(desc))) {
+          ESP_LOGE(TAG, "  [%d] Owner: %s (0x%04X), Tag: %s (%d) -> %s", depth++, SE_get_owner_name(curr->owner), (unsigned int)curr->owner, SE_get_tag_name(curr->tag), (int)curr->tag, desc);
         } else {
-          ESP_LOGE(TAG, "  [%d] Owner: %s (0x%04X), Tag: %s (%d)", depth++, SE_get_owner_name(curr->owner), (unsigned int)curr->owner, SE_get_tag_name(curr->tag), (int)curr->tag);
+          size_t psize = SE_get_payload_size(curr->tag);
+          if (psize > 0) {
+            char hex[3 * 16 + 1] = {0};
+            size_t show = psize > 16 ? 16 : psize;
+            for (size_t b = 0; b < show; b++) {
+              snprintf(&hex[b * 3], 4, "%02X ", curr->payload[b]);
+            }
+            ESP_LOGE(TAG, "  [%d] Owner: %s (0x%04X), Tag: %s (%d), Payload[%u]: %s%s", depth++, SE_get_owner_name(curr->owner), (unsigned int)curr->owner, SE_get_tag_name(curr->tag), (int)curr->tag, (unsigned)psize, hex, psize > 16 ? "..." : "");
+          } else {
+            ESP_LOGE(TAG, "  [%d] Owner: %s (0x%04X), Tag: %s (%d)", depth++, SE_get_owner_name(curr->owner), (unsigned int)curr->owner, SE_get_tag_name(curr->tag), (int)curr->tag);
+          }
         }
       }
       ESP_LOGE(TAG, "=======================================");

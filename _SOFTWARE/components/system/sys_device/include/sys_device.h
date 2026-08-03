@@ -6,6 +6,20 @@
 #include <sdkconfig.h>
 typedef enum { SYS_DEVICE_CONTRACT_IO = 0, SYS_DEVICE_CONTRACT_POWER_VREG = 1, SYS_DEVICE_CONTRACT_POWER_MONITOR = 2, SYS_DEVICE_CONTRACT_POWER_USB_PD = 3, SYS_DEVICE_CONTRACT_MAX = 4 } sys_device_contract_type_e;
 
+/**
+ * @brief String form of sys_device_contract_type_e, indexed by contract_id -
+ * used e.g. by sys_error_dev.h's ERR_DEV_FEATURE_UNAVAILABLE description.
+ * sys_error_dev.h forward-declares this same extern rather than including
+ * this header, since it's parsed too early in the include chain to safely
+ * pull in sys_device.h - see that file's comment. Kept in sync with
+ * SYS_DEVICE_CONTRACT_IO's value (0) via the static_assert below; if the
+ * enum is ever renumbered, sys_error_dev.h's ERR_DEV_FEATURE_UNAVAILABLE
+ * logger (which checks contract_id == 0 as a literal, for the same reason)
+ * needs updating too.
+ */
+extern const char* const sys_device_contract_type_e_to_string[];
+_Static_assert(SYS_DEVICE_CONTRACT_IO == 0, "sys_error_dev.h's ERR_DEV_FEATURE_UNAVAILABLE logger assumes SYS_DEVICE_CONTRACT_IO == 0");
+
 /*Lifecycle callbacks, shared by every instance of a device type*/
 typedef struct sys_device_ops_t {
   err_h (*install)(const void* cfg, void** out_device_handle);

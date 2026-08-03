@@ -210,18 +210,22 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
 
   tps55289_handle_t hw = (tps55289_handle_t)(ctx->base.hw_handle);
 
-  SYS_DEV_INSTALL_STEP(sys_i2c_add_driver(hw), "i2c add driver");
-  SYS_DEV_STEP_DONE(ctx, TPS_STEP_I2C_ADDED);
-
-  SYS_DEV_INSTALL_STEP(sys_i2c_device_present(hw), "probe i2c device");
-
-  // Configure enable pin
   IF_PIN_REF(ctx->cfg.en_pin) {
     SYS_DEV_INSTALL_STEP(SYS_IO_REF_SET_MODE(ctx->cfg.en_pin), "en pin mode");
     SYS_DEV_INSTALL_STEP(SYS_IO_REF_HIGH(ctx->cfg.en_pin), "en pin high");
     SYS_IO_REF_LOCK(ctx->cfg.en_pin);
     SYS_DEV_STEP_DONE(ctx, TPS_STEP_EN_READY);
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
+
+  SYS_DEV_INSTALL_STEP(sys_i2c_add_driver(hw), "i2c add driver");
+  SYS_DEV_STEP_DONE(ctx, TPS_STEP_I2C_ADDED);
+
+  // EN must be driven high before the I2C probe below - the TPS55289's I2C
+  // interface is unavailable while EN is low/floating, so probing first
+  // would always fail with ERR_I2C_DEV_NOT_FOUND on a fresh boot. The delay
+  // matches the settling time contract_vreg_tps55289_set_enable() already
+  // waits after driving this same pin high at runtime.
 
   // Configure interrupt pin & callback
   IF_PIN_REF(ctx->cfg.intr_pin) {
@@ -251,14 +255,7 @@ fail:
 static const sys_device_class_t s_tps55289_class = {
     .name = "TPS55289_VREG",
     .contracts = {[SYS_DEVICE_CONTRACT_POWER_VREG] = (void*)&s_tps_vreg_contract},
-    .ops = {
-        .install = device_install,
-        .uninstall = device_uninstall,
-        .reset = device_reset,
-        .suspend = device_suspend,
-        .resume = device_resume,
-        .error_handler = device_error_handler
-    },
+    .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume, .error_handler = device_error_handler},
 };
 
 err_h d_tps55289_create(const d_tps55289_cfg_t* cfg) {

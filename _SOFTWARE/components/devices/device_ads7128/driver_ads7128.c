@@ -8,7 +8,7 @@ static const char* TAG = __FILE_NAME__;
 #undef OWNER
 #define OWNER OWNER_DEVICE_ADS7128
 
-#define I2C_FREQ_HZ 400000
+#define I2C_FREQ_HZ 100000
 
 /* Time the chip needs after a software reset before it answers again */
 #define ADS7128_RESET_DELAY_MS 5
@@ -172,6 +172,11 @@ static esp_err_t _ads_manual_read(ads_handle_t handle, uint8_t channel, uint16_t
   for (uint8_t attempt = 0; attempt < ADS7128_MANUAL_READ_TRIES; attempt++) {
     RETURN_ON_ERROR(ADS_TRANSMIT_RECEIVE(handle, tx, sizeof(tx), rx, rx_len));
     chid = averaged ? (uint8_t)(rx[2] >> 4) : (uint8_t)(rx[1] & 0x0F);
+    // Diagnostic: which of "stuck on one stale value" (timing/clock-stretch
+    // race), "converges but too slowly" (needs more tries), or "random noise"
+    // (register/protocol mismatch) this is - see the failure log below for
+    // the theories this distinguishes between.
+    ESP_LOGW(TAG, "manual read ch%u attempt %u: got chid=%u rx=[%02X %02X %02X]", (unsigned)channel, (unsigned)attempt, (unsigned)chid, rx[0], rx[1], rx[2]);
     if (chid == channel) {
       *out_code = (uint16_t)(((((uint16_t)rx[0]) << 8) | rx[1]) >> 4);
       return ESP_OK;
@@ -222,7 +227,6 @@ esp_err_t ads_restore_state(ads_handle_t handle) {
 
 esp_err_t ads_reset(ads_handle_t handle) {
   CHECK_DRV_HANDLE(handle);
-
   RETURN_ON_ERROR(_ads_write_reg(handle, GENERAL_CFG_ADDRESS, RST_START));
   vTaskDelay(pdMS_TO_TICKS(ADS7128_RESET_DELAY_MS));
 
@@ -346,6 +350,8 @@ esp_err_t ads_get_event_flags(ads_handle_t handle, ads7128_event_flags_t* out_fl
 esp_err_t ads_clear_event_flags(ads_handle_t handle, uint8_t high_mask, uint8_t low_mask) {
   CHECK_DRV_HANDLE(handle);
 
+  // EVENT_FLAG (0x18) is a read-only summary of EVENT_HIGH_FLAG/EVENT_LOW_FLAG
+  // (datasheet 8.6.18) - clearing only ever needs the two writes below.
   if (high_mask) RETURN_ON_ERROR(_ads_write_reg(handle, EVENT_HIGH_FLAG_ADDRESS, high_mask));
   if (low_mask) RETURN_ON_ERROR(_ads_write_reg(handle, EVENT_LOW_FLAG_ADDRESS, low_mask));
   return ESP_OK;

@@ -34,6 +34,21 @@ typedef struct ads_adapter_ctx_t {
   uint64_t action_masks[PINS_COUNT];
   sys_io_intr_mode_e intr_modes[PINS_COUNT];
   own_funct_t own_funcs[PINS_COUNT];
+  // The user-facing config from sys_io_configure_intr(), remembered so
+  // device_event_handler can restore it once a crossing has been reported and
+  // recovery has been detected (see entry/exit watch swap below).
+  ads7128_alert_cfg_t entry_alert_cfg[PINS_COUNT];
+  // Bit N set = channel N is currently past its threshold and has already
+  // been reported; the chip is presently armed with an "exit watch" (see
+  // ads_arm_exit_watch()) instead of its normal entry config. The chip's
+  // EVENT_HIGH_FLAG/EVENT_LOW_FLAG has no notion of "newly" violating vs
+  // "still" violating - a signal parked past the threshold re-latches it
+  // every autonomous sample (~every 8ms here). Rather than poll for recovery,
+  // device_event_handler flips the armed config between the entry threshold
+  // (waiting to cross) and a hysteresis-retreated exit threshold (waiting to
+  // recover) so the chip itself only ever raises ALERT on a genuine
+  // transition in either direction - no timer, no per-cycle spam.
+  uint8_t alert_active_mask;
 } ads_adapter_ctx_t;
 
 // --- Helper Functions ---
@@ -64,36 +79,112 @@ static inline uint8_t event_count_field(uint16_t event_counter_threshold) {
 
 /* Runs in the callback task, hooked to the ALERT pin of the chip. The chip only
    says "something crossed a threshold", so the flags decide which channels fired
-   and the flags are cleared afterwards to release ALERT for the next event. */
+   and the flags are cleared afterwards to release ALERT for the next event.
+
+   ALERT is the live OR of the EVENT_FLAG bits (datasheet 8.3.11), and each
+   flag is latched - set on a violation, and NOT self-clearing when the
+   signal returns in range; only an explicit write-1 clears it. GPIO42's ESP32
+   interrupt is edge-triggered (falling edge only), so if the sequencer
+   re-latches a flag between our read and our clear (a real risk: it keeps
+   converting autonomously the whole time this handler is running), a flag
+   can be left set with no further edge ever able to fire and revisit it -
+   ALERT just stays asserted forever, desynced from reality. Looping here
+   until a poll comes back with nothing pending closes that gap.
+
+   The flag is also silent about *repetition*: a signal parked past the
+   threshold re-latches it on every autonomous sample (~every 8ms here with
+   8 channels enabled), not just the first time it crossed. The chip has no
+   concept of "newly" vs "still" violating, and no signal at all for "back in
+   range" - so getting one notification per real crossing needs something
+   watching for recovery too, and that has to be the chip itself (a CPU-side
+   poll/timer would mean waking up constantly just to check). ads_arm_exit_watch()
+   is that trick: once a crossing fires, instead of re-arming the same
+   threshold (which just re-trips every cycle for as long as the signal stays
+   past it), the channel gets reconfigured to watch for the *opposite*
+   condition - the signal retreating back past (threshold -/+ hysteresis).
+   That watch stays genuinely quiet the whole time the signal remains past
+   the original threshold, since its own condition simply isn't true yet.
+   Only a real recovery re-arms the original entry watch. Net effect: exactly
+   one ALERT edge per genuine transition in either direction, entirely
+   chip-driven, no polling. */
+/* Deliberately reuses OUT_OF_BAND for the exit watch too, rather than
+ * IN_BAND: OUT_OF_BAND + EVENT_HIGH_FLAG/EVENT_LOW_FLAG is the mechanism
+ * this whole adapter has already proven works (every "above threshold"
+ * dispatch in this file goes through it); IN_BAND's exact flag-setting
+ * behavior isn't nailed down by the datasheet text available here, so it's
+ * not worth trusting for the leg of this that has no independent way to be
+ * noticed if it's silently wrong. A single-sided OUT_OF_BAND config (one
+ * threshold disabled) is exactly equivalent to "watch this one side only". */
+static void ads_arm_exit_watch(ads7128_alert_cfg_t* out, const ads7128_alert_cfg_t* entry, bool high_fired, bool low_fired) {
+  *out = (ads7128_alert_cfg_t){
+      .enabled = true,
+      .high_th = ADS7128_MAX_CODE,  // disabled unless low_fired narrows it below
+      .low_th = 0,                  // disabled unless high_fired narrows it above
+      .hysteresis = 0,
+      .event_count = entry->event_count,
+      .region = ADS7128_ALERT_OUT_OF_BAND,
+  };
+  uint16_t hyst_codes = (uint16_t)entry->hysteresis * ADS_HYSTERESIS_STEP;
+  if (high_fired) {
+    // Was above entry->high_th; recovered once it drops back below (high_th - hysteresis).
+    out->low_th = (entry->high_th > hyst_codes) ? (uint16_t)(entry->high_th - hyst_codes) : 0;
+  }
+  if (low_fired) {
+    // Was below entry->low_th; recovered once it rises back above (low_th + hysteresis).
+    uint32_t retreat = (uint32_t)entry->low_th + hyst_codes;
+    out->high_th = (retreat > ADS7128_MAX_CODE) ? ADS7128_MAX_CODE : (uint16_t)retreat;
+  }
+}
+
 static err_h device_event_handler(void* handle, cb_event_t* event) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ads_adapter_ctx_t, ads_handle_t, ctx, hw, handle);
   (void)event;
 
-  ads7128_event_flags_t flags;
-  SYS_DEV_CHECK_DRIVER_CALL(ads_get_event_flags(hw, &flags), ctx);
+  for (int guard = 0; guard < 16; guard++) {
+    ads7128_event_flags_t flags;
+    SYS_DEV_CHECK_DRIVER_CALL(ads_get_event_flags(hw, &flags), ctx);
 
-  uint8_t pending = (uint8_t)(flags.high | flags.low);
-  if (!pending) return NULL;
+    uint8_t pending = (uint8_t)(flags.high | flags.low);
+    if (!pending) break;
 
-  for (uint8_t pin = 0; pin < PINS_COUNT; pin++) {
-    if (!(pending & (1u << pin))) continue;
+    for (uint8_t pin = 0; pin < PINS_COUNT; pin++) {
+      if (!(pending & (1u << pin))) continue;
 
-    sys_io_intr_mode_e mode = ctx->intr_modes[pin];
-    if (mode == SYS_IO_INTR_DISABLE) continue;
+      sys_io_intr_mode_e mode = ctx->intr_modes[pin];
+      if (mode == SYS_IO_INTR_DISABLE) continue;
 
-    uint16_t code = 0;
-    if (ads_read_channel(hw, pin, &code) != ESP_OK) {
-      code = hw->recent_codes[pin];  // report the last good reading rather than nothing
+      uint16_t code = 0;
+      if (ads_read_channel(hw, pin, &code) != ESP_OK) {
+        code = hw->recent_codes[pin];  // report the last good reading rather than nothing
+      }
+
+      bool was_active = (ctx->alert_active_mask & (1u << pin)) != 0;
+      if (!was_active) {
+        // Entry watch tripped: a genuine new crossing.
+        ctx->alert_active_mask |= (uint8_t)(1u << pin);
+        if (ctx->own_funcs[pin].own_func) {
+          SYS_CB_OWN(ctx->own_funcs[pin]);
+        } else {
+          SYS_IO_CB(ctx, pin, mode, (int32_t)code_to_mv(ctx, code), ctx->route_masks[pin], ctx->action_masks[pin]);
+        }
+        ads7128_alert_cfg_t exit_cfg;
+        ads_arm_exit_watch(&exit_cfg, &ctx->entry_alert_cfg[pin], (flags.high & (1u << pin)) != 0, (flags.low & (1u << pin)) != 0);
+        SYS_DEV_CHECK_DRIVER_CALL(ads_set_alert_cfg(hw, pin, &exit_cfg), ctx);
+        // TEMP DIAGNOSTIC
+        ESP_LOGW(TAG, "ch%u entry->exit: code=%u mv=%lu, exit watch high_th=%u low_th=%u region=%d", pin, code, (unsigned long)code_to_mv(ctx, code), exit_cfg.high_th,
+            exit_cfg.low_th, (int)exit_cfg.region);
+      } else {
+        // Exit watch tripped: genuinely recovered - re-arm the original watch.
+        ctx->alert_active_mask &= (uint8_t)~(1u << pin);
+        SYS_DEV_CHECK_DRIVER_CALL(ads_set_alert_cfg(hw, pin, &ctx->entry_alert_cfg[pin]), ctx);
+        // TEMP DIAGNOSTIC
+        ESP_LOGW(TAG, "ch%u exit->entry: code=%u mv=%lu, re-armed entry watch high_th=%u low_th=%u", pin, code, (unsigned long)code_to_mv(ctx, code), ctx->entry_alert_cfg[pin].high_th,
+            ctx->entry_alert_cfg[pin].low_th);
+      }
     }
 
-    if (ctx->own_funcs[pin].own_func) {
-      SYS_CB_OWN(ctx->own_funcs[pin]);
-    } else {
-      SYS_IO_CB(ctx, pin, mode, (int32_t)code_to_mv(ctx, code), ctx->route_masks[pin], ctx->action_masks[pin]);
-    }
+    SYS_DEV_CHECK_DRIVER_CALL(ads_clear_event_flags(hw, flags.high, flags.low), ctx);
   }
-
-  SYS_DEV_CHECK_DRIVER_CALL(ads_clear_event_flags(hw, flags.high, flags.low), ctx);
   return NULL;
 }
 
@@ -137,6 +228,7 @@ static err_h contract_io_ads7128_configure_intr(void* handle, sys_io_pin_num_t p
     ctx->route_masks[pin] = 0;
     ctx->action_masks[pin] = 0;
     ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
+    ctx->alert_active_mask &= (uint8_t)~(1u << pin);
     memset(&ctx->own_funcs[pin], 0, sizeof(own_funct_t));
     SYS_DEV_CHECK_DRIVER_CALL(ads_clear_alert_cfg(hw, pin), ctx);
     return NULL;
@@ -164,6 +256,12 @@ static err_h contract_io_ads7128_configure_intr(void* handle, sys_io_pin_num_t p
   ctx->action_masks[pin] = config->action_mask;
   ctx->intr_modes[pin] = config->mode;
   ctx->own_funcs[pin] = config->own_func;
+  // Remembered so device_event_handler can restore this exact watch after a
+  // crossing has been reported and recovery detected (see ads_arm_exit_watch).
+  ctx->entry_alert_cfg[pin] = alert;
+  // Fresh config, no crossing reported yet - let the next real violation
+  // dispatch instead of carrying over whatever a previous config left behind.
+  ctx->alert_active_mask &= (uint8_t)~(1u << pin);
 
   return NULL;
 }
@@ -274,11 +372,32 @@ static err_h device_sync(void* handle) {
   return NULL;
 }
 
+// Same shape as device_pca9685's explain_root_cause() (see that file for
+// the full rationale): identifies which node in the chain is the root
+// cause and adds this adapter's own interpretation for it, without
+// repeating SE_describe_payload() - sys_error_handler_task's own stack
+// trace already prints that same description for every node, including
+// the root. Every ERR_ESP_ERR reaching this adapter's error_handler
+// originates from an I2C driver call (SYS_DEV_CHECK_DRIVER_CALL wraps every
+// ads_*() call, all of which go over I2C).
+static void explain_root_cause(uint8_t device_id, err_h error) {
+  err_h root = error;
+  while (root && root->next_cause) root = root->next_cause;
+  if (!root) return;
+  ESP_LOGE(TAG, "ADS7128 (device %u) error root cause: owner=%s (0x%04X), tag=%s (%d)", device_id, SE_get_owner_name(root->owner), (unsigned int)root->owner, SE_get_tag_name(root->tag), (int)root->tag);
+
+  if (root->tag == ERR_ESP_ERR) {
+    ESP_LOGE(TAG, "  -> communication with ADS7128 (device %u) failed - check that it is connected, powered, and present at the configured I2C bus/address", device_id);
+  }
+}
+
 static err_h device_error_handler(void* handle, err_h error) {
   ads_adapter_ctx_t* ctx = (ads_adapter_ctx_t*)handle;
   SYS_DEV_CHECK_HANDLE(ctx, 0);
   sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(ctx));
   if (!dev) return NULL;
+
+  explain_root_cause(SYS_DEV_GET_ID(ctx), error);
 
   if (dev->generate_error_callback) {
     // TODO: report to the VM via the callback system. Payload should carry

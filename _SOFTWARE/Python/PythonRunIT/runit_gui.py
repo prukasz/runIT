@@ -254,8 +254,13 @@ class RunITGUI(tk.Tk):
         self._current_struct_cls = struct_cls
 
         for i, (field_name, field_type) in enumerate(struct_cls._fields_):
-            ttk.Label(self.form_frame, text=field_name + ":").grid(row=i, column=0, padx=6, pady=3, sticky=tk.E)
-            if field_type is ct.c_bool:
+            array_len = getattr(field_type, "_length_", None)
+            label = f"{field_name} [{array_len}]:" if array_len else field_name + ":"
+            ttk.Label(self.form_frame, text=label).grid(row=i, column=0, padx=6, pady=3, sticky=tk.E)
+            if array_len:
+                var = tk.StringVar(value=", ".join(["0"] * array_len))
+                ttk.Entry(self.form_frame, textvariable=var, width=30).grid(row=i, column=1, padx=6, pady=3, sticky=tk.W)
+            elif field_type is ct.c_bool:
                 var = tk.StringVar(value="False")
                 cb = ttk.Combobox(self.form_frame, textvariable=var, values=["False", "True"], state="readonly", width=28)
                 cb.grid(row=i, column=1, padx=6, pady=3, sticky=tk.W)
@@ -271,7 +276,13 @@ class RunITGUI(tk.Tk):
         inst = struct_cls()
         for field_name, (var, field_type) in self.field_vars.items():
             val_str = var.get().strip()
-            if field_type is ct.c_bool:
+            array_len = getattr(field_type, "_length_", None)
+            if array_len:
+                values = [int(v.strip(), 0) for v in val_str.split(",") if v.strip() != ""]
+                if len(values) != array_len:
+                    raise ValueError(f"'{field_name}' needs exactly {array_len} comma-separated values, got {len(values)}")
+                getattr(inst, field_name)[:] = values
+            elif field_type is ct.c_bool:
                 setattr(inst, field_name, val_str == "True")
             else:
                 setattr(inst, field_name, int(val_str, 0))

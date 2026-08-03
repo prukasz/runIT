@@ -62,10 +62,11 @@ typedef struct sys_action_t {
 | Record | `0x01` | `uint8_t action_id` | `sys_actions_record_start(action_id)` |
 | Stop | `0x02` | `uint8_t action_id` | `sys_actions_record_stop(action_id)` (persists to NVS) |
 | Remove | `0x03` | `uint8_t action_id` | `sys_actions_remove(action_id)` |
+| Execute | `0x04` | `uint8_t action_id` | `sys_actions_invoke(action_id)` — test-only wire exposure, see below |
 
 Example: `03 01 05` (record action 5).
 
-There is deliberately **no wire-exposed invoke packet** — `sys_actions_invoke()` is a C-level API only (called from a callback route, application code, or `sys_actions_init()`'s boot action), not a control packet. There is likewise no wire-exposed `bind_static` packet — binding a hardcoded function is a boot-time C call (`register_default_static_actions()`), not something a wireless client sets.
+`sys_actions_invoke()` itself is still meant to be driven from a callback route, application code, or `sys_actions_init()`'s boot action — invoking is not something a real client normally triggers directly over the wire. The `Execute` packet exists purely so a recorded/bound action can be fired on demand from the test GUI without waiting for its real trigger. There is still no wire-exposed `bind_static` packet — binding a hardcoded function stays a boot-time C call (`register_default_static_actions()`).
 
 ---
 

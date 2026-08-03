@@ -217,46 +217,25 @@ static err_h device_sync(void* handle) {
 }
 
 // Test implementation for the sys_device error-handling scheme (see
-// SYS_DEVICE.MD's "Per-Instance Error Handling") - explains the root cause
-// unconditionally (whichever branch below is taken, if any), since a wrapper
-// like ERR_DEV_DEP_FAILED only tells us *that* something failed, not *what*.
+// SYS_DEVICE.MD's "Per-Instance Error Handling") - identifies which node in
+// the chain is the root cause and adds this adapter's own domain-specific
+// interpretation for it. Deliberately does NOT repeat SE_describe_payload()
+// here: sys_error_handler_task's own stack trace already prints that same
+// description for every node in the chain, including the root (it's always
+// the last one) - this function's job is only what that generic trace
+// cannot know, i.e. that *this* node is the root, and (for ERR_ESP_ERR)
+// that every such error reaching this adapter's error_handler originates
+// from an I2C driver call (SYS_DEV_CHECK_DRIVER_CALL wraps every
+// pca9685_*() call, all of which go over I2C) - a bare ESP-IDF code alone
+// doesn't say that.
 static void explain_root_cause(uint8_t device_id, err_h error) {
   err_h root = error;
   while (root && root->next_cause) root = root->next_cause;
   if (!root) return;
   ESP_LOGE(TAG, "PCA9685 (device %u) error root cause: owner=%s (0x%04X), tag=%s (%d)", device_id, SE_get_owner_name(root->owner), (unsigned int)root->owner, SE_get_tag_name(root->tag), (int)root->tag);
 
-  // Plain-English translation for a handful of simple, common root-cause
-  // tags - "simple" meaning a payload of one or two scalar fields, cheap to
-  // decode by hand without a generic tag-by-tag decoder table.
-  switch (root->tag) {
-    case ERR_ESP_ERR: {
-      esp_err_t code = ((err_payload_ERR_ESP_ERR_t*)root->payload)->esp_code;
-      ESP_LOGE(TAG, "  -> underlying ESP-IDF error: %s (0x%x) - likely a bus/driver fault (e.g. disconnected I2C device)", esp_err_to_name(code), code);
-      break;
-    }
-    case ERR_DEV_NOT_FOUND:
-      ESP_LOGE(TAG, "  -> device %u is not registered", ((err_payload_ERR_DEV_NOT_FOUND_t*)root->payload)->dev_id);
-      break;
-    case ERR_DEV_NOT_INSTALLED:
-      ESP_LOGE(TAG, "  -> device %u is registered but not installed", ((err_payload_ERR_DEV_NOT_INSTALLED_t*)root->payload)->dev_id);
-      break;
-    case ERR_DEV_SUSPENDED:
-      ESP_LOGE(TAG, "  -> device %u is suspended", ((err_payload_ERR_DEV_SUSPENDED_t*)root->payload)->dev_id);
-      break;
-    case ERR_DEV_NO_HANDLE:
-      ESP_LOGE(TAG, "  -> device %u has no handle (installed but handle is NULL)", ((err_payload_ERR_DEV_NO_HANDLE_t*)root->payload)->dev_id);
-      break;
-    case ERR_IO_PIN_UNAVAILABLE: {
-      err_payload_ERR_IO_PIN_UNAVAILABLE_t* p = (err_payload_ERR_IO_PIN_UNAVAILABLE_t*)root->payload;
-      ESP_LOGE(TAG, "  -> pin %u is not available on device %u (out of range or unmapped)", p->pin_num, p->dev_id);
-      break;
-    }
-    case ERR_BASE_NOT_SUPPORTED:
-      ESP_LOGE(TAG, "  -> the operation isn't implemented for this device (NULL vtable slot)");
-      break;
-    default:
-      break;  // no translation for this tag yet - the owner/tag line above still stands
+  if (root->tag == ERR_ESP_ERR) {
+    ESP_LOGE(TAG, "  -> communication with PCA9685 (device %u) failed - check that it is connected, powered, and present at the configured I2C bus/address", device_id);
   }
 }
 

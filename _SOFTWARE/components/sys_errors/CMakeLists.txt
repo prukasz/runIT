@@ -17,6 +17,10 @@ idf_component_register(
                  "../system/sys_interface/include"
                  "../system/sys_buffers/include"
                  "../system/sys_actions/include"
+                 # VM has its own component now, but it REQUIRES sys_errors, so a
+                 # REQUIRES back here would be circular -- reach its error map header
+                 # (sys_error_vm.h) as a raw path instead, same as codecs' encoder.
+                 "../VM/core"
                  # codecs is header-only and REQUIRES sys_errors, so pulling in the
                  # error encoder as a plain include dir avoids a component cycle.
                  "../codecs/encoders"

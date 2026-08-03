@@ -5,6 +5,7 @@
 #include "runit_board_defs.h"
 #include "runit_board_devices.h"
 #include "sys_actions.h"
+#include "sys_callbacks.h"
 #include "sys_interface.h"
 
 static const char* TAG = "runit_app";
@@ -34,6 +35,11 @@ void runit_start(void) {
   SE_ORIGIN_CALL(sys_power_static_config());
   SE_ORIGIN_CALL(sys_ble_static_config());
   SE_ORIGIN_CALL(SE_configure(&s_runit_error_cfg));
+  // Must come before sys_actions_init(): the boot action (id 0) installs
+  // devices that can arm interrupts (e.g. ads7128's ALERT pin) whose ISRs
+  // queue events via sys_callback_trigger() - sys_cb_task needs to already be
+  // running to drain that queue, or every queued event sits forever unread.
+  SE_ORIGIN_CALL(sys_callbacks_init());
   SE_ORIGIN_CALL(sys_interface_init());
   // Must come before sys_actions_init(): the boot action (id 0) needs its
   // static function bound before init's unconditional invoke(0) runs.
@@ -42,6 +48,6 @@ void runit_start(void) {
   // recording tap are boot-only, not safe against a running RX pump.
   SE_ORIGIN_CALL(sys_actions_init());
   SE_ORIGIN_CALL(sys_interface_bind_ble_rx(SYS_BLE_CHR_RUNIT_RX, RUNIT_BLE_RX_FRAME_MAX));
-  runit_test_pca9685_start();
+  // runit_test_pca9685_start();
   ESP_LOGI(TAG, "runIT boot sequence complete");
 }

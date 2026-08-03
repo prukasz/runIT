@@ -97,6 +97,7 @@ Control-packet table for [[SYS_ACTIONS.MD]]'s record/stop/remove wire protocol. 
 | Record | `0x01` | `uint8_t action_id` | `sys_actions_record_start(action_id)` |
 | Stop | `0x02` | `uint8_t action_id` | `sys_actions_record_stop(action_id)` (persists to NVS) |
 | Remove | `0x03` | `uint8_t action_id` | `sys_actions_remove(action_id)` |
+| Execute | `0x04` | `uint8_t action_id` | `sys_actions_invoke(action_id)` — test-only wire exposure, see [[SYS_ACTIONS.MD]] |
 
 `SYS_ACTIONS_CLASS_HEADER` (`0x03`) is defined in `sys_actions.h`, not this file — unlike `SYS_CONTRACTS_CLASS_HEADER` (owned by the codec because it spans three unrelated system components), sys_actions' class is 1:1 with a single component, so the constant lives with that component's own public contract. `dec_sys_actions.h` just includes `sys_actions.h` to use it.
 

@@ -61,6 +61,21 @@ static void IRAM_ATTR _gpio_pin_isr_trampoline(void* arg) {
   esp_pin_obj_t* pin = (esp_pin_obj_t*)arg;
   if (!pin) return;
 
+  // own_func handlers are chip-driven status/alert dispatchers (e.g.
+  // adapter_ads7128.c's device_event_handler), reading and clearing a
+  // *latched* flag on the far side of an I2C bus - not a mechanical switch.
+  // Debouncing them is actively harmful: the flag doesn't self-clear, so a
+  // genuine re-trip edge silently dropped here means nobody ever clears it,
+  // and a signal that's already asserted low can't produce *another* falling
+  // edge to give the debounce a second chance - it stays stuck asserted
+  // forever. These handlers already loop internally to drain everything
+  // pending, so they don't need this filter; it stays only for the plain
+  // SYS_IO_CB path below (real switches / digital inputs).
+  if (pin->intr_config.own_func.own_func) {
+    SYS_CB_OWN(pin->intr_config.own_func);
+    return;
+  }
+
   uint64_t current_time = esp_timer_get_time();
   if ((current_time - pin->last_isr_time) < CONFIG_ESP_GPIO_DEBOUNCE_TIME_US) {
     return;
@@ -68,11 +83,7 @@ static void IRAM_ATTR _gpio_pin_isr_trampoline(void* arg) {
   pin->last_isr_time = current_time;
 
   int level = gpio_get_level((gpio_num_t)pin->io_num);
-  if (pin->intr_config.own_func.own_func) {
-    SYS_CB_OWN(pin->intr_config.own_func);
-  } else {
-    SYS_IO_CB(ctx, pin->io_num, pin->intr_config.mode, level, pin->intr_config.route_mask, pin->intr_config.action_mask);
-  }
+  SYS_IO_CB(ctx, pin->io_num, pin->intr_config.mode, level, pin->intr_config.route_mask, pin->intr_config.action_mask);
 }
 
 // --- VTABLE Implementations (IO Contract) ---
@@ -458,10 +469,33 @@ static err_h device_resume(void* handle) {
   return device_sync(handle);
 }
 
+// Same shape as device_pca9685's explain_root_cause() (see that file for
+// the full rationale): identifies which node in the chain is the root
+// cause and adds this adapter's own interpretation for it, without
+// repeating SE_describe_payload() - sys_error_handler_task's own stack
+// trace already prints that same description for every node, including
+// the root. Unlike the I2C devices, gpio_esp has no external bus to lose
+// communication with - it IS the ESP32's own GPIO/ADC/PWM peripherals - so
+// ERR_ESP_ERR here means an internal peripheral driver call
+// (gpio_set_level, ADC calibration/read, etc.) failed, not a disconnected
+// device.
+static void explain_root_cause(uint8_t device_id, err_h error) {
+  err_h root = error;
+  while (root && root->next_cause) root = root->next_cause;
+  if (!root) return;
+  ESP_LOGE(TAG, "GPIO_ESP (device %u) error root cause: owner=%s (0x%04X), tag=%s (%d)", device_id, SE_get_owner_name(root->owner), (unsigned int)root->owner, SE_get_tag_name(root->tag), (int)root->tag);
+
+  if (root->tag == ERR_ESP_ERR) {
+    ESP_LOGE(TAG, "  -> internal ESP32 GPIO/ADC/PWM peripheral call failed on device %u (not a communication/bus issue - this device has no external bus)", device_id);
+  }
+}
+
 static err_h device_error_handler(void* handle, err_h error) {
   (void)handle; /* singleton adapter - gpio_esp_ctx is the one instance */
   sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(&gpio_esp_ctx));
   if (!dev) return NULL;
+
+  explain_root_cause(SYS_DEV_GET_ID(&gpio_esp_ctx), error);
 
   if (dev->generate_error_callback) {
     // TODO: report to the VM via the callback system. Payload should carry

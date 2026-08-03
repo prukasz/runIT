@@ -145,6 +145,7 @@ All return `err_h` (`NULL` on success), per the [[runit]] skill's function retur
 ### Initialization & Queue Management
 * **`err_h sys_callbacks_init(void)`**:
   The event queue (`s_callback_queue`, `CONFIG_SYS_CB_QUEUE_LEN` entries, sized for `cb_event_t`) is already live by the time this is called — it's defined via `R_QUEUE_DEFINE`, constructor-created before `app_main()`. This function's only job is to start the consumer task (`sys_cb_task`, `CONFIG_SYS_CB_TASK_STACK_SIZE`-word stack, `CONFIG_SYS_CB_TASK_PRIO` priority, pinned to core 0) via `R_TASK_START_ON_CORE`, guarded so a repeat call doesn't start it twice. Always returns `NULL`.
+  **Must be called at boot** (`runit_start()`, before `sys_actions_init()` invokes the boot action that installs devices) — `sys_callback_trigger()` happily enqueues events with no consumer running, so a missing call here doesn't fail loudly, it just makes every interrupt/callback (own_func *and* routed) silently do nothing forever. This was missing from `runit_start()` for a while; if callback-driven code (device ISRs, `SYS_IO_CB`/`SYS_PWR_CB`) mysteriously never fires despite the underlying hardware event genuinely happening, check this first.
 
 ### Event Triggering
 * **`err_h sys_callback_trigger(const cb_event_t* event)`**:

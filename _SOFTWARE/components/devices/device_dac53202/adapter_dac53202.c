@@ -156,11 +156,32 @@ static err_h device_sync(void* handle) {
   return NULL;
 }
 
+// Same shape as device_pca9685's explain_root_cause() (see that file for
+// the full rationale): identifies which node in the chain is the root
+// cause and adds this adapter's own interpretation for it, without
+// repeating SE_describe_payload() - sys_error_handler_task's own stack
+// trace already prints that same description for every node, including
+// the root. Every ERR_ESP_ERR reaching this adapter's error_handler
+// originates from an I2C driver call (SYS_DEV_CHECK_DRIVER_CALL wraps every
+// dac53202_*() call, all of which go over I2C).
+static void explain_root_cause(uint8_t device_id, err_h error) {
+  err_h root = error;
+  while (root && root->next_cause) root = root->next_cause;
+  if (!root) return;
+  ESP_LOGE(TAG, "DAC53202 (device %u) error root cause: owner=%s (0x%04X), tag=%s (%d)", device_id, SE_get_owner_name(root->owner), (unsigned int)root->owner, SE_get_tag_name(root->tag), (int)root->tag);
+
+  if (root->tag == ERR_ESP_ERR) {
+    ESP_LOGE(TAG, "  -> communication with DAC53202 (device %u) failed - check that it is connected, powered, and present at the configured I2C bus/address", device_id);
+  }
+}
+
 static err_h device_error_handler(void* handle, err_h error) {
   dac_adapter_ctx_t* ctx = (dac_adapter_ctx_t*)handle;
   SYS_DEV_CHECK_HANDLE(ctx, 0);
   sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(ctx));
   if (!dev) return NULL;
+
+  explain_root_cause(SYS_DEV_GET_ID(ctx), error);
 
   if (dev->generate_error_callback) {
     // TODO: report to the VM via the callback system. Payload should carry

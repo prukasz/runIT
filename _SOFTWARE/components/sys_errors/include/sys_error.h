@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include "esp_err.h"
 #include "esp_log.h"
 #include "sys_error_codes.h"
@@ -20,6 +21,45 @@ typedef enum { SYS_ERROR_MAP(X_ENUM) ERR_MAX_COUNT } err_tag_e;
 #define X_STRUCT(tag, struct_def) typedef struct_def err_payload_##tag##_t;
 SYS_ERROR_MAP(X_STRUCT)
 #undef X_STRUCT
+
+// Auto-generate one typed logger function per tag in SYS_ERROR_LOGGER_MAP
+// (aggregated in sys_error_codes.h from every module's own opt-in
+// SYS_ERROR_<MODULE>_LOGGER_MAP) - deferred to here, rather than living in
+// each module's sys_error_<module>.h, because err_payload_<tag>_t doesn't
+// exist until the SYS_ERROR_MAP(X_STRUCT) expansion just above. Each
+// module only had to supply a LOG_BODY_<tag>(p, out, out_size) macro (pure
+// text, no ordering constraint); this stamps it into a real function.
+#define X_LOGGER_FN(tag) \
+  static inline void log_##tag(const err_payload_##tag##_t* p, char* out, size_t out_size) { LOG_BODY_##tag(p, out, out_size); }
+SYS_ERROR_LOGGER_MAP(X_LOGGER_FN)
+#undef X_LOGGER_FN
+
+/**
+ * @brief Writes a short human-readable description of a node's payload into
+ * out, if tag has a registered logger (see SYS_ERROR_LOGGER_MAP).
+ *
+ * @param tag Node's tag - determines which logger (if any) runs.
+ * @param payload Node's payload (curr->payload) - cast to the matching
+ *                err_payload_<tag>_t internally.
+ * @param out Destination buffer; snprintf-truncated, always NUL-terminated
+ *            if out_size > 0.
+ * @param out_size Size of out.
+ * @return bool true if a description was written, false if tag has no
+ *              logger registered (out is left untouched) - callers should
+ *              fall back to a raw payload dump in that case.
+ */
+static inline bool SE_describe_payload(err_tag_e tag, const void* payload, char* out, size_t out_size) {
+  switch (tag) {
+#define X_LOGGER_CASE(tag) \
+  case tag:                \
+    log_##tag((const err_payload_##tag##_t*)payload, out, out_size); \
+    return true;
+    SYS_ERROR_LOGGER_MAP(X_LOGGER_CASE)
+#undef X_LOGGER_CASE
+    default:
+      return false;
+  }
+}
 
 // ---------------------------------------------------------
 // 2. Main Error Structure (Linked List Node)

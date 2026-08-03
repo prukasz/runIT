@@ -116,7 +116,25 @@ typedef struct sys_io_vtable_t {
   uint64_t protected_pins; // 64-bit bitmask of locked pins (0 to 63)
 } sys_io_vtable_t;
 ```
-Any function left NULL causes `SYS_IO_DISPATCH` to fall through to `ERR_BASE_NOT_SUPPORTED` for that pin/device.
+Any function left NULL causes `SYS_IO_DISPATCH` to fall through to `ERR_DEV_FEATURE_UNAVAILABLE` (`dev_id`, `SYS_DEVICE_CONTRACT_IO`, and a `feature_id` naming which vtable slot was missing) for that pin/device — not the generic `ERR_BASE_NOT_SUPPORTED`, so the trace says *which* operation is unsupported.
+
+### Feature IDs (sys_io_feature_e)
+One value per `sys_io_vtable_t` slot, in declaration order — carried as `ERR_DEV_FEATURE_UNAVAILABLE`'s `feature_id` payload field:
+```c
+typedef enum sys_io_feature_e {
+  SYS_IO_FEATURE_RESET = 0,
+  SYS_IO_FEATURE_SET_MODE,
+  SYS_IO_FEATURE_CONFIGURE_INTR,
+  SYS_IO_FEATURE_SET_LEVEL,
+  SYS_IO_FEATURE_GET_LEVEL,
+  SYS_IO_FEATURE_TOGGLE,
+  SYS_IO_FEATURE_GET_VOLTAGE,
+  SYS_IO_FEATURE_SET_VOLTAGE,
+  SYS_IO_FEATURE_SET_PWM_FREQUENCY,
+  SYS_IO_FEATURE_SET_PWM_DUTY,
+} sys_io_feature_e;
+```
+String form available via `sys_io_feature_e_to_string[]`. `ERR_DEV_FEATURE_UNAVAILABLE`'s logged description (see [[SYS_ERRORS.MD]]'s `SE_describe_payload()`) uses this table to name `feature_id` when `contract_id == SYS_DEVICE_CONTRACT_IO` — `sys_error_dev.h` (owned by `sys_device`) can't `#include sys_io.h` at that point in the header chain (breaks include ordering), so it forward-declares just this one `extern` array instead of including the whole header.
 
 ---
 
@@ -153,7 +171,7 @@ Resolve the device's IO vtable via `sys_device_get_by_id()` / `SYS_DEV_GET_CONTR
 
 ## Manager API Functions
 
-All return `err_h` (`NULL` on success). Every dispatched call routes through `SYS_IO_DISPATCH`, which returns `ERR_DEV_NOT_FOUND`, `ERR_DEV_NOT_INSTALLED`, `ERR_DEV_SUSPENDED`, or `ERR_IO_PIN_LOCKED` before ever reaching the driver, and `ERR_BASE_NOT_SUPPORTED` if the vtable slot is NULL.
+All return `err_h` (`NULL` on success). Every dispatched call routes through `SYS_IO_DISPATCH`, which returns `ERR_DEV_NOT_FOUND`, `ERR_DEV_NOT_INSTALLED`, `ERR_DEV_SUSPENDED`, or `ERR_IO_PIN_LOCKED` before ever reaching the driver, and `ERR_DEV_FEATURE_UNAVAILABLE` (with the calling function's `sys_io_feature_e`) if the vtable slot is NULL.
 
 ### Digital & Control Actions
 * **`sys_io_reset(device_id, pin)`**: Resets the pin to its default configuration.

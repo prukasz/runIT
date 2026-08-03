@@ -116,6 +116,27 @@ typedef struct sys_io_vtable_t {
   uint64_t protected_pins;
 } sys_io_vtable_t;
 
+/**
+ * @brief Identifies which sys_io_vtable_t slot a NULL-vtable-function
+ * dispatch failure was for - carried as ERR_DEV_FEATURE_UNAVAILABLE's
+ * feature_id payload field (see SYS_IO_DISPATCH), so the failure says
+ * *which* IO operation is unsupported instead of a bare "not supported".
+ */
+typedef enum sys_io_feature_e {
+  SYS_IO_FEATURE_RESET = 0,
+  SYS_IO_FEATURE_SET_MODE,
+  SYS_IO_FEATURE_CONFIGURE_INTR,
+  SYS_IO_FEATURE_SET_LEVEL,
+  SYS_IO_FEATURE_GET_LEVEL,
+  SYS_IO_FEATURE_TOGGLE,
+  SYS_IO_FEATURE_GET_VOLTAGE,
+  SYS_IO_FEATURE_SET_VOLTAGE,
+  SYS_IO_FEATURE_SET_PWM_FREQUENCY,
+  SYS_IO_FEATURE_SET_PWM_DUTY,
+} sys_io_feature_e;
+
+extern const char* const sys_io_feature_e_to_string[];
+
 typedef struct sys_io_device_t {
   sys_io_vtable_t* dispatch_table;
   void* handle;

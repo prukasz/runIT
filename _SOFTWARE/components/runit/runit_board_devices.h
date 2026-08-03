@@ -36,48 +36,83 @@ err_h runit_at_boot(void* arg) {
   SE_ORIGIN_CALL(d_gpio_esp_create(&(d_gpio_esp_cfg_t){
       .device_id = DEVICE_ID_GPIO_ESP,
   }));
-  // SE_ORIGIN_CALL(d_tca6424a_create(&(d_tca6424a_cfg_t){
-  //     .device_id = DEVICE_ID_TCA6424A,
-  //     .i2c_bus = SYS_I2C_BUS_INTERNAL,
-  //     .i2c_addr = 0x23,
-  //     .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 9, SYS_IO_MODE_INPUT),
-  //     .rst_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 8, SYS_IO_MODE_OUTPUT_PUSH_PULL),
-  // }));
+  SE_ORIGIN_CALL(d_tca6424a_create(&(d_tca6424a_cfg_t){
+      .device_id = DEVICE_ID_TCA6424A,
+      .i2c_bus = SYS_I2C_BUS_INTERNAL,
+      .i2c_addr = 0x23,
+      .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 9, SYS_IO_MODE_INPUT),
+      .rst_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 8, SYS_IO_MODE_OUTPUT_PUSH_PULL),
+  }));
+  SE_ORIGIN_CALL(d_ads7128_create(&(d_ads7128_cfg_t){
+      .device_id = DEVICE_ID_ADS7128,
+      .i2c_bus = SYS_I2C_BUS_INTERNAL,
+      .i2c_addr = 0x10,
+      .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 42, SYS_IO_MODE_INPUT_PULLUP),
+      .vref_mv = 20000,
+  }));
+  // Interrupt test: alert when AIN0 (pin 0) goes above 200 mV. WINDOW_OUTSIDE
+  // with a 0 mV low threshold means "outside [0, 200] mV" - since the ADC
+  // can't read negative, that only ever fires on the high side. Routed to
+  // SYS_CB_ROUTE_IO's dummy logger (sys_io_cb_dummy_log in sys_io.c), so the
+  // alert shows up as an "IO event" log line - no own_func needed for this
+  // test. Fires on the first sample past the threshold (event_counter=1).
+  //
+  // 50 mV hysteresis: EVENT_HIGH_FLAG is latched (datasheet 8.3.11) - once
+  // set it stays set until cleared, and does NOT self-clear just because a
+  // later sample is back in range. With 0 mV hysteresis and a signal that's
+  // continuously above 200 mV, the autonomous sequencer (~1 kSPS) re-trips
+  // the flag on essentially every conversion - the gap between "cleared" and
+  // "set again" collapses to microseconds, far too fast for a falling edge to
+  // register as a distinct transition, so ALERT reads as permanently
+  // asserted even though it's technically re-tripping continuously. With
+  // hysteresis, a re-trip requires the signal to first drop back below
+  // (200 - 50) = 150 mV before it can assert again - so it only fires on a
+  // genuine crossing, not on every sample of a signal parked above threshold.
+  SE_ORIGIN_CALL(sys_io_configure_intr(DEVICE_ID_ADS7128, 0,
+      &(sys_io_intr_config_t){
+          .mode = SYS_IO_INTR_ADC_WINDOW_OUTSIDE,
+          .route_mask = SYS_CB_ROUTE_BIT(SYS_CB_ROUTE_IO),
+          .action_mask = 0,
+          .adc = {.adc_threshold_up_mV = 200, .adc_threshold_down_mV = 0, .adc_threshold_hysteresis_mV = 100, .adc_event_counter_threshold = 1},
+      }));
+  ESP_LOGW("board_devices", "ADS7128 AIN0 armed: alert above 200mV (50mV hysteresis)");
   SE_ORIGIN_CALL(d_pca9685_create(&(d_pca9685_cfg_t){
-      .device_id = DEVICE_ID_PCA9685, .i2c_bus = SYS_I2C_BUS_INTERNAL, .i2c_addr = 0x60, .oe_pin = SYS_IO_PIN_NONE_INIT  // rev 1.0: OE not driven by the expander
+      .device_id = DEVICE_ID_PCA9685, .i2c_bus = SYS_I2C_BUS_INTERNAL, .i2c_addr = 0x60, .oe_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 0, SYS_IO_MODE_OUTPUT_PUSH_PULL)  // rev 1.0: OE not driven by the expander
   }));
   // SE_ORIGIN_CALL(d_dac53202_create(&(d_dac53202_cfg_t){
   //     .device_id = DEVICE_ID_DAC53202,
   //     .i2c_bus = SYS_I2C_BUS_INTERNAL,
   //     .i2c_addr = 0x13,
   // }));
-  // SE_ORIGIN_CALL(d_tps55289_create(&(d_tps55289_cfg_t){
-  //     .device_id = DEVICE_ID_TPS55289_0,
-  //     .i2c_bus = SYS_I2C_BUS_INTERNAL,
-  //     .i2c_addr = 0x74,
-  //     .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 1, SYS_IO_MODE_INPUT),
-  //     .en_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 17, SYS_IO_MODE_OUTPUT_PUSH_PULL),
-  // }));
-  // SE_ORIGIN_CALL(d_tps55289_create(&(d_tps55289_cfg_t){
-  //     .device_id = DEVICE_ID_TPS55289_1,
-  //     .i2c_bus = SYS_I2C_BUS_INTERNAL,
-  //     .i2c_addr = 0x75,
-  //     .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 2, SYS_IO_MODE_INPUT),
-  //     .en_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 16, SYS_IO_MODE_OUTPUT_PUSH_PULL),
-  // }));
-  // SE_ORIGIN_CALL(d_ina3221_create(&(d_ina3221_cfg_t){
-  //     .device_id = DEVICE_ID_INA3221,
-  //     .i2c_bus = SYS_I2C_BUS_INTERNAL,
-  //     .i2c_addr = 0x60,
-  //     .crit_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 5, SYS_IO_MODE_INPUT),
-  //     .warn_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 6, SYS_IO_MODE_INPUT),
-  // }));
-  // SE_ORIGIN_CALL(d_ap33772s_create(&(d_ap33772s_cfg_t){
-  //     .device_id = DEVICE_ID_AP33772S,
-  //     .i2c_bus = SYS_I2C_BUS_INTERNAL,
-  //     .i2c_addr = 0x14,
-  //     .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 12, SYS_IO_MODE_INPUT),
-  // }));
+  SE_ORIGIN_CALL(d_tps55289_create(&(d_tps55289_cfg_t){
+      .device_id = DEVICE_ID_TPS55289_0,
+      .i2c_bus = SYS_I2C_BUS_INTERNAL,
+      .i2c_addr = 0x74,
+      .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 1, SYS_IO_MODE_INPUT),
+      .en_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 17, SYS_IO_MODE_OUTPUT_PUSH_PULL),
+  }));
+  SE_ORIGIN_CALL(d_tps55289_create(&(d_tps55289_cfg_t){
+      .device_id = DEVICE_ID_TPS55289_1,
+      .i2c_bus = SYS_I2C_BUS_INTERNAL,
+      .i2c_addr = 0x75,
+      .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 2, SYS_IO_MODE_INPUT),
+      .en_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 16, SYS_IO_MODE_OUTPUT_PUSH_PULL),
+  }));
+  SE_ORIGIN_CALL(d_ina3221_create(&(d_ina3221_cfg_t){
+      .device_id = DEVICE_ID_INA3221,
+      .i2c_bus = SYS_I2C_BUS_INTERNAL,
+      .i2c_addr = 0x40,
+      .crit_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 5, SYS_IO_MODE_INPUT),
+      .warn_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 6, SYS_IO_MODE_INPUT),
+  }));
+  SE_ORIGIN_CALL(d_ap33772s_create(&(d_ap33772s_cfg_t){
+      .device_id = DEVICE_ID_AP33772S,
+      .i2c_bus = SYS_I2C_BUS_INTERNAL,
+      .i2c_addr = 0x52,
+      .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 12, SYS_IO_MODE_INPUT),
+  }));
+  SE_ORIGIN_CALL(sys_io_set_mode(1, 22, SYS_IO_MODE_OUTPUT_PUSH_PULL));
+  SE_ORIGIN_CALL(sys_io_set_mode(1, 23, SYS_IO_MODE_OUTPUT_PUSH_PULL));
   ESP_LOGI("board_devices", "onboard devices created");
 
   // runit_test_pca9685_start();  // uncomment to run the PCA9685 error-handling test (see below)

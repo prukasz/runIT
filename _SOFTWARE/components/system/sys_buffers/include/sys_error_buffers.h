@@ -10,3 +10,6 @@
   X(OWNER_SYS_BUFF_POP_RAW, 0xA705, "OWNER_SYS_BUFF_POP_RAW")
 
 #define SYS_ERROR_BUFFERS_MAP(X)
+
+/** @brief sys_buffers raises no tags of its own yet (see SYS_ERROR_BUFFERS_MAP above) - empty for the same reason. */
+#define SYS_ERROR_BUFFERS_LOGGER_MAP(X)

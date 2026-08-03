@@ -253,11 +253,34 @@ static err_h adapter_reset_device(void* driver_handle) {
   return NULL;
 }
 
+// Same shape as device_pca9685's explain_root_cause() (see that file for
+// the full rationale): identifies which node in the chain is the root
+// cause and adds this adapter's own interpretation for it, without
+// repeating SE_describe_payload() - sys_error_handler_task's own stack
+// trace already prints that same description for every node, including
+// the root. Every ERR_ESP_ERR reaching this adapter's error_handler
+// originates from an I2C call - either SYS_DEV_CHECK_DRIVER_CALL wrapping
+// an ap33772s_*() call, or a direct SE_RET_ERR(ERR_ESP_ERR, 0) in
+// d_ap33772s_get_telemetry_voltage()/_current() when the raw driver read
+// returns negative - both are I2C failures either way.
+static void explain_root_cause(uint8_t device_id, err_h error) {
+  err_h root = error;
+  while (root && root->next_cause) root = root->next_cause;
+  if (!root) return;
+  ESP_LOGE(TAG, "AP33772S (device %u) error root cause: owner=%s (0x%04X), tag=%s (%d)", device_id, SE_get_owner_name(root->owner), (unsigned int)root->owner, SE_get_tag_name(root->tag), (int)root->tag);
+
+  if (root->tag == ERR_ESP_ERR) {
+    ESP_LOGE(TAG, "  -> communication with AP33772S (device %u) failed - check that it is connected, powered, and present at the configured I2C bus/address", device_id);
+  }
+}
+
 static err_h adapter_error_handler(void* driver_handle, err_h error) {
   ap_adapter_ctx_t* ctx = (ap_adapter_ctx_t*)driver_handle;
   SYS_DEV_CHECK_HANDLE(ctx, 0);
   sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(ctx));
   if (!dev) return NULL;
+
+  explain_root_cause(SYS_DEV_GET_ID(ctx), error);
 
   if (dev->generate_error_callback) {
     // TODO: report to the VM via the callback system. Payload should carry

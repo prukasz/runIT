@@ -61,9 +61,19 @@ Error nodes are allocated from a fixed-size (`ERR_BUF_SIZE`, 1024 bytes) lock-fr
 
 The error queue (`s_err_queue`, `ERR_QUEUE_LEN` = 32) is a static FreeRTOS queue defined via the `utils` component's `R_QUEUE_DEFINE` — it's live before `app_main()` runs (constructor-initialized), so nothing needs to guard its creation, including `SE_push_to_handler()` calls that happen to land before `SE_init()`. `SE_init()` starts the background consumer task (`sys_error_handler_task`), statically allocated via `R_TASK_DEFINE` / `R_TASK_START` (see [[runit]] skill), guarded so a repeat call doesn't start it twice.
 
-The task reads a fresh copy of the config via `SE_get_config()` each time it wakes (rather than reaching into `sys_error.c`'s internal `s_cfg`, keeping the two files decoupled to the public API) and, per that configuration, (a) encodes the chain into a wire packet, (b) logs each node (owner name, owner ID, tag name, tag ID, and — whenever `SE_get_payload_size(tag) > 0` — up to 16 raw payload bytes as hex) via `ESP_LOGE`, and (c) pushes the encoded packet to a BLE TX slot — **in that order**, because both (b) and (c) can themselves allocate from the same ring the chain lives in.
+The task reads a fresh copy of the config via `SE_get_config()` each time it wakes (rather than reaching into `sys_error.c`'s internal `s_cfg`, keeping the two files decoupled to the public API) and, per that configuration, (a) encodes the chain into a wire packet, (b) logs each node (owner name, owner ID, tag name, tag ID, and a description — see below) via `ESP_LOGE`, and (c) pushes the encoded packet to a BLE TX slot — **in that order**, because both (b) and (c) can themselves allocate from the same ring the chain lives in.
 
-The payload dump is deliberately generic (raw hex, no per-tag decoding) — a tag-specific human-readable translation belongs closer to whoever actually cares about that tag, not in the shared handler. See `adapter_pca9685.c`'s `explain_root_cause()` for that pattern: it decodes a handful of common root-cause tags (`ERR_ESP_ERR` via `esp_err_to_name()`, the `ERR_DEV_*` family's `dev_id`, `ERR_IO_PIN_UNAVAILABLE`'s `dev_id`/`pin_num`) into a plain-English line on top of the raw owner/tag, as an example other adapters' `error_handler` implementations can follow once their own classification logic lands.
+### Per-Tag Payload Descriptions (`SE_describe_payload`)
+
+Each printed node tries `SE_describe_payload(tag, payload, out, out_size)` (declared in `sys_error.h`) first: if `tag` has a registered logger, it writes a short human-readable line (e.g. `"device 3 dependency failed"`, `"ESP-IDF error ESP_ERR_TIMEOUT (0x107)"`) and the trace prints `Owner: ... Tag: ... -> <description>`. If `tag` has no logger, the trace falls back to a raw hex dump of up to 16 payload bytes, same as before.
+
+**Adding a description for a tag** is a two-step, per-module change — no edits to `sys_error.h`/`sys_error_handler.c` needed:
+1. In the tag's owning module's `sys_error_<module>.h` (next to its `SYS_ERROR_<MODULE>_MAP`), add the tag to a `SYS_ERROR_<MODULE>_LOGGER_MAP(X)` — just `X(TAG_NAME)`, no second argument.
+2. Define `#define LOG_BODY_<TAG_NAME>(p, out, out_size) snprintf((out), (out_size), "...", (p)->field, ...)` — `p` is `const err_payload_<TAG_NAME>_t*`.
+
+**Why the split into a macro-only map plus a separately-generated function** (rather than just writing `static inline void log_<tag>(...)` directly in the module header, the way the struct/enum generation works): `err_payload_<tag>_t` doesn't exist yet at the point `sys_error_<module>.h` is parsed — it's included (via `sys_error_codes.h`) *before* `sys_error.h` expands `SYS_ERROR_MAP(X_STRUCT)`. `LOG_BODY_<tag>` is pure text (a macro), so it has no such ordering constraint; `sys_error.h` stamps it into a real typed function (`log_<tag>`) itself, immediately after the payload structs are generated, then generates `SE_describe_payload()`'s `switch` over the same aggregated `SYS_ERROR_LOGGER_MAP` (built in `sys_error_codes.h`, one line per module, mirroring how `SYS_ERROR_MAP`/`SYS_OWNER_MAP` are aggregated there).
+
+This is opt-in and sparse by design — most tags don't have a logger yet; an un-described tag is not a bug, just a raw hex fallback until someone adds one. `adapter_pca9685.c`'s `explain_root_cause()` reuses this same `SE_describe_payload()` call for its root-cause line, rather than keeping its own translation table, so there's exactly one place per tag that knows how to describe it.
 
 `SE_push_to_handler(err)` enqueues a completed chain; it is ISR-safe (uses `xQueueSendFromISR` when called from ISR context) and is a no-op while suspended (`SE_suspend()` / `SE_resume()`, nesting-safe via a depth counter, implemented in sys_error.c). A push that happens before `SE_init()` has started the task simply waits in the queue rather than being dropped.
 
@@ -193,6 +203,7 @@ bool SE_is_suspended(void);
 const char* SE_get_owner_name(uint32_t owner);
 const char* SE_get_tag_name(err_tag_e tag);
 size_t SE_get_payload_size(err_tag_e tag);   // sizeof(err_payload_<tag>_t); 0 if unknown
+bool SE_describe_payload(err_tag_e tag, const void* payload, char* out, size_t out_size);  // true if tag has a registered description
 
 err_h SE_configure(const sys_error_cfg_t* cfg);
 err_h SE_get_config(sys_error_cfg_t* out_cfg);
@@ -214,3 +225,4 @@ Two `_Static_assert` blocks in `sys_error.c` keep `err_tag_e` and every owner ID
      X(OWNER_MY_MODULE_BASE, 0xE000, "OWNER_MY_MODULE_BASE")
    ```
 2. **Register the map** in `components/sys_errors/codes/sys_error_codes.h` by including the header and adding both macros to `SYS_ERROR_MAP` / `SYS_OWNER_MAP`. This automatically extends `err_tag_e`, `sys_owner_e`, the generated payload structs, and the `SE_get_owner_name` / `SE_get_tag_name` lookup tables.
+3. **(Optional) Add a description**, in the same `sys_error_<module>.h`: add `ERR_MY_MODULE_THING` to a `SYS_ERROR_MY_MODULE_LOGGER_MAP(X)` (`X(ERR_MY_MODULE_THING)`) and define `LOG_BODY_ERR_MY_MODULE_THING(p, out, out_size)`, then add `SYS_ERROR_MY_MODULE_LOGGER_MAP(X)` as one more line in `sys_error_codes.h`'s `SYS_ERROR_LOGGER_MAP`. See [Per-Tag Payload Descriptions](#per-tag-payload-descriptions-se_describe_payload) above. Skippable — an undescribed tag just falls back to a hex payload dump.

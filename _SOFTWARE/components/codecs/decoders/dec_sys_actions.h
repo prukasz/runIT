@@ -60,10 +60,25 @@ static inline err_h decoder_packet_sys_actions_remove_t(packet_sys_actions_remov
   return sys_actions_remove(packet->action_id);
 }
 
+// Test-only wire exposure of sys_actions_invoke() - normally a C-level-only
+// API (called from a callback route, application code, or the boot action),
+// deliberately not on the wire. Exposed here so recorded/bound actions can be
+// fired from the GUI without waiting for their real trigger.
+#define HEADER_packet_sys_actions_execute_t 0x04
+typedef struct __packed {
+  uint8_t action_id;
+} packet_sys_actions_execute_t;
+
+static inline err_h decoder_packet_sys_actions_execute_t(packet_sys_actions_execute_t* packet) {
+  ESP_LOGI(DEC_SYS_ACTIONS_TAG, "executing action %u", packet->action_id);
+  return sys_actions_invoke(packet->action_id);
+}
+
 #define SYS_ACTIONS_PACKET_LIST(X)                                                                         \
   X(HEADER_packet_sys_actions_record_t, packet_sys_actions_record_t, decoder_packet_sys_actions_record_t)   \
   X(HEADER_packet_sys_actions_stop_t, packet_sys_actions_stop_t, decoder_packet_sys_actions_stop_t)         \
-  X(HEADER_packet_sys_actions_remove_t, packet_sys_actions_remove_t, decoder_packet_sys_actions_remove_t)
+  X(HEADER_packet_sys_actions_remove_t, packet_sys_actions_remove_t, decoder_packet_sys_actions_remove_t)   \
+  X(HEADER_packet_sys_actions_execute_t, packet_sys_actions_execute_t, decoder_packet_sys_actions_execute_t)
 
 #define SYS_ACTIONS_DECODE_CASE(header, packet_type, decoder_func)                  \
   case header: {                                                                   \
