@@ -23,6 +23,7 @@
   X(ERR_VM_ACCESSOR_NULL_OBJ, struct { uint16_t id; uint8_t chain_pos; void* parent_obj; })                           \
   X(ERR_VM_ACCESSOR_DEPTH_EXCEEDED, struct { uint16_t id; })                                                          \
   X(ERR_VM_ACCESSOR_INDEX_FAILED, struct { uint16_t id; uint8_t chain_pos; })                                         \
+  X(ERR_VM_ACCESSOR_NOT_MUTABLE, struct { uint16_t id; uint8_t chain_pos; void* obj; })                               \
   X(ERR_VM_BLOCK_INPUT_UNRESOLVED, struct { uint16_t block_idx; uint8_t input_idx; })
 
 /**
@@ -39,6 +40,7 @@
   X(ERR_VM_ACCESSOR_NULL_OBJ)      \
   X(ERR_VM_ACCESSOR_DEPTH_EXCEEDED) \
   X(ERR_VM_ACCESSOR_INDEX_FAILED)  \
+  X(ERR_VM_ACCESSOR_NOT_MUTABLE)   \
   X(ERR_VM_BLOCK_INPUT_UNRESOLVED)
 
 #define LOG_BODY_ERR_VM_ALLOC_EXHAUSTED(p, out, out_size) \
@@ -55,6 +57,8 @@
   snprintf((out), (out_size), "accessor %u exceeded max nesting depth", (p)->id)
 #define LOG_BODY_ERR_VM_ACCESSOR_INDEX_FAILED(p, out, out_size) \
   snprintf((out), (out_size), "accessor %u: dynamic index at chain position %u failed to resolve", (p)->id, (p)->chain_pos)
+#define LOG_BODY_ERR_VM_ACCESSOR_NOT_MUTABLE(p, out, out_size) \
+  snprintf((out), (out_size), "accessor %u: write rejected at chain position %u, target is not mutable (obj=%p)", (p)->id, (p)->chain_pos, (p)->obj)
 #define LOG_BODY_ERR_VM_BLOCK_INPUT_UNRESOLVED(p, out, out_size) \
   snprintf((out), (out_size), "block %u input %u failed to resolve", (p)->block_idx, (p)->input_idx)
 

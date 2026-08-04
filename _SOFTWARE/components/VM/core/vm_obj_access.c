@@ -11,7 +11,7 @@ err_h vm_accessor_resolve_d(const vm_obj_table_t* t, const vm_accessor_t* acc, u
     SE_RET_ERR(ERR_VM_ACCESSOR_DEPTH_EXCEEDED, .id = acc->id);
   }
 
-  vm_obj_t* obj = vm_obj_get(t, acc->id);
+  vm_obj_h obj = vm_obj_get(t, acc->id);
   if (!obj) {
     SE_RET_ERR(ERR_VM_ACCESSOR_UNKNOWN_ID, .id = acc->id);
   }
@@ -41,7 +41,7 @@ err_h vm_accessor_resolve_d(const vm_obj_table_t* t, const vm_accessor_t* acc, u
         SE_RET_ERR(ERR_VM_ACCESSOR_TYPE_MISMATCH, .id = acc->id, .chain_pos = i,
                    .expected = VM_OBJ_PTR, .actual = ref.type, .obj = (void*)obj);
       }
-      vm_obj_t* child = *(vm_obj_t**)ref.ptr;
+      vm_obj_h child = *(vm_obj_h*)ref.ptr;
       if (!child) {
         // a packet-sourced tree isn't trusted to have every PTR slot wired --
         // this is the untrusted-input counterpart to TYPE_MISMATCH above

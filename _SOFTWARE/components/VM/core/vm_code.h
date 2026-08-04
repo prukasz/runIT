@@ -37,7 +37,7 @@ typedef struct {
   } blocks;
   struct {
     uint16_t objects_cnt;
-    vm_obj_t** objects;
+    vm_obj_h* objects;
     vm_alloc_t arena;
   } objects;
   struct {
