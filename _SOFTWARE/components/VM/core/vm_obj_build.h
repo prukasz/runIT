@@ -150,3 +150,22 @@ err_h vm_accessor_set_ref(vm_accessor_t* acc, uint8_t pos, const vm_accessor_t* 
  * @return err_h ERR_VM_OBJ_NAME_TOO_LONG past VM_OBJ_NAME_MAX, ERR_BASE_NO_MEM.
  */
 err_h vm_accessor_set_name(vm_accessor_t* acc, uint8_t pos, vm_alloc_t* arena, const char* name, uint8_t name_len);
+
+/**
+ * @brief Pre-resolve an accessor whose address cannot move, so every later
+ *        access is four loads instead of a walk.
+ *
+ * Qualifies: a whole-object accessor, or one literal index on a root object
+ * whose element is in range. Both are fixed for the life of the program --
+ * see the VM_ACC_F_CACHED note in vm_obj_access.h for why a pointer slot
+ * counts as fixed and a two-level chain does not.
+ *
+ * Call after the root object exists and its indices are set. The loader does
+ * this itself at the end of vm_loader_add_accessor(); code building accessors
+ * directly has to call it. Skipping it costs speed and nothing else.
+ *
+ * @return true if the accessor is now cached, false if its shape does not
+ *         qualify or the root object is missing -- never an error, since
+ *         resolving the long way is always available.
+ */
+bool vm_accessor_cache_build(vm_accessor_t* acc);

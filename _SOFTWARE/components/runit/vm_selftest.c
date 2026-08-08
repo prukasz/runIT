@@ -1322,6 +1322,88 @@ static void test_strings(void) {
   ck("writing the last character is accepted", VM_OBJ_SET_VAL_AT(wc, s, 7) == NULL && s->payload[7] == 'a');
 }
 
+/* ==========================================================================
+   L -- resolution cache
+
+   The cache is only ever an optimisation, so the thing worth testing is not
+   that it is fast but that it is *invisible*: a cached accessor and an
+   identical uncached one must agree on every answer, including the ones that
+   fail. The dangerous case is a stale address, so the shapes that must NOT be
+   cached are pinned here too.
+   ========================================================================== */
+static void test_resolution_cache(void) {
+  ESP_LOGI(TAG, "-- L: resolution cache --");
+  direct_arena_reset();
+
+  vm_obj_h box = mk(0, VM_OBJ_PTR, 2, NULL, true);
+  vm_obj_h arr = mk(1, VM_OBJ_U32, 4, NULL, true);
+  vm_obj_h alt = mk(2, VM_OBJ_U32, 4, NULL, true);
+  vm_obj_h ro = mk(3, VM_OBJ_U32, 2, NULL, false);
+  ck("cache fixtures built", box && arr && alt && ro);
+  if (!box || !arr || !alt || !ro) return;
+
+  for (int i = 0; i < 4; i++) ((uint32_t*)arr->payload)[i] = (uint32_t)(100 + i);
+  for (int i = 0; i < 4; i++) ((uint32_t*)alt->payload)[i] = (uint32_t)(900 + i);
+  ck("link fixtures wired", vm_obj_link_direct(box, 0, arr) == NULL);
+
+  // the two shapes that qualify
+  vm_accessor_t* whole = NULL;
+  vm_accessor_t* elem = NULL;
+  bool built = vm_accessor_create(&whole, &s_arena, 1, 0) == NULL && vm_accessor_create(&elem, &s_arena, 1, 1) == NULL && vm_accessor_set_literal(elem, 0, 2) == NULL;
+  ck("cacheable accessors built", built);
+  ck("whole-object accessor caches", built && vm_accessor_cache_build(whole));
+  ck("one-literal accessor caches", built && vm_accessor_cache_build(elem));
+
+  uint32_t v = 0;
+  ck("cached read matches the value", VM_OBJ_GET_VAL(v, elem) == NULL && v == 102);
+  ck("cached write lands and sets upd", VM_OBJ_SET_VAL(((uint32_t)777), elem) == NULL && ((uint32_t*)arr->payload)[2] == 777 && arr->head.f.upd);
+
+  vm_payload_t p = {0};
+  ck("cached whole-object payload has the full count", vm_obj_get_payload(&p, whole) == NULL && p.count == 4 && p.ptr == arr->payload);
+
+  /* A cached accessor must still refuse a read-only target: mutability is read
+     from the object at access time, not frozen into the cache. */
+  vm_accessor_t* roacc = NULL;
+  bool ro_built = vm_accessor_create(&roacc, &s_arena, 3, 1) == NULL && vm_accessor_set_literal(roacc, 0, 0) == NULL;
+  ck("read-only accessor caches", ro_built && vm_accessor_cache_build(roacc));
+  ck("cached write to a non-mutable object is still refused", ro_built && VM_OBJ_SET_VAL(((uint32_t)5), roacc) != NULL);
+
+  /* The shapes that must not be cached -- a two-level chain's address moves
+     when the link moves, so caching it would hand back the old child. */
+  vm_accessor_t* deep = NULL;
+  bool deep_built = vm_accessor_create(&deep, &s_arena, 0, 2) == NULL && vm_accessor_set_literal(deep, 0, 0) == NULL && vm_accessor_set_literal(deep, 1, 1) == NULL;
+  ck("two-level chain refuses to cache", deep_built && !vm_accessor_cache_build(deep));
+
+  vm_accessor_t* named = NULL;
+  bool named_built = vm_accessor_create(&named, &s_arena, 0, 1) == NULL && vm_accessor_set_name(named, 0, &s_arena, "x", 1) == NULL;
+  ck("by-name index refuses to cache", named_built && !vm_accessor_cache_build(named));
+
+  vm_accessor_t* oob = NULL;
+  bool oob_built = vm_accessor_create(&oob, &s_arena, 1, 1) == NULL && vm_accessor_set_literal(oob, 0, 99) == NULL;
+  ck("out-of-range literal refuses to cache", oob_built && !vm_accessor_cache_build(oob));
+  ck("an uncached out-of-range accessor still reports OOB", oob_built && VM_OBJ_GET_VAL(v, oob) != NULL);
+
+  /* The property the whole tier rests on: re-linking must be picked up. The
+     deep chain is uncached, so it follows the new child; and a cached
+     accessor pointing into the *old* child must keep reading that child,
+     because that is what it names. */
+  ck("relink to alt", vm_obj_link_direct(box, 0, alt) == NULL);
+  uint32_t after = 0;
+  ck("uncached deep chain follows the new link", deep_built && VM_OBJ_GET_VAL(after, deep) == NULL && after == 901);
+  ck("cached accessor still names its own object", VM_OBJ_GET_VAL(v, elem) == NULL && v == 777);
+
+  /* A cached accessor and a fresh uncached one must never disagree. */
+  vm_accessor_t* twin = NULL;
+  bool twin_built = vm_accessor_create(&twin, &s_arena, 1, 1) == NULL && vm_accessor_set_literal(twin, 0, 2) == NULL;
+  uint32_t a = 0, b = 0;
+  ck("cached and uncached agree", twin_built && VM_OBJ_GET_VAL(a, elem) == NULL && VM_OBJ_GET_VAL(b, twin) == NULL && a == b);
+
+  // rebuilding after the object is gone must drop the entry, not keep a stale one
+  ck("cache_build clears the flag when the object is gone", (vm_obj_table_reset(&g_vm_obj_table), !vm_accessor_cache_build(elem)) && (elem->flags & VM_ACC_F_CACHED) == 0);
+  ck("a dropped cache falls back to failing closed", VM_OBJ_GET_VAL(v, elem) != NULL);
+  ck("cache_build survives NULL", !vm_accessor_cache_build(NULL));
+}
+
 void vm_selftest_run(void) {
   s_pass = 0;
   s_fail = 0;
@@ -1335,6 +1417,7 @@ void vm_selftest_run(void) {
   test_block_api();
   test_obj_construction();
   test_names_and_accessor_build();
+  test_resolution_cache();
   test_access_edges();
   test_strings();
   test_upload();

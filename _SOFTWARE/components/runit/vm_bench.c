@@ -133,6 +133,20 @@ static bool setup(void) {
   OKC(vm_accessor_set_ref(s_ref_acc, 0, rsel_acc));
   OKC(vm_accessor_set_ref(s_ref_acc, 1, csel_acc));
 
+  /* What the loader does at the end of every add_accessor. Done here for the
+     same reason: the shapes that qualify are pre-resolved, the ones that do
+     not (the 2-level and by-ref chains below) are left to walk -- so the table
+     shows both paths as a program would actually run them. */
+  for (int i = 0; i < CELLS; i++) {
+    (void)vm_accessor_cache_build(s_flat_acc[i]);
+    (void)vm_accessor_cache_build(s_grid_acc[i]);
+    (void)vm_accessor_cache_build(s_name_acc[i]);
+  }
+  for (int r = 0; r < GRID_N; r++) (void)vm_accessor_cache_build(s_row_acc[r]);
+  (void)vm_accessor_cache_build(rsel_acc);
+  (void)vm_accessor_cache_build(csel_acc);
+  (void)vm_accessor_cache_build(s_ref_acc);
+
   // 3 Block Mockup Fixtures:
   // 1. Scalar block: inputs are 0-index scalar accessors (flat_acc[0], flat_acc[1])
   memset(s_add_blk_buf, 0, sizeof(s_add_blk_buf));

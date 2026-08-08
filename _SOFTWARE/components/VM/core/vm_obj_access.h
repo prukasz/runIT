@@ -148,13 +148,42 @@ typedef struct {
 #define VM_IDX_BY_NAME(str) \
   { .kind = VM_IDX_NAME, .name_len = (uint8_t)(sizeof(str) - 1), .name = (str) }
 
+/*
+Resolution cache -- set by vm_accessor_cache_build() once the program is
+loaded, cleared (with the rest of the accessor) on every reload.
+
+Only shapes whose *address* cannot move are cached: a whole-object accessor,
+or a single literal index on a root object. Neither traverses a VM_OBJ_PTR, so
+nothing a running program does can invalidate them, and the feature needs no
+generation counter and has no re-linking pathology.
+
+A single literal index on a PTR object is cached too, and safely: what is
+cached is the address of the pointer *slot*, not the object behind it. A chain
+that follows the link -- vm_get_obj() -- still dereferences it live at access
+time, so re-linking is picked up exactly as before. That is the whole reason
+this tier is invalidation-free.
+
+Anything deeper (`obj(id, [j][k])`) is deliberately not cached: its address
+depends on a link that vm_obj_link() can move under it.
+
+The cache is an optimisation, never a correctness input. An accessor that was
+never built, or whose shape does not qualify, simply resolves the long way.
+*/
+#define VM_ACC_F_CACHED 0x01u
+
 /**
  * @brief Object access structure
  */
 struct vm_accessor_t {
   uint16_t id;                // root object's id in the table
   uint8_t count;              // number of chained indices; 0 = whole object
+  uint8_t flags;              // VM_ACC_F_*
   const vm_index_t* indices;  // `count` entries
+  vm_obj_h c_owner;           // cache: object the value lives in
+  void* c_ptr;                // cache: resolved address
+  uint16_t c_count;           // cache: elements available at c_ptr
+  uint8_t c_type;             // cache: vm_obj_t_e of those elements
+  uint8_t c_pad;
 };
 
 /*
@@ -222,6 +251,17 @@ typedef struct vm_resolved_t {
  * on: the deepest one.
  */
 static __always_inline bool vm_resolve_fast(const vm_accessor_t* acc, bool for_write, vm_resolved_t* out) {
+  /* Pre-resolved at load: four loads and no walk at all. Mutability is still
+     read from the object rather than baked into the flags -- it is one load,
+     and it keeps the cache from silently outliving a future "revoke write
+     access at runtime" feature. */
+  if (likely(acc->flags & VM_ACC_F_CACHED)) {
+    if (unlikely(for_write && !acc->c_owner->head.f.mutable)) return false;
+    out->payload = (vm_payload_t){(vm_obj_t_e)acc->c_type, acc->c_ptr, acc->c_count};
+    out->owner = acc->c_owner;
+    return true;
+  }
+
   if (unlikely(acc->id >= g_vm_obj_table.count)) return false;
   vm_obj_h obj = g_vm_obj_table.items[acc->id];
   if (unlikely(obj == NULL)) return false;

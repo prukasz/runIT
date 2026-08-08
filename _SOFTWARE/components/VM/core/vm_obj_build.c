@@ -231,3 +231,35 @@ err_h vm_accessor_set_name(vm_accessor_t* acc, uint8_t pos, vm_alloc_t* arena, c
   slot->name = copy;
   return NULL;
 }
+
+bool vm_accessor_cache_build(vm_accessor_t* acc) {
+  if (!acc) return false;
+
+  /* Cleared first: rebuilding an accessor whose object went away, or whose
+     shape stopped qualifying, must drop the old entry rather than leave a
+     stale address behind a set flag. */
+  acc->flags &= (uint8_t)~VM_ACC_F_CACHED;
+
+  if (acc->count > 1) return false;  // deeper chains cross a link -- see the header
+
+  vm_obj_h obj = vm_obj_by_id(acc->id);
+  if (!obj) return false;  // accessor built before its object; stays uncached
+
+  if (acc->count == 0) {
+    vm_payload_t p = vm_obj_as_payload(obj);
+    acc->c_ptr = p.ptr;
+    acc->c_type = (uint8_t)p.type;
+    acc->c_count = p.count;
+  } else {
+    if (acc->indices[0].kind != VM_IDX_LITERAL) return false;
+    uint8_t* p = vm_obj_elem_ptr(obj, acc->indices[0].value);
+    if (!p) return false;  // out of range -- leave it to report properly at access
+    acc->c_ptr = p;
+    acc->c_type = obj->head.d.obj_t;
+    acc->c_count = 1;
+  }
+
+  acc->c_owner = obj;
+  acc->flags |= VM_ACC_F_CACHED;
+  return true;
+}

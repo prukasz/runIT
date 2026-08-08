@@ -173,6 +173,11 @@ err_h vm_loader_add_accessor(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_
     }
   }
 
+  /* Pre-resolve now the indices are set. Objects arrive before accessors, so
+     the root is normally already there; if it is not, this returns false and
+     the accessor just resolves the long way. Nothing to check. */
+  (void)vm_accessor_cache_build(acc);
+
   SE_RET_IF_ERR(vm_accessor_table_set(&g_vm_accessor_table, acc_id, acc));
   return NULL;
 }

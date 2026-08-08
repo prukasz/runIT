@@ -170,6 +170,23 @@ Float→integer conversion **rounds and saturates** (`vm_f_to_i`). A plain cast 
 
 Every successful write sets the target's `upd` flag and honours `mutable`.
 
+### Writing a block — what you have to remember
+
+Nothing, in the normal path. A block body reads and writes pins exactly as before:
+
+```c
+float a = 0;
+BLOCK_CALL(VM_OBJ_GET_VAL(a, in0), block);
+BLOCK_CALL(VM_OBJ_SET_VAL_AT(a * 2.0f, out0, 0), block);
+```
+
+The resolution cache lives inside the accessor and is built by the loader, so an uploaded program gets it with no cooperation from the block. The one rule is for code that builds accessors **directly in C** — bring-up fixtures, tests, benchmarks — which must call `vm_accessor_cache_build(acc)` once the root object exists and the indices are set. Forgetting is a speed loss, never a wrong answer.
+
+Two consequences worth knowing:
+
+* A `static const vm_accessor_t` initialiser cannot be cached — it lives in flash and there is no build call. Correct, just slower. Fine for tests; use the build API for anything on a scan path.
+* `vm_obj_table_set()` is a load-time API. Re-pointing an id *after* its accessors were cached would leave them addressing the old object — rebuild the caches, or do what the loader does and rebuild the program.
+
 **`VM_VAL_OF` and `VM_TYPE_OF` are a pair.** `VM_TYPE_OF` names the `vm_obj_t_e` that the reader (`VM_VAL_CAST_TO`) will use to pick a `vm_val_t` member, so `VM_VAL_OF` must write *that* member — `uint8_t`, `char` and `bool` write `.u8` because they are typed `VM_OBJ_U8`/`VM_OBJ_B`. Letting them fall to the `.u32` default reads back correctly on a little-endian target and silently wrong anywhere else; the arms are explicit so the pairing does not depend on byte order. Adding a type to one macro means adding it to the other.
 
 **`resolve_fast()`** short-circuits the three accessor shapes that cover nearly every wire — `obj(id)`, `obj(id, [k])`, `obj(id, [j][k])`, literal indices only — as a few bounds checks instead of the chain loop. It returns `false` rather than an error for both "shape I don't handle" and "this failed"; the caller then falls through to `resolve_d()`, which re-walks and builds the real `err_h` with chain position and object in it. Failure is the cold path, so it is cheaper to pay for the walk twice there than to carry error construction through the hot one. Both paths must agree on what they accept — in particular the `mutable` check belongs on the deepest object in each.
@@ -318,6 +335,31 @@ Writes were deliberately left inlined. They are fewer than reads, they were the 
 
 **Array iteration inverts the trade, and one round of measurement proved it.** `VM_PAYLOAD_GET_VAL` was routed through the shared converters along with everything else, and the payload walk went 21.7 → 39.1 cyc/element — 80% slower. A pin read runs its conversion once per block per cycle, so trading ~10 cyc for ~200 B across hundreds of sites is clearly right. A fold block runs it *per element*, with the type loop-invariant, across a handful of sites. So `VM_OBJ_GET_VAL` calls (`VM_LOAD_CAST_TO`) and `VM_PAYLOAD_GET_VAL` inlines (`VM_LOAD_CAST_TO_FAST`) — reach for the second only inside a loop over elements.
 
+10. **Resolution cache, tier 1 only.** An accessor whose *address cannot move* is pre-resolved once by `vm_accessor_cache_build()` and thereafter costs four loads instead of a walk. Two shapes qualify: a whole-object accessor, and a single literal index on a root object.
+
+    **Why those two and nothing deeper.** Neither traverses a `VM_OBJ_PTR`, so nothing a running program does can invalidate them — no generation counter, no invalidation, and no pathological case. A two-level chain is deliberately excluded: its address depends on a link `vm_obj_link()` can move underneath it.
+
+    A single literal index on a *pointer* object is cached, and safely so: what is cached is the address of the pointer **slot**, not the object behind it. `vm_get_obj()` still dereferences the link live, so re-linking is picked up exactly as before. That is the whole reason this tier needs no invalidation machinery.
+
+    The loader calls it at the end of `vm_loader_add_accessor()`, where objects already exist. Code that builds accessors directly must call it; **skipping it costs speed and nothing else** — the cache is never a correctness input, and an accessor that was never built simply resolves the long way. `vm_loader_reset()` reclaims the arena, so a reload starts every accessor uncached.
+
+    Cost: `vm_accessor_t` grows 8 → 20 bytes. For a 100-block/500-pin program that is **+6 kB**, against a ~19 kB program total.
+
+    Measured, at 160 MHz:
+
+| scenario | before | after | |
+| :--- | ---: | ---: | ---: |
+| `flat[i]` | 76.5 | **34.4** | −55% |
+| payload walk | 21.7 | **16.8** | −23% |
+| `block_add` scalar | 257.9 | **156.6** | −39% |
+| `grid[r][c]` | 105.6 | 113.6 | +8% |
+| `grid[r][c]` write | 138.7 | 147.6 | +6% |
+| by-name | 659.5 | 672.3 | +2% |
+
+    **The uncached shapes pay ~8 cyc for a flag test they always fail.** That is the same trade the inline fast path made and it is worth it here — a `block_add` on cached pins dropped 100 cycles — but it means the two-level chain `grid[r][c]` is now the most expensive *common* shape, since it is both uncacheable and taxed. If array-of-structs wiring turns out to dominate real programs, the fix is not a generation counter but static proof: the compiler knows whether any switch block writes a given cell, so a chain through a cell nothing re-links could be marked cacheable at upload time and keep the invalidation-free property.
+
+    Stage L pins the property the tier rests on — that the cache is *invisible*. A cached accessor and an identical uncached one must agree on every answer including failures; a cached write must still honour `mutable`; the excluded shapes must refuse to cache; and a rebuild whose object has gone must clear the flag rather than leave a stale address behind it.
+
 **Considered and rejected:** a `flags` byte on `vm_accessor_t` classifying the shape at load time, so `vm_resolve_fast()` could skip its kind checks and slow shapes could skip the attempt. It is worth ~5 cyc, and an opt-in bit means any accessor built by hand rather than through `vm_accessor_create()` silently loses the fast path. Not worth a footgun that reports nothing.
 
 Point 4 is the one to re-measure rather than trust. A 9-byte table stays in the data cache inside a tight benchmark loop, so the packed constant may not beat it there; it is chosen for the real scan cycle, where the data cache is busy with actual object payloads and the literal rides the instruction path instead. If the benchmark says otherwise, a 16-entry table indexed by the raw 4-bit type — with invalid entries marked `0xFF` so one load covers both the shift and the validity check — is the alternative worth trying.
@@ -332,7 +374,7 @@ Point 4 is the one to re-measure rather than trust. A 9-byte table stays in the 
 | :--- | :--- |
 | block | 20 (`vm_block_data_t`) + 4/input + 4/output + own variables |
 | object | 4 (head) + payload, 4-byte aligned, + tag bytes if named |
-| accessor | 8 + 8 per chain index — shared between pins reading the same thing, so unshared is the worst case |
+| accessor | 20 + 8 per chain index — shared between pins reading the same thing, so unshared is the worst case |
 | tables | 4 per object id + 4 per accessor id |
 
 Worked from the target workload — 100 blocks, 5 pins each, one 8-byte output apiece, 16 B of own variables, **no** accessor sharing:
@@ -342,9 +384,9 @@ Worked from the target workload — 100 blocks, 5 pins each, one 8-byte output a
 | blocks | 100 × (20 + 20 + 4 + 16) | 6.0 k |
 | outputs | 100 × (4 + 8) | 1.2 k |
 | constants | 100 × (4 + 8) | 1.2 k |
-| accessors | 500 × (8 + 8) | 8.0 k |
+| accessors | 500 × (20 + 8) | 14.0 k |
 | tables | 200 + 500 ids | 2.8 k |
-| | **total** | **19.2 k** |
+| | **total** | **25.2 k** |
 
 The pool is **48 kB** — about 2.5× that, covering deeper chains, larger payloads and blocks that keep more state. Raising it from the old 8 kB default took DIRAM from 147 kB to 188 kB used, leaving **153 kB** for heap, BLE and task stacks.
 
