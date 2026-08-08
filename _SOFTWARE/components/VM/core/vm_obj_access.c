@@ -96,6 +96,15 @@ int64_t vm_read_as_i64(vm_obj_t_e type, const void* src) {
   }
 }
 
+/* Only the float arm is worth evicting. A float used as an array index
+   essentially never happens, but inlining it drags roundf and __fixsfdi into
+   resolve_d; the integer arms are a load and a cast and belong inline, where
+   measurement put them -- taking the whole function out of line cost a by-ref
+   access two calls (405 -> 418 cyc) and bought nothing back. */
+static __attribute__((noinline)) uint32_t index_from_float(const void* src) {
+  return (uint32_t)vm_f_to_i(*(const float*)src);
+}
+
 // read a resolved payload back as an integer, for use as the next index
 static __always_inline uint32_t payload_as_index(vm_payload_t p) {
   if (unlikely(!p.ptr)) return 0;
@@ -112,7 +121,7 @@ static __always_inline uint32_t payload_as_index(vm_payload_t p) {
     case VM_OBJ_U64:
       return (uint32_t)v.u64;
     case VM_OBJ_F:
-      return (uint32_t)vm_f_to_i(v.f);
+      return index_from_float(p.ptr);
     default:
       return 0;
   }
@@ -135,14 +144,70 @@ static __always_inline int32_t find_child_by_name(vm_obj_h parent, const char* n
     if (unlikely(!c)) continue;  // unwired slot
     uint8_t tag_len = 0;
     const char* tag = vm_obj_tag(c, &tag_len);
-    if (tag && tag_len == n && tag[0] == first_char && memcmp(tag + 1, name + 1, n - 1) == 0) return (int32_t)i;
+    if (tag == NULL || tag_len != n || tag[0] != first_char) continue;
+
+    /* Open-coded rather than memcmp(). A tag is at most VM_OBJ_NAME_MAX bytes
+       and usually two or three, but the length is not a compile-time constant,
+       so GCC emits a real call -- a candidate that got past the length and
+       first-char filter was paying call8 + entry/retw to compare a single
+       byte. Every child sharing a prefix pays it, which parsed message fields
+       routinely do (temp/time, val1/val2). */
+    uint8_t k = 1;
+    while (k < n && tag[k] == name[k]) k++;
+    if (k == n) return (int32_t)i;
   }
   return -1;
 }
 
+/* ---------------------------------------------------------------------------
+   resolve_d's error arms, kept out of its body.
+
+   Eight SE_ERR_NEW sites inlined into the walk gave it a 160-byte stack frame
+   and made the register allocator spill the chain loop's live values around
+   each one. None of them runs on a working program, so all of that was cost
+   paid in the case that matters -- and the frame is multiplied by
+   VM_ACCESSOR_MAX_DEPTH on a by-ref chain, which is stack an untrusted upload
+   gets to spend.
+
+   SE_ERR_NEW records no file or line, so moving construction here costs the
+   trace nothing: the tag, the ambient OWNER and the payload fields carry all
+   of the identifying information, and OWNER is the same in this file.
+   --------------------------------------------------------------------------- */
+
+static __attribute__((noinline)) err_h err_depth(uint16_t id) {
+  SE_RET_ERR(ERR_VM_ACCESSOR_DEPTH_EXCEEDED, .id = id);
+}
+
+static __attribute__((noinline)) err_h err_unknown_id(uint16_t id) {
+  SE_RET_ERR(ERR_VM_ACCESSOR_UNKNOWN_ID, .id = id);
+}
+
+// serves both the by-name parent check and the mid-chain step: both expect PTR
+static __attribute__((noinline)) err_h err_expected_ptr(uint16_t id, uint8_t pos, uint8_t actual, vm_obj_h obj) {
+  SE_RET_ERR(ERR_VM_ACCESSOR_TYPE_MISMATCH, .id = id, .chain_pos = pos, .expected = VM_OBJ_PTR, .actual = actual, .obj = (void*)obj);
+}
+
+static __attribute__((noinline)) err_h err_oob(uint16_t id, uint8_t pos, uint32_t index, vm_obj_h obj) {
+  // the payload field is 16-bit; saturate so a huge index still reads as
+  // "past the end" in the trace rather than as a small wrapped number
+  SE_RET_ERR(ERR_VM_ACCESSOR_OOB, .id = id, .chain_pos = pos, .index = (uint16_t)(index > UINT16_MAX ? UINT16_MAX : index), .obj = (void*)obj);
+}
+
+static __attribute__((noinline)) err_h err_null_obj(uint16_t id, uint8_t pos, vm_obj_h parent) {
+  SE_RET_ERR(ERR_VM_ACCESSOR_NULL_OBJ, .id = id, .chain_pos = pos, .parent_obj = (void*)parent);
+}
+
+static __attribute__((noinline)) err_h err_not_mutable(uint16_t id, uint8_t pos, vm_obj_h obj) {
+  SE_RET_ERR(ERR_VM_ACCESSOR_NOT_MUTABLE, .id = id, .chain_pos = pos, .obj = (void*)obj);
+}
+
+static __attribute__((noinline)) err_h err_index_failed(err_h cause, uint16_t id, uint8_t pos) {
+  return SE_WRAP_ERR(cause, ERR_VM_ACCESSOR_INDEX_FAILED, .id = id, .chain_pos = pos);
+}
+
 /* Built by hand rather than through SE_RET_ERR because the payload carries a
    copied string -- designated initialisers can't fill a char array. */
-static err_h name_not_found_err(uint16_t id, uint8_t chain_pos, const char* name) {
+static __attribute__((noinline)) err_h name_not_found_err(uint16_t id, uint8_t chain_pos, const char* name) {
   err_h e = SE_ERR_NEW(ERR_VM_ACCESSOR_NAME_NOT_FOUND, .id = id, .chain_pos = chain_pos);
   err_payload_ERR_VM_ACCESSOR_NAME_NOT_FOUND_t* pl = (err_payload_ERR_VM_ACCESSOR_NAME_NOT_FOUND_t*)e->payload;
   size_t n = strlen(name);
@@ -162,14 +227,10 @@ static err_h resolve_d(const vm_accessor_t* acc, uint8_t depth, bool for_write, 
   out->payload = (vm_payload_t){VM_OBJ_NONE, NULL, 0};
   out->owner = NULL;
 
-  if (unlikely(depth >= VM_ACCESSOR_MAX_DEPTH)) {
-    SE_RET_ERR(ERR_VM_ACCESSOR_DEPTH_EXCEEDED, .id = acc->id);
-  }
+  if (unlikely(depth >= VM_ACCESSOR_MAX_DEPTH)) return err_depth(acc->id);
 
   vm_obj_h obj = vm_obj_by_id(acc->id);
-  if (unlikely(!obj)) {
-    SE_RET_ERR(ERR_VM_ACCESSOR_UNKNOWN_ID, .id = acc->id);
-  }
+  if (unlikely(!obj)) return err_unknown_id(acc->id);
 
   vm_payload_t p = vm_obj_as_payload(obj);
   for (uint8_t i = 0; i < acc->count; i++) {
@@ -194,9 +255,7 @@ static err_h resolve_d(const vm_accessor_t* acc, uint8_t depth, bool for_write, 
           break;
         }
         err_h e = resolve_d(idx->ref, depth + 1, false, &sub);
-        if (unlikely(e)) {
-          return SE_WRAP_ERR(e, ERR_VM_ACCESSOR_INDEX_FAILED, .id = acc->id, .chain_pos = i);
-        }
+        if (unlikely(e)) return err_index_failed(e, acc->id, i);
         index = payload_as_index(sub.payload);
         break;
       }
@@ -205,7 +264,7 @@ static err_h resolve_d(const vm_accessor_t* acc, uint8_t depth, bool for_write, 
            describes the *previous* element, while `obj` is the object about to
            be indexed -- and only a PTR array has tagged children to match. */
         if (unlikely((vm_obj_t_e)obj->head.d.obj_t != VM_OBJ_PTR)) {
-          SE_RET_ERR(ERR_VM_ACCESSOR_TYPE_MISMATCH, .id = acc->id, .chain_pos = i, .expected = VM_OBJ_PTR, .actual = obj->head.d.obj_t, .obj = (void*)obj);
+          return err_expected_ptr(acc->id, i, obj->head.d.obj_t, obj);
         }
         int32_t found = find_child_by_name(obj, idx->name, idx->name_len);
         if (unlikely(found < 0)) {
@@ -222,29 +281,21 @@ static err_h resolve_d(const vm_accessor_t* acc, uint8_t depth, bool for_write, 
     }
 
     p = obj_elem(obj, index);
-    if (unlikely(!p.ptr)) {
-      // the payload field is 16-bit; saturate so a huge index still reads as
-      // "past the end" in the trace rather than as a small wrapped number
-      SE_RET_ERR(ERR_VM_ACCESSOR_OOB, .id = acc->id, .chain_pos = i, .index = (uint16_t)(index > UINT16_MAX ? UINT16_MAX : index), .obj = (void*)obj);
-    }
+    if (unlikely(!p.ptr)) return err_oob(acc->id, i, index, obj);
 
     if (i + 1 < acc->count) {
-      if (unlikely(p.type != VM_OBJ_PTR)) {
-        SE_RET_ERR(ERR_VM_ACCESSOR_TYPE_MISMATCH, .id = acc->id, .chain_pos = i, .expected = VM_OBJ_PTR, .actual = p.type, .obj = (void*)obj);
-      }
+      if (unlikely(p.type != VM_OBJ_PTR)) return err_expected_ptr(acc->id, i, (uint8_t)p.type, obj);
       vm_obj_h child = *(vm_obj_h*)p.ptr;
       if (unlikely(!child)) {
         // a packet-sourced tree isn't trusted to have every PTR slot wired --
         // the untrusted-input counterpart to TYPE_MISMATCH above
-        SE_RET_ERR(ERR_VM_ACCESSOR_NULL_OBJ, .id = acc->id, .chain_pos = i, .parent_obj = (void*)obj);
+        return err_null_obj(acc->id, i, obj);
       }
       obj = child;
     }
   }
 
-  if (unlikely(for_write && !obj->head.f.mutable)) {
-    SE_RET_ERR(ERR_VM_ACCESSOR_NOT_MUTABLE, .id = acc->id, .chain_pos = acc->count, .obj = (void*)obj);
-  }
+  if (unlikely(for_write && !obj->head.f.mutable)) return err_not_mutable(acc->id, acc->count, obj);
 
   out->payload = p;
   out->owner = obj;
