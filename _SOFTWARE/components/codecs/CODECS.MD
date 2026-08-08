@@ -101,7 +101,31 @@ Control-packet table for [[SYS_ACTIONS.MD]]'s record/stop/remove wire protocol. 
 
 `SYS_ACTIONS_CLASS_HEADER` (`0x03`) is defined in `sys_actions.h`, not this file — unlike `SYS_CONTRACTS_CLASS_HEADER` (owned by the codec because it spans three unrelated system components), sys_actions' class is 1:1 with a single component, so the constant lives with that component's own public contract. `dec_sys_actions.h` just includes `sys_actions.h` to use it.
 
-Registered by `sys_actions_init()`, not `sys_interface_init()` — see the boot-ordering note in [[SYS_ACTIONS.MD]]. There is no separate "bind action to state" class anymore — the `sys_states` component that used to own it was folded into `sys_actions` (a hardcoded behavior is now just a bound static function on an action id, see [[SYS_ACTIONS.MD]]), so class `0x04` is free again.
+Registered by `sys_actions_init()`, not `sys_interface_init()` — see the boot-ordering note in [[SYS_ACTIONS.MD]]. There is no separate "bind action to state" class anymore — the `sys_states` component that used to own it was folded into `sys_actions` (a hardcoded behavior is now just a bound static function on an action id, see [[SYS_ACTIONS.MD]]); class `0x04` was freed by that change and has since been taken by the VM loader below.
+
+---
+
+## `decoders/dec_vm_loader.h` — class `0x04`
+
+Program-upload table for [[VM.MD]]. **Structurally different from the tables above**: these packets are not fixed-size structs, so there is no `X`-macro packet list and no `convert_to_packet()` copy. `0x42`/`0x43` carry a repeating record list whose entries vary in length (inline name bytes, inline payload bytes), so they are walked with an explicit cursor.
+
+| Packet | Byte | Payload | Calls |
+| :--- | :--- | :--- | :--- |
+| Reset | `0x40` | — | `vm_loader_reset()` |
+| Open | `0x41` | `u16 obj_cnt`, `u16 acc_cnt`, `u32 total_size` | `vm_loader_open()` |
+| Add objects | `0x42` | `u8 n`, `n ×` `{u16 id, u16 item_count, u8 type, u8 flags, u8 name_len, char name[name_len]}` | `vm_loader_add_obj()` per record |
+| Set data | `0x43` | `u8 n`, `n ×` `{u16 id, u16 start_idx, u16 byte_len, u8 data[byte_len]}` | `vm_loader_set_data()` per record |
+| Add accessors | `0x44` | `u8 n`, `n ×` `{u16 acc_id, u16 root_obj_id, u8 idx_count, u8 idx_len, u8 idx_data[idx_len]}` | `vm_loader_add_accessor()` per record |
+
+`idx_data` holds `idx_count` records of `{u8 kind, payload}` — `LITERAL` a `u32` position, `REF` a `u16` accessor id, `NAME` a `u8` length then that many unterminated bytes. A `REF` target must already exist, which makes reference cycles unconstructable rather than merely depth-capped at resolve time.
+
+All multi-byte fields little-endian. Every length is checked against the bytes actually present before use (`DEC_VM_NEED`), raising `ERR_VM_LOAD_SHORT_RECORD` rather than reading past the frame — the cursor walk has no struct-size check to lean on, so this is the only thing standing between a truncated frame and an overread.
+
+`DEC_VM_NEED`'s parameters are named `in_pkt`/`in_off`/`in_len`/`in_need` so plain token substitution cannot collide with the `.packet`/`.need`/`.got` payload designators inside it — the same hazard `SE_CHECK_IN_RANGE` documents in [[SYS_ERRORS.MD]]. Naming them `packet`/`need` expands `.packet = (packet)` into `.0x41 = (0x41)`.
+
+Wire-format rationale (`start_idx` unconditional, `item_count` rather than a byte size, explicit flags byte rather than the raw header bitfield, child **ids** rather than pointers for `VM_OBJ_PTR`) is documented in [[VM.MD]].
+
+Registered by `sys_interface_init()` alongside `dec_sys_contracts`, not self-registered from the VM: `codecs` already `REQUIRES VM` so the decoder can see `vm_loader.h`, which makes a `VM → codecs` dependency circular. Worth moving into a `vm_init()` once the VM owns one.
 
 ---
 

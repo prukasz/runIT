@@ -27,7 +27,8 @@ The decoder tables themselves live in the `codecs` component (`components/codecs
 | :--- | :--- | :--- |
 | `0x01` | System contracts (`sys_device` / `sys_io` / `sys_power`) | `dec_sys_contracts_decode()` — registered by `sys_interface_init()` |
 | `0x03` | System actions (record/stop/remove) | `dec_sys_actions_decode()` — registered by `sys_actions_init()`, see [[SYS_ACTIONS.MD]] |
-| `0x02`, `0x04`+ | Free — VM bytecode, dynamic device/callback creation, etc. | register your own |
+| `0x04` | VM program upload (reset/open/add objects/set data) | `dec_vm_loader_decode()` — registered by `sys_interface_init()`, see [[VM.MD]] |
+| `0x02`, `0x05`+ | Free — dynamic device/callback creation, etc. | register your own |
 
 Up to `SYS_INTERFACE_MAX_CLASSES` (8) classes can be bound at once. The registry is a flat array with linear search — it is not mutex-protected, so register all classes during boot rather than from concurrent tasks.
 
@@ -60,7 +61,7 @@ Errors from a decoder are emitted with `SE_ORIGIN_CALL()` inside the receiver ta
 ## Public API
 
 ### `err_h sys_interface_init(void)`
-Clears the class registry and binds class `0x01` to the system contracts table. Call once at boot, before any other `sys_interface` call.
+Clears the class registry and binds class `0x01` to the system contracts table and class `0x04` to the VM program loader. Call once at boot, before any other `sys_interface` call.
 
 ### `err_h sys_interface_register_class(uint8_t class_header, sys_interface_handler_f handler, const char* name)`
 Binds a decoder table to a class byte. `name` is used in logs only and may be `NULL`. Classes are only ever appended (`s_classes[0..s_class_count-1]`, a plain incrementing count, no free-slot search) — there is no unregister. Register everything at boot, before the first `sys_interface_register_rx_source()`/`sys_interface_bind_ble_rx()` call starts the RX receiver.
@@ -118,15 +119,15 @@ static err_h lora_rx_dequeue(void* ctx, uint8_t* buf, size_t max_len, size_t* ou
 CHECK_AND_LOG(sys_interface_register_rx_source(lora_rx_dequeue, &s_lora_dev, 256, "lora"));
 ```
 
-Adding a new class (e.g. the VM):
+Adding a new class (`0x02` and `0x05`+ are free — the VM took `0x04`, see [[VM.MD]]):
 
 ```c
-// dec_vm.h — same header-only shape as dec_sys_contracts.h
-#define VM_CLASS_HEADER 0x02
-static inline err_h dec_vm_decode(const uint8_t* data, size_t len) { ... }
+// dec_foo.h — same header-only shape as dec_sys_contracts.h
+#define FOO_CLASS_HEADER 0x02
+static inline err_h dec_foo_decode(const uint8_t* data, size_t len) { ... }
 
 // at boot, after sys_interface_init()
-CHECK_AND_LOG(sys_interface_register_class(VM_CLASS_HEADER, dec_vm_decode, "vm"));
+CHECK_AND_LOG(sys_interface_register_class(FOO_CLASS_HEADER, dec_foo_decode, "foo"));
 ```
 
 Example frames:

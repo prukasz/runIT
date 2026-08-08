@@ -10,7 +10,9 @@
   X(OWNER_VM_OBJ, 0xA902, "OWNER_VM_OBJ")           \
   X(OWNER_VM_ACCESSOR, 0xA903, "OWNER_VM_ACCESSOR") \
   X(OWNER_VM_BLOCK, 0xA904, "OWNER_VM_BLOCK")       \
-  X(OWNER_VM_CODE, 0xA905, "OWNER_VM_CODE")
+  X(OWNER_VM_CODE, 0xA905, "OWNER_VM_CODE")         \
+  X(OWNER_VM_LOADER, 0xA906, "OWNER_VM_LOADER")     \
+  X(OWNER_DEC_VM_LOADER, 0xA907, "OWNER_DEC_VM_LOADER")
 
 // `obj`/`parent_obj` carry the failing vm_obj_t* for local (serial) trace
 // diagnosis -- meaningless once encoded to a remote client with no symbol
@@ -23,8 +25,28 @@
   X(ERR_VM_ACCESSOR_NULL_OBJ, struct { uint16_t id; uint8_t chain_pos; void* parent_obj; })                           \
   X(ERR_VM_ACCESSOR_DEPTH_EXCEEDED, struct { uint16_t id; })                                                          \
   X(ERR_VM_ACCESSOR_INDEX_FAILED, struct { uint16_t id; uint8_t chain_pos; })                                         \
+  X(ERR_VM_ACCESSOR_NAME_NOT_FOUND, struct { uint16_t id; uint8_t chain_pos; char name[16]; })                        \
   X(ERR_VM_ACCESSOR_NOT_MUTABLE, struct { uint16_t id; uint8_t chain_pos; void* obj; })                               \
-  X(ERR_VM_BLOCK_INPUT_UNRESOLVED, struct { uint16_t block_idx; uint8_t input_idx; })
+  X(ERR_VM_BLOCK_INPUT_UNRESOLVED, struct { uint16_t block_idx; uint8_t input_idx; })                                 \
+  X(ERR_VM_BLOCK_PIN_MISSING, struct { uint16_t block_idx; uint8_t pin_id; uint8_t is_out; })                         \
+  X(ERR_VM_BLOCK_PIN_UNLINKED, struct { uint16_t block_idx; uint8_t pin_id; uint8_t is_out; })                        \
+  X(ERR_VM_BLOCK_FAILED, struct { uint16_t block_idx; uint8_t block_type; })                                          \
+  X(ERR_VM_OBJ_COPY_MISMATCH, struct { uint8_t src_type; uint8_t dst_type; uint16_t src_size; uint16_t dst_size; })   \
+  X(ERR_VM_OBJ_BAD_TYPE, struct { uint8_t type; })                                                                    \
+  X(ERR_VM_OBJ_EMPTY, struct { uint8_t type; })                                                                       \
+  X(ERR_VM_OBJ_TOO_LARGE, struct { uint8_t type; uint16_t item_count; uint32_t bytes; })                              \
+  X(ERR_VM_OBJ_NAME_TOO_LONG, struct { uint8_t len; })                                                                \
+  X(ERR_VM_OBJ_RETENTIVE_PTR, struct { uint8_t type; })                                                               \
+  X(ERR_VM_OBJ_TABLE_OOB, struct { uint16_t id; uint16_t count; })                                                    \
+  X(ERR_VM_OBJ_TABLE_DUP, struct { uint16_t id; })                                                                    \
+  X(ERR_VM_LOAD_BAD_STATE, struct { uint8_t state; uint8_t expected; })                                               \
+  X(ERR_VM_LOAD_TOO_BIG, struct { uint32_t requested; uint32_t available; })                                          \
+  X(ERR_VM_LOAD_DATA_RANGE, struct { uint16_t id; uint16_t start_idx; uint16_t len; uint16_t items; })                \
+  X(ERR_VM_LOAD_SHORT_RECORD, struct { uint8_t packet; uint16_t need; uint16_t got; })                                \
+  X(ERR_VM_ACC_TABLE_OOB, struct { uint16_t id; uint16_t count; })                                                    \
+  X(ERR_VM_ACC_TABLE_DUP, struct { uint16_t id; })                                                                    \
+  X(ERR_VM_ACC_INDEX_OOB, struct { uint16_t acc_id; uint8_t pos; uint8_t count; })                                    \
+  X(ERR_VM_ACC_BAD_KIND, struct { uint16_t acc_id; uint8_t pos; uint8_t kind; })
 
 /**
  * @brief Human-readable descriptions for the VM tags - see
@@ -40,8 +62,28 @@
   X(ERR_VM_ACCESSOR_NULL_OBJ)      \
   X(ERR_VM_ACCESSOR_DEPTH_EXCEEDED) \
   X(ERR_VM_ACCESSOR_INDEX_FAILED)  \
+  X(ERR_VM_ACCESSOR_NAME_NOT_FOUND) \
   X(ERR_VM_ACCESSOR_NOT_MUTABLE)   \
-  X(ERR_VM_BLOCK_INPUT_UNRESOLVED)
+  X(ERR_VM_BLOCK_INPUT_UNRESOLVED) \
+  X(ERR_VM_BLOCK_PIN_MISSING)      \
+  X(ERR_VM_BLOCK_PIN_UNLINKED)     \
+  X(ERR_VM_BLOCK_FAILED)           \
+  X(ERR_VM_OBJ_COPY_MISMATCH)      \
+  X(ERR_VM_OBJ_BAD_TYPE)           \
+  X(ERR_VM_OBJ_EMPTY)              \
+  X(ERR_VM_OBJ_TOO_LARGE)          \
+  X(ERR_VM_OBJ_NAME_TOO_LONG)      \
+  X(ERR_VM_OBJ_RETENTIVE_PTR)      \
+  X(ERR_VM_OBJ_TABLE_OOB)          \
+  X(ERR_VM_OBJ_TABLE_DUP)          \
+  X(ERR_VM_LOAD_BAD_STATE)         \
+  X(ERR_VM_LOAD_TOO_BIG)           \
+  X(ERR_VM_LOAD_DATA_RANGE)        \
+  X(ERR_VM_LOAD_SHORT_RECORD)      \
+  X(ERR_VM_ACC_TABLE_OOB)          \
+  X(ERR_VM_ACC_TABLE_DUP)          \
+  X(ERR_VM_ACC_INDEX_OOB)          \
+  X(ERR_VM_ACC_BAD_KIND)
 
 #define LOG_BODY_ERR_VM_ALLOC_EXHAUSTED(p, out, out_size) \
   snprintf((out), (out_size), "vm arena exhausted: requested %lu, %lu remaining", (unsigned long)(p)->requested, (unsigned long)(p)->remaining)
@@ -57,10 +99,54 @@
   snprintf((out), (out_size), "accessor %u exceeded max nesting depth", (p)->id)
 #define LOG_BODY_ERR_VM_ACCESSOR_INDEX_FAILED(p, out, out_size) \
   snprintf((out), (out_size), "accessor %u: dynamic index at chain position %u failed to resolve", (p)->id, (p)->chain_pos)
+#define LOG_BODY_ERR_VM_ACCESSOR_NAME_NOT_FOUND(p, out, out_size) \
+  snprintf((out), (out_size), "accessor %u: no child tagged '%s' at chain position %u", (p)->id, (p)->name, (p)->chain_pos)
 #define LOG_BODY_ERR_VM_ACCESSOR_NOT_MUTABLE(p, out, out_size) \
   snprintf((out), (out_size), "accessor %u: write rejected at chain position %u, target is not mutable (obj=%p)", (p)->id, (p)->chain_pos, (p)->obj)
 #define LOG_BODY_ERR_VM_BLOCK_INPUT_UNRESOLVED(p, out, out_size) \
   snprintf((out), (out_size), "block %u input %u failed to resolve", (p)->block_idx, (p)->input_idx)
+#define LOG_BODY_ERR_VM_BLOCK_PIN_MISSING(p, out, out_size) \
+  snprintf((out), (out_size), "block %u has no %s pin %u", (p)->block_idx, (p)->is_out ? "output" : "input", (p)->pin_id)
+#define LOG_BODY_ERR_VM_BLOCK_PIN_UNLINKED(p, out, out_size) \
+  snprintf((out), (out_size), "block %u %s pin %u is not linked", (p)->block_idx, (p)->is_out ? "output" : "input", (p)->pin_id)
+#define LOG_BODY_ERR_VM_BLOCK_FAILED(p, out, out_size) \
+  snprintf((out), (out_size), "block %u (type %u) failed", (p)->block_idx, (p)->block_type)
+#define LOG_BODY_ERR_VM_OBJ_COPY_MISMATCH(p, out, out_size)                                                  \
+  snprintf((out), (out_size), "object copy mismatch: src type %u size %u, dst type %u size %u", (p)->src_type, \
+           (p)->src_size, (p)->dst_type, (p)->dst_size)
+#define LOG_BODY_ERR_VM_OBJ_BAD_TYPE(p, out, out_size) \
+  snprintf((out), (out_size), "object create: type %u has no defined width", (p)->type)
+#define LOG_BODY_ERR_VM_OBJ_EMPTY(p, out, out_size) \
+  snprintf((out), (out_size), "object create: type %u with zero items has no storage", (p)->type)
+#define LOG_BODY_ERR_VM_OBJ_TOO_LARGE(p, out, out_size)                                                    \
+  snprintf((out), (out_size), "object create: %u items of type %u = %lu bytes, over the 65535 payload cap", \
+           (p)->item_count, (p)->type, (unsigned long)(p)->bytes)
+#define LOG_BODY_ERR_VM_OBJ_NAME_TOO_LONG(p, out, out_size) \
+  snprintf((out), (out_size), "object create: name is %u chars, max is 15", (p)->len)
+#define LOG_BODY_ERR_VM_OBJ_RETENTIVE_PTR(p, out, out_size) \
+  snprintf((out), (out_size), "object create: retentive is meaningless for pointer type %u", (p)->type)
+#define LOG_BODY_ERR_VM_OBJ_TABLE_OOB(p, out, out_size) \
+  snprintf((out), (out_size), "object table: id %u is outside the %u-entry table", (p)->id, (p)->count)
+#define LOG_BODY_ERR_VM_OBJ_TABLE_DUP(p, out, out_size) \
+  snprintf((out), (out_size), "object table: id %u assigned twice", (p)->id)
+#define LOG_BODY_ERR_VM_LOAD_BAD_STATE(p, out, out_size) \
+  snprintf((out), (out_size), "loader in state %u, this packet needs state %u", (p)->state, (p)->expected)
+#define LOG_BODY_ERR_VM_LOAD_TOO_BIG(p, out, out_size)                                            \
+  snprintf((out), (out_size), "program needs %lu bytes, VM pool holds %lu", (unsigned long)(p)->requested, \
+           (unsigned long)(p)->available)
+#define LOG_BODY_ERR_VM_LOAD_DATA_RANGE(p, out, out_size)                                             \
+  snprintf((out), (out_size), "object %u: write of %u elements at %u exceeds its %u items", (p)->id, (p)->len, \
+           (p)->start_idx, (p)->items)
+#define LOG_BODY_ERR_VM_LOAD_SHORT_RECORD(p, out, out_size) \
+  snprintf((out), (out_size), "packet 0x%02X truncated: need %u bytes, got %u", (p)->packet, (p)->need, (p)->got)
+#define LOG_BODY_ERR_VM_ACC_TABLE_OOB(p, out, out_size) \
+  snprintf((out), (out_size), "accessor table: id %u is outside the %u-entry table", (p)->id, (p)->count)
+#define LOG_BODY_ERR_VM_ACC_TABLE_DUP(p, out, out_size) \
+  snprintf((out), (out_size), "accessor table: id %u assigned twice", (p)->id)
+#define LOG_BODY_ERR_VM_ACC_INDEX_OOB(p, out, out_size) \
+  snprintf((out), (out_size), "accessor %u: index position %u past its %u declared indices", (p)->acc_id, (p)->pos, (p)->count)
+#define LOG_BODY_ERR_VM_ACC_BAD_KIND(p, out, out_size) \
+  snprintf((out), (out_size), "accessor %u index %u: unknown kind %u", (p)->acc_id, (p)->pos, (p)->kind)
 
 /**
  * @brief SE_EMIT_ERR() relies on an ambient `#define OWNER` per source file

@@ -4,6 +4,7 @@
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 #include "dec_sys_contracts.h"
+#include "dec_vm_loader.h"
 #include "sys_ble.h"
 #include "sys_buffers.h"
 #include "sys_error.h"
@@ -124,6 +125,11 @@ err_h sys_interface_register_class(uint8_t class_header, sys_interface_handler_f
 err_h sys_interface_init(void) {
   s_class_count = 0;
   SE_RET_IF_ERR(sys_interface_register_class(SYS_CONTRACTS_CLASS_HEADER, dec_sys_contracts_decode, "sys_contracts"));
+  /* Registered here rather than self-registered from the VM (the sys_actions
+     pattern) because codecs already REQUIRES VM, so a VM -> codecs dependency
+     for the decoder header would be circular. Worth moving into a vm_init()
+     once the VM owns one, alongside the supervisor start. */
+  SE_RET_IF_ERR(sys_interface_register_class(VM_LOADER_CLASS_HEADER, dec_vm_loader_decode, "vm_loader"));
   return NULL;
 }
 #undef OWNER

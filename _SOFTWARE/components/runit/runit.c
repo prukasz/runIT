@@ -7,8 +7,20 @@
 #include "sys_actions.h"
 #include "sys_callbacks.h"
 #include "sys_interface.h"
+#include "vm_bench.h"
+#include "vm_selftest.h"
 
 static const char* TAG = "runit_app";
+
+#if RUNIT_SKIP_DEVICE_INIT
+/* Stands in for runit_at_boot so action 0 still resolves -- see the switch's
+   comment in runit_board_cfg.h for why it is bound rather than skipped. */
+static err_h runit_at_boot_disabled(void* arg) {
+  (void)arg;
+  ESP_LOGW(TAG, "device init SKIPPED (RUNIT_SKIP_DEVICE_INIT)");
+  return NULL;
+}
+#endif
 
 static const sys_error_cfg_t s_runit_error_cfg = {
     .global_level = ESP_LOG_INFO,
@@ -43,11 +55,24 @@ void runit_start(void) {
   SE_ORIGIN_CALL(sys_interface_init());
   // Must come before sys_actions_init(): the boot action (id 0) needs its
   // static function bound before init's unconditional invoke(0) runs.
+#if RUNIT_SKIP_DEVICE_INIT
+  SE_ORIGIN_CALL(sys_actions_bind_static(0, runit_at_boot_disabled, NULL));
+#else
   SE_ORIGIN_CALL(sys_actions_bind_static(0, runit_at_boot, NULL));
+#endif
   // Must come before sys_interface_bind_ble_rx(): class registration and the
   // recording tap are boot-only, not safe against a running RX pump.
   SE_ORIGIN_CALL(sys_actions_init());
   SE_ORIGIN_CALL(sys_interface_bind_ble_rx(SYS_BLE_CHR_RUNIT_RX, RUNIT_BLE_RX_FRAME_MAX));
   // runit_test_pca9685_start();
   ESP_LOGI(TAG, "runIT boot sequence complete");
+#if RUNIT_ENABLE_VM_SELFTEST
+  /* After sys_interface_init() so class 0x04 is registered -- the test
+     injects real frames through sys_interface_decode() rather than calling
+     the loader directly. */
+  vm_selftest_run();
+#endif
+#if RUNIT_ENABLE_VM_BENCH
+  vm_bench_run();
+#endif
 }

@@ -15,6 +15,30 @@ Pin configs and device id / adresses shall not be changed
 #include "sys_interface.h"
 #include "sys_power.h"
 
+/* ---------------------------------------------------------------------------
+   Bring-up switches. Both default off; flip for bench testing, not for a
+   shipping build.
+
+   RUNIT_SKIP_DEVICE_INIT skips binding runit_at_boot to action 0, so no I2C
+   device is probed or installed. Action 0 still gets a no-op static function
+   bound in its place -- leaving it unbound would make sys_actions_init()'s
+   unconditional invoke(0) report ERR_ACTION_NOT_FOUND at every boot. Useful
+   when testing logic that doesn't need hardware, or on a board where a
+   missing//faulty peripheral would otherwise stall boot.
+
+   RUNIT_ENABLE_VM_SELFTEST runs vm_selftest_run() at the end of boot -- see
+   [[vm_selftest.h]].
+
+   RUNIT_ENABLE_VM_BENCH runs vm_bench_run() -- accessor resolve timings, see
+   [[vm_bench.h]]. Safe to run alongside the self test: the test leaves the
+   object table detached, and the benchmark's setup() rebuilds it before use.
+   Worth running both after any change to the object layout or to the resolve
+   path, so a timing win cannot quietly be a correctness loss.
+   --------------------------------------------------------------------------- */
+#define RUNIT_SKIP_DEVICE_INIT 1
+#define RUNIT_ENABLE_VM_SELFTEST 1
+#define RUNIT_ENABLE_VM_BENCH 1
+
 #define RUNIT_BOARD_POWER_LIMIT_MV 21000
 #define RUNIT_BOARD_POWER_LIMIT_MA 5500
 #define RUNIT_BOARD_POWER_BUDGET_MW (RUNIT_BOARD_POWER_LIMIT_MV * RUNIT_BOARD_POWER_LIMIT_MA / 1000)
