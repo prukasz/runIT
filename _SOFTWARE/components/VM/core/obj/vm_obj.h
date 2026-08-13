@@ -113,6 +113,7 @@ typedef struct __attribute__((aligned(4))) vm_obj_head_t {
     uint8_t upd_resetable : 1;  // can flag be reset
     uint8_t tagged : 1;         // is name field populated
     uint8_t retentive : 1;      // should be stored in nvs - requires type of non-prt
+    uint8_t dynamic : 1;        // heap-allocated behind a vm_dyn_hdr_t, freed at refcount zero -- see vm_obj_dyn.h
   } f;
 } vm_obj_head_t;
 

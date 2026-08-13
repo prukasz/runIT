@@ -21,9 +21,9 @@ static const char* TAG = "vm_bench";
 #define REPS 500
 #define TRIALS 3
 
-static uint8_t s_pool[8192];
-static vm_alloc_t s_arena;
-static vm_obj_h s_slots[16];
+/* Accessor ids are handed out in creation order -- the bench does not care
+   which id anything gets, only that each is unique and inside the registry. */
+static uint16_t s_next_acc;
 
 static vm_obj_h s_grid;          // VM_OBJ_PTR[8] -- the 2D container
 static vm_obj_h s_rows[GRID_N];  // VM_OBJ_F[8]   -- one per row
@@ -67,17 +67,34 @@ static bool s_ok;
   } while (0)
 
 static err_h mk(vm_obj_h* out, uint16_t id, vm_obj_t_e type, uint16_t items, const char* name) {
-  SE_RET_IF_ERR(vm_obj_create(out, &s_arena, &(vm_obj_cfg_t){.type = type, .item_count = items, .name = name, .mutable = true}));
-  SE_RET_IF_ERR(vm_obj_table_set(&g_vm_obj_table, id, *out));
-  return NULL;
+  // items -> bytes is the caller's arithmetic; see vm_obj_build.h
+  vm_obj_head_t h = {0};
+  h.payload_size = (uint16_t)(items * vm_type_width(type));
+  h.d.obj_t = (uint8_t)type;
+  h.d.name_size = name ? (uint8_t)strlen(name) : 0;
+  h.f.mutable = 1;
+  return vm_obj_create(out, id, &h, name);
+}
+
+// create-and-bind with the next free accessor id
+static err_h mk_acc(vm_accessor_t** out, uint16_t root, uint8_t idx_count) {
+  return vm_accessor_create(out, s_next_acc++, root, idx_count);
 }
 
 static bool setup(void) {
-  vm_alloc_init(&s_arena, s_pool, sizeof(s_pool));
-  memset(s_slots, 0, sizeof(s_slots));
-  g_vm_obj_table.items = s_slots;
-  g_vm_obj_table.count = 16;
-  s_ok = true;
+  /* 3 accessors per cell, plus one per row, plus the two selectors and the
+     by-ref chain -- sized here so a shape change fails loudly at open rather
+     than silently past the end of the registry. */
+  const uint16_t counts[VM_REG_CNT] = {
+      [VM_REG_OBJ] = 16,
+      [VM_REG_ACC] = CELLS * 3 + GRID_N + 3,
+      [VM_REG_BLK] = 0,
+  };
+  /* 16 kB, not 8: the registries now come out of this same pool, and an
+     accessor carries its resolution cache, so 203 of them cost 20 B each
+     rather than 8. The old figure left ~4 bytes. */
+  s_next_acc = 0;
+  s_ok = vm_store_open(16384, counts) == NULL;
 
   char rowname[GRID_N][3];
   for (int r = 0; r < GRID_N; r++) {
@@ -108,18 +125,18 @@ static bool setup(void) {
     for (int c = 0; c < GRID_N; c++) {
       int i = r * GRID_N + c;
 
-      OKC(vm_accessor_create(&s_grid_acc[i], &s_arena, OBJ_GRID, 2));
+      OKC(mk_acc(&s_grid_acc[i], OBJ_GRID, 2));
       OKC(vm_accessor_set_literal(s_grid_acc[i], 0, (uint32_t)r));
       OKC(vm_accessor_set_literal(s_grid_acc[i], 1, (uint32_t)c));
 
-      OKC(vm_accessor_create(&s_name_acc[i], &s_arena, OBJ_GRID, 2));
-      OKC(vm_accessor_set_name(s_name_acc[i], 0, &s_arena, rowname[r], 2));
+      OKC(mk_acc(&s_name_acc[i], OBJ_GRID, 2));
+      OKC(vm_accessor_set_name(s_name_acc[i], 0, rowname[r], 2));
       OKC(vm_accessor_set_literal(s_name_acc[i], 1, (uint32_t)c));
 
-      OKC(vm_accessor_create(&s_flat_acc[i], &s_arena, OBJ_FLAT, 1));
+      OKC(mk_acc(&s_flat_acc[i], OBJ_FLAT, 1));
       OKC(vm_accessor_set_literal(s_flat_acc[i], 0, (uint32_t)i));
     }
-    OKC(vm_accessor_create(&s_row_acc[r], &s_arena, OBJ_GRID, 1));
+    OKC(mk_acc(&s_row_acc[r], OBJ_GRID, 1));
     OKC(vm_accessor_set_literal(s_row_acc[r], 0, (uint32_t)r));
   }
 
@@ -127,9 +144,9 @@ static bool setup(void) {
      each access re-reads both selectors -- the sequencer / mux shape. */
   vm_accessor_t* rsel_acc = NULL;
   vm_accessor_t* csel_acc = NULL;
-  OKC(vm_accessor_create(&rsel_acc, &s_arena, OBJ_RSEL, 0));
-  OKC(vm_accessor_create(&csel_acc, &s_arena, OBJ_CSEL, 0));
-  OKC(vm_accessor_create(&s_ref_acc, &s_arena, OBJ_GRID, 2));
+  OKC(mk_acc(&rsel_acc, OBJ_RSEL, 0));
+  OKC(mk_acc(&csel_acc, OBJ_CSEL, 0));
+  OKC(mk_acc(&s_ref_acc, OBJ_GRID, 2));
   OKC(vm_accessor_set_ref(s_ref_acc, 0, rsel_acc));
   OKC(vm_accessor_set_ref(s_ref_acc, 1, csel_acc));
 
@@ -418,7 +435,7 @@ void vm_bench_run(void) {
   measure_cpu_mhz();
 
   ESP_LOGI(TAG, "%lu MHz CPU, %dx%d float grid (%d cells), %d reps x %d trials, best trial kept", (unsigned long)s_cpu_mhz, GRID_N, GRID_N, CELLS, REPS, TRIALS);
-  ESP_LOGI(TAG, "arena %lu/%u B", (unsigned long)vm_alloc_used(&s_arena), (unsigned)sizeof(s_pool));
+  ESP_LOGI(TAG, "arena %lu/%lu B", (unsigned long)vm_store_used(), (unsigned long)vm_store_capacity());
   ESP_LOGI(TAG, "  %-36s %7s %10s %9s", "scenario", "cyc/acc", "ns/acc", "vs raw");
 
   // raw first: every other row is reported as a multiple of it

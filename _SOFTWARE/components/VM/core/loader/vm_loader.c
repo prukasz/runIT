@@ -3,8 +3,6 @@
 
 #define OWNER OWNER_VM_LOADER
 
-static uint8_t s_pool[VM_LOADER_POOL_SIZE];
-static vm_alloc_t s_arena;
 static vm_load_state_e s_state = VM_LOAD_EMPTY;
 
 static err_h require_state(vm_load_state_e want) {
@@ -15,58 +13,59 @@ static err_h require_state(vm_load_state_e want) {
 }
 
 void vm_loader_reset(void) {
-  /* Detach the tables before resetting the arena they point into: for the
-     instant in between, an accessor or a late callback resolving an id must
-     find NULL rather than storage that is about to be handed out again. */
-  vm_obj_table_reset(&g_vm_obj_table);
-  vm_accessor_table_reset(&g_vm_accessor_table);
-  vm_alloc_init(&s_arena, s_pool, sizeof(s_pool));
+  // registries first, then the arena -- vm_store_reset() owns that ordering
+  vm_store_reset();
   s_state = VM_LOAD_EMPTY;
 }
 
-err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint32_t total_size) {
-  vm_loader_reset();
+err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint16_t blk_cnt, uint32_t total_size) {
+  s_state = VM_LOAD_EMPTY;
 
-  if (total_size > sizeof(s_pool)) {
-    SE_RET_ERR(ERR_VM_LOAD_TOO_BIG, .requested = total_size, .available = (uint32_t)sizeof(s_pool));
-  }
+  const uint16_t counts[VM_REG_CNT] = {
+      [VM_REG_OBJ] = obj_cnt,
+      [VM_REG_ACC] = acc_cnt,
+      [VM_REG_BLK] = blk_cnt,
+  };
+  SE_RET_IF_ERR(vm_store_open(total_size, counts));
 
-  /* Cap the arena at what the program declared, not at the pool. A program
-     that under-declares then overruns fails on the object that does it,
-     which points at the bug, instead of succeeding on borrowed space and
-     failing later for an unrelated reason. */
-  vm_alloc_init(&s_arena, s_pool, total_size);
-
-  SE_RET_IF_ERR(vm_obj_table_build(&g_vm_obj_table, &s_arena, obj_cnt));
-  SE_RET_IF_ERR(vm_accessor_table_build(&g_vm_accessor_table, &s_arena, acc_cnt));
   s_state = VM_LOAD_OPEN;
   return NULL;
 }
 
-err_h vm_loader_add_obj(uint16_t id, uint16_t item_count, uint8_t type, uint8_t flags, const char* name,
+err_h vm_loader_add_obj(uint16_t id, uint16_t payload_size, uint8_t type, uint8_t flags, const char* name,
                         uint8_t name_len) {
   SE_RET_IF_ERR(require_state(VM_LOAD_OPEN));
 
-  // vm_obj_create() takes a NUL-terminated name; the wire form is not
   if (name_len > VM_OBJ_NAME_MAX) {
     SE_RET_ERR(ERR_VM_OBJ_NAME_TOO_LONG, .len = name_len);
   }
-  char name_buf[VM_OBJ_NAME_MAX + 1] = {0};
-  if (name_len && name) memcpy(name_buf, name, name_len);
+
+  /* Checked before the 4-bit obj_t field is written: an out-of-range type
+     would otherwise truncate into a *valid* one and be silently
+     misinterpreted, and it would index the width table out of bounds on the
+     way there. */
+  if (!vm_type_ok(type)) {
+    SE_RET_ERR(ERR_VM_OBJ_BAD_TYPE, .type = type);
+  }
+
+  /* The name is copied straight out of the frame -- name_size in the head says
+     how many bytes, so the wire form needs no NUL and no staging buffer.
+
+     payload_size arrives already in bytes, so this layer does no arithmetic on
+     sizes at all: nothing to overflow, nothing to truncate. vm_obj_shape()
+     still rejects a zero payload and one that is not a whole number of
+     elements. */
+  vm_obj_head_t head = {0};
+  head.payload_size = payload_size;
+  head.d.obj_t = type;
+  head.d.name_size = name_len;
+  head.f.mutable = (flags & VM_LOAD_F_MUTABLE) != 0;
+  head.f.usr_mutable = (flags & VM_LOAD_F_USR_MUTABLE) != 0;
+  head.f.upd_resetable = (flags & VM_LOAD_F_UPD_RESETABLE) != 0;
+  head.f.retentive = (flags & VM_LOAD_F_RETENTIVE) != 0;
 
   vm_obj_h obj = NULL;
-  SE_RET_IF_ERR(vm_obj_create(&obj, &s_arena,
-                              &(vm_obj_cfg_t){
-                                  .type = (vm_obj_t_e)type,
-                                  .item_count = item_count,
-                                  .name = name_len ? name_buf : NULL,
-                                  .mutable = (flags & VM_LOAD_F_MUTABLE) != 0,
-                                  .usr_mutable = (flags & VM_LOAD_F_USR_MUTABLE) != 0,
-                                  .upd_resetable = (flags & VM_LOAD_F_UPD_RESETABLE) != 0,
-                                  .retentive = (flags & VM_LOAD_F_RETENTIVE) != 0,
-                              }));
-
-  SE_RET_IF_ERR(vm_obj_table_set(&g_vm_obj_table, id, obj));
+  SE_RET_IF_ERR(vm_obj_create(&obj, id, &head, name_len ? name : NULL));
   return NULL;
 }
 
@@ -121,7 +120,7 @@ err_h vm_loader_add_accessor(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_
   SE_RET_IF_ERR(require_state(VM_LOAD_OPEN));
 
   vm_accessor_t* acc = NULL;
-  SE_RET_IF_ERR(vm_accessor_create(&acc, &s_arena, root_obj_id, idx_count));
+  SE_RET_IF_ERR(vm_accessor_create(&acc, acc_id, root_obj_id, idx_count));
 
   size_t off = 0;
   for (uint8_t i = 0; i < idx_count; i++) {
@@ -151,7 +150,7 @@ err_h vm_loader_add_accessor(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_
            cycle unconstructable rather than merely depth-capped later. */
         vm_accessor_t* ref = vm_accessor_by_id(ref_id);
         if (!ref) {
-          SE_RET_ERR(ERR_VM_ACC_TABLE_OOB, .id = ref_id, .count = g_vm_accessor_table.count);
+          SE_RET_ERR(ERR_VM_REG_OOB, .kind = VM_REG_ACC, .id = ref_id, .count = g_vm_store.reg[VM_REG_ACC].count);
         }
         SE_RET_IF_ERR(vm_accessor_set_ref(acc, i, ref));
         break;
@@ -164,7 +163,7 @@ err_h vm_loader_add_accessor(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_
         if (off + nlen > idx_len) {
           SE_RET_ERR(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = nlen, .got = (uint16_t)(idx_len - off));
         }
-        SE_RET_IF_ERR(vm_accessor_set_name(acc, i, &s_arena, (const char*)(idx_data + off), nlen));
+        SE_RET_IF_ERR(vm_accessor_set_name(acc, i, (const char*)(idx_data + off), nlen));
         off += nlen;
         break;
       }
@@ -177,8 +176,15 @@ err_h vm_loader_add_accessor(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_
      the root is normally already there; if it is not, this returns false and
      the accessor just resolves the long way. Nothing to check. */
   (void)vm_accessor_cache_build(acc);
+  return NULL;
+}
 
-  SE_RET_IF_ERR(vm_accessor_table_set(&g_vm_accessor_table, acc_id, acc));
+err_h vm_loader_add_block(uint16_t blk_id, const vm_block_cfg_t* cfg) {
+  SE_RET_IF_ERR(require_state(VM_LOAD_OPEN));
+  SE_CHECK_NOT_NULL(cfg);
+
+  vm_block_h blk = NULL;
+  SE_RET_IF_ERR(vm_block_create(&blk, blk_id, cfg));
   return NULL;
 }
 
@@ -187,5 +193,5 @@ vm_load_state_e vm_loader_state(void) {
 }
 
 uint32_t vm_loader_used(void) {
-  return vm_alloc_used(&s_arena);
+  return vm_store_used();
 }

@@ -6,6 +6,7 @@
 #include "vm_loader.h"
 #include "vm_obj_access.h"
 #include "vm_obj_build.h"
+#include "vm_obj_dyn.h"
 
 #define OWNER OWNER_VM_BASE
 
@@ -24,30 +25,38 @@ static void ck(const char* what, bool ok) {
   }
 }
 
-/* Scratch arena for the direct-API stages. Separate from the loader's own
-   pool so a direct test and an upload test cannot corrupt each other. */
-static uint8_t s_pool[4096];
-static vm_alloc_t s_arena;
-static vm_obj_h s_obj_slots[32];
-static vm_accessor_t* s_acc_slots[24];
+/* The direct-API stages share the one store with the upload stages, so each
+   opens it fresh rather than carrying a scratch arena of its own -- there is
+   one allocator now, and a test that used a second one would not be testing
+   the thing that ships. */
+#define DIRECT_POOL 4096
+
+static uint16_t s_acc_id;  // handed out in creation order by the direct stages
 
 static void direct_arena_reset(void) {
-  vm_alloc_init(&s_arena, s_pool, sizeof(s_pool));
-  memset(s_obj_slots, 0, sizeof(s_obj_slots));
-  memset(s_acc_slots, 0, sizeof(s_acc_slots));
-  g_vm_obj_table.items = s_obj_slots;
-  g_vm_obj_table.count = 32;
-  g_vm_accessor_table.items = s_acc_slots;
-  g_vm_accessor_table.count = 24;
+  const uint16_t counts[VM_REG_CNT] = {[VM_REG_OBJ] = 32, [VM_REG_ACC] = 24, [VM_REG_BLK] = 4};
+  (void)vm_store_open(DIRECT_POOL, counts);
+  s_acc_id = 0;
+}
+
+/* items -> bytes is the caller's arithmetic now, so the tests do it the same
+   way a block compiler would. Everything else about the head is left zero. */
+static vm_obj_head_t hd(vm_obj_t_e type, uint16_t items) {
+  vm_obj_head_t h = {0};
+  h.payload_size = (uint16_t)(items * vm_type_width(type));
+  h.d.obj_t = (uint8_t)type;
+  return h;
 }
 
 // create + bind in one step; returns NULL on failure so callers can assert
 static vm_obj_h mk(uint16_t id, vm_obj_t_e type, uint16_t items, const char* name, bool mutable_) {
+  vm_obj_head_t h = hd(type, items);
+  h.d.name_size = name ? (uint8_t)strlen(name) : 0;
+  h.f.mutable = mutable_ ? 1 : 0;
   vm_obj_h o = NULL;
-  if (vm_obj_create(&o, &s_arena, &(vm_obj_cfg_t){.type = type, .item_count = items, .name = name, .mutable = mutable_}) != NULL) {
+  if (vm_obj_create(&o, id, &h, name) != NULL) {
     return NULL;
   }
-  if (vm_obj_table_set(&g_vm_obj_table, id, o) != NULL) return NULL;
   return o;
 }
 
@@ -69,7 +78,8 @@ static void test_header_helpers(void) {
     uint8_t w = vm_type_width(types[i]);
     if (w == 0 || (w & (w - 1)) != 0) widths_ok = false;  // must be a power of two
     vm_obj_h o = NULL;
-    if (vm_obj_create(&o, &s_arena, &(vm_obj_cfg_t){.type = types[i], .item_count = 3}) != NULL || !o) {
+    vm_obj_head_t h3 = hd(types[i], 3);
+    if (vm_obj_create(&o, VM_ID_NONE, &h3, NULL) != NULL || !o) {
       counts_ok = false;
       continue;
     }
@@ -98,7 +108,8 @@ static void test_header_helpers(void) {
      wrap that a 32-bit by-ref index could otherwise produce. */
   direct_arena_reset();
   vm_obj_h eo = NULL;
-  bool elem_ok = vm_obj_create(&eo, &s_arena, &(vm_obj_cfg_t){.type = VM_OBJ_U64, .item_count = 4}) == NULL && eo;
+  vm_obj_head_t h64 = hd(VM_OBJ_U64, 4);
+  bool elem_ok = vm_obj_create(&eo, VM_ID_NONE, &h64, NULL) == NULL && eo;
   if (elem_ok) {
     elem_ok = vm_obj_elem_ptr(eo, 0) == eo->payload && vm_obj_elem_ptr(eo, 3) == eo->payload + 24 && vm_obj_elem_ptr(eo, 4) == NULL && vm_obj_elem_ptr(eo, 0x20000000u) == NULL &&  // would wrap to offset 0 if shifted unguarded
               vm_obj_elem_ptr(eo, UINT32_MAX) == NULL;
@@ -305,9 +316,9 @@ static void test_resolution(void) {
 
   // depth cap: a by-ref chain longer than VM_ACCESSOR_MAX_DEPTH must stop
   vm_accessor_t* chain[12] = {0};
-  bool built = vm_accessor_create(&chain[11], &s_arena, 1, 0) == NULL;
+  bool built = vm_accessor_create(&chain[11], s_acc_id++, 1, 0) == NULL;
   for (int i = 10; i >= 0 && built; i--) {
-    built = vm_accessor_create(&chain[i], &s_arena, 0, 1) == NULL && vm_accessor_set_ref(chain[i], 0, chain[i + 1]) == NULL;
+    built = vm_accessor_create(&chain[i], s_acc_id++, 0, 1) == NULL && vm_accessor_set_ref(chain[i], 0, chain[i + 1]) == NULL;
   }
   ck("built a 12-deep by-ref chain", built);
   if (built) {
@@ -570,10 +581,12 @@ static void test_block_api(void) {
   vm_obj_h gate = mk(0, VM_OBJ_B, 1, NULL, true);
   vm_obj_h eno = mk(1, VM_OBJ_B, 1, NULL, true);
   vm_obj_h out = mk(2, VM_OBJ_U32, 1, NULL, true);
-  ck("fixtures built", gate && eno && out);
+  vm_obj_h gate2 = mk(3, VM_OBJ_B, 1, NULL, true);
+  ck("fixtures built", gate && eno && out && gate2);
 
   static const vm_index_t i0[] = {{.kind = VM_IDX_LITERAL, .value = 0}};
   static const vm_accessor_t a_gate = {.id = 0, .count = 1, .indices = i0};
+  static const vm_accessor_t a_gate2 = {.id = 3, .count = 1, .indices = i0};
   static const vm_accessor_t a_in = {.id = 2, .count = 1, .indices = i0};
 
   memset(s_blk, 0, sizeof(s_blk));
@@ -582,13 +595,14 @@ static void test_block_api(void) {
   blk->cfg.block_type = 3;
   blk->cfg.in_cnt = 2;
   blk->cfg.q_cnt = 1;
-  blk->cfg.en = NULL;
+  blk->cfg.en_cnt = 0;
   blk->cfg.eno = eno;
   vm_block_inputs(blk)[0] = &a_in;
   vm_block_inputs(blk)[1] = NULL;  // declared but unwired
   vm_block_outputs(blk)[0] = out;
 
-  ck("vm_block_size accounts for both pin kinds", vm_block_size(2, 1, 8) == sizeof(vm_block_data_t) + 2 * sizeof(vm_accessor_t*) + 1 * sizeof(vm_obj_h) + 8);
+  ck("vm_block_size accounts for every pin kind",
+     vm_block_size(2, 1, 3, 8) == sizeof(vm_block_data_t) + 2 * sizeof(vm_accessor_t*) + 1 * sizeof(vm_obj_h) + 3 * sizeof(vm_accessor_t*) + 8);
 
   const vm_accessor_t* got_in = NULL;
   ck("get_in(0) returns the wired accessor", vm_block_get_in(&got_in, blk, 0) == NULL && got_in == &a_in);
@@ -600,19 +614,64 @@ static void test_block_api(void) {
   ck("get_out(3) absent -> PIN_MISSING", vm_block_get_out(&got_out, blk, 3) != NULL);
 
   // EN semantics
-  ck("unwired EN reads as enabled", vm_block_is_enabled(blk));
-  blk->cfg.en = &a_gate;
+  ck("no EN source reads as enabled", vm_block_is_enabled(blk));
+  blk->cfg.en_cnt = 1;
+  vm_block_en_list(blk)[0] = &a_gate;
   *(uint8_t*)gate->payload = 0;
   ck("EN false disables", !vm_block_is_enabled(blk));
   *(uint8_t*)gate->payload = 1;
   ck("EN true enables", vm_block_is_enabled(blk));
 
+  /* ANY -- branches rejoining: either path reaching the block runs it. */
+  blk->cfg.en_cnt = 2;
+  blk->cfg.en_mode = VM_BLK_EN_ANY;
+  vm_block_en_list(blk)[0] = &a_gate;
+  vm_block_en_list(blk)[1] = &a_gate2;
+  *(uint8_t*)gate->payload = 0;
+  *(uint8_t*)gate2->payload = 0;
+  ck("ANY with every source false disables", !vm_block_is_enabled(blk));
+  *(uint8_t*)gate2->payload = 1;
+  ck("ANY enabled by its second source", vm_block_is_enabled(blk));
+  *(uint8_t*)gate->payload = 1;
+  *(uint8_t*)gate2->payload = 0;
+  ck("ANY enabled by its first source", vm_block_is_enabled(blk));
+
+  /* ALL -- independent conditions: every source must hold. Same wiring, so
+     the only difference is the mode. */
+  blk->cfg.en_mode = VM_BLK_EN_ALL;
+  ck("ALL with one source false disables", !vm_block_is_enabled(blk));
+  *(uint8_t*)gate2->payload = 1;
+  ck("ALL with every source true enables", vm_block_is_enabled(blk));
+  *(uint8_t*)gate->payload = 0;
+  ck("ALL disabled as soon as one source drops", !vm_block_is_enabled(blk));
+
+  /* Mode is meaningless below two sources: one source behaves the same either
+     way, which is what lets the editor default it without consequence. */
+  blk->cfg.en_cnt = 1;
+  *(uint8_t*)gate->payload = 1;
+  ck("single source ignores ALL", vm_block_is_enabled(blk));
+  blk->cfg.en_mode = VM_BLK_EN_ANY;
+  ck("single source ignores ANY", vm_block_is_enabled(blk));
+  blk->cfg.en_cnt = 2;
+  blk->cfg.en_mode = VM_BLK_EN_ANY;
+  *(uint8_t*)gate->payload = 1;
+
   /* An EN that cannot be resolved must read as disabled -- running the body
-     when the gate is unknown is the more dangerous guess. */
+     when the gate is unknown is the more dangerous guess. Note this is the
+     opposite of *absence*: en_cnt == 0 is a root and runs. */
   static const vm_accessor_t a_bad_gate = {.id = 900, .count = 0, .indices = NULL};
-  blk->cfg.en = &a_bad_gate;
+  blk->cfg.en_cnt = 1;
+  vm_block_en_list(blk)[0] = &a_bad_gate;
   ck("unresolvable EN reads as disabled", !vm_block_is_enabled(blk));
-  blk->cfg.en = NULL;
+
+  /* ...and one broken source must not mask a working one that would enable. */
+  blk->cfg.en_cnt = 2;
+  vm_block_en_list(blk)[0] = &a_bad_gate;
+  vm_block_en_list(blk)[1] = &a_gate;
+  *(uint8_t*)gate->payload = 1;
+  ck("a broken source does not mask a working one", vm_block_is_enabled(blk));
+
+  blk->cfg.en_cnt = 0;
 
   // ENO
   *(uint8_t*)eno->payload = 0;
@@ -624,7 +683,12 @@ static void test_block_api(void) {
   vm_block_set_ENO(blk, true);
   ck("set_ENO with no ENO object is a safe no-op", true);
 
-  ck("custom_data sits past both pin arrays", (uint8_t*)vm_block_custom_data(blk) == s_blk + sizeof(vm_block_data_t) + 2 * sizeof(vm_accessor_t*) + 1 * sizeof(vm_obj_h));
+  /* custom_data sits past *all three* arrays, so the enable list must move it
+     -- checked with a non-zero en_cnt or the term would not be exercised. */
+  blk->cfg.en_cnt = 2;
+  ck("custom_data sits past every pin array",
+     (uint8_t*)vm_block_custom_data(blk) == s_blk + sizeof(vm_block_data_t) + 2 * sizeof(vm_accessor_t*) + 1 * sizeof(vm_obj_h) + 2 * sizeof(vm_accessor_t*));
+  blk->cfg.en_cnt = 0;
 
   // --- block_add_execute execution tests ---
   // 1. Normal scalar accessors
@@ -639,7 +703,7 @@ static void test_block_api(void) {
   static const vm_accessor_t acc_a = {.id = 10, .count = 1, .indices = i_lit0};
   static const vm_accessor_t acc_b = {.id = 11, .count = 1, .indices = i_lit0};
 
-  blk->cfg.en = NULL;
+  blk->cfg.en_cnt = 0;
   blk->cfg.eno = eno;
   vm_block_inputs(blk)[0] = &acc_a;
   vm_block_inputs(blk)[1] = &acc_b;
@@ -699,35 +763,68 @@ static void test_obj_construction(void) {
   direct_arena_reset();
 
   vm_obj_h o = NULL;
-  ck("create rejects VM_OBJ_NONE", vm_obj_create(&o, &s_arena, &(vm_obj_cfg_t){.type = VM_OBJ_NONE, .item_count = 1}) != NULL && o == NULL);
-  ck("create rejects a type past the width table", vm_obj_create(&o, &s_arena, &(vm_obj_cfg_t){.type = (vm_obj_t_e)12, .item_count = 1}) != NULL);
+  vm_obj_head_t h = hd(VM_OBJ_NONE, 1);
+  h.payload_size = 4;  // non-zero, so this tests the type and not the emptiness
+  ck("create rejects VM_OBJ_NONE", vm_obj_create(&o, VM_ID_NONE, &h, NULL) != NULL && o == NULL);
+  h.d.obj_t = 12;  // inside the 4-bit field, outside the width table
+  ck("create rejects a type past the width table", vm_obj_create(&o, VM_ID_NONE, &h, NULL) != NULL);
 
-  /* Zero items would allocate a header whose payload pointer aliases the next
-     allocation -- reads would return a neighbour's bytes and writes would
+  /* A zero payload would allocate a header whose payload pointer aliases the
+     next allocation -- reads would return a neighbour's bytes and writes would
      overwrite them. */
-  ck("create rejects zero items -> OBJ_EMPTY", vm_obj_create(&o, &s_arena, &(vm_obj_cfg_t){.type = VM_OBJ_U32, .item_count = 0}) != NULL && o == NULL);
+  h = hd(VM_OBJ_U32, 0);
+  ck("create rejects a zero payload -> OBJ_EMPTY", vm_obj_create(&o, VM_ID_NONE, &h, NULL) != NULL && o == NULL);
 
-  /* 8192 U64s is 65536 bytes -- one past what payload_size holds. Caught
-     before allocation, so it reports the shape that is wrong rather than
-     surfacing later as an arena failure pointing at the wrong culprit. */
-  ck("create rejects a payload past 65535 bytes", vm_obj_create(&o, &s_arena, &(vm_obj_cfg_t){.type = VM_OBJ_U64, .item_count = 8192}) != NULL);
+  /* payload_size is bytes and nothing here computed it, so a partial trailing
+     element is expressible and has to be refused -- five bytes of U32 would let
+     vm_obj_elem_ptr() hand back an element three bytes past the payload. */
+  h = hd(VM_OBJ_U32, 2);
+  h.payload_size = 5;
+  ck("create rejects a payload that is not a whole number of elements", vm_obj_create(&o, VM_ID_NONE, &h, NULL) != NULL && o == NULL);
 
-  ck("create rejects a 16-char name", vm_obj_create(&o, &s_arena, &(vm_obj_cfg_t){.type = VM_OBJ_U8, .item_count = 1, .name = "0123456789abcdef"}) != NULL);
-  ck("create rejects retentive PTR", vm_obj_create(&o, &s_arena, &(vm_obj_cfg_t){.type = VM_OBJ_PTR, .item_count = 1, .retentive = true}) != NULL);
-  ck("create rejects a NULL arena", vm_obj_create(&o, NULL, &(vm_obj_cfg_t){.type = VM_OBJ_U8, .item_count = 1}) != NULL);
-  ck("create rejects a NULL cfg", vm_obj_create(&o, &s_arena, NULL) != NULL);
+  /* An over-long name is gone by construction rather than by check: name_size
+     is 4 bits, so it cannot exceed VM_OBJ_NAME_MAX. The wire still can, and
+     vm_loader.c rejects it -- stage L covers that. */
+
+  h = hd(VM_OBJ_PTR, 1);
+  h.f.retentive = 1;
+  ck("create rejects retentive PTR", vm_obj_create(&o, VM_ID_NONE, &h, NULL) != NULL);
+
+  h = hd(VM_OBJ_U8, 1);
+  // there is no arena parameter to reject any more -- the store owns it
+  ck("create rejects a NULL out pointer", vm_obj_create(NULL, VM_ID_NONE, &h, NULL) != NULL);
+  ck("create rejects a NULL head", vm_obj_create(&o, VM_ID_NONE, NULL, NULL) != NULL);
 
   // flags are the object's whole permission model -- none may be dropped
   o = NULL;
-  ck("every flag round-trips into the header", vm_obj_create(&o, &s_arena, &(vm_obj_cfg_t){.type = VM_OBJ_U8, .item_count = 1, .name = "f", .mutable = true, .usr_mutable = true, .upd_resetable = true, .retentive = true}) == NULL && o && o->head.f.mutable && o->head.f.usr_mutable &&
-                                                   o->head.f.upd_resetable && o->head.f.retentive && o->head.f.tagged && o->head.f.upd == 0);
+  h = hd(VM_OBJ_U8, 1);
+  h.d.name_size = 1;
+  h.f.mutable = 1;
+  h.f.usr_mutable = 1;
+  h.f.upd_resetable = 1;
+  h.f.retentive = 1;
+  ck("every flag round-trips into the header", vm_obj_create(&o, VM_ID_NONE, &h, "f") == NULL && o && o->head.f.mutable && o->head.f.usr_mutable && o->head.f.upd_resetable && o->head.f.retentive && o->head.f.tagged && o->head.f.upd == 0);
+
+  /* Three flags are the creator's, not the caller's. Ask for all three and
+     check they are overwritten anyway -- `dynamic` especially, because it
+     means "heap-allocated" and a release cascade would hand free() a pointer
+     into the arena. */
+  vm_obj_h forced = NULL;
+  h = hd(VM_OBJ_U8, 1);
+  h.f.dynamic = 1;
+  h.f.upd = 1;
+  h.f.tagged = 1;  // claimed, but no name given
+  ck("create overrides the flags a caller does not own", vm_obj_create(&forced, VM_ID_NONE, &h, NULL) == NULL && forced && forced->head.f.dynamic == 0 && forced->head.f.upd == 0 && forced->head.f.tagged == 0 && !vm_obj_is_dynamic(forced));
 
   vm_obj_h plain = NULL;
-  ck("an untagged object clears `tagged` and keeps name_size 0", vm_obj_create(&plain, &s_arena, &(vm_obj_cfg_t){.type = VM_OBJ_U8, .item_count = 1}) == NULL && plain && plain->head.f.tagged == 0 && plain->head.d.name_size == 0);
+  h = hd(VM_OBJ_U8, 1);
+  ck("an untagged object clears `tagged` and keeps name_size 0", vm_obj_create(&plain, VM_ID_NONE, &h, NULL) == NULL && plain && plain->head.f.tagged == 0 && plain->head.d.name_size == 0);
 
   // the longest tag a 4-bit name_size can describe
   vm_obj_h max = NULL;
-  ck("15-char name is accepted", vm_obj_create(&max, &s_arena, &(vm_obj_cfg_t){.type = VM_OBJ_U32, .item_count = 2, .name = "abcdefghijklmno"}) == NULL && max);
+  h = hd(VM_OBJ_U32, 2);
+  h.d.name_size = 15;
+  ck("15-char name is accepted", vm_obj_create(&max, VM_ID_NONE, &h, "abcdefghijklmno") == NULL && max);
   uint8_t tl = 0;
   const char* tag = max ? vm_obj_tag(max, &tl) : NULL;
   ck("tag reads back with its length", tag && tl == 15 && memcmp(tag, "abcdefghijklmno", 15) == 0);
@@ -737,9 +834,12 @@ static void test_obj_construction(void) {
   ck("tag sits at payload + payload_size", tag == (const char*)(max->payload + max->head.payload_size));
   ck("total_size covers header + payload + name", vm_obj_total_size(max) == 4 + 8 + 15);
 
-  /* The arena hands back whatever the previous program left in it, so create()
-     zeroes what it carves. Dirty the pool, then build over the same bytes. */
-  memset(s_pool, 0xAA, sizeof(s_pool));
+  /* The arena hands back whatever the previous program left in it, so
+     vm_store_alloc() zeroes what it carves. Dirty a first object's storage,
+     reset, then build over the same bytes. */
+  direct_arena_reset();
+  vm_obj_h dirty = mk(0, VM_OBJ_U32, 4, "z", true);
+  if (dirty) memset(dirty->payload, 0xAA, 16);
   direct_arena_reset();
   vm_obj_h fresh = mk(0, VM_OBJ_U32, 4, "z", true);
   bool zeroed = fresh != NULL;
@@ -752,11 +852,13 @@ static void test_obj_construction(void) {
      able to tell a client which object did not fit. Done last -- it leaves the
      arena consumed. */
   vm_obj_h big = NULL;
-  ck("arena exhaustion reports and leaves the handle NULL", vm_obj_create(&big, &s_arena, &(vm_obj_cfg_t){.type = VM_OBJ_U8, .item_count = 60000}) != NULL && big == NULL);
-  /* Same call, two different failures: 65535 U8s fit payload_size and fail on
-     memory, while 8192 U64s fail on the field itself. Different tags mean the
-     client is told to shrink the object or to shrink the program. */
-  ck("a shape that fits the field but not the pool is a memory failure", vm_obj_create(&big, &s_arena, &(vm_obj_cfg_t){.type = VM_OBJ_U8, .item_count = 65535}) != NULL);
+  vm_obj_head_t hbig = hd(VM_OBJ_U8, 60000);
+  ck("arena exhaustion reports and leaves the handle NULL", vm_obj_create(&big, VM_ID_NONE, &hbig, NULL) != NULL && big == NULL);
+  /* 65535 U8s is the largest payload_size can describe, and still far past the
+     pool -- so it fails on memory rather than on the field, telling the client
+     to shrink the program rather than the object. */
+  hbig = hd(VM_OBJ_U8, 65535);
+  ck("the largest describable shape still fails on the pool, not the field", vm_obj_create(&big, VM_ID_NONE, &hbig, NULL) != NULL);
 }
 
 /* ==========================================================================
@@ -820,7 +922,7 @@ static void test_names_and_accessor_build(void) {
 
   // ---- accessors built through the construction API, not as static structs
   vm_accessor_t* acc = NULL;
-  bool made = vm_accessor_create(&acc, &s_arena, 0, 2) == NULL && acc && vm_accessor_set_name(acc, 0, &s_arena, "temperature", 11) == NULL && vm_accessor_set_literal(acc, 1, 0) == NULL;
+  bool made = vm_accessor_create(&acc, s_acc_id++, 0, 2) == NULL && acc && vm_accessor_set_name(acc, 0, "temperature", 11) == NULL && vm_accessor_set_literal(acc, 1, 0) == NULL;
   ck("built an accessor through the construction API", made && acc->count == 2 && acc->indices != NULL);
   v = 0;
   ck("a built accessor resolves like a static one", made && VM_OBJ_GET_VAL(v, acc) == NULL && v == 22);
@@ -831,33 +933,35 @@ static void test_names_and_accessor_build(void) {
   ck("set_literal past the declared index count -> ACC_INDEX_OOB", vm_accessor_set_literal(acc, 2, 0) != NULL);
   ck("set_ref past the declared index count -> ACC_INDEX_OOB", vm_accessor_set_ref(acc, 9, acc) != NULL);
   ck("set_ref rejects a NULL target", vm_accessor_set_ref(acc, 0, NULL) != NULL);
-  ck("set_name rejects a 16-char name", vm_accessor_set_name(acc, 0, &s_arena, "0123456789abcdef", 16) != NULL);
+  ck("set_name rejects a 16-char name", vm_accessor_set_name(acc, 0, "0123456789abcdef", 16) != NULL);
   v = 0;
   ck("the rejected setters left index 0 intact", VM_OBJ_GET_VAL(v, acc) == NULL && v == 22);
 
   vm_accessor_t* whole = NULL;
-  ck("a zero-index accessor allocates no index array", vm_accessor_create(&whole, &s_arena, 1, 0) == NULL && whole && whole->count == 0 && whole->indices == NULL);
+  ck("a zero-index accessor allocates no index array", vm_accessor_create(&whole, s_acc_id++, 1, 0) == NULL && whole && whole->count == 0 && whole->indices == NULL);
   ck("setting an index on a zero-index accessor -> ACC_INDEX_OOB", vm_accessor_set_literal(whole, 0, 0) != NULL);
 
-  // ---- table binding guards, exercised directly rather than through frames
-  ck("obj table_set rejects an id past the table", vm_obj_table_set(&g_vm_obj_table, 32, c_temp) != NULL);
-  ck("obj table_set rejects a second binding of the same id", vm_obj_table_set(&g_vm_obj_table, 1, c_temp) != NULL);
-  ck("obj table_set rejects a NULL object", vm_obj_table_set(&g_vm_obj_table, 20, NULL) != NULL);
-  ck("accessor table_set rejects an id past the table", vm_accessor_table_set(&g_vm_accessor_table, 24, acc) != NULL);
-  ck("accessor table_set binds once and refuses a rebind", vm_accessor_table_set(&g_vm_accessor_table, 5, acc) == NULL && vm_accessor_by_id(5) == acc && vm_accessor_table_set(&g_vm_accessor_table, 5, acc) != NULL);
+  /* ---- registry guards. One binding path for all three kinds now, so these
+     are the checks that used to be duplicated per table. The id is validated
+     before any arena is spent, which is why a rejected bind can be followed
+     by a successful one of the same size. */
+  void* p = NULL;
+  ck("alloc rejects an id past the registry", vm_store_alloc(&p, VM_REG_OBJ, 32, 8) != NULL && p == NULL);
+  ck("alloc rejects a second binding of the same id", vm_store_alloc(&p, VM_REG_OBJ, 1, 8) != NULL);
+  ck("alloc rejects a bound accessor id", vm_store_alloc(&p, VM_REG_ACC, 0, 8) != NULL);
+  ck("VM_ID_NONE allocates without binding", vm_store_alloc(&p, VM_REG_OBJ, VM_ID_NONE, 8) == NULL && p != NULL);
+  ck("a free id binds and is then readable", vm_store_alloc(&p, VM_REG_OBJ, 20, 8) == NULL && vm_store_get(VM_REG_OBJ, 20) == p);
+  ck("each registry has its own id space", vm_store_get(VM_REG_ACC, 20) == NULL && vm_store_get(VM_REG_BLK, 20) == NULL);
 
-  vm_obj_table_t t0 = {.items = s_obj_slots, .count = 9};
-  ck("table_build(0) yields an empty table rather than an error", vm_obj_table_build(&t0, &s_arena, 0) == NULL && t0.items == NULL && t0.count == 0);
-
-  /* Reset detaches instead of clearing entries: the arena it points into is
+  /* Reset detaches instead of clearing entries: the arena they point into is
      about to be handed out again, so every id must read NULL for the whole
      window between teardown and the next successful load. */
-  vm_obj_table_reset(&g_vm_obj_table);
-  vm_accessor_table_reset(&g_vm_accessor_table);
+  vm_store_reset();
   ck("after reset every object id resolves NULL", vm_obj_by_id(0) == NULL && vm_obj_by_id(1) == NULL);
   ck("after reset every accessor id resolves NULL", vm_accessor_by_id(5) == NULL);
-  ck("resolution fails closed against a detached table", VM_OBJ_GET_VAL(v, &a_exact) != NULL);
-  ck("table_set against a detached table -> TABLE_OOB", vm_obj_table_set(&g_vm_obj_table, 0, c_temp) != NULL);
+  ck("after reset every block id resolves NULL", vm_block_by_id(0) == NULL);
+  ck("resolution fails closed against a detached store", VM_OBJ_GET_VAL(v, &a_exact) != NULL);
+  ck("alloc against a detached store -> REG_OOB", vm_store_alloc(&p, VM_REG_OBJ, 0, 8) != NULL);
 }
 
 /* ==========================================================================
@@ -955,20 +1059,20 @@ static void test_access_edges(void) {
   *(uint32_t*)one->payload = 2;
 
   vm_accessor_t* d8[8] = {0};
-  bool ok8 = idx1 && vm_accessor_create(&d8[7], &s_arena, 2, 0) == NULL;  // reads `one`
+  bool ok8 = idx1 && vm_accessor_create(&d8[7], s_acc_id++, 2, 0) == NULL;  // reads `one`
   for (int i = 6; i >= 1 && ok8; i--) {
-    ok8 = vm_accessor_create(&d8[i], &s_arena, 7, 1) == NULL && vm_accessor_set_ref(d8[i], 0, d8[i + 1]) == NULL;
+    ok8 = vm_accessor_create(&d8[i], s_acc_id++, 7, 1) == NULL && vm_accessor_set_ref(d8[i], 0, d8[i + 1]) == NULL;
   }
-  ok8 = ok8 && vm_accessor_create(&d8[0], &s_arena, 1, 1) == NULL && vm_accessor_set_ref(d8[0], 0, d8[1]) == NULL;
+  ok8 = ok8 && vm_accessor_create(&d8[0], s_acc_id++, 1, 1) == NULL && vm_accessor_set_ref(d8[0], 0, d8[1]) == NULL;
   got = 0;
   ck("a by-ref chain exactly at MAX_DEPTH still resolves", ok8 && VM_OBJ_GET_VAL(got, d8[0]) == NULL && got == 15);
 
   vm_accessor_t* d9[9] = {0};
-  bool ok9 = idx1 && vm_accessor_create(&d9[8], &s_arena, 2, 0) == NULL;
+  bool ok9 = idx1 && vm_accessor_create(&d9[8], s_acc_id++, 2, 0) == NULL;
   for (int i = 7; i >= 1 && ok9; i--) {
-    ok9 = vm_accessor_create(&d9[i], &s_arena, 7, 1) == NULL && vm_accessor_set_ref(d9[i], 0, d9[i + 1]) == NULL;
+    ok9 = vm_accessor_create(&d9[i], s_acc_id++, 7, 1) == NULL && vm_accessor_set_ref(d9[i], 0, d9[i + 1]) == NULL;
   }
-  ok9 = ok9 && vm_accessor_create(&d9[0], &s_arena, 1, 1) == NULL && vm_accessor_set_ref(d9[0], 0, d9[1]) == NULL;
+  ok9 = ok9 && vm_accessor_create(&d9[0], s_acc_id++, 1, 1) == NULL && vm_accessor_set_ref(d9[0], 0, d9[1]) == NULL;
   ck("one level past MAX_DEPTH is refused", ok9 && VM_OBJ_GET_VAL(got, d9[0]) != NULL);
 
   // ---- the _Generic arms a block body can reach that stage B does not
@@ -1042,21 +1146,30 @@ static err_h f_send(void) {
 #define OBJ_TEMP 1
 #define OBJ_HUM 2
 
-static err_h upload_open(uint16_t obj_cnt, uint16_t acc_cnt, uint32_t total) {
+static err_h upload_open(uint16_t obj_cnt, uint16_t acc_cnt, uint16_t blk_cnt, uint32_t total) {
   f_begin(VM_LOADER_CLASS_HEADER, 0x41);
   f_u16(obj_cnt);
   f_u16(acc_cnt);
+  f_u16(blk_cnt);
   f_u32(total);
   return f_send();
 }
 
-static void add_obj_record(uint16_t id, uint16_t item_count, uint8_t type, uint8_t flags, const char* name) {
+/* Call sites still read in elements, which is how a program is actually
+   described; the wire carries bytes, so the conversion a client would do lives
+   here. add_obj_record_raw() is for the cases that need to put a byte count on
+   the wire that no element count could produce. */
+static void add_obj_record_raw(uint16_t id, uint16_t payload_size, uint8_t type, uint8_t flags, const char* name) {
   f_u16(id);
-  f_u16(item_count);
+  f_u16(payload_size);
   f_u8(type);
   f_u8(flags);
   f_u8(name ? (uint8_t)strlen(name) : 0);
   if (name) f_str(name);
+}
+
+static void add_obj_record(uint16_t id, uint16_t item_count, uint8_t type, uint8_t flags, const char* name) {
+  add_obj_record_raw(id, (uint16_t)(item_count * vm_type_width((vm_obj_t_e)type)), type, flags, name);
 }
 
 static uint8_t s_idx[64];
@@ -1107,7 +1220,7 @@ static void test_upload(void) {
   add_obj_record(OBJ_TEMP, 1, VM_OBJ_F, VM_LOAD_F_MUTABLE, "temp");
   ck("0x42 before open -> BAD_STATE", f_send() != NULL);
 
-  ck("0x41 open", upload_open(3, 4, 640) == NULL && vm_loader_state() == VM_LOAD_OPEN);
+  ck("0x41 open", upload_open(3, 4, 0, 640) == NULL && vm_loader_state() == VM_LOAD_OPEN);
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x42);
   f_u8(3);
@@ -1193,6 +1306,33 @@ static void test_malformed(void) {
   f_u8(12);
   ck("0x42 name_len past end -> SHORT_RECORD", f_send() != NULL);
 
+  /* The wire carries bytes, so a payload that is not a whole number of elements
+     is now expressible and must be refused: 5 bytes of U32 would let
+     vm_obj_elem_ptr() return element 1, whose last three bytes sit past the
+     payload. */
+  f_begin(VM_LOADER_CLASS_HEADER, 0x42);
+  f_u8(1);
+  add_obj_record_raw(7, 5, VM_OBJ_U32, VM_LOAD_F_MUTABLE, NULL);
+  ck("0x42 payload that is not a whole number of elements -> OBJ_BAD_SIZE", f_send() != NULL && vm_obj_by_id(7) == NULL);
+
+  f_begin(VM_LOADER_CLASS_HEADER, 0x42);
+  f_u8(1);
+  add_obj_record_raw(7, 0, VM_OBJ_U32, VM_LOAD_F_MUTABLE, NULL);
+  ck("0x42 zero payload -> OBJ_EMPTY", f_send() != NULL);
+
+  // a name_len past what the 4-bit name_size can describe
+  f_begin(VM_LOADER_CLASS_HEADER, 0x42);
+  f_u8(1);
+  add_obj_record(7, 1, VM_OBJ_U8, VM_LOAD_F_MUTABLE, "0123456789abcdef");
+  ck("0x42 16-char name -> NAME_TOO_LONG", f_send() != NULL);
+
+  /* An out-of-range type must be caught before it is written into the 4-bit
+     obj_t field, where it would truncate into a different, valid type. */
+  f_begin(VM_LOADER_CLASS_HEADER, 0x42);
+  f_u8(1);
+  add_obj_record(7, 1, 200, VM_LOAD_F_MUTABLE, NULL);
+  ck("0x42 type past the table -> OBJ_BAD_TYPE, not a truncated type", f_send() != NULL && vm_obj_by_id(7) == NULL);
+
   f_begin(VM_LOADER_CLASS_HEADER, 0x42);
   f_u8(1);
   add_obj_record(OBJ_TEMP, 1, VM_OBJ_F, VM_LOAD_F_MUTABLE, "dup");
@@ -1249,7 +1389,8 @@ static void test_malformed(void) {
   f_begin(VM_LOADER_CLASS_HEADER, 0x4F);
   ck("unknown packet 0x4F -> UNKNOWN_PACKET", f_send() != NULL);
 
-  ck("0x41 total_size past pool -> TOO_BIG", upload_open(2, 0, VM_LOADER_POOL_SIZE + 1) != NULL);
+  ck("0x41 total_size past the hard ceiling -> TOO_BIG", upload_open(2, 0, 0, VM_STORE_MAX_POOL + 1) != NULL);
+  ck("0x41 zero total_size -> TOO_BIG", upload_open(2, 0, 0, 0) != NULL);
   ck("after failed open, state is EMPTY", vm_loader_state() == VM_LOAD_EMPTY);
   ck("after failed open, ids resolve NULL", vm_obj_by_id(OBJ_TEMP) == NULL);
   ck("after failed open, accessor ids resolve NULL", vm_accessor_by_id(0) == NULL);
@@ -1323,7 +1464,7 @@ static void test_strings(void) {
 }
 
 /* ==========================================================================
-   L -- resolution cache
+   M -- resolution cache
 
    The cache is only ever an optimisation, so the thing worth testing is not
    that it is fast but that it is *invisible*: a cached accessor and an
@@ -1332,7 +1473,7 @@ static void test_strings(void) {
    cached are pinned here too.
    ========================================================================== */
 static void test_resolution_cache(void) {
-  ESP_LOGI(TAG, "-- L: resolution cache --");
+  ESP_LOGI(TAG, "-- M: resolution cache --");
   direct_arena_reset();
 
   vm_obj_h box = mk(0, VM_OBJ_PTR, 2, NULL, true);
@@ -1349,7 +1490,7 @@ static void test_resolution_cache(void) {
   // the two shapes that qualify
   vm_accessor_t* whole = NULL;
   vm_accessor_t* elem = NULL;
-  bool built = vm_accessor_create(&whole, &s_arena, 1, 0) == NULL && vm_accessor_create(&elem, &s_arena, 1, 1) == NULL && vm_accessor_set_literal(elem, 0, 2) == NULL;
+  bool built = vm_accessor_create(&whole, s_acc_id++, 1, 0) == NULL && vm_accessor_create(&elem, s_acc_id++, 1, 1) == NULL && vm_accessor_set_literal(elem, 0, 2) == NULL;
   ck("cacheable accessors built", built);
   ck("whole-object accessor caches", built && vm_accessor_cache_build(whole));
   ck("one-literal accessor caches", built && vm_accessor_cache_build(elem));
@@ -1364,22 +1505,22 @@ static void test_resolution_cache(void) {
   /* A cached accessor must still refuse a read-only target: mutability is read
      from the object at access time, not frozen into the cache. */
   vm_accessor_t* roacc = NULL;
-  bool ro_built = vm_accessor_create(&roacc, &s_arena, 3, 1) == NULL && vm_accessor_set_literal(roacc, 0, 0) == NULL;
+  bool ro_built = vm_accessor_create(&roacc, s_acc_id++, 3, 1) == NULL && vm_accessor_set_literal(roacc, 0, 0) == NULL;
   ck("read-only accessor caches", ro_built && vm_accessor_cache_build(roacc));
   ck("cached write to a non-mutable object is still refused", ro_built && VM_OBJ_SET_VAL(((uint32_t)5), roacc) != NULL);
 
   /* The shapes that must not be cached -- a two-level chain's address moves
      when the link moves, so caching it would hand back the old child. */
   vm_accessor_t* deep = NULL;
-  bool deep_built = vm_accessor_create(&deep, &s_arena, 0, 2) == NULL && vm_accessor_set_literal(deep, 0, 0) == NULL && vm_accessor_set_literal(deep, 1, 1) == NULL;
+  bool deep_built = vm_accessor_create(&deep, s_acc_id++, 0, 2) == NULL && vm_accessor_set_literal(deep, 0, 0) == NULL && vm_accessor_set_literal(deep, 1, 1) == NULL;
   ck("two-level chain refuses to cache", deep_built && !vm_accessor_cache_build(deep));
 
   vm_accessor_t* named = NULL;
-  bool named_built = vm_accessor_create(&named, &s_arena, 0, 1) == NULL && vm_accessor_set_name(named, 0, &s_arena, "x", 1) == NULL;
+  bool named_built = vm_accessor_create(&named, s_acc_id++, 0, 1) == NULL && vm_accessor_set_name(named, 0, "x", 1) == NULL;
   ck("by-name index refuses to cache", named_built && !vm_accessor_cache_build(named));
 
   vm_accessor_t* oob = NULL;
-  bool oob_built = vm_accessor_create(&oob, &s_arena, 1, 1) == NULL && vm_accessor_set_literal(oob, 0, 99) == NULL;
+  bool oob_built = vm_accessor_create(&oob, s_acc_id++, 1, 1) == NULL && vm_accessor_set_literal(oob, 0, 99) == NULL;
   ck("out-of-range literal refuses to cache", oob_built && !vm_accessor_cache_build(oob));
   ck("an uncached out-of-range accessor still reports OOB", oob_built && VM_OBJ_GET_VAL(v, oob) != NULL);
 
@@ -1394,14 +1535,296 @@ static void test_resolution_cache(void) {
 
   /* A cached accessor and a fresh uncached one must never disagree. */
   vm_accessor_t* twin = NULL;
-  bool twin_built = vm_accessor_create(&twin, &s_arena, 1, 1) == NULL && vm_accessor_set_literal(twin, 0, 2) == NULL;
+  bool twin_built = vm_accessor_create(&twin, s_acc_id++, 1, 1) == NULL && vm_accessor_set_literal(twin, 0, 2) == NULL;
   uint32_t a = 0, b = 0;
   ck("cached and uncached agree", twin_built && VM_OBJ_GET_VAL(a, elem) == NULL && VM_OBJ_GET_VAL(b, twin) == NULL && a == b);
 
   // rebuilding after the object is gone must drop the entry, not keep a stale one
-  ck("cache_build clears the flag when the object is gone", (vm_obj_table_reset(&g_vm_obj_table), !vm_accessor_cache_build(elem)) && (elem->flags & VM_ACC_F_CACHED) == 0);
+  ck("cache_build clears the flag when the object is gone", (vm_store_reset(), !vm_accessor_cache_build(elem)) && (elem->flags & VM_ACC_F_CACHED) == 0);
   ck("a dropped cache falls back to failing closed", VM_OBJ_GET_VAL(v, elem) != NULL);
   ck("cache_build survives NULL", !vm_accessor_cache_build(NULL));
+}
+
+/* ==========================================================================
+   N -- block upload (0x41 blk_cnt + 0x45)
+
+   Drives a block in over the wire and checks the thing that makes blocks
+   different from objects: they name *other* ids, so the interesting failures
+   are all about references. A block whose wiring does not resolve must be
+   refused outright rather than created holding a NULL pin.
+   ========================================================================== */
+
+/* One 0x45 record: header, then in ids, out ids, en ids, private state.
+   `en_acc` keeps its single-source spelling for brevity -- VM_BLOCK_NO_ID
+   emits en_cnt 0 (a root), anything else emits a one-entry list. Multi-source
+   merges are built as raw frames below, where the count is the point. */
+static void add_block_record(uint16_t blk_id, uint16_t block_idx, uint8_t block_type, const uint16_t* ins, uint8_t in_cnt, const uint16_t* outs, uint8_t q_cnt, uint16_t en_acc, uint16_t eno_obj, const uint8_t* custom,
+                             uint16_t custom_len) {
+  f_begin(VM_LOADER_CLASS_HEADER, 0x45);
+  f_u16(blk_id);
+  f_u16(block_idx);
+  f_u8(block_type);
+  f_u8(in_cnt);
+  f_u8(q_cnt);
+  f_u8(en_acc == VM_BLOCK_NO_ID ? 0 : 1);
+  f_u8(VM_BLK_EN_ANY);
+  f_u8(VM_BLK_ERR_STOP);
+  f_u16(custom_len);
+  f_u16(eno_obj);
+  for (uint8_t i = 0; i < in_cnt; i++) f_u16(ins[i]);
+  for (uint8_t i = 0; i < q_cnt; i++) f_u16(outs[i]);
+  if (en_acc != VM_BLOCK_NO_ID) f_u16(en_acc);
+  if (custom_len) f_blob(custom, custom_len);
+}
+
+static void test_block_upload(void) {
+  ESP_LOGI(TAG, "-- N: block upload --");
+  vm_loader_reset();
+
+  ck("0x41 open with blocks", upload_open(4, 3, 3, 1100) == NULL);
+
+  f_begin(VM_LOADER_CLASS_HEADER, 0x42);
+  f_u8(4);
+  add_obj_record(0, 2, VM_OBJ_F, VM_LOAD_F_MUTABLE, NULL);   // in values
+  add_obj_record(1, 1, VM_OBJ_F, VM_LOAD_F_MUTABLE, NULL);   // out
+  add_obj_record(2, 1, VM_OBJ_B, VM_LOAD_F_MUTABLE, NULL);   // eno
+  add_obj_record(3, 1, VM_OBJ_B, VM_LOAD_F_MUTABLE, NULL);   // en source
+  ck("0x42 objects for the block", f_send() == NULL);
+
+  // accessors: in0 = obj0[0], in1 = obj0[1], en = obj3 (chainless)
+  f_begin(VM_LOADER_CLASS_HEADER, 0x44);
+  f_u8(3);
+  f_u16(0); f_u16(0); f_u8(1); f_u8(5); f_u8(VM_IDX_LITERAL); f_u32(0);
+  f_u16(1); f_u16(0); f_u8(1); f_u8(5); f_u8(VM_IDX_LITERAL); f_u32(1);
+  f_u16(2); f_u16(3); f_u8(0); f_u8(0);
+  ck("0x44 accessors for the block", f_send() == NULL);
+
+  uint16_t ins[2] = {0, 1};
+  uint16_t outs[1] = {1};
+  uint8_t custom[4] = {0xDE, 0xAD, 0xBE, 0xEF};
+
+  add_block_record(0, 100, 7, ins, 2, outs, 1, 2, 2, custom, sizeof(custom));
+  ck("0x45 creates a block", f_send() == NULL);
+
+  vm_block_h b = vm_block_by_id(0);
+  ck("block is bound to its id", b != NULL);
+  if (!b) return;
+
+  ck("block header round-trips", b->cfg.block_idx == 100 && b->cfg.block_type == 7 && b->cfg.in_cnt == 2 && b->cfg.q_cnt == 1 && b->cfg.custom_len == 4 && b->cfg.on_error == VM_BLK_ERR_STOP);
+  ck("ids resolved to pointers, not kept as ids", vm_block_inputs(b)[0] == vm_accessor_by_id(0) && vm_block_inputs(b)[1] == vm_accessor_by_id(1) && vm_block_outputs(b)[0] == vm_obj_by_id(1));
+  ck("EN and ENO resolved", b->cfg.en_cnt == 1 && vm_block_en_list(b)[0] == vm_accessor_by_id(2) && b->cfg.eno == vm_obj_by_id(2));
+  ck("private state arrived", memcmp(vm_block_custom_data(b), custom, sizeof(custom)) == 0);
+  ck("total_size matches the shape", vm_block_total_size(b) == vm_block_size(2, 1, 1, 4));
+
+  /* The block is wired to real objects, so it must actually work end to end --
+     the point of resolving at load is that execution never touches an id. */
+  ((float*)vm_obj_by_id(0)->payload)[0] = 2.5f;
+  ((float*)vm_obj_by_id(0)->payload)[1] = 4.0f;
+  *(uint8_t*)vm_obj_by_id(3)->payload = 1;  // EN true
+  float a = 0, c = 0;
+  const vm_accessor_t* pin = NULL;
+  bool got = vm_block_get_in(&pin, b, 0) == NULL && VM_OBJ_GET_VAL(a, pin) == NULL;
+  ck("an uploaded block reads through its own pin", got && a == 2.5f);
+  ck("an uploaded block is enabled by its EN object", vm_block_is_enabled(b));
+  vm_obj_h q = NULL;
+  ck("uploaded block writes its output", vm_block_get_out(&q, b, 0) == NULL && VM_OBJ_SET_VAL_AT(6.5f, q, 0) == NULL && VM_OBJ_GET_VAL(c, vm_accessor_by_id(1)) == NULL);
+
+  // references are the whole risk with blocks: every one of these must refuse
+  add_block_record(1, 101, 7, (uint16_t[]){99}, 1, outs, 1, VM_BLOCK_NO_ID, VM_BLOCK_NO_ID, NULL, 0);
+  ck("unknown input accessor id -> BAD_REF", f_send() != NULL);
+
+  add_block_record(1, 101, 7, ins, 2, (uint16_t[]){99}, 1, VM_BLOCK_NO_ID, VM_BLOCK_NO_ID, NULL, 0);
+  ck("unknown output object id -> BAD_REF", f_send() != NULL);
+
+  add_block_record(1, 101, 7, ins, 2, outs, 1, 99, VM_BLOCK_NO_ID, NULL, 0);
+  ck("unknown EN accessor id -> BAD_REF", f_send() != NULL);
+
+  add_block_record(1, 101, 7, ins, 2, outs, 1, VM_BLOCK_NO_ID, 99, NULL, 0);
+  ck("unknown ENO object id -> BAD_REF", f_send() != NULL);
+
+  ck("a refused block leaves its id unbound", vm_block_by_id(1) == NULL);
+
+  /* NO_ID is legal on an input (the pin stays unwired and the block falls back
+     to its own constant), on EN and on ENO -- but never on an output. */
+  add_block_record(1, 101, 7, ins, 2, (uint16_t[]){VM_BLOCK_NO_ID}, 1, VM_BLOCK_NO_ID, VM_BLOCK_NO_ID, NULL, 0);
+  ck("NO_ID output -> BAD_REF", f_send() != NULL);
+
+  add_block_record(1, 101, 7, (uint16_t[]){0, VM_BLOCK_NO_ID}, 2, outs, 1, VM_BLOCK_NO_ID, VM_BLOCK_NO_ID, NULL, 0);
+  ck("NO_ID input leaves the pin unwired", f_send() == NULL && vm_block_by_id(1) && vm_block_inputs(vm_block_by_id(1))[0] == vm_accessor_by_id(0) && vm_block_inputs(vm_block_by_id(1))[1] == NULL);
+  const vm_accessor_t* unwired = NULL;
+  ck("an unwired pin reports PIN_UNLINKED, not garbage", vm_block_get_in(&unwired, vm_block_by_id(1), 1) != NULL && unwired == NULL);
+  ck("absent EN and NO_ID ENO leave both empty", vm_block_by_id(1)->cfg.en_cnt == 0 && vm_block_by_id(1)->cfg.eno == NULL);
+  ck("a block with no EN is enabled by default", vm_block_is_enabled(vm_block_by_id(1)));
+
+  /* A merge: two enable sources on one block, as a real en_cnt == 2 record.
+     Accessor 2 is the chainless gate on obj3; accessor 0 reads obj0[0], a
+     float, which is non-zero and so reads as enabled too. */
+  f_begin(VM_LOADER_CLASS_HEADER, 0x45);
+  f_u16(2); f_u16(106);
+  f_u8(7); f_u8(2); f_u8(1); f_u8(2); f_u8(VM_BLK_EN_ANY); f_u8(VM_BLK_ERR_STOP); f_u16(0); f_u16(VM_BLOCK_NO_ID);
+  f_u16(0); f_u16(1);  // inputs
+  f_u16(1);            // output
+  f_u16(2); f_u16(0);  // two enable sources
+  ck("0x45 accepts a two-source enable list", f_send() == NULL && vm_block_by_id(2) && vm_block_by_id(2)->cfg.en_cnt == 2);
+  ck("en_mode round-trips", vm_block_by_id(2)->cfg.en_mode == VM_BLK_EN_ANY);
+  ck("merge resolves both sources to pointers",
+     vm_block_en_list(vm_block_by_id(2))[0] == vm_accessor_by_id(2) && vm_block_en_list(vm_block_by_id(2))[1] == vm_accessor_by_id(0));
+  *(uint8_t*)vm_obj_by_id(3)->payload = 0;    // first source false
+  ((float*)vm_obj_by_id(0)->payload)[0] = 0;  // second source false
+  ck("ANY with both sources false is disabled", !vm_block_is_enabled(vm_block_by_id(2)));
+  ((float*)vm_obj_by_id(0)->payload)[0] = 2.5f;
+  ck("ANY enabled by either source", vm_block_is_enabled(vm_block_by_id(2)));
+
+  /* Same wiring, ALL mode: now one true source is no longer enough. */
+  vm_block_by_id(2)->cfg.en_mode = VM_BLK_EN_ALL;
+  ck("ALL with only one source true is disabled", !vm_block_is_enabled(vm_block_by_id(2)));
+  *(uint8_t*)vm_obj_by_id(3)->payload = 1;
+  ck("ALL enabled only once every source is true", vm_block_is_enabled(vm_block_by_id(2)));
+  ((float*)vm_obj_by_id(0)->payload)[0] = 0;
+  ck("ALL disabled again as soon as one source drops", !vm_block_is_enabled(vm_block_by_id(2)));
+  ((float*)vm_obj_by_id(0)->payload)[0] = 2.5f;
+
+  add_block_record(1, 102, 7, ins, 2, outs, 1, VM_BLOCK_NO_ID, VM_BLOCK_NO_ID, NULL, 0);
+  ck("duplicate block id -> TABLE_DUP", f_send() != NULL);
+
+  add_block_record(9, 103, 7, ins, 2, outs, 1, VM_BLOCK_NO_ID, VM_BLOCK_NO_ID, NULL, 0);
+  ck("block id past the table -> TABLE_OOB", f_send() != NULL);
+
+  // in_cnt past the connected_in mask cannot be represented, so it is refused
+  uint16_t many[VM_BLOCK_MAX_IN + 1] = {0};
+  add_block_record(1, 104, 7, many, VM_BLOCK_MAX_IN + 1, outs, 1, VM_BLOCK_NO_ID, VM_BLOCK_NO_ID, NULL, 0);
+  ck("in_cnt past VM_BLOCK_MAX_IN -> BAD_SHAPE", f_send() != NULL);
+
+  // truncation: the record claims two inputs but carries one id
+  f_begin(VM_LOADER_CLASS_HEADER, 0x45);
+  f_u16(5); f_u16(105);
+  f_u8(7); f_u8(2); f_u8(1); f_u8(0); f_u8(VM_BLK_EN_ANY); f_u8(VM_BLK_ERR_STOP); f_u16(0); f_u16(VM_BLOCK_NO_ID);
+  f_u16(0);  // only one of the two promised ids
+  ck("truncated 0x45 -> SHORT_RECORD", f_send() != NULL);
+
+  // ...and the same for a promised enable list that is not there
+  f_begin(VM_LOADER_CLASS_HEADER, 0x45);
+  f_u16(5); f_u16(107);
+  f_u8(7); f_u8(2); f_u8(1); f_u8(2); f_u8(VM_BLK_EN_ANY); f_u8(VM_BLK_ERR_STOP); f_u16(0); f_u16(VM_BLOCK_NO_ID);
+  f_u16(0); f_u16(1);  // inputs
+  f_u16(1);            // output
+  f_u16(2);            // only one of the two promised enable ids
+  ck("0x45 truncated in the enable list -> SHORT_RECORD", f_send() != NULL);
+
+  /* The pool is heap-allocated per load, so a failed open must leave the
+     program that is already running completely alone -- allocate-then-swap,
+     not reset-then-allocate. Ask for more than the ceiling and check the
+     loaded block is still there and still resolves. */
+  ck("a rejected open leaves the running program intact",
+     upload_open(4, 3, 2, VM_STORE_MAX_POOL + 1) != NULL && vm_block_by_id(0) != NULL && vm_block_by_id(0)->cfg.block_idx == 100 && vm_obj_by_id(1) != NULL);
+
+  uint32_t before = vm_store_capacity();
+  ck("a successful open re-sizes the pool to the new program", upload_open(1, 0, 0, 256) == NULL && vm_store_capacity() == 256 && before != 256);
+  ck("the previous program is gone after a successful reopen", vm_block_by_id(0) == NULL);
+
+  vm_loader_reset();
+  ck("reset detaches the block registry", vm_block_by_id(0) == NULL);
+  ck("reset releases the pool", vm_store_capacity() == 0);
+}
+
+/* ==========================================================================
+   O -- dynamic objects
+
+   Heap-allocated, reference counted, reachable only as a child of a PTR
+   parent. Everything here is about *lifetime*, so most assertions read the
+   register rather than the object: once released, the handle is freed memory
+   and dereferencing it to check would be the bug the test is looking for.
+   ========================================================================== */
+
+static void test_dynamic_objects(void) {
+  ESP_LOGI(TAG, "-- O: dynamic objects --");
+
+  direct_arena_reset();
+  vm_obj_dyn_reset();
+
+  vm_obj_h d = NULL;
+  vm_obj_head_t dh = hd(VM_OBJ_F, 1);
+  dh.d.name_size = 4;
+  dh.f.mutable = 1;
+  ck("dynamic create succeeds", vm_obj_dyn_create(&d, &dh, "temp") == NULL && d);
+  ck("it is flagged dynamic", d && vm_obj_is_dynamic(d));
+  ck("it is in the register, owned by nobody", vm_obj_dyn_id(d) != VM_DYN_NO_ID && g_vm_dyn[vm_obj_dyn_id(d)].ref_cnt == 0);
+  ck("dyn_get round-trips the slot", vm_obj_dyn_get(vm_obj_dyn_id(d)) == d);
+
+  // it is an ordinary object otherwise -- shape, tag and payload all work
+  uint8_t tl = 0;
+  const char* tag = d ? vm_obj_tag(d, &tl) : NULL;
+  ck("a dynamic object carries its tag like any other", tag && tl == 4 && memcmp(tag, "temp", 4) == 0);
+  if (d) *(float*)d->payload = 1.5f;
+  ck("a dynamic object holds a value like any other", d && *(float*)d->payload == 1.5f);
+
+  // arena objects are inert to all of this
+  vm_obj_h arena = mk(0, VM_OBJ_U8, 1, NULL, true);
+  ck("an arena object is not dynamic and not registered", arena && !vm_obj_is_dynamic(arena) && vm_obj_dyn_id(arena) == VM_DYN_NO_ID);
+  vm_obj_dyn_retain(arena);
+  vm_obj_dyn_release(arena);
+  ck("retain/release are no-ops on an arena object", vm_obj_by_id(0) == arena);
+
+  // refcount: two holders, so the first release must not free
+  vm_obj_dyn_retain(d);
+  vm_obj_dyn_retain(d);
+  ck("two references counted", vm_obj_dyn_id(d) != VM_DYN_NO_ID && g_vm_dyn[vm_obj_dyn_id(d)].ref_cnt == 2);
+  vm_obj_dyn_release(d);
+  ck("one release leaves it alive", vm_obj_dyn_id(d) != VM_DYN_NO_ID && g_vm_dyn[vm_obj_dyn_id(d)].ref_cnt == 1);
+  vm_obj_dyn_release(d);
+  ck("the last release frees it and clears the slot", vm_obj_dyn_id(d) == VM_DYN_NO_ID);
+
+  /* A parent releasing must take its dynamic children with it, and leave any
+     arena child alone -- one tree can hold both. */
+  vm_obj_h kid_a = NULL, kid_b = NULL;
+  vm_obj_head_t kh = hd(VM_OBJ_U32, 1);
+  kh.f.mutable = 1;
+  ck("children created", vm_obj_dyn_create(&kid_a, &kh, NULL) == NULL && vm_obj_dyn_create(&kid_b, &kh, NULL) == NULL);
+  vm_obj_h parent = NULL;
+  vm_obj_head_t ph = hd(VM_OBJ_PTR, 3);
+  ph.f.mutable = 1;
+  ck("dynamic PTR parent created", vm_obj_dyn_create(&parent, &ph, NULL) == NULL && parent);
+  if (parent && kid_a && kid_b && arena) {
+    vm_obj_h* slots = (vm_obj_h*)parent->payload;
+    slots[0] = kid_a;
+    slots[1] = arena;  // an arena child in a dynamic tree
+    slots[2] = kid_b;
+    vm_obj_dyn_retain(kid_a);
+    vm_obj_dyn_retain(kid_b);
+    vm_obj_dyn_retain(arena);  // no-op, but the link path calls it unconditionally
+    vm_obj_dyn_retain(parent);
+  }
+  ck("tree registered", vm_obj_dyn_id(parent) != VM_DYN_NO_ID && vm_obj_dyn_id(kid_a) != VM_DYN_NO_ID && vm_obj_dyn_id(kid_b) != VM_DYN_NO_ID);
+
+  vm_obj_dyn_release(parent);
+  ck("releasing the parent frees both dynamic children", vm_obj_dyn_id(parent) == VM_DYN_NO_ID && vm_obj_dyn_id(kid_a) == VM_DYN_NO_ID && vm_obj_dyn_id(kid_b) == VM_DYN_NO_ID);
+  ck("the arena child survives the cascade", vm_obj_by_id(0) == arena && arena->head.f.dynamic == 0);
+
+  // the register is a bound, and hitting it is a clean rejection
+  uint16_t made = 0;
+  vm_obj_head_t fh = hd(VM_OBJ_U8, 1);
+  for (uint16_t i = 0; i < VM_DYN_MAX; i++) {
+    vm_obj_h f = NULL;
+    if (vm_obj_dyn_create(&f, &fh, NULL) != NULL) break;
+    made++;
+  }
+  ck("the register fills to exactly VM_DYN_MAX", made == VM_DYN_MAX);
+  vm_obj_h overflow = NULL;
+  ck("one past the register -> DYN_FULL, and nothing is handed back", vm_obj_dyn_create(&overflow, &fh, NULL) != NULL && overflow == NULL);
+
+  /* Reset ignores reference counts, so everything above -- all of it still
+     held at 0 refs and unreachable from any parent -- goes anyway. */
+  vm_obj_dyn_reset();
+  uint16_t live = 0;
+  for (uint16_t i = 0; i < VM_DYN_MAX; i++) {
+    if (vm_obj_dyn_get(i)) live++;
+  }
+  ck("reset empties the register regardless of refcounts", live == 0);
+
+  // a rejected shape must cost neither a slot nor an allocation
+  vm_obj_h bad = NULL;
+  vm_obj_head_t bh = hd(VM_OBJ_F, 0);
+  ck("dynamic create rejects a zero payload", vm_obj_dyn_create(&bad, &bh, NULL) != NULL && bad == NULL && vm_obj_dyn_get(0) == NULL);
 }
 
 void vm_selftest_run(void) {
@@ -1421,12 +1844,15 @@ void vm_selftest_run(void) {
   test_access_edges();
   test_strings();
   test_upload();
+  test_block_upload();
   test_malformed();
+  test_dynamic_objects();
 
+  vm_obj_dyn_reset();  // before the loader: parents holding these live in the pool
   vm_loader_reset();
 
   if (s_fail == 0) {
-    ESP_LOGW(TAG, "==== VM self-test: %d passed, 0 failed (scratch arena used %lu/%u B) ====", s_pass, (unsigned long)vm_alloc_used(&s_arena), (unsigned)sizeof(s_pool));
+    ESP_LOGW(TAG, "==== VM self-test: %d passed, 0 failed (scratch arena used %lu/%u B) ====", s_pass, (unsigned long)vm_store_used(), (unsigned)vm_store_capacity());
   } else {
     ESP_LOGE(TAG, "==== VM self-test: %d passed, %d FAILED ====", s_pass, s_fail);
   }

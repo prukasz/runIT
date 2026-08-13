@@ -8,6 +8,7 @@
 #include "sys_error.h"
 #include "sys_error_vm.h"
 #include "vm_obj.h"
+#include "vm_store.h"
 
 /*
 Object access layer. Three levels, in increasing order of "how much does the
@@ -19,53 +20,35 @@ caller already know":
 
 Everything is addressed through vm_accessor_t (id + optional index chain) and
 resolved live against the loaded program's object table. Failures come back
-as err_h chains, never as silent sentinels -- see [[SYS_ERRORS.MD]]; the
-caller decides whether to propagate (SE_RET_IF_ERR) or report (BLOCK_CALL /
+as err_h chains, never silent sentinels -- see [[SYS_ERRORS.MD]]; the caller
+decides whether to propagate (SE_RET_IF_ERR) or report (BLOCK_CALL /
 SE_ORIGIN_CALL).
+
+Hot-path shape: vm_resolve_fast() (inline, in this header) handles the common
+accessor shapes without a walk; resolve_d() (vm_obj_access.c) is the general
+fallback. Every entry point tries fast first and only walks on a miss.
 */
 
 // ---------------------------------------------------------------------------
-// Object table -- the loaded program's id -> object map
+// id -> object, over the shared registry. One program is loaded at a time
+// (storage rebuilt whole on reload, see vm_store.h), so accessors resolve
+// against the global store rather than threading a table pointer everywhere.
 // ---------------------------------------------------------------------------
 
-typedef struct vm_obj_table_t {
-  vm_obj_h* items;  // table id->object handle
-  uint16_t count;   // count of objects
-} vm_obj_table_t;
-
-/*
-The single active program's object table. Exactly one program is loaded at a
-time -- arenas are rebuilt whole on reload, never partially swapped (see
-vm_alloc.h) -- so accessors resolve against this global instead of threading
-a table pointer through every call. Populated by the loader; empty
-(count = 0) until then, so resolution fails closed rather than dereferencing
-garbage.
-*/
-extern vm_obj_table_t g_vm_obj_table;
-
-/**
- * @brief Safe object getter
- */
 static __always_inline vm_obj_h vm_obj_by_id(uint16_t id) {
-  return (id < g_vm_obj_table.count) ? g_vm_obj_table.items[id] : NULL;
+  return (vm_obj_h)vm_store_get(VM_REG_OBJ, id);
 }
 
-/**
- * @brief Safe payload access, fetch directly form object, count is in returned in items not bytes - ready to use
- * ptr is at raw data in arena
- */
+/** @brief Where a value lives: type, address in the arena, element count
+ *  (items, not bytes -- ready to use). */
 typedef struct vm_payload_t {
   vm_obj_t_e type;
   void* ptr;       // NULL when unresolved
   uint16_t count;  // number of `type` elements available at ptr
 } vm_payload_t;
 
-/**
-* @brief Scratch value wide enough for any scalar vm_obj_t_e -- the conversion hub
-between "whatever is actually stored" and "whatever type the caller asked
-for". Untagged on its own: the payload's resolved type is the tag, and
-travels alongside it.
- */
+/** @brief Scratch value wide enough for any scalar vm_obj_t_e. Untagged on
+ *  its own -- the payload's type travels alongside it. */
 typedef union {
   uint8_t u8;
   uint32_t u32;
@@ -74,17 +57,13 @@ typedef union {
   float f;
 } vm_val_t;
 
-/**
- * @brief Safe payload access in array of items
- */
+/** @brief Element `i` of an already-resolved payload, bounds-checked. */
 static __always_inline vm_payload_t vm_payload_at(vm_payload_t p, uint16_t i) {
   if (unlikely(!vm_type_ok((uint8_t)p.type) || i >= p.count)) return (vm_payload_t){VM_OBJ_NONE, NULL, 0};
   return (vm_payload_t){p.type, (uint8_t*)p.ptr + ((size_t)i << vm_type_shift((uint8_t)p.type)), 1};
 }
 
-/**
- * @brief Safe payload access - retunrs ready to use structure
- */
+/** @brief A whole object as a payload. */
 static __always_inline vm_payload_t vm_obj_as_payload(vm_obj_h obj) {
   return (vm_payload_t){(vm_obj_t_e)obj->head.d.obj_t, obj->payload, vm_obj_items_cnt(obj)};
 }
@@ -96,36 +75,28 @@ static __always_inline vm_payload_t vm_obj_as_payload(vm_obj_h obj) {
 typedef struct vm_accessor_t vm_accessor_t;
 
 typedef enum vm_index_kind_e {
-  VM_IDX_LITERAL = 0,  // a fixed position, known when the program was compiled
+  VM_IDX_LITERAL = 0,  // fixed position, known at compile time
   VM_IDX_REF = 1,      // resolve another accessor and read it as the index
-  VM_IDX_NAME = 2,     // match a child object's tag -- see below
+  VM_IDX_NAME = 2,     // match a child object's tag
 } vm_index_kind_e;
 
 /*
-One step of a chain. Three ways to say "which element":
+One step of a chain:
 
   LITERAL  object(id, [2])            fixed position
   REF      object(id, [ object(9) ])  position read live from another object
-                                      (a selector wire, a sequencer's step)
+                                       (a selector wire, a sequencer's step)
   NAME     object(id, ["temp"])       the child tagged "temp"
 
-NAME exists for data whose field *order* isn't known when the program is
-compiled -- a parsed message, where "temp" may land anywhere in the object.
-It only works on a VM_OBJ_PTR parent whose children carry tags (see
-vm_obj_tag()), since a scalar array has no per-element names to match, and it
-costs a scan of the parent's children with a compare each. That is fine for
-the handful of fields a message carries; it is the wrong tool for a compiled
-path where the position is already known -- use LITERAL there.
+NAME is for data whose field *order* isn't known at compile time -- a parsed
+message, where "temp" may land anywhere. Only works on a VM_OBJ_PTR parent
+with tagged children (vm_obj_tag()); costs a scan with a compare each, fine
+for a handful of fields, wrong for a compiled path where LITERAL applies.
 
-`name` is NUL-terminated and must live at least as long as the accessor
-(program arena or rodata). Keeping it a bare pointer rather than an inline
-buffer is what holds vm_index_t at its original size, so literal indices pay
-nothing for this feature existing.
-
-`name_len` rides in padding `kind` was already wasting, so it is free in both
-size and construction cost -- and it takes a strlen() of the same constant
-string off every single access. Kept authoritative: the scan compares against
-it and never re-measures the string. Zero for the other two kinds.
+`name` is a bare pointer (NUL-terminated, must outlive the accessor), not an
+inline buffer, so LITERAL indices pay nothing for the feature existing.
+`name_len` rides in padding `kind` already wasted -- authoritative, the scan
+never re-measures the string.
 */
 typedef struct {
   uint8_t kind;      // vm_index_kind_e
@@ -139,46 +110,44 @@ typedef struct {
 
 /**
  * @brief Static initialiser for a by-name index: `VM_IDX_BY_NAME("temp")`.
- *
- * name_len is authoritative -- the scan compares against it and never measures
- * the string -- so a hand-written `{.kind = VM_IDX_NAME, .name = "temp"}` is
- * not merely slow, it matches nothing. String literals only (sizeof, not
- * strlen); vm_accessor_set_name() is the runtime equivalent.
+ * String literals only (sizeof, not strlen) -- a hand-written struct with
+ * the wrong name_len matches nothing. vm_accessor_set_name() is the runtime
+ * equivalent.
  */
 #define VM_IDX_BY_NAME(str) \
   { .kind = VM_IDX_NAME, .name_len = (uint8_t)(sizeof(str) - 1), .name = (str) }
 
 /*
-Resolution cache -- set by vm_accessor_cache_build() once the program is
-loaded, cleared (with the rest of the accessor) on every reload.
+Resolution cache -- set by vm_accessor_cache_build() once the program loads,
+cleared with the rest of the accessor on reload.
 
-Only shapes whose *address* cannot move are cached: a whole-object accessor,
-or a single literal index on a root object. Neither traverses a VM_OBJ_PTR, so
-nothing a running program does can invalidate them, and the feature needs no
-generation counter and has no re-linking pathology.
-
-A single literal index on a PTR object is cached too, and safely: what is
-cached is the address of the pointer *slot*, not the object behind it. A chain
-that follows the link -- vm_get_obj() -- still dereferences it live at access
-time, so re-linking is picked up exactly as before. That is the whole reason
-this tier is invalidation-free.
+Only shapes whose *address* can't move are cached: a whole-object accessor,
+or a single literal index on a root object (neither traverses a VM_OBJ_PTR).
+A single literal index on a PTR object is cached too, safely: what's cached
+is the pointer *slot*'s address, not the object behind it -- a chain that
+follows the link (vm_get_obj()) still dereferences it live, so re-linking is
+picked up exactly as before. That's why this tier needs no invalidation.
 
 Anything deeper (`obj(id, [j][k])`) is deliberately not cached: its address
-depends on a link that vm_obj_link() can move under it.
-
-The cache is an optimisation, never a correctness input. An accessor that was
-never built, or whose shape does not qualify, simply resolves the long way.
+depends on a link vm_obj_link() can move under it. The cache is an
+optimisation only -- an unbuilt or disqualified accessor just resolves long.
 */
 #define VM_ACC_F_CACHED 0x01u
 
-/**
- * @brief Object access structure
- */
+/*
+`indices` points into the accessor's own tail rather than being a flexible
+array member -- the one place the three registries (obj/acc/block) differ in
+how they express "header + trailing bytes", even though they're all carved as
+a single chunk. A FAM was tried and reverted: C11 6.7.2.1p3 forbids a struct
+with a FAM from being a struct member, which is what a compile-time `static
+const` accessor needs. Costs 4 bytes and one dependent load per chain step;
+the resolution cache already removes that load from every hot shape.
+*/
 struct vm_accessor_t {
-  uint16_t id;                // root object's id in the table
+  uint16_t id;                // root object's id in the registry
   uint8_t count;              // number of chained indices; 0 = whole object
   uint8_t flags;              // VM_ACC_F_*
-  const vm_index_t* indices;  // `count` entries
+  const vm_index_t* indices;  // `count` entries, allocated in the same chunk
   vm_obj_h c_owner;           // cache: object the value lives in
   void* c_ptr;                // cache: resolved address
   uint16_t c_count;           // cache: elements available at c_ptr
@@ -186,75 +155,56 @@ struct vm_accessor_t {
   uint8_t c_pad;
 };
 
+_Static_assert(sizeof(struct vm_accessor_t) == 20, "accessor header size feeds the RAM budget in VM.MD");
+
 /*
-Accessors get their own id space for the same reason objects do -- so the
-upload can name one and point several things at it.
-
-Sharing is the expected case: ten blocks reading the same object reference
-one accessor rather than carrying ten copies.
-
-Blocks hold resolved `vm_accessor_t*`, not ids: ids are the wire form,
-pointers are the runtime form, and resolving once at load removes the
-invalid-id failure mode from every subsequent access. That makes accessors
-ordering-dependent in an upload -- they must exist before whatever
-references them, exactly as objects must exist before being linked as
-children.
+Accessors get their own id space so an upload can name one and point several
+things at it -- sharing is the expected case (ten blocks reading the same
+object share one accessor). Blocks hold resolved `vm_accessor_t*`, not ids:
+ids are the wire form, pointers the runtime form, resolved once at load. That
+makes accessors ordering-dependent in an upload, same as linked objects.
 */
-typedef struct vm_accessor_table_t {
-  vm_accessor_t** items;
-  uint16_t count;
-} vm_accessor_table_t;
-
-extern vm_accessor_table_t g_vm_accessor_table;
-
 /** @brief id -> accessor, NULL past the end of the loaded program. */
 static __always_inline vm_accessor_t* vm_accessor_by_id(uint16_t id) {
-  return (id < g_vm_accessor_table.count) ? g_vm_accessor_table.items[id] : NULL;
+  return (vm_accessor_t*)vm_store_get(VM_REG_ACC, id);
 }
 
-// caps by_ref recursion: a packet-sourced tree isn't trusted to be acyclic,
-// and unbounded recursion here means unbounded stack usage
+// caps by_ref recursion: a packet-sourced tree isn't trusted to be acyclic
 #define VM_ACCESSOR_MAX_DEPTH 8
 
 // ---------------------------------------------------------------------------
 // Resolution
 // ---------------------------------------------------------------------------
 
-/* What a walk produces: what it landed on, and which object those bytes
-   belong to. Callers want one or the other; only the walk has both. */
+/** @brief What a walk produces: what it landed on, and which object those
+ *  bytes belong to. Callers want one or the other; only the walk has both. */
 typedef struct vm_resolved_t {
   vm_payload_t payload;
   vm_obj_h owner;  // object the payload's bytes belong to
 } vm_resolved_t;
 
 /**
- * @brief Resolve the accessor shapes worth not walking for, entirely inline.
+ * @brief Resolve the accessor shapes worth not walking for, entirely inline:
+ * `obj(id)`, `obj(id, [k])`, `obj(id, [j][k])` with literal indices -- nearly
+ * every wire a compiled program has.
  *
- * `obj(id)`, `obj(id, [k])` and `obj(id, [j][k])` with literal indices cover
- * very nearly every wire a compiled program has, and each is a couple of
- * bounds checks rather than a loop with a switch in it.
+ * Returns false for a shape it doesn't handle *and* for every failure, never
+ * an error of its own -- callers fall through to resolve_d(), which re-derives
+ * the chain and builds the real err_h. Failure is cold, so paying for the
+ * walk twice there is cheaper than carrying error construction through here.
  *
- * Returns false for a shape it does not handle *and* for every failure --
- * never an error of its own. Callers fall through to the out-of-line walk,
- * which re-derives the same chain and builds the real err_h with the chain
- * position and object in it. Failure is the cold path, so paying for the walk
- * twice there is cheaper than carrying error construction through the hot one.
+ * Lives in the header so a block's pin read is straight-line code, not a
+ * call -- the resolved type/pointer stay in registers instead of round-
+ * tripping through a returned struct. Largest single cost in an access; see
+ * the benchmark section of VM.MD.
  *
- * This lives in the header, not the .c, so a block's pin read is straight-line
- * code instead of a call: no `entry`/`retw` window rotation, and the resolved
- * type and pointer stay in registers instead of being written out as a
- * vm_payload_t and read straight back. That is the single largest cost in an
- * access -- see the benchmark section of VM.MD.
- *
- * Must stay in agreement with the out-of-line walk about what it accepts. In
- * particular the mutability check belongs on the same object each of them ends
- * on: the deepest one.
+ * Must stay in agreement with resolve_d() about what it accepts, in
+ * particular which object (the deepest one) the mutability check runs on.
  */
 static __always_inline bool vm_resolve_fast(const vm_accessor_t* acc, bool for_write, vm_resolved_t* out) {
-  /* Pre-resolved at load: four loads and no walk at all. Mutability is still
-     read from the object rather than baked into the flags -- it is one load,
-     and it keeps the cache from silently outliving a future "revoke write
-     access at runtime" feature. */
+  // pre-resolved at load: four loads, no walk. Mutability is still read
+  // live (not baked into flags) so a future "revoke write access" feature
+  // can't be silently outlived by the cache.
   if (likely(acc->flags & VM_ACC_F_CACHED)) {
     if (unlikely(for_write && !acc->c_owner->head.f.mutable)) return false;
     out->payload = (vm_payload_t){(vm_obj_t_e)acc->c_type, acc->c_ptr, acc->c_count};
@@ -262,8 +212,7 @@ static __always_inline bool vm_resolve_fast(const vm_accessor_t* acc, bool for_w
     return true;
   }
 
-  if (unlikely(acc->id >= g_vm_obj_table.count)) return false;
-  vm_obj_h obj = g_vm_obj_table.items[acc->id];
+  vm_obj_h obj = vm_obj_by_id(acc->id);
   if (unlikely(obj == NULL)) return false;
 
   uint8_t n = acc->count;
@@ -298,65 +247,52 @@ static __always_inline bool vm_resolve_fast(const vm_accessor_t* acc, bool for_w
 }
 
 // ---------------------------------------------------------------------------
-// Out-of-line entry points (vm_obj_access.c -- ambient OWNER for the SE_*
-// macros). Each runs vm_resolve_fast() first and only walks on a miss.
+// Out-of-line entry points (vm_obj_access.c -- ambient OWNER for SE_* macros)
 // ---------------------------------------------------------------------------
 
-/** @brief Resolve `source` to where its value lives. Read path: does not
- *  check mutability. */
+/** @brief Resolve `source` to where its value lives. Read path: no mutability check. */
 err_h vm_obj_get_payload(vm_payload_t* target, const vm_accessor_t* source);
 
 /** @brief Resolve `source` to the deepest object it reaches, ignoring the
- *  payload -- for blocks that forward or inspect a whole object rather than
- *  read a value out of it (relay, encoder, demux consumer). A chain ending on
- *  a VM_OBJ_PTR element yields the object that element points at; a chainless
- *  accessor (count 0) yields the named object itself, pointer container
- *  included, since there is no element for it to have landed on. */
+ *  payload -- for blocks that forward or inspect a whole object (relay,
+ *  encoder, demux consumer). A chain ending on a VM_OBJ_PTR element yields the
+ *  object it points at; a chainless accessor (count 0) yields the named
+ *  object itself, PTR container included. */
 err_h vm_get_obj(vm_obj_h* target, const vm_accessor_t* source);
 
-/** @brief Copy the value bytes of one object into another. Both must resolve
- *  to the same element type and payload size, else ERR_VM_OBJ_COPY_MISMATCH.
- *  Refuses non-mutable targets. Deliberately rejects VM_OBJ_PTR: raw pointer
- *  bytes are meaningless outside their own graph -- link instead. */
+/** @brief Copy value bytes from one object into another. Both must resolve to
+ *  the same element type and count, else ERR_VM_OBJ_COPY_MISMATCH. Refuses
+ *  non-mutable targets and VM_OBJ_PTR (link instead -- raw pointer bytes are
+ *  meaningless outside their own graph). */
 err_h vm_obj_copy_content(const vm_accessor_t* source, const vm_accessor_t* target);
 
 /** @brief Point a VM_OBJ_PTR slot at an object: `owner` must resolve to a
- *  pointer element (e.g. cell[0]), `to_join` to the object to store there.
- *  The switch/mux/demux primitive -- rewiring which object a consumer's chain
- *  lands on, without touching the consumer. */
+ *  pointer element, `to_join` to the object to store there. The switch/mux/
+ *  demux primitive -- rewires which object a consumer's chain lands on. */
 err_h vm_obj_link(const vm_accessor_t* to_join, const vm_accessor_t* owner);
 
 /** @brief Write a scalar into `target`, converting to whatever type is
- *  actually stored. Checks mutability and sets the object's `upd` flag.
- *  Prefer the VM_OBJ_SET_VAL() macro -- it builds the tagged value for you. */
+ *  actually stored. Checks mutability, sets `upd`. Prefer VM_OBJ_SET_VAL(). */
 err_h vm_obj_set_scalar(const vm_accessor_t* target, vm_val_t v, vm_obj_t_e src_type);
 
-/** @brief Cold half of vm_store_inline(): builds the "target is not a scalar"
- *  error. Out of line because error construction needs an ambient OWNER, which
- *  a header cannot have -- and because it never runs on a working program. */
+/** @brief Cold half of vm_store_inline(): builds the "target is not a
+ *  scalar" error. Out of line for the ambient OWNER a header can't have. */
 err_h vm_obj_not_scalar_err(vm_obj_h owner, vm_obj_t_e actual, uint16_t id);
 
 /*
-Direct-object write path, for a block publishing to an output it owns.
-
-An output is bound once at load time and never moves -- there is nothing to
-resolve, so an output slot holds the vm_obj_h itself and skips the accessor
-machinery entirely. Still honours mutable and still sets upd; only the
-address lookup is what gets dropped.
+Direct-object write path, for a block publishing to an output it owns: an
+output is bound once at load and never moves, so the output slot holds the
+vm_obj_h itself and skips the accessor walk. Still checks mutable, still sets
+upd -- only the address lookup is dropped.
 */
 
-/* Cold arms, out of line -- error construction needs an ambient OWNER, which
-   a header cannot have, and none of these run on a working program. */
+// cold arms, out of line: ambient OWNER, and none run on a working program
 err_h vm_obj_null_obj_err(void);
 err_h vm_obj_not_mutable_err(vm_obj_h obj);
 err_h vm_obj_oob_err(vm_obj_h obj, uint16_t index);
 
-/** @brief Write a scalar directly into `obj`'s element `index`.
- *
- *  Inline: this is how every block publishes a result, and vm_block_set_ENO()
- *  runs it again for every block on every scan cycle. Both of those paid a
- *  call for four instructions of work. Definition sits below vm_store_inline(),
- *  which it shares with the accessor write path. */
+/** @brief Write a scalar directly into `obj`'s element `index`. Inline: every
+ *  block publishes a result this way, every cycle -- see vm_store_inline(). */
 static __always_inline err_h vm_obj_set_scalar_direct(vm_obj_h obj, uint16_t index, vm_val_t v, vm_obj_t_e src_type);
 
 /** @brief Point `cell`'s pointer element `index` at `child` -- vm_obj_link()
@@ -368,8 +304,8 @@ err_h vm_obj_link_direct(vm_obj_h cell, uint16_t index, vm_obj_h child);
 // ---------------------------------------------------------------------------
 
 // Reads a resolved payload's first element into the union member matching its
-// stored type. PTR and NONE aren't scalars -- left zeroed. A VM_OBJ_STR is an
-// array of chars, so one *element* of it is a byte like any other.
+// stored type. PTR/NONE aren't scalars, left zeroed. VM_OBJ_STR is an array
+// of chars, so one *element* of it is a byte like any other.
 static __always_inline vm_val_t vm_payload_read(vm_payload_t p) {
   vm_val_t v = {0};
   if (!p.ptr) return v;
@@ -405,15 +341,13 @@ static __always_inline int64_t vm_f_to_i(float f) {
 }
 
 /*
-Casts a vm_val_t (typed by `type`) into *dst_ptr, converting from whatever
-was stored to whatever the caller declared. __typeof__ picks the target type
-from dst_ptr itself, so this works for any scalar destination with no second
-dispatch table; the inner _Generic keeps float destinations from being
-needlessly rounded on the float->float path.
+Casts a vm_val_t (typed by `type`) into *dst_ptr. __typeof__ picks the target
+type from dst_ptr, so this works for any scalar destination with one macro;
+the inner _Generic skips needless rounding on float->float.
 
-Range is NOT clamped to the destination's own limits -- narrowing a 300 into
-a uint8_t still wraps. Clamp in a type wide enough to see the real value
-before narrowing (get into float, clamp, then use).
+Range is NOT clamped to the destination -- narrowing a 300 into a uint8_t
+still wraps. Clamp in a wide type first if that matters (get into float,
+clamp, then narrow).
 */
 #define VM_VAL_CAST_TO(dst_ptr, val, type)                                                                                       \
   do {                                                                                                                           \
@@ -442,37 +376,27 @@ before narrowing (get into float, clamp, then use).
   } while (0)
 
 /*
-The read conversion, as three out-of-line functions instead of a switch pasted
-into every call site.
+Read conversion as three out-of-line functions rather than a switch pasted
+into every call site. Fusing load+convert inline was right for speed, wrong
+for size: the six arms (float->int64 saturation, U64->float pulling in
+__floatundisf) cost ~450 B *per pin* -- a 50-type palette hit ~90 kB, thrashing
+the 16 kB instruction cache and slowing every block, not just the big ones.
 
-Fusing the load and the convert into one inlined dispatch was the right move
-for speed and the wrong one for size: the six arms -- with a float->int64
-saturation path and a U64->float conversion that pulls in __floatundisf --
-measured ~450 bytes at *every* pin, so one 2-input block came to 1.8 kB and a
-50-type palette to ~90 kB. Flash can afford that; a 16 kB instruction cache
-cannot, and a palette that thrashes it slows down every block, not just the
-big ones.
+Splitting on the *destination* keeps the fast half inlined: only three
+destination shapes exist (float, <=32-bit int, 64-bit int), so three shared
+functions cover the whole program and each call site shrinks to a resolve
+plus a call. vm_resolve_fast() stays inline, which is where the speed
+actually came from.
 
-Splitting on the *destination* instead keeps the fast half inlined. There are
-only three destination shapes a block can declare -- float, an integer that
-fits in 32 bits, and a 64-bit integer -- so three shared functions cover every
-pin in the program, and each call site shrinks to a resolve plus a call.
-`vm_resolve_fast()` stays inline, which is where the speed actually came from.
-
-`src` must be non-NULL and point at a resolved element of the given type;
-callers get that from vm_resolve_fast() or vm_payload_at().
+`src` must be non-NULL and point at a resolved element of the given type.
 */
 float vm_read_as_f32(vm_obj_t_e type, const void* src);
 int32_t vm_read_as_i32(vm_obj_t_e type, const void* src);
 int64_t vm_read_as_i64(vm_obj_t_e type, const void* src);
 
-/*
-Picks the converter from the destination's own type, then narrows. Integer
-destinations of 32 bits or less all route through vm_read_as_i32 and cast:
-the round trip is exact in two's complement, so a uint32_t destination reading
-0x80000000 gets its value back unchanged. Range is still NOT clamped to the
-destination -- see VM_VAL_CAST_TO.
-*/
+// Picks the converter from the destination's type, then narrows. <=32-bit
+// integer destinations all route through vm_read_as_i32 and cast -- exact in
+// two's complement. Not clamped to the destination, same as VM_VAL_CAST_TO.
 #define VM_LOAD_CAST_TO(dst_ptr, type, src)                    \
   do {                                                         \
     const void* __lc_s = (const void*)(src);                   \
@@ -480,25 +404,17 @@ destination -- see VM_VAL_CAST_TO.
     *(dst_ptr) = (__typeof__(*(dst_ptr)))_Generic(*(dst_ptr),  \
         float: vm_read_as_f32(__lc_t, __lc_s),                 \
         double: vm_read_as_f32(__lc_t, __lc_s),                \
-        int64_t: vm_read_as_i64(__lc_t, __lc_s),               \
-        uint64_t: vm_read_as_i64(__lc_t, __lc_s),              \
-        default: vm_read_as_i32(__lc_t, __lc_s));              \
+        int64_t: vm_read_as_i64(__lc_t, __lc_s),                \
+        uint64_t: vm_read_as_i64(__lc_t, __lc_s),               \
+        default: vm_read_as_i32(__lc_t, __lc_s));               \
   } while (0)
 
-/*
-The same conversion with the switch pasted in rather than called.
-
-The size argument above is a per-*site* one: a pin read happens once per block
-per cycle, so trading ~10 cyc for ~200 B at each of hundreds of sites is
-clearly right. Iterating an array inverts both halves of that trade -- there
-are only a handful of sites (a fold block, a copy, an encoder), and each one
-runs the conversion once *per element*, with the type loop-invariant the whole
-way. Measured: routing the payload walk through the shared converters cost it
-80% (21.7 -> 39.1 cyc/element), for a few hundred bytes across the program.
-
-So: VM_OBJ_GET_VAL calls, VM_PAYLOAD_GET_VAL inlines. Reach for this one only
-inside a loop over elements.
-*/
+// Same conversion, inlined rather than called. VM_LOAD_CAST_TO trades ~10 cyc
+// for ~200 B per *site*, right for hundreds of once-per-cycle pin reads; this
+// inverts that for the handful of sites (fold, copy, encoder) that run the
+// conversion once per *element* with the type loop-invariant -- measured 80%
+// slower (21.7 -> 39.1 cyc/element) routed through the shared converters.
+// Use VM_OBJ_GET_VAL normally; reach for this only inside an element loop.
 #define VM_LOAD_CAST_TO_FAST(dst_ptr, type, src)                                                                                 \
   do {                                                                                                                           \
     const void* __lf_s = (const void*)(src);                                                                                      \
@@ -535,10 +451,9 @@ inside a loop over elements.
  * @brief Convert `v` into whatever `slot` actually stores, then mark `owner`
  *        updated. The shared tail of every scalar write.
  *
- * Inline for the same reason vm_resolve_fast() is: this is what a block does
- * to publish a result, and an out-of-line call here costs more than the store
- * itself. Mutability is the caller's to check -- it belongs with the resolve,
- * which is the last place holding the owning object's header.
+ * Inline like vm_resolve_fast(): this is what a block does to publish a
+ * result, and a call here would cost more than the store itself. Mutability
+ * is the caller's to check, at the resolve site.
  */
 static __always_inline err_h vm_store_inline(vm_obj_h owner, vm_payload_t slot, vm_val_t v, vm_obj_t_e src_type, uint16_t err_id) {
   switch (slot.type) {
@@ -554,8 +469,7 @@ static __always_inline err_h vm_store_inline(vm_obj_h owner, vm_payload_t slot, 
       VM_VAL_CAST_TO((int32_t*)slot.ptr, v, src_type);
       break;
     case VM_OBJ_U64: {
-      // via a local + memcpy -- see the alignment note in vm_payload_read()
-      uint64_t tmp;
+      uint64_t tmp;  // local + memcpy: see the alignment note in vm_payload_read()
       VM_VAL_CAST_TO(&tmp, v, src_type);
       memcpy(slot.ptr, &tmp, sizeof(tmp));
       break;
@@ -564,8 +478,7 @@ static __always_inline err_h vm_store_inline(vm_obj_h owner, vm_payload_t slot, 
       VM_VAL_CAST_TO((float*)slot.ptr, v, src_type);
       break;
     default:
-      // PTR/NONE aren't scalars -- use vm_obj_link() / vm_obj_copy_content()
-      return vm_obj_not_scalar_err(owner, slot.type, err_id);
+      return vm_obj_not_scalar_err(owner, slot.type, err_id);  // PTR/NONE aren't scalars -- use vm_obj_link() / vm_obj_copy_content()
   }
   owner->head.f.upd = 1;
   return NULL;
@@ -579,25 +492,16 @@ static __always_inline err_h vm_obj_set_scalar_direct(vm_obj_h obj, uint16_t ind
   return vm_store_inline(obj, (vm_payload_t){(vm_obj_t_e)obj->head.d.obj_t, p, 1}, v, src_type, 0);
 }
 
-/*
-Types a caller's C value with the matching vm_obj_t_e, for the SET path.
-
-`char` is listed separately from int8_t and uint8_t because C makes all three
-distinct types -- without its own arm a plain `char` would fall to the default
-and write 0, which is exactly the mistake a VM_OBJ_STR (an array of chars)
-invites.
-*/
+// Types a caller's C value with the matching vm_obj_t_e, for the SET path.
+// `char` gets its own arm because C makes it distinct from int8_t/uint8_t --
+// without one, a plain `char` would fall to default and write 0, exactly
+// wrong for a VM_OBJ_STR (array of chars).
 #define VM_TYPE_OF(x) _Generic((x), uint8_t: VM_OBJ_U8, int8_t: VM_OBJ_I32, char: VM_OBJ_U8, uint16_t: VM_OBJ_U32, int16_t: VM_OBJ_I32, uint32_t: VM_OBJ_U32, int32_t: VM_OBJ_I32, uint64_t: VM_OBJ_U64, int64_t: VM_OBJ_U64, float: VM_OBJ_F, double: VM_OBJ_F, bool: VM_OBJ_B, default: VM_OBJ_NONE)
 
-/*
-Every arm must write the union member that VM_TYPE_OF's answer will be read
-back through -- U8/B are read as .u8, so they must be written as .u8. Letting
-them fall to the .u32 default happens to work on a little-endian target, but
-that is byte-order luck, not a contract.
-
-char goes through uint8_t first: plain char's signedness is
-implementation-defined, and a byte of a string is a byte either way.
-*/
+// Every arm must write the union member VM_TYPE_OF's answer is read back
+// through (U8/B read as .u8, so must write .u8 -- falling to .u32 happens to
+// work little-endian, but that's byte-order luck, not a contract). `char`
+// goes through uint8_t since plain char's signedness is implementation-defined.
 #define VM_VAL_OF(x)                                 \
   _Generic((x),                                      \
       float: (vm_val_t){.f = (float)(x)},            \
@@ -615,10 +519,8 @@ implementation-defined, and a byte of a string is a byte either way.
 /**
  * @brief Read one converted scalar out of `source` into the local `output`.
  *
- * Takes an lvalue, not a pointer, and evaluates to err_h -- NULL on success,
- * a resolve-failure chain otherwise (output untouched on failure). The
- * caller's declared type drives the conversion, so the same block body works
- * whatever the wired source happens to store.
+ * Takes an lvalue, evaluates to err_h (NULL on success, output untouched on
+ * failure). The caller's declared type drives the conversion.
  *
  * @code
  * float angle = 0;
@@ -644,9 +546,8 @@ implementation-defined, and a byte of a string is a byte either way.
 /**
  * @brief Write scalar `source` into `target`, converting to the stored type.
  *
- * Evaluates to err_h. Float sources are rounded and saturated on the way into
- * an integer object (see vm_f_to_i), so a 179.6 lands on 180 rather than
- * truncating or invoking UB.
+ * Evaluates to err_h. Float sources are rounded and saturated into an
+ * integer object (vm_f_to_i), so 179.6 lands on 180, not truncated or UB.
  *
  * @code
  * uint64_t sum = ...;
@@ -667,9 +568,8 @@ implementation-defined, and a byte of a string is a byte either way.
 /**
  * @brief Write scalar `source` straight into an owned output object.
  *
- * The output-pin counterpart to VM_OBJ_SET_VAL: same conversion and the same
- * mutable/upd handling, but no accessor to walk, since a block's own output
- * is bound at load time and cannot move.
+ * The output-pin counterpart to VM_OBJ_SET_VAL: same conversion, no accessor
+ * walk, since a block's own output is bound at load time and can't move.
  *
  * @code
  * uint64_t sum = ...;
@@ -679,8 +579,7 @@ implementation-defined, and a byte of a string is a byte either way.
 #define VM_OBJ_SET_VAL_AT(source, obj, index) vm_obj_set_scalar_direct((obj), (index), VM_VAL_OF(source), VM_TYPE_OF(source))
 
 /** @brief Read one converted scalar out of an already-resolved payload --
- *  the array-iteration counterpart to VM_OBJ_GET_VAL, no chain walk.
- *  Conversion is inlined here, not called: see VM_LOAD_CAST_TO_FAST. */
+ *  the array-iteration counterpart to VM_OBJ_GET_VAL, no chain walk. */
 #define VM_PAYLOAD_GET_VAL(output, payload)                     \
   do {                                                          \
     vm_payload_t __pv_p = (payload);                            \
@@ -688,5 +587,5 @@ implementation-defined, and a byte of a string is a byte either way.
       VM_LOAD_CAST_TO_FAST(&(output), __pv_p.type, __pv_p.ptr); \
     } else {                                                    \
       (output) = (__typeof__(output))0;                         \
-    }                                                           \
+    }                                                            \
   } while (0)

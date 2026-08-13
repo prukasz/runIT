@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include "sys_error.h"
 #include "sys_error_vm.h"
-#include "vm_alloc.h"
+#include "vm_block_build.h"
 #include "vm_obj_access.h"
 #include "vm_obj_build.h"
 
@@ -11,15 +11,16 @@ Program loading -- turns an uploaded description into the live object graph.
 
 Every argument here comes off the wire, so this is the trust boundary: ids,
 counts, sizes and offsets are all validated before they reach vm_obj_create()
-or the object table. The wire parsing itself lives in the decoder
-(dec_vm_loader.h); this file owns the storage and the rules.
+or a registry. The wire parsing itself lives in the decoder
+(dec_vm_loader.h); vm_store.h owns the storage, and this file owns the rules
+and the load-order state machine.
 
 Load sequence, which is also the teardown-safety story:
 
-  vm_loader_reset()      -> table detached, arena reset. Everything resolves
+  vm_loader_reset()      -> registries detached, arena reset. Everything resolves
                             to NULL, so accessors and late callbacks fail
                             closed for the whole window before the next load.
-  vm_loader_open(n, sz)  -> reserve the id table and cap the arena at sz
+  vm_loader_open(...)    -> reserve the id registries and cap the arena
   vm_loader_add_obj(...) -> once per object, any order of ids
   vm_loader_set_data(...) -> payload bytes, or child ids for VM_OBJ_PTR
                             parents; may be called repeatedly for slices
@@ -39,41 +40,6 @@ interleave freely.
  */
 #define VM_LOADER_CLASS_HEADER 0x04
 
-/**
- * @brief Bytes reserved for one loaded program: objects, accessors, blocks,
- *        both tables -- everything a program owns.
- *
- * This is a static .bss array, reserved whether or not a program is loaded, so
- * it comes straight off the DIRAM the heap also draws from. Size it from a
- * target program rather than by feel:
- *
- *   block          sizeof(vm_block_data_t) 20 B + 4 B per input + 4 B per
- *                  output + its own variables (custom_data)
- *   object         4 B head + payload, 4-byte aligned, + tag bytes if named
- *   accessor       8 B + 8 B per chain index (shared between pins that read
- *                  the same thing, so this is a worst case)
- *   tables         4 B per object id + 4 B per accessor id
- *
- * Worked example -- 100 blocks, 5 pins each, one 8-byte output apiece, 16 B of
- * own variables, no accessor sharing:
- *
- *   blocks     100 x (20 + 20 + 4 + 16) =  6.0 kB
- *   outputs    100 x (4 + 8)            =  1.2 kB
- *   constants  100 x (4 + 8)            =  1.2 kB
- *   accessors  500 x (8 + 8)            =  8.0 kB
- *   tables     200 ids + 500 ids        =  2.8 kB
- *                                         -------
- *                                         19.2 kB
- *
- * 48 kB leaves that roughly 2.5x of headroom for deeper chains, larger
- * payloads and blocks that keep more state, while still leaving the bulk of
- * DIRAM to the heap and BLE. A program that does not fit fails the load with
- * ERR_VM_LOAD_TOO_BIG reporting requested-vs-available, rather than
- * misbehaving -- so raising this is a deliberate act with a number attached.
- */
-#ifndef VM_LOADER_POOL_SIZE
-#define VM_LOADER_POOL_SIZE (48 * 1024)
-#endif
 
 typedef enum vm_load_state_e {
   VM_LOAD_EMPTY = 0,  // no storage; every id resolves to NULL
@@ -103,20 +69,20 @@ void vm_loader_reset(void);
  * that overruns instead of quietly borrowing space it never asked for.
  *
  * @return err_h ERR_VM_LOAD_TOO_BIG if total_size exceeds the pool,
- *         ERR_BASE_NO_MEM if the id table does not fit inside it.
+ *         ERR_BASE_NO_MEM if the id registries do not fit inside it.
  */
-err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint32_t total_size);
+err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint16_t blk_cnt, uint32_t total_size);
 
 /**
  * @brief Create one object and bind it to @p id.
  *
  * @param flags VM_LOAD_F_* bits.
  * @param name Tag bytes, not NUL-terminated on the wire; NULL when name_len is 0.
- * @return err_h the validation chain from vm_obj_create()/vm_obj_table_set()
+ * @return err_h the validation chain from vm_obj_create()
  *         -- unknown type, oversize payload, over-long name, retentive
  *         pointer, duplicate or out-of-range id.
  */
-err_h vm_loader_add_obj(uint16_t id, uint16_t item_count, uint8_t type, uint8_t flags, const char* name,
+err_h vm_loader_add_obj(uint16_t id, uint16_t payload_size, uint8_t type, uint8_t flags, const char* name,
                         uint8_t name_len);
 
 /**
@@ -124,7 +90,7 @@ err_h vm_loader_add_obj(uint16_t id, uint16_t item_count, uint8_t type, uint8_t 
  *
  * For a VM_OBJ_PTR parent, @p data is a list of little-endian uint16 child
  * ids -- never raw pointers, which mean nothing off-device -- and each is
- * resolved through the table and linked. For every other type @p data is raw
+ * resolved through the registry and linked. For every other type @p data is raw
  * payload bytes.
  *
  * @param start_idx First element to write, in elements (not bytes).
@@ -147,11 +113,30 @@ err_h vm_loader_set_data(uint16_t id, uint16_t start_idx, const uint8_t* data, u
  * @param idx_count Number of index records present in @p idx_data.
  * @param idx_len Length of @p idx_data in bytes; records are bounds-checked
  *                against it so a malformed count cannot overread.
- * @return err_h ERR_VM_ACC_BAD_KIND, ERR_VM_ACC_TABLE_OOB/_DUP,
+ * @return err_h ERR_VM_ACC_BAD_KIND, ERR_VM_REG_OOB/_DUP,
  *         ERR_VM_LOAD_SHORT_RECORD, or the accessor build chain.
  */
 err_h vm_loader_add_accessor(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_count, const uint8_t* idx_data,
                              uint16_t idx_len);
+
+/**
+ * @brief Create one block and bind it to @p blk_id.
+ *
+ * Last in the load order by necessity: a block names accessors (inputs, EN)
+ * and objects (outputs, ENO) by id, and every one of them must already be
+ * bound. Those ids are resolved to pointers here and the block keeps only the
+ * pointers, so nothing downstream can hold an id that stopped being valid.
+ *
+ * The id is checked against the registry *before* the block is built, so a
+ * duplicate or out-of-range id costs no arena -- a rejected program leaves
+ * the space its retry needs.
+ *
+ * @return err_h ERR_VM_REG_OOB / ERR_VM_REG_DUP for the id,
+ *         ERR_VM_BLK_BAD_SHAPE for an unbuildable pin count,
+ *         ERR_VM_BLK_BAD_REF naming the slot whose id did not resolve, or
+ *         ERR_BASE_NO_MEM.
+ */
+err_h vm_loader_add_block(uint16_t blk_id, const vm_block_cfg_t* cfg);
 
 /** @brief Current state -- decoders use it to reject out-of-sequence packets. */
 vm_load_state_e vm_loader_state(void);

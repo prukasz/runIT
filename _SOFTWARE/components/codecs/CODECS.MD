@@ -113,7 +113,7 @@ Program-upload table for [[VM.MD]]. **Structurally different from the tables abo
 | :--- | :--- | :--- | :--- |
 | Reset | `0x40` | — | `vm_loader_reset()` |
 | Open | `0x41` | `u16 obj_cnt`, `u16 acc_cnt`, `u32 total_size` | `vm_loader_open()` |
-| Add objects | `0x42` | `u8 n`, `n ×` `{u16 id, u16 item_count, u8 type, u8 flags, u8 name_len, char name[name_len]}` | `vm_loader_add_obj()` per record |
+| Add objects | `0x42` | `u8 n`, `n ×` `{u16 id, u16 payload_size, u8 type, u8 flags, u8 name_len, char name[name_len]}` | `vm_loader_add_obj()` per record |
 | Set data | `0x43` | `u8 n`, `n ×` `{u16 id, u16 start_idx, u16 byte_len, u8 data[byte_len]}` | `vm_loader_set_data()` per record |
 | Add accessors | `0x44` | `u8 n`, `n ×` `{u16 acc_id, u16 root_obj_id, u8 idx_count, u8 idx_len, u8 idx_data[idx_len]}` | `vm_loader_add_accessor()` per record |
 
@@ -123,7 +123,7 @@ All multi-byte fields little-endian. Every length is checked against the bytes a
 
 `DEC_VM_NEED`'s parameters are named `in_pkt`/`in_off`/`in_len`/`in_need` so plain token substitution cannot collide with the `.packet`/`.need`/`.got` payload designators inside it — the same hazard `SE_CHECK_IN_RANGE` documents in [[SYS_ERRORS.MD]]. Naming them `packet`/`need` expands `.packet = (packet)` into `.0x41 = (0x41)`.
 
-Wire-format rationale (`start_idx` unconditional, `item_count` rather than a byte size, explicit flags byte rather than the raw header bitfield, child **ids** rather than pointers for `VM_OBJ_PTR`) is documented in [[VM.MD]].
+Wire-format rationale (`start_idx` unconditional, `payload_size` in bytes rather than an element count, explicit flags byte rather than the raw header bitfield, child **ids** rather than pointers for `VM_OBJ_PTR`) is documented in [[VM.MD]].
 
 Registered by `sys_interface_init()` alongside `dec_sys_contracts`, not self-registered from the VM: `codecs` already `REQUIRES VM` so the decoder can see `vm_loader.h`, which makes a `VM → codecs` dependency circular. Worth moving into a `vm_init()` once the VM owns one.
 

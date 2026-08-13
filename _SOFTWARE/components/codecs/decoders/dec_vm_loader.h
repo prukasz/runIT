@@ -19,8 +19,8 @@
  * Load sequence (see vm_loader.h for the state rules):
  * @code
  *   0x40 reset      : -
- *   0x41 open       : u16 obj_cnt, u16 acc_cnt, u32 total_size
- *   0x42 add objs   : u8 n, n x { u16 id, u16 item_count, u8 type, u8 flags,
+ *   0x41 open       : u16 obj_cnt, u16 acc_cnt, u16 blk_cnt, u32 total_size
+ *   0x42 add objs   : u8 n, n x { u16 id, u16 payload_size, u8 type, u8 flags,
  *                                 u8 name_len, char name[name_len] }
  *   0x43 set data   : u8 n, n x { u16 id, u16 start_idx, u16 byte_len,
  *                                 u8 data[byte_len] }
@@ -30,7 +30,33 @@
  *                       LITERAL -> u32 position
  *                       REF     -> u16 accessor id (must already exist)
  *                       NAME    -> u8 len, char name[len]
+ *   0x45 add block  : u16 blk_id, u16 block_idx,
+ *                     u8 block_type, u8 in_cnt, u8 q_cnt, u8 en_cnt, u8 en_mode,
+ *                     u8 on_error, u16 custom_len, u16 eno_obj_id,
+ *                     in_cnt x u16 accessor id,
+ *                     q_cnt  x u16 object id,
+ *                     en_cnt x u16 accessor id,
+ *                     custom_len x u8 initial private state
  * @endcode
+ *
+ * 0x45 carries exactly one block, unlike the batching packets above: a block
+ * record varies in length three separate ways (inputs, outputs, private
+ * state), so batching would mean a length prefix per record and a cursor that
+ * can desynchronise. One block per frame keeps the framing trivial and puts a
+ * malformed record's blast radius at that block.
+ *
+ * VM_BLOCK_NO_ID (0xFFFF) spells "absent" in two places: an *input*, where the
+ * pin exists but nothing is wired to it and the block falls back to its own
+ * constant, and ENO, where the block publishes nothing. It is not legal for an
+ * output, nor inside the enable list -- a listed enable that fails to resolve is
+ * a malformed program. An absent enable has no spelling of its own: it is
+ * en_cnt == 0, a root that always runs.
+ *
+ * en_cnt > 1 makes the flow graph a DAG rather than a tree, and en_mode says how
+ * the sources combine: VM_BLK_EN_ANY for branches rejoining ("either path
+ * reached me"), VM_BLK_EN_ALL for independent conditions that must all hold.
+ * There is no section id here -- section membership is the section packet's
+ * ordered id list, not a field on the block. See [[VM_EXEC.MD]].
  *
  * All multi-byte fields are little-endian, matching the target.
  *
@@ -40,8 +66,13 @@
  * parser has to trust, and would make a single non-zero element impossible
  * to address (one element is never "larger than one element").
  *
- * `item_count` is sent instead of a byte size so a client never needs its own
- * copy of the type-width table -- the device already has it.
+ * `payload_size` is a **byte** count, not an element count. The client owns
+ * sizing, so it owns the type-width table too -- and in exchange the device
+ * does no arithmetic on sizes at all, which removes the overflow that
+ * multiplying a 16-bit count by a width and truncating back into 16 bits used
+ * to risk. A size that is not a whole number of elements is rejected by
+ * vm_obj_shape() (ERR_VM_OBJ_BAD_SIZE); a wrong-but-aligned one is contained,
+ * since vm_obj_elem_ptr() bounds every access against it.
  *
  * For a VM_OBJ_PTR object the 0x43 data field is a list of u16 child ids, two
  * bytes each; children must already have been created by an earlier 0x42.
@@ -71,6 +102,7 @@
 #define HEADER_packet_vm_add_objs 0x42
 #define HEADER_packet_vm_set_data 0x43
 #define HEADER_packet_vm_add_acc 0x44
+#define HEADER_packet_vm_add_block 0x45
 
 // little-endian readers -- the cursor is a raw byte stream, so nothing here
 // may assume the alignment a struct cast would imply
@@ -106,13 +138,71 @@ static inline err_h decoder_packet_vm_reset(void) {
 
 /** @brief 0x41 -- reserve the id tables and cap the arena. */
 static inline err_h decoder_packet_vm_open(const uint8_t* body, size_t len) {
-  DEC_VM_NEED(HEADER_packet_vm_open, 0, len, 8);
+  DEC_VM_NEED(HEADER_packet_vm_open, 0, len, 10);
   uint16_t obj_cnt = dec_vm_u16(body);
   uint16_t acc_cnt = dec_vm_u16(body + 2);
-  uint32_t total = dec_vm_u32(body + 4);
+  uint16_t blk_cnt = dec_vm_u16(body + 4);
+  uint32_t total = dec_vm_u32(body + 6);
   // logged after the call, so a rejected open cannot read as a successful one
-  SE_RET_IF_ERR(vm_loader_open(obj_cnt, acc_cnt, total));
-  ESP_LOGI(DEC_VM_LOADER_TAG, "open: %u objects, %u accessors, %lu bytes", obj_cnt, acc_cnt, (unsigned long)total);
+  SE_RET_IF_ERR(vm_loader_open(obj_cnt, acc_cnt, blk_cnt, total));
+  ESP_LOGI(DEC_VM_LOADER_TAG, "open: %u objects, %u accessors, %u blocks, %lu bytes", obj_cnt, acc_cnt, blk_cnt, (unsigned long)total);
+  return NULL;
+}
+
+/** @brief 0x45 -- create one block and resolve its wiring. */
+static inline err_h decoder_packet_vm_add_block(const uint8_t* body, size_t len) {
+  DEC_VM_NEED(HEADER_packet_vm_add_block, 0, len, 14);
+  uint16_t blk_id = dec_vm_u16(body);
+  vm_block_cfg_t cfg = {
+      .block_idx = dec_vm_u16(body + 2),
+      .block_type = body[4],
+      .in_cnt = body[5],
+      .q_cnt = body[6],
+      .en_cnt = body[7],
+      .en_mode = body[8],
+      .on_error = body[9],
+      .custom_len = dec_vm_u16(body + 10),
+      .eno_obj_id = dec_vm_u16(body + 12),
+  };
+  size_t off = 14;
+
+  /* Ids are staged into locals rather than aliased onto the frame: the frame
+     has no alignment guarantee and Xtensa will not load an unaligned u16, so
+     they have to be read a byte pair at a time regardless. All three counts
+     are checked against their limits before any buffer is indexed -- these are
+     the array writes in this file whose length comes from the packet. */
+  if (cfg.in_cnt > VM_BLOCK_MAX_IN || cfg.q_cnt > VM_BLOCK_MAX_OUT || cfg.en_cnt > VM_BLOCK_MAX_EN) {
+    SE_RET_ERR(ERR_VM_BLK_BAD_SHAPE, .blk_id = cfg.block_idx, .in_cnt = cfg.in_cnt, .q_cnt = cfg.q_cnt);
+  }
+
+  uint16_t in_ids[VM_BLOCK_MAX_IN];
+  DEC_VM_NEED(HEADER_packet_vm_add_block, off, len, (size_t)cfg.in_cnt * 2);
+  for (uint8_t i = 0; i < cfg.in_cnt; i++) in_ids[i] = dec_vm_u16(body + off + (size_t)i * 2);
+  off += (size_t)cfg.in_cnt * 2;
+  cfg.in_acc_ids = cfg.in_cnt ? in_ids : NULL;
+
+  uint16_t out_ids[VM_BLOCK_MAX_OUT];
+  DEC_VM_NEED(HEADER_packet_vm_add_block, off, len, (size_t)cfg.q_cnt * 2);
+  for (uint8_t i = 0; i < cfg.q_cnt; i++) out_ids[i] = dec_vm_u16(body + off + (size_t)i * 2);
+  off += (size_t)cfg.q_cnt * 2;
+  cfg.out_obj_ids = cfg.q_cnt ? out_ids : NULL;
+
+  uint16_t en_ids[VM_BLOCK_MAX_EN];
+  DEC_VM_NEED(HEADER_packet_vm_add_block, off, len, (size_t)cfg.en_cnt * 2);
+  for (uint8_t i = 0; i < cfg.en_cnt; i++) en_ids[i] = dec_vm_u16(body + off + (size_t)i * 2);
+  off += (size_t)cfg.en_cnt * 2;
+  cfg.en_acc_ids = cfg.en_cnt ? en_ids : NULL;
+
+  DEC_VM_NEED(HEADER_packet_vm_add_block, off, len, cfg.custom_len);
+  SE_RET_IF_ERR(vm_loader_add_block(blk_id, &cfg));
+
+  /* Private state is copied after the block exists, because until then there
+     is nowhere to put it. A block that declares custom_len but ships no bytes
+     is legal -- vm_block_create() zeroed the region. */
+  if (cfg.custom_len) {
+    vm_block_h blk = vm_block_by_id(blk_id);
+    memcpy(vm_block_custom_data(blk), body + off, cfg.custom_len);
+  }
   return NULL;
 }
 
@@ -146,7 +236,7 @@ static inline err_h decoder_packet_vm_add_objs(const uint8_t* body, size_t len) 
   for (uint8_t i = 0; i < n; i++) {
     DEC_VM_NEED(HEADER_packet_vm_add_objs, off, len, 7);
     uint16_t id = dec_vm_u16(body + off);
-    uint16_t item_count = dec_vm_u16(body + off + 2);
+    uint16_t payload_size = dec_vm_u16(body + off + 2);
     uint8_t type = body[off + 4];
     uint8_t flags = body[off + 5];
     uint8_t name_len = body[off + 6];
@@ -156,7 +246,7 @@ static inline err_h decoder_packet_vm_add_objs(const uint8_t* body, size_t len) 
     const char* name = name_len ? (const char*)(body + off) : NULL;
     off += name_len;
 
-    SE_RET_IF_ERR(vm_loader_add_obj(id, item_count, type, flags, name, name_len));
+    SE_RET_IF_ERR(vm_loader_add_obj(id, payload_size, type, flags, name, name_len));
   }
   return NULL;
 }
@@ -208,6 +298,8 @@ static inline err_h dec_vm_loader_decode(const uint8_t* data, size_t len) {
       return decoder_packet_vm_set_data(body, body_len);
     case HEADER_packet_vm_add_acc:
       return decoder_packet_vm_add_acc(body, body_len);
+    case HEADER_packet_vm_add_block:
+      return decoder_packet_vm_add_block(body, body_len);
     default:
       ESP_LOGW(DEC_VM_LOADER_TAG, "unknown packet header 0x%02X", data[0]);
       SE_RET_ERR(ERR_INTERFACE_UNKNOWN_PACKET, .class_header = VM_LOADER_CLASS_HEADER, .packet_header = data[0]);

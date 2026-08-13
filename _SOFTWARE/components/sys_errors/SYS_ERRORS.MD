@@ -27,7 +27,7 @@ components/sys_errors/
 
 Each system submodule (`sys_device`, `sys_io`, `sys_i2c`, `sys_power`, `ble`, `sys_interface`, `sys_buffers`, `sys_actions`, `VM`) defines its own `sys_error_<module>.h` under its own `include/` directory, declaring a `SYS_ERROR_<MODULE>_MAP(X)` and `SYS_<MODULE>_OWNER_MAP(X)`. `sys_error_codes.h` includes each of these headers and folds them into the two global X-macros below, so this component's own INCLUDE_DIRS list every submodule's `include/` path to resolve them.
 
-Two exceptions to "under its own `include/`": the VM's map lives at `components/VM/core/sys_error_vm.h`, and the error *encoder* at `components/codecs/encoders/`. Both are reached by a raw include path in this component's CMakeLists rather than `REQUIRES VM` / `REQUIRES codecs`, because `VM` and `codecs` already require `sys_errors` — a component dependency back would be circular. The build emits a CMake warning about each of these include dirs "belonging to" another component; that is expected and is the tradeoff for breaking the cycle.
+Two exceptions to "under its own `include/`": the VM's map lives at `components/VM/core/errors/sys_error_vm.h`, and the error *encoder* at `components/codecs/encoders/`. Both are reached by a raw include path in this component's CMakeLists rather than `REQUIRES VM` / `REQUIRES codecs`, because `VM` and `codecs` already require `sys_errors` — a component dependency back would be circular. The build emits a CMake warning about each of these include dirs "belonging to" another component; that is expected and is the tradeoff for breaking the cycle.
 
 ---
 

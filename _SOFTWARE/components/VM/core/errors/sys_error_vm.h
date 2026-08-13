@@ -2,11 +2,11 @@
 #include <stdint.h>
 #include <stdio.h>
 
-// Owners for the VM component (block-scripting runtime: linear allocator,
+// Owners for the VM component (block-scripting runtime: program storage,
 // object arena, accessor resolution, block execution, code loading).
 #define SYS_VM_OWNER_MAP(X)                        \
   X(OWNER_VM_BASE, 0xA900, "OWNER_VM_BASE")         \
-  X(OWNER_VM_ALLOC, 0xA901, "OWNER_VM_ALLOC")       \
+  X(OWNER_VM_STORE, 0xA901, "OWNER_VM_STORE")       \
   X(OWNER_VM_OBJ, 0xA902, "OWNER_VM_OBJ")           \
   X(OWNER_VM_ACCESSOR, 0xA903, "OWNER_VM_ACCESSOR") \
   X(OWNER_VM_BLOCK, 0xA904, "OWNER_VM_BLOCK")       \
@@ -34,19 +34,20 @@
   X(ERR_VM_OBJ_COPY_MISMATCH, struct { uint8_t src_type; uint8_t dst_type; uint16_t src_size; uint16_t dst_size; })   \
   X(ERR_VM_OBJ_BAD_TYPE, struct { uint8_t type; })                                                                    \
   X(ERR_VM_OBJ_EMPTY, struct { uint8_t type; })                                                                       \
-  X(ERR_VM_OBJ_TOO_LARGE, struct { uint8_t type; uint16_t item_count; uint32_t bytes; })                              \
+  X(ERR_VM_OBJ_BAD_SIZE, struct { uint8_t type; uint16_t payload_size; uint8_t width; })                              \
   X(ERR_VM_OBJ_NAME_TOO_LONG, struct { uint8_t len; })                                                                \
   X(ERR_VM_OBJ_RETENTIVE_PTR, struct { uint8_t type; })                                                               \
-  X(ERR_VM_OBJ_TABLE_OOB, struct { uint16_t id; uint16_t count; })                                                    \
-  X(ERR_VM_OBJ_TABLE_DUP, struct { uint16_t id; })                                                                    \
   X(ERR_VM_LOAD_BAD_STATE, struct { uint8_t state; uint8_t expected; })                                               \
   X(ERR_VM_LOAD_TOO_BIG, struct { uint32_t requested; uint32_t available; })                                          \
   X(ERR_VM_LOAD_DATA_RANGE, struct { uint16_t id; uint16_t start_idx; uint16_t len; uint16_t items; })                \
   X(ERR_VM_LOAD_SHORT_RECORD, struct { uint8_t packet; uint16_t need; uint16_t got; })                                \
-  X(ERR_VM_ACC_TABLE_OOB, struct { uint16_t id; uint16_t count; })                                                    \
-  X(ERR_VM_ACC_TABLE_DUP, struct { uint16_t id; })                                                                    \
   X(ERR_VM_ACC_INDEX_OOB, struct { uint16_t acc_id; uint8_t pos; uint8_t count; })                                    \
-  X(ERR_VM_ACC_BAD_KIND, struct { uint16_t acc_id; uint8_t pos; uint8_t kind; })
+  X(ERR_VM_ACC_BAD_KIND, struct { uint16_t acc_id; uint8_t pos; uint8_t kind; })                                      \
+  X(ERR_VM_REG_OOB, struct { uint8_t kind; uint16_t id; uint16_t count; })                                            \
+  X(ERR_VM_REG_DUP, struct { uint8_t kind; uint16_t id; })                                                            \
+  X(ERR_VM_BLK_BAD_SHAPE, struct { uint16_t blk_id; uint8_t in_cnt; uint8_t q_cnt; })                                 \
+  X(ERR_VM_BLK_BAD_REF, struct { uint16_t blk_id; uint16_t ref_id; uint8_t slot; uint8_t kind; })                      \
+  X(ERR_VM_DYN_FULL, struct { uint16_t limit; })
 
 /**
  * @brief Human-readable descriptions for the VM tags - see
@@ -71,19 +72,20 @@
   X(ERR_VM_OBJ_COPY_MISMATCH)      \
   X(ERR_VM_OBJ_BAD_TYPE)           \
   X(ERR_VM_OBJ_EMPTY)              \
-  X(ERR_VM_OBJ_TOO_LARGE)          \
+  X(ERR_VM_OBJ_BAD_SIZE)           \
   X(ERR_VM_OBJ_NAME_TOO_LONG)      \
   X(ERR_VM_OBJ_RETENTIVE_PTR)      \
-  X(ERR_VM_OBJ_TABLE_OOB)          \
-  X(ERR_VM_OBJ_TABLE_DUP)          \
   X(ERR_VM_LOAD_BAD_STATE)         \
   X(ERR_VM_LOAD_TOO_BIG)           \
   X(ERR_VM_LOAD_DATA_RANGE)        \
   X(ERR_VM_LOAD_SHORT_RECORD)      \
-  X(ERR_VM_ACC_TABLE_OOB)          \
-  X(ERR_VM_ACC_TABLE_DUP)          \
   X(ERR_VM_ACC_INDEX_OOB)          \
-  X(ERR_VM_ACC_BAD_KIND)
+  X(ERR_VM_ACC_BAD_KIND)           \
+  X(ERR_VM_REG_OOB)                \
+  X(ERR_VM_REG_DUP)                \
+  X(ERR_VM_BLK_BAD_SHAPE)          \
+  X(ERR_VM_BLK_BAD_REF)            \
+  X(ERR_VM_DYN_FULL)
 
 #define LOG_BODY_ERR_VM_ALLOC_EXHAUSTED(p, out, out_size) \
   snprintf((out), (out_size), "vm arena exhausted: requested %lu, %lu remaining", (unsigned long)(p)->requested, (unsigned long)(p)->remaining)
@@ -118,17 +120,15 @@
   snprintf((out), (out_size), "object create: type %u has no defined width", (p)->type)
 #define LOG_BODY_ERR_VM_OBJ_EMPTY(p, out, out_size) \
   snprintf((out), (out_size), "object create: type %u with zero items has no storage", (p)->type)
-#define LOG_BODY_ERR_VM_OBJ_TOO_LARGE(p, out, out_size)                                                    \
-  snprintf((out), (out_size), "object create: %u items of type %u = %lu bytes, over the 65535 payload cap", \
-           (p)->item_count, (p)->type, (unsigned long)(p)->bytes)
+#define LOG_BODY_ERR_VM_OBJ_BAD_SIZE(p, out, out_size)                                                       \
+  snprintf((out), (out_size), "object create: payload of %u bytes is not a whole number of %u-byte type %u", \
+           (p)->payload_size, (p)->width, (p)->type)
 #define LOG_BODY_ERR_VM_OBJ_NAME_TOO_LONG(p, out, out_size) \
   snprintf((out), (out_size), "object create: name is %u chars, max is 15", (p)->len)
 #define LOG_BODY_ERR_VM_OBJ_RETENTIVE_PTR(p, out, out_size) \
   snprintf((out), (out_size), "object create: retentive is meaningless for pointer type %u", (p)->type)
-#define LOG_BODY_ERR_VM_OBJ_TABLE_OOB(p, out, out_size) \
-  snprintf((out), (out_size), "object table: id %u is outside the %u-entry table", (p)->id, (p)->count)
-#define LOG_BODY_ERR_VM_OBJ_TABLE_DUP(p, out, out_size) \
-  snprintf((out), (out_size), "object table: id %u assigned twice", (p)->id)
+#define LOG_BODY_ERR_VM_DYN_FULL(p, out, out_size) \
+  snprintf((out), (out_size), "dynamic object register is full: %u live, none released", (p)->limit)
 #define LOG_BODY_ERR_VM_LOAD_BAD_STATE(p, out, out_size) \
   snprintf((out), (out_size), "loader in state %u, this packet needs state %u", (p)->state, (p)->expected)
 #define LOG_BODY_ERR_VM_LOAD_TOO_BIG(p, out, out_size)                                            \
@@ -139,19 +139,31 @@
            (p)->start_idx, (p)->items)
 #define LOG_BODY_ERR_VM_LOAD_SHORT_RECORD(p, out, out_size) \
   snprintf((out), (out_size), "packet 0x%02X truncated: need %u bytes, got %u", (p)->packet, (p)->need, (p)->got)
-#define LOG_BODY_ERR_VM_ACC_TABLE_OOB(p, out, out_size) \
-  snprintf((out), (out_size), "accessor table: id %u is outside the %u-entry table", (p)->id, (p)->count)
-#define LOG_BODY_ERR_VM_ACC_TABLE_DUP(p, out, out_size) \
-  snprintf((out), (out_size), "accessor table: id %u assigned twice", (p)->id)
 #define LOG_BODY_ERR_VM_ACC_INDEX_OOB(p, out, out_size) \
   snprintf((out), (out_size), "accessor %u: index position %u past its %u declared indices", (p)->acc_id, (p)->pos, (p)->count)
 #define LOG_BODY_ERR_VM_ACC_BAD_KIND(p, out, out_size) \
   snprintf((out), (out_size), "accessor %u index %u: unknown kind %u", (p)->acc_id, (p)->pos, (p)->kind)
+/* One tag for all three registries -- `kind` is a vm_reg_e, named here so a
+   trace still reads as "object"/"accessor"/"block" rather than as a number. */
+#define VM_REG_NAME(k) ((k) == 0 ? "object" : (k) == 1 ? "accessor" : (k) == 2 ? "block" : "?")
+#define LOG_BODY_ERR_VM_REG_OOB(p, out, out_size)   snprintf((out), (out_size), "%s registry: id %u is outside the %u-entry table", VM_REG_NAME((p)->kind), (p)->id, (p)->count)
+#define LOG_BODY_ERR_VM_REG_DUP(p, out, out_size)   snprintf((out), (out_size), "%s registry: id %u is already bound", VM_REG_NAME((p)->kind), (p)->id)
+#define LOG_BODY_ERR_VM_BLK_BAD_SHAPE(p, out, out_size) \
+  snprintf((out), (out_size), "block %u: %u inputs / %u outputs is not a buildable shape", (p)->blk_id, (p)->in_cnt, (p)->q_cnt)
+/* slot is the pin index; kind says which table the id failed to resolve in,
+   so one tag covers all four wiring points instead of four near-identical ones */
+#define LOG_BODY_ERR_VM_BLK_BAD_REF(p, out, out_size)                                                                                                                        \
+  snprintf((out), (out_size), "block %u %s%u: id %u does not resolve", (p)->blk_id,                                                                                          \
+           (p)->kind == 0   ? "input "                                                                                                                                       \
+           : (p)->kind == 1 ? "output "                                                                                                                                      \
+           : (p)->kind == 2 ? "EN"                                                                                                                                           \
+                            : "ENO",                                                                                                                                         \
+           (p)->slot, (p)->ref_id)
 
 /**
  * @brief SE_EMIT_ERR() relies on an ambient `#define OWNER` per source file
  * (see the [[runit]] skill's module owner tagging convention) - that doesn't
- * fit vm_alloc.h/vm_obj_access.h, which are header-only and get pulled into
+ * fit vm_obj_access.h/vm_obj.h, which are header-only and get pulled into
  * many different .c files, each with its own OWNER. This variant takes the
  * owner explicitly so it behaves the same regardless of include order or
  * whatever OWNER the including file has defined.
