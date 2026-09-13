@@ -7,24 +7,21 @@
 #include "vm_block_helpers.h"
 
 /*
- * Edge Detection Block (Flow Control)
+ *           -------------
+ *  ->EN     |           | ->ENO
+ *  ->IN     |   EDGE    | ->Q
+ *  ->TH     |           |
+ *           -------------
  *
- * Inputs:
- *   - in[0]: Monitored signal / value (VM_OBJ_B, VM_OBJ_F, VM_OBJ_I32, VM_OBJ_U8, VM_OBJ_U32).
- *   - in[1]: Optional dynamic hysteresis / threshold. When omitted or unwired,
- *            falls back to hardcoded `change_by` configured in `custom_data`.
+ *  VM_BLK_EDGE -- Edge & threshold trigger detector (Rising, Falling, Both).
+ *  Fires a 1-cycle pulse on Q and ENO when the monitored signal transitions.
  *
- * Outputs:
- *   - out[0]: Optional pulse output (driven to 1 for exactly 1 pass, then cleared).
- *   - ENO:    Flow control pulse (set to true for exactly 1 pass, then false).
- *
- * Modes:
- *   - VM_EDGE_RISING:  Low -> High, or scalar increase (>= threshold)
- *   - VM_EDGE_FALLING: High -> Low, or scalar decrease (>= threshold)
- *   - VM_EDGE_BOTH:    Any state toggle, or scalar change (|delta| >= threshold)
- *
- * Memory Layout in custom_data:
- *   [edge_type (1B)][flags (1B)][padding (2B)][change_by (4B)][prev_val (4B)] = 12B
+ *  custom_data layout:
+ *    [0]     u8  edge_type     vm_edge_type_e (RISING, FALLING, BOTH)
+ *    [1]     u8  flags         VM_EDGE_F_INITIALIZED
+ *    [2..3]  u16 _pad
+ *    [4..7]  u32 change_by     Static threshold fallback (union vm_edge_val_u)
+ *    [8..11] u32 prev_val      Stored previous value (union vm_edge_val_u)
  */
 
 typedef enum {

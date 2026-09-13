@@ -2568,6 +2568,7 @@ void test_math_primes(void) {
 #define OV_O_Y 1      // block output (float, mutable, usr_protected)
 #define OV_O_K 2      // immutable constant (float = 10.0f, mutable = 0)
 #define OV_O_ENO 3    // ENO object (bool, mutable, usr_protected)
+#define OV_O_PTR 4    // mutable pointer container; runtime raw override must reject it
 
 #define OV_ACC_X 0
 #define OV_ACC_K 1
@@ -2629,6 +2630,14 @@ void test_runtime_override(void) {
   he.f.usr_protected = 1;
   vm_obj_h oe = NULL;
   built = built && (vm_obj_create(&oe, OV_O_ENO, &he, "eno") == NULL);
+
+  // OV_O_PTR: mutable so the pointer-specific override rejection is tested
+  // before generic mutability/protection policy can reject it.
+  vm_obj_head_t hp = hd(VM_OBJ_PTR, 1);
+  hp.f.mutable = 1;
+  hp.f.upd_resetable = 1;
+  vm_obj_h op = NULL;
+  built = built && (vm_obj_create(&op, OV_O_PTR, &hp, "ptr") == NULL);
 
   ck("override objects built", built);
   if (!built) return;
@@ -2702,7 +2711,32 @@ void test_runtime_override(void) {
   ck("injection targeting immutable object rejected", err_has_tag(err_mut, ERR_VM_OBJ_NOT_MUTABLE));
   ck("immutable object k payload unchanged", near_f(ex_f(OV_O_K), 10.0f));
 
-  // 7c: Attempt write to unknown object ID 999: MUST REJECT with ERR_VM_ACCESSOR_UNKNOWN_ID
+  // 7c: Pointer objects carry native handles at runtime. Raw 0x43 bytes must
+  // never enter those slots; pointer linking is a stopped-loader operation.
+  uint8_t f_bad_ptr[] = {
+      0x04, 0x43, 0x01,
+      (uint8_t)(OV_O_PTR & 0xFF), (uint8_t)(OV_O_PTR >> 8),
+      0x00, 0x00,
+      0x02, 0x00,
+      0x00, 0x00,
+  };
+  err_h err_ptr = sys_interface_decode(f_bad_ptr, sizeof(f_bad_ptr));
+  ck("runtime pointer override rejected with dedicated error",
+     err_has_tag(err_ptr, ERR_VM_OVERRIDE_PTR_UNSUPPORTED));
+  ck("rejected pointer override leaves slot unchanged", ((vm_obj_h*)op->payload)[0] == NULL);
+
+  // 7d: The drain must revalidate a target rather than trusting the enqueue
+  // check. Simulate a stale queue record by changing the target type between
+  // those two points; no payload write may occur.
+  float stale_try = 321.0f;
+  ck("defensive override fixture enqueued", vm_override_post(OV_O_X, 0, (const uint8_t*)&stale_try,
+                                                              sizeof(stale_try)) == NULL);
+  ox->head.d.obj_t = VM_OBJ_PTR;
+  vm_override_drain();
+  ox->head.d.obj_t = VM_OBJ_F;
+  ck("drain revalidation rejects stale pointer target", near_f(ex_f(OV_O_X), 0.0f));
+
+  // 7e: Attempt write to unknown object ID 999: MUST REJECT with ERR_VM_ACCESSOR_UNKNOWN_ID
   uint8_t f_bad_id[13] = {
       0x04, 0x43, 0x01,
       0xE7, 0x03,

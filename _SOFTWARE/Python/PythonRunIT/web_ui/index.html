@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.json">
+  <title>runIT Studio - Variable Directory &amp; Runtime Monitor</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Drag and Drop Full Screen Overlay -->
+  <div id="dragDropOverlay" class="drag-drop-overlay">
+    <div class="drag-drop-overlay-content">
+      <div class="drag-drop-icon">&#8681;</div>
+      <div style="font-size: 1.2rem; font-weight: 700;">Drop JSON File to Import Variables</div>
+      <div style="font-size: 0.82rem; color: var(--text-muted);">Loads variable tree structure immediately</div>
+    </div>
+  </div>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="brand">
+      <span class="brand-badge">runIT</span>
+      <span class="brand-title">Variable Studio</span>
+    </div>
+
+    <div class="header-actions">
+      <!-- Master Preset Selector -->
+      <select id="presetSelect" class="form-select" style="padding: 5px 10px; font-size: 0.82rem; border-color: rgba(63, 185, 80, 0.4); color: var(--emerald);">
+        <option value="master">Master Example: Industrial Robot Cell (All Types &amp; 2D)</option>
+      </select>
+      <button id="btnReloadMaster" class="btn btn-sm" title="Reload / Reset Master Example">
+        Reload
+      </button>
+
+      <!-- Hidden File Upload Input -->
+      <input type="file" id="fileUploadInput" accept=".json,application/json" style="display: none;">
+
+      <!-- File Upload & Export Actions -->
+      <button id="btnUploadJson" class="btn" title="Upload variables JSON file into studio">
+        [Upload JSON]
+      </button>
+
+      <button id="btnDownloadJson" class="btn" title="Download current variable directory as JSON file">
+        [Export JSON]
+      </button>
+
+      <!-- Live Runtime Telemetry Toggle (Node-RED style) -->
+      <button id="btnToggleLive" class="btn" style="border-color: rgba(63, 185, 80, 0.4); color: var(--emerald);" title="Toggle simulated live runtime telemetry &amp; status indicators">
+        <span class="runtime-pulse-dot off"></span> Live Monitor: OFF
+      </button>
+
+      <!-- Live Message Stream Monitor Toggle -->
+      <button id="btnToggleMonitor" class="btn" style="border-color: rgba(88, 166, 255, 0.4); color: var(--accent);" title="Toggle Message Stream Monitor &amp; Error Decoder">
+        <span class="monitor-pulse-dot"></span> [Stream Monitor]
+      </button>
+
+      <button id="btnViewJson" class="btn" title="Inspect or edit raw JSON schema">
+        [JSON Editor]
+      </button>
+
+      <button id="btnCompile" class="btn btn-primary" title="Compile into Class 0x04 wire packets">
+        [Compile] Wire Packets
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Full-Page Workspace -->
+  <main>
+    <section class="page-full">
+
+      <!-- Section Header with Controls -->
+      <div class="section-header">
+        <div class="section-title">
+          <span style="font-family: var(--font-mono); color: var(--accent); font-weight: 700;">[LADDER]</span>
+          <span>User Variable Directory &amp; Live Runtime Monitor</span>
+        </div>
+
+        <div class="section-controls">
+          <input type="text" id="filterInput" class="form-input" placeholder="Filter variables..." style="padding: 4px 10px; font-size: 0.8rem; width: 170px;">
+          <button id="btnAddRootTree" class="btn btn-sm btn-accent">
+            + New Root Tree (PTR)
+          </button>
+          <button id="btnAddPtrMatrix" class="btn btn-sm" style="border-color: rgba(57, 197, 207, 0.4); color: var(--cyan);" title="Create a multi-row 2D matrix using PTR row containers">
+            + 2D Matrix (PTR)
+          </button>
+          <button id="btnAddRootVar" class="btn btn-sm">
+            + New Root Variable
+          </button>
+          <button id="btnExpandAll" class="btn btn-sm">
+            Expand All
+          </button>
+          <button id="btnCollapseAll" class="btn btn-sm">
+            Collapse All
+          </button>
+        </div>
+      </div>
+
+      <!-- Directory Card with Collapsible Ladder Tree -->
+      <div class="directory-card">
+        <div id="treeContainer" class="tree-container">
+          <!-- Rendered dynamically by app.js -->
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- 2D Matrix Creator (PTR Style) Modal -->
+  <div id="matrixModal" class="modal-backdrop hidden">
+    <div class="modal-box" style="width: 560px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-family: var(--font-mono); color: var(--cyan); font-weight: 700;">[2D MATRIX]</span>
+          <h3 style="margin: 0; font-size: 1.05rem;">Create Matrix (PTR Relational Style)</h3>
+        </div>
+        <button id="btnCloseMatrix" class="btn btn-sm">[X]</button>
+      </div>
+
+      <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.45;">
+        Generates a parent <strong>PTR container</strong> with <em>M</em> independent row array variables (each with <em>N</em> elements). Supports chained <code>mat[row][col]</code> accessors and dynamic row swapping.
+      </div>
+
+      <input type="hidden" id="matrixParentId" value="">
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-size: 0.76rem; font-weight: 600; color: var(--text-dim); text-transform: uppercase;">Matrix Struct Name</label>
+          <input type="text" id="matrixNameInput" class="form-input" placeholder="e.g. trajectory_grid" value="waypoint_matrix">
+        </div>
+
+        <div style="display: flex; gap: 14px;">
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+            <label style="font-size: 0.76rem; font-weight: 600; color: var(--text-dim); text-transform: uppercase;">Rows (M)</label>
+            <input type="number" id="matrixRowsInput" class="form-input" min="1" max="64" value="3">
+          </div>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+            <label style="font-size: 0.76rem; font-weight: 600; color: var(--text-dim); text-transform: uppercase;">Columns (N)</label>
+            <input type="number" id="matrixColsInput" class="form-input" min="1" max="64" value="4">
+          </div>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+            <label style="font-size: 0.76rem; font-weight: 600; color: var(--text-dim); text-transform: uppercase;">Cell Type</label>
+            <select id="matrixTypeSelect" class="form-select">
+              <option value="F">F (Float32)</option>
+              <option value="U32">U32</option>
+              <option value="I32">I32</option>
+              <option value="U8">U8</option>
+              <option value="B">B (Bool)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-size: 0.76rem; font-weight: 600; color: var(--text-dim); text-transform: uppercase;">Default Cell Value</label>
+          <input type="text" id="matrixDefaultVal" class="form-input" value="0.0">
+        </div>
+
+        <!-- Live Structure Preview -->
+        <div style="background: var(--bg-primary); border: 1px solid var(--border-muted); border-radius: var(--radius-sm); padding: 10px; font-family: var(--font-mono); font-size: 0.76rem;">
+          <div style="color: var(--text-muted); margin-bottom: 6px; font-weight: 600;">Structure Preview:</div>
+          <div id="matrixPreview" style="color: var(--cyan); line-height: 1.5; white-space: pre-wrap;"></div>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+        <button id="btnCancelMatrix" class="btn">Cancel</button>
+        <button id="btnCreateMatrixConfirm" class="btn btn-primary" style="background: var(--cyan); border-color: var(--cyan); color: #000; font-weight: 600;">
+          + Generate PTR Matrix
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JSON View / Edit Modal -->
+  <div id="jsonModal" class="modal-backdrop hidden">
+    <div class="modal-box" style="width: 720px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-family: var(--font-mono); color: var(--accent); font-weight: 700;">[JSON]</span>
+          <h3 style="margin: 0; font-size: 1.05rem;">Variable Definition Schema</h3>
+        </div>
+        <button id="btnCloseJson" class="btn btn-sm">[X]</button>
+      </div>
+      <textarea id="jsonEditorArea" style="width: 100%; height: 380px; font-family: var(--font-mono); font-size: 0.85rem; background: var(--bg-primary); color: var(--text-main); border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: 12px; outline: none;"></textarea>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px;">
+        <span id="jsonError" style="color: var(--rose); font-size: 0.82rem;"></span>
+        <div style="display: flex; gap: 8px;">
+          <button id="btnCopyJson" class="btn">Copy JSON</button>
+          <button id="btnApplyJson" class="btn btn-accent">Apply to Tree</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Compile Wire Packets Modal -->
+  <div id="compileModal" class="modal-backdrop hidden">
+    <div class="modal-box" style="width: 820px; max-width: 95vw;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-family: var(--font-mono); color: var(--emerald); font-weight: 700;">[WIRE PACKETS]</span>
+          <h3 style="margin: 0; font-size: 1.05rem;">Compiled Binary Payloads (Class 0x04)</h3>
+        </div>
+        <button id="btnCloseCompile" class="btn btn-sm">[X]</button>
+      </div>
+
+      <!-- Compilation Metadata Summary -->
+      <div id="compileMeta" style="margin-bottom: 12px; font-size: 0.85rem; color: var(--text-muted);"></div>
+
+      <!-- Transmission & Action Control Bar (Ready to be Sent) -->
+      <div class="compile-toolbar" id="compileToolbar">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <label style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">Target Transport:</label>
+          <select id="selTxTransport" class="form-input" style="padding: 4px 8px; font-size: 0.8rem; width: 170px;">
+            <option value="stream">Stream Monitor (TX Feed)</option>
+            <option value="web_ble">Web Bluetooth (BLE)</option>
+            <option value="web_serial">Web Serial (USB UART)</option>
+          </select>
+
+          <label style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">Pacing:</label>
+          <select id="selTxPacing" class="form-input" style="padding: 4px 8px; font-size: 0.8rem; width: 85px;">
+            <option value="40" selected>40 ms</option>
+            <option value="20">20 ms</option>
+            <option value="80">80 ms</option>
+            <option value="100">100 ms</option>
+          </select>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <button id="btnSendAllPackets" class="btn btn-primary btn-sm" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff; font-weight: 600; box-shadow: 0 0 12px rgba(16, 185, 129, 0.35);">
+            🚀 Send All to Device
+          </button>
+          <button id="btnDownloadBin" class="btn btn-sm" title="Download concatenated binary packets (.bin)">
+            💾 Download .bin
+          </button>
+          <button id="btnCopyCArray" class="btn btn-sm" title="Copy packets as C header array for ESP-IDF">
+            📋 Copy C Array
+          </button>
+          <button id="btnCopyHexStream" class="btn btn-sm" title="Copy all raw hex bytes">
+            📋 Copy Hex
+          </button>
+        </div>
+      </div>
+
+      <!-- Transmission Progress Bar (Active when sending) -->
+      <div id="txProgressContainer" class="tx-progress-box hidden">
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; margin-bottom: 4px;">
+          <span id="txProgressLabel" style="font-weight: 600; color: var(--emerald);">Transmitting packets...</span>
+          <span id="txProgressPct" style="font-family: var(--font-mono); color: var(--text-muted);">0%</span>
+        </div>
+        <div class="tx-progress-bar-bg">
+          <div id="txProgressBar" class="tx-progress-bar-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <!-- Packet List -->
+      <div id="packetList" style="max-height: 380px; overflow-y: auto; font-family: var(--font-mono); font-size: 0.8rem; background: var(--bg-primary); border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: 10px;"></div>
+    </div>
+  </div>
+
+  <!-- Message Stream Monitor Window (Bottom Dockable Panel) -->
+  <div id="streamMonitorDrawer" class="stream-monitor-drawer open">
+    <!-- Top Stream Selector Bar (similar to Python GUI) -->
+    <div class="stream-monitor-header">
+      <div class="stream-monitor-title-group">
+        <span class="stream-monitor-badge">[MONITOR]</span>
+        <span class="stream-monitor-title">Message Stream &amp; Error Decoder</span>
+        <span id="streamMsgCount" class="stream-count-pill">0 msgs</span>
+      </div>
+
+      <!-- Top Selector: Filter which stream to display -->
+      <div class="stream-selector-tabs" id="streamSelectorTabs">
+        <button class="stream-tab active" data-stream="all">
+          All Streams <span class="tab-badge" id="badgeAll">0</span>
+        </button>
+        <button class="stream-tab" data-stream="esp_log">
+          ESP LOGI <span class="tab-badge" id="badgeEspLog">0</span>
+        </button>
+        <button class="stream-tab" data-stream="errors">
+          ERRORS (Decoded) <span class="tab-badge badge-err" id="badgeErrors">0</span>
+        </button>
+        <button class="stream-tab" data-stream="telemetry">
+          Telemetry <span class="tab-badge" id="badgeTelemetry">0</span>
+        </button>
+        <button class="stream-tab" data-stream="raw_hex">
+          Raw Hex <span class="tab-badge" id="badgeRawHex">0</span>
+        </button>
+      </div>
+
+      <!-- Monitor Controls -->
+      <div class="stream-monitor-actions">
+        <!-- Search filter input -->
+        <input type="text" id="streamSearchInput" class="form-input stream-search-input" placeholder="Filter stream (#id or text)...">
+
+        <!-- Inject / Test Packet dropdown -->
+        <div class="stream-inject-dropdown">
+          <button id="btnInjectMenu" class="btn btn-sm btn-accent" title="Simulate incoming raw ESP packet or log">
+            + Test Packet ▼
+          </button>
+          <div id="injectMenuDropdown" class="inject-menu-content hidden">
+            <button class="inject-opt" data-inject="esp_logi">ESP_LOGI: Core-1 cycle pass OK</button>
+            <button class="inject-opt" data-inject="esp_logw">ESP_LOGW: PMU 3.19V low voltage</button>
+            <button class="inject-opt" data-inject="err_oob">Binary Error: Accessor OOB (obj #3 pos_actual)</button>
+            <button class="inject-opt" data-inject="err_const">Binary Error: Write Protected (obj #24 system_constants)</button>
+            <button class="inject-opt" data-inject="err_math">Binary Error: Expr Div by Zero (Block #2)</button>
+            <button class="inject-opt" data-inject="err_alloc">Binary Error: VM Arena Exhausted</button>
+          </div>
+        </div>
+
+        <!-- Auto Scroll Toggle -->
+        <button id="btnAutoScroll" class="btn btn-sm active" title="Toggle Auto-Scroll">
+          Auto-Scroll: ON
+        </button>
+
+        <!-- Pause / Resume Toggle -->
+        <button id="btnPauseStream" class="btn btn-sm" title="Pause or resume stream">
+          Pause
+        </button>
+
+        <!-- Clear -->
+        <button id="btnClearStream" class="btn btn-sm" title="Clear message stream">
+          Clear
+        </button>
+
+        <!-- Minimize / Expand -->
+        <button id="btnResizeMonitor" class="btn btn-sm" title="Toggle Compact / Expanded Height">
+          [↕]
+        </button>
+
+        <!-- Close / Minimize Drawer -->
+        <button id="btnCloseMonitor" class="btn btn-sm" title="Hide Monitor Drawer">
+          [✕]
+        </button>
+      </div>
+    </div>
+
+    <!-- Log Message Stream Body -->
+    <div id="streamMessageList" class="stream-message-list">
+      <!-- Log rows rendered dynamically -->
+    </div>
+  </div>
+
+  <script src="stream_decoder.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

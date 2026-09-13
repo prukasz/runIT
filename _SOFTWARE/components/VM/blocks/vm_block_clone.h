@@ -8,27 +8,16 @@
 #define VM_CLONE_IN_CELL 1u // target -- a pointer cell this block re-points
 
 /*
-VM_BLK_CLONE -- like VM_BLK_SET, except it builds the destination instead of
-requiring one. Update-driven and stateless (custom_len = 0).
-
-Where a Set copies into an object the program already declared, a Clone owns
-what it writes into: IN1 names a *pointer cell*, and the block keeps a tree of
-its own hanging off it. That is what a Set cannot do, because a Set has to be
-told the destination's shape at build time, and a tree that arrived off the
-wire does not have one until it arrives.
-
-Allocation happens on a schema change, including tag identity. The first pass builds
-the tree; every pass after that finds a destination that already matches and
-copies values into it, which is the same allocation-free walk a Set does. A
-source whose schema varies pays one build each time it changes. The replacement
-is filled before publication, and the previous tree is then released by its slot --
-see slot_store() in vm_obj_access_internal.c, where reference counts move.
-
-The clone is heap-backed (vm_obj_dyn), because the arena cannot free and this
-destination has to be replaceable. That is a real departure from "no dynamic
-allocation after load", and it is confined to this block: nothing else in a
-running program allocates, and a program with no Clone in it still cannot.
-*/
+ *           -------------
+ *  ->EN     |           | ->ENO
+ *  ->SOURCE |   CLONE   |
+ *  ->CELL   |           |
+ *           -------------
+ *
+ *  VM_BLK_CLONE -- Dynamic tree clone (IN0: src -> IN1: pointer cell). Update-driven, stateless.
+ *  Like SET, but builds or reshapes the destination heap tree (vm_obj_dyn) dynamically to match
+ *  source schema, then refills values without allocation on subsequent passes.
+ */
 
 static inline bool vm_verify_clone(vm_block_h b) {
   return vm_block_shape_valid(b, 2, 0, 0x3u);

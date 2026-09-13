@@ -661,6 +661,17 @@ end of pass:  sample telemetry subscriptions (vm_sub) -> sweep upd flags
 
 `vm_exec_pass()` runs one pass on the calling task; `vm_exec_start()` puts that loop on a task pinned to **Core 1**, yielding one tick per pass. At `CONFIG_FREERTOS_HZ = 100` that one tick is the 10 ms floor and feeds Core 1's idle task watchdog.
 
+Runtime `0x43` writes received while execution is active are queued by
+`vm_override_post()` and applied at the next pass boundary. This path accepts
+only scalar and non-pointer array payloads. `VM_OBJ_PTR` payloads contain native
+object handles, so a runtime override returns
+`ERR_VM_OVERRIDE_PTR_UNSUPPORTED` instead of copying wire bytes into pointer
+slots. Pointer topology is constructed while stopped through
+`vm_loader_set_data()`/`vm_obj_link_direct()`, where wire child IDs are resolved
+and ownership checks run. The queue drain revalidates the record length, target
+type, write policy, and range before every copy; a record that no longer matches
+the target is reported and discarded without publishing `upd`.
+
 Pause and mode changes take effect before the next block dispatch, including nested span bodies. Time and events are latched at scan entry.
 
 ### Execution control packet

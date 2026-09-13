@@ -63,7 +63,9 @@
   X(ERR_VM_OBJ_OWNERSHIP, struct { uint8_t reason; uint8_t limit; }) \
   X(ERR_VM_OBJ_USR_PROTECTED, struct { uint16_t obj_id; }) \
   X(ERR_VM_LOAD_RUNNING, struct { uint8_t mode; }) \
-  X(ERR_VM_EXEC_CONTROL, struct { uint8_t command; uint8_t mode; })
+  X(ERR_VM_EXEC_CONTROL, struct { uint8_t command; uint8_t mode; }) \
+  X(ERR_VM_OVERRIDE_PTR_UNSUPPORTED, struct { uint16_t obj_id; }) \
+  X(ERR_VM_OVERRIDE_BAD_RECORD, struct { uint16_t obj_id; uint16_t declared_len; uint16_t item_size; })
 
 /**
  * @brief Human-readable descriptions for the VM tags - see
@@ -117,7 +119,9 @@
   X(ERR_VM_OBJ_OWNERSHIP) \
   X(ERR_VM_OBJ_USR_PROTECTED) \
   X(ERR_VM_LOAD_RUNNING) \
-  X(ERR_VM_EXEC_CONTROL)
+  X(ERR_VM_EXEC_CONTROL) \
+  X(ERR_VM_OVERRIDE_PTR_UNSUPPORTED) \
+  X(ERR_VM_OVERRIDE_BAD_RECORD)
 
 #define VM_OBJ_ID_NONE     0xFFFFu
 #define VM_OBJ_ID_DYN_BIT  0x8000u
@@ -374,6 +378,17 @@ static inline const char* vm_copy_shape_name(uint8_t r) {
 #define LOG_BODY_ERR_VM_LOAD_RUNNING(p, out, out_size) \
   snprintf((out), (out_size), "program initialization requires stopped execution (mode %u: %s)", \
            (p)->mode, vm_run_mode_name((p)->mode))
+#define LOG_BODY_ERR_VM_OVERRIDE_PTR_UNSUPPORTED(p, out, out_size) do { \
+    char _id[16]; \
+    vm_format_obj_id((p)->obj_id, _id, sizeof(_id)); \
+    snprintf((out), (out_size), "runtime override cannot write pointer object (obj_id=%s)", _id); \
+  } while (0)
+#define LOG_BODY_ERR_VM_OVERRIDE_BAD_RECORD(p, out, out_size) do { \
+    char _id[16]; \
+    vm_format_obj_id((p)->obj_id, _id, sizeof(_id)); \
+    snprintf((out), (out_size), "runtime override record malformed (obj_id=%s, declared=%u, item=%u bytes)", \
+             _id, (p)->declared_len, (p)->item_size); \
+  } while (0)
 
 
 /** @brief SE_EMIT_ERR variant with explicit owner for shared headers. */

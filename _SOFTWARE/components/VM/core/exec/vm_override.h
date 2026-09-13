@@ -15,14 +15,19 @@ typedef struct __attribute__((packed)) {
 
 /**
  * @brief Enqueue a runtime variable update record (called from Core 0 decoder).
- * Validates object existence, user protection, mutability, and bounds before enqueueing.
- * Supports arbitrary variable-length data up to buffer capacity.
+ * Validates object existence, scalar/array type, user protection, mutability,
+ * and bounds before enqueueing. VM_OBJ_PTR is rejected: pointer relinking must
+ * resolve child IDs through the loader/link API rather than copy wire bytes
+ * into native pointer slots.
+ * Supports arbitrary variable-length scalar/array data up to buffer capacity.
  */
 err_h vm_override_post(uint16_t id, uint16_t start_idx, const uint8_t* data, uint16_t len);
 
 /**
  * @brief Drain and apply all pending runtime variable updates (called from Core 1 at scan boundary).
- * Copies data to object payload and sets upd = 1 so downstream blocks and telemetry react.
+ * Revalidates the queued record and target, then copies data to object payload
+ * and sets upd = 1 so downstream blocks and telemetry react. Malformed or stale
+ * records are reported and discarded without modifying an object.
  */
 void vm_override_drain(void);
 

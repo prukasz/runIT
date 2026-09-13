@@ -6,9 +6,15 @@
 #define VM_BRANCH_NONE 0xFFu
 
 /*
-Flow routers -- VM_BLK_IF (two-way) and VM_BLK_SWITCH (up to 16-way).
-Enable-driven and stateless (custom_len = 0). Outputs act as enable gates for child blocks.
-*/
+ *           -------------                -------------
+ *  ->EN     |    IF     | ->ENO  ->EN    |   SWITCH  | ->ENO
+ *  ->COND   |           | ->TRUE ->SEL   |           | ->CASE0..n
+ *           |           | ->FALSE        |           |
+ *           -------------                -------------
+ *
+ *  Flow routers -- VM_BLK_IF (two-way) and VM_BLK_SWITCH (up to 16-way).
+ *  Enable-driven and stateless (custom_len = 0). Outputs act as enable gates for child blocks.
+ */
 
 static inline void vm_branch_drive(vm_block_h b, uint8_t taken) {
   for (uint8_t pin = 0; pin < b->cfg.q_cnt; ++pin) {

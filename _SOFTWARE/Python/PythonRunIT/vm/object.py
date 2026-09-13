@@ -125,6 +125,8 @@ class VMObject:
         For VMType.PTR, packs the child object IDs (<H).
         """
         if self.type == VMType.PTR:
+            if not self.children and (self.initial_value is None or self.initial_value == ""):
+                return struct.pack("<H", 0)
             child_list = self.children or (self.initial_value if isinstance(self.initial_value, (list, tuple)) else [self.initial_value])
             packed = bytearray()
             for child in child_list:
@@ -132,8 +134,10 @@ class VMObject:
                     if child.id is None:
                         raise ValueError(f"Child object {child} has not been assigned an ID before parent {self}!")
                     packed.extend(struct.pack("<H", child.id))
-                else:
+                elif child is not None and str(child).strip():
                     packed.extend(struct.pack("<H", int(child)))
+                else:
+                    packed.extend(struct.pack("<H", 0))
             return bytes(packed)
 
         if self.initial_value is None:

@@ -5,18 +5,27 @@
 #include "vm_exec.h"
 
 /*
-VM_BLK_FOR -- C-style float iterator loop with span claiming.
-Layout in custom_data:
-  [0..3]   vm_span_t span       The range this block owns (MUST be first)
-  [4..7]   f32       k_start    Fallback when input 0 is unwired
-  [8..11]  f32       k_end      Fallback when input 1 is unwired
-  [12..15] f32       k_step     Fallback when input 2 is unwired
-  [16..17] u16       max_turns  Hard turn budget to bound execution
-  [18]     u8        op         VM_FOR_OP_*  (advance iterator)
-  [19]     u8        cmp        VM_FOR_CMP_* (loop condition)
-  [20]     u8        rt         Runtime latch (VM_FOR_RT_*; 0 on wire)
-  [21..23] u8[3]     pad
-*/
+ *           -------------
+ *  ->EN     |           | ->ENO
+ *  ->START  |    FOR    | ->IDX
+ *  ->END    | (SPAN RUN)|
+ *  ->STEP   |           |
+ *           -------------
+ *
+ *  VM_BLK_FOR -- C-style float iterator loop with span claiming.
+ *  Executes sub-blocks in span range for each turn within max_turns budget.
+ *
+ *  custom_data layout:
+ *    [0..3]   vm_span_t span       The range this block owns (MUST be first)
+ *    [4..7]   f32       k_start    Fallback when input 0 is unwired
+ *    [8..11]  f32       k_end      Fallback when input 1 is unwired
+ *    [12..15] f32       k_step     Fallback when input 2 is unwired
+ *    [16..17] u16       max_turns  Hard turn budget to bound execution
+ *    [18]     u8        op         VM_FOR_OP_*  (advance iterator)
+ *    [19]     u8        cmp        VM_FOR_CMP_* (loop condition)
+ *    [20]     u8        rt         Runtime latch (VM_FOR_RT_*; 0 on wire)
+ *    [21..23] u8[3]     pad
+ */
 
 typedef enum vm_for_op_e {
   VM_FOR_OP_ADD = 0,

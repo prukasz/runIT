@@ -6,14 +6,21 @@
 #include "vm_block.h"
 
 /*
-RPN Bytecode Expression Engine (VM_BLK_EXPR for float, VM_BLK_EXPR_BIT for uint32).
-Layout in custom_data:
-  [0]     u8  const_cnt         Literals count following header
-  [1]     u8  rt                Runtime latch (VM_EXPR_RT_FAULTED; 0 on wire)
-  [2..3]  u16 code_len          Bytecode length in bytes
-  [4..]   u32 consts[const_cnt] 4-aligned literals
-  [...]   u8  code[code_len]    RPN instruction stream (IN and K have +1 operand byte)
-*/
+ *           -------------
+ *  ->EN     |   EXPR    | ->ENO
+ *  ->IN0..n | EXPR_BIT  | ->Q
+ *           -------------
+ *
+ *  RPN Bytecode Expression Engine (VM_BLK_EXPR for float, VM_BLK_EXPR_BIT for uint32).
+ *  Evaluates custom_data bytecode using a stack machine and writes the result to Q.
+ *
+ *  custom_data layout:
+ *    [0]     u8  const_cnt         Literals count following header
+ *    [1]     u8  rt                Runtime latch (VM_EXPR_RT_FAULTED; 0 on wire)
+ *    [2..3]  u16 code_len          Bytecode length in bytes
+ *    [4..]   u32 consts[const_cnt] 4-aligned literals
+ *    [...]   u8  code[code_len]    RPN instruction stream (IN and K have +1 operand byte)
+ */
 
 #define VM_EXPR_STACK_MAX 16
 
@@ -525,6 +532,7 @@ static inline void vm_blk_expr(vm_block_h b) {
     return;
   }
 
+  // case when error or non activated
   vm_block_set_eno(b, false);
 }
 
@@ -546,5 +554,6 @@ static inline void vm_blk_expr_bit(vm_block_h b) {
     return;
   }
 
+  // case when error or non activated
   vm_block_set_eno(b, false);
 }
