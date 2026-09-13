@@ -13,6 +13,11 @@ typedef enum vm_load_state_e {
   VM_LOAD_OPEN  = 1,  // Storage reserved; objects, accessors, and blocks may be loaded
 } vm_load_state_e;
 
+/** @brief String representation of loader state for debugging. */
+static inline const char* vm_load_state_str(vm_load_state_e s) {
+  return vm_load_state_name((uint8_t)s);
+}
+
 /** @brief Quiesce execution, reset registries and arena, and set state to EMPTY. */
 void vm_loader_reset(void);
 

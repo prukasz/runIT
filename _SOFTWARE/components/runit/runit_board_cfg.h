@@ -36,7 +36,7 @@ Pin configs and device id / adresses shall not be changed
    path, so a timing win cannot quietly be a correctness loss.
    --------------------------------------------------------------------------- */
 #define RUNIT_SKIP_DEVICE_INIT 1
-#define RUNIT_ENABLE_VM_SELFTEST 0
+#define RUNIT_ENABLE_VM_SELFTEST 1
 #define RUNIT_ENABLE_VM_BENCH 0
 
 /* Granular test section toggles (when RUNIT_ENABLE_VM_SELFTEST is 1) */

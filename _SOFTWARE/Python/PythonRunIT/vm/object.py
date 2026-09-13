@@ -164,7 +164,7 @@ class VMObject:
                 packed.extend(struct.pack(fmt, 1 if v else 0))
             elif self.type == VMType.F:
                 packed.extend(struct.pack(fmt, float(v)))
-            elif self.type in (VMType.U8, VMType.U32, VMType.I32, VMType.U64):
+            elif self.type in (VMType.U8, VMType.U32, VMType.I32):
                 packed.extend(struct.pack(fmt, int(v)))
             elif self.type == VMType.STR:
                 if isinstance(v, str):

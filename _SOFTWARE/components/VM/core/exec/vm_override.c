@@ -27,10 +27,10 @@ err_h vm_override_post(uint16_t id, uint16_t start_idx, const uint8_t* data, uin
     SE_RET_ERR(ERR_VM_ACCESSOR_UNKNOWN_ID, .id = id);
   }
   if (!obj->head.f.mutable) {
-    SE_RET_ERR(ERR_VM_OBJ_NOT_MUTABLE, .obj = obj);
+    SE_RET_ERR(ERR_VM_OBJ_NOT_MUTABLE, .obj_id = id);
   }
   if (obj->head.f.usr_protected) {
-    SE_RET_ERR(ERR_VM_OBJ_USR_PROTECTED, .obj = obj);
+    SE_RET_ERR(ERR_VM_OBJ_USR_PROTECTED, .obj_id = id);
   }
 
   uint8_t w = vm_obj_get_type_size(obj);

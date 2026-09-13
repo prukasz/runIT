@@ -91,7 +91,7 @@ All object subsystem APIs adhere to a consistent operational naming scheme:
 - `vm_obj_clone_into(source, target)`: Re-allocates schema dynamically if differing, then copies.
 - `vm_obj_link(to_join, owner)`: Links accessor-addressed PTR slot to object.
 - `vm_obj_link_direct(cell, index, child)`: Points element `index` of PTR `cell` directly to `child`.
-- `vm_obj_publish(obj)`: Marks object aggregate freshness (`f.upd = 1`).
+- `vm_obj_mark_updated(obj)`: Marks object aggregate freshness (`f.upd = 1`).
 
 ### D. Dynamic Heap Objects (`vm_obj_dyn.h`)
 - `vm_obj_is_dynamic(o)`: Tests if object is heap-allocated and reference-counted.
@@ -212,7 +212,7 @@ err_h read_sensor_channel(uint16_t accessor_id, float* out_reading) {
 
 ---
 
-### Example 5: High-Level Value Read & Write Macros (`VM_OBJ_GET_VAL`, `VM_OBJ_SET_VAL`)
+### Example 5: High-Level Value Read & Write Macros (`VM_OBJ_SCALAR_GET`, `VM_OBJ_SET_SCALAR`)
 
 ```c
 #include "vm_obj_access.h"
@@ -221,13 +221,13 @@ void process_control_loop(const vm_accessor_t* sensor_acc, const vm_accessor_t* 
     float sensor_val = 0.0f;
 
     // Read scalar from sensor accessor into sensor_val (converts from any numeric type)
-    err_h err = VM_OBJ_GET_VAL(sensor_val, sensor_acc);
+    err_h err = VM_OBJ_SCALAR_GET(sensor_val, sensor_acc);
     if (err != ERR_OK) return;
 
     float control_val = sensor_val * 1.5f;
 
     // Write scalar to actuator accessor (marks owner as updated)
-    err = VM_OBJ_SET_VAL(control_val, actuator_acc);
+    err = VM_OBJ_SET_SCALAR(control_val, actuator_acc);
     if (err != ERR_OK) return;
 }
 ```
@@ -264,7 +264,7 @@ err_h find_max_value(vm_obj_h obj, float* out_max) {
 
 ---
 
-### Example 7: Direct Writes & Explicit Publication (`VM_OBJ_SET_VAL_AT`, `vm_obj_publish`)
+### Example 7: Direct Writes & Explicit Publication (`VM_OBJ_SET_VAL_AT`, `vm_obj_mark_updated`)
 
 ```c
 #include "vm_obj_access.h"
@@ -280,7 +280,7 @@ err_h update_filter_coefficients(vm_obj_h filter_obj, float k1, float k2) {
     if (err != ERR_OK) return err;
 
     // Explicit aggregate publication
-    return vm_obj_publish(filter_obj);
+    return vm_obj_mark_updated(filter_obj);
 }
 ```
 

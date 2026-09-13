@@ -208,7 +208,6 @@ class RunITGUI(tk.Tk):
             "U8 (UInt8)",
             "B (Boolean)",
             "STR (Char/Str)",
-            "U64 (UInt64)",
             "PTR (Pointer)",
         ]
         self.var_type_cb = ttk.Combobox(row1, textvariable=self.var_type_var, values=type_options, state="readonly", width=16)
@@ -269,7 +268,7 @@ class RunITGUI(tk.Tk):
         ttk.Button(quick_bar, text="VM Reset (0x40)", command=self.on_quick_reset_click).pack(
             side=tk.LEFT, padx=3
         )
-        ttk.Button(quick_bar, text="VM Stop (0x48)", command=self.on_quick_stop_click).pack(
+        ttk.Button(quick_bar, text="VM Pause (0x48)", command=self.on_quick_stop_click).pack(
             side=tk.LEFT, padx=3
         )
         ttk.Button(quick_bar, text="VM Start (0x48)", command=self.on_quick_start_click).pack(
@@ -462,8 +461,6 @@ class RunITGUI(tk.Tk):
             return VMType.B
         elif "STR" in type_str:
             return VMType.STR
-        elif "U64" in type_str:
-            return VMType.U64
         elif "PTR" in type_str:
             return VMType.PTR
         return VMType.F
@@ -777,7 +774,7 @@ class RunITGUI(tk.Tk):
         self._send_quick_packet(encode_vm_reset(), "VM Reset (0x40)")
 
     def on_quick_stop_click(self):
-        self._send_quick_packet(encode_vm_exec(VMExecCommand.STOP), "VM Exec Stop (0x48)")
+        self._send_quick_packet(encode_vm_exec(VMExecCommand.PAUSE), "VM Exec Pause (0x48)")
 
     def on_quick_start_click(self):
         self._send_quick_packet(encode_vm_exec(VMExecCommand.NORMAL_MODE), "VM Exec Start (0x48)")

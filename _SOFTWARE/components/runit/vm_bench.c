@@ -343,7 +343,7 @@ static float bench_flat_literal(void) {
   float acc = 0;
   for (int i = 0; i < CELLS; i++) {
     float v = 0;
-    if (VM_OBJ_GET_VAL(v, s_flat_acc[i]) == NULL) acc += v;
+    if (VM_OBJ_SCALAR_GET(v, s_flat_acc[i]) == NULL) acc += v;
   }
   return acc;
 }
@@ -353,13 +353,13 @@ static float bench_grid_literal(void) {
   float acc = 0;
   for (int i = 0; i < CELLS; i++) {
     float v = 0;
-    if (VM_OBJ_GET_VAL(v, s_grid_acc[i]) == NULL) acc += v;
+    if (VM_OBJ_SCALAR_GET(v, s_grid_acc[i]) == NULL) acc += v;
   }
   return acc;
 }
 
 /* Both indices read live from other objects. The selectors are written
-   directly rather than through VM_OBJ_SET_VAL so the figure stays a pure
+   directly rather than through VM_OBJ_SET_SCALAR so the figure stays a pure
    read cost. */
 static float bench_grid_ref(void) {
   float acc = 0;
@@ -368,7 +368,7 @@ static float bench_grid_ref(void) {
     for (int c = 0; c < GRID_N; c++) {
       *(uint8_t*)s_csel->payload = (uint8_t)c;
       float v = 0;
-      if (VM_OBJ_GET_VAL(v, s_ref_acc) == NULL) acc += v;
+      if (VM_OBJ_SCALAR_GET(v, s_ref_acc) == NULL) acc += v;
     }
   }
   return acc;
@@ -380,7 +380,7 @@ static float bench_grid_name(void) {
   float acc = 0;
   for (int i = 0; i < CELLS; i++) {
     float v = 0;
-    if (VM_OBJ_GET_VAL(v, s_name_acc[i]) == NULL) acc += v;
+    if (VM_OBJ_SCALAR_GET(v, s_name_acc[i]) == NULL) acc += v;
   }
   return acc;
 }
@@ -392,10 +392,14 @@ static float bench_row_payload(void) {
   for (int r = 0; r < GRID_N; r++) {
     vm_obj_h row = NULL;
     if (vm_obj_get_obj(&row, s_row_acc[r]) != NULL) continue;
-    vm_payload_t p = vm_make_payload(row);
+    vm_obj_payload_t p = vm_make_payload(row);
     for (uint16_t i = 0; i < p.count; i++) {
       float v = 0;
-      VM_PAYLOAD_GET_VAL(v, vm_payload_get_at(p, i));
+      err_h e = VM_PAYLOAD_GET_VAL(v, vm_payload_get_at(p, i));
+      if (e) {
+        SE_push_to_handler(e);
+        return acc;
+      }
       acc += v;
     }
   }
@@ -407,7 +411,7 @@ static float bench_grid_write(void) {
   float acc = 0;
   for (int i = 0; i < CELLS; i++) {
     float v = (float)i;
-    if (VM_OBJ_SET_VAL(v, s_grid_acc[i]) == NULL) acc += 1.0f;
+    if (VM_OBJ_SET_SCALAR(v, s_grid_acc[i]) == NULL) acc += 1.0f;
   }
   return acc;
 }
@@ -420,10 +424,10 @@ static void block_add_execute(vm_block_h block) {
     BLOCK_CALL(vm_block_get_in(&in1, block, 1), block);
     BLOCK_CALL(vm_block_get_out(&out0, block, 0), block);
     float a = 0, b = 0;
-    BLOCK_CALL(VM_OBJ_GET_VAL(a, in0), block);
-    BLOCK_CALL(VM_OBJ_GET_VAL(b, in1), block);
+    BLOCK_CALL(VM_OBJ_SCALAR_GET(a, in0), block);
+    BLOCK_CALL(VM_OBJ_SCALAR_GET(b, in1), block);
     float sum = a + b;
-    BLOCK_CALL(VM_OBJ_SET_VAL_AT(sum, out0, 0), block);
+    BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(sum, out0, 0), block);
     vm_block_set_eno(block, true);
   } else {
     vm_block_set_eno(block, false);

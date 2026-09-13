@@ -1,6 +1,6 @@
 #pragma once
 #include "esp_compiler.h"
-#include "vm_block_support.h"
+#include "vm_block_helpers.h"
 
 #define VM_BRANCH_CUSTOM_LEN 0u
 #define VM_BRANCH_NONE 0xFFu
@@ -17,11 +17,11 @@ static inline void vm_branch_drive(vm_block_h b, uint8_t taken) {
 }
 
 static inline bool vm_verify_if(vm_block_h b) {
-  return vm_block_require(b, 1, 2, 0x1u);
+  return vm_block_shape_valid(b, 1, 2, 0x1u);
 }
 
 static inline bool vm_verify_switch(vm_block_h b) {
-  return vm_block_require(b, 1, 1, 0x1u);
+  return vm_block_shape_valid(b, 1, 1, 0x1u);
 }
 
 static inline const vm_accessor_t* vm_branch_selector(vm_block_h b, uint8_t min_q) {
@@ -35,7 +35,7 @@ static inline void vm_blk_if(vm_block_h b) {
   IF_BLOCK_ENABLED(b) {
     if (likely(in0 != NULL)) {
       bool cond = false;
-      if (vm_block_read_bool(&cond, b, in0)) taken = cond ? 0u : 1u;
+      if (vm_block_check(b, VM_OBJ_SCALAR_GET(cond, in0))) taken = cond ? 0u : 1u;
     }
   }
 
@@ -50,7 +50,7 @@ static inline void vm_blk_switch(vm_block_h b) {
   IF_BLOCK_ENABLED(b) {
     if (likely(in0 != NULL)) {
       int32_t sel = 0;
-      if (vm_block_check(b, VM_OBJ_GET_VAL(sel, in0)) && sel >= 0 && sel < (int32_t)b->cfg.q_cnt) {
+      if (vm_block_check(b, VM_OBJ_SCALAR_GET(sel, in0)) && sel >= 0 && sel < (int32_t)b->cfg.q_cnt) {
         taken = (uint8_t)sel;
       }
     }

@@ -49,5 +49,5 @@ Technical rules governing object lifetime, graph ownership, schema matching, and
 - **Pointer Link**: Marks the container object holding the slot updated.
 - **Deep Copy**: Marks destination root and all written descendant objects.
 - **Clone**: Marks replaced destination and its containing pointer cell.
-- **Aggregate Publication**: Updating a child does not mark parents; complete aggregates are published explicitly via `vm_obj_publish()`.
+- **Aggregate Publication**: Updating a child does not mark parents; complete aggregates are published explicitly via `vm_obj_mark_updated()`.
 - **Quiet Operations**: `vm_obj_clear_quiet()` and inactive blocks (`vm_block_set_ENO(b, false)`) modify state without asserting `f.upd`.

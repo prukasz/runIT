@@ -7,6 +7,8 @@
 #include "vm_obj.h"
 #include "vm_obj_access.h"
 
+typedef struct vm_accessor_t vm_accessor_t;
+
 /*
  * VM Object & Accessor Construction
  *

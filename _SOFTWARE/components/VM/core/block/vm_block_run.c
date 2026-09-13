@@ -17,39 +17,10 @@ claiming a range -- so each one is paid for only by the blocks that use it.
 
 bool g_vm_block_fault = false;
 
-/* Freshness is a property of the *object* the value lives in, not of the
-   element -- `upd` is one bit in the head. So this wants the owner, which is
-   what a resolve produces alongside the payload.
-
-   A failure is silent rather than reported: it will be reported again the
-   moment the body reads the same pin, and a pin that cannot be read is
-   certainly not an arrival. Fail-closed, same as the enable list. */
-static inline bool pin_fresh(const vm_accessor_t* acc) {
-  if (!acc) return false;  // pin exists, nothing wired to it
-
-  if (likely(acc->flags & VM_ACC_F_CACHED)) {
-    return acc->c_owner && acc->c_owner->head.f.upd;
-  }
-
-  vm_resolved_t r;
-  if (vm_resolve_fast(acc, false, &r)) {
-    return r.owner && r.owner->head.f.upd;
-  }
-
-  vm_obj_h o = NULL;
-  if (vm_obj_get_owner(&o, acc) != NULL || !o) return false;
-  return o->head.f.upd != 0;
-}
-
-bool vm_block_input_fresh(vm_block_h b, uint8_t pin) {
-  if (unlikely(pin >= b->cfg.in_cnt)) return false;
-  return pin_fresh(vm_block_get_inputs(b)[pin]);
-}
-
 bool vm_block_triggered(vm_block_h b) {
   const vm_accessor_t** ins = vm_block_get_inputs(b);
   for (uint8_t i = 0; i < b->cfg.in_cnt; i++) {
-    if (pin_fresh(ins[i])) {
+    if (vm_block_pin_fresh(ins[i])) {
       b->cfg.rt |= VM_BLK_RT_TRIGGERED;
       return true;
     }
@@ -76,7 +47,7 @@ void vm_block_claim_span(vm_block_h b, uint16_t start, uint16_t end) {
   }
 
   vm_span_t* sp = (vm_span_t*)vm_block_get_custom_data(b);
-  sp->start = start;
-  sp->end = end;
+  sp->start     = start;
+  sp->end       = end;
   b->cfg.rt |= VM_BLK_RT_SPAN;
 }

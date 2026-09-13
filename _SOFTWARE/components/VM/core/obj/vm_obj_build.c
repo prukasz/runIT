@@ -168,10 +168,10 @@ bool vm_accessor_cache_build(vm_accessor_t* acc) {
     // Declared literal index must be within object capacity
     uint8_t* p = vm_obj_get_elem_ptr(obj, acc->indices[0].value);
     if (!p) return false;
-    acc->c_payload = (vm_payload_t){.ptr = p, .count = 1, .type = (uint8_t)obj->head.d.obj_t, ._pad = 0};
+    acc->c_payload = (vm_obj_payload_t){.ptr = p, .count = 1, .type = (uint8_t)obj->head.d.obj_t, ._pad = 0};
   }
 
-  acc->c_owner = obj;
+  acc->c_payload.owner = obj;
   acc->flags |= VM_ACC_F_CACHED;
   return true;
 }

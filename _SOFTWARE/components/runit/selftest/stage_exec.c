@@ -205,12 +205,14 @@ static bool ex_wait_done(void) {
 }
 
 static void ex_test_controls(void) {
+  vm_block_h loaded_first = vm_block_get_by_id(0);
   ck("empty control packet rejected", dec_vm_loader_decode((const uint8_t[]){0x48}, 1) != NULL);
   ck("trailing control payload rejected", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_NORMAL_MODE, 0}, 3) != NULL);
   ck("unknown wire command rejected", dec_vm_loader_decode((const uint8_t[]){0x48, 255}, 2) != NULL);
   ck("wire selects block mode", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_BLOCK_MODE}, 2) == NULL && vm_exec_mode() == VM_RUN_BLOCK);
   ck("wire queues next", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_NEXT}, 2) == NULL && vm_exec_mode() == VM_RUN_BLOCK_STEP);
   ck("wire rewind cancels pending next", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_RESET_TO_START}, 2) == NULL && vm_exec_mode() == VM_RUN_BLOCK);
+  ck("wire rewind retains the loaded program", loaded_first && vm_block_get_by_id(0) == loaded_first);
   ck("wire scan mode holds", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_SCAN_MODE}, 2) == NULL);
   uint32_t passes = vm_exec_pass_count();
   vm_exec_pass();
@@ -222,7 +224,7 @@ static void ex_test_controls(void) {
   ck("scan once completed", vm_exec_pass_count() == passes + 1);
   ck("resume after once keeps scan mode held", vm_exec_control(VM_EXEC_RESUME) == NULL && vm_exec_mode() == VM_RUN_SCAN);
   vm_exec_set_sample_hook(ex_pause_at_sample);
-  ck("wire scan once accepted", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_ONCE}, 2) == NULL);
+  ck("wire scan once accepted", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_ONCE}, 2) == NULL && vm_exec_mode() == VM_RUN_STEP);
   vm_exec_pass();
   vm_exec_set_sample_hook(NULL);
   ck("pause during scan completion does not replay once", vm_exec_control(VM_EXEC_RESUME) == NULL && vm_exec_mode() == VM_RUN_SCAN);
@@ -891,10 +893,14 @@ void test_branch(void) {
   blk = blk && br_block(2, VM_BLK_SWITCH, 1, 2);  // the gated one
   blk = blk && br_block(3, VM_BLK_SWITCH, 3, VM_BLOCK_NO_ID);
   blk = blk && br_block(4, VM_BLK_SWITCH, 4, VM_BLOCK_NO_ID);
-  blk = blk && br_block(5, VM_BLK_IF, 0, VM_BLOCK_NO_ID);              // q_cnt 1: no ELSE to drive
-  blk = blk && br_block(6, VM_BLK_IF, VM_BLOCK_NO_ID, VM_BLOCK_NO_ID); // nothing wired to the condition
+  // Construct valid blocks, then inject malformed runtime state. The builder
+  // correctly rejects these shapes, so malformed construction cannot be a fixture.
+  blk = blk && br_block(5, VM_BLK_SWITCH, 0, VM_BLOCK_NO_ID);
+  blk = blk && br_block(6, VM_BLK_IF, 0, VM_BLOCK_NO_ID);
   ck("routers built in execution order", blk);
   if (!blk) return;
+  vm_block_get_by_id(5)->cfg.block_type = VM_BLK_IF;  // one output: no ELSE
+  vm_block_get_inputs(vm_block_get_by_id(6))[0] = NULL;
 
   /* The property the whole design rests on: these blocks are pure shape. What
      the loader allocates is the header plus the three pin arrays and not one
@@ -1449,8 +1455,8 @@ void test_set(void) {
   blk = blk && set_blk(3, (const uint16_t[]){SET_SRC, SET_BAD}, 2, VM_BLOCK_NO_ID, SET_ENO(3));
   blk = blk && set_blk(4, (const uint16_t[]){SET_ARRS, SET_ARRD}, 2, VM_BLOCK_NO_ID, SET_ENO(4));
   blk = blk && set_blk(5, (const uint16_t[]){SET_PTRS, SET_PTRD}, 2, VM_BLOCK_NO_ID, SET_ENO(5));
-  blk = blk && set_blk(6, (const uint16_t[]){SET_SRC}, 1, VM_BLOCK_NO_ID, SET_ENO(6));
-  blk = blk && set_blk(7, (const uint16_t[]){SET_SRC, VM_BLOCK_NO_ID}, 2, VM_BLOCK_NO_ID, SET_ENO(7));
+  blk = blk && set_blk(6, (const uint16_t[]){SET_SRC, SET_DST}, 2, VM_BLOCK_NO_ID, SET_ENO(6));
+  blk = blk && set_blk(7, (const uint16_t[]){SET_SRC, SET_DST}, 2, VM_BLOCK_NO_ID, SET_ENO(7));
   blk = blk && set_blk(8, (const uint16_t[]){SET_SRC8, SET_DST8}, 2, VM_BLOCK_NO_ID, SET_ENO(8));
   blk = blk && set_blk(9, (const uint16_t[]){SET_T_SRC, SET_T_DST}, 2, VM_BLOCK_NO_ID, SET_ENO(9));
   blk = blk && set_blk(10, (const uint16_t[]){SET_T_SRC, SET_T_BAD}, 2, VM_BLOCK_NO_ID, SET_ENO(10));
@@ -1459,6 +1465,10 @@ void test_set(void) {
   blk = blk && set_blk(13, (const uint16_t[]){SET_SRC, SET_ELEM_DST}, 2, VM_BLOCK_NO_ID, SET_ENO(13));
   ck("Set blocks built in execution order", blk);
   if (!blk) return;
+  // Exercise runtime validation after valid construction. These fixtures have
+  // no outputs, enables, or custom data whose offsets depend on in_cnt.
+  vm_block_get_by_id(6)->cfg.in_cnt = 1;
+  vm_block_get_inputs(vm_block_get_by_id(7))[1] = NULL;
 
   /* ---- pass 1 ---- */
   vm_exec_pass();
@@ -1751,11 +1761,12 @@ void test_clone(void) {
 
   /* Reading the clone the way a wired block would. */
   float rd = 0.0f;
-  ck("a clone is read through the cell that holds it", VM_OBJ_GET_VAL(rd, a_read) == NULL && near_f(rd, 2.0f));
+  ck("a clone is read through the cell that holds it", VM_OBJ_SCALAR_GET(rd, a_read) == NULL && near_f(rd, 2.0f));
   rd = 0.0f;
-  ck("...or by the tag it carried over from its source", VM_OBJ_GET_VAL(rd, a_named) == NULL && near_f(rd, 2.0f));
-  ck("the cell itself still reads as 0 -- a pointer is not a value",
-     VM_OBJ_GET_VAL(rd, vm_accessor_get_by_id(1)) == NULL && near_f(rd, 0.0f));
+  ck("...or by the tag it carried over from its source", VM_OBJ_SCALAR_GET(rd, a_named) == NULL && near_f(rd, 2.0f));
+  rd = 17.0f;
+  ck("reading the pointer cell as a scalar fails and preserves output",
+     VM_OBJ_SCALAR_GET(rd, vm_accessor_get_by_id(1)) != NULL && near_f(rd, 17.0f));
 
   /* ---- pass 2: same shapes, new values. The whole point -- nothing new is
           allocated and the destination objects are the same ones. ---- */
@@ -1788,10 +1799,10 @@ void test_clone(void) {
      was freed two statements into this pass, and the same accessor now has to
      find the one that replaced it. */
   rd = 0.0f;
-  ck("a reader follows the swap without being rebuilt", VM_OBJ_GET_VAL(rd, a_read) == NULL && near_f(rd, 11.0f));
+  ck("a reader follows the swap without being rebuilt", VM_OBJ_SCALAR_GET(rd, a_read) == NULL && near_f(rd, 11.0f));
   /* CLN_B carries no tag, so the clone of it carries none either -- the
      by-name reach stops resolving rather than quietly finding something else. */
-  ck("...while a name the new tree does not have stops resolving", VM_OBJ_GET_VAL(rd, a_named) != NULL);
+  ck("...while a name the new tree does not have stops resolving", VM_OBJ_SCALAR_GET(rd, a_named) != NULL);
 
   /* Teardown is the loader's job, and it has to happen before the pool goes:
      every one of these is held by an arena cell. */
@@ -1829,9 +1840,11 @@ void test_clone(void) {
 
 // the field `tag` of the copy, reached the way a wired block reaches it
 static vm_obj_h js_field(const char* tag) {
-  vm_obj_h cell = vm_obj_get_by_id(JS_COPY);
-  vm_obj_h copy = cell ? ((vm_obj_h*)cell->payload)[0] : NULL;
-  return copy ? vm_obj_get_child(copy, tag) : NULL;
+  vm_index_t index = {.kind = VM_IDX_LITERAL, .value = 0};
+  vm_accessor_t parent = {.id = JS_COPY, .count = 1, .indices = &index};
+  vm_obj_h field = NULL;
+  (void)vm_obj_get_child(&field, &parent, tag, strlen(tag));
+  return field;
 }
 
 static float js_field_f(const char* tag) {

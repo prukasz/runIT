@@ -19,7 +19,7 @@ err_h vm_err_chain_oob(uint16_t id, uint8_t pos, uint32_t index, vm_obj_h obj);
 err_h vm_err_null_obj(uint16_t id, uint8_t pos, vm_obj_h parent);
 err_h vm_err_chain_not_mutable(uint16_t id, uint8_t pos, vm_obj_h obj);
 err_h vm_err_index_failed(err_h cause, uint16_t id, uint8_t pos);
-err_h vm_err_name_not_found(uint16_t id, uint8_t pos, const char* name);
+err_h vm_err_name_not_found(uint16_t id, uint8_t pos, const char* name, size_t name_len);
 err_h vm_obj_not_scalar_err(vm_obj_h owner, vm_obj_t_e actual, uint16_t id);
 
 /* ========================================================================= */
@@ -28,7 +28,7 @@ err_h vm_obj_not_scalar_err(vm_obj_h owner, vm_obj_t_e actual, uint16_t id);
 
 err_h vm_obj_null_obj_err(void);
 err_h vm_obj_not_mutable_err(vm_obj_h obj);
-err_h vm_obj_oob_err(vm_obj_h obj, uint16_t index);
+err_h vm_obj_oob_err(vm_obj_h obj, uint32_t index);
 err_h vm_obj_not_ptr_err(vm_obj_h obj, uint8_t actual);
 
 /* ========================================================================= */

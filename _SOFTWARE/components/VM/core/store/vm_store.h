@@ -13,6 +13,11 @@ typedef enum vm_reg_e {
   VM_REG_CNT = 3,
 } vm_reg_e;
 
+/** @brief String representation of registry kind for debugging. */
+static inline const char* vm_reg_kind_name(vm_reg_e r) {
+  return vm_reg_name((uint8_t)r);
+}
+
 typedef struct vm_alloc_t {
   uint8_t* base;
   uint32_t capacity;

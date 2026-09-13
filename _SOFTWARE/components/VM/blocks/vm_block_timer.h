@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "esp_compiler.h"
-#include "vm_block_support.h"
+#include "vm_block_helpers.h"
 #include "vm_exec.h"
 
 /*
@@ -29,7 +29,7 @@
  *   - VM_TIMER_TP_INV:  Inverted Pulse Timer (!Q).
  *
  * Memory Layout in custom_data:
- *   [mode (1B)][flags (1B)][_pad1 (2B)][_pad2 (4B)][pt_ms (8B)][start_ms (8B)][elapsed_ms (8B)] = 32B
+ *   [mode (1B)][flags (1B)][_pad1 (2B)][_pad2 (4B)][pt_ms (4B)][alignment (4B)][start_ms (8B)][elapsed_ms (4B)][tail padding (4B)] = 32B
  */
 
 typedef enum {
@@ -52,9 +52,9 @@ typedef struct __attribute__((aligned(8))) {
   uint8_t  flags;       // VM_TIMER_F_*
   uint16_t _pad1;
   uint32_t _pad2;
-  uint64_t pt_ms;       // Preset time in ms (hardcoded fallback)
+  uint32_t pt_ms;       // Preset time in ms (hardcoded fallback)
   uint64_t start_ms;    // Timestamp when timing started (from vm_now_ms())
-  uint64_t elapsed_ms;  // Current elapsed time dt in ms
+  uint32_t elapsed_ms;  // Current elapsed time dt in ms
 } vm_block_timer_data_t;
 
 _Static_assert(sizeof(vm_block_timer_data_t) == 32, "vm_block_timer_data_t must be 32 bytes");
@@ -62,7 +62,7 @@ _Static_assert(sizeof(vm_block_timer_data_t) == 32, "vm_block_timer_data_t must 
 /**
  * @brief Initialize timer configuration in block custom data.
  */
-static inline void vm_block_timer_init_data(void* buffer, vm_timer_mode_e mode, uint64_t pt_ms, bool inverted) {
+static inline void vm_block_timer_init_data(void* buffer, vm_timer_mode_e mode, uint32_t pt_ms, bool inverted) {
   const vm_block_timer_data_t data = {
       .mode = (uint8_t)mode, .pt_ms = pt_ms,
       .flags = inverted ? VM_TIMER_F_INVERTED : 0,
@@ -75,9 +75,9 @@ static inline void vm_block_timer_init_data(void* buffer, vm_timer_mode_e mode, 
 #define VM_TIMER_Q 0u
 #define VM_TIMER_ET 1u
 
-static inline bool vm_timer_elapsed(vm_block_timer_data_t* d, uint64_t pt, uint64_t now) {
+static inline bool vm_timer_elapsed(vm_block_timer_data_t* d, uint32_t pt, uint64_t now) {
   const uint64_t elapsed = now >= d->start_ms ? now - d->start_ms : 0;
-  d->elapsed_ms = elapsed >= pt ? pt : elapsed;
+  d->elapsed_ms = elapsed >= pt ? pt : (uint32_t)elapsed;
   return elapsed >= pt;
 }
 
@@ -88,7 +88,7 @@ static inline void vm_timer_start(vm_block_timer_data_t* d, uint64_t now) {
 }
 
 /* Pure state transition: no accessors, outputs, clock reads, or diagnostics. */
-static inline bool vm_timer_step(vm_block_timer_data_t* d, bool in_val, uint64_t pt, uint64_t now) {
+static inline bool vm_timer_step(vm_block_timer_data_t* d, bool in_val, uint32_t pt, uint64_t now) {
   const bool first_scan = !(d->flags & VM_TIMER_F_INITIALIZED);
   const bool prev_in = (d->flags & VM_TIMER_F_PREV_IN) != 0;
   bool q = false;
@@ -180,7 +180,7 @@ static inline bool vm_timer_step(vm_block_timer_data_t* d, bool in_val, uint64_t
 
 static inline bool vm_verify_timer(vm_block_h b) {
   if (b->cfg.custom_len < sizeof(vm_block_timer_data_t)) return false;
-  if (!vm_block_require(b, 1, 0, 0x1u)) return false;
+  if (!vm_block_shape_valid(b, 1, 0, 0x1u)) return false;
   const vm_block_timer_data_t* d = (const vm_block_timer_data_t*)vm_block_get_custom_data(b);
   if (d->mode >= VM_TIMER_MODE_CNT) return false;
   return true;
@@ -200,9 +200,9 @@ static inline void vm_blk_timer(vm_block_h b) {
     return;
   }
   bool signal = false;
-  uint64_t pt = 0;
-  if (!vm_block_check(b, VM_OBJ_GET_VAL(signal, vm_block_get_inputs(b)[VM_TIMER_IN_SIGNAL])) ||
-      !VM_BLOCK_GET_PARAM(pt, b, VM_TIMER_IN_PT, state.pt_ms)) {
+  uint32_t pt = 0;
+  if (!vm_block_check(b, VM_OBJ_SCALAR_GET(signal, vm_block_get_inputs(b)[VM_TIMER_IN_SIGNAL])) ||
+      !vm_block_check(b, VM_BLOCK_GET_PARAM(pt, b, VM_TIMER_IN_PT, state.pt_ms))) {
     vm_block_set_eno(b, false);
     return;
   }
@@ -213,9 +213,9 @@ static inline void vm_blk_timer(vm_block_h b) {
   vm_block_set_eno(b, q);
   if (b->cfg.q_cnt > VM_TIMER_Q) {
     uint8_t value = q ? 1 : 0;
-    BLOCK_CALL(VM_OBJ_SET_VAL_AT(value, vm_block_get_outputs(b)[VM_TIMER_Q], 0), b);
+    BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(value, vm_block_get_outputs(b)[VM_TIMER_Q], 0), b);
   }
   if (b->cfg.q_cnt > VM_TIMER_ET) {
-    BLOCK_CALL(VM_OBJ_SET_VAL_AT(state.elapsed_ms, vm_block_get_outputs(b)[VM_TIMER_ET], 0), b);
+    BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(state.elapsed_ms, vm_block_get_outputs(b)[VM_TIMER_ET], 0), b);
   }
 }

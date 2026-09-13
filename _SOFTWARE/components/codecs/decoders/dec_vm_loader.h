@@ -322,10 +322,9 @@ static inline err_h decoder_packet_vm_subscribe(const uint8_t* body, size_t len)
  *
  * - **Wire Layout** (1 byte):
  *   - `u8 command`: `vm_exec_command_e` enum value:
- *     - `VM_EXEC_START` (0x01): Starts supervisor task / unpauses execution
- *     - `VM_EXEC_STOP`  (0x02): Stops cyclic supervisor execution
- *     - `VM_EXEC_STEP`  (0x03): Executes exactly one scan pass, then stops
- *     - `VM_EXEC_RESET` (0x04): Halts execution and invokes full loader reset
+ *     - 0: scan mode, 1: once, 2: block mode, 3: next
+ *     - 4: rewind without unloading, 5: normal mode
+ *     - 6: pause, 7: resume, 8: full loader reset
  * - **Action**:
  *   - Routes command directly to `vm_exec_control()`, or performs full `vm_loader_reset()`.
  */
@@ -334,19 +333,9 @@ static inline err_h decoder_packet_vm_exec(const uint8_t* body, size_t len) {
     SE_RET_ERR(ERR_VM_LOAD_SHORT_RECORD, .packet = HEADER_packet_vm_exec, .need = sizeof(packet_vm_exec_t), .got = (uint16_t)len);
   }
   uint8_t cmd = body[0];
-  if (cmd == VM_EXEC_RESET || cmd == 0x04) {
+  if (cmd == VM_EXEC_RESET) {
     vm_loader_reset();
     DBG(ESP_LOGI(DEC_VM_LOADER_TAG, "vm execution reset"););
-    return NULL;
-  }
-  if (cmd == 0x02) {
-    vm_exec_stop();
-    DBG(ESP_LOGI(DEC_VM_LOADER_TAG, "vm execution stopped (VM_EXEC_STOP)"););
-    return NULL;
-  }
-  if (cmd == 0x01 || cmd == VM_EXEC_NORMAL_MODE) {
-    vm_exec_set_mode(VM_RUN_RUNNING);
-    DBG(ESP_LOGI(DEC_VM_LOADER_TAG, "vm execution started (VM_RUN_RUNNING)"););
     return NULL;
   }
   return vm_exec_control((vm_exec_command_e)cmd);

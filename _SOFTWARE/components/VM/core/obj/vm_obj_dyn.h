@@ -1,8 +1,8 @@
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>
+#include "sys_error.h"
 #include "vm_obj.h"
-#include "vm_obj_build.h"
 
 // ===========================================================================
 // 1. Constants & Types

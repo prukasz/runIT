@@ -27,6 +27,11 @@ typedef enum vm_run_mode_e {
   VM_RUN_BLOCK_STEP = 6,  // Execute single pending block dispatch
 } vm_run_mode_e;
 
+/** @brief String representation of VM run mode for debugging. */
+static inline const char* vm_run_mode_str(vm_run_mode_e m) {
+  return vm_run_mode_name((uint8_t)m);
+}
+
 typedef enum vm_exec_command_e {
   VM_EXEC_SCAN_MODE      = 0,
   VM_EXEC_ONCE           = 1,
@@ -38,6 +43,11 @@ typedef enum vm_exec_command_e {
   VM_EXEC_RESUME         = 7,
   VM_EXEC_RESET          = 8,
 } vm_exec_command_e;
+
+/** @brief String representation of VM execution command for debugging. */
+static inline const char* vm_exec_command_str(vm_exec_command_e c) {
+  return vm_exec_command_name((uint8_t)c);
+}
 
 typedef struct vm_exec_status_t {
   vm_run_mode_e mode;

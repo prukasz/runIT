@@ -34,7 +34,6 @@ class VMType(IntEnum):
     F    = 5  # 4 bytes (IEEE 754 float32)
     B    = 6  # 1 byte  (boolean: 0 or 1)
     STR  = 7  # 1 byte  (character / string element)
-    U64  = 8  # 8 bytes (unsigned 64-bit integer)
 
 
 # Type widths in bytes
@@ -47,7 +46,6 @@ TYPE_SIZES: Dict[VMType, int] = {
     VMType.F:    4,
     VMType.B:    1,
     VMType.STR:  1,
-    VMType.U64:  8,
 }
 
 # Struct format strings for single scalar items (little-endian)
@@ -60,7 +58,6 @@ TYPE_STRUCT_FORMATS: Dict[VMType, str] = {
     VMType.F:    "<f",
     VMType.B:    "<B",
     VMType.STR:  "<B",
-    VMType.U64:  "<Q",
 }
 
 
@@ -85,9 +82,9 @@ class VMIndexKind(IntEnum):
 class VMExecCommand(IntEnum):
     """VM runtime execution commands (Packet 0x48)."""
     SCAN_MODE      = 0x00  # VM_EXEC_SCAN_MODE
-    START          = 0x01  # VM_EXEC_START / ONCE
-    STOP           = 0x02  # VM_EXEC_STOP (Stops cyclic passes)
-    STEP           = 0x03  # VM_EXEC_STEP / NEXT
+    ONCE           = 0x01  # VM_EXEC_ONCE
+    BLOCK_MODE     = 0x02  # VM_EXEC_BLOCK_MODE
+    NEXT           = 0x03  # VM_EXEC_NEXT
     RESET_TO_START = 0x04  # VM_EXEC_RESET_TO_START
     NORMAL_MODE    = 0x05  # VM_EXEC_NORMAL_MODE (Continuous cyclic run)
     PAUSE          = 0x06  # VM_EXEC_PAUSE

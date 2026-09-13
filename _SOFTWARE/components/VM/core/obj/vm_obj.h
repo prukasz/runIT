@@ -39,8 +39,12 @@ typedef enum vm_obj_t_e {
   VM_OBJ_F    = 5,
   VM_OBJ_B    = 6,
   VM_OBJ_STR  = 7,
-  VM_OBJ_U64  = 8,
 } vm_obj_t_e;
+
+/** @brief String representation of object type for debugging. */
+static inline const char* vm_obj_type_name(vm_obj_t_e t) {
+  return vm_type_name((uint8_t)t);
+}
 
 /**
  * @brief Object creation and descriptor flags.
@@ -104,7 +108,6 @@ static const uint8_t vm_obj_type_sizes[] = {
     [VM_OBJ_F]    = sizeof(float),
     [VM_OBJ_B]    = sizeof(uint8_t),
     [VM_OBJ_STR]  = sizeof(uint8_t),
-    [VM_OBJ_U64]  = sizeof(uint64_t),
 };
 
 /** @brief Shift to get payload item count from payload size, indexed by the
@@ -118,7 +121,6 @@ static const uint8_t vm_obj_type_shifts[16] = {
     [VM_OBJ_F]    = 2,
     [VM_OBJ_B]    = 0,
     [VM_OBJ_STR]  = 0,
-    [VM_OBJ_U64]  = 3,
 };
 
 _Static_assert(sizeof(void*) == 4, "vm_obj_type_shifts assumes 4-byte pointers");
@@ -128,14 +130,19 @@ static __always_inline uint32_t vm_type_shift(uint8_t t) {
   return vm_obj_type_shifts[t & 0x0Fu];
 }
 
-/** @brief True if `t` is a real type: VM_OBJ_PTR..VM_OBJ_U64. */
+/** @brief True if `t` is a real type: VM_OBJ_PTR..VM_OBJ_STR. */
 static __always_inline bool vm_type_ok(uint8_t t) {
-  return (uint8_t)(t - 1u) <= (uint8_t)(VM_OBJ_U64 - 1u);
+  return (uint8_t)(t - 1u) <= (uint8_t)(VM_OBJ_STR - 1u);
 }
 
 /** @brief Byte width of an element of type `t`. */
 static __always_inline uint8_t vm_type_width(vm_obj_t_e t) {
   return ((uint8_t)t < sizeof(vm_obj_type_sizes) / sizeof(vm_obj_type_sizes[0])) ? vm_obj_type_sizes[t] : 0;
+}
+
+/** @brief True if `t` is a stored scalar type: VM_OBJ_U8..VM_OBJ_STR. */
+static __always_inline bool vm_type_is_scalar(uint8_t t) {
+  return (uint8_t)(t - VM_OBJ_U8) <= (uint8_t)(VM_OBJ_STR - VM_OBJ_U8);
 }
 
 // ===========================================================================

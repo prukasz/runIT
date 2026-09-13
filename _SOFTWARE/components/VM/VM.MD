@@ -1,5 +1,7 @@
 # Virtual Machine (VM)
 
+Current scalar API and conversion contracts: [Object access entry points](core/obj/VM_OBJ_ACCESS.MD#scalar-and-block-entry-points). The performance history below describes earlier implementations; its cycle counts do not measure the current saturating conversions.
+
 IMPORTANT: If you modify the source files in this component (`core/**/*.h`, `core/**/*.c`), you must update this documentation to reflect the changes.
 
 ## Overview
@@ -96,14 +98,14 @@ Total footprint is `sizeof(head) + payload_size + name_size` (`vm_obj_get_total_
 
 ```c
 VM_OBJ_NONE, VM_OBJ_PTR, VM_OBJ_U8, VM_OBJ_U32, VM_OBJ_I32,
-VM_OBJ_F, VM_OBJ_B, VM_OBJ_STR, VM_OBJ_U64
+VM_OBJ_F, VM_OBJ_B, VM_OBJ_STR
 ```
 
 Two parallel tables in `vm_obj.h`: `vm_obj_type_sizes[]` (bytes) and `vm_obj_type_shifts[]` (log2 of the same). **Every width is a power of two**, so "how many items fit in `payload_size` bytes" is a shift, not a divide — the single hottest operation in accessor resolution, and one the compiler cannot strength-reduce itself because the width comes from a runtime lookup. Adding a non-power-of-two type would silently truncate; it needs a matching shift entry.
 
 `VM_OBJ_STR` is **an array of chars**, not a distinct string abstraction: one byte per element, no terminator implied by the type. A whole-object accessor gives the buffer, an indexed one gives a single character, and everything that works on a `VM_OBJ_U8` array works here. It stays a separate type from `VM_OBJ_U8` because the type is what tells a client how to render the bytes — which is also why `vm_obj_copy_content()` refuses `STR` → `U8` despite the identical width.
 
-**A new type needs an arm in every value-path switch**, not just the two tables: `vm_payload_get_val()`, `VM_VAL_CAST_TO()`, `store_scalar()` and `payload_as_index()`. A missing case is not a compile error — it falls to `default` and reads or writes **0**, which is indistinguishable from a genuinely empty value. `VM_OBJ_STR` shipped that way until stage J caught it.
+**A new type needs an arm in every value-path switch**, not just the two tables: `vm_internal_scalar_type()`, `VM_INTERNAL_LOAD_SCALAR()`, `vm_internal_store_inline()` and `payload_as_index()`. A missing case is not a compile error — it falls to `default` and reads or writes **0**, which is indistinguishable from a genuinely empty value. `VM_OBJ_STR` shipped that way until stage J caught it.
 
 ### Nested objects
 
@@ -121,7 +123,7 @@ Consequences worth knowing:
 
 This was its own `vm_alloc.h`/`.c` pair until [vm_store.h](core/store/vm_store.h) became the only caller — a header, a source file and a public API guarding a boundary that had nothing on the other side of it. Carving is now `static` inside `vm_store.c`; the struct stays in the header only because `vm_store_t` embeds it and `vm_store_get()` is inline.
 
-**Alignment note:** a payload begins at `header + 4`, so a `VM_OBJ_U64` element is only 4-byte aligned. Casting to `uint64_t*` would assert 8-byte alignment to the compiler, which on Xtensa can fault or read the wrong words — so 64-bit reads and writes go through `memcpy`, which compiles to the same two word accesses without the claim.
+**Alignment note:** scalar payload elements are at most four bytes wide.
 
 ---
 
@@ -169,7 +171,7 @@ vm_index_t idx[] = {{.kind = VM_IDX_NAME, .name = "temp"},
                     {.kind = VM_IDX_LITERAL, .value = 0}};
 ```
 
-Stopping after `["temp"]` leaves the payload typed `VM_OBJ_PTR`, which `vm_payload_get_val()` has no case for — so `VM_OBJ_GET_VAL` yields **0**, silently. This is deliberate and not auto-dereferenced, because `vm_obj_link()` needs the raw slot; a trailing auto-deref would break linking and the switch/demux pattern with it.
+Stopping after `["temp"]` leaves the payload typed `VM_OBJ_PTR`, so `VM_OBJ_SCALAR_GET` returns an error and preserves its output. This is deliberate and not auto-dereferenced, because `vm_obj_link()` needs the raw slot; a trailing auto-deref would break linking and the switch/demux pattern with it.
 
 `vm_get_obj()` is the exception that *does* follow a trailing `VM_OBJ_PTR` element — but only when there is a chain. A count-0 accessor names the object itself, so a pointer container comes back as the container; following its first pointer would hand a relay or encoder block `child[0]` instead of the object it was wired to, with nothing to indicate the substitution.
 
@@ -195,7 +197,7 @@ Conversion is automatic in both directions: the caller's declared C type drives 
 
 ```c
 float angle = 0.0f;
-BLOCK_CALL(VM_OBJ_GET_VAL(angle, in0), block);   // any stored type -> float
+BLOCK_CALL(VM_OBJ_SCALAR_GET(angle, in0), block);   // any stored type -> float
 ```
 
 Float→integer conversion **rounds and saturates** (`vm_f_to_i`). A plain cast of an out-of-range float to an integer is undefined behaviour in C and is reachable from ordinary user wiring, not just corruption. Range is *not* clamped to the destination's own limits — narrowing 300 into a `uint8_t` still wraps, so clamp in a type wide enough to see the real value **before** narrowing.
@@ -204,15 +206,15 @@ Float→integer conversion **rounds and saturates** (`vm_f_to_i`). A plain cast 
 | :--- | :--- |
 | `vm_obj_get_payload(&p, acc)` | resolve to where a value lives |
 | `vm_get_obj(&h, acc)` | resolve to the object itself; follows a trailing PTR, but a count-0 accessor yields the container |
-| `VM_OBJ_GET_VAL(out, acc)` | one converted scalar into a local |
-| `VM_OBJ_SET_VAL(in, acc)` | converted write via accessor (checks `mutable`) |
-| `VM_OBJ_SET_VAL_AT(in, obj, idx)` | converted write to an owned object, no resolve |
+| `VM_OBJ_SCALAR_GET(out, acc)` | one converted scalar into a local |
+| `VM_OBJ_SET_SCALAR(in, acc)` | converted write via accessor (checks `mutable`) |
+| `VM_OBJ_SET_SCALAR_AT_IDX(in, obj, idx)` | converted write to an owned object, no resolve |
 | `VM_PAYLOAD_GET_VAL(out, payload)` | read from an already-resolved payload |
 | `vm_payload_get_at(p, i)` | element `i` as its own payload — the array-iteration primitive |
 | `vm_obj_copy_content(src, dst)` | bulk copy; same type and count at every leaf, PTR arrays walked pairwise (deep, allocation-free) |
 | `vm_obj_link(join, owner)` / `vm_obj_link_direct(cell, idx, child)` | point a PTR slot at an object |
 
-Every ordinary successful write sets the owning object's `upd` flag and honors `mutable`; user APIs also reject `usr_protected`. Copy validates the entire destination before committing. Clone additionally publishes its holder on both replacement and refill. Scalar writes do not propagate freshness to ancestors: use `vm_obj_publish()` after completing an aggregate update. `vm_obj_clear_quiet()` deliberately does not publish freshness.
+Every ordinary successful write sets the owning object's `upd` flag and honors `mutable`; user APIs also reject `usr_protected`. Copy validates the entire destination before committing. Clone additionally publishes its holder on both replacement and refill. Scalar writes do not propagate freshness to ancestors: use `vm_obj_mark_updated()` after completing an aggregate update. `vm_obj_clear_quiet()` deliberately does not publish freshness.
 
 ### Writing a block — what you have to remember
 
@@ -220,8 +222,8 @@ Nothing, in the normal path. A block body reads and writes pins exactly as befor
 
 ```c
 float a = 0;
-BLOCK_CALL(VM_OBJ_GET_VAL(a, in0), block);
-BLOCK_CALL(VM_OBJ_SET_VAL_AT(a * 2.0f, out0, 0), block);
+BLOCK_CALL(VM_OBJ_SCALAR_GET(a, in0), block);
+BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(a * 2.0f, out0, 0), block);
 ```
 
 The resolution cache lives inside the accessor and is built by the loader, so an uploaded program gets it with no cooperation from the block. The one rule is for code that builds accessors **directly in C** — bring-up fixtures, tests, benchmarks — which must call `vm_accessor_cache_build(acc)` once the root object exists and the indices are set. Forgetting is a speed loss, never a wrong answer.
@@ -231,7 +233,7 @@ Two consequences worth knowing:
 * A `static const vm_accessor_t` initialiser cannot be cached — it lives in flash and there is no build call. Correct, just slower. Fine for tests; use the build API for anything on a scan path.
 * Binding is a load-time act. Re-pointing an id *after* its accessors were cached would leave them addressing the old object — and `vm_store_alloc()` refuses a rebind outright (`ERR_VM_REG_DUP`), so within one load this cannot happen at all; across loads the program is rebuilt whole.
 
-**`VM_VAL_OF` and `VM_TYPE_OF` are a pair.** `VM_TYPE_OF` names the `vm_obj_t_e` that the reader (`VM_VAL_CAST_TO`) will use to pick a `vm_val_t` member, so `VM_VAL_OF` must write *that* member — `uint8_t`, `char` and `bool` write `.u8` because they are typed `VM_OBJ_U8`/`VM_OBJ_B`. Letting them fall to the `.u32` default reads back correctly on a little-endian target and silently wrong anywhere else; the arms are explicit so the pairing does not depend on byte order. Adding a type to one macro means adding it to the other.
+**`VM_VAL_OF` and `VM_TYPE_OF` are a pair.** `VM_TYPE_OF` names the `vm_obj_t_e` that the reader (`VM_INTERNAL_LOAD_SCALAR`) will use to pick a `vm_val_t` member, so `VM_VAL_OF` must write *that* member — `uint8_t`, `char` and `bool` write `.u8` because they are typed `VM_OBJ_U8`/`VM_OBJ_B`. Letting them fall to the `.u32` default reads back correctly on a little-endian target and silently wrong anywhere else; the arms are explicit so the pairing does not depend on byte order. Adding a type to one macro means adding it to the other.
 
 **`resolve_fast()`** short-circuits the three accessor shapes that cover nearly every wire — `obj(id)`, `obj(id, [k])`, `obj(id, [j][k])`, literal indices only — as a few bounds checks instead of the chain loop. It returns `false` rather than an error for both "shape I don't handle" and "this failed"; the caller then falls through to `resolve_d()`, which re-walks and builds the real `err_h` with chain position and object in it. Failure is the cold path, so it is cheaper to pay for the walk twice there than to carry error construction through the hot one. Both paths must agree on what they accept — in particular the `mutable` check belongs on the deepest object in each.
 
@@ -300,9 +302,9 @@ The Edge Detection Block (`vm_block_edge.h`) acts as an event trigger / flow con
   - `VM_EDGE_RISING` (0): `0 -> 1` for booleans, or scalar increase (`>= threshold`).
   - `VM_EDGE_FALLING` (1): `1 -> 0` for booleans, or scalar decrease (`>= threshold`).
   - `VM_EDGE_BOTH` (2): any state toggle for booleans, or scalar magnitude change (`|delta| >= threshold`).
-* **Supported Input Types**: `VM_OBJ_B`, `VM_OBJ_F`, `VM_OBJ_I32`, `VM_OBJ_U8`, `VM_OBJ_U32`, `VM_OBJ_U64`.
-* **Change Condition**: Configured via dynamic `in[1]` or static `change_by` in `custom_data` (`float`, `int64_t`, or `uint64_t`). A value of `0` triggers on any increase, decrease, or change.
-* **State Storage (`custom_data`)**: Holds `vm_block_edge_data_t` (24 bytes, 8-byte aligned) containing `edge_type`, `flags`, `change_by`, and `prev_val` (reserving max `uint64_t` space). The first pass initializes `prev_val = curr` without false-triggering. When disabled via `EN`, it re-syncs cleanly on re-enable without false pulses.
+* **Supported Input Types**: `VM_OBJ_B`, `VM_OBJ_F`, `VM_OBJ_I32`, `VM_OBJ_U8`, `VM_OBJ_U32`.
+* **Change Condition**: Configured via dynamic `in[1]` or static `change_by` in `custom_data` (`float`, `int32_t`, or `uint32_t`). A value of `0` triggers on any increase, decrease, or change.
+* **State Storage (`custom_data`)**: Holds `vm_block_edge_data_t` (12 bytes, 4-byte aligned) containing `edge_type`, `flags`, `change_by`, and `prev_val` (four bytes per scalar). The first pass initializes `prev_val = curr` without false-triggering. When disabled via `EN`, it re-syncs cleanly on re-enable without false pulses.
 
 ### Timer Block (`VM_BLK_TIMER`, id 9)
 
@@ -380,7 +382,7 @@ Stage **V** is `FOR`, and as much about the walk as about the block — everythi
 | Stage | Covers |
 | :--- | :--- |
 | A | header helpers and the type tables — every width a power of two, the shift table agreeing with the size table for all types, `total_size` with and without a name, `payload_at` stepping and its bounds |
-| B | value conversion — widening, U64 round-trip at a 4-byte-aligned payload, float rounding into integers, `vm_f_to_i` NaN/saturation guards, narrow source types (`bool`/`char`/`uint8_t`) landing in the union member their tag is read back through, and the deliberate *absence* of destination clamping |
+| B | permitted scalar types, clamped narrowing, float rounding, NaN/infinity, null accessors and preserved outputs |
 | C | accessor resolution — literal/by-ref/by-name indices, live by-ref following its selector, whole-array iteration, read-vs-write mutability, and the failure modes (OOB, unknown id, unlinked slot, chain past a scalar, depth cap) |
 | D | nested objects — three-level chains, mixed literal/name steps, jagged 2D, `get_obj` at each depth, aliasing one child under two parents, re-linking as the switch/demux primitive, failures at depth |
 | E | mutation — direct writes, `copy_content` including its type/count/mutability rejections and the pointer-against-value one, `link` and `link_direct` |
@@ -431,8 +433,8 @@ One assertion is worth knowing about: stage K asserts that `msg["temp"]` **witho
 
 The first benchmark run put `flat[i]` at 111 cyc against a 5.2 cyc raw walk. Disassembly, not guesswork, said where it went — and none of it was the walk itself:
 
-* **A call.** `VM_OBJ_GET_VAL` invoked an out-of-line `vm_obj_get_payload`, so every pin read paid `entry`/`retw` register-window rotation and returned its result by writing 12 bytes of `vm_payload_t` through a pointer that the caller read straight back.
-* **Two dispatches.** `vm_payload_get_val()` switched on the stored type into a `vm_val_t`, spilled it to the stack, and `VM_VAL_CAST_TO()` switched on the same type again to load it back.
+* **A call.** `VM_OBJ_SCALAR_GET` invoked an out-of-line `vm_obj_get_payload`, so every pin read paid `entry`/`retw` register-window rotation and returned its result by writing 12 bytes of `vm_payload_t` through a pointer that the caller read straight back.
+* **Two dispatches.** `vm_payload_get_val()` switched on the stored type into a `vm_val_t`, spilled it to the stack, and `VM_INTERNAL_LOAD_SCALAR()` switched on the same type again to load it back.
 * **Two flash data loads.** `vm_obj_type_sizes[]` for the width and `vm_obj_type_shifts[]` for the count — `.rodata` lives in flash, so both went through the data cache on every element access.
 * **A `mull`.** The count came from a shift, then the address came from a multiply, to arrive at a number the shift already had.
 
@@ -478,7 +480,7 @@ That took `flat[i]` 111 → 66 cyc and `grid[r][c]` 141 → 105. It also made ev
 
    **The depth cap has to be tested before that, not after.** `VM_ACCESSOR_MAX_DEPTH` is enforced by counting `resolve_d()` frames, and the fast path resolves a level without one — so letting it take the *last* level of a chain made `MAX_DEPTH + 1` fit inside `MAX_DEPTH` frames and pass. Stage C caught it: "one level past MAX_DEPTH is refused" failed while "exactly at MAX_DEPTH still resolves" passed, which is the signature of swallowing precisely one level. The fix declines the fast path at the limit and hands that level to `resolve_d()`, which refuses it and produces the same error trace as before. Worth remembering if any other shortcut is ever added below a bounded walk: a cap counted in frames breaks the moment something resolves without one.
 6. **`VM_IDX_NAME` carries its length.** `find_child_by_name()` ran `strlen()` on the same constant string on every access. `vm_index_t` had padding after `kind`, so `name_len` costs nothing in size and is measured once at build. Use `VM_IDX_BY_NAME("temp")` for static initialisers — a hand-written `{.kind = VM_IDX_NAME, .name = "temp"}` leaves the length zero and matches **nothing**.
-7. **Writes are inline too.** `vm_store_inline()` moved to the header, so `VM_OBJ_SET_VAL` and `VM_OBJ_SET_VAL_AT` resolve and store without a call — the latter matters most, since it is how every block publishes a result *and* what `vm_block_set_ENO()` runs for every block on every cycle. Only the error arms (`vm_obj_not_scalar_err`, `vm_obj_not_mutable_err`, `vm_obj_oob_err`, `vm_obj_null_obj_err`) stayed in the `.c`, where there is an ambient `OWNER` to build them with.
+7. **Writes are inline too.** `vm_store_inline()` moved to the header, so `VM_OBJ_SET_SCALAR` and `VM_OBJ_SET_SCALAR_AT_IDX` resolve and store without a call — the latter matters most, since it is how every block publishes a result *and* what `vm_block_set_ENO()` runs for every block on every cycle. Only the error arms (`vm_obj_not_scalar_err`, `vm_obj_not_mutable_err`, `vm_obj_oob_err`, `vm_obj_null_obj_err`) stayed in the `.c`, where there is an ambient `OWNER` to build them with.
 8. **`vm_get_obj()` uses the fast path** — it went straight to the walk, which cost the fold-block shape a full resolve per row.
 
 9. **Read conversion split back out of line.** Fusing load-and-convert was right for speed and wrong for size: six arms — including a float→int64 saturation path and a U64→float conversion that drags in `__floatundisf` — measured ~450 B at *every* pin. One 2-input block came to 1.8 kB, and a 50-type palette to ~90 kB. Dispatching on the **destination** instead means only three shapes exist (float, ≤32-bit integer, 64-bit integer), so `vm_get_as_f32` / `_i32` / `_i64` — 370 B total, one copy — serve every pin in the program. `vm_resolve_fast()` stays inline, which is where the speed came from.
@@ -494,7 +496,7 @@ Writes were deliberately left inlined. They are fewer than reads, they were the 
 
 > These figures were measured **before** EN became a list. `vm_block_is_enabled()` is now a loop over `en_cnt` sources rather than a single read, so its 300 B is stale in a direction not yet measured; the other rows are unaffected.
 
-**Array iteration inverts the trade, and one round of measurement proved it.** `VM_PAYLOAD_GET_VAL` was routed through the shared converters along with everything else, and the payload walk went 21.7 → 39.1 cyc/element — 80% slower. A pin read runs its conversion once per block per cycle, so trading ~10 cyc for ~200 B across hundreds of sites is clearly right. A fold block runs it *per element*, with the type loop-invariant, across a handful of sites. So `VM_OBJ_GET_VAL` calls (`VM_LOAD_CAST_TO`) and `VM_PAYLOAD_GET_VAL` inlines (`VM_LOAD_CAST_TO_FAST`) — reach for the second only inside a loop over elements.
+**Array iteration inverts the trade, and one round of measurement proved it.** `VM_PAYLOAD_GET_VAL` was routed through the shared converters along with everything else, and the payload walk went 21.7 → 39.1 cyc/element — 80% slower. A pin read runs its conversion once per block per cycle, so trading ~10 cyc for ~200 B across hundreds of sites is clearly right. A fold block runs it *per element*, with the type loop-invariant, across a handful of sites. So `VM_OBJ_SCALAR_GET` calls (`VM_LOAD_CAST_TO`) and `VM_PAYLOAD_GET_VAL` inlines (`VM_LOAD_CAST_TO_FAST`) — reach for the second only inside a loop over elements.
 
 10. **Resolution cache, tier 1 only.** An accessor whose *address cannot move* is pre-resolved once by `vm_accessor_cache_build()` and thereafter costs four loads instead of a walk. Two shapes qualify: a whole-object accessor, and a single literal index on a root object.
 
@@ -1052,7 +1054,7 @@ Dynamic objects are heap-backed and isolated: nothing else in a running program 
 - **Modes**: `VM_EDGE_RISING` (0 -> 1, or increase >= threshold), `VM_EDGE_FALLING` (1 -> 0, or decrease >= threshold), `VM_EDGE_BOTH` (any toggle, or |delta| >= threshold).
 - **Threshold / Hysteresis**: Optional dynamic threshold on `in[1]`. If unwired, falls back to `change_by` in `custom_data`.
 - **Outputs**: Optional `out[0]` pulse (driven to 1 for exactly 1 pass, then cleared); `ENO` flow pulse (true for 1 pass, then false).
-- **Private State**: 24 bytes (`vm_block_edge_data_t`): `edge_type` (1B), `flags` (1B), `change_by` (8B), `prev_val` (8B). Latching `VM_EDGE_F_INITIALIZED` prevents false pulses on the very first pass.
+- **Private State**: 12 bytes (`vm_block_edge_data_t`): `edge_type` (1B), `flags` (1B), `change_by` (4B), `prev_val` (4B). Latching `VM_EDGE_F_INITIALIZED` prevents false pulses on the very first pass.
 
 ### TIMER
 
@@ -1150,7 +1152,7 @@ taker are normal, and silent.
 
 `mutable` permits internal writes; `usr_protected` additionally denies user
 writes. Block construction sets protection on outputs and ENO. SET and CLONE
-use `_usr` APIs, which check each written object's policy before mutation.
+use `vm_block_obj_*` APIs, which check each written object's policy before mutation.
 Producer blocks use internal APIs. Protection is object-local, so separately
 allocated children need their own flag if they are also producer-owned.
 
@@ -1208,12 +1210,12 @@ Note the app **partition** is 1 MB (`CONFIG_PARTITION_TABLE_SINGLE_APP`), not th
 
 **Construction** — `vm_obj_create()`, `vm_obj_shape()`, `vm_obj_init()`, `vm_accessor_create()`, `vm_accessor_set_literal()`, `vm_accessor_set_ref()`, `vm_accessor_set_name()`, `vm_accessor_cache_build()`, `vm_block_create()`
 
-**Dynamic objects** — `vm_obj_dyn_create()`, `vm_obj_dyn_retain()`, `vm_obj_dyn_release()`, `vm_obj_dyn_reset()`, `vm_obj_dyn_get_id()`, `vm_obj_dyn_get_by_id()`, `vm_obj_is_dynamic()`. Reference counts move in exactly one place — a pointer slot, via `slot_store()` in `vm_obj_access.c` — and `vm_obj_dyn_get_id()` tests the `dynamic` bit before scanning, so an arena object costs one bit rather than `VM_DYN_MAX` pointer compares.
+**Dynamic objects** — `vm_obj_dyn_create()`, `vm_obj_dyn_retain()`, `vm_obj_dyn_release()`, `vm_obj_dyn_reset()`, `vm_obj_dyn_get_id()`, `vm_obj_dyn_get_by_id()`, `vm_obj_is_dynamic()`. Reference counts move in exactly one place — a pointer slot, via `slot_store()` in `vm_obj_access_internal.c` — and `vm_obj_dyn_get_id()` tests the `dynamic` bit before scanning, so an arena object costs one bit rather than `VM_DYN_MAX` pointer compares.
 **Header helpers** — `vm_obj_get_total_size()`, `vm_obj_get_payload_size()`, `vm_obj_get_type_size()`, `vm_type_width()`, `vm_obj_get_items_cnt()`, `vm_obj_get_tag()`, `vm_obj_get_payload_ptr()`
 **Store** — `vm_store_open()`, `vm_store_alloc()`, `vm_store_get()`, `vm_store_reset()`, `vm_store_used()`, `vm_store_capacity()`
-**Access** — `vm_obj_get_by_id()`, `vm_accessor_get_by_id()`, `vm_obj_get_payload()`, `vm_obj_get_obj()`, `vm_obj_set_scalar()`, `vm_obj_set_scalar_direct()`, `vm_obj_copy_content()`, `vm_obj_shape_matches()`, `vm_obj_clone_shape()`, `vm_obj_clone_into()`, `vm_obj_link()`, `vm_obj_link_direct()`, `vm_obj_clear_quiet()`, `vm_payload_get_at()`, `vm_make_payload()`
-**User mutation** (require `mutable` and reject `usr_protected`) — `vm_obj_set_scalar_usr()`, `vm_obj_set_scalar_direct_usr()`, `vm_obj_copy_content_usr()`, `vm_obj_clone_into_usr()`, `vm_obj_link_usr()`, `vm_obj_publish_usr()`
-**Macros** — `VM_OBJ_GET_VAL()`, `VM_OBJ_SET_VAL()`, `VM_OBJ_SET_VAL_AT()`, `VM_OBJ_SET_VAL_USR()`, `VM_OBJ_SET_VAL_AT_USR()`, `VM_PAYLOAD_GET_VAL()`, `VM_VAL_CAST_TO()`
+**Access** — `vm_obj_get_by_id()`, `vm_accessor_get_by_id()`, `vm_obj_get_payload()`, `vm_obj_get_obj()`, `vm_internal_set_scalar_slot()`, `vm_internal_set_scalar_direct()`, `vm_obj_copy_content()`, `vm_obj_copy_direct()`, `vm_obj_shape_matches()`, `vm_obj_schema_matches()`, `vm_obj_clone_shape()`, `vm_obj_clone_into()`, `vm_obj_link()`, `vm_obj_link_direct()`, `vm_obj_clear_quiet()`, `vm_payload_get_at()`, `vm_make_payload()`
+**User mutation** (require `mutable` and reject `usr_protected`) — `VM_OBJ_SET_SCALAR_USR()`, `VM_OBJ_SET_SCALAR_AT_IDX_USR()`, `vm_block_obj_copy_content()`, `vm_block_obj_copy_direct()`, `vm_block_obj_clone_into()`, `vm_block_obj_link()`, `vm_block_obj_mark_updated()`
+**Macros** — `VM_OBJ_SCALAR_GET()`, `VM_OBJ_SET_SCALAR()`, `VM_OBJ_SET_SCALAR_AT_IDX()`, `VM_OBJ_SET_SCALAR_USR()`, `VM_OBJ_SET_SCALAR_AT_IDX_USR()`, `VM_OBJ_COPY_CONTENT()`, `VM_PAYLOAD_GET_VAL()`, `VM_INTERNAL_LOAD_SCALAR()`
 **Blocks** — `vm_block_get_by_id()`, `vm_block_get_in()`, `vm_block_get_out()`, `vm_block_is_enabled()`, `vm_block_triggered()`, `vm_block_input_fresh()`, `vm_block_set_eno()`, `vm_block_get_span()`, `vm_block_claim_span()`, `vm_block_get_inputs()`, `vm_block_get_outputs()`, `vm_block_get_en_list()`, `vm_block_get_custom_data()`, `vm_block_get_custom_len()`, `vm_block_get_total_size()`, `vm_block_calc_size()`, `IF_BLOCK_ENABLED()`, `IF_BLOCK_TRIGGERED()`, `BLOCK_CALL()`
 **Dispatch** — `vm_block_fn_for()`, `vm_exec_check_block_type()`, `vm_exec_use_blocks()`
 **Events** — `vm_event_post()`, `vm_event_count()`, `vm_event_at()`, `vm_event_drain()`, `vm_event_take_overflow()`, `vm_event_reset()`
@@ -1233,3 +1235,5 @@ Execution adds its own group: the palette (`ERR_VM_BLK_UNKNOWN_TYPE`), the super
 `sys_error_vm.h` also supplies `SE_*_OWNED` variants (`SE_EMIT_ERR_OWNED`, `SE_ERR_NEW_OWNED`, `SE_RET_ERR_OWNED`, `SE_WRAP_ERR_OWNED`, `SE_CHECK_NOT_NULL_OWNED`, `SE_CHECK_IF_ALLOCATED_OWNED`) that take the owner explicitly, for header-only code pulled into translation units with their own ambient `OWNER`.
 
 Because `sys_errors` aggregates this map, it reaches `core/errors/sys_error_vm.h` through a raw include path rather than `REQUIRES VM` — VM already requires `sys_errors`, so a component dependency back would be circular.
+
+Block helpers live in `core/block/vm_block_helpers.h/.c`. Edge custom data is now 12 bytes; rebuild uploaded EDGE configurations that used the former 24-byte layout. Timer presets and elapsed outputs are U32; only the internal monotonic timestamp remains 64-bit.

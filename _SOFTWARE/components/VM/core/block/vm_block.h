@@ -46,7 +46,7 @@
 #define VM_BLK_RT_CFG_BAD   (1u << 6u)  // Sticky: malformed custom_data reported once per load
 #define VM_BLK_RT_SPAN_BAD  (1u << 7u)  // Sticky: malformed span reported once per load
 
-#define VM_BLK_RT_PER_CALL  (VM_BLK_RT_TRIGGERED | VM_BLK_RT_SPAN)
+#define VM_BLK_RT_PER_CALL (VM_BLK_RT_TRIGGERED | VM_BLK_RT_SPAN)
 
 // ===========================================================================
 // 2. Types & Block Data Structure
@@ -99,6 +99,7 @@ typedef bool (*vm_block_verify_fn)(vm_block_h);
 
 /**
  * @brief Retrieve block handle from registry by ID (NULL if out of range).
+  @verified
  */
 static inline vm_block_h vm_block_get_by_id(uint16_t id) {
   return (vm_block_h)vm_store_get(VM_REG_BLK, id);
@@ -106,17 +107,15 @@ static inline vm_block_h vm_block_get_by_id(uint16_t id) {
 
 /**
  * @brief Compute total allocation bytes required for one block of the given shape.
+  @verified
  */
 static inline size_t vm_block_calc_size(uint8_t in_cnt, uint8_t q_cnt, uint8_t en_cnt, uint16_t custom_len) {
-  return sizeof(vm_block_data_t) +
-         (size_t)in_cnt * sizeof(const vm_accessor_t*) +
-         (size_t)q_cnt * sizeof(vm_obj_h) +
-         (size_t)en_cnt * sizeof(const vm_accessor_t*) +
-         custom_len;
+  return sizeof(vm_block_data_t) + (size_t)in_cnt * sizeof(const vm_accessor_t*) + (size_t)q_cnt * sizeof(vm_obj_h) + (size_t)en_cnt * sizeof(const vm_accessor_t*) + custom_len;
 }
 
 /**
  * @brief Return total allocated size of block in bytes.
+  @verified
  */
 static inline size_t vm_block_get_total_size(vm_block_h b) {
   return vm_block_calc_size(b->cfg.in_cnt, b->cfg.q_cnt, b->cfg.en_cnt, b->cfg.custom_len);
@@ -124,6 +123,7 @@ static inline size_t vm_block_get_total_size(vm_block_h b) {
 
 /**
  * @brief Return custom data length in bytes.
+  @verified
  */
 static inline uint16_t vm_block_get_custom_len(vm_block_h b) {
   return b->cfg.custom_len;
@@ -135,6 +135,7 @@ static inline uint16_t vm_block_get_custom_len(vm_block_h b) {
 
 /**
  * @brief Pointer to array of input accessors (in_cnt entries).
+  @verified
  */
 static inline const vm_accessor_t** vm_block_get_inputs(vm_block_h b) {
   return (const vm_accessor_t**)b->data;
@@ -142,6 +143,7 @@ static inline const vm_accessor_t** vm_block_get_inputs(vm_block_h b) {
 
 /**
  * @brief Pointer to array of output object handles (q_cnt entries).
+  @verified
  */
 static inline vm_obj_h* vm_block_get_outputs(vm_block_h b) {
   return (vm_obj_h*)(vm_block_get_inputs(b) + b->cfg.in_cnt);
@@ -149,6 +151,7 @@ static inline vm_obj_h* vm_block_get_outputs(vm_block_h b) {
 
 /**
  * @brief Pointer to array of enable accessors (en_cnt entries).
+  @verified
  */
 static inline const vm_accessor_t** vm_block_get_en_list(vm_block_h b) {
   return (const vm_accessor_t**)(vm_block_get_outputs(b) + b->cfg.q_cnt);
@@ -156,6 +159,7 @@ static inline const vm_accessor_t** vm_block_get_en_list(vm_block_h b) {
 
 /**
  * @brief Pointer to private custom data buffer directly following en_list.
+ @verified
  */
 static inline void* vm_block_get_custom_data(vm_block_h b) {
   return (void*)(vm_block_get_en_list(b) + b->cfg.en_cnt);
@@ -174,6 +178,7 @@ static inline void* vm_block_get_custom_data(vm_block_h b) {
  * @param[in]  b      Block handle.
  * @param[in]  id     Input pin index (0 .. in_cnt-1).
  * @return err_h NULL on success, ERR_VM_BLOCK_PIN_MISSING or ERR_VM_BLOCK_PIN_UNLINKED.
+  @verified
  */
 static inline err_h vm_block_get_in(const vm_accessor_t** target, vm_block_h b, uint8_t id) {
   if (unlikely(id >= b->cfg.in_cnt)) return vm_block_err_pin_missing(b->cfg.block_idx, id, false);
@@ -189,6 +194,7 @@ static inline err_h vm_block_get_in(const vm_accessor_t** target, vm_block_h b, 
  * @param[in]  b      Block handle.
  * @param[in]  id     Output pin index (0 .. q_cnt-1).
  * @return err_h NULL on success, ERR_VM_BLOCK_PIN_MISSING or ERR_VM_BLOCK_PIN_UNLINKED.
+  @verified
  */
 static inline err_h vm_block_get_out(vm_obj_h* target, vm_block_h b, uint8_t id) {
   if (unlikely(id >= b->cfg.q_cnt)) return vm_block_err_pin_missing(b->cfg.block_idx, id, true);
@@ -210,20 +216,23 @@ void vm_block_report_error(err_h cause, uint16_t block_idx, uint8_t block_type);
 
 /**
  * @brief Evaluates block enable status across en_cnt sources (0 = always enabled).
+ * @verified
  */
 static inline bool vm_block_is_enabled(vm_block_h b) {
+  // if no en inputs = active
   uint8_t n = b->cfg.en_cnt;
   if (n == 0) return true;
 
-  const vm_accessor_t** en = vm_block_get_en_list(b);
-  const bool all = (b->cfg.en_mode == VM_BLK_EN_ALL);
+  const vm_accessor_t** en  = vm_block_get_en_list(b);
+  const bool            all = (b->cfg.en_mode == VM_BLK_EN_ALL);
   for (uint8_t i = 0; i < n; i++) {
-    bool v = false;
-    err_h e = VM_OBJ_GET_VAL(v, en[i]);
+    bool  v = false;
+    err_h e = VM_OBJ_SCALAR_GET(v, en[i]);
     if (unlikely(e)) {
       vm_block_report_error(e, b->cfg.block_idx, b->cfg.block_type);
       v = false;  // fail closed
     }
+    // check if one required or all
     if (all) {
       if (!v) return false;
     } else if (v) {
@@ -235,27 +244,52 @@ static inline bool vm_block_is_enabled(vm_block_h b) {
 
 /**
  * @brief Set block ENO: true marks updated (loud), false clears quietly without upd.
+ * @verified
  */
 static inline void vm_block_set_eno(vm_block_h b, bool state) {
   if (!b->cfg.eno) return;
-  if (!state) {
-    vm_obj_clear_quiet(b->cfg.eno);
-    return;
-  }
-  uint8_t v = 1;
-  err_h e = VM_OBJ_SET_VAL_AT(v, b->cfg.eno, 0);
-  if (unlikely(e)) {
-    vm_block_report_error(e, b->cfg.block_idx, b->cfg.block_type);
+  *(uint8_t*)b->cfg.eno->payload = state ? 1 : 0;
+  if (state) {
+    b->cfg.eno->head.f.upd = 1;
   }
 }
 
-/** @brief True if any input carries fresh data (latches VM_BLK_RT_TRIGGERED). */
+/** @brief True if any input carries fresh data (latches VM_BLK_RT_TRIGGERED).
+@verified*/
 bool vm_block_triggered(vm_block_h b);
 
-/** @brief True if specific input pin carries fresh data. */
-bool vm_block_input_fresh(vm_block_h b, uint8_t pin);
+/**
+ * @brief Freshness (`upd`) belongs to the owning object; unresolved pins fail closed silently.
+ * @verified
+ */
+static inline bool vm_block_pin_fresh(const vm_accessor_t* acc) {
+  if (!acc) return false;
 
-/** @brief Trigger from one source pin, ignoring destination/parameter inputs. */
+  if (likely(acc->flags & VM_ACC_F_CACHED)) {
+    return acc->c_payload.owner && acc->c_payload.owner->head.f.upd;
+  }
+
+  vm_obj_payload_t r;
+  if (vm_acc_resolve_fast(acc, &r)) {
+    return r.owner && r.owner->head.f.upd;
+  }
+
+  vm_obj_h o = NULL;
+  if (vm_obj_get_owner(&o, acc) != NULL || !o) return false;
+  return o->head.f.upd != 0;
+}
+
+/**
+ * @brief True if specific input pin carries fresh data.
+ * @verified
+ */
+static inline bool vm_block_input_fresh(vm_block_h b, uint8_t pin) {
+  if (unlikely(pin >= b->cfg.in_cnt)) return false;
+  return vm_block_pin_fresh(vm_block_get_inputs(b)[pin]);
+}
+
+/** @brief Trigger from one source pin, ignoring destination/parameter inputs.
+@verified */
 static inline bool vm_block_triggered_by(vm_block_h b, uint8_t pin) {
   if (!vm_block_input_fresh(b, pin)) return false;
   b->cfg.rt |= VM_BLK_RT_TRIGGERED;
@@ -264,6 +298,7 @@ static inline bool vm_block_triggered_by(vm_block_h b, uint8_t pin) {
 
 /**
  * @brief Block execution span from custom_data (NULL if custom_len < sizeof(vm_span_t)).
+  @verified
  */
 static inline const vm_span_t* vm_block_get_span(vm_block_h b) {
   if (b->cfg.custom_len < sizeof(vm_span_t)) return NULL;
@@ -272,6 +307,7 @@ static inline const vm_span_t* vm_block_get_span(vm_block_h b) {
 
 /**
  * @brief Takes over [start, end) range so outer execution walk jumps over it.
+  @verified
  */
 void vm_block_claim_span(vm_block_h b, uint16_t start, uint16_t end);
 
@@ -279,24 +315,26 @@ void vm_block_claim_span(vm_block_h b, uint16_t start, uint16_t end);
 // 7. Error Reporting & Execution Macros
 // ===========================================================================
 
-/* Block activation macros. Nestable: IF_BLOCK_TRIGGERED(b) IF_BLOCK_ENABLED(b) { ... } */
+/* Block activation macros. Nestable: IF_BLOCK_TRIGGERED(b) IF_BLOCK_ENABLED(b) { ... }
+ @verified*/
 #define IF_BLOCK_ENABLED(block)   if (vm_block_is_enabled(block))
 #define IF_BLOCK_TRIGGERED(block) if (vm_block_triggered(block))
 
-/** @brief Runs an err_h call, reporting failure with block context and latching g_vm_block_fault. */
-#define BLOCK_CALL(call, block)                                                                                                                                       \
-  do {                                                                                                                                                                \
-    err_h __bc_e = (call);                                                                                                                                            \
-    if (__bc_e) {                                                                                                                                                     \
-      vm_block_report_error(__bc_e, (block)->cfg.block_idx, (block)->cfg.block_type);                                                                                    \
-    }                                                                                                                                                                 \
+/** @brief Runs an err_h call, reporting failure with block context and latching g_vm_block_fault.
+ @verified*/
+#define BLOCK_CALL(call, block)                                                       \
+  do {                                                                                \
+    err_h __bc_e = (call);                                                            \
+    if (__bc_e) {                                                                     \
+      vm_block_report_error(__bc_e, (block)->cfg.block_idx, (block)->cfg.block_type); \
+    }                                                                                 \
   } while (0)
 
-#define VM_BLK_ERR_NEW(tag_name, ...)                                                               \
-  ({                                                                                                 \
-    err_h __e = SE_alloc_bytes(sizeof(err_payload_##tag_name##_t), tag_name, OWNER_VM_BLOCK);         \
-    *((err_payload_##tag_name##_t*)__e->payload) = (err_payload_##tag_name##_t){__VA_ARGS__};        \
-    __e;                                                                                             \
+#define VM_BLK_ERR_NEW(tag_name, ...)                                                                                            \
+  ({                                                                                                                             \
+    err_h __e                                    = SE_alloc_bytes(sizeof(err_payload_##tag_name##_t), tag_name, OWNER_VM_BLOCK); \
+    *((err_payload_##tag_name##_t*)__e->payload) = (err_payload_##tag_name##_t){__VA_ARGS__};                                    \
+    __e;                                                                                                                         \
   })
 
 #define VM_BLK_EMIT_ERR(tag_name, ...) SE_push_to_handler(VM_BLK_ERR_NEW(tag_name, __VA_ARGS__))

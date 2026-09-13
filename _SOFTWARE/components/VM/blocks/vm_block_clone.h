@@ -1,6 +1,6 @@
 #pragma once
 #include "esp_compiler.h"
-#include "vm_block_support.h"
+#include "vm_block_helpers.h"
 
 #define VM_CLONE_CUSTOM_LEN 0u
 
@@ -22,7 +22,7 @@ the tree; every pass after that finds a destination that already matches and
 copies values into it, which is the same allocation-free walk a Set does. A
 source whose schema varies pays one build each time it changes. The replacement
 is filled before publication, and the previous tree is then released by its slot --
-see slot_store() in vm_obj_access.c, where reference counts move.
+see slot_store() in vm_obj_access_internal.c, where reference counts move.
 
 The clone is heap-backed (vm_obj_dyn), because the arena cannot free and this
 destination has to be replaceable. That is a real departure from "no dynamic
@@ -31,7 +31,7 @@ running program allocates, and a program with no Clone in it still cannot.
 */
 
 static inline bool vm_verify_clone(vm_block_h b) {
-  return vm_block_require(b, 2, 0, 0x3u);
+  return vm_block_shape_valid(b, 2, 0, 0x3u);
 }
 
 static inline void vm_blk_clone(vm_block_h b) {
@@ -47,7 +47,7 @@ static inline void vm_blk_clone(vm_block_h b) {
     if (vm_block_triggered_by(b, VM_CLONE_IN_SRC)) {
 
       IF_BLOCK_ENABLED(b) {
-        BLOCK_CALL(vm_obj_clone_into_usr(src, cell), b);
+        BLOCK_CALL(vm_block_obj_clone_into(src, cell), b);
         if (likely(!g_vm_block_fault)) {
           vm_block_set_eno(b, true);
           return;

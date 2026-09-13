@@ -286,7 +286,7 @@ static inline bool vm_expr_eval_f(vm_block_h b, vm_expr_code_t* c, float* out) {
           if (likely((acc->flags & VM_ACC_F_CACHED) && (acc->c_payload.type == VM_OBJ_F))) {
             in[pin] = *(const float*)acc->c_payload.ptr;
           } else {
-            _TRY(VM_OBJ_GET_VAL(in[pin], acc));
+            _TRY(VM_OBJ_SCALAR_GET(in[pin], acc));
           }
           loaded |= mask;
         }
@@ -449,7 +449,7 @@ static inline bool vm_expr_eval_bit(vm_block_h b, vm_expr_code_t* c, uint32_t* o
           if (likely((acc->flags & VM_ACC_F_CACHED) && (acc->c_payload.type == VM_OBJ_U32))) {
             in[pin] = *(const uint32_t*)acc->c_payload.ptr;
           } else {
-            _TRY(VM_OBJ_GET_VAL(in[pin], acc));
+            _TRY(VM_OBJ_SCALAR_GET(in[pin], acc));
           }
           loaded |= mask;
         }
@@ -518,7 +518,7 @@ static inline void vm_blk_expr(vm_block_h b) {
     float r = 0.0f;
     if (unlikely(!vm_expr_eval_f(b, c, &r))) return;
     vm_obj_h q = vm_block_get_outputs(b)[0];
-    BLOCK_CALL(VM_OBJ_SET_VAL_AT(r, q, 0), b);
+    BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(r, q, 0), b);
 
     c->rt &= (uint8_t)~VM_EXPR_RT_FAULTED;
     if (likely(!g_vm_block_fault)) vm_block_set_eno(b, true);
@@ -539,7 +539,7 @@ static inline void vm_blk_expr_bit(vm_block_h b) {
     uint32_t r = 0;
     if (unlikely(!vm_expr_eval_bit(b, c, &r))) return;
     vm_obj_h q = vm_block_get_outputs(b)[0];
-    BLOCK_CALL(VM_OBJ_SET_VAL_AT(r, q, 0), b);
+    BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(r, q, 0), b);
 
     c->rt &= (uint8_t)~VM_EXPR_RT_FAULTED;
     if (likely(!g_vm_block_fault)) vm_block_set_eno(b, true);

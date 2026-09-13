@@ -1,9 +1,11 @@
 #include "selftest_harness.h"
 #include "vm_block_build.h"
 #include "vm_block_clone.h"
+#include "vm_block_helpers.h"
 #include "vm_block_set.h"
 #include "vm_exec.h"
 #include "vm_loader.h"
+#include "vm_obj_access_internal.h"
 #include "vm_sub.h"
 
 static uint16_t live_objects(void) {
@@ -21,6 +23,11 @@ static vm_obj_h dynamic(vm_obj_t_e type, uint16_t n) {
 
 static vm_obj_h child(vm_obj_h obj, uint16_t i) {
   return ((vm_obj_h *)obj->payload)[i];
+}
+
+static vm_obj_h named_child(vm_obj_h parent, const char* name) {
+  int32_t idx = find_child_by_name(parent, name, (uint8_t)strlen(name));
+  return idx >= 0 ? ((vm_obj_h*)parent->payload)[idx] : NULL;
 }
 
 static uint32_t value(vm_obj_h obj) {
@@ -61,8 +68,8 @@ void test_object_contracts(void) {
   vm_obj_h source = mk(0, VM_OBJ_U32, 1, "temp", true);
   vm_obj_h renamed = mk(1, VM_OBJ_U32, 1, "pressure", true);
   vm_obj_h holder = mk(2, VM_OBJ_PTR, 1, NULL, true);
-  VM_OBJ_SET_VAL_AT((uint32_t)42, source, 0);
-  VM_OBJ_SET_VAL_AT((uint32_t)99, renamed, 0);
+  VM_OBJ_SET_SCALAR_AT_IDX((uint32_t)42, source, 0);
+  VM_OBJ_SET_SCALAR_AT_IDX((uint32_t)99, renamed, 0);
   vm_accessor_t src = {.id = 0}, dst = {.id = 2}, other = {.id = 1};
   ck("storage compatibility ignores names", vm_obj_shape_matches(source, renamed));
   ck("schema compatibility includes names", !vm_obj_schema_matches(source, renamed));
@@ -79,12 +86,12 @@ void test_object_contracts(void) {
   vm_obj_link_direct(schema_b, 0, renamed);
   vm_accessor_t sa = {.id = 9}, sb = {.id = 10};
   ck("nested storage shapes agree while schemas differ", vm_obj_shape_matches(schema_a, schema_b) && !vm_obj_schema_matches(schema_a, schema_b));
-  ck("nested rename replaces field identity", !vm_obj_clone_into(&sa, &dst) && !vm_obj_clone_into(&sb, &dst) && vm_obj_get_child(child(holder, 0), "temp") == NULL && value(vm_obj_get_child(child(holder, 0), "pressure")) == 99);
+  ck("nested rename replaces field identity", !vm_obj_clone_into(&sa, &dst) && !vm_obj_clone_into(&sb, &dst) && named_child(child(holder, 0), "temp") == NULL && value(named_child(child(holder, 0), "pressure")) == 99);
 
   // Source is owned solely by the destination tree that Clone replaces.
   a = dynamic(VM_OBJ_PTR, 1);
   leaf = dynamic(VM_OBJ_U32, 1);
-  VM_OBJ_SET_VAL_AT((uint32_t)1234, leaf, 0);
+  VM_OBJ_SET_SCALAR_AT_IDX((uint32_t)1234, leaf, 0);
   ck("aliased clone fixture linked", !vm_obj_link_direct(a, 0, leaf) && !vm_obj_link_direct(holder, 0, a));
   vm_index_t path[] = {{.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 0}};
   vm_accessor_t nested = {.id = 2, .count = 2, .indices = path};
@@ -118,27 +125,27 @@ void test_object_contracts(void) {
   protected->head.f.usr_protected = 1;
   vm_accessor_t guard = {.id = 8};
   vm_accessor_cache_build(&guard);
-  ck("internal producer can write protected output", !VM_OBJ_SET_VAL((uint32_t)7, &guard));
+  ck("internal producer can write protected output", !VM_OBJ_SET_SCALAR((uint32_t)7, &guard));
   protected->head.f.upd = 0;
-  ck("cached user write cannot bypass protection", VM_OBJ_SET_VAL_USR((uint32_t)9, &guard) != NULL && value(protected) == 7 && !protected->head.f.upd);
+  ck("cached user write cannot bypass protection", VM_OBJ_SET_SCALAR_USR((uint32_t)9, &guard) != NULL && value(protected) == 7 && !protected->head.f.upd);
   guard.flags = 0;
-  ck("uncached user write is equally protected", VM_OBJ_SET_VAL_USR((uint32_t)9, &guard) != NULL);
-  ck("direct user write is protected", VM_OBJ_SET_VAL_AT_USR((uint32_t)9, protected, 0) != NULL);
-  ck("user Copy is protected", vm_obj_copy_content_usr(&src, &guard) != NULL && value(protected) == 7);
-  ck("user publish is protected", vm_obj_publish_usr(protected) != NULL && !protected->head.f.upd);
-  ck("internal publish is explicit", !vm_obj_publish(protected) && protected->head.f.upd);
+  ck("uncached user write is equally protected", VM_OBJ_SET_SCALAR_USR((uint32_t)9, &guard) != NULL);
+  ck("direct user write is protected", VM_OBJ_SET_SCALAR_AT_IDX_USR((uint32_t)9, protected, 0) != NULL);
+  ck("user Copy is protected", vm_block_obj_copy_content(&src, &guard) != NULL && value(protected) == 7);
+  ck("user publish is protected", vm_block_obj_mark_updated(protected) != NULL && !protected->head.f.upd);
+  ck("internal publish is explicit", !vm_obj_mark_updated(protected) && protected->head.f.upd);
   vm_obj_link_direct(dst_tree, 1, protected);
   dst_tree->head.f.upd = 0;
-  ck("deep user copy validates all protected leaves first", vm_obj_copy_content_usr(&st, &dt) != NULL && value(writable_leaf) == 0 && !dst_tree->head.f.upd);
+  ck("deep user copy validates all protected leaves first", vm_block_obj_copy_content(&st, &dt) != NULL && value(writable_leaf) == 0 && !dst_tree->head.f.upd);
   holder->head.f.usr_protected = 1;
-  ck("user cannot replace a protected holder", vm_obj_clone_into_usr(&other, &dst) != NULL && child(holder, 0) == immutable);
-  ck("user cannot link a protected holder", vm_obj_link_usr(&src, &dst) != NULL);
+  ck("user cannot replace a protected holder", vm_block_obj_clone_into(&other, &dst) != NULL && child(holder, 0) == immutable);
+  ck("user cannot link a protected holder", vm_block_obj_link(&src, &dst) != NULL);
   holder->head.f.usr_protected = 0;
 
   vm_obj_link_direct(holder, 0, source);
   holder->head.f.upd = 0;
-  ck("field write succeeds without implicit parent publication", !VM_OBJ_SET_VAL_USR((uint32_t)43, &src) && source->head.f.upd && !holder->head.f.upd);
-  ck("caller may explicitly publish aggregate", !vm_obj_publish_usr(holder) && holder->head.f.upd);
+  ck("field write succeeds without implicit parent publication", !VM_OBJ_SET_SCALAR_USR((uint32_t)43, &src) && source->head.f.upd && !holder->head.f.upd);
+  ck("caller may explicitly publish aggregate", !vm_block_obj_mark_updated(holder) && holder->head.f.upd);
   vm_index_t named_path[] = {VM_IDX_BY_NAME("temp")};
   vm_accessor_t named_slot = {.id = 2, .count = 1, .indices = named_path};
   vm_obj_h owner = NULL;
@@ -146,8 +153,8 @@ void test_object_contracts(void) {
 
   path[0].value = 0x40000000u;
   uint32_t read = 77;
-  ck("overflowing two-step literal is rejected", VM_OBJ_GET_VAL(read, &nested) != NULL && read == 77);
-  ck("overflowing write cannot reach child zero", VM_OBJ_SET_VAL((uint32_t)9, &nested) != NULL && value(source) == 43);
+  ck("overflowing two-step literal is rejected", VM_OBJ_SCALAR_GET(read, &nested) != NULL && read == 77);
+  ck("overflowing write cannot reach child zero", VM_OBJ_SET_SCALAR((uint32_t)9, &nested) != NULL && value(source) == 43);
 
   // A failed allocation must not replace the existing graph or publish it.
   holder->head.f.upd = 0;
@@ -181,7 +188,7 @@ void test_object_contracts(void) {
   mk(3, VM_OBJ_B, 1, NULL, true);
   vm_obj_h guarded_holder = mk(4, VM_OBJ_PTR, 1, NULL, true);
   guarded_holder->head.f.usr_protected = 1;
-  VM_OBJ_SET_VAL_AT((uint32_t)321, input, 0);
+  VM_OBJ_SET_SCALAR_AT_IDX((uint32_t)321, input, 0);
   vm_accessor_t *input_acc, *result_acc, *holder_acc;
   vm_accessor_create(&input_acc, 0, 2, 0);
   vm_accessor_create(&result_acc, 1, 0, 0);

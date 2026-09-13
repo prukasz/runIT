@@ -1,6 +1,6 @@
 #pragma once
 #include "esp_compiler.h"
-#include "vm_block_support.h"
+#include "vm_block_helpers.h"
 
 #define VM_SET_CUSTOM_LEN 0u
 
@@ -36,7 +36,7 @@ being copied into it is a wiring error too.
 */
 
 static inline bool vm_verify_set(vm_block_h b) {
-  return vm_block_require(b, 2, 0, 0x3u);
+  return vm_block_shape_valid(b, 2, 0, 0x3u);
 }
 
 static inline void vm_blk_set(vm_block_h b) {
@@ -54,7 +54,7 @@ static inline void vm_blk_set(vm_block_h b) {
     if (vm_block_triggered_by(b, VM_SET_IN_SRC)) {
 
       IF_BLOCK_ENABLED(b) {
-        BLOCK_CALL(vm_obj_copy_content_usr(src, dst), b);
+        BLOCK_CALL(vm_block_obj_copy_content(src, dst), b);
         if (likely(!g_vm_block_fault)) {
           vm_block_set_eno(b, true);
           return;

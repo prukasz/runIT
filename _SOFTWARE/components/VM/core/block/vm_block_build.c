@@ -53,7 +53,7 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
   vm_obj_h eno = NULL;
   if (cfg->eno_obj_id != VM_BLOCK_NO_ID) {
     eno = vm_obj_get_by_id(cfg->eno_obj_id);
-    if (!eno) {
+    if (!eno || !eno->head.f.mutable || (vm_obj_t_e)eno->head.d.obj_t != VM_OBJ_B || eno->head.payload_size < 1) {
       SE_RET_ERR(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->eno_obj_id, .slot = 0, .kind = REF_KIND_ENO);
     }
   }

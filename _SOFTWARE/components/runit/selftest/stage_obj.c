@@ -1,9 +1,10 @@
 #include "selftest_harness.h"
 #include "vm_block.h"
 #include "vm_block_build.h"
-#include "vm_blocks.h"
 #include "vm_block_edge.h"
 #include "vm_block_timer.h"
+#include "vm_blocks.h"
+
 
 static uint16_t s_acc_id = 0;
 
@@ -24,13 +25,13 @@ void test_header_helpers(void) {
   /* The shift table is load-bearing: vm_obj_get_items_cnt() divides by shifting,
      so a wrong entry silently returns the wrong element count everywhere.
      Check it against the size table for every real type. */
-  const vm_obj_t_e types[] = {VM_OBJ_PTR, VM_OBJ_U8, VM_OBJ_U32, VM_OBJ_I32, VM_OBJ_F, VM_OBJ_B, VM_OBJ_STR, VM_OBJ_U64};
-  bool widths_ok = true;
-  bool counts_ok = true;
+  const vm_obj_t_e types[]   = {VM_OBJ_PTR, VM_OBJ_U8, VM_OBJ_U32, VM_OBJ_I32, VM_OBJ_F, VM_OBJ_B, VM_OBJ_STR};
+  bool             widths_ok = true;
+  bool             counts_ok = true;
   for (unsigned i = 0; i < sizeof(types) / sizeof(types[0]); i++) {
     uint8_t w = vm_type_width(types[i]);
     if (w == 0 || (w & (w - 1)) != 0) widths_ok = false;  // must be a power of two
-    vm_obj_h o = NULL;
+    vm_obj_h      o  = NULL;
     vm_obj_head_t h3 = hd(types[i], 3);
     if (vm_obj_create(&o, VM_ID_NONE, &h3, NULL) != NULL || !o) {
       counts_ok = false;
@@ -63,32 +64,32 @@ void test_header_helpers(void) {
     }
   }
   ck("shift and width tables agree, and every unused encoding reads as 0", tables_ok);
-  ck("vm_type_ok spans exactly PTR..U64", !vm_type_ok(VM_OBJ_NONE) && vm_type_ok(VM_OBJ_PTR) && vm_type_ok(VM_OBJ_U64) && !vm_type_ok(VM_OBJ_U64 + 1) && !vm_type_ok(15));
+  ck("vm_type_ok spans exactly PTR..STR", !vm_type_ok(VM_OBJ_NONE) && vm_type_ok(VM_OBJ_PTR) && vm_type_ok(VM_OBJ_STR) && !vm_type_ok(VM_OBJ_STR + 1) && !vm_type_ok(15));
 
   /* The offset form must reject anything the count form did, including the
      wrap that a 32-bit by-ref index could otherwise produce. */
   direct_arena_reset();
-  vm_obj_h eo = NULL;
-  vm_obj_head_t h64 = hd(VM_OBJ_U64, 4);
-  bool elem_ok = vm_obj_create(&eo, VM_ID_NONE, &h64, NULL) == NULL && eo;
+  vm_obj_h      eo      = NULL;
+  vm_obj_head_t h32     = hd(VM_OBJ_U32, 4);
+  bool          elem_ok = vm_obj_create(&eo, VM_ID_NONE, &h32, NULL) == NULL && eo;
   if (elem_ok) {
-    elem_ok = vm_obj_get_elem_ptr(eo, 0) == eo->payload && vm_obj_get_elem_ptr(eo, 3) == eo->payload + 24 && vm_obj_get_elem_ptr(eo, 4) == NULL && vm_obj_get_elem_ptr(eo, 0x20000000u) == NULL &&  // would wrap to offset 0 if shifted unguarded
+    elem_ok = vm_obj_get_elem_ptr(eo, 0) == eo->payload && vm_obj_get_elem_ptr(eo, 3) == eo->payload + 12 && vm_obj_get_elem_ptr(eo, 4) == NULL && vm_obj_get_elem_ptr(eo, 0x40000000u) == NULL &&  // would wrap to offset 0 if shifted unguarded
               vm_obj_get_elem_ptr(eo, UINT32_MAX) == NULL;
   }
   ck("elem_ptr bounds, including a shift that would wrap", elem_ok);
 
   direct_arena_reset();
   vm_obj_h named = mk(0, VM_OBJ_U32, 2, "abc", true);
-  vm_obj_h anon = mk(1, VM_OBJ_U32, 2, NULL, true);
+  vm_obj_h anon  = mk(1, VM_OBJ_U32, 2, NULL, true);
   ck("total_size includes name", named && vm_obj_get_total_size(named) == 4 + 8 + 3);
   ck("total_size without name", anon && vm_obj_get_total_size(anon) == 4 + 8);
   uint8_t nl = 0;
   ck("untagged object has no tag", anon && vm_obj_get_tag(anon, &nl) == NULL);
   ck("vm_obj_payload non-NULL when sized", named && vm_obj_get_payload_ptr(named) != NULL);
 
-  vm_payload_t p = vm_make_payload(named);
+  vm_obj_payload_t p = vm_make_payload(named);
   ck("as_payload type/count", p.type == VM_OBJ_U32 && p.count == 2 && p.ptr == named->payload);
-  vm_payload_t e1 = vm_payload_get_at(p, 1);
+  vm_obj_payload_t e1 = vm_payload_get_at(p, 1);
   ck("payload_at steps by width", e1.ptr == (uint8_t*)p.ptr + 4 && e1.count == 1);
   ck("payload_at out of range -> NULL", vm_payload_get_at(p, 2).ptr == NULL);
 }
@@ -104,80 +105,118 @@ void test_conversion(void) {
   mk(0, VM_OBJ_U8, 1, NULL, true);
   mk(1, VM_OBJ_I32, 1, NULL, true);
   mk(2, VM_OBJ_F, 1, NULL, true);
-  mk(3, VM_OBJ_U64, 1, NULL, true);
   mk(4, VM_OBJ_U32, 1, NULL, true);
 
-  static const vm_index_t i0[] = {{.kind = VM_IDX_LITERAL, .value = 0}};
-  static const vm_accessor_t a_u8 = {.id = 0, .count = 1, .indices = i0};
+  static const vm_index_t    i0[]  = {{.kind = VM_IDX_LITERAL, .value = 0}};
+  static const vm_accessor_t a_u8  = {.id = 0, .count = 1, .indices = i0};
   static const vm_accessor_t a_i32 = {.id = 1, .count = 1, .indices = i0};
-  static const vm_accessor_t a_f = {.id = 2, .count = 1, .indices = i0};
-  static const vm_accessor_t a_u64 = {.id = 3, .count = 1, .indices = i0};
+  static const vm_accessor_t a_f   = {.id = 2, .count = 1, .indices = i0};
   static const vm_accessor_t a_u32 = {.id = 4, .count = 1, .indices = i0};
 
   // widening
   uint8_t in_u8 = 200;
-  float out_f = 0;
-  ck("U8 200 -> float 200", VM_OBJ_SET_VAL(in_u8, &a_u8) == NULL && VM_OBJ_GET_VAL(out_f, &a_u8) == NULL && out_f == 200.0f);
+  float   out_f = 0;
+  ck("U8 200 -> float 200", VM_OBJ_SET_SCALAR(in_u8, &a_u8) == NULL && VM_OBJ_SCALAR_GET(out_f, &a_u8) == NULL && out_f == 200.0f);
 
   int32_t in_i = -5;
-  out_f = 0;
-  ck("I32 -5 -> float -5", VM_OBJ_SET_VAL(in_i, &a_i32) == NULL && VM_OBJ_GET_VAL(out_f, &a_i32) == NULL && out_f == -5.0f);
+  out_f        = 0;
+  ck("I32 -5 -> float -5", VM_OBJ_SET_SCALAR(in_i, &a_i32) == NULL && VM_OBJ_SCALAR_GET(out_f, &a_i32) == NULL && out_f == -5.0f);
 
-  uint64_t in_big = 0x0123456789ABCDEFull;
-  uint64_t out_big = 0;
-  ck("U64 round-trip at 4-byte-aligned payload", VM_OBJ_SET_VAL(in_big, &a_u64) == NULL && VM_OBJ_GET_VAL(out_big, &a_u64) == NULL && out_big == 0x0123456789ABCDEFull);
+  uint32_t out_big = 0;
 
   /* float -> integer rounds rather than truncating: a value block feeding
      179.6 into a servo angle should land on 180. */
-  float in_f = 179.6f;
+  float   in_f  = 179.6f;
   int32_t out_i = 0;
-  ck("float 179.6 -> int 180 (rounds, not truncates)", VM_OBJ_SET_VAL(in_f, &a_f) == NULL && VM_OBJ_GET_VAL(out_i, &a_f) == NULL && out_i == 180);
+  ck("float 179.6 -> int 180 (rounds, not truncates)", VM_OBJ_SET_SCALAR(in_f, &a_f) == NULL && VM_OBJ_SCALAR_GET(out_i, &a_f) == NULL && out_i == 180);
 
-  in_f = -3.7f;
+  in_f  = -3.7f;
   out_i = 0;
-  ck("float -3.7 -> int -4", VM_OBJ_SET_VAL(in_f, &a_f) == NULL && VM_OBJ_GET_VAL(out_i, &a_f) == NULL && out_i == -4);
+  ck("float -3.7 -> int -4", VM_OBJ_SET_SCALAR(in_f, &a_f) == NULL && VM_OBJ_SCALAR_GET(out_i, &a_f) == NULL && out_i == -4);
 
-  // vm_internal_f_to_i guards: a plain cast of these to an integer would be UB
-  ck("f_to_i(NaN) == 0", vm_internal_f_to_i(0.0f / 0.0f) == 0);
-  ck("f_to_i(+huge) saturates high", vm_internal_f_to_i(1e30f) == INT64_MAX);
-  ck("f_to_i(-huge) saturates low", vm_internal_f_to_i(-1e30f) == INT64_MIN);
-  ck("f_to_i rounds .5 away from zero", vm_internal_f_to_i(2.5f) == 3 && vm_internal_f_to_i(-2.5f) == -3);
-
-  /* Documented and deliberate: the destination's own range is NOT clamped,
-     so narrowing still wraps. Pinned here so adding destination clamping
-     later has to be a conscious change rather than a silent one. */
-  in_f = 300.0f;
+  /* Narrowing saturates to the destination range on reads and writes. */
+  in_f           = 300.0f;
   uint8_t out_u8 = 0;
-  ck("float 300 -> uint8 wraps to 44 (no dest clamp)", VM_OBJ_SET_VAL(in_f, &a_f) == NULL && VM_OBJ_GET_VAL(out_u8, &a_f) == NULL && out_u8 == 44);
+  ck("float 300 -> uint8 saturates to 255", VM_OBJ_SET_SCALAR(in_f, &a_f) == NULL && VM_OBJ_SCALAR_GET(out_u8, &a_f) == NULL && out_u8 == 255);
 
   /* VM_VAL_OF must write the union member VM_TYPE_OF's answer is read back
      through. A narrow source landing in .u32 while the tag says U8/B reads
      correctly on a little-endian target and wrong on any other, so pin every
      narrow source type here rather than trusting byte order. */
-  bool in_b = true;
+  bool     in_b  = true;
   uint32_t out_b = 0;
-  ck("bool true -> U8 object reads 1", VM_OBJ_SET_VAL(in_b, &a_u8) == NULL && VM_OBJ_GET_VAL(out_b, &a_u8) == NULL && out_b == 1);
+  ck("bool true -> U8 object reads 1", VM_OBJ_SET_SCALAR(in_b, &a_u8) == NULL && VM_OBJ_SCALAR_GET(out_b, &a_u8) == NULL && out_b == 1);
 
-  char in_c = 'A';
+  char     in_c  = 'A';
   uint32_t out_c = 0;
-  ck("char 'A' -> U8 object reads 65", VM_OBJ_SET_VAL(in_c, &a_u8) == NULL && VM_OBJ_GET_VAL(out_c, &a_u8) == NULL && out_c == 65);
+  ck("char 'A' -> U8 object reads 65", VM_OBJ_SET_SCALAR(in_c, &a_u8) == NULL && VM_OBJ_SCALAR_GET(out_c, &a_u8) == NULL && out_c == 65);
 
-  uint8_t in_u8b = 0xC3;
-  float out_u8f = 0;
-  ck("U8 0xC3 -> float 195", VM_OBJ_SET_VAL(in_u8b, &a_u8) == NULL && VM_OBJ_GET_VAL(out_u8f, &a_u8) == NULL && out_u8f == 195.0f);
+  uint8_t in_u8b  = 0xC3;
+  float   out_u8f = 0;
+  ck("U8 0xC3 -> float 195", VM_OBJ_SET_SCALAR(in_u8b, &a_u8) == NULL && VM_OBJ_SCALAR_GET(out_u8f, &a_u8) == NULL && out_u8f == 195.0f);
 
-  // storing wider than the object holds truncates on the way in
+  // Storing wider than the object holds saturates on the way in.
   uint32_t in_u32 = 0x12345678;
-  uint8_t narrow = 0;
-  ck("U32 stored into U8 object truncates", VM_OBJ_SET_VAL(in_u32, &a_u8) == NULL && VM_OBJ_GET_VAL(narrow, &a_u8) == NULL && narrow == 0x78);
+  uint8_t  narrow = 0;
+  ck("U32 stored into U8 object saturates", VM_OBJ_SET_SCALAR(in_u32, &a_u8) == NULL && VM_OBJ_SCALAR_GET(narrow, &a_u8) == NULL && narrow == UINT8_MAX);
 
-  // reading a PTR/STR payload yields zero rather than garbage
+  narrow = 73;
+  ck("NULL scalar accessor preserves output", VM_OBJ_SCALAR_GET(narrow, NULL) != NULL && narrow == 73);
+  ck("NULL scalar setter fails", VM_OBJ_SET_SCALAR((uint8_t)1, NULL) != NULL);
+  vm_accessor_t missing = {.id = UINT16_MAX};
+  ck("missing scalar object preserves output", VM_OBJ_SCALAR_GET(narrow, &missing) != NULL && narrow == 73);
+  vm_obj_payload_t failed_payload = {.ptr = &narrow, .count = 1, .type = VM_OBJ_U8};
+  ck("NULL payload accessor clears descriptor", vm_obj_get_payload(&failed_payload, NULL) != NULL && !failed_payload.ptr && !failed_payload.count);
+  ck("NULL payload output fails", vm_obj_get_payload(NULL, &a_u8) != NULL);
+
+  bool truth = false;
+  ck("fractional float is true without rounding", !VM_OBJ_SET_SCALAR(0.25f, &a_f) && !VM_OBJ_SCALAR_GET(truth, &a_f) && truth);
+  ck("negative fraction is also true", !VM_OBJ_SET_SCALAR(-0.25f, &a_f) && !VM_OBJ_SCALAR_GET(truth, &a_f) && truth);
+  ck("zero converts to false", !VM_OBJ_SET_SCALAR(0.0f, &a_f) && !VM_OBJ_SCALAR_GET(truth, &a_f) && !truth);
+  ck("U32 high bit remains true", !VM_OBJ_SET_SCALAR(UINT32_MAX, &a_u32) && !VM_OBJ_SCALAR_GET(truth, &a_u32) && truth);
+  ck("U32 saturates at I32 maximum", !VM_OBJ_SCALAR_GET(out_i, &a_u32) && out_i == INT32_MAX);
+  ck("last representable float below U32 ceiling", !VM_OBJ_SET_SCALAR(0x1.fffffep31f, &a_f) && !VM_OBJ_SCALAR_GET(out_big, &a_f) && out_big == UINT32_C(4294967040));
+  ck("float at U32 ceiling saturates", !VM_OBJ_SET_SCALAR(0x1p32f, &a_f) && !VM_OBJ_SCALAR_GET(out_big, &a_f) && out_big == UINT32_MAX);
+  ck("float halfway rounds away from zero", !VM_OBJ_SET_SCALAR(-2.5f, &a_f) && !VM_OBJ_SCALAR_GET(out_i, &a_f) && out_i == -3);
+  ck("negative signed source saturates to unsigned zero", !VM_OBJ_SET_SCALAR((int32_t)-7, &a_u8) && !VM_OBJ_SCALAR_GET(narrow, &a_u8) && narrow == 0);
+  ck("signed source retains sign into I32", !VM_OBJ_SET_SCALAR((int32_t)-7, &a_i32) && !VM_OBJ_SCALAR_GET(out_i, &a_i32) && out_i == -7);
+  ck("positive infinity saturates to U32 maximum", !VM_OBJ_SET_SCALAR(INFINITY, &a_f) && !VM_OBJ_SCALAR_GET(out_big, &a_f) && out_big == UINT32_MAX);
+  ck("negative infinity saturates to signed minimum", !VM_OBJ_SET_SCALAR(-INFINITY, &a_f) && !VM_OBJ_SCALAR_GET(out_i, &a_f) && out_i == INT32_MIN);
+  ck("NaN converts to integer zero", !VM_OBJ_SET_SCALAR(NAN, &a_f) && !VM_OBJ_SCALAR_GET(out_i, &a_f) && out_i == 0);
+  int32_t evaluations = 0;
+  ck("setter evaluates source once", !VM_OBJ_SET_SCALAR(++evaluations, &a_i32) && evaluations == 1);
+
+  // Invalid payloads return errors without overwriting the caller's value.
   in_u32 = 7;
-  (void)VM_OBJ_SET_VAL(in_u32, &a_u32);
-  vm_payload_t praw = {.ptr = NULL, .count = 0, .type = VM_OBJ_STR, ._pad = 0};
-  uint32_t vraw = 999;
-  VM_PAYLOAD_GET_VAL(vraw, praw);
-  ck("payload_read of NULL ptr is zero", vraw == 0);
+  (void)VM_OBJ_SET_SCALAR(in_u32, &a_u32);
+  vm_obj_payload_t praw = {.ptr = NULL, .count = 0, .type = VM_OBJ_STR, ._pad = 0};
+  uint32_t     vraw = 999;
+  ck("payload_read of NULL ptr reports error and preserves output", VM_PAYLOAD_GET_VAL(vraw, praw) != NULL && vraw == 999);
+
+  vm_accessor_t absent    = {.id = UINT16_MAX};
+  vm_index_t    ref_index = {.kind = VM_IDX_REF, .ref = &absent};
+  vm_accessor_t indirect  = {.id = 4, .count = 1, .indices = &ref_index};
+  err_h         chain     = VM_OBJ_SCALAR_GET(vraw, &indirect);
+  bool          saw_index = false, saw_root = false;
+  for (err_h e = chain; e; e = e->next_cause) {
+    saw_index |= e->tag == ERR_VM_ACCESSOR_INDEX_FAILED;
+    saw_root |= e->tag == ERR_VM_ACCESSOR_UNKNOWN_ID;
+  }
+  ck("top getter preserves index context and root cause", chain && saw_index && saw_root && vraw == 999);
+  vm_accessor_t malformed_cache = {.id = 4, .flags = VM_ACC_F_CACHED};
+  ck("malformed cached read returns error", VM_OBJ_SCALAR_GET(vraw, &malformed_cache) != NULL && vraw == 999);
+  ck("malformed cached write returns error", VM_OBJ_SET_SCALAR(in_u32, &malformed_cache) != NULL);
+  ref_index = (vm_index_t){.kind = 255, .value = 0};
+  ck("unknown index kind cannot silently address element zero", VM_OBJ_SCALAR_GET(vraw, &indirect) != NULL && vraw == 999);
+  vm_obj_h   name_parent = mk(3, VM_OBJ_PTR, 1, NULL, true);
+  const char raw_name[]  = {'x', 'y'};
+  ref_index              = (vm_index_t){.kind = VM_IDX_NAME, .name = raw_name, .name_len = sizeof(raw_name)};
+  indirect.id            = 3;
+  ck("unterminated missing name safely returns an error", name_parent && VM_OBJ_SCALAR_GET(vraw, &indirect) != NULL && vraw == 999);
+  ref_index.name = NULL;
+  ck("NULL accessor name safely returns an error", VM_OBJ_SCALAR_GET(vraw, &indirect) != NULL);
+  ck("quiet clear rejects NULL", vm_obj_clear_quiet(NULL) != NULL);
+  ck("quiet clear rejects pointer payload", vm_obj_clear_quiet(name_parent) != NULL);
 }
 
 /* ==========================================================================
@@ -188,104 +227,119 @@ void test_resolution(void) {
   ESP_LOGI(TAG, "-- C: accessor resolution --");
   direct_arena_reset();
 
-  vm_obj_h arr = mk(0, VM_OBJ_U32, 4, NULL, true);
-  vm_obj_h sel = mk(1, VM_OBJ_U8, 1, NULL, true);
+  vm_obj_h arr    = mk(0, VM_OBJ_U32, 4, NULL, true);
+  vm_obj_h sel    = mk(1, VM_OBJ_U8, 1, NULL, true);
   vm_obj_h parent = mk(2, VM_OBJ_PTR, 2, NULL, true);
-  vm_obj_h leaf = mk(3, VM_OBJ_F, 1, "leaf", true);
-  vm_obj_h ro = mk(4, VM_OBJ_F, 1, NULL, false);  // not mutable
+  vm_obj_h leaf   = mk(3, VM_OBJ_F, 1, "leaf", true);
+  vm_obj_h ro     = mk(4, VM_OBJ_F, 1, NULL, false);  // not mutable
   ck("fixtures built", arr && sel && parent && leaf && ro);
 
-  uint32_t* cells = (uint32_t*)arr->payload;
-  cells[0] = 10;
-  cells[1] = 20;
-  cells[2] = 30;
-  cells[3] = 40;
+  uint32_t* cells         = (uint32_t*)arr->payload;
+  cells[0]                = 10;
+  cells[1]                = 20;
+  cells[2]                = 30;
+  cells[3]                = 40;
   *(uint8_t*)sel->payload = 2;
-  *(float*)leaf->payload = 1.25f;
+  *(float*)leaf->payload  = 1.25f;
   ck("link child into parent slot 1", vm_obj_link_direct(parent, 1, leaf) == NULL);
 
   // literal index
-  static const vm_index_t lit2[] = {{.kind = VM_IDX_LITERAL, .value = 2}};
-  static const vm_accessor_t a_lit = {.id = 0, .count = 1, .indices = lit2};
-  uint32_t got = 0;
-  ck("literal index reads arr[2] == 30", VM_OBJ_GET_VAL(got, &a_lit) == NULL && got == 30);
+  static const vm_index_t    lit2[] = {{.kind = VM_IDX_LITERAL, .value = 2}};
+  static const vm_accessor_t a_lit  = {.id = 0, .count = 1, .indices = lit2};
+  uint32_t                   got    = 0;
+  ck("literal index reads arr[2] == 30", VM_OBJ_SCALAR_GET(got, &a_lit) == NULL && got == 30);
+
+  static const vm_accessor_t a_arr = {.id = 0, .count = 0, .indices = NULL};
+  uint32_t                   got_u32 = 0;
+  float                      got_f   = 0.0f;
+  int32_t                    got_i32 = 0;
+  uint8_t                    got_u8  = 0;
+  bool                       got_b   = false;
+  char                       got_c   = 0;
+  ck("SCALAR_GET_AT_IDX uint32 arr[2]", VM_OBJ_SCALAR_GET_AT_IDX(got_u32, &a_arr, 2) == NULL && got_u32 == 30);
+  ck("SCALAR_GET_AT_IDX float arr[3]", VM_OBJ_SCALAR_GET_AT_IDX(got_f, &a_arr, 3) == NULL && got_f == 40.0f);
+  ck("SCALAR_GET_AT_IDX int32 arr[1]", VM_OBJ_SCALAR_GET_AT_IDX(got_i32, &a_arr, 1) == NULL && got_i32 == 20);
+  ck("SCALAR_GET_AT_IDX uint8 arr[0]", VM_OBJ_SCALAR_GET_AT_IDX(got_u8, &a_arr, 0) == NULL && got_u8 == 10);
+  ck("SCALAR_GET_AT_IDX bool arr[2]", VM_OBJ_SCALAR_GET_AT_IDX(got_b, &a_arr, 2) == NULL && got_b == true);
+  ck("SCALAR_GET_AT_IDX char arr[0]", VM_OBJ_SCALAR_GET_AT_IDX(got_c, &a_arr, 0) == NULL && got_c == 10);
+  ck("SCALAR_GET_AT_IDX past end -> OOB", VM_OBJ_SCALAR_GET_AT_IDX(got_u32, &a_arr, 4) != NULL);
 
   /* by-ref index: the position is read live from another object, so the same
      accessor must follow `sel` when it changes. */
-  static const vm_accessor_t a_sel = {.id = 1, .count = 0, .indices = NULL};
-  static const vm_index_t byref[] = {{.kind = VM_IDX_REF, .ref = &a_sel}};
-  static const vm_accessor_t a_dyn = {.id = 0, .count = 1, .indices = byref};
-  got = 0;
-  ck("by-ref index reads arr[sel=2] == 30", VM_OBJ_GET_VAL(got, &a_dyn) == NULL && got == 30);
+  static const vm_accessor_t a_sel   = {.id = 1, .count = 0, .indices = NULL};
+  static const vm_index_t    byref[] = {{.kind = VM_IDX_REF, .ref = &a_sel}};
+  static const vm_accessor_t a_dyn   = {.id = 0, .count = 1, .indices = byref};
+  got                                = 0;
+  ck("by-ref index reads arr[sel=2] == 30", VM_OBJ_SCALAR_GET(got, &a_dyn) == NULL && got == 30);
   *(uint8_t*)sel->payload = 0;
-  got = 0;
-  ck("by-ref follows sel=0 -> 10 (live, not cached)", VM_OBJ_GET_VAL(got, &a_dyn) == NULL && got == 10);
+  got                     = 0;
+  ck("by-ref follows sel=0 -> 10 (live, not cached)", VM_OBJ_SCALAR_GET(got, &a_dyn) == NULL && got == 10);
 
   // name index through a PTR parent, then the value step
-  static const vm_index_t named[] = {VM_IDX_BY_NAME("leaf"), {.kind = VM_IDX_LITERAL, .value = 0}};
+  static const vm_index_t    named[] = {VM_IDX_BY_NAME("leaf"), {.kind = VM_IDX_LITERAL, .value = 0}};
   static const vm_accessor_t a_named = {.id = 2, .count = 2, .indices = named};
-  float f = 0;
-  ck("name index finds child at slot 1", VM_OBJ_GET_VAL(f, &a_named) == NULL && f == 1.25f);
+  float                      f       = 0;
+  ck("name index finds child at slot 1", VM_OBJ_SCALAR_GET(f, &a_named) == NULL && f == 1.25f);
 
   // failure modes
-  static const vm_index_t oob[] = {{.kind = VM_IDX_LITERAL, .value = 9}};
+  static const vm_index_t    oob[] = {{.kind = VM_IDX_LITERAL, .value = 9}};
   static const vm_accessor_t a_oob = {.id = 0, .count = 1, .indices = oob};
-  ck("index past end -> OOB", VM_OBJ_GET_VAL(got, &a_oob) != NULL);
+  ck("index past end -> OOB", VM_OBJ_SCALAR_GET(got, &a_oob) != NULL);
 
   static const vm_accessor_t a_badid = {.id = 999, .count = 0, .indices = NULL};
-  ck("unknown root id -> UNKNOWN_ID", VM_OBJ_GET_VAL(got, &a_badid) != NULL);
+  ck("unknown root id -> UNKNOWN_ID", VM_OBJ_SCALAR_GET(got, &a_badid) != NULL);
 
   /* slot 0 of parent was never linked, so descending through it must report
      rather than dereference NULL */
-  static const vm_index_t via_null[] = {{.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 0}};
-  static const vm_accessor_t a_null = {.id = 2, .count = 2, .indices = via_null};
-  ck("descend through unlinked slot -> NULL_OBJ", VM_OBJ_GET_VAL(f, &a_null) != NULL);
+  static const vm_index_t    via_null[] = {{.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 0}};
+  static const vm_accessor_t a_null     = {.id = 2, .count = 2, .indices = via_null};
+  ck("descend through unlinked slot -> NULL_OBJ", VM_OBJ_SCALAR_GET(f, &a_null) != NULL);
 
   // chaining past a non-PTR element
-  static const vm_index_t deep[] = {{.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 0}};
+  static const vm_index_t    deep[]     = {{.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 0}};
   static const vm_accessor_t a_mismatch = {.id = 0, .count = 2, .indices = deep};
-  ck("chain through non-PTR -> TYPE_MISMATCH", VM_OBJ_GET_VAL(got, &a_mismatch) != NULL);
+  ck("chain through non-PTR -> TYPE_MISMATCH", VM_OBJ_SCALAR_GET(got, &a_mismatch) != NULL);
 
   // name lookup on a scalar array has no tags to match
-  static const vm_index_t nm[] = {VM_IDX_BY_NAME("leaf")};
+  static const vm_index_t    nm[]          = {VM_IDX_BY_NAME("leaf")};
   static const vm_accessor_t a_name_scalar = {.id = 0, .count = 1, .indices = nm};
-  ck("name index on scalar array -> TYPE_MISMATCH", VM_OBJ_GET_VAL(got, &a_name_scalar) != NULL);
+  ck("name index on scalar array -> TYPE_MISMATCH", VM_OBJ_SCALAR_GET(got, &a_name_scalar) != NULL);
 
   /* Mutability gates writes only -- reading a read-only calibration table is
      legitimate, so the check must not fire on the read path. */
-  static const vm_index_t ro_i0[] = {{.kind = VM_IDX_LITERAL, .value = 0}};
-  static const vm_accessor_t a_ro = {.id = 4, .count = 1, .indices = ro_i0};
-  *(float*)ro->payload = 9.5f;
-  float rov = 0.0f;
-  ck("read from non-mutable object succeeds", VM_OBJ_GET_VAL(rov, &a_ro) == NULL && rov == 9.5f);
+  static const vm_index_t    ro_i0[] = {{.kind = VM_IDX_LITERAL, .value = 0}};
+  static const vm_accessor_t a_ro    = {.id = 4, .count = 1, .indices = ro_i0};
+  *(float*)ro->payload               = 9.5f;
+  float rov                          = 0.0f;
+  ck("read from non-mutable object succeeds", VM_OBJ_SCALAR_GET(rov, &a_ro) == NULL && rov == 9.5f);
   float wv = 1.0f;
-  ck("write to non-mutable object -> NOT_MUTABLE", VM_OBJ_SET_VAL(wv, &a_ro) != NULL);
+  ck("write to non-mutable object -> NOT_MUTABLE", VM_OBJ_SET_SCALAR(wv, &a_ro) != NULL);
   ck("rejected write left the value alone", *(float*)ro->payload == 9.5f);
 
   /* Whole-array iteration -- the shape a fold block (Sum, Average, Min/Max)
      uses: resolve once to a payload, then step it element by element. */
-  static const vm_accessor_t w_arr = {.id = 0, .count = 0, .indices = NULL};
-  vm_payload_t arrp = {.ptr = NULL, .count = 0, .type = VM_OBJ_NONE, ._pad = 0};
-  bool got_payload = vm_obj_get_payload(&arrp, &w_arr) == NULL;
+  static const vm_accessor_t w_arr       = {.id = 0, .count = 0, .indices = NULL};
+  vm_obj_payload_t           arrp        = {.ptr = NULL, .count = 0, .type = VM_OBJ_NONE, ._pad = 0};
+  bool                       got_payload = vm_obj_get_payload(&arrp, &w_arr) == NULL;
   ck("get_payload on whole array gives count 4", got_payload && arrp.count == 4 && arrp.type == VM_OBJ_U32);
-  uint64_t sum = 0;
+  uint32_t sum = 0;
   for (uint16_t i = 0; i < arrp.count; i++) {
-    uint64_t el = 0;
-    VM_PAYLOAD_GET_VAL(el, vm_payload_get_at(arrp, i));
+    uint32_t el = 0;
+    ck("array element read succeeds", VM_PAYLOAD_GET_VAL(el, vm_payload_get_at(arrp, i)) == NULL);
     sum += el;
   }
   ck("iterating the payload sums 10+20+30+40", sum == 100);
 
   // depth cap: a by-ref chain longer than VM_ACCESSOR_MAX_DEPTH must stop
   vm_accessor_t* chain[12] = {0};
-  bool built = vm_accessor_create(&chain[11], s_acc_id++, 1, 0) == NULL;
+  bool           built     = vm_accessor_create(&chain[11], s_acc_id++, 1, 0) == NULL;
   for (int i = 10; i >= 0 && built; i--) {
     built = vm_accessor_create(&chain[i], s_acc_id++, 0, 1) == NULL && vm_accessor_set_ref(chain[i], 0, chain[i + 1]) == NULL;
   }
   ck("built a 12-deep by-ref chain", built);
   if (built) {
     got = 0;
-    ck("by-ref chain past MAX_DEPTH -> DEPTH_EXCEEDED", VM_OBJ_GET_VAL(got, chain[0]) != NULL);
+    ck("by-ref chain past MAX_DEPTH -> DEPTH_EXCEEDED", VM_OBJ_SCALAR_GET(got, chain[0]) != NULL);
   }
 }
 
@@ -305,42 +359,42 @@ void test_resolution(void) {
      grid (PTR[3]) -> row0/row1/row2 (U32[3])   -- the jagged 2D shape
    ========================================================================== */
 
-#define N_ROOT 0
-#define N_BR_A 1
-#define N_BR_B 2
+#define N_ROOT   0
+#define N_BR_A   1
+#define N_BR_B   2
 #define N_LEAF_X 3
 #define N_LEAF_Y 4
 #define N_LEAF_Z 5
-#define N_GRID 6
-#define N_ROW0 7
-#define N_ROW1 8
-#define N_ROW2 9
+#define N_GRID   6
+#define N_ROW0   7
+#define N_ROW1   8
+#define N_ROW2   9
 
 void test_nested(void) {
   ESP_LOGI(TAG, "-- D: nested objects --");
   direct_arena_reset();
 
-  vm_obj_h root = mk(N_ROOT, VM_OBJ_PTR, 2, NULL, true);
-  vm_obj_h br_a = mk(N_BR_A, VM_OBJ_PTR, 2, NULL, true);
-  vm_obj_h br_b = mk(N_BR_B, VM_OBJ_PTR, 1, NULL, true);
+  vm_obj_h root   = mk(N_ROOT, VM_OBJ_PTR, 2, NULL, true);
+  vm_obj_h br_a   = mk(N_BR_A, VM_OBJ_PTR, 2, NULL, true);
+  vm_obj_h br_b   = mk(N_BR_B, VM_OBJ_PTR, 1, NULL, true);
   vm_obj_h leaf_x = mk(N_LEAF_X, VM_OBJ_U32, 3, NULL, true);
   vm_obj_h leaf_y = mk(N_LEAF_Y, VM_OBJ_F, 1, "yval", true);
   vm_obj_h leaf_z = mk(N_LEAF_Z, VM_OBJ_U8, 4, "zdata", true);
-  vm_obj_h grid = mk(N_GRID, VM_OBJ_PTR, 3, NULL, true);
-  vm_obj_h row0 = mk(N_ROW0, VM_OBJ_U32, 3, NULL, true);
-  vm_obj_h row1 = mk(N_ROW1, VM_OBJ_U32, 3, NULL, true);
-  vm_obj_h row2 = mk(N_ROW2, VM_OBJ_U32, 3, NULL, true);
+  vm_obj_h grid   = mk(N_GRID, VM_OBJ_PTR, 3, NULL, true);
+  vm_obj_h row0   = mk(N_ROW0, VM_OBJ_U32, 3, NULL, true);
+  vm_obj_h row1   = mk(N_ROW1, VM_OBJ_U32, 3, NULL, true);
+  vm_obj_h row2   = mk(N_ROW2, VM_OBJ_U32, 3, NULL, true);
   ck("nested fixtures built", root && br_a && br_b && leaf_x && leaf_y && leaf_z && grid && row0 && row1 && row2);
 
-  uint32_t* xv = (uint32_t*)leaf_x->payload;
-  xv[0] = 100;
-  xv[1] = 200;
-  xv[2] = 300;
+  uint32_t* xv             = (uint32_t*)leaf_x->payload;
+  xv[0]                    = 100;
+  xv[1]                    = 200;
+  xv[2]                    = 300;
   *(float*)leaf_y->payload = 2.5f;
   for (int i = 0; i < 4; i++) leaf_z->payload[i] = (uint8_t)(i + 1);
   for (int r = 0; r < 3; r++) {
-    vm_obj_h row = (r == 0) ? row0 : (r == 1) ? row1 : row2;
-    uint32_t* rv = (uint32_t*)row->payload;
+    vm_obj_h  row = (r == 0) ? row0 : (r == 1) ? row1 : row2;
+    uint32_t* rv  = (uint32_t*)row->payload;
     for (int c = 0; c < 3; c++) rv[c] = (uint32_t)(r * 10 + c);
   }
 
@@ -353,34 +407,34 @@ void test_nested(void) {
 
   /* Three levels of literals: each step lands on a PTR slot and is
      dereferenced because another index follows; only the last reads a value. */
-  static const vm_index_t i_deep[] = {{.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 1}};
-  static const vm_accessor_t a_deep = {.id = N_ROOT, .count = 3, .indices = i_deep};
-  uint32_t u = 0;
-  ck("root[0][0][1] == 200 (3-level literal chain)", VM_OBJ_GET_VAL(u, &a_deep) == NULL && u == 200);
+  static const vm_index_t    i_deep[] = {{.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 1}};
+  static const vm_accessor_t a_deep   = {.id = N_ROOT, .count = 3, .indices = i_deep};
+  uint32_t                   u        = 0;
+  ck("root[0][0][1] == 200 (3-level literal chain)", VM_OBJ_SCALAR_GET(u, &a_deep) == NULL && u == 200);
 
   // literal then name then literal -- index kinds mix freely along a chain
-  static const vm_index_t i_mixed[] = {{.kind = VM_IDX_LITERAL, .value = 0}, VM_IDX_BY_NAME("yval"), {.kind = VM_IDX_LITERAL, .value = 0}};
-  static const vm_accessor_t a_mixed = {.id = N_ROOT, .count = 3, .indices = i_mixed};
-  float f = 0;
-  ck("root[0][\"yval\"][0] == 2.5 (mixed literal/name)", VM_OBJ_GET_VAL(f, &a_mixed) == NULL && f == 2.5f);
+  static const vm_index_t    i_mixed[] = {{.kind = VM_IDX_LITERAL, .value = 0}, VM_IDX_BY_NAME("yval"), {.kind = VM_IDX_LITERAL, .value = 0}};
+  static const vm_accessor_t a_mixed   = {.id = N_ROOT, .count = 3, .indices = i_mixed};
+  float                      f         = 0;
+  ck("root[0][\"yval\"][0] == 2.5 (mixed literal/name)", VM_OBJ_SCALAR_GET(f, &a_mixed) == NULL && f == 2.5f);
 
-  static const vm_index_t i_bpath[] = {{.kind = VM_IDX_LITERAL, .value = 1}, VM_IDX_BY_NAME("zdata"), {.kind = VM_IDX_LITERAL, .value = 2}};
-  static const vm_accessor_t a_bpath = {.id = N_ROOT, .count = 3, .indices = i_bpath};
-  u = 0;
-  ck("root[1][\"zdata\"][2] == 3 (other branch)", VM_OBJ_GET_VAL(u, &a_bpath) == NULL && u == 3);
+  static const vm_index_t    i_bpath[] = {{.kind = VM_IDX_LITERAL, .value = 1}, VM_IDX_BY_NAME("zdata"), {.kind = VM_IDX_LITERAL, .value = 2}};
+  static const vm_accessor_t a_bpath   = {.id = N_ROOT, .count = 3, .indices = i_bpath};
+  u                                    = 0;
+  ck("root[1][\"zdata\"][2] == 3 (other branch)", VM_OBJ_SCALAR_GET(u, &a_bpath) == NULL && u == 3);
 
   // the jagged 2D shape: grid[row][col]
-  static const vm_index_t i_grid[] = {{.kind = VM_IDX_LITERAL, .value = 1}, {.kind = VM_IDX_LITERAL, .value = 2}};
-  static const vm_accessor_t a_grid = {.id = N_GRID, .count = 2, .indices = i_grid};
-  u = 0;
-  ck("grid[1][2] == 12 (jagged 2D)", VM_OBJ_GET_VAL(u, &a_grid) == NULL && u == 12);
+  static const vm_index_t    i_grid[] = {{.kind = VM_IDX_LITERAL, .value = 1}, {.kind = VM_IDX_LITERAL, .value = 2}};
+  static const vm_accessor_t a_grid   = {.id = N_GRID, .count = 2, .indices = i_grid};
+  u                                   = 0;
+  ck("grid[1][2] == 12 (jagged 2D)", VM_OBJ_SCALAR_GET(u, &a_grid) == NULL && u == 12);
 
   // whole-object resolve at each depth
-  static const vm_index_t i_r0[] = {{.kind = VM_IDX_LITERAL, .value = 0}};
-  static const vm_accessor_t a_r0 = {.id = N_ROOT, .count = 1, .indices = i_r0};
-  static const vm_index_t i_r00[] = {{.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 0}};
-  static const vm_accessor_t a_r00 = {.id = N_ROOT, .count = 2, .indices = i_r00};
-  vm_obj_h h = NULL;
+  static const vm_index_t    i_r0[]  = {{.kind = VM_IDX_LITERAL, .value = 0}};
+  static const vm_accessor_t a_r0    = {.id = N_ROOT, .count = 1, .indices = i_r0};
+  static const vm_index_t    i_r00[] = {{.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 0}};
+  static const vm_accessor_t a_r00   = {.id = N_ROOT, .count = 2, .indices = i_r00};
+  vm_obj_h                   h       = NULL;
   ck("get_obj(root[0]) -> branch_a", vm_obj_get_obj(&h, &a_r0) == NULL && h == br_a);
   h = NULL;
   ck("get_obj(root[0][0]) -> leaf_x", vm_obj_get_obj(&h, &a_r00) == NULL && h == leaf_x);
@@ -390,10 +444,10 @@ void test_nested(void) {
      because its last step would land on the PTR slot. */
   uint32_t sum = 0;
   if (vm_obj_get_obj(&h, &a_r00) == NULL && h) {
-    vm_payload_t p = vm_make_payload(h);
+    vm_obj_payload_t p = vm_make_payload(h);
     for (uint16_t i = 0; i < p.count; i++) {
       uint32_t el = 0;
-      VM_PAYLOAD_GET_VAL(el, vm_payload_get_at(p, i));
+      ck("nested element read succeeds", VM_PAYLOAD_GET_VAL(el, vm_payload_get_at(p, i)) == NULL);
       sum += el;
     }
   }
@@ -402,45 +456,45 @@ void test_nested(void) {
   /* Writing through a deep chain reaches the real leaf. Clear upd first:
      building the tree set it on every parent, because vm_obj_link_direct()
      legitimately marks a cell whose pointer array changed. */
-  root->head.f.upd = 0;
-  br_a->head.f.upd = 0;
+  root->head.f.upd   = 0;
+  br_a->head.f.upd   = 0;
   leaf_x->head.f.upd = 0;
-  uint32_t w = 999;
-  ck("write through root[0][0][1]", VM_OBJ_SET_VAL(w, &a_deep) == NULL && xv[1] == 999);
+  uint32_t w         = 999;
+  ck("write through root[0][0][1]", VM_OBJ_SET_SCALAR(w, &a_deep) == NULL && xv[1] == 999);
   ck("deep write marks only the leaf, not the parents it traversed", leaf_x->head.f.upd == 1 && root->head.f.upd == 0 && br_a->head.f.upd == 0);
   xv[1] = 200;
 
   /* Aliasing: one child linked into two parents is genuinely shared, not
      copied -- a write through either path is visible from the other. */
   ck("relink leaf_x under branch_b too", vm_obj_link_direct(br_b, 0, leaf_x) == NULL);
-  static const vm_index_t i_alias[] = {{.kind = VM_IDX_LITERAL, .value = 1}, {.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 1}};
-  static const vm_accessor_t a_alias = {.id = N_ROOT, .count = 3, .indices = i_alias};
-  u = 0;
-  ck("root[1][0][1] reaches the same leaf -> 200", VM_OBJ_GET_VAL(u, &a_alias) == NULL && u == 200);
+  static const vm_index_t    i_alias[] = {{.kind = VM_IDX_LITERAL, .value = 1}, {.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 1}};
+  static const vm_accessor_t a_alias   = {.id = N_ROOT, .count = 3, .indices = i_alias};
+  u                                    = 0;
+  ck("root[1][0][1] reaches the same leaf -> 200", VM_OBJ_SCALAR_GET(u, &a_alias) == NULL && u == 200);
   w = 555;
   u = 0;
-  ck("write via one path is visible from the other", VM_OBJ_SET_VAL(w, &a_alias) == NULL && VM_OBJ_GET_VAL(u, &a_deep) == NULL && u == 555);
+  ck("write via one path is visible from the other", VM_OBJ_SET_SCALAR(w, &a_alias) == NULL && VM_OBJ_SCALAR_GET(u, &a_deep) == NULL && u == 555);
 
   // failures at depth
-  static const vm_index_t i_oob2[] = {{.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 7}};
-  static const vm_accessor_t a_oob2 = {.id = N_ROOT, .count = 2, .indices = i_oob2};
-  ck("OOB at level 2 -> error", VM_OBJ_GET_VAL(u, &a_oob2) != NULL);
+  static const vm_index_t    i_oob2[] = {{.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 7}};
+  static const vm_accessor_t a_oob2   = {.id = N_ROOT, .count = 2, .indices = i_oob2};
+  ck("OOB at level 2 -> error", VM_OBJ_SCALAR_GET(u, &a_oob2) != NULL);
 
-  static const vm_index_t i_far[] = {{.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 0}};
-  static const vm_accessor_t a_far = {.id = N_ROOT, .count = 4, .indices = i_far};
-  ck("chaining past a scalar leaf -> TYPE_MISMATCH", VM_OBJ_GET_VAL(u, &a_far) != NULL);
+  static const vm_index_t    i_far[] = {{.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 0}, {.kind = VM_IDX_LITERAL, .value = 0}};
+  static const vm_accessor_t a_far   = {.id = N_ROOT, .count = 4, .indices = i_far};
+  ck("chaining past a scalar leaf -> TYPE_MISMATCH", VM_OBJ_SCALAR_GET(u, &a_far) != NULL);
 
-  static const vm_index_t i_badname[] = {{.kind = VM_IDX_LITERAL, .value = 0}, VM_IDX_BY_NAME("nope"), {.kind = VM_IDX_LITERAL, .value = 0}};
-  static const vm_accessor_t a_badname = {.id = N_ROOT, .count = 3, .indices = i_badname};
-  ck("name miss at level 2 -> NAME_NOT_FOUND", VM_OBJ_GET_VAL(f, &a_badname) != NULL);
+  static const vm_index_t    i_badname[] = {{.kind = VM_IDX_LITERAL, .value = 0}, VM_IDX_BY_NAME("nope"), {.kind = VM_IDX_LITERAL, .value = 0}};
+  static const vm_accessor_t a_badname   = {.id = N_ROOT, .count = 3, .indices = i_badname};
+  ck("name miss at level 2 -> NAME_NOT_FOUND", VM_OBJ_SCALAR_GET(f, &a_badname) != NULL);
 
   /* Re-linking a branch is the switch/demux primitive: consumers keep their
      wiring and silently follow the new subtree. Done last, since it changes
      what every root[0]... accessor above resolves to. */
   ck("re-point root[0] at branch_b", vm_obj_link_direct(root, 0, br_b) == NULL);
   u = 0;
-  ck("root[0][0][1] now reads through branch_b", VM_OBJ_GET_VAL(u, &a_deep) == NULL && u == 555);
-  ck("root[0][\"yval\"] no longer resolves after re-link", VM_OBJ_GET_VAL(f, &a_mixed) != NULL);
+  ck("root[0][0][1] now reads through branch_b", VM_OBJ_SCALAR_GET(u, &a_deep) == NULL && u == 555);
+  ck("root[0][\"yval\"] no longer resolves after re-link", VM_OBJ_SCALAR_GET(f, &a_mixed) != NULL);
 }
 
 /* ==========================================================================
@@ -451,40 +505,40 @@ void test_mutation(void) {
   ESP_LOGI(TAG, "-- E: mutation --");
   direct_arena_reset();
 
-  vm_obj_h a = mk(0, VM_OBJ_U32, 4, NULL, true);
-  vm_obj_h b = mk(1, VM_OBJ_U32, 4, NULL, true);
+  vm_obj_h a     = mk(0, VM_OBJ_U32, 4, NULL, true);
+  vm_obj_h b     = mk(1, VM_OBJ_U32, 4, NULL, true);
   vm_obj_h small = mk(2, VM_OBJ_U32, 2, NULL, true);
   vm_obj_h other = mk(3, VM_OBJ_F, 4, NULL, true);
-  vm_obj_h ro = mk(4, VM_OBJ_U32, 4, NULL, false);
-  vm_obj_h cell = mk(5, VM_OBJ_PTR, 1, NULL, true);
-  vm_obj_h leaf = mk(6, VM_OBJ_F, 1, NULL, true);
+  vm_obj_h ro    = mk(4, VM_OBJ_U32, 4, NULL, false);
+  vm_obj_h cell  = mk(5, VM_OBJ_PTR, 1, NULL, true);
+  vm_obj_h leaf  = mk(6, VM_OBJ_F, 1, NULL, true);
   ck("fixtures built", a && b && small && other && ro && cell && leaf);
 
   uint32_t* av = (uint32_t*)a->payload;
-  av[0] = 1;
-  av[1] = 2;
-  av[2] = 3;
-  av[3] = 4;
+  av[0]        = 1;
+  av[1]        = 2;
+  av[2]        = 3;
+  av[3]        = 4;
 
   // direct writes, no accessor
   uint32_t v = 77;
-  ck("set_scalar_direct writes element 2", VM_OBJ_SET_VAL_AT(v, a, 2) == NULL && av[2] == 77);
+  ck("set_scalar_direct writes element 2", VM_OBJ_SET_SCALAR_AT_IDX(v, a, 2) == NULL && av[2] == 77);
   ck("set_scalar_direct sets upd", a->head.f.upd == 1);
-  ck("set_scalar_direct rejects index past end", VM_OBJ_SET_VAL_AT(v, a, 9) != NULL);
-  ck("set_scalar_direct rejects non-mutable", VM_OBJ_SET_VAL_AT(v, ro, 0) != NULL);
+  ck("set_scalar_direct rejects index past end", VM_OBJ_SET_SCALAR_AT_IDX(v, a, 9) != NULL);
+  ck("set_scalar_direct rejects non-mutable", VM_OBJ_SET_SCALAR_AT_IDX(v, ro, 0) != NULL);
 
   /* copy_content works on accessors, not handles -- count 0 means "the whole
      value", which is what a bulk copy wants. */
-  static const vm_accessor_t w_a = {.id = 0, .count = 0, .indices = NULL};
-  static const vm_accessor_t w_b = {.id = 1, .count = 0, .indices = NULL};
+  static const vm_accessor_t w_a     = {.id = 0, .count = 0, .indices = NULL};
+  static const vm_accessor_t w_b     = {.id = 1, .count = 0, .indices = NULL};
   static const vm_accessor_t w_small = {.id = 2, .count = 0, .indices = NULL};
   static const vm_accessor_t w_other = {.id = 3, .count = 0, .indices = NULL};
-  static const vm_accessor_t w_ro = {.id = 4, .count = 0, .indices = NULL};
-  static const vm_accessor_t w_cell = {.id = 5, .count = 0, .indices = NULL};
+  static const vm_accessor_t w_ro    = {.id = 4, .count = 0, .indices = NULL};
+  static const vm_accessor_t w_cell  = {.id = 5, .count = 0, .indices = NULL};
 
-  b->head.f.upd = 0;
-  uint32_t* bv = (uint32_t*)b->payload;
-  bool copied = vm_obj_copy_content(&w_a, &w_b) == NULL;
+  b->head.f.upd    = 0;
+  uint32_t* bv     = (uint32_t*)b->payload;
+  bool      copied = vm_obj_copy_content(&w_a, &w_b) == NULL;
   ck("copy_content same type+count copies every element", copied && bv[0] == 1 && bv[1] == 2 && bv[2] == 77 && bv[3] == 4);
   ck("copy_content sets upd on the destination", b->head.f.upd == 1);
   ck("copy_content count mismatch -> COPY_MISMATCH", vm_obj_copy_content(&w_a, &w_small) != NULL);
@@ -495,8 +549,7 @@ void test_mutation(void) {
      quietly; a pointer against a value is still a mismatch. Stage W covers the
      walk itself, where there is a tree to walk. */
   ck("copy_content on a cell copied onto itself is a no-op", vm_obj_copy_content(&w_cell, &w_cell) == NULL);
-  ck("copy_content still refuses a pointer against a value",
-     vm_obj_copy_content(&w_cell, &w_a) != NULL && vm_obj_copy_content(&w_a, &w_cell) != NULL);
+  ck("copy_content still refuses a pointer against a value", vm_obj_copy_content(&w_cell, &w_a) != NULL && vm_obj_copy_content(&w_a, &w_cell) != NULL);
 
   // link
   ck("link_direct points cell at leaf", vm_obj_link_direct(cell, 0, leaf) == NULL && *(vm_obj_h*)cell->payload == leaf);
@@ -506,11 +559,11 @@ void test_mutation(void) {
   /* Accessor-addressed link -- what a switch/demux block uses when its cell
      is reached through wiring rather than held directly. The owner accessor
      must land on the pointer *slot*, hence the literal index. */
-  static const vm_index_t cell0[] = {{.kind = VM_IDX_LITERAL, .value = 0}};
+  static const vm_index_t    cell0[]     = {{.kind = VM_IDX_LITERAL, .value = 0}};
   static const vm_accessor_t w_cell_slot = {.id = 5, .count = 1, .indices = cell0};
-  static const vm_accessor_t w_leaf = {.id = 6, .count = 0, .indices = NULL};
-  static const vm_accessor_t w_a_whole = {.id = 0, .count = 0, .indices = NULL};
-  *(vm_obj_h*)cell->payload = NULL;
+  static const vm_accessor_t w_leaf      = {.id = 6, .count = 0, .indices = NULL};
+  static const vm_accessor_t w_a_whole   = {.id = 0, .count = 0, .indices = NULL};
+  *(vm_obj_h*)cell->payload              = NULL;
   ck("vm_obj_link via accessors points cell at leaf", vm_obj_link(&w_leaf, &w_cell_slot) == NULL && *(vm_obj_h*)cell->payload == leaf);
   ck("vm_obj_link rejects a non-PTR owner slot", vm_obj_link(&w_leaf, &w_a_whole) != NULL);
 }
@@ -524,17 +577,18 @@ static uint8_t s_blk[160];
 static void block_add_execute(vm_block_h block) {
   IF_BLOCK_ENABLED(block) {
     const vm_accessor_t *in0 = NULL, *in1 = NULL;
-    vm_obj_h out0 = NULL;
+    vm_obj_h             out0 = NULL;
     BLOCK_CALL(vm_block_get_in(&in0, block, 0), block);
     BLOCK_CALL(vm_block_get_in(&in1, block, 1), block);
     BLOCK_CALL(vm_block_get_out(&out0, block, 0), block);
     float a = 0, b = 0;
-    BLOCK_CALL(VM_OBJ_GET_VAL(a, in0), block);
-    BLOCK_CALL(VM_OBJ_GET_VAL(b, in1), block);
+    BLOCK_CALL(VM_OBJ_SCALAR_GET(a, in0), block);
+    BLOCK_CALL(VM_OBJ_SCALAR_GET(b, in1), block);
     float sum = a + b;
-    BLOCK_CALL(VM_OBJ_SET_VAL_AT(sum, out0, 0), block);
+    BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(sum, out0, 0), block);
     vm_block_set_eno(block, true);
-  } else {
+  }
+  else {
     vm_block_set_eno(block, false);
   }
 }
@@ -547,31 +601,30 @@ void test_block_api(void) {
 
   direct_arena_reset();
 
-  vm_obj_h gate = mk(0, VM_OBJ_B, 1, NULL, true);
-  vm_obj_h eno = mk(1, VM_OBJ_B, 1, NULL, true);
-  vm_obj_h out = mk(2, VM_OBJ_U32, 1, NULL, true);
+  vm_obj_h gate  = mk(0, VM_OBJ_B, 1, NULL, true);
+  vm_obj_h eno   = mk(1, VM_OBJ_B, 1, NULL, true);
+  vm_obj_h out   = mk(2, VM_OBJ_U32, 1, NULL, true);
   vm_obj_h gate2 = mk(3, VM_OBJ_B, 1, NULL, true);
   ck("fixtures built", gate && eno && out && gate2);
 
-  static const vm_index_t i0[] = {{.kind = VM_IDX_LITERAL, .value = 0}};
-  static const vm_accessor_t a_gate = {.id = 0, .count = 1, .indices = i0};
+  static const vm_index_t    i0[]    = {{.kind = VM_IDX_LITERAL, .value = 0}};
+  static const vm_accessor_t a_gate  = {.id = 0, .count = 1, .indices = i0};
   static const vm_accessor_t a_gate2 = {.id = 3, .count = 1, .indices = i0};
-  static const vm_accessor_t a_in = {.id = 2, .count = 1, .indices = i0};
+  static const vm_accessor_t a_in    = {.id = 2, .count = 1, .indices = i0};
 
   memset(s_blk, 0, sizeof(s_blk));
-  vm_block_h blk = (vm_block_h)s_blk;
-  blk->cfg.block_idx = 7;
-  blk->cfg.block_type = 3;
-  blk->cfg.in_cnt = 2;
-  blk->cfg.q_cnt = 1;
-  blk->cfg.en_cnt = 0;
-  blk->cfg.eno = eno;
-  vm_block_get_inputs(blk)[0] = &a_in;
-  vm_block_get_inputs(blk)[1] = NULL;  // declared but unwired
+  vm_block_h blk               = (vm_block_h)s_blk;
+  blk->cfg.block_idx           = 7;
+  blk->cfg.block_type          = 3;
+  blk->cfg.in_cnt              = 2;
+  blk->cfg.q_cnt               = 1;
+  blk->cfg.en_cnt              = 0;
+  blk->cfg.eno                 = eno;
+  vm_block_get_inputs(blk)[0]  = &a_in;
+  vm_block_get_inputs(blk)[1]  = NULL;  // declared but unwired
   vm_block_get_outputs(blk)[0] = out;
 
-  ck("vm_block_size accounts for every pin kind",
-     vm_block_calc_size(2, 1, 3, 8) == sizeof(vm_block_data_t) + 2 * sizeof(vm_accessor_t*) + 1 * sizeof(vm_obj_h) + 3 * sizeof(vm_accessor_t*) + 8);
+  ck("vm_block_size accounts for every pin kind", vm_block_calc_size(2, 1, 3, 8) == sizeof(vm_block_data_t) + 2 * sizeof(vm_accessor_t*) + 1 * sizeof(vm_obj_h) + 3 * sizeof(vm_accessor_t*) + 8);
 
   const vm_accessor_t* got_in = NULL;
   ck("get_in(0) returns the wired accessor", vm_block_get_in(&got_in, blk, 0) == NULL && got_in == &a_in);
@@ -584,24 +637,24 @@ void test_block_api(void) {
 
   // EN semantics
   ck("no EN source reads as enabled", vm_block_is_enabled(blk));
-  blk->cfg.en_cnt = 1;
+  blk->cfg.en_cnt              = 1;
   vm_block_get_en_list(blk)[0] = &a_gate;
-  *(uint8_t*)gate->payload = 0;
+  *(uint8_t*)gate->payload     = 0;
   ck("EN false disables", !vm_block_is_enabled(blk));
   *(uint8_t*)gate->payload = 1;
   ck("EN true enables", vm_block_is_enabled(blk));
 
   /* ANY -- branches rejoining: either path reaching the block runs it. */
-  blk->cfg.en_cnt = 2;
-  blk->cfg.en_mode = VM_BLK_EN_ANY;
+  blk->cfg.en_cnt              = 2;
+  blk->cfg.en_mode             = VM_BLK_EN_ANY;
   vm_block_get_en_list(blk)[0] = &a_gate;
   vm_block_get_en_list(blk)[1] = &a_gate2;
-  *(uint8_t*)gate->payload = 0;
-  *(uint8_t*)gate2->payload = 0;
+  *(uint8_t*)gate->payload     = 0;
+  *(uint8_t*)gate2->payload    = 0;
   ck("ANY with every source false disables", !vm_block_is_enabled(blk));
   *(uint8_t*)gate2->payload = 1;
   ck("ANY enabled by its second source", vm_block_is_enabled(blk));
-  *(uint8_t*)gate->payload = 1;
+  *(uint8_t*)gate->payload  = 1;
   *(uint8_t*)gate2->payload = 0;
   ck("ANY enabled by its first source", vm_block_is_enabled(blk));
 
@@ -616,28 +669,28 @@ void test_block_api(void) {
 
   /* Mode is meaningless below two sources: one source behaves the same either
      way, which is what lets the editor default it without consequence. */
-  blk->cfg.en_cnt = 1;
+  blk->cfg.en_cnt          = 1;
   *(uint8_t*)gate->payload = 1;
   ck("single source ignores ALL", vm_block_is_enabled(blk));
   blk->cfg.en_mode = VM_BLK_EN_ANY;
   ck("single source ignores ANY", vm_block_is_enabled(blk));
-  blk->cfg.en_cnt = 2;
-  blk->cfg.en_mode = VM_BLK_EN_ANY;
+  blk->cfg.en_cnt          = 2;
+  blk->cfg.en_mode         = VM_BLK_EN_ANY;
   *(uint8_t*)gate->payload = 1;
 
   /* An EN that cannot be resolved must read as disabled -- running the body
      when the gate is unknown is the more dangerous guess. Note this is the
      opposite of *absence*: en_cnt == 0 is a root and runs. */
   static const vm_accessor_t a_bad_gate = {.id = 900, .count = 0, .indices = NULL};
-  blk->cfg.en_cnt = 1;
-  vm_block_get_en_list(blk)[0] = &a_bad_gate;
+  blk->cfg.en_cnt                       = 1;
+  vm_block_get_en_list(blk)[0]          = &a_bad_gate;
   ck("unresolvable EN reads as disabled", !vm_block_is_enabled(blk));
 
   /* ...and one broken source must not mask a working one that would enable. */
-  blk->cfg.en_cnt = 2;
+  blk->cfg.en_cnt              = 2;
   vm_block_get_en_list(blk)[0] = &a_bad_gate;
   vm_block_get_en_list(blk)[1] = &a_gate;
-  *(uint8_t*)gate->payload = 1;
+  *(uint8_t*)gate->payload     = 1;
   ck("a broken source does not mask a working one", vm_block_is_enabled(blk));
 
   blk->cfg.en_cnt = 0;
@@ -655,64 +708,63 @@ void test_block_api(void) {
   /* custom_data sits past *all three* arrays, so the enable list must move it
      -- checked with a non-zero en_cnt or the term would not be exercised. */
   blk->cfg.en_cnt = 2;
-  ck("custom_data sits past every pin array",
-     (uint8_t*)vm_block_get_custom_data(blk) == s_blk + sizeof(vm_block_data_t) + 2 * sizeof(vm_accessor_t*) + 1 * sizeof(vm_obj_h) + 2 * sizeof(vm_accessor_t*));
+  ck("custom_data sits past every pin array", (uint8_t*)vm_block_get_custom_data(blk) == s_blk + sizeof(vm_block_data_t) + 2 * sizeof(vm_accessor_t*) + 1 * sizeof(vm_obj_h) + 2 * sizeof(vm_accessor_t*));
   blk->cfg.en_cnt = 0;
 
   // --- block_add_execute execution tests ---
   // 1. Normal scalar accessors
-  vm_obj_h obj_a = mk(10, VM_OBJ_F, 1, NULL, true);
-  vm_obj_h obj_b = mk(11, VM_OBJ_F, 1, NULL, true);
-  vm_obj_h obj_sum = mk(12, VM_OBJ_F, 1, NULL, true);
-  *(float*)obj_a->payload = 12.5f;
-  *(float*)obj_b->payload = 7.5f;
+  vm_obj_h obj_a            = mk(10, VM_OBJ_F, 1, NULL, true);
+  vm_obj_h obj_b            = mk(11, VM_OBJ_F, 1, NULL, true);
+  vm_obj_h obj_sum          = mk(12, VM_OBJ_F, 1, NULL, true);
+  *(float*)obj_a->payload   = 12.5f;
+  *(float*)obj_b->payload   = 7.5f;
   *(float*)obj_sum->payload = 0.0f;
 
-  static const vm_index_t i_lit0[] = {{.kind = VM_IDX_LITERAL, .value = 0}};
-  static const vm_accessor_t acc_a = {.id = 10, .count = 1, .indices = i_lit0};
-  static const vm_accessor_t acc_b = {.id = 11, .count = 1, .indices = i_lit0};
+  static const vm_index_t    i_lit0[] = {{.kind = VM_IDX_LITERAL, .value = 0}};
+  static const vm_accessor_t acc_a    = {.id = 10, .count = 1, .indices = i_lit0};
+  static const vm_accessor_t acc_b    = {.id = 11, .count = 1, .indices = i_lit0};
 
-  blk->cfg.en_cnt = 0;
-  blk->cfg.eno = eno;
-  vm_block_get_inputs(blk)[0] = &acc_a;
-  vm_block_get_inputs(blk)[1] = &acc_b;
+  blk->cfg.en_cnt              = 0;
+  blk->cfg.eno                 = eno;
+  vm_block_get_inputs(blk)[0]  = &acc_a;
+  vm_block_get_inputs(blk)[1]  = &acc_b;
   vm_block_get_outputs(blk)[0] = obj_sum;
 
   block_add_execute(blk);
   ck("block_add_execute scalar: 12.5 + 7.5 == 20.0", *(float*)obj_sum->payload == 20.0f && *(uint8_t*)eno->payload == 1);
 
   // 2. Tagged child access ("temp")
-  vm_obj_h child_temp = mk(20, VM_OBJ_F, 1, "temp", true);
+  vm_obj_h child_temp          = mk(20, VM_OBJ_F, 1, "temp", true);
   *(float*)child_temp->payload = 21.5f;
-  vm_obj_h ptr_msg = mk(21, VM_OBJ_PTR, 1, NULL, true);
+  vm_obj_h ptr_msg             = mk(21, VM_OBJ_PTR, 1, NULL, true);
   vm_obj_link_direct(ptr_msg, 0, child_temp);
 
-  static const vm_index_t i_tag[] = {VM_IDX_BY_NAME("temp"), {.kind = VM_IDX_LITERAL, .value = 0}};
+  static const vm_index_t    i_tag[] = {VM_IDX_BY_NAME("temp"), {.kind = VM_IDX_LITERAL, .value = 0}};
   static const vm_accessor_t acc_tag = {.id = 21, .count = 2, .indices = i_tag};
 
   vm_block_get_inputs(blk)[0] = &acc_tag;
   vm_block_get_inputs(blk)[1] = &acc_b;  // 7.5
-  *(float*)obj_sum->payload = 0.0f;
+  *(float*)obj_sum->payload   = 0.0f;
 
   block_add_execute(blk);
   ck("block_add_execute tag: msg[\"temp\"][0] (21.5) + 7.5 == 29.0", *(float*)obj_sum->payload == 29.0f && *(uint8_t*)eno->payload == 1);
 
   // 3. 1D Array indexing (arr[2] + arr[3])
   vm_obj_h arr_floats = mk(30, VM_OBJ_F, 4, NULL, true);  // 4 floats
-  float* arr_data = (float*)arr_floats->payload;
-  arr_data[0] = 10.0f;
-  arr_data[1] = 20.0f;
-  arr_data[2] = 30.0f;
-  arr_data[3] = 40.0f;
+  float*   arr_data   = (float*)arr_floats->payload;
+  arr_data[0]         = 10.0f;
+  arr_data[1]         = 20.0f;
+  arr_data[2]         = 30.0f;
+  arr_data[3]         = 40.0f;
 
-  static const vm_index_t i_lit2[] = {{.kind = VM_IDX_LITERAL, .value = 2}};
-  static const vm_index_t i_lit3[] = {{.kind = VM_IDX_LITERAL, .value = 3}};
+  static const vm_index_t    i_lit2[] = {{.kind = VM_IDX_LITERAL, .value = 2}};
+  static const vm_index_t    i_lit3[] = {{.kind = VM_IDX_LITERAL, .value = 3}};
   static const vm_accessor_t acc_arr2 = {.id = 30, .count = 1, .indices = i_lit2};
   static const vm_accessor_t acc_arr3 = {.id = 30, .count = 1, .indices = i_lit3};
 
   vm_block_get_inputs(blk)[0] = &acc_arr2;
   vm_block_get_inputs(blk)[1] = &acc_arr3;
-  *(float*)obj_sum->payload = 0.0f;
+  *(float*)obj_sum->payload   = 0.0f;
 
   block_add_execute(blk);
   ck("block_add_execute 1D array: arr[2] (30.0) + arr[3] (40.0) == 70.0", *(float*)obj_sum->payload == 70.0f && *(uint8_t*)eno->payload == 1);
@@ -730,47 +782,46 @@ static void test_edge_block(void) {
   direct_arena_reset();
 
   // Test objects (store has 32 object slots in direct arena)
-  vm_obj_h in_b = mk(0, VM_OBJ_B, 1, NULL, true);
-  vm_obj_h in_f = mk(1, VM_OBJ_F, 1, NULL, true);
+  vm_obj_h in_b   = mk(0, VM_OBJ_B, 1, NULL, true);
+  vm_obj_h in_f   = mk(1, VM_OBJ_F, 1, NULL, true);
   vm_obj_h in_u32 = mk(2, VM_OBJ_U32, 1, NULL, true);
   vm_obj_h in_i32 = mk(3, VM_OBJ_I32, 1, NULL, true);
-  vm_obj_h out_q = mk(4, VM_OBJ_B, 1, NULL, true);
-  vm_obj_h eno = mk(5, VM_OBJ_B, 1, NULL, true);
-  vm_obj_h gate = mk(6, VM_OBJ_B, 1, NULL, true);
+  vm_obj_h out_q  = mk(4, VM_OBJ_B, 1, NULL, true);
+  vm_obj_h eno    = mk(5, VM_OBJ_B, 1, NULL, true);
+  vm_obj_h gate   = mk(6, VM_OBJ_B, 1, NULL, true);
   ck("edge test fixtures built", in_b && in_f && in_u32 && in_i32 && out_q && eno && gate);
 
-  static const vm_index_t i0[] = {{.kind = VM_IDX_LITERAL, .value = 0}};
-  static const vm_accessor_t a_b = {.id = 0, .count = 1, .indices = i0};
-  static const vm_accessor_t a_f = {.id = 1, .count = 1, .indices = i0};
-  static const vm_accessor_t a_u32 = {.id = 2, .count = 1, .indices = i0};
-  static const vm_accessor_t a_i32 = {.id = 3, .count = 1, .indices = i0};
+  static const vm_index_t    i0[]   = {{.kind = VM_IDX_LITERAL, .value = 0}};
+  static const vm_accessor_t a_b    = {.id = 0, .count = 1, .indices = i0};
+  static const vm_accessor_t a_f    = {.id = 1, .count = 1, .indices = i0};
+  static const vm_accessor_t a_u32  = {.id = 2, .count = 1, .indices = i0};
+  static const vm_accessor_t a_i32  = {.id = 3, .count = 1, .indices = i0};
   static const vm_accessor_t a_gate = {.id = 6, .count = 1, .indices = i0};
 
   // Dedicated buffer for edge block structure (up to 2 inputs, 1 output, 1 en, custom_data)
   static uint8_t s_edge_raw[sizeof(vm_block_data_t) + 2 * sizeof(vm_accessor_t*) + sizeof(vm_obj_h) + sizeof(vm_accessor_t*) + sizeof(vm_block_edge_data_t) + 32] __attribute__((aligned(8)));
   memset(s_edge_raw, 0, sizeof(s_edge_raw));
-  vm_block_h eb = (vm_block_h)s_edge_raw;
-  eb->cfg.block_idx = 42;
-  eb->cfg.block_type = VM_BLK_EDGE;
-  eb->cfg.in_cnt = 1;
-  eb->cfg.q_cnt = 1;
-  eb->cfg.en_cnt = 0;
-  eb->cfg.custom_len = sizeof(vm_block_edge_data_t);
-  eb->cfg.eno = eno;
-  vm_block_get_inputs(eb)[0] = &a_b;
+  vm_block_h eb               = (vm_block_h)s_edge_raw;
+  eb->cfg.block_idx           = 42;
+  eb->cfg.block_type          = VM_BLK_EDGE;
+  eb->cfg.in_cnt              = 1;
+  eb->cfg.q_cnt               = 1;
+  eb->cfg.en_cnt              = 0;
+  eb->cfg.custom_len          = sizeof(vm_block_edge_data_t);
+  eb->cfg.eno                 = eno;
+  vm_block_get_inputs(eb)[0]  = &a_b;
   vm_block_get_outputs(eb)[0] = out_q;
 
   vm_block_edge_data_t* edata = (vm_block_edge_data_t*)vm_block_get_custom_data(eb);
 
   // 1. Guard: custom_len too small rejected at build
   vm_block_h bad_b = NULL;
-  ck("edge block rejects undersized custom_len",
-     vm_block_create(&bad_b, 98, &(vm_block_cfg_t){.block_idx = 42, .block_type = VM_BLK_EDGE, .custom_len = 10}) != NULL);
+  ck("edge block rejects undersized custom_len", vm_block_create(&bad_b, 98, &(vm_block_cfg_t){.block_idx = 42, .block_type = VM_BLK_EDGE, .custom_len = 10}) != NULL);
 
   // 2. Boolean Rising Edge
   vm_block_edge_init_data(edata, VM_EDGE_RISING, 0, 0);
-  *(uint8_t*)in_b->payload = 0;
-  *(uint8_t*)eno->payload = 0;
+  *(uint8_t*)in_b->payload  = 0;
+  *(uint8_t*)eno->payload   = 0;
   *(uint8_t*)out_q->payload = 0;
 
   // Scan 1: initial 0 -> sets prev_val = 0, no edge
@@ -807,63 +858,63 @@ static void test_edge_block(void) {
   // 3. Boolean Falling Edge
   vm_block_edge_init_data(edata, VM_EDGE_FALLING, 0, 0);
   *(uint8_t*)in_b->payload = 1;
-  vm_blk_edge(eb); // scan 1: initial 1 -> initialized, no edge
+  vm_blk_edge(eb);  // scan 1: initial 1 -> initialized, no edge
   ck("falling edge: scan 1 (initial 1) -> ENO=0", *(uint8_t*)eno->payload == 0);
 
   *(uint8_t*)in_b->payload = 0;
-  vm_blk_edge(eb); // scan 2: 1 -> 0 falling edge!
+  vm_blk_edge(eb);  // scan 2: 1 -> 0 falling edge!
   ck("falling edge: scan 2 (1 -> 0) -> ENO=1, Q=1", *(uint8_t*)eno->payload == 1 && *(uint8_t*)out_q->payload == 1);
 
-  vm_blk_edge(eb); // scan 3: steady 0 -> drops to 0
+  vm_blk_edge(eb);  // scan 3: steady 0 -> drops to 0
   ck("falling edge: scan 3 (steady 0) -> ENO=0, Q=0", *(uint8_t*)eno->payload == 0 && *(uint8_t*)out_q->payload == 0);
 
   *(uint8_t*)in_b->payload = 1;
-  vm_blk_edge(eb); // scan 4: 0 -> 1 rising (ignored)
+  vm_blk_edge(eb);  // scan 4: 0 -> 1 rising (ignored)
   ck("falling edge: scan 4 (0 -> 1 rising ignored) -> ENO=0", *(uint8_t*)eno->payload == 0);
 
   // 4. Boolean Both Edges
   vm_block_edge_init_data(edata, VM_EDGE_BOTH, 0, 0);
   *(uint8_t*)in_b->payload = 0;
-  vm_blk_edge(eb); // scan 1: initial 0 -> initialized
+  vm_blk_edge(eb);  // scan 1: initial 0 -> initialized
   ck("both edges: scan 1 (initial 0) -> ENO=0", *(uint8_t*)eno->payload == 0);
 
   *(uint8_t*)in_b->payload = 1;
-  vm_blk_edge(eb); // scan 2: 0 -> 1 triggers
+  vm_blk_edge(eb);  // scan 2: 0 -> 1 triggers
   ck("both edges: scan 2 (0 -> 1 toggle) -> ENO=1", *(uint8_t*)eno->payload == 1);
 
-  vm_blk_edge(eb); // scan 3: steady 1 -> drops
+  vm_blk_edge(eb);  // scan 3: steady 1 -> drops
   ck("both edges: scan 3 (steady 1) -> ENO=0", *(uint8_t*)eno->payload == 0);
 
   *(uint8_t*)in_b->payload = 0;
-  vm_blk_edge(eb); // scan 4: 1 -> 0 triggers
+  vm_blk_edge(eb);  // scan 4: 1 -> 0 triggers
   ck("both edges: scan 4 (1 -> 0 toggle) -> ENO=1", *(uint8_t*)eno->payload == 1);
 
-  vm_blk_edge(eb); // scan 5: steady 0 -> drops
+  vm_blk_edge(eb);  // scan 5: steady 0 -> drops
   ck("both edges: scan 5 (steady 0) -> ENO=0", *(uint8_t*)eno->payload == 0);
 
   // 5. Float with change_by threshold (Rising, threshold = 5.0f)
   vm_block_get_inputs(eb)[0] = &a_f;
   vm_block_edge_init_data(edata, VM_EDGE_RISING, 5.0f, 0);
   *(float*)in_f->payload = 10.0f;
-  vm_blk_edge(eb); // scan 1: initial 10.0
+  vm_blk_edge(eb);  // scan 1: initial 10.0
   ck("float rising: scan 1 (initial 10.0) -> ENO=0", *(uint8_t*)eno->payload == 0);
 
-  *(float*)in_f->payload = 12.0f; // delta = +2.0 (< 5.0)
+  *(float*)in_f->payload = 12.0f;  // delta = +2.0 (< 5.0)
   vm_blk_edge(eb);
   ck("float rising: scan 2 (+2.0 < threshold 5.0) -> ENO=0", *(uint8_t*)eno->payload == 0);
 
-  *(float*)in_f->payload = 18.0f; // delta = +6.0 (>= 5.0) -> triggers!
+  *(float*)in_f->payload = 18.0f;  // delta = +6.0 (>= 5.0) -> triggers!
   vm_blk_edge(eb);
   ck("float rising: scan 3 (+6.0 >= threshold 5.0) -> ENO=1, Q=1", *(uint8_t*)eno->payload == 1 && *(uint8_t*)out_q->payload == 1);
 
-  vm_blk_edge(eb); // steady 18.0 -> pulse drops
+  vm_blk_edge(eb);  // steady 18.0 -> pulse drops
   ck("float rising: scan 4 (steady 18.0) -> ENO=0, Q=0", *(uint8_t*)eno->payload == 0 && *(uint8_t*)out_q->payload == 0);
 
-  *(float*)in_f->payload = 12.0f; // drop (falling, ignored)
+  *(float*)in_f->payload = 12.0f;  // drop (falling, ignored)
   vm_blk_edge(eb);
   ck("float rising: scan 5 (decrease) -> ENO=0", *(uint8_t*)eno->payload == 0);
 
-  *(float*)in_f->payload = 20.0f; // delta = +8.0 (>= 5.0) -> triggers!
+  *(float*)in_f->payload = 20.0f;  // delta = +8.0 (>= 5.0) -> triggers!
   vm_blk_edge(eb);
   ck("float rising: scan 6 (+8.0 >= threshold 5.0) -> ENO=1", *(uint8_t*)eno->payload == 1);
 
@@ -871,83 +922,84 @@ static void test_edge_block(void) {
   vm_block_get_inputs(eb)[0] = &a_u32;
   vm_block_edge_init_data(edata, VM_EDGE_BOTH, 0, 10);
   *(uint32_t*)in_u32->payload = 100;
-  vm_blk_edge(eb); // scan 1: initial 100
+  vm_blk_edge(eb);  // scan 1: initial 100
   ck("u32 both: scan 1 (initial 100) -> ENO=0", *(uint8_t*)eno->payload == 0);
 
-  *(uint32_t*)in_u32->payload = 104; // delta = 4 (< 10)
+  *(uint32_t*)in_u32->payload = 104;  // delta = 4 (< 10)
   vm_blk_edge(eb);
   ck("u32 both: scan 2 (+4 < 10) -> ENO=0", *(uint8_t*)eno->payload == 0);
 
-  *(uint32_t*)in_u32->payload = 125; // delta = +21 (>= 10)
+  *(uint32_t*)in_u32->payload = 125;  // delta = +21 (>= 10)
   vm_blk_edge(eb);
   ck("u32 both: scan 3 (+21 >= 10) -> ENO=1", *(uint8_t*)eno->payload == 1);
 
-  vm_blk_edge(eb); // steady 125
+  vm_blk_edge(eb);  // steady 125
   ck("u32 both: scan 4 (steady 125) -> ENO=0", *(uint8_t*)eno->payload == 0);
 
-  *(uint32_t*)in_u32->payload = 70; // delta = -55 (|delta| >= 10)
+  *(uint32_t*)in_u32->payload = 70;  // delta = -55 (|delta| >= 10)
   vm_blk_edge(eb);
   ck("u32 both: scan 5 (-55 drop >= 10) -> ENO=1", *(uint8_t*)eno->payload == 1);
 
-  vm_blk_edge(eb); // steady 70
+  vm_blk_edge(eb);  // steady 70
   ck("u32 both: scan 6 (steady 70) -> ENO=0", *(uint8_t*)eno->payload == 0);
 
   // 7. I32 with negative delta (Falling, threshold = 15)
   vm_block_get_inputs(eb)[0] = &a_i32;
   vm_block_edge_init_data(edata, VM_EDGE_FALLING, 0, 15);
   *(int32_t*)in_i32->payload = 10;
-  vm_blk_edge(eb); // scan 1: initial 10
+  vm_blk_edge(eb);  // scan 1: initial 10
   ck("i32 falling: scan 1 (initial 10) -> ENO=0", *(uint8_t*)eno->payload == 0);
 
-  *(int32_t*)in_i32->payload = 20; // increase (ignored)
+  *(int32_t*)in_i32->payload = 20;  // increase (ignored)
   vm_blk_edge(eb);
   ck("i32 falling: scan 2 (+10 increase ignored) -> ENO=0", *(uint8_t*)eno->payload == 0);
 
-  *(int32_t*)in_i32->payload = 0; // drop of 20 (>= 15)
+  *(int32_t*)in_i32->payload = 0;  // drop of 20 (>= 15)
   vm_blk_edge(eb);
   ck("i32 falling: scan 3 (-20 drop >= 15) -> ENO=1", *(uint8_t*)eno->payload == 1);
 
-  vm_blk_edge(eb); // steady 0
+  vm_blk_edge(eb);  // steady 0
   ck("i32 falling: scan 4 (steady 0) -> ENO=0", *(uint8_t*)eno->payload == 0);
 
   // 8. EN Gating test
-  vm_block_get_inputs(eb)[0] = &a_b;
-  eb->cfg.en_cnt = 1;
+  vm_block_get_inputs(eb)[0]  = &a_b;
+  eb->cfg.en_cnt              = 1;
   vm_block_get_en_list(eb)[0] = &a_gate;
-  edata = (vm_block_edge_data_t*)vm_block_get_custom_data(eb);
+  edata                       = (vm_block_edge_data_t*)vm_block_get_custom_data(eb);
   vm_block_edge_init_data(edata, VM_EDGE_RISING, 0, 0);
 
-  *(uint8_t*)gate->payload = 0; // gate closed (disabled)
+  *(uint8_t*)gate->payload = 0;  // gate closed (disabled)
   *(uint8_t*)in_b->payload = 0;
   vm_blk_edge(eb);
 
-  *(uint8_t*)in_b->payload = 1; // edge occurs, but block is disabled!
+  *(uint8_t*)in_b->payload = 1;  // edge occurs, but block is disabled!
   vm_blk_edge(eb);
   ck("EN disabled: rising edge blocked -> ENO=0, Q=0", *(uint8_t*)eno->payload == 0 && *(uint8_t*)out_q->payload == 0);
 
-  *(uint8_t*)gate->payload = 1; // gate opened (enabled)
+  *(uint8_t*)gate->payload = 1;  // gate opened (enabled)
   *(uint8_t*)in_b->payload = 0;
-  vm_blk_edge(eb); // initialize/re-sync
-  *(uint8_t*)in_b->payload = 1; // rising edge with gate open!
+  vm_blk_edge(eb);               // initialize/re-sync
+  *(uint8_t*)in_b->payload = 1;  // rising edge with gate open!
   vm_blk_edge(eb);
   ck("EN enabled: rising edge passes -> ENO=1, Q=1", *(uint8_t*)eno->payload == 1 && *(uint8_t*)out_q->payload == 1);
 
   // 9. Optional dynamic hysteresis via in[1]
-  vm_obj_h th_dyn = mk(7, VM_OBJ_F, 1, NULL, true);
-  static const vm_accessor_t a_th = {.id = 7, .count = 1, .indices = i0};
+  vm_obj_h                   th_dyn = mk(7, VM_OBJ_F, 1, NULL, true);
+  static const vm_accessor_t a_th   = {.id = 7, .count = 1, .indices = i0};
   ck("dynamic threshold fixture built", th_dyn != NULL);
 
-  eb->cfg.en_cnt = 0;
-  eb->cfg.in_cnt = 2;
-  vm_block_get_inputs(eb)[0] = &a_f;
-  vm_block_get_inputs(eb)[1] = &a_th;
-  edata = (vm_block_edge_data_t*)vm_block_get_custom_data(eb);
+  eb->cfg.en_cnt              = 0;
+  eb->cfg.in_cnt              = 2;
+  vm_block_get_inputs(eb)[0]  = &a_f;
+  vm_block_get_inputs(eb)[1]  = &a_th;
+  vm_block_get_outputs(eb)[0] = out_q;
+  edata                       = (vm_block_edge_data_t*)vm_block_get_custom_data(eb);
   // Hardcoded change_by is 5.0f, but dynamic threshold is set to 10.0f
   vm_block_edge_init_data(edata, VM_EDGE_RISING, 5.0f, 0);
   *(float*)th_dyn->payload = 10.0f;
 
   *(float*)in_f->payload = 100.0f;
-  vm_blk_edge(eb); // scan 1: initial 100.0f
+  vm_blk_edge(eb);  // scan 1: initial 100.0f
   ck("dyn th: scan 1 (initial 100.0) -> ENO=0", *(uint8_t*)eno->payload == 0);
 
   // Delta +6.0f: greater than hardcoded 5.0f, but LESS than dynamic 10.0f!
@@ -960,22 +1012,22 @@ static void test_edge_block(void) {
   vm_blk_edge(eb);
   ck("dyn th: +12.0 exceeds dynamic threshold 10.0 -> ENO=1, Q=1", *(uint8_t*)eno->payload == 1 && *(uint8_t*)out_q->payload == 1);
 
-  vm_blk_edge(eb); // steady -> drops
+  vm_blk_edge(eb);  // steady -> drops
   ck("dyn th: steady -> ENO=0", *(uint8_t*)eno->payload == 0);
 
   // Runtime threshold tuning: drop threshold to 2.0f
   *(float*)th_dyn->payload = 2.0f;
-  *(float*)in_f->payload = 121.0f; // delta +3.0f >= 2.0f -> triggers!
+  *(float*)in_f->payload   = 121.0f;  // delta +3.0f >= 2.0f -> triggers!
   vm_blk_edge(eb);
   ck("dyn th: lowered to 2.0, +3.0 triggers -> ENO=1", *(uint8_t*)eno->payload == 1);
 
   // Fallback: unwire in[1] (set to NULL), should fall back to hardcoded 5.0f
   vm_block_get_inputs(eb)[1] = NULL;
-  *(float*)in_f->payload = 124.0f; // delta +3.0f < hardcoded 5.0f
+  *(float*)in_f->payload     = 124.0f;  // delta +3.0f < hardcoded 5.0f
   vm_blk_edge(eb);
   ck("dyn th fallback: unwired in[1] falls back to hardcoded 5.0 -> ENO=0", *(uint8_t*)eno->payload == 0);
 
-  *(float*)in_f->payload = 130.0f; // delta +6.0f >= hardcoded 5.0f -> triggers!
+  *(float*)in_f->payload = 130.0f;  // delta +6.0f >= hardcoded 5.0f -> triggers!
   vm_blk_edge(eb);
   ck("dyn th fallback: +6.0 exceeds hardcoded 5.0 -> ENO=1", *(uint8_t*)eno->payload == 1);
 }
@@ -986,31 +1038,31 @@ static void test_timer_block(void) {
   direct_arena_reset();
 
   // Test objects (IDs 0..5)
-  vm_obj_h in_b = mk(0, VM_OBJ_B, 1, NULL, true);
-  vm_obj_h in_pt = mk(1, VM_OBJ_U32, 1, NULL, true);
-  vm_obj_h out_q = mk(2, VM_OBJ_B, 1, NULL, true);
+  vm_obj_h in_b   = mk(0, VM_OBJ_B, 1, NULL, true);
+  vm_obj_h in_pt  = mk(1, VM_OBJ_U32, 1, NULL, true);
+  vm_obj_h out_q  = mk(2, VM_OBJ_B, 1, NULL, true);
   vm_obj_h out_et = mk(3, VM_OBJ_U32, 1, NULL, true);
-  vm_obj_h eno = mk(4, VM_OBJ_B, 1, NULL, true);
-  vm_obj_h gate = mk(5, VM_OBJ_B, 1, NULL, true);
+  vm_obj_h eno    = mk(4, VM_OBJ_B, 1, NULL, true);
+  vm_obj_h gate   = mk(5, VM_OBJ_B, 1, NULL, true);
   ck("timer test fixtures built", in_b && in_pt && out_q && out_et && eno && gate);
 
-  static const vm_index_t i0[] = {{.kind = VM_IDX_LITERAL, .value = 0}};
-  static const vm_accessor_t a_in = {.id = 0, .count = 1, .indices = i0};
-  static const vm_accessor_t a_pt = {.id = 1, .count = 1, .indices = i0};
+  static const vm_index_t    i0[]   = {{.kind = VM_IDX_LITERAL, .value = 0}};
+  static const vm_accessor_t a_in   = {.id = 0, .count = 1, .indices = i0};
+  static const vm_accessor_t a_pt   = {.id = 1, .count = 1, .indices = i0};
   static const vm_accessor_t a_gate = {.id = 5, .count = 1, .indices = i0};
 
   static uint8_t s_tmr_raw[sizeof(vm_block_data_t) + 2 * sizeof(vm_accessor_t*) + 2 * sizeof(vm_obj_h) + sizeof(vm_accessor_t*) + sizeof(vm_block_timer_data_t) + 32] __attribute__((aligned(8)));
   memset(s_tmr_raw, 0, sizeof(s_tmr_raw));
-  vm_block_h tb = (vm_block_h)s_tmr_raw;
-  tb->cfg.block_idx = 43;
-  tb->cfg.block_type = VM_BLK_TIMER;
-  tb->cfg.in_cnt = 2;
-  tb->cfg.q_cnt = 2; // out[0]=Q, out[1]=ET
-  tb->cfg.en_cnt = 0;
-  tb->cfg.custom_len = sizeof(vm_block_timer_data_t);
-  tb->cfg.eno = eno;
-  vm_block_get_inputs(tb)[0] = &a_in;
-  vm_block_get_inputs(tb)[1] = NULL; // unwired by default
+  vm_block_h tb               = (vm_block_h)s_tmr_raw;
+  tb->cfg.block_idx           = 43;
+  tb->cfg.block_type          = VM_BLK_TIMER;
+  tb->cfg.in_cnt              = 2;
+  tb->cfg.q_cnt               = 2;  // out[0]=Q, out[1]=ET
+  tb->cfg.en_cnt              = 0;
+  tb->cfg.custom_len          = sizeof(vm_block_timer_data_t);
+  tb->cfg.eno                 = eno;
+  vm_block_get_inputs(tb)[0]  = &a_in;
+  vm_block_get_inputs(tb)[1]  = NULL;  // unwired by default
   vm_block_get_outputs(tb)[0] = out_q;
   vm_block_get_outputs(tb)[1] = out_et;
 
@@ -1018,19 +1070,18 @@ static void test_timer_block(void) {
 
   // 1. Guard: undersized custom_len rejected at build
   vm_block_h bad_tb = NULL;
-  ck("timer block rejects undersized custom_len",
-     vm_block_create(&bad_tb, 99, &(vm_block_cfg_t){.block_idx = 43, .block_type = VM_BLK_TIMER, .custom_len = 16}) != NULL);
+  ck("timer block rejects undersized custom_len", vm_block_create(&bad_tb, 99, &(vm_block_cfg_t){.block_idx = 43, .block_type = VM_BLK_TIMER, .custom_len = 16}) != NULL);
 
   // 2. TON (On-Delay) with hardcoded PT = 100ms
   vm_block_timer_init_data(tdata, VM_TIMER_TON, 100, false);
   *(uint8_t*)in_b->payload = 0;
-  g_vm_pass_ms = 1000;
+  g_vm_pass_ms             = 1000;
   vm_blk_timer(tb);
   ck("TON: initial false -> Q=0, ET=0", *(uint8_t*)out_q->payload == 0 && *(uint32_t*)out_et->payload == 0 && *(uint8_t*)eno->payload == 0);
 
   // Start TON at t=1000
   *(uint8_t*)in_b->payload = 1;
-  g_vm_pass_ms = 1000;
+  g_vm_pass_ms             = 1000;
   vm_blk_timer(tb);
   ck("TON: t=1000 starts timer -> Q=0, ET=0", *(uint8_t*)out_q->payload == 0 && *(uint32_t*)out_et->payload == 0 && *(uint8_t*)eno->payload == 0);
 
@@ -1051,20 +1102,20 @@ static void test_timer_block(void) {
 
   // Input drops -> immediate reset
   *(uint8_t*)in_b->payload = 0;
-  g_vm_pass_ms = 1160;
+  g_vm_pass_ms             = 1160;
   vm_blk_timer(tb);
   ck("TON: IN=0 -> resets Q=0, ET=0, ENO=0", *(uint8_t*)out_q->payload == 0 && *(uint32_t*)out_et->payload == 0 && *(uint8_t*)eno->payload == 0);
 
   // 3. TOF (Off-Delay) with hardcoded PT = 100ms
   vm_block_timer_init_data(tdata, VM_TIMER_TOF, 100, false);
   *(uint8_t*)in_b->payload = 1;
-  g_vm_pass_ms = 2000;
+  g_vm_pass_ms             = 2000;
   vm_blk_timer(tb);
   ck("TOF: IN=1 -> Q=1, ET=0, ENO=1", *(uint8_t*)out_q->payload == 1 && *(uint32_t*)out_et->payload == 0 && *(uint8_t*)eno->payload == 1);
 
   // IN falls 1 -> 0 at t=2000
   *(uint8_t*)in_b->payload = 0;
-  g_vm_pass_ms = 2000;
+  g_vm_pass_ms             = 2000;
   vm_blk_timer(tb);
   ck("TOF: IN falls to 0 -> starts off-delay, Q stays 1, ET=0", *(uint8_t*)out_q->payload == 1 && *(uint32_t*)out_et->payload == 0);
 
@@ -1081,19 +1132,19 @@ static void test_timer_block(void) {
   // 4. TP (Pulse Timer) with hardcoded PT = 100ms
   vm_block_timer_init_data(tdata, VM_TIMER_TP, 100, false);
   *(uint8_t*)in_b->payload = 0;
-  g_vm_pass_ms = 3000;
+  g_vm_pass_ms             = 3000;
   vm_blk_timer(tb);
   ck("TP: initial false -> Q=0, ET=0", *(uint8_t*)out_q->payload == 0 && *(uint32_t*)out_et->payload == 0);
 
   // Rising edge 0 -> 1 at t=3000
   *(uint8_t*)in_b->payload = 1;
-  g_vm_pass_ms = 3000;
+  g_vm_pass_ms             = 3000;
   vm_blk_timer(tb);
   ck("TP: 0->1 rising edge -> Q=1, ET=0, ENO=1", *(uint8_t*)out_q->payload == 1 && *(uint32_t*)out_et->payload == 0 && *(uint8_t*)eno->payload == 1);
 
   // IN drops early at t=3040 -> pulse continues!
   *(uint8_t*)in_b->payload = 0;
-  g_vm_pass_ms = 3040;
+  g_vm_pass_ms             = 3040;
   vm_blk_timer(tb);
   ck("TP: IN drops early -> pulse continues Q=1, ET=40", *(uint8_t*)out_q->payload == 1 && *(uint32_t*)out_et->payload == 40 && *(uint8_t*)eno->payload == 1);
 
@@ -1105,7 +1156,7 @@ static void test_timer_block(void) {
   // 5. Inverted mode (TON_INV)
   vm_block_timer_init_data(tdata, VM_TIMER_TON_INV, 100, false);
   *(uint8_t*)in_b->payload = 1;
-  g_vm_pass_ms = 4000;
+  g_vm_pass_ms             = 4000;
   vm_blk_timer(tb);
   ck("TON_INV: timing (< PT) -> inverted Q=1, ENO=1", *(uint8_t*)out_q->payload == 1 && *(uint8_t*)eno->payload == 1);
 
@@ -1115,49 +1166,48 @@ static void test_timer_block(void) {
 
   // 6. Dynamic PT via in[1]
   vm_block_get_inputs(tb)[1] = &a_pt;
-  vm_block_timer_init_data(tdata, VM_TIMER_TON, 50, false); // hardcoded is 50ms
-  *(uint32_t*)in_pt->payload = 200; // dynamic PT is 200ms
+  vm_block_timer_init_data(tdata, VM_TIMER_TON, 50, false);  // hardcoded is 50ms
+  *(uint32_t*)in_pt->payload = 200;                          // dynamic PT is 200ms
 
   *(uint8_t*)in_b->payload = 1;
-  g_vm_pass_ms = 5000;
-  vm_blk_timer(tb); // start at 5000
+  g_vm_pass_ms             = 5000;
+  vm_blk_timer(tb);  // start at 5000
 
-  g_vm_pass_ms = 5100; // +100ms: exceeds hardcoded 50ms, but LESS than dynamic 200ms!
+  g_vm_pass_ms = 5100;  // +100ms: exceeds hardcoded 50ms, but LESS than dynamic 200ms!
   vm_blk_timer(tb);
   ck("Dynamic PT: 100ms < 200ms dynamic PT -> Q=0, ET=100", *(uint8_t*)out_q->payload == 0 && *(uint32_t*)out_et->payload == 100);
 
-  g_vm_pass_ms = 5200; // +200ms == dynamic PT -> times out!
+  g_vm_pass_ms = 5200;  // +200ms == dynamic PT -> times out!
   vm_blk_timer(tb);
   ck("Dynamic PT: 200ms >= 200ms dynamic PT -> Q=1, ET=200", *(uint8_t*)out_q->payload == 1 && *(uint32_t*)out_et->payload == 200);
 
   // Fallback to hardcoded PT when in[1] is unwired
   vm_block_get_inputs(tb)[1] = NULL;
-  *(uint8_t*)in_b->payload = 0;
-  g_vm_pass_ms = 5300;
-  vm_blk_timer(tb); // reset
+  *(uint8_t*)in_b->payload   = 0;
+  g_vm_pass_ms               = 5300;
+  vm_blk_timer(tb);  // reset
 
   *(uint8_t*)in_b->payload = 1;
-  g_vm_pass_ms = 5300;
-  vm_blk_timer(tb); // start with hardcoded 50ms
+  g_vm_pass_ms             = 5300;
+  vm_blk_timer(tb);  // start with hardcoded 50ms
 
-  g_vm_pass_ms = 5360; // +60ms >= hardcoded 50ms!
+  g_vm_pass_ms = 5360;  // +60ms >= hardcoded 50ms!
   vm_blk_timer(tb);
   ck("Dynamic PT fallback: 60ms >= hardcoded 50ms -> Q=1", *(uint8_t*)out_q->payload == 1 && *(uint32_t*)out_et->payload == 50);
 
   // 7. EN gating
-  tb->cfg.en_cnt = 1;
-  vm_block_get_inputs(tb)[1] = NULL;
+  tb->cfg.en_cnt              = 1;
+  vm_block_get_inputs(tb)[1]  = NULL;
   vm_block_get_en_list(tb)[0] = &a_gate;
-  tdata = (vm_block_timer_data_t*)vm_block_get_custom_data(tb);
+  tdata                       = (vm_block_timer_data_t*)vm_block_get_custom_data(tb);
   vm_block_timer_init_data(tdata, VM_TIMER_TON, 100, false);
 
-  *(uint8_t*)gate->payload = 0; // disabled
+  *(uint8_t*)gate->payload = 0;  // disabled
   *(uint8_t*)in_b->payload = 1;
-  g_vm_pass_ms = 6000;
+  g_vm_pass_ms             = 6000;
   vm_blk_timer(tb);
   ck("EN disabled: timer stands down -> Q=0, ET=0, ENO=0", *(uint8_t*)out_q->payload == 0 && *(uint32_t*)out_et->payload == 0 && *(uint8_t*)eno->payload == 0);
 }
-
 
 /* ==========================================================================
    G -- object construction guards
@@ -1171,9 +1221,9 @@ void test_obj_construction(void) {
   ESP_LOGI(TAG, "-- G: object construction guards --");
   direct_arena_reset();
 
-  vm_obj_h o = NULL;
+  vm_obj_h      o = NULL;
   vm_obj_head_t h = hd(VM_OBJ_NONE, 1);
-  h.payload_size = 4;  // non-zero, so this tests the type and not the emptiness
+  h.payload_size  = 4;  // non-zero, so this tests the type and not the emptiness
   ck("create rejects VM_OBJ_NONE", vm_obj_create(&o, VM_ID_NONE, &h, NULL) != NULL && o == NULL);
   h.d.obj_t = 12;  // inside the 4-bit field, outside the width table
   ck("create rejects a type past the width table", vm_obj_create(&o, VM_ID_NONE, &h, NULL) != NULL);
@@ -1187,7 +1237,7 @@ void test_obj_construction(void) {
   /* payload_size is bytes and nothing here computed it, so a partial trailing
      element is expressible and has to be refused -- five bytes of U32 would let
      vm_obj_elem_ptr() hand back an element three bytes past the payload. */
-  h = hd(VM_OBJ_U32, 2);
+  h              = hd(VM_OBJ_U32, 2);
   h.payload_size = 5;
   ck("create rejects a payload that is not a whole number of elements", vm_obj_create(&o, VM_ID_NONE, &h, NULL) != NULL && o == NULL);
 
@@ -1195,7 +1245,7 @@ void test_obj_construction(void) {
      is 4 bits, so it cannot exceed VM_OBJ_NAME_MAX. The wire still can, and
      vm_loader.c rejects it -- stage L covers that. */
 
-  h = hd(VM_OBJ_PTR, 1);
+  h             = hd(VM_OBJ_PTR, 1);
   h.f.retentive = 1;
   ck("create rejects retentive PTR", vm_obj_create(&o, VM_ID_NONE, &h, NULL) != NULL);
 
@@ -1205,12 +1255,12 @@ void test_obj_construction(void) {
   ck("create rejects a NULL head", vm_obj_create(&o, VM_ID_NONE, NULL, NULL) != NULL);
 
   // flags are the object's whole permission model -- none may be dropped
-  o = NULL;
-  h = hd(VM_OBJ_U8, 1);
-  h.d.name_size = 1;
-  h.f.mutable = 1;
+  o                 = NULL;
+  h                 = hd(VM_OBJ_U8, 1);
+  h.d.name_size     = 1;
+  h.f.mutable       = 1;
   h.f.upd_resetable = 1;
-  h.f.retentive = 1;
+  h.f.retentive     = 1;
   ck("every flag round-trips into the header", vm_obj_create(&o, VM_ID_NONE, &h, "f") == NULL && o && o->head.f.mutable && o->head.f.upd_resetable && o->head.f.retentive && o->head.f.tagged && o->head.f.upd == 0);
 
   /* Three flags are the creator's, not the caller's. Ask for all three and
@@ -1218,22 +1268,22 @@ void test_obj_construction(void) {
      means "heap-allocated" and a release cascade would hand free() a pointer
      into the arena. */
   vm_obj_h forced = NULL;
-  h = hd(VM_OBJ_U8, 1);
-  h.f.dynamic = 1;
-  h.f.upd = 1;
-  h.f.tagged = 1;  // claimed, but no name given
+  h               = hd(VM_OBJ_U8, 1);
+  h.f.dynamic     = 1;
+  h.f.upd         = 1;
+  h.f.tagged      = 1;  // claimed, but no name given
   ck("create overrides the flags a caller does not own", vm_obj_create(&forced, VM_ID_NONE, &h, NULL) == NULL && forced && forced->head.f.dynamic == 0 && forced->head.f.upd == 0 && forced->head.f.tagged == 0 && !vm_obj_is_dynamic(forced));
 
   vm_obj_h plain = NULL;
-  h = hd(VM_OBJ_U8, 1);
+  h              = hd(VM_OBJ_U8, 1);
   ck("an untagged object clears `tagged` and keeps name_size 0", vm_obj_create(&plain, VM_ID_NONE, &h, NULL) == NULL && plain && plain->head.f.tagged == 0 && plain->head.d.name_size == 0);
 
   // the longest tag a 4-bit name_size can describe
-  vm_obj_h max = NULL;
-  h = hd(VM_OBJ_U32, 2);
+  vm_obj_h max  = NULL;
+  h             = hd(VM_OBJ_U32, 2);
   h.d.name_size = 15;
   ck("15-char name is accepted", vm_obj_create(&max, VM_ID_NONE, &h, "abcdefghijklmno") == NULL && max);
-  uint8_t tl = 0;
+  uint8_t     tl  = 0;
   const char* tag = max ? vm_obj_get_tag(max, &tl) : NULL;
   ck("tag reads back with its length", tag && tl == 15 && memcmp(tag, "abcdefghijklmno", 15) == 0);
   /* The name lives *after* the payload. That placement is what lets every
@@ -1249,8 +1299,8 @@ void test_obj_construction(void) {
   vm_obj_h dirty = mk(0, VM_OBJ_U32, 4, "z", true);
   if (dirty) memset(dirty->payload, 0xAA, 16);
   direct_arena_reset();
-  vm_obj_h fresh = mk(0, VM_OBJ_U32, 4, "z", true);
-  bool zeroed = fresh != NULL;
+  vm_obj_h fresh  = mk(0, VM_OBJ_U32, 4, "z", true);
+  bool     zeroed = fresh != NULL;
   for (int i = 0; fresh && i < 16; i++) {
     if (fresh->payload[i] != 0) zeroed = false;
   }
@@ -1259,7 +1309,7 @@ void test_obj_construction(void) {
   /* Exhaustion is a reported error, not a silent NULL: the loader has to be
      able to tell a client which object did not fit. Done last -- it leaves the
      arena consumed. */
-  vm_obj_h big = NULL;
+  vm_obj_h      big  = NULL;
   vm_obj_head_t hbig = hd(VM_OBJ_U8, 60000);
   ck("arena exhaustion reports and leaves the handle NULL", vm_obj_create(&big, VM_ID_NONE, &hbig, NULL) != NULL && big == NULL);
   /* 65535 U8s is the largest payload_size can describe, and still far past the
@@ -1275,25 +1325,25 @@ void test_obj_construction(void) {
 
 // name index followed by the value step -- the two-index shape every by-name
 // read needs, since the name lands on a PTR slot
-#define NAMED_ACC(var, nm)                                                                                       \
-  static const vm_index_t var##_i[] = {VM_IDX_BY_NAME(nm), {.kind = VM_IDX_LITERAL, .value = 0}}; \
-  static const vm_accessor_t var = {.id = 0, .count = 2, .indices = var##_i}
+#define NAMED_ACC(var, nm)                                                                           \
+  static const vm_index_t    var##_i[] = {VM_IDX_BY_NAME(nm), {.kind = VM_IDX_LITERAL, .value = 0}}; \
+  static const vm_accessor_t var       = {.id = 0, .count = 2, .indices = var##_i}
 
 void test_names_and_accessor_build(void) {
   ESP_LOGI(TAG, "-- H: name matching / accessor construction --");
   direct_arena_reset();
 
-  vm_obj_h bag = mk(0, VM_OBJ_PTR, 6, NULL, true);
+  vm_obj_h bag    = mk(0, VM_OBJ_PTR, 6, NULL, true);
   vm_obj_h c_temp = mk(1, VM_OBJ_U32, 1, "temp", true);
   vm_obj_h c_long = mk(2, VM_OBJ_U32, 1, "temperature", true);
   vm_obj_h c_anon = mk(3, VM_OBJ_U32, 1, NULL, true);
-  vm_obj_h c_dup = mk(4, VM_OBJ_U32, 1, "temp", true);
+  vm_obj_h c_dup  = mk(4, VM_OBJ_U32, 1, "temp", true);
   ck("name fixtures built", bag && c_temp && c_long && c_anon && c_dup);
 
   *(uint32_t*)c_temp->payload = 11;
   *(uint32_t*)c_long->payload = 22;
   *(uint32_t*)c_anon->payload = 33;
-  *(uint32_t*)c_dup->payload = 44;
+  *(uint32_t*)c_dup->payload  = 44;
 
   /* Slots 0 and 4 stay unlinked and slot 1 holds an untagged child: the scan
      has to step over all three rather than stop or fault on them. Parsed
@@ -1309,31 +1359,31 @@ void test_names_and_accessor_build(void) {
   NAMED_ACC(a_over, "0123456789abcdefg");
 
   uint32_t v = 0;
-  ck("exact tag matches past a NULL and an untagged slot", VM_OBJ_GET_VAL(v, &a_exact) == NULL && v == 11);
+  ck("exact tag matches past a NULL and an untagged slot", VM_OBJ_SCALAR_GET(v, &a_exact) == NULL && v == 11);
   v = 0;
-  ck("a longer tag is reachable by its full name", VM_OBJ_GET_VAL(v, &a_full) == NULL && v == 22);
+  ck("a longer tag is reachable by its full name", VM_OBJ_SCALAR_GET(v, &a_full) == NULL && v == 22);
 
   /* Length is compared as well as bytes. Without that, "tem" would match
      "temp" and a script would read a neighbouring field forever without
      anything reporting a problem -- the worst possible failure shape for
      by-name access. */
-  ck("a prefix of a tag does not match", VM_OBJ_GET_VAL(v, &a_prefix) != NULL);
-  ck("a tag that is a prefix of the query does not match", VM_OBJ_GET_VAL(v, &a_longer) != NULL);
-  ck("an empty query matches nothing", VM_OBJ_GET_VAL(v, &a_empty) != NULL);
-  ck("a query longer than any tag can be is refused before the scan", VM_OBJ_GET_VAL(v, &a_over) != NULL);
+  ck("a prefix of a tag does not match", VM_OBJ_SCALAR_GET(v, &a_prefix) != NULL);
+  ck("a tag that is a prefix of the query does not match", VM_OBJ_SCALAR_GET(v, &a_longer) != NULL);
+  ck("an empty query matches nothing", VM_OBJ_SCALAR_GET(v, &a_empty) != NULL);
+  ck("a query longer than any tag can be is refused before the scan", VM_OBJ_SCALAR_GET(v, &a_over) != NULL);
 
   /* Two children share the tag "temp" (slots 2 and 5). The scan takes the
      first, so an ambiguous message reads deterministically rather than
      depending on wiring order. */
   v = 0;
-  ck("the lowest matching slot wins when a tag repeats", VM_OBJ_GET_VAL(v, &a_exact) == NULL && v == 11);
+  ck("the lowest matching slot wins when a tag repeats", VM_OBJ_SCALAR_GET(v, &a_exact) == NULL && v == 11);
 
   // ---- accessors built through the construction API, not as static structs
-  vm_accessor_t* acc = NULL;
-  bool made = vm_accessor_create(&acc, s_acc_id++, 0, 2) == NULL && acc && vm_accessor_set_name(acc, 0, "temperature", 11) == NULL && vm_accessor_set_literal(acc, 1, 0) == NULL;
+  vm_accessor_t* acc  = NULL;
+  bool           made = vm_accessor_create(&acc, s_acc_id++, 0, 2) == NULL && acc && vm_accessor_set_name(acc, 0, "temperature", 11) == NULL && vm_accessor_set_literal(acc, 1, 0) == NULL;
   ck("built an accessor through the construction API", made && acc->count == 2 && acc->indices != NULL);
   v = 0;
-  ck("a built accessor resolves like a static one", made && VM_OBJ_GET_VAL(v, acc) == NULL && v == 22);
+  ck("a built accessor resolves like a static one", made && VM_OBJ_SCALAR_GET(v, acc) == NULL && v == 22);
   /* The wire form is neither NUL-terminated nor persistent, and
      find_child_by_name() calls strlen() on whatever it is handed. */
   ck("set_name stored a NUL-terminated copy", made && strcmp(acc->indices[0].name, "temperature") == 0);
@@ -1343,7 +1393,7 @@ void test_names_and_accessor_build(void) {
   ck("set_ref rejects a NULL target", vm_accessor_set_ref(acc, 0, NULL) != NULL);
   ck("set_name rejects a 16-char name", vm_accessor_set_name(acc, 0, "0123456789abcdef", 16) != NULL);
   v = 0;
-  ck("the rejected setters left index 0 intact", VM_OBJ_GET_VAL(v, acc) == NULL && v == 22);
+  ck("the rejected setters left index 0 intact", VM_OBJ_SCALAR_GET(v, acc) == NULL && v == 22);
 
   vm_accessor_t* whole = NULL;
   ck("a zero-index accessor allocates no index array", vm_accessor_create(&whole, s_acc_id++, 1, 0) == NULL && whole && whole->count == 0 && whole->indices == NULL);
@@ -1368,7 +1418,7 @@ void test_names_and_accessor_build(void) {
   ck("after reset every object id resolves NULL", vm_obj_get_by_id(0) == NULL && vm_obj_get_by_id(1) == NULL);
   ck("after reset every accessor id resolves NULL", vm_accessor_get_by_id(5) == NULL);
   ck("after reset every block id resolves NULL", vm_block_get_by_id(0) == NULL);
-  ck("resolution fails closed against a detached store", VM_OBJ_GET_VAL(v, &a_exact) != NULL);
+  ck("resolution fails closed against a detached store", VM_OBJ_SCALAR_GET(v, &a_exact) != NULL);
   ck("alloc against a detached store -> REG_OOB", vm_store_alloc(&p, VM_REG_OBJ, 0, 8) != NULL);
 }
 
@@ -1380,20 +1430,20 @@ void test_access_edges(void) {
   ESP_LOGI(TAG, "-- I: access edge cases --");
   direct_arena_reset();
 
-  vm_obj_h box = mk(0, VM_OBJ_PTR, 2, NULL, true);
-  vm_obj_h arr = mk(1, VM_OBJ_U32, 4, "arr", true);
-  vm_obj_h one = mk(2, VM_OBJ_U32, 1, NULL, true);
-  vm_obj_h fsel = mk(3, VM_OBJ_F, 1, NULL, true);
-  vm_obj_h isel = mk(4, VM_OBJ_I32, 1, NULL, true);
-  vm_obj_h flag = mk(5, VM_OBJ_B, 1, NULL, true);
+  vm_obj_h box    = mk(0, VM_OBJ_PTR, 2, NULL, true);
+  vm_obj_h arr    = mk(1, VM_OBJ_U32, 4, "arr", true);
+  vm_obj_h one    = mk(2, VM_OBJ_U32, 1, NULL, true);
+  vm_obj_h fsel   = mk(3, VM_OBJ_F, 1, NULL, true);
+  vm_obj_h isel   = mk(4, VM_OBJ_I32, 1, NULL, true);
+  vm_obj_h flag   = mk(5, VM_OBJ_B, 1, NULL, true);
   vm_obj_h ro_box = mk(6, VM_OBJ_PTR, 1, NULL, false);
   ck("edge fixtures built", box && arr && one && fsel && isel && flag && ro_box);
 
   uint32_t* av = (uint32_t*)arr->payload;
-  av[0] = 5;
-  av[1] = 15;
-  av[2] = 25;
-  av[3] = 33;
+  av[0]        = 5;
+  av[1]        = 15;
+  av[2]        = 25;
+  av[3]        = 33;
   ck("link arr into box[0]", vm_obj_link_direct(box, 0, arr) == NULL);
 
   static const vm_accessor_t w_box = {.id = 0, .count = 0, .indices = NULL};
@@ -1410,44 +1460,44 @@ void test_access_edges(void) {
 
   // a chainless write has no element to land on, so it takes the first
   uint32_t v = 42;
-  ck("write via a count-0 accessor lands on element 0", VM_OBJ_SET_VAL(v, &w_arr) == NULL && av[0] == 42);
+  ck("write via a count-0 accessor lands on element 0", VM_OBJ_SET_SCALAR(v, &w_arr) == NULL && av[0] == 42);
 
   /* Pointer payloads are not scalars. Letting a scalar write through would
      overwrite a live child address with an integer -- the resulting handle is
      then dereferenced by every later resolve. */
-  ck("a scalar write into a PTR object is refused", VM_OBJ_SET_VAL(v, &w_box) != NULL);
+  ck("a scalar write into a PTR object is refused", VM_OBJ_SET_SCALAR(v, &w_box) != NULL);
   ck("the refused write left the link intact", *(vm_obj_h*)box->payload == arr);
-  ck("set_scalar_direct into a PTR element is refused", VM_OBJ_SET_VAL_AT(v, box, 0) != NULL);
+  ck("set_scalar_direct into a PTR element is refused", VM_OBJ_SET_SCALAR_AT_IDX(v, box, 0) != NULL);
 
-  ck("set_scalar_direct rejects a NULL object", vm_obj_set_scalar_direct(NULL, 0, (vm_val_t){.u32 = 1}, VM_OBJ_U32) != NULL);
+  ck("set_scalar_direct rejects a NULL object", vm_internal_set_scalar_direct(NULL, 0, (vm_val_t){.u32 = 1}, VM_OBJ_U32) != NULL);
   ck("link_direct rejects a NULL child", vm_obj_link_direct(box, 1, arr) == NULL && vm_obj_link_direct(box, 1, NULL) != NULL);
   ck("link_direct rejects a non-mutable cell", vm_obj_link_direct(ro_box, 0, arr) != NULL);
 
   // ---- by-ref indices: the index is data, so it arrives in any type or range
   static const vm_accessor_t w_fsel = {.id = 3, .count = 0, .indices = NULL};
   static const vm_accessor_t w_isel = {.id = 4, .count = 0, .indices = NULL};
-  static const vm_index_t by_f[] = {{.kind = VM_IDX_REF, .ref = &w_fsel}};
+  static const vm_index_t    by_f[] = {{.kind = VM_IDX_REF, .ref = &w_fsel}};
   static const vm_accessor_t a_by_f = {.id = 1, .count = 1, .indices = by_f};
-  static const vm_index_t by_i[] = {{.kind = VM_IDX_REF, .ref = &w_isel}};
+  static const vm_index_t    by_i[] = {{.kind = VM_IDX_REF, .ref = &w_isel}};
   static const vm_accessor_t a_by_i = {.id = 1, .count = 1, .indices = by_i};
 
   *(float*)fsel->payload = 2.7f;
-  uint32_t got = 0;
-  ck("a float index rounds to element 3", VM_OBJ_GET_VAL(got, &a_by_f) == NULL && got == 33);
+  uint32_t got           = 0;
+  ck("a float index rounds to element 3", VM_OBJ_SCALAR_GET(got, &a_by_f) == NULL && got == 33);
 
   /* A negative index reinterprets as a huge unsigned one. It must land past
      the end and be reported -- not be truncated into an in-range element. */
   *(int32_t*)isel->payload = -1;
-  ck("a negative by-ref index is out of range, not wrapped", VM_OBJ_GET_VAL(got, &a_by_i) != NULL);
+  ck("a negative by-ref index is out of range, not wrapped", VM_OBJ_SCALAR_GET(got, &a_by_i) != NULL);
   /* 65536 is the interesting one: narrowing the index to 16 bits before the
      bounds check would turn it into element 0 and read a real value. */
   *(int32_t*)isel->payload = 65536;
-  ck("index 65536 is out of range, not truncated to 0", VM_OBJ_GET_VAL(got, &a_by_i) != NULL);
+  ck("index 65536 is out of range, not truncated to 0", VM_OBJ_SCALAR_GET(got, &a_by_i) != NULL);
   *(int32_t*)isel->payload = 65537;
-  ck("index 65537 is out of range, not truncated to 1", VM_OBJ_GET_VAL(got, &a_by_i) != NULL);
+  ck("index 65537 is out of range, not truncated to 1", VM_OBJ_SCALAR_GET(got, &a_by_i) != NULL);
 
   // ---- element-level copy_content
-  static const vm_index_t e2[] = {{.kind = VM_IDX_LITERAL, .value = 2}};
+  static const vm_index_t    e2[]   = {{.kind = VM_IDX_LITERAL, .value = 2}};
   static const vm_accessor_t a_arr2 = {.id = 1, .count = 1, .indices = e2};
   ck("copy_content copies a single element into a scalar object", vm_obj_copy_content(&a_arr2, &w_one) == NULL && *(uint32_t*)one->payload == 25);
   ck("copy_content refuses element -> whole array (count mismatch)", vm_obj_copy_content(&a_arr2, &w_arr) != NULL);
@@ -1467,50 +1517,43 @@ void test_access_edges(void) {
   *(uint32_t*)one->payload = 2;
 
   vm_accessor_t* d8[8] = {0};
-  bool ok8 = idx1 && vm_accessor_create(&d8[7], s_acc_id++, 2, 0) == NULL;  // reads `one`
+  bool           ok8   = idx1 && vm_accessor_create(&d8[7], s_acc_id++, 2, 0) == NULL;  // reads `one`
   for (int i = 6; i >= 1 && ok8; i--) {
     ok8 = vm_accessor_create(&d8[i], s_acc_id++, 7, 1) == NULL && vm_accessor_set_ref(d8[i], 0, d8[i + 1]) == NULL;
   }
   ok8 = ok8 && vm_accessor_create(&d8[0], s_acc_id++, 1, 1) == NULL && vm_accessor_set_ref(d8[0], 0, d8[1]) == NULL;
   got = 0;
-  ck("a by-ref chain exactly at MAX_DEPTH still resolves", ok8 && VM_OBJ_GET_VAL(got, d8[0]) == NULL && got == 15);
+  ck("a by-ref chain exactly at MAX_DEPTH still resolves", ok8 && VM_OBJ_SCALAR_GET(got, d8[0]) == NULL && got == 15);
 
   vm_accessor_t* d9[9] = {0};
-  bool ok9 = idx1 && vm_accessor_create(&d9[8], s_acc_id++, 2, 0) == NULL;
+  bool           ok9   = idx1 && vm_accessor_create(&d9[8], s_acc_id++, 2, 0) == NULL;
   for (int i = 7; i >= 1 && ok9; i--) {
     ok9 = vm_accessor_create(&d9[i], s_acc_id++, 7, 1) == NULL && vm_accessor_set_ref(d9[i], 0, d9[i + 1]) == NULL;
   }
   ok9 = ok9 && vm_accessor_create(&d9[0], s_acc_id++, 1, 1) == NULL && vm_accessor_set_ref(d9[0], 0, d9[1]) == NULL;
-  ck("one level past MAX_DEPTH is refused", ok9 && VM_OBJ_GET_VAL(got, d9[0]) != NULL);
+  ck("one level past MAX_DEPTH is refused", ok9 && VM_OBJ_SCALAR_GET(got, d9[0]) != NULL);
 
   // ---- the _Generic arms a block body can reach that stage B does not
   static const vm_accessor_t w_flag = {.id = 5, .count = 0, .indices = NULL};
-  bool bt = true;
-  uint8_t b_out = 0;
-  ck("bool source stores as B and reads back 1", VM_OBJ_SET_VAL(bt, &w_flag) == NULL && VM_OBJ_GET_VAL(b_out, &w_flag) == NULL && b_out == 1);
+  bool                       bt     = true;
+  uint8_t                    b_out  = 0;
+  ck("bool source stores as B and reads back 1", VM_OBJ_SET_SCALAR(bt, &w_flag) == NULL && VM_OBJ_SCALAR_GET(b_out, &w_flag) == NULL && b_out == 1);
 
-  int8_t i8 = -7;
-  int32_t i_out = 0;
-  ck("int8 source keeps its sign", VM_OBJ_SET_VAL(i8, &w_isel) == NULL && VM_OBJ_GET_VAL(i_out, &w_isel) == NULL && i_out == -7);
-
-  int16_t i16 = -300;
-  i_out = 0;
-  ck("int16 source keeps its sign", VM_OBJ_SET_VAL(i16, &w_isel) == NULL && VM_OBJ_GET_VAL(i_out, &w_isel) == NULL && i_out == -300);
-
-  uint16_t u16 = 40000;
-  uint32_t u_out = 0;
-  ck("uint16 source widens", VM_OBJ_SET_VAL(u16, &w_one) == NULL && VM_OBJ_GET_VAL(u_out, &w_one) == NULL && u_out == 40000);
-
-  double d = 2.5;
-  float f_out = 0;
-  ck("double source narrows to float", VM_OBJ_SET_VAL(d, &w_fsel) == NULL && VM_OBJ_GET_VAL(f_out, &w_fsel) == NULL && f_out == 2.5f);
+  int32_t signed_value = -300;
+  int32_t i_out        = 0;
+  ck("I32 source keeps its sign", !VM_OBJ_SET_SCALAR(signed_value, &w_isel) && !VM_OBJ_SCALAR_GET(i_out, &w_isel) && i_out == -300);
+  uint32_t unsigned_value = UINT32_MAX;
+  uint32_t u_out          = 0;
+  ck("U32 source retains its full range", !VM_OBJ_SET_SCALAR(unsigned_value, &w_one) && !VM_OBJ_SCALAR_GET(u_out, &w_one) && u_out == UINT32_MAX);
+  float fractional_value = 2.5f;
+  float f_out            = 0;
+  ck("float source retains fractional value", !VM_OBJ_SET_SCALAR(fractional_value, &w_fsel) && !VM_OBJ_SCALAR_GET(f_out, &w_fsel) && f_out == 2.5f);
 
   // ---- payload stepping
-  vm_payload_t bp = vm_make_payload(box);
+  vm_obj_payload_t bp = vm_make_payload(box);
   ck("payload_at steps a PTR payload by a pointer width", vm_payload_get_at(bp, 1).ptr == (uint8_t*)box->payload + sizeof(void*));
   uint32_t z = 7;
-  VM_PAYLOAD_GET_VAL(z, vm_payload_get_at(vm_make_payload(arr), 99));
-  ck("payload_at past the end reads as 0, not as garbage", z == 0);
+  ck("payload_at past the end returns error and preserves output", VM_PAYLOAD_GET_VAL(z, vm_payload_get_at(vm_make_payload(arr), 99)) != NULL && z == 7);
 }
 
 /* ==========================================================================
@@ -1524,10 +1567,10 @@ void test_strings(void) {
   ESP_LOGI(TAG, "-- J: string objects --");
   direct_arena_reset();
 
-  vm_obj_h s = mk(0, VM_OBJ_STR, 8, "s", true);
-  vm_obj_h s2 = mk(1, VM_OBJ_STR, 8, NULL, true);
+  vm_obj_h s       = mk(0, VM_OBJ_STR, 8, "s", true);
+  vm_obj_h s2      = mk(1, VM_OBJ_STR, 8, NULL, true);
   vm_obj_h s_short = mk(2, VM_OBJ_STR, 4, NULL, true);
-  vm_obj_h bytes = mk(3, VM_OBJ_U8, 8, NULL, true);
+  vm_obj_h bytes   = mk(3, VM_OBJ_U8, 8, NULL, true);
   ck("string fixtures built", s && s2 && s_short && bytes);
 
   ck("a STR element is one byte wide", vm_obj_get_type_size(s) == 1);
@@ -1535,29 +1578,29 @@ void test_strings(void) {
 
   memcpy(s->payload, "hello", 5);
 
-  static const vm_index_t i1[] = {{.kind = VM_IDX_LITERAL, .value = 1}};
+  static const vm_index_t    i1[] = {{.kind = VM_IDX_LITERAL, .value = 1}};
   static const vm_accessor_t a_s1 = {.id = 0, .count = 1, .indices = i1};
-  static const vm_accessor_t w_s = {.id = 0, .count = 0, .indices = NULL};
+  static const vm_accessor_t w_s  = {.id = 0, .count = 0, .indices = NULL};
 
   /* The reason this stage exists: every value-path switch has to name
      VM_OBJ_STR explicitly, and a missing case reads as 0 rather than
      failing -- silent, and indistinguishable from a genuinely empty slot. */
   uint8_t c = 0;
-  ck("indexed read gives the character, not 0", VM_OBJ_GET_VAL(c, &a_s1) == NULL && c == 'e');
+  ck("indexed read gives the character, not 0", VM_OBJ_SCALAR_GET(c, &a_s1) == NULL && c == 'e');
 
   char wc = 'a';
-  ck("a plain char writes through as a character", VM_OBJ_SET_VAL(wc, &a_s1) == NULL && s->payload[1] == 'a');
-  ck("chars round-trip through the accessor layer", VM_OBJ_GET_VAL(c, &a_s1) == NULL && c == 'a');
+  ck("a plain char writes through as a character", VM_OBJ_SET_SCALAR(wc, &a_s1) == NULL && s->payload[1] == 'a');
+  ck("chars round-trip through the accessor layer", VM_OBJ_SCALAR_GET(c, &a_s1) == NULL && c == 'a');
   s->payload[1] = 'e';
 
   // walking the buffer, which is how any string block reads one
-  vm_payload_t sp = {.ptr = NULL, .count = 0, .type = VM_OBJ_NONE, ._pad = 0};
-  bool resolved = vm_obj_get_payload(&sp, &w_s) == NULL;
+  vm_obj_payload_t sp       = {.ptr = NULL, .count = 0, .type = VM_OBJ_NONE, ._pad = 0};
+  bool         resolved = vm_obj_get_payload(&sp, &w_s) == NULL;
   ck("whole-object accessor yields the buffer", resolved && sp.type == VM_OBJ_STR && sp.count == 8);
   char out[9] = {0};
   for (uint16_t i = 0; resolved && i < sp.count; i++) {
     uint8_t ch = 0;
-    VM_PAYLOAD_GET_VAL(ch, vm_payload_get_at(sp, i));
+    ck("string element read succeeds", VM_PAYLOAD_GET_VAL(ch, vm_payload_get_at(sp, i)) == NULL);
     out[i] = (char)ch;
   }
   ck("iterating the payload reads the text back", memcmp(out, "hello\0\0\0", 8) == 0);
@@ -1565,7 +1608,7 @@ void test_strings(void) {
   ck("a STR object is tagged like any other", s->head.f.tagged == 1 && s->head.d.name_size == 1);
 
   // bulk copy between equal-length strings
-  static const vm_accessor_t w_s2 = {.id = 1, .count = 0, .indices = NULL};
+  static const vm_accessor_t w_s2    = {.id = 1, .count = 0, .indices = NULL};
   static const vm_accessor_t w_short = {.id = 2, .count = 0, .indices = NULL};
   static const vm_accessor_t w_bytes = {.id = 3, .count = 0, .indices = NULL};
   ck("copy_content copies a whole string", vm_obj_copy_content(&w_s, &w_s2) == NULL && memcmp(s2->payload, "hello", 5) == 0);
@@ -1574,8 +1617,8 @@ void test_strings(void) {
      refused -- the type is what tells a client how to render the bytes. */
   ck("copy_content refuses STR -> U8 despite equal widths", vm_obj_copy_content(&w_s, &w_bytes) != NULL);
 
-  ck("writing past the end of a string is refused", VM_OBJ_SET_VAL_AT(wc, s, 8) != NULL);
-  ck("writing the last character is accepted", VM_OBJ_SET_VAL_AT(wc, s, 7) == NULL && s->payload[7] == 'a');
+  ck("writing past the end of a string is refused", VM_OBJ_SET_SCALAR_AT_IDX(wc, s, 8) != NULL);
+  ck("writing the last character is accepted", VM_OBJ_SET_SCALAR_AT_IDX(wc, s, 7) == NULL && s->payload[7] == 'a');
 }
 
 /* ==========================================================================
@@ -1594,7 +1637,7 @@ void test_resolution_cache(void) {
   vm_obj_h box = mk(0, VM_OBJ_PTR, 2, NULL, true);
   vm_obj_h arr = mk(1, VM_OBJ_U32, 4, NULL, true);
   vm_obj_h alt = mk(2, VM_OBJ_U32, 4, NULL, true);
-  vm_obj_h ro = mk(3, VM_OBJ_U32, 2, NULL, false);
+  vm_obj_h ro  = mk(3, VM_OBJ_U32, 2, NULL, false);
   ck("cache fixtures built", box && arr && alt && ro);
   if (!box || !arr || !alt || !ro) return;
 
@@ -1604,40 +1647,40 @@ void test_resolution_cache(void) {
 
   // the two shapes that qualify
   vm_accessor_t* whole = NULL;
-  vm_accessor_t* elem = NULL;
-  bool built = vm_accessor_create(&whole, s_acc_id++, 1, 0) == NULL && vm_accessor_create(&elem, s_acc_id++, 1, 1) == NULL && vm_accessor_set_literal(elem, 0, 2) == NULL;
+  vm_accessor_t* elem  = NULL;
+  bool           built = vm_accessor_create(&whole, s_acc_id++, 1, 0) == NULL && vm_accessor_create(&elem, s_acc_id++, 1, 1) == NULL && vm_accessor_set_literal(elem, 0, 2) == NULL;
   ck("cacheable accessors built", built);
   ck("whole-object accessor caches", built && vm_accessor_cache_build(whole));
   ck("one-literal accessor caches", built && vm_accessor_cache_build(elem));
 
   uint32_t v = 0;
-  ck("cached read matches the value", VM_OBJ_GET_VAL(v, elem) == NULL && v == 102);
-  ck("cached write lands and sets upd", VM_OBJ_SET_VAL(((uint32_t)777), elem) == NULL && ((uint32_t*)arr->payload)[2] == 777 && arr->head.f.upd);
+  ck("cached read matches the value", VM_OBJ_SCALAR_GET(v, elem) == NULL && v == 102);
+  ck("cached write lands and sets upd", VM_OBJ_SET_SCALAR(((uint32_t)777), elem) == NULL && ((uint32_t*)arr->payload)[2] == 777 && arr->head.f.upd);
 
-  vm_payload_t p = {0};
+  vm_obj_payload_t p = {0};
   ck("cached whole-object payload has the full count", vm_obj_get_payload(&p, whole) == NULL && p.count == 4 && p.ptr == arr->payload);
 
   /* A cached accessor must still refuse a read-only target: mutability is read
      from the object at access time, not frozen into the cache. */
-  vm_accessor_t* roacc = NULL;
-  bool ro_built = vm_accessor_create(&roacc, s_acc_id++, 3, 1) == NULL && vm_accessor_set_literal(roacc, 0, 0) == NULL;
+  vm_accessor_t* roacc    = NULL;
+  bool           ro_built = vm_accessor_create(&roacc, s_acc_id++, 3, 1) == NULL && vm_accessor_set_literal(roacc, 0, 0) == NULL;
   ck("read-only accessor caches", ro_built && vm_accessor_cache_build(roacc));
-  ck("cached write to a non-mutable object is still refused", ro_built && VM_OBJ_SET_VAL(((uint32_t)5), roacc) != NULL);
+  ck("cached write to a non-mutable object is still refused", ro_built && VM_OBJ_SET_SCALAR(((uint32_t)5), roacc) != NULL);
 
   /* The shapes that must not be cached -- a two-level chain's address moves
      when the link moves, so caching it would hand back the old child. */
-  vm_accessor_t* deep = NULL;
-  bool deep_built = vm_accessor_create(&deep, s_acc_id++, 0, 2) == NULL && vm_accessor_set_literal(deep, 0, 0) == NULL && vm_accessor_set_literal(deep, 1, 1) == NULL;
+  vm_accessor_t* deep       = NULL;
+  bool           deep_built = vm_accessor_create(&deep, s_acc_id++, 0, 2) == NULL && vm_accessor_set_literal(deep, 0, 0) == NULL && vm_accessor_set_literal(deep, 1, 1) == NULL;
   ck("two-level chain refuses to cache", deep_built && !vm_accessor_cache_build(deep));
 
-  vm_accessor_t* named = NULL;
-  bool named_built = vm_accessor_create(&named, s_acc_id++, 0, 1) == NULL && vm_accessor_set_name(named, 0, "x", 1) == NULL;
+  vm_accessor_t* named       = NULL;
+  bool           named_built = vm_accessor_create(&named, s_acc_id++, 0, 1) == NULL && vm_accessor_set_name(named, 0, "x", 1) == NULL;
   ck("by-name index refuses to cache", named_built && !vm_accessor_cache_build(named));
 
-  vm_accessor_t* oob = NULL;
-  bool oob_built = vm_accessor_create(&oob, s_acc_id++, 1, 1) == NULL && vm_accessor_set_literal(oob, 0, 99) == NULL;
+  vm_accessor_t* oob       = NULL;
+  bool           oob_built = vm_accessor_create(&oob, s_acc_id++, 1, 1) == NULL && vm_accessor_set_literal(oob, 0, 99) == NULL;
   ck("out-of-range literal refuses to cache", oob_built && !vm_accessor_cache_build(oob));
-  ck("an uncached out-of-range accessor still reports OOB", oob_built && VM_OBJ_GET_VAL(v, oob) != NULL);
+  ck("an uncached out-of-range accessor still reports OOB", oob_built && VM_OBJ_SCALAR_GET(v, oob) != NULL);
 
   /* The property the whole tier rests on: re-linking must be picked up. The
      deep chain is uncached, so it follows the new child; and a cached
@@ -1645,22 +1688,21 @@ void test_resolution_cache(void) {
      because that is what it names. */
   ck("relink to alt", vm_obj_link_direct(box, 0, alt) == NULL);
   uint32_t after = 0;
-  ck("uncached deep chain follows the new link", deep_built && VM_OBJ_GET_VAL(after, deep) == NULL && after == 901);
-  ck("cached accessor still names its own object", VM_OBJ_GET_VAL(v, elem) == NULL && v == 777);
+  ck("uncached deep chain follows the new link", deep_built && VM_OBJ_SCALAR_GET(after, deep) == NULL && after == 901);
+  ck("cached accessor still names its own object", VM_OBJ_SCALAR_GET(v, elem) == NULL && v == 777);
 
   /* A cached accessor and a fresh uncached one must never disagree. */
-  vm_accessor_t* twin = NULL;
-  bool twin_built = vm_accessor_create(&twin, s_acc_id++, 1, 1) == NULL && vm_accessor_set_literal(twin, 0, 2) == NULL;
-  uint32_t a = 0, b = 0;
-  ck("cached and uncached agree", twin_built && VM_OBJ_GET_VAL(a, elem) == NULL && VM_OBJ_GET_VAL(b, twin) == NULL && a == b);
+  vm_accessor_t* twin       = NULL;
+  bool           twin_built = vm_accessor_create(&twin, s_acc_id++, 1, 1) == NULL && vm_accessor_set_literal(twin, 0, 2) == NULL;
+  uint32_t       a = 0, b = 0;
+  ck("cached and uncached agree", twin_built && VM_OBJ_SCALAR_GET(a, elem) == NULL && VM_OBJ_SCALAR_GET(b, twin) == NULL && a == b);
 
   // A program's accessor is freed with its arena. Use a caller-owned copy to
   // exercise rebuilding, rather than dereferencing the reclaimed accessor.
-  vm_accessor_t detached = *elem;
-  vm_index_t detached_index = elem->indices[0];
-  detached.indices = &detached_index;
+  vm_accessor_t detached       = *elem;
+  vm_index_t    detached_index = elem->indices[0];
+  detached.indices             = &detached_index;
   ck("cache_build clears the flag when the object is gone", (vm_store_reset(), !vm_accessor_cache_build(&detached)) && (detached.flags & VM_ACC_F_CACHED) == 0);
-  ck("a dropped cache falls back to failing closed", VM_OBJ_GET_VAL(v, &detached) != NULL);
+  ck("a dropped cache falls back to failing closed", VM_OBJ_SCALAR_GET(v, &detached) != NULL);
   ck("cache_build survives NULL", !vm_accessor_cache_build(NULL));
 }
-

@@ -1,6 +1,7 @@
 #include "vm_obj_dyn.h"
 #include <string.h>
 #include "esp_heap_caps.h"
+#include "vm_obj_build.h"
 
 #define OWNER OWNER_VM_OBJ
 

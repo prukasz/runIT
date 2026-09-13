@@ -1,7 +1,7 @@
 #pragma once
 #include <math.h>
 #include "esp_compiler.h"
-#include "vm_block_support.h"
+#include "vm_block_helpers.h"
 #include "vm_exec.h"
 
 /*
@@ -95,9 +95,9 @@ static inline void vm_blk_for(vm_block_h b) {
   float i = 0.0f, end = 0.0f, step = 0.0f;
   bool go = owned;
   IF_BLOCK_ENABLED(b) {
-    go = go && VM_BLOCK_GET_PARAM(i, b, VM_FOR_IN_START, c->k_start);
-    go = go && VM_BLOCK_GET_PARAM(end, b, VM_FOR_IN_END, c->k_end);
-    go = go && VM_BLOCK_GET_PARAM(step, b, VM_FOR_IN_STEP, c->k_step);
+    go = go && vm_block_check(b, VM_BLOCK_GET_PARAM(i, b, VM_FOR_IN_START, c->k_start));
+    go = go && vm_block_check(b, VM_BLOCK_GET_PARAM(end, b, VM_FOR_IN_END, c->k_end));
+    go = go && vm_block_check(b, VM_BLOCK_GET_PARAM(step, b, VM_FOR_IN_STEP, c->k_step));
     go = go && isfinite(i) && isfinite(end) && isfinite(step);
   } else {
     go = false;
@@ -121,7 +121,7 @@ static inline void vm_blk_for(vm_block_h b) {
     }
 
     if (idx) {
-      err_h e = VM_OBJ_SET_VAL_AT(i, idx, 0);
+      err_h e = VM_OBJ_SET_SCALAR_AT_IDX(i, idx, 0);
       if (unlikely(e)) {
         vm_block_report_error(e, b->cfg.block_idx, b->cfg.block_type);
         return;
