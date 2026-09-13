@@ -43,21 +43,45 @@ static portMUX_TYPE s_program_mux = portMUX_INITIALIZER_UNLOCKED;
 static bool s_program_locked;
 static volatile bool s_pass_active;
 static volatile bool s_cancel;
+static bool s_stop_requested;
+static TaskHandle_t s_pass_task;
 static bool s_waiting;
 static uint16_t s_next_block = UINT16_MAX;
 static vm_run_mode_e s_selected = VM_RUN_RUNNING;
 static vm_run_mode_e s_resume = VM_RUN_STOPPED;
 
+static bool caller_owns_active_pass(void) {
+  TaskHandle_t caller = xTaskGetCurrentTaskHandle();
+  portENTER_CRITICAL(&s_program_mux);
+  bool owns = s_pass_active && s_pass_task == caller;
+  portEXIT_CRITICAL(&s_program_mux);
+  return owns;
+}
+
+static void wait_for_quiescence(void) {
+  for (;;) {
+    portENTER_CRITICAL(&s_program_mux);
+    bool quiescent = !s_pass_active && !s_waiting;
+    portEXIT_CRITICAL(&s_program_mux);
+    if (quiescent) return;
+    vTaskDelay(1);
+  }
+}
+
 /* Cancel at a block boundary and wait for the stack to release all handles
-   before the loader can replace the program. */
-vm_run_mode_e vm_exec_program_lock(void) {
-  vm_run_mode_e previous;
+   before the loader can replace the program. The caller/task check covers
+   both the supervisor and a task executing vm_exec_pass() directly. */
+err_h vm_exec_program_lock(vm_run_mode_e* out_previous) {
+  SE_CHECK_NOT_NULL(out_previous);
+  if (caller_owns_active_pass()) {
+    SE_RET_ERR(ERR_VM_EXEC_SELF_BARRIER, .operation = 1);
+  }
+
   for (;;) {
     portENTER_CRITICAL(&s_program_mux);
     if (!s_program_locked) {
       s_program_locked = true;
-      previous = s_mode;
-      s_mode = VM_RUN_STOPPED;
+      *out_previous = s_mode;
       s_cancel = true;
       portEXIT_CRITICAL(&s_program_mux);
       break;
@@ -65,16 +89,24 @@ vm_run_mode_e vm_exec_program_lock(void) {
     portEXIT_CRITICAL(&s_program_mux);
     vTaskDelay(1);
   }
-  while (s_pass_active) {
-    vTaskDelay(1);
-  }
-  return previous;
+
+  wait_for_quiescence();
+  portENTER_CRITICAL(&s_program_mux);
+  s_mode = VM_RUN_STOPPED;
+  portEXIT_CRITICAL(&s_program_mux);
+  return NULL;
 }
 
 void vm_exec_program_unlock(vm_run_mode_e mode) {
   portENTER_CRITICAL(&s_program_mux);
-  s_mode = mode;
-  s_cancel = false;
+  if (s_stop_requested) {
+    s_mode = VM_RUN_STOPPED;
+    s_stop_requested = false;
+    s_cancel = false;
+  } else {
+    s_mode = mode;
+    s_cancel = false;
+  }
   s_program_locked = false;
   portEXIT_CRITICAL(&s_program_mux);
 }
@@ -280,14 +312,21 @@ void vm_exec_run_range(uint16_t start, uint16_t end) {
 }
 
 void vm_exec_pass(void) {
+  TaskHandle_t pass_task = xTaskGetCurrentTaskHandle();
   portENTER_CRITICAL(&s_program_mux);
-  if (s_program_locked || s_pass_active || s_mode == VM_RUN_FROZEN ||
-      s_mode == VM_RUN_SCAN || s_mode == VM_RUN_BLOCK ||
-      (vm_exec_task_h && xTaskGetCurrentTaskHandle() == vm_exec_task_h && s_mode == VM_RUN_STOPPED)) {
+  /* STOPPED parks the supervisor, but vm_exec_pass() is also the explicit
+     synchronous/manual execution entry point used by bring-up and tests.
+     A pending stop closes that exception until a new mode is selected. */
+  bool stopped_holds_caller =
+      s_mode == VM_RUN_STOPPED &&
+      (s_stop_requested || (vm_exec_task_h && pass_task == vm_exec_task_h));
+  if (s_program_locked || s_pass_active || stopped_holds_caller ||
+      s_mode == VM_RUN_FROZEN || s_mode == VM_RUN_SCAN || s_mode == VM_RUN_BLOCK) {
     portEXIT_CRITICAL(&s_program_mux);
     return;
   }
   s_pass_active = true;
+  s_pass_task = pass_task;
   portEXIT_CRITICAL(&s_program_mux);
   uint64_t t0 = vm_clock_us();
   g_vm_pass_ms = t0 / 1000u;
@@ -318,7 +357,15 @@ void vm_exec_pass(void) {
   if (completed && s_mode == VM_RUN_FROZEN && s_resume == VM_RUN_BLOCK_STEP) s_resume = VM_RUN_BLOCK;
   // Empty programs also consume one NEXT. No dispatch means no gate did it.
   if (s_mode == VM_RUN_BLOCK_STEP) s_mode = VM_RUN_BLOCK;
+  s_pass_task = NULL;
   s_pass_active = false;
+  /* Publish STOPPED only after the pass no longer owns VM handles. Readers of
+     the lock-free mode accessor can therefore treat STOPPED as quiescent. */
+  if (!s_program_locked && s_stop_requested) {
+    s_mode = VM_RUN_STOPPED;
+    s_stop_requested = false;
+    s_cancel = false;
+  }
   portEXIT_CRITICAL(&s_program_mux);
 }
 
@@ -365,17 +412,47 @@ err_h vm_exec_start(void) {
   return NULL;
 }
 
-void vm_exec_stop(void) {
-  vm_exec_set_mode(VM_RUN_STOPPED);
+void vm_exec_request_stop(void) {
+  portENTER_CRITICAL(&s_program_mux);
+  s_stop_requested = true;
+  s_cancel = true;
+  if (!s_pass_active && !s_program_locked) {
+    s_mode = VM_RUN_STOPPED;
+    s_waiting = false;
+    s_next_block = UINT16_MAX;
+    s_stop_requested = false;
+    s_cancel = false;
+  }
+  portEXIT_CRITICAL(&s_program_mux);
+}
+
+err_h vm_exec_stop(void) {
+  vm_exec_request_stop();
+  if (caller_owns_active_pass()) {
+    SE_RET_ERR(ERR_VM_EXEC_SELF_BARRIER, .operation = 0);
+  }
+
+  /* Hold the program barrier through the wait so a concurrent mode command
+     cannot restart execution between quiescence and this function returning. */
+  vm_run_mode_e previous;
+  SE_RET_IF_ERR(vm_exec_program_lock(&previous));
+  vm_exec_program_unlock(VM_RUN_STOPPED);
+  return NULL;
 }
 
 void vm_exec_set_mode(vm_run_mode_e mode) {
+  if (mode == VM_RUN_STOPPED) {
+    vm_exec_request_stop();
+    return;
+  }
   portENTER_CRITICAL(&s_program_mux);
-  if (!s_program_locked && mode <= VM_RUN_BLOCK_STEP) {
+  if (!s_program_locked && !(s_stop_requested && s_pass_active) && mode <= VM_RUN_BLOCK_STEP) {
     if (mode == VM_RUN_FROZEN && s_mode != VM_RUN_FROZEN) s_resume = s_mode;
     if (mode == VM_RUN_RUNNING) s_selected = VM_RUN_RUNNING;
     if (mode == VM_RUN_STEP || mode == VM_RUN_SCAN) s_selected = VM_RUN_SCAN;
     if (mode == VM_RUN_BLOCK || mode == VM_RUN_BLOCK_STEP) s_selected = VM_RUN_BLOCK;
+    s_stop_requested = false;
+    s_cancel = false;
     s_mode = mode;
   }
   portEXIT_CRITICAL(&s_program_mux);
@@ -387,29 +464,33 @@ vm_run_mode_e vm_exec_mode(void) {
 
 vm_exec_status_t vm_exec_status(void) {
   portENTER_CRITICAL(&s_program_mux);
-  vm_exec_status_t status = {s_mode, s_next_block, s_pass_active, s_waiting};
+  vm_exec_status_t status = {s_mode, s_next_block, s_pass_active, s_waiting, s_stop_requested};
   portEXIT_CRITICAL(&s_program_mux);
   return status;
 }
 
 err_h vm_exec_control(vm_exec_command_e command) {
   if (command == VM_EXEC_RESET_TO_START) {
-    (void)vm_exec_program_lock();
+    vm_run_mode_e previous;
+    SE_RET_IF_ERR(vm_exec_program_lock(&previous));
     clear_upd();
     s_resume = s_selected;
     vm_exec_program_unlock(s_selected == VM_RUN_RUNNING ? VM_RUN_FROZEN : s_selected);
     return NULL;
   }
   portENTER_CRITICAL(&s_program_mux);
-  bool valid = !s_program_locked;
+  bool valid = !s_program_locked && !(s_stop_requested && s_pass_active);
   if (valid) switch (command) {
     case VM_EXEC_SCAN_MODE:
+      s_stop_requested = s_cancel = false;
       s_selected = s_mode = VM_RUN_SCAN;
       break;
     case VM_EXEC_BLOCK_MODE:
+      s_stop_requested = s_cancel = false;
       s_selected = s_mode = VM_RUN_BLOCK;
       break;
     case VM_EXEC_NORMAL_MODE:
+      s_stop_requested = s_cancel = false;
       s_selected = s_mode = VM_RUN_RUNNING;
       break;
     case VM_EXEC_ONCE:
@@ -460,6 +541,8 @@ void vm_exec_reset(void) {
   s_next_block = UINT16_MAX;
   s_selected = VM_RUN_RUNNING;
   s_resume = VM_RUN_STOPPED;
+  s_stop_requested = false;
+  s_pass_task = NULL;
   portEXIT_CRITICAL(&s_program_mux);
   wd_leave();  // sampler history stays owned by the timer task
   g_vm_block_fault = false;

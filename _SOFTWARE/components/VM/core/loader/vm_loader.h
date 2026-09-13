@@ -18,8 +18,13 @@ static inline const char* vm_load_state_str(vm_load_state_e s) {
   return vm_load_state_name((uint8_t)s);
 }
 
-/** @brief Quiesce execution, reset registries and arena, and set state to EMPTY. */
-void vm_loader_reset(void);
+/**
+ * @brief Quiesce execution, reset registries and arena, and set state to EMPTY.
+ * @return NULL on success, or an error chain containing
+ *         ERR_VM_EXEC_SELF_BARRIER if called from inside the active VM pass
+ *         (no storage is changed in that case).
+ */
+err_h vm_loader_reset(void);
 
 /**
  * @brief Reserve arena storage and initialize registries for a new program.

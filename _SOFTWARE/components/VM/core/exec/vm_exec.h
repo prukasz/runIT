@@ -18,7 +18,7 @@
 /* ========================================================================= */
 
 typedef enum vm_run_mode_e {
-  VM_RUN_STOPPED    = 0,  // Execution idle; passes do not run
+  VM_RUN_STOPPED    = 0,  // Supervisor idle; explicit non-supervisor passes remain available
   VM_RUN_RUNNING    = 1,  // Continuous cyclic passes (1 pass per tick)
   VM_RUN_FROZEN     = 2,  // Paused before next block dispatch
   VM_RUN_STEP       = 3,  // Run single pass, then transition to FROZEN
@@ -51,9 +51,10 @@ static inline const char* vm_exec_command_str(vm_exec_command_e c) {
 
 typedef struct vm_exec_status_t {
   vm_run_mode_e mode;
-  uint16_t      next_block;   // Target block ID if paused; UINT16_MAX otherwise
-  bool          scan_active;  // Pass is currently executing
-  bool          waiting;      // Core 1 task parked before next_block
+  uint16_t      next_block;      // Target block ID if paused; UINT16_MAX otherwise
+  bool          scan_active;     // Pass is currently executing
+  bool          waiting;         // VM pass task parked before next_block
+  bool          stop_requested;  // Cancellation requested; mode becomes STOPPED at quiescence
 } vm_exec_status_t;
 
 #include "vm_blocks.h"
@@ -88,8 +89,24 @@ static inline uint64_t vm_now_ms(void) {
 /** @brief Start the supervisor FreeRTOS task on core 1. Idempotent. */
 err_h vm_exec_start(void);
 
-/** @brief Stop cyclic execution. Task idles in VM_RUN_STOPPED. */
-void vm_exec_stop(void);
+/**
+ * @brief Request cancellation at the next block boundary without waiting.
+ *
+ * Safe from a block/sample hook and from other tasks. While a pass is active,
+ * vm_exec_mode() retains its current value and status.stop_requested is true;
+ * mode becomes VM_RUN_STOPPED only after the pass releases all VM handles.
+ */
+void vm_exec_request_stop(void);
+
+/**
+ * @brief Request stop and wait for a quiescent VM.
+ *
+ * On success, mode is VM_RUN_STOPPED and no pass is active or parked. Objects,
+ * block state, and loaded program storage are preserved. If called by the task
+ * currently executing a pass, cancellation is still requested but the wait is
+ * rejected with ERR_VM_EXEC_SELF_BARRIER to avoid self-deadlock.
+ */
+err_h vm_exec_stop(void);
 
 /** @brief Set run mode directly. */
 void vm_exec_set_mode(vm_run_mode_e mode);
@@ -103,11 +120,16 @@ err_h vm_exec_control(vm_exec_command_e command);
 /** @brief Query current supervisor execution state and debug status. */
 vm_exec_status_t vm_exec_status(void);
 
-/** @brief True if current pass has been aborted by program reset/lock. */
+/** @brief True if the current pass has a stop/reset/program-lock cancellation. */
 bool vm_exec_cancelled(void);
 
-/** @brief Lock execution barrier before program replacement; returns prior mode. */
-vm_run_mode_e vm_exec_program_lock(void);
+/**
+ * @brief Acquire the exclusive, quiescent barrier used for program mutation.
+ * @param out_previous Receives the mode to restore if the mutation fails.
+ * @return NULL with the barrier held, or ERR_VM_EXEC_SELF_BARRIER when called
+ *         by the task currently executing a pass.
+ */
+err_h vm_exec_program_lock(vm_run_mode_e* out_previous);
 
 /** @brief Release execution barrier with new run mode. */
 void vm_exec_program_unlock(vm_run_mode_e mode);
@@ -119,7 +141,13 @@ void vm_exec_reset(void);
 /* Pass Execution & Metrics                                                  */
 /* ========================================================================= */
 
-/** @brief Execute a single pass across all loaded blocks. */
+/**
+ * @brief Execute a single pass across all loaded blocks.
+ *
+ * A non-supervisor caller may use this as an explicit manual pass while the
+ * run mode is STOPPED, unless a stop request is pending. The supervisor stays
+ * parked in STOPPED.
+ */
 void vm_exec_pass(void);
 
 /** @brief Execute a contiguous range of blocks [start, end). Used for spans/loops. */

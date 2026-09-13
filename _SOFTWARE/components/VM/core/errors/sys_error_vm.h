@@ -65,7 +65,8 @@
   X(ERR_VM_LOAD_RUNNING, struct { uint8_t mode; }) \
   X(ERR_VM_EXEC_CONTROL, struct { uint8_t command; uint8_t mode; }) \
   X(ERR_VM_OVERRIDE_PTR_UNSUPPORTED, struct { uint16_t obj_id; }) \
-  X(ERR_VM_OVERRIDE_BAD_RECORD, struct { uint16_t obj_id; uint16_t declared_len; uint16_t item_size; })
+  X(ERR_VM_OVERRIDE_BAD_RECORD, struct { uint16_t obj_id; uint16_t declared_len; uint16_t item_size; }) \
+  X(ERR_VM_EXEC_SELF_BARRIER, struct { uint8_t operation; })
 
 /**
  * @brief Human-readable descriptions for the VM tags - see
@@ -121,7 +122,8 @@
   X(ERR_VM_LOAD_RUNNING) \
   X(ERR_VM_EXEC_CONTROL) \
   X(ERR_VM_OVERRIDE_PTR_UNSUPPORTED) \
-  X(ERR_VM_OVERRIDE_BAD_RECORD)
+  X(ERR_VM_OVERRIDE_BAD_RECORD) \
+  X(ERR_VM_EXEC_SELF_BARRIER)
 
 #define VM_OBJ_ID_NONE     0xFFFFu
 #define VM_OBJ_ID_DYN_BIT  0x8000u
@@ -389,6 +391,11 @@ static inline const char* vm_copy_shape_name(uint8_t r) {
     snprintf((out), (out_size), "runtime override record malformed (obj_id=%s, declared=%u, item=%u bytes)", \
              _id, (p)->declared_len, (p)->item_size); \
   } while (0)
+#define LOG_BODY_ERR_VM_EXEC_SELF_BARRIER(p, out, out_size) \
+  snprintf((out), (out_size), "%s", \
+           (p)->operation == 0 \
+               ? "active VM pass cannot wait for its own stop; cancellation was requested without waiting" \
+               : "active VM pass cannot acquire its own program-mutation barrier")
 
 
 /** @brief SE_EMIT_ERR variant with explicit owner for shared headers. */

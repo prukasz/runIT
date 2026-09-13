@@ -532,12 +532,27 @@ and outputs do not move.
 ### Lifecycle
 
 The implemented ownership and mutation rules are in
-[VM_OBJ_CONTRACTS.md](core/obj/VM_OBJ_CONTRACTS.md). Reset and open use a lifecycle
-barrier: stop admitting passes, release a frozen pass, and wait for the active
-pass to finish before reclaiming handles. Successful replacement clears dynamic
-objects, subscriptions, registries, and runtime state and leaves execution
-stopped. Failure to reserve a new pool preserves the prior program and run mode.
-Lifecycle calls belong to the control task, never to a block or sample hook.
+[VM_OBJ_CONTRACTS.md](core/obj/VM_OBJ_CONTRACTS.md). Reset, open, and stopped
+loader mutations use one exclusive lifecycle barrier: cancel before the next
+block, release a frozen/block-stepped pass, and wait until the pass stack has
+released every handle. `VM_RUN_STOPPED` is not published for an asynchronous
+stop request until that quiescent point. `vm_exec_request_stop()` only requests
+that boundary; `vm_exec_stop()` also waits for it and preserves the program and
+values. Successful replacement clears dynamic objects, subscriptions,
+registries, and runtime state and leaves execution stopped. Failure to reserve
+a new pool preserves the prior program and run mode.
+
+`VM_RUN_STOPPED` controls supervisor admission. `vm_exec_pass()` remains the
+explicit synchronous/manual one-pass entry point for a non-supervisor task
+while stopped. It refuses that manual pass when `stop_requested` is set, and
+the supervisor never enters a pass in `VM_RUN_STOPPED`.
+
+A lifecycle wait from the task currently executing `vm_exec_pass()` would wait
+for itself forever. The executor tracks the actual pass-owning task (including
+direct/manual passes), returns `ERR_VM_EXEC_SELF_BARRIER`, and leaves program
+storage untouched. A synchronous stop from that context still records the stop
+request so the pass unwinds normally. Lifecycle mutation belongs to a control
+task; a block or sample hook may only request stop asynchronously.
 
 * **Live patch** of data-only objects while running — applied at the drain point, same as an override. Structural change is a full reload.
 * **Retention** is per-value, either automatic or hand-picked via NVS.

@@ -39,52 +39,9 @@ rg -n "TODO|FIXME" components/VM components/runit components/system components/d
 
 ## Priority 0 — production blockers
 
-### 1. Reject pointer objects in the runtime override path
-
-**Status:** completed. Runtime pointer writes now return
-`ERR_VM_OVERRIDE_PTR_UNSUPPORTED`; the drain revalidates records and targets,
-and the runtime override self-test covers direct rejection and stale-target
-defense.
-
-**Problem:** `vm_override_post()` accepts a mutable `VM_OBJ_PTR`, and
-`vm_override_drain()` copies wire bytes directly into native pointer slots.
-This bypasses child-ID resolution, dynamic-object reference counting, and link
-cycle checks. A remote write can create invalid pointers and corrupt memory.
-
-**Fix in:**
-
-- `core/exec/vm_override.c`
-- `core/exec/vm_override.h`
-- `core/errors/sys_error_vm.h` if a dedicated error is added
-- `../runit/selftest/stage_exec.c`
-
-**Required behavior:**
-
-1. Reject `VM_OBJ_PTR` in `vm_override_post()` before queue allocation.
-2. Use a clear error contract. Prefer a dedicated VM error such as
-   `ERR_VM_OVERRIDE_PTR_UNSUPPORTED`; reusing an unrelated type error makes
-   remote diagnosis harder.
-3. Keep `vm_override_drain()` defensive: validate the record size, object type,
-   element width, range, and `sizeof(record) + len <= item_size` before copying.
-   This protects against stale or malformed queue contents even though posting
-   validates first.
-4. Emit/report a rejected queued record rather than silently ignoring it.
-5. If pointer relinking is needed later, add a separate command whose wire data
-   is child IDs and apply it through `vm_obj_link_direct()`. Do not overload raw
-   value override semantics.
-
-**Acceptance checks:**
-
-- A runtime override targeting `VM_OBJ_PTR` returns the expected error.
-- Scalar and array overrides still apply at the next scan boundary.
-- A malformed internal record cannot write outside an object or pointer slot.
-
-```powershell
-rg -n "vm_override_post|vm_override_drain|VM_OBJ_PTR" components/VM/core/exec components/runit/selftest
-idf.py build
-```
-
 ### 2. Make stop a real execution barrier
+
+**Status:** implemented; remove this item after the target self-tests pass.
 
 **Problem:** `vm_exec_stop()` only changes the mode. An active pass may continue,
 and `block_gate()` does not treat `VM_RUN_STOPPED` as a hold or cancellation.

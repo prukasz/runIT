@@ -173,9 +173,20 @@ static bool ex_for(uint16_t id, uint16_t span_start, uint16_t span_end, for_loop
 }
 
 static bool s_step_test_done;
+static err_h s_self_stop_error;
+static err_h s_self_reset_error;
+static bool err_has_tag(err_h err, err_tag_e tag);
 
 static void ex_pause_at_sample(void) {
   (void)vm_exec_control(VM_EXEC_PAUSE);
+}
+
+static void ex_stop_at_sample(void) {
+  s_self_stop_error = vm_exec_stop();
+}
+
+static void ex_reset_at_sample(void) {
+  s_self_reset_error = vm_loader_reset();
 }
 
 static void ex_step_worker(void* arg) {
@@ -229,6 +240,31 @@ static void ex_test_controls(void) {
   vm_exec_set_sample_hook(NULL);
   ck("pause during scan completion does not replay once", vm_exec_control(VM_EXEC_RESUME) == NULL && vm_exec_mode() == VM_RUN_SCAN);
 
+  // A hook runs on the task that owns the active pass. Synchronous stop must
+  // request cancellation but reject its own wait rather than deadlocking.
+  s_self_stop_error = NULL;
+  (void)vm_exec_stop();
+  vm_exec_set_sample_hook(ex_stop_at_sample);
+  vm_exec_pass();
+  vm_exec_set_sample_hook(NULL);
+  vm_exec_status_t self_stop_status = vm_exec_status();
+  ck("self-stop rejects waiting on the active pass",
+     s_self_stop_error && s_self_stop_error->tag == ERR_VM_EXEC_SELF_BARRIER);
+  ck("self-stop request reaches quiescent STOPPED mode",
+     self_stop_status.mode == VM_RUN_STOPPED && !self_stop_status.scan_active && !self_stop_status.waiting);
+  ck("stop preserves the loaded program", vm_block_get_by_id(0) == loaded_first);
+
+  // Program mutation has the stricter contract: an active pass cannot acquire
+  // its own barrier, and a rejected reset must not touch program storage.
+  s_self_reset_error = NULL;
+  vm_exec_set_sample_hook(ex_reset_at_sample);
+  vm_exec_pass();
+  vm_exec_set_sample_hook(NULL);
+  ck("self-reset rejects program-mutation barrier",
+     err_has_tag(s_self_reset_error, ERR_VM_EXEC_SELF_BARRIER));
+  ck("rejected self-reset leaves program and mode intact",
+     vm_block_get_by_id(0) == loaded_first && vm_exec_mode() == VM_RUN_STOPPED);
+
   for (unsigned attempt = 0; attempt < 3; ++attempt) {
     ex_count_reset(EX_O_TICK);
     ex_count_reset(EX_O_INNER);
@@ -272,9 +308,13 @@ static void ex_test_controls(void) {
       ck("last step completes scan", ex_wait_done() && vm_exec_pass_count() == passes + 1);
       ck("pass duration includes operator waits", vm_exec_last_pass_us() > 0);
     } else if (attempt < 2) {
-      ck("rewind releases nested stack", vm_exec_control(VM_EXEC_RESET_TO_START) == NULL && ex_wait_done());
-      ck("rewind preserves values and excludes cancelled scan", ex_count(EX_O_INNER) == 1 && vm_exec_pass_count() == passes);
-      ck("rewind holds block mode at start", vm_exec_mode() == VM_RUN_BLOCK && !vm_exec_status().scan_active);
+      ck("stop releases nested stack", vm_exec_stop() == NULL && ex_wait_done());
+      vm_exec_status_t stopped = vm_exec_status();
+      ck("stop prevents the next nested dispatch",
+         ex_count(EX_O_INNER) == 1 && vm_exec_pass_count() == passes);
+      ck("stop is a quiescence barrier",
+         stopped.mode == VM_RUN_STOPPED && !stopped.scan_active && !stopped.waiting);
+      ck("repeated stop is idempotent", vm_exec_stop() == NULL);
     } else {
       ck("wire reset releases a nested held scan", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_RESET}, 2) == NULL && ex_wait_done());
       ck("nested reset unloads safely", vm_exec_mode() == VM_RUN_STOPPED && !vm_block_get_by_id(0) && vm_exec_pass_count() == 0);
@@ -1773,7 +1813,8 @@ void test_clone(void) {
   ((float*)vm_obj_get_by_id(CLN_A)->payload)[1] = 42.0f;
   vm_exec_pass();
 
-  ck("a matching destination is refilled, not rebuilt", cln_built(CLN_CELL) == c1 && near_f(((const float*)c1->payload)[1], 42.0f));
+  ck("a matching destination is refilled, not rebuilt",
+     c1 && cln_built(CLN_CELL) == c1 && near_f(((const float*)c1->payload)[1], 42.0f));
   ck("...so a Clone at scan rate allocates nothing", dyn_live() == 4);
   ck("the table is likewise reused", cln_built(CLN_TCELL) == t1);
 
@@ -1792,8 +1833,9 @@ void test_clone(void) {
 
   /* Independence, the same property stage W checks for Set: the clone holds
      its own storage, so editing it cannot reach back into the source. */
-  ((float*)c2->payload)[0] = -1.0f;
-  ck("editing the clone does not reach the source", near_f(((const float*)vm_obj_get_by_id(CLN_B)->payload)[0], 10.0f));
+  if (c2) ((float*)c2->payload)[0] = -1.0f;
+  ck("editing the clone does not reach the source",
+     c2 && near_f(((const float*)vm_obj_get_by_id(CLN_B)->payload)[0], 10.0f));
 
   /* The reason such a chain must not be cached: the tree it reached through
      was freed two statements into this pass, and the same accessor now has to

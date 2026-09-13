@@ -52,16 +52,24 @@ typedef struct {
 /* Cursor & Little-Endian Stream Helpers                                     */
 /* ========================================================================= */
 
+#if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
+  #error "VM packet decoding requires a little-endian target"
+#endif
+
 static inline uint16_t dec_vm_u16(const uint8_t* p) {
-  return (uint16_t)(p[0] | ((uint16_t)p[1] << 8));
+  uint16_t value;
+  memcpy(&value, p, sizeof(value));
+  return value;
 }
 
 static inline uint32_t dec_vm_u32(const uint8_t* p) {
-  return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+  uint32_t value;
+  memcpy(&value, p, sizeof(value));
+  return value;
 }
 
 static inline void dec_vm_u16_array(uint16_t* dst, const uint8_t* src, uint8_t count) {
-  for (uint8_t i = 0; i < count; i++) dst[i] = dec_vm_u16(src + (size_t)i * 2);
+  memcpy(dst, src, (size_t)count * sizeof(*dst));
 }
 
 static inline err_h dec_vm_need(uint8_t pkt, size_t off, size_t len, size_t need) {
@@ -82,10 +90,10 @@ static inline err_h dec_vm_need(uint8_t pkt, size_t off, size_t len, size_t need
  * - **Action**:
  *   - Enforces lifecycle barrier: stops pass admission and waits for active pass to finish.
  *   - Reclaims dynamic heap objects, clears registries, and resets bump arena.
- *   - Leaves execution stopped in fail-closed state (`VM_LOAD_IDLE`).
+ *   - Leaves execution stopped in fail-closed state (`VM_LOAD_EMPTY`).
  */
 static inline err_h decoder_packet_vm_reset(void) {
-  vm_loader_reset();
+  SE_RET_IF_ERR(vm_loader_reset());
   DBG(ESP_LOGI(DEC_VM_LOADER_TAG, "storage reset"););
   return NULL;
 }
@@ -334,7 +342,7 @@ static inline err_h decoder_packet_vm_exec(const uint8_t* body, size_t len) {
   }
   uint8_t cmd = body[0];
   if (cmd == VM_EXEC_RESET) {
-    vm_loader_reset();
+    SE_RET_IF_ERR(vm_loader_reset());
     DBG(ESP_LOGI(DEC_VM_LOADER_TAG, "vm execution reset"););
     return NULL;
   }

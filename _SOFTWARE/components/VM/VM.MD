@@ -674,6 +674,30 @@ the target is reported and discarded without publishing `upd`.
 
 Pause and mode changes take effect before the next block dispatch, including nested span bodies. Time and events are latched at scan entry.
 
+Stopping has separate asynchronous and synchronous entry points.
+`vm_exec_request_stop()` is safe from any task, block, or sample hook: it marks
+the active pass cancelled, which prevents the next block dispatch. While that
+pass unwinds, `vm_exec_status().stop_requested` is true and the prior mode
+remains visible. `VM_RUN_STOPPED` is published only after the pass has released
+its block/accessor/object handles. `vm_exec_stop()` performs the same request
+and waits until `scan_active` and `waiting` are both false. Stop preserves the
+loaded program, object values, and block private state; reset remains the
+operation that unloads them.
+
+`vm_exec_pass()` is also the explicit synchronous/manual execution API. A
+non-supervisor task may call it for one pass while the run mode is
+`VM_RUN_STOPPED`, as boot self-tests and bring-up fixtures do. A pending stop
+request disables that exception, and the supervisor always remains parked in
+`VM_RUN_STOPPED`.
+
+A task cannot synchronously wait for the pass it is currently executing.
+Calling `vm_exec_stop()` there still requests cancellation but returns
+`ERR_VM_EXEC_SELF_BARRIER`. Program mutation uses the exclusive
+`vm_exec_program_lock()`/`vm_exec_program_unlock()` barrier and rejects the same
+self-wait without changing storage. Reset, open, and every stopped-loader
+object/data/accessor/block mutation take this barrier, so a visible STOPPED
+mode cannot race an active pass or a concurrent loader mutation.
+
 ### Execution control packet
 
 All controls use one packet type: `04 48 command` (three bytes total).
@@ -1230,7 +1254,7 @@ Note the app **partition** is 1 MB (`CONFIG_PARTITION_TABLE_SINGLE_APP`), not th
 **Blocks** — `vm_block_get_by_id()`, `vm_block_get_in()`, `vm_block_get_out()`, `vm_block_is_enabled()`, `vm_block_triggered()`, `vm_block_input_fresh()`, `vm_block_set_eno()`, `vm_block_get_span()`, `vm_block_claim_span()`, `vm_block_get_inputs()`, `vm_block_get_outputs()`, `vm_block_get_en_list()`, `vm_block_get_custom_data()`, `vm_block_get_custom_len()`, `vm_block_get_total_size()`, `vm_block_calc_size()`, `IF_BLOCK_ENABLED()`, `IF_BLOCK_TRIGGERED()`, `BLOCK_CALL()`
 **Dispatch** — `vm_block_fn_for()`, `vm_exec_check_block_type()`, `vm_exec_use_blocks()`
 **Events** — `vm_event_post()`, `vm_event_count()`, `vm_event_at()`, `vm_event_drain()`, `vm_event_take_overflow()`, `vm_event_reset()`
-**Execution** — `vm_exec_start()`, `vm_exec_stop()`, `vm_exec_pass()`, `vm_exec_run_range()`, `vm_exec_set_mode()`, `vm_exec_mode()`, `vm_exec_pass_count()`, `vm_exec_last_pass_us()`, `vm_exec_set_sample_hook()`, `vm_exec_reset()`, `vm_clock_us()`, `vm_now_ms()`
+**Execution** — `vm_exec_start()`, `vm_exec_request_stop()`, `vm_exec_stop()`, `vm_exec_program_lock()`, `vm_exec_program_unlock()`, `vm_exec_pass()`, `vm_exec_run_range()`, `vm_exec_set_mode()`, `vm_exec_mode()`, `vm_exec_status()`, `vm_exec_pass_count()`, `vm_exec_last_pass_us()`, `vm_exec_set_sample_hook()`, `vm_exec_reset()`, `vm_clock_us()`, `vm_now_ms()`
 **Loading** — `vm_loader_reset()`, `vm_loader_open()`, `vm_loader_add_obj()`, `vm_loader_set_data()`, `vm_loader_add_accessor()`, `vm_loader_add_block()`, `vm_loader_state()`, `vm_loader_used()`
 
 ---
@@ -1241,7 +1265,13 @@ Owners `0xA900`–`0xA908` (`SYS_VM_OWNER_MAP` in `core/errors/sys_error_vm.h`):
 
 Tags (`SYS_ERROR_VM_MAP`) cover allocation (`ERR_VM_ALLOC_EXHAUSTED`), resolution (`ERR_VM_ACCESSOR_UNKNOWN_ID`, `_OOB`, `_TYPE_MISMATCH`, `_NULL_OBJ`, `_DEPTH_EXCEEDED`, `_INDEX_FAILED`, `_NAME_NOT_FOUND`, `_NOT_MUTABLE`), blocks (`ERR_VM_BLOCK_INPUT_UNRESOLVED`, `_PIN_MISSING`, `_PIN_UNLINKED`, `_FAILED`), construction (`ERR_VM_OBJ_BAD_TYPE`, `_EMPTY`, `_TOO_LARGE`, `_NAME_TOO_LONG`, `_RETENTIVE_PTR`, `_COPY_MISMATCH`), loading (`ERR_VM_LOAD_BAD_STATE`, `_TOO_BIG`, `_DATA_RANGE`, `_SHORT_RECORD`), accessors (`ERR_VM_ACC_INDEX_OOB`, `ERR_VM_ACC_BAD_KIND`), blocks (`ERR_VM_BLK_BAD_SHAPE`, `ERR_VM_BLK_BAD_REF`) and the registries (`ERR_VM_REG_OOB`, `ERR_VM_REG_DUP` — one pair for all three id spaces, with `kind` naming which).
 
-Execution adds its own group: the palette (`ERR_VM_BLK_UNKNOWN_TYPE`), the supervisor (`ERR_VM_EXEC_BLOCK_HUNG`, `ERR_VM_EXEC_SPAN_DEPTH`, `ERR_VM_EXEC_BAD_SPAN`), events (`ERR_VM_EVENT_OVERFLOW`) and the user-write guard (`ERR_VM_OBJ_NOT_USR_MUTABLE`).
+Execution adds its own group: the palette (`ERR_VM_BLK_UNKNOWN_TYPE`), the
+supervisor (`ERR_VM_EXEC_BLOCK_HUNG`, `ERR_VM_EXEC_SPAN_DEPTH`,
+`ERR_VM_EXEC_BAD_SPAN`, `ERR_VM_EXEC_CONTROL`,
+`ERR_VM_EXEC_SELF_BARRIER`), events (`ERR_VM_EVENT_OVERFLOW`), runtime override
+validation (`ERR_VM_OVERRIDE_PTR_UNSUPPORTED`,
+`ERR_VM_OVERRIDE_BAD_RECORD`), and the user-write guard
+(`ERR_VM_OBJ_USR_PROTECTED`).
 
 `sys_error_vm.h` also supplies `SE_*_OWNED` variants (`SE_EMIT_ERR_OWNED`, `SE_ERR_NEW_OWNED`, `SE_RET_ERR_OWNED`, `SE_WRAP_ERR_OWNED`, `SE_CHECK_NOT_NULL_OWNED`, `SE_CHECK_IF_ALLOCATED_OWNED`) that take the owner explicitly, for header-only code pulled into translation units with their own ambient `OWNER`.
 

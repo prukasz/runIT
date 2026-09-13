@@ -17,17 +17,45 @@ static err_h require_state(vm_load_state_e want) {
   return NULL;
 }
 
-void vm_loader_reset(void) {
-  (void)vm_exec_program_lock();
+/* Every stopped-loader mutation takes the same exclusive barrier as reset and
+   open. The first check avoids stopping a running program for a packet that is
+   invalid in that mode; the check of `previous` closes the race with a control
+   command arriving between the first check and barrier acquisition. */
+static err_h begin_stopped_mutation(vm_load_state_e want) {
+  SE_RET_IF_ERR(require_state(want));
+
+  vm_run_mode_e previous;
+  SE_RET_IF_ERR(vm_exec_program_lock(&previous));
+  if (previous != VM_RUN_STOPPED) {
+    vm_exec_program_unlock(previous);
+    SE_RET_ERR(ERR_VM_LOAD_RUNNING, .mode = (uint8_t)previous);
+  }
+  if (s_state != want) {
+    vm_load_state_e actual = s_state;
+    vm_exec_program_unlock(VM_RUN_STOPPED);
+    SE_RET_ERR(ERR_VM_LOAD_BAD_STATE, .state = (uint8_t)actual, .expected = (uint8_t)want);
+  }
+  return NULL;
+}
+
+static void end_stopped_mutation(void) {
+  vm_exec_program_unlock(VM_RUN_STOPPED);
+}
+
+err_h vm_loader_reset(void) {
+  vm_run_mode_e previous;
+  SE_RET_IF_ERR(vm_exec_program_lock(&previous));
   vm_exec_reset();
   vm_sub_reset();
   vm_store_reset();
   s_state = VM_LOAD_EMPTY;
   vm_exec_program_unlock(VM_RUN_STOPPED);
+  return NULL;
 }
 
 err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint16_t blk_cnt, uint32_t total_size) {
-  vm_run_mode_e previous = vm_exec_program_lock();
+  vm_run_mode_e previous;
+  SE_RET_IF_ERR(vm_exec_program_lock(&previous));
 
   const uint16_t counts[VM_REG_CNT] = {
       [VM_REG_OBJ] = obj_cnt,
@@ -47,8 +75,7 @@ err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint16_t blk_cnt, uint3
   return NULL;
 }
 
-err_h vm_loader_add_obj(uint16_t id, const vm_obj_head_t* head, const char* name) {
-  SE_RET_IF_ERR(require_state(VM_LOAD_OPEN));
+static err_h add_obj_unlocked(uint16_t id, const vm_obj_head_t* head, const char* name) {
   SE_CHECK_NOT_NULL(head);
 
   // Validate type before indexing width table
@@ -61,8 +88,14 @@ err_h vm_loader_add_obj(uint16_t id, const vm_obj_head_t* head, const char* name
   return NULL;
 }
 
-err_h vm_loader_set_data(uint16_t id, uint16_t start_idx, const uint8_t* data, uint16_t len) {
-  SE_RET_IF_ERR(require_state(VM_LOAD_OPEN));
+err_h vm_loader_add_obj(uint16_t id, const vm_obj_head_t* head, const char* name) {
+  SE_RET_IF_ERR(begin_stopped_mutation(VM_LOAD_OPEN));
+  err_h err = add_obj_unlocked(id, head, name);
+  end_stopped_mutation();
+  return err;
+}
+
+static err_h set_data_unlocked(uint16_t id, uint16_t start_idx, const uint8_t* data, uint16_t len) {
   SE_CHECK_NOT_NULL(data);
 
   vm_obj_h obj = vm_obj_get_by_id(id);
@@ -105,10 +138,15 @@ err_h vm_loader_set_data(uint16_t id, uint16_t start_idx, const uint8_t* data, u
   return NULL;
 }
 
-err_h vm_loader_add_accessor(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_count, const uint8_t* idx_data,
-                             uint16_t idx_len) {
-  SE_RET_IF_ERR(require_state(VM_LOAD_OPEN));
+err_h vm_loader_set_data(uint16_t id, uint16_t start_idx, const uint8_t* data, uint16_t len) {
+  SE_RET_IF_ERR(begin_stopped_mutation(VM_LOAD_OPEN));
+  err_h err = set_data_unlocked(id, start_idx, data, len);
+  end_stopped_mutation();
+  return err;
+}
 
+static err_h add_accessor_unlocked(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_count,
+                                   const uint8_t* idx_data, uint16_t idx_len) {
   vm_accessor_t* acc = NULL;
   SE_RET_IF_ERR(vm_accessor_create(&acc, acc_id, root_obj_id, idx_count));
 
@@ -166,8 +204,15 @@ err_h vm_loader_add_accessor(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_
   return NULL;
 }
 
-err_h vm_loader_add_block(uint16_t blk_id, const vm_block_cfg_t* cfg) {
-  SE_RET_IF_ERR(require_state(VM_LOAD_OPEN));
+err_h vm_loader_add_accessor(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_count, const uint8_t* idx_data,
+                             uint16_t idx_len) {
+  SE_RET_IF_ERR(begin_stopped_mutation(VM_LOAD_OPEN));
+  err_h err = add_accessor_unlocked(acc_id, root_obj_id, idx_count, idx_data, idx_len);
+  end_stopped_mutation();
+  return err;
+}
+
+static err_h add_block_unlocked(uint16_t blk_id, const vm_block_cfg_t* cfg) {
   SE_CHECK_NOT_NULL(cfg);
 
   // Validate block_type against the palette before allocating arena memory
@@ -176,6 +221,13 @@ err_h vm_loader_add_block(uint16_t blk_id, const vm_block_cfg_t* cfg) {
   vm_block_h blk = NULL;
   SE_RET_IF_ERR(vm_block_create(&blk, blk_id, cfg));
   return NULL;
+}
+
+err_h vm_loader_add_block(uint16_t blk_id, const vm_block_cfg_t* cfg) {
+  SE_RET_IF_ERR(begin_stopped_mutation(VM_LOAD_OPEN));
+  err_h err = add_block_unlocked(blk_id, cfg);
+  end_stopped_mutation();
+  return err;
 }
 
 
