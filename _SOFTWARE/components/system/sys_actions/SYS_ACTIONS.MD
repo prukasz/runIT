@@ -107,6 +107,30 @@ A caller can still attach a recorded blob to any of ids 1-5 (e.g. action 1: free
 
 **No "current mode" tracking.** Unlike the removed `sys_states` component, invoking an action does not record anything as "current" — actions are fire-and-forget; `sys_actions_invoke()` just returns success or the first failure.
 
+### Device-fault policy
+
+`sys_actions_init()` registers the application response used by
+`sys_device_report_error()` when a device has `use_error_handler` enabled.
+`sys_device` owns the shared root-cause severity classification and supplies
+the selected `actions[level]`; `sys_actions` performs the concrete response:
+
+* **Critical:** latch the first root owner/tag and occurrence count in the VM,
+  request cancellation, wait until execution is quiescent, attempt to freeze
+  every ready device, then invoke the configured critical action.
+* **Warning/notice:** invoke only the configured action.
+
+The first critical response is executed once. Repeated reports increment the
+latched occurrence count without repeatedly freezing devices or replaying an
+action. Program reset does not clear the latch. Execution command `0x09`
+acknowledges it while stopped; a separate normal/scan/block command is then
+required to restart.
+
+If stopping, freezing, or invoking the action fails, the policy returns the
+standalone structured tag `ERR_DEV_FAULT_RESPONSE_FAILED` with device, level,
+stage, action, and underlying root tag. It does not attach the original device
+chain, preventing the response error from recursively triggering the same
+policy.
+
 ---
 
 ## Invoking
@@ -138,7 +162,7 @@ This is the mechanism for "board configures its extra devices at boot, alongside
 * **Boot ordering.** `sys_actions_init()` must run after `sys_interface_init()` and **before** `sys_interface_bind_ble_rx()` — class registration is boot-only, not safe against a running RX receiver. `runit_start()` calls it in that slot.
 * **Concurrency.** Only the single active-recording buffer (`s_recording`) is shared mutable state across tasks (the tap-polling task appends, another task can call `record_stop()`), guarded by `s_actions_mutex` (`R_MUTEX_DEFINE`, constructor-created per the [[runit]] skill's static-allocation convention). A single `nvs_handle_t` is shared across tasks without an extra lock, since the NVS library serializes internally.
 * **Known race in concurrent NVS access.** Two concurrent calls that both load-modify-save the same `action_id` (e.g. `append_packet` racing `remove`) can clobber each other, since each call releases any lock before doing NVS I/O (NVS I/O and `sys_interface_decode()` replay must not run while holding a lock a re-entrant path could try to take again). Not addressed in this version.
-* **`sys_actions` REQUIRES `sys_device`, `sys_interface`, and `codecs` for real** (genuine link dependencies — `sys_actions.c` calls `sys_device_*_all()` for its built-in static functions, `sys_interface_decode()`/`register_class()`/etc., and includes `dec_sys_actions.h`).
+* **`sys_actions` REQUIRES `sys_device`, `sys_interface`, `codecs`, and `VM` for real** (genuine link dependencies — `sys_actions.c` calls device sweeps and VM fault/stop APIs, while recorded actions use `sys_interface_decode()` and `dec_sys_actions.h`).
 
 ---
 
@@ -164,6 +188,9 @@ err_h sys_actions_invoke(uint8_t action_id);        // reads from NVS
 ## Error Ownership
 
 `OWNER_SYS_ACTIONS_BASE` (`0xAA00`) tags every error `sys_actions.c` raises directly. The decoder table's own errors are tagged `OWNER_DEC_SYS_ACTIONS` (`0xA611`, defined in `sys_error_interface.h`).
+
+Device response failures use `ERR_DEV_FAULT_RESPONSE_FAILED` with
+`OWNER_SYS_ACTIONS_BASE`; the payload identifies which response stage failed.
 
 | Tag | Payload | Raised when |
 | :--- | :--- | :--- |

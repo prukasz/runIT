@@ -35,10 +35,14 @@ void SE_register_device_error_hook(se_device_error_hook_t hook) {
 // sending below is unaffected and still covers every node regardless.
 static void dispatch_device_owned_error(err_h err_chain) {
   if (!s_device_error_hook) return;
+  /* A response failure can retain the action/callback failure as its cause.
+     Never feed that diagnostic back into the same device policy. */
+  if (err_chain && err_chain->tag == ERR_DEV_FAULT_RESPONSE_FAILED) return;
   for (err_h curr = err_chain; curr != NULL; curr = curr->next_cause) {
     if (curr->tag == ERR_DEV_DEP_FAILED && (curr->owner & 0xFF00) == (OWNER_DEVICE_BASE & 0xFF00)) {
       uint8_t dev_id = ((err_payload_ERR_DEV_DEP_FAILED_t*)curr->payload)->dev_id;
-      s_device_error_hook(dev_id, err_chain);
+      err_h response_error = s_device_error_hook(dev_id, err_chain);
+      if (response_error) SE_push_to_handler(response_error);
       break;
     }
   }

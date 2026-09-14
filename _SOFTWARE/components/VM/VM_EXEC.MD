@@ -519,12 +519,20 @@ Two sections writing the same actuator is allowed. For hardware blocks the
 in-section order are both fixed at load. The editor should still note the overlap,
 because it is far more often a mistake than an intent.
 
-### Safety belongs to actions, not the VM
+### Device faults and safe state
 
-Device-level safe state, e-stop, freeze-on-reload and power-on behaviour are
-[[SYS_ACTIONS.MD]] concerns — ids 1–5 already bind the device sweeps
-(freeze/resume/suspend/reset/hard-reset). A block invokes an action; the VM does
-not own actuator safety.
+Device-level output policy remains a [[SYS_ACTIONS.MD]] concern, while the VM
+owns execution admission. A centrally classified critical device fault stores
+a stable snapshot (`device_id`, root owner/tag, occurrence count), requests
+stop at the next block boundary, and prevents supervisor and manual passes.
+After the synchronous barrier completes, the system policy freezes devices and
+invokes the configured action.
+
+The latch survives program reset and repeated reporting. `VM_EXEC_ACK_FAULT`
+(`0x09`) clears it only while execution is quiescent and stopped; acknowledgment
+does not restart execution. Until then, normal/scan/block/step controls return
+`ERR_VM_EXEC_FAULT_LATCHED`. `VM_BLK_ERR_STOP` remains a per-block flow decision
+that withdraws ENO and is unrelated to this whole-program fault path.
 
 This gives dry-run for free: **freeze mode** is the driver sweep, so logic runs
 and outputs do not move.

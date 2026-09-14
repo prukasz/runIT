@@ -42,6 +42,7 @@ typedef enum vm_exec_command_e {
   VM_EXEC_PAUSE          = 6,
   VM_EXEC_RESUME         = 7,
   VM_EXEC_RESET          = 8,
+  VM_EXEC_ACK_FAULT      = 9,
 } vm_exec_command_e;
 
 /** @brief String representation of VM execution command for debugging. */
@@ -56,6 +57,15 @@ typedef struct vm_exec_status_t {
   bool          waiting;         // VM pass task parked before next_block
   bool          stop_requested;  // Cancellation requested; mode becomes STOPPED at quiescence
 } vm_exec_status_t;
+
+/** Stable snapshot of the first critical device fault since acknowledgment. */
+typedef struct vm_exec_fault_status_t {
+  bool      latched;
+  uint8_t   device_id;
+  err_tag_e root_tag;
+  uint32_t  root_owner;
+  uint32_t  occurrences;
+} vm_exec_fault_status_t;
 
 #include "vm_blocks.h"
 
@@ -107,6 +117,18 @@ void vm_exec_request_stop(void);
  * rejected with ERR_VM_EXEC_SELF_BARRIER to avoid self-deadlock.
  */
 err_h vm_exec_stop(void);
+
+/**
+ * @brief Latch a critical device fault and request cancellation immediately.
+ * @return true only for the first fault in the current latched episode.
+ */
+bool vm_exec_fault_latch(uint8_t device_id, uint32_t root_owner, err_tag_e root_tag);
+
+/** @brief Copy the persistent critical-fault snapshot. */
+vm_exec_fault_status_t vm_exec_fault_status(void);
+
+/** @brief Clear a latched fault once execution is quiescent and stopped. */
+err_h vm_exec_fault_acknowledge(void);
 
 /** @brief Set run mode directly. */
 void vm_exec_set_mode(vm_run_mode_e mode);

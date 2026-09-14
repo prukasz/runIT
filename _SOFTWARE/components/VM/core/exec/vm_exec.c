@@ -45,10 +45,23 @@ static volatile bool s_pass_active;
 static volatile bool s_cancel;
 static bool s_stop_requested;
 static TaskHandle_t s_pass_task;
+static vm_exec_fault_status_t s_fault;
 static bool s_waiting;
 static uint16_t s_next_block = UINT16_MAX;
 static vm_run_mode_e s_selected = VM_RUN_RUNNING;
 static vm_run_mode_e s_resume = VM_RUN_STOPPED;
+
+static void request_stop_locked(void) {
+  s_stop_requested = true;
+  s_cancel = true;
+  if (!s_pass_active && !s_program_locked) {
+    s_mode = VM_RUN_STOPPED;
+    s_waiting = false;
+    s_next_block = UINT16_MAX;
+    s_stop_requested = false;
+    s_cancel = false;
+  }
+}
 
 static bool caller_owns_active_pass(void) {
   TaskHandle_t caller = xTaskGetCurrentTaskHandle();
@@ -99,7 +112,7 @@ err_h vm_exec_program_lock(vm_run_mode_e* out_previous) {
 
 void vm_exec_program_unlock(vm_run_mode_e mode) {
   portENTER_CRITICAL(&s_program_mux);
-  if (s_stop_requested) {
+  if (s_stop_requested || s_fault.latched) {
     s_mode = VM_RUN_STOPPED;
     s_stop_requested = false;
     s_cancel = false;
@@ -319,8 +332,8 @@ void vm_exec_pass(void) {
      A pending stop closes that exception until a new mode is selected. */
   bool stopped_holds_caller =
       s_mode == VM_RUN_STOPPED &&
-      (s_stop_requested || (vm_exec_task_h && pass_task == vm_exec_task_h));
-  if (s_program_locked || s_pass_active || stopped_holds_caller ||
+      (s_stop_requested || s_fault.latched || (vm_exec_task_h && pass_task == vm_exec_task_h));
+  if (s_fault.latched || s_program_locked || s_pass_active || stopped_holds_caller ||
       s_mode == VM_RUN_FROZEN || s_mode == VM_RUN_SCAN || s_mode == VM_RUN_BLOCK) {
     portEXIT_CRITICAL(&s_program_mux);
     return;
@@ -414,15 +427,7 @@ err_h vm_exec_start(void) {
 
 void vm_exec_request_stop(void) {
   portENTER_CRITICAL(&s_program_mux);
-  s_stop_requested = true;
-  s_cancel = true;
-  if (!s_pass_active && !s_program_locked) {
-    s_mode = VM_RUN_STOPPED;
-    s_waiting = false;
-    s_next_block = UINT16_MAX;
-    s_stop_requested = false;
-    s_cancel = false;
-  }
+  request_stop_locked();
   portEXIT_CRITICAL(&s_program_mux);
 }
 
@@ -440,13 +445,47 @@ err_h vm_exec_stop(void) {
   return NULL;
 }
 
+bool vm_exec_fault_latch(uint8_t device_id, uint32_t root_owner, err_tag_e root_tag) {
+  portENTER_CRITICAL(&s_program_mux);
+  bool first = !s_fault.latched;
+  if (first) {
+    s_fault.latched = true;
+    s_fault.device_id = device_id;
+    s_fault.root_owner = root_owner;
+    s_fault.root_tag = root_tag;
+    s_fault.occurrences = 1;
+  } else if (s_fault.occurrences != UINT32_MAX) {
+    s_fault.occurrences++;
+  }
+  request_stop_locked();
+  portEXIT_CRITICAL(&s_program_mux);
+  return first;
+}
+
+vm_exec_fault_status_t vm_exec_fault_status(void) {
+  portENTER_CRITICAL(&s_program_mux);
+  vm_exec_fault_status_t status = s_fault;
+  portEXIT_CRITICAL(&s_program_mux);
+  return status;
+}
+
+err_h vm_exec_fault_acknowledge(void) {
+  portENTER_CRITICAL(&s_program_mux);
+  bool valid = s_mode == VM_RUN_STOPPED && !s_pass_active && !s_waiting && !s_program_locked;
+  if (valid) s_fault = (vm_exec_fault_status_t){0};
+  uint8_t mode = (uint8_t)s_mode;
+  portEXIT_CRITICAL(&s_program_mux);
+  if (!valid) SE_RET_ERR(ERR_VM_EXEC_CONTROL, .command = VM_EXEC_ACK_FAULT, .mode = mode);
+  return NULL;
+}
+
 void vm_exec_set_mode(vm_run_mode_e mode) {
   if (mode == VM_RUN_STOPPED) {
     vm_exec_request_stop();
     return;
   }
   portENTER_CRITICAL(&s_program_mux);
-  if (!s_program_locked && !(s_stop_requested && s_pass_active) && mode <= VM_RUN_BLOCK_STEP) {
+  if (!s_fault.latched && !s_program_locked && !(s_stop_requested && s_pass_active) && mode <= VM_RUN_BLOCK_STEP) {
     if (mode == VM_RUN_FROZEN && s_mode != VM_RUN_FROZEN) s_resume = s_mode;
     if (mode == VM_RUN_RUNNING) s_selected = VM_RUN_RUNNING;
     if (mode == VM_RUN_STEP || mode == VM_RUN_SCAN) s_selected = VM_RUN_SCAN;
@@ -470,6 +509,16 @@ vm_exec_status_t vm_exec_status(void) {
 }
 
 err_h vm_exec_control(vm_exec_command_e command) {
+  if (command == VM_EXEC_ACK_FAULT) return vm_exec_fault_acknowledge();
+
+  portENTER_CRITICAL(&s_program_mux);
+  vm_exec_fault_status_t fault = s_fault;
+  portEXIT_CRITICAL(&s_program_mux);
+  if (fault.latched) {
+    SE_RET_ERR(ERR_VM_EXEC_FAULT_LATCHED, .device_id = fault.device_id,
+               .root_tag = (uint16_t)fault.root_tag, .root_owner = fault.root_owner);
+  }
+
   if (command == VM_EXEC_RESET_TO_START) {
     vm_run_mode_e previous;
     SE_RET_IF_ERR(vm_exec_program_lock(&previous));

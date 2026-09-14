@@ -333,6 +333,7 @@ static inline err_h decoder_packet_vm_subscribe(const uint8_t* body, size_t len)
  *     - 0: scan mode, 1: once, 2: block mode, 3: next
  *     - 4: rewind without unloading, 5: normal mode
  *     - 6: pause, 7: resume, 8: full loader reset
+ *     - 9: acknowledge a latched critical device fault
  * - **Action**:
  *   - Routes command directly to `vm_exec_control()`, or performs full `vm_loader_reset()`.
  */

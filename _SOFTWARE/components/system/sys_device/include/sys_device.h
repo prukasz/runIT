@@ -61,16 +61,31 @@ typedef enum sys_device_state_e {
 } sys_device_state_e;
 
 /**
- * @brief Severity level a device's own cls->ops.error_handler classifies an
- * error into, selecting which of sys_device_t.actions[] to invoke. Only
- * meaningful when sys_device_t.use_error_handler is set - see
- * sys_device_report_error().
+ * @brief Severity assigned centrally by sys_device_classify_error(), selecting
+ * which of sys_device_t.actions[] the registered application policy invokes.
  */
 typedef enum sys_device_err_level_e {
   SYS_DEV_ERR_CRITICAL = 0,
   SYS_DEV_ERR_WARNING = 1,
   SYS_DEV_ERR_NOTICE = 2,
 } sys_device_err_level_e;
+
+/** Stage of a device-fault response, included in structured failure errors. */
+typedef enum sys_device_fault_stage_e {
+  SYS_DEV_FAULT_STAGE_CALLBACK = 0,
+  SYS_DEV_FAULT_STAGE_VM_STOP = 1,
+  SYS_DEV_FAULT_STAGE_FREEZE = 2,
+  SYS_DEV_FAULT_STAGE_ACTION = 3,
+} sys_device_fault_stage_e;
+
+/**
+ * Application-owned response for centrally classified system-device errors.
+ * The callback runs in task context and may wait for VM/device quiescence.
+ */
+typedef err_h (*sys_device_error_policy_fn_t)(uint8_t device_id,
+                                              sys_device_err_level_e level,
+                                              uint8_t action_id,
+                                              err_h error);
 
 /**
  * @brief Main device object with all necessary data and structures
@@ -89,7 +104,7 @@ typedef struct sys_device_t {
    * @brief Per-instance error handling mode - see sys_device_report_error().
    */
   uint8_t actions[3];           /* sys_actions ids indexed by sys_device_err_level_e; only consulted when use_error_handler is set */
-  bool use_error_handler;       /* true: cls->ops.error_handler classifies the error and invokes actions[level] */
+  bool use_error_handler;       /* true: central classifier and registered policy use actions[level] */
   bool generate_error_callback; /* true: cls->ops.error_handler reports to the VM via callback instead - takes priority over use_error_handler */
 } sys_device_t;
 
@@ -140,21 +155,20 @@ sys_device_t* sys_device_get_by_id(uint8_t device_id);
  *   report the error to the VM via the callback system and return -
  *   use_error_handler/actions[] are not consulted. Takes priority over
  *   use_error_handler when both happen to be set.
- * - use_error_handler set (and generate_error_callback is not): cls->ops.error_handler
- *   is expected to classify error into a sys_device_err_level_e and invoke
- *   sys_actions_invoke(dev->actions[level]).
- * - Neither flag set, device_id not found, or no error_handler bound: no-op,
- *   returns NULL.
+ * - use_error_handler set (and generate_error_callback is not): sys_device
+ *   classifies the root cause centrally, selects actions[level], and calls the
+ *   application policy registered by sys_device_register_error_policy().
+ * - Neither flag set or device_id not found: no-op, returns NULL.
  *
- * Classification and the actual callback/action dispatch are the per-adapter
- * error_handler's job (an empty stub in every adapter for now, ready to be
- * filled in) - sys_device only owns the flag check and the call-through,
- * since it cannot depend on sys_actions or the callbacks system itself
- * (both already depend on sys_device, so the reverse would be circular).
- *
- * @return err_h Whatever cls->ops.error_handler returns, or NULL.
+ * @return NULL on successful dispatch, or a structured policy/callback error.
  */
 err_h sys_device_report_error(uint8_t device_id, err_h error);
+
+/** Classify a complete error chain using the shared fail-safe severity map. */
+sys_device_err_level_e sys_device_classify_error(err_h error);
+
+/** Register the application response used when use_error_handler is enabled. */
+void sys_device_register_error_policy(sys_device_error_policy_fn_t policy);
 
 /**
  * @brief Set device_id's per-instance error handling mode in one call - see

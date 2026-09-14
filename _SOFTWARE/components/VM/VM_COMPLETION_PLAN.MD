@@ -39,49 +39,9 @@ rg -n "TODO|FIXME" components/VM components/runit components/system components/d
 
 ## Priority 0 — production blockers
 
-### 2. Make stop a real execution barrier
+### 3. Define and implement device-fault-to-VM-safe-state behavior
 
 **Status:** implemented; remove this item after the target self-tests pass.
-
-**Problem:** `vm_exec_stop()` only changes the mode. An active pass may continue,
-and `block_gate()` does not treat `VM_RUN_STOPPED` as a hold or cancellation.
-Code that observes STOPPED can therefore assume quiescence while a block still
-uses the program arena.
-
-**Fix in:**
-
-- `core/exec/vm_exec.c`
-- `core/exec/vm_exec.h`
-- `core/loader/vm_loader.c`
-- `../runit/selftest/stage_exec.c`
-
-**Required behavior:**
-
-1. Define two explicit operations:
-   - request execution to stop at the next block boundary;
-   - acquire a quiescent program barrier and wait until no pass holds handles.
-2. Use the barrier for every load/reset/store mutation. Keep
-   `vm_exec_program_lock()` as the single ownership mechanism or replace it with
-   an equivalent API; do not duplicate locking rules.
-3. Ensure STOPPED cannot dispatch another block in the current pass.
-4. Do not wait forever on the VM task itself. Detect invalid calling context or
-   use a non-blocking request from that context.
-5. Document whether STOP preserves loaded objects and values. Program reset
-   remains a separate operation.
-
-**Acceptance checks:**
-
-- Stop requested during a multi-block pass prevents the next block from running.
-- The barrier returns only after `scan_active == false` and `waiting == false`.
-- Reset and replacement during block/scan stepping cannot deadlock.
-- Repeated stop calls are idempotent.
-
-```powershell
-rg -n "vm_exec_stop|vm_exec_program_lock|block_gate|VM_RUN_STOPPED" components/VM/core components/runit/selftest
-idf.py build
-```
-
-### 3. Define and implement device-fault-to-VM-safe-state behavior
 
 **Problem:** device errors reach `sys_device_report_error()`, but adapters do
 not classify severity or invoke configured actions. `VM_BLK_ERR_STOP` only

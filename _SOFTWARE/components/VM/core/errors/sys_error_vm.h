@@ -66,7 +66,8 @@
   X(ERR_VM_EXEC_CONTROL, struct { uint8_t command; uint8_t mode; }) \
   X(ERR_VM_OVERRIDE_PTR_UNSUPPORTED, struct { uint16_t obj_id; }) \
   X(ERR_VM_OVERRIDE_BAD_RECORD, struct { uint16_t obj_id; uint16_t declared_len; uint16_t item_size; }) \
-  X(ERR_VM_EXEC_SELF_BARRIER, struct { uint8_t operation; })
+  X(ERR_VM_EXEC_SELF_BARRIER, struct { uint8_t operation; }) \
+  X(ERR_VM_EXEC_FAULT_LATCHED, struct { uint8_t device_id; uint16_t root_tag; uint32_t root_owner; })
 
 /**
  * @brief Human-readable descriptions for the VM tags - see
@@ -123,7 +124,8 @@
   X(ERR_VM_EXEC_CONTROL) \
   X(ERR_VM_OVERRIDE_PTR_UNSUPPORTED) \
   X(ERR_VM_OVERRIDE_BAD_RECORD) \
-  X(ERR_VM_EXEC_SELF_BARRIER)
+  X(ERR_VM_EXEC_SELF_BARRIER) \
+  X(ERR_VM_EXEC_FAULT_LATCHED)
 
 #define VM_OBJ_ID_NONE     0xFFFFu
 #define VM_OBJ_ID_DYN_BIT  0x8000u
@@ -206,6 +208,7 @@ static inline const char* vm_exec_command_name(uint8_t c) {
     case 6: return "PAUSE";
     case 7: return "RESUME";
     case 8: return "RESET";
+    case 9: return "ACK_FAULT";
     default: return "UNKNOWN";
   }
 }
@@ -396,6 +399,9 @@ static inline const char* vm_copy_shape_name(uint8_t r) {
            (p)->operation == 0 \
                ? "active VM pass cannot wait for its own stop; cancellation was requested without waiting" \
                : "active VM pass cannot acquire its own program-mutation barrier")
+#define LOG_BODY_ERR_VM_EXEC_FAULT_LATCHED(p, out, out_size) \
+  snprintf((out), (out_size), "VM restart blocked by device %u fault (root owner=0x%04lX, tag=%u)", \
+           (p)->device_id, (unsigned long)(p)->root_owner, (unsigned)(p)->root_tag)
 
 
 /** @brief SE_EMIT_ERR variant with explicit owner for shared headers. */

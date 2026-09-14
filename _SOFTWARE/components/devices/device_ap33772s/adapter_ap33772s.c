@@ -291,10 +291,6 @@ static err_h adapter_error_handler(void* driver_handle, err_h error) {
     return NULL;
   }
 
-  if (dev->use_error_handler) {
-    // TODO: classify `error` into a sys_device_err_level_e (critical/
-    // warning/notice) and sys_actions_invoke(dev->actions[level]).
-  }
   return NULL;
 }
 

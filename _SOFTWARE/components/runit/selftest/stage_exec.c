@@ -341,6 +341,27 @@ static void ex_test_controls(void) {
   ck("empty scan consumes next even if paused during completion", vm_exec_pass_count() == 1 &&
      vm_exec_control(VM_EXEC_RESUME) == NULL && vm_exec_mode() == VM_RUN_BLOCK);
   vm_loader_reset();
+
+  ck("first critical device fault latches", vm_exec_fault_latch(42, OWNER_SYS_DEVICE_REPORT_ERROR, ERR_ESP_ERR));
+  vm_exec_fault_status_t fault = vm_exec_fault_status();
+  ck("fault snapshot stops execution and preserves its root",
+     fault.latched && fault.device_id == 42 && fault.root_owner == OWNER_SYS_DEVICE_REPORT_ERROR &&
+         fault.root_tag == ERR_ESP_ERR && fault.occurrences == 1 && vm_exec_mode() == VM_RUN_STOPPED);
+  vm_exec_pass();
+  ck("latched fault blocks an explicit manual pass", vm_exec_pass_count() == 0);
+  err_h restart_error = vm_exec_control(VM_EXEC_NORMAL_MODE);
+  ck("latched fault rejects restart", err_has_tag(restart_error, ERR_VM_EXEC_FAULT_LATCHED));
+  vm_loader_reset();
+  ck("program reset does not acknowledge a critical fault", vm_exec_fault_status().latched);
+  ck("repeated fault is counted without replacing the first root",
+     !vm_exec_fault_latch(7, OWNER_VM_EXEC, ERR_VM_EXEC_CONTROL) &&
+         vm_exec_fault_status().occurrences == 2 && vm_exec_fault_status().device_id == 42);
+  ck("wire acknowledgment clears the fault",
+     dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_ACK_FAULT}, 2) == NULL &&
+         !vm_exec_fault_status().latched);
+  ck("execution may restart only after acknowledgment",
+     vm_exec_control(VM_EXEC_NORMAL_MODE) == NULL && vm_exec_mode() == VM_RUN_RUNNING);
+  (void)vm_exec_stop();
 }
 
 void test_exec_pass(void) {

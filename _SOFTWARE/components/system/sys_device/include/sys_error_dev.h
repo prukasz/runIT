@@ -19,7 +19,8 @@
   X(OWNER_SYS_DEVICE_RESET_ALL, 0xA10D, "OWNER_SYS_DEVICE_RESET_ALL")     \
   X(OWNER_SYS_DEVICE_UNINSTALL_ALL, 0xA10E, "OWNER_SYS_DEVICE_UNINSTALL_ALL") \
   X(OWNER_SYS_DEVICE_REPORT_ERROR, 0xA10F, "OWNER_SYS_DEVICE_REPORT_ERROR")   \
-  X(OWNER_SYS_DEVICE_SET_ERROR_HANDLING, 0xA110, "OWNER_SYS_DEVICE_SET_ERROR_HANDLING")
+  X(OWNER_SYS_DEVICE_SET_ERROR_HANDLING, 0xA110, "OWNER_SYS_DEVICE_SET_ERROR_HANDLING") \
+  X(OWNER_SYS_DEVICE_ERROR_POLICY, 0xA111, "OWNER_SYS_DEVICE_ERROR_POLICY")
 
 #define SYS_ERROR_DEV_MAP(X) \
     X(ERR_DEV_NO_HANDLE, struct { uint8_t dev_id; }) \
@@ -73,3 +74,19 @@ extern const char* const sys_io_feature_e_to_string[];            // sys_io.h/.c
 #define LOG_BODY_ERR_DEV_SUSPENDED(p, out, out_size) snprintf((out), (out_size), "device %u is suspended", (p)->dev_id)
 #define LOG_BODY_ERR_DEV_NOT_INSTALLED(p, out, out_size) snprintf((out), (out_size), "device %u is registered but not installed", (p)->dev_id)
 #define LOG_BODY_ERR_DEV_INSTALL_FAILED(p, out, out_size) snprintf((out), (out_size), "device %u failed to install", (p)->dev_id)
+
+/* Appended after the established global map by sys_error_codes.h so adding
+ * fault-policy diagnostics does not renumber existing wire error tags. */
+#define SYS_ERROR_DEV_POLICY_MAP(X) \
+  X(ERR_DEV_FAULT_POLICY_MISSING, struct { uint8_t dev_id; uint8_t level; }) \
+  X(ERR_DEV_FAULT_RESPONSE_FAILED, struct { uint8_t dev_id; uint8_t level; uint8_t stage; uint8_t action_id; uint16_t cause_tag; })
+
+#define SYS_ERROR_DEV_POLICY_LOGGER_MAP(X) \
+  X(ERR_DEV_FAULT_POLICY_MISSING) \
+  X(ERR_DEV_FAULT_RESPONSE_FAILED)
+
+#define LOG_BODY_ERR_DEV_FAULT_POLICY_MISSING(p, out, out_size) \
+  snprintf((out), (out_size), "device %u fault level %u has no registered response policy", (p)->dev_id, (p)->level)
+#define LOG_BODY_ERR_DEV_FAULT_RESPONSE_FAILED(p, out, out_size) \
+  snprintf((out), (out_size), "device %u fault response failed (level=%u, stage=%u, action=%u, cause_tag=%u)", \
+           (p)->dev_id, (p)->level, (p)->stage, (p)->action_id, (unsigned)(p)->cause_tag)

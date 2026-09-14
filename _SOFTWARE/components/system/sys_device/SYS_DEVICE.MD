@@ -75,13 +75,32 @@ typedef enum sys_device_err_level_e {
 ```
 ```c
 uint8_t actions[3];           /* sys_actions ids indexed by sys_device_err_level_e; only consulted when use_error_handler is set */
-bool use_error_handler;       /* true: cls->ops.error_handler classifies the error and invokes actions[level] */
+bool use_error_handler;       /* true: central classifier and application policy use actions[level] */
 bool generate_error_callback; /* true: cls->ops.error_handler reports to the VM via callback instead - takes priority over use_error_handler */
 ```
 
-`sys_device_report_error()` only decides *whether* `cls->ops.error_handler` runs, based on these two flags (`generate_error_callback` wins if both happen to be set) - it never touches `sys_actions` or the callback system itself, since both of those already depend on `sys_device` and a reverse dependency would be circular. The actual work - classifying `error` into a severity level and calling `sys_actions_invoke(dev->actions[level])` for the `use_error_handler` path, or building and firing a callback event (device_id + the chain's root-cause tag/owner, obtained by walking `error->next_cause` to the end since a wrapper like `ERR_DEV_DEP_FAILED` only carries `dev_id`) for the `generate_error_callback` path - is every adapter's own `cls->ops.error_handler` job. Every adapter's `error_handler` currently has both branches stubbed as `TODO`s: the flag-driven skeleton is wired up, the classification/dispatch bodies are intentionally empty pending the VM's design.
+`generate_error_callback` still takes priority and routes through the adapter's
+`cls->ops.error_handler`; callback construction remains adapter-specific.
+`use_error_handler` takes the central path: `sys_device_classify_error()` walks
+to the root cause, chooses a severity, selects `actions[level]`, and calls the
+application policy registered by `sys_device_register_error_policy()`. This
+callback seam avoids a dependency from `sys_device` back to `sys_actions`.
 
-This is the split the scheme is built around: **system devices** (onboard, fixed-function) can be configured with `use_error_handler` so their own critical/warning/notice faults resolve to hardcoded `sys_actions` responses even without a VM running; **user devices** (VM-defined) set `generate_error_callback` instead, so their errors are only ever reported to the VM to decide what to do - `sys_device` itself never picks a severity for those.
+The shared fail-safe classification is:
+
+| Level | Root-cause tags |
+| :--- | :--- |
+| Critical | Communication/hardware, missing handle/device, memory/state faults, and every unknown future tag. |
+| Warning | `ERR_POWER_BUDGET_EXCEEDED`, `ERR_DEV_SUSPENDED`, `ERR_IO_PIN_LOCKED`. |
+| Notice | Invalid values, unsupported/not-found features, and IO configuration errors. |
+
+The application policy installed by `sys_actions_init()` latches critical
+faults in the VM, requests cancellation, waits for quiescence, freezes all
+eligible devices, then invokes the configured critical action. Repeated
+critical reports increment the VM occurrence count without replaying the safe
+response. Warning and notice reports invoke only their configured actions.
+Response failures return `ERR_DEV_FAULT_RESPONSE_FAILED`; the error handler
+recognizes that wrapper and never dispatches it back into device policy.
 
 ---
 
@@ -129,16 +148,18 @@ typedef struct {
 * **`sys_device_install_cfg(cls, device_id, cfg, cfg_size)`**: Heap-copies `cfg`, sets `cls` on the instance, marks it `INSTALLING`, then runs `cls->ops.install`. On failure the registry slot and heap copy are freed and the error is returned; on success state becomes `INSTALLED`. Prefer `SYS_DEVICE_CREATE()`.
 * **`sys_device_uninstall(device_id)`**: Removes the registry entry, runs the device's `uninstall` op, then frees the config copy and the instance. Config is freed only *after* the adapter has torn down, since it may still read its own copy of the config until then.
 * **`sys_device_reset(device_id)`** / **`sys_device_suspend(device_id)`** / **`sys_device_resume(device_id)`** / **`sys_device_freeze(device_id)`** / **`sys_device_sync(device_id)`**: Single-device lifecycle calls; each checks found/installed/not-suspended (where relevant) before invoking the corresponding op, and returns `ERR_BASE_NOT_SUPPORTED` if the device doesn't implement it. `suspend`/`resume` no-op (return `NULL`) if the device is already in the target state.
-* **`sys_device_suspend_all()`** / **`sys_device_resume_all()`** / **`sys_device_freeze_all()`** / **`sys_device_sync_all()`** / **`sys_device_reset_all()`**: Sweep the whole registry, applying the op to every eligible device (ready, or suspended for `resume_all`), stopping and propagating the first failure via `SE_RET_IF_ERR` rather than continuing past it.
+* **`sys_device_suspend_all()`** / **`sys_device_resume_all()`** / **`sys_device_sync_all()`** / **`sys_device_reset_all()`**: Sweep the whole registry, applying the op to every eligible device and stopping at the first failure. **`sys_device_freeze_all()`** is safety-oriented: it attempts every eligible device even after a failure and returns the first error after the sweep.
 * **`sys_device_uninstall_all()`**: Sweeps every populated registry slot and calls `sys_device_uninstall()` on each — same semantics as the single-device call (tolerates any device state, doesn't check ready/suspended).
 * **Sweep direction follows the device-id dependency convention.** A device's `sys_io_pin_ref_t` fields (`oe_pin`, `rst_pin`, `en_pin`, ...) always point at a *lower*-id device — see `runit_board_devices.h`'s boot-order device ids. Several adapters' `suspend`/`uninstall` ops call back into that dependency's `sys_io_*` while they run (e.g. `tca6424a`'s `suspend` drives its `rst_pin` low, which is a `gpio_esp` pin). Tear-down sweeps (`suspend_all`, `uninstall_all`) therefore go **high id → low id**, so a dependent finishes its own teardown before the lower-id device it depends on goes down; bring-up sweeps (`resume_all`) go **low id → high id**, so a dependency is already active by the time a higher-id dependent resumes and touches it. `reset_all`/`freeze_all`/`sync_all` sweep low → high since none of today's adapters reach into another device's `sys_io` from those ops — if one ever does, it needs the same high→low treatment.
 * **Freeze vs. suspend are orthogonal.** `freeze`/`freeze_all` never touch `state` (an adapter tracks its own `is_frozen` flag via `SYS_DEV_CTX_FREEZE`/`SYS_DEV_CTX_UNFREEZE`); only `suspend`/`suspend_all` set `state = SYS_DEV_STATE_SUSPENDED`. Consequently `resume`/`resume_all` (which only act on devices `SYS_DEV_IS_SUSPENDED`) do **not** clear a freeze that was applied without a suspend — several adapters (see e.g. `device_gpio_esp`'s `device_sync()`) clear `is_frozen` from their `sync` op instead, so lifting a freeze system-wide is `sys_device_sync_all()`, not `sys_device_resume_all()`. [[SYS_ACTIONS.MD]]'s "resume" static function calls both together for exactly this reason.
 * **`sys_device_get_by_id(device_id)`**: Lock-free registry lookup; returns `NULL` if out of range or unset.
-* **`sys_device_report_error(device_id, error)`**: Looks `device_id` up and, if either `generate_error_callback` or `use_error_handler` is set and `cls->ops.error_handler` is bound, calls it and returns its result. No-op (`NULL`) if the device isn't found, neither flag is set, or no `error_handler` is bound. See [Per-Instance Error Handling](#per-instance-error-handling).
+* **`sys_device_report_error(device_id, error)`**: Gives callback mode to the adapter, or centrally classifies system-policy mode and calls the registered application response with the selected action id. Callback mode takes priority when both flags are set.
+* **`sys_device_classify_error(error)`**: Returns the centrally defined critical/warning/notice level from the chain's root tag; unknown tags are critical.
+* **`sys_device_register_error_policy(policy)`**: Installs the application-layer response without creating a `sys_device` → `sys_actions` dependency.
 * **`sys_device_set_error_handling(device_id, use_error_handler, generate_error_callback, actions)`**: Sets all three per-instance error-handling fields in one call — deliberately one function rather than a setter per field, so it maps 1:1 onto a single future wire packet (decoders in this codebase are one layer deep — one packet handler, one API call, see [[CODECS.MD]]). `actions` is copied into `dev->actions[3]` (each entry validated `< CONFIG_SYS_ACTIONS_ID_SPACE`), or pass `NULL` to zero it. Returns `ERR_DEV_NOT_FOUND` if `device_id` isn't registered, `ERR_INVALID_VAL_UI32` if an `actions[]` entry is out of range.
 
 ---
 
 ## Error Ownership
 
-Every function in `sys_device.c` sets `#undef OWNER` / `#define OWNER OWNER_SYS_DEVICE_<FUNCTION>` immediately before its body, per the [[runit]] skill's module owner tagging convention — e.g. `sys_device_reset()` tags errors as `OWNER_SYS_DEVICE_RESET`. See `sys_error_dev.h` for the full `SYS_DEVICE_OWNER_MAP` and the `SYS_ERROR_DEV_MAP` tags (`ERR_DEV_NO_HANDLE`, `ERR_DEV_NOT_FOUND`, `ERR_DEV_ALREADY_EXIST`, `ERR_DEV_FEATURE_UNAVAILABLE`, `ERR_DEV_SUSPENDED`, `ERR_DEV_NOT_INSTALLED`, `ERR_DEV_INSTALL_FAILED`).
+Every function in `sys_device.c` sets `#undef OWNER` / `#define OWNER OWNER_SYS_DEVICE_<FUNCTION>` immediately before its body, per the [[runit]] skill's module owner tagging convention — e.g. `sys_device_reset()` tags errors as `OWNER_SYS_DEVICE_RESET`. See `sys_error_dev.h` for the full owner map and device tags. Fault policy adds `ERR_DEV_FAULT_POLICY_MISSING` and `ERR_DEV_FAULT_RESPONSE_FAILED`; these are appended at the end of the global error map so existing numeric wire tags remain stable.

@@ -214,6 +214,7 @@ void test_step_selection_pipeline(void);
 void test_math_pi(void);
 void test_math_primes(void);
 void test_runtime_override(void);
+void test_device_fault_policy(void);
 #endif
 
 #if RUNIT_TEST_SECTION_SUB
@@ -262,6 +263,7 @@ static const selftest_stage_t s_stages[] = {
     {"PI", "Nilakantha pi series calculation", test_math_pi, true},
     {"PRIME", "prime tester (trial division in loop)", test_math_primes, true},
     {"OVERRIDE", "runtime variable update between scans", test_runtime_override, true},
+    {"FAULT", "device fault to VM safe state", test_device_fault_policy, true},
 #endif
 
 #if RUNIT_TEST_SECTION_SUB

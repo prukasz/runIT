@@ -14,6 +14,7 @@ const char* const sys_device_contract_type_e_to_string[] = {"IO", "POWER_VREG", 
   Reads are lock-free: sys_device_get_by_id() sits on the hot dispatch path and
   is reachable from ISR-adjacent code, where a mutex cannot be taken.*/
 static sys_device_t* s_device_registry[CONFIG_SYS_DEVICE_MAX_ID + 1] = {NULL};
+static sys_device_error_policy_fn_t s_error_policy;
 
 // Registers sys_device_report_error() as sys_errors' device-error hook (see
 // sys_error.h) at load time, per the [[runit]] skill's static-construction
@@ -22,6 +23,46 @@ static sys_device_t* s_device_registry[CONFIG_SYS_DEVICE_MAX_ID + 1] = {NULL};
 // sys_errors, so the reverse would be circular).
 __attribute__((constructor)) static void sys_device_register_error_hook(void) {
   SE_register_device_error_hook(sys_device_report_error);
+}
+
+static err_h error_root(err_h error) {
+  err_h root = error;
+  while (root && root->next_cause) root = root->next_cause;
+  return root;
+}
+
+void sys_device_register_error_policy(sys_device_error_policy_fn_t policy) {
+  s_error_policy = policy;
+}
+
+sys_device_err_level_e sys_device_classify_error(err_h error) {
+  err_h root = error_root(error);
+  if (!root) return SYS_DEV_ERR_CRITICAL;
+
+  switch (root->tag) {
+    case ERR_POWER_BUDGET_EXCEEDED:
+    case ERR_DEV_SUSPENDED:
+    case ERR_IO_PIN_LOCKED:
+      return SYS_DEV_ERR_WARNING;
+
+    case ERR_INVALID_VAL_UI32:
+    case ERR_INVALID_VAL_I32:
+    case ERR_INVALID_VAL_F:
+    case ERR_BASE_NOT_SUPPORTED:
+    case ERR_BASE_NOT_FOUND:
+    case ERR_DEV_FEATURE_UNAVAILABLE:
+    case ERR_IO_PIN_UNCONFIGURED:
+    case ERR_IO_PIN_UNAVAILABLE:
+    case ERR_IO_PIN_ALREADY_IN_USE:
+    case ERR_IO_PIN_FEATURE_UNSUPPORTED:
+    case ERR_IO_PIN_MODE_UNSUPPORTED:
+      return SYS_DEV_ERR_NOTICE;
+
+    /* Communication, missing hardware, memory/state faults, and new tags all
+       fail safe. Unknown future faults must not silently become noncritical. */
+    default:
+      return SYS_DEV_ERR_CRITICAL;
+  }
 }
 
 #define DEV_OP(d, f) ((d)->cls->ops.f)
@@ -165,9 +206,24 @@ sys_device_t* sys_device_get_by_id(uint8_t device_id) {
 err_h sys_device_report_error(uint8_t device_id, err_h error) {
   sys_device_t* dev = sys_device_get_by_id(device_id);
   if (!dev) return NULL;
-  if (!dev->generate_error_callback && !dev->use_error_handler) return NULL;
-  if (!dev->cls->ops.error_handler) return NULL;
-  return dev->cls->ops.error_handler(dev->device_handle, error);
+  if (!error || (!dev->generate_error_callback && !dev->use_error_handler)) return NULL;
+
+  if (dev->generate_error_callback) {
+    if (!dev->cls->ops.error_handler) return NULL;
+    err_h callback_error = dev->cls->ops.error_handler(dev->device_handle, error);
+    if (!callback_error) return NULL;
+    err_h root = error_root(callback_error);
+    return SE_WRAP_ERR(callback_error, ERR_DEV_FAULT_RESPONSE_FAILED,
+                       .dev_id = device_id, .level = SYS_DEV_ERR_NOTICE,
+                       .stage = SYS_DEV_FAULT_STAGE_CALLBACK, .action_id = UINT8_MAX,
+                       .cause_tag = root ? (uint16_t)root->tag : 0);
+  }
+
+  sys_device_err_level_e level = sys_device_classify_error(error);
+  if (!s_error_policy) {
+    SE_RET_ERR(ERR_DEV_FAULT_POLICY_MISSING, .dev_id = device_id, .level = (uint8_t)level);
+  }
+  return s_error_policy(device_id, level, dev->actions[level], error);
 }
 
 #undef OWNER
@@ -285,7 +341,15 @@ err_h sys_device_sync(uint8_t device_id) {
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_FREEZE_ALL
 err_h sys_device_freeze_all(void) {
-  SYS_DEV_LIFECYCLE_OP_ALL(freeze, "Freezing", "freeze", SYS_DEV_IS_READY(__disp_dev), false, SYS_DEV_STATE_NONE, false);
+  err_h first_error = NULL;
+  for (int i = 0; i <= CONFIG_SYS_DEVICE_MAX_ID; i++) {
+    sys_device_t* dev = sys_device_get_by_id((uint8_t)i);
+    if (!dev || !SYS_DEV_IS_READY(dev) || !DEV_OP(dev, freeze)) continue;
+    err_h error = DEV_OP(dev, freeze)(dev->device_handle);
+    if (error && !first_error) first_error = error;
+    if (error) ESP_LOGE(TAG, "Failed to freeze device: %s", DEV_NAME(dev));
+  }
+  return first_error;
 }
 
 #undef OWNER

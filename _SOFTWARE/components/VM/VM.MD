@@ -714,6 +714,7 @@ All controls use one packet type: `04 48 command` (three bytes total).
 | `06` | Pause | Hold before the next dispatch, preserving mode and pending step. |
 | `07` | Resume | Restore the mode/step saved by pause. A completed scan step stays held. |
 | `08` | Reset | Unload the program and clear executor/events/subscriptions; leave stopped. |
+| `09` | Acknowledge fault | Clear a latched critical device fault while quiescent and stopped. Does not restart. |
 
 A FOR entry consumes one step, and each dispatch inside its body consumes
 another, including repeated visits in later iterations. Returning from a span
@@ -734,6 +735,15 @@ control during program replacement returns `ERR_VM_EXEC_CONTROL`. Receipt
 means acceptance, not execution completion. `vm_exec_status()` is a locked
 C snapshot of mode, scan activity and the next block while parked; existing
 subscription telemetry still samples only completed scans.
+
+A critical system-device fault latches its first device id and root owner/tag,
+counts repeats, cancels the active pass, and blocks supervisor and explicit
+manual passes. Program reset preserves that latch. Restart controls return
+`ERR_VM_EXEC_FAULT_LATCHED` until command `09` acknowledges it; the client must
+then send the desired normal, scan, or block-mode command separately. The
+system response waits for the stop barrier before freezing devices and running
+the configured critical action. Warning and notice device errors only run their
+configured action.
 
 The supervisor starts stopped after boot tests/benchmarks and before BLE RX
 is bound, so remote commands execute on the VM task on core 1.
@@ -1254,7 +1264,7 @@ Note the app **partition** is 1 MB (`CONFIG_PARTITION_TABLE_SINGLE_APP`), not th
 **Blocks** — `vm_block_get_by_id()`, `vm_block_get_in()`, `vm_block_get_out()`, `vm_block_is_enabled()`, `vm_block_triggered()`, `vm_block_input_fresh()`, `vm_block_set_eno()`, `vm_block_get_span()`, `vm_block_claim_span()`, `vm_block_get_inputs()`, `vm_block_get_outputs()`, `vm_block_get_en_list()`, `vm_block_get_custom_data()`, `vm_block_get_custom_len()`, `vm_block_get_total_size()`, `vm_block_calc_size()`, `IF_BLOCK_ENABLED()`, `IF_BLOCK_TRIGGERED()`, `BLOCK_CALL()`
 **Dispatch** — `vm_block_fn_for()`, `vm_exec_check_block_type()`, `vm_exec_use_blocks()`
 **Events** — `vm_event_post()`, `vm_event_count()`, `vm_event_at()`, `vm_event_drain()`, `vm_event_take_overflow()`, `vm_event_reset()`
-**Execution** — `vm_exec_start()`, `vm_exec_request_stop()`, `vm_exec_stop()`, `vm_exec_program_lock()`, `vm_exec_program_unlock()`, `vm_exec_pass()`, `vm_exec_run_range()`, `vm_exec_set_mode()`, `vm_exec_mode()`, `vm_exec_status()`, `vm_exec_pass_count()`, `vm_exec_last_pass_us()`, `vm_exec_set_sample_hook()`, `vm_exec_reset()`, `vm_clock_us()`, `vm_now_ms()`
+**Execution** — `vm_exec_start()`, `vm_exec_request_stop()`, `vm_exec_stop()`, `vm_exec_fault_latch()`, `vm_exec_fault_status()`, `vm_exec_fault_acknowledge()`, `vm_exec_program_lock()`, `vm_exec_program_unlock()`, `vm_exec_pass()`, `vm_exec_run_range()`, `vm_exec_set_mode()`, `vm_exec_mode()`, `vm_exec_status()`, `vm_exec_pass_count()`, `vm_exec_last_pass_us()`, `vm_exec_set_sample_hook()`, `vm_exec_reset()`, `vm_clock_us()`, `vm_now_ms()`
 **Loading** — `vm_loader_reset()`, `vm_loader_open()`, `vm_loader_add_obj()`, `vm_loader_set_data()`, `vm_loader_add_accessor()`, `vm_loader_add_block()`, `vm_loader_state()`, `vm_loader_used()`
 
 ---
@@ -1268,7 +1278,7 @@ Tags (`SYS_ERROR_VM_MAP`) cover allocation (`ERR_VM_ALLOC_EXHAUSTED`), resolutio
 Execution adds its own group: the palette (`ERR_VM_BLK_UNKNOWN_TYPE`), the
 supervisor (`ERR_VM_EXEC_BLOCK_HUNG`, `ERR_VM_EXEC_SPAN_DEPTH`,
 `ERR_VM_EXEC_BAD_SPAN`, `ERR_VM_EXEC_CONTROL`,
-`ERR_VM_EXEC_SELF_BARRIER`), events (`ERR_VM_EVENT_OVERFLOW`), runtime override
+`ERR_VM_EXEC_SELF_BARRIER`, `ERR_VM_EXEC_FAULT_LATCHED`), events (`ERR_VM_EVENT_OVERFLOW`), runtime override
 validation (`ERR_VM_OVERRIDE_PTR_UNSUPPORTED`,
 `ERR_VM_OVERRIDE_BAD_RECORD`), and the user-write guard
 (`ERR_VM_OBJ_USR_PROTECTED`).
