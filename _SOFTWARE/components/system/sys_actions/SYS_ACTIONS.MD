@@ -26,8 +26,10 @@ components/system/sys_actions/
 ├── CMakeLists.txt
 ├── SYS_ACTIONS.MD          # This documentation
 ├── sys_actions.c           # Load-on-demand NVS storage, static-func table, recording tap, boot action
+├── sys_actions_static.c    # Default static action implementations and device-fault error policy
 └── include/
     ├── sys_actions.h        # SYS_ACTIONS_CLASS_HEADER, API declarations
+    ├── sys_actions_static.h # Built-in static system actions and error policy declarations
     └── sys_error_actions.h  # sys_actions owner map + error tag map
 ```
 
@@ -98,8 +100,10 @@ err_h sys_actions_bind_static(uint8_t action_id, action_static_func_t fn, void* 
 | `1` | `sys_device_freeze_all()` | Freezes every ready device. Does **not** change device `state` — see the freeze/suspend note below. |
 | `2` | `sys_device_resume_all()` **then** `sys_device_sync_all()` | Normal operation. Both calls are needed: `resume_all()` only lifts a *suspend*, `sync_all()` only lifts a *freeze* — see [[SYS_DEVICE.MD]]. |
 | `3` | `sys_device_suspend_all()` | Suspends every ready device. |
-| `4` | `sys_device_reset_all()` | Resets every ready device. |
-| `5` | `sys_device_uninstall_all()` | Uninstalls and frees every registered device. Destructive — nothing is left in the registry afterward. |
+| `4` | `sys_device_reset_all()` **then** `vm_exec_control(VM_EXEC_RESET_TO_START)` | Resets every ready device and rewinds VM execution from the start. |
+| `5` | `vm_loader_reset()` **then** `sys_device_uninstall_all()` | Hard reset: unloads the VM program (clears arena/registries) and uninstalls/frees all registered devices. Destructive. |
+| `4` | `sys_device_reset_all()`, `vm_exec_control(VM_EXEC_RESET_TO_START)`, **then** `sys_actions_invoke(0)` | Resets every ready device, rewinds VM execution from the start, and re-applies boot configuration. |
+| `5` | `vm_loader_reset()`, `sys_device_uninstall_all()`, **then** `sys_actions_invoke(0)` | Hard reset: unloads the VM program, uninstalls and frees all devices, then restores baseline boot devices via action 0. |
 | `6-15` | *(free)* | Available for `sys_actions_bind_static()`. |
 | `16-63` | *(not eligible)* | Blob-only — `sys_actions_bind_static()` rejects these with `ERR_INVALID_VAL_UI32`. |
 

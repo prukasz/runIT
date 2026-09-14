@@ -9,9 +9,9 @@
 #include <string.h>
 #include "dec_sys_actions.h"
 #include "sys_device.h"
+#include "sys_actions_static.h"
 #include "sys_interface.h"
 #include "utils.h"
-#include "vm_exec.h"
 
 // dec_sys_actions.h leaves OWNER set to OWNER_DEC_SYS_ACTIONS; take it back so
 // this file's own SE_* macros are tagged as sys_actions, not as the decoder.
@@ -46,68 +46,6 @@ static sys_action_t* s_recording = NULL;
 static uint8_t s_recording_id = 0;
 static bool s_has_recording = false;
 
-static err_h action_error_root(err_h error) {
-  err_h root = error;
-  while (root && root->next_cause) root = root->next_cause;
-  return root;
-}
-
-static err_h fault_response_error(uint8_t device_id, sys_device_err_level_e level,
-                                  sys_device_fault_stage_e stage, uint8_t action_id,
-                                  uint16_t cause_tag) {
-  SE_RET_ERR(ERR_DEV_FAULT_RESPONSE_FAILED,
-             .dev_id = device_id, .level = (uint8_t)level, .stage = (uint8_t)stage,
-             .action_id = action_id, .cause_tag = cause_tag);
-}
-
-static err_h sys_actions_device_error_policy(uint8_t device_id,
-                                             sys_device_err_level_e level,
-                                             uint8_t action_id, err_h error) {
-  if (level != SYS_DEV_ERR_CRITICAL) {
-    err_h action_error = sys_actions_invoke(action_id);
-    err_h root = action_error_root(action_error);
-    return action_error ? fault_response_error(device_id, level, SYS_DEV_FAULT_STAGE_ACTION,
-                                               action_id, root ? (uint16_t)root->tag : 0)
-                        : NULL;
-  }
-
-  err_h root = action_error_root(error);
-  bool first = vm_exec_fault_latch(device_id, root ? root->owner : 0,
-                                   root ? root->tag : ERR_DEP_FAILED);
-  if (!first) return NULL;
-
-  bool response_failed = false;
-  sys_device_fault_stage_e failed_stage = SYS_DEV_FAULT_STAGE_CALLBACK;
-  uint16_t failed_tag = 0;
-
-  err_h stop_error = vm_exec_stop();
-  if (stop_error) {
-    err_h stop_root = action_error_root(stop_error);
-    response_failed = true;
-    failed_stage = SYS_DEV_FAULT_STAGE_VM_STOP;
-    failed_tag = stop_root ? (uint16_t)stop_root->tag : 0;
-  }
-
-  err_h first_error = sys_device_freeze_all();
-  if (first_error && !response_failed) {
-    err_h freeze_root = action_error_root(first_error);
-    response_failed = true;
-    failed_stage = SYS_DEV_FAULT_STAGE_FREEZE;
-    failed_tag = freeze_root ? (uint16_t)freeze_root->tag : 0;
-  }
-
-  err_h action_error = sys_actions_invoke(action_id);
-  if (action_error && !response_failed) {
-    err_h action_root = action_error_root(action_error);
-    response_failed = true;
-    failed_stage = SYS_DEV_FAULT_STAGE_ACTION;
-    failed_tag = action_root ? (uint16_t)action_root->tag : 0;
-  }
-
-  return response_failed ? fault_response_error(device_id, level, failed_stage,
-                                                action_id, failed_tag)
-                         : NULL;
-}
 
 // ---------------------------------------------------------
 // NVS helpers - a single nvs_handle_t is safe to share across tasks (the NVS
@@ -230,51 +168,6 @@ static void sys_actions_tap_task(void* arg) {
 }
 
 // ---------------------------------------------------------
-// Static (hardcoded) actions - moved from the removed sys_states component.
-// These are what used to be a state's "base action"; now just action ids
-// 1-5's bound static function, registered at boot below.
-// ---------------------------------------------------------
-
-static err_h static_fn_freeze(void* arg) {
-  (void)arg;
-  return sys_device_freeze_all();
-}
-
-static err_h static_fn_resume(void* arg) {
-  (void)arg;
-  // Freeze and suspend are orthogonal in sys_device: only sync_all() clears a
-  // freeze, only resume_all() clears a suspend. See SYS_DEVICE.MD.
-  SE_RET_IF_ERR(sys_device_resume_all());
-  SE_RET_IF_ERR(sys_device_sync_all());
-  return NULL;
-}
-
-static err_h static_fn_suspend(void* arg) {
-  (void)arg;
-  return sys_device_suspend_all();
-}
-
-static err_h static_fn_reset(void* arg) {
-  (void)arg;
-  return sys_device_reset_all();
-}
-
-static err_h static_fn_hard_reset(void* arg) {
-  (void)arg;
-  return sys_device_uninstall_all();
-}
-
-// Boot-only, same convention as sys_interface_register_class() - not
-// mutex-protected, register everything before any concurrent access starts.
-static void register_default_static_actions(void) {
-  sys_actions_bind_static(1, static_fn_freeze, NULL);
-  sys_actions_bind_static(2, static_fn_resume, NULL);
-  sys_actions_bind_static(3, static_fn_suspend, NULL);
-  sys_actions_bind_static(4, static_fn_reset, NULL);
-  sys_actions_bind_static(5, static_fn_hard_reset, NULL);
-}
-
-// ---------------------------------------------------------
 // Public API
 // ---------------------------------------------------------
 
@@ -295,7 +188,7 @@ err_h sys_actions_init(void) {
     }
   }
 
-  register_default_static_actions();
+  sys_actions_register_default_static();
 
   // Boot action: action 0 is always invoked here (static func 0, if ever
   // bound, plus whatever's stored in NVS). Nothing bound/stored yet is the

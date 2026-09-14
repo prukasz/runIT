@@ -57,22 +57,15 @@ typedef sys_err_t* err_h;
 
 ## Ring Buffer Allocator (sys_error.c)
 
-Transient error nodes are allocated from a fixed-size (`ERR_BUF_SIZE`, 2048 bytes) lock-free ring buffer via atomic compare-exchange bump allocation (`SE_alloc_bytes`) during synchronous stack returns — there is no manual free. A `_Static_assert` per tag (`X_CHK` in sys_error.c) guarantees no single payload can exceed 1/4 of the ring.
+Error nodes are allocated from a fixed-size (`ERR_BUF_SIZE`, 1024 bytes) lock-free ring buffer via atomic compare-exchange bump allocation (`SE_alloc_bytes`) — there is no free; slots are simply overwritten once the head wraps around, so error chains must be logged/consumed promptly. A `_Static_assert` per tag (`X_CHK` in sys_error.c) guarantees no single payload can exceed 1/4 of the ring, bounding how much of the buffer one allocation (or one chain) can occupy.
 
 ## Error Queue & Handler Task (sys_error_handler.c)
 
-To prevent queued errors from being overwritten when the transient ring buffer wraps during high-traffic bursts, the asynchronous handler uses a **queue-owned record pool**:
-- `s_record_pool` holds `ERR_RECORD_POOL_SIZE` (16) records of 384 bytes each (`se_record_t`).
-- Two static FreeRTOS queues manage lifecycle: `s_free_queue` (available records) and `s_err_queue` (queued records ready for the consumer task).
-- When `SE_push_to_handler(err)` is called, a free record is acquired non-blockingly (safe from ISR and tasks). If the pool is exhausted, the error is dropped and counted in an atomic counter (`s_dropped_count`) rather than corrupting in-flight errors.
-- `se_record_copy_chain()` deep-copies the entire chain into the record's private storage, rewriting `next_cause` links internally and bounding traversal to `ENC_SYS_ERRORS_MAX_NODES` (16) to eliminate pointer cycles. The queued chain is thus fully isolated and immutable against any subsequent ring buffer wraps.
-- `SE_init()` starts the background consumer task (`sys_error_handler_task`), statically allocated via `R_TASK_DEFINE` / `R_TASK_START` (see [[runit]] skill).
-- The consumer task processes each record: it surfaces dropped error summaries if `s_dropped_count > 0`, runs `dispatch_device_owned_error()`, encodes for BLE (`enc_sys_errors_encode_chain`), prints serial stack traces, and sends BLE packets. Upon completion, the record is returned to `s_free_queue`.
+The error queue (`s_err_queue`, `ERR_QUEUE_LEN` = 32) is a static FreeRTOS queue defined via the `utils` component's `R_QUEUE_DEFINE` — it's live before `app_main()` runs (constructor-initialized), so nothing needs to guard its creation, including `SE_push_to_handler()` calls that happen to land before `SE_init()`. `SE_init()` starts the background consumer task (`sys_error_handler_task`), statically allocated via `R_TASK_DEFINE` / `R_TASK_START` (see [[runit]] skill), guarded so a repeat call doesn't start it twice.
 
-### Dropped Error Counter
-- `uint32_t SE_get_dropped_count(void)`: returns the count of dropped error chains due to queue/pool saturation.
-- `void SE_clear_dropped_count(void)`: resets the drop counter to 0.
-- When `sys_error_handler_task` runs and observes `s_dropped_count > 0`, it logs an overflow summary warning (`ESP_LOGW`) and clears the count.
+The task reads a fresh copy of the config via `SE_get_config()` each time it wakes (rather than reaching into `sys_error.c`'s internal `s_cfg`, keeping the two files decoupled to the public API) and, per that configuration, (a) encodes the chain into a wire packet, (b) logs each node via `ESP_LOGE`, and (c) pushes the encoded packet to a BLE TX slot — **in that order**, because both (b) and (c) can themselves allocate from the same ring the chain lives in.
+
+`SE_push_to_handler(err)` enqueues a completed chain; it is ISR-safe (uses `xQueueSendFromISR` when called from ISR context) and is a no-op while suspended (`SE_suspend()` / `SE_resume()`, nesting-safe via a depth counter, implemented in sys_error.c). A push that happens before `SE_init()` has started the task simply waits in the queue rather than being dropped.
 
 This is the file to extend for new dispatch behavior (additional sinks, per-owner filtering, rate limiting, etc.) — see the note in the Overview above.
 
@@ -121,7 +114,7 @@ Reads back the configuration in force, after clamping.
 
 > **Depends on `CONFIG_LOG_VERSION_1`** (what this project builds with): log v1 delivers one whole line per `vprintf` call, so one call maps to one BLE notification with no line reassembly. Log **v2** splits a line across three calls (prefix / user format / newline+reset) and would emit three fragments per line — switching to v2 means reintroducing an accumulator that flushes on `'\n'`.
 
-A `__atomic_exchange_n` flag guards re-entrancy: `sys_ble_char_send()` logs on its own error paths, and that log comes straight back into the hook. A nested call finds the flag set and takes the serial-only path instead of recursing. Under contention another task's line is dropped from the BLE stream (never from serial).
+A boolean re-entrancy flag guards recursion: `sys_ble_char_send()` logs on its own error paths, and that log comes straight back into the hook. A nested call finds the flag set and takes the serial-only path instead of recursing. Under contention another task's line is dropped from the BLE stream (never from serial).
 
 ### Error telemetry
 When `errors.ble_enable` is set, the handler task encodes each chain with `enc_sys_errors_encode_chain()` (see [[CODECS.MD]]) and pushes the packet to `errors.char_uuid` / `errors.tx_header`. `err_h` values returned by `sys_ble_char_send()` on either stream are deliberately dropped — feeding a TX failure back into the error queue would log from inside the log path.

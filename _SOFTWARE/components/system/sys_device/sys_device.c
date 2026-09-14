@@ -25,18 +25,12 @@ __attribute__((constructor)) static void sys_device_register_error_hook(void) {
   SE_register_device_error_hook(sys_device_report_error);
 }
 
-static err_h error_root(err_h error) {
-  err_h root = error;
-  while (root && root->next_cause) root = root->next_cause;
-  return root;
-}
-
 void sys_device_register_error_policy(sys_device_error_policy_fn_t policy) {
   s_error_policy = policy;
 }
 
 sys_device_err_level_e sys_device_classify_error(err_h error) {
-  err_h root = error_root(error);
+  err_h root = SE_error_root(error);
   if (!root) return SYS_DEV_ERR_CRITICAL;
 
   switch (root->tag) {
@@ -212,7 +206,7 @@ err_h sys_device_report_error(uint8_t device_id, err_h error) {
     if (!dev->cls->ops.error_handler) return NULL;
     err_h callback_error = dev->cls->ops.error_handler(dev->device_handle, error);
     if (!callback_error) return NULL;
-    err_h root = error_root(callback_error);
+    err_h root = SE_error_root(callback_error);
     return SE_WRAP_ERR(callback_error, ERR_DEV_FAULT_RESPONSE_FAILED,
                        .dev_id = device_id, .level = SYS_DEV_ERR_NOTICE,
                        .stage = SYS_DEV_FAULT_STAGE_CALLBACK, .action_id = UINT8_MAX,

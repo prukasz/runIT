@@ -124,6 +124,17 @@ const char* SE_get_tag_name(err_tag_e tag);
  */
 size_t SE_get_payload_size(err_tag_e tag);
 
+/**
+ * @brief Walks an error chain down its next_cause links to find the root cause.
+ *
+ * @param error Outermost error handle.
+ * @return err_h Deepest cause node where next_cause is NULL, or NULL if error is NULL.
+ */
+err_h SE_error_root(err_h error);
+
+#define error_root(err) SE_error_root(err)
+#define SE_root(err)    SE_error_root(err)
+
 // ---------------------------------------------------------
 // 3b. Logging / Telemetry Configuration
 // ---------------------------------------------------------
