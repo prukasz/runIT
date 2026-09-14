@@ -6,6 +6,7 @@
 #include "runit_board_devices.h"
 #include "sys_actions.h"
 #include "sys_callbacks.h"
+#include "sys_device.h"
 #include "sys_interface.h"
 #include "vm_bench.h"
 #include "vm_selftest.h"
@@ -71,31 +72,68 @@ static const sys_error_cfg_t s_runit_error_cfg = {
         },
 };
 
-void runit_start(void) {
-  SE_init();
-  SE_ORIGIN_CALL(sys_start_i2c());
-  SE_ORIGIN_CALL(sys_power_static_config());
-  SE_ORIGIN_CALL(sys_ble_static_config());
-  SE_ORIGIN_CALL(SE_configure(&s_runit_error_cfg));
-  // Must come before sys_actions_init(): the boot action (id 0) installs
-  // devices that can arm interrupts (e.g. ads7128's ALERT pin) whose ISRs
-  // queue events via sys_callback_trigger() - sys_cb_task needs to already be
-  // running to drain that queue, or every queued event sits forever unread.
-  SE_ORIGIN_CALL(sys_callbacks_init());
-  SE_ORIGIN_CALL(sys_interface_init());
-  // Must come before sys_actions_init(): the boot action (id 0) needs its
-  // static function bound before init's unconditional invoke(0) runs.
+void runit_enter_safe_state(void) {
+  vm_exec_stop();
+  vm_exec_set_sample_hook(NULL);
+  (void)sys_device_freeze_all();
+  ESP_LOGE(TAG, "System entered safe state (VM stopped, ready devices frozen)");
+}
+
+err_h runit_run_boot_steps(const runit_boot_step_entry_t* steps, size_t count) {
+  if (steps == NULL || count == 0) return NULL;
+  for (size_t i = 0; i < count; i++) {
+    const runit_boot_step_entry_t* step = &steps[i];
+    if (step->fn == NULL) continue;
+    err_h err = step->fn();
+    if (err != NULL) {
+      ESP_LOGE(TAG, "runIT boot aborted at step: %s", step->name ? step->name : "unnamed");
+      SE_push_to_handler(err);
+      runit_enter_safe_state();
+      return err;
+    }
+  }
+  return NULL;
+}
+
+static err_h runit_step_error_configure(void) {
+  return SE_configure(&s_runit_error_cfg);
+}
+
+static err_h step_bind_boot_action(void) {
 #if RUNIT_SKIP_DEVICE_INIT
-  SE_ORIGIN_CALL(sys_actions_bind_static(0, runit_at_boot_disabled, NULL));
+  return sys_actions_bind_static(0, runit_at_boot_disabled, NULL);
 #else
-  SE_ORIGIN_CALL(sys_actions_bind_static(0, runit_at_boot, NULL));
+  return sys_actions_bind_static(0, runit_at_boot, NULL);
 #endif
-  // Must come before sys_interface_bind_ble_rx(): class registration and the
-  // recording tap are boot-only, not safe against a running RX pump.
-  SE_ORIGIN_CALL(sys_actions_init());
-  SE_ORIGIN_CALL(vm_sub_init());
+}
+
+static err_h step_bind_ble_rx(void) {
+  return sys_interface_bind_ble_rx(SYS_BLE_CHR_RUNIT_RX, RUNIT_BLE_RX_FRAME_MAX);
+}
+
+err_h runit_start(void) {
+  SE_init();
+
+  static const runit_boot_step_entry_t s_boot_setup_steps[] = {
+      {"sys_start_i2c", sys_start_i2c},
+      {"sys_power_static_config", sys_power_static_config},
+      {"sys_ble_static_config", sys_ble_static_config},
+      {"SE_configure", runit_step_error_configure},
+      {"sys_callbacks_init", sys_callbacks_init},
+      {"sys_interface_init", sys_interface_init},
+      {"sys_actions_bind_boot", step_bind_boot_action},
+      {"sys_actions_init", sys_actions_init},
+      {"vm_sub_init", vm_sub_init},
+  };
+
+  err_h err = runit_run_boot_steps(s_boot_setup_steps, sizeof(s_boot_setup_steps) / sizeof(s_boot_setup_steps[0]));
+  if (err != NULL) {
+    return err;
+  }
+
   vm_sub_set_sender(runit_sub_ble_sender);
   ESP_LOGI(TAG, "runIT boot sequence complete");
+
 #if RUNIT_ENABLE_VM_SELFTEST
   /* After sys_interface_init() so class 0x04 is registered -- the test
      injects real frames through sys_interface_decode() rather than calling
@@ -105,9 +143,23 @@ void runit_start(void) {
 #if RUNIT_ENABLE_VM_BENCH
   vm_bench_run();
 #endif
-  // Tests and benchmarks own synchronous execution during boot. Start the
-  // supervisor stopped before accepting remote execution-control packets.
+
+  // Tests and benchmarks own synchronous execution during boot. Restore
+  // production defaults (clean hooks, BLE sender) and start the supervisor
+  // stopped before accepting remote execution-control packets.
   vm_exec_stop();
-  SE_ORIGIN_CALL(vm_exec_start());
-  SE_ORIGIN_CALL(sys_interface_bind_ble_rx(SYS_BLE_CHR_RUNIT_RX, RUNIT_BLE_RX_FRAME_MAX));
+  vm_exec_set_sample_hook(NULL);
+  vm_sub_set_sender(runit_sub_ble_sender);
+
+  static const runit_boot_step_entry_t s_boot_runtime_steps[] = {
+      {"vm_exec_start", vm_exec_start},
+      {"sys_interface_bind_ble_rx", step_bind_ble_rx},
+  };
+
+  err = runit_run_boot_steps(s_boot_runtime_steps, sizeof(s_boot_runtime_steps) / sizeof(s_boot_runtime_steps[0]));
+  if (err != NULL) {
+    return err;
+  }
+
+  return NULL;
 }

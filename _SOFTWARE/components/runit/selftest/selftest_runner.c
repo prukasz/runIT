@@ -215,6 +215,8 @@ void test_math_pi(void);
 void test_math_primes(void);
 void test_runtime_override(void);
 void test_device_fault_policy(void);
+void test_sys_error_ownership(void);
+void test_boot_failure_policy(void);
 #endif
 
 #if RUNIT_TEST_SECTION_SUB
@@ -264,6 +266,8 @@ static const selftest_stage_t s_stages[] = {
     {"PRIME", "prime tester (trial division in loop)", test_math_primes, true},
     {"OVERRIDE", "runtime variable update between scans", test_runtime_override, true},
     {"FAULT", "device fault to VM safe state", test_device_fault_policy, true},
+    {"ERRORS", "error queue stable ownership & overflow", test_sys_error_ownership, true},
+    {"BOOT", "coherent boot failure propagation and safe state", test_boot_failure_policy, true},
 #endif
 
 #if RUNIT_TEST_SECTION_SUB

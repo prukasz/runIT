@@ -35,9 +35,37 @@ Pin configs and device id / adresses shall not be changed
    Worth running both after any change to the object layout or to the resolve
    path, so a timing win cannot quietly be a correctness loss.
    --------------------------------------------------------------------------- */
-#define RUNIT_SKIP_DEVICE_INIT 1
-#define RUNIT_ENABLE_VM_SELFTEST 1
-#define RUNIT_ENABLE_VM_BENCH 0
+#ifndef RUNIT_DEV_PROFILE
+#define RUNIT_DEV_PROFILE 1  /* 0 for production defaults, 1 for development */
+#endif
+
+#ifndef RUNIT_SKIP_DEVICE_INIT
+  #if defined(CONFIG_RUNIT_SKIP_DEVICE_INIT)
+    #define RUNIT_SKIP_DEVICE_INIT CONFIG_RUNIT_SKIP_DEVICE_INIT
+  #elif RUNIT_DEV_PROFILE
+    #define RUNIT_SKIP_DEVICE_INIT 1
+  #else
+    #define RUNIT_SKIP_DEVICE_INIT 0
+  #endif
+#endif
+
+#ifndef RUNIT_ENABLE_VM_SELFTEST
+  #if defined(CONFIG_RUNIT_ENABLE_VM_SELFTEST)
+    #define RUNIT_ENABLE_VM_SELFTEST CONFIG_RUNIT_ENABLE_VM_SELFTEST
+  #elif RUNIT_DEV_PROFILE
+    #define RUNIT_ENABLE_VM_SELFTEST 1
+  #else
+    #define RUNIT_ENABLE_VM_SELFTEST 0
+  #endif
+#endif
+
+#ifndef RUNIT_ENABLE_VM_BENCH
+  #if defined(CONFIG_RUNIT_ENABLE_VM_BENCH)
+    #define RUNIT_ENABLE_VM_BENCH CONFIG_RUNIT_ENABLE_VM_BENCH
+  #else
+    #define RUNIT_ENABLE_VM_BENCH 0
+  #endif
+#endif
 
 /* Granular test section toggles (when RUNIT_ENABLE_VM_SELFTEST is 1) */
 #define RUNIT_TEST_SECTION_OBJ 1     // Group 1: Object model, accessors, contracts (A-K, OBJ)
@@ -69,46 +97,55 @@ static inline err_h sys_start_i2c(void) {
   return sys_i2c_init(&bus0_cfg, &bus1_cfg);
 }
 
+#define RUNIT_CHECK_ERR(call) \
+  do {                        \
+    err_h __rc_err = (call);  \
+    if (__rc_err != NULL) {   \
+      return __rc_err;        \
+    }                         \
+  } while (0)
+
 /*System-level power budget config (board mounted) - device creation lives in runit_board_devices.h*/
 static inline err_h sys_power_static_config(void) {
-  SE_ORIGIN_CALL(sys_power_set_limits(RUNIT_BOARD_POWER_LIMIT_MV, RUNIT_BOARD_POWER_LIMIT_MA, RUNIT_BOARD_POWER_BUDGET_MW));
+  RUNIT_CHECK_ERR(sys_power_set_limits(RUNIT_BOARD_POWER_LIMIT_MV, RUNIT_BOARD_POWER_LIMIT_MA, RUNIT_BOARD_POWER_BUDGET_MW));
   ESP_LOGI("static_config", "power limits configured");
   return NULL;
 }
 
 static inline err_h sys_ble_static_config(void) {
-  SE_ORIGIN_CALL(sys_ble_init());
+  RUNIT_CHECK_ERR(sys_ble_init());
 
   sys_ble_svc_cfg_t runit_svc_cfg = {.uuid = SYS_BLE_SVC_RUNIT, .is_primary = true};
-  SE_ORIGIN_CALL(sys_ble_service_create(&runit_svc_cfg));
+  RUNIT_CHECK_ERR(sys_ble_service_create(&runit_svc_cfg));
 
   sys_ble_char_create_t runit_chr_cfg_rx = {.info = {.uuid = SYS_BLE_CHR_RUNIT_RX, .is_write = true, .desc = "runit RX"}, .rx_buffer_size = 512, .rx_notify_sem = sys_interface_get_rx_wake_sem()};
-  SE_ORIGIN_CALL(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_rx));
+  RUNIT_CHECK_ERR(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_rx));
 
   sys_ble_char_create_t runit_chr_cfg_tx = {.info = {.uuid = SYS_BLE_CHR_RUNIT_TX, .is_notify = true, .desc = "runit TX"}, .rx_buffer_size = 0};
-  SE_ORIGIN_CALL(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_tx));
+  RUNIT_CHECK_ERR(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_tx));
 
   sys_ble_tx_buf_cfg_t runit_buff_cfg_tx = {.header = PACKET_HEADER_TX, .size = 1024, .is_indication = false};
-  SE_ORIGIN_CALL(sys_ble_char_assign_tx_buffer(SYS_BLE_CHR_RUNIT_TX, &runit_buff_cfg_tx));
+  RUNIT_CHECK_ERR(sys_ble_char_assign_tx_buffer(SYS_BLE_CHR_RUNIT_TX, &runit_buff_cfg_tx));
 
   sys_ble_char_create_t runit_chr_cfg_status = {.info = {.uuid = SYS_BLE_CHT_RUNIT_STATUS, .is_notify = true, .desc = "runit Status"}, .rx_buffer_size = 0};
-  SE_ORIGIN_CALL(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_status));
+  RUNIT_CHECK_ERR(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_status));
 
   sys_ble_tx_buf_cfg_t runit_buff_cfg_status = {.header = PACKET_HEADER_STATUS, .size = 512, .is_indication = false};
-  SE_ORIGIN_CALL(sys_ble_char_assign_tx_buffer(SYS_BLE_CHT_RUNIT_STATUS, &runit_buff_cfg_status));
+  RUNIT_CHECK_ERR(sys_ble_char_assign_tx_buffer(SYS_BLE_CHT_RUNIT_STATUS, &runit_buff_cfg_status));
 
   sys_ble_char_create_t runit_chr_cfg_logs = {.info = {.uuid = SYS_BLE_CHR_RUNIT_LOGS, .is_notify = true, .desc = "runit LOGS"}, .rx_buffer_size = 0};
-  SE_ORIGIN_CALL(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_logs));
+  RUNIT_CHECK_ERR(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_logs));
 
   sys_ble_tx_buf_cfg_t runit_buff_cfg_logs = {.header = PACKET_HEADER_LOGS, .size = 2048, .is_indication = false};
-  SE_ORIGIN_CALL(sys_ble_char_assign_tx_buffer(SYS_BLE_CHR_RUNIT_LOGS, &runit_buff_cfg_logs));
+  RUNIT_CHECK_ERR(sys_ble_char_assign_tx_buffer(SYS_BLE_CHR_RUNIT_LOGS, &runit_buff_cfg_logs));
 
   // Encoded error chains share the LOGS characteristic - the TX slot header is
   // what tells the two streams apart on the client side.
   sys_ble_tx_buf_cfg_t runit_buff_cfg_errors = {.header = PACKET_HEADER_ERRORS, .size = 1024, .is_indication = false};
-  SE_ORIGIN_CALL(sys_ble_char_assign_tx_buffer(SYS_BLE_CHR_RUNIT_LOGS, &runit_buff_cfg_errors));
+  RUNIT_CHECK_ERR(sys_ble_char_assign_tx_buffer(SYS_BLE_CHR_RUNIT_LOGS, &runit_buff_cfg_errors));
 
-  SE_ORIGIN_CALL(sys_ble_database_sync());
+  RUNIT_CHECK_ERR(sys_ble_database_sync());
   ESP_LOGI("static_config", "BLE initialized");
   return NULL;
 }
+#undef RUNIT_CHECK_ERR

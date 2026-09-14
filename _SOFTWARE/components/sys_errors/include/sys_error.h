@@ -87,6 +87,10 @@ err_h SE_alloc_bytes(size_t payload_size, err_tag_e tag, uint32_t owner);
 // Pushes the final error chain to the error handler task/queue
 void SE_push_to_handler(err_h err);
 
+// Query and reset count of errors dropped due to queue/pool overflow
+uint32_t SE_get_dropped_count(void);
+void SE_clear_dropped_count(void);
+
 /**
  * @brief Hook the error handler task calls for the first device-owned node
  * found in a chain it's about to print/send (see sys_error_handler.c) - lets

@@ -3300,6 +3300,17 @@ CONFIG_SYS_POWER_DEFAULT_LIMIT_MA=5500
 CONFIG_SYS_POWER_DEFAULT_BUDGET_MW=115500
 # end of System Power Management Options
 # end of System Configuration
+
+#
+# runIT Board & Diagnostic Configuration
+#
+# default:
+# CONFIG_RUNIT_SKIP_DEVICE_INIT is not set
+# default:
+# CONFIG_RUNIT_ENABLE_VM_SELFTEST is not set
+# default:
+# CONFIG_RUNIT_ENABLE_VM_BENCH is not set
+# end of runIT Board & Diagnostic Configuration
 # end of Component config
 
 # CONFIG_IDF_EXPERIMENTAL_FEATURES is not set

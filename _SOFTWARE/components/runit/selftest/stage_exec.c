@@ -2108,6 +2108,7 @@ void test_step_selection_pipeline(void) {
   vm_loader_reset();
   vm_sub_reset();
   (void)vm_sub_init();
+  vm_sub_sender_fn prev_sender = vm_sub_get_sender();
   vm_sub_set_sender(pipe_mock_sender);
   s_pipe_sub_calls = 0;
   s_pipe_sub_len = 0;
@@ -2136,7 +2137,7 @@ void test_step_selection_pipeline(void) {
     built = built && mk(i, VM_OBJ_B, 1, NULL, true) != NULL;
   }
   ck("pipeline objects built", built);
-  if (!built) return;
+  if (!built) goto teardown;
 
   // Accessors
   bool accs = true;
@@ -2145,7 +2146,7 @@ void test_step_selection_pipeline(void) {
   accs = accs && ex_acc(PIPE_ACC_Q0, PIPE_O_Q0) != NULL;
   accs = accs && ex_acc(PIPE_ACC_Q2, PIPE_O_Q2) != NULL;
   ck("pipeline accessors built", accs);
-  if (!accs) return;
+  if (!accs) goto teardown;
 
   // Bytecode definitions
   static const uint8_t c_mod3[] = {VM_EXPR_IN, 0, VM_EXPR_K, 0, VM_EXPR_MOD};
@@ -2166,7 +2167,7 @@ void test_step_selection_pipeline(void) {
   blks = blks && ex_expr_gated(PIPE_BLK_DBL, (const uint16_t[]){PIPE_ACC_X}, 1, PIPE_ACC_Q2,
                                PIPE_O_X, PIPE_O_ENO_DBL, k2, 1, c_mul2, sizeof(c_mul2));
   ck("pipeline blocks built in execution order", blks);
-  if (!blks) return;
+  if (!blks) goto teardown;
 
   // Subscribe to x (OBJ ID 0)
   const uint16_t sub_ids[] = {PIPE_O_X};
@@ -2188,7 +2189,7 @@ void test_step_selection_pipeline(void) {
   __atomic_store_n(&s_step_test_done, false, __ATOMIC_RELEASE);
   bool started = xTaskCreate(ex_step_worker, "vm_pipe_step", 4096, NULL, 5, NULL) == pdPASS;
   ck("p1: step worker started", started);
-  if (!started) { vm_exec_stop(); return; }
+  if (!started) { vm_exec_stop(); goto teardown; }
 
   // Worker runs block 0 (expr mod) and holds before block 1 (switch)
   bool held = ex_wait_block(PIPE_BLK_SW);
@@ -2228,7 +2229,7 @@ void test_step_selection_pipeline(void) {
   __atomic_store_n(&s_step_test_done, false, __ATOMIC_RELEASE);
   started = xTaskCreate(ex_step_worker, "vm_pipe_step", 4096, NULL, 5, NULL) == pdPASS;
   ck("p2: worker started", started);
-  if (!started) { vm_exec_stop(); return; }
+  if (!started) { vm_exec_stop(); goto teardown; }
 
   // Because x has upd=0, block 0 is not triggered -> sweeps through to completion
   held = ex_wait_block(PIPE_BLK_SW);
@@ -2256,7 +2257,7 @@ void test_step_selection_pipeline(void) {
   __atomic_store_n(&s_step_test_done, false, __ATOMIC_RELEASE);
   started = xTaskCreate(ex_step_worker, "vm_pipe_step", 4096, NULL, 5, NULL) == pdPASS;
   ck("p3: worker started", started);
-  if (!started) { vm_exec_stop(); return; }
+  if (!started) { vm_exec_stop(); goto teardown; }
 
   held = ex_wait_block(PIPE_BLK_SW);
   ck("p3: block 0 evaluated mod=2", held && near_f(ex_f(PIPE_O_MOD), 2.0f));
@@ -2282,9 +2283,10 @@ void test_step_selection_pipeline(void) {
   }
   ck("p3: telemetry value is 4.0f", near_f(rx, 4.0f));
 
-  // Teardown
+teardown:
   vm_exec_stop();
   vm_exec_set_sample_hook(NULL);
+  vm_sub_set_sender(prev_sender);
   vm_sub_reset();
   vm_loader_reset();
 }
@@ -2309,6 +2311,7 @@ void test_math_pi(void) {
   vm_loader_reset();
   vm_sub_reset();
   (void)vm_sub_init();
+  vm_sub_sender_fn prev_sender = vm_sub_get_sender();
   vm_sub_set_sender(pipe_mock_sender);
   s_pipe_sub_calls = 0;
   s_pipe_sub_len = 0;
@@ -2332,14 +2335,14 @@ void test_math_pi(void) {
   built = built && mk(PI_O_ENO_FOR, VM_OBJ_B, 1, NULL, true) != NULL;
   built = built && mk(PI_O_ENO_EXPR, VM_OBJ_B, 1, NULL, true) != NULL;
   ck("pi objects built", built);
-  if (!built) return;
+  if (!built) goto teardown;
 
   // Accessors
   bool accs = true;
   accs = accs && ex_acc(PI_ACC_PI, PI_O_PI) != NULL;
   accs = accs && ex_acc(PI_ACC_D, PI_O_D) != NULL;
   ck("pi accessors built", accs);
-  if (!accs) return;
+  if (!accs) goto teardown;
 
   // Loop config: d from 2.0 to 46.0 by 4.0 (12 turns = 24 series terms)
   const for_loop_t lp = {
@@ -2381,7 +2384,7 @@ void test_math_pi(void) {
   blks = blks && ex_expr(PI_BLK_CALC, (const uint16_t[]){PI_ACC_PI, PI_ACC_D}, 2, PI_O_PI, PI_O_ENO_EXPR,
                          pi_ks, 4, c_pi_calc, sizeof(c_pi_calc));
   ck("pi blocks built", blks);
-  if (!blks) return;
+  if (!blks) goto teardown;
 
   // Subscribe to pi
   ck("pi subscribe", vm_sub_subscribe((const uint16_t[]){PI_O_PI}, 1) == NULL);
@@ -2402,8 +2405,10 @@ void test_math_pi(void) {
   if (s_pipe_sub_len >= 13) memcpy(&rx, s_pipe_sub_buf + 9, 4);
   ck("pi telemetry payload matches computed pi", fabsf(rx - pi_res) < 1e-5f);
 
+teardown:
   vm_exec_stop();
   vm_exec_set_sample_hook(NULL);
+  vm_sub_set_sender(prev_sender);
   vm_sub_reset();
   vm_loader_reset();
 }
@@ -2441,6 +2446,7 @@ void test_math_primes(void) {
   vm_loader_reset();
   vm_sub_reset();
   (void)vm_sub_init();
+  vm_sub_sender_fn prev_sender = vm_sub_get_sender();
   vm_sub_set_sender(pipe_mock_sender);
   s_pipe_sub_calls = 0;
   s_pipe_sub_len = 0;
@@ -2461,7 +2467,7 @@ void test_math_primes(void) {
     built = built && mk(i, VM_OBJ_B, 1, NULL, true) != NULL;
   }
   ck("prime objects built", built);
-  if (!built) return;
+  if (!built) goto teardown;
 
   // Accessors
   bool accs = true;
@@ -2471,7 +2477,7 @@ void test_math_primes(void) {
   accs = accs && ex_acc(PR_ACC_IS_DIV, PR_O_IS_DIV) != NULL;
   accs = accs && ex_acc(PR_ACC_DIV_CNT, PR_O_DIV_CNT) != NULL;
   ck("prime accessors built", accs);
-  if (!accs) return;
+  if (!accs) goto teardown;
 
   // Bytecodes
   // Block 0: end = N - 1.0f
@@ -2522,7 +2528,7 @@ void test_math_primes(void) {
   blks = blks && ex_expr(PR_BLK_CHK, (const uint16_t[]){PR_ACC_DIV_CNT, PR_ACC_N}, 2, PR_O_IS_PRIME, PR_O_ENO_CHK,
                          k_chk, 2, c_prime_chk, sizeof(c_prime_chk));
   ck("prime blocks built", blks);
-  if (!blks) return;
+  if (!blks) goto teardown;
 
   // Subscribe to is_prime
   ck("prime subscribe", vm_sub_subscribe((const uint16_t[]){PR_O_IS_PRIME}, 1) == NULL);
@@ -2572,7 +2578,7 @@ void test_math_primes(void) {
   __atomic_store_n(&s_step_test_done, false, __ATOMIC_RELEASE);
   bool started = xTaskCreate(ex_step_worker, "vm_prime_step", 4096, NULL, 5, NULL) == pdPASS;
   ck("prime step worker started", started);
-  if (!started) { vm_exec_stop(); return; }
+  if (!started) { vm_exec_stop(); goto teardown; }
 
   // Step 0: Block 0 computes end = 6.0f -> holds before FOR (block 1)
   bool held = ex_wait_block(PR_BLK_FOR);
@@ -2617,8 +2623,10 @@ void test_math_primes(void) {
   ck("step: prime scan completed", ex_wait_done());
   ck("step: is_prime evaluated to 1.0f for 7", near_f(ex_f(PR_O_IS_PRIME), 1.0f));
 
+teardown:
   vm_exec_stop();
   vm_exec_set_sample_hook(NULL);
+  vm_sub_set_sender(prev_sender);
   vm_sub_reset();
   vm_loader_reset();
 }
@@ -2653,6 +2661,7 @@ void test_runtime_override(void) {
   vm_loader_reset();
   vm_sub_reset();
   (void)vm_sub_init();
+  vm_sub_sender_fn prev_sender = vm_sub_get_sender();
   vm_sub_set_sender(pipe_mock_sender);
   s_pipe_sub_calls = 0;
   s_pipe_sub_len = 0;
@@ -2703,14 +2712,14 @@ void test_runtime_override(void) {
   built = built && (vm_obj_create(&op, OV_O_PTR, &hp, "ptr") == NULL);
 
   ck("override objects built", built);
-  if (!built) return;
+  if (!built) goto teardown;
 
   // 2. Accessors:
   bool accs = true;
   accs = accs && (ex_acc(OV_ACC_X, OV_O_X) != NULL);
   accs = accs && (ex_acc(OV_ACC_K, OV_O_K) != NULL);
   ck("override accessors built", accs);
-  if (!accs) return;
+  if (!accs) goto teardown;
 
   // 3. Block 0: Expression computing y = x * k (x * 10.0f)
   vm_block_h b = NULL;
@@ -2726,7 +2735,7 @@ void test_runtime_override(void) {
                                                .out_obj_ids = (const uint16_t[]){OV_O_Y},
                                                .eno_obj_id = OV_O_ENO});
   ck("override block created", eb == NULL && b != NULL);
-  if (eb || !b) return;
+  if (eb || !b) goto teardown;
 
   vm_expr_code_t* code = (vm_expr_code_t*)vm_block_get_custom_data(b);
   code->const_cnt = 0;
@@ -2848,9 +2857,10 @@ void test_runtime_override(void) {
   ck("block 0 computed y = 120.0f", near_f(ex_f(OV_O_Y), 120.0f));
   ck("telemetry emitted for new y", s_pipe_sub_calls == 2);
 
-  // Cleanup
+teardown:
   vm_exec_stop();
   vm_exec_set_sample_hook(NULL);
+  vm_sub_set_sender(prev_sender);
   vm_sub_reset();
   vm_loader_reset();
 }

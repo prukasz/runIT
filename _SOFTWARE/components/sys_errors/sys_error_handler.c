@@ -3,6 +3,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
+#include <string.h>
 #include "enc_sys_errors.h"
 #include "sys_ble.h"
 #include "utils.h"
@@ -14,8 +15,44 @@
 
 static const char* TAG = __FILE_NAME__;
 
-#define ERR_QUEUE_LEN 32
-R_QUEUE_DEFINE(s_err_queue, ERR_QUEUE_LEN, sizeof(err_h));
+#define ERR_RECORD_POOL_SIZE 16
+#define SE_RECORD_PAYLOAD_BUF_SIZE 384
+
+typedef struct se_record {
+  uint8_t storage[SE_RECORD_PAYLOAD_BUF_SIZE] __attribute__((aligned(8)));
+  uint16_t used_bytes;
+  uint8_t node_count;
+  uint8_t total_depth;
+  bool truncated;
+} se_record_t;
+
+static se_record_t s_record_pool[ERR_RECORD_POOL_SIZE];
+R_QUEUE_DEFINE(s_free_queue, ERR_RECORD_POOL_SIZE, sizeof(se_record_t*));
+R_QUEUE_DEFINE(s_err_queue, ERR_RECORD_POOL_SIZE, sizeof(se_record_t*));
+
+static volatile uint32_t s_dropped_count = 0;
+
+static void init_record_pool(void) {
+  static bool inited = false;
+  if (inited) return;
+  inited = true;
+  for (int i = 0; i < ERR_RECORD_POOL_SIZE; i++) {
+    se_record_t* rec = &s_record_pool[i];
+    (void)R_QUEUE_SEND(s_free_queue, &rec, NO_WAIT);
+  }
+}
+
+__attribute__((constructor)) static void se_record_pool_ctor(void) {
+  init_record_pool();
+}
+
+uint32_t SE_get_dropped_count(void) {
+  return __atomic_load_n(&s_dropped_count, __ATOMIC_RELAXED);
+}
+
+void SE_clear_dropped_count(void) {
+  __atomic_store_n(&s_dropped_count, 0, __ATOMIC_RELAXED);
+}
 
 #define ERR_HANDLER_TASK_STACK_WORDS 4096
 R_TASK_DEFINE(s_err_handler_task_handle, ERR_HANDLER_TASK_STACK_WORDS);
@@ -48,21 +85,75 @@ static void dispatch_device_owned_error(err_h err_chain) {
   }
 }
 
+static bool se_record_copy_chain(se_record_t* rec, err_h chain) {
+  if (!rec || !chain) return false;
+
+  rec->node_count = 0;
+  rec->total_depth = 0;
+  rec->used_bytes = 0;
+  rec->truncated = false;
+
+  sys_err_t* prev_copy = NULL;
+  uint32_t offset = 0;
+
+  for (err_h curr = chain; curr != NULL && rec->total_depth < ENC_SYS_ERRORS_MAX_NODES; curr = curr->next_cause) {
+    rec->total_depth++;
+
+    if (rec->truncated) {
+      continue;
+    }
+
+    size_t payload_size = SE_get_payload_size(curr->tag);
+    size_t node_size = sizeof(sys_err_t) + payload_size;
+    node_size = (node_size + 7) & ~7u;  // 8-byte align
+
+    if (offset + node_size > SE_RECORD_PAYLOAD_BUF_SIZE) {
+      rec->truncated = true;
+      continue;
+    }
+
+    sys_err_t* node_copy = (sys_err_t*)&rec->storage[offset];
+    node_copy->tag = curr->tag;
+    node_copy->owner = curr->owner;
+    node_copy->next_cause = NULL;
+    if (payload_size > 0) {
+      memcpy(node_copy->payload, curr->payload, payload_size);
+    }
+
+    if (prev_copy != NULL) {
+      prev_copy->next_cause = node_copy;
+    }
+    prev_copy = node_copy;
+
+    offset += node_size;
+    rec->node_count++;
+  }
+
+  rec->used_bytes = (uint16_t)offset;
+  return rec->node_count > 0;
+}
+
 static void sys_error_handler_task(void* arg) {
   (void)arg;
-  err_h err_chain = NULL;
+  se_record_t* rec = NULL;
   uint8_t packet[SE_ERR_PACKET_MAX];
   sys_error_cfg_t cfg;
 
   while (1) {
-    if (!R_QUEUE_RECEIVE(s_err_queue, &err_chain, WAIT_FOREVER)) continue;
-    if (!err_chain) continue;
+    if (!R_QUEUE_RECEIVE(s_err_queue, &rec, WAIT_FOREVER)) continue;
+    if (!rec) continue;
+
+    uint32_t dropped = __atomic_exchange_n(&s_dropped_count, 0, __ATOMIC_RELAXED);
+    if (dropped > 0) {
+      ESP_LOGW(TAG, "Error queue overflow: %u error chains were dropped", (unsigned)dropped);
+    }
+
+    err_h err_chain = (err_h)rec->storage;
 
     SE_get_config(&cfg);
     dispatch_device_owned_error(err_chain);
 
-    // Encode first: everything below can allocate from the same ring the chain
-    // lives in, and an allocation that wraps would overwrite nodes mid-walk.
+    // Encode first: telemetry serialization is self-contained.
     size_t packet_len = 0;
     bool encoded = false;
     if (cfg.errors.ble_enable) {
@@ -100,10 +191,14 @@ static void sys_error_handler_task(void* arg) {
     if (encoded) {
       (void)sys_ble_char_send(cfg.errors.char_uuid, cfg.errors.tx_header, packet, packet_len, true);
     }
+
+    // Release record back to free pool
+    (void)R_QUEUE_SEND(s_free_queue, &rec, NO_WAIT);
   }
 }
 
 void SE_init(void) {
+  init_record_pool();
   if (s_err_handler_task_handle == NULL) {
     R_TASK_START(s_err_handler_task_handle, sys_error_handler_task, NULL, 5);
   }
@@ -112,9 +207,54 @@ void SE_init(void) {
 void SE_push_to_handler(err_h err) {
   if (!err || SE_is_suspended()) return;
 
-  if (xPortInIsrContext()) {
-    R_QUEUE_SEND_ISR(s_err_queue, &err);
+  init_record_pool();
+
+  se_record_t* rec = NULL;
+  bool is_isr = xPortInIsrContext();
+
+  if (is_isr) {
+    BaseType_t woken = pdFALSE;
+    if (!xQueueReceiveFromISR(s_free_queue, &rec, &woken)) {
+      __atomic_fetch_add(&s_dropped_count, 1, __ATOMIC_RELAXED);
+      return;
+    }
+    if (woken) {
+      portYIELD_FROM_ISR();
+    }
   } else {
-    R_QUEUE_SEND(s_err_queue, &err, NO_WAIT);
+    if (!R_QUEUE_RECEIVE(s_free_queue, &rec, NO_WAIT)) {
+      __atomic_fetch_add(&s_dropped_count, 1, __ATOMIC_RELAXED);
+      return;
+    }
+  }
+
+  if (!se_record_copy_chain(rec, err)) {
+    if (is_isr) {
+      R_QUEUE_SEND_ISR(s_free_queue, &rec);
+    } else {
+      (void)R_QUEUE_SEND(s_free_queue, &rec, NO_WAIT);
+    }
+    __atomic_fetch_add(&s_dropped_count, 1, __ATOMIC_RELAXED);
+    return;
+  }
+
+  bool sent = false;
+  if (is_isr) {
+    BaseType_t woken = pdFALSE;
+    sent = (xQueueSendFromISR(s_err_queue, &rec, &woken) == pdTRUE);
+    if (woken) {
+      portYIELD_FROM_ISR();
+    }
+  } else {
+    sent = (R_QUEUE_SEND(s_err_queue, &rec, NO_WAIT) == pdTRUE);
+  }
+
+  if (!sent) {
+    if (is_isr) {
+      R_QUEUE_SEND_ISR(s_free_queue, &rec);
+    } else {
+      (void)R_QUEUE_SEND(s_free_queue, &rec, NO_WAIT);
+    }
+    __atomic_fetch_add(&s_dropped_count, 1, __ATOMIC_RELAXED);
   }
 }

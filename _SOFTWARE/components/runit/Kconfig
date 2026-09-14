@@ -1,0 +1,25 @@
+menu "runIT Board & Diagnostic Configuration"
+
+    config RUNIT_SKIP_DEVICE_INIT
+        bool "Skip I2C device initialization at boot"
+        default n
+        help
+            Skips binding runit_at_boot to action 0, so no I2C devices are probed
+            or installed during boot. Set to 'y' for bench testing without hardware.
+            In production, this must remain disabled ('n').
+
+    config RUNIT_ENABLE_VM_SELFTEST
+        bool "Run VM self-tests at boot"
+        default n
+        help
+            Runs vm_selftest_run() during the boot sequence.
+            In production, this must remain disabled ('n').
+
+    config RUNIT_ENABLE_VM_BENCH
+        bool "Run VM benchmarks at boot"
+        default n
+        help
+            Runs vm_bench_run() during the boot sequence.
+            In production, this must remain disabled ('n').
+
+endmenu

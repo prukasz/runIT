@@ -57,27 +57,22 @@ typedef sys_err_t* err_h;
 
 ## Ring Buffer Allocator (sys_error.c)
 
-Error nodes are allocated from a fixed-size (`ERR_BUF_SIZE`, 1024 bytes) lock-free ring buffer via atomic compare-exchange bump allocation (`SE_alloc_bytes`) — there is no free; slots are simply overwritten once the head wraps around, so error chains must be logged/consumed promptly. A `_Static_assert` per tag (`X_CHK` in sys_error.c) guarantees no single payload can exceed 1/4 of the ring, bounding how much of the buffer one allocation (or one chain) can occupy.
+Transient error nodes are allocated from a fixed-size (`ERR_BUF_SIZE`, 2048 bytes) lock-free ring buffer via atomic compare-exchange bump allocation (`SE_alloc_bytes`) during synchronous stack returns — there is no manual free. A `_Static_assert` per tag (`X_CHK` in sys_error.c) guarantees no single payload can exceed 1/4 of the ring.
 
 ## Error Queue & Handler Task (sys_error_handler.c)
 
-The error queue (`s_err_queue`, `ERR_QUEUE_LEN` = 32) is a static FreeRTOS queue defined via the `utils` component's `R_QUEUE_DEFINE` — it's live before `app_main()` runs (constructor-initialized), so nothing needs to guard its creation, including `SE_push_to_handler()` calls that happen to land before `SE_init()`. `SE_init()` starts the background consumer task (`sys_error_handler_task`), statically allocated via `R_TASK_DEFINE` / `R_TASK_START` (see [[runit]] skill), guarded so a repeat call doesn't start it twice.
+To prevent queued errors from being overwritten when the transient ring buffer wraps during high-traffic bursts, the asynchronous handler uses a **queue-owned record pool**:
+- `s_record_pool` holds `ERR_RECORD_POOL_SIZE` (16) records of 384 bytes each (`se_record_t`).
+- Two static FreeRTOS queues manage lifecycle: `s_free_queue` (available records) and `s_err_queue` (queued records ready for the consumer task).
+- When `SE_push_to_handler(err)` is called, a free record is acquired non-blockingly (safe from ISR and tasks). If the pool is exhausted, the error is dropped and counted in an atomic counter (`s_dropped_count`) rather than corrupting in-flight errors.
+- `se_record_copy_chain()` deep-copies the entire chain into the record's private storage, rewriting `next_cause` links internally and bounding traversal to `ENC_SYS_ERRORS_MAX_NODES` (16) to eliminate pointer cycles. The queued chain is thus fully isolated and immutable against any subsequent ring buffer wraps.
+- `SE_init()` starts the background consumer task (`sys_error_handler_task`), statically allocated via `R_TASK_DEFINE` / `R_TASK_START` (see [[runit]] skill).
+- The consumer task processes each record: it surfaces dropped error summaries if `s_dropped_count > 0`, runs `dispatch_device_owned_error()`, encodes for BLE (`enc_sys_errors_encode_chain`), prints serial stack traces, and sends BLE packets. Upon completion, the record is returned to `s_free_queue`.
 
-The task reads a fresh copy of the config via `SE_get_config()` each time it wakes (rather than reaching into `sys_error.c`'s internal `s_cfg`, keeping the two files decoupled to the public API) and, per that configuration, (a) encodes the chain into a wire packet, (b) logs each node (owner name, owner ID, tag name, tag ID, and a description — see below) via `ESP_LOGE`, and (c) pushes the encoded packet to a BLE TX slot — **in that order**, because both (b) and (c) can themselves allocate from the same ring the chain lives in.
-
-### Per-Tag Payload Descriptions (`SE_describe_payload`)
-
-Each printed node tries `SE_describe_payload(tag, payload, out, out_size)` (declared in `sys_error.h`) first: if `tag` has a registered logger, it writes a short human-readable line (e.g. `"device 3 dependency failed"`, `"ESP-IDF error ESP_ERR_TIMEOUT (0x107)"`) and the trace prints `Owner: ... Tag: ... -> <description>`. If `tag` has no logger, the trace falls back to a raw hex dump of up to 16 payload bytes, same as before.
-
-**Adding a description for a tag** is a two-step, per-module change — no edits to `sys_error.h`/`sys_error_handler.c` needed:
-1. In the tag's owning module's `sys_error_<module>.h` (next to its `SYS_ERROR_<MODULE>_MAP`), add the tag to a `SYS_ERROR_<MODULE>_LOGGER_MAP(X)` — just `X(TAG_NAME)`, no second argument.
-2. Define `#define LOG_BODY_<TAG_NAME>(p, out, out_size) snprintf((out), (out_size), "...", (p)->field, ...)` — `p` is `const err_payload_<TAG_NAME>_t*`.
-
-**Why the split into a macro-only map plus a separately-generated function** (rather than just writing `static inline void log_<tag>(...)` directly in the module header, the way the struct/enum generation works): `err_payload_<tag>_t` doesn't exist yet at the point `sys_error_<module>.h` is parsed — it's included (via `sys_error_codes.h`) *before* `sys_error.h` expands `SYS_ERROR_MAP(X_STRUCT)`. `LOG_BODY_<tag>` is pure text (a macro), so it has no such ordering constraint; `sys_error.h` stamps it into a real typed function (`log_<tag>`) itself, immediately after the payload structs are generated, then generates `SE_describe_payload()`'s `switch` over the same aggregated `SYS_ERROR_LOGGER_MAP` (built in `sys_error_codes.h`, one line per module, mirroring how `SYS_ERROR_MAP`/`SYS_OWNER_MAP` are aggregated there).
-
-This is opt-in and sparse by design — most tags don't have a logger yet; an un-described tag is not a bug, just a raw hex fallback until someone adds one. `adapter_pca9685.c`'s `explain_root_cause()` reuses this same `SE_describe_payload()` call for its root-cause line, rather than keeping its own translation table, so there's exactly one place per tag that knows how to describe it.
-
-`SE_push_to_handler(err)` enqueues a completed chain; it is ISR-safe (uses `xQueueSendFromISR` when called from ISR context) and is a no-op while suspended (`SE_suspend()` / `SE_resume()`, nesting-safe via a depth counter, implemented in sys_error.c). A push that happens before `SE_init()` has started the task simply waits in the queue rather than being dropped.
+### Dropped Error Counter
+- `uint32_t SE_get_dropped_count(void)`: returns the count of dropped error chains due to queue/pool saturation.
+- `void SE_clear_dropped_count(void)`: resets the drop counter to 0.
+- When `sys_error_handler_task` runs and observes `s_dropped_count > 0`, it logs an overflow summary warning (`ESP_LOGW`) and clears the count.
 
 This is the file to extend for new dispatch behavior (additional sinks, per-owner filtering, rate limiting, etc.) — see the note in the Overview above.
 
@@ -196,6 +191,8 @@ Common tags available to every module regardless of submodule-specific maps: `ER
 void SE_init(void);
 err_h SE_alloc_bytes(size_t payload_size, err_tag_e tag, uint32_t owner);
 void SE_push_to_handler(err_h err);
+uint32_t SE_get_dropped_count(void);
+void SE_clear_dropped_count(void);
 void SE_register_device_error_hook(se_device_error_hook_t hook);
 
 void SE_suspend(void);

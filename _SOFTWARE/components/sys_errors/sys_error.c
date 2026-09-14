@@ -61,7 +61,7 @@ _Static_assert(ERR_MAX_COUNT <= 0xFFFF, "err_tag_e no longer fits the uint16 tag
   SYS_OWNER_MAP(X_OWNER_CHK)
 #undef X_OWNER_CHK
 
-#define ERR_BUF_SIZE 1024
+#define ERR_BUF_SIZE 2048
 static uint8_t err_buffer[ERR_BUF_SIZE] __attribute__((aligned(8)));
 static uint32_t head_idx = 0;
 static volatile int8_t s_suspend_depth = 0;
