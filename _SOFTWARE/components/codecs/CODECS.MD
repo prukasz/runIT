@@ -94,10 +94,12 @@ Control-packet table for [[SYS_ACTIONS.MD]]'s record/stop/remove wire protocol. 
 
 | Packet | Byte | Payload | Calls |
 | :--- | :--- | :--- | :--- |
-| Record | `0x01` | `uint8_t action_id` | `sys_actions_record_start(action_id)` |
-| Stop | `0x02` | `uint8_t action_id` | `sys_actions_record_stop(action_id)` (persists to NVS) |
-| Remove | `0x03` | `uint8_t action_id` | `sys_actions_remove(action_id)` |
-| Execute | `0x04` | `uint8_t action_id` | `sys_actions_invoke(action_id)` — test-only wire exposure, see [[SYS_ACTIONS.MD]] |
+| Static Invoke | `0x00` | `uint8_t id` | `sys_actions_invoke(SYS_ACTION_SCOPE_STATIC, id)` |
+| Dynamic Invoke | `0x01` | `uint8_t id` | `sys_actions_invoke(SYS_ACTION_SCOPE_DYNAMIC, id)` |
+| Record Start | `0x02` | `uint8_t id` | `sys_action_record_start(id)` |
+| Record Stop | `0x03` | *(empty)* | `sys_action_record_stop()` (persists to NVS) |
+| Remove | `0x04` | `uint8_t id` | `sys_action_remove(id)` |
+| Remove All | `0x05` | *(empty)* | `sys_action_remove_all()` |
 
 `SYS_ACTIONS_CLASS_HEADER` (`0x03`) is defined in `sys_actions.h`, not this file — unlike `SYS_CONTRACTS_CLASS_HEADER` (owned by the codec because it spans three unrelated system components), sys_actions' class is 1:1 with a single component, so the constant lives with that component's own public contract. `dec_sys_actions.h` just includes `sys_actions.h` to use it.
 
@@ -187,7 +189,7 @@ Copy the shape of `dec_sys_contracts.h`:
 1. Create `decoders/dec_<name>.h` with a `#define <NAME>_CLASS_HEADER 0xXX`.
 2. Set `#undef OWNER` / `#define OWNER OWNER_<NAME>` near the top so `SE_*` macros tag errors correctly, and add that owner to the module's `sys_error_*.h` owner map.
 3. Expose one `static inline err_h dec_<name>_decode(const uint8_t* data, size_t len)` — `data[0]` is the packet byte.
-4. Register it at boot: `sys_interface_register_class(<NAME>_CLASS_HEADER, dec_<name>_decode, "<name>")`.
+4. Register it at boot: `sys_interface_register_decoder(<NAME>_CLASS_HEADER, dec_<name>_decode, "<name>")`.
 
 Note that a decoder header defines `OWNER` for the rest of the translation unit; any `.c` including it must re-`#define OWNER` afterwards (as `sys_interface.c` does).
 

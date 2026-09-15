@@ -3,7 +3,8 @@
 #include <stdio.h>
 
 #define SYS_ACTIONS_OWNER_MAP(X) \
-  X(OWNER_SYS_ACTIONS_BASE, 0xAA00, "OWNER_SYS_ACTIONS_BASE")
+  X(OWNER_SYS_ACTIONS_BASE, 0xAA00, "OWNER_SYS_ACTIONS_BASE")\
+  X(OWNER_SYS_ACTIONS_STATIC, 0xAA01, "OWNER_SYS_ACTIONS_STATIC")
 
 #define SYS_ERROR_ACTIONS_MAP(X)                                      \
   X(ERR_ACTION_NOT_FOUND, struct { uint8_t action_id; })              \

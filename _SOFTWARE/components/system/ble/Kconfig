@@ -55,7 +55,7 @@ menu "System Configuration"
         config SYS_CB_ROUTE_COUNT
             int "Callback Route Table Slots"
             default 16
-            range 1 64
+            range 1 16
             help
               Route table size (number of callback routing slots).
     endmenu

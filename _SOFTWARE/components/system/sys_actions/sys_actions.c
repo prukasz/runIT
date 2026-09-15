@@ -1,76 +1,76 @@
 #include "sys_actions.h"
-#include <esp_log.h>
+#include "sys_callbacks.h"
 #include <nvs.h>
 #include <nvs_flash.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <sdkconfig.h>
 #include "dec_sys_actions.h"
-#include "sys_device.h"
 #include "sys_actions_static.h"
 #include "sys_interface.h"
 #include "utils.h"
 
-// dec_sys_actions.h leaves OWNER set to OWNER_DEC_SYS_ACTIONS; take it back so
-// this file's own SE_* macros are tagged as sys_actions, not as the decoder.
 #undef OWNER
 #define OWNER OWNER_SYS_ACTIONS_BASE
 
 static const char* TAG = __FILE_NAME__;
-
 #define SYS_ACTIONS_NVS_NAMESPACE "sys_actions"
-#define SYS_ACTIONS_BOOT_ACTION_ID 0
 
 static nvs_handle_t s_nvs = 0;
+R_TASK_DEFINE(s_actions_tap_task_handle, CONFIG_SYS_ACTIONS_TAP_TASK_STACK);
+/**
+ * @brief Guards the single active recording.
+ *
+ * Shared by the tap polling task and callers of record start/stop.
+ */
+R_MUTEX_DEFINE(s_actions_mutex);
 
-static void action_nvs_key(uint8_t action_id, char* out, size_t out_size) {
+static void action_make_nvs_key(uint8_t action_id, char* out, size_t out_size) {
   snprintf(out, out_size, "act_%u", action_id);
 }
 
-// blob to store in RAM - runtime buffer only
+/** @brief Runtime representation of one dynamically recorded action. */
 typedef struct sys_action_t {
-  size_t blob_size;
+  size_t  blob_size;
   uint8_t blob[];
 } sys_action_t;
 
 static action_static_func_t s_static_funcs[CONFIG_SYS_ACTIONS_STATIC_SLOTS];
-static void* s_static_func_args[CONFIG_SYS_ACTIONS_STATIC_SLOTS];
 
-// Guards the single active recording (s_recording/s_recording_id/s_has_recording),
-// shared between the tap polling task (appending) and whatever task calls
-R_MUTEX_DEFINE(s_actions_mutex);
+static sys_action_t* s_recording     = NULL;
+static uint8_t       s_recording_id  = 0;
+static bool          s_has_recording = false;
 
-static sys_action_t* s_recording = NULL;
-static uint8_t s_recording_id = 0;
-static bool s_has_recording = false;
-
-
-// ---------------------------------------------------------
-// NVS helpers - a single nvs_handle_t is safe to share across tasks (the NVS
-// library serializes internally), so these need no mutex of their own.
-// ---------------------------------------------------------
-
-// Always returns a valid malloc'd sys_action_t* (blob_size == 0, *out_found ==
-// false if nothing is stored under action_id yet) - callers that want to grow
-// from empty (append_packet, record_start) don't need a separate branch.
+/**
+ * @brief Load one dynamic action from NVS.
+ *
+ * NVS serializes access internally, so no actions mutex is required here.
+ * When the key does not exist, this returns an allocated empty action and sets
+ * @p out_found to false.
+ *
+ * @param action_id Dynamic action identifier.
+ * @param out Receives the allocated action.
+ * @param out_found Receives whether the NVS key existed.
+ * @return NULL on success, otherwise an error handle.
+ */
 static err_h nvs_load_action(uint8_t action_id, sys_action_t** out, bool* out_found) {
   char key[16];
-  action_nvs_key(action_id, key, sizeof(key));
+  action_make_nvs_key(action_id, key, sizeof(key));
 
-  size_t needed = 0;
-  esp_err_t rc = nvs_get_blob(s_nvs, key, NULL, &needed);
+  size_t    needed = 0;
+  esp_err_t rc     = nvs_get_blob(s_nvs, key, NULL, &needed);
   if (rc == ESP_ERR_NVS_NOT_FOUND) {
     sys_action_t* a = malloc(sizeof(sys_action_t));
     SE_CHECK_IF_ALLOCATED(a);
     a->blob_size = 0;
-    *out = a;
-    *out_found = false;
+    *out         = a;
+    *out_found   = false;
     return NULL;
   }
   if (rc != ESP_OK) {
     SE_RET_ERR(ERR_ESP_ERR, .esp_code = rc);
+  }
+
+  if (needed > SYS_ACTIONS_MAX_BLOB_SIZE) {
+    needed = SYS_ACTIONS_MAX_BLOB_SIZE;
   }
 
   sys_action_t* a = malloc(sizeof(sys_action_t) + needed);
@@ -83,15 +83,19 @@ static err_h nvs_load_action(uint8_t action_id, sys_action_t** out, bool* out_fo
       SE_RET_ERR(ERR_ESP_ERR, .esp_code = rc);
     }
   }
-  *out = a;
+  *out       = a;
   *out_found = true;
   return NULL;
 }
 
 static err_h nvs_save_action(uint8_t action_id, const sys_action_t* a) {
   char key[16];
-  action_nvs_key(action_id, key, sizeof(key));
-  SE_RET_IF_ESP_ERR(nvs_set_blob(s_nvs, key, a->blob, a->blob_size));
+  action_make_nvs_key(action_id, key, sizeof(key));
+  size_t save_size = a->blob_size;
+  if (save_size > SYS_ACTIONS_MAX_BLOB_SIZE) {
+    save_size = SYS_ACTIONS_MAX_BLOB_SIZE;
+  }
+  SE_RET_IF_ESP_ERR(nvs_set_blob(s_nvs, key, a->blob, save_size));
   SE_RET_IF_ESP_ERR(nvs_commit(s_nvs));
   return NULL;
 }
@@ -105,13 +109,25 @@ static err_h nvs_erase(const char* key) {
   return NULL;
 }
 
-// Reallocates *io_action to fit one more [u16 len][frame] record and appends
-// it. On failure *io_action is left untouched (standard realloc semantics) -
-// the caller's existing data is never lost by a failed grow.
+/**
+ * @brief Append one length-prefixed frame to a runtime action.
+ *
+ * Growth is limited to SYS_ACTIONS_MAX_BLOB_SIZE. On allocation failure,
+ * @p io_action remains unchanged.
+ *
+ * @param io_action Action pointer that may be replaced by realloc().
+ * @param frame Frame bytes to append.
+ * @param len Frame length in bytes.
+ * @return NULL on success, otherwise an error handle.
+ */
 static err_h grow_and_append(sys_action_t** io_action, const uint8_t* frame, size_t len) {
-  sys_action_t* a = *io_action;
-  size_t old_size = a->blob_size;
-  size_t need = sizeof(uint16_t) + len;
+  sys_action_t* a        = *io_action;
+  size_t        old_size = a ? a->blob_size : 0;
+  size_t        need     = sizeof(uint16_t) + len;
+
+  if (old_size + need > SYS_ACTIONS_MAX_BLOB_SIZE) {
+    SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+  }
 
   sys_action_t* bigger = realloc(a, sizeof(sys_action_t) + old_size + need);
   SE_CHECK_IF_ALLOCATED(bigger);
@@ -125,36 +141,43 @@ static err_h grow_and_append(sys_action_t** io_action, const uint8_t* frame, siz
   return NULL;
 }
 
-// ---------------------------------------------------------
-// Recording tap - drains sys_interface's tap buffer on its own schedule,
-// instead of running inline inside the RX receiver task. See SYS_INTERFACE.MD.
-// ---------------------------------------------------------
-
-#include <sdkconfig.h>
-
-R_TASK_DEFINE(s_actions_tap_task_handle, CONFIG_SYS_ACTIONS_TAP_TASK_STACK);
-
-static void sys_actions_on_frame(const uint8_t* frame, size_t len) {
-  // Never record our own control packets - otherwise a live "stop recording"
-  // command would get captured into the action it was meant to stop.
+/**
+ * @brief Append a tapped frame to the active recording.
+ *
+ * The caller must hold @c s_actions_mutex so polling and appending remain
+ * atomic with record-stop's final drain.
+ *
+ * @param frame Complete interface frame, including its class byte.
+ * @param len Frame length in bytes.
+ */
+static void sys_actions_on_frame_locked(const uint8_t* frame, size_t len) {
+  /** Exclude action-control packets, including the live record-stop command. */
   if (len == 0 || frame[0] == SYS_ACTIONS_CLASS_HEADER) return;
 
-  R_MUTEX_LOCK(s_actions_mutex, WAIT_FOREVER);
   if (s_has_recording) {
-    // Best-effort: a failed grow just stops the recording from growing
-    // further rather than erroring out of a hook nothing checks.
+    /** Recording is best-effort once the configured blob limit is reached. */
     (void)grow_and_append(&s_recording, frame, len);
   }
-  R_MUTEX_UNLOCK(s_actions_mutex);
 }
 
+/**
+ * @brief Poll and append captured frames outside the interface receiver task.
+ *
+ * @param arg Unused FreeRTOS task argument.
+ */
 static void sys_actions_tap_task(void* arg) {
   (void)arg;
   uint8_t frame[CONFIG_SYS_INTERFACE_RX_FRAME_CAP];
 
   while (1) {
     size_t len = 0;
+    R_MUTEX_LOCK(s_actions_mutex, WAIT_FOREVER);
     err_h err = sys_interface_tap_poll(frame, sizeof(frame), &len);
+    if (SE_IS_OK(err) && len > 0) {
+      sys_actions_on_frame_locked(frame, len);
+    }
+    R_MUTEX_UNLOCK(s_actions_mutex);
+
     if (SE_IS_ERR(err)) {
       SE_ORIGIN_CALL(err);
       continue;
@@ -163,24 +186,14 @@ static void sys_actions_tap_task(void* arg) {
       vTaskDelay(pdMS_TO_TICKS(CONFIG_SYS_ACTIONS_TAP_POLL_MS));
       continue;
     }
-    sys_actions_on_frame(frame, len);
   }
 }
-
-// ---------------------------------------------------------
-// Public API
-// ---------------------------------------------------------
 
 err_h sys_actions_init(void) {
   SE_RET_IF_ESP_ERR(nvs_flash_init());
   SE_RET_IF_ESP_ERR(nvs_open(SYS_ACTIONS_NVS_NAMESPACE, NVS_READWRITE, &s_nvs));
 
-  /* sys_device owns classification; this application layer owns the concrete
-     VM stop, safe-device sweep, and configured action response. */
-  sys_device_register_error_policy(sys_actions_device_error_policy);
-
-  SE_RET_IF_ERR(sys_interface_register_class(SYS_ACTIONS_CLASS_HEADER, dec_sys_actions_decode, "sys_actions"));
-  SE_RET_IF_ERR(sys_interface_tap_enable(CONFIG_SYS_ACTIONS_TAP_BUFFER_SIZE));
+  SE_RET_IF_ERR(sys_interface_register_decoder(SYS_ACTIONS_CLASS_HEADER, dec_sys_actions_decode, "sys_actions"));
   if (s_actions_tap_task_handle == NULL) {
     R_TASK_START(s_actions_tap_task_handle, sys_actions_tap_task, NULL, CONFIG_SYS_ACTIONS_TAP_TASK_PRIO);
     if (s_actions_tap_task_handle == NULL) {
@@ -188,46 +201,35 @@ err_h sys_actions_init(void) {
     }
   }
 
-  sys_actions_register_default_static();
+  sys_actions_register_static();
+  sys_cb_register_action_executor(sys_actions_invoke);
 
-  // Boot action: action 0 is always invoked here (static func 0, if ever
-  // bound, plus whatever's stored in NVS). Nothing bound/stored yet is the
-  // normal first-boot state, not a failure.
-  err_h boot_err = sys_actions_invoke(SYS_ACTIONS_BOOT_ACTION_ID);
-  if (SE_IS_ERR(boot_err) && boot_err->tag != ERR_ACTION_NOT_FOUND) {
-    return boot_err;
-  }
-
-  ESP_LOGI(TAG, "sys_actions initialized (class 0x%02X)", SYS_ACTIONS_CLASS_HEADER);
+  DBG(ESP_LOGI(TAG, "sys_actions initialized"));
   return NULL;
 }
 
-err_h sys_actions_bind_static(uint8_t action_id, action_static_func_t fn, void* arg) {
-  SE_CHECK_IN_RANGE(action_id, 0, CONFIG_SYS_ACTIONS_STATIC_SLOTS - 1);
+err_h sys_actions_bind_static(uint8_t action_id, action_static_func_t fn) {
+  SE_CHECK_IN_RANGE(action_id, 1, CONFIG_SYS_ACTIONS_STATIC_SLOTS - 1);
   s_static_funcs[action_id] = fn;
-  s_static_func_args[action_id] = arg;
   return NULL;
 }
 
-err_h sys_actions_remove(uint8_t action_id) {
-  SE_CHECK_IN_RANGE(action_id, 0, CONFIG_SYS_ACTIONS_ID_SPACE - 1);
-
+err_h sys_action_remove(uint8_t id) {
+  SE_CHECK_IN_RANGE(id, 1, UINT8_MAX);
   char key[16];
-  action_nvs_key(action_id, key, sizeof(key));
+  action_make_nvs_key(id, key, sizeof(key));
   SE_RET_IF_ERR(nvs_erase(key));
-  ESP_LOGI(TAG, "removed action %u", action_id);
+  DBG(ESP_LOGI(TAG, "removed dynamic action %u", id));
   return NULL;
 }
 
-err_h sys_actions_remove_all(void) {
-  // One find/erase/release cycle per key: erasing a key can invalidate an
-  // in-progress iterator, so each erase restarts iteration from the top.
-  // Action count is small (<= SYS_ACTIONS_ID_SPACE), so restarting is cheap.
+err_h sys_action_remove_all(void) {
+  /** Erasing can invalidate an iterator, so restart discovery after each key. */
   while (1) {
-    nvs_iterator_t it = NULL;
-    esp_err_t rc = nvs_entry_find_in_handle(s_nvs, NVS_TYPE_BLOB, &it);
-    char key[NVS_KEY_NAME_MAX_SIZE] = {0};
-    bool have_target = false;
+    nvs_iterator_t it                         = NULL;
+    esp_err_t      rc                         = nvs_entry_find_in_handle(s_nvs, NVS_TYPE_BLOB, &it);
+    char           key[NVS_KEY_NAME_MAX_SIZE] = {0};
+    bool           have_target                = false;
 
     if (rc == ESP_OK) {
       nvs_entry_info_t info;
@@ -245,116 +247,121 @@ err_h sys_actions_remove_all(void) {
     SE_RET_IF_ERR(nvs_erase(key));
   }
 
-  ESP_LOGI(TAG, "removed all actions");
+  DBG(ESP_LOGI(TAG, "removed all dynamic actions"));
   return NULL;
 }
 
-err_h sys_actions_append_packet(uint8_t action_id, const uint8_t* frame, size_t len) {
-  SE_CHECK_IN_RANGE(action_id, 0, CONFIG_SYS_ACTIONS_ID_SPACE - 1);
-  SE_CHECK_NOT_NULL(frame);
-  SE_CHECK_IN_RANGE(len, 1, UINT16_MAX);
-
-  sys_action_t* a = NULL;
-  bool found = false;
-  SE_RET_IF_ERR(nvs_load_action(action_id, &a, &found));
-
-  err_h err = grow_and_append(&a, frame, len);
-  if (SE_IS_OK(err)) {
-    err = nvs_save_action(action_id, a);
-  }
-  free(a);
-
-  SE_RET_IF_ERR(err);
-  return NULL;
-}
-
-err_h sys_actions_record_start(uint8_t action_id) {
-  SE_CHECK_IN_RANGE(action_id, 0, CONFIG_SYS_ACTIONS_ID_SPACE - 1);
-
+err_h sys_action_record_start(uint8_t id) {
+  SE_CHECK_IN_RANGE(id, 1, UINT8_MAX);
   R_MUTEX_LOCK(s_actions_mutex, WAIT_FOREVER);
   bool busy = s_has_recording;
   R_MUTEX_UNLOCK(s_actions_mutex);
   if (busy) {
-    SE_RET_ERR(ERR_ACTION_RECORDING_BUSY, action_id);
+    SE_RET_ERR(ERR_ACTION_RECORDING_BUSY, id);
   }
 
-  sys_action_t* a = NULL;
-  bool found = false;
-  SE_RET_IF_ERR(nvs_load_action(action_id, &a, &found));
+  sys_action_t* a     = NULL;
+  bool          found = false;
+  SE_RET_IF_ERR(nvs_load_action(id, &a, &found));
 
   R_MUTEX_LOCK(s_actions_mutex, WAIT_FOREVER);
   if (s_has_recording) {
     R_MUTEX_UNLOCK(s_actions_mutex);
     free(a);
-    SE_RET_ERR(ERR_ACTION_RECORDING_BUSY, action_id);
+    SE_RET_ERR(ERR_ACTION_RECORDING_BUSY, id);
   }
-  s_recording = a;
-  s_recording_id = action_id;
+  s_recording     = a;
+  s_recording_id  = id;
   s_has_recording = true;
   R_MUTEX_UNLOCK(s_actions_mutex);
 
-  ESP_LOGI(TAG, "recording action %u", action_id);
+  sys_interface_tap_capture_start();
+
+  DBG(ESP_LOGI(TAG, "recording dynamic action %u", id));
   return NULL;
 }
 
-err_h sys_actions_record_stop(uint8_t action_id) {
+err_h sys_action_record_stop(void) {
+  sys_interface_tap_capture_end();
+
   R_MUTEX_LOCK(s_actions_mutex, WAIT_FOREVER);
-  bool match = s_has_recording && s_recording_id == action_id;
-  sys_action_t* a = match ? s_recording : NULL;
-  if (match) {
-    s_recording = NULL;
-    s_has_recording = false;
-  }
-  R_MUTEX_UNLOCK(s_actions_mutex);
-
-  ESP_LOGI(TAG, "stopped recording action %u", action_id);
-  if (!match) return NULL;
-
-  err_h err = nvs_save_action(action_id, a);
-  free(a);
-  SE_RET_IF_ERR(err);
-  return NULL;
-}
-
-err_h sys_actions_invoke(uint8_t action_id) {
-  SE_CHECK_IN_RANGE(action_id, 0, CONFIG_SYS_ACTIONS_ID_SPACE - 1);
-
-  bool ran_static = false;
-  if (action_id < CONFIG_SYS_ACTIONS_STATIC_SLOTS && s_static_funcs[action_id]) {
-    ran_static = true;
-    SE_RET_IF_ERR(s_static_funcs[action_id](s_static_func_args[action_id]));
-  }
-
-  sys_action_t* a = NULL;
-  bool found = false;
-  SE_RET_IF_ERR(nvs_load_action(action_id, &a, &found));
-
-  if (!found) {
-    free(a);
-    if (!ran_static) {
-      SE_RET_ERR(ERR_ACTION_NOT_FOUND, action_id);
-    }
+  if (!s_has_recording) {
+    R_MUTEX_UNLOCK(s_actions_mutex);
     return NULL;
   }
 
-  ESP_LOGI(TAG, "invoking action %u (%u bytes)", action_id, (unsigned)a->blob_size);
-  sys_interface_suspend_rx();
-
-  err_h err = NULL;
-  size_t off = 0;
-  while (off + sizeof(uint16_t) <= a->blob_size) {
-    uint16_t flen;
-    memcpy(&flen, &a->blob[off], sizeof(flen));
-    off += sizeof(flen);
-    if (off + flen > a->blob_size) break; /* corrupt/truncated tail - stop */
-    err = sys_interface_decode(&a->blob[off], flen);
-    off += flen;
-    if (SE_IS_ERR(err)) break;
+  /**
+   * Capture is closed, so drain queued frames before detaching the recording.
+   * The tap task uses the same mutex and cannot consume a frame between this
+   * drain and the state transition below.
+   */
+  uint8_t frame[CONFIG_SYS_INTERFACE_RX_FRAME_CAP];
+  while (1) {
+    size_t len = 0;
+    err_h drain_err = sys_interface_tap_poll(frame, sizeof(frame), &len);
+    if (SE_IS_ERR(drain_err)) {
+      R_MUTEX_UNLOCK(s_actions_mutex);
+      sys_interface_tap_capture_start();
+      return drain_err;
+    }
+    if (len == 0) break;
+    sys_actions_on_frame_locked(frame, len);
   }
 
-  sys_interface_resume_rx();
-  free(a);
+  sys_action_t* a  = s_recording;
+  uint8_t       id = s_recording_id;
+  s_recording      = NULL;
+  s_has_recording  = false;
+  R_MUTEX_UNLOCK(s_actions_mutex);
 
+  DBG(ESP_LOGI(TAG, "stopped recording action %u", id));
+
+  err_h err = nvs_save_action(id, a);
+  free(a);
   SE_RET_IF_ERR(err);
   return NULL;
+}
+
+err_h sys_actions_invoke(uint8_t scope, uint8_t id) {
+  SE_CHECK_IN_RANGE(id, 1, UINT8_MAX);
+  if (scope == SYS_ACTION_SCOPE_STATIC) {
+    if (id >= CONFIG_SYS_ACTIONS_STATIC_SLOTS || s_static_funcs[id] == NULL) {
+      SE_RET_ERR(ERR_ACTION_NOT_FOUND, id);
+    }
+    return s_static_funcs[id]();
+  }
+
+  if (scope == SYS_ACTION_SCOPE_DYNAMIC) {
+    sys_action_t* a     = NULL;
+    bool          found = false;
+    SE_RET_IF_ERR(nvs_load_action(id, &a, &found));
+
+    if (!found) {
+      free(a);
+      SE_RET_ERR(ERR_ACTION_NOT_FOUND, id);
+    }
+
+    DBG(ESP_LOGI(TAG, "invoking dynamic action %u (%u bytes)", id, (unsigned)a->blob_size));
+    sys_interface_suspend_rx();
+
+    err_h  err = NULL;
+    size_t off = 0;
+    while (off + sizeof(uint16_t) <= a->blob_size) {
+      uint16_t flen;
+      memcpy(&flen, &a->blob[off], sizeof(flen));
+      off += sizeof(flen);
+      /** Stop safely if the persisted action has a corrupt or truncated tail. */
+      if (off + flen > a->blob_size) break;
+      err = sys_interface_decode(&a->blob[off], flen);
+      off += flen;
+      if (SE_IS_ERR(err)) break;
+    }
+
+    sys_interface_resume_rx();
+    free(a);
+
+    SE_RET_IF_ERR(err);
+    return NULL;
+  }
+  SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = scope, .min = SYS_ACTION_SCOPE_STATIC, .max = SYS_ACTION_SCOPE_DYNAMIC);
 }

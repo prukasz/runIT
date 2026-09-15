@@ -28,7 +28,8 @@ typedef struct ap_adapter_ctx_t {
   bool is_enabled;
 
   uint16_t route_mask;
-  uint64_t action_mask;
+  uint8_t static_action_id;
+  uint8_t dynamic_action_id;
 } ap_adapter_ctx_t;
 
 enum { AP33772S_STEP_I2C_ADDED = 0, AP33772S_STEP_INTR_READY = 1 };
@@ -114,11 +115,12 @@ static err_h d_ap33772s_set_current(void* device_handle, uint32_t current_mA) {
   return negotiate_pdo(ctx, ctx->last_voltage_mv, ctx->last_current_ma);
 }
 
-static err_h d_ap33772s_add_callback(void* device_handle, sys_power_events_e on_event, uint16_t route_mask, uint64_t action_mask) {
+static err_h d_ap33772s_add_callback(void* device_handle, sys_power_events_e on_event, uint16_t route_mask, uint8_t static_action_id, uint8_t dynamic_action_id) {
   ap_adapter_ctx_t* ctx = (ap_adapter_ctx_t*)device_handle;
   SE_CHECK_HANDLE(ctx);
   ctx->route_mask = route_mask;
-  ctx->action_mask = action_mask;
+  ctx->static_action_id = static_action_id;
+  ctx->dynamic_action_id = dynamic_action_id;
   return NULL;
 }
 

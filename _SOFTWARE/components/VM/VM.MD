@@ -564,7 +564,7 @@ vm_store_alloc()  →  pool malloc'd at 0x41 open components/VM/core/store/vm_st
 ```
 
 The class is bound once in `sys_interface_init()`:
-`sys_interface_register_class(VM_LOADER_CLASS_HEADER, dec_vm_loader_decode, "vm_loader")`.
+`sys_interface_register_decoder(VM_LOADER_CLASS_HEADER, dec_vm_loader_decode, "vm_loader")`.
 
 ### The loader packets
 

@@ -22,8 +22,10 @@ typedef struct {
 
   uint16_t route_masks_crit[3];
   uint16_t route_masks_warn[3];
-  uint64_t action_masks_crit[3];
-  uint64_t action_masks_warn[3];
+  uint8_t static_action_ids_crit[3];
+  uint8_t dynamic_action_ids_crit[3];
+  uint8_t static_action_ids_warn[3];
+  uint8_t dynamic_action_ids_warn[3];
 } ina_adapter_ctx_t;
 
 enum { INA_STEP_I2C_ADDED = 0, INA_STEP_CRIT_READY = 1, INA_STEP_WARN_READY = 2 };
@@ -56,17 +58,19 @@ static err_h contract_monitor_ina3221_get_current(void* device_handle, uint8_t c
   return NULL;
 }
 
-static err_h contract_monitor_ina3221_add_callback(void* device_handle, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, uint16_t route_mask, uint64_t action_mask) {
+static err_h contract_monitor_ina3221_add_callback(void* device_handle, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, uint16_t route_mask, uint8_t static_action_id, uint8_t dynamic_action_id) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, device_handle);
   SE_CHECK_IN_RANGE(channel, 0, 2);
 
   if (on_event == SYS_PWR_EVENT_OCP_CRITICAL) {
     ctx->route_masks_crit[channel] = route_mask;
-    ctx->action_masks_crit[channel] = action_mask;
+    ctx->static_action_ids_crit[channel] = static_action_id;
+    ctx->dynamic_action_ids_crit[channel] = dynamic_action_id;
     SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_alert(hw, channel, trigger_value, true), ctx);
   } else if (on_event == SYS_PWR_EVENT_OCP_WARNING) {
     ctx->route_masks_warn[channel] = route_mask;
-    ctx->action_masks_warn[channel] = action_mask;
+    ctx->static_action_ids_warn[channel] = static_action_id;
+    ctx->dynamic_action_ids_warn[channel] = dynamic_action_id;
     SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_alert(hw, channel, trigger_value, false), ctx);
   } else {
     SE_RET_ERR(ERR_DEV_FEATURE_UNAVAILABLE, SYS_DEV_GET_ID(ctx), 0, on_event);
@@ -111,8 +115,10 @@ static err_h device_reset(void* handle) {
   for (uint8_t i = 0; i < 3; i++) {
     ctx->route_masks_crit[i] = 0;
     ctx->route_masks_warn[i] = 0;
-    ctx->action_masks_crit[i] = 0;
-    ctx->action_masks_warn[i] = 0;
+    ctx->static_action_ids_crit[i] = 0;
+    ctx->dynamic_action_ids_crit[i] = 0;
+    ctx->static_action_ids_warn[i] = 0;
+    ctx->dynamic_action_ids_warn[i] = 0;
     ctx->cached_current[i] = 0;
     ctx->cached_voltage[i] = 0;
   }
@@ -260,7 +266,7 @@ static err_h device_event_handler(void* handle, cb_event_t* event) {
     if (((cf >> (2 - ch)) & 1)) {
       int32_t ma_val = 0;
       ina3221_read_shunt_current(hw, ch, &ma_val);
-      SYS_PWR_CB(ctx, ch, SYS_PWR_EVENT_OCP_CRITICAL, ma_val, ctx->route_masks_crit[ch], ctx->action_masks_crit[ch]);
+      SYS_PWR_CB(ctx, ch, SYS_PWR_EVENT_OCP_CRITICAL, ma_val, ctx->route_masks_crit[ch], ctx->static_action_ids_crit[ch], ctx->dynamic_action_ids_crit[ch]);
     }
   }
   // Check warning alert flags
@@ -269,7 +275,7 @@ static err_h device_event_handler(void* handle, cb_event_t* event) {
     if (((wf >> (2 - ch)) & 1)) {
       int32_t ma_val = 0;
       ina3221_read_shunt_current(hw, ch, &ma_val);
-      SYS_PWR_CB(ctx, ch, SYS_PWR_EVENT_OCP_WARNING, ma_val, ctx->route_masks_warn[ch], ctx->action_masks_warn[ch]);
+      SYS_PWR_CB(ctx, ch, SYS_PWR_EVENT_OCP_WARNING, ma_val, ctx->route_masks_warn[ch], ctx->static_action_ids_warn[ch], ctx->dynamic_action_ids_warn[ch]);
     }
   }
   return NULL;

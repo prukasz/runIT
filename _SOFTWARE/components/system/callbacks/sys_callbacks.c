@@ -23,6 +23,13 @@ R_TASK_DEFINE(s_callback_task_handle, CONFIG_SYS_CB_TASK_STACK_SIZE);
 // compile time (see sys_callbacks.h).
 static sys_cb_route_func_t s_route_table[CONFIG_SYS_CB_ROUTE_COUNT];
 
+_Static_assert(CONFIG_SYS_CB_ROUTE_COUNT <= 16, "Callback route mask supports at most 16 routes");
+static sys_cb_action_executor_f s_action_executor;
+
+void sys_cb_register_action_executor(sys_cb_action_executor_f executor) {
+  s_action_executor = executor;
+}
+
 static void sys_cb_task(void* pvParameters) {
   (void)pvParameters;
   cb_event_t event;
@@ -42,6 +49,19 @@ static void sys_cb_task(void* pvParameters) {
         s_route_table[i](&event);
       }
     }
+    if (event.head.dynamic_action_id || event.head.static_action_id) {
+      if (!s_action_executor) {
+        SE_ORIGIN_CALL(SE_ERR_NEW(ERR_BASE_INVALID_STATE, 0));
+        continue;
+      }
+      /** User action first, then system action, even if the user action fails. */
+      if (event.head.dynamic_action_id) {
+        SE_ORIGIN_CALL(s_action_executor(0x01, event.head.dynamic_action_id));
+      }
+      if (event.head.static_action_id) {
+        SE_ORIGIN_CALL(s_action_executor(0x00, event.head.static_action_id));
+      }
+    }
   }
 }
 
@@ -54,6 +74,7 @@ err_h sys_cb_register_route(uint8_t route_idx, sys_cb_route_func_t fn) {
 err_h sys_callbacks_init(void) {
   if (s_callback_task_handle == NULL) {
     R_TASK_START_ON_CORE(s_callback_task_handle, sys_cb_task, NULL, CONFIG_SYS_CB_TASK_PRIO, 0);
+    SE_CHECK_IF_ALLOCATED(s_callback_task_handle);
   }
 
   ESP_LOGI(TAG, "Callback system initialized successfully");
@@ -61,9 +82,7 @@ err_h sys_callbacks_init(void) {
 }
 
 err_h sys_callback_trigger(const cb_event_t* event) {
-  if (!event) {
-    SE_RET_ERR(ERR_INVALID_VAL_UI32, 0, 1, UINT32_MAX);
-  }
+  SE_CHECK_NOT_NULL(event);
   BaseType_t in_isr = xPortInIsrContext();
   if (in_isr) {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
@@ -74,7 +93,7 @@ err_h sys_callback_trigger(const cb_event_t* event) {
       portYIELD_FROM_ISR();
     }
   } else {
-    if (R_QUEUE_SEND(s_callback_queue, event, WAIT_FOREVER) != pdTRUE) {
+    if (R_QUEUE_SEND(s_callback_queue, event, NO_WAIT) != pdTRUE) {
       SE_RET_ERR(ERR_BASE_NO_MEM, 0);
     }
   }

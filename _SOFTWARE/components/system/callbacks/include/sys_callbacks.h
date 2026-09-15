@@ -7,7 +7,8 @@ typedef enum callback_type_e { CALLBACK_NONE = 0, CALLBACK_IO = 1, CALLBACK_PWR 
 typedef struct sys_callback_head_t {
   uint16_t callback_type; /* callback_type_e value */
   uint16_t route_mask;    /* Bitmask for destination routing */
-  uint64_t action_id;     /*What action to invoke: bitmask: 0 means none*/
+  uint8_t static_action_id;  /**< System action ID; zero means none. */
+  uint8_t dynamic_action_id; /**< User action ID; zero means none. */
 } sys_callback_head_t;
 
 /**
@@ -72,9 +73,23 @@ typedef struct cb_event_t {
   } event;
 } cb_event_t;
 
+/**
+ * @brief Handle a selected event synchronously; the handler interprets its type.
+ * @param event Borrowed queue copy. Copy it before returning if retaining it.
+ */
 typedef void (*sys_cb_route_func_t)(const cb_event_t* event);
 
+/** @brief Scoped action executor supplied by sys_actions at boot. */
+typedef err_h (*sys_cb_action_executor_f)(uint8_t scope, uint8_t id);
+
+/** @brief Register the action executor before enabling callback producers. */
+void sys_cb_register_action_executor(sys_cb_action_executor_f executor);
+
 err_h sys_callbacks_init(void);
+/**
+ * @brief Copy an event into the queue without waiting, from a task or ISR.
+ * @return NULL on success, ERR_NULL_PTR for NULL, ERR_BASE_NO_MEM when full.
+ */
 err_h sys_callback_trigger(const cb_event_t* event);
 
 /**

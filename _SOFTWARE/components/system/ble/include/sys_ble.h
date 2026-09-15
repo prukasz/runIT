@@ -33,12 +33,13 @@ typedef struct {
 
 typedef enum sys_ble_events_e { SYS_BLE_EVENT_CONNECT = 0, SYS_BLE_EVENT_DISCONNECT, SYS_BLE_EVENT_FAILURE, SYS_BLE_EVENT_MAX } sys_ble_events_e;
 
-#define SYS_BLE_CB(event_id, event_value, mask, action_mask) \
+#define SYS_BLE_CB(event_id, event_value, mask, _static_action_id, _dynamic_action_id) \
   do {                                                        \
     cb_event_t __cb_evt = {0};                                \
     __cb_evt.head.callback_type = CALLBACK_BLE;                \
     __cb_evt.head.route_mask = (mask);                        \
-    __cb_evt.head.action_id = (action_mask);                  \
+    __cb_evt.head.static_action_id = (_static_action_id);                  \
+    __cb_evt.head.dynamic_action_id = (_dynamic_action_id);                  \
     __cb_evt.event.ble.event = (event_id);                    \
     __cb_evt.event.ble.value = (event_value);                 \
     sys_callback_trigger(&__cb_evt);                          \
@@ -115,11 +116,11 @@ err_h sys_ble_init(void);
  *
  * @param on_event The event to route.
  * @param route_mask The callback route mask.
- * @param action_mask Bitmask of sys_actions ids to invoke (bit i -> action id
- *                     i, via sys_actions_invoke()); 0 means none.
+ * @param static_action_id System action ID; zero disables execution.
+ * @param dynamic_action_id User action ID; zero disables execution.
  * @return err_h Status report.
  */
-err_h sys_ble_add_callback(sys_ble_events_e on_event, uint16_t route_mask, uint64_t action_mask);
+err_h sys_ble_add_callback(sys_ble_events_e on_event, uint16_t route_mask, uint8_t static_action_id, uint8_t dynamic_action_id);
 
 /**
  * @brief Create and register a new BLE GATT service config in the manager.

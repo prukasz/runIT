@@ -46,26 +46,22 @@ static const sys_device_class_t s_fault_test_class = {
             .freeze = fault_test_freeze},
 };
 
-static err_h fault_action_critical(void* arg) {
-  (void)arg;
+static err_h fault_action_critical(void) {
   s_fault_ctx.actions[SYS_DEV_ERR_CRITICAL]++;
   return NULL;
 }
 
-static err_h fault_action_warning(void* arg) {
-  (void)arg;
+static err_h fault_action_warning(void) {
   s_fault_ctx.actions[SYS_DEV_ERR_WARNING]++;
   return NULL;
 }
 
-static err_h fault_action_notice(void* arg) {
-  (void)arg;
+static err_h fault_action_notice(void) {
   s_fault_ctx.actions[SYS_DEV_ERR_NOTICE]++;
   return NULL;
 }
 
-static err_h fault_action_fail(void* arg) {
-  (void)arg;
+static err_h fault_action_fail(void) {
   SE_RET_ERR(ERR_BASE_INVALID_STATE, 0);
 }
 
@@ -84,9 +80,9 @@ void test_device_fault_policy(void) {
   ck("fault-policy test device installed", installed);
   if (!installed) return;
 
-  (void)sys_actions_bind_static(FAULT_ACTION_CRITICAL, fault_action_critical, NULL);
-  (void)sys_actions_bind_static(FAULT_ACTION_WARNING, fault_action_warning, NULL);
-  (void)sys_actions_bind_static(FAULT_ACTION_NOTICE, fault_action_notice, NULL);
+  (void)sys_actions_bind_static(FAULT_ACTION_CRITICAL, fault_action_critical);
+  (void)sys_actions_bind_static(FAULT_ACTION_WARNING, fault_action_warning);
+  (void)sys_actions_bind_static(FAULT_ACTION_NOTICE, fault_action_notice);
   const uint8_t actions[] = {FAULT_ACTION_CRITICAL, FAULT_ACTION_WARNING,
                              FAULT_ACTION_NOTICE};
   ck("device error actions configured",
@@ -140,7 +136,7 @@ void test_device_fault_policy(void) {
   s_fault_ctx.fail_freeze = false;
   (void)vm_exec_fault_acknowledge();
 
-  (void)sys_actions_bind_static(FAULT_ACTION_NOTICE, fault_action_fail, NULL);
+  (void)sys_actions_bind_static(FAULT_ACTION_NOTICE, fault_action_fail);
   err_h action_notice = SE_ERR_NEW(ERR_INVALID_VAL_UI32, .val = 9, .min = 0, .max = 1);
   err_h action_error = sys_device_report_error(cfg.device_id, action_notice);
   ck("configured action failure is reported structurally",
@@ -148,9 +144,9 @@ void test_device_fault_policy(void) {
          ((err_payload_ERR_DEV_FAULT_RESPONSE_FAILED_t*)action_error->payload)->stage ==
              SYS_DEV_FAULT_STAGE_ACTION);
 
-  (void)sys_actions_bind_static(FAULT_ACTION_CRITICAL, NULL, NULL);
-  (void)sys_actions_bind_static(FAULT_ACTION_WARNING, NULL, NULL);
-  (void)sys_actions_bind_static(FAULT_ACTION_NOTICE, NULL, NULL);
+  (void)sys_actions_bind_static(FAULT_ACTION_CRITICAL, NULL);
+  (void)sys_actions_bind_static(FAULT_ACTION_WARNING, NULL);
+  (void)sys_actions_bind_static(FAULT_ACTION_NOTICE, NULL);
   ck("fault-policy test device uninstalled",
      sys_device_uninstall(cfg.device_id) == NULL &&
          sys_device_get_by_id(cfg.device_id) == NULL);

@@ -19,13 +19,12 @@ populated on this board rev.
 #include "sys_io.h"
 
 /**
- * @brief Boot action (static action id 0): creates onboard devices at boot.
+ * @brief Boot action (static action id 1): creates onboard devices at boot.
  *
  * Matches action_static_func_t, bound to sys_actions id 0 via
  * sys_actions_bind_static() before sys_actions_init() runs.
  */
-err_h runit_at_boot(void* arg) {
-  (void)arg;
+err_h runit_at_boot(void) {
   SE_ORIGIN_CALL(d_gpio_esp_create(&(d_gpio_esp_cfg_t){
       .device_id = DEVICE_ID_GPIO_ESP,
   }));

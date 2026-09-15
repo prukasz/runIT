@@ -5,13 +5,14 @@
 #define SYS_GPIO_NONE 0xFF
 #define IF_PIN(pin_num) if (((pin_num)) != SYS_GPIO_NONE)
 
-#define SYS_IO_CB(_ctx, _pin, _event, _value, _route_mask, _action_mask) \
+#define SYS_IO_CB(_ctx, _pin, _event, _value, _route_mask, _static_action_id, _dynamic_action_id) \
   do {                                                                   \
     cb_event_t __cb_evt;                                                \
     memset(&__cb_evt, 0, sizeof(__cb_evt));                             \
     __cb_evt.head.callback_type = CALLBACK_IO;                          \
     __cb_evt.head.route_mask = (_route_mask);                           \
-    __cb_evt.head.action_id = (_action_mask);                           \
+    __cb_evt.head.static_action_id = (_static_action_id);                           \
+    __cb_evt.head.dynamic_action_id = (_dynamic_action_id);                           \
     __cb_evt.event.io.device_id = (_ctx)->base.device_id;               \
     __cb_evt.event.io.pin_id = (_pin);                                  \
     __cb_evt.event.io.trigger_event = (_event);                         \
@@ -89,7 +90,8 @@ typedef struct {
 typedef struct sys_io_intr_config_t {
   sys_io_intr_mode_e mode;
   uint16_t route_mask;
-  uint64_t action_mask; /* Bitmask of sys_actions ids to invoke: 0 means none */
+  uint8_t static_action_id; /**< Action ID; zero disables execution. */
+  uint8_t dynamic_action_id; /**< Action ID; zero disables execution. */
   own_funct_t own_func;
   union {
     sys_io_adc_int_config_t adc;

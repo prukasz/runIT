@@ -27,7 +27,8 @@ typedef struct tca_adapter_ctx_t {
   uint32_t configured_pins;  // 24-bit bitmask tracking pin usage
 
   uint16_t route_masks[24];
-  uint64_t action_masks[24];
+  uint8_t static_action_ids[24];
+  uint8_t dynamic_action_ids[24];
   sys_io_intr_mode_e intr_modes[24];
   own_funct_t own_funcs[24];
 } tca_adapter_ctx_t;
@@ -65,7 +66,7 @@ static err_h device_event_handler(void* handle, cb_event_t* event) {
         SYS_CB_OWN(ctx->own_funcs[i]);
       } else {
         bool level = (rising_edges & (1UL << i)) != 0;
-        SYS_IO_CB(ctx, i, mode, level, ctx->route_masks[i], ctx->action_masks[i]);
+        SYS_IO_CB(ctx, i, mode, level, ctx->route_masks[i], ctx->static_action_ids[i], ctx->dynamic_action_ids[i]);
       }
     }
   }
@@ -156,7 +157,8 @@ err_h contract_io_tca6424a_reset_pin(void* handle, sys_io_pin_num_t pin) {
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, PINS_MASK);
 
   ctx->route_masks[pin] = 0;
-  ctx->action_masks[pin] = 0;
+  ctx->static_action_ids[pin] = 0;
+  ctx->dynamic_action_ids[pin] = 0;
   ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
   memset(&ctx->own_funcs[pin], 0, sizeof(own_funct_t));
   ctx->configured_pins &= ~(1UL << pin);
@@ -181,14 +183,16 @@ err_h contract_io_tca6424a_configure_intr(void* handle, sys_io_pin_num_t pin, co
 
   if (config->mode == SYS_IO_INTR_DISABLE) {
     ctx->route_masks[pin] = 0;
-    ctx->action_masks[pin] = 0;
+    ctx->static_action_ids[pin] = 0;
+    ctx->dynamic_action_ids[pin] = 0;
     ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
     memset(&ctx->own_funcs[pin], 0, sizeof(own_funct_t));
     return NULL;
   }
 
   ctx->route_masks[pin] = config->route_mask;
-  ctx->action_masks[pin] = config->action_mask;
+  ctx->static_action_ids[pin] = config->static_action_id;
+  ctx->dynamic_action_ids[pin] = config->dynamic_action_id;
   ctx->intr_modes[pin] = config->mode;
   ctx->own_funcs[pin] = config->own_func;
 

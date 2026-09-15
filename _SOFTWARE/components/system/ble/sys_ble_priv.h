@@ -64,7 +64,8 @@ typedef struct {
 typedef struct {
   sys_ble_svc_node_t* services;
   uint16_t route_masks[SYS_BLE_EVENT_MAX];
-  uint64_t action_masks[SYS_BLE_EVENT_MAX]; /* Bitmask of sys_actions ids to invoke per event: 0 means none */
+  uint8_t static_action_ids[SYS_BLE_EVENT_MAX]; /**< Action ID; zero disables execution. */
+  uint8_t dynamic_action_ids[SYS_BLE_EVENT_MAX]; /**< Action ID; zero disables execution. */
   bool initialized;
   bool driver_started;
   uint16_t conn_handle;

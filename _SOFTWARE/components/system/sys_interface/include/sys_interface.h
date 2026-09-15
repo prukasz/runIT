@@ -19,7 +19,7 @@
  * * `0xXX` - **class byte**: selects which decoder table owns the frame. The
  *   system contracts table (`dec_sys_contracts.h`) is class `0x01`; further
  *   classes (VM bytecode, callback/device creation, ...) register their own
- *   handler with sys_interface_register_class().
+ *   decoder with sys_interface_register_decoder().
  * * `0xYY` - **packet byte**: interpreted by the class handler alone. Two
  *   classes may reuse the same packet byte for unrelated packets.
  *
@@ -55,8 +55,8 @@ err_h convert_to_packet(const uint8_t* data, size_t len, void* packet, size_t pa
 /**
  * @brief Reset the class registry and register the built-in system contracts class.
  *
- * Must be called once at boot, before sys_interface_register_class() or
- * sys_interface_bind_ble_rx(). Class 0x01 (SYS_CONTRACTS_CLASS_HEADER) is wired
+ * Must be called once at boot, before sys_interface_register_decoder() or
+ * sys_interface_register_rx_source(). Class 0x01 (SYS_CONTRACTS_CLASS_HEADER) is wired
  * to the header-only table in `dec_sys_contracts.h`.
  *
  * @return err_h Status report (NULL on success).
@@ -64,24 +64,24 @@ err_h convert_to_packet(const uint8_t* data, size_t len, void* packet, size_t pa
 err_h sys_interface_init(void);
 
 /**
- * @brief Bind a decoder table to a class byte.
+ * @brief Register a decoder table for a class byte.
  *
  * Classes are only ever appended, never removed - there is no unregister.
- * Register everything at boot, before sys_interface_bind_ble_rx() starts the
+ * Register everything at boot, before sys_interface_register_rx_source() starts the
  * RX pump (the registry is a flat array with linear search, not mutex-protected).
  *
- * @param class_header Class byte (0xXX) this handler owns.
- * @param handler Handler invoked with the class byte stripped.
- * @param name Human-readable class name used in logs (may be NULL).
+ * @param decoder_header Class byte (0xXX) this decoder owns.
+ * @param decoder Decoder invoked with the class byte stripped.
+ * @param name Human-readable decoder name used in logs (may be NULL).
  * @return err_h NULL on success, ERR_INTERFACE_CLASS_TAKEN if the class byte is
  *               already bound, or ERR_INTERFACE_NO_CLASS_SLOTS if the registry is full.
  *
  * Example - route class 0x02 to the VM:
  * @code
- * SE_ORIGIN_CALL(sys_interface_register_class(0x02, vm_decode, "vm"));
+ * SE_ORIGIN_CALL(sys_interface_register_decoder(0x02, vm_decode, "vm"));
  * @endcode
  */
-err_h sys_interface_register_class(uint8_t class_header, sys_interface_handler_f handler, const char* name);
+err_h sys_interface_register_decoder(uint8_t decoder_header, sys_interface_handler_f decoder, const char* name);
 
 /**
  * @brief Route one complete frame to the handler registered for its class byte.
@@ -95,34 +95,34 @@ err_h sys_interface_register_class(uint8_t class_header, sys_interface_handler_f
 err_h sys_interface_decode(const uint8_t* data, size_t len);
 
 /**
- * @brief Enable the frame tap: every live frame the RX receiver task decodes
- * (class byte included, before dispatch) is also pushed into a small internal
- * ring buffer for a consumer to pull at its own pace via sys_interface_tap_poll().
+ * @brief Start capturing live frames in the static tap buffer.
  *
- * Unlike the old push-callback design, the tap never runs consumer code
- * inline inside the receiver task - it only ever copies bytes into a buffer,
- * so a slow or blocking consumer can't stall RX. Only one tap buffer exists;
- * calling this again while already enabled is a no-op. Frames replayed via
- * sys_actions_invoke() (or any other direct sys_interface_decode() call that
- * doesn't go through the receiver task) are never tapped - see [[SYS_ACTIONS.MD]].
- *
- * @param buf_size Ring buffer capacity in bytes.
- * @return err_h NULL on success, or ERR_BASE_NO_MEM.
+ * Capturing is off by default; while it is off, the RX receiver does not copy
+ * frames into the tap buffer.
  */
-err_h sys_interface_tap_enable(size_t buf_size);
-
-/** @brief Disable the tap and free its buffer. No-op if not enabled. */
-void sys_interface_tap_disable(void);
+void sys_interface_tap_capture_start(void);
 
 /**
- * @brief Pull one tapped frame, if any is pending.
+ * @brief Stop capturing live frames in the static tap buffer.
+ *
+ * Frames already captured remain available to sys_interface_tap_poll().
+ */
+void sys_interface_tap_capture_end(void);
+
+/**
+ * @brief Pull one frame from the static tap buffer.
+ *
+ * While capture is active, every live frame decoded by the RX receiver task
+ * (class byte included, before dispatch) is copied into this statically
+ * allocated ring buffer. Its capacity is CONFIG_SYS_ACTIONS_TAP_BUFFER_SIZE.
+ * Frames replayed via a direct sys_interface_decode() call are never tapped.
  *
  * Non-blocking. Call in a loop (from your own task) until *out_len == 0.
  *
  * @param buf Destination buffer.
  * @param max_len Capacity of @p buf - a longer frame is truncated.
  * @param out_len Set to the popped frame's length, or 0 if nothing is
- *                pending (including when the tap isn't enabled).
+ *                pending.
  * @return err_h Status report (NULL on success).
  */
 err_h sys_interface_tap_poll(uint8_t* buf, size_t max_len, size_t* out_len);
@@ -215,29 +215,3 @@ SemaphoreHandle_t sys_interface_get_rx_wake_sem(void);
  * @endcode
  */
 err_h sys_interface_register_rx_source(sys_interface_rx_dequeue_f dequeue_fn, void* ctx, size_t max_frame_len, const char* name);
-
-/**
- * @brief Attach a BLE characteristic's RX buffer as a frame source.
- *
- * Thin convenience wrapper around sys_interface_register_rx_source() - see
- * its docs for the shared receiver's behavior. May be called more than once
- * (for different characteristics), up to SYS_INTERFACE_MAX_RX_SOURCES total
- * across every registered source, BLE or otherwise.
- *
- * @param char_uuid 16-bit UUID of the characteristic to drain (must have been
- *                  created with a non-zero rx_buffer_size). To get a
- *                  near-instant wake for this source, create it with
- *                  rx_notify_sem = sys_interface_get_rx_wake_sem().
- * @param max_frame_len Largest frame accepted, up to SYS_INTERFACE_RX_FRAME_CAP
- *                       (512); longer items are truncated by the buffer.
- * @return err_h NULL on success, ERR_BASE_INVALID_STATE if the characteristic
- *               has no RX buffer, the sys_ble lookup error, or any error from
- *               sys_interface_register_rx_source().
- *
- * Example:
- * @code
- * SE_ORIGIN_CALL(sys_interface_init());
- * SE_ORIGIN_CALL(sys_interface_bind_ble_rx(SYS_BLE_CHR_RUNIT_RX, 512));
- * @endcode
- */
-err_h sys_interface_bind_ble_rx(uint16_t char_uuid, size_t max_frame_len);

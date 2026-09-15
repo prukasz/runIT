@@ -5,9 +5,11 @@
 #include "runit_board_defs.h"
 #include "runit_board_devices.h"
 #include "sys_actions.h"
+#include "sys_actions_static.h"
 #include "sys_callbacks.h"
 #include "sys_device.h"
 #include "sys_interface.h"
+#include "sys_interface_config.h"
 #include "vm_bench.h"
 #include "vm_selftest.h"
 #include "vm_sub.h"
@@ -44,10 +46,9 @@ static err_h runit_sub_ble_sender(const uint8_t* data, size_t len) {
 }
 
 #if RUNIT_SKIP_DEVICE_INIT
-/* Stands in for runit_at_boot so action 0 still resolves -- see the switch's
+/* Stands in for runit_at_boot so action 1 still resolves -- see the switch's
    comment in runit_board_cfg.h for why it is bound rather than skipped. */
-static err_h runit_at_boot_disabled(void* arg) {
-  (void)arg;
+static err_h runit_at_boot_disabled(void) {
   ESP_LOGW(TAG, "device init SKIPPED (RUNIT_SKIP_DEVICE_INIT)");
   return NULL;
 }
@@ -95,15 +96,89 @@ err_h runit_run_boot_steps(const runit_boot_step_entry_t* steps, size_t count) {
   return NULL;
 }
 
+// ---------------------------------------------------------
+// Device fault response policy (application coordinator)
+// ---------------------------------------------------------
+
+#undef OWNER
+#define OWNER OWNER_DEVICE_BASE
+
+static inline err_h runit_invoke_action(uint8_t action_id) {
+  if (action_id == 0) return NULL;
+  err_h err = sys_actions_invoke(SYS_ACTION_SCOPE_STATIC, action_id);
+  if (SE_IS_ERR(err) && err->tag == ERR_ACTION_NOT_FOUND) {
+    return sys_actions_invoke(SYS_ACTION_SCOPE_DYNAMIC, action_id);
+  }
+  return err;
+}
+
+static err_h runit_fault_response_error(uint8_t device_id, sys_device_err_level_e level,
+                                        sys_device_fault_stage_e stage, uint8_t action_id,
+                                        uint16_t cause_tag) {
+  SE_RET_ERR(ERR_DEV_FAULT_RESPONSE_FAILED, .dev_id = device_id, .level = (uint8_t)level,
+             .stage = (uint8_t)stage, .action_id = action_id, .cause_tag = cause_tag);
+}
+
+static err_h runit_device_error_policy(uint8_t device_id, sys_device_err_level_e level,
+                                       uint8_t action_id, err_h error) {
+  if (level != SYS_DEV_ERR_CRITICAL) {
+    err_h action_error = runit_invoke_action(action_id);
+    err_h root         = SE_error_root(action_error);
+    return action_error ? runit_fault_response_error(device_id, level, SYS_DEV_FAULT_STAGE_ACTION,
+                                                     action_id, root ? (uint16_t)root->tag : 0)
+                        : NULL;
+  }
+
+  err_h root  = SE_error_root(error);
+  bool  first = vm_exec_fault_latch(device_id, root ? root->owner : 0, root ? root->tag : ERR_DEP_FAILED);
+  if (!first) return NULL;
+
+  bool                     response_failed = false;
+  sys_device_fault_stage_e failed_stage    = SYS_DEV_FAULT_STAGE_CALLBACK;
+  uint16_t                 failed_tag      = 0;
+
+  err_h stop_error = vm_exec_stop();
+  if (stop_error) {
+    err_h stop_root = SE_error_root(stop_error);
+    response_failed = true;
+    failed_stage    = SYS_DEV_FAULT_STAGE_VM_STOP;
+    failed_tag      = stop_root ? (uint16_t)stop_root->tag : 0;
+  }
+
+  err_h first_error = sys_device_freeze_all();
+  if (first_error && !response_failed) {
+    err_h freeze_root = SE_error_root(first_error);
+    response_failed   = true;
+    failed_stage      = SYS_DEV_FAULT_STAGE_FREEZE;
+    failed_tag        = freeze_root ? (uint16_t)freeze_root->tag : 0;
+  }
+
+  err_h action_error = runit_invoke_action(action_id);
+  if (action_error && !response_failed) {
+    err_h action_root = SE_error_root(action_error);
+    response_failed   = true;
+    failed_stage      = SYS_DEV_FAULT_STAGE_ACTION;
+    failed_tag        = action_root ? (uint16_t)action_root->tag : 0;
+  }
+
+  return response_failed ? runit_fault_response_error(device_id, level, failed_stage, action_id, failed_tag)
+                         : NULL;
+}
+
+static err_h runit_step_register_device_error_policy(void) {
+  sys_device_register_error_policy(runit_device_error_policy);
+  return NULL;
+}
+
 static err_h runit_step_error_configure(void) {
   return SE_configure(&s_runit_error_cfg);
 }
 
 static err_h step_bind_boot_action(void) {
 #if RUNIT_SKIP_DEVICE_INIT
-  return sys_actions_bind_static(0, runit_at_boot_disabled, NULL);
+  return sys_actions_bind_static(SYS_ACTION_ID_BOOT, runit_at_boot_disabled);
 #else
-  return sys_actions_bind_static(0, runit_at_boot, NULL);
+  return sys_actions_bind_static(SYS_ACTION_ID_BOOT, runit_at_boot);
 #endif
 }
 
@@ -119,6 +194,7 @@ err_h runit_start(void) {
       {"sys_power_static_config", sys_power_static_config},
       {"sys_ble_static_config", sys_ble_static_config},
       {"SE_configure", runit_step_error_configure},
+      {"sys_device_error_policy", runit_step_register_device_error_policy},
       {"sys_callbacks_init", sys_callbacks_init},
       {"sys_interface_init", sys_interface_init},
       {"sys_actions_bind_boot", step_bind_boot_action},

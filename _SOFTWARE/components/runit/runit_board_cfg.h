@@ -19,7 +19,7 @@ Pin configs and device id / adresses shall not be changed
    Bring-up switches. Both default off; flip for bench testing, not for a
    shipping build.
 
-   RUNIT_SKIP_DEVICE_INIT skips binding runit_at_boot to action 0, so no I2C
+   RUNIT_SKIP_DEVICE_INIT skips binding runit_at_boot to action 1, so no I2C
    device is probed or installed. Action 0 still gets a no-op static function
    bound in its place -- leaving it unbound would make sys_actions_init()'s
    unconditional invoke(0) report ERR_ACTION_NOT_FOUND at every boot. Useful

@@ -23,7 +23,8 @@ typedef struct {
   bool is_current_limit_enabled;
 
   uint16_t route_masks[3];   // For OVP, OCP, SCP
-  uint64_t action_masks[3];  // For OVP, OCP, SCP
+  uint8_t static_action_ids[3];
+  uint8_t dynamic_action_ids[3];
 } tps_adapter_ctx_t;
 
 enum { TPS_STEP_I2C_ADDED = 0, TPS_STEP_EN_READY = 1, TPS_STEP_INTR_READY = 2 };
@@ -33,13 +34,13 @@ static err_h device_event_handler(void* handle, cb_event_t* event) {
   SYS_DEV_CHECK_DRIVER_CALL(tps55289_get_status(hw), ctx);
 
   if (hw->last_status.ovp) {
-    SYS_PWR_CB(ctx, 0, SYS_PWR_EVENT_OVP, ctx->last_voltage_mv, ctx->route_masks[0], ctx->action_masks[0]);
+    SYS_PWR_CB(ctx, 0, SYS_PWR_EVENT_OVP, ctx->last_voltage_mv, ctx->route_masks[0], ctx->static_action_ids[0], ctx->dynamic_action_ids[0]);
   }
   if (hw->last_status.ocp) {
-    SYS_PWR_CB(ctx, 0, SYS_PWR_EVENT_OCP_CRITICAL, ctx->last_current_limit_ma, ctx->route_masks[1], ctx->action_masks[1]);
+    SYS_PWR_CB(ctx, 0, SYS_PWR_EVENT_OCP_CRITICAL, ctx->last_current_limit_ma, ctx->route_masks[1], ctx->static_action_ids[1], ctx->dynamic_action_ids[1]);
   }
   if (hw->last_status.scp) {
-    SYS_PWR_CB(ctx, 0, SYS_PWR_EVENT_SPC, 0, ctx->route_masks[2], ctx->action_masks[2]);
+    SYS_PWR_CB(ctx, 0, SYS_PWR_EVENT_SPC, 0, ctx->route_masks[2], ctx->static_action_ids[2], ctx->dynamic_action_ids[2]);
   }
   return NULL;
 }
@@ -85,18 +86,21 @@ static err_h contract_vreg_tps55289_set_current(void* device_handle, uint32_t cu
   return NULL;
 }
 
-static err_h contract_vreg_tps55289_add_callback(void* device_handle, sys_power_events_e on_event, uint16_t route_mask, uint64_t action_mask) {
+static err_h contract_vreg_tps55289_add_callback(void* device_handle, sys_power_events_e on_event, uint16_t route_mask, uint8_t static_action_id, uint8_t dynamic_action_id) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tps_adapter_ctx_t, tps55289_handle_t, ctx, hw, device_handle);
 
   if (on_event == SYS_PWR_EVENT_OVP) {
     ctx->route_masks[0] = route_mask;
-    ctx->action_masks[0] = action_mask;
+    ctx->static_action_ids[0] = static_action_id;
+    ctx->dynamic_action_ids[0] = dynamic_action_id;
   } else if (on_event == SYS_PWR_EVENT_OCP_CRITICAL) {
     ctx->route_masks[1] = route_mask;
-    ctx->action_masks[1] = action_mask;
+    ctx->static_action_ids[1] = static_action_id;
+    ctx->dynamic_action_ids[1] = dynamic_action_id;
   } else if (on_event == SYS_PWR_EVENT_SPC) {
     ctx->route_masks[2] = route_mask;
-    ctx->action_masks[2] = action_mask;
+    ctx->static_action_ids[2] = static_action_id;
+    ctx->dynamic_action_ids[2] = dynamic_action_id;
   }
 
   tps55289_set_fault_masks(hw, ctx->route_masks[2] == 0, ctx->route_masks[1] == 0, ctx->route_masks[0] == 0);

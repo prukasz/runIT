@@ -88,12 +88,13 @@ err_h sys_ble_init(void) {
   return NULL;
 }
 
-err_h sys_ble_add_callback(sys_ble_events_e on_event, uint16_t route_mask, uint64_t action_mask) {
+err_h sys_ble_add_callback(sys_ble_events_e on_event, uint16_t route_mask, uint8_t static_action_id, uint8_t dynamic_action_id) {
   SE_CHECK_IN_RANGE((uint32_t)on_event, 0, SYS_BLE_EVENT_MAX - 1);
 
   R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
   g_ble_ctx.route_masks[on_event] = route_mask;
-  g_ble_ctx.action_masks[on_event] = action_mask;
+  g_ble_ctx.static_action_ids[on_event] = static_action_id;
+  g_ble_ctx.dynamic_action_ids[on_event] = dynamic_action_id;
   R_MUTEX_UNLOCK(sys_ble_mutex);
 
   return NULL;

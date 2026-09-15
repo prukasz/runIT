@@ -31,7 +31,8 @@ typedef struct ads_adapter_ctx_t {
 
   uint16_t cached_codes[PINS_COUNT];  // snapshot served while the device is frozen
   uint16_t route_masks[PINS_COUNT];
-  uint64_t action_masks[PINS_COUNT];
+  uint8_t static_action_ids[PINS_COUNT];
+  uint8_t dynamic_action_ids[PINS_COUNT];
   sys_io_intr_mode_e intr_modes[PINS_COUNT];
   own_funct_t own_funcs[PINS_COUNT];
   // The user-facing config from sys_io_configure_intr(), remembered so
@@ -165,7 +166,7 @@ static err_h device_event_handler(void* handle, cb_event_t* event) {
         if (ctx->own_funcs[pin].own_func) {
           SYS_CB_OWN(ctx->own_funcs[pin]);
         } else {
-          SYS_IO_CB(ctx, pin, mode, (int32_t)code_to_mv(ctx, code), ctx->route_masks[pin], ctx->action_masks[pin]);
+          SYS_IO_CB(ctx, pin, mode, (int32_t)code_to_mv(ctx, code), ctx->route_masks[pin], ctx->static_action_ids[pin], ctx->dynamic_action_ids[pin]);
         }
         ads7128_alert_cfg_t exit_cfg;
         ads_arm_exit_watch(&exit_cfg, &ctx->entry_alert_cfg[pin], (flags.high & (1u << pin)) != 0, (flags.low & (1u << pin)) != 0);
@@ -226,7 +227,8 @@ static err_h contract_io_ads7128_configure_intr(void* handle, sys_io_pin_num_t p
 
   if (config->mode == SYS_IO_INTR_DISABLE) {
     ctx->route_masks[pin] = 0;
-    ctx->action_masks[pin] = 0;
+    ctx->static_action_ids[pin] = 0;
+    ctx->dynamic_action_ids[pin] = 0;
     ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
     ctx->alert_active_mask &= (uint8_t)~(1u << pin);
     memset(&ctx->own_funcs[pin], 0, sizeof(own_funct_t));
@@ -253,7 +255,8 @@ static err_h contract_io_ads7128_configure_intr(void* handle, sys_io_pin_num_t p
   SYS_DEV_CHECK_DRIVER_CALL(ads_set_alert_cfg(hw, pin, &alert), ctx);
 
   ctx->route_masks[pin] = config->route_mask;
-  ctx->action_masks[pin] = config->action_mask;
+  ctx->static_action_ids[pin] = config->static_action_id;
+  ctx->dynamic_action_ids[pin] = config->dynamic_action_id;
   ctx->intr_modes[pin] = config->mode;
   ctx->own_funcs[pin] = config->own_func;
   // Remembered so device_event_handler can restore this exact watch after a
@@ -271,7 +274,8 @@ static err_h contract_io_ads7128_reset_pin(void* handle, sys_io_pin_num_t pin) {
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, PINS_MASK);
 
   ctx->route_masks[pin] = 0;
-  ctx->action_masks[pin] = 0;
+  ctx->static_action_ids[pin] = 0;
+  ctx->dynamic_action_ids[pin] = 0;
   ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
   ctx->cached_codes[pin] = 0;
   memset(&ctx->own_funcs[pin], 0, sizeof(own_funct_t));
@@ -320,7 +324,8 @@ static err_h device_reset(void* handle) {
 
   for (uint8_t pin = 0; pin < PINS_COUNT; pin++) {
     ctx->route_masks[pin] = 0;
-    ctx->action_masks[pin] = 0;
+    ctx->static_action_ids[pin] = 0;
+    ctx->dynamic_action_ids[pin] = 0;
     ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
     ctx->cached_codes[pin] = 0;
     memset(&ctx->own_funcs[pin], 0, sizeof(own_funct_t));

@@ -15,41 +15,55 @@ class DecoderClass(IntEnum):
 # dec_sys_actions.h (class 0x03 - SYS_ACTIONS)
 # ============================================================================
 
-class packet_sys_actions_record_t(ct.LittleEndianStructure):
+class packet_sys_action_static_t(ct.LittleEndianStructure):
     _pack_ = 1
     _fields_ = [
-        ("action_id", ct.c_uint8),
+        ("id", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_ACTIONS
+    _packet_header_ = 0x00
+    _action_name_ = "sys_action_static"
+
+class packet_sys_action_dynamic_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("id", ct.c_uint8),
     ]
     _class_header_ = DecoderClass.SYS_ACTIONS
     _packet_header_ = 0x01
-    _action_name_ = "sys_actions_record"
+    _action_name_ = "sys_action_dynamic"
 
-class packet_sys_actions_stop_t(ct.LittleEndianStructure):
+class packet_sys_action_record_start_t(ct.LittleEndianStructure):
     _pack_ = 1
     _fields_ = [
-        ("action_id", ct.c_uint8),
+        ("id", ct.c_uint8),
     ]
     _class_header_ = DecoderClass.SYS_ACTIONS
     _packet_header_ = 0x02
-    _action_name_ = "sys_actions_stop"
+    _action_name_ = "sys_action_record_start"
 
-class packet_sys_actions_remove_t(ct.LittleEndianStructure):
+class packet_sys_action_record_stop_t(ct.LittleEndianStructure):
     _pack_ = 1
-    _fields_ = [
-        ("action_id", ct.c_uint8),
-    ]
+    _fields_ = []
     _class_header_ = DecoderClass.SYS_ACTIONS
     _packet_header_ = 0x03
-    _action_name_ = "sys_actions_remove"
+    _action_name_ = "sys_action_record_stop"
 
-class packet_sys_actions_execute_t(ct.LittleEndianStructure):
+class packet_sys_action_remove_t(ct.LittleEndianStructure):
     _pack_ = 1
     _fields_ = [
-        ("action_id", ct.c_uint8),
+        ("id", ct.c_uint8),
     ]
     _class_header_ = DecoderClass.SYS_ACTIONS
     _packet_header_ = 0x04
-    _action_name_ = "sys_actions_execute"
+    _action_name_ = "sys_action_remove"
+
+class packet_sys_action_remove_all_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = []
+    _class_header_ = DecoderClass.SYS_ACTIONS
+    _packet_header_ = 0x05
+    _action_name_ = "sys_action_remove_all"
 
 # ============================================================================
 # dec_sys_contracts.h (class 0x01 - SYS_CONTRACTS)
@@ -464,10 +478,12 @@ class packet_sys_device_install_ads7128_t(ct.LittleEndianStructure):
 # class -> packet -> form auto command builder.
 # ============================================================================
 PACKET_REGISTRY = [
-    packet_sys_actions_record_t,
-    packet_sys_actions_stop_t,
-    packet_sys_actions_remove_t,
-    packet_sys_actions_execute_t,
+    packet_sys_action_static_t,
+    packet_sys_action_dynamic_t,
+    packet_sys_action_record_start_t,
+    packet_sys_action_record_stop_t,
+    packet_sys_action_remove_t,
+    packet_sys_action_remove_all_t,
     packet_sys_device_uninstall_t,
     packet_sys_device_reset_t,
     packet_sys_device_suspend_t,
