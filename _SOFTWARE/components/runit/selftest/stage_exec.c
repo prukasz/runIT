@@ -1,3 +1,9 @@
+// dec_vm_loader.h (included below) calls DBG() itself - DBG_ENABLE must be
+// defined before its own DBG() call sites are preprocessed. Fires on
+// CONFIG_DBG_GLOBAL or this component's own switch (components/utils/Kconfig)
+// - see DBG()'s doc comment in utils.h.
+#define DBG_ENABLE CONFIG_DBG_ENABLE_RUNIT
+
 #include "selftest_harness.h"
 #include "vm_block.h"
 #include "vm_block_build.h"

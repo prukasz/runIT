@@ -3,13 +3,16 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
-#include <string.h>
+#include <stdio.h>
 #include "enc_sys_errors.h"
-#include "sys_ble.h"
 #include "utils.h"
 
+// This file's DBG() calls fire on CONFIG_DBG_GLOBAL or this component's own
+// switch (components/utils/Kconfig) - see DBG()'s doc comment in utils.h.
+#define DBG_ENABLE CONFIG_DBG_ENABLE_SYS_ERRORS
+
 // enc_sys_errors.h leaves OWNER set to OWNER_ENC_SYS_ERRORS; take it back so
-// this file's own SE_* macros (if any are added later) are tagged correctly.
+// this file's own SE_* macros are tagged as sys_errors, not as the encoder.
 #undef OWNER
 #define OWNER OWNER_SYS_ERRORS_BASE
 
@@ -21,10 +24,28 @@ R_QUEUE_DEFINE(s_err_queue, ERR_QUEUE_LEN, sizeof(err_h));
 #define ERR_HANDLER_TASK_STACK_WORDS 4096
 R_TASK_DEFINE(s_err_handler_task_handle, ERR_HANDLER_TASK_STACK_WORDS);
 
-static se_device_error_hook_t s_device_error_hook = NULL;
+// -----------------------------------------------------------------------------
+// Outbound Transport Sink
+// -----------------------------------------------------------------------------
 
-void SE_register_device_error_hook(se_device_error_hook_t hook) {
-  s_device_error_hook = hook;
+/* One slot, last registration wins - the mirror image of sys_interface's RX
+   source registry (sys_interface_register_rx_source()): there, a transport
+   hands the router a non-blocking dequeue callback so inbound frames find
+   their way in; here, a transport hands the handler a send callback so
+   outbound error packets find their way out. Neither side knows what the
+   other transport is; sys_ble is reached only through the header-only
+   binding in sys_error_config.h. */
+static se_tx_sink_f s_tx_sink     = NULL;
+static void*        s_tx_sink_ctx = NULL;
+
+void SE_register_tx_sink(se_tx_sink_f send_fn, void* ctx, const char* name) {
+  // Context first: the handler task reads the function pointer to decide
+  // whether to send at all, so it must never find a new sink paired with the
+  // previous one's context.
+  s_tx_sink_ctx = ctx;
+  s_tx_sink     = send_fn;
+
+  DBG(ESP_LOGI(TAG, "error TX sink registered: %s", name ? name : (send_fn ? "unnamed" : "none")));
 }
 
 uint32_t SE_get_dropped_count(void) {
@@ -34,32 +55,44 @@ uint32_t SE_get_dropped_count(void) {
 void SE_clear_dropped_count(void) {
 }
 
-// Basic detection: the first ERR_DEV_DEP_FAILED node whose owner is in the
-// device-provider range (devices_owners.h's PROVIDER_OWNER_MAP, 0xD0xx) is
-// treated as "the device that generated this chain" and dispatched once via
-// the registered hook - ERR_DEV_DEP_FAILED is the only device-raised tag
-// guaranteed to carry a dev_id payload (see RET_IF_DEV_ERR in sys_device.h).
-// Once found, the rest of the chain is skipped for this purpose; printing/
-// sending below is unaffected and still covers every node regardless.
-static void dispatch_device_owned_error(err_h err_chain) {
-  if (!s_device_error_hook) return;
-  /* A response failure can retain the action/callback failure as its cause.
-     Never feed that diagnostic back into the same device policy. */
-  if (err_chain && err_chain->tag == ERR_DEV_FAULT_RESPONSE_FAILED) return;
-  for (err_h curr = err_chain; curr != NULL; curr = curr->next_cause) {
-    if (curr->tag == ERR_DEV_DEP_FAILED && (curr->owner & 0xFF00) == (OWNER_DEVICE_BASE & 0xFF00)) {
-      uint8_t dev_id = ((err_payload_ERR_DEV_DEP_FAILED_t*)curr->payload)->dev_id;
-      err_h response_error = s_device_error_hook(dev_id, err_chain);
-      if (response_error) SE_push_to_handler(response_error);
-      break;
+// -----------------------------------------------------------------------------
+// Handler Task
+// -----------------------------------------------------------------------------
+
+/* Restores the "serial stack trace" documented in SYS_ERRORS.MD: one decoded
+   ESP_LOGE line per chain node (outermost first), falling back to a hex
+   payload dump for tags with no registered logger. Bounded by
+   ENC_SYS_ERRORS_MAX_NODES for the same reason the encoder is - the ring has
+   no free, so a chain held too long can have next_cause overwritten into a
+   cycle.
+
+   Deliberately never writes to serial (or BLE) itself: ESP_LOGE goes through
+   se_log_vprintf like any other log line, so it is carried wherever the
+   `logs` routing currently in force (SE_configure()) already sends lines -
+   mirror_on_serial and/or ble_enable - with no separate transport of its
+   own. */
+static void log_chain_to_serial(err_h chain) {
+  char     desc[SE_LOG_LINE_MAX];
+  uint32_t depth = 0;
+
+  for (err_h node = chain; node != NULL && depth < ENC_SYS_ERRORS_MAX_NODES; node = node->next_cause, depth++) {
+    if (!SE_describe_payload(node->tag, node->payload, desc, sizeof(desc))) {
+      size_t  payload_len = SE_get_payload_size(node->tag);
+      uint8_t dump_len    = (payload_len < 32u) ? (uint8_t)payload_len : 32u;
+      size_t  pos         = 0;
+      for (uint8_t i = 0; i < dump_len && pos + 3 < sizeof(desc); i++) {
+        pos += (size_t)snprintf(desc + pos, sizeof(desc) - pos, "%02X ", node->payload[i]);
+      }
+      desc[pos] = '\0';
     }
+    ESP_LOGE(TAG, "[%u] owner=%s (0x%04X) tag=%s (%d): %s", (unsigned)depth, SE_get_owner_name(node->owner), (unsigned)node->owner, SE_get_tag_name(node->tag), (int)node->tag, desc);
   }
 }
 
 static void sys_error_handler_task(void* arg) {
   (void)arg;
-  err_h err_chain = NULL;
-  uint8_t packet[SE_ERR_PACKET_MAX];
+  err_h           err_chain = NULL;
+  uint8_t         packet[SE_ERR_PACKET_MAX];
   sys_error_cfg_t cfg;
 
   while (1) {
@@ -67,46 +100,26 @@ static void sys_error_handler_task(void* arg) {
     if (!err_chain) continue;
 
     SE_get_config(&cfg);
-    dispatch_device_owned_error(err_chain);
 
-    // Encode first: everything below can allocate from the same ring the chain
-    // lives in, and an allocation that wraps would overwrite nodes mid-walk.
-    size_t packet_len = 0;
-    bool encoded = false;
-    if (cfg.errors.ble_enable) {
-      encoded = SE_IS_OK(enc_sys_errors_encode_chain(err_chain, packet, cfg.errors.packet_max, &packet_len));
-    }
-
-    if (cfg.errors.serial_trace) {
-      ESP_LOGE(TAG, "========== ERROR STACK TRACE ==========");
-      int depth = 0;
-      for (err_h curr = err_chain; curr != NULL; curr = curr->next_cause) {
-        // Payload printed generically as hex whenever the tag has one - a
-        // per-tag pretty-printer lives closer to whoever cares about a
-        // specific tag (e.g. adapter_pca9685.c's explain_root_cause()),
-        // not here; this is just "show whatever bytes exist, if any".
-        char desc[96] = {0};
-        if (SE_describe_payload(curr->tag, curr->payload, desc, sizeof(desc))) {
-          ESP_LOGE(TAG, "  [%d] Owner: %s (0x%04X), Tag: %s (%d) -> %s", depth++, SE_get_owner_name(curr->owner), (unsigned int)curr->owner, SE_get_tag_name(curr->tag), (int)curr->tag, desc);
-        } else {
-          size_t psize = SE_get_payload_size(curr->tag);
-          if (psize > 0) {
-            char hex[3 * 16 + 1] = {0};
-            size_t show = psize > 16 ? 16 : psize;
-            for (size_t b = 0; b < show; b++) {
-              snprintf(&hex[b * 3], 4, "%02X ", curr->payload[b]);
-            }
-            ESP_LOGE(TAG, "  [%d] Owner: %s (0x%04X), Tag: %s (%d), Payload[%u]: %s%s", depth++, SE_get_owner_name(curr->owner), (unsigned int)curr->owner, SE_get_tag_name(curr->tag), (int)curr->tag, (unsigned)psize, hex, psize > 16 ? "..." : "");
-          } else {
-            ESP_LOGE(TAG, "  [%d] Owner: %s (0x%04X), Tag: %s (%d)", depth++, SE_get_owner_name(curr->owner), (unsigned int)curr->owner, SE_get_tag_name(curr->tag), (int)curr->tag);
-          }
-        }
+    /* Hex packet over the dedicated TX sink - one chain per packet. Skipped
+       entirely (not even encoded) while no sink is bound; this is the only
+       branch that touches the ring via encoding, so it must run before
+       anything downstream gets a chance to allocate from it. */
+    se_tx_sink_f sink = s_tx_sink;
+    if (sink) {
+      size_t packet_len = 0;
+      if (SE_IS_OK(enc_sys_errors_encode_chain(err_chain, packet, cfg.errors.packet_max, &packet_len))) {
+        /* The sink's own error is deliberately dropped rather than pushed
+           back here - reporting a transport failure through the transport
+           that just failed only loops. */
+        (void)sink(s_tx_sink_ctx, cfg.errors.tx_header, packet, packet_len);
       }
-      ESP_LOGE(TAG, "=======================================");
     }
 
-    if (encoded) {
-      (void)sys_ble_char_send(cfg.errors.char_uuid, cfg.errors.tx_header, packet, packet_len, true);
+    /* Independent of the TX sink - a board with serial_trace on but no
+       transport bound (or not yet bound) still gets the trace. */
+    if (cfg.errors.serial_trace) {
+      log_chain_to_serial(err_chain);
     }
   }
 }

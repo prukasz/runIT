@@ -65,9 +65,9 @@
     snprintf((out), (out_size), "unexpected NULL pointer"); \
   } while (0)
 #define LOG_BODY_ERR_INVALID_VAL_UI32(p, out, out_size) snprintf((out), (out_size), "value %lu out of range [%lu, %lu]", (unsigned long)(p)->val, (unsigned long)(p)->min, (unsigned long)(p)->max)
-#define LOG_BODY_ERR_INVALID_VAL_I32(p, out, out_size) snprintf((out), (out_size), "value %ld out of range [%ld, %ld]", (long)(p)->val, (long)(p)->min, (long)(p)->max)
-#define LOG_BODY_ERR_INVALID_VAL_F(p, out, out_size) snprintf((out), (out_size), "value %g out of range [%g, %g]", (double)(p)->val, (double)(p)->min, (double)(p)->max)
-#define LOG_BODY_ERR_DEV_DEP_FAILED(p, out, out_size) snprintf((out), (out_size), "device %u dependency failed", (p)->dev_id)
+#define LOG_BODY_ERR_INVALID_VAL_I32(p, out, out_size)  snprintf((out), (out_size), "value %ld out of range [%ld, %ld]", (long)(p)->val, (long)(p)->min, (long)(p)->max)
+#define LOG_BODY_ERR_INVALID_VAL_F(p, out, out_size)    snprintf((out), (out_size), "value %g out of range [%g, %g]", (double)(p)->val, (double)(p)->min, (double)(p)->max)
+#define LOG_BODY_ERR_DEV_DEP_FAILED(p, out, out_size)   snprintf((out), (out_size), "device %u dependency failed", (p)->dev_id)
 #define LOG_BODY_ERR_DEP_FAILED(p, out, out_size)      \
   do {                                                 \
     (void)(p);                                         \

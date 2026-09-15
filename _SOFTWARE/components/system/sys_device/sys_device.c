@@ -16,15 +16,6 @@ const char* const sys_device_contract_type_e_to_string[] = {"IO", "POWER_VREG", 
 static sys_device_t* s_device_registry[CONFIG_SYS_DEVICE_MAX_ID + 1] = {NULL};
 static sys_device_error_policy_fn_t s_error_policy;
 
-// Registers sys_device_report_error() as sys_errors' device-error hook (see
-// sys_error.h) at load time, per the [[runit]] skill's static-construction
-// convention - lets sys_error_handler_task dispatch device-owned chains
-// without sys_errors depending on sys_device (which already depends on
-// sys_errors, so the reverse would be circular).
-__attribute__((constructor)) static void sys_device_register_error_hook(void) {
-  SE_register_device_error_hook(sys_device_report_error);
-}
-
 void sys_device_register_error_policy(sys_device_error_policy_fn_t policy) {
   s_error_policy = policy;
 }

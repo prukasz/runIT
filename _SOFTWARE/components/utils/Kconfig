@@ -1,0 +1,47 @@
+menu "Debug (DBG) Logging"
+
+    config DBG_GLOBAL
+        bool "Enable DBG() calls globally"
+        default n
+        help
+            Master switch for the DBG() macro (components/utils/utils.h).
+            When enabled, every DBG(...) call in the firmware fires,
+            regardless of any component's own DBG_ENABLE_* switch below.
+            Leave both this and every DBG_ENABLE_* switch disabled in
+            production - the compiler removes DBG()'d code entirely.
+
+    config DBG_ENABLE_SYS_ERRORS
+        bool "Enable DBG() in sys_errors"
+        default n
+        help
+            Fires DBG() calls in components/sys_errors (sys_error.c,
+            sys_error_handler.c) independently of DBG_GLOBAL.
+
+    config DBG_ENABLE_SYS_INTERFACE
+        bool "Enable DBG() in sys_interface"
+        default n
+        help
+            Fires DBG() calls in components/system/sys_interface
+            independently of DBG_GLOBAL.
+
+    config DBG_ENABLE_SYS_ACTIONS
+        bool "Enable DBG() in sys_actions"
+        default n
+        help
+            Fires DBG() calls in components/system/sys_actions
+            independently of DBG_GLOBAL.
+
+    config DBG_ENABLE_VM
+        bool "Enable DBG() in VM"
+        default n
+        help
+            Fires DBG() calls in components/VM independently of DBG_GLOBAL.
+
+    config DBG_ENABLE_RUNIT
+        bool "Enable DBG() in runit"
+        default n
+        help
+            Fires DBG() calls in components/runit (including selftest
+            stages) independently of DBG_GLOBAL.
+
+endmenu

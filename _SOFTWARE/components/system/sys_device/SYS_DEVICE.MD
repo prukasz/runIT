@@ -99,8 +99,17 @@ faults in the VM, requests cancellation, waits for quiescence, freezes all
 eligible devices, then invokes the configured critical action. Repeated
 critical reports increment the VM occurrence count without replaying the safe
 response. Warning and notice reports invoke only their configured actions.
-Response failures return `ERR_DEV_FAULT_RESPONSE_FAILED`; the error handler
-recognizes that wrapper and never dispatches it back into device policy.
+Response failures return `ERR_DEV_FAULT_RESPONSE_FAILED`.
+
+> **`sys_device_report_error()` currently has no automatic trigger.** It used
+> to be called for you: `sys_device.c` registered it as `sys_errors`' device-error
+> hook from a load-time constructor, and the error handler task dispatched every
+> device-owned chain into it. That hook is gone while `sys_error_handler.c` is
+> cut back to a skeleton (see [[SYS_ERRORS.MD]]) — the only callers left are
+> direct ones. Whatever brings automatic dispatch back (the hook again, or a
+> different seam) has to re-introduce the `ERR_DEV_FAULT_RESPONSE_FAILED` guard
+> too: that wrapper is what a failed response returns, so feeding it back into
+> device policy would loop.
 
 ---
 

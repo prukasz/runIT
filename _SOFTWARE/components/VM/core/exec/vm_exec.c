@@ -10,6 +10,10 @@
 #include "vm_override.h"
 #include "vm_store.h"
 
+// This file's DBG() calls fire on CONFIG_DBG_GLOBAL or this component's own
+// switch (components/utils/Kconfig) - see DBG()'s doc comment in utils.h.
+#define DBG_ENABLE CONFIG_DBG_ENABLE_VM
+
 #define OWNER OWNER_VM_EXEC
 
 static const char* TAG = "vm_exec";

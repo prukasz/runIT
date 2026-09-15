@@ -7,6 +7,9 @@
 #include "sys_ble.h"
 #include "utils.h"
 
+// This file's DBG() calls fire on CONFIG_DBG_GLOBAL or this component's own
+// switch (components/utils/Kconfig) - see DBG()'s doc comment in utils.h.
+#define DBG_ENABLE CONFIG_DBG_ENABLE_SYS_ERRORS
 
 // enc_sys_errors.h leaves OWNER set to OWNER_ENC_SYS_ERRORS; take it back so
 // this file's own SE_* macros are tagged as sys_errors, not as the encoder.
@@ -183,9 +186,6 @@ err_h SE_configure(const sys_error_cfg_t* cfg) {
   if (cfg->logs.ble_enable) {
     SE_CHECK_IN_RANGE(cfg->logs.char_uuid, 1, 0xFFFF);
   }
-  if (cfg->errors.ble_enable) {
-    SE_CHECK_IN_RANGE(cfg->errors.char_uuid, 1, 0xFFFF);
-  }
 
   sys_error_cfg_t applied = *cfg;
   if (applied.errors.packet_max < ENC_SYS_ERRORS_MIN_BUF || applied.errors.packet_max > SE_ERR_PACKET_MAX) {
@@ -202,8 +202,8 @@ err_h SE_configure(const sys_error_cfg_t* cfg) {
   // nothing else in this codebase installs one, so it's always plain vprintf.
   (void)esp_log_set_vprintf(se_log_vprintf);
 
-  DBG(ESP_LOGI(TAG, "config: level=%d | logs serial=%d ble=%d chr=0x%04X hdr=0x%02X | errors trace=%d ble=%d chr=0x%04X hdr=0x%02X", (int)applied.global_level, applied.logs.mirror_on_serial, applied.logs.ble_enable, applied.logs.char_uuid, applied.logs.tx_header, applied.errors.serial_trace,
-      applied.errors.ble_enable, applied.errors.char_uuid, applied.errors.tx_header));
+  DBG(ESP_LOGI(TAG, "config: level=%d | logs serial=%d ble=%d chr=0x%04X hdr=0x%02X | errors trace=%d hdr=0x%02X max=%u", (int)applied.global_level, applied.logs.mirror_on_serial, applied.logs.ble_enable, applied.logs.char_uuid, applied.logs.tx_header,
+      applied.errors.serial_trace, applied.errors.tx_header, (unsigned)applied.errors.packet_max));
   return NULL;
 }
 

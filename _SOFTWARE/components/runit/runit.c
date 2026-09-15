@@ -8,6 +8,7 @@
 #include "sys_actions_static.h"
 #include "sys_callbacks.h"
 #include "sys_device.h"
+#include "sys_error_config.h"
 #include "sys_interface.h"
 #include "sys_interface_config.h"
 #include "vm_bench.h"
@@ -66,8 +67,6 @@ static const sys_error_cfg_t s_runit_error_cfg = {
     .errors =
         {
             .serial_trace = true,
-            .ble_enable = true,
-            .char_uuid = SYS_BLE_CHR_RUNIT_LOGS,
             .tx_header = PACKET_HEADER_ERRORS,
             .packet_max = SE_ERR_PACKET_MAX,
         },
@@ -174,6 +173,14 @@ static err_h runit_step_error_configure(void) {
   return SE_configure(&s_runit_error_cfg);
 }
 
+/* Which characteristic carries the error stream is the binding's business,
+   which header byte identifies it stays in s_runit_error_cfg -- see
+   SE_register_tx_sink() in sys_error.h. */
+static err_h runit_step_error_bind_tx(void) {
+  SE_bind_ble_tx(SYS_BLE_CHR_RUNIT_LOGS);
+  return NULL;
+}
+
 static err_h step_bind_boot_action(void) {
 #if RUNIT_SKIP_DEVICE_INIT
   return sys_actions_bind_static(SYS_ACTION_ID_BOOT, runit_at_boot_disabled);
@@ -194,6 +201,7 @@ err_h runit_start(void) {
       {"sys_power_static_config", sys_power_static_config},
       {"sys_ble_static_config", sys_ble_static_config},
       {"SE_configure", runit_step_error_configure},
+      {"SE_bind_ble_tx", runit_step_error_bind_tx},
       {"sys_device_error_policy", runit_step_register_device_error_policy},
       {"sys_callbacks_init", sys_callbacks_init},
       {"sys_interface_init", sys_interface_init},

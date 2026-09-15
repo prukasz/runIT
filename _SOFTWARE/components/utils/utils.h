@@ -15,32 +15,45 @@ extern "C" {
 #endif
 
 /**
+ * @brief Turns a Kconfig bool option into an always-defined 0/1, safe to use
+ * in a runtime `if`.
+ *
+ * ESP-IDF's Kconfig only emits `#define CONFIG_X 1` for an *enabled* bool -
+ * a disabled one (`default n`) is omitted from sdkconfig.h entirely rather
+ * than defined as 0, so `if (CONFIG_X)` fails to compile whenever it's off.
+ * IS_ENABLED(CONFIG_X) resolves either state - the literal `1`, or the bare
+ * undefined token - to a real 0/1 at the preprocessor level (the same trick
+ * the Linux kernel uses for the same reason), so DBG_GLOBAL/DBG_ENABLE below
+ * can be sourced straight from Kconfig with no locally-defined fallback
+ * value of our own.
+ */
+#define __DBG_ARG_PLACEHOLDER_1 0,
+#define __DBG_TAKE_SECOND_ARG(__ignored, val, ...) val
+#define __DBG_IS_ENABLED_2(arg1_or_junk) __DBG_TAKE_SECOND_ARG(arg1_or_junk 1, 0)
+#define __DBG_IS_ENABLED_1(value) __DBG_IS_ENABLED_2(__DBG_ARG_PLACEHOLDER_##value)
+#define IS_ENABLED(option) __DBG_IS_ENABLED_1(option)
+
+/**
  * @brief Debug execution macro.
- * Encapsulates any arbitrary code fragment (e.g. DBG(ESP_LOGI(...)); or DBG(my_var++;))
- * Can be enabled globally with #define ENABLE_DBG 1 or per-file with #define LOCAL_DBG 1.
- * When disabled, compiler dead-code elimination removes the code and strings with zero overhead.
+ * Encapsulates any arbitrary code fragment (e.g. DBG(ESP_LOGI(...)); or DBG(my_var++;)).
+ *
+ * Two independent Kconfig switches (components/utils/Kconfig), both `default n`:
+ *   - CONFIG_DBG_GLOBAL: fires every DBG() call in the whole firmware.
+ *   - A component's own CONFIG_DBG_ENABLE_<COMPONENT>: fires only that
+ *     component's DBG() calls. Each .c/.h file that calls DBG() must alias
+ *     its own component's switch to the plain name this macro expects, near
+ *     its other per-file setup (OWNER, TAG, ...):
+ *       #define DBG_ENABLE CONFIG_DBG_ENABLE_SYS_ERRORS
+ *
+ * When both are off, the condition folds to a compile-time `if (0)` and the
+ * compiler's dead-code elimination removes the wrapped code (and its
+ * strings) with zero overhead.
  */
-#ifndef ENABLE_DBG
-#define ENABLE_DBG 0
-#endif
-
-/*
- * DBG(...) macro:
- * Call DBG(code) to execute code only when debug is active.
- * To enable per file, place:
- *   #undef LOCAL_DBG
- *   #define LOCAL_DBG 1
- * in that .c file.
- */
-#ifndef LOCAL_DBG
-#define LOCAL_DBG 0
-#endif
-
-#define DBG(...)                                              \
-  do {                                                        \
-    if ((ENABLE_DBG) || (LOCAL_DBG)) {                        \
-      __VA_ARGS__;                                            \
-    }                                                         \
+#define DBG(...)                                                    \
+  do {                                                               \
+    if (IS_ENABLED(CONFIG_DBG_GLOBAL) || IS_ENABLED(DBG_ENABLE)) {   \
+      __VA_ARGS__;                                                   \
+    }                                                                \
   } while (0)
 
 /**

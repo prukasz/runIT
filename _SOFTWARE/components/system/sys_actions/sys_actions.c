@@ -8,6 +8,10 @@
 #include "sys_interface.h"
 #include "utils.h"
 
+// This file's DBG() calls fire on CONFIG_DBG_GLOBAL or this component's own
+// switch (components/utils/Kconfig) - see DBG()'s doc comment in utils.h.
+#define DBG_ENABLE CONFIG_DBG_ENABLE_SYS_ACTIONS
+
 #undef OWNER
 #define OWNER OWNER_SYS_ACTIONS_BASE
 

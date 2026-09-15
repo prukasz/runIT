@@ -1,3 +1,10 @@
+// This file's DBG() calls (and dec_vm_loader.h's, included below) fire on
+// CONFIG_DBG_GLOBAL or this component's own switch (components/utils/Kconfig)
+// - see DBG()'s doc comment in utils.h. Must precede dec_vm_loader.h's
+// include: DBG_ENABLE has to be defined before that header's own DBG() call
+// sites are preprocessed.
+#define DBG_ENABLE CONFIG_DBG_ENABLE_SYS_INTERFACE
+
 #include "sys_interface.h"
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>

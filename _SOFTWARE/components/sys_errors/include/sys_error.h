@@ -92,16 +92,46 @@ uint32_t SE_get_dropped_count(void);
 void SE_clear_dropped_count(void);
 
 /**
- * @brief Hook the error handler task calls for the first device-owned node
- * found in a chain it's about to print/send (see sys_error_handler.c) - lets
- * sys_device dispatch to that device's own error handling without sys_errors
- * depending on sys_device (which already depends on sys_errors, so the
- * reverse would be circular). Registered once via
- * SE_register_device_error_hook(), typically from a load-time constructor
- * per the [[runit]] skill's static-construction convention.
+ * @brief Transport callback the handler task pushes one encoded error packet
+ * into.
+ *
+ * The reverse of sys_interface_rx_dequeue_f (see [[SYS_INTERFACE.MD]]): that
+ * one lets a transport feed inbound frames into the router, this one lets the
+ * error handler push outbound packets into a transport - in both directions
+ * the generic side holds only a function pointer and an opaque context, and
+ * never names a concrete transport.
+ *
+ * Called from the handler task only (never from an ISR), once per dequeued
+ * chain. Its return value is dropped by the handler: reporting a transport
+ * failure through the transport that just failed only loops.
+ *
+ * @param ctx Opaque context, passed through unchanged from registration.
+ * @param header TX stream header byte (sys_error_cfg_t.errors.tx_header).
+ * @param data Encoded error packet.
+ * @param len Length of @p data.
+ * @return err_h NULL on success, or the transport's own error chain (dropped).
  */
-typedef err_h (*se_device_error_hook_t)(uint8_t device_id, err_h error);
-void SE_register_device_error_hook(se_device_error_hook_t hook);
+typedef err_h (*se_tx_sink_f)(void* ctx, uint8_t header, const uint8_t* data, size_t len);
+
+/**
+ * @brief Bind the transport that carries encoded error packets.
+ *
+ * A single slot, assigned outright - a later call replaces the previous sink,
+ * and a NULL @p send_fn clears it. While no sink is bound, dequeued chains are
+ * simply discarded. The BLE binding lives in `sys_error_config.h` (header-only,
+ * outside this generic API) exactly as sys_interface_bind_ble_rx() does for the
+ * inbound direction.
+ *
+ * @param send_fn Sink callback (see se_tx_sink_f), or NULL to unbind.
+ * @param ctx Opaque context handed back to @p send_fn on every call.
+ * @param name Used in logs only, may be NULL.
+ *
+ * Example - a hypothetical LoRa transport carrying the error stream:
+ * @code
+ * SE_register_tx_sink(lora_err_send, &s_lora_dev, "lora_tx");
+ * @endcode
+ */
+void SE_register_tx_sink(se_tx_sink_f send_fn, void* ctx, const char* name);
 
 // Suspend/Resume error processing
 void SE_suspend(void);
@@ -149,9 +179,8 @@ err_h SE_error_root(err_h error);
  * @brief Where logs and error chains go.
  *
  * Deliberately flat, and deliberately without per-sink level fields: level
- * selection is `esp_log`'s job — `global_level` plus any per-tag
- * `esp_log_level_set()` the application makes — so a line that reaches the hook
- * is a line every enabled sink wants. What is left is a set of routing
+ * selection is `esp_log`'s job (`global_level`), so a line that reaches the
+ * hook is a line every enabled sink wants. What is left is a set of routing
  * switches small enough to be applied remotely as one packet payload, in the
  * style of the decoder structs in [[CODECS.MD]].
  */
@@ -167,11 +196,12 @@ typedef struct {
   } logs;
 
   struct {
-    bool serial_trace;    /**< Print the decoded owner/tag stack trace with ESP_LOGE. */
-    bool ble_enable;      /**< Encode each chain with enc_sys_errors_encode_chain() and push it to a BLE characteristic. */
-    uint16_t char_uuid;   /**< Target characteristic (required when ble_enable). */
-    uint8_t tx_header;    /**< TX slot header byte identifying the error stream. */
-    uint16_t packet_max;  /**< Largest encoded packet; clamped to SE_ERR_PACKET_MAX. Longer chains are truncated, never split. */
+    /** @brief ESP_LOGE one decoded line per chain node when set (see log_chain_to_serial() in sys_error_handler.c). Not a transport switch of its own - the lines it emits go wherever `logs` above already routes (mirror_on_serial / ble_enable), same as any other log line. */
+    bool serial_trace;
+    /** @brief TX stream header byte handed to the sink (see SE_register_tx_sink()). Where the packet then goes is the sink's business, not this struct's. */
+    uint8_t tx_header;
+    /** @brief Largest encoded packet; clamped to SE_ERR_PACKET_MAX. Longer chains are truncated, never split. */
+    uint16_t packet_max;
   } errors;
 } sys_error_cfg_t;
 
@@ -185,7 +215,7 @@ typedef struct {
   ((sys_error_cfg_t){                                                                                                  \
       .global_level = ESP_LOG_INFO,                                                                                    \
       .logs = {.mirror_on_serial = true, .ble_enable = false, .char_uuid = 0, .tx_header = 0},                         \
-      .errors = {.serial_trace = true, .ble_enable = false, .char_uuid = 0, .tx_header = 0, .packet_max = SE_ERR_PACKET_MAX}})
+      .errors = {.serial_trace = true, .tx_header = 0, .packet_max = SE_ERR_PACKET_MAX}})
 
 /**
  * @brief Apply a logging/telemetry configuration.
@@ -195,11 +225,12 @@ typedef struct {
  * function each time), so it only ever needs to swap the routing switches.
  * Note that clearing both `logs.mirror_on_serial` and `logs.ble_enable`
  * silences log output entirely — the hook stays installed and simply drops
- * every line.
+ * every line. The error stream has no enable switch here at all: it is on
+ * once a transport is bound with SE_register_tx_sink() (SE_bind_ble_tx()).
  *
  * @param cfg Configuration to apply.
  * @return err_h NULL on success, ERR_NULL_PTR for a NULL @p cfg, or
- *               ERR_INVALID_VAL_UI32 if a stream is enabled without a
+ *               ERR_INVALID_VAL_UI32 if the log stream is enabled without a
  *               characteristic UUID.
  *
  * Example:
@@ -208,13 +239,10 @@ typedef struct {
  *     .global_level = ESP_LOG_INFO,
  *     .logs = {.mirror_on_serial = true, .ble_enable = true,
  *              .char_uuid = SYS_BLE_CHR_RUNIT_LOGS, .tx_header = PACKET_HEADER_LOGS},
- *     .errors = {.serial_trace = true, .ble_enable = true,
- *                .char_uuid = SYS_BLE_CHR_RUNIT_LOGS, .tx_header = PACKET_HEADER_ERRORS,
+ *     .errors = {.serial_trace = true, .tx_header = PACKET_HEADER_ERRORS,
  *                .packet_max = SE_ERR_PACKET_MAX},
  * }));
- *
- * // Per-tag filtering stays where it belongs - in esp_log itself:
- * esp_log_level_set("sys_i2c", ESP_LOG_DEBUG);
+ * SE_bind_ble_tx(SYS_BLE_CHR_RUNIT_LOGS);  // sys_error_config.h
  * @endcode
  */
 err_h SE_configure(const sys_error_cfg_t* cfg);

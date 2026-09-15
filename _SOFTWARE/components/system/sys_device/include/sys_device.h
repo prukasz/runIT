@@ -149,7 +149,14 @@ sys_device_t* sys_device_get_by_id(uint8_t device_id);
 
 /**
  * @brief Report an error that occurred on device_id to that device's own
- * error handling, per its per-instance flags:
+ * error handling, per its per-instance flags.
+ *
+ * Call it directly - nothing dispatches it for you at the moment. The
+ * sys_errors handler task used to route every device-owned chain here through
+ * a registered hook; that hook is gone while sys_error_handler.c is a skeleton
+ * (see [[SYS_ERRORS.MD]]).
+ *
+ * Flags:
  *
  * - generate_error_callback set: cls->ops.error_handler is expected to only
  *   report the error to the VM via the callback system and return -
