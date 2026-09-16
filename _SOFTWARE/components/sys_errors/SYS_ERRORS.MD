@@ -7,20 +7,25 @@ The `sys_errors` component implements the unified error-reporting mechanism used
 
 It also owns the firmware's **outbound diagnostics policy** (`SE_configure()`): the ESP log level, whether log lines are mirrored on serial and/or streamed over BLE, and whether error chains are encoded and transmitted for client-side reconstruction. See [Logging & Telemetry Configuration](#logging--telemetry-configuration) below.
 
-The component is split into two `.c` files along a stable/expanding-surface line: `sys_error.c` holds the ring buffer allocator, name lookups, and diagnostics config/log hook — all narrow, unlikely to grow — while `sys_error_handler.c` owns the queue, the consumer task, and how a completed chain gets dispatched. Handler dispatch is the part expected to grow (more sinks, filtering, routing), so it's isolated in its own file rather than mixed into the allocator.
-
-> **`sys_error_handler.c` is currently a deliberate skeleton**: dequeue a chain, encode it, hand the packet to the registered TX sink, and (if `errors.serial_trace`) log it - nothing else. The device-error dispatch hook that used to live there was removed and has not come back; what it did and what depends on it is recorded in [What the skeleton dropped](#what-the-skeleton-dropped) below.
+The component is split into four `.c` files along functional lines:
+* `sys_error.c`: Ring buffer allocator, name lookups, error pointer validation, and root cause resolution (`SE_get_error_root`).
+* `sys_error_config.c`: Outbound diagnostics/telemetry configuration (`SE_configure`, `SE_get_config`).
+* `sys_error_log.c`: BLE log forwarding, the `esp_log` `vprintf` hook (`se_log_vprintf`), and serial error chain expansion (`se_log_error_chain` / `log_chain_to_serial`).
+* `sys_error_handler.c`: Error dispatch and transport sink registration.
 
 ### Directory Map
 ```
 components/sys_errors/
 ├── CMakeLists.txt
 ├── SYS_ERRORS.MD           # This documentation
-├── sys_error.c             # Ring buffer allocator, name lookups, diagnostics config, log hook
-├── sys_error_handler.c      # Error queue, consumer task, SE_init(), SE_push_to_handler()
+├── sys_error.c             # Ring buffer allocator, name lookups, SE_get_error_root
+├── sys_error_config.c      # Diagnostics config implementation (SE_configure, SE_get_config)
+├── sys_error_log.c         # BLE log hook, formatting, and chain expansion (se_log_error_chain)
+├── sys_error_handler.c     # Error dispatch & sink registration
 ├── include/
 │   ├── sys_error.h         # Core types, SE_* macros, API declarations
-│   └── sys_error_config.h  # Header-only transport binding for the outbound stream (SE_bind_ble_tx)
+│   ├── sys_error_config.h  # Configuration types/defaults and transport binding (SE_bind_ble_tx)
+│   └── sys_error_log.h     # Internal log hook configuration interface
 └── codes/
     ├── sys_error_codes.h   # Aggregates all module error/owner maps into SYS_ERROR_MAP / SYS_OWNER_MAP
     ├── devices_owners.h    # Owner IDs for device drivers/adapters (PROVIDER_OWNER_MAP)
@@ -62,18 +67,18 @@ typedef sys_err_t* err_h;
 
 Error nodes are allocated from a fixed-size (`ERR_BUF_SIZE`, 2048 bytes) lock-free ring buffer via atomic compare-exchange bump allocation (`SE_alloc_bytes`) — there is no free; slots are simply overwritten once the head wraps around, so error chains must be logged/consumed promptly. A `_Static_assert` per tag (`X_CHK` in sys_error.c) guarantees no single payload can exceed 1/4 of the ring, bounding how much of the buffer one allocation (or one chain) can occupy.
 
-## Error Queue & Handler Task (sys_error_handler.c)
+### Pointer Validation & Safe Traversal (`SE_get_error_root`)
+Because older nodes in the ring buffer can be overwritten if the head wraps before a chain is consumed, `sys_errors` protects against corrupted or circular `next_cause` pointers:
+* **`SE_is_valid_error_ptr(err)`**: Verifies that an error pointer is 8-byte aligned and strictly contained within `[err_buffer, err_buffer + ERR_BUF_SIZE - sizeof(sys_err_t)]`. Guarantees no Out-of-Bounds (OOB) memory reads occur even if an old node was overwritten with arbitrary payload data.
+* **`SE_get_error_root(err)`**: Walks the `next_cause` chain down to the deepest cause node. Bounded by `SE_MAX_CHAIN_DEPTH` (16) and validates every `next_cause` pointer using `SE_is_valid_error_ptr()` and self-reference checks (`next != root`). Returns `NULL` if the chain contains a cycle, exceeds 16 nodes, or points to invalid/corrupted memory.
+* Both `enc_sys_errors_encode_chain()` and `se_log_error_chain()` (`log_chain_to_serial`) also use `SE_is_valid_error_ptr()` to break traversal early if an unconsumed node was corrupted by ring wrap.
 
-The error queue (`s_err_queue`, `ERR_QUEUE_LEN` = 32) is a static FreeRTOS queue defined via the `utils` component's `R_QUEUE_DEFINE` — it's live before `app_main()` runs (constructor-initialized), so nothing needs to guard its creation, including `SE_push_to_handler()` calls that happen to land before `SE_init()`. `SE_init()` starts the background consumer task (`sys_error_handler_task`), statically allocated via `R_TASK_DEFINE` / `R_TASK_START` (see [[runit]] skill), guarded so a repeat call doesn't start it twice.
+## Error Handler (sys_error_handler.c)
 
-The task reads a fresh copy of the config via `SE_get_config()` each time it wakes (rather than reaching into `sys_error.c`'s internal `s_cfg`, keeping the two files decoupled to the public API) and does up to two independent things with a dequeued chain:
+> [!NOTE]
+> The asynchronous FreeRTOS background task (`sys_error_handler_task`) and queue (`s_err_queue`) have been removed from the project. Error handling will be rebuilt using synchronous error dispatch. For now, `SE_init()` and `SE_push_to_handler()` are safe no-ops, preserving API compatibility across the firmware.
 
-1. **Hex packet, one chain per packet.** If a TX sink is bound, encode the chain with `enc_sys_errors_encode_chain()` into a `SE_ERR_PACKET_MAX` stack buffer and hand that packet to the sink with `errors.tx_header`. This is the only step that can allocate-adjacent-touch the chain (via encoding), so it always runs first when it runs at all — everything downstream could itself allocate from the same ring the chain lives in, and an allocation that wraps would overwrite nodes mid-walk. A chain that arrives while no sink is bound skips this step entirely (not even encoded).
-2. **Serial stack trace.** If `errors.serial_trace` is set, `log_chain_to_serial()` walks the chain (outermost first, bounded by `ENC_SYS_ERRORS_MAX_NODES`) and `ESP_LOGE`'s one decoded line per node — `SE_get_owner_name()` / `SE_get_tag_name()` / `SE_describe_payload()`, falling back to a hex payload dump for a tag with no registered logger. This step is independent of whether a TX sink is bound: a board with `serial_trace` on but no transport (or not yet bound) still gets the trace. It never writes to serial or BLE itself — `ESP_LOGE` goes through `se_log_vprintf` like any other log line, so it is carried wherever the `logs` routing currently in force (`SE_configure()`) already sends lines (`mirror_on_serial` / `ble_enable`), automatically and with no transport code of its own here.
-
-`SE_push_to_handler(err)` enqueues a completed chain; it is ISR-safe (uses `xQueueSendFromISR` when called from ISR context) and is a no-op while suspended (`SE_suspend()` / `SE_resume()`, nesting-safe via a depth counter, implemented in sys_error.c). A push that happens before `SE_init()` has started the task simply waits in the queue rather than being dropped.
-
-This is the file to extend for new dispatch behavior (additional sinks, per-owner filtering, rate limiting, etc.) — see the note in the Overview above.
+`SE_push_to_handler(err)` will invoke the synchronous handler once rebuilt; it remains ISR-safe and a no-op while suspended (`SE_suspend()` / `SE_resume()`, nesting-safe via a depth counter, implemented in `sys_error.c`).
 
 ### Outbound Transport Sink
 
@@ -90,15 +95,8 @@ One slot, assigned outright — unlike `sys_interface`'s source registry there i
 
 The sink is called from the handler task only, never from an ISR, once per dequeued chain. **Its return value is dropped**: reporting a transport failure through the transport that just failed only loops.
 
-### `SE_bind_ble_tx()` — the BLE binding
-
-`include/sys_error_config.h` is header-only and is the one place in the component that names BLE, exactly as `sys_interface_config.h` is for the inbound direction:
-
-```c
-static inline void SE_bind_ble_tx(uint16_t char_uuid);  // wraps sys_ble_char_send() as a sink
-```
-
-The characteristic lives in the sink's `ctx`; the slot header byte stays in `sys_error_cfg_t.errors.tx_header`, so re-pointing the stream to another header needs no rebinding. Nothing is validated at bind time — there is no TX counterpart to `sys_ble_char_check_rx_enabled()`, and the binding returns nothing to report it with — so a wrong UUID shows up as a failed send (dropped) rather than at the bind call. Bind it after the characteristic and its TX buffer exist (`sys_ble_static_config()`); `runit.c` does so in its `SE_bind_ble_tx` boot step, right after `SE_configure`.
+### Transport Binding via `sys_data_connector`
+All transport-specific bindings (such as BLE, UART, WiFi) are cleanly separated into `sys_data_connector` and its transport adapters (e.g. `sys_data_connector_bind_ble()`). Sinks are registered generically with `se_register_log_sink()` and `se_register_errors_sink()` using standard callback signatures, ensuring `sys_errors` remains 100% transport-agnostic and free of direct transport dependencies.
 
 ### What the skeleton dropped
 
@@ -112,61 +110,76 @@ One thing used to happen in the handler task and no longer does. It is intended 
 
 ## Logging & Telemetry Configuration
 
+Responsibilities are strictly partitioned between `sys_error_config` and `sys_error_log`:
+* **`sys_error_config.c` / `sys_error_config.h`**: Manages outbound error telemetry configuration (`sys_error_cfg_t.errors`, packet size clamping, TX header byte, and BLE transport sink adapter `SE_bind_ble_tx()`).
+* **`sys_error_log.c` / `sys_error_log.h`**: Manages all logging configuration, sink registry, text log forwarding (`se_log_vprintf`), serial error chain expansion (`se_log_error_chain`), and raw packet dispatch (`se_log_send_raw`, `se_log_send_error_raw`).
+
 ### `sys_error_cfg_t`
-One struct decides where both outbound streams go. It carries **routing switches only** — no per-sink level fields. Level selection belongs to `esp_log` (`global_level`), so a line that reaches the hook is a line every enabled sink wants. That keeps the struct flat and small enough to be applied remotely as a single packet payload, in the style of the decoder structs in [[CODECS.MD]].
+The error telemetry configuration struct carries error packet routing switches and constraints:
 
 ```c
 typedef struct {
-  esp_log_level_t global_level;      // applied as esp_log_level_set("*", ...) - the only level filter
   struct {
-    bool     mirror_on_serial;       // keep writing lines to the original sink (UART/stdout)
-    bool     ble_enable;             // also push each rendered line to a characteristic
-    uint16_t char_uuid;              // required when ble_enable
-    uint8_t  tx_header;              // TX slot header identifying the log stream
-  } logs;
-  struct {
-    bool     serial_trace;           // ESP_LOGE one decoded line per chain node; carried by whatever `logs` routes
-    uint8_t  tx_header;              // TX stream header handed to the sink
+    uint8_t  tx_header;              // TX stream header handed to the sink (see SE_register_tx_sink())
     uint16_t packet_max;             // clamped to SE_ERR_PACKET_MAX (244)
   } errors;
 } sys_error_cfg_t;
 ```
 
-`SYS_ERROR_CFG_DEFAULT()` is the pre-`SE_configure()` state: serial only, nothing on BLE — a board that never configures behaves exactly as it did before telemetry existed.
-
-Note the asymmetry between the two streams: logs still carry their own `ble_enable`/`char_uuid` here (the log hook in `sys_error.c` calls `sys_ble_char_send()` directly), while the error stream carries neither — it is on once a transport is bound with `SE_register_tx_sink()`, and *which* characteristic that is belongs to the binding, not to this struct.
+`SYS_ERROR_CFG_DEFAULT()` provides the pre-`SE_configure()` default (`tx_header = 0`, `packet_max = SE_ERR_PACKET_MAX`).
 
 ### `err_h SE_configure(const sys_error_cfg_t* cfg)`
-Applies a configuration. Idempotent, callable any time after `SE_init()`, but must run **after** the BLE characteristics and TX slots it names exist. Returns `ERR_NULL_PTR`, or `ERR_INVALID_VAL_UI32` when the log stream is enabled with `char_uuid == 0`. Re-points the `esp_log` `vprintf` hook to `se_log_vprintf` on every call (a no-op past the first, since it's always the same function); the previous hook is never captured, so serial output always ends up as plain `vprintf`. Clearing both `logs.mirror_on_serial` and `logs.ble_enable` silences logs entirely — the hook still runs and drops every line.
+Applies error telemetry configuration. Clamps `errors.packet_max` to `SE_ERR_PACKET_MAX`. Returns `ERR_NULL_PTR` if `cfg == NULL`.
 
 ### `err_h SE_get_config(sys_error_cfg_t* out_cfg)`
-Reads back the configuration in force, after clamping.
+Reads back the error telemetry configuration in force (post-clamping).
 
-### The log hook
-`se_log_vprintf()` replaces the default `vprintf` sink and does exactly two things: render the line into a `SE_LOG_LINE_MAX` (256 B) stack buffer and `sys_ble_char_send()` it when `logs.ble_enable`, then forward the **original** `va_list` to the previous sink when `logs.mirror_on_serial`. Serial therefore keeps full fidelity — only the BLE copy is truncated at `SE_LOG_LINE_MAX`.
+### Logging Controls (`sys_error_log.c`)
 
-> **Depends on `CONFIG_LOG_VERSION_1`** (what this project builds with): log v1 delivers one whole line per `vprintf` call, so one call maps to one BLE notification with no line reassembly. Log **v2** splits a line across three calls (prefix / user format / newline+reset) and would emit three fragments per line — switching to v2 means reintroducing an accumulator that flushes on `'\n'`.
+Log filtering and sinks are configured independently of `sys_error_cfg_t`:
 
-A boolean re-entrancy flag guards recursion: `sys_ble_char_send()` logs on its own error paths, and that log comes straight back into the hook. A nested call finds the flag set and takes the serial-only path instead of recursing. Under contention another task's line is dropped from the BLE stream (never from serial).
+* **`SE_set_logging(esp_log_level_t level, bool mirror_serial, bool trace_errors)`**: Single unified setter designed for direct control from `sys_interface` packets, scripts, or local tasks. Validates `level`, sets `esp_log_level_set("*", level)`, and updates serial mirroring and error chain trace toggles in a single call. Returns `NULL` on success or `ERR_INVALID_VAL_UI32` if `level > ESP_LOG_VERBOSE`.
+* **`se_set_log_connector(conn)`**: Binds a `sys_data_connector_t*` instance (e.g. `sys_data_connector_get(CONN_ID_LOGS)`) directly as the destination for ESP_LOG text logs.
+* **`se_set_errors_connector(conn)`**: Binds a `sys_data_connector_t*` instance (e.g. `sys_data_connector_get(CONN_ID_ERRORS)`) directly as the destination for encoded binary error telemetry packets.
+* **`se_register_log_sink(sink_fn, ctx, name)`**: Legacy/test transport sink registration for formatted text log forwarding (ESP_LOG only via `se_log_vprintf`).
+* **`se_register_errors_sink(sink_fn, ctx, name)`**: Legacy/test transport sink registration for encoded binary error packets.
 
-### Error telemetry
-Once a TX sink is bound, the handler task encodes each chain with `enc_sys_errors_encode_chain()` (see [[CODECS.MD]]) and hands the packet to that sink with `errors.tx_header` — one chain per packet, always as raw encoded bytes, never as text. `err_h` values returned by the sink (and by `sys_ble_char_send()` on the log stream) are deliberately dropped — feeding a TX failure back into the error queue would report the failure through the path that just failed.
+> **Note on Transport Bindings**:
+> Concrete transports (BLE, UART, WiFi) are attached to these connectors via `sys_data_connector` (e.g. `sys_data_connector_bind_ble()`), keeping `sys_errors` purely transport-agnostic.
 
-Separately, `errors.serial_trace` gates a human-readable mirror of the same chain through `ESP_LOGE` (see step 2 under [Error Queue & Handler Task](#error-queue--handler-task-sys_error_handlerc) above) — it rides the existing `logs` routing rather than writing to any stream on its own.
+### Error Packet Dispatch (`sys_error_log.c`)
+
+`sys_error_log.c` provides error packet dispatch over configured diagnostics sinks:
+* **`SE_send(err_h chain)`**: Unified error dispatcher that invokes both `se_log_error_chain(chain)` (formatted text logging via ESP_LOG) and `SE_send_error_raw(chain)` (encoded binary telemetry over the errors connector / sink) according to current configuration.
+* **`SE_send_error_raw(err_h chain)`**: Encodes an error chain into binary format using `enc_sys_errors_encode_chain()` and transmits the packet to the registered errors connector and/or sink.
+
+### The log hook (`sys_error_log.c`)
+`se_log_vprintf()` replaces the default `vprintf` sink and does two things:
+1. Renders the line into a `SE_LOG_LINE_MAX` (256 B) buffer and forwards it to the bound log connector (and/or registered log sink).
+2. Forwards the **original** `va_list` to serial `vprintf` when `mirror_on_serial` is enabled. Serial therefore keeps full fidelity — only remote transport packets are truncated at `SE_LOG_LINE_MAX`.
+
+A boolean re-entrancy flag guards recursion: connector/sink send paths may log on their own error paths, and that log comes straight back into the hook. A nested call finds the flag set and takes the serial-only path instead of recursing. Under contention another task's line is dropped from the external stream (never from serial).
 
 ### Usage
 
 ```c
 SE_init();
-CHECK_AND_LOG(sys_ble_static_config());   // creates the characteristics/TX slots first
+
+// 1. Configure error telemetry limits & header
 CHECK_AND_LOG(SE_configure(&(sys_error_cfg_t){
-    .global_level = ESP_LOG_INFO,
-    .logs   = {.mirror_on_serial = true, .ble_enable = true,
-               .char_uuid = SYS_BLE_CHR_RUNIT_LOGS, .tx_header = PACKET_HEADER_LOGS},
-    .errors = {.serial_trace = true, .tx_header = PACKET_HEADER_ERRORS,
-               .packet_max = SE_ERR_PACKET_MAX},
+    .errors = {
+        .tx_header = PACKET_HEADER_ERRORS,
+        .packet_max = SE_ERR_PACKET_MAX,
+    },
 }));
-SE_bind_ble_tx(SYS_BLE_CHR_RUNIT_LOGS);                  // sys_error_config.h
+
+// 2. Configure logging rules
+SE_set_logging(ESP_LOG_INFO, true, true);
+
+// 3. Connect to transport layer (sys_data_connector)
+sys_data_connector_bind_ble(&s_ble_cfg);
+se_set_log_connector(sys_data_connector_get(CONN_ID_LOGS));
+se_set_errors_connector(sys_data_connector_get(CONN_ID_ERRORS));
 ```
 
 ---
@@ -231,6 +244,9 @@ const char* SE_get_owner_name(uint32_t owner);
 const char* SE_get_tag_name(err_tag_e tag);
 size_t SE_get_payload_size(err_tag_e tag);   // sizeof(err_payload_<tag>_t); 0 if unknown
 bool SE_describe_payload(err_tag_e tag, const void* payload, char* out, size_t out_size);  // true if tag has a registered description
+
+bool SE_is_valid_error_ptr(err_h err);
+err_h SE_get_error_root(err_h error);
 
 err_h SE_configure(const sys_error_cfg_t* cfg);
 err_h SE_get_config(sys_error_cfg_t* out_cfg);

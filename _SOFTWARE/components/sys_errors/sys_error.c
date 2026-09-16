@@ -1,22 +1,5 @@
 #include "sys_error.h"
-#include <esp_log.h>
-#include <stdarg.h>
-#include <stdio.h>
 #include <string.h>
-#include "enc_sys_errors.h"
-#include "sys_ble.h"
-#include "utils.h"
-
-// This file's DBG() calls fire on CONFIG_DBG_GLOBAL or this component's own
-// switch (components/utils/Kconfig) - see DBG()'s doc comment in utils.h.
-#define DBG_ENABLE CONFIG_DBG_ENABLE_SYS_ERRORS
-
-// enc_sys_errors.h leaves OWNER set to OWNER_ENC_SYS_ERRORS; take it back so
-// this file's own SE_* macros are tagged as sys_errors, not as the encoder.
-#undef OWNER
-#define OWNER OWNER_SYS_ERRORS_CONFIG
-
-static const char* TAG = __FILE_NAME__;
 
 // -----------------------------------------------------------------------------
 // Compile-time Validations & Constants
@@ -76,20 +59,53 @@ size_t SE_get_payload_size(err_tag_e tag) {
   }
 }
 
-err_h SE_error_root(err_h error) {
-  err_h root = error;
-  while (root && root->next_cause) {
-    root = root->next_cause;
-  }
-  return root;
-}
-
 // -----------------------------------------------------------------------------
-// Ring Buffer Allocator
+// Ring Buffer Allocator & Chain Traversal
 // -----------------------------------------------------------------------------
 
 static uint8_t  err_buffer[ERR_BUF_SIZE] __attribute__((aligned(8)));
 static uint32_t head_idx = 0;
+
+bool SE_is_valid_error_ptr(err_h err) {
+  if (err == NULL) return false;
+  uintptr_t p     = (uintptr_t)err;
+  uintptr_t start = (uintptr_t)err_buffer;
+  uintptr_t end   = start + ERR_BUF_SIZE - sizeof(sys_err_t);
+
+  return (p >= start && p <= end && (p & 7u) == 0);
+}
+
+err_h SE_get_error_root(err_h error) {
+  if (!SE_is_valid_error_ptr(error)) {
+    return NULL;
+  }
+
+  err_h    root  = error;
+  uint32_t depth = 0;
+
+  while (root->next_cause) {
+    err_h next = root->next_cause;
+
+    // Detect runaway depth or multi-node cycles
+    if (++depth >= SE_MAX_CHAIN_DEPTH) {
+      return NULL;
+    }
+
+    // Detect self-referencing loops
+    if (next == root) {
+      return NULL;
+    }
+
+    // Prevent Out-Of-Bounds (OOB) memory reads if pointer was corrupted / overwritten
+    if (!SE_is_valid_error_ptr(next)) {
+      return NULL;
+    }
+
+    root = next;
+  }
+
+  return root;
+}
 
 err_h SE_alloc_bytes(size_t payload_size, err_tag_e tag, uint32_t owner) {
   uint32_t total_size = sizeof(sys_err_t) + payload_size;
@@ -139,76 +155,3 @@ bool SE_is_suspended(void) {
   return s_suspend_depth > 0;
 }
 
-// -----------------------------------------------------------------------------
-// Configuration & BLE Log Hook
-// -----------------------------------------------------------------------------
-
-static sys_error_cfg_t s_cfg = SYS_ERROR_CFG_DEFAULT();
-
-// Re-entrancy guard, not a lock: sys_ble_char_send() logs on its own error
-// paths, and that log would come straight back here. A nested call finds the
-// flag set and takes the serial-only path instead of recursing.
-static volatile bool s_in_ble_log = false;
-
-// One esp_log call == one whole line, so the rendered buffer can go out as a
-// single BLE notification with no accumulation. This holds under log v1
-// (CONFIG_LOG_VERSION_1); log v2 splits a line across three vprintf calls and
-// would need the line reassembled before sending.
-static int se_log_vprintf(const char* fmt, va_list args) {
-  if (s_cfg.logs.ble_enable && !s_in_ble_log) {
-    s_in_ble_log = true;
-    char    line[SE_LOG_LINE_MAX];
-    va_list rendered;
-    va_copy(rendered, args);
-    int len = vsnprintf(line, sizeof(line), fmt, rendered);
-    va_end(rendered);
-
-    if (len > 0) {
-      // vsnprintf reports what it *would* have written - clamp to what it did.
-      size_t out_len = ((size_t)len < sizeof(line)) ? (size_t)len : sizeof(line) - 1u;
-
-      // Ignore errors generated during sending
-      (void)sys_ble_char_send(s_cfg.logs.char_uuid, s_cfg.logs.tx_header, (const uint8_t*)line, out_len, true);
-    }
-    s_in_ble_log = false;
-  }
-
-  // Mirror if selected
-  if (s_cfg.logs.mirror_on_serial) {
-    return vprintf(fmt, args);
-  }
-  return 0;
-}
-
-err_h SE_configure(const sys_error_cfg_t* cfg) {
-  SE_CHECK_NOT_NULL(cfg);
-
-  if (cfg->logs.ble_enable) {
-    SE_CHECK_IN_RANGE(cfg->logs.char_uuid, 1, 0xFFFF);
-  }
-
-  sys_error_cfg_t applied = *cfg;
-  if (applied.errors.packet_max < ENC_SYS_ERRORS_MIN_BUF || applied.errors.packet_max > SE_ERR_PACKET_MAX) {
-    applied.errors.packet_max = SE_ERR_PACKET_MAX;
-  }
-
-  esp_log_level_set("*", applied.global_level);
-
-  // Publish before installing the hook so the hook never runs against stale settings.
-  s_cfg = applied;
-
-  // Idempotent: re-pointing to the same function on a later SE_configure()
-  // call is a no-op. The return value (the previous hook) is never captured -
-  // nothing else in this codebase installs one, so it's always plain vprintf.
-  (void)esp_log_set_vprintf(se_log_vprintf);
-
-  DBG(ESP_LOGI(TAG, "config: level=%d | logs serial=%d ble=%d chr=0x%04X hdr=0x%02X | errors trace=%d hdr=0x%02X max=%u", (int)applied.global_level, applied.logs.mirror_on_serial, applied.logs.ble_enable, applied.logs.char_uuid, applied.logs.tx_header,
-      applied.errors.serial_trace, applied.errors.tx_header, (unsigned)applied.errors.packet_max));
-  return NULL;
-}
-
-err_h SE_get_config(sys_error_cfg_t* out_cfg) {
-  SE_CHECK_NOT_NULL(out_cfg);
-  *out_cfg = s_cfg;
-  return NULL;
-}

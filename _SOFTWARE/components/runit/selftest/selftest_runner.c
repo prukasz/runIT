@@ -268,6 +268,7 @@ static const selftest_stage_t s_stages[] = {
     {"OVERRIDE", "runtime variable update between scans", test_runtime_override, true},
     {"FAULT", "device fault to VM safe state", test_device_fault_policy, true},
     {"ERRORS", "error queue ownership & TX sink encoding", test_sys_error_ownership, true},
+    {"ERRORS", "error queue ownership & TX sink encoding", test_sys_error_ownership, false},
     {"BOOT", "coherent boot failure propagation and safe state", test_boot_failure_policy, true},
     {"ACTIONS", "action scopes, recording, and wire protocol", test_sys_actions, true},
 #endif

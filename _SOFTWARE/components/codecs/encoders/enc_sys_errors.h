@@ -130,6 +130,7 @@ static inline err_h enc_sys_errors_encode_chain(err_h chain, uint8_t* out_buf, s
   bool full = false;
 
   for (err_h node = chain; node != NULL && depth < ENC_SYS_ERRORS_MAX_NODES; node = node->next_cause) {
+    if (!SE_is_valid_error_ptr(node)) break;
     depth++;
     if (full) continue;  // keep counting depth so the client sees how much it lost
 

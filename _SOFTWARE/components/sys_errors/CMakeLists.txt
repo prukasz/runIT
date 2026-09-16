@@ -7,16 +7,17 @@ foreach(item ${code_items})
 endforeach()
 
 idf_component_register(
-    SRCS "sys_error.c" "sys_error_handler.c"
+    SRCS "sys_error.c" "sys_error_handler.c" "sys_error_log.c" "sys_error_config.c"
     INCLUDE_DIRS "include" ${code_dirs} "codes"
                  "../system/sys_device/include"
                  "../system/sys_io/include"
                  "../system/sys_power/include"
                  "../system/sys_i2c/include"
-                 "../system/ble/include"
                  "../system/sys_interface/include"
                  "../system/sys_buffers/include"
                  "../system/sys_actions/include"
+                 "../system/sys_data_connector/include"
+                 "../system/ble/include"
                  # VM has its own component now, but it REQUIRES sys_errors, so a
                  # REQUIRES back here would be circular -- reach its error map header
                  # (sys_error_vm.h) as a raw path instead, same as codecs' encoder.
@@ -26,5 +27,5 @@ idf_component_register(
                  "../codecs/encoders"
                  "../devices/devices/include"
     REQUIRES esp_ringbuf
-    PRIV_REQUIRES utils ble
+    PRIV_REQUIRES utils
 )

@@ -195,6 +195,15 @@ err_h sys_ble_char_check_rx_enabled(uint16_t char_uuid);
 err_h sys_ble_char_rx_dequeue(uint16_t char_uuid, uint8_t* buffer, size_t max_len, size_t* out_len);
 
 /**
+ * @brief Dynamically set or clear the wake semaphore signaled on peer RX writes.
+ *
+ * @param char_uuid 16-bit UUID of the characteristic (must have rx_buffer_size > 0).
+ * @param sem Semaphore to give on each incoming packet, or NULL to detach.
+ * @return err_h Status report (NULL on success, or error status).
+ */
+err_h sys_ble_char_set_rx_notify_sem(uint16_t char_uuid, SemaphoreHandle_t sem);
+
+/**
  * @brief Test/debug utility: inject raw bytes into a characteristic's RX buffer
  * as if a peer had written them.
  *

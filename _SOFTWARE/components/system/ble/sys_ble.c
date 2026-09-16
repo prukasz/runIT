@@ -311,6 +311,23 @@ err_h sys_ble_char_rx_dequeue(uint16_t char_uuid, uint8_t* buffer, size_t max_le
 }
 #undef OWNER
 
+#define OWNER OWNER_SYS_BLE_BASE
+err_h sys_ble_char_set_rx_notify_sem(uint16_t char_uuid, SemaphoreHandle_t sem) {
+  R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+  sys_ble_char_node_t* c = NULL;
+  CHECK_BLE_CHAR_FIND(c, char_uuid, true);
+
+  if (!c->rx_buff.buff) {
+    R_MUTEX_UNLOCK(sys_ble_mutex);
+    SE_RET_ERR(ERR_BASE_INVALID_STATE, char_uuid);
+  }
+
+  c->rx_notify_sem = sem;
+  R_MUTEX_UNLOCK(sys_ble_mutex);
+  return NULL;
+}
+#undef OWNER
+
 #define OWNER OWNER_SYS_BLE_RX_INJECT
 err_h sys_ble_char_rx_inject(uint16_t char_uuid, const uint8_t* data, size_t len) {
   SE_CHECK_NOT_NULL(data);

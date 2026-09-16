@@ -1,46 +1,51 @@
 #pragma once
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include "sys_ble.h"
+#include "esp_log.h"
 #include "sys_error.h"
+#include "sys_error_log.h"
 
 /**
  * @file sys_error_config.h
- * @brief Transport bindings for the outbound error stream - the mirror image
- * of `sys_interface_config.h`, which binds a transport to the *inbound* one.
- *
- * Kept header-only and outside `sys_error.h` on purpose: this is the only
- * place where sys_errors names a concrete transport, so the generic API (and
- * the handler task) stays free of any BLE dependency.
+ * @brief Outbound diagnostics/telemetry configuration.
  */
 
-/**
- * @brief Adapt a BLE characteristic send to an error TX sink.
- *
- * @param ctx BLE characteristic UUID encoded as a pointer-sized value.
- * @param header TX slot header byte identifying the error stream.
- * @param data Encoded error packet.
- * @param len Length of @p data.
- * @return err_h NULL on success, otherwise an error handle from the BLE layer
- *               (dropped by the handler task, see se_tx_sink_f).
- */
-static inline err_h sys_error_config_ble_tx_send(void* ctx, uint8_t header, const uint8_t* data, size_t len) {
-  return sys_ble_char_send((uint16_t)(uintptr_t)ctx, header, data, len, true);
-}
+// ---------------------------------------------------------
+// Telemetry Configuration
+// ---------------------------------------------------------
 
 /**
- * @brief Send encoded error packets to a BLE characteristic's TX slot.
- *
- * Call it after the characteristic and its TX buffer exist
- * (`sys_ble_static_config()`); the slot header itself comes from
- * `sys_error_cfg_t.errors.tx_header`, so bind once and re-point the stream
- * with SE_configure() alone. Unlike sys_interface_bind_ble_rx() this returns
- * nothing - it is a slot assignment, and there is no TX counterpart to
- * sys_ble_char_check_rx_enabled() to validate against, so a wrong UUID
- * surfaces as a failed send (which the handler drops) rather than here.
- *
- * @param char_uuid BLE characteristic UUID to carry the error stream.
+ * @brief Outbound error telemetry configuration.
  */
-static inline void SE_bind_ble_tx(uint16_t char_uuid) {
-  SE_register_tx_sink(sys_error_config_ble_tx_send, (void*)(uintptr_t)char_uuid, "ble_tx");
-}
+typedef struct {
+  struct {
+    /** @brief TX stream header byte identifying error packets. */
+    uint8_t  tx_header;
+    /** @brief Largest encoded packet; clamped to SE_ERR_PACKET_MAX. Longer chains are truncated, never split. */
+    uint16_t packet_max;
+  } errors;
+} sys_error_cfg_t;
+
+/**
+ * @brief Boot defaults for error telemetry.
+ */
+#define SYS_ERROR_CFG_DEFAULT() \
+  ((sys_error_cfg_t){.errors = {.tx_header = 0, .packet_max = SE_ERR_PACKET_MAX}})
+
+/**
+ * @brief Apply error telemetry configuration.
+ *
+ * @param cfg Configuration to apply.
+ * @return err_h NULL on success, ERR_NULL_PTR for a NULL @p cfg.
+ */
+err_h SE_configure(const sys_error_cfg_t* cfg);
+
+/**
+ * @brief Read back the configuration currently in force (post-clamping).
+ *
+ * @param out_cfg Destination struct.
+ * @return err_h NULL on success, or ERR_NULL_PTR.
+ */
+err_h SE_get_config(sys_error_cfg_t* out_cfg);
+

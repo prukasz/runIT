@@ -3,31 +3,35 @@
 #include "runit_board_defs.h"
 #include "sys_error.h"
 #include "sys_error_config.h"
+#include "sys_error_log.h"
+#include "sys_data_connector.h"
+#include "sys_data_connector_ble.h"
 
 #define TEST_DEV_ID 42
 #define TEST_ESP_CODE 0x1234
 #define TEST_TX_CAP 128
+#define TEST_PROVIDER_ID 7
 
-/* Stands in for the BLE transport: the handler task hands every encoded chain
-   to whatever sink is bound, so binding this one captures the packet exactly
-   as it would have gone on the wire. */
 typedef struct {
   uint32_t send_calls;
-  uint8_t last_header;
   size_t last_len;
   uint8_t last_packet[TEST_TX_CAP];
 } error_tx_ctx_t;
 
 static error_tx_ctx_t s_ctx;
 
-static err_h error_test_tx_sink(void* ctx, uint8_t header, const uint8_t* data, size_t len) {
-  error_tx_ctx_t* c = (error_tx_ctx_t*)ctx;
+static void error_test_provider_send(void* arg, const void* data, size_t len) {
+  error_tx_ctx_t* c = (error_tx_ctx_t*)arg;
   c->send_calls++;
-  c->last_header = header;
   c->last_len = len > TEST_TX_CAP ? TEST_TX_CAP : len;
   memcpy(c->last_packet, data, c->last_len);
-  return NULL;
 }
+
+static const sys_data_provider_driver_t s_error_test_driver = {
+    .provider_id = TEST_PROVIDER_ID,
+    .name        = "test_errors",
+    .send        = error_test_provider_send,
+};
 
 // Reads one node record at *off, advancing it past the record.
 static bool read_node(const uint8_t* pkt, size_t len, size_t* off, uint16_t* out_tag, const uint8_t** out_payload) {
@@ -45,9 +49,11 @@ void test_sys_error_ownership(void) {
   SE_clear_dropped_count();
   ck("dropped count initializes to 0", SE_get_dropped_count() == 0);
 
-  // Take over the error TX sink for the duration of the test
+  // Register selftest provider and bind it to CONN_ID_ERRORS
+  sys_data_connector_register_provider(&s_error_test_driver);
+  sys_data_connector_t* err_conn = sys_data_connector_get(CONN_ID_ERRORS);
   memset(&s_ctx, 0, sizeof(s_ctx));
-  SE_register_tx_sink(error_test_tx_sink, &s_ctx, "selftest");
+  sys_data_connector_bind_tx(err_conn, TEST_PROVIDER_ID, &s_ctx);
 
   // 1. Build an error chain: ERR_ESP_ERR <- ERR_DEV_DEP_FAILED <- ERR_DEP_FAILED
   err_h leaf = SE_ERR_NEW(ERR_ESP_ERR, .esp_code = TEST_ESP_CODE);
@@ -55,19 +61,12 @@ void test_sys_error_ownership(void) {
   dev->owner = OWNER_DEVICE_BASE;
   err_h top = SE_WRAP_ERR(dev, ERR_DEP_FAILED, 0);
 
-  // Push to asynchronous error handler
-  SE_push_to_handler(top);
+  // Dispatch error chain synchronously via unified SE_send
+  err_h send_err = SE_send(top);
+  ck("SE_send succeeded", send_err == NULL);
+  ck("chain reached the errors connector", s_ctx.send_calls >= 1);
 
-  // 2. Allow the error handler task to dequeue, encode and send the record
-  vTaskDelay(pdMS_TO_TICKS(50));
-
-  ck("chain reached the TX sink", s_ctx.send_calls >= 1);
-
-  sys_error_cfg_t cfg;
-  SE_get_config(&cfg);
-  ck("sink got the configured stream header", s_ctx.last_header == cfg.errors.tx_header);
-
-  // 3. Walk the encoded packet back apart - same layout the client rebuilds from
+  // 2. Walk the encoded packet back apart - same layout the client rebuilds from
   bool header_ok = s_ctx.last_len >= ENC_SYS_ERRORS_HDR_LEN && s_ctx.last_packet[0] == ENC_SYS_ERRORS_FMT_VERSION &&
                    s_ctx.last_packet[1] == 3 && s_ctx.last_packet[2] == 3;
   ck("packet header reports 3 of 3 nodes", header_ok);
@@ -93,6 +92,6 @@ void test_sys_error_ownership(void) {
   ck("dispatched dev_id is intact", walk_ok && dev_payload.dev_id == TEST_DEV_ID);
   ck("leaf payload matches original esp_code", walk_ok && esp_payload.esp_code == TEST_ESP_CODE);
 
-  // Hand the stream back to the transport boot bound
-  SE_bind_ble_tx(SYS_BLE_CHR_RUNIT_LOGS);
+  // Unbind selftest provider from CONN_ID_ERRORS
+  sys_data_connector_unbind_tx(err_conn, TEST_PROVIDER_ID);
 }

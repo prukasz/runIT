@@ -15,8 +15,22 @@
 #include "vm_selftest.h"
 #include "vm_sub.h"
 #include "vm_exec.h"
+#include "sys_data_connector.h"
+#include "sys_data_connector_ble.h"
 
 static const char* TAG = "runit_app";
+
+static const sys_data_connector_ble_cfg_t s_runit_ble_connector_cfg = {
+    .logs_char_uuid   = SYS_BLE_CHR_RUNIT_LOGS,
+    .logs_header      = PACKET_HEADER_LOGS,
+    .errors_char_uuid = SYS_BLE_CHR_RUNIT_LOGS,
+    .errors_header    = PACKET_HEADER_ERRORS,
+    .tx_char_uuid     = SYS_BLE_CHR_RUNIT_TX,
+    .tx_header        = PACKET_HEADER_TX,
+    .rx_char_uuid     = SYS_BLE_CHR_RUNIT_RX,
+    .rx_frame_max     = RUNIT_BLE_RX_FRAME_MAX,
+};
+
 
 static err_h runit_sub_ble_sender(const uint8_t* data, size_t len) {
   ESP_LOGI(TAG, "BLE TX dispatching telemetry frame (%u bytes)", (unsigned)len);
@@ -43,7 +57,8 @@ static err_h runit_sub_ble_sender(const uint8_t* data, size_t len) {
       }
     }
   }
-  return sys_ble_char_send(SYS_BLE_CHR_RUNIT_TX, PACKET_HEADER_TX, data, len, true);
+  sys_data_connector_send(sys_data_connector_get(CONN_ID_TELEMETRY), data, len);
+  return NULL;
 }
 
 #if RUNIT_SKIP_DEVICE_INIT
@@ -56,17 +71,8 @@ static err_h runit_at_boot_disabled(void) {
 #endif
 
 static const sys_error_cfg_t s_runit_error_cfg = {
-    .global_level = ESP_LOG_INFO,
-    .logs =
-        {
-            .mirror_on_serial = true,
-            .ble_enable = true,
-            .char_uuid = SYS_BLE_CHR_RUNIT_LOGS,
-            .tx_header = PACKET_HEADER_LOGS,
-        },
     .errors =
         {
-            .serial_trace = true,
             .tx_header = PACKET_HEADER_ERRORS,
             .packet_max = SE_ERR_PACKET_MAX,
         },
@@ -122,13 +128,13 @@ static err_h runit_device_error_policy(uint8_t device_id, sys_device_err_level_e
                                        uint8_t action_id, err_h error) {
   if (level != SYS_DEV_ERR_CRITICAL) {
     err_h action_error = runit_invoke_action(action_id);
-    err_h root         = SE_error_root(action_error);
+    err_h root         = SE_get_error_root(action_error);
     return action_error ? runit_fault_response_error(device_id, level, SYS_DEV_FAULT_STAGE_ACTION,
                                                      action_id, root ? (uint16_t)root->tag : 0)
                         : NULL;
   }
 
-  err_h root  = SE_error_root(error);
+  err_h root  = SE_get_error_root(error);
   bool  first = vm_exec_fault_latch(device_id, root ? root->owner : 0, root ? root->tag : ERR_DEP_FAILED);
   if (!first) return NULL;
 
@@ -138,7 +144,7 @@ static err_h runit_device_error_policy(uint8_t device_id, sys_device_err_level_e
 
   err_h stop_error = vm_exec_stop();
   if (stop_error) {
-    err_h stop_root = SE_error_root(stop_error);
+    err_h stop_root = SE_get_error_root(stop_error);
     response_failed = true;
     failed_stage    = SYS_DEV_FAULT_STAGE_VM_STOP;
     failed_tag      = stop_root ? (uint16_t)stop_root->tag : 0;
@@ -146,7 +152,7 @@ static err_h runit_device_error_policy(uint8_t device_id, sys_device_err_level_e
 
   err_h first_error = sys_device_freeze_all();
   if (first_error && !response_failed) {
-    err_h freeze_root = SE_error_root(first_error);
+    err_h freeze_root = SE_get_error_root(first_error);
     response_failed   = true;
     failed_stage      = SYS_DEV_FAULT_STAGE_FREEZE;
     failed_tag        = freeze_root ? (uint16_t)freeze_root->tag : 0;
@@ -154,7 +160,7 @@ static err_h runit_device_error_policy(uint8_t device_id, sys_device_err_level_e
 
   err_h action_error = runit_invoke_action(action_id);
   if (action_error && !response_failed) {
-    err_h action_root = SE_error_root(action_error);
+    err_h action_root = SE_get_error_root(action_error);
     response_failed   = true;
     failed_stage      = SYS_DEV_FAULT_STAGE_ACTION;
     failed_tag        = action_root ? (uint16_t)action_root->tag : 0;
@@ -169,16 +175,13 @@ static err_h runit_step_register_device_error_policy(void) {
   return NULL;
 }
 
-static err_h runit_step_error_configure(void) {
-  return SE_configure(&s_runit_error_cfg);
+static err_h runit_step_connector_init(void) {
+  return sys_data_connector_bind_ble(&s_runit_ble_connector_cfg);
 }
 
-/* Which characteristic carries the error stream is the binding's business,
-   which header byte identifies it stays in s_runit_error_cfg -- see
-   SE_register_tx_sink() in sys_error.h. */
-static err_h runit_step_error_bind_tx(void) {
-  SE_bind_ble_tx(SYS_BLE_CHR_RUNIT_LOGS);
-  return NULL;
+static err_h runit_step_error_configure(void) {
+  SE_set_logging(ESP_LOG_INFO, true, true);
+  return SE_configure(&s_runit_error_cfg);
 }
 
 static err_h step_bind_boot_action(void) {
@@ -200,8 +203,8 @@ err_h runit_start(void) {
       {"sys_start_i2c", sys_start_i2c},
       {"sys_power_static_config", sys_power_static_config},
       {"sys_ble_static_config", sys_ble_static_config},
+      {"sys_data_connector_init", runit_step_connector_init},
       {"SE_configure", runit_step_error_configure},
-      {"SE_bind_ble_tx", runit_step_error_bind_tx},
       {"sys_device_error_policy", runit_step_register_device_error_policy},
       {"sys_callbacks_init", sys_callbacks_init},
       {"sys_interface_init", sys_interface_init},
