@@ -1,164 +1,78 @@
 # BLE Manager (sys_ble)
 
-IMPORTANT: If you modify the source files in this component (sys_ble.h, sys_ble_priv.h, sys_ble.c, sys_ble_stack.c, or sys_error_ble.h), you must update this documentation to reflect the changes.
+IMPORTANT: When changing this component, update this document to match its API and behavior.
 
-## Overview
-The `sys_ble` component wraps the NimBLE host stack behind a declarative GATT registry: services and characteristics are described as config structs and appended to an internal linked-list registry, then *compiled* into real NimBLE `ble_gatt_svc_def`/`ble_gatt_chr_def` structures only when `sys_ble_database_sync()` runs. TX is non-blocking (ring buffers drained by a dedicated task, via `sys_buffers`), RX can be either polled or delivered by callback, and a characteristic can be added to (or removed from) a service that's already live — the registry tracks what changed and recompiles only the affected service.
+## Files
 
-### Directory Map
-```
-components/system/ble/
-├── CMakeLists.txt
-├── SYS_BLE.MD             # This documentation
-├── sys_ble_priv.h         # Private registry structs, shared between sys_ble.c and sys_ble_stack.c
-├── sys_ble.c              # Public API: registry management, TX enqueue/RX dequeue, database sync
-├── sys_ble_stack.c        # NimBLE glue: GAP/GATT event handlers, compile-to-NimBLE, TX worker task
-└── include/
-    ├── sys_ble.h          # Public config structs, channel API, and function declarations
-    └── sys_error_ble.h    # sys_ble owner map and ERR_BLE_* error tag map
-```
+- `include/sys_ble.h`: public service/characteristic configuration and transport API.
+- `sys_ble_priv.h`: registry nodes, context, and helpers shared between source files.
+- `sys_ble.c`: registry management, buffer access, connector linking, and database synchronization.
+- `sys_ble_stack.c`: NimBLE initialization, advertising, GAP/GATT callbacks, GATT compilation, and TX worker.
+- `include/sys_error_ble.h`: BLE error and owner definitions.
 
----
+## Configuration and startup
 
-## Architecture & Concept
+Create services with `sys_ble_service_create()`, then create characteristics with
+`sys_ble_char_create(svc_uuid, cfg)`. Passing `SYS_BLE_SVC_DEFAULT_AUTO` creates
+the default primary service lazily.
 
-### Registry → Compile Model
-Nothing here is a static NimBLE array. `sys_ble_service_create()`/`sys_ble_char_create()` just append `sys_ble_svc_node_t`/`sys_ble_char_node_t` nodes (`sys_ble_priv.h`) to `g_ble_ctx.services`. `sys_ble_database_sync()` is the compile step that turns the current registry state into real `struct ble_gatt_svc_def`/`ble_gatt_chr_def` arrays (`compile_chars`/`populate_svc_def`, `sys_ble_stack.c`) and registers them with NimBLE. It must be called after any registry change to take effect — low-level callers batch several creates then call it once; the unified channel API (below) can do this automatically.
+`sys_ble_char_cfg_t` contains the UUID, write/notify/indicate properties, optional
+description, and TX/RX buffer sizes. Each nonzero size allocates one
+`sys_buff_t`; zero disables that buffer. Allocation failure cleans up the new
+characteristic before it is inserted into the registry.
 
-### Dynamic Characteristics (add/remove on a live service)
-NimBLE's own dynamic-registration primitives (`ble_gatts_add_dynamic_svcs`/`ble_gatts_delete_svc`) work at **service granularity only** — there's no NimBLE API to add a single characteristic to an already-registered service. `sys_ble` bridges this with per-node dirty tracking:
-* `sys_ble_svc_node_t.registered` — true once the service is live in NimBLE.
-* `sys_ble_svc_node_t.dirty` — true when a characteristic was added/removed under an already-`registered` service.
-* `sys_ble_char_node_t.pending_add` / `pending_remove` — per-characteristic bookkeeping; `pending_remove` defers the actual free until the service is safely recompiled (NimBLE may still reference the node's `val_handle`/`arg` until then).
+Call `sys_ble_database_sync()` after configuring the registry. Its first call
+compiles the database and starts NimBLE, advertising, and the TX task.
+There is no separate `sys_ble_init()`: the mutex and wake semaphore are
+constructed at load time. Subsequent sync calls apply runtime changes.
 
-`sys_ble_database_sync()` handles three cases per service:
-1. **Not yet registered** — compile + `ble_gatts_add_dynamic_svcs()` (or, on the very first sync, the bulk `ble_gatts_add_svcs()` path via `sys_ble_stack_init()`).
-2. **Registered, not dirty** — skip, nothing changed.
-3. **Registered, dirty** — `ble_gatts_delete_svc()` the live service, free the old compiled def, drop any `pending_remove` nodes, recompile the *entire current* characteristic list, `ble_gatts_add_dynamic_svcs()` it again, then call `ble_svc_gatt_changed()` so already-subscribed/bonded clients know to re-discover. If the re-add fails, the service is marked unregistered so the next `sync()` retries it from scratch rather than getting stuck half-deleted.
+## Runtime changes
 
-`sys_ble_char_create()`/`sys_ble_char_remove()` set the dirty/pending flags but never touch NimBLE directly — only `sys_ble_database_sync()` does.
+Services and characteristics can be created and removed after startup.
+Characteristic UUIDs are unique across the registry.
 
-### RX Notification: Caller-Supplied Semaphore
-Rather than `sys_ble` allocating its own per-characteristic (or shared) wake primitive, a characteristic's RX notification is pure dependency injection: `sys_ble_char_create_t.rx_notify_sem` takes a `SemaphoreHandle_t` the *caller* already owns (`NULL` = no notification, poll-only). On every successful peer write (`sys_ble_gatt_access_cb()`) or `sys_ble_char_rx_inject()`, `sys_ble` does `xSemaphoreGive(rx_notify_sem)` if it's non-NULL - that's the entire mechanism, no event group, no bitmask, no `sys_ble`-owned RTOS object at all. In practice, the handle passed is almost always `sys_interface_get_rx_wake_sem()` (see [[SYS_INTERFACE.MD]]), so BLE knows nothing about `sys_interface` and vice versa; `sys_ble` just gives whatever handle it was configured with.
+- Adding a characteristic to a registered service marks that service dirty.
+- Removing a characteristic from a registered service marks it pending removal.
+  Its buffers and node remain alive until the service is deleted from NimBLE.
+- Sync skips unchanged services. A dirty service is deleted, its pending
+  removals are freed, and its remaining characteristics are compiled and added.
+  New services use the same compile/add path.
+- If compilation or re-add fails after deletion, the service remains
+  unregistered so the next sync can retry.
+- Removing a service deletes it immediately from NimBLE before freeing its nodes.
+- NimBLE's dynamic add/delete APIs generate Service Changed notifications.
 
-### Two RX Delivery Modes
-* **Poll** — the peer's write lands in the characteristic's dedicated RX buffer (`rx_buff`, a `sys_buff_t` - one GATT write is one item, so a single `sys_ble_char_rx_dequeue()` call always returns exactly one peer write, never a partial or coalesced one) and, if it was created with one, `rx_notify_sem` is given. The app drains the buffer with `sys_ble_char_rx_dequeue()` on its own schedule/task. Rather than hand-rolling that task, call `sys_interface_bind_ble_rx(char_uuid, max_frame_len)` ([[SYS_INTERFACE.MD]]) — it registers with the shared RX receiver, and if the characteristic was created with `rx_notify_sem = sys_interface_get_rx_wake_sem()`, that receiver wakes near-instantly on every write. Simple, low-latency, no callback infrastructure needed.
-* **Callback** — if the characteristic node has an `rx_handler` (`own_func_t`) set, every successful write also dispatches it via `SYS_CB_OWN()` — i.e. through the *existing* `CALLBACK_OWN_FUNC` path already handled by `sys_cb_task` in [[SYS_CALLBACKS.MD]], with zero changes needed to the callback dispatcher. Lower latency, no hand-rolled polling task required; the handler still calls `sys_ble_char_rx_dequeue()` itself to get the bytes (the callback is a wakeup, not a data-carrying event) and typically hands them to `sys_interface_decode()`.
+The initial compiled database is retained in the context because NimBLE
+references its definitions. Later compiled definitions are owned per service.
 
-### Asynchronous TX Slots
-Up to `MAX_TX_BUFFERS` (3) TX ring buffers can be assigned per characteristic, each identified by its configured header byte (there is no separate slot ID - the header doubles as the key). `sys_ble_char_send()` enqueues into the matching slot (non-blocking) and wakes the dedicated `sys_ble_task_func` task, which flattens all active slots (`sys_ble_rebuild_active_tx_slots()`), dequeues via `sys_buff_pop_framed()` (prepends the slot's configured header byte), and sends via `ble_gatts_notify_custom`/`ble_gatts_indicate_custom` with retry-on-`BLE_HS_ENOMEM` backoff. Every TX/RX buffer in `sys_ble` is a variable-length item buffer (`sys_buff_t` from [[SYS_BUFFERS.MD]]) - a message is always pushed and popped whole, never split or auto-packed.
+## Data connector integration
 
-### No GATT Reads
-`sys_ble` characteristics are write/notify/indicate only — there is no `is_read` and no plain GATT-read support. `sys_ble_gatt_access_cb()` only ever handles `BLE_GATT_ACCESS_OP_WRITE_CHR`; nothing sets `BLE_GATT_CHR_F_READ`, so NimBLE never routes a read to it. An earlier version mirrored the last-sent TX payload back on read (`last_val`/`last_val_len`, one 527-byte buffer per characteristic node); it was removed since nothing in this codebase ever set `is_read`, and unlike notify/indicate it costs a `memcpy` on every single TX send whether or not the characteristic is readable. If a client genuinely needs pull-based "what's the current value" instead of subscribing to notifications, that's the tradeoff to weigh before reintroducing it - notify/indicate need an active subscription and only deliver on the server's schedule, while a GATT read needs no subscription and can be issued by the client at will (e.g. immediately after connecting, before the first notification fires).
+BLE transports bytes; connector framing belongs to `sys_data_connector`.
+`sys_ble_char_link_connector()` attaches a connector to an RX-enabled
+characteristic. Successful peer writes and `sys_ble_char_rx_inject()` share
+the same enqueue helper, overflow counter, and connector semaphore signaling.
+Consumers drain whole items through `sys_ble_char_rx_dequeue()`; an empty
+buffer returns success with zero length. Unlinking removes the wake target.
 
-### Stack-Level Callback Events
-`SYS_BLE_CB(event_id, event_value, mask, static_action_id, dynamic_action_id)` queues a BLE stack event. The worker invokes selected route handlers, then the dynamic/user action, then the static/system action. Zero disables either action. `sys_ble_add_callback()` stores these values per BLE event.
+`sys_ble_char_send()` queues an already-framed item and wakes the TX worker.
+It supports immediate return on a full buffer or a wait of up to 100 ms.
+The worker scans registered services directly, skipping pending additions,
+pending removals, and characteristics without TX buffers or assigned handles.
+There is no cached TX array or fixed TX-slot limit. Packet bytes and transport
+parameters are copied under the registry mutex before transmission; node
+pointers are not retained by the sender during retries. Sync wakes the worker
+to resume data queued before a characteristic became live.
 
----
+`cfg.is_indicate` selects indications; otherwise TX uses notifications.
+Buffer items are not fragmented: dequeue truncates items exceeding its
+destination capacity (TX uses the negotiated MTU payload capacity).
+Use appropriately sized frames.
 
-## Core Data Structures & Enums
+## Events and status
 
-### Service / Characteristic Config
-```c
-typedef struct { uint16_t uuid; bool is_primary; } sys_ble_svc_cfg_t;
+`SYS_BLE_CB(event, value)` automatically queues connect, disconnect, and failure
+events to `SYS_CB_ROUTE_BLE` and `SYS_CB_ROUTE_VM`. Action IDs are zero;
+there is no per-event callback/action configuration in the BLE context.
+The BLE route currently logs events; the VM route stores them for VM consumers.
 
-typedef struct {
-  uint16_t uuid;
-  bool is_write, is_indicate, is_notify;
-  const char* desc;  // Optional GATT descriptor 0x2901
-} sys_ble_char_cfg_t;
-
-typedef struct {
-  sys_ble_char_cfg_t info;
-  size_t rx_buffer_size;             // 0 if write/notify is disabled
-  SemaphoreHandle_t rx_notify_sem;   // given on each peer write if non-NULL - caller-owned (see RX Notification above)
-} sys_ble_char_create_t;
-```
-
-### TX Buffer Config
-```c
-typedef struct {
-  uint8_t header;      // stream tag; also identifies this TX slot within its characteristic
-  size_t size;          // ring buffer capacity in bytes
-  bool is_indication;
-} sys_ble_tx_buf_cfg_t;
-```
-`sys_ble_char_assign_tx_buffer()` allocates the underlying `sys_buff_t` (from [[SYS_BUFFERS.MD]]) internally - callers never touch a ring buffer handle directly.
-
-### Unified Channel Config (sys_ble_channel_cfg_t)
-```c
-typedef enum { SYS_BLE_RX_MODE_NONE, SYS_BLE_RX_MODE_POLL, SYS_BLE_RX_MODE_CALLBACK } sys_ble_rx_mode_e;
-
-typedef struct {
-  uint16_t svc_uuid;              // 0 / SYS_BLE_SVC_DEFAULT_AUTO to use the lazily-created default service
-  sys_ble_char_cfg_t chr;
-  size_t rx_buffer_size;
-  sys_ble_rx_mode_e rx_mode;
-  own_func_t rx_handler;           // used only when rx_mode == SYS_BLE_RX_MODE_CALLBACK
-  SemaphoreHandle_t rx_notify_sem; // see sys_ble_char_create_t.rx_notify_sem
-  const sys_ble_tx_buf_cfg_t* tx_bufs;
-  uint8_t tx_buf_count;
-} sys_ble_channel_cfg_t;
-```
-
-### BLE Status & Events
-```c
-typedef struct { bool is_connected; uint16_t mtu_size; uint32_t rx_overflow_count; } sys_ble_status_t;
-
-typedef enum sys_ble_events_e { SYS_BLE_EVENT_CONNECT = 0, SYS_BLE_EVENT_DISCONNECT, SYS_BLE_EVENT_FAILURE, SYS_BLE_EVENT_MAX } sys_ble_events_e;
-```
-
----
-
-## Utility Macros
-
-`SYS_BLE_CB(event_id, event_value, mask, static_action_id, dynamic_action_id)` queues a BLE stack event. The worker invokes selected route handlers, then the dynamic/user action, then the static/system action. Zero disables either action. `sys_ble_add_callback()` stores these values per BLE event.
-
----
-
-## Manager API Functions
-
-### Unified Channel API (declarative — prefer this for new code)
-* **`sys_ble_channel_create(cfg, sync_now)`**: Collapses service-reuse-or-create + `sys_ble_char_create` + N × `sys_ble_char_assign_tx_buffer` + RX-handler registration into one call. Reuses an existing service if `cfg->svc_uuid` already exists (unlike the raw `sys_ble_service_create()`, which errors on a duplicate); lazily creates the reserved default service (`SYS_BLE_SVC_DEFAULT_AUTO = 0xFEFE`) if `svc_uuid` is 0. Pass `sync_now = true` for a single dynamic post-boot addition, or `false` to batch several calls followed by one explicit `sys_ble_database_sync()` — mirrors how `runit_board_cfg.h`'s `sys_ble_static_config()` already batches several low-level calls before one sync.
-
-  Example — collapsing what today takes ~10 low-level calls (see `runit_board_cfg.h`'s `sys_ble_static_config()`) into one:
-  ```c
-  sys_ble_channel_cfg_t chan = {
-    .svc_uuid = SYS_BLE_SVC_RUNIT,
-    .chr = {.uuid = MY_CHR_UUID, .is_write = true, .is_notify = true, .desc = "my channel"},
-    .rx_buffer_size = 512,
-    .rx_mode = SYS_BLE_RX_MODE_CALLBACK,
-    .rx_handler = {.own_func = my_rx_handler, .device_handle = NULL},
-    .tx_bufs = &(sys_ble_tx_buf_cfg_t){.header = 0, .size = 1024},
-    .tx_buf_count = 1,
-  };
-  SE_ORIGIN_CALL(sys_ble_channel_create(&chan, true));
-  ```
-  where `my_rx_handler` typically just dequeues and decodes:
-  ```c
-  err_h my_rx_handler(void* device_handle, struct cb_event_t* event) {
-    uint8_t buf[512]; size_t len;
-    sys_ble_char_rx_dequeue(MY_CHR_UUID, buf, sizeof(buf), &len);
-    if (len) return sys_interface_decode(buf, len);
-    return NULL;
-  }
-  ```
-
-### Low-Level APIs (manual control — existing callers, still fully supported)
-* **`sys_ble_init()`**: Idempotent manager init.
-`SYS_BLE_CB(event_id, event_value, mask, static_action_id, dynamic_action_id)` queues a BLE stack event. The worker invokes selected route handlers, then the dynamic/user action, then the static/system action. Zero disables either action. `sys_ble_add_callback()` stores these values per BLE event.
-* **`sys_ble_service_create(cfg)`** / **`sys_ble_service_remove(svc_uuid)`**: Declare/remove a GATT service; remove deletes it live from NimBLE immediately if already registered.
-* **`sys_ble_char_create(svc_uuid, cfg)`** / **`sys_ble_char_remove(svc_uuid, char_uuid)`**: Declare/remove a characteristic under a service. If the parent service is already live, these mark it `dirty` (create) or defer the free via `pending_remove` (remove) rather than touching NimBLE directly — the next `sys_ble_database_sync()` call does the actual recompile.
-* **`sys_ble_char_assign_tx_buffer(char_uuid, buf_cfg)`**: Allocates a TX buffer slot keyed by `buf_cfg->header` (up to `MAX_TX_BUFFERS` per characteristic).
-* **`sys_ble_char_check_rx_enabled(char_uuid)`**: Non-destructive probe — fails with `ERR_BASE_INVALID_STATE` unless the characteristic was created with `rx_buffer_size > 0`. Doesn't report `rx_notify_sem`; the caller already knows what it passed in at creation time.
-* **`sys_ble_char_rx_dequeue(char_uuid, buffer, max_len, out_len)`**: Pulls one item (one peer write) from the characteristic's RX buffer, via `sys_buff_pop_raw()`.
-* **`sys_ble_char_rx_inject(char_uuid, data, len)`**: Test/debug utility — pushes raw bytes into a characteristic's RX buffer and gives its `rx_notify_sem` (if any), the exact same push-then-signal path `sys_ble_gatt_access_cb()` takes for a real peer write. Lets you exercise the full RX pipeline from firmware code with no BLE peer connected.
-* **`sys_ble_char_send(char_uuid, header, data, len, return_when_full)`**: Enqueues data into the TX slot identified by `header` for the background task to notify/indicate; also becomes the value served on a subsequent GATT read.
-* **`sys_ble_database_sync()`**: Compiles and (re)registers all pending registry changes with NimBLE — see the three-case dispatch above. Must be called after any create/remove.
-* **`sys_ble_get_status(out_status)`**: Connection state, MTU, RX overflow count.
-
----
-
-## Error Ownership
-
-Every function sets `#undef OWNER` / `#define OWNER OWNER_SYS_BLE_<FUNCTION>` immediately before its body, per the [[runit]] skill's owner-tagging convention. See `sys_error_ble.h` for the full `SYS_BLE_OWNER_MAP` (includes `OWNER_SYS_BLE_CHANNEL_CREATE` for the unified API) and `SYS_ERROR_BLE_MAP` tags: `ERR_BLE_STACK_FAILED` (host/init failures, via `CHECK_BLE_CALL`), `ERR_BLE_ADV_FAILED`, `ERR_BLE_GATT_FAILED` (NimBLE service add/delete/recompile failures), and `ERR_BLE_HARDWARE_FAULT` (reserved, currently unused).
+`sys_ble_get_status()` reports connection state, MTU, and RX overflow count.

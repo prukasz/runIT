@@ -2,9 +2,12 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include "sys_callbacks.h"
+#include "sys_data_connector.h"
 #include "sys_error.h"
 #include "sys_error_ble.h"
 #include <sdkconfig.h>
+#include <stddef.h>
+#include <stdint.h>
 
 typedef struct {
   uint16_t uuid;  // 16-bit UUID
@@ -16,30 +19,19 @@ typedef struct {
   bool is_write;
   bool is_indicate;
   bool is_notify;
-  const char* desc;  // Optional user description (GATT descriptor 0x2901)
+  size_t tx_buffer_size; //if 0 then not used
+  size_t rx_buffer_size; //if 0 then not used
+  const char* desc; // Optional user description (GATT descriptor 0x2901)
 } sys_ble_char_cfg_t;
-
-typedef struct {
-  sys_ble_char_cfg_t info;
-  size_t rx_buffer_size;            // Size of RX ring buffer (0 if write/notify is disabled)
-  SemaphoreHandle_t rx_notify_sem;  // Given (xSemaphoreGive) on each peer write, if non-NULL - caller-owned, e.g. sys_interface_get_rx_wake_sem(). Only meaningful when rx_buffer_size > 0.
-} sys_ble_char_create_t;
-
-typedef struct {
-  uint8_t header;  // stream tag; also identifies this TX slot within its characteristic
-  size_t size;     // ring buffer capacity in bytes
-  bool is_indication;
-} sys_ble_tx_buf_cfg_t;
 
 typedef enum sys_ble_events_e { SYS_BLE_EVENT_CONNECT = 0, SYS_BLE_EVENT_DISCONNECT, SYS_BLE_EVENT_FAILURE, SYS_BLE_EVENT_MAX } sys_ble_events_e;
 
-#define SYS_BLE_CB(event_id, event_value, mask, _static_action_id, _dynamic_action_id) \
+/* Automatically deliver BLE events to the BLE route and the VM event buffer. */
+#define SYS_BLE_CB(event_id, event_value) \
   do {                                                        \
     cb_event_t __cb_evt = {0};                                \
     __cb_evt.head.callback_type = CALLBACK_BLE;                \
-    __cb_evt.head.route_mask = (mask);                        \
-    __cb_evt.head.static_action_id = (_static_action_id);                  \
-    __cb_evt.head.dynamic_action_id = (_dynamic_action_id);                  \
+    __cb_evt.head.route_mask = SYS_CB_ROUTE_BIT(SYS_CB_ROUTE_BLE) | SYS_CB_ROUTE_BIT(SYS_CB_ROUTE_VM); \
     __cb_evt.event.ble.event = (event_id);                    \
     __cb_evt.event.ble.value = (event_value);                 \
     sys_callback_trigger(&__cb_evt);                          \
@@ -52,75 +44,16 @@ typedef struct {
 } sys_ble_status_t;
 
 /* ========================================================================== *
- * Unified Declarative Channel API
+ * Service and Characteristic API
  * ========================================================================== */
 
 /**
  * @brief Reserved service UUID meaning "use the lazily-created default service".
  *
- * Passed as sys_ble_channel_cfg_t.svc_uuid when the caller doesn't care about
+ * Passed as sys_ble_char_create()'s svc_uuid when the caller doesn't care about
  * GATT service grouping. The service is created on first use.
  */
 #define SYS_BLE_SVC_DEFAULT_AUTO 0xFEFE
-
-typedef enum {
-  SYS_BLE_RX_MODE_NONE = 0,  // RX disabled (rx_buffer_size ignored)
-  SYS_BLE_RX_MODE_POLL,      // App drains via sys_ble_char_rx_dequeue(), optionally woken by its own rx_notify_sem
-  SYS_BLE_RX_MODE_CALLBACK,  // rx_handler is dispatched (via the callbacks system) on each incoming write
-} sys_ble_rx_mode_e;
-
-/**
- * @brief Declarative description of one BLE "data channel": a characteristic
- * plus its RX/TX plumbing, collapsing what otherwise takes several manual
- * sys_ble_service_create() / sys_ble_char_create() / sys_ble_char_assign_tx_buffer()
- * calls into a single sys_ble_channel_create() call.
- */
-typedef struct {
-  uint16_t svc_uuid;  // 0 or SYS_BLE_SVC_DEFAULT_AUTO to use the lazily-created default service
-  sys_ble_char_cfg_t chr;
-  size_t rx_buffer_size;  // 0 if rx_mode == SYS_BLE_RX_MODE_NONE
-  sys_ble_rx_mode_e rx_mode;
-  own_func_t rx_handler;            // used only when rx_mode == SYS_BLE_RX_MODE_CALLBACK
-  SemaphoreHandle_t rx_notify_sem;  // see sys_ble_char_create_t.rx_notify_sem
-
-  const sys_ble_tx_buf_cfg_t* tx_bufs;  // optional array, NULL/0 count if the channel is RX-only
-  uint8_t tx_buf_count;
-} sys_ble_channel_cfg_t;
-
-/**
- * @brief Create a BLE data channel (service-if-needed + characteristic + TX
- * buffers + RX delivery mode) from one declarative config.
- *
- * Reuses an existing service if cfg->svc_uuid already exists (unlike the raw
- * sys_ble_service_create(), which errors on a duplicate), or lazily creates
- * the default service when cfg->svc_uuid is 0 or SYS_BLE_SVC_DEFAULT_AUTO.
- *
- * @param cfg Channel configuration.
- * @param sync_now If true, calls sys_ble_database_sync() before returning -
- *                  use for a single dynamic post-boot addition. If false,
- *                  the caller must call sys_ble_database_sync() once after
- *                  batching several sys_ble_channel_create() calls.
- * @return err_h Status report (NULL on success, or error status).
- */
-err_h sys_ble_channel_create(const sys_ble_channel_cfg_t* cfg, bool sync_now);
-
-/**
- * @brief Initialize the BLE Manager abstraction layer and register connection callbacks.
- *
- * @return err_h Status report (NULL on success, or Critical/Warning error status).
- */
-err_h sys_ble_init(void);
-
-/**
- * @brief Add a callback route for a BLE event.
- *
- * @param on_event The event to route.
- * @param route_mask The callback route mask.
- * @param static_action_id System action ID; zero disables execution.
- * @param dynamic_action_id User action ID; zero disables execution.
- * @return err_h Status report.
- */
-err_h sys_ble_add_callback(sys_ble_events_e on_event, uint16_t route_mask, uint8_t static_action_id, uint8_t dynamic_action_id);
 
 /**
  * @brief Create and register a new BLE GATT service config in the manager.
@@ -145,10 +78,10 @@ err_h sys_ble_service_remove(uint16_t svc_uuid);
  * @brief Create a new BLE GATT characteristic under a parent service.
  *
  * @param svc_uuid 16-bit UUID of the parent service.
- * @param cfg Pointer to characteristic configuration containing its UUID, properties, and RX buffer.
+ * @param cfg Pointer to characteristic configuration containing its UUID, properties, and optional TX/RX buffer sizes.
  * @return err_h Status report (NULL on success, or error status).
  */
-err_h sys_ble_char_create(uint16_t svc_uuid, const sys_ble_char_create_t* cfg);
+err_h sys_ble_char_create(uint16_t svc_uuid, const sys_ble_char_cfg_t* cfg);
 
 /**
  * @brief Remove a BLE GATT characteristic from a service.
@@ -160,26 +93,10 @@ err_h sys_ble_char_create(uint16_t svc_uuid, const sys_ble_char_create_t* cfg);
 err_h sys_ble_char_remove(uint16_t svc_uuid, uint16_t char_uuid);
 
 /**
- * @brief Assign and allocate a TX ring buffer for a characteristic.
- *
- * TX ring buffers allow non-blocking queueing of outgoing BLE indications and notifications.
- *
- * @param char_uuid 16-bit UUID of the characteristic.
- * @param buf_cfg Pointer to TX buffer configuration (header, size, indicate/notify).
- * @return err_h Status report (NULL on success, or error status).
- */
-err_h sys_ble_char_assign_tx_buffer(uint16_t char_uuid, const sys_ble_tx_buf_cfg_t* buf_cfg);
-
-/**
  * @brief Probe whether a characteristic accepts RX.
  *
- * Non-destructive: fails with ERR_BASE_INVALID_STATE if the characteristic
- * was created with rx_buffer_size == 0. Doesn't report rx_notify_sem - the
- * caller already knows what it passed in at creation time.
- *
  * @param char_uuid 16-bit UUID of the characteristic.
- * @return err_h Status report (NULL if RX-enabled, ERR_BASE_INVALID_STATE if
- *               not, or the sys_ble lookup error).
+ * @return err_h Status report (NULL if RX-enabled, ERR_BASE_INVALID_STATE if not).
  */
 err_h sys_ble_char_check_rx_enabled(uint16_t char_uuid);
 
@@ -195,25 +112,29 @@ err_h sys_ble_char_check_rx_enabled(uint16_t char_uuid);
 err_h sys_ble_char_rx_dequeue(uint16_t char_uuid, uint8_t* buffer, size_t max_len, size_t* out_len);
 
 /**
- * @brief Dynamically set or clear the wake semaphore signaled on peer RX writes.
+ * @brief Link a data connector to a characteristic for direct wake signaling on peer writes.
  *
- * @param char_uuid 16-bit UUID of the characteristic (must have rx_buffer_size > 0).
- * @param sem Semaphore to give on each incoming packet, or NULL to detach.
- * @return err_h Status report (NULL on success, or error status).
+ * When data arrives on @p char_uuid, @c conn->data_present is given directly.
+ *
+ * @param char_uuid 16-bit UUID of the characteristic.
+ * @param connector to be set when rx receiced and placed in buff, error returned when no more space or invalid char
  */
-err_h sys_ble_char_set_rx_notify_sem(uint16_t char_uuid, SemaphoreHandle_t sem);
+err_h sys_ble_char_link_connector(uint16_t char_uuid, sys_data_connector_t* connector);
+
+/**
+ * @brief Unlink a data connector from a characteristic.
+ *
+ * @param char_uuid 16-bit UUID of the characteristic.
+ * @param conn Pointer to data connector instance.
+ * @return err_h Status report (NULL on success).
+ */
+err_h sys_ble_char_unlink_connector(uint16_t char_uuid, sys_data_connector_t* connector);
 
 /**
  * @brief Test/debug utility: inject raw bytes into a characteristic's RX buffer
- * as if a peer had written them.
+ * as if a peer had written them. Directly wakes any linked data connectors.
  *
- * Takes the exact same push-then-signal path as a real GATT write
- * (sys_ble_gatt_access_cb()'s BLE_GATT_ACCESS_OP_WRITE_CHR branch), so it
- * exercises the full RX pipeline - ring buffer, rx_notify_sem (if any), and
- * any consumer bound via sys_ble_char_rx_dequeue() or sys_interface_bind_ble_rx()
- * - without needing a connected peer.
- *
- * @param char_uuid 16-bit UUID of the characteristic (must have rx_buffer_size > 0).
+ * @param char_uuid 16-bit UUID of the characteristic.
  * @param data Pointer to the raw bytes to inject.
  * @param len Length of the raw bytes.
  * @return err_h Status report (NULL on success, or error status).
@@ -221,22 +142,21 @@ err_h sys_ble_char_set_rx_notify_sem(uint16_t char_uuid, SemaphoreHandle_t sem);
 err_h sys_ble_char_rx_inject(uint16_t char_uuid, const uint8_t* data, size_t len);
 
 /**
- * @brief Send data by enqueuing it into a characteristic's TX ring buffer.
+ * @brief Send data by enqueuing it into a characteristic's single TX ring buffer.
  *
- * The background BLE task will dequeue this data and transmit it as notification or indication.
+ * The background BLE task will dequeue this data verbatim and transmit it as notification or indication.
  *
  * @param char_uuid 16-bit UUID of the characteristic.
- * @param header Header byte identifying which TX slot to enqueue into (see sys_ble_char_assign_tx_buffer()).
- * @param data Pointer to the data payload to send.
+ * @param data Pointer to the data payload to send (already includes any connector framing).
  * @param len Length of the data payload.
  * @param return_when_full If true, returns immediately if the buffer is full (non-blocking).
  *                          If false, blocks for up to 100ms waiting for space.
  * @return err_h Status report (NULL on success, or error status).
  */
-err_h sys_ble_char_send(uint16_t char_uuid, uint8_t header, const uint8_t* data, size_t len, bool return_when_full);
+err_h sys_ble_char_send(uint16_t char_uuid, const uint8_t* data, size_t len, bool return_when_full);
 
 /**
- * @brief Compile the GATT database definitions and synchronize with the NimBLE host stack.
+ * @brief Start the NimBLE host on first use, or synchronize runtime GATT changes.
  *
  * Must be called after creating or removing services and characteristics to apply changes.
  *
@@ -245,7 +165,7 @@ err_h sys_ble_char_send(uint16_t char_uuid, uint8_t header, const uint8_t* data,
 err_h sys_ble_database_sync(void);
 
 /**
- * @brief Get the current BLE status (connection state, MTU size, overflow counts, last errors).
+ * @brief Get the current BLE connection state, MTU size, and RX overflow count.
  *
  * @param out_status Pointer to status structure to populate.
  * @return err_h Status report (NULL on success, or error status).

@@ -5,7 +5,6 @@
 #include "sys_error_config.h"
 #include "sys_error_log.h"
 #include "sys_data_connector.h"
-#include "sys_data_connector_ble.h"
 
 #define TEST_DEV_ID 42
 #define TEST_ESP_CODE 0x1234
@@ -66,9 +65,13 @@ void test_sys_error_ownership(void) {
   ck("SE_send succeeded", send_err == NULL);
   ck("chain reached the errors connector", s_ctx.send_calls >= 1);
 
-  // 2. Walk the encoded packet back apart - same layout the client rebuilds from
-  bool header_ok = s_ctx.last_len >= ENC_SYS_ERRORS_HDR_LEN && s_ctx.last_packet[0] == ENC_SYS_ERRORS_FMT_VERSION &&
-                   s_ctx.last_packet[1] == 3 && s_ctx.last_packet[2] == 3;
+  // Providers receive the connector framing byte before the encoder packet.
+  bool frame_ok = s_ctx.last_len > 0 && s_ctx.last_packet[0] == PACKET_HEADER_ERRORS;
+  ck("errors connector prepends its framing header", frame_ok);
+  const uint8_t* packet = s_ctx.last_packet + 1;
+  size_t packet_len = s_ctx.last_len > 0 ? s_ctx.last_len - 1 : 0;
+  bool header_ok = frame_ok && packet_len >= ENC_SYS_ERRORS_HDR_LEN && packet[0] == ENC_SYS_ERRORS_FMT_VERSION &&
+                   packet[1] == 3 && packet[2] == 3;
   ck("packet header reports 3 of 3 nodes", header_ok);
 
   size_t off = ENC_SYS_ERRORS_HDR_LEN;
@@ -76,7 +79,7 @@ void test_sys_error_ownership(void) {
   const uint8_t* payloads[3] = {NULL};
   bool walk_ok = header_ok;
   for (int i = 0; i < 3 && walk_ok; i++) {
-    walk_ok = read_node(s_ctx.last_packet, s_ctx.last_len, &off, &tags[i], &payloads[i]);
+    walk_ok = read_node(packet, packet_len, &off, &tags[i], &payloads[i]);
   }
   ck("every node record is within the packet", walk_ok);
   ck("chain order survived encoding", walk_ok && tags[0] == ERR_DEP_FAILED && tags[1] == ERR_DEV_DEP_FAILED && tags[2] == ERR_ESP_ERR);

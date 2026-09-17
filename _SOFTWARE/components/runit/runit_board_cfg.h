@@ -10,6 +10,7 @@ Pin configs and device id / adresses shall not be changed
 
 #include "runit_board_defs.h"
 #include "sys_ble.h"
+#include "sys_data_connector_ble.h"
 #include "sys_error.h"
 #include "sys_i2c.h"
 #include "sys_interface.h"
@@ -113,39 +114,50 @@ static inline err_h sys_power_static_config(void) {
 }
 
 static inline err_h sys_ble_static_config(void) {
-  RUNIT_CHECK_ERR(sys_ble_init());
-
   sys_ble_svc_cfg_t runit_svc_cfg = {.uuid = SYS_BLE_SVC_RUNIT, .is_primary = true};
   RUNIT_CHECK_ERR(sys_ble_service_create(&runit_svc_cfg));
 
-  sys_ble_char_create_t runit_chr_cfg_rx = {.info = {.uuid = SYS_BLE_CHR_RUNIT_RX, .is_write = true, .desc = "runit RX"}, .rx_buffer_size = 512, .rx_notify_sem = sys_interface_get_rx_wake_sem()};
+  sys_ble_char_cfg_t runit_chr_cfg_rx = {.uuid = SYS_BLE_CHR_RUNIT_RX, .is_write = true, .desc = "runit RX", .rx_buffer_size = 512};
   RUNIT_CHECK_ERR(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_rx));
 
-  sys_ble_char_create_t runit_chr_cfg_tx = {.info = {.uuid = SYS_BLE_CHR_RUNIT_TX, .is_notify = true, .desc = "runit TX"}, .rx_buffer_size = 0};
+  sys_ble_char_cfg_t runit_chr_cfg_tx = {.uuid = SYS_BLE_CHR_RUNIT_TX, .is_notify = true, .desc = "runit TX", .tx_buffer_size = 1024};
   RUNIT_CHECK_ERR(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_tx));
 
-  sys_ble_tx_buf_cfg_t runit_buff_cfg_tx = {.header = PACKET_HEADER_TX, .size = 1024, .is_indication = false};
-  RUNIT_CHECK_ERR(sys_ble_char_assign_tx_buffer(SYS_BLE_CHR_RUNIT_TX, &runit_buff_cfg_tx));
-
-  sys_ble_char_create_t runit_chr_cfg_status = {.info = {.uuid = SYS_BLE_CHT_RUNIT_STATUS, .is_notify = true, .desc = "runit Status"}, .rx_buffer_size = 0};
+  sys_ble_char_cfg_t runit_chr_cfg_status = {.uuid = SYS_BLE_CHT_RUNIT_STATUS, .is_notify = true, .desc = "runit Status", .tx_buffer_size = 512};
   RUNIT_CHECK_ERR(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_status));
 
-  sys_ble_tx_buf_cfg_t runit_buff_cfg_status = {.header = PACKET_HEADER_STATUS, .size = 512, .is_indication = false};
-  RUNIT_CHECK_ERR(sys_ble_char_assign_tx_buffer(SYS_BLE_CHT_RUNIT_STATUS, &runit_buff_cfg_status));
-
-  sys_ble_char_create_t runit_chr_cfg_logs = {.info = {.uuid = SYS_BLE_CHR_RUNIT_LOGS, .is_notify = true, .desc = "runit LOGS"}, .rx_buffer_size = 0};
+  sys_ble_char_cfg_t runit_chr_cfg_logs = {.uuid = SYS_BLE_CHR_RUNIT_LOGS, .is_notify = true, .desc = "runit LOGS", .tx_buffer_size = 2048};
   RUNIT_CHECK_ERR(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &runit_chr_cfg_logs));
-
-  sys_ble_tx_buf_cfg_t runit_buff_cfg_logs = {.header = PACKET_HEADER_LOGS, .size = 2048, .is_indication = false};
-  RUNIT_CHECK_ERR(sys_ble_char_assign_tx_buffer(SYS_BLE_CHR_RUNIT_LOGS, &runit_buff_cfg_logs));
-
-  // Encoded error chains share the LOGS characteristic - the TX slot header is
-  // what tells the two streams apart on the client side.
-  sys_ble_tx_buf_cfg_t runit_buff_cfg_errors = {.header = PACKET_HEADER_ERRORS, .size = 1024, .is_indication = false};
-  RUNIT_CHECK_ERR(sys_ble_char_assign_tx_buffer(SYS_BLE_CHR_RUNIT_LOGS, &runit_buff_cfg_errors));
 
   RUNIT_CHECK_ERR(sys_ble_database_sync());
   ESP_LOGI("static_config", "BLE initialized");
+  return NULL;
+}
+/* Board-owned connector topology; the BLE adapter only supplies transport. */
+#pragma push_macro("OWNER")
+#undef OWNER
+#define OWNER OWNER_SYS_INTERFACE_CLASS
+static inline err_h runit_bind_ble_channel(uint8_t id, const char* name, uint8_t header, uint16_t tx_uuid, uint16_t rx_uuid) {
+  if (!tx_uuid && !rx_uuid) return NULL;
+  sys_data_connector_t* conn = sys_data_connector_create(id, name, header);
+  SE_CHECK_IF_ALLOCATED(conn);
+  if (rx_uuid) {
+    RUNIT_CHECK_ERR(sys_data_connector_bind_rx(conn, SYS_DATA_PROVIDER_BLE, SYS_DATA_BLE_ARG(rx_uuid)));
+  }
+  if (tx_uuid) {
+    RUNIT_CHECK_ERR(sys_data_connector_bind_tx(conn, SYS_DATA_PROVIDER_BLE, SYS_DATA_BLE_ARG(tx_uuid)));
+  }
+  return NULL;
+}
+#pragma pop_macro("OWNER")
+
+static inline err_h runit_data_connector_static_config(void) {
+  RUNIT_CHECK_ERR(sys_data_connector_register_ble_provider());
+  RUNIT_CHECK_ERR(runit_bind_ble_channel(CONN_ID_LOGS, "logs", PACKET_HEADER_LOGS, SYS_BLE_CHR_RUNIT_LOGS, 0));
+  RUNIT_CHECK_ERR(runit_bind_ble_channel(CONN_ID_ERRORS, "errors", PACKET_HEADER_ERRORS, SYS_BLE_CHR_RUNIT_LOGS, 0));
+  RUNIT_CHECK_ERR(runit_bind_ble_channel(CONN_ID_TELEMETRY, "telemetry", PACKET_HEADER_TX, SYS_BLE_CHR_RUNIT_TX, 0));
+  RUNIT_CHECK_ERR(runit_bind_ble_channel(CONN_ID_INTERFACE, "interface", PACKET_HEADER_TX, SYS_BLE_CHR_RUNIT_TX, SYS_BLE_CHR_RUNIT_RX));
+  sys_data_connector_set_wake_sem(sys_data_connector_get(CONN_ID_INTERFACE), sys_interface_get_rx_wake_sem());
   return NULL;
 }
 #undef RUNIT_CHECK_ERR

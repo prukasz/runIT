@@ -53,6 +53,11 @@ typedef enum {
 } sys_data_provider_id_e;
 
 // -----------------------------------------------------------------------------
+// Forward Declarations
+// -----------------------------------------------------------------------------
+typedef struct sys_data_connector sys_data_connector_t;
+
+// -----------------------------------------------------------------------------
 // Provider Driver Interface
 // -----------------------------------------------------------------------------
 /**
@@ -87,34 +92,33 @@ typedef struct {
   err_h (*dequeue)(void* arg, uint8_t* buf, size_t max_len, size_t* out_len);
 
   /**
-   * @brief Attach connector's wake semaphore to provider's RX notification.
+   * @brief Attach connector to provider's RX notification.
    *
    * @param arg Provider-specific argument.
-   * @param data_present Binary semaphore to give when new data arrives in RX buffer.
+   * @param conn Connector instance being attached.
    * @return err_h NULL on success.
    */
-  err_h (*bind_rx)(void* arg, SemaphoreHandle_t data_present);
+  err_h (*bind_rx)(void* arg, sys_data_connector_t* conn);
 
   /**
-   * @brief Detach connector's wake semaphore from provider.
+   * @brief Detach connector from provider.
    *
    * @param arg Provider-specific argument.
-   * @param data_present Binary semaphore being detached.
+   * @param conn Connector instance being detached.
    * @return err_h NULL on success.
    */
-  err_h (*unbind_rx)(void* arg, SemaphoreHandle_t data_present);
+  err_h (*unbind_rx)(void* arg, sys_data_connector_t* conn);
 } sys_data_provider_driver_t;
 
 // -----------------------------------------------------------------------------
 // Connector Data Structure
 // -----------------------------------------------------------------------------
-typedef struct sys_data_connector sys_data_connector_t;
-
 struct sys_data_connector {
   uint8_t           id;
   char              name[SYS_DATA_CONNECTOR_NAME_MAX];
   bool              allocated;
   bool              suspended;
+  uint8_t           header;            /**< Predefined framing header byte. */
   uint16_t          max_packet_len;
 
   // Outbound Destinations (TX - Multicast / Fan-out)
@@ -129,7 +133,16 @@ struct sys_data_connector {
 
   // Dedicated Event Wake Semaphore
   SemaphoreHandle_t data_present;
+  bool              owns_data_present_sem;
 };
+
+typedef struct {
+  uint8_t           id;
+  const char*       name;
+  uint8_t           header;
+  uint16_t          max_packet_len;
+  SemaphoreHandle_t data_present;  /**< Optional custom semaphore; if NULL, created automatically */
+} sys_data_connector_cfg_t;
 
 /**
  * @brief Get the maximum packet/frame capacity for a connector instance.
@@ -155,16 +168,33 @@ err_h sys_data_connector_register_provider(const sys_data_provider_driver_t* dri
 // -----------------------------------------------------------------------------
 
 /**
+ * @brief Create or retrieve a connector instance with full configuration.
+ *
+ * @param cfg Connector configuration struct.
+ * @return sys_data_connector_t* Pointer to connector instance, or NULL on error.
+ */
+sys_data_connector_t* sys_data_connector_create_with_cfg(const sys_data_connector_cfg_t* cfg);
+
+/**
  * @brief Create or retrieve a connector instance in the registry.
  *
- * If a connector with the given ID already exists, it is returned.
+ * If a connector with the given ID already exists, its header and name are updated.
  * If not, a new slot is allocated and initialized with its own `data_present` semaphore.
  *
  * @param id Unique connector ID (0..SYS_DATA_CONNECTOR_MAX-1).
  * @param name Diagnostic name for logs and inspection.
+ * @param header Predefined framing header byte for this connector.
  * @return sys_data_connector_t* Pointer to connector instance, or NULL if out of slots/memory.
  */
-sys_data_connector_t* sys_data_connector_create(uint8_t id, const char* name);
+sys_data_connector_t* sys_data_connector_create(uint8_t id, const char* name, uint8_t header);
+
+/**
+ * @brief Set or replace the wake semaphore for a connector.
+ *
+ * @param conn Connector instance.
+ * @param sem Caller-owned semaphore to signal when RX data arrives.
+ */
+void sys_data_connector_set_wake_sem(sys_data_connector_t* conn, SemaphoreHandle_t sem);
 
 /**
  * @brief Look up an existing connector instance by ID.

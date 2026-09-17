@@ -16,7 +16,7 @@ typedef struct sys_callback_head_t {
  *
  * Bit `i` of `sys_callback_head_t.route_mask` selects route slot `i` in
  * `sys_cb_task`'s dispatch table - callers building a route mask (e.g. the
- * `route_mask` argument of `sys_vreg_add_callback()`, `sys_ble_add_callback()`)
+ * `route_mask` argument of `sys_vreg_add_callback()`)
  * OR the bits of every route they want the event delivered to together, using
  * `SYS_CB_ROUTE_BIT()`. Slots are filled at load time by each owning
  * component via `sys_cb_register_route()` (see below) rather than baked into

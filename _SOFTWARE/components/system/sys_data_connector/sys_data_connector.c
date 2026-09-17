@@ -60,41 +60,75 @@ err_h sys_data_connector_register_provider(const sys_data_provider_driver_t* dri
 // Connector Lifecycle
 // -----------------------------------------------------------------------------
 
-sys_data_connector_t* sys_data_connector_create(uint8_t id, const char* name) {
-  if (id >= SYS_DATA_CONNECTOR_MAX) {
-    ESP_LOGE(TAG, "Invalid connector ID: %u (max %d)", id, SYS_DATA_CONNECTOR_MAX - 1);
+sys_data_connector_t* sys_data_connector_create_with_cfg(const sys_data_connector_cfg_t* cfg) {
+  if (!cfg || cfg->id >= SYS_DATA_CONNECTOR_MAX) {
+    ESP_LOGE(TAG, "Invalid connector config or ID: %u", cfg ? cfg->id : 0xFF);
     return NULL;
   }
 
-  sys_data_connector_t* conn = &s_connectors[id];
+  sys_data_connector_t* conn = &s_connectors[cfg->id];
   if (conn->allocated) {
-    if (name && name[0] != '\0') {
-      strncpy(conn->name, name, sizeof(conn->name) - 1);
+    conn->header = cfg->header;
+    if (cfg->name && cfg->name[0] != '\0') {
+      strncpy(conn->name, cfg->name, sizeof(conn->name) - 1);
       conn->name[sizeof(conn->name) - 1] = '\0';
+    }
+    if (cfg->max_packet_len > 0) {
+      conn->max_packet_len = cfg->max_packet_len;
+    }
+    if (cfg->data_present) {
+      sys_data_connector_set_wake_sem(conn, cfg->data_present);
     }
     return conn;
   }
 
   memset(conn, 0, sizeof(*conn));
-  conn->id             = id;
+  conn->id             = cfg->id;
   conn->allocated      = true;
-  conn->max_packet_len = SYS_DATA_CONNECTOR_MAX_PACKET_LEN;
-  if (name && name[0] != '\0') {
-    strncpy(conn->name, name, sizeof(conn->name) - 1);
+  conn->header         = cfg->header;
+  conn->max_packet_len = cfg->max_packet_len > 0 ? cfg->max_packet_len : SYS_DATA_CONNECTOR_MAX_PACKET_LEN;
+  if (cfg->name && cfg->name[0] != '\0') {
+    strncpy(conn->name, cfg->name, sizeof(conn->name) - 1);
     conn->name[sizeof(conn->name) - 1] = '\0';
   } else {
-    snprintf(conn->name, sizeof(conn->name), "conn_%u", id);
+    snprintf(conn->name, sizeof(conn->name), "conn_%u", cfg->id);
   }
 
-  conn->data_present = xSemaphoreCreateBinary();
-  if (conn->data_present == NULL) {
-    conn->allocated = false;
-    ESP_LOGE(TAG, "Failed to create data_present semaphore for connector %u", id);
-    return NULL;
+  if (cfg->data_present) {
+    conn->data_present          = cfg->data_present;
+    conn->owns_data_present_sem = false;
+  } else {
+    conn->data_present = xSemaphoreCreateBinary();
+    conn->owns_data_present_sem = true;
+    if (conn->data_present == NULL) {
+      conn->allocated = false;
+      ESP_LOGE(TAG, "Failed to create data_present semaphore for connector %u", cfg->id);
+      return NULL;
+    }
   }
 
-  ESP_LOGI(TAG, "Created data connector: %s (id=%u)", conn->name, id);
+  ESP_LOGI(TAG, "Created data connector: %s (id=%u, header=0x%02X)", conn->name, cfg->id, conn->header);
   return conn;
+}
+
+sys_data_connector_t* sys_data_connector_create(uint8_t id, const char* name, uint8_t header) {
+  sys_data_connector_cfg_t cfg = {
+      .id             = id,
+      .name           = name,
+      .header         = header,
+      .max_packet_len = SYS_DATA_CONNECTOR_MAX_PACKET_LEN,
+      .data_present   = NULL,
+  };
+  return sys_data_connector_create_with_cfg(&cfg);
+}
+
+void sys_data_connector_set_wake_sem(sys_data_connector_t* conn, SemaphoreHandle_t sem) {
+  if (!conn) return;
+  if (conn->owns_data_present_sem && conn->data_present) {
+    vSemaphoreDelete(conn->data_present);
+  }
+  conn->data_present          = sem;
+  conn->owns_data_present_sem = false;
 }
 
 sys_data_connector_t* sys_data_connector_get(uint8_t id) {
@@ -164,10 +198,10 @@ err_h sys_data_connector_bind_rx(sys_data_connector_t* conn, uint8_t provider_id
   // Update arg if already bound
   for (uint8_t i = 0; i < conn->rx_count; i++) {
     if (conn->rx_provider_id[i] == provider_id) {
-      conn->rx_provider_arg[i] = arg;
       if (prov->bind_rx) {
-        SE_RET_IF_ERR(prov->bind_rx(arg, conn->data_present));
+        SE_RET_IF_ERR(prov->bind_rx(arg, conn));
       }
+      conn->rx_provider_arg[i] = arg;
       ESP_LOGI(TAG, "Connector %s: updated RX provider %s (id=%u)", conn->name, prov->name, provider_id);
       return NULL;
     }
@@ -177,13 +211,13 @@ err_h sys_data_connector_bind_rx(sys_data_connector_t* conn, uint8_t provider_id
     SE_RET_ERR(ERR_BASE_NO_MEM, provider_id);
   }
 
+  if (prov->bind_rx) {
+    SE_RET_IF_ERR(prov->bind_rx(arg, conn));
+  }
+
   conn->rx_provider_id[conn->rx_count]  = provider_id;
   conn->rx_provider_arg[conn->rx_count] = arg;
   conn->rx_count++;
-
-  if (prov->bind_rx) {
-    SE_RET_IF_ERR(prov->bind_rx(arg, conn->data_present));
-  }
 
   ESP_LOGI(TAG, "Connector %s: bound RX provider %s (id=%u, rx_count=%u)",
            conn->name, prov->name, provider_id, conn->rx_count);
@@ -198,7 +232,7 @@ err_h sys_data_connector_unbind_rx(sys_data_connector_t* conn, uint8_t provider_
     if (conn->rx_provider_id[i] == provider_id) {
       void* arg = conn->rx_provider_arg[i];
       if (prov && prov->unbind_rx) {
-        (void)prov->unbind_rx(arg, conn->data_present);
+        (void)prov->unbind_rx(arg, conn);
       }
 
       for (uint8_t j = i; j + 1 < conn->rx_count; j++) {
@@ -223,11 +257,32 @@ void sys_data_connector_send(sys_data_connector_t* conn, const void* data, size_
     return;
   }
 
+  size_t max_payload = sys_data_connector_get_max_len(conn);
+  size_t send_len    = (len > max_payload) ? max_payload : len;
+
+  uint8_t  frame[SYS_DATA_CONNECTOR_MAX_FRAME_LEN + 1];
+  uint8_t* p_frame        = frame;
+  bool     heap_allocated = false;
+
+  size_t total_len = send_len + 1;
+  if (total_len > sizeof(frame)) {
+    p_frame = malloc(total_len);
+    if (!p_frame) return;
+    heap_allocated = true;
+  }
+
+  p_frame[0] = conn->header;
+  memcpy(&p_frame[1], data, send_len);
+
   for (uint8_t i = 0; i < conn->tx_count; i++) {
     const sys_data_provider_driver_t* prov = find_provider(conn->tx_provider_id[i]);
     if (prov && prov->send) {
-      prov->send(conn->tx_provider_arg[i], data, len);
+      prov->send(conn->tx_provider_arg[i], p_frame, total_len);
     }
+  }
+
+  if (heap_allocated) {
+    free(p_frame);
   }
 }
 

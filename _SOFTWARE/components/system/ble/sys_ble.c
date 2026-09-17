@@ -22,7 +22,7 @@ __attribute__((constructor)) static void sys_ble_cb_route_register(void) {
 /* Helper Data Structure Management                                                      */
 /*****************************************************************************************/
 
-sys_ble_char_node_t* sys_ble_find_char_by_uuid(uint16_t char_uuid) {
+static sys_ble_char_node_t* sys_ble_find_char_by_uuid(uint16_t char_uuid) {
   sys_ble_svc_node_t* s;
   LL_FOREACH(g_ble_ctx.services, s) {
     sys_ble_char_node_t* ch;
@@ -33,7 +33,7 @@ sys_ble_char_node_t* sys_ble_find_char_by_uuid(uint16_t char_uuid) {
   return NULL;
 }
 
-sys_ble_svc_node_t* sys_ble_find_svc_by_uuid(uint16_t svc_uuid) {
+static sys_ble_svc_node_t* sys_ble_find_svc_by_uuid(uint16_t svc_uuid) {
   sys_ble_svc_node_t* s;
   LL_FOREACH(g_ble_ctx.services, s) {
     if (s->cfg.uuid == svc_uuid) return s;
@@ -41,32 +41,10 @@ sys_ble_svc_node_t* sys_ble_find_svc_by_uuid(uint16_t svc_uuid) {
   return NULL;
 }
 
-void sys_ble_rebuild_active_tx_slots(void) {
-  R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
-  g_ble_ctx.tx_slot_count = 0;
-
-  sys_ble_svc_node_t* s;
-  LL_FOREACH(g_ble_ctx.services, s) {
-    sys_ble_char_node_t* c;
-    LL_FOREACH(s->chars, c) {
-      for (int i = 0; i < c->tx_slot_count; i++) {
-        if (g_ble_ctx.tx_slot_count < CONFIG_SYS_BLE_MAX_TOTAL_TX_SLOTS) {
-          g_ble_ctx.tx_slots[g_ble_ctx.tx_slot_count].slot = &c->tx_slots[i];
-          g_ble_ctx.tx_slots[g_ble_ctx.tx_slot_count].chr = c;
-          g_ble_ctx.tx_slot_count++;
-        }
-      }
-    }
-  }
-  R_MUTEX_UNLOCK(sys_ble_mutex);
-}
-
-void sys_ble_free_char_node(sys_ble_char_node_t* c) {
+static void sys_ble_free_char_node(sys_ble_char_node_t* c) {
   if (!c) return;
   sys_buff_free(&c->rx_buff);
-  for (int i = 0; i < c->tx_slot_count; i++) {
-    sys_buff_free(&c->tx_slots[i].tx_buff);
-  }
+  sys_buff_free(&c->tx_buff);
   free(c);
 }
 
@@ -74,49 +52,26 @@ void sys_ble_free_char_node(sys_ble_char_node_t* c) {
 /* Public Application API                                                                */
 /*****************************************************************************************/
 
-#define OWNER OWNER_SYS_BLE_CREATE
-err_h sys_ble_init(void) {
-  R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
-  if (g_ble_ctx.initialized) {
-    R_MUTEX_UNLOCK(sys_ble_mutex);
-    return NULL;
-  }
-  g_ble_ctx.initialized = true;
-  R_MUTEX_UNLOCK(sys_ble_mutex);
-
-  ESP_LOGI(TAG, "BLE Manager initialized successfully");
-  return NULL;
-}
-
-err_h sys_ble_add_callback(sys_ble_events_e on_event, uint16_t route_mask, uint8_t static_action_id, uint8_t dynamic_action_id) {
-  SE_CHECK_IN_RANGE((uint32_t)on_event, 0, SYS_BLE_EVENT_MAX - 1);
-
-  R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
-  g_ble_ctx.route_masks[on_event] = route_mask;
-  g_ble_ctx.static_action_ids[on_event] = static_action_id;
-  g_ble_ctx.dynamic_action_ids[on_event] = dynamic_action_id;
-  R_MUTEX_UNLOCK(sys_ble_mutex);
-
-  return NULL;
-}
-#undef OWNER
-
 #define OWNER OWNER_SYS_BLE_SERVICE_CREATE
 err_h sys_ble_service_create(const sys_ble_svc_cfg_t* cfg) {
   SE_CHECK_NOT_NULL(cfg);
+  R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
 
   if (sys_ble_find_svc_by_uuid(cfg->uuid)) {
+    R_MUTEX_UNLOCK(sys_ble_mutex);
     SE_RET_ERR(ERR_DEV_ALREADY_EXIST, cfg->uuid);
   }
 
   sys_ble_svc_node_t* new_svc = calloc(1, sizeof(sys_ble_svc_node_t));
-  SE_CHECK_IF_ALLOCATED(new_svc);
+  if (!new_svc) {
+    R_MUTEX_UNLOCK(sys_ble_mutex);
+    SE_RET_ERR(ERR_BASE_NO_MEM, cfg->uuid);
+  }
 
   new_svc->cfg = *cfg;
-  new_svc->registered = false;
-  new_svc->compiled_def = NULL;
 
   LL_APPEND(g_ble_ctx.services, new_svc);
+  R_MUTEX_UNLOCK(sys_ble_mutex);
 
   ESP_LOGI(TAG, "Created BLE service UUID 0x%04X", cfg->uuid);
   return NULL;
@@ -135,7 +90,10 @@ err_h sys_ble_service_remove(uint16_t svc_uuid) {
     temp_uuid.u.type = BLE_UUID_TYPE_16;
     temp_uuid.value = target->cfg.uuid;
 
+    /* GATT access callbacks take sys_ble_mutex while the host is locked. */
+    R_MUTEX_UNLOCK(sys_ble_mutex);
     int rc = ble_gatts_delete_svc((const ble_uuid_t*)&temp_uuid);
+    R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
     if (rc != 0) {
       ESP_LOGE(TAG, "Failed to delete service 0x%04X from NimBLE: %d", svc_uuid, rc);
       R_MUTEX_UNLOCK(sys_ble_mutex);
@@ -155,8 +113,6 @@ err_h sys_ble_service_remove(uint16_t svc_uuid) {
   LL_DELETE(g_ble_ctx.services, target);
   free(target);
 
-  sys_ble_rebuild_active_tx_slots();
-
   R_MUTEX_UNLOCK(sys_ble_mutex);
   ESP_LOGI(TAG, "Removed BLE service UUID 0x%04X", svc_uuid);
   return NULL;
@@ -164,46 +120,56 @@ err_h sys_ble_service_remove(uint16_t svc_uuid) {
 #undef OWNER
 
 #define OWNER OWNER_SYS_BLE_CHAR_CREATE
-err_h sys_ble_char_create(uint16_t svc_uuid, const sys_ble_char_create_t* cfg) {
+err_h sys_ble_char_create(uint16_t svc_uuid, const sys_ble_char_cfg_t* cfg) {
   SE_CHECK_NOT_NULL(cfg);
   R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
 
-  sys_ble_svc_node_t* svc = NULL;
-  CHECK_BLE_SVC_FIND(svc, svc_uuid, true);
-
-  if (sys_ble_find_char_by_uuid(cfg->info.uuid)) {
+  sys_ble_svc_node_t* svc = sys_ble_find_svc_by_uuid(svc_uuid);
+  if (!svc && svc_uuid == SYS_BLE_SVC_DEFAULT_AUTO) {
+    svc = calloc(1, sizeof(*svc));
+    if (!svc) {
+      R_MUTEX_UNLOCK(sys_ble_mutex);
+      SE_RET_ERR(ERR_BASE_NO_MEM, svc_uuid);
+    }
+    svc->cfg = (sys_ble_svc_cfg_t){.uuid = svc_uuid, .is_primary = true};
+    LL_APPEND(g_ble_ctx.services, svc);
+  }
+  if (!svc) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
-    SE_RET_ERR(ERR_DEV_ALREADY_EXIST, cfg->info.uuid);
+    SE_RET_ERR(ERR_BASE_NOT_FOUND, svc_uuid);
   }
 
-  sys_ble_char_node_t* new_char = calloc(1, sizeof(sys_ble_char_node_t));
+  if (sys_ble_find_char_by_uuid(cfg->uuid)) {
+    R_MUTEX_UNLOCK(sys_ble_mutex);
+    SE_RET_ERR(ERR_DEV_ALREADY_EXIST, cfg->uuid);
+  }
+
+  sys_ble_char_node_t* new_char = calloc(1, sizeof(*new_char));
   if (!new_char) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
-    SE_RET_ERR(ERR_BASE_NO_MEM, cfg->info.uuid);
+    SE_RET_ERR(ERR_BASE_NO_MEM, cfg->uuid);
   }
+  new_char->cfg = *cfg;
 
-  new_char->cfg = cfg->info;
-
+  err_h err = NULL;
   if (cfg->rx_buffer_size > 0) {
-    err_h rx_buf_err = sys_buff_init(&new_char->rx_buff, 0, cfg->rx_buffer_size);
-    if (SE_IS_ERR(rx_buf_err)) {
-      sys_buff_free(&new_char->rx_buff);
-      free(new_char);
-      R_MUTEX_UNLOCK(sys_ble_mutex);
-      SE_RET_ERR(ERR_BASE_NO_MEM, cfg->info.uuid);
-    }
-    new_char->rx_notify_sem = cfg->rx_notify_sem;
+    err = sys_buff_init(&new_char->rx_buff, cfg->rx_buffer_size);
+  }
+  if (SE_IS_OK(err) && cfg->tx_buffer_size > 0) {
+    err = sys_buff_init(&new_char->tx_buff, cfg->tx_buffer_size);
+  }
+  if (SE_IS_ERR(err)) {
+    sys_ble_free_char_node(new_char);
+    R_MUTEX_UNLOCK(sys_ble_mutex);
+    return err;
   }
 
   new_char->pending_add = true;
   LL_APPEND(svc->chars, new_char);
-
-  if (svc->registered) {
-    svc->dirty = true;
-  }
+  if (svc->registered) svc->dirty = true;
 
   R_MUTEX_UNLOCK(sys_ble_mutex);
-  ESP_LOGI(TAG, "Created characteristic UUID 0x%04X under service UUID 0x%04X", cfg->info.uuid, svc_uuid);
+  ESP_LOGI(TAG, "Created characteristic UUID 0x%04X under service UUID 0x%04X", cfg->uuid, svc_uuid);
   return NULL;
 }
 #undef OWNER
@@ -216,7 +182,13 @@ err_h sys_ble_char_remove(uint16_t svc_uuid, uint16_t char_uuid) {
   CHECK_BLE_SVC_FIND(svc, svc_uuid, true);
 
   sys_ble_char_node_t* target = NULL;
-  CHECK_BLE_CHAR_FIND(target, char_uuid, true);
+  LL_FOREACH(svc->chars, target) {
+    if (target->cfg.uuid == char_uuid) break;
+  }
+  if (!target) {
+    R_MUTEX_UNLOCK(sys_ble_mutex);
+    SE_RET_ERR(ERR_BASE_NOT_FOUND, char_uuid);
+  }
 
   if (svc->registered) {
     /* NimBLE may still reference this node's val_handle/arg until the service
@@ -228,39 +200,8 @@ err_h sys_ble_char_remove(uint16_t svc_uuid, uint16_t char_uuid) {
     sys_ble_free_char_node(target);
   }
 
-  sys_ble_rebuild_active_tx_slots();
-
   R_MUTEX_UNLOCK(sys_ble_mutex);
   ESP_LOGI(TAG, "Removed BLE characteristic UUID 0x%04X", char_uuid);
-  return NULL;
-}
-#undef OWNER
-
-#define OWNER OWNER_SYS_BLE_CHAR_ASSIGN_TX
-err_h sys_ble_char_assign_tx_buffer(uint16_t char_uuid, const sys_ble_tx_buf_cfg_t* buf_cfg) {
-  SE_CHECK_NOT_NULL(buf_cfg);
-
-  sys_ble_char_node_t* c = NULL;
-  CHECK_BLE_CHAR_FIND(c, char_uuid, false);
-
-  if (c->tx_slot_count >= CONFIG_SYS_BLE_MAX_TX_BUFFERS) {
-    SE_RET_ERR(ERR_BASE_NO_MEM, char_uuid);
-  }
-
-  for (int i = 0; i < c->tx_slot_count; i++) {
-    if (c->tx_slots[i].tx_buff.header == buf_cfg->header) {
-      SE_RET_ERR(ERR_DEV_ALREADY_EXIST, buf_cfg->header);
-    }
-  }
-
-  sys_ble_tx_slot_t* slot = &c->tx_slots[c->tx_slot_count];
-  slot->is_indication = buf_cfg->is_indication;
-
-  SE_RET_IF_ERR(sys_buff_init(&slot->tx_buff, buf_cfg->header, buf_cfg->size));
-
-  c->tx_slot_count++;
-
-  ESP_LOGI(TAG, "Assigned TX buffer header 0x%02X to characteristic UUID 0x%04X", buf_cfg->header, char_uuid);
   return NULL;
 }
 #undef OWNER
@@ -272,7 +213,7 @@ err_h sys_ble_char_check_rx_enabled(uint16_t char_uuid) {
   sys_ble_char_node_t* c = NULL;
   CHECK_BLE_CHAR_FIND(c, char_uuid, true);
 
-  if (!c->rx_buff.buff) {
+  if (c->pending_remove || !c->rx_buff.buff) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
     SE_RET_ERR(ERR_BASE_INVALID_STATE, char_uuid);
   }
@@ -291,14 +232,12 @@ err_h sys_ble_char_rx_dequeue(uint16_t char_uuid, uint8_t* buffer, size_t max_le
   sys_ble_char_node_t* c = NULL;
   CHECK_BLE_CHAR_FIND(c, char_uuid, true);
 
-  if (!c->rx_buff.buff) {
+  if (c->pending_remove || !c->rx_buff.buff) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
     SE_RET_ERR(ERR_BASE_INVALID_STATE, char_uuid);
   }
-  sys_buff_t* rx_buff = &c->rx_buff;
+  err_h pop_res = sys_buff_pop(&c->rx_buff, buffer, max_len, out_len);
   R_MUTEX_UNLOCK(sys_ble_mutex);
-
-  err_h pop_res = sys_buff_pop_raw(rx_buff, buffer, max_len, out_len);
   if (SE_IS_ERR(pop_res)) {
     if (pop_res->tag == ERR_BASE_NOT_FOUND) {
       *out_len = 0;
@@ -312,23 +251,82 @@ err_h sys_ble_char_rx_dequeue(uint16_t char_uuid, uint8_t* buffer, size_t max_le
 #undef OWNER
 
 #define OWNER OWNER_SYS_BLE_BASE
-err_h sys_ble_char_set_rx_notify_sem(uint16_t char_uuid, SemaphoreHandle_t sem) {
+err_h sys_ble_char_link_connector(uint16_t char_uuid, sys_data_connector_t* conn) {
+  SE_CHECK_NOT_NULL(conn);
   R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+
   sys_ble_char_node_t* c = NULL;
   CHECK_BLE_CHAR_FIND(c, char_uuid, true);
 
-  if (!c->rx_buff.buff) {
+  if (c->pending_remove || !c->rx_buff.buff) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
     SE_RET_ERR(ERR_BASE_INVALID_STATE, char_uuid);
   }
 
-  c->rx_notify_sem = sem;
+  for (uint8_t i = 0; i < c->linked_connector_count; i++) {
+    if (c->linked_connectors[i] == conn) {
+      R_MUTEX_UNLOCK(sys_ble_mutex);
+      return NULL; // Already linked
+    }
+  }
+
+  if (c->linked_connector_count >= CONFIG_SYS_BLE_MAX_LINKED_CONNECTORS) {
+    R_MUTEX_UNLOCK(sys_ble_mutex);
+    SE_RET_ERR(ERR_BASE_NO_MEM, char_uuid);
+  }
+
+  c->linked_connectors[c->linked_connector_count++] = conn;
+  R_MUTEX_UNLOCK(sys_ble_mutex);
+
+  ESP_LOGI(TAG, "Linked connector %s to characteristic UUID 0x%04X", conn->name, char_uuid);
+  return NULL;
+}
+
+err_h sys_ble_char_unlink_connector(uint16_t char_uuid, sys_data_connector_t* conn) {
+  SE_CHECK_NOT_NULL(conn);
+  R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+
+  sys_ble_char_node_t* c = NULL;
+  CHECK_BLE_CHAR_FIND(c, char_uuid, true);
+
+  for (uint8_t i = 0; i < c->linked_connector_count; i++) {
+    if (c->linked_connectors[i] == conn) {
+      for (uint8_t j = i; j + 1 < c->linked_connector_count; j++) {
+        c->linked_connectors[j] = c->linked_connectors[j + 1];
+      }
+      c->linked_connectors[--c->linked_connector_count] = NULL;
+      R_MUTEX_UNLOCK(sys_ble_mutex);
+      ESP_LOGI(TAG, "Unlinked connector %s from characteristic UUID 0x%04X", conn->name, char_uuid);
+      return NULL;
+    }
+  }
+
   R_MUTEX_UNLOCK(sys_ble_mutex);
   return NULL;
 }
 #undef OWNER
 
 #define OWNER OWNER_SYS_BLE_RX_INJECT
+err_h sys_ble_rx_enqueue(sys_ble_char_node_t* c, const uint8_t* data, size_t len) {
+  if (c->pending_remove || !c->rx_buff.buff) {
+    SE_RET_ERR(ERR_BASE_INVALID_STATE, c->cfg.uuid);
+  }
+
+  err_h push_err = sys_buff_push(&c->rx_buff, data, len, 0);
+  if (SE_IS_ERR(push_err)) {
+    g_ble_ctx.rx_overflow_count++;
+    return push_err;
+  }
+
+  for (uint8_t i = 0; i < c->linked_connector_count; i++) {
+    if (c->linked_connectors[i] && c->linked_connectors[i]->data_present) {
+      xSemaphoreGive(c->linked_connectors[i]->data_present);
+    }
+  }
+
+  return NULL;
+}
+
 err_h sys_ble_char_rx_inject(uint16_t char_uuid, const uint8_t* data, size_t len) {
   SE_CHECK_NOT_NULL(data);
   if (len == 0) return NULL;
@@ -336,46 +334,33 @@ err_h sys_ble_char_rx_inject(uint16_t char_uuid, const uint8_t* data, size_t len
   R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
   sys_ble_char_node_t* c = NULL;
   CHECK_BLE_CHAR_FIND(c, char_uuid, true);
-
-  if (!c->rx_buff.buff) {
-    R_MUTEX_UNLOCK(sys_ble_mutex);
-    SE_RET_ERR(ERR_BASE_INVALID_STATE, char_uuid);
-  }
-  sys_buff_t* rx_buff = &c->rx_buff;
-  SemaphoreHandle_t rx_notify_sem = c->rx_notify_sem;
+  err_h err = sys_ble_rx_enqueue(c, data, len);
   R_MUTEX_UNLOCK(sys_ble_mutex);
-
-  SE_RET_IF_ERR(sys_buff_push(rx_buff, data, len, 0));
-  ESP_LOGI(TAG, "Injected %u bytes into RX buffer of characteristic UUID 0x%04X", (unsigned)len, char_uuid);
-  if (rx_notify_sem) xSemaphoreGive(rx_notify_sem);
-  return NULL;
+  return err;
 }
-
 #undef OWNER
+
 #define OWNER OWNER_SYS_BLE_SEND
-err_h sys_ble_char_send(uint16_t char_uuid, uint8_t header, const uint8_t* data, size_t len, bool return_when_full) {
+err_h sys_ble_char_send(uint16_t char_uuid, const uint8_t* data, size_t len, bool return_when_full) {
   SE_CHECK_NOT_NULL(data);
   if (len == 0) return NULL;
 
   R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
 
+  if (!g_ble_ctx.is_connected) {
+    R_MUTEX_UNLOCK(sys_ble_mutex);
+    return NULL;
+  }
+
   sys_ble_char_node_t* c = NULL;
   CHECK_BLE_CHAR_FIND(c, char_uuid, true);
 
-  sys_ble_tx_slot_t* slot = NULL;
-  for (int i = 0; i < c->tx_slot_count; i++) {
-    if (c->tx_slots[i].tx_buff.header == header) {
-      slot = &c->tx_slots[i];
-      break;
-    }
-  }
-
-  if (!slot || !slot->tx_buff.buff) {
+  if (c->pending_remove || !c->tx_buff.buff) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
-    SE_RET_ERR(ERR_BASE_NOT_FOUND, header);
+    SE_RET_ERR(ERR_BASE_INVALID_STATE, char_uuid);
   }
 
-  sys_buff_t* buff = &slot->tx_buff;
+  sys_buff_t* buff = &c->tx_buff;
   R_MUTEX_UNLOCK(sys_ble_mutex);
 
   uint32_t wait_time_ms = return_when_full ? 0 : 100;
@@ -386,168 +371,109 @@ err_h sys_ble_char_send(uint16_t char_uuid, uint8_t header, const uint8_t* data,
 }
 #undef OWNER
 
-/*Compiles a single service's current characteristic list and (re)adds it to a
-  running NimBLE stack via ble_gatts_add_dynamic_svcs(). Shared by the
-  "brand-new service" and "dirty, already-live service" paths in
-  sys_ble_database_sync() below. Must be called with sys_ble_mutex held;
-  unlocks/relocks around the NimBLE call, same as the rest of this file.*/
+/* Called with sys_ble_mutex held. */
 #define OWNER OWNER_SYS_BLE_DATABASE_SYNC
-static err_h sys_ble_svc_compile_and_add(sys_ble_svc_node_t* s) {
-  struct ble_gatt_svc_def* svcs = calloc(2, sizeof(struct ble_gatt_svc_def));
-  if (!svcs) {
-    SE_RET_ERR(ERR_BASE_NO_MEM, s->cfg.uuid);
+static void sys_ble_svc_mark_registered(sys_ble_svc_node_t* s) {
+  s->registered = true;
+  s->dirty = false;
+  sys_ble_char_node_t* c;
+  LL_FOREACH(s->chars, c) {
+    c->pending_add = false;
+  }
+}
+
+static err_h sys_ble_svc_sync(sys_ble_svc_node_t* s) {
+  if (s->registered && !s->dirty) return NULL;
+
+  if (s->registered) {
+    ble_uuid16_t uuid = BLE_UUID16_INIT(s->cfg.uuid);
+    R_MUTEX_UNLOCK(sys_ble_mutex);
+    int rc = ble_gatts_delete_svc(&uuid.u);
+    R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+    if (rc != 0) SE_RET_ERR(ERR_BLE_GATT_FAILED, rc);
+
+    s->registered = false; /* A failed compile/add is retried on the next sync. */
+    sys_ble_free_compiled_gatt_db(s->compiled_def);
+    s->compiled_def = NULL;
   }
 
-  err_h pop_res = populate_svc_def(&svcs[0], s);
-  if (SE_IS_ERR(pop_res)) {
-    free(svcs);
-    return pop_res;
+  /* The stack no longer references this service's removed characteristics. */
+  sys_ble_char_node_t *c, *tmp;
+  LL_FOREACH_SAFE(s->chars, c, tmp) {
+    c->val_handle = 0;
+    if (c->pending_remove) {
+      LL_DELETE(s->chars, c);
+      sys_ble_free_char_node(c);
+    }
+  }
+
+  struct ble_gatt_svc_def* svcs = calloc(2, sizeof(*svcs));
+  if (!svcs) SE_RET_ERR(ERR_BASE_NO_MEM, s->cfg.uuid);
+  err_h err = populate_svc_def(&svcs[0], s);
+  if (SE_IS_ERR(err)) {
+    sys_ble_free_compiled_gatt_db(svcs);
+    return err;
   }
 
   R_MUTEX_UNLOCK(sys_ble_mutex);
   int rc = ble_gatts_add_dynamic_svcs(svcs);
   R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
-
   if (rc != 0) {
-    ESP_LOGE(TAG, "Failed to dynamically add service UUID 0x%04X: %d", s->cfg.uuid, rc);
     sys_ble_free_compiled_gatt_db(svcs);
     SE_RET_ERR(ERR_BLE_GATT_FAILED, rc);
   }
 
-  s->registered = true;
   s->compiled_def = svcs;
-  s->dirty = false;
+  sys_ble_svc_mark_registered(s);
+  /* NimBLE's dynamic add/delete APIs issue Service Changed themselves. */
+  return NULL;
+}
 
-  sys_ble_char_node_t* c;
-  LL_FOREACH(s->chars, c) {
-    c->pending_add = false;
+static err_h sys_ble_database_start(void) {
+  size_t count = 0;
+  sys_ble_svc_node_t* s;
+  LL_FOREACH(g_ble_ctx.services, s) {
+    count++;
   }
 
+  struct ble_gatt_svc_def* svcs = calloc(count + 1, sizeof(*svcs));
+  if (!svcs) SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+  size_t idx = 0;
+  err_h err = NULL;
+  LL_FOREACH(g_ble_ctx.services, s) {
+    err = populate_svc_def(&svcs[idx++], s);
+    if (SE_IS_ERR(err)) break;
+  }
+  if (SE_IS_OK(err)) err = sys_ble_stack_init(svcs);
+  if (SE_IS_ERR(err)) {
+    sys_ble_free_compiled_gatt_db(svcs);
+    return err;
+  }
+
+  g_ble_ctx.compiled_db = svcs;
+  g_ble_ctx.driver_started = true;
+  LL_FOREACH(g_ble_ctx.services, s) {
+    sys_ble_svc_mark_registered(s);
+  }
   return NULL;
 }
 
 err_h sys_ble_database_sync(void) {
   R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
-
+  err_h err = NULL;
   if (!g_ble_ctx.driver_started) {
-    uint16_t num_svcs = 0;
-    sys_ble_svc_node_t* s;
-    LL_FOREACH(g_ble_ctx.services, s) {
-      num_svcs++;
-    }
-
-    struct ble_gatt_svc_def* svcs = calloc(num_svcs + 1, sizeof(struct ble_gatt_svc_def));
-    if (!svcs) {
-      R_MUTEX_UNLOCK(sys_ble_mutex);
-      SE_RET_ERR(ERR_BASE_NO_MEM, 0);
-    }
-
-    int s_idx = 0;
-    LL_FOREACH(g_ble_ctx.services, s) {
-      err_h pop_res = populate_svc_def(&svcs[s_idx], s);
-      if (SE_IS_ERR(pop_res)) {
-        sys_ble_free_compiled_gatt_db(svcs);
-        R_MUTEX_UNLOCK(sys_ble_mutex);
-        return pop_res;
-      }
-      s->registered = true;
-      s->dirty = false;
-      s->compiled_def = NULL;
-      sys_ble_char_node_t* c;
-      LL_FOREACH(s->chars, c) {
-        c->pending_add = false;
-      }
-      s_idx++;
-    }
-
-    g_ble_ctx.compiled_db = svcs;
-
-    err_h init_res = sys_ble_stack_init(svcs);
-    if (SE_IS_ERR(init_res)) {
-      sys_ble_free_compiled_gatt_db(svcs);
-      R_MUTEX_UNLOCK(sys_ble_mutex);
-      return init_res;
-    }
-
-    g_ble_ctx.driver_started = true;
-    R_MUTEX_UNLOCK(sys_ble_mutex);
-    sys_ble_rebuild_active_tx_slots();
-    ESP_LOGI(TAG, "BLE database compilation and stack sync complete");
-    return NULL;
+    err = sys_ble_database_start();
   } else {
     sys_ble_svc_node_t* s;
     LL_FOREACH(g_ble_ctx.services, s) {
-      if (!s->registered) {
-        /* Brand-new service, never added to the running stack yet. */
-        err_h add_res = sys_ble_svc_compile_and_add(s);
-        if (SE_IS_ERR(add_res)) {
-          R_MUTEX_UNLOCK(sys_ble_mutex);
-          return add_res;
-        }
-        continue;
-      }
-
-      if (!s->dirty) {
-        /* Already live and unchanged since last sync - nothing to do. */
-        continue;
-      }
-
-      /* Already live, but a characteristic was added/removed since - NimBLE's
-         dynamic-add API is service-granularity only, so the only way to add
-         (or truly remove) a characteristic on a live service is to delete the
-         whole service and recompile+re-add it from the current node list. */
-      ble_uuid16_t temp_uuid;
-      temp_uuid.u.type = BLE_UUID_TYPE_16;
-      temp_uuid.value = s->cfg.uuid;
-
-      R_MUTEX_UNLOCK(sys_ble_mutex);
-      int del_rc = ble_gatts_delete_svc((const ble_uuid_t*)&temp_uuid);
-      R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
-
-      if (del_rc != 0) {
-        ESP_LOGE(TAG, "Failed to delete service 0x%04X from NimBLE for recompile: %d", s->cfg.uuid, del_rc);
-        R_MUTEX_UNLOCK(sys_ble_mutex);
-        SE_RET_ERR(ERR_BLE_GATT_FAILED, del_rc);
-      }
-
-      if (s->compiled_def) {
-        sys_ble_free_compiled_gatt_db(s->compiled_def);
-        s->compiled_def = NULL;
-      }
-
-      /* Physically drop characteristics that were marked for removal while
-         the service was live - safe now that NimBLE no longer references them. */
-      sys_ble_char_node_t *c, *tmp;
-      LL_FOREACH_SAFE(s->chars, c, tmp) {
-        if (c->pending_remove) {
-          LL_DELETE(s->chars, c);
-          sys_ble_free_char_node(c);
-        }
-      }
-
-      /* Mark unregistered so a failed re-add below leaves the service in the
-         "brand-new, not yet added" state - the next sync() call retries it
-         from scratch rather than getting stuck half-deleted. */
-      s->registered = false;
-
-      err_h add_res = sys_ble_svc_compile_and_add(s);
-      if (SE_IS_ERR(add_res)) {
-        R_MUTEX_UNLOCK(sys_ble_mutex);
-        return add_res;
-      }
-
-      /* Tell already-subscribed/bonded clients the GATT db changed so they
-         re-discover. Full-range invalidation is deliberately used here rather
-         than tracking exact per-service handle ranges - this path is rare
-         (post-boot dynamic add), not a hot path. */
-      ble_svc_gatt_changed(0x0001, 0xffff);
+      err = sys_ble_svc_sync(s);
+      if (SE_IS_ERR(err)) break;
     }
-
-    R_MUTEX_UNLOCK(sys_ble_mutex);
-    sys_ble_rebuild_active_tx_slots();
-    ESP_LOGI(TAG, "Dynamic BLE service registration complete");
-    return NULL;
   }
+  R_MUTEX_UNLOCK(sys_ble_mutex);
+  /* Resume packets queued before their characteristic became live. */
+  xSemaphoreGive(sys_ble_tx_sem);
+  return err;
 }
 #undef OWNER
 
@@ -559,55 +485,6 @@ err_h sys_ble_get_status(sys_ble_status_t* out_status) {
   out_status->mtu_size = g_ble_ctx.mtu_size;
   out_status->rx_overflow_count = g_ble_ctx.rx_overflow_count;
   R_MUTEX_UNLOCK(sys_ble_mutex);
-  return NULL;
-}
-#undef OWNER
-
-/*****************************************************************************************/
-/* Unified Declarative Channel API                                                       */
-/*****************************************************************************************/
-
-#define OWNER OWNER_SYS_BLE_CHANNEL_CREATE
-err_h sys_ble_channel_create(const sys_ble_channel_cfg_t* cfg, bool sync_now) {
-  SE_CHECK_NOT_NULL(cfg);
-
-  uint16_t svc_uuid = cfg->svc_uuid ? cfg->svc_uuid : SYS_BLE_SVC_DEFAULT_AUTO;
-
-  R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
-  bool svc_exists = sys_ble_find_svc_by_uuid(svc_uuid) != NULL;
-  R_MUTEX_UNLOCK(sys_ble_mutex);
-
-  if (!svc_exists) {
-    sys_ble_svc_cfg_t svc_cfg = {.uuid = svc_uuid, .is_primary = true};
-    err_h svc_err = sys_ble_service_create(&svc_cfg);
-    /* Tolerate a race where the service was created concurrently between the
-       lookup above and this call - anything else is a real failure. */
-    if (SE_IS_ERR(svc_err) && svc_err->tag != ERR_DEV_ALREADY_EXIST) {
-      return svc_err;
-    }
-  }
-
-  sys_ble_char_create_t chr_cfg = {.info = cfg->chr, .rx_buffer_size = cfg->rx_buffer_size, .rx_notify_sem = cfg->rx_notify_sem};
-  SE_RET_IF_ERR(sys_ble_char_create(svc_uuid, &chr_cfg));
-
-  for (uint8_t i = 0; i < cfg->tx_buf_count; i++) {
-    SE_RET_IF_ERR(sys_ble_char_assign_tx_buffer(cfg->chr.uuid, &cfg->tx_bufs[i]));
-  }
-
-  if (cfg->rx_mode == SYS_BLE_RX_MODE_CALLBACK) {
-    R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
-    sys_ble_char_node_t* c = sys_ble_find_char_by_uuid(cfg->chr.uuid);
-    if (c) {
-      c->rx_handler = cfg->rx_handler;
-    }
-    R_MUTEX_UNLOCK(sys_ble_mutex);
-  }
-
-  if (sync_now) {
-    SE_RET_IF_ERR(sys_ble_database_sync());
-  }
-
-  ESP_LOGI(TAG, "Created BLE channel UUID 0x%04X under service UUID 0x%04X", cfg->chr.uuid, svc_uuid);
   return NULL;
 }
 #undef OWNER

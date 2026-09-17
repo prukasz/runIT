@@ -13,10 +13,9 @@
  *
  * ## Wire format
  *
- * There is **no class byte**. The outbound stream is already identified by the
- * TX slot header byte that `sys_buff_pop_framed()` prepends (see
- * `sys_ble_char_assign_tx_buffer()`), so adding another one here would be
- * redundant.
+ * The encoder does not include a class byte. `sys_data_connector_send()`
+ * prepends the connector's framing header before passing the packet to each
+ * transport provider. Receivers consume that byte before decoding this format.
  *
  * @code
  *   +--------- packet header (3 B) ---------+
@@ -107,12 +106,12 @@
  *               ERR_INTERFACE_ENC_BUF_TOO_SMALL (carrying got/need) if the
  *               buffer cannot hold the header plus the first node.
  *
- * Example — encode and hand off to a TX ring:
+ * Example — encode and hand off to the errors connector:
  * @code
  * uint8_t pkt[128];
  * size_t  pkt_len = 0;
  * if (SE_IS_OK(enc_sys_errors_encode_chain(chain, pkt, sizeof(pkt), &pkt_len))) {
- *   sys_ble_char_send(SYS_BLE_CHR_RUNIT_LOGS, PACKET_HEADER_ERRORS, pkt, pkt_len, true);
+ *   sys_data_connector_send(sys_data_connector_get(CONN_ID_ERRORS), pkt, pkt_len);
  * }
  * @endcode
  */

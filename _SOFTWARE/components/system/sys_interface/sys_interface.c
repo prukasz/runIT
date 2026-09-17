@@ -150,7 +150,6 @@ err_h sys_interface_init(void) {
   s_decoder_count = 0;
   s_tap_buff = (sys_buff_t){
       .buff = s_tap_ringbuffer,
-      .header = 0,
       .truncated = 0,
   };
   SE_RET_IF_ERR(sys_interface_register_decoder(SYS_CONTRACTS_CLASS_HEADER, dec_sys_contracts_decode, "sys_contracts"));

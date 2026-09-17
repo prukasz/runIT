@@ -16,21 +16,8 @@
 #include "vm_sub.h"
 #include "vm_exec.h"
 #include "sys_data_connector.h"
-#include "sys_data_connector_ble.h"
 
 static const char* TAG = "runit_app";
-
-static const sys_data_connector_ble_cfg_t s_runit_ble_connector_cfg = {
-    .logs_char_uuid   = SYS_BLE_CHR_RUNIT_LOGS,
-    .logs_header      = PACKET_HEADER_LOGS,
-    .errors_char_uuid = SYS_BLE_CHR_RUNIT_LOGS,
-    .errors_header    = PACKET_HEADER_ERRORS,
-    .tx_char_uuid     = SYS_BLE_CHR_RUNIT_TX,
-    .tx_header        = PACKET_HEADER_TX,
-    .rx_char_uuid     = SYS_BLE_CHR_RUNIT_RX,
-    .rx_frame_max     = RUNIT_BLE_RX_FRAME_MAX,
-};
-
 
 static err_h runit_sub_ble_sender(const uint8_t* data, size_t len) {
   ESP_LOGI(TAG, "BLE TX dispatching telemetry frame (%u bytes)", (unsigned)len);
@@ -175,10 +162,6 @@ static err_h runit_step_register_device_error_policy(void) {
   return NULL;
 }
 
-static err_h runit_step_connector_init(void) {
-  return sys_data_connector_bind_ble(&s_runit_ble_connector_cfg);
-}
-
 static err_h runit_step_error_configure(void) {
   SE_set_logging(ESP_LOG_INFO, true, true);
   return SE_configure(&s_runit_error_cfg);
@@ -203,7 +186,7 @@ err_h runit_start(void) {
       {"sys_start_i2c", sys_start_i2c},
       {"sys_power_static_config", sys_power_static_config},
       {"sys_ble_static_config", sys_ble_static_config},
-      {"sys_data_connector_init", runit_step_connector_init},
+      {"sys_data_connector_init", runit_data_connector_static_config},
       {"SE_configure", runit_step_error_configure},
       {"sys_device_error_policy", runit_step_register_device_error_policy},
       {"sys_callbacks_init", sys_callbacks_init},

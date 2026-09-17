@@ -96,7 +96,7 @@ One slot, assigned outright — unlike `sys_interface`'s source registry there i
 The sink is called from the handler task only, never from an ISR, once per dequeued chain. **Its return value is dropped**: reporting a transport failure through the transport that just failed only loops.
 
 ### Transport Binding via `sys_data_connector`
-All transport-specific bindings (such as BLE, UART, WiFi) are cleanly separated into `sys_data_connector` and its transport adapters (e.g. `sys_data_connector_bind_ble()`). Sinks are registered generically with `se_register_log_sink()` and `se_register_errors_sink()` using standard callback signatures, ensuring `sys_errors` remains 100% transport-agnostic and free of direct transport dependencies.
+Transport providers are supplied by `sys_data_connector` adapters. Board-specific connector wiring lives in `runit_board_cfg.h` (`runit_data_connector_static_config()`). Sinks are registered generically with `se_register_log_sink()` and `se_register_errors_sink()`, keeping `sys_errors` independent of concrete transports.
 
 ### What the skeleton dropped
 
@@ -145,7 +145,7 @@ Log filtering and sinks are configured independently of `sys_error_cfg_t`:
 * **`se_register_errors_sink(sink_fn, ctx, name)`**: Legacy/test transport sink registration for encoded binary error packets.
 
 > **Note on Transport Bindings**:
-> Concrete transports (BLE, UART, WiFi) are attached to these connectors via `sys_data_connector` (e.g. `sys_data_connector_bind_ble()`), keeping `sys_errors` purely transport-agnostic.
+> Concrete transports are attached through `sys_data_connector`; runIT's BLE mappings are configured by `runit_data_connector_static_config()` in `runit_board_cfg.h`.
 
 ### Error Packet Dispatch (`sys_error_log.c`)
 
@@ -177,7 +177,7 @@ CHECK_AND_LOG(SE_configure(&(sys_error_cfg_t){
 SE_set_logging(ESP_LOG_INFO, true, true);
 
 // 3. Connect to transport layer (sys_data_connector)
-sys_data_connector_bind_ble(&s_ble_cfg);
+runit_data_connector_static_config();
 se_set_log_connector(sys_data_connector_get(CONN_ID_LOGS));
 se_set_errors_connector(sys_data_connector_get(CONN_ID_ERRORS));
 ```
