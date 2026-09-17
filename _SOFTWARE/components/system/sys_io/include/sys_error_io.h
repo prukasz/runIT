@@ -19,13 +19,13 @@
   X(OWNER_SYS_IO_SET_PWM_DUTY, 0xA30D, "OWNER_SYS_IO_SET_PWM_DUTY")           \
   X(OWNER_SYS_IO_UNREGISTER_DRIVER, 0xA30E, "OWNER_SYS_IO_UNREGISTER_DRIVER")
 
-#define SYS_ERROR_IO_MAP(X)                                                                \
-  X(ERR_IO_PIN_UNCONFIGURED, struct { uint8_t dev_id; uint8_t pin_num; })                  \
-  X(ERR_IO_PIN_UNAVAILABLE, struct { uint8_t dev_id; uint8_t pin_num; })                   \
-  X(ERR_IO_PIN_ALREADY_IN_USE, struct { uint8_t dev_id; uint8_t pin_num; uint8_t mode; })   \
-  X(ERR_IO_PIN_FEATURE_UNSUPPORTED, struct { uint8_t dev_id; uint8_t pin_num; })           \
-  X(ERR_IO_PIN_LOCKED, struct { uint8_t dev_id; uint8_t pin_id; })                        \
-  X(ERR_IO_PIN_MODE_UNSUPPORTED, struct { uint8_t dev_id; uint8_t pin_id; uint8_t mode; })
+#define SYS_ERROR_IO_MAP(X)                                                                                  \
+  X(ERR_IO_PIN_UNCONFIGURED, SYS_DEV_ERR_LOW, struct { uint8_t dev_id; uint8_t pin_num; })                  \
+  X(ERR_IO_PIN_UNAVAILABLE, SYS_DEV_ERR_LOW, struct { uint8_t dev_id; uint8_t pin_num; })                   \
+  X(ERR_IO_PIN_ALREADY_IN_USE, SYS_DEV_ERR_LOW, struct { uint8_t dev_id; uint8_t pin_num; uint8_t mode; })   \
+  X(ERR_IO_PIN_FEATURE_UNSUPPORTED, SYS_DEV_ERR_LOW, struct { uint8_t dev_id; uint8_t pin_num; })           \
+  X(ERR_IO_PIN_LOCKED, SYS_DEV_ERR_HIGH, struct { uint8_t dev_id; uint8_t pin_id; })                        \
+  X(ERR_IO_PIN_MODE_UNSUPPORTED, SYS_DEV_ERR_LOW, struct { uint8_t dev_id; uint8_t pin_id; uint8_t mode; })
 
 /**
  * @brief Human-readable descriptions for the sys_io tags - see
@@ -50,3 +50,5 @@
 #define LOG_BODY_ERR_IO_PIN_LOCKED(p, out, out_size) snprintf((out), (out_size), "pin %u on device %u is locked (protected_pins)", (p)->pin_id, (p)->dev_id)
 #define LOG_BODY_ERR_IO_PIN_MODE_UNSUPPORTED(p, out, out_size) \
   snprintf((out), (out_size), "pin %u on device %u doesn't support mode %u", (p)->pin_id, (p)->dev_id, (p)->mode)
+
+extern err_h sys_io_report_fault(err_h node, err_h chain) __attribute__((weak));

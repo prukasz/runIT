@@ -6,9 +6,9 @@
   X(OWNER_SYS_ACTIONS_BASE, 0xAA00, "OWNER_SYS_ACTIONS_BASE")\
   X(OWNER_SYS_ACTIONS_STATIC, 0xAA01, "OWNER_SYS_ACTIONS_STATIC")
 
-#define SYS_ERROR_ACTIONS_MAP(X)                                      \
-  X(ERR_ACTION_NOT_FOUND, struct { uint8_t action_id; })              \
-  X(ERR_ACTION_RECORDING_BUSY, struct { uint8_t action_id; })
+#define SYS_ERROR_ACTIONS_MAP(X)                                                                    \
+  X(ERR_ACTION_NOT_FOUND, SYS_DEV_ERR_LOW, struct { uint8_t action_id; })              \
+  X(ERR_ACTION_RECORDING_BUSY, SYS_DEV_ERR_MEDIUM, struct { uint8_t action_id; })
 
 /** @brief Human-readable descriptions for the sys_actions tags - see SE_describe_payload() in sys_error.h. */
 #define SYS_ERROR_ACTIONS_LOGGER_MAP(X) \
@@ -17,3 +17,5 @@
 
 #define LOG_BODY_ERR_ACTION_NOT_FOUND(p, out, out_size) snprintf((out), (out_size), "action %u has neither a bound static function nor anything stored", (p)->action_id)
 #define LOG_BODY_ERR_ACTION_RECORDING_BUSY(p, out, out_size) snprintf((out), (out_size), "action %u: a different action is already recording", (p)->action_id)
+
+extern err_h sys_actions_report_fault(err_h node, err_h chain) __attribute__((weak));

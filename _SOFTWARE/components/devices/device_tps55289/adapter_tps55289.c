@@ -143,24 +143,6 @@ static err_h device_reset(void* handle) {
   return NULL;
 }
 
-static err_h device_error_handler(void* handle, err_h error) {
-  tps_adapter_ctx_t* ctx = (tps_adapter_ctx_t*)handle;
-  SYS_DEV_CHECK_HANDLE(ctx, 0);
-  sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(ctx));
-  if (!dev) return NULL;
-
-  if (dev->generate_error_callback) {
-    // TODO: report to the VM via the callback system. Payload should carry
-    // at least: device_id, and the root cause's tag/owner - walk
-    // error->next_cause to the end, since a wrapper like ERR_DEV_DEP_FAILED
-    // only carries dev_id, not the underlying failure's tag/owner. Always
-    // attach device_id explicitly (the root cause itself may not carry one).
-    return NULL;
-  }
-
-  return NULL;
-}
-
 static err_h device_suspend(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tps_adapter_ctx_t, tps55289_handle_t, ctx, hw, handle);
 
@@ -255,7 +237,7 @@ fail:
 static const sys_device_class_t s_tps55289_class = {
     .name = "TPS55289_VREG",
     .contracts = {[SYS_DEVICE_CONTRACT_POWER_VREG] = (void*)&s_tps_vreg_contract},
-    .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume, .error_handler = device_error_handler},
+    .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume},
 };
 
 err_h d_tps55289_create(const d_tps55289_cfg_t* cfg) {

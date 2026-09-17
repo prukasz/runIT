@@ -14,40 +14,19 @@ const char* const sys_device_contract_type_e_to_string[] = {"IO", "POWER_VREG", 
   Reads are lock-free: sys_device_get_by_id() sits on the hot dispatch path and
   is reachable from ISR-adjacent code, where a mutex cannot be taken.*/
 static sys_device_t* s_device_registry[CONFIG_SYS_DEVICE_MAX_ID + 1] = {NULL};
-static sys_device_error_policy_fn_t s_error_policy;
-
-void sys_device_register_error_policy(sys_device_error_policy_fn_t policy) {
-  s_error_policy = policy;
-}
-
-sys_device_err_level_e sys_device_classify_error(err_h error) {
-  err_h root = SE_get_error_root(error);
-  if (!root) return SYS_DEV_ERR_CRITICAL;
-
-  switch (root->tag) {
-    case ERR_POWER_BUDGET_EXCEEDED:
-    case ERR_DEV_SUSPENDED:
-    case ERR_IO_PIN_LOCKED:
-      return SYS_DEV_ERR_WARNING;
-
-    case ERR_INVALID_VAL_UI32:
-    case ERR_INVALID_VAL_I32:
-    case ERR_INVALID_VAL_F:
-    case ERR_BASE_NOT_SUPPORTED:
-    case ERR_BASE_NOT_FOUND:
-    case ERR_DEV_FEATURE_UNAVAILABLE:
-    case ERR_IO_PIN_UNCONFIGURED:
-    case ERR_IO_PIN_UNAVAILABLE:
-    case ERR_IO_PIN_ALREADY_IN_USE:
-    case ERR_IO_PIN_FEATURE_UNSUPPORTED:
-    case ERR_IO_PIN_MODE_UNSUPPORTED:
-      return SYS_DEV_ERR_NOTICE;
-
-    /* Communication, missing hardware, memory/state faults, and new tags all
-       fail safe. Unknown future faults must not silently become noncritical. */
-    default:
-      return SYS_DEV_ERR_CRITICAL;
+/* Weak default fallback for sys_device_app_error_policy.
+   Overridden at link time by the application coordinator (runit). */
+__attribute__((weak)) err_h sys_device_app_error_policy(uint8_t device_id,
+                                                        sys_device_err_level_e level,
+                                                        uint8_t action_id,
+                                                        err_h error) {
+  (void)device_id;
+  (void)action_id;
+  (void)error;
+  if (level == SYS_DEV_ERR_CRITICAL) {
+    (void)sys_device_freeze_all();
   }
+  return NULL;
 }
 
 #define DEV_OP(d, f) ((d)->cls->ops.f)
@@ -188,50 +167,65 @@ sys_device_t* sys_device_get_by_id(uint8_t device_id) {
 
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_REPORT_ERROR
-err_h sys_device_report_error(uint8_t device_id, err_h error) {
+err_h sys_device_report_error_with_level(uint8_t device_id, sys_device_err_level_e level, err_h error) {
+  if (!error) return NULL;
+
   sys_device_t* dev = sys_device_get_by_id(device_id);
-  if (!dev) return NULL;
-  if (!error || (!dev->generate_error_callback && !dev->use_error_handler)) return NULL;
 
-  if (dev->generate_error_callback) {
-    if (!dev->cls->ops.error_handler) return NULL;
-    err_h callback_error = dev->cls->ops.error_handler(dev->device_handle, error);
-    if (!callback_error) return NULL;
-    err_h root = SE_get_error_root(callback_error);
-    return SE_WRAP_ERR(callback_error, ERR_DEV_FAULT_RESPONSE_FAILED,
-                       .dev_id = device_id, .level = SYS_DEV_ERR_NOTICE,
-                       .stage = SYS_DEV_FAULT_STAGE_CALLBACK, .action_id = UINT8_MAX,
-                       .cause_tag = root ? (uint16_t)root->tag : 0);
+  /* User rule: when device importance is NONE (test device), ignore all error handling */
+  if (dev && dev->importance == SYS_DEV_IMPORTANCE_NONE) {
+    return NULL;
   }
 
-  sys_device_err_level_e level = sys_device_classify_error(error);
-  if (!s_error_policy) {
-    SE_RET_ERR(ERR_DEV_FAULT_POLICY_MISSING, .dev_id = device_id, .level = (uint8_t)level);
+  /* If level not explicitly provided, look up root cause error tag default severity */
+  if (level == SYS_DEV_ERR_NONE) {
+    err_h root = SE_get_error_root(error);
+    level = root ? SE_get_tag_level(root->tag) : SYS_DEV_ERR_LOW;
   }
-  return s_error_policy(device_id, level, dev->actions[level], error);
+
+  /* Non-critical errors obey device importance clamping */
+  if (level != SYS_DEV_ERR_CRITICAL) {
+    if (!dev) {
+      return NULL;
+    }
+    if ((uint8_t)level > (uint8_t)dev->importance) {
+      level = (sys_device_err_level_e)dev->importance;
+    }
+    if (level == SYS_DEV_ERR_NONE) return NULL;
+  }
+
+  /* CRITICAL or clamped level dispatch */
+  uint8_t action_id = (dev) ? dev->actions[level] : 0;
+  return sys_device_app_error_policy(device_id, level, action_id, error);
+}
+
+err_h sys_device_report_error(uint8_t device_id, err_h error) {
+  return sys_device_report_error_with_level(device_id, SYS_DEV_ERR_NONE, error);
+}
+
+bool sys_device_is_ignored(uint8_t device_id) {
+  sys_device_t* dev = sys_device_get_by_id(device_id);
+  return (dev != NULL) && (dev->importance == SYS_DEV_IMPORTANCE_NONE);
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_SET_ERROR_HANDLING
-err_h sys_device_set_error_handling(uint8_t device_id, bool use_error_handler, bool generate_error_callback, const uint8_t actions[3]) {
+err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e importance, const uint8_t actions[5]) {
   sys_device_t* dev = sys_device_get_by_id(device_id);
   if (!dev) {
     SE_RET_ERR(ERR_DEV_NOT_FOUND, device_id);
   }
+  SE_CHECK_IN_RANGE((uint32_t)importance, SYS_DEV_IMPORTANCE_NONE, SYS_DEV_IMPORTANCE_CRITICAL);
 
   if (actions) {
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 5; i++) {
       SE_CHECK_IN_RANGE(actions[i], 0, CONFIG_SYS_ACTIONS_ID_SPACE - 1);
     }
-  }
-
-  dev->use_error_handler = use_error_handler;
-  dev->generate_error_callback = generate_error_callback;
-  if (actions) {
     memcpy(dev->actions, actions, sizeof(dev->actions));
   } else {
     memset(dev->actions, 0, sizeof(dev->actions));
   }
+  dev->importance = importance;
   return NULL;
 }
 

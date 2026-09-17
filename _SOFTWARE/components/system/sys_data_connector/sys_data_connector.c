@@ -60,6 +60,15 @@ err_h sys_data_connector_register_provider(const sys_data_provider_driver_t* dri
 // Connector Lifecycle
 // -----------------------------------------------------------------------------
 
+void sys_data_connector_set_wake_sem(sys_data_connector_t* conn, SemaphoreHandle_t sem) {
+  if (!conn || conn->data_present == sem) return;
+  if (conn->owns_data_present_sem && conn->data_present) {
+    vSemaphoreDelete(conn->data_present);
+  }
+  conn->data_present          = sem;
+  conn->owns_data_present_sem = false;
+}
+
 sys_data_connector_t* sys_data_connector_create_with_cfg(const sys_data_connector_cfg_t* cfg) {
   if (!cfg || cfg->id >= SYS_DATA_CONNECTOR_MAX) {
     ESP_LOGE(TAG, "Invalid connector config or ID: %u", cfg ? cfg->id : 0xFF);
@@ -68,7 +77,9 @@ sys_data_connector_t* sys_data_connector_create_with_cfg(const sys_data_connecto
 
   sys_data_connector_t* conn = &s_connectors[cfg->id];
   if (conn->allocated) {
-    conn->header = cfg->header;
+    if (cfg->header != 0) {
+      conn->header = cfg->header;
+    }
     if (cfg->name && cfg->name[0] != '\0') {
       strncpy(conn->name, cfg->name, sizeof(conn->name) - 1);
       conn->name[sizeof(conn->name) - 1] = '\0';
@@ -120,15 +131,6 @@ sys_data_connector_t* sys_data_connector_create(uint8_t id, const char* name, ui
       .data_present   = NULL,
   };
   return sys_data_connector_create_with_cfg(&cfg);
-}
-
-void sys_data_connector_set_wake_sem(sys_data_connector_t* conn, SemaphoreHandle_t sem) {
-  if (!conn) return;
-  if (conn->owns_data_present_sem && conn->data_present) {
-    vSemaphoreDelete(conn->data_present);
-  }
-  conn->data_present          = sem;
-  conn->owns_data_present_sem = false;
 }
 
 sys_data_connector_t* sys_data_connector_get(uint8_t id) {
@@ -260,7 +262,7 @@ void sys_data_connector_send(sys_data_connector_t* conn, const void* data, size_
   size_t max_payload = sys_data_connector_get_max_len(conn);
   size_t send_len    = (len > max_payload) ? max_payload : len;
 
-  uint8_t  frame[SYS_DATA_CONNECTOR_MAX_FRAME_LEN + 1];
+  uint8_t  frame[SYS_DATA_CONNECTOR_MAX_PACKET_LEN + 1];
   uint8_t* p_frame        = frame;
   bool     heap_allocated = false;
 

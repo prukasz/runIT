@@ -29,7 +29,6 @@ typedef struct sys_device_ops_t {
   err_h (*resume)(void* device_handle);
   err_h (*freeze)(void* device_handle);
   err_h (*sync)(void* device_handle);
-  err_h (*error_handler)(void* device_handle, err_h error);
 } sys_device_ops_t;
 
 /**
@@ -61,31 +60,41 @@ typedef enum sys_device_state_e {
 } sys_device_state_e;
 
 /**
- * @brief Severity assigned centrally by sys_device_classify_error(), selecting
- * which of sys_device_t.actions[] the registered application policy invokes.
+ * @brief Device importance level.
+ *
+ * Determines whether error handling is active (NONE disables it) and caps
+ * the maximum error severity that this device can escalate to.
  */
-typedef enum sys_device_err_level_e {
-  SYS_DEV_ERR_CRITICAL = 0,
-  SYS_DEV_ERR_WARNING = 1,
-  SYS_DEV_ERR_NOTICE = 2,
-} sys_device_err_level_e;
+typedef enum sys_device_importance_e {
+  SYS_DEV_IMPORTANCE_NONE = 0,
+  SYS_DEV_IMPORTANCE_LOW = 1,
+  SYS_DEV_IMPORTANCE_MEDIUM = 2,
+  SYS_DEV_IMPORTANCE_HIGH = 3,
+  SYS_DEV_IMPORTANCE_CRITICAL = 4,
+} sys_device_importance_e;
+
+/**
+ * sys_device_err_level_e (SYS_DEV_ERR_NONE .. CRITICAL) is defined in
+ * sys_error_base.h so that all error tags can embed default severity levels.
+ */
 
 /** Stage of a device-fault response, included in structured failure errors. */
 typedef enum sys_device_fault_stage_e {
-  SYS_DEV_FAULT_STAGE_CALLBACK = 0,
-  SYS_DEV_FAULT_STAGE_VM_STOP = 1,
-  SYS_DEV_FAULT_STAGE_FREEZE = 2,
-  SYS_DEV_FAULT_STAGE_ACTION = 3,
+  SYS_DEV_FAULT_STAGE_VM_STOP = 0,
+  SYS_DEV_FAULT_STAGE_FREEZE = 1,
+  SYS_DEV_FAULT_STAGE_ACTION = 2,
 } sys_device_fault_stage_e;
 
 /**
- * Application-owned response for centrally classified system-device errors.
- * The callback runs in task context and may wait for VM/device quiescence.
+ * @brief Application coordinator error policy for classified device errors.
+ *
+ * Implemented statically by the application layer (runit). A weak fallback is
+ * provided in sys_device.c that freezes all devices on CRITICAL errors.
  */
-typedef err_h (*sys_device_error_policy_fn_t)(uint8_t device_id,
-                                              sys_device_err_level_e level,
-                                              uint8_t action_id,
-                                              err_h error);
+err_h sys_device_app_error_policy(uint8_t device_id,
+                                  sys_device_err_level_e level,
+                                  uint8_t action_id,
+                                  err_h error);
 
 /**
  * @brief Main device object with all necessary data and structures
@@ -103,9 +112,8 @@ typedef struct sys_device_t {
   /**
    * @brief Per-instance error handling mode - see sys_device_report_error().
    */
-  uint8_t actions[3];           /* sys_actions ids indexed by sys_device_err_level_e; only consulted when use_error_handler is set */
-  bool use_error_handler;       /* true: central classifier and registered policy use actions[level] */
-  bool generate_error_callback; /* true: cls->ops.error_handler reports to the VM via callback instead - takes priority over use_error_handler */
+  uint8_t actions[5];           /* sys_actions ids indexed by sys_device_err_level_e */
+  sys_device_importance_e importance; /* NONE disables error handling; clamps max error level */
 } sys_device_t;
 
 /**
@@ -148,54 +156,51 @@ err_h sys_device_sync_all(void);
 sys_device_t* sys_device_get_by_id(uint8_t device_id);
 
 /**
- * @brief Report an error that occurred on device_id to that device's own
- * error handling, per its per-instance flags.
+ * @brief Report an error that occurred on device_id to the centralized error policy.
  *
- * Call it directly - nothing dispatches it for you at the moment. The
- * sys_errors handler task used to route every device-owned chain here through
- * a registered hook; that hook is gone while sys_error_handler.c is a skeleton
- * (see [[SYS_ERRORS.MD]]).
+ * The fault severity level is determined automatically from the root error's tag
+ * (via SE_get_tag_level()).
  *
- * Flags:
+ * If dev->importance is SYS_DEV_IMPORTANCE_NONE, all error handling is ignored
+ * (treated as a test/non-essential device; no actions or latches are triggered).
  *
- * - generate_error_callback set: cls->ops.error_handler is expected to only
- *   report the error to the VM via the callback system and return -
- *   use_error_handler/actions[] are not consulted. Takes priority over
- *   use_error_handler when both happen to be set.
- * - use_error_handler set (and generate_error_callback is not): sys_device
- *   classifies the root cause centrally, selects actions[level], and calls the
- *   application policy registered by sys_device_register_error_policy().
- * - Neither flag set or device_id not found: no-op, returns NULL.
+ * If effective severity is SYS_DEV_ERR_CRITICAL and importance != NONE:
+ * it unconditionally latches the fault in the VM, halts the VM, freezes all devices,
+ * and invokes dev->actions[SYS_DEV_ERR_CRITICAL].
  *
- * @return NULL on successful dispatch, or a structured policy/callback error.
+ * For non-critical errors (LOW, MEDIUM, HIGH):
+ * - If the level exceeds dev->importance, it is clamped down to dev->importance.
+ * - Dispatches dev->actions[level] to the application policy.
+ *
+ * @param device_id Target device.
+ * @param error Error handle (must not be NULL).
+ * @return NULL on successful dispatch or if ignored, or a structured policy error.
  */
 err_h sys_device_report_error(uint8_t device_id, err_h error);
 
-/** Classify a complete error chain using the shared fail-safe severity map. */
-sys_device_err_level_e sys_device_classify_error(err_h error);
-
-/** Register the application response used when use_error_handler is enabled. */
-void sys_device_register_error_policy(sys_device_error_policy_fn_t policy);
+/**
+ * @brief Report an error with an explicit severity level override.
+ */
+err_h sys_device_report_error_with_level(uint8_t device_id, sys_device_err_level_e level, err_h error);
 
 /**
- * @brief Set device_id's per-instance error handling mode in one call - see
- * sys_device_t and sys_device_report_error(). Deliberately one function
- * covering all three fields together (rather than a setter per field) so it
- * maps 1:1 onto a single future wire packet - decoders in this codebase are
- * one layer deep, each packet handler making exactly one API call with the
- * packet's fields as arguments (see [[CODECS.MD]]).
+ * @brief Returns true if device has SYS_DEV_IMPORTANCE_NONE (ignored test device).
+ */
+bool sys_device_is_ignored(uint8_t device_id);
+
+/**
+ * @brief Set device_id's per-instance error handling mode in one call.
  *
  * @param device_id Target device; must already be registered.
- * @param use_error_handler New value for sys_device_t.use_error_handler.
- * @param generate_error_callback New value for sys_device_t.generate_error_callback.
- * @param actions Copied into dev->actions[3]; each entry must be
+ * @param importance New value for sys_device_t.importance (NONE disables handling).
+ * @param actions Copied into dev->actions[5]; each entry must be
  *                < CONFIG_SYS_ACTIONS_ID_SPACE. Pass NULL to leave
- *                actions[] zeroed (equivalent to {0, 0, 0}).
+ *                actions[] zeroed (equivalent to {0, 0, 0, 0, 0}).
  * @return err_h NULL on success, ERR_DEV_NOT_FOUND if device_id isn't
  *               registered, or ERR_INVALID_VAL_UI32 if an actions[] entry is
  *               out of range.
  */
-err_h sys_device_set_error_handling(uint8_t device_id, bool use_error_handler, bool generate_error_callback, const uint8_t actions[3]);
+err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e importance, const uint8_t actions[5]);
 
 /* ========================================================================== *
  * Field accessors - helpers

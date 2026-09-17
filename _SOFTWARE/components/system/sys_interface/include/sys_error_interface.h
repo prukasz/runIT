@@ -12,14 +12,13 @@
   X(OWNER_DEC_SYS_DEVICE_INSTALL, 0xA612, "OWNER_DEC_SYS_DEVICE_INSTALL") \
   X(OWNER_ENC_SYS_ERRORS, 0xA620, "OWNER_ENC_SYS_ERRORS")
 
-#define SYS_ERROR_INTERFACE_MAP(X)                                                                        \
-  X(ERR_INTERFACE_SHORT_FRAME, struct { uint32_t got; uint32_t need; })                                    \
-  X(ERR_INTERFACE_UNKNOWN_CLASS, struct { uint8_t class_header; })                                         \
-  X(ERR_INTERFACE_UNKNOWN_PACKET, struct { uint8_t class_header; uint8_t packet_header; })                 \
-  X(ERR_INTERFACE_CLASS_TAKEN, struct { uint8_t class_header; })                                           \
-  X(ERR_INTERFACE_NO_CLASS_SLOTS, struct { uint8_t class_header; })                                        \
-  X(ERR_INTERFACE_ENC_BUF_TOO_SMALL, struct { uint32_t got; uint32_t need; })                                \
-  X(ERR_INTERFACE_NO_SOURCE_SLOTS, struct { uint8_t unused; })
+#define SYS_ERROR_INTERFACE_MAP(X)                                                                                                      \
+  X(ERR_INTERFACE_SHORT_FRAME, SYS_DEV_ERR_LOW, struct { uint32_t got; uint32_t need; })                                    \
+  X(ERR_INTERFACE_UNKNOWN_CLASS, SYS_DEV_ERR_LOW, struct { uint8_t class_header; })                                         \
+  X(ERR_INTERFACE_UNKNOWN_PACKET, SYS_DEV_ERR_LOW, struct { uint8_t class_header; uint8_t packet_header; })                 \
+  X(ERR_INTERFACE_CLASS_TAKEN, SYS_DEV_ERR_LOW, struct { uint8_t class_header; })                                           \
+  X(ERR_INTERFACE_NO_CLASS_SLOTS, SYS_DEV_ERR_MEDIUM, struct { uint8_t class_header; })                                        \
+  X(ERR_INTERFACE_ENC_BUF_TOO_SMALL, SYS_DEV_ERR_HIGH, struct { uint32_t got; uint32_t need; })
 
 /** @brief Human-readable descriptions for the sys_interface tags - see SE_describe_payload() in sys_error.h. */
 #define SYS_ERROR_INTERFACE_LOGGER_MAP(X) \
@@ -28,8 +27,7 @@
   X(ERR_INTERFACE_UNKNOWN_PACKET)         \
   X(ERR_INTERFACE_CLASS_TAKEN)            \
   X(ERR_INTERFACE_NO_CLASS_SLOTS)         \
-  X(ERR_INTERFACE_ENC_BUF_TOO_SMALL)      \
-  X(ERR_INTERFACE_NO_SOURCE_SLOTS)
+  X(ERR_INTERFACE_ENC_BUF_TOO_SMALL)
 
 #define LOG_BODY_ERR_INTERFACE_SHORT_FRAME(p, out, out_size) snprintf((out), (out_size), "frame too short: got %lu bytes, need %lu", (unsigned long)(p)->got, (unsigned long)(p)->need)
 #define LOG_BODY_ERR_INTERFACE_UNKNOWN_CLASS(p, out, out_size) snprintf((out), (out_size), "unregistered class byte 0x%02X", (p)->class_header)
@@ -40,8 +38,5 @@
   snprintf((out), (out_size), "no free class slots left (registering 0x%02X)", (p)->class_header)
 #define LOG_BODY_ERR_INTERFACE_ENC_BUF_TOO_SMALL(p, out, out_size) \
   snprintf((out), (out_size), "encode buffer too small: got %lu bytes, need %lu", (unsigned long)(p)->got, (unsigned long)(p)->need)
-#define LOG_BODY_ERR_INTERFACE_NO_SOURCE_SLOTS(p, out, out_size) \
-  do {                                                           \
-    (void)(p);                                                   \
-    snprintf((out), (out_size), "no free RX source slots left"); \
-  } while (0)
+
+extern err_h sys_interface_report_fault(err_h node, err_h chain) __attribute__((weak));

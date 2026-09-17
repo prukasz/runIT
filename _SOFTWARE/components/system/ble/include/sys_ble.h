@@ -171,3 +171,8 @@ err_h sys_ble_database_sync(void);
  * @return err_h Status report (NULL on success, or error status).
  */
 err_h sys_ble_get_status(sys_ble_status_t* out_status);
+
+/**
+ * @brief Weak domain error hook for BLE faults.
+ */
+extern err_h sys_ble_report_fault(err_h node, err_h chain) __attribute__((weak));

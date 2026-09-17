@@ -150,15 +150,14 @@ static inline err_h decoder_packet_sys_device_sync_all_t(packet_sys_device_sync_
 #define HEADER_packet_sys_device_set_error_handling_t 0x1A
 typedef struct __packed {
   uint8_t device_id;
-  uint8_t use_error_handler;       // bool on the wire
-  uint8_t generate_error_callback; // bool on the wire
-  uint8_t actions[3];              // sys_actions ids, indexed by sys_device_err_level_e
+  uint8_t importance;              // sys_device_importance_e (0=NONE..4=CRITICAL)
+  uint8_t actions[5];              // sys_actions ids, indexed by sys_device_err_level_e
 } packet_sys_device_set_error_handling_t;
 
 static inline err_h decoder_packet_sys_device_set_error_handling_t(packet_sys_device_set_error_handling_t* packet) {
-  ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "setting error handling (dev %u): use_error_handler=%d, generate_error_callback=%d, actions=[%u,%u,%u]", packet->device_id,
-           packet->use_error_handler != 0, packet->generate_error_callback != 0, packet->actions[0], packet->actions[1], packet->actions[2]);
-  return sys_device_set_error_handling(packet->device_id, packet->use_error_handler != 0, packet->generate_error_callback != 0, packet->actions);
+  ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "setting error handling (dev %u): importance=%u, actions=[%u,%u,%u,%u,%u]", packet->device_id,
+           packet->importance, packet->actions[0], packet->actions[1], packet->actions[2], packet->actions[3], packet->actions[4]);
+  return sys_device_set_error_handling(packet->device_id, (sys_device_importance_e)packet->importance, packet->actions);
 }
 
 // ==========================================================================
@@ -278,6 +277,39 @@ typedef struct __packed {
 static inline err_h decoder_packet_sys_io_set_pwm_duty_t(packet_sys_io_set_pwm_duty_t* packet) {
   ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "setting pwm duty %lu (dev %u, pin %u)", (unsigned long)packet->duty, packet->device_id, packet->pin);
   return sys_io_set_pwm_duty(packet->device_id, packet->pin, packet->duty);
+}
+
+#define HEADER_packet_sys_io_configure_intr_t 0x29
+typedef struct __packed {
+  uint8_t device_id;
+  uint8_t pin;
+  uint8_t mode;               // sys_io_intr_mode_e
+  uint16_t route_mask;        // bitmask
+  uint8_t static_action_id;   // 0 = none
+  uint8_t dynamic_action_id;  // 0 = none
+  uint16_t adc_thresh_up_mV;
+  uint16_t adc_thresh_down_mV;
+  uint16_t adc_thresh_hyst_mV;
+  uint16_t adc_counter_thresh;
+} packet_sys_io_configure_intr_t;
+
+static inline err_h decoder_packet_sys_io_configure_intr_t(packet_sys_io_configure_intr_t* packet) {
+  ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "configuring io intr (dev %u, pin %u): mode=%u, route_mask=0x%04X, static_action=%u, dynamic_action=%u",
+           packet->device_id, packet->pin, packet->mode, packet->route_mask, packet->static_action_id, packet->dynamic_action_id);
+  sys_io_intr_config_t config = {
+    .mode = (sys_io_intr_mode_e)packet->mode,
+    .route_mask = packet->route_mask,
+    .static_action_id = packet->static_action_id,
+    .dynamic_action_id = packet->dynamic_action_id,
+    .own_func = { .own_func = NULL, .device_handle = NULL },
+    .adc = {
+      .adc_threshold_up_mV = packet->adc_thresh_up_mV,
+      .adc_threshold_down_mV = packet->adc_thresh_down_mV,
+      .adc_threshold_hysteresis_mV = packet->adc_thresh_hyst_mV,
+      .adc_event_counter_threshold = packet->adc_counter_thresh,
+    }
+  };
+  return sys_io_configure_intr(packet->device_id, packet->pin, &config);
 }
 
 // ==========================================================================
@@ -400,6 +432,42 @@ static inline err_h decoder_packet_sys_power_usb_pd_get_limits_t(packet_sys_powe
   return err;
 }
 
+#define HEADER_packet_sys_power_monitor_add_callback_t 0x39
+typedef struct __packed {
+  uint8_t device_id;
+  uint8_t channel;
+  int32_t trigger_value;
+  uint8_t on_event;          // sys_power_events_e
+  uint16_t route_mask;
+  uint8_t static_action_id;
+  uint8_t dynamic_action_id;
+} packet_sys_power_monitor_add_callback_t;
+
+static inline err_h decoder_packet_sys_power_monitor_add_callback_t(packet_sys_power_monitor_add_callback_t* packet) {
+  ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "adding power monitor cb (dev %u, ch %u): val=%ld, event=%u, route=0x%04X, act=[%u,%u]",
+           packet->device_id, packet->channel, (long)packet->trigger_value, packet->on_event, packet->route_mask,
+           packet->static_action_id, packet->dynamic_action_id);
+  return sys_power_monitor_add_callback(packet->device_id, packet->channel, packet->trigger_value,
+                                        (sys_power_events_e)packet->on_event, packet->route_mask,
+                                        packet->static_action_id, packet->dynamic_action_id);
+}
+
+#define HEADER_packet_sys_vreg_add_callback_t 0x3A
+typedef struct __packed {
+  uint8_t device_id;
+  uint8_t on_event;          // sys_power_events_e
+  uint16_t route_mask;
+  uint8_t static_action_id;
+  uint8_t dynamic_action_id;
+} packet_sys_vreg_add_callback_t;
+
+static inline err_h decoder_packet_sys_vreg_add_callback_t(packet_sys_vreg_add_callback_t* packet) {
+  ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "adding vreg cb (dev %u): event=%u, route=0x%04X, act=[%u,%u]",
+           packet->device_id, packet->on_event, packet->route_mask, packet->static_action_id, packet->dynamic_action_id);
+  return sys_vreg_add_callback(packet->device_id, (sys_power_events_e)packet->on_event, packet->route_mask,
+                               packet->static_action_id, packet->dynamic_action_id);
+}
+
 // ==========================================================================
 // Central packet list - X-macro expanded into the class dispatcher below
 // ==========================================================================
@@ -427,6 +495,7 @@ static inline err_h decoder_packet_sys_power_usb_pd_get_limits_t(packet_sys_powe
   X(HEADER_packet_sys_io_set_voltage_t, packet_sys_io_set_voltage_t, decoder_packet_sys_io_set_voltage_t)                                     \
   X(HEADER_packet_sys_io_set_pwm_frequency_t, packet_sys_io_set_pwm_frequency_t, decoder_packet_sys_io_set_pwm_frequency_t)                   \
   X(HEADER_packet_sys_io_set_pwm_duty_t, packet_sys_io_set_pwm_duty_t, decoder_packet_sys_io_set_pwm_duty_t)                                  \
+  X(HEADER_packet_sys_io_configure_intr_t, packet_sys_io_configure_intr_t, decoder_packet_sys_io_configure_intr_t)                               \
   X(HEADER_packet_sys_power_budget_update_source_t, packet_sys_power_budget_update_source_t, decoder_packet_sys_power_budget_update_source_t) \
   X(HEADER_packet_sys_vreg_set_enable_t, packet_sys_vreg_set_enable_t, decoder_packet_sys_vreg_set_enable_t)                                  \
   X(HEADER_packet_sys_vreg_set_voltage_t, packet_sys_vreg_set_voltage_t, decoder_packet_sys_vreg_set_voltage_t)                               \
@@ -436,6 +505,8 @@ static inline err_h decoder_packet_sys_power_usb_pd_get_limits_t(packet_sys_powe
   X(HEADER_packet_sys_power_usb_pd_set_t, packet_sys_power_usb_pd_set_t, decoder_packet_sys_power_usb_pd_set_t)                               \
   X(HEADER_packet_sys_power_usb_pd_list_t, packet_sys_power_usb_pd_list_t, decoder_packet_sys_power_usb_pd_list_t)                            \
   X(HEADER_packet_sys_power_usb_pd_get_limits_t, packet_sys_power_usb_pd_get_limits_t, decoder_packet_sys_power_usb_pd_get_limits_t)            \
+  X(HEADER_packet_sys_power_monitor_add_callback_t, packet_sys_power_monitor_add_callback_t, decoder_packet_sys_power_monitor_add_callback_t) \
+  X(HEADER_packet_sys_vreg_add_callback_t, packet_sys_vreg_add_callback_t, decoder_packet_sys_vreg_add_callback_t)                           \
   SYS_CONTRACTS_INSTALL_PACKET_LIST(X)
 
 #define SYS_CONTRACTS_DECODE_CASE(header, packet_type, decoder_func)                    \

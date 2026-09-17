@@ -19,17 +19,17 @@
   X(OWNER_SYS_DEVICE_RESET_ALL, 0xA10D, "OWNER_SYS_DEVICE_RESET_ALL")     \
   X(OWNER_SYS_DEVICE_UNINSTALL_ALL, 0xA10E, "OWNER_SYS_DEVICE_UNINSTALL_ALL") \
   X(OWNER_SYS_DEVICE_REPORT_ERROR, 0xA10F, "OWNER_SYS_DEVICE_REPORT_ERROR")   \
-  X(OWNER_SYS_DEVICE_SET_ERROR_HANDLING, 0xA110, "OWNER_SYS_DEVICE_SET_ERROR_HANDLING") \
-  X(OWNER_SYS_DEVICE_ERROR_POLICY, 0xA111, "OWNER_SYS_DEVICE_ERROR_POLICY")
+  X(OWNER_SYS_DEVICE_SET_ERROR_HANDLING, 0xA110, "OWNER_SYS_DEVICE_SET_ERROR_HANDLING")
 
 #define SYS_ERROR_DEV_MAP(X) \
-    X(ERR_DEV_NO_HANDLE, struct { uint8_t dev_id; }) \
-    X(ERR_DEV_NOT_FOUND, struct { uint8_t dev_id; }) \
-    X(ERR_DEV_ALREADY_EXIST, struct { uint8_t dev_id; }) \
-    X(ERR_DEV_FEATURE_UNAVAILABLE, struct { uint8_t dev_id; uint8_t contract_id; uint8_t feature_id; }) \
-    X(ERR_DEV_SUSPENDED, struct { uint8_t dev_id; }) \
-    X(ERR_DEV_NOT_INSTALLED, struct { uint8_t dev_id; }) \
-    X(ERR_DEV_INSTALL_FAILED, struct { uint8_t dev_id; })
+    X(ERR_DEV_NO_HANDLE, SYS_DEV_ERR_CRITICAL, struct { uint8_t dev_id; }) \
+    X(ERR_DEV_NOT_FOUND, SYS_DEV_ERR_LOW, struct { uint8_t dev_id; }) \
+    X(ERR_DEV_ALREADY_EXIST, SYS_DEV_ERR_LOW, struct { uint8_t dev_id; }) \
+    X(ERR_DEV_FEATURE_UNAVAILABLE, SYS_DEV_ERR_LOW, struct { uint8_t dev_id; uint8_t contract_id; uint8_t feature_id; }) \
+    X(ERR_DEV_SUSPENDED, SYS_DEV_ERR_MEDIUM, struct { uint8_t dev_id; }) \
+    X(ERR_DEV_NOT_INSTALLED, SYS_DEV_ERR_LOW, struct { uint8_t dev_id; }) \
+    X(ERR_DEV_INSTALL_FAILED, SYS_DEV_ERR_CRITICAL, struct { uint8_t dev_id; }) \
+    X(ERR_DEV_FAULT_RESPONSE_FAILED, SYS_DEV_ERR_CRITICAL, struct { uint8_t dev_id; uint8_t level; uint8_t stage; uint8_t action_id; uint16_t cause_tag; })
 
 /**
  * @brief Human-readable descriptions for the sys_device tags - see
@@ -57,7 +57,8 @@ extern const char* const sys_io_feature_e_to_string[];            // sys_io.h/.c
   X(ERR_DEV_FEATURE_UNAVAILABLE)     \
   X(ERR_DEV_SUSPENDED)               \
   X(ERR_DEV_NOT_INSTALLED)           \
-  X(ERR_DEV_INSTALL_FAILED)
+  X(ERR_DEV_INSTALL_FAILED)          \
+  X(ERR_DEV_FAULT_RESPONSE_FAILED)
 
 #define LOG_BODY_ERR_DEV_NO_HANDLE(p, out, out_size) snprintf((out), (out_size), "device %u has no handle (installed but handle is NULL)", (p)->dev_id)
 #define LOG_BODY_ERR_DEV_NOT_FOUND(p, out, out_size) snprintf((out), (out_size), "device %u is not registered", (p)->dev_id)
@@ -74,19 +75,9 @@ extern const char* const sys_io_feature_e_to_string[];            // sys_io.h/.c
 #define LOG_BODY_ERR_DEV_SUSPENDED(p, out, out_size) snprintf((out), (out_size), "device %u is suspended", (p)->dev_id)
 #define LOG_BODY_ERR_DEV_NOT_INSTALLED(p, out, out_size) snprintf((out), (out_size), "device %u is registered but not installed", (p)->dev_id)
 #define LOG_BODY_ERR_DEV_INSTALL_FAILED(p, out, out_size) snprintf((out), (out_size), "device %u failed to install", (p)->dev_id)
-
-/* Appended after the established global map by sys_error_codes.h so adding
- * fault-policy diagnostics does not renumber existing wire error tags. */
-#define SYS_ERROR_DEV_POLICY_MAP(X) \
-  X(ERR_DEV_FAULT_POLICY_MISSING, struct { uint8_t dev_id; uint8_t level; }) \
-  X(ERR_DEV_FAULT_RESPONSE_FAILED, struct { uint8_t dev_id; uint8_t level; uint8_t stage; uint8_t action_id; uint16_t cause_tag; })
-
-#define SYS_ERROR_DEV_POLICY_LOGGER_MAP(X) \
-  X(ERR_DEV_FAULT_POLICY_MISSING) \
-  X(ERR_DEV_FAULT_RESPONSE_FAILED)
-
-#define LOG_BODY_ERR_DEV_FAULT_POLICY_MISSING(p, out, out_size) \
-  snprintf((out), (out_size), "device %u fault level %u has no registered response policy", (p)->dev_id, (p)->level)
 #define LOG_BODY_ERR_DEV_FAULT_RESPONSE_FAILED(p, out, out_size) \
   snprintf((out), (out_size), "device %u fault response failed (level=%u, stage=%u, action=%u, cause_tag=%u)", \
            (p)->dev_id, (p)->level, (p)->stage, (p)->action_id, (unsigned)(p)->cause_tag)
+
+extern err_h sys_device_report_error(uint8_t device_id, err_h error) __attribute__((weak));
+extern bool sys_device_is_ignored(uint8_t device_id) __attribute__((weak));

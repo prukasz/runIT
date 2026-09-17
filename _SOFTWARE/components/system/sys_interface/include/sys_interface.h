@@ -5,6 +5,9 @@
 #include <stdint.h>
 #include <string.h>
 #include "sys_error.h"
+#include "sys_data_connector.h"
+
+#define SYS_INTERFACE_CONNECTOR_ID CONN_ID_INTERFACE
 
 /**
  * @file sys_interface.h
@@ -135,10 +138,10 @@ err_h sys_interface_tap_poll(uint8_t* buf, size_t max_len, size_t* out_len);
  * suspended, the receiver task does not drain any registered source at all -
  * frames simply accumulate in each source's own buffer (e.g. a BLE
  * characteristic's rx_buff) rather than being dropped, up to that buffer's
- * own capacity. If the wake semaphore (sys_interface_get_rx_wake_sem()) was
- * actually given while suspended, the receiver waits 1ms and gives it back
- * before looping, so resume notices the still-pending data within ~1ms
- * instead of waiting for the next full poll tick.
+ * own capacity. If the connector's wake semaphore was actually given while
+ * suspended, the receiver waits 1ms and gives it back before looping, so
+ * resume notices the still-pending data within ~1ms instead of waiting for
+ * the next full poll tick.
  *
  * Used by `sys_actions_invoke()` so a replayed packet sequence can't interleave
  * with live incoming traffic - see [[SYS_ACTIONS.MD]].
@@ -148,70 +151,17 @@ void sys_interface_resume_rx(void);
 bool sys_interface_is_rx_suspended(void);
 
 /**
- * @brief Non-blocking drain callback for a source registered with
- * sys_interface_register_rx_source().
+ * @brief Transmit data over the system interface data connector.
  *
- * Called repeatedly by the RX receiver task until it reports nothing
- * pending, so it must never block. Pop at most one whole frame into @p buf
- * (up to @p max_len bytes) and report its length via @p out_len.
+ * Dispatches @p data over CONN_ID_INTERFACE via sys_data_connector_send().
  *
- * @param ctx Opaque context, passed through unchanged from registration.
- * @param buf Destination buffer, at least @p max_len bytes.
- * @param max_len Capacity of @p buf.
- * @param out_len Set to the popped frame's length, or 0 if nothing is pending.
- * @return err_h NULL if @p out_len was set (even to 0 for "nothing pending"),
- *               or an error chain to abort this source's drain for the
- *               current tick (logged, not propagated - the receiver moves on
- *               to the next source and tries again next tick).
+ * @param data Outbound payload buffer.
+ * @param len Length in bytes.
+ * @return err_h NULL on success, ERR_NULL_PTR if data is NULL, or ERR_BASE_NOT_FOUND if connector unallocated.
  */
-typedef err_h (*sys_interface_rx_dequeue_f)(void* ctx, uint8_t* buf, size_t max_len, size_t* out_len);
+err_h sys_interface_send(const void* data, size_t len);
 
 /**
- * @brief Get the RX receiver's shared wake semaphore.
- *
- * A binary semaphore, owned by sys_interface (not any one transport):
- * any producer that wants the receiver to wake immediately instead of
- * waiting for its next poll tick gives this handle when it has data (e.g.
- * pass it as sys_ble_char_create_t.rx_notify_sem). The receiver always does
- * a full scan of every registered source on each wake regardless of which
- * producer gave it, so there is no per-source bit or identity to assign -
- * any number of producers can share this one handle.
- *
- * @return SemaphoreHandle_t The shared semaphore (always valid - constructed at load time).
+ * @brief Weak domain error hook for Interface faults.
  */
-SemaphoreHandle_t sys_interface_get_rx_wake_sem(void);
-
-/**
- * @brief Register a frame source with the shared RX receiver.
- *
- * The receiver is a single static task (started lazily on the first
- * successful registration - never more than one, regardless of how many
- * sources are registered) that drains every registered source's queued
- * frames (dequeue_fn called until it reports nothing pending) and feeds each
- * to sys_interface_decode() via SE_ORIGIN_CALL() - a bad frame never stops
- * it. Up to SYS_INTERFACE_MAX_RX_SOURCES may be registered, and registration
- * may happen any time after sys_interface_init(), including well after boot
- * - e.g. when a WiFi or LoRa driver comes up. There is no unregister.
- *
- * The receiver blocks on sys_interface_get_rx_wake_sem() with a
- * SYS_INTERFACE_RX_WAIT_MS (100ms) timeout, so it wakes near-instantly for
- * any source whose producer gives that semaphore, and is otherwise
- * re-checked every tick regardless - which is what catches a source whose
- * producer never gives the semaphore at all (pure polling).
- *
- * @param dequeue_fn Non-blocking drain callback, see sys_interface_rx_dequeue_f.
- * @param ctx Opaque context passed back to dequeue_fn on every call.
- * @param max_frame_len Largest frame this source can produce, up to SYS_INTERFACE_RX_FRAME_CAP.
- * @param name Used in logs only, may be NULL.
- * @return err_h NULL on success, ERR_NULL_PTR if dequeue_fn is NULL,
- *               ERR_INVALID_VAL_UI32 if max_frame_len is out of range,
- *               ERR_INTERFACE_NO_SOURCE_SLOTS if the registry is full, or
- *               ERR_BASE_NO_MEM if the receiver task failed to start (first
- *               registration only).
- *
- * Example - a hypothetical LoRa driver feeding the same router as BLE:
- * @code
- * SE_ORIGIN_CALL(sys_interface_register_rx_source(lora_rx_dequeue, lora_ctx, 256, "lora"));
- * @endcode
- */
-err_h sys_interface_register_rx_source(sys_interface_rx_dequeue_f dequeue_fn, void* ctx, size_t max_frame_len, const char* name);
+extern err_h sys_interface_report_fault(err_h node, err_h chain) __attribute__((weak));

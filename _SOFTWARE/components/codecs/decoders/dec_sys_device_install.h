@@ -25,7 +25,6 @@
  */
 
 #include <stdint.h>
-#include <sys/cdefs.h>
 #include "devices.h"
 #include "sys_error.h"
 #include "sys_io.h"

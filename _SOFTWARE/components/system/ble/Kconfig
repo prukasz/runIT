@@ -138,13 +138,6 @@ menu "System Configuration"
             help
               Maximum number of registered class handlers.
 
-        config SYS_INTERFACE_MAX_RX_SOURCES
-            int "Maximum Registered RX Sources"
-            default 4
-            range 1 16
-            help
-              Maximum number of registered RX frame sources.
-
         config SYS_INTERFACE_RX_FRAME_CAP
             int "Maximum RX Frame Capacity (bytes)"
             default 512

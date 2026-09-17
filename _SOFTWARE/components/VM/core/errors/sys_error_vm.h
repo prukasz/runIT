@@ -17,57 +17,57 @@
 
 // `obj_id`/`parent_id` carry the failing object ID (or VM_OBJ_ID_DYN_BIT | dyn_id, or VM_OBJ_ID_NONE)
 // allowing direct lookup via vm_obj_lookup_by_id().
-#define SYS_ERROR_VM_MAP(X)                                                                                          \
-  X(ERR_VM_ALLOC_EXHAUSTED, struct { uint32_t requested; uint32_t remaining; })                                       \
-  X(ERR_VM_ACCESSOR_UNKNOWN_ID, struct { uint16_t id; })                                                              \
-  X(ERR_VM_ACCESSOR_OOB, struct { uint16_t id; uint8_t chain_pos; uint16_t index; uint16_t obj_id; })                  \
-  X(ERR_VM_ACCESSOR_TYPE_MISMATCH, struct { uint16_t id; uint8_t chain_pos; uint8_t expected; uint8_t actual; uint16_t obj_id; }) \
-  X(ERR_VM_ACCESSOR_NULL_OBJ, struct { uint16_t id; uint8_t chain_pos; uint16_t parent_id; })                           \
-  X(ERR_VM_ACCESSOR_DEPTH_EXCEEDED, struct { uint16_t id; })                                                          \
-  X(ERR_VM_ACCESSOR_INDEX_FAILED, struct { uint16_t id; uint8_t chain_pos; })                                         \
-  X(ERR_VM_ACCESSOR_NAME_NOT_FOUND, struct { uint16_t id; uint8_t chain_pos; char name[16]; })                        \
-  X(ERR_VM_ACCESSOR_NOT_MUTABLE, struct { uint16_t id; uint8_t chain_pos; uint16_t obj_id; })                          \
-  X(ERR_VM_BLOCK_INPUT_UNRESOLVED, struct { uint16_t block_idx; uint8_t input_idx; })                                 \
-  X(ERR_VM_BLOCK_PIN_MISSING, struct { uint16_t block_idx; uint8_t pin_id; uint8_t is_out; })                         \
-  X(ERR_VM_BLOCK_PIN_UNLINKED, struct { uint16_t block_idx; uint8_t pin_id; uint8_t is_out; })                        \
-  X(ERR_VM_BLOCK_FAILED, struct { uint16_t block_idx; uint8_t block_type; })                                          \
-  X(ERR_VM_OBJ_COPY_MISMATCH, struct { uint8_t src_type; uint8_t dst_type; uint16_t src_size; uint16_t dst_size; })   \
-  X(ERR_VM_OBJ_COPY_SHAPE, struct { uint16_t index; uint8_t depth; uint8_t reason; })                                 \
-  X(ERR_VM_OBJ_NOT_MUTABLE, struct { uint16_t obj_id; })                                                               \
-  X(ERR_VM_OBJ_OOB, struct { uint16_t index; uint16_t obj_id; })                                                       \
-  X(ERR_VM_OBJ_NOT_PTR, struct { uint8_t actual; uint16_t obj_id; })                                                   \
-  X(ERR_VM_OBJ_BAD_TYPE, struct { uint8_t type; })                                                                    \
-  X(ERR_VM_OBJ_EMPTY, struct { uint8_t type; })                                                                       \
-  X(ERR_VM_OBJ_BAD_SIZE, struct { uint8_t type; uint16_t payload_size; uint8_t width; })                              \
-  X(ERR_VM_OBJ_NAME_TOO_LONG, struct { uint8_t len; })                                                                \
-  X(ERR_VM_OBJ_RETENTIVE_PTR, struct { uint8_t type; })                                                               \
-  X(ERR_VM_LOAD_BAD_STATE, struct { uint8_t state; uint8_t expected; })                                               \
-  X(ERR_VM_LOAD_TOO_BIG, struct { uint32_t requested; uint32_t available; })                                          \
-  X(ERR_VM_LOAD_DATA_RANGE, struct { uint16_t id; uint16_t start_idx; uint16_t len; uint16_t items; })                \
-  X(ERR_VM_LOAD_SHORT_RECORD, struct { uint8_t packet; uint16_t need; uint16_t got; })                                \
-  X(ERR_VM_ACC_INDEX_OOB, struct { uint16_t acc_id; uint8_t pos; uint8_t count; })                                    \
-  X(ERR_VM_ACC_BAD_KIND, struct { uint16_t acc_id; uint8_t pos; uint8_t kind; })                                      \
-  X(ERR_VM_REG_OOB, struct { uint8_t kind; uint16_t id; uint16_t count; })                                            \
-  X(ERR_VM_REG_DUP, struct { uint8_t kind; uint16_t id; })                                                            \
-  X(ERR_VM_BLK_BAD_SHAPE, struct { uint16_t blk_id; uint8_t in_cnt; uint8_t q_cnt; })                                 \
-  X(ERR_VM_BLK_BAD_REF, struct { uint16_t blk_id; uint16_t ref_id; uint8_t slot; uint8_t kind; })                      \
-  X(ERR_VM_DYN_FULL, struct { uint16_t limit; })                                                                      \
-  X(ERR_VM_BLK_UNKNOWN_TYPE, struct { uint16_t blk_id; uint8_t block_type; })                                         \
-  X(ERR_VM_EXEC_BLOCK_HUNG, struct { uint16_t block_idx; uint16_t ms; })                                              \
-  X(ERR_VM_EXEC_SPAN_DEPTH, struct { uint16_t block_idx; uint8_t depth; })                                            \
-  X(ERR_VM_EXEC_BAD_SPAN, struct { uint16_t block_idx; uint16_t start; uint16_t end; })                               \
-  X(ERR_VM_EVENT_OVERFLOW, struct { uint16_t type; uint16_t depth; uint16_t dropped; })                               \
-  X(ERR_VM_EXPR_BAD_CODE, struct { uint16_t block_idx; uint16_t pc; uint8_t opcode; uint8_t reason; })                \
-  X(ERR_VM_EXPR_MATH, struct { uint16_t block_idx; uint16_t pc; uint8_t opcode; uint8_t reason; })                    \
-  X(ERR_VM_FOR_BAD_LOOP, struct { uint16_t block_idx; uint32_t turns; uint16_t cap; uint8_t reason; }) \
-  X(ERR_VM_OBJ_OWNERSHIP, struct { uint8_t reason; uint8_t limit; }) \
-  X(ERR_VM_OBJ_USR_PROTECTED, struct { uint16_t obj_id; }) \
-  X(ERR_VM_LOAD_RUNNING, struct { uint8_t mode; }) \
-  X(ERR_VM_EXEC_CONTROL, struct { uint8_t command; uint8_t mode; }) \
-  X(ERR_VM_OVERRIDE_PTR_UNSUPPORTED, struct { uint16_t obj_id; }) \
-  X(ERR_VM_OVERRIDE_BAD_RECORD, struct { uint16_t obj_id; uint16_t declared_len; uint16_t item_size; }) \
-  X(ERR_VM_EXEC_SELF_BARRIER, struct { uint8_t operation; }) \
-  X(ERR_VM_EXEC_FAULT_LATCHED, struct { uint8_t device_id; uint16_t root_tag; uint32_t root_owner; })
+#define SYS_ERROR_VM_MAP(X)                                                                                                                  \
+  X(ERR_VM_ALLOC_EXHAUSTED, SYS_DEV_ERR_HIGH, struct { uint32_t requested; uint32_t remaining; })                                             \
+  X(ERR_VM_ACCESSOR_UNKNOWN_ID, SYS_DEV_ERR_LOW, struct { uint16_t id; })                                                                    \
+  X(ERR_VM_ACCESSOR_OOB, SYS_DEV_ERR_LOW, struct { uint16_t id; uint8_t chain_pos; uint16_t index; uint16_t obj_id; })                        \
+  X(ERR_VM_ACCESSOR_TYPE_MISMATCH, SYS_DEV_ERR_LOW, struct { uint16_t id; uint8_t chain_pos; uint8_t expected; uint8_t actual; uint16_t obj_id; }) \
+  X(ERR_VM_ACCESSOR_NULL_OBJ, SYS_DEV_ERR_LOW, struct { uint16_t id; uint8_t chain_pos; uint16_t parent_id; })                                 \
+  X(ERR_VM_ACCESSOR_DEPTH_EXCEEDED, SYS_DEV_ERR_LOW, struct { uint16_t id; })                                                                \
+  X(ERR_VM_ACCESSOR_INDEX_FAILED, SYS_DEV_ERR_LOW, struct { uint16_t id; uint8_t chain_pos; })                                               \
+  X(ERR_VM_ACCESSOR_NAME_NOT_FOUND, SYS_DEV_ERR_LOW, struct { uint16_t id; uint8_t chain_pos; char name[16]; })                              \
+  X(ERR_VM_ACCESSOR_NOT_MUTABLE, SYS_DEV_ERR_LOW, struct { uint16_t id; uint8_t chain_pos; uint16_t obj_id; })                                \
+  X(ERR_VM_BLOCK_INPUT_UNRESOLVED, SYS_DEV_ERR_LOW, struct { uint16_t block_idx; uint8_t input_idx; })                                       \
+  X(ERR_VM_BLOCK_PIN_MISSING, SYS_DEV_ERR_LOW, struct { uint16_t block_idx; uint8_t pin_id; uint8_t is_out; })                               \
+  X(ERR_VM_BLOCK_PIN_UNLINKED, SYS_DEV_ERR_LOW, struct { uint16_t block_idx; uint8_t pin_id; uint8_t is_out; })                              \
+  X(ERR_VM_BLOCK_FAILED, SYS_DEV_ERR_MEDIUM, struct { uint16_t block_idx; uint8_t block_type; })                                                \
+  X(ERR_VM_OBJ_COPY_MISMATCH, SYS_DEV_ERR_LOW, struct { uint8_t src_type; uint8_t dst_type; uint16_t src_size; uint16_t dst_size; })         \
+  X(ERR_VM_OBJ_COPY_SHAPE, SYS_DEV_ERR_LOW, struct { uint16_t index; uint8_t depth; uint8_t reason; })                                       \
+  X(ERR_VM_OBJ_NOT_MUTABLE, SYS_DEV_ERR_LOW, struct { uint16_t obj_id; })                                                                     \
+  X(ERR_VM_OBJ_OOB, SYS_DEV_ERR_LOW, struct { uint16_t index; uint16_t obj_id; })                                                             \
+  X(ERR_VM_OBJ_NOT_PTR, SYS_DEV_ERR_LOW, struct { uint8_t actual; uint16_t obj_id; })                                                         \
+  X(ERR_VM_OBJ_BAD_TYPE, SYS_DEV_ERR_LOW, struct { uint8_t type; })                                                                          \
+  X(ERR_VM_OBJ_EMPTY, SYS_DEV_ERR_LOW, struct { uint8_t type; })                                                                             \
+  X(ERR_VM_OBJ_BAD_SIZE, SYS_DEV_ERR_LOW, struct { uint8_t type; uint16_t payload_size; uint8_t width; })                                    \
+  X(ERR_VM_OBJ_NAME_TOO_LONG, SYS_DEV_ERR_LOW, struct { uint8_t len; })                                                                      \
+  X(ERR_VM_OBJ_RETENTIVE_PTR, SYS_DEV_ERR_LOW, struct { uint8_t type; })                                                                     \
+  X(ERR_VM_LOAD_BAD_STATE, SYS_DEV_ERR_LOW, struct { uint8_t state; uint8_t expected; })                                                     \
+  X(ERR_VM_LOAD_TOO_BIG, SYS_DEV_ERR_LOW, struct { uint32_t requested; uint32_t available; })                                                \
+  X(ERR_VM_LOAD_DATA_RANGE, SYS_DEV_ERR_LOW, struct { uint16_t id; uint16_t start_idx; uint16_t len; uint16_t items; })                      \
+  X(ERR_VM_LOAD_SHORT_RECORD, SYS_DEV_ERR_LOW, struct { uint8_t packet; uint16_t need; uint16_t got; })                                      \
+  X(ERR_VM_ACC_INDEX_OOB, SYS_DEV_ERR_LOW, struct { uint16_t acc_id; uint8_t pos; uint8_t count; })                                          \
+  X(ERR_VM_ACC_BAD_KIND, SYS_DEV_ERR_LOW, struct { uint16_t acc_id; uint8_t pos; uint8_t kind; })                                            \
+  X(ERR_VM_REG_OOB, SYS_DEV_ERR_LOW, struct { uint8_t kind; uint16_t id; uint16_t count; })                                                  \
+  X(ERR_VM_REG_DUP, SYS_DEV_ERR_LOW, struct { uint8_t kind; uint16_t id; })                                                                  \
+  X(ERR_VM_BLK_BAD_SHAPE, SYS_DEV_ERR_LOW, struct { uint16_t blk_id; uint8_t in_cnt; uint8_t q_cnt; })                                       \
+  X(ERR_VM_BLK_BAD_REF, SYS_DEV_ERR_LOW, struct { uint16_t blk_id; uint16_t ref_id; uint8_t slot; uint8_t kind; })                            \
+  X(ERR_VM_DYN_FULL, SYS_DEV_ERR_LOW, struct { uint16_t limit; })                                                                            \
+  X(ERR_VM_BLK_UNKNOWN_TYPE, SYS_DEV_ERR_LOW, struct { uint16_t blk_id; uint8_t block_type; })                                               \
+  X(ERR_VM_EXEC_BLOCK_HUNG, SYS_DEV_ERR_HIGH, struct { uint16_t block_idx; uint16_t ms; })                                                    \
+  X(ERR_VM_EXEC_SPAN_DEPTH, SYS_DEV_ERR_LOW, struct { uint16_t block_idx; uint8_t depth; })                                                  \
+  X(ERR_VM_EXEC_BAD_SPAN, SYS_DEV_ERR_LOW, struct { uint16_t block_idx; uint16_t start; uint16_t end; })                                     \
+  X(ERR_VM_EVENT_OVERFLOW, SYS_DEV_ERR_MEDIUM, struct { uint16_t type; uint16_t depth; uint16_t dropped; })                                   \
+  X(ERR_VM_EXPR_BAD_CODE, SYS_DEV_ERR_LOW, struct { uint16_t block_idx; uint16_t pc; uint8_t opcode; uint8_t reason; })                      \
+  X(ERR_VM_EXPR_MATH, SYS_DEV_ERR_LOW, struct { uint16_t block_idx; uint16_t pc; uint8_t opcode; uint8_t reason; })                          \
+  X(ERR_VM_FOR_BAD_LOOP, SYS_DEV_ERR_LOW, struct { uint16_t block_idx; uint32_t turns; uint16_t cap; uint8_t reason; })                     \
+  X(ERR_VM_OBJ_OWNERSHIP, SYS_DEV_ERR_LOW, struct { uint8_t reason; uint8_t limit; })                                                        \
+  X(ERR_VM_OBJ_USR_PROTECTED, SYS_DEV_ERR_LOW, struct { uint16_t obj_id; })                                                                   \
+  X(ERR_VM_LOAD_RUNNING, SYS_DEV_ERR_LOW, struct { uint8_t mode; })                                                                           \
+  X(ERR_VM_EXEC_CONTROL, SYS_DEV_ERR_LOW, struct { uint8_t command; uint8_t mode; })                                                          \
+  X(ERR_VM_OVERRIDE_PTR_UNSUPPORTED, SYS_DEV_ERR_LOW, struct { uint16_t obj_id; })                                                            \
+  X(ERR_VM_OVERRIDE_BAD_RECORD, SYS_DEV_ERR_LOW, struct { uint16_t obj_id; uint16_t declared_len; uint16_t item_size; })                     \
+  X(ERR_VM_EXEC_SELF_BARRIER, SYS_DEV_ERR_LOW, struct { uint8_t operation; })                                                                \
+  X(ERR_VM_EXEC_FAULT_LATCHED, SYS_DEV_ERR_CRITICAL, struct { uint8_t device_id; uint16_t root_tag; uint32_t root_owner; })
 
 /**
  * @brief Human-readable descriptions for the VM tags - see
@@ -443,3 +443,5 @@ static inline const char* vm_copy_shape_name(uint8_t r) {
       SE_RET_ERR_OWNED((owner), ERR_BASE_NO_MEM, 0);     \
     }                                                    \
   } while (0)
+
+extern err_h sys_vm_report_fault(err_h node, err_h chain) __attribute__((weak));

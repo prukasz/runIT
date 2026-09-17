@@ -71,3 +71,8 @@ void sys_buff_clear(sys_buff_t* buff);
 static inline err_h sys_buff_pop_raw(sys_buff_t* buff, uint8_t* buffer, size_t max_size, size_t* out_len) {
   return sys_buff_pop(buff, buffer, max_size, out_len);
 }
+
+/**
+ * @brief Weak domain error hook for Buffers faults.
+ */
+extern err_h sys_buffers_report_fault(err_h node, err_h chain) __attribute__((weak));

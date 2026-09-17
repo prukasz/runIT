@@ -6,10 +6,6 @@
 #include <freertos/semphr.h>
 #include "sys_error.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @file sys_data_connector.h
  * @brief Instance-based Virtual Data Bus & Routing Switchboard for runIT.
@@ -29,7 +25,6 @@ extern "C" {
 #define SYS_DATA_CONNECTOR_PROVIDERS_MAX 4
 #define SYS_DATA_CONNECTOR_NAME_MAX      16
 #define SYS_DATA_CONNECTOR_MAX_PACKET_LEN 512
-#define SYS_DATA_CONNECTOR_MAX_FRAME_LEN  SYS_DATA_CONNECTOR_MAX_PACKET_LEN
 
 // -----------------------------------------------------------------------------
 // Well-Known System Connector IDs
@@ -291,7 +286,3 @@ err_h sys_data_connector_receive(sys_data_connector_t* conn, uint8_t* buf, size_
 void sys_data_connector_suspend(sys_data_connector_t* conn);
 void sys_data_connector_resume(sys_data_connector_t* conn);
 bool sys_data_connector_is_suspended(const sys_data_connector_t* conn);
-
-#ifdef __cplusplus
-}
-#endif

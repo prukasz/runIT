@@ -75,36 +75,68 @@ Because older nodes in the ring buffer can be overwritten if the head wraps befo
 
 ## Error Handler (sys_error_handler.c)
 
-> [!NOTE]
-> The asynchronous FreeRTOS background task (`sys_error_handler_task`) and queue (`s_err_queue`) have been removed from the project. Error handling will be rebuilt using synchronous error dispatch. For now, `SE_init()` and `SE_push_to_handler()` are safe no-ops, preserving API compatibility across the firmware.
+The error pipeline uses direct synchronous dispatch:
 
-`SE_push_to_handler(err)` will invoke the synchronous handler once rebuilt; it remains ISR-safe and a no-op while suspended (`SE_suspend()` / `SE_resume()`, nesting-safe via a depth counter, implemented in `sys_error.c`).
+### Synchronous Pipeline Flow
+When an error chain is generated, it propagates up the call stack to an entry-point guarded by `SE_ORIGIN_CALL(call)` (or is emitted via `SE_EMIT_ERR`):
 
-### Outbound Transport Sink
-
-The handler never names a transport. A transport binds itself:
-
-```c
-typedef err_h (*se_tx_sink_f)(void* ctx, uint8_t header, const uint8_t* data, size_t len);
-void SE_register_tx_sink(se_tx_sink_f send_fn, void* ctx, const char* name);
+```mermaid
+flowchart TD
+    A["SE_ORIGIN_CALL(call) / SE_EMIT_ERR"] -->|Chain returned| B["SE_push_to_handler(err)"]
+    B -->|Check| C{"SE_is_suspended() or NULL?"}
+    C -->|Yes| D["Drop / Ignore"]
+    C -->|No| E["Collect unique devices from chain"]
+    E -->|Devices found > 0| F["Dispatch sys_device_report_error()
+    (Innermost/Root device -> Outermost)"]
+    E -->|No devices found| G{"Root tag == CRITICAL?
+    (e.g. ERR_BASE_NO_MEM, ERR_ESP_ERR)"}
+    G -->|Yes| H["sys_device_report_error(0, err)
+    C -->|No| E["Traverse from Last Error (Head) to Root Cause"]
+    
+    E --> DevCheck{"Is node a device?"}
+    DevCheck -->|Yes| TestCheck{"Device importance == NONE?
+    (Test Device)"}
+    TestCheck -->|Yes| Stop["STOP Analysis Immediately!
+    (Ignore root faults & skip actions)"]
+    TestCheck -->|No| DevDispatch["sys_device_report_error(dev_id, err)"]
+    
+    DevCheck -->|No| CritCheck{"Node severity == CRITICAL?
+    (ERR_BASE_NO_MEM, ERR_ESP_ERR)"}
+    CritCheck -->|Yes| SysLatch["sys_device_report_error(0, err)
+    (VM latch, VM stop, freeze all peripherals)"]
+    G -->|No| I["Contained locally in domain
+    (e.g. VM halts script, interface NACKs)"]
+    F --> J["SE_send(err)"]
+    H --> J
+    I --> J
+    J --> K["se_log_error_chain(err) -> Logs Connector & Serial"]
+    J --> L["SE_send_error_raw(err) -> Errors Connector & Sinks"]
+    CritCheck -->|No| NextNode["Continue to next cause..."]
+    
+    DevDispatch --> NextNode
+    Stop --> Send["SE_send(err) -> Send & Log Only"]
+    SysLatch --> NextNode
+    NextNode --> Send
+    
+    Send --> K["se_log_error_chain(err) -> Logs Connector & Serial"]
+    Send --> L["SE_send_error_raw(err) -> Errors Connector & Sinks"]
 ```
 
-This is the **mirror image of the RX-source registry in [[SYS_INTERFACE.MD]]**. There, a transport hands the router a non-blocking `dequeue_fn(ctx, ...)` and inbound frames find their way in; here, a transport hands the handler a `send_fn(ctx, ...)` and outbound error packets find their way out. Both sides hold nothing but a function pointer and an opaque context, so neither component has to depend on `ble` (or on whatever transport comes next) to do its job.
-
-One slot, assigned outright — unlike `sys_interface`'s source registry there is no fan-out and nothing to fail, so it returns nothing: rebinding replaces, and a NULL `send_fn` unbinds. `ctx` is published before `send_fn`, so the task can never pick up a new sink paired with the previous one's context. While no sink is bound the stream is simply off.
-
-The sink is called from the handler task only, never from an ISR, once per dequeued chain. **Its return value is dropped**: reporting a transport failure through the transport that just failed only loops.
-
-### Transport Binding via `sys_data_connector`
-Transport providers are supplied by `sys_data_connector` adapters. Board-specific connector wiring lives in `runit_board_cfg.h` (`runit_data_connector_static_config()`). Sinks are registered generically with `se_register_log_sink()` and `se_register_errors_sink()`, keeping `sys_errors` independent of concrete transports.
-
-### What the skeleton dropped
-
-One thing used to happen in the handler task and no longer does. It is intended to come back in some form; it has no replacement today. (The serial stack trace that used to be listed here is back — see step 2 above.)
-
-| Removed | What it did | What it leaves behind |
-| :--- | :--- | :--- |
-| **Device-error dispatch** | `dispatch_device_owned_error()` scanned each chain for the first `ERR_DEV_DEP_FAILED` node owned in the device-provider range (`0xD0xx`), pulled `dev_id` out of its payload, and called a hook registered via `SE_register_device_error_hook()` — which `sys_device` filled in from a load-time constructor with `sys_device_report_error()`. A chain tagged `ERR_DEV_FAULT_RESPONSE_FAILED` was skipped so a failed fault response couldn't be fed back into the policy that produced it. | `SE_register_device_error_hook()` / `se_device_error_hook_t` are gone from `sys_error.h`, and `sys_device.c`'s constructor with them. **`sys_device_report_error()` now runs only when something calls it directly**, so per-device error handling and the `sys_actions` fault policy no longer fire off ordinary error traffic — see [[SYS_DEVICE.MD]]. Restoring it means restoring the `ERR_DEV_FAULT_RESPONSE_FAILED` guard too. |
+1. **Origin Entry Point**:
+   - Callers execute operations using `SE_ORIGIN_CALL(call)`. If an error chain is returned (`SE_IS_ERR`), it is forwarded directly to `SE_push_to_handler(err)`.
+2. **Domain Fault Handling**:
+   - `SE_push_to_handler(err)` validates that the error subsystem is not suspended (`SE_is_suspended()`).
+   - Recursion guard: skips `ERR_DEV_FAULT_RESPONSE_FAILED` so a failing fault policy cannot recurse into itself.
+   - **Cascading Device Dispatch**: Traverses the chain and collects all unique device IDs (`ERR_DEV_DEP_FAILED`, `ERR_DEV_INSTALL_FAILED`, `ERR_DEV_NO_HANDLE`). If devices are found, it invokes `sys_device_report_error(dev_id, err)` from innermost (closest to root cause) to outermost, allowing both the failing hardware peripheral to attempt recovery and dependent critical devices to latch into safe states.
+   - **Non-Device Handling**: If no devices are in the chain, it inspects `SE_get_tag_level(root->tag)`. If the root cause is `SYS_DEV_ERR_CRITICAL` (such as `ERR_BASE_NO_MEM` or `ERR_ESP_ERR`), it calls `sys_device_report_error(0, err)`, which triggers the application safety latch (halting the VM and freezing all peripherals). Non-critical non-device errors remain safely contained within their local domain (e.g. VM stops script, interface sends NACK).
+   - **Head-to-Cause Traversal**: Traverses from the last error (head) down to the root cause:
+     - **Test Device Early Stop**: If an error belongs to a device with `SYS_DEV_IMPORTANCE_NONE`, chain analysis **stops immediately**. The system proceeds directly to send and log only, ensuring test device faults never trip underlying critical alarms or latches.
+     - **Production Device Dispatch**: For devices with importance `LOW`..`CRITICAL`, invokes `sys_device_report_error(dev_id, err)`.
+     - **Critical Non-Device Traps**: If a non-device node has `SYS_DEV_ERR_CRITICAL` (e.g. `ERR_BASE_NO_MEM` or `ERR_ESP_ERR`), triggers `sys_device_report_error(0, err)` to execute the global safety latch.
+3. **Diagnostics & Telemetry Dispatch**:
+   - The chain is passed to `SE_send(err)`.
+   - `se_log_error_chain(err)` outputs a human-readable chained stack trace over `SE_CONNECTOR_ID_LOGS` (and serial mirror if enabled).
+   - `SE_send_error_raw(err)` encodes the chain via `enc_sys_errors_encode_chain()` and transmits the binary packet over `SE_CONNECTOR_ID_ERRORS` and any registered tx sinks.
 
 ---
 

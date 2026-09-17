@@ -277,45 +277,6 @@ static err_h device_reset(void* handle) {
   return d_tca6424a_driver_reset(handle);
 }
 
-// Same shape as device_pca9685's explain_root_cause() (see that file for
-// the full rationale): identifies which node in the chain is the root
-// cause and adds this adapter's own interpretation for it, without
-// repeating SE_describe_payload() - sys_error_handler_task's own stack
-// trace already prints that same description for every node, including
-// the root. Every ERR_ESP_ERR reaching this adapter's error_handler
-// originates from an I2C driver call (SYS_DEV_CHECK_DRIVER_CALL wraps every
-// tca_*() call, all of which go over I2C).
-static void explain_root_cause(uint8_t device_id, err_h error) {
-  err_h root = error;
-  while (root && root->next_cause) root = root->next_cause;
-  if (!root) return;
-  ESP_LOGE(TAG, "TCA6424A (device %u) error root cause: owner=%s (0x%04X), tag=%s (%d)", device_id, SE_get_owner_name(root->owner), (unsigned int)root->owner, SE_get_tag_name(root->tag), (int)root->tag);
-
-  if (root->tag == ERR_ESP_ERR) {
-    ESP_LOGE(TAG, "  -> communication with TCA6424A (device %u) failed - check that it is connected, powered, and present at the configured I2C bus/address", device_id);
-  }
-}
-
-static err_h device_error_handler(void* handle, err_h error) {
-  tca_adapter_ctx_t* ctx = (tca_adapter_ctx_t*)handle;
-  SYS_DEV_CHECK_HANDLE(ctx, 0);
-  sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(ctx));
-  if (!dev) return NULL;
-
-  explain_root_cause(SYS_DEV_GET_ID(ctx), error);
-
-  if (dev->generate_error_callback) {
-    // TODO: report to the VM via the callback system. Payload should carry
-    // at least: device_id, and the root cause's tag/owner - walk
-    // error->next_cause to the end, since a wrapper like ERR_DEV_DEP_FAILED
-    // only carries dev_id, not the underlying failure's tag/owner. Always
-    // attach device_id explicitly (the root cause itself may not carry one).
-    return NULL;
-  }
-
-  return NULL;
-}
-
 static err_h device_suspend(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
   IF_PIN_REF(ctx->cfg.rst_pin) {
@@ -391,7 +352,7 @@ fail:
 static const sys_device_class_t s_tca6424a_class = {
     .name = "TCA6424A_IO_EXP",
     .contracts = {[SYS_DEVICE_CONTRACT_IO] = (void*)&io_tca_vtable},
-    .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume, .freeze = device_freeze, .sync = device_sync, .error_handler = device_error_handler},
+    .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume, .freeze = device_freeze, .sync = device_sync},
 };
 
 err_h d_tca6424a_create(const d_tca6424a_cfg_t* cfg) {

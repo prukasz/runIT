@@ -163,9 +163,8 @@ class packet_sys_device_set_error_handling_t(ct.LittleEndianStructure):
     _pack_ = 1
     _fields_ = [
         ("device_id", ct.c_uint8),
-        ("use_error_handler", ct.c_uint8),
-        ("generate_error_callback", ct.c_uint8),
-        ("actions", ct.c_uint8 * 3),
+        ("importance", ct.c_uint8),
+        ("actions", ct.c_uint8 * 5),
     ]
     _class_header_ = DecoderClass.SYS_CONTRACTS
     _packet_header_ = 0x1A
@@ -266,6 +265,24 @@ class packet_sys_io_set_pwm_duty_t(ct.LittleEndianStructure):
     _packet_header_ = 0x28
     _action_name_ = "sys_io_set_pwm_duty"
 
+class packet_sys_io_configure_intr_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("device_id", ct.c_uint8),
+        ("pin", ct.c_uint8),
+        ("mode", ct.c_uint8),
+        ("route_mask", ct.c_uint16),
+        ("static_action_id", ct.c_uint8),
+        ("dynamic_action_id", ct.c_uint8),
+        ("adc_thresh_up_mV", ct.c_uint16),
+        ("adc_thresh_down_mV", ct.c_uint16),
+        ("adc_thresh_hyst_mV", ct.c_uint16),
+        ("adc_counter_thresh", ct.c_uint16),
+    ]
+    _class_header_ = DecoderClass.SYS_CONTRACTS
+    _packet_header_ = 0x29
+    _action_name_ = "sys_io_configure_intr"
+
 class packet_sys_power_budget_update_source_t(ct.LittleEndianStructure):
     _pack_ = 1
     _fields_ = [
@@ -354,6 +371,34 @@ class packet_sys_power_usb_pd_get_limits_t(ct.LittleEndianStructure):
     _class_header_ = DecoderClass.SYS_CONTRACTS
     _packet_header_ = 0x38
     _action_name_ = "sys_power_usb_pd_get_limits"
+
+class packet_sys_power_monitor_add_callback_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("device_id", ct.c_uint8),
+        ("channel", ct.c_uint8),
+        ("trigger_value", ct.c_int32),
+        ("on_event", ct.c_uint8),
+        ("route_mask", ct.c_uint16),
+        ("static_action_id", ct.c_uint8),
+        ("dynamic_action_id", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_CONTRACTS
+    _packet_header_ = 0x39
+    _action_name_ = "sys_power_monitor_add_callback"
+
+class packet_sys_vreg_add_callback_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("device_id", ct.c_uint8),
+        ("on_event", ct.c_uint8),
+        ("route_mask", ct.c_uint16),
+        ("static_action_id", ct.c_uint8),
+        ("dynamic_action_id", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_CONTRACTS
+    _packet_header_ = 0x3A
+    _action_name_ = "sys_vreg_add_callback"
 
 # ============================================================================
 # dec_sys_device_install.h (class 0x01 - SYS_CONTRACTS)
@@ -504,6 +549,7 @@ PACKET_REGISTRY = [
     packet_sys_io_set_voltage_t,
     packet_sys_io_set_pwm_frequency_t,
     packet_sys_io_set_pwm_duty_t,
+    packet_sys_io_configure_intr_t,
     packet_sys_power_budget_update_source_t,
     packet_sys_vreg_set_enable_t,
     packet_sys_vreg_set_voltage_t,
@@ -513,6 +559,8 @@ PACKET_REGISTRY = [
     packet_sys_power_usb_pd_set_t,
     packet_sys_power_usb_pd_list_t,
     packet_sys_power_usb_pd_get_limits_t,
+    packet_sys_power_monitor_add_callback_t,
+    packet_sys_vreg_add_callback_t,
     packet_sys_device_install_gpio_esp_t,
     packet_sys_device_install_pca9685_t,
     packet_sys_device_install_tca6424a_t,

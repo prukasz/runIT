@@ -13,12 +13,12 @@
 // ---------------------------------------------------------
 
 // Auto-generate the enum for the tags
-#define X_ENUM(tag, struct_def) tag,
+#define X_ENUM(tag, level, struct_def) tag,
 typedef enum { SYS_ERROR_MAP(X_ENUM) ERR_MAX_COUNT } err_tag_e;
 #undef X_ENUM
 
 // Auto-generate the payload structs
-#define X_STRUCT(tag, struct_def) typedef struct_def err_payload_##tag##_t;
+#define X_STRUCT(tag, level, struct_def) typedef struct_def err_payload_##tag##_t;
 SYS_ERROR_MAP(X_STRUCT)
 #undef X_STRUCT
 
@@ -87,9 +87,10 @@ err_h SE_alloc_bytes(size_t payload_size, err_tag_e tag, uint32_t owner);
 // Pushes the final error chain to the error handler task/queue
 void SE_push_to_handler(err_h err);
 
-// Query and reset count of errors dropped due to queue/pool overflow
-uint32_t SE_get_dropped_count(void);
-void SE_clear_dropped_count(void);
+/**
+ * @brief Weak domain error hook for sys_errors faults.
+ */
+extern err_h sys_errors_report_fault(err_h node, err_h chain) __attribute__((weak));
 
 // Suspend/Resume error processing
 void SE_suspend(void);
@@ -111,6 +112,7 @@ const char* SE_get_tag_name(err_tag_e tag);
  * @return size_t `sizeof(err_payload_<tag>_t)`, or 0 for an unknown tag.
  */
 size_t SE_get_payload_size(err_tag_e tag);
+sys_device_err_level_e SE_get_tag_level(err_tag_e tag);
 
 /** @brief Maximum depth of an error chain traversal before assuming a cycle or overflow. */
 #define SE_MAX_CHAIN_DEPTH 16u
@@ -136,10 +138,6 @@ bool SE_is_valid_error_ptr(err_h err);
  *              NULL, invalid, deeper than SE_MAX_CHAIN_DEPTH, or cyclic.
  */
 err_h SE_get_error_root(err_h error);
-
-#define SE_error_root(err) SE_get_error_root(err)
-#define error_root(err)    SE_get_error_root(err)
-#define SE_root(err)       SE_get_error_root(err)
 
 
 

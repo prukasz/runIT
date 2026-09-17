@@ -2,6 +2,7 @@
 #include <esp_log.h>
 #include <stdio.h>
 #include <string.h>
+#include "sys_data_connector.h"
 #include "utils.h"
 #include "vm_exec.h"
 #include "vm_obj_access.h"
@@ -104,6 +105,8 @@ static void frame_flush(sub_frame_t* f) {
 
   if (s_sender) {
     (void)s_sender(f->buf, f->len);
+  } else {
+    sys_data_connector_send(sys_data_connector_get(CONN_ID_TELEMETRY), f->buf, f->len);
   }
   frame_init(f);
 }

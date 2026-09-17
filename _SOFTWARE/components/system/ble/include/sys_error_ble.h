@@ -20,10 +20,10 @@
   X(OWNER_SYS_BLE_RX_INJECT, 0xA50D, "OWNER_SYS_BLE_RX_INJECT")
 
 #define SYS_ERROR_BLE_MAP(X) \
-  X(ERR_BLE_STACK_FAILED, struct { esp_err_t rc; }) \
-  X(ERR_BLE_HARDWARE_FAULT, struct { esp_err_t rc; }) /* reserved, currently unused */ \
-  X(ERR_BLE_ADV_FAILED, struct { esp_err_t rc; }) \
-  X(ERR_BLE_GATT_FAILED, struct { esp_err_t rc; })
+  X(ERR_BLE_STACK_FAILED, SYS_DEV_ERR_HIGH, struct { esp_err_t rc; }) \
+  X(ERR_BLE_HARDWARE_FAULT, SYS_DEV_ERR_CRITICAL, struct { esp_err_t rc; }) /* reserved, currently unused */ \
+  X(ERR_BLE_ADV_FAILED, SYS_DEV_ERR_MEDIUM, struct { esp_err_t rc; }) \
+  X(ERR_BLE_GATT_FAILED, SYS_DEV_ERR_MEDIUM, struct { esp_err_t rc; })
 
 /** @brief Human-readable descriptions for the sys_ble tags - see SE_describe_payload() in sys_error.h. */
 #define SYS_ERROR_BLE_LOGGER_MAP(X) \

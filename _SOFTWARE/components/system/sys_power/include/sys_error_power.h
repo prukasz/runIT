@@ -21,9 +21,11 @@
   X(OWNER_SYS_POWER_USB_PD_GET_LIMITS, 0xA40F, "OWNER_SYS_POWER_USB_PD_GET_LIMITS")
 
 #define SYS_ERROR_POWER_MAP(X) \
-  X(ERR_POWER_BUDGET_EXCEEDED, struct { uint8_t device_id; })
+  X(ERR_POWER_BUDGET_EXCEEDED, SYS_DEV_ERR_HIGH, struct { uint8_t device_id; })
 
 /** @brief Human-readable descriptions for the sys_power tags - see SE_describe_payload() in sys_error.h. */
 #define SYS_ERROR_POWER_LOGGER_MAP(X) X(ERR_POWER_BUDGET_EXCEEDED)
 
 #define LOG_BODY_ERR_POWER_BUDGET_EXCEEDED(p, out, out_size) snprintf((out), (out_size), "device %u would exceed the system power budget", (p)->device_id)
+
+extern err_h sys_power_report_fault(err_h node, err_h chain) __attribute__((weak));

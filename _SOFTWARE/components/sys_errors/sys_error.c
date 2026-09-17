@@ -9,7 +9,7 @@
 
 _Static_assert(ERR_MAX_COUNT <= 0xFFFF, "err_tag_e no longer fits the uint16 tag field of the error packet");
 
-#define X_CHK(tag, struct_def)                                                                                                         \
+#define X_CHK(tag, level, struct_def)                                                                                                   \
   _Static_assert(sizeof(sys_err_t) + sizeof(err_payload_##tag##_t) <= ERR_BUF_SIZE / 4, #tag " payload too large for the error ring"); \
   SYS_ERROR_MAP(X_CHK)
 #undef X_CHK
@@ -37,8 +37,8 @@ const char* SE_get_owner_name(uint32_t owner) {
 
 const char* SE_get_tag_name(err_tag_e tag) {
   switch (tag) {
-#define X_TAG_CASE(tag_name, struct_def) \
-  case tag_name:                         \
+#define X_TAG_CASE(tag_name, level, struct_def) \
+  case tag_name:                                \
     return #tag_name;
     SYS_ERROR_MAP(X_TAG_CASE)
 #undef X_TAG_CASE
@@ -49,13 +49,25 @@ const char* SE_get_tag_name(err_tag_e tag) {
 
 size_t SE_get_payload_size(err_tag_e tag) {
   switch (tag) {
-#define X_TAG_SIZE(tag_name, struct_def) \
-  case tag_name:                         \
+#define X_TAG_SIZE(tag_name, level, struct_def) \
+  case tag_name:                                \
     return sizeof(err_payload_##tag_name##_t);
     SYS_ERROR_MAP(X_TAG_SIZE)
 #undef X_TAG_SIZE
     default:
       return 0;
+  }
+}
+
+sys_device_err_level_e SE_get_tag_level(err_tag_e tag) {
+  switch (tag) {
+#define X_TAG_LEVEL(tag_name, level, struct_def) \
+  case tag_name:                                 \
+    return level;
+    SYS_ERROR_MAP(X_TAG_LEVEL)
+#undef X_TAG_LEVEL
+    default:
+      return SYS_DEV_ERR_LOW;
   }
 }
 

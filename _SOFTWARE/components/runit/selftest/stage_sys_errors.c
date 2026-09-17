@@ -45,9 +45,6 @@ static bool read_node(const uint8_t* pkt, size_t len, size_t* off, uint16_t* out
 void test_sys_error_ownership(void) {
   ESP_LOGI(TAG, "--- sys_error queue stable ownership tests ---");
 
-  SE_clear_dropped_count();
-  ck("dropped count initializes to 0", SE_get_dropped_count() == 0);
-
   // Register selftest provider and bind it to CONN_ID_ERRORS
   sys_data_connector_register_provider(&s_error_test_driver);
   sys_data_connector_t* err_conn = sys_data_connector_get(CONN_ID_ERRORS);

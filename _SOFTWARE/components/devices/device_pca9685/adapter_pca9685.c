@@ -222,42 +222,6 @@ static err_h device_sync(void* handle) {
 // interpretation for it. Deliberately does NOT repeat SE_describe_payload()
 // here: sys_error_handler_task's own stack trace already prints that same
 // description for every node in the chain, including the root (it's always
-// the last one) - this function's job is only what that generic trace
-// cannot know, i.e. that *this* node is the root, and (for ERR_ESP_ERR)
-// that every such error reaching this adapter's error_handler originates
-// from an I2C driver call (SYS_DEV_CHECK_DRIVER_CALL wraps every
-// pca9685_*() call, all of which go over I2C) - a bare ESP-IDF code alone
-// doesn't say that.
-static void explain_root_cause(uint8_t device_id, err_h error) {
-  err_h root = error;
-  while (root && root->next_cause) root = root->next_cause;
-  if (!root) return;
-  ESP_LOGE(TAG, "PCA9685 (device %u) error root cause: owner=%s (0x%04X), tag=%s (%d)", device_id, SE_get_owner_name(root->owner), (unsigned int)root->owner, SE_get_tag_name(root->tag), (int)root->tag);
-
-  if (root->tag == ERR_ESP_ERR) {
-    ESP_LOGE(TAG, "  -> communication with PCA9685 (device %u) failed - check that it is connected, powered, and present at the configured I2C bus/address", device_id);
-  }
-}
-
-static err_h device_error_handler(void* handle, err_h error) {
-  pca_adapter_ctx_t* ctx = (pca_adapter_ctx_t*)handle;
-  SYS_DEV_CHECK_HANDLE(ctx, 0);
-  sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(ctx));
-  if (!dev) return NULL;
-
-  explain_root_cause(SYS_DEV_GET_ID(ctx), error);
-
-  if (dev->generate_error_callback) {
-    // TODO: report to the VM via the callback system. Payload should carry
-    // at least: device_id, and the root cause's tag/owner (as explained
-    // above). Always attach device_id explicitly (the root cause itself may
-    // not carry one).
-    return NULL;
-  }
-
-  return NULL;
-}
-
 static err_h device_install(const void* cfg_blob, void** out_device_handle) {
   const d_pca9685_cfg_t* cfg = (const d_pca9685_cfg_t*)cfg_blob;
   SE_CHECK_NOT_NULL(cfg);
@@ -306,8 +270,7 @@ static const sys_device_class_t s_pca9685_class = {
         .suspend = device_suspend,
         .resume = device_resume,
         .freeze = device_freeze,
-        .sync = device_sync,
-        .error_handler = device_error_handler},
+        .sync = device_sync},
 };
 
 // --- Exposed Initialization API ---

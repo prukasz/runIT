@@ -257,45 +257,6 @@ static err_h adapter_reset_device(void* driver_handle) {
 
 // Same shape as device_pca9685's explain_root_cause() (see that file for
 // the full rationale): identifies which node in the chain is the root
-// cause and adds this adapter's own interpretation for it, without
-// repeating SE_describe_payload() - sys_error_handler_task's own stack
-// trace already prints that same description for every node, including
-// the root. Every ERR_ESP_ERR reaching this adapter's error_handler
-// originates from an I2C call - either SYS_DEV_CHECK_DRIVER_CALL wrapping
-// an ap33772s_*() call, or a direct SE_RET_ERR(ERR_ESP_ERR, 0) in
-// d_ap33772s_get_telemetry_voltage()/_current() when the raw driver read
-// returns negative - both are I2C failures either way.
-static void explain_root_cause(uint8_t device_id, err_h error) {
-  err_h root = error;
-  while (root && root->next_cause) root = root->next_cause;
-  if (!root) return;
-  ESP_LOGE(TAG, "AP33772S (device %u) error root cause: owner=%s (0x%04X), tag=%s (%d)", device_id, SE_get_owner_name(root->owner), (unsigned int)root->owner, SE_get_tag_name(root->tag), (int)root->tag);
-
-  if (root->tag == ERR_ESP_ERR) {
-    ESP_LOGE(TAG, "  -> communication with AP33772S (device %u) failed - check that it is connected, powered, and present at the configured I2C bus/address", device_id);
-  }
-}
-
-static err_h adapter_error_handler(void* driver_handle, err_h error) {
-  ap_adapter_ctx_t* ctx = (ap_adapter_ctx_t*)driver_handle;
-  SYS_DEV_CHECK_HANDLE(ctx, 0);
-  sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(ctx));
-  if (!dev) return NULL;
-
-  explain_root_cause(SYS_DEV_GET_ID(ctx), error);
-
-  if (dev->generate_error_callback) {
-    // TODO: report to the VM via the callback system. Payload should carry
-    // at least: device_id, and the root cause's tag/owner - walk
-    // error->next_cause to the end, since a wrapper like ERR_DEV_DEP_FAILED
-    // only carries dev_id, not the underlying failure's tag/owner. Always
-    // attach device_id explicitly (the root cause itself may not carry one).
-    return NULL;
-  }
-
-  return NULL;
-}
-
 static err_h adapter_suspend_device(void* driver_handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ap_adapter_ctx_t, ap33772s_handle_t, ctx, hw, driver_handle);
   SYS_DEV_CHECK_DRIVER_CALL(ap33772s_set_output(hw, false), ctx);
@@ -378,7 +339,7 @@ fail:
 static const sys_device_class_t s_ap33772s_class = {
     .name = "AP33772S",
     .contracts = {[SYS_DEVICE_CONTRACT_POWER_VREG] = (void*)&s_ap_vreg_contract, [SYS_DEVICE_CONTRACT_POWER_USB_PD] = (void*)&s_ap_usb_pd_contract, [SYS_DEVICE_CONTRACT_POWER_MONITOR] = (void*)&s_ap_monitor_contract},
-    .ops = {.install = device_install, .uninstall = device_uninstall, .reset = adapter_reset_device, .suspend = adapter_suspend_device, .resume = adapter_resume_device, .freeze = adapter_freeze_device, .sync = adapter_sync_device, .error_handler = adapter_error_handler},
+    .ops = {.install = device_install, .uninstall = device_uninstall, .reset = adapter_reset_device, .suspend = adapter_suspend_device, .resume = adapter_resume_device, .freeze = adapter_freeze_device, .sync = adapter_sync_device},
 };
 
 err_h d_ap33772s_create(const d_ap33772s_cfg_t* cfg) {

@@ -21,13 +21,7 @@ static const char* TAG = "sys_interface";
 #include <sdkconfig.h>
 
 R_TASK_DEFINE(s_interface_rx_task_handle, CONFIG_SYS_INTERFACE_RX_TASK_STACK_SIZE);
-
-/**
- * @brief Shared RX wake semaphore owned by sys_interface.
- *
- * Any transport producer may signal it; see sys_interface_get_rx_wake_sem().
- */
-R_BINARY_SEM_DEFINE(s_rx_wake_sem);
+static void sys_interface_receiver_task(void* arg);
 
 typedef struct {
   uint8_t decoder_header;
@@ -74,24 +68,6 @@ void sys_interface_resume_rx(void) {
 bool sys_interface_is_rx_suspended(void) {
   return s_rx_suspend_depth > 0;
 }
-
-typedef struct {
-  sys_interface_rx_dequeue_f dequeue_fn;
-  void* ctx;
-  uint8_t* frame;
-  size_t max_frame_len;
-  const char* name;
-} sys_interface_rx_source_t;
-
-/**
- * @brief Registered RX sources and their static frame storage.
- *
- * Sources are appended to @c s_rx_sources[0..s_rx_source_count-1] and are
- * never removed, so no free-slot scan or unregister bookkeeping is required.
- */
-static sys_interface_rx_source_t s_rx_sources[CONFIG_SYS_INTERFACE_MAX_RX_SOURCES];
-static size_t s_rx_source_count = 0;
-static uint8_t s_rx_frames[CONFIG_SYS_INTERFACE_MAX_RX_SOURCES][CONFIG_SYS_INTERFACE_RX_FRAME_CAP];
 
 #undef OWNER
 #define OWNER OWNER_SYS_INTERFACE_DECODE
@@ -154,6 +130,32 @@ err_h sys_interface_init(void) {
   };
   SE_RET_IF_ERR(sys_interface_register_decoder(SYS_CONTRACTS_CLASS_HEADER, dec_sys_contracts_decode, "sys_contracts"));
   SE_RET_IF_ERR(sys_interface_register_decoder(VM_LOADER_CLASS_HEADER, dec_vm_loader_decode, "vm_loader"));
+
+  sys_data_connector_t* conn = sys_data_connector_create(SYS_INTERFACE_CONNECTOR_ID, "interface", 0);
+  if (!conn) {
+    SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+  }
+
+  if (s_interface_rx_task_handle == NULL) {
+    R_TASK_START(s_interface_rx_task_handle, sys_interface_receiver_task, NULL, CONFIG_SYS_INTERFACE_RX_TASK_PRIO);
+    if (s_interface_rx_task_handle == NULL) {
+      SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+    }
+  }
+
+  return NULL;
+}
+#undef OWNER
+
+#define OWNER OWNER_SYS_INTERFACE_BASE
+err_h sys_interface_send(const void* data, size_t len) {
+  SE_CHECK_NOT_NULL(data);
+  if (len == 0) return NULL;
+  sys_data_connector_t* conn = sys_data_connector_get(SYS_INTERFACE_CONNECTOR_ID);
+  if (!conn) {
+    SE_RET_ERR(ERR_BASE_NOT_FOUND, 0);
+  }
+  sys_data_connector_send(conn, data, len);
   return NULL;
 }
 #undef OWNER
@@ -185,15 +187,13 @@ err_h sys_interface_tap_poll(uint8_t* buf, size_t max_len, size_t* out_len) {
 
 #define OWNER OWNER_SYS_INTERFACE_SOURCE
 
-SemaphoreHandle_t sys_interface_get_rx_wake_sem(void) {
-  return s_rx_wake_sem;
-}
+static uint8_t s_rx_frame[CONFIG_SYS_INTERFACE_RX_FRAME_CAP];
 
 /**
- * @brief Drain all registered RX sources and dispatch their frames.
+ * @brief Drain incoming frames from the interface data connector and dispatch them.
  *
- * The shared semaphore wakes this single receiver task immediately. A timeout
- * also wakes it periodically so sources that do not signal are still polled.
+ * Waits on the connector's data_present semaphore (with CONFIG_SYS_INTERFACE_RX_WAIT_MS timeout)
+ * and pulls frames via sys_data_connector_receive().
  *
  * @param arg Unused FreeRTOS task argument.
  */
@@ -201,68 +201,41 @@ static void sys_interface_receiver_task(void* arg) {
   (void)arg;
   ESP_LOGI(TAG, "RX receiver started");
 
+  sys_data_connector_t* conn = sys_data_connector_create(SYS_INTERFACE_CONNECTOR_ID, "interface", 0);
+  if (!conn || !conn->data_present) {
+    ESP_LOGE(TAG, "Failed to obtain interface connector for RX receiver");
+    vTaskDelete(NULL);
+    return;
+  }
+
   while (1) {
-    BaseType_t got_signal = xSemaphoreTake(s_rx_wake_sem, pdMS_TO_TICKS(CONFIG_SYS_INTERFACE_RX_WAIT_MS));
+    BaseType_t got_signal = xSemaphoreTake(conn->data_present, pdMS_TO_TICKS(CONFIG_SYS_INTERFACE_RX_WAIT_MS));
 
     if (sys_interface_is_rx_suspended()) {
       /** Preserve a received wake signal while yielding during suspension. */
       if (got_signal) {
         vTaskDelay(pdMS_TO_TICKS(1));
-        xSemaphoreGive(s_rx_wake_sem);
+        xSemaphoreGive(conn->data_present);
       }
       continue;
     }
 
-    for (size_t i = 0; i < s_rx_source_count; i++) {
-      sys_interface_rx_source_t* src = &s_rx_sources[i];
-
-      /** Drain this source until its dequeue callback reports empty. */
-      while (1) {
-        size_t len = 0;
-        err_h dq_err = src->dequeue_fn(src->ctx, src->frame, src->max_frame_len, &len);
-        if (SE_IS_ERR(dq_err)) {
-          SE_ORIGIN_CALL(dq_err);
-          break;
-        }
-        if (len == 0) break;
-
-        if (s_tap_capture) {
-          SE_ORIGIN_CALL(sys_buff_push(&s_tap_buff, src->frame, len, 0));
-
-        }
-        SE_ORIGIN_CALL(sys_interface_decode(src->frame, len));
+    while (1) {
+      size_t len = 0;
+      err_h dq_err = sys_data_connector_receive(conn, s_rx_frame, sizeof(s_rx_frame), &len);
+      if (SE_IS_ERR(dq_err)) {
+        SE_ORIGIN_CALL(dq_err);
+        break;
       }
+      if (len == 0) break;
+
+      if (s_tap_capture) {
+        SE_ORIGIN_CALL(sys_buff_push(&s_tap_buff, s_rx_frame, len, 0));
+      }
+      SE_ORIGIN_CALL(sys_interface_decode(s_rx_frame, len));
     }
   }
-}
-
-err_h sys_interface_register_rx_source(sys_interface_rx_dequeue_f dequeue_fn, void* ctx, size_t max_frame_len, const char* name) {
-  SE_CHECK_NOT_NULL(dequeue_fn);
-  SE_CHECK_IN_RANGE(max_frame_len, 1, CONFIG_SYS_INTERFACE_RX_FRAME_CAP);
-  if (s_rx_source_count >= CONFIG_SYS_INTERFACE_MAX_RX_SOURCES) {
-    SE_RET_ERR(ERR_INTERFACE_NO_SOURCE_SLOTS, 0);
-  }
-
-  sys_interface_rx_source_t* src = &s_rx_sources[s_rx_source_count];
-  src->dequeue_fn = dequeue_fn;
-  src->ctx = ctx;
-  src->frame = s_rx_frames[s_rx_source_count];
-  src->max_frame_len = max_frame_len;
-  src->name = name;
-
-  ESP_LOGI(TAG, "registered RX source: %s (slot %u)", name ? name : "unnamed", (unsigned)s_rx_source_count);
-  s_rx_source_count++;
-
-  if (s_interface_rx_task_handle == NULL) {
-    R_TASK_START(s_interface_rx_task_handle, sys_interface_receiver_task, NULL, CONFIG_SYS_INTERFACE_RX_TASK_PRIO);
-    if (s_interface_rx_task_handle == NULL) {
-      /** Roll back because no task exists to drain the registered source. */
-      s_rx_source_count--;
-      SE_RET_ERR(ERR_BASE_NO_MEM, 0);
-    }
-  }
-
-  return NULL;
 }
 
 #undef OWNER
+

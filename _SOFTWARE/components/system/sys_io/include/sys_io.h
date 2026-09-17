@@ -191,3 +191,8 @@ err_h sys_io_set_pwm_duty(uint8_t device_id, sys_io_pin_num_t pin, uint32_t duty
 
 extern const char* const sys_io_mode_e_to_string[];
 extern const char* const sys_io_intr_mode_e_to_string[];
+
+/**
+ * @brief Weak domain error hook for IO faults.
+ */
+extern err_h sys_io_report_fault(err_h node, err_h chain) __attribute__((weak));

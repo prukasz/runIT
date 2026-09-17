@@ -157,7 +157,6 @@ static inline err_h runit_data_connector_static_config(void) {
   RUNIT_CHECK_ERR(runit_bind_ble_channel(CONN_ID_ERRORS, "errors", PACKET_HEADER_ERRORS, SYS_BLE_CHR_RUNIT_LOGS, 0));
   RUNIT_CHECK_ERR(runit_bind_ble_channel(CONN_ID_TELEMETRY, "telemetry", PACKET_HEADER_TX, SYS_BLE_CHR_RUNIT_TX, 0));
   RUNIT_CHECK_ERR(runit_bind_ble_channel(CONN_ID_INTERFACE, "interface", PACKET_HEADER_TX, SYS_BLE_CHR_RUNIT_TX, SYS_BLE_CHR_RUNIT_RX));
-  sys_data_connector_set_wake_sem(sys_data_connector_get(CONN_ID_INTERFACE), sys_interface_get_rx_wake_sem());
   return NULL;
 }
 #undef RUNIT_CHECK_ERR

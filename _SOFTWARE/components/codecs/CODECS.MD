@@ -49,10 +49,10 @@ Every decoder logs what it is about to do at `ESP_LOGI` under the tag `dec_sys_c
 | Range | Domain | API |
 | :--- | :--- | :--- |
 | `0x10`–`0x19` | Device lifecycle | `sys_device_uninstall/reset/suspend/resume/freeze/sync` (+ `_all` variants) |
-| `0x1A` | Device error handling | `sys_device_set_error_handling` — `device_id, use_error_handler, generate_error_callback, actions[3]`; see [[SYS_DEVICE.MD]]'s "Per-Instance Error Handling" |
+| `0x1A` | Device error handling | `sys_device_set_error_handling` — `device_id, importance, actions[5]`; see [[SYS_DEVICE.MD]]'s "Per-Instance Error Handling" |
 | `0x1B`–`0x1F` | *(free)* | |
-| `0x20`–`0x2F` | IO | `sys_io_reset/set_mode/set_level/get_level/toggle/get_voltage/set_voltage/set_pwm_frequency/set_pwm_duty` |
-| `0x30`–`0x3F` | Power | `sys_power_budget_update_source`, `sys_vreg_set_enable/voltage/current`, `sys_power_monitor_get_voltage/current`, `sys_power_usb_pd_set/list/get_limits` |
+| `0x20`–`0x2F` | IO | `sys_io_reset/set_mode/set_level/get_level/toggle/get_voltage/set_voltage/set_pwm_frequency/set_pwm_duty`, `0x29`: `sys_io_configure_intr` |
+| `0x30`–`0x3F` | Power | `sys_power_budget_update_source`, `sys_vreg_set_enable/voltage/current`, `sys_power_monitor_get_voltage/current`, `sys_power_usb_pd_set/list/get_limits`, `0x39`: `sys_power_monitor_add_callback`, `0x3A`: `sys_vreg_add_callback` |
 | `0x40`–`0x47` | Device installation | `d_gpio_esp_create`, `d_pca9685_create`, `d_tca6424a_create`, `d_tps55289_create`, `d_ina3221_create`, `d_ap33772s_create`, `d_dac53202_create`, `d_ads7128_create` |
 
 Unmapped packet bytes raise `ERR_INTERFACE_UNKNOWN_PACKET` (owner `OWNER_DEC_SYS_CONTRACTS`) and log a warning.

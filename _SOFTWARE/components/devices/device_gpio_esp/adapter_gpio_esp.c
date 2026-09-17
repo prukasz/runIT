@@ -469,46 +469,6 @@ static err_h device_resume(void* handle) {
   return device_sync(handle);
 }
 
-// Same shape as device_pca9685's explain_root_cause() (see that file for
-// the full rationale): identifies which node in the chain is the root
-// cause and adds this adapter's own interpretation for it, without
-// repeating SE_describe_payload() - sys_error_handler_task's own stack
-// trace already prints that same description for every node, including
-// the root. Unlike the I2C devices, gpio_esp has no external bus to lose
-// communication with - it IS the ESP32's own GPIO/ADC/PWM peripherals - so
-// ERR_ESP_ERR here means an internal peripheral driver call
-// (gpio_set_level, ADC calibration/read, etc.) failed, not a disconnected
-// device.
-static void explain_root_cause(uint8_t device_id, err_h error) {
-  err_h root = error;
-  while (root && root->next_cause) root = root->next_cause;
-  if (!root) return;
-  ESP_LOGE(TAG, "GPIO_ESP (device %u) error root cause: owner=%s (0x%04X), tag=%s (%d)", device_id, SE_get_owner_name(root->owner), (unsigned int)root->owner, SE_get_tag_name(root->tag), (int)root->tag);
-
-  if (root->tag == ERR_ESP_ERR) {
-    ESP_LOGE(TAG, "  -> internal ESP32 GPIO/ADC/PWM peripheral call failed on device %u (not a communication/bus issue - this device has no external bus)", device_id);
-  }
-}
-
-static err_h device_error_handler(void* handle, err_h error) {
-  (void)handle; /* singleton adapter - gpio_esp_ctx is the one instance */
-  sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(&gpio_esp_ctx));
-  if (!dev) return NULL;
-
-  explain_root_cause(SYS_DEV_GET_ID(&gpio_esp_ctx), error);
-
-  if (dev->generate_error_callback) {
-    // TODO: report to the VM via the callback system. Payload should carry
-    // at least: device_id, and the root cause's tag/owner - walk
-    // error->next_cause to the end, since a wrapper like ERR_DEV_DEP_FAILED
-    // only carries dev_id, not the underlying failure's tag/owner. Always
-    // attach device_id explicitly (the root cause itself may not carry one).
-    return NULL;
-  }
-
-  return NULL;
-}
-
 static err_h device_install(const void* cfg_blob, void** out_device_handle) {
   const d_gpio_esp_cfg_t* cfg = (const d_gpio_esp_cfg_t*)cfg_blob;
   SE_CHECK_NOT_NULL(cfg);
@@ -545,7 +505,6 @@ static const sys_device_class_t s_gpio_esp_class = {
         .resume = device_resume,
         .freeze = device_freeze,
         .sync = device_sync,
-        .error_handler = device_error_handler
     },
 };
 
