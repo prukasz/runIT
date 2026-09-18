@@ -39,7 +39,7 @@ void selftest_reset_counts(void) {
 // --- Common Arena & Object Helpers ---
 void direct_arena_reset(void) {
   const uint16_t counts[VM_REG_CNT] = {[VM_REG_OBJ] = 32, [VM_REG_ACC] = 24, [VM_REG_BLK] = 8};
-  (void)vm_store_open(DIRECT_POOL, counts);
+  SE_release(vm_store_open(DIRECT_POOL, counts));
 }
 
 vm_obj_head_t hd(vm_obj_t_e type, uint16_t items) {
@@ -54,7 +54,7 @@ vm_obj_h mk(uint16_t id, vm_obj_t_e type, uint16_t items, const char* name, bool
   h.d.name_size = name ? (uint8_t)strlen(name) : 0;
   h.f.mutable = mutable_ ? 1 : 0;
   vm_obj_h o = NULL;
-  if (vm_obj_create(&o, id, &h, name) != NULL) {
+  if (!selftest_ok(vm_obj_create(&o, id, &h, name))) {
     return NULL;
   }
   return o;
@@ -311,7 +311,7 @@ void vm_selftest_run(void) {
     }
   }
 
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
 
   int total_pass = selftest_get_pass();
   int total_fail = selftest_get_fail();

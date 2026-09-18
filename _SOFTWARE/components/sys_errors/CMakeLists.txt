@@ -7,7 +7,7 @@ foreach(item ${code_items})
 endforeach()
 
 idf_component_register(
-    SRCS "sys_error.c" "sys_error_handler.c" "sys_error_log.c" "sys_error_config.c"
+    SRCS "sys_error.c" "sys_error_handler.c" "sys_error_log.c"
     INCLUDE_DIRS "include" ${code_dirs} "codes"
                  "../system/sys_device/include"
                  "../system/sys_io/include"

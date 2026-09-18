@@ -12,8 +12,3 @@ err_h sys_i2c_remove_driver(void* hw_handle);
 err_h sys_i2c_device_present(void* hw_handle);
 
 i2c_master_bus_handle_t sys_i2c_get_bus_handle(bool bus_num);
-
-/**
- * @brief Weak domain error hook for I2C faults.
- */
-extern err_h sys_i2c_report_fault(err_h node, err_h chain) __attribute__((weak));

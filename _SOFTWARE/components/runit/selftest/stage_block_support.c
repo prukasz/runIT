@@ -39,30 +39,30 @@ void test_block_support(void) {
   vm_obj_payload_t     p      = {.ptr = &sample, .type = VM_OBJ_U32, .count = 1};
   bool                 fired  = true;
   vm_edge_init(&edge, VM_EDGE_RISING, th);
-  ck("edge first sample seeds history", !vm_edge_step(&edge, p, th, &fired) && !fired);
+  ck("edge first sample seeds history", selftest_ok(vm_edge_step(&edge, p, th, &fired)) && !fired);
   sample = UINT32_MAX;
-  ck("edge retains U32 precision", !vm_edge_step(&edge, p, th, &fired) && fired);
+  ck("edge retains U32 precision", selftest_ok(vm_edge_step(&edge, p, th, &fired)) && fired);
   sample = 0;
-  ck("rising edge does not underflow", !vm_edge_step(&edge, p, th, &fired) && !fired);
+  ck("rising edge does not underflow", selftest_ok(vm_edge_step(&edge, p, th, &fired)) && !fired);
   edge.edge_type  = VM_EDGE_FALLING;
   edge.prev_val.u = UINT32_MAX;
-  ck("falling edge spans U32 range", !vm_edge_step(&edge, p, th, &fired) && fired);
+  ck("falling edge spans U32 range", selftest_ok(vm_edge_step(&edge, p, th, &fired)) && fired);
   int32_t signed_sample = INT32_MIN;
   p                     = (vm_obj_payload_t){.ptr = &signed_sample, .type = VM_OBJ_I32, .count = 1};
   th.i                  = 1;
   vm_edge_init(&edge, VM_EDGE_BOTH, th);
-  (void)vm_edge_step(&edge, p, th, &fired);
+  SE_release(vm_edge_step(&edge, p, th, &fired));
   signed_sample = INT32_MAX;
-  ck("signed edge spans I32 range", !vm_edge_step(&edge, p, th, &fired) && fired);
+  ck("signed edge spans I32 range", selftest_ok(vm_edge_step(&edge, p, th, &fired)) && fired);
   float fractional = 0.25f;
   p                = (vm_obj_payload_t){.ptr = &fractional, .type = VM_OBJ_F, .count = 1};
   th.f             = 0.5f;
   vm_edge_init(&edge, VM_EDGE_BOTH, th);
-  (void)vm_edge_step(&edge, p, th, &fired);
+  SE_release(vm_edge_step(&edge, p, th, &fired));
   fractional = 0.5f;
-  ck("float edge below threshold", !vm_edge_step(&edge, p, th, &fired) && !fired);
+  ck("float edge below threshold", selftest_ok(vm_edge_step(&edge, p, th, &fired)) && !fired);
   fractional = 1.0f;
-  ck("float edge at threshold", !vm_edge_step(&edge, p, th, &fired) && fired);
+  ck("float edge at threshold", selftest_ok(vm_edge_step(&edge, p, th, &fired)) && fired);
 
   direct_arena_reset();
   vm_obj_h       signal  = mk(0, VM_OBJ_F, 1, NULL, true);
@@ -70,13 +70,13 @@ void test_block_support(void) {
   vm_obj_h       output  = mk(2, VM_OBJ_B, 1, NULL, true);
   vm_obj_h       eno     = mk(3, VM_OBJ_B, 1, NULL, true);
   vm_accessor_t *sig_acc = NULL, *gate_acc = NULL, *bad_acc = NULL;
-  ck("signal accessor", !vm_accessor_create(&sig_acc, 0, 0, 0));
-  ck("enable accessor", !vm_accessor_create(&gate_acc, 1, 1, 0));
-  ck("unresolved dynamic accessor", !vm_accessor_create(&bad_acc, 2, 31, 0));
+  ck("signal accessor", selftest_ok(vm_accessor_create(&sig_acc, 0, 0, 0)));
+  ck("enable accessor", selftest_ok(vm_accessor_create(&gate_acc, 1, 1, 0)));
+  ck("unresolved dynamic accessor", selftest_ok(vm_accessor_create(&bad_acc, 2, 31, 0)));
   vm_block_h b = NULL;
   ck("timer block build",
-      !vm_block_create(
-          &b, 0, &(vm_block_cfg_t){.block_idx = 0, .block_type = VM_BLK_TIMER, .in_cnt = 2, .q_cnt = 1, .en_cnt = 1, .custom_len = sizeof(timer), .in_acc_ids = (const uint16_t[]){0, VM_BLOCK_NO_ID}, .out_obj_ids = (const uint16_t[]){2}, .en_acc_ids = (const uint16_t[]){1}, .eno_obj_id = 3}));
+      selftest_ok(vm_block_create(
+          &b, 0, &(vm_block_cfg_t){.block_idx = 0, .block_type = VM_BLK_TIMER, .in_cnt = 2, .q_cnt = 1, .en_cnt = 1, .custom_len = sizeof(timer), .in_acc_ids = (const uint16_t[]){0, VM_BLOCK_NO_ID}, .out_obj_ids = (const uint16_t[]){2}, .en_acc_ids = (const uint16_t[]){1}, .eno_obj_id = 3})));
   if (!b || !signal || !gate || !output || !eno) return;
   vm_block_timer_init_data(vm_block_get_custom_data(b), VM_TIMER_TON, 0, false);
   *(float*)signal->payload = 0.25f;
@@ -98,10 +98,9 @@ void test_block_support(void) {
   vm_block_timer_data_t bad_timer = {.mode = (uint8_t)99};
   vm_block_h            bad_b     = NULL;
   ck("timer block create rejects invalid mode",
-      vm_block_create(&bad_b, 1,
+      !selftest_ok(vm_block_create(&bad_b, 1,
           &(vm_block_cfg_t){
-              .block_idx = 1, .block_type = VM_BLK_TIMER, .in_cnt = 2, .q_cnt = 1, .en_cnt = 1, .custom_len = sizeof(timer), .custom_data = &bad_timer, .in_acc_ids = (const uint16_t[]){0, VM_BLOCK_NO_ID}, .out_obj_ids = (const uint16_t[]){2}, .en_acc_ids = (const uint16_t[]){1}, .eno_obj_id = 3}) !=
-          NULL);
+              .block_idx = 1, .block_type = VM_BLK_TIMER, .in_cnt = 2, .q_cnt = 1, .en_cnt = 1, .custom_len = sizeof(timer), .custom_data = &bad_timer, .in_acc_ids = (const uint16_t[]){0, VM_BLOCK_NO_ID}, .out_obj_ids = (const uint16_t[]){2}, .en_acc_ids = (const uint16_t[]){1}, .eno_obj_id = 3})));
 
   b->cfg.rt         = 0;
   b->cfg.block_type = VM_BLK_EDGE;
@@ -130,10 +129,9 @@ void test_block_support(void) {
   vm_block_edge_data_t bad_edge = {.edge_type = (uint8_t)99};
   vm_block_h           bad_eb   = NULL;
   ck("edge block create rejects invalid mode",
-      vm_block_create(&bad_eb, 2,
+      !selftest_ok(vm_block_create(&bad_eb, 2,
           &(vm_block_cfg_t){
-              .block_idx = 2, .block_type = VM_BLK_EDGE, .in_cnt = 2, .q_cnt = 1, .en_cnt = 1, .custom_len = sizeof(edge), .custom_data = &bad_edge, .in_acc_ids = (const uint16_t[]){0, VM_BLOCK_NO_ID}, .out_obj_ids = (const uint16_t[]){2}, .en_acc_ids = (const uint16_t[]){1}, .eno_obj_id = 3}) !=
-          NULL);
+              .block_idx = 2, .block_type = VM_BLK_EDGE, .in_cnt = 2, .q_cnt = 1, .en_cnt = 1, .custom_len = sizeof(edge), .custom_data = &bad_edge, .in_acc_ids = (const uint16_t[]){0, VM_BLOCK_NO_ID}, .out_obj_ids = (const uint16_t[]){2}, .en_acc_ids = (const uint16_t[]){1}, .eno_obj_id = 3})));
 
   vm_for_code_t loop = {.max_turns = 1};
   g_vm_block_fault   = false;
@@ -146,6 +144,7 @@ void test_block_support(void) {
   g_vm_block_fault       = false;
   err_h clear_error      = vm_obj_clear_quiet(output);
   ck("object clear returns failure without reporting below the boundary", clear_error != NULL && !g_vm_block_fault);
+  SE_release(clear_error);
   vm_block_drive_gate(b, 0, false);
   ck("false gate reports clear failure at the block boundary", g_vm_block_fault);
   output->head.f.mutable = 1;

@@ -63,6 +63,7 @@ void test_boot_failure_policy(void) {
 
   err = runit_run_boot_steps(success_steps, 3);
   ck("failing step returns error", err != NULL && err->tag == ERR_ESP_ERR);
+  SE_release(err);
   ck("step 1 executed before failure", s_mock_step1_count == 1);
   ck("step 2 executed and failed", s_mock_step2_count == 1);
   ck("step 3 was prevented from running", s_mock_step3_count == 0);
@@ -80,6 +81,7 @@ void test_boot_failure_policy(void) {
 
   err = runit_run_boot_steps(early_fail_steps, 3);
   ck("early failing step returns error", err != NULL);
+  SE_release(err);
   ck("dependent step 1 prevented", s_mock_step1_count == 0);
   ck("dependent step 2 prevented", s_mock_step3_count == 0);
 
@@ -94,8 +96,9 @@ void test_boot_failure_policy(void) {
   // it must return ERR_DEP_FAILED wrapping ERR_BASE_INVALID_STATE.
   err_h p_err = sys_power_static_config();
   ck("sys_power_static_config propagates error when limits locked", p_err != NULL && p_err->tag == ERR_BASE_INVALID_STATE);
+  SE_release(p_err);
 
   // Leave VM clean and stopped
-  vm_exec_stop();
+  SE_release(vm_exec_stop());
   vm_exec_set_sample_hook(NULL);
 }

@@ -18,15 +18,21 @@ static sys_device_t* s_device_registry[CONFIG_SYS_DEVICE_MAX_ID + 1] = {NULL};
    Overridden at link time by the application coordinator (runit). */
 __attribute__((weak)) err_h sys_device_app_error_policy(uint8_t device_id,
                                                         sys_device_err_level_e level,
-                                                        uint8_t action_id,
+                                                        uint16_t action_id,
                                                         err_h error) {
   (void)device_id;
   (void)action_id;
   (void)error;
   if (level == SYS_DEV_ERR_CRITICAL) {
-    (void)sys_device_freeze_all();
+    return sys_device_freeze_all();
   }
   return NULL;
+}
+
+__attribute__((weak)) err_h sys_system_report_fault(err_h node, err_h chain) {
+  (void)node;
+  (void)chain;
+  return sys_device_freeze_all();
 }
 
 #define DEV_OP(d, f) ((d)->cls->ops.f)
@@ -149,7 +155,7 @@ err_h sys_device_install_cfg(const sys_device_class_t* cls, uint8_t device_id, c
     s_device_registry[device_id] = NULL;
     free(new_dev->cfg);
     free(new_dev);
-    SE_RET_IF_ERR(install_status);
+    return SE_WRAP_ERR(install_status, ERR_DEV_INSTALL_FAILED, .dev_id = device_id);
   }
 
   new_dev->state = SYS_DEV_STATE_INSTALLED;
@@ -168,7 +174,7 @@ sys_device_t* sys_device_get_by_id(uint8_t device_id) {
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_REPORT_ERROR
 err_h sys_device_report_error_with_level(uint8_t device_id, sys_device_err_level_e level, err_h error) {
-  if (!error) return NULL;
+  if (!SE_is_valid_error_ptr(error)) return NULL;
 
   sys_device_t* dev = sys_device_get_by_id(device_id);
 
@@ -177,11 +183,8 @@ err_h sys_device_report_error_with_level(uint8_t device_id, sys_device_err_level
     return NULL;
   }
 
-  /* If level not explicitly provided, look up root cause error tag default severity */
-  if (level == SYS_DEV_ERR_NONE) {
-    err_h root = SE_get_error_root(error);
-    level = root ? SE_get_tag_level(root->tag) : SYS_DEV_ERR_LOW;
-  }
+  SE_CHECK_IN_RANGE((unsigned)level, SYS_DEV_ERR_NONE, SYS_DEV_ERR_CRITICAL);
+  if (level == SYS_DEV_ERR_NONE) return NULL;
 
   /* Non-critical errors obey device importance clamping */
   if (level != SYS_DEV_ERR_CRITICAL) {
@@ -195,12 +198,14 @@ err_h sys_device_report_error_with_level(uint8_t device_id, sys_device_err_level
   }
 
   /* CRITICAL or clamped level dispatch */
-  uint8_t action_id = (dev) ? dev->actions[level] : 0;
+  uint16_t action_id = dev ? dev->actions[level] : 0;
+  if (dev && (dev->actions[0] & (1u << (level - 1)))) action_id |= SYS_DEV_ACTION_DYNAMIC;
   return sys_device_app_error_policy(device_id, level, action_id, error);
 }
 
 err_h sys_device_report_error(uint8_t device_id, err_h error) {
-  return sys_device_report_error_with_level(device_id, SYS_DEV_ERR_NONE, error);
+  return SE_is_valid_error_ptr(error)
+             ? sys_device_report_error_with_level(device_id, SE_get_tag_level(error->tag), error) : NULL;
 }
 
 bool sys_device_is_ignored(uint8_t device_id) {
@@ -218,8 +223,10 @@ err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e i
   SE_CHECK_IN_RANGE((uint32_t)importance, SYS_DEV_IMPORTANCE_NONE, SYS_DEV_IMPORTANCE_CRITICAL);
 
   if (actions) {
-    for (int i = 0; i < 5; i++) {
-      SE_CHECK_IN_RANGE(actions[i], 0, CONFIG_SYS_ACTIONS_ID_SPACE - 1);
+    SE_CHECK_IN_RANGE(actions[0], 0, 0x0f);
+    for (int i = 1; i < 5; i++) {
+      unsigned limit = (actions[0] & (1u << (i - 1))) ? CONFIG_SYS_ACTIONS_ID_SPACE : CONFIG_SYS_ACTIONS_STATIC_SLOTS;
+      SE_CHECK_IN_RANGE(actions[i], 0, limit - 1);
     }
     memcpy(dev->actions, actions, sizeof(dev->actions));
   } else {
@@ -325,7 +332,7 @@ err_h sys_device_freeze_all(void) {
     sys_device_t* dev = sys_device_get_by_id((uint8_t)i);
     if (!dev || !SYS_DEV_IS_READY(dev) || !DEV_OP(dev, freeze)) continue;
     err_h error = DEV_OP(dev, freeze)(dev->device_handle);
-    if (error && !first_error) first_error = error;
+    if (error && !first_error) first_error = error; else SE_release(error);
     if (error) ESP_LOGE(TAG, "Failed to freeze device: %s", DEV_NAME(dev));
   }
   return first_error;

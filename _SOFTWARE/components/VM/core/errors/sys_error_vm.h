@@ -404,32 +404,6 @@ static inline const char* vm_copy_shape_name(uint8_t r) {
            (p)->device_id, (unsigned long)(p)->root_owner, (unsigned)(p)->root_tag)
 
 
-/** @brief SE_EMIT_ERR variant with explicit owner for shared headers. */
-#define SE_EMIT_ERR_OWNED(owner, tag_name, ...)                                                \
-  do {                                                                                          \
-    err_h __e = SE_alloc_bytes(sizeof(err_payload_##tag_name##_t), tag_name, (owner));          \
-    *((err_payload_##tag_name##_t*)__e->payload) = (err_payload_##tag_name##_t){__VA_ARGS__};   \
-    SE_push_to_handler(__e);                                                                    \
-  } while (0)
-
-// Return-style error macro with explicit owner
-#define SE_ERR_NEW_OWNED(owner, tag_name, ...)                                                \
-  ({                                                                                           \
-    err_h __e = SE_alloc_bytes(sizeof(err_payload_##tag_name##_t), tag_name, (owner));         \
-    *((err_payload_##tag_name##_t*)__e->payload) = (err_payload_##tag_name##_t){__VA_ARGS__};  \
-    __e;                                                                                       \
-  })
-
-#define SE_RET_ERR_OWNED(owner, tag_name, ...) return SE_ERR_NEW_OWNED((owner), tag_name, __VA_ARGS__)
-
-// Wrap existing error with next_cause and explicit owner
-#define SE_WRAP_ERR_OWNED(owner, rc_err, tag_name, ...)                                      \
-  ({                                                                                          \
-    err_h __new_err = SE_ERR_NEW_OWNED((owner), tag_name, __VA_ARGS__);                       \
-    __new_err->next_cause = (rc_err);                                                         \
-    __new_err;                                                                                \
-  })
-
 #define SE_CHECK_NOT_NULL_OWNED(owner, ptr)              \
   do {                                                   \
     if ((ptr) == NULL) {                                 \
@@ -443,5 +417,3 @@ static inline const char* vm_copy_shape_name(uint8_t r) {
       SE_RET_ERR_OWNED((owner), ERR_BASE_NO_MEM, 0);     \
     }                                                    \
   } while (0)
-
-extern err_h sys_vm_report_fault(err_h node, err_h chain) __attribute__((weak));

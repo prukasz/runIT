@@ -275,7 +275,9 @@ static inline bool vm_block_pin_fresh(const vm_accessor_t* acc) {
   }
 
   vm_obj_h o = NULL;
-  if (vm_obj_get_owner(&o, acc) != NULL || !o) return false;
+  err_h error = vm_obj_get_owner(&o, acc);
+  if (error) { SE_release(error); return false; }
+  if (!o) return false;
   return o->head.f.upd != 0;
 }
 
@@ -330,11 +332,6 @@ void vm_block_claim_span(vm_block_h b, uint16_t start, uint16_t end);
     }                                                                                 \
   } while (0)
 
-#define VM_BLK_ERR_NEW(tag_name, ...)                                                                                            \
-  ({                                                                                                                             \
-    err_h __e                                    = SE_alloc_bytes(sizeof(err_payload_##tag_name##_t), tag_name, OWNER_VM_BLOCK); \
-    *((err_payload_##tag_name##_t*)__e->payload) = (err_payload_##tag_name##_t){__VA_ARGS__};                                    \
-    __e;                                                                                                                         \
-  })
+#define VM_BLK_ERR_NEW(tag_name, ...) SE_ERR_NEW_OWNED(OWNER_VM_BLOCK, tag_name, __VA_ARGS__)
 
 #define VM_BLK_EMIT_ERR(tag_name, ...) SE_push_to_handler(VM_BLK_ERR_NEW(tag_name, __VA_ARGS__))

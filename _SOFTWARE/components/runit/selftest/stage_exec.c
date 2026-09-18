@@ -47,7 +47,7 @@
 
 static vm_accessor_t* ex_acc(uint16_t acc_id, uint16_t root_obj) {
   vm_accessor_t* a = NULL;
-  if (vm_accessor_create(&a, acc_id, root_obj, 0) != NULL) return NULL;
+  if (!selftest_ok(vm_accessor_create(&a, acc_id, root_obj, 0))) return NULL;
   (void)vm_accessor_cache_build(a);
   return a;
 }
@@ -70,7 +70,7 @@ static bool ex_counter(uint16_t id, uint16_t acc, uint16_t obj) {
                                               .in_acc_ids = (const uint16_t[]){acc},
                                               .out_obj_ids = (const uint16_t[]){obj},
                                               .eno_obj_id = VM_BLOCK_NO_ID});
-  if (e != NULL || b == NULL) return false;
+  if (!selftest_ok(e) || b == NULL) return false;
 
   vm_expr_code_t* c = (vm_expr_code_t*)vm_block_get_custom_data(b);
   c->const_cnt = 1;
@@ -127,7 +127,7 @@ static bool ex_expr(uint16_t id, const uint16_t* ins, uint8_t in_cnt, uint16_t o
                                               .in_acc_ids = ins,
                                               .out_obj_ids = (const uint16_t[]){out_obj},
                                               .eno_obj_id = eno});
-  if (e != NULL || b == NULL) return false;
+  if (!selftest_ok(e) || b == NULL) return false;
 
   vm_expr_code_t* c = (vm_expr_code_t*)vm_block_get_custom_data(b);
   c->const_cnt = k_cnt;
@@ -175,7 +175,7 @@ static bool ex_for(uint16_t id, uint16_t span_start, uint16_t span_end, for_loop
                                               .out_obj_ids = outs,
                                               .en_acc_ids = ens,
                                               .eno_obj_id = eno});
-  return (e == NULL && b != NULL);
+  return (selftest_ok(e) && b != NULL);
 }
 
 static bool s_step_test_done;
@@ -184,7 +184,7 @@ static err_h s_self_reset_error;
 static bool err_has_tag(err_h err, err_tag_e tag);
 
 static void ex_pause_at_sample(void) {
-  (void)vm_exec_control(VM_EXEC_PAUSE);
+  SE_release(vm_exec_control(VM_EXEC_PAUSE));
 }
 
 static void ex_stop_at_sample(void) {
@@ -223,39 +223,41 @@ static bool ex_wait_done(void) {
 
 static void ex_test_controls(void) {
   vm_block_h loaded_first = vm_block_get_by_id(0);
-  ck("empty control packet rejected", dec_vm_loader_decode((const uint8_t[]){0x48}, 1) != NULL);
-  ck("trailing control payload rejected", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_NORMAL_MODE, 0}, 3) != NULL);
-  ck("unknown wire command rejected", dec_vm_loader_decode((const uint8_t[]){0x48, 255}, 2) != NULL);
-  ck("wire selects block mode", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_BLOCK_MODE}, 2) == NULL && vm_exec_mode() == VM_RUN_BLOCK);
-  ck("wire queues next", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_NEXT}, 2) == NULL && vm_exec_mode() == VM_RUN_BLOCK_STEP);
-  ck("wire rewind cancels pending next", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_RESET_TO_START}, 2) == NULL && vm_exec_mode() == VM_RUN_BLOCK);
+  ck("empty control packet rejected", !selftest_ok(dec_vm_loader_decode((const uint8_t[]){0x48}, 1)));
+  ck("trailing control payload rejected", !selftest_ok(dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_NORMAL_MODE, 0}, 3)));
+  ck("unknown wire command rejected", !selftest_ok(dec_vm_loader_decode((const uint8_t[]){0x48, 255}, 2)));
+  ck("wire selects block mode", selftest_ok(dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_BLOCK_MODE}, 2)) && vm_exec_mode() == VM_RUN_BLOCK);
+  ck("wire queues next", selftest_ok(dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_NEXT}, 2)) && vm_exec_mode() == VM_RUN_BLOCK_STEP);
+  ck("wire rewind cancels pending next", selftest_ok(dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_RESET_TO_START}, 2)) && vm_exec_mode() == VM_RUN_BLOCK);
   ck("wire rewind retains the loaded program", loaded_first && vm_block_get_by_id(0) == loaded_first);
-  ck("wire scan mode holds", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_SCAN_MODE}, 2) == NULL);
+  ck("wire scan mode holds", selftest_ok(dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_SCAN_MODE}, 2)));
   uint32_t passes = vm_exec_pass_count();
   vm_exec_pass();
   ck("scan mode waits for once", vm_exec_pass_count() == passes);
-  ck("next rejected in scan mode", vm_exec_control(VM_EXEC_NEXT) != NULL);
-  ck("scan once accepted", vm_exec_control(VM_EXEC_ONCE) == NULL);
-  ck("duplicate pending once rejected", vm_exec_control(VM_EXEC_ONCE) != NULL);
+  ck("next rejected in scan mode", !selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
+  ck("scan once accepted", selftest_ok(vm_exec_control(VM_EXEC_ONCE)));
+  ck("duplicate pending once rejected", !selftest_ok(vm_exec_control(VM_EXEC_ONCE)));
   vm_exec_pass();
   ck("scan once completed", vm_exec_pass_count() == passes + 1);
-  ck("resume after once keeps scan mode held", vm_exec_control(VM_EXEC_RESUME) == NULL && vm_exec_mode() == VM_RUN_SCAN);
+  ck("resume after once keeps scan mode held", selftest_ok(vm_exec_control(VM_EXEC_RESUME)) && vm_exec_mode() == VM_RUN_SCAN);
   vm_exec_set_sample_hook(ex_pause_at_sample);
-  ck("wire scan once accepted", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_ONCE}, 2) == NULL && vm_exec_mode() == VM_RUN_STEP);
+  ck("wire scan once accepted", selftest_ok(dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_ONCE}, 2)) && vm_exec_mode() == VM_RUN_STEP);
   vm_exec_pass();
   vm_exec_set_sample_hook(NULL);
-  ck("pause during scan completion does not replay once", vm_exec_control(VM_EXEC_RESUME) == NULL && vm_exec_mode() == VM_RUN_SCAN);
+  ck("pause during scan completion does not replay once", selftest_ok(vm_exec_control(VM_EXEC_RESUME)) && vm_exec_mode() == VM_RUN_SCAN);
 
   // A hook runs on the task that owns the active pass. Synchronous stop must
   // request cancellation but reject its own wait rather than deadlocking.
   s_self_stop_error = NULL;
-  (void)vm_exec_stop();
+  SE_release(vm_exec_stop());
   vm_exec_set_sample_hook(ex_stop_at_sample);
   vm_exec_pass();
   vm_exec_set_sample_hook(NULL);
   vm_exec_status_t self_stop_status = vm_exec_status();
   ck("self-stop rejects waiting on the active pass",
      s_self_stop_error && s_self_stop_error->tag == ERR_VM_EXEC_SELF_BARRIER);
+  SE_release(s_self_stop_error);
+  s_self_stop_error = NULL;
   ck("self-stop request reaches quiescent STOPPED mode",
      self_stop_status.mode == VM_RUN_STOPPED && !self_stop_status.scan_active && !self_stop_status.waiting);
   ck("stop preserves the loaded program", vm_block_get_by_id(0) == loaded_first);
@@ -275,12 +277,12 @@ static void ex_test_controls(void) {
     ex_count_reset(EX_O_TICK);
     ex_count_reset(EX_O_INNER);
     passes = vm_exec_pass_count();
-    ck("block mode selected", vm_exec_control(VM_EXEC_BLOCK_MODE) == NULL);
-    ck("once rejected in block mode", vm_exec_control(VM_EXEC_ONCE) != NULL);
+    ck("block mode selected", selftest_ok(vm_exec_control(VM_EXEC_BLOCK_MODE)));
+    ck("once rejected in block mode", !selftest_ok(vm_exec_control(VM_EXEC_ONCE)));
     vm_exec_pass();
     ck("block mode holds before scan", ex_count(EX_O_TICK) == 0 && vm_exec_pass_count() == passes);
-    ck("first next accepted", vm_exec_control(VM_EXEC_NEXT) == NULL);
-    ck("duplicate pending next rejected", vm_exec_control(VM_EXEC_NEXT) != NULL);
+    ck("first next accepted", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
+    ck("duplicate pending next rejected", !selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
     __atomic_store_n(&s_step_test_done, false, __ATOMIC_RELEASE);
     bool started = xTaskCreate(ex_step_worker, "vm_step_test", 4096, NULL, 5, NULL) == pdPASS;
     ck("step worker started", started);
@@ -289,7 +291,7 @@ static void ex_test_controls(void) {
     ck("one next dispatches only block zero", held && ex_count(EX_O_TICK) == 1 && ex_count(EX_O_INNER) == 0);
     const uint16_t next[] = {EX_TRIG, EX_SPAN, EX_INNER};
     for (unsigned i = 0; i < 3 && held; ++i) {
-      ck("next accepted", vm_exec_control(VM_EXEC_NEXT) == NULL);
+      ck("next accepted", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
       held = ex_wait_block(next[i]);
       ck("next stops before following dispatch", held);
     }
@@ -299,54 +301,54 @@ static void ex_test_controls(void) {
       uint8_t events = vm_event_count();
       cb_event_t pending = {0};
       ck("event queues while stepping", vm_event_post(&pending));
-      ck("pause nested body", vm_exec_control(VM_EXEC_PAUSE) == NULL);
-      ck("resume preserves block mode", vm_exec_control(VM_EXEC_RESUME) == NULL && vm_exec_mode() == VM_RUN_BLOCK);
-      ck("next enters first loop iteration", vm_exec_control(VM_EXEC_NEXT) == NULL);
+      ck("pause nested body", selftest_ok(vm_exec_control(VM_EXEC_PAUSE)));
+      ck("resume preserves block mode", selftest_ok(vm_exec_control(VM_EXEC_RESUME)) && vm_exec_mode() == VM_RUN_BLOCK);
+      ck("next enters first loop iteration", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
       held = ex_wait_block(EX_INNER);
       ck("repeated body is a separate step", held && ex_count(EX_O_INNER) == 1 && vm_now_ms() == stamp);
       ck("step preserves event snapshot", held && vm_event_count() == events);
     }
     if (held && attempt == 0) {
-      ck("next enters second iteration", vm_exec_control(VM_EXEC_NEXT) == NULL);
+      ck("next enters second iteration", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
       held = ex_wait_block(EX_FAULT);
       ck("FOR returns without an extra step", held && ex_count(EX_O_INNER) == 2);
-      ck("final block step accepted", vm_exec_control(VM_EXEC_NEXT) == NULL);
+      ck("final block step accepted", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
       ck("last step completes scan", ex_wait_done() && vm_exec_pass_count() == passes + 1);
       ck("pass duration includes operator waits", vm_exec_last_pass_us() > 0);
     } else if (attempt < 2) {
-      ck("stop releases nested stack", vm_exec_stop() == NULL && ex_wait_done());
+      ck("stop releases nested stack", selftest_ok(vm_exec_stop()) && ex_wait_done());
       vm_exec_status_t stopped = vm_exec_status();
       ck("stop prevents the next nested dispatch",
          ex_count(EX_O_INNER) == 1 && vm_exec_pass_count() == passes);
       ck("stop is a quiescence barrier",
          stopped.mode == VM_RUN_STOPPED && !stopped.scan_active && !stopped.waiting);
-      ck("repeated stop is idempotent", vm_exec_stop() == NULL);
+      ck("repeated stop is idempotent", selftest_ok(vm_exec_stop()));
     } else {
-      ck("wire reset releases a nested held scan", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_RESET}, 2) == NULL && ex_wait_done());
+      ck("wire reset releases a nested held scan", selftest_ok(dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_RESET}, 2)) && ex_wait_done());
       ck("nested reset unloads safely", vm_exec_mode() == VM_RUN_STOPPED && !vm_block_get_by_id(0) && vm_exec_pass_count() == 0);
     }
     // A failed wait must still release the worker before the next fixture.
-    (void)vm_exec_control(VM_EXEC_RESET_TO_START);
+    SE_release(vm_exec_control(VM_EXEC_RESET_TO_START));
     ck("worker released", ex_wait_done());
   }
-  ck("wire normal mode runs", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_NORMAL_MODE}, 2) == NULL && vm_exec_mode() == VM_RUN_RUNNING);
-  ck("wire pause normal", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_PAUSE}, 2) == NULL && vm_exec_mode() == VM_RUN_FROZEN);
-  ck("wire resume normal", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_RESUME}, 2) == NULL && vm_exec_mode() == VM_RUN_RUNNING);
-  ck("rewind normal holds", vm_exec_control(VM_EXEC_RESET_TO_START) == NULL && vm_exec_mode() == VM_RUN_FROZEN);
-  ck("resume rewind restores normal", vm_exec_control(VM_EXEC_RESUME) == NULL && vm_exec_mode() == VM_RUN_RUNNING);
-  ck("invalid command rejected", vm_exec_control((vm_exec_command_e)255) != NULL);
-  vm_exec_stop();
-  ck("wire reset unloads program", dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_RESET}, 2) == NULL &&
+  ck("wire normal mode runs", selftest_ok(dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_NORMAL_MODE}, 2)) && vm_exec_mode() == VM_RUN_RUNNING);
+  ck("wire pause normal", selftest_ok(dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_PAUSE}, 2)) && vm_exec_mode() == VM_RUN_FROZEN);
+  ck("wire resume normal", selftest_ok(dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_RESUME}, 2)) && vm_exec_mode() == VM_RUN_RUNNING);
+  ck("rewind normal holds", selftest_ok(vm_exec_control(VM_EXEC_RESET_TO_START)) && vm_exec_mode() == VM_RUN_FROZEN);
+  ck("resume rewind restores normal", selftest_ok(vm_exec_control(VM_EXEC_RESUME)) && vm_exec_mode() == VM_RUN_RUNNING);
+  ck("invalid command rejected", !selftest_ok(vm_exec_control((vm_exec_command_e)255)));
+  SE_release(vm_exec_stop());
+  ck("wire reset unloads program", selftest_ok(dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_RESET}, 2)) &&
      vm_loader_state() == VM_LOAD_EMPTY && !vm_block_get_by_id(0) && vm_exec_pass_count() == 0);
-  ck("open empty stepping fixture", vm_loader_open(0, 0, 0, 1024) == NULL);
-  (void)vm_exec_control(VM_EXEC_BLOCK_MODE);
-  (void)vm_exec_control(VM_EXEC_NEXT);
+  ck("open empty stepping fixture", selftest_ok(vm_loader_open(0, 0, 0, 1024)));
+  SE_release(vm_exec_control(VM_EXEC_BLOCK_MODE));
+  SE_release(vm_exec_control(VM_EXEC_NEXT));
   vm_exec_set_sample_hook(ex_pause_at_sample);
   vm_exec_pass();
   vm_exec_set_sample_hook(NULL);
   ck("empty scan consumes next even if paused during completion", vm_exec_pass_count() == 1 &&
-     vm_exec_control(VM_EXEC_RESUME) == NULL && vm_exec_mode() == VM_RUN_BLOCK);
-  vm_loader_reset();
+     selftest_ok(vm_exec_control(VM_EXEC_RESUME)) && vm_exec_mode() == VM_RUN_BLOCK);
+  SE_release(vm_loader_reset());
 
   ck("first critical device fault latches", vm_exec_fault_latch(42, OWNER_SYS_DEVICE_REPORT_ERROR, ERR_ESP_ERR));
   vm_exec_fault_status_t fault = vm_exec_fault_status();
@@ -357,24 +359,24 @@ static void ex_test_controls(void) {
   ck("latched fault blocks an explicit manual pass", vm_exec_pass_count() == 0);
   err_h restart_error = vm_exec_control(VM_EXEC_NORMAL_MODE);
   ck("latched fault rejects restart", err_has_tag(restart_error, ERR_VM_EXEC_FAULT_LATCHED));
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
   ck("program reset does not acknowledge a critical fault", vm_exec_fault_status().latched);
   ck("repeated fault is counted without replacing the first root",
      !vm_exec_fault_latch(7, OWNER_VM_EXEC, ERR_VM_EXEC_CONTROL) &&
          vm_exec_fault_status().occurrences == 2 && vm_exec_fault_status().device_id == 42);
   ck("wire acknowledgment clears the fault",
-     dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_ACK_FAULT}, 2) == NULL &&
+     selftest_ok(dec_vm_loader_decode((const uint8_t[]){0x48, VM_EXEC_ACK_FAULT}, 2)) &&
          !vm_exec_fault_status().latched);
   ck("execution may restart only after acknowledgment",
-     vm_exec_control(VM_EXEC_NORMAL_MODE) == NULL && vm_exec_mode() == VM_RUN_RUNNING);
-  (void)vm_exec_stop();
+     selftest_ok(vm_exec_control(VM_EXEC_NORMAL_MODE)) && vm_exec_mode() == VM_RUN_RUNNING);
+  SE_release(vm_exec_stop());
 }
 
 void test_exec_pass(void) {
   ESP_LOGI(TAG, "-- R: the pass --");
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
   const uint16_t counts[VM_REG_CNT] = {[VM_REG_OBJ] = 32, [VM_REG_ACC] = 24, [VM_REG_BLK] = 6};
-  ck("execution arena opens", vm_store_open(DIRECT_POOL, counts) == NULL);
+  ck("execution arena opens", selftest_ok(vm_store_open(DIRECT_POOL, counts)));
 
   /* The gate and the trigger are upd_resetable, because the end-of-pass sweep
      is one of the things under test and a non-resettable object is deliberately
@@ -385,20 +387,20 @@ void test_exec_pass(void) {
   gh.f.mutable = 1;
   gh.f.upd_resetable = 1;
   vm_obj_h gate = NULL, trig = NULL;
-  bool built = vm_obj_create(&gate, EX_O_GATE, &gh, NULL) == NULL;
+  bool built = selftest_ok(vm_obj_create(&gate, EX_O_GATE, &gh, NULL));
   vm_obj_head_t th = hd(VM_OBJ_U32, 1);
   th.f.mutable = 1;
   th.f.upd_resetable = 1;
-  built = built && vm_obj_create(&trig, EX_O_TRIG, &th, NULL) == NULL;
+  built = built && selftest_ok(vm_obj_create(&trig, EX_O_TRIG, &th, NULL));
 
-  built = built && mk(EX_O_TICK, VM_OBJ_F, 1, NULL, true) != NULL;
-  built = built && mk(EX_O_HELD, VM_OBJ_F, 1, NULL, true) != NULL;
-  built = built && mk(EX_O_INNER, VM_OBJ_F, 1, NULL, true) != NULL;
-  built = built && mk(EX_O_KEPT, VM_OBJ_F, 1, NULL, true) != NULL;
-  built = built && mk(EX_O_DIV, VM_OBJ_F, 1, NULL, true) != NULL;
-  built = built && mk(EX_O_BR0, VM_OBJ_B, 1, NULL, true) != NULL;
-  built = built && mk(EX_O_BR1, VM_OBJ_B, 1, NULL, true) != NULL;
-  for (uint16_t i = EX_ENO_GATED; i <= EX_ENO_FAULT; i++) built = built && mk(i, VM_OBJ_B, 1, NULL, true) != NULL;
+  built = built && (mk(EX_O_TICK, VM_OBJ_F, 1, NULL, true) != NULL);
+  built = built && (mk(EX_O_HELD, VM_OBJ_F, 1, NULL, true) != NULL);
+  built = built && (mk(EX_O_INNER, VM_OBJ_F, 1, NULL, true) != NULL);
+  built = built && (mk(EX_O_KEPT, VM_OBJ_F, 1, NULL, true) != NULL);
+  built = built && (mk(EX_O_DIV, VM_OBJ_F, 1, NULL, true) != NULL);
+  built = built && (mk(EX_O_BR0, VM_OBJ_B, 1, NULL, true) != NULL);
+  built = built && (mk(EX_O_BR1, VM_OBJ_B, 1, NULL, true) != NULL);
+  for (uint16_t i = EX_ENO_GATED; i <= EX_ENO_FAULT; i++) built = built && (mk(i, VM_OBJ_B, 1, NULL, true) != NULL);
   ck("objects built", built);
 
   // 0 gate, 1 trig, 2 the tick counter's own output, 3 the inner one's, 4 the divisor
@@ -438,7 +440,7 @@ void test_exec_pass(void) {
                                                 .out_obj_ids = (const uint16_t[]){EX_O_BR0, EX_O_BR1},
                                                 .en_acc_ids = (const uint16_t[]){0},
                                                 .eno_obj_id = EX_ENO_GATED});
-    blocks = blocks && e == NULL && b != NULL;
+    blocks = blocks && selftest_ok(e) && b != NULL;
   }
   // update-driven: publishes what arrived, holds it when nothing does
   blocks = blocks && ex_expr(EX_TRIG, (const uint16_t[]){1}, 1, EX_O_HELD, EX_ENO_TRIG, NULL, 0, c_pass1, sizeof(c_pass1));
@@ -621,8 +623,8 @@ void test_events(void) {
   ck("a cycle fills to exactly its depth", stored == VM_EVENT_DEPTH);
   // discarded rather than pushed, like every other expected rejection in this
   // file -- the point is that one was built, not what it prints
-  ck("overflow raises an error naming the drops", vm_event_take_overflow() != NULL);
-  ck("taking the overflow clears it", vm_event_take_overflow() == NULL);
+  ck("overflow raises an error naming the drops", !selftest_ok(vm_event_take_overflow()));
+  ck("taking the overflow clears it", selftest_ok(vm_event_take_overflow()));
 
   vm_event_drain();
   ck("everything that was accepted is there", vm_event_count() == VM_EVENT_DEPTH);
@@ -694,7 +696,7 @@ static bool expr_block(uint16_t id, uint8_t type, const uint16_t* ins, uint8_t i
                                               .in_acc_ids = ins,
                                               .out_obj_ids = outs,
                                               .eno_obj_id = EXPR_ENO(id)});
-  if (e != NULL || b == NULL) return false;
+  if (!selftest_ok(e) || b == NULL) return false;
   if (custom_len < vm_expr_size(k_cnt, code_len)) return true;  // the deliberately-too-short case
 
   vm_expr_code_t* c = (vm_expr_code_t*)vm_block_get_custom_data(b);
@@ -713,9 +715,9 @@ static bool expr_blk(uint16_t id, uint8_t type, const uint16_t* ins, uint8_t in_
 
 void test_expr(void) {
   ESP_LOGI(TAG, "-- T: expression blocks --");
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
   const uint16_t counts[VM_REG_CNT] = {[VM_REG_OBJ] = 48, [VM_REG_ACC] = 8, [VM_REG_BLK] = 16};
-  (void)vm_store_open(DIRECT_POOL, counts);
+  SE_release(vm_store_open(DIRECT_POOL, counts));
 
   /* Inputs 0..4 are deliberately *not* upd_resetable, so their `upd` survives
      the end-of-pass sweep and every pass triggers -- the same standing
@@ -723,14 +725,14 @@ void test_expr(void) {
      stand-down case at the end possible. */
   bool built = true;
   for (uint16_t i = 0; i < 5; i++) {
-    built = built && mk(i, i < 3 ? VM_OBJ_F : VM_OBJ_U32, 1, NULL, true) != NULL;
+    built = built && (mk(i, i < 3 ? VM_OBJ_F : VM_OBJ_U32, 1, NULL, true) != NULL);
     if (built) vm_obj_get_by_id(i)->head.f.upd = 1;
   }
   vm_obj_head_t sh = hd(VM_OBJ_F, 1);
   sh.f.mutable = 1;
   sh.f.upd_resetable = 1;
   vm_obj_h stale_in = NULL;
-  built = built && vm_obj_create(&stale_in, 5, &sh, NULL) == NULL;
+  built = built && selftest_ok(vm_obj_create(&stale_in, 5, &sh, NULL));
 
   *(float*)vm_obj_get_by_id(0)->payload = 3.0f;   // A
   *(float*)vm_obj_get_by_id(1)->payload = 4.0f;   // B
@@ -743,8 +745,8 @@ void test_expr(void) {
   // results 10..24 and ENOs 30..44, one pair per block
   for (uint16_t n = 0; n <= 14; n++) {
     bool bits = (n >= 9 && n <= 12);
-    built = built && mk(EXPR_OUT(n), bits ? VM_OBJ_U32 : VM_OBJ_F, 1, NULL, true) != NULL;
-    built = built && mk(EXPR_ENO(n), VM_OBJ_B, 1, NULL, true) != NULL;
+    built = built && (mk(EXPR_OUT(n), bits ? VM_OBJ_U32 : VM_OBJ_F, 1, NULL, true) != NULL);
+    built = built && (mk(EXPR_ENO(n), VM_OBJ_B, 1, NULL, true) != NULL);
   }
   ck("objects built", built);
 
@@ -918,29 +920,29 @@ static bool br_block(uint16_t id, uint8_t type, uint16_t in_acc, uint16_t en_acc
                                               .out_obj_ids = outs,
                                               .en_acc_ids = (const uint16_t[]){en_acc},
                                               .eno_obj_id = BR_ENO(id)});
-  return e == NULL && b != NULL;
+  return selftest_ok(e) && b != NULL;
 }
 
 void test_branch(void) {
   ESP_LOGI(TAG, "-- U: flow routers --");
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
   const uint16_t counts[VM_REG_CNT] = {[VM_REG_OBJ] = 48, [VM_REG_ACC] = 8, [VM_REG_BLK] = 8};
-  (void)vm_store_open(DIRECT_POOL, counts);
+  SE_release(vm_store_open(DIRECT_POOL, counts));
 
   /* 0 condition, 1 selector, 2 gate, 3 a fractional selector, 4 a negative one.
      None is upd_resetable, so the end-of-pass sweep leaves them alone -- these
      blocks never ask about freshness, which is the whole difference between a
      router and an expression. */
   bool built = true;
-  built = built && mk(0, VM_OBJ_F, 1, NULL, true) != NULL;
-  built = built && mk(1, VM_OBJ_U32, 1, NULL, true) != NULL;
-  built = built && mk(2, VM_OBJ_B, 1, NULL, true) != NULL;
-  built = built && mk(3, VM_OBJ_F, 1, NULL, true) != NULL;
-  built = built && mk(4, VM_OBJ_F, 1, NULL, true) != NULL;
+  built = built && (mk(0, VM_OBJ_F, 1, NULL, true) != NULL);
+  built = built && (mk(1, VM_OBJ_U32, 1, NULL, true) != NULL);
+  built = built && (mk(2, VM_OBJ_B, 1, NULL, true) != NULL);
+  built = built && (mk(3, VM_OBJ_F, 1, NULL, true) != NULL);
+  built = built && (mk(4, VM_OBJ_F, 1, NULL, true) != NULL);
 
   for (uint16_t n = 0; n < 7; n++) {
-    for (uint8_t k = 0; k < s_br_q[n]; k++) built = built && mk(BR_OUT(n, k), VM_OBJ_B, 1, NULL, true) != NULL;
-    built = built && mk(BR_ENO(n), VM_OBJ_B, 1, NULL, true) != NULL;
+    for (uint8_t k = 0; k < s_br_q[n]; k++) built = built && (mk(BR_OUT(n, k), VM_OBJ_B, 1, NULL, true) != NULL);
+    built = built && (mk(BR_ENO(n), VM_OBJ_B, 1, NULL, true) != NULL);
   }
   ck("objects built", built);
 
@@ -1139,21 +1141,21 @@ static bool for_idxed(uint16_t id, uint16_t span_start, uint16_t span_end, for_l
 
 void test_for(void) {
   ESP_LOGI(TAG, "-- V: FOR and the span walk --");
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
   const uint16_t counts[VM_REG_CNT] = {[VM_REG_OBJ] = 80, [VM_REG_ACC] = 16, [VM_REG_BLK] = 24};
-  (void)vm_store_open(8192, counts);
+  SE_release(vm_store_open(8192, counts));
 
   bool built = true;
-  for (uint16_t n = 0; n <= 22; n++) built = built && mk(FOR_ENO(n), VM_OBJ_B, 1, NULL, true) != NULL;
-  for (uint8_t i = 0; i < FOR_BODY_CNT; i++) built = built && mk(FOR_CNT(s_for_bodies[i]), VM_OBJ_F, 1, NULL, true) != NULL;
-  built = built && mk(FOR_IDX0, VM_OBJ_U32, 1, NULL, true) != NULL;
-  built = built && mk(FOR_IDX15, VM_OBJ_U32, 1, NULL, true) != NULL;
-  built = built && mk(FOR_ACC, VM_OBJ_F, 1, NULL, true) != NULL;
-  built = built && mk(FOR_END, VM_OBJ_U32, 1, NULL, true) != NULL;
-  built = built && mk(FOR_GATE, VM_OBJ_B, 1, NULL, true) != NULL;
-  built = built && mk(FOR_IDXD, VM_OBJ_U32, 1, NULL, true) != NULL;
-  built = built && mk(FOR_IDXM, VM_OBJ_U32, 1, NULL, true) != NULL;
-  built = built && mk(FOR_SINK, VM_OBJ_F, 1, NULL, true) != NULL;
+  for (uint16_t n = 0; n <= 22; n++) built = built && (mk(FOR_ENO(n), VM_OBJ_B, 1, NULL, true) != NULL);
+  for (uint8_t i = 0; i < FOR_BODY_CNT; i++) built = built && (mk(FOR_CNT(s_for_bodies[i]), VM_OBJ_F, 1, NULL, true) != NULL);
+  built = built && (mk(FOR_IDX0, VM_OBJ_U32, 1, NULL, true) != NULL);
+  built = built && (mk(FOR_IDX15, VM_OBJ_U32, 1, NULL, true) != NULL);
+  built = built && (mk(FOR_ACC, VM_OBJ_F, 1, NULL, true) != NULL);
+  built = built && (mk(FOR_END, VM_OBJ_U32, 1, NULL, true) != NULL);
+  built = built && (mk(FOR_GATE, VM_OBJ_B, 1, NULL, true) != NULL);
+  built = built && (mk(FOR_IDXD, VM_OBJ_U32, 1, NULL, true) != NULL);
+  built = built && (mk(FOR_IDXM, VM_OBJ_U32, 1, NULL, true) != NULL);
+  built = built && (mk(FOR_SINK, VM_OBJ_F, 1, NULL, true) != NULL);
   ck("objects built", built);
 
   bool accs = true;
@@ -1362,7 +1364,7 @@ static vm_obj_h mk_ev(uint16_t id, vm_obj_t_e type, uint16_t items) {
   h.f.mutable = 1;
   h.f.upd_resetable = 1;
   vm_obj_h o = NULL;
-  if (vm_obj_create(&o, id, &h, NULL) != NULL) return NULL;
+  if (!selftest_ok(vm_obj_create(&o, id, &h, NULL))) return NULL;
   o->head.f.upd = 1;
   return o;
 }
@@ -1386,7 +1388,7 @@ static bool set_blk(uint16_t id, const uint16_t* ins, uint8_t in_cnt, uint16_t e
                                               .in_acc_ids = ins,
                                               .en_acc_ids = gated ? &en_acc : NULL,
                                               .eno_obj_id = eno});
-  return e == NULL && b != NULL;
+  return selftest_ok(e) && b != NULL;
 }
 
 static float set_f(uint16_t obj) {
@@ -1406,85 +1408,85 @@ static bool set_eno(uint16_t n) {
 
 void test_set(void) {
   ESP_LOGI(TAG, "-- W: the Set block --");
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
   /* Accessor ids track object ids in this stage, so the accessor registry has
      to reach as far as the highest object an accessor is rooted at, not merely
      as far as the number of accessors. */
   const uint16_t counts[VM_REG_CNT] = {[VM_REG_OBJ] = 80, [VM_REG_ACC] = 48, [VM_REG_BLK] = 20};
-  (void)vm_store_open(16384, counts);
+  SE_release(vm_store_open(16384, counts));
 
   bool built = true;
   built = built && mk_ev(SET_SRC, VM_OBJ_F, 1) != NULL;
-  built = built && mk(SET_DST, VM_OBJ_F, 1, NULL, true) != NULL;
-  built = built && mk(SET_DST2, VM_OBJ_F, 1, NULL, true) != NULL;
-  built = built && mk(SET_GATE, VM_OBJ_B, 1, NULL, true) != NULL;
-  built = built && mk(SET_BAD, VM_OBJ_U32, 1, NULL, true) != NULL;
+  built = built && (mk(SET_DST, VM_OBJ_F, 1, NULL, true) != NULL);
+  built = built && (mk(SET_DST2, VM_OBJ_F, 1, NULL, true) != NULL);
+  built = built && (mk(SET_GATE, VM_OBJ_B, 1, NULL, true) != NULL);
+  built = built && (mk(SET_BAD, VM_OBJ_U32, 1, NULL, true) != NULL);
   built = built && mk_ev(SET_ARRS, VM_OBJ_F, 4) != NULL;
-  built = built && mk(SET_ARRD, VM_OBJ_F, 4, NULL, true) != NULL;
+  built = built && (mk(SET_ARRD, VM_OBJ_F, 4, NULL, true) != NULL);
   built = built && mk_ev(SET_PTRS, VM_OBJ_PTR, 1) != NULL;
-  built = built && mk(SET_PTRD, VM_OBJ_PTR, 1, NULL, true) != NULL;
+  built = built && (mk(SET_PTRD, VM_OBJ_PTR, 1, NULL, true) != NULL);
   built = built && mk_ev(SET_SRC1, VM_OBJ_F, 1) != NULL;
-  built = built && mk(SET_DST1, VM_OBJ_F, 1, NULL, true) != NULL;
+  built = built && (mk(SET_DST1, VM_OBJ_F, 1, NULL, true) != NULL);
   built = built && mk_ev(SET_SRC8, VM_OBJ_F, 1) != NULL;
-  built = built && mk(SET_DST8, VM_OBJ_F, 1, NULL, true) != NULL;
+  built = built && (mk(SET_DST8, VM_OBJ_F, 1, NULL, true) != NULL);
   built = built && mk_ev(SET_T_SRC, VM_OBJ_PTR, 2) != NULL;
-  built = built && mk(SET_T_DST, VM_OBJ_PTR, 2, NULL, true) != NULL;
-  built = built && mk(SET_R_S0, VM_OBJ_F, 3, NULL, true) != NULL;
-  built = built && mk(SET_R_S1, VM_OBJ_F, 3, NULL, true) != NULL;
-  built = built && mk(SET_R_D0, VM_OBJ_F, 3, NULL, true) != NULL;
-  built = built && mk(SET_R_D1, VM_OBJ_F, 3, NULL, true) != NULL;
-  built = built && mk(SET_T_BAD, VM_OBJ_PTR, 2, NULL, true) != NULL;
-  built = built && mk(SET_PL_S, VM_OBJ_F, 1, NULL, true) != NULL;
-  built = built && mk(SET_PL_D, VM_OBJ_F, 1, NULL, true) != NULL;
+  built = built && (mk(SET_T_DST, VM_OBJ_PTR, 2, NULL, true) != NULL);
+  built = built && (mk(SET_R_S0, VM_OBJ_F, 3, NULL, true) != NULL);
+  built = built && (mk(SET_R_S1, VM_OBJ_F, 3, NULL, true) != NULL);
+  built = built && (mk(SET_R_D0, VM_OBJ_F, 3, NULL, true) != NULL);
+  built = built && (mk(SET_R_D1, VM_OBJ_F, 3, NULL, true) != NULL);
+  built = built && (mk(SET_T_BAD, VM_OBJ_PTR, 2, NULL, true) != NULL);
+  built = built && (mk(SET_PL_S, VM_OBJ_F, 1, NULL, true) != NULL);
+  built = built && (mk(SET_PL_D, VM_OBJ_F, 1, NULL, true) != NULL);
   built = built && mk_ev(SET_CYC_A, VM_OBJ_PTR, 1) != NULL;
-  built = built && mk(SET_CYC_B, VM_OBJ_PTR, 1, NULL, true) != NULL;
-  built = built && mk(SET_CYC_C, VM_OBJ_PTR, 1, NULL, true) != NULL;
-  built = built && mk(SET_CYC_D, VM_OBJ_PTR, 1, NULL, true) != NULL;
-  built = built && mk(SET_T_SEMPTY, VM_OBJ_PTR, 2, NULL, true) != NULL;
-  built = built && mk(SET_T_ROMUT, VM_OBJ_PTR, 2, NULL, true) != NULL;
-  built = built && mk(SET_R_RO, VM_OBJ_F, 3, NULL, false) != NULL;
-  built = built && mk(SET_T_NARROW, VM_OBJ_PTR, 2, NULL, true) != NULL;
-  built = built && mk(SET_R_NARROW, VM_OBJ_F, 2, NULL, true) != NULL;
-  built = built && mk(SET_T_SHARE, VM_OBJ_PTR, 2, NULL, true) != NULL;
-  built = built && mk(SET_T_SHARE2, VM_OBJ_PTR, 2, NULL, true) != NULL;
-  built = built && mk(SET_R_SHARE, VM_OBJ_F, 3, NULL, true) != NULL;
-  built = built && mk(SET_L3_S, VM_OBJ_PTR, 1, NULL, true) != NULL;
-  built = built && mk(SET_L3_D, VM_OBJ_PTR, 1, NULL, true) != NULL;
-  built = built && mk(SET_GATE_OPEN, VM_OBJ_B, 1, NULL, true) != NULL;
-  built = built && mk(SET_DST3, VM_OBJ_F, 1, NULL, true) != NULL;
-  built = built && mk(SET_RO_DST, VM_OBJ_F, 1, NULL, false) != NULL;
-  built = built && mk(SET_ELEM_DST, VM_OBJ_F, 4, NULL, true) != NULL;
-  for (uint16_t n = 0; n <= 13; n++) built = built && mk(SET_ENO(n), VM_OBJ_B, 1, NULL, true) != NULL;
+  built = built && (mk(SET_CYC_B, VM_OBJ_PTR, 1, NULL, true) != NULL);
+  built = built && (mk(SET_CYC_C, VM_OBJ_PTR, 1, NULL, true) != NULL);
+  built = built && (mk(SET_CYC_D, VM_OBJ_PTR, 1, NULL, true) != NULL);
+  built = built && (mk(SET_T_SEMPTY, VM_OBJ_PTR, 2, NULL, true) != NULL);
+  built = built && (mk(SET_T_ROMUT, VM_OBJ_PTR, 2, NULL, true) != NULL);
+  built = built && (mk(SET_R_RO, VM_OBJ_F, 3, NULL, false) != NULL);
+  built = built && (mk(SET_T_NARROW, VM_OBJ_PTR, 2, NULL, true) != NULL);
+  built = built && (mk(SET_R_NARROW, VM_OBJ_F, 2, NULL, true) != NULL);
+  built = built && (mk(SET_T_SHARE, VM_OBJ_PTR, 2, NULL, true) != NULL);
+  built = built && (mk(SET_T_SHARE2, VM_OBJ_PTR, 2, NULL, true) != NULL);
+  built = built && (mk(SET_R_SHARE, VM_OBJ_F, 3, NULL, true) != NULL);
+  built = built && (mk(SET_L3_S, VM_OBJ_PTR, 1, NULL, true) != NULL);
+  built = built && (mk(SET_L3_D, VM_OBJ_PTR, 1, NULL, true) != NULL);
+  built = built && (mk(SET_GATE_OPEN, VM_OBJ_B, 1, NULL, true) != NULL);
+  built = built && (mk(SET_DST3, VM_OBJ_F, 1, NULL, true) != NULL);
+  built = built && (mk(SET_RO_DST, VM_OBJ_F, 1, NULL, false) != NULL);
+  built = built && (mk(SET_ELEM_DST, VM_OBJ_F, 4, NULL, true) != NULL);
+  for (uint16_t n = 0; n <= 13; n++) built = built && (mk(SET_ENO(n), VM_OBJ_B, 1, NULL, true) != NULL);
   ck("objects built", built);
 
   /* Two 2 x 3 tables, each with its own rows -- which is the shape a deep copy
      needs and the whole reason it can allocate nothing. SET_T_BAD gets one row
      and is left a slot short on purpose. */
   bool wired = built;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_T_SRC), 0, vm_obj_get_by_id(SET_R_S0)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_T_SRC), 1, vm_obj_get_by_id(SET_R_S1)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_T_DST), 0, vm_obj_get_by_id(SET_R_D0)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_T_DST), 1, vm_obj_get_by_id(SET_R_D1)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_T_BAD), 0, vm_obj_get_by_id(SET_R_D0)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_PTRS), 0, vm_obj_get_by_id(SET_PL_S)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_PTRD), 0, vm_obj_get_by_id(SET_PL_D)) == NULL;
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_T_SRC), 0, vm_obj_get_by_id(SET_R_S0)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_T_SRC), 1, vm_obj_get_by_id(SET_R_S1)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_T_DST), 0, vm_obj_get_by_id(SET_R_D0)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_T_DST), 1, vm_obj_get_by_id(SET_R_D1)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_T_BAD), 0, vm_obj_get_by_id(SET_R_D0)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_PTRS), 0, vm_obj_get_by_id(SET_PL_S)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_PTRD), 0, vm_obj_get_by_id(SET_PL_D)));
   // two cycles of equal shape -- the walk cannot tell them apart from a deep tree
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_CYC_A), 0, vm_obj_get_by_id(SET_CYC_B)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_CYC_B), 0, vm_obj_get_by_id(SET_CYC_A)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_CYC_C), 0, vm_obj_get_by_id(SET_CYC_D)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_CYC_D), 0, vm_obj_get_by_id(SET_CYC_C)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_T_SEMPTY), 0, vm_obj_get_by_id(SET_R_S0)) == NULL;  // slot 1 left empty
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_T_ROMUT), 0, vm_obj_get_by_id(SET_R_RO)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_T_ROMUT), 1, vm_obj_get_by_id(SET_R_D1)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_T_NARROW), 0, vm_obj_get_by_id(SET_R_NARROW)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_T_NARROW), 1, vm_obj_get_by_id(SET_R_D1)) == NULL;
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_CYC_A), 0, vm_obj_get_by_id(SET_CYC_B)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_CYC_B), 0, vm_obj_get_by_id(SET_CYC_A)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_CYC_C), 0, vm_obj_get_by_id(SET_CYC_D)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_CYC_D), 0, vm_obj_get_by_id(SET_CYC_C)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_T_SEMPTY), 0, vm_obj_get_by_id(SET_R_S0)));  // slot 1 left empty
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_T_ROMUT), 0, vm_obj_get_by_id(SET_R_RO)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_T_ROMUT), 1, vm_obj_get_by_id(SET_R_D1)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_T_NARROW), 0, vm_obj_get_by_id(SET_R_NARROW)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_T_NARROW), 1, vm_obj_get_by_id(SET_R_D1)));
   // SHARE and SHARE2 already name the same row 0: nothing to move there
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_T_SHARE), 0, vm_obj_get_by_id(SET_R_S0)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_T_SHARE), 1, vm_obj_get_by_id(SET_R_S1)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_T_SHARE2), 0, vm_obj_get_by_id(SET_R_S0)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_T_SHARE2), 1, vm_obj_get_by_id(SET_R_SHARE)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_L3_S), 0, vm_obj_get_by_id(SET_T_SRC)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(SET_L3_D), 0, vm_obj_get_by_id(SET_T_DST)) == NULL;
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_T_SHARE), 0, vm_obj_get_by_id(SET_R_S0)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_T_SHARE), 1, vm_obj_get_by_id(SET_R_S1)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_T_SHARE2), 0, vm_obj_get_by_id(SET_R_S0)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_T_SHARE2), 1, vm_obj_get_by_id(SET_R_SHARE)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_L3_S), 0, vm_obj_get_by_id(SET_T_SRC)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(SET_L3_D), 0, vm_obj_get_by_id(SET_T_DST)));
   ck("tables wired", wired);
   for (uint8_t i = 0; i < 3; i++) {
     ((float*)vm_obj_get_by_id(SET_R_S0)->payload)[i] = (float)(i + 1);  // 1 2 3
@@ -1502,8 +1504,8 @@ void test_set(void) {
   /* Element 2 of an array as a *destination* -- a Set target is an ordinary
      accessor, so it can name one slot as readily as a whole object. */
   vm_accessor_t* a_elem = NULL;
-  accs = accs && vm_accessor_create(&a_elem, SET_ELEM_DST, SET_ELEM_DST, 1) == NULL;
-  accs = accs && vm_accessor_set_literal(a_elem, 0, 2) == NULL;
+  accs = accs && selftest_ok(vm_accessor_create(&a_elem, SET_ELEM_DST, SET_ELEM_DST, 1));
+  accs = accs && selftest_ok(vm_accessor_set_literal(a_elem, 0, 2));
   if (accs) (void)vm_accessor_cache_build(a_elem);
   ck("accessors built", accs);
 
@@ -1612,22 +1614,22 @@ void test_set(void) {
   /* Two cycles of matching shape. Nothing about them is locally wrong -- every
      level agrees with its opposite -- so only the depth cap ends the walk, and
      ending it is the whole reason the cap exists. */
-  ck("a cycle is stopped by the depth cap rather than the stack", vm_obj_copy_content(&w_cyc_s, &w_cyc_d) != NULL);
+  ck("a cycle is stopped by the depth cap rather than the stack", !selftest_ok(vm_obj_copy_content(&w_cyc_s, &w_cyc_d)));
 
-  ck("a source slot with no object is a shape error too", vm_obj_copy_content(&w_sempty, &w_tdst) != NULL);
-  ck("a row that cannot be written stops the walk", vm_obj_copy_content(&w_tsrc, &w_romut) != NULL);
+  ck("a source slot with no object is a shape error too", !selftest_ok(vm_obj_copy_content(&w_sempty, &w_tdst)));
+  ck("a row that cannot be written stops the walk", !selftest_ok(vm_obj_copy_content(&w_tsrc, &w_romut)));
   /* Depth 0 agrees -- both are PTR[2] -- and the mismatch is a level down,
      which is the case a non-recursive check would have missed. */
-  ck("a mismatch below the root is still caught", vm_obj_copy_content(&w_tsrc, &w_narrow) != NULL);
+  ck("a mismatch below the root is still caught", !selftest_ok(vm_obj_copy_content(&w_tsrc, &w_narrow)));
   ck("...and the rows it could not take are untouched", near_f(set_at(SET_R_NARROW, 0), 0.0f));
 
   /* Row 0 is already the same object on both sides: there is nothing to move
      and copying it onto itself would be a memcpy over itself. Row 1 differs
      and does move, so the skip cannot be the walk simply giving up. */
   ck("a child both trees already share is skipped, not copied over itself",
-     vm_obj_copy_content(&w_share, &w_share2) == NULL && near_f(set_at(SET_R_SHARE, 2), 6.0f));
+     selftest_ok(vm_obj_copy_content(&w_share, &w_share2)) && near_f(set_at(SET_R_SHARE, 2), 6.0f));
 
-  ck("three levels walk as readily as two", vm_obj_copy_content(&w_l3s, &w_l3d) == NULL);
+  ck("three levels walk as readily as two", selftest_ok(vm_obj_copy_content(&w_l3s, &w_l3d)));
 
   /* ---- pass 2: nothing arrives. Both sources hold a value they would copy
           if they ran, so a copy that happens anyway is visible. ---- */
@@ -1702,8 +1704,8 @@ static vm_obj_h cln_built(uint16_t cell_obj) {
    object ever changing shape. */
 static vm_accessor_t* cln_child_acc(uint16_t acc_id, uint16_t holder) {
   vm_accessor_t* a = NULL;
-  if (vm_accessor_create(&a, acc_id, holder, 1) != NULL) return NULL;
-  if (vm_accessor_set_literal(a, 0, 0) != NULL) return NULL;
+  if (!selftest_ok(vm_accessor_create(&a, acc_id, holder, 1))) return NULL;
+  if (!selftest_ok(vm_accessor_set_literal(a, 0, 0))) return NULL;
   (void)vm_accessor_cache_build(a);
   return a;
 }
@@ -1720,7 +1722,7 @@ static bool clone_blk(uint16_t id, const uint16_t* ins, uint8_t in_cnt, uint16_t
                                               .custom_len = VM_CLONE_CUSTOM_LEN,
                                               .in_acc_ids = ins,
                                               .eno_obj_id = eno});
-  return e == NULL && b != NULL;
+  return selftest_ok(e) && b != NULL;
 }
 
 static bool cln_eno(uint16_t n) {
@@ -1731,29 +1733,29 @@ static bool cln_eno(uint16_t n) {
 void test_clone(void) {
   ESP_LOGI(TAG, "-- X: the Clone block --");
   vm_obj_dyn_reset();  // before the loader: the parents holding these live in the pool
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
   const uint16_t counts[VM_REG_CNT] = {[VM_REG_OBJ] = 40, [VM_REG_ACC] = 16, [VM_REG_BLK] = 8};
-  (void)vm_store_open(8192, counts);
+  SE_release(vm_store_open(8192, counts));
 
   bool built = true;
-  built = built && mk(CLN_HOLD, VM_OBJ_PTR, 1, NULL, true) != NULL;
-  built = built && mk(CLN_A, VM_OBJ_F, 2, "a", true) != NULL;
-  built = built && mk(CLN_B, VM_OBJ_F, 5, NULL, true) != NULL;
-  built = built && mk(CLN_CELL, VM_OBJ_PTR, 1, NULL, true) != NULL;
-  built = built && mk(CLN_HOLD2, VM_OBJ_PTR, 1, NULL, true) != NULL;
-  built = built && mk(CLN_TBL, VM_OBJ_PTR, 2, NULL, true) != NULL;
-  built = built && mk(CLN_R0, VM_OBJ_F, 3, NULL, true) != NULL;
-  built = built && mk(CLN_R1, VM_OBJ_F, 3, NULL, true) != NULL;
-  built = built && mk(CLN_TCELL, VM_OBJ_PTR, 1, NULL, true) != NULL;
-  built = built && mk(CLN_NOTCELL, VM_OBJ_F, 1, NULL, true) != NULL;
-  for (uint16_t n = 0; n <= 2; n++) built = built && mk(CLN_ENO(n), VM_OBJ_B, 1, NULL, true) != NULL;
+  built = built && (mk(CLN_HOLD, VM_OBJ_PTR, 1, NULL, true) != NULL);
+  built = built && (mk(CLN_A, VM_OBJ_F, 2, "a", true) != NULL);
+  built = built && (mk(CLN_B, VM_OBJ_F, 5, NULL, true) != NULL);
+  built = built && (mk(CLN_CELL, VM_OBJ_PTR, 1, NULL, true) != NULL);
+  built = built && (mk(CLN_HOLD2, VM_OBJ_PTR, 1, NULL, true) != NULL);
+  built = built && (mk(CLN_TBL, VM_OBJ_PTR, 2, NULL, true) != NULL);
+  built = built && (mk(CLN_R0, VM_OBJ_F, 3, NULL, true) != NULL);
+  built = built && (mk(CLN_R1, VM_OBJ_F, 3, NULL, true) != NULL);
+  built = built && (mk(CLN_TCELL, VM_OBJ_PTR, 1, NULL, true) != NULL);
+  built = built && (mk(CLN_NOTCELL, VM_OBJ_F, 1, NULL, true) != NULL);
+  for (uint16_t n = 0; n <= 2; n++) built = built && (mk(CLN_ENO(n), VM_OBJ_B, 1, NULL, true) != NULL);
   ck("objects built", built);
 
   bool wired = built;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(CLN_HOLD), 0, vm_obj_get_by_id(CLN_A)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(CLN_TBL), 0, vm_obj_get_by_id(CLN_R0)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(CLN_TBL), 1, vm_obj_get_by_id(CLN_R1)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(CLN_HOLD2), 0, vm_obj_get_by_id(CLN_TBL)) == NULL;
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(CLN_HOLD), 0, vm_obj_get_by_id(CLN_A)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(CLN_TBL), 0, vm_obj_get_by_id(CLN_R0)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(CLN_TBL), 1, vm_obj_get_by_id(CLN_R1)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(CLN_HOLD2), 0, vm_obj_get_by_id(CLN_TBL)));
   ck("sources wired", wired);
   ck("linking arena objects took no dynamic references", dyn_live() == 0);
 
@@ -1780,13 +1782,13 @@ void test_clone(void) {
      the arena *cell* and steps through the pointer slot. Two spellings of the
      same reach: by position, and by the tag the clone carried over. */
   vm_accessor_t* a_read = NULL;
-  accs = accs && vm_accessor_create(&a_read, 5, CLN_CELL, 2) == NULL;
-  accs = accs && vm_accessor_set_literal(a_read, 0, 0) == NULL;
-  accs = accs && vm_accessor_set_literal(a_read, 1, 1) == NULL;
+  accs = accs && selftest_ok(vm_accessor_create(&a_read, 5, CLN_CELL, 2));
+  accs = accs && selftest_ok(vm_accessor_set_literal(a_read, 0, 0));
+  accs = accs && selftest_ok(vm_accessor_set_literal(a_read, 1, 1));
   vm_accessor_t* a_named = NULL;
-  accs = accs && vm_accessor_create(&a_named, 6, CLN_CELL, 2) == NULL;
-  accs = accs && vm_accessor_set_name(a_named, 0, "a", 1) == NULL;
-  accs = accs && vm_accessor_set_literal(a_named, 1, 1) == NULL;
+  accs = accs && selftest_ok(vm_accessor_create(&a_named, 6, CLN_CELL, 2));
+  accs = accs && selftest_ok(vm_accessor_set_name(a_named, 0, "a", 1));
+  accs = accs && selftest_ok(vm_accessor_set_literal(a_named, 1, 1));
   if (accs) {
     /* Neither may be cached, and cache_build is what refuses them: a chain
        that crosses a link has to re-read the slot every pass, or it would go
@@ -1828,12 +1830,12 @@ void test_clone(void) {
 
   /* Reading the clone the way a wired block would. */
   float rd = 0.0f;
-  ck("a clone is read through the cell that holds it", VM_OBJ_SCALAR_GET(rd, a_read) == NULL && near_f(rd, 2.0f));
+  ck("a clone is read through the cell that holds it", selftest_ok(VM_OBJ_SCALAR_GET(rd, a_read)) && near_f(rd, 2.0f));
   rd = 0.0f;
-  ck("...or by the tag it carried over from its source", VM_OBJ_SCALAR_GET(rd, a_named) == NULL && near_f(rd, 2.0f));
+  ck("...or by the tag it carried over from its source", selftest_ok(VM_OBJ_SCALAR_GET(rd, a_named)) && near_f(rd, 2.0f));
   rd = 17.0f;
   ck("reading the pointer cell as a scalar fails and preserves output",
-     VM_OBJ_SCALAR_GET(rd, vm_accessor_get_by_id(1)) != NULL && near_f(rd, 17.0f));
+     !selftest_ok(VM_OBJ_SCALAR_GET(rd, vm_accessor_get_by_id(1))) && near_f(rd, 17.0f));
 
   /* ---- pass 2: same shapes, new values. The whole point -- nothing new is
           allocated and the destination objects are the same ones. ---- */
@@ -1846,7 +1848,7 @@ void test_clone(void) {
   ck("the table is likewise reused", cln_built(CLN_TCELL) == t1);
 
   /* ---- pass 3: the source changes shape under the block ---- */
-  ck("re-point the holder at a differently shaped child", vm_obj_link_direct(vm_obj_get_by_id(CLN_HOLD), 0, vm_obj_get_by_id(CLN_B)) == NULL);
+  ck("re-point the holder at a differently shaped child", selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(CLN_HOLD), 0, vm_obj_get_by_id(CLN_B))));
   vm_obj_get_by_id(CLN_HOLD)->head.f.upd = 1;
   vm_exec_pass();
 
@@ -1868,10 +1870,10 @@ void test_clone(void) {
      was freed two statements into this pass, and the same accessor now has to
      find the one that replaced it. */
   rd = 0.0f;
-  ck("a reader follows the swap without being rebuilt", VM_OBJ_SCALAR_GET(rd, a_read) == NULL && near_f(rd, 11.0f));
+  ck("a reader follows the swap without being rebuilt", selftest_ok(VM_OBJ_SCALAR_GET(rd, a_read)) && near_f(rd, 11.0f));
   /* CLN_B carries no tag, so the clone of it carries none either -- the
      by-name reach stops resolving rather than quietly finding something else. */
-  ck("...while a name the new tree does not have stops resolving", VM_OBJ_SCALAR_GET(rd, a_named) != NULL);
+  ck("...while a name the new tree does not have stops resolving", !selftest_ok(VM_OBJ_SCALAR_GET(rd, a_named)));
 
   /* Teardown is the loader's job, and it has to happen before the pool goes:
      every one of these is held by an arena cell. */
@@ -1912,7 +1914,7 @@ static vm_obj_h js_field(const char* tag) {
   vm_index_t index = {.kind = VM_IDX_LITERAL, .value = 0};
   vm_accessor_t parent = {.id = JS_COPY, .count = 1, .indices = &index};
   vm_obj_h field = NULL;
-  (void)vm_obj_get_child(&field, &parent, tag, strlen(tag));
+  SE_release(vm_obj_get_child(&field, &parent, tag, strlen(tag)));
   return field;
 }
 
@@ -1931,10 +1933,10 @@ static bool js_eno(uint16_t n) {
    by the name the clone carried over; [0] lands on the value inside it. */
 static bool js_field_acc(uint16_t acc_id, const char* tag) {
   vm_accessor_t* a = NULL;
-  if (vm_accessor_create(&a, acc_id, JS_COPY, 3) != NULL) return false;
-  if (vm_accessor_set_literal(a, 0, 0) != NULL) return false;
-  if (vm_accessor_set_name(a, 1, tag, (uint8_t)strlen(tag)) != NULL) return false;
-  if (vm_accessor_set_literal(a, 2, 0) != NULL) return false;
+  if (!selftest_ok(vm_accessor_create(&a, acc_id, JS_COPY, 3))) return false;
+  if (!selftest_ok(vm_accessor_set_literal(a, 0, 0))) return false;
+  if (!selftest_ok(vm_accessor_set_name(a, 1, tag, (uint8_t)strlen(tag)))) return false;
+  if (!selftest_ok(vm_accessor_set_literal(a, 2, 0))) return false;
   (void)vm_accessor_cache_build(a);  // declines: the chain crosses a link
   return true;
 }
@@ -1942,24 +1944,24 @@ static bool js_field_acc(uint16_t acc_id, const char* tag) {
 void test_json_pipeline(void) {
   ESP_LOGI(TAG, "-- Y: clone, compute, write back --");
   vm_obj_dyn_reset();
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
   const uint16_t counts[VM_REG_CNT] = {[VM_REG_OBJ] = 24, [VM_REG_ACC] = 8, [VM_REG_BLK] = 4};
-  (void)vm_store_open(8192, counts);
+  SE_release(vm_store_open(8192, counts));
 
   bool built = true;
-  built = built && mk(JS_CELL, VM_OBJ_PTR, 1, NULL, true) != NULL;
-  built = built && mk(JS_ROOT, VM_OBJ_PTR, 2, NULL, true) != NULL;
-  built = built && mk(JS_TEMP, VM_OBJ_F, 1, "temp", true) != NULL;
-  built = built && mk(JS_RES, VM_OBJ_F, 1, "result", true) != NULL;
-  built = built && mk(JS_COPY, VM_OBJ_PTR, 1, NULL, true) != NULL;
-  built = built && mk(JS_MATH, VM_OBJ_F, 1, NULL, true) != NULL;
-  for (uint16_t n = 0; n <= 2; n++) built = built && mk(JS_ENO(n), VM_OBJ_B, 1, NULL, true) != NULL;
+  built = built && (mk(JS_CELL, VM_OBJ_PTR, 1, NULL, true) != NULL);
+  built = built && (mk(JS_ROOT, VM_OBJ_PTR, 2, NULL, true) != NULL);
+  built = built && (mk(JS_TEMP, VM_OBJ_F, 1, "temp", true) != NULL);
+  built = built && (mk(JS_RES, VM_OBJ_F, 1, "result", true) != NULL);
+  built = built && (mk(JS_COPY, VM_OBJ_PTR, 1, NULL, true) != NULL);
+  built = built && (mk(JS_MATH, VM_OBJ_F, 1, NULL, true) != NULL);
+  for (uint16_t n = 0; n <= 2; n++) built = built && (mk(JS_ENO(n), VM_OBJ_B, 1, NULL, true) != NULL);
   ck("objects built", built);
 
   bool wired = built;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(JS_ROOT), 0, vm_obj_get_by_id(JS_TEMP)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(JS_ROOT), 1, vm_obj_get_by_id(JS_RES)) == NULL;
-  wired = wired && vm_obj_link_direct(vm_obj_get_by_id(JS_CELL), 0, vm_obj_get_by_id(JS_ROOT)) == NULL;
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(JS_ROOT), 0, vm_obj_get_by_id(JS_TEMP)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(JS_ROOT), 1, vm_obj_get_by_id(JS_RES)));
+  wired = wired && selftest_ok(vm_obj_link_direct(vm_obj_get_by_id(JS_CELL), 0, vm_obj_get_by_id(JS_ROOT)));
   ck("message wired", wired);
 
   *(float*)vm_obj_get_by_id(JS_TEMP)->payload = 21.5f;
@@ -1976,8 +1978,8 @@ void test_json_pipeline(void) {
 
   bool accs = true;
   vm_accessor_t* a_msg = NULL;
-  accs = accs && vm_accessor_create(&a_msg, 0, JS_CELL, 1) == NULL;  // the tree behind the cell
-  accs = accs && vm_accessor_set_literal(a_msg, 0, 0) == NULL;
+  accs = accs && selftest_ok(vm_accessor_create(&a_msg, 0, JS_CELL, 1));  // the tree behind the cell
+  accs = accs && selftest_ok(vm_accessor_set_literal(a_msg, 0, 0));
   accs = accs && ex_acc(1, JS_COPY) != NULL;   // the Clone's destination cell
   accs = accs && js_field_acc(2, "temp");      // what the expression reads
   accs = accs && ex_acc(3, JS_MATH) != NULL;   // what it writes
@@ -2082,7 +2084,7 @@ static bool ex_expr_gated(uint16_t id, const uint16_t* ins, uint8_t in_cnt, uint
                                               .out_obj_ids = (const uint16_t[]){out_obj},
                                               .en_acc_ids = (en_acc != VM_BLOCK_NO_ID) ? (const uint16_t[]){en_acc} : NULL,
                                               .eno_obj_id = eno});
-  if (e != NULL || b == NULL) return false;
+  if (!selftest_ok(e) || b == NULL) return false;
 
   vm_expr_code_t* c = (vm_expr_code_t*)vm_block_get_custom_data(b);
   c->const_cnt = k_cnt;
@@ -2105,42 +2107,42 @@ static bool ex_switch_3(uint16_t id, uint16_t in_acc, const uint16_t* outs, uint
                                               .in_acc_ids = (const uint16_t[]){in_acc},
                                               .out_obj_ids = outs,
                                               .eno_obj_id = eno});
-  return e == NULL && b != NULL;
+  return selftest_ok(e) && b != NULL;
 }
 
 void test_step_selection_pipeline(void) {
   ESP_LOGI(TAG, "-- Selection pipeline: step-by-step & telemetry --");
 
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
   vm_sub_reset();
-  (void)vm_sub_init();
+  SE_release(vm_sub_init());
   vm_sub_sender_fn prev_sender = vm_sub_get_sender();
   vm_sub_set_sender(pipe_mock_sender);
   s_pipe_sub_calls = 0;
   s_pipe_sub_len = 0;
 
   const uint16_t counts[VM_REG_CNT] = {[VM_REG_OBJ] = 16, [VM_REG_ACC] = 8, [VM_REG_BLK] = 4};
-  ck("pipeline arena opens", vm_store_open(DIRECT_POOL, counts) == NULL);
+  ck("pipeline arena opens", selftest_ok(vm_store_open(DIRECT_POOL, counts)));
 
   // Objects
   vm_obj_head_t hx = hd(VM_OBJ_F, 1);
   hx.f.mutable = 1;
   hx.f.upd_resetable = 1;
   vm_obj_h ox = NULL;
-  bool built = vm_obj_create(&ox, PIPE_O_X, &hx, "x") == NULL;
+  bool built = selftest_ok(vm_obj_create(&ox, PIPE_O_X, &hx, "x"));
 
   vm_obj_head_t hm = hd(VM_OBJ_F, 1);
   hm.f.mutable = 1;
   hm.f.upd_resetable = 1;
   vm_obj_h om = NULL;
-  built = built && vm_obj_create(&om, PIPE_O_MOD, &hm, "mod") == NULL;
+  built = built && selftest_ok(vm_obj_create(&om, PIPE_O_MOD, &hm, "mod"));
 
-  built = built && mk(PIPE_O_Q0, VM_OBJ_B, 1, "q0", true) != NULL;
-  built = built && mk(PIPE_O_Q1, VM_OBJ_B, 1, "q1", true) != NULL;
-  built = built && mk(PIPE_O_Q2, VM_OBJ_B, 1, "q2", true) != NULL;
+  built = built && (mk(PIPE_O_Q0, VM_OBJ_B, 1, "q0", true) != NULL);
+  built = built && (mk(PIPE_O_Q1, VM_OBJ_B, 1, "q1", true) != NULL);
+  built = built && (mk(PIPE_O_Q2, VM_OBJ_B, 1, "q2", true) != NULL);
 
   for (uint16_t i = PIPE_O_ENO_MOD; i <= PIPE_O_ENO_DBL; i++) {
-    built = built && mk(i, VM_OBJ_B, 1, NULL, true) != NULL;
+    built = built && (mk(i, VM_OBJ_B, 1, NULL, true) != NULL);
   }
   ck("pipeline objects built", built);
   if (!built) goto teardown;
@@ -2177,10 +2179,10 @@ void test_step_selection_pipeline(void) {
 
   // Subscribe to x (OBJ ID 0)
   const uint16_t sub_ids[] = {PIPE_O_X};
-  ck("pipeline: subscribe to x", vm_sub_subscribe(sub_ids, 1) == NULL && vm_sub_count() == 1);
+  ck("pipeline: subscribe to x", selftest_ok(vm_sub_subscribe(sub_ids, 1)) && vm_sub_count() == 1);
 
   // Set block mode
-  ck("pipeline: select block mode", vm_exec_control(VM_EXEC_BLOCK_MODE) == NULL);
+  ck("pipeline: select block mode", selftest_ok(vm_exec_control(VM_EXEC_BLOCK_MODE)));
 
   /* =========================================================================
      Pass 1: x = 0.0f -> mod = 0 -> Q0 active -> x + 1 => x = 1.0f
@@ -2191,7 +2193,7 @@ void test_step_selection_pipeline(void) {
   s_pipe_sub_len = 0;
 
   // Queue first block dispatch (block 0) and start worker
-  ck("p1: queue first block next", vm_exec_control(VM_EXEC_NEXT) == NULL);
+  ck("p1: queue first block next", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
   __atomic_store_n(&s_step_test_done, false, __ATOMIC_RELEASE);
   bool started = xTaskCreate(ex_step_worker, "vm_pipe_step", 4096, NULL, 5, NULL) == pdPASS;
   ck("p1: step worker started", started);
@@ -2203,18 +2205,18 @@ void test_step_selection_pipeline(void) {
   ck("p1: switch outputs not driven yet", !ex_b(PIPE_O_Q0) && !ex_b(PIPE_O_Q1) && !ex_b(PIPE_O_Q2));
 
   // Step block 1 (switch) -> holds before block 2 (expr x+1)
-  ck("p1: step switch", vm_exec_control(VM_EXEC_NEXT) == NULL);
+  ck("p1: step switch", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
   held = ex_wait_block(PIPE_BLK_INC);
   ck("p1: switch branch 0 taken (Q0=1, Q1=0, Q2=0)", held && ex_b(PIPE_O_Q0) && !ex_b(PIPE_O_Q1) && !ex_b(PIPE_O_Q2));
   ck("p1: x still 0 before block 2 runs", near_f(ex_f(PIPE_O_X), 0.0f));
 
   // Step block 2 (expr x+1) -> holds before block 3 (expr x*2)
-  ck("p1: step block 2 (x+1)", vm_exec_control(VM_EXEC_NEXT) == NULL);
+  ck("p1: step block 2 (x+1)", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
   held = ex_wait_block(PIPE_BLK_DBL);
   ck("p1: block 2 executed, x=1.0f", held && near_f(ex_f(PIPE_O_X), 1.0f));
 
   // Step block 3 (expr x*2, gated by Q2 which is 0) -> scan finishes
-  ck("p1: step block 3", vm_exec_control(VM_EXEC_NEXT) == NULL);
+  ck("p1: step block 3", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
   ck("p1: scan 1 completed", ex_wait_done() && vm_exec_pass_count() == 1);
   ck("p1: x remains 1.0f (block 3 skipped)", near_f(ex_f(PIPE_O_X), 1.0f));
   ck("p1: telemetry emitted for x", s_pipe_sub_calls == 1);
@@ -2231,7 +2233,7 @@ void test_step_selection_pipeline(void) {
   s_pipe_sub_calls = 0;
   s_pipe_sub_len = 0;
 
-  ck("p2: queue next", vm_exec_control(VM_EXEC_NEXT) == NULL);
+  ck("p2: queue next", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
   __atomic_store_n(&s_step_test_done, false, __ATOMIC_RELEASE);
   started = xTaskCreate(ex_step_worker, "vm_pipe_step", 4096, NULL, 5, NULL) == pdPASS;
   ck("p2: worker started", started);
@@ -2240,13 +2242,13 @@ void test_step_selection_pipeline(void) {
   // Because x has upd=0, block 0 is not triggered -> sweeps through to completion
   held = ex_wait_block(PIPE_BLK_SW);
   ck("p2: block 0 held before switch", held);
-  ck("p2: step switch", vm_exec_control(VM_EXEC_NEXT) == NULL);
+  ck("p2: step switch", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
   held = ex_wait_block(PIPE_BLK_INC);
   ck("p2: held before block 2", held);
-  ck("p2: step block 2", vm_exec_control(VM_EXEC_NEXT) == NULL);
+  ck("p2: step block 2", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
   held = ex_wait_block(PIPE_BLK_DBL);
   ck("p2: held before block 3", held);
-  ck("p2: step block 3", vm_exec_control(VM_EXEC_NEXT) == NULL);
+  ck("p2: step block 3", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
   ck("p2: scan 2 completed", ex_wait_done() && vm_exec_pass_count() == 2);
   ck("p2: no telemetry emitted when x is untouched", s_pipe_sub_calls == 0);
   ck("p2: x unchanged", near_f(ex_f(PIPE_O_X), 1.0f));
@@ -2259,7 +2261,7 @@ void test_step_selection_pipeline(void) {
   s_pipe_sub_calls = 0;
   s_pipe_sub_len = 0;
 
-  ck("p3: queue next", vm_exec_control(VM_EXEC_NEXT) == NULL);
+  ck("p3: queue next", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
   __atomic_store_n(&s_step_test_done, false, __ATOMIC_RELEASE);
   started = xTaskCreate(ex_step_worker, "vm_pipe_step", 4096, NULL, 5, NULL) == pdPASS;
   ck("p3: worker started", started);
@@ -2268,17 +2270,17 @@ void test_step_selection_pipeline(void) {
   held = ex_wait_block(PIPE_BLK_SW);
   ck("p3: block 0 evaluated mod=2", held && near_f(ex_f(PIPE_O_MOD), 2.0f));
 
-  ck("p3: step switch", vm_exec_control(VM_EXEC_NEXT) == NULL);
+  ck("p3: step switch", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
   held = ex_wait_block(PIPE_BLK_INC);
   ck("p3: switch branch 2 taken (Q0=0, Q1=0, Q2=1)", held && !ex_b(PIPE_O_Q0) && !ex_b(PIPE_O_Q1) && ex_b(PIPE_O_Q2));
 
   // Step block 2 (disabled because Q0=0)
-  ck("p3: step block 2", vm_exec_control(VM_EXEC_NEXT) == NULL);
+  ck("p3: step block 2", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
   held = ex_wait_block(PIPE_BLK_DBL);
   ck("p3: block 2 skipped, x still 2.0f", held && near_f(ex_f(PIPE_O_X), 2.0f));
 
   // Step block 3 (enabled because Q2=1) -> computes 2.0 * 2.0 = 4.0f
-  ck("p3: step block 3 (x*2)", vm_exec_control(VM_EXEC_NEXT) == NULL);
+  ck("p3: step block 3 (x*2)", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
   ck("p3: scan 3 completed", ex_wait_done() && vm_exec_pass_count() == 3);
   ck("p3: block 3 executed, x=4.0f", near_f(ex_f(PIPE_O_X), 4.0f));
   ck("p3: telemetry emitted for x", s_pipe_sub_calls == 1);
@@ -2290,11 +2292,11 @@ void test_step_selection_pipeline(void) {
   ck("p3: telemetry value is 4.0f", near_f(rx, 4.0f));
 
 teardown:
-  vm_exec_stop();
+  SE_release(vm_exec_stop());
   vm_exec_set_sample_hook(NULL);
   vm_sub_set_sender(prev_sender);
   vm_sub_reset();
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
 }
 
 /* ==========================================================================
@@ -2314,32 +2316,32 @@ teardown:
 void test_math_pi(void) {
   ESP_LOGI(TAG, "-- Mathematical test: Nilakantha Pi calculation --");
 
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
   vm_sub_reset();
-  (void)vm_sub_init();
+  SE_release(vm_sub_init());
   vm_sub_sender_fn prev_sender = vm_sub_get_sender();
   vm_sub_set_sender(pipe_mock_sender);
   s_pipe_sub_calls = 0;
   s_pipe_sub_len = 0;
 
   const uint16_t counts[VM_REG_CNT] = {[VM_REG_OBJ] = 8, [VM_REG_ACC] = 4, [VM_REG_BLK] = 4};
-  ck("pi arena opens", vm_store_open(DIRECT_POOL, counts) == NULL);
+  ck("pi arena opens", selftest_ok(vm_store_open(DIRECT_POOL, counts)));
 
   // Objects
   vm_obj_head_t hp = hd(VM_OBJ_F, 1);
   hp.f.mutable = 1;
   hp.f.upd_resetable = 1;
   vm_obj_h opi = NULL;
-  bool built = vm_obj_create(&opi, PI_O_PI, &hp, "pi") == NULL;
+  bool built = selftest_ok(vm_obj_create(&opi, PI_O_PI, &hp, "pi"));
 
   vm_obj_head_t hd_obj = hd(VM_OBJ_F, 1);
   hd_obj.f.mutable = 1;
   hd_obj.f.upd_resetable = 1;
   vm_obj_h od = NULL;
-  built = built && vm_obj_create(&od, PI_O_D, &hd_obj, "d") == NULL;
+  built = built && selftest_ok(vm_obj_create(&od, PI_O_D, &hd_obj, "d"));
 
-  built = built && mk(PI_O_ENO_FOR, VM_OBJ_B, 1, NULL, true) != NULL;
-  built = built && mk(PI_O_ENO_EXPR, VM_OBJ_B, 1, NULL, true) != NULL;
+  built = built && (mk(PI_O_ENO_FOR, VM_OBJ_B, 1, NULL, true) != NULL);
+  built = built && (mk(PI_O_ENO_EXPR, VM_OBJ_B, 1, NULL, true) != NULL);
   ck("pi objects built", built);
   if (!built) goto teardown;
 
@@ -2393,7 +2395,7 @@ void test_math_pi(void) {
   if (!blks) goto teardown;
 
   // Subscribe to pi
-  ck("pi subscribe", vm_sub_subscribe((const uint16_t[]){PI_O_PI}, 1) == NULL);
+  ck("pi subscribe", selftest_ok(vm_sub_subscribe((const uint16_t[]){PI_O_PI}, 1)));
 
   // Initialize pi = 3.0f
   *(float*)vm_obj_get_by_id(PI_O_PI)->payload = 3.0f;
@@ -2412,11 +2414,11 @@ void test_math_pi(void) {
   ck("pi telemetry payload matches computed pi", fabsf(rx - pi_res) < 1e-5f);
 
 teardown:
-  vm_exec_stop();
+  SE_release(vm_exec_stop());
   vm_exec_set_sample_hook(NULL);
   vm_sub_set_sender(prev_sender);
   vm_sub_reset();
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
 }
 
 /* ==========================================================================
@@ -2449,16 +2451,16 @@ teardown:
 void test_math_primes(void) {
   ESP_LOGI(TAG, "-- Mathematical test: Prime number tester --");
 
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
   vm_sub_reset();
-  (void)vm_sub_init();
+  SE_release(vm_sub_init());
   vm_sub_sender_fn prev_sender = vm_sub_get_sender();
   vm_sub_set_sender(pipe_mock_sender);
   s_pipe_sub_calls = 0;
   s_pipe_sub_len = 0;
 
   const uint16_t counts[VM_REG_CNT] = {[VM_REG_OBJ] = 16, [VM_REG_ACC] = 8, [VM_REG_BLK] = 8};
-  ck("prime arena opens", vm_store_open(DIRECT_POOL, counts) == NULL);
+  ck("prime arena opens", selftest_ok(vm_store_open(DIRECT_POOL, counts)));
 
   // Objects
   bool built = true;
@@ -2467,10 +2469,10 @@ void test_math_primes(void) {
     h.f.mutable = 1;
     h.f.upd_resetable = 1;
     vm_obj_h o = NULL;
-    built = built && vm_obj_create(&o, i, &h, NULL) == NULL;
+    built = built && selftest_ok(vm_obj_create(&o, i, &h, NULL));
   }
   for (uint16_t i = PR_O_ENO_SUB; i <= PR_O_ENO_CHK; i++) {
-    built = built && mk(i, VM_OBJ_B, 1, NULL, true) != NULL;
+    built = built && (mk(i, VM_OBJ_B, 1, NULL, true) != NULL);
   }
   ck("prime objects built", built);
   if (!built) goto teardown;
@@ -2537,7 +2539,7 @@ void test_math_primes(void) {
   if (!blks) goto teardown;
 
   // Subscribe to is_prime
-  ck("prime subscribe", vm_sub_subscribe((const uint16_t[]){PR_O_IS_PRIME}, 1) == NULL);
+  ck("prime subscribe", selftest_ok(vm_sub_subscribe((const uint16_t[]){PR_O_IS_PRIME}, 1)));
 
   // Test candidate numbers
   struct {
@@ -2574,13 +2576,13 @@ void test_math_primes(void) {
   }
 
   /* Step-by-step block-mode verification for N = 7 */
-  ck("select block mode for prime stepping", vm_exec_control(VM_EXEC_BLOCK_MODE) == NULL);
+  ck("select block mode for prime stepping", selftest_ok(vm_exec_control(VM_EXEC_BLOCK_MODE)));
   *(float*)vm_obj_get_by_id(PR_O_N)->payload = 7.0f;
   vm_obj_get_by_id(PR_O_N)->head.f.upd = 1;
   *(float*)vm_obj_get_by_id(PR_O_DIV_CNT)->payload = 0.0f;
   vm_obj_get_by_id(PR_O_DIV_CNT)->head.f.upd = 1;
 
-  ck("queue first step", vm_exec_control(VM_EXEC_NEXT) == NULL);
+  ck("queue first step", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
   __atomic_store_n(&s_step_test_done, false, __ATOMIC_RELEASE);
   bool started = xTaskCreate(ex_step_worker, "vm_prime_step", 4096, NULL, 5, NULL) == pdPASS;
   ck("prime step worker started", started);
@@ -2591,50 +2593,50 @@ void test_math_primes(void) {
   ck("step: end=6.0f computed, holds before FOR", held && near_f(ex_f(PR_O_END), 6.0f));
 
   // Step 1: Dispatch FOR -> enters first iteration (d=2.0f) and holds before Block 2 inside span!
-  ck("step into FOR loop", vm_exec_control(VM_EXEC_NEXT) == NULL);
+  ck("step into FOR loop", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
   held = ex_wait_block(PR_BLK_MOD);
   ck("step: FOR entered iteration d=2.0f, holds before MOD", held && near_f(ex_f(PR_O_D), 2.0f));
 
   // Step 2: Dispatch MOD -> computes 7 % 2 != 0 -> holds before ADD (block 3)
-  ck("step MOD block", vm_exec_control(VM_EXEC_NEXT) == NULL);
+  ck("step MOD block", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
   held = ex_wait_block(PR_BLK_ADD);
   ck("step: MOD computed is_div=0, holds before ADD", held && near_f(ex_f(PR_O_IS_DIV), 0.0f));
 
   // Step 3: Dispatch ADD -> updates div_cnt=0 -> advances to next loop iteration (d=3.0f), holds before MOD
-  ck("step ADD block", vm_exec_control(VM_EXEC_NEXT) == NULL);
+  ck("step ADD block", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
   held = ex_wait_block(PR_BLK_MOD);
   ck("step: second iteration d=3.0f, holds before MOD", held && near_f(ex_f(PR_O_D), 3.0f));
 
   // Step through remaining iterations (d=3, 4, 5, 6)
   // Each iteration has 2 blocks (MOD and ADD)
   // d=3: ADD
-  vm_exec_control(VM_EXEC_NEXT); ex_wait_block(PR_BLK_ADD);
+  SE_release(vm_exec_control(VM_EXEC_NEXT)); ex_wait_block(PR_BLK_ADD);
   // d=4: MOD, ADD
-  vm_exec_control(VM_EXEC_NEXT); ex_wait_block(PR_BLK_MOD);
-  vm_exec_control(VM_EXEC_NEXT); ex_wait_block(PR_BLK_ADD);
+  SE_release(vm_exec_control(VM_EXEC_NEXT)); ex_wait_block(PR_BLK_MOD);
+  SE_release(vm_exec_control(VM_EXEC_NEXT)); ex_wait_block(PR_BLK_ADD);
   // d=5: MOD, ADD
-  vm_exec_control(VM_EXEC_NEXT); ex_wait_block(PR_BLK_MOD);
-  vm_exec_control(VM_EXEC_NEXT); ex_wait_block(PR_BLK_ADD);
+  SE_release(vm_exec_control(VM_EXEC_NEXT)); ex_wait_block(PR_BLK_MOD);
+  SE_release(vm_exec_control(VM_EXEC_NEXT)); ex_wait_block(PR_BLK_ADD);
   // d=6: MOD, ADD
-  vm_exec_control(VM_EXEC_NEXT); ex_wait_block(PR_BLK_MOD);
-  vm_exec_control(VM_EXEC_NEXT); ex_wait_block(PR_BLK_ADD);
+  SE_release(vm_exec_control(VM_EXEC_NEXT)); ex_wait_block(PR_BLK_MOD);
+  SE_release(vm_exec_control(VM_EXEC_NEXT)); ex_wait_block(PR_BLK_ADD);
 
   // Loop finishes: advances out of FOR to Block 4 (PR_BLK_CHK)
-  ck("step out of loop", vm_exec_control(VM_EXEC_NEXT) == NULL);
+  ck("step out of loop", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
   held = ex_wait_block(PR_BLK_CHK);
   ck("step: loop completed, holds before CHK", held);
 
   // Step 4: Dispatch CHK -> computes is_prime=1.0f -> scan finishes!
-  ck("step CHK block", vm_exec_control(VM_EXEC_NEXT) == NULL);
+  ck("step CHK block", selftest_ok(vm_exec_control(VM_EXEC_NEXT)));
   ck("step: prime scan completed", ex_wait_done());
   ck("step: is_prime evaluated to 1.0f for 7", near_f(ex_f(PR_O_IS_PRIME), 1.0f));
 
 teardown:
-  vm_exec_stop();
+  SE_release(vm_exec_stop());
   vm_exec_set_sample_hook(NULL);
   vm_sub_set_sender(prev_sender);
   vm_sub_reset();
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
 }
 
 /* ==========================================================================
@@ -2654,26 +2656,29 @@ teardown:
 
 static const uint8_t c_mul_xk[] = {VM_EXPR_IN, 0, VM_EXPR_IN, 1, VM_EXPR_MUL};
 
+// Consumes the inspected error.
 static bool err_has_tag(err_h err, err_tag_e tag) {
-  for (err_h c = err; c != NULL; c = c->next_cause) {
-    if (c->tag == tag) return true;
-  }
-  return false;
+  err_h nodes[SE_MAX_CHAIN_DEPTH];
+  size_t count = SE_collect_chain(err, nodes, NULL);
+  bool found = false;
+  for (size_t i = 0; i < count; ++i) found |= nodes[i]->tag == tag;
+  SE_release(err);
+  return found;
 }
 
 void test_runtime_override(void) {
   ESP_LOGI(TAG, "-- Runtime variable update between scans --");
 
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
   vm_sub_reset();
-  (void)vm_sub_init();
+  SE_release(vm_sub_init());
   vm_sub_sender_fn prev_sender = vm_sub_get_sender();
   vm_sub_set_sender(pipe_mock_sender);
   s_pipe_sub_calls = 0;
   s_pipe_sub_len = 0;
 
   const uint16_t counts[VM_REG_CNT] = {[VM_REG_OBJ] = 8, [VM_REG_ACC] = 4, [VM_REG_BLK] = 2};
-  ck("override arena opens", vm_store_open(DIRECT_POOL, counts) == NULL);
+  ck("override arena opens", selftest_ok(vm_store_open(DIRECT_POOL, counts)));
 
   // 1. Objects:
   // OV_O_X: mutable float variable (usr_protected = 0)
@@ -2681,7 +2686,7 @@ void test_runtime_override(void) {
   hx.f.mutable = 1;
   hx.f.upd_resetable = 1;
   vm_obj_h ox = NULL;
-  bool built = (vm_obj_create(&ox, OV_O_X, &hx, "x") == NULL);
+  bool built = (selftest_ok(vm_obj_create(&ox, OV_O_X, &hx, "x")));
   if (ox) *(float*)ox->payload = 0.0f;
 
   // OV_O_Y: block output, mutable = 1, usr_protected = 1
@@ -2690,7 +2695,7 @@ void test_runtime_override(void) {
   hy.f.upd_resetable = 1;
   hy.f.usr_protected = 1;
   vm_obj_h oy = NULL;
-  built = built && (vm_obj_create(&oy, OV_O_Y, &hy, "y") == NULL);
+  built = built && (selftest_ok(vm_obj_create(&oy, OV_O_Y, &hy, "y")));
   if (oy) *(float*)oy->payload = 0.0f;
 
   // OV_O_K: immutable constant (mutable = 0)
@@ -2698,7 +2703,7 @@ void test_runtime_override(void) {
   hk.f.mutable = 0;
   hk.f.upd_resetable = 0;
   vm_obj_h ok = NULL;
-  built = built && (vm_obj_create(&ok, OV_O_K, &hk, "k") == NULL);
+  built = built && (selftest_ok(vm_obj_create(&ok, OV_O_K, &hk, "k")));
   if (ok) *(float*)ok->payload = 10.0f;
 
   // OV_O_ENO: block ENO, mutable = 1, usr_protected = 1
@@ -2707,7 +2712,7 @@ void test_runtime_override(void) {
   he.f.upd_resetable = 1;
   he.f.usr_protected = 1;
   vm_obj_h oe = NULL;
-  built = built && (vm_obj_create(&oe, OV_O_ENO, &he, "eno") == NULL);
+  built = built && (selftest_ok(vm_obj_create(&oe, OV_O_ENO, &he, "eno")));
 
   // OV_O_PTR: mutable so the pointer-specific override rejection is tested
   // before generic mutability/protection policy can reject it.
@@ -2715,7 +2720,7 @@ void test_runtime_override(void) {
   hp.f.mutable = 1;
   hp.f.upd_resetable = 1;
   vm_obj_h op = NULL;
-  built = built && (vm_obj_create(&op, OV_O_PTR, &hp, "ptr") == NULL);
+  built = built && (selftest_ok(vm_obj_create(&op, OV_O_PTR, &hp, "ptr")));
 
   ck("override objects built", built);
   if (!built) goto teardown;
@@ -2740,7 +2745,7 @@ void test_runtime_override(void) {
                                                .in_acc_ids = (const uint16_t[]){OV_ACC_X, OV_ACC_K},
                                                .out_obj_ids = (const uint16_t[]){OV_O_Y},
                                                .eno_obj_id = OV_O_ENO});
-  ck("override block created", eb == NULL && b != NULL);
+  ck("override block created", selftest_ok(eb) && b != NULL);
   if (eb || !b) goto teardown;
 
   vm_expr_code_t* code = (vm_expr_code_t*)vm_block_get_custom_data(b);
@@ -2750,7 +2755,7 @@ void test_runtime_override(void) {
 
   // 4. Subscribe to OV_O_Y (Object 1) for telemetry
   uint8_t sub_pkt[] = {0x04, 0x47, 0x01, (uint8_t)(OV_O_Y & 0xFF), (uint8_t)(OV_O_Y >> 8)};
-  ck("subscribe to y telemetry", sys_interface_decode(sub_pkt, sizeof(sub_pkt)) == NULL);
+  ck("subscribe to y telemetry", selftest_ok(sys_interface_decode(sub_pkt, sizeof(sub_pkt))));
 
   // 5. Start VM running
   vm_exec_set_mode(VM_RUN_RUNNING);
@@ -2807,8 +2812,8 @@ void test_runtime_override(void) {
   // check. Simulate a stale queue record by changing the target type between
   // those two points; no payload write may occur.
   float stale_try = 321.0f;
-  ck("defensive override fixture enqueued", vm_override_post(OV_O_X, 0, (const uint8_t*)&stale_try,
-                                                              sizeof(stale_try)) == NULL);
+  ck("defensive override fixture enqueued", selftest_ok(vm_override_post(OV_O_X, 0, (const uint8_t*)&stale_try,
+                                                              sizeof(stale_try))));
   ox->head.d.obj_t = VM_OBJ_PTR;
   vm_override_drain();
   ox->head.d.obj_t = VM_OBJ_F;
@@ -2838,7 +2843,7 @@ void test_runtime_override(void) {
   };
   memcpy(&f_good[9], &new_x, sizeof(new_x));
   err_h err_good = sys_interface_decode(f_good, sizeof(f_good));
-  ck("valid runtime 0x43 packet accepted by decoder", err_good == NULL);
+  ck("valid runtime 0x43 packet accepted by decoder", selftest_ok(err_good));
   ck("mid-scan isolation: x NOT yet modified before pass", near_f(ex_f(OV_O_X), 0.0f));
 
   // Step B: Run scan pass
@@ -2855,7 +2860,7 @@ void test_runtime_override(void) {
   // Step D: Second runtime update with x = 12.0f
   float new_x2 = 12.0f;
   memcpy(&f_good[9], &new_x2, sizeof(new_x2));
-  ck("second 0x43 packet accepted", sys_interface_decode(f_good, sizeof(f_good)) == NULL);
+  ck("second 0x43 packet accepted", selftest_ok(sys_interface_decode(f_good, sizeof(f_good))));
   ck("mid-scan isolation: x remains 5.0f before pass", near_f(ex_f(OV_O_X), 5.0f));
 
   vm_exec_pass();
@@ -2864,12 +2869,9 @@ void test_runtime_override(void) {
   ck("telemetry emitted for new y", s_pipe_sub_calls == 2);
 
 teardown:
-  vm_exec_stop();
+  SE_release(vm_exec_stop());
   vm_exec_set_sample_hook(NULL);
   vm_sub_set_sender(prev_sender);
   vm_sub_reset();
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
 }
-
-
-

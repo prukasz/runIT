@@ -160,6 +160,8 @@ class packet_sys_device_sync_all_t(ct.LittleEndianStructure):
     _action_name_ = "sys_device_sync_all"
 
 class packet_sys_device_set_error_handling_t(ct.LittleEndianStructure):
+    # actions[0]: scope bits 0..3 for LOW..CRITICAL (1=dynamic, 0=static).
+    # actions[1:5]: action IDs; zero disables that level.
     _pack_ = 1
     _fields_ = [
         ("device_id", ct.c_uint8),

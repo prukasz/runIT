@@ -177,6 +177,7 @@ err_h sys_interface_tap_poll(uint8_t* buf, size_t max_len, size_t* out_len) {
   if (SE_IS_ERR(pop_res)) {
     if (pop_res->tag == ERR_BASE_NOT_FOUND) {
       *out_len = 0;
+      SE_release(pop_res);
       return NULL;
     }
     return pop_res;
@@ -238,4 +239,3 @@ static void sys_interface_receiver_task(void* arg) {
 }
 
 #undef OWNER
-

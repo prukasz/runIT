@@ -15,7 +15,7 @@ static void sys_ble_cb_dummy_log(const cb_event_t* event) {
 }
 
 __attribute__((constructor)) static void sys_ble_cb_route_register(void) {
-  sys_cb_register_route(SYS_CB_ROUTE_BLE, sys_ble_cb_dummy_log);
+  SE_release(sys_cb_register_route(SYS_CB_ROUTE_BLE, sys_ble_cb_dummy_log));
 }
 
 /*****************************************************************************************/
@@ -43,8 +43,8 @@ static sys_ble_svc_node_t* sys_ble_find_svc_by_uuid(uint16_t svc_uuid) {
 
 static void sys_ble_free_char_node(sys_ble_char_node_t* c) {
   if (!c) return;
-  sys_buff_free(&c->rx_buff);
-  sys_buff_free(&c->tx_buff);
+  SE_release(sys_buff_free(&c->rx_buff));
+  SE_release(sys_buff_free(&c->tx_buff));
   free(c);
 }
 
@@ -241,6 +241,7 @@ err_h sys_ble_char_rx_dequeue(uint16_t char_uuid, uint8_t* buffer, size_t max_le
   if (SE_IS_ERR(pop_res)) {
     if (pop_res->tag == ERR_BASE_NOT_FOUND) {
       *out_len = 0;
+      SE_release(pop_res);
       return NULL;
     }
     return pop_res;

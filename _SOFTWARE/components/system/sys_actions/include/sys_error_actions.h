@@ -17,5 +17,3 @@
 
 #define LOG_BODY_ERR_ACTION_NOT_FOUND(p, out, out_size) snprintf((out), (out_size), "action %u has neither a bound static function nor anything stored", (p)->action_id)
 #define LOG_BODY_ERR_ACTION_RECORDING_BUSY(p, out, out_size) snprintf((out), (out_size), "action %u: a different action is already recording", (p)->action_id)
-
-extern err_h sys_actions_report_fault(err_h node, err_h chain) __attribute__((weak));

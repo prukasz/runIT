@@ -42,6 +42,7 @@ __attribute__((noinline)) err_h vm_err_index_failed(err_h cause, uint16_t id, ui
 // designated initialisers can't fill a char array
 __attribute__((noinline)) err_h vm_err_name_not_found(uint16_t id, uint8_t pos, const char* name, size_t name_len) {
   err_h                                         e  = SE_ERR_NEW_OWNED(OWNER_VM_ACCESSOR, ERR_VM_ACCESSOR_NAME_NOT_FOUND, .id = id, .chain_pos = pos);
+  if (e->tag != ERR_VM_ACCESSOR_NAME_NOT_FOUND) return e;
   err_payload_ERR_VM_ACCESSOR_NAME_NOT_FOUND_t* pl = (err_payload_ERR_VM_ACCESSOR_NAME_NOT_FOUND_t*)e->payload;
   size_t                                        n  = name ? name_len : 0;
   if (n >= sizeof(pl->name)) n = sizeof(pl->name) - 1;

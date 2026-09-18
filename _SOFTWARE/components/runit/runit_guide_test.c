@@ -116,6 +116,7 @@ void runit_test_guide_pipeline(void) {
     err_h err = sys_ble_char_rx_inject(SYS_BLE_CHR_RUNIT_RX, packets[i].data, packets[i].len);
     if (SE_IS_ERR(err)) {
       ESP_LOGE(TAG, "Failed to inject packet [%s]", packets[i].name);
+      SE_release(err);
       return;
     }
     // Give receiver task time to dequeue and decode before next frame
@@ -126,6 +127,7 @@ void runit_test_guide_pipeline(void) {
   err_h err = sys_ble_char_rx_inject(SYS_BLE_CHR_RUNIT_RX, pkt10_exec, sizeof(pkt10_exec));
   if (SE_IS_ERR(err)) {
     ESP_LOGE(TAG, "Failed to inject execution start packet");
+    SE_release(err);
     return;
   }
 
@@ -156,7 +158,7 @@ void runit_test_guide_pipeline(void) {
 
   // Stop execution via BLE RX stream
   ESP_LOGI(TAG, "-> Injecting [Execution Stop 0x48 0x02 (VM_EXEC_STOP)]");
-  (void)sys_ble_char_rx_inject(SYS_BLE_CHR_RUNIT_RX, pkt_stop, sizeof(pkt_stop));
+  SE_release(sys_ble_char_rx_inject(SYS_BLE_CHR_RUNIT_RX, pkt_stop, sizeof(pkt_stop)));
   vTaskDelay(pdMS_TO_TICKS(50));
 
   ESP_LOGW(TAG, "  GUIDE PIPELINE TEST COMPLETED SUCCESSFULLY.");

@@ -15,5 +15,3 @@
 #define SYS_ERROR_I2C_LOGGER_MAP(X) X(ERR_I2C_DEV_NOT_FOUND)
 
 #define LOG_BODY_ERR_I2C_DEV_NOT_FOUND(p, out, out_size) snprintf((out), (out_size), "no I2C device responded at address 0x%02X", (p)->device_address)
-
-extern err_h sys_i2c_report_fault(err_h node, err_h chain) __attribute__((weak));

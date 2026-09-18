@@ -25,7 +25,7 @@ uint32_t sys_power_get_budget_mw(void);
     __cb_evt.event.pwr.channel_id = (_chan);                                  \
     __cb_evt.event.pwr.trigger_event = (_event);                              \
     __cb_evt.event.pwr.trigger_value = (_value);                              \
-    sys_callback_trigger(&__cb_evt);                                          \
+    SE_release(sys_callback_trigger(&__cb_evt));                                          \
   } while (0)
 
 err_h sys_power_set_limits(uint32_t max_mv, uint32_t max_ma, uint32_t max_mw);
@@ -84,8 +84,3 @@ err_h sys_power_monitor_add_callback(uint8_t device_id, uint8_t channel, int32_t
 err_h sys_power_usb_pd_set(uint8_t device_id, uint32_t voltage_mV, uint32_t current_mA);
 err_h sys_power_usb_pd_list(uint8_t device_id);
 err_h sys_power_usb_pd_get_limits(uint8_t device_id, uint32_t* out_mV, uint32_t* out_mA);
-
-/**
- * @brief Weak domain error hook for Power faults.
- */
-extern err_h sys_power_report_fault(err_h node, err_h chain) __attribute__((weak));

@@ -104,7 +104,7 @@ static void frame_flush(sub_frame_t* f) {
   );
 
   if (s_sender) {
-    (void)s_sender(f->buf, f->len);
+    SE_release(s_sender(f->buf, f->len));
   } else {
     sys_data_connector_send(sys_data_connector_get(CONN_ID_TELEMETRY), f->buf, f->len);
   }

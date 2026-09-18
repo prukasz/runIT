@@ -75,24 +75,27 @@ typedef struct err_node {
   uint8_t payload[] __attribute__((aligned(8)));
 } sys_err_t;
 
-typedef sys_err_t* err_h;
+
 
 // ---------------------------------------------------------
-// 3. Ring Buffer Allocator API
+// 3. Bounded Pool API
 // ---------------------------------------------------------
 
 void SE_init(void);
 err_h SE_alloc_bytes(size_t payload_size, err_tag_e tag, uint32_t owner);
 
-// Pushes the final error chain to the error handler task/queue
+// Allocation may return NULL; prefer SE_* macros, which retain failure on exhaustion.
+err_h SE_new_error(err_tag_e tag, uint32_t owner, const void* payload, size_t size, err_h cause);
+// Release an owned chain after inspecting or intentionally discarding it.
+void SE_release(err_h chain);
+// Caller supplies SE_MAX_CHAIN_DEPTH slots. Returns a valid unique prefix,
+// outermost first; complete=false means corrupt or truncated.
+size_t SE_collect_chain(err_h chain, err_h nodes[], bool* complete);
+
+// Consumes the final chain synchronously, including when reporting is suspended.
 void SE_push_to_handler(err_h err);
 
-/**
- * @brief Weak domain error hook for sys_errors faults.
- */
-extern err_h sys_errors_report_fault(err_h node, err_h chain) __attribute__((weak));
-
-// Suspend/Resume error processing
+// Nested, task-local suppression of error processing
 void SE_suspend(void);
 void SE_resume(void);
 bool SE_is_suspended(void);
@@ -100,6 +103,7 @@ bool SE_is_suspended(void);
 // Name lookup helper functions
 const char* SE_get_owner_name(uint32_t owner);
 const char* SE_get_tag_name(err_tag_e tag);
+uint32_t SE_schema_id(void);
 
 /**
  * @brief Size of the payload struct generated for @p tag.
@@ -119,10 +123,10 @@ sys_device_err_level_e SE_get_tag_level(err_tag_e tag);
 
 /**
  * @brief Validates that an error handle points to a valid, 8-byte-aligned
- *        location within the error ring buffer.
+ *        live allocation in the error pool (or the immutable exhaustion node).
  *
  * @param err Error pointer to validate.
- * @return bool true if valid and inside the ring buffer, false otherwise.
+ * @return bool true if the node and its tag-sized payload are valid.
  */
 bool SE_is_valid_error_ptr(err_h err);
 
@@ -131,7 +135,7 @@ bool SE_is_valid_error_ptr(err_h err);
  *
  * Traversal is capped at SE_MAX_CHAIN_DEPTH and verifies each next_cause
  * pointer with SE_is_valid_error_ptr() to protect against runaway chains,
- * cycles, and out-of-bounds reads caused by ring buffer wraps.
+ * cycles, and out-of-bounds reads.
  *
  * @param error Outermost error handle.
  * @return err_h Deepest cause node where next_cause is NULL, or NULL if error is
@@ -148,20 +152,18 @@ err_h SE_get_error_root(err_h error);
 #define SE_IS_OK(call) ((call) == NULL)
 #define SE_IS_ERR(call) ((call) != NULL)
 
-// Allocates and fills a payload for `tag_name`; leaves next_cause as NULL
-#define SE_ERR_NEW(tag_name, ...)                                                                \
-  ({                                                                                              \
-    err_h __e = SE_alloc_bytes(sizeof(err_payload_##tag_name##_t), tag_name, OWNER);              \
-    *((err_payload_##tag_name##_t*)__e->payload) = (err_payload_##tag_name##_t){__VA_ARGS__};     \
-    __e;                                                                                          \
-  })
-
-#define SE_WRAP_ERR(rc_err, tag_name, ...)               \
-  ({                                                     \
-    err_h __new_err = SE_ERR_NEW(tag_name, __VA_ARGS__); \
-    __new_err->next_cause = (rc_err);                    \
-    __new_err;                                           \
-  })
+// Wrapping transfers ownership of cause. A chain must not share nodes with
+// another owned chain. Diagnostic/policy functions borrow; push consumes.
+#define SE_ERR_NEW_OWNED(owner, tag_name, ...) \
+  SE_new_error(tag_name, (owner), &(err_payload_##tag_name##_t){__VA_ARGS__}, \
+               sizeof(err_payload_##tag_name##_t), NULL)
+#define SE_WRAP_ERR_OWNED(owner, cause, tag_name, ...) \
+  SE_new_error(tag_name, (owner), &(err_payload_##tag_name##_t){__VA_ARGS__}, \
+               sizeof(err_payload_##tag_name##_t), (cause))
+#define SE_ERR_NEW(tag_name, ...) SE_ERR_NEW_OWNED(OWNER, tag_name, __VA_ARGS__)
+#define SE_WRAP_ERR(cause, tag_name, ...) SE_WRAP_ERR_OWNED(OWNER, cause, tag_name, __VA_ARGS__)
+#define SE_RET_ERR_OWNED(owner, tag_name, ...) return SE_ERR_NEW_OWNED(owner, tag_name, __VA_ARGS__)
+#define SE_EMIT_ERR_OWNED(owner, tag_name, ...) SE_push_to_handler(SE_ERR_NEW_OWNED(owner, tag_name, __VA_ARGS__))
 
 #define SE_WRAP_DEV_ERR(rc_err, dep_dev_id) SE_WRAP_ERR((rc_err), ERR_DEV_DEP_FAILED, .dev_id = (dep_dev_id))
 
@@ -200,7 +202,7 @@ err_h SE_get_error_root(err_h error);
     }                                         \
   } while (0)
 
-// SE_push_to_handler() already no-ops while suspended
+// The handler consumes the chain even while reporting is suspended.
 #define SE_ORIGIN_CALL(call)           \
   do {                              \
     err_h __err = (call);           \

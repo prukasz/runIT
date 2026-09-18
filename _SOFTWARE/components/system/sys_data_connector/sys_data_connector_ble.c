@@ -2,7 +2,7 @@
 #include "sys_ble.h"
 
 static void ble_provider_send(void* arg, const void* data, size_t len) {
-  (void)sys_ble_char_send(SYS_DATA_BLE_ARG_CHAR(arg), data, len, true);
+  SE_release(sys_ble_char_send(SYS_DATA_BLE_ARG_CHAR(arg), data, len, true));
 }
 
 static err_h ble_provider_dequeue(void* arg, uint8_t* buf, size_t max_len, size_t* out_len) {

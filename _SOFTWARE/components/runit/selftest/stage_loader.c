@@ -28,21 +28,21 @@ void test_upload(void) {
   ESP_LOGI(TAG, "-- K: upload via injected frames --");
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x40);
-  ck("0x40 reset", f_send() == NULL && vm_loader_state() == VM_LOAD_EMPTY);
+  ck("0x40 reset", selftest_ok(f_send()) && vm_loader_state() == VM_LOAD_EMPTY);
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x42);
   f_u8(1);
   add_obj_record(OBJ_TEMP, 1, VM_OBJ_F, VM_OBJ_F_MUTABLE, "temp");
-  ck("0x42 before open -> BAD_STATE", f_send() != NULL);
+  ck("0x42 before open -> BAD_STATE", !selftest_ok(f_send()));
 
-  ck("0x41 open", upload_open(3, 4, 0, 640) == NULL && vm_loader_state() == VM_LOAD_OPEN);
+  ck("0x41 open", selftest_ok(upload_open(3, 4, 0, 640)) && vm_loader_state() == VM_LOAD_OPEN);
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x42);
   f_u8(3);
   add_obj_record(OBJ_MSG, 2, VM_OBJ_PTR, VM_OBJ_F_MUTABLE, NULL);
   add_obj_record(OBJ_TEMP, 1, VM_OBJ_F, VM_OBJ_F_MUTABLE, "temp");
   add_obj_record(OBJ_HUM, 1, VM_OBJ_F, VM_OBJ_F_MUTABLE, "hum");
-  ck("0x42 create 3 objects", f_send() == NULL);
+  ck("0x42 create 3 objects", selftest_ok(f_send()));
   ck("objects reachable by id", vm_obj_get_by_id(OBJ_MSG) && vm_obj_get_by_id(OBJ_TEMP) && vm_obj_get_by_id(OBJ_HUM));
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x43);
@@ -60,24 +60,24 @@ void test_upload(void) {
   f_u16(4);
   f_u16(OBJ_TEMP);
   f_u16(OBJ_HUM);
-  ck("0x43 values + PTR child links", f_send() == NULL);
+  ck("0x43 values + PTR child links", selftest_ok(f_send()));
 
   static const vm_index_t    idx_named[] = {VM_IDX_BY_NAME("temp"), {.kind = VM_IDX_LITERAL, .value = 0}};
   static const vm_accessor_t acc_named   = {.id = OBJ_MSG, .count = 2, .indices = idx_named};
   float                      got         = 0.0f;
-  ck("read msg[\"temp\"][0] == 21.5", VM_OBJ_SCALAR_GET(got, &acc_named) == NULL && got == 21.5f);
+  ck("read msg[\"temp\"][0] == 21.5", selftest_ok(VM_OBJ_SCALAR_GET(got, &acc_named)) && got == 21.5f);
 
   static const vm_index_t    idx_short[] = {VM_IDX_BY_NAME("temp")};
   static const vm_accessor_t acc_short   = {.id = OBJ_MSG, .count = 1, .indices = idx_short};
   got                                    = -1.0f;
-  ck("PTR scalar read fails and preserves output", VM_OBJ_SCALAR_GET(got, &acc_short) != NULL && got == -1.0f);
+  ck("PTR scalar read fails and preserves output", !selftest_ok(VM_OBJ_SCALAR_GET(got, &acc_short)) && got == -1.0f);
   vm_obj_h child = NULL;
-  ck("vm_get_obj follows the trailing PTR", vm_obj_get_obj(&child, &acc_short) == NULL && child == vm_obj_get_by_id(OBJ_TEMP));
+  ck("vm_get_obj follows the trailing PTR", selftest_ok(vm_obj_get_obj(&child, &acc_short)) && child == vm_obj_get_by_id(OBJ_TEMP));
   vm_accessor_t parent = {.id = OBJ_MSG}, scalar_parent = {.id = OBJ_TEMP};
   const char    tag_bytes[] = {'t', 'e', 'm', 'p'};
-  ck("vm_obj_get_child accepts a non-terminated name", !vm_obj_get_child(&child, &parent, tag_bytes, sizeof(tag_bytes)) && child == vm_obj_get_by_id(OBJ_TEMP));
-  ck("missing tag preserves child output", vm_obj_get_child(&child, &parent, "missing", 7) != NULL && child == vm_obj_get_by_id(OBJ_TEMP));
-  ck("non-PTR parent fails", vm_obj_get_child(&child, &scalar_parent, "temp", 4) != NULL);
+  ck("vm_obj_get_child accepts a non-terminated name", selftest_ok(vm_obj_get_child(&child, &parent, tag_bytes, sizeof(tag_bytes))) && child == vm_obj_get_by_id(OBJ_TEMP));
+  ck("missing tag preserves child output", !selftest_ok(vm_obj_get_child(&child, &parent, "missing", 7)) && child == vm_obj_get_by_id(OBJ_TEMP));
+  ck("non-PTR parent fails", !selftest_ok(vm_obj_get_child(&child, &scalar_parent, "temp", 4)));
 
   // accessors uploaded as frames
   f_begin(VM_LOADER_CLASS_HEADER, 0x44);
@@ -88,11 +88,11 @@ void test_upload(void) {
   acc_record(0, OBJ_MSG, 2);
   ix_begin();
   acc_record(1, OBJ_TEMP, 0);
-  ck("0x44 create accessors", f_send() == NULL);
+  ck("0x44 create accessors", selftest_ok(f_send()));
 
   vm_accessor_t* a0 = vm_accessor_get_by_id(0);
   got               = 0.0f;
-  ck("loaded accessor resolves (name copy survived the frame)", a0 && VM_OBJ_SCALAR_GET(got, a0) == NULL && got == 60.0f);
+  ck("loaded accessor resolves (name copy survived the frame)", a0 && selftest_ok(VM_OBJ_SCALAR_GET(got, a0)) && got == 60.0f);
   ck("same id yields the identical pointer -- sharing works", vm_accessor_get_by_id(0) == a0);
   ck("whole-object accessor has no indices", vm_accessor_get_by_id(1) && vm_accessor_get_by_id(1)->count == 0);
 
@@ -101,7 +101,7 @@ void test_upload(void) {
   ix_begin();
   ix_ref(900);
   acc_record(2, OBJ_MSG, 1);
-  ck("0x44 forward/unknown REF -> rejected (cycles unconstructable)", f_send() != NULL);
+  ck("0x44 forward/unknown REF -> rejected (cycles unconstructable)", !selftest_ok(f_send()));
 }
 
 /* ==========================================================================
@@ -115,14 +115,14 @@ void test_malformed(void) {
   f_u8(1);
   f_u16(OBJ_TEMP);
   f_u8(0);
-  ck("truncated 0x42 -> SHORT_RECORD", f_send() != NULL);
+  ck("truncated 0x42 -> SHORT_RECORD", !selftest_ok(f_send()));
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x42);
   f_u8(1);
   f_u16(7);
   vm_obj_head_t head_short = {.payload_size = 1, .d = {.obj_t = VM_OBJ_F, .name_size = 12}, .f = {.mutable = 1}};
   f_blob(&head_short, sizeof(head_short));
-  ck("0x42 name_len past end -> SHORT_RECORD", f_send() != NULL);
+  ck("0x42 name_len past end -> SHORT_RECORD", !selftest_ok(f_send()));
 
   /* The wire carries bytes, so a payload that is not a whole number of elements
      is now expressible and must be refused: 5 bytes of U32 would let
@@ -131,28 +131,28 @@ void test_malformed(void) {
   f_begin(VM_LOADER_CLASS_HEADER, 0x42);
   f_u8(1);
   add_obj_record_raw(7, 5, VM_OBJ_U32, VM_OBJ_F_MUTABLE, NULL);
-  ck("0x42 payload that is not a whole number of elements -> OBJ_BAD_SIZE", f_send() != NULL && vm_obj_get_by_id(7) == NULL);
+  ck("0x42 payload that is not a whole number of elements -> OBJ_BAD_SIZE", !selftest_ok(f_send()) && vm_obj_get_by_id(7) == NULL);
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x42);
   f_u8(1);
   add_obj_record_raw(7, 0, VM_OBJ_U32, VM_OBJ_F_MUTABLE, NULL);
-  ck("0x42 zero payload -> OBJ_EMPTY", f_send() != NULL);
+  ck("0x42 zero payload -> OBJ_EMPTY", !selftest_ok(f_send()));
 
   /* An out-of-range type must be caught before it is used to index tables. */
   f_begin(VM_LOADER_CLASS_HEADER, 0x42);
   f_u8(1);
   add_obj_record(7, 1, 15, VM_OBJ_F_MUTABLE, NULL);
-  ck("0x42 type past the table -> OBJ_BAD_TYPE, not a truncated type", f_send() != NULL && vm_obj_get_by_id(7) == NULL);
+  ck("0x42 type past the table -> OBJ_BAD_TYPE, not a truncated type", !selftest_ok(f_send()) && vm_obj_get_by_id(7) == NULL);
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x42);
   f_u8(1);
   add_obj_record(OBJ_TEMP, 1, VM_OBJ_F, VM_OBJ_F_MUTABLE, "dup");
-  ck("0x42 duplicate id -> TABLE_DUP", f_send() != NULL);
+  ck("0x42 duplicate id -> TABLE_DUP", !selftest_ok(f_send()));
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x42);
   f_u8(1);
   add_obj_record(900, 1, VM_OBJ_F, VM_OBJ_F_MUTABLE, NULL);
-  ck("0x42 id past table -> TABLE_OOB", f_send() != NULL);
+  ck("0x42 id past table -> TABLE_OOB", !selftest_ok(f_send()));
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x43);
   f_u8(1);
@@ -160,14 +160,14 @@ void test_malformed(void) {
   f_u16(0);
   f_u16(64);
   for (int i = 0; i < 64; i++) f_u8(0xAA);
-  ck("0x43 write past end -> DATA_RANGE", f_send() != NULL);
+  ck("0x43 write past end -> DATA_RANGE", !selftest_ok(f_send()));
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x43);
   f_u8(1);
   f_u16(OBJ_TEMP);
   f_u16(0);
   f_u16(200);
-  ck("0x43 byte_len past frame -> SHORT_RECORD", f_send() != NULL);
+  ck("0x43 byte_len past frame -> SHORT_RECORD", !selftest_ok(f_send()));
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x43);
   f_u8(1);
@@ -175,40 +175,40 @@ void test_malformed(void) {
   f_u16(0);
   f_u16(2);
   f_u16(777);
-  ck("0x43 unknown child id -> UNKNOWN_ID", f_send() != NULL);
+  ck("0x43 unknown child id -> UNKNOWN_ID", !selftest_ok(f_send()));
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x44);
   f_u8(1);
   ix_begin();
   s_idx[s_idx_len++] = 0x7F;
   acc_record(3, OBJ_MSG, 1);
-  ck("0x44 unknown index kind -> BAD_KIND", f_send() != NULL);
+  ck("0x44 unknown index kind -> BAD_KIND", !selftest_ok(f_send()));
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x44);
   f_u8(1);
   ix_begin();
   ix_literal(0);
   acc_record(3, OBJ_MSG, 3);
-  ck("0x44 idx_count past idx_len -> SHORT_RECORD", f_send() != NULL);
+  ck("0x44 idx_count past idx_len -> SHORT_RECORD", !selftest_ok(f_send()));
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x44);
   f_u8(1);
   ix_begin();
   ix_name("0123456789abcdef");
   acc_record(4, OBJ_MSG, 1);
-  ck("0x44 16-char name -> NAME_TOO_LONG", f_send() != NULL);
+  ck("0x44 16-char name -> NAME_TOO_LONG", !selftest_ok(f_send()));
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x44);
   f_u8(1);
   ix_begin();
   acc_record(0, OBJ_TEMP, 0);
-  ck("0x44 duplicate accessor id -> ACC_TABLE_DUP", f_send() != NULL);
+  ck("0x44 duplicate accessor id -> ACC_TABLE_DUP", !selftest_ok(f_send()));
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x4F);
-  ck("unknown packet 0x4F -> UNKNOWN_PACKET", f_send() != NULL);
+  ck("unknown packet 0x4F -> UNKNOWN_PACKET", !selftest_ok(f_send()));
 
-  ck("0x41 total_size past the hard ceiling -> TOO_BIG", upload_open(2, 0, 0, VM_STORE_MAX_POOL + 1) != NULL);
-  ck("0x41 zero total_size -> TOO_BIG", upload_open(2, 0, 0, 0) != NULL);
+  ck("0x41 total_size past the hard ceiling -> TOO_BIG", !selftest_ok(upload_open(2, 0, 0, VM_STORE_MAX_POOL + 1)));
+  ck("0x41 zero total_size -> TOO_BIG", !selftest_ok(upload_open(2, 0, 0, 0)));
   ck("after failed open, state is EMPTY", vm_loader_state() == VM_LOAD_EMPTY);
   ck("after failed open, ids resolve NULL", vm_obj_get_by_id(OBJ_TEMP) == NULL);
   ck("after failed open, accessor ids resolve NULL", vm_accessor_get_by_id(0) == NULL);
@@ -216,9 +216,9 @@ void test_malformed(void) {
 
 void test_block_upload(void) {
   ESP_LOGI(TAG, "-- N: block upload --");
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
 
-  ck("0x41 open with blocks", upload_open(4, 3, 3, 1100) == NULL);
+  ck("0x41 open with blocks", selftest_ok(upload_open(4, 3, 3, 1100)));
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x42);
   f_u8(4);
@@ -226,7 +226,7 @@ void test_block_upload(void) {
   add_obj_record(1, 1, VM_OBJ_F, VM_OBJ_F_MUTABLE, NULL);  // out
   add_obj_record(2, 1, VM_OBJ_B, VM_OBJ_F_MUTABLE, NULL);  // eno
   add_obj_record(3, 1, VM_OBJ_B, VM_OBJ_F_MUTABLE, NULL);  // en source
-  ck("0x42 objects for the block", f_send() == NULL);
+  ck("0x42 objects for the block", selftest_ok(f_send()));
 
   // accessors: in0 = obj0[0], in1 = obj0[1], en = obj3 (chainless)
   f_begin(VM_LOADER_CLASS_HEADER, 0x44);
@@ -247,7 +247,7 @@ void test_block_upload(void) {
   f_u16(3);
   f_u8(0);
   f_u8(0);
-  ck("0x44 accessors for the block", f_send() == NULL);
+  ck("0x44 accessors for the block", selftest_ok(f_send()));
 
   uint16_t ins[2]    = {0, 1};
   uint16_t outs[1]   = {1};
@@ -258,7 +258,7 @@ void test_block_upload(void) {
      four arbitrary bytes load for any of them; VM_BLK_EXPR is used because it
      is the type whose custom_data has a documented meaning to contrast with. */
   add_block_record(0, 100, VM_BLK_EXPR, ins, 2, outs, 1, 2, 2, custom, sizeof(custom));
-  ck("0x45 creates a block", f_send() == NULL);
+  ck("0x45 creates a block", selftest_ok(f_send()));
 
   vm_block_h b = vm_block_get_by_id(0);
   ck("block is bound to its id", b != NULL);
@@ -277,36 +277,36 @@ void test_block_upload(void) {
   *(uint8_t*)vm_obj_get_by_id(3)->payload   = 1;  // EN true
   float                a = 0, c = 0;
   const vm_accessor_t* pin = NULL;
-  bool                 got = vm_block_get_in(&pin, b, 0) == NULL && VM_OBJ_SCALAR_GET(a, pin) == NULL;
+  bool                 got = selftest_ok(vm_block_get_in(&pin, b, 0)) && selftest_ok(VM_OBJ_SCALAR_GET(a, pin));
   ck("an uploaded block reads through its own pin", got && a == 2.5f);
   ck("an uploaded block is enabled by its EN object", vm_block_is_enabled(b));
   vm_obj_h q = NULL;
-  ck("uploaded block writes its output", vm_block_get_out(&q, b, 0) == NULL && VM_OBJ_SET_SCALAR_AT_IDX(6.5f, q, 0) == NULL && VM_OBJ_SCALAR_GET(c, vm_accessor_get_by_id(1)) == NULL);
+  ck("uploaded block writes its output", selftest_ok(vm_block_get_out(&q, b, 0)) && selftest_ok(VM_OBJ_SET_SCALAR_AT_IDX(6.5f, q, 0)) && selftest_ok(VM_OBJ_SCALAR_GET(c, vm_accessor_get_by_id(1))));
 
   // references are the whole risk with blocks: every one of these must refuse
   add_block_record(1, 101, VM_BLK_EXPR, (uint16_t[]){99}, 1, outs, 1, VM_BLOCK_NO_ID, VM_BLOCK_NO_ID, NULL, 0);
-  ck("unknown input accessor id -> BAD_REF", f_send() != NULL);
+  ck("unknown input accessor id -> BAD_REF", !selftest_ok(f_send()));
 
   add_block_record(1, 101, VM_BLK_EXPR, ins, 2, (uint16_t[]){99}, 1, VM_BLOCK_NO_ID, VM_BLOCK_NO_ID, NULL, 0);
-  ck("unknown output object id -> BAD_REF", f_send() != NULL);
+  ck("unknown output object id -> BAD_REF", !selftest_ok(f_send()));
 
   add_block_record(1, 101, VM_BLK_EXPR, ins, 2, outs, 1, 99, VM_BLOCK_NO_ID, NULL, 0);
-  ck("unknown EN accessor id -> BAD_REF", f_send() != NULL);
+  ck("unknown EN accessor id -> BAD_REF", !selftest_ok(f_send()));
 
   add_block_record(1, 101, VM_BLK_EXPR, ins, 2, outs, 1, VM_BLOCK_NO_ID, 99, NULL, 0);
-  ck("unknown ENO object id -> BAD_REF", f_send() != NULL);
+  ck("unknown ENO object id -> BAD_REF", !selftest_ok(f_send()));
 
   ck("a refused block leaves its id unbound", vm_block_get_by_id(1) == NULL);
 
   /* NO_ID is legal on an input (the pin stays unwired and the block falls back
      to its own constant), on EN and on ENO -- but never on an output. */
   add_block_record(1, 101, VM_BLK_EXPR, ins, 2, (uint16_t[]){VM_BLOCK_NO_ID}, 1, VM_BLOCK_NO_ID, VM_BLOCK_NO_ID, NULL, 0);
-  ck("NO_ID output -> BAD_REF", f_send() != NULL);
+  ck("NO_ID output -> BAD_REF", !selftest_ok(f_send()));
 
   add_block_record(1, 101, VM_BLK_EXPR, (uint16_t[]){0, VM_BLOCK_NO_ID}, 2, outs, 1, VM_BLOCK_NO_ID, VM_BLOCK_NO_ID, NULL, 0);
-  ck("NO_ID input leaves the pin unwired", f_send() == NULL && vm_block_get_by_id(1) && vm_block_get_inputs(vm_block_get_by_id(1))[0] == vm_accessor_get_by_id(0) && vm_block_get_inputs(vm_block_get_by_id(1))[1] == NULL);
+  ck("NO_ID input leaves the pin unwired", selftest_ok(f_send()) && vm_block_get_by_id(1) && vm_block_get_inputs(vm_block_get_by_id(1))[0] == vm_accessor_get_by_id(0) && vm_block_get_inputs(vm_block_get_by_id(1))[1] == NULL);
   const vm_accessor_t* unwired = NULL;
-  ck("an unwired pin reports PIN_UNLINKED, not garbage", vm_block_get_in(&unwired, vm_block_get_by_id(1), 1) != NULL && unwired == NULL);
+  ck("an unwired pin reports PIN_UNLINKED, not garbage", !selftest_ok(vm_block_get_in(&unwired, vm_block_get_by_id(1), 1)) && unwired == NULL);
   ck("absent EN and NO_ID ENO leave both empty", vm_block_get_by_id(1)->cfg.en_cnt == 0 && vm_block_get_by_id(1)->cfg.eno == NULL);
   ck("a block with no EN is enabled by default", vm_block_is_enabled(vm_block_get_by_id(1)));
 
@@ -329,7 +329,7 @@ void test_block_upload(void) {
   f_u16(1);  // output
   f_u16(2);
   f_u16(0);  // two enable sources
-  ck("0x45 accepts a two-source enable list", f_send() == NULL && vm_block_get_by_id(2) && vm_block_get_by_id(2)->cfg.en_cnt == 2);
+  ck("0x45 accepts a two-source enable list", selftest_ok(f_send()) && vm_block_get_by_id(2) && vm_block_get_by_id(2)->cfg.en_cnt == 2);
   ck("en_mode round-trips", vm_block_get_by_id(2)->cfg.en_mode == VM_BLK_EN_ANY);
   ck("merge resolves both sources to pointers", vm_block_get_en_list(vm_block_get_by_id(2))[0] == vm_accessor_get_by_id(2) && vm_block_get_en_list(vm_block_get_by_id(2))[1] == vm_accessor_get_by_id(0));
   *(uint8_t*)vm_obj_get_by_id(3)->payload   = 0;  // first source false
@@ -348,15 +348,15 @@ void test_block_upload(void) {
   ((float*)vm_obj_get_by_id(0)->payload)[0] = 2.5f;
 
   add_block_record(1, 102, VM_BLK_EXPR, ins, 2, outs, 1, VM_BLOCK_NO_ID, VM_BLOCK_NO_ID, NULL, 0);
-  ck("duplicate block id -> TABLE_DUP", f_send() != NULL);
+  ck("duplicate block id -> TABLE_DUP", !selftest_ok(f_send()));
 
   add_block_record(9, 103, VM_BLK_EXPR, ins, 2, outs, 1, VM_BLOCK_NO_ID, VM_BLOCK_NO_ID, NULL, 0);
-  ck("block id past the table -> TABLE_OOB", f_send() != NULL);
+  ck("block id past the table -> TABLE_OOB", !selftest_ok(f_send()));
 
   // in_cnt past the connected_in mask cannot be represented, so it is refused
   uint16_t many[VM_BLOCK_MAX_IN + 1] = {0};
   add_block_record(1, 104, VM_BLK_EXPR, many, VM_BLOCK_MAX_IN + 1, outs, 1, VM_BLOCK_NO_ID, VM_BLOCK_NO_ID, NULL, 0);
-  ck("in_cnt past VM_BLOCK_MAX_IN -> BAD_SHAPE", f_send() != NULL);
+  ck("in_cnt past VM_BLOCK_MAX_IN -> BAD_SHAPE", !selftest_ok(f_send()));
 
   // truncation: the record claims two inputs but carries one id
   f_begin(VM_LOADER_CLASS_HEADER, 0x45);
@@ -371,7 +371,7 @@ void test_block_upload(void) {
   f_u16(0);
   f_u16(VM_BLOCK_NO_ID);
   f_u16(0);  // only one of the two promised ids
-  ck("truncated 0x45 -> SHORT_RECORD", f_send() != NULL);
+  ck("truncated 0x45 -> SHORT_RECORD", !selftest_ok(f_send()));
 
   // ...and the same for a promised enable list that is not there
   f_begin(VM_LOADER_CLASS_HEADER, 0x45);
@@ -389,19 +389,19 @@ void test_block_upload(void) {
   f_u16(1);  // inputs
   f_u16(1);  // output
   f_u16(2);  // only one of the two promised enable ids
-  ck("0x45 truncated in the enable list -> SHORT_RECORD", f_send() != NULL);
+  ck("0x45 truncated in the enable list -> SHORT_RECORD", !selftest_ok(f_send()));
 
   /* The pool is heap-allocated per load, so a failed open must leave the
      program that is already running completely alone -- allocate-then-swap,
      not reset-then-allocate. Ask for more than the ceiling and check the
      loaded block is still there and still resolves. */
-  ck("a rejected open leaves the running program intact", upload_open(4, 3, 2, VM_STORE_MAX_POOL + 1) != NULL && vm_block_get_by_id(0) != NULL && vm_block_get_by_id(0)->cfg.block_idx == 100 && vm_obj_get_by_id(1) != NULL);
+  ck("a rejected open leaves the running program intact", !selftest_ok(upload_open(4, 3, 2, VM_STORE_MAX_POOL + 1)) && vm_block_get_by_id(0) != NULL && vm_block_get_by_id(0)->cfg.block_idx == 100 && vm_obj_get_by_id(1) != NULL);
 
   uint32_t before = vm_store_capacity();
-  ck("a successful open re-sizes the pool to the new program", upload_open(1, 0, 0, 256) == NULL && vm_store_capacity() == 256 && before != 256);
+  ck("a successful open re-sizes the pool to the new program", selftest_ok(upload_open(1, 0, 0, 256)) && vm_store_capacity() == 256 && before != 256);
   ck("the previous program is gone after a successful reopen", vm_block_get_by_id(0) == NULL);
 
-  vm_loader_reset();
+  SE_release(vm_loader_reset());
   ck("reset detaches the block registry", vm_block_get_by_id(0) == NULL);
   ck("reset releases the pool", vm_store_capacity() == 0);
 }
@@ -425,7 +425,7 @@ void test_dynamic_objects(void) {
   vm_obj_head_t dh = hd(VM_OBJ_F, 1);
   dh.d.name_size   = 4;
   dh.f.mutable     = 1;
-  ck("dynamic create succeeds", vm_obj_dyn_create(&d, &dh, "temp") == NULL && d);
+  ck("dynamic create succeeds", selftest_ok(vm_obj_dyn_create(&d, &dh, "temp")) && d);
   ck("it is flagged dynamic", d && vm_obj_is_dynamic(d));
   ck("it is in the register, owned by nobody", vm_obj_dyn_get_id(d) != VM_DYN_NO_ID && g_vm_dyn[vm_obj_dyn_get_id(d)].ref_cnt == 0);
   ck("dyn_get round-trips the slot", vm_obj_dyn_get_by_id(vm_obj_dyn_get_id(d)) == d);
@@ -459,11 +459,11 @@ void test_dynamic_objects(void) {
   vm_obj_h      kid_a = NULL, kid_b = NULL;
   vm_obj_head_t kh = hd(VM_OBJ_U32, 1);
   kh.f.mutable     = 1;
-  ck("children created", vm_obj_dyn_create(&kid_a, &kh, NULL) == NULL && vm_obj_dyn_create(&kid_b, &kh, NULL) == NULL);
+  ck("children created", selftest_ok(vm_obj_dyn_create(&kid_a, &kh, NULL)) && selftest_ok(vm_obj_dyn_create(&kid_b, &kh, NULL)));
   vm_obj_h      parent = NULL;
   vm_obj_head_t ph     = hd(VM_OBJ_PTR, 3);
   ph.f.mutable         = 1;
-  ck("dynamic PTR parent created", vm_obj_dyn_create(&parent, &ph, NULL) == NULL && parent);
+  ck("dynamic PTR parent created", selftest_ok(vm_obj_dyn_create(&parent, &ph, NULL)) && parent);
   if (parent && kid_a && kid_b && arena) {
     vm_obj_h* slots = (vm_obj_h*)parent->payload;
     slots[0]        = kid_a;
@@ -486,12 +486,12 @@ void test_dynamic_objects(void) {
   vm_obj_head_t fh   = hd(VM_OBJ_U8, 1);
   for (uint16_t i = 0; i < VM_DYN_MAX; i++) {
     vm_obj_h f = NULL;
-    if (vm_obj_dyn_create(&f, &fh, NULL) != NULL) break;
+    if (!selftest_ok(vm_obj_dyn_create(&f, &fh, NULL))) break;
     made++;
   }
   ck("the register fills to exactly VM_DYN_MAX", made == VM_DYN_MAX);
   vm_obj_h overflow = NULL;
-  ck("one past the register -> DYN_FULL, and nothing is handed back", vm_obj_dyn_create(&overflow, &fh, NULL) != NULL && overflow == NULL);
+  ck("one past the register -> DYN_FULL, and nothing is handed back", !selftest_ok(vm_obj_dyn_create(&overflow, &fh, NULL)) && overflow == NULL);
 
   /* Reset ignores reference counts, so everything above -- all of it still
      held at 0 refs and unreachable from any parent -- goes anyway. */
@@ -505,7 +505,7 @@ void test_dynamic_objects(void) {
   // a rejected shape must cost neither a slot nor an allocation
   vm_obj_h      bad = NULL;
   vm_obj_head_t bh  = hd(VM_OBJ_F, 0);
-  ck("dynamic create rejects a zero payload", vm_obj_dyn_create(&bad, &bh, NULL) != NULL && bad == NULL && vm_obj_dyn_get_by_id(0) == NULL);
+  ck("dynamic create rejects a zero payload", !selftest_ok(vm_obj_dyn_create(&bad, &bh, NULL)) && bad == NULL && vm_obj_dyn_get_by_id(0) == NULL);
 }
 
 /* ==========================================================================
@@ -531,14 +531,14 @@ void test_palette(void) {
      time a block type is added, which is the one thing this must not test. */
   ck("a type past the table resolves to NULL", vm_block_fn_for((uint8_t)g_vm_blocks_cnt) == NULL);
 
-  vm_loader_reset();
-  ck("0x41 open", upload_open(2, 1, 2, 512) == NULL);
+  SE_release(vm_loader_reset());
+  ck("0x41 open", selftest_ok(upload_open(2, 1, 2, 512)));
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x42);
   f_u8(2);
   add_obj_record(0, 1, VM_OBJ_B, VM_OBJ_F_MUTABLE, NULL);
   add_obj_record(1, 1, VM_OBJ_B, VM_OBJ_F_MUTABLE, NULL);
-  ck("0x42 objects", f_send() == NULL);
+  ck("0x42 objects", selftest_ok(f_send()));
 
   f_begin(VM_LOADER_CLASS_HEADER, 0x44);
   f_u8(1);
@@ -546,7 +546,7 @@ void test_palette(void) {
   f_u16(0);
   f_u8(0);
   f_u8(0);
-  ck("0x44 accessor", f_send() == NULL);
+  ck("0x44 accessor", selftest_ok(f_send()));
 
   uint16_t ins[1]  = {0};
   uint16_t outs[1] = {1};
@@ -555,15 +555,15 @@ void test_palette(void) {
      then being silently skipped on every pass -- a program that runs, reports
      nothing, and does less than it says. */
   add_block_record(0, 0, 200, ins, 1, outs, 1, VM_BLOCK_NO_ID, VM_BLOCK_NO_ID, NULL, 0);
-  ck("a block_type nothing registered -> UNKNOWN_TYPE", f_send() != NULL && vm_block_get_by_id(0) == NULL);
+  ck("a block_type nothing registered -> UNKNOWN_TYPE", !selftest_ok(f_send()) && vm_block_get_by_id(0) == NULL);
   ck("a refused block costs no arena", vm_block_get_by_id(0) == NULL);
 
   add_block_record(0, 0, VM_BLK_EXPR, ins, 1, outs, 1, VM_BLOCK_NO_ID, VM_BLOCK_NO_ID, NULL, 0);
-  ck("a registered type is accepted", f_send() == NULL && vm_block_get_by_id(0) != NULL);
+  ck("a registered type is accepted", selftest_ok(f_send()) && vm_block_get_by_id(0) != NULL);
 
   /* Private state is the type's own business, so any length loads. The block
      is the only thing that knows what those bytes mean. */
   uint8_t custom[4] = {1, 2, 3, 4};
   add_block_record(1, 1, VM_BLK_EXPR, ins, 1, outs, 1, VM_BLOCK_NO_ID, VM_BLOCK_NO_ID, custom, 4);
-  ck("private state of any length loads -- nothing describes it yet", f_send() == NULL && vm_block_get_by_id(1) != NULL);
+  ck("private state of any length loads -- nothing describes it yet", selftest_ok(f_send()) && vm_block_get_by_id(1) != NULL);
 }

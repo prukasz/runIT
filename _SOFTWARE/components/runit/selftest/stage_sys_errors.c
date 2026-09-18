@@ -2,7 +2,6 @@
 #include "enc_sys_errors.h"
 #include "runit_board_defs.h"
 #include "sys_error.h"
-#include "sys_error_config.h"
 #include "sys_error_log.h"
 #include "sys_data_connector.h"
 
@@ -43,13 +42,13 @@ static bool read_node(const uint8_t* pkt, size_t len, size_t* off, uint16_t* out
 }
 
 void test_sys_error_ownership(void) {
-  ESP_LOGI(TAG, "--- sys_error queue stable ownership tests ---");
+  ESP_LOGI(TAG, "--- sys_error synchronous ownership tests ---");
 
   // Register selftest provider and bind it to CONN_ID_ERRORS
-  sys_data_connector_register_provider(&s_error_test_driver);
+  SE_release(sys_data_connector_register_provider(&s_error_test_driver));
   sys_data_connector_t* err_conn = sys_data_connector_get(CONN_ID_ERRORS);
   memset(&s_ctx, 0, sizeof(s_ctx));
-  sys_data_connector_bind_tx(err_conn, TEST_PROVIDER_ID, &s_ctx);
+  SE_release(sys_data_connector_bind_tx(err_conn, TEST_PROVIDER_ID, &s_ctx));
 
   // 1. Build an error chain: ERR_ESP_ERR <- ERR_DEV_DEP_FAILED <- ERR_DEP_FAILED
   err_h leaf = SE_ERR_NEW(ERR_ESP_ERR, .esp_code = TEST_ESP_CODE);
@@ -67,8 +66,8 @@ void test_sys_error_ownership(void) {
   ck("errors connector prepends its framing header", frame_ok);
   const uint8_t* packet = s_ctx.last_packet + 1;
   size_t packet_len = s_ctx.last_len > 0 ? s_ctx.last_len - 1 : 0;
-  bool header_ok = frame_ok && packet_len >= ENC_SYS_ERRORS_HDR_LEN && packet[0] == ENC_SYS_ERRORS_FMT_VERSION &&
-                   packet[1] == 3 && packet[2] == 3;
+  bool header_ok = frame_ok && packet_len >= ENC_SYS_ERRORS_HDR_LEN &&
+                   packet[0] == 3 && packet[1] == 3;
   ck("packet header reports 3 of 3 nodes", header_ok);
 
   size_t off = ENC_SYS_ERRORS_HDR_LEN;
@@ -92,6 +91,9 @@ void test_sys_error_ownership(void) {
   ck("dispatched dev_id is intact", walk_ok && dev_payload.dev_id == TEST_DEV_ID);
   ck("leaf payload matches original esp_code", walk_ok && esp_payload.esp_code == TEST_ESP_CODE);
 
+  SE_release(send_err);
+  SE_release(top);
+
   // Unbind selftest provider from CONN_ID_ERRORS
-  sys_data_connector_unbind_tx(err_conn, TEST_PROVIDER_ID);
+  SE_release(sys_data_connector_unbind_tx(err_conn, TEST_PROVIDER_ID));
 }

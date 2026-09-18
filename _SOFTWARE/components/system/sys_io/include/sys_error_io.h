@@ -50,5 +50,3 @@
 #define LOG_BODY_ERR_IO_PIN_LOCKED(p, out, out_size) snprintf((out), (out_size), "pin %u on device %u is locked (protected_pins)", (p)->pin_id, (p)->dev_id)
 #define LOG_BODY_ERR_IO_PIN_MODE_UNSUPPORTED(p, out, out_size) \
   snprintf((out), (out_size), "pin %u on device %u doesn't support mode %u", (p)->pin_id, (p)->dev_id, (p)->mode)
-
-extern err_h sys_io_report_fault(err_h node, err_h chain) __attribute__((weak));

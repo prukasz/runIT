@@ -130,7 +130,7 @@ static int gap_event_handler(struct ble_gap_event* event, void* arg) {
       } else {
         ESP_LOGW(TAG, "Connection failed: err = %d", event->connect.status);
         SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, ESP_FAIL);
-        sys_ble_advertising_init();
+        SE_release(sys_ble_advertising_init());
       }
       return 0;
 
@@ -156,7 +156,7 @@ static int gap_event_handler(struct ble_gap_event* event, void* arg) {
       R_MUTEX_UNLOCK(sys_ble_mutex);
 
       SYS_BLE_CB(SYS_BLE_EVENT_DISCONNECT, reason);
-      sys_ble_reconfigure_advertising();
+      SE_release(sys_ble_reconfigure_advertising());
       break;
     }
 
@@ -165,7 +165,7 @@ static int gap_event_handler(struct ble_gap_event* event, void* arg) {
       return 0;
 
     case BLE_GAP_EVENT_ADV_COMPLETE:
-      sys_ble_advertising_init();
+      SE_release(sys_ble_advertising_init());
       return 0;
 
     case BLE_GAP_EVENT_NOTIFY_TX:
@@ -240,7 +240,7 @@ static err_h sys_ble_set_name(const char* name) {
   int res = ble_svc_gap_device_name_set(name);
   if (res == 0) {
     if (ble_hs_synced()) {
-      sys_ble_reconfigure_advertising();
+      SE_release(sys_ble_reconfigure_advertising());
     }
     ESP_LOGI(TAG, "Name set to %s", name);
     return NULL;
@@ -263,7 +263,7 @@ err_h sys_ble_stack_init(struct ble_gatt_svc_def* svcs) {
   CHECK_BLE_CALL(ble_gatts_add_svcs(svcs));
 
   nimble_port_freertos_init(nimble_host_task);
-  sys_ble_set_name("runit");
+  SE_release(sys_ble_set_name("runit"));
 
   R_TASK_START_ON_CORE(m_ble_task, &sys_ble_task_func, &g_ble_ctx, CONFIG_SYS_BLE_MANAGER_TASK_PRIO, 0);
   return NULL;
@@ -309,7 +309,7 @@ static int sys_ble_gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle, st
       err_h push_err = sys_ble_rx_enqueue(char_node, data_buffer, copy_len);
       R_MUTEX_UNLOCK(sys_ble_mutex);
       if (SE_IS_ERR(push_err)) {
-        if (push_err->tag == ERR_BASE_INVALID_STATE) return BLE_ATT_ERR_WRITE_NOT_PERMITTED;
+        if (push_err->tag == ERR_BASE_INVALID_STATE) { SE_release(push_err); return BLE_ATT_ERR_WRITE_NOT_PERMITTED; }
         ESP_LOGW(TAG, "RX buffer overflow on char uuid 0x%04X", char_uuid);
         SE_ORIGIN_CALL(push_err);
         SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, ESP_FAIL);
@@ -434,7 +434,10 @@ static size_t dequeue_tx(uint8_t* data, size_t capacity, uint16_t* val_handle, b
     LL_FOREACH(s->chars, c) {
       if (c->pending_remove || c->pending_add || !c->tx_buff.buff || !c->val_handle || !c->is_subscribed) continue;
       size_t len = 0;
-      if (sys_buff_pop(&c->tx_buff, data, max_payload, &len) == NULL && len) {
+      err_h error = sys_buff_pop(&c->tx_buff, data, max_payload, &len);
+      bool ok = error == NULL;
+      SE_release(error);
+      if (ok && len) {
         *val_handle = c->val_handle;
         *indicate = c->cfg.is_indicate;
         return len;

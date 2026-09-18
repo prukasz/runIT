@@ -37,8 +37,3 @@ err_h vm_obj_not_ptr_err(vm_obj_h obj, uint8_t actual);
 
 err_h vm_block_err_pin_missing(uint16_t block_idx, uint8_t pin_id, bool is_out);
 err_h vm_block_err_pin_unlinked(uint16_t block_idx, uint8_t pin_id, bool is_out);
-
-/**
- * @brief Weak domain error hook for VM faults.
- */
-extern err_h sys_vm_report_fault(err_h node, err_h chain) __attribute__((weak));

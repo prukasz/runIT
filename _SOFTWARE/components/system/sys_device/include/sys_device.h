@@ -65,6 +65,9 @@ typedef enum sys_device_state_e {
  * Determines whether error handling is active (NONE disables it) and caps
  * the maximum error severity that this device can escalate to.
  */
+#define SYS_DEV_ACTION_DYNAMIC 0x100u
+#define SYS_DEV_ACTION_ID_MASK 0xffu
+
 typedef enum sys_device_importance_e {
   SYS_DEV_IMPORTANCE_NONE = 0,
   SYS_DEV_IMPORTANCE_LOW = 1,
@@ -93,7 +96,7 @@ typedef enum sys_device_fault_stage_e {
  */
 err_h sys_device_app_error_policy(uint8_t device_id,
                                   sys_device_err_level_e level,
-                                  uint8_t action_id,
+                                  uint16_t action_id,
                                   err_h error);
 
 /**
@@ -112,7 +115,7 @@ typedef struct sys_device_t {
   /**
    * @brief Per-instance error handling mode - see sys_device_report_error().
    */
-  uint8_t actions[5];           /* sys_actions ids indexed by sys_device_err_level_e */
+  uint8_t actions[5];           /* slot 0: dynamic-scope mask (bits LOW..CRITICAL); slots 1..4: IDs */
   sys_device_importance_e importance; /* NONE disables error handling; clamps max error level */
 } sys_device_t;
 
@@ -158,7 +161,7 @@ sys_device_t* sys_device_get_by_id(uint8_t device_id);
 /**
  * @brief Report an error that occurred on device_id to the centralized error policy.
  *
- * The fault severity level is determined automatically from the root error's tag
+ * The fault severity level is determined automatically from the supplied error node's tag
  * (via SE_get_tag_level()).
  *
  * If dev->importance is SYS_DEV_IMPORTANCE_NONE, all error handling is ignored
@@ -194,7 +197,8 @@ bool sys_device_is_ignored(uint8_t device_id);
  * @param device_id Target device; must already be registered.
  * @param importance New value for sys_device_t.importance (NONE disables handling).
  * @param actions Copied into dev->actions[5]; each entry must be
- *                < CONFIG_SYS_ACTIONS_ID_SPACE. Pass NULL to leave
+ *                an ID in its selected static/dynamic scope. actions[0] holds
+ *                scope bits 0..3 for LOW..CRITICAL (1 = dynamic). Pass NULL to leave
  *                actions[] zeroed (equivalent to {0, 0, 0, 0, 0}).
  * @return err_h NULL on success, ERR_DEV_NOT_FOUND if device_id isn't
  *               registered, or ERR_INVALID_VAL_UI32 if an actions[] entry is
@@ -226,7 +230,7 @@ err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e i
  * ========================================================================== */
 #define SYS_DEV_CHECK_DRIVER_CALL(driver_call, ctx) RET_IF_DEV_ERR(SE_CONVERT_ESP(driver_call), (ctx))
 #define RET_IF_DEV_ERR(err_ptr, ctx) SE_PASS_ON_ERR((err_ptr), ERR_DEV_DEP_FAILED, .dev_id = (ctx)->base.device_id)
-#define RET_IF_DEV_INSTALL_FAIL(err_ptr, device_id) SE_PASS_ON_ERR((err_ptr), ERR_DEV_DEP_FAILED, .dev_id = (device_id))
+#define RET_IF_DEV_INSTALL_FAIL(err_ptr, device_id) SE_PASS_ON_ERR((err_ptr), ERR_DEV_INSTALL_FAILED, .dev_id = (device_id))
 
 #define SYS_DEV_CHECK_HANDLE(handle, dev_id)   \
   do {                                         \
@@ -275,15 +279,15 @@ err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e i
  * Integrated error handling
  */
 
-#define SYS_DEV_DISPATCH(dev_id, contract_enum, contract_type, func_name, ...)           \
+#define SYS_DEV_DISPATCH(device_id_arg, contract_enum, contract_type, func_name, ...)           \
   do {                                                                                   \
-    sys_device_t* __disp_dev = sys_device_get_by_id((dev_id));                           \
-    SYS_DEV_REQUIRE_ACTIVE(__disp_dev, (dev_id));                                        \
+    sys_device_t* __disp_dev = sys_device_get_by_id((device_id_arg));                           \
+    SYS_DEV_REQUIRE_ACTIVE(__disp_dev, (device_id_arg));                                        \
     contract_type* __vtable = (contract_type*)__disp_dev->cls->contracts[contract_enum]; \
     if (__vtable == NULL || __vtable->func_name == NULL) {                               \
-      SE_RET_ERR(ERR_DEV_FEATURE_UNAVAILABLE, (dev_id), (uint8_t)(contract_enum), 0);    \
+      SE_RET_ERR(ERR_DEV_FEATURE_UNAVAILABLE, (device_id_arg), (uint8_t)(contract_enum), 0);    \
     }                                                                                    \
-    SE_RET_IF_ERR(__vtable->func_name(__disp_dev->device_handle, ##__VA_ARGS__));        \
+    SE_PASS_ON_ERR(__vtable->func_name(__disp_dev->device_handle, ##__VA_ARGS__), ERR_DEV_DEP_FAILED, .dev_id = (device_id_arg));        \
     return NULL;                                                                         \
   } while (0)
 
@@ -308,7 +312,7 @@ err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e i
     if ((ctx) != NULL) {                                                                                \
       ESP_LOGW(TAG, "Install failed for device %u, rolling back partial state", (unsigned)(device_id)); \
       SE_suspend();                                                                                     \
-      (uninstall_fn)((ctx));                                                                            \
+      SE_release((uninstall_fn)((ctx)));                                                                            \
       SE_resume();                                                                                      \
     }                                                                                                   \
     RET_IF_DEV_INSTALL_FAIL((err), (device_id));                                                        \
@@ -346,5 +350,5 @@ err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e i
 #define SYS_DEV_TEARDOWN_STEP(err_acc, expr)                  \
   do {                                                        \
     err_h __r = (expr);                                       \
-    if (SE_IS_ERR(__r) && SE_IS_OK(err_acc)) (err_acc) = __r; \
+    if (SE_IS_ERR(__r) && SE_IS_OK(err_acc)) (err_acc) = __r; else SE_release(__r); \
   } while (0)

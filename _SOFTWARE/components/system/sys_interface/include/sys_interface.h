@@ -160,8 +160,3 @@ bool sys_interface_is_rx_suspended(void);
  * @return err_h NULL on success, ERR_NULL_PTR if data is NULL, or ERR_BASE_NOT_FOUND if connector unallocated.
  */
 err_h sys_interface_send(const void* data, size_t len);
-
-/**
- * @brief Weak domain error hook for Interface faults.
- */
-extern err_h sys_interface_report_fault(err_h node, err_h chain) __attribute__((weak));

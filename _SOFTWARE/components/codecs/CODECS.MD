@@ -145,8 +145,8 @@ err_h enc_sys_errors_encode_chain(err_h chain, uint8_t* out_buf, size_t out_max,
 ### Wire format
 
 ```
-+--------- packet header (3 B) ---------+
-| u8 version | u8 node_count | u8 depth |
++--------- packet header (6 B) ---------+
+| u8 node_count | u8 depth | u32 schema |
 +---------------------------------------+
 | node[0] | node[1] | ... | node[n-1]   |
 +---------------------------------------+
@@ -159,7 +159,6 @@ node record:
 
 | Field | Meaning |
 | :--- | :--- |
-| `version` | `ENC_SYS_ERRORS_FMT_VERSION` — bumped on any layout change. |
 | `node_count` | Node records present in this packet. |
 | `depth` | Full length of the walked chain. `depth > node_count` ⇒ truncated (buffer full, or `ENC_SYS_ERRORS_MAX_NODES` = 16 reached). |
 | `payload_len` | `SE_get_payload_size(tag)`, repeated on the wire so a client with a stale tag table can still skip an unknown node. |

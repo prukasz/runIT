@@ -234,7 +234,7 @@ err_h sys_data_connector_unbind_rx(sys_data_connector_t* conn, uint8_t provider_
     if (conn->rx_provider_id[i] == provider_id) {
       void* arg = conn->rx_provider_arg[i];
       if (prov && prov->unbind_rx) {
-        (void)prov->unbind_rx(arg, conn);
+        SE_release(prov->unbind_rx(arg, conn));
       }
 
       for (uint8_t j = i; j + 1 < conn->rx_count; j++) {
@@ -306,7 +306,6 @@ err_h sys_data_connector_receive(sys_data_connector_t* conn, uint8_t* buf, size_
 
     err_h dq_err = prov->dequeue(conn->rx_provider_arg[i], buf, max_len, out_len);
     if (SE_IS_ERR(dq_err)) {
-      SE_ORIGIN_CALL(dq_err);
       return dq_err;
     }
 

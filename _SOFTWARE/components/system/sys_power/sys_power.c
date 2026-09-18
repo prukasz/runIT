@@ -37,7 +37,7 @@ static void sys_power_cb_dummy_log(const cb_event_t* event) {
 }
 
 __attribute__((constructor)) static void sys_power_cb_route_register(void) {
-  sys_cb_register_route(SYS_CB_ROUTE_PWR, sys_power_cb_dummy_log);
+  SE_release(sys_cb_register_route(SYS_CB_ROUTE_PWR, sys_power_cb_dummy_log));
 }
 
 static uint32_t s_power_limit_mv = CONFIG_SYS_POWER_DEFAULT_LIMIT_MV;
@@ -145,7 +145,7 @@ err_h sys_vreg_set_voltage(uint8_t device_id, uint32_t voltage_mV) {
       p_dev->allocated_mW = requested_mW;
       return NULL;
     }
-    SE_RET_IF_ERR(hw_status);
+    SE_PASS_ON_ERR(hw_status, ERR_DEV_DEP_FAILED, .dev_id = device_id);
   }
 
   SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);
@@ -178,7 +178,7 @@ err_h sys_vreg_set_current(uint8_t device_id, uint32_t current_mA) {
       p_dev->allocated_mW = requested_mW;
       return NULL;
     }
-    SE_RET_IF_ERR(hw_status);
+    SE_PASS_ON_ERR(hw_status, ERR_DEV_DEP_FAILED, .dev_id = device_id);
   }
 
   SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);
@@ -242,10 +242,10 @@ err_h sys_power_usb_pd_get_limits(uint8_t device_id, uint32_t* out_mV, uint32_t*
   IF_SYS_DEV_AND_FEATURE(device_id, SYS_DEVICE_CONTRACT_POWER_USB_PD, sys_power_usb_pd_contract, get_limits, dev_ptr, usb_pd) {
     err_h err = usb_pd->get_limits(dev_ptr->device_handle, out_mV, out_mA);
     if (SE_IS_OK(err)) {
-      sys_power_budget_update_source(*out_mV, *out_mA);
+      SE_release(sys_power_budget_update_source(*out_mV, *out_mA));
       return NULL;
     }
-    SE_RET_IF_ERR(err);
+    SE_PASS_ON_ERR(err, ERR_DEV_DEP_FAILED, .dev_id = device_id);
   }
   SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);
 }

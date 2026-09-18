@@ -17,7 +17,7 @@
     __cb_evt.event.io.pin_id = (_pin);                                  \
     __cb_evt.event.io.trigger_event = (_event);                         \
     __cb_evt.event.io.trigger_value = (_value);                         \
-    sys_callback_trigger(&__cb_evt);                                    \
+    SE_release(sys_callback_trigger(&__cb_evt));                                    \
   } while (0)
 
 #define VERIFY_PIN(dev_id, pin, pinmask)                   \
@@ -191,8 +191,3 @@ err_h sys_io_set_pwm_duty(uint8_t device_id, sys_io_pin_num_t pin, uint32_t duty
 
 extern const char* const sys_io_mode_e_to_string[];
 extern const char* const sys_io_intr_mode_e_to_string[];
-
-/**
- * @brief Weak domain error hook for IO faults.
- */
-extern err_h sys_io_report_fault(err_h node, err_h chain) __attribute__((weak));

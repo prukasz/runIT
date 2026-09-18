@@ -34,7 +34,7 @@ typedef enum sys_ble_events_e { SYS_BLE_EVENT_CONNECT = 0, SYS_BLE_EVENT_DISCONN
     __cb_evt.head.route_mask = SYS_CB_ROUTE_BIT(SYS_CB_ROUTE_BLE) | SYS_CB_ROUTE_BIT(SYS_CB_ROUTE_VM); \
     __cb_evt.event.ble.event = (event_id);                    \
     __cb_evt.event.ble.value = (event_value);                 \
-    sys_callback_trigger(&__cb_evt);                          \
+    SE_release(sys_callback_trigger(&__cb_evt));                          \
   } while (0)
 
 typedef struct {
@@ -171,8 +171,3 @@ err_h sys_ble_database_sync(void);
  * @return err_h Status report (NULL on success, or error status).
  */
 err_h sys_ble_get_status(sys_ble_status_t* out_status);
-
-/**
- * @brief Weak domain error hook for BLE faults.
- */
-extern err_h sys_ble_report_fault(err_h node, err_h chain) __attribute__((weak));

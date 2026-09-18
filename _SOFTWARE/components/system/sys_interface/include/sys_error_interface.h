@@ -38,5 +38,3 @@
   snprintf((out), (out_size), "no free class slots left (registering 0x%02X)", (p)->class_header)
 #define LOG_BODY_ERR_INTERFACE_ENC_BUF_TOO_SMALL(p, out, out_size) \
   snprintf((out), (out_size), "encode buffer too small: got %lu bytes, need %lu", (unsigned long)(p)->got, (unsigned long)(p)->need)
-
-extern err_h sys_interface_report_fault(err_h node, err_h chain) __attribute__((weak));

@@ -160,6 +160,7 @@ esp_err_t ap33772s_start(ap33772s_handle_t handle) {
   err_h init_status = sys_i2c_add_driver(handle);
   if ((init_status != NULL)) {
     ESP_LOGE(TAG, "I2C Manager rejected AP33772S on bus %d", handle->header.bus_num);
+    SE_release(init_status);
     return ESP_FAIL;
   }
 

@@ -393,7 +393,7 @@ static err_h device_uninstall(void* handle) {
   for (int i = 0; i < GPIO_NUM_MAX; i++) {
     if (configured_pins & (1ULL << i)) {
       err_h r = contract_io_gpio_esp_reset_pin(ctx, i);
-      if (SE_IS_ERR(r)) err = r;
+      if (SE_IS_ERR(r) && !err) err = r; else SE_release(r);
     }
   }
 

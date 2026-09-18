@@ -102,8 +102,3 @@ err_h sys_action_record_start(uint8_t id);
  * No-op (returns NULL) if no action is currently recording.
  */
 err_h sys_action_record_stop(void);
-
-/**
- * @brief Weak domain error hook for Actions faults.
- */
-extern err_h sys_actions_report_fault(err_h node, err_h chain) __attribute__((weak));

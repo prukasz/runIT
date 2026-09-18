@@ -20,7 +20,7 @@ static void sys_io_cb_dummy_log(const cb_event_t* event) {
 }
 
 __attribute__((constructor)) static void sys_io_cb_route_register(void) {
-  sys_cb_register_route(SYS_CB_ROUTE_IO, sys_io_cb_dummy_log);
+  SE_release(sys_cb_register_route(SYS_CB_ROUTE_IO, sys_io_cb_dummy_log));
 }
 
 // Custom dispatch macro that enforces the protected_pins check
@@ -40,7 +40,7 @@ __attribute__((constructor)) static void sys_io_cb_route_register(void) {
       if (vtable_ptr->protected_pins & (1ULL << (pin_num))) {                                                 \
         SE_RET_ERR(ERR_IO_PIN_LOCKED, dev_id, pin_num);                                                       \
       }                                                                                                       \
-      SE_RET_IF_ERR(vtable_ptr->func_name(dev_ptr->device_handle, pin_num, ##__VA_ARGS__));                   \
+      SE_PASS_ON_ERR(vtable_ptr->func_name(dev_ptr->device_handle, pin_num, ##__VA_ARGS__), ERR_DEV_DEP_FAILED, (dev_id));                   \
       return NULL;                                                                                            \
     }                                                                                                         \
     SE_RET_ERR(ERR_DEV_FEATURE_UNAVAILABLE, dev_id, SYS_DEVICE_CONTRACT_IO, (uint8_t)(feature_id));           \

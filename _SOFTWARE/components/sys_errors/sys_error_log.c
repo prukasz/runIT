@@ -3,7 +3,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include "enc_sys_errors.h"
-#include "sys_error_config.h"
 #include "sys_data_connector.h"
 #include "utils.h"
 
@@ -25,7 +24,7 @@ static struct {
 // Re-entrancy guard, not a lock: log send paths (e.g. transport send)
 // may log on their own error paths, and that log would come straight back here.
 // A nested call finds the flag set and takes the serial-only path instead of recursing.
-static volatile bool s_in_log_sink = false;
+static __thread bool s_in_log_sink;
 
 // -----------------------------------------------------------------------------
 // Error Chain Expansion (Direct Connector Send)
@@ -38,22 +37,12 @@ void se_log_error_chain(err_h chain) {
 
   char     desc[SE_LOG_LINE_MAX];
   char     line[SE_LOG_LINE_MAX];
-  uint32_t depth = 0;
+  err_h nodes[SE_MAX_CHAIN_DEPTH];
+  bool complete;
+  size_t count = SE_collect_chain(chain, nodes, &complete);
 
-  for (err_h node = chain; node != NULL && depth < SE_MAX_CHAIN_DEPTH; node = node->next_cause, depth++) {
-    if (!SE_is_valid_error_ptr(node)) {
-      int len = snprintf(line, sizeof(line), "[%u] <corrupt or out-of-bounds error node: %p>\n", (unsigned)depth, (void*)node);
-      if (len > 0) {
-        size_t out_len = ((size_t)len < sizeof(line)) ? (size_t)len : sizeof(line) - 1u;
-        sys_data_connector_send(sys_data_connector_get(SE_CONNECTOR_ID_LOGS), line, out_len);
-      }
-      if (s_log_state.mirror_on_serial) {
-        s_in_log_sink = true;
-        ESP_LOGE(TAG, "%s", line);
-        s_in_log_sink = false;
-      }
-      break;
-    }
+  for (size_t depth = 0; depth < count; ++depth) {
+    err_h node = nodes[depth];
     if (!SE_describe_payload(node->tag, node->payload, desc, sizeof(desc))) {
       size_t  payload_len = SE_get_payload_size(node->tag);
       uint8_t dump_len    = (payload_len < 32u) ? (uint8_t)payload_len : 32u;
@@ -71,10 +60,15 @@ void se_log_error_chain(err_h chain) {
       sys_data_connector_send(sys_data_connector_get(SE_CONNECTOR_ID_LOGS), line, out_len);
     }
     if (s_log_state.mirror_on_serial) {
+      bool previous = s_in_log_sink;
       s_in_log_sink = true;
       ESP_LOGE(TAG, "%s", line);
-      s_in_log_sink = false;
+      s_in_log_sink = previous;
     }
+  }
+  if (!complete) {
+    const char warning[] = "<error chain truncated or corrupt>\n";
+    sys_data_connector_send(sys_data_connector_get(SE_CONNECTOR_ID_LOGS), warning, sizeof(warning) - 1);
   }
 }
 
@@ -154,8 +148,10 @@ err_h SE_send_error_raw(err_h chain) {
 // -----------------------------------------------------------------------------
 
 err_h SE_send(err_h chain) {
-  if (!chain) return NULL;
-
+  if (!chain || s_in_log_sink) return NULL;
+  s_in_log_sink = true;
   se_log_error_chain(chain);
-  return SE_send_error_raw(chain);
+  err_h result = SE_send_error_raw(chain);
+  s_in_log_sink = false;
+  return result;
 }

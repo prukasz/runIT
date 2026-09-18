@@ -210,6 +210,7 @@ esp_err_t ina3221_start(ina3221_handle_t handle) {
   err_h init_status = sys_i2c_add_driver(&handle->header);
   if ((init_status != NULL)) {
     ESP_LOGE(TAG, "I2C Manager rejected INA3221 on bus %d", handle->header.bus_num);
+    SE_release(init_status);
     return ESP_FAIL;
   }
 

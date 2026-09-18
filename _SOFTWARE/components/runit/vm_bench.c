@@ -16,6 +16,7 @@
 #include "vm_obj_build.h"
 
 #define OWNER OWNER_VM_BASE
+static bool selftest_ok(err_h e) { bool ok = e == NULL; SE_release(e); return ok; }
 
 static const char* TAG = "vm_bench";
 
@@ -164,7 +165,7 @@ static bool setup(void) {
      accessor carries its resolution cache, so 203 of them cost 20 B each
      rather than 8. The old figure left ~4 bytes. */
   s_next_acc = 0;
-  s_ok = vm_store_open(16384, counts) == NULL;
+  s_ok = selftest_ok(vm_store_open(16384, counts));
 
   char rowname[GRID_N][3];
   for (int r = 0; r < GRID_N; r++) {
@@ -343,7 +344,7 @@ static float bench_flat_literal(void) {
   float acc = 0;
   for (int i = 0; i < CELLS; i++) {
     float v = 0;
-    if (VM_OBJ_SCALAR_GET(v, s_flat_acc[i]) == NULL) acc += v;
+    if (selftest_ok(VM_OBJ_SCALAR_GET(v, s_flat_acc[i]))) acc += v;
   }
   return acc;
 }
@@ -353,7 +354,7 @@ static float bench_grid_literal(void) {
   float acc = 0;
   for (int i = 0; i < CELLS; i++) {
     float v = 0;
-    if (VM_OBJ_SCALAR_GET(v, s_grid_acc[i]) == NULL) acc += v;
+    if (selftest_ok(VM_OBJ_SCALAR_GET(v, s_grid_acc[i]))) acc += v;
   }
   return acc;
 }
@@ -368,7 +369,7 @@ static float bench_grid_ref(void) {
     for (int c = 0; c < GRID_N; c++) {
       *(uint8_t*)s_csel->payload = (uint8_t)c;
       float v = 0;
-      if (VM_OBJ_SCALAR_GET(v, s_ref_acc) == NULL) acc += v;
+      if (selftest_ok(VM_OBJ_SCALAR_GET(v, s_ref_acc))) acc += v;
     }
   }
   return acc;
@@ -380,7 +381,7 @@ static float bench_grid_name(void) {
   float acc = 0;
   for (int i = 0; i < CELLS; i++) {
     float v = 0;
-    if (VM_OBJ_SCALAR_GET(v, s_name_acc[i]) == NULL) acc += v;
+    if (selftest_ok(VM_OBJ_SCALAR_GET(v, s_name_acc[i]))) acc += v;
   }
   return acc;
 }
@@ -391,7 +392,7 @@ static float bench_row_payload(void) {
   float acc = 0;
   for (int r = 0; r < GRID_N; r++) {
     vm_obj_h row = NULL;
-    if (vm_obj_get_obj(&row, s_row_acc[r]) != NULL) continue;
+    if (!selftest_ok(vm_obj_get_obj(&row, s_row_acc[r]))) continue;
     vm_obj_payload_t p = vm_make_payload(row);
     for (uint16_t i = 0; i < p.count; i++) {
       float v = 0;
@@ -411,7 +412,7 @@ static float bench_grid_write(void) {
   float acc = 0;
   for (int i = 0; i < CELLS; i++) {
     float v = (float)i;
-    if (VM_OBJ_SET_SCALAR(v, s_grid_acc[i]) == NULL) acc += 1.0f;
+    if (selftest_ok(VM_OBJ_SET_SCALAR(v, s_grid_acc[i]))) acc += 1.0f;
   }
   return acc;
 }

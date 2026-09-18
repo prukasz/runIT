@@ -9,6 +9,7 @@ void app_main(void) {
   err_h err = runit_start();
   if (err != NULL) {
     ESP_LOGE(TAG, "runIT startup failed; system halted in safe state");
+    SE_release(err);
   }
   while (1) {
     vTaskDelay(portMAX_DELAY);

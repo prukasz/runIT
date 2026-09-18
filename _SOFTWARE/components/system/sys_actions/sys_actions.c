@@ -160,7 +160,7 @@ static void sys_actions_on_frame_locked(const uint8_t* frame, size_t len) {
 
   if (s_has_recording) {
     /** Recording is best-effort once the configured blob limit is reached. */
-    (void)grow_and_append(&s_recording, frame, len);
+    SE_release(grow_and_append(&s_recording, frame, len));
   }
 }
 

@@ -276,7 +276,10 @@ const StreamDecoder = (function () {
     const nodeCount = view.getUint8(1);
     const depth = view.getUint8(2);
 
-    let offset = 3;
+    if (version !== 1 && version !== 2) throw new Error(`Unsupported error format ${version}`);
+    if (version === 2 && bytes.length < 7) throw new Error("Truncated v2 error header");
+    const schemaId = version === 2 ? view.getUint32(3, true) : null;
+    let offset = version === 2 ? 7 : 3;
     const nodes = [];
 
     for (let i = 0; i < nodeCount && offset + 5 <= bytes.length; i++) {
@@ -290,7 +293,7 @@ const StreamDecoder = (function () {
         break;
       }
 
-      const tagDef = ERROR_TAG_DEFINITIONS[tag] || {
+      const tagDef = (version === 1 ? ERROR_TAG_DEFINITIONS[tag] : null) || {
         name: `ERR_TAG_0x${tag.toString(16).toUpperCase()}`,
         unpack: (v, off, len) => ({ rawBytes: Array.from(bytes.slice(off, off + len)) }),
         format: (p) => `Raw error tag 0x${tag.toString(16).toUpperCase()}`
@@ -337,9 +340,11 @@ const StreamDecoder = (function () {
 
     return {
       version: version,
+      schemaId: schemaId,
+      schemaKnown: version === 1,
       nodeCount: nodeCount,
       depth: depth,
-      isTruncated: depth > nodeCount,
+      isTruncated: depth > nodeCount || nodes.length < nodeCount,
       nodes: nodes,
       rawHex: Array.from(bytes).map(b => ("00" + b.toString(16).toUpperCase()).slice(-2)).join(" ")
     };

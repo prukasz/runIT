@@ -46,6 +46,12 @@ typedef struct {
   bool enabled;
 } selftest_stage_t;
 
+static inline bool selftest_ok(err_h error) {
+  bool ok = error == NULL;
+  SE_release(error);
+  return ok;
+}
+
 // Assertion reporting
 void selftest_ck(const char* what, bool ok);
 #define ck(what, ok) selftest_ck(what, ok)

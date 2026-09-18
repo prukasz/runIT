@@ -18,8 +18,8 @@
  * transport provider. Receivers consume that byte before decoding this format.
  *
  * @code
- *   +--------- packet header (3 B) ---------+
- *   | u8 version | u8 node_count | u8 depth |
+ *   +--------- packet header (6 B) ---------+
+ *   | u8 node_count | u8 depth | u32 schema_id LE |
  *   +---------------------------------------+
  *   | node[0] | node[1] | ... | node[n-1]   |   node_count records, back-to-back
  *   +---------------------------------------+
@@ -32,9 +32,8 @@
  *
  * | Field | Meaning |
  * | :--- | :--- |
- * | `version` | `ENC_SYS_ERRORS_FMT_VERSION` — bumped on any layout change. |
  * | `node_count` | Node records actually present in this packet. |
- * | `depth` | Full length of the chain that was walked. `depth > node_count` means the packet was truncated (buffer full, or the chain hit `ENC_SYS_ERRORS_MAX_NODES`). |
+ * | `depth` | Full length, or 255 when the chain is corrupt or exceeds the traversal limit. `depth > node_count` means the packet was truncated (buffer full, or the chain hit `ENC_SYS_ERRORS_MAX_NODES`). |
  * | `payload_len` | `sizeof(err_payload_<TAG>_t)` — repeated on the wire so a client with a stale tag table can still skip an unknown node. |
  * | `tag` | `err_tag_e` value. |
  * | `owner` | `sys_owner_e` value. |
@@ -63,11 +62,8 @@
 #undef OWNER
 #define OWNER OWNER_ENC_SYS_ERRORS
 
-/** @brief Wire format revision — bump whenever the layout below changes. */
-#define ENC_SYS_ERRORS_FMT_VERSION 0x01
-
-/** @brief Fixed packet header: version + node_count + depth. */
-#define ENC_SYS_ERRORS_HDR_LEN 3u
+/** @brief Fixed packet header: node_count + depth + schema ID. */
+#define ENC_SYS_ERRORS_HDR_LEN 6u
 
 /** @brief Per-node fixed header: payload_len + tag(u16) + owner(u16). */
 #define ENC_SYS_ERRORS_NODE_HDR_LEN 5u
@@ -75,11 +71,10 @@
 /**
  * @brief Hard stop on chain traversal.
  *
- * Error nodes live in a lock-free ring with no free (see SYS_ERRORS.MD), so a
- * chain held for too long can have a `next_cause` overwritten into a cycle.
- * This cap guarantees the walk always terminates.
+ * Shared bound for validation, dispatch and diagnostics. Live allocations are
+ * owned until released; this cap also rejects corrupt or cyclic chains.
  */
-#define ENC_SYS_ERRORS_MAX_NODES 16u
+#define ENC_SYS_ERRORS_MAX_NODES SE_MAX_CHAIN_DEPTH
 
 /** @brief Smallest buffer that can hold the header plus one zero-payload node. */
 #define ENC_SYS_ERRORS_MIN_BUF (ENC_SYS_ERRORS_HDR_LEN + ENC_SYS_ERRORS_NODE_HDR_LEN)
@@ -95,8 +90,8 @@
  *
  * @note Every error this function can raise is raised *before* the chain is
  * walked (except the "not even one node fit" case, checked after). That matters:
- * `SE_*` macros allocate from the same ring the chain lives in, so allocating
- * mid-walk could clobber the very nodes being encoded.
+ * `SE_*` macros allocate an owned failure; the caller must release it. The
+ * input chain remains borrowed and cannot be overwritten by allocation.
  *
  * @param chain Error chain to encode (must not be NULL).
  * @param out_buf Destination buffer.
@@ -125,16 +120,18 @@ static inline err_h enc_sys_errors_encode_chain(err_h chain, uint8_t* out_buf, s
 
   size_t pos = ENC_SYS_ERRORS_HDR_LEN;
   uint8_t node_count = 0;
-  uint8_t depth = 0;
+  err_h nodes[SE_MAX_CHAIN_DEPTH];
+  bool complete;
+  size_t count = SE_collect_chain(chain, nodes, &complete);
+  uint8_t depth = complete ? (uint8_t)count : UINT8_MAX;
   bool full = false;
 
-  for (err_h node = chain; node != NULL && depth < ENC_SYS_ERRORS_MAX_NODES; node = node->next_cause) {
-    if (!SE_is_valid_error_ptr(node)) break;
-    depth++;
-    if (full) continue;  // keep counting depth so the client sees how much it lost
+  for (size_t i = 0; i < count; ++i) {
+    err_h node = nodes[i];
+    if (full) continue;
 
     size_t payload_len = SE_get_payload_size(node->tag);
-    if (payload_len > UINT8_MAX) payload_len = UINT8_MAX;  // unreachable: the ring's _Static_assert caps payloads well below this
+    // Payloads are statically checked to fit the wire length byte.
     if (pos + ENC_SYS_ERRORS_NODE_HDR_LEN + payload_len > out_max) {
       full = true;
       continue;
@@ -154,12 +151,13 @@ static inline err_h enc_sys_errors_encode_chain(err_h chain, uint8_t* out_buf, s
 
   if (node_count == 0) {
     SE_RET_ERR(ERR_INTERFACE_ENC_BUF_TOO_SMALL, .got = (uint32_t)out_max,
-               .need = (uint32_t)(ENC_SYS_ERRORS_HDR_LEN + ENC_SYS_ERRORS_NODE_HDR_LEN + SE_get_payload_size(chain->tag)));
+               .need = (uint32_t)(ENC_SYS_ERRORS_HDR_LEN + ENC_SYS_ERRORS_NODE_HDR_LEN + (count ? SE_get_payload_size(nodes[0]->tag) : 0)));
   }
 
-  out_buf[0] = ENC_SYS_ERRORS_FMT_VERSION;
-  out_buf[1] = node_count;
-  out_buf[2] = depth;
+  out_buf[0] = node_count;
+  out_buf[1] = depth;
+  uint32_t schema = SE_schema_id();
+  for (unsigned i = 0; i < 4; ++i) out_buf[2 + i] = (uint8_t)(schema >> (8 * i));
   *out_len = pos;
   return NULL;
 }

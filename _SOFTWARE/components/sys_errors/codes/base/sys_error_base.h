@@ -23,7 +23,6 @@ typedef enum sys_device_err_level_e {
   SYS_DEV_ERR_CRITICAL = 4,
 } sys_device_err_level_e;
 
-typedef sys_device_err_level_e sys_err_level_e;
 
 #define SYS_ERROR_BASE_MAP(X)                                           \
   X(ERR_NO_HANDLE, SYS_DEV_ERR_CRITICAL, struct { uint8_t unused; })    \
@@ -108,5 +107,3 @@ typedef sys_device_err_level_e sys_err_level_e;
     (void)(p);                                                       \
     snprintf((out), (out_size), "invalid state for this operation"); \
   } while (0)
-
-extern err_h sys_errors_report_fault(err_h node, err_h chain) __attribute__((weak));

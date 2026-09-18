@@ -59,6 +59,7 @@ err_h SE_send_error_raw(err_h chain);
  * and SE_send_error_raw(chain) (binary telemetry over SE_CONNECTOR_ID_ERRORS).
  *
  * @param chain Head of the error chain to send.
- * @return err_h NULL on success or error from binary encoding/transmission.
+ * @return err_h NULL on encoding success or an owned encoding error (input is borrowed).
+ * Delivery is best-effort: the connector/provider send API returns void.
  */
 err_h SE_send(err_h chain);

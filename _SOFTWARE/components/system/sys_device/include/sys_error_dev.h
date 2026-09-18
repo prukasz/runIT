@@ -78,6 +78,3 @@ extern const char* const sys_io_feature_e_to_string[];            // sys_io.h/.c
 #define LOG_BODY_ERR_DEV_FAULT_RESPONSE_FAILED(p, out, out_size) \
   snprintf((out), (out_size), "device %u fault response failed (level=%u, stage=%u, action=%u, cause_tag=%u)", \
            (p)->dev_id, (p)->level, (p)->stage, (p)->action_id, (unsigned)(p)->cause_tag)
-
-extern err_h sys_device_report_error(uint8_t device_id, err_h error) __attribute__((weak));
-extern bool sys_device_is_ignored(uint8_t device_id) __attribute__((weak));

@@ -64,54 +64,37 @@ Any op left NULL causes the corresponding manager call to return `ERR_BASE_NOT_S
 
 ### Per-Instance Error Handling
 
-Each `sys_device_t` instance carries its own importance level and 5-slot actions configuration, consulted by `sys_device_report_error(device_id, level, error)`:
-```c
-typedef enum sys_device_importance_e {
-  SYS_DEV_IMPORTANCE_NONE = 0,
-  SYS_DEV_IMPORTANCE_LOW = 1,
-  SYS_DEV_IMPORTANCE_MEDIUM = 2,
-  SYS_DEV_IMPORTANCE_HIGH = 3,
-  SYS_DEV_IMPORTANCE_CRITICAL = 4,
-} sys_device_importance_e;
+`SE_push_to_handler()` dispatches synchronously from the outermost error towards
+its root cause. Device identity comes from tag payloads, regardless of owner.
+See [sys_errors](../../sys_errors/SYS_ERRORS.MD) for ownership and traversal rules.
 
-typedef enum sys_device_err_level_e {
-  SYS_DEV_ERR_NONE = 0,
-  SYS_DEV_ERR_LOW = 1,
-  SYS_DEV_ERR_MEDIUM = 2,
-  SYS_DEV_ERR_HIGH = 3,
-  SYS_DEV_ERR_CRITICAL = 4,
-} sys_device_err_level_e;
-```
-```c
-uint8_t actions[5];                  /* sys_actions ids indexed by sys_device_err_level_e */
-sys_device_importance_e importance;  /* NONE disables error handling; clamps max error level */
-```
+`sys_device_report_error(device_id, node)` uses that node's severity.
+`sys_device_report_error_with_level()` accepts a validated explicit level; NONE
+means no response. Both borrow the input and return an owned response failure.
 
-`importance` governs the device's error handling behavior:
-- **Absolute Critical Safety**: A `SYS_DEV_ERR_CRITICAL` error is **never** suppressed or downgraded, regardless of `importance` (even if `NONE` or `LOW`). Critical faults always invoke the application policy to stop the VM, freeze all devices, and latch the fault. If unlinked, the weak fallback in `sys_device.c` freezes all devices directly.
-- **Non-Critical Faults (`LOW` .. `HIGH`)**:
-  - `SYS_DEV_IMPORTANCE_NONE`: non-critical error handling is disabled entirely for this device; returns `NULL`.
-  - `LOW` .. `HIGH`: acts as an upper ceiling. If a non-critical error has a severity level exceeding `importance`, it is clamped down to `(sys_device_err_level_e)dev->importance`.
-- **Test Devices (`SYS_DEV_IMPORTANCE_NONE`)**: When a device has `SYS_DEV_IMPORTANCE_NONE`, **all error handling is disabled** (including critical faults). In `SE_push_to_handler()`, reaching a `NONE` importance device stops further chain analysis immediately so underlying root errors do not trigger system alarms, proceeding directly to send and log only.
-- **Production Devices (`LOW` .. `CRITICAL`)**:
-  - `SYS_DEV_ERR_CRITICAL`: Unconditionally latches the fault in the VM, halts the VM, freezes all devices into safe state, and invokes `dev->actions[SYS_DEV_ERR_CRITICAL]`.
-  - Non-critical errors (`LOW` .. `HIGH`): Clamped down to `dev->importance` if the error severity exceeds the device's assigned importance ceiling, then dispatches `dev->actions[level]`.
+Importance NONE ignores the device, including critical faults. During chain dispatch
+it stops this device and all deeper causes, retaining diagnostics and any already
+executed outer responses. For enabled devices, noncritical severity is capped by
+importance; critical still invokes global shutdown and the configured device action.
 
-Once the effective level is resolved, `dev->actions[level]` is looked up and passed along with the error to the statically bound application policy (`sys_device_app_error_policy()`), implemented by [`runit_device_error_policy.h`](file:///C:/Users/Lukasz/Documents/runIT/_SOFTWARE/components/runit/runit_device_error_policy.h):
-- **`SYS_DEV_ERR_CRITICAL`**: Latches the fault in the VM, stops the VM, freezes all devices, and invokes the configured critical action (`actions[SYS_DEV_ERR_CRITICAL]`). Repeated critical reports increment the VM occurrence count without replaying the safe response.
-- **`SYS_DEV_ERR_LOW` / `MEDIUM` / `HIGH`**: Invokes only the configured action (`actions[level]`) without latching or stopping the VM.
-- Response failures return `ERR_DEV_FAULT_RESPONSE_FAILED`.
+`actions[5]` keeps the existing configuration packet size:
 
-> **`sys_device_report_error()` currently has no automatic trigger.** It used
-> to be called for you: `sys_device.c` registered it as `sys_errors`' device-error
-> hook from a load-time constructor, and the error handler task dispatched every
-> device-owned chain into it. That hook is gone while `sys_error_handler.c` is
-> cut back to a skeleton (see [[SYS_ERRORS.MD]]) — the only callers left are
-> direct ones. Whatever brings automatic dispatch back (the hook again, or a
-> different seam) has to re-introduce the `ERR_DEV_FAULT_RESPONSE_FAILED` guard
-> too: that wrapper is what a failed response returns, so feeding it back into
-> device policy would loop.
-> **Synchronous Dispatch in `SE_push_to_handler()`**: `sys_device_report_error()` is automatically dispatched synchronously by `SE_push_to_handler()` in `sys_error_handler.c`. Chains are traversed from last error (head) down to root cause, with recursion guards against `ERR_DEV_FAULT_RESPONSE_FAILED`. If a node belongs to a device with `SYS_DEV_IMPORTANCE_NONE`, chain analysis terminates immediately and proceeds directly to telemetry/logging.
+- `actions[0]`: four scope bits; bit 0 LOW, bit 1 MEDIUM, bit 2 HIGH, bit 3 CRITICAL.
+  A set bit selects the dynamic action namespace; a clear bit selects static.
+- `actions[1..4]`: full eight-bit IDs for LOW through CRITICAL; zero disables an action.
+- Each ID is validated against its selected namespace. NULL resets all five bytes.
+
+The former unused NONE action slot is now the scope mask. There is no static-to-dynamic
+fallback. Existing static IDs with a zero first byte keep their meaning; dynamic
+configurations must set the corresponding scope bit.
+
+The application coordinator latches/stops/freezes globally once per latch episode.
+Each affected device still runs its own action, including critical actions after
+another device set the latch. The handler deduplicates devices within one incident;
+separate incidents may run device actions again. Response failures are diagnostic-only
+and preserve the failed operation's cause chain. System faults have their own hook
+and never use device zero's policy. The device-manager fallback freezes all devices
+when no application coordinator is linked.
 
 ---
 
@@ -164,10 +147,10 @@ typedef struct {
 * **Sweep direction follows the device-id dependency convention.** A device's `sys_io_pin_ref_t` fields (`oe_pin`, `rst_pin`, `en_pin`, ...) always point at a *lower*-id device — see `runit_board_devices.h`'s boot-order device ids. Several adapters' `suspend`/`uninstall` ops call back into that dependency's `sys_io_*` while they run (e.g. `tca6424a`'s `suspend` drives its `rst_pin` low, which is a `gpio_esp` pin). Tear-down sweeps (`suspend_all`, `uninstall_all`) therefore go **high id → low id**, so a dependent finishes its own teardown before the lower-id device it depends on goes down; bring-up sweeps (`resume_all`) go **low id → high id**, so a dependency is already active by the time a higher-id dependent resumes and touches it. `reset_all`/`freeze_all`/`sync_all` sweep low → high since none of today's adapters reach into another device's `sys_io` from those ops — if one ever does, it needs the same high→low treatment.
 * **Freeze vs. suspend are orthogonal.** `freeze`/`freeze_all` never touch `state` (an adapter tracks its own `is_frozen` flag via `SYS_DEV_CTX_FREEZE`/`SYS_DEV_CTX_UNFREEZE`); only `suspend`/`suspend_all` set `state = SYS_DEV_STATE_SUSPENDED`. Consequently `resume`/`resume_all` (which only act on devices `SYS_DEV_IS_SUSPENDED`) do **not** clear a freeze that was applied without a suspend — several adapters (see e.g. `device_gpio_esp`'s `device_sync()`) clear `is_frozen` from their `sync` op instead, so lifting a freeze system-wide is `sys_device_sync_all()`, not `sys_device_resume_all()`. [[SYS_ACTIONS.MD]]'s "resume" static function calls both together for exactly this reason.
 * **`sys_device_get_by_id(device_id)`**: Lock-free registry lookup; returns `NULL` if out of range or unset.
-* **`sys_device_report_error(device_id, error)`**: Evaluates root cause error severity against the device's `importance`. Critical errors unconditionally invoke `sys_device_app_error_policy()`. Non-critical errors are gated and clamped by `dev->importance`.
+* **`sys_device_report_error(device_id, error)`**: Evaluates the supplied node's error severity against the device's `importance`. Critical errors unconditionally invoke `sys_device_app_error_policy()`. Non-critical errors are gated and clamped by `dev->importance`.
 * **`sys_device_report_error_with_level(device_id, level, error)`**: Explicit severity level override variant of `sys_device_report_error()`.
 * **`sys_device_app_error_policy(device_id, level, action_id, error)`**: Application-layer error policy, statically bound at link time. Avoids runtime registration and eliminates boot-order races. A weak fallback in `sys_device.c` freezes all devices on CRITICAL faults if unlinked.
-* **`sys_device_set_error_handling(device_id, importance, actions)`**: Configures device importance and action IDs in one call — maps 1:1 to wire packet `0x1A` (`packet_sys_device_set_error_handling_t`). `actions` is copied into `dev->actions[5]` (each entry validated `< CONFIG_SYS_ACTIONS_ID_SPACE`), or pass `NULL` to zero it. Returns `ERR_DEV_NOT_FOUND` if `device_id` isn't registered, `ERR_INVALID_VAL_UI32` if an `actions[]` entry is out of range.
+* **`sys_device_set_error_handling(device_id, importance, actions)`**: Configures device importance and action IDs in one call — maps 1:1 to wire packet `0x1A` (`packet_sys_device_set_error_handling_t`). `actions` is copied into `dev->actions[5]` (IDs validated against the namespace selected by `actions[0]`), or pass `NULL` to zero it. Returns `ERR_DEV_NOT_FOUND` if `device_id` isn't registered, `ERR_INVALID_VAL_UI32` if an `actions[]` entry is out of range.
 
 ---
 

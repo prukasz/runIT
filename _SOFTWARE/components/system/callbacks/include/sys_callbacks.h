@@ -112,5 +112,5 @@ err_h sys_cb_register_route(uint8_t route_idx, sys_cb_route_func_t fn);
         .head = {.callback_type = CALLBACK_OWN_FUNC}, \
         .event.own_func = (own_func_struct),          \
     };                                                \
-    sys_callback_trigger(&__cb_evt);                  \
+    SE_release(sys_callback_trigger(&__cb_evt));                  \
   } while (0)

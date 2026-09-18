@@ -41,6 +41,7 @@ static err_h static_fn_reset(void) {
   if (SE_IS_ERR(boot_err) && boot_err->tag != ERR_ACTION_NOT_FOUND) {
     return boot_err;
   }
+  SE_release(boot_err);
   return NULL;
 }
 
@@ -57,14 +58,14 @@ static err_h static_fn_hard_reset(void) {
   if (SE_IS_ERR(boot_err) && boot_err->tag != ERR_ACTION_NOT_FOUND) {
     return boot_err;
   }
+  SE_release(boot_err);
   return NULL;
 }
 
 void sys_actions_register_static(void) {
-  sys_actions_bind_static(SYS_ACTION_ID_FREEZE, static_fn_freeze);
-  sys_actions_bind_static(SYS_ACTION_ID_RESUME, static_fn_resume);
-  sys_actions_bind_static(SYS_ACTION_ID_SUSPEND, static_fn_suspend);
-  sys_actions_bind_static(SYS_ACTION_ID_RESET, static_fn_reset);
-  sys_actions_bind_static(SYS_ACTION_ID_HARD_RESET, static_fn_hard_reset);
+  SE_release(sys_actions_bind_static(SYS_ACTION_ID_FREEZE, static_fn_freeze));
+  SE_release(sys_actions_bind_static(SYS_ACTION_ID_RESUME, static_fn_resume));
+  SE_release(sys_actions_bind_static(SYS_ACTION_ID_SUSPEND, static_fn_suspend));
+  SE_release(sys_actions_bind_static(SYS_ACTION_ID_RESET, static_fn_reset));
+  SE_release(sys_actions_bind_static(SYS_ACTION_ID_HARD_RESET, static_fn_hard_reset));
 }
-
