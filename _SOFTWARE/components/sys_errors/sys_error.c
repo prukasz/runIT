@@ -82,11 +82,20 @@ sys_device_err_level_e SE_get_tag_level(err_tag_e tag) {
 static uint8_t  err_buffer[ERR_BUF_SIZE] __attribute__((aligned(8)));
 static uint32_t allocated;
 static uint8_t  block_count[ERR_BLOCK_COUNT];
+// Immutable fallback node used when the error ring pool is exhausted.
+// Defined as a raw aligned buffer so clang does not diagnose a flexible array member
+// nested inside an anonymous struct.
 static const struct {
-  sys_err_t node;
-  uint8_t   unused[8];
-} exhausted = {.node = {.tag = ERR_BASE_NO_MEM, .owner = OWNER_SYS_ERRORS_BASE}};
-
+  err_tag_e tag;
+  uint32_t  owner;
+  struct err_node* next_cause;
+  uint8_t   payload[8];
+} exhausted __attribute__((aligned(8))) = {
+  .tag = ERR_BASE_NO_MEM,
+  .owner = OWNER_SYS_ERRORS_BASE,
+  .next_cause = NULL,
+  .payload = {0},
+};
 static int node_index(err_h err) {
   uintptr_t offset = (uintptr_t)err - (uintptr_t)err_buffer;
   return offset < ERR_BUF_SIZE && offset % ERR_BLOCK_SIZE == 0 ? (int)(offset / ERR_BLOCK_SIZE) : -1;
