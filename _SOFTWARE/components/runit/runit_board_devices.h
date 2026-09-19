@@ -28,12 +28,6 @@ err_h runit_at_boot(void) {
   SE_ORIGIN_CALL(d_gpio_esp_create(&(d_gpio_esp_cfg_t){
       .device_id = DEVICE_ID_GPIO_ESP,
   }));
-  // Configure GPIO 5, 6, 7 as push-pull outputs for parallel LED blink test
-  SE_ORIGIN_CALL(sys_io_set_mode(DEVICE_ID_GPIO_ESP, 5, SYS_IO_MODE_OUTPUT_PUSH_PULL));
-  SE_ORIGIN_CALL(sys_io_set_mode(DEVICE_ID_GPIO_ESP, 6, SYS_IO_MODE_OUTPUT_PUSH_PULL));
-  SE_ORIGIN_CALL(sys_io_set_mode(DEVICE_ID_GPIO_ESP, 7, SYS_IO_MODE_OUTPUT_PUSH_PULL));
-
-  /* Devices below commented out: only ESP GPIO enabled for simple blink test
   SE_ORIGIN_CALL(d_tca6424a_create(&(d_tca6424a_cfg_t){
       .device_id = DEVICE_ID_TCA6424A,
       .i2c_bus = SYS_I2C_BUS_INTERNAL,
@@ -80,7 +74,7 @@ err_h runit_at_boot(void) {
   }));
   SE_ORIGIN_CALL(sys_io_set_mode(1, 22, SYS_IO_MODE_OUTPUT_PUSH_PULL));
   SE_ORIGIN_CALL(sys_io_set_mode(1, 23, SYS_IO_MODE_OUTPUT_PUSH_PULL));
-  */
-  ESP_LOGI("board_devices", "onboard devices created (ESP GPIO only, GPIO 7 output)");
+
+  ESP_LOGI("board_devices", "onboard devices created");
   return NULL;
 }

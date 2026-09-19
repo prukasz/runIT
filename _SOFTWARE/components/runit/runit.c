@@ -14,7 +14,6 @@
 #include "vm_selftest.h"
 #include "vm_sub.h"
 #include "vm_exec.h"
-#include "runit_test_blink.h"
 
 static const char* TAG = "runit_app";
 
@@ -68,6 +67,14 @@ static err_h step_invoke_boot_action(void) {
   return sys_actions_invoke(SYS_ACTION_SCOPE_STATIC, SYS_ACTION_ID_BOOT);
 }
 
+#include "sys_data_connector.h"
+
+static err_h runit_telemetry_sender(const uint8_t* data, size_t len) {
+  sys_data_connector_t* conn = sys_data_connector_get(CONN_ID_TELEMETRY);
+  if (!conn) return NULL;
+  return sys_data_connector_send(conn, data, len);
+}
+
 err_h runit_start(void) {
   SE_init();
 
@@ -102,17 +109,14 @@ err_h runit_start(void) {
   vm_bench_run();
 #endif
 
-  // Tests and benchmarks own synchronous execution during boot. Restore
-  // production defaults and start the supervisor stopped before accepting remote
-  // execution-control packets.
+  // Restore production defaults and start the supervisor stopped before
+  // accepting remote execution-control packets.
   SE_release(vm_exec_stop());
-  vm_exec_set_sample_hook(NULL);
+  vm_sub_init();
+  vm_sub_set_sender(runit_telemetry_sender);
 
   static const runit_boot_step_entry_t s_boot_runtime_steps[] = {
       {"vm_exec_start", vm_exec_start},
-#if RUNIT_ENABLE_BLINK_TEST
-      {"runit_test_blink_setup", runit_test_blink_setup},
-#endif
   };
 
   err = runit_run_boot_steps(s_boot_runtime_steps, sizeof(s_boot_runtime_steps) / sizeof(s_boot_runtime_steps[0]));

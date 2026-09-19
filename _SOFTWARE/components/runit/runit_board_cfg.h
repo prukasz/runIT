@@ -41,7 +41,7 @@ Pin configs and device id / adresses shall not be changed
 #endif
 
 #ifndef RUNIT_SKIP_DEVICE_INIT
-  #define RUNIT_SKIP_DEVICE_INIT 0
+  #define RUNIT_SKIP_DEVICE_INIT 1  /* Board devices configured in runit_board_devices.h, not enabled until board run */
 #endif
 
 #ifndef RUNIT_ENABLE_VM_SELFTEST
@@ -50,10 +50,6 @@ Pin configs and device id / adresses shall not be changed
 
 #ifndef RUNIT_ENABLE_VM_BENCH
   #define RUNIT_ENABLE_VM_BENCH 0
-#endif
-
-#ifndef RUNIT_ENABLE_BLINK_TEST
-  #define RUNIT_ENABLE_BLINK_TEST 1
 #endif
 
 /* Granular test section toggles (when RUNIT_ENABLE_VM_SELFTEST is 1) */

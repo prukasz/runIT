@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <string.h>
 #include "esp_compiler.h"
-#include "esp_rom_sys.h"
 #include "sys_io.h"
 #include "vm_block_helpers.h"
 
@@ -23,8 +22,7 @@
  *  - ENO reflects successful toggle assertion this pass.
  */
 
-#define VM_IO_TOGGLE_F_PREV_EN  (1u << 0)
-#define VM_IO_TOGGLE_F_STALL_WD (1u << 1)
+#define VM_IO_TOGGLE_F_PREV_EN (1u << 0)
 
 typedef struct __attribute__((aligned(8))) {
   uint64_t allowed_mask;       // Permitted pins bitmask (0..63)
@@ -86,9 +84,6 @@ static inline void vm_blk_io_toggle(vm_block_h b) {
   }
 
   if (rising) {
-    if (unlikely(d->flags & VM_IO_TOGGLE_F_STALL_WD)) {
-      esp_rom_delay_us(25000);
-    }
     uint32_t pin_val = d->default_io_num;
     err_h err = VM_BLOCK_GET_PARAM(pin_val, b, VM_IO_TOGGLE_IN_PIN, d->default_io_num);
     if (unlikely(!vm_block_check(b, err))) {
