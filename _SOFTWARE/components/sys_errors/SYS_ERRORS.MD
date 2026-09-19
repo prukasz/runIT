@@ -72,10 +72,11 @@ remains invalid, even if its address is later allocated again.
 - Domain hooks receive `(node, full_chain)` for each visited node in that domain.
   Unimplemented weak hooks are optional. `sys_error_hooks.h` is the dispatcher's
   single optional-hook declaration header; map headers only describe errors/owners.
-- Unattributed critical errors use `sys_system_report_fault`, never a lookup of
-  device zero. The application latches the triggering node and performs global
-  stop/freeze once per latch episode. Enabled devices still run their individual
-  actions after the global latch has been set. The dispatcher deduplicates devices
+- Unattributed critical errors (where no device in the chain was attributed,
+  `handled == 0`) use `sys_system_handle_fault`, never a lookup of device zero.
+  The application latches the triggering node and performs global stop/freeze
+  once per latch episode. Enabled devices still run their individual actions
+  after the global latch has been set. The dispatcher deduplicates devices
   per incident, not across separate incidents.
 - Response failures are diagnostics-only and released after sending. A per-task
   handler guard prevents callbacks/actions re-entering policy while handling an
@@ -127,3 +128,174 @@ device manager and application policy with host substitutes for hardware/VM/acti
 It needs Zig and Node; see the script for a local toolchain installation. Firmware
 selftests also release intentionally discarded errors and test device policy/encoding.
 Host tests do not substitute for hardware scheduling/transport tests.
+
+## Error Lifecycle & Call Tree Architecture
+
+### 1. High-Level Flowchart
+
+```mermaid
+flowchart TD
+    A["Error Origin (Driver / Subsystem / VM)"] -->|"SE_RET_ERR / SE_WRAP_ERR"| B["SE_push_to_handler(err)"]
+
+    subgraph Phase1["Phase 1: Inspection & Chain Collection"]
+        B --> C["SE_collect_chain()"]
+        C --> D{"in_handler or corrupt?"}
+        D -->|Yes| E["Diagnostics Only (Skip Policies)"]
+    end
+
+    subgraph Phase2["Phase 2: Attribution & Policy Dispatch"]
+        D -->|No| F["Iterate Nodes in Error Chain"]
+        F --> G{"Node has Device ID?"}
+
+        %% Device Policy Path
+        G -->|Yes| H["sys_device_report_error_with_level()"]
+        H --> I{"dev->importance == NONE?"}
+        I -->|Yes| J["Drop error (Ignored/Test Device)"]
+        I -->|No| K["Clamp severity level & lookup action_id"]
+        K --> L["sys_device_app_error_policy()"]
+        L --> M{"action_id != 0?"}
+        M -->|Yes| N["sys_actions_invoke(action_id)"]
+        L --> O{"level == CRITICAL?"}
+        O -->|Yes| P["runit_system_fault()"]
+        P --> P1["vm_exec_fault_latch()"]
+        P --> P2["vm_exec_stop()"]
+        P --> P3["sys_device_freeze_all()"]
+
+        %% Domain Fault Hook Path
+        F --> Q["dispatch_domain(node, err)"]
+        Q --> R["sys_<domain>_handle_fault(node, err)"]
+        R -->|VM| R1["sys_vm_handle_fault -> vm_exec_stop()"]
+        R -->|BLE| R2["sys_ble_handle_fault -> SYS_BLE_CB(FAILURE)"]
+        R -->|Actions| R3["sys_actions_handle_fault -> abort recording"]
+        R -->|Interface| R4["sys_interface_handle_fault -> suspend RX"]
+        R -->|Power/I2C/IO/Buffers| R5["Hardware containment / bus reset"]
+
+        %% Fallback System Hook
+        F --> S{"CRITICAL & Unhandled?"}
+        S -->|Yes| T["sys_system_handle_fault()"]
+    end
+
+    subgraph Phase3["Phase 3: Baseline Transport & Logging"]
+        E --> U["SE_send(err)"]
+        Phase2 --> U
+        U --> V["se_log_error_chain()"]
+        V --> V1["sys_data_connector_send(CONN_ID_LOGS)"]
+        V --> V2["ESP_LOGE() (Serial Mirror)"]
+        U --> W["SE_send_error_raw()"]
+        W --> W1["enc_sys_errors_encode_chain()"]
+        W1 --> W2["sys_data_connector_send(CONN_ID_ERRORS)"]
+        W2 --> W3["ble_provider_send() -> sys_ble_char_send()"]
+    end
+
+    subgraph Phase4["Phase 4: Cleanup"]
+        U --> X["SE_release(err)"]
+    end
+```
+
+### 2. Detailed Sequence & Call Tree Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Caller as Caller Task (e.g. AP33772S Driver)
+    participant Core as sys_error.c
+    participant Handler as sys_error_handler.c
+    participant SysDev as sys_device.c
+    participant Policy as runit_device_error_policy.h
+    participant Actions as sys_actions.c
+    participant VM as vm_exec.c
+    participant Domain as sys_<domain>_handle_fault
+    participant Log as sys_error_log.c
+    participant Conn as sys_data_connector.c
+    participant BLE as sys_ble_stack.c
+
+    %% 1. Raising
+    Note over Caller, Core: Step 1: Error Generation & Chaining
+    Caller->>Core: SE_create(owner, tag, payload_size)
+    Caller->>Core: SE_wrap(outer_err, cause_err)
+    Caller->>Handler: SE_push_to_handler(err)
+
+    %% 2. Collection & Attribution
+    Note over Handler, SysDev: Step 2: Inspection & Device Attribution
+    Handler->>Core: SE_collect_chain(err, nodes[], &complete)
+    loop For each node in chain
+        Handler->>Handler: device_id_of(node, &dev_id)
+        alt Node is attributed to a device
+            Handler->>SysDev: sys_device_report_error_with_level(dev_id, level, node)
+            SysDev->>SysDev: sys_device_get_by_id(dev_id)
+            alt dev->importance == SYS_DEV_IMPORTANCE_NONE
+                SysDev-->>Handler: NULL (Ignored test device)
+            else Active Device
+                SysDev->>SysDev: Clamp level to dev->importance (if non-critical)
+                SysDev->>SysDev: action_id = dev->actions[level]
+                SysDev->>Policy: sys_device_app_error_policy(dev_id, level, action_id, node)
+
+                opt action_id != 0
+                    Policy->>Actions: runit_invoke_action(action_id) -> sys_actions_invoke(scope, id)
+                end
+
+                opt level == SYS_DEV_ERR_CRITICAL
+                    Policy->>Policy: runit_system_fault(dev_id, node)
+                    Policy->>VM: vm_exec_fault_latch(dev_id, owner, tag)
+                    Policy->>VM: vm_exec_stop()
+                    Policy->>SysDev: sys_device_freeze_all()
+                end
+                Policy-->>SysDev: policy_response
+                SysDev-->>Handler: response
+            end
+        end
+
+        %% 3. Domain Dispatch
+        Note over Handler, Domain: Step 3: Domain Specific Fault Handling
+        Handler->>Handler: dispatch_domain(node, err)
+        Handler->>Domain: sys_<domain>_handle_fault(node, err)
+        Domain-->>Handler: domain_response
+
+        opt level == CRITICAL and system not yet handled
+            Handler->>Policy: sys_system_handle_fault(node, err)
+        end
+    end
+
+    %% 4. Baseline Logging & Telemetry
+    Note over Handler, BLE: Step 4: Baseline Invariant (All Error Chains)
+    Handler->>Log: SE_send(err)
+
+    rect rgb(240, 245, 255)
+        Note over Log, Conn: 4a. Text Expansion & Logging
+        Log->>Log: se_log_error_chain(err)
+        loop For each node
+            Log->>Core: SE_describe_payload(tag, payload, desc)
+            Log->>Conn: sys_data_connector_send(CONN_ID_LOGS, line, len)
+            opt mirror_on_serial == true
+                Log->>Log: ESP_LOGE(TAG, "%s", line)
+            end
+        end
+    end
+
+    rect rgb(240, 255, 245)
+        Note over Log, BLE: 4b. Wire Encoding & Raw Transport
+        Log->>Log: SE_send_error_raw(err)
+        Log->>Core: enc_sys_errors_encode_chain(err, packet, max_len)
+        Log->>Conn: sys_data_connector_send(CONN_ID_ERRORS, packet, len)
+        Conn->>BLE: ble_provider_send(arg, frame, len)
+        BLE->>BLE: sys_ble_char_send()
+    end
+
+    %% 5. Release
+    Note over Handler, Core: Step 5: Allocator Reclamation
+    Handler->>Core: SE_release(err)
+```
+
+### 3. Component Symbol & Call Reference Map
+
+| Component / Step | Source File | Key Symbols / Functions |
+| :--- | :--- | :--- |
+| **Error Allocation & Chaining** | `sys_error.c` | `SE_create()`, `SE_wrap()`, `SE_collect_chain()`, `SE_release()` |
+| **Handler & Central Dispatch** | `sys_error_handler.c` | `SE_push_to_handler()`, `device_id_of()`, `dispatch_domain()` |
+| **Device Error Routing** | `components/system/sys_device/sys_device.c` | `sys_device_report_error_with_level()`, `sys_device_report_error()`, `sys_device_freeze_all()` |
+| **App Coordinator Policy** | `components/runit/runit_device_error_policy.h` | `sys_device_app_error_policy()`, `runit_system_fault()`, `runit_invoke_action()` |
+| **Action Execution** | `components/system/sys_actions/sys_actions.c` | `sys_actions_invoke()` |
+| **VM Fault Containment** | `components/VM/core/exec/vm_exec.c` | `vm_exec_fault_latch()`, `vm_exec_stop()`, `sys_vm_handle_fault()` |
+| **Logging & Wire Telemetry** | `sys_error_log.c` | `SE_send()`, `se_log_error_chain()`, `SE_send_error_raw()` |
+| **Bus Switchboard** | `components/system/sys_data_connector/sys_data_connector.c` | `sys_data_connector_send()` |
+

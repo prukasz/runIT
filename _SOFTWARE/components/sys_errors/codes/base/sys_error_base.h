@@ -44,7 +44,7 @@ typedef enum sys_device_err_level_e {
     })                                                                  \
   X(ERR_DEV_DEP_FAILED, SYS_DEV_ERR_HIGH, struct { uint8_t dev_id; })   \
   X(ERR_DEP_FAILED, SYS_DEV_ERR_HIGH, struct { uint8_t unused; })       \
-  X(ERR_ESP_ERR, SYS_DEV_ERR_CRITICAL, struct { esp_err_t esp_code; })  \
+  X(ERR_ESP_ERR, SYS_DEV_ERR_HIGH, struct { esp_err_t esp_code; })      \
   X(ERR_BASE_NO_MEM, SYS_DEV_ERR_CRITICAL, struct { uint8_t unused; })  \
   X(ERR_BASE_NOT_SUPPORTED, SYS_DEV_ERR_LOW, struct { uint8_t unused; })\
   X(ERR_BASE_NOT_FOUND, SYS_DEV_ERR_LOW, struct { uint8_t unused; })   \

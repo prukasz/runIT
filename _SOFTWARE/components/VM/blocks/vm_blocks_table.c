@@ -6,6 +6,8 @@
 #include "vm_block_set.h"
 #include "vm_block_edge.h"
 #include "vm_block_timer.h"
+#include "vm_block_io_set_level.h"
+#include "vm_block_io_toggle.h"
 
 /*
 The palette, entire.
@@ -36,6 +38,8 @@ const vm_block_fn g_vm_blocks[] = {
     [VM_BLK_CLONE] = vm_blk_clone,
     [VM_BLK_EDGE] = vm_blk_edge,
     [VM_BLK_TIMER] = vm_blk_timer,
+    [VM_BLK_IO_SET_LEVEL] = vm_blk_io_set_level,
+    [VM_BLK_IO_TOGGLE] = vm_blk_io_toggle,
 };
 
 const vm_block_verify_fn g_vm_blocks_verify[] = {
@@ -48,6 +52,8 @@ const vm_block_verify_fn g_vm_blocks_verify[] = {
     [VM_BLK_CLONE] = vm_verify_clone,
     [VM_BLK_EDGE] = vm_verify_edge,
     [VM_BLK_TIMER] = vm_verify_timer,
+    [VM_BLK_IO_SET_LEVEL] = vm_verify_io_set_level,
+    [VM_BLK_IO_TOGGLE] = vm_verify_io_toggle,
 };
 
 const uint16_t g_vm_blocks_cnt = (uint16_t)(sizeof(g_vm_blocks) / sizeof(g_vm_blocks[0]));

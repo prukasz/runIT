@@ -81,3 +81,13 @@ esp_err_t sys_i2c_master_transmit_receive(void* hw_handle, const uint8_t* write_
   if (!header->i2c_master_dev_handle) return ESP_ERR_INVALID_STATE;
   return i2c_master_transmit_receive(header->i2c_master_dev_handle, write_buffer, write_size, read_buffer, read_size, CONFIG_SYS_I2C_DEFAULT_TIMEOUT_MS);
 }
+
+__attribute__((weak)) err_h sys_i2c_handle_fault(err_h node, err_h chain) {
+  (void)chain;
+  if (!node || SE_get_tag_level(node->tag) != SYS_DEV_ERR_CRITICAL) {
+    return NULL;
+  }
+  // Severe I2C bus lockup containment
+  return NULL;
+}
+

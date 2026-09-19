@@ -108,3 +108,13 @@ err_h sys_io_set_pwm_frequency(uint8_t device_id, sys_io_pin_num_t pin_num, uint
 err_h sys_io_set_pwm_duty(uint8_t device_id, sys_io_pin_num_t pin_num, uint32_t duty) {
   SYS_IO_DISPATCH(device_id, io_set_pwm_duty, SYS_IO_FEATURE_SET_PWM_DUTY, pin_num, duty);
 }
+
+__attribute__((weak)) err_h sys_io_handle_fault(err_h node, err_h chain) {
+  (void)chain;
+  if (!node || SE_get_tag_level(node->tag) != SYS_DEV_ERR_CRITICAL) {
+    return NULL;
+  }
+  // Severe IO fault containment
+  return NULL;
+}
+

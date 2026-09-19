@@ -31,7 +31,7 @@ static err_h runit_system_fault(uint8_t id, err_h node) {
   return response;
 }
 
-err_h sys_system_report_fault(err_h node, err_h chain) {
+err_h sys_system_handle_fault(err_h node, err_h chain) {
   (void)chain;
   // 255 is diagnostic metadata only; never used to look up a device policy.
   return runit_system_fault(UINT8_MAX, node);

@@ -184,5 +184,20 @@ uint32_t vm_exec_pass_count(void);
 /** @brief Wall duration of the last pass in microseconds. */
 uint32_t vm_exec_last_pass_us(void);
 
+typedef struct vm_exec_perf_t {
+  uint32_t pass_count;
+  uint32_t last_pass_us;
+  uint32_t min_pass_us;
+  uint32_t max_pass_us;
+  uint64_t total_pass_us;
+  uint32_t last_cycle_us;
+  uint32_t min_cycle_us;
+  uint32_t max_cycle_us;
+  uint64_t total_cycle_us;
+} vm_exec_perf_t;
+
+/** @brief Retrieve comprehensive scan cycle performance metrics. */
+vm_exec_perf_t vm_exec_get_perf(void);
+
 /** @brief Reset pass metrics. */
 void vm_exec_reset_stats(void);

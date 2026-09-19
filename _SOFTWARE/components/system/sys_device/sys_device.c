@@ -3,6 +3,7 @@
 #include <string.h>
 #include "esp_log.h"
 #include "sys_error.h"
+#include "sys_error_hooks.h"
 #include "sys_io.h"
 #include "utils.h"
 
@@ -29,7 +30,7 @@ __attribute__((weak)) err_h sys_device_app_error_policy(uint8_t device_id,
   return NULL;
 }
 
-__attribute__((weak)) err_h sys_system_report_fault(err_h node, err_h chain) {
+__attribute__((weak)) err_h sys_system_handle_fault(err_h node, err_h chain) {
   (void)node;
   (void)chain;
   return sys_device_freeze_all();

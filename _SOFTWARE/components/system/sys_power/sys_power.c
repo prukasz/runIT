@@ -249,3 +249,13 @@ err_h sys_power_usb_pd_get_limits(uint8_t device_id, uint32_t* out_mV, uint32_t*
   }
   SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);
 }
+
+__attribute__((weak)) err_h sys_power_handle_fault(err_h node, err_h chain) {
+  (void)chain;
+  if (!node || SE_get_tag_level(node->tag) != SYS_DEV_ERR_CRITICAL) {
+    return NULL;
+  }
+  // Severe power fault containment (budget trip / rail cut-off)
+  return NULL;
+}
+

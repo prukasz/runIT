@@ -28,6 +28,12 @@ err_h runit_at_boot(void) {
   SE_ORIGIN_CALL(d_gpio_esp_create(&(d_gpio_esp_cfg_t){
       .device_id = DEVICE_ID_GPIO_ESP,
   }));
+  // Configure GPIO 5, 6, 7 as push-pull outputs for parallel LED blink test
+  SE_ORIGIN_CALL(sys_io_set_mode(DEVICE_ID_GPIO_ESP, 5, SYS_IO_MODE_OUTPUT_PUSH_PULL));
+  SE_ORIGIN_CALL(sys_io_set_mode(DEVICE_ID_GPIO_ESP, 6, SYS_IO_MODE_OUTPUT_PUSH_PULL));
+  SE_ORIGIN_CALL(sys_io_set_mode(DEVICE_ID_GPIO_ESP, 7, SYS_IO_MODE_OUTPUT_PUSH_PULL));
+
+  /* Devices below commented out: only ESP GPIO enabled for simple blink test
   SE_ORIGIN_CALL(d_tca6424a_create(&(d_tca6424a_cfg_t){
       .device_id = DEVICE_ID_TCA6424A,
       .i2c_bus = SYS_I2C_BUS_INTERNAL,
@@ -43,13 +49,8 @@ err_h runit_at_boot(void) {
       .vref_mv = 20000,
   }));
   SE_ORIGIN_CALL(d_pca9685_create(&(d_pca9685_cfg_t){
-      .device_id = DEVICE_ID_PCA9685, .i2c_bus = SYS_I2C_BUS_INTERNAL, .i2c_addr = 0x60, .oe_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 0, SYS_IO_MODE_OUTPUT_PUSH_PULL)  // rev 1.0: OE not driven by the expander
+      .device_id = DEVICE_ID_PCA9685, .i2c_bus = SYS_I2C_BUS_INTERNAL, .i2c_addr = 0x60, .oe_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 0, SYS_IO_MODE_OUTPUT_PUSH_PULL)
   }));
-  // SE_ORIGIN_CALL(d_dac53202_create(&(d_dac53202_cfg_t){
-  //     .device_id = DEVICE_ID_DAC53202,
-  //     .i2c_bus = SYS_I2C_BUS_INTERNAL,
-  //     .i2c_addr = 0x13,
-  // }));
   SE_ORIGIN_CALL(d_tps55289_create(&(d_tps55289_cfg_t){
       .device_id = DEVICE_ID_TPS55289_0,
       .i2c_bus = SYS_I2C_BUS_INTERNAL,
@@ -77,9 +78,9 @@ err_h runit_at_boot(void) {
       .i2c_addr = 0x52,
       .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 12, SYS_IO_MODE_INPUT),
   }));
-  // leds
   SE_ORIGIN_CALL(sys_io_set_mode(1, 22, SYS_IO_MODE_OUTPUT_PUSH_PULL));
   SE_ORIGIN_CALL(sys_io_set_mode(1, 23, SYS_IO_MODE_OUTPUT_PUSH_PULL));
-  ESP_LOGI("board_devices", "onboard devices created");
+  */
+  ESP_LOGI("board_devices", "onboard devices created (ESP GPIO only, GPIO 7 output)");
   return NULL;
 }

@@ -25,6 +25,7 @@ err_h vm_exec_check_block_type(uint16_t blk_id, uint8_t block_type) {
   return NULL;
 }
 
+
 /* Declared in vm_exec.h; the supervisor is the only writer. Latched once per
    pass so every block in one pass agrees about what time it is. */
 uint64_t g_vm_pass_ms;
@@ -35,11 +36,20 @@ uint64_t g_vm_pass_ms;
 #define VM_EXEC_TASK_PRIO 5
 #define VM_EXEC_TASK_CORE 1
 
-R_TASK_DEFINE(vm_exec_task_h, 3072);
+R_TASK_DEFINE(vm_exec_task_h, 6144);
 
 static volatile vm_run_mode_e s_mode = VM_RUN_STOPPED;
 static volatile uint32_t s_pass_cnt;
 static volatile uint32_t s_last_pass_us;
+static volatile uint32_t s_pass_us_min = UINT32_MAX;
+static volatile uint32_t s_pass_us_max;
+static volatile uint64_t s_pass_us_sum;
+
+static volatile uint64_t s_last_pass_start_us;
+static volatile uint32_t s_cycle_us_last;
+static volatile uint32_t s_cycle_us_min = UINT32_MAX;
+static volatile uint32_t s_cycle_us_max;
+static volatile uint64_t s_cycle_us_sum;
 static uint8_t s_span_depth;
 static vm_block_h s_current_block;
 static vm_span_t s_child_bounds;
@@ -348,6 +358,15 @@ void vm_exec_pass(void) {
   uint64_t t0 = vm_clock_us();
   g_vm_pass_ms = t0 / 1000u;
 
+  if (s_last_pass_start_us != 0) {
+    uint32_t cycle = (uint32_t)(t0 - s_last_pass_start_us);
+    s_cycle_us_last = cycle;
+    if (cycle < s_cycle_us_min) s_cycle_us_min = cycle;
+    if (cycle > s_cycle_us_max) s_cycle_us_max = cycle;
+    s_cycle_us_sum += cycle;
+  }
+  s_last_pass_start_us = t0;
+
   /* Events, like the clock, are latched once for the whole pass: what this
      drain pulls out of the queue is what every block sees, start to finish. */
   vm_event_drain();
@@ -363,7 +382,11 @@ void vm_exec_pass(void) {
 
   portENTER_CRITICAL(&s_program_mux);
   if (completed) {
-    s_last_pass_us = (uint32_t)(vm_clock_us() - t0);
+    uint32_t dur = (uint32_t)(vm_clock_us() - t0);
+    s_last_pass_us = dur;
+    if (dur < s_pass_us_min) s_pass_us_min = dur;
+    if (dur > s_pass_us_max) s_pass_us_max = dur;
+    s_pass_us_sum += dur;
     s_pass_cnt++;
   }
   if (!s_program_locked && s_mode == VM_RUN_STEP) {
@@ -578,9 +601,36 @@ uint32_t vm_exec_last_pass_us(void) {
   return s_last_pass_us;
 }
 
+vm_exec_perf_t vm_exec_get_perf(void) {
+  portENTER_CRITICAL(&s_program_mux);
+  vm_exec_perf_t p = {
+      .pass_count     = s_pass_cnt,
+      .last_pass_us   = s_last_pass_us,
+      .min_pass_us    = (s_pass_us_min == UINT32_MAX) ? 0 : s_pass_us_min,
+      .max_pass_us    = s_pass_us_max,
+      .total_pass_us  = s_pass_us_sum,
+      .last_cycle_us  = s_cycle_us_last,
+      .min_cycle_us   = (s_cycle_us_min == UINT32_MAX) ? 0 : s_cycle_us_min,
+      .max_cycle_us   = s_cycle_us_max,
+      .total_cycle_us = s_cycle_us_sum,
+  };
+  portEXIT_CRITICAL(&s_program_mux);
+  return p;
+}
+
 void vm_exec_reset_stats(void) {
-  s_pass_cnt = 0;
-  s_last_pass_us = 0;
+  portENTER_CRITICAL(&s_program_mux);
+  s_pass_cnt           = 0;
+  s_last_pass_us       = 0;
+  s_pass_us_min        = UINT32_MAX;
+  s_pass_us_max        = 0;
+  s_pass_us_sum        = 0;
+  s_last_pass_start_us = 0;
+  s_cycle_us_last      = 0;
+  s_cycle_us_min       = UINT32_MAX;
+  s_cycle_us_max       = 0;
+  s_cycle_us_sum       = 0;
+  portEXIT_CRITICAL(&s_program_mux);
 }
 
 void vm_exec_reset(void) {
@@ -602,3 +652,14 @@ void vm_exec_reset(void) {
   g_vm_pass_ms = 0;
   vm_exec_reset_stats();
 }
+
+__attribute__((weak)) err_h sys_vm_handle_fault(err_h node, err_h chain) {
+  (void)chain;
+  if (!node || SE_get_tag_level(node->tag) != SYS_DEV_ERR_CRITICAL) {
+    return NULL;
+  }
+  // Severe VM fault: latch fault context and stop the VM
+  vm_exec_fault_latch(UINT8_MAX, node->owner, node->tag);
+  return vm_exec_stop();
+}
+

@@ -480,3 +480,14 @@ static void sys_ble_task_func(void* pvParameters) {
     }
   }
 }
+
+__attribute__((weak)) err_h sys_ble_handle_fault(err_h node, err_h chain) {
+  (void)chain;
+  if (!node || SE_get_tag_level(node->tag) != SYS_DEV_ERR_CRITICAL) {
+    return NULL;
+  }
+  // Severe BLE fault: signal failure event to callbacks
+  SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, node->tag);
+  return NULL;
+}
+

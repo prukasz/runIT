@@ -41,15 +41,15 @@ static err_h dispatch_domain(err_h node, err_h chain) {
 #define DOMAIN(owner, hook) \
   case owner:               \
     return hook ? hook(node, chain) : NULL;
-    DOMAIN(OWNER_SYS_I2C_BASE, sys_i2c_report_fault)
-    DOMAIN(OWNER_SYS_IO_BASE, sys_io_report_fault)
-    DOMAIN(OWNER_SYS_POWER_BASE, sys_power_report_fault)
-    DOMAIN(OWNER_SYS_BLE_BASE, sys_ble_report_fault)
-    DOMAIN(OWNER_SYS_INTERFACE_BASE, sys_interface_report_fault)
-    DOMAIN(OWNER_SYS_BUFFERS_BASE, sys_buffers_report_fault)
-    DOMAIN(OWNER_SYS_ERRORS_BASE, sys_errors_report_fault)
-    DOMAIN(OWNER_VM_BASE, sys_vm_report_fault)
-    DOMAIN(OWNER_SYS_ACTIONS_BASE, sys_actions_report_fault)
+    DOMAIN(OWNER_SYS_I2C_BASE, sys_i2c_handle_fault)
+    DOMAIN(OWNER_SYS_IO_BASE, sys_io_handle_fault)
+    DOMAIN(OWNER_SYS_POWER_BASE, sys_power_handle_fault)
+    DOMAIN(OWNER_SYS_BLE_BASE, sys_ble_handle_fault)
+    DOMAIN(OWNER_SYS_INTERFACE_BASE, sys_interface_handle_fault)
+    DOMAIN(OWNER_SYS_BUFFERS_BASE, sys_buffers_handle_fault)
+    DOMAIN(OWNER_SYS_ERRORS_BASE, sys_errors_handle_fault)
+    DOMAIN(OWNER_VM_BASE, sys_vm_handle_fault)
+    DOMAIN(OWNER_SYS_ACTIONS_BASE, sys_actions_handle_fault)
 #undef DOMAIN
     default:
       return NULL;
@@ -117,9 +117,9 @@ void SE_push_to_handler(err_h err) {
         }
       }
       send_response(dispatch_domain(node, err));
-      if (level == SYS_DEV_ERR_CRITICAL && !system_handled && sys_system_report_fault) {
+      if (level == SYS_DEV_ERR_CRITICAL && handled == 0 && !system_handled && sys_system_handle_fault) {
         system_handled = true;
-        send_response(sys_system_report_fault(node, err));
+        send_response(sys_system_handle_fault(node, err));
       }
     }
   }
@@ -127,3 +127,13 @@ void SE_push_to_handler(err_h err) {
   SE_release(err);
   in_handler = previous;
 }
+
+err_h sys_errors_handle_fault(err_h node, err_h chain) {
+  (void)chain;
+  if (!node || SE_get_tag_level(node->tag) != SYS_DEV_ERR_CRITICAL) {
+    return NULL;
+  }
+  // Internal error subsystem fault containment
+  return NULL;
+}
+

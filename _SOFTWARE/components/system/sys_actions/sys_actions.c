@@ -5,6 +5,7 @@
 #include <sdkconfig.h>
 #include "dec_sys_actions.h"
 #include "sys_actions_static.h"
+#include "sys_error_hooks.h"
 #include "sys_interface.h"
 #include "utils.h"
 
@@ -369,3 +370,21 @@ err_h sys_actions_invoke(uint8_t scope, uint8_t id) {
   }
   SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = scope, .min = SYS_ACTION_SCOPE_STATIC, .max = SYS_ACTION_SCOPE_DYNAMIC);
 }
+
+__attribute__((weak)) err_h sys_actions_handle_fault(err_h node, err_h chain) {
+  (void)chain;
+  if (!node || SE_get_tag_level(node->tag) != SYS_DEV_ERR_CRITICAL) {
+    return NULL;
+  }
+  // Severe actions fault: abort any active recording to prevent corrupted persistence
+  R_MUTEX_LOCK(s_actions_mutex, WAIT_FOREVER);
+  if (s_has_recording) {
+    sys_interface_tap_capture_end();
+    free(s_recording);
+    s_recording     = NULL;
+    s_has_recording = false;
+  }
+  R_MUTEX_UNLOCK(s_actions_mutex);
+  return NULL;
+}
+

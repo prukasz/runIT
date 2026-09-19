@@ -80,3 +80,13 @@ void sys_buff_clear(sys_buff_t* buff) {
     vRingbufferReturnItem(buff->buff, item);
   }
 }
+
+__attribute__((weak)) err_h sys_buffers_handle_fault(err_h node, err_h chain) {
+  (void)chain;
+  if (!node || SE_get_tag_level(node->tag) != SYS_DEV_ERR_CRITICAL) {
+    return NULL;
+  }
+  // Severe buffer fault: break potential starvation
+  return NULL;
+}
+

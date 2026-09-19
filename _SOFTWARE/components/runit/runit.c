@@ -14,6 +14,7 @@
 #include "vm_selftest.h"
 #include "vm_sub.h"
 #include "vm_exec.h"
+#include "runit_test_blink.h"
 
 static const char* TAG = "runit_app";
 
@@ -63,6 +64,10 @@ static err_h step_bind_boot_action(void) {
 #endif
 }
 
+static err_h step_invoke_boot_action(void) {
+  return sys_actions_invoke(SYS_ACTION_SCOPE_STATIC, SYS_ACTION_ID_BOOT);
+}
+
 err_h runit_start(void) {
   SE_init();
 
@@ -76,6 +81,7 @@ err_h runit_start(void) {
       {"sys_interface_init", sys_interface_init},
       {"sys_actions_bind_boot", step_bind_boot_action},
       {"sys_actions_init", sys_actions_init},
+      {"sys_actions_invoke_boot", step_invoke_boot_action},
       {"vm_sub_init", vm_sub_init},
   };
 
@@ -104,6 +110,9 @@ err_h runit_start(void) {
 
   static const runit_boot_step_entry_t s_boot_runtime_steps[] = {
       {"vm_exec_start", vm_exec_start},
+#if RUNIT_ENABLE_BLINK_TEST
+      {"runit_test_blink_setup", runit_test_blink_setup},
+#endif
   };
 
   err = runit_run_boot_steps(s_boot_runtime_steps, sizeof(s_boot_runtime_steps) / sizeof(s_boot_runtime_steps[0]));

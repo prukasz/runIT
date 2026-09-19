@@ -3,6 +3,8 @@
 #include "vm_block_edge.h"
 #include "vm_block_for.h"
 #include "vm_block_timer.h"
+#include "vm_block_io_set_level.h"
+#include "vm_block_io_toggle.h"
 #include "vm_blocks.h"
 
 
@@ -132,6 +134,54 @@ void test_block_support(void) {
       !selftest_ok(vm_block_create(&bad_eb, 2,
           &(vm_block_cfg_t){
               .block_idx = 2, .block_type = VM_BLK_EDGE, .in_cnt = 2, .q_cnt = 1, .en_cnt = 1, .custom_len = sizeof(edge), .custom_data = &bad_edge, .in_acc_ids = (const uint16_t[]){0, VM_BLOCK_NO_ID}, .out_obj_ids = (const uint16_t[]){2}, .en_acc_ids = (const uint16_t[]){1}, .eno_obj_id = 3})));
+
+  vm_block_io_set_level_data_t bad_io = {.allowed_mask = 0};
+  vm_block_h                   bad_iob = NULL;
+  ck("io_set_level rejects zero allowed_mask",
+      !selftest_ok(vm_block_create(&bad_iob, 3,
+          &(vm_block_cfg_t){
+              .block_idx = 3, .block_type = VM_BLK_IO_SET_LEVEL, .in_cnt = 1, .q_cnt = 0, .en_cnt = 1, .custom_len = sizeof(bad_io), .custom_data = &bad_io, .in_acc_ids = (const uint16_t[]){0}, .en_acc_ids = (const uint16_t[]){1}, .eno_obj_id = 3})));
+
+  bad_io = (vm_block_io_set_level_data_t){.allowed_mask = 0x1, .default_io_num = 5};
+  ck("io_set_level rejects default_io outside allowed_mask",
+      !selftest_ok(vm_block_create(&bad_iob, 3,
+          &(vm_block_cfg_t){
+              .block_idx = 3, .block_type = VM_BLK_IO_SET_LEVEL, .in_cnt = 1, .q_cnt = 0, .en_cnt = 1, .custom_len = sizeof(bad_io), .custom_data = &bad_io, .in_acc_ids = (const uint16_t[]){0}, .en_acc_ids = (const uint16_t[]){1}, .eno_obj_id = 3})));
+
+  bad_io = (vm_block_io_set_level_data_t){.allowed_mask = 0x1, .default_io_num = 0, .disabled_action = 99};
+  ck("io_set_level rejects invalid disabled_action",
+      !selftest_ok(vm_block_create(&bad_iob, 3,
+          &(vm_block_cfg_t){
+              .block_idx = 3, .block_type = VM_BLK_IO_SET_LEVEL, .in_cnt = 1, .q_cnt = 0, .en_cnt = 1, .custom_len = sizeof(bad_io), .custom_data = &bad_io, .in_acc_ids = (const uint16_t[]){0}, .en_acc_ids = (const uint16_t[]){1}, .eno_obj_id = 3})));
+
+  vm_block_io_set_level_data_t valid_io = {0};
+  vm_block_io_set_level_init_data(&valid_io, 0, 0, (1ULL << 0) | (1ULL << 1), VM_IO_DISABLED_FORCE_LOW, 0);
+  vm_block_h valid_iob = NULL;
+  ck("io_set_level creates with valid config",
+      selftest_ok(vm_block_create(&valid_iob, 3,
+          &(vm_block_cfg_t){
+              .block_idx = 3, .block_type = VM_BLK_IO_SET_LEVEL, .in_cnt = 1, .q_cnt = 0, .en_cnt = 1, .custom_len = sizeof(valid_io), .custom_data = &valid_io, .in_acc_ids = (const uint16_t[]){0}, .en_acc_ids = (const uint16_t[]){1}, .eno_obj_id = 3})));
+
+  vm_block_io_toggle_data_t bad_tog = {.allowed_mask = 0};
+  vm_block_h bad_togb = NULL;
+  ck("io_toggle rejects zero allowed_mask",
+      !selftest_ok(vm_block_create(&bad_togb, 4,
+          &(vm_block_cfg_t){
+              .block_idx = 4, .block_type = VM_BLK_IO_TOGGLE, .in_cnt = 0, .q_cnt = 0, .en_cnt = 1, .custom_len = sizeof(bad_tog), .custom_data = &bad_tog, .en_acc_ids = (const uint16_t[]){1}})));
+
+  bad_tog = (vm_block_io_toggle_data_t){.allowed_mask = (1ULL << 1), .default_io_num = 7};
+  ck("io_toggle rejects default_pin outside allowed_mask",
+      !selftest_ok(vm_block_create(&bad_togb, 4,
+          &(vm_block_cfg_t){
+              .block_idx = 4, .block_type = VM_BLK_IO_TOGGLE, .in_cnt = 0, .q_cnt = 0, .en_cnt = 1, .custom_len = sizeof(bad_tog), .custom_data = &bad_tog, .en_acc_ids = (const uint16_t[]){1}})));
+
+  vm_block_io_toggle_data_t valid_tog = {0};
+  vm_block_io_toggle_init_data(&valid_tog, 0, 7, (1ULL << 7));
+  vm_block_h valid_togb = NULL;
+  ck("io_toggle creates with valid config",
+      selftest_ok(vm_block_create(&valid_togb, 4,
+          &(vm_block_cfg_t){
+              .block_idx = 4, .block_type = VM_BLK_IO_TOGGLE, .in_cnt = 0, .q_cnt = 0, .en_cnt = 1, .custom_len = sizeof(valid_tog), .custom_data = &valid_tog, .en_acc_ids = (const uint16_t[]){1}})));
 
   vm_for_code_t loop = {.max_turns = 1};
   g_vm_block_fault   = false;

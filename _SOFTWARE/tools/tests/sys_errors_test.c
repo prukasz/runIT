@@ -148,7 +148,7 @@ int run_tests(void) {
   uint8_t packet[512];
   size_t  len = 0;
   CHECK(enc_sys_errors_encode_chain(held, packet, sizeof(packet), &len) == NULL);
-  CHECK(packet[1] == 16 && packet[2] == 255);
+  CHECK(packet[0] == 16 && packet[1] == 255);
   SE_release(held);
   err_h invalid = enc_sys_errors_encode_chain((err_h)1, packet, sizeof(packet), &len);
   CHECK(invalid != NULL);
@@ -182,11 +182,20 @@ int run_tests(void) {
   SE_push_to_handler(held);
   CHECK(!latched && hook_calls == before);
   // Unattributed critical faults cannot be suppressed by real device zero.
-  SE_EMIT_ERR(ERR_ESP_ERR, .esp_code = ESP_FAIL);
+  SE_EMIT_ERR(ERR_NULL_PTR, 0);
   CHECK(latched && stops == 1);
 
-  latched          = false;
+  // A wrapped ESP error on a non-critical device must not trigger system fault
+  latched = false;
   unsigned stopped = stops;
+  memset(actions, 0, sizeof(actions));
+  held = SE_ERR_NEW(ERR_ESP_ERR, .esp_code = ESP_FAIL);
+  held = SE_WRAP_ERR(held, ERR_DEV_NOT_FOUND, .dev_id = 1);
+  SE_push_to_handler(held);
+  CHECK(!latched && stops == stopped && actions[2] == 1);
+
+  latched = false;
+  stopped = stops;
   memset(actions, 0, sizeof(actions));
   held = SE_ERR_NEW(ERR_BASE_NOT_FOUND, 0);
   held = SE_WRAP_ERR(held, ERR_DEV_NO_HANDLE, .dev_id = 1);

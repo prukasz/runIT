@@ -41,31 +41,19 @@ Pin configs and device id / adresses shall not be changed
 #endif
 
 #ifndef RUNIT_SKIP_DEVICE_INIT
-  #if defined(CONFIG_RUNIT_SKIP_DEVICE_INIT)
-    #define RUNIT_SKIP_DEVICE_INIT CONFIG_RUNIT_SKIP_DEVICE_INIT
-  #elif RUNIT_DEV_PROFILE
-    #define RUNIT_SKIP_DEVICE_INIT 1
-  #else
-    #define RUNIT_SKIP_DEVICE_INIT 0
-  #endif
+  #define RUNIT_SKIP_DEVICE_INIT 0
 #endif
 
 #ifndef RUNIT_ENABLE_VM_SELFTEST
-  #if defined(CONFIG_RUNIT_ENABLE_VM_SELFTEST)
-    #define RUNIT_ENABLE_VM_SELFTEST CONFIG_RUNIT_ENABLE_VM_SELFTEST
-  #elif RUNIT_DEV_PROFILE
-    #define RUNIT_ENABLE_VM_SELFTEST 1
-  #else
-    #define RUNIT_ENABLE_VM_SELFTEST 0
-  #endif
+  #define RUNIT_ENABLE_VM_SELFTEST 0
 #endif
 
 #ifndef RUNIT_ENABLE_VM_BENCH
-  #if defined(CONFIG_RUNIT_ENABLE_VM_BENCH)
-    #define RUNIT_ENABLE_VM_BENCH CONFIG_RUNIT_ENABLE_VM_BENCH
-  #else
-    #define RUNIT_ENABLE_VM_BENCH 0
-  #endif
+  #define RUNIT_ENABLE_VM_BENCH 0
+#endif
+
+#ifndef RUNIT_ENABLE_BLINK_TEST
+  #define RUNIT_ENABLE_BLINK_TEST 1
 #endif
 
 /* Granular test section toggles (when RUNIT_ENABLE_VM_SELFTEST is 1) */

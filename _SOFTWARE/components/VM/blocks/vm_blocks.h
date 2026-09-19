@@ -27,6 +27,8 @@ not resolve to a runnable block.
 #define VM_BLK_CLONE 7     // copies, building the destination first  -- vm_block_clone.h
 #define VM_BLK_EDGE 8      // edge detector (rising, falling, both)   -- vm_block_edge.h
 #define VM_BLK_TIMER 9     // timer (TON, TOF, TP + inverted)         -- vm_block_timer.h
+#define VM_BLK_IO_SET_LEVEL 10 // hardware IO set level (digital out)   -- vm_block_io_set_level.h
+#define VM_BLK_IO_TOGGLE 11    // hardware IO toggle (digital toggle)    -- vm_block_io_toggle.h
 
 #include <stdbool.h>
 #include <stdint.h>

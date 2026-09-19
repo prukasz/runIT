@@ -239,3 +239,14 @@ static void sys_interface_receiver_task(void* arg) {
 }
 
 #undef OWNER
+
+__attribute__((weak)) err_h sys_interface_handle_fault(err_h node, err_h chain) {
+  (void)chain;
+  if (!node || SE_get_tag_level(node->tag) != SYS_DEV_ERR_CRITICAL) {
+    return NULL;
+  }
+  // Severe interface fault: suspend RX to prevent corrupt frame flooding
+  sys_interface_suspend_rx();
+  return NULL;
+}
+
