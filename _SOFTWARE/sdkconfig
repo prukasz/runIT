@@ -3518,10 +3518,6 @@ CONFIG_SYS_POWER_DEFAULT_BUDGET_MW=115500
 #
 # default:
 # CONFIG_RUNIT_SKIP_DEVICE_INIT is not set
-# default:
-# CONFIG_RUNIT_ENABLE_VM_SELFTEST is not set
-# default:
-# CONFIG_RUNIT_ENABLE_VM_BENCH is not set
 # end of runIT Board & Diagnostic Configuration
 
 #

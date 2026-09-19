@@ -13,50 +13,10 @@ Pin configs and device id / adresses shall not be changed
 #include "sys_data_connector_ble.h"
 #include "sys_error.h"
 #include "sys_i2c.h"
-#include "sys_interface.h"
 #include "sys_power.h"
 
-/* ---------------------------------------------------------------------------
-   Bring-up switches. Both default off; flip for bench testing, not for a
-   shipping build.
-
-   RUNIT_SKIP_DEVICE_INIT skips binding runit_at_boot to action 1, so no I2C
-   device is probed or installed. Action 0 still gets a no-op static function
-   bound in its place -- leaving it unbound would make sys_actions_init()'s
-   unconditional invoke(0) report ERR_ACTION_NOT_FOUND at every boot. Useful
-   when testing logic that doesn't need hardware, or on a board where a
-   missing//faulty peripheral would otherwise stall boot.
-
-   RUNIT_ENABLE_VM_SELFTEST runs vm_selftest_run() at the end of boot -- see
-   [[vm_selftest.h]].
-
-   RUNIT_ENABLE_VM_BENCH runs vm_bench_run() -- accessor resolve timings, see
-   [[vm_bench.h]]. Safe to run alongside the self test: the test leaves the
-   object table detached, and the benchmark's setup() rebuilds it before use.
-   Worth running both after any change to the object layout or to the resolve
-   path, so a timing win cannot quietly be a correctness loss.
-   --------------------------------------------------------------------------- */
-#ifndef RUNIT_DEV_PROFILE
-#define RUNIT_DEV_PROFILE 1  /* 0 for production defaults, 1 for development */
-#endif
-
-#ifndef RUNIT_SKIP_DEVICE_INIT
-  #define RUNIT_SKIP_DEVICE_INIT 1  /* Board devices configured in runit_board_devices.h, not enabled until board run */
-#endif
-
-#ifndef RUNIT_ENABLE_VM_SELFTEST
-  #define RUNIT_ENABLE_VM_SELFTEST 0
-#endif
-
-#ifndef RUNIT_ENABLE_VM_BENCH
-  #define RUNIT_ENABLE_VM_BENCH 0
-#endif
-
-/* Granular test section toggles (when RUNIT_ENABLE_VM_SELFTEST is 1) */
-#define RUNIT_TEST_SECTION_OBJ 1     // Group 1: Object model, accessors, contracts (A-K, OBJ)
-#define RUNIT_TEST_SECTION_LOADER 1  // Group 2: Loader & wire protocol (L, N, M, O, P)
-#define RUNIT_TEST_SECTION_EXEC 1    // Group 3: Execution, blocks, math (R, BLK, S-Y, PIPE, PI, PRIME, OVERRIDE)
-#define RUNIT_TEST_SECTION_SUB 1     // Group 4: Subscriptions & telemetry (SUB)
+#define RUNIT_DEV_PROFILE      1
+#define RUNIT_SKIP_DEVICE_INIT 1
 
 #define RUNIT_BOARD_POWER_LIMIT_MV 21000
 #define RUNIT_BOARD_POWER_LIMIT_MA 5500

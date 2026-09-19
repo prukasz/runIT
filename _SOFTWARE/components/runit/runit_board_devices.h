@@ -8,13 +8,9 @@ shall not be changed; devices below are commented out where the chip isn't
 populated on this board rev.
 ****************************************************** */
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
+#include <esp_log.h>
 #include "devices.h"
-#include "runit_board_cfg.h"
 #include "runit_board_defs.h"
-#include "sys_actions.h"
-#include "sys_device.h"
 #include "sys_error.h"
 #include "sys_io.h"
 

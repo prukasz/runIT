@@ -8,18 +8,4 @@ menu "runIT Board & Diagnostic Configuration"
             or installed during boot. Set to 'y' for bench testing without hardware.
             In production, this must remain disabled ('n').
 
-    config RUNIT_ENABLE_VM_SELFTEST
-        bool "Run VM self-tests at boot"
-        default n
-        help
-            Runs vm_selftest_run() during the boot sequence.
-            In production, this must remain disabled ('n').
-
-    config RUNIT_ENABLE_VM_BENCH
-        bool "Run VM benchmarks at boot"
-        default n
-        help
-            Runs vm_bench_run() during the boot sequence.
-            In production, this must remain disabled ('n').
-
 endmenu

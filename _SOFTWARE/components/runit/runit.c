@@ -1,19 +1,16 @@
 #include "runit.h"
 #include <esp_log.h>
-#include <string.h>
 #include "runit_board_cfg.h"
-#include "runit_board_defs.h"
 #include "runit_board_devices.h"
 #include "sys_actions.h"
 #include "sys_actions_static.h"
 #include "sys_callbacks.h"
+#include "sys_data_connector.h"
 #include "sys_device.h"
 #include "sys_error_log.h"
 #include "sys_interface.h"
-#include "vm_bench.h"
-#include "vm_selftest.h"
-#include "vm_sub.h"
 #include "vm_exec.h"
+#include "vm_sub.h"
 
 static const char* TAG = "runit_app";
 
@@ -66,8 +63,6 @@ static err_h step_invoke_boot_action(void) {
   return sys_actions_invoke(SYS_ACTION_SCOPE_STATIC, SYS_ACTION_ID_BOOT);
 }
 
-#include "sys_data_connector.h"
-
 static err_h runit_telemetry_sender(const uint8_t* data, size_t len) {
   sys_data_connector_t* conn = sys_data_connector_get(CONN_ID_TELEMETRY);
   if (!conn) return NULL;
@@ -103,27 +98,6 @@ err_h runit_start(void) {
   }
 
   ESP_LOGI(TAG, "runIT boot sequence complete");
-
-#if RUNIT_ENABLE_VM_SELFTEST
-  /* After sys_interface_init() so class 0x04 is registered -- the test
-     injects real frames through sys_interface_decode() rather than calling
-     the loader directly. */
-  vm_selftest_run();
-#endif
-#if RUNIT_ENABLE_VM_BENCH
-  vm_bench_run();
-#endif
-
-  // Restore production defaults and start the supervisor stopped before
-  // accepting remote execution-control packets.
-#if RUNIT_ENABLE_VM_SELFTEST || RUNIT_ENABLE_VM_BENCH
-  // Tests and benchmarks own synchronous execution during boot. Restore
-  // production defaults and start the supervisor stopped before accepting remote
-  // execution-control packets.
-  SE_release(vm_exec_stop());
-  vm_sub_init();
-  vm_sub_set_sender(runit_telemetry_sender);
-#endif
 
   static const runit_boot_step_entry_t s_boot_runtime_steps[] = {
       {"vm_exec_start", vm_exec_start},
