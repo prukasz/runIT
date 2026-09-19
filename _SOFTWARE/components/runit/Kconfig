@@ -4,7 +4,7 @@ menu "runIT Board & Diagnostic Configuration"
         bool "Skip I2C device initialization at boot"
         default n
         help
-            Skips binding runit_at_boot to action 0, so no I2C devices are probed
+            Skips binding or invoking boot action 1, so no I2C devices are probed
             or installed during boot. Set to 'y' for bench testing without hardware.
             In production, this must remain disabled ('n').
 

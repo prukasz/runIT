@@ -26,6 +26,12 @@
 #define SYS_DATA_CONNECTOR_NAME_MAX      16
 #define SYS_DATA_CONNECTOR_MAX_PACKET_LEN 512
 
+/* Outer framing bytes for the built-in logical connectors. */
+#define SYS_DATA_HEADER_STATUS 0x01
+#define SYS_DATA_HEADER_TX     0x02
+#define SYS_DATA_HEADER_LOGS   0x03
+#define SYS_DATA_HEADER_ERRORS 0x04
+
 // -----------------------------------------------------------------------------
 // Well-Known System Connector IDs
 // -----------------------------------------------------------------------------
@@ -161,6 +167,14 @@ err_h sys_data_connector_register_provider(const sys_data_provider_driver_t* dri
 // -----------------------------------------------------------------------------
 // Connector Lifecycle & Registry APIs
 // -----------------------------------------------------------------------------
+
+/**
+ * @brief Create the built-in logical connectors.
+ *
+ * This creates the connector endpoints independently of any transport. Boards
+ * bind their BLE, Wi-Fi, or other providers afterwards.
+ */
+err_h sys_data_connector_init(void);
 
 /**
  * @brief Create or retrieve a connector instance with full configuration.

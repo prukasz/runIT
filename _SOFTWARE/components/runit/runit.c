@@ -1,9 +1,6 @@
 #include "runit.h"
 #include <esp_log.h>
 #include "runit_board_cfg.h"
-#include "runit_board_devices.h"
-#include "sys_actions.h"
-#include "sys_actions_static.h"
 #include "sys_callbacks.h"
 #include "sys_data_connector.h"
 #include "sys_device.h"
@@ -13,15 +10,6 @@
 #include "vm_sub.h"
 
 static const char* TAG = "runit_app";
-
-#if RUNIT_SKIP_DEVICE_INIT
-/* Stands in for runit_at_boot so action 1 still resolves -- see the switch's
-   comment in runit_board_cfg.h for why it is bound rather than skipped. */
-static err_h runit_at_boot_disabled(void) {
-  ESP_LOGW(TAG, "device init SKIPPED (RUNIT_SKIP_DEVICE_INIT)");
-  return NULL;
-}
-#endif
 
 void runit_enter_safe_state(void) {
   SE_release(vm_exec_stop());
@@ -51,45 +39,22 @@ static err_h runit_step_error_configure(void) {
   return SE_set_logging(ESP_LOG_INFO, true, true);
 }
 
-static err_h step_bind_boot_action(void) {
-#if RUNIT_SKIP_DEVICE_INIT
-  return sys_actions_bind_static(SYS_ACTION_ID_BOOT, runit_at_boot_disabled);
-#else
-  return sys_actions_bind_static(SYS_ACTION_ID_BOOT, runit_at_boot);
-#endif
-}
-
-static err_h step_invoke_boot_action(void) {
-  return sys_actions_invoke(SYS_ACTION_SCOPE_STATIC, SYS_ACTION_ID_BOOT);
-}
-
-static err_h runit_telemetry_sender(const uint8_t* data, size_t len) {
-  sys_data_connector_t* conn = sys_data_connector_get(CONN_ID_TELEMETRY);
-  if (!conn) return NULL;
-  sys_data_connector_send(conn, data, len);
-  return NULL;
-}
-
-static err_h runit_step_vm_sub_init(void) {
-  vm_sub_set_sender(runit_telemetry_sender);
-  return vm_sub_init();
-}
-
 err_h runit_start(void) {
   SE_init();
 
   static const runit_boot_step_entry_t s_boot_setup_steps[] = {
-      {"sys_start_i2c", sys_start_i2c},
-      {"sys_power_static_config", sys_power_static_config},
-      {"sys_ble_static_config", sys_ble_static_config},
-      {"sys_data_connector_init", runit_data_connector_static_config},
+      {"runit_board_i2c_init", runit_board_i2c_init},
+      {"runit_board_power_init", runit_board_power_init},
+      {"runit_board_ble_init", runit_board_ble_init},
+      {"sys_data_connector_init", sys_data_connector_init},
+      {"runit_board_connector_bindings_init", runit_board_connector_bindings_init},
       {"SE_set_logging", runit_step_error_configure},
       {"sys_callbacks_init", sys_callbacks_init},
       {"sys_interface_init", sys_interface_init},
-      {"sys_actions_bind_boot", step_bind_boot_action},
+      {"runit_board_bind_boot_action", runit_board_bind_boot_action},
       {"sys_actions_init", sys_actions_init},
-      {"sys_actions_invoke_boot", step_invoke_boot_action},
-      {"vm_sub_init", runit_step_vm_sub_init},
+      {"runit_board_invoke_boot_action", runit_board_invoke_boot_action},
+      {"vm_sub_init", vm_sub_init},
   };
 
   err_h err = runit_run_boot_steps(s_boot_setup_steps, sizeof(s_boot_setup_steps) / sizeof(s_boot_setup_steps[0]));

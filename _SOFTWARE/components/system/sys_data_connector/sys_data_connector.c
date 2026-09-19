@@ -60,6 +60,22 @@ err_h sys_data_connector_register_provider(const sys_data_provider_driver_t* dri
 // Connector Lifecycle
 // -----------------------------------------------------------------------------
 
+err_h sys_data_connector_init(void) {
+  static const sys_data_connector_cfg_t s_system_connectors[] = {
+      {.id = CONN_ID_LOGS,      .name = "logs",      .header = SYS_DATA_HEADER_LOGS},
+      {.id = CONN_ID_ERRORS,    .name = "errors",    .header = SYS_DATA_HEADER_ERRORS},
+      {.id = CONN_ID_TELEMETRY, .name = "telemetry", .header = SYS_DATA_HEADER_TX},
+      {.id = CONN_ID_INTERFACE, .name = "interface", .header = SYS_DATA_HEADER_TX},
+  };
+
+  for (size_t i = 0; i < sizeof(s_system_connectors) / sizeof(s_system_connectors[0]); i++) {
+    if (!sys_data_connector_create_with_cfg(&s_system_connectors[i])) {
+      SE_RET_ERR(ERR_BASE_NO_MEM, s_system_connectors[i].id);
+    }
+  }
+  return NULL;
+}
+
 void sys_data_connector_set_wake_sem(sys_data_connector_t* conn, SemaphoreHandle_t sem) {
   if (!conn || conn->data_present == sem) return;
   if (conn->owns_data_present_sem && conn->data_present) {

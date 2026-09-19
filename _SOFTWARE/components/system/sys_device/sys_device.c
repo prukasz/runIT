@@ -83,7 +83,7 @@ __attribute__((weak)) err_h sys_system_handle_fault(err_h node, err_h chain) {
  *
  * `reverse` picks sweep direction. Device ids are assigned in dependency
  * order - a device's sys_io_pin_ref_t (oe_pin/rst_pin/en_pin/...) always
- * points at a lower-id device (see runit_board_devices.h) - so a
+ * points at a lower-id device (see runit_board_cfg.c) - so a
  * dependent's own op can call back into a lower-id device's sys_io while
  * that op runs (e.g. tca6424a's suspend drives its rst_pin low, which is a
  * gpio_esp pin). Going low-to-high id would suspend the dependency (low id)

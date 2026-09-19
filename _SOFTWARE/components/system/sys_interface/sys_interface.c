@@ -131,7 +131,7 @@ err_h sys_interface_init(void) {
   SE_RET_IF_ERR(sys_interface_register_decoder(SYS_CONTRACTS_CLASS_HEADER, dec_sys_contracts_decode, "sys_contracts"));
   SE_RET_IF_ERR(sys_interface_register_decoder(VM_LOADER_CLASS_HEADER, dec_vm_loader_decode, "vm_loader"));
 
-  sys_data_connector_t* conn = sys_data_connector_create(SYS_INTERFACE_CONNECTOR_ID, "interface", 0);
+  sys_data_connector_t* conn = sys_data_connector_get(SYS_INTERFACE_CONNECTOR_ID);
   if (!conn) {
     SE_RET_ERR(ERR_BASE_NO_MEM, 0);
   }
@@ -202,7 +202,7 @@ static void sys_interface_receiver_task(void* arg) {
   (void)arg;
   ESP_LOGI(TAG, "RX receiver started");
 
-  sys_data_connector_t* conn = sys_data_connector_create(SYS_INTERFACE_CONNECTOR_ID, "interface", 0);
+  sys_data_connector_t* conn = sys_data_connector_get(SYS_INTERFACE_CONNECTOR_ID);
   if (!conn || !conn->data_present) {
     ESP_LOGE(TAG, "Failed to obtain interface connector for RX receiver");
     vTaskDelete(NULL);

@@ -13,7 +13,7 @@
  * During each scan cycle, vm_sub_scan() checks subscribed objects.
  * If an object (or any node in its nested VM_OBJ_PTR tree) is updated (head.f.upd == 1),
  * a reverse 0x43 packet (matching decoder_packet_vm_set_data layout) is generated and
- * dispatched via the registered sender callback.
+ * dispatched through the telemetry data connector.
  */
 
 #define VM_SUB_MAX_SUBSCRIBERS 128
@@ -22,23 +22,11 @@
 #define VM_SUB_PACKET_SET_DATA 0x43
 #define VM_SUB_MAX_FRAME_LEN 512
 
-typedef err_h (*vm_sub_sender_fn)(const uint8_t* data, size_t len);
-
 /**
  * @brief Initialize subscription subsystem and hook into vm_exec sample point.
  * @return err_h NULL on success.
  */
 err_h vm_sub_init(void);
-
-/**
- * @brief Set the sender callback that delivers outbound reverse 0x43 packets.
- */
-void vm_sub_set_sender(vm_sub_sender_fn sender);
-
-/**
- * @brief Get the currently registered sender callback.
- */
-vm_sub_sender_fn vm_sub_get_sender(void);
 
 /**
  * @brief Set the list of subscribed object IDs.

@@ -20,7 +20,6 @@
 
 static uint16_t s_subscribed_ids[VM_SUB_MAX_SUBSCRIBERS];
 static uint16_t s_sub_count = 0;
-static vm_sub_sender_fn s_sender = NULL;
 
 static uint16_t s_emitted[MAX_EMITTED_PER_PASS];
 static uint16_t s_emitted_count = 0;
@@ -103,11 +102,7 @@ static void frame_flush(sub_frame_t* f) {
     ESP_LOGI(TAG, "  Frame Hex: [ %s%s]", hex_buf, (f->len * 3 >= sizeof(hex_buf)) ? "..." : "");
   );
 
-  if (s_sender) {
-    SE_release(s_sender(f->buf, f->len));
-  } else {
-    sys_data_connector_send(sys_data_connector_get(CONN_ID_TELEMETRY), f->buf, f->len);
-  }
+  sys_data_connector_send(sys_data_connector_get(CONN_ID_TELEMETRY), f->buf, f->len);
   frame_init(f);
 }
 
@@ -200,14 +195,6 @@ err_h vm_sub_init(void) {
   return NULL;
 }
 
-void vm_sub_set_sender(vm_sub_sender_fn sender) {
-  s_sender = sender;
-}
-
-vm_sub_sender_fn vm_sub_get_sender(void) {
-  return s_sender;
-}
-
 err_h vm_sub_subscribe(const uint16_t* ids, uint16_t count) {
   if (count > VM_SUB_MAX_SUBSCRIBERS) {
     SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = count, .min = 0, .max = VM_SUB_MAX_SUBSCRIBERS);
@@ -254,7 +241,7 @@ err_h vm_sub_handle_packet(const uint8_t* body, size_t len) {
 }
 
 void vm_sub_scan(void) {
-  if (!s_sender || s_sub_count == 0) return;
+  if (s_sub_count == 0) return;
 
   s_emitted_count = 0;
   sub_frame_t frame;

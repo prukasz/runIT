@@ -85,7 +85,7 @@ ID `0` is reserved for no action and is rejected by binding, invocation, recordi
 Slots `1..CONFIG_SYS_ACTIONS_STATIC_SLOTS-1` (default 16):
 | Action id | Static function | Notes |
 | :--- | :--- | :--- |
-| `1` | *(unbound by default)* | Boot action (e.g. `runit_at_boot`). Explicitly invoked by application boot. |
+| `1` | *(unbound by default)* | Boot action (e.g. `runit_board_devices_init`). Explicitly invoked by application boot. |
 | `2` | `sys_device_freeze_all()` | Freezes all devices. |
 | `3` | `sys_device_resume_all()` + `sync_all()` | Normal operation resumed. |
 | `4` | `sys_device_suspend_all()` | Suspends all devices. |
