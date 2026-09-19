@@ -13,5 +13,3 @@ typedef struct {
 err_h runit_start(void);
 void runit_enter_safe_state(void);
 err_h runit_run_boot_steps(const runit_boot_step_entry_t* steps, size_t count);
-
-void runit_test_guide_pipeline(void);

@@ -28,7 +28,6 @@ static err_h runit_at_boot_disabled(void) {
 
 void runit_enter_safe_state(void) {
   SE_release(vm_exec_stop());
-  vm_exec_set_sample_hook(NULL);
   SE_release(sys_device_freeze_all());
   ESP_LOGE(TAG, "System entered safe state (VM stopped, ready devices frozen)");
 }
@@ -72,7 +71,13 @@ static err_h step_invoke_boot_action(void) {
 static err_h runit_telemetry_sender(const uint8_t* data, size_t len) {
   sys_data_connector_t* conn = sys_data_connector_get(CONN_ID_TELEMETRY);
   if (!conn) return NULL;
-  return sys_data_connector_send(conn, data, len);
+  sys_data_connector_send(conn, data, len);
+  return NULL;
+}
+
+static err_h runit_step_vm_sub_init(void) {
+  vm_sub_set_sender(runit_telemetry_sender);
+  return vm_sub_init();
 }
 
 err_h runit_start(void) {
@@ -89,7 +94,7 @@ err_h runit_start(void) {
       {"sys_actions_bind_boot", step_bind_boot_action},
       {"sys_actions_init", sys_actions_init},
       {"sys_actions_invoke_boot", step_invoke_boot_action},
-      {"vm_sub_init", vm_sub_init},
+      {"vm_sub_init", runit_step_vm_sub_init},
   };
 
   err_h err = runit_run_boot_steps(s_boot_setup_steps, sizeof(s_boot_setup_steps) / sizeof(s_boot_setup_steps[0]));
@@ -111,9 +116,14 @@ err_h runit_start(void) {
 
   // Restore production defaults and start the supervisor stopped before
   // accepting remote execution-control packets.
+#if RUNIT_ENABLE_VM_SELFTEST || RUNIT_ENABLE_VM_BENCH
+  // Tests and benchmarks own synchronous execution during boot. Restore
+  // production defaults and start the supervisor stopped before accepting remote
+  // execution-control packets.
   SE_release(vm_exec_stop());
   vm_sub_init();
   vm_sub_set_sender(runit_telemetry_sender);
+#endif
 
   static const runit_boot_step_entry_t s_boot_runtime_steps[] = {
       {"vm_exec_start", vm_exec_start},
