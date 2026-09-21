@@ -40,7 +40,7 @@ static uint32_t drive_to_duty(float magnitude) {
 static uint32_t sample_pin_current_ma(sys_io_pin_ref_t pin, uint32_t ripropi_ohms) {
   if (pin.pin == SYS_GPIO_NONE) return 0;
   uint32_t adc_mv = 0;
-  if (sys_io_get_voltage(pin.device_id, pin.pin, &adc_mv) != NULL) {
+  if (sys_io_get_voltage(pin, &adc_mv) != NULL) {
     return 0;
   }
   float denominator = DRV8962_AIPROPI_GAIN * (float)ripropi_ohms;
@@ -166,30 +166,30 @@ err_h drv8962_start(drv8962_handle_t handle) {
 
   /* 1. Configure IN pins as PWM */
   for (int i = 0; i < 4; i++) {
-    IF_PIN_REF(dev->cfg.in_pins[i]) {
-      SE_RET_IF_ERR(sys_io_set_mode(dev->cfg.in_pins[i].device_id, dev->cfg.in_pins[i].pin, SYS_IO_MODE_PWM));
-      SE_RET_IF_ERR(sys_io_set_pwm_frequency(dev->cfg.in_pins[i].device_id, dev->cfg.in_pins[i].pin, dev->cfg.pwm_freq_hz));
-      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[i].device_id, dev->cfg.in_pins[i].pin, 0));
+    if (sys_io_pin_is_valid(dev->cfg.in_pins[i])) {
+      SE_RET_IF_ERR(sys_io_set_mode(dev->cfg.in_pins[i]));
+      SE_RET_IF_ERR(sys_io_set_pwm_frequency(dev->cfg.in_pins[i], dev->cfg.pwm_freq_hz));
+      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[i], 0));
     }
   }
 
   /* 2. Configure EN pins as Digital Output */
   for (int i = 0; i < 4; i++) {
-    IF_PIN_REF(dev->cfg.en_pins[i]) {
-      SE_RET_IF_ERR(SYS_IO_REF_SET_MODE(dev->cfg.en_pins[i]));
-      SYS_IO_REF_HIGH(dev->cfg.en_pins[i]);
+    if (sys_io_pin_is_valid(dev->cfg.en_pins[i])) {
+      SE_RET_IF_ERR(sys_io_set_mode(dev->cfg.en_pins[i]));
+      sys_io_set_level(dev->cfg.en_pins[i], true);
     }
   }
 
   /* 3. Configure nSLEEP pin: drive HIGH to wake up */
-  IF_PIN_REF(dev->cfg.nsleep_pin) {
-    SE_RET_IF_ERR(SYS_IO_REF_SET_MODE(dev->cfg.nsleep_pin));
-    SYS_IO_REF_HIGH(dev->cfg.nsleep_pin);
+  if (sys_io_pin_is_valid(dev->cfg.nsleep_pin)) {
+    SE_RET_IF_ERR(sys_io_set_mode(dev->cfg.nsleep_pin));
+    sys_io_set_level(dev->cfg.nsleep_pin, true);
   }
 
   /* 4. Configure nFAULT pin interrupt */
-  IF_PIN_REF(dev->cfg.nfault_pin) {
-    SE_RET_IF_ERR(sys_io_set_mode(dev->cfg.nfault_pin.device_id, dev->cfg.nfault_pin.pin, SYS_IO_MODE_INPUT_PULLUP));
+  if (sys_io_pin_is_valid(dev->cfg.nfault_pin)) {
+    SE_RET_IF_ERR(sys_io_set_mode(dev->cfg.nfault_pin));
 
     sys_io_intr_config_t intr_cfg = {
         .mode = SYS_IO_INTR_MODE_FALLING_EDGE,
@@ -201,19 +201,19 @@ err_h drv8962_start(drv8962_handle_t handle) {
             .device_handle = (void*)dev,
         },
     };
-    SE_RET_IF_ERR(sys_io_configure_intr(dev->cfg.nfault_pin.device_id, dev->cfg.nfault_pin.pin, &intr_cfg));
+    SE_RET_IF_ERR(sys_io_configure_intr(dev->cfg.nfault_pin, &intr_cfg));
   }
 
   /* 5. Configure IPROPI ADC pins */
   for (int i = 0; i < 4; i++) {
-    IF_PIN_REF(dev->cfg.current_adc_pins[i]) {
-      SE_RET_IF_ERR(sys_io_set_mode(dev->cfg.current_adc_pins[i].device_id, dev->cfg.current_adc_pins[i].pin, SYS_IO_MODE_ADC));
+    if (sys_io_pin_is_valid(dev->cfg.current_adc_pins[i])) {
+      SE_RET_IF_ERR(sys_io_set_mode(dev->cfg.current_adc_pins[i]));
     }
   }
 
   /* 6. Configure VREF DAC pin */
-  IF_PIN_REF(dev->cfg.vref_dac_pin) {
-    SE_RET_IF_ERR(sys_io_set_mode(dev->cfg.vref_dac_pin.device_id, dev->cfg.vref_dac_pin.pin, SYS_IO_MODE_DAC));
+  if (sys_io_pin_is_valid(dev->cfg.vref_dac_pin)) {
+    SE_RET_IF_ERR(sys_io_set_mode(dev->cfg.vref_dac_pin));
   }
 
   /* Brake all channels by default */
@@ -231,9 +231,9 @@ err_h drv8962_stop(drv8962_handle_t handle) {
   drv8962_dev_t* dev = (drv8962_dev_t*)handle;
 
   /* Disable nFAULT interrupt */
-  IF_PIN_REF(dev->cfg.nfault_pin) {
+  if (sys_io_pin_is_valid(dev->cfg.nfault_pin)) {
     sys_io_intr_config_t disable_intr = {.mode = SYS_IO_INTR_DISABLE};
-    sys_io_configure_intr(dev->cfg.nfault_pin.device_id, dev->cfg.nfault_pin.pin, &disable_intr);
+    sys_io_configure_intr(dev->cfg.nfault_pin, &disable_intr);
   }
 
   /* Coast outputs */
@@ -274,8 +274,8 @@ err_h drv8962_set_drive(drv8962_handle_t handle, uint8_t channel, float magnitud
     uint8_t in2_idx = (channel == 0) ? 1 : 3;
 
     /* Ensure EN pins are HIGH */
-    IF_PIN_REF(dev->cfg.en_pins[in1_idx]) SYS_IO_REF_HIGH(dev->cfg.en_pins[in1_idx]);
-    IF_PIN_REF(dev->cfg.en_pins[in2_idx]) SYS_IO_REF_HIGH(dev->cfg.en_pins[in2_idx]);
+    if (sys_io_pin_is_valid(dev->cfg.en_pins[in1_idx])) sys_io_set_level(dev->cfg.en_pins[in1_idx], true);
+    if (sys_io_pin_is_valid(dev->cfg.en_pins[in2_idx])) sys_io_set_level(dev->cfg.en_pins[in2_idx], true);
 
     float mag = fabsf(magnitude);
     uint32_t duty = drive_to_duty(mag);
@@ -284,12 +284,12 @@ err_h drv8962_set_drive(drv8962_handle_t handle, uint8_t channel, float magnitud
 
     if (magnitude > 0.0f) {
       /* Forward (Slow Decay): IN1 = 100%, IN2 = PWM comp */
-      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[in1_idx].device_id, dev->cfg.in_pins[in1_idx].pin, max_duty));
-      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[in2_idx].device_id, dev->cfg.in_pins[in2_idx].pin, comp_duty));
+      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[in1_idx], max_duty));
+      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[in2_idx], comp_duty));
     } else {
       /* Reverse (Slow Decay): IN1 = PWM comp, IN2 = 100% */
-      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[in1_idx].device_id, dev->cfg.in_pins[in1_idx].pin, comp_duty));
-      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[in2_idx].device_id, dev->cfg.in_pins[in2_idx].pin, max_duty));
+      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[in1_idx], comp_duty));
+      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[in2_idx], max_duty));
     }
 
     dev->channels[channel].current_drive = magnitude;
@@ -300,10 +300,10 @@ err_h drv8962_set_drive(drv8962_handle_t handle, uint8_t channel, float magnitud
     if (magnitude < 0.0f) magnitude = 0.0f;
     if (magnitude > 1.0f) magnitude = 1.0f;
 
-    IF_PIN_REF(dev->cfg.en_pins[channel]) SYS_IO_REF_HIGH(dev->cfg.en_pins[channel]);
+    if (sys_io_pin_is_valid(dev->cfg.en_pins[channel])) sys_io_set_level(dev->cfg.en_pins[channel], true);
 
     uint32_t duty = drive_to_duty(magnitude);
-    SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[channel].device_id, dev->cfg.in_pins[channel].pin, duty));
+    SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[channel], duty));
     dev->channels[channel].current_drive = magnitude;
     return NULL;
   }
@@ -318,22 +318,22 @@ err_h drv8962_brake(drv8962_handle_t handle, uint8_t channel) {
     uint8_t in1_idx = (channel == 0) ? 0 : 2;
     uint8_t in2_idx = (channel == 0) ? 1 : 3;
 
-    IF_PIN_REF(dev->cfg.en_pins[in1_idx]) SYS_IO_REF_HIGH(dev->cfg.en_pins[in1_idx]);
-    IF_PIN_REF(dev->cfg.en_pins[in2_idx]) SYS_IO_REF_HIGH(dev->cfg.en_pins[in2_idx]);
+    if (sys_io_pin_is_valid(dev->cfg.en_pins[in1_idx])) sys_io_set_level(dev->cfg.en_pins[in1_idx], true);
+    if (sys_io_pin_is_valid(dev->cfg.en_pins[in2_idx])) sys_io_set_level(dev->cfg.en_pins[in2_idx], true);
 
-    IF_PIN_REF(dev->cfg.in_pins[in1_idx]) {
-      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[in1_idx].device_id, dev->cfg.in_pins[in1_idx].pin, 0));
+    if (sys_io_pin_is_valid(dev->cfg.in_pins[in1_idx])) {
+      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[in1_idx], 0));
     }
-    IF_PIN_REF(dev->cfg.in_pins[in2_idx]) {
-      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[in2_idx].device_id, dev->cfg.in_pins[in2_idx].pin, 0));
+    if (sys_io_pin_is_valid(dev->cfg.in_pins[in2_idx])) {
+      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[in2_idx], 0));
     }
     dev->channels[channel].current_drive = 0.0f;
     return NULL;
   } else {
     if (channel >= 4) SE_RET_ERR(ERR_BASE_INVALID_STATE, 0);
-    IF_PIN_REF(dev->cfg.en_pins[channel]) SYS_IO_REF_HIGH(dev->cfg.en_pins[channel]);
-    IF_PIN_REF(dev->cfg.in_pins[channel]) {
-      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[channel].device_id, dev->cfg.in_pins[channel].pin, 0));
+    if (sys_io_pin_is_valid(dev->cfg.en_pins[channel])) sys_io_set_level(dev->cfg.en_pins[channel], true);
+    if (sys_io_pin_is_valid(dev->cfg.in_pins[channel])) {
+      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[channel], 0));
     }
     dev->channels[channel].current_drive = 0.0f;
     return NULL;
@@ -349,22 +349,22 @@ err_h drv8962_coast(drv8962_handle_t handle, uint8_t channel) {
     uint8_t in1_idx = (channel == 0) ? 0 : 2;
     uint8_t in2_idx = (channel == 0) ? 1 : 3;
 
-    IF_PIN_REF(dev->cfg.en_pins[in1_idx]) SYS_IO_REF_LOW(dev->cfg.en_pins[in1_idx]);
-    IF_PIN_REF(dev->cfg.en_pins[in2_idx]) SYS_IO_REF_LOW(dev->cfg.en_pins[in2_idx]);
+    if (sys_io_pin_is_valid(dev->cfg.en_pins[in1_idx])) sys_io_set_level(dev->cfg.en_pins[in1_idx], false);
+    if (sys_io_pin_is_valid(dev->cfg.en_pins[in2_idx])) sys_io_set_level(dev->cfg.en_pins[in2_idx], false);
 
-    IF_PIN_REF(dev->cfg.in_pins[in1_idx]) {
-      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[in1_idx].device_id, dev->cfg.in_pins[in1_idx].pin, 0));
+    if (sys_io_pin_is_valid(dev->cfg.in_pins[in1_idx])) {
+      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[in1_idx], 0));
     }
-    IF_PIN_REF(dev->cfg.in_pins[in2_idx]) {
-      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[in2_idx].device_id, dev->cfg.in_pins[in2_idx].pin, 0));
+    if (sys_io_pin_is_valid(dev->cfg.in_pins[in2_idx])) {
+      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[in2_idx], 0));
     }
     dev->channels[channel].current_drive = 0.0f;
     return NULL;
   } else {
     if (channel >= 4) SE_RET_ERR(ERR_BASE_INVALID_STATE, 0);
-    IF_PIN_REF(dev->cfg.en_pins[channel]) SYS_IO_REF_LOW(dev->cfg.en_pins[channel]);
-    IF_PIN_REF(dev->cfg.in_pins[channel]) {
-      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[channel].device_id, dev->cfg.in_pins[channel].pin, 0));
+    if (sys_io_pin_is_valid(dev->cfg.en_pins[channel])) sys_io_set_level(dev->cfg.en_pins[channel], false);
+    if (sys_io_pin_is_valid(dev->cfg.in_pins[channel])) {
+      SE_RET_IF_ERR(sys_io_set_pwm_duty(dev->cfg.in_pins[channel], 0));
     }
     dev->channels[channel].current_drive = 0.0f;
     return NULL;
@@ -411,11 +411,11 @@ err_h drv8962_set_current_limit_ma(drv8962_handle_t handle, uint8_t channel, uin
   dev->cfg.current_limit_ma[channel] = limit_ma;
 
   /* If VREF DAC pin is connected, set analog reference voltage */
-  IF_PIN_REF(dev->cfg.vref_dac_pin) {
+  if (sys_io_pin_is_valid(dev->cfg.vref_dac_pin)) {
     float vref_mv = ((float)limit_ma) * DRV8962_AIPROPI_GAIN * ((float)dev->cfg.ripropi_ohms[channel]);
     if (vref_mv > 3300.0f) vref_mv = 3300.0f;
     if (vref_mv < 50.0f) vref_mv = 50.0f;
-    SE_RET_IF_ERR(sys_io_set_voltage(dev->cfg.vref_dac_pin.device_id, dev->cfg.vref_dac_pin.pin, (uint32_t)lroundf(vref_mv)));
+    SE_RET_IF_ERR(sys_io_set_voltage(dev->cfg.vref_dac_pin, (uint32_t)lroundf(vref_mv)));
   }
 
   return NULL;
@@ -453,10 +453,10 @@ err_h drv8962_clear_fault(drv8962_handle_t handle, uint8_t channel) {
   if (channel >= 4) SE_RET_ERR(ERR_BASE_INVALID_STATE, 0);
 
   /* DRV8962 nSLEEP 30 us reset pulse clears internal fault latches */
-  IF_PIN_REF(dev->cfg.nsleep_pin) {
-    SYS_IO_REF_LOW(dev->cfg.nsleep_pin);
+  if (sys_io_pin_is_valid(dev->cfg.nsleep_pin)) {
+    sys_io_set_level(dev->cfg.nsleep_pin, false);
     ets_delay_us(30);
-    SYS_IO_REF_HIGH(dev->cfg.nsleep_pin);
+    sys_io_set_level(dev->cfg.nsleep_pin, true);
     ets_delay_us(1000); /* 1 ms wake delay */
   }
 
@@ -464,4 +464,3 @@ err_h drv8962_clear_fault(drv8962_handle_t handle, uint8_t channel) {
   dev->channels[channel].fault_reason = SYS_HBRIDGE_FAULT_NONE;
   return drv8962_brake(handle, channel);
 }
-

@@ -125,7 +125,7 @@ static inline void vm_blk_io_set_level(vm_block_h b) {
                        (d->flags & VM_IO_SET_F_ALWAYS);
 
     if (needs_write) {
-      BLOCK_CALL(sys_io_set_level(d->device_id, pin, level), b);
+      BLOCK_CALL(sys_io_set_level(SYS_IO_REF(d->device_id, pin), level), b);
       if (unlikely(g_vm_block_fault)) {
         vm_block_set_eno(b, false);
         return;
@@ -146,7 +146,7 @@ static inline void vm_blk_io_set_level(vm_block_h b) {
       bool dis_level = (d->disabled_action == VM_IO_DISABLED_FORCE_HIGH);
       bool last_level = (d->flags & VM_IO_SET_F_LAST_LEVEL) != 0;
       if (dis_level != last_level) {
-        BLOCK_CALL(sys_io_set_level(d->device_id, d->last_pin, dis_level), b);
+        BLOCK_CALL(sys_io_set_level(SYS_IO_REF(d->device_id, d->last_pin), dis_level), b);
         if (unlikely(g_vm_block_fault)) {
           vm_block_set_eno(b, false);
           return;

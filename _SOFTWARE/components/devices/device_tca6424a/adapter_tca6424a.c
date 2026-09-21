@@ -241,12 +241,12 @@ static err_h device_uninstall(void* handle) {
   err_h err = NULL;
 
   IF_SYS_DEV_STEP_DONE(ctx, TCA_STEP_RST_READY) {
-    SYS_IO_REF_UNLOCK(ctx->cfg.rst_pin);
-    SYS_DEV_TEARDOWN_STEP(err, SYS_IO_REF_RESET(ctx->cfg.rst_pin));
+    sys_io_unlock_pin(ctx->cfg.rst_pin);
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_reset(ctx->cfg.rst_pin));
   }
   IF_SYS_DEV_STEP_DONE(ctx, TCA_STEP_INTR_READY) {
-    SYS_IO_REF_UNLOCK(ctx->cfg.intr_pin);
-    SYS_DEV_TEARDOWN_STEP(err, SYS_IO_REF_RESET(ctx->cfg.intr_pin));
+    sys_io_unlock_pin(ctx->cfg.intr_pin);
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_reset(ctx->cfg.intr_pin));
   }
 
   if (ctx->base.hw_handle) {
@@ -262,11 +262,11 @@ static err_h device_uninstall(void* handle) {
 static err_h device_reset(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
 
-  IF_PIN_REF(ctx->cfg.rst_pin) {
-    WITH_REF_UNLOCKED(ctx->cfg.rst_pin) {
-      RET_IF_DEV_ERR(SYS_IO_REF_LOW(ctx->cfg.rst_pin), ctx);
+  if (sys_io_pin_is_valid(ctx->cfg.rst_pin)) {
+    SYS_IO_PIN_WITH_UNLOCKED(ctx->cfg.rst_pin) {
+      RET_IF_DEV_ERR(sys_io_set_level(ctx->cfg.rst_pin, false), ctx);
       vTaskDelay(pdMS_TO_TICKS(10));
-      RET_IF_DEV_ERR(SYS_IO_REF_HIGH(ctx->cfg.rst_pin), ctx);
+      RET_IF_DEV_ERR(sys_io_set_level(ctx->cfg.rst_pin, true), ctx);
       vTaskDelay(pdMS_TO_TICKS(10));
     }
   }
@@ -279,9 +279,9 @@ static err_h device_reset(void* handle) {
 
 static err_h device_suspend(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
-  IF_PIN_REF(ctx->cfg.rst_pin) {
-    WITH_REF_UNLOCKED(ctx->cfg.rst_pin) {
-      RET_IF_DEV_ERR(SYS_IO_REF_LOW(ctx->cfg.rst_pin), ctx);
+  if (sys_io_pin_is_valid(ctx->cfg.rst_pin)) {
+    SYS_IO_PIN_WITH_UNLOCKED(ctx->cfg.rst_pin) {
+      RET_IF_DEV_ERR(sys_io_set_level(ctx->cfg.rst_pin, false), ctx);
     }
   }
   return NULL;
@@ -290,9 +290,9 @@ static err_h device_suspend(void* handle) {
 static err_h device_resume(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
   SE_CHECK_HANDLE(ctx);
-  IF_PIN_REF(ctx->cfg.rst_pin) {
-    WITH_REF_UNLOCKED(ctx->cfg.rst_pin) {
-      RET_IF_DEV_ERR(SYS_IO_REF_HIGH(ctx->cfg.rst_pin), ctx);
+  if (sys_io_pin_is_valid(ctx->cfg.rst_pin)) {
+    SYS_IO_PIN_WITH_UNLOCKED(ctx->cfg.rst_pin) {
+      RET_IF_DEV_ERR(sys_io_set_level(ctx->cfg.rst_pin, true), ctx);
     }
     vTaskDelay(pdMS_TO_TICKS(10));
   }
@@ -321,21 +321,21 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
 
   SYS_DEV_INSTALL_STEP(sys_i2c_device_present(hw), "probe i2c device");
 
-  IF_PIN_REF(ctx->cfg.rst_pin) {
-    SYS_DEV_INSTALL_STEP(SYS_IO_REF_SET_MODE(ctx->cfg.rst_pin), "rst pin mode");
-    SYS_DEV_INSTALL_STEP(SYS_IO_REF_HIGH(ctx->cfg.rst_pin), "rst pin high");
-    SYS_IO_REF_LOCK(ctx->cfg.rst_pin);
+  if (sys_io_pin_is_valid(ctx->cfg.rst_pin)) {
+    SYS_DEV_INSTALL_STEP(sys_io_set_mode(ctx->cfg.rst_pin), "rst pin mode");
+    SYS_DEV_INSTALL_STEP(sys_io_set_level(ctx->cfg.rst_pin, true), "rst pin high");
+    sys_io_lock_pin(ctx->cfg.rst_pin);
     SYS_DEV_STEP_DONE(ctx, TCA_STEP_RST_READY);
   }
 
-  IF_PIN_REF(ctx->cfg.intr_pin) {
-    SYS_DEV_INSTALL_STEP(SYS_IO_REF_SET_MODE(ctx->cfg.intr_pin), "intr pin mode");
+  if (sys_io_pin_is_valid(ctx->cfg.intr_pin)) {
+    SYS_DEV_INSTALL_STEP(sys_io_set_mode(ctx->cfg.intr_pin), "intr pin mode");
     sys_io_intr_config_t intr_cfg = {
         .mode = SYS_IO_INTR_MODE_FALLING_EDGE,
         .own_func = {.own_func = device_event_handler, .device_handle = ctx},
     };
-    SYS_DEV_INSTALL_STEP(sys_io_configure_intr(ctx->cfg.intr_pin.device_id, ctx->cfg.intr_pin.pin, &intr_cfg), "intr pin configure");
-    SYS_IO_REF_LOCK(ctx->cfg.intr_pin);
+    SYS_DEV_INSTALL_STEP(sys_io_configure_intr(ctx->cfg.intr_pin, &intr_cfg), "intr pin configure");
+    sys_io_lock_pin(ctx->cfg.intr_pin);
     SYS_DEV_STEP_DONE(ctx, TCA_STEP_INTR_READY);
   }
 

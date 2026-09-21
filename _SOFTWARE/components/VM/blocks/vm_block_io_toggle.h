@@ -94,7 +94,7 @@ static inline void vm_blk_io_toggle(vm_block_h b) {
       return;
     }
 
-    BLOCK_CALL(sys_io_toggle(d->device_id, pin), b);
+    BLOCK_CALL(sys_io_toggle(SYS_IO_REF(d->device_id, pin)), b);
     if (unlikely(g_vm_block_fault)) {
       vm_block_set_eno(b, false);
       return;

@@ -28,7 +28,7 @@ typedef struct __packed {                            // 2. payload layout
 
 static inline err_h decoder_packet_sys_io_toggle_t(packet_sys_io_toggle_t* packet) {
   ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "toggling io (dev %u, pin %u)", packet->device_id, packet->pin);
-  return sys_io_toggle(packet->device_id, packet->pin);
+  return sys_io_toggle(SYS_IO_REF(packet->device_id, packet->pin));
 }
 ```
 

@@ -26,8 +26,7 @@ Every manager call (`SYS_IO_DISPATCH` in sys_io.c) goes through the same pipelin
 
 ### Scoped Pin Protection (Locking)
 * Each vtable instance carries a 64-bit `protected_pins` mask (bit `n` = pin `n` locked).
-* If the targeted pin's bit is set, `SYS_IO_DISPATCH` returns `ERR_IO_PIN_LOCKED` before ever reaching the driver.
-* Temporary access to a locked pin (e.g. for an emergency override or a dependent device's setup step) is obtained via the scoped `WITH_PIN_UNLOCKED` / `WITH_REF_UNLOCKED` macros, which unlock only if the pin was actually locked and always restore the previous state on scope exit — nesting-safe by construction since each scope remembers whether it did the unlocking.
+* Temporary access to a locked pin (e.g. for an emergency override or a dependent device's setup step) is obtained via the scoped `SYS_IO_PIN_WITH_UNLOCKED(ref)` block, which unlocks only if the pin was actually locked and always restores the previous state on scope exit — nesting-safe by construction since each scope remembers whether it did the unlocking.
 
 ---
 
@@ -93,6 +92,7 @@ typedef struct sys_io_pin_ref_t {
 ```
 **Warning**: an unused pin ref must be spelled `SYS_IO_PIN_NONE` / `SYS_IO_PIN_NONE_INIT`. Omitting a pin ref from a designated initializer zero-fills it to `{device 0, pin 0, SYS_IO_MODE_INPUT}` — device 0 and pin 0 are both real, so a silent omission means "drive pin 0", not "unused".
 * **`SYS_IO_PIN(dev_id, pin_num, pin_mode)`** / **`SYS_IO_PIN_NONE`**: Compound-literal forms, for automatic storage inside function bodies.
+* **`SYS_IO_REF(dev_id, pin_num)`**: Compound-literal form for an operation that does not use a mode.
 * **`SYS_IO_PIN_INIT(dev_id, pin_num, pin_mode)`** / **`SYS_IO_PIN_NONE_INIT`**: Brace-only forms, for file-scope/static initializers where a compound literal isn't a constant expression.
 
 ### Driver Interface Contract (sys_io_vtable_t)
@@ -138,32 +138,23 @@ String form available via `sys_io_feature_e_to_string[]`. `ERR_DEV_FEATURE_UNAVA
 
 ---
 
-## Utility Macros
+## Utility & Type-Safe Operations
 
-### Pin Configuration Helpers
+### Pin Validation
 * **`SYS_GPIO_NONE`**: Value defining an unmapped or unused GPIO pin (`0xFF`).
-* **`IF_PIN(pin_num)`**: Checks if a pin is mapped (`pin_num != SYS_GPIO_NONE`).
-* **`SYS_IO_HIGH(device_id, pin_num)`** / **`SYS_IO_LOW(device_id, pin_num)`**: Direct setters for digital output levels.
-* **`SYS_IO_TOGGLE(device_id, pin_num)`**: Inverts output level.
+* **`sys_io_pin_is_valid(ref)`**: Inline function returning `true` if `ref.pin != SYS_GPIO_NONE`.
 * **`VERIFY_PIN(dev_id, pin, pinmask)`**: Returns `ERR_IO_PIN_UNAVAILABLE` if `pin >= 64` or the corresponding bit is unset in `pinmask` — the standard first check inside a driver's own functions, ahead of the manager's own dispatch checks.
-
-### Pin Reference Operations
-Pass an lvalue only — `(ref)` is evaluated more than once.
-* **`IF_PIN_REF(ref)`**: `IF_PIN((ref).pin)`.
-* **`SYS_IO_REF_SET_MODE(ref)`** / **`SYS_IO_REF_HIGH(ref)`** / **`SYS_IO_REF_LOW(ref)`** / **`SYS_IO_REF_RESET(ref)`**: Manager calls addressed via the ref's `(device_id, pin[, mode])`.
-* **`SYS_IO_REF_LOCK(ref)`** / **`SYS_IO_REF_UNLOCK(ref)`** / **`WITH_REF_UNLOCKED(ref)`**: Lock helpers addressed via the ref.
 
 ### Event Callback Macro
 * **`SYS_IO_CB(_ctx, _pin, _event, _value, _route_mask, _static_action_id, _dynamic_action_id)`**: Copies an IO event into the callback queue with its route mask and two action IDs. Zero disables an action. The callback worker invokes selected handlers, then the dynamic/user action, then the static/system action.
 
-### Safety Lock Scopes
-Resolve the device's IO vtable via `sys_device_get_by_id()` / `SYS_DEV_GET_CONTRACT()`, so they operate directly on the published contract rather than a local copy.
-* **`SYS_IO_LOCK_PIN(dev_id, pin)`**: Sets the pin's bit in the vtable's `protected_pins`.
-* **`SYS_IO_UNLOCK_PIN(dev_id, pin)`**: Clears the pin's bit.
-* **`WITH_PIN_UNLOCKED(dev_id, pin)`**: Scoped block — unlocks the pin only if it was locked, runs the body, then restores the prior lock state on exit:
+### Pin Locking & Safety Scopes
+* **`sys_io_lock_pin(ref)`**: Sets the referenced pin's bit in the vtable's `protected_pins`.
+* **`sys_io_unlock_pin(ref)`**: Clears the referenced pin's bit in the vtable's `protected_pins`.
+* **`SYS_IO_PIN_WITH_UNLOCKED(ref)`**: Scoped block — unlocks the pin only if it was locked, runs the block body, and restores the prior lock state upon exit:
   ```c
-  WITH_PIN_UNLOCKED(dev_id, pin_num) {
-      sys_io_set_level(dev_id, pin_num, true);
+  SYS_IO_PIN_WITH_UNLOCKED(ctx->cfg.oe_pin) {
+      sys_io_set_level(ctx->cfg.oe_pin, true);
   }
   ```
 
@@ -174,19 +165,19 @@ Resolve the device's IO vtable via `sys_device_get_by_id()` / `SYS_DEV_GET_CONTR
 All return `err_h` (`NULL` on success). Every dispatched call routes through `SYS_IO_DISPATCH`, which returns `ERR_DEV_NOT_FOUND`, `ERR_DEV_NOT_INSTALLED`, `ERR_DEV_SUSPENDED`, or `ERR_IO_PIN_LOCKED` before ever reaching the driver, and `ERR_DEV_FEATURE_UNAVAILABLE` (with the calling function's `sys_io_feature_e`) if the vtable slot is NULL.
 
 ### Digital & Control Actions
-* **`sys_io_reset(device_id, pin)`**: Resets the pin to its default configuration.
-* **`sys_io_set_mode(device_id, pin, mode)`**: Sets pin mode.
-* **`sys_io_configure_intr(device_id, pin, config)`**: Configures pin interrupts and callback route mask.
-* **`sys_io_set_level(device_id, pin, level)`** / **`sys_io_get_level(device_id, pin, out_level)`**: Writes or reads a digital pin level.
-* **`sys_io_toggle(device_id, pin)`**: Inverts digital output level.
+* **`sys_io_reset(ref)`**: Resets the referenced pin to its default configuration.
+* **`sys_io_set_mode(ref)`**: Sets the referenced pin to `ref.mode`.
+* **`sys_io_configure_intr(ref, config)`**: Configures pin interrupts and callback route mask.
+* **`sys_io_set_level(ref, level)`** / **`sys_io_get_level(ref, out_level)`**: Writes or reads a digital pin level.
+* **`sys_io_toggle(ref)`**: Inverts digital output level.
 
 ### Analog (ADC / DAC) Actions
-* **`sys_io_get_voltage(device_id, pin, out_mV)`**: Reads analog voltage (mV).
-* **`sys_io_set_voltage(device_id, pin, voltage_mV)`**: Outputs analog voltage (mV).
+* **`sys_io_get_voltage(ref, out_mV)`**: Reads analog voltage (mV).
+* **`sys_io_set_voltage(ref, voltage_mV)`**: Outputs analog voltage (mV).
 
 ### PWM Control Actions
-* **`sys_io_set_pwm_frequency(device_id, pin, frequency_HZ)`**: Configures target PWM frequency.
-* **`sys_io_set_pwm_duty(device_id, pin, duty)`**: Updates PWM output duty cycle.
+* **`sys_io_set_pwm_frequency(ref, frequency_HZ)`**: Configures target PWM frequency.
+* **`sys_io_set_pwm_duty(ref, duty)`**: Updates PWM output duty cycle.
 
 ---
 

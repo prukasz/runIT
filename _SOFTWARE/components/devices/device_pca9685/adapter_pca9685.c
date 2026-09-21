@@ -125,9 +125,9 @@ static err_h device_uninstall(void* handle) {
 
   // Disable outputs if OE pin was configured (set HIGH)
   IF_SYS_DEV_STEP_DONE(ctx, PCA_STEP_OE_READY) {
-    SYS_IO_REF_UNLOCK(ctx->cfg.oe_pin);
-    SYS_DEV_TEARDOWN_STEP(err, SYS_IO_REF_HIGH(ctx->cfg.oe_pin));
-    SYS_DEV_TEARDOWN_STEP(err, SYS_IO_REF_RESET(ctx->cfg.oe_pin));
+    sys_io_unlock_pin(ctx->cfg.oe_pin);
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_set_level(ctx->cfg.oe_pin, true));
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_reset(ctx->cfg.oe_pin));
   }
 
   if (ctx->base.hw_handle) {
@@ -155,9 +155,9 @@ static err_h device_reset(void* handle) {
 static err_h device_suspend(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(pca_adapter_ctx_t, pca9685_handle_t, ctx, hw, handle);
 
-  IF_PIN_REF(ctx->cfg.oe_pin) {
-    WITH_REF_UNLOCKED(ctx->cfg.oe_pin) {
-      SYS_IO_REF_HIGH(ctx->cfg.oe_pin);
+  if (sys_io_pin_is_valid(ctx->cfg.oe_pin)) {
+    SYS_IO_PIN_WITH_UNLOCKED(ctx->cfg.oe_pin) {
+      sys_io_set_level(ctx->cfg.oe_pin, true);
     }
   }
 
@@ -172,9 +172,9 @@ static err_h device_resume(void* handle) {
 
   pca9685_sleep(hw, false);
 
-  IF_PIN_REF(ctx->cfg.oe_pin) {
-    WITH_REF_UNLOCKED(ctx->cfg.oe_pin) {
-      SYS_IO_REF_LOW(ctx->cfg.oe_pin);
+  if (sys_io_pin_is_valid(ctx->cfg.oe_pin)) {
+    SYS_IO_PIN_WITH_UNLOCKED(ctx->cfg.oe_pin) {
+      sys_io_set_level(ctx->cfg.oe_pin, false);
     }
   }
 
@@ -244,10 +244,10 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
   SYS_DEV_INSTALL_STEP(sys_i2c_device_present(ctx->base.hw_handle), "i2c probe");
   SYS_DEV_INSTALL_STEP(SE_CONVERT_ESP(pca9685_start(hw)), "chip start");
 
-  IF_PIN_REF(ctx->cfg.oe_pin) {
-    SYS_DEV_INSTALL_STEP(SYS_IO_REF_SET_MODE(ctx->cfg.oe_pin), "OE pin mode");
-    SYS_IO_REF_LOW(ctx->cfg.oe_pin);  // OE is active low => outputs enabled
-    SYS_IO_REF_LOCK(ctx->cfg.oe_pin);
+  if (sys_io_pin_is_valid(ctx->cfg.oe_pin)) {
+    SYS_DEV_INSTALL_STEP(sys_io_set_mode(ctx->cfg.oe_pin), "OE pin mode");
+    sys_io_set_level(ctx->cfg.oe_pin, false);  // OE is active low => outputs enabled
+    sys_io_lock_pin(ctx->cfg.oe_pin);
     SYS_DEV_STEP_DONE(ctx, PCA_STEP_OE_READY);
   }
 

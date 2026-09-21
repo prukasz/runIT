@@ -51,18 +51,18 @@ static err_h contract_vreg_tps55289_set_enable(void* device_handle, bool state) 
   ctx->last_enable_state = state;
 
   if (state) {
-    IF_PIN_REF(ctx->cfg.en_pin) {
-      WITH_REF_UNLOCKED(ctx->cfg.en_pin) {
-        RET_IF_DEV_ERR(sys_io_set_level(ctx->cfg.en_pin.device_id, ctx->cfg.en_pin.pin, state), ctx);
+    if (sys_io_pin_is_valid(ctx->cfg.en_pin)) {
+      SYS_IO_PIN_WITH_UNLOCKED(ctx->cfg.en_pin) {
+        RET_IF_DEV_ERR(sys_io_set_level(ctx->cfg.en_pin, state), ctx);
       }
     }
     vTaskDelay(pdMS_TO_TICKS(10));
     SYS_DEV_CHECK_DRIVER_CALL(tps55289_set_output_enable(hw, state), ctx);
   } else {
     SYS_DEV_CHECK_DRIVER_CALL(tps55289_set_output_enable(hw, state), ctx);
-    IF_PIN_REF(ctx->cfg.en_pin) {
-      WITH_REF_UNLOCKED(ctx->cfg.en_pin) {
-        RET_IF_DEV_ERR(sys_io_set_level(ctx->cfg.en_pin.device_id, ctx->cfg.en_pin.pin, state), ctx);
+    if (sys_io_pin_is_valid(ctx->cfg.en_pin)) {
+      SYS_IO_PIN_WITH_UNLOCKED(ctx->cfg.en_pin) {
+        RET_IF_DEV_ERR(sys_io_set_level(ctx->cfg.en_pin, state), ctx);
       }
     }
   }
@@ -115,13 +115,13 @@ static err_h device_uninstall(void* handle) {
   err_h err = NULL;
 
   IF_SYS_DEV_STEP_DONE(ctx, TPS_STEP_EN_READY) {
-    SYS_IO_REF_UNLOCK(ctx->cfg.en_pin);
-    SYS_DEV_TEARDOWN_STEP(err, SYS_IO_REF_LOW(ctx->cfg.en_pin));
-    SYS_DEV_TEARDOWN_STEP(err, SYS_IO_REF_RESET(ctx->cfg.en_pin));
+    sys_io_unlock_pin(ctx->cfg.en_pin);
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_set_level(ctx->cfg.en_pin, false));
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_reset(ctx->cfg.en_pin));
   }
   IF_SYS_DEV_STEP_DONE(ctx, TPS_STEP_INTR_READY) {
-    SYS_IO_REF_UNLOCK(ctx->cfg.intr_pin);
-    SYS_DEV_TEARDOWN_STEP(err, SYS_IO_REF_RESET(ctx->cfg.intr_pin));
+    sys_io_unlock_pin(ctx->cfg.intr_pin);
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_reset(ctx->cfg.intr_pin));
   }
   if (ctx->base.hw_handle) {
     IF_SYS_DEV_STEP_DONE(ctx, TPS_STEP_I2C_ADDED) {
@@ -147,9 +147,9 @@ static err_h device_suspend(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tps_adapter_ctx_t, tps55289_handle_t, ctx, hw, handle);
 
   SYS_DEV_CHECK_DRIVER_CALL(tps55289_set_output_enable(hw, false), ctx);
-  IF_PIN_REF(ctx->cfg.en_pin) {
-    WITH_REF_UNLOCKED(ctx->cfg.en_pin) {
-      RET_IF_DEV_ERR(SYS_IO_REF_LOW(ctx->cfg.en_pin), ctx);
+  if (sys_io_pin_is_valid(ctx->cfg.en_pin)) {
+    SYS_IO_PIN_WITH_UNLOCKED(ctx->cfg.en_pin) {
+      RET_IF_DEV_ERR(sys_io_set_level(ctx->cfg.en_pin, false), ctx);
     }
   }
 
@@ -159,9 +159,9 @@ static err_h device_suspend(void* handle) {
 static err_h device_resume(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tps_adapter_ctx_t, tps55289_handle_t, ctx, hw, handle);
 
-  IF_PIN_REF(ctx->cfg.en_pin) {
-    WITH_REF_UNLOCKED(ctx->cfg.en_pin) {
-      RET_IF_DEV_ERR(SYS_IO_REF_HIGH(ctx->cfg.en_pin), ctx);
+  if (sys_io_pin_is_valid(ctx->cfg.en_pin)) {
+    SYS_IO_PIN_WITH_UNLOCKED(ctx->cfg.en_pin) {
+      RET_IF_DEV_ERR(sys_io_set_level(ctx->cfg.en_pin, true), ctx);
     }
   }
   SYS_DEV_CHECK_DRIVER_CALL(tps55289_set_output_enable(hw, ctx->last_enable_state), ctx);
@@ -192,10 +192,10 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
 
   tps55289_handle_t hw = (tps55289_handle_t)(ctx->base.hw_handle);
 
-  IF_PIN_REF(ctx->cfg.en_pin) {
-    SYS_DEV_INSTALL_STEP(SYS_IO_REF_SET_MODE(ctx->cfg.en_pin), "en pin mode");
-    SYS_DEV_INSTALL_STEP(SYS_IO_REF_HIGH(ctx->cfg.en_pin), "en pin high");
-    SYS_IO_REF_LOCK(ctx->cfg.en_pin);
+  if (sys_io_pin_is_valid(ctx->cfg.en_pin)) {
+    SYS_DEV_INSTALL_STEP(sys_io_set_mode(ctx->cfg.en_pin), "en pin mode");
+    SYS_DEV_INSTALL_STEP(sys_io_set_level(ctx->cfg.en_pin, true), "en pin high");
+    sys_io_lock_pin(ctx->cfg.en_pin);
     SYS_DEV_STEP_DONE(ctx, TPS_STEP_EN_READY);
     vTaskDelay(pdMS_TO_TICKS(10));
   }
@@ -210,14 +210,14 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
   // waits after driving this same pin high at runtime.
 
   // Configure interrupt pin & callback
-  IF_PIN_REF(ctx->cfg.intr_pin) {
-    SYS_DEV_INSTALL_STEP(SYS_IO_REF_SET_MODE(ctx->cfg.intr_pin), "intr pin mode");
+  if (sys_io_pin_is_valid(ctx->cfg.intr_pin)) {
+    SYS_DEV_INSTALL_STEP(sys_io_set_mode(ctx->cfg.intr_pin), "intr pin mode");
     sys_io_intr_config_t intr_cfg = {
         .mode = SYS_IO_INTR_MODE_FALLING_EDGE,
         .own_func = {.own_func = device_event_handler, .device_handle = ctx},
     };
-    SYS_DEV_INSTALL_STEP(sys_io_configure_intr(ctx->cfg.intr_pin.device_id, ctx->cfg.intr_pin.pin, &intr_cfg), "intr pin configure");
-    SYS_IO_REF_LOCK(ctx->cfg.intr_pin);
+    SYS_DEV_INSTALL_STEP(sys_io_configure_intr(ctx->cfg.intr_pin, &intr_cfg), "intr pin configure");
+    sys_io_lock_pin(ctx->cfg.intr_pin);
     SYS_DEV_STEP_DONE(ctx, TPS_STEP_INTR_READY);
   }
 

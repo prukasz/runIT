@@ -15,7 +15,7 @@ static void servo_teardown(void* data) {
   feature_servo_t* s = (feature_servo_t*)data;
   if (s && s->is_attached) {
     /* Set PWM duty to 0 to safely de-energize the servo */
-    sys_io_set_pwm_duty(s->device_id, s->pin_num, 0);
+    sys_io_set_pwm_duty(SYS_IO_REF(s->device_id, s->pin_num), 0);
     s->is_attached = false;
   }
 }
@@ -59,7 +59,7 @@ static err_h servo_apply_angle(feature_servo_t* s, float logical_angle) {
   float effective_angle = logical_angle + s->trim_angle;
   uint32_t duty = servo_calc_duty(s, effective_angle);
 
-  SE_RET_IF_ERR(sys_io_set_pwm_duty(s->device_id, s->pin_num, duty));
+  SE_RET_IF_ERR(sys_io_set_pwm_duty(SYS_IO_REF(s->device_id, s->pin_num), duty));
   s->last_angle = logical_angle;
   s->is_attached = true;
   return NULL;
@@ -90,7 +90,7 @@ err_h feature_servo_create(uint8_t feature_id, const feature_servo_t* config) {
   }
 
   /* Configure hardware PWM frequency */
-  SE_RET_IF_ERR(sys_io_set_pwm_frequency(s->device_id, s->pin_num, s->frequency_hz));
+  SE_RET_IF_ERR(sys_io_set_pwm_frequency(SYS_IO_REF(s->device_id, s->pin_num), s->frequency_hz));
 
   /* Move to default position */
   s->last_angle = s->default_angle;
@@ -170,8 +170,7 @@ err_h feature_servo_detach(uint8_t feature_id) {
     SE_RET_ERR(ERR_BASE_NOT_FOUND, 0);
   }
 
-  SE_RET_IF_ERR(sys_io_set_pwm_duty(s->device_id, s->pin_num, 0));
+  SE_RET_IF_ERR(sys_io_set_pwm_duty(SYS_IO_REF(s->device_id, s->pin_num), 0));
   s->is_attached = false;
   return NULL;
 }
-

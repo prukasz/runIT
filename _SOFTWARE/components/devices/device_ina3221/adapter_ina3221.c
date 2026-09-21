@@ -87,12 +87,12 @@ static err_h device_uninstall(void* handle) {
   err_h err = NULL;
 
   IF_SYS_DEV_STEP_DONE(ctx, INA_STEP_CRIT_READY) {
-    SYS_IO_REF_UNLOCK(ctx->cfg.crit_pin);
-    SYS_DEV_TEARDOWN_STEP(err, SYS_IO_REF_RESET(ctx->cfg.crit_pin));
+    sys_io_unlock_pin(ctx->cfg.crit_pin);
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_reset(ctx->cfg.crit_pin));
   }
   IF_SYS_DEV_STEP_DONE(ctx, INA_STEP_WARN_READY) {
-    SYS_IO_REF_UNLOCK(ctx->cfg.warn_pin);
-    SYS_DEV_TEARDOWN_STEP(err, SYS_IO_REF_RESET(ctx->cfg.warn_pin));
+    sys_io_unlock_pin(ctx->cfg.warn_pin);
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_reset(ctx->cfg.warn_pin));
   }
   if (ctx->base.hw_handle) {
     IF_SYS_DEV_STEP_DONE(ctx, INA_STEP_I2C_ADDED) {
@@ -181,26 +181,26 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
   SYS_DEV_INSTALL_STEP(SE_CONVERT_ESP(ina3221_start(hw)), "start ina3221");
 
   // Configure critical alert interrupt pin
-  IF_PIN_REF(ctx->cfg.crit_pin) {
-    SYS_DEV_INSTALL_STEP(SYS_IO_REF_SET_MODE(ctx->cfg.crit_pin), "crit pin mode");
+  if (sys_io_pin_is_valid(ctx->cfg.crit_pin)) {
+    SYS_DEV_INSTALL_STEP(sys_io_set_mode(ctx->cfg.crit_pin), "crit pin mode");
     sys_io_intr_config_t intr_cfg = {
         .mode = SYS_IO_INTR_MODE_FALLING_EDGE,
         .own_func = {.own_func = device_event_handler, .device_handle = ctx},
     };
-    SYS_DEV_INSTALL_STEP(sys_io_configure_intr(ctx->cfg.crit_pin.device_id, ctx->cfg.crit_pin.pin, &intr_cfg), "crit pin intr");
-    SYS_IO_REF_LOCK(ctx->cfg.crit_pin);
+    SYS_DEV_INSTALL_STEP(sys_io_configure_intr(ctx->cfg.crit_pin, &intr_cfg), "crit pin intr");
+    sys_io_lock_pin(ctx->cfg.crit_pin);
     SYS_DEV_STEP_DONE(ctx, INA_STEP_CRIT_READY);
   }
 
   // Configure warning alert interrupt pin
-  IF_PIN_REF(ctx->cfg.warn_pin) {
-    SYS_DEV_INSTALL_STEP(SYS_IO_REF_SET_MODE(ctx->cfg.warn_pin), "warn pin mode");
+  if (sys_io_pin_is_valid(ctx->cfg.warn_pin)) {
+    SYS_DEV_INSTALL_STEP(sys_io_set_mode(ctx->cfg.warn_pin), "warn pin mode");
     sys_io_intr_config_t intr_cfg = {
         .mode = SYS_IO_INTR_MODE_FALLING_EDGE,
         .own_func = {.own_func = device_event_handler, .device_handle = ctx},
     };
-    SYS_DEV_INSTALL_STEP(sys_io_configure_intr(ctx->cfg.warn_pin.device_id, ctx->cfg.warn_pin.pin, &intr_cfg), "warn pin intr");
-    SYS_IO_REF_LOCK(ctx->cfg.warn_pin);
+    SYS_DEV_INSTALL_STEP(sys_io_configure_intr(ctx->cfg.warn_pin, &intr_cfg), "warn pin intr");
+    sys_io_lock_pin(ctx->cfg.warn_pin);
     SYS_DEV_STEP_DONE(ctx, INA_STEP_WARN_READY);
   }
 

@@ -164,7 +164,7 @@ typedef struct __packed {
 
 static inline err_h decoder_packet_sys_io_reset_t(packet_sys_io_reset_t* packet) {
   ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "resetting io (dev %u, pin %u)", packet->device_id, packet->pin);
-  return sys_io_reset(packet->device_id, packet->pin);
+  return sys_io_reset(SYS_IO_REF(packet->device_id, packet->pin));
 }
 
 #define HEADER_packet_sys_io_set_mode_t 0x21
@@ -176,7 +176,7 @@ typedef struct __packed {
 
 static inline err_h decoder_packet_sys_io_set_mode_t(packet_sys_io_set_mode_t* packet) {
   ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "setting io mode %u (dev %u, pin %u)", packet->mode, packet->device_id, packet->pin);
-  return sys_io_set_mode(packet->device_id, packet->pin, (sys_io_mode_e)packet->mode);
+  return sys_io_set_mode(SYS_IO_PIN(packet->device_id, packet->pin, (sys_io_mode_e)packet->mode));
 }
 
 #define HEADER_packet_sys_io_set_level_t 0x22
@@ -188,7 +188,7 @@ typedef struct __packed {
 
 static inline err_h decoder_packet_sys_io_set_level_t(packet_sys_io_set_level_t* packet) {
   ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "setting io level %u (dev %u, pin %u)", packet->level != 0, packet->device_id, packet->pin);
-  return sys_io_set_level(packet->device_id, packet->pin, packet->level != 0);
+  return sys_io_set_level(SYS_IO_REF(packet->device_id, packet->pin), packet->level != 0);
 }
 
 #define HEADER_packet_sys_io_get_level_t 0x23
@@ -200,7 +200,7 @@ typedef struct __packed {
 static inline err_h decoder_packet_sys_io_get_level_t(packet_sys_io_get_level_t* packet) {
   ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "reading io level (dev %u, pin %u)", packet->device_id, packet->pin);
   bool level = false;
-  err_h err = sys_io_get_level(packet->device_id, packet->pin, &level);
+  err_h err = sys_io_get_level(SYS_IO_REF(packet->device_id, packet->pin), &level);
   if (SE_IS_OK(err)) {
     ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "sys_io_get_level (dev %u, pin %u): level=%d", packet->device_id, packet->pin, level);
   }
@@ -215,7 +215,7 @@ typedef struct __packed {
 
 static inline err_h decoder_packet_sys_io_toggle_t(packet_sys_io_toggle_t* packet) {
   ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "toggling io (dev %u, pin %u)", packet->device_id, packet->pin);
-  return sys_io_toggle(packet->device_id, packet->pin);
+  return sys_io_toggle(SYS_IO_REF(packet->device_id, packet->pin));
 }
 
 #define HEADER_packet_sys_io_get_voltage_t 0x25
@@ -227,7 +227,7 @@ typedef struct __packed {
 static inline err_h decoder_packet_sys_io_get_voltage_t(packet_sys_io_get_voltage_t* packet) {
   ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "reading io voltage (dev %u, pin %u)", packet->device_id, packet->pin);
   uint32_t out_mV = 0;
-  err_h err = sys_io_get_voltage(packet->device_id, packet->pin, &out_mV);
+  err_h err = sys_io_get_voltage(SYS_IO_REF(packet->device_id, packet->pin), &out_mV);
   if (SE_IS_OK(err)) {
     ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "sys_io_get_voltage (dev %u, pin %u): mV=%lu", packet->device_id, packet->pin, (unsigned long)out_mV);
   }
@@ -243,7 +243,7 @@ typedef struct __packed {
 
 static inline err_h decoder_packet_sys_io_set_voltage_t(packet_sys_io_set_voltage_t* packet) {
   ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "setting io voltage %lu mV (dev %u, pin %u)", (unsigned long)packet->voltage_mV, packet->device_id, packet->pin);
-  return sys_io_set_voltage(packet->device_id, packet->pin, packet->voltage_mV);
+  return sys_io_set_voltage(SYS_IO_REF(packet->device_id, packet->pin), packet->voltage_mV);
 }
 
 #define HEADER_packet_sys_io_set_pwm_frequency_t 0x27
@@ -256,7 +256,7 @@ typedef struct __packed {
 static inline err_h decoder_packet_sys_io_set_pwm_frequency_t(packet_sys_io_set_pwm_frequency_t* packet) {
   ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "setting pwm frequency %lu Hz (dev %u, pin %u)", (unsigned long)packet->frequency_HZ, packet->device_id,
            packet->pin);
-  return sys_io_set_pwm_frequency(packet->device_id, packet->pin, packet->frequency_HZ);
+  return sys_io_set_pwm_frequency(SYS_IO_REF(packet->device_id, packet->pin), packet->frequency_HZ);
 }
 
 #define HEADER_packet_sys_io_set_pwm_duty_t 0x28
@@ -268,7 +268,7 @@ typedef struct __packed {
 
 static inline err_h decoder_packet_sys_io_set_pwm_duty_t(packet_sys_io_set_pwm_duty_t* packet) {
   ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "setting pwm duty %lu (dev %u, pin %u)", (unsigned long)packet->duty, packet->device_id, packet->pin);
-  return sys_io_set_pwm_duty(packet->device_id, packet->pin, packet->duty);
+  return sys_io_set_pwm_duty(SYS_IO_REF(packet->device_id, packet->pin), packet->duty);
 }
 
 #define HEADER_packet_sys_io_configure_intr_t 0x29
@@ -301,7 +301,7 @@ static inline err_h decoder_packet_sys_io_configure_intr_t(packet_sys_io_configu
       .adc_event_counter_threshold = packet->adc_counter_thresh,
     }
   };
-  return sys_io_configure_intr(packet->device_id, packet->pin, &config);
+  return sys_io_configure_intr(SYS_IO_REF(packet->device_id, packet->pin), &config);
 }
 
 // ==========================================================================

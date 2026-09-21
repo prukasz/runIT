@@ -76,6 +76,7 @@ typedef struct sys_io_pin_ref_t {
 /*Compound-literal forms, for automatic storage (inside function bodies)*/
 #define SYS_IO_PIN(dev_id, pin_num, pin_mode) ((sys_io_pin_ref_t){.device_id = (dev_id), .pin = (pin_num), .mode = (pin_mode)})
 #define SYS_IO_PIN_NONE ((sys_io_pin_ref_t){.pin = SYS_GPIO_NONE})
+#define SYS_IO_REF(dev_id, pin_num) ((sys_io_pin_ref_t){.device_id = (dev_id), .pin = (pin_num)})
 
 /*Brace-only forms, for file-scope/static initializers where a compound
   literal is not a constant expression*/
@@ -148,50 +149,37 @@ typedef struct sys_io_device_t {
   void* handle;
 } sys_io_device_t;
 
-// API Systemowe używa teraz wyłącznie uint8_t device_id i pinu
-err_h sys_io_reset(uint8_t device_id, sys_io_pin_num_t pin);
-err_h sys_io_set_mode(uint8_t device_id, sys_io_pin_num_t pin, sys_io_mode_e mode);
-err_h sys_io_configure_intr(uint8_t device_id, sys_io_pin_num_t pin, const sys_io_intr_config_t* config);
+err_h sys_io_reset(sys_io_pin_ref_t ref);
+err_h sys_io_set_mode(sys_io_pin_ref_t ref);
+err_h sys_io_configure_intr(sys_io_pin_ref_t ref, const sys_io_intr_config_t* config);
 
-err_h sys_io_set_level(uint8_t device_id, sys_io_pin_num_t pin, bool level);
-err_h sys_io_get_level(uint8_t device_id, sys_io_pin_num_t pin, bool* level);
-err_h sys_io_toggle(uint8_t device_id, sys_io_pin_num_t pin);
+err_h sys_io_set_level(sys_io_pin_ref_t ref, bool level);
+err_h sys_io_get_level(sys_io_pin_ref_t ref, bool* level);
+err_h sys_io_toggle(sys_io_pin_ref_t ref);
 
-err_h sys_io_get_voltage(uint8_t device_id, sys_io_pin_num_t pin, uint32_t* out_mV);
-err_h sys_io_set_voltage(uint8_t device_id, sys_io_pin_num_t pin, uint32_t voltage_mV);
+err_h sys_io_get_voltage(sys_io_pin_ref_t ref, uint32_t* out_mV);
+err_h sys_io_set_voltage(sys_io_pin_ref_t ref, uint32_t voltage_mV);
 
-err_h sys_io_set_pwm_frequency(uint8_t device_id, sys_io_pin_num_t pin, uint32_t frequency_HZ);
-err_h sys_io_set_pwm_duty(uint8_t device_id, sys_io_pin_num_t pin, uint32_t duty);
-#define SYS_IO_HIGH(device_id, pin_num) sys_io_set_level((device_id), (pin_num), true)
-#define SYS_IO_LOW(device_id, pin_num) sys_io_set_level((device_id), (pin_num), false)
+err_h sys_io_set_pwm_frequency(sys_io_pin_ref_t ref, uint32_t frequency_HZ);
+err_h sys_io_set_pwm_duty(sys_io_pin_ref_t ref, uint32_t duty);
 
-#define SYS_IO_UNLOCK_PIN(dev_id, pin)                                                                 \
-  do {                                                                                                 \
-    sys_device_t* __d = sys_device_get_by_id((dev_id));                                                \
-    sys_io_vtable_t* __v = __d ? (sys_io_vtable_t*)__d->cls->contracts[SYS_DEVICE_CONTRACT_IO] : NULL; \
-    if (__v) __v->protected_pins &= ~(1ULL << (pin));                                                  \
-  } while (0)
+err_h sys_io_lock_pin(sys_io_pin_ref_t ref);
+err_h sys_io_unlock_pin(sys_io_pin_ref_t ref);
+bool sys_io_temp_unlock(sys_io_pin_ref_t ref);
+void sys_io_restore_lock(sys_io_pin_ref_t ref, bool was_locked);
 
-#define SYS_IO_LOCK_PIN(dev_id, pin)                                                                   \
-  do {                                                                                                 \
-    sys_device_t* __d = sys_device_get_by_id((dev_id));                                                \
-    sys_io_vtable_t* __v = __d ? (sys_io_vtable_t*)__d->cls->contracts[SYS_DEVICE_CONTRACT_IO] : NULL; \
-    if (__v) __v->protected_pins |= (1ULL << (pin));                                                   \
-  } while (0)
+/**
+ * @brief Scoped block for temporarily unlocking a pin. Restores original lock state on exit.
+ */
+#define SYS_IO_PIN_WITH_UNLOCKED(ref) \
+  for (bool __active = true, __was_locked = sys_io_temp_unlock((ref)); \
+       __active; \
+       __active = false, sys_io_restore_lock((ref), __was_locked))
 
-#define WITH_PIN_UNLOCKED(dev_id, pin)                                                                                                         \
-  for (sys_io_vtable_t* __v = (sys_io_vtable_t*)SYS_DEV_GET_CONTRACT(sys_device_get_by_id((dev_id)), SYS_DEVICE_CONTRACT_IO); __v; __v = NULL) \
-    for (uint64_t __mask = (1ULL << (pin)), __prev = (__v->protected_pins & __mask ? (__v->protected_pins &= ~__mask, __mask) : 0); __mask; __mask = (__prev ? (__v->protected_pins |= __mask, 0) : 0))
-
-/*sys_io_pin_ref_t operations. Pass an lvalue only - (ref) is evaluated more than once.*/
-#define IF_PIN_REF(ref) IF_PIN((ref).pin)
-#define SYS_IO_REF_SET_MODE(ref) sys_io_set_mode((ref).device_id, (ref).pin, (ref).mode)
-#define SYS_IO_REF_HIGH(ref) sys_io_set_level((ref).device_id, (ref).pin, true)
-#define SYS_IO_REF_LOW(ref) sys_io_set_level((ref).device_id, (ref).pin, false)
-#define SYS_IO_REF_RESET(ref) sys_io_reset((ref).device_id, (ref).pin)
-#define SYS_IO_REF_LOCK(ref) SYS_IO_LOCK_PIN((ref).device_id, (ref).pin)
-#define SYS_IO_REF_UNLOCK(ref) SYS_IO_UNLOCK_PIN((ref).device_id, (ref).pin)
-#define WITH_REF_UNLOCKED(ref) WITH_PIN_UNLOCKED((ref).device_id, (ref).pin)
+/* Type-safe sys_io_pin_ref_t operations */
+static inline bool sys_io_pin_is_valid(sys_io_pin_ref_t ref) {
+  return ref.pin != SYS_GPIO_NONE;
+}
 
 extern const char* const sys_io_mode_e_to_string[];
 extern const char* const sys_io_intr_mode_e_to_string[];

@@ -120,8 +120,8 @@ err_h runit_board_devices_init(void) {
       .device_id = DEVICE_ID_AP33772S, .i2c_bus = SYS_I2C_BUS_INTERNAL, .i2c_addr = 0x52,
       .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 12, SYS_IO_MODE_INPUT),
   }));
-  SE_RET_IF_ERR(sys_io_set_mode(DEVICE_ID_TCA6424A, 22, SYS_IO_MODE_OUTPUT_PUSH_PULL));
-  SE_RET_IF_ERR(sys_io_set_mode(DEVICE_ID_TCA6424A, 23, SYS_IO_MODE_OUTPUT_PUSH_PULL));
+  SE_RET_IF_ERR(sys_io_set_mode(SYS_IO_PIN(DEVICE_ID_TCA6424A, 22, SYS_IO_MODE_OUTPUT_PUSH_PULL)));
+  SE_RET_IF_ERR(sys_io_set_mode(SYS_IO_PIN(DEVICE_ID_TCA6424A, 23, SYS_IO_MODE_OUTPUT_PUSH_PULL)));
 
   ESP_LOGI(TAG, "onboard devices created");
   return NULL;

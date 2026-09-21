@@ -305,8 +305,8 @@ static err_h device_uninstall(void* handle) {
   err_h err = NULL;
 
   IF_SYS_DEV_STEP_DONE(ctx, ADS_STEP_INTR_READY) {
-    SYS_IO_REF_UNLOCK(ctx->cfg.intr_pin);
-    SYS_DEV_TEARDOWN_STEP(err, SYS_IO_REF_RESET(ctx->cfg.intr_pin));
+    sys_io_unlock_pin(ctx->cfg.intr_pin);
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_reset(ctx->cfg.intr_pin));
   }
 
   if (ctx->base.hw_handle) {
@@ -407,15 +407,15 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
   SYS_DEV_INSTALL_STEP(sys_i2c_device_present(ctx->base.hw_handle), "probe i2c device");
   SYS_DEV_INSTALL_STEP(SE_CONVERT_ESP(ads_start(hw)), "chip start");
 
-  IF_PIN_REF(ctx->cfg.intr_pin) {
-    SYS_DEV_INSTALL_STEP(SYS_IO_REF_SET_MODE(ctx->cfg.intr_pin), "intr pin mode");
+  if (sys_io_pin_is_valid(ctx->cfg.intr_pin)) {
+    SYS_DEV_INSTALL_STEP(sys_io_set_mode(ctx->cfg.intr_pin), "intr pin mode");
     // ALERT is active low, so the falling edge is the assertion
     sys_io_intr_config_t intr_cfg = {
         .mode = SYS_IO_INTR_MODE_FALLING_EDGE,
         .own_func = {.own_func = device_event_handler, .device_handle = ctx},
     };
-    SYS_DEV_INSTALL_STEP(sys_io_configure_intr(ctx->cfg.intr_pin.device_id, ctx->cfg.intr_pin.pin, &intr_cfg), "intr pin configure");
-    SYS_IO_REF_LOCK(ctx->cfg.intr_pin);
+    SYS_DEV_INSTALL_STEP(sys_io_configure_intr(ctx->cfg.intr_pin, &intr_cfg), "intr pin configure");
+    sys_io_lock_pin(ctx->cfg.intr_pin);
     SYS_DEV_STEP_DONE(ctx, ADS_STEP_INTR_READY);
   }
 
