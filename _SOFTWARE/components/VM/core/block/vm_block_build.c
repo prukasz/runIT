@@ -1,6 +1,4 @@
 #include "vm_block_build.h"
-#include <string.h>
-#include "esp_compiler.h"
 #include "vm_blocks.h"
 
 #define OWNER OWNER_VM_BLOCK

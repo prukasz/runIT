@@ -16,14 +16,7 @@
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 #include "sys_buffers.h"
-#include "sys_data_connector.h"
 #include <sdkconfig.h>
-
-#define BLE_GAP_APPEARANCE_GENERIC_TAG 0x0200
-
-#ifndef CONFIG_SYS_BLE_MAX_LINKED_CONNECTORS
-#define CONFIG_SYS_BLE_MAX_LINKED_CONNECTORS 4
-#endif
 
 typedef struct sys_ble_char_node {
   sys_ble_char_cfg_t cfg;

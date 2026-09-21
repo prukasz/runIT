@@ -19,7 +19,6 @@
  */
 
 #include <stdint.h>
-#include <sys/cdefs.h>
 #include "sys_actions.h"
 #include "sys_error.h"
 #include "sys_interface.h"
@@ -32,7 +31,7 @@
 
 #define HEADER_packet_sys_action_static_t 0x00
 typedef struct __packed {
-  uint8_t id;
+  uint8_t id; //@required @alias Static Action ID
 } packet_sys_action_static_t;
 
 static inline err_h decoder_packet_sys_action_static_t(packet_sys_action_static_t* packet) {
@@ -42,7 +41,7 @@ static inline err_h decoder_packet_sys_action_static_t(packet_sys_action_static_
 
 #define HEADER_packet_sys_action_dynamic_t 0x01
 typedef struct __packed {
-  uint8_t id;
+  uint8_t id; //@required @alias Dynamic Action ID
 } packet_sys_action_dynamic_t;
 
 static inline err_h decoder_packet_sys_action_dynamic_t(packet_sys_action_dynamic_t* packet) {
@@ -52,7 +51,7 @@ static inline err_h decoder_packet_sys_action_dynamic_t(packet_sys_action_dynami
 
 #define HEADER_packet_sys_action_record_start_t 0x02
 typedef struct __packed {
-  uint8_t id;
+  uint8_t id; //@required @alias Dynamic Action ID @note action id that recorded blocks will be attached to
 } packet_sys_action_record_start_t;
 
 static inline err_h decoder_packet_sys_action_record_start_t(packet_sys_action_record_start_t* packet) {
@@ -72,7 +71,7 @@ static inline err_h decoder_packet_sys_action_record_stop_t(packet_sys_action_re
 
 #define HEADER_packet_sys_action_remove_t 0x04
 typedef struct __packed {
-  uint8_t id;
+  uint8_t id; //@required @alias Dynamic Action ID
 } packet_sys_action_remove_t;
 
 static inline err_h decoder_packet_sys_action_remove_t(packet_sys_action_remove_t* packet) {

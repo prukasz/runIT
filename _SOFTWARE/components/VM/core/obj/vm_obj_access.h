@@ -2,10 +2,6 @@
 
 #include <limits.h>
 #include <math.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <string.h>
 #include "vm_errors.h"
 #include "vm_obj.h"
 #include "vm_obj_dyn.h"

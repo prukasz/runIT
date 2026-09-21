@@ -1,9 +1,6 @@
 #pragma once
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
+#include "utils.h"
+#include <sdkconfig.h>
 #include "sys_error.h"
 
 /**
@@ -19,18 +16,6 @@
  * Consumer tasks block on `conn->data_present` and drain frames via
  * `sys_data_connector_receive()`.
  */
-
-#define SYS_DATA_CONNECTOR_MAX           8
-#define SYS_DATA_PROVIDER_MAX            8
-#define SYS_DATA_CONNECTOR_PROVIDERS_MAX 4
-#define SYS_DATA_CONNECTOR_NAME_MAX      16
-#define SYS_DATA_CONNECTOR_MAX_PACKET_LEN 512
-
-/* Outer framing bytes for the built-in logical connectors. */
-#define SYS_DATA_HEADER_STATUS 0x01
-#define SYS_DATA_HEADER_TX     0x02
-#define SYS_DATA_HEADER_LOGS   0x03
-#define SYS_DATA_HEADER_ERRORS 0x04
 
 // -----------------------------------------------------------------------------
 // Well-Known System Connector IDs
@@ -52,7 +37,7 @@ typedef enum {
   SYS_DATA_PROVIDER_UART = 2,
   SYS_DATA_PROVIDER_MAX_RESERVED = 16
 } sys_data_provider_id_e;
-
+  
 // -----------------------------------------------------------------------------
 // Forward Declarations
 // -----------------------------------------------------------------------------
@@ -116,7 +101,7 @@ typedef struct {
 // -----------------------------------------------------------------------------
 struct sys_data_connector {
   uint8_t           id;
-  char              name[SYS_DATA_CONNECTOR_NAME_MAX];
+  char              name[CONFIG_SYS_DATA_CONNECTOR_NAME_MAX];
   bool              allocated;
   bool              suspended;
   uint8_t           header;            /**< Predefined framing header byte. */
@@ -124,13 +109,13 @@ struct sys_data_connector {
 
   // Outbound Destinations (TX - Multicast / Fan-out)
   uint8_t           tx_count;
-  uint8_t           tx_provider_id[SYS_DATA_CONNECTOR_PROVIDERS_MAX];
-  void*             tx_provider_arg[SYS_DATA_CONNECTOR_PROVIDERS_MAX];
+  uint8_t           tx_provider_id[CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX];
+  void*             tx_provider_arg[CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX];
 
   // Inbound Sources (RX - Multiplexing / Fan-in)
   uint8_t           rx_count;
-  uint8_t           rx_provider_id[SYS_DATA_CONNECTOR_PROVIDERS_MAX];
-  void*             rx_provider_arg[SYS_DATA_CONNECTOR_PROVIDERS_MAX];
+  uint8_t           rx_provider_id[CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX];
+  void*             rx_provider_arg[CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX];
 
   // Dedicated Event Wake Semaphore
   SemaphoreHandle_t data_present;
@@ -149,7 +134,7 @@ typedef struct {
  * @brief Get the maximum packet/frame capacity for a connector instance.
  */
 static inline size_t sys_data_connector_get_max_len(const sys_data_connector_t* conn) {
-  return (conn && conn->max_packet_len > 0) ? conn->max_packet_len : SYS_DATA_CONNECTOR_MAX_PACKET_LEN;
+  return (conn && conn->max_packet_len > 0) ? conn->max_packet_len : CONFIG_SYS_DATA_CONNECTOR_MAX_PACKET_LEN;
 }
 
 // -----------------------------------------------------------------------------
@@ -190,7 +175,7 @@ sys_data_connector_t* sys_data_connector_create_with_cfg(const sys_data_connecto
  * If a connector with the given ID already exists, its header and name are updated.
  * If not, a new slot is allocated and initialized with its own `data_present` semaphore.
  *
- * @param id Unique connector ID (0..SYS_DATA_CONNECTOR_MAX-1).
+ * @param id Unique connector ID (0..CONFIG_SYS_DATA_CONNECTOR_MAX-1).
  * @param name Diagnostic name for logs and inspection.
  * @param header Predefined framing header byte for this connector.
  * @return sys_data_connector_t* Pointer to connector instance, or NULL if out of slots/memory.

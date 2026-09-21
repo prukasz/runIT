@@ -24,7 +24,7 @@ Data flow:
 ```
 Push: caller -> sys_buff_push() -> Ringbuffer (FreeRTOS, RINGBUF_TYPE_NOSPLIT)
 Pop (framed):  Ringbuffer -> sys_buff_pop_framed() -> Header byte [0] + Item [1..N] -> Output Buffer
-Pop (raw):     Ringbuffer -> sys_buff_pop_raw()    -> Item [0..N-1]                 -> Output Buffer
+Pop (raw):     Ringbuffer -> sys_buff_pop()        -> Item [0..N-1]                 -> Output Buffer
 ```
 
 Every item is pushed and popped whole. An item that doesn't fit in the destination buffer on pop (`max_size` too small) is truncated and counted in `sys_buff_t.truncated` - it is never split across two pops.
@@ -57,7 +57,7 @@ typedef struct {
   Enqueues one variable-length item. Returns `ERR_NO_MEM` if the item doesn't fit within `wait_ms`.
 * **`sys_buff_pop_framed(sys_buff_t* buff, uint8_t* buffer, size_t max_size, size_t* out_len)`**:
   Dequeues one item, writing `buff->header` to `buffer[0]` and the item payload to `buffer[1..out_len-1]`. Returns `ERR_NOT_FOUND` if empty, `ERR_INVALID_VAL_UI32` if `max_size < 2`.
-* **`sys_buff_pop_raw(sys_buff_t* buff, uint8_t* buffer, size_t max_size, size_t* out_len)`**:
+* **`sys_buff_pop(sys_buff_t* buff, uint8_t* buffer, size_t max_size, size_t* out_len)`**:
   Dequeues one item verbatim (no header byte). Returns `ERR_NOT_FOUND` if empty, `ERR_INVALID_VAL_UI32` if `max_size < 1`.
 
 Both pop functions truncate (and count in `buff->truncated`) an item that exceeds the space available in `buffer` rather than failing or splitting it across calls.
@@ -71,6 +71,6 @@ Both pop functions truncate (and count in `buff->truncated`) an item that exceed
 * `OWNER_SYS_BUFF_FREE` (`0xA702`): `sys_buff_free()` owner.
 * `OWNER_SYS_BUFF_PUSH` (`0xA703`): `sys_buff_push()` owner.
 * `OWNER_SYS_BUFF_POP_FRAMED` (`0xA704`): `sys_buff_pop_framed()` owner.
-* `OWNER_SYS_BUFF_POP_RAW` (`0xA705`): `sys_buff_pop_raw()` owner.
+* `OWNER_SYS_BUFF_POP_RAW` (`0xA705`): `sys_buff_pop()` owner.
 
 It currently raises base error tags (`ERR_INVALID_VAL_UI32`, `ERR_BASE_NO_MEM`, `ERR_BASE_NOT_FOUND`); `SYS_ERROR_BUFFERS_MAP` is reserved for future buffer-specific error payload structures.

@@ -7,7 +7,7 @@ sys_ble_ctx_t g_ble_ctx = {.mtu_size = 527};
 R_MUTEX_DEFINE(sys_ble_mutex);
 R_BINARY_SEM_DEFINE(sys_ble_tx_sem);
 
-// Dummy callback-event handler for SYS_CB_ROUTE_BLE - logs and nothing else,
+// Dummy callback-event handler for CONFIG_SYS_CB_ROUTE_BLE - logs and nothing else,
 // a placeholder until ble has something real to route BLE stack events to.
 static void sys_ble_cb_dummy_log(const cb_event_t* event) {
   if (event->head.callback_type != CALLBACK_BLE) return;
@@ -15,7 +15,7 @@ static void sys_ble_cb_dummy_log(const cb_event_t* event) {
 }
 
 __attribute__((constructor)) static void sys_ble_cb_route_register(void) {
-  SE_release(sys_cb_register_route(SYS_CB_ROUTE_BLE, sys_ble_cb_dummy_log));
+  SE_release(sys_cb_register_route(CONFIG_SYS_CB_ROUTE_BLE, sys_ble_cb_dummy_log));
 }
 
 /*****************************************************************************************/

@@ -27,7 +27,7 @@
 #include <stdint.h>
 #include "devices.h"
 #include "sys_error.h"
-#include "sys_io.h"
+#include "sys_io.h" 
 
 #undef OWNER
 #define OWNER OWNER_DEC_SYS_DEVICE_INSTALL
@@ -49,7 +49,7 @@ static inline sys_io_pin_ref_t pin_ref_from_wire(uint8_t device_id, uint8_t pin,
 
 #define HEADER_packet_sys_device_install_gpio_esp_t 0x40
 typedef struct __packed {
-  uint8_t device_id;
+  uint8_t device_id; //@required @min 0 @max CONFIG_SYS_DEVICE_MAX_ID
 } packet_sys_device_install_gpio_esp_t;
 
 static inline err_h decoder_packet_sys_device_install_gpio_esp_t(packet_sys_device_install_gpio_esp_t* packet) {
@@ -57,14 +57,15 @@ static inline err_h decoder_packet_sys_device_install_gpio_esp_t(packet_sys_devi
   d_gpio_esp_cfg_t cfg = {.device_id = packet->device_id};
   return d_gpio_esp_create(&cfg);
 }
+
 #define HEADER_packet_sys_device_install_pca9685_t 0x41
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t i2c_bus;
-  uint8_t i2c_addr;
-  uint8_t oe_pin_device_id;
-  uint8_t oe_pin_pin;
-  uint8_t oe_pin_mode;
+  uint8_t device_id; //@required @min 0 @max CONFIG_SYS_DEVICE_MAX_ID
+  uint8_t i2c_bus;   //@required @min 0 @max 1
+  uint8_t i2c_addr;  //@required @min 0x40 @max 0x7F @note not range-checked by driver_pca9685.c - 7-bit address space, no software enforcement
+  uint8_t oe_pin_device_id; //@group enable-output-pin @role device_id
+  uint8_t oe_pin_pin;       //@group enable-output-pin @role pin @sentinel SYS_GPIO_NONE
+  uint8_t oe_pin_mode;      //@group enable-output-pin @role mode @ref sys_io_mode_e
 } packet_sys_device_install_pca9685_t;
 
 static inline err_h decoder_packet_sys_device_install_pca9685_t(packet_sys_device_install_pca9685_t* packet) {
@@ -80,15 +81,15 @@ static inline err_h decoder_packet_sys_device_install_pca9685_t(packet_sys_devic
 
 #define HEADER_packet_sys_device_install_tca6424a_t 0x42
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t i2c_bus;
-  uint8_t i2c_addr;
-  uint8_t intr_pin_device_id;
-  uint8_t intr_pin_pin;
-  uint8_t intr_pin_mode;
-  uint8_t rst_pin_device_id;
-  uint8_t rst_pin_pin;
-  uint8_t rst_pin_mode;
+  uint8_t device_id; //@required @min 0 @max CONFIG_SYS_DEVICE_MAX_ID
+  uint8_t i2c_bus;   //@required @min 0 @max 1
+  uint8_t i2c_addr;  //@required @note not range-checked by driver_tca6424a.c - no software-enforced bound
+  uint8_t intr_pin_device_id; //@group interrupt-pin @role device_id
+  uint8_t intr_pin_pin;       //@group interrupt-pin @role pin @sentinel SYS_GPIO_NONE
+  uint8_t intr_pin_mode;      //@group interrupt-pin @role mode @ref sys_io_mode_e
+  uint8_t rst_pin_device_id; //@group reset-pin @role device_id
+  uint8_t rst_pin_pin;       //@group reset-pin @role pin @sentinel SYS_GPIO_NONE
+  uint8_t rst_pin_mode;      //@group reset-pin @role mode @ref sys_io_mode_e
 } packet_sys_device_install_tca6424a_t;
 
 static inline err_h decoder_packet_sys_device_install_tca6424a_t(packet_sys_device_install_tca6424a_t* packet) {
@@ -105,15 +106,15 @@ static inline err_h decoder_packet_sys_device_install_tca6424a_t(packet_sys_devi
 
 #define HEADER_packet_sys_device_install_tps55289_t 0x43
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t i2c_bus;
-  uint8_t i2c_addr;
-  uint8_t intr_pin_device_id;
-  uint8_t intr_pin_pin;
-  uint8_t intr_pin_mode;
-  uint8_t en_pin_device_id;
-  uint8_t en_pin_pin;
-  uint8_t en_pin_mode;
+  uint8_t device_id; //@required @min 0 @max CONFIG_SYS_DEVICE_MAX_ID
+  uint8_t i2c_bus;   //@required @min 0 @max 1
+  uint8_t i2c_addr;  //@required @available [0x74, 0x75] @note enforced in tps55289_new() via TPS55289_I2C_ADDR_74/_75 - any other value fails at driver init
+  uint8_t intr_pin_device_id; //@group interrupt-pin @role device_id
+  uint8_t intr_pin_pin;       //@group interrupt-pin @role pin @sentinel SYS_GPIO_NONE
+  uint8_t intr_pin_mode;      //@group interrupt-pin @role mode @ref sys_io_mode_e
+  uint8_t en_pin_device_id; //@group enable-pin @role device_id
+  uint8_t en_pin_pin;       //@group enable-pin @role pin @sentinel SYS_GPIO_NONE
+  uint8_t en_pin_mode;      //@group enable-pin @role mode @ref sys_io_mode_e
 } packet_sys_device_install_tps55289_t;
 
 static inline err_h decoder_packet_sys_device_install_tps55289_t(packet_sys_device_install_tps55289_t* packet) {
@@ -130,15 +131,15 @@ static inline err_h decoder_packet_sys_device_install_tps55289_t(packet_sys_devi
 
 #define HEADER_packet_sys_device_install_ina3221_t 0x44
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t i2c_bus;
-  uint8_t i2c_addr;
-  uint8_t crit_pin_device_id;
-  uint8_t crit_pin_pin;
-  uint8_t crit_pin_mode;
-  uint8_t warn_pin_device_id;
-  uint8_t warn_pin_pin;
-  uint8_t warn_pin_mode;
+  uint8_t device_id; //@required @min 0 @max CONFIG_SYS_DEVICE_MAX_ID
+  uint8_t i2c_bus;   //@required @min 0 @max 1
+  uint8_t i2c_addr;  //@required @min 0x40 @max 0x43 @note enforced in ina3221_new() against INA3221_I2C_ADDR_GND/_SCL - A0 pin strap (GND/Vs+/SDA/SCL) selects the address
+  uint8_t crit_pin_device_id; //@group critical-alert-pin @role device_id
+  uint8_t crit_pin_pin;       //@group critical-alert-pin @role pin @sentinel SYS_GPIO_NONE
+  uint8_t crit_pin_mode;      //@group critical-alert-pin @role mode @ref sys_io_mode_e
+  uint8_t warn_pin_device_id; //@group warning-alert-pin @role device_id
+  uint8_t warn_pin_pin;       //@group warning-alert-pin @role pin @sentinel SYS_GPIO_NONE
+  uint8_t warn_pin_mode;      //@group warning-alert-pin @role mode @ref sys_io_mode_e
 } packet_sys_device_install_ina3221_t;
 
 static inline err_h decoder_packet_sys_device_install_ina3221_t(packet_sys_device_install_ina3221_t* packet) {
@@ -155,12 +156,12 @@ static inline err_h decoder_packet_sys_device_install_ina3221_t(packet_sys_devic
 
 #define HEADER_packet_sys_device_install_ap33772s_t 0x45
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t i2c_bus;
-  uint8_t i2c_addr;
-  uint8_t intr_pin_device_id;
-  uint8_t intr_pin_pin;
-  uint8_t intr_pin_mode;
+  uint8_t device_id; //@required @min 0 @max CONFIG_SYS_DEVICE_MAX_ID
+  uint8_t i2c_bus;   //@required @min 0 @max 1
+  uint8_t i2c_addr;  //@required @default 0x52 @note AP33772S has a fixed datasheet address (AP33772S_ADDRESS); the field is honored (adapter_ap33772s.c overwrites the driver handle's address with it) but the real chip only answers at 0x52
+  uint8_t intr_pin_device_id; //@group interrupt-pin @role device_id
+  uint8_t intr_pin_pin;       //@group interrupt-pin @role pin @sentinel SYS_GPIO_NONE
+  uint8_t intr_pin_mode;      //@group interrupt-pin @role mode @ref sys_io_mode_e
 } packet_sys_device_install_ap33772s_t;
 
 static inline err_h decoder_packet_sys_device_install_ap33772s_t(packet_sys_device_install_ap33772s_t* packet) {
@@ -176,9 +177,9 @@ static inline err_h decoder_packet_sys_device_install_ap33772s_t(packet_sys_devi
 
 #define HEADER_packet_sys_device_install_dac53202_t 0x46
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t i2c_bus;
-  uint8_t i2c_addr;
+  uint8_t device_id; //@required @min 0 @max CONFIG_SYS_DEVICE_MAX_ID
+  uint8_t i2c_bus;   //@required @min 0 @max 1
+  uint8_t i2c_addr;  //@required @note not range-checked by driver_dac53202.c - no software-enforced bound
 } packet_sys_device_install_dac53202_t;
 
 static inline err_h decoder_packet_sys_device_install_dac53202_t(packet_sys_device_install_dac53202_t* packet) {
@@ -193,13 +194,13 @@ static inline err_h decoder_packet_sys_device_install_dac53202_t(packet_sys_devi
 
 #define HEADER_packet_sys_device_install_ads7128_t 0x47
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t i2c_bus;
-  uint8_t i2c_addr;
-  uint8_t intr_pin_device_id;
-  uint8_t intr_pin_pin;
-  uint8_t intr_pin_mode;
-  uint32_t vref_mv;
+  uint8_t device_id; //@required @min 0 @max CONFIG_SYS_DEVICE_MAX_ID
+  uint8_t i2c_bus;   //@required @min 0 @max 1
+  uint8_t i2c_addr;  //@required @note not range-checked by driver_ads7128.c - no software-enforced bound
+  uint8_t intr_pin_device_id; //@group alert-pin @role device_id
+  uint8_t intr_pin_pin;       //@group alert-pin @role pin @sentinel SYS_GPIO_NONE @note open-drain/active-low ALERT; referenced pin should be configured SYS_IO_MODE_INPUT_PULLUP
+  uint8_t intr_pin_mode;      //@group alert-pin @role mode @ref sys_io_mode_e
+  uint32_t vref_mv; //@required @alias ADC Reference Voltage @unit mV @note AVDD, doubles as ADC reference; no numeric bound enforced in driver_ads7128.c
 } packet_sys_device_install_ads7128_t;
 
 static inline err_h decoder_packet_sys_device_install_ads7128_t(packet_sys_device_install_ads7128_t* packet) {

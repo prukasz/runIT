@@ -1,8 +1,5 @@
 #pragma once
-#include <stdbool.h>
-#include <stdint.h>
 #include "sys_error.h"
-
 #include "sys_callbacks.h"
 
 uint32_t sys_power_get_limit_mv(void);

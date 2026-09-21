@@ -74,8 +74,8 @@ static err_h nvs_load_action(uint8_t action_id, sys_action_t** out, bool* out_fo
     SE_RET_ERR(ERR_ESP_ERR, .esp_code = rc);
   }
 
-  if (needed > SYS_ACTIONS_MAX_BLOB_SIZE) {
-    needed = SYS_ACTIONS_MAX_BLOB_SIZE;
+  if (needed > CONFIG_SYS_ACTIONS_MAX_BLOB_SIZE) {
+    needed = CONFIG_SYS_ACTIONS_MAX_BLOB_SIZE;
   }
 
   sys_action_t* a = malloc(sizeof(sys_action_t) + needed);
@@ -97,8 +97,8 @@ static err_h nvs_save_action(uint8_t action_id, const sys_action_t* a) {
   char key[16];
   action_make_nvs_key(action_id, key, sizeof(key));
   size_t save_size = a->blob_size;
-  if (save_size > SYS_ACTIONS_MAX_BLOB_SIZE) {
-    save_size = SYS_ACTIONS_MAX_BLOB_SIZE;
+  if (save_size > CONFIG_SYS_ACTIONS_MAX_BLOB_SIZE) {
+    save_size = CONFIG_SYS_ACTIONS_MAX_BLOB_SIZE;
   }
   SE_RET_IF_ESP_ERR(nvs_set_blob(s_nvs, key, a->blob, save_size));
   SE_RET_IF_ESP_ERR(nvs_commit(s_nvs));
@@ -117,7 +117,7 @@ static err_h nvs_erase(const char* key) {
 /**
  * @brief Append one length-prefixed frame to a runtime action.
  *
- * Growth is limited to SYS_ACTIONS_MAX_BLOB_SIZE. On allocation failure,
+ * Growth is limited to CONFIG_SYS_ACTIONS_MAX_BLOB_SIZE. On allocation failure,
  * @p io_action remains unchanged.
  *
  * @param io_action Action pointer that may be replaced by realloc().
@@ -130,7 +130,7 @@ static err_h grow_and_append(sys_action_t** io_action, const uint8_t* frame, siz
   size_t        old_size = a ? a->blob_size : 0;
   size_t        need     = sizeof(uint16_t) + len;
 
-  if (old_size + need > SYS_ACTIONS_MAX_BLOB_SIZE) {
+  if (old_size + need > CONFIG_SYS_ACTIONS_MAX_BLOB_SIZE) {
     SE_RET_ERR(ERR_BASE_NO_MEM, 0);
   }
 

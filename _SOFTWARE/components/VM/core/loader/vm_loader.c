@@ -1,5 +1,4 @@
 #include "vm_loader.h"
-#include <string.h>
 #include "vm_exec.h"
 #include "vm_sub.h"
 

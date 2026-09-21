@@ -19,9 +19,7 @@
  */
 
 #include <stdint.h>
-#include <sys/cdefs.h>
 #include "dec_sys_device_install.h"
-#include "sys_ble.h"
 #include "sys_device.h"
 #include "sys_error.h"
 #include "sys_interface.h"
@@ -45,7 +43,7 @@
 
 #define HEADER_packet_sys_device_uninstall_t 0x10
 typedef struct __packed {
-  uint8_t device_id;
+  uint8_t device_id; //@required @alias Device ID
 } packet_sys_device_uninstall_t;
 
 static inline err_h decoder_packet_sys_device_uninstall_t(packet_sys_device_uninstall_t* packet) {
@@ -55,7 +53,7 @@ static inline err_h decoder_packet_sys_device_uninstall_t(packet_sys_device_unin
 
 #define HEADER_packet_sys_device_reset_t 0x11
 typedef struct __packed {
-  uint8_t device_id;
+  uint8_t device_id; //@required @alias Device ID
 } packet_sys_device_reset_t;
 
 static inline err_h decoder_packet_sys_device_reset_t(packet_sys_device_reset_t* packet) {
@@ -65,7 +63,7 @@ static inline err_h decoder_packet_sys_device_reset_t(packet_sys_device_reset_t*
 
 #define HEADER_packet_sys_device_suspend_t 0x12
 typedef struct __packed {
-  uint8_t device_id;
+  uint8_t device_id; //@required @alias Device ID
 } packet_sys_device_suspend_t;
 
 static inline err_h decoder_packet_sys_device_suspend_t(packet_sys_device_suspend_t* packet) {
@@ -75,7 +73,7 @@ static inline err_h decoder_packet_sys_device_suspend_t(packet_sys_device_suspen
 
 #define HEADER_packet_sys_device_resume_t 0x13
 typedef struct __packed {
-  uint8_t device_id;
+  uint8_t device_id; //@required @alias Device ID
 } packet_sys_device_resume_t;
 
 static inline err_h decoder_packet_sys_device_resume_t(packet_sys_device_resume_t* packet) {
@@ -85,7 +83,6 @@ static inline err_h decoder_packet_sys_device_resume_t(packet_sys_device_resume_
 
 #define HEADER_packet_sys_device_suspend_all_t 0x14
 typedef struct __packed {
-  uint8_t dummy;
 } packet_sys_device_suspend_all_t;
 
 static inline err_h decoder_packet_sys_device_suspend_all_t(packet_sys_device_suspend_all_t* packet) {
@@ -96,7 +93,6 @@ static inline err_h decoder_packet_sys_device_suspend_all_t(packet_sys_device_su
 
 #define HEADER_packet_sys_device_resume_all_t 0x15
 typedef struct __packed {
-  uint8_t dummy;
 } packet_sys_device_resume_all_t;
 
 static inline err_h decoder_packet_sys_device_resume_all_t(packet_sys_device_resume_all_t* packet) {
@@ -107,7 +103,7 @@ static inline err_h decoder_packet_sys_device_resume_all_t(packet_sys_device_res
 
 #define HEADER_packet_sys_device_freeze_t 0x16
 typedef struct __packed {
-  uint8_t device_id;
+  uint8_t device_id; //@required @alias Device ID
 } packet_sys_device_freeze_t;
 
 static inline err_h decoder_packet_sys_device_freeze_t(packet_sys_device_freeze_t* packet) {
@@ -117,7 +113,7 @@ static inline err_h decoder_packet_sys_device_freeze_t(packet_sys_device_freeze_
 
 #define HEADER_packet_sys_device_sync_t 0x17
 typedef struct __packed {
-  uint8_t device_id;
+  uint8_t device_id; //@required @alias Device ID
 } packet_sys_device_sync_t;
 
 static inline err_h decoder_packet_sys_device_sync_t(packet_sys_device_sync_t* packet) {
@@ -127,7 +123,6 @@ static inline err_h decoder_packet_sys_device_sync_t(packet_sys_device_sync_t* p
 
 #define HEADER_packet_sys_device_freeze_all_t 0x18
 typedef struct __packed {
-  uint8_t dummy;
 } packet_sys_device_freeze_all_t;
 
 static inline err_h decoder_packet_sys_device_freeze_all_t(packet_sys_device_freeze_all_t* packet) {
@@ -138,7 +133,6 @@ static inline err_h decoder_packet_sys_device_freeze_all_t(packet_sys_device_fre
 
 #define HEADER_packet_sys_device_sync_all_t 0x19
 typedef struct __packed {
-  uint8_t dummy;
 } packet_sys_device_sync_all_t;
 
 static inline err_h decoder_packet_sys_device_sync_all_t(packet_sys_device_sync_all_t* packet) {
@@ -149,9 +143,9 @@ static inline err_h decoder_packet_sys_device_sync_all_t(packet_sys_device_sync_
 
 #define HEADER_packet_sys_device_set_error_handling_t 0x1A
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t importance;              // sys_device_importance_e (0=NONE..4=CRITICAL)
-  uint8_t actions[5];              // sys_actions ids, indexed by sys_device_err_level_e
+  uint8_t device_id;                 //@required @alias Device ID
+  uint8_t importance;                //@required @alias Importance Level @ref sys_device_importance_e
+  uint8_t actions[5];                //@required @alias Error-Level Actions @note sys_actions ids, indexed by sys_device_err_level_e
 } packet_sys_device_set_error_handling_t;
 
 static inline err_h decoder_packet_sys_device_set_error_handling_t(packet_sys_device_set_error_handling_t* packet) {
@@ -166,8 +160,8 @@ static inline err_h decoder_packet_sys_device_set_error_handling_t(packet_sys_de
 
 #define HEADER_packet_sys_io_reset_t 0x20
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t pin;
+  uint8_t device_id; //@required @alias Device ID
+  uint8_t pin;       //@required @alias Pin Number
 } packet_sys_io_reset_t;
 
 static inline err_h decoder_packet_sys_io_reset_t(packet_sys_io_reset_t* packet) {
@@ -177,9 +171,9 @@ static inline err_h decoder_packet_sys_io_reset_t(packet_sys_io_reset_t* packet)
 
 #define HEADER_packet_sys_io_set_mode_t 0x21
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t pin;
-  uint8_t mode;  // sys_io_mode_e
+  uint8_t device_id; //@required @alias Device ID
+  uint8_t pin;       //@required @alias Pin Number
+  uint8_t mode;      //@required @alias Pin Mode @ref sys_io_mode_e
 } packet_sys_io_set_mode_t;
 
 static inline err_h decoder_packet_sys_io_set_mode_t(packet_sys_io_set_mode_t* packet) {
@@ -189,9 +183,9 @@ static inline err_h decoder_packet_sys_io_set_mode_t(packet_sys_io_set_mode_t* p
 
 #define HEADER_packet_sys_io_set_level_t 0x22
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t pin;
-  uint8_t level;
+  uint8_t device_id; //@required @alias Device ID
+  uint8_t pin;       //@required @alias Pin Number
+  uint8_t level;     //@required @alias Level
 } packet_sys_io_set_level_t;
 
 static inline err_h decoder_packet_sys_io_set_level_t(packet_sys_io_set_level_t* packet) {
@@ -201,8 +195,8 @@ static inline err_h decoder_packet_sys_io_set_level_t(packet_sys_io_set_level_t*
 
 #define HEADER_packet_sys_io_get_level_t 0x23
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t pin;
+  uint8_t device_id; //@required @alias Device ID
+  uint8_t pin;       //@required @alias Pin Number
 } packet_sys_io_get_level_t;
 
 static inline err_h decoder_packet_sys_io_get_level_t(packet_sys_io_get_level_t* packet) {
@@ -217,8 +211,8 @@ static inline err_h decoder_packet_sys_io_get_level_t(packet_sys_io_get_level_t*
 
 #define HEADER_packet_sys_io_toggle_t 0x24
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t pin;
+  uint8_t device_id; //@required @alias Device ID
+  uint8_t pin;       //@required @alias Pin Number
 } packet_sys_io_toggle_t;
 
 static inline err_h decoder_packet_sys_io_toggle_t(packet_sys_io_toggle_t* packet) {
@@ -228,8 +222,8 @@ static inline err_h decoder_packet_sys_io_toggle_t(packet_sys_io_toggle_t* packe
 
 #define HEADER_packet_sys_io_get_voltage_t 0x25
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t pin;
+  uint8_t device_id; //@required @alias Device ID
+  uint8_t pin;       //@required @alias Pin Number
 } packet_sys_io_get_voltage_t;
 
 static inline err_h decoder_packet_sys_io_get_voltage_t(packet_sys_io_get_voltage_t* packet) {
@@ -244,9 +238,9 @@ static inline err_h decoder_packet_sys_io_get_voltage_t(packet_sys_io_get_voltag
 
 #define HEADER_packet_sys_io_set_voltage_t 0x26
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t pin;
-  uint32_t voltage_mV;
+  uint8_t device_id;    //@required @alias Device ID
+  uint8_t pin;          //@required @alias Pin Number
+  uint32_t voltage_mV;  //@required @alias Voltage @unit mV
 } packet_sys_io_set_voltage_t;
 
 static inline err_h decoder_packet_sys_io_set_voltage_t(packet_sys_io_set_voltage_t* packet) {
@@ -256,9 +250,9 @@ static inline err_h decoder_packet_sys_io_set_voltage_t(packet_sys_io_set_voltag
 
 #define HEADER_packet_sys_io_set_pwm_frequency_t 0x27
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t pin;
-  uint32_t frequency_HZ;
+  uint8_t device_id;     //@required @alias Device ID
+  uint8_t pin;           //@required @alias Pin Number
+  uint32_t frequency_HZ; //@required @alias PWM Frequency @unit Hz
 } packet_sys_io_set_pwm_frequency_t;
 
 static inline err_h decoder_packet_sys_io_set_pwm_frequency_t(packet_sys_io_set_pwm_frequency_t* packet) {
@@ -269,9 +263,9 @@ static inline err_h decoder_packet_sys_io_set_pwm_frequency_t(packet_sys_io_set_
 
 #define HEADER_packet_sys_io_set_pwm_duty_t 0x28
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t pin;
-  uint32_t duty;
+  uint8_t device_id; //@required @alias Device ID
+  uint8_t pin;       //@required @alias Pin Number
+  uint32_t duty;     //@required @alias Duty Cycle
 } packet_sys_io_set_pwm_duty_t;
 
 static inline err_h decoder_packet_sys_io_set_pwm_duty_t(packet_sys_io_set_pwm_duty_t* packet) {
@@ -281,16 +275,16 @@ static inline err_h decoder_packet_sys_io_set_pwm_duty_t(packet_sys_io_set_pwm_d
 
 #define HEADER_packet_sys_io_configure_intr_t 0x29
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t pin;
-  uint8_t mode;               // sys_io_intr_mode_e
-  uint16_t route_mask;        // bitmask
-  uint8_t static_action_id;   // 0 = none
-  uint8_t dynamic_action_id;  // 0 = none
-  uint16_t adc_thresh_up_mV;
-  uint16_t adc_thresh_down_mV;
-  uint16_t adc_thresh_hyst_mV;
-  uint16_t adc_counter_thresh;
+  uint8_t device_id;          //@required @alias Device ID
+  uint8_t pin;                //@required @alias Pin Number
+  uint8_t mode;               //@required @alias Interrupt Mode @ref sys_io_intr_mode_e
+  uint16_t route_mask;        //@required @alias Route Mask @note bitmask
+  uint8_t static_action_id;   //@optional @alias Static Action ID @sentinel 0
+  uint8_t dynamic_action_id;  //@optional @alias Dynamic Action ID @sentinel 0
+  uint16_t adc_thresh_up_mV;    //@optional @alias ADC Rising Threshold @unit mV
+  uint16_t adc_thresh_down_mV;  //@optional @alias ADC Falling Threshold @unit mV
+  uint16_t adc_thresh_hyst_mV;  //@optional @alias ADC Hysteresis @unit mV
+  uint16_t adc_counter_thresh;  //@optional @alias ADC Event Counter Threshold
 } packet_sys_io_configure_intr_t;
 
 static inline err_h decoder_packet_sys_io_configure_intr_t(packet_sys_io_configure_intr_t* packet) {
@@ -318,8 +312,8 @@ static inline err_h decoder_packet_sys_io_configure_intr_t(packet_sys_io_configu
 
 #define HEADER_packet_sys_power_budget_update_source_t 0x30
 typedef struct __packed {
-  uint32_t max_mV;
-  uint32_t max_mA;
+  uint32_t max_mV; //@required @alias Max Voltage @unit mV
+  uint32_t max_mA; //@required @alias Max Current @unit mA
 } packet_sys_power_budget_update_source_t;
 
 static inline err_h decoder_packet_sys_power_budget_update_source_t(packet_sys_power_budget_update_source_t* packet) {
@@ -329,8 +323,8 @@ static inline err_h decoder_packet_sys_power_budget_update_source_t(packet_sys_p
 
 #define HEADER_packet_sys_vreg_set_enable_t 0x31
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t state;
+  uint8_t device_id; //@required @alias Device ID
+  uint8_t state;     //@required @alias Enable State
 } packet_sys_vreg_set_enable_t;
 
 static inline err_h decoder_packet_sys_vreg_set_enable_t(packet_sys_vreg_set_enable_t* packet) {
@@ -340,8 +334,8 @@ static inline err_h decoder_packet_sys_vreg_set_enable_t(packet_sys_vreg_set_ena
 
 #define HEADER_packet_sys_vreg_set_voltage_t 0x32
 typedef struct __packed {
-  uint8_t device_id;
-  uint32_t voltage_mV;
+  uint8_t device_id;   //@required @alias Device ID
+  uint32_t voltage_mV; //@required @alias Voltage @unit mV
 } packet_sys_vreg_set_voltage_t;
 
 static inline err_h decoder_packet_sys_vreg_set_voltage_t(packet_sys_vreg_set_voltage_t* packet) {
@@ -351,8 +345,8 @@ static inline err_h decoder_packet_sys_vreg_set_voltage_t(packet_sys_vreg_set_vo
 
 #define HEADER_packet_sys_vreg_set_current_t 0x33
 typedef struct __packed {
-  uint8_t device_id;
-  uint32_t current_mA;
+  uint8_t device_id;   //@required @alias Device ID
+  uint32_t current_mA; //@required @alias Current Limit @unit mA
 } packet_sys_vreg_set_current_t;
 
 static inline err_h decoder_packet_sys_vreg_set_current_t(packet_sys_vreg_set_current_t* packet) {
@@ -362,8 +356,8 @@ static inline err_h decoder_packet_sys_vreg_set_current_t(packet_sys_vreg_set_cu
 
 #define HEADER_packet_sys_power_monitor_get_voltage_t 0x34
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t channel;
+  uint8_t device_id; //@required @alias Device ID
+  uint8_t channel;   //@required @alias Channel
 } packet_sys_power_monitor_get_voltage_t;
 
 static inline err_h decoder_packet_sys_power_monitor_get_voltage_t(packet_sys_power_monitor_get_voltage_t* packet) {
@@ -378,8 +372,8 @@ static inline err_h decoder_packet_sys_power_monitor_get_voltage_t(packet_sys_po
 
 #define HEADER_packet_sys_power_monitor_get_current_t 0x35
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t channel;
+  uint8_t device_id; //@required @alias Device ID
+  uint8_t channel;   //@required @alias Channel
 } packet_sys_power_monitor_get_current_t;
 
 static inline err_h decoder_packet_sys_power_monitor_get_current_t(packet_sys_power_monitor_get_current_t* packet) {
@@ -394,9 +388,9 @@ static inline err_h decoder_packet_sys_power_monitor_get_current_t(packet_sys_po
 
 #define HEADER_packet_sys_power_usb_pd_set_t 0x36
 typedef struct __packed {
-  uint8_t device_id;
-  uint32_t voltage_mV;
-  uint32_t current_mA;
+  uint8_t device_id;   //@required @alias Device ID
+  uint32_t voltage_mV; //@required @alias Requested Voltage @unit mV
+  uint32_t current_mA; //@required @alias Requested Current @unit mA
 } packet_sys_power_usb_pd_set_t;
 
 static inline err_h decoder_packet_sys_power_usb_pd_set_t(packet_sys_power_usb_pd_set_t* packet) {
@@ -407,7 +401,7 @@ static inline err_h decoder_packet_sys_power_usb_pd_set_t(packet_sys_power_usb_p
 
 #define HEADER_packet_sys_power_usb_pd_list_t 0x37
 typedef struct __packed {
-  uint8_t device_id;
+  uint8_t device_id; //@required @alias Device ID
 } packet_sys_power_usb_pd_list_t;
 
 static inline err_h decoder_packet_sys_power_usb_pd_list_t(packet_sys_power_usb_pd_list_t* packet) {
@@ -417,7 +411,7 @@ static inline err_h decoder_packet_sys_power_usb_pd_list_t(packet_sys_power_usb_
 
 #define HEADER_packet_sys_power_usb_pd_get_limits_t 0x38
 typedef struct __packed {
-  uint8_t device_id;
+  uint8_t device_id; //@required @alias Device ID
 } packet_sys_power_usb_pd_get_limits_t;
 
 static inline err_h decoder_packet_sys_power_usb_pd_get_limits_t(packet_sys_power_usb_pd_get_limits_t* packet) {
@@ -434,13 +428,13 @@ static inline err_h decoder_packet_sys_power_usb_pd_get_limits_t(packet_sys_powe
 
 #define HEADER_packet_sys_power_monitor_add_callback_t 0x39
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t channel;
-  int32_t trigger_value;
-  uint8_t on_event;          // sys_power_events_e
-  uint16_t route_mask;
-  uint8_t static_action_id;
-  uint8_t dynamic_action_id;
+  uint8_t device_id;         //@required @alias Device ID
+  uint8_t channel;           //@required @alias Channel
+  int32_t trigger_value;     //@required @alias Trigger Value
+  uint8_t on_event;          //@required @alias Event @ref sys_power_events_e
+  uint16_t route_mask;       //@required @alias Route Mask @note bitmask
+  uint8_t static_action_id;  //@optional @alias Static Action ID @sentinel 0
+  uint8_t dynamic_action_id; //@optional @alias Dynamic Action ID @sentinel 0
 } packet_sys_power_monitor_add_callback_t;
 
 static inline err_h decoder_packet_sys_power_monitor_add_callback_t(packet_sys_power_monitor_add_callback_t* packet) {
@@ -454,11 +448,11 @@ static inline err_h decoder_packet_sys_power_monitor_add_callback_t(packet_sys_p
 
 #define HEADER_packet_sys_vreg_add_callback_t 0x3A
 typedef struct __packed {
-  uint8_t device_id;
-  uint8_t on_event;          // sys_power_events_e
-  uint16_t route_mask;
-  uint8_t static_action_id;
-  uint8_t dynamic_action_id;
+  uint8_t device_id;         //@required @alias Device ID
+  uint8_t on_event;          //@required @alias Event @ref sys_power_events_e
+  uint16_t route_mask;       //@required @alias Route Mask @note bitmask
+  uint8_t static_action_id;  //@optional @alias Static Action ID @sentinel 0
+  uint8_t dynamic_action_id; //@optional @alias Dynamic Action ID @sentinel 0
 } packet_sys_vreg_add_callback_t;
 
 static inline err_h decoder_packet_sys_vreg_add_callback_t(packet_sys_vreg_add_callback_t* packet) {

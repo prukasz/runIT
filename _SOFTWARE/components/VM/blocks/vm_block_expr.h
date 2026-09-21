@@ -1,8 +1,5 @@
 #pragma once
 #include <math.h>
-#include <stddef.h>
-#include <stdint.h>
-#include "esp_compiler.h"
 #include "vm_block.h"
 
 /*

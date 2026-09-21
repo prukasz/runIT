@@ -1,5 +1,3 @@
-#include <string.h>
-#include "esp_compiler.h"
 #include "vm_block.h"
 
 #define OWNER OWNER_VM_BLOCK

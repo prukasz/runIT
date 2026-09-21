@@ -1,0 +1,3012 @@
+{
+  "classes": {
+    "SYS_FEATURES": "0x05",
+    "SYS_CONTRACTS": "0x01",
+    "SYS_ACTIONS": "0x03",
+    "VM_LOADER": "0x04",
+    "VM_SUB": "0x04"
+  },
+  "enums": {
+    "ads7128_alert_region_e": [
+      [
+        0,
+        "ADS7128_ALERT_OUT_OF_BAND"
+      ],
+      [
+        1,
+        "ADS7128_ALERT_IN_BAND"
+      ]
+    ],
+    "ads7128_conv_mode_e": [
+      [
+        0,
+        "ADS7128_CONV_MANUAL"
+      ],
+      [
+        1,
+        "ADS7128_CONV_AUTONOMOUS"
+      ]
+    ],
+    "drv8962_topology_e": [
+      [
+        0,
+        "DRV8962_TOPOLOGY_2_FULL_BRIDGES"
+      ],
+      [
+        1,
+        "DRV8962_TOPOLOGY_4_HALF_BRIDGES"
+      ]
+    ],
+    "ina3221_avg_t": [
+      [
+        0,
+        "INA3221_AVG_1"
+      ],
+      [
+        1,
+        "INA3221_AVG_4"
+      ],
+      [
+        2,
+        "INA3221_AVG_16"
+      ],
+      [
+        3,
+        "INA3221_AVG_64"
+      ],
+      [
+        4,
+        "INA3221_AVG_128"
+      ],
+      [
+        5,
+        "INA3221_AVG_256"
+      ],
+      [
+        6,
+        "INA3221_AVG_512"
+      ],
+      [
+        7,
+        "INA3221_AVG_1024"
+      ]
+    ],
+    "ina3221_channel_t": [
+      [
+        0,
+        "INA3221_CHANNEL_1"
+      ],
+      [
+        1,
+        "INA3221_CHANNEL_2"
+      ],
+      [
+        2,
+        "INA3221_CHANNEL_3"
+      ],
+      [
+        3,
+        "INA3221_CHANNEL_ALL"
+      ]
+    ],
+    "ina3221_ct_t": [
+      [
+        0,
+        "INA3221_CT_140"
+      ],
+      [
+        1,
+        "INA3221_CT_204"
+      ],
+      [
+        2,
+        "INA3221_CT_332"
+      ],
+      [
+        3,
+        "INA3221_CT_588"
+      ],
+      [
+        4,
+        "INA3221_CT_1100"
+      ],
+      [
+        5,
+        "INA3221_CT_2116"
+      ],
+      [
+        6,
+        "INA3221_CT_4156"
+      ],
+      [
+        7,
+        "INA3221_CT_8244"
+      ]
+    ],
+    "tca_interrupt_mode_e": [
+      [
+        0,
+        "TCA_ON_RISING_EDGE"
+      ],
+      [
+        1,
+        "TCA_ON_FALLING_EDGE"
+      ],
+      [
+        2,
+        "TCA_ON_CHANGE"
+      ]
+    ],
+    "sys_ble_events_e": [
+      [
+        0,
+        "SYS_BLE_EVENT_CONNECT"
+      ],
+      [
+        1,
+        "SYS_BLE_EVENT_DISCONNECT"
+      ],
+      [
+        2,
+        "SYS_BLE_EVENT_FAILURE"
+      ],
+      [
+        3,
+        "SYS_BLE_EVENT_MAX"
+      ]
+    ],
+    "callback_type_e": [
+      [
+        0,
+        "CALLBACK_NONE"
+      ],
+      [
+        1,
+        "CALLBACK_IO"
+      ],
+      [
+        2,
+        "CALLBACK_PWR"
+      ],
+      [
+        3,
+        "CALLBACK_BLE"
+      ],
+      [
+        4,
+        "CALLBACK_OWN_FUNC"
+      ],
+      [
+        5,
+        "CALLBACK_MAX"
+      ]
+    ],
+    "sys_data_conn_id_e": [
+      [
+        0,
+        "CONN_ID_LOGS"
+      ],
+      [
+        1,
+        "CONN_ID_ERRORS"
+      ],
+      [
+        2,
+        "CONN_ID_TELEMETRY"
+      ],
+      [
+        3,
+        "CONN_ID_INTERFACE"
+      ],
+      [
+        4,
+        "CONN_ID_APP_BASE"
+      ]
+    ],
+    "sys_data_provider_id_e": [
+      [
+        0,
+        "SYS_DATA_PROVIDER_NONE"
+      ],
+      [
+        1,
+        "SYS_DATA_PROVIDER_BLE"
+      ],
+      [
+        2,
+        "SYS_DATA_PROVIDER_UART"
+      ],
+      [
+        16,
+        "SYS_DATA_PROVIDER_MAX_RESERVED"
+      ]
+    ],
+    "sys_device_contract_type_e": [
+      [
+        0,
+        "SYS_DEVICE_CONTRACT_IO"
+      ],
+      [
+        1,
+        "SYS_DEVICE_CONTRACT_POWER_VREG"
+      ],
+      [
+        2,
+        "SYS_DEVICE_CONTRACT_POWER_MONITOR"
+      ],
+      [
+        3,
+        "SYS_DEVICE_CONTRACT_POWER_USB_PD"
+      ],
+      [
+        4,
+        "SYS_DEVICE_CONTRACT_HBRIDGE"
+      ],
+      [
+        5,
+        "SYS_DEVICE_CONTRACT_MAX"
+      ]
+    ],
+    "sys_device_state_e": [
+      [
+        0,
+        "SYS_DEV_STATE_NONE"
+      ],
+      [
+        1,
+        "SYS_DEV_STATE_INSTALLING"
+      ],
+      [
+        2,
+        "SYS_DEV_STATE_INSTALLED"
+      ],
+      [
+        3,
+        "SYS_DEV_STATE_SUSPENDED"
+      ]
+    ],
+    "sys_device_importance_e": [
+      [
+        0,
+        "SYS_DEV_IMPORTANCE_NONE"
+      ],
+      [
+        1,
+        "SYS_DEV_IMPORTANCE_LOW"
+      ],
+      [
+        2,
+        "SYS_DEV_IMPORTANCE_MEDIUM"
+      ],
+      [
+        3,
+        "SYS_DEV_IMPORTANCE_HIGH"
+      ],
+      [
+        4,
+        "SYS_DEV_IMPORTANCE_CRITICAL"
+      ]
+    ],
+    "sys_device_fault_stage_e": [
+      [
+        0,
+        "SYS_DEV_FAULT_STAGE_VM_STOP"
+      ],
+      [
+        1,
+        "SYS_DEV_FAULT_STAGE_FREEZE"
+      ],
+      [
+        2,
+        "SYS_DEV_FAULT_STAGE_ACTION"
+      ]
+    ],
+    "sys_hbridge_mode_e": [
+      [
+        0,
+        "SYS_HBRIDGE_MODE_FULL"
+      ],
+      [
+        1,
+        "SYS_HBRIDGE_MODE_HALF_HIGH"
+      ],
+      [
+        2,
+        "SYS_HBRIDGE_MODE_HALF_LOW"
+      ]
+    ],
+    "sys_hbridge_fault_reason_e": [
+      [
+        0,
+        "SYS_HBRIDGE_FAULT_NONE"
+      ],
+      [
+        1,
+        "SYS_HBRIDGE_FAULT_OVERCURRENT"
+      ],
+      [
+        2,
+        "SYS_HBRIDGE_FAULT_THERMAL_OR_UVLO"
+      ],
+      [
+        3,
+        "SYS_HBRIDGE_FAULT_EXTERNAL"
+      ]
+    ],
+    "sys_hbridge_feature_e": [
+      [
+        0,
+        "SYS_HBRIDGE_FEATURE_SET_MODE"
+      ],
+      [
+        1,
+        "SYS_HBRIDGE_FEATURE_SET_DRIVE"
+      ],
+      [
+        2,
+        "SYS_HBRIDGE_FEATURE_BRAKE"
+      ],
+      [
+        3,
+        "SYS_HBRIDGE_FEATURE_COAST"
+      ],
+      [
+        4,
+        "SYS_HBRIDGE_FEATURE_GET_CURRENT_MA"
+      ],
+      [
+        5,
+        "SYS_HBRIDGE_FEATURE_SET_CURRENT_LIMIT_MA"
+      ],
+      [
+        6,
+        "SYS_HBRIDGE_FEATURE_CONFIGURE_FAULT"
+      ],
+      [
+        7,
+        "SYS_HBRIDGE_FEATURE_GET_FAULT"
+      ],
+      [
+        8,
+        "SYS_HBRIDGE_FEATURE_CLEAR_FAULT"
+      ]
+    ],
+    "sys_io_mode_e": [
+      [
+        0,
+        "SYS_IO_MODE_INPUT"
+      ],
+      [
+        1,
+        "SYS_IO_MODE_INPUT_PULLUP"
+      ],
+      [
+        2,
+        "SYS_IO_MODE_INPUT_PULLDOWN"
+      ],
+      [
+        3,
+        "SYS_IO_MODE_OUTPUT_PUSH_PULL"
+      ],
+      [
+        4,
+        "SYS_IO_MODE_OUTPUT_OPEN_DRAIN"
+      ],
+      [
+        5,
+        "SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP"
+      ],
+      [
+        6,
+        "SYS_IO_MODE_PWM"
+      ],
+      [
+        7,
+        "SYS_IO_MODE_ADC"
+      ],
+      [
+        8,
+        "SYS_IO_MODE_DAC"
+      ]
+    ],
+    "sys_io_intr_mode_e": [
+      [
+        0,
+        "SYS_IO_INTR_DISABLE"
+      ],
+      [
+        1,
+        "SYS_IO_INTR_MODE_RISING_EDGE"
+      ],
+      [
+        2,
+        "SYS_IO_INTR_MODE_FALLING_EDGE"
+      ],
+      [
+        3,
+        "SYS_IO_INTR_MODE_BOTH_EDGES"
+      ],
+      [
+        4,
+        "SYS_IO_INTR_ADC_WINDOW_OUTSIDE"
+      ],
+      [
+        5,
+        "SYS_IO_INTR_ADC_WINDOW_INSIDE"
+      ]
+    ],
+    "sys_io_feature_e": [
+      [
+        0,
+        "SYS_IO_FEATURE_RESET"
+      ],
+      [
+        1,
+        "SYS_IO_FEATURE_SET_MODE"
+      ],
+      [
+        2,
+        "SYS_IO_FEATURE_CONFIGURE_INTR"
+      ],
+      [
+        3,
+        "SYS_IO_FEATURE_SET_LEVEL"
+      ],
+      [
+        4,
+        "SYS_IO_FEATURE_GET_LEVEL"
+      ],
+      [
+        5,
+        "SYS_IO_FEATURE_TOGGLE"
+      ],
+      [
+        6,
+        "SYS_IO_FEATURE_GET_VOLTAGE"
+      ],
+      [
+        7,
+        "SYS_IO_FEATURE_SET_VOLTAGE"
+      ],
+      [
+        8,
+        "SYS_IO_FEATURE_SET_PWM_FREQUENCY"
+      ],
+      [
+        9,
+        "SYS_IO_FEATURE_SET_PWM_DUTY"
+      ]
+    ],
+    "sys_power_events_e": [
+      [
+        0,
+        "SYS_PWR_EVENT_NONE"
+      ],
+      [
+        1,
+        "SYS_PWR_EVENT_OVP"
+      ],
+      [
+        2,
+        "SYS_PWR_EVENT_UVP"
+      ],
+      [
+        3,
+        "SYS_PWR_EVENT_SPC"
+      ],
+      [
+        4,
+        "SYS_PWR_EVENT_OCP_WARNING"
+      ],
+      [
+        5,
+        "SYS_PWR_EVENT_OCP_CRITICAL"
+      ],
+      [
+        6,
+        "SYS_PWR_EVENT_OTP"
+      ]
+    ],
+    "sys_owner_e": [],
+    "sys_device_err_level_e": [
+      [
+        0,
+        "SYS_DEV_ERR_NONE"
+      ],
+      [
+        1,
+        "SYS_DEV_ERR_LOW"
+      ],
+      [
+        2,
+        "SYS_DEV_ERR_MEDIUM"
+      ],
+      [
+        3,
+        "SYS_DEV_ERR_HIGH"
+      ],
+      [
+        4,
+        "SYS_DEV_ERR_CRITICAL"
+      ]
+    ],
+    "err_tag_e": [],
+    "vm_edge_type_e": [
+      [
+        0,
+        "VM_EDGE_RISING"
+      ],
+      [
+        1,
+        "VM_EDGE_FALLING"
+      ],
+      [
+        2,
+        "VM_EDGE_BOTH"
+      ],
+      [
+        3,
+        "VM_EDGE_TYPE_CNT"
+      ]
+    ],
+    "vm_expr_op_e": [
+      [
+        0,
+        "VM_EXPR_END"
+      ],
+      [
+        1,
+        "VM_EXPR_IN"
+      ],
+      [
+        2,
+        "VM_EXPR_K"
+      ],
+      [
+        3,
+        "VM_EXPR_DUP"
+      ],
+      [
+        4,
+        "VM_EXPR_DROP"
+      ],
+      [
+        5,
+        "VM_EXPR_SWAP"
+      ],
+      [
+        6,
+        "VM_EXPR_ADD"
+      ],
+      [
+        7,
+        "VM_EXPR_SUB"
+      ],
+      [
+        8,
+        "VM_EXPR_MUL"
+      ],
+      [
+        9,
+        "VM_EXPR_DIV"
+      ],
+      [
+        10,
+        "VM_EXPR_MOD"
+      ],
+      [
+        11,
+        "VM_EXPR_POW"
+      ],
+      [
+        12,
+        "VM_EXPR_ROOT"
+      ],
+      [
+        13,
+        "VM_EXPR_MIN"
+      ],
+      [
+        14,
+        "VM_EXPR_MAX"
+      ],
+      [
+        15,
+        "VM_EXPR_ATAN2"
+      ],
+      [
+        16,
+        "VM_EXPR_HYPOT"
+      ],
+      [
+        17,
+        "VM_EXPR_NEG"
+      ],
+      [
+        18,
+        "VM_EXPR_ABS"
+      ],
+      [
+        19,
+        "VM_EXPR_SQRT"
+      ],
+      [
+        20,
+        "VM_EXPR_SQUARE"
+      ],
+      [
+        21,
+        "VM_EXPR_RECIP"
+      ],
+      [
+        22,
+        "VM_EXPR_FLOOR"
+      ],
+      [
+        23,
+        "VM_EXPR_CEIL"
+      ],
+      [
+        24,
+        "VM_EXPR_ROUND"
+      ],
+      [
+        25,
+        "VM_EXPR_TRUNC"
+      ],
+      [
+        26,
+        "VM_EXPR_SIGN"
+      ],
+      [
+        27,
+        "VM_EXPR_SIN"
+      ],
+      [
+        28,
+        "VM_EXPR_COS"
+      ],
+      [
+        29,
+        "VM_EXPR_TAN"
+      ],
+      [
+        30,
+        "VM_EXPR_ASIN"
+      ],
+      [
+        31,
+        "VM_EXPR_ACOS"
+      ],
+      [
+        32,
+        "VM_EXPR_ATAN"
+      ],
+      [
+        33,
+        "VM_EXPR_EXP"
+      ],
+      [
+        34,
+        "VM_EXPR_LOG"
+      ],
+      [
+        35,
+        "VM_EXPR_LOG10"
+      ],
+      [
+        36,
+        "VM_EXPR_LOG2"
+      ],
+      [
+        37,
+        "VM_EXPR_DEG"
+      ],
+      [
+        38,
+        "VM_EXPR_RAD"
+      ],
+      [
+        39,
+        "VM_EXPR_LT"
+      ],
+      [
+        40,
+        "VM_EXPR_LE"
+      ],
+      [
+        41,
+        "VM_EXPR_GT"
+      ],
+      [
+        42,
+        "VM_EXPR_GE"
+      ],
+      [
+        43,
+        "VM_EXPR_EQ"
+      ],
+      [
+        44,
+        "VM_EXPR_NE"
+      ],
+      [
+        45,
+        "VM_EXPR_AND"
+      ],
+      [
+        46,
+        "VM_EXPR_OR"
+      ],
+      [
+        47,
+        "VM_EXPR_XOR"
+      ],
+      [
+        48,
+        "VM_EXPR_NOT"
+      ],
+      [
+        49,
+        "VM_EXPR_SEL"
+      ],
+      [
+        50,
+        "VM_EXPR_OP_CNT"
+      ]
+    ],
+    "vm_bit_op_e": [
+      [
+        0,
+        "VM_BIT_END"
+      ],
+      [
+        1,
+        "VM_BIT_IN"
+      ],
+      [
+        2,
+        "VM_BIT_K"
+      ],
+      [
+        3,
+        "VM_BIT_DUP"
+      ],
+      [
+        4,
+        "VM_BIT_DROP"
+      ],
+      [
+        5,
+        "VM_BIT_SWAP"
+      ],
+      [
+        6,
+        "VM_BIT_AND"
+      ],
+      [
+        7,
+        "VM_BIT_OR"
+      ],
+      [
+        8,
+        "VM_BIT_XOR"
+      ],
+      [
+        9,
+        "VM_BIT_SHL"
+      ],
+      [
+        10,
+        "VM_BIT_SHR"
+      ],
+      [
+        11,
+        "VM_BIT_SAR"
+      ],
+      [
+        12,
+        "VM_BIT_ROL"
+      ],
+      [
+        13,
+        "VM_BIT_ROR"
+      ],
+      [
+        14,
+        "VM_BIT_GET"
+      ],
+      [
+        15,
+        "VM_BIT_SET"
+      ],
+      [
+        16,
+        "VM_BIT_CLR"
+      ],
+      [
+        17,
+        "VM_BIT_TGL"
+      ],
+      [
+        18,
+        "VM_BIT_NOT"
+      ],
+      [
+        19,
+        "VM_BIT_POPCNT"
+      ],
+      [
+        20,
+        "VM_BIT_CLZ"
+      ],
+      [
+        21,
+        "VM_BIT_CTZ"
+      ],
+      [
+        22,
+        "VM_BIT_BSWAP"
+      ],
+      [
+        23,
+        "VM_BIT_OP_CNT"
+      ]
+    ],
+    "vm_for_op_e": [
+      [
+        0,
+        "VM_FOR_OP_ADD"
+      ],
+      [
+        1,
+        "VM_FOR_OP_SUB"
+      ],
+      [
+        2,
+        "VM_FOR_OP_MUL"
+      ],
+      [
+        3,
+        "VM_FOR_OP_DIV"
+      ],
+      [
+        4,
+        "VM_FOR_OP_CNT"
+      ]
+    ],
+    "vm_for_cmp_e": [
+      [
+        0,
+        "VM_FOR_CMP_LT"
+      ],
+      [
+        1,
+        "VM_FOR_CMP_LE"
+      ],
+      [
+        2,
+        "VM_FOR_CMP_GT"
+      ],
+      [
+        3,
+        "VM_FOR_CMP_GE"
+      ],
+      [
+        4,
+        "VM_FOR_CMP_CNT"
+      ]
+    ],
+    "vm_io_disabled_state_e": [
+      [
+        0,
+        "VM_IO_DISABLED_HOLD"
+      ],
+      [
+        1,
+        "VM_IO_DISABLED_FORCE_LOW"
+      ],
+      [
+        2,
+        "VM_IO_DISABLED_FORCE_HIGH"
+      ]
+    ],
+    "vm_timer_mode_e": [
+      [
+        0,
+        "VM_TIMER_TON"
+      ],
+      [
+        1,
+        "VM_TIMER_TOF"
+      ],
+      [
+        2,
+        "VM_TIMER_TP"
+      ],
+      [
+        3,
+        "VM_TIMER_TON_INV"
+      ],
+      [
+        4,
+        "VM_TIMER_TOF_INV"
+      ],
+      [
+        5,
+        "VM_TIMER_TP_INV"
+      ],
+      [
+        6,
+        "VM_TIMER_MODE_CNT"
+      ]
+    ],
+    "vm_timer_unit_e": [
+      [
+        0,
+        "VM_TIMER_UNIT_MS"
+      ],
+      [
+        1,
+        "VM_TIMER_UNIT_SEC"
+      ],
+      [
+        2,
+        "VM_TIMER_UNIT_MIN"
+      ],
+      [
+        3,
+        "VM_TIMER_UNIT_HR"
+      ],
+      [
+        4,
+        "VM_TIMER_UNIT_CNT"
+      ]
+    ],
+    "vm_run_mode_e": [
+      [
+        0,
+        "VM_RUN_STOPPED"
+      ],
+      [
+        1,
+        "VM_RUN_RUNNING"
+      ],
+      [
+        2,
+        "VM_RUN_FROZEN"
+      ],
+      [
+        3,
+        "VM_RUN_STEP"
+      ],
+      [
+        4,
+        "VM_RUN_SCAN"
+      ],
+      [
+        5,
+        "VM_RUN_BLOCK"
+      ],
+      [
+        6,
+        "VM_RUN_BLOCK_STEP"
+      ]
+    ],
+    "vm_exec_command_e": [
+      [
+        0,
+        "VM_EXEC_SCAN_MODE"
+      ],
+      [
+        1,
+        "VM_EXEC_ONCE"
+      ],
+      [
+        2,
+        "VM_EXEC_BLOCK_MODE"
+      ],
+      [
+        3,
+        "VM_EXEC_NEXT"
+      ],
+      [
+        4,
+        "VM_EXEC_RESET_TO_START"
+      ],
+      [
+        5,
+        "VM_EXEC_NORMAL_MODE"
+      ],
+      [
+        6,
+        "VM_EXEC_PAUSE"
+      ],
+      [
+        7,
+        "VM_EXEC_RESUME"
+      ],
+      [
+        8,
+        "VM_EXEC_RESET"
+      ],
+      [
+        9,
+        "VM_EXEC_ACK_FAULT"
+      ]
+    ],
+    "vm_load_state_e": [
+      [
+        0,
+        "VM_LOAD_EMPTY"
+      ],
+      [
+        1,
+        "VM_LOAD_OPEN"
+      ]
+    ],
+    "vm_obj_t_e": [
+      [
+        0,
+        "VM_OBJ_NONE"
+      ],
+      [
+        1,
+        "VM_OBJ_PTR"
+      ],
+      [
+        2,
+        "VM_OBJ_U8"
+      ],
+      [
+        3,
+        "VM_OBJ_U32"
+      ],
+      [
+        4,
+        "VM_OBJ_I32"
+      ],
+      [
+        5,
+        "VM_OBJ_F"
+      ],
+      [
+        6,
+        "VM_OBJ_B"
+      ],
+      [
+        7,
+        "VM_OBJ_STR"
+      ]
+    ],
+    "vm_index_kind_e": [
+      [
+        0,
+        "VM_IDX_LITERAL"
+      ],
+      [
+        1,
+        "VM_IDX_REF"
+      ],
+      [
+        2,
+        "VM_IDX_NAME"
+      ]
+    ],
+    "vm_reg_e": [
+      [
+        0,
+        "VM_REG_OBJ"
+      ],
+      [
+        1,
+        "VM_REG_ACC"
+      ],
+      [
+        2,
+        "VM_REG_BLK"
+      ],
+      [
+        3,
+        "VM_REG_CNT"
+      ]
+    ]
+  },
+  "packets": {
+    "packet_feature_remove_t": {
+      "source_file": "dec_features.h",
+      "section": "Registry & Common Feature Lifecycle (0x01 - 0x0F)",
+      "class_name": "SYS_FEATURES",
+      "class_header": "0x05",
+      "packet_header": "0x01",
+      "decoder": "decoder_packet_feature_remove_t()",
+      "field_order": [
+        "feature_id"
+      ],
+      "fields": {
+        "feature_id": {
+          "type": "uint8_t",
+          "alias": "Feature ID",
+          "required": true
+        }
+      }
+    },
+    "packet_feature_remove_all_t": {
+      "source_file": "dec_features.h",
+      "section": "Registry & Common Feature Lifecycle (0x01 - 0x0F)",
+      "class_name": "SYS_FEATURES",
+      "class_header": "0x05",
+      "packet_header": "0x02",
+      "decoder": "decoder_packet_feature_remove_all_t()",
+      "field_order": [],
+      "fields": {}
+    },
+    "packet_feature_servo_create_t": {
+      "source_file": "dec_features.h",
+      "section": "Servo Feature Packets (0x10 - 0x1F)",
+      "class_name": "SYS_FEATURES",
+      "class_header": "0x05",
+      "packet_header": "0x10",
+      "decoder": "decoder_packet_feature_servo_create_t()",
+      "field_order": [
+        "feature_id",
+        "device_id",
+        "pin_num",
+        "frequency_hz",
+        "pulse_min_us",
+        "pulse_max_us",
+        "angle_min",
+        "angle_max",
+        "default_angle",
+        "trim_angle",
+        "inverted"
+      ],
+      "fields": {
+        "feature_id": {
+          "type": "uint8_t",
+          "alias": "Feature ID",
+          "required": true
+        },
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "pin_num": {
+          "type": "uint8_t",
+          "alias": "Pin Number",
+          "required": true
+        },
+        "frequency_hz": {
+          "type": "uint16_t",
+          "alias": "PWM Frequency",
+          "required": true,
+          "unit": "Hz"
+        },
+        "pulse_min_us": {
+          "type": "uint16_t",
+          "alias": "Min Pulse Width",
+          "required": true,
+          "unit": "us"
+        },
+        "pulse_max_us": {
+          "type": "uint16_t",
+          "alias": "Max Pulse Width",
+          "required": true,
+          "unit": "us"
+        },
+        "angle_min": {
+          "type": "float",
+          "alias": "Min Angle",
+          "required": true,
+          "unit": "deg"
+        },
+        "angle_max": {
+          "type": "float",
+          "alias": "Max Angle",
+          "required": true,
+          "unit": "deg"
+        },
+        "default_angle": {
+          "type": "float",
+          "alias": "Default Angle",
+          "required": true,
+          "unit": "deg"
+        },
+        "trim_angle": {
+          "type": "float",
+          "alias": "Trim Angle",
+          "required": true,
+          "unit": "deg"
+        },
+        "inverted": {
+          "type": "uint8_t",
+          "alias": "Inverted",
+          "required": true
+        }
+      }
+    },
+    "packet_feature_servo_set_angle_t": {
+      "source_file": "dec_features.h",
+      "section": "Servo Feature Packets (0x10 - 0x1F)",
+      "class_name": "SYS_FEATURES",
+      "class_header": "0x05",
+      "packet_header": "0x11",
+      "decoder": "decoder_packet_feature_servo_set_angle_t()",
+      "field_order": [
+        "feature_id",
+        "angle"
+      ],
+      "fields": {
+        "feature_id": {
+          "type": "uint8_t",
+          "alias": "Feature ID",
+          "required": true
+        },
+        "angle": {
+          "type": "float",
+          "alias": "Target Angle",
+          "required": true,
+          "unit": "deg"
+        }
+      }
+    },
+    "packet_feature_servo_go_home_t": {
+      "source_file": "dec_features.h",
+      "section": "Servo Feature Packets (0x10 - 0x1F)",
+      "class_name": "SYS_FEATURES",
+      "class_header": "0x05",
+      "packet_header": "0x12",
+      "decoder": "decoder_packet_feature_servo_go_home_t()",
+      "field_order": [
+        "feature_id"
+      ],
+      "fields": {
+        "feature_id": {
+          "type": "uint8_t",
+          "alias": "Feature ID",
+          "required": true
+        }
+      }
+    },
+    "packet_feature_servo_set_trim_t": {
+      "source_file": "dec_features.h",
+      "section": "Servo Feature Packets (0x10 - 0x1F)",
+      "class_name": "SYS_FEATURES",
+      "class_header": "0x05",
+      "packet_header": "0x13",
+      "decoder": "decoder_packet_feature_servo_set_trim_t()",
+      "field_order": [
+        "feature_id",
+        "trim_angle"
+      ],
+      "fields": {
+        "feature_id": {
+          "type": "uint8_t",
+          "alias": "Feature ID",
+          "required": true
+        },
+        "trim_angle": {
+          "type": "float",
+          "alias": "Trim Angle",
+          "required": true,
+          "unit": "deg"
+        }
+      }
+    },
+    "packet_feature_servo_attach_t": {
+      "source_file": "dec_features.h",
+      "section": "Servo Feature Packets (0x10 - 0x1F)",
+      "class_name": "SYS_FEATURES",
+      "class_header": "0x05",
+      "packet_header": "0x14",
+      "decoder": "decoder_packet_feature_servo_attach_t()",
+      "field_order": [
+        "feature_id",
+        "attach"
+      ],
+      "fields": {
+        "feature_id": {
+          "type": "uint8_t",
+          "alias": "Feature ID",
+          "required": true
+        },
+        "attach": {
+          "type": "uint8_t",
+          "alias": "Attach",
+          "required": true
+        }
+      }
+    },
+    "packet_feature_hbridge_create_t": {
+      "source_file": "dec_features.h",
+      "section": "H-Bridge / Motor Feature Packets (0x20 - 0x2F)",
+      "class_name": "SYS_FEATURES",
+      "class_header": "0x05",
+      "packet_header": "0x20",
+      "decoder": "decoder_packet_feature_hbridge_create_t()",
+      "field_order": [
+        "feature_id",
+        "bridge_device_id",
+        "channel",
+        "inverted",
+        "fault_route_mask",
+        "fault_static_action_id",
+        "fault_dynamic_action_id"
+      ],
+      "fields": {
+        "feature_id": {
+          "type": "uint8_t",
+          "alias": "Feature ID",
+          "required": true
+        },
+        "bridge_device_id": {
+          "type": "uint8_t",
+          "alias": "Bridge Device ID",
+          "required": true
+        },
+        "channel": {
+          "type": "uint8_t",
+          "alias": "Channel",
+          "required": true
+        },
+        "inverted": {
+          "type": "uint8_t",
+          "alias": "Inverted",
+          "required": true
+        },
+        "fault_route_mask": {
+          "type": "uint16_t",
+          "alias": "Fault Route Mask",
+          "required": false,
+          "note": "bitmask"
+        },
+        "fault_static_action_id": {
+          "type": "uint8_t",
+          "alias": "Fault Static Action ID",
+          "required": false,
+          "sentinel": 0
+        },
+        "fault_dynamic_action_id": {
+          "type": "uint8_t",
+          "alias": "Fault Dynamic Action ID",
+          "required": false,
+          "sentinel": 0
+        }
+      }
+    },
+    "packet_feature_hbridge_set_speed_t": {
+      "source_file": "dec_features.h",
+      "section": "H-Bridge / Motor Feature Packets (0x20 - 0x2F)",
+      "class_name": "SYS_FEATURES",
+      "class_header": "0x05",
+      "packet_header": "0x21",
+      "decoder": "decoder_packet_feature_hbridge_set_speed_t()",
+      "field_order": [
+        "feature_id",
+        "speed"
+      ],
+      "fields": {
+        "feature_id": {
+          "type": "uint8_t",
+          "alias": "Feature ID",
+          "required": true
+        },
+        "speed": {
+          "type": "float",
+          "alias": "Speed",
+          "required": true
+        }
+      }
+    },
+    "packet_feature_hbridge_brake_t": {
+      "source_file": "dec_features.h",
+      "section": "H-Bridge / Motor Feature Packets (0x20 - 0x2F)",
+      "class_name": "SYS_FEATURES",
+      "class_header": "0x05",
+      "packet_header": "0x22",
+      "decoder": "decoder_packet_feature_hbridge_brake_t()",
+      "field_order": [
+        "feature_id"
+      ],
+      "fields": {
+        "feature_id": {
+          "type": "uint8_t",
+          "alias": "Feature ID",
+          "required": true
+        }
+      }
+    },
+    "packet_feature_hbridge_coast_t": {
+      "source_file": "dec_features.h",
+      "section": "H-Bridge / Motor Feature Packets (0x20 - 0x2F)",
+      "class_name": "SYS_FEATURES",
+      "class_header": "0x05",
+      "packet_header": "0x23",
+      "decoder": "decoder_packet_feature_hbridge_coast_t()",
+      "field_order": [
+        "feature_id"
+      ],
+      "fields": {
+        "feature_id": {
+          "type": "uint8_t",
+          "alias": "Feature ID",
+          "required": true
+        }
+      }
+    },
+    "packet_feature_hbridge_set_current_limit_t": {
+      "source_file": "dec_features.h",
+      "section": "H-Bridge / Motor Feature Packets (0x20 - 0x2F)",
+      "class_name": "SYS_FEATURES",
+      "class_header": "0x05",
+      "packet_header": "0x24",
+      "decoder": "decoder_packet_feature_hbridge_set_current_limit_t()",
+      "field_order": [
+        "feature_id",
+        "limit_ma"
+      ],
+      "fields": {
+        "feature_id": {
+          "type": "uint8_t",
+          "alias": "Feature ID",
+          "required": true
+        },
+        "limit_ma": {
+          "type": "uint32_t",
+          "alias": "Current Limit",
+          "required": true,
+          "unit": "mA"
+        }
+      }
+    },
+    "packet_feature_hbridge_clear_fault_t": {
+      "source_file": "dec_features.h",
+      "section": "H-Bridge / Motor Feature Packets (0x20 - 0x2F)",
+      "class_name": "SYS_FEATURES",
+      "class_header": "0x05",
+      "packet_header": "0x25",
+      "decoder": "decoder_packet_feature_hbridge_clear_fault_t()",
+      "field_order": [
+        "feature_id"
+      ],
+      "fields": {
+        "feature_id": {
+          "type": "uint8_t",
+          "alias": "Feature ID",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_action_static_t": {
+      "source_file": "dec_sys_actions.h",
+      "section": null,
+      "class_name": "SYS_ACTIONS",
+      "class_header": "0x03",
+      "packet_header": "0x00",
+      "decoder": "decoder_packet_sys_action_static_t()",
+      "field_order": [
+        "id"
+      ],
+      "fields": {
+        "id": {
+          "type": "uint8_t",
+          "alias": "Static Action ID",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_action_dynamic_t": {
+      "source_file": "dec_sys_actions.h",
+      "section": null,
+      "class_name": "SYS_ACTIONS",
+      "class_header": "0x03",
+      "packet_header": "0x01",
+      "decoder": "decoder_packet_sys_action_dynamic_t()",
+      "field_order": [
+        "id"
+      ],
+      "fields": {
+        "id": {
+          "type": "uint8_t",
+          "alias": "Dynamic Action ID",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_action_record_start_t": {
+      "source_file": "dec_sys_actions.h",
+      "section": null,
+      "class_name": "SYS_ACTIONS",
+      "class_header": "0x03",
+      "packet_header": "0x02",
+      "decoder": "decoder_packet_sys_action_record_start_t()",
+      "field_order": [
+        "id"
+      ],
+      "fields": {
+        "id": {
+          "type": "uint8_t",
+          "alias": "Dynamic Action ID",
+          "required": true,
+          "note": "action id that recorded blocks will be attached to"
+        }
+      }
+    },
+    "packet_sys_action_record_stop_t": {
+      "source_file": "dec_sys_actions.h",
+      "section": null,
+      "class_name": "SYS_ACTIONS",
+      "class_header": "0x03",
+      "packet_header": "0x03",
+      "decoder": "decoder_packet_sys_action_record_stop_t()",
+      "field_order": [],
+      "fields": {}
+    },
+    "packet_sys_action_remove_t": {
+      "source_file": "dec_sys_actions.h",
+      "section": null,
+      "class_name": "SYS_ACTIONS",
+      "class_header": "0x03",
+      "packet_header": "0x04",
+      "decoder": "decoder_packet_sys_action_remove_t()",
+      "field_order": [
+        "id"
+      ],
+      "fields": {
+        "id": {
+          "type": "uint8_t",
+          "alias": "Dynamic Action ID",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_action_remove_all_t": {
+      "source_file": "dec_sys_actions.h",
+      "section": null,
+      "class_name": "SYS_ACTIONS",
+      "class_header": "0x03",
+      "packet_header": "0x05",
+      "decoder": "decoder_packet_sys_action_remove_all_t()",
+      "field_order": [],
+      "fields": {}
+    },
+    "packet_sys_device_uninstall_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Device Management Packet decoders (0x10 - 0x19)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x10",
+      "decoder": "decoder_packet_sys_device_uninstall_t()",
+      "field_order": [
+        "device_id"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_device_reset_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Device Management Packet decoders (0x10 - 0x19)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x11",
+      "decoder": "decoder_packet_sys_device_reset_t()",
+      "field_order": [
+        "device_id"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_device_suspend_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Device Management Packet decoders (0x10 - 0x19)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x12",
+      "decoder": "decoder_packet_sys_device_suspend_t()",
+      "field_order": [
+        "device_id"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_device_resume_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Device Management Packet decoders (0x10 - 0x19)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x13",
+      "decoder": "decoder_packet_sys_device_resume_t()",
+      "field_order": [
+        "device_id"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_device_suspend_all_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Device Management Packet decoders (0x10 - 0x19)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x14",
+      "decoder": "decoder_packet_sys_device_suspend_all_t()",
+      "field_order": [],
+      "fields": {}
+    },
+    "packet_sys_device_resume_all_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Device Management Packet decoders (0x10 - 0x19)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x15",
+      "decoder": "decoder_packet_sys_device_resume_all_t()",
+      "field_order": [],
+      "fields": {}
+    },
+    "packet_sys_device_freeze_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Device Management Packet decoders (0x10 - 0x19)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x16",
+      "decoder": "decoder_packet_sys_device_freeze_t()",
+      "field_order": [
+        "device_id"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_device_sync_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Device Management Packet decoders (0x10 - 0x19)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x17",
+      "decoder": "decoder_packet_sys_device_sync_t()",
+      "field_order": [
+        "device_id"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_device_freeze_all_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Device Management Packet decoders (0x10 - 0x19)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x18",
+      "decoder": "decoder_packet_sys_device_freeze_all_t()",
+      "field_order": [],
+      "fields": {}
+    },
+    "packet_sys_device_sync_all_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Device Management Packet decoders (0x10 - 0x19)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x19",
+      "decoder": "decoder_packet_sys_device_sync_all_t()",
+      "field_order": [],
+      "fields": {}
+    },
+    "packet_sys_device_set_error_handling_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Device Management Packet decoders (0x10 - 0x19)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x1A",
+      "decoder": "decoder_packet_sys_device_set_error_handling_t()",
+      "field_order": [
+        "device_id",
+        "importance",
+        "actions"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "importance": {
+          "type": "uint8_t",
+          "alias": "Importance Level",
+          "required": true,
+          "ref": "sys_device_importance_e"
+        },
+        "actions": {
+          "type": "uint8_t",
+          "array_len": 5,
+          "alias": "Error-Level Actions",
+          "required": true,
+          "ref": "sys_device_err_level_e",
+          "note": "sys_actions ids, indexed by sys_device_err_level_e"
+        }
+      }
+    },
+    "packet_sys_io_reset_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "IO Control Packet decoders (0x20 - 0x2F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x20",
+      "decoder": "decoder_packet_sys_io_reset_t()",
+      "field_order": [
+        "device_id",
+        "pin"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "pin": {
+          "type": "uint8_t",
+          "alias": "Pin Number",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_io_set_mode_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "IO Control Packet decoders (0x20 - 0x2F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x21",
+      "decoder": "decoder_packet_sys_io_set_mode_t()",
+      "field_order": [
+        "device_id",
+        "pin",
+        "mode"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "pin": {
+          "type": "uint8_t",
+          "alias": "Pin Number",
+          "required": true
+        },
+        "mode": {
+          "type": "uint8_t",
+          "alias": "Pin Mode",
+          "required": true,
+          "ref": "sys_io_mode_e"
+        }
+      }
+    },
+    "packet_sys_io_set_level_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "IO Control Packet decoders (0x20 - 0x2F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x22",
+      "decoder": "decoder_packet_sys_io_set_level_t()",
+      "field_order": [
+        "device_id",
+        "pin",
+        "level"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "pin": {
+          "type": "uint8_t",
+          "alias": "Pin Number",
+          "required": true
+        },
+        "level": {
+          "type": "uint8_t",
+          "alias": "Level",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_io_get_level_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "IO Control Packet decoders (0x20 - 0x2F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x23",
+      "decoder": "decoder_packet_sys_io_get_level_t()",
+      "field_order": [
+        "device_id",
+        "pin"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "pin": {
+          "type": "uint8_t",
+          "alias": "Pin Number",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_io_toggle_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "IO Control Packet decoders (0x20 - 0x2F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x24",
+      "decoder": "decoder_packet_sys_io_toggle_t()",
+      "field_order": [
+        "device_id",
+        "pin"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "pin": {
+          "type": "uint8_t",
+          "alias": "Pin Number",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_io_get_voltage_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "IO Control Packet decoders (0x20 - 0x2F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x25",
+      "decoder": "decoder_packet_sys_io_get_voltage_t()",
+      "field_order": [
+        "device_id",
+        "pin"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "pin": {
+          "type": "uint8_t",
+          "alias": "Pin Number",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_io_set_voltage_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "IO Control Packet decoders (0x20 - 0x2F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x26",
+      "decoder": "decoder_packet_sys_io_set_voltage_t()",
+      "field_order": [
+        "device_id",
+        "pin",
+        "voltage_mV"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "pin": {
+          "type": "uint8_t",
+          "alias": "Pin Number",
+          "required": true
+        },
+        "voltage_mV": {
+          "type": "uint32_t",
+          "alias": "Voltage",
+          "required": true,
+          "unit": "mV"
+        }
+      }
+    },
+    "packet_sys_io_set_pwm_frequency_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "IO Control Packet decoders (0x20 - 0x2F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x27",
+      "decoder": "decoder_packet_sys_io_set_pwm_frequency_t()",
+      "field_order": [
+        "device_id",
+        "pin",
+        "frequency_HZ"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "pin": {
+          "type": "uint8_t",
+          "alias": "Pin Number",
+          "required": true
+        },
+        "frequency_HZ": {
+          "type": "uint32_t",
+          "alias": "PWM Frequency",
+          "required": true,
+          "unit": "Hz"
+        }
+      }
+    },
+    "packet_sys_io_set_pwm_duty_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "IO Control Packet decoders (0x20 - 0x2F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x28",
+      "decoder": "decoder_packet_sys_io_set_pwm_duty_t()",
+      "field_order": [
+        "device_id",
+        "pin",
+        "duty"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "pin": {
+          "type": "uint8_t",
+          "alias": "Pin Number",
+          "required": true
+        },
+        "duty": {
+          "type": "uint32_t",
+          "alias": "Duty Cycle",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_io_configure_intr_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "IO Control Packet decoders (0x20 - 0x2F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x29",
+      "decoder": "decoder_packet_sys_io_configure_intr_t()",
+      "field_order": [
+        "device_id",
+        "pin",
+        "mode",
+        "route_mask",
+        "static_action_id",
+        "dynamic_action_id",
+        "adc_thresh_up_mV",
+        "adc_thresh_down_mV",
+        "adc_thresh_hyst_mV",
+        "adc_counter_thresh"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "pin": {
+          "type": "uint8_t",
+          "alias": "Pin Number",
+          "required": true
+        },
+        "mode": {
+          "type": "uint8_t",
+          "alias": "Interrupt Mode",
+          "required": true,
+          "ref": "sys_io_intr_mode_e"
+        },
+        "route_mask": {
+          "type": "uint16_t",
+          "alias": "Route Mask",
+          "required": true,
+          "note": "bitmask"
+        },
+        "static_action_id": {
+          "type": "uint8_t",
+          "alias": "Static Action ID",
+          "required": false,
+          "sentinel": 0
+        },
+        "dynamic_action_id": {
+          "type": "uint8_t",
+          "alias": "Dynamic Action ID",
+          "required": false,
+          "sentinel": 0
+        },
+        "adc_thresh_up_mV": {
+          "type": "uint16_t",
+          "alias": "ADC Rising Threshold",
+          "required": false,
+          "unit": "mV"
+        },
+        "adc_thresh_down_mV": {
+          "type": "uint16_t",
+          "alias": "ADC Falling Threshold",
+          "required": false,
+          "unit": "mV"
+        },
+        "adc_thresh_hyst_mV": {
+          "type": "uint16_t",
+          "alias": "ADC Hysteresis",
+          "required": false,
+          "unit": "mV"
+        },
+        "adc_counter_thresh": {
+          "type": "uint16_t",
+          "alias": "ADC Event Counter Threshold",
+          "required": false
+        }
+      }
+    },
+    "packet_sys_power_budget_update_source_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Power Control Packet decoders (0x30 - 0x3F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x30",
+      "decoder": "decoder_packet_sys_power_budget_update_source_t()",
+      "field_order": [
+        "max_mV",
+        "max_mA"
+      ],
+      "fields": {
+        "max_mV": {
+          "type": "uint32_t",
+          "alias": "Max Voltage",
+          "required": true,
+          "unit": "mV"
+        },
+        "max_mA": {
+          "type": "uint32_t",
+          "alias": "Max Current",
+          "required": true,
+          "unit": "mA"
+        }
+      }
+    },
+    "packet_sys_vreg_set_enable_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Power Control Packet decoders (0x30 - 0x3F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x31",
+      "decoder": "decoder_packet_sys_vreg_set_enable_t()",
+      "field_order": [
+        "device_id",
+        "state"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "state": {
+          "type": "uint8_t",
+          "alias": "Enable State",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_vreg_set_voltage_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Power Control Packet decoders (0x30 - 0x3F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x32",
+      "decoder": "decoder_packet_sys_vreg_set_voltage_t()",
+      "field_order": [
+        "device_id",
+        "voltage_mV"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "voltage_mV": {
+          "type": "uint32_t",
+          "alias": "Voltage",
+          "required": true,
+          "unit": "mV"
+        }
+      }
+    },
+    "packet_sys_vreg_set_current_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Power Control Packet decoders (0x30 - 0x3F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x33",
+      "decoder": "decoder_packet_sys_vreg_set_current_t()",
+      "field_order": [
+        "device_id",
+        "current_mA"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "current_mA": {
+          "type": "uint32_t",
+          "alias": "Current Limit",
+          "required": true,
+          "unit": "mA"
+        }
+      }
+    },
+    "packet_sys_power_monitor_get_voltage_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Power Control Packet decoders (0x30 - 0x3F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x34",
+      "decoder": "decoder_packet_sys_power_monitor_get_voltage_t()",
+      "field_order": [
+        "device_id",
+        "channel"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "channel": {
+          "type": "uint8_t",
+          "alias": "Channel",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_power_monitor_get_current_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Power Control Packet decoders (0x30 - 0x3F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x35",
+      "decoder": "decoder_packet_sys_power_monitor_get_current_t()",
+      "field_order": [
+        "device_id",
+        "channel"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "channel": {
+          "type": "uint8_t",
+          "alias": "Channel",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_power_usb_pd_set_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Power Control Packet decoders (0x30 - 0x3F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x36",
+      "decoder": "decoder_packet_sys_power_usb_pd_set_t()",
+      "field_order": [
+        "device_id",
+        "voltage_mV",
+        "current_mA"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "voltage_mV": {
+          "type": "uint32_t",
+          "alias": "Requested Voltage",
+          "required": true,
+          "unit": "mV"
+        },
+        "current_mA": {
+          "type": "uint32_t",
+          "alias": "Requested Current",
+          "required": true,
+          "unit": "mA"
+        }
+      }
+    },
+    "packet_sys_power_usb_pd_list_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Power Control Packet decoders (0x30 - 0x3F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x37",
+      "decoder": "decoder_packet_sys_power_usb_pd_list_t()",
+      "field_order": [
+        "device_id"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_power_usb_pd_get_limits_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Power Control Packet decoders (0x30 - 0x3F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x38",
+      "decoder": "decoder_packet_sys_power_usb_pd_get_limits_t()",
+      "field_order": [
+        "device_id"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        }
+      }
+    },
+    "packet_sys_power_monitor_add_callback_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Power Control Packet decoders (0x30 - 0x3F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x39",
+      "decoder": "decoder_packet_sys_power_monitor_add_callback_t()",
+      "field_order": [
+        "device_id",
+        "channel",
+        "trigger_value",
+        "on_event",
+        "route_mask",
+        "static_action_id",
+        "dynamic_action_id"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "channel": {
+          "type": "uint8_t",
+          "alias": "Channel",
+          "required": true
+        },
+        "trigger_value": {
+          "type": "int32_t",
+          "alias": "Trigger Value",
+          "required": true
+        },
+        "on_event": {
+          "type": "uint8_t",
+          "alias": "Event",
+          "required": true,
+          "ref": "sys_power_events_e"
+        },
+        "route_mask": {
+          "type": "uint16_t",
+          "alias": "Route Mask",
+          "required": true,
+          "note": "bitmask"
+        },
+        "static_action_id": {
+          "type": "uint8_t",
+          "alias": "Static Action ID",
+          "required": false,
+          "sentinel": 0
+        },
+        "dynamic_action_id": {
+          "type": "uint8_t",
+          "alias": "Dynamic Action ID",
+          "required": false,
+          "sentinel": 0
+        }
+      }
+    },
+    "packet_sys_vreg_add_callback_t": {
+      "source_file": "dec_sys_contracts.h",
+      "section": "Power Control Packet decoders (0x30 - 0x3F)",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x3A",
+      "decoder": "decoder_packet_sys_vreg_add_callback_t()",
+      "field_order": [
+        "device_id",
+        "on_event",
+        "route_mask",
+        "static_action_id",
+        "dynamic_action_id"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true
+        },
+        "on_event": {
+          "type": "uint8_t",
+          "alias": "Event",
+          "required": true,
+          "ref": "sys_power_events_e"
+        },
+        "route_mask": {
+          "type": "uint16_t",
+          "alias": "Route Mask",
+          "required": true,
+          "note": "bitmask"
+        },
+        "static_action_id": {
+          "type": "uint8_t",
+          "alias": "Static Action ID",
+          "required": false,
+          "sentinel": 0
+        },
+        "dynamic_action_id": {
+          "type": "uint8_t",
+          "alias": "Dynamic Action ID",
+          "required": false,
+          "sentinel": 0
+        }
+      }
+    },
+    "packet_sys_device_install_gpio_esp_t": {
+      "source_file": "dec_sys_device_install.h",
+      "section": null,
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x40",
+      "decoder": "decoder_packet_sys_device_install_gpio_esp_t()",
+      "field_order": [
+        "device_id"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 127
+        }
+      }
+    },
+    "packet_sys_device_install_pca9685_t": {
+      "source_file": "dec_sys_device_install.h",
+      "section": null,
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x41",
+      "decoder": "decoder_packet_sys_device_install_pca9685_t()",
+      "field_order": [
+        "device_id",
+        "i2c_bus",
+        "i2c_addr",
+        "oe_pin_device_id",
+        "oe_pin_pin",
+        "oe_pin_mode"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 127
+        },
+        "i2c_bus": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 1
+        },
+        "i2c_addr": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 64,
+          "max": 127,
+          "note": "not range-checked by driver_pca9685.c - 7-bit address space, no software enforcement"
+        },
+        "oe_pin_device_id": {
+          "type": "uint8_t",
+          "group": "enable-output-pin",
+          "role": "device_id"
+        },
+        "oe_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "enable-output-pin",
+          "role": "pin"
+        },
+        "oe_pin_mode": {
+          "type": "uint8_t",
+          "ref": "sys_io_mode_e",
+          "group": "enable-output-pin",
+          "role": "mode"
+        }
+      },
+      "groups": {
+        "enable-output-pin": {
+          "fields": [
+            "oe_pin_device_id",
+            "oe_pin_pin",
+            "oe_pin_mode"
+          ],
+          "sentinel_field": "oe_pin_pin"
+        }
+      }
+    },
+    "packet_sys_device_install_tca6424a_t": {
+      "source_file": "dec_sys_device_install.h",
+      "section": null,
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x42",
+      "decoder": "decoder_packet_sys_device_install_tca6424a_t()",
+      "field_order": [
+        "device_id",
+        "i2c_bus",
+        "i2c_addr",
+        "intr_pin_device_id",
+        "intr_pin_pin",
+        "intr_pin_mode",
+        "rst_pin_device_id",
+        "rst_pin_pin",
+        "rst_pin_mode"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 127
+        },
+        "i2c_bus": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 1
+        },
+        "i2c_addr": {
+          "type": "uint8_t",
+          "required": true,
+          "note": "not range-checked by driver_tca6424a.c - no software-enforced bound"
+        },
+        "intr_pin_device_id": {
+          "type": "uint8_t",
+          "group": "interrupt-pin",
+          "role": "device_id"
+        },
+        "intr_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "interrupt-pin",
+          "role": "pin"
+        },
+        "intr_pin_mode": {
+          "type": "uint8_t",
+          "ref": "sys_io_mode_e",
+          "group": "interrupt-pin",
+          "role": "mode"
+        },
+        "rst_pin_device_id": {
+          "type": "uint8_t",
+          "group": "reset-pin",
+          "role": "device_id"
+        },
+        "rst_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "reset-pin",
+          "role": "pin"
+        },
+        "rst_pin_mode": {
+          "type": "uint8_t",
+          "ref": "sys_io_mode_e",
+          "group": "reset-pin",
+          "role": "mode"
+        }
+      },
+      "groups": {
+        "interrupt-pin": {
+          "fields": [
+            "intr_pin_device_id",
+            "intr_pin_pin",
+            "intr_pin_mode"
+          ],
+          "sentinel_field": "intr_pin_pin"
+        },
+        "reset-pin": {
+          "fields": [
+            "rst_pin_device_id",
+            "rst_pin_pin",
+            "rst_pin_mode"
+          ],
+          "sentinel_field": "rst_pin_pin"
+        }
+      }
+    },
+    "packet_sys_device_install_tps55289_t": {
+      "source_file": "dec_sys_device_install.h",
+      "section": null,
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x43",
+      "decoder": "decoder_packet_sys_device_install_tps55289_t()",
+      "field_order": [
+        "device_id",
+        "i2c_bus",
+        "i2c_addr",
+        "intr_pin_device_id",
+        "intr_pin_pin",
+        "intr_pin_mode",
+        "en_pin_device_id",
+        "en_pin_pin",
+        "en_pin_mode"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 127
+        },
+        "i2c_bus": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 1
+        },
+        "i2c_addr": {
+          "type": "uint8_t",
+          "required": true,
+          "available": [
+            116,
+            117
+          ],
+          "note": "enforced in tps55289_new() via TPS55289_I2C_ADDR_74/_75 - any other value fails at driver init"
+        },
+        "intr_pin_device_id": {
+          "type": "uint8_t",
+          "group": "interrupt-pin",
+          "role": "device_id"
+        },
+        "intr_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "interrupt-pin",
+          "role": "pin"
+        },
+        "intr_pin_mode": {
+          "type": "uint8_t",
+          "ref": "sys_io_mode_e",
+          "group": "interrupt-pin",
+          "role": "mode"
+        },
+        "en_pin_device_id": {
+          "type": "uint8_t",
+          "group": "enable-pin",
+          "role": "device_id"
+        },
+        "en_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "enable-pin",
+          "role": "pin"
+        },
+        "en_pin_mode": {
+          "type": "uint8_t",
+          "ref": "sys_io_mode_e",
+          "group": "enable-pin",
+          "role": "mode"
+        }
+      },
+      "groups": {
+        "interrupt-pin": {
+          "fields": [
+            "intr_pin_device_id",
+            "intr_pin_pin",
+            "intr_pin_mode"
+          ],
+          "sentinel_field": "intr_pin_pin"
+        },
+        "enable-pin": {
+          "fields": [
+            "en_pin_device_id",
+            "en_pin_pin",
+            "en_pin_mode"
+          ],
+          "sentinel_field": "en_pin_pin"
+        }
+      }
+    },
+    "packet_sys_device_install_ina3221_t": {
+      "source_file": "dec_sys_device_install.h",
+      "section": null,
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x44",
+      "decoder": "decoder_packet_sys_device_install_ina3221_t()",
+      "field_order": [
+        "device_id",
+        "i2c_bus",
+        "i2c_addr",
+        "crit_pin_device_id",
+        "crit_pin_pin",
+        "crit_pin_mode",
+        "warn_pin_device_id",
+        "warn_pin_pin",
+        "warn_pin_mode"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 127
+        },
+        "i2c_bus": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 1
+        },
+        "i2c_addr": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 64,
+          "max": 67,
+          "note": "enforced in ina3221_new() against INA3221_I2C_ADDR_GND/_SCL - A0 pin strap (GND/Vs+/SDA/SCL) selects the address"
+        },
+        "crit_pin_device_id": {
+          "type": "uint8_t",
+          "group": "critical-alert-pin",
+          "role": "device_id"
+        },
+        "crit_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "critical-alert-pin",
+          "role": "pin"
+        },
+        "crit_pin_mode": {
+          "type": "uint8_t",
+          "ref": "sys_io_mode_e",
+          "group": "critical-alert-pin",
+          "role": "mode"
+        },
+        "warn_pin_device_id": {
+          "type": "uint8_t",
+          "group": "warning-alert-pin",
+          "role": "device_id"
+        },
+        "warn_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "warning-alert-pin",
+          "role": "pin"
+        },
+        "warn_pin_mode": {
+          "type": "uint8_t",
+          "ref": "sys_io_mode_e",
+          "group": "warning-alert-pin",
+          "role": "mode"
+        }
+      },
+      "groups": {
+        "critical-alert-pin": {
+          "fields": [
+            "crit_pin_device_id",
+            "crit_pin_pin",
+            "crit_pin_mode"
+          ],
+          "sentinel_field": "crit_pin_pin"
+        },
+        "warning-alert-pin": {
+          "fields": [
+            "warn_pin_device_id",
+            "warn_pin_pin",
+            "warn_pin_mode"
+          ],
+          "sentinel_field": "warn_pin_pin"
+        }
+      }
+    },
+    "packet_sys_device_install_ap33772s_t": {
+      "source_file": "dec_sys_device_install.h",
+      "section": null,
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x45",
+      "decoder": "decoder_packet_sys_device_install_ap33772s_t()",
+      "field_order": [
+        "device_id",
+        "i2c_bus",
+        "i2c_addr",
+        "intr_pin_device_id",
+        "intr_pin_pin",
+        "intr_pin_mode"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 127
+        },
+        "i2c_bus": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 1
+        },
+        "i2c_addr": {
+          "type": "uint8_t",
+          "required": true,
+          "default": 82,
+          "note": "AP33772S has a fixed datasheet address (AP33772S_ADDRESS); the field is honored (adapter_ap33772s.c overwrites the driver handle's address with it) but the real chip only answers at 0x52"
+        },
+        "intr_pin_device_id": {
+          "type": "uint8_t",
+          "group": "interrupt-pin",
+          "role": "device_id"
+        },
+        "intr_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "interrupt-pin",
+          "role": "pin"
+        },
+        "intr_pin_mode": {
+          "type": "uint8_t",
+          "ref": "sys_io_mode_e",
+          "group": "interrupt-pin",
+          "role": "mode"
+        }
+      },
+      "groups": {
+        "interrupt-pin": {
+          "fields": [
+            "intr_pin_device_id",
+            "intr_pin_pin",
+            "intr_pin_mode"
+          ],
+          "sentinel_field": "intr_pin_pin"
+        }
+      }
+    },
+    "packet_sys_device_install_dac53202_t": {
+      "source_file": "dec_sys_device_install.h",
+      "section": null,
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x46",
+      "decoder": "decoder_packet_sys_device_install_dac53202_t()",
+      "field_order": [
+        "device_id",
+        "i2c_bus",
+        "i2c_addr"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 127
+        },
+        "i2c_bus": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 1
+        },
+        "i2c_addr": {
+          "type": "uint8_t",
+          "required": true,
+          "note": "not range-checked by driver_dac53202.c - no software-enforced bound"
+        }
+      }
+    },
+    "packet_sys_device_install_ads7128_t": {
+      "source_file": "dec_sys_device_install.h",
+      "section": null,
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x47",
+      "decoder": "decoder_packet_sys_device_install_ads7128_t()",
+      "field_order": [
+        "device_id",
+        "i2c_bus",
+        "i2c_addr",
+        "intr_pin_device_id",
+        "intr_pin_pin",
+        "intr_pin_mode",
+        "vref_mv"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 127
+        },
+        "i2c_bus": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 1
+        },
+        "i2c_addr": {
+          "type": "uint8_t",
+          "required": true,
+          "note": "not range-checked by driver_ads7128.c - no software-enforced bound"
+        },
+        "intr_pin_device_id": {
+          "type": "uint8_t",
+          "group": "alert-pin",
+          "role": "device_id"
+        },
+        "intr_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "alert-pin",
+          "role": "pin",
+          "note": "open-drain/active-low ALERT; referenced pin should be configured SYS_IO_MODE_INPUT_PULLUP"
+        },
+        "intr_pin_mode": {
+          "type": "uint8_t",
+          "ref": "sys_io_mode_e",
+          "group": "alert-pin",
+          "role": "mode"
+        },
+        "vref_mv": {
+          "type": "uint32_t",
+          "alias": "ADC Reference Voltage",
+          "required": true,
+          "unit": "mV",
+          "note": "AVDD, doubles as ADC reference; no numeric bound enforced in driver_ads7128.c"
+        }
+      },
+      "groups": {
+        "alert-pin": {
+          "fields": [
+            "intr_pin_device_id",
+            "intr_pin_pin",
+            "intr_pin_mode"
+          ],
+          "sentinel_field": "intr_pin_pin"
+        }
+      }
+    },
+    "packet_vm_reset": {
+      "source_file": "dec_vm_loader.h",
+      "section": null,
+      "class_name": "VM_LOADER",
+      "class_header": "0x04",
+      "packet_header": "0x40",
+      "decoder": "decoder_packet_vm_reset()",
+      "doc": "@brief Packet 0x40: VM Reset\n\n- **Wire Layout**: None (0 payload bytes).\n- **Action**:\n  - Enforces lifecycle barrier: stops pass admission and waits for active pass to finish.\n  - Reclaims dynamic heap objects, clears registries, and resets bump arena.\n  - Leaves execution stopped in fail-closed state (`VM_LOAD_EMPTY`)."
+    },
+    "packet_vm_open": {
+      "source_file": "dec_vm_loader.h",
+      "section": null,
+      "class_name": "VM_LOADER",
+      "class_header": "0x04",
+      "packet_header": "0x41",
+      "decoder": "decoder_packet_vm_open()",
+      "doc": "@brief Packet 0x41: VM Program Open\n\n- **Wire Layout** (10 bytes total):\n  - `u16 obj_cnt`    : Number of object slots to allocate in `VM_REG_OBJ`\n  - `u16 acc_cnt`    : Number of accessor slots to allocate in `VM_REG_ACC`\n  - `u16 blk_cnt`    : Number of block slots to allocate in `VM_REG_BLK`\n  - `u32 total_size` : Total memory footprint in bytes to allocate for bump arena\n- **Action**:\n  - Validates memory availability against DRAM limits before modifying active state.\n  - Tears down prior program and re-arms registries and arena at declared capacity.\n  - Transitions loader state to `VM_LOAD_OPEN`."
+    },
+    "packet_vm_add_objs": {
+      "source_file": "dec_vm_loader.h",
+      "section": null,
+      "class_name": "VM_LOADER",
+      "class_header": "0x04",
+      "packet_header": "0x42",
+      "decoder": "decoder_packet_vm_add_objs()",
+      "doc": "@brief Packet 0x42: Add Objects Batch\n\n- **Wire Layout**:\n  - `u8 n`: Number of object records in frame\n  - `n \u00d7` records:\n    - `u16 id`                      : Target object ID in `VM_REG_OBJ`\n    - `vm_obj_head_t head` (4 bytes): Packed header (`payload_size`, `obj_t`, `name_size`, flags)\n    - `char name[head.d.name_size]` : Optional tag identifier string (<= 15 bytes, unterminated)\n- **Action**:\n  - Carves 4-byte aligned chunk in bump arena, zeroes payload memory, and stores header.\n  - Binds object pointer into registry index `id`.\n  - Appends tag name to object tail."
+    },
+    "packet_vm_set_data": {
+      "source_file": "dec_vm_loader.h",
+      "section": null,
+      "class_name": "VM_LOADER",
+      "class_header": "0x04",
+      "packet_header": "0x43",
+      "decoder": "decoder_packet_vm_set_data()",
+      "doc": "@brief Packet 0x43: Set Object Data / Runtime Override\n\n- **Wire Layout**:\n  - `u8 n`: Number of data chunk records in frame\n  - `n \u00d7` records:\n    - `u16 id`             : Target object ID in `VM_REG_OBJ`\n    - `u16 start_idx`      : Element start index (or byte offset)\n    - `u16 byte_len`       : Number of payload bytes\n    - `u8 data[byte_len]`  : Raw data bytes, or child `u16` IDs for `VM_OBJ_PTR`\n- **Action**:\n  - When VM is stopped (`VM_RUN_STOPPED`): Writes bytes directly via `vm_loader_set_data()`.\n    For pointer containers, validates child IDs and links children in arena.\n  - When VM is running: Enqueues variable update via `vm_override_post()`, applied\n    atomically at supervisor cycle drain."
+    },
+    "packet_vm_add_acc": {
+      "source_file": "dec_vm_loader.h",
+      "section": null,
+      "class_name": "VM_LOADER",
+      "class_header": "0x04",
+      "packet_header": "0x44",
+      "decoder": "decoder_packet_vm_add_acc()",
+      "doc": "@brief Packet 0x44: Add Accessors Batch\n\n- **Wire Layout**:\n  - `u8 n`: Number of accessor records in frame\n  - `n \u00d7` records:\n    - `u16 acc_id`          : Accessor registry ID in `VM_REG_ACC`\n    - `u16 root_obj_id`     : Root object ID in `VM_REG_OBJ`\n    - `u8 idx_count`        : Number of chained index steps\n    - `u8 idx_len`          : Total length in bytes of encoded index chain\n    - `u8 idx_data[idx_len]`: Sequence of `{ u8 kind, payload }`:\n      - `VM_IDX_LITERAL`: `u32` constant position\n      - `VM_IDX_REF`    : `u16` accessor ID (must already exist)\n      - `VM_IDX_NAME`   : `u8 len`, `char name[len]`\n- **Action**:\n  - Allocates accessor descriptor and trailing index array in bump arena.\n  - Binds descriptor to registry index `acc_id`.\n  - Builds resolution cache (`vm_accessor_cache_build`) for static literal paths."
+    },
+    "packet_vm_add_block": {
+      "source_file": "dec_vm_loader.h",
+      "section": null,
+      "class_name": "VM_LOADER",
+      "class_header": "0x04",
+      "packet_header": "0x45",
+      "decoder": "decoder_packet_vm_add_block()",
+      "doc": "@brief Packet 0x45: Add Block (Single Block per Frame)\n\n- **Wire Layout**:\n  - Fixed Header (14 bytes):\n    - `u16 blk_id`    : Block registry ID in `VM_REG_BLK`\n    - `u16 block_idx` : Sequential execution order index\n    - `u8  block_type`: Palette block type ID (must be registered in palette table)\n    - `u8  in_cnt`    : Number of input accessor IDs\n    - `u8  q_cnt`     : Number of output object IDs\n    - `u8  en_cnt`    : Number of enable accessor IDs (`0` = always enabled)\n    - `u8  en_mode`   : Enable combination logic (`VM_BLK_EN_ANY` or `VM_BLK_EN_ALL`)\n    - `u8  on_error`  : Error policy (`VM_BLK_ERR_STOP` or `VM_BLK_ERR_CONT`)\n    - `u16 custom_len`: Length of initial private state bytes\n    - `u16 eno_obj_id`: Output ENO status object ID (`VM_BLOCK_NO_ID` if unmapped)\n  - Trailing Arrays:\n    - `in_cnt  \u00d7 u16` : Input accessor IDs (`VM_BLOCK_NO_ID` for unwired pins)\n    - `q_cnt   \u00d7 u16` : Output object IDs (automatically marked `usr_protected`)\n    - `en_cnt  \u00d7 u16` : Enable accessor IDs\n    - `custom_len \u00d7 u8`: Initial private configuration / bytecode / constant data\n- **Action**:\n  - Validates pin counts (`VM_BLOCK_MAX_IN`, `VM_BLOCK_MAX_OUT`, `VM_BLOCK_MAX_EN`).\n  - Allocates block struct in bump arena, binds registry ID, and wires pins.\n  - Copies private state into block custom data memory."
+    },
+    "packet_vm_subscribe": {
+      "source_file": "dec_vm_loader.h",
+      "section": null,
+      "class_name": "VM_LOADER",
+      "class_header": "0x04",
+      "packet_header": "0x47",
+      "decoder": "decoder_packet_vm_subscribe()",
+      "doc": "@brief Packet 0x47: Subscribe Object Telemetry\n\n- **Wire Layout**:\n  - `u8 count`: Number of object IDs in frame (`0` clears all subscriptions)\n  - `count \u00d7 u16`: Object registry IDs to stream\n- **Action**:\n  - Registers object IDs for cyclical freshness checks.\n  - Emits telemetry notifications whenever marked fresh (`f.upd = 1`) at pass end."
+    },
+    "packet_vm_exec": {
+      "source_file": "dec_vm_loader.h",
+      "section": null,
+      "class_name": "VM_LOADER",
+      "class_header": "0x04",
+      "packet_header": "0x48",
+      "decoder": "decoder_packet_vm_exec()",
+      "field_order": [
+        "command"
+      ],
+      "fields": {
+        "command": {
+          "type": "uint8_t",
+          "alias": "Command",
+          "required": true,
+          "ref": "vm_exec_command_e"
+        }
+      }
+    }
+  }
+}

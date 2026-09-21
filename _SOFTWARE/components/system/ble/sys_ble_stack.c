@@ -33,7 +33,7 @@ static int ble_gap_configure_advertising(void) {
   adv_fields.name_is_complete = 1;
   adv_fields.tx_pwr_lvl = BLE_HS_ADV_TX_PWR_LVL_AUTO;
   adv_fields.tx_pwr_lvl_is_present = 1;
-  adv_fields.appearance = BLE_GAP_APPEARANCE_GENERIC_TAG;
+  adv_fields.appearance = CONFIG_SYS_BLE_GAP_APPEARANCE;
   adv_fields.appearance_is_present = 1;
 
   int rc = ble_gap_adv_set_fields(&adv_fields);

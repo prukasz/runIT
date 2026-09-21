@@ -1,5 +1,4 @@
 #pragma once
-#include "esp_compiler.h"
 #include "vm_block_helpers.h"
 
 #define VM_BRANCH_CUSTOM_LEN 0u

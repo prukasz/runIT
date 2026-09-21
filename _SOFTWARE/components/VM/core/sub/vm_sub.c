@@ -1,7 +1,4 @@
 #include "vm_sub.h"
-#include <esp_log.h>
-#include <stdio.h>
-#include <string.h>
 #include "sys_data_connector.h"
 #include "utils.h"
 #include "vm_exec.h"

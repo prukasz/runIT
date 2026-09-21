@@ -1,7 +1,4 @@
 #pragma once
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
 #include "sys_error.h"
 #include <sdkconfig.h>
 typedef enum {
@@ -72,8 +69,13 @@ typedef enum sys_device_state_e {
  * Determines whether error handling is active (NONE disables it) and caps
  * the maximum error severity that this device can escalate to.
  */
-#define SYS_DEV_ACTION_DYNAMIC 0x100u
-#define SYS_DEV_ACTION_ID_MASK 0xffu
+/**
+ * @brief Device action reference containing scope and action ID.
+ */
+typedef struct {
+  uint8_t scope; /**< SYS_ACTION_SCOPE_STATIC (0x00) or SYS_ACTION_SCOPE_DYNAMIC (0x01) */
+  uint8_t id;    /**< Action ID in selected scope (0 = disabled) */
+} sys_device_action_t;
 
 typedef enum sys_device_importance_e {
   SYS_DEV_IMPORTANCE_NONE = 0,
@@ -103,7 +105,8 @@ typedef enum sys_device_fault_stage_e {
  */
 err_h sys_device_app_error_policy(uint8_t device_id,
                                   sys_device_err_level_e level,
-                                  uint16_t action_id,
+                                  uint8_t action_scope,
+                                  uint8_t action_id,
                                   err_h error);
 
 /**
@@ -122,7 +125,7 @@ typedef struct sys_device_t {
   /**
    * @brief Per-instance error handling mode - see sys_device_report_error().
    */
-  uint8_t actions[5];           /* slot 0: dynamic-scope mask (bits LOW..CRITICAL); slots 1..4: IDs */
+  sys_device_action_t actions[5];       /* indexed by sys_device_err_level_e (1..4) */
   sys_device_importance_e importance; /* NONE disables error handling; clamps max error level */
 } sys_device_t;
 

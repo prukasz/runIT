@@ -19,7 +19,6 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <sys/cdefs.h>
 #include "esp_log.h"
 #include "sys_error.h"
 #include "utils.h"
@@ -45,16 +44,12 @@
 
 /** Single execution-control payload layout: 04 48 <command>. */
 typedef struct {
-  uint8_t command;
+  uint8_t command; //@required @alias Command @ref vm_exec_command_e
 } packet_vm_exec_t;
 
 /* ========================================================================= */
 /* Cursor & Little-Endian Stream Helpers                                     */
 /* ========================================================================= */
-
-#if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
-  #error "VM packet decoding requires a little-endian target"
-#endif
 
 static inline uint16_t dec_vm_u16(const uint8_t* p) {
   uint16_t value;

@@ -1,5 +1,4 @@
 #include "vm_obj_build.h"
-#include <string.h>
 
 #define OWNER OWNER_VM_OBJ
 

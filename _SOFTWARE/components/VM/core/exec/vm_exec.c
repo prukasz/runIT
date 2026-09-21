@@ -1,8 +1,4 @@
 #include "vm_exec.h"
-#include "esp_compiler.h"
-#include "esp_log.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "utils.h"
 #include "vm_block.h"
 #include "vm_event.h"

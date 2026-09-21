@@ -1,6 +1,4 @@
 #pragma once
-#include <math.h>
-#include "esp_compiler.h"
 #include "vm_block_helpers.h"
 #include "vm_exec.h"
 

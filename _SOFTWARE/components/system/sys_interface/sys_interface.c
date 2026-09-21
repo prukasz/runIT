@@ -6,20 +6,15 @@
 #define DBG_ENABLE CONFIG_DBG_ENABLE_SYS_INTERFACE
 
 #include "sys_interface.h"
-#include <esp_log.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
-#include <freertos/task.h>
 #include "dec_sys_contracts.h"
 #include "dec_vm_loader.h"
 #include "dec_features.h"
 #include "sys_buffers.h"
-#include "sys_error.h"
 #include "utils.h"
+#include <sdkconfig.h>
 
 static const char* TAG = "sys_interface";
 
-#include <sdkconfig.h>
 
 R_TASK_DEFINE(s_interface_rx_task_handle, CONFIG_SYS_INTERFACE_RX_TASK_STACK_SIZE);
 static void sys_interface_receiver_task(void* arg);
@@ -175,7 +170,7 @@ err_h sys_interface_tap_poll(uint8_t* buf, size_t max_len, size_t* out_len) {
   SE_CHECK_NOT_NULL(buf);
   SE_CHECK_NOT_NULL(out_len);
 
-  err_h pop_res = sys_buff_pop_raw(&s_tap_buff, buf, max_len, out_len);
+  err_h pop_res = sys_buff_pop(&s_tap_buff, buf, max_len, out_len);
   if (SE_IS_ERR(pop_res)) {
     if (pop_res->tag == ERR_BASE_NOT_FOUND) {
       *out_len = 0;

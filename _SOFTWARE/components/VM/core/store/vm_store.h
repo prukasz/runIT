@@ -1,7 +1,5 @@
 #pragma once
-#include <stdint.h>
 #include "sys_error.h"
-#include "sys_error_vm.h"
 
 #define VM_STORE_MAX_POOL (128 * 1024)  // Hard ceiling on program bump arena
 #define VM_ID_NONE        0xFFFFu       // Allocate without binding to registry

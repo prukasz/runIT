@@ -1,4 +1,5 @@
 #include "sys_actions_static.h"
+#include <sdkconfig.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include "sys_actions.h"
@@ -37,7 +38,7 @@ static err_h static_fn_reset(void) {
   SE_RET_IF_ERR(vm_exec_control(VM_EXEC_RESET_TO_START));
 
   /** Reapply baseline boot configuration through static action one. */
-  err_h boot_err = sys_actions_invoke(SYS_ACTION_SCOPE_STATIC, SYS_ACTION_ID_BOOT);
+  err_h boot_err = sys_actions_invoke(SYS_ACTION_SCOPE_STATIC, CONFIG_SYS_ACTION_ID_BOOT);
   if (SE_IS_ERR(boot_err) && boot_err->tag != ERR_ACTION_NOT_FOUND) {
     return boot_err;
   }
@@ -54,7 +55,7 @@ static err_h static_fn_hard_reset(void) {
   SE_RET_IF_ERR(sys_device_uninstall_all());
 
   /** Recreate baseline devices and boot setup through static action one. */
-  err_h boot_err = sys_actions_invoke(SYS_ACTION_SCOPE_STATIC, SYS_ACTION_ID_BOOT);
+  err_h boot_err = sys_actions_invoke(SYS_ACTION_SCOPE_STATIC, CONFIG_SYS_ACTION_ID_BOOT);
   if (SE_IS_ERR(boot_err) && boot_err->tag != ERR_ACTION_NOT_FOUND) {
     return boot_err;
   }
@@ -63,9 +64,9 @@ static err_h static_fn_hard_reset(void) {
 }
 
 void sys_actions_register_static(void) {
-  SE_release(sys_actions_bind_static(SYS_ACTION_ID_FREEZE, static_fn_freeze));
-  SE_release(sys_actions_bind_static(SYS_ACTION_ID_RESUME, static_fn_resume));
-  SE_release(sys_actions_bind_static(SYS_ACTION_ID_SUSPEND, static_fn_suspend));
-  SE_release(sys_actions_bind_static(SYS_ACTION_ID_RESET, static_fn_reset));
-  SE_release(sys_actions_bind_static(SYS_ACTION_ID_HARD_RESET, static_fn_hard_reset));
+  SE_release(sys_actions_bind_static(CONFIG_SYS_ACTION_ID_FREEZE, static_fn_freeze));
+  SE_release(sys_actions_bind_static(CONFIG_SYS_ACTION_ID_RESUME, static_fn_resume));
+  SE_release(sys_actions_bind_static(CONFIG_SYS_ACTION_ID_SUSPEND, static_fn_suspend));
+  SE_release(sys_actions_bind_static(CONFIG_SYS_ACTION_ID_RESET, static_fn_reset));
+  SE_release(sys_actions_bind_static(CONFIG_SYS_ACTION_ID_HARD_RESET, static_fn_hard_reset));
 }

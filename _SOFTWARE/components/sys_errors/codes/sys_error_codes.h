@@ -1,9 +1,6 @@
 #pragma once
-#include <stdint.h>
-#include "esp_err.h"
-
 // Include all sub-modules
-#include "base/sys_error_base.h"
+#include "sys_error_base.h"
 #include "devices_owners.h"
 #include "sys_error_dev.h"
 #include "sys_error_io.h"

@@ -1,5 +1,6 @@
 #include "sys_error_log.h"
 #include <esp_log.h>
+#include <sdkconfig.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include "enc_sys_errors.h"
@@ -35,8 +36,8 @@ void se_log_error_chain(err_h chain) {
     return;
   }
 
-  char     desc[SE_LOG_LINE_MAX];
-  char     line[SE_LOG_LINE_MAX];
+  char     desc[CONFIG_SYS_ERRORS_LOG_LINE_MAX];
+  char     line[CONFIG_SYS_ERRORS_LOG_LINE_MAX];
   err_h nodes[SE_MAX_CHAIN_DEPTH];
   bool complete;
   size_t count = SE_collect_chain(chain, nodes, &complete);
@@ -52,12 +53,12 @@ void se_log_error_chain(err_h chain) {
       }
       desc[pos] = '\0';
     }
-    int len = snprintf(line, sizeof(line), "[%u] owner=%s (0x%04X) tag=%s (%d): %s\n",
-                       (unsigned)depth, SE_get_owner_name(node->owner), (unsigned)node->owner,
-                       SE_get_tag_name(node->tag), (int)node->tag, desc);
+    int32_t len = snprintf(line, sizeof(line), "[%lu] owner=%s (0x%04lX) tag=%s (%ld): %s\n",
+                       (long)depth, SE_get_owner_name(node->owner), (unsigned long)node->owner,
+                       SE_get_tag_name(node->tag), (long)node->tag, desc);
     if (len > 0) {
       size_t out_len = ((size_t)len < sizeof(line)) ? (size_t)len : sizeof(line) - 1u;
-      sys_data_connector_send(sys_data_connector_get(SE_CONNECTOR_ID_LOGS), line, out_len);
+      sys_data_connector_send(sys_data_connector_get(CONFIG_SYS_ERRORS_CONNECTOR_ID_LOGS), line, out_len);
     }
     if (s_log_state.mirror_on_serial) {
       bool previous = s_in_log_sink;
@@ -68,7 +69,7 @@ void se_log_error_chain(err_h chain) {
   }
   if (!complete) {
     const char warning[] = "<error chain truncated or corrupt>\n";
-    sys_data_connector_send(sys_data_connector_get(SE_CONNECTOR_ID_LOGS), warning, sizeof(warning) - 1);
+    sys_data_connector_send(sys_data_connector_get(CONFIG_SYS_ERRORS_CONNECTOR_ID_LOGS), warning, sizeof(warning) - 1);
   }
 }
 
@@ -82,16 +83,16 @@ void se_log_error_chain(err_h chain) {
 static int se_log_vprintf(const char* fmt, va_list args) {
   if (!s_in_log_sink) {
     s_in_log_sink = true;
-    char    line[SE_LOG_LINE_MAX];
+    char    line[CONFIG_SYS_ERRORS_LOG_LINE_MAX];
     va_list rendered;
     va_copy(rendered, args);
-    int len = vsnprintf(line, sizeof(line), fmt, rendered);
+    int32_t len = vsnprintf(line, sizeof(line), fmt, rendered);
     va_end(rendered);
 
     if (len > 0) {
       // vsnprintf reports what it *would* have written - clamp to what it did.
       size_t out_len = ((size_t)len < sizeof(line)) ? (size_t)len : sizeof(line) - 1u;
-      sys_data_connector_send(sys_data_connector_get(SE_CONNECTOR_ID_LOGS), line, out_len);
+      sys_data_connector_send(sys_data_connector_get(CONFIG_SYS_ERRORS_CONNECTOR_ID_LOGS), line, out_len);
     }
     s_in_log_sink = false;
   }
@@ -128,9 +129,9 @@ err_h SE_send_error_raw(err_h chain) {
     return NULL;
   }
 
-  sys_data_connector_t* conn = sys_data_connector_get(SE_CONNECTOR_ID_ERRORS);
+  sys_data_connector_t* conn = sys_data_connector_get(CONFIG_SYS_ERRORS_CONNECTOR_ID_ERRORS);
   size_t max_len = sys_data_connector_get_max_len(conn);
-  uint8_t packet[SE_ERR_PACKET_MAX];
+  uint8_t packet[CONFIG_SYS_ERRORS_PACKET_MAX];
   if (max_len > sizeof(packet)) {
     max_len = sizeof(packet);
   }

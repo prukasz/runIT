@@ -21,7 +21,7 @@ typedef struct {
   /* Callbacks & Event Routing Configuration */
   feature_hbridge_fault_cb_t on_fault; /* Direct C callback on fault */
   void* fault_user_ctx;                /* Context passed to on_fault */
-  uint16_t fault_route_mask;           /* Routing bitmask for sys_callbacks (e.g. SYS_CB_ROUTE_BIT(SYS_CB_ROUTE_VM)) */
+  uint16_t fault_route_mask;           /* Routing bitmask for sys_callbacks (e.g. SYS_CB_ROUTE_BIT(CONFIG_SYS_CB_ROUTE_VM)) */
   uint8_t fault_static_action_id;      /* Pre-configured system action ID (zero disables) */
   uint8_t fault_dynamic_action_id;     /* User dynamic macro action ID (zero disables) */
 

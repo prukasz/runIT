@@ -1,8 +1,4 @@
 #include "sys_buffers.h"
-#include <esp_log.h>
-#include <string.h>
-#include "sys_error.h"
-#include "utils.h"
 
 static const char* TAG = __FILE_NAME__;
 

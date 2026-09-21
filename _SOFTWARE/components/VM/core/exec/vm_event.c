@@ -27,7 +27,7 @@ static void vm_event_route(const cb_event_t* ev) {
 }
 
 __attribute__((constructor)) static void vm_event_route_register(void) {
-  SE_release(sys_cb_register_route(SYS_CB_ROUTE_VM, vm_event_route));
+  SE_release(sys_cb_register_route(CONFIG_SYS_CB_ROUTE_VM, vm_event_route));
 }
 
 void vm_event_drain(void) {

@@ -24,9 +24,6 @@
 /** @brief Reserved sentinel; not a valid action ID in either scope. */
 #define SYS_ACTION_ID_NONE 0
 
-/** @brief Maximum blob size per dynamic action (2 KB). */
-#define SYS_ACTIONS_MAX_BLOB_SIZE 2048
-
 /**
  * @brief Hardcoded behavior a static action carries. Takes no arguments.
  */

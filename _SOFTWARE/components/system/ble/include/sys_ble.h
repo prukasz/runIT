@@ -1,13 +1,10 @@
 #pragma once
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
+#include "utils.h"
 #include "sys_callbacks.h"
 #include "sys_data_connector.h"
 #include "sys_error.h"
 #include "sys_error_ble.h"
 #include <sdkconfig.h>
-#include <stddef.h>
-#include <stdint.h>
 
 typedef struct {
   uint16_t uuid;  // 16-bit UUID
@@ -31,7 +28,7 @@ typedef enum sys_ble_events_e { SYS_BLE_EVENT_CONNECT = 0, SYS_BLE_EVENT_DISCONN
   do {                                                        \
     cb_event_t __cb_evt = {0};                                \
     __cb_evt.head.callback_type = CALLBACK_BLE;                \
-    __cb_evt.head.route_mask = SYS_CB_ROUTE_BIT(SYS_CB_ROUTE_BLE) | SYS_CB_ROUTE_BIT(SYS_CB_ROUTE_VM); \
+    __cb_evt.head.route_mask = SYS_CB_ROUTE_BIT(CONFIG_SYS_CB_ROUTE_BLE) | SYS_CB_ROUTE_BIT(CONFIG_SYS_CB_ROUTE_VM); \
     __cb_evt.event.ble.event = (event_id);                    \
     __cb_evt.event.ble.value = (event_value);                 \
     SE_release(sys_callback_trigger(&__cb_evt));                          \

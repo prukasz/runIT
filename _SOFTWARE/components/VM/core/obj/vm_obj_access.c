@@ -1,4 +1,3 @@
-#include <string.h>
 #include "vm_obj_access_internal.h"
 
 #define OWNER OWNER_VM_ACCESSOR

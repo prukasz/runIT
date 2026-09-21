@@ -1,6 +1,5 @@
 #include "sys_i2c.h"
 #include "sys_error.h"
-#include "sys_error_codes.h"
 
 static i2c_master_bus_handle_t s_bus_handles[2] = {NULL, NULL};
 

@@ -1,9 +1,6 @@
 #pragma once
-#include <stdbool.h>
-#include <stdint.h>
 #include "esp_timer.h"
 #include "sys_error.h"
-#include "sys_error_vm.h"
 #include "vm_block.h"
 
 /* ========================================================================= */

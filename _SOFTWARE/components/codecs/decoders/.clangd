@@ -1,0 +1,19 @@
+CompileFlags:
+    Add:
+        [
+            -I../../features/include,
+            -I../../features/registry/include,
+            -I../../features/servo/include,
+            -I../../features/hbridge/include,
+            -I../../devices/devices/include,
+            -I../../devices/device_ads7128/include,
+            -I../../devices/device_ap33772s/include,
+            -I../../devices/device_dac53202/include,
+            -I../../devices/device_drv8962/include,
+            -I../../devices/device_drv8962,
+            -I../../devices/device_gpio_esp/include,
+            -I../../devices/device_ina3221/include,
+            -I../../devices/device_pca9685/include,
+            -I../../devices/device_tca6424a/include,
+            -I../../devices/device_tps55289/include,
+        ]

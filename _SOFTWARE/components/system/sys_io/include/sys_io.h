@@ -1,9 +1,11 @@
 #pragma once
+#include <string.h>
 #include "sys_callbacks.h"
 #include "sys_error.h"
 
 #define SYS_GPIO_NONE 0xFF
 #define IF_PIN(pin_num) if (((pin_num)) != SYS_GPIO_NONE)
+
 
 #define SYS_IO_CB(_ctx, _pin, _event, _value, _route_mask, _static_action_id, _dynamic_action_id) \
   do {                                                                   \
@@ -28,6 +30,8 @@
   } while (0)
 
 /*Aviable modes to set IO to*/
+
+//#enum
 typedef enum sys_io_mode_e {
   SYS_IO_MODE_INPUT = 0,
   SYS_IO_MODE_INPUT_PULLUP = 1,

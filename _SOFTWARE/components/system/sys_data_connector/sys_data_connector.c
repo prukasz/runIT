@@ -1,6 +1,4 @@
 #include "sys_data_connector.h"
-#include <esp_log.h>
-#include <string.h>
 #include "utils.h"
 
 #undef OWNER
@@ -11,12 +9,12 @@ static const char* TAG = "sys_data_connector";
 // -----------------------------------------------------------------------------
 // Registries
 // -----------------------------------------------------------------------------
-static const sys_data_provider_driver_t* s_providers[SYS_DATA_PROVIDER_MAX] = {0};
-static sys_data_connector_t              s_connectors[SYS_DATA_CONNECTOR_MAX] = {0};
+static const sys_data_provider_driver_t* s_providers[CONFIG_SYS_DATA_PROVIDER_MAX] = {0};
+static sys_data_connector_t              s_connectors[CONFIG_SYS_DATA_CONNECTOR_MAX] = {0};
 
 static const sys_data_provider_driver_t* find_provider(uint8_t provider_id) {
   if (provider_id == SYS_DATA_PROVIDER_NONE) return NULL;
-  for (size_t i = 0; i < SYS_DATA_PROVIDER_MAX; i++) {
+  for (size_t i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
     if (s_providers[i] && s_providers[i]->provider_id == provider_id) {
       return s_providers[i];
     }
@@ -35,7 +33,7 @@ err_h sys_data_connector_register_provider(const sys_data_provider_driver_t* dri
   }
 
   // Update if already registered
-  for (size_t i = 0; i < SYS_DATA_PROVIDER_MAX; i++) {
+  for (size_t i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
     if (s_providers[i] && s_providers[i]->provider_id == driver->provider_id) {
       s_providers[i] = driver;
       ESP_LOGI(TAG, "Provider updated: %s (id=%u)", driver->name ? driver->name : "unnamed", driver->provider_id);
@@ -44,7 +42,7 @@ err_h sys_data_connector_register_provider(const sys_data_provider_driver_t* dri
   }
 
   // Insert into first empty slot
-  for (size_t i = 0; i < SYS_DATA_PROVIDER_MAX; i++) {
+  for (size_t i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
     if (s_providers[i] == NULL) {
       s_providers[i] = driver;
       ESP_LOGI(TAG, "Provider registered: %s (id=%u, slot=%u)",
@@ -62,10 +60,10 @@ err_h sys_data_connector_register_provider(const sys_data_provider_driver_t* dri
 
 err_h sys_data_connector_init(void) {
   static const sys_data_connector_cfg_t s_system_connectors[] = {
-      {.id = CONN_ID_LOGS,      .name = "logs",      .header = SYS_DATA_HEADER_LOGS},
-      {.id = CONN_ID_ERRORS,    .name = "errors",    .header = SYS_DATA_HEADER_ERRORS},
-      {.id = CONN_ID_TELEMETRY, .name = "telemetry", .header = SYS_DATA_HEADER_TX},
-      {.id = CONN_ID_INTERFACE, .name = "interface", .header = SYS_DATA_HEADER_TX},
+      {.id = CONN_ID_LOGS,      .name = "logs",      .header = CONFIG_SYS_DATA_HEADER_LOGS},
+      {.id = CONN_ID_ERRORS,    .name = "errors",    .header = CONFIG_SYS_DATA_HEADER_ERRORS},
+      {.id = CONN_ID_TELEMETRY, .name = "telemetry", .header = CONFIG_SYS_DATA_HEADER_TX},
+      {.id = CONN_ID_INTERFACE, .name = "interface", .header = CONFIG_SYS_DATA_HEADER_TX},
   };
 
   for (size_t i = 0; i < sizeof(s_system_connectors) / sizeof(s_system_connectors[0]); i++) {
@@ -86,7 +84,7 @@ void sys_data_connector_set_wake_sem(sys_data_connector_t* conn, SemaphoreHandle
 }
 
 sys_data_connector_t* sys_data_connector_create_with_cfg(const sys_data_connector_cfg_t* cfg) {
-  if (!cfg || cfg->id >= SYS_DATA_CONNECTOR_MAX) {
+  if (!cfg || cfg->id >= CONFIG_SYS_DATA_CONNECTOR_MAX) {
     ESP_LOGE(TAG, "Invalid connector config or ID: %u", cfg ? cfg->id : 0xFF);
     return NULL;
   }
@@ -113,7 +111,7 @@ sys_data_connector_t* sys_data_connector_create_with_cfg(const sys_data_connecto
   conn->id             = cfg->id;
   conn->allocated      = true;
   conn->header         = cfg->header;
-  conn->max_packet_len = cfg->max_packet_len > 0 ? cfg->max_packet_len : SYS_DATA_CONNECTOR_MAX_PACKET_LEN;
+  conn->max_packet_len = cfg->max_packet_len > 0 ? cfg->max_packet_len : CONFIG_SYS_DATA_CONNECTOR_MAX_PACKET_LEN;
   if (cfg->name && cfg->name[0] != '\0') {
     strncpy(conn->name, cfg->name, sizeof(conn->name) - 1);
     conn->name[sizeof(conn->name) - 1] = '\0';
@@ -143,14 +141,14 @@ sys_data_connector_t* sys_data_connector_create(uint8_t id, const char* name, ui
       .id             = id,
       .name           = name,
       .header         = header,
-      .max_packet_len = SYS_DATA_CONNECTOR_MAX_PACKET_LEN,
+      .max_packet_len = CONFIG_SYS_DATA_CONNECTOR_MAX_PACKET_LEN,
       .data_present   = NULL,
   };
   return sys_data_connector_create_with_cfg(&cfg);
 }
 
 sys_data_connector_t* sys_data_connector_get(uint8_t id) {
-  if (id >= SYS_DATA_CONNECTOR_MAX) return NULL;
+  if (id >= CONFIG_SYS_DATA_CONNECTOR_MAX) return NULL;
   if (!s_connectors[id].allocated) return NULL;
   return &s_connectors[id];
 }
@@ -175,7 +173,7 @@ err_h sys_data_connector_bind_tx(sys_data_connector_t* conn, uint8_t provider_id
     }
   }
 
-  if (conn->tx_count >= SYS_DATA_CONNECTOR_PROVIDERS_MAX) {
+  if (conn->tx_count >= CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX) {
     SE_RET_ERR(ERR_BASE_NO_MEM, provider_id);
   }
 
@@ -225,7 +223,7 @@ err_h sys_data_connector_bind_rx(sys_data_connector_t* conn, uint8_t provider_id
     }
   }
 
-  if (conn->rx_count >= SYS_DATA_CONNECTOR_PROVIDERS_MAX) {
+  if (conn->rx_count >= CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX) {
     SE_RET_ERR(ERR_BASE_NO_MEM, provider_id);
   }
 
@@ -278,7 +276,7 @@ void sys_data_connector_send(sys_data_connector_t* conn, const void* data, size_
   size_t max_payload = sys_data_connector_get_max_len(conn);
   size_t send_len    = (len > max_payload) ? max_payload : len;
 
-  uint8_t  frame[SYS_DATA_CONNECTOR_MAX_PACKET_LEN + 1];
+  uint8_t  frame[CONFIG_SYS_DATA_CONNECTOR_MAX_PACKET_LEN + 1];
   uint8_t* p_frame        = frame;
   bool     heap_allocated = false;
 

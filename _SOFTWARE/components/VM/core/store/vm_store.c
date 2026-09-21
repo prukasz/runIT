@@ -1,6 +1,4 @@
 #include "vm_store.h"
-#include <string.h>
-#include "esp_compiler.h"
 #include "esp_heap_caps.h"
 #include "vm_obj_dyn.h"
 

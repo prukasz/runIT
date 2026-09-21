@@ -1,7 +1,4 @@
 #include "vm_obj_access_internal.h"
-
-#include <string.h>
-
 #include "vm_obj_dyn.h"
 
 #define OWNER OWNER_VM_ACCESSOR

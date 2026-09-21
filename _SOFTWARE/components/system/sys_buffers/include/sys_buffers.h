@@ -1,10 +1,6 @@
 #pragma once
-#include <freertos/FreeRTOS.h>
-#include <freertos/ringbuf.h>
-#include <stddef.h>
-#include <stdint.h>
+#include "utils.h"
 #include "sys_error.h"
-#include "sys_error_buffers.h"
 
 /**
  * @brief Variable-length item ring buffer.
@@ -14,7 +10,7 @@
  */
 typedef struct {
   RingbufHandle_t buff;
-  uint32_t truncated;  // count of items truncated by sys_buff_pop()/sys_buff_pop_raw()
+  uint32_t truncated;  // count of items truncated by sys_buff_pop()
 } sys_buff_t;
 
 /**
@@ -64,10 +60,3 @@ err_h sys_buff_pop(sys_buff_t* buff, uint8_t* buffer, size_t max_size, size_t* o
  * @param buff Pointer to the buffer descriptor.
  */
 void sys_buff_clear(sys_buff_t* buff);
-
-/**
- * @brief Alias for sys_buff_pop for backward compatibility.
- */
-static inline err_h sys_buff_pop_raw(sys_buff_t* buff, uint8_t* buffer, size_t max_size, size_t* out_len) {
-  return sys_buff_pop(buff, buffer, max_size, out_len);
-}

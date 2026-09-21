@@ -1,8 +1,5 @@
 #include "sys_hbridge.h"
-#include <stdint.h>
-#include "esp_log.h"
 #include "sys_device.h"
-#include "sys_error.h"
 
 static const char* TAG = "SYS_HBRIDGE";
 #define OWNER OWNER_SYS_ERRORS_BASE

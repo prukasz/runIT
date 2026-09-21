@@ -1,9 +1,5 @@
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <string.h>
-#include "esp_compiler.h"
 #include "vm_block_helpers.h"
 
 /*
@@ -56,14 +52,6 @@ _Static_assert(sizeof(vm_block_edge_data_t) == 12, "vm_block_edge_data_t must be
 static inline void vm_edge_init(void* buffer, vm_edge_type_e type, vm_edge_val_u threshold) {
   const vm_block_edge_data_t data = {.edge_type = (uint8_t)type, .change_by = threshold};
   memcpy(buffer, &data, sizeof(data));
-}
-
-/* Compatibility initializer. New callers select the signal domain explicitly
- * with vm_edge_init(buffer, mode, (vm_edge_val_u){.f/.i/.u = threshold}). */
-static inline void vm_block_edge_init_data(void* buffer, vm_edge_type_e type, float change_f, uint32_t change_u) {
-  vm_edge_val_u threshold = {.f = change_f};
-  if (change_u != 0) threshold.u = change_u;
-  vm_edge_init(buffer, type, threshold);
 }
 
 #define VM_EDGE_IN_SIGNAL 0u

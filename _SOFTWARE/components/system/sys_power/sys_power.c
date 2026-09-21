@@ -1,8 +1,7 @@
 #include "sys_power.h"
-#include <string.h>
-#include "esp_log.h"
 #include "sys_device.h"
 #include "sys_error.h"
+#include <sdkconfig.h>
 
 static const char* TAG = __FILE_NAME__;
 
@@ -27,9 +26,9 @@ typedef struct {
 static sys_power_budget_t s_budget = {0};
 static sys_power_device_t s_power_registry[CONFIG_SYS_DEVICE_MAX_ID + 1] = {0};
 
-#include <sdkconfig.h>
 
-// Dummy callback-event handler for SYS_CB_ROUTE_PWR - logs and nothing else,
+
+// Dummy callback-event handler for CONFIG_SYS_CB_ROUTE_PWR - logs and nothing else,
 // a placeholder until sys_power has something real to route PWR events to.
 static void sys_power_cb_dummy_log(const cb_event_t* event) {
   if (event->head.callback_type != CALLBACK_PWR) return;
@@ -37,7 +36,7 @@ static void sys_power_cb_dummy_log(const cb_event_t* event) {
 }
 
 __attribute__((constructor)) static void sys_power_cb_route_register(void) {
-  SE_release(sys_cb_register_route(SYS_CB_ROUTE_PWR, sys_power_cb_dummy_log));
+  SE_release(sys_cb_register_route(CONFIG_SYS_CB_ROUTE_PWR, sys_power_cb_dummy_log));
 }
 
 static uint32_t s_power_limit_mv = CONFIG_SYS_POWER_DEFAULT_LIMIT_MV;

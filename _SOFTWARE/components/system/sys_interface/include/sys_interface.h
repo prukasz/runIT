@@ -1,11 +1,8 @@
 #pragma once
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <string.h>
+#include "utils.h"
 #include "sys_error.h"
 #include "sys_data_connector.h"
+#include <sdkconfig.h>
 
 #define SYS_INTERFACE_CONNECTOR_ID CONN_ID_INTERFACE
 
@@ -30,7 +27,7 @@
  * the registered handler, so a handler always sees `0xYY` at `data[0]`.
  */
 
-#include <sdkconfig.h>
+
 
 /**
  * @brief Class handler signature.

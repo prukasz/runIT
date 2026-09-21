@@ -1,7 +1,4 @@
 #pragma once
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
 #include "sys_error.h"
 #include "vm_obj.h"
 

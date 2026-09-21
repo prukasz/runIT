@@ -11,7 +11,6 @@
  */
 
 #include <stdint.h>
-#include <sys/cdefs.h>
 #include "features.h"
 #include "sys_error.h"
 #include "sys_interface.h"
@@ -28,7 +27,7 @@
 
 #define HEADER_packet_feature_remove_t 0x01
 typedef struct __packed {
-  uint8_t feature_id;
+  uint8_t feature_id; //@required @alias Feature ID
 } packet_feature_remove_t;
 
 static inline err_h decoder_packet_feature_remove_t(packet_feature_remove_t* packet) {
@@ -38,7 +37,6 @@ static inline err_h decoder_packet_feature_remove_t(packet_feature_remove_t* pac
 
 #define HEADER_packet_feature_remove_all_t 0x02
 typedef struct __packed {
-  uint8_t dummy;
 } packet_feature_remove_all_t;
 
 static inline err_h decoder_packet_feature_remove_all_t(packet_feature_remove_all_t* packet) {
@@ -53,17 +51,17 @@ static inline err_h decoder_packet_feature_remove_all_t(packet_feature_remove_al
 
 #define HEADER_packet_feature_servo_create_t 0x10
 typedef struct __packed {
-  uint8_t feature_id;
-  uint8_t device_id;
-  uint8_t pin_num;
-  uint16_t frequency_hz;
-  uint16_t pulse_min_us;
-  uint16_t pulse_max_us;
-  float angle_min;
-  float angle_max;
-  float default_angle;
-  float trim_angle;
-  uint8_t inverted;
+  uint8_t feature_id;       //@required @alias Feature ID
+  uint8_t device_id;        //@required @alias Device ID
+  uint8_t pin_num;          //@required @alias Pin Number
+  uint16_t frequency_hz;    //@required @alias PWM Frequency @unit Hz
+  uint16_t pulse_min_us;    //@required @alias Min Pulse Width @unit us
+  uint16_t pulse_max_us;    //@required @alias Max Pulse Width @unit us
+  float angle_min;          //@required @alias Min Angle @unit deg
+  float angle_max;          //@required @alias Max Angle @unit deg
+  float default_angle;      //@required @alias Default Angle @unit deg
+  float trim_angle;         //@required @alias Trim Angle @unit deg
+  uint8_t inverted;         //@required @alias Inverted
 } packet_feature_servo_create_t;
 
 static inline err_h decoder_packet_feature_servo_create_t(packet_feature_servo_create_t* packet) {
@@ -85,8 +83,8 @@ static inline err_h decoder_packet_feature_servo_create_t(packet_feature_servo_c
 
 #define HEADER_packet_feature_servo_set_angle_t 0x11
 typedef struct __packed {
-  uint8_t feature_id;
-  float angle;
+  uint8_t feature_id; //@required @alias Feature ID
+  float angle;        //@required @alias Target Angle @unit deg
 } packet_feature_servo_set_angle_t;
 
 static inline err_h decoder_packet_feature_servo_set_angle_t(packet_feature_servo_set_angle_t* packet) {
@@ -95,7 +93,7 @@ static inline err_h decoder_packet_feature_servo_set_angle_t(packet_feature_serv
 
 #define HEADER_packet_feature_servo_go_home_t 0x12
 typedef struct __packed {
-  uint8_t feature_id;
+  uint8_t feature_id; //@required @alias Feature ID
 } packet_feature_servo_go_home_t;
 
 static inline err_h decoder_packet_feature_servo_go_home_t(packet_feature_servo_go_home_t* packet) {
@@ -104,8 +102,8 @@ static inline err_h decoder_packet_feature_servo_go_home_t(packet_feature_servo_
 
 #define HEADER_packet_feature_servo_set_trim_t 0x13
 typedef struct __packed {
-  uint8_t feature_id;
-  float trim_angle;
+  uint8_t feature_id; //@required @alias Feature ID
+  float trim_angle;   //@required @alias Trim Angle @unit deg
 } packet_feature_servo_set_trim_t;
 
 static inline err_h decoder_packet_feature_servo_set_trim_t(packet_feature_servo_set_trim_t* packet) {
@@ -114,8 +112,8 @@ static inline err_h decoder_packet_feature_servo_set_trim_t(packet_feature_servo
 
 #define HEADER_packet_feature_servo_attach_t 0x14
 typedef struct __packed {
-  uint8_t feature_id;
-  uint8_t attach;
+  uint8_t feature_id; //@required @alias Feature ID
+  uint8_t attach;     //@required @alias Attach
 } packet_feature_servo_attach_t;
 
 static inline err_h decoder_packet_feature_servo_attach_t(packet_feature_servo_attach_t* packet) {
@@ -128,13 +126,13 @@ static inline err_h decoder_packet_feature_servo_attach_t(packet_feature_servo_a
 
 #define HEADER_packet_feature_hbridge_create_t 0x20
 typedef struct __packed {
-  uint8_t feature_id;
-  uint8_t bridge_device_id;
-  uint8_t channel;
-  uint8_t inverted;
-  uint16_t fault_route_mask;
-  uint8_t fault_static_action_id;
-  uint8_t fault_dynamic_action_id;
+  uint8_t feature_id;              //@required @alias Feature ID
+  uint8_t bridge_device_id;        //@required @alias Bridge Device ID
+  uint8_t channel;                 //@required @alias Channel
+  uint8_t inverted;                //@required @alias Inverted
+  uint16_t fault_route_mask;       //@optional @alias Fault Route Mask @note bitmask
+  uint8_t fault_static_action_id;  //@optional @alias Fault Static Action ID @sentinel 0
+  uint8_t fault_dynamic_action_id; //@optional @alias Fault Dynamic Action ID @sentinel 0
 } packet_feature_hbridge_create_t;
 
 static inline err_h decoder_packet_feature_hbridge_create_t(packet_feature_hbridge_create_t* packet) {
@@ -152,8 +150,8 @@ static inline err_h decoder_packet_feature_hbridge_create_t(packet_feature_hbrid
 
 #define HEADER_packet_feature_hbridge_set_speed_t 0x21
 typedef struct __packed {
-  uint8_t feature_id;
-  float speed;
+  uint8_t feature_id; //@required @alias Feature ID
+  float speed;        //@required @alias Speed
 } packet_feature_hbridge_set_speed_t;
 
 static inline err_h decoder_packet_feature_hbridge_set_speed_t(packet_feature_hbridge_set_speed_t* packet) {
@@ -162,7 +160,7 @@ static inline err_h decoder_packet_feature_hbridge_set_speed_t(packet_feature_hb
 
 #define HEADER_packet_feature_hbridge_brake_t 0x22
 typedef struct __packed {
-  uint8_t feature_id;
+  uint8_t feature_id; //@required @alias Feature ID
 } packet_feature_hbridge_brake_t;
 
 static inline err_h decoder_packet_feature_hbridge_brake_t(packet_feature_hbridge_brake_t* packet) {
@@ -171,7 +169,7 @@ static inline err_h decoder_packet_feature_hbridge_brake_t(packet_feature_hbridg
 
 #define HEADER_packet_feature_hbridge_coast_t 0x23
 typedef struct __packed {
-  uint8_t feature_id;
+  uint8_t feature_id; //@required @alias Feature ID
 } packet_feature_hbridge_coast_t;
 
 static inline err_h decoder_packet_feature_hbridge_coast_t(packet_feature_hbridge_coast_t* packet) {
@@ -180,8 +178,8 @@ static inline err_h decoder_packet_feature_hbridge_coast_t(packet_feature_hbridg
 
 #define HEADER_packet_feature_hbridge_set_current_limit_t 0x24
 typedef struct __packed {
-  uint8_t feature_id;
-  uint32_t limit_ma;
+  uint8_t feature_id; //@required @alias Feature ID
+  uint32_t limit_ma;  //@required @alias Current Limit @unit mA
 } packet_feature_hbridge_set_current_limit_t;
 
 static inline err_h decoder_packet_feature_hbridge_set_current_limit_t(packet_feature_hbridge_set_current_limit_t* packet) {
@@ -190,7 +188,7 @@ static inline err_h decoder_packet_feature_hbridge_set_current_limit_t(packet_fe
 
 #define HEADER_packet_feature_hbridge_clear_fault_t 0x25
 typedef struct __packed {
-  uint8_t feature_id;
+  uint8_t feature_id; //@required @alias Feature ID
 } packet_feature_hbridge_clear_fault_t;
 
 static inline err_h decoder_packet_feature_hbridge_clear_fault_t(packet_feature_hbridge_clear_fault_t* packet) {
@@ -238,4 +236,3 @@ static inline err_h dec_features_decode(const uint8_t* data, size_t len) {
       SE_RET_ERR(ERR_INTERFACE_UNKNOWN_PACKET, .class_header = SYS_FEATURES_CLASS_HEADER, .packet_header = packet_header);
   }
 }
-

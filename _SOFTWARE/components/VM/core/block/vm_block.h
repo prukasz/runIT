@@ -1,8 +1,4 @@
 #pragma once
-
-#include <stddef.h>
-#include <stdint.h>
-#include "esp_compiler.h"
 #include "vm_obj_access.h"
 
 /*

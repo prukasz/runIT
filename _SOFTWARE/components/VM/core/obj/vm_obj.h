@@ -1,10 +1,6 @@
 #pragma once
 
-#include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
-#include <sys/cdefs.h>
-#include "esp_attr.h"
 #include "esp_compiler.h"
 
 /*
@@ -41,10 +37,6 @@ typedef enum vm_obj_t_e {
   VM_OBJ_STR  = 7,
 } vm_obj_t_e;
 
-/** @brief String representation of object type for debugging. */
-static inline const char* vm_obj_type_name(vm_obj_t_e t) {
-  return vm_type_name((uint8_t)t);
-}
 
 /**
  * @brief Object creation and descriptor flags.

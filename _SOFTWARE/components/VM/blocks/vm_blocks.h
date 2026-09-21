@@ -30,8 +30,6 @@ not resolve to a runnable block.
 #define VM_BLK_IO_SET_LEVEL 10 // hardware IO set level (digital out)   -- vm_block_io_set_level.h
 #define VM_BLK_IO_TOGGLE 11    // hardware IO toggle (digital toggle)    -- vm_block_io_toggle.h
 
-#include <stdbool.h>
-#include <stdint.h>
 #include "vm_block.h"
 
 /* ========================================================================= */

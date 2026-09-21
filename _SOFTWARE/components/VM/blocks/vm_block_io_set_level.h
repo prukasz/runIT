@@ -1,9 +1,5 @@
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <string.h>
-#include "esp_compiler.h"
 #include "sys_io.h"
 #include "vm_block_helpers.h"
 

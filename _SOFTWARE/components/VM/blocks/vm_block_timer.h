@@ -1,9 +1,4 @@
 #pragma once
-
-#include <stdbool.h>
-#include <stdint.h>
-#include <string.h>
-#include "esp_compiler.h"
 #include "vm_block_helpers.h"
 #include "vm_exec.h"
 
@@ -24,10 +19,10 @@
  *    [2]      u8  time_base     vm_timer_unit_e (0=ms, 1=s, 2=min, 3=h)
  *    [3]      u8  _pad1
  *    [4..7]   u32 _pad2
- *    [8..11]  u32 pt            Static preset time in configured unit (pt_ms alias)
+ *    [8..11]  u32 pt            Static preset time in configured unit
  *    [12..15] u32 _align
  *    [16..23] u64 start_ms      Reference timestamp
- *    [24..27] u32 elapsed       Elapsed time in configured unit (elapsed_ms alias)
+ *    [24..27] u32 elapsed       Elapsed time in configured unit
  *    [28..31] u32 _pad_tail
  */
 
@@ -80,15 +75,9 @@ typedef struct __attribute__((aligned(8))) {
   uint8_t  time_base;   // vm_timer_unit_e (0=ms, 1=s, 2=min, 3=h)
   uint8_t  _pad1;
   uint32_t _pad2;
-  union {
-    uint32_t pt;        // Preset time in configured unit (hardcoded fallback)
-    uint32_t pt_ms;     // Backward-compatible alias
-  };
+  uint32_t pt;          // Preset time in configured unit (hardcoded fallback)
   uint64_t start_ms;    // Timestamp when timing started (from vm_now_ms())
-  union {
-    uint32_t elapsed;   // Current elapsed time in configured unit
-    uint32_t elapsed_ms;// Backward-compatible alias
-  };
+  uint32_t elapsed;     // Current elapsed time in configured unit
 } vm_block_timer_data_t;
 
 _Static_assert(sizeof(vm_block_timer_data_t) == 32, "vm_block_timer_data_t must be 32 bytes");

@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <stdio.h>
-#include "esp_err.h"
+
 
 struct err_node;
 typedef struct err_node* err_h;

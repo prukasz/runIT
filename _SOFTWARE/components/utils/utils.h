@@ -185,9 +185,6 @@ extern "C" {
 #define WAIT_FOREVER portMAX_DELAY
 #define NO_WAIT 0
 
-#ifndef SE_IS_OK
-#define SE_IS_OK(x) ((x) == pdPASS || (x) == pdTRUE)
-#endif
 
 /**
  * @brief Sends a 32-bit value directly to a task, waking it up.

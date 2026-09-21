@@ -1,6 +1,7 @@
 #include "runit_board_cfg.h"
 
 #include <esp_log.h>
+#include <sdkconfig.h>
 #include "devices.h"
 #include "runit_board_defs.h"
 #include "sys_ble.h"
@@ -18,7 +19,7 @@ err_h runit_board_bind_boot_action(void) {
 #if RUNIT_SKIP_DEVICE_INIT
   return NULL;
 #else
-  return sys_actions_bind_static(SYS_ACTION_ID_BOOT, runit_board_devices_init);
+  return sys_actions_bind_static(CONFIG_SYS_ACTION_ID_BOOT, runit_board_devices_init);
 #endif
 }
 
@@ -26,7 +27,7 @@ err_h runit_board_invoke_boot_action(void) {
 #if RUNIT_SKIP_DEVICE_INIT
   return NULL;
 #else
-  return sys_actions_invoke(SYS_ACTION_SCOPE_STATIC, SYS_ACTION_ID_BOOT);
+  return sys_actions_invoke(SYS_ACTION_SCOPE_STATIC, CONFIG_SYS_ACTION_ID_BOOT);
 #endif
 }
 

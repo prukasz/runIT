@@ -1,10 +1,5 @@
 #include "vm_override.h"
-#include <string.h>
-#include "esp_log.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/ringbuf.h"
 #include "utils.h"
-#include "vm_obj.h"
 #include "vm_obj_access.h"
 #include "vm_obj_build.h"
 #include "vm_store.h"

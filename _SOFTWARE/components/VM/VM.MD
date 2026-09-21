@@ -317,14 +317,14 @@ The Timer Block (`vm_block_timer.h`) implements standard IEC 61131-3 timing mode
   - `VM_TIMER_TON_INV` (3), `VM_TIMER_TOF_INV` (4), `VM_TIMER_TP_INV` (5): Inverted output logic (`!Q`).
 * **Inputs**:
   - `in[0]`: `IN` trigger/gate signal (boolean or any non-zero numeric scalar).
-  - `in[1]` (optional): Dynamic preset time `PT` in ms. When omitted or unwired, falls back to hardcoded `pt_ms` in `custom_data`.
+  - `in[1]` (optional): Dynamic preset time `PT` in ms. When omitted or unwired, falls back to hardcoded `pt` in `custom_data`.
 * **Outputs**:
   - `out[0]` (optional): `Q` output (boolean, follows timer state, inverted if mode/flag set).
   - `out[1]` (optional): `ET` output (elapsed time `dt` in ms, converted to output object type).
   - `ENO`: Flow control level (set to `Q` to enable direct downstream gating in the DAG).
 * **Time Source & State**:
   - Reads the pass-latched timestamp via `vm_now_ms()`.
-  - Holds `vm_block_timer_data_t` (32 bytes, 8-byte aligned) in `custom_data`: `[mode][flags][_pad][pt_ms][start_ms][elapsed_ms]`.
+  - Holds `vm_block_timer_data_t` (32 bytes, 8-byte aligned) in `custom_data`: `[mode][flags][_pad][pt][start_ms][elapsed]`.
   - When disabled via `EN`, timing stands down and outputs clear quietly.
 
 ---
@@ -1106,9 +1106,9 @@ Dynamic objects are heap-backed and isolated: nothing else in a running program 
 `VM_BLK_TIMER` implements standard IEC 61131-3 timers over wall-clock time (`vm_now_ms()`).
 
 - **Modes**: `VM_TIMER_TON` (on-delay), `VM_TIMER_TOF` (off-delay), `VM_TIMER_TP` (pulse timer), plus inverted modes `TON_INV`, `TOF_INV`, `TP_INV`.
-- **Inputs**: `in[0]` gate / trigger signal; optional `in[1]` dynamic preset time `PT` in ms (falls back to `custom_data.pt_ms` if unwired).
+- **Inputs**: `in[0]` gate / trigger signal; optional `in[1]` dynamic preset time `PT` in ms (falls back to `custom_data.pt` if unwired).
 - **Outputs**: `out[0]` boolean `Q` output (follows timer logic, inverted if `_INV`), `out[1]` elapsed time `ET` in ms, `ENO` flow control level (tracks `Q` for direct downstream gating).
-- **Private State**: 32 bytes (`vm_block_timer_data_t`): `mode` (1B), `flags` (1B), `pt_ms` (8B), `start_ms` (8B), `elapsed_ms` (8B).
+- **Private State**: 32 bytes (`vm_block_timer_data_t`): `mode` (1B), `flags` (1B), `pt` (8B), `start_ms` (8B), `elapsed` (8B).
 
 ### `upd`, and who clears it
 

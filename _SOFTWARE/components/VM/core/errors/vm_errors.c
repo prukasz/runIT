@@ -1,5 +1,4 @@
 #include "vm_errors.h"
-#include <string.h>
 #include "vm_obj_access.h"
 
 /* Cold-path error builders (explicit OWNER passed per subsystem). */

@@ -1,12 +1,6 @@
 #pragma once
-#include <stdint.h>
-#include <stdbool.h>
 #include "sys_error.h"
 #include "sys_callbacks.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 typedef enum {
   SYS_HBRIDGE_MODE_FULL = 0,   /* Bi-directional Full H-Bridge: magnitude -1.0f (rev) to +1.0f (fwd) */
@@ -22,7 +16,7 @@ typedef enum {
 } sys_hbridge_fault_reason_e;
 
 typedef struct sys_hbridge_fault_config_t {
-  uint16_t route_mask;         /* Route bitmask (e.g. SYS_CB_ROUTE_BIT(SYS_CB_ROUTE_VM)) */
+  uint16_t route_mask;         /* Route bitmask (e.g. SYS_CB_ROUTE_BIT(CONFIG_SYS_CB_ROUTE_VM)) */
   uint8_t static_action_id;    /* System action ID; zero disables execution */
   uint8_t dynamic_action_id;   /* User dynamic action ID; zero disables execution */
   own_funct_t own_func;        /* Direct C callback / trampoline */
@@ -64,8 +58,4 @@ err_h sys_hbridge_set_current_limit_ma(uint8_t device_id, uint8_t channel, uint3
 err_h sys_hbridge_configure_fault(uint8_t device_id, uint8_t channel, const sys_hbridge_fault_config_t* config);
 err_h sys_hbridge_get_fault(uint8_t device_id, uint8_t channel, bool* out_fault, sys_hbridge_fault_reason_e* out_reason);
 err_h sys_hbridge_clear_fault(uint8_t device_id, uint8_t channel);
-
-#ifdef __cplusplus
-}
-#endif
 

@@ -1,10 +1,5 @@
 #pragma once
-
-#include <stdbool.h>
-#include <stdint.h>
 #include "sys_error.h"
-#include "sys_error_vm.h"
-#include "vm_obj.h"
 #include "vm_obj_access.h"
 
 typedef struct vm_accessor_t vm_accessor_t;

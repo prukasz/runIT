@@ -7,9 +7,150 @@ from enum import IntEnum
 
 
 class DecoderClass(IntEnum):
+    SYS_FEATURES = 0x05
     SYS_ACTIONS = 0x03
     SYS_CONTRACTS = 0x01
 
+
+# ============================================================================
+# dec_features.h (class 0x05 - SYS_FEATURES)
+# ============================================================================
+
+class packet_feature_remove_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("feature_id", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_FEATURES
+    _packet_header_ = 0x01
+    _action_name_ = "feature_remove"
+
+class packet_feature_remove_all_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = []
+    _class_header_ = DecoderClass.SYS_FEATURES
+    _packet_header_ = 0x02
+    _action_name_ = "feature_remove_all"
+
+class packet_feature_servo_create_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("feature_id", ct.c_uint8),
+        ("device_id", ct.c_uint8),
+        ("pin_num", ct.c_uint8),
+        ("frequency_hz", ct.c_uint16),
+        ("pulse_min_us", ct.c_uint16),
+        ("pulse_max_us", ct.c_uint16),
+        ("angle_min", ct.c_float),
+        ("angle_max", ct.c_float),
+        ("default_angle", ct.c_float),
+        ("trim_angle", ct.c_float),
+        ("inverted", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_FEATURES
+    _packet_header_ = 0x10
+    _action_name_ = "feature_servo_create"
+
+class packet_feature_servo_set_angle_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("feature_id", ct.c_uint8),
+        ("angle", ct.c_float),
+    ]
+    _class_header_ = DecoderClass.SYS_FEATURES
+    _packet_header_ = 0x11
+    _action_name_ = "feature_servo_set_angle"
+
+class packet_feature_servo_go_home_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("feature_id", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_FEATURES
+    _packet_header_ = 0x12
+    _action_name_ = "feature_servo_go_home"
+
+class packet_feature_servo_set_trim_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("feature_id", ct.c_uint8),
+        ("trim_angle", ct.c_float),
+    ]
+    _class_header_ = DecoderClass.SYS_FEATURES
+    _packet_header_ = 0x13
+    _action_name_ = "feature_servo_set_trim"
+
+class packet_feature_servo_attach_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("feature_id", ct.c_uint8),
+        ("attach", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_FEATURES
+    _packet_header_ = 0x14
+    _action_name_ = "feature_servo_attach"
+
+class packet_feature_hbridge_create_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("feature_id", ct.c_uint8),
+        ("bridge_device_id", ct.c_uint8),
+        ("channel", ct.c_uint8),
+        ("inverted", ct.c_uint8),
+        ("fault_route_mask", ct.c_uint16),
+        ("fault_static_action_id", ct.c_uint8),
+        ("fault_dynamic_action_id", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_FEATURES
+    _packet_header_ = 0x20
+    _action_name_ = "feature_hbridge_create"
+
+class packet_feature_hbridge_set_speed_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("feature_id", ct.c_uint8),
+        ("speed", ct.c_float),
+    ]
+    _class_header_ = DecoderClass.SYS_FEATURES
+    _packet_header_ = 0x21
+    _action_name_ = "feature_hbridge_set_speed"
+
+class packet_feature_hbridge_brake_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("feature_id", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_FEATURES
+    _packet_header_ = 0x22
+    _action_name_ = "feature_hbridge_brake"
+
+class packet_feature_hbridge_coast_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("feature_id", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_FEATURES
+    _packet_header_ = 0x23
+    _action_name_ = "feature_hbridge_coast"
+
+class packet_feature_hbridge_set_current_limit_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("feature_id", ct.c_uint8),
+        ("limit_ma", ct.c_uint32),
+    ]
+    _class_header_ = DecoderClass.SYS_FEATURES
+    _packet_header_ = 0x24
+    _action_name_ = "feature_hbridge_set_current_limit"
+
+class packet_feature_hbridge_clear_fault_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("feature_id", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_FEATURES
+    _packet_header_ = 0x25
+    _action_name_ = "feature_hbridge_clear_fault"
 
 # ============================================================================
 # dec_sys_actions.h (class 0x03 - SYS_ACTIONS)
@@ -107,18 +248,14 @@ class packet_sys_device_resume_t(ct.LittleEndianStructure):
 
 class packet_sys_device_suspend_all_t(ct.LittleEndianStructure):
     _pack_ = 1
-    _fields_ = [
-        ("dummy", ct.c_uint8),
-    ]
+    _fields_ = []
     _class_header_ = DecoderClass.SYS_CONTRACTS
     _packet_header_ = 0x14
     _action_name_ = "sys_device_suspend_all"
 
 class packet_sys_device_resume_all_t(ct.LittleEndianStructure):
     _pack_ = 1
-    _fields_ = [
-        ("dummy", ct.c_uint8),
-    ]
+    _fields_ = []
     _class_header_ = DecoderClass.SYS_CONTRACTS
     _packet_header_ = 0x15
     _action_name_ = "sys_device_resume_all"
@@ -143,25 +280,19 @@ class packet_sys_device_sync_t(ct.LittleEndianStructure):
 
 class packet_sys_device_freeze_all_t(ct.LittleEndianStructure):
     _pack_ = 1
-    _fields_ = [
-        ("dummy", ct.c_uint8),
-    ]
+    _fields_ = []
     _class_header_ = DecoderClass.SYS_CONTRACTS
     _packet_header_ = 0x18
     _action_name_ = "sys_device_freeze_all"
 
 class packet_sys_device_sync_all_t(ct.LittleEndianStructure):
     _pack_ = 1
-    _fields_ = [
-        ("dummy", ct.c_uint8),
-    ]
+    _fields_ = []
     _class_header_ = DecoderClass.SYS_CONTRACTS
     _packet_header_ = 0x19
     _action_name_ = "sys_device_sync_all"
 
 class packet_sys_device_set_error_handling_t(ct.LittleEndianStructure):
-    # actions[0]: scope bits 0..3 for LOW..CRITICAL (1=dynamic, 0=static).
-    # actions[1:5]: action IDs; zero disables that level.
     _pack_ = 1
     _fields_ = [
         ("device_id", ct.c_uint8),
@@ -525,6 +656,19 @@ class packet_sys_device_install_ads7128_t(ct.LittleEndianStructure):
 # class -> packet -> form auto command builder.
 # ============================================================================
 PACKET_REGISTRY = [
+    packet_feature_remove_t,
+    packet_feature_remove_all_t,
+    packet_feature_servo_create_t,
+    packet_feature_servo_set_angle_t,
+    packet_feature_servo_go_home_t,
+    packet_feature_servo_set_trim_t,
+    packet_feature_servo_attach_t,
+    packet_feature_hbridge_create_t,
+    packet_feature_hbridge_set_speed_t,
+    packet_feature_hbridge_brake_t,
+    packet_feature_hbridge_coast_t,
+    packet_feature_hbridge_set_current_limit_t,
+    packet_feature_hbridge_clear_fault_t,
     packet_sys_action_static_t,
     packet_sys_action_dynamic_t,
     packet_sys_action_record_start_t,

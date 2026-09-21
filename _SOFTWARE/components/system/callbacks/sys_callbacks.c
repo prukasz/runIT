@@ -16,7 +16,7 @@ R_QUEUE_DEFINE(s_callback_queue, CONFIG_SYS_CB_QUEUE_LEN, sizeof(cb_event_t));
 R_TASK_DEFINE(s_callback_task_handle, CONFIG_SYS_CB_TASK_STACK_SIZE);
 
 // Bit i of an event's route_mask selects s_route_table[i]. Slots nobody
-// registers into (e.g. SYS_CB_ROUTE_WIFI) are silently skipped by sys_cb_task,
+// registers into (e.g. CONFIG_SYS_CB_ROUTE_WIFI) are silently skipped by sys_cb_task,
 // not an error. Filled at runtime by sys_cb_register_route() - each owning
 // component (sys_io, sys_power, ble) plugs its own handler in from a
 // load-time constructor rather than sys_callbacks knowing about them at

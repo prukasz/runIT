@@ -1,7 +1,4 @@
 #include "sys_device.h"
-#include <stdlib.h>
-#include <string.h>
-#include "esp_log.h"
 #include "sys_error.h"
 #include "sys_error_hooks.h"
 #include "sys_io.h"
@@ -19,9 +16,11 @@ static sys_device_t* s_device_registry[CONFIG_SYS_DEVICE_MAX_ID + 1] = {NULL};
    Overridden at link time by the application coordinator (runit). */
 __attribute__((weak)) err_h sys_device_app_error_policy(uint8_t device_id,
                                                         sys_device_err_level_e level,
-                                                        uint16_t action_id,
+                                                        uint8_t action_scope,
+                                                        uint8_t action_id,
                                                         err_h error) {
   (void)device_id;
+  (void)action_scope;
   (void)action_id;
   (void)error;
   if (level == SYS_DEV_ERR_CRITICAL) {
@@ -199,9 +198,9 @@ err_h sys_device_report_error_with_level(uint8_t device_id, sys_device_err_level
   }
 
   /* CRITICAL or clamped level dispatch */
-  uint16_t action_id = dev ? dev->actions[level] : 0;
-  if (dev && (dev->actions[0] & (1u << (level - 1)))) action_id |= SYS_DEV_ACTION_DYNAMIC;
-  return sys_device_app_error_policy(device_id, level, action_id, error);
+  uint8_t action_scope = dev ? dev->actions[level].scope : 0;
+  uint8_t action_id    = dev ? dev->actions[level].id : 0;
+  return sys_device_app_error_policy(device_id, level, action_scope, action_id, error);
 }
 
 err_h sys_device_report_error(uint8_t device_id, err_h error) {
@@ -226,10 +225,12 @@ err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e i
   if (actions) {
     SE_CHECK_IN_RANGE(actions[0], 0, 0x0f);
     for (int i = 1; i < 5; i++) {
-      unsigned limit = (actions[0] & (1u << (i - 1))) ? CONFIG_SYS_ACTIONS_ID_SPACE : CONFIG_SYS_ACTIONS_STATIC_SLOTS;
+      uint8_t scope = (actions[0] & (1u << (i - 1))) ? 0x01 : 0x00;
+      unsigned limit = (scope == 0x01) ? CONFIG_SYS_ACTIONS_ID_SPACE : CONFIG_SYS_ACTIONS_STATIC_SLOTS;
       SE_CHECK_IN_RANGE(actions[i], 0, limit - 1);
+      dev->actions[i].scope = scope;
+      dev->actions[i].id    = actions[i];
     }
-    memcpy(dev->actions, actions, sizeof(dev->actions));
   } else {
     memset(dev->actions, 0, sizeof(dev->actions));
   }

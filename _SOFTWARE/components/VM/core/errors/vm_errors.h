@@ -1,8 +1,5 @@
 #pragma once
-#include <stdbool.h>
-#include <stdint.h>
 #include "sys_error.h"
-#include "sys_error_vm.h"
 #include "vm_obj.h"
 
 /* Cold-path error builders for accessor, object, and block layers.

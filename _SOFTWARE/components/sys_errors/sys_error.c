@@ -1,18 +1,17 @@
 #include "sys_error.h"
-#include <string.h>
+#include <sdkconfig.h>
+#include <stdint.h>
 
 // -----------------------------------------------------------------------------
 // Compile-time Validations & Constants
 // -----------------------------------------------------------------------------
 
-#define ERR_BUF_SIZE    1024u
-#define ERR_BLOCK_SIZE  32u
-#define ERR_BLOCK_COUNT (ERR_BUF_SIZE / ERR_BLOCK_SIZE)
+#define ERR_BLOCK_COUNT (CONFIG_SYS_ERRORS_BUF_SIZE / CONFIG_SYS_ERRORS_BLOCK_SIZE)
 
 _Static_assert(ERR_MAX_COUNT <= 0xFFFF, "err_tag_e no longer fits the uint16 tag field of the error packet");
 
 #define X_CHK(tag, level, struct_def)                                                                                                                                                \
-  _Static_assert(sizeof(err_payload_##tag##_t) <= UINT8_MAX && sizeof(sys_err_t) + sizeof(err_payload_##tag##_t) <= ERR_BUF_SIZE / 4, #tag " payload too large for the error pool"); \
+  _Static_assert(sizeof(err_payload_##tag##_t) <= UINT8_MAX && sizeof(sys_err_t) + sizeof(err_payload_##tag##_t) <= CONFIG_SYS_ERRORS_BUF_SIZE / 4, #tag " payload too large for the error pool"); \
   SYS_ERROR_MAP(X_CHK)
 #undef X_CHK
 
@@ -79,7 +78,7 @@ sys_device_err_level_e SE_get_tag_level(err_tag_e tag) {
 
 // 32 allocation bits plus one length byte per possible node start. Ownership is
 // exclusive: wrapping transfers the cause; push consumes; diagnostics borrow.
-static uint8_t  err_buffer[ERR_BUF_SIZE] __attribute__((aligned(8)));
+static uint8_t  err_buffer[CONFIG_SYS_ERRORS_BUF_SIZE] __attribute__((aligned(8)));
 static uint32_t allocated;
 static uint8_t  block_count[ERR_BLOCK_COUNT];
 // Immutable fallback node used when the error ring pool is exhausted.
@@ -96,16 +95,16 @@ static const struct {
   .next_cause = NULL,
   .payload = {0},
 };
-static int node_index(err_h err) {
+static int32_t node_index(err_h err) {
   uintptr_t offset = (uintptr_t)err - (uintptr_t)err_buffer;
-  return offset < ERR_BUF_SIZE && offset % ERR_BLOCK_SIZE == 0 ? (int)(offset / ERR_BLOCK_SIZE) : -1;
+  return offset < CONFIG_SYS_ERRORS_BUF_SIZE && offset % CONFIG_SYS_ERRORS_BLOCK_SIZE == 0 ? (int32_t)(offset / CONFIG_SYS_ERRORS_BLOCK_SIZE) : -1;
 }
 
 bool SE_is_valid_error_ptr(err_h err) {
   if (err == (err_h)&exhausted) return true;
-  int i = node_index(err);
+  int32_t i = node_index(err);
   if (i < 0 || !__atomic_load_n(&block_count[i], __ATOMIC_ACQUIRE)) return false;
-  return (unsigned)err->tag < ERR_MAX_COUNT && sizeof(sys_err_t) + SE_get_payload_size(err->tag) <= (size_t)block_count[i] * ERR_BLOCK_SIZE;
+  return (uint32_t)err->tag < ERR_MAX_COUNT && sizeof(sys_err_t) + SE_get_payload_size(err->tag) <= (size_t)block_count[i] * CONFIG_SYS_ERRORS_BLOCK_SIZE;
 }
 
 // Returns the valid, unique prefix; complete distinguishes truncation/corruption.
@@ -131,16 +130,16 @@ err_h SE_get_error_root(err_h error) {
 }
 
 err_h SE_alloc_bytes(size_t payload_size, err_tag_e tag, uint32_t owner) {
-  if ((unsigned)tag >= ERR_MAX_COUNT || payload_size != SE_get_payload_size(tag) || payload_size > ERR_BUF_SIZE - sizeof(sys_err_t)) return NULL;
-  unsigned blocks = (sizeof(sys_err_t) + payload_size + ERR_BLOCK_SIZE - 1) / ERR_BLOCK_SIZE;
+  if ((uint32_t)tag >= ERR_MAX_COUNT || payload_size != SE_get_payload_size(tag) || payload_size > CONFIG_SYS_ERRORS_BUF_SIZE - sizeof(sys_err_t)) return NULL;
+  uint32_t blocks = (sizeof(sys_err_t) + payload_size + CONFIG_SYS_ERRORS_BLOCK_SIZE - 1) / CONFIG_SYS_ERRORS_BLOCK_SIZE;
   uint32_t bits   = blocks == 32 ? UINT32_MAX : (1u << blocks) - 1u;
-  for (unsigned i = 0; i + blocks <= ERR_BLOCK_COUNT; ++i) {
+  for (uint32_t i = 0; i + blocks <= ERR_BLOCK_COUNT; ++i) {
     uint32_t mask = bits << i;
     uint32_t old  = __atomic_load_n(&allocated, __ATOMIC_RELAXED);
     while (!(old & mask)) {
       if (__atomic_compare_exchange_n(&allocated, &old, old | mask, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
-        err_h node = (err_h)&err_buffer[i * ERR_BLOCK_SIZE];
-        memset(node, 0, blocks * ERR_BLOCK_SIZE);
+        err_h node = (err_h)&err_buffer[i * CONFIG_SYS_ERRORS_BLOCK_SIZE];
+        memset(node, 0, blocks * CONFIG_SYS_ERRORS_BLOCK_SIZE);
         node->tag   = tag;
         node->owner = owner;
         __atomic_store_n(&block_count[i], blocks, __ATOMIC_RELEASE);
@@ -164,15 +163,15 @@ void SE_release(err_h chain) {
   if (!chain || chain == (err_h)&exhausted) return;
   uint32_t starts = 0, reservation = 0;
   while (chain) {
-    int i = node_index(chain);
+    int32_t i = node_index(chain);
     if (i < 0 || (starts & (1u << i))) break;
-    unsigned blocks = __atomic_load_n(&block_count[i], __ATOMIC_ACQUIRE);
+    uint32_t blocks = __atomic_load_n(&block_count[i], __ATOMIC_ACQUIRE);
     if (!blocks) break;
     starts |= 1u << i;
     reservation |= (blocks == 32 ? UINT32_MAX : (1u << blocks) - 1u) << i;
     chain = chain->next_cause;
   }
-  for (unsigned i = 0; i < ERR_BLOCK_COUNT; ++i) {
+  for (uint32_t i = 0; i < ERR_BLOCK_COUNT; ++i) {
     if (starts & (1u << i)) __atomic_store_n(&block_count[i], 0, __ATOMIC_RELEASE);
   }
   __atomic_fetch_and(&allocated, ~reservation, __ATOMIC_RELEASE);
@@ -182,7 +181,7 @@ void SE_release(err_h chain) {
 // Suspend / Resume Processing
 // -----------------------------------------------------------------------------
 
-static __thread unsigned s_suspend_depth;
+static __thread uint32_t s_suspend_depth;
 
 // Nesting-safe: a suspended section may call into another function that
 // also suspends/resumes without prematurely re-enabling error reporting.
@@ -203,7 +202,7 @@ bool SE_is_suspended(void) {
 // FNV-1a over ordered tag names and payload sizes: reject mismatched client maps.
 uint32_t SE_schema_id(void) {
   uint32_t hash = 2166136261u;
-  for (unsigned tag = 0; tag < ERR_MAX_COUNT; ++tag) {
+  for (uint32_t tag = 0; tag < ERR_MAX_COUNT; ++tag) {
     const char* name = SE_get_tag_name(tag);
     do {
       hash = (hash ^ (uint8_t)*name) * 16777619u;
