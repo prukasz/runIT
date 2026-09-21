@@ -3,10 +3,10 @@
 
 #define OWNER OWNER_VM_EXEC
 
-R_QUEUE_DEFINE(s_vm_event_q, VM_EVENT_DEPTH, sizeof(cb_event_t));
+R_QUEUE_DEFINE(s_vm_event_q, CONFIG_VM_EVENT_DEPTH, sizeof(cb_event_t));
 
 /* Scan cycle snapshot. Written by vm_event_drain(), read lock-free by supervisor/blocks. */
-static cb_event_t s_cycle[VM_EVENT_DEPTH];
+static cb_event_t s_cycle[CONFIG_VM_EVENT_DEPTH];
 static uint8_t s_cycle_cnt;
 
 static volatile uint16_t s_dropped;
@@ -32,7 +32,7 @@ __attribute__((constructor)) static void vm_event_route_register(void) {
 
 void vm_event_drain(void) {
   s_cycle_cnt = 0;
-  while (s_cycle_cnt < VM_EVENT_DEPTH && R_QUEUE_RECEIVE(s_vm_event_q, &s_cycle[s_cycle_cnt], NO_WAIT)) {
+  while (s_cycle_cnt < CONFIG_VM_EVENT_DEPTH && R_QUEUE_RECEIVE(s_vm_event_q, &s_cycle[s_cycle_cnt], NO_WAIT)) {
     s_cycle_cnt++;
   }
 }
@@ -54,7 +54,7 @@ err_h vm_event_take_overflow(void) {
   uint16_t dropped = s_dropped;
   if (dropped == 0) return NULL;
   s_dropped = 0;
-  SE_RET_ERR(ERR_VM_EVENT_OVERFLOW, .type = s_drop_type, .depth = VM_EVENT_DEPTH, .dropped = dropped);
+  SE_RET_ERR(ERR_VM_EVENT_OVERFLOW, .type = s_drop_type, .depth = CONFIG_VM_EVENT_DEPTH, .dropped = dropped);
 }
 
 void vm_event_reset(void) {

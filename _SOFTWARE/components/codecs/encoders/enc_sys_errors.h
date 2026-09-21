@@ -106,7 +106,7 @@
  * uint8_t pkt[128];
  * size_t  pkt_len = 0;
  * if (SE_IS_OK(enc_sys_errors_encode_chain(chain, pkt, sizeof(pkt), &pkt_len))) {
- *   sys_data_connector_send(sys_data_connector_get(CONN_ID_ERRORS), pkt, pkt_len);
+ *   sys_data_connector_send(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_ERRORS), pkt, pkt_len);
  * }
  * @endcode
  */

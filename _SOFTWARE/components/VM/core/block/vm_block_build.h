@@ -10,9 +10,9 @@ Resolves numeric wiring IDs from packet to direct RAM pointers before arena allo
 typedef struct vm_block_cfg_t {
   uint16_t block_idx;   // Visual block identifier
   uint8_t  block_type;  // Palette entry index
-  uint8_t  in_cnt;      // <= VM_BLOCK_MAX_IN
-  uint8_t  q_cnt;       // <= VM_BLOCK_MAX_OUT
-  uint8_t  en_cnt;      // <= VM_BLOCK_MAX_EN (0 = root, always enabled)
+  uint8_t  in_cnt;      // <= CONFIG_VM_BLOCK_MAX_IN
+  uint8_t  q_cnt;       // <= CONFIG_VM_BLOCK_MAX_OUT
+  uint8_t  en_cnt;      // <= CONFIG_VM_BLOCK_MAX_EN (0 = root, always enabled)
   uint8_t  en_mode;     // VM_BLK_EN_ANY / _ALL
   uint8_t  on_error;    // VM_BLK_ERR_STOP / _CONTINUE
   uint16_t custom_len;  // Private state length (zeroed on creation)
@@ -24,8 +24,7 @@ typedef struct vm_block_cfg_t {
   const void*     custom_data;  // Initial custom payload (copied if non-NULL)
 } vm_block_cfg_t;
 
-/** @brief Sentinel for unwired pin or absent ENO. */
-#define VM_BLOCK_NO_ID 0xFFFFu
+
 
 /**
  * @brief Allocates one block in arena, resolves all ID references to pointers, and binds to registry.

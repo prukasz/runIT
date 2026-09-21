@@ -1,4 +1,5 @@
 #pragma once
+#include <sdkconfig.h>
 #include "sys_error.h"
 #include "vm_obj.h"
 
@@ -12,12 +13,6 @@
  * a reverse 0x43 packet (matching decoder_packet_vm_set_data layout) is generated and
  * dispatched through the telemetry data connector.
  */
-
-#define VM_SUB_MAX_SUBSCRIBERS 128
-#define VM_SUB_CLASS_HEADER 0x04
-#define VM_SUB_PACKET_SUBSCRIBE 0x47
-#define VM_SUB_PACKET_SET_DATA 0x43
-#define VM_SUB_MAX_FRAME_LEN 512
 
 /**
  * @brief Initialize subscription subsystem and hook into vm_exec sample point.

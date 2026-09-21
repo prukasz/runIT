@@ -23,13 +23,13 @@
    cache would make access cost depend on what else is resident. */
 #define VM_DYN_HEAP_CAPS (MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL)
 
-vm_obj_dyn_meta_t g_vm_dyn[VM_DYN_MAX] = {0};
+vm_obj_dyn_meta_t g_vm_dyn[CONFIG_VM_DYN_MAX] = {0};
 
 typedef struct {
   vm_obj_h* cell;
   vm_obj_h child;
-  uint8_t visiting[VM_DYN_MAX];
-  uint8_t height[VM_DYN_MAX];
+  uint8_t visiting[CONFIG_VM_DYN_MAX];
+  uint8_t height[CONFIG_VM_DYN_MAX];
 } ownership_check_t;
 
 // ===========================================================================
@@ -41,10 +41,10 @@ typedef struct {
    Completed heights memoize shared subgraphs; visiting detects back edges. */
 static err_h ownership_height(ownership_check_t* check, uint16_t id, uint8_t depth) {
   if (check->visiting[id]) {
-    SE_RET_ERR(ERR_VM_OBJ_OWNERSHIP, .reason = VM_OWNERSHIP_CYCLE, .limit = VM_DYN_MAX_DEPTH);
+    SE_RET_ERR(ERR_VM_OBJ_OWNERSHIP, .reason = VM_OWNERSHIP_CYCLE, .limit = CONFIG_VM_DYN_MAX_DEPTH);
   }
-  if (depth >= VM_DYN_MAX_DEPTH) {
-    SE_RET_ERR(ERR_VM_OBJ_OWNERSHIP, .reason = VM_OWNERSHIP_DEPTH, .limit = VM_DYN_MAX_DEPTH);
+  if (depth >= CONFIG_VM_DYN_MAX_DEPTH) {
+    SE_RET_ERR(ERR_VM_OBJ_OWNERSHIP, .reason = VM_OWNERSHIP_DEPTH, .limit = CONFIG_VM_DYN_MAX_DEPTH);
   }
   if (check->height[id]) return NULL;
   check->visiting[id] = 1;
@@ -61,8 +61,8 @@ static err_h ownership_height(ownership_check_t* check, uint16_t id, uint8_t dep
       if (next > height) height = next;
     }
   }
-  if (height > VM_DYN_MAX_DEPTH) {
-    SE_RET_ERR(ERR_VM_OBJ_OWNERSHIP, .reason = VM_OWNERSHIP_DEPTH, .limit = VM_DYN_MAX_DEPTH);
+  if (height > CONFIG_VM_DYN_MAX_DEPTH) {
+    SE_RET_ERR(ERR_VM_OBJ_OWNERSHIP, .reason = VM_OWNERSHIP_DEPTH, .limit = CONFIG_VM_DYN_MAX_DEPTH);
   }
   check->visiting[id] = 0;
   check->height[id] = height;
@@ -85,7 +85,7 @@ static void dyn_release(vm_obj_h o, uint8_t depth) {
   /* Children go first -- reading the payload after free() would be a
      use-after-free. Arena children fall out of dyn_release() immediately, so a
      tree holding both kinds needs no test here. */
-  if ((vm_obj_t_e)o->head.d.obj_t == VM_OBJ_PTR && depth < VM_DYN_MAX_DEPTH) {
+  if ((vm_obj_t_e)o->head.d.obj_t == VM_OBJ_PTR && depth < CONFIG_VM_DYN_MAX_DEPTH) {
     vm_obj_h* kids = (vm_obj_h*)o->payload;
     uint16_t n = vm_obj_get_items_cnt(o);
     for (uint16_t i = 0; i < n; i++) {
@@ -103,7 +103,7 @@ static void dyn_release(vm_obj_h o, uint8_t depth) {
 err_h vm_obj_dyn_check_link(vm_obj_h owner, vm_obj_h* cell, vm_obj_h child) {
   if (!owner->head.f.dynamic || *cell == child) return NULL;
   ownership_check_t check = {.cell = cell, .child = child};
-  for (uint16_t i = 0; i < VM_DYN_MAX; i++) {
+  for (uint16_t i = 0; i < CONFIG_VM_DYN_MAX; i++) {
     if (g_vm_dyn[i].obj) SE_RET_IF_ERR(ownership_height(&check, i, 0));
   }
   return NULL;
@@ -118,15 +118,15 @@ err_h vm_obj_dyn_create(vm_obj_h* out, const vm_obj_head_t* head, const char* na
   uint32_t total = 0;
   SE_RET_IF_ERR(vm_obj_shape(head, &total));
 
-  uint16_t slot = VM_DYN_MAX;
-  for (uint16_t i = 0; i < VM_DYN_MAX; i++) {
+  uint16_t slot = CONFIG_VM_DYN_MAX;
+  for (uint16_t i = 0; i < CONFIG_VM_DYN_MAX; i++) {
     if (!g_vm_dyn[i].obj) {
       slot = i;
       break;
     }
   }
-  if (slot == VM_DYN_MAX) {
-    SE_RET_ERR(ERR_VM_DYN_FULL, .limit = VM_DYN_MAX);
+  if (slot == CONFIG_VM_DYN_MAX) {
+    SE_RET_ERR(ERR_VM_DYN_FULL, .limit = CONFIG_VM_DYN_MAX);
   }
 
   // zeroed for the same reason arena objects are: payload and name must read
@@ -162,7 +162,7 @@ void vm_obj_dyn_reset(void) {
      what makes a detached cycle, or an object allocated and never linked,
      unable to survive a reload -- neither is reachable from a parent, but both
      are in here. */
-  for (uint16_t i = 0; i < VM_DYN_MAX; i++) {
+  for (uint16_t i = 0; i < CONFIG_VM_DYN_MAX; i++) {
     if (g_vm_dyn[i].obj) heap_caps_free(g_vm_dyn[i].obj);
     g_vm_dyn[i].obj = NULL;
     g_vm_dyn[i].ref_cnt = 0;

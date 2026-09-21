@@ -18,6 +18,7 @@
  *   0x03 0x05    -> Remove all dynamic actions
  */
 
+#include <sdkconfig.h>
 #include <stdint.h>
 #include "sys_actions.h"
 #include "sys_error.h"
@@ -105,7 +106,7 @@ static inline err_h decoder_packet_sys_action_remove_all_t(packet_sys_action_rem
   }
 
 /**
- * @brief Class handler for SYS_ACTIONS_CLASS_HEADER (0x03).
+ * @brief Class handler for CONFIG_RX_PACKET_CLASS_SYS_ACTIONS (0x03).
  *
  * @param data Frame bytes with the class byte already stripped - data[0] is 0xYY.
  * @param len Number of bytes available at @p data.
@@ -121,6 +122,6 @@ static inline err_h dec_sys_actions_decode(const uint8_t* data, size_t len) {
     SYS_ACTIONS_PACKET_LIST(SYS_ACTIONS_DECODE_CASE)
     default:
       ESP_LOGW(DEC_SYS_ACTIONS_TAG, "unknown packet header 0x%02X", data[0]);
-      SE_RET_ERR(ERR_INTERFACE_UNKNOWN_PACKET, .class_header = SYS_ACTIONS_CLASS_HEADER, .packet_header = data[0]);
+      SE_RET_ERR(ERR_INTERFACE_UNKNOWN_PACKET, .class_header = CONFIG_RX_PACKET_CLASS_SYS_ACTIONS, .packet_header = data[0]);
   }
 }

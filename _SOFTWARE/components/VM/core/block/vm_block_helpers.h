@@ -22,7 +22,7 @@ static inline bool vm_block_cfg_bad(vm_block_h b) {
  * Runtime vm_block_require owns reporting and sticky fault state instead. */
 static inline bool vm_block_shape_valid(vm_block_h b, uint8_t min_in, uint8_t min_q, uint16_t required_inputs) {
   if (b->cfg.in_cnt < min_in || b->cfg.q_cnt < min_q) return false;
-  for (uint8_t pin = 0; pin < VM_BLOCK_MAX_IN; ++pin) {
+  for (uint8_t pin = 0; pin < CONFIG_VM_BLOCK_MAX_IN; ++pin) {
     if (!(required_inputs & (1u << pin))) continue;
     if (pin >= b->cfg.in_cnt || !vm_block_get_inputs(b)[pin]) return false;
   }
@@ -31,7 +31,7 @@ static inline bool vm_block_shape_valid(vm_block_h b, uint8_t min_in, uint8_t mi
 
 static inline bool vm_block_require(vm_block_h b, uint8_t min_in, uint8_t min_q, uint16_t required_inputs) {
   if (b->cfg.in_cnt < min_in || b->cfg.q_cnt < min_q) return vm_block_cfg_bad(b);
-  for (uint8_t pin = 0; pin < VM_BLOCK_MAX_IN; ++pin) {
+  for (uint8_t pin = 0; pin < CONFIG_VM_BLOCK_MAX_IN; ++pin) {
     if (!(required_inputs & (1u << pin))) continue;
     if (pin >= b->cfg.in_cnt) return vm_block_cfg_bad(b);
     if (vm_block_get_inputs(b)[pin]) continue;

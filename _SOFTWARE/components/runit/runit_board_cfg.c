@@ -77,11 +77,11 @@ err_h runit_board_ble_init(void) {
 
 err_h runit_board_connector_bindings_init(void) {
   SE_RET_IF_ERR(sys_data_connector_register_ble_provider());
-  SE_RET_IF_ERR(sys_data_connector_bind_tx(sys_data_connector_get(CONN_ID_LOGS), SYS_DATA_PROVIDER_BLE, SYS_DATA_BLE_ARG(SYS_BLE_CHR_RUNIT_LOGS)));
-  SE_RET_IF_ERR(sys_data_connector_bind_tx(sys_data_connector_get(CONN_ID_ERRORS), SYS_DATA_PROVIDER_BLE, SYS_DATA_BLE_ARG(SYS_BLE_CHR_RUNIT_LOGS)));
-  SE_RET_IF_ERR(sys_data_connector_bind_tx(sys_data_connector_get(CONN_ID_TELEMETRY), SYS_DATA_PROVIDER_BLE, SYS_DATA_BLE_ARG(SYS_BLE_CHR_RUNIT_TX)));
-  SE_RET_IF_ERR(sys_data_connector_bind_tx(sys_data_connector_get(CONN_ID_INTERFACE), SYS_DATA_PROVIDER_BLE, SYS_DATA_BLE_ARG(SYS_BLE_CHR_RUNIT_TX)));
-  SE_RET_IF_ERR(sys_data_connector_bind_rx(sys_data_connector_get(CONN_ID_INTERFACE), SYS_DATA_PROVIDER_BLE, SYS_DATA_BLE_ARG(SYS_BLE_CHR_RUNIT_RX)));
+  SE_RET_IF_ERR(sys_data_connector_bind_tx(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_LOGS), SYS_DATA_PROVIDER_BLE, SYS_DATA_BLE_ARG(SYS_BLE_CHR_RUNIT_LOGS)));
+  SE_RET_IF_ERR(sys_data_connector_bind_tx(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_ERRORS), SYS_DATA_PROVIDER_BLE, SYS_DATA_BLE_ARG(SYS_BLE_CHR_RUNIT_LOGS)));
+  SE_RET_IF_ERR(sys_data_connector_bind_tx(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_TELEMETRY), SYS_DATA_PROVIDER_BLE, SYS_DATA_BLE_ARG(SYS_BLE_CHR_RUNIT_TX)));
+  SE_RET_IF_ERR(sys_data_connector_bind_tx(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_INTERFACE), SYS_DATA_PROVIDER_BLE, SYS_DATA_BLE_ARG(SYS_BLE_CHR_RUNIT_TX)));
+  SE_RET_IF_ERR(sys_data_connector_bind_rx(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_INTERFACE), SYS_DATA_PROVIDER_BLE, SYS_DATA_BLE_ARG(SYS_BLE_CHR_RUNIT_RX)));
   ESP_LOGI(TAG, "BLE data connectors bound");
   return NULL;
 }

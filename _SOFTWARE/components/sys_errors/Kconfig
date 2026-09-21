@@ -1,0 +1,30 @@
+menu "System Errors Options"
+    config SYS_ERRORS_BUF_SIZE
+        int "Error Pool Buffer Size (bytes)"
+        default 1024
+        range 128 8192
+        help
+          Total size of the bounded error node allocator's backing buffer.
+
+    config SYS_ERRORS_BLOCK_SIZE
+        int "Error Pool Block Size (bytes)"
+        default 32
+        range 8 256
+        help
+          Allocation granularity of the error node pool. SYS_ERRORS_BUF_SIZE
+          must be evenly divisible by this value.
+
+    config SYS_ERRORS_LOG_LINE_MAX
+        int "Log Line Stack Buffer Size (bytes)"
+        default 512
+        range 64 4096
+        help
+          Stack buffer size the log hook renders one line into.
+
+    config SYS_ERRORS_PACKET_MAX
+        int "Error Packet Buffer Size (bytes)"
+        default 512
+        range 64 4096
+        help
+          Compile-time ceiling for binary error packet buffer.
+endmenu

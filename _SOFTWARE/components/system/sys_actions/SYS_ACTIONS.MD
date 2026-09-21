@@ -29,7 +29,7 @@ components/system/sys_actions/
 ├── sys_actions.c           # Load-on-demand NVS storage, tap task, invocation & management APIs
 ├── sys_actions_static.c    # Default static action implementations
 └── include/
-    ├── sys_actions.h        # SYS_ACTIONS_CLASS_HEADER, API declarations, scopes
+    ├── sys_actions.h        # API declarations, scopes (class byte is CONFIG_RX_PACKET_CLASS_SYS_ACTIONS, in components/utils/Kconfig)
     ├── sys_actions_static.h # Built-in static action slot IDs
     └── sys_error_actions.h  # sys_actions owner map + error tag map
 ```
@@ -38,7 +38,7 @@ components/system/sys_actions/
 
 ## Wire Protocol (Class `0x03`)
 
-Class byte `0x03` (`SYS_ACTIONS_CLASS_HEADER`) routes to `dec_sys_actions.h`:
+Class byte `0x03` (`CONFIG_RX_PACKET_CLASS_SYS_ACTIONS`) routes to `dec_sys_actions.h`:
 
 | Packet | Byte | Payload | Calls | Description |
 | :--- | :--- | :--- | :--- | :--- |

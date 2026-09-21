@@ -11,9 +11,6 @@
  * limit is the heap, and this exists so a runaway or malformed message is
  * rejected cleanly instead of consuming DRAM until something unrelated fails.
  */
-#define VM_DYN_MAX 128
-#define VM_DYN_MAX_DEPTH 16  // maximum dynamic nodes on an ownership path
-
 #define VM_OWNERSHIP_CYCLE 0u
 #define VM_OWNERSHIP_DEPTH 1u
 
@@ -28,7 +25,7 @@ typedef struct vm_obj_dyn_meta_t {
 
 /** @brief The register. Public only because vm_obj_dyn_get_id() and
  *  vm_obj_dyn_get_by_id() are inline; vm_obj_dyn.c owns every mutation of it. */
-extern vm_obj_dyn_meta_t g_vm_dyn[VM_DYN_MAX];
+extern vm_obj_dyn_meta_t g_vm_dyn[CONFIG_VM_DYN_MAX];
 
 // ===========================================================================
 // 2. Helpers (Inspection & Registry Accessors)
@@ -51,7 +48,7 @@ static inline bool vm_obj_is_dynamic(vm_obj_h o) {
  *
  * The `dynamic` bit is tested first, and that test is what makes the register
  * safe to consult from a block body. Every object in a loaded program is an
- * arena object, so without it the common case is VM_DYN_MAX pointer compares
+ * arena object, so without it the common case is CONFIG_VM_DYN_MAX pointer compares
  * to conclude "not here" -- and a block that links on every pass would pay
  * that twice per call, inside the pass loop. With it, an arena object costs
  * one bit and the scan runs only for objects that can actually be in the
@@ -59,7 +56,7 @@ static inline bool vm_obj_is_dynamic(vm_obj_h o) {
  */
 static inline uint16_t vm_obj_dyn_get_id(vm_obj_h o) {
   if (!o || !o->head.f.dynamic) return VM_DYN_NO_ID;
-  for (uint16_t i = 0; i < VM_DYN_MAX; i++) {
+  for (uint16_t i = 0; i < CONFIG_VM_DYN_MAX; i++) {
     if (g_vm_dyn[i].obj == o) return i;
   }
   return VM_DYN_NO_ID;
@@ -67,9 +64,9 @@ static inline uint16_t vm_obj_dyn_get_id(vm_obj_h o) {
 
 /** @brief Direct register access by ID, for teardown, telemetry and debug listings.
  *  NULL where the slot is empty -- the register is sparse, so a walk covers
- *  [0, VM_DYN_MAX) and skips holes rather than stopping at the first one. */
+ *  [0, CONFIG_VM_DYN_MAX) and skips holes rather than stopping at the first one. */
 static inline vm_obj_h vm_obj_dyn_get_by_id(uint16_t id) {
-  return (id < VM_DYN_MAX) ? g_vm_dyn[id].obj : NULL;
+  return (id < CONFIG_VM_DYN_MAX) ? g_vm_dyn[id].obj : NULL;
 }
 
 // ===========================================================================

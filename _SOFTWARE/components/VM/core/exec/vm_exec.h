@@ -3,12 +3,6 @@
 #include "sys_error.h"
 #include "vm_block.h"
 
-/* ========================================================================= */
-/* Constants & Limits                                                        */
-/* ========================================================================= */
-
-#define VM_EXEC_MAX_SPAN_DEPTH 4   // Maximum nested span depth (e.g. FOR loops)
-#define VM_EXEC_BLOCK_WD_MS    20  // Max block execution duration before hang error
 
 /* ========================================================================= */
 /* Execution Modes & Control Commands                                        */

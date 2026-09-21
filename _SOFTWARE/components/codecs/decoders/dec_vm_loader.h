@@ -273,23 +273,23 @@ static inline err_h decoder_packet_vm_add_block(const uint8_t* body, size_t len)
   };
   size_t off = 14;
 
-  if (cfg.in_cnt > VM_BLOCK_MAX_IN || cfg.q_cnt > VM_BLOCK_MAX_OUT || cfg.en_cnt > VM_BLOCK_MAX_EN) {
+  if (cfg.in_cnt > CONFIG_VM_BLOCK_MAX_IN || cfg.q_cnt > CONFIG_VM_BLOCK_MAX_OUT || cfg.en_cnt > CONFIG_VM_BLOCK_MAX_EN) {
     SE_RET_ERR(ERR_VM_BLK_BAD_SHAPE, .blk_id = cfg.block_idx, .in_cnt = cfg.in_cnt, .q_cnt = cfg.q_cnt);
   }
 
-  uint16_t in_ids[VM_BLOCK_MAX_IN];
+  uint16_t in_ids[CONFIG_VM_BLOCK_MAX_IN];
   SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_add_block, off, len, (size_t)cfg.in_cnt * 2));
   dec_vm_u16_array(in_ids, body + off, cfg.in_cnt);
   off += (size_t)cfg.in_cnt * 2;
   cfg.in_acc_ids = cfg.in_cnt ? in_ids : NULL;
 
-  uint16_t out_ids[VM_BLOCK_MAX_OUT];
+  uint16_t out_ids[CONFIG_VM_BLOCK_MAX_OUT];
   SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_add_block, off, len, (size_t)cfg.q_cnt * 2));
   dec_vm_u16_array(out_ids, body + off, cfg.q_cnt);
   off += (size_t)cfg.q_cnt * 2;
   cfg.out_obj_ids = cfg.q_cnt ? out_ids : NULL;
 
-  uint16_t en_ids[VM_BLOCK_MAX_EN];
+  uint16_t en_ids[CONFIG_VM_BLOCK_MAX_EN];
   SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_add_block, off, len, (size_t)cfg.en_cnt * 2));
   dec_vm_u16_array(en_ids, body + off, cfg.en_cnt);
   off += (size_t)cfg.en_cnt * 2;
@@ -350,7 +350,7 @@ static inline err_h decoder_packet_vm_exec(const uint8_t* body, size_t len) {
 /* ========================================================================= */
 
 /**
- * @brief Class handler for VM_LOADER_CLASS_HEADER (0x04).
+ * @brief Class handler for RX_PACKET_CLASS_VM_LOADER (0x04).
  *
  * @param data Frame bytes with class byte stripped (data[0] is packet byte 0xYY).
  * @param len Total number of bytes available at @p data.
@@ -384,6 +384,6 @@ static inline err_h dec_vm_loader_decode(const uint8_t* data, size_t len) {
       return decoder_packet_vm_exec(body, body_len);
     default:
       ESP_LOGW(DEC_VM_LOADER_TAG, "unknown packet header 0x%02X", data[0]);
-      SE_RET_ERR(ERR_INTERFACE_UNKNOWN_PACKET, .class_header = VM_LOADER_CLASS_HEADER, .packet_header = data[0]);
+      SE_RET_ERR(ERR_INTERFACE_UNKNOWN_PACKET, .class_header = CONFIG_RX_PACKET_CLASS_VM_LOADER, .packet_header = data[0]);
   }
 }

@@ -10,12 +10,11 @@
  * @endcode
  */
 
-#include <stdint.h>
+#include <sdkconfig.h>
 #include "features.h"
 #include "sys_error.h"
 #include "sys_interface.h"
 
-#define SYS_FEATURES_CLASS_HEADER 0x05
 #define DEC_FEATURES_TAG "dec_features"
 
 #undef OWNER
@@ -233,6 +232,6 @@ static inline err_h dec_features_decode(const uint8_t* data, size_t len) {
 
     default:
       ESP_LOGW(DEC_FEATURES_TAG, "unknown features packet byte 0x%02X", packet_header);
-      SE_RET_ERR(ERR_INTERFACE_UNKNOWN_PACKET, .class_header = SYS_FEATURES_CLASS_HEADER, .packet_header = packet_header);
+      SE_RET_ERR(ERR_INTERFACE_UNKNOWN_PACKET, .class_header = CONFIG_RX_PACKET_CLASS_SYS_FEATURES, .packet_header = packet_header);
   }
 }

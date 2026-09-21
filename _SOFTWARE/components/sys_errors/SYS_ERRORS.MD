@@ -179,11 +179,11 @@ flowchart TD
         E --> U["SE_send(err)"]
         Phase2 --> U
         U --> V["se_log_error_chain()"]
-        V --> V1["sys_data_connector_send(CONN_ID_LOGS)"]
+        V --> V1["sys_data_connector_send(CONFIG_SYS_DATA_CONN_ID_LOGS)"]
         V --> V2["ESP_LOGE() (Serial Mirror)"]
         U --> W["SE_send_error_raw()"]
         W --> W1["enc_sys_errors_encode_chain()"]
-        W1 --> W2["sys_data_connector_send(CONN_ID_ERRORS)"]
+        W1 --> W2["sys_data_connector_send(CONFIG_SYS_DATA_CONN_ID_ERRORS)"]
         W2 --> W3["ble_provider_send() -> sys_ble_char_send()"]
     end
 
@@ -265,7 +265,7 @@ sequenceDiagram
         Log->>Log: se_log_error_chain(err)
         loop For each node
             Log->>Core: SE_describe_payload(tag, payload, desc)
-            Log->>Conn: sys_data_connector_send(CONN_ID_LOGS, line, len)
+            Log->>Conn: sys_data_connector_send(CONFIG_SYS_DATA_CONN_ID_LOGS, line, len)
             opt mirror_on_serial == true
                 Log->>Log: ESP_LOGE(TAG, "%s", line)
             end
@@ -276,7 +276,7 @@ sequenceDiagram
         Note over Log, BLE: 4b. Wire Encoding & Raw Transport
         Log->>Log: SE_send_error_raw(err)
         Log->>Core: enc_sys_errors_encode_chain(err, packet, max_len)
-        Log->>Conn: sys_data_connector_send(CONN_ID_ERRORS, packet, len)
+        Log->>Conn: sys_data_connector_send(CONFIG_SYS_DATA_CONN_ID_ERRORS, packet, len)
         Conn->>BLE: ble_provider_send(arg, frame, len)
         BLE->>BLE: sys_ble_char_send()
     end

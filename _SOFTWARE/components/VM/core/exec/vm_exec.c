@@ -26,11 +26,9 @@ err_h vm_exec_check_block_type(uint16_t blk_id, uint8_t block_type) {
    pass so every block in one pass agrees about what time it is. */
 uint64_t g_vm_pass_ms;
 
-/* The task runs on core 1 so a tight pass cannot starve BLE on core 0.
+/* The task runs on core CONFIG_VM_EXEC_TASK_CORE so a tight pass cannot starve BLE on core 0.
    Priority sits above the idle task and below the drivers and the BLE host --
    a late pass is a late pass, a late radio is a dropped connection. */
-#define VM_EXEC_TASK_PRIO 5
-#define VM_EXEC_TASK_CORE 1
 
 R_TASK_DEFINE(vm_exec_task_h, 6144);
 
@@ -156,7 +154,7 @@ static void wd_sample(void* arg) {
   if (cur != s_wd_last) s_wd_reported = false;
   if (cur != 0 && cur == s_wd_last && !s_wd_reported) {
     s_wd_reported = true;
-    SE_EMIT_ERR(ERR_VM_EXEC_BLOCK_HUNG, .block_idx = (uint16_t)(cur & 0xFFFFu), .ms = VM_EXEC_BLOCK_WD_MS);
+    SE_EMIT_ERR(ERR_VM_EXEC_BLOCK_HUNG, .block_idx = (uint16_t)(cur & 0xFFFFu), .ms = CONFIG_VM_EXEC_BLOCK_WD_MS);
   }
   s_wd_last = cur;
 }
@@ -184,7 +182,7 @@ static void clear_upd(void) {
      a refcount and reached through a parent's pointer slot -- but a parsed
      message is exactly the kind of thing a downstream block waits on, so they
      have to be swept too or freshness would work for arena objects only. */
-  for (uint16_t i = 0; i < VM_DYN_MAX; i++) {
+  for (uint16_t i = 0; i < CONFIG_VM_DYN_MAX; i++) {
     vm_obj_h o = vm_obj_dyn_get_by_id(i);
     if (o && o->head.f.upd_resetable) o->head.f.upd = 0;
   }
@@ -274,9 +272,9 @@ void vm_exec_run_range(uint16_t start, uint16_t end) {
     }
     return;
   }
-  if (unlikely(s_span_depth >= VM_EXEC_MAX_SPAN_DEPTH)) {
+  if (unlikely(s_span_depth >= CONFIG_VM_EXEC_MAX_SPAN_DEPTH)) {
     g_vm_block_fault = true;
-    SE_EMIT_ERR(ERR_VM_EXEC_SPAN_DEPTH, .block_idx = start, .depth = VM_EXEC_MAX_SPAN_DEPTH);
+    SE_EMIT_ERR(ERR_VM_EXEC_SPAN_DEPTH, .block_idx = start, .depth = CONFIG_VM_EXEC_MAX_SPAN_DEPTH);
     return;
   }
   s_span_depth++;
@@ -436,15 +434,15 @@ err_h vm_exec_start(void) {
     if (esp_timer_create(&args, &s_wd_timer) != ESP_OK) {
       SE_RET_ERR(ERR_BASE_NO_MEM, 0);
     }
-    (void)esp_timer_start_periodic(s_wd_timer, (uint64_t)VM_EXEC_BLOCK_WD_MS * 1000u);
+    (void)esp_timer_start_periodic(s_wd_timer, (uint64_t)CONFIG_VM_EXEC_BLOCK_WD_MS * 1000u);
   }
 
-  R_TASK_START_ON_CORE(vm_exec_task_h, vm_exec_task, NULL, VM_EXEC_TASK_PRIO, VM_EXEC_TASK_CORE);
+  R_TASK_START_ON_CORE(vm_exec_task_h, vm_exec_task, NULL, CONFIG_VM_EXEC_TASK_PRIO, CONFIG_VM_EXEC_TASK_CORE);
   if (vm_exec_task_h == NULL) {
     SE_RET_ERR(ERR_BASE_NO_MEM, 0);
   }
 
-  DBG(ESP_LOGI(TAG, "supervisor started on core %d, %u block types in the table", VM_EXEC_TASK_CORE, g_vm_blocks_cnt););
+  DBG(ESP_LOGI(TAG, "supervisor started on core %d, %u block types in the table", CONFIG_VM_EXEC_TASK_CORE, g_vm_blocks_cnt););
   return NULL;
 }
 

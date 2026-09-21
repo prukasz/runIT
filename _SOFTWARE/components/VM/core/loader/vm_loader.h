@@ -1,10 +1,9 @@
 #pragma once
+#include <sdkconfig.h>
 #include "sys_error.h"
 #include "vm_block_build.h"
 #include "vm_obj_access.h"
 #include "vm_obj_build.h"
-
-#define VM_LOADER_CLASS_HEADER 0x04  // Wire class byte for program upload
 
 typedef enum vm_load_state_e {
   VM_LOAD_EMPTY = 0,  // No storage; all ID lookups resolve to NULL

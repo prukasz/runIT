@@ -3452,10 +3452,6 @@ CONFIG_WL_SECTOR_SIZE=4096
 # end of Wear Levelling
 
 #
-# System Configuration
-#
-
-#
 # BLE Manager Options
 #
 CONFIG_SYS_BLE_MANAGER_TASK_PRIO=5
@@ -3473,16 +3469,6 @@ CONFIG_SYS_CB_QUEUE_LEN=16
 CONFIG_SYS_CB_TASK_STACK_SIZE=4096
 CONFIG_SYS_CB_TASK_PRIO=5
 CONFIG_SYS_CB_ROUTE_COUNT=16
-# default:
-CONFIG_SYS_CB_ROUTE_IO=0
-# default:
-CONFIG_SYS_CB_ROUTE_BLE=1
-# default:
-CONFIG_SYS_CB_ROUTE_PWR=2
-# default:
-CONFIG_SYS_CB_ROUTE_WIFI=3
-# default:
-CONFIG_SYS_CB_ROUTE_VM=4
 # end of Callbacks System Options
 
 #
@@ -3496,19 +3482,22 @@ CONFIG_SYS_ACTIONS_ID_SPACE=64
 CONFIG_SYS_ACTIONS_STATIC_SLOTS=16
 # default:
 CONFIG_SYS_ACTIONS_MAX_BLOB_SIZE=2048
-# default:
-CONFIG_SYS_ACTION_ID_BOOT=1
-# default:
-CONFIG_SYS_ACTION_ID_FREEZE=2
-# default:
-CONFIG_SYS_ACTION_ID_RESUME=3
-# default:
-CONFIG_SYS_ACTION_ID_SUSPEND=4
-# default:
-CONFIG_SYS_ACTION_ID_RESET=5
-# default:
-CONFIG_SYS_ACTION_ID_HARD_RESET=6
 # end of System Actions Options
+
+#
+# System Data Connector Options
+#
+# default:
+CONFIG_SYS_DATA_CONNECTOR_MAX=8
+# default:
+CONFIG_SYS_DATA_PROVIDER_MAX=8
+# default:
+CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX=4
+# default:
+CONFIG_SYS_DATA_CONNECTOR_NAME_MAX=16
+# default:
+CONFIG_SYS_DATA_CONNECTOR_MAX_PACKET_LEN=512
+# end of System Data Connector Options
 
 #
 # System Device Options
@@ -3533,53 +3522,12 @@ CONFIG_SYS_INTERFACE_RX_FRAME_CAP=512
 # end of System Interface Options
 
 #
-# System Data Connector Options
-#
-# default:
-CONFIG_SYS_DATA_CONNECTOR_MAX=8
-# default:
-CONFIG_SYS_DATA_PROVIDER_MAX=8
-# default:
-CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX=4
-# default:
-CONFIG_SYS_DATA_CONNECTOR_NAME_MAX=16
-# default:
-CONFIG_SYS_DATA_CONNECTOR_MAX_PACKET_LEN=512
-# default:
-CONFIG_SYS_DATA_HEADER_STATUS=0x01
-# default:
-CONFIG_SYS_DATA_HEADER_TX=0x02
-# default:
-CONFIG_SYS_DATA_HEADER_LOGS=0x03
-# default:
-CONFIG_SYS_DATA_HEADER_ERRORS=0x04
-# end of System Data Connector Options
-
-#
-# System Errors Options
-#
-# default:
-CONFIG_SYS_ERRORS_BUF_SIZE=1024
-# default:
-CONFIG_SYS_ERRORS_BLOCK_SIZE=32
-# default:
-CONFIG_SYS_ERRORS_LOG_LINE_MAX=512
-# default:
-CONFIG_SYS_ERRORS_PACKET_MAX=512
-# default:
-CONFIG_SYS_ERRORS_CONNECTOR_ID_LOGS=0
-# default:
-CONFIG_SYS_ERRORS_CONNECTOR_ID_ERRORS=1
-# end of System Errors Options
-
-#
 # System Power Management Options
 #
 CONFIG_SYS_POWER_DEFAULT_LIMIT_MV=21000
 CONFIG_SYS_POWER_DEFAULT_LIMIT_MA=5500
 CONFIG_SYS_POWER_DEFAULT_BUDGET_MW=115500
 # end of System Power Management Options
-# end of System Configuration
 
 #
 # runIT Board & Diagnostic Configuration
@@ -3603,6 +3551,172 @@ CONFIG_SYS_POWER_DEFAULT_BUDGET_MW=115500
 # default:
 # CONFIG_DBG_ENABLE_RUNIT is not set
 # end of Debug (DBG) Logging
+
+#
+# System-Wide Identity Assignments
+#
+
+#
+# Shared ID/slot registries coordinated across multiple components - not owned by a single module.
+#
+
+#
+# Callback Route Slots
+#
+# default:
+CONFIG_SYS_CB_ROUTE_IO=0
+# default:
+CONFIG_SYS_CB_ROUTE_BLE=1
+# default:
+CONFIG_SYS_CB_ROUTE_PWR=2
+# default:
+CONFIG_SYS_CB_ROUTE_WIFI=3
+# default:
+CONFIG_SYS_CB_ROUTE_VM=4
+# end of Callback Route Slots
+
+#
+# Static Action IDs
+#
+# default:
+CONFIG_SYS_ACTION_ID_BOOT=1
+# default:
+CONFIG_SYS_ACTION_ID_FREEZE=2
+# default:
+CONFIG_SYS_ACTION_ID_RESUME=3
+# default:
+CONFIG_SYS_ACTION_ID_SUSPEND=4
+# default:
+CONFIG_SYS_ACTION_ID_RESET=5
+# default:
+CONFIG_SYS_ACTION_ID_HARD_RESET=6
+# end of Static Action IDs
+
+#
+# Data Connector Registry
+#
+# default:
+CONFIG_SYS_DATA_CONN_ID_LOGS=0
+# default:
+CONFIG_SYS_DATA_CONN_ID_ERRORS=1
+# default:
+CONFIG_SYS_DATA_CONN_ID_TELEMETRY=2
+# default:
+CONFIG_SYS_DATA_CONN_ID_INTERFACE=3
+# default:
+CONFIG_SYS_DATA_CONN_ID_APP_BASE=4
+# end of Data Connector Registry
+
+#
+# Wire protocol: every frame leads with a PACKET_CLASS byte (what data/module it is). A PACKET_HEADER byte follows only when that class carries more than one packet type.
+#
+
+#
+# RX Packet Classes (inbound, sys_interface_decode dispatch)
+#
+# default:
+CONFIG_RX_PACKET_CLASS_SYS_CONTRACTS=0x01
+# default:
+CONFIG_RX_PACKET_CLASS_SYS_ACTIONS=0x03
+# default:
+CONFIG_RX_PACKET_CLASS_VM_LOADER=0x04
+# default:
+CONFIG_RX_PACKET_CLASS_SYS_FEATURES=0x05
+# end of RX Packet Classes (inbound, sys_interface_decode dispatch)
+
+#
+# TX Packet Classes (outbound, sys_data_connector stream framing)
+#
+# default:
+CONFIG_TX_PACKET_CLASS_STATUS=0x01
+# default:
+CONFIG_TX_PACKET_CLASS_TELEMETRY=0x02
+# default:
+CONFIG_TX_PACKET_CLASS_LOGS=0x03
+# default:
+CONFIG_TX_PACKET_CLASS_ERRORS=0x04
+# default:
+CONFIG_TX_PACKET_CLASS_INTERFACE=0x05
+# default:
+CONFIG_TX_PACKET_CLASS_VM_LOADER=0x04
+# end of TX Packet Classes (outbound, sys_data_connector stream framing)
+
+#
+# RX Packet Headers (inbound, per-class packet dispatch)
+#
+# default:
+CONFIG_RX_PACKET_HEADER_VM_SUBSCRIBE=0x47
+# end of RX Packet Headers (inbound, per-class packet dispatch)
+
+#
+# TX Packet Headers (outbound, per-class packet dispatch)
+#
+# default:
+CONFIG_TX_PACKET_HEADER_VM_SET_DATA=0x43
+# end of TX Packet Headers (outbound, per-class packet dispatch)
+# end of System-Wide Identity Assignments
+
+#
+# System Errors Options
+#
+# default:
+CONFIG_SYS_ERRORS_BUF_SIZE=1024
+# default:
+CONFIG_SYS_ERRORS_BLOCK_SIZE=32
+# default:
+CONFIG_SYS_ERRORS_LOG_LINE_MAX=512
+# default:
+CONFIG_SYS_ERRORS_PACKET_MAX=512
+# end of System Errors Options
+
+#
+# VM Configuration
+#
+
+#
+# VM Execution & Scheduling
+#
+# default:
+CONFIG_VM_EXEC_TASK_PRIO=5
+# default:
+CONFIG_VM_EXEC_TASK_CORE=1
+# default:
+CONFIG_VM_EXEC_MAX_SPAN_DEPTH=4
+# default:
+CONFIG_VM_EXEC_BLOCK_WD_MS=20
+# default:
+CONFIG_VM_EVENT_DEPTH=16
+# default:
+CONFIG_VM_OVERRIDE_BUF_SIZE=1024
+# end of VM Execution & Scheduling
+
+#
+# VM Block & Memory Limits
+#
+# default:
+CONFIG_VM_BLOCK_MAX_IN=16
+# default:
+CONFIG_VM_BLOCK_MAX_OUT=16
+# default:
+CONFIG_VM_BLOCK_MAX_EN=16
+# default:
+CONFIG_VM_STORE_MAX_POOL=131072
+# default:
+CONFIG_VM_ACCESSOR_MAX_DEPTH=8
+# default:
+CONFIG_VM_OBJ_COPY_MAX_DEPTH=8
+# default:
+CONFIG_VM_DYN_MAX=128
+# default:
+CONFIG_VM_DYN_MAX_DEPTH=16
+# default:
+CONFIG_VM_SUB_MAX_SUBSCRIBERS=128
+# default:
+CONFIG_VM_SUB_MAX_FRAME_LEN=512
+# default:
+CONFIG_VM_SUB_MAX_EMITTED_PER_PASS=256
+# end of VM Block & Memory Limits
+# end of VM Configuration
 # end of Component config
 
 # CONFIG_IDF_EXPERIMENTAL_FEATURES is not set

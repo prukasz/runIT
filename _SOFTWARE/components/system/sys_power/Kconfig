@@ -1,0 +1,22 @@
+menu "System Power Management Options"
+    config SYS_POWER_DEFAULT_LIMIT_MV
+        int "Default Power Voltage Limit (mV)"
+        default 21000
+        range 0 50000
+        help
+          Default system power voltage limit in mV.
+
+    config SYS_POWER_DEFAULT_LIMIT_MA
+        int "Default Power Current Limit (mA)"
+        default 5500
+        range 0 20000
+        help
+          Default system power current limit in mA.
+
+    config SYS_POWER_DEFAULT_BUDGET_MW
+        int "Default Power Budget Limit (mW)"
+        default 115500
+        range 0 1000000
+        help
+          Default system power budget limit in mW.
+endmenu

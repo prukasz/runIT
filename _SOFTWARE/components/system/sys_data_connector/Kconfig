@@ -1,0 +1,37 @@
+menu "System Data Connector Options"
+    config SYS_DATA_CONNECTOR_MAX
+        int "Maximum Connectors in Registry"
+        default 8
+        range 1 32
+        help
+          Maximum number of data connectors in the system registry.
+
+    config SYS_DATA_PROVIDER_MAX
+        int "Maximum Providers in Registry"
+        default 8
+        range 1 32
+        help
+          Maximum number of transport providers in the registry.
+
+    config SYS_DATA_CONNECTOR_PROVIDERS_MAX
+        int "Maximum Providers per Connector (TX/RX)"
+        default 4
+        range 1 16
+        help
+          Maximum number of providers that can be attached to a single connector
+          for fan-out (TX) or fan-in (RX).
+
+    config SYS_DATA_CONNECTOR_NAME_MAX
+        int "Maximum Connector Name Length"
+        default 16
+        range 8 64
+        help
+          Maximum length of diagnostic name string per connector.
+
+    config SYS_DATA_CONNECTOR_MAX_PACKET_LEN
+        int "Maximum Packet Length (bytes)"
+        default 512
+        range 64 4096
+        help
+          Default compile-time maximum packet / frame length for data connectors.
+endmenu

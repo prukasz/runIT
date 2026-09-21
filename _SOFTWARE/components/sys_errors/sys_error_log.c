@@ -58,7 +58,7 @@ void se_log_error_chain(err_h chain) {
                        SE_get_tag_name(node->tag), (long)node->tag, desc);
     if (len > 0) {
       size_t out_len = ((size_t)len < sizeof(line)) ? (size_t)len : sizeof(line) - 1u;
-      sys_data_connector_send(sys_data_connector_get(CONFIG_SYS_ERRORS_CONNECTOR_ID_LOGS), line, out_len);
+      sys_data_connector_send(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_LOGS), line, out_len);
     }
     if (s_log_state.mirror_on_serial) {
       bool previous = s_in_log_sink;
@@ -69,7 +69,7 @@ void se_log_error_chain(err_h chain) {
   }
   if (!complete) {
     const char warning[] = "<error chain truncated or corrupt>\n";
-    sys_data_connector_send(sys_data_connector_get(CONFIG_SYS_ERRORS_CONNECTOR_ID_LOGS), warning, sizeof(warning) - 1);
+    sys_data_connector_send(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_LOGS), warning, sizeof(warning) - 1);
   }
 }
 
@@ -92,7 +92,7 @@ static int se_log_vprintf(const char* fmt, va_list args) {
     if (len > 0) {
       // vsnprintf reports what it *would* have written - clamp to what it did.
       size_t out_len = ((size_t)len < sizeof(line)) ? (size_t)len : sizeof(line) - 1u;
-      sys_data_connector_send(sys_data_connector_get(CONFIG_SYS_ERRORS_CONNECTOR_ID_LOGS), line, out_len);
+      sys_data_connector_send(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_LOGS), line, out_len);
     }
     s_in_log_sink = false;
   }
@@ -129,7 +129,7 @@ err_h SE_send_error_raw(err_h chain) {
     return NULL;
   }
 
-  sys_data_connector_t* conn = sys_data_connector_get(CONFIG_SYS_ERRORS_CONNECTOR_ID_ERRORS);
+  sys_data_connector_t* conn = sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_ERRORS);
   size_t max_len = sys_data_connector_get_max_len(conn);
   uint8_t packet[CONFIG_SYS_ERRORS_PACKET_MAX];
   if (max_len > sizeof(packet)) {

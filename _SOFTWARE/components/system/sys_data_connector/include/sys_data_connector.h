@@ -20,13 +20,14 @@
 // -----------------------------------------------------------------------------
 // Well-Known System Connector IDs
 // -----------------------------------------------------------------------------
-typedef enum {
-  CONN_ID_LOGS = 0,         /**< Outbound text logs (ESP_LOG / se_log_vprintf). */
-  CONN_ID_ERRORS,           /**< Outbound binary encoded error telemetry. */
-  CONN_ID_TELEMETRY,        /**< Outbound VM object telemetry streams. */
-  CONN_ID_INTERFACE,        /**< Bi-directional control frames (sys_interface). */
-  CONN_ID_APP_BASE = 4      /**< Base ID for dynamic/custom app connectors. */
-} sys_data_conn_id_e;
+// Registry slot for each built-in connector - CONFIG_SYS_DATA_CONN_ID_LOGS,
+// CONFIG_SYS_DATA_CONN_ID_ERRORS, CONFIG_SYS_DATA_CONN_ID_TELEMETRY,
+// CONFIG_SYS_DATA_CONN_ID_INTERFACE, CONFIG_SYS_DATA_CONN_ID_APP_BASE (first
+// free slot for dynamic/custom app connectors) - see components/utils/Kconfig's
+// "Data Connector Registry" menu. A plain uint8_t id, not an enum: a connector
+// is direction-agnostic (both TX and RX bindings share one connector), so
+// there's nothing a typed enum adds over the raw slot number every API here
+// already takes.
 
 // -----------------------------------------------------------------------------
 // Well-Known Provider IDs

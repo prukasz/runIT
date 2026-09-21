@@ -1,1 +1,36 @@
-# System interface Kconfig (master options are in ble/Kconfig -> components/system/Kconfig)
+menu "System Interface Options"
+    config SYS_INTERFACE_RX_TASK_STACK_SIZE
+        int "RX Receiver Task Stack Size (bytes)"
+        default 4096
+        range 1024 32768
+        help
+          Stack size in bytes for shared RX receiver task.
+
+    config SYS_INTERFACE_RX_TASK_PRIO
+        int "RX Receiver Task Priority"
+        default 5
+        range 1 24
+        help
+          Priority of shared RX receiver task.
+
+    config SYS_INTERFACE_RX_WAIT_MS
+        int "RX Receiver Task Wait/Poll Period (ms)"
+        default 100
+        range 10 1000
+        help
+          Wait/poll period in ms for RX receiver task.
+
+    config SYS_INTERFACE_MAX_CLASSES
+        int "Maximum Registered Class Handlers"
+        default 8
+        range 2 32
+        help
+          Maximum number of registered class handlers.
+
+    config SYS_INTERFACE_RX_FRAME_CAP
+        int "Maximum RX Frame Capacity (bytes)"
+        default 512
+        range 64 4096
+        help
+          Maximum frame size accepted by RX receiver.
+endmenu

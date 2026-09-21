@@ -5,15 +5,6 @@
 #include "sys_error.h"
 
 /**
- * @brief Class byte for sys_actions' own control packets.
- *
- * Owned here (not by the codec header) because it is sys_actions' own
- * control-plane protocol, 1:1 with this component - see dec_sys_actions.h in
- * `codecs`, which just maps this class's packet bytes onto the calls below.
- */
-#define SYS_ACTIONS_CLASS_HEADER 0x03
-
-/**
  * @brief Action scopes:
  * - 0x00: Static action (compile-time function pointer table)
  * - 0x01: Dynamic action (runtime/NVS recorded frame sequence, max 2 KB)
@@ -81,7 +72,7 @@ err_h sys_action_remove_all(void);
 
 /**
  * @brief Start recording: subsequent frames observed by sys_interface (of
- * any class except SYS_ACTIONS_CLASS_HEADER itself) are appended to id's
+ * any class except RX_PACKET_CLASS_SYS_ACTIONS itself) are appended to id's
  * blob in RAM, until sys_action_record_stop() persists it.
  *
  * Only one action may record at a time. The action ID is remembered internally.

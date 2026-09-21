@@ -1,0 +1,52 @@
+menu "System Actions Options"
+    config SYS_ACTIONS_TAP_BUFFER_SIZE
+        int "Actions Tap Buffer Size (bytes)"
+        default 1024
+        range 128 16384
+        help
+          Actions tap ring buffer capacity in bytes.
+
+    config SYS_ACTIONS_TAP_TASK_STACK
+        int "Actions Tap Task Stack Size (bytes)"
+        default 4096
+        range 1024 32768
+        help
+          Stack size in bytes for actions tap task.
+
+    config SYS_ACTIONS_TAP_TASK_PRIO
+        int "Actions Tap Task Priority"
+        default 4
+        range 1 24
+        help
+          Priority of actions tap task.
+
+    config SYS_ACTIONS_TAP_POLL_MS
+        int "Actions Tap Poll Interval (ms)"
+        default 20
+        range 1 1000
+        help
+          Polling interval in milliseconds for actions tap task.
+
+    config SYS_ACTIONS_ID_SPACE
+        int "Total Action ID Space Size"
+        default 64
+        range 8 256
+        help
+          Total action ID space (0..ID_SPACE-1).
+
+    config SYS_ACTIONS_STATIC_SLOTS
+        int "Static Action Slots Count"
+        default 16
+        range 1 64
+        help
+          Number of static action slots (0..STATIC_SLOTS-1). See
+          components/utils/Kconfig's "System-Wide Identity Assignments" for
+          the individual default static action ID assignments.
+
+    config SYS_ACTIONS_MAX_BLOB_SIZE
+        int "Maximum Dynamic Action Blob Size (bytes)"
+        default 2048
+        range 128 16384
+        help
+          Maximum blob size per dynamic action.
+endmenu

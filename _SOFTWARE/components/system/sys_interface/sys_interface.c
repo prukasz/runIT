@@ -124,9 +124,9 @@ err_h sys_interface_init(void) {
       .buff = s_tap_ringbuffer,
       .truncated = 0,
   };
-  SE_RET_IF_ERR(sys_interface_register_decoder(SYS_CONTRACTS_CLASS_HEADER, dec_sys_contracts_decode, "sys_contracts"));
-  SE_RET_IF_ERR(sys_interface_register_decoder(VM_LOADER_CLASS_HEADER, dec_vm_loader_decode, "vm_loader"));
-  SE_RET_IF_ERR(sys_interface_register_decoder(SYS_FEATURES_CLASS_HEADER, dec_features_decode, "features"));
+  SE_RET_IF_ERR(sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_SYS_CONTRACTS, dec_sys_contracts_decode, "sys_contracts"));
+  SE_RET_IF_ERR(sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_VM_LOADER, dec_vm_loader_decode, "vm_loader"));
+  SE_RET_IF_ERR(sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_SYS_FEATURES, dec_features_decode, "features"));
 
   sys_data_connector_t* conn = sys_data_connector_get(SYS_INTERFACE_CONNECTOR_ID);
   if (!conn) {

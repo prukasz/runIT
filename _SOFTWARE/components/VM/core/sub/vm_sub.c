@@ -13,16 +13,14 @@
 #define OWNER OWNER_VM_BASE
 #define TAG "vm_sub"
 
-#define MAX_EMITTED_PER_PASS 256
-
-static uint16_t s_subscribed_ids[VM_SUB_MAX_SUBSCRIBERS];
+static uint16_t s_subscribed_ids[CONFIG_VM_SUB_MAX_SUBSCRIBERS];
 static uint16_t s_sub_count = 0;
 
-static uint16_t s_emitted[MAX_EMITTED_PER_PASS];
+static uint16_t s_emitted[CONFIG_VM_SUB_MAX_EMITTED_PER_PASS];
 static uint16_t s_emitted_count = 0;
 
 typedef struct {
-  uint8_t buf[VM_SUB_MAX_FRAME_LEN];
+  uint8_t buf[CONFIG_VM_SUB_MAX_FRAME_LEN];
   size_t len;
   uint8_t count;
 } sub_frame_t;
@@ -47,14 +45,14 @@ static bool is_already_emitted(uint16_t id) {
 }
 
 static void mark_emitted(uint16_t id) {
-  if (s_emitted_count < MAX_EMITTED_PER_PASS) {
+  if (s_emitted_count < CONFIG_VM_SUB_MAX_EMITTED_PER_PASS) {
     s_emitted[s_emitted_count++] = id;
   }
 }
 
 static void frame_init(sub_frame_t* f) {
-  f->buf[0] = VM_SUB_CLASS_HEADER;
-  f->buf[1] = VM_SUB_PACKET_SET_DATA;
+  f->buf[0] = CONFIG_TX_PACKET_CLASS_VM_LOADER;
+  f->buf[1] = CONFIG_TX_PACKET_HEADER_VM_SET_DATA;
   f->buf[2] = 0;
   f->len = 3;
   f->count = 0;
@@ -99,7 +97,7 @@ static void frame_flush(sub_frame_t* f) {
     ESP_LOGI(TAG, "  Frame Hex: [ %s%s]", hex_buf, (f->len * 3 >= sizeof(hex_buf)) ? "..." : "");
   );
 
-  sys_data_connector_send(sys_data_connector_get(CONN_ID_TELEMETRY), f->buf, f->len);
+  sys_data_connector_send(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_TELEMETRY), f->buf, f->len);
   frame_init(f);
 }
 
@@ -117,13 +115,13 @@ static void frame_append_obj(sub_frame_t* f, uint16_t id, vm_obj_h o) {
   }
 
   // If adding this record exceeds maximum frame length, flush the current frame
-  if (f->len + 6 + byte_len > VM_SUB_MAX_FRAME_LEN) {
+  if (f->len + 6 + byte_len > CONFIG_VM_SUB_MAX_FRAME_LEN) {
     frame_flush(f);
   }
 
   // If a single record alone is larger than remaining space in an empty frame, cap to frame limit
-  if (f->len + 6 + byte_len > VM_SUB_MAX_FRAME_LEN) {
-    byte_len = (uint16_t)(VM_SUB_MAX_FRAME_LEN - f->len - 6);
+  if (f->len + 6 + byte_len > CONFIG_VM_SUB_MAX_FRAME_LEN) {
+    byte_len = (uint16_t)(CONFIG_VM_SUB_MAX_FRAME_LEN - f->len - 6);
   }
 
   uint8_t* p = f->buf + f->len;
@@ -193,8 +191,8 @@ err_h vm_sub_init(void) {
 }
 
 err_h vm_sub_subscribe(const uint16_t* ids, uint16_t count) {
-  if (count > VM_SUB_MAX_SUBSCRIBERS) {
-    SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = count, .min = 0, .max = VM_SUB_MAX_SUBSCRIBERS);
+  if (count > CONFIG_VM_SUB_MAX_SUBSCRIBERS) {
+    SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = count, .min = 0, .max = CONFIG_VM_SUB_MAX_SUBSCRIBERS);
   }
 
   s_sub_count = 0;
@@ -210,13 +208,13 @@ err_h vm_sub_subscribe(const uint16_t* ids, uint16_t count) {
 err_h vm_sub_handle_packet(const uint8_t* body, size_t len) {
   SE_CHECK_NOT_NULL(body);
   if (len < 1) {
-    SE_RET_ERR(ERR_VM_LOAD_SHORT_RECORD, .packet = VM_SUB_PACKET_SUBSCRIBE, .need = 1, .got = (uint16_t)len);
+    SE_RET_ERR(ERR_VM_LOAD_SHORT_RECORD, .packet = CONFIG_RX_PACKET_HEADER_VM_SUBSCRIBE, .need = 1, .got = (uint16_t)len);
   }
 
   uint8_t count = body[0];
   size_t need = 1u + (size_t)count * 2u;
   if (count > 0 && len < need) {
-    SE_RET_ERR(ERR_VM_LOAD_SHORT_RECORD, .packet = VM_SUB_PACKET_SUBSCRIBE, .need = (uint16_t)need, .got = (uint16_t)len);
+    SE_RET_ERR(ERR_VM_LOAD_SHORT_RECORD, .packet = CONFIG_RX_PACKET_HEADER_VM_SUBSCRIBE, .need = (uint16_t)need, .got = (uint16_t)len);
   }
 
   if (count == 0) {
@@ -224,10 +222,10 @@ err_h vm_sub_handle_packet(const uint8_t* body, size_t len) {
     return NULL;
   }
 
-  uint16_t ids[VM_SUB_MAX_SUBSCRIBERS];
+  uint16_t ids[CONFIG_VM_SUB_MAX_SUBSCRIBERS];
   uint16_t actual_cnt = count;
-  if (actual_cnt > VM_SUB_MAX_SUBSCRIBERS) {
-    actual_cnt = VM_SUB_MAX_SUBSCRIBERS;
+  if (actual_cnt > CONFIG_VM_SUB_MAX_SUBSCRIBERS) {
+    actual_cnt = CONFIG_VM_SUB_MAX_SUBSCRIBERS;
   }
 
   for (uint16_t i = 0; i < actual_cnt; i++) {

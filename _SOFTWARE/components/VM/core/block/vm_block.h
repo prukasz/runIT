@@ -1,6 +1,9 @@
 #pragma once
+#include <sdkconfig.h>
 #include "vm_obj_access.h"
 
+/** @brief Sentinel for unwired pin or absent ENO. */
+#define VM_BLOCK_NO_ID 0xFFFFu
 /*
  * VM Block Execution Model & API
  *
@@ -23,10 +26,6 @@
 // ===========================================================================
 // 1. Constants & Bitflags
 // ===========================================================================
-
-#define VM_BLOCK_MAX_IN  16
-#define VM_BLOCK_MAX_OUT 16
-#define VM_BLOCK_MAX_EN  16
 
 /** @brief Enable evaluation mode across en_cnt sources. */
 #define VM_BLK_EN_ANY 0x00u  // OR / branch merge

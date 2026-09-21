@@ -1,7 +1,6 @@
 #pragma once
+#include <sdkconfig.h>
 #include "sys_error.h"
-
-#define VM_OVERRIDE_BUF_SIZE 1024
 
 typedef struct __attribute__((packed)) {
   uint16_t id;

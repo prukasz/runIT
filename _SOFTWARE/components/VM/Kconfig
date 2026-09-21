@@ -1,0 +1,113 @@
+menu "VM Configuration"
+
+    menu "VM Execution & Scheduling"
+
+        config VM_EXEC_TASK_PRIO
+            int "Supervisor task priority"
+            default 5
+            help
+                FreeRTOS task priority for the VM execution supervisor.
+
+        config VM_EXEC_TASK_CORE
+            int "Supervisor task pinned core"
+            default 1
+            help
+                Core affinity for VM supervisor task (default 1 to keep core 0 free for BLE).
+
+        config VM_EXEC_MAX_SPAN_DEPTH
+            int "Maximum nested execution span depth"
+            default 4
+            help
+                Maximum nested loop/span depth allowed during block execution.
+
+        config VM_EXEC_BLOCK_WD_MS
+            int "Block watchdog timeout (ms)"
+            default 20
+            help
+                Maximum duration in milliseconds a single block may execute before timing out.
+
+        config VM_EVENT_DEPTH
+            int "VM incoming event queue depth"
+            default 16
+            help
+                Capacity of the ring buffer receiving events between cycles.
+
+        config VM_OVERRIDE_BUF_SIZE
+            int "VM variable override ring buffer size (bytes)"
+            default 1024
+            help
+                Byte capacity of the runtime variable override ring buffer.
+
+    endmenu
+
+    menu "VM Block & Memory Limits"
+
+        config VM_BLOCK_MAX_IN
+            int "Maximum input accessors per block"
+            default 16
+            help
+                Maximum number of input accessors allowed for a single VM execution block.
+
+        config VM_BLOCK_MAX_OUT
+            int "Maximum output objects per block"
+            default 16
+            help
+                Maximum number of output objects allowed for a single VM execution block.
+
+        config VM_BLOCK_MAX_EN
+            int "Maximum enable accessors per block"
+            default 16
+            help
+                Maximum number of enable accessors allowed for a single VM execution block.
+
+        config VM_STORE_MAX_POOL
+            int "Maximum program arena pool size (bytes)"
+            default 131072
+            help
+                Hard ceiling in bytes for the bump-allocated program storage arena.
+
+        config VM_ACCESSOR_MAX_DEPTH
+            int "Maximum accessor path resolution depth"
+            default 8
+            help
+                Maximum chain depth when resolving nested accessor paths.
+
+        config VM_OBJ_COPY_MAX_DEPTH
+            int "Maximum object copy recursion depth"
+            default 8
+            help
+                Maximum tree recursion depth allowed when copying objects.
+
+        config VM_DYN_MAX
+            int "Maximum concurrent dynamic objects"
+            default 128
+            help
+                Upper ceiling of live dynamically registered objects on the heap.
+
+        config VM_DYN_MAX_DEPTH
+            int "Maximum dynamic DAG ownership depth"
+            default 16
+            help
+                Maximum allowed ownership path depth in dynamic object graph.
+
+        config VM_SUB_MAX_SUBSCRIBERS
+            int "Maximum subscribed object IDs"
+            default 128
+            help
+                Maximum count of object IDs that can be subscribed to simultaneously.
+
+        config VM_SUB_MAX_FRAME_LEN
+            int "Maximum telemetry frame length (bytes)"
+            default 512
+            help
+                Maximum byte size of a generated telemetry output packet.
+
+        config VM_SUB_MAX_EMITTED_PER_PASS
+            int "Maximum emitted update objects per pass"
+            default 256
+            help
+                Maximum count of updated object IDs processed in a single scan pass.
+
+    endmenu
+
+endmenu

@@ -157,7 +157,7 @@ static err_h grow_and_append(sys_action_t** io_action, const uint8_t* frame, siz
  */
 static void sys_actions_on_frame_locked(const uint8_t* frame, size_t len) {
   /** Exclude action-control packets, including the live record-stop command. */
-  if (len == 0 || frame[0] == SYS_ACTIONS_CLASS_HEADER) return;
+  if (len == 0 || frame[0] == CONFIG_RX_PACKET_CLASS_SYS_ACTIONS) return;
 
   if (s_has_recording) {
     /** Recording is best-effort once the configured blob limit is reached. */
@@ -198,7 +198,7 @@ err_h sys_actions_init(void) {
   SE_RET_IF_ESP_ERR(nvs_flash_init());
   SE_RET_IF_ESP_ERR(nvs_open(SYS_ACTIONS_NVS_NAMESPACE, NVS_READWRITE, &s_nvs));
 
-  SE_RET_IF_ERR(sys_interface_register_decoder(SYS_ACTIONS_CLASS_HEADER, dec_sys_actions_decode, "sys_actions"));
+  SE_RET_IF_ERR(sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_SYS_ACTIONS, dec_sys_actions_decode, "sys_actions"));
   if (s_actions_tap_task_handle == NULL) {
     R_TASK_START(s_actions_tap_task_handle, sys_actions_tap_task, NULL, CONFIG_SYS_ACTIONS_TAP_TASK_PRIO);
     if (s_actions_tap_task_handle == NULL) {

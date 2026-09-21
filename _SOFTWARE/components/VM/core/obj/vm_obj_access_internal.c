@@ -168,7 +168,7 @@ err_h vm_internal_acc_resolve_deep(const vm_accessor_t* acc, uint8_t depth, vm_o
   if (acc->count) SE_CHECK_NOT_NULL(acc->indices);
   *out = (vm_obj_payload_t){.ptr = NULL, .owner = NULL, .count = 0, .type = VM_OBJ_NONE, ._pad = 0};
 
-  if (unlikely(depth >= VM_ACCESSOR_MAX_DEPTH)) return vm_err_depth(acc->id);
+  if (unlikely(depth >= CONFIG_VM_ACCESSOR_MAX_DEPTH)) return vm_err_depth(acc->id);
 
   vm_obj_h obj = vm_obj_get_by_id(acc->id);
   if (unlikely(!obj)) return vm_err_unknown_id(acc->id);
@@ -187,7 +187,7 @@ err_h vm_internal_acc_resolve_deep(const vm_accessor_t* acc, uint8_t depth, vm_o
         // fit in MAX_DEPTH frames.
         vm_obj_payload_t sub;
         err_h e = NULL;
-        if (!(depth + 1 < VM_ACCESSOR_MAX_DEPTH && vm_acc_resolve_fast(idx->ref, &sub)))
+        if (!(depth + 1 < CONFIG_VM_ACCESSOR_MAX_DEPTH && vm_acc_resolve_fast(idx->ref, &sub)))
           e = vm_internal_acc_resolve_deep(idx->ref, depth + 1, &sub);
         if (!e) e = payload_as_index(&index, sub, idx->ref);
         if (unlikely(e)) return vm_err_index_failed(e, acc->id, i);
@@ -346,7 +346,7 @@ static err_h copy_tree(vm_obj_payload_t s, vm_obj_payload_t d, vm_obj_h d_owner,
   if (unlikely(s.type != d.type || s.count != d.count)) {
     SE_RET_ERR(ERR_VM_OBJ_COPY_MISMATCH, .src_type = s.type, .dst_type = d.type, .src_size = s.count, .dst_size = d.count);
   }
-  if (unlikely(depth >= VM_OBJ_COPY_MAX_DEPTH)) {
+  if (unlikely(depth >= CONFIG_VM_OBJ_COPY_MAX_DEPTH)) {
     SE_RET_ERR(ERR_VM_OBJ_COPY_SHAPE, .index = 0, .depth = depth, .reason = VM_COPY_SHAPE_DEPTH);
   }
 
@@ -385,7 +385,7 @@ bool vm_internal_shape_matches(vm_obj_h a, vm_obj_h b, uint8_t depth, bool schem
                                      b->payload + b->head.payload_size, a->head.d.name_size)) return false;
   }
   if ((vm_obj_t_e)a->head.d.obj_t != VM_OBJ_PTR) return true;
-  if (unlikely(depth >= VM_OBJ_COPY_MAX_DEPTH)) return false;
+  if (unlikely(depth >= CONFIG_VM_OBJ_COPY_MAX_DEPTH)) return false;
 
   vm_obj_h* ka = (vm_obj_h*)a->payload;
   vm_obj_h* kb = (vm_obj_h*)b->payload;
@@ -428,7 +428,7 @@ of the pass that filled it -- a snapshot is news once, not forever.
 */
 err_h vm_internal_clone_shape(vm_obj_h* out, vm_obj_h src, uint8_t depth) {
   *out = NULL;
-  if (unlikely(src->head.d.obj_t == VM_OBJ_PTR && depth >= VM_OBJ_COPY_MAX_DEPTH)) {
+  if (unlikely(src->head.d.obj_t == VM_OBJ_PTR && depth >= CONFIG_VM_OBJ_COPY_MAX_DEPTH)) {
     SE_RET_ERR(ERR_VM_OBJ_COPY_SHAPE, .index = 0, .depth = depth, .reason = VM_COPY_SHAPE_DEPTH);
   }
 

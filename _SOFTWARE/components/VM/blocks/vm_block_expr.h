@@ -268,7 +268,7 @@ static inline float vm_expr_root_f(float x, float n) {
 static inline bool vm_expr_eval_f(vm_block_h b, vm_expr_code_t* c, float* out) {
   const uint8_t* code = vm_expr_bytecode(c);
   float st[VM_EXPR_STACK_MAX];
-  float in[VM_BLOCK_MAX_IN];
+  float in[CONFIG_VM_BLOCK_MAX_IN];
   uint16_t loaded = 0;
   uint8_t sp = 0;
   uint16_t pc = 0;
@@ -431,7 +431,7 @@ static inline uint32_t vm_expr_rotr32(uint32_t x, uint32_t n) {
 static inline bool vm_expr_eval_bit(vm_block_h b, vm_expr_code_t* c, uint32_t* out) {
   const uint8_t* code = vm_expr_bytecode(c);
   uint32_t st[VM_EXPR_STACK_MAX];
-  uint32_t in[VM_BLOCK_MAX_IN];
+  uint32_t in[CONFIG_VM_BLOCK_MAX_IN];
   uint16_t loaded = 0;
   uint8_t sp = 0;
   uint16_t pc = 0;

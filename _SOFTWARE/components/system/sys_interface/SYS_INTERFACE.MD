@@ -38,7 +38,7 @@ Up to `SYS_INTERFACE_MAX_CLASSES` (8) classes can be bound at once. The registry
 
 ```
 Transport (e.g. BLE peer write, UART, etc.)
-   -> linked to sys_data_connector (CONN_ID_INTERFACE)
+   -> linked to sys_data_connector (CONFIG_SYS_DATA_CONN_ID_INTERFACE)
    -> provider signals conn->data_present semaphore
    -> sys_interface_receiver_task   (wakes on conn->data_present, or every SYS_INTERFACE_RX_WAIT_MS)
    -> [suspended? -> leave queued in transport, don't drain]
@@ -59,10 +59,10 @@ Errors from a decoder are emitted with `SE_ORIGIN_CALL()` inside the receiver ta
 ## Public API
 
 ### `err_h sys_interface_init(void)`
-Clears the class registry, initializes the interface data connector (`CONN_ID_INTERFACE`), binds built-in classes (`0x01` system contracts, `0x04` VM loader), and starts `sys_interface_receiver_task`.
+Clears the class registry, initializes the interface data connector (`CONFIG_SYS_DATA_CONN_ID_INTERFACE`), binds built-in classes (`0x01` system contracts, `0x04` VM loader), and starts `sys_interface_receiver_task`.
 
 ### `err_h sys_interface_send(const void* data, size_t len)`
-Dispatches outbound data over the virtual interface connector (`CONN_ID_INTERFACE`) to all bound TX providers via `sys_data_connector_send()`.
+Dispatches outbound data over the virtual interface connector (`CONFIG_SYS_DATA_CONN_ID_INTERFACE`) to all bound TX providers via `sys_data_connector_send()`.
 
 ### `err_h sys_interface_register_decoder(uint8_t decoder_header, sys_interface_handler_f decoder, const char* name)`
 Registers a decoder table for a class byte. `name` is used in logs only and may be `NULL`. Decoders are only ever appended (`s_decoders[0..s_decoder_count-1]`) — there is no unregister. Register classes during boot before processing frames.

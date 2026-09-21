@@ -60,10 +60,10 @@ err_h sys_data_connector_register_provider(const sys_data_provider_driver_t* dri
 
 err_h sys_data_connector_init(void) {
   static const sys_data_connector_cfg_t s_system_connectors[] = {
-      {.id = CONN_ID_LOGS,      .name = "logs",      .header = CONFIG_SYS_DATA_HEADER_LOGS},
-      {.id = CONN_ID_ERRORS,    .name = "errors",    .header = CONFIG_SYS_DATA_HEADER_ERRORS},
-      {.id = CONN_ID_TELEMETRY, .name = "telemetry", .header = CONFIG_SYS_DATA_HEADER_TX},
-      {.id = CONN_ID_INTERFACE, .name = "interface", .header = CONFIG_SYS_DATA_HEADER_TX},
+      {.id = CONFIG_SYS_DATA_CONN_ID_LOGS,      .name = "logs",      .header = CONFIG_TX_PACKET_CLASS_LOGS},
+      {.id = CONFIG_SYS_DATA_CONN_ID_ERRORS,    .name = "errors",    .header = CONFIG_TX_PACKET_CLASS_ERRORS},
+      {.id = CONFIG_SYS_DATA_CONN_ID_TELEMETRY, .name = "telemetry", .header = CONFIG_TX_PACKET_CLASS_TELEMETRY},
+      {.id = CONFIG_SYS_DATA_CONN_ID_INTERFACE, .name = "interface", .header = CONFIG_TX_PACKET_CLASS_INTERFACE},
   };
 
   for (size_t i = 0; i < sizeof(s_system_connectors) / sizeof(s_system_connectors[0]); i++) {

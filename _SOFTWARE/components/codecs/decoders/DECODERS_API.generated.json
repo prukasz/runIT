@@ -1,10 +1,14 @@
 {
   "classes": {
-    "SYS_FEATURES": "0x05",
     "SYS_CONTRACTS": "0x01",
     "SYS_ACTIONS": "0x03",
     "VM_LOADER": "0x04",
-    "VM_SUB": "0x04"
+    "SYS_FEATURES": "0x05",
+    "STATUS": "0x01",
+    "TELEMETRY": "0x02",
+    "LOGS": "0x03",
+    "ERRORS": "0x04",
+    "INTERFACE": "0x05"
   },
   "enums": {
     "ads7128_alert_region_e": [
@@ -179,28 +183,6 @@
       [
         5,
         "CALLBACK_MAX"
-      ]
-    ],
-    "sys_data_conn_id_e": [
-      [
-        0,
-        "CONN_ID_LOGS"
-      ],
-      [
-        1,
-        "CONN_ID_ERRORS"
-      ],
-      [
-        2,
-        "CONN_ID_TELEMETRY"
-      ],
-      [
-        3,
-        "CONN_ID_INTERFACE"
-      ],
-      [
-        4,
-        "CONN_ID_APP_BASE"
       ]
     ],
     "sys_data_provider_id_e": [
@@ -507,7 +489,6 @@
         "SYS_PWR_EVENT_OTP"
       ]
     ],
-    "sys_owner_e": [],
     "sys_device_err_level_e": [
       [
         0,
@@ -530,6 +511,7 @@
         "SYS_DEV_ERR_CRITICAL"
       ]
     ],
+    "sys_owner_e": [],
     "err_tag_e": [],
     "vm_edge_type_e": [
       [

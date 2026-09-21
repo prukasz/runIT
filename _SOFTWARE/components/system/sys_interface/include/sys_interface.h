@@ -4,7 +4,7 @@
 #include "sys_data_connector.h"
 #include <sdkconfig.h>
 
-#define SYS_INTERFACE_CONNECTOR_ID CONN_ID_INTERFACE
+#define SYS_INTERFACE_CONNECTOR_ID CONFIG_SYS_DATA_CONN_ID_INTERFACE
 
 /**
  * @file sys_interface.h
@@ -56,7 +56,7 @@ err_h convert_to_packet(const uint8_t* data, size_t len, void* packet, size_t pa
  * @brief Reset the class registry and register the built-in system contracts class.
  *
  * Must be called once at boot, before sys_interface_register_decoder() or
- * sys_interface_register_rx_source(). Class 0x01 (SYS_CONTRACTS_CLASS_HEADER) is wired
+ * sys_interface_register_rx_source(). Class 0x01 (RX_PACKET_CLASS_SYS_CONTRACTS) is wired
  * to the header-only table in `dec_sys_contracts.h`.
  *
  * @return err_h Status report (NULL on success).
@@ -150,7 +150,7 @@ bool sys_interface_is_rx_suspended(void);
 /**
  * @brief Transmit data over the system interface data connector.
  *
- * Dispatches @p data over CONN_ID_INTERFACE via sys_data_connector_send().
+ * Dispatches @p data over SYS_INTERFACE_CONNECTOR_ID via sys_data_connector_send().
  *
  * @param data Outbound payload buffer.
  * @param len Length in bytes.

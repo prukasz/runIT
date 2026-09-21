@@ -1,4 +1,5 @@
 #pragma once
+#include <sdkconfig.h>
 #include "sys_callbacks.h"
 #include "sys_error.h"
 
@@ -7,8 +8,6 @@ Events bridge system callbacks into the running VM pass:
   sys_callbacks (Core 0) -> [ s_vm_event_q ] -> vm_event_drain() -> [ s_cycle snapshot ] (Core 1)
 Buffered as cb_event_t; valid for the duration of one scan cycle, lock-free to query.
 */
-
-#define VM_EVENT_DEPTH 16
 
 /** @brief Post an incoming callback event to the VM event queue (non-blocking). */
 bool vm_event_post(const cb_event_t* ev);

@@ -38,6 +38,24 @@ Design notes (why it works the way it does):
     discussion this script implements). sdkconfig values are a snapshot of
     the LAST BUILD's config, not a compile-time guarantee - a fresh
     `idf.py reconfigure` with different Kconfig choices changes them.
+  - Class bytes (RX_PACKET_CLASS_<PREFIX> / TX_PACKET_CLASS_<PREFIX>) live in
+    components/utils/Kconfig's "System-Wide Identity Assignments" menu, not
+    a `#define` in any *.h file - the unified RX/TX PACKET_CLASS / PACKET_HEADER
+    naming scheme adopted project-wide: byte-0 (class) says what module/stream
+    the frame belongs to, byte-1 (header, only when a class carries more than
+    one packet type) says which specific packet. sync_decoders_from_c.py's
+    scan_all_class_headers() only looks for a literal `#define <PREFIX>_...`
+    in *.h files (deliberately not touched here, see below), so it can't see
+    these. scan_kconfig_class_headers() below fills that gap by parsing every
+    Kconfig* file for `config (RX|TX)_PACKET_CLASS_<PREFIX>` / `default 0xNN`
+    blocks and returns {<PREFIX>: '0xNN'}, merged on top of
+    scan_all_class_headers()'s result before any resolve_class()/
+    resolve_class_fallback() call - both of which key the class table by the
+    bare prefix (e.g. "SYS_FEATURES"). resolve_class_fallback()'s own token
+    scan (for decoder files like dec_vm_loader.h that only *reference* their
+    class constant, e.g. CONFIG_RX_PACKET_CLASS_VM_LOADER, rather than
+    defining it) matches the same RX_PACKET_CLASS_/TX_PACKET_CLASS_ pattern
+    and extracts the prefix directly, ignoring any leading "CONFIG_".
   - Alongside the Markdown, a `.json` file is emitted with the same resolved
     data (numeric, not symbolic) keyed by packet struct name - the same key
     decoder_types.py uses for its generated ctypes classes - so a client app
@@ -82,6 +100,8 @@ ENUM_TOKEN_RE = re.compile(r"\b(\w+_e)\b")
 DEFINE_RE = re.compile(r"#define\s+([A-Z][A-Z0-9_]*)\s+([^\s/][^\n/]*)")
 SDKCONFIG_RE = re.compile(r"^(CONFIG_\w+)=(.+)$", re.MULTILINE)
 BANNER_RE = re.compile(r"^// ={10,}\n// (.+?)\s*\n// ={10,}", re.MULTILINE)
+KCONFIG_CONFIG_RE = re.compile(r"^\s*config\s+(\w+)\s*$")
+KCONFIG_DEFAULT_RE = re.compile(r"^\s*default\s+(\S+)")
 
 
 @dataclass
@@ -222,6 +242,37 @@ def parse_enum_body(body: str) -> List[Tuple[str, str]]:
         members.append((str(val), name))
         val += 1
     return members
+
+
+KCONFIG_CLASS_NAME_RE = re.compile(r"^(?:RX|TX)_PACKET_CLASS_(\w+)$")
+
+
+def scan_kconfig_class_headers(root: Path) -> Dict[str, str]:
+    """Class bytes now live in Kconfig as `config RX_PACKET_CLASS_<PREFIX>` /
+    `config TX_PACKET_CLASS_<PREFIX>` / `hex` / `default 0xNN`, not a #define -
+    sync_decoders_from_c.py's scan_all_class_headers() only looks at *.h
+    files, so it can't see these (and this script doesn't touch that file,
+    see the module docstring). Returns {prefix: '0xNN'} keyed the same way
+    scan_all_class_headers() does (bare class name, e.g. "SYS_FEATURES"), so
+    the two dicts merge directly. RX and TX entries for the same prefix
+    (e.g. VM_LOADER, which has both by design - see utils/Kconfig) collapse
+    to one entry since they're required to hold the same value."""
+    found: Dict[str, str] = {}
+    for kc in root.rglob("Kconfig*"):
+        pending_name = None
+        for line in kc.read_text(encoding="utf-8", errors="ignore").splitlines():
+            m = KCONFIG_CONFIG_RE.match(line)
+            if m:
+                pending_name = m.group(1)
+                continue
+            if pending_name:
+                d = KCONFIG_DEFAULT_RE.match(line)
+                if d:
+                    cm = KCONFIG_CLASS_NAME_RE.match(pending_name)
+                    if cm:
+                        found[cm.group(1)] = d.group(1)
+                    pending_name = None
+    return found
 
 
 def scan_defines(root: Path) -> Dict[str, str]:
@@ -397,16 +448,20 @@ def render_packet(p: PacketDoc, class_hex: str, enums: Dict[str, List[Tuple[str,
     return lines
 
 
-CLASS_HEADER_TOKEN_RE = re.compile(r"\b(\w+)_CLASS_HEADER\b")
+CLASS_HEADER_TOKEN_RE = re.compile(r"(?:RX|TX)_PACKET_CLASS_(\w+)")
 
 
 def resolve_class_fallback(text: str, all_classes: Dict[str, str]) -> Optional[Tuple[str, str]]:
     """resolve_class() (from sync_decoders_from_c.py) only finds a class via a
     direct #define in the file or a <PREFIX>_PACKET_LIST(X) macro name. A file
     like dec_vm_loader.h has neither - it dispatches with a plain switch - but
-    it still *references* its class constant (e.g. in an error payload), so
-    look for any <PREFIX>_CLASS_HEADER token used anywhere in the file and
-    match the prefix against every #define found across components/."""
+    it still *references* its class constant (e.g. CONFIG_RX_PACKET_CLASS_VM_LOADER
+    in an error payload), so look for any RX_PACKET_CLASS_/TX_PACKET_CLASS_
+    token used anywhere in the file (no \\b anchor before RX/TX - the token is
+    typically "CONFIG_RX_PACKET_CLASS_..." with no word-boundary between the
+    "CONFIG_" prefix and "RX", so this matches it as a substring and captures
+    just the bare class name, e.g. "VM_LOADER") and match it against the
+    merged class table."""
     for prefix in CLASS_HEADER_TOKEN_RE.findall(text):
         if prefix in all_classes:
             return prefix, all_classes[prefix]
@@ -558,6 +613,7 @@ def main() -> bool:
 
     print("Scanning components/ for enums and #defines (for @ref/@sentinel/@default resolution)...")
     all_classes = scan_all_class_headers()
+    all_classes.update(scan_kconfig_class_headers(COMPONENTS_DIR))
     enums = scan_enums(COMPONENTS_DIR)
     defines = scan_defines(COMPONENTS_DIR)
     sdkconfig = scan_sdkconfig(SDKCONFIG_PATH)

@@ -18,6 +18,7 @@
  *   3. append one `X(...)` row to SYS_CONTRACTS_PACKET_LIST
  */
 
+#include <sdkconfig.h>
 #include <stdint.h>
 #include "dec_sys_device_install.h"
 #include "sys_device.h"
@@ -30,9 +31,6 @@
 // take it back so this file's own SE_* macros are tagged as dec_sys_contracts.
 #undef OWNER
 #define OWNER OWNER_DEC_SYS_CONTRACTS
-
-/** @brief Class header byte identifying this decoder table on the wire. */
-#define SYS_CONTRACTS_CLASS_HEADER 0x01
 
 /** @brief ESP log tag used by every decoder in this table. */
 #define DEC_SYS_CONTRACTS_TAG "dec_sys_contracts"
@@ -511,7 +509,7 @@ static inline err_h decoder_packet_sys_vreg_add_callback_t(packet_sys_vreg_add_c
   }
 
 /**
- * @brief Class handler for SYS_CONTRACTS_CLASS_HEADER (0x01).
+ * @brief Class handler for RX_PACKET_CLASS_SYS_CONTRACTS (0x01).
  *
  * Dispatches on the packet header byte (0xYY) and copies the remaining bytes into
  * the matching `__packed` payload struct before invoking that packet's decoder.
@@ -534,6 +532,6 @@ static inline err_h dec_sys_contracts_decode(const uint8_t* data, size_t len) {
     SYS_CONTRACTS_PACKET_LIST(SYS_CONTRACTS_DECODE_CASE)
     default:
       ESP_LOGW(DEC_SYS_CONTRACTS_TAG, "unknown packet header 0x%02X", data[0]);
-      SE_RET_ERR(ERR_INTERFACE_UNKNOWN_PACKET, .class_header = SYS_CONTRACTS_CLASS_HEADER, .packet_header = data[0]);
+      SE_RET_ERR(ERR_INTERFACE_UNKNOWN_PACKET, .class_header = CONFIG_RX_PACKET_CLASS_SYS_CONTRACTS, .packet_header = data[0]);
   }
 }

@@ -14,7 +14,7 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
   SE_CHECK_NOT_NULL(cfg);
   *out = NULL;
 
-  if (cfg->in_cnt > VM_BLOCK_MAX_IN || cfg->q_cnt > VM_BLOCK_MAX_OUT || cfg->en_cnt > VM_BLOCK_MAX_EN) {
+  if (cfg->in_cnt > CONFIG_VM_BLOCK_MAX_IN || cfg->q_cnt > CONFIG_VM_BLOCK_MAX_OUT || cfg->en_cnt > CONFIG_VM_BLOCK_MAX_EN) {
     SE_RET_ERR(ERR_VM_BLK_BAD_SHAPE, .blk_id = cfg->block_idx, .in_cnt = cfg->in_cnt, .q_cnt = cfg->q_cnt);
   }
   if ((cfg->in_cnt && !cfg->in_acc_ids) || (cfg->q_cnt && !cfg->out_obj_ids) || (cfg->en_cnt && !cfg->en_acc_ids)) {

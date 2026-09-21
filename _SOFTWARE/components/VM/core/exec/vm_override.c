@@ -13,7 +13,7 @@
 static const char* TAG = "vm_override";
 
 // Static ring buffer initialized at startup via constructor macro
-R_RINGBUFFER_DEFINE(s_override_rb, VM_OVERRIDE_BUF_SIZE, RINGBUF_TYPE_NOSPLIT);
+R_RINGBUFFER_DEFINE(s_override_rb, CONFIG_VM_OVERRIDE_BUF_SIZE, RINGBUF_TYPE_NOSPLIT);
 
 static err_h validate_override_target(uint16_t id, uint16_t start_idx, uint16_t len,
                                       vm_obj_h* out_obj, uint8_t* out_width) {

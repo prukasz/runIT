@@ -47,8 +47,8 @@ void vm_store_reset(void) {
 err_h vm_store_open(uint32_t total_size, const uint16_t counts[VM_REG_CNT]) {
   SE_CHECK_NOT_NULL(counts);
 
-  if (total_size == 0 || total_size > VM_STORE_MAX_POOL) {
-    SE_RET_ERR(ERR_VM_LOAD_TOO_BIG, .requested = total_size, .available = VM_STORE_MAX_POOL);
+  if (total_size == 0 || total_size > CONFIG_VM_STORE_MAX_POOL) {
+    SE_RET_ERR(ERR_VM_LOAD_TOO_BIG, .requested = total_size, .available = CONFIG_VM_STORE_MAX_POOL);
   }
 
   uint32_t registry_bytes = 0;

@@ -26,9 +26,6 @@
 /** @brief vm_accessor_t.flags bit: a resolved payload is cached in c_payload. */
 #define VM_ACC_F_CACHED 0x01u
 
-#define VM_ACCESSOR_MAX_DEPTH 8
-#define VM_OBJ_COPY_MAX_DEPTH 8
-
 /* `reason` in ERR_VM_OBJ_COPY_SHAPE -- kept in step with VM_COPY_SHAPE_NAME() in sys_error_vm.h */
 #define VM_COPY_SHAPE_DEPTH     0u  // ran out of depth, or the tree loops
 #define VM_COPY_SHAPE_SRC_EMPTY 1u  // source slot unwired, target holds an object

@@ -101,7 +101,7 @@ Control-packet table for [[SYS_ACTIONS.MD]]'s record/stop/remove wire protocol. 
 | Remove | `0x04` | `uint8_t id` | `sys_action_remove(id)` |
 | Remove All | `0x05` | *(empty)* | `sys_action_remove_all()` |
 
-`SYS_ACTIONS_CLASS_HEADER` (`0x03`) is defined in `sys_actions.h`, not this file — unlike `SYS_CONTRACTS_CLASS_HEADER` (owned by the codec because it spans three unrelated system components), sys_actions' class is 1:1 with a single component, so the constant lives with that component's own public contract. `dec_sys_actions.h` just includes `sys_actions.h` to use it.
+`CONFIG_RX_PACKET_CLASS_SYS_ACTIONS` (`0x03`) and every other class/packet wire-identity byte are Kconfig options under `components/utils/Kconfig`'s "System-Wide Identity Assignments" menu, not `#define`s in any one file — see that menu's "RX/TX Packet Classes" and "RX/TX Packet Headers" submenus for the full byte-0/byte-1 naming scheme. `dec_sys_actions.h` includes `sys_actions.h` for the rest of that component's own API, not for this constant.
 
 Registered by `sys_actions_init()`, not `sys_interface_init()` — see the boot-ordering note in [[SYS_ACTIONS.MD]]. There is no separate "bind action to state" class anymore — the `sys_states` component that used to own it was folded into `sys_actions` (a hardcoded behavior is now just a bound static function on an action id, see [[SYS_ACTIONS.MD]]); class `0x04` was freed by that change and has since been taken by the VM loader below.
 
@@ -196,10 +196,12 @@ Errors: `ERR_NULL_PTR`, `ERR_INTERFACE_ENC_BUF_TOO_SMALL` (`got`/`need`). Owner:
 
 Copy the shape of `dec_sys_contracts.h`:
 
-1. Create `decoders/dec_<name>.h` with a `#define <NAME>_CLASS_HEADER 0xXX`.
+1. Create `decoders/dec_<name>.h` and add a `config RX_PACKET_CLASS_<NAME>` (`hex`, `default 0xXX`) to `components/utils/Kconfig`'s "RX Packet Classes" submenu, under "System-Wide Identity Assignments" — do not `#define` the class byte in the decoder file itself.
 2. Set `#undef OWNER` / `#define OWNER OWNER_<NAME>` near the top so `SE_*` macros tag errors correctly, and add that owner to the module's `sys_error_*.h` owner map.
 3. Expose one `static inline err_h dec_<name>_decode(const uint8_t* data, size_t len)` — `data[0]` is the packet byte.
-4. Register it at boot: `sys_interface_register_decoder(<NAME>_CLASS_HEADER, dec_<name>_decode, "<name>")`.
+4. Register it at boot: `sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_<NAME>, dec_<name>_decode, "<name>")`.
+
+Per-packet header bytes (byte-1, `data[0]` inside the decoder) stay local `#define HEADER_packet_<struct>_t 0xYY` in the decoder file, as today — only the outer class byte (byte-0) moved to Kconfig, since it's the one value that must stay globally unique across every registered decoder.
 
 Note that a decoder header defines `OWNER` for the rest of the translation unit; any `.c` including it must re-`#define OWNER` afterwards (as `sys_interface.c` does).
 
