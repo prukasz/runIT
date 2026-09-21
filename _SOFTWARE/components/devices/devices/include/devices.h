@@ -1,6 +1,6 @@
 #pragma once
 
-//Add device owner code here 
+//Add device owner code here
 #include "devices_owners.h"
 
 //Include all devices headers here so they are globally available
@@ -12,3 +12,4 @@
 #include "device_pca9685.h"
 #include "device_tca6424a.h"
 #include "device_tps55289.h"
+#include "device_drv8962.h"

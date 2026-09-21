@@ -4,7 +4,14 @@
 #include <stdint.h>
 #include "sys_error.h"
 #include <sdkconfig.h>
-typedef enum { SYS_DEVICE_CONTRACT_IO = 0, SYS_DEVICE_CONTRACT_POWER_VREG = 1, SYS_DEVICE_CONTRACT_POWER_MONITOR = 2, SYS_DEVICE_CONTRACT_POWER_USB_PD = 3, SYS_DEVICE_CONTRACT_MAX = 4 } sys_device_contract_type_e;
+typedef enum {
+  SYS_DEVICE_CONTRACT_IO = 0,
+  SYS_DEVICE_CONTRACT_POWER_VREG = 1,
+  SYS_DEVICE_CONTRACT_POWER_MONITOR = 2,
+  SYS_DEVICE_CONTRACT_POWER_USB_PD = 3,
+  SYS_DEVICE_CONTRACT_HBRIDGE = 4,
+  SYS_DEVICE_CONTRACT_MAX = 5
+} sys_device_contract_type_e;
 
 /**
  * @brief String form of sys_device_contract_type_e, indexed by contract_id -

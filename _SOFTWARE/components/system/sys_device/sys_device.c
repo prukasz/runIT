@@ -9,7 +9,7 @@
 
 static const char* TAG = __FILE_NAME__;
 
-const char* const sys_device_contract_type_e_to_string[] = {"IO", "POWER_VREG", "POWER_MONITOR", "POWER_USB_PD"};
+const char* const sys_device_contract_type_e_to_string[] = {"IO", "POWER_VREG", "POWER_MONITOR", "POWER_USB_PD", "HBRIDGE"};
 
 /*Registry mutations (install / uninstall) are init/config context only.
   Reads are lock-free: sys_device_get_by_id() sits on the hot dispatch path and

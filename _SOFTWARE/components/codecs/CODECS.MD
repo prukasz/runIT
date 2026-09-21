@@ -134,6 +134,17 @@ Registered by `sys_interface_init()` alongside `dec_sys_contracts`, not self-reg
 
 ---
 
+## `decoders/dec_features.h` — class `0x05`
+
+Decoder table for higher-order features (servos, H-bridges, etc.):
+- `0x01`–`0x0F`: Feature lifecycle (`remove`, `remove_all`).
+- `0x10`–`0x1F`: Servo control (`create`, `set_angle`, `go_home`, `set_trim`, `attach/detach`).
+- `0x20`–`0x2F`: H-bridge / motor control (`create`, `set_speed`, `brake`, `coast`, `set_current_limit`, `clear_fault`).
+
+Registered by `sys_interface_init()` for class byte `0x05`.
+
+---
+
 ## `encoders/enc_sys_errors.h` — error chain telemetry
 
 Flattens an `err_h` chain into one self-describing packet so the client can rebuild the whole stack trace and log it there — the firmware never has to spend flash on human-readable strings.

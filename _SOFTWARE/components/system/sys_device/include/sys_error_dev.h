@@ -47,7 +47,7 @@
  * Forward-declaring just the one symbol each side actually needs sidesteps
  * that without a real #include.
  */
-extern const char* const sys_device_contract_type_e_to_string[];  // sys_device.h/.c - 4 entries
+extern const char* const sys_device_contract_type_e_to_string[];  // sys_device.h/.c - 5 entries
 extern const char* const sys_io_feature_e_to_string[];            // sys_io.h/.c - 10 entries, only valid when contract_id == 0 (SYS_DEVICE_CONTRACT_IO)
 
 #define SYS_ERROR_DEV_LOGGER_MAP(X)  \
@@ -65,7 +65,7 @@ extern const char* const sys_io_feature_e_to_string[];            // sys_io.h/.c
 #define LOG_BODY_ERR_DEV_ALREADY_EXIST(p, out, out_size) snprintf((out), (out_size), "device %u is already registered", (p)->dev_id)
 #define LOG_BODY_ERR_DEV_FEATURE_UNAVAILABLE(p, out, out_size)                                                                                  \
   do {                                                                                                                                          \
-    const char* __contract = (p)->contract_id < 4 ? sys_device_contract_type_e_to_string[(p)->contract_id] : "UNKNOWN";                        \
+    const char* __contract = (p)->contract_id < 5 ? sys_device_contract_type_e_to_string[(p)->contract_id] : "UNKNOWN";                        \
     if ((p)->contract_id == 0 && (p)->feature_id < 10) {                                                                                        \
       snprintf((out), (out_size), "device %u: feature %s unavailable on contract %s", (p)->dev_id, sys_io_feature_e_to_string[(p)->feature_id], __contract); \
     } else {                                                                                                                                    \

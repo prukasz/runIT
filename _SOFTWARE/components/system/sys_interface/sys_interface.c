@@ -12,6 +12,7 @@
 #include <freertos/task.h>
 #include "dec_sys_contracts.h"
 #include "dec_vm_loader.h"
+#include "dec_features.h"
 #include "sys_buffers.h"
 #include "sys_error.h"
 #include "utils.h"
@@ -130,6 +131,7 @@ err_h sys_interface_init(void) {
   };
   SE_RET_IF_ERR(sys_interface_register_decoder(SYS_CONTRACTS_CLASS_HEADER, dec_sys_contracts_decode, "sys_contracts"));
   SE_RET_IF_ERR(sys_interface_register_decoder(VM_LOADER_CLASS_HEADER, dec_vm_loader_decode, "vm_loader"));
+  SE_RET_IF_ERR(sys_interface_register_decoder(SYS_FEATURES_CLASS_HEADER, dec_features_decode, "features"));
 
   sys_data_connector_t* conn = sys_data_connector_get(SYS_INTERFACE_CONNECTOR_ID);
   if (!conn) {
