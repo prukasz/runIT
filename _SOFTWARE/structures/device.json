@@ -1,0 +1,96 @@
+{
+  "$schema": "runit://schemas/device-definition/v1",
+  "schemaVersion": 1,
+  "kind": "device-definition",
+  "id": "runit.device.ap33772s",
+  "version": "1.0.0",
+  "title": "AP33772S USB-C PD sink",
+  "shortDescription": "USB-C Power Delivery sink controller with programmable output control.",
+  "description": "A declarative device-type definition. Copy this structure for another device, replace firmware references with real decoder/API names, and leave hardware-dependent limits to runtime discovery.",
+  "manufacturer": "Diodes Incorporated",
+  "model": "AP33772S",
+  "tags": ["usb-c", "usb-power-delivery", "power", "i2c"],
+  "interfaces": [
+    {"id": "control-i2c", "kind": "i2c", "role": "control", "busField": "i2c_bus", "addressField": "i2c_addr"},
+    {"id": "usb-c-pd", "kind": "usb-c-pd", "role": "power-input"}
+  ],
+  "assets": {
+    "icon": "./assets/ap33772s.svg",
+    "diagram": "./assets/ap33772s-pinout.svg",
+    "datasheet": null
+  },
+  "install": {
+    "packet": "packet_sys_device_install_ap33772s_t",
+    "title": "Install AP33772S",
+    "fields": [
+      {"packetField": "device_id", "type": "uint16_t", "label": "Device ID", "required": true, "source": "project"},
+      {"packetField": "i2c_bus", "type": "uint8_t", "label": "I2C bus", "required": true, "source": "board", "constraints": {"allowedValues": [], "source": "board"}},
+      {"packetField": "i2c_addr", "type": "uint8_t", "label": "I2C address", "required": true, "default": 82, "constraints": {"allowedValues": [82], "fixed": true, "source": "device"}},
+      {"packetField": "intr_pin_device_id", "type": "uint16_t", "label": "Interrupt GPIO provider", "required": true, "source": "board"},
+      {"packetField": "intr_pin_pin", "type": "uint8_t", "label": "Interrupt pin", "required": true, "source": "board"},
+      {"packetField": "intr_pin_mode", "type": "uint8_t", "label": "Interrupt mode", "required": true, "source": "board"}
+    ]
+  },
+  "contracts": [
+    {
+      "id": "power.vreg",
+      "firmwareContract": "SYS_DEVICE_CONTRACT_POWER_VREG",
+      "presentation": "primary",
+      "title": "Regulated output",
+      "methods": [
+        {"id": "set_enable", "systemApi": "sys_vreg_set_enable", "label": "Enable output", "parameters": [{"name": "enable", "type": "bool", "label": "Enabled", "required": true}]},
+        {"id": "set_voltage", "systemApi": "sys_vreg_set_voltage", "label": "Set output voltage", "parameters": [{"name": "voltage_mV", "type": "uint32_t", "label": "Voltage", "unit": "mV", "required": true, "constraints": {"minimum": null, "maximum": null, "default": null, "step": 1, "allowedValues": [], "source": "runtime"}}]},
+        {"id": "set_current", "systemApi": "sys_vreg_set_current", "label": "Set output current limit", "parameters": [{"name": "current_mA", "type": "uint32_t", "label": "Current limit", "unit": "mA", "required": true, "constraints": {"minimum": null, "maximum": null, "default": null, "step": 1, "allowedValues": [], "source": "runtime"}}]}
+      ]
+    },
+    {
+      "id": "power.usb-pd",
+      "firmwareContract": "SYS_DEVICE_CONTRACT_POWER_USB_PD",
+      "presentation": "primary",
+      "title": "USB-C Power Delivery",
+      "methods": [
+        {"id": "set_settings", "systemApi": "sys_power_usb_pd_set", "label": "Request USB-PD profile", "parameters": [{"name": "voltage_mV", "type": "uint32_t", "label": "Voltage", "unit": "mV", "required": true, "constraints": {"minimum": null, "maximum": null, "allowedValues": [], "source": "runtime"}}, {"name": "current_mA", "type": "uint32_t", "label": "Current", "unit": "mA", "required": true, "constraints": {"minimum": null, "maximum": null, "allowedValues": [], "source": "runtime"}}]},
+        {"id": "list_options", "systemApi": "sys_power_usb_pd_list", "label": "List available PDOs", "returns": "usb_pd_options", "presentation": "backend"},
+        {"id": "get_limits", "systemApi": "sys_power_usb_pd_get_limits", "label": "Read negotiated limits", "returns": "usb_pd_limits", "presentation": "backend"}
+      ]
+    },
+    {
+      "id": "power.monitor",
+      "firmwareContract": "SYS_DEVICE_CONTRACT_POWER_MONITOR",
+      "presentation": "advanced",
+      "title": "Power monitor",
+      "methods": [
+        {"id": "get_voltage", "systemApi": "sys_power_monitor_get_voltage", "label": "Read voltage", "parameters": [{"name": "channel", "type": "uint8_t", "label": "Channel", "required": true, "constraints": {"allowedValues": [], "source": "runtime"}}], "returns": "uint32_t"},
+        {"id": "get_current", "systemApi": "sys_power_monitor_get_current", "label": "Read current", "parameters": [{"name": "channel", "type": "uint8_t", "label": "Channel", "required": true, "constraints": {"allowedValues": [], "source": "runtime"}}], "returns": "uint32_t"}
+      ]
+    }
+  ],
+  "capabilities": {
+    "static": {
+      "i2cAddress": {"value": 82, "unit": "7-bit address"},
+      "interrupt": {"required": true, "polarity": "active-low"}
+    },
+    "runtime": {
+      "source": "contract-query",
+      "queries": ["power.usb-pd.list_options", "power.usb-pd.get_limits"],
+      "fields": ["availablePdos", "voltageRange_mV", "currentRange_mA", "connectionState"]
+    }
+  },
+  "errors": {"catalog": "firmware", "contextualGuidance": []},
+  "ui": {
+    "tabs": [
+      {"id": "configuration", "label": "Configuration", "fields": ["i2c_bus", "i2c_addr", "intr_pin_device_id", "intr_pin_pin", "intr_pin_mode"]},
+      {"id": "power", "label": "Power", "contracts": ["power.vreg", "power.usb-pd"]},
+      {"id": "diagnostics", "label": "Diagnostics", "contracts": ["power.monitor"]}
+    ],
+    "fieldOverrides": {
+      "intr_pin_pin": {"label": "Interrupt pin", "tooltip": "Active-low interrupt input. Select a board GPIO exposed by the chosen GPIO provider."},
+      "i2c_addr": {"label": "I2C address", "tooltip": "The AP33772S uses its fixed 7-bit I2C address (0x52)."}
+    }
+  },
+  "compatibility": {
+    "requiresFirmwareContracts": ["SYS_DEVICE_CONTRACT_POWER_VREG", "SYS_DEVICE_CONTRACT_POWER_USB_PD", "SYS_DEVICE_CONTRACT_POWER_MONITOR"],
+    "requiresPackets": ["packet_sys_device_install_ap33772s_t"]
+  },
+  "extensions": {}
+}

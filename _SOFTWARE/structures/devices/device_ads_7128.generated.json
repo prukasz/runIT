@@ -1,0 +1,430 @@
+{
+  "$schema": "runit://schemas/device-definition/v1",
+  "schemaVersion": 1,
+  "kind": "device-definition",
+  "id": "device_ads_7128",
+  "version": "1.0.0",
+  "title": "ADS7128 ADC",
+  "description": "Eight-channel ADC with I2C control and an on-chip window comparator.",
+  "protocols": [
+    "i2c"
+  ],
+  "tags": [
+    "i2c",
+    "adc",
+    "io",
+    "voltage",
+    "ic"
+  ],
+  "source_file": "device/dec_device_ads7128.h",
+  "contractProvider": "SYS_DEVICE_CONTRACT_IO",
+  "capabilities": [
+    {
+      "name": "pins",
+      "one_of": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "name": "pin-mode",
+      "one_of": [
+        "SYS_IO_MODE_ADC"
+      ]
+    },
+    {
+      "name": "alert-output",
+      "desc": "open-drain active-low optional"
+    }
+  ],
+  "install": {
+    "packet": "packet_sys_device_install_ads7128_t",
+    "packet_definition": {
+      "source_file": "device/dec_device_ads7128.h",
+      "section": null,
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x47",
+      "decoder": "decoder_packet_sys_device_install_ads7128_t()",
+      "field_order": [
+        "device_id",
+        "i2c_bus",
+        "i2c_addr",
+        "intr_pin_device_id",
+        "intr_pin_pin",
+        "intr_pin_mode",
+        "vref_mv"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "alias": "Device ID",
+          "required": true,
+          "min": 0,
+          "max": 127
+        },
+        "i2c_bus": {
+          "type": "uint8_t",
+          "alias": "I2C Bus",
+          "required": true,
+          "one_of": [
+            0,
+            1
+          ],
+          "note": "0 selects the first logical I2C bus; any non-zero wire value is converted to bus 1 by the decoder"
+        },
+        "i2c_addr": {
+          "type": "uint8_t",
+          "alias": "I2C Address",
+          "required": true,
+          "min": 0,
+          "max": 127,
+          "unit": "7-bit-address",
+          "note": "7-bit I2C address; driver_ads7128.c does not enforce a device-specific address list"
+        },
+        "intr_pin_device_id": {
+          "type": "uint8_t",
+          "alias": "ALERT GPIO Provider",
+          "group": "alert-pin",
+          "role": "device_id"
+        },
+        "intr_pin_pin": {
+          "type": "uint8_t",
+          "alias": "ALERT Pin",
+          "sentinel": 255,
+          "group": "alert-pin",
+          "role": "pin",
+          "note": "SYS_GPIO_NONE disables external ALERT reporting; ALERT is open-drain and active-low"
+        },
+        "intr_pin_mode": {
+          "type": "uint8_t",
+          "alias": "ALERT Pin Mode",
+          "one_of": [
+            "SYS_IO_MODE_INPUT_PULLUP"
+          ],
+          "ref": "sys_io_mode_e",
+          "group": "alert-pin",
+          "role": "mode",
+          "note": "Required when ALERT reporting is enabled"
+        },
+        "vref_mv": {
+          "type": "uint32_t",
+          "alias": "ADC Reference Voltage",
+          "required": true,
+          "min": 1,
+          "unit": "mV",
+          "note": "AVDD doubles as ADC reference; adapter_ads7128.c rejects zero and firmware has no additional numeric bound"
+        }
+      },
+      "groups": {
+        "alert-pin": {
+          "fields": [
+            "intr_pin_device_id",
+            "intr_pin_pin",
+            "intr_pin_mode"
+          ],
+          "sentinel_field": "intr_pin_pin"
+        }
+      }
+    }
+  },
+  "contracts": [
+    {
+      "packet": "packet_sys_io_reset_t",
+      "parameters": [
+        {
+          "name": "pin",
+          "alias": "ADC Channel",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        }
+      ],
+      "alias": "Reset configuration",
+      "description": "Reset one ADC channel and clear its comparator configuration.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "section": "IO Control Packet decoders (0x20 - 0x2F)",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x20",
+        "decoder": "decoder_packet_sys_io_reset_t()",
+        "field_order": [
+          "device_id",
+          "pin"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_set_mode_t",
+      "parameters": [
+        {
+          "name": "pin",
+          "alias": "ADC Channel",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "name": "mode",
+          "alias": "Channel Mode",
+          "enum": "sys_io_mode_e",
+          "one_of": [
+            "SYS_IO_MODE_ADC"
+          ]
+        }
+      ],
+      "alias": "Configure mode",
+      "description": "ADS7128 channels are ADC-only; other SYS_IO_MODE values are unavailable.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "section": "IO Control Packet decoders (0x20 - 0x2F)",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x21",
+        "decoder": "decoder_packet_sys_io_set_mode_t()",
+        "field_order": [
+          "device_id",
+          "pin",
+          "mode"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          },
+          "mode": {
+            "type": "uint8_t",
+            "alias": "Pin Mode",
+            "required": true,
+            "ref": "sys_io_mode_e"
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_get_voltage_t",
+      "parameters": [
+        {
+          "name": "pin",
+          "alias": "ADC Channel",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        }
+      ],
+      "alias": "Read voltage on pin",
+      "returns": "voltage_mV @type uint32_t @unit mV",
+      "description": "Read the selected ADC channel using the installed AVDD reference voltage.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "section": "IO Control Packet decoders (0x20 - 0x2F)",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x25",
+        "decoder": "decoder_packet_sys_io_get_voltage_t()",
+        "field_order": [
+          "device_id",
+          "pin"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_configure_intr_t",
+      "parameters": [
+        {
+          "name": "pin",
+          "alias": "ADC Channel",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "name": "mode",
+          "alias": "Window Mode",
+          "enum": "sys_io_intr_mode_e",
+          "one_of": [
+            "SYS_IO_INTR_ADC_WINDOW_INSIDE",
+            "SYS_IO_INTR_ADC_WINDOW_OUTSIDE"
+          ]
+        },
+        {
+          "name": "adc_thresh_up_mV",
+          "alias": "Upper Threshold",
+          "type": "uint16_t",
+          "unit": "mV",
+          "required": false,
+          "default": 0
+        },
+        {
+          "name": "adc_thresh_down_mV",
+          "alias": "Lower Threshold",
+          "type": "uint16_t",
+          "unit": "mV",
+          "required": false,
+          "default": 0
+        },
+        {
+          "name": "adc_thresh_hyst_mV",
+          "alias": "Hysteresis",
+          "type": "uint16_t",
+          "unit": "mV",
+          "required": false,
+          "default": 0
+        },
+        {
+          "name": "adc_counter_thresh",
+          "alias": "Event Count Threshold",
+          "type": "uint16_t",
+          "required": false,
+          "default": 0
+        }
+      ],
+      "alias": "Configure alert",
+      "description": "Configure the on-chip ADC window comparator. The optional ALERT pin reports events to a board GPIO.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "section": "IO Control Packet decoders (0x20 - 0x2F)",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x29",
+        "decoder": "decoder_packet_sys_io_configure_intr_t()",
+        "field_order": [
+          "device_id",
+          "pin",
+          "mode",
+          "route_mask",
+          "static_action_id",
+          "dynamic_action_id",
+          "adc_thresh_up_mV",
+          "adc_thresh_down_mV",
+          "adc_thresh_hyst_mV",
+          "adc_counter_thresh"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          },
+          "mode": {
+            "type": "uint8_t",
+            "alias": "Interrupt Mode",
+            "required": true,
+            "ref": "sys_io_intr_mode_e"
+          },
+          "route_mask": {
+            "type": "uint16_t",
+            "alias": "Route Mask",
+            "required": true,
+            "note": "bitmask"
+          },
+          "static_action_id": {
+            "type": "uint8_t",
+            "alias": "Static Action ID",
+            "required": false,
+            "sentinel": 0
+          },
+          "dynamic_action_id": {
+            "type": "uint8_t",
+            "alias": "Dynamic Action ID",
+            "required": false,
+            "sentinel": 0
+          },
+          "adc_thresh_up_mV": {
+            "type": "uint16_t",
+            "alias": "ADC Rising Threshold",
+            "required": false,
+            "unit": "mV"
+          },
+          "adc_thresh_down_mV": {
+            "type": "uint16_t",
+            "alias": "ADC Falling Threshold",
+            "required": false,
+            "unit": "mV"
+          },
+          "adc_thresh_hyst_mV": {
+            "type": "uint16_t",
+            "alias": "ADC Hysteresis",
+            "required": false,
+            "unit": "mV"
+          },
+          "adc_counter_thresh": {
+            "type": "uint16_t",
+            "alias": "ADC Event Counter Threshold",
+            "required": false
+          }
+        }
+      }
+    }
+  ]
+}

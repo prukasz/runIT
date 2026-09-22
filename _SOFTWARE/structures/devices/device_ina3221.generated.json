@@ -1,0 +1,307 @@
+{
+  "$schema": "runit://schemas/device-definition/v1",
+  "schemaVersion": 1,
+  "kind": "device-definition",
+  "id": "device_ina3221",
+  "version": "1.0.0",
+  "title": "INA3221 power monitor",
+  "description": "Three-channel I2C bus-voltage and shunt-current monitor with warning and critical alerts.",
+  "protocols": [
+    "i2c"
+  ],
+  "tags": [
+    "i2c",
+    "power",
+    "voltage",
+    "current",
+    "monitor",
+    "alert",
+    "ic"
+  ],
+  "source_file": "device/dec_device_ina3221.h",
+  "contractProvider": "SYS_DEVICE_CONTRACT_POWER_MONITOR",
+  "capabilities": [
+    {
+      "name": "channels",
+      "one_of": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "name": "critical-alert",
+      "desc": "active-low optional"
+    },
+    {
+      "name": "warning-alert",
+      "desc": "active-low optional"
+    }
+  ],
+  "install": {
+    "packet": "packet_sys_device_install_ina3221_t",
+    "packet_definition": {
+      "source_file": "device/dec_device_ina3221.h",
+      "section": null,
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x44",
+      "decoder": "decoder_packet_sys_device_install_ina3221_t()",
+      "field_order": [
+        "device_id",
+        "i2c_bus",
+        "i2c_addr",
+        "crit_pin_device_id",
+        "crit_pin_pin",
+        "crit_pin_mode",
+        "warn_pin_device_id",
+        "warn_pin_pin",
+        "warn_pin_mode"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 127
+        },
+        "i2c_bus": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 1
+        },
+        "i2c_addr": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 64,
+          "max": 67,
+          "note": "enforced in ina3221_new() against INA3221_I2C_ADDR_GND/_SCL - A0 pin strap (GND/Vs+/SDA/SCL) selects the address"
+        },
+        "crit_pin_device_id": {
+          "type": "uint8_t",
+          "group": "critical-alert-pin",
+          "role": "device_id"
+        },
+        "crit_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "critical-alert-pin",
+          "role": "pin"
+        },
+        "crit_pin_mode": {
+          "type": "uint8_t",
+          "ref": "sys_io_mode_e",
+          "group": "critical-alert-pin",
+          "role": "mode"
+        },
+        "warn_pin_device_id": {
+          "type": "uint8_t",
+          "group": "warning-alert-pin",
+          "role": "device_id"
+        },
+        "warn_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "warning-alert-pin",
+          "role": "pin"
+        },
+        "warn_pin_mode": {
+          "type": "uint8_t",
+          "ref": "sys_io_mode_e",
+          "group": "warning-alert-pin",
+          "role": "mode"
+        }
+      },
+      "groups": {
+        "critical-alert-pin": {
+          "fields": [
+            "crit_pin_device_id",
+            "crit_pin_pin",
+            "crit_pin_mode"
+          ],
+          "sentinel_field": "crit_pin_pin"
+        },
+        "warning-alert-pin": {
+          "fields": [
+            "warn_pin_device_id",
+            "warn_pin_pin",
+            "warn_pin_mode"
+          ],
+          "sentinel_field": "warn_pin_pin"
+        }
+      }
+    }
+  },
+  "contracts": [
+    {
+      "packet": "packet_sys_power_monitor_get_voltage_t",
+      "parameters": [
+        {
+          "name": "channel",
+          "alias": "Monitor Channel",
+          "one_of": [
+            0,
+            1,
+            2
+          ]
+        }
+      ],
+      "alias": "Read bus voltage",
+      "returns": "voltage_mV @type int32_t @unit mV",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "section": "Power Control Packet decoders (0x30 - 0x3F)",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x34",
+        "decoder": "decoder_packet_sys_power_monitor_get_voltage_t()",
+        "field_order": [
+          "device_id",
+          "channel"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "channel": {
+            "type": "uint8_t",
+            "alias": "Channel",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_power_monitor_get_current_t",
+      "parameters": [
+        {
+          "name": "channel",
+          "alias": "Monitor Channel",
+          "one_of": [
+            0,
+            1,
+            2
+          ]
+        }
+      ],
+      "alias": "Read shunt current",
+      "returns": "current_mA @type int32_t @unit mA",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "section": "Power Control Packet decoders (0x30 - 0x3F)",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x35",
+        "decoder": "decoder_packet_sys_power_monitor_get_current_t()",
+        "field_order": [
+          "device_id",
+          "channel"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "channel": {
+            "type": "uint8_t",
+            "alias": "Channel",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_power_monitor_add_callback_t",
+      "parameters": [
+        {
+          "name": "channel",
+          "alias": "Monitor Channel",
+          "one_of": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "name": "trigger_value",
+          "alias": "Current Threshold",
+          "type": "int32_t",
+          "unit": "mA"
+        },
+        {
+          "name": "on_event",
+          "alias": "Alert Severity",
+          "enum": "sys_power_events_e",
+          "one_of": [
+            "SYS_PWR_EVENT_OCP_CRITICAL",
+            "SYS_PWR_EVENT_OCP_WARNING"
+          ]
+        }
+      ],
+      "alias": "Configure current alert",
+      "description": "Configure the selected channel's critical or warning over-current alert and its event route.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "section": "Power Control Packet decoders (0x30 - 0x3F)",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x39",
+        "decoder": "decoder_packet_sys_power_monitor_add_callback_t()",
+        "field_order": [
+          "device_id",
+          "channel",
+          "trigger_value",
+          "on_event",
+          "route_mask",
+          "static_action_id",
+          "dynamic_action_id"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "channel": {
+            "type": "uint8_t",
+            "alias": "Channel",
+            "required": true
+          },
+          "trigger_value": {
+            "type": "int32_t",
+            "alias": "Trigger Value",
+            "required": true
+          },
+          "on_event": {
+            "type": "uint8_t",
+            "alias": "Event",
+            "required": true,
+            "ref": "sys_power_events_e"
+          },
+          "route_mask": {
+            "type": "uint16_t",
+            "alias": "Route Mask",
+            "required": true,
+            "note": "bitmask"
+          },
+          "static_action_id": {
+            "type": "uint8_t",
+            "alias": "Static Action ID",
+            "required": false,
+            "sentinel": 0
+          },
+          "dynamic_action_id": {
+            "type": "uint8_t",
+            "alias": "Dynamic Action ID",
+            "required": false,
+            "sentinel": 0
+          }
+        }
+      }
+    }
+  ]
+}

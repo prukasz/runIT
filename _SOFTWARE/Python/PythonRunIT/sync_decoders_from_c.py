@@ -1,5 +1,5 @@
 """
-Scans components/codecs/decoders/dec_*.h and generates decoder_types.py -
+Scans components/codecs/decoders/**/dec_*.h and generates decoder_types.py -
 ctypes structs for every packet payload, keyed by their class byte (0xXX) and
 packet byte (0xYY), so the GUI's command builder never drifts from the C wire
 format. Re-run this whenever a decoder header changes.
@@ -47,6 +47,9 @@ C_TYPE_MAP = {
 }
 
 CLASS_HEADER_RE = re.compile(r"#define\s+(\w+)_CLASS_HEADER\s+(0x[0-9A-Fa-f]+)")
+KCONFIG_CONFIG_RE = re.compile(r"^\s*config\s+(\w+)\s*$")
+KCONFIG_DEFAULT_RE = re.compile(r"^\s*default\s+(0x[0-9A-Fa-f]+)")
+KCONFIG_CLASS_NAME_RE = re.compile(r"^(?:RX|TX)_PACKET_CLASS_(\w+)$")
 PACKET_LIST_DEFINE_RE = re.compile(r"#define\s+(\w+)_PACKET_LIST\(X\)")
 PACKET_HEADER_RE = re.compile(r"#define\s+HEADER_(packet_\w+_t)\s+(0x[0-9A-Fa-f]+)")
 STRUCT_RE = re.compile(r"typedef\s+struct\s+__packed\s*\{(.*?)\}\s*(packet_\w+_t)\s*;", re.DOTALL)
@@ -112,6 +115,26 @@ def scan_all_class_headers() -> Dict[str, str]:
         text = h.read_text(encoding="utf-8", errors="ignore")
         for name, header in CLASS_HEADER_RE.findall(text):
             found[name] = header
+    return found
+
+
+def scan_kconfig_class_headers() -> Dict[str, str]:
+    """Packet class bytes are configured in Kconfig, not decoder headers."""
+    found: Dict[str, str] = {}
+    for kconfig in COMPONENTS_DIR.rglob("Kconfig*"):
+        pending_name = None
+        for line in kconfig.read_text(encoding="utf-8", errors="ignore").splitlines():
+            config = KCONFIG_CONFIG_RE.match(line)
+            if config:
+                pending_name = config.group(1)
+                continue
+            if pending_name:
+                default = KCONFIG_DEFAULT_RE.match(line)
+                if default:
+                    class_name = KCONFIG_CLASS_NAME_RE.match(pending_name)
+                    if class_name:
+                        found[class_name.group(1)] = default.group(1)
+                    pending_name = None
     return found
 
 
@@ -208,12 +231,13 @@ def main() -> bool:
         print(f"Decoders directory not found: {DECODERS_DIR}")
         return False
 
-    header_files = sorted(DECODERS_DIR.glob("dec_*.h"))
+    header_files = sorted(path for path in DECODERS_DIR.rglob("dec_*.h") if path.name != "dec_device_common.h")
     if not header_files:
         print(f"No dec_*.h files found in {DECODERS_DIR}")
         return False
 
     all_classes = scan_all_class_headers()
+    all_classes.update(scan_kconfig_class_headers())
 
     classes: Dict[str, str] = {}
     structs_by_file: Dict[str, List[PacketStruct]] = {}

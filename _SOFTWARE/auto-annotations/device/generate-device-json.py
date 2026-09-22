@@ -1,15 +1,15 @@
 """
-Prototype doc generator for components/codecs/decoders/dec_*.h.
+Device JSON generator for components/codecs/decoders/device/dec_device_*.h.
 
-Reads the `@tag` comment annotations on packet struct fields (see
-dec_sys_device_install.h for examples: @required/@optional, @min/@max,
+Reads the `@tag` comment annotations on packet struct fields (including
+device-specific headers under `decoders/device/`) for @required/@optional, @min/@max,
 @available, @ref, @sentinel, @default, @group/@role, @note) and renders a
-human-readable Markdown reference, one section per decoder file.
+one self-contained JSON descriptor per annotated device header.
 
 This is a standalone test of the annotation format - it does NOT touch
 sync_decoders_from_c.py or decoder_types.py, and nothing in the firmware or
 GUI build depends on its output. Re-run after editing a dec_*.h to refresh
-DECODERS_API.generated.md.
+structures/devices/<device-id>.generated.json.
 
 Design notes (why it works the way it does):
   - Struct fields are parsed WITHOUT stripping comments first (unlike
@@ -56,12 +56,10 @@ Design notes (why it works the way it does):
     class constant, e.g. CONFIG_RX_PACKET_CLASS_VM_LOADER, rather than
     defining it) matches the same RX_PACKET_CLASS_/TX_PACKET_CLASS_ pattern
     and extracts the prefix directly, ignoring any leading "CONFIG_".
-  - Alongside the Markdown, a `.json` file is emitted with the same resolved
-    data (numeric, not symbolic) keyed by packet struct name - the same key
-    decoder_types.py uses for its generated ctypes classes - so a client app
-    can zip the two together (wire layout from decoder_types.py, UI hints
-    zip metadata) to auto-generate an install/config form per device without
-    hand-writing one per packet.
+  - Every annotated device header emits one self-contained JSON descriptor to
+    structures/devices/. It contains the install packet and the packet
+    definitions referenced by that device's @contract annotations, so a client
+    can load a device form without joining against a monolithic API catalog.
   - Packets are grouped under the hand-written `// ===== Title =====` section
     banners the decoder files already use (e.g. "Servo Feature Packets
     (0x10 - 0x1F)", "Device Management Packet decoders (0x10 - 0x19)") -
@@ -79,14 +77,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-sys.path.insert(0, str(Path(__file__).parent))
+PROJECT_ROOT = Path(__file__).parents[2]  # _SOFTWARE folder
+sys.path.insert(0, str(PROJECT_ROOT / "Python" / "PythonRunIT"))
 from sync_decoders_from_c import scan_all_class_headers, resolve_class  # reuse, don't duplicate
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent  # _SOFTWARE folder
 COMPONENTS_DIR = PROJECT_ROOT / "components"
 DECODERS_DIR = COMPONENTS_DIR / "codecs" / "decoders"
-DEFAULT_OUT_MD = DECODERS_DIR / "DECODERS_API.generated.md"
-DEFAULT_OUT_JSON = DECODERS_DIR / "DECODERS_API.generated.json"
+DEFAULT_DEVICE_OUT_DIR = PROJECT_ROOT / "structures" / "devices"
 SDKCONFIG_PATH = PROJECT_ROOT / "sdkconfig"
 
 PACKET_HEADER_RE = re.compile(r"#define\s+HEADER_(packet_\w+)\s+(0x[0-9A-Fa-f]+)")
@@ -366,6 +363,8 @@ def render_field_row(f: Field, enums: Dict[str, List[Tuple[str, str]]], defines:
         constraint_parts.append(f"{lo} – {hi}")
     if "available" in f.tags:
         constraint_parts.append(f'one of {f.tags["available"]}')
+    if "one_of" in f.tags:
+        constraint_parts.append(f'one of {f.tags["one_of"]}')
     if "default" in f.tags:
         constraint_parts.append(f'default {resolve_numeric(f.tags["default"], defines, sdkconfig)[1]}')
     if "unit" in f.tags:
@@ -500,7 +499,7 @@ def parse_file(path: Path, all_classes: Dict[str, str]) -> Tuple[Optional[Tuple[
                 doc_comment = clean_doc_comment(m.group(1))
 
         section = section_at(banners, header_match.start())
-        packets.append(PacketDoc(name, hexval, struct_name, fields, doc_comment, path.name, section))
+        packets.append(PacketDoc(name, hexval, struct_name, fields, doc_comment, path.relative_to(DECODERS_DIR).as_posix(), section))
     return class_info, packets
 
 
@@ -524,6 +523,8 @@ def field_json(f: Field, enums: Dict[str, List[Tuple[str, str]]], defines: Dict[
         out["max"] = resolve_numeric(f.tags["max"], defines, sdkconfig)[0]
     if "available" in f.tags:
         out["available"] = parse_available_list(f.tags["available"])
+    if "one_of" in f.tags:
+        out["one_of"] = parse_choice_list(f.tags["one_of"])
     if "default" in f.tags:
         out["default"] = resolve_numeric(f.tags["default"], defines, sdkconfig)[0]
     if "sentinel" in f.tags:
@@ -551,6 +552,18 @@ def parse_available_list(raw: str) -> List[int]:
         v = to_int(part.strip())
         if v is not None:
             values.append(v)
+    return values
+
+
+def parse_choice_list(raw: str) -> List[object]:
+    """Parse @one_of values, preserving enum symbols for the client catalog."""
+    inner = raw.strip().lstrip("[").rstrip("]")
+    values: List[object] = []
+    for part in inner.split(","):
+        token = part.strip()
+        if not token:
+            continue
+        values.append(to_int(token) if to_int(token) is not None else token)
     return values
 
 
@@ -601,12 +614,133 @@ def build_json(
     }
 
 
+DEVICE_DIRECTIVE_RE = re.compile(r"^\s*//@(?P<name>[\w-]+)(?:\s+(?P<value>.*))?\s*$")
+
+
+def parse_device_descriptor(path: Path, enums: Dict[str, List[Tuple[str, str]]], defines: Dict[str, str], sdkconfig: Dict[str, int]) -> Optional[dict]:
+    """Read device-level //@ metadata and @contract blocks from one header."""
+    if path.parent.name != "device":
+        return None
+
+    metadata: Dict[str, str] = {}
+    capabilities: List[dict] = []
+    contracts: List[dict] = []
+    current_contract: Optional[dict] = None
+
+    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        match = DEVICE_DIRECTIVE_RE.match(line)
+        if not match:
+            continue
+        name = match.group("name")
+        value = (match.group("value") or "").strip()
+
+        if name == "contract":
+            packet_name, _, annotation = value.partition(" ")
+            if not packet_name:
+                raise ValueError(f"{path}: @contract requires a packet name")
+            current_contract = {"packet": packet_name, "parameters": []}
+            for tag, tag_value in parse_tags(annotation).items():
+                if tag == "alias":
+                    current_contract["alias"] = tag_value
+            contracts.append(current_contract)
+            continue
+
+        if current_contract is None:
+            if name == "capability":
+                capability_name, _, annotation = value.partition(" ")
+                if not capability_name:
+                    raise ValueError(f"{path}: @capability requires a name")
+                capability: dict = {"name": capability_name}
+                for tag, tag_value in parse_tags(annotation).items():
+                    capability["one_of" if tag == "one_of" else tag] = (
+                        parse_choice_list(tag_value) if tag == "one_of" else tag_value
+                    )
+                capabilities.append(capability)
+                continue
+            metadata[name] = value
+            continue
+
+        if name == "param":
+            param_name, _, annotation = value.partition(" ")
+            if not param_name:
+                raise ValueError(f"{path}: @param requires a field name")
+            tags = parse_tags(annotation)
+            parameter: dict = {"name": param_name}
+            for tag, tag_value in tags.items():
+                if tag == "one_of":
+                    parameter["one_of"] = parse_choice_list(tag_value)
+                elif tag == "optional":
+                    parameter["required"] = False
+                elif tag in ("min", "max", "default"):
+                    parameter[tag] = resolve_numeric(tag_value, defines, sdkconfig)[0]
+                elif tag in ("alias", "type", "enum", "unit"):
+                    parameter[tag] = tag_value
+            current_contract["parameters"].append(parameter)
+        elif name == "returns":
+            current_contract["returns"] = value
+        elif name == "description":
+            current_contract["description"] = value
+
+    if not metadata:
+        return None
+    missing = [key for key in ("id", "version", "title", "description") if not metadata.get(key)]
+    if missing:
+        raise ValueError(f"{path}: device metadata is missing //@{', //@'.join(missing)}")
+
+    return {
+        "metadata": metadata,
+        "capabilities": capabilities,
+        "contracts": contracts,
+        "source_file": path.relative_to(DECODERS_DIR).as_posix(),
+    }
+
+
+def build_device_document(device: dict, packets: Dict[str, dict]) -> dict:
+    metadata = device["metadata"]
+    install_packets = [
+        name
+        for name, packet in packets.items()
+        if packet.get("source_file") == device["source_file"] and name.startswith("packet_sys_device_install_")
+    ]
+    if len(install_packets) != 1:
+        raise ValueError(f"{device['source_file']}: expected exactly one install packet, found {install_packets}")
+
+    contract_documents = []
+    for contract in device["contracts"]:
+        packet_name = contract["packet"]
+        if packet_name not in packets:
+            raise ValueError(f"{device['source_file']}: @contract references unknown packet {packet_name}")
+        contract_documents.append({**contract, "packet_definition": packets[packet_name]})
+
+    protocol = metadata.get("protocol", "")
+    tags = metadata.get("tags", "")
+    return {
+        "$schema": "runit://schemas/device-definition/v1",
+        "schemaVersion": 1,
+        "kind": "device-definition",
+        "id": metadata["id"],
+        "version": metadata["version"],
+        "title": metadata["title"],
+        "description": metadata["description"],
+        "protocols": protocol.split(),
+        "tags": tags.split(),
+        "source_file": device["source_file"],
+        "contractProvider": metadata.get("contract-provider"),
+        "capabilities": device["capabilities"],
+        "install": {
+            "packet": install_packets[0],
+            "packet_definition": packets[install_packets[0]],
+        },
+        "contracts": contract_documents,
+    }
+
+
 def main() -> bool:
     if not DECODERS_DIR.exists():
         print(f"Decoders directory not found: {DECODERS_DIR}")
         return False
 
-    header_files = sorted(DECODERS_DIR.glob("dec_*.h"))
+    header_files = sorted(path for path in DECODERS_DIR.rglob("dec_*.h") if path.name != "dec_device_common.h")
     if not header_files:
         print(f"No dec_*.h files found in {DECODERS_DIR}")
         return False
@@ -620,74 +754,25 @@ def main() -> bool:
     if not sdkconfig:
         print(f"  WARNING: no sdkconfig found at {SDKCONFIG_PATH} - CONFIG_* symbols in @min/@max will stay unresolved")
 
-    out_lines = [
-        "# Decoder Packet Reference (prototype)",
-        "",
-        "> AUTO-GENERATED by `gen_decoder_docs.py` from the `@tag` comment annotations",
-        "> in `components/codecs/decoders/dec_*.h`. Do not edit by hand.",
-        "",
-    ]
-
-    total_packets = total_fields = total_groups = 0
-    unresolved_refs: set = set()
-
-    for path in header_files:
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        class_info = resolve_class(text, all_classes) or resolve_class_fallback(text, all_classes)
-        class_name, class_hex = class_info if class_info else ("UNKNOWN", "0x??")
-
-        print(f"Parsing {path.name} (class {class_hex} / {class_name})...")
-        _, packets = parse_file(path, all_classes)
-
-        out_lines.append(f"## {path.name} — class `{class_hex}` ({class_name})")
-        out_lines.append("")
-
-        last_section = object()  # sentinel that != None, so a leading section=None group still triggers no heading but a real first section does
-        for p in packets:
-            if p.section != last_section:
-                if p.section is not None:
-                    out_lines.append(f"### {p.section}")
-                    out_lines.append("")
-                last_section = p.section
-            out_lines.extend(render_packet(p, class_hex, enums, defines, sdkconfig))
-            total_packets += 1
-            if p.fields:
-                total_fields += len(p.fields)
-                _, groups = group_fields(p.fields)
-                total_groups += len(groups)
-                for f in p.fields:
-                    ref = infer_ref(f, enums)
-                    if ref and ref not in enums:
-                        unresolved_refs.add(ref)
-
-    DEFAULT_OUT_MD.write_text("\n".join(out_lines), encoding="utf-8")
-
     schema = build_json(header_files, all_classes, enums, defines, sdkconfig)
-    DEFAULT_OUT_JSON.write_text(json.dumps(schema, indent=2), encoding="utf-8")
+    devices = []
+    for path in (path for path in header_files if path.parent.name == "device"):
+        descriptor = parse_device_descriptor(path, enums, defines, sdkconfig)
+        if descriptor:
+            devices.append(build_device_document(descriptor, schema["packets"]))
 
-    unresolved_numeric = sorted(
-        {
-            f'{name}.{fname}.{key}={raw}'
-            for name, entry in schema["packets"].items()
-            for fname, fmeta in entry.get("fields", {}).items()
-            for key, raw in (("min", fmeta.get("min")), ("max", fmeta.get("max")), ("sentinel", fmeta.get("sentinel")), ("default", fmeta.get("default")))
-            if key in fmeta and raw is None
-        }
-    )
+    DEFAULT_DEVICE_OUT_DIR.mkdir(parents=True, exist_ok=True)
+    for device in devices:
+        output_path = DEFAULT_DEVICE_OUT_DIR / f"{device['id']}.generated.json"
+        output_path.write_text(json.dumps(device, indent=2) + "\n", encoding="utf-8")
 
-    print(f"\nWrote {DEFAULT_OUT_MD}")
-    print(f"Wrote {DEFAULT_OUT_JSON}")
-    print(f"  Decoder files scanned : {len(header_files)}")
-    print(f"  Packets documented    : {total_packets}")
-    print(f"  Annotated fields      : {total_fields}")
-    print(f"  Field groups found    : {total_groups}")
+    for device in devices:
+        print(f"Wrote {DEFAULT_DEVICE_OUT_DIR / (device['id'] + '.generated.json')}")
+    print(f"  Device headers scanned: {sum(path.parent.name == 'device' for path in header_files)}")
+    print(f"  Device descriptors    : {len(devices)}")
     print(f"  Enums resolved        : {len(enums)}")
     print(f"  #defines resolved     : {len(defines)}")
     print(f"  sdkconfig CONFIG_* resolved : {len(sdkconfig)}")
-    if unresolved_refs:
-        print(f"  WARNING: @ref names not found as any known enum: {sorted(unresolved_refs)}")
-    if unresolved_numeric:
-        print(f"  WARNING: numeric symbols left unresolved (null in JSON): {unresolved_numeric}")
     return True
 
 

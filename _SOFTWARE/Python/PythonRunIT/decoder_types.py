@@ -534,7 +534,59 @@ class packet_sys_vreg_add_callback_t(ct.LittleEndianStructure):
     _action_name_ = "sys_vreg_add_callback"
 
 # ============================================================================
-# dec_sys_device_install.h (class 0x01 - SYS_CONTRACTS)
+# dec_device_ads7128.h (class 0x01 - SYS_CONTRACTS)
+# ============================================================================
+
+class packet_sys_device_install_ads7128_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("device_id", ct.c_uint8),
+        ("i2c_bus", ct.c_uint8),
+        ("i2c_addr", ct.c_uint8),
+        ("intr_pin_device_id", ct.c_uint8),
+        ("intr_pin_pin", ct.c_uint8),
+        ("intr_pin_mode", ct.c_uint8),
+        ("vref_mv", ct.c_uint32),
+    ]
+    _class_header_ = DecoderClass.SYS_CONTRACTS
+    _packet_header_ = 0x47
+    _action_name_ = "sys_device_install_ads7128"
+
+# ============================================================================
+# dec_device_ap33772s.h (class 0x01 - SYS_CONTRACTS)
+# ============================================================================
+
+class packet_sys_device_install_ap33772s_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("device_id", ct.c_uint8),
+        ("i2c_bus", ct.c_uint8),
+        ("i2c_addr", ct.c_uint8),
+        ("intr_pin_device_id", ct.c_uint8),
+        ("intr_pin_pin", ct.c_uint8),
+        ("intr_pin_mode", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_CONTRACTS
+    _packet_header_ = 0x45
+    _action_name_ = "sys_device_install_ap33772s"
+
+# ============================================================================
+# dec_device_dac53202.h (class 0x01 - SYS_CONTRACTS)
+# ============================================================================
+
+class packet_sys_device_install_dac53202_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("device_id", ct.c_uint8),
+        ("i2c_bus", ct.c_uint8),
+        ("i2c_addr", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_CONTRACTS
+    _packet_header_ = 0x46
+    _action_name_ = "sys_device_install_dac53202"
+
+# ============================================================================
+# dec_device_gpio_esp.h (class 0x01 - SYS_CONTRACTS)
 # ============================================================================
 
 class packet_sys_device_install_gpio_esp_t(ct.LittleEndianStructure):
@@ -546,53 +598,9 @@ class packet_sys_device_install_gpio_esp_t(ct.LittleEndianStructure):
     _packet_header_ = 0x40
     _action_name_ = "sys_device_install_gpio_esp"
 
-class packet_sys_device_install_pca9685_t(ct.LittleEndianStructure):
-    _pack_ = 1
-    _fields_ = [
-        ("device_id", ct.c_uint8),
-        ("i2c_bus", ct.c_uint8),
-        ("i2c_addr", ct.c_uint8),
-        ("oe_pin_device_id", ct.c_uint8),
-        ("oe_pin_pin", ct.c_uint8),
-        ("oe_pin_mode", ct.c_uint8),
-    ]
-    _class_header_ = DecoderClass.SYS_CONTRACTS
-    _packet_header_ = 0x41
-    _action_name_ = "sys_device_install_pca9685"
-
-class packet_sys_device_install_tca6424a_t(ct.LittleEndianStructure):
-    _pack_ = 1
-    _fields_ = [
-        ("device_id", ct.c_uint8),
-        ("i2c_bus", ct.c_uint8),
-        ("i2c_addr", ct.c_uint8),
-        ("intr_pin_device_id", ct.c_uint8),
-        ("intr_pin_pin", ct.c_uint8),
-        ("intr_pin_mode", ct.c_uint8),
-        ("rst_pin_device_id", ct.c_uint8),
-        ("rst_pin_pin", ct.c_uint8),
-        ("rst_pin_mode", ct.c_uint8),
-    ]
-    _class_header_ = DecoderClass.SYS_CONTRACTS
-    _packet_header_ = 0x42
-    _action_name_ = "sys_device_install_tca6424a"
-
-class packet_sys_device_install_tps55289_t(ct.LittleEndianStructure):
-    _pack_ = 1
-    _fields_ = [
-        ("device_id", ct.c_uint8),
-        ("i2c_bus", ct.c_uint8),
-        ("i2c_addr", ct.c_uint8),
-        ("intr_pin_device_id", ct.c_uint8),
-        ("intr_pin_pin", ct.c_uint8),
-        ("intr_pin_mode", ct.c_uint8),
-        ("en_pin_device_id", ct.c_uint8),
-        ("en_pin_pin", ct.c_uint8),
-        ("en_pin_mode", ct.c_uint8),
-    ]
-    _class_header_ = DecoderClass.SYS_CONTRACTS
-    _packet_header_ = 0x43
-    _action_name_ = "sys_device_install_tps55289"
+# ============================================================================
+# dec_device_ina3221.h (class 0x01 - SYS_CONTRACTS)
+# ============================================================================
 
 class packet_sys_device_install_ina3221_t(ct.LittleEndianStructure):
     _pack_ = 1
@@ -611,7 +619,29 @@ class packet_sys_device_install_ina3221_t(ct.LittleEndianStructure):
     _packet_header_ = 0x44
     _action_name_ = "sys_device_install_ina3221"
 
-class packet_sys_device_install_ap33772s_t(ct.LittleEndianStructure):
+# ============================================================================
+# dec_device_pca9685.h (class 0x01 - SYS_CONTRACTS)
+# ============================================================================
+
+class packet_sys_device_install_pca9685_t(ct.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("device_id", ct.c_uint8),
+        ("i2c_bus", ct.c_uint8),
+        ("i2c_addr", ct.c_uint8),
+        ("oe_pin_device_id", ct.c_uint8),
+        ("oe_pin_pin", ct.c_uint8),
+        ("oe_pin_mode", ct.c_uint8),
+    ]
+    _class_header_ = DecoderClass.SYS_CONTRACTS
+    _packet_header_ = 0x41
+    _action_name_ = "sys_device_install_pca9685"
+
+# ============================================================================
+# dec_device_tca6424a.h (class 0x01 - SYS_CONTRACTS)
+# ============================================================================
+
+class packet_sys_device_install_tca6424a_t(ct.LittleEndianStructure):
     _pack_ = 1
     _fields_ = [
         ("device_id", ct.c_uint8),
@@ -620,23 +650,19 @@ class packet_sys_device_install_ap33772s_t(ct.LittleEndianStructure):
         ("intr_pin_device_id", ct.c_uint8),
         ("intr_pin_pin", ct.c_uint8),
         ("intr_pin_mode", ct.c_uint8),
+        ("rst_pin_device_id", ct.c_uint8),
+        ("rst_pin_pin", ct.c_uint8),
+        ("rst_pin_mode", ct.c_uint8),
     ]
     _class_header_ = DecoderClass.SYS_CONTRACTS
-    _packet_header_ = 0x45
-    _action_name_ = "sys_device_install_ap33772s"
+    _packet_header_ = 0x42
+    _action_name_ = "sys_device_install_tca6424a"
 
-class packet_sys_device_install_dac53202_t(ct.LittleEndianStructure):
-    _pack_ = 1
-    _fields_ = [
-        ("device_id", ct.c_uint8),
-        ("i2c_bus", ct.c_uint8),
-        ("i2c_addr", ct.c_uint8),
-    ]
-    _class_header_ = DecoderClass.SYS_CONTRACTS
-    _packet_header_ = 0x46
-    _action_name_ = "sys_device_install_dac53202"
+# ============================================================================
+# dec_device_tps55289.h (class 0x01 - SYS_CONTRACTS)
+# ============================================================================
 
-class packet_sys_device_install_ads7128_t(ct.LittleEndianStructure):
+class packet_sys_device_install_tps55289_t(ct.LittleEndianStructure):
     _pack_ = 1
     _fields_ = [
         ("device_id", ct.c_uint8),
@@ -645,11 +671,13 @@ class packet_sys_device_install_ads7128_t(ct.LittleEndianStructure):
         ("intr_pin_device_id", ct.c_uint8),
         ("intr_pin_pin", ct.c_uint8),
         ("intr_pin_mode", ct.c_uint8),
-        ("vref_mv", ct.c_uint32),
+        ("en_pin_device_id", ct.c_uint8),
+        ("en_pin_pin", ct.c_uint8),
+        ("en_pin_mode", ct.c_uint8),
     ]
     _class_header_ = DecoderClass.SYS_CONTRACTS
-    _packet_header_ = 0x47
-    _action_name_ = "sys_device_install_ads7128"
+    _packet_header_ = 0x43
+    _action_name_ = "sys_device_install_tps55289"
 
 # ============================================================================
 # Registry - every generated packet struct, source order. Drives the GUI's
@@ -707,12 +735,12 @@ PACKET_REGISTRY = [
     packet_sys_power_usb_pd_get_limits_t,
     packet_sys_power_monitor_add_callback_t,
     packet_sys_vreg_add_callback_t,
+    packet_sys_device_install_ads7128_t,
+    packet_sys_device_install_ap33772s_t,
+    packet_sys_device_install_dac53202_t,
     packet_sys_device_install_gpio_esp_t,
+    packet_sys_device_install_ina3221_t,
     packet_sys_device_install_pca9685_t,
     packet_sys_device_install_tca6424a_t,
     packet_sys_device_install_tps55289_t,
-    packet_sys_device_install_ina3221_t,
-    packet_sys_device_install_ap33772s_t,
-    packet_sys_device_install_dac53202_t,
-    packet_sys_device_install_ads7128_t,
 ]

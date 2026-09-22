@@ -59,9 +59,9 @@ Unmapped packet bytes raise `ERR_INTERFACE_UNKNOWN_PACKET` (owner `OWNER_DEC_SYS
 
 ---
 
-## `decoders/dec_sys_device_install.h` — class `0x01`, packets `0x40`–`0x47`
+## `decoders/device/dec_device_*.h` — class `0x01`, packets `0x40`–`0x47`
 
-Split out from `dec_sys_contracts.h` into its own file: one packet per device type, each payload that device's own `d_xxx_cfg_t` flattened directly onto the wire in field order. This is what lets a device be attached dynamically (at boot via a [[SYS_ACTIONS.MD]] boot action, or any time after) instead of only through the hardcoded `*_static_config()` calls in `runit.c`.
+One header per device type, included by `dec_sys_device_install.h`: each payload is that device's own `d_xxx_cfg_t` flattened directly onto the wire in field order. This is what lets a device be attached dynamically (at boot via a [[SYS_ACTIONS.MD]] boot action, or any time after) instead of only through the hardcoded `*_static_config()` calls in `runit.c`. The per-device header is also the source of generated API metadata, so its field annotations and documentation stay next to the implementation.
 
 Still the **same class byte** (`0x01`) and the **same dispatcher** (`dec_sys_contracts_decode()`) as `dec_sys_contracts.h` — `dec_sys_contracts.h` just `#include`s this file and folds its `SYS_CONTRACTS_INSTALL_PACKET_LIST(X)` into its own `SYS_CONTRACTS_PACKET_LIST(X)`, the same way `sys_error_codes.h` folds several modules' maps into one `SYS_ERROR_MAP(X)`. The split exists purely so `dec_sys_contracts.h` doesn't have to carry all 8 device headers' includes; it changes nothing about the wire format. Tagged `OWNER_DEC_SYS_DEVICE_INSTALL` (`0xA612`), logged under `dec_sys_device_install` — distinct from `dec_sys_contracts`'s own tag/owner, since it's a separate file.
 
