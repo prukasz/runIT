@@ -1,0 +1,517 @@
+{
+  "$schema": "data-structures/schema/vm-model.schema.json",
+  "schemaVersion": 1,
+  "kind": "vm-model",
+  "enums": {
+    "vm_obj_t_e": {
+      "alias": "VM Data Type",
+      "source_file": "components/VM/core/obj/vm_obj.h",
+      "members": [
+        {
+          "name": "VM_OBJ_NONE",
+          "value": 0,
+          "alias": "Empty",
+          "description": "No payload type."
+        },
+        {
+          "name": "VM_OBJ_PTR",
+          "value": 1,
+          "alias": "Object Reference",
+          "description": "A reference to another VM object."
+        },
+        {
+          "name": "VM_OBJ_U8",
+          "value": 2,
+          "alias": "Unsigned 8-bit Integer",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_U32",
+          "value": 3,
+          "alias": "Unsigned 32-bit Integer",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_I32",
+          "value": 4,
+          "alias": "Signed 32-bit Integer",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_F",
+          "value": 5,
+          "alias": "Float",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_B",
+          "value": 6,
+          "alias": "Boolean",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_STR",
+          "value": 7,
+          "alias": "Text",
+          "description": null
+        }
+      ]
+    },
+    "vm_index_kind_e": {
+      "alias": "VM Index Kind",
+      "source_file": "components/VM/core/obj/vm_obj_access.h",
+      "members": [
+        {
+          "name": "VM_IDX_LITERAL",
+          "value": 0,
+          "alias": "Literal Index",
+          "description": "A fixed array position."
+        },
+        {
+          "name": "VM_IDX_REF",
+          "value": 1,
+          "alias": "Accessor Reference",
+          "description": "Read another accessor to obtain the index."
+        },
+        {
+          "name": "VM_IDX_NAME",
+          "value": 2,
+          "alias": "Child Name",
+          "description": "Find a child object by its tag."
+        }
+      ]
+    }
+  },
+  "structures": [
+    {
+      "name": "vm_obj_head_t",
+      "source_file": "components/VM/core/obj/vm_obj.h",
+      "annotations": {
+        "alias": "VM Object Header",
+        "kind": "vm-object-header",
+        "wire_abi": "esp32-gcc-bitfield-v1",
+        "wire_size": "4"
+      },
+      "fields": [
+        {
+          "name": "payload_size",
+          "kind": "field",
+          "c_type": "uint16_t",
+          "annotations": {
+            "alias": "Payload Size",
+            "unit": "bytes",
+            "role": "payload-size",
+            "wire_offset": "0",
+            "wire_type": "u16-le"
+          }
+        },
+        {
+          "name": "d",
+          "kind": "struct",
+          "annotations": {
+            "group": "descriptor",
+            "wire_offset": "2"
+          },
+          "fields": [
+            {
+              "name": "obj_t",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "alias": "Data Type",
+                "role": "object-type",
+                "ref": "vm_obj_t_e",
+                "one_of": [
+                  {
+                    "symbol": "VM_OBJ_NONE",
+                    "enum": "vm_obj_t_e",
+                    "value": 0,
+                    "alias": "Empty",
+                    "description": "No payload type."
+                  },
+                  {
+                    "symbol": "VM_OBJ_PTR",
+                    "enum": "vm_obj_t_e",
+                    "value": 1,
+                    "alias": "Object Reference",
+                    "description": "A reference to another VM object."
+                  },
+                  {
+                    "symbol": "VM_OBJ_U8",
+                    "enum": "vm_obj_t_e",
+                    "value": 2,
+                    "alias": "Unsigned 8-bit Integer",
+                    "description": null
+                  },
+                  {
+                    "symbol": "VM_OBJ_U32",
+                    "enum": "vm_obj_t_e",
+                    "value": 3,
+                    "alias": "Unsigned 32-bit Integer",
+                    "description": null
+                  },
+                  {
+                    "symbol": "VM_OBJ_I32",
+                    "enum": "vm_obj_t_e",
+                    "value": 4,
+                    "alias": "Signed 32-bit Integer",
+                    "description": null
+                  },
+                  {
+                    "symbol": "VM_OBJ_F",
+                    "enum": "vm_obj_t_e",
+                    "value": 5,
+                    "alias": "Float",
+                    "description": null
+                  },
+                  {
+                    "symbol": "VM_OBJ_B",
+                    "enum": "vm_obj_t_e",
+                    "value": 6,
+                    "alias": "Boolean",
+                    "description": null
+                  },
+                  {
+                    "symbol": "VM_OBJ_STR",
+                    "enum": "vm_obj_t_e",
+                    "value": 7,
+                    "alias": "Text",
+                    "description": null
+                  }
+                ],
+                "wire_offset": "2",
+                "wire_bit_offset": "0"
+              },
+              "bit_width": 4
+            },
+            {
+              "name": "name_size",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "alias": "Name Length",
+                "unit": "chars",
+                "role": "name-size",
+                "min": "0",
+                "max": "VM_OBJ_NAME_MAX",
+                "wire_offset": "2",
+                "wire_bit_offset": "4"
+              },
+              "bit_width": 4
+            }
+          ]
+        },
+        {
+          "name": "f",
+          "kind": "struct",
+          "annotations": {
+            "group": "flags",
+            "wire_offset": "3"
+          },
+          "fields": [
+            {
+              "name": "mutable",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "alias": "Mutable",
+                "role": "mutable",
+                "wire_offset": "3",
+                "wire_bit_offset": "0"
+              },
+              "bit_width": 1
+            },
+            {
+              "name": "upd",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "alias": "Updated",
+                "role": "updated",
+                "wire_offset": "3",
+                "wire_bit_offset": "1"
+              },
+              "bit_width": 1
+            },
+            {
+              "name": "upd_resetable",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "alias": "Resettable Update Flag",
+                "role": "update-resettable",
+                "wire_offset": "3",
+                "wire_bit_offset": "2"
+              },
+              "bit_width": 1
+            },
+            {
+              "name": "tagged",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "alias": "Has Name",
+                "role": "has-name",
+                "wire_offset": "3",
+                "wire_bit_offset": "3"
+              },
+              "bit_width": 1
+            },
+            {
+              "name": "retentive",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "alias": "Retentive",
+                "role": "retentive",
+                "note": "Not valid for pointer objects.",
+                "wire_offset": "3",
+                "wire_bit_offset": "4"
+              },
+              "bit_width": 1
+            },
+            {
+              "name": "dynamic",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "alias": "Dynamic",
+                "role": "dynamic",
+                "note": "Runtime heap allocation.",
+                "wire_offset": "3",
+                "wire_bit_offset": "5"
+              },
+              "bit_width": 1
+            },
+            {
+              "name": "usr_protected",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "alias": "User Protected",
+                "role": "user-protected",
+                "wire_offset": "3",
+                "wire_bit_offset": "6"
+              },
+              "bit_width": 1
+            },
+            {
+              "name": "_pad",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "internal": "",
+                "wire_offset": "3",
+                "wire_bit_offset": "7"
+              },
+              "bit_width": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "vm_obj_t",
+      "source_file": "components/VM/core/obj/vm_obj.h",
+      "annotations": {
+        "alias": "VM Object",
+        "kind": "vm-object",
+        "variable_size": ""
+      },
+      "fields": [
+        {
+          "name": "head",
+          "kind": "field",
+          "c_type": "vm_obj_head_t",
+          "annotations": {
+            "alias": "Header",
+            "role": "header"
+          }
+        },
+        {
+          "name": "payload",
+          "kind": "field",
+          "c_type": "uint8_t",
+          "annotations": {
+            "alias": "Payload",
+            "role": "payload",
+            "element_type_from": "d.obj_t",
+            "length_from": "payload_size"
+          },
+          "array": {
+            "flexible": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "vm_index_t",
+      "source_file": "components/VM/core/obj/vm_obj_access.h",
+      "annotations": {
+        "alias": "VM Object Index",
+        "kind": "vm-index"
+      },
+      "fields": [
+        {
+          "name": "kind",
+          "kind": "field",
+          "c_type": "uint8_t",
+          "annotations": {
+            "alias": "Kind",
+            "role": "discriminator",
+            "ref": "vm_index_kind_e",
+            "one_of": [
+              {
+                "symbol": "VM_IDX_LITERAL",
+                "enum": "vm_index_kind_e",
+                "value": 0,
+                "alias": "Literal Index",
+                "description": "A fixed array position."
+              },
+              {
+                "symbol": "VM_IDX_REF",
+                "enum": "vm_index_kind_e",
+                "value": 1,
+                "alias": "Accessor Reference",
+                "description": "Read another accessor to obtain the index."
+              },
+              {
+                "symbol": "VM_IDX_NAME",
+                "enum": "vm_index_kind_e",
+                "value": 2,
+                "alias": "Child Name",
+                "description": "Find a child object by its tag."
+              }
+            ]
+          }
+        },
+        {
+          "name": "name_len",
+          "kind": "field",
+          "c_type": "uint8_t",
+          "annotations": {
+            "internal": "",
+            "derived_from": "name"
+          }
+        },
+        {
+          "name": null,
+          "kind": "union",
+          "annotations": {
+            "discriminator": "kind"
+          },
+          "fields": [
+            {
+              "name": "value",
+              "kind": "field",
+              "c_type": "uint32_t",
+              "annotations": {
+                "case": [
+                  {
+                    "symbol": "VM_IDX_LITERAL",
+                    "enum": "vm_index_kind_e",
+                    "value": 0,
+                    "alias": "Literal Index",
+                    "description": "A fixed array position."
+                  }
+                ],
+                "alias": "Index"
+              }
+            },
+            {
+              "name": "ref",
+              "kind": "field",
+              "c_type": "const vm_accessor_t*",
+              "annotations": {
+                "case": [
+                  {
+                    "symbol": "VM_IDX_REF",
+                    "enum": "vm_index_kind_e",
+                    "value": 1,
+                    "alias": "Accessor Reference",
+                    "description": "Read another accessor to obtain the index."
+                  }
+                ],
+                "alias": "Accessor",
+                "reference": "vm-accessor"
+              }
+            },
+            {
+              "name": "name",
+              "kind": "field",
+              "c_type": "const char*",
+              "annotations": {
+                "case": [
+                  {
+                    "symbol": "VM_IDX_NAME",
+                    "enum": "vm_index_kind_e",
+                    "value": 2,
+                    "alias": "Child Name",
+                    "description": "Find a child object by its tag."
+                  }
+                ],
+                "alias": "Child Name"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "vm_accessor_t",
+      "source_file": "components/VM/core/obj/vm_obj_access.h",
+      "annotations": {
+        "alias": "VM Object Accessor",
+        "kind": "vm-accessor"
+      },
+      "fields": [
+        {
+          "name": "id",
+          "kind": "field",
+          "c_type": "uint16_t",
+          "annotations": {
+            "alias": "Root Object ID",
+            "role": "root-object-id",
+            "reference": "vm-object"
+          }
+        },
+        {
+          "name": "count",
+          "kind": "field",
+          "c_type": "uint8_t",
+          "annotations": {
+            "internal": "",
+            "derived_from": "indices"
+          }
+        },
+        {
+          "name": "flags",
+          "kind": "field",
+          "c_type": "uint8_t",
+          "annotations": {
+            "internal": ""
+          }
+        },
+        {
+          "name": "indices",
+          "kind": "field",
+          "c_type": "const vm_index_t*",
+          "annotations": {
+            "alias": "Indices",
+            "role": "indices",
+            "element": "vm-index",
+            "length_from": "count"
+          }
+        },
+        {
+          "name": "c_payload",
+          "kind": "field",
+          "c_type": "vm_obj_payload_t",
+          "annotations": {
+            "internal": ""
+          }
+        }
+      ]
+    }
+  ]
+}

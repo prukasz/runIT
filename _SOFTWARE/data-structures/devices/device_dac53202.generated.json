@@ -1,0 +1,204 @@
+{
+  "$schema": "data-structures/schema/device-definition.schema.json",
+  "schemaVersion": 1,
+  "kind": "device-definition",
+  "id": "device_dac53202",
+  "version": "1.0.0",
+  "title": "DAC53202 dual DAC",
+  "description": "Two-channel I2C digital-to-analog converter - outputs a steady voltage on each channel.",
+  "protocols": [
+    "i2c"
+  ],
+  "tags": [
+    "i2c",
+    "dac",
+    "voltage"
+  ],
+  "source_file": "dec_device_dac53202.h",
+  "contractProvider": {
+    "symbol": "SYS_DEVICE_CONTRACT_IO",
+    "enum": "sys_device_contract_type_e",
+    "value": 0,
+    "alias": "Digital/Analog IO",
+    "description": "Basic pin control - read or drive a pin, or measure/generate a voltage on it"
+  },
+  "install": {
+    "packet": "packet_sys_device_install_dac53202_t",
+    "packet_definition": {
+      "source_file": "dec_device_dac53202.h",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x46",
+      "decoder": "decoder_packet_sys_device_install_dac53202_t()",
+      "field_order": [
+        "device_id",
+        "i2c_bus",
+        "i2c_addr"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 127
+        },
+        "i2c_bus": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 1
+        },
+        "i2c_addr": {
+          "type": "uint8_t",
+          "required": true,
+          "note": "not range-checked by driver_dac53202.c - no software-enforced bound"
+        }
+      }
+    }
+  },
+  "contracts": [
+    {
+      "packet": "packet_sys_io_reset_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1
+          ],
+          "alias": "DAC Channel"
+        }
+      ],
+      "alias": "Reset channel",
+      "description": "Power off the selected DAC channel.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x20",
+        "decoder": "decoder_packet_sys_io_reset_t()",
+        "field_order": [
+          "device_id",
+          "pin"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_get_voltage_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1
+          ],
+          "alias": "DAC Channel"
+        }
+      ],
+      "alias": "Read channel voltage",
+      "returns": "voltage_mV @type uint32_t @unit mV",
+      "description": "Reads back the last voltage this channel was set to.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x25",
+        "decoder": "decoder_packet_sys_io_get_voltage_t()",
+        "field_order": [
+          "device_id",
+          "pin"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_set_voltage_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1
+          ],
+          "alias": "DAC Channel"
+        },
+        {
+          "name": "voltage_mV",
+          "alias": "Voltage",
+          "type": "uint32_t",
+          "unit": "mV"
+        }
+      ],
+      "alias": "Set channel voltage",
+      "description": "Drive the selected channel to an exact output voltage.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x26",
+        "decoder": "decoder_packet_sys_io_set_voltage_t()",
+        "field_order": [
+          "device_id",
+          "pin",
+          "voltage_mV"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          },
+          "voltage_mV": {
+            "type": "uint32_t",
+            "alias": "Voltage",
+            "required": true,
+            "unit": "mV"
+          }
+        }
+      }
+    }
+  ]
+}

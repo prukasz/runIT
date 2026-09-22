@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "data-structures/schema/device-definition.schema.json",
+  "title": "runIT device definition",
+  "description": "Shape emitted by data-structures/auto-annotations/device/generate-devices.py for one dec_device_*.h. generate-devices.py validates every file it writes against this schema before writing it - see device-annotations.md.",
+  "type": "object",
+  "required": ["$schema", "schemaVersion", "kind", "id", "version", "title", "description", "source_file", "install", "contracts"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "device-definition" },
+    "id": { "type": "string" },
+    "version": { "type": "string" },
+    "title": { "type": "string" },
+    "description": { "type": "string" },
+    "protocols": { "type": "array", "items": { "type": "string" } },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "source_file": { "type": "string" },
+    "contractProvider": {
+      "oneOf": [{ "type": "null" }, { "type": "string" }, { "$ref": "#/$defs/symbolRef" }]
+    },
+    "install": {
+      "type": "object",
+      "required": ["packet", "packet_definition"],
+      "additionalProperties": false,
+      "properties": {
+        "packet": { "type": "string" },
+        "packet_definition": { "$ref": "#/$defs/packetDefinition" }
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/contractEntry" }
+    }
+  },
+  "$defs": {
+    "symbolRef": {
+      "type": "object",
+      "required": ["symbol", "enum", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "symbol": { "type": "string" },
+        "enum": { "type": "string" },
+        "value": { "type": "integer" },
+        "alias": { "type": ["string", "null"] },
+        "description": { "type": ["string", "null"] }
+      }
+    },
+    "oneOfValue": {
+      "oneOf": [{ "type": "integer" }, { "type": "string" }, { "$ref": "#/$defs/symbolRef" }]
+    },
+    "packetField": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string" },
+        "array_len": { "type": "integer" },
+        "alias": { "type": "string" },
+        "required": { "type": "boolean" },
+        "min": { "type": ["integer", "null"] },
+        "max": { "type": ["integer", "null"] },
+        "one_of": { "type": "array", "items": { "$ref": "#/$defs/oneOfValue" } },
+        "available": { "type": "array", "items": { "$ref": "#/$defs/oneOfValue" } },
+        "default": { "type": ["integer", "null"] },
+        "sentinel": { "type": ["integer", "null"] },
+        "unit": { "type": "string" },
+        "ref": { "type": "string" },
+        "group": { "type": "string" },
+        "role": { "type": "string" },
+        "desc": { "type": "string" },
+        "note": { "type": "string" }
+      }
+    },
+    "packetDefinition": {
+      "type": "object",
+      "required": ["source_file", "packet_header", "decoder", "field_order", "fields"],
+      "additionalProperties": false,
+      "properties": {
+        "source_file": { "type": "string" },
+        "class_name": { "type": ["string", "null"] },
+        "class_header": { "type": ["string", "null"] },
+        "packet_header": { "type": "string" },
+        "decoder": { "type": "string" },
+        "field_order": { "type": "array", "items": { "type": "string" } },
+        "fields": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/packetField" }
+        },
+        "groups": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["fields", "sentinel_field"],
+            "additionalProperties": false,
+            "properties": {
+              "fields": { "type": "array", "items": { "type": "string" } },
+              "sentinel_field": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    },
+    "contractParameter": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "alias": { "type": "string" },
+        "type": { "type": "string" },
+        "unit": { "type": "string" },
+        "one_of": { "type": "array", "items": { "$ref": "#/$defs/oneOfValue" } },
+        "available": { "type": "array", "items": { "$ref": "#/$defs/oneOfValue" } },
+        "min": { "type": ["integer", "string"] },
+        "max": { "type": ["integer", "string"] },
+        "default": { "type": ["integer", "string"] },
+        "required": { "type": "boolean" },
+        "ref": { "type": "string" },
+        "instance": { "const": true }
+      }
+    },
+    "contractEntry": {
+      "type": "object",
+      "required": ["packet", "parameters", "packet_definition"],
+      "additionalProperties": false,
+      "properties": {
+        "packet": { "type": "string" },
+        "alias": { "type": "string" },
+        "description": { "type": "string" },
+        "returns": { "type": "string" },
+        "parameters": { "type": "array", "items": { "$ref": "#/$defs/contractParameter" } },
+        "packet_definition": { "$ref": "#/$defs/packetDefinition" }
+      }
+    }
+  }
+}

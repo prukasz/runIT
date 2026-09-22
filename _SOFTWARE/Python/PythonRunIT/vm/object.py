@@ -91,7 +91,7 @@ class VMObject:
 
     def compute_head_bytes(self) -> bytes:
         """
-        Packs the 4-byte vm_obj_head_t:
+        Packs the four-byte ESP32 GCC vm_obj_head_t ABI:
         - u16 payload_size
         - u8  d: obj_t (4 bits) | (name_size (4 bits) << 4)
         - u8  f: flags bitfield

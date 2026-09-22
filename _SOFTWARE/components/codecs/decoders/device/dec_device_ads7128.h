@@ -9,28 +9,30 @@
 //@description Eight-channel ADC with I2C control and an on-chip window comparator.
 //@protocol i2c
 //@tags i2c adc io voltage ic
-//@contract-provider SYS_DEVICE_CONTRACT_IO
-//@capability pins @one_of [0,1,2,3,4,5,6,7]
-//@capability pin-mode @one_of [SYS_IO_MODE_ADC]
-//@capability alert-output open-drain active-low optional
+//@contract-provider $SYS_DEVICE_CONTRACT_IO
+//@self-property PIN @one-of [0,1,2,3,4,5,6,7]
+//@self-property I2C_ADDRESS @one-of[0x10,0x11,0x12,0x13,0x14,0x15,0x16]
+//@property PIN-MODE @ref sys_io_mode_e @one-of [$SYS_IO_MODE_ADC]
+//@property INTR-MODE @ref sys_io_intr_mode_e @one-of [$SYS_IO_INTR_ADC_WINDOW_INSIDE, $SYS_IO_INTR_ADC_WINDOW_OUTSIDE]
 
-//@contract packet_sys_io_reset_t @alias Reset configuration
-//@param pin @alias ADC Channel @one_of [0,1,2,3,4,5,6,7]
+//@contract packet_sys_io_reset_t @alias Reset Configuration
+//@param pin @arg PIN @alias ADC Channel
 //@description Reset one ADC channel and clear its comparator configuration.
 
 //@contract packet_sys_io_set_mode_t @alias Configure mode
-//@param pin @alias ADC Channel @one_of [0,1,2,3,4,5,6,7]
-//@param mode @alias Channel Mode @enum sys_io_mode_e @one_of [SYS_IO_MODE_ADC]
-//@description ADS7128 channels are ADC-only; other SYS_IO_MODE values are unavailable.
+//@param pin @arg PIN @alias ADC Channel 
+//@param mode @arg PIN-MODE @alias Channel Mode
+//@description ADS7128 channels are ADC-only.
 
 //@contract packet_sys_io_get_voltage_t @alias Read voltage on pin
-//@param pin @alias ADC Channel @one_of [0,1,2,3,4,5,6,7]
+//@param pin @arg PIN @alias ADC Channel
 //@returns voltage_mV @type uint32_t @unit mV
 //@description Read the selected ADC channel using the installed AVDD reference voltage.
 
 //@contract packet_sys_io_configure_intr_t @alias Configure alert
-//@param pin @alias ADC Channel @one_of [0,1,2,3,4,5,6,7]
-//@param mode @alias Window Mode @enum sys_io_intr_mode_e @one_of [SYS_IO_INTR_ADC_WINDOW_INSIDE,SYS_IO_INTR_ADC_WINDOW_OUTSIDE]
+//@param pin @arg PIN @alias ADC Channel
+//@param mode @arg INTR-MODE @alias Window Mode
+//@param route_mask @alias Alert Route Mask @type uint16_t @note Bitmask of callback routes (see SYS_CB_ROUTE_*) that should receive this alert event
 //@param adc_thresh_up_mV @alias Upper Threshold @type uint16_t @unit mV @optional @default 0
 //@param adc_thresh_down_mV @alias Lower Threshold @type uint16_t @unit mV @optional @default 0
 //@param adc_thresh_hyst_mV @alias Hysteresis @type uint16_t @unit mV @optional @default 0
@@ -41,11 +43,11 @@
 #define HEADER_packet_sys_device_install_ads7128_t 0x47
 typedef struct __packed {
   uint8_t device_id;          //@required @alias Device ID @min 0 @max CONFIG_SYS_DEVICE_MAX_ID
-  uint8_t i2c_bus;            //@required @alias I2C Bus @one_of [0,1] @note 0 selects the first logical I2C bus; any non-zero wire value is converted to bus 1 by the decoder
+  uint8_t i2c_bus;            //@required @alias I2C Bus @one-of [0,1] @note 0 selects the first logical I2C bus; any non-zero wire value is converted to bus 1 by the decoder
   uint8_t i2c_addr;           //@required @alias I2C Address @min 0x00 @max 0x7F @unit 7-bit-address @note 7-bit I2C address; driver_ads7128.c does not enforce a device-specific address list
   uint8_t intr_pin_device_id; //@group alert-pin @role device_id @alias ALERT GPIO Provider
   uint8_t intr_pin_pin;       //@group alert-pin @role pin @alias ALERT Pin @sentinel SYS_GPIO_NONE @note SYS_GPIO_NONE disables external ALERT reporting; ALERT is open-drain and active-low
-  uint8_t intr_pin_mode;      //@group alert-pin @role mode @alias ALERT Pin Mode @ref sys_io_mode_e @one_of [SYS_IO_MODE_INPUT_PULLUP] @note Required when ALERT reporting is enabled
+  uint8_t intr_pin_mode;      //@group alert-pin @role mode @alias ALERT Pin Mode @ref sys_io_mode_e @one-of [$SYS_IO_MODE_INPUT_PULLUP] @note Required when ALERT reporting is enabled
   uint32_t vref_mv;           //@required @alias ADC Reference Voltage @unit mV @min 1 @note AVDD doubles as ADC reference; adapter_ads7128.c rejects zero and firmware has no additional numeric bound
 } packet_sys_device_install_ads7128_t;
 

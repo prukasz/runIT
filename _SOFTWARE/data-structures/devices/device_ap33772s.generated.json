@@ -1,0 +1,519 @@
+{
+  "$schema": "data-structures/schema/device-definition.schema.json",
+  "schemaVersion": 1,
+  "kind": "device-definition",
+  "id": "device_ap33772s",
+  "version": "1.0.0",
+  "title": "AP33772S USB-C PD sink",
+  "description": "USB-C Power Delivery sink controller that negotiates voltage/current from a charger and can also act as a regulated, monitored output.",
+  "protocols": [
+    "i2c"
+  ],
+  "tags": [
+    "i2c",
+    "usb-c",
+    "power-delivery",
+    "power",
+    "voltage",
+    "current"
+  ],
+  "source_file": "dec_device_ap33772s.h",
+  "contractProvider": {
+    "symbol": "SYS_DEVICE_CONTRACT_POWER_USB_PD",
+    "enum": "sys_device_contract_type_e",
+    "value": 3,
+    "alias": "USB-C Power Delivery",
+    "description": "Negotiates power (voltage/current) from a USB-C charger"
+  },
+  "install": {
+    "packet": "packet_sys_device_install_ap33772s_t",
+    "packet_definition": {
+      "source_file": "dec_device_ap33772s.h",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x45",
+      "decoder": "decoder_packet_sys_device_install_ap33772s_t()",
+      "field_order": [
+        "device_id",
+        "i2c_bus",
+        "i2c_addr",
+        "intr_pin_device_id",
+        "intr_pin_pin",
+        "intr_pin_mode"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 127
+        },
+        "i2c_bus": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 1
+        },
+        "i2c_addr": {
+          "type": "uint8_t",
+          "required": true,
+          "default": 82,
+          "note": "AP33772S has a fixed datasheet address (AP33772S_ADDRESS); the field is honored (adapter_ap33772s.c overwrites the driver handle's address with it) but the real chip only answers at 0x52"
+        },
+        "intr_pin_device_id": {
+          "type": "uint8_t",
+          "group": "interrupt-pin",
+          "role": "device_id"
+        },
+        "intr_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "interrupt-pin",
+          "role": "pin"
+        },
+        "intr_pin_mode": {
+          "type": "uint8_t",
+          "ref": "sys_io_mode_e",
+          "group": "interrupt-pin",
+          "role": "mode"
+        }
+      },
+      "groups": {
+        "interrupt-pin": {
+          "fields": [
+            "intr_pin_device_id",
+            "intr_pin_pin",
+            "intr_pin_mode"
+          ],
+          "sentinel_field": "intr_pin_pin"
+        }
+      }
+    }
+  },
+  "contracts": [
+    {
+      "packet": "packet_sys_power_usb_pd_set_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "voltage_mV",
+          "alias": "Requested Voltage",
+          "type": "uint32_t",
+          "unit": "mV"
+        },
+        {
+          "name": "current_mA",
+          "alias": "Requested Current",
+          "type": "uint32_t",
+          "unit": "mA"
+        }
+      ],
+      "alias": "Request USB-PD profile",
+      "description": "Ask the charger for a specific voltage/current profile. The charger may not grant it exactly - read back the actual result with the negotiated-limits contract.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x36",
+        "decoder": "decoder_packet_sys_power_usb_pd_set_t()",
+        "field_order": [
+          "device_id",
+          "voltage_mV",
+          "current_mA"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "voltage_mV": {
+            "type": "uint32_t",
+            "alias": "Requested Voltage",
+            "required": true,
+            "unit": "mV"
+          },
+          "current_mA": {
+            "type": "uint32_t",
+            "alias": "Requested Current",
+            "required": true,
+            "unit": "mA"
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_power_usb_pd_list_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        }
+      ],
+      "alias": "List available power profiles",
+      "description": "Lists the voltage/current profiles this charger is offering.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x37",
+        "decoder": "decoder_packet_sys_power_usb_pd_list_t()",
+        "field_order": [
+          "device_id"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_power_usb_pd_get_limits_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        }
+      ],
+      "alias": "Read negotiated limits",
+      "description": "Reads the voltage/current the charger actually agreed to supply.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x38",
+        "decoder": "decoder_packet_sys_power_usb_pd_get_limits_t()",
+        "field_order": [
+          "device_id"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_vreg_set_enable_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "state",
+          "alias": "Enabled",
+          "type": "bool"
+        }
+      ],
+      "alias": "Enable output",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x31",
+        "decoder": "decoder_packet_sys_vreg_set_enable_t()",
+        "field_order": [
+          "device_id",
+          "state"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "state": {
+            "type": "uint8_t",
+            "alias": "Enable State",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_vreg_set_voltage_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "voltage_mV",
+          "alias": "Voltage",
+          "type": "uint32_t",
+          "unit": "mV"
+        }
+      ],
+      "alias": "Set output voltage",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x32",
+        "decoder": "decoder_packet_sys_vreg_set_voltage_t()",
+        "field_order": [
+          "device_id",
+          "voltage_mV"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "voltage_mV": {
+            "type": "uint32_t",
+            "alias": "Voltage",
+            "required": true,
+            "unit": "mV"
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_vreg_set_current_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "current_mA",
+          "alias": "Current Limit",
+          "type": "uint32_t",
+          "unit": "mA"
+        }
+      ],
+      "alias": "Set output current limit",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x33",
+        "decoder": "decoder_packet_sys_vreg_set_current_t()",
+        "field_order": [
+          "device_id",
+          "current_mA"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "current_mA": {
+            "type": "uint32_t",
+            "alias": "Current Limit",
+            "required": true,
+            "unit": "mA"
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_vreg_add_callback_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "on_event",
+          "one_of": [
+            {
+              "symbol": "SYS_PWR_EVENT_OCP_CRITICAL",
+              "enum": "sys_power_events_e",
+              "value": 5,
+              "alias": "Over-Current Critical",
+              "description": "Current draw exceeded the limit - output is protected/shut down"
+            },
+            {
+              "symbol": "SYS_PWR_EVENT_OCP_WARNING",
+              "enum": "sys_power_events_e",
+              "value": 4,
+              "alias": "Over-Current Warning",
+              "description": "Current draw is approaching the limit - not cut off yet, just a heads-up"
+            },
+            {
+              "symbol": "SYS_PWR_EVENT_OVP",
+              "enum": "sys_power_events_e",
+              "value": 1,
+              "alias": "Over-Voltage",
+              "description": "The voltage went above the safe limit"
+            },
+            {
+              "symbol": "SYS_PWR_EVENT_UVP",
+              "enum": "sys_power_events_e",
+              "value": 2,
+              "alias": "Under-Voltage",
+              "description": "The voltage dropped below the safe limit"
+            },
+            {
+              "symbol": "SYS_PWR_EVENT_OTP",
+              "enum": "sys_power_events_e",
+              "value": 6,
+              "alias": "Over-Temperature",
+              "description": "The device got too hot and triggered thermal protection"
+            }
+          ],
+          "ref": "sys_power_events_e",
+          "alias": "Alert Event"
+        },
+        {
+          "name": "route_mask",
+          "alias": "Alert Route Mask",
+          "type": "uint16_t"
+        }
+      ],
+      "alias": "Configure power alert",
+      "description": "Fires when the output regulator trips a protection event (over-voltage, over-current, etc).",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x3A",
+        "decoder": "decoder_packet_sys_vreg_add_callback_t()",
+        "field_order": [
+          "device_id",
+          "on_event",
+          "route_mask",
+          "static_action_id",
+          "dynamic_action_id"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "on_event": {
+            "type": "uint8_t",
+            "alias": "Event",
+            "required": true,
+            "ref": "sys_power_events_e"
+          },
+          "route_mask": {
+            "type": "uint16_t",
+            "alias": "Route Mask",
+            "required": true,
+            "note": "bitmask"
+          },
+          "static_action_id": {
+            "type": "uint8_t",
+            "alias": "Static Action ID",
+            "required": false,
+            "sentinel": 0
+          },
+          "dynamic_action_id": {
+            "type": "uint8_t",
+            "alias": "Dynamic Action ID",
+            "required": false,
+            "sentinel": 0
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_power_monitor_get_voltage_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "channel",
+          "one_of": [
+            0
+          ],
+          "alias": "Channel"
+        }
+      ],
+      "alias": "Read output voltage",
+      "returns": "voltage_mV @type int32_t @unit mV",
+      "description": "Single-rail device - channel is always 0.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x34",
+        "decoder": "decoder_packet_sys_power_monitor_get_voltage_t()",
+        "field_order": [
+          "device_id",
+          "channel"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "channel": {
+            "type": "uint8_t",
+            "alias": "Channel",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_power_monitor_get_current_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "channel",
+          "one_of": [
+            0
+          ],
+          "alias": "Channel"
+        }
+      ],
+      "alias": "Read output current",
+      "returns": "current_mA @type int32_t @unit mA",
+      "description": "Single-rail device - channel is always 0.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x35",
+        "decoder": "decoder_packet_sys_power_monitor_get_current_t()",
+        "field_order": [
+          "device_id",
+          "channel"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "channel": {
+            "type": "uint8_t",
+            "alias": "Channel",
+            "required": true
+          }
+        }
+      }
+    }
+  ]
+}

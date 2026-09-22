@@ -1,5 +1,5 @@
 {
-  "$schema": "runit://schemas/device-definition/v1",
+  "$schema": "data-structures/schema/device-definition.schema.json",
   "schemaVersion": 1,
   "kind": "device-definition",
   "id": "device_pca9685",
@@ -17,46 +17,18 @@
     "led",
     "ic"
   ],
-  "source_file": "device/dec_device_pca9685.h",
-  "contractProvider": "SYS_DEVICE_CONTRACT_IO",
-  "capabilities": [
-    {
-      "name": "pins",
-      "one_of": [
-        0,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15
-      ]
-    },
-    {
-      "name": "pwm-duty",
-      "min": "0",
-      "max": "PCA9685_MAX_PWM_VALUE",
-      "unit": "ticks"
-    },
-    {
-      "name": "output-enable",
-      "desc": "active-low optional"
-    }
-  ],
+  "source_file": "dec_device_pca9685.h",
+  "contractProvider": {
+    "symbol": "SYS_DEVICE_CONTRACT_IO",
+    "enum": "sys_device_contract_type_e",
+    "value": 0,
+    "alias": "Digital/Analog IO",
+    "description": "Basic pin control - read or drive a pin, or measure/generate a voltage on it"
+  },
   "install": {
     "packet": "packet_sys_device_install_pca9685_t",
     "packet_definition": {
-      "source_file": "device/dec_device_pca9685.h",
-      "section": null,
+      "source_file": "dec_device_pca9685.h",
       "class_name": "SYS_CONTRACTS",
       "class_header": "0x01",
       "packet_header": "0x41",
@@ -98,7 +70,8 @@
           "type": "uint8_t",
           "sentinel": 255,
           "group": "enable-output-pin",
-          "role": "pin"
+          "role": "pin",
+          "note": "SYS_GPIO_NONE disables the output-enable pin; the pin is active-low"
         },
         "oe_pin_mode": {
           "type": "uint8_t",
@@ -124,8 +97,12 @@
       "packet": "packet_sys_io_reset_t",
       "parameters": [
         {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
           "name": "pin",
-          "alias": "PWM Channel",
           "one_of": [
             0,
             1,
@@ -143,14 +120,14 @@
             13,
             14,
             15
-          ]
+          ],
+          "alias": "PWM Channel"
         }
       ],
       "alias": "Reset output",
       "description": "Set one PWM output duty to zero.",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
-        "section": "IO Control Packet decoders (0x20 - 0x2F)",
         "class_name": "SYS_CONTRACTS",
         "class_header": "0x01",
         "packet_header": "0x20",
@@ -177,8 +154,12 @@
       "packet": "packet_sys_io_set_level_t",
       "parameters": [
         {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
           "name": "pin",
-          "alias": "PWM Channel",
           "one_of": [
             0,
             1,
@@ -196,7 +177,8 @@
             13,
             14,
             15
-          ]
+          ],
+          "alias": "PWM Channel"
         },
         {
           "name": "level",
@@ -208,7 +190,6 @@
       "description": "Map a logical level to off or full PWM duty.",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
-        "section": "IO Control Packet decoders (0x20 - 0x2F)",
         "class_name": "SYS_CONTRACTS",
         "class_header": "0x01",
         "packet_header": "0x22",
@@ -241,8 +222,12 @@
       "packet": "packet_sys_io_get_level_t",
       "parameters": [
         {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
           "name": "pin",
-          "alias": "PWM Channel",
           "one_of": [
             0,
             1,
@@ -260,14 +245,14 @@
             13,
             14,
             15
-          ]
+          ],
+          "alias": "PWM Channel"
         }
       ],
       "alias": "Read output level",
       "returns": "level @type bool",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
-        "section": "IO Control Packet decoders (0x20 - 0x2F)",
         "class_name": "SYS_CONTRACTS",
         "class_header": "0x01",
         "packet_header": "0x23",
@@ -294,8 +279,12 @@
       "packet": "packet_sys_io_toggle_t",
       "parameters": [
         {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
           "name": "pin",
-          "alias": "PWM Channel",
           "one_of": [
             0,
             1,
@@ -313,13 +302,13 @@
             13,
             14,
             15
-          ]
+          ],
+          "alias": "PWM Channel"
         }
       ],
       "alias": "Toggle output",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
-        "section": "IO Control Packet decoders (0x20 - 0x2F)",
         "class_name": "SYS_CONTRACTS",
         "class_header": "0x01",
         "packet_header": "0x24",
@@ -346,8 +335,12 @@
       "packet": "packet_sys_io_set_pwm_duty_t",
       "parameters": [
         {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
           "name": "pin",
-          "alias": "PWM Channel",
           "one_of": [
             0,
             1,
@@ -365,22 +358,22 @@
             13,
             14,
             15
-          ]
+          ],
+          "alias": "PWM Channel"
         },
         {
           "name": "duty",
+          "min": 0,
+          "max": "PCA9685_MAX_PWM_VALUE",
           "alias": "Duty",
           "type": "uint32_t",
-          "unit": "ticks",
-          "min": 0,
-          "max": 4095
+          "unit": "ticks"
         }
       ],
       "alias": "Set PWM duty",
       "description": "Duty values above 4095 are clamped by the adapter.",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
-        "section": "IO Control Packet decoders (0x20 - 0x2F)",
         "class_name": "SYS_CONTRACTS",
         "class_header": "0x01",
         "packet_header": "0x28",
@@ -413,8 +406,12 @@
       "packet": "packet_sys_io_set_pwm_frequency_t",
       "parameters": [
         {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
           "name": "pin",
-          "alias": "PWM Channel",
           "one_of": [
             0,
             1,
@@ -432,7 +429,8 @@
             13,
             14,
             15
-          ]
+          ],
+          "alias": "PWM Channel"
         },
         {
           "name": "frequency_HZ",
@@ -445,7 +443,6 @@
       "description": "Frequency is shared by all PCA9685 output channels.",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
-        "section": "IO Control Packet decoders (0x20 - 0x2F)",
         "class_name": "SYS_CONTRACTS",
         "class_header": "0x01",
         "packet_header": "0x27",

@@ -1,0 +1,643 @@
+{
+  "$schema": "data-structures/schema/device-definition.schema.json",
+  "schemaVersion": 1,
+  "kind": "device-definition",
+  "id": "device_tca6424a",
+  "version": "1.0.0",
+  "title": "TCA6424A GPIO expander",
+  "description": "24-bit I2C GPIO expander - adds extra digital input/output pins over I2C.",
+  "protocols": [
+    "i2c"
+  ],
+  "tags": [
+    "i2c",
+    "gpio",
+    "io",
+    "expander"
+  ],
+  "source_file": "dec_device_tca6424a.h",
+  "contractProvider": {
+    "symbol": "SYS_DEVICE_CONTRACT_IO",
+    "enum": "sys_device_contract_type_e",
+    "value": 0,
+    "alias": "Digital/Analog IO",
+    "description": "Basic pin control - read or drive a pin, or measure/generate a voltage on it"
+  },
+  "install": {
+    "packet": "packet_sys_device_install_tca6424a_t",
+    "packet_definition": {
+      "source_file": "dec_device_tca6424a.h",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x42",
+      "decoder": "decoder_packet_sys_device_install_tca6424a_t()",
+      "field_order": [
+        "device_id",
+        "i2c_bus",
+        "i2c_addr",
+        "intr_pin_device_id",
+        "intr_pin_pin",
+        "intr_pin_mode",
+        "rst_pin_device_id",
+        "rst_pin_pin",
+        "rst_pin_mode"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 127
+        },
+        "i2c_bus": {
+          "type": "uint8_t",
+          "required": true,
+          "min": 0,
+          "max": 1
+        },
+        "i2c_addr": {
+          "type": "uint8_t",
+          "required": true,
+          "note": "not range-checked by driver_tca6424a.c - no software-enforced bound"
+        },
+        "intr_pin_device_id": {
+          "type": "uint8_t",
+          "group": "interrupt-pin",
+          "role": "device_id"
+        },
+        "intr_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "interrupt-pin",
+          "role": "pin"
+        },
+        "intr_pin_mode": {
+          "type": "uint8_t",
+          "ref": "sys_io_mode_e",
+          "group": "interrupt-pin",
+          "role": "mode"
+        },
+        "rst_pin_device_id": {
+          "type": "uint8_t",
+          "group": "reset-pin",
+          "role": "device_id"
+        },
+        "rst_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "reset-pin",
+          "role": "pin"
+        },
+        "rst_pin_mode": {
+          "type": "uint8_t",
+          "ref": "sys_io_mode_e",
+          "group": "reset-pin",
+          "role": "mode"
+        }
+      },
+      "groups": {
+        "interrupt-pin": {
+          "fields": [
+            "intr_pin_device_id",
+            "intr_pin_pin",
+            "intr_pin_mode"
+          ],
+          "sentinel_field": "intr_pin_pin"
+        },
+        "reset-pin": {
+          "fields": [
+            "rst_pin_device_id",
+            "rst_pin_pin",
+            "rst_pin_mode"
+          ],
+          "sentinel_field": "rst_pin_pin"
+        }
+      }
+    }
+  },
+  "contracts": [
+    {
+      "packet": "packet_sys_io_reset_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "alias": "Expander Pin"
+        }
+      ],
+      "alias": "Reset pin",
+      "description": "Releases the pin back to its unconfigured state.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x20",
+        "decoder": "decoder_packet_sys_io_reset_t()",
+        "field_order": [
+          "device_id",
+          "pin"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_set_mode_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "alias": "Expander Pin"
+        },
+        {
+          "name": "mode",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_INPUT",
+              "enum": "sys_io_mode_e",
+              "value": 0,
+              "alias": "Input",
+              "description": "Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal"
+            },
+            {
+              "symbol": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+              "enum": "sys_io_mode_e",
+              "value": 3,
+              "alias": "Output Push-Pull",
+              "description": "Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays"
+            }
+          ],
+          "ref": "sys_io_mode_e",
+          "alias": "Pin Mode"
+        }
+      ],
+      "alias": "Configure pin mode",
+      "description": "This expander only supports plain digital input or output - no pull resistors, open-drain, ADC, or PWM.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x21",
+        "decoder": "decoder_packet_sys_io_set_mode_t()",
+        "field_order": [
+          "device_id",
+          "pin",
+          "mode"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          },
+          "mode": {
+            "type": "uint8_t",
+            "alias": "Pin Mode",
+            "required": true,
+            "ref": "sys_io_mode_e"
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_configure_intr_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "alias": "Expander Pin"
+        },
+        {
+          "name": "mode",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_INTR_DISABLE",
+              "enum": "sys_io_intr_mode_e",
+              "value": 0,
+              "alias": "Disable",
+              "description": "Don't watch this pin for changes - nothing gets triggered"
+            },
+            {
+              "symbol": "SYS_IO_INTR_MODE_RISING_EDGE",
+              "enum": "sys_io_intr_mode_e",
+              "value": 1,
+              "alias": "Rising Edge",
+              "description": "Triggers the instant the pin switches from off to on"
+            },
+            {
+              "symbol": "SYS_IO_INTR_MODE_FALLING_EDGE",
+              "enum": "sys_io_intr_mode_e",
+              "value": 2,
+              "alias": "Falling Edge",
+              "description": "Triggers the instant the pin switches from on to off"
+            },
+            {
+              "symbol": "SYS_IO_INTR_MODE_BOTH_EDGES",
+              "enum": "sys_io_intr_mode_e",
+              "value": 3,
+              "alias": "Both Edges",
+              "description": "Triggers on any change - whether the pin switches from off to on, or on to off"
+            }
+          ],
+          "ref": "sys_io_intr_mode_e",
+          "alias": "Trigger Mode"
+        },
+        {
+          "name": "route_mask",
+          "alias": "Interrupt Route Mask",
+          "type": "uint16_t"
+        }
+      ],
+      "alias": "Configure pin interrupt",
+      "description": "Digital edge-triggered interrupt only - this expander has no ADC, so the window-comparator trigger modes don't apply.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x29",
+        "decoder": "decoder_packet_sys_io_configure_intr_t()",
+        "field_order": [
+          "device_id",
+          "pin",
+          "mode",
+          "route_mask",
+          "static_action_id",
+          "dynamic_action_id",
+          "adc_thresh_up_mV",
+          "adc_thresh_down_mV",
+          "adc_thresh_hyst_mV",
+          "adc_counter_thresh"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          },
+          "mode": {
+            "type": "uint8_t",
+            "alias": "Interrupt Mode",
+            "required": true,
+            "ref": "sys_io_intr_mode_e"
+          },
+          "route_mask": {
+            "type": "uint16_t",
+            "alias": "Route Mask",
+            "required": true,
+            "note": "bitmask"
+          },
+          "static_action_id": {
+            "type": "uint8_t",
+            "alias": "Static Action ID",
+            "required": false,
+            "sentinel": 0
+          },
+          "dynamic_action_id": {
+            "type": "uint8_t",
+            "alias": "Dynamic Action ID",
+            "required": false,
+            "sentinel": 0
+          },
+          "adc_thresh_up_mV": {
+            "type": "uint16_t",
+            "alias": "ADC Rising Threshold",
+            "required": false,
+            "unit": "mV"
+          },
+          "adc_thresh_down_mV": {
+            "type": "uint16_t",
+            "alias": "ADC Falling Threshold",
+            "required": false,
+            "unit": "mV"
+          },
+          "adc_thresh_hyst_mV": {
+            "type": "uint16_t",
+            "alias": "ADC Hysteresis",
+            "required": false,
+            "unit": "mV"
+          },
+          "adc_counter_thresh": {
+            "type": "uint16_t",
+            "alias": "ADC Event Counter Threshold",
+            "required": false
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_set_level_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "alias": "Expander Pin"
+        },
+        {
+          "name": "level",
+          "alias": "Level",
+          "type": "bool"
+        }
+      ],
+      "alias": "Set pin level",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x22",
+        "decoder": "decoder_packet_sys_io_set_level_t()",
+        "field_order": [
+          "device_id",
+          "pin",
+          "level"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          },
+          "level": {
+            "type": "uint8_t",
+            "alias": "Level",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_get_level_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "alias": "Expander Pin"
+        }
+      ],
+      "alias": "Read pin level",
+      "returns": "level @type bool",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x23",
+        "decoder": "decoder_packet_sys_io_get_level_t()",
+        "field_order": [
+          "device_id",
+          "pin"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_toggle_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "alias": "Expander Pin"
+        }
+      ],
+      "alias": "Toggle pin",
+      "description": "Flip an output pin's current level.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x24",
+        "decoder": "decoder_packet_sys_io_toggle_t()",
+        "field_order": [
+          "device_id",
+          "pin"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          }
+        }
+      }
+    }
+  ]
+}

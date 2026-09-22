@@ -27,14 +27,15 @@ uint32_t sys_power_get_budget_mw(void);
 
 err_h sys_power_set_limits(uint32_t max_mv, uint32_t max_ma, uint32_t max_mw);
 
+//#ref-enum @alias Power Event
 typedef enum sys_power_events_e {
-  SYS_PWR_EVENT_NONE = 0,
-  SYS_PWR_EVENT_OVP = 1,
-  SYS_PWR_EVENT_UVP = 2,
-  SYS_PWR_EVENT_SPC = 3,
-  SYS_PWR_EVENT_OCP_WARNING = 4,
-  SYS_PWR_EVENT_OCP_CRITICAL = 5,
-  SYS_PWR_EVENT_OTP = 6,
+  SYS_PWR_EVENT_NONE = 0, //@alias None @description Nothing wrong - normal operation
+  SYS_PWR_EVENT_OVP = 1, //@alias Over-Voltage @description The voltage went above the safe limit
+  SYS_PWR_EVENT_UVP = 2, //@alias Under-Voltage @description The voltage dropped below the safe limit
+  SYS_PWR_EVENT_SPC = 3, //@alias Short Circuit @description A short circuit was detected on the output
+  SYS_PWR_EVENT_OCP_WARNING = 4, //@alias Over-Current Warning @description Current draw is approaching the limit - not cut off yet, just a heads-up
+  SYS_PWR_EVENT_OCP_CRITICAL = 5, //@alias Over-Current Critical @description Current draw exceeded the limit - output is protected/shut down
+  SYS_PWR_EVENT_OTP = 6, //@alias Over-Temperature @description The device got too hot and triggered thermal protection
 } sys_power_events_e;
 
 /* ========================================================================== *

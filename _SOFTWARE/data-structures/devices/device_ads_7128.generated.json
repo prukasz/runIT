@@ -1,5 +1,5 @@
 {
-  "$schema": "runit://schemas/device-definition/v1",
+  "$schema": "data-structures/schema/device-definition.schema.json",
   "schemaVersion": 1,
   "kind": "device-definition",
   "id": "device_ads_7128",
@@ -16,38 +16,18 @@
     "voltage",
     "ic"
   ],
-  "source_file": "device/dec_device_ads7128.h",
-  "contractProvider": "SYS_DEVICE_CONTRACT_IO",
-  "capabilities": [
-    {
-      "name": "pins",
-      "one_of": [
-        0,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7
-      ]
-    },
-    {
-      "name": "pin-mode",
-      "one_of": [
-        "SYS_IO_MODE_ADC"
-      ]
-    },
-    {
-      "name": "alert-output",
-      "desc": "open-drain active-low optional"
-    }
-  ],
+  "source_file": "dec_device_ads7128.h",
+  "contractProvider": {
+    "symbol": "SYS_DEVICE_CONTRACT_IO",
+    "enum": "sys_device_contract_type_e",
+    "value": 0,
+    "alias": "Digital/Analog IO",
+    "description": "Basic pin control - read or drive a pin, or measure/generate a voltage on it"
+  },
   "install": {
     "packet": "packet_sys_device_install_ads7128_t",
     "packet_definition": {
-      "source_file": "device/dec_device_ads7128.h",
-      "section": null,
+      "source_file": "dec_device_ads7128.h",
       "class_name": "SYS_CONTRACTS",
       "class_header": "0x01",
       "packet_header": "0x47",
@@ -106,7 +86,13 @@
           "type": "uint8_t",
           "alias": "ALERT Pin Mode",
           "one_of": [
-            "SYS_IO_MODE_INPUT_PULLUP"
+            {
+              "symbol": "SYS_IO_MODE_INPUT_PULLUP",
+              "enum": "sys_io_mode_e",
+              "value": 1,
+              "alias": "Input with Pullup",
+              "description": "Same as Input, but reads \"on\" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed"
+            }
           ],
           "ref": "sys_io_mode_e",
           "group": "alert-pin",
@@ -139,8 +125,12 @@
       "packet": "packet_sys_io_reset_t",
       "parameters": [
         {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
           "name": "pin",
-          "alias": "ADC Channel",
           "one_of": [
             0,
             1,
@@ -150,14 +140,14 @@
             5,
             6,
             7
-          ]
+          ],
+          "alias": "ADC Channel"
         }
       ],
-      "alias": "Reset configuration",
+      "alias": "Reset Configuration",
       "description": "Reset one ADC channel and clear its comparator configuration.",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
-        "section": "IO Control Packet decoders (0x20 - 0x2F)",
         "class_name": "SYS_CONTRACTS",
         "class_header": "0x01",
         "packet_header": "0x20",
@@ -184,8 +174,12 @@
       "packet": "packet_sys_io_set_mode_t",
       "parameters": [
         {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
           "name": "pin",
-          "alias": "ADC Channel",
           "one_of": [
             0,
             1,
@@ -195,22 +189,28 @@
             5,
             6,
             7
-          ]
+          ],
+          "alias": "ADC Channel"
         },
         {
           "name": "mode",
-          "alias": "Channel Mode",
-          "enum": "sys_io_mode_e",
           "one_of": [
-            "SYS_IO_MODE_ADC"
-          ]
+            {
+              "symbol": "SYS_IO_MODE_ADC",
+              "enum": "sys_io_mode_e",
+              "value": 7,
+              "alias": "ADC",
+              "description": "Measures the exact voltage on the pin instead of just on/off - use to read sensors that report a varying value, like a potentiometer or a temperature sensor"
+            }
+          ],
+          "ref": "sys_io_mode_e",
+          "alias": "Channel Mode"
         }
       ],
       "alias": "Configure mode",
-      "description": "ADS7128 channels are ADC-only; other SYS_IO_MODE values are unavailable.",
+      "description": "ADS7128 channels are ADC-only.",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
-        "section": "IO Control Packet decoders (0x20 - 0x2F)",
         "class_name": "SYS_CONTRACTS",
         "class_header": "0x01",
         "packet_header": "0x21",
@@ -244,8 +244,12 @@
       "packet": "packet_sys_io_get_voltage_t",
       "parameters": [
         {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
           "name": "pin",
-          "alias": "ADC Channel",
           "one_of": [
             0,
             1,
@@ -255,7 +259,8 @@
             5,
             6,
             7
-          ]
+          ],
+          "alias": "ADC Channel"
         }
       ],
       "alias": "Read voltage on pin",
@@ -263,7 +268,6 @@
       "description": "Read the selected ADC channel using the installed AVDD reference voltage.",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
-        "section": "IO Control Packet decoders (0x20 - 0x2F)",
         "class_name": "SYS_CONTRACTS",
         "class_header": "0x01",
         "packet_header": "0x25",
@@ -290,8 +294,12 @@
       "packet": "packet_sys_io_configure_intr_t",
       "parameters": [
         {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
           "name": "pin",
-          "alias": "ADC Channel",
           "one_of": [
             0,
             1,
@@ -301,54 +309,71 @@
             5,
             6,
             7
-          ]
+          ],
+          "alias": "ADC Channel"
         },
         {
           "name": "mode",
-          "alias": "Window Mode",
-          "enum": "sys_io_intr_mode_e",
           "one_of": [
-            "SYS_IO_INTR_ADC_WINDOW_INSIDE",
-            "SYS_IO_INTR_ADC_WINDOW_OUTSIDE"
-          ]
+            {
+              "symbol": "SYS_IO_INTR_ADC_WINDOW_INSIDE",
+              "enum": "sys_io_intr_mode_e",
+              "value": 5,
+              "alias": "Inside set window",
+              "description": "Triggers when the measured value comes back into the range you set - use to catch when a value returns to normal"
+            },
+            {
+              "symbol": "SYS_IO_INTR_ADC_WINDOW_OUTSIDE",
+              "enum": "sys_io_intr_mode_e",
+              "value": 4,
+              "alias": "Outside set window",
+              "description": "Triggers when the measured value leaves the safe/expected range you set - use to catch a value going too high or too low"
+            }
+          ],
+          "ref": "sys_io_intr_mode_e",
+          "alias": "Window Mode"
+        },
+        {
+          "name": "route_mask",
+          "alias": "Alert Route Mask",
+          "type": "uint16_t"
         },
         {
           "name": "adc_thresh_up_mV",
+          "required": false,
+          "default": 0,
           "alias": "Upper Threshold",
           "type": "uint16_t",
-          "unit": "mV",
-          "required": false,
-          "default": 0
+          "unit": "mV"
         },
         {
           "name": "adc_thresh_down_mV",
+          "required": false,
+          "default": 0,
           "alias": "Lower Threshold",
           "type": "uint16_t",
-          "unit": "mV",
-          "required": false,
-          "default": 0
+          "unit": "mV"
         },
         {
           "name": "adc_thresh_hyst_mV",
+          "required": false,
+          "default": 0,
           "alias": "Hysteresis",
           "type": "uint16_t",
-          "unit": "mV",
-          "required": false,
-          "default": 0
+          "unit": "mV"
         },
         {
           "name": "adc_counter_thresh",
-          "alias": "Event Count Threshold",
-          "type": "uint16_t",
           "required": false,
-          "default": 0
+          "default": 0,
+          "alias": "Event Count Threshold",
+          "type": "uint16_t"
         }
       ],
       "alias": "Configure alert",
       "description": "Configure the on-chip ADC window comparator. The optional ALERT pin reports events to a board GPIO.",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
-        "section": "IO Control Packet decoders (0x20 - 0x2F)",
         "class_name": "SYS_CONTRACTS",
         "class_header": "0x01",
         "packet_header": "0x29",

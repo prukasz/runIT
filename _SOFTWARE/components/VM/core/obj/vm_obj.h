@@ -26,15 +26,17 @@
 /**
  * @brief Possible types of object items stored
  */
+
+//#ref-enum @alias VM Data Type
 typedef enum vm_obj_t_e {
-  VM_OBJ_NONE = 0,
-  VM_OBJ_PTR  = 1,  // ptr at object
-  VM_OBJ_U8   = 2,
-  VM_OBJ_U32  = 3,
-  VM_OBJ_I32  = 4,
-  VM_OBJ_F    = 5,
-  VM_OBJ_B    = 6,
-  VM_OBJ_STR  = 7,
+  VM_OBJ_NONE = 0,  //@alias Empty @description No payload type.
+  VM_OBJ_PTR  = 1,  //@alias Object Reference @description A reference to another VM object.
+  VM_OBJ_U8   = 2,  //@alias Unsigned 8-bit Integer
+  VM_OBJ_U32  = 3,  //@alias Unsigned 32-bit Integer
+  VM_OBJ_I32  = 4,  //@alias Signed 32-bit Integer
+  VM_OBJ_F    = 5,  //@alias Float
+  VM_OBJ_B    = 6,  //@alias Boolean
+  VM_OBJ_STR  = 7,  //@alias Text
 } vm_obj_t_e;
 
 
@@ -46,25 +48,31 @@ typedef enum vm_obj_t_e {
 #define VM_OBJ_F_RETENTIVE     (1u << 2)
 #define VM_OBJ_F_USR_PROTECTED (1u << 3)
 
+/* ESP32 GCC loader ABI: vm_obj_head_t is transmitted as its exact four-byte
+ * in-memory representation. TypeScript mirrors this target-specific layout. */
+#define VM_OBJ_HEAD_WIRE_SIZE 4u
+
 /**
  * @brief Object head describing every existing object.
  */
+
+//#vm-struct-ref @alias VM Object Header @kind vm-object-header @wire-abi esp32-gcc-bitfield-v1 @wire-size 4
 typedef struct __attribute__((aligned(4))) vm_obj_head_t {
-  uint16_t payload_size;  // value length in bytes -- payload[0..payload_size) holds a single value or an array
+  uint16_t payload_size;  //@alias Payload Size @unit bytes @role payload-size @wire-offset 0 @wire-type u16-le
   struct {
-    uint8_t obj_t     : 4;  // what type is stored (vm_obj_t_e)
-    uint8_t name_size : 4;  // up to 15 chars, payload[payload_size]+name[name_size]
-  } d;
+    uint8_t obj_t     : 4;  //@alias Data Type @role object-type @ref vm_obj_t_e @one-of [$VM_OBJ_NONE, $VM_OBJ_PTR, $VM_OBJ_U8, $VM_OBJ_U32, $VM_OBJ_I32, $VM_OBJ_F, $VM_OBJ_B, $VM_OBJ_STR] @wire-offset 2 @wire-bit-offset 0
+    uint8_t name_size : 4;  //@alias Name Length @unit chars @role name-size @min 0 @max VM_OBJ_NAME_MAX @wire-offset 2 @wire-bit-offset 4
+  } d;  //@group descriptor @wire-offset 2
   struct {
-    uint8_t mutable       : 1;  // is value editable by any one
-    uint8_t upd           : 1;  // has value been updated / refreshed lately
-    uint8_t upd_resetable : 1;  // can flag be reset
-    uint8_t tagged        : 1;  // is name field populated
-    uint8_t retentive     : 1;  // should be stored in nvs - requires type of non-prt
-    uint8_t dynamic       : 1;  // registered heap allocation, freed at refcount zero -- see vm_obj_dyn.h
-    uint8_t usr_protected : 1;  // user writes denied; internal producer writes still use mutable
-    uint8_t _pad          : 1;
-  } f;
+    uint8_t mutable       : 1;  //@alias Mutable @role mutable @wire-offset 3 @wire-bit-offset 0
+    uint8_t upd           : 1;  //@alias Updated @role updated @wire-offset 3 @wire-bit-offset 1
+    uint8_t upd_resetable : 1;  //@alias Resettable Update Flag @role update-resettable @wire-offset 3 @wire-bit-offset 2
+    uint8_t tagged        : 1;  //@alias Has Name @role has-name @wire-offset 3 @wire-bit-offset 3
+    uint8_t retentive     : 1;  //@alias Retentive @role retentive @note Not valid for pointer objects. @wire-offset 3 @wire-bit-offset 4
+    uint8_t dynamic       : 1;  //@alias Dynamic @role dynamic @note Runtime heap allocation. @wire-offset 3 @wire-bit-offset 5
+    uint8_t usr_protected : 1;  //@alias User Protected @role user-protected @wire-offset 3 @wire-bit-offset 6
+    uint8_t _pad          : 1;  //@internal @wire-offset 3 @wire-bit-offset 7
+  } f;  //@group flags @wire-offset 3
 } vm_obj_head_t;
 
 _Static_assert(sizeof(vm_obj_head_t) == 4, "vm_obj_head_t must stay 4 bytes");
@@ -72,9 +80,10 @@ _Static_assert(sizeof(vm_obj_head_t) == 4, "vm_obj_head_t must stay 4 bytes");
 /**
  * @brief VM object consisting of head descriptor followed by flexible-array payload.
  */
+//#vm-struct-ref @alias VM Object @kind vm-object @variable-size
 typedef struct vm_obj_t {
-  vm_obj_head_t head;
-  uint8_t       payload[];
+  vm_obj_head_t head;       //@alias Header @role header
+  uint8_t       payload[];  //@alias Payload @role payload @element-type-from d.obj_t @length-from payload_size
 } vm_obj_t;
 
 /**

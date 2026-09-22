@@ -3,6 +3,44 @@
 #include "dec_device_common.h"
 #include "../../../devices/device_tca6424a/include/device_tca6424a.h"
 
+//@id device_tca6424a
+//@version 1.0.0
+//@title TCA6424A GPIO expander
+//@description 24-bit I2C GPIO expander - adds extra digital input/output pins over I2C.
+//@protocol i2c
+//@tags i2c gpio io expander
+//@contract-provider $SYS_DEVICE_CONTRACT_IO
+//@self-property PIN @one-of [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
+//@property PIN-MODE @ref sys_io_mode_e @one-of [$SYS_IO_MODE_INPUT, $SYS_IO_MODE_OUTPUT_PUSH_PULL]
+//@property INTR-MODE @ref sys_io_intr_mode_e @one-of [$SYS_IO_INTR_DISABLE, $SYS_IO_INTR_MODE_RISING_EDGE, $SYS_IO_INTR_MODE_FALLING_EDGE, $SYS_IO_INTR_MODE_BOTH_EDGES]
+
+//@contract packet_sys_io_reset_t @alias Reset pin
+//@param pin @arg PIN @alias Expander Pin
+//@description Releases the pin back to its unconfigured state.
+
+//@contract packet_sys_io_set_mode_t @alias Configure pin mode
+//@param pin @arg PIN @alias Expander Pin
+//@param mode @arg PIN-MODE @alias Pin Mode
+//@description This expander only supports plain digital input or output - no pull resistors, open-drain, ADC, or PWM.
+
+//@contract packet_sys_io_configure_intr_t @alias Configure pin interrupt
+//@param pin @arg PIN @alias Expander Pin
+//@param mode @arg INTR-MODE @alias Trigger Mode
+//@param route_mask @alias Interrupt Route Mask @type uint16_t @note Bitmask of callback routes (see SYS_CB_ROUTE_*) that should receive this interrupt event
+//@description Digital edge-triggered interrupt only - this expander has no ADC, so the window-comparator trigger modes don't apply.
+
+//@contract packet_sys_io_set_level_t @alias Set pin level
+//@param pin @arg PIN @alias Expander Pin
+//@param level @alias Level @type bool
+
+//@contract packet_sys_io_get_level_t @alias Read pin level
+//@param pin @arg PIN @alias Expander Pin
+//@returns level @type bool
+
+//@contract packet_sys_io_toggle_t @alias Toggle pin
+//@param pin @arg PIN @alias Expander Pin
+//@description Flip an output pin's current level.
+
 #define HEADER_packet_sys_device_install_tca6424a_t 0x42
 typedef struct __packed {
   uint8_t device_id; //@required @min 0 @max CONFIG_SYS_DEVICE_MAX_ID

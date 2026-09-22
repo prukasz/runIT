@@ -1,0 +1,510 @@
+{
+  "enums": {
+    "sys_device_contract_type_e": {
+      "alias": "Device Contract",
+      "source_file": "components/system/sys_device/include/sys_device.h",
+      "members": [
+        {
+          "name": "SYS_DEVICE_CONTRACT_IO",
+          "value": 0,
+          "alias": "Digital/Analog IO",
+          "description": "Basic pin control - read or drive a pin, or measure/generate a voltage on it"
+        },
+        {
+          "name": "SYS_DEVICE_CONTRACT_POWER_VREG",
+          "value": 1,
+          "alias": "Voltage Regulator",
+          "description": "An adjustable power output - turn it on/off and set its voltage and current limit"
+        },
+        {
+          "name": "SYS_DEVICE_CONTRACT_POWER_MONITOR",
+          "value": 2,
+          "alias": "Power Monitor",
+          "description": "Measures voltage and current on a power rail, with optional over-current alerts"
+        },
+        {
+          "name": "SYS_DEVICE_CONTRACT_POWER_USB_PD",
+          "value": 3,
+          "alias": "USB-C Power Delivery",
+          "description": "Negotiates power (voltage/current) from a USB-C charger"
+        },
+        {
+          "name": "SYS_DEVICE_CONTRACT_HBRIDGE",
+          "value": 4,
+          "alias": "Motor Driver (H-Bridge)",
+          "description": "Drives a DC motor forward, backward, or brakes it"
+        },
+        {
+          "name": "SYS_DEVICE_CONTRACT_MAX",
+          "value": 5,
+          "alias": "(internal)",
+          "description": "Not a real contract - marks the end of the list, used internally for bounds checking"
+        }
+      ]
+    },
+    "sys_io_mode_e": {
+      "alias": "IO Mode",
+      "source_file": "components/system/sys_io/include/sys_io.h",
+      "members": [
+        {
+          "name": "SYS_IO_MODE_INPUT",
+          "value": 0,
+          "alias": "Input",
+          "description": "Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal"
+        },
+        {
+          "name": "SYS_IO_MODE_INPUT_PULLUP",
+          "value": 1,
+          "alias": "Input with Pullup",
+          "description": "Same as Input, but reads \"on\" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed"
+        },
+        {
+          "name": "SYS_IO_MODE_INPUT_PULLDOWN",
+          "value": 2,
+          "alias": "Input with Pulldown",
+          "description": "Same as Input, but reads \"off\" by default when nothing is connected - use when your button/switch connects the pin to power when pressed"
+        },
+        {
+          "name": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+          "value": 3,
+          "alias": "Output Push-Pull",
+          "description": "Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays"
+        },
+        {
+          "name": "SYS_IO_MODE_OUTPUT_OPEN_DRAIN",
+          "value": 4,
+          "alias": "Output Open-Drain",
+          "description": "A weaker output that can only actively pull the signal to \"off\" - something else (an external resistor, or the Open-Drain-Pullup option) is needed to make it read \"on\". Mainly used when several devices need to share the same wire"
+        },
+        {
+          "name": "SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP",
+          "value": 5,
+          "alias": "Output Open-Drain-Pullup",
+          "description": "Same as Open-Drain, but with a built-in helper enabled so the pin reads \"on\" by itself instead of needing an extra part"
+        },
+        {
+          "name": "SYS_IO_MODE_PWM",
+          "value": 6,
+          "alias": "PWM",
+          "description": "Rapidly switches the pin on and off to fake an in-between level - use to dim an LED or control a motor's speed"
+        },
+        {
+          "name": "SYS_IO_MODE_ADC",
+          "value": 7,
+          "alias": "ADC",
+          "description": "Measures the exact voltage on the pin instead of just on/off - use to read sensors that report a varying value, like a potentiometer or a temperature sensor"
+        },
+        {
+          "name": "SYS_IO_MODE_DAC",
+          "value": 8,
+          "alias": "DAC",
+          "description": "Outputs an exact, steady voltage level instead of just on/off - the opposite of ADC"
+        }
+      ]
+    },
+    "sys_io_intr_mode_e": {
+      "alias": "Interrupt Mode",
+      "source_file": "components/system/sys_io/include/sys_io.h",
+      "members": [
+        {
+          "name": "SYS_IO_INTR_DISABLE",
+          "value": 0,
+          "alias": "Disable",
+          "description": "Don't watch this pin for changes - nothing gets triggered"
+        },
+        {
+          "name": "SYS_IO_INTR_MODE_RISING_EDGE",
+          "value": 1,
+          "alias": "Rising Edge",
+          "description": "Triggers the instant the pin switches from off to on"
+        },
+        {
+          "name": "SYS_IO_INTR_MODE_FALLING_EDGE",
+          "value": 2,
+          "alias": "Falling Edge",
+          "description": "Triggers the instant the pin switches from on to off"
+        },
+        {
+          "name": "SYS_IO_INTR_MODE_BOTH_EDGES",
+          "value": 3,
+          "alias": "Both Edges",
+          "description": "Triggers on any change - whether the pin switches from off to on, or on to off"
+        },
+        {
+          "name": "SYS_IO_INTR_ADC_WINDOW_OUTSIDE",
+          "value": 4,
+          "alias": "Outside set window",
+          "description": "Triggers when the measured value leaves the safe/expected range you set - use to catch a value going too high or too low"
+        },
+        {
+          "name": "SYS_IO_INTR_ADC_WINDOW_INSIDE",
+          "value": 5,
+          "alias": "Inside set window",
+          "description": "Triggers when the measured value comes back into the range you set - use to catch when a value returns to normal"
+        }
+      ]
+    },
+    "sys_power_events_e": {
+      "alias": "Power Event",
+      "source_file": "components/system/sys_power/include/sys_power.h",
+      "members": [
+        {
+          "name": "SYS_PWR_EVENT_NONE",
+          "value": 0,
+          "alias": "None",
+          "description": "Nothing wrong - normal operation"
+        },
+        {
+          "name": "SYS_PWR_EVENT_OVP",
+          "value": 1,
+          "alias": "Over-Voltage",
+          "description": "The voltage went above the safe limit"
+        },
+        {
+          "name": "SYS_PWR_EVENT_UVP",
+          "value": 2,
+          "alias": "Under-Voltage",
+          "description": "The voltage dropped below the safe limit"
+        },
+        {
+          "name": "SYS_PWR_EVENT_SPC",
+          "value": 3,
+          "alias": "Short Circuit",
+          "description": "A short circuit was detected on the output"
+        },
+        {
+          "name": "SYS_PWR_EVENT_OCP_WARNING",
+          "value": 4,
+          "alias": "Over-Current Warning",
+          "description": "Current draw is approaching the limit - not cut off yet, just a heads-up"
+        },
+        {
+          "name": "SYS_PWR_EVENT_OCP_CRITICAL",
+          "value": 5,
+          "alias": "Over-Current Critical",
+          "description": "Current draw exceeded the limit - output is protected/shut down"
+        },
+        {
+          "name": "SYS_PWR_EVENT_OTP",
+          "value": 6,
+          "alias": "Over-Temperature",
+          "description": "The device got too hot and triggered thermal protection"
+        }
+      ]
+    },
+    "vm_obj_t_e": {
+      "alias": "VM Data Type",
+      "source_file": "components/VM/core/obj/vm_obj.h",
+      "members": [
+        {
+          "name": "VM_OBJ_NONE",
+          "value": 0,
+          "alias": "Empty",
+          "description": "No payload type."
+        },
+        {
+          "name": "VM_OBJ_PTR",
+          "value": 1,
+          "alias": "Object Reference",
+          "description": "A reference to another VM object."
+        },
+        {
+          "name": "VM_OBJ_U8",
+          "value": 2,
+          "alias": "Unsigned 8-bit Integer",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_U32",
+          "value": 3,
+          "alias": "Unsigned 32-bit Integer",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_I32",
+          "value": 4,
+          "alias": "Signed 32-bit Integer",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_F",
+          "value": 5,
+          "alias": "Float",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_B",
+          "value": 6,
+          "alias": "Boolean",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_STR",
+          "value": 7,
+          "alias": "Text",
+          "description": null
+        }
+      ]
+    },
+    "vm_index_kind_e": {
+      "alias": "VM Index Kind",
+      "source_file": "components/VM/core/obj/vm_obj_access.h",
+      "members": [
+        {
+          "name": "VM_IDX_LITERAL",
+          "value": 0,
+          "alias": "Literal Index",
+          "description": "A fixed array position."
+        },
+        {
+          "name": "VM_IDX_REF",
+          "value": 1,
+          "alias": "Accessor Reference",
+          "description": "Read another accessor to obtain the index."
+        },
+        {
+          "name": "VM_IDX_NAME",
+          "value": 2,
+          "alias": "Child Name",
+          "description": "Find a child object by its tag."
+        }
+      ]
+    }
+  },
+  "symbols": {
+    "SYS_DEVICE_CONTRACT_IO": {
+      "enum": "sys_device_contract_type_e",
+      "value": 0,
+      "alias": "Digital/Analog IO",
+      "description": "Basic pin control - read or drive a pin, or measure/generate a voltage on it"
+    },
+    "SYS_DEVICE_CONTRACT_POWER_VREG": {
+      "enum": "sys_device_contract_type_e",
+      "value": 1,
+      "alias": "Voltage Regulator",
+      "description": "An adjustable power output - turn it on/off and set its voltage and current limit"
+    },
+    "SYS_DEVICE_CONTRACT_POWER_MONITOR": {
+      "enum": "sys_device_contract_type_e",
+      "value": 2,
+      "alias": "Power Monitor",
+      "description": "Measures voltage and current on a power rail, with optional over-current alerts"
+    },
+    "SYS_DEVICE_CONTRACT_POWER_USB_PD": {
+      "enum": "sys_device_contract_type_e",
+      "value": 3,
+      "alias": "USB-C Power Delivery",
+      "description": "Negotiates power (voltage/current) from a USB-C charger"
+    },
+    "SYS_DEVICE_CONTRACT_HBRIDGE": {
+      "enum": "sys_device_contract_type_e",
+      "value": 4,
+      "alias": "Motor Driver (H-Bridge)",
+      "description": "Drives a DC motor forward, backward, or brakes it"
+    },
+    "SYS_DEVICE_CONTRACT_MAX": {
+      "enum": "sys_device_contract_type_e",
+      "value": 5,
+      "alias": "(internal)",
+      "description": "Not a real contract - marks the end of the list, used internally for bounds checking"
+    },
+    "SYS_IO_MODE_INPUT": {
+      "enum": "sys_io_mode_e",
+      "value": 0,
+      "alias": "Input",
+      "description": "Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal"
+    },
+    "SYS_IO_MODE_INPUT_PULLUP": {
+      "enum": "sys_io_mode_e",
+      "value": 1,
+      "alias": "Input with Pullup",
+      "description": "Same as Input, but reads \"on\" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed"
+    },
+    "SYS_IO_MODE_INPUT_PULLDOWN": {
+      "enum": "sys_io_mode_e",
+      "value": 2,
+      "alias": "Input with Pulldown",
+      "description": "Same as Input, but reads \"off\" by default when nothing is connected - use when your button/switch connects the pin to power when pressed"
+    },
+    "SYS_IO_MODE_OUTPUT_PUSH_PULL": {
+      "enum": "sys_io_mode_e",
+      "value": 3,
+      "alias": "Output Push-Pull",
+      "description": "Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays"
+    },
+    "SYS_IO_MODE_OUTPUT_OPEN_DRAIN": {
+      "enum": "sys_io_mode_e",
+      "value": 4,
+      "alias": "Output Open-Drain",
+      "description": "A weaker output that can only actively pull the signal to \"off\" - something else (an external resistor, or the Open-Drain-Pullup option) is needed to make it read \"on\". Mainly used when several devices need to share the same wire"
+    },
+    "SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP": {
+      "enum": "sys_io_mode_e",
+      "value": 5,
+      "alias": "Output Open-Drain-Pullup",
+      "description": "Same as Open-Drain, but with a built-in helper enabled so the pin reads \"on\" by itself instead of needing an extra part"
+    },
+    "SYS_IO_MODE_PWM": {
+      "enum": "sys_io_mode_e",
+      "value": 6,
+      "alias": "PWM",
+      "description": "Rapidly switches the pin on and off to fake an in-between level - use to dim an LED or control a motor's speed"
+    },
+    "SYS_IO_MODE_ADC": {
+      "enum": "sys_io_mode_e",
+      "value": 7,
+      "alias": "ADC",
+      "description": "Measures the exact voltage on the pin instead of just on/off - use to read sensors that report a varying value, like a potentiometer or a temperature sensor"
+    },
+    "SYS_IO_MODE_DAC": {
+      "enum": "sys_io_mode_e",
+      "value": 8,
+      "alias": "DAC",
+      "description": "Outputs an exact, steady voltage level instead of just on/off - the opposite of ADC"
+    },
+    "SYS_IO_INTR_DISABLE": {
+      "enum": "sys_io_intr_mode_e",
+      "value": 0,
+      "alias": "Disable",
+      "description": "Don't watch this pin for changes - nothing gets triggered"
+    },
+    "SYS_IO_INTR_MODE_RISING_EDGE": {
+      "enum": "sys_io_intr_mode_e",
+      "value": 1,
+      "alias": "Rising Edge",
+      "description": "Triggers the instant the pin switches from off to on"
+    },
+    "SYS_IO_INTR_MODE_FALLING_EDGE": {
+      "enum": "sys_io_intr_mode_e",
+      "value": 2,
+      "alias": "Falling Edge",
+      "description": "Triggers the instant the pin switches from on to off"
+    },
+    "SYS_IO_INTR_MODE_BOTH_EDGES": {
+      "enum": "sys_io_intr_mode_e",
+      "value": 3,
+      "alias": "Both Edges",
+      "description": "Triggers on any change - whether the pin switches from off to on, or on to off"
+    },
+    "SYS_IO_INTR_ADC_WINDOW_OUTSIDE": {
+      "enum": "sys_io_intr_mode_e",
+      "value": 4,
+      "alias": "Outside set window",
+      "description": "Triggers when the measured value leaves the safe/expected range you set - use to catch a value going too high or too low"
+    },
+    "SYS_IO_INTR_ADC_WINDOW_INSIDE": {
+      "enum": "sys_io_intr_mode_e",
+      "value": 5,
+      "alias": "Inside set window",
+      "description": "Triggers when the measured value comes back into the range you set - use to catch when a value returns to normal"
+    },
+    "SYS_PWR_EVENT_NONE": {
+      "enum": "sys_power_events_e",
+      "value": 0,
+      "alias": "None",
+      "description": "Nothing wrong - normal operation"
+    },
+    "SYS_PWR_EVENT_OVP": {
+      "enum": "sys_power_events_e",
+      "value": 1,
+      "alias": "Over-Voltage",
+      "description": "The voltage went above the safe limit"
+    },
+    "SYS_PWR_EVENT_UVP": {
+      "enum": "sys_power_events_e",
+      "value": 2,
+      "alias": "Under-Voltage",
+      "description": "The voltage dropped below the safe limit"
+    },
+    "SYS_PWR_EVENT_SPC": {
+      "enum": "sys_power_events_e",
+      "value": 3,
+      "alias": "Short Circuit",
+      "description": "A short circuit was detected on the output"
+    },
+    "SYS_PWR_EVENT_OCP_WARNING": {
+      "enum": "sys_power_events_e",
+      "value": 4,
+      "alias": "Over-Current Warning",
+      "description": "Current draw is approaching the limit - not cut off yet, just a heads-up"
+    },
+    "SYS_PWR_EVENT_OCP_CRITICAL": {
+      "enum": "sys_power_events_e",
+      "value": 5,
+      "alias": "Over-Current Critical",
+      "description": "Current draw exceeded the limit - output is protected/shut down"
+    },
+    "SYS_PWR_EVENT_OTP": {
+      "enum": "sys_power_events_e",
+      "value": 6,
+      "alias": "Over-Temperature",
+      "description": "The device got too hot and triggered thermal protection"
+    },
+    "VM_OBJ_NONE": {
+      "enum": "vm_obj_t_e",
+      "value": 0,
+      "alias": "Empty",
+      "description": "No payload type."
+    },
+    "VM_OBJ_PTR": {
+      "enum": "vm_obj_t_e",
+      "value": 1,
+      "alias": "Object Reference",
+      "description": "A reference to another VM object."
+    },
+    "VM_OBJ_U8": {
+      "enum": "vm_obj_t_e",
+      "value": 2,
+      "alias": "Unsigned 8-bit Integer",
+      "description": null
+    },
+    "VM_OBJ_U32": {
+      "enum": "vm_obj_t_e",
+      "value": 3,
+      "alias": "Unsigned 32-bit Integer",
+      "description": null
+    },
+    "VM_OBJ_I32": {
+      "enum": "vm_obj_t_e",
+      "value": 4,
+      "alias": "Signed 32-bit Integer",
+      "description": null
+    },
+    "VM_OBJ_F": {
+      "enum": "vm_obj_t_e",
+      "value": 5,
+      "alias": "Float",
+      "description": null
+    },
+    "VM_OBJ_B": {
+      "enum": "vm_obj_t_e",
+      "value": 6,
+      "alias": "Boolean",
+      "description": null
+    },
+    "VM_OBJ_STR": {
+      "enum": "vm_obj_t_e",
+      "value": 7,
+      "alias": "Text",
+      "description": null
+    },
+    "VM_IDX_LITERAL": {
+      "enum": "vm_index_kind_e",
+      "value": 0,
+      "alias": "Literal Index",
+      "description": "A fixed array position."
+    },
+    "VM_IDX_REF": {
+      "enum": "vm_index_kind_e",
+      "value": 1,
+      "alias": "Accessor Reference",
+      "description": "Read another accessor to obtain the index."
+    },
+    "VM_IDX_NAME": {
+      "enum": "vm_index_kind_e",
+      "value": 2,
+      "alias": "Child Name",
+      "description": "Find a child object by its tag."
+    }
+  }
+}

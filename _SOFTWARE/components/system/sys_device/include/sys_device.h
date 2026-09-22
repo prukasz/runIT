@@ -1,13 +1,14 @@
 #pragma once
 #include "sys_error.h"
 #include <sdkconfig.h>
+//#ref-enum @alias Device Contract
 typedef enum {
-  SYS_DEVICE_CONTRACT_IO = 0,
-  SYS_DEVICE_CONTRACT_POWER_VREG = 1,
-  SYS_DEVICE_CONTRACT_POWER_MONITOR = 2,
-  SYS_DEVICE_CONTRACT_POWER_USB_PD = 3,
-  SYS_DEVICE_CONTRACT_HBRIDGE = 4,
-  SYS_DEVICE_CONTRACT_MAX = 5
+  SYS_DEVICE_CONTRACT_IO = 0, //@alias Digital/Analog IO @description Basic pin control - read or drive a pin, or measure/generate a voltage on it
+  SYS_DEVICE_CONTRACT_POWER_VREG = 1, //@alias Voltage Regulator @description An adjustable power output - turn it on/off and set its voltage and current limit
+  SYS_DEVICE_CONTRACT_POWER_MONITOR = 2, //@alias Power Monitor @description Measures voltage and current on a power rail, with optional over-current alerts
+  SYS_DEVICE_CONTRACT_POWER_USB_PD = 3, //@alias USB-C Power Delivery @description Negotiates power (voltage/current) from a USB-C charger
+  SYS_DEVICE_CONTRACT_HBRIDGE = 4, //@alias Motor Driver (H-Bridge) @description Drives a DC motor forward, backward, or brakes it
+  SYS_DEVICE_CONTRACT_MAX = 5 //@alias (internal) @description Not a real contract - marks the end of the list, used internally for bounds checking
 } sys_device_contract_type_e;
 
 /**

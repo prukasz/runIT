@@ -52,10 +52,11 @@ typedef union {
 
 typedef struct vm_accessor_t vm_accessor_t;
 
+//#ref-enum @alias VM Index Kind
 typedef enum vm_index_kind_e {
-  VM_IDX_LITERAL = 0,  // fixed position, known at compile time
-  VM_IDX_REF     = 1,  // resolve another accessor and read it as the index
-  VM_IDX_NAME    = 2,  // match a child object's tag
+  VM_IDX_LITERAL = 0,  //@alias Literal Index @description A fixed array position.
+  VM_IDX_REF     = 1,  //@alias Accessor Reference @description Read another accessor to obtain the index.
+  VM_IDX_NAME    = 2,  //@alias Child Name @description Find a child object by its tag.
 } vm_index_kind_e;
 
 /** @brief String representation of accessor index kind for debugging. */
@@ -63,24 +64,26 @@ static inline const char* vm_index_kind_str(vm_index_kind_e k) {
   return vm_index_kind_name((uint8_t)k);
 }
 
+//#vm-struct-ref @alias VM Object Index @kind vm-index
 typedef struct {
-  uint8_t kind;      // vm_index_kind_e
-  uint8_t name_len;  // VM_IDX_NAME only: strlen(name), measured once at build
-  union {
-    uint32_t             value;  // VM_IDX_LITERAL
-    const vm_accessor_t* ref;    // VM_IDX_REF
-    const char*          name;   // VM_IDX_NAME
+  uint8_t kind;      //@alias Kind @role discriminator @ref vm_index_kind_e @one-of [$VM_IDX_LITERAL, $VM_IDX_REF, $VM_IDX_NAME]
+  uint8_t name_len;  //@internal @derived-from name
+  union {            //@discriminator kind
+    uint32_t             value;  //@case $VM_IDX_LITERAL @alias Index
+    const vm_accessor_t* ref;    //@case $VM_IDX_REF @alias Accessor @reference vm-accessor
+    const char*          name;   //@case $VM_IDX_NAME @alias Child Name
   };
 } vm_index_t;
 
 #define VM_IDX_BY_NAME(str) {.kind = VM_IDX_NAME, .name_len = (uint8_t)(sizeof(str) - 1), .name = (str)}
 
+//#vm-struct-ref @alias VM Object Accessor @kind vm-accessor
 struct vm_accessor_t {
-  uint16_t          id;         // root object's id in registry
-  uint8_t           count;      // number of chained indices; 0 = whole object
-  uint8_t           flags;      // VM_ACC_F_*
-  const vm_index_t* indices;    // `count` entries allocated in trailing chunk
-  vm_obj_payload_t  c_payload;  // cache: resolved payload (ptr, owner, count, type, pad)
+  uint16_t          id;         //@alias Root Object ID @role root-object-id @reference vm-object
+  uint8_t           count;      //@internal @derived-from indices
+  uint8_t           flags;      //@internal
+  const vm_index_t* indices;    //@alias Indices @role indices @element vm-index @length-from count
+  vm_obj_payload_t  c_payload;  //@internal
 };
 
 _Static_assert(sizeof(struct vm_accessor_t) == 20, "accessor header size feeds the RAM budget");

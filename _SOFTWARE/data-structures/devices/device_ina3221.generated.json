@@ -1,5 +1,5 @@
 {
-  "$schema": "runit://schemas/device-definition/v1",
+  "$schema": "data-structures/schema/device-definition.schema.json",
   "schemaVersion": 1,
   "kind": "device-definition",
   "id": "device_ina3221",
@@ -18,31 +18,18 @@
     "alert",
     "ic"
   ],
-  "source_file": "device/dec_device_ina3221.h",
-  "contractProvider": "SYS_DEVICE_CONTRACT_POWER_MONITOR",
-  "capabilities": [
-    {
-      "name": "channels",
-      "one_of": [
-        0,
-        1,
-        2
-      ]
-    },
-    {
-      "name": "critical-alert",
-      "desc": "active-low optional"
-    },
-    {
-      "name": "warning-alert",
-      "desc": "active-low optional"
-    }
-  ],
+  "source_file": "dec_device_ina3221.h",
+  "contractProvider": {
+    "symbol": "SYS_DEVICE_CONTRACT_POWER_MONITOR",
+    "enum": "sys_device_contract_type_e",
+    "value": 2,
+    "alias": "Power Monitor",
+    "description": "Measures voltage and current on a power rail, with optional over-current alerts"
+  },
   "install": {
     "packet": "packet_sys_device_install_ina3221_t",
     "packet_definition": {
-      "source_file": "device/dec_device_ina3221.h",
-      "section": null,
+      "source_file": "dec_device_ina3221.h",
       "class_name": "SYS_CONTRACTS",
       "class_header": "0x01",
       "packet_header": "0x44",
@@ -87,7 +74,8 @@
           "type": "uint8_t",
           "sentinel": 255,
           "group": "critical-alert-pin",
-          "role": "pin"
+          "role": "pin",
+          "note": "SYS_GPIO_NONE disables external critical-alert reporting; the pin is active-low"
         },
         "crit_pin_mode": {
           "type": "uint8_t",
@@ -104,7 +92,8 @@
           "type": "uint8_t",
           "sentinel": 255,
           "group": "warning-alert-pin",
-          "role": "pin"
+          "role": "pin",
+          "note": "SYS_GPIO_NONE disables external warning-alert reporting; the pin is active-low"
         },
         "warn_pin_mode": {
           "type": "uint8_t",
@@ -138,20 +127,24 @@
       "packet": "packet_sys_power_monitor_get_voltage_t",
       "parameters": [
         {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
           "name": "channel",
-          "alias": "Monitor Channel",
           "one_of": [
             0,
             1,
             2
-          ]
+          ],
+          "alias": "Monitor Channel"
         }
       ],
       "alias": "Read bus voltage",
       "returns": "voltage_mV @type int32_t @unit mV",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
-        "section": "Power Control Packet decoders (0x30 - 0x3F)",
         "class_name": "SYS_CONTRACTS",
         "class_header": "0x01",
         "packet_header": "0x34",
@@ -178,20 +171,24 @@
       "packet": "packet_sys_power_monitor_get_current_t",
       "parameters": [
         {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
           "name": "channel",
-          "alias": "Monitor Channel",
           "one_of": [
             0,
             1,
             2
-          ]
+          ],
+          "alias": "Monitor Channel"
         }
       ],
       "alias": "Read shunt current",
       "returns": "current_mA @type int32_t @unit mA",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
-        "section": "Power Control Packet decoders (0x30 - 0x3F)",
         "class_name": "SYS_CONTRACTS",
         "class_header": "0x01",
         "packet_header": "0x35",
@@ -218,13 +215,18 @@
       "packet": "packet_sys_power_monitor_add_callback_t",
       "parameters": [
         {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
           "name": "channel",
-          "alias": "Monitor Channel",
           "one_of": [
             0,
             1,
             2
-          ]
+          ],
+          "alias": "Monitor Channel"
         },
         {
           "name": "trigger_value",
@@ -234,19 +236,35 @@
         },
         {
           "name": "on_event",
-          "alias": "Alert Severity",
-          "enum": "sys_power_events_e",
           "one_of": [
-            "SYS_PWR_EVENT_OCP_CRITICAL",
-            "SYS_PWR_EVENT_OCP_WARNING"
-          ]
+            {
+              "symbol": "SYS_PWR_EVENT_OCP_CRITICAL",
+              "enum": "sys_power_events_e",
+              "value": 5,
+              "alias": "Over-Current Critical",
+              "description": "Current draw exceeded the limit - output is protected/shut down"
+            },
+            {
+              "symbol": "SYS_PWR_EVENT_OCP_WARNING",
+              "enum": "sys_power_events_e",
+              "value": 4,
+              "alias": "Over-Current Warning",
+              "description": "Current draw is approaching the limit - not cut off yet, just a heads-up"
+            }
+          ],
+          "ref": "sys_power_events_e",
+          "alias": "Alert Severity"
+        },
+        {
+          "name": "route_mask",
+          "alias": "Alert Route Mask",
+          "type": "uint16_t"
         }
       ],
       "alias": "Configure current alert",
       "description": "Configure the selected channel's critical or warning over-current alert and its event route.",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
-        "section": "Power Control Packet decoders (0x30 - 0x3F)",
         "class_name": "SYS_CONTRACTS",
         "class_header": "0x01",
         "packet_header": "0x39",

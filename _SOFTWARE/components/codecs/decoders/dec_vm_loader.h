@@ -124,7 +124,8 @@ static inline err_h decoder_packet_vm_open(const uint8_t* body, size_t len) {
  *   - `u8 n`: Number of object records in frame
  *   - `n ×` records:
  *     - `u16 id`                      : Target object ID in `VM_REG_OBJ`
- *     - `vm_obj_head_t head` (4 bytes): Packed header (`payload_size`, `obj_t`, `name_size`, flags)
+ *     - `vm_obj_head_t` wire header (4 bytes): Exact ESP32 GCC in-memory ABI
+ *       copied into the aligned local struct. TypeScript mirrors this layout.
  *     - `char name[head.d.name_size]` : Optional tag identifier string (<= 15 bytes, unterminated)
  * - **Action**:
  *   - Carves 4-byte aligned chunk in bump arena, zeroes payload memory, and stores header.
@@ -137,12 +138,12 @@ static inline err_h decoder_packet_vm_add_objs(const uint8_t* body, size_t len) 
   size_t  off = 1;
 
   for (uint8_t i = 0; i < n; i++) {
-    SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_add_objs, off, len, 2 + sizeof(vm_obj_head_t)));
+    SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_add_objs, off, len, 2 + VM_OBJ_HEAD_WIRE_SIZE));
     uint16_t id = dec_vm_u16(body + off);
 
     vm_obj_head_t head;
-    memcpy(&head, body + off + 2, sizeof(head));
-    off += 2 + sizeof(head);
+    memcpy(&head, body + off + 2, VM_OBJ_HEAD_WIRE_SIZE);
+    off += 2 + VM_OBJ_HEAD_WIRE_SIZE;
 
     uint8_t name_len = head.d.name_size;
     SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_add_objs, off, len, name_len));

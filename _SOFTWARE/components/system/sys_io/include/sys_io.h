@@ -30,28 +30,28 @@
   } while (0)
 
 /*Aviable modes to set IO to*/
-
-//#enum
+//#ref-enum @alias IO Mode
 typedef enum sys_io_mode_e {
-  SYS_IO_MODE_INPUT = 0,
-  SYS_IO_MODE_INPUT_PULLUP = 1,
-  SYS_IO_MODE_INPUT_PULLDOWN = 2,
-  SYS_IO_MODE_OUTPUT_PUSH_PULL = 3,
-  SYS_IO_MODE_OUTPUT_OPEN_DRAIN = 4,
-  SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP = 5,
-  SYS_IO_MODE_PWM = 6,
-  SYS_IO_MODE_ADC = 7,
-  SYS_IO_MODE_DAC = 8
+  SYS_IO_MODE_INPUT = 0, // @alias Input @description Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal
+  SYS_IO_MODE_INPUT_PULLUP = 1, // @alias Input with Pullup @description Same as Input, but reads "on" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed
+  SYS_IO_MODE_INPUT_PULLDOWN = 2,  // @alias Input with Pulldown @description Same as Input, but reads "off" by default when nothing is connected - use when your button/switch connects the pin to power when pressed
+  SYS_IO_MODE_OUTPUT_PUSH_PULL = 3, // @alias Output Push-Pull @description Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays
+  SYS_IO_MODE_OUTPUT_OPEN_DRAIN = 4, //@alias Output Open-Drain @description A weaker output that can only actively pull the signal to "off" - something else (an external resistor, or the Open-Drain-Pullup option) is needed to make it read "on". Mainly used when several devices need to share the same wire
+  SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP = 5, //@alias Output Open-Drain-Pullup @description Same as Open-Drain, but with a built-in helper enabled so the pin reads "on" by itself instead of needing an extra part
+  SYS_IO_MODE_PWM = 6, //@alias PWM @description Rapidly switches the pin on and off to fake an in-between level - use to dim an LED or control a motor's speed
+  SYS_IO_MODE_ADC = 7, //@alias ADC @description Measures the exact voltage on the pin instead of just on/off - use to read sensors that report a varying value, like a potentiometer or a temperature sensor
+  SYS_IO_MODE_DAC = 8  //@alias DAC @description Outputs an exact, steady voltage level instead of just on/off - the opposite of ADC
 } sys_io_mode_e;
 
 /*Aviable interrupt modes*/
-typedef enum sys_io_intr_mode_e {
-  SYS_IO_INTR_DISABLE = 0,
-  SYS_IO_INTR_MODE_RISING_EDGE = 1,
-  SYS_IO_INTR_MODE_FALLING_EDGE = 2,
-  SYS_IO_INTR_MODE_BOTH_EDGES = 3,
-  SYS_IO_INTR_ADC_WINDOW_OUTSIDE = 4,
-  SYS_IO_INTR_ADC_WINDOW_INSIDE = 5,
+//#ref-enum @alias Interrupt Mode
+typedef enum sys_io_intr_mode_e { 
+  SYS_IO_INTR_DISABLE = 0, //@alias Disable @description Don't watch this pin for changes - nothing gets triggered
+  SYS_IO_INTR_MODE_RISING_EDGE = 1, //@alias Rising Edge @description Triggers the instant the pin switches from off to on
+  SYS_IO_INTR_MODE_FALLING_EDGE = 2, //@alias Falling Edge @description Triggers the instant the pin switches from on to off
+  SYS_IO_INTR_MODE_BOTH_EDGES = 3, //@alias Both Edges @description Triggers on any change - whether the pin switches from off to on, or on to off
+  SYS_IO_INTR_ADC_WINDOW_OUTSIDE = 4, //@alias Outside set window @description Triggers when the measured value leaves the safe/expected range you set - use to catch a value going too high or too low
+  SYS_IO_INTR_ADC_WINDOW_INSIDE = 5, //@alias Inside set window @description Triggers when the measured value comes back into the range you set - use to catch when a value returns to normal
 } sys_io_intr_mode_e;
 
 typedef uint8_t sys_io_pin_num_t;
