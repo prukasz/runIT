@@ -25,13 +25,13 @@ typedef struct d_drv8962_cfg_t {
   sys_io_pin_ref_t current_adc_pins[4];/* IPROPI1, IPROPI2, IPROPI3, IPROPI4 (or SYS_IO_PIN_NONE) */
   sys_io_pin_ref_t vref_dac_pin;       /* VREF chopping DAC pin (or SYS_IO_PIN_NONE) */
 
-  uint32_t pwm_freq_hz;                /* Default 20000 (20 kHz) */
+  uint32_t pwm_freq_Hz;                /* Default 20000 (20 kHz) */
   uint32_t ripropi_ohms[4];            /* Resistor on IPROPI pins (e.g. 3090 Ohm) */
-  uint32_t current_limit_ma[4];        /* Safety limit in mA (0 to disable) */
+  uint32_t current_limit_mA[4];        /* Safety limit in mA (0 to disable) */
   bool turn_off_at_ocp;                /* When true, automatically cuts drive on overcurrent */
 } d_drv8962_cfg_t;
 
-err_h d_drv8962_create(const d_drv8962_cfg_t* cfg);
+SE_MUST_USE err_h d_drv8962_create(const d_drv8962_cfg_t* cfg);
 
 #ifdef __cplusplus
 }

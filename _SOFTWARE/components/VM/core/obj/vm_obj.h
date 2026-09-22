@@ -60,7 +60,7 @@ typedef enum vm_obj_t_e {
 typedef struct __attribute__((aligned(4))) vm_obj_head_t {
   uint16_t payload_size;  //@alias Payload Size @unit bytes @role payload-size @wire-offset 0 @wire-type u16-le
   struct {
-    uint8_t obj_t     : 4;  //@alias Data Type @role object-type @ref vm_obj_t_e @one-of [$VM_OBJ_NONE, $VM_OBJ_PTR, $VM_OBJ_U8, $VM_OBJ_U32, $VM_OBJ_I32, $VM_OBJ_F, $VM_OBJ_B, $VM_OBJ_STR] @wire-offset 2 @wire-bit-offset 0
+    uint8_t obj_t     : 4;  //@alias Data Type @role object-type @enum-ref vm_obj_t_e @one-of [$VM_OBJ_NONE, $VM_OBJ_PTR, $VM_OBJ_U8, $VM_OBJ_U32, $VM_OBJ_I32, $VM_OBJ_F, $VM_OBJ_B, $VM_OBJ_STR] @wire-offset 2 @wire-bit-offset 0
     uint8_t name_size : 4;  //@alias Name Length @unit chars @role name-size @min 0 @max VM_OBJ_NAME_MAX @wire-offset 2 @wire-bit-offset 4
   } d;  //@group descriptor @wire-offset 2
   struct {

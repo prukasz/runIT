@@ -21,45 +21,63 @@ static bool device_id_of(err_h node, uint8_t* id) {
     DEVICE_TAG(ERR_DEV_FEATURE_UNAVAILABLE)
     DEVICE_TAG(ERR_DEV_SUSPENDED)
     DEVICE_TAG(ERR_DEV_NOT_INSTALLED)
+    DEVICE_TAG(ERR_DEV_DRIVER_FAILED)
     DEVICE_TAG(ERR_IO_PIN_UNCONFIGURED)
     DEVICE_TAG(ERR_IO_PIN_UNAVAILABLE)
     DEVICE_TAG(ERR_IO_PIN_ALREADY_IN_USE)
     DEVICE_TAG(ERR_IO_PIN_FEATURE_UNSUPPORTED)
     DEVICE_TAG(ERR_IO_PIN_LOCKED)
     DEVICE_TAG(ERR_IO_PIN_MODE_UNSUPPORTED)
+    DEVICE_TAG(ERR_POWER_BUDGET_EXCEEDED)
 #undef DEVICE_TAG
-    case ERR_POWER_BUDGET_EXCEEDED:
-      *id = ((err_payload_ERR_POWER_BUDGET_EXCEEDED_t*)node->payload)->device_id;
-      return true;
     default:
       return false;
   }
 }
 
-static err_h dispatch_domain(err_h node, err_h chain) {
-  switch (node->owner & 0xFF00u) {
-#define DOMAIN(owner, hook) \
-  case owner:               \
-    return hook ? hook(node, chain) : NULL;
-    DOMAIN(OWNER_SYS_I2C_BASE, sys_i2c_handle_fault)
-    DOMAIN(OWNER_SYS_IO_BASE, sys_io_handle_fault)
-    DOMAIN(OWNER_SYS_POWER_BASE, sys_power_handle_fault)
-    DOMAIN(OWNER_SYS_BLE_BASE, sys_ble_handle_fault)
-    DOMAIN(OWNER_SYS_INTERFACE_BASE, sys_interface_handle_fault)
-    DOMAIN(OWNER_SYS_BUFFERS_BASE, sys_buffers_handle_fault)
-    DOMAIN(OWNER_SYS_ERRORS_BASE, sys_errors_handle_fault)
-    DOMAIN(OWNER_VM_BASE, sys_vm_handle_fault)
-    DOMAIN(OWNER_SYS_ACTIONS_BASE, sys_actions_handle_fault)
-#undef DOMAIN
-    default:
+typedef struct {
+  uint16_t domain;
+  se_fault_hook_f hook;
+} domain_hook_t;
+
+static domain_hook_t s_domain_hooks[CONFIG_SYS_ERRORS_MAX_DOMAIN_HOOKS];
+static se_fault_hook_f s_system_hook;
+static se_device_report_f s_device_report;
+static se_device_ignored_f s_device_ignored;
+
+#undef OWNER
+#define OWNER OWNER_SYS_ERRORS_CONFIG
+err_h SE_register_domain_hook(uint16_t domain, se_fault_hook_f hook) {
+  domain &= 0xFF00u;
+  for (size_t i = 0; i < CONFIG_SYS_ERRORS_MAX_DOMAIN_HOOKS; ++i) {
+    if (s_domain_hooks[i].hook == NULL || s_domain_hooks[i].domain == domain) {
+      s_domain_hooks[i] = (domain_hook_t){.domain = domain, .hook = hook};
       return NULL;
+    }
   }
+  SE_FAIL(ERR_BASE_NO_MEM, 0);
+}
+
+void SE_register_system_hook(se_fault_hook_f hook) {
+  s_system_hook = hook;
+}
+
+void SE_register_device_router(se_device_report_f report, se_device_ignored_f is_ignored) {
+  s_device_report = report;
+  s_device_ignored = is_ignored;
+}
+
+static SE_MUST_USE err_h dispatch_domain(err_h node, err_h chain) {
+  uint16_t domain = (uint16_t)(node->owner & 0xFF00u);
+  for (size_t i = 0; i < CONFIG_SYS_ERRORS_MAX_DOMAIN_HOOKS && s_domain_hooks[i].hook; ++i) {
+    if (s_domain_hooks[i].domain == domain) return s_domain_hooks[i].hook(node, chain);
+  }
+  return NULL;
 }
 
 static void send_response(err_h response) {
   if (response) {
-    SE_release(SE_send(response));
-    SE_release(response);
+    SE_log(response);
   }
 }
 
@@ -90,8 +108,8 @@ void SE_push_to_handler(err_h err) {
       uint8_t id;
       bool    device = device_id_of(node, &id);
       // NONE suppresses this node and its causes, but not preceding responses.
-      if (device && sys_device_is_ignored && sys_device_is_ignored(id)) break;
-      sys_device_err_level_e level = SE_get_tag_level(node->tag);
+      if (device && s_device_ignored && s_device_ignored(id)) break;
+      se_level_e level = SE_get_tag_level(node->tag);
       if (device) {
         size_t j = 0;
         while (j < handled && devices[j] != id) ++j;
@@ -103,37 +121,27 @@ void SE_push_to_handler(err_h err) {
           for (size_t k = i + 1; k < count; ++k) {
             uint8_t other;
             if (!device_id_of(nodes[k], &other)) continue;
-            if (sys_device_is_ignored && sys_device_is_ignored(other)) break;
-            sys_device_err_level_e candidate = SE_get_tag_level(nodes[k]->tag);
+            if (s_device_ignored && s_device_ignored(other)) break;
+            se_level_e candidate = SE_get_tag_level(nodes[k]->tag);
             if (other == id && candidate > level) {
               level        = candidate;
               device_fault = nodes[k];
             }
           }
-          if (sys_device_report_error_with_level) {
-            send_response(sys_device_report_error_with_level(id, level, device_fault));
-            if (level == SYS_DEV_ERR_CRITICAL) system_handled = true;
+          if (s_device_report) {
+            send_response(s_device_report(id, level, device_fault));
+            if (level == SE_LEVEL_CRITICAL) system_handled = true;
           }
         }
       }
       send_response(dispatch_domain(node, err));
-      if (level == SYS_DEV_ERR_CRITICAL && handled == 0 && !system_handled && sys_system_handle_fault) {
+      if (level == SE_LEVEL_CRITICAL && handled == 0 && !system_handled && s_system_hook) {
         system_handled = true;
-        send_response(sys_system_handle_fault(node, err));
+        send_response(s_system_hook(node, err));
       }
     }
   }
-  SE_release(SE_send(err));
-  SE_release(err);
+  SE_log(err);
   in_handler = previous;
-}
-
-err_h sys_errors_handle_fault(err_h node, err_h chain) {
-  (void)chain;
-  if (!node || SE_get_tag_level(node->tag) != SYS_DEV_ERR_CRITICAL) {
-    return NULL;
-  }
-  // Internal error subsystem fault containment
-  return NULL;
 }
 

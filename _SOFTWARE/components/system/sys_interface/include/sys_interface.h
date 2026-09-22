@@ -30,6 +30,30 @@
 
 
 /**
+ * @brief Status byte of a response frame.
+ *
+ * Every live command frame is answered on the interface connector
+ * (TX stream class CONFIG_TX_PACKET_CLASS_INTERFACE, added by the connector):
+ * @code
+ *   [class] [packet] [status] [data ...]
+ * @endcode
+ * `class` / `packet` echo the request's first two bytes (packet is 0x00 for a
+ * one-byte frame). Commands are answered in order, so a client matches
+ * responses to its requests first-in first-out.
+ * - SYS_INTERFACE_STATUS_OK: `data` is the packet's response struct
+ *   (`packet_<name>_response_t`, little-endian, packed), or empty.
+ * - SYS_INTERFACE_STATUS_ERROR: `data` is `u16 tag, u16 owner` of the error
+ *   chain's root cause; the full chain goes to the errors stream.
+ *
+ * Frames replayed by sys_actions (sys_interface_decode()) are not answered.
+ */
+//#ref-enum @alias Response Status
+typedef enum sys_interface_status_e {
+  SYS_INTERFACE_STATUS_OK = 0,    //@alias OK @description The command succeeded. Any response data follows.
+  SYS_INTERFACE_STATUS_ERROR = 1, //@alias Error @description The command failed. The root cause's error tag and owner follow; the full error chain is sent on the errors stream.
+} sys_interface_status_e;
+
+/**
  * @brief Class handler signature.
  *
  * @param data Frame bytes with the class byte stripped - data[0] is the packet byte.
@@ -50,18 +74,19 @@ typedef err_h (*sys_interface_handler_f)(const uint8_t* data, size_t len);
  * @param packet_size Size of the target packet structure.
  * @return err_h NULL on success, or ERR_INTERFACE_SHORT_FRAME if @p len is too small.
  */
-err_h convert_to_packet(const uint8_t* data, size_t len, void* packet, size_t packet_size);
+SE_MUST_USE err_h convert_to_packet(const uint8_t* data, size_t len, void* packet, size_t packet_size);
 
 /**
- * @brief Reset the class registry and register the built-in system contracts class.
+ * @brief Start the RX receiver task on the interface connector.
  *
- * Must be called once at boot, before sys_interface_register_decoder() or
- * sys_interface_register_rx_source(). Class 0x01 (RX_PACKET_CLASS_SYS_CONTRACTS) is wired
- * to the header-only table in `dec_sys_contracts.h`.
+ * Registers no classes: the application registers every decoder class with
+ * sys_interface_register_decoder() before calling this (runit does it in its
+ * `runit_register_decoders` boot step), so no frame is received while the
+ * class table is still being filled.
  *
  * @return err_h Status report (NULL on success).
  */
-err_h sys_interface_init(void);
+SE_MUST_USE err_h sys_interface_init(void);
 
 /**
  * @brief Register a decoder table for a class byte.
@@ -78,13 +103,29 @@ err_h sys_interface_init(void);
  *
  * Example - route class 0x02 to the VM:
  * @code
- * SE_ORIGIN_CALL(sys_interface_register_decoder(0x02, vm_decode, "vm"));
+ * SE_REPORT(sys_interface_register_decoder(0x02, vm_decode, "vm"));
  * @endcode
  */
-err_h sys_interface_register_decoder(uint8_t decoder_header, sys_interface_handler_f decoder, const char* name);
+SE_MUST_USE err_h sys_interface_register_decoder(uint8_t decoder_header, sys_interface_handler_f decoder, const char* name);
+
+/**
+ * @brief Attach response data to the command being decoded.
+ *
+ * Called by a decoder (usually once, with its `packet_<name>_response_t`).
+ * Appends to the response of the live frame the RX task is decoding; outside
+ * of that (replayed frames, direct calls) it does nothing and returns NULL.
+ * If the command fails, the data is dropped and the error status is sent.
+ *
+ * @return err_h NULL on success, ERR_INTERFACE_RESPONSE_TOO_LONG if the data
+ *               exceeds CONFIG_SYS_INTERFACE_RESPONSE_MAX.
+ */
+SE_MUST_USE err_h sys_interface_respond(const void* data, size_t len);
 
 /**
  * @brief Route one complete frame to the handler registered for its class byte.
+ *
+ * For replay and direct calls: the frame is not answered (see
+ * sys_interface_status_e). Live frames are decoded and answered by the RX task.
  *
  * @param data Pointer to the raw frame (class byte at data[0]).
  * @param len Total length of the frame.
@@ -92,7 +133,7 @@ err_h sys_interface_register_decoder(uint8_t decoder_header, sys_interface_handl
  *               ERR_INTERFACE_UNKNOWN_CLASS for an unregistered class byte, or
  *               the class handler's own error chain.
  */
-err_h sys_interface_decode(const uint8_t* data, size_t len);
+SE_MUST_USE err_h sys_interface_decode(const uint8_t* data, size_t len);
 
 /**
  * @brief Start capturing live frames in the static tap buffer.
@@ -125,7 +166,7 @@ void sys_interface_tap_capture_end(void);
  *                pending.
  * @return err_h Status report (NULL on success).
  */
-err_h sys_interface_tap_poll(uint8_t* buf, size_t max_len, size_t* out_len);
+SE_MUST_USE err_h sys_interface_tap_poll(uint8_t* buf, size_t max_len, size_t* out_len);
 
 /**
  * @brief Suspend/resume the RX receiver's dispatch of newly drained frames.
@@ -156,4 +197,7 @@ bool sys_interface_is_rx_suspended(void);
  * @param len Length in bytes.
  * @return err_h NULL on success, ERR_NULL_PTR if data is NULL, or ERR_BASE_NOT_FOUND if connector unallocated.
  */
-err_h sys_interface_send(const void* data, size_t len);
+SE_MUST_USE err_h sys_interface_send(const void* data, size_t len);
+
+/** @brief Containment for this module's CRITICAL errors (sys_errors domain hook, registered by the application). */
+SE_MUST_USE err_h sys_interface_handle_fault(err_h node, err_h chain);

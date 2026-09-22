@@ -175,7 +175,7 @@ static inline void* vm_block_get_custom_data(vm_block_h b) {
  * @return err_h NULL on success, ERR_VM_BLOCK_PIN_MISSING or ERR_VM_BLOCK_PIN_UNLINKED.
   @verified
  */
-static inline err_h vm_block_get_in(const vm_accessor_t** target, vm_block_h b, uint8_t id) {
+static inline SE_MUST_USE err_h vm_block_get_in(const vm_accessor_t** target, vm_block_h b, uint8_t id) {
   if (unlikely(id >= b->cfg.in_cnt)) return vm_block_err_pin_missing(b->cfg.block_idx, id, false);
   const vm_accessor_t* acc = vm_block_get_inputs(b)[id];
   if (unlikely(!acc)) return vm_block_err_pin_unlinked(b->cfg.block_idx, id, false);
@@ -191,7 +191,7 @@ static inline err_h vm_block_get_in(const vm_accessor_t** target, vm_block_h b, 
  * @return err_h NULL on success, ERR_VM_BLOCK_PIN_MISSING or ERR_VM_BLOCK_PIN_UNLINKED.
   @verified
  */
-static inline err_h vm_block_get_out(vm_obj_h* target, vm_block_h b, uint8_t id) {
+static inline SE_MUST_USE err_h vm_block_get_out(vm_obj_h* target, vm_block_h b, uint8_t id) {
   if (unlikely(id >= b->cfg.q_cnt)) return vm_block_err_pin_missing(b->cfg.block_idx, id, true);
   vm_obj_h obj = vm_block_get_outputs(b)[id];
   if (unlikely(!obj)) return vm_block_err_pin_unlinked(b->cfg.block_idx, id, true);

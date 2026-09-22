@@ -79,7 +79,7 @@
         },
         "crit_pin_mode": {
           "type": "uint8_t",
-          "ref": "sys_io_mode_e",
+          "enum_ref": "sys_io_mode_e",
           "group": "critical-alert-pin",
           "role": "mode"
         },
@@ -97,7 +97,7 @@
         },
         "warn_pin_mode": {
           "type": "uint8_t",
-          "ref": "sys_io_mode_e",
+          "enum_ref": "sys_io_mode_e",
           "group": "warning-alert-pin",
           "role": "mode"
         }
@@ -212,7 +212,7 @@
       }
     },
     {
-      "packet": "packet_sys_power_monitor_add_callback_t",
+      "packet": "packet_sys_power_monitor_set_alert_t",
       "parameters": [
         {
           "name": "device_id",
@@ -229,13 +229,13 @@
           "alias": "Monitor Channel"
         },
         {
-          "name": "trigger_value",
+          "name": "threshold_mA",
           "alias": "Current Threshold",
           "type": "int32_t",
           "unit": "mA"
         },
         {
-          "name": "on_event",
+          "name": "alert",
           "one_of": [
             {
               "symbol": "SYS_PWR_EVENT_OCP_CRITICAL",
@@ -252,31 +252,23 @@
               "description": "Current draw is approaching the limit - not cut off yet, just a heads-up"
             }
           ],
-          "ref": "sys_power_events_e",
+          "enum_ref": "sys_power_events_e",
           "alias": "Alert Severity"
-        },
-        {
-          "name": "route_mask",
-          "alias": "Alert Route Mask",
-          "type": "uint16_t"
         }
       ],
       "alias": "Configure current alert",
-      "description": "Configure the selected channel's critical or warning over-current alert and its event route.",
+      "description": "Set the selected channel's critical or warning over-current alert. It is raised as a power event; link it with an event subscription.",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
         "class_name": "SYS_CONTRACTS",
         "class_header": "0x01",
         "packet_header": "0x39",
-        "decoder": "decoder_packet_sys_power_monitor_add_callback_t()",
+        "decoder": "decoder_packet_sys_power_monitor_set_alert_t()",
         "field_order": [
           "device_id",
           "channel",
-          "trigger_value",
-          "on_event",
-          "route_mask",
-          "static_action_id",
-          "dynamic_action_id"
+          "alert",
+          "threshold_mA"
         ],
         "fields": {
           "device_id": {
@@ -289,34 +281,33 @@
             "alias": "Channel",
             "required": true
           },
-          "trigger_value": {
+          "alert": {
+            "type": "uint8_t",
+            "alias": "Alert",
+            "required": true,
+            "one_of": [
+              {
+                "symbol": "SYS_PWR_EVENT_OCP_WARNING",
+                "enum": "sys_power_events_e",
+                "value": 4,
+                "alias": "Over-Current Warning",
+                "description": "Current draw is approaching the limit - not cut off yet, just a heads-up"
+              },
+              {
+                "symbol": "SYS_PWR_EVENT_OCP_CRITICAL",
+                "enum": "sys_power_events_e",
+                "value": 5,
+                "alias": "Over-Current Critical",
+                "description": "Current draw exceeded the limit - output is protected/shut down"
+              }
+            ],
+            "enum_ref": "sys_power_events_e"
+          },
+          "threshold_mA": {
             "type": "int32_t",
-            "alias": "Trigger Value",
-            "required": true
-          },
-          "on_event": {
-            "type": "uint8_t",
-            "alias": "Event",
+            "alias": "Current Threshold",
             "required": true,
-            "ref": "sys_power_events_e"
-          },
-          "route_mask": {
-            "type": "uint16_t",
-            "alias": "Route Mask",
-            "required": true,
-            "note": "bitmask"
-          },
-          "static_action_id": {
-            "type": "uint8_t",
-            "alias": "Static Action ID",
-            "required": false,
-            "sentinel": 0
-          },
-          "dynamic_action_id": {
-            "type": "uint8_t",
-            "alias": "Dynamic Action ID",
-            "required": false,
-            "sentinel": 0
+            "unit": "mA"
           }
         }
       }

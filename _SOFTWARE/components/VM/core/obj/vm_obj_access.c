@@ -27,7 +27,7 @@ err_h vm_obj_get_obj(vm_obj_h* target, const vm_accessor_t* source) {
   SE_CHECK_NOT_NULL(target);
   *target = NULL;
   vm_obj_payload_t p;
-  SE_RET_IF_ERR(vm_internal_obj_resolve(source, &p));
+  SE_TRY(vm_internal_obj_resolve(source, &p));
 
   // A chain landing on a pointer element means "the object behind this
   // slot" (the point of a switch/demux cell), so follow it. `count > 0`
@@ -36,7 +36,7 @@ err_h vm_obj_get_obj(vm_obj_h* target, const vm_accessor_t* source) {
   if (source->count > 0 && p.type == VM_OBJ_PTR && p.ptr && p.count >= 1) {
     vm_obj_h linked = *(vm_obj_h*)p.ptr;
     if (!linked) {
-      SE_RET_ERR(ERR_VM_ACCESSOR_NULL_OBJ, .id = source->id, .chain_pos = source->count, .parent_id = vm_obj_get_id(p.owner));
+      SE_FAIL(ERR_VM_ACCESSOR_NULL_OBJ, .id = source->id, .chain_pos = source->count, .parent_id = vm_obj_get_id(p.owner));
     }
     *target = linked;
     return NULL;
@@ -50,7 +50,7 @@ err_h vm_obj_get_owner(vm_obj_h* target, const vm_accessor_t* source) {
   SE_CHECK_NOT_NULL(target);
   *target = NULL;
   vm_obj_payload_t p;
-  SE_RET_IF_ERR(vm_internal_obj_resolve(source, &p));
+  SE_TRY(vm_internal_obj_resolve(source, &p));
   *target = p.owner;
   return NULL;
 }
@@ -59,7 +59,7 @@ err_h vm_obj_get_child(vm_obj_h* target, const vm_accessor_t* parent, const char
   SE_CHECK_NOT_NULL(target);
   SE_CHECK_NOT_NULL(name);
   vm_obj_h obj;
-  SE_RET_IF_ERR(vm_obj_get_obj(&obj, parent));
+  SE_TRY(vm_obj_get_obj(&obj, parent));
   if (obj->head.d.obj_t != VM_OBJ_PTR) return vm_err_expected_ptr(parent->id, parent->count, obj->head.d.obj_t, obj);
   int32_t index = name_len <= VM_OBJ_NAME_MAX ? find_child_by_name(obj, name, (uint8_t)name_len) : -1;
   if (index < 0) {
@@ -79,7 +79,7 @@ err_h vm_obj_get_child(vm_obj_h* target, const vm_accessor_t* parent, const char
 
 
 err_h vm_obj_clear_quiet(vm_obj_h obj) {
-  SE_RET_IF_ERR(vm_internal_obj_writable(obj, false));
+  SE_TRY(vm_internal_obj_writable(obj, false));
   if (!vm_type_is_scalar(obj->head.d.obj_t)) return vm_obj_not_scalar_err(obj, (vm_obj_t_e)obj->head.d.obj_t, VM_ID_NONE);
   if (obj->head.payload_size) memset(obj->payload, 0, obj->head.payload_size);
   return NULL;

@@ -3,13 +3,11 @@
 #include <string.h>
 #include "device_ads7128.h"
 #include "driver_ads7128.h"
-#include "esp_log.h"
 #include "sys_device.h"
 #include "sys_error.h"
 #include "sys_i2c.h"
 #include "sys_io.h"
 
-static const char* TAG = __FILE_NAME__;
 
 #undef OWNER
 #define OWNER OWNER_DEVICE_ADS7128
@@ -21,7 +19,7 @@ static const char* TAG = __FILE_NAME__;
 #define ADS_HYSTERESIS_STEP 8
 
 // Install steps, recorded so teardown rolls back only what was actually built
-enum { ADS_STEP_I2C_ADDED = 0, ADS_STEP_INTR_READY = 1 };
+enum { ADS_STEP_I2C_ADDED = 0, ADS_STEP_INTR_READY = 1, ADS_STEP_INTR_SUB = 2 };
 
 typedef struct ads_adapter_ctx_t {
   sys_device_adapter_base_t base;  // must be first
@@ -30,11 +28,8 @@ typedef struct ads_adapter_ctx_t {
   float mv_per_code;
 
   uint16_t cached_codes[PINS_COUNT];  // snapshot served while the device is frozen
-  uint16_t route_masks[PINS_COUNT];
-  uint8_t static_action_ids[PINS_COUNT];
-  uint8_t dynamic_action_ids[PINS_COUNT];
   sys_io_intr_mode_e intr_modes[PINS_COUNT];
-  own_funct_t own_funcs[PINS_COUNT];
+  uint8_t intr_sub; /* sys_event subscription on intr_pin */
   // The user-facing config from sys_io_configure_intr(), remembered so
   // device_event_handler can restore it once a crossing has been reported and
   // recovery has been detected (see entry/exit watch swap below).
@@ -54,7 +49,7 @@ typedef struct ads_adapter_ctx_t {
 
 // --- Helper Functions ---
 
-static inline uint32_t code_to_mv(const ads_adapter_ctx_t* ctx, uint16_t code) {
+static inline uint32_t code_to_mV(const ads_adapter_ctx_t* ctx, uint16_t code) {
   return (uint32_t)((float)code * ctx->mv_per_code + 0.5f);
 }
 
@@ -63,8 +58,8 @@ static inline uint16_t mv_to_code(const ads_adapter_ctx_t* ctx, uint32_t mv) {
   return (code > ADS7128_MAX_CODE) ? ADS7128_MAX_CODE : (uint16_t)code;
 }
 
-static inline uint8_t hysteresis_field(const ads_adapter_ctx_t* ctx, uint32_t hysteresis_mv) {
-  uint16_t steps = (uint16_t)(mv_to_code(ctx, hysteresis_mv) / ADS_HYSTERESIS_STEP);
+static inline uint8_t hysteresis_field(const ads_adapter_ctx_t* ctx, uint32_t hysteresis_mV) {
+  uint16_t steps = (uint16_t)(mv_to_code(ctx, hysteresis_mV) / ADS_HYSTERESIS_STEP);
   return (steps > 0x0F) ? 0x0F : (uint8_t)steps;
 }
 
@@ -137,9 +132,10 @@ static void ads_arm_exit_watch(ads7128_alert_cfg_t* out, const ads7128_alert_cfg
   }
 }
 
-static err_h device_event_handler(void* handle, cb_event_t* event) {
+/* Inline listener of intr_pin: publish each new window crossing. */
+static SE_MUST_USE err_h device_event_handler(const sys_event_t* event, void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ads_adapter_ctx_t, ads_handle_t, ctx, hw, handle);
-  (void)event;
+  err_h err = NULL;
 
   for (int guard = 0; guard < 16; guard++) {
     ads7128_event_flags_t flags;
@@ -163,35 +159,25 @@ static err_h device_event_handler(void* handle, cb_event_t* event) {
       if (!was_active) {
         // Entry watch tripped: a genuine new crossing.
         ctx->alert_active_mask |= (uint8_t)(1u << pin);
-        if (ctx->own_funcs[pin].own_func) {
-          SYS_CB_OWN(ctx->own_funcs[pin]);
-        } else {
-          SYS_IO_CB(ctx, pin, mode, (int32_t)code_to_mv(ctx, code), ctx->route_masks[pin], ctx->static_action_ids[pin], ctx->dynamic_action_ids[pin]);
-        }
+        SYS_DEV_TEARDOWN_STEP(err, sys_io_publish(SYS_DEV_GET_ID(ctx), pin, mode, (int32_t)code_to_mV(ctx, code), SYS_EVENT_CAUSED_BY(event)));
         ads7128_alert_cfg_t exit_cfg;
         ads_arm_exit_watch(&exit_cfg, &ctx->entry_alert_cfg[pin], (flags.high & (1u << pin)) != 0, (flags.low & (1u << pin)) != 0);
         SYS_DEV_CHECK_DRIVER_CALL(ads_set_alert_cfg(hw, pin, &exit_cfg), ctx);
-        // TEMP DIAGNOSTIC
-        ESP_LOGW(TAG, "ch%u entry->exit: code=%u mv=%lu, exit watch high_th=%u low_th=%u region=%d", pin, code, (unsigned long)code_to_mv(ctx, code), exit_cfg.high_th,
-            exit_cfg.low_th, (int)exit_cfg.region);
       } else {
         // Exit watch tripped: genuinely recovered - re-arm the original watch.
         ctx->alert_active_mask &= (uint8_t)~(1u << pin);
         SYS_DEV_CHECK_DRIVER_CALL(ads_set_alert_cfg(hw, pin, &ctx->entry_alert_cfg[pin]), ctx);
-        // TEMP DIAGNOSTIC
-        ESP_LOGW(TAG, "ch%u exit->entry: code=%u mv=%lu, re-armed entry watch high_th=%u low_th=%u", pin, code, (unsigned long)code_to_mv(ctx, code), ctx->entry_alert_cfg[pin].high_th,
-            ctx->entry_alert_cfg[pin].low_th);
       }
     }
 
     SYS_DEV_CHECK_DRIVER_CALL(ads_clear_event_flags(hw, flags.high, flags.low), ctx);
   }
-  return NULL;
+  return err;
 }
 
 // --- VTABLE Implementations (IO Contract) ---
 
-static err_h contract_io_ads7128_get_voltage(void* handle, sys_io_pin_num_t pin, uint32_t* out_mV) {
+static SE_MUST_USE err_h contract_io_ads7128_get_voltage(void* handle, sys_io_pin_num_t pin, int32_t* out_mV) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ads_adapter_ctx_t, ads_handle_t, ctx, hw, handle);
   SE_CHECK_NOT_NULL(out_mV);
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, PINS_MASK);
@@ -204,34 +190,30 @@ static err_h contract_io_ads7128_get_voltage(void* handle, sys_io_pin_num_t pin,
     SYS_DEV_CHECK_DRIVER_CALL(ads_read_channel(hw, pin, &code), ctx);
   }
 
-  *out_mV = code_to_mv(ctx, code);
+  *out_mV = (int32_t)code_to_mV(ctx, code);
   return NULL;
 }
 
 /* Channels are analog inputs out of reset and this adapter exposes nothing else,
    so the only mode that can be honoured is ADC. */
-static err_h contract_io_ads7128_set_mode(void* handle, sys_io_pin_num_t pin, sys_io_mode_e mode) {
+static SE_MUST_USE err_h contract_io_ads7128_set_mode(void* handle, sys_io_pin_num_t pin, sys_io_mode_e mode) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ads_adapter_ctx_t, ads_handle_t, ctx, hw, handle);
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, PINS_MASK);
 
   if (mode != SYS_IO_MODE_ADC) {
-    SE_RET_ERR(ERR_IO_PIN_MODE_UNSUPPORTED, SYS_DEV_GET_ID(ctx), pin, mode);
+    SE_FAIL(ERR_IO_PIN_MODE_UNSUPPORTED, SYS_DEV_GET_ID(ctx), pin, mode);
   }
   return NULL;
 }
 
-static err_h contract_io_ads7128_configure_intr(void* handle, sys_io_pin_num_t pin, const sys_io_intr_config_t* config) {
+static SE_MUST_USE err_h contract_io_ads7128_configure_intr(void* handle, sys_io_pin_num_t pin, const sys_io_intr_config_t* config) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ads_adapter_ctx_t, ads_handle_t, ctx, hw, handle);
   SE_CHECK_NOT_NULL(config);
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, PINS_MASK);
 
   if (config->mode == SYS_IO_INTR_DISABLE) {
-    ctx->route_masks[pin] = 0;
-    ctx->static_action_ids[pin] = 0;
-    ctx->dynamic_action_ids[pin] = 0;
     ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
     ctx->alert_active_mask &= (uint8_t)~(1u << pin);
-    memset(&ctx->own_funcs[pin], 0, sizeof(own_funct_t));
     SYS_DEV_CHECK_DRIVER_CALL(ads_clear_alert_cfg(hw, pin), ctx);
     return NULL;
   }
@@ -239,7 +221,7 @@ static err_h contract_io_ads7128_configure_intr(void* handle, sys_io_pin_num_t p
   /* The on-chip window comparator is the only trigger an analog input has;
      edge modes belong to digital pins. */
   if (config->mode != SYS_IO_INTR_ADC_WINDOW_INSIDE && config->mode != SYS_IO_INTR_ADC_WINDOW_OUTSIDE) {
-    SE_RET_ERR(ERR_IO_PIN_FEATURE_UNSUPPORTED, SYS_DEV_GET_ID(ctx), pin);
+    SE_FAIL(ERR_IO_PIN_FEATURE_UNSUPPORTED, SYS_DEV_GET_ID(ctx), pin);
   }
 
   ads7128_alert_cfg_t alert = {
@@ -254,11 +236,7 @@ static err_h contract_io_ads7128_configure_intr(void* handle, sys_io_pin_num_t p
 
   SYS_DEV_CHECK_DRIVER_CALL(ads_set_alert_cfg(hw, pin, &alert), ctx);
 
-  ctx->route_masks[pin] = config->route_mask;
-  ctx->static_action_ids[pin] = config->static_action_id;
-  ctx->dynamic_action_ids[pin] = config->dynamic_action_id;
   ctx->intr_modes[pin] = config->mode;
-  ctx->own_funcs[pin] = config->own_func;
   // Remembered so device_event_handler can restore this exact watch after a
   // crossing has been reported and recovery detected (see ads_arm_exit_watch).
   ctx->entry_alert_cfg[pin] = alert;
@@ -269,43 +247,41 @@ static err_h contract_io_ads7128_configure_intr(void* handle, sys_io_pin_num_t p
   return NULL;
 }
 
-static err_h contract_io_ads7128_reset_pin(void* handle, sys_io_pin_num_t pin) {
+static SE_MUST_USE err_h contract_io_ads7128_reset_pin(void* handle, sys_io_pin_num_t pin) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ads_adapter_ctx_t, ads_handle_t, ctx, hw, handle);
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, PINS_MASK);
 
-  ctx->route_masks[pin] = 0;
-  ctx->static_action_ids[pin] = 0;
-  ctx->dynamic_action_ids[pin] = 0;
   ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
   ctx->cached_codes[pin] = 0;
-  memset(&ctx->own_funcs[pin], 0, sizeof(own_funct_t));
 
   SYS_DEV_CHECK_DRIVER_CALL(ads_clear_alert_cfg(hw, pin), ctx);
   return NULL;
 }
 
-static sys_io_vtable_t io_ads_vtable = {.io_reset = contract_io_ads7128_reset_pin,
-    .io_set_mode = contract_io_ads7128_set_mode,
-    .io_configure_intr = contract_io_ads7128_configure_intr,
-    .io_get_voltage = contract_io_ads7128_get_voltage,
-    .io_set_level = NULL,
-    .io_get_level = NULL,
-    .io_toggle = NULL,
-    .io_set_voltage = NULL,
-    .io_set_pwm_frequency = NULL,
-    .io_set_pwm_duty = NULL,
-    .protected_pins = 0};
+static const sys_io_contract_t s_ads7128_io_contract = {.reset = contract_io_ads7128_reset_pin,
+    .set_mode = contract_io_ads7128_set_mode,
+    .configure_intr = contract_io_ads7128_configure_intr,
+    .get_voltage = contract_io_ads7128_get_voltage,
+    .set_level = NULL,
+    .get_level = NULL,
+    .toggle = NULL,
+    .set_voltage = NULL,
+    .set_pwm_frequency = NULL,
+    .set_pwm_duty = NULL};
 
 // --- sys_device VTable Implementations ---
 
 // Teardown must never early-return: a failing step would leak the i2c
 // registration, the hw handle and ctx. Keep the first error, free everything.
-static err_h device_uninstall(void* handle) {
+static SE_MUST_USE err_h device_uninstall(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ads_adapter_ctx_t, ads_handle_t, ctx, hw, handle);
   err_h err = NULL;
 
+  IF_SYS_DEV_STEP_DONE(ctx, ADS_STEP_INTR_SUB) {
+    SYS_DEV_TEARDOWN_STEP(err, sys_event_unsubscribe(ctx->intr_sub, false));
+  }
   IF_SYS_DEV_STEP_DONE(ctx, ADS_STEP_INTR_READY) {
-    sys_io_unlock_pin(ctx->cfg.intr_pin);
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_unlock_pin(ctx->cfg.intr_pin));
     SYS_DEV_TEARDOWN_STEP(err, sys_io_reset(ctx->cfg.intr_pin));
   }
 
@@ -319,16 +295,12 @@ static err_h device_uninstall(void* handle) {
   return err;
 }
 
-static err_h device_reset(void* handle) {
+static SE_MUST_USE err_h device_reset(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ads_adapter_ctx_t, ads_handle_t, ctx, hw, handle);
 
   for (uint8_t pin = 0; pin < PINS_COUNT; pin++) {
-    ctx->route_masks[pin] = 0;
-    ctx->static_action_ids[pin] = 0;
-    ctx->dynamic_action_ids[pin] = 0;
     ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
     ctx->cached_codes[pin] = 0;
-    memset(&ctx->own_funcs[pin], 0, sizeof(own_funct_t));
   }
 
   SYS_DEV_CHECK_DRIVER_CALL(ads_reset(hw), ctx);
@@ -337,12 +309,12 @@ static err_h device_reset(void* handle) {
 
 /* The chip has no shutdown state: it simply stops converting once the sequencer
    is idle, which is what a manual-mode configuration already gives. */
-static err_h device_suspend(void* handle) {
+static SE_MUST_USE err_h device_suspend(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ads_adapter_ctx_t, ads_handle_t, ctx, hw, handle);
   return NULL;
 }
 
-static err_h device_resume(void* handle) {
+static SE_MUST_USE err_h device_resume(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ads_adapter_ctx_t, ads_handle_t, ctx, hw, handle);
   SYS_DEV_CHECK_DRIVER_CALL(ads_restore_state(hw), ctx);
   return NULL;
@@ -350,7 +322,7 @@ static err_h device_resume(void* handle) {
 
 /* Frozen readings are served from a snapshot, so a whole control cycle sees one
    consistent set of samples no matter how often it asks. */
-static err_h device_freeze(void* handle) {
+static SE_MUST_USE err_h device_freeze(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ads_adapter_ctx_t, ads_handle_t, ctx, hw, handle);
   IF_SYS_DEV_FROZEN(ctx) {
     return NULL;
@@ -365,7 +337,7 @@ static err_h device_freeze(void* handle) {
   return NULL;
 }
 
-static err_h device_sync(void* handle) {
+static SE_MUST_USE err_h device_sync(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ads_adapter_ctx_t, ads_handle_t, ctx, hw, handle);
   SYS_DEV_CTX_UNFREEZE(ctx);
 
@@ -377,26 +349,23 @@ static err_h device_sync(void* handle) {
   return NULL;
 }
 
-static err_h device_install(const void* cfg_blob, void** out_device_handle) {
+static SE_MUST_USE err_h device_install(const void* cfg_blob, void** out_device_handle) {
   const d_ads7128_cfg_t* cfg = (const d_ads7128_cfg_t*)cfg_blob;
-  SE_CHECK_NOT_NULL(cfg);
-  SE_CHECK_NOT_NULL(out_device_handle);
 
   SYS_DEV_CTX_NEW(ads_adapter_ctx_t, ctx, cfg);
   err_h err = NULL;
 
   // Every reading and every threshold is scaled by this, so it may not be zero
-  if (ctx->cfg.vref_mv == 0) {
-    ESP_LOGE(TAG, "install: vref_mv must be non-zero");
+  if (ctx->cfg.vref_mV == 0) {
     free(ctx);
-    SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = 0, .min = 1, .max = UINT32_MAX);
+    SE_FAIL(ERR_INVALID_VAL_UI32, .val = 0, .min = 1, .max = UINT32_MAX);
   }
-  ctx->mv_per_code = (float)ctx->cfg.vref_mv / (float)ADS7128_MAX_CODE;
+  ctx->mv_per_code = (float)ctx->cfg.vref_mV / (float)ADS7128_MAX_CODE;
 
   ctx->base.hw_handle = ads_new(ctx->cfg.i2c_addr, ctx->cfg.i2c_bus);
   if (!ctx->base.hw_handle) {
     free(ctx);
-    SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+    SE_FAIL(ERR_BASE_NO_MEM, 0);
   }
 
   ads_handle_t hw = (ads_handle_t)ctx->base.hw_handle;
@@ -409,13 +378,12 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
 
   if (sys_io_pin_is_valid(ctx->cfg.intr_pin)) {
     SYS_DEV_INSTALL_STEP(sys_io_set_mode(ctx->cfg.intr_pin), "intr pin mode");
+    SYS_DEV_INSTALL_STEP(sys_io_subscribe_pin(ctx->cfg.intr_pin, device_event_handler, ctx, &ctx->intr_sub), "intr pin subscribe");
+    SYS_DEV_STEP_DONE(ctx, ADS_STEP_INTR_SUB);
     // ALERT is active low, so the falling edge is the assertion
-    sys_io_intr_config_t intr_cfg = {
-        .mode = SYS_IO_INTR_MODE_FALLING_EDGE,
-        .own_func = {.own_func = device_event_handler, .device_handle = ctx},
-    };
+    sys_io_intr_config_t intr_cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
     SYS_DEV_INSTALL_STEP(sys_io_configure_intr(ctx->cfg.intr_pin, &intr_cfg), "intr pin configure");
-    sys_io_lock_pin(ctx->cfg.intr_pin);
+    SYS_DEV_INSTALL_STEP(sys_io_lock_pin(ctx->cfg.intr_pin), "intr pin lock");
     SYS_DEV_STEP_DONE(ctx, ADS_STEP_INTR_READY);
   }
 
@@ -424,7 +392,6 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
     ctx->cached_codes[ch] = hw->recent_codes[ch];
   }
 
-  ESP_LOGI(TAG, "ADS7128 successfully installed as Device ID %d", ctx->cfg.device_id);
   *out_device_handle = ctx;
   return NULL;
 
@@ -436,7 +403,7 @@ fail:
 // The IO contract is declared here, not registered imperatively during install.
 static const sys_device_class_t s_ads7128_class = {
     .name = "ADS7128_ADC",
-    .contracts = {[SYS_DEVICE_CONTRACT_IO] = (void*)&io_ads_vtable},
+    .contracts = {[SYS_DEVICE_CONTRACT_IO] = &s_ads7128_io_contract},
     .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume, .freeze = device_freeze, .sync = device_sync},
 };
 

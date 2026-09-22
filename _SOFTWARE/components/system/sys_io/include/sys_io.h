@@ -1,31 +1,15 @@
 #pragma once
 #include <string.h>
-#include "sys_callbacks.h"
+#include "sys_event.h"
 #include "sys_error.h"
 
 #define SYS_GPIO_NONE 0xFF
-#define IF_PIN(pin_num) if (((pin_num)) != SYS_GPIO_NONE)
 
-
-#define SYS_IO_CB(_ctx, _pin, _event, _value, _route_mask, _static_action_id, _dynamic_action_id) \
-  do {                                                                   \
-    cb_event_t __cb_evt;                                                \
-    memset(&__cb_evt, 0, sizeof(__cb_evt));                             \
-    __cb_evt.head.callback_type = CALLBACK_IO;                          \
-    __cb_evt.head.route_mask = (_route_mask);                           \
-    __cb_evt.head.static_action_id = (_static_action_id);                           \
-    __cb_evt.head.dynamic_action_id = (_dynamic_action_id);                           \
-    __cb_evt.event.io.device_id = (_ctx)->base.device_id;               \
-    __cb_evt.event.io.pin_id = (_pin);                                  \
-    __cb_evt.event.io.trigger_event = (_event);                         \
-    __cb_evt.event.io.trigger_value = (_value);                         \
-    SE_release(sys_callback_trigger(&__cb_evt));                                    \
-  } while (0)
 
 #define VERIFY_PIN(dev_id, pin, pinmask)                   \
   do {                                                     \
     if (((pin) >= 64) || !((1ULL << (pin)) & (pinmask))) { \
-      SE_RET_ERR(ERR_IO_PIN_UNAVAILABLE, (dev_id), (pin)); \
+      SE_FAIL(ERR_IO_PIN_UNAVAILABLE, (dev_id), (pin)); \
     }                                                      \
   } while (0)
 
@@ -45,7 +29,7 @@ typedef enum sys_io_mode_e {
 
 /*Aviable interrupt modes*/
 //#ref-enum @alias Interrupt Mode
-typedef enum sys_io_intr_mode_e { 
+typedef enum sys_io_intr_mode_e {
   SYS_IO_INTR_DISABLE = 0, //@alias Disable @description Don't watch this pin for changes - nothing gets triggered
   SYS_IO_INTR_MODE_RISING_EDGE = 1, //@alias Rising Edge @description Triggers the instant the pin switches from off to on
   SYS_IO_INTR_MODE_FALLING_EDGE = 2, //@alias Falling Edge @description Triggers the instant the pin switches from on to off
@@ -91,90 +75,86 @@ typedef struct {
   uint16_t adc_event_counter_threshold;
 } sys_io_adc_int_config_t;
 
-/*overall config for io interrupt*/
+/* Interrupt config of one pin. It only arms the source: events go to the
+   sys_event listeners of (SYS_EVENT_DOMAIN_IO, device, pin). */
 typedef struct sys_io_intr_config_t {
   sys_io_intr_mode_e mode;
-  uint16_t route_mask;
-  uint8_t static_action_id; /**< Action ID; zero disables execution. */
-  uint8_t dynamic_action_id; /**< Action ID; zero disables execution. */
-  own_funct_t own_func;
+  bool debounce; /* filter switch bounce where the device supports it; off for chip alert lines */
   union {
     sys_io_adc_int_config_t adc;
   };
 } sys_io_intr_config_t;
 
-typedef struct sys_io_vtable_t {
-  err_h (*io_reset)(void* handle, sys_io_pin_num_t pin);
+typedef struct sys_io_contract_t {
+  err_h (*reset)(void* handle, sys_io_pin_num_t pin);
 
-  err_h (*io_set_mode)(void* handle, sys_io_pin_num_t pin, sys_io_mode_e mode);
+  err_h (*set_mode)(void* handle, sys_io_pin_num_t pin, sys_io_mode_e mode);
 
-  err_h (*io_configure_intr)(void* handle, sys_io_pin_num_t pin, const sys_io_intr_config_t* config);
+  err_h (*configure_intr)(void* handle, sys_io_pin_num_t pin, const sys_io_intr_config_t* config);
 
-  err_h (*io_set_level)(void* handle, sys_io_pin_num_t pin, bool level);
-  err_h (*io_get_level)(void* handle, sys_io_pin_num_t pin, bool* level);
-  err_h (*io_toggle)(void* handle, sys_io_pin_num_t pin);
+  err_h (*set_level)(void* handle, sys_io_pin_num_t pin, bool level);
+  err_h (*get_level)(void* handle, sys_io_pin_num_t pin, bool* level);
+  err_h (*toggle)(void* handle, sys_io_pin_num_t pin);
 
-  err_h (*io_get_voltage)(void* handle, sys_io_pin_num_t pin, uint32_t* out_mV);
-  err_h (*io_set_voltage)(void* handle, sys_io_pin_num_t pin, uint32_t voltage_mV);
+  err_h (*get_voltage)(void* handle, sys_io_pin_num_t pin, int32_t* out_mV);
+  err_h (*set_voltage)(void* handle, sys_io_pin_num_t pin, uint32_t voltage_mV);
 
-  err_h (*io_set_pwm_frequency)(void* handle, sys_io_pin_num_t pin, uint32_t frequency_HZ);
-  err_h (*io_set_pwm_duty)(void* handle, sys_io_pin_num_t pin, uint32_t duty);
-
-  uint64_t protected_pins;
-} sys_io_vtable_t;
+  err_h (*set_pwm_frequency)(void* handle, sys_io_pin_num_t pin, uint32_t frequency_Hz);
+  err_h (*set_pwm_duty)(void* handle, sys_io_pin_num_t pin, uint32_t duty);
+} sys_io_contract_t;
 
 /**
- * @brief Identifies which sys_io_vtable_t slot a NULL-vtable-function
+ * @brief Identifies which sys_io_contract_t slot a NULL-vtable-function
  * dispatch failure was for - carried as ERR_DEV_FEATURE_UNAVAILABLE's
  * feature_id payload field (see SYS_IO_DISPATCH), so the failure says
  * *which* IO operation is unsupported instead of a bare "not supported".
  */
-typedef enum sys_io_feature_e {
-  SYS_IO_FEATURE_RESET = 0,
-  SYS_IO_FEATURE_SET_MODE,
-  SYS_IO_FEATURE_CONFIGURE_INTR,
-  SYS_IO_FEATURE_SET_LEVEL,
-  SYS_IO_FEATURE_GET_LEVEL,
-  SYS_IO_FEATURE_TOGGLE,
-  SYS_IO_FEATURE_GET_VOLTAGE,
-  SYS_IO_FEATURE_SET_VOLTAGE,
-  SYS_IO_FEATURE_SET_PWM_FREQUENCY,
-  SYS_IO_FEATURE_SET_PWM_DUTY,
-} sys_io_feature_e;
+/* Member names of sys_io_contract_t in order, NULL-terminated (feature id = index). */
+extern const char* const sys_io_feature_names[];
 
-extern const char* const sys_io_feature_e_to_string[];
+SE_MUST_USE err_h sys_io_reset(sys_io_pin_ref_t ref);
+SE_MUST_USE err_h sys_io_set_mode(sys_io_pin_ref_t ref);
+SE_MUST_USE err_h sys_io_configure_intr(sys_io_pin_ref_t ref, const sys_io_intr_config_t* config);
 
-typedef struct sys_io_device_t {
-  sys_io_vtable_t* dispatch_table;
-  void* handle;
-} sys_io_device_t;
+SE_MUST_USE err_h sys_io_set_level(sys_io_pin_ref_t ref, bool level);
+SE_MUST_USE err_h sys_io_get_level(sys_io_pin_ref_t ref, bool* level);
+SE_MUST_USE err_h sys_io_toggle(sys_io_pin_ref_t ref);
 
-err_h sys_io_reset(sys_io_pin_ref_t ref);
-err_h sys_io_set_mode(sys_io_pin_ref_t ref);
-err_h sys_io_configure_intr(sys_io_pin_ref_t ref, const sys_io_intr_config_t* config);
+SE_MUST_USE err_h sys_io_get_voltage(sys_io_pin_ref_t ref, int32_t* out_mV);
+SE_MUST_USE err_h sys_io_set_voltage(sys_io_pin_ref_t ref, uint32_t voltage_mV);
 
-err_h sys_io_set_level(sys_io_pin_ref_t ref, bool level);
-err_h sys_io_get_level(sys_io_pin_ref_t ref, bool* level);
-err_h sys_io_toggle(sys_io_pin_ref_t ref);
+SE_MUST_USE err_h sys_io_set_pwm_frequency(sys_io_pin_ref_t ref, uint32_t frequency_Hz);
+SE_MUST_USE err_h sys_io_set_pwm_duty(sys_io_pin_ref_t ref, uint32_t duty);
 
-err_h sys_io_get_voltage(sys_io_pin_ref_t ref, uint32_t* out_mV);
-err_h sys_io_set_voltage(sys_io_pin_ref_t ref, uint32_t voltage_mV);
-
-err_h sys_io_set_pwm_frequency(sys_io_pin_ref_t ref, uint32_t frequency_HZ);
-err_h sys_io_set_pwm_duty(sys_io_pin_ref_t ref, uint32_t duty);
-
-err_h sys_io_lock_pin(sys_io_pin_ref_t ref);
-err_h sys_io_unlock_pin(sys_io_pin_ref_t ref);
-bool sys_io_temp_unlock(sys_io_pin_ref_t ref);
-void sys_io_restore_lock(sys_io_pin_ref_t ref, bool was_locked);
+SE_MUST_USE err_h sys_io_lock_pin(sys_io_pin_ref_t ref);
+SE_MUST_USE err_h sys_io_unlock_pin(sys_io_pin_ref_t ref);
 
 /**
- * @brief Scoped block for temporarily unlocking a pin. Restores original lock state on exit.
+ * @brief Set the level of a pin the caller has locked (OE, RST, EN, ...).
+ *
+ * Unlocks the pin only if it was locked, sets the level, and restores the
+ * previous lock state on every path, including failure.
  */
-#define SYS_IO_PIN_WITH_UNLOCKED(ref) \
-  for (bool __active = true, __was_locked = sys_io_temp_unlock((ref)); \
-       __active; \
-       __active = false, sys_io_restore_lock((ref), __was_locked))
+SE_MUST_USE err_h sys_io_set_locked_level(sys_io_pin_ref_t ref, bool level);
+
+/**
+ * @brief Publish a pin event from an IO device adapter (task or ISR).
+ * @param event The edge or window crossed: RISING / FALLING edge for a
+ *        digital pin, the armed mode for an analog one.
+ * @param value Level (0 / 1) or mV.
+ * @param hops SYS_EVENT_CAUSED_BY(cause) when raised from a listener, else 0.
+ */
+static inline SE_MUST_USE err_h sys_io_publish(uint8_t device_id, sys_io_pin_num_t pin, sys_io_intr_mode_e event, int32_t value, uint8_t hops) {
+  sys_event_t ev = {.domain = SYS_EVENT_DOMAIN_IO, .device_id = device_id, .channel = pin, .event = (uint8_t)event, .value = value, .hops = hops};
+  return sys_event_publish(&ev);
+}
+
+/**
+ * @brief Chain a device to an alert pin: call handler inline on every event
+ * of that pin (the adapter then reads its chip and publishes its own events).
+ * System-owned; remove it with sys_event_unsubscribe(*out_id, false).
+ */
+SE_MUST_USE err_h sys_io_subscribe_pin(sys_io_pin_ref_t ref, sys_event_handler_f handler, void* ctx, uint8_t* out_id);
 
 /* Type-safe sys_io_pin_ref_t operations */
 static inline bool sys_io_pin_is_valid(sys_io_pin_ref_t ref) {

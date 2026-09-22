@@ -7,7 +7,6 @@
 #include "esp_adc/adc_cali_scheme.h"
 #include "esp_adc/adc_continuous.h"
 #include "esp_adc_config.h"
-#include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -22,7 +21,6 @@
 
 #undef OWNER
 #define OWNER OWNER_DEVICE_GPIO_ESP
-static const char* TAG = __FILE_NAME__;
 
 static const uint64_t pin_bitmask = SOC_GPIO_VALID_GPIO_MASK;
 
@@ -56,39 +54,30 @@ static const gpio_int_type_t k_gpio_intr_map[] = {
     [SYS_IO_INTR_MODE_BOTH_EDGES] = GPIO_INTR_ANYEDGE,
 };
 
-// Ultra-fast ISR Trampoline triggering callback directly
+// Pin ISR: publishes the edge; sys_event defers delivery to its task.
 static void IRAM_ATTR _gpio_pin_isr_trampoline(void* arg) {
   esp_pin_obj_t* pin = (esp_pin_obj_t*)arg;
   if (!pin) return;
 
-  // own_func handlers are chip-driven status/alert dispatchers (e.g.
-  // adapter_ads7128.c's device_event_handler), reading and clearing a
-  // *latched* flag on the far side of an I2C bus - not a mechanical switch.
-  // Debouncing them is actively harmful: the flag doesn't self-clear, so a
-  // genuine re-trip edge silently dropped here means nobody ever clears it,
-  // and a signal that's already asserted low can't produce *another* falling
-  // edge to give the debounce a second chance - it stays stuck asserted
-  // forever. These handlers already loop internally to drain everything
-  // pending, so they don't need this filter; it stays only for the plain
-  // SYS_IO_CB path below (real switches / digital inputs).
-  if (pin->intr_config.own_func.own_func) {
-    SYS_CB_OWN(pin->intr_config.own_func);
-    return;
+  // Only switches are debounced. A chip alert line (debounce off) holds a
+  // latched flag: an edge dropped here would never be followed by another,
+  // so the flag would stay set and the line stuck asserted.
+  if (pin->intr_config.debounce) {
+    uint64_t current_time = esp_timer_get_time();
+    if ((current_time - pin->last_isr_time) < CONFIG_ESP_GPIO_DEBOUNCE_TIME_US) {
+      return;
+    }
+    pin->last_isr_time = current_time;
   }
-
-  uint64_t current_time = esp_timer_get_time();
-  if ((current_time - pin->last_isr_time) < CONFIG_ESP_GPIO_DEBOUNCE_TIME_US) {
-    return;
-  }
-  pin->last_isr_time = current_time;
 
   int level = gpio_get_level((gpio_num_t)pin->io_num);
-  SYS_IO_CB(ctx, pin->io_num, pin->intr_config.mode, level, pin->intr_config.route_mask, pin->intr_config.static_action_id, pin->intr_config.dynamic_action_id);
+  sys_io_intr_mode_e edge = level ? SYS_IO_INTR_MODE_RISING_EDGE : SYS_IO_INTR_MODE_FALLING_EDGE;
+  SE_release(sys_io_publish(ctx->base.device_id, pin->io_num, edge, level, 0));
 }
 
 // --- VTABLE Implementations (IO Contract) ---
 
-static err_h contract_io_gpio_esp_reset_pin(void* handle, sys_io_pin_num_t pin) {
+static SE_MUST_USE err_h contract_io_gpio_esp_reset_pin(void* handle, sys_io_pin_num_t pin) {
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, pin_bitmask);
 
   bool was_adc = false;
@@ -109,31 +98,30 @@ static err_h contract_io_gpio_esp_reset_pin(void* handle, sys_io_pin_num_t pin) 
 
   if (!was_configured) return NULL;
 
-  gpio_reset_pin((gpio_num_t)pin);
-  gpio_isr_handler_remove((gpio_num_t)pin);
-  gpio_set_intr_type((gpio_num_t)pin, GPIO_INTR_DISABLE);
+  // Every step runs even if an earlier one fails; the first failure is returned.
+  err_h err = NULL;
+  SYS_DEV_TEARDOWN_DRIVER_STEP(err, gpio_reset_pin((gpio_num_t)pin), ctx);
+  SYS_DEV_TEARDOWN_DRIVER_STEP(err, gpio_isr_handler_remove((gpio_num_t)pin), ctx);
+  SYS_DEV_TEARDOWN_DRIVER_STEP(err, gpio_set_intr_type((gpio_num_t)pin, GPIO_INTR_DISABLE), ctx);
 
   if (was_adc) {
     if (cali_handle != NULL) {
-      adc_cali_delete_scheme_curve_fitting(cali_handle);
+      SYS_DEV_TEARDOWN_DRIVER_STEP(err, adc_cali_delete_scheme_curve_fitting(cali_handle), ctx);
     }
-    esp_adc_update_active_channels();
+    SYS_DEV_TEARDOWN_DRIVER_STEP(err, esp_adc_update_active_channels(), ctx);
   }
 
-  ESP_LOGI(TAG, "Reset GPIO pin %d", pin);
-  return NULL;
+  return err;
 }
 
-static err_h contract_io_gpio_esp_set_mode(void* handle, sys_io_pin_num_t pin, sys_io_mode_e mode) {
+static SE_MUST_USE err_h contract_io_gpio_esp_set_mode(void* handle, sys_io_pin_num_t pin, sys_io_mode_e mode) {
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, pin_bitmask);
 
   err_h err = NULL;
   esp_pin_obj_t* new_pin = NULL;
   bool needs_adc_update = false;
 
-  if (R_MUTEX_LOCK(gpio_mutex, portMAX_DELAY) != pdTRUE) {
-    SE_RET_ERR(ERR_ESP_ERR, 0);
-  }
+  R_MUTEX_LOCK(gpio_mutex, WAIT_FOREVER);
 
   if (configured_pins & (1ULL << pin)) {
     SE_SET_ERR(err, ERR_IO_PIN_ALREADY_IN_USE, SYS_DEV_GET_ID(ctx), pin, mode);
@@ -150,7 +138,7 @@ static err_h contract_io_gpio_esp_set_mode(void* handle, sys_io_pin_num_t pin, s
     adc_unit_t unit = 0;
     esp_err_t esp_err = adc_continuous_io_to_channel(pin, &unit, &channel);
     if (esp_err != ESP_OK || unit != ADC_UNIT_1) {
-      SE_SET_ERR(err, ERR_IO_PIN_FEATURE_UNSUPPORTED, pin, 0);
+      SE_SET_ERR(err, ERR_IO_PIN_FEATURE_UNSUPPORTED, SYS_DEV_GET_ID(ctx), pin);
       goto cleanup;
     }
 
@@ -162,7 +150,7 @@ static err_h contract_io_gpio_esp_set_mode(void* handle, sys_io_pin_num_t pin, s
     };
     esp_err = adc_cali_create_scheme_curve_fitting(&cali_config, &new_pin->hw.adc_cfg.cali_handle);
     if (esp_err != ESP_OK) {
-      SE_SET_ERR(err, ERR_ESP_ERR, esp_err);
+      err = SYS_DEV_DRIVER_ERR(esp_err, ctx);
       goto cleanup;
     }
 
@@ -170,7 +158,7 @@ static err_h contract_io_gpio_esp_set_mode(void* handle, sys_io_pin_num_t pin, s
     needs_adc_update = true;
   } else {
     if (mode >= (sizeof(k_gpio_mode_map) / sizeof(k_gpio_mode_map[0])) || k_gpio_mode_map[mode].mode == GPIO_MODE_DISABLE) {
-      SE_SET_ERR(err, ERR_BASE_NOT_SUPPORTED, 0);
+      SE_SET_ERR(err, ERR_IO_PIN_MODE_UNSUPPORTED, SYS_DEV_GET_ID(ctx), pin, mode);
       goto cleanup;
     }
 
@@ -184,7 +172,7 @@ static err_h contract_io_gpio_esp_set_mode(void* handle, sys_io_pin_num_t pin, s
 
     esp_err_t esp_err = gpio_config(&cfg);
     if (esp_err != ESP_OK) {
-      SE_SET_ERR(err, ERR_ESP_ERR, esp_err);
+      err = SYS_DEV_DRIVER_ERR(esp_err, ctx);
       goto cleanup;
     }
 
@@ -199,32 +187,30 @@ cleanup:
   if (SE_IS_OK(err) && needs_adc_update) {
     esp_err_t esp_err = esp_adc_update_active_channels();
     if (esp_err != ESP_OK) {
-      SE_RET_ERR(ERR_ESP_ERR, esp_err);
+      return SYS_DEV_DRIVER_ERR(esp_err, ctx);
     }
   }
   return err;
 }
 
-static err_h contract_io_gpio_esp_configure_intr(void* handle, sys_io_pin_num_t pin, const sys_io_intr_config_t* config) {
+static SE_MUST_USE err_h contract_io_gpio_esp_configure_intr(void* handle, sys_io_pin_num_t pin, const sys_io_intr_config_t* config) {
   SE_CHECK_NOT_NULL(config);
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, pin_bitmask);
 
   err_h err = NULL;
   bool is_adc = false;
 
-  if (R_MUTEX_LOCK(gpio_mutex, portMAX_DELAY) != pdTRUE) {
-    SE_RET_ERR(ERR_ESP_ERR, 0);
-  }
+  R_MUTEX_LOCK(gpio_mutex, WAIT_FOREVER);
 
   esp_pin_obj_t* pin_obj = pin_obj_get(pin);
   if (pin_obj == NULL) {
-    SE_SET_ERR(err, ERR_IO_PIN_FEATURE_UNSUPPORTED, pin, 0);
+    SE_SET_ERR(err, ERR_IO_PIN_FEATURE_UNSUPPORTED, SYS_DEV_GET_ID(ctx), pin);
     goto cleanup;
   }
 
   if (config->mode == SYS_IO_INTR_DISABLE) {
-    gpio_isr_handler_remove((gpio_num_t)pin);
-    gpio_set_intr_type((gpio_num_t)pin, GPIO_INTR_DISABLE);
+    SYS_DEV_TEARDOWN_DRIVER_STEP(err, gpio_isr_handler_remove((gpio_num_t)pin), ctx);
+    SYS_DEV_TEARDOWN_DRIVER_STEP(err, gpio_set_intr_type((gpio_num_t)pin, GPIO_INTR_DISABLE), ctx);
     pin_obj->intr_config.mode = SYS_IO_INTR_DISABLE;
     goto cleanup;
   }
@@ -236,7 +222,7 @@ static err_h contract_io_gpio_esp_configure_intr(void* handle, sys_io_pin_num_t 
   }
 
   if (config->mode >= (sizeof(k_gpio_intr_map) / sizeof(k_gpio_intr_map[0])) || k_gpio_intr_map[config->mode] == GPIO_INTR_DISABLE) {
-    SE_SET_ERR(err, ERR_IO_PIN_FEATURE_UNSUPPORTED, pin, 0);
+    SE_SET_ERR(err, ERR_IO_PIN_FEATURE_UNSUPPORTED, SYS_DEV_GET_ID(ctx), pin);
     goto cleanup;
   }
 
@@ -244,13 +230,13 @@ static err_h contract_io_gpio_esp_configure_intr(void* handle, sys_io_pin_num_t 
 
   esp_err_t esp_err = gpio_set_intr_type((gpio_num_t)pin, k_gpio_intr_map[config->mode]);
   if (esp_err != ESP_OK) {
-    SE_SET_ERR(err, ERR_ESP_ERR, esp_err);
+    err = SYS_DEV_DRIVER_ERR(esp_err, ctx);
     goto cleanup;
   }
 
   esp_err = gpio_isr_handler_add((gpio_num_t)pin, _gpio_pin_isr_trampoline, pin_obj);
   if (esp_err != ESP_OK) {
-    SE_SET_ERR(err, ERR_ESP_ERR, esp_err);
+    err = SYS_DEV_DRIVER_ERR(esp_err, ctx);
     goto cleanup;
   }
 
@@ -259,19 +245,17 @@ cleanup:
   if (SE_IS_OK(err) && is_adc) {
     esp_err_t update_err = esp_adc_update_active_channels();
     if (update_err != ESP_OK) {
-      SE_RET_ERR(ERR_ESP_ERR, 0);
+      return SYS_DEV_DRIVER_ERR(update_err, ctx);
     }
   }
   return err;
 }
 
-static err_h contract_io_gpio_esp_set_level(void* handle, sys_io_pin_num_t pin, bool level) {
+static SE_MUST_USE err_h contract_io_gpio_esp_set_level(void* handle, sys_io_pin_num_t pin, bool level) {
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, pin_bitmask);
 
   err_h err = NULL;
-  if (R_MUTEX_LOCK(gpio_mutex, portMAX_DELAY) != pdTRUE) {
-    SE_RET_ERR(ERR_ESP_ERR, 0);
-  }
+  R_MUTEX_LOCK(gpio_mutex, WAIT_FOREVER);
 
   esp_pin_obj_t* pin_obj = pin_obj_get(pin);
   if (pin_obj == NULL) {
@@ -296,7 +280,7 @@ static err_h contract_io_gpio_esp_set_level(void* handle, sys_io_pin_num_t pin, 
   else {
     esp_err_t esp_err = gpio_set_level((gpio_num_t)pin, level);
     if (esp_err != ESP_OK) {
-      SE_SET_ERR(err, ERR_ESP_ERR, esp_err);
+      err = SYS_DEV_DRIVER_ERR(esp_err, ctx);
       goto cleanup;
     }
     if (level) {
@@ -311,14 +295,12 @@ cleanup:
   return err;
 }
 
-static err_h contract_io_gpio_esp_get_level(void* handle, sys_io_pin_num_t pin, bool* level) {
+static SE_MUST_USE err_h contract_io_gpio_esp_get_level(void* handle, sys_io_pin_num_t pin, bool* level) {
   SE_CHECK_NOT_NULL(level);
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, pin_bitmask);
 
   err_h err = NULL;
-  if (R_MUTEX_LOCK(gpio_mutex, portMAX_DELAY) != pdTRUE) {
-    SE_RET_ERR(ERR_ESP_ERR, 0);
-  }
+  R_MUTEX_LOCK(gpio_mutex, WAIT_FOREVER);
 
   esp_pin_obj_t* pin_obj = pin_obj_get(pin);
   if (pin_obj == NULL) {
@@ -342,7 +324,7 @@ static err_h contract_io_gpio_esp_get_level(void* handle, sys_io_pin_num_t pin, 
   else {
     int val = gpio_get_level((gpio_num_t)pin);
     if (val < 0) {
-      SE_SET_ERR(err, ERR_ESP_ERR, val);
+      err = SYS_DEV_DRIVER_ERR(val, ctx);
       goto cleanup;
     }
     *level = (val > 0);
@@ -353,41 +335,40 @@ cleanup:
   return err;
 }
 
-static err_h contract_io_gpio_esp_toggle(void* handle, sys_io_pin_num_t pin) {
+static SE_MUST_USE err_h contract_io_gpio_esp_toggle(void* handle, sys_io_pin_num_t pin) {
   bool current;
-  SE_RET_IF_ERR(contract_io_gpio_esp_get_level(handle, pin, &current));
+  SE_TRY(contract_io_gpio_esp_get_level(handle, pin, &current));
   return contract_io_gpio_esp_set_level(handle, pin, !current);
 }
 
-static err_h contract_io_gpio_esp_get_voltage(void* handle, sys_io_pin_num_t pin, uint32_t* out_mV) {
+static SE_MUST_USE err_h contract_io_gpio_esp_get_voltage(void* handle, sys_io_pin_num_t pin, int32_t* out_mV) {
   SE_CHECK_NOT_NULL(out_mV);
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, pin_bitmask);
 
-  // esp_adc_get_mv() already validates the pin range, that it's configured,
+  // esp_adc_get_mV() already validates the pin range, that it's configured,
   // and that its mode is SYS_IO_MODE_ADC - no need to duplicate that here.
-  esp_err_t esp_err = esp_adc_get_mv(pin, out_mV);
+  esp_err_t esp_err = esp_adc_get_mV(pin, out_mV);
   if (esp_err != ESP_OK) {
-    SE_RET_ERR(ERR_IO_PIN_FEATURE_UNSUPPORTED, pin, 0);
+    return SE_WRAP_ERR(SYS_DEV_DRIVER_ERR(esp_err, ctx), ERR_IO_PIN_FEATURE_UNSUPPORTED, SYS_DEV_GET_ID(ctx), pin);
   }
   return NULL;
 }
 
 // Instantiate the static VTable
-static sys_io_vtable_t io_gpio_esp_vtable = {.io_reset = contract_io_gpio_esp_reset_pin,
-    .io_set_mode = contract_io_gpio_esp_set_mode,
-    .io_configure_intr = contract_io_gpio_esp_configure_intr,
-    .io_set_level = contract_io_gpio_esp_set_level,
-    .io_get_level = contract_io_gpio_esp_get_level,
-    .io_toggle = contract_io_gpio_esp_toggle,
-    .io_get_voltage = contract_io_gpio_esp_get_voltage,
-    .io_set_voltage = NULL,
-    .io_set_pwm_frequency = NULL,
-    .io_set_pwm_duty = NULL,
-    .protected_pins = 0};
+static const sys_io_contract_t s_gpio_esp_io_contract = {.reset = contract_io_gpio_esp_reset_pin,
+    .set_mode = contract_io_gpio_esp_set_mode,
+    .configure_intr = contract_io_gpio_esp_configure_intr,
+    .set_level = contract_io_gpio_esp_set_level,
+    .get_level = contract_io_gpio_esp_get_level,
+    .toggle = contract_io_gpio_esp_toggle,
+    .get_voltage = contract_io_gpio_esp_get_voltage,
+    .set_voltage = NULL,
+    .set_pwm_frequency = NULL,
+    .set_pwm_duty = NULL};
 
 // --- sys_device_t Implementations ---
 
-static err_h device_uninstall(void* handle) {
+static SE_MUST_USE err_h device_uninstall(void* handle) {
   err_h err = NULL;
 
   for (int i = 0; i < GPIO_NUM_MAX; i++) {
@@ -401,10 +382,10 @@ static err_h device_uninstall(void* handle) {
   return err;
 }
 
-static err_h device_reset(void* handle) {
+static SE_MUST_USE err_h device_reset(void* handle) {
   for (int i = 0; i < GPIO_NUM_MAX; i++) {
     if (configured_pins & (1ULL << i)) {
-      SE_RET_IF_ERR(contract_io_gpio_esp_reset_pin(ctx, i));
+      SE_TRY(contract_io_gpio_esp_reset_pin(ctx, i));
     }
   }
   return NULL;
@@ -430,7 +411,7 @@ static void gpio_esp_snapshot_inputs(void) {
 
 // Drains every pending deferred output write. Shared by sync and resume,
 // which flush state identically.
-static err_h gpio_esp_flush_pending_outputs(void) {
+static SE_MUST_USE err_h gpio_esp_flush_pending_outputs(void) {
   if (ctx->pending_outputs != 0) {
     for (int i = 0; i < GPIO_NUM_MAX; i++) {
       uint64_t bit = (1ULL << i);
@@ -444,7 +425,7 @@ static err_h gpio_esp_flush_pending_outputs(void) {
   return NULL;
 }
 
-static err_h device_freeze(void* handle) {
+static SE_MUST_USE err_h device_freeze(void* handle) {
   IF_SYS_DEV_FROZEN(ctx) {
     return NULL;
   }
@@ -454,25 +435,23 @@ static err_h device_freeze(void* handle) {
   return NULL;
 }
 
-static err_h device_sync(void* handle) {
+static SE_MUST_USE err_h device_sync(void* handle) {
   SYS_DEV_CTX_UNFREEZE(ctx);
   return gpio_esp_flush_pending_outputs();
 }
 
 // suspend/resume alias freeze/sync: this device has no lower-power state
 // beyond deferring output writes and snapshotting inputs.
-static err_h device_suspend(void* handle) {
+static SE_MUST_USE err_h device_suspend(void* handle) {
   return device_freeze(handle);
 }
 
-static err_h device_resume(void* handle) {
+static SE_MUST_USE err_h device_resume(void* handle) {
   return device_sync(handle);
 }
 
-static err_h device_install(const void* cfg_blob, void** out_device_handle) {
+static SE_MUST_USE err_h device_install(const void* cfg_blob, void** out_device_handle) {
   const d_gpio_esp_cfg_t* cfg = (const d_gpio_esp_cfg_t*)cfg_blob;
-  SE_CHECK_NOT_NULL(cfg);
-  SE_CHECK_NOT_NULL(out_device_handle);
 
   memset(&gpio_esp_ctx, 0, sizeof(gpio_esp_ctx_t));
   gpio_esp_ctx.base.device_id = cfg->device_id;
@@ -484,11 +463,11 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
     if (isr_err == ESP_OK || isr_err == ESP_ERR_INVALID_STATE) {
       s_isr_service_installed = true;
     } else {
-      ESP_LOGW(TAG, "gpio_install_isr_service returned %d", isr_err);
+      return SYS_DEV_DRIVER_ERR(isr_err, ctx);
     }
   }
 
-  esp_adc_start();
+  SYS_DEV_CHECK_DRIVER_CALL(esp_adc_start(), ctx);
 
   *out_device_handle = ctx;
   return NULL;
@@ -496,7 +475,7 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
 
 static const sys_device_class_t s_gpio_esp_class = {
     .name = "GPIO_ESP_NATIVE",
-    .contracts = {[SYS_DEVICE_CONTRACT_IO] = (void*)&io_gpio_esp_vtable},
+    .contracts = {[SYS_DEVICE_CONTRACT_IO] = &s_gpio_esp_io_contract},
     .ops = {
         .install = device_install,
         .uninstall = device_uninstall,

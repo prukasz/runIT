@@ -6,12 +6,6 @@
 #include <stdint.h>
 #include "sys_i2c.h"
 
-typedef enum {
-  TCA_ON_RISING_EDGE = 0,
-  TCA_ON_FALLING_EDGE = 1,
-  TCA_ON_CHANGE = 2,
-} tca_interrupt_mode_e;
-
 typedef struct {
   sys_i2c_driver_header_t header;
 

@@ -15,5 +15,5 @@ typedef struct d_gpio_esp_cfg_t {
  * @param cfg Pointer to device configuration struct
  * @return err_h Status report of the operation.
  */
-err_h d_gpio_esp_create(const d_gpio_esp_cfg_t* cfg);
+SE_MUST_USE err_h d_gpio_esp_create(const d_gpio_esp_cfg_t* cfg);
 

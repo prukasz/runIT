@@ -2,7 +2,7 @@
 #include "utils.h"
 
 #undef OWNER
-#define OWNER OWNER_SYS_INTERFACE_CLASS
+#define OWNER OWNER_SYS_DATA_CONNECTOR_BASE
 
 static const char* TAG = "sys_data_connector";
 
@@ -26,10 +26,12 @@ static const sys_data_provider_driver_t* find_provider(uint8_t provider_id) {
 // Provider Registration
 // -----------------------------------------------------------------------------
 
+#undef OWNER
+#define OWNER OWNER_SYS_DATA_CONNECTOR_REGISTER_PROVIDER
 err_h sys_data_connector_register_provider(const sys_data_provider_driver_t* driver) {
   SE_CHECK_NOT_NULL(driver);
   if (driver->provider_id == SYS_DATA_PROVIDER_NONE) {
-    SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = driver->provider_id);
+    SE_FAIL(ERR_INVALID_VAL_UI32, .val = driver->provider_id);
   }
 
   // Update if already registered
@@ -51,13 +53,15 @@ err_h sys_data_connector_register_provider(const sys_data_provider_driver_t* dri
     }
   }
 
-  SE_RET_ERR(ERR_BASE_NO_MEM, driver->provider_id);
+  SE_FAIL(ERR_BASE_NO_MEM, driver->provider_id);
 }
 
 // -----------------------------------------------------------------------------
 // Connector Lifecycle
 // -----------------------------------------------------------------------------
 
+#undef OWNER
+#define OWNER OWNER_SYS_DATA_CONNECTOR_INIT
 err_h sys_data_connector_init(void) {
   static const sys_data_connector_cfg_t s_system_connectors[] = {
       {.id = CONFIG_SYS_DATA_CONN_ID_LOGS,      .name = "logs",      .header = CONFIG_TX_PACKET_CLASS_LOGS},
@@ -68,7 +72,7 @@ err_h sys_data_connector_init(void) {
 
   for (size_t i = 0; i < sizeof(s_system_connectors) / sizeof(s_system_connectors[0]); i++) {
     if (!sys_data_connector_create_with_cfg(&s_system_connectors[i])) {
-      SE_RET_ERR(ERR_BASE_NO_MEM, s_system_connectors[i].id);
+      SE_FAIL(ERR_BASE_NO_MEM, s_system_connectors[i].id);
     }
   }
   return NULL;
@@ -147,6 +151,29 @@ sys_data_connector_t* sys_data_connector_create(uint8_t id, const char* name, ui
   return sys_data_connector_create_with_cfg(&cfg);
 }
 
+#undef OWNER
+#define OWNER OWNER_SYS_DATA_CONNECTOR_REMOVE
+err_h sys_data_connector_remove(uint8_t id) {
+  sys_data_connector_t* conn = sys_data_connector_get(id);
+  if (!conn) {
+    SE_FAIL(ERR_BASE_NOT_FOUND, id);
+  }
+
+  while (conn->rx_count > 0) {
+    SE_TRY(sys_data_connector_unbind_rx(conn, conn->rx_provider_id[0]));
+  }
+  while (conn->tx_count > 0) {
+    SE_TRY(sys_data_connector_unbind_tx(conn, conn->tx_provider_id[0]));
+  }
+
+  if (conn->owns_data_present_sem && conn->data_present) {
+    vSemaphoreDelete(conn->data_present);
+  }
+  ESP_LOGI(TAG, "Removed data connector: %s (id=%u)", conn->name, id);
+  memset(conn, 0, sizeof(*conn));
+  return NULL;
+}
+
 sys_data_connector_t* sys_data_connector_get(uint8_t id) {
   if (id >= CONFIG_SYS_DATA_CONNECTOR_MAX) return NULL;
   if (!s_connectors[id].allocated) return NULL;
@@ -157,11 +184,13 @@ sys_data_connector_t* sys_data_connector_get(uint8_t id) {
 // Topology Binding & Unbinding (TX & RX)
 // -----------------------------------------------------------------------------
 
+#undef OWNER
+#define OWNER OWNER_SYS_DATA_CONNECTOR_BIND_TX
 err_h sys_data_connector_bind_tx(sys_data_connector_t* conn, uint8_t provider_id, void* arg) {
   SE_CHECK_NOT_NULL(conn);
   const sys_data_provider_driver_t* prov = find_provider(provider_id);
   if (!prov || !prov->send) {
-    SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = provider_id);
+    SE_FAIL(ERR_INVALID_VAL_UI32, .val = provider_id);
   }
 
   // Update arg if already bound
@@ -174,7 +203,7 @@ err_h sys_data_connector_bind_tx(sys_data_connector_t* conn, uint8_t provider_id
   }
 
   if (conn->tx_count >= CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX) {
-    SE_RET_ERR(ERR_BASE_NO_MEM, provider_id);
+    SE_FAIL(ERR_BASE_NO_MEM, provider_id);
   }
 
   conn->tx_provider_id[conn->tx_count]  = provider_id;
@@ -186,6 +215,8 @@ err_h sys_data_connector_bind_tx(sys_data_connector_t* conn, uint8_t provider_id
   return NULL;
 }
 
+#undef OWNER
+#define OWNER OWNER_SYS_DATA_CONNECTOR_UNBIND_TX
 err_h sys_data_connector_unbind_tx(sys_data_connector_t* conn, uint8_t provider_id) {
   SE_CHECK_NOT_NULL(conn);
 
@@ -204,18 +235,20 @@ err_h sys_data_connector_unbind_tx(sys_data_connector_t* conn, uint8_t provider_
   return NULL;
 }
 
+#undef OWNER
+#define OWNER OWNER_SYS_DATA_CONNECTOR_BIND_RX
 err_h sys_data_connector_bind_rx(sys_data_connector_t* conn, uint8_t provider_id, void* arg) {
   SE_CHECK_NOT_NULL(conn);
   const sys_data_provider_driver_t* prov = find_provider(provider_id);
   if (!prov || !prov->dequeue) {
-    SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = provider_id);
+    SE_FAIL(ERR_INVALID_VAL_UI32, .val = provider_id);
   }
 
   // Update arg if already bound
   for (uint8_t i = 0; i < conn->rx_count; i++) {
     if (conn->rx_provider_id[i] == provider_id) {
       if (prov->bind_rx) {
-        SE_RET_IF_ERR(prov->bind_rx(arg, conn));
+        SE_TRY(prov->bind_rx(arg, conn));
       }
       conn->rx_provider_arg[i] = arg;
       ESP_LOGI(TAG, "Connector %s: updated RX provider %s (id=%u)", conn->name, prov->name, provider_id);
@@ -224,11 +257,11 @@ err_h sys_data_connector_bind_rx(sys_data_connector_t* conn, uint8_t provider_id
   }
 
   if (conn->rx_count >= CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX) {
-    SE_RET_ERR(ERR_BASE_NO_MEM, provider_id);
+    SE_FAIL(ERR_BASE_NO_MEM, provider_id);
   }
 
   if (prov->bind_rx) {
-    SE_RET_IF_ERR(prov->bind_rx(arg, conn));
+    SE_TRY(prov->bind_rx(arg, conn));
   }
 
   conn->rx_provider_id[conn->rx_count]  = provider_id;
@@ -240,6 +273,8 @@ err_h sys_data_connector_bind_rx(sys_data_connector_t* conn, uint8_t provider_id
   return NULL;
 }
 
+#undef OWNER
+#define OWNER OWNER_SYS_DATA_CONNECTOR_UNBIND_RX
 err_h sys_data_connector_unbind_rx(sys_data_connector_t* conn, uint8_t provider_id) {
   SE_CHECK_NOT_NULL(conn);
   const sys_data_provider_driver_t* prov = find_provider(provider_id);
@@ -306,6 +341,8 @@ void sys_data_connector_send(sys_data_connector_t* conn, const void* data, size_
 // Inbound Frame Dequeue (RX)
 // -----------------------------------------------------------------------------
 
+#undef OWNER
+#define OWNER OWNER_SYS_DATA_CONNECTOR_RECEIVE
 err_h sys_data_connector_receive(sys_data_connector_t* conn, uint8_t* buf, size_t max_len, size_t* out_len) {
   if (!conn || !conn->allocated || conn->suspended || !buf || !out_len) {
     if (out_len) *out_len = 0;

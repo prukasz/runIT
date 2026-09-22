@@ -1,15 +1,12 @@
-# CODECS — Packet Decoder / Encoder Tables
+# CODECS — Packet Decoder Tables
 
-`codecs` is a **header-only** component holding the packet tables that [[SYS_INTERFACE.MD]] routes to. It has no source files and produces no library — `idf_component_register()` only exports `decoders/` and `encoders/` as include directories.
+`codecs` is a **header-only** component holding the packet tables that [[SYS_INTERFACE.MD]] routes to. It has no source files and produces no library — `idf_component_register()` only exports `decoders/` (inbound packet tables, one header per class byte).
 
-| Directory | Contents |
-| :--- | :--- |
-| `decoders/` | Inbound packet tables — one header per class byte. |
-| `encoders/` | Outbound packet builders — one header per outbound stream. |
+Every class is registered with `sys_interface` by runit's `runit_register_decoders` boot step (`components/runit/runit_decoders.c`), before `sys_interface_init()` starts the RX receiver. `sys_interface` itself doesn't depend on `codecs`.
+
+The error-chain encoder that used to live in `encoders/` is private to `sys_errors` now (`components/sys_errors/enc_sys_errors.h`); its wire format is in [[SYS_ERRORS.MD]] "Logging and telemetry".
 
 The split of responsibility: `sys_interface` owns the **class byte** (`0xXX`) and the transport plumbing; a codec header owns its **packet bytes** (`0xYY`), payload layouts, and the mapping to `sys_*` API calls.
-
-Encoders are the mirror image: they take an in-RAM structure and *fill a caller-supplied buffer*. They never transmit — pushing the buffer into a TX ring (`sys_ble_char_send()`) is the caller's job. They also carry **no class byte**: an outbound stream is already identified by the TX slot header byte that `sys_buff_pop_framed()` prepends (see `sys_ble_char_assign_tx_buffer()`).
 
 ---
 
@@ -40,19 +37,20 @@ static inline err_h decoder_packet_sys_io_toggle_t(packet_sys_io_toggle_t* packe
   X(HEADER_packet_sys_io_toggle_t, packet_sys_io_toggle_t, decoder_packet_sys_io_toggle_t)
 ```
 
-`SYS_CONTRACTS_PACKET_LIST` expands through `SYS_CONTRACTS_DECODE_CASE` into the `switch` inside `dec_sys_contracts_decode()`, which is what `sys_interface_init()` registers for class `0x01`. Each case declares the payload struct on the stack, fills it via `convert_to_packet()` (length-checked), and calls the decoder.
+`SYS_CONTRACTS_PACKET_LIST` expands through `SYS_CONTRACTS_DECODE_CASE` into the `switch` inside `dec_sys_contracts_decode()`, which runit registers for class `0x01`. Each case declares the payload struct on the stack, fills it via `convert_to_packet()` (length-checked), and calls the decoder.
 
-Every decoder logs what it is about to do at `ESP_LOGI` under the tag `dec_sys_contracts`. Getter packets log the *result* on a second line, since the value has nowhere else to go until an encoder path exists.
+Every decoder logs what it is about to do at `ESP_LOGI` under the tag `dec_sys_contracts`. A getter returns its result in the command's response: it declares `packet_<name>_response_t` (packed, scalars or fixed scalar arrays, same field annotations) next to its request struct and calls `sys_interface_respond(&rsp, sizeof(rsp))`. Every command is answered (`[0x05][class][packet][status][data]`, see [[SYS_INTERFACE.MD]] "Responses"). The contracts generator publishes the response layout.
 
 ### Packet Byte Ranges
 
 | Range | Domain | API |
 | :--- | :--- | :--- |
-| `0x10`–`0x19` | Device lifecycle | `sys_device_uninstall/reset/suspend/resume/freeze/sync` (+ `_all` variants) |
+| `0x10`–`0x19` | Device lifecycle | `sys_device_user_uninstall` (onboard devices are refused), `reset/suspend/resume/freeze/sync` (+ `_all` variants; `0x1C` → `sys_device_user_uninstall_all`, which skips onboard devices) |
 | `0x1A` | Device error handling | `sys_device_set_error_handling` — `device_id, importance, actions[5]`; see [[SYS_DEVICE.MD]]'s "Per-Instance Error Handling" |
 | `0x1B`–`0x1F` | *(free)* | |
-| `0x20`–`0x2F` | IO | `sys_io_reset/set_mode/set_level/get_level/toggle/get_voltage/set_voltage/set_pwm_frequency/set_pwm_duty`, `0x29`: `sys_io_configure_intr` |
-| `0x30`–`0x3F` | Power | `sys_power_budget_update_source`, `sys_vreg_set_enable/voltage/current`, `sys_power_monitor_get_voltage/current`, `sys_power_usb_pd_set/list/get_limits`, `0x39`: `sys_power_monitor_add_callback`, `0x3A`: `sys_vreg_add_callback` |
+| `0x20`–`0x2F` | IO | `sys_io_reset/set_mode/set_level/get_level/toggle/get_voltage/set_voltage/set_pwm_frequency/set_pwm_duty`, `0x29`: `sys_io_configure_intr` (mode, debounce, ADC window; arms the pin only, events are linked with class `0x09`) |
+| `0x31`–`0x3E` | Power | `sys_power_vreg_set_enable/voltage/current` (budgeted, current 0 = automatic), `sys_power_monitor_get_voltage/current`, `sys_power_usb_pd_set/list/get_limits`, `0x39`: `sys_power_monitor_set_alert` (current alert threshold), `0x3C`: `sys_power_get_status` (response), `0x3D`: `sys_power_set_response`. `0x30`, `0x3A`, `0x3B` and `0x3E` are free. Persisted PSU / battery settings are settings class `0x08` (`dec_settings_power.h`). |
+| `0x50`–`0x56` | H-bridge | `sys_hbridge_set_mode/set_drive/brake/coast/set_current_limit_mA`, `0x56`: `sys_hbridge_clear_fault`. `0x55` is free (faults are events, class `0x09`). |
 | `0x40`–`0x47` | Device installation | `d_gpio_esp_create`, `d_pca9685_create`, `d_tca6424a_create`, `d_tps55289_create`, `d_ina3221_create`, `d_ap33772s_create`, `d_dac53202_create`, `d_ads7128_create` |
 
 Unmapped packet bytes raise `ERR_INTERFACE_UNKNOWN_PACKET` (owner `OWNER_DEC_SYS_CONTRACTS`) and log a warning.
@@ -82,7 +80,7 @@ static inline sys_io_pin_ref_t pin_ref_from_wire(uint8_t device_id, uint8_t pin,
 | Install `ina3221` | `0x44` | `crit_pin_{device_id,pin,mode}, warn_pin_{device_id,pin,mode}` |
 | Install `ap33772s` | `0x45` | `intr_pin_{device_id,pin,mode}` |
 | Install `dac53202` | `0x46` | *(none)* |
-| Install `ads7128` | `0x47` | `intr_pin_{device_id,pin,mode}; uint32_t vref_mv` |
+| Install `ads7128` | `0x47` | `intr_pin_{device_id,pin,mode}; uint32_t vref_mV` |
 
 `i2c_bus` is a single byte (`0` = `SYS_I2C_BUS0`/internal, `1` = `SYS_I2C_BUS1`/external). Example — install a PCA9685 as device 5 on the internal bus at I2C address `0x40`, no OE pin: `01 41 05 00 40 00 FF 00`.
 
@@ -103,7 +101,7 @@ Control-packet table for [[SYS_ACTIONS.MD]]'s record/stop/remove wire protocol. 
 
 `CONFIG_RX_PACKET_CLASS_SYS_ACTIONS` (`0x03`) and every other class/packet wire-identity byte are Kconfig options under `components/utils/Kconfig`'s "System-Wide Identity Assignments" menu, not `#define`s in any one file — see that menu's "RX/TX Packet Classes" and "RX/TX Packet Headers" submenus for the full byte-0/byte-1 naming scheme. `dec_sys_actions.h` includes `sys_actions.h` for the rest of that component's own API, not for this constant.
 
-Registered by `sys_actions_init()`, not `sys_interface_init()` — see the boot-ordering note in [[SYS_ACTIONS.MD]]. There is no separate "bind action to state" class anymore — the `sys_states` component that used to own it was folded into `sys_actions` (a hardcoded behavior is now just a bound static function on an action id, see [[SYS_ACTIONS.MD]]); class `0x04` was freed by that change and has since been taken by the VM loader below.
+Registered by runit like every other class. There is no separate "bind action to state" class anymore — the `sys_states` component that used to own it was folded into `sys_actions` (a hardcoded behavior is now just a bound static function on an action id, see [[SYS_ACTIONS.MD]]); class `0x04` was freed by that change and has since been taken by the VM loader below.
 
 ---
 
@@ -130,7 +128,7 @@ All multi-byte fields little-endian. Every length is checked against the bytes a
 
 Wire-format rationale (`start_idx` unconditional, `payload_size` in bytes rather than an element count, explicit flags byte rather than the raw header bitfield, child **ids** rather than pointers for `VM_OBJ_PTR`) is documented in [[VM.MD]].
 
-Registered by `sys_interface_init()` alongside `dec_sys_contracts`, not self-registered from the VM: `codecs` already `REQUIRES VM` so the decoder can see `vm_loader.h`, which makes a `VM → codecs` dependency circular. Worth moving into a `vm_init()` once the VM owns one.
+Registered by runit like every other class. The VM can't register it itself: `codecs` `REQUIRES VM` so the decoder can see `vm_loader.h`, which would make a `VM → codecs` dependency circular.
 
 ---
 
@@ -141,54 +139,20 @@ Decoder table for higher-order features (servos, H-bridges, etc.):
 - `0x10`–`0x1F`: Servo control (`create`, `set_angle`, `go_home`, `set_trim`, `attach/detach`).
 - `0x20`–`0x2F`: H-bridge / motor control (`create`, `set_speed`, `brake`, `coast`, `set_current_limit`, `clear_fault`).
 
-Registered by `sys_interface_init()` for class byte `0x05`.
+Registered by runit for class byte `0x05`.
 
 ---
 
-## `encoders/enc_sys_errors.h` — error chain telemetry
+## `decoders/dec_sys_events.h` — class `0x09`
 
-Flattens an `err_h` chain into one self-describing packet so the client can rebuild the whole stack trace and log it there — the firmware never has to spend flash on human-readable strings.
+Links events to the program and to actions ([[SYS_EVENT.MD]]). Exposed as the `events` contract catalog.
 
-```c
-err_h enc_sys_errors_encode_chain(err_h chain, uint8_t* out_buf, size_t out_max, size_t* out_len);
-```
+| Packet | Payload | Response |
+|---|---|---|
+| `0x01` subscribe | `domain, device_id, channel, event` (255 = any), `route_mask` (bit 0 = program), `static_action_id`, `dynamic_action_id` | `subscription_id` |
+| `0x02` unsubscribe | `subscription_id` (255 = every subscription made by packets) | — |
 
-### Wire format
-
-```
-+--------- packet header (6 B) ---------+
-| u8 node_count | u8 depth | u32 schema |
-+---------------------------------------+
-| node[0] | node[1] | ... | node[n-1]   |
-+---------------------------------------+
-
-node record:
-+----------------+--------------+----------------+-------------+
-| u8 payload_len | u16 tag (LE) | u16 owner (LE) | payload ... |
-+----------------+--------------+----------------+-------------+
-```
-
-| Field | Meaning |
-| :--- | :--- |
-| `node_count` | Node records present in this packet. |
-| `depth` | Full length of the walked chain. `depth > node_count` ⇒ truncated (buffer full, or `ENC_SYS_ERRORS_MAX_NODES` = 16 reached). |
-| `payload_len` | `SE_get_payload_size(tag)`, repeated on the wire so a client with a stale tag table can still skip an unknown node. |
-| `tag` / `owner` | `err_tag_e` / `sys_owner_e` values. |
-| `payload` | The node's payload struct copied verbatim. |
-
-Nodes are emitted **outermost first** (the `SE_ORIGIN_CALL` frame), each following record being the previous one's `next_cause`. That pointer is stripped — ordering carries it — and there is deliberately **no index byte**: records are contiguous and `node_count` bounds them, so an index would only restate the loop counter.
-
-### Design notes
-
-* **Encode before anything else.** Every error the function can raise is raised *before* the chain is walked (the "not even one node fit" case is checked after). `SE_*` macros allocate from the same ring the chain lives in, so allocating mid-walk could clobber the nodes being encoded. The handler task in `sys_error.c` follows the same rule: encode → serial trace → send.
-* **`ENC_SYS_ERRORS_MAX_NODES`** hard-stops traversal. Error nodes live in a lock-free ring with no free, so a chain held too long can have a `next_cause` overwritten into a cycle.
-* **Truncation is not an error.** The walk stops once a record no longer fits but keeps counting `depth`, so the client always learns how much it lost.
-
-### Client side (Python `ctypes`)
-
-Payload structs are **not** `__packed` — they are plain C structs, so mirror them with a default-alignment `ctypes.Structure` (*not* `_pack_ = 1`). The three fixed fields of a node record are little-endian and unaligned: `struct.unpack_from("<BHH", buf, off)`.
-
-Errors: `ERR_NULL_PTR`, `ERR_INTERFACE_ENC_BUF_TOO_SMALL` (`got`/`need`). Owner: `OWNER_ENC_SYS_ERRORS` (`0xA620`).
+Packet subscriptions are user-owned: the unsubscribe packet can't remove the system's own (device IRQ chaining, power manager, features). Tagged `OWNER_DEC_SYS_EVENTS` (`0xA618`).
 
 ---
 
@@ -199,11 +163,11 @@ Copy the shape of `dec_sys_contracts.h`:
 1. Create `decoders/dec_<name>.h` and add a `config RX_PACKET_CLASS_<NAME>` (`hex`, `default 0xXX`) to `components/utils/Kconfig`'s "RX Packet Classes" submenu, under "System-Wide Identity Assignments" — do not `#define` the class byte in the decoder file itself.
 2. Set `#undef OWNER` / `#define OWNER OWNER_<NAME>` near the top so `SE_*` macros tag errors correctly, and add that owner to the module's `sys_error_*.h` owner map.
 3. Expose one `static inline err_h dec_<name>_decode(const uint8_t* data, size_t len)` — `data[0]` is the packet byte.
-4. Register it at boot: `sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_<NAME>, dec_<name>_decode, "<name>")`.
+4. Register it in `runit_register_decoders()` (`components/runit/runit_decoders.c`): `sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_<NAME>, dec_<name>_decode, "<name>")`.
 
 Per-packet header bytes (byte-1, `data[0]` inside the decoder) stay local `#define HEADER_packet_<struct>_t 0xYY` in the decoder file, as today — only the outer class byte (byte-0) moved to Kconfig, since it's the one value that must stay globally unique across every registered decoder.
 
-Note that a decoder header defines `OWNER` for the rest of the translation unit; any `.c` including it must re-`#define OWNER` afterwards (as `sys_interface.c` does).
+Note that a decoder header defines `OWNER` for the rest of the translation unit; any `.c` including it must re-`#define OWNER` afterwards. This is why the registrations live in their own file, `runit_decoders.c`.
 
 **Splitting a class across files.** If one class's packet table grows too large for one header, split it the way `dec_sys_device_install.h` splits off from `dec_sys_contracts.h`: give the split-out file its own `OWNER`/log tag and its own `SOME_NAME_PACKET_LIST(X)`, then have the original file `#include` it and fold that list into its own via `SOME_NAME_PACKET_LIST(X)` as one line inside its own `X`-macro definition (same technique `sys_error_codes.h` uses to combine multiple modules' `SYS_ERROR_*_MAP(X)`s into one `SYS_ERROR_MAP(X)`). The class byte, dispatcher function, and registration call stay in the original file — only packet declarations move.
 

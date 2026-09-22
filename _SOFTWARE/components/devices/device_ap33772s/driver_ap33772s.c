@@ -1,15 +1,9 @@
 #include "driver_ap33772s.h"
 #include <stdlib.h>
 #include <string.h>
-#include "esp_log.h"
 #include "rom/ets_sys.h"
 
-static const char* TAG = "AP33772S";
-
 // Identyfikator telemetryczny Menedżera I2C
-#undef OWNER
-#define OWNER OWNER_DRIVER_AP33772S
-
 #define I2C_FREQ_HZ 400000
 
 #define RETURN_ON_ERROR(x)                   \
@@ -48,49 +42,10 @@ static esp_err_t _ap33772s_write(ap33772s_handle_t handle, uint8_t reg, const ui
   return sys_i2c_master_transmit(handle, tx_data, len + 1);
 }
 
-static int _current_map(int current_ma) {
-  if (current_ma < 0 || current_ma > 5000) return -1;
-  if (current_ma < 1250) return 0;
-  return ((current_ma - 1250) / 250) + 1;
-}
-
-static const char* _get_current_range_str(unsigned int current_max) {
-  switch (current_max) {
-    case 0:
-      return "0.00A ~ 1.24A";
-    case 1:
-      return "1.25A ~ 1.49A";
-    case 2:
-      return "1.50A ~ 1.74A";
-    case 3:
-      return "1.75A ~ 1.99A";
-    case 4:
-      return "2.00A ~ 2.24A";
-    case 5:
-      return "2.25A ~ 2.49A";
-    case 6:
-      return "2.50A ~ 2.74A";
-    case 7:
-      return "2.75A ~ 2.99A";
-    case 8:
-      return "3.00A ~ 3.24A";
-    case 9:
-      return "3.25A ~ 3.49A";
-    case 10:
-      return "3.50A ~ 3.74A";
-    case 11:
-      return "3.75A ~ 3.99A";
-    case 12:
-      return "4.00A ~ 4.24A";
-    case 13:
-      return "4.25A ~ 4.49A";
-    case 14:
-      return "4.50A ~ 4.99A";
-    case 15:
-      return "5.00A +";
-    default:
-      return "Invalid";
-  }
+static int _current_map(int current_mA) {
+  if (current_mA < 0 || current_mA > 5000) return -1;
+  if (current_mA < 1250) return 0;
+  return ((current_mA - 1250) / 250) + 1;
 }
 
 /******************** Background Service Worker *************************/
@@ -122,8 +77,9 @@ static void ap33772s_task(void* arg) {
       rdoData.REQMSG_Fields.CURRENT_SEL = handle->current_avs_byte_cache;
 
       uint8_t payload[2] = {rdoData.byte0, rdoData.byte1};
-      if (_ap33772s_write(handle, CMD_PD_REQMSG, payload, 2) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed sending AVS keep-alive token update.");
+      esp_err_t err = _ap33772s_write(handle, CMD_PD_REQMSG, payload, 2);
+      if (err != ESP_OK && handle->error_callback) {
+        handle->error_callback(handle->error_arg, err);
       }
     }
   }
@@ -134,7 +90,6 @@ static void ap33772s_task(void* arg) {
 ap33772s_handle_t ap33772s_new(bool i2c_bus_num) {
   ap33772s_handle_t handle = calloc(1, sizeof(_ap33772s_data_t));
   if (!handle) {
-    ESP_LOGE(TAG, "Heap allocation failed context creation.");
     return NULL;
   }
 
@@ -157,20 +112,14 @@ esp_err_t ap33772s_start(ap33772s_handle_t handle) {
   if (!handle) return ESP_ERR_INVALID_ARG;
 
   // 1. Rejestracja w I2C Manager
-  err_h init_status = sys_i2c_add_driver(handle);
-  if ((init_status != NULL)) {
-    ESP_LOGE(TAG, "I2C Manager rejected AP33772S on bus %d", handle->header.bus_num);
-    SE_release(init_status);
-    return ESP_FAIL;
-  }
+  /* The adapter registers the device with sys_i2c (and probes it) before
+     calling start - registering here too added the same device twice. */
 
   // 2. Startowanie sprzężenia zwrotnego ISR i Keep-Alive AVS
   if (xTaskCreate(ap33772s_task, "ap33772s_svc", 3072, handle, 5, &handle->driver_task) != pdPASS) {
-    ESP_LOGE(TAG, "Unable to start background resource loop.");
     return ESP_ERR_NO_MEM;
   }
 
-  ESP_LOGI(TAG, "AP33772S started and registered on Bus %d", handle->header.bus_num);
   return ESP_OK;
 }
 
@@ -206,56 +155,34 @@ esp_err_t ap33772s_begin(ap33772s_handle_t handle) {
   // Map profiles
   for (int i = 1; i <= 13; i++) {
     if (i < 8 && handle->src_pdo_array[i - 1].pps.type == 1) {
-      ESP_LOGI(TAG, "Discovered active PPS capability profile slot: %d", i);
       handle->index_pps_user = i;
     } else if (i >= 8 && handle->src_pdo_array[i - 1].avs.type == 1) {
-      ESP_LOGI(TAG, "Discovered active AVS capability profile slot: %d", i);
       handle->index_avs_user = i;
     }
   }
   return ESP_OK;
 }
 
-void ap33772s_log_profiles(ap33772s_handle_t handle) {
-  if (!handle) return;
-  ESP_LOGI(TAG, "--- AP33772S Target Profiles List ---");
-  for (int i = 0; i < MAX_PDO_ENTRIES; i++) {
-    bool isEPR = (i >= 7 && i <= 12);
-    if (handle->src_pdo_array[i].byte0 == 0 && handle->src_pdo_array[i].byte1 == 0) continue;
-
-    const char* range_str = _get_current_range_str(handle->src_pdo_array[i].fixed.current_max);
-
-    if (handle->src_pdo_array[i].fixed.type == 0) {
-      ESP_LOGI(TAG, "Slot %d [%s]: Fixed Output -> %dmV, Limit: %s", i + 1, isEPR ? "EPR" : "SPR", handle->src_pdo_array[i].fixed.voltage_max * (isEPR ? 200 : 100), range_str);
-    } else {
-      ESP_LOGI(TAG, "Slot %d [%s]: %s Output -> Max %dmV, Limit: %s", i + 1, isEPR ? "EPR" : "SPR", isEPR ? "AVS" : "PPS", handle->src_pdo_array[i].fixed.voltage_max * (isEPR ? 200 : 100), range_str);
-    }
-  }
-}
-
-esp_err_t ap33772s_set_fixed_pdo(ap33772s_handle_t handle, int pdo_index, int max_current_ma) {
+esp_err_t ap33772s_set_fixed_pdo(ap33772s_handle_t handle, int pdo_index, int max_current_mA) {
   CHECK_DRV_HANDLE(handle);
-  if (max_current_ma <= 0 || pdo_index < 1 || pdo_index > 13) return ESP_ERR_INVALID_ARG;
+  if (max_current_mA <= 0 || pdo_index < 1 || pdo_index > 13) return ESP_ERR_INVALID_ARG;
 
   handle->avs_active = false;  // Disable any active keep-alives
 
   src_spr_and_epr_pdo_fields_t active_pdo = handle->src_pdo_array[pdo_index - 1];
   if (active_pdo.fixed.type != 0) {
-    ESP_LOGE(TAG, "Targeted index profiles are not evaluated as Fixed Rails configurations.");
     return ESP_ERR_INVALID_STATE;
   }
 
   // Safety check: Software limit to 22V
   bool isEPR = (pdo_index >= 8);  // index 1-7 is SPR, 8-13 is EPR
-  int pdo_volt_mv = active_pdo.fixed.voltage_max * (isEPR ? 200 : 100);
-  if (pdo_volt_mv > AP33772S_MAX_SOFTWARE_VOLTAGE_MV) {
-    ESP_LOGE(TAG, "Software lock: Fixed PDO %d voltage (%dmV) exceeds %dmV limit.", pdo_index, pdo_volt_mv, AP33772S_MAX_SOFTWARE_VOLTAGE_MV);
+  int pdo_volt_mV = active_pdo.fixed.voltage_max * (isEPR ? 200 : 100);
+  if (pdo_volt_mV > AP33772S_MAX_SOFTWARE_VOLTAGE_MV) {
     return ESP_ERR_INVALID_ARG;  // Abort
   }
 
-  int mapped_curr = _current_map(max_current_ma);
+  int mapped_curr = _current_map(max_current_mA);
   if (mapped_curr > active_pdo.fixed.current_max) {
-    ESP_LOGE(TAG, "Requested fixed limits overshoot current safety specs bounds.");
     return ESP_ERR_INVALID_ARG;
   }
 
@@ -267,7 +194,7 @@ esp_err_t ap33772s_set_fixed_pdo(ap33772s_handle_t handle, int pdo_index, int ma
   return _ap33772s_write(handle, CMD_PD_REQMSG, payload, 2);
 }
 
-esp_err_t ap33772s_set_pps_pdo(ap33772s_handle_t handle, int pdo_index, int target_voltage_mv, int max_current_ma) {
+esp_err_t ap33772s_set_pps_pdo(ap33772s_handle_t handle, int pdo_index, int target_voltage_mV, int max_current_mA) {
   CHECK_DRV_HANDLE(handle);
   if (pdo_index < 1 || pdo_index > 7) return ESP_ERR_INVALID_ARG;
 
@@ -277,30 +204,28 @@ esp_err_t ap33772s_set_pps_pdo(ap33772s_handle_t handle, int pdo_index, int targ
   if (active_pdo.pps.type != 1) return ESP_ERR_INVALID_STATE;
 
   // Safety Check: Clamp Software Target to 22V Max
-  if (target_voltage_mv > AP33772S_MAX_SOFTWARE_VOLTAGE_MV) {
-    ESP_LOGW(TAG, "Software lock: Clamping requested PPS voltage from %dmV to %dmV", target_voltage_mv, AP33772S_MAX_SOFTWARE_VOLTAGE_MV);
-    target_voltage_mv = AP33772S_MAX_SOFTWARE_VOLTAGE_MV;
+  if (target_voltage_mV > AP33772S_MAX_SOFTWARE_VOLTAGE_MV) {
+    target_voltage_mV = AP33772S_MAX_SOFTWARE_VOLTAGE_MV;
   }
 
-  int mapped_curr = _current_map(max_current_ma);
+  int mapped_curr = _current_map(max_current_mA);
   if (mapped_curr > active_pdo.pps.current_max) return ESP_ERR_INVALID_ARG;
 
   int voltage_min_decoded = (active_pdo.pps.voltage_min > 0) ? 3300 : 0;
-  if (target_voltage_mv < voltage_min_decoded || target_voltage_mv > (active_pdo.pps.voltage_max * 100)) {
-    ESP_LOGE(TAG, "PPS target tracking value out of range bounds.");
+  if (target_voltage_mV < voltage_min_decoded || target_voltage_mV > (active_pdo.pps.voltage_max * 100)) {
     return ESP_ERR_INVALID_ARG;
   }
 
   rdo_data_t rdoData = {0};
   rdoData.REQMSG_Fields.PDO_INDEX = pdo_index;
-  rdoData.REQMSG_Fields.VOLTAGE_SEL = target_voltage_mv / 100;
+  rdoData.REQMSG_Fields.VOLTAGE_SEL = target_voltage_mV / 100;
   rdoData.REQMSG_Fields.CURRENT_SEL = mapped_curr;
 
   uint8_t payload[2] = {rdoData.byte0, rdoData.byte1};
   return _ap33772s_write(handle, CMD_PD_REQMSG, payload, 2);
 }
 
-esp_err_t ap33772s_set_avs_pdo(ap33772s_handle_t handle, int pdo_index, int target_voltage_mv, int max_current_ma) {
+esp_err_t ap33772s_set_avs_pdo(ap33772s_handle_t handle, int pdo_index, int target_voltage_mV, int max_current_mA) {
   CHECK_DRV_HANDLE(handle);
   if (pdo_index < 8 || pdo_index > 13) return ESP_ERR_INVALID_ARG;
 
@@ -308,23 +233,21 @@ esp_err_t ap33772s_set_avs_pdo(ap33772s_handle_t handle, int pdo_index, int targ
   if (active_pdo.avs.type != 1) return ESP_ERR_INVALID_STATE;
 
   // Safety Check: Clamp Software Target to 22V Max
-  if (target_voltage_mv > AP33772S_MAX_SOFTWARE_VOLTAGE_MV) {
-    ESP_LOGW(TAG, "Software lock: Clamping requested AVS voltage from %dmV to %dmV", target_voltage_mv, AP33772S_MAX_SOFTWARE_VOLTAGE_MV);
-    target_voltage_mv = AP33772S_MAX_SOFTWARE_VOLTAGE_MV;
+  if (target_voltage_mV > AP33772S_MAX_SOFTWARE_VOLTAGE_MV) {
+    target_voltage_mV = AP33772S_MAX_SOFTWARE_VOLTAGE_MV;
   }
 
-  int mapped_curr = _current_map(max_current_ma);
+  int mapped_curr = _current_map(max_current_mA);
   if (mapped_curr > active_pdo.avs.current_max) return ESP_ERR_INVALID_ARG;
 
   int voltage_min_decoded = (active_pdo.avs.voltage_min > 0) ? 15000 : 0;
-  if (target_voltage_mv < voltage_min_decoded || target_voltage_mv > (active_pdo.avs.voltage_max * 200)) {
-    ESP_LOGE(TAG, "AVS target value context boundary violation detected.");
+  if (target_voltage_mV < voltage_min_decoded || target_voltage_mV > (active_pdo.avs.voltage_max * 200)) {
     return ESP_ERR_INVALID_ARG;
   }
 
   rdo_data_t rdoData = {0};
   rdoData.REQMSG_Fields.PDO_INDEX = pdo_index;
-  rdoData.REQMSG_Fields.VOLTAGE_SEL = target_voltage_mv / 200;
+  rdoData.REQMSG_Fields.VOLTAGE_SEL = target_voltage_mV / 200;
   rdoData.REQMSG_Fields.CURRENT_SEL = mapped_curr;
 
   uint8_t payload[2] = {rdoData.byte0, rdoData.byte1};
@@ -419,8 +342,8 @@ int ap33772s_read_vselmin(ap33772s_handle_t handle) {
   return val * 200;
 }
 
-esp_err_t ap33772s_set_vselmin(ap33772s_handle_t handle, int voltage_mv) {
-  uint8_t val = voltage_mv / 200;
+esp_err_t ap33772s_set_vselmin(ap33772s_handle_t handle, int voltage_mV) {
+  uint8_t val = voltage_mV / 200;
   return _ap33772s_write(handle, CMD_VSELMIN, &val, 1);
 }
 
@@ -452,8 +375,8 @@ int ap33772s_read_ovp_threshold(ap33772s_handle_t handle) {
   return val * 80;
 }
 
-esp_err_t ap33772s_set_ovp_threshold(ap33772s_handle_t handle, int voltage_mv) {
-  uint8_t val = voltage_mv / 80;
+esp_err_t ap33772s_set_ovp_threshold(ap33772s_handle_t handle, int voltage_mV) {
+  uint8_t val = voltage_mV / 80;
   return _ap33772s_write(handle, CMD_OVPTHR, &val, 1);
 }
 

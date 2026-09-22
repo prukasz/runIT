@@ -48,7 +48,7 @@ void vm_store_reset(void);
  * @param total_size Total arena bytes requested.
  * @param counts Item counts for each vm_reg_e registry.
  */
-err_h vm_store_open(uint32_t total_size, const uint16_t counts[VM_REG_CNT]);
+SE_MUST_USE err_h vm_store_open(uint32_t total_size, const uint16_t counts[VM_REG_CNT]);
 
 /**
  * @brief Carve a zeroed, 4-aligned chunk from arena and bind to registry ID.
@@ -57,7 +57,7 @@ err_h vm_store_open(uint32_t total_size, const uint16_t counts[VM_REG_CNT]);
  * @param id Registry ID or VM_ID_NONE.
  * @param size Allocation size in bytes.
  */
-err_h vm_store_alloc(void** out, vm_reg_e r, uint16_t id, uint32_t size);
+SE_MUST_USE err_h vm_store_alloc(void** out, vm_reg_e r, uint16_t id, uint32_t size);
 
 /** @brief Current bytes allocated from the arena. */
 uint32_t vm_store_used(void);

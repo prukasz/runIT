@@ -12,8 +12,8 @@
 
 // 2. ADC-specific storage
 typedef struct {
-  uint16_t adc_last_read_mv;
-  uint16_t adc_cached_mv;
+  uint16_t adc_last_read_mV;
+  uint16_t adc_cached_mV;
   float internal_raw_filtered;
   bool alert_was_triggered;
   adc_cali_handle_t cali_handle;

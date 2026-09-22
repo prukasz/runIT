@@ -21,6 +21,6 @@ idf_component_register(
         sys_io
         sys_hbridge
         sys_device
-        callbacks
+        sys_event
         utils
 )

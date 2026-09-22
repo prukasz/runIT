@@ -9,23 +9,27 @@ endforeach()
 idf_component_register(
     SRCS "sys_error.c" "sys_error_handler.c" "sys_error_log.c"
     INCLUDE_DIRS "include" ${code_dirs} "codes"
-                 "../system/sys_device/include"
-                 "../system/sys_io/include"
-                 "../system/sys_power/include"
-                 "../system/sys_i2c/include"
-                 "../system/sys_interface/include"
-                 "../system/sys_buffers/include"
-                 "../system/sys_actions/include"
-                 "../system/sys_data_connector/include"
-                 "../system/ble/include"
-                 # VM has its own component now, but it REQUIRES sys_errors, so a
-                 # REQUIRES back here would be circular -- reach its error map header
-                 # (sys_error_vm.h) as a raw path instead, same as codecs' encoder.
-                 "../VM/core/errors"
-                 # codecs is header-only and REQUIRES sys_errors, so pulling in the
-                 # error encoder as a plain include dir avoids a component cycle.
-                 "../codecs/encoders"
-                 "../devices/devices/include"
+                 # Error maps of every module (tags + owners), aggregated by
+                 # codes/sys_error_codes.h. Each errors/ folder holds only error
+                 # maps, so no module API leaks to sys_error.h users. The modules
+                 # REQUIRE sys_errors, so these are plain dirs, not REQUIRES (a
+                 # cycle): IDF warns once per dir, which is expected (SYS_ERRORS.MD).
+                 "../system/sys_device/errors"
+                 "../system/sys_io/errors"
+                 "../system/sys_power/errors"
+                 "../system/sys_i2c/errors"
+                 "../system/sys_interface/errors"
+                 "../system/sys_buffers/errors"
+                 "../system/sys_actions/errors"
+                 "../system/ble/errors"
+                 "../system/sys_event/errors"
+                 "../system/sys_hbridge/errors"
+                 "../system/sys_data_connector/errors"
+                 "../system/sys_settings/errors"
+                 "../VM/errors"
+                 "../devices/devices/errors"
+                 "../features/errors"
+                 "../runit/errors"
     REQUIRES esp_ringbuf
     PRIV_REQUIRES utils
 )

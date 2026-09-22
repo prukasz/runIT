@@ -11,8 +11,9 @@ components/system/sys_buffers/
 ├── CMakeLists.txt
 ├── SYS_BUFFERS.MD       # This documentation
 ├── sys_buffers.c        # Buffer allocation and item push/pop implementation
-└── include/
-    ├── sys_buffers.h       # sys_buff_t descriptor struct and function prototypes
+├── include/
+│   └── sys_buffers.h       # sys_buff_t descriptor struct and function prototypes
+└── errors/
     └── sys_error_buffers.h # SYS_BUFFERS_OWNER_MAP / SYS_ERROR_BUFFERS_MAP (see [[SYS_ERRORS.MD]])
 ```
 
@@ -48,17 +49,17 @@ typedef struct {
 
 ### Allocation & Initialization APIs
 * **`sys_buff_init(sys_buff_t* buff, uint8_t header, size_t size)`**:
-  Allocates the underlying FreeRTOS ringbuffer memory for a `sys_buff_t` descriptor and records its header byte. Returns `NULL` on success, or `ERR_NO_MEM`/`ERR_INVALID_VAL_UI32` on failure.
+  Allocates the underlying FreeRTOS ringbuffer memory for a `sys_buff_t` descriptor and records its header byte. Returns `NULL` on success, or `ERR_BASE_NO_MEM`/`ERR_INVALID_VAL_UI32` on failure.
 * **`sys_buff_free(sys_buff_t* buff)`**:
   Frees the underlying FreeRTOS ringbuffer memory and resets `buff->buff = NULL`.
 
 ### Payload APIs
 * **`sys_buff_push(sys_buff_t* buff, const void* data, size_t len, uint32_t wait_ms)`**:
-  Enqueues one variable-length item. Returns `ERR_NO_MEM` if the item doesn't fit within `wait_ms`.
+  Enqueues one variable-length item. Returns `ERR_BASE_NO_MEM` if the item doesn't fit within `wait_ms`.
 * **`sys_buff_pop_framed(sys_buff_t* buff, uint8_t* buffer, size_t max_size, size_t* out_len)`**:
-  Dequeues one item, writing `buff->header` to `buffer[0]` and the item payload to `buffer[1..out_len-1]`. Returns `ERR_NOT_FOUND` if empty, `ERR_INVALID_VAL_UI32` if `max_size < 2`.
+  Dequeues one item, writing `buff->header` to `buffer[0]` and the item payload to `buffer[1..out_len-1]`. Returns `ERR_BASE_NOT_FOUND` if empty, `ERR_INVALID_VAL_UI32` if `max_size < 2`.
 * **`sys_buff_pop(sys_buff_t* buff, uint8_t* buffer, size_t max_size, size_t* out_len)`**:
-  Dequeues one item verbatim (no header byte). Returns `ERR_NOT_FOUND` if empty, `ERR_INVALID_VAL_UI32` if `max_size < 1`.
+  Dequeues one item verbatim (no header byte). Returns `ERR_BASE_NOT_FOUND` if empty, `ERR_INVALID_VAL_UI32` if `max_size < 1`.
 
 Both pop functions truncate (and count in `buff->truncated`) an item that exceeds the space available in `buffer` rather than failing or splitting it across calls.
 

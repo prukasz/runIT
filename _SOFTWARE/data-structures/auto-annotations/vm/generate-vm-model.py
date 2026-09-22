@@ -89,6 +89,10 @@ def resolved_symbols(value, symbols):
 
 def annotation(tags, symbols):
     out = dict(tags)
+    # Match device and contract descriptors: @enum-ref is canonical.  Accept
+    # legacy @ref source annotations while emitting only the canonical key.
+    if "ref" in out:
+        out["enum_ref"] = out.pop("ref")
     if "one_of" in tags:
         out["one_of"] = resolved_symbols(tags["one_of"], symbols)
     if "case" in tags:

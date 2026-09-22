@@ -16,7 +16,7 @@ static const char* TAG = "vm_exec";
 
 err_h vm_exec_check_block_type(uint16_t blk_id, uint8_t block_type) {
   if (!vm_block_fn_for(block_type)) {
-    SE_RET_ERR(ERR_VM_BLK_UNKNOWN_TYPE, .blk_id = blk_id, .block_type = block_type);
+    SE_FAIL(ERR_VM_BLK_UNKNOWN_TYPE, .blk_id = blk_id, .block_type = block_type);
   }
   return NULL;
 }
@@ -95,7 +95,7 @@ static void wait_for_quiescence(void) {
 err_h vm_exec_program_lock(vm_run_mode_e* out_previous) {
   SE_CHECK_NOT_NULL(out_previous);
   if (caller_owns_active_pass()) {
-    SE_RET_ERR(ERR_VM_EXEC_SELF_BARRIER, .operation = 1);
+    SE_FAIL(ERR_VM_EXEC_SELF_BARRIER, .operation = 1);
   }
 
   for (;;) {
@@ -154,7 +154,7 @@ static void wd_sample(void* arg) {
   if (cur != s_wd_last) s_wd_reported = false;
   if (cur != 0 && cur == s_wd_last && !s_wd_reported) {
     s_wd_reported = true;
-    SE_EMIT_ERR(ERR_VM_EXEC_BLOCK_HUNG, .block_idx = (uint16_t)(cur & 0xFFFFu), .ms = CONFIG_VM_EXEC_BLOCK_WD_MS);
+    SE_RAISE(ERR_VM_EXEC_BLOCK_HUNG, .block_idx = (uint16_t)(cur & 0xFFFFu), .ms = CONFIG_VM_EXEC_BLOCK_WD_MS);
   }
   s_wd_last = cur;
 }
@@ -268,13 +268,13 @@ void vm_exec_run_range(uint16_t start, uint16_t end) {
     g_vm_block_fault = true;
     if (!(s_current_block->cfg.rt & VM_BLK_RT_SPAN_BAD)) {
       s_current_block->cfg.rt |= VM_BLK_RT_SPAN_BAD;
-      SE_EMIT_ERR(ERR_VM_EXEC_BAD_SPAN, .block_idx = s_current_block->cfg.block_idx, .start = start, .end = end);
+      SE_RAISE(ERR_VM_EXEC_BAD_SPAN, .block_idx = s_current_block->cfg.block_idx, .start = start, .end = end);
     }
     return;
   }
   if (unlikely(s_span_depth >= CONFIG_VM_EXEC_MAX_SPAN_DEPTH)) {
     g_vm_block_fault = true;
-    SE_EMIT_ERR(ERR_VM_EXEC_SPAN_DEPTH, .block_idx = start, .depth = CONFIG_VM_EXEC_MAX_SPAN_DEPTH);
+    SE_RAISE(ERR_VM_EXEC_SPAN_DEPTH, .block_idx = start, .depth = CONFIG_VM_EXEC_MAX_SPAN_DEPTH);
     return;
   }
   s_span_depth++;
@@ -316,7 +316,7 @@ void vm_exec_run_range(uint16_t start, uint16_t end) {
         next = sp->end;
       } else if (!(b->cfg.rt & VM_BLK_RT_SPAN_BAD)) {
         b->cfg.rt |= VM_BLK_RT_SPAN_BAD;
-        SE_EMIT_ERR(ERR_VM_EXEC_BAD_SPAN, .block_idx = b->cfg.block_idx, .start = sp ? sp->start : 0,
+        SE_RAISE(ERR_VM_EXEC_BAD_SPAN, .block_idx = b->cfg.block_idx, .start = sp ? sp->start : 0,
                     .end = sp ? sp->end : 0);
       }
     }
@@ -432,14 +432,14 @@ err_h vm_exec_start(void) {
         .name = "vm_blk_wd",
     };
     if (esp_timer_create(&args, &s_wd_timer) != ESP_OK) {
-      SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+      SE_FAIL(ERR_BASE_NO_MEM, 0);
     }
     (void)esp_timer_start_periodic(s_wd_timer, (uint64_t)CONFIG_VM_EXEC_BLOCK_WD_MS * 1000u);
   }
 
   R_TASK_START_ON_CORE(vm_exec_task_h, vm_exec_task, NULL, CONFIG_VM_EXEC_TASK_PRIO, CONFIG_VM_EXEC_TASK_CORE);
   if (vm_exec_task_h == NULL) {
-    SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+    SE_FAIL(ERR_BASE_NO_MEM, 0);
   }
 
   DBG(ESP_LOGI(TAG, "supervisor started on core %d, %u block types in the table", CONFIG_VM_EXEC_TASK_CORE, g_vm_blocks_cnt););
@@ -455,13 +455,13 @@ void vm_exec_request_stop(void) {
 err_h vm_exec_stop(void) {
   vm_exec_request_stop();
   if (caller_owns_active_pass()) {
-    SE_RET_ERR(ERR_VM_EXEC_SELF_BARRIER, .operation = 0);
+    SE_FAIL(ERR_VM_EXEC_SELF_BARRIER, .operation = 0);
   }
 
   /* Hold the program barrier through the wait so a concurrent mode command
      cannot restart execution between quiescence and this function returning. */
   vm_run_mode_e previous;
-  SE_RET_IF_ERR(vm_exec_program_lock(&previous));
+  SE_TRY(vm_exec_program_lock(&previous));
   vm_exec_program_unlock(VM_RUN_STOPPED);
   return NULL;
 }
@@ -496,7 +496,7 @@ err_h vm_exec_fault_acknowledge(void) {
   if (valid) s_fault = (vm_exec_fault_status_t){0};
   uint8_t mode = (uint8_t)s_mode;
   portEXIT_CRITICAL(&s_program_mux);
-  if (!valid) SE_RET_ERR(ERR_VM_EXEC_CONTROL, .command = VM_EXEC_ACK_FAULT, .mode = mode);
+  if (!valid) SE_FAIL(ERR_VM_EXEC_CONTROL, .command = VM_EXEC_ACK_FAULT, .mode = mode);
   return NULL;
 }
 
@@ -536,13 +536,13 @@ err_h vm_exec_control(vm_exec_command_e command) {
   vm_exec_fault_status_t fault = s_fault;
   portEXIT_CRITICAL(&s_program_mux);
   if (fault.latched) {
-    SE_RET_ERR(ERR_VM_EXEC_FAULT_LATCHED, .device_id = fault.device_id,
+    SE_FAIL(ERR_VM_EXEC_FAULT_LATCHED, .device_id = fault.device_id,
                .root_tag = (uint16_t)fault.root_tag, .root_owner = fault.root_owner);
   }
 
   if (command == VM_EXEC_RESET_TO_START) {
     vm_run_mode_e previous;
-    SE_RET_IF_ERR(vm_exec_program_lock(&previous));
+    SE_TRY(vm_exec_program_lock(&previous));
     clear_upd();
     s_resume = s_selected;
     vm_exec_program_unlock(s_selected == VM_RUN_RUNNING ? VM_RUN_FROZEN : s_selected);
@@ -583,7 +583,7 @@ err_h vm_exec_control(vm_exec_command_e command) {
   }
   uint8_t mode = (uint8_t)s_mode;
   portEXIT_CRITICAL(&s_program_mux);
-  if (!valid) SE_RET_ERR(ERR_VM_EXEC_CONTROL, .command = (uint8_t)command, .mode = mode);
+  if (!valid) SE_FAIL(ERR_VM_EXEC_CONTROL, .command = (uint8_t)command, .mode = mode);
   return NULL;
 }
 
@@ -647,9 +647,9 @@ void vm_exec_reset(void) {
   vm_exec_reset_stats();
 }
 
-__attribute__((weak)) err_h sys_vm_handle_fault(err_h node, err_h chain) {
+err_h sys_vm_handle_fault(err_h node, err_h chain) {
   (void)chain;
-  if (!node || SE_get_tag_level(node->tag) != SYS_DEV_ERR_CRITICAL) {
+  if (!node || SE_get_tag_level(node->tag) != SE_LEVEL_CRITICAL) {
     return NULL;
   }
   // Severe VM fault: latch fault context and stop the VM

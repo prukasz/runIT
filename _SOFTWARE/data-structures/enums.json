@@ -1,5 +1,29 @@
 {
   "enums": {
+    "sys_ble_events_e": {
+      "alias": "BLE Event",
+      "source_file": "components/system/ble/include/sys_ble.h",
+      "members": [
+        {
+          "name": "SYS_BLE_EVENT_CONNECT",
+          "value": 0,
+          "alias": "Connected",
+          "description": "The app connected (value = connection handle)"
+        },
+        {
+          "name": "SYS_BLE_EVENT_DISCONNECT",
+          "value": 1,
+          "alias": "Disconnected",
+          "description": "The app disconnected (value = reason code)"
+        },
+        {
+          "name": "SYS_BLE_EVENT_FAILURE",
+          "value": 2,
+          "alias": "Failure",
+          "description": "A connection, receive or send failure (value = error code)"
+        }
+      ]
+    },
     "sys_device_contract_type_e": {
       "alias": "Device Contract",
       "source_file": "components/system/sys_device/include/sys_device.h",
@@ -39,6 +63,150 @@
           "value": 5,
           "alias": "(internal)",
           "description": "Not a real contract - marks the end of the list, used internally for bounds checking"
+        }
+      ]
+    },
+    "sys_device_importance_e": {
+      "alias": "Device Error Importance",
+      "source_file": "components/system/sys_device/include/sys_device.h",
+      "members": [
+        {
+          "name": "SYS_DEV_IMPORTANCE_NONE",
+          "value": 0,
+          "alias": "Disabled",
+          "description": "Disables automatic handling for this device."
+        },
+        {
+          "name": "SYS_DEV_IMPORTANCE_LOW",
+          "value": 1,
+          "alias": "Low",
+          "description": "Handles only low-severity device errors."
+        },
+        {
+          "name": "SYS_DEV_IMPORTANCE_MEDIUM",
+          "value": 2,
+          "alias": "Medium",
+          "description": "Handles low and medium-severity device errors."
+        },
+        {
+          "name": "SYS_DEV_IMPORTANCE_HIGH",
+          "value": 3,
+          "alias": "High",
+          "description": "Handles low through high-severity device errors."
+        },
+        {
+          "name": "SYS_DEV_IMPORTANCE_CRITICAL",
+          "value": 4,
+          "alias": "Critical",
+          "description": "Handles every device error severity."
+        }
+      ]
+    },
+    "sys_event_domain_e": {
+      "alias": "Event Domain",
+      "source_file": "components/system/sys_event/include/sys_event.h",
+      "members": [
+        {
+          "name": "SYS_EVENT_DOMAIN_IO",
+          "value": 0,
+          "alias": "IO",
+          "description": "Pin interrupts and analog alerts. Channel = pin, event = the edge or window crossed, value = level or mV"
+        },
+        {
+          "name": "SYS_EVENT_DOMAIN_POWER",
+          "value": 1,
+          "alias": "Power",
+          "description": "Regulator, monitor and board power events. Event = power event; board events use device 255"
+        },
+        {
+          "name": "SYS_EVENT_DOMAIN_HBRIDGE",
+          "value": 2,
+          "alias": "H-Bridge",
+          "description": "Motor driver faults. Channel = bridge channel, event = fault reason, value = current in mA"
+        },
+        {
+          "name": "SYS_EVENT_DOMAIN_BLE",
+          "value": 3,
+          "alias": "Bluetooth",
+          "description": "Connection events. Event = BLE event"
+        },
+        {
+          "name": "SYS_EVENT_DOMAIN_FEATURE",
+          "value": 4,
+          "alias": "Feature",
+          "description": "Events raised by features. Device = feature ID"
+        }
+      ]
+    },
+    "sys_hbridge_mode_e": {
+      "alias": "H-Bridge Mode",
+      "source_file": "components/system/sys_hbridge/include/sys_hbridge.h",
+      "members": [
+        {
+          "name": "SYS_HBRIDGE_MODE_FULL",
+          "value": 0,
+          "alias": "Full Bridge",
+          "description": "Bidirectional drive from -1.0 to 1.0"
+        },
+        {
+          "name": "SYS_HBRIDGE_MODE_HALF_HIGH",
+          "value": 1,
+          "alias": "Half Bridge High",
+          "description": "High-side PWM drive from 0.0 to 1.0"
+        },
+        {
+          "name": "SYS_HBRIDGE_MODE_HALF_LOW",
+          "value": 2,
+          "alias": "Half Bridge Low",
+          "description": "Low-side PWM sink from 0.0 to 1.0"
+        }
+      ]
+    },
+    "sys_hbridge_fault_reason_e": {
+      "alias": "H-Bridge Fault",
+      "source_file": "components/system/sys_hbridge/include/sys_hbridge.h",
+      "members": [
+        {
+          "name": "SYS_HBRIDGE_FAULT_NONE",
+          "value": 0,
+          "alias": "None",
+          "description": "No fault"
+        },
+        {
+          "name": "SYS_HBRIDGE_FAULT_OVERCURRENT",
+          "value": 1,
+          "alias": "Overcurrent",
+          "description": "The channel drew more than its current limit"
+        },
+        {
+          "name": "SYS_HBRIDGE_FAULT_THERMAL_OR_UVLO",
+          "value": 2,
+          "alias": "Overheat or Low Supply",
+          "description": "The driver chip overheated or its supply dropped too low; every channel stops"
+        },
+        {
+          "name": "SYS_HBRIDGE_FAULT_EXTERNAL",
+          "value": 3,
+          "alias": "External",
+          "description": "An external fault input was triggered"
+        }
+      ]
+    },
+    "sys_interface_status_e": {
+      "alias": "Response Status",
+      "source_file": "components/system/sys_interface/include/sys_interface.h",
+      "members": [
+        {
+          "name": "SYS_INTERFACE_STATUS_OK",
+          "value": 0,
+          "alias": "OK",
+          "description": "The command succeeded. Any response data follows."
+        },
+        {
+          "name": "SYS_INTERFACE_STATUS_ERROR",
+          "value": 1,
+          "alias": "Error",
+          "description": "The command failed. The root cause's error tag and owner follow; the full error chain is sent on the errors stream."
         }
       ]
     },
@@ -189,6 +357,132 @@
           "value": 6,
           "alias": "Over-Temperature",
           "description": "The device got too hot and triggered thermal protection"
+        },
+        {
+          "name": "SYS_PWR_EVENT_BATTERY_LOW",
+          "value": 7,
+          "alias": "Battery Low",
+          "description": "The battery charge fell to the low threshold"
+        },
+        {
+          "name": "SYS_PWR_EVENT_BATTERY_CRITICAL",
+          "value": 8,
+          "alias": "Battery Critical",
+          "description": "The battery charge fell to the critical threshold"
+        },
+        {
+          "name": "SYS_PWR_EVENT_BUDGET_EXCEEDED",
+          "value": 9,
+          "alias": "Budget Exceeded",
+          "description": "The power source can no longer cover what the outputs are set to draw"
+        },
+        {
+          "name": "SYS_PWR_EVENT_SOURCE_CHANGED",
+          "value": 10,
+          "alias": "Source Changed",
+          "description": "The board switched to another power source (the value is the new source)"
+        }
+      ]
+    },
+    "sys_power_usb_pd_option_type_e": {
+      "alias": "USB-PD Option Type",
+      "source_file": "components/system/sys_power/include/sys_power.h",
+      "members": [
+        {
+          "name": "SYS_POWER_USB_PD_OPTION_FIXED",
+          "value": 0,
+          "alias": "Fixed",
+          "description": "A fixed voltage."
+        },
+        {
+          "name": "SYS_POWER_USB_PD_OPTION_PPS",
+          "value": 1,
+          "alias": "PPS",
+          "description": "Programmable voltage within a range (standard power range, up to 21 V)."
+        },
+        {
+          "name": "SYS_POWER_USB_PD_OPTION_AVS",
+          "value": 2,
+          "alias": "AVS",
+          "description": "Adjustable voltage within a range (extended power range, up to 28 V)."
+        }
+      ]
+    },
+    "sys_power_source_e": {
+      "alias": "Power Source",
+      "source_file": "components/system/sys_power/include/sys_power.h",
+      "members": [
+        {
+          "name": "SYS_POWER_SOURCE_UNKNOWN",
+          "value": 0,
+          "alias": "Unknown",
+          "description": "Not identified; the budget uses the measured input voltage and the board's assumed current"
+        },
+        {
+          "name": "SYS_POWER_SOURCE_USB_PD",
+          "value": 1,
+          "alias": "USB-C",
+          "description": "USB-C Power Delivery; the budget uses the input voltage and the source's current"
+        },
+        {
+          "name": "SYS_POWER_SOURCE_PSU",
+          "value": 2,
+          "alias": "Power Supply",
+          "description": "External supply; the budget uses the input voltage and the current entered by the user"
+        },
+        {
+          "name": "SYS_POWER_SOURCE_BATTERY",
+          "value": 3,
+          "alias": "Battery",
+          "description": "Battery; the budget uses the measured voltage, current limited only by the board"
+        }
+      ]
+    },
+    "sys_power_response_e": {
+      "alias": "Power Event Response",
+      "source_file": "components/system/sys_power/include/sys_power.h",
+      "members": [
+        {
+          "name": "SYS_POWER_RESPONSE_NOTIFY",
+          "value": 0,
+          "alias": "Notify",
+          "description": "Only raise the event"
+        },
+        {
+          "name": "SYS_POWER_RESPONSE_DISABLE",
+          "value": 1,
+          "alias": "Disable",
+          "description": "Suspend the affected output: that rail, or every rail for a board-level event"
+        },
+        {
+          "name": "SYS_POWER_RESPONSE_RESET",
+          "value": 2,
+          "alias": "Reset",
+          "description": "Reset the affected device: that rail, or every rail for a board-level event"
+        },
+        {
+          "name": "SYS_POWER_RESPONSE_SAFE_STATE",
+          "value": 3,
+          "alias": "Safe State",
+          "description": "Stop the program and suspend every device"
+        }
+      ]
+    },
+    "sys_power_battery_e": {
+      "alias": "Battery Chemistry",
+      "source_file": "components/system/sys_power/include/sys_power.h",
+      "members": [
+        {
+          "name": "SYS_POWER_BATTERY_NONE",
+          "value": 0,
+          "alias": "None",
+          "description": "No battery configured"
+        },
+        {
+          "name": "SYS_POWER_BATTERY_LIPO",
+          "value": 1,
+          "alias": "LiPo",
+          "description": "Lithium polymer, 4.2 V per cell when full"
         }
       ]
     },
@@ -272,6 +566,24 @@
     }
   },
   "symbols": {
+    "SYS_BLE_EVENT_CONNECT": {
+      "enum": "sys_ble_events_e",
+      "value": 0,
+      "alias": "Connected",
+      "description": "The app connected (value = connection handle)"
+    },
+    "SYS_BLE_EVENT_DISCONNECT": {
+      "enum": "sys_ble_events_e",
+      "value": 1,
+      "alias": "Disconnected",
+      "description": "The app disconnected (value = reason code)"
+    },
+    "SYS_BLE_EVENT_FAILURE": {
+      "enum": "sys_ble_events_e",
+      "value": 2,
+      "alias": "Failure",
+      "description": "A connection, receive or send failure (value = error code)"
+    },
     "SYS_DEVICE_CONTRACT_IO": {
       "enum": "sys_device_contract_type_e",
       "value": 0,
@@ -307,6 +619,120 @@
       "value": 5,
       "alias": "(internal)",
       "description": "Not a real contract - marks the end of the list, used internally for bounds checking"
+    },
+    "SYS_DEV_IMPORTANCE_NONE": {
+      "enum": "sys_device_importance_e",
+      "value": 0,
+      "alias": "Disabled",
+      "description": "Disables automatic handling for this device."
+    },
+    "SYS_DEV_IMPORTANCE_LOW": {
+      "enum": "sys_device_importance_e",
+      "value": 1,
+      "alias": "Low",
+      "description": "Handles only low-severity device errors."
+    },
+    "SYS_DEV_IMPORTANCE_MEDIUM": {
+      "enum": "sys_device_importance_e",
+      "value": 2,
+      "alias": "Medium",
+      "description": "Handles low and medium-severity device errors."
+    },
+    "SYS_DEV_IMPORTANCE_HIGH": {
+      "enum": "sys_device_importance_e",
+      "value": 3,
+      "alias": "High",
+      "description": "Handles low through high-severity device errors."
+    },
+    "SYS_DEV_IMPORTANCE_CRITICAL": {
+      "enum": "sys_device_importance_e",
+      "value": 4,
+      "alias": "Critical",
+      "description": "Handles every device error severity."
+    },
+    "SYS_EVENT_DOMAIN_IO": {
+      "enum": "sys_event_domain_e",
+      "value": 0,
+      "alias": "IO",
+      "description": "Pin interrupts and analog alerts. Channel = pin, event = the edge or window crossed, value = level or mV"
+    },
+    "SYS_EVENT_DOMAIN_POWER": {
+      "enum": "sys_event_domain_e",
+      "value": 1,
+      "alias": "Power",
+      "description": "Regulator, monitor and board power events. Event = power event; board events use device 255"
+    },
+    "SYS_EVENT_DOMAIN_HBRIDGE": {
+      "enum": "sys_event_domain_e",
+      "value": 2,
+      "alias": "H-Bridge",
+      "description": "Motor driver faults. Channel = bridge channel, event = fault reason, value = current in mA"
+    },
+    "SYS_EVENT_DOMAIN_BLE": {
+      "enum": "sys_event_domain_e",
+      "value": 3,
+      "alias": "Bluetooth",
+      "description": "Connection events. Event = BLE event"
+    },
+    "SYS_EVENT_DOMAIN_FEATURE": {
+      "enum": "sys_event_domain_e",
+      "value": 4,
+      "alias": "Feature",
+      "description": "Events raised by features. Device = feature ID"
+    },
+    "SYS_HBRIDGE_MODE_FULL": {
+      "enum": "sys_hbridge_mode_e",
+      "value": 0,
+      "alias": "Full Bridge",
+      "description": "Bidirectional drive from -1.0 to 1.0"
+    },
+    "SYS_HBRIDGE_MODE_HALF_HIGH": {
+      "enum": "sys_hbridge_mode_e",
+      "value": 1,
+      "alias": "Half Bridge High",
+      "description": "High-side PWM drive from 0.0 to 1.0"
+    },
+    "SYS_HBRIDGE_MODE_HALF_LOW": {
+      "enum": "sys_hbridge_mode_e",
+      "value": 2,
+      "alias": "Half Bridge Low",
+      "description": "Low-side PWM sink from 0.0 to 1.0"
+    },
+    "SYS_HBRIDGE_FAULT_NONE": {
+      "enum": "sys_hbridge_fault_reason_e",
+      "value": 0,
+      "alias": "None",
+      "description": "No fault"
+    },
+    "SYS_HBRIDGE_FAULT_OVERCURRENT": {
+      "enum": "sys_hbridge_fault_reason_e",
+      "value": 1,
+      "alias": "Overcurrent",
+      "description": "The channel drew more than its current limit"
+    },
+    "SYS_HBRIDGE_FAULT_THERMAL_OR_UVLO": {
+      "enum": "sys_hbridge_fault_reason_e",
+      "value": 2,
+      "alias": "Overheat or Low Supply",
+      "description": "The driver chip overheated or its supply dropped too low; every channel stops"
+    },
+    "SYS_HBRIDGE_FAULT_EXTERNAL": {
+      "enum": "sys_hbridge_fault_reason_e",
+      "value": 3,
+      "alias": "External",
+      "description": "An external fault input was triggered"
+    },
+    "SYS_INTERFACE_STATUS_OK": {
+      "enum": "sys_interface_status_e",
+      "value": 0,
+      "alias": "OK",
+      "description": "The command succeeded. Any response data follows."
+    },
+    "SYS_INTERFACE_STATUS_ERROR": {
+      "enum": "sys_interface_status_e",
+      "value": 1,
+      "alias": "Error",
+      "description": "The command failed. The root cause's error tag and owner follow; the full error chain is sent on the errors stream."
     },
     "SYS_IO_MODE_INPUT": {
       "enum": "sys_io_mode_e",
@@ -439,6 +865,108 @@
       "value": 6,
       "alias": "Over-Temperature",
       "description": "The device got too hot and triggered thermal protection"
+    },
+    "SYS_PWR_EVENT_BATTERY_LOW": {
+      "enum": "sys_power_events_e",
+      "value": 7,
+      "alias": "Battery Low",
+      "description": "The battery charge fell to the low threshold"
+    },
+    "SYS_PWR_EVENT_BATTERY_CRITICAL": {
+      "enum": "sys_power_events_e",
+      "value": 8,
+      "alias": "Battery Critical",
+      "description": "The battery charge fell to the critical threshold"
+    },
+    "SYS_PWR_EVENT_BUDGET_EXCEEDED": {
+      "enum": "sys_power_events_e",
+      "value": 9,
+      "alias": "Budget Exceeded",
+      "description": "The power source can no longer cover what the outputs are set to draw"
+    },
+    "SYS_PWR_EVENT_SOURCE_CHANGED": {
+      "enum": "sys_power_events_e",
+      "value": 10,
+      "alias": "Source Changed",
+      "description": "The board switched to another power source (the value is the new source)"
+    },
+    "SYS_POWER_USB_PD_OPTION_FIXED": {
+      "enum": "sys_power_usb_pd_option_type_e",
+      "value": 0,
+      "alias": "Fixed",
+      "description": "A fixed voltage."
+    },
+    "SYS_POWER_USB_PD_OPTION_PPS": {
+      "enum": "sys_power_usb_pd_option_type_e",
+      "value": 1,
+      "alias": "PPS",
+      "description": "Programmable voltage within a range (standard power range, up to 21 V)."
+    },
+    "SYS_POWER_USB_PD_OPTION_AVS": {
+      "enum": "sys_power_usb_pd_option_type_e",
+      "value": 2,
+      "alias": "AVS",
+      "description": "Adjustable voltage within a range (extended power range, up to 28 V)."
+    },
+    "SYS_POWER_SOURCE_UNKNOWN": {
+      "enum": "sys_power_source_e",
+      "value": 0,
+      "alias": "Unknown",
+      "description": "Not identified; the budget uses the measured input voltage and the board's assumed current"
+    },
+    "SYS_POWER_SOURCE_USB_PD": {
+      "enum": "sys_power_source_e",
+      "value": 1,
+      "alias": "USB-C",
+      "description": "USB-C Power Delivery; the budget uses the input voltage and the source's current"
+    },
+    "SYS_POWER_SOURCE_PSU": {
+      "enum": "sys_power_source_e",
+      "value": 2,
+      "alias": "Power Supply",
+      "description": "External supply; the budget uses the input voltage and the current entered by the user"
+    },
+    "SYS_POWER_SOURCE_BATTERY": {
+      "enum": "sys_power_source_e",
+      "value": 3,
+      "alias": "Battery",
+      "description": "Battery; the budget uses the measured voltage, current limited only by the board"
+    },
+    "SYS_POWER_RESPONSE_NOTIFY": {
+      "enum": "sys_power_response_e",
+      "value": 0,
+      "alias": "Notify",
+      "description": "Only raise the event"
+    },
+    "SYS_POWER_RESPONSE_DISABLE": {
+      "enum": "sys_power_response_e",
+      "value": 1,
+      "alias": "Disable",
+      "description": "Suspend the affected output: that rail, or every rail for a board-level event"
+    },
+    "SYS_POWER_RESPONSE_RESET": {
+      "enum": "sys_power_response_e",
+      "value": 2,
+      "alias": "Reset",
+      "description": "Reset the affected device: that rail, or every rail for a board-level event"
+    },
+    "SYS_POWER_RESPONSE_SAFE_STATE": {
+      "enum": "sys_power_response_e",
+      "value": 3,
+      "alias": "Safe State",
+      "description": "Stop the program and suspend every device"
+    },
+    "SYS_POWER_BATTERY_NONE": {
+      "enum": "sys_power_battery_e",
+      "value": 0,
+      "alias": "None",
+      "description": "No battery configured"
+    },
+    "SYS_POWER_BATTERY_LIPO": {
+      "enum": "sys_power_battery_e",
+      "value": 1,
+      "alias": "LiPo",
+      "description": "Lithium polymer, 4.2 V per cell when full"
     },
     "VM_OBJ_NONE": {
       "enum": "vm_obj_t_e",

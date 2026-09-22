@@ -6,12 +6,12 @@
 
 static vm_load_state_e s_state = VM_LOAD_EMPTY;
 
-static err_h require_state(vm_load_state_e want) {
+static SE_MUST_USE err_h require_state(vm_load_state_e want) {
   if (s_state != want) {
-    SE_RET_ERR(ERR_VM_LOAD_BAD_STATE, .state = (uint8_t)s_state, .expected = (uint8_t)want);
+    SE_FAIL(ERR_VM_LOAD_BAD_STATE, .state = (uint8_t)s_state, .expected = (uint8_t)want);
   }
   if (vm_exec_mode() != VM_RUN_STOPPED) {
-    SE_RET_ERR(ERR_VM_LOAD_RUNNING, .mode = (uint8_t)vm_exec_mode());
+    SE_FAIL(ERR_VM_LOAD_RUNNING, .mode = (uint8_t)vm_exec_mode());
   }
   return NULL;
 }
@@ -20,19 +20,19 @@ static err_h require_state(vm_load_state_e want) {
    open. The first check avoids stopping a running program for a packet that is
    invalid in that mode; the check of `previous` closes the race with a control
    command arriving between the first check and barrier acquisition. */
-static err_h begin_stopped_mutation(vm_load_state_e want) {
-  SE_RET_IF_ERR(require_state(want));
+static SE_MUST_USE err_h begin_stopped_mutation(vm_load_state_e want) {
+  SE_TRY(require_state(want));
 
   vm_run_mode_e previous;
-  SE_RET_IF_ERR(vm_exec_program_lock(&previous));
+  SE_TRY(vm_exec_program_lock(&previous));
   if (previous != VM_RUN_STOPPED) {
     vm_exec_program_unlock(previous);
-    SE_RET_ERR(ERR_VM_LOAD_RUNNING, .mode = (uint8_t)previous);
+    SE_FAIL(ERR_VM_LOAD_RUNNING, .mode = (uint8_t)previous);
   }
   if (s_state != want) {
     vm_load_state_e actual = s_state;
     vm_exec_program_unlock(VM_RUN_STOPPED);
-    SE_RET_ERR(ERR_VM_LOAD_BAD_STATE, .state = (uint8_t)actual, .expected = (uint8_t)want);
+    SE_FAIL(ERR_VM_LOAD_BAD_STATE, .state = (uint8_t)actual, .expected = (uint8_t)want);
   }
   return NULL;
 }
@@ -43,7 +43,7 @@ static void end_stopped_mutation(void) {
 
 err_h vm_loader_reset(void) {
   vm_run_mode_e previous;
-  SE_RET_IF_ERR(vm_exec_program_lock(&previous));
+  SE_TRY(vm_exec_program_lock(&previous));
   vm_exec_reset();
   vm_sub_reset();
   vm_store_reset();
@@ -54,7 +54,7 @@ err_h vm_loader_reset(void) {
 
 err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint16_t blk_cnt, uint32_t total_size) {
   vm_run_mode_e previous;
-  SE_RET_IF_ERR(vm_exec_program_lock(&previous));
+  SE_TRY(vm_exec_program_lock(&previous));
 
   const uint16_t counts[VM_REG_CNT] = {
       [VM_REG_OBJ] = obj_cnt,
@@ -74,32 +74,32 @@ err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint16_t blk_cnt, uint3
   return NULL;
 }
 
-static err_h add_obj_unlocked(uint16_t id, const vm_obj_head_t* head, const char* name) {
+static SE_MUST_USE err_h add_obj_unlocked(uint16_t id, const vm_obj_head_t* head, const char* name) {
   SE_CHECK_NOT_NULL(head);
 
   // Validate type before indexing width table
   if (!vm_type_ok(head->d.obj_t)) {
-    SE_RET_ERR(ERR_VM_OBJ_BAD_TYPE, .type = head->d.obj_t);
+    SE_FAIL(ERR_VM_OBJ_BAD_TYPE, .type = head->d.obj_t);
   }
 
   vm_obj_h obj = NULL;
-  SE_RET_IF_ERR(vm_obj_create(&obj, id, head, head->d.name_size ? name : NULL));
+  SE_TRY(vm_obj_create(&obj, id, head, head->d.name_size ? name : NULL));
   return NULL;
 }
 
 err_h vm_loader_add_obj(uint16_t id, const vm_obj_head_t* head, const char* name) {
-  SE_RET_IF_ERR(begin_stopped_mutation(VM_LOAD_OPEN));
+  SE_TRY(begin_stopped_mutation(VM_LOAD_OPEN));
   err_h err = add_obj_unlocked(id, head, name);
   end_stopped_mutation();
   return err;
 }
 
-static err_h set_data_unlocked(uint16_t id, uint16_t start_idx, const uint8_t* data, uint16_t len) {
+static SE_MUST_USE err_h set_data_unlocked(uint16_t id, uint16_t start_idx, const uint8_t* data, uint16_t len) {
   SE_CHECK_NOT_NULL(data);
 
   vm_obj_h obj = vm_obj_get_by_id(id);
   if (!obj) {
-    SE_RET_ERR(ERR_VM_ACCESSOR_UNKNOWN_ID, .id = id);
+    SE_FAIL(ERR_VM_ACCESSOR_UNKNOWN_ID, .id = id);
   }
 
   uint16_t items = vm_obj_get_items_cnt(obj);
@@ -107,30 +107,30 @@ static err_h set_data_unlocked(uint16_t id, uint16_t start_idx, const uint8_t* d
   if ((vm_obj_t_e)obj->head.d.obj_t == VM_OBJ_PTR) {
     // Child IDs (2 bytes little-endian)
     if ((len & 1u) != 0) {
-      SE_RET_ERR(ERR_VM_LOAD_DATA_RANGE, .id = id, .start_idx = start_idx, .len = len, .items = items);
+      SE_FAIL(ERR_VM_LOAD_DATA_RANGE, .id = id, .start_idx = start_idx, .len = len, .items = items);
     }
     uint16_t n = len / 2u;
     if ((uint32_t)start_idx + n > items) {
-      SE_RET_ERR(ERR_VM_LOAD_DATA_RANGE, .id = id, .start_idx = start_idx, .len = n, .items = items);
+      SE_FAIL(ERR_VM_LOAD_DATA_RANGE, .id = id, .start_idx = start_idx, .len = n, .items = items);
     }
     for (uint16_t i = 0; i < n; i++) {
       uint16_t child_id = (uint16_t)(data[i * 2] | ((uint16_t)data[i * 2 + 1] << 8));
       vm_obj_h child = vm_obj_get_by_id(child_id);
       if (!child) {
-        SE_RET_ERR(ERR_VM_ACCESSOR_UNKNOWN_ID, .id = child_id);
+        SE_FAIL(ERR_VM_ACCESSOR_UNKNOWN_ID, .id = child_id);
       }
-      SE_RET_IF_ERR(vm_obj_link_direct(obj, (uint16_t)(start_idx + i), child));
+      SE_TRY(vm_obj_link_direct(obj, (uint16_t)(start_idx + i), child));
     }
     return NULL;
   }
 
   uint8_t w = vm_obj_get_type_size(obj);
   if (w == 0 || (len % w) != 0) {
-    SE_RET_ERR(ERR_VM_LOAD_DATA_RANGE, .id = id, .start_idx = start_idx, .len = len, .items = items);
+    SE_FAIL(ERR_VM_LOAD_DATA_RANGE, .id = id, .start_idx = start_idx, .len = len, .items = items);
   }
   uint16_t n = (uint16_t)(len / w);
   if ((uint32_t)start_idx + n > items) {
-    SE_RET_ERR(ERR_VM_LOAD_DATA_RANGE, .id = id, .start_idx = start_idx, .len = n, .items = items);
+    SE_FAIL(ERR_VM_LOAD_DATA_RANGE, .id = id, .start_idx = start_idx, .len = n, .items = items);
   }
 
   memcpy(obj->payload + (size_t)start_idx * w, data, len);
@@ -138,63 +138,63 @@ static err_h set_data_unlocked(uint16_t id, uint16_t start_idx, const uint8_t* d
 }
 
 err_h vm_loader_set_data(uint16_t id, uint16_t start_idx, const uint8_t* data, uint16_t len) {
-  SE_RET_IF_ERR(begin_stopped_mutation(VM_LOAD_OPEN));
+  SE_TRY(begin_stopped_mutation(VM_LOAD_OPEN));
   err_h err = set_data_unlocked(id, start_idx, data, len);
   end_stopped_mutation();
   return err;
 }
 
-static err_h add_accessor_unlocked(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_count,
+static SE_MUST_USE err_h add_accessor_unlocked(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_count,
                                    const uint8_t* idx_data, uint16_t idx_len) {
   vm_accessor_t* acc = NULL;
-  SE_RET_IF_ERR(vm_accessor_create(&acc, acc_id, root_obj_id, idx_count));
+  SE_TRY(vm_accessor_create(&acc, acc_id, root_obj_id, idx_count));
 
   size_t off = 0;
   for (uint8_t i = 0; i < idx_count; i++) {
     if (off + 1 > idx_len) {
-      SE_RET_ERR(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = 1, .got = (uint16_t)(idx_len - off));
+      SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = 1, .got = (uint16_t)(idx_len - off));
     }
     uint8_t kind = idx_data[off++];
 
     switch (kind) {
       case VM_IDX_LITERAL: {
         if (off + 4 > idx_len) {
-          SE_RET_ERR(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = 4, .got = (uint16_t)(idx_len - off));
+          SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = 4, .got = (uint16_t)(idx_len - off));
         }
         uint32_t v = (uint32_t)idx_data[off] | ((uint32_t)idx_data[off + 1] << 8) |
                      ((uint32_t)idx_data[off + 2] << 16) | ((uint32_t)idx_data[off + 3] << 24);
         off += 4;
-        SE_RET_IF_ERR(vm_accessor_set_literal(acc, i, v));
+        SE_TRY(vm_accessor_set_literal(acc, i, v));
         break;
       }
       case VM_IDX_REF: {
         if (off + 2 > idx_len) {
-          SE_RET_ERR(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = 2, .got = (uint16_t)(idx_len - off));
+          SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = 2, .got = (uint16_t)(idx_len - off));
         }
         uint16_t ref_id = (uint16_t)(idx_data[off] | ((uint16_t)idx_data[off + 1] << 8));
         off += 2;
         // Target accessor must already exist to prevent reference cycles
         vm_accessor_t* ref = vm_accessor_get_by_id(ref_id);
         if (!ref) {
-          SE_RET_ERR(ERR_VM_REG_OOB, .kind = VM_REG_ACC, .id = ref_id, .count = g_vm_store.reg[VM_REG_ACC].count);
+          SE_FAIL(ERR_VM_REG_OOB, .kind = VM_REG_ACC, .id = ref_id, .count = g_vm_store.reg[VM_REG_ACC].count);
         }
-        SE_RET_IF_ERR(vm_accessor_set_ref(acc, i, ref));
+        SE_TRY(vm_accessor_set_ref(acc, i, ref));
         break;
       }
       case VM_IDX_NAME: {
         if (off + 1 > idx_len) {
-          SE_RET_ERR(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = 1, .got = (uint16_t)(idx_len - off));
+          SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = 1, .got = (uint16_t)(idx_len - off));
         }
         uint8_t nlen = idx_data[off++];
         if (off + nlen > idx_len) {
-          SE_RET_ERR(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = nlen, .got = (uint16_t)(idx_len - off));
+          SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = nlen, .got = (uint16_t)(idx_len - off));
         }
-        SE_RET_IF_ERR(vm_accessor_set_name(acc, i, (const char*)(idx_data + off), nlen));
+        SE_TRY(vm_accessor_set_name(acc, i, (const char*)(idx_data + off), nlen));
         off += nlen;
         break;
       }
       default:
-        SE_RET_ERR(ERR_VM_ACC_BAD_KIND, .acc_id = acc_id, .pos = i, .kind = kind);
+        SE_FAIL(ERR_VM_ACC_BAD_KIND, .acc_id = acc_id, .pos = i, .kind = kind);
     }
   }
 
@@ -205,25 +205,25 @@ static err_h add_accessor_unlocked(uint16_t acc_id, uint16_t root_obj_id, uint8_
 
 err_h vm_loader_add_accessor(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_count, const uint8_t* idx_data,
                              uint16_t idx_len) {
-  SE_RET_IF_ERR(begin_stopped_mutation(VM_LOAD_OPEN));
+  SE_TRY(begin_stopped_mutation(VM_LOAD_OPEN));
   err_h err = add_accessor_unlocked(acc_id, root_obj_id, idx_count, idx_data, idx_len);
   end_stopped_mutation();
   return err;
 }
 
-static err_h add_block_unlocked(uint16_t blk_id, const vm_block_cfg_t* cfg) {
+static SE_MUST_USE err_h add_block_unlocked(uint16_t blk_id, const vm_block_cfg_t* cfg) {
   SE_CHECK_NOT_NULL(cfg);
 
   // Validate block_type against the palette before allocating arena memory
-  SE_RET_IF_ERR(vm_exec_check_block_type(blk_id, cfg->block_type));
+  SE_TRY(vm_exec_check_block_type(blk_id, cfg->block_type));
 
   vm_block_h blk = NULL;
-  SE_RET_IF_ERR(vm_block_create(&blk, blk_id, cfg));
+  SE_TRY(vm_block_create(&blk, blk_id, cfg));
   return NULL;
 }
 
 err_h vm_loader_add_block(uint16_t blk_id, const vm_block_cfg_t* cfg) {
-  SE_RET_IF_ERR(begin_stopped_mutation(VM_LOAD_OPEN));
+  SE_TRY(begin_stopped_mutation(VM_LOAD_OPEN));
   err_h err = add_block_unlocked(blk_id, cfg);
   end_stopped_mutation();
   return err;

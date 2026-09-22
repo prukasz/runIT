@@ -1,13 +1,8 @@
 #include "driver_pca9685.h"
 #include <math.h>
 #include <string.h>
-#include "esp_log.h"
 #include "esp_rom_sys.h"
 
-static const char* TAG = __FILE_NAME__;
-
-#undef OWNER
-#define OWNER OWNER_DRIVER_PCA9685
 
 #define REG_MODE1 0x00
 #define REG_MODE2 0x01
@@ -45,7 +40,6 @@ static inline esp_err_t _update_reg(pca9685_handle_t handle, uint8_t reg, uint8_
 pca9685_handle_t pca9685_new(uint8_t i2c_address, bool i2c_bus_num) {
   pca9685_handle_t handle = calloc(1, sizeof(_pca9685_data_t));
   if (!handle) {
-    ESP_LOGE(TAG, "Failed to allocate memory for PCA9685 handle");
     return NULL;
   }
 
@@ -63,7 +57,6 @@ esp_err_t pca9685_start(pca9685_handle_t handle) {
   RETURN_ON_ERROR(pca9685_sleep(handle, false));
   RETURN_ON_ERROR(pca9685_enable_auto_increment(handle));
 
-  ESP_LOGI(TAG, "PCA9685 started successfully on bus %d at 0x%02X", handle->header.bus_num, handle->header.i2c_device_config.device_address);
   return ESP_OK;
 }
 

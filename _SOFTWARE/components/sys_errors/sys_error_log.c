@@ -4,7 +4,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include "enc_sys_errors.h"
-#include "sys_data_connector.h"
 #include "utils.h"
 
 #undef OWNER
@@ -26,6 +25,33 @@ static struct {
 // may log on their own error paths, and that log would come straight back here.
 // A nested call finds the flag set and takes the serial-only path instead of recursing.
 static __thread bool s_in_log_sink;
+
+static sys_error_sink_t s_sink;
+
+/* Chains waiting for the log task, which logs, sends and releases them. */
+R_QUEUE_DEFINE(s_log_queue, CONFIG_SYS_ERRORS_LOG_QUEUE_LEN, sizeof(err_h));
+R_TASK_DEFINE(s_log_task, CONFIG_SYS_ERRORS_LOG_TASK_STACK_SIZE);
+static uint32_t s_log_dropped;
+
+/* Repeat suppression (log task only): a chain matching a recent one is
+   counted instead of logged until its window ends. */
+typedef struct {
+  uint32_t signature; /* 0 = free slot */
+  uint16_t tag;       /* outermost node, for the summary line */
+  uint16_t owner;
+  TickType_t since;
+  uint32_t repeats;
+} repeat_slot_t;
+
+static repeat_slot_t s_repeat[CONFIG_SYS_ERRORS_REPEAT_SLOTS];
+
+void SE_register_sink(const sys_error_sink_t* sink) {
+  s_sink = sink ? *sink : (sys_error_sink_t){0};
+}
+
+static void sink_send_log(const void* data, size_t len) {
+  if (s_sink.send_log) s_sink.send_log(data, len);
+}
 
 // -----------------------------------------------------------------------------
 // Error Chain Expansion (Direct Connector Send)
@@ -58,7 +84,7 @@ void se_log_error_chain(err_h chain) {
                        SE_get_tag_name(node->tag), (long)node->tag, desc);
     if (len > 0) {
       size_t out_len = ((size_t)len < sizeof(line)) ? (size_t)len : sizeof(line) - 1u;
-      sys_data_connector_send(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_LOGS), line, out_len);
+      sink_send_log(line, out_len);
     }
     if (s_log_state.mirror_on_serial) {
       bool previous = s_in_log_sink;
@@ -69,7 +95,7 @@ void se_log_error_chain(err_h chain) {
   }
   if (!complete) {
     const char warning[] = "<error chain truncated or corrupt>\n";
-    sys_data_connector_send(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_LOGS), warning, sizeof(warning) - 1);
+    sink_send_log(warning, sizeof(warning) - 1);
   }
 }
 
@@ -92,7 +118,7 @@ static int se_log_vprintf(const char* fmt, va_list args) {
     if (len > 0) {
       // vsnprintf reports what it *would* have written - clamp to what it did.
       size_t out_len = ((size_t)len < sizeof(line)) ? (size_t)len : sizeof(line) - 1u;
-      sys_data_connector_send(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_LOGS), line, out_len);
+      sink_send_log(line, out_len);
     }
     s_in_log_sink = false;
   }
@@ -104,8 +130,95 @@ static int se_log_vprintf(const char* fmt, va_list args) {
   return 0;
 }
 
+/* FNV-1a over every node's tag and owner. */
+static uint32_t chain_signature(err_h chain) {
+  err_h nodes[SE_MAX_CHAIN_DEPTH];
+  bool complete;
+  size_t count = SE_collect_chain(chain, nodes, &complete);
+  uint32_t hash = 2166136261u;
+  for (size_t i = 0; i < count; ++i) {
+    hash = (hash ^ (uint32_t)nodes[i]->tag) * 16777619u;
+    hash = (hash ^ nodes[i]->owner) * 16777619u;
+  }
+  return hash ? hash : 1u;
+}
+
+static void repeat_flush(repeat_slot_t* slot) {
+  if (slot->repeats > 0) {
+    ESP_LOGW(TAG, "%s / %s repeated %lu more time(s)", SE_get_owner_name(slot->owner), SE_get_tag_name((err_tag_e)slot->tag),
+             (unsigned long)slot->repeats);
+  }
+  slot->signature = 0;
+  slot->repeats = 0;
+}
+
+/* True when chain repeats one logged within the window (it is then only counted). */
+static bool repeat_suppressed(err_h chain, TickType_t now) {
+  const TickType_t window = pdMS_TO_TICKS(CONFIG_SYS_ERRORS_REPEAT_WINDOW_MS);
+  if (window == 0) return false;
+  uint32_t signature = chain_signature(chain);
+  repeat_slot_t* target = &s_repeat[0];
+  for (size_t i = 0; i < CONFIG_SYS_ERRORS_REPEAT_SLOTS; ++i) {
+    repeat_slot_t* slot = &s_repeat[i];
+    if (slot->signature == signature) {
+      if (now - slot->since < window) {
+        slot->repeats++;
+        return true;
+      }
+      target = slot;
+      break;
+    }
+    if (slot->signature == 0 || (target->signature != 0 && slot->since < target->since)) target = slot;
+  }
+  repeat_flush(target);
+  *target = (repeat_slot_t){.signature = signature, .tag = (uint16_t)chain->tag, .owner = (uint16_t)chain->owner, .since = now};
+  return false;
+}
+
+/* Report and free slots whose window has ended. */
+static void repeat_expire(TickType_t now) {
+  const TickType_t window = pdMS_TO_TICKS(CONFIG_SYS_ERRORS_REPEAT_WINDOW_MS);
+  for (size_t i = 0; i < CONFIG_SYS_ERRORS_REPEAT_SLOTS; ++i) {
+    if (s_repeat[i].signature != 0 && now - s_repeat[i].since >= window) repeat_flush(&s_repeat[i]);
+  }
+}
+
+static void se_log_task(void* arg) {
+  (void)arg;
+  err_h chain = NULL;
+  const TickType_t wait = CONFIG_SYS_ERRORS_REPEAT_WINDOW_MS ? pdMS_TO_TICKS(CONFIG_SYS_ERRORS_REPEAT_WINDOW_MS) : portMAX_DELAY;
+  while (1) {
+    bool got = R_QUEUE_RECEIVE(s_log_queue, &chain, wait) == pdTRUE;
+    TickType_t now = xTaskGetTickCount();
+    repeat_expire(now);
+    if (!got) continue;
+    if (!repeat_suppressed(chain, now)) SE_release(SE_send(chain));
+    SE_release(chain);
+    uint32_t dropped = __atomic_exchange_n(&s_log_dropped, 0, __ATOMIC_RELAXED);
+    if (dropped) {
+      ESP_LOGW(TAG, "%lu error chain(s) dropped: log queue full", (unsigned long)dropped);
+    }
+  }
+}
+
+void SE_log(err_h chain) {
+  if (chain == NULL) return;
+  if (s_log_task == NULL) {
+    SE_release(SE_send(chain));
+    SE_release(chain);
+    return;
+  }
+  if (R_QUEUE_SEND(s_log_queue, &chain, 0) != pdTRUE) {
+    SE_release(chain);
+    __atomic_add_fetch(&s_log_dropped, 1, __ATOMIC_RELAXED);
+  }
+}
+
 void se_log_init(void) {
   esp_log_set_vprintf(se_log_vprintf);
+  if (s_log_task == NULL) {
+    R_TASK_START(s_log_task, se_log_task, NULL, CONFIG_SYS_ERRORS_LOG_TASK_PRIO);
+  }
 }
 
 err_h SE_set_logging(esp_log_level_t level, bool mirror_serial, bool trace_errors) {
@@ -129,17 +242,20 @@ err_h SE_send_error_raw(err_h chain) {
     return NULL;
   }
 
-  sys_data_connector_t* conn = sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_ERRORS);
-  size_t max_len = sys_data_connector_get_max_len(conn);
+  if (!s_sink.send_packet) {
+    return NULL;
+  }
+
   uint8_t packet[CONFIG_SYS_ERRORS_PACKET_MAX];
-  if (max_len > sizeof(packet)) {
+  size_t max_len = s_sink.packet_max_len;
+  if (max_len == 0 || max_len > sizeof(packet)) {
     max_len = sizeof(packet);
   }
 
   size_t packet_len = 0;
   err_h  err        = enc_sys_errors_encode_chain(chain, packet, max_len, &packet_len);
   if (SE_IS_OK(err) && packet_len > 0) {
-    sys_data_connector_send(conn, packet, packet_len);
+    s_sink.send_packet(packet, packet_len);
   }
   return err;
 }

@@ -3,14 +3,12 @@
 #include "device_pca9685.h"
 #include "driver_pca9685.h"
 #include "esp_err.h"
-#include "esp_log.h"
 #include "sys_device.h"
 #include "sys_error.h"
 #include "sys_error_codes.h"
 #include "sys_i2c.h"
 #include "sys_io.h"
 
-static const char* TAG = __FILE_NAME__;
 #undef OWNER
 #define OWNER OWNER_DEVICE_PCA9685
 #define PINS_MASK 0xFFFF
@@ -29,7 +27,7 @@ typedef struct pca_adapter_ctx_t {
 } pca_adapter_ctx_t;
 
 // --- VTABLE Implementations (IO Contract) ---
-static err_h contract_io_pca9685_set_pwm_duty(void* handle, sys_io_pin_num_t pin, uint32_t duty) {
+static SE_MUST_USE err_h contract_io_pca9685_set_pwm_duty(void* handle, sys_io_pin_num_t pin, uint32_t duty) {
   SYS_DEV_GET_ADAPTER_CONTEXT(pca_adapter_ctx_t, pca9685_handle_t, ctx, hw, handle);
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, PINS_MASK);
 
@@ -46,24 +44,24 @@ static err_h contract_io_pca9685_set_pwm_duty(void* handle, sys_io_pin_num_t pin
   return NULL;
 }
 
-static err_h contract_io_pca9685_set_pwm_frequency(void* handle, sys_io_pin_num_t pin, uint32_t frequency_HZ) {
+static SE_MUST_USE err_h contract_io_pca9685_set_pwm_frequency(void* handle, sys_io_pin_num_t pin, uint32_t frequency_Hz) {
   SYS_DEV_GET_ADAPTER_CONTEXT(pca_adapter_ctx_t, pca9685_handle_t, ctx, hw, handle);
 
   IF_SYS_DEV_FROZEN(ctx) {
-    ctx->frozen_freq = (uint16_t)frequency_HZ;
+    ctx->frozen_freq = (uint16_t)frequency_Hz;
     ctx->frozen_freq_dirty = true;
     return NULL;
   }
-  SYS_DEV_CHECK_DRIVER_CALL(pca9685_set_pwm_frequency(hw, (uint16_t)frequency_HZ), ctx);
+  SYS_DEV_CHECK_DRIVER_CALL(pca9685_set_pwm_frequency(hw, (uint16_t)frequency_Hz), ctx);
   return NULL;
 }
 
-static err_h contract_io_pca9685_set_level(void* handle, sys_io_pin_num_t pin, bool level) {
+static SE_MUST_USE err_h contract_io_pca9685_set_level(void* handle, sys_io_pin_num_t pin, bool level) {
   uint32_t target_pwm = level ? PCA9685_MAX_PWM_VALUE : 0;
   return contract_io_pca9685_set_pwm_duty(handle, pin, target_pwm);
 }
 
-static err_h contract_io_pca9685_get_level(void* handle, sys_io_pin_num_t pin, bool* level) {
+static SE_MUST_USE err_h contract_io_pca9685_get_level(void* handle, sys_io_pin_num_t pin, bool* level) {
   SYS_DEV_GET_ADAPTER_CONTEXT(pca_adapter_ctx_t, pca9685_handle_t, ctx, hw, handle);
   SE_CHECK_HANDLE(level);
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, PINS_MASK);
@@ -79,7 +77,7 @@ static err_h contract_io_pca9685_get_level(void* handle, sys_io_pin_num_t pin, b
   return NULL;
 }
 
-static err_h contract_io_pca9685_toggle(void* handle, sys_io_pin_num_t pin) {
+static SE_MUST_USE err_h contract_io_pca9685_toggle(void* handle, sys_io_pin_num_t pin) {
   SYS_DEV_GET_ADAPTER_CONTEXT(pca_adapter_ctx_t, pca9685_handle_t, ctx, hw, handle);
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, PINS_MASK);
 
@@ -94,38 +92,37 @@ static err_h contract_io_pca9685_toggle(void* handle, sys_io_pin_num_t pin) {
   return contract_io_pca9685_set_pwm_duty(handle, pin, new_val);
 }
 
-static err_h contract_io_pca9685_reset_pin(void* handle, sys_io_pin_num_t pin) {
+static SE_MUST_USE err_h contract_io_pca9685_reset_pin(void* handle, sys_io_pin_num_t pin) {
   return contract_io_pca9685_set_pwm_duty(handle, pin, 0);
 }
 
 // Instantiate the static VTable
 // Instantiate the static VTable
-static sys_io_vtable_t io_pca_vtable = {.io_set_pwm_duty = contract_io_pca9685_set_pwm_duty,
-    .io_set_pwm_frequency = contract_io_pca9685_set_pwm_frequency,
-    .io_set_level = contract_io_pca9685_set_level,
-    .io_get_level = contract_io_pca9685_get_level,
-    .io_toggle = contract_io_pca9685_toggle,
-    .io_reset = contract_io_pca9685_reset_pin,
-    .io_configure_intr = NULL,
-    .io_set_mode = NULL,
-    .io_get_voltage = NULL,
-    .io_set_voltage = NULL,
-    .protected_pins = 0};
+static const sys_io_contract_t s_pca9685_io_contract = {.set_pwm_duty = contract_io_pca9685_set_pwm_duty,
+    .set_pwm_frequency = contract_io_pca9685_set_pwm_frequency,
+    .set_level = contract_io_pca9685_set_level,
+    .get_level = contract_io_pca9685_get_level,
+    .toggle = contract_io_pca9685_toggle,
+    .reset = contract_io_pca9685_reset_pin,
+    .configure_intr = NULL,
+    .set_mode = NULL,
+    .get_voltage = NULL,
+    .set_voltage = NULL};
 
 // --- sys_device VTable Implementations ---
 // Doubles as the install rollback path: each step is gated on having actually
 // run, and no step may early-return - teardown must always free everything.
-static err_h device_uninstall(void* handle) {
+static SE_MUST_USE err_h device_uninstall(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(pca_adapter_ctx_t, pca9685_handle_t, ctx, hw, handle);
   err_h err = NULL;
 
   if (hw) {
-    pca9685_sleep(hw, true);
+    SYS_DEV_TEARDOWN_DRIVER_STEP(err, pca9685_sleep(hw, true), ctx);
   }
 
   // Disable outputs if OE pin was configured (set HIGH)
   IF_SYS_DEV_STEP_DONE(ctx, PCA_STEP_OE_READY) {
-    sys_io_unlock_pin(ctx->cfg.oe_pin);
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_unlock_pin(ctx->cfg.oe_pin));
     SYS_DEV_TEARDOWN_STEP(err, sys_io_set_level(ctx->cfg.oe_pin, true));
     SYS_DEV_TEARDOWN_STEP(err, sys_io_reset(ctx->cfg.oe_pin));
   }
@@ -140,7 +137,7 @@ static err_h device_uninstall(void* handle) {
   return err;
 }
 
-static err_h device_reset(void* handle) {
+static SE_MUST_USE err_h device_reset(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(pca_adapter_ctx_t, pca9685_handle_t, ctx, hw, handle);
 
   for (uint8_t i = 0; i < PCA9685_CHANNEL_ALL; i++) {
@@ -152,37 +149,35 @@ static err_h device_reset(void* handle) {
   return NULL;
 }
 
-static err_h device_suspend(void* handle) {
+// Fault safe state: every step runs even if an earlier one fails.
+static SE_MUST_USE err_h device_suspend(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(pca_adapter_ctx_t, pca9685_handle_t, ctx, hw, handle);
+  err_h err = NULL;
 
   if (sys_io_pin_is_valid(ctx->cfg.oe_pin)) {
-    SYS_IO_PIN_WITH_UNLOCKED(ctx->cfg.oe_pin) {
-      sys_io_set_level(ctx->cfg.oe_pin, true);
-    }
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_set_locked_level(ctx->cfg.oe_pin, true));
   }
 
-  SYS_DEV_CHECK_DRIVER_CALL(pca9685_sleep(hw, true), ctx);
+  SYS_DEV_TEARDOWN_DRIVER_STEP(err, pca9685_sleep(hw, true), ctx);
   ctx->base.is_frozen = true;
 
-  return NULL;
+  return err;
 }
 
-static err_h device_resume(void* handle) {
+static SE_MUST_USE err_h device_resume(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(pca_adapter_ctx_t, pca9685_handle_t, ctx, hw, handle);
 
-  pca9685_sleep(hw, false);
+  SYS_DEV_CHECK_DRIVER_CALL(pca9685_sleep(hw, false), ctx);
 
   if (sys_io_pin_is_valid(ctx->cfg.oe_pin)) {
-    SYS_IO_PIN_WITH_UNLOCKED(ctx->cfg.oe_pin) {
-      sys_io_set_level(ctx->cfg.oe_pin, false);
-    }
+    SYS_DEV_TRY(sys_io_set_locked_level(ctx->cfg.oe_pin, false), ctx);
   }
 
   ctx->base.is_frozen = false;
   return NULL;
 }
 
-static err_h device_freeze(void* handle) {
+static SE_MUST_USE err_h device_freeze(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(pca_adapter_ctx_t, pca9685_handle_t, ctx, hw, handle);
   IF_SYS_DEV_FROZEN(ctx) {
     return NULL;
@@ -193,7 +188,7 @@ static err_h device_freeze(void* handle) {
   return NULL;
 }
 
-static err_h device_sync(void* handle) {
+static SE_MUST_USE err_h device_sync(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(pca_adapter_ctx_t, pca9685_handle_t, ctx, hw, handle);
   SYS_DEV_CTX_UNFREEZE(ctx);
 
@@ -222,10 +217,8 @@ static err_h device_sync(void* handle) {
 // interpretation for it. Deliberately does NOT repeat SE_describe_payload()
 // here: sys_error_handler_task's own stack trace already prints that same
 // description for every node in the chain, including the root (it's always
-static err_h device_install(const void* cfg_blob, void** out_device_handle) {
+static SE_MUST_USE err_h device_install(const void* cfg_blob, void** out_device_handle) {
   const d_pca9685_cfg_t* cfg = (const d_pca9685_cfg_t*)cfg_blob;
-  SE_CHECK_NOT_NULL(cfg);
-  SE_CHECK_NOT_NULL(out_device_handle);
 
   SYS_DEV_CTX_NEW(pca_adapter_ctx_t, ctx, cfg);
   err_h err = NULL;
@@ -233,7 +226,7 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
   ctx->base.hw_handle = pca9685_new(ctx->cfg.i2c_addr, ctx->cfg.i2c_bus);
   if (!ctx->base.hw_handle) {
     free(ctx);
-    SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+    SE_FAIL(ERR_BASE_NO_MEM, 0);
   }
 
   pca9685_handle_t hw = (pca9685_handle_t)(ctx->base.hw_handle);
@@ -246,12 +239,11 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
 
   if (sys_io_pin_is_valid(ctx->cfg.oe_pin)) {
     SYS_DEV_INSTALL_STEP(sys_io_set_mode(ctx->cfg.oe_pin), "OE pin mode");
-    sys_io_set_level(ctx->cfg.oe_pin, false);  // OE is active low => outputs enabled
-    sys_io_lock_pin(ctx->cfg.oe_pin);
+    SYS_DEV_INSTALL_STEP(sys_io_set_level(ctx->cfg.oe_pin, false), "OE pin low");  // OE is active low => outputs enabled
+    SYS_DEV_INSTALL_STEP(sys_io_lock_pin(ctx->cfg.oe_pin), "oe pin lock");
     SYS_DEV_STEP_DONE(ctx, PCA_STEP_OE_READY);
   }
 
-  ESP_LOGI(TAG, "PCA9685 successfully installed as Device ID %d", ctx->cfg.device_id);
   *out_device_handle = ctx;
   return NULL;
 
@@ -263,7 +255,7 @@ fail:
 // The IO contract is declared here, not registered imperatively during install.
 static const sys_device_class_t s_pca9685_class = {
     .name = "PCA9685_PWM_EXPANDER",
-    .contracts = {[SYS_DEVICE_CONTRACT_IO] = (void*)&io_pca_vtable},
+    .contracts = {[SYS_DEVICE_CONTRACT_IO] = &s_pca9685_io_contract},
     .ops = {.install = device_install,
         .uninstall = device_uninstall,
         .reset = device_reset,

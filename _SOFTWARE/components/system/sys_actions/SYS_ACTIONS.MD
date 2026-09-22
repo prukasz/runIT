@@ -30,8 +30,8 @@ components/system/sys_actions/
 ├── sys_actions_static.c    # Default static action implementations
 └── include/
     ├── sys_actions.h        # API declarations, scopes (class byte is CONFIG_RX_PACKET_CLASS_SYS_ACTIONS, in components/utils/Kconfig)
-    ├── sys_actions_static.h # Built-in static action slot IDs
-    └── sys_error_actions.h  # sys_actions owner map + error tag map
+    └── sys_actions_static.h # Built-in static action slot IDs
+errors/sys_error_actions.h   # sys_actions owner map + error tag map (aggregated by sys_errors)
 ```
 
 ---
@@ -122,6 +122,6 @@ err_h sys_actions_invoke(uint8_t scope, uint8_t id);
 | `ERR_ACTION_NOT_FOUND` | `uint8_t action_id;` | `sys_actions_invoke()` on an unbound static ID or non-existent dynamic ID. |
 | `ERR_ACTION_RECORDING_BUSY` | `uint8_t action_id;` | `sys_action_record_start()` called while an action is already recording. |
 
-## Callback execution
+## Event execution
 
-`sys_actions_init()` registers `sys_actions_invoke()` as the callback action executor. After route handlers return, the callback worker invokes the nonzero dynamic action ID followed by the nonzero static action ID. Errors are reported independently; an error from the user action does not skip the system action. Driver own-function callbacks bypass action dispatch.
+runit registers `sys_actions_invoke()` as the event action executor (`sys_event_register_action_executor`, [[SYS_EVENT.MD]]). For each queued event subscription that names actions, the event task invokes the dynamic action (scope `0x01`), then the static action (scope `0x00`), even if the dynamic one failed. Errors are reported independently.

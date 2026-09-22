@@ -78,7 +78,7 @@
         },
         "intr_pin_mode": {
           "type": "uint8_t",
-          "ref": "sys_io_mode_e",
+          "enum_ref": "sys_io_mode_e",
           "group": "interrupt-pin",
           "role": "mode"
         },
@@ -95,7 +95,7 @@
         },
         "en_pin_mode": {
           "type": "uint8_t",
-          "ref": "sys_io_mode_e",
+          "enum_ref": "sys_io_mode_e",
           "group": "enable-pin",
           "role": "mode"
         }
@@ -122,7 +122,7 @@
   },
   "contracts": [
     {
-      "packet": "packet_sys_vreg_set_enable_t",
+      "packet": "packet_sys_power_vreg_set_enable_t",
       "parameters": [
         {
           "name": "device_id",
@@ -141,7 +141,7 @@
         "class_name": "SYS_CONTRACTS",
         "class_header": "0x01",
         "packet_header": "0x31",
-        "decoder": "decoder_packet_sys_vreg_set_enable_t()",
+        "decoder": "decoder_packet_sys_power_vreg_set_enable_t()",
         "field_order": [
           "device_id",
           "state"
@@ -161,7 +161,7 @@
       }
     },
     {
-      "packet": "packet_sys_vreg_set_voltage_t",
+      "packet": "packet_sys_power_vreg_set_voltage_t",
       "parameters": [
         {
           "name": "device_id",
@@ -181,7 +181,7 @@
         "class_name": "SYS_CONTRACTS",
         "class_header": "0x01",
         "packet_header": "0x32",
-        "decoder": "decoder_packet_sys_vreg_set_voltage_t()",
+        "decoder": "decoder_packet_sys_power_vreg_set_voltage_t()",
         "field_order": [
           "device_id",
           "voltage_mV"
@@ -202,7 +202,7 @@
       }
     },
     {
-      "packet": "packet_sys_vreg_set_current_t",
+      "packet": "packet_sys_power_vreg_set_current_t",
       "parameters": [
         {
           "name": "device_id",
@@ -222,7 +222,7 @@
         "class_name": "SYS_CONTRACTS",
         "class_header": "0x01",
         "packet_header": "0x33",
-        "decoder": "decoder_packet_sys_vreg_set_current_t()",
+        "decoder": "decoder_packet_sys_power_vreg_set_current_t()",
         "field_order": [
           "device_id",
           "current_mA"
@@ -238,110 +238,6 @@
             "alias": "Current Limit",
             "required": true,
             "unit": "mA"
-          }
-        }
-      }
-    },
-    {
-      "packet": "packet_sys_vreg_add_callback_t",
-      "parameters": [
-        {
-          "name": "device_id",
-          "alias": "Device ID",
-          "instance": true
-        },
-        {
-          "name": "on_event",
-          "one_of": [
-            {
-              "symbol": "SYS_PWR_EVENT_OCP_CRITICAL",
-              "enum": "sys_power_events_e",
-              "value": 5,
-              "alias": "Over-Current Critical",
-              "description": "Current draw exceeded the limit - output is protected/shut down"
-            },
-            {
-              "symbol": "SYS_PWR_EVENT_OCP_WARNING",
-              "enum": "sys_power_events_e",
-              "value": 4,
-              "alias": "Over-Current Warning",
-              "description": "Current draw is approaching the limit - not cut off yet, just a heads-up"
-            },
-            {
-              "symbol": "SYS_PWR_EVENT_OVP",
-              "enum": "sys_power_events_e",
-              "value": 1,
-              "alias": "Over-Voltage",
-              "description": "The voltage went above the safe limit"
-            },
-            {
-              "symbol": "SYS_PWR_EVENT_UVP",
-              "enum": "sys_power_events_e",
-              "value": 2,
-              "alias": "Under-Voltage",
-              "description": "The voltage dropped below the safe limit"
-            },
-            {
-              "symbol": "SYS_PWR_EVENT_OTP",
-              "enum": "sys_power_events_e",
-              "value": 6,
-              "alias": "Over-Temperature",
-              "description": "The device got too hot and triggered thermal protection"
-            }
-          ],
-          "ref": "sys_power_events_e",
-          "alias": "Alert Event"
-        },
-        {
-          "name": "route_mask",
-          "alias": "Alert Route Mask",
-          "type": "uint16_t"
-        }
-      ],
-      "alias": "Configure power alert",
-      "description": "Fires when the output regulator trips a protection event (over-voltage, over-current, etc).",
-      "packet_definition": {
-        "source_file": "dec_sys_contracts.h",
-        "class_name": "SYS_CONTRACTS",
-        "class_header": "0x01",
-        "packet_header": "0x3A",
-        "decoder": "decoder_packet_sys_vreg_add_callback_t()",
-        "field_order": [
-          "device_id",
-          "on_event",
-          "route_mask",
-          "static_action_id",
-          "dynamic_action_id"
-        ],
-        "fields": {
-          "device_id": {
-            "type": "uint8_t",
-            "alias": "Device ID",
-            "required": true
-          },
-          "on_event": {
-            "type": "uint8_t",
-            "alias": "Event",
-            "required": true,
-            "ref": "sys_power_events_e"
-          },
-          "route_mask": {
-            "type": "uint16_t",
-            "alias": "Route Mask",
-            "required": true,
-            "note": "bitmask"
-          },
-          "static_action_id": {
-            "type": "uint8_t",
-            "alias": "Static Action ID",
-            "required": false,
-            "sentinel": 0
-          },
-          "dynamic_action_id": {
-            "type": "uint8_t",
-            "alias": "Dynamic Action ID",
-            "required": false,
-            "sentinel": 0
           }
         }
       }

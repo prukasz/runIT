@@ -2,19 +2,19 @@
 #include "vm_obj_access.h"
 
 /* Shared object engines for the block permission boundary. Not consumer APIs. */
-err_h vm_internal_obj_writable(vm_obj_h obj, bool user);
-err_h vm_internal_obj_resolve(const vm_accessor_t* acc, vm_obj_payload_t* out);
-err_h vm_internal_acc_resolve_deep(const vm_accessor_t* acc, uint8_t depth, vm_obj_payload_t* out);
-err_h vm_internal_obj_copy_content(const vm_accessor_t* source, const vm_accessor_t* target, bool user);
-err_h vm_internal_obj_copy_direct(vm_obj_h src, vm_obj_h dst, bool user);
-err_h vm_internal_obj_clone_into(const vm_accessor_t* source, const vm_accessor_t* target, bool user);
-err_h vm_internal_obj_link(const vm_accessor_t* child, const vm_accessor_t* target, bool user);
-err_h vm_internal_obj_set_scalar_at(const vm_accessor_t* target, uint32_t index, vm_val_t v, vm_obj_t_e type, bool user);
+SE_MUST_USE err_h vm_internal_obj_writable(vm_obj_h obj, bool user);
+SE_MUST_USE err_h vm_internal_obj_resolve(const vm_accessor_t* acc, vm_obj_payload_t* out);
+SE_MUST_USE err_h vm_internal_acc_resolve_deep(const vm_accessor_t* acc, uint8_t depth, vm_obj_payload_t* out);
+SE_MUST_USE err_h vm_internal_obj_copy_content(const vm_accessor_t* source, const vm_accessor_t* target, bool user);
+SE_MUST_USE err_h vm_internal_obj_copy_direct(vm_obj_h src, vm_obj_h dst, bool user);
+SE_MUST_USE err_h vm_internal_obj_clone_into(const vm_accessor_t* source, const vm_accessor_t* target, bool user);
+SE_MUST_USE err_h vm_internal_obj_link(const vm_accessor_t* child, const vm_accessor_t* target, bool user);
+SE_MUST_USE err_h vm_internal_obj_set_scalar_at(const vm_accessor_t* target, uint32_t index, vm_val_t v, vm_obj_t_e type, bool user);
 
 /* Internal tree comparison, clone, and slot manipulation engines */
 bool  vm_internal_shape_matches(vm_obj_h a, vm_obj_h b, uint8_t depth, bool schema);
-err_h vm_internal_clone_shape(vm_obj_h* out, vm_obj_h src, uint8_t depth);
-err_h slot_store(vm_obj_h owner, vm_obj_h* cell, vm_obj_h child);
+SE_MUST_USE err_h vm_internal_clone_shape(vm_obj_h* out, vm_obj_h src, uint8_t depth);
+SE_MUST_USE err_h slot_store(vm_obj_h owner, vm_obj_h* cell, vm_obj_h child);
 
 static __always_inline err_h vm_internal_obj_mark_updated(vm_obj_h obj, bool user) {
   err_h e = vm_internal_obj_writable(obj, user);
@@ -66,7 +66,7 @@ char     vm_get_as_char(vm_obj_t_e type, const void* src);
 bool     vm_get_as_bool(vm_obj_t_e type, const void* src);
 
 /* Errors are returned, never emitted here: the top caller owns reporting. */
-err_h vm_internal_scalar_payload_check(vm_obj_payload_t p, vm_obj_h owner, uint16_t id);
+SE_MUST_USE err_h vm_internal_scalar_payload_check(vm_obj_payload_t p, vm_obj_h owner, uint16_t id);
 
 static __always_inline err_h vm_internal_resolve_payload(const vm_accessor_t* acc, vm_obj_payload_t* out) {
   if (likely(vm_acc_resolve_fast(acc, out))) return NULL;
@@ -103,7 +103,7 @@ static __always_inline err_h vm_internal_get_scalar_slot(const vm_accessor_t* ac
 
 // --- Internal Store Helpers ---
 
-err_h vm_internal_store_converted(vm_obj_h owner, vm_obj_payload_t slot, vm_val_t v, vm_obj_t_e src_type, uint16_t err_id);
+SE_MUST_USE err_h vm_internal_store_converted(vm_obj_h owner, vm_obj_payload_t slot, vm_val_t v, vm_obj_t_e src_type, uint16_t err_id);
 
 static __always_inline err_h vm_internal_store_inline(vm_obj_h owner, vm_obj_payload_t slot, vm_val_t v, vm_obj_t_e src_type, uint16_t err_id) {
   if (unlikely(!owner || !owner->head.f.mutable)) return vm_obj_not_mutable_err(owner);

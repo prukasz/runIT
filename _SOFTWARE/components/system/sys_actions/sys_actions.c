@@ -1,11 +1,8 @@
 #include "sys_actions.h"
-#include "sys_callbacks.h"
 #include <nvs.h>
 #include <nvs_flash.h>
 #include <sdkconfig.h>
-#include "dec_sys_actions.h"
 #include "sys_actions_static.h"
-#include "sys_error_hooks.h"
 #include "sys_interface.h"
 #include "utils.h"
 
@@ -56,7 +53,7 @@ static bool          s_has_recording = false;
  * @param out_found Receives whether the NVS key existed.
  * @return NULL on success, otherwise an error handle.
  */
-static err_h nvs_load_action(uint8_t action_id, sys_action_t** out, bool* out_found) {
+static SE_MUST_USE err_h nvs_load_action(uint8_t action_id, sys_action_t** out, bool* out_found) {
   char key[16];
   action_make_nvs_key(action_id, key, sizeof(key));
 
@@ -71,7 +68,7 @@ static err_h nvs_load_action(uint8_t action_id, sys_action_t** out, bool* out_fo
     return NULL;
   }
   if (rc != ESP_OK) {
-    SE_RET_ERR(ERR_ESP_ERR, .esp_code = rc);
+    SE_FAIL(ERR_ESP_ERR, .esp_code = rc);
   }
 
   if (needed > CONFIG_SYS_ACTIONS_MAX_BLOB_SIZE) {
@@ -85,7 +82,7 @@ static err_h nvs_load_action(uint8_t action_id, sys_action_t** out, bool* out_fo
     rc = nvs_get_blob(s_nvs, key, a->blob, &needed);
     if (rc != ESP_OK) {
       free(a);
-      SE_RET_ERR(ERR_ESP_ERR, .esp_code = rc);
+      SE_FAIL(ERR_ESP_ERR, .esp_code = rc);
     }
   }
   *out       = a;
@@ -93,24 +90,24 @@ static err_h nvs_load_action(uint8_t action_id, sys_action_t** out, bool* out_fo
   return NULL;
 }
 
-static err_h nvs_save_action(uint8_t action_id, const sys_action_t* a) {
+static SE_MUST_USE err_h nvs_save_action(uint8_t action_id, const sys_action_t* a) {
   char key[16];
   action_make_nvs_key(action_id, key, sizeof(key));
   size_t save_size = a->blob_size;
   if (save_size > CONFIG_SYS_ACTIONS_MAX_BLOB_SIZE) {
     save_size = CONFIG_SYS_ACTIONS_MAX_BLOB_SIZE;
   }
-  SE_RET_IF_ESP_ERR(nvs_set_blob(s_nvs, key, a->blob, save_size));
-  SE_RET_IF_ESP_ERR(nvs_commit(s_nvs));
+  SE_TRY_ESP(nvs_set_blob(s_nvs, key, a->blob, save_size));
+  SE_TRY_ESP(nvs_commit(s_nvs));
   return NULL;
 }
 
-static err_h nvs_erase(const char* key) {
+static SE_MUST_USE err_h nvs_erase(const char* key) {
   esp_err_t rc = nvs_erase_key(s_nvs, key);
   if (rc != ESP_OK && rc != ESP_ERR_NVS_NOT_FOUND) {
-    SE_RET_ERR(ERR_ESP_ERR, .esp_code = rc);
+    SE_FAIL(ERR_ESP_ERR, .esp_code = rc);
   }
-  SE_RET_IF_ESP_ERR(nvs_commit(s_nvs));
+  SE_TRY_ESP(nvs_commit(s_nvs));
   return NULL;
 }
 
@@ -125,13 +122,13 @@ static err_h nvs_erase(const char* key) {
  * @param len Frame length in bytes.
  * @return NULL on success, otherwise an error handle.
  */
-static err_h grow_and_append(sys_action_t** io_action, const uint8_t* frame, size_t len) {
+static SE_MUST_USE err_h grow_and_append(sys_action_t** io_action, const uint8_t* frame, size_t len) {
   sys_action_t* a        = *io_action;
   size_t        old_size = a ? a->blob_size : 0;
   size_t        need     = sizeof(uint16_t) + len;
 
   if (old_size + need > CONFIG_SYS_ACTIONS_MAX_BLOB_SIZE) {
-    SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+    SE_FAIL(ERR_BASE_NO_MEM, 0);
   }
 
   sys_action_t* bigger = realloc(a, sizeof(sys_action_t) + old_size + need);
@@ -184,7 +181,7 @@ static void sys_actions_tap_task(void* arg) {
     R_MUTEX_UNLOCK(s_actions_mutex);
 
     if (SE_IS_ERR(err)) {
-      SE_ORIGIN_CALL(err);
+      SE_REPORT(err);
       continue;
     }
     if (len == 0) {
@@ -195,19 +192,17 @@ static void sys_actions_tap_task(void* arg) {
 }
 
 err_h sys_actions_init(void) {
-  SE_RET_IF_ESP_ERR(nvs_flash_init());
-  SE_RET_IF_ESP_ERR(nvs_open(SYS_ACTIONS_NVS_NAMESPACE, NVS_READWRITE, &s_nvs));
+  SE_TRY_ESP(nvs_flash_init());
+  SE_TRY_ESP(nvs_open(SYS_ACTIONS_NVS_NAMESPACE, NVS_READWRITE, &s_nvs));
 
-  SE_RET_IF_ERR(sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_SYS_ACTIONS, dec_sys_actions_decode, "sys_actions"));
   if (s_actions_tap_task_handle == NULL) {
     R_TASK_START(s_actions_tap_task_handle, sys_actions_tap_task, NULL, CONFIG_SYS_ACTIONS_TAP_TASK_PRIO);
     if (s_actions_tap_task_handle == NULL) {
-      SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+      SE_FAIL(ERR_BASE_NO_MEM, 0);
     }
   }
 
   sys_actions_register_static();
-  sys_cb_register_action_executor(sys_actions_invoke);
 
   DBG(ESP_LOGI(TAG, "sys_actions initialized"));
   return NULL;
@@ -223,7 +218,7 @@ err_h sys_action_remove(uint8_t id) {
   SE_CHECK_IN_RANGE(id, 1, UINT8_MAX);
   char key[16];
   action_make_nvs_key(id, key, sizeof(key));
-  SE_RET_IF_ERR(nvs_erase(key));
+  SE_TRY(nvs_erase(key));
   DBG(ESP_LOGI(TAG, "removed dynamic action %u", id));
   return NULL;
 }
@@ -245,11 +240,11 @@ err_h sys_action_remove_all(void) {
     nvs_release_iterator(it);
 
     if (rc != ESP_OK && rc != ESP_ERR_NVS_NOT_FOUND) {
-      SE_RET_ERR(ERR_ESP_ERR, .esp_code = rc);
+      SE_FAIL(ERR_ESP_ERR, .esp_code = rc);
     }
     if (!have_target) break;
 
-    SE_RET_IF_ERR(nvs_erase(key));
+    SE_TRY(nvs_erase(key));
   }
 
   DBG(ESP_LOGI(TAG, "removed all dynamic actions"));
@@ -262,18 +257,18 @@ err_h sys_action_record_start(uint8_t id) {
   bool busy = s_has_recording;
   R_MUTEX_UNLOCK(s_actions_mutex);
   if (busy) {
-    SE_RET_ERR(ERR_ACTION_RECORDING_BUSY, id);
+    SE_FAIL(ERR_ACTION_RECORDING_BUSY, id);
   }
 
   sys_action_t* a     = NULL;
   bool          found = false;
-  SE_RET_IF_ERR(nvs_load_action(id, &a, &found));
+  SE_TRY(nvs_load_action(id, &a, &found));
 
   R_MUTEX_LOCK(s_actions_mutex, WAIT_FOREVER);
   if (s_has_recording) {
     R_MUTEX_UNLOCK(s_actions_mutex);
     free(a);
-    SE_RET_ERR(ERR_ACTION_RECORDING_BUSY, id);
+    SE_FAIL(ERR_ACTION_RECORDING_BUSY, id);
   }
   s_recording     = a;
   s_recording_id  = id;
@@ -323,7 +318,7 @@ err_h sys_action_record_stop(void) {
 
   err_h err = nvs_save_action(id, a);
   free(a);
-  SE_RET_IF_ERR(err);
+  SE_TRY(err);
   return NULL;
 }
 
@@ -331,7 +326,7 @@ err_h sys_actions_invoke(uint8_t scope, uint8_t id) {
   SE_CHECK_IN_RANGE(id, 1, UINT8_MAX);
   if (scope == SYS_ACTION_SCOPE_STATIC) {
     if (id >= CONFIG_SYS_ACTIONS_STATIC_SLOTS || s_static_funcs[id] == NULL) {
-      SE_RET_ERR(ERR_ACTION_NOT_FOUND, id);
+      SE_FAIL(ERR_ACTION_NOT_FOUND, id);
     }
     return s_static_funcs[id]();
   }
@@ -339,11 +334,11 @@ err_h sys_actions_invoke(uint8_t scope, uint8_t id) {
   if (scope == SYS_ACTION_SCOPE_DYNAMIC) {
     sys_action_t* a     = NULL;
     bool          found = false;
-    SE_RET_IF_ERR(nvs_load_action(id, &a, &found));
+    SE_TRY(nvs_load_action(id, &a, &found));
 
     if (!found) {
       free(a);
-      SE_RET_ERR(ERR_ACTION_NOT_FOUND, id);
+      SE_FAIL(ERR_ACTION_NOT_FOUND, id);
     }
 
     DBG(ESP_LOGI(TAG, "invoking dynamic action %u (%u bytes)", id, (unsigned)a->blob_size));
@@ -365,15 +360,15 @@ err_h sys_actions_invoke(uint8_t scope, uint8_t id) {
     sys_interface_resume_rx();
     free(a);
 
-    SE_RET_IF_ERR(err);
+    SE_TRY(err);
     return NULL;
   }
-  SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = scope, .min = SYS_ACTION_SCOPE_STATIC, .max = SYS_ACTION_SCOPE_DYNAMIC);
+  SE_FAIL(ERR_INVALID_VAL_UI32, .val = scope, .min = SYS_ACTION_SCOPE_STATIC, .max = SYS_ACTION_SCOPE_DYNAMIC);
 }
 
-__attribute__((weak)) err_h sys_actions_handle_fault(err_h node, err_h chain) {
+err_h sys_actions_handle_fault(err_h node, err_h chain) {
   (void)chain;
-  if (!node || SE_get_tag_level(node->tag) != SYS_DEV_ERR_CRITICAL) {
+  if (!node || SE_get_tag_level(node->tag) != SE_LEVEL_CRITICAL) {
     return NULL;
   }
   // Severe actions fault: abort any active recording to prevent corrupted persistence

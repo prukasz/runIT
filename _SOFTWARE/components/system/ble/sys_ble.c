@@ -7,17 +7,6 @@ sys_ble_ctx_t g_ble_ctx = {.mtu_size = 527};
 R_MUTEX_DEFINE(sys_ble_mutex);
 R_BINARY_SEM_DEFINE(sys_ble_tx_sem);
 
-// Dummy callback-event handler for CONFIG_SYS_CB_ROUTE_BLE - logs and nothing else,
-// a placeholder until ble has something real to route BLE stack events to.
-static void sys_ble_cb_dummy_log(const cb_event_t* event) {
-  if (event->head.callback_type != CALLBACK_BLE) return;
-  ESP_LOGI(TAG, "BLE event: event %lu, val %ld", (unsigned long)event->event.ble.event, (long)event->event.ble.value);
-}
-
-__attribute__((constructor)) static void sys_ble_cb_route_register(void) {
-  SE_release(sys_cb_register_route(CONFIG_SYS_CB_ROUTE_BLE, sys_ble_cb_dummy_log));
-}
-
 /*****************************************************************************************/
 /* Helper Data Structure Management                                                      */
 /*****************************************************************************************/
@@ -45,6 +34,7 @@ static void sys_ble_free_char_node(sys_ble_char_node_t* c) {
   if (!c) return;
   SE_release(sys_buff_free(&c->rx_buff));
   SE_release(sys_buff_free(&c->tx_buff));
+  free(c->desc);
   free(c);
 }
 
@@ -59,13 +49,13 @@ err_h sys_ble_service_create(const sys_ble_svc_cfg_t* cfg) {
 
   if (sys_ble_find_svc_by_uuid(cfg->uuid)) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
-    SE_RET_ERR(ERR_DEV_ALREADY_EXIST, cfg->uuid);
+    SE_FAIL(ERR_DEV_ALREADY_EXIST, cfg->uuid);
   }
 
   sys_ble_svc_node_t* new_svc = calloc(1, sizeof(sys_ble_svc_node_t));
   if (!new_svc) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
-    SE_RET_ERR(ERR_BASE_NO_MEM, cfg->uuid);
+    SE_FAIL(ERR_BASE_NO_MEM, cfg->uuid);
   }
 
   new_svc->cfg = *cfg;
@@ -97,7 +87,7 @@ err_h sys_ble_service_remove(uint16_t svc_uuid) {
     if (rc != 0) {
       ESP_LOGE(TAG, "Failed to delete service 0x%04X from NimBLE: %d", svc_uuid, rc);
       R_MUTEX_UNLOCK(sys_ble_mutex);
-      SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, rc);
+      SE_FAIL(ERR_BASE_NOT_SUPPORTED, rc);
     }
   }
 
@@ -129,27 +119,36 @@ err_h sys_ble_char_create(uint16_t svc_uuid, const sys_ble_char_cfg_t* cfg) {
     svc = calloc(1, sizeof(*svc));
     if (!svc) {
       R_MUTEX_UNLOCK(sys_ble_mutex);
-      SE_RET_ERR(ERR_BASE_NO_MEM, svc_uuid);
+      SE_FAIL(ERR_BASE_NO_MEM, svc_uuid);
     }
     svc->cfg = (sys_ble_svc_cfg_t){.uuid = svc_uuid, .is_primary = true};
     LL_APPEND(g_ble_ctx.services, svc);
   }
   if (!svc) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
-    SE_RET_ERR(ERR_BASE_NOT_FOUND, svc_uuid);
+    SE_FAIL(ERR_BASE_NOT_FOUND, svc_uuid);
   }
 
   if (sys_ble_find_char_by_uuid(cfg->uuid)) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
-    SE_RET_ERR(ERR_DEV_ALREADY_EXIST, cfg->uuid);
+    SE_FAIL(ERR_DEV_ALREADY_EXIST, cfg->uuid);
   }
 
   sys_ble_char_node_t* new_char = calloc(1, sizeof(*new_char));
   if (!new_char) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
-    SE_RET_ERR(ERR_BASE_NO_MEM, cfg->uuid);
+    SE_FAIL(ERR_BASE_NO_MEM, cfg->uuid);
   }
   new_char->cfg = *cfg;
+  if (cfg->desc) {
+    new_char->desc = strdup(cfg->desc);
+    if (!new_char->desc) {
+      free(new_char);
+      R_MUTEX_UNLOCK(sys_ble_mutex);
+      SE_FAIL(ERR_BASE_NO_MEM, cfg->uuid);
+    }
+    new_char->cfg.desc = new_char->desc;
+  }
 
   err_h err = NULL;
   if (cfg->rx_buffer_size > 0) {
@@ -187,7 +186,7 @@ err_h sys_ble_char_remove(uint16_t svc_uuid, uint16_t char_uuid) {
   }
   if (!target) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
-    SE_RET_ERR(ERR_BASE_NOT_FOUND, char_uuid);
+    SE_FAIL(ERR_BASE_NOT_FOUND, char_uuid);
   }
 
   if (svc->registered) {
@@ -215,7 +214,7 @@ err_h sys_ble_char_check_rx_enabled(uint16_t char_uuid) {
 
   if (c->pending_remove || !c->rx_buff.buff) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
-    SE_RET_ERR(ERR_BASE_INVALID_STATE, char_uuid);
+    SE_FAIL(ERR_BASE_INVALID_STATE, char_uuid);
   }
 
   R_MUTEX_UNLOCK(sys_ble_mutex);
@@ -234,7 +233,7 @@ err_h sys_ble_char_rx_dequeue(uint16_t char_uuid, uint8_t* buffer, size_t max_le
 
   if (c->pending_remove || !c->rx_buff.buff) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
-    SE_RET_ERR(ERR_BASE_INVALID_STATE, char_uuid);
+    SE_FAIL(ERR_BASE_INVALID_STATE, char_uuid);
   }
   err_h pop_res = sys_buff_pop(&c->rx_buff, buffer, max_len, out_len);
   R_MUTEX_UNLOCK(sys_ble_mutex);
@@ -252,8 +251,8 @@ err_h sys_ble_char_rx_dequeue(uint16_t char_uuid, uint8_t* buffer, size_t max_le
 #undef OWNER
 
 #define OWNER OWNER_SYS_BLE_BASE
-err_h sys_ble_char_link_connector(uint16_t char_uuid, sys_data_connector_t* conn) {
-  SE_CHECK_NOT_NULL(conn);
+err_h sys_ble_char_link_rx_wake(uint16_t char_uuid, sys_ble_rx_wake_f wake, void* ctx) {
+  SE_CHECK_NOT_NULL(wake);
   R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
 
   sys_ble_char_node_t* c = NULL;
@@ -261,43 +260,47 @@ err_h sys_ble_char_link_connector(uint16_t char_uuid, sys_data_connector_t* conn
 
   if (c->pending_remove || !c->rx_buff.buff) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
-    SE_RET_ERR(ERR_BASE_INVALID_STATE, char_uuid);
+    SE_FAIL(ERR_BASE_INVALID_STATE, char_uuid);
   }
 
-  for (uint8_t i = 0; i < c->linked_connector_count; i++) {
-    if (c->linked_connectors[i] == conn) {
+  for (uint8_t i = 0; i < c->rx_wake_count; i++) {
+    if (c->rx_wakes[i].wake == wake && c->rx_wakes[i].ctx == ctx) {
       R_MUTEX_UNLOCK(sys_ble_mutex);
       return NULL; // Already linked
     }
   }
 
-  if (c->linked_connector_count >= CONFIG_SYS_BLE_MAX_LINKED_CONNECTORS) {
+  if (c->rx_wake_count >= CONFIG_SYS_BLE_MAX_LINKED_CONNECTORS) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
-    SE_RET_ERR(ERR_BASE_NO_MEM, char_uuid);
+    SE_FAIL(ERR_BASE_NO_MEM, char_uuid);
   }
 
-  c->linked_connectors[c->linked_connector_count++] = conn;
+  c->rx_wakes[c->rx_wake_count].wake = wake;
+  c->rx_wakes[c->rx_wake_count].ctx = ctx;
+  c->rx_wake_count++;
   R_MUTEX_UNLOCK(sys_ble_mutex);
 
-  ESP_LOGI(TAG, "Linked connector %s to characteristic UUID 0x%04X", conn->name, char_uuid);
+  ESP_LOGI(TAG, "Linked RX wake to characteristic UUID 0x%04X", char_uuid);
   return NULL;
 }
 
-err_h sys_ble_char_unlink_connector(uint16_t char_uuid, sys_data_connector_t* conn) {
-  SE_CHECK_NOT_NULL(conn);
+err_h sys_ble_char_unlink_rx_wake(uint16_t char_uuid, sys_ble_rx_wake_f wake, void* ctx) {
+  SE_CHECK_NOT_NULL(wake);
   R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
 
   sys_ble_char_node_t* c = NULL;
   CHECK_BLE_CHAR_FIND(c, char_uuid, true);
 
-  for (uint8_t i = 0; i < c->linked_connector_count; i++) {
-    if (c->linked_connectors[i] == conn) {
-      for (uint8_t j = i; j + 1 < c->linked_connector_count; j++) {
-        c->linked_connectors[j] = c->linked_connectors[j + 1];
+  for (uint8_t i = 0; i < c->rx_wake_count; i++) {
+    if (c->rx_wakes[i].wake == wake && c->rx_wakes[i].ctx == ctx) {
+      for (uint8_t j = i; j + 1 < c->rx_wake_count; j++) {
+        c->rx_wakes[j] = c->rx_wakes[j + 1];
       }
-      c->linked_connectors[--c->linked_connector_count] = NULL;
+      c->rx_wake_count--;
+      c->rx_wakes[c->rx_wake_count].wake = NULL;
+      c->rx_wakes[c->rx_wake_count].ctx = NULL;
       R_MUTEX_UNLOCK(sys_ble_mutex);
-      ESP_LOGI(TAG, "Unlinked connector %s from characteristic UUID 0x%04X", conn->name, char_uuid);
+      ESP_LOGI(TAG, "Unlinked RX wake from characteristic UUID 0x%04X", char_uuid);
       return NULL;
     }
   }
@@ -310,7 +313,7 @@ err_h sys_ble_char_unlink_connector(uint16_t char_uuid, sys_data_connector_t* co
 #define OWNER OWNER_SYS_BLE_RX_INJECT
 err_h sys_ble_rx_enqueue(sys_ble_char_node_t* c, const uint8_t* data, size_t len) {
   if (c->pending_remove || !c->rx_buff.buff) {
-    SE_RET_ERR(ERR_BASE_INVALID_STATE, c->cfg.uuid);
+    SE_FAIL(ERR_BASE_INVALID_STATE, c->cfg.uuid);
   }
 
   err_h push_err = sys_buff_push(&c->rx_buff, data, len, 0);
@@ -319,10 +322,8 @@ err_h sys_ble_rx_enqueue(sys_ble_char_node_t* c, const uint8_t* data, size_t len
     return push_err;
   }
 
-  for (uint8_t i = 0; i < c->linked_connector_count; i++) {
-    if (c->linked_connectors[i] && c->linked_connectors[i]->data_present) {
-      xSemaphoreGive(c->linked_connectors[i]->data_present);
-    }
+  for (uint8_t i = 0; i < c->rx_wake_count; i++) {
+    c->rx_wakes[i].wake(c->rx_wakes[i].ctx);
   }
 
   return NULL;
@@ -358,14 +359,14 @@ err_h sys_ble_char_send(uint16_t char_uuid, const uint8_t* data, size_t len, boo
 
   if (c->pending_remove || !c->tx_buff.buff) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
-    SE_RET_ERR(ERR_BASE_INVALID_STATE, char_uuid);
+    SE_FAIL(ERR_BASE_INVALID_STATE, char_uuid);
   }
 
   sys_buff_t* buff = &c->tx_buff;
   R_MUTEX_UNLOCK(sys_ble_mutex);
 
   uint32_t wait_time_ms = return_when_full ? 0 : 100;
-  SE_RET_IF_ERR(sys_buff_push(buff, data, len, wait_time_ms));
+  SE_TRY(sys_buff_push(buff, data, len, wait_time_ms));
 
   xSemaphoreGive(sys_ble_tx_sem);
   return NULL;
@@ -383,7 +384,7 @@ static void sys_ble_svc_mark_registered(sys_ble_svc_node_t* s) {
   }
 }
 
-static err_h sys_ble_svc_sync(sys_ble_svc_node_t* s) {
+static SE_MUST_USE err_h sys_ble_svc_sync(sys_ble_svc_node_t* s) {
   if (s->registered && !s->dirty) return NULL;
 
   if (s->registered) {
@@ -391,7 +392,7 @@ static err_h sys_ble_svc_sync(sys_ble_svc_node_t* s) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
     int rc = ble_gatts_delete_svc(&uuid.u);
     R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
-    if (rc != 0) SE_RET_ERR(ERR_BLE_GATT_FAILED, rc);
+    if (rc != 0) SE_FAIL(ERR_BLE_GATT_FAILED, rc);
 
     s->registered = false; /* A failed compile/add is retried on the next sync. */
     sys_ble_free_compiled_gatt_db(s->compiled_def);
@@ -409,7 +410,7 @@ static err_h sys_ble_svc_sync(sys_ble_svc_node_t* s) {
   }
 
   struct ble_gatt_svc_def* svcs = calloc(2, sizeof(*svcs));
-  if (!svcs) SE_RET_ERR(ERR_BASE_NO_MEM, s->cfg.uuid);
+  if (!svcs) SE_FAIL(ERR_BASE_NO_MEM, s->cfg.uuid);
   err_h err = populate_svc_def(&svcs[0], s);
   if (SE_IS_ERR(err)) {
     sys_ble_free_compiled_gatt_db(svcs);
@@ -421,7 +422,7 @@ static err_h sys_ble_svc_sync(sys_ble_svc_node_t* s) {
   R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
   if (rc != 0) {
     sys_ble_free_compiled_gatt_db(svcs);
-    SE_RET_ERR(ERR_BLE_GATT_FAILED, rc);
+    SE_FAIL(ERR_BLE_GATT_FAILED, rc);
   }
 
   s->compiled_def = svcs;
@@ -430,7 +431,7 @@ static err_h sys_ble_svc_sync(sys_ble_svc_node_t* s) {
   return NULL;
 }
 
-static err_h sys_ble_database_start(void) {
+static SE_MUST_USE err_h sys_ble_database_start(void) {
   size_t count = 0;
   sys_ble_svc_node_t* s;
   LL_FOREACH(g_ble_ctx.services, s) {
@@ -438,7 +439,7 @@ static err_h sys_ble_database_start(void) {
   }
 
   struct ble_gatt_svc_def* svcs = calloc(count + 1, sizeof(*svcs));
-  if (!svcs) SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+  if (!svcs) SE_FAIL(ERR_BASE_NO_MEM, 0);
   size_t idx = 0;
   err_h err = NULL;
   LL_FOREACH(g_ble_ctx.services, s) {

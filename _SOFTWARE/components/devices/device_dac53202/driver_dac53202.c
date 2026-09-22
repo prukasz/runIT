@@ -1,12 +1,7 @@
 #include "driver_dac53202.h"
 #include <string.h>
 #include <stdlib.h>
-#include "esp_log.h"
 
-static const char* TAG = __FILE_NAME__;
-
-#undef OWNER
-#define OWNER OWNER_DRIVER_DAC53202
 
 #define DAC53202_REG_COMMON_CONFIG  0x01
 #define DAC53202_REG_DAC_CH0_DATA   0x1C
@@ -24,7 +19,6 @@ dac53202_handle_t dac53202_new(uint8_t i2c_address, bool i2c_bus_num)
 {
   dac53202_handle_t handle = calloc(1, sizeof(_dac53202_data_t));
   if (!handle) {
-    ESP_LOGE(TAG, "Failed to allocate memory for DAC53202 handle");
     return NULL;
   }
 
@@ -68,27 +62,27 @@ esp_err_t dac53202_set_voltage_raw(dac53202_handle_t handle, uint8_t channel_mas
   return ESP_OK;
 }
 
-esp_err_t dac53202_set_voltage_mv(dac53202_handle_t handle, uint8_t channel_mask, uint16_t voltage_mv)
+esp_err_t dac53202_set_voltage_mV(dac53202_handle_t handle, uint8_t channel_mask, uint16_t voltage_mV)
 {
   CHECK_DRV_HANDLE(handle);
   
-  if (voltage_mv > DAC53202_VREF_MV) {
-    voltage_mv = DAC53202_VREF_MV;
+  if (voltage_mV > DAC53202_VREF_MV) {
+    voltage_mV = DAC53202_VREF_MV;
   }
 
-  uint32_t raw_value_12bit = ((uint32_t)voltage_mv * 4095) / DAC53202_VREF_MV;
+  uint32_t raw_value_12bit = ((uint32_t)voltage_mV * 4095) / DAC53202_VREF_MV;
   uint16_t reg_formatted_val = (uint16_t)(raw_value_12bit << 4);
 
   return dac53202_set_voltage_raw(handle, channel_mask, reg_formatted_val);
 }
 
-esp_err_t dac53202_get_voltage_mv(dac53202_handle_t handle, uint8_t channel, uint16_t *voltage_mv)
+esp_err_t dac53202_get_voltage_mV(dac53202_handle_t handle, uint8_t channel, uint16_t *voltage_mV)
 {
   CHECK_DRV_HANDLE(handle);
-  CHECK_DRV_HANDLE(voltage_mv);
+  CHECK_DRV_HANDLE(voltage_mV);
   if (channel > 1) return ESP_ERR_INVALID_ARG;
 
   uint16_t raw_value_12bit = handle->channel_raw_value[channel] >> 4;
-  *voltage_mv = (uint16_t)(((uint32_t)raw_value_12bit * DAC53202_VREF_MV) / 4095);
+  *voltage_mV = (uint16_t)(((uint32_t)raw_value_12bit * DAC53202_VREF_MV) / 4095);
   return ESP_OK;
 }

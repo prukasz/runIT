@@ -1,30 +1,32 @@
 #pragma once
-
+#include <stdbool.h>
 #include "sys_error.h"
 
 // -----------------------------------------------------------------------------
-// Domain Error Hooks (Weak Declarations)
+// Fault hooks and device routing, registered at boot by the application
+// (runit_error_wiring_init). sys_errors knows no module above it: anything it
+// calls up is a registered function. An unregistered hook is skipped.
 //
-// These weak hooks allow domain components to register custom error/fault
-// handlers without creating tight coupling or circular dependencies.
-// If a component does not provide an implementation, the linker sets the symbol
-// to NULL and the dispatcher safely bypasses it.
+// Hooks borrow node/chain and return an owned response failure, or NULL. They
+// must not retain the chain.
 // -----------------------------------------------------------------------------
 
-extern err_h sys_device_report_error_with_level(uint8_t device_id, sys_device_err_level_e level, err_h error) __attribute__((weak));
-extern bool sys_device_is_ignored(uint8_t device_id) __attribute__((weak));
+typedef err_h (*se_fault_hook_f)(err_h node, err_h chain);
+typedef err_h (*se_device_report_f)(uint8_t device_id, se_level_e level, err_h error);
+typedef bool (*se_device_ignored_f)(uint8_t device_id);
 
-extern err_h sys_i2c_handle_fault(err_h node, err_h chain) __attribute__((weak));
-extern err_h sys_io_handle_fault(err_h node, err_h chain) __attribute__((weak));
-extern err_h sys_power_handle_fault(err_h node, err_h chain) __attribute__((weak));
-extern err_h sys_ble_handle_fault(err_h node, err_h chain) __attribute__((weak));
-extern err_h sys_interface_handle_fault(err_h node, err_h chain) __attribute__((weak));
-extern err_h sys_buffers_handle_fault(err_h node, err_h chain) __attribute__((weak));
-extern err_h sys_errors_handle_fault(err_h node, err_h chain) __attribute__((weak));
-extern err_h sys_vm_handle_fault(err_h node, err_h chain) __attribute__((weak));
-extern err_h sys_actions_handle_fault(err_h node, err_h chain) __attribute__((weak));
+/**
+ * @brief Hook for every node whose owner is in @p domain (owner & 0xFF00, for
+ * example OWNER_SYS_BLE_BASE). Replaces an earlier hook for that domain.
+ * @return ERR_BASE_NO_MEM when all CONFIG_SYS_ERRORS_MAX_DOMAIN_HOOKS slots are used.
+ */
+SE_MUST_USE err_h SE_register_domain_hook(uint16_t domain, se_fault_hook_f hook);
 
+/** @brief Called once per chain for a CRITICAL node that no device response handled. */
+void SE_register_system_hook(se_fault_hook_f hook);
 
-// System response never looks up a device ID. All hooks borrow node/chain and
-// return an owned response failure, or NULL. They must not retain the chain.
-extern err_h sys_system_handle_fault(err_h node, err_h chain) __attribute__((weak));
+/**
+ * @brief Device routing: @p report answers a device's error at a level;
+ * @p is_ignored stops the chain walk at a device whose errors are ignored.
+ */
+void SE_register_device_router(se_device_report_f report, se_device_ignored_f is_ignored);

@@ -112,6 +112,11 @@ typedef struct {
     void *user_isr_arg;
     volatile bool interrupt_triggered;
 
+    // Failures inside the background task (AVS keep-alive) have no caller to
+    // return to; they are reported here so the adapter can raise a device error.
+    void (*error_callback)(void *arg, esp_err_t err);
+    void *error_arg;
+
     src_spr_and_epr_pdo_fields_t src_pdo_array[MAX_PDO_ENTRIES];
 } _ap33772s_data_t;
 
@@ -141,22 +146,21 @@ esp_err_t ap33772s_begin(ap33772s_handle_t handle);
 /**
  * @brief Dump parsed target power profiles straight to ESP console output.
  */
-void ap33772s_log_profiles(ap33772s_handle_t handle);
 
 /**
  * @brief Request Fixed Power Profile.
  */
-esp_err_t ap33772s_set_fixed_pdo(ap33772s_handle_t handle, int pdo_index, int max_current_ma);
+esp_err_t ap33772s_set_fixed_pdo(ap33772s_handle_t handle, int pdo_index, int max_current_mA);
 
 /**
  * @brief Request Programmable Power Supply (PPS) dynamic rail.
  */
-esp_err_t ap33772s_set_pps_pdo(ap33772s_handle_t handle, int pdo_index, int target_voltage_mv, int max_current_ma);
+esp_err_t ap33772s_set_pps_pdo(ap33772s_handle_t handle, int pdo_index, int target_voltage_mV, int max_current_mA);
 
 /**
  * @brief Request Adjustable Voltage Supply (AVS) profile. Handles keep-alives automatically.
  */
-esp_err_t ap33772s_set_avs_pdo(ap33772s_handle_t handle, int pdo_index, int target_voltage_mv, int max_current_ma);
+esp_err_t ap33772s_set_avs_pdo(ap33772s_handle_t handle, int pdo_index, int target_voltage_mV, int max_current_mA);
 
 /**
  * @brief Enable or disable VBUS Output switch stage.
@@ -173,11 +177,11 @@ int ap33772s_read_ireq(ap33772s_handle_t handle);
 // Dynamic Parameters
 esp_err_t ap33772s_set_ntc(ap33772s_handle_t handle, int tr25, int tr50, int tr75, int tr100);
 int ap33772s_read_vselmin(ap33772s_handle_t handle);
-esp_err_t ap33772s_set_vselmin(ap33772s_handle_t handle, int voltage_mv);
+esp_err_t ap33772s_set_vselmin(ap33772s_handle_t handle, int voltage_mV);
 int ap33772s_read_uvp_threshold(ap33772s_handle_t handle);
 esp_err_t ap33772s_set_uvp_threshold(ap33772s_handle_t handle, int percentage);
 int ap33772s_read_ovp_threshold(ap33772s_handle_t handle);
-esp_err_t ap33772s_set_ovp_threshold(ap33772s_handle_t handle, int voltage_mv);
+esp_err_t ap33772s_set_ovp_threshold(ap33772s_handle_t handle, int voltage_mV);
 
 // Interrupt Control 
 uint8_t ap33772s_read_status(ap33772s_handle_t handle);

@@ -19,7 +19,7 @@ typedef struct d_tps55289_cfg_t {
  * @param cfg Pointer to device configuration struct
  * @return err_h Status of registration
  */
-err_h d_tps55289_create(const d_tps55289_cfg_t* cfg);
+SE_MUST_USE err_h d_tps55289_create(const d_tps55289_cfg_t* cfg);
 
 
 #define DEVICE_TPS55289_MAX_VOLTAGE_MV 20000

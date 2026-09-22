@@ -34,7 +34,7 @@ err_h sys_buff_push(sys_buff_t* buff, const void* data, size_t len, uint32_t wai
   if (len == 0) return NULL;
 
   if (xRingbufferSend(buff->buff, data, len, pdMS_TO_TICKS(wait_ms)) != pdTRUE) {
-    SE_RET_ERR(ERR_BASE_NO_MEM, len);
+    SE_FAIL(ERR_BASE_NO_MEM, len);
   }
   return NULL;
 }
@@ -51,7 +51,7 @@ err_h sys_buff_pop(sys_buff_t* buff, uint8_t* buffer, size_t max_size, size_t* o
   void* item = xRingbufferReceive(buff->buff, &item_size, 0);
   if (!item) {
     *out_len = 0;
-    SE_RET_ERR(ERR_BASE_NOT_FOUND, 0);
+    SE_FAIL(ERR_BASE_NOT_FOUND, 0);
   }
 
   size_t copy_len = (item_size > max_size) ? max_size : item_size;
@@ -76,13 +76,3 @@ void sys_buff_clear(sys_buff_t* buff) {
     vRingbufferReturnItem(buff->buff, item);
   }
 }
-
-__attribute__((weak)) err_h sys_buffers_handle_fault(err_h node, err_h chain) {
-  (void)chain;
-  if (!node || SE_get_tag_level(node->tag) != SYS_DEV_ERR_CRITICAL) {
-    return NULL;
-  }
-  // Severe buffer fault: break potential starvation
-  return NULL;
-}
-

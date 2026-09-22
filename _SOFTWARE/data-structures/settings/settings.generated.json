@@ -1,0 +1,452 @@
+{
+  "$schema": "data-structures/schema/settings.schema.json",
+  "schemaVersion": 1,
+  "kind": "settings",
+  "settings": [
+    {
+      "tag": "ble",
+      "title": "BLE settings",
+      "description": "Create and remove runtime BLE GATT services and characteristics.",
+      "source_file": "components/codecs/decoders/dec_settings_ble.h",
+      "class_name": "SETTINGS_BLE",
+      "class_header": "0x02",
+      "packets": [
+        {
+          "id": "packet_settings_ble_service_create_t",
+          "packet": "packet_settings_ble_service_create_t",
+          "packet_header": "0x01",
+          "field_order": [
+            "uuid",
+            "is_primary"
+          ],
+          "fields": {
+            "uuid": {
+              "type": "uint16_t",
+              "alias": "Service UUID",
+              "required": true
+            },
+            "is_primary": {
+              "type": "uint8_t",
+              "alias": "Primary Service",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_ble_service_remove_t",
+          "packet": "packet_settings_ble_service_remove_t",
+          "packet_header": "0x02",
+          "field_order": [
+            "uuid"
+          ],
+          "fields": {
+            "uuid": {
+              "type": "uint16_t",
+              "alias": "Service UUID",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_ble_char_create_t",
+          "packet": "packet_settings_ble_char_create_t",
+          "packet_header": "0x03",
+          "field_order": [
+            "service_uuid",
+            "uuid",
+            "is_write",
+            "is_indicate",
+            "is_notify",
+            "tx_buffer_size",
+            "rx_buffer_size",
+            "name"
+          ],
+          "fields": {
+            "service_uuid": {
+              "type": "uint16_t",
+              "alias": "Service UUID",
+              "required": true
+            },
+            "uuid": {
+              "type": "uint16_t",
+              "alias": "Characteristic UUID",
+              "required": true
+            },
+            "is_write": {
+              "type": "uint8_t",
+              "alias": "Writable",
+              "required": true
+            },
+            "is_indicate": {
+              "type": "uint8_t",
+              "alias": "Indicate",
+              "required": true
+            },
+            "is_notify": {
+              "type": "uint8_t",
+              "alias": "Notify",
+              "required": true
+            },
+            "tx_buffer_size": {
+              "type": "uint32_t",
+              "alias": "TX Buffer Size",
+              "required": true,
+              "unit": "bytes"
+            },
+            "rx_buffer_size": {
+              "type": "uint32_t",
+              "alias": "RX Buffer Size",
+              "required": true,
+              "unit": "bytes"
+            },
+            "name": {
+              "type": "char",
+              "flexible_array": true,
+              "alias": "Characteristic Name",
+              "required": true,
+              "encoding": "utf-8",
+              "terminator": "nul"
+            }
+          }
+        },
+        {
+          "id": "packet_settings_ble_char_remove_t",
+          "packet": "packet_settings_ble_char_remove_t",
+          "packet_header": "0x04",
+          "field_order": [
+            "service_uuid",
+            "uuid"
+          ],
+          "fields": {
+            "service_uuid": {
+              "type": "uint16_t",
+              "alias": "Service UUID",
+              "required": true
+            },
+            "uuid": {
+              "type": "uint16_t",
+              "alias": "Characteristic UUID",
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "tag": "data-connector",
+      "title": "Data connector settings",
+      "description": "Create connectors and configure their runtime transport bindings.",
+      "source_file": "components/codecs/decoders/dec_settings_data_connector.h",
+      "class_name": "SETTINGS_DATA_CONNECTOR",
+      "class_header": "0x06",
+      "packets": [
+        {
+          "id": "packet_settings_data_connector_create_t",
+          "packet": "packet_settings_data_connector_create_t",
+          "packet_header": "0x01",
+          "field_order": [
+            "id",
+            "header",
+            "max_packet_len",
+            "name"
+          ],
+          "fields": {
+            "id": {
+              "type": "uint8_t",
+              "alias": "Connector ID",
+              "required": true
+            },
+            "header": {
+              "type": "uint8_t",
+              "alias": "Frame Header",
+              "required": true
+            },
+            "max_packet_len": {
+              "type": "uint16_t",
+              "alias": "Maximum Packet Length",
+              "required": true,
+              "unit": "bytes"
+            },
+            "name": {
+              "type": "char",
+              "flexible_array": true,
+              "alias": "Connector Name",
+              "required": true,
+              "encoding": "utf-8",
+              "terminator": "nul"
+            }
+          }
+        },
+        {
+          "id": "packet_settings_data_connector_remove_t",
+          "packet": "packet_settings_data_connector_remove_t",
+          "packet_header": "0x02",
+          "field_order": [
+            "id"
+          ],
+          "fields": {
+            "id": {
+              "type": "uint8_t",
+              "alias": "Connector ID",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_data_connector_rx_add_t",
+          "packet": "packet_settings_data_connector_rx_add_t",
+          "packet_header": "0x03",
+          "field_order": [
+            "connector_id",
+            "provider_id",
+            "provider_param"
+          ],
+          "fields": {
+            "connector_id": {
+              "type": "uint8_t",
+              "alias": "Connector ID",
+              "required": true
+            },
+            "provider_id": {
+              "type": "uint8_t",
+              "alias": "Provider ID",
+              "required": true
+            },
+            "provider_param": {
+              "type": "uint32_t",
+              "alias": "Provider Parameter",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_data_connector_rx_remove_t",
+          "packet": "packet_settings_data_connector_rx_remove_t",
+          "packet_header": "0x04",
+          "field_order": [
+            "connector_id",
+            "provider_id"
+          ],
+          "fields": {
+            "connector_id": {
+              "type": "uint8_t",
+              "alias": "Connector ID",
+              "required": true
+            },
+            "provider_id": {
+              "type": "uint8_t",
+              "alias": "Provider ID",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_data_connector_tx_add_t",
+          "packet": "packet_settings_data_connector_tx_add_t",
+          "packet_header": "0x05",
+          "field_order": [
+            "connector_id",
+            "provider_id",
+            "provider_param"
+          ],
+          "fields": {
+            "connector_id": {
+              "type": "uint8_t",
+              "alias": "Connector ID",
+              "required": true
+            },
+            "provider_id": {
+              "type": "uint8_t",
+              "alias": "Provider ID",
+              "required": true
+            },
+            "provider_param": {
+              "type": "uint32_t",
+              "alias": "Provider Parameter",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_data_connector_tx_remove_t",
+          "packet": "packet_settings_data_connector_tx_remove_t",
+          "packet_header": "0x06",
+          "field_order": [
+            "connector_id",
+            "provider_id"
+          ],
+          "fields": {
+            "connector_id": {
+              "type": "uint8_t",
+              "alias": "Connector ID",
+              "required": true
+            },
+            "provider_id": {
+              "type": "uint8_t",
+              "alias": "Provider ID",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_data_connector_suspend_t",
+          "packet": "packet_settings_data_connector_suspend_t",
+          "packet_header": "0x07",
+          "field_order": [
+            "id"
+          ],
+          "fields": {
+            "id": {
+              "type": "uint8_t",
+              "alias": "Connector ID",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_data_connector_resume_t",
+          "packet": "packet_settings_data_connector_resume_t",
+          "packet_header": "0x08",
+          "field_order": [
+            "id"
+          ],
+          "fields": {
+            "id": {
+              "type": "uint8_t",
+              "alias": "Connector ID",
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "tag": "logs",
+      "title": "Logging settings",
+      "description": "Configure runtime log verbosity, serial mirroring, and error-chain tracing.",
+      "source_file": "components/codecs/decoders/dec_settings_logs.h",
+      "class_name": "SETTINGS_LOGS",
+      "class_header": "0x07",
+      "packets": [
+        {
+          "id": "packet_settings_logs_set_t",
+          "packet": "packet_settings_logs_set_t",
+          "packet_header": "0x01",
+          "field_order": [
+            "level",
+            "mirror_serial",
+            "trace_errors"
+          ],
+          "fields": {
+            "level": {
+              "type": "uint8_t",
+              "alias": "Log Level",
+              "required": true
+            },
+            "mirror_serial": {
+              "type": "uint8_t",
+              "alias": "Mirror to Serial",
+              "required": true
+            },
+            "trace_errors": {
+              "type": "uint8_t",
+              "alias": "Trace Error Chains",
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "tag": "power",
+      "title": "Power settings",
+      "description": "Describe the external supply and the battery, so the power budget and battery charge are right. Stored on the board.",
+      "source_file": "components/codecs/decoders/dec_settings_power.h",
+      "class_name": "SETTINGS_POWER",
+      "class_header": "0x08",
+      "packets": [
+        {
+          "id": "packet_settings_power_set_psu_t",
+          "packet": "packet_settings_power_set_psu_t",
+          "packet_header": "0x01",
+          "field_order": [
+            "max_mV",
+            "max_mA"
+          ],
+          "fields": {
+            "max_mV": {
+              "type": "uint32_t",
+              "alias": "Supply Voltage",
+              "required": true,
+              "unit": "mV",
+              "note": "0 with 0 mA clears it"
+            },
+            "max_mA": {
+              "type": "uint32_t",
+              "alias": "Supply Current Limit",
+              "required": true,
+              "unit": "mA"
+            }
+          }
+        },
+        {
+          "id": "packet_settings_power_set_battery_t",
+          "packet": "packet_settings_power_set_battery_t",
+          "packet_header": "0x02",
+          "field_order": [
+            "chemistry",
+            "cells",
+            "low_pct",
+            "critical_pct"
+          ],
+          "fields": {
+            "chemistry": {
+              "type": "uint8_t",
+              "alias": "Chemistry",
+              "required": true,
+              "one_of": [
+                {
+                  "symbol": "SYS_POWER_BATTERY_NONE",
+                  "enum": "sys_power_battery_e",
+                  "value": 0,
+                  "alias": "None",
+                  "description": "No battery configured"
+                },
+                {
+                  "symbol": "SYS_POWER_BATTERY_LIPO",
+                  "enum": "sys_power_battery_e",
+                  "value": 1,
+                  "alias": "LiPo",
+                  "description": "Lithium polymer, 4.2 V per cell when full"
+                }
+              ],
+              "enum_ref": "sys_power_battery_e"
+            },
+            "cells": {
+              "type": "uint8_t",
+              "alias": "Cells in Series",
+              "required": true,
+              "min": 1
+            },
+            "low_pct": {
+              "type": "uint8_t",
+              "alias": "Low Threshold",
+              "required": true,
+              "min": 2,
+              "max": 100,
+              "unit": "%"
+            },
+            "critical_pct": {
+              "type": "uint8_t",
+              "alias": "Critical Threshold",
+              "required": true,
+              "min": 1,
+              "max": 99,
+              "unit": "%"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -39,7 +39,7 @@ void vm_block_claim_span(vm_block_h b, uint16_t start, uint16_t end) {
          through to the next block either way -- the span degrades to running
          inline rather than to a hang. */
       b->cfg.rt |= VM_BLK_RT_SPAN_BAD;
-      SE_EMIT_ERR(ERR_VM_EXEC_BAD_SPAN, .block_idx = b->cfg.block_idx, .start = start, .end = end);
+      SE_RAISE(ERR_VM_EXEC_BAD_SPAN, .block_idx = b->cfg.block_idx, .start = start, .end = end);
     }
     return;
   }

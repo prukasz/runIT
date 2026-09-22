@@ -11,6 +11,12 @@
 #include "sys_error_buffers.h"
 #include "sys_error_actions.h"
 #include "sys_error_vm.h"
+#include "sys_error_event.h"
+#include "sys_error_hbridge.h"
+#include "sys_error_data_connector.h"
+#include "sys_error_features.h"
+#include "sys_error_runit.h"
+#include "sys_error_settings.h"
 
 // Combine all error maps into one global map.
 // This allows us to auto-generate the enums and the individual payload structures.
@@ -24,7 +30,9 @@
     SYS_ERROR_INTERFACE_MAP(X) \
     SYS_ERROR_BUFFERS_MAP(X) \
     SYS_ERROR_ACTIONS_MAP(X) \
-    SYS_ERROR_VM_MAP(X)
+    SYS_ERROR_VM_MAP(X) \
+    SYS_ERROR_EVENT_MAP(X) \
+    SYS_ERROR_SETTINGS_MAP(X)
 
 // Combine all owner maps
 #define SYS_OWNER_MAP(X) \
@@ -38,6 +46,12 @@
     SYS_BUFFERS_OWNER_MAP(X) \
     SYS_ACTIONS_OWNER_MAP(X) \
     SYS_VM_OWNER_MAP(X) \
+    SYS_EVENT_OWNER_MAP(X) \
+    SYS_HBRIDGE_OWNER_MAP(X) \
+    SYS_DATA_CONNECTOR_OWNER_MAP(X) \
+    FEATURES_OWNER_MAP(X) \
+    RUNIT_OWNER_MAP(X) \
+    SYS_SETTINGS_OWNER_MAP(X) \
     PROVIDER_OWNER_MAP(X)
 
 // Combine every module's opt-in payload-description map (X(tag) only - see
@@ -53,7 +67,9 @@
     SYS_ERROR_INTERFACE_LOGGER_MAP(X) \
     SYS_ERROR_BUFFERS_LOGGER_MAP(X) \
     SYS_ERROR_ACTIONS_LOGGER_MAP(X) \
-    SYS_ERROR_VM_LOGGER_MAP(X)
+    SYS_ERROR_VM_LOGGER_MAP(X) \
+    SYS_ERROR_EVENT_LOGGER_MAP(X) \
+    SYS_ERROR_SETTINGS_LOGGER_MAP(X)
 
 #define X_OWNER_ENUM(tag, id, name) tag = id,
 typedef enum {

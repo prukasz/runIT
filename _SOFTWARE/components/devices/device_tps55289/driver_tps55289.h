@@ -41,8 +41,8 @@ void tps55289_set_shunt_resistor(tps55289_handle_t handle,
                                  uint16_t resistance_mOhm);
 esp_err_t tps55289_set_output_enable(tps55289_handle_t handle, bool enable);
 esp_err_t tps55289_set_current_limit(tps55289_handle_t handle, bool enable,
-                                     uint16_t limit_ma);
-esp_err_t tps55289_set_voltage(tps55289_handle_t handle, uint16_t voltage_mv);
+                                     uint16_t limit_mA);
+esp_err_t tps55289_set_voltage(tps55289_handle_t handle, uint16_t voltage_mV);
 esp_err_t tps55289_set_mode(tps55289_handle_t handle, bool fpwm, bool hiccup);
 esp_err_t tps55289_set_fault_masks(tps55289_handle_t handle, bool mask_scp,
                                    bool mask_ocp, bool mask_ovp);

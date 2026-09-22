@@ -55,8 +55,9 @@
       "required": ["type"],
       "additionalProperties": false,
       "properties": {
-        "type": { "type": "string" },
-        "array_len": { "type": "integer" },
+          "type": { "type": "string" },
+          "array_len": { "type": "integer" },
+          "flexible_array": { "const": true },
         "alias": { "type": "string" },
         "required": { "type": "boolean" },
         "min": { "type": ["integer", "null"] },
@@ -66,11 +67,13 @@
         "default": { "type": ["integer", "null"] },
         "sentinel": { "type": ["integer", "null"] },
         "unit": { "type": "string" },
-        "ref": { "type": "string" },
+        "enum_ref": { "type": "string" },
         "group": { "type": "string" },
         "role": { "type": "string" },
         "desc": { "type": "string" },
-        "note": { "type": "string" }
+          "note": { "type": "string" },
+          "encoding": { "type": "string" },
+          "terminator": { "type": "string" }
       }
     },
     "packetDefinition": {
@@ -117,7 +120,7 @@
         "max": { "type": ["integer", "string"] },
         "default": { "type": ["integer", "string"] },
         "required": { "type": "boolean" },
-        "ref": { "type": "string" },
+        "enum_ref": { "type": "string" },
         "instance": { "const": true }
       }
     },

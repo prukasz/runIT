@@ -16,12 +16,12 @@ The first argument is the decoders root to scan, the second is the output direct
 |---|---|
 | Device metadata (top-level, before first `//@contract`) | `id`, `version`, `title`, `description`, `protocol`, `tags`, `contract-provider` |
 | `//@self-property NAME` | `one-of` |
-| `//@property NAME` | `ref`, `one-of` |
+| `//@property NAME` | `enum-ref`, `one-of` |
 | `//@contract <packet>` | `alias` |
 | `//@param <field>` | `arg`, `alias`, `type`, `unit`, `one-of`, `available`, `min`, `max`, `default`, `optional` |
 | `//@returns <name>` | `type`, `unit` |
 | `//@description` (after `@contract`) | *(free text, no sub-keywords)* |
-| Install struct field (`// ...` on a packed field) | `required`, `optional`, `alias`, `min`, `max`, `one-of`, `available`, `default`, `unit`, `ref`, `sentinel`, `group`, `role`, `note` |
+| Install struct field (`// ...` on a packed field) | `required`, `optional`, `alias`, `min`, `max`, `one-of`, `available`, `default`, `unit`, `enum-ref`, `sentinel`, `group`, `role`, `note` |
 | `//#ref-enum` marker | `alias` |
 | Enum member (`// ...` on an enum value) | `alias`, `description` |
 | Anywhere a value is expected | `$SYMBOL` prefix - resolve against a `//#ref-enum` enum, hard error if unresolved |
@@ -40,7 +40,7 @@ Place the annotations after includes and before the install packet. An annotated
 //@tags i2c adc monitor
 //@contract-provider $SYS_DEVICE_CONTRACT_IO
 //@self-property PIN @one-of [0,1,2,3]
-//@property PIN-MODE @ref sys_io_mode_e @one-of [$SYS_IO_MODE_ADC]
+//@property PIN-MODE @enum-ref sys_io_mode_e @one-of [$SYS_IO_MODE_ADC]
 
 //@contract packet_sys_io_get_voltage_t @alias Read channel voltage
 //@param pin @arg PIN @alias Channel
@@ -60,7 +60,7 @@ Place the annotations after includes and before the install packet. An annotated
 | `//@tags <items>` | no | `tags` | Whitespace-separated search terms. |
 | `//@contract-provider $<symbol>` | no | `contractProvider` | Firmware contract actually exposed by the adapter. The `$` marks it as a global symbol - it must resolve against a `//#ref-enum` enum (see below) or generation fails. |
 | `//@self-property NAME @one-of [...]` | no, repeatable | (lookup table only, not emitted directly) | A device-local value domain with no meaning outside this device - plain literals, nothing to resolve (e.g. channel indices, address straps). |
-| `//@property NAME [@ref <enum>] @one-of [$SYMBOL, ...]` | no, repeatable | (lookup table only, not emitted directly) | A value domain whose members are real global symbols. Each `$SYMBOL` must resolve against a `//#ref-enum` enum or generation fails. `@ref` is optional documentation - the owning enum is inferred from which `//#ref-enum` enum actually contains the symbol. |
+| `//@property NAME [@enum-ref <enum>] @one-of [$SYMBOL, ...]` | no, repeatable | (lookup table only, not emitted directly) | A value domain whose members are real global symbols. Each `$SYMBOL` must resolve against a `//#ref-enum` enum or generation fails. `@enum-ref` documents the owning enum, which is also inferred from the `$` members. |
 
 Only put device-intrinsic values here: channel count, fixed address straps, supported modes, or silicon limits. Board pin assignments, bus topology, and installed IDs belong to the project/board. Runtime-negotiated limits belong to runtime discovery.
 
@@ -101,7 +101,7 @@ A contract is the device-restricted view of a generic system packet. List only o
 
 **`device_id` is synthesized automatically**, never annotated: it means "which installed device instance this call addresses," supplied by the calling context (the device the client is already configuring), not a value a user picks per contract. The generator injects it into every contract's `parameters` as `{"name": "device_id", "alias": ..., "instance": true}` - a client renders anything with `"instance": true` as auto-filled context, never as a form field, and never needs its own `@param device_id` line in any header.
 
-`@arg <NAME>` pulls a param's constraint (its `@one-of` list, and `@ref` if the property has one) from a `@self-property`/`@property` defined earlier in the same header, instead of retyping it. A param may still use its own inline `@one-of`/`@min`/`@max` when the value domain isn't shared with anything else.
+`@arg <NAME>` pulls a param's constraint (its `@one-of` list, and `@enum-ref` if the property has one) from a `@self-property`/`@property` defined earlier in the same header, instead of retyping it. A param may still use its own inline `@one-of`/`@min`/`@max` when the value domain isn't shared with anything else.
 
 `@one-of` accepts numbers and `$`-prefixed enum symbols (which resolve per the rules above). `@min`, `@max`, and `@default` resolve C defines and `CONFIG_*` symbols where possible; unresolved non-`$` values become JSON `null` and are reported by the generator - only `$`-prefixed values are hard errors on failure to resolve.
 
@@ -115,7 +115,7 @@ uint8_t alert_pin; //@group alert-pin @role pin @sentinel SYS_GPIO_NONE
 uint32_t vref_mv; //@required @alias ADC Reference Voltage @unit mV @min 1
 ```
 
-Supported field annotations: `@required`, `@optional`, `@alias`, `@min`, `@max`, `@one-of`, `@available`, `@default`, `@unit`, `@ref`, `@sentinel`, `@group`, `@role`, and `@note`. Install-packet fields don't support `@arg` - they're always inline, since the install struct is unique per device and its fields aren't shared across contracts the way a `pin` parameter is.
+Supported field annotations: `@required`, `@optional`, `@alias`, `@min`, `@max`, `@one-of`, `@available`, `@default`, `@unit`, `@enum-ref`, `@sentinel`, `@group`, `@role`, and `@note`. Install-packet fields don't support `@arg` - they're always inline, since the install struct is unique per device and its fields aren't shared across contracts the way a `pin` parameter is. `@ref` remains accepted only while older headers are migrated.
 
 Use field `@alias` for the canonical wire-field label. Use parameter `@alias` only when a generic field has clearer device-specific meaning: generic `pin` becomes `ADC Channel` for ADS7128 or `PWM Channel` for PCA9685. Do not duplicate identical labels in both places.
 

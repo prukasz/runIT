@@ -77,7 +77,7 @@ err_h sys_ble_reconfigure_advertising(void) {
   if (ble_gap_adv_active()) {
     int rc = ble_gap_adv_stop();
     if (rc != 0 && rc != BLE_HS_EALREADY) {
-      SE_RET_ERR(ERR_BLE_ADV_FAILED, rc);
+      SE_FAIL(ERR_BLE_ADV_FAILED, rc);
     }
   }
   return sys_ble_advertising_init();
@@ -126,10 +126,10 @@ static int gap_event_handler(struct ble_gap_event* event, void* arg) {
         g_ble_ctx.is_connected = true;
         R_MUTEX_UNLOCK(sys_ble_mutex);
 
-        SYS_BLE_CB(SYS_BLE_EVENT_CONNECT, event->connect.conn_handle);
+        SE_REPORT(sys_ble_publish(SYS_BLE_EVENT_CONNECT, event->connect.conn_handle));
       } else {
         ESP_LOGW(TAG, "Connection failed: err = %d", event->connect.status);
-        SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, ESP_FAIL);
+        SE_REPORT(sys_ble_publish(SYS_BLE_EVENT_FAILURE, ESP_FAIL));
         SE_release(sys_ble_advertising_init());
       }
       return 0;
@@ -155,7 +155,7 @@ static int gap_event_handler(struct ble_gap_event* event, void* arg) {
       }
       R_MUTEX_UNLOCK(sys_ble_mutex);
 
-      SYS_BLE_CB(SYS_BLE_EVENT_DISCONNECT, reason);
+      SE_REPORT(sys_ble_publish(SYS_BLE_EVENT_DISCONNECT, reason));
       SE_release(sys_ble_reconfigure_advertising());
       break;
     }
@@ -235,7 +235,7 @@ static void nimble_host_task(void* param) {
 }
 
 #define OWNER OWNER_SYS_BLE_STACK
-static err_h sys_ble_set_name(const char* name) {
+static SE_MUST_USE err_h sys_ble_set_name(const char* name) {
   SE_CHECK_NOT_NULL(name);
   int res = ble_svc_gap_device_name_set(name);
   if (res == 0) {
@@ -246,12 +246,12 @@ static err_h sys_ble_set_name(const char* name) {
     return NULL;
   }
   ESP_LOGE(TAG, "Failed to set BLE device name, res=%d", res);
-  SE_RET_ERR(ERR_BLE_STACK_FAILED, res);
+  SE_FAIL(ERR_BLE_STACK_FAILED, res);
 }
 
 err_h sys_ble_stack_init(struct ble_gatt_svc_def* svcs) {
-  SE_RET_IF_ESP_ERR(nvs_flash_init());
-  SE_RET_IF_ESP_ERR(nimble_port_init());
+  SE_TRY_ESP(nvs_flash_init());
+  SE_TRY_ESP(nimble_port_init());
 
   nimble_host_config_init();
 
@@ -271,7 +271,7 @@ err_h sys_ble_stack_init(struct ble_gatt_svc_def* svcs) {
 #undef OWNER
 
 #define OWNER OWNER_SYS_BLE_SEND
-static err_h sys_ble_send_raw(uint16_t conn_handle, uint16_t chr_val_handle, const uint8_t* data, size_t len, bool indicate) {
+static SE_MUST_USE err_h sys_ble_send_raw(uint16_t conn_handle, uint16_t chr_val_handle, const uint8_t* data, size_t len, bool indicate) {
   SE_CHECK_NOT_NULL(data);
   if (len == 0) return NULL;
 
@@ -281,9 +281,9 @@ static err_h sys_ble_send_raw(uint16_t conn_handle, uint16_t chr_val_handle, con
   int rc = indicate ? ble_gatts_indicate_custom(conn_handle, chr_val_handle, om) : ble_gatts_notify_custom(conn_handle, chr_val_handle, om);
 
   if (rc != 0) {
-    if (rc == BLE_HS_ENOMEM) SE_RET_ERR(ERR_BASE_NO_MEM, rc);
-    if (rc == BLE_HS_ENOTCONN) SE_RET_ERR(ERR_BASE_INVALID_STATE, 0);
-    SE_RET_ERR(ERR_BLE_STACK_FAILED, rc);
+    if (rc == BLE_HS_ENOMEM) SE_FAIL(ERR_BASE_NO_MEM, rc);
+    if (rc == BLE_HS_ENOTCONN) SE_FAIL(ERR_BASE_INVALID_STATE, 0);
+    SE_FAIL(ERR_BLE_STACK_FAILED, rc);
   }
   return NULL;
 }
@@ -311,8 +311,8 @@ static int sys_ble_gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle, st
       if (SE_IS_ERR(push_err)) {
         if (push_err->tag == ERR_BASE_INVALID_STATE) { SE_release(push_err); return BLE_ATT_ERR_WRITE_NOT_PERMITTED; }
         ESP_LOGW(TAG, "RX buffer overflow on char uuid 0x%04X", char_uuid);
-        SE_ORIGIN_CALL(push_err);
-        SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, ESP_FAIL);
+        SE_REPORT(push_err);
+        SE_REPORT(sys_ble_publish(SYS_BLE_EVENT_FAILURE, ESP_FAIL));
       }
     }
     return 0;
@@ -388,7 +388,7 @@ err_h populate_svc_def(struct ble_gatt_svc_def* svc_def, const sys_ble_svc_node_
 
   bool ok = false;
   svc_def->characteristics = compile_chars(s->chars, &ok);
-  if (!ok) SE_RET_ERR(ERR_BASE_NO_MEM, s->cfg.uuid);
+  if (!ok) SE_FAIL(ERR_BASE_NO_MEM, s->cfg.uuid);
   return NULL;
 }
 #undef OWNER
@@ -474,20 +474,20 @@ static void sys_ble_task_func(void* pvParameters) {
       } while (1);
 
       if (err) {
-        if (err->tag != ERR_BASE_NO_MEM) SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, err->tag);
+        if (err->tag != ERR_BASE_NO_MEM) SE_REPORT(sys_ble_publish(SYS_BLE_EVENT_FAILURE, err->tag));
         break;
       }
     }
   }
 }
 
-__attribute__((weak)) err_h sys_ble_handle_fault(err_h node, err_h chain) {
+err_h sys_ble_handle_fault(err_h node, err_h chain) {
   (void)chain;
-  if (!node || SE_get_tag_level(node->tag) != SYS_DEV_ERR_CRITICAL) {
+  if (!node || SE_get_tag_level(node->tag) != SE_LEVEL_CRITICAL) {
     return NULL;
   }
-  // Severe BLE fault: signal failure event to callbacks
-  SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, node->tag);
+  // Severe BLE fault: publish the failure event. Released, not reported: this runs inside error handling.
+  SE_release(sys_ble_publish(SYS_BLE_EVENT_FAILURE, node->tag));
   return NULL;
 }
 

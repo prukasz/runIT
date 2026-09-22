@@ -148,7 +148,7 @@ static inline size_t sys_data_connector_get_max_len(const sys_data_connector_t* 
  * @param driver Provider driver operations table.
  * @return err_h NULL on success.
  */
-err_h sys_data_connector_register_provider(const sys_data_provider_driver_t* driver);
+SE_MUST_USE err_h sys_data_connector_register_provider(const sys_data_provider_driver_t* driver);
 
 // -----------------------------------------------------------------------------
 // Connector Lifecycle & Registry APIs
@@ -160,7 +160,7 @@ err_h sys_data_connector_register_provider(const sys_data_provider_driver_t* dri
  * This creates the connector endpoints independently of any transport. Boards
  * bind their BLE, Wi-Fi, or other providers afterwards.
  */
-err_h sys_data_connector_init(void);
+SE_MUST_USE err_h sys_data_connector_init(void);
 
 /**
  * @brief Create or retrieve a connector instance with full configuration.
@@ -182,6 +182,15 @@ sys_data_connector_t* sys_data_connector_create_with_cfg(const sys_data_connecto
  * @return sys_data_connector_t* Pointer to connector instance, or NULL if out of slots/memory.
  */
 sys_data_connector_t* sys_data_connector_create(uint8_t id, const char* name, uint8_t header);
+
+/**
+ * @brief Remove a connector and all of its provider bindings.
+ *
+ * RX providers are detached before the connector's wake semaphore is released.
+ * @param id Connector ID.
+ * @return err_h NULL on success, or ERR_BASE_NOT_FOUND when no such connector exists.
+ */
+SE_MUST_USE err_h sys_data_connector_remove(uint8_t id);
 
 /**
  * @brief Set or replace the wake semaphore for a connector.
@@ -214,7 +223,7 @@ sys_data_connector_t* sys_data_connector_get(uint8_t id);
  * @param arg Provider-specific argument.
  * @return err_h NULL on success.
  */
-err_h sys_data_connector_bind_tx(sys_data_connector_t* conn, uint8_t provider_id, void* arg);
+SE_MUST_USE err_h sys_data_connector_bind_tx(sys_data_connector_t* conn, uint8_t provider_id, void* arg);
 
 /**
  * @brief Unbind a TX provider destination from a connector.
@@ -223,7 +232,7 @@ err_h sys_data_connector_bind_tx(sys_data_connector_t* conn, uint8_t provider_id
  * @param provider_id Transport provider ID to remove.
  * @return err_h NULL on success.
  */
-err_h sys_data_connector_unbind_tx(sys_data_connector_t* conn, uint8_t provider_id);
+SE_MUST_USE err_h sys_data_connector_unbind_tx(sys_data_connector_t* conn, uint8_t provider_id);
 
 /**
  * @brief Bind an RX provider source to a connector.
@@ -236,7 +245,7 @@ err_h sys_data_connector_unbind_tx(sys_data_connector_t* conn, uint8_t provider_
  * @param arg Provider-specific argument.
  * @return err_h NULL on success.
  */
-err_h sys_data_connector_bind_rx(sys_data_connector_t* conn, uint8_t provider_id, void* arg);
+SE_MUST_USE err_h sys_data_connector_bind_rx(sys_data_connector_t* conn, uint8_t provider_id, void* arg);
 
 /**
  * @brief Unbind an RX provider source from a connector.
@@ -245,7 +254,7 @@ err_h sys_data_connector_bind_rx(sys_data_connector_t* conn, uint8_t provider_id
  * @param provider_id Transport provider ID to remove.
  * @return err_h NULL on success.
  */
-err_h sys_data_connector_unbind_rx(sys_data_connector_t* conn, uint8_t provider_id);
+SE_MUST_USE err_h sys_data_connector_unbind_rx(sys_data_connector_t* conn, uint8_t provider_id);
 
 // -----------------------------------------------------------------------------
 // Data Transmission (TX)
@@ -278,7 +287,7 @@ void sys_data_connector_send(sys_data_connector_t* conn, const void* data, size_
  * @param out_len Set to number of bytes read, or 0 if empty.
  * @return err_h NULL on success (even if len=0), or provider error.
  */
-err_h sys_data_connector_receive(sys_data_connector_t* conn, uint8_t* buf, size_t max_len, size_t* out_len);
+SE_MUST_USE err_h sys_data_connector_receive(sys_data_connector_t* conn, uint8_t* buf, size_t max_len, size_t* out_len);
 
 // -----------------------------------------------------------------------------
 // Flow Control & Suspension

@@ -21,8 +21,8 @@ Design notes:
   - Contract completeness is enforced: every field the referenced generic
     packet marks @required must appear in the contract's own @param list, or
     generation fails - a device can't silently omit a required wire field.
-  - Doesn't touch sync_decoders_from_c.py; reuses its class-byte resolution
-    (scan_all_class_headers / scan_kconfig_class_headers / resolve_class).
+  - Class bytes are resolved by packet_classes.py (scan_all_class_headers /
+    scan_kconfig_class_headers / resolve_class), shared with the other generators.
   - Every generated document is validated against device-definition.schema.json
     before it's written - the "$schema" field it carries is a real, checked
     contract, not a dangling label. jsonschema is optional: if it isn't
@@ -45,9 +45,9 @@ except ImportError:
 PROJECT_ROOT = Path(__file__).parents[3]  # _SOFTWARE folder
 SCHEMA_PATH = Path(__file__).parents[2] / "schema" / "device-definition.schema.json"
 SCHEMA_REL_PATH = SCHEMA_PATH.relative_to(PROJECT_ROOT).as_posix()  # single source of truth for the "$schema" value - see validate_document()
-sys.path.insert(0, str(PROJECT_ROOT / "Python" / "PythonRunIT"))
+sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[1] / "enums"))
-from sync_decoders_from_c import scan_all_class_headers, scan_kconfig_class_headers, resolve_class  # reuse, don't duplicate
+from packet_classes import scan_all_class_headers, scan_kconfig_class_headers, resolve_class  # reuse, don't duplicate
 
 import importlib.util as _ilu  # generate-enums.py has a hyphenated filename, so import it by path instead of by module name
 _spec = _ilu.spec_from_file_location("generate_enums", Path(__file__).parents[1] / "enums" / "generate-enums.py")
@@ -59,7 +59,7 @@ SDKCONFIG_PATH = PROJECT_ROOT / "sdkconfig"
 PACKET_HEADER_RE = re.compile(r"#define\s+HEADER_(packet_\w+)\s+(0x[0-9A-Fa-f]+)")
 STRUCT_RE = re.compile(r"typedef\s+struct\s+(?:__packed\s*)?\{(.*?)\}\s*(packet_\w+_t)\s*;", re.DOTALL)
 FIELD_LINE_RE = re.compile(
-    r"^\s*(?P<type>[A-Za-z_][\w ]*?)\s+(?P<name>\w+)\s*(?:\[\s*(?P<arr>\d+)\s*\])?\s*;\s*(?://\s*(?P<comment>.*))?\s*$"
+    r"^\s*(?P<type>[A-Za-z_][\w ]*?)\s+(?P<name>\w+)\s*(?:\[\s*(?P<arr>\w*)\s*\])?\s*;\s*(?://\s*(?P<comment>.*))?\s*$"
 )
 TAG_RE = re.compile(r"@([\w-]+)\b")
 DEFINE_RE = re.compile(r"#define\s+([A-Z][A-Z0-9_]*)\s+([^\s/][^\n/]*)")
@@ -95,10 +95,14 @@ class Field:
     type: str
     name: str
     array_len: Optional[int]
+    flexible_array: bool
     tags: Dict[str, str]
 
 
-def parse_struct_fields(body: str) -> List[Field]:
+def parse_struct_fields(body: str, defines: Optional[Dict[str, str]] = None, sdkconfig: Optional[Dict[str, int]] = None) -> List[Field]:
+    """Array lengths may be a literal or a symbol (#define / CONFIG_*), resolved one hop.
+    An unresolvable symbolic length is a hard error: silently dropping the field would
+    shift every following wire offset."""
     fields = []
     for raw_line in body.splitlines():
         line = raw_line.strip()
@@ -108,7 +112,12 @@ def parse_struct_fields(body: str) -> List[Field]:
         if not m:
             continue
         arr = m.group("arr")
-        fields.append(Field(m.group("type").strip(), m.group("name"), int(arr) if arr else None, parse_tags(m.group("comment") or "")))
+        array_len = None
+        if arr:
+            array_len, shown = resolve_numeric(arr, defines or {}, sdkconfig or {})
+            if array_len is None:
+                sys.exit(f"ERROR: field '{m.group('name')}[{arr}]': array length {shown}")
+        fields.append(Field(m.group("type").strip(), m.group("name"), array_len, arr == "", parse_tags(m.group("comment") or "")))
     return fields
 
 
@@ -182,6 +191,8 @@ def field_json(f: Field, defines: Dict[str, str], sdkconfig: Dict[str, int], sym
     out: dict = {"type": f.type}
     if f.array_len:
         out["array_len"] = f.array_len
+    if f.flexible_array:
+        out["flexible_array"] = True
     if "alias" in f.tags:
         out["alias"] = f.tags["alias"]
     if "required" in f.tags:
@@ -202,8 +213,11 @@ def field_json(f: Field, defines: Dict[str, str], sdkconfig: Dict[str, int], sym
         out["sentinel"] = resolve_numeric(f.tags["sentinel"], defines, sdkconfig)[0]
     if "unit" in f.tags:
         out["unit"] = f.tags["unit"]
-    if "ref" in f.tags:
-        out["ref"] = f.tags["ref"]
+    # @enum-ref is the explicit canonical spelling.  Keep @ref as a read-only
+    # compatibility alias so old headers regenerate without losing metadata.
+    enum_ref = f.tags.get("enum_ref", f.tags.get("ref"))
+    if enum_ref:
+        out["enum_ref"] = enum_ref
     if "group" in f.tags:
         out["group"] = f.tags["group"]
     if "role" in f.tags:
@@ -212,11 +226,18 @@ def field_json(f: Field, defines: Dict[str, str], sdkconfig: Dict[str, int], sym
         out["desc"] = f.tags["desc"]
     if "note" in f.tags:
         out["note"] = f.tags["note"]
+    if "encoding" in f.tags:
+        out["encoding"] = f.tags["encoding"]
+    if "terminator" in f.tags:
+        out["terminator"] = f.tags["terminator"]
     return out
 
 
 def build_packet_entry(name: str, header_value: str, fields: List[Field], source_file: str, class_name, class_hex, defines, sdkconfig, symbols) -> dict:
     context = f"{source_file}: {name}"
+    for index, field in enumerate(fields):
+        if field.flexible_array and index != len(fields) - 1:
+            sys.exit(f"ERROR: {context}: flexible array '{field.name}[]' must be the final wire field")
     order = [f.name for f in fields]
     groups: Dict[str, List[str]] = {}
     for f in fields:
@@ -249,7 +270,7 @@ def parse_packet_file(path: Path, all_classes: Dict[str, str], defines, sdkconfi
         struct_name = name if name in structs else (name + "_t" if (name + "_t") in structs else None)
         if not struct_name:
             continue
-        fields = parse_struct_fields(structs[struct_name])
+        fields = parse_struct_fields(structs[struct_name], defines, sdkconfig)
         out[struct_name] = build_packet_entry(struct_name, hexval, fields, source_file, class_name, class_hex, defines, sdkconfig, symbols)
     return out
 
@@ -280,14 +301,14 @@ def parse_device_descriptor(path: Path, symbols: Dict[str, dict]) -> Optional[di
                 sys.exit(f"ERROR: {ctx}: //@{name} requires a NAME")
             tags = parse_tags(annotation)
             one_of = parse_choice_list(tags["one_of"], symbols, ctx) if "one_of" in tags else []
-            ref = tags.get("ref")
-            if name == "property" and not ref:
+            enum_ref = tags.get("enum_ref", tags.get("ref"))
+            if name == "property" and not enum_ref:
                 enum_names = {v["enum"] for v in one_of if isinstance(v, dict)}
                 if len(enum_names) > 1:
-                    sys.exit(f"ERROR: {ctx}: @property '{prop_name}' mixes symbols from different enums ({enum_names}) - ref would be ambiguous")
-                ref = next(iter(enum_names), None)
+                    sys.exit(f"ERROR: {ctx}: @property '{prop_name}' mixes symbols from different enums ({enum_names}) - enum-ref would be ambiguous")
+                enum_ref = next(iter(enum_names), None)
             target = self_properties if name == "self-property" else properties
-            target[prop_name] = {"one_of": one_of, "ref": ref}
+            target[prop_name] = {"one_of": one_of, "enum_ref": enum_ref}
             continue
 
         if name == "contract":
@@ -318,8 +339,8 @@ def parse_device_descriptor(path: Path, symbols: Dict[str, dict]) -> Optional[di
                     sys.exit(f"ERROR: {ctx}: @arg '{arg}' does not match any //@self-property or //@property in this file")
                 prop = registry[arg]
                 parameter["one_of"] = prop["one_of"]
-                if prop["ref"]:
-                    parameter["ref"] = prop["ref"]
+                if prop["enum_ref"]:
+                    parameter["enum_ref"] = prop["enum_ref"]
             if "one_of" in tags:
                 parameter["one_of"] = parse_choice_list(tags["one_of"], symbols, ctx)
             if "available" in tags:

@@ -17,7 +17,7 @@ typedef struct __attribute__((packed)) {
  * into native pointer slots.
  * Supports arbitrary variable-length scalar/array data up to buffer capacity.
  */
-err_h vm_override_post(uint16_t id, uint16_t start_idx, const uint8_t* data, uint16_t len);
+SE_MUST_USE err_h vm_override_post(uint16_t id, uint16_t start_idx, const uint8_t* data, uint16_t len);
 
 /**
  * @brief Drain and apply all pending runtime variable updates (called from Core 1 at scan boundary).

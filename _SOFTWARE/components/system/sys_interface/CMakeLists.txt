@@ -1,3 +1,3 @@
 idf_component_register(SRCS "sys_interface.c"
                     INCLUDE_DIRS "include"
-                    REQUIRES freertos log codecs sys_errors sys_device sys_io sys_power sys_data_connector)
+                    REQUIRES freertos log sys_errors sys_data_connector sys_buffers utils)

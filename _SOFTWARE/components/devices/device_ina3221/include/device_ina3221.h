@@ -19,4 +19,4 @@ typedef struct d_ina3221_cfg_t {
  * @param cfg Configuration struct
  * @return err_h Status of the registration
  */
-err_h d_ina3221_create(const d_ina3221_cfg_t* cfg);
+SE_MUST_USE err_h d_ina3221_create(const d_ina3221_cfg_t* cfg);

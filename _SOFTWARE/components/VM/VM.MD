@@ -46,7 +46,7 @@ components/VM/
     │   ├── vm_block_build.h/.c # vm_block_create(), wiring resolution
     │   └── vm_block_run.c      # what a block body reaches for: ask, claim a span
     ├── exec/
-    │   ├── vm_event.h/.c       # routed sys_callbacks events — two buffers, swapped per pass
+    │   ├── vm_event.h/.c       # routed sys_event events — queue + per-pass snapshot
     │   ├── vm_override.h/.c    # runtime variable updates between scan loops
     │   └── vm_exec.h/.c        # the supervisor: pass loop, dispatch, spans, block watchdog
     └── loader/
@@ -289,7 +289,7 @@ Execution granularity is the **scan cycle / pass**: every block in the registry 
 
 `vm_block_is_enabled()` reports the level and nothing else. Edge detection and timing state are block-type concerns and live in that block's own `custom_data` struct — a block that wants an edge is stateful by definition and already has somewhere to keep it.
 
-`BLOCK_CALL(call, block)` is the reporting boundary: block `execute()` bodies are `void`, so there is nobody above them to return an `err_h` to. It wraps a failure with this block's identity and pushes it — the role `SE_ORIGIN_CALL` plays for top-level entry points.
+`BLOCK_CALL(call, block)` is the reporting boundary: block `execute()` bodies are `void`, so there is nobody above them to return an `err_h` to. It wraps a failure with this block's identity and pushes it — the role `SE_REPORT` plays for top-level entry points.
 
 ### Edge Detection Block (`VM_BLK_EDGE`, id 8)
 
@@ -353,7 +353,7 @@ All multi-byte fields little-endian. Design points:
 
 `vm_loader_reset()` first prevents new passes and waits for the current pass to return. It then clears execution state and subscriptions and resets both allocation domains. IDs resolve to NULL afterwards; raw handles and cached accessors have expired and must not be reused by callbacks.
 
-The class is registered in `sys_interface_init()` — see [[SYS_INTERFACE.MD]].
+The class is registered by runit's `runit_register_decoders` boot step (`components/runit/runit_decoders.c`) — see [[SYS_INTERFACE.MD]].
 
 ---
 
@@ -563,7 +563,7 @@ vm_accessor_create / vm_accessor_cache_build
 vm_store_alloc()  →  pool malloc'd at 0x41 open components/VM/core/store/vm_store.c
 ```
 
-The class is bound once in `sys_interface_init()`:
+The class is bound once at boot by runit's `runit_register_decoders` boot step (`components/runit/runit_decoders.c`):
 `sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_VM_LOADER, dec_vm_loader_decode, "vm_loader")`.
 
 ### The loader packets
@@ -1137,7 +1137,7 @@ never reaches the freeze point that would have drained the flag.
 **An event lives exactly one scan cycle.** A FreeRTOS queue and a snapshot:
 
 ```
-sys_callbacks routes here  ->  [ queue ]  -- drained at the top of a pass -->
+sys_event route here      ->  [ queue ]  -- drained at the top of a pass -->
 [ this cycle's events ]  <-  blocks query here, until the next drain
 ```
 
@@ -1152,26 +1152,28 @@ lifetime, no sequence numbers, no visibility watermark, no ordering maintained
 across passes — and the cost of it going wrong is one lost event rather than a
 corrupted stream.
 
-**What is buffered is `cb_event_t`** — the system's own callback event, exactly
-as [[SYS_CALLBACKS.MD]] routed it. There is no VM event type, on purpose: a
-VM-side struct would mean a translation step that has to be extended every time
-a new callback kind appears, and would throw away what the head already carries
-(`callback_type`, `route_mask`, `action_id`). GPIO edges, power faults and BLE
-traffic are the whole point of this buffer, and they already have a shape.
+**What is buffered is `sys_event_t`** — the system's own event, exactly as
+[[SYS_EVENT.MD]] delivered it (`domain, device_id, channel, event, value`).
+There is no VM event type, on purpose: a VM-side struct would mean a translation
+step that has to be extended every time a new event domain appears. GPIO edges,
+power faults, motor faults and BLE traffic are the whole point of this buffer,
+and they already have a shape.
 
-The VM plugs in as **route slot `SYS_CB_ROUTE_VM` (4)**, registered from a
-load-time constructor like every other domain. Unlike the other slots it does
-not *handle* the event — it parks it for one scan cycle and lets blocks decide.
+The VM plugs in as **route slot `CONFIG_SYS_EVENT_ROUTE_VM` (0)**:
+`vm_event_route`, registered by runit (`runit_error_wiring_init`). An event
+reaches it only through a subscription that names this route (the app's
+subscribe packet, class `0x09`). It doesn't *handle* the event — it parks it
+for one scan cycle and lets blocks decide.
 
 **Blocks ask; nothing is delivered, and nothing is addressed to a block.** An
 event block is not woken and not routed to. It walks `[0, vm_event_count())`
-with `vm_event_at()`, recognises what it cares about from the head and the
-union, and either acts or stands down. Nothing is consumed, so two blocks
+with `vm_event_at()`, recognises what it cares about from the event's fields,
+and either acts or stands down. Nothing is consumed, so two blocks
 watching the same GPIO both see the edge — there is no ownership to arbitrate
 and no order to get wrong. A driver reports "GPIO 4 rose" knowing nothing about
 the program; any number of blocks may act on it, or none.
 
-**There is no locking of the VM's own.** Producers are `sys_cb_task` (core 0);
+**There is no locking of the VM's own.** The producer is the event task (core 0);
 the consumer is the supervisor (core 1), and they genuinely run at once — but a
 FreeRTOS queue already arbitrates that correctly, so there is nothing here to
 get wrong. After the drain, this cycle's events live in an array no other task
@@ -1179,10 +1181,10 @@ can see, which makes every read a block does lock-free *by construction* rather
 than by argument.
 
 `vm_event_post()` is **not** called from an ISR, despite being the far end of
-an interrupt. `sys_callback_trigger()` already absorbed that with
-`xQueueSendFromISR`, and `sys_cb_task` dispatches route functions at task
+an interrupt. `sys_event_publish()` already absorbed that with
+`xQueueSendFromISR`, and the event task dispatches route functions at task
 level, so ISR safety was handled a layer down. It never waits, though: a
-producer that blocked would stall `sys_cb_task` and with it every other route —
+producer that blocked would stall the event task and with it every other listener —
 an event the VM has no room for must not cost `sys_io` its own delivery.
 
 An earlier version hand-rolled a double buffer under a `portMUX`. It worked,
@@ -1271,7 +1273,7 @@ Note the app **partition** is 1 MB (`CONFIG_PARTITION_TABLE_SINGLE_APP`), not th
 
 ## Error Ownership
 
-Owners `0xA900`–`0xA908` (`SYS_VM_OWNER_MAP` in `core/errors/sys_error_vm.h`): `OWNER_VM_BASE`, `OWNER_VM_STORE`, `OWNER_VM_OBJ`, `OWNER_VM_ACCESSOR`, `OWNER_VM_BLOCK`, `OWNER_VM_CODE`, `OWNER_VM_LOADER`, `OWNER_DEC_VM_LOADER`, `OWNER_VM_EXEC`.
+Owners `0xA900`–`0xA908` (`SYS_VM_OWNER_MAP` in `errors/sys_error_vm.h`): `OWNER_VM_BASE`, `OWNER_VM_STORE`, `OWNER_VM_OBJ`, `OWNER_VM_ACCESSOR`, `OWNER_VM_BLOCK`, `OWNER_VM_CODE`, `OWNER_VM_LOADER`, `OWNER_DEC_VM_LOADER`, `OWNER_VM_EXEC`.
 
 Tags (`SYS_ERROR_VM_MAP`) cover allocation (`ERR_VM_ALLOC_EXHAUSTED`), resolution (`ERR_VM_ACCESSOR_UNKNOWN_ID`, `_OOB`, `_TYPE_MISMATCH`, `_NULL_OBJ`, `_DEPTH_EXCEEDED`, `_INDEX_FAILED`, `_NAME_NOT_FOUND`, `_NOT_MUTABLE`), blocks (`ERR_VM_BLOCK_INPUT_UNRESOLVED`, `_PIN_MISSING`, `_PIN_UNLINKED`, `_FAILED`), construction (`ERR_VM_OBJ_BAD_TYPE`, `_EMPTY`, `_TOO_LARGE`, `_NAME_TOO_LONG`, `_RETENTIVE_PTR`, `_COPY_MISMATCH`), loading (`ERR_VM_LOAD_BAD_STATE`, `_TOO_BIG`, `_DATA_RANGE`, `_SHORT_RECORD`), accessors (`ERR_VM_ACC_INDEX_OOB`, `ERR_VM_ACC_BAD_KIND`), blocks (`ERR_VM_BLK_BAD_SHAPE`, `ERR_VM_BLK_BAD_REF`) and the registries (`ERR_VM_REG_OOB`, `ERR_VM_REG_DUP` — one pair for all three id spaces, with `kind` naming which).
 
@@ -1283,8 +1285,8 @@ validation (`ERR_VM_OVERRIDE_PTR_UNSUPPORTED`,
 `ERR_VM_OVERRIDE_BAD_RECORD`), and the user-write guard
 (`ERR_VM_OBJ_USR_PROTECTED`).
 
-`sys_error_vm.h` also supplies `SE_*_OWNED` variants (`SE_EMIT_ERR_OWNED`, `SE_ERR_NEW_OWNED`, `SE_RET_ERR_OWNED`, `SE_WRAP_ERR_OWNED`, `SE_CHECK_NOT_NULL_OWNED`, `SE_CHECK_IF_ALLOCATED_OWNED`) that take the owner explicitly, for header-only code pulled into translation units with their own ambient `OWNER`.
+`sys_error_vm.h` also supplies `SE_*_OWNED` variants (`SE_RAISE_OWNED`, `SE_ERR_NEW_OWNED`, `SE_FAIL_OWNED`, `SE_WRAP_ERR_OWNED`, `SE_CHECK_NOT_NULL_OWNED`, `SE_CHECK_IF_ALLOCATED_OWNED`) that take the owner explicitly, for header-only code pulled into translation units with their own ambient `OWNER`.
 
-Because `sys_errors` aggregates this map, it reaches `core/errors/sys_error_vm.h` through a raw include path rather than `REQUIRES VM` — VM already requires `sys_errors`, so a component dependency back would be circular.
+Because `sys_errors` aggregates this map, it reaches `VM/errors/sys_error_vm.h` through a raw include path rather than `REQUIRES VM` — VM already requires `sys_errors`, so a component dependency back would be circular. The `errors/` folder holds only the map, so the VM API doesn't leak (see [[SYS_ERRORS.MD]] "Error maps and aggregation").
 
 Block helpers live in `core/block/vm_block_helpers.h/.c`. Edge custom data is now 12 bytes; rebuild uploaded EDGE configurations that used the former 24-byte layout. Timer presets and elapsed outputs are U32; only the internal monotonic timestamp remains 64-bit.

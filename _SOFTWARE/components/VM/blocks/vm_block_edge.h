@@ -64,7 +64,7 @@ static inline bool vm_edge_direction(uint8_t mode, bool rising, bool falling) {
 
 /* Sample once, compare in the signal's numeric domain, then record history.
  * Unsigned deltas are formed only in the direction that cannot underflow. */
-static inline err_h vm_edge_step(vm_block_edge_data_t* d, vm_obj_payload_t p, vm_edge_val_u th, bool* out) {
+static inline SE_MUST_USE err_h vm_edge_step(vm_block_edge_data_t* d, vm_obj_payload_t p, vm_edge_val_u th, bool* out) {
   vm_edge_val_u curr = {0};
   switch (p.type) {
     case VM_OBJ_B: curr.u = *(const uint8_t*)p.ptr != 0; break;

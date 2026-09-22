@@ -21,6 +21,58 @@ menu "System Errors Options"
         help
           Stack buffer size the log hook renders one line into.
 
+    config SYS_ERRORS_MAX_DOMAIN_HOOKS
+        int "Maximum Domain Fault Hooks"
+        default 8
+        range 1 32
+        help
+          Slots for SE_register_domain_hook() (one per module domain that
+          has containment logic for its own critical errors).
+
+    config SYS_ERRORS_LOG_QUEUE_LEN
+        int "Error Log Queue Length (chains)"
+        default 4
+        range 1 16
+        help
+          Error chains waiting for the log task. A waiting chain keeps its
+          pool nodes, so keep this well under the pool's 32 blocks. When the
+          queue is full a chain is dropped and counted; the count is logged.
+
+    config SYS_ERRORS_REPEAT_WINDOW_MS
+        int "Repeated Error Window (ms)"
+        default 2000
+        range 0 60000
+        help
+          A chain identical to one logged less than this long ago (same tag
+          and owner at every node) is counted instead of logged and sent.
+          When the window ends, one line reports how many repeats were
+          dropped. Responses still run for every occurrence. 0 disables it.
+
+    config SYS_ERRORS_REPEAT_SLOTS
+        int "Repeated Error Slots"
+        default 4
+        range 1 16
+        help
+          How many different recent chains are tracked for repeat
+          suppression.
+
+    config SYS_ERRORS_LOG_TASK_STACK_SIZE
+        int "Error Log Task Stack Size (bytes)"
+        default 4096
+        range 2048 16384
+        help
+          The log task formats chains (two SYS_ERRORS_LOG_LINE_MAX buffers)
+          and encodes packets (SYS_ERRORS_PACKET_MAX) on its own stack, so
+          tasks that raise errors don't need that stack.
+
+    config SYS_ERRORS_LOG_TASK_PRIO
+        int "Error Log Task Priority"
+        default 2
+        range 1 24
+        help
+          Low on purpose: responses to errors run synchronously in the task
+          that raised them; only logging and telemetry wait for this task.
+
     config SYS_ERRORS_PACKET_MAX
         int "Error Packet Buffer Size (bytes)"
         default 512

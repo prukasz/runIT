@@ -2,10 +2,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#define TAG __FILE_NAME__
-
-#undef OWNER
-#define OWNER OWNER_DRIVER_INA3221
 
 #define I2C_FREQ_HZ 400000
 
@@ -121,66 +117,64 @@ esp_err_t ina3221_reset(ina3221_handle_t handle) {
   return write_config(handle);
 }
 
-esp_err_t ina3221_read_bus_voltage(ina3221_handle_t handle, uint8_t channel, int32_t* out_mv) {
+esp_err_t ina3221_read_bus_voltage(ina3221_handle_t handle, uint8_t channel, int32_t* out_mV) {
   CHECK_DRV_HANDLE(handle);
-  CHECK_DRV_HANDLE(out_mv);
+  CHECK_DRV_HANDLE(out_mV);
   if (channel >= 3) return ESP_ERR_INVALID_ARG;
 
   int16_t raw;
   RETURN_ON_ERROR(_ina3221_read(handle, INA3221_REG_BUSVOLTAGE_1 + (channel * 2), (uint16_t*)&raw));
   raw = raw >> 3;
-  *out_mv = (int32_t)(raw * 8.0f);  // 8mV -> LSB
+  *out_mV = (int32_t)(raw * 8.0f);  // 8mV -> LSB
   return ESP_OK;
 }
 
-esp_err_t ina3221_read_shunt_current(ina3221_handle_t handle, uint8_t channel, int32_t* out_ma) {
+esp_err_t ina3221_read_shunt_current(ina3221_handle_t handle, uint8_t channel, int32_t* out_mA) {
   CHECK_DRV_HANDLE(handle);
-  CHECK_DRV_HANDLE(out_ma);
+  CHECK_DRV_HANDLE(out_mA);
   if (channel >= 3) return ESP_ERR_INVALID_ARG;
 
   int16_t raw;
   RETURN_ON_ERROR(_ina3221_read(handle, INA3221_REG_SHUNTVOLTAGE_1 + (channel * 2), (uint16_t*)&raw));
   raw = raw >> 3;
   float mvolts = raw * 0.04f;  // 40uV -> LSB
-  *out_ma = (int32_t)(mvolts * 1000.0f) / handle->shunt_val_cfg[channel];
+  *out_mA = (int32_t)(mvolts * 1000.0f) / handle->shunt_val_cfg[channel];
   return ESP_OK;
 }
 
-esp_err_t ina3221_read_sum_shunt_voltage(ina3221_handle_t handle, float* out_mv) {
+esp_err_t ina3221_read_sum_shunt_voltage(ina3221_handle_t handle, float* out_mV) {
   CHECK_DRV_HANDLE(handle);
-  CHECK_DRV_HANDLE(out_mv);
+  CHECK_DRV_HANDLE(out_mV);
 
   int16_t raw;
   RETURN_ON_ERROR(_ina3221_read(handle, INA3221_REG_SHUNT_VOLTAGE_SUM, (uint16_t*)&raw));
   raw = raw >> 1;
-  *out_mv = raw * 0.04f;  // 40uV -> LSB
+  *out_mV = raw * 0.04f;  // 40uV -> LSB
   return ESP_OK;
 }
 
 esp_err_t ina3221_set_alert(ina3221_handle_t handle, ina3221_channel_t channel, int32_t current_mA, bool is_critical) {
   if (channel >= 3) return ESP_ERR_INVALID_ARG;
-  float limit_mv = ((float)current_mA * handle->shunt_val_cfg[channel]) / 1000.0f;
-  int16_t raw_count = (int16_t)(limit_mv / 0.04f);  // 40uV -> LSB
+  float limit_mV = ((float)current_mA * handle->shunt_val_cfg[channel]) / 1000.0f;
+  int16_t raw_count = (int16_t)(limit_mV / 0.04f);  // 40uV -> LSB
 
   uint16_t reg_val = ((uint16_t)raw_count) << 3;
   uint8_t alert_offset = is_critical ? INA3221_REG_CRITICAL_ALERT_1 : INA3221_REG_WARNING_ALERT_1;
   return _ina3221_write(handle, alert_offset + channel * 2, reg_val);
 }
 
-esp_err_t ina3221_set_sum_warning_alert(ina3221_handle_t handle, uint32_t voltage_mv) {
-  int16_t raw_count = (int16_t)(voltage_mv / 0.04f);  // 40uV -> LSB
+esp_err_t ina3221_set_sum_warning_alert(ina3221_handle_t handle, uint32_t voltage_mV) {
+  int16_t raw_count = (int16_t)(voltage_mV / 0.04f);  // 40uV -> LSB
   uint16_t reg_val = raw_count << 1;
   return _ina3221_write(handle, INA3221_REG_SHUNT_VOLTAGE_SUM_LIMIT, reg_val);
 }
 
 ina3221_handle_t ina3221_new(uint8_t i2c_address, bool i2c_bus_num) {
   if (i2c_address < INA3221_I2C_ADDR_GND || i2c_address > INA3221_I2C_ADDR_SCL) {
-    ESP_LOGE(TAG, "Invalid I2C address, must be between 0x40 and 0x43, provided: 0x%02x", i2c_address);
     return NULL;
   }
   ina3221_handle_t handle = calloc(1, sizeof(_ina3221_data_t));
   if (!handle) {
-    ESP_LOGE(TAG, "Failed to allocate memory for INA3221 handle");
     return NULL;
   }
 
@@ -207,13 +201,8 @@ void ina3221_delete(ina3221_handle_t handle) {
 esp_err_t ina3221_start(ina3221_handle_t handle) {
   if (!handle) return ESP_ERR_INVALID_ARG;
 
-  err_h init_status = sys_i2c_add_driver(&handle->header);
-  if ((init_status != NULL)) {
-    ESP_LOGE(TAG, "I2C Manager rejected INA3221 on bus %d", handle->header.bus_num);
-    SE_release(init_status);
-    return ESP_FAIL;
-  }
+  /* The adapter registers the device with sys_i2c (and probes it) before
+     calling start - registering here too added the same device twice. */
 
-  ESP_LOGI(TAG, "INA3221 started successfully on bus %d", handle->header.bus_num);
   return ESP_OK;
 }

@@ -35,7 +35,7 @@ typedef struct __packed {
   uint8_t id; //@required @alias Static Action ID
 } packet_sys_action_static_t;
 
-static inline err_h decoder_packet_sys_action_static_t(packet_sys_action_static_t* packet) {
+static inline SE_MUST_USE err_h decoder_packet_sys_action_static_t(packet_sys_action_static_t* packet) {
   ESP_LOGI(DEC_SYS_ACTIONS_TAG, "invoking static action %u", packet->id);
   return sys_actions_invoke(SYS_ACTION_SCOPE_STATIC, packet->id);
 }
@@ -45,7 +45,7 @@ typedef struct __packed {
   uint8_t id; //@required @alias Dynamic Action ID
 } packet_sys_action_dynamic_t;
 
-static inline err_h decoder_packet_sys_action_dynamic_t(packet_sys_action_dynamic_t* packet) {
+static inline SE_MUST_USE err_h decoder_packet_sys_action_dynamic_t(packet_sys_action_dynamic_t* packet) {
   ESP_LOGI(DEC_SYS_ACTIONS_TAG, "invoking dynamic action %u", packet->id);
   return sys_actions_invoke(SYS_ACTION_SCOPE_DYNAMIC, packet->id);
 }
@@ -55,7 +55,7 @@ typedef struct __packed {
   uint8_t id; //@required @alias Dynamic Action ID @note action id that recorded blocks will be attached to
 } packet_sys_action_record_start_t;
 
-static inline err_h decoder_packet_sys_action_record_start_t(packet_sys_action_record_start_t* packet) {
+static inline SE_MUST_USE err_h decoder_packet_sys_action_record_start_t(packet_sys_action_record_start_t* packet) {
   ESP_LOGI(DEC_SYS_ACTIONS_TAG, "recording dynamic action %u", packet->id);
   return sys_action_record_start(packet->id);
 }
@@ -64,7 +64,7 @@ static inline err_h decoder_packet_sys_action_record_start_t(packet_sys_action_r
 typedef struct __packed {
 } packet_sys_action_record_stop_t;
 
-static inline err_h decoder_packet_sys_action_record_stop_t(packet_sys_action_record_stop_t* packet) {
+static inline SE_MUST_USE err_h decoder_packet_sys_action_record_stop_t(packet_sys_action_record_stop_t* packet) {
   (void)packet;
   ESP_LOGI(DEC_SYS_ACTIONS_TAG, "stopping recording");
   return sys_action_record_stop();
@@ -75,7 +75,7 @@ typedef struct __packed {
   uint8_t id; //@required @alias Dynamic Action ID
 } packet_sys_action_remove_t;
 
-static inline err_h decoder_packet_sys_action_remove_t(packet_sys_action_remove_t* packet) {
+static inline SE_MUST_USE err_h decoder_packet_sys_action_remove_t(packet_sys_action_remove_t* packet) {
   ESP_LOGI(DEC_SYS_ACTIONS_TAG, "removing dynamic action %u", packet->id);
   return sys_action_remove(packet->id);
 }
@@ -84,7 +84,7 @@ static inline err_h decoder_packet_sys_action_remove_t(packet_sys_action_remove_
 typedef struct __packed {
 } packet_sys_action_remove_all_t;
 
-static inline err_h decoder_packet_sys_action_remove_all_t(packet_sys_action_remove_all_t* packet) {
+static inline SE_MUST_USE err_h decoder_packet_sys_action_remove_all_t(packet_sys_action_remove_all_t* packet) {
   (void)packet;
   ESP_LOGI(DEC_SYS_ACTIONS_TAG, "removing all dynamic actions");
   return sys_action_remove_all();
@@ -101,7 +101,7 @@ static inline err_h decoder_packet_sys_action_remove_all_t(packet_sys_action_rem
 #define SYS_ACTIONS_DECODE_CASE(header, packet_type, decoder_func)                     \
   case header: {                                                                       \
     packet_type packet;                                                                \
-    SE_RET_IF_ERR(convert_to_packet(data + 1, len - 1, &packet, sizeof(packet_type))); \
+    SE_TRY(convert_to_packet(data + 1, len - 1, &packet, sizeof(packet_type))); \
     return decoder_func(&packet);                                                      \
   }
 
@@ -113,15 +113,15 @@ static inline err_h decoder_packet_sys_action_remove_all_t(packet_sys_action_rem
  * @return err_h NULL on success, ERR_INTERFACE_UNKNOWN_PACKET for an unmapped
  *               header, or the decoder's own error chain.
  */
-static inline err_h dec_sys_actions_decode(const uint8_t* data, size_t len) {
+static inline SE_MUST_USE err_h dec_sys_actions_decode(const uint8_t* data, size_t len) {
   if (len == 0) {
-    SE_RET_ERR(ERR_INTERFACE_SHORT_FRAME, .got = 0, .need = 1);
+    SE_FAIL(ERR_INTERFACE_SHORT_FRAME, .got = 0, .need = 1);
   }
 
   switch (data[0]) {
     SYS_ACTIONS_PACKET_LIST(SYS_ACTIONS_DECODE_CASE)
     default:
       ESP_LOGW(DEC_SYS_ACTIONS_TAG, "unknown packet header 0x%02X", data[0]);
-      SE_RET_ERR(ERR_INTERFACE_UNKNOWN_PACKET, .class_header = CONFIG_RX_PACKET_CLASS_SYS_ACTIONS, .packet_header = data[0]);
+      SE_FAIL(ERR_INTERFACE_UNKNOWN_PACKET, .class_header = CONFIG_RX_PACKET_CLASS_SYS_ACTIONS, .packet_header = data[0]);
   }
 }

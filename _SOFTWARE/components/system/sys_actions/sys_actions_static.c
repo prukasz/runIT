@@ -12,30 +12,30 @@
 #define OWNER OWNER_SYS_ACTIONS_STATIC
 
 /** @brief Freeze all registered devices. */
-static err_h static_fn_freeze(void) {
+static SE_MUST_USE err_h static_fn_freeze(void) {
   return sys_device_freeze_all();
 }
 
 /** @brief Resume and synchronize all registered devices. */
-static err_h static_fn_resume(void) {
+static SE_MUST_USE err_h static_fn_resume(void) {
   /** Freeze and suspend are orthogonal and require separate clearing calls. */
-  SE_RET_IF_ERR(sys_device_resume_all());
-  SE_RET_IF_ERR(sys_device_sync_all());
+  SE_TRY(sys_device_resume_all());
+  SE_TRY(sys_device_sync_all());
   return NULL;
 }
 
 /** @brief Suspend all registered devices. */
-static err_h static_fn_suspend(void) {
+static SE_MUST_USE err_h static_fn_suspend(void) {
   return sys_device_suspend_all();
 }
 
 /** @brief Reset devices and VM execution, then restore the boot action. */
-static err_h static_fn_reset(void) {
+static SE_MUST_USE err_h static_fn_reset(void) {
   /** Reset devices to their initial configured state. */
-  SE_RET_IF_ERR(sys_device_reset_all());
+  SE_TRY(sys_device_reset_all());
 
   /** Rewind VM execution state, events, overrides, and statistics. */
-  SE_RET_IF_ERR(vm_exec_control(VM_EXEC_RESET_TO_START));
+  SE_TRY(vm_exec_control(VM_EXEC_RESET_TO_START));
 
   /** Reapply baseline boot configuration through static action one. */
   err_h boot_err = sys_actions_invoke(SYS_ACTION_SCOPE_STATIC, CONFIG_SYS_ACTION_ID_BOOT);
@@ -47,12 +47,12 @@ static err_h static_fn_reset(void) {
 }
 
 /** @brief Unload the VM and devices, then restore the boot action. */
-static err_h static_fn_hard_reset(void) {
+static SE_MUST_USE err_h static_fn_hard_reset(void) {
   /** Clear the VM program, registries, arena, overrides, and subscriptions. */
-  SE_RET_IF_ERR(vm_loader_reset());
+  SE_TRY(vm_loader_reset());
 
   /** Uninstall and free every registered hardware device. */
-  SE_RET_IF_ERR(sys_device_uninstall_all());
+  SE_TRY(sys_device_uninstall_all());
 
   /** Recreate baseline devices and boot setup through static action one. */
   err_h boot_err = sys_actions_invoke(SYS_ACTION_SCOPE_STATIC, CONFIG_SYS_ACTION_ID_BOOT);

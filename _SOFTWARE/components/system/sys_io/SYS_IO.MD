@@ -3,7 +3,7 @@
 IMPORTANT: If you modify the source files in this component (sys_io.h or sys_io.c), you must update this documentation to reflect the changes.
 
 ## Overview
-The `sys_io` component provides a unified, hardware-agnostic API for digital I/O, ADC, DAC, PWM, and configurable interrupts across any device installed in the `sys_device` registry. A driver publishes an `sys_io_vtable_t` as its `SYS_DEVICE_CONTRACT_IO` contract (see [[SYS_DEVICE.MD]]); `sys_io`'s manager functions look the device up by `device_id`, validate its state and per-pin lock status, then dispatch straight into the vtable. It also owns a scoped pin-locking model that lets one submodule reserve a pin against use by another, and integrates pin-level events into the central `callbacks` system.
+The `sys_io` component provides a unified, hardware-agnostic API for digital I/O, ADC, DAC, PWM, and configurable interrupts across any device installed in the `sys_device` registry. A driver publishes an `sys_io_contract_t` as its `SYS_DEVICE_CONTRACT_IO` contract (see [[SYS_DEVICE.MD]]); `sys_io`'s manager functions look the device up by `device_id`, validate its state and per-pin lock status, then dispatch straight into the vtable. It also owns a scoped pin-locking model that lets one submodule reserve a pin against use by another, and publishes pin-level events to `sys_event` (see [[SYS_EVENT.MD]]).
 
 ### Directory Map
 ```
@@ -25,8 +25,8 @@ Unlike `sys_device`, `sys_io` keeps no registry of its own: `device_handle` live
 Every manager call (`SYS_IO_DISPATCH` in sys_io.c) goes through the same pipeline: resolve the device, check it's installed and not suspended, check the target pin isn't locked, then call the vtable function and propagate its `err_h` result.
 
 ### Scoped Pin Protection (Locking)
-* Each vtable instance carries a 64-bit `protected_pins` mask (bit `n` = pin `n` locked).
-* Temporary access to a locked pin (e.g. for an emergency override or a dependent device's setup step) is obtained via the scoped `SYS_IO_PIN_WITH_UNLOCKED(ref)` block, which unlocks only if the pin was actually locked and always restores the previous state on scope exit — nesting-safe by construction since each scope remembers whether it did the unlocking.
+* Each installed device instance carries a 64-bit lock mask, `sys_device_t.io_locked_pins` (bit `n` = pin `n` locked). Locks are per instance, not per device type: the IO vtable itself is `static const` and holds no state.
+* The owning adapter drives its own locked pin with `sys_io_set_locked_level(ref, level)`: it unlocks only if the pin was actually locked, sets the level, and restores the previous lock state on every path, including failure.
 
 ---
 
@@ -71,15 +71,15 @@ typedef struct {
 } sys_io_adc_int_config_t;
 
 typedef struct sys_io_intr_config_t {
-  sys_io_intr_mode_e mode;  // Interrupt edge or threshold mode
-  uint16_t route_mask;      // Callback event routing mask
-* **`SYS_IO_CB(_ctx, _pin, _event, _value, _route_mask, _static_action_id, _dynamic_action_id)`**: Copies an IO event into the callback queue with its route mask and two action IDs. Zero disables an action. The callback worker invokes selected handlers, then the dynamic/user action, then the static/system action.
-  own_funct_t own_func;     // Optional custom callback function pointer struct
+  sys_io_intr_mode_e mode; // Interrupt edge or threshold mode
+  bool debounce;           // filter switch bounce (ESP GPIO); off for chip alert lines
   union {
     sys_io_adc_int_config_t adc; // ADC window threshold parameters
   };
 } sys_io_intr_config_t;
 ```
+The config only arms the pin. What happens on a trigger is decided by the
+listeners of `(SYS_EVENT_DOMAIN_IO, device, pin)`, see [[SYS_EVENT.MD]].
 
 ### Pin Reference (sys_io_pin_ref_t)
 Collapses the `(device_id, pin, mode)` triple device configs used to pass as three separate positional args, so callers name what they mean instead of counting.
@@ -95,46 +95,30 @@ typedef struct sys_io_pin_ref_t {
 * **`SYS_IO_REF(dev_id, pin_num)`**: Compound-literal form for an operation that does not use a mode.
 * **`SYS_IO_PIN_INIT(dev_id, pin_num, pin_mode)`** / **`SYS_IO_PIN_NONE_INIT`**: Brace-only forms, for file-scope/static initializers where a compound literal isn't a constant expression.
 
-### Driver Interface Contract (sys_io_vtable_t)
+### Driver Interface Contract (sys_io_contract_t)
 Drivers bind their physical functions to this table and publish it as their `SYS_DEVICE_CONTRACT_IO` contract.
 ```c
-typedef struct sys_io_vtable_t {
-  err_h (*io_reset)(void* handle, sys_io_pin_num_t pin);
-  err_h (*io_set_mode)(void* handle, sys_io_pin_num_t pin, sys_io_mode_e mode);
-  err_h (*io_configure_intr)(void* handle, sys_io_pin_num_t pin, const sys_io_intr_config_t* config);
+typedef struct sys_io_contract_t {
+  err_h (*reset)(void* handle, sys_io_pin_num_t pin);
+  err_h (*set_mode)(void* handle, sys_io_pin_num_t pin, sys_io_mode_e mode);
+  err_h (*configure_intr)(void* handle, sys_io_pin_num_t pin, const sys_io_intr_config_t* config);
 
-  err_h (*io_set_level)(void* handle, sys_io_pin_num_t pin, bool level);
-  err_h (*io_get_level)(void* handle, sys_io_pin_num_t pin, bool* level);
-  err_h (*io_toggle)(void* handle, sys_io_pin_num_t pin);
+  err_h (*set_level)(void* handle, sys_io_pin_num_t pin, bool level);
+  err_h (*get_level)(void* handle, sys_io_pin_num_t pin, bool* level);
+  err_h (*toggle)(void* handle, sys_io_pin_num_t pin);
 
-  err_h (*io_get_voltage)(void* handle, sys_io_pin_num_t pin, uint32_t* out_mV);
-  err_h (*io_set_voltage)(void* handle, sys_io_pin_num_t pin, uint32_t voltage_mV);
+  err_h (*get_voltage)(void* handle, sys_io_pin_num_t pin, int32_t* out_mV);  /* signed: a negative reading is reported, not wrapped */
+  err_h (*set_voltage)(void* handle, sys_io_pin_num_t pin, uint32_t voltage_mV);
 
-  err_h (*io_set_pwm_frequency)(void* handle, sys_io_pin_num_t pin, uint32_t frequency_HZ);
-  err_h (*io_set_pwm_duty)(void* handle, sys_io_pin_num_t pin, uint32_t duty);
+  err_h (*set_pwm_frequency)(void* handle, sys_io_pin_num_t pin, uint32_t frequency_Hz);
+  err_h (*set_pwm_duty)(void* handle, sys_io_pin_num_t pin, uint32_t duty);
 
-  uint64_t protected_pins; // 64-bit bitmask of locked pins (0 to 63)
-} sys_io_vtable_t;
+} sys_io_contract_t;
 ```
 Any function left NULL causes `SYS_IO_DISPATCH` to fall through to `ERR_DEV_FEATURE_UNAVAILABLE` (`dev_id`, `SYS_DEVICE_CONTRACT_IO`, and a `feature_id` naming which vtable slot was missing) for that pin/device — not the generic `ERR_BASE_NOT_SUPPORTED`, so the trace says *which* operation is unsupported.
 
-### Feature IDs (sys_io_feature_e)
-One value per `sys_io_vtable_t` slot, in declaration order — carried as `ERR_DEV_FEATURE_UNAVAILABLE`'s `feature_id` payload field:
-```c
-typedef enum sys_io_feature_e {
-  SYS_IO_FEATURE_RESET = 0,
-  SYS_IO_FEATURE_SET_MODE,
-  SYS_IO_FEATURE_CONFIGURE_INTR,
-  SYS_IO_FEATURE_SET_LEVEL,
-  SYS_IO_FEATURE_GET_LEVEL,
-  SYS_IO_FEATURE_TOGGLE,
-  SYS_IO_FEATURE_GET_VOLTAGE,
-  SYS_IO_FEATURE_SET_VOLTAGE,
-  SYS_IO_FEATURE_SET_PWM_FREQUENCY,
-  SYS_IO_FEATURE_SET_PWM_DUTY,
-} sys_io_feature_e;
-```
-String form available via `sys_io_feature_e_to_string[]`. `ERR_DEV_FEATURE_UNAVAILABLE`'s logged description (see [[SYS_ERRORS.MD]]'s `SE_describe_payload()`) uses this table to name `feature_id` when `contract_id == SYS_DEVICE_CONTRACT_IO` — `sys_error_dev.h` (owned by `sys_device`) can't `#include sys_io.h` at that point in the header chain (breaks include ordering), so it forward-declares just this one `extern` array instead of including the whole header.
+### Feature IDs
+A feature id is the member's index in `sys_io_contract_t` (`SYS_DEV_FEATURE_ID`, see [[SYS_DEVICE.MD]]); there is no separate enum. `sys_io_feature_names[]` lists the member names in order (NULL-terminated, `_Static_assert`-checked against the struct). `ERR_DEV_FEATURE_UNAVAILABLE`'s logged description uses it to name `feature_id`.
 
 ---
 
@@ -145,17 +129,16 @@ String form available via `sys_io_feature_e_to_string[]`. `ERR_DEV_FEATURE_UNAVA
 * **`sys_io_pin_is_valid(ref)`**: Inline function returning `true` if `ref.pin != SYS_GPIO_NONE`.
 * **`VERIFY_PIN(dev_id, pin, pinmask)`**: Returns `ERR_IO_PIN_UNAVAILABLE` if `pin >= 64` or the corresponding bit is unset in `pinmask` — the standard first check inside a driver's own functions, ahead of the manager's own dispatch checks.
 
-### Event Callback Macro
-* **`SYS_IO_CB(_ctx, _pin, _event, _value, _route_mask, _static_action_id, _dynamic_action_id)`**: Copies an IO event into the callback queue with its route mask and two action IDs. Zero disables an action. The callback worker invokes selected handlers, then the dynamic/user action, then the static/system action.
+### Pin Events
+* **`sys_io_publish(device_id, pin, event, value, hops)`**: Called by IO adapters when an armed pin triggers (task or ISR). `event` is the edge (`SYS_IO_INTR_MODE_RISING_EDGE` / `_FALLING_EDGE`) for a digital pin or the armed window mode for an analog one; `value` is the level or mV. `hops` is `SYS_EVENT_CAUSED_BY(cause)` inside a listener (an expander publishing its pins from its alert-pin listener), else 0.
+* **`sys_io_subscribe_pin(ref, handler, ctx, &id)`**: Chains a device to an alert pin: an inline, system-owned subscription to every event of that pin. The adapter keeps `id` and calls `sys_event_unsubscribe(id, false)` on uninstall. Chip alert pins are configured without debounce.
 
 ### Pin Locking & Safety Scopes
-* **`sys_io_lock_pin(ref)`**: Sets the referenced pin's bit in the vtable's `protected_pins`.
-* **`sys_io_unlock_pin(ref)`**: Clears the referenced pin's bit in the vtable's `protected_pins`.
-* **`SYS_IO_PIN_WITH_UNLOCKED(ref)`**: Scoped block — unlocks the pin only if it was locked, runs the block body, and restores the prior lock state upon exit:
+* **`sys_io_lock_pin(ref)`**: Sets the referenced pin's bit in the device's `io_locked_pins`.
+* **`sys_io_unlock_pin(ref)`**: Clears the referenced pin's bit in the device's `io_locked_pins`.
+* **`sys_io_set_locked_level(ref, level)`**: Sets the level of a locked pin. Unlocks only if it was locked and always restores the lock, so the result can be returned directly:
   ```c
-  SYS_IO_PIN_WITH_UNLOCKED(ctx->cfg.oe_pin) {
-      sys_io_set_level(ctx->cfg.oe_pin, true);
-  }
+  SYS_DEV_TRY(sys_io_set_locked_level(ctx->cfg.oe_pin, true), ctx);
   ```
 
 ---
@@ -176,11 +159,11 @@ All return `err_h` (`NULL` on success). Every dispatched call routes through `SY
 * **`sys_io_set_voltage(ref, voltage_mV)`**: Outputs analog voltage (mV).
 
 ### PWM Control Actions
-* **`sys_io_set_pwm_frequency(ref, frequency_HZ)`**: Configures target PWM frequency.
+* **`sys_io_set_pwm_frequency(ref, frequency_Hz)`**: Configures target PWM frequency.
 * **`sys_io_set_pwm_duty(ref, duty)`**: Updates PWM output duty cycle.
 
 ---
 
 ## Error Ownership
 
-Every function in `sys_io.c` sets `#undef OWNER` / `#define OWNER OWNER_SYS_IO_<FUNCTION>` immediately before its body, per the [[runit]] skill's module owner tagging convention. See `sys_error_io.h` for the full `SYS_IO_OWNER_MAP` and the `SYS_ERROR_IO_MAP` tags (`ERR_IO_PIN_UNCONFIGURED`, `ERR_IO_PIN_UNAVAILABLE`, `ERR_IO_PIN_ALREADY_IN_USE`, `ERR_IO_PIN_FEATURE_UNSUPPORTED`, `ERR_IO_PIN_LOCKED`, `ERR_IO_PIN_MODE_UNSUPPORTED`).
+Every function in `sys_io.c` sets `#undef OWNER` / `#define OWNER OWNER_SYS_IO_<FUNCTION>` immediately before its body, per the owner tagging convention (runit-esp skill, errors.md). See `sys_error_io.h` for the full `SYS_IO_OWNER_MAP` and the `SYS_ERROR_IO_MAP` tags (`ERR_IO_PIN_UNCONFIGURED`, `ERR_IO_PIN_UNAVAILABLE`, `ERR_IO_PIN_ALREADY_IN_USE`, `ERR_IO_PIN_FEATURE_UNSUPPORTED`, `ERR_IO_PIN_LOCKED`, `ERR_IO_PIN_MODE_UNSUPPORTED`).

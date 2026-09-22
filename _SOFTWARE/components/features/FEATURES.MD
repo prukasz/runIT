@@ -58,7 +58,7 @@ typedef struct {
   /* --- Configuration (Top) --- */
   uint8_t device_id;             /* Underlying device providing PWM (e.g. PCA9685) */
   sys_io_pin_num_t pin_num;      /* Pin / channel number on that device */
-  uint16_t frequency_hz;         /* PWM frequency, typically 50 Hz */
+  uint16_t frequency_Hz;         /* PWM frequency, typically 50 Hz */
   uint16_t pulse_min_us;         /* Pulse width for angle_min (e.g. 500 us) */
   uint16_t pulse_max_us;         /* Pulse width for angle_max (e.g. 2500 us) */
   float angle_min;               /* Minimum logical angle (e.g. 0.0f or -90.0f) */
@@ -115,7 +115,7 @@ The H-Bridge subsystem is structured as a **Double-Tier Architecture**, cleanly 
 ### Tier 2: Unified Motor Feature (`feature_hbridge.h`)
 - Pure, lightweight domain actuator (~70 lines of code).
 - Binds to any device providing `SYS_DEVICE_CONTRACT_HBRIDGE` via `(bridge_device_id, channel)`.
-- Supports speed normalization (`-1.0f` to `+1.0f`), braking, coasting, and `sys_callbacks` / VM event routing.
+- Supports speed normalization (`-1.0f` to `+1.0f`), braking and coasting. It listens inline to its bridge channel's faults and republishes them as `SYS_EVENT_DOMAIN_FEATURE` events (device = feature ID, event = `sys_hbridge_fault_reason_e`, value = mA), see [[SYS_EVENT.MD]].
 
 #### Data Structure (`feature_hbridge_t`)
 ```c
@@ -125,17 +125,12 @@ typedef struct {
   uint8_t channel;                     /* Channel index (e.g. 0 = Motor A, 1 = Motor B) */
   bool inverted;                       /* Invert direction */
 
-  /* Callbacks & Event Routing Configuration */
-  feature_hbridge_fault_cb_t on_fault; /* Direct C callback on fault */
-  void* fault_user_ctx;                /* Context passed to on_fault */
-  uint16_t fault_route_mask;           /* Routing bitmask for sys_callbacks (e.g. SYS_CB_ROUTE_BIT(SYS_CB_ROUTE_VM)) */
-  uint8_t fault_static_action_id;      /* Pre-configured system action ID (zero disables) */
-  uint8_t fault_dynamic_action_id;     /* User dynamic macro action ID (zero disables) */
-
   /* --- Runtime State (Below) --- */
   uint8_t feature_id;                  /* ID assigned to this feature */
+  uint8_t fault_sub;                   /* sys_event subscription on the bridge channel */
+  bool fault_subscribed;               /* fault_sub is valid */
   float current_speed;                 /* Last commanded speed (-1.0f to +1.0f) */
-  uint32_t last_current_ma;            /* Last sampled current in mA */
+  int32_t last_current_mA;             /* Last sampled current in mA */
   sys_hbridge_fault_reason_e fault_reason; /* Reason for last detected fault */
   bool is_braking;                     /* True if in active brake state */
   bool is_coasting;                    /* True if in Hi-Z coast state */
@@ -148,8 +143,8 @@ typedef struct {
 - **`feature_hbridge_set_speed(id, speed)`**: Normalizes and passes through to `sys_hbridge_set_drive()`.
 - **`feature_hbridge_brake(id)`**: Actively shorts motor terminals together via `sys_hbridge_brake()`.
 - **`feature_hbridge_coast(id)`**: Disables half-bridges (Hi-Z) via `sys_hbridge_coast()`.
-- **`feature_hbridge_get_current_ma(id, out_ma)`**: Reads measured current in mA from the driver.
-- **`feature_hbridge_set_current_limit_ma(id, limit_ma)`**: Updates chopping limit on the driver.
+- **`feature_hbridge_get_current_mA(id, out_mA)`**: Reads measured current in mA from the driver.
+- **`feature_hbridge_set_current_limit_mA(id, limit_mA)`**: Updates chopping limit on the driver.
 - **`feature_hbridge_get_fault(id, out_fault)`**: Checks channel fault state.
 - **`feature_hbridge_get_fault_reason(id, out_reason)`**: Retrieves detailed cause (`OVERCURRENT`, `THERMAL_OR_UVLO`, `EXTERNAL`).
 - **`feature_hbridge_clear_fault(id)`**: Clears driver fault latch and resets software state.

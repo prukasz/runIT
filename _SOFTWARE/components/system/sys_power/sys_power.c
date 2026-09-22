@@ -3,191 +3,37 @@
 #include "sys_error.h"
 #include <sdkconfig.h>
 
-static const char* TAG = __FILE_NAME__;
-
 /* ========================================================================== *
  * WEWNĘTRZNE STRUKTURY STANU
  * ========================================================================== */
+/* The power manager's state (source, budget, rails, battery) lives in
+   sys_power_manager.c. This file dispatches the power contracts. */
 
-typedef struct {
-  uint32_t source_max_mV;
-  uint32_t source_max_mA;
-  uint32_t total_budget_mW;
-  uint32_t allocated_mW;
-  bool ignore_limits;
-} sys_power_budget_t;
-
-typedef struct {
-  uint32_t target_mV;
-  uint32_t target_mA;
-  uint32_t allocated_mW;
-} sys_power_device_t;
-
-static sys_power_budget_t s_budget = {0};
-static sys_power_device_t s_power_registry[CONFIG_SYS_DEVICE_MAX_ID + 1] = {0};
-
-
-
-// Dummy callback-event handler for CONFIG_SYS_CB_ROUTE_PWR - logs and nothing else,
-// a placeholder until sys_power has something real to route PWR events to.
-static void sys_power_cb_dummy_log(const cb_event_t* event) {
-  if (event->head.callback_type != CALLBACK_PWR) return;
-  ESP_LOGI(TAG, "PWR event: device %u, channel %u, event %u, val %ld", event->event.pwr.device_id, event->event.pwr.channel_id, event->event.pwr.trigger_event, (long)event->event.pwr.trigger_value);
-}
-
-__attribute__((constructor)) static void sys_power_cb_route_register(void) {
-  SE_release(sys_cb_register_route(CONFIG_SYS_CB_ROUTE_PWR, sys_power_cb_dummy_log));
-}
-
-static uint32_t s_power_limit_mv = CONFIG_SYS_POWER_DEFAULT_LIMIT_MV;
-static uint32_t s_power_limit_ma = CONFIG_SYS_POWER_DEFAULT_LIMIT_MA;
-static uint32_t s_power_budget_mw = CONFIG_SYS_POWER_DEFAULT_BUDGET_MW;
-static bool s_limits_locked = false;
-
-uint32_t sys_power_get_limit_mv(void) {
-  return s_power_limit_mv;
-}
-uint32_t sys_power_get_limit_ma(void) {
-  return s_power_limit_ma;
-}
-uint32_t sys_power_get_budget_mw(void) {
-  return s_power_budget_mw;
-}
-
+#undef OWNER
 #define OWNER OWNER_SYS_POWER_BASE
-err_h sys_power_set_limits(uint32_t max_mv, uint32_t max_ma, uint32_t max_mw) {
-  if (s_limits_locked) {
-    SE_RET_ERR(ERR_BASE_INVALID_STATE, 0);
-  }
-  s_power_limit_mv = max_mv;
-  s_power_limit_ma = max_ma;
-  s_power_budget_mw = max_mw;
-  s_limits_locked = true;
-  return NULL;
-}
+
+/* Member names of the power contracts in order, NULL-terminated (feature id = index). */
+const char* const sys_power_vreg_feature_names[] = {"set_enable", "set_voltage", "set_current", NULL};
+const char* const sys_power_monitor_feature_names[] = {"get_voltage", "get_current", "set_alert", NULL};
+const char* const sys_power_usb_pd_feature_names[] = {"set_settings", "list_options", "get_limits", NULL};
+_Static_assert(sizeof(sys_power_vreg_feature_names) / sizeof(sys_power_vreg_feature_names[0]) - 1 == sizeof(sys_power_vreg_contract_t) / sizeof(void (*)(void)),
+               "sys_power_vreg_feature_names must list every sys_power_vreg_contract_t member in order");
+_Static_assert(sizeof(sys_power_monitor_feature_names) / sizeof(sys_power_monitor_feature_names[0]) - 1 == sizeof(sys_power_monitor_contract_t) / sizeof(void (*)(void)),
+               "sys_power_monitor_feature_names must list every sys_power_monitor_contract_t member in order");
+_Static_assert(sizeof(sys_power_usb_pd_feature_names) / sizeof(sys_power_usb_pd_feature_names[0]) - 1 == sizeof(sys_power_usb_pd_contract_t) / sizeof(void (*)(void)),
+               "sys_power_usb_pd_feature_names must list every sys_power_usb_pd_contract_t member in order");
 
 /* ========================================================================== *
  * ZARZĄDZANIE BUDŻETEM (API SYSTEMOWE)
  * ========================================================================== */
-
-#undef OWNER
-#define OWNER OWNER_SYS_POWER_BUDGET_UPDATE_SOURCE
-err_h sys_power_budget_update_source(uint32_t max_mV, uint32_t max_mA) {
-  s_budget.source_max_mV = max_mV;
-  s_budget.source_max_mA = max_mA;
-
-  s_budget.total_budget_mW = (max_mV * max_mA) / 1000;
-
-  ESP_LOGI(TAG, "New Power Budget: %lu mW (%lu mV @ %lu mA)", s_budget.total_budget_mW, max_mV, max_mA);
-
-  if (s_budget.allocated_mW > s_budget.total_budget_mW && !s_budget.ignore_limits) {
-    ESP_LOGE(TAG, "CRITICAL: Allocated power (%lu mW) exceeds new budget!", s_budget.allocated_mW);
-    SE_RET_ERR(ERR_POWER_BUDGET_EXCEEDED, 0);
-  }
-
-  return NULL;
-}
-
-void sys_power_budget_set_ignore(bool ignore) {
-  s_budget.ignore_limits = ignore;
-  ESP_LOGW(TAG, "Power budget limits %s", ignore ? "IGNORED" : "ENFORCED");
-}
-
-void sys_power_budget_reset(void) {
-  s_budget.source_max_mV = 0;
-  s_budget.source_max_mA = 0;
-  s_budget.total_budget_mW = 0;
-  s_budget.allocated_mW = 0;
-
-  for (int i = 0; i <= CONFIG_SYS_DEVICE_MAX_ID; i++) {
-    s_power_registry[i].target_mV = 0;
-    s_power_registry[i].target_mA = 0;
-    s_power_registry[i].allocated_mW = 0;
-  }
-  ESP_LOGI(TAG, "Power budget fully reset.");
-}
+/* Budget, source and battery: sys_power_manager.c (sys_power_init() and the
+   budgeted sys_power_vreg_set_enable / set_voltage / set_current). */
 
 /* ========================================================================== *
  * VREG API
  * ========================================================================== */
 
-#undef OWNER
-#define OWNER OWNER_SYS_VREG_SET_ENABLE
-err_h sys_vreg_set_enable(uint8_t device_id, bool state) {
-  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_VREG, sys_power_vreg_contract, set_enable, state);
-}
-
-#undef OWNER
-#define OWNER OWNER_SYS_VREG_SET_VOLTAGE
-err_h sys_vreg_set_voltage(uint8_t device_id, uint32_t voltage_mV) {
-  SE_CHECK_IN_RANGE(voltage_mV, 0, SYS_POWER_LIMIT_MV);
-
-  sys_device_t* dev = sys_device_get_by_id(device_id);
-  SYS_DEV_REQUIRE_ACTIVE(dev, device_id);
-
-  IF_SYS_DEV_AND_FEATURE(device_id, SYS_DEVICE_CONTRACT_POWER_VREG, sys_power_vreg_contract, set_voltage, dev_ptr, vreg) {
-    sys_power_device_t* p_dev = &s_power_registry[device_id];
-    uint32_t requested_mW = (voltage_mV * p_dev->target_mA) / 1000;
-
-    if (!s_budget.ignore_limits) {
-      uint32_t projected_total_mW = (s_budget.allocated_mW - p_dev->allocated_mW) + requested_mW;
-      if (projected_total_mW > s_budget.total_budget_mW) {
-        ESP_LOGE(TAG, "VREG %u Budget Exceeded! Req: %lu mW", device_id, requested_mW);
-        SE_RET_ERR(ERR_POWER_BUDGET_EXCEEDED, device_id);
-      }
-    }
-
-    err_h hw_status = vreg->set_voltage(dev->device_handle, voltage_mV);
-    if (hw_status == NULL) {
-      s_budget.allocated_mW = (s_budget.allocated_mW - p_dev->allocated_mW) + requested_mW;
-      p_dev->target_mV = voltage_mV;
-      p_dev->allocated_mW = requested_mW;
-      return NULL;
-    }
-    SE_PASS_ON_ERR(hw_status, ERR_DEV_DEP_FAILED, .dev_id = device_id);
-  }
-
-  SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);
-}
-
-#undef OWNER
-#define OWNER OWNER_SYS_VREG_SET_CURRENT
-err_h sys_vreg_set_current(uint8_t device_id, uint32_t current_mA) {
-  SE_CHECK_IN_RANGE(current_mA, 0, SYS_POWER_LIMIT_MA);
-
-  sys_device_t* dev = sys_device_get_by_id(device_id);
-  SYS_DEV_REQUIRE_ACTIVE(dev, device_id);
-
-  IF_SYS_DEV_AND_FEATURE(device_id, SYS_DEVICE_CONTRACT_POWER_VREG, sys_power_vreg_contract, set_current, dev_ptr, vreg) {
-    sys_power_device_t* p_dev = &s_power_registry[device_id];
-    uint32_t requested_mW = (p_dev->target_mV * current_mA) / 1000;
-
-    if (!s_budget.ignore_limits) {
-      uint32_t projected_total_mW = (s_budget.allocated_mW - p_dev->allocated_mW) + requested_mW;
-      if (projected_total_mW > s_budget.total_budget_mW) {
-        ESP_LOGE(TAG, "VREG %u Budget Exceeded! Req: %lu mW", device_id, requested_mW);
-        SE_RET_ERR(ERR_POWER_BUDGET_EXCEEDED, device_id);
-      }
-    }
-
-    err_h hw_status = vreg->set_current(dev->device_handle, current_mA);
-    if (hw_status == NULL) {
-      s_budget.allocated_mW = (s_budget.allocated_mW - p_dev->allocated_mW) + requested_mW;
-      p_dev->target_mA = current_mA;
-      p_dev->allocated_mW = requested_mW;
-      return NULL;
-    }
-    SE_PASS_ON_ERR(hw_status, ERR_DEV_DEP_FAILED, .dev_id = device_id);
-  }
-
-  SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);
-}
-
-#undef OWNER
-#define OWNER OWNER_SYS_VREG_ADD_CALLBACK
-err_h sys_vreg_add_callback(uint8_t device_id, sys_power_events_e on_event, uint16_t route_mask, uint8_t static_action_id, uint8_t dynamic_action_id) {
-  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_VREG, sys_power_vreg_contract, add_callback, on_event, route_mask, static_action_id, dynamic_action_id);
-}
+/* set_enable / set_voltage / set_current are budgeted: sys_power_manager.c. */
 
 /* ========================================================================== *
  * MONITOR API
@@ -197,20 +43,20 @@ err_h sys_vreg_add_callback(uint8_t device_id, sys_power_events_e on_event, uint
 #define OWNER OWNER_SYS_POWER_MONITOR_GET_VOLTAGE
 err_h sys_power_monitor_get_voltage(uint8_t device_id, uint8_t channel, int32_t* out_mV) {
   SE_CHECK_NOT_NULL(out_mV);
-  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_MONITOR, sys_power_monitor_contract, get_voltage, channel, out_mV);
+  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_MONITOR, sys_power_monitor_contract_t, get_voltage, channel, out_mV);
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_POWER_MONITOR_GET_CURRENT
 err_h sys_power_monitor_get_current(uint8_t device_id, uint8_t channel, int32_t* out_mA) {
   SE_CHECK_NOT_NULL(out_mA);
-  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_MONITOR, sys_power_monitor_contract, get_current, channel, out_mA);
+  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_MONITOR, sys_power_monitor_contract_t, get_current, channel, out_mA);
 }
 
 #undef OWNER
-#define OWNER OWNER_SYS_POWER_MONITOR_ADD_CALLBACK
-err_h sys_power_monitor_add_callback(uint8_t device_id, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, uint16_t route_mask, uint8_t static_action_id, uint8_t dynamic_action_id) {
-  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_MONITOR, sys_power_monitor_contract, add_callback, channel, trigger_value, on_event, route_mask, static_action_id, dynamic_action_id);
+#define OWNER OWNER_SYS_POWER_MONITOR_SET_ALERT
+err_h sys_power_monitor_set_alert(uint8_t device_id, uint8_t channel, sys_power_events_e alert, int32_t threshold_mA) {
+  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_MONITOR, sys_power_monitor_contract_t, set_alert, channel, alert, threshold_mA);
 }
 
 /* ========================================================================== *
@@ -220,41 +66,28 @@ err_h sys_power_monitor_add_callback(uint8_t device_id, uint8_t channel, int32_t
 #undef OWNER
 #define OWNER OWNER_SYS_POWER_USB_PD_SET
 err_h sys_power_usb_pd_set(uint8_t device_id, uint32_t voltage_mV, uint32_t current_mA) {
-  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_USB_PD, sys_power_usb_pd_contract, set_settings, voltage_mV, current_mA);
+  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_USB_PD, sys_power_usb_pd_contract_t, set_settings, voltage_mV, current_mA);
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_POWER_USB_PD_LIST
-err_h sys_power_usb_pd_list(uint8_t device_id) {
-  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_USB_PD, sys_power_usb_pd_contract, list_options);
+err_h sys_power_usb_pd_list(uint8_t device_id, sys_power_usb_pd_option_t* out_options, uint8_t max_options, uint8_t* out_count) {
+  SE_CHECK_NOT_NULL(out_options);
+  SE_CHECK_NOT_NULL(out_count);
+  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_USB_PD, sys_power_usb_pd_contract_t, list_options, out_options, max_options, out_count);
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_POWER_USB_PD_GET_LIMITS
-err_h sys_power_usb_pd_get_limits(uint8_t device_id, uint32_t* out_mV, uint32_t* out_mA) {
+err_h sys_power_usb_pd_get_limits(uint8_t device_id, int32_t* out_mV, int32_t* out_mA) {
   SE_CHECK_NOT_NULL(out_mV);
   SE_CHECK_NOT_NULL(out_mA);
 
-  sys_device_t* dev = sys_device_get_by_id(device_id);
-  SYS_DEV_REQUIRE_ACTIVE(dev, device_id);
+  SYS_DEV_RESOLVE(device_id, SYS_DEVICE_CONTRACT_POWER_USB_PD, sys_power_usb_pd_contract_t, get_limits, dev, usb_pd);
 
-  IF_SYS_DEV_AND_FEATURE(device_id, SYS_DEVICE_CONTRACT_POWER_USB_PD, sys_power_usb_pd_contract, get_limits, dev_ptr, usb_pd) {
-    err_h err = usb_pd->get_limits(dev_ptr->device_handle, out_mV, out_mA);
-    if (SE_IS_OK(err)) {
-      SE_release(sys_power_budget_update_source(*out_mV, *out_mA));
-      return NULL;
-    }
-    SE_PASS_ON_ERR(err, ERR_DEV_DEP_FAILED, .dev_id = device_id);
-  }
-  SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);
-}
-
-__attribute__((weak)) err_h sys_power_handle_fault(err_h node, err_h chain) {
-  (void)chain;
-  if (!node || SE_get_tag_level(node->tag) != SYS_DEV_ERR_CRITICAL) {
-    return NULL;
-  }
-  // Severe power fault containment (budget trip / rail cut-off)
+  SE_TRY_WRAP(usb_pd->get_limits(dev->device_handle, out_mV, out_mA), ERR_DEV_DEP_FAILED, .dev_id = device_id);
+  // A negative limit can't size the budget.
+  SE_CHECK_IN_RANGE_I32(*out_mV, 0, INT32_MAX);
+  SE_CHECK_IN_RANGE_I32(*out_mA, 0, INT32_MAX);
   return NULL;
 }
-

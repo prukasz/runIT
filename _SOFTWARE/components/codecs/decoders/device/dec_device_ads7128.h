@@ -12,8 +12,8 @@
 //@contract-provider $SYS_DEVICE_CONTRACT_IO
 //@self-property PIN @one-of [0,1,2,3,4,5,6,7]
 //@self-property I2C_ADDRESS @one-of[0x10,0x11,0x12,0x13,0x14,0x15,0x16]
-//@property PIN-MODE @ref sys_io_mode_e @one-of [$SYS_IO_MODE_ADC]
-//@property INTR-MODE @ref sys_io_intr_mode_e @one-of [$SYS_IO_INTR_ADC_WINDOW_INSIDE, $SYS_IO_INTR_ADC_WINDOW_OUTSIDE]
+//@property PIN-MODE @enum-ref sys_io_mode_e @one-of [$SYS_IO_MODE_ADC]
+//@property INTR-MODE @enum-ref sys_io_intr_mode_e @one-of [$SYS_IO_INTR_ADC_WINDOW_INSIDE, $SYS_IO_INTR_ADC_WINDOW_OUTSIDE]
 
 //@contract packet_sys_io_reset_t @alias Reset Configuration
 //@param pin @arg PIN @alias ADC Channel
@@ -32,7 +32,6 @@
 //@contract packet_sys_io_configure_intr_t @alias Configure alert
 //@param pin @arg PIN @alias ADC Channel
 //@param mode @arg INTR-MODE @alias Window Mode
-//@param route_mask @alias Alert Route Mask @type uint16_t @note Bitmask of callback routes (see SYS_CB_ROUTE_*) that should receive this alert event
 //@param adc_thresh_up_mV @alias Upper Threshold @type uint16_t @unit mV @optional @default 0
 //@param adc_thresh_down_mV @alias Lower Threshold @type uint16_t @unit mV @optional @default 0
 //@param adc_thresh_hyst_mV @alias Hysteresis @type uint16_t @unit mV @optional @default 0
@@ -47,14 +46,14 @@ typedef struct __packed {
   uint8_t i2c_addr;           //@required @alias I2C Address @min 0x00 @max 0x7F @unit 7-bit-address @note 7-bit I2C address; driver_ads7128.c does not enforce a device-specific address list
   uint8_t intr_pin_device_id; //@group alert-pin @role device_id @alias ALERT GPIO Provider
   uint8_t intr_pin_pin;       //@group alert-pin @role pin @alias ALERT Pin @sentinel SYS_GPIO_NONE @note SYS_GPIO_NONE disables external ALERT reporting; ALERT is open-drain and active-low
-  uint8_t intr_pin_mode;      //@group alert-pin @role mode @alias ALERT Pin Mode @ref sys_io_mode_e @one-of [$SYS_IO_MODE_INPUT_PULLUP] @note Required when ALERT reporting is enabled
-  uint32_t vref_mv;           //@required @alias ADC Reference Voltage @unit mV @min 1 @note AVDD doubles as ADC reference; adapter_ads7128.c rejects zero and firmware has no additional numeric bound
+  uint8_t intr_pin_mode;      //@group alert-pin @role mode @alias ALERT Pin Mode @enum-ref sys_io_mode_e @one-of [$SYS_IO_MODE_INPUT_PULLUP] @note Required when ALERT reporting is enabled
+  uint32_t vref_mV;           //@required @alias ADC Reference Voltage @unit mV @min 1 @note AVDD doubles as ADC reference; adapter_ads7128.c rejects zero and firmware has no additional numeric bound
 } packet_sys_device_install_ads7128_t;
 
-static inline err_h decoder_packet_sys_device_install_ads7128_t(packet_sys_device_install_ads7128_t* packet) {
-  ESP_LOGI(DEC_SYS_DEVICE_INSTALL_TAG, "installing ads7128 (dev %u, i2c bus %u addr 0x%02X, vref %lu mV)", packet->device_id, packet->i2c_bus, packet->i2c_addr, (unsigned long)packet->vref_mv);
+static inline SE_MUST_USE err_h decoder_packet_sys_device_install_ads7128_t(packet_sys_device_install_ads7128_t* packet) {
+  ESP_LOGI(DEC_SYS_DEVICE_INSTALL_TAG, "installing ads7128 (dev %u, i2c bus %u addr 0x%02X, vref %lu mV)", packet->device_id, packet->i2c_bus, packet->i2c_addr, (unsigned long)packet->vref_mV);
   d_ads7128_cfg_t cfg = {.device_id = packet->device_id, .i2c_bus = packet->i2c_bus != 0, .i2c_addr = packet->i2c_addr,
-                          .intr_pin = pin_ref_from_wire(packet->intr_pin_device_id, packet->intr_pin_pin, packet->intr_pin_mode), .vref_mv = packet->vref_mv};
+                          .intr_pin = pin_ref_from_wire(packet->intr_pin_device_id, packet->intr_pin_pin, packet->intr_pin_mode), .vref_mV = packet->vref_mV};
   return d_ads7128_create(&cfg);
 }
 

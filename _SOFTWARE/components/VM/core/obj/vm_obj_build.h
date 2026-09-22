@@ -40,10 +40,10 @@ typedef struct vm_accessor_t vm_accessor_t;
  * @code
  * vm_obj_h temp;
  * vm_obj_head_t h = vm_make_obj_head(VM_OBJ_F, 1, VM_OBJ_F_MUTABLE, 4);
- * SE_RET_IF_ERR(vm_obj_create(&temp, 3, &h, "temp"));
+ * SE_TRY(vm_obj_create(&temp, 3, &h, "temp"));
  * @endcode
  */
-err_h vm_obj_create(vm_obj_h* out, uint16_t id, const vm_obj_head_t* head, const char* name);
+SE_MUST_USE err_h vm_obj_create(vm_obj_h* out, uint16_t id, const vm_obj_head_t* head, const char* name);
 
 /**
  * @brief Validate an object header and compute total allocation bytes required.
@@ -55,7 +55,7 @@ err_h vm_obj_create(vm_obj_h* out, uint16_t id, const vm_obj_head_t* head, const
  * @param[out] out_total Receives total bytes (sizeof(vm_obj_head_t) + payload + name).
  * @return err_h NULL on success, or validation error handle.
  */
-err_h vm_obj_shape(const vm_obj_head_t* head, uint32_t* out_total);
+SE_MUST_USE err_h vm_obj_shape(const vm_obj_head_t* head, uint32_t* out_total);
 
 /**
  * @brief Initialize a pre-allocated object handle with validated header and name.
@@ -85,7 +85,7 @@ void vm_obj_init(vm_obj_h o, const vm_obj_head_t* head, const char* name);
  * @param[in]  idx_count   Number of index slots to allocate.
  * @return err_h NULL on success, or error handle (ERR_VM_REG_*, ERR_VM_ALLOC_EXHAUSTED).
  */
-err_h vm_accessor_create(vm_accessor_t** out, uint16_t id, uint16_t root_obj_id, uint8_t idx_count);
+SE_MUST_USE err_h vm_accessor_create(vm_accessor_t** out, uint16_t id, uint16_t root_obj_id, uint8_t idx_count);
 
 /**
  * @brief Set accessor index at position @p pos to a literal index.
@@ -95,7 +95,7 @@ err_h vm_accessor_create(vm_accessor_t** out, uint16_t id, uint16_t root_obj_id,
  * @param[in]     value Literal index value.
  * @return err_h NULL on success, or ERR_VM_ACC_INDEX_OOB if pos >= count.
  */
-err_h vm_accessor_set_literal(vm_accessor_t* acc, uint8_t pos, uint32_t value);
+SE_MUST_USE err_h vm_accessor_set_literal(vm_accessor_t* acc, uint8_t pos, uint32_t value);
 
 /**
  * @brief Set accessor index at position @p pos to read from another accessor.
@@ -105,7 +105,7 @@ err_h vm_accessor_set_literal(vm_accessor_t* acc, uint8_t pos, uint32_t value);
  * @param[in]     ref Target accessor reference.
  * @return err_h NULL on success, or ERR_VM_ACC_INDEX_OOB if pos >= count.
  */
-err_h vm_accessor_set_ref(vm_accessor_t* acc, uint8_t pos, const vm_accessor_t* ref);
+SE_MUST_USE err_h vm_accessor_set_ref(vm_accessor_t* acc, uint8_t pos, const vm_accessor_t* ref);
 
 /**
  * @brief Set accessor index at position @p pos to match a child tag name.
@@ -118,7 +118,7 @@ err_h vm_accessor_set_ref(vm_accessor_t* acc, uint8_t pos, const vm_accessor_t* 
  * @param[in]     name_len Length of name (must be <= VM_OBJ_NAME_MAX).
  * @return err_h NULL on success, ERR_VM_OBJ_NAME_TOO_LONG, or ERR_VM_ALLOC_EXHAUSTED.
  */
-err_h vm_accessor_set_name(vm_accessor_t* acc, uint8_t pos, const char* name, uint8_t name_len);
+SE_MUST_USE err_h vm_accessor_set_name(vm_accessor_t* acc, uint8_t pos, const char* name, uint8_t name_len);
 
 /**
  * @brief Pre-resolve an immutable accessor target into its resolution cache.

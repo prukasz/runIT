@@ -23,7 +23,7 @@ err_h vm_internal_obj_writable(vm_obj_h obj, bool user) {
   if (!obj) return vm_obj_null_obj_err();
   if (!obj->head.f.mutable) return vm_obj_not_mutable_err(obj);
   if (user && obj->head.f.usr_protected) {
-    SE_RET_ERR(ERR_VM_OBJ_USR_PROTECTED, .obj_id = vm_obj_get_id(obj));
+    SE_FAIL(ERR_VM_OBJ_USR_PROTECTED, .obj_id = vm_obj_get_id(obj));
   }
   return NULL;
 }
@@ -133,13 +133,13 @@ bool vm_get_as_bool(vm_obj_t_e type, const void* src) {
 }
 
 err_h vm_internal_scalar_payload_check(vm_obj_payload_t p, vm_obj_h owner, uint16_t id) {
-  if (!p.ptr || !p.count) SE_RET_ERR(ERR_VM_OBJ_EMPTY, .type = p.type);
+  if (!p.ptr || !p.count) SE_FAIL(ERR_VM_OBJ_EMPTY, .type = p.type);
   if (!vm_type_is_scalar(p.type)) return vm_obj_not_scalar_err(owner, (vm_obj_t_e)p.type, id);
   return NULL;
 }
 
-static err_h payload_as_index(uint32_t* out, vm_obj_payload_t p, const vm_accessor_t* acc) {
-  SE_RET_IF_ERR(vm_internal_scalar_payload_check(p, p.owner, acc->id));
+static SE_MUST_USE err_h payload_as_index(uint32_t* out, vm_obj_payload_t p, const vm_accessor_t* acc) {
+  SE_TRY(vm_internal_scalar_payload_check(p, p.owner, acc->id));
   /* Negative indices are invalid, not scalar values to clamp to element zero. */
   if ((p.type == VM_OBJ_I32 && *(const int32_t*)p.ptr < 0) ||
       (p.type == VM_OBJ_F && (!isfinite(*(const float*)p.ptr) || *(const float*)p.ptr < 0)))
@@ -162,8 +162,8 @@ err_h vm_internal_acc_resolve_deep(const vm_accessor_t* acc, uint8_t depth, vm_o
   SE_CHECK_NOT_NULL(acc);
   if (acc->flags & VM_ACC_F_CACHED) {
     if (!acc->c_payload.owner) return vm_err_null_obj(acc->id, acc->count, NULL);
-    if (!acc->c_payload.ptr || !acc->c_payload.count) SE_RET_ERR(ERR_VM_OBJ_EMPTY, .type = acc->c_payload.type);
-    if (!vm_type_ok(acc->c_payload.type)) SE_RET_ERR(ERR_VM_OBJ_BAD_TYPE, .type = acc->c_payload.type);
+    if (!acc->c_payload.ptr || !acc->c_payload.count) SE_FAIL(ERR_VM_OBJ_EMPTY, .type = acc->c_payload.type);
+    if (!vm_type_ok(acc->c_payload.type)) SE_FAIL(ERR_VM_OBJ_BAD_TYPE, .type = acc->c_payload.type);
   }
   if (acc->count) SE_CHECK_NOT_NULL(acc->indices);
   *out = (vm_obj_payload_t){.ptr = NULL, .owner = NULL, .count = 0, .type = VM_OBJ_NONE, ._pad = 0};
@@ -212,7 +212,7 @@ err_h vm_internal_acc_resolve_deep(const vm_accessor_t* acc, uint8_t depth, vm_o
         index = idx->value;
         break;
       default:
-        SE_RET_ERR(ERR_VM_ACC_BAD_KIND, .acc_id = acc->id, .pos = i, .kind = idx->kind);
+        SE_FAIL(ERR_VM_ACC_BAD_KIND, .acc_id = acc->id, .pos = i, .kind = idx->kind);
     }
 
     p = obj_elem(obj, index);
@@ -296,7 +296,7 @@ vm_obj_dyn_get_id), so a program's whole load-time wiring pays nothing for this.
 err_h slot_store(vm_obj_h owner, vm_obj_h* cell, vm_obj_h child) {
   vm_obj_h prev = *cell;
   if (prev == child) return NULL;  // already there: no churn, and no news to publish
-  SE_RET_IF_ERR(vm_obj_dyn_check_link(owner, cell, child));
+  SE_TRY(vm_obj_dyn_check_link(owner, cell, child));
 
   vm_obj_dyn_retain(child);
   *cell = child;
@@ -313,10 +313,10 @@ err_h slot_store(vm_obj_h owner, vm_obj_h* cell, vm_obj_h child) {
 /* One payload of plain values. `s.ptr == d.ptr` is a copy onto itself, which
    is a no-op rather than an error -- and skipping it also keeps memcpy() off
    a source and destination that are the same bytes. */
-static err_h copy_values(vm_obj_payload_t s, vm_obj_payload_t d, vm_obj_h d_owner, bool commit) {
+static SE_MUST_USE err_h copy_values(vm_obj_payload_t s, vm_obj_payload_t d, vm_obj_h d_owner, bool commit) {
   uint8_t w = vm_type_width((vm_obj_t_e)s.type);
   if (unlikely(s.type != d.type || s.count != d.count || w == 0)) {
-    SE_RET_ERR(ERR_VM_OBJ_COPY_MISMATCH, .src_type = s.type, .dst_type = d.type, .src_size = s.count, .dst_size = d.count);
+    SE_FAIL(ERR_VM_OBJ_COPY_MISMATCH, .src_type = s.type, .dst_type = d.type, .src_size = s.count, .dst_size = d.count);
   }
   if (commit) {
     if (likely(s.ptr != d.ptr)) memmove(d.ptr, s.ptr, (size_t)w * s.count);
@@ -339,15 +339,15 @@ the source's, which is what lets a deep copy allocate nothing -- it is a walk
 over two structures that are already there, not a clone. A destination shaped
 differently from its source is a wiring error and says so.
 */
-static err_h copy_tree(vm_obj_payload_t s, vm_obj_payload_t d, vm_obj_h d_owner, uint8_t depth, bool commit, bool user) {
-  SE_RET_IF_ERR(vm_internal_obj_writable(d_owner, user));
+static SE_MUST_USE err_h copy_tree(vm_obj_payload_t s, vm_obj_payload_t d, vm_obj_h d_owner, uint8_t depth, bool commit, bool user) {
+  SE_TRY(vm_internal_obj_writable(d_owner, user));
   if (likely(s.type != VM_OBJ_PTR && d.type != VM_OBJ_PTR)) return copy_values(s, d, d_owner, commit);
 
   if (unlikely(s.type != d.type || s.count != d.count)) {
-    SE_RET_ERR(ERR_VM_OBJ_COPY_MISMATCH, .src_type = s.type, .dst_type = d.type, .src_size = s.count, .dst_size = d.count);
+    SE_FAIL(ERR_VM_OBJ_COPY_MISMATCH, .src_type = s.type, .dst_type = d.type, .src_size = s.count, .dst_size = d.count);
   }
   if (unlikely(depth >= CONFIG_VM_OBJ_COPY_MAX_DEPTH)) {
-    SE_RET_ERR(ERR_VM_OBJ_COPY_SHAPE, .index = 0, .depth = depth, .reason = VM_COPY_SHAPE_DEPTH);
+    SE_FAIL(ERR_VM_OBJ_COPY_SHAPE, .index = 0, .depth = depth, .reason = VM_COPY_SHAPE_DEPTH);
   }
 
   vm_obj_h* sc = (vm_obj_h*)s.ptr;
@@ -355,11 +355,11 @@ static err_h copy_tree(vm_obj_payload_t s, vm_obj_payload_t d, vm_obj_h d_owner,
   for (uint16_t i = 0; i < s.count; i++) {
     if (sc[i] == dc[i]) continue;  // both unwired, or literally the same child
     if (unlikely(!sc[i] || !dc[i])) {
-      SE_RET_ERR(ERR_VM_OBJ_COPY_SHAPE, .index = i, .depth = depth, .reason = sc[i] ? VM_COPY_SHAPE_DST_EMPTY : VM_COPY_SHAPE_SRC_EMPTY);
+      SE_FAIL(ERR_VM_OBJ_COPY_SHAPE, .index = i, .depth = depth, .reason = sc[i] ? VM_COPY_SHAPE_DST_EMPTY : VM_COPY_SHAPE_SRC_EMPTY);
     }
     // checked per child: the walk writes into each of them, and mutability is
     // a property of the object, not of the accessor that reached its root
-    SE_RET_IF_ERR(copy_tree(vm_make_payload(sc[i]), vm_make_payload(dc[i]), dc[i], (uint8_t)(depth + 1), commit, user));
+    SE_TRY(copy_tree(vm_make_payload(sc[i]), vm_make_payload(dc[i]), dc[i], (uint8_t)(depth + 1), commit, user));
   }
 
   /* The parent's own bytes did not change, but what hangs under it did, and a
@@ -398,9 +398,9 @@ bool vm_internal_shape_matches(vm_obj_h a, vm_obj_h b, uint8_t depth, bool schem
 
 err_h vm_internal_obj_copy_content(const vm_accessor_t* source, const vm_accessor_t* target, bool user) {
   vm_obj_payload_t src, dst;
-  SE_RET_IF_ERR(vm_internal_obj_resolve(source, &src));
-  SE_RET_IF_ERR(vm_internal_obj_resolve(target, &dst));
-  SE_RET_IF_ERR(copy_tree(src, dst, dst.owner, 0, false, user));
+  SE_TRY(vm_internal_obj_resolve(source, &src));
+  SE_TRY(vm_internal_obj_resolve(target, &dst));
+  SE_TRY(copy_tree(src, dst, dst.owner, 0, false, user));
   return copy_tree(src, dst, dst.owner, 0, true, user);
 }
 
@@ -408,7 +408,7 @@ err_h vm_internal_obj_copy_direct(vm_obj_h src, vm_obj_h dst, bool user) {
   if (unlikely(!src || !dst)) return vm_obj_null_obj_err();
   vm_obj_payload_t s = vm_make_payload(src);
   vm_obj_payload_t d = vm_make_payload(dst);
-  SE_RET_IF_ERR(copy_tree(s, d, dst, 0, false, user));
+  SE_TRY(copy_tree(s, d, dst, 0, false, user));
   return copy_tree(s, d, dst, 0, true, user);
 }
 
@@ -429,7 +429,7 @@ of the pass that filled it -- a snapshot is news once, not forever.
 err_h vm_internal_clone_shape(vm_obj_h* out, vm_obj_h src, uint8_t depth) {
   *out = NULL;
   if (unlikely(src->head.d.obj_t == VM_OBJ_PTR && depth >= CONFIG_VM_OBJ_COPY_MAX_DEPTH)) {
-    SE_RET_ERR(ERR_VM_OBJ_COPY_SHAPE, .index = 0, .depth = depth, .reason = VM_COPY_SHAPE_DEPTH);
+    SE_FAIL(ERR_VM_OBJ_COPY_SHAPE, .index = 0, .depth = depth, .reason = VM_COPY_SHAPE_DEPTH);
   }
 
   vm_obj_head_t h = src->head;
@@ -442,7 +442,7 @@ err_h vm_internal_clone_shape(vm_obj_h* out, vm_obj_h src, uint8_t depth) {
   const char* name = vm_obj_get_tag(src, &name_len);
 
   vm_obj_h o = NULL;
-  SE_RET_IF_ERR(vm_obj_dyn_create(&o, &h, name));
+  SE_TRY(vm_obj_dyn_create(&o, &h, name));
 
   if ((vm_obj_t_e)h.d.obj_t == VM_OBJ_PTR) {
     vm_obj_h* sk = (vm_obj_h*)src->payload;
@@ -472,11 +472,11 @@ err_h vm_internal_obj_clone_into(const vm_accessor_t* source, const vm_accessor_
   /* vm_obj_get_obj(), not a payload resolve: a Clone wants the object behind the
      source, header and all, because the header is the shape it has to match. */
   vm_obj_h src = NULL;
-  SE_RET_IF_ERR(vm_obj_get_obj(&src, source));
+  SE_TRY(vm_obj_get_obj(&src, source));
 
   vm_obj_payload_t slot;
-  SE_RET_IF_ERR(vm_internal_obj_resolve(target, &slot));
-  SE_RET_IF_ERR(vm_internal_obj_writable(slot.owner, user));
+  SE_TRY(vm_internal_obj_resolve(target, &slot));
+  SE_TRY(vm_internal_obj_writable(slot.owner, user));
   if (unlikely(slot.type != VM_OBJ_PTR || !slot.ptr)) {
     return vm_err_expected_ptr(target->id, target->count, (uint8_t)slot.type, slot.owner);
   }
@@ -488,7 +488,7 @@ err_h vm_internal_obj_clone_into(const vm_accessor_t* source, const vm_accessor_
      afterwards only when the source's shape actually changes. */
   if (unlikely(!vm_internal_shape_matches(src, *cell, 0, true))) {
     vm_obj_h fresh = NULL;
-    SE_RET_IF_ERR(vm_internal_clone_shape(&fresh, src, 0));
+    SE_TRY(vm_internal_clone_shape(&fresh, src, 0));
     // Fill before publication: src may live inside the tree being replaced.
     err_h e = copy_tree(vm_make_payload(src), vm_make_payload(fresh), fresh, 0, true, user);
     if (!e) e = slot_store(slot.owner, cell, fresh);
@@ -496,19 +496,19 @@ err_h vm_internal_obj_clone_into(const vm_accessor_t* source, const vm_accessor_
     return e;
   }
 
-  SE_RET_IF_ERR(copy_tree(vm_make_payload(src), vm_make_payload(*cell), *cell, 0, false, user));
-  SE_RET_IF_ERR(copy_tree(vm_make_payload(src), vm_make_payload(*cell), *cell, 0, true, user));
+  SE_TRY(copy_tree(vm_make_payload(src), vm_make_payload(*cell), *cell, 0, false, user));
+  SE_TRY(copy_tree(vm_make_payload(src), vm_make_payload(*cell), *cell, 0, true, user));
   slot.owner->head.f.upd = 1;  // a refilled snapshot is a publication too
   return NULL;
 }
 
 err_h vm_internal_obj_link(const vm_accessor_t* child, const vm_accessor_t* target, bool user) {
   vm_obj_h c = NULL;
-  SE_RET_IF_ERR(vm_obj_get_obj(&c, child));
+  SE_TRY(vm_obj_get_obj(&c, child));
 
   vm_obj_payload_t slot;
-  SE_RET_IF_ERR(vm_internal_obj_resolve(target, &slot));
-  SE_RET_IF_ERR(vm_internal_obj_writable(slot.owner, user));
+  SE_TRY(vm_internal_obj_resolve(target, &slot));
+  SE_TRY(vm_internal_obj_writable(slot.owner, user));
 
   if (unlikely(slot.type != VM_OBJ_PTR || !slot.ptr)) {
     return vm_err_expected_ptr(target->id, target->count, (uint8_t)slot.type, slot.owner);
@@ -523,8 +523,8 @@ err_h vm_internal_obj_link(const vm_accessor_t* child, const vm_accessor_t* targ
 
 err_h vm_internal_obj_set_scalar_at(const vm_accessor_t* target, uint32_t index, vm_val_t v, vm_obj_t_e type, bool user) {
   vm_obj_payload_t p;
-  SE_RET_IF_ERR(vm_internal_obj_resolve(target, &p));
-  SE_RET_IF_ERR(vm_internal_obj_writable(p.owner, user));
+  SE_TRY(vm_internal_obj_resolve(target, &p));
+  SE_TRY(vm_internal_obj_writable(p.owner, user));
   if (index >= p.count) return vm_err_chain_oob(target->id, target->count, index, p.owner);
   return vm_internal_store_inline(p.owner, vm_payload_get_at(p, (uint16_t)index), v, type, target->id);
 }

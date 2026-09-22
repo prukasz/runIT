@@ -1,7 +1,6 @@
 #include "sys_device.h"
 #include "sys_error.h"
-#include "sys_error_hooks.h"
-#include "sys_io.h"
+#include "sys_error_log.h"
 #include "utils.h"
 
 static const char* TAG = __FILE_NAME__;
@@ -12,31 +11,38 @@ const char* const sys_device_contract_type_e_to_string[] = {"IO", "POWER_VREG", 
   Reads are lock-free: sys_device_get_by_id() sits on the hot dispatch path and
   is reachable from ISR-adjacent code, where a mutex cannot be taken.*/
 static sys_device_t* s_device_registry[CONFIG_SYS_DEVICE_MAX_ID + 1] = {NULL};
-/* Weak default fallback for sys_device_app_error_policy.
-   Overridden at link time by the application coordinator (runit). */
-__attribute__((weak)) err_h sys_device_app_error_policy(uint8_t device_id,
-                                                        sys_device_err_level_e level,
-                                                        uint8_t action_scope,
-                                                        uint8_t action_id,
-                                                        err_h error) {
+/* Error policy registered by the application (sys_device_register_error_policy).
+   Without one, a CRITICAL device error suspends every device. */
+static sys_device_error_policy_f s_error_policy;
+
+static SE_MUST_USE err_h default_error_policy(uint8_t device_id, se_level_e level, uint8_t action_scope, uint8_t action_id, err_h error) {
   (void)device_id;
   (void)action_scope;
   (void)action_id;
   (void)error;
-  if (level == SYS_DEV_ERR_CRITICAL) {
-    return sys_device_freeze_all();
-  }
-  return NULL;
+  return (level == SE_LEVEL_CRITICAL) ? sys_device_suspend_all() : NULL;
 }
 
-__attribute__((weak)) err_h sys_system_handle_fault(err_h node, err_h chain) {
-  (void)node;
-  (void)chain;
-  return sys_device_freeze_all();
+void sys_device_register_error_policy(sys_device_error_policy_f policy) {
+  s_error_policy = policy;
 }
-
 #define DEV_OP(d, f) ((d)->cls->ops.f)
 #define DEV_NAME(d) ((d)->cls->name)
+
+/* Every error leaving a device carries its device_id: wrap a lifecycle-op
+ * result as ERR_DEV_DEP_FAILED(dev_id) so device policy can attribute it.
+ * NULL (success) passes through untouched. */
+#define DEV_WRAP(err, dev_id)                                  \
+  ({                                                           \
+    err_h __wrap_err = (err);                                  \
+    __wrap_err ? SE_WRAP_DEV_ERR(__wrap_err, (dev_id)) : NULL; \
+  })
+
+/* Runs a device op, or reports ERR_BASE_NOT_SUPPORTED when the class lacks
+ * it, and wraps the result with the device's id. */
+#define DEV_RUN_OP(dev, fn)                                                          \
+  DEV_WRAP((fn) ? (fn)((dev)->device_handle) : SE_ERR_NEW(ERR_BASE_NOT_SUPPORTED, 0), \
+           (dev)->device_id)
 
 /* Shared skeleton for a single-device op that requires the device to be
  * active (found + installed + not suspended, via SYS_DEV_REQUIRE_ACTIVE) and
@@ -47,12 +53,8 @@ __attribute__((weak)) err_h sys_system_handle_fault(err_h node, err_h chain) {
     sys_device_t* __disp_dev = sys_device_get_by_id((device_id));                   \
     SYS_DEV_REQUIRE_ACTIVE(__disp_dev, (device_id));                                \
     err_h (*__disp_fn)(void*) = DEV_OP(__disp_dev, op_field);                       \
-    if (!__disp_fn) {                                                               \
-      SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);                                        \
-    }                                                                               \
     ESP_LOG_LEVEL((log_level), TAG, "%s device: %s", (verb), DEV_NAME(__disp_dev)); \
-    SE_RET_IF_ERR(__disp_fn(__disp_dev->device_handle));                            \
-    return NULL;                                                                    \
+    return DEV_RUN_OP(__disp_dev, __disp_fn);                                       \
   } while (0)
 
 /* Shared skeleton for suspend/resume: only found+installed is required (not
@@ -62,23 +64,26 @@ __attribute__((weak)) err_h sys_system_handle_fault(err_h node, err_h chain) {
 #define SYS_DEV_LIFECYCLE_TOGGLE(device_id, op_field, verb, log_level, skip_expr, new_state) \
   do {                                                                                       \
     sys_device_t* __disp_dev = sys_device_get_by_id((device_id));                            \
-    if (!__disp_dev) SE_RET_ERR(ERR_DEV_NOT_FOUND, (device_id));                             \
-    if (!SYS_DEV_IS_INSTALLED(__disp_dev)) SE_RET_ERR(ERR_DEV_NOT_INSTALLED, (device_id));   \
+    if (!__disp_dev) SE_FAIL(ERR_DEV_NOT_FOUND, (device_id));                             \
+    if (!SYS_DEV_IS_INSTALLED(__disp_dev)) SE_FAIL(ERR_DEV_NOT_INSTALLED, (device_id));   \
     if (skip_expr) return NULL;                                                              \
     err_h (*__disp_fn)(void*) = DEV_OP(__disp_dev, op_field);                                \
-    if (!__disp_fn) SE_RET_ERR(ERR_BASE_NOT_SUPPORTED, 0);                                   \
     ESP_LOG_LEVEL((log_level), TAG, "%s device: %s", (verb), DEV_NAME(__disp_dev));          \
-    SE_RET_IF_ERR(__disp_fn(__disp_dev->device_handle));                                     \
+    err_h __disp_ret = DEV_RUN_OP(__disp_dev, __disp_fn);                                    \
+    if (__disp_ret) return __disp_ret;                                                       \
     __disp_dev->state = (new_state);                                                         \
     return NULL;                                                                             \
   } while (0)
 /* Shared skeleton for a MAX_DEVICE_ID sweep: silently skips devices that
  * aren't eligible (eligible_expr, may reference __disp_dev) or don't
- * implement op_field, aborts the sweep and returns on the first failure, and
- * optionally updates dev->state on each success (new_state, or
- * SYS_DEV_STATE_NONE to leave it untouched). log_before reproduces
- * sys_device_reset_all()'s pre-call log line - the only _all variant that has
- * one; the rest only log on failure.
+ * implement op_field, and optionally updates dev->state on each success
+ * (new_state, or SYS_DEV_STATE_NONE to leave it untouched). log_before
+ * reproduces sys_device_reset_all()'s pre-call log line.
+ *
+ * Best effort: a failing device doesn't stop the sweep - suspend_all is the
+ * fault safe-state path and must reach every device. The first failure is
+ * returned; later ones go to diagnostics and are released. Every failure is
+ * wrapped with its device_id (DEV_WRAP).
  *
  * `reverse` picks sweep direction. Device ids are assigned in dependency
  * order - a device's sys_io_pin_ref_t (oe_pin/rst_pin/en_pin/...) always
@@ -91,24 +96,36 @@ __attribute__((weak)) err_h sys_system_handle_fault(err_h node, err_h chain) {
  * high id -> low id so dependents finish before their dependencies go down;
  * bring-up ops (resume) sweep low -> high so dependencies are already up
  * when a dependent resumes. */
-#define SYS_DEV_LIFECYCLE_OP_ALL(op_field, verb_gerund, verb_base, eligible_expr, log_before, new_state, reverse)  \
-  do {                                                                                                             \
-    for (int __k = 0; __k <= CONFIG_SYS_DEVICE_MAX_ID; __k++) {                                                    \
-      int __i = (reverse) ? (CONFIG_SYS_DEVICE_MAX_ID - __k) : __k;                                                \
-      sys_device_t* __disp_dev = sys_device_get_by_id((uint8_t)__i);                                               \
-      if (!__disp_dev || !(eligible_expr)) continue;                                                               \
-      err_h (*__disp_fn)(void*) = DEV_OP(__disp_dev, op_field);                                                    \
-      if (!__disp_fn) continue;                                                                                    \
-      if (log_before) ESP_LOGW(TAG, "%s device: %s", (verb_gerund), DEV_NAME(__disp_dev));                         \
-      err_h __disp_ret = __disp_fn(__disp_dev->device_handle);                                                     \
-      if (SE_IS_ERR(__disp_ret)) {                                                                                 \
-        ESP_LOGE(TAG, "Failed to %s device: %s", (verb_base), DEV_NAME(__disp_dev));                               \
-        SE_RET_IF_ERR(__disp_ret);                                                                                 \
-      }                                                                                                            \
-      if ((new_state) != SYS_DEV_STATE_NONE) __disp_dev->state = (new_state);                                      \
-    }                                                                                                              \
-    return NULL;                                                                                                   \
+#define SYS_DEV_LIFECYCLE_OP_ALL(op_field, verb_gerund, verb_base, eligible_expr, log_before, new_state, reverse) \
+  do {                                                                                                            \
+    err_h __first_err = NULL;                                                                                     \
+    for (int __k = 0; __k <= CONFIG_SYS_DEVICE_MAX_ID; __k++) {                                                   \
+      int __i = (reverse) ? (CONFIG_SYS_DEVICE_MAX_ID - __k) : __k;                                               \
+      sys_device_t* __disp_dev = sys_device_get_by_id((uint8_t)__i);                                              \
+      if (!__disp_dev || !(eligible_expr)) continue;                                                              \
+      err_h (*__disp_fn)(void*) = DEV_OP(__disp_dev, op_field);                                                   \
+      if (!__disp_fn) continue;                                                                                   \
+      if (log_before) ESP_LOGW(TAG, "%s device: %s", (verb_gerund), DEV_NAME(__disp_dev));                        \
+      err_h __disp_ret = DEV_RUN_OP(__disp_dev, __disp_fn);                                                       \
+      if (__disp_ret) {                                                                                           \
+        ESP_LOGE(TAG, "Failed to %s device: %s", (verb_base), DEV_NAME(__disp_dev));                              \
+        sweep_keep_first(&__first_err, __disp_ret);                                                               \
+        continue;                                                                                                 \
+      }                                                                                                           \
+      if ((new_state) != SYS_DEV_STATE_NONE) __disp_dev->state = (new_state);                                     \
+    }                                                                                                             \
+    return __first_err;                                                                                           \
   } while (0)
+
+/* Keeps the first sweep failure for the caller; any later one is sent to
+ * diagnostics (it already carries its device_id) and released. */
+static void sweep_keep_first(err_h* first, err_h err) {
+  if (*first == NULL) {
+    *first = err;
+    return;
+  }
+  SE_log(err);
+}
 
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_INSTALL
@@ -118,7 +135,7 @@ err_h sys_device_install_cfg(const sys_device_class_t* cls, uint8_t device_id, c
   SE_CHECK_IN_RANGE(device_id, 0, CONFIG_SYS_DEVICE_MAX_ID);
 
   if (s_device_registry[device_id] != NULL) {
-    SE_RET_ERR(ERR_DEV_ALREADY_EXIST, device_id);
+    SE_FAIL(ERR_DEV_ALREADY_EXIST, device_id);
   }
 
   sys_device_t* new_dev = (sys_device_t*)calloc(1, sizeof(sys_device_t));
@@ -130,7 +147,7 @@ err_h sys_device_install_cfg(const sys_device_class_t* cls, uint8_t device_id, c
     new_dev->cfg = malloc(cfg_size);
     if (new_dev->cfg == NULL) {
       free(new_dev);
-      SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+      SE_FAIL(ERR_BASE_NO_MEM, 0);
     }
     memcpy(new_dev->cfg, cfg, cfg_size);
     new_dev->cfg_size = cfg_size;
@@ -173,7 +190,7 @@ sys_device_t* sys_device_get_by_id(uint8_t device_id) {
 
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_REPORT_ERROR
-err_h sys_device_report_error_with_level(uint8_t device_id, sys_device_err_level_e level, err_h error) {
+err_h sys_device_report_error_with_level(uint8_t device_id, se_level_e level, err_h error) {
   if (!SE_is_valid_error_ptr(error)) return NULL;
 
   sys_device_t* dev = sys_device_get_by_id(device_id);
@@ -183,24 +200,24 @@ err_h sys_device_report_error_with_level(uint8_t device_id, sys_device_err_level
     return NULL;
   }
 
-  SE_CHECK_IN_RANGE((unsigned)level, SYS_DEV_ERR_NONE, SYS_DEV_ERR_CRITICAL);
-  if (level == SYS_DEV_ERR_NONE) return NULL;
+  SE_CHECK_IN_RANGE((unsigned)level, SE_LEVEL_NONE, SE_LEVEL_CRITICAL);
+  if (level == SE_LEVEL_NONE) return NULL;
 
   /* Non-critical errors obey device importance clamping */
-  if (level != SYS_DEV_ERR_CRITICAL) {
+  if (level != SE_LEVEL_CRITICAL) {
     if (!dev) {
       return NULL;
     }
     if ((uint8_t)level > (uint8_t)dev->importance) {
-      level = (sys_device_err_level_e)dev->importance;
+      level = (se_level_e)dev->importance;
     }
-    if (level == SYS_DEV_ERR_NONE) return NULL;
+    if (level == SE_LEVEL_NONE) return NULL;
   }
 
   /* CRITICAL or clamped level dispatch */
   uint8_t action_scope = dev ? dev->actions[level].scope : 0;
   uint8_t action_id    = dev ? dev->actions[level].id : 0;
-  return sys_device_app_error_policy(device_id, level, action_scope, action_id, error);
+  return (s_error_policy ? s_error_policy : default_error_policy)(device_id, level, action_scope, action_id, error);
 }
 
 err_h sys_device_report_error(uint8_t device_id, err_h error) {
@@ -218,7 +235,7 @@ bool sys_device_is_ignored(uint8_t device_id) {
 err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e importance, const uint8_t actions[5]) {
   sys_device_t* dev = sys_device_get_by_id(device_id);
   if (!dev) {
-    SE_RET_ERR(ERR_DEV_NOT_FOUND, device_id);
+    SE_FAIL(ERR_DEV_NOT_FOUND, device_id);
   }
   SE_CHECK_IN_RANGE((uint32_t)importance, SYS_DEV_IMPORTANCE_NONE, SYS_DEV_IMPORTANCE_CRITICAL);
 
@@ -256,15 +273,13 @@ err_h sys_device_uninstall(uint8_t device_id) {
     s_device_registry[device_id] = NULL;  // Zwolnienie indeksu
 
     err_h (*fn)(void*) = DEV_OP(dev, uninstall);
-    if (fn) {
-      fn(dev->device_handle);
-    }
+    err_h err = fn ? DEV_WRAP(fn(dev->device_handle), device_id) : NULL;
     ESP_LOGW(TAG, "Deleted device: %s", DEV_NAME(dev));
     /*Released only after the adapter has torn down - it may still be reading
       its own copy of the config until then.*/
     free(dev->cfg);
     free(dev);
-    return NULL;
+    return err;
   }
   return NULL;
 }
@@ -283,11 +298,45 @@ err_h sys_device_uninstall_all(void) {
   // pin-ref locks on whatever lower-id device it depends on (e.g.
   // tca6424a's rst_pin lives on gpio_esp), so a dependent must finish
   // uninstalling before its dependency is torn down.
+  err_h first_err = NULL;
   for (int i = CONFIG_SYS_DEVICE_MAX_ID; i >= 0; i--) {
     if (!s_device_registry[i]) continue;
-    SE_RET_IF_ERR(sys_device_uninstall((uint8_t)i));
+    err_h err = sys_device_uninstall((uint8_t)i);
+    if (err) sweep_keep_first(&first_err, err);
   }
+  return first_err;
+}
+
+#undef OWNER
+#define OWNER OWNER_SYS_DEVICE_SET_ONBOARD
+err_h sys_device_set_onboard(uint8_t device_id) {
+  sys_device_t* dev = sys_device_get_by_id(device_id);
+  if (dev == NULL) SE_FAIL(ERR_DEV_NOT_FOUND, device_id);
+  dev->onboard = true;
   return NULL;
+}
+
+#undef OWNER
+#define OWNER OWNER_SYS_DEVICE_USER_UNINSTALL
+err_h sys_device_user_uninstall(uint8_t device_id) {
+  sys_device_t* dev = sys_device_get_by_id(device_id);
+  if (dev != NULL && dev->onboard) SE_FAIL(ERR_DEV_ONBOARD, device_id);
+  return sys_device_uninstall(device_id);
+}
+
+#undef OWNER
+#define OWNER OWNER_SYS_DEVICE_USER_UNINSTALL_ALL
+err_h sys_device_user_uninstall_all(void) {
+  // Same order as sys_device_uninstall_all(). User devices depend on onboard
+  // ones (pins on the TCA6424A, PCA9685, ...), never the other way round, so
+  // skipping onboard devices leaves no dangling dependency.
+  err_h first_err = NULL;
+  for (int i = CONFIG_SYS_DEVICE_MAX_ID; i >= 0; i--) {
+    if (!s_device_registry[i] || s_device_registry[i]->onboard) continue;
+    err_h err = sys_device_uninstall((uint8_t)i);
+    if (err) sweep_keep_first(&first_err, err);
+  }
+  return first_err;
 }
 
 #undef OWNER
@@ -329,15 +378,7 @@ err_h sys_device_sync(uint8_t device_id) {
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_FREEZE_ALL
 err_h sys_device_freeze_all(void) {
-  err_h first_error = NULL;
-  for (int i = 0; i <= CONFIG_SYS_DEVICE_MAX_ID; i++) {
-    sys_device_t* dev = sys_device_get_by_id((uint8_t)i);
-    if (!dev || !SYS_DEV_IS_READY(dev) || !DEV_OP(dev, freeze)) continue;
-    err_h error = DEV_OP(dev, freeze)(dev->device_handle);
-    if (error && !first_error) first_error = error; else SE_release(error);
-    if (error) ESP_LOGE(TAG, "Failed to freeze device: %s", DEV_NAME(dev));
-  }
-  return first_error;
+  SYS_DEV_LIFECYCLE_OP_ALL(freeze, "Freezing", "freeze", SYS_DEV_IS_READY(__disp_dev), false, SYS_DEV_STATE_NONE, false);
 }
 
 #undef OWNER

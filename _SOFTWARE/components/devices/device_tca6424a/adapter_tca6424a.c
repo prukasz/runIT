@@ -3,13 +3,11 @@
 #include <string.h>
 #include "device_tca6424a.h"
 #include "driver_tca6424a.h"
-#include "esp_log.h"
 #include "sys_device.h"
 #include "sys_error.h"
 #include "sys_i2c.h"
 #include "sys_io.h"
 
-static const char* TAG = __FILE_NAME__;
 
 #define PINS_COUNT 24
 #define PINS_MASK ((1UL << PINS_COUNT) - 1)
@@ -26,17 +24,16 @@ typedef struct tca_adapter_ctx_t {
   uint32_t frozen_outputs_state;
   uint32_t configured_pins;  // 24-bit bitmask tracking pin usage
 
-  uint16_t route_masks[24];
-  uint8_t static_action_ids[24];
-  uint8_t dynamic_action_ids[24];
-  sys_io_intr_mode_e intr_modes[24];
-  own_funct_t own_funcs[24];
+  sys_io_intr_mode_e intr_modes[PINS_COUNT];
+  uint8_t intr_sub; /* sys_event subscription on intr_pin */
 } tca_adapter_ctx_t;
 
-enum { TCA_STEP_I2C_ADDED = 0, TCA_STEP_RST_READY = 1, TCA_STEP_INTR_READY = 2 };
+enum { TCA_STEP_I2C_ADDED = 0, TCA_STEP_RST_READY = 1, TCA_STEP_INTR_READY = 2, TCA_STEP_INTR_SUB = 3 };
 
-static err_h device_event_handler(void* handle, cb_event_t* event) {
+/* Inline listener of intr_pin: read the inputs and publish each armed pin's edge. */
+static SE_MUST_USE err_h device_event_handler(const sys_event_t* event, void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
+  err_h err = NULL;
 
   uint32_t current_state = 0;
   SYS_DEV_CHECK_DRIVER_CALL(tca_get_pins(hw, &current_state), ctx);
@@ -62,17 +59,14 @@ static err_h device_event_handler(void* handle, cb_event_t* event) {
     }
 
     if (trigger) {
-      if (ctx->own_funcs[i].own_func) {
-        SYS_CB_OWN(ctx->own_funcs[i]);
-      } else {
-        bool level = (rising_edges & (1UL << i)) != 0;
-        SYS_IO_CB(ctx, i, mode, level, ctx->route_masks[i], ctx->static_action_ids[i], ctx->dynamic_action_ids[i]);
-      }
+      bool level = (rising_edges & (1UL << i)) != 0;
+      sys_io_intr_mode_e edge = level ? SYS_IO_INTR_MODE_RISING_EDGE : SYS_IO_INTR_MODE_FALLING_EDGE;
+      SYS_DEV_TEARDOWN_STEP(err, sys_io_publish(SYS_DEV_GET_ID(ctx), i, edge, level, SYS_EVENT_CAUSED_BY(event)));
     }
   }
 
   ctx->cached_inputs = current_state;
-  return NULL;
+  return err;
 }
 
 err_h contract_io_tca6424a_set_mode(void* handle, sys_io_pin_num_t pin, sys_io_mode_e mode) {
@@ -89,7 +83,7 @@ err_h contract_io_tca6424a_set_mode(void* handle, sys_io_pin_num_t pin, sys_io_m
       tca_cfg_state = 0xFFFFFFFF;
       break;
     default:
-      SE_RET_ERR(ERR_IO_PIN_MODE_UNSUPPORTED, SYS_DEV_GET_ID(ctx), pin, mode);
+      SE_FAIL(ERR_IO_PIN_MODE_UNSUPPORTED, SYS_DEV_GET_ID(ctx), pin, mode);
   }
 
   SYS_DEV_CHECK_DRIVER_CALL(tca_preset_cfg(hw, 1UL << pin, tca_cfg_state), ctx);
@@ -156,11 +150,7 @@ err_h contract_io_tca6424a_reset_pin(void* handle, sys_io_pin_num_t pin) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, PINS_MASK);
 
-  ctx->route_masks[pin] = 0;
-  ctx->static_action_ids[pin] = 0;
-  ctx->dynamic_action_ids[pin] = 0;
   ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
-  memset(&ctx->own_funcs[pin], 0, sizeof(own_funct_t));
   ctx->configured_pins &= ~(1UL << pin);
 
   SYS_DEV_CHECK_DRIVER_CALL(tca_set_pins(hw, 1UL << pin, 0), ctx);
@@ -172,7 +162,7 @@ err_h contract_io_tca6424a_reset_pin(void* handle, sys_io_pin_num_t pin) {
 err_h d_tca6424a_driver_reset(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
   for (uint8_t i = 0; i < PINS_COUNT; i++) {
-    SE_RET_IF_ERR(contract_io_tca6424a_reset_pin(handle, i));
+    SE_TRY(contract_io_tca6424a_reset_pin(handle, i));
   }
   return NULL;
 }
@@ -181,37 +171,23 @@ err_h contract_io_tca6424a_configure_intr(void* handle, sys_io_pin_num_t pin, co
   SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, PINS_MASK);
 
-  if (config->mode == SYS_IO_INTR_DISABLE) {
-    ctx->route_masks[pin] = 0;
-    ctx->static_action_ids[pin] = 0;
-    ctx->dynamic_action_ids[pin] = 0;
-    ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
-    memset(&ctx->own_funcs[pin], 0, sizeof(own_funct_t));
-    return NULL;
-  }
-
-  ctx->route_masks[pin] = config->route_mask;
-  ctx->static_action_ids[pin] = config->static_action_id;
-  ctx->dynamic_action_ids[pin] = config->dynamic_action_id;
+  SE_CHECK_NOT_NULL(config);
   ctx->intr_modes[pin] = config->mode;
-  ctx->own_funcs[pin] = config->own_func;
-
   return NULL;
 }
 
-static sys_io_vtable_t io_tca_vtable = {.io_reset = contract_io_tca6424a_reset_pin,
-    .io_set_mode = contract_io_tca6424a_set_mode,
-    .io_configure_intr = contract_io_tca6424a_configure_intr,
-    .io_set_level = contract_io_tca6424a_set_level,
-    .io_get_level = contract_io_tca6424a_get_level,
-    .io_toggle = contract_io_tca6424a_toggle,
-    .io_get_voltage = NULL,
-    .io_set_voltage = NULL,
-    .io_set_pwm_frequency = NULL,
-    .io_set_pwm_duty = NULL,
-    .protected_pins = 0};
+static const sys_io_contract_t s_tca6424a_io_contract = {.reset = contract_io_tca6424a_reset_pin,
+    .set_mode = contract_io_tca6424a_set_mode,
+    .configure_intr = contract_io_tca6424a_configure_intr,
+    .set_level = contract_io_tca6424a_set_level,
+    .get_level = contract_io_tca6424a_get_level,
+    .toggle = contract_io_tca6424a_toggle,
+    .get_voltage = NULL,
+    .set_voltage = NULL,
+    .set_pwm_frequency = NULL,
+    .set_pwm_duty = NULL};
 
-static err_h device_freeze(void* handle) {
+static SE_MUST_USE err_h device_freeze(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
   IF_SYS_DEV_FROZEN(ctx) {
     return NULL;
@@ -223,7 +199,7 @@ static err_h device_freeze(void* handle) {
   return NULL;
 }
 
-static err_h device_sync(void* handle) {
+static SE_MUST_USE err_h device_sync(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
   SYS_DEV_CTX_UNFREEZE(ctx);
   SYS_DEV_CHECK_DRIVER_CALL(tca_get_pins(hw, &ctx->cached_inputs), ctx);
@@ -236,16 +212,19 @@ static err_h device_sync(void* handle) {
 
 // Teardown must never early-return: a failing step would leak the i2c
 // registration, the hw handle and ctx. Keep the first error, free everything.
-static err_h device_uninstall(void* handle) {
+static SE_MUST_USE err_h device_uninstall(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
   err_h err = NULL;
 
   IF_SYS_DEV_STEP_DONE(ctx, TCA_STEP_RST_READY) {
-    sys_io_unlock_pin(ctx->cfg.rst_pin);
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_unlock_pin(ctx->cfg.rst_pin));
     SYS_DEV_TEARDOWN_STEP(err, sys_io_reset(ctx->cfg.rst_pin));
   }
+  IF_SYS_DEV_STEP_DONE(ctx, TCA_STEP_INTR_SUB) {
+    SYS_DEV_TEARDOWN_STEP(err, sys_event_unsubscribe(ctx->intr_sub, false));
+  }
   IF_SYS_DEV_STEP_DONE(ctx, TCA_STEP_INTR_READY) {
-    sys_io_unlock_pin(ctx->cfg.intr_pin);
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_unlock_pin(ctx->cfg.intr_pin));
     SYS_DEV_TEARDOWN_STEP(err, sys_io_reset(ctx->cfg.intr_pin));
   }
 
@@ -259,16 +238,14 @@ static err_h device_uninstall(void* handle) {
   return err;
 }
 
-static err_h device_reset(void* handle) {
+static SE_MUST_USE err_h device_reset(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
 
   if (sys_io_pin_is_valid(ctx->cfg.rst_pin)) {
-    SYS_IO_PIN_WITH_UNLOCKED(ctx->cfg.rst_pin) {
-      RET_IF_DEV_ERR(sys_io_set_level(ctx->cfg.rst_pin, false), ctx);
-      vTaskDelay(pdMS_TO_TICKS(10));
-      RET_IF_DEV_ERR(sys_io_set_level(ctx->cfg.rst_pin, true), ctx);
-      vTaskDelay(pdMS_TO_TICKS(10));
-    }
+    SYS_DEV_TRY(sys_io_set_locked_level(ctx->cfg.rst_pin, false), ctx);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    SYS_DEV_TRY(sys_io_set_locked_level(ctx->cfg.rst_pin, true), ctx);
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
   ctx->cached_inputs = 0;
   ctx->configured_pins = 0;
@@ -277,33 +254,27 @@ static err_h device_reset(void* handle) {
   return d_tca6424a_driver_reset(handle);
 }
 
-static err_h device_suspend(void* handle) {
+static SE_MUST_USE err_h device_suspend(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
   if (sys_io_pin_is_valid(ctx->cfg.rst_pin)) {
-    SYS_IO_PIN_WITH_UNLOCKED(ctx->cfg.rst_pin) {
-      RET_IF_DEV_ERR(sys_io_set_level(ctx->cfg.rst_pin, false), ctx);
-    }
+    SYS_DEV_TRY(sys_io_set_locked_level(ctx->cfg.rst_pin, false), ctx);
   }
   return NULL;
 }
 
-static err_h device_resume(void* handle) {
+static SE_MUST_USE err_h device_resume(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
   SE_CHECK_HANDLE(ctx);
   if (sys_io_pin_is_valid(ctx->cfg.rst_pin)) {
-    SYS_IO_PIN_WITH_UNLOCKED(ctx->cfg.rst_pin) {
-      RET_IF_DEV_ERR(sys_io_set_level(ctx->cfg.rst_pin, true), ctx);
-    }
+    SYS_DEV_TRY(sys_io_set_locked_level(ctx->cfg.rst_pin, true), ctx);
     vTaskDelay(pdMS_TO_TICKS(10));
   }
   SYS_DEV_CHECK_DRIVER_CALL(tca_restore_state(hw), ctx);
   return NULL;
 }
 
-static err_h device_install(const void* cfg_blob, void** out_device_handle) {
+static SE_MUST_USE err_h device_install(const void* cfg_blob, void** out_device_handle) {
   const d_tca6424a_cfg_t* cfg = (const d_tca6424a_cfg_t*)cfg_blob;
-  SE_CHECK_NOT_NULL(cfg);
-  SE_CHECK_NOT_NULL(out_device_handle);
 
   SYS_DEV_CTX_NEW(tca_adapter_ctx_t, ctx, cfg);
   err_h err = NULL;
@@ -311,7 +282,7 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
   ctx->base.hw_handle = d_tca6424a_new(ctx->cfg.i2c_addr, ctx->cfg.i2c_bus);
   if (!ctx->base.hw_handle) {
     free(ctx);
-    SE_RET_ERR(ERR_DEV_NO_HANDLE, cfg->device_id);
+    SE_FAIL(ERR_BASE_NO_MEM, 0);
   }
 
   tca6424a_handle_t hw = (tca6424a_handle_t)ctx->base.hw_handle;
@@ -324,18 +295,21 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
   if (sys_io_pin_is_valid(ctx->cfg.rst_pin)) {
     SYS_DEV_INSTALL_STEP(sys_io_set_mode(ctx->cfg.rst_pin), "rst pin mode");
     SYS_DEV_INSTALL_STEP(sys_io_set_level(ctx->cfg.rst_pin, true), "rst pin high");
-    sys_io_lock_pin(ctx->cfg.rst_pin);
+    SYS_DEV_INSTALL_STEP(sys_io_lock_pin(ctx->cfg.rst_pin), "rst pin lock");
     SYS_DEV_STEP_DONE(ctx, TCA_STEP_RST_READY);
   }
 
+  // The chip keeps its registers across an ESP reset when there is no RST pin:
+  // write the power-on state the driver cache starts from.
+  SYS_DEV_INSTALL_STEP(SE_CONVERT_ESP(tca_restore_state(hw)), "write default state");
+
   if (sys_io_pin_is_valid(ctx->cfg.intr_pin)) {
     SYS_DEV_INSTALL_STEP(sys_io_set_mode(ctx->cfg.intr_pin), "intr pin mode");
-    sys_io_intr_config_t intr_cfg = {
-        .mode = SYS_IO_INTR_MODE_FALLING_EDGE,
-        .own_func = {.own_func = device_event_handler, .device_handle = ctx},
-    };
+    SYS_DEV_INSTALL_STEP(sys_io_subscribe_pin(ctx->cfg.intr_pin, device_event_handler, ctx, &ctx->intr_sub), "intr pin subscribe");
+    SYS_DEV_STEP_DONE(ctx, TCA_STEP_INTR_SUB);
+    sys_io_intr_config_t intr_cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
     SYS_DEV_INSTALL_STEP(sys_io_configure_intr(ctx->cfg.intr_pin, &intr_cfg), "intr pin configure");
-    sys_io_lock_pin(ctx->cfg.intr_pin);
+    SYS_DEV_INSTALL_STEP(sys_io_lock_pin(ctx->cfg.intr_pin), "intr pin lock");
     SYS_DEV_STEP_DONE(ctx, TCA_STEP_INTR_READY);
   }
 
@@ -351,7 +325,7 @@ fail:
 
 static const sys_device_class_t s_tca6424a_class = {
     .name = "TCA6424A_IO_EXP",
-    .contracts = {[SYS_DEVICE_CONTRACT_IO] = (void*)&io_tca_vtable},
+    .contracts = {[SYS_DEVICE_CONTRACT_IO] = &s_tca6424a_io_contract},
     .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume, .freeze = device_freeze, .sync = device_sync},
 };
 

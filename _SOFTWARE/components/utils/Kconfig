@@ -50,44 +50,15 @@ menu "System-Wide Identity Assignments"
 
     comment "Shared ID/slot registries coordinated across multiple components - not owned by a single module."
 
-    menu "Callback Route Slots"
-        config SYS_CB_ROUTE_IO
-            int "sys_io Callback Route Slot"
+    menu "Event Route Slots"
+        config SYS_EVENT_ROUTE_VM
+            int "VM Event Route Slot"
             default 0
-            range 0 15
+            range 0 7
             help
-              Route slot index for sys_io's own callback-event handler.
-
-        config SYS_CB_ROUTE_BLE
-            int "BLE Callback Route Slot"
-            default 1
-            range 0 15
-            help
-              Route slot index for ble's own callback-event handler.
-
-        config SYS_CB_ROUTE_PWR
-            int "sys_power Callback Route Slot"
-            default 2
-            range 0 15
-            help
-              Route slot index for sys_power's own callback-event handler.
-
-        config SYS_CB_ROUTE_WIFI
-            int "WiFi Callback Route Slot"
-            default 3
-            range 0 15
-            help
-              Route slot index for WiFi handling (not implemented yet).
-
-        config SYS_CB_ROUTE_VM
-            int "VM Callback Route Slot"
-            default 4
-            range 0 15
-            help
-              Route slot index for the VM's per-scan-cycle event buffer. Unlike
-              the routes above, this one does not handle the event - it parks
-              it for the length of one scan cycle so blocks can query it, then
-              drops it. See VM_EXEC.MD.
+              Route slot index for the VM's per-scan-cycle event buffer. It
+              doesn't handle the event: it parks it for one scan cycle so
+              blocks can query it, then drops it. See VM_EXEC.MD.
     endmenu
 
     menu "Static Action IDs"
@@ -188,6 +159,14 @@ menu "System-Wide Identity Assignments"
               (dec_sys_contracts.h, plus the device-install sub-table folded
               into it) on the wire.
 
+        config RX_PACKET_CLASS_SETTINGS_BLE
+            hex "BLE runtime settings wire class byte"
+            default 0x02
+            range 0x00 0xFF
+            help
+              Class byte identifying the BLE runtime settings decoder table
+              (dec_settings_ble.h) on the wire.
+
         config RX_PACKET_CLASS_SYS_ACTIONS
             hex "System Actions wire class byte"
             default 0x03
@@ -213,6 +192,39 @@ menu "System-Wide Identity Assignments"
             help
               Class byte identifying the "Features" decoder table
               (dec_features.h) on the wire.
+
+        config RX_PACKET_CLASS_SETTINGS_DATA_CONNECTOR
+            hex "Data connector runtime settings wire class byte"
+            default 0x06
+            range 0x00 0xFF
+            help
+              Class byte identifying the data connector runtime settings
+              decoder table (dec_settings_data_connector.h) on the wire.
+
+        config RX_PACKET_CLASS_SETTINGS_LOGS
+            hex "Logging runtime settings wire class byte"
+            default 0x07
+            range 0x00 0xFF
+            help
+              Class byte identifying the logging runtime settings decoder
+              table (dec_settings_logs.h) on the wire.
+
+        config RX_PACKET_CLASS_SETTINGS_POWER
+            hex "Power settings wire class byte"
+            default 0x08
+            range 0x00 0xFF
+            help
+              Class byte identifying the persisted power settings decoder
+              table (dec_settings_power.h) on the wire.
+
+        config RX_PACKET_CLASS_SYS_EVENTS
+            hex "System Events wire class byte"
+            default 0x09
+            range 0x00 0xFF
+            help
+              Class byte identifying the event subscription decoder table
+              (dec_sys_events.h) on the wire.
+
     endmenu
 
     menu "TX Packet Classes (outbound, sys_data_connector stream framing)"

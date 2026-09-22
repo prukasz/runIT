@@ -21,7 +21,7 @@ static inline const char* vm_load_state_str(vm_load_state_e s) {
  *         ERR_VM_EXEC_SELF_BARRIER if called from inside the active VM pass
  *         (no storage is changed in that case).
  */
-err_h vm_loader_reset(void);
+SE_MUST_USE err_h vm_loader_reset(void);
 
 /**
  * @brief Reserve arena storage and initialize registries for a new program.
@@ -30,7 +30,7 @@ err_h vm_loader_reset(void);
  * @param blk_cnt Total block registry slots.
  * @param total_size Total arena capacity in bytes.
  */
-err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint16_t blk_cnt, uint32_t total_size);
+SE_MUST_USE err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint16_t blk_cnt, uint32_t total_size);
 
 /**
  * @brief Create an object and register it at @p id.
@@ -38,7 +38,7 @@ err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint16_t blk_cnt, uint3
  * @param head Object descriptor (type, payload size, flags, name size).
  * @param name Optional tag string (NULL if head->d.name_size is 0).
  */
-err_h vm_loader_add_obj(uint16_t id, const vm_obj_head_t* head, const char* name);
+SE_MUST_USE err_h vm_loader_add_obj(uint16_t id, const vm_obj_head_t* head, const char* name);
 
 /**
  * @brief Load initial payload data or child pointer IDs into an object.
@@ -47,7 +47,7 @@ err_h vm_loader_add_obj(uint16_t id, const vm_obj_head_t* head, const char* name
  * @param data Raw payload bytes or 2-byte little-endian child IDs (VM_OBJ_PTR).
  * @param len Data length in bytes.
  */
-err_h vm_loader_set_data(uint16_t id, uint16_t start_idx, const uint8_t* data, uint16_t len);
+SE_MUST_USE err_h vm_loader_set_data(uint16_t id, uint16_t start_idx, const uint8_t* data, uint16_t len);
 
 /**
  * @brief Create an accessor and register it at @p acc_id.
@@ -57,7 +57,7 @@ err_h vm_loader_set_data(uint16_t id, uint16_t start_idx, const uint8_t* data, u
  * @param idx_data Serialized index step payload.
  * @param idx_len Length of @p idx_data in bytes.
  */
-err_h vm_loader_add_accessor(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_count, const uint8_t* idx_data,
+SE_MUST_USE err_h vm_loader_add_accessor(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_count, const uint8_t* idx_data,
                              uint16_t idx_len);
 
 /**
@@ -65,7 +65,7 @@ err_h vm_loader_add_accessor(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_
  * @param blk_id Block registry index [0, blk_cnt).
  * @param cfg Block configuration, pin wiring, and private state.
  */
-err_h vm_loader_add_block(uint16_t blk_id, const vm_block_cfg_t* cfg);
+SE_MUST_USE err_h vm_loader_add_block(uint16_t blk_id, const vm_block_cfg_t* cfg);
 
 /** @brief Current loader lifecycle state. */
 vm_load_state_e vm_loader_state(void);

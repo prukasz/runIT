@@ -1,11 +1,15 @@
 #include "runit.h"
 #include <esp_log.h>
 #include "runit_board_cfg.h"
-#include "sys_callbacks.h"
+#include "runit_decoders.h"
+#include "runit_error_policy.h"
+#include "sys_actions.h"
 #include "sys_data_connector.h"
 #include "sys_device.h"
 #include "sys_error_log.h"
+#include "sys_event.h"
 #include "sys_interface.h"
+#include "sys_settings.h"
 #include "vm_exec.h"
 #include "vm_sub.h"
 
@@ -13,8 +17,8 @@ static const char* TAG = "runit_app";
 
 void runit_enter_safe_state(void) {
   SE_release(vm_exec_stop());
-  SE_release(sys_device_freeze_all());
-  ESP_LOGE(TAG, "System entered safe state (VM stopped, ready devices frozen)");
+  SE_release(sys_device_suspend_all());
+  ESP_LOGE(TAG, "System entered safe state (VM stopped, ready devices suspended)");
 }
 
 err_h runit_run_boot_steps(const runit_boot_step_entry_t* steps, size_t count) {
@@ -33,9 +37,7 @@ err_h runit_run_boot_steps(const runit_boot_step_entry_t* steps, size_t count) {
   return NULL;
 }
 
-#include "runit_device_error_policy.h"
-
-static err_h runit_step_error_configure(void) {
+static SE_MUST_USE err_h runit_step_error_configure(void) {
   return SE_set_logging(ESP_LOG_INFO, true, true);
 }
 
@@ -43,13 +45,17 @@ err_h runit_start(void) {
   SE_init();
 
   static const runit_boot_step_entry_t s_boot_setup_steps[] = {
+      {"runit_error_wiring_init", runit_error_wiring_init},
       {"runit_board_i2c_init", runit_board_i2c_init},
-      {"runit_board_power_init", runit_board_power_init},
+      {"sys_settings_init", sys_settings_init},
       {"runit_board_ble_init", runit_board_ble_init},
       {"sys_data_connector_init", sys_data_connector_init},
       {"runit_board_connector_bindings_init", runit_board_connector_bindings_init},
+      {"runit_board_error_sink_init", runit_board_error_sink_init},
       {"SE_set_logging", runit_step_error_configure},
-      {"sys_callbacks_init", sys_callbacks_init},
+      {"sys_event_init", sys_event_init},
+      {"runit_board_power_init", runit_board_power_init},
+      {"runit_register_decoders", runit_register_decoders},
       {"sys_interface_init", sys_interface_init},
       {"runit_board_bind_boot_action", runit_board_bind_boot_action},
       {"sys_actions_init", sys_actions_init},

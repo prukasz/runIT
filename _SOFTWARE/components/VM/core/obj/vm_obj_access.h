@@ -66,7 +66,7 @@ static inline const char* vm_index_kind_str(vm_index_kind_e k) {
 
 //#vm-struct-ref @alias VM Object Index @kind vm-index
 typedef struct {
-  uint8_t kind;      //@alias Kind @role discriminator @ref vm_index_kind_e @one-of [$VM_IDX_LITERAL, $VM_IDX_REF, $VM_IDX_NAME]
+  uint8_t kind;      //@alias Kind @role discriminator @enum-ref vm_index_kind_e @one-of [$VM_IDX_LITERAL, $VM_IDX_REF, $VM_IDX_NAME]
   uint8_t name_len;  //@internal @derived-from name
   union {            //@discriminator kind
     uint32_t             value;  //@case $VM_IDX_LITERAL @alias Index
@@ -253,24 +253,24 @@ static __always_inline bool vm_acc_resolve_fast(const vm_accessor_t* acc, vm_obj
 // --- Target C APIs (Out-of-Line Subsystem Functions) ---
 
 // Read
-err_h vm_obj_get_payload(vm_obj_payload_t* target, const vm_accessor_t* source);
-err_h vm_obj_get_obj(vm_obj_h* target, const vm_accessor_t* source);
+SE_MUST_USE err_h vm_obj_get_payload(vm_obj_payload_t* target, const vm_accessor_t* source);
+SE_MUST_USE err_h vm_obj_get_obj(vm_obj_h* target, const vm_accessor_t* source);
 /** @brief Object owning the addressed bytes; never follows a trailing PTR. */
-err_h vm_obj_get_owner(vm_obj_h* target, const vm_accessor_t* source);
+SE_MUST_USE err_h vm_obj_get_owner(vm_obj_h* target, const vm_accessor_t* source);
 /** @brief Resolve a parent object and find its child by exact byte-length tag.
  * Failure preserves *target. name need not be NUL-terminated. */
-err_h vm_obj_get_child(vm_obj_h* target, const vm_accessor_t* parent, const char* name, size_t name_len);
+SE_MUST_USE err_h vm_obj_get_child(vm_obj_h* target, const vm_accessor_t* parent, const char* name, size_t name_len);
 
 // Write
 /** Clear without publishing freshness. Failure still returns an error. */
-err_h vm_obj_clear_quiet(vm_obj_h obj);
+SE_MUST_USE err_h vm_obj_clear_quiet(vm_obj_h obj);
 
 // Copy & Clone
 /** @brief Validate the entire destination, then copy without allocating.
  * Failure preserves destination values and freshness. Requires single-writer
  * execution; overlapping source leaves follow deterministic slot order. */
-err_h vm_obj_copy_content(const vm_accessor_t* source, const vm_accessor_t* target);
-err_h vm_obj_copy_direct(vm_obj_h src, vm_obj_h dst);
+SE_MUST_USE err_h vm_obj_copy_content(const vm_accessor_t* source, const vm_accessor_t* target);
+SE_MUST_USE err_h vm_obj_copy_direct(vm_obj_h src, vm_obj_h dst);
 
 /** @brief Bulk copy content from `source` into `target` (supports both accessors and raw objects). */
 #define VM_OBJ_COPY_CONTENT(source, target) \
@@ -291,20 +291,20 @@ bool vm_obj_schema_matches(vm_obj_h a, vm_obj_h b);
  *  Reference count zero -- owned by nothing until a pointer slot takes it, so
  *  link it in the same call or release it. Tags are carried over, since a
  *  by-name accessor onto the copy has to keep working. */
-err_h vm_obj_clone_shape(vm_obj_h* out, vm_obj_h src);
+SE_MUST_USE err_h vm_obj_clone_shape(vm_obj_h* out, vm_obj_h src);
 
 /** @brief Copy `source` into the pointer cell `target` names, building the
  *  destination first if its schema (including tags) differs. Fill completes
  *  before replacement releases the old tree; failures preserve the old slot.
  *  A matching destination is preflighted and refilled, then its holder published. */
-err_h vm_obj_clone_into(const vm_accessor_t* source, const vm_accessor_t* target);
+SE_MUST_USE err_h vm_obj_clone_into(const vm_accessor_t* source, const vm_accessor_t* target);
 
 // Link
-err_h vm_obj_link(const vm_accessor_t* child, const vm_accessor_t* target);
-err_h vm_obj_link_direct(vm_obj_h cell, uint16_t index, vm_obj_h child);
+SE_MUST_USE err_h vm_obj_link(const vm_accessor_t* child, const vm_accessor_t* target);
+SE_MUST_USE err_h vm_obj_link_direct(vm_obj_h cell, uint16_t index, vm_obj_h child);
 
 // Update / Freshness Mark
 /** @brief Explicit aggregate update marking, after a successful field update.
  * Scalar writes mark their owner only; copy marks the destination subtree;
  * Clone additionally marks its holder. No implicit ancestor propagation. */
-err_h vm_obj_mark_updated(vm_obj_h obj);
+SE_MUST_USE err_h vm_obj_mark_updated(vm_obj_h obj);

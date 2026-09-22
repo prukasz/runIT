@@ -33,7 +33,7 @@ typedef struct __packed {
   uint8_t i2c_addr;  //@required @note not range-checked by driver_dac53202.c - no software-enforced bound
 } packet_sys_device_install_dac53202_t;
 
-static inline err_h decoder_packet_sys_device_install_dac53202_t(packet_sys_device_install_dac53202_t* packet) {
+static inline SE_MUST_USE err_h decoder_packet_sys_device_install_dac53202_t(packet_sys_device_install_dac53202_t* packet) {
   ESP_LOGI(DEC_SYS_DEVICE_INSTALL_TAG, "installing dac53202 (dev %u, i2c bus %u addr 0x%02X)", packet->device_id, packet->i2c_bus, packet->i2c_addr);
   d_dac53202_cfg_t cfg = {.device_id = packet->device_id, .i2c_bus = packet->i2c_bus != 0, .i2c_addr = packet->i2c_addr};
   return d_dac53202_create(&cfg);

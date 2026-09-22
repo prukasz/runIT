@@ -4,7 +4,7 @@
 #include "utils.h"
 
 #define TAG "FEAT_REG"
-#define OWNER OWNER_SYS_ERRORS_BASE
+#define OWNER OWNER_FEATURES_REGISTRY
 
 static feature_node_t* s_features_head = NULL;
 R_MUTEX_DEFINE(s_features_mutex);
@@ -14,11 +14,11 @@ err_h feature_alloc(uint8_t id, size_t bytes, feature_teardown_fn teardown, void
   *out_handle = NULL;
 
   if (bytes == 0) {
-    SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = 0, .min = 1, .max = UINT32_MAX);
+    SE_FAIL(ERR_INVALID_VAL_UI32, .val = 0, .min = 1, .max = UINT32_MAX);
   }
 
   if (R_MUTEX_LOCK(s_features_mutex, portMAX_DELAY) != pdTRUE) {
-    SE_RET_ERR(ERR_ESP_ERR, .esp_code = ESP_ERR_TIMEOUT);
+    SE_FAIL(ERR_ESP_ERR, .esp_code = ESP_ERR_TIMEOUT);
   }
 
   /* Check for duplicate ID */
@@ -26,7 +26,7 @@ err_h feature_alloc(uint8_t id, size_t bytes, feature_teardown_fn teardown, void
   LL_FOREACH(s_features_head, curr) {
     if (curr->id == id) {
       R_MUTEX_UNLOCK(s_features_mutex);
-      SE_RET_ERR(ERR_BASE_INVALID_STATE, 0);
+      SE_FAIL(ERR_BASE_INVALID_STATE, 0);
     }
   }
 
@@ -34,7 +34,7 @@ err_h feature_alloc(uint8_t id, size_t bytes, feature_teardown_fn teardown, void
   feature_node_t* node = (feature_node_t*)malloc(sizeof(feature_node_t));
   if (!node) {
     R_MUTEX_UNLOCK(s_features_mutex);
-    SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+    SE_FAIL(ERR_BASE_NO_MEM, 0);
   }
 
   /* Allocate payload data */
@@ -42,7 +42,7 @@ err_h feature_alloc(uint8_t id, size_t bytes, feature_teardown_fn teardown, void
   if (!data) {
     free(node);
     R_MUTEX_UNLOCK(s_features_mutex);
-    SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+    SE_FAIL(ERR_BASE_NO_MEM, 0);
   }
 
   memset(data, 0, bytes);
@@ -81,7 +81,7 @@ void* feature_get_by_id(uint8_t id) {
 
 err_h feature_remove(uint8_t id) {
   if (R_MUTEX_LOCK(s_features_mutex, portMAX_DELAY) != pdTRUE) {
-    SE_RET_ERR(ERR_ESP_ERR, .esp_code = ESP_ERR_TIMEOUT);
+    SE_FAIL(ERR_ESP_ERR, .esp_code = ESP_ERR_TIMEOUT);
   }
 
   feature_node_t* target = NULL;
@@ -95,7 +95,7 @@ err_h feature_remove(uint8_t id) {
 
   if (!target) {
     R_MUTEX_UNLOCK(s_features_mutex);
-    SE_RET_ERR(ERR_BASE_NOT_FOUND, 0);
+    SE_FAIL(ERR_BASE_NOT_FOUND, 0);
   }
 
   LL_DELETE(s_features_head, target);
@@ -116,7 +116,7 @@ err_h feature_remove(uint8_t id) {
 
 err_h feature_remove_all(void) {
   if (R_MUTEX_LOCK(s_features_mutex, portMAX_DELAY) != pdTRUE) {
-    SE_RET_ERR(ERR_ESP_ERR, .esp_code = ESP_ERR_TIMEOUT);
+    SE_FAIL(ERR_ESP_ERR, .esp_code = ESP_ERR_TIMEOUT);
   }
 
   feature_node_t* curr = NULL;

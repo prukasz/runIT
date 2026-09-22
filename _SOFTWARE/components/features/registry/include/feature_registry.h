@@ -27,7 +27,7 @@ typedef struct feature_node_t {
  * @param out_handle Pointer receiving the allocated and zero-initialized feature data.
  * @return err_h NULL on success, or sys_error handle.
  */
-err_h feature_alloc(uint8_t id, size_t bytes, feature_teardown_fn teardown, void** out_handle);
+SE_MUST_USE err_h feature_alloc(uint8_t id, size_t bytes, feature_teardown_fn teardown, void** out_handle);
 
 /**
  * @brief Looks up a registered feature's data by ID.
@@ -43,14 +43,14 @@ void* feature_get_by_id(uint8_t id);
  * @param id Feature ID to remove.
  * @return err_h NULL on success, or sys_error handle.
  */
-err_h feature_remove(uint8_t id);
+SE_MUST_USE err_h feature_remove(uint8_t id);
 
 /**
  * @brief Removes and frees all registered features.
  *
  * @return err_h NULL on success.
  */
-err_h feature_remove_all(void);
+SE_MUST_USE err_h feature_remove_all(void);
 
 #ifdef __cplusplus
 }

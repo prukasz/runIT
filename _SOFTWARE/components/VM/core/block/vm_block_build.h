@@ -32,5 +32,5 @@ typedef struct vm_block_cfg_t {
  * @param id Registry ID to bind (or VM_ID_NONE).
  * @param cfg Configuration and wiring ID descriptor.
  */
-err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg);
+SE_MUST_USE err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg);
 

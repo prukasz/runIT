@@ -20,14 +20,18 @@
 
 typedef struct sys_ble_char_node {
   sys_ble_char_cfg_t cfg;
+  char* desc;
   uint16_t val_handle;
   bool     is_subscribed;
 
   sys_buff_t rx_buff; //size from config, no buff if 0
   sys_buff_t tx_buff; //size from config, no buff if 0
 
-  sys_data_connector_t* linked_connectors[CONFIG_SYS_BLE_MAX_LINKED_CONNECTORS];
-  uint8_t               linked_connector_count;
+  struct {
+    sys_ble_rx_wake_f wake;
+    void*             ctx;
+  } rx_wakes[CONFIG_SYS_BLE_MAX_LINKED_CONNECTORS];
+  uint8_t rx_wake_count;
 
   bool pending_add;     // true from creation until the owning service is next successfully (re)compiled
   bool pending_remove;  // set by sys_ble_char_remove() instead of freeing, when the owning service is already live
@@ -63,19 +67,19 @@ extern SemaphoreHandle_t sys_ble_tx_sem;
 
 /* Internal helpers exported between sys_ble.c and sys_ble_stack.c */
 /* Caller holds sys_ble_mutex; shared by peer writes and RX injection. */
-err_h sys_ble_rx_enqueue(sys_ble_char_node_t* c, const uint8_t* data, size_t len);
+SE_MUST_USE err_h sys_ble_rx_enqueue(sys_ble_char_node_t* c, const uint8_t* data, size_t len);
 void sys_ble_free_compiled_gatt_db(struct ble_gatt_svc_def* svcs);
 
 /* Stack functions implemented in sys_ble_stack.c */
-err_h sys_ble_stack_init(struct ble_gatt_svc_def* svcs);
-err_h populate_svc_def(struct ble_gatt_svc_def* svc_def, const sys_ble_svc_node_t* s);
+SE_MUST_USE err_h sys_ble_stack_init(struct ble_gatt_svc_def* svcs);
+SE_MUST_USE err_h populate_svc_def(struct ble_gatt_svc_def* svc_def, const sys_ble_svc_node_t* s);
 
 #define CHECK_BLE_CALL(nimble_call)                                                               \
   do {                                                                                            \
     int __rc = (nimble_call);                                                                     \
     if (__rc != 0) {                                                                              \
       ESP_LOGE(__FILE_NAME__, "%s: NimBLE call failed '%s' -> %d", __func__, #nimble_call, __rc); \
-      SE_RET_ERR(ERR_BLE_STACK_FAILED, __rc);                                                     \
+      SE_FAIL(ERR_BLE_STACK_FAILED, __rc);                                                     \
     }                                                                                             \
   } while (0)
 
@@ -87,7 +91,7 @@ err_h populate_svc_def(struct ble_gatt_svc_def* svc_def, const sys_ble_svc_node_
       if (mutex_unlock) {                                                                    \
         R_MUTEX_UNLOCK(sys_ble_mutex);                                                       \
       }                                                                                      \
-      SE_RET_ERR(ERR_BASE_NOT_FOUND, uuid);                                                \
+      SE_FAIL(ERR_BASE_NOT_FOUND, uuid);                                                \
     }                                                                                        \
   } while (0)
 
@@ -97,7 +101,7 @@ err_h populate_svc_def(struct ble_gatt_svc_def* svc_def, const sys_ble_svc_node_
     if ((var) == NULL) {                                                              \
       ESP_LOGE(__FILE_NAME__, "%s: Service UUID 0x%04X not found", __func__, (uuid)); \
       if (mutex_unlock) R_MUTEX_UNLOCK(sys_ble_mutex);                                \
-      SE_RET_ERR(ERR_BASE_NOT_FOUND, uuid);                                           \
+      SE_FAIL(ERR_BASE_NOT_FOUND, uuid);                                           \
     }                                                                                 \
   } while (0)
 

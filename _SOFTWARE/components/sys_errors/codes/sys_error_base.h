@@ -6,6 +6,10 @@
 struct err_node;
 typedef struct err_node* err_h;
 
+/* Every function returning err_h is marked with this: a dropped error chain
+   leaks a pool slot and hides a failure. Intentional drops: SE_release(call). */
+#define SE_MUST_USE __attribute__((warn_unused_result))
+
 // Owners for the sys_errors component itself (config + telemetry plumbing).
 #define SYS_ERRORS_OWNER_MAP(X)                             \
   X(OWNER_SYS_ERRORS_BASE, 0xA800, "OWNER_SYS_ERRORS_BASE") \
@@ -15,40 +19,41 @@ typedef struct err_node* err_h;
  * @brief Error severity classification matching device importance order.
  * Defined here so all submodule error maps can assign default severity levels.
  */
-typedef enum sys_device_err_level_e {
-  SYS_DEV_ERR_NONE = 0,
-  SYS_DEV_ERR_LOW = 1,
-  SYS_DEV_ERR_MEDIUM = 2,
-  SYS_DEV_ERR_HIGH = 3,
-  SYS_DEV_ERR_CRITICAL = 4,
-} sys_device_err_level_e;
+typedef enum se_level_e {
+  SE_LEVEL_NONE = 0,
+  SE_LEVEL_LOW = 1,
+  SE_LEVEL_MEDIUM = 2,
+  SE_LEVEL_HIGH = 3,
+  SE_LEVEL_CRITICAL = 4,
+} se_level_e;
 
 
 #define SYS_ERROR_BASE_MAP(X)                                           \
-  X(ERR_NO_HANDLE, SYS_DEV_ERR_CRITICAL, struct { uint8_t unused; })    \
-  X(ERR_NULL_PTR, SYS_DEV_ERR_CRITICAL, struct { uint8_t unused; })     \
-  X(ERR_INVALID_VAL_UI32, SYS_DEV_ERR_LOW, struct {                     \
+  X(ERR_NO_HANDLE, 0x0001, SE_LEVEL_HIGH, struct { uint8_t unused; })        \
+  X(ERR_NULL_PTR, 0x0002, SE_LEVEL_HIGH, struct { uint8_t unused; })         \
+  X(ERR_INVALID_VAL_UI32, 0x0003, SE_LEVEL_LOW, struct {                     \
       uint32_t val;                                                     \
       uint32_t min;                                                     \
       uint32_t max;                                                     \
     })                                                                  \
-  X(ERR_INVALID_VAL_I32, SYS_DEV_ERR_LOW, struct {                      \
+  X(ERR_INVALID_VAL_I32, 0x0004, SE_LEVEL_LOW, struct {                      \
       int32_t val;                                                      \
       int32_t min;                                                      \
       int32_t max;                                                      \
     })                                                                  \
-  X(ERR_INVALID_VAL_F, SYS_DEV_ERR_LOW, struct {                        \
+  X(ERR_INVALID_VAL_F, 0x0005, SE_LEVEL_LOW, struct {                        \
       float val;                                                        \
       float min;                                                        \
       float max;                                                        \
     })                                                                  \
-  X(ERR_DEV_DEP_FAILED, SYS_DEV_ERR_HIGH, struct { uint8_t dev_id; })   \
-  X(ERR_DEP_FAILED, SYS_DEV_ERR_HIGH, struct { uint8_t unused; })       \
-  X(ERR_ESP_ERR, SYS_DEV_ERR_HIGH, struct { esp_err_t esp_code; })      \
-  X(ERR_BASE_NO_MEM, SYS_DEV_ERR_CRITICAL, struct { uint8_t unused; })  \
-  X(ERR_BASE_NOT_SUPPORTED, SYS_DEV_ERR_LOW, struct { uint8_t unused; })\
-  X(ERR_BASE_NOT_FOUND, SYS_DEV_ERR_LOW, struct { uint8_t unused; })   \
-  X(ERR_BASE_INVALID_STATE, SYS_DEV_ERR_MEDIUM, struct { uint8_t unused; })
+  X(ERR_DEV_DEP_FAILED, 0x0006, SE_LEVEL_HIGH, struct { uint8_t dev_id; })   \
+  X(ERR_DEP_FAILED, 0x0007, SE_LEVEL_HIGH, struct { uint8_t unused; })       \
+  X(ERR_ESP_ERR, 0x0008, SE_LEVEL_HIGH, struct { esp_err_t esp_code; })      \
+  X(ERR_BASE_NO_MEM, 0x0009, SE_LEVEL_HIGH, struct { uint8_t unused; })      \
+  X(ERR_BASE_NOT_SUPPORTED, 0x000A, SE_LEVEL_LOW, struct { uint8_t unused; })\
+  X(ERR_BASE_NOT_FOUND, 0x000B, SE_LEVEL_LOW, struct { uint8_t unused; })   \
+  X(ERR_BASE_INVALID_STATE, 0x000C, SE_LEVEL_MEDIUM, struct { uint8_t unused; }) \
+  X(ERR_BASE_POOL_EXHAUSTED, 0x000D, SE_LEVEL_LOW, struct { uint8_t unused; })
 
 /**
  * @brief Human-readable descriptions for base tags - see SE_describe_payload() in sys_error.h.
@@ -65,7 +70,8 @@ typedef enum sys_device_err_level_e {
   X(ERR_BASE_NO_MEM)                 \
   X(ERR_BASE_NOT_SUPPORTED)          \
   X(ERR_BASE_NOT_FOUND)              \
-  X(ERR_BASE_INVALID_STATE)
+  X(ERR_BASE_INVALID_STATE)          \
+  X(ERR_BASE_POOL_EXHAUSTED)
 
 #define LOG_BODY_ERR_NO_HANDLE(p, out, out_size) \
   do {                                           \
@@ -106,4 +112,9 @@ typedef enum sys_device_err_level_e {
   do {                                                               \
     (void)(p);                                                       \
     snprintf((out), (out_size), "invalid state for this operation"); \
+  } while (0)
+#define LOG_BODY_ERR_BASE_POOL_EXHAUSTED(p, out, out_size)                                     \
+  do {                                                                                        \
+    (void)(p);                                                                                \
+    snprintf((out), (out_size), "error pool exhausted: this error's details were not stored"); \
   } while (0)

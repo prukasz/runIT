@@ -1,4 +1,5 @@
 #pragma once
+#include <stddef.h>
 #include "sys_error.h"
 #include <sdkconfig.h>
 //#ref-enum @alias Device Contract
@@ -16,14 +17,13 @@ typedef enum {
  * used e.g. by sys_error_dev.h's ERR_DEV_FEATURE_UNAVAILABLE description.
  * sys_error_dev.h forward-declares this same extern rather than including
  * this header, since it's parsed too early in the include chain to safely
- * pull in sys_device.h - see that file's comment. Kept in sync with
- * SYS_DEVICE_CONTRACT_IO's value (0) via the static_assert below; if the
- * enum is ever renumbered, sys_error_dev.h's ERR_DEV_FEATURE_UNAVAILABLE
- * logger (which checks contract_id == 0 as a literal, for the same reason)
- * needs updating too.
+ * pull in sys_device.h - see that file's comment. That logger also lists each
+ * contract's feature-name table in enum order; the static_assert below fails
+ * if the enum changes, so the list gets updated with it.
  */
 extern const char* const sys_device_contract_type_e_to_string[];
-_Static_assert(SYS_DEVICE_CONTRACT_IO == 0, "sys_error_dev.h's ERR_DEV_FEATURE_UNAVAILABLE logger assumes SYS_DEVICE_CONTRACT_IO == 0");
+_Static_assert(SYS_DEVICE_CONTRACT_IO == 0 && SYS_DEVICE_CONTRACT_HBRIDGE == 4 && SYS_DEVICE_CONTRACT_MAX == 5,
+               "sys_error_dev.h's ERR_DEV_FEATURE_UNAVAILABLE logger lists the 5 contracts' feature-name tables in enum order");
 
 /*Lifecycle callbacks, shared by every instance of a device type*/
 typedef struct sys_device_ops_t {
@@ -46,7 +46,7 @@ typedef struct sys_device_ops_t {
 
 typedef struct sys_device_class_t {
   const char* name;
-  void* contracts[SYS_DEVICE_CONTRACT_MAX];
+  const void* contracts[SYS_DEVICE_CONTRACT_MAX]; /* static const vtables, kept in flash */
   sys_device_ops_t ops;
 } sys_device_class_t;
 
@@ -78,37 +78,36 @@ typedef struct {
   uint8_t id;    /**< Action ID in selected scope (0 = disabled) */
 } sys_device_action_t;
 
+//#ref-enum @alias Device Error Importance
 typedef enum sys_device_importance_e {
-  SYS_DEV_IMPORTANCE_NONE = 0,
-  SYS_DEV_IMPORTANCE_LOW = 1,
-  SYS_DEV_IMPORTANCE_MEDIUM = 2,
-  SYS_DEV_IMPORTANCE_HIGH = 3,
-  SYS_DEV_IMPORTANCE_CRITICAL = 4,
+  SYS_DEV_IMPORTANCE_NONE = 0, //@alias Disabled @description Disables automatic handling for this device.
+  SYS_DEV_IMPORTANCE_LOW = 1, //@alias Low @description Handles only low-severity device errors.
+  SYS_DEV_IMPORTANCE_MEDIUM = 2, //@alias Medium @description Handles low and medium-severity device errors.
+  SYS_DEV_IMPORTANCE_HIGH = 3, //@alias High @description Handles low through high-severity device errors.
+  SYS_DEV_IMPORTANCE_CRITICAL = 4, //@alias Critical @description Handles every device error severity.
 } sys_device_importance_e;
 
 /**
- * sys_device_err_level_e (SYS_DEV_ERR_NONE .. CRITICAL) is defined in
+ * se_level_e (SE_LEVEL_NONE .. CRITICAL) is defined in
  * sys_error_base.h so that all error tags can embed default severity levels.
  */
 
 /** Stage of a device-fault response, included in structured failure errors. */
 typedef enum sys_device_fault_stage_e {
   SYS_DEV_FAULT_STAGE_VM_STOP = 0,
-  SYS_DEV_FAULT_STAGE_FREEZE = 1,
+  SYS_DEV_FAULT_STAGE_SUSPEND = 1,
   SYS_DEV_FAULT_STAGE_ACTION = 2,
 } sys_device_fault_stage_e;
 
 /**
- * @brief Application coordinator error policy for classified device errors.
- *
- * Implemented statically by the application layer (runit). A weak fallback is
- * provided in sys_device.c that freezes all devices on CRITICAL errors.
+ * @brief Application policy for a classified device error: the response
+ * (for example VM stop + suspend all on CRITICAL) plus the device's configured
+ * action (action_scope / action_id). Returns an owned response failure or NULL.
  */
-err_h sys_device_app_error_policy(uint8_t device_id,
-                                  sys_device_err_level_e level,
-                                  uint8_t action_scope,
-                                  uint8_t action_id,
-                                  err_h error);
+typedef err_h (*sys_device_error_policy_f)(uint8_t device_id, se_level_e level, uint8_t action_scope, uint8_t action_id, err_h error);
+
+/** @brief Register the policy (runit, at boot). Without one, CRITICAL suspends every device. */
+void sys_device_register_error_policy(sys_device_error_policy_f policy);
 
 /**
  * @brief Main device object with all necessary data and structures
@@ -126,8 +125,12 @@ typedef struct sys_device_t {
   /**
    * @brief Per-instance error handling mode - see sys_device_report_error().
    */
-  sys_device_action_t actions[5];       /* indexed by sys_device_err_level_e (1..4) */
+  sys_device_action_t actions[5];       /* indexed by se_level_e (1..4) */
   sys_device_importance_e importance; /* NONE disables error handling; clamps max error level */
+
+  bool onboard; /* baked onto the PCB (sys_device_set_onboard): users can't uninstall it */
+
+  uint64_t io_locked_pins; /* per-instance IO pin locks, owned by sys_io (sys_io_lock_pin) */
 } sys_device_t;
 
 /**
@@ -149,23 +152,50 @@ typedef struct {
  *
  * Prefer the SYS_DEVICE_CREATE() wrapper, which derives device_id and size.
  */
-err_h sys_device_install_cfg(const sys_device_class_t* cls, uint8_t device_id, const void* cfg, size_t cfg_size);
+SE_MUST_USE err_h sys_device_install_cfg(const sys_device_class_t* cls, uint8_t device_id, const void* cfg, size_t cfg_size);
 
 /*Requires cfg_ptr's first member to be `uint8_t device_id`*/
 #define SYS_DEVICE_CREATE(cls_ptr, cfg_ptr) sys_device_install_cfg((cls_ptr), (cfg_ptr)->device_id, (cfg_ptr), sizeof(*(cfg_ptr)))
 
-err_h sys_device_uninstall(uint8_t device_id);
-err_h sys_device_uninstall_all(void);
-err_h sys_device_reset(uint8_t device_id);
-err_h sys_device_reset_all(void);
-err_h sys_device_suspend(uint8_t device_id);
-err_h sys_device_resume(uint8_t device_id);
-err_h sys_device_suspend_all(void);
-err_h sys_device_resume_all(void);
-err_h sys_device_freeze(uint8_t device_id);
-err_h sys_device_sync(uint8_t device_id);
-err_h sys_device_freeze_all(void);
-err_h sys_device_sync_all(void);
+SE_MUST_USE err_h sys_device_uninstall(uint8_t device_id);
+SE_MUST_USE err_h sys_device_uninstall_all(void);
+
+/**
+ * @brief Mark an installed device as onboard (baked onto the PCB).
+ *
+ * Called by the board config right after it installs each onboard device.
+ * The flag lives until the device is uninstalled (by the system: hard reset,
+ * shutdown), so a board reinstall marks it again.
+ *
+ * @return NULL on success, ERR_DEV_NOT_FOUND if nothing is installed at device_id.
+ */
+SE_MUST_USE err_h sys_device_set_onboard(uint8_t device_id);
+
+/*User entry points (inbound packets, replayed recorded actions). The firmware
+  only protects onboard devices from being uninstalled; every other limit on
+  what a user may do with them is app policy.*/
+
+/**
+ * @brief sys_device_uninstall() for users.
+ * @return ERR_DEV_ONBOARD {dev_id} for an onboard device, otherwise as sys_device_uninstall().
+ */
+SE_MUST_USE err_h sys_device_user_uninstall(uint8_t device_id);
+
+/**
+ * @brief sys_device_uninstall_all() for users: uninstalls every device except
+ * onboard ones (same high-to-low order, best effort, first error returned).
+ */
+SE_MUST_USE err_h sys_device_user_uninstall_all(void);
+SE_MUST_USE err_h sys_device_reset(uint8_t device_id);
+SE_MUST_USE err_h sys_device_reset_all(void);
+SE_MUST_USE err_h sys_device_suspend(uint8_t device_id);
+SE_MUST_USE err_h sys_device_resume(uint8_t device_id);
+SE_MUST_USE err_h sys_device_suspend_all(void);
+SE_MUST_USE err_h sys_device_resume_all(void);
+SE_MUST_USE err_h sys_device_freeze(uint8_t device_id);
+SE_MUST_USE err_h sys_device_sync(uint8_t device_id);
+SE_MUST_USE err_h sys_device_freeze_all(void);
+SE_MUST_USE err_h sys_device_sync_all(void);
 
 sys_device_t* sys_device_get_by_id(uint8_t device_id);
 
@@ -178,9 +208,9 @@ sys_device_t* sys_device_get_by_id(uint8_t device_id);
  * If dev->importance is SYS_DEV_IMPORTANCE_NONE, all error handling is ignored
  * (treated as a test/non-essential device; no actions or latches are triggered).
  *
- * If effective severity is SYS_DEV_ERR_CRITICAL and importance != NONE:
- * it unconditionally latches the fault in the VM, halts the VM, freezes all devices,
- * and invokes dev->actions[SYS_DEV_ERR_CRITICAL].
+ * If effective severity is SE_LEVEL_CRITICAL and importance != NONE:
+ * it unconditionally latches the fault in the VM, halts the VM, suspends all devices,
+ * and invokes dev->actions[SE_LEVEL_CRITICAL].
  *
  * For non-critical errors (LOW, MEDIUM, HIGH):
  * - If the level exceeds dev->importance, it is clamped down to dev->importance.
@@ -190,12 +220,12 @@ sys_device_t* sys_device_get_by_id(uint8_t device_id);
  * @param error Error handle (must not be NULL).
  * @return NULL on successful dispatch or if ignored, or a structured policy error.
  */
-err_h sys_device_report_error(uint8_t device_id, err_h error);
+SE_MUST_USE err_h sys_device_report_error(uint8_t device_id, err_h error);
 
 /**
  * @brief Report an error with an explicit severity level override.
  */
-err_h sys_device_report_error_with_level(uint8_t device_id, sys_device_err_level_e level, err_h error);
+SE_MUST_USE err_h sys_device_report_error_with_level(uint8_t device_id, se_level_e level, err_h error);
 
 /**
  * @brief Returns true if device has SYS_DEV_IMPORTANCE_NONE (ignored test device).
@@ -215,7 +245,7 @@ bool sys_device_is_ignored(uint8_t device_id);
  *               registered, or ERR_INVALID_VAL_UI32 if an actions[] entry is
  *               out of range.
  */
-err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e importance, const uint8_t actions[5]);
+SE_MUST_USE err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e importance, const uint8_t actions[5]);
 
 /* ========================================================================== *
  * Field accessors - helpers
@@ -239,14 +269,23 @@ err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e i
 /* ========================================================================== *
  * Safety checks and error operations
  * ========================================================================== */
-#define SYS_DEV_CHECK_DRIVER_CALL(driver_call, ctx) RET_IF_DEV_ERR(SE_CONVERT_ESP(driver_call), (ctx))
-#define RET_IF_DEV_ERR(err_ptr, ctx) SE_PASS_ON_ERR((err_ptr), ERR_DEV_DEP_FAILED, .dev_id = (ctx)->base.device_id)
-#define RET_IF_DEV_INSTALL_FAIL(err_ptr, device_id) SE_PASS_ON_ERR((err_ptr), ERR_DEV_INSTALL_FAILED, .dev_id = (device_id))
+/* Calls a driver function (esp_err_t) from an adapter. A failure becomes
+   ERR_DEV_DRIVER_FAILED {dev_id, line} over ERR_ESP_ERR {code}: the device,
+   the exact adapter call site (owner = device type) and the ESP code. */
+/* Builds (does not return) the same ERR_DEV_DRIVER_FAILED {dev_id, line} over
+   ERR_ESP_ERR {code} chain for an esp_err_t obtained elsewhere - an ESP-IDF
+   call made directly by an adapter, or a failure reported from a driver task. */
+#define SYS_DEV_DRIVER_ERR(esp_err, ctx)                                                      \
+  SE_WRAP_ERR(SE_ERR_NEW(ERR_ESP_ERR, .esp_code = (esp_err)), ERR_DEV_DRIVER_FAILED, \
+              .dev_id = SYS_DEV_GET_ID(ctx), .line = __LINE__)
+#define SYS_DEV_CHECK_DRIVER_CALL(driver_call, ctx) \
+  SE_TRY_WRAP(SE_CONVERT_ESP(driver_call), ERR_DEV_DRIVER_FAILED, .dev_id = SYS_DEV_GET_ID(ctx), .line = __LINE__)
+#define SYS_DEV_TRY(err_ptr, ctx) SE_TRY_WRAP((err_ptr), ERR_DEV_DEP_FAILED, .dev_id = (ctx)->base.device_id)
 
 #define SYS_DEV_CHECK_HANDLE(handle, dev_id)   \
   do {                                         \
     if ((handle) == NULL) {                    \
-      SE_RET_ERR(ERR_DEV_NO_HANDLE, (dev_id)); \
+      SE_FAIL(ERR_DEV_NO_HANDLE, (dev_id)); \
     }                                          \
   } while (0)
 
@@ -260,11 +299,6 @@ err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e i
   hw_type hw_var = (hw_type)(((ctx_var))->base.hw_handle);                            \
   SYS_DEV_CHECK_HANDLE(hw_var, ((ctx_var))->base.device_id)
 
-#define IF_SYS_DEV_AND_FEATURE(device_id, contract_type, contract_struct_type, func_member, dev_ptr, vtable_ptr)                                            \
-  for (sys_device_t* dev_ptr = sys_device_get_by_id((device_id)); dev_ptr; dev_ptr = NULL)                                                                  \
-    for (const contract_struct_type* vtable_ptr = (const contract_struct_type*)SYS_DEV_GET_CONTRACT(dev_ptr, contract_type); vtable_ptr; vtable_ptr = NULL) \
-      if (SYS_DEV_IS_READY(dev_ptr) && vtable_ptr->func_member)
-
 /**
  * @brief Guard for a device pointer already fetched via sys_device_get_by_id().
  * Returns ERR_DEV_NOT_FOUND / ERR_DEV_NOT_INSTALLED / ERR_DEV_SUSPENDED from the
@@ -275,13 +309,13 @@ err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e i
 #define SYS_DEV_REQUIRE_ACTIVE(dev, device_id)                    \
   do {                                                            \
     if ((dev) == NULL) {                                          \
-      SE_RET_ERR(ERR_DEV_NOT_FOUND, (device_id));                 \
+      SE_FAIL(ERR_DEV_NOT_FOUND, (device_id));                 \
     }                                                              \
     if (!SYS_DEV_IS_INSTALLED(dev)) {                              \
-      SE_RET_ERR(ERR_DEV_NOT_INSTALLED, (device_id));              \
+      SE_FAIL(ERR_DEV_NOT_INSTALLED, (device_id));              \
     }                                                              \
     if (SYS_DEV_IS_SUSPENDED(dev)) {                                \
-      SE_RET_ERR(ERR_DEV_SUSPENDED, (device_id));                  \
+      SE_FAIL(ERR_DEV_SUSPENDED, (device_id));                  \
     }                                                              \
   } while (0)
 
@@ -290,16 +324,33 @@ err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e i
  * Integrated error handling
  */
 
-#define SYS_DEV_DISPATCH(device_id_arg, contract_enum, contract_type, func_name, ...)           \
-  do {                                                                                   \
-    sys_device_t* __disp_dev = sys_device_get_by_id((device_id_arg));                           \
-    SYS_DEV_REQUIRE_ACTIVE(__disp_dev, (device_id_arg));                                        \
-    contract_type* __vtable = (contract_type*)__disp_dev->cls->contracts[contract_enum]; \
-    if (__vtable == NULL || __vtable->func_name == NULL) {                               \
-      SE_RET_ERR(ERR_DEV_FEATURE_UNAVAILABLE, (device_id_arg), (uint8_t)(contract_enum), 0);    \
-    }                                                                                    \
-    SE_PASS_ON_ERR(__vtable->func_name(__disp_dev->device_handle, ##__VA_ARGS__), ERR_DEV_DEP_FAILED, .dev_id = (device_id_arg));        \
-    return NULL;                                                                         \
+/* Feature id of a contract function: its index in the contract struct (every
+   member is a function pointer). Reported in ERR_DEV_FEATURE_UNAVAILABLE and
+   named by the contract's <contract>_feature_names[] table. */
+#define SYS_DEV_FEATURE_ID(contract_type, func_name) \
+  ((uint8_t)(offsetof(contract_type, func_name) / sizeof(void (*)(void))))
+
+/* Resolves device_id to an active device (SYS_DEV_REQUIRE_ACTIVE) whose
+   contract implements func_name, otherwise returns the error
+   (ERR_DEV_FEATURE_UNAVAILABLE {dev, contract, feature}). Declares dev_var and
+   contract_var in the enclosing scope. The single copy of the dispatch
+   checks: SYS_DEV_DISPATCH, sys_io's pin-lock dispatch and sys_power's
+   budgeted calls all start here. */
+#define SYS_DEV_RESOLVE(device_id, contract_enum, contract_type, func_name, dev_var, contract_var)                               \
+  sys_device_t* dev_var = sys_device_get_by_id((device_id));                                                                  \
+  SYS_DEV_REQUIRE_ACTIVE(dev_var, (device_id));                                                                               \
+  const contract_type* contract_var = (const contract_type*)(dev_var)->cls->contracts[(contract_enum)];                       \
+  if ((contract_var) == NULL || (contract_var)->func_name == NULL) {                                                          \
+    SE_FAIL(ERR_DEV_FEATURE_UNAVAILABLE, (device_id), (uint8_t)(contract_enum), SYS_DEV_FEATURE_ID(contract_type, func_name)); \
+  }
+
+/* Resolve, call the contract function and wrap a failure with the device id. */
+#define SYS_DEV_DISPATCH(device_id, contract_enum, contract_type, func_name, ...)                                         \
+  do {                                                                                                                    \
+    SYS_DEV_RESOLVE(device_id, contract_enum, contract_type, func_name, __disp_dev, __disp_contract);                     \
+    SE_TRY_WRAP(__disp_contract->func_name(__disp_dev->device_handle, ##__VA_ARGS__), ERR_DEV_DEP_FAILED,              \
+                   .dev_id = (device_id));                                                                                \
+    return NULL;                                                                                                          \
   } while (0)
 
 /* ========================================================================== *
@@ -310,7 +361,8 @@ err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e i
 // `err` has been set to the failing step's error and before returning.
 // Rolls back any partially-constructed state via `uninstall_fn`, suspending
 // error reporting for the duration (teardown failures here are noise next to
-// the real cause), then reports `err` wrapped with `device_id` attached.
+// the real cause), then returns `err`. sys_device_install_cfg() adds ERR_DEV_INSTALL_FAILED
+// {dev_id} on top, so the adapter doesn't wrap it again.
 //
 // Contract for uninstall_fn (same function used for real sys_device_uninstall()):
 //  - must tolerate any subset of ctx's fields being zero/unset (calloc'd but
@@ -320,13 +372,13 @@ err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e i
 #define SYS_DEV_INSTALL_FAIL(err, device_id, out_handle, uninstall_fn, ctx)                             \
   do {                                                                                                  \
     *(out_handle) = NULL;                                                                               \
+    (void)(device_id);                                                                                  \
     if ((ctx) != NULL) {                                                                                \
-      ESP_LOGW(TAG, "Install failed for device %u, rolling back partial state", (unsigned)(device_id)); \
       SE_suspend();                                                                                     \
-      SE_release((uninstall_fn)((ctx)));                                                                            \
+      SE_release((uninstall_fn)((ctx)));                                                                \
       SE_resume();                                                                                      \
     }                                                                                                   \
-    RET_IF_DEV_INSTALL_FAIL((err), (device_id));                                                        \
+    return (err);                                                                                       \
   } while (0)
 
 /**
@@ -345,15 +397,18 @@ err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e i
   (ctx_var)->cfg = *(cfg_ptr);                                \
   (ctx_var)->base.device_id = (cfg_ptr)->device_id
 
-/*Run one install step; on failure log it and jump to the rollback label.
-  Requires `err_h err`, a `fail:` label and `TAG` in scope.*/
-#define SYS_DEV_INSTALL_STEP(expr, what)           \
-  do {                                             \
-    err = (expr);                                  \
-    if (SE_IS_ERR(err)) {                          \
-      ESP_LOGE(TAG, "install: %s failed", (what)); \
-      goto fail;                                   \
-    }                                              \
+/*Run one install step; on failure wrap it as ERR_DEV_INSTALL_STEP_FAILED
+  {line} (the adapter call site) and jump to the rollback label. `what` is a
+  source-level label for readers only. Requires `err_h err` and a `fail:`
+  label in scope.*/
+#define SYS_DEV_INSTALL_STEP(expr, what)                                  \
+  do {                                                                    \
+    (void)(what);                                                         \
+    err = (expr);                                                         \
+    if (SE_IS_ERR(err)) {                                                 \
+      err = SE_WRAP_ERR(err, ERR_DEV_INSTALL_STEP_FAILED, .line = __LINE__); \
+      goto fail;                                                          \
+    }                                                                     \
   } while (0)
 
 /*Run one teardown step, keeping the FIRST error. Never early-returns: teardown
@@ -362,4 +417,14 @@ err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e i
   do {                                                        \
     err_h __r = (expr);                                       \
     if (SE_IS_ERR(__r) && SE_IS_OK(err_acc)) (err_acc) = __r; else SE_release(__r); \
+  } while (0)
+
+/*SYS_DEV_TEARDOWN_STEP for a driver call (esp_err_t): a failure is kept as
+  ERR_DEV_DRIVER_FAILED {dev_id, line} over the ESP code, like
+  SYS_DEV_CHECK_DRIVER_CALL. Also for fault-path sweeps (suspend, per-channel
+  loops) that must reach every step.*/
+#define SYS_DEV_TEARDOWN_DRIVER_STEP(err_acc, driver_call, ctx)                                    \
+  do {                                                                                             \
+    esp_err_t __drv_rc = (driver_call);                                                            \
+    if (__drv_rc != ESP_OK) SYS_DEV_TEARDOWN_STEP((err_acc), SYS_DEV_DRIVER_ERR(__drv_rc, (ctx))); \
   } while (0)

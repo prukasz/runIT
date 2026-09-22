@@ -5,7 +5,6 @@
 #include "esp_adc/adc_cali_scheme.h"
 #include "esp_adc/adc_continuous.h"
 #include "esp_err.h"
-#include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -15,7 +14,6 @@
 #include "sys_io.h"
 #include "utils.h"
 
-#define TAG __FILE_NAME__
 
 #define RETURN_ON_ERROR(x)                   \
   do {                                       \
@@ -139,13 +137,14 @@ static void process_adc_channel(int pin, int chan, uint32_t sum, uint16_t count,
 
   if (adc_cfg->cali_handle == NULL) return;
 
-  int voltage_mv = 0;
-  adc_cali_raw_to_voltage(adc_cfg->cali_handle, (int)adc_cfg->internal_raw_filtered, &voltage_mv);
+  int voltage_mV = 0;
+  // Background task, no caller to report to: keep the last good reading.
+  if (adc_cali_raw_to_voltage(adc_cfg->cali_handle, (int)adc_cfg->internal_raw_filtered, &voltage_mV) != ESP_OK) return;
 
-  adc_cfg->adc_last_read_mv = (uint16_t)voltage_mv;
+  adc_cfg->adc_last_read_mV = (uint16_t)voltage_mV;
 
   if (!gpio_esp_ctx.base.is_frozen) {
-    adc_cfg->adc_cached_mv = (uint16_t)voltage_mv;
+    adc_cfg->adc_cached_mV = (uint16_t)voltage_mV;
   }
 
   if (pin_obj->intr_config.mode == SYS_IO_INTR_DISABLE) return;
@@ -158,26 +157,22 @@ static void process_adc_channel(int pin, int chan, uint32_t sum, uint16_t count,
   uint16_t hyst = pin_obj->intr_config.adc.adc_threshold_hysteresis_mV;
 
   if (wt == SYS_IO_INTR_ADC_WINDOW_OUTSIDE || wt == SYS_IO_INTR_MODE_BOTH_EDGES) {
-    condition_met = (voltage_mv >= up || voltage_mv <= down);
-    reset_condition_met = (voltage_mv < (up - hyst) && voltage_mv > (down + hyst));
+    condition_met = (voltage_mV >= up || voltage_mV <= down);
+    reset_condition_met = (voltage_mV < (up - hyst) && voltage_mV > (down + hyst));
   } else if (wt == SYS_IO_INTR_ADC_WINDOW_INSIDE) {
-    condition_met = (voltage_mv <= up && voltage_mv >= down);
-    reset_condition_met = (voltage_mv > (up + hyst) || voltage_mv < (down - hyst));
+    condition_met = (voltage_mV <= up && voltage_mV >= down);
+    reset_condition_met = (voltage_mV > (up + hyst) || voltage_mV < (down - hyst));
   } else if (wt == SYS_IO_INTR_MODE_RISING_EDGE) {
-    condition_met = (voltage_mv >= up);
-    reset_condition_met = (voltage_mv < (up - hyst));
+    condition_met = (voltage_mV >= up);
+    reset_condition_met = (voltage_mV < (up - hyst));
   } else if (wt == SYS_IO_INTR_MODE_FALLING_EDGE) {
-    condition_met = (voltage_mv <= down);
-    reset_condition_met = (voltage_mv > (down + hyst));
+    condition_met = (voltage_mV <= down);
+    reset_condition_met = (voltage_mV > (down + hyst));
   }
 
   if (condition_met && !adc_cfg->alert_was_triggered) {
     adc_cfg->alert_was_triggered = true;
-    if (pin_obj->intr_config.own_func.own_func) {
-      SYS_CB_OWN(pin_obj->intr_config.own_func);
-    } else {
-      SYS_IO_CB(&gpio_esp_ctx, pin_obj->io_num, wt, voltage_mv, pin_obj->intr_config.route_mask, pin_obj->intr_config.static_action_id, pin_obj->intr_config.dynamic_action_id);
-    }
+    SE_REPORT(sys_io_publish(gpio_esp_ctx.base.device_id, pin_obj->io_num, (sys_io_intr_mode_e)wt, voltage_mV, 0));
   } else if (reset_condition_met) {
     adc_cfg->alert_was_triggered = false;
   }
@@ -198,7 +193,6 @@ static void adc_processing_task_function(void* pvParameters) {
   while (1) {
     if (_needs_hardware_reconfig) {
       if (R_MUTEX_LOCK(adc_mutex, portMAX_DELAY) == pdTRUE) {
-        ESP_LOGI(TAG, "Rebuilding ADC Engine...");
         reconfigure_adc_hardware(last_channels_mask);
         _needs_hardware_reconfig = false;
         if (adc_sync_sem) xSemaphoreGive(adc_sync_sem);
@@ -253,12 +247,12 @@ esp_err_t esp_adc_start() {
   return ESP_OK;
 }
 
-esp_err_t esp_adc_get_mv(uint8_t pin, uint32_t* out_mv) {
-  if (out_mv == NULL || pin >= GPIO_NUM_MAX) return ESP_ERR_INVALID_ARG;
+esp_err_t esp_adc_get_mV(uint8_t pin, int32_t* out_mV) {
+  if (out_mV == NULL || pin >= GPIO_NUM_MAX) return ESP_ERR_INVALID_ARG;
   esp_pin_obj_t* pin_obj = pin_obj_get(pin);
   if (pin_obj == NULL || pin_obj->pin_mode != SYS_IO_MODE_ADC) {
     return ESP_ERR_INVALID_ARG;
   }
-  *out_mv = gpio_esp_ctx.base.is_frozen ? pin_obj->hw.adc_cfg.adc_cached_mv : pin_obj->hw.adc_cfg.adc_last_read_mv;
+  *out_mV = gpio_esp_ctx.base.is_frozen ? pin_obj->hw.adc_cfg.adc_cached_mV : pin_obj->hw.adc_cfg.adc_last_read_mV;
   return ESP_OK;
 }

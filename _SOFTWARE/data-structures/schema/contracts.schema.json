@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "data-structures/schema/contracts.schema.json",
+  "title": "runIT exposed contract catalog",
+  "description": "Packets published by a C decoder's explicit //@contract-catalog and //@contract-list annotations.",
+  "type": "object",
+  "required": ["$schema", "schemaVersion", "kind", "response_stream", "catalogs"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "const": "data-structures/schema/contracts.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "contracts" },
+    "response_stream": { "$ref": "#/$defs/response_stream" },
+    "catalogs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/catalog" }
+    }
+  },
+  "$defs": {
+    "field": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+          "type": { "type": "string" },
+          "array_len": { "type": "integer", "minimum": 1 },
+          "flexible_array": { "const": true },
+        "alias": { "type": "string" },
+        "required": { "type": "boolean" },
+        "min": { "type": ["integer", "null"] },
+        "max": { "type": ["integer", "null"] },
+        "one_of": { "type": "array" },
+        "available": { "type": "array" },
+        "default": { "type": ["integer", "null"] },
+        "sentinel": { "type": ["integer", "null"] },
+        "unit": { "type": "string" },
+        "enum_ref": { "type": "string" },
+        "group": { "type": "string" },
+        "role": { "type": "string" },
+        "desc": { "type": "string" },
+          "note": { "type": "string" },
+          "encoding": { "type": "string" },
+          "terminator": { "type": "string" }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "required": ["id", "packet", "packet_header", "decoder", "field_order", "fields"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "packet": { "type": "string" },
+        "packet_header": { "type": "string" },
+        "decoder": { "type": "string" },
+        "field_order": { "type": "array", "items": { "type": "string" } },
+        "fields": { "type": "object", "additionalProperties": { "$ref": "#/$defs/field" } },
+        "groups": { "type": "object" },
+        "response": { "$ref": "#/$defs/response" }
+      }
+    },
+    "response": {
+      "description": "Data following an OK status in this command's response (packet_<name>_response_t).",
+      "type": "object",
+      "required": ["struct", "field_order", "fields"],
+      "additionalProperties": false,
+      "properties": {
+        "struct": { "type": "string" },
+        "field_order": { "type": "array", "items": { "type": "string" } },
+        "fields": { "type": "object", "additionalProperties": { "$ref": "#/$defs/field" } }
+      }
+    },
+    "response_stream": {
+      "description": "Envelope of every command response: [class_header][request_class][request_packet][status][data]. OK data is the contract's response; error data is error_data.",
+      "type": "object",
+      "required": ["class_header", "header", "status_enum", "matching", "error_data"],
+      "additionalProperties": false,
+      "properties": {
+        "class_header": { "type": "string", "pattern": "^0x[0-9A-Fa-f]+$" },
+        "header": { "type": "array", "items": { "type": "string" } },
+        "status_enum": { "type": "string" },
+        "matching": { "const": "fifo" },
+        "error_data": { "type": "object" }
+      }
+    },
+    "catalog": {
+      "type": "object",
+      "required": ["id", "title", "description", "source_file", "class_name", "class_header", "contracts"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "source_file": { "type": "string" },
+        "class_name": { "type": "string" },
+        "class_header": { "type": "string", "pattern": "^0x[0-9A-Fa-f]+$" },
+        "contracts": { "type": "array", "items": { "$ref": "#/$defs/contract" } }
+      }
+    }
+  }
+}

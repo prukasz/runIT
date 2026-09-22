@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "data-structures/schema/settings.schema.json",
+  "title": "runIT runtime settings catalog",
+  "type": "object",
+  "required": ["$schema", "schemaVersion", "kind", "settings"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "const": "data-structures/schema/settings.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "settings" },
+    "settings": { "type": "array", "items": { "$ref": "#/$defs/setting" } }
+  },
+  "$defs": {
+    "field": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string" },
+        "array_len": { "type": "integer", "minimum": 1 },
+        "flexible_array": { "const": true },
+        "alias": { "type": "string" },
+        "required": { "type": "boolean" },
+        "min": { "type": ["integer", "null"] },
+        "max": { "type": ["integer", "null"] },
+        "one_of": { "type": "array" },
+        "available": { "type": "array" },
+        "default": { "type": ["integer", "null"] },
+        "sentinel": { "type": ["integer", "null"] },
+        "unit": { "type": "string" },
+        "enum_ref": { "type": "string" },
+        "group": { "type": "string" },
+        "role": { "type": "string" },
+        "desc": { "type": "string" },
+        "note": { "type": "string" },
+        "encoding": { "type": "string" },
+        "terminator": { "type": "string" }
+      }
+    },
+    "packet": {
+      "type": "object",
+      "required": ["id", "packet", "packet_header", "field_order", "fields"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "packet": { "type": "string" },
+        "packet_header": { "type": "string", "pattern": "^0x[0-9A-Fa-f]+$" },
+        "field_order": { "type": "array", "items": { "type": "string" } },
+        "fields": { "type": "object", "additionalProperties": { "$ref": "#/$defs/field" } },
+        "groups": { "type": "object" }
+      }
+    },
+    "setting": {
+      "type": "object",
+      "required": ["tag", "title", "description", "source_file", "class_name", "class_header", "packets"],
+      "additionalProperties": false,
+      "properties": {
+        "tag": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "source_file": { "type": "string" },
+        "class_name": { "type": "string" },
+        "class_header": { "type": "string", "pattern": "^0x[0-9A-Fa-f]+$" },
+        "packets": { "type": "array", "items": { "$ref": "#/$defs/packet" } }
+      }
+    }
+  }
+}

@@ -8,7 +8,7 @@ IMPORTANT: When changing this component, update this document to match its API a
 - `sys_ble_priv.h`: registry nodes, context, and helpers shared between source files.
 - `sys_ble.c`: registry management, buffer access, connector linking, and database synchronization.
 - `sys_ble_stack.c`: NimBLE initialization, advertising, GAP/GATT callbacks, GATT compilation, and TX worker.
-- `include/sys_error_ble.h`: BLE error and owner definitions.
+- `errors/sys_error_ble.h`: BLE error and owner definitions (aggregated by `sys_errors`).
 
 ## Configuration and startup
 
@@ -48,9 +48,12 @@ references its definitions. Later compiled definitions are owned per service.
 ## Data connector integration
 
 BLE transports bytes; connector framing belongs to `sys_data_connector`.
-`sys_ble_char_link_connector()` attaches a connector to an RX-enabled
-characteristic. Successful peer writes and `sys_ble_char_rx_inject()` share
-the same enqueue helper, overflow counter, and connector semaphore signaling.
+BLE doesn't depend on `sys_data_connector`: `sys_ble_char_link_rx_wake(uuid,
+wake, ctx)` registers an opaque wake callback on an RX-enabled
+characteristic, and the connector's BLE provider (`sys_data_connector_ble.c`)
+registers one that gives the connector's current `data_present` semaphore.
+Successful peer writes and `sys_ble_char_rx_inject()` share the same enqueue
+helper, overflow counter, and wake callbacks.
 Consumers drain whole items through `sys_ble_char_rx_dequeue()`; an empty
 buffer returns success with zero length. Unlinking removes the wake target.
 
@@ -70,9 +73,8 @@ Use appropriately sized frames.
 
 ## Events and status
 
-`SYS_BLE_CB(event, value)` automatically queues connect, disconnect, and failure
-events to `SYS_CB_ROUTE_BLE` and `SYS_CB_ROUTE_VM`. Action IDs are zero;
-there is no per-event callback/action configuration in the BLE context.
-The BLE route currently logs events; the VM route stores them for VM consumers.
+`sys_ble_publish(event, value)` publishes connect, disconnect and failure events
+(`SYS_EVENT_DOMAIN_BLE`, [[SYS_EVENT.MD]]). Nothing is routed by default: the
+program or an action gets them through a subscription.
 
 `sys_ble_get_status()` reports connection state, MTU, and RX overflow count.

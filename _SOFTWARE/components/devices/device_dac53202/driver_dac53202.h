@@ -20,5 +20,5 @@ void dac53202_delete(dac53202_handle_t handle);
 
 esp_err_t dac53202_preset_cfg(dac53202_handle_t handle, uint8_t channel_mask, uint8_t power_on_mask);
 esp_err_t dac53202_set_voltage_raw(dac53202_handle_t handle, uint8_t channel_mask, uint16_t raw_value);
-esp_err_t dac53202_set_voltage_mv(dac53202_handle_t handle, uint8_t channel_mask, uint16_t voltage_mv);
-esp_err_t dac53202_get_voltage_mv(dac53202_handle_t handle, uint8_t channel, uint16_t *voltage_mv);
+esp_err_t dac53202_set_voltage_mV(dac53202_handle_t handle, uint8_t channel_mask, uint16_t voltage_mV);
+esp_err_t dac53202_get_voltage_mV(dac53202_handle_t handle, uint8_t channel, uint16_t *voltage_mV);

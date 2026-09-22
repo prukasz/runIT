@@ -9,13 +9,15 @@
 // 1. Tags and Payload Structures (Auto-generated)
 // ---------------------------------------------------------
 
-// Auto-generate the enum for the tags
-#define X_ENUM(tag, level, struct_def) tag,
-typedef enum { SYS_ERROR_MAP(X_ENUM) ERR_MAX_COUNT } err_tag_e;
+// Auto-generate the enum for the tags. IDs are explicit and stable: the high
+// byte is the module's owner domain (0x00 = shared base tags), so adding a
+// tag never renumbers the others. 0 means "no tag".
+#define X_ENUM(tag, id, level, struct_def) tag = (id),
+typedef enum { ERR_NONE = 0, SYS_ERROR_MAP(X_ENUM) } err_tag_e;
 #undef X_ENUM
 
 // Auto-generate the payload structs
-#define X_STRUCT(tag, level, struct_def) typedef struct_def err_payload_##tag##_t;
+#define X_STRUCT(tag, id, level, struct_def) typedef struct_def err_payload_##tag##_t;
 SYS_ERROR_MAP(X_STRUCT)
 #undef X_STRUCT
 
@@ -79,10 +81,10 @@ typedef struct err_node {
 // ---------------------------------------------------------
 
 void SE_init(void);
-err_h SE_alloc_bytes(size_t payload_size, err_tag_e tag, uint32_t owner);
+SE_MUST_USE err_h SE_alloc_bytes(size_t payload_size, err_tag_e tag, uint32_t owner);
 
 // Allocation may return NULL; prefer SE_* macros, which retain failure on exhaustion.
-err_h SE_new_error(err_tag_e tag, uint32_t owner, const void* payload, size_t size, err_h cause);
+SE_MUST_USE err_h SE_new_error(err_tag_e tag, uint32_t owner, const void* payload, size_t size, err_h cause);
 // Release an owned chain after inspecting or intentionally discarding it.
 void SE_release(err_h chain);
 // Caller supplies SE_MAX_CHAIN_DEPTH slots. Returns a valid unique prefix,
@@ -113,7 +115,7 @@ uint32_t SE_schema_id(void);
  * @return size_t `sizeof(err_payload_<tag>_t)`, or 0 for an unknown tag.
  */
 size_t SE_get_payload_size(err_tag_e tag);
-sys_device_err_level_e SE_get_tag_level(err_tag_e tag);
+se_level_e SE_get_tag_level(err_tag_e tag);
 
 /** @brief Maximum depth of an error chain traversal before assuming a cycle or overflow. */
 #define SE_MAX_CHAIN_DEPTH 16u
@@ -138,7 +140,7 @@ bool SE_is_valid_error_ptr(err_h err);
  * @return err_h Deepest cause node where next_cause is NULL, or NULL if error is
  *              NULL, invalid, deeper than SE_MAX_CHAIN_DEPTH, or cyclic.
  */
-err_h SE_get_error_root(err_h error);
+SE_MUST_USE err_h SE_get_error_root(err_h error);
 
 
 
@@ -159,13 +161,13 @@ err_h SE_get_error_root(err_h error);
                sizeof(err_payload_##tag_name##_t), (cause))
 #define SE_ERR_NEW(tag_name, ...) SE_ERR_NEW_OWNED(OWNER, tag_name, __VA_ARGS__)
 #define SE_WRAP_ERR(cause, tag_name, ...) SE_WRAP_ERR_OWNED(OWNER, cause, tag_name, __VA_ARGS__)
-#define SE_RET_ERR_OWNED(owner, tag_name, ...) return SE_ERR_NEW_OWNED(owner, tag_name, __VA_ARGS__)
-#define SE_EMIT_ERR_OWNED(owner, tag_name, ...) SE_push_to_handler(SE_ERR_NEW_OWNED(owner, tag_name, __VA_ARGS__))
+#define SE_FAIL_OWNED(owner, tag_name, ...) return SE_ERR_NEW_OWNED(owner, tag_name, __VA_ARGS__)
+#define SE_RAISE_OWNED(owner, tag_name, ...) SE_push_to_handler(SE_ERR_NEW_OWNED(owner, tag_name, __VA_ARGS__))
 
 #define SE_WRAP_DEV_ERR(rc_err, dep_dev_id) SE_WRAP_ERR((rc_err), ERR_DEV_DEP_FAILED, .dev_id = (dep_dev_id))
 
 // Executes a call, and if it fails, wraps the error and returns it
-#define SE_PASS_ON_ERR(call, tag_name, ...)             \
+#define SE_TRY_WRAP(call, tag_name, ...)             \
   do {                                                   \
     err_h __rc_err = (call);                             \
     if (__rc_err != NULL) {                              \
@@ -177,9 +179,9 @@ err_h SE_get_error_root(err_h error);
 #define SE_SET_ERR(out_err, tag_name, ...) ((out_err) = SE_ERR_NEW(tag_name, __VA_ARGS__))
 
 // Macro to create and emit an error without returning it
-#define SE_EMIT_ERR(tag_name, ...) SE_push_to_handler(SE_ERR_NEW(tag_name, __VA_ARGS__))
+#define SE_RAISE(tag_name, ...) SE_push_to_handler(SE_ERR_NEW(tag_name, __VA_ARGS__))
 
-#define SE_RET_ERR(tag_name, ...) return SE_ERR_NEW(tag_name, __VA_ARGS__)
+#define SE_FAIL(tag_name, ...) return SE_ERR_NEW(tag_name, __VA_ARGS__)
 
 // ---------------------------------------------------------
 // 5. Utility / Compatibility Macros
@@ -191,16 +193,16 @@ err_h SE_get_error_root(err_h error);
     __rc != ESP_OK ? SE_ERR_NEW(ERR_ESP_ERR, .esp_code = __rc) : (err_h)NULL; \
   })
 
-#define SE_RET_IF_ESP_ERR(esp_call)              \
+#define SE_TRY_ESP(esp_call)              \
   do {                                        \
     esp_err_t __rc = (esp_call);              \
     if (__rc != ESP_OK) {                     \
-      SE_RET_ERR(ERR_ESP_ERR, .esp_code = __rc); \
+      SE_FAIL(ERR_ESP_ERR, .esp_code = __rc); \
     }                                         \
   } while (0)
 
 // The handler consumes the chain even while reporting is suspended.
-#define SE_ORIGIN_CALL(call)           \
+#define SE_REPORT(call)           \
   do {                              \
     err_h __err = (call);           \
     if (__err != NULL) {            \
@@ -211,21 +213,21 @@ err_h SE_get_error_root(err_h error);
 #define SE_CHECK_NOT_NULL(ptr)     \
   do {                          \
     if ((ptr) == NULL) {        \
-      SE_RET_ERR(ERR_NULL_PTR, 0); \
+      SE_FAIL(ERR_NULL_PTR, 0); \
     }                           \
   } while (0)
 
 #define SE_CHECK_IF_ALLOCATED(ptr)      \
   do {                               \
     if ((ptr) == NULL) {             \
-      SE_RET_ERR(ERR_BASE_NO_MEM, 0);   \
+      SE_FAIL(ERR_BASE_NO_MEM, 0);   \
     }                                \
   } while (0)
 
 #define SE_CHECK_HANDLE(handle)     \
   do {                           \
     if ((handle) == NULL) {      \
-      SE_RET_ERR(ERR_NO_HANDLE, 0); \
+      SE_FAIL(ERR_NO_HANDLE, 0); \
     }                            \
   } while (0)
 
@@ -238,7 +240,7 @@ err_h SE_get_error_root(err_h error);
     uint64_t __mn = (uint64_t)(in_min);                                                                   \
     uint64_t __mx = (uint64_t)(in_max);                                                                   \
     if (__v < __mn || __v > __mx) {                                                                       \
-      SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = (uint32_t)__v, .min = (uint32_t)__mn, .max = (uint32_t)__mx); \
+      SE_FAIL(ERR_INVALID_VAL_UI32, .val = (uint32_t)__v, .min = (uint32_t)__mn, .max = (uint32_t)__mx); \
     }                                                                                                      \
   } while (0)
 
@@ -248,7 +250,7 @@ err_h SE_get_error_root(err_h error);
     int64_t __mn = (int64_t)(in_min);                                                                     \
     int64_t __mx = (int64_t)(in_max);                                                                     \
     if (__v < __mn || __v > __mx) {                                                                       \
-      SE_RET_ERR(ERR_INVALID_VAL_I32, .val = (int32_t)__v, .min = (int32_t)__mn, .max = (int32_t)__mx);    \
+      SE_FAIL(ERR_INVALID_VAL_I32, .val = (int32_t)__v, .min = (int32_t)__mn, .max = (int32_t)__mx);    \
     }                                                                                                      \
   } while (0)
 
@@ -258,7 +260,7 @@ err_h SE_get_error_root(err_h error);
     float __mn = (float)(in_min);                                      \
     float __mx = (float)(in_max);                                      \
     if (__v < __mn || __v > __mx) {                                    \
-      SE_RET_ERR(ERR_INVALID_VAL_F, .val = __v, .min = __mn, .max = __mx); \
+      SE_FAIL(ERR_INVALID_VAL_F, .val = __v, .min = __mn, .max = __mx); \
     }                                                                   \
   } while (0)
 
@@ -277,4 +279,4 @@ err_h SE_get_error_root(err_h error);
     default: ({ SE_CHECK_IN_RANGE_UI32((val), (min), (max)); })                            \
   )
 
-#define SE_RET_IF_ERR(call) SE_PASS_ON_ERR((call), ERR_DEP_FAILED, 0)
+#define SE_TRY(call) SE_TRY_WRAP((call), ERR_DEP_FAILED, 0)

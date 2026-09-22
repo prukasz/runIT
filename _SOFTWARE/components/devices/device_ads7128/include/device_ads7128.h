@@ -17,7 +17,7 @@ typedef struct d_ads7128_cfg_t {
        wants SYS_IO_MODE_INPUT_PULLUP. Without it the window comparator still
        works, but nothing reports the events. */
   sys_io_pin_ref_t intr_pin;
-  uint32_t vref_mv; /**< AVDD, which doubles as the ADC reference. Must be set. */
+  uint32_t vref_mV; /**< AVDD, which doubles as the ADC reference. Must be set. */
 } d_ads7128_cfg_t;
 
 /**
@@ -26,4 +26,4 @@ typedef struct d_ads7128_cfg_t {
  * @param cfg Pointer to device configuration struct
  * @return err_h Status of the registration
  */
-err_h d_ads7128_create(const d_ads7128_cfg_t* cfg);
+SE_MUST_USE err_h d_ads7128_create(const d_ads7128_cfg_t* cfg);

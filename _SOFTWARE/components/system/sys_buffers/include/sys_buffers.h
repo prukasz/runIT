@@ -20,7 +20,7 @@ typedef struct {
  * @param size Ringbuffer memory allocation size in bytes.
  * @return err_h NULL on success, or ERR_NO_MEM / ERR_INVALID_SIZE on failure.
  */
-err_h sys_buff_init(sys_buff_t* buff, size_t size);
+SE_MUST_USE err_h sys_buff_init(sys_buff_t* buff, size_t size);
 
 /**
  * @brief Deallocate and release the ringbuffer memory of a buffer descriptor.
@@ -28,7 +28,7 @@ err_h sys_buff_init(sys_buff_t* buff, size_t size);
  * @param buff Pointer to sys_buff_t descriptor.
  * @return err_h NULL on success.
  */
-err_h sys_buff_free(sys_buff_t* buff);
+SE_MUST_USE err_h sys_buff_free(sys_buff_t* buff);
 
 /**
  * @brief Enqueue one variable-length item into the buffer.
@@ -39,7 +39,7 @@ err_h sys_buff_free(sys_buff_t* buff);
  * @param wait_ms Milliseconds to wait for space if the buffer is full.
  * @return err_h NULL on success, or ERR_NO_MEM if the item didn't fit within wait_ms.
  */
-err_h sys_buff_push(sys_buff_t* buff, const void* data, size_t len, uint32_t wait_ms);
+SE_MUST_USE err_h sys_buff_push(sys_buff_t* buff, const void* data, size_t len, uint32_t wait_ms);
 
 /**
  * @brief Dequeue one item verbatim.
@@ -52,7 +52,7 @@ err_h sys_buff_push(sys_buff_t* buff, const void* data, size_t len, uint32_t wai
  * @param out_len Pointer to store the resulting item length.
  * @return err_h NULL on success, ERR_NOT_FOUND if empty, ERR_INVALID_SIZE if max_size < 1.
  */
-err_h sys_buff_pop(sys_buff_t* buff, uint8_t* buffer, size_t max_size, size_t* out_len);
+SE_MUST_USE err_h sys_buff_pop(sys_buff_t* buff, uint8_t* buffer, size_t max_size, size_t* out_len);
 
 /**
  * @brief Remove all items currently stored in the buffer.

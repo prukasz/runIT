@@ -44,7 +44,7 @@
 
 /** Single execution-control payload layout: 04 48 <command>. */
 typedef struct {
-  uint8_t command; //@required @alias Command @ref vm_exec_command_e
+  uint8_t command; //@required @alias Command @enum-ref vm_exec_command_e
 } packet_vm_exec_t;
 
 /* ========================================================================= */
@@ -67,9 +67,9 @@ static inline void dec_vm_u16_array(uint16_t* dst, const uint8_t* src, uint8_t c
   memcpy(dst, src, (size_t)count * sizeof(*dst));
 }
 
-static inline err_h dec_vm_need(uint8_t pkt, size_t off, size_t len, size_t need) {
+static inline SE_MUST_USE err_h dec_vm_need(uint8_t pkt, size_t off, size_t len, size_t need) {
   if (unlikely((uint32_t)off + (uint32_t)need > (uint32_t)len)) {
-    SE_RET_ERR(ERR_VM_LOAD_SHORT_RECORD, .packet = pkt, .need = (uint16_t)need, .got = (uint16_t)(len > off ? len - off : 0));
+    SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = pkt, .need = (uint16_t)need, .got = (uint16_t)(len > off ? len - off : 0));
   }
   return NULL;
 }
@@ -87,8 +87,8 @@ static inline err_h dec_vm_need(uint8_t pkt, size_t off, size_t len, size_t need
  *   - Reclaims dynamic heap objects, clears registries, and resets bump arena.
  *   - Leaves execution stopped in fail-closed state (`VM_LOAD_EMPTY`).
  */
-static inline err_h decoder_packet_vm_reset(void) {
-  SE_RET_IF_ERR(vm_loader_reset());
+static inline SE_MUST_USE err_h decoder_packet_vm_reset(void) {
+  SE_TRY(vm_loader_reset());
   DBG(ESP_LOGI(DEC_VM_LOADER_TAG, "storage reset"););
   return NULL;
 }
@@ -106,13 +106,13 @@ static inline err_h decoder_packet_vm_reset(void) {
  *   - Tears down prior program and re-arms registries and arena at declared capacity.
  *   - Transitions loader state to `VM_LOAD_OPEN`.
  */
-static inline err_h decoder_packet_vm_open(const uint8_t* body, size_t len) {
-  SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_open, 0, len, 10));
+static inline SE_MUST_USE err_h decoder_packet_vm_open(const uint8_t* body, size_t len) {
+  SE_TRY(dec_vm_need(HEADER_packet_vm_open, 0, len, 10));
   uint16_t obj_cnt = dec_vm_u16(body);
   uint16_t acc_cnt = dec_vm_u16(body + 2);
   uint16_t blk_cnt = dec_vm_u16(body + 4);
   uint32_t total = dec_vm_u32(body + 6);
-  SE_RET_IF_ERR(vm_loader_open(obj_cnt, acc_cnt, blk_cnt, total));
+  SE_TRY(vm_loader_open(obj_cnt, acc_cnt, blk_cnt, total));
   DBG(ESP_LOGI(DEC_VM_LOADER_TAG, "open: %u objects, %u accessors, %u blocks, %lu bytes", obj_cnt, acc_cnt, blk_cnt, (unsigned long)total););
   return NULL;
 }
@@ -132,13 +132,13 @@ static inline err_h decoder_packet_vm_open(const uint8_t* body, size_t len) {
  *   - Binds object pointer into registry index `id`.
  *   - Appends tag name to object tail.
  */
-static inline err_h decoder_packet_vm_add_objs(const uint8_t* body, size_t len) {
-  SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_add_objs, 0, len, 1));
+static inline SE_MUST_USE err_h decoder_packet_vm_add_objs(const uint8_t* body, size_t len) {
+  SE_TRY(dec_vm_need(HEADER_packet_vm_add_objs, 0, len, 1));
   uint8_t n = body[0];
   size_t  off = 1;
 
   for (uint8_t i = 0; i < n; i++) {
-    SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_add_objs, off, len, 2 + VM_OBJ_HEAD_WIRE_SIZE));
+    SE_TRY(dec_vm_need(HEADER_packet_vm_add_objs, off, len, 2 + VM_OBJ_HEAD_WIRE_SIZE));
     uint16_t id = dec_vm_u16(body + off);
 
     vm_obj_head_t head;
@@ -146,11 +146,11 @@ static inline err_h decoder_packet_vm_add_objs(const uint8_t* body, size_t len) 
     off += 2 + VM_OBJ_HEAD_WIRE_SIZE;
 
     uint8_t name_len = head.d.name_size;
-    SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_add_objs, off, len, name_len));
+    SE_TRY(dec_vm_need(HEADER_packet_vm_add_objs, off, len, name_len));
     const char* name = name_len ? (const char*)(body + off) : NULL;
     off += name_len;
 
-    SE_RET_IF_ERR(vm_loader_add_obj(id, &head, name));
+    SE_TRY(vm_loader_add_obj(id, &head, name));
   }
   return NULL;
 }
@@ -171,23 +171,23 @@ static inline err_h decoder_packet_vm_add_objs(const uint8_t* body, size_t len) 
  *   - When VM is running: Enqueues variable update via `vm_override_post()`, applied
  *     atomically at supervisor cycle drain.
  */
-static inline err_h decoder_packet_vm_set_data(const uint8_t* body, size_t len) {
-  SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_set_data, 0, len, 1));
+static inline SE_MUST_USE err_h decoder_packet_vm_set_data(const uint8_t* body, size_t len) {
+  SE_TRY(dec_vm_need(HEADER_packet_vm_set_data, 0, len, 1));
   uint8_t n = body[0];
   size_t  off = 1;
 
   for (uint8_t i = 0; i < n; i++) {
-    SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_set_data, off, len, 6));
+    SE_TRY(dec_vm_need(HEADER_packet_vm_set_data, off, len, 6));
     uint16_t id = dec_vm_u16(body + off);
     uint16_t start_idx = dec_vm_u16(body + off + 2);
     uint16_t byte_len = dec_vm_u16(body + off + 4);
     off += 6;
 
-    SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_set_data, off, len, byte_len));
+    SE_TRY(dec_vm_need(HEADER_packet_vm_set_data, off, len, byte_len));
     if (vm_exec_mode() != VM_RUN_STOPPED) {
-      SE_RET_IF_ERR(vm_override_post(id, start_idx, body + off, byte_len));
+      SE_TRY(vm_override_post(id, start_idx, body + off, byte_len));
     } else {
-      SE_RET_IF_ERR(vm_loader_set_data(id, start_idx, body + off, byte_len));
+      SE_TRY(vm_loader_set_data(id, start_idx, body + off, byte_len));
     }
     off += byte_len;
   }
@@ -213,21 +213,21 @@ static inline err_h decoder_packet_vm_set_data(const uint8_t* body, size_t len) 
  *   - Binds descriptor to registry index `acc_id`.
  *   - Builds resolution cache (`vm_accessor_cache_build`) for static literal paths.
  */
-static inline err_h decoder_packet_vm_add_acc(const uint8_t* body, size_t len) {
-  SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_add_acc, 0, len, 1));
+static inline SE_MUST_USE err_h decoder_packet_vm_add_acc(const uint8_t* body, size_t len) {
+  SE_TRY(dec_vm_need(HEADER_packet_vm_add_acc, 0, len, 1));
   uint8_t n = body[0];
   size_t  off = 1;
 
   for (uint8_t i = 0; i < n; i++) {
-    SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_add_acc, off, len, 6));
+    SE_TRY(dec_vm_need(HEADER_packet_vm_add_acc, off, len, 6));
     uint16_t acc_id = dec_vm_u16(body + off);
     uint16_t root_id = dec_vm_u16(body + off + 2);
     uint8_t  idx_count = body[off + 4];
     uint8_t  idx_len = body[off + 5];
     off += 6;
 
-    SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_add_acc, off, len, idx_len));
-    SE_RET_IF_ERR(vm_loader_add_accessor(acc_id, root_id, idx_count, body + off, idx_len));
+    SE_TRY(dec_vm_need(HEADER_packet_vm_add_acc, off, len, idx_len));
+    SE_TRY(vm_loader_add_accessor(acc_id, root_id, idx_count, body + off, idx_len));
     off += idx_len;
   }
   return NULL;
@@ -258,8 +258,8 @@ static inline err_h decoder_packet_vm_add_acc(const uint8_t* body, size_t len) {
  *   - Allocates block struct in bump arena, binds registry ID, and wires pins.
  *   - Copies private state into block custom data memory.
  */
-static inline err_h decoder_packet_vm_add_block(const uint8_t* body, size_t len) {
-  SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_add_block, 0, len, 14));
+static inline SE_MUST_USE err_h decoder_packet_vm_add_block(const uint8_t* body, size_t len) {
+  SE_TRY(dec_vm_need(HEADER_packet_vm_add_block, 0, len, 14));
   uint16_t       blk_id = dec_vm_u16(body);
   vm_block_cfg_t cfg = {
       .block_idx = dec_vm_u16(body + 2),
@@ -275,30 +275,30 @@ static inline err_h decoder_packet_vm_add_block(const uint8_t* body, size_t len)
   size_t off = 14;
 
   if (cfg.in_cnt > CONFIG_VM_BLOCK_MAX_IN || cfg.q_cnt > CONFIG_VM_BLOCK_MAX_OUT || cfg.en_cnt > CONFIG_VM_BLOCK_MAX_EN) {
-    SE_RET_ERR(ERR_VM_BLK_BAD_SHAPE, .blk_id = cfg.block_idx, .in_cnt = cfg.in_cnt, .q_cnt = cfg.q_cnt);
+    SE_FAIL(ERR_VM_BLK_BAD_SHAPE, .blk_id = cfg.block_idx, .in_cnt = cfg.in_cnt, .q_cnt = cfg.q_cnt);
   }
 
   uint16_t in_ids[CONFIG_VM_BLOCK_MAX_IN];
-  SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_add_block, off, len, (size_t)cfg.in_cnt * 2));
+  SE_TRY(dec_vm_need(HEADER_packet_vm_add_block, off, len, (size_t)cfg.in_cnt * 2));
   dec_vm_u16_array(in_ids, body + off, cfg.in_cnt);
   off += (size_t)cfg.in_cnt * 2;
   cfg.in_acc_ids = cfg.in_cnt ? in_ids : NULL;
 
   uint16_t out_ids[CONFIG_VM_BLOCK_MAX_OUT];
-  SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_add_block, off, len, (size_t)cfg.q_cnt * 2));
+  SE_TRY(dec_vm_need(HEADER_packet_vm_add_block, off, len, (size_t)cfg.q_cnt * 2));
   dec_vm_u16_array(out_ids, body + off, cfg.q_cnt);
   off += (size_t)cfg.q_cnt * 2;
   cfg.out_obj_ids = cfg.q_cnt ? out_ids : NULL;
 
   uint16_t en_ids[CONFIG_VM_BLOCK_MAX_EN];
-  SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_add_block, off, len, (size_t)cfg.en_cnt * 2));
+  SE_TRY(dec_vm_need(HEADER_packet_vm_add_block, off, len, (size_t)cfg.en_cnt * 2));
   dec_vm_u16_array(en_ids, body + off, cfg.en_cnt);
   off += (size_t)cfg.en_cnt * 2;
   cfg.en_acc_ids = cfg.en_cnt ? en_ids : NULL;
 
-  SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_add_block, off, len, cfg.custom_len));
+  SE_TRY(dec_vm_need(HEADER_packet_vm_add_block, off, len, cfg.custom_len));
   cfg.custom_data = cfg.custom_len ? (body + off) : NULL;
-  SE_RET_IF_ERR(vm_loader_add_block(blk_id, &cfg));
+  SE_TRY(vm_loader_add_block(blk_id, &cfg));
   return NULL;
 }
 
@@ -312,11 +312,11 @@ static inline err_h decoder_packet_vm_add_block(const uint8_t* body, size_t len)
  *   - Registers object IDs for cyclical freshness checks.
  *   - Emits telemetry notifications whenever marked fresh (`f.upd = 1`) at pass end.
  */
-static inline err_h decoder_packet_vm_subscribe(const uint8_t* body, size_t len) {
-  SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_subscribe, 0, len, 1));
+static inline SE_MUST_USE err_h decoder_packet_vm_subscribe(const uint8_t* body, size_t len) {
+  SE_TRY(dec_vm_need(HEADER_packet_vm_subscribe, 0, len, 1));
   uint8_t n = body[0];
   if (n > 0) {
-    SE_RET_IF_ERR(dec_vm_need(HEADER_packet_vm_subscribe, 1, len, (size_t)n * 2u));
+    SE_TRY(dec_vm_need(HEADER_packet_vm_subscribe, 1, len, (size_t)n * 2u));
   }
   return vm_sub_handle_packet(body, len);
 }
@@ -333,13 +333,13 @@ static inline err_h decoder_packet_vm_subscribe(const uint8_t* body, size_t len)
  * - **Action**:
  *   - Routes command directly to `vm_exec_control()`, or performs full `vm_loader_reset()`.
  */
-static inline err_h decoder_packet_vm_exec(const uint8_t* body, size_t len) {
+static inline SE_MUST_USE err_h decoder_packet_vm_exec(const uint8_t* body, size_t len) {
   if (len != sizeof(packet_vm_exec_t)) {
-    SE_RET_ERR(ERR_VM_LOAD_SHORT_RECORD, .packet = HEADER_packet_vm_exec, .need = sizeof(packet_vm_exec_t), .got = (uint16_t)len);
+    SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = HEADER_packet_vm_exec, .need = sizeof(packet_vm_exec_t), .got = (uint16_t)len);
   }
   uint8_t cmd = body[0];
   if (cmd == VM_EXEC_RESET) {
-    SE_RET_IF_ERR(vm_loader_reset());
+    SE_TRY(vm_loader_reset());
     DBG(ESP_LOGI(DEC_VM_LOADER_TAG, "vm execution reset"););
     return NULL;
   }
@@ -358,9 +358,9 @@ static inline err_h decoder_packet_vm_exec(const uint8_t* body, size_t len) {
  * @return err_h NULL on success, ERR_INTERFACE_UNKNOWN_PACKET for unknown header,
  *               or the decoder's returned error chain.
  */
-static inline err_h dec_vm_loader_decode(const uint8_t* data, size_t len) {
+static inline SE_MUST_USE err_h dec_vm_loader_decode(const uint8_t* data, size_t len) {
   if (len == 0) {
-    SE_RET_ERR(ERR_INTERFACE_SHORT_FRAME, .got = 0, .need = 1);
+    SE_FAIL(ERR_INTERFACE_SHORT_FRAME, .got = 0, .need = 1);
   }
 
   const uint8_t* body = data + 1;
@@ -385,6 +385,6 @@ static inline err_h dec_vm_loader_decode(const uint8_t* data, size_t len) {
       return decoder_packet_vm_exec(body, body_len);
     default:
       ESP_LOGW(DEC_VM_LOADER_TAG, "unknown packet header 0x%02X", data[0]);
-      SE_RET_ERR(ERR_INTERFACE_UNKNOWN_PACKET, .class_header = CONFIG_RX_PACKET_CLASS_VM_LOADER, .packet_header = data[0]);
+      SE_FAIL(ERR_INTERFACE_UNKNOWN_PACKET, .class_header = CONFIG_RX_PACKET_CLASS_VM_LOADER, .packet_header = data[0]);
   }
 }

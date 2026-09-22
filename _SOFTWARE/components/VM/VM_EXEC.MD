@@ -290,7 +290,7 @@ An earlier draft gave each section a trigger descriptor and routed events to
 sections through a lookup table. The update-driven group removes the need for all
 of it.
 
-`ON EVENT` is an ordinary block that walks this cycle's routed callbacks for one
+`ON EVENT` is an ordinary block that walks this cycle's routed events for one
 it recognises and, if it finds one, publishes it to its output **loudly** — setting
 `upd`, because an arrival genuinely is news. `CASE IO` below it then fires
 because its input is fresh. Nothing had to be scheduled: no trigger descriptor,
@@ -299,8 +299,8 @@ know which block an event belongs to.
 
 Routing at a *buffer* rather than at a block is what closes the last of it. An
 event source names what happened; blocks decide what they recognise. Neither has
-to know about the other, and `sys_callbacks`' existing route mask already does
-the delivering — the VM adds one slot to a table that was already there.
+to know about the other, and a `sys_event` subscription with the VM route
+already does the delivering — the VM adds one slot to a table that was already there.
 
 Time-of-day, GPIO edge, program start and manual run are all the same shape:
 blocks that publish, or that pass the flow on when their condition holds.
@@ -417,14 +417,14 @@ That one rule is what makes "runs once when the JSON arrives, but the JSON stays
 readable" non-contradictory, and events are the transient half — transient in
 the strongest sense available: **an event lives exactly one scan cycle.**
 
-A queue and a snapshot. `sys_callbacks` routes into the queue whenever it likes;
+A queue and a snapshot. The `sys_event` task routes into the queue whenever it likes;
 the supervisor drains the whole of it into an array at the top of a pass, and
 blocks read that. So a pass sees one unchanging snapshot of everything that
 arrived while the previous pass ran, and **whatever it does not act on is gone**
 at the next drain.
 
 That also means the VM holds no lock of its own. The queue arbitrates between
-`sys_cb_task` and the supervisor — two tasks on two cores — and once the drain
+the event task and the supervisor — two tasks on two cores — and once the drain
 has happened this cycle's events live where only the supervisor can see them,
 so a block's reads are lock-free by construction rather than by argument.
 
@@ -435,16 +435,16 @@ never be enabled again, is a leak with a nicer name.
 
 **Nothing is delivered, and nothing is addressed to a block.** An event block is
 not woken and not routed to. It runs like every other block, walks this cycle's
-routed callbacks, and either recognises one and acts or stands down with no ENO
+routed events, and either recognises one and acts or stands down with no ENO
 and nothing marked fresh. Nothing is consumed either, so two blocks watching the
 same GPIO both see the edge — there is no ownership to arbitrate.
 
-What is buffered is `cb_event_t`, the system's own callback event exactly as
-[[SYS_CALLBACKS.MD]] routed it. There is no VM event type: a VM-side struct
-would be a translation step needing extension every time a new callback kind
-appears, and would throw away what the head already carries. The VM is route
-slot `SYS_CB_ROUTE_VM`, and unlike every other slot it does not *handle* the
-event — it parks it for a cycle. So an event source needs to know nothing about
+What is buffered is `sys_event_t`, the system's own event exactly as
+[[SYS_EVENT.MD]] delivered it. There is no VM event type: a VM-side struct
+would be a translation step needing extension every time a new event domain
+appears. The VM is route slot `CONFIG_SYS_EVENT_ROUTE_VM`, reached through a
+subscription naming that route, and it does not *handle* the event — it parks
+it for a cycle. So an event source needs to know nothing about
 the program: a driver reports "GPIO 4 rose" and any number of blocks may act on
 it, or none.
 

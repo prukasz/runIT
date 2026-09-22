@@ -21,16 +21,14 @@
 typedef err_h (*action_static_func_t)(void);
 
 /**
- * @brief Initialize sys_actions: registers its control-packet class with
- * sys_interface, starts the recording tap polling task, and
- * registers the built-in static functions on action ids 2-6 (freeze/resume/
- * suspend/reset/hard_reset).
+ * @brief Initialize sys_actions: opens NVS, starts the recording tap polling
+ * task, and registers the built-in static functions on action ids 2-6
+ * (freeze/resume/suspend/reset/hard_reset).
  *
- * Must be called after sys_interface_init() and before
- * sys_interface_register_rx_source() - class registration is boot-only, not
- * concurrency-safe against a running RX receiver (see SYS_INTERFACE.MD).
+ * Its control-packet class (`dec_sys_actions.h`) is registered with
+ * sys_interface by the application (runit), not here.
  */
-err_h sys_actions_init(void);
+SE_MUST_USE err_h sys_actions_init(void);
 
 /**
  * @brief Bind a hardcoded C function to a static action_id.
@@ -39,7 +37,7 @@ err_h sys_actions_init(void);
  * @param fn Function to run; passing NULL clears the binding.
  * @return err_h NULL on success, ERR_INVALID_VAL_UI32 if action_id is out of range.
  */
-err_h sys_actions_bind_static(uint8_t action_id, action_static_func_t fn);
+SE_MUST_USE err_h sys_actions_bind_static(uint8_t action_id, action_static_func_t fn);
 
 /**
  * @brief Invoke an action by scope and id.
@@ -54,7 +52,7 @@ err_h sys_actions_bind_static(uint8_t action_id, action_static_func_t fn);
  * @param id Action ID.
  * @return err_h NULL on success, or the error chain of the failure.
  */
-err_h sys_actions_invoke(uint8_t scope, uint8_t id);
+SE_MUST_USE err_h sys_actions_invoke(uint8_t scope, uint8_t id);
 
 /**
  * @brief Erase a dynamic action's stored blob from NVS.
@@ -62,13 +60,13 @@ err_h sys_actions_invoke(uint8_t scope, uint8_t id);
  *
  * @param id Action ID (1..255).
  */
-err_h sys_action_remove(uint8_t id);
+SE_MUST_USE err_h sys_action_remove(uint8_t id);
 
 /**
  * @brief Remove every dynamic action: erases every action blob in the "sys_actions"
  * NVS namespace. Does not affect a recording currently in progress in RAM.
  */
-err_h sys_action_remove_all(void);
+SE_MUST_USE err_h sys_action_remove_all(void);
 
 /**
  * @brief Start recording: subsequent frames observed by sys_interface (of
@@ -80,7 +78,7 @@ err_h sys_action_remove_all(void);
  * @param id Dynamic action ID (1..255).
  * @return err_h NULL on success, ERR_ACTION_RECORDING_BUSY if already recording.
  */
-err_h sys_action_record_start(uint8_t id);
+SE_MUST_USE err_h sys_action_record_start(uint8_t id);
 
 /**
  * @brief Stop capture, drain all queued frames into the active recording,
@@ -89,4 +87,7 @@ err_h sys_action_record_start(uint8_t id);
  *
  * No-op (returns NULL) if no action is currently recording.
  */
-err_h sys_action_record_stop(void);
+SE_MUST_USE err_h sys_action_record_stop(void);
+
+/** @brief Containment for this module's CRITICAL errors (sys_errors domain hook, registered by the application). */
+SE_MUST_USE err_h sys_actions_handle_fault(err_h node, err_h chain);

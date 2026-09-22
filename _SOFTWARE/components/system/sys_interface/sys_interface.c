@@ -1,15 +1,10 @@
-// This file's DBG() calls (and dec_vm_loader.h's, included below) fire on
-// CONFIG_DBG_GLOBAL or this component's own switch (components/utils/Kconfig)
-// - see DBG()'s doc comment in utils.h. Must precede dec_vm_loader.h's
-// include: DBG_ENABLE has to be defined before that header's own DBG() call
-// sites are preprocessed.
+// This file's DBG() calls fire on CONFIG_DBG_GLOBAL or this component's own
+// switch (components/utils/Kconfig) - see DBG()'s doc comment in utils.h.
 #define DBG_ENABLE CONFIG_DBG_ENABLE_SYS_INTERFACE
 
 #include "sys_interface.h"
-#include "dec_sys_contracts.h"
-#include "dec_vm_loader.h"
-#include "dec_features.h"
 #include "sys_buffers.h"
+#include <string.h>
 #include "utils.h"
 #include <sdkconfig.h>
 
@@ -70,16 +65,28 @@ bool sys_interface_is_rx_suspended(void) {
 
 err_h convert_to_packet(const uint8_t* data, size_t len, void* packet, size_t packet_size) {
   if (len < packet_size) {
-    SE_RET_ERR(ERR_INTERFACE_SHORT_FRAME, .got = (uint32_t)len, .need = (uint32_t)packet_size);
+    SE_FAIL(ERR_INTERFACE_SHORT_FRAME, .got = (uint32_t)len, .need = (uint32_t)packet_size);
   }
   memcpy(packet, data, packet_size);
   return NULL;
 }
 
-err_h sys_interface_decode(const uint8_t* data, size_t len) {
+/* Response being built for the live frame the RX task is decoding.
+   s_response is task-local and set only by the RX task around one live frame,
+   so frames decoded elsewhere (sys_actions replay, other tasks) and frames
+   replayed from inside a live one never write into it. */
+typedef struct {
+  uint8_t buf[3 + CONFIG_SYS_INTERFACE_RESPONSE_MAX]; /* class, packet, status, data */
+  size_t len;
+} interface_response_t;
+
+static interface_response_t s_live_response; /* RX task only */
+static __thread interface_response_t* s_response;
+
+static SE_MUST_USE err_h decode_frame(const uint8_t* data, size_t len) {
   SE_CHECK_NOT_NULL(data);
   if (len == 0) {
-    SE_RET_ERR(ERR_INTERFACE_SHORT_FRAME, .got = 0, .need = 1);
+    SE_FAIL(ERR_INTERFACE_SHORT_FRAME, .got = 0, .need = 1);
   }
 
   const uint8_t decoder_header = data[0];
@@ -91,7 +98,58 @@ err_h sys_interface_decode(const uint8_t* data, size_t len) {
   }
 
   DBG(ESP_LOGW(TAG, "no decoder registered for class 0x%02X", decoder_header));
-  SE_RET_ERR(ERR_INTERFACE_UNKNOWN_CLASS, .class_header = decoder_header);
+  SE_FAIL(ERR_INTERFACE_UNKNOWN_CLASS, .class_header = decoder_header);
+}
+
+err_h sys_interface_decode(const uint8_t* data, size_t len) {
+  interface_response_t* outer = s_response;
+  s_response = NULL;
+  err_h err = decode_frame(data, len);
+  s_response = outer;
+  return err;
+}
+
+#undef OWNER
+#define OWNER OWNER_SYS_INTERFACE_RESPOND
+err_h sys_interface_respond(const void* data, size_t len) {
+  SE_CHECK_NOT_NULL(data);
+  if (s_response == NULL) return NULL;
+  size_t data_len = s_response->len - 3;
+  if (len > CONFIG_SYS_INTERFACE_RESPONSE_MAX - data_len) {
+    SE_FAIL(ERR_INTERFACE_RESPONSE_TOO_LONG, .got = (uint32_t)(data_len + len), .max = CONFIG_SYS_INTERFACE_RESPONSE_MAX);
+  }
+  memcpy(&s_response->buf[s_response->len], data, len);
+  s_response->len += len;
+  return NULL;
+}
+
+/* Decode one live frame and answer it: [class][packet][status][data]. The
+   error chain (if any) is still handed to the error handler afterwards. */
+static void decode_live_frame(const uint8_t* data, size_t len) {
+  interface_response_t* rsp = &s_live_response;
+  rsp->buf[0] = data[0];
+  rsp->buf[1] = (len > 1) ? data[1] : 0x00;
+  rsp->buf[2] = SYS_INTERFACE_STATUS_OK;
+  rsp->len = 3;
+
+  s_response = rsp;
+  err_h err = decode_frame(data, len);
+  s_response = NULL;
+
+  if (err != NULL) {
+    err_h root = SE_get_error_root(err);
+    uint16_t tag = root ? (uint16_t)root->tag : 0;
+    uint16_t owner = root ? (uint16_t)root->owner : 0;
+    rsp->buf[2] = SYS_INTERFACE_STATUS_ERROR;
+    rsp->buf[3] = (uint8_t)(tag & 0xFF);
+    rsp->buf[4] = (uint8_t)(tag >> 8);
+    rsp->buf[5] = (uint8_t)(owner & 0xFF);
+    rsp->buf[6] = (uint8_t)(owner >> 8);
+    rsp->len = 7;
+  }
+
+  SE_REPORT(sys_interface_send(rsp->buf, rsp->len));
+  SE_REPORT(err);
 }
 
 #undef OWNER
@@ -101,11 +159,11 @@ err_h sys_interface_register_decoder(uint8_t decoder_header, sys_interface_handl
 
   for (size_t i = 0; i < s_decoder_count; i++) {
     if (s_decoders[i].decoder_header == decoder_header) {
-      SE_RET_ERR(ERR_INTERFACE_CLASS_TAKEN, .class_header = decoder_header);
+      SE_FAIL(ERR_INTERFACE_CLASS_TAKEN, .class_header = decoder_header);
     }
   }
   if (s_decoder_count >= CONFIG_SYS_INTERFACE_MAX_CLASSES) {
-    SE_RET_ERR(ERR_INTERFACE_NO_CLASS_SLOTS, .class_header = decoder_header);
+    SE_FAIL(ERR_INTERFACE_NO_CLASS_SLOTS, .class_header = decoder_header);
   }
 
   s_decoders[s_decoder_count] = (sys_interface_decoder_t){
@@ -119,24 +177,19 @@ err_h sys_interface_register_decoder(uint8_t decoder_header, sys_interface_handl
 }
 
 err_h sys_interface_init(void) {
-  s_decoder_count = 0;
   s_tap_buff = (sys_buff_t){
       .buff = s_tap_ringbuffer,
       .truncated = 0,
   };
-  SE_RET_IF_ERR(sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_SYS_CONTRACTS, dec_sys_contracts_decode, "sys_contracts"));
-  SE_RET_IF_ERR(sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_VM_LOADER, dec_vm_loader_decode, "vm_loader"));
-  SE_RET_IF_ERR(sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_SYS_FEATURES, dec_features_decode, "features"));
-
   sys_data_connector_t* conn = sys_data_connector_get(SYS_INTERFACE_CONNECTOR_ID);
   if (!conn) {
-    SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+    SE_FAIL(ERR_BASE_NO_MEM, 0);
   }
 
   if (s_interface_rx_task_handle == NULL) {
     R_TASK_START(s_interface_rx_task_handle, sys_interface_receiver_task, NULL, CONFIG_SYS_INTERFACE_RX_TASK_PRIO);
     if (s_interface_rx_task_handle == NULL) {
-      SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+      SE_FAIL(ERR_BASE_NO_MEM, 0);
     }
   }
 
@@ -150,7 +203,7 @@ err_h sys_interface_send(const void* data, size_t len) {
   if (len == 0) return NULL;
   sys_data_connector_t* conn = sys_data_connector_get(SYS_INTERFACE_CONNECTOR_ID);
   if (!conn) {
-    SE_RET_ERR(ERR_BASE_NOT_FOUND, 0);
+    SE_FAIL(ERR_BASE_NOT_FOUND, 0);
   }
   sys_data_connector_send(conn, data, len);
   return NULL;
@@ -222,24 +275,24 @@ static void sys_interface_receiver_task(void* arg) {
       size_t len = 0;
       err_h dq_err = sys_data_connector_receive(conn, s_rx_frame, sizeof(s_rx_frame), &len);
       if (SE_IS_ERR(dq_err)) {
-        SE_ORIGIN_CALL(dq_err);
+        SE_REPORT(dq_err);
         break;
       }
       if (len == 0) break;
 
       if (s_tap_capture) {
-        SE_ORIGIN_CALL(sys_buff_push(&s_tap_buff, s_rx_frame, len, 0));
+        SE_REPORT(sys_buff_push(&s_tap_buff, s_rx_frame, len, 0));
       }
-      SE_ORIGIN_CALL(sys_interface_decode(s_rx_frame, len));
+      decode_live_frame(s_rx_frame, len);
     }
   }
 }
 
 #undef OWNER
 
-__attribute__((weak)) err_h sys_interface_handle_fault(err_h node, err_h chain) {
+err_h sys_interface_handle_fault(err_h node, err_h chain) {
   (void)chain;
-  if (!node || SE_get_tag_level(node->tag) != SYS_DEV_ERR_CRITICAL) {
+  if (!node || SE_get_tag_level(node->tag) != SE_LEVEL_CRITICAL) {
     return NULL;
   }
   // Severe interface fault: suspend RX to prevent corrupt frame flooding

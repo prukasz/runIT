@@ -174,13 +174,13 @@ static inline bool vm_expr_fail(vm_block_h b, err_h e) {
   return false;
 }
 
-static inline err_h vm_expr_bad_code(vm_block_h b, uint16_t pc, uint8_t op, uint8_t reason) {
+static inline SE_MUST_USE err_h vm_expr_bad_code(vm_block_h b, uint16_t pc, uint8_t op, uint8_t reason) {
   if (b->cfg.rt & VM_BLK_RT_CFG_BAD) return NULL;
   b->cfg.rt |= VM_BLK_RT_CFG_BAD;
   return VM_BLK_ERR_NEW(ERR_VM_EXPR_BAD_CODE, .block_idx = b->cfg.block_idx, .pc = pc, .opcode = op, .reason = reason);
 }
 
-static inline err_h vm_expr_math_fault(vm_block_h b, vm_expr_code_t* c, uint16_t pc, uint8_t op, uint8_t reason) {
+static inline SE_MUST_USE err_h vm_expr_math_fault(vm_block_h b, vm_expr_code_t* c, uint16_t pc, uint8_t op, uint8_t reason) {
   if (c->rt & VM_EXPR_RT_FAULTED) return NULL;
   c->rt |= VM_EXPR_RT_FAULTED;
   return VM_BLK_ERR_NEW(ERR_VM_EXPR_MATH, .block_idx = b->cfg.block_idx, .pc = pc, .opcode = op, .reason = reason);

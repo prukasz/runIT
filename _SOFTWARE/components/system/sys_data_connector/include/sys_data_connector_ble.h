@@ -14,5 +14,5 @@
  *
  * @return err_h NULL on success.
  */
-err_h sys_data_connector_register_ble_provider(void);
+SE_MUST_USE err_h sys_data_connector_register_ble_provider(void);
 

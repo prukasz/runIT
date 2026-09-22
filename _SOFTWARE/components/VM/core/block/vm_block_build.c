@@ -15,10 +15,10 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
   *out = NULL;
 
   if (cfg->in_cnt > CONFIG_VM_BLOCK_MAX_IN || cfg->q_cnt > CONFIG_VM_BLOCK_MAX_OUT || cfg->en_cnt > CONFIG_VM_BLOCK_MAX_EN) {
-    SE_RET_ERR(ERR_VM_BLK_BAD_SHAPE, .blk_id = cfg->block_idx, .in_cnt = cfg->in_cnt, .q_cnt = cfg->q_cnt);
+    SE_FAIL(ERR_VM_BLK_BAD_SHAPE, .blk_id = cfg->block_idx, .in_cnt = cfg->in_cnt, .q_cnt = cfg->q_cnt);
   }
   if ((cfg->in_cnt && !cfg->in_acc_ids) || (cfg->q_cnt && !cfg->out_obj_ids) || (cfg->en_cnt && !cfg->en_acc_ids)) {
-    SE_RET_ERR(ERR_VM_BLK_BAD_SHAPE, .blk_id = cfg->block_idx, .in_cnt = cfg->in_cnt, .q_cnt = cfg->q_cnt);
+    SE_FAIL(ERR_VM_BLK_BAD_SHAPE, .blk_id = cfg->block_idx, .in_cnt = cfg->in_cnt, .q_cnt = cfg->q_cnt);
   }
 
   /* Everything is resolved before anything is allocated. A block that names a
@@ -29,12 +29,12 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
   for (uint8_t i = 0; i < cfg->in_cnt; i++) {
     if (cfg->in_acc_ids[i] == VM_BLOCK_NO_ID) continue;
     if (!vm_accessor_get_by_id(cfg->in_acc_ids[i])) {
-      SE_RET_ERR(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->in_acc_ids[i], .slot = i, .kind = REF_KIND_IN);
+      SE_FAIL(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->in_acc_ids[i], .slot = i, .kind = REF_KIND_IN);
     }
   }
   for (uint8_t i = 0; i < cfg->q_cnt; i++) {
     if (!vm_obj_get_by_id(cfg->out_obj_ids[i])) {
-      SE_RET_ERR(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->out_obj_ids[i], .slot = i, .kind = REF_KIND_OUT);
+      SE_FAIL(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->out_obj_ids[i], .slot = i, .kind = REF_KIND_OUT);
     }
   }
 
@@ -43,7 +43,7 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
      program, exactly like an unwired numbered pin. */
   for (uint8_t i = 0; i < cfg->en_cnt; i++) {
     if (!vm_accessor_get_by_id(cfg->en_acc_ids[i])) {
-      SE_RET_ERR(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->en_acc_ids[i], .slot = i, .kind = REF_KIND_EN);
+      SE_FAIL(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->en_acc_ids[i], .slot = i, .kind = REF_KIND_EN);
     }
   }
 
@@ -52,14 +52,14 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
   if (cfg->eno_obj_id != VM_BLOCK_NO_ID) {
     eno = vm_obj_get_by_id(cfg->eno_obj_id);
     if (!eno || !eno->head.f.mutable || (vm_obj_t_e)eno->head.d.obj_t != VM_OBJ_B || eno->head.payload_size < 1) {
-      SE_RET_ERR(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->eno_obj_id, .slot = 0, .kind = REF_KIND_ENO);
+      SE_FAIL(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->eno_obj_id, .slot = 0, .kind = REF_KIND_ENO);
     }
   }
 
   size_t total = vm_block_calc_size(cfg->in_cnt, cfg->q_cnt, cfg->en_cnt, cfg->custom_len);
   vm_block_h b = NULL;
   // allocates, zeroes and binds the id in one step -- see vm_store.h
-  SE_RET_IF_ERR(vm_store_alloc((void**)&b, VM_REG_BLK, id, (uint32_t)total));
+  SE_TRY(vm_store_alloc((void**)&b, VM_REG_BLK, id, (uint32_t)total));
 
   b->cfg.block_idx = cfg->block_idx;
   b->cfg.block_type = cfg->block_type;
@@ -94,7 +94,7 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
   }
 
   if (!vm_block_verify(b)) {
-    SE_RET_ERR(ERR_VM_BLK_BAD_SHAPE, .blk_id = cfg->block_idx, .in_cnt = cfg->in_cnt, .q_cnt = cfg->q_cnt);
+    SE_FAIL(ERR_VM_BLK_BAD_SHAPE, .blk_id = cfg->block_idx, .in_cnt = cfg->in_cnt, .q_cnt = cfg->q_cnt);
   }
 
   *out = b;

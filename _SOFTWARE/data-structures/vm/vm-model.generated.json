@@ -120,7 +120,7 @@
               "annotations": {
                 "alias": "Data Type",
                 "role": "object-type",
-                "ref": "vm_obj_t_e",
+                "enum_ref": "vm_obj_t_e",
                 "one_of": [
                   {
                     "symbol": "VM_OBJ_NONE",
@@ -359,7 +359,7 @@
           "annotations": {
             "alias": "Kind",
             "role": "discriminator",
-            "ref": "vm_index_kind_e",
+            "enum_ref": "vm_index_kind_e",
             "one_of": [
               {
                 "symbol": "VM_IDX_LITERAL",

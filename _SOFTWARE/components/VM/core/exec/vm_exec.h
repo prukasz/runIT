@@ -65,7 +65,7 @@ typedef struct vm_exec_fault_status_t {
 /* ========================================================================= */
 
 /** @brief Validate block_type against the palette at load time. */
-err_h vm_exec_check_block_type(uint16_t blk_id, uint8_t block_type);
+SE_MUST_USE err_h vm_exec_check_block_type(uint16_t blk_id, uint8_t block_type);
 
 /* ========================================================================= */
 /* Clocks & Timestamps                                                       */
@@ -88,7 +88,7 @@ static inline uint64_t vm_now_ms(void) {
 /* ========================================================================= */
 
 /** @brief Start the supervisor FreeRTOS task on core 1. Idempotent. */
-err_h vm_exec_start(void);
+SE_MUST_USE err_h vm_exec_start(void);
 
 /**
  * @brief Request cancellation at the next block boundary without waiting.
@@ -107,7 +107,7 @@ void vm_exec_request_stop(void);
  * currently executing a pass, cancellation is still requested but the wait is
  * rejected with ERR_VM_EXEC_SELF_BARRIER to avoid self-deadlock.
  */
-err_h vm_exec_stop(void);
+SE_MUST_USE err_h vm_exec_stop(void);
 
 /**
  * @brief Latch a critical device fault and request cancellation immediately.
@@ -115,11 +115,14 @@ err_h vm_exec_stop(void);
  */
 bool vm_exec_fault_latch(uint8_t device_id, uint32_t root_owner, err_tag_e root_tag);
 
+/** @brief Containment for this module's CRITICAL errors (sys_errors domain hook, registered by the application). */
+SE_MUST_USE err_h sys_vm_handle_fault(err_h node, err_h chain);
+
 /** @brief Copy the persistent critical-fault snapshot. */
 vm_exec_fault_status_t vm_exec_fault_status(void);
 
 /** @brief Clear a latched fault once execution is quiescent and stopped. */
-err_h vm_exec_fault_acknowledge(void);
+SE_MUST_USE err_h vm_exec_fault_acknowledge(void);
 
 /** @brief Set run mode directly. */
 void vm_exec_set_mode(vm_run_mode_e mode);
@@ -128,7 +131,7 @@ void vm_exec_set_mode(vm_run_mode_e mode);
 vm_run_mode_e vm_exec_mode(void);
 
 /** @brief Execute interactive execution command (0x48 packet). */
-err_h vm_exec_control(vm_exec_command_e command);
+SE_MUST_USE err_h vm_exec_control(vm_exec_command_e command);
 
 /** @brief Query current supervisor execution state and debug status. */
 vm_exec_status_t vm_exec_status(void);
@@ -142,7 +145,7 @@ bool vm_exec_cancelled(void);
  * @return NULL with the barrier held, or ERR_VM_EXEC_SELF_BARRIER when called
  *         by the task currently executing a pass.
  */
-err_h vm_exec_program_lock(vm_run_mode_e* out_previous);
+SE_MUST_USE err_h vm_exec_program_lock(vm_run_mode_e* out_previous);
 
 /** @brief Release execution barrier with new run mode. */
 void vm_exec_program_unlock(vm_run_mode_e mode);

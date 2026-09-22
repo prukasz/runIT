@@ -10,7 +10,7 @@
 //@protocol native
 //@tags gpio io adc voltage
 //@contract-provider $SYS_DEVICE_CONTRACT_IO
-//@property PIN-MODE @ref sys_io_mode_e @one-of [$SYS_IO_MODE_INPUT, $SYS_IO_MODE_INPUT_PULLUP, $SYS_IO_MODE_INPUT_PULLDOWN, $SYS_IO_MODE_OUTPUT_PUSH_PULL, $SYS_IO_MODE_OUTPUT_OPEN_DRAIN, $SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP, $SYS_IO_MODE_ADC]
+//@property PIN-MODE @enum-ref sys_io_mode_e @one-of [$SYS_IO_MODE_INPUT, $SYS_IO_MODE_INPUT_PULLUP, $SYS_IO_MODE_INPUT_PULLDOWN, $SYS_IO_MODE_OUTPUT_PUSH_PULL, $SYS_IO_MODE_OUTPUT_OPEN_DRAIN, $SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP, $SYS_IO_MODE_ADC]
 
 //@contract packet_sys_io_reset_t @alias Reset pin
 //@param pin @alias GPIO Pin @note Valid pin numbers depend on the specific ESP32 variant/board - not a fixed set
@@ -23,9 +23,9 @@
 
 //@contract packet_sys_io_configure_intr_t @alias Configure pin interrupt
 //@param pin @alias GPIO Pin @note Valid pin numbers depend on the specific ESP32 variant/board - not a fixed set
-//@param mode @alias Trigger Mode @ref sys_io_intr_mode_e
-//@param route_mask @alias Interrupt Route Mask @type uint16_t @note Bitmask of callback routes (see SYS_CB_ROUTE_*) that should receive this interrupt event
-//@description Digital edge-triggered interrupt (not the ADC window comparator, which native GPIO doesn't have).
+//@param mode @alias Trigger Mode @enum-ref sys_io_intr_mode_e
+//@param debounce @alias Debounce @type uint8_t @optional @default 0 @note 1 = ignore switch bounce
+//@description Digital edge-triggered interrupt (not the ADC window comparator, which native GPIO doesn't have). Link it to the program or an action with an event subscription.
 
 //@contract packet_sys_io_set_level_t @alias Set pin level
 //@param pin @alias GPIO Pin @note Valid pin numbers depend on the specific ESP32 variant/board - not a fixed set
@@ -50,7 +50,7 @@ typedef struct __packed {
   uint8_t device_id; //@required @min 0 @max CONFIG_SYS_DEVICE_MAX_ID
 } packet_sys_device_install_gpio_esp_t;
 
-static inline err_h decoder_packet_sys_device_install_gpio_esp_t(packet_sys_device_install_gpio_esp_t* packet) {
+static inline SE_MUST_USE err_h decoder_packet_sys_device_install_gpio_esp_t(packet_sys_device_install_gpio_esp_t* packet) {
   ESP_LOGI(DEC_SYS_DEVICE_INSTALL_TAG, "installing gpio_esp (dev %u)", packet->device_id);
   d_gpio_esp_cfg_t cfg = {.device_id = packet->device_id};
   return d_gpio_esp_create(&cfg);

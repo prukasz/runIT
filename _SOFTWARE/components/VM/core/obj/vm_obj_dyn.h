@@ -88,7 +88,7 @@ static inline vm_obj_h vm_obj_dyn_get_by_id(uint16_t id) {
  *         ERR_VM_DYN_FULL when the register already holds VM_DYN_MAX objects,
  *         or ERR_BASE_NO_MEM when the heap cannot supply the bytes.
  */
-err_h vm_obj_dyn_create(vm_obj_h* out, const vm_obj_head_t* head, const char* name);
+SE_MUST_USE err_h vm_obj_dyn_create(vm_obj_h* out, const vm_obj_head_t* head, const char* name);
 
 /** @brief Take a reference -- called when the object is stored into a parent's
  *  pointer slot. No-op on an arena object, so link paths need no type test. */
@@ -97,7 +97,7 @@ void vm_obj_dyn_retain(vm_obj_h o);
 /** @brief Validate the proposed pointer-slot replacement without mutating it.
  * Dynamic-to-dynamic edges own references and must form a bounded DAG. Arena
  * edges are independent program-lifetime roots, not recursive ownership. */
-err_h vm_obj_dyn_check_link(vm_obj_h owner, vm_obj_h* cell, vm_obj_h child);
+SE_MUST_USE err_h vm_obj_dyn_check_link(vm_obj_h owner, vm_obj_h* cell, vm_obj_h child);
 
 /** @brief Drop a reference -- called when a parent's slot stops pointing here.
  *  At zero the object leaves the register and is freed, releasing its own

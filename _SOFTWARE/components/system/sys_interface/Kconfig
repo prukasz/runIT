@@ -22,10 +22,19 @@ menu "System Interface Options"
 
     config SYS_INTERFACE_MAX_CLASSES
         int "Maximum Registered Class Handlers"
-        default 8
+        default 12
         range 2 32
         help
           Maximum number of registered class handlers.
+
+    config SYS_INTERFACE_RESPONSE_MAX
+        int "Maximum Response Data (bytes)"
+        default 128
+        range 16 1024
+        help
+          Capacity for the data a decoder attaches to one command's response
+          (sys_interface_respond()), not counting the 3-byte response header.
+          The largest response today is the USB-PD option list (106 bytes).
 
     config SYS_INTERFACE_RX_FRAME_CAP
         int "Maximum RX Frame Capacity (bytes)"

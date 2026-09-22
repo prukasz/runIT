@@ -1,8 +1,6 @@
 #include "driver_tps55289.h"
 #include <string.h>
-#include "esp_log.h"
 
-static const char * TAG = __FILE_NAME__;
 
 
 
@@ -64,7 +62,6 @@ esp_err_t tps55289_get_status(tps55289_handle_t handle)
 tps55289_handle_t tps55289_new(uint8_t i2c_address, bool i2c_bus_num)
 {
     if (i2c_address != TPS55289_I2C_ADDR_74 && i2c_address != TPS55289_I2C_ADDR_75) {
-        ESP_LOGE(TAG, "Invalid I2C address for TPS55289: 0x%02X", i2c_address);
         return NULL;
     }
 
@@ -107,20 +104,20 @@ esp_err_t tps55289_set_output_enable(tps55289_handle_t handle, bool enable)
     return _tps55289_write(handle, TPS55289_REG_MODE, &mode, 1);
 }
 
-esp_err_t tps55289_set_current_limit(tps55289_handle_t handle, bool enable, uint16_t limit_ma)
+esp_err_t tps55289_set_current_limit(tps55289_handle_t handle, bool enable, uint16_t limit_mA)
 {
     CHECK_DRV_HANDLE(handle);
-    float target_v_ilim_mv = (limit_ma * handle->shunt_resistor_mohm) / 1000.0f;
-    if (target_v_ilim_mv > 63.5f) target_v_ilim_mv = 63.5f;
+    float target_v_ilim_mV = (limit_mA * handle->shunt_resistor_mohm) / 1000.0f;
+    if (target_v_ilim_mV > 63.5f) target_v_ilim_mV = 63.5f;
 
-    uint8_t reg_val = (uint8_t)(target_v_ilim_mv / 0.5f);
+    uint8_t reg_val = (uint8_t)(target_v_ilim_mV / 0.5f);
     if (reg_val > 127) reg_val = 127;
 
     uint8_t final_reg_data = (enable ? 0x80 : 0x00) | (reg_val & 0x7F);
     return _tps55289_write(handle, TPS55289_REG_IOUT_LIMIT, &final_reg_data, 1);
 }
 
-esp_err_t tps55289_set_voltage(tps55289_handle_t handle, uint16_t voltage_mv)
+esp_err_t tps55289_set_voltage(tps55289_handle_t handle, uint16_t voltage_mV)
 {
     CHECK_DRV_HANDLE(handle);
     uint8_t vout_fs = 0;
@@ -129,21 +126,21 @@ esp_err_t tps55289_set_voltage(tps55289_handle_t handle, uint16_t voltage_mv)
 
     uint16_t ref_val = 0;
     if (is_external_fb) {
-        if (voltage_mv < 800) voltage_mv = 800;
-        ref_val = (voltage_mv - 800) / 10;
+        if (voltage_mV < 800) voltage_mV = 800;
+        ref_val = (voltage_mV - 800) / 10;
     } else {
         uint8_t intfb = vout_fs & 0x03;
-        float step_mv = 10.0f;
-        uint16_t min_vout_mv = 800;
+        float step_mV = 10.0f;
+        uint16_t min_vout_mV = 800;
 
         switch (intfb) {
-            case 0x00: step_mv = 2.5f; min_vout_mv = 200; break;
-            case 0x01: step_mv = 5.0f; min_vout_mv = 400; break;
-            case 0x02: step_mv = 7.5f; min_vout_mv = 600; break;
-            case 0x03: step_mv = 10.0f; min_vout_mv = 800; break;
+            case 0x00: step_mV = 2.5f; min_vout_mV = 200; break;
+            case 0x01: step_mV = 5.0f; min_vout_mV = 400; break;
+            case 0x02: step_mV = 7.5f; min_vout_mV = 600; break;
+            case 0x03: step_mV = 10.0f; min_vout_mV = 800; break;
         }
-        if (voltage_mv < min_vout_mv) voltage_mv = min_vout_mv;
-        ref_val = (uint16_t)((voltage_mv - min_vout_mv) / step_mv);
+        if (voltage_mV < min_vout_mV) voltage_mV = min_vout_mV;
+        ref_val = (uint16_t)((voltage_mV - min_vout_mV) / step_mV);
     }
 
     if (ref_val > 0x07FF) ref_val = 0x07FF;

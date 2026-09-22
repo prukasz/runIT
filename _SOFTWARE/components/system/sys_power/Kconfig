@@ -1,22 +1,57 @@
 menu "System Power Management Options"
-    config SYS_POWER_DEFAULT_LIMIT_MV
-        int "Default Power Voltage Limit (mV)"
-        default 21000
-        range 0 50000
+    config SYS_POWER_TASK_STACK_SIZE
+        int "Power Manager Task Stack Size (bytes)"
+        default 4096
+        range 2048 16384
         help
-          Default system power voltage limit in mV.
+          Stack of the power manager task (source detection, budget,
+          battery estimate).
 
-    config SYS_POWER_DEFAULT_LIMIT_MA
-        int "Default Power Current Limit (mA)"
-        default 5500
-        range 0 20000
+    config SYS_POWER_TASK_PRIO
+        int "Power Manager Task Priority"
+        default 4
+        range 1 24
         help
-          Default system power current limit in mA.
+          Priority of the power manager task.
 
-    config SYS_POWER_DEFAULT_BUDGET_MW
-        int "Default Power Budget Limit (mW)"
-        default 115500
-        range 0 1000000
+    config SYS_POWER_TASK_PERIOD_MS
+        int "Power Manager Period (ms)"
+        default 1000
+        range 100 10000
         help
-          Default system power budget limit in mW.
+          How often the manager measures the input, re-detects the source and
+          updates the budget and battery estimate. Settings changes wake it
+          immediately.
+
+    config SYS_POWER_MAX_CONSUMERS
+        int "Maximum Budgeted Rails"
+        default 4
+        range 1 16
+        help
+          Most vreg rails a board description can list under the budget.
+
+    config SYS_POWER_BUDGET_STEP_MW
+        int "Budget Change Threshold (mW)"
+        default 250
+        range 0 10000
+        help
+          The automatic rail caps are recomputed when the budget changes by at
+          least this much, so measurement noise on the input voltage doesn't
+          reprogram the regulators every period.
+
+    config SYS_POWER_INPUT_WARNING_PCT
+        int "Input Current Warning (% of source limit)"
+        default 90
+        range 10 99
+        help
+          The input monitor's warning alert is set at this share of the
+          source's current limit; the critical alert is at the limit itself.
+
+    config SYS_POWER_BATTERY_HYSTERESIS_PCT
+        int "Battery Threshold Hysteresis (%)"
+        default 3
+        range 1 20
+        help
+          A battery low/critical event is raised once and re-armed only when
+          the charge rises this far above the threshold.
 endmenu

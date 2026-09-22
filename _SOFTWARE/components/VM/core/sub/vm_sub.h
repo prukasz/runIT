@@ -18,7 +18,7 @@
  * @brief Initialize subscription subsystem and hook into vm_exec sample point.
  * @return err_h NULL on success.
  */
-err_h vm_sub_init(void);
+SE_MUST_USE err_h vm_sub_init(void);
 
 /**
  * @brief Set the list of subscribed object IDs.
@@ -27,7 +27,7 @@ err_h vm_sub_init(void);
  * @param count Number of IDs in the array. 0 clears all subscriptions.
  * @return err_h NULL on success, or error on invalid parameter/capacity.
  */
-err_h vm_sub_subscribe(const uint16_t* ids, uint16_t count);
+SE_MUST_USE err_h vm_sub_subscribe(const uint16_t* ids, uint16_t count);
 
 /**
  * @brief Process an inbound subscription packet payload (body after packet header 0x47).
@@ -40,7 +40,7 @@ err_h vm_sub_subscribe(const uint16_t* ids, uint16_t count);
  * @param len Length of body in bytes.
  * @return err_h NULL on success, or error code.
  */
-err_h vm_sub_handle_packet(const uint8_t* body, size_t len);
+SE_MUST_USE err_h vm_sub_handle_packet(const uint8_t* body, size_t len);
 
 /**
  * @brief Scan all subscribed objects for updates and emit reverse 0x43 packets.

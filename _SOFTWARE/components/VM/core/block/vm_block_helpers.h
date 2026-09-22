@@ -81,14 +81,14 @@ static inline void vm_block_drive_gate(vm_block_h b, uint8_t pin, bool state) {
 /* User mutation boundary. Protected objects remain readable; internal producer
    APIs above still honor mutable. A protection check applies to each object
    actually written, not to containers merely traversed by an accessor. */
-err_h vm_block_obj_copy_content(const vm_accessor_t* source, const vm_accessor_t* target);
-err_h vm_block_obj_copy_direct(vm_obj_h src, vm_obj_h dst);
+SE_MUST_USE err_h vm_block_obj_copy_content(const vm_accessor_t* source, const vm_accessor_t* target);
+SE_MUST_USE err_h vm_block_obj_copy_direct(vm_obj_h src, vm_obj_h dst);
 
 #define VM_BLOCK_OBJ_COPY_CONTENT(source, target) \
   _Generic((source),                               \
       vm_obj_h: vm_block_obj_copy_direct,         \
       default:  vm_block_obj_copy_content)((source), (target))
 
-err_h vm_block_obj_clone_into(const vm_accessor_t* source, const vm_accessor_t* target);
-err_h vm_block_obj_link(const vm_accessor_t* child, const vm_accessor_t* target);
-err_h vm_block_obj_mark_updated(vm_obj_h obj);
+SE_MUST_USE err_h vm_block_obj_clone_into(const vm_accessor_t* source, const vm_accessor_t* target);
+SE_MUST_USE err_h vm_block_obj_link(const vm_accessor_t* child, const vm_accessor_t* target);
+SE_MUST_USE err_h vm_block_obj_mark_updated(vm_obj_h obj);

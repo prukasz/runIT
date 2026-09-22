@@ -19,4 +19,4 @@ typedef struct d_tca6424a_cfg_t {
  * @param cfg Configuration struct
  * @return err_h Status of the registration
  */
-err_h d_tca6424a_create(const d_tca6424a_cfg_t* cfg);
+SE_MUST_USE err_h d_tca6424a_create(const d_tca6424a_cfg_t* cfg);

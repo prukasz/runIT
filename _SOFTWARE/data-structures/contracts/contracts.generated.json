@@ -1,0 +1,1615 @@
+{
+  "$schema": "data-structures/schema/contracts.schema.json",
+  "schemaVersion": 1,
+  "kind": "contracts",
+  "response_stream": {
+    "class_header": "0x05",
+    "header": [
+      "request_class",
+      "request_packet",
+      "status"
+    ],
+    "status_enum": "sys_interface_status_e",
+    "matching": "fifo",
+    "error_data": {
+      "field_order": [
+        "tag",
+        "owner"
+      ],
+      "fields": {
+        "tag": {
+          "type": "uint16_t"
+        },
+        "owner": {
+          "type": "uint16_t"
+        }
+      }
+    }
+  },
+  "catalogs": [
+    {
+      "id": "system",
+      "title": "System contracts",
+      "description": "Device lifecycle, IO, power, and H-bridge operations exposed by the system-contracts interface class.",
+      "source_file": "components/codecs/decoders/dec_sys_contracts.h",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "contracts": [
+        {
+          "id": "packet_sys_device_uninstall_t",
+          "packet": "packet_sys_device_uninstall_t",
+          "packet_header": "0x10",
+          "decoder": "decoder_packet_sys_device_uninstall_t()",
+          "field_order": [
+            "device_id"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_sys_device_reset_t",
+          "packet": "packet_sys_device_reset_t",
+          "packet_header": "0x11",
+          "decoder": "decoder_packet_sys_device_reset_t()",
+          "field_order": [
+            "device_id"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_sys_device_suspend_t",
+          "packet": "packet_sys_device_suspend_t",
+          "packet_header": "0x12",
+          "decoder": "decoder_packet_sys_device_suspend_t()",
+          "field_order": [
+            "device_id"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_sys_device_resume_t",
+          "packet": "packet_sys_device_resume_t",
+          "packet_header": "0x13",
+          "decoder": "decoder_packet_sys_device_resume_t()",
+          "field_order": [
+            "device_id"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_sys_device_suspend_all_t",
+          "packet": "packet_sys_device_suspend_all_t",
+          "packet_header": "0x14",
+          "decoder": "decoder_packet_sys_device_suspend_all_t()",
+          "field_order": [],
+          "fields": {}
+        },
+        {
+          "id": "packet_sys_device_resume_all_t",
+          "packet": "packet_sys_device_resume_all_t",
+          "packet_header": "0x15",
+          "decoder": "decoder_packet_sys_device_resume_all_t()",
+          "field_order": [],
+          "fields": {}
+        },
+        {
+          "id": "packet_sys_device_freeze_t",
+          "packet": "packet_sys_device_freeze_t",
+          "packet_header": "0x16",
+          "decoder": "decoder_packet_sys_device_freeze_t()",
+          "field_order": [
+            "device_id"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_sys_device_sync_t",
+          "packet": "packet_sys_device_sync_t",
+          "packet_header": "0x17",
+          "decoder": "decoder_packet_sys_device_sync_t()",
+          "field_order": [
+            "device_id"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_sys_device_freeze_all_t",
+          "packet": "packet_sys_device_freeze_all_t",
+          "packet_header": "0x18",
+          "decoder": "decoder_packet_sys_device_freeze_all_t()",
+          "field_order": [],
+          "fields": {}
+        },
+        {
+          "id": "packet_sys_device_sync_all_t",
+          "packet": "packet_sys_device_sync_all_t",
+          "packet_header": "0x19",
+          "decoder": "decoder_packet_sys_device_sync_all_t()",
+          "field_order": [],
+          "fields": {}
+        },
+        {
+          "id": "packet_sys_device_set_error_handling_t",
+          "packet": "packet_sys_device_set_error_handling_t",
+          "packet_header": "0x1A",
+          "decoder": "decoder_packet_sys_device_set_error_handling_t()",
+          "field_order": [
+            "device_id",
+            "importance",
+            "actions"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "importance": {
+              "type": "uint8_t",
+              "alias": "Importance Level",
+              "required": true,
+              "one_of": [
+                {
+                  "symbol": "SYS_DEV_IMPORTANCE_NONE",
+                  "enum": "sys_device_importance_e",
+                  "value": 0,
+                  "alias": "Disabled",
+                  "description": "Disables automatic handling for this device."
+                },
+                {
+                  "symbol": "SYS_DEV_IMPORTANCE_LOW",
+                  "enum": "sys_device_importance_e",
+                  "value": 1,
+                  "alias": "Low",
+                  "description": "Handles only low-severity device errors."
+                },
+                {
+                  "symbol": "SYS_DEV_IMPORTANCE_MEDIUM",
+                  "enum": "sys_device_importance_e",
+                  "value": 2,
+                  "alias": "Medium",
+                  "description": "Handles low and medium-severity device errors."
+                },
+                {
+                  "symbol": "SYS_DEV_IMPORTANCE_HIGH",
+                  "enum": "sys_device_importance_e",
+                  "value": 3,
+                  "alias": "High",
+                  "description": "Handles low through high-severity device errors."
+                },
+                {
+                  "symbol": "SYS_DEV_IMPORTANCE_CRITICAL",
+                  "enum": "sys_device_importance_e",
+                  "value": 4,
+                  "alias": "Critical",
+                  "description": "Handles every device error severity."
+                }
+              ],
+              "enum_ref": "sys_device_importance_e"
+            },
+            "actions": {
+              "type": "uint8_t",
+              "array_len": 5,
+              "alias": "Error-Level Actions",
+              "required": true,
+              "note": "sys_actions ids, indexed by se_level_e"
+            }
+          }
+        },
+        {
+          "id": "packet_sys_device_reset_all_t",
+          "packet": "packet_sys_device_reset_all_t",
+          "packet_header": "0x1B",
+          "decoder": "decoder_packet_sys_device_reset_all_t()",
+          "field_order": [],
+          "fields": {}
+        },
+        {
+          "id": "packet_sys_device_uninstall_all_t",
+          "packet": "packet_sys_device_uninstall_all_t",
+          "packet_header": "0x1C",
+          "decoder": "decoder_packet_sys_device_uninstall_all_t()",
+          "field_order": [],
+          "fields": {}
+        },
+        {
+          "id": "packet_sys_io_reset_t",
+          "packet": "packet_sys_io_reset_t",
+          "packet_header": "0x20",
+          "decoder": "decoder_packet_sys_io_reset_t()",
+          "field_order": [
+            "device_id",
+            "pin"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "pin": {
+              "type": "uint8_t",
+              "alias": "Pin Number",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_sys_io_set_mode_t",
+          "packet": "packet_sys_io_set_mode_t",
+          "packet_header": "0x21",
+          "decoder": "decoder_packet_sys_io_set_mode_t()",
+          "field_order": [
+            "device_id",
+            "pin",
+            "mode"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "pin": {
+              "type": "uint8_t",
+              "alias": "Pin Number",
+              "required": true
+            },
+            "mode": {
+              "type": "uint8_t",
+              "alias": "Pin Mode",
+              "required": true,
+              "one_of": [
+                {
+                  "symbol": "SYS_IO_MODE_INPUT",
+                  "enum": "sys_io_mode_e",
+                  "value": 0,
+                  "alias": "Input",
+                  "description": "Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal"
+                },
+                {
+                  "symbol": "SYS_IO_MODE_INPUT_PULLUP",
+                  "enum": "sys_io_mode_e",
+                  "value": 1,
+                  "alias": "Input with Pullup",
+                  "description": "Same as Input, but reads \"on\" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed"
+                },
+                {
+                  "symbol": "SYS_IO_MODE_INPUT_PULLDOWN",
+                  "enum": "sys_io_mode_e",
+                  "value": 2,
+                  "alias": "Input with Pulldown",
+                  "description": "Same as Input, but reads \"off\" by default when nothing is connected - use when your button/switch connects the pin to power when pressed"
+                },
+                {
+                  "symbol": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+                  "enum": "sys_io_mode_e",
+                  "value": 3,
+                  "alias": "Output Push-Pull",
+                  "description": "Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays"
+                },
+                {
+                  "symbol": "SYS_IO_MODE_OUTPUT_OPEN_DRAIN",
+                  "enum": "sys_io_mode_e",
+                  "value": 4,
+                  "alias": "Output Open-Drain",
+                  "description": "A weaker output that can only actively pull the signal to \"off\" - something else (an external resistor, or the Open-Drain-Pullup option) is needed to make it read \"on\". Mainly used when several devices need to share the same wire"
+                },
+                {
+                  "symbol": "SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP",
+                  "enum": "sys_io_mode_e",
+                  "value": 5,
+                  "alias": "Output Open-Drain-Pullup",
+                  "description": "Same as Open-Drain, but with a built-in helper enabled so the pin reads \"on\" by itself instead of needing an extra part"
+                },
+                {
+                  "symbol": "SYS_IO_MODE_PWM",
+                  "enum": "sys_io_mode_e",
+                  "value": 6,
+                  "alias": "PWM",
+                  "description": "Rapidly switches the pin on and off to fake an in-between level - use to dim an LED or control a motor's speed"
+                },
+                {
+                  "symbol": "SYS_IO_MODE_ADC",
+                  "enum": "sys_io_mode_e",
+                  "value": 7,
+                  "alias": "ADC",
+                  "description": "Measures the exact voltage on the pin instead of just on/off - use to read sensors that report a varying value, like a potentiometer or a temperature sensor"
+                },
+                {
+                  "symbol": "SYS_IO_MODE_DAC",
+                  "enum": "sys_io_mode_e",
+                  "value": 8,
+                  "alias": "DAC",
+                  "description": "Outputs an exact, steady voltage level instead of just on/off - the opposite of ADC"
+                }
+              ],
+              "enum_ref": "sys_io_mode_e"
+            }
+          }
+        },
+        {
+          "id": "packet_sys_io_set_level_t",
+          "packet": "packet_sys_io_set_level_t",
+          "packet_header": "0x22",
+          "decoder": "decoder_packet_sys_io_set_level_t()",
+          "field_order": [
+            "device_id",
+            "pin",
+            "level"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "pin": {
+              "type": "uint8_t",
+              "alias": "Pin Number",
+              "required": true
+            },
+            "level": {
+              "type": "uint8_t",
+              "alias": "Level",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_sys_io_get_level_t",
+          "packet": "packet_sys_io_get_level_t",
+          "packet_header": "0x23",
+          "decoder": "decoder_packet_sys_io_get_level_t()",
+          "field_order": [
+            "device_id",
+            "pin"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "pin": {
+              "type": "uint8_t",
+              "alias": "Pin Number",
+              "required": true
+            }
+          },
+          "response": {
+            "struct": "packet_sys_io_get_level_response_t",
+            "field_order": [
+              "device_id",
+              "pin",
+              "level"
+            ],
+            "fields": {
+              "device_id": {
+                "type": "uint8_t",
+                "alias": "Device ID"
+              },
+              "pin": {
+                "type": "uint8_t",
+                "alias": "Pin Number"
+              },
+              "level": {
+                "type": "uint8_t",
+                "alias": "Level",
+                "min": 0,
+                "max": 1
+              }
+            }
+          }
+        },
+        {
+          "id": "packet_sys_io_toggle_t",
+          "packet": "packet_sys_io_toggle_t",
+          "packet_header": "0x24",
+          "decoder": "decoder_packet_sys_io_toggle_t()",
+          "field_order": [
+            "device_id",
+            "pin"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "pin": {
+              "type": "uint8_t",
+              "alias": "Pin Number",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_sys_io_get_voltage_t",
+          "packet": "packet_sys_io_get_voltage_t",
+          "packet_header": "0x25",
+          "decoder": "decoder_packet_sys_io_get_voltage_t()",
+          "field_order": [
+            "device_id",
+            "pin"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "pin": {
+              "type": "uint8_t",
+              "alias": "Pin Number",
+              "required": true
+            }
+          },
+          "response": {
+            "struct": "packet_sys_io_get_voltage_response_t",
+            "field_order": [
+              "device_id",
+              "pin",
+              "voltage_mV"
+            ],
+            "fields": {
+              "device_id": {
+                "type": "uint8_t",
+                "alias": "Device ID"
+              },
+              "pin": {
+                "type": "uint8_t",
+                "alias": "Pin Number"
+              },
+              "voltage_mV": {
+                "type": "int32_t",
+                "alias": "Voltage",
+                "unit": "mV"
+              }
+            }
+          }
+        },
+        {
+          "id": "packet_sys_io_set_voltage_t",
+          "packet": "packet_sys_io_set_voltage_t",
+          "packet_header": "0x26",
+          "decoder": "decoder_packet_sys_io_set_voltage_t()",
+          "field_order": [
+            "device_id",
+            "pin",
+            "voltage_mV"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "pin": {
+              "type": "uint8_t",
+              "alias": "Pin Number",
+              "required": true
+            },
+            "voltage_mV": {
+              "type": "uint32_t",
+              "alias": "Voltage",
+              "required": true,
+              "unit": "mV"
+            }
+          }
+        },
+        {
+          "id": "packet_sys_io_set_pwm_frequency_t",
+          "packet": "packet_sys_io_set_pwm_frequency_t",
+          "packet_header": "0x27",
+          "decoder": "decoder_packet_sys_io_set_pwm_frequency_t()",
+          "field_order": [
+            "device_id",
+            "pin",
+            "frequency_Hz"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "pin": {
+              "type": "uint8_t",
+              "alias": "Pin Number",
+              "required": true
+            },
+            "frequency_Hz": {
+              "type": "uint32_t",
+              "alias": "PWM Frequency",
+              "required": true,
+              "unit": "Hz"
+            }
+          }
+        },
+        {
+          "id": "packet_sys_io_set_pwm_duty_t",
+          "packet": "packet_sys_io_set_pwm_duty_t",
+          "packet_header": "0x28",
+          "decoder": "decoder_packet_sys_io_set_pwm_duty_t()",
+          "field_order": [
+            "device_id",
+            "pin",
+            "duty"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "pin": {
+              "type": "uint8_t",
+              "alias": "Pin Number",
+              "required": true
+            },
+            "duty": {
+              "type": "uint32_t",
+              "alias": "Duty Cycle",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_sys_io_configure_intr_t",
+          "packet": "packet_sys_io_configure_intr_t",
+          "packet_header": "0x29",
+          "decoder": "decoder_packet_sys_io_configure_intr_t()",
+          "field_order": [
+            "device_id",
+            "pin",
+            "mode",
+            "debounce",
+            "adc_thresh_up_mV",
+            "adc_thresh_down_mV",
+            "adc_thresh_hyst_mV",
+            "adc_counter_thresh"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "pin": {
+              "type": "uint8_t",
+              "alias": "Pin Number",
+              "required": true
+            },
+            "mode": {
+              "type": "uint8_t",
+              "alias": "Interrupt Mode",
+              "required": true,
+              "one_of": [
+                {
+                  "symbol": "SYS_IO_INTR_DISABLE",
+                  "enum": "sys_io_intr_mode_e",
+                  "value": 0,
+                  "alias": "Disable",
+                  "description": "Don't watch this pin for changes - nothing gets triggered"
+                },
+                {
+                  "symbol": "SYS_IO_INTR_MODE_RISING_EDGE",
+                  "enum": "sys_io_intr_mode_e",
+                  "value": 1,
+                  "alias": "Rising Edge",
+                  "description": "Triggers the instant the pin switches from off to on"
+                },
+                {
+                  "symbol": "SYS_IO_INTR_MODE_FALLING_EDGE",
+                  "enum": "sys_io_intr_mode_e",
+                  "value": 2,
+                  "alias": "Falling Edge",
+                  "description": "Triggers the instant the pin switches from on to off"
+                },
+                {
+                  "symbol": "SYS_IO_INTR_MODE_BOTH_EDGES",
+                  "enum": "sys_io_intr_mode_e",
+                  "value": 3,
+                  "alias": "Both Edges",
+                  "description": "Triggers on any change - whether the pin switches from off to on, or on to off"
+                },
+                {
+                  "symbol": "SYS_IO_INTR_ADC_WINDOW_OUTSIDE",
+                  "enum": "sys_io_intr_mode_e",
+                  "value": 4,
+                  "alias": "Outside set window",
+                  "description": "Triggers when the measured value leaves the safe/expected range you set - use to catch a value going too high or too low"
+                },
+                {
+                  "symbol": "SYS_IO_INTR_ADC_WINDOW_INSIDE",
+                  "enum": "sys_io_intr_mode_e",
+                  "value": 5,
+                  "alias": "Inside set window",
+                  "description": "Triggers when the measured value comes back into the range you set - use to catch when a value returns to normal"
+                }
+              ],
+              "enum_ref": "sys_io_intr_mode_e"
+            },
+            "debounce": {
+              "type": "uint8_t",
+              "alias": "Debounce",
+              "required": false,
+              "note": "1 = ignore switch bounce"
+            },
+            "adc_thresh_up_mV": {
+              "type": "uint16_t",
+              "alias": "ADC Rising Threshold",
+              "required": false,
+              "unit": "mV"
+            },
+            "adc_thresh_down_mV": {
+              "type": "uint16_t",
+              "alias": "ADC Falling Threshold",
+              "required": false,
+              "unit": "mV"
+            },
+            "adc_thresh_hyst_mV": {
+              "type": "uint16_t",
+              "alias": "ADC Hysteresis",
+              "required": false,
+              "unit": "mV"
+            },
+            "adc_counter_thresh": {
+              "type": "uint16_t",
+              "alias": "ADC Event Counter Threshold",
+              "required": false
+            }
+          }
+        },
+        {
+          "id": "packet_sys_power_vreg_set_enable_t",
+          "packet": "packet_sys_power_vreg_set_enable_t",
+          "packet_header": "0x31",
+          "decoder": "decoder_packet_sys_power_vreg_set_enable_t()",
+          "field_order": [
+            "device_id",
+            "state"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "state": {
+              "type": "uint8_t",
+              "alias": "Enable State",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_sys_power_vreg_set_voltage_t",
+          "packet": "packet_sys_power_vreg_set_voltage_t",
+          "packet_header": "0x32",
+          "decoder": "decoder_packet_sys_power_vreg_set_voltage_t()",
+          "field_order": [
+            "device_id",
+            "voltage_mV"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "voltage_mV": {
+              "type": "uint32_t",
+              "alias": "Voltage",
+              "required": true,
+              "unit": "mV"
+            }
+          }
+        },
+        {
+          "id": "packet_sys_power_vreg_set_current_t",
+          "packet": "packet_sys_power_vreg_set_current_t",
+          "packet_header": "0x33",
+          "decoder": "decoder_packet_sys_power_vreg_set_current_t()",
+          "field_order": [
+            "device_id",
+            "current_mA"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "current_mA": {
+              "type": "uint32_t",
+              "alias": "Current Limit",
+              "required": true,
+              "unit": "mA"
+            }
+          }
+        },
+        {
+          "id": "packet_sys_power_monitor_get_voltage_t",
+          "packet": "packet_sys_power_monitor_get_voltage_t",
+          "packet_header": "0x34",
+          "decoder": "decoder_packet_sys_power_monitor_get_voltage_t()",
+          "field_order": [
+            "device_id",
+            "channel"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "channel": {
+              "type": "uint8_t",
+              "alias": "Channel",
+              "required": true
+            }
+          },
+          "response": {
+            "struct": "packet_sys_power_monitor_get_voltage_response_t",
+            "field_order": [
+              "device_id",
+              "channel",
+              "voltage_mV"
+            ],
+            "fields": {
+              "device_id": {
+                "type": "uint8_t",
+                "alias": "Device ID"
+              },
+              "channel": {
+                "type": "uint8_t",
+                "alias": "Channel"
+              },
+              "voltage_mV": {
+                "type": "int32_t",
+                "alias": "Voltage",
+                "unit": "mV"
+              }
+            }
+          }
+        },
+        {
+          "id": "packet_sys_power_monitor_get_current_t",
+          "packet": "packet_sys_power_monitor_get_current_t",
+          "packet_header": "0x35",
+          "decoder": "decoder_packet_sys_power_monitor_get_current_t()",
+          "field_order": [
+            "device_id",
+            "channel"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "channel": {
+              "type": "uint8_t",
+              "alias": "Channel",
+              "required": true
+            }
+          },
+          "response": {
+            "struct": "packet_sys_power_monitor_get_current_response_t",
+            "field_order": [
+              "device_id",
+              "channel",
+              "current_mA"
+            ],
+            "fields": {
+              "device_id": {
+                "type": "uint8_t",
+                "alias": "Device ID"
+              },
+              "channel": {
+                "type": "uint8_t",
+                "alias": "Channel"
+              },
+              "current_mA": {
+                "type": "int32_t",
+                "alias": "Current",
+                "unit": "mA"
+              }
+            }
+          }
+        },
+        {
+          "id": "packet_sys_power_usb_pd_set_t",
+          "packet": "packet_sys_power_usb_pd_set_t",
+          "packet_header": "0x36",
+          "decoder": "decoder_packet_sys_power_usb_pd_set_t()",
+          "field_order": [
+            "device_id",
+            "voltage_mV",
+            "current_mA"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "voltage_mV": {
+              "type": "uint32_t",
+              "alias": "Requested Voltage",
+              "required": true,
+              "unit": "mV"
+            },
+            "current_mA": {
+              "type": "uint32_t",
+              "alias": "Requested Current",
+              "required": true,
+              "unit": "mA"
+            }
+          }
+        },
+        {
+          "id": "packet_sys_power_usb_pd_list_t",
+          "packet": "packet_sys_power_usb_pd_list_t",
+          "packet_header": "0x37",
+          "decoder": "decoder_packet_sys_power_usb_pd_list_t()",
+          "field_order": [
+            "device_id"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            }
+          },
+          "response": {
+            "struct": "packet_sys_power_usb_pd_list_response_t",
+            "field_order": [
+              "device_id",
+              "count",
+              "slot",
+              "type",
+              "min_mV",
+              "max_mV",
+              "max_mA"
+            ],
+            "fields": {
+              "device_id": {
+                "type": "uint8_t",
+                "alias": "Device ID"
+              },
+              "count": {
+                "type": "uint8_t",
+                "alias": "Option Count",
+                "min": 0,
+                "max": 13
+              },
+              "slot": {
+                "type": "uint8_t",
+                "array_len": 13,
+                "alias": "Source Slot"
+              },
+              "type": {
+                "type": "uint8_t",
+                "array_len": 13,
+                "alias": "Type",
+                "one_of": [
+                  {
+                    "symbol": "SYS_POWER_USB_PD_OPTION_FIXED",
+                    "enum": "sys_power_usb_pd_option_type_e",
+                    "value": 0,
+                    "alias": "Fixed",
+                    "description": "A fixed voltage."
+                  },
+                  {
+                    "symbol": "SYS_POWER_USB_PD_OPTION_PPS",
+                    "enum": "sys_power_usb_pd_option_type_e",
+                    "value": 1,
+                    "alias": "PPS",
+                    "description": "Programmable voltage within a range (standard power range, up to 21 V)."
+                  },
+                  {
+                    "symbol": "SYS_POWER_USB_PD_OPTION_AVS",
+                    "enum": "sys_power_usb_pd_option_type_e",
+                    "value": 2,
+                    "alias": "AVS",
+                    "description": "Adjustable voltage within a range (extended power range, up to 28 V)."
+                  }
+                ],
+                "enum_ref": "sys_power_usb_pd_option_type_e"
+              },
+              "min_mV": {
+                "type": "uint16_t",
+                "array_len": 13,
+                "alias": "Minimum Voltage",
+                "unit": "mV"
+              },
+              "max_mV": {
+                "type": "uint16_t",
+                "array_len": 13,
+                "alias": "Maximum Voltage",
+                "unit": "mV"
+              },
+              "max_mA": {
+                "type": "uint16_t",
+                "array_len": 13,
+                "alias": "Maximum Current",
+                "unit": "mA"
+              }
+            }
+          }
+        },
+        {
+          "id": "packet_sys_power_usb_pd_get_limits_t",
+          "packet": "packet_sys_power_usb_pd_get_limits_t",
+          "packet_header": "0x38",
+          "decoder": "decoder_packet_sys_power_usb_pd_get_limits_t()",
+          "field_order": [
+            "device_id"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            }
+          },
+          "response": {
+            "struct": "packet_sys_power_usb_pd_get_limits_response_t",
+            "field_order": [
+              "device_id",
+              "max_mV",
+              "max_mA"
+            ],
+            "fields": {
+              "device_id": {
+                "type": "uint8_t",
+                "alias": "Device ID"
+              },
+              "max_mV": {
+                "type": "int32_t",
+                "alias": "Maximum Voltage",
+                "unit": "mV"
+              },
+              "max_mA": {
+                "type": "int32_t",
+                "alias": "Maximum Current",
+                "unit": "mA"
+              }
+            }
+          }
+        },
+        {
+          "id": "packet_sys_power_monitor_set_alert_t",
+          "packet": "packet_sys_power_monitor_set_alert_t",
+          "packet_header": "0x39",
+          "decoder": "decoder_packet_sys_power_monitor_set_alert_t()",
+          "field_order": [
+            "device_id",
+            "channel",
+            "alert",
+            "threshold_mA"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "channel": {
+              "type": "uint8_t",
+              "alias": "Channel",
+              "required": true
+            },
+            "alert": {
+              "type": "uint8_t",
+              "alias": "Alert",
+              "required": true,
+              "one_of": [
+                {
+                  "symbol": "SYS_PWR_EVENT_OCP_WARNING",
+                  "enum": "sys_power_events_e",
+                  "value": 4,
+                  "alias": "Over-Current Warning",
+                  "description": "Current draw is approaching the limit - not cut off yet, just a heads-up"
+                },
+                {
+                  "symbol": "SYS_PWR_EVENT_OCP_CRITICAL",
+                  "enum": "sys_power_events_e",
+                  "value": 5,
+                  "alias": "Over-Current Critical",
+                  "description": "Current draw exceeded the limit - output is protected/shut down"
+                }
+              ],
+              "enum_ref": "sys_power_events_e"
+            },
+            "threshold_mA": {
+              "type": "int32_t",
+              "alias": "Current Threshold",
+              "required": true,
+              "unit": "mA"
+            }
+          }
+        },
+        {
+          "id": "packet_sys_power_get_status_t",
+          "packet": "packet_sys_power_get_status_t",
+          "packet_header": "0x3C",
+          "decoder": "decoder_packet_sys_power_get_status_t()",
+          "field_order": [
+            "reserved"
+          ],
+          "fields": {
+            "reserved": {
+              "type": "uint8_t",
+              "alias": "Reserved",
+              "required": false,
+              "note": "always 0"
+            }
+          },
+          "response": {
+            "struct": "packet_sys_power_get_status_response_t",
+            "field_order": [
+              "source",
+              "input_mV",
+              "input_mA",
+              "source_mV",
+              "source_mA",
+              "budget_mW",
+              "allocated_mW",
+              "battery_pct"
+            ],
+            "fields": {
+              "source": {
+                "type": "uint8_t",
+                "alias": "Power Source",
+                "one_of": [
+                  {
+                    "symbol": "SYS_POWER_SOURCE_UNKNOWN",
+                    "enum": "sys_power_source_e",
+                    "value": 0,
+                    "alias": "Unknown",
+                    "description": "Not identified; the budget uses the measured input voltage and the board's assumed current"
+                  },
+                  {
+                    "symbol": "SYS_POWER_SOURCE_USB_PD",
+                    "enum": "sys_power_source_e",
+                    "value": 1,
+                    "alias": "USB-C",
+                    "description": "USB-C Power Delivery; the budget uses the input voltage and the source's current"
+                  },
+                  {
+                    "symbol": "SYS_POWER_SOURCE_PSU",
+                    "enum": "sys_power_source_e",
+                    "value": 2,
+                    "alias": "Power Supply",
+                    "description": "External supply; the budget uses the input voltage and the current entered by the user"
+                  },
+                  {
+                    "symbol": "SYS_POWER_SOURCE_BATTERY",
+                    "enum": "sys_power_source_e",
+                    "value": 3,
+                    "alias": "Battery",
+                    "description": "Battery; the budget uses the measured voltage, current limited only by the board"
+                  }
+                ],
+                "enum_ref": "sys_power_source_e"
+              },
+              "input_mV": {
+                "type": "int32_t",
+                "alias": "Input Voltage",
+                "unit": "mV"
+              },
+              "input_mA": {
+                "type": "int32_t",
+                "alias": "Input Current",
+                "unit": "mA"
+              },
+              "source_mV": {
+                "type": "uint32_t",
+                "alias": "Budget Voltage",
+                "unit": "mV"
+              },
+              "source_mA": {
+                "type": "uint32_t",
+                "alias": "Budget Current",
+                "unit": "mA"
+              },
+              "budget_mW": {
+                "type": "uint32_t",
+                "alias": "Power Budget",
+                "unit": "mW"
+              },
+              "allocated_mW": {
+                "type": "uint32_t",
+                "alias": "Allocated Power",
+                "unit": "mW"
+              },
+              "battery_pct": {
+                "type": "uint8_t",
+                "alias": "Battery Charge",
+                "unit": "%",
+                "note": "255 = unknown or no battery"
+              }
+            }
+          }
+        },
+        {
+          "id": "packet_sys_power_set_response_t",
+          "packet": "packet_sys_power_set_response_t",
+          "packet_header": "0x3D",
+          "decoder": "decoder_packet_sys_power_set_response_t()",
+          "field_order": [
+            "event",
+            "response"
+          ],
+          "fields": {
+            "event": {
+              "type": "uint8_t",
+              "alias": "Event",
+              "required": true,
+              "one_of": [
+                {
+                  "symbol": "SYS_PWR_EVENT_OVP",
+                  "enum": "sys_power_events_e",
+                  "value": 1,
+                  "alias": "Over-Voltage",
+                  "description": "The voltage went above the safe limit"
+                },
+                {
+                  "symbol": "SYS_PWR_EVENT_UVP",
+                  "enum": "sys_power_events_e",
+                  "value": 2,
+                  "alias": "Under-Voltage",
+                  "description": "The voltage dropped below the safe limit"
+                },
+                {
+                  "symbol": "SYS_PWR_EVENT_SPC",
+                  "enum": "sys_power_events_e",
+                  "value": 3,
+                  "alias": "Short Circuit",
+                  "description": "A short circuit was detected on the output"
+                },
+                {
+                  "symbol": "SYS_PWR_EVENT_OCP_WARNING",
+                  "enum": "sys_power_events_e",
+                  "value": 4,
+                  "alias": "Over-Current Warning",
+                  "description": "Current draw is approaching the limit - not cut off yet, just a heads-up"
+                },
+                {
+                  "symbol": "SYS_PWR_EVENT_OCP_CRITICAL",
+                  "enum": "sys_power_events_e",
+                  "value": 5,
+                  "alias": "Over-Current Critical",
+                  "description": "Current draw exceeded the limit - output is protected/shut down"
+                },
+                {
+                  "symbol": "SYS_PWR_EVENT_OTP",
+                  "enum": "sys_power_events_e",
+                  "value": 6,
+                  "alias": "Over-Temperature",
+                  "description": "The device got too hot and triggered thermal protection"
+                },
+                {
+                  "symbol": "SYS_PWR_EVENT_BATTERY_LOW",
+                  "enum": "sys_power_events_e",
+                  "value": 7,
+                  "alias": "Battery Low",
+                  "description": "The battery charge fell to the low threshold"
+                },
+                {
+                  "symbol": "SYS_PWR_EVENT_BATTERY_CRITICAL",
+                  "enum": "sys_power_events_e",
+                  "value": 8,
+                  "alias": "Battery Critical",
+                  "description": "The battery charge fell to the critical threshold"
+                },
+                {
+                  "symbol": "SYS_PWR_EVENT_BUDGET_EXCEEDED",
+                  "enum": "sys_power_events_e",
+                  "value": 9,
+                  "alias": "Budget Exceeded",
+                  "description": "The power source can no longer cover what the outputs are set to draw"
+                },
+                {
+                  "symbol": "SYS_PWR_EVENT_SOURCE_CHANGED",
+                  "enum": "sys_power_events_e",
+                  "value": 10,
+                  "alias": "Source Changed",
+                  "description": "The board switched to another power source (the value is the new source)"
+                }
+              ],
+              "enum_ref": "sys_power_events_e"
+            },
+            "response": {
+              "type": "uint8_t",
+              "alias": "Response",
+              "required": true,
+              "one_of": [
+                {
+                  "symbol": "SYS_POWER_RESPONSE_NOTIFY",
+                  "enum": "sys_power_response_e",
+                  "value": 0,
+                  "alias": "Notify",
+                  "description": "Only raise the event"
+                },
+                {
+                  "symbol": "SYS_POWER_RESPONSE_DISABLE",
+                  "enum": "sys_power_response_e",
+                  "value": 1,
+                  "alias": "Disable",
+                  "description": "Suspend the affected output: that rail, or every rail for a board-level event"
+                },
+                {
+                  "symbol": "SYS_POWER_RESPONSE_RESET",
+                  "enum": "sys_power_response_e",
+                  "value": 2,
+                  "alias": "Reset",
+                  "description": "Reset the affected device: that rail, or every rail for a board-level event"
+                },
+                {
+                  "symbol": "SYS_POWER_RESPONSE_SAFE_STATE",
+                  "enum": "sys_power_response_e",
+                  "value": 3,
+                  "alias": "Safe State",
+                  "description": "Stop the program and suspend every device"
+                }
+              ],
+              "enum_ref": "sys_power_response_e"
+            }
+          }
+        },
+        {
+          "id": "packet_sys_hbridge_set_mode_t",
+          "packet": "packet_sys_hbridge_set_mode_t",
+          "packet_header": "0x50",
+          "decoder": "decoder_packet_sys_hbridge_set_mode_t()",
+          "field_order": [
+            "device_id",
+            "channel",
+            "mode"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "channel": {
+              "type": "uint8_t",
+              "alias": "Channel",
+              "required": true
+            },
+            "mode": {
+              "type": "uint8_t",
+              "alias": "H-Bridge Mode",
+              "required": true,
+              "one_of": [
+                {
+                  "symbol": "SYS_HBRIDGE_MODE_FULL",
+                  "enum": "sys_hbridge_mode_e",
+                  "value": 0,
+                  "alias": "Full Bridge",
+                  "description": "Bidirectional drive from -1.0 to 1.0"
+                },
+                {
+                  "symbol": "SYS_HBRIDGE_MODE_HALF_HIGH",
+                  "enum": "sys_hbridge_mode_e",
+                  "value": 1,
+                  "alias": "Half Bridge High",
+                  "description": "High-side PWM drive from 0.0 to 1.0"
+                },
+                {
+                  "symbol": "SYS_HBRIDGE_MODE_HALF_LOW",
+                  "enum": "sys_hbridge_mode_e",
+                  "value": 2,
+                  "alias": "Half Bridge Low",
+                  "description": "Low-side PWM sink from 0.0 to 1.0"
+                }
+              ],
+              "enum_ref": "sys_hbridge_mode_e"
+            }
+          }
+        },
+        {
+          "id": "packet_sys_hbridge_set_drive_t",
+          "packet": "packet_sys_hbridge_set_drive_t",
+          "packet_header": "0x51",
+          "decoder": "decoder_packet_sys_hbridge_set_drive_t()",
+          "field_order": [
+            "device_id",
+            "channel",
+            "magnitude"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "channel": {
+              "type": "uint8_t",
+              "alias": "Channel",
+              "required": true
+            },
+            "magnitude": {
+              "type": "float",
+              "alias": "Drive Magnitude",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_sys_hbridge_brake_t",
+          "packet": "packet_sys_hbridge_brake_t",
+          "packet_header": "0x52",
+          "decoder": "decoder_packet_sys_hbridge_brake_t()",
+          "field_order": [
+            "device_id",
+            "channel"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "channel": {
+              "type": "uint8_t",
+              "alias": "Channel",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_sys_hbridge_coast_t",
+          "packet": "packet_sys_hbridge_coast_t",
+          "packet_header": "0x53",
+          "decoder": "decoder_packet_sys_hbridge_coast_t()",
+          "field_order": [
+            "device_id",
+            "channel"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "channel": {
+              "type": "uint8_t",
+              "alias": "Channel",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_sys_hbridge_set_current_limit_t",
+          "packet": "packet_sys_hbridge_set_current_limit_t",
+          "packet_header": "0x54",
+          "decoder": "decoder_packet_sys_hbridge_set_current_limit_t()",
+          "field_order": [
+            "device_id",
+            "channel",
+            "limit_mA"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "channel": {
+              "type": "uint8_t",
+              "alias": "Channel",
+              "required": true
+            },
+            "limit_mA": {
+              "type": "uint32_t",
+              "alias": "Current Limit",
+              "required": true,
+              "unit": "mA"
+            }
+          }
+        },
+        {
+          "id": "packet_sys_hbridge_clear_fault_t",
+          "packet": "packet_sys_hbridge_clear_fault_t",
+          "packet_header": "0x56",
+          "decoder": "decoder_packet_sys_hbridge_clear_fault_t()",
+          "field_order": [
+            "device_id",
+            "channel"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "channel": {
+              "type": "uint8_t",
+              "alias": "Channel",
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "events",
+      "title": "Events",
+      "description": "Link events (pin changes, power alerts, motor faults, connection changes) to the program and to actions.",
+      "source_file": "components/codecs/decoders/dec_sys_events.h",
+      "class_name": "SYS_EVENTS",
+      "class_header": "0x09",
+      "contracts": [
+        {
+          "id": "packet_sys_event_subscribe_t",
+          "packet": "packet_sys_event_subscribe_t",
+          "packet_header": "0x01",
+          "decoder": "decoder_packet_sys_event_subscribe_t()",
+          "field_order": [
+            "domain",
+            "device_id",
+            "channel",
+            "event",
+            "route_mask",
+            "static_action_id",
+            "dynamic_action_id"
+          ],
+          "fields": {
+            "domain": {
+              "type": "uint8_t",
+              "alias": "Event Source",
+              "required": true,
+              "one_of": [
+                {
+                  "symbol": "SYS_EVENT_DOMAIN_IO",
+                  "enum": "sys_event_domain_e",
+                  "value": 0,
+                  "alias": "IO",
+                  "description": "Pin interrupts and analog alerts. Channel = pin, event = the edge or window crossed, value = level or mV"
+                },
+                {
+                  "symbol": "SYS_EVENT_DOMAIN_POWER",
+                  "enum": "sys_event_domain_e",
+                  "value": 1,
+                  "alias": "Power",
+                  "description": "Regulator, monitor and board power events. Event = power event; board events use device 255"
+                },
+                {
+                  "symbol": "SYS_EVENT_DOMAIN_HBRIDGE",
+                  "enum": "sys_event_domain_e",
+                  "value": 2,
+                  "alias": "H-Bridge",
+                  "description": "Motor driver faults. Channel = bridge channel, event = fault reason, value = current in mA"
+                },
+                {
+                  "symbol": "SYS_EVENT_DOMAIN_BLE",
+                  "enum": "sys_event_domain_e",
+                  "value": 3,
+                  "alias": "Bluetooth",
+                  "description": "Connection events. Event = BLE event"
+                },
+                {
+                  "symbol": "SYS_EVENT_DOMAIN_FEATURE",
+                  "enum": "sys_event_domain_e",
+                  "value": 4,
+                  "alias": "Feature",
+                  "description": "Events raised by features. Device = feature ID"
+                }
+              ],
+              "enum_ref": "sys_event_domain_e",
+              "note": "255 = any source"
+            },
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true,
+              "note": "255 = any device (also board power events)"
+            },
+            "channel": {
+              "type": "uint8_t",
+              "alias": "Pin or Channel",
+              "required": true,
+              "note": "255 = any"
+            },
+            "event": {
+              "type": "uint8_t",
+              "alias": "Event",
+              "required": true,
+              "note": "per source: IO edge / window, power event, H-bridge fault, BLE event; 255 = any"
+            },
+            "route_mask": {
+              "type": "uint8_t",
+              "alias": "Routes",
+              "required": false,
+              "note": "bitmask of route slots (bit 0 = program)"
+            },
+            "static_action_id": {
+              "type": "uint8_t",
+              "alias": "System Action",
+              "required": false,
+              "sentinel": 0
+            },
+            "dynamic_action_id": {
+              "type": "uint8_t",
+              "alias": "User Action",
+              "required": false,
+              "sentinel": 0
+            }
+          },
+          "response": {
+            "struct": "packet_sys_event_subscribe_response_t",
+            "field_order": [
+              "subscription_id"
+            ],
+            "fields": {
+              "subscription_id": {
+                "type": "uint8_t",
+                "alias": "Subscription ID"
+              }
+            }
+          }
+        },
+        {
+          "id": "packet_sys_event_unsubscribe_t",
+          "packet": "packet_sys_event_unsubscribe_t",
+          "packet_header": "0x02",
+          "decoder": "decoder_packet_sys_event_unsubscribe_t()",
+          "field_order": [
+            "subscription_id"
+          ],
+          "fields": {
+            "subscription_id": {
+              "type": "uint8_t",
+              "alias": "Subscription ID",
+              "required": true,
+              "note": "255 = every subscription made by packets"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

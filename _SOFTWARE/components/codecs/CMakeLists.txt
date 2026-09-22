@@ -1,20 +1,17 @@
 idf_component_register(
-    INCLUDE_DIRS "decoders" "encoders"
+    INCLUDE_DIRS "decoders"
     REQUIRES
         sys_errors
+        sys_interface
+        sys_data_connector
+        sys_actions
         ble
         sys_device
         sys_io
         sys_power
+        sys_hbridge
+        sys_event
         VM
         devices
-        device_ads7128
-        device_ap33772s
-        device_dac53202
-        device_gpio_esp
-        device_ina3221
-        device_pca9685
-        device_tca6424a
-        device_tps55289
         features
 )

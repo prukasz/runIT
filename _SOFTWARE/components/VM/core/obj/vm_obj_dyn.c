@@ -39,12 +39,12 @@ typedef struct {
 /* Validate all dynamic roots, including ancestors of the changed object.
    Checking only the inserted subtree misses a chain grown from its tail.
    Completed heights memoize shared subgraphs; visiting detects back edges. */
-static err_h ownership_height(ownership_check_t* check, uint16_t id, uint8_t depth) {
+static SE_MUST_USE err_h ownership_height(ownership_check_t* check, uint16_t id, uint8_t depth) {
   if (check->visiting[id]) {
-    SE_RET_ERR(ERR_VM_OBJ_OWNERSHIP, .reason = VM_OWNERSHIP_CYCLE, .limit = CONFIG_VM_DYN_MAX_DEPTH);
+    SE_FAIL(ERR_VM_OBJ_OWNERSHIP, .reason = VM_OWNERSHIP_CYCLE, .limit = CONFIG_VM_DYN_MAX_DEPTH);
   }
   if (depth >= CONFIG_VM_DYN_MAX_DEPTH) {
-    SE_RET_ERR(ERR_VM_OBJ_OWNERSHIP, .reason = VM_OWNERSHIP_DEPTH, .limit = CONFIG_VM_DYN_MAX_DEPTH);
+    SE_FAIL(ERR_VM_OBJ_OWNERSHIP, .reason = VM_OWNERSHIP_DEPTH, .limit = CONFIG_VM_DYN_MAX_DEPTH);
   }
   if (check->height[id]) return NULL;
   check->visiting[id] = 1;
@@ -56,13 +56,13 @@ static err_h ownership_height(ownership_check_t* check, uint16_t id, uint8_t dep
       vm_obj_h kid = &kids[i] == check->cell ? check->child : kids[i];
       uint16_t kid_id = vm_obj_dyn_get_id(kid);
       if (kid_id == VM_DYN_NO_ID) continue;  // arena children have program lifetime
-      SE_RET_IF_ERR(ownership_height(check, kid_id, (uint8_t)(depth + 1)));
+      SE_TRY(ownership_height(check, kid_id, (uint8_t)(depth + 1)));
       uint8_t next = (uint8_t)(check->height[kid_id] + 1);
       if (next > height) height = next;
     }
   }
   if (height > CONFIG_VM_DYN_MAX_DEPTH) {
-    SE_RET_ERR(ERR_VM_OBJ_OWNERSHIP, .reason = VM_OWNERSHIP_DEPTH, .limit = CONFIG_VM_DYN_MAX_DEPTH);
+    SE_FAIL(ERR_VM_OBJ_OWNERSHIP, .reason = VM_OWNERSHIP_DEPTH, .limit = CONFIG_VM_DYN_MAX_DEPTH);
   }
   check->visiting[id] = 0;
   check->height[id] = height;
@@ -104,7 +104,7 @@ err_h vm_obj_dyn_check_link(vm_obj_h owner, vm_obj_h* cell, vm_obj_h child) {
   if (!owner->head.f.dynamic || *cell == child) return NULL;
   ownership_check_t check = {.cell = cell, .child = child};
   for (uint16_t i = 0; i < CONFIG_VM_DYN_MAX; i++) {
-    if (g_vm_dyn[i].obj) SE_RET_IF_ERR(ownership_height(&check, i, 0));
+    if (g_vm_dyn[i].obj) SE_TRY(ownership_height(&check, i, 0));
   }
   return NULL;
 }
@@ -116,7 +116,7 @@ err_h vm_obj_dyn_create(vm_obj_h* out, const vm_obj_head_t* head, const char* na
   /* Shape is validated before a slot is taken or a byte allocated, so a
      rejected object costs neither -- the same rule the arena path follows. */
   uint32_t total = 0;
-  SE_RET_IF_ERR(vm_obj_shape(head, &total));
+  SE_TRY(vm_obj_shape(head, &total));
 
   uint16_t slot = CONFIG_VM_DYN_MAX;
   for (uint16_t i = 0; i < CONFIG_VM_DYN_MAX; i++) {
@@ -126,14 +126,14 @@ err_h vm_obj_dyn_create(vm_obj_h* out, const vm_obj_head_t* head, const char* na
     }
   }
   if (slot == CONFIG_VM_DYN_MAX) {
-    SE_RET_ERR(ERR_VM_DYN_FULL, .limit = CONFIG_VM_DYN_MAX);
+    SE_FAIL(ERR_VM_DYN_FULL, .limit = CONFIG_VM_DYN_MAX);
   }
 
   // zeroed for the same reason arena objects are: payload and name must read
   // as empty rather than as whatever the heap last held
   vm_obj_h o = (vm_obj_h)heap_caps_calloc(1, total, VM_DYN_HEAP_CAPS);
   if (!o) {
-    SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+    SE_FAIL(ERR_BASE_NO_MEM, 0);
   }
 
   vm_obj_init(o, head, name);

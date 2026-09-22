@@ -13,6 +13,7 @@ Generate web-app JSON descriptors from annotated C headers. C remains the source
 
 - Read `auto-annotations/device/device-annotations.md` before changing annotation syntax, device headers, or the device generator.
 - Read `auto-annotations/vm/vm-annotations.md` before changing VM annotations or the VM generator.
+- Read `auto-annotations/settings/settings-annotations.md` before changing runtime settings annotations or the settings generator.
 - Do not edit `*.generated.json`; change C annotations, schema, or generator, then regenerate.
 - `//@...` is a header directive; `@...` is field or enum-member metadata.
 - `//#ref-enum` explicitly publishes an enum. `$SYMBOL` must resolve uniquely to a member of one published enum; unresolved or ambiguous references are errors.
@@ -28,11 +29,17 @@ Generate web-app JSON descriptors from annotated C headers. C remains the source
 - `auto-annotations/enums/generate-enums.py`: shared `//#ref-enum` scanner; device generation runs it live.
 - `auto-annotations/vm/generate-vm-model.py`: extracts marked VM C structs and VM enums.
 - `schema/vm-model.schema.json`: generated VM model contract.
+- `auto-annotations/contracts/generate-contracts.py`: extracts explicitly exposed packet contracts.
+- `schema/contracts.schema.json`: generated contract catalog contract.
+- `auto-annotations/settings/generate-settings.py`: extracts annotated runtime settings decoders.
+- `schema/settings.schema.json`: generated settings catalog contract.
 
 ```powershell
 python data-structures/auto-annotations/device/generate-devices.py components/codecs/decoders data-structures/devices
 python data-structures/auto-annotations/enums/generate-enums.py <output-directory> <output-name>
 python data-structures/auto-annotations/vm/generate-vm-model.py
+python data-structures/auto-annotations/contracts/generate-contracts.py
+python data-structures/auto-annotations/settings/generate-settings.py
 ```
 
 

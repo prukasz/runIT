@@ -192,7 +192,7 @@ err_h vm_sub_init(void) {
 
 err_h vm_sub_subscribe(const uint16_t* ids, uint16_t count) {
   if (count > CONFIG_VM_SUB_MAX_SUBSCRIBERS) {
-    SE_RET_ERR(ERR_INVALID_VAL_UI32, .val = count, .min = 0, .max = CONFIG_VM_SUB_MAX_SUBSCRIBERS);
+    SE_FAIL(ERR_INVALID_VAL_UI32, .val = count, .min = 0, .max = CONFIG_VM_SUB_MAX_SUBSCRIBERS);
   }
 
   s_sub_count = 0;
@@ -208,13 +208,13 @@ err_h vm_sub_subscribe(const uint16_t* ids, uint16_t count) {
 err_h vm_sub_handle_packet(const uint8_t* body, size_t len) {
   SE_CHECK_NOT_NULL(body);
   if (len < 1) {
-    SE_RET_ERR(ERR_VM_LOAD_SHORT_RECORD, .packet = CONFIG_RX_PACKET_HEADER_VM_SUBSCRIBE, .need = 1, .got = (uint16_t)len);
+    SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = CONFIG_RX_PACKET_HEADER_VM_SUBSCRIBE, .need = 1, .got = (uint16_t)len);
   }
 
   uint8_t count = body[0];
   size_t need = 1u + (size_t)count * 2u;
   if (count > 0 && len < need) {
-    SE_RET_ERR(ERR_VM_LOAD_SHORT_RECORD, .packet = CONFIG_RX_PACKET_HEADER_VM_SUBSCRIBE, .need = (uint16_t)need, .got = (uint16_t)len);
+    SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = CONFIG_RX_PACKET_HEADER_VM_SUBSCRIBE, .need = (uint16_t)need, .got = (uint16_t)len);
   }
 
   if (count == 0) {
