@@ -5,293 +5,238 @@
 
 /**
  * @file sys_data_connector.h
- * @brief Instance-based Virtual Data Bus & Routing Switchboard for runIT.
+ * @brief Transport-agnostic data bus between logical streams and transports.
  *
- * Provides decoupled routing pipes (connectors) between logical data
- * producers/consumers (logs, error telemetry, VM object streams, command frames)
- * and physical/virtual transports (providers: BLE, UART, LoRa, Flash Storage, etc.).
+ * A **connector** is a logical stream (logs, errors, telemetry, commands). A
+ * **provider** is a transport (BLE, UART, Wi-Fi, MQTT, ...). Connectors never
+ * know which transport carries them, and consumers (sys_interface, vm_sub,
+ * the error sink) only ever name a connector ID.
  *
- * Each connector can multicast across multiple TX providers and multiplex across
- * multiple RX providers. Each connector owns a dedicated `data_present` semaphore.
- * Consumer tasks block on `conn->data_present` and drain frames via
- * `sys_data_connector_receive()`.
+ * - **TX (fan-out):** sys_data_connector_send() prepends the connector's
+ *   stream byte and hands the frame to every bound TX provider.
+ *   sys_data_connector_send_to() sends to one origin only (command responses).
+ * - **RX (fan-in):** providers queue whole frames and call
+ *   sys_data_connector_notify_rx(); the consumer blocks in
+ *   sys_data_connector_wait_rx() and drains with sys_data_connector_receive(),
+ *   which also reports where each frame came from.
+ * - **Frame limit:** each provider may report its current maximum frame (BLE:
+ *   negotiated MTU - 3). sys_data_connector_max_payload() gives producers the
+ *   smallest limit over a connector's TX bindings; a longer frame is refused
+ *   with ERR_DATA_CONNECTOR_FRAME_TOO_LONG, never truncated. Buffers stay
+ *   statically sized to CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX.
+ * - **System connectors** (created by sys_data_connector_init()) can't be
+ *   removed or reconfigured and can't lose their last TX or RX binding, and
+ *   one that receives can't be suspended: that would cut the channel the fix
+ *   has to arrive on, or send its output nowhere. To move one to another
+ *   transport, bind the new provider first. Suspending a TX-only system
+ *   connector (logs, telemetry) is allowed, to free a slow link.
+ *
+ * All functions take a connector ID (0..CONFIG_SYS_DATA_CONNECTOR_MAX-1) and
+ * are safe to call from any task, not from an ISR.
+ *
+ * @code
+ * // Board wiring (runit): the BLE provider carries commands in and out.
+ * SE_TRY(sys_ble_provider_register(RUNIT_DATA_PROVIDER_BLE));
+ * SE_TRY(sys_data_connector_bind_rx(SYS_DATA_CONNECTOR_INTERFACE, RUNIT_DATA_PROVIDER_BLE, SYS_BLE_CHR_RUNIT_RX));
+ * SE_TRY(sys_data_connector_bind_tx(SYS_DATA_CONNECTOR_INTERFACE, RUNIT_DATA_PROVIDER_BLE, SYS_BLE_CHR_RUNIT_TX));
+ * @endcode
  */
 
-// -----------------------------------------------------------------------------
-// Well-Known System Connector IDs
-// -----------------------------------------------------------------------------
-// Registry slot for each built-in connector - CONFIG_SYS_DATA_CONN_ID_LOGS,
-// CONFIG_SYS_DATA_CONN_ID_ERRORS, CONFIG_SYS_DATA_CONN_ID_TELEMETRY,
-// CONFIG_SYS_DATA_CONN_ID_INTERFACE, CONFIG_SYS_DATA_CONN_ID_APP_BASE (first
-// free slot for dynamic/custom app connectors) - see components/utils/Kconfig's
-// "Data Connector Registry" menu. A plain uint8_t id, not an enum: a connector
-// is direction-agnostic (both TX and RX bindings share one connector), so
-// there's nothing a typed enum adds over the raw slot number every API here
-// already takes.
-
-// -----------------------------------------------------------------------------
-// Well-Known Provider IDs
-// -----------------------------------------------------------------------------
-typedef enum {
-  SYS_DATA_PROVIDER_NONE = 0,
-  SYS_DATA_PROVIDER_BLE  = 1,
-  SYS_DATA_PROVIDER_UART = 2,
-  SYS_DATA_PROVIDER_MAX_RESERVED = 16
-} sys_data_provider_id_e;
-  
-// -----------------------------------------------------------------------------
-// Forward Declarations
-// -----------------------------------------------------------------------------
-typedef struct sys_data_connector sys_data_connector_t;
-
-// -----------------------------------------------------------------------------
-// Provider Driver Interface
-// -----------------------------------------------------------------------------
 /**
- * @brief Transport provider driver operations table.
+ * @brief Connector IDs (registry slots) of the system connectors, and where
+ * user connectors start.
  *
- * Implemented by concrete transport modules (e.g. BLE, UART, loopback).
- * Transports do not process data; they only transmit outbound buffers (send),
- * drain inbound buffers (dequeue), and attach/detach connector wake semaphores.
+ * Published to the app (enums.json) for the settings packets; the values come
+ * from Kconfig ("Data Connector Registry"). Firmware code uses these names.
+ */
+//#ref-enum @alias Data Connector
+typedef enum sys_data_connector_id_e {
+  SYS_DATA_CONNECTOR_LOGS = CONFIG_SYS_DATA_CONN_ID_LOGS,           //@alias Logs @description Text log lines.
+  SYS_DATA_CONNECTOR_ERRORS = CONFIG_SYS_DATA_CONN_ID_ERRORS,       //@alias Errors @description Binary error reports.
+  SYS_DATA_CONNECTOR_TELEMETRY = CONFIG_SYS_DATA_CONN_ID_TELEMETRY, //@alias Telemetry @description Program object values you subscribed to.
+  SYS_DATA_CONNECTOR_INTERFACE = CONFIG_SYS_DATA_CONN_ID_INTERFACE, //@alias Commands @description Commands to the board and their responses.
+  SYS_DATA_CONNECTOR_APP_BASE = CONFIG_SYS_DATA_CONN_ID_APP_BASE,   //@alias First user connector @description Connectors you create use this ID or higher.
+} sys_data_connector_id_e;
+
+/** @brief Peer value meaning "every peer of the endpoint" (broadcast send, limit over all peers). */
+#define SYS_DATA_CONNECTOR_PEER_ALL UINT32_MAX
+
+/**
+ * @brief Where a received frame came from, and where its answer goes.
+ *
+ * `peer` is provider-defined: a transport with one link per endpoint (BLE
+ * today) reports 0; a multi-client transport (TCP) reports its session.
  */
 typedef struct {
-  uint8_t     provider_id;
+  uint8_t provider_id;
+  uint32_t peer;
+} sys_data_connector_origin_t;
+
+/**
+ * @brief Transport provider operations.
+ *
+ * `endpoint` is the provider's own address for a binding, given by the board
+ * wiring or a settings packet (BLE: characteristic UUID; MQTT: topic slot). It
+ * is a plain value, never a pointer.
+ *
+ * A provider owns its framing: dequeue() returns exactly one whole frame. A
+ * stream transport (UART, TCP) de-frames its bytes before queueing; a frame
+ * that doesn't fit @p max_len is dropped and reported, never cut short.
+ */
+typedef struct {
   const char* name;
 
-  /**
-   * @brief Outbound transmit callback.
-   *
-   * @param arg Provider-specific argument (e.g. packed slot header and char UUID).
-   * @param data Buffer to transmit.
-   * @param len Buffer length in bytes.
-   */
-  void (*send)(void* arg, const void* data, size_t len);
+  /** Transmit one framed item (stream byte included) to @p peer, or SYS_DATA_CONNECTOR_PEER_ALL. Required for TX. */
+  err_h (*send)(uint32_t endpoint, uint32_t peer, const uint8_t* frame, size_t len);
 
-  /**
-   * @brief Non-blocking inbound dequeue callback.
-   *
-   * @param arg Provider-specific argument.
-   * @param buf Destination buffer.
-   * @param max_len Destination capacity.
-   * @param out_len Set to number of bytes read, or 0 if empty.
-   * @return err_h NULL on success (even if len=0), or transport error.
-   */
-  err_h (*dequeue)(void* arg, uint8_t* buf, size_t max_len, size_t* out_len);
+  /** Pop one whole frame, non-blocking; *out_len = 0 when empty. Required for RX. */
+  err_h (*dequeue)(uint32_t endpoint, uint8_t* buf, size_t max_len, size_t* out_len, uint32_t* out_peer);
 
-  /**
-   * @brief Attach connector to provider's RX notification.
-   *
-   * @param arg Provider-specific argument.
-   * @param conn Connector instance being attached.
-   * @return err_h NULL on success.
-   */
-  err_h (*bind_rx)(void* arg, sys_data_connector_t* conn);
+  /** Current largest frame towards @p peer. Optional: NULL means CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX. */
+  size_t (*max_frame)(uint32_t endpoint, uint32_t peer);
 
-  /**
-   * @brief Detach connector from provider.
-   *
-   * @param arg Provider-specific argument.
-   * @param conn Connector instance being detached.
-   * @return err_h NULL on success.
-   */
-  err_h (*unbind_rx)(void* arg, sys_data_connector_t* conn);
-} sys_data_provider_driver_t;
+  /** Start calling sys_data_connector_notify_rx(@p conn_id) whenever a frame is queued. Optional. */
+  err_h (*bind_rx)(uint32_t endpoint, uint8_t conn_id);
 
-// -----------------------------------------------------------------------------
-// Connector Data Structure
-// -----------------------------------------------------------------------------
-struct sys_data_connector {
-  uint8_t           id;
-  char              name[CONFIG_SYS_DATA_CONNECTOR_NAME_MAX];
-  bool              allocated;
-  bool              suspended;
-  uint8_t           header;            /**< Predefined framing header byte. */
-  uint16_t          max_packet_len;
+  /** Stop the notifications started by bind_rx. Optional. */
+  err_h (*unbind_rx)(uint32_t endpoint, uint8_t conn_id);
+} sys_data_connector_provider_t;
 
-  // Outbound Destinations (TX - Multicast / Fan-out)
-  uint8_t           tx_count;
-  uint8_t           tx_provider_id[CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX];
-  void*             tx_provider_arg[CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX];
-
-  // Inbound Sources (RX - Multiplexing / Fan-in)
-  uint8_t           rx_count;
-  uint8_t           rx_provider_id[CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX];
-  void*             rx_provider_arg[CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX];
-
-  // Dedicated Event Wake Semaphore
-  SemaphoreHandle_t data_present;
-  bool              owns_data_present_sem;
-};
-
+/** @brief Connector configuration for sys_data_connector_create(). */
 typedef struct {
-  uint8_t           id;
-  const char*       name;
-  uint8_t           header;
-  uint16_t          max_packet_len;
-  SemaphoreHandle_t data_present;  /**< Optional custom semaphore; if NULL, created automatically */
+  uint8_t id;          /**< Registry slot, 0..CONFIG_SYS_DATA_CONNECTOR_MAX-1. */
+  const char* name;    /**< Diagnostic name; NULL or "" gives "conn_<id>". */
+  uint8_t header;      /**< Stream byte prepended to every outbound frame. */
+  uint16_t max_frame;  /**< Frame cap incl. the stream byte; 0 = CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX. */
+  bool system;         /**< Protected system connector (see file comment). */
 } sys_data_connector_cfg_t;
 
-/**
- * @brief Get the maximum packet/frame capacity for a connector instance.
- */
-static inline size_t sys_data_connector_get_max_len(const sys_data_connector_t* conn) {
-  return (conn && conn->max_packet_len > 0) ? conn->max_packet_len : CONFIG_SYS_DATA_CONNECTOR_MAX_PACKET_LEN;
-}
-
 // -----------------------------------------------------------------------------
-// Provider Registry APIs
+// Providers
 // -----------------------------------------------------------------------------
 
 /**
- * @brief Register a transport provider driver.
+ * @brief Register a transport provider under an ID. Boot only.
  *
- * @param driver Provider driver operations table.
- * @return err_h NULL on success.
+ * @param provider_id Nonzero ID the bindings and settings packets use.
+ * @param provider Operations table; must outlive the registry (static const).
+ * @return NULL, ERR_INVALID_VAL_UI32 for ID 0 or an ID already taken,
+ *         ERR_BASE_NO_MEM when CONFIG_SYS_DATA_PROVIDER_MAX providers exist.
  */
-SE_MUST_USE err_h sys_data_connector_register_provider(const sys_data_provider_driver_t* driver);
+SE_MUST_USE err_h sys_data_connector_register_provider(uint8_t provider_id, const sys_data_connector_provider_t* provider);
 
 // -----------------------------------------------------------------------------
-// Connector Lifecycle & Registry APIs
+// Connectors
 // -----------------------------------------------------------------------------
 
 /**
- * @brief Create the built-in logical connectors.
+ * @brief Create the built-in system connectors (logs, errors, telemetry, interface).
  *
- * This creates the connector endpoints independently of any transport. Boards
- * bind their BLE, Wi-Fi, or other providers afterwards.
+ * Transport-independent: the board binds providers afterwards.
  */
 SE_MUST_USE err_h sys_data_connector_init(void);
 
 /**
- * @brief Create or retrieve a connector instance with full configuration.
+ * @brief Create a connector, or reconfigure an existing non-system one.
  *
- * @param cfg Connector configuration struct.
- * @return sys_data_connector_t* Pointer to connector instance, or NULL on error.
+ * @return NULL, ERR_INVALID_VAL_UI32 for a bad ID or max_frame,
+ *         ERR_DATA_CONNECTOR_PROTECTED to reconfigure a system connector.
  */
-sys_data_connector_t* sys_data_connector_create_with_cfg(const sys_data_connector_cfg_t* cfg);
+SE_MUST_USE err_h sys_data_connector_create(const sys_data_connector_cfg_t* cfg);
+
+/** @brief Whether connector @p id currently exists. */
+bool sys_data_connector_exists(uint8_t id);
 
 /**
- * @brief Create or retrieve a connector instance in the registry.
+ * @brief Remove a connector and all of its bindings.
  *
- * If a connector with the given ID already exists, its header and name are updated.
- * If not, a new slot is allocated and initialized with its own `data_present` semaphore.
- *
- * @param id Unique connector ID (0..CONFIG_SYS_DATA_CONNECTOR_MAX-1).
- * @param name Diagnostic name for logs and inspection.
- * @param header Predefined framing header byte for this connector.
- * @return sys_data_connector_t* Pointer to connector instance, or NULL if out of slots/memory.
- */
-sys_data_connector_t* sys_data_connector_create(uint8_t id, const char* name, uint8_t header);
-
-/**
- * @brief Remove a connector and all of its provider bindings.
- *
- * RX providers are detached before the connector's wake semaphore is released.
- * @param id Connector ID.
- * @return err_h NULL on success, or ERR_BASE_NOT_FOUND when no such connector exists.
+ * @return NULL, ERR_BASE_NOT_FOUND, or ERR_DATA_CONNECTOR_PROTECTED for a system connector.
  */
 SE_MUST_USE err_h sys_data_connector_remove(uint8_t id);
 
 /**
- * @brief Set or replace the wake semaphore for a connector.
+ * @brief Bind (or re-address) a TX provider on a connector.
  *
- * @param conn Connector instance.
- * @param sem Caller-owned semaphore to signal when RX data arrives.
+ * @return NULL, ERR_BASE_NOT_FOUND (connector), ERR_DATA_CONNECTOR_NO_PROVIDER,
+ *         ERR_BASE_NO_MEM when CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX are bound.
  */
-void sys_data_connector_set_wake_sem(sys_data_connector_t* conn, SemaphoreHandle_t sem);
+SE_MUST_USE err_h sys_data_connector_bind_tx(uint8_t id, uint8_t provider_id, uint32_t endpoint);
 
 /**
- * @brief Look up an existing connector instance by ID.
+ * @brief Remove a TX binding (NULL also when it wasn't bound).
  *
- * @param id Connector ID.
- * @return sys_data_connector_t* Pointer to connector instance, or NULL if not found.
+ * @return ERR_DATA_CONNECTOR_PROTECTED for the last TX binding of a system connector.
  */
-sys_data_connector_t* sys_data_connector_get(uint8_t id);
+SE_MUST_USE err_h sys_data_connector_unbind_tx(uint8_t id, uint8_t provider_id);
+
+/**
+ * @brief Bind (or re-address) an RX provider; the provider starts waking the connector.
+ *
+ * @return As sys_data_connector_bind_tx(), plus the provider's bind_rx error.
+ */
+SE_MUST_USE err_h sys_data_connector_bind_rx(uint8_t id, uint8_t provider_id, uint32_t endpoint);
+
+/**
+ * @brief Remove an RX binding (NULL also when it wasn't bound).
+ *
+ * @return ERR_DATA_CONNECTOR_PROTECTED for the last RX binding of a system connector.
+ */
+SE_MUST_USE err_h sys_data_connector_unbind_rx(uint8_t id, uint8_t provider_id);
+
+/**
+ * @brief Stop / restart a connector's traffic. While suspended, send drops
+ * frames and receive returns nothing (RX frames wait in the providers).
+ *
+ * @return ERR_DATA_CONNECTOR_PROTECTED to suspend a system connector that receives.
+ */
+SE_MUST_USE err_h sys_data_connector_suspend(uint8_t id);
+SE_MUST_USE err_h sys_data_connector_resume(uint8_t id);
 
 // -----------------------------------------------------------------------------
-// Topology Binding & Unbinding (TX & RX)
-// -----------------------------------------------------------------------------
-
-/**
- * @brief Bind a TX provider destination to a connector.
- *
- * Subsequent calls to sys_data_connector_send(conn, ...) will forward data to this provider.
- * Multiple providers can be bound to the same connector for multicast/fan-out.
- *
- * @param conn Connector instance.
- * @param provider_id Transport provider ID.
- * @param arg Provider-specific argument.
- * @return err_h NULL on success.
- */
-SE_MUST_USE err_h sys_data_connector_bind_tx(sys_data_connector_t* conn, uint8_t provider_id, void* arg);
-
-/**
- * @brief Unbind a TX provider destination from a connector.
- *
- * @param conn Connector instance.
- * @param provider_id Transport provider ID to remove.
- * @return err_h NULL on success.
- */
-SE_MUST_USE err_h sys_data_connector_unbind_tx(sys_data_connector_t* conn, uint8_t provider_id);
-
-/**
- * @brief Bind an RX provider source to a connector.
- *
- * The provider's bind_rx callback will be invoked to attach conn->data_present.
- * When data arrives, the provider gives conn->data_present, waking the connector's consumer task.
- *
- * @param conn Connector instance.
- * @param provider_id Transport provider ID.
- * @param arg Provider-specific argument.
- * @return err_h NULL on success.
- */
-SE_MUST_USE err_h sys_data_connector_bind_rx(sys_data_connector_t* conn, uint8_t provider_id, void* arg);
-
-/**
- * @brief Unbind an RX provider source from a connector.
- *
- * @param conn Connector instance.
- * @param provider_id Transport provider ID to remove.
- * @return err_h NULL on success.
- */
-SE_MUST_USE err_h sys_data_connector_unbind_rx(sys_data_connector_t* conn, uint8_t provider_id);
-
-// -----------------------------------------------------------------------------
-// Data Transmission (TX)
+// Data
 // -----------------------------------------------------------------------------
 
 /**
- * @brief Transmit data over all bound TX providers on a connector.
+ * @brief Largest payload one send on this connector can carry right now.
  *
- * Iterates through all registered TX destinations and invokes provider->send().
- *
- * @param conn Connector instance.
- * @param data Outbound data buffer.
- * @param len Buffer length in bytes.
+ * The smallest frame limit over the connector's TX bindings (and its own
+ * max_frame), minus the stream byte. It follows the transports: for BLE it
+ * changes when a client connects and negotiates its MTU. Query it per frame;
+ * don't cache it. 0 for an unknown connector.
  */
-void sys_data_connector_send(sys_data_connector_t* conn, const void* data, size_t len);
-
-// -----------------------------------------------------------------------------
-// Inbound Frame Dequeue (RX)
-// -----------------------------------------------------------------------------
+size_t sys_data_connector_max_payload(uint8_t id);
 
 /**
- * @brief Dequeue incoming data from bound RX providers on a connector.
+ * @brief Send @p data to every TX binding, framed with the connector's stream byte.
  *
- * Non-blocking: drains the next available frame from any bound RX provider.
- * The consumer task can block on conn->data_present and call this function in a loop.
- *
- * @param conn Connector instance.
- * @param buf Destination buffer.
- * @param max_len Destination buffer capacity.
- * @param out_len Set to number of bytes read, or 0 if empty.
- * @return err_h NULL on success (even if len=0), or provider error.
+ * Every binding is tried; the first failure is returned. A frame longer than a
+ * binding's limit isn't sent there (ERR_DATA_CONNECTOR_FRAME_TOO_LONG).
+ * Suspended or unbound connectors drop the frame and return NULL.
  */
-SE_MUST_USE err_h sys_data_connector_receive(sys_data_connector_t* conn, uint8_t* buf, size_t max_len, size_t* out_len);
+SE_MUST_USE err_h sys_data_connector_send(uint8_t id, const void* data, size_t len);
 
-// -----------------------------------------------------------------------------
-// Flow Control & Suspension
-// -----------------------------------------------------------------------------
-void sys_data_connector_suspend(sys_data_connector_t* conn);
-void sys_data_connector_resume(sys_data_connector_t* conn);
-bool sys_data_connector_is_suspended(const sys_data_connector_t* conn);
+/**
+ * @brief Send @p data only to where a received frame came from.
+ *
+ * Uses the connector's TX binding of @p to->provider_id, addressed to
+ * @p to->peer. NULL without sending when that provider has no TX binding here.
+ */
+SE_MUST_USE err_h sys_data_connector_send_to(uint8_t id, const sys_data_connector_origin_t* to, const void* data, size_t len);
+
+/**
+ * @brief Pop one inbound frame, non-blocking, rotating over the RX bindings.
+ *
+ * @param out_len 0 when nothing is pending (or the connector is suspended).
+ * @param out_origin Filled with the frame's origin when *out_len > 0; may be NULL.
+ */
+SE_MUST_USE err_h sys_data_connector_receive(uint8_t id, uint8_t* buf, size_t max_len, size_t* out_len, sys_data_connector_origin_t* out_origin);
+
+/**
+ * @brief Block until a provider signals new RX data or @p timeout_ms passes.
+ *
+ * @return true when signalled. Drain with sys_data_connector_receive() either way.
+ */
+bool sys_data_connector_wait_rx(uint8_t id, uint32_t timeout_ms);
+
+/** @brief Wake the connector's consumer. Called by providers when they queue a frame. */
+void sys_data_connector_notify_rx(uint8_t id);

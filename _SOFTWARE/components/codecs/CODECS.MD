@@ -39,7 +39,7 @@ static inline err_h decoder_packet_sys_io_toggle_t(packet_sys_io_toggle_t* packe
 
 `SYS_CONTRACTS_PACKET_LIST` expands through `SYS_CONTRACTS_DECODE_CASE` into the `switch` inside `dec_sys_contracts_decode()`, which runit registers for class `0x01`. Each case declares the payload struct on the stack, fills it via `convert_to_packet()` (length-checked), and calls the decoder.
 
-Every decoder logs what it is about to do at `ESP_LOGI` under the tag `dec_sys_contracts`. A getter returns its result in the command's response: it declares `packet_<name>_response_t` (packed, scalars or fixed scalar arrays, same field annotations) next to its request struct and calls `sys_interface_respond(&rsp, sizeof(rsp))`. Every command is answered (`[0x05][class][packet][status][data]`, see [[SYS_INTERFACE.MD]] "Responses"). The contracts generator publishes the response layout.
+Every decoder logs what it is about to do at `ESP_LOGI` under the tag `dec_sys_contracts`. A getter returns its result in the command's response: it declares `packet_<name>_response_t` (packed, scalars or fixed scalar arrays, same field annotations) next to its request struct and calls `sys_interface_respond(&rsp, sizeof(rsp))`. Every command is answered (`[0x05][seq][class][packet][status][data]`, see [[SYS_INTERFACE.MD]] "Responses"). The contracts generator publishes the response layout.
 
 ### Packet Byte Ranges
 

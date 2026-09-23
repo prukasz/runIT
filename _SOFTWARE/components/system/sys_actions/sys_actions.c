@@ -25,6 +25,15 @@ R_TASK_DEFINE(s_actions_tap_task_handle, CONFIG_SYS_ACTIONS_TAP_TASK_STACK);
  */
 R_MUTEX_DEFINE(s_actions_mutex);
 
+/* Requests from callers that must not run an action on their own task (the VM
+   supervisor: an action may rewind or unload the VM, and a replay outlasts the
+   block watchdog). The tap task runs them between polls. */
+typedef struct {
+  uint8_t scope;
+  uint8_t id;
+} action_request_t;
+R_QUEUE_DEFINE(s_actions_requests, CONFIG_SYS_ACTIONS_REQUEST_QUEUE_LEN, sizeof(action_request_t));
+
 static void action_make_nvs_key(uint8_t action_id, char* out, size_t out_size) {
   snprintf(out, out_size, "act_%u", action_id);
 }
@@ -163,15 +172,21 @@ static void sys_actions_on_frame_locked(const uint8_t* frame, size_t len) {
 }
 
 /**
- * @brief Poll and append captured frames outside the interface receiver task.
+ * @brief Poll and append captured frames outside the interface receiver task,
+ * and run queued action requests (sys_actions_request()).
  *
  * @param arg Unused FreeRTOS task argument.
  */
 static void sys_actions_tap_task(void* arg) {
   (void)arg;
-  uint8_t frame[CONFIG_SYS_INTERFACE_RX_FRAME_CAP];
+  uint8_t frame[CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX];
 
   while (1) {
+    action_request_t req;
+    while (R_QUEUE_RECEIVE(s_actions_requests, &req, 0) == pdTRUE) {
+      SE_REPORT(sys_actions_invoke(req.scope, req.id));
+    }
+
     size_t len = 0;
     R_MUTEX_LOCK(s_actions_mutex, WAIT_FOREVER);
     err_h err = sys_interface_tap_poll(frame, sizeof(frame), &len);
@@ -185,7 +200,8 @@ static void sys_actions_tap_task(void* arg) {
       continue;
     }
     if (len == 0) {
-      vTaskDelay(pdMS_TO_TICKS(CONFIG_SYS_ACTIONS_TAP_POLL_MS));
+      /* Idle: wait for the next poll, or wake early for an action request. */
+      (void)R_QUEUE_PEEK(s_actions_requests, &req, pdMS_TO_TICKS(CONFIG_SYS_ACTIONS_TAP_POLL_MS));
       continue;
     }
   }
@@ -295,7 +311,7 @@ err_h sys_action_record_stop(void) {
    * The tap task uses the same mutex and cannot consume a frame between this
    * drain and the state transition below.
    */
-  uint8_t frame[CONFIG_SYS_INTERFACE_RX_FRAME_CAP];
+  uint8_t frame[CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX];
   while (1) {
     size_t len = 0;
     err_h drain_err = sys_interface_tap_poll(frame, sizeof(frame), &len);
@@ -319,6 +335,18 @@ err_h sys_action_record_stop(void) {
   err_h err = nvs_save_action(id, a);
   free(a);
   SE_TRY(err);
+  return NULL;
+}
+
+err_h sys_actions_request(uint8_t scope, uint8_t id) {
+  if (scope > SYS_ACTION_SCOPE_DYNAMIC) {
+    SE_FAIL(ERR_INVALID_VAL_UI32, .val = scope, .min = SYS_ACTION_SCOPE_STATIC, .max = SYS_ACTION_SCOPE_DYNAMIC);
+  }
+  SE_CHECK_IN_RANGE(id, 1, UINT8_MAX);
+  const action_request_t req = {.scope = scope, .id = id};
+  if (R_QUEUE_SEND(s_actions_requests, &req, 0) != pdTRUE) {
+    SE_FAIL(ERR_ACTION_QUEUE_FULL, .action_id = id);
+  }
   return NULL;
 }
 

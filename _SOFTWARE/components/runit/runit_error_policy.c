@@ -68,6 +68,7 @@ err_h runit_error_wiring_init(void) {
   SE_TRY(SE_register_domain_hook(OWNER_SYS_ACTIONS_BASE, sys_actions_handle_fault));
   SE_TRY(SE_register_domain_hook(OWNER_VM_BASE, sys_vm_handle_fault));
   sys_event_register_action_executor(sys_actions_invoke);
+  vm_exec_register_action_request(sys_actions_request);  // queued: the VM task never runs an action itself
   SE_TRY(sys_event_register_route(CONFIG_SYS_EVENT_ROUTE_VM, vm_event_route));
   return NULL;
 }

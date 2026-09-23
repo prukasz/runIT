@@ -1,4 +1,5 @@
 #include "sys_data_connector.h"
+#include <string.h>
 #include "utils.h"
 
 #undef OWNER
@@ -9,377 +10,510 @@ static const char* TAG = "sys_data_connector";
 // -----------------------------------------------------------------------------
 // Registries
 // -----------------------------------------------------------------------------
-static const sys_data_provider_driver_t* s_providers[CONFIG_SYS_DATA_PROVIDER_MAX] = {0};
-static sys_data_connector_t              s_connectors[CONFIG_SYS_DATA_CONNECTOR_MAX] = {0};
 
-static const sys_data_provider_driver_t* find_provider(uint8_t provider_id) {
-  if (provider_id == SYS_DATA_PROVIDER_NONE) return NULL;
+typedef struct {
+  uint8_t provider_id;
+  uint32_t endpoint;
+} binding_t;
+
+typedef struct {
+  bool allocated;
+  bool suspended;
+  bool system;
+  uint8_t header;
+  uint16_t max_frame; /* incl. stream byte, <= CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX */
+  char name[CONFIG_SYS_DATA_CONNECTOR_NAME_MAX];
+  uint8_t tx_count;
+  binding_t tx[CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX];
+  uint8_t rx_count;
+  binding_t rx[CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX];
+  uint8_t rx_next; /* receive() starts here, so one busy provider can't starve the others */
+} connector_t;
+
+typedef struct {
+  uint8_t id;
+  const sys_data_connector_provider_t* ops;
+} provider_slot_t;
+
+/* Providers are registered at boot and never removed, so lookups need no lock. */
+static provider_slot_t s_providers[CONFIG_SYS_DATA_PROVIDER_MAX];
+
+/* Guards s_connectors. Provider calls are made on copies taken under it, never
+   while holding it, except bind_rx / unbind_rx (lock order: connector -> provider). */
+R_MUTEX_DEFINE(sys_data_connector_mutex);
+static connector_t s_connectors[CONFIG_SYS_DATA_CONNECTOR_MAX];
+
+/* One wake semaphore per slot, static and never deleted: a consumer blocked on
+   a slot keeps a valid handle while the connector is removed and recreated. */
+static StaticSemaphore_t s_wake_storage[CONFIG_SYS_DATA_CONNECTOR_MAX];
+static SemaphoreHandle_t s_wake[CONFIG_SYS_DATA_CONNECTOR_MAX];
+
+static const sys_data_connector_provider_t* find_provider(uint8_t provider_id) {
   for (size_t i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
-    if (s_providers[i] && s_providers[i]->provider_id == provider_id) {
-      return s_providers[i];
-    }
+    if (s_providers[i].ops && s_providers[i].id == provider_id) return s_providers[i].ops;
   }
   return NULL;
 }
 
+/* Caller holds the mutex. NULL for an out-of-range or free slot. */
+static connector_t* find_conn(uint8_t id) {
+  if (id >= CONFIG_SYS_DATA_CONNECTOR_MAX || !s_connectors[id].allocated) return NULL;
+  return &s_connectors[id];
+}
+
+static binding_t* find_binding(binding_t* list, uint8_t count, uint8_t provider_id) {
+  for (uint8_t i = 0; i < count; i++) {
+    if (list[i].provider_id == provider_id) return &list[i];
+  }
+  return NULL;
+}
+
+static void drop_binding(binding_t* list, uint8_t* count, binding_t* b) {
+  for (binding_t* next = b + 1; next < list + *count; b++, next++) *b = *next;
+  (*count)--;
+}
+
 // -----------------------------------------------------------------------------
-// Provider Registration
+// Providers
 // -----------------------------------------------------------------------------
 
 #undef OWNER
 #define OWNER OWNER_SYS_DATA_CONNECTOR_REGISTER_PROVIDER
-err_h sys_data_connector_register_provider(const sys_data_provider_driver_t* driver) {
-  SE_CHECK_NOT_NULL(driver);
-  if (driver->provider_id == SYS_DATA_PROVIDER_NONE) {
-    SE_FAIL(ERR_INVALID_VAL_UI32, .val = driver->provider_id);
+err_h sys_data_connector_register_provider(uint8_t provider_id, const sys_data_connector_provider_t* provider) {
+  SE_CHECK_NOT_NULL(provider);
+  if (provider_id == 0 || find_provider(provider_id)) {
+    SE_FAIL(ERR_INVALID_VAL_UI32, .val = provider_id, .min = 1, .max = UINT8_MAX);
   }
-
-  // Update if already registered
   for (size_t i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
-    if (s_providers[i] && s_providers[i]->provider_id == driver->provider_id) {
-      s_providers[i] = driver;
-      ESP_LOGI(TAG, "Provider updated: %s (id=%u)", driver->name ? driver->name : "unnamed", driver->provider_id);
+    if (!s_providers[i].ops) {
+      s_providers[i] = (provider_slot_t){.id = provider_id, .ops = provider};
+      ESP_LOGI(TAG, "Provider registered: %s (id=%u)", provider->name ? provider->name : "unnamed", provider_id);
       return NULL;
     }
   }
-
-  // Insert into first empty slot
-  for (size_t i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
-    if (s_providers[i] == NULL) {
-      s_providers[i] = driver;
-      ESP_LOGI(TAG, "Provider registered: %s (id=%u, slot=%u)",
-               driver->name ? driver->name : "unnamed", driver->provider_id, (unsigned)i);
-      return NULL;
-    }
-  }
-
-  SE_FAIL(ERR_BASE_NO_MEM, driver->provider_id);
+  SE_FAIL(ERR_BASE_NO_MEM, provider_id);
 }
 
 // -----------------------------------------------------------------------------
-// Connector Lifecycle
+// Connector lifecycle
 // -----------------------------------------------------------------------------
 
 #undef OWNER
 #define OWNER OWNER_SYS_DATA_CONNECTOR_INIT
 err_h sys_data_connector_init(void) {
-  static const sys_data_connector_cfg_t s_system_connectors[] = {
-      {.id = CONFIG_SYS_DATA_CONN_ID_LOGS,      .name = "logs",      .header = CONFIG_TX_PACKET_CLASS_LOGS},
-      {.id = CONFIG_SYS_DATA_CONN_ID_ERRORS,    .name = "errors",    .header = CONFIG_TX_PACKET_CLASS_ERRORS},
-      {.id = CONFIG_SYS_DATA_CONN_ID_TELEMETRY, .name = "telemetry", .header = CONFIG_TX_PACKET_CLASS_TELEMETRY},
-      {.id = CONFIG_SYS_DATA_CONN_ID_INTERFACE, .name = "interface", .header = CONFIG_TX_PACKET_CLASS_INTERFACE},
-  };
+  for (size_t i = 0; i < CONFIG_SYS_DATA_CONNECTOR_MAX; i++) {
+    if (!s_wake[i]) s_wake[i] = xSemaphoreCreateBinaryStatic(&s_wake_storage[i]);
+  }
 
+  static const sys_data_connector_cfg_t s_system_connectors[] = {
+      {.id = SYS_DATA_CONNECTOR_LOGS, .name = "logs", .header = CONFIG_TX_PACKET_CLASS_LOGS, .system = true},
+      {.id = SYS_DATA_CONNECTOR_ERRORS, .name = "errors", .header = CONFIG_TX_PACKET_CLASS_ERRORS, .system = true},
+      {.id = SYS_DATA_CONNECTOR_TELEMETRY, .name = "telemetry", .header = CONFIG_TX_PACKET_CLASS_TELEMETRY, .system = true},
+      {.id = SYS_DATA_CONNECTOR_INTERFACE, .name = "interface", .header = CONFIG_TX_PACKET_CLASS_INTERFACE, .system = true},
+  };
   for (size_t i = 0; i < sizeof(s_system_connectors) / sizeof(s_system_connectors[0]); i++) {
-    if (!sys_data_connector_create_with_cfg(&s_system_connectors[i])) {
-      SE_FAIL(ERR_BASE_NO_MEM, s_system_connectors[i].id);
-    }
+    SE_TRY(sys_data_connector_create(&s_system_connectors[i]));
   }
   return NULL;
 }
 
-void sys_data_connector_set_wake_sem(sys_data_connector_t* conn, SemaphoreHandle_t sem) {
-  if (!conn || conn->data_present == sem) return;
-  if (conn->owns_data_present_sem && conn->data_present) {
-    vSemaphoreDelete(conn->data_present);
+#undef OWNER
+#define OWNER OWNER_SYS_DATA_CONNECTOR_CREATE
+err_h sys_data_connector_create(const sys_data_connector_cfg_t* cfg) {
+  SE_CHECK_NOT_NULL(cfg);
+  if (cfg->id >= CONFIG_SYS_DATA_CONNECTOR_MAX) {
+    SE_FAIL(ERR_INVALID_VAL_UI32, .val = cfg->id, .min = 0, .max = CONFIG_SYS_DATA_CONNECTOR_MAX - 1);
   }
-  conn->data_present          = sem;
-  conn->owns_data_present_sem = false;
-}
-
-sys_data_connector_t* sys_data_connector_create_with_cfg(const sys_data_connector_cfg_t* cfg) {
-  if (!cfg || cfg->id >= CONFIG_SYS_DATA_CONNECTOR_MAX) {
-    ESP_LOGE(TAG, "Invalid connector config or ID: %u", cfg ? cfg->id : 0xFF);
-    return NULL;
+  /* A frame is at least the stream byte plus one payload byte. */
+  if (cfg->max_frame == 1 || cfg->max_frame > CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX) {
+    SE_FAIL(ERR_INVALID_VAL_UI32, .val = cfg->max_frame, .min = 2, .max = CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX);
   }
 
-  sys_data_connector_t* conn = &s_connectors[cfg->id];
-  if (conn->allocated) {
-    if (cfg->header != 0) {
-      conn->header = cfg->header;
-    }
-    if (cfg->name && cfg->name[0] != '\0') {
-      strncpy(conn->name, cfg->name, sizeof(conn->name) - 1);
-      conn->name[sizeof(conn->name) - 1] = '\0';
-    }
-    if (cfg->max_packet_len > 0) {
-      conn->max_packet_len = cfg->max_packet_len;
-    }
-    if (cfg->data_present) {
-      sys_data_connector_set_wake_sem(conn, cfg->data_present);
-    }
-    return conn;
+  R_MUTEX_LOCK(sys_data_connector_mutex, WAIT_FOREVER);
+  connector_t* c = &s_connectors[cfg->id];
+  if (c->allocated && c->system) {
+    R_MUTEX_UNLOCK(sys_data_connector_mutex);
+    SE_FAIL(ERR_DATA_CONNECTOR_PROTECTED, .id = cfg->id);
   }
-
-  memset(conn, 0, sizeof(*conn));
-  conn->id             = cfg->id;
-  conn->allocated      = true;
-  conn->header         = cfg->header;
-  conn->max_packet_len = cfg->max_packet_len > 0 ? cfg->max_packet_len : CONFIG_SYS_DATA_CONNECTOR_MAX_PACKET_LEN;
+  bool created = !c->allocated;
+  if (created) {
+    memset(c, 0, sizeof(*c));
+    c->allocated = true;
+  }
+  c->system = cfg->system;
+  c->header = cfg->header;
+  c->max_frame = cfg->max_frame ? cfg->max_frame : CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX;
   if (cfg->name && cfg->name[0] != '\0') {
-    strncpy(conn->name, cfg->name, sizeof(conn->name) - 1);
-    conn->name[sizeof(conn->name) - 1] = '\0';
+    strncpy(c->name, cfg->name, sizeof(c->name) - 1);
+    c->name[sizeof(c->name) - 1] = '\0';
   } else {
-    snprintf(conn->name, sizeof(conn->name), "conn_%u", cfg->id);
+    snprintf(c->name, sizeof(c->name), "conn_%u", cfg->id);
   }
+  R_MUTEX_UNLOCK(sys_data_connector_mutex);
 
-  if (cfg->data_present) {
-    conn->data_present          = cfg->data_present;
-    conn->owns_data_present_sem = false;
-  } else {
-    conn->data_present = xSemaphoreCreateBinary();
-    conn->owns_data_present_sem = true;
-    if (conn->data_present == NULL) {
-      conn->allocated = false;
-      ESP_LOGE(TAG, "Failed to create data_present semaphore for connector %u", cfg->id);
-      return NULL;
-    }
-  }
-
-  ESP_LOGI(TAG, "Created data connector: %s (id=%u, header=0x%02X)", conn->name, cfg->id, conn->header);
-  return conn;
+  ESP_LOGI(TAG, "%s data connector: %s (id=%u, header=0x%02X, max_frame=%u)", created ? "Created" : "Reconfigured", c->name, cfg->id, cfg->header,
+           c->max_frame);
+  return NULL;
 }
 
-sys_data_connector_t* sys_data_connector_create(uint8_t id, const char* name, uint8_t header) {
-  sys_data_connector_cfg_t cfg = {
-      .id             = id,
-      .name           = name,
-      .header         = header,
-      .max_packet_len = CONFIG_SYS_DATA_CONNECTOR_MAX_PACKET_LEN,
-      .data_present   = NULL,
-  };
-  return sys_data_connector_create_with_cfg(&cfg);
+bool sys_data_connector_exists(uint8_t id) {
+  R_MUTEX_LOCK(sys_data_connector_mutex, WAIT_FOREVER);
+  bool exists = find_conn(id) != NULL;
+  R_MUTEX_UNLOCK(sys_data_connector_mutex);
+  return exists;
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_DATA_CONNECTOR_REMOVE
 err_h sys_data_connector_remove(uint8_t id) {
-  sys_data_connector_t* conn = sys_data_connector_get(id);
-  if (!conn) {
+  R_MUTEX_LOCK(sys_data_connector_mutex, WAIT_FOREVER);
+  connector_t* c = find_conn(id);
+  if (!c) {
+    R_MUTEX_UNLOCK(sys_data_connector_mutex);
     SE_FAIL(ERR_BASE_NOT_FOUND, id);
   }
-
-  while (conn->rx_count > 0) {
-    SE_TRY(sys_data_connector_unbind_rx(conn, conn->rx_provider_id[0]));
-  }
-  while (conn->tx_count > 0) {
-    SE_TRY(sys_data_connector_unbind_tx(conn, conn->tx_provider_id[0]));
+  if (c->system) {
+    R_MUTEX_UNLOCK(sys_data_connector_mutex);
+    SE_FAIL(ERR_DATA_CONNECTOR_PROTECTED, .id = id);
   }
 
-  if (conn->owns_data_present_sem && conn->data_present) {
-    vSemaphoreDelete(conn->data_present);
+  /* Every provider is detached even if one fails; the first error is returned. */
+  err_h first = NULL;
+  for (uint8_t i = 0; i < c->rx_count; i++) {
+    const sys_data_connector_provider_t* ops = find_provider(c->rx[i].provider_id);
+    if (!ops || !ops->unbind_rx) continue;
+    err_h err = ops->unbind_rx(c->rx[i].endpoint, id);
+    if (err && !first) first = err;
+    else SE_release(err);
   }
-  ESP_LOGI(TAG, "Removed data connector: %s (id=%u)", conn->name, id);
-  memset(conn, 0, sizeof(*conn));
+  memset(c, 0, sizeof(*c));
+  R_MUTEX_UNLOCK(sys_data_connector_mutex);
+
+  ESP_LOGI(TAG, "Removed data connector id=%u", id);
+  SE_TRY(first);
   return NULL;
 }
 
-sys_data_connector_t* sys_data_connector_get(uint8_t id) {
-  if (id >= CONFIG_SYS_DATA_CONNECTOR_MAX) return NULL;
-  if (!s_connectors[id].allocated) return NULL;
-  return &s_connectors[id];
+#undef OWNER
+#define OWNER OWNER_SYS_DATA_CONNECTOR_SUSPEND
+static SE_MUST_USE err_h set_suspended(uint8_t id, bool suspended) {
+  R_MUTEX_LOCK(sys_data_connector_mutex, WAIT_FOREVER);
+  connector_t* c = find_conn(id);
+  if (!c) {
+    R_MUTEX_UNLOCK(sys_data_connector_mutex);
+    SE_FAIL(ERR_BASE_NOT_FOUND, id);
+  }
+  if (suspended && c->system && c->rx_count > 0) {
+    R_MUTEX_UNLOCK(sys_data_connector_mutex);
+    SE_FAIL(ERR_DATA_CONNECTOR_PROTECTED, .id = id);
+  }
+  c->suspended = suspended;
+  R_MUTEX_UNLOCK(sys_data_connector_mutex);
+  if (!suspended) sys_data_connector_notify_rx(id); /* frames that waited in the providers */
+  return NULL;
+}
+
+err_h sys_data_connector_suspend(uint8_t id) {
+  return set_suspended(id, true);
+}
+
+err_h sys_data_connector_resume(uint8_t id) {
+  return set_suspended(id, false);
 }
 
 // -----------------------------------------------------------------------------
-// Topology Binding & Unbinding (TX & RX)
+// Bindings
 // -----------------------------------------------------------------------------
 
 #undef OWNER
 #define OWNER OWNER_SYS_DATA_CONNECTOR_BIND_TX
-err_h sys_data_connector_bind_tx(sys_data_connector_t* conn, uint8_t provider_id, void* arg) {
-  SE_CHECK_NOT_NULL(conn);
-  const sys_data_provider_driver_t* prov = find_provider(provider_id);
-  if (!prov || !prov->send) {
-    SE_FAIL(ERR_INVALID_VAL_UI32, .val = provider_id);
-  }
+err_h sys_data_connector_bind_tx(uint8_t id, uint8_t provider_id, uint32_t endpoint) {
+  const sys_data_connector_provider_t* ops = find_provider(provider_id);
+  if (!ops || !ops->send) SE_FAIL(ERR_DATA_CONNECTOR_NO_PROVIDER, .provider_id = provider_id);
 
-  // Update arg if already bound
-  for (uint8_t i = 0; i < conn->tx_count; i++) {
-    if (conn->tx_provider_id[i] == provider_id) {
-      conn->tx_provider_arg[i] = arg;
-      ESP_LOGI(TAG, "Connector %s: updated TX provider %s (id=%u)", conn->name, prov->name, provider_id);
-      return NULL;
+  R_MUTEX_LOCK(sys_data_connector_mutex, WAIT_FOREVER);
+  connector_t* c = find_conn(id);
+  if (!c) {
+    R_MUTEX_UNLOCK(sys_data_connector_mutex);
+    SE_FAIL(ERR_BASE_NOT_FOUND, id);
+  }
+  binding_t* b = find_binding(c->tx, c->tx_count, provider_id);
+  if (!b) {
+    if (c->tx_count >= CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX) {
+      R_MUTEX_UNLOCK(sys_data_connector_mutex);
+      SE_FAIL(ERR_BASE_NO_MEM, provider_id);
     }
+    b = &c->tx[c->tx_count++];
+    b->provider_id = provider_id;
   }
+  b->endpoint = endpoint;
+  R_MUTEX_UNLOCK(sys_data_connector_mutex);
 
-  if (conn->tx_count >= CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX) {
-    SE_FAIL(ERR_BASE_NO_MEM, provider_id);
-  }
-
-  conn->tx_provider_id[conn->tx_count]  = provider_id;
-  conn->tx_provider_arg[conn->tx_count] = arg;
-  conn->tx_count++;
-
-  ESP_LOGI(TAG, "Connector %s: bound TX provider %s (id=%u, tx_count=%u)",
-           conn->name, prov->name, provider_id, conn->tx_count);
+  ESP_LOGI(TAG, "Connector %u: TX -> %s endpoint 0x%lX", id, ops->name ? ops->name : "unnamed", (unsigned long)endpoint);
   return NULL;
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_DATA_CONNECTOR_UNBIND_TX
-err_h sys_data_connector_unbind_tx(sys_data_connector_t* conn, uint8_t provider_id) {
-  SE_CHECK_NOT_NULL(conn);
-
-  for (uint8_t i = 0; i < conn->tx_count; i++) {
-    if (conn->tx_provider_id[i] == provider_id) {
-      for (uint8_t j = i; j + 1 < conn->tx_count; j++) {
-        conn->tx_provider_id[j]  = conn->tx_provider_id[j + 1];
-        conn->tx_provider_arg[j] = conn->tx_provider_arg[j + 1];
-      }
-      conn->tx_count--;
-      ESP_LOGI(TAG, "Connector %s: unbound TX provider id=%u", conn->name, provider_id);
-      return NULL;
-    }
+err_h sys_data_connector_unbind_tx(uint8_t id, uint8_t provider_id) {
+  R_MUTEX_LOCK(sys_data_connector_mutex, WAIT_FOREVER);
+  connector_t* c = find_conn(id);
+  if (!c) {
+    R_MUTEX_UNLOCK(sys_data_connector_mutex);
+    SE_FAIL(ERR_BASE_NOT_FOUND, id);
   }
-
+  binding_t* b = find_binding(c->tx, c->tx_count, provider_id);
+  if (b && c->system && c->tx_count == 1) {
+    R_MUTEX_UNLOCK(sys_data_connector_mutex);
+    SE_FAIL(ERR_DATA_CONNECTOR_PROTECTED, .id = id);
+  }
+  if (b) drop_binding(c->tx, &c->tx_count, b);
+  R_MUTEX_UNLOCK(sys_data_connector_mutex);
   return NULL;
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_DATA_CONNECTOR_BIND_RX
-err_h sys_data_connector_bind_rx(sys_data_connector_t* conn, uint8_t provider_id, void* arg) {
-  SE_CHECK_NOT_NULL(conn);
-  const sys_data_provider_driver_t* prov = find_provider(provider_id);
-  if (!prov || !prov->dequeue) {
-    SE_FAIL(ERR_INVALID_VAL_UI32, .val = provider_id);
-  }
+err_h sys_data_connector_bind_rx(uint8_t id, uint8_t provider_id, uint32_t endpoint) {
+  const sys_data_connector_provider_t* ops = find_provider(provider_id);
+  if (!ops || !ops->dequeue) SE_FAIL(ERR_DATA_CONNECTOR_NO_PROVIDER, .provider_id = provider_id);
 
-  // Update arg if already bound
-  for (uint8_t i = 0; i < conn->rx_count; i++) {
-    if (conn->rx_provider_id[i] == provider_id) {
-      if (prov->bind_rx) {
-        SE_TRY(prov->bind_rx(arg, conn));
-      }
-      conn->rx_provider_arg[i] = arg;
-      ESP_LOGI(TAG, "Connector %s: updated RX provider %s (id=%u)", conn->name, prov->name, provider_id);
-      return NULL;
-    }
+  R_MUTEX_LOCK(sys_data_connector_mutex, WAIT_FOREVER);
+  connector_t* c = find_conn(id);
+  if (!c) {
+    R_MUTEX_UNLOCK(sys_data_connector_mutex);
+    SE_FAIL(ERR_BASE_NOT_FOUND, id);
   }
-
-  if (conn->rx_count >= CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX) {
+  binding_t* b = find_binding(c->rx, c->rx_count, provider_id);
+  if (!b && c->rx_count >= CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX) {
+    R_MUTEX_UNLOCK(sys_data_connector_mutex);
     SE_FAIL(ERR_BASE_NO_MEM, provider_id);
   }
-
-  if (prov->bind_rx) {
-    SE_TRY(prov->bind_rx(arg, conn));
+  if (b && b->endpoint == endpoint) {
+    R_MUTEX_UNLOCK(sys_data_connector_mutex);
+    return NULL;
   }
 
-  conn->rx_provider_id[conn->rx_count]  = provider_id;
-  conn->rx_provider_arg[conn->rx_count] = arg;
-  conn->rx_count++;
+  /* Attach the new endpoint before detaching the old one, so a failed bind
+     leaves the previous binding working. */
+  if (ops->bind_rx) {
+    err_h err = ops->bind_rx(endpoint, id);
+    if (err) {
+      R_MUTEX_UNLOCK(sys_data_connector_mutex);
+      SE_TRY(err);
+    }
+  }
+  err_h old_err = NULL;
+  if (b) {
+    if (ops->unbind_rx) old_err = ops->unbind_rx(b->endpoint, id);
+  } else {
+    b = &c->rx[c->rx_count++];
+    b->provider_id = provider_id;
+  }
+  b->endpoint = endpoint;
+  R_MUTEX_UNLOCK(sys_data_connector_mutex);
 
-  ESP_LOGI(TAG, "Connector %s: bound RX provider %s (id=%u, rx_count=%u)",
-           conn->name, prov->name, provider_id, conn->rx_count);
+  ESP_LOGI(TAG, "Connector %u: RX <- %s endpoint 0x%lX", id, ops->name ? ops->name : "unnamed", (unsigned long)endpoint);
+  SE_TRY(old_err);
   return NULL;
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_DATA_CONNECTOR_UNBIND_RX
-err_h sys_data_connector_unbind_rx(sys_data_connector_t* conn, uint8_t provider_id) {
-  SE_CHECK_NOT_NULL(conn);
-  const sys_data_provider_driver_t* prov = find_provider(provider_id);
-
-  for (uint8_t i = 0; i < conn->rx_count; i++) {
-    if (conn->rx_provider_id[i] == provider_id) {
-      void* arg = conn->rx_provider_arg[i];
-      if (prov && prov->unbind_rx) {
-        SE_release(prov->unbind_rx(arg, conn));
-      }
-
-      for (uint8_t j = i; j + 1 < conn->rx_count; j++) {
-        conn->rx_provider_id[j]  = conn->rx_provider_id[j + 1];
-        conn->rx_provider_arg[j] = conn->rx_provider_arg[j + 1];
-      }
-      conn->rx_count--;
-      ESP_LOGI(TAG, "Connector %s: unbound RX provider id=%u", conn->name, provider_id);
-      return NULL;
-    }
+err_h sys_data_connector_unbind_rx(uint8_t id, uint8_t provider_id) {
+  R_MUTEX_LOCK(sys_data_connector_mutex, WAIT_FOREVER);
+  connector_t* c = find_conn(id);
+  if (!c) {
+    R_MUTEX_UNLOCK(sys_data_connector_mutex);
+    SE_FAIL(ERR_BASE_NOT_FOUND, id);
   }
+  binding_t* b = find_binding(c->rx, c->rx_count, provider_id);
+  if (!b) {
+    R_MUTEX_UNLOCK(sys_data_connector_mutex);
+    return NULL;
+  }
+  if (c->system && c->rx_count == 1) {
+    R_MUTEX_UNLOCK(sys_data_connector_mutex);
+    SE_FAIL(ERR_DATA_CONNECTOR_PROTECTED, .id = id);
+  }
+  const sys_data_connector_provider_t* ops = find_provider(provider_id);
+  err_h err = (ops && ops->unbind_rx) ? ops->unbind_rx(b->endpoint, id) : NULL;
+  drop_binding(c->rx, &c->rx_count, b);
+  c->rx_next = 0;
+  R_MUTEX_UNLOCK(sys_data_connector_mutex);
 
+  ESP_LOGI(TAG, "Connector %u: RX binding of provider %u removed", id, provider_id);
+  SE_TRY(err);
   return NULL;
 }
 
 // -----------------------------------------------------------------------------
-// Data Transmission (TX)
+// TX
 // -----------------------------------------------------------------------------
 
-void sys_data_connector_send(sys_data_connector_t* conn, const void* data, size_t len) {
-  if (!conn || !conn->allocated || conn->suspended || !data || len == 0) {
-    return;
+typedef struct {
+  bool suspended;
+  uint8_t header;
+  uint16_t max_frame;
+  uint8_t count;
+  binding_t tx[CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX];
+} tx_snapshot_t;
+
+/* Copy what a send needs, so providers are called without the lock. */
+static bool take_tx_snapshot(uint8_t id, tx_snapshot_t* snap) {
+  R_MUTEX_LOCK(sys_data_connector_mutex, WAIT_FOREVER);
+  const connector_t* c = find_conn(id);
+  if (c) {
+    snap->suspended = c->suspended;
+    snap->header = c->header;
+    snap->max_frame = c->max_frame;
+    snap->count = c->tx_count;
+    memcpy(snap->tx, c->tx, sizeof(snap->tx));
   }
+  R_MUTEX_UNLOCK(sys_data_connector_mutex);
+  return c != NULL;
+}
 
-  size_t max_payload = sys_data_connector_get_max_len(conn);
-  size_t send_len    = (len > max_payload) ? max_payload : len;
-
-  uint8_t  frame[CONFIG_SYS_DATA_CONNECTOR_MAX_PACKET_LEN + 1];
-  uint8_t* p_frame        = frame;
-  bool     heap_allocated = false;
-
-  size_t total_len = send_len + 1;
-  if (total_len > sizeof(frame)) {
-    p_frame = malloc(total_len);
-    if (!p_frame) return;
-    heap_allocated = true;
+/* Frame limit of one binding: the provider's current limit, capped by the connector's. */
+static size_t binding_limit(const tx_snapshot_t* snap, const sys_data_connector_provider_t* ops, uint32_t endpoint, uint32_t peer) {
+  size_t limit = snap->max_frame;
+  if (ops->max_frame) {
+    size_t provider_limit = ops->max_frame(endpoint, peer);
+    if (provider_limit < limit) limit = provider_limit;
   }
+  return limit;
+}
 
-  p_frame[0] = conn->header;
-  memcpy(&p_frame[1], data, send_len);
-
-  for (uint8_t i = 0; i < conn->tx_count; i++) {
-    const sys_data_provider_driver_t* prov = find_provider(conn->tx_provider_id[i]);
-    if (prov && prov->send) {
-      prov->send(conn->tx_provider_arg[i], p_frame, total_len);
-    }
+size_t sys_data_connector_max_payload(uint8_t id) {
+  tx_snapshot_t snap;
+  if (!take_tx_snapshot(id, &snap)) return 0;
+  size_t limit = snap.max_frame;
+  for (uint8_t i = 0; i < snap.count; i++) {
+    const sys_data_connector_provider_t* ops = find_provider(snap.tx[i].provider_id);
+    if (!ops) continue;
+    size_t binding = binding_limit(&snap, ops, snap.tx[i].endpoint, SYS_DATA_CONNECTOR_PEER_ALL);
+    if (binding < limit) limit = binding;
   }
+  return limit > 1 ? limit - 1 : 0;
+}
 
-  if (heap_allocated) {
-    free(p_frame);
+#undef OWNER
+#define OWNER OWNER_SYS_DATA_CONNECTOR_SEND
+static SE_MUST_USE err_h send_frame(uint8_t id, const tx_snapshot_t* snap, const binding_t* b, uint32_t peer, const uint8_t* frame, size_t len) {
+  const sys_data_connector_provider_t* ops = find_provider(b->provider_id);
+  if (!ops) SE_FAIL(ERR_DATA_CONNECTOR_NO_PROVIDER, .provider_id = b->provider_id);
+  size_t limit = binding_limit(snap, ops, b->endpoint, peer);
+  if (len > limit) {
+    SE_FAIL(ERR_DATA_CONNECTOR_FRAME_TOO_LONG, .id = id, .provider_id = b->provider_id, .len = (uint32_t)len, .max = (uint32_t)limit);
   }
+  SE_TRY(ops->send(b->endpoint, peer, frame, len));
+  return NULL;
+}
+
+/* Prepend the stream byte. Checks against the connector's own cap; each
+   binding's (smaller) transport limit is checked in send_frame(). */
+static SE_MUST_USE err_h build_frame(uint8_t id, const tx_snapshot_t* snap, const void* data, size_t len, uint8_t* frame, size_t* frame_len) {
+  if (len + 1 > snap->max_frame) {
+    SE_FAIL(ERR_DATA_CONNECTOR_FRAME_TOO_LONG, .id = id, .provider_id = 0, .len = (uint32_t)(len + 1), .max = snap->max_frame);
+  }
+  frame[0] = snap->header;
+  memcpy(&frame[1], data, len);
+  *frame_len = len + 1;
+  return NULL;
+}
+
+err_h sys_data_connector_send(uint8_t id, const void* data, size_t len) {
+  SE_CHECK_NOT_NULL(data);
+  if (len == 0) return NULL;
+  tx_snapshot_t snap;
+  if (!take_tx_snapshot(id, &snap)) SE_FAIL(ERR_BASE_NOT_FOUND, id);
+  if (snap.suspended || snap.count == 0) return NULL;
+
+  uint8_t frame[CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX];
+  size_t frame_len = 0;
+  SE_TRY(build_frame(id, &snap, data, len, frame, &frame_len));
+
+  /* Every binding gets the frame even if one fails; the first error is returned. */
+  err_h first = NULL;
+  for (uint8_t i = 0; i < snap.count; i++) {
+    err_h err = send_frame(id, &snap, &snap.tx[i], SYS_DATA_CONNECTOR_PEER_ALL, frame, frame_len);
+    if (err && !first) first = err;
+    else SE_release(err);
+  }
+  return first;
+}
+
+err_h sys_data_connector_send_to(uint8_t id, const sys_data_connector_origin_t* to, const void* data, size_t len) {
+  SE_CHECK_NOT_NULL(to);
+  SE_CHECK_NOT_NULL(data);
+  if (len == 0) return NULL;
+  tx_snapshot_t snap;
+  if (!take_tx_snapshot(id, &snap)) SE_FAIL(ERR_BASE_NOT_FOUND, id);
+  if (snap.suspended) return NULL;
+  const binding_t* b = find_binding(snap.tx, snap.count, to->provider_id);
+  if (!b) return NULL;
+
+  uint8_t frame[CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX];
+  size_t frame_len = 0;
+  SE_TRY(build_frame(id, &snap, data, len, frame, &frame_len));
+  SE_TRY(send_frame(id, &snap, b, to->peer, frame, frame_len));
+  return NULL;
 }
 
 // -----------------------------------------------------------------------------
-// Inbound Frame Dequeue (RX)
+// RX
 // -----------------------------------------------------------------------------
 
 #undef OWNER
 #define OWNER OWNER_SYS_DATA_CONNECTOR_RECEIVE
-err_h sys_data_connector_receive(sys_data_connector_t* conn, uint8_t* buf, size_t max_len, size_t* out_len) {
-  if (!conn || !conn->allocated || conn->suspended || !buf || !out_len) {
-    if (out_len) *out_len = 0;
-    return NULL;
-  }
-
+err_h sys_data_connector_receive(uint8_t id, uint8_t* buf, size_t max_len, size_t* out_len, sys_data_connector_origin_t* out_origin) {
+  SE_CHECK_NOT_NULL(buf);
+  SE_CHECK_NOT_NULL(out_len);
   *out_len = 0;
 
-  for (uint8_t i = 0; i < conn->rx_count; i++) {
-    const sys_data_provider_driver_t* prov = find_provider(conn->rx_provider_id[i]);
-    if (!prov || !prov->dequeue) continue;
-
-    err_h dq_err = prov->dequeue(conn->rx_provider_arg[i], buf, max_len, out_len);
-    if (SE_IS_ERR(dq_err)) {
-      return dq_err;
-    }
-
-    if (*out_len > 0) {
-      return NULL; // Frame retrieved
-    }
+  binding_t rx[CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX];
+  R_MUTEX_LOCK(sys_data_connector_mutex, WAIT_FOREVER);
+  connector_t* c = find_conn(id);
+  if (!c) {
+    R_MUTEX_UNLOCK(sys_data_connector_mutex);
+    SE_FAIL(ERR_BASE_NOT_FOUND, id);
   }
+  uint8_t count = c->suspended ? 0 : c->rx_count;
+  uint8_t start = c->rx_next;
+  memcpy(rx, c->rx, sizeof(rx));
+  R_MUTEX_UNLOCK(sys_data_connector_mutex);
 
+  for (uint8_t i = 0; i < count; i++) {
+    uint8_t idx = (uint8_t)((start + i) % count);
+    /* bind_rx only accepts providers with dequeue, and providers are never removed. */
+    const sys_data_connector_provider_t* ops = find_provider(rx[idx].provider_id);
+    uint32_t peer = 0;
+    err_h err = ops->dequeue(rx[idx].endpoint, buf, max_len, out_len, &peer);
+    if (!err && *out_len == 0) continue;
+
+    R_MUTEX_LOCK(sys_data_connector_mutex, WAIT_FOREVER);
+    c = find_conn(id);
+    if (c && c->rx_count == count) c->rx_next = (uint8_t)((idx + 1) % count);
+    R_MUTEX_UNLOCK(sys_data_connector_mutex);
+
+    if (err) {
+      *out_len = 0;
+      SE_TRY(err);
+    }
+    if (out_origin) *out_origin = (sys_data_connector_origin_t){.provider_id = rx[idx].provider_id, .peer = peer};
+    return NULL;
+  }
   return NULL;
 }
 
-// -----------------------------------------------------------------------------
-// Flow Control & Suspension
-// -----------------------------------------------------------------------------
-
-void sys_data_connector_suspend(sys_data_connector_t* conn) {
-  if (conn) conn->suspended = true;
+bool sys_data_connector_wait_rx(uint8_t id, uint32_t timeout_ms) {
+  if (id >= CONFIG_SYS_DATA_CONNECTOR_MAX || !s_wake[id]) {
+    vTaskDelay(pdMS_TO_TICKS(timeout_ms));
+    return false;
+  }
+  return xSemaphoreTake(s_wake[id], pdMS_TO_TICKS(timeout_ms)) == pdTRUE;
 }
 
-void sys_data_connector_resume(sys_data_connector_t* conn) {
-  if (conn) conn->suspended = false;
-}
-
-bool sys_data_connector_is_suspended(const sys_data_connector_t* conn) {
-  return conn ? conn->suspended : false;
+void sys_data_connector_notify_rx(uint8_t id) {
+  if (id < CONFIG_SYS_DATA_CONNECTOR_MAX && s_wake[id]) xSemaphoreGive(s_wake[id]);
 }

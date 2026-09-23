@@ -154,7 +154,8 @@
             "id": {
               "type": "uint8_t",
               "alias": "Connector ID",
-              "required": true
+              "required": true,
+              "enum_ref": "sys_data_connector_id_e"
             },
             "header": {
               "type": "uint8_t",
@@ -188,7 +189,8 @@
             "id": {
               "type": "uint8_t",
               "alias": "Connector ID",
-              "required": true
+              "required": true,
+              "enum_ref": "sys_data_connector_id_e"
             }
           }
         },
@@ -205,12 +207,14 @@
             "connector_id": {
               "type": "uint8_t",
               "alias": "Connector ID",
-              "required": true
+              "required": true,
+              "enum_ref": "sys_data_connector_id_e"
             },
             "provider_id": {
               "type": "uint8_t",
               "alias": "Provider ID",
-              "required": true
+              "required": true,
+              "enum_ref": "runit_data_provider_e"
             },
             "provider_param": {
               "type": "uint32_t",
@@ -231,12 +235,14 @@
             "connector_id": {
               "type": "uint8_t",
               "alias": "Connector ID",
-              "required": true
+              "required": true,
+              "enum_ref": "sys_data_connector_id_e"
             },
             "provider_id": {
               "type": "uint8_t",
               "alias": "Provider ID",
-              "required": true
+              "required": true,
+              "enum_ref": "runit_data_provider_e"
             }
           }
         },
@@ -253,12 +259,14 @@
             "connector_id": {
               "type": "uint8_t",
               "alias": "Connector ID",
-              "required": true
+              "required": true,
+              "enum_ref": "sys_data_connector_id_e"
             },
             "provider_id": {
               "type": "uint8_t",
               "alias": "Provider ID",
-              "required": true
+              "required": true,
+              "enum_ref": "runit_data_provider_e"
             },
             "provider_param": {
               "type": "uint32_t",
@@ -279,12 +287,14 @@
             "connector_id": {
               "type": "uint8_t",
               "alias": "Connector ID",
-              "required": true
+              "required": true,
+              "enum_ref": "sys_data_connector_id_e"
             },
             "provider_id": {
               "type": "uint8_t",
               "alias": "Provider ID",
-              "required": true
+              "required": true,
+              "enum_ref": "runit_data_provider_e"
             }
           }
         },
@@ -299,7 +309,8 @@
             "id": {
               "type": "uint8_t",
               "alias": "Connector ID",
-              "required": true
+              "required": true,
+              "enum_ref": "sys_data_connector_id_e"
             }
           }
         },
@@ -314,7 +325,8 @@
             "id": {
               "type": "uint8_t",
               "alias": "Connector ID",
-              "required": true
+              "required": true,
+              "enum_ref": "sys_data_connector_id_e"
             }
           }
         }

@@ -4,6 +4,7 @@
 #include "vm_event.h"
 #include "vm_obj_dyn.h"
 #include "vm_override.h"
+#include "vm_retain.h"
 #include "vm_store.h"
 
 // This file's DBG() calls fire on CONFIG_DBG_GLOBAL or this component's own
@@ -166,6 +167,19 @@ void vm_exec_set_sample_hook(void (*hook)(void)) {
   s_sample_hook = hook;
 }
 
+// System actions are queued elsewhere, never run on this task (vm_exec.h)
+static vm_action_request_f s_action_request;
+
+void vm_exec_register_action_request(vm_action_request_f request) {
+  s_action_request = request;
+}
+
+err_h vm_exec_request_action(uint8_t scope, uint8_t id) {
+  if (!s_action_request) SE_FAIL(ERR_VM_NO_ACTION_EXECUTOR, .scope = scope, .action_id = id);
+  SE_TRY(s_action_request(scope, id));
+  return NULL;
+}
+
 /* ==========================================================================
    The pass
    ========================================================================== */
@@ -232,17 +246,6 @@ static void run_block(vm_block_h b, vm_block_fn fn) {
   // per-call bits only; VM_BLK_RT_SPAN_BAD and anything sticky survives
   b->cfg.rt &= (uint8_t)~VM_BLK_RT_PER_CALL;
 
-  /* g_vm_block_fault is one global, and a span owner is *mid-call* while the
-     blocks inside its span run through here. Without saving it, the innermost
-     block to finish decides two things it has no business deciding: it clears
-     whatever fault the owner had already recorded, and it leaves its own behind
-     for the owner's on_error to be applied to. So a FOR would have its ENO
-     dropped because the last block in its body failed -- after that block's own
-     on_error had already dealt with it -- and a FOR that genuinely failed would
-     get away with it. Saving here is what keeps the flag per-block rather than
-     per-nesting-level; the top-level walk saves and restores `false`. */
-  const bool outer_fault = g_vm_block_fault;
-  g_vm_block_fault = false;
   fn(b);
 
   /* cfg.on_error, finally enforced -- and it is literally what the name says:
@@ -254,18 +257,17 @@ static void run_block(vm_block_h b, vm_block_fn fn) {
      body knows it failed it may already have published and returned. The
      outputs are *not* retracted: whatever the block wrote is what it computed,
      and the flow being stopped is what keeps anything from acting on it. */
-  if (unlikely(g_vm_block_fault) && b->cfg.on_error == VM_BLK_ERR_STOP) {
+  if (unlikely(vm_block_failed(b)) && b->cfg.on_error == VM_BLK_ERR_STOP) {
     vm_block_set_eno(b, false);
   }
 
-  g_vm_block_fault = outer_fault;  // hand the owner back its own fault state
 }
 
 void vm_exec_run_range(uint16_t start, uint16_t end) {
   // Reject self-recursion and range escapes before any nested block can act
   if (s_current_block &&
       (start != s_child_bounds.start || end <= start || end > s_child_bounds.end)) {
-    g_vm_block_fault = true;
+    vm_block_mark_failed(s_current_block);
     if (!(s_current_block->cfg.rt & VM_BLK_RT_SPAN_BAD)) {
       s_current_block->cfg.rt |= VM_BLK_RT_SPAN_BAD;
       SE_RAISE(ERR_VM_EXEC_BAD_SPAN, .block_idx = s_current_block->cfg.block_idx, .start = start, .end = end);
@@ -273,7 +275,7 @@ void vm_exec_run_range(uint16_t start, uint16_t end) {
     return;
   }
   if (unlikely(s_span_depth >= CONFIG_VM_EXEC_MAX_SPAN_DEPTH)) {
-    g_vm_block_fault = true;
+    if (s_current_block) vm_block_mark_failed(s_current_block);
     SE_RAISE(ERR_VM_EXEC_SPAN_DEPTH, .block_idx = start, .depth = CONFIG_VM_EXEC_MAX_SPAN_DEPTH);
     return;
   }
@@ -372,6 +374,7 @@ void vm_exec_pass(void) {
   // Order within pass: execute blocks -> sample subscriptions -> clear upd
   bool completed = !vm_exec_cancelled();
   if (completed && s_sample_hook) s_sample_hook();
+  if (completed) vm_retain_on_pass(t0 / 1000u);
   clear_upd();
 
   portENTER_CRITICAL(&s_program_mux);
@@ -442,7 +445,7 @@ err_h vm_exec_start(void) {
     SE_FAIL(ERR_BASE_NO_MEM, 0);
   }
 
-  DBG(ESP_LOGI(TAG, "supervisor started on core %d, %u block types in the table", CONFIG_VM_EXEC_TASK_CORE, g_vm_blocks_cnt););
+  DBG(ESP_LOGI(TAG, "supervisor started on core %d, %u block types in the table", CONFIG_VM_EXEC_TASK_CORE, g_vm_block_types_cnt););
   return NULL;
 }
 
@@ -548,6 +551,12 @@ err_h vm_exec_control(vm_exec_command_e command) {
     vm_exec_program_unlock(s_selected == VM_RUN_RUNNING ? VM_RUN_FROZEN : s_selected);
     return NULL;
   }
+  /* First start after a load: stored retained values go in before the first
+     pass. A failed restore is reported and the program starts anyway. */
+  if (command == VM_EXEC_NORMAL_MODE || command == VM_EXEC_SCAN_MODE || command == VM_EXEC_BLOCK_MODE) {
+    SE_REPORT(vm_retain_restore());
+  }
+
   portENTER_CRITICAL(&s_program_mux);
   bool valid = !s_program_locked && !(s_stop_requested && s_pass_active);
   if (valid) switch (command) {
@@ -642,7 +651,6 @@ void vm_exec_reset(void) {
   s_pass_task = NULL;
   portEXIT_CRITICAL(&s_program_mux);
   wd_leave();  // sampler history stays owned by the timer task
-  g_vm_block_fault = false;
   g_vm_pass_ms = 0;
   vm_exec_reset_stats();
 }

@@ -5,15 +5,18 @@
 /** @brief Transport send used by sys_errors output. Best effort, no result. */
 typedef void (*sys_error_sink_send_f)(const void* data, size_t len);
 
+/** @brief Current largest error packet the transport carries (it can change at runtime, e.g. BLE MTU). */
+typedef size_t (*sys_error_sink_max_len_f)(void);
+
 /**
  * @brief Where sys_errors output goes. sys_errors knows no transport: the
  * application binds one at boot with SE_register_sink(). Unbound outputs are
  * dropped (serial mirroring still works).
  */
 typedef struct sys_error_sink_t {
-  sys_error_sink_send_f send_log;    /**< Text lines: ESP_LOG output and expanded error chains. */
-  sys_error_sink_send_f send_packet; /**< Binary error-chain packets (enc_sys_errors). */
-  size_t packet_max_len;             /**< Transport frame limit; 0 or larger than CONFIG_SYS_ERRORS_PACKET_MAX means that maximum. */
+  sys_error_sink_send_f send_log;           /**< Text lines: ESP_LOG output and expanded error chains. */
+  sys_error_sink_send_f send_packet;        /**< Binary error-chain packets (enc_sys_errors). */
+  sys_error_sink_max_len_f packet_max_len;  /**< Asked before every packet; NULL, 0 or above CONFIG_SYS_ERRORS_PACKET_MAX means that maximum. */
 } sys_error_sink_t;
 
 /**

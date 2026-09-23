@@ -61,6 +61,9 @@ typedef struct {
   struct ble_gatt_svc_def* compiled_db;
 } sys_ble_ctx_t;
 
+/* ATT notification / indication header (opcode + handle): payload = MTU - 3. */
+#define SYS_BLE_ATT_NOTIFY_HDR_LEN 3u
+
 extern sys_ble_ctx_t g_ble_ctx;
 extern SemaphoreHandle_t sys_ble_mutex;
 extern SemaphoreHandle_t sys_ble_tx_sem;
@@ -83,14 +86,17 @@ SE_MUST_USE err_h populate_svc_def(struct ble_gatt_svc_def* svc_def, const sys_b
     }                                                                                             \
   } while (0)
 
+/* Unlock before logging: a log line goes through the error sink to a data
+   connector and back into sys_ble_char_send(), which takes sys_ble_mutex
+   (not recursive) in this same task. */
 #define CHECK_BLE_CHAR_FIND(var, uuid, mutex_unlock)                                         \
   do {                                                                                       \
     (var) = sys_ble_find_char_by_uuid(uuid);                                                 \
     if ((var) == NULL) {                                                                     \
-      ESP_LOGE(__FILE_NAME__, "%s: Characteristic UUID 0x%04X not found", __func__, (uuid)); \
       if (mutex_unlock) {                                                                    \
         R_MUTEX_UNLOCK(sys_ble_mutex);                                                       \
       }                                                                                      \
+      ESP_LOGE(__FILE_NAME__, "%s: Characteristic UUID 0x%04X not found", __func__, (uuid)); \
       SE_FAIL(ERR_BASE_NOT_FOUND, uuid);                                                \
     }                                                                                        \
   } while (0)
@@ -99,8 +105,8 @@ SE_MUST_USE err_h populate_svc_def(struct ble_gatt_svc_def* svc_def, const sys_b
   do {                                                                                \
     (var) = sys_ble_find_svc_by_uuid(uuid);                                           \
     if ((var) == NULL) {                                                              \
-      ESP_LOGE(__FILE_NAME__, "%s: Service UUID 0x%04X not found", __func__, (uuid)); \
       if (mutex_unlock) R_MUTEX_UNLOCK(sys_ble_mutex);                                \
+      ESP_LOGE(__FILE_NAME__, "%s: Service UUID 0x%04X not found", __func__, (uuid)); \
       SE_FAIL(ERR_BASE_NOT_FOUND, uuid);                                           \
     }                                                                                 \
   } while (0)

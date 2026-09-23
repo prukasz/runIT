@@ -40,6 +40,43 @@ menu "VM Configuration"
 
     endmenu
 
+    menu "VM Retained Values"
+
+        config VM_RETAIN_PERIOD_S
+            int "Save period (s)"
+            default 60
+            range 5 3600
+            help
+                How often the values of retentive objects are saved to flash,
+                if any changed. Also saved on program teardown and on the safe
+                state; an unplanned power loss loses at most one period.
+
+        config VM_RETAIN_MAX_BYTES
+            int "Maximum retained bytes"
+            default 1024
+            range 64 8192
+            help
+                Size of the stored record (2 + per object: 4 + name + value).
+                A program retaining more is refused at load
+                (ERR_VM_RETAIN_TOO_BIG). Costs twice this in RAM.
+
+        config VM_RETAIN_TASK_STACK
+            int "Retain task stack (bytes)"
+            default 3072
+            range 2048 8192
+            help
+                Stack of the low-priority task that writes retained values
+                to flash, off the VM task.
+
+        config VM_RETAIN_TASK_PRIO
+            int "Retain task priority"
+            default 2
+            range 1 24
+            help
+                Priority of the retain task; below the VM supervisor.
+
+    endmenu
+
     menu "VM Block & Memory Limits"
 
         config VM_BLOCK_MAX_IN

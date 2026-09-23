@@ -11,12 +11,13 @@ idf_component_register(
          "core/exec/vm_event.c" "core/exec/vm_exec.c" "core/exec/vm_override.c"
          "core/loader/vm_loader.c"
          "core/sub/vm_sub.c"
+         "core/retain/vm_retain.c"
          "blocks/vm_blocks_table.c"
-    INCLUDE_DIRS "core/errors" "core/store" "core/obj" "core/block" "core/exec" "core/loader" "core/sub" "blocks"
+    INCLUDE_DIRS "core/errors" "core/store" "core/obj" "core/block" "core/exec" "core/loader" "core/sub" "core/retain" "blocks"
     # exec/ is the first layer with anything outside the arena to talk to: the
     # supervisor is a FreeRTOS task pinned to core 1 (utils' R_TASK_* macros),
     # and every timing block plus the block watchdog reads esp_timer.
-    REQUIRES sys_errors utils freertos esp_timer sys_event esp_ringbuf sys_data_connector sys_io sys_device
+    REQUIRES sys_errors utils freertos esp_timer sys_event esp_ringbuf sys_data_connector sys_io sys_device sys_settings
 )
 
 # The project builds at -Og (CONFIG_COMPILER_OPTIMIZATION_DEBUG), which is the
@@ -25,8 +26,8 @@ idf_component_register(
 # layers, and -Og turns every one of those into stack traffic instead of
 # keeping them in registers. This is the one component that runs inside a scan
 # cycle rather than at boot or on a packet, so it is compiled for speed
-# regardless of the project-wide setting. Measured with vm_bench.c -- see the
-# benchmark section of VM.MD before changing this.
+# regardless of the project-wide setting. Measured with the (since removed)
+# access benchmark -- see VM_PERF.MD before changing this.
 target_compile_options(${COMPONENT_LIB} PRIVATE -O2)
 
 # The palette is a designated-initialiser table (blocks/vm_blocks_table.c), and

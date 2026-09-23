@@ -38,10 +38,11 @@
 /** @brief Runtime status flags (latched per pass or sticky across load). */
 #define VM_BLK_RT_TRIGGERED (1u << 0u)  // Fresh data arrived on an input (latched by vm_block_triggered)
 #define VM_BLK_RT_SPAN      (1u << 1u)  // Block claimed an execution range (vm_block_claim_span)
+#define VM_BLK_RT_FAULT     (1u << 2u)  // This call failed (vm_block_report_error / vm_block_mark_failed); read by on_error
 #define VM_BLK_RT_CFG_BAD   (1u << 6u)  // Sticky: malformed custom_data reported once per load
 #define VM_BLK_RT_SPAN_BAD  (1u << 7u)  // Sticky: malformed span reported once per load
 
-#define VM_BLK_RT_PER_CALL (VM_BLK_RT_TRIGGERED | VM_BLK_RT_SPAN)
+#define VM_BLK_RT_PER_CALL (VM_BLK_RT_TRIGGERED | VM_BLK_RT_SPAN | VM_BLK_RT_FAULT)
 
 // ===========================================================================
 // 2. Types & Block Data Structure
@@ -79,14 +80,32 @@ _Static_assert(sizeof(struct vm_block_data_t) == 16, "custom_len and rt must sta
 typedef vm_block_data_t* vm_block_h;
 
 /**
- * @brief Block execution handler signature (indexed by block_type in g_vm_blocks).
+ * @brief Block execution handler signature (the run member of a vm_block_type_t palette entry).
  */
 typedef void (*vm_block_fn)(vm_block_h);
 
 /**
- * @brief Block verification handler signature (indexed by block_type in g_vm_blocks_verify).
+ * @brief Extra load-time check of a block's private state (enum ranges,
+ * cross-field rules). The shape itself is checked from vm_block_type_t.
  */
 typedef bool (*vm_block_verify_fn)(vm_block_h);
+
+/**
+ * @brief One palette entry: everything the VM knows about a block type.
+ *
+ * Indexed by block_type in g_vm_block_types[] (blocks/vm_blocks_table.c). Each
+ * block header defines its entry as VM_BLOCK_TYPE_<NAME>, next to the body and
+ * the state layout it describes. vm_block_verify() checks a built block against
+ * it once at load, so bodies never re-check their own shape.
+ */
+typedef struct vm_block_type_t {
+  vm_block_fn run;           // Body, called every pass (NULL: type not in the palette)
+  vm_block_verify_fn check;  // Extra private-state check at load; NULL = none
+  uint8_t min_in;            // in_cnt >= min_in
+  uint8_t min_q;             // q_cnt >= min_q
+  uint16_t required_in;      // Bit n: input n must be wired
+  uint16_t state_len;        // custom_len >= state_len
+} vm_block_type_t;
 
 // ===========================================================================
 // 3. Sizing & Registry Lookups
@@ -94,7 +113,6 @@ typedef bool (*vm_block_verify_fn)(vm_block_h);
 
 /**
  * @brief Retrieve block handle from registry by ID (NULL if out of range).
-  @verified
  */
 static inline vm_block_h vm_block_get_by_id(uint16_t id) {
   return (vm_block_h)vm_store_get(VM_REG_BLK, id);
@@ -102,7 +120,6 @@ static inline vm_block_h vm_block_get_by_id(uint16_t id) {
 
 /**
  * @brief Compute total allocation bytes required for one block of the given shape.
-  @verified
  */
 static inline size_t vm_block_calc_size(uint8_t in_cnt, uint8_t q_cnt, uint8_t en_cnt, uint16_t custom_len) {
   return sizeof(vm_block_data_t) + (size_t)in_cnt * sizeof(const vm_accessor_t*) + (size_t)q_cnt * sizeof(vm_obj_h) + (size_t)en_cnt * sizeof(const vm_accessor_t*) + custom_len;
@@ -110,7 +127,6 @@ static inline size_t vm_block_calc_size(uint8_t in_cnt, uint8_t q_cnt, uint8_t e
 
 /**
  * @brief Return total allocated size of block in bytes.
-  @verified
  */
 static inline size_t vm_block_get_total_size(vm_block_h b) {
   return vm_block_calc_size(b->cfg.in_cnt, b->cfg.q_cnt, b->cfg.en_cnt, b->cfg.custom_len);
@@ -118,7 +134,6 @@ static inline size_t vm_block_get_total_size(vm_block_h b) {
 
 /**
  * @brief Return custom data length in bytes.
-  @verified
  */
 static inline uint16_t vm_block_get_custom_len(vm_block_h b) {
   return b->cfg.custom_len;
@@ -130,7 +145,6 @@ static inline uint16_t vm_block_get_custom_len(vm_block_h b) {
 
 /**
  * @brief Pointer to array of input accessors (in_cnt entries).
-  @verified
  */
 static inline const vm_accessor_t** vm_block_get_inputs(vm_block_h b) {
   return (const vm_accessor_t**)b->data;
@@ -138,7 +152,6 @@ static inline const vm_accessor_t** vm_block_get_inputs(vm_block_h b) {
 
 /**
  * @brief Pointer to array of output object handles (q_cnt entries).
-  @verified
  */
 static inline vm_obj_h* vm_block_get_outputs(vm_block_h b) {
   return (vm_obj_h*)(vm_block_get_inputs(b) + b->cfg.in_cnt);
@@ -146,7 +159,6 @@ static inline vm_obj_h* vm_block_get_outputs(vm_block_h b) {
 
 /**
  * @brief Pointer to array of enable accessors (en_cnt entries).
-  @verified
  */
 static inline const vm_accessor_t** vm_block_get_en_list(vm_block_h b) {
   return (const vm_accessor_t**)(vm_block_get_outputs(b) + b->cfg.q_cnt);
@@ -154,7 +166,6 @@ static inline const vm_accessor_t** vm_block_get_en_list(vm_block_h b) {
 
 /**
  * @brief Pointer to private custom data buffer directly following en_list.
- @verified
  */
 static inline void* vm_block_get_custom_data(vm_block_h b) {
   return (void*)(vm_block_get_en_list(b) + b->cfg.en_cnt);
@@ -163,7 +174,7 @@ static inline void* vm_block_get_custom_data(vm_block_h b) {
 // ===========================================================================
 // 5. Pin Access & Validation
 // Note: vm_block_get_in and vm_block_get_out perform runtime validation for
-// selftests and external diagnostics. Production block handlers access resolved
+// diagnostics and bring-up code. Production block handlers access resolved
 // pin arrays directly via vm_block_get_inputs / vm_block_get_outputs for speed.
 // ===========================================================================
 
@@ -173,7 +184,6 @@ static inline void* vm_block_get_custom_data(vm_block_h b) {
  * @param[in]  b      Block handle.
  * @param[in]  id     Input pin index (0 .. in_cnt-1).
  * @return err_h NULL on success, ERR_VM_BLOCK_PIN_MISSING or ERR_VM_BLOCK_PIN_UNLINKED.
-  @verified
  */
 static inline SE_MUST_USE err_h vm_block_get_in(const vm_accessor_t** target, vm_block_h b, uint8_t id) {
   if (unlikely(id >= b->cfg.in_cnt)) return vm_block_err_pin_missing(b->cfg.block_idx, id, false);
@@ -189,7 +199,6 @@ static inline SE_MUST_USE err_h vm_block_get_in(const vm_accessor_t** target, vm
  * @param[in]  b      Block handle.
  * @param[in]  id     Output pin index (0 .. q_cnt-1).
  * @return err_h NULL on success, ERR_VM_BLOCK_PIN_MISSING or ERR_VM_BLOCK_PIN_UNLINKED.
-  @verified
  */
 static inline SE_MUST_USE err_h vm_block_get_out(vm_obj_h* target, vm_block_h b, uint8_t id) {
   if (unlikely(id >= b->cfg.q_cnt)) return vm_block_err_pin_missing(b->cfg.block_idx, id, true);
@@ -203,15 +212,27 @@ static inline SE_MUST_USE err_h vm_block_get_out(vm_obj_h* target, vm_block_h b,
 // 6. Runtime Evaluation, Spans & ENO
 // ===========================================================================
 
-/** @brief Latches failure reported by the executing block body. */
-extern bool g_vm_block_fault;
+/**
+ * @brief Mark this call of @p b as failed without reporting (the error was
+ * reported elsewhere, or is a latched standing condition).
+ *
+ * The fault is a per-call bit in the block's own cfg.rt, cleared before every
+ * call, so a span owner and the blocks in its body each keep their own.
+ */
+static inline void vm_block_mark_failed(vm_block_h b) {
+  b->cfg.rt |= VM_BLK_RT_FAULT;
+}
 
-/** @brief Reports execution failure and latches fault. */
-void vm_block_report_error(err_h cause, uint16_t block_idx, uint8_t block_type);
+/** @brief True when this call of @p b has failed so far (cfg.on_error acts on it). */
+static inline bool vm_block_failed(vm_block_h b) {
+  return (b->cfg.rt & VM_BLK_RT_FAULT) != 0;
+}
+
+/** @brief Reports @p cause wrapped with the block's identity and marks this call failed. */
+void vm_block_report_error(err_h cause, vm_block_h b);
 
 /**
  * @brief Evaluates block enable status across en_cnt sources (0 = always enabled).
- * @verified
  */
 static inline bool vm_block_is_enabled(vm_block_h b) {
   // if no en inputs = active
@@ -224,7 +245,7 @@ static inline bool vm_block_is_enabled(vm_block_h b) {
     bool  v = false;
     err_h e = VM_OBJ_SCALAR_GET(v, en[i]);
     if (unlikely(e)) {
-      vm_block_report_error(e, b->cfg.block_idx, b->cfg.block_type);
+      vm_block_report_error(e, b);
       v = false;  // fail closed
     }
     // check if one required or all
@@ -239,7 +260,6 @@ static inline bool vm_block_is_enabled(vm_block_h b) {
 
 /**
  * @brief Set block ENO: true marks updated (loud), false clears quietly without upd.
- * @verified
  */
 static inline void vm_block_set_eno(vm_block_h b, bool state) {
   if (!b->cfg.eno) return;
@@ -250,12 +270,11 @@ static inline void vm_block_set_eno(vm_block_h b, bool state) {
 }
 
 /** @brief True if any input carries fresh data (latches VM_BLK_RT_TRIGGERED).
-@verified*/
+ */
 bool vm_block_triggered(vm_block_h b);
 
 /**
  * @brief Freshness (`upd`) belongs to the owning object; unresolved pins fail closed silently.
- * @verified
  */
 static inline bool vm_block_pin_fresh(const vm_accessor_t* acc) {
   if (!acc) return false;
@@ -278,7 +297,6 @@ static inline bool vm_block_pin_fresh(const vm_accessor_t* acc) {
 
 /**
  * @brief True if specific input pin carries fresh data.
- * @verified
  */
 static inline bool vm_block_input_fresh(vm_block_h b, uint8_t pin) {
   if (unlikely(pin >= b->cfg.in_cnt)) return false;
@@ -286,7 +304,7 @@ static inline bool vm_block_input_fresh(vm_block_h b, uint8_t pin) {
 }
 
 /** @brief Trigger from one source pin, ignoring destination/parameter inputs.
-@verified */
+ */
 static inline bool vm_block_triggered_by(vm_block_h b, uint8_t pin) {
   if (!vm_block_input_fresh(b, pin)) return false;
   b->cfg.rt |= VM_BLK_RT_TRIGGERED;
@@ -295,7 +313,6 @@ static inline bool vm_block_triggered_by(vm_block_h b, uint8_t pin) {
 
 /**
  * @brief Block execution span from custom_data (NULL if custom_len < sizeof(vm_span_t)).
-  @verified
  */
 static inline const vm_span_t* vm_block_get_span(vm_block_h b) {
   if (b->cfg.custom_len < sizeof(vm_span_t)) return NULL;
@@ -304,7 +321,6 @@ static inline const vm_span_t* vm_block_get_span(vm_block_h b) {
 
 /**
  * @brief Takes over [start, end) range so outer execution walk jumps over it.
-  @verified
  */
 void vm_block_claim_span(vm_block_h b, uint16_t start, uint16_t end);
 
@@ -313,17 +329,17 @@ void vm_block_claim_span(vm_block_h b, uint16_t start, uint16_t end);
 // ===========================================================================
 
 /* Block activation macros. Nestable: IF_BLOCK_TRIGGERED(b) IF_BLOCK_ENABLED(b) { ... }
- @verified*/
+ */
 #define IF_BLOCK_ENABLED(block)   if (vm_block_is_enabled(block))
 #define IF_BLOCK_TRIGGERED(block) if (vm_block_triggered(block))
 
-/** @brief Runs an err_h call, reporting failure with block context and latching g_vm_block_fault.
- @verified*/
+/** @brief Runs an err_h call, reporting failure with block context and marking the call failed.
+ */
 #define BLOCK_CALL(call, block)                                                       \
   do {                                                                                \
     err_h __bc_e = (call);                                                            \
     if (__bc_e) {                                                                     \
-      vm_block_report_error(__bc_e, (block)->cfg.block_idx, (block)->cfg.block_type); \
+      vm_block_report_error(__bc_e, (block)); \
     }                                                                                 \
   } while (0)
 

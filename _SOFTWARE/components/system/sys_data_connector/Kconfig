@@ -28,10 +28,14 @@ menu "System Data Connector Options"
         help
           Maximum length of diagnostic name string per connector.
 
-    config SYS_DATA_CONNECTOR_MAX_PACKET_LEN
-        int "Maximum Packet Length (bytes)"
+    config SYS_DATA_CONNECTOR_FRAME_MAX
+        int "Maximum Frame Length (bytes)"
         default 512
         range 64 4096
         help
-          Default compile-time maximum packet / frame length for data connectors.
+          Largest frame any connector carries in either direction, including
+          the outbound stream byte. Every frame buffer on the path (connector
+          send, sys_interface RX, recorded actions) is statically sized to it.
+          The limit used at runtime is smaller when a transport reports one
+          (BLE: the negotiated MTU - 3); see sys_data_connector_max_payload().
 endmenu

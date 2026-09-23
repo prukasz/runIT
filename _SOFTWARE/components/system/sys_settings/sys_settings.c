@@ -38,6 +38,28 @@ err_h sys_settings_load(const char* key, void* out, size_t size, bool* out_found
   return NULL;
 }
 
+err_h sys_settings_load_blob(const char* key, void* out, size_t capacity, size_t* out_len, bool* out_found) {
+  SE_CHECK_NOT_NULL(key);
+  SE_CHECK_NOT_NULL(out);
+  SE_CHECK_NOT_NULL(out_len);
+  SE_CHECK_NOT_NULL(out_found);
+  *out_found = false;
+  *out_len = 0;
+  if (!s_ready) SE_FAIL(ERR_BASE_INVALID_STATE, 0);
+
+  size_t stored = 0;
+  esp_err_t rc = nvs_get_blob(s_nvs, key, NULL, &stored);
+  if (rc == ESP_ERR_NVS_NOT_FOUND) return NULL;
+  SE_TRY_ESP(rc);
+  if (stored > capacity) {
+    SE_FAIL(ERR_SETTINGS_SIZE_MISMATCH, .stored = (uint16_t)stored, .expected = (uint16_t)capacity);
+  }
+  SE_TRY_ESP(nvs_get_blob(s_nvs, key, out, &stored));
+  *out_len = stored;
+  *out_found = true;
+  return NULL;
+}
+
 #undef OWNER
 #define OWNER OWNER_SYS_SETTINGS_STORE
 err_h sys_settings_store(const char* key, const void* data, size_t size) {

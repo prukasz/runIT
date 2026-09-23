@@ -47,7 +47,6 @@ The macros work (the firmware boots on hardware). Fixes worth doing:
 Places not yet following the rule:
 - `vm_exec.c` → `R_TASK_DEFINE(vm_exec_task_h, 6144)` and `esp_adc_config.c` → `R_TASK_DEFINE(adc_processing_task, 4096)` hard-code their stack sizes. Move them to Kconfig.
 - `driver_ap33772s.c` creates its service task with `xTaskCreate(..., 3072, ..., 5, ...)`: dynamic, with a hard-coded stack and priority. Decide whether it is per-instance (dynamic is fine, but take the values from Kconfig) or a singleton (make it static).
-- `sys_data_connector.c` creates one `xSemaphoreCreateBinary()` per connector. The connectors are created at boot, so a static array sized by `CONFIG_SYS_DATA_CONNECTOR_MAX` would follow the rule.
 
 ## 2. Constants and configuration
 

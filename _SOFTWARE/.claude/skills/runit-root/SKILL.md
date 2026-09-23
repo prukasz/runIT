@@ -19,7 +19,7 @@ description: Entry point for any new session in the runIT repo. Gives project vi
 | App (React/TS, BLE client, canvas, remote, configurator) | `runit-app` | `app/` |
 | Wire format / JSON descriptors shared by both | `data-structures/AGENTS.md` | `data-structures/` |
 
-`runit-esp` is complete except `vm.md`; `runit-app` is a stub. The old skills they replace are backed up outside the repo in `../_agents_backup_2026-09-22/` — not loaded automatically.
+`runit-esp` is complete (VM docs in its `vm/` subfolder); `runit-app` is a stub. The old skills they replace are backed up outside the repo in `../_agents_backup_2026-09-22/` — not loaded automatically.
 
 ## 2. Project in one paragraph
 

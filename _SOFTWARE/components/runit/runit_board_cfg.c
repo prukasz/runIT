@@ -5,7 +5,9 @@
 #include "devices.h"
 #include "runit_board_defs.h"
 #include "sys_ble.h"
-#include "sys_data_connector_ble.h"
+#include "sys_ble_provider.h"
+#include "sys_buffers.h"
+#include "sys_data_connector.h"
 #include "sys_error_log.h"
 #include "sys_i2c.h"
 #include "sys_io.h"
@@ -108,13 +110,18 @@ err_h runit_board_ble_init(void) {
   sys_ble_svc_cfg_t service_cfg = {.uuid = SYS_BLE_SVC_RUNIT, .is_primary = true};
   SE_TRY(sys_ble_service_create(&service_cfg));
 
-  sys_ble_char_cfg_t rx_cfg = {.uuid = SYS_BLE_CHR_RUNIT_RX, .is_write = true, .desc = "runit RX", .rx_buffer_size = 512};
+  /* Buffers are sized in frames of CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX, not
+     bytes: a no-split ringbuffer takes items of only half its size. */
+  sys_ble_char_cfg_t rx_cfg = {.uuid = SYS_BLE_CHR_RUNIT_RX, .is_write = true, .desc = "runit RX",
+                               .rx_buffer_size = SYS_BUFF_SIZE_FOR(CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX, 2)};
   SE_TRY(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &rx_cfg));
-  sys_ble_char_cfg_t tx_cfg = {.uuid = SYS_BLE_CHR_RUNIT_TX, .is_notify = true, .desc = "runit TX", .tx_buffer_size = 1024};
+  sys_ble_char_cfg_t tx_cfg = {.uuid = SYS_BLE_CHR_RUNIT_TX, .is_notify = true, .desc = "runit TX",
+                               .tx_buffer_size = SYS_BUFF_SIZE_FOR(CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX, 4)};
   SE_TRY(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &tx_cfg));
   sys_ble_char_cfg_t status_cfg = {.uuid = SYS_BLE_CHT_RUNIT_STATUS, .is_notify = true, .desc = "runit Status", .tx_buffer_size = 512};
   SE_TRY(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &status_cfg));
-  sys_ble_char_cfg_t logs_cfg = {.uuid = SYS_BLE_CHR_RUNIT_LOGS, .is_notify = true, .desc = "runit LOGS", .tx_buffer_size = 2048};
+  sys_ble_char_cfg_t logs_cfg = {.uuid = SYS_BLE_CHR_RUNIT_LOGS, .is_notify = true, .desc = "runit LOGS",
+                                 .tx_buffer_size = SYS_BUFF_SIZE_FOR(CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX, 4)};
   SE_TRY(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &logs_cfg));
 
   SE_TRY(sys_ble_database_sync());
@@ -123,32 +130,40 @@ err_h runit_board_ble_init(void) {
 }
 
 err_h runit_board_connector_bindings_init(void) {
-  SE_TRY(sys_data_connector_register_ble_provider());
-  SE_TRY(sys_data_connector_bind_tx(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_LOGS), SYS_DATA_PROVIDER_BLE, SYS_DATA_BLE_ARG(SYS_BLE_CHR_RUNIT_LOGS)));
-  SE_TRY(sys_data_connector_bind_tx(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_ERRORS), SYS_DATA_PROVIDER_BLE, SYS_DATA_BLE_ARG(SYS_BLE_CHR_RUNIT_LOGS)));
-  SE_TRY(sys_data_connector_bind_tx(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_TELEMETRY), SYS_DATA_PROVIDER_BLE, SYS_DATA_BLE_ARG(SYS_BLE_CHR_RUNIT_TX)));
-  SE_TRY(sys_data_connector_bind_tx(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_INTERFACE), SYS_DATA_PROVIDER_BLE, SYS_DATA_BLE_ARG(SYS_BLE_CHR_RUNIT_TX)));
-  SE_TRY(sys_data_connector_bind_rx(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_INTERFACE), SYS_DATA_PROVIDER_BLE, SYS_DATA_BLE_ARG(SYS_BLE_CHR_RUNIT_RX)));
+  const uint8_t ble = RUNIT_DATA_PROVIDER_BLE;
+  SE_TRY(sys_ble_provider_register(ble));
+  SE_TRY(sys_data_connector_bind_tx(SYS_DATA_CONNECTOR_LOGS, ble, SYS_BLE_CHR_RUNIT_LOGS));
+  SE_TRY(sys_data_connector_bind_tx(SYS_DATA_CONNECTOR_ERRORS, ble, SYS_BLE_CHR_RUNIT_LOGS));
+  SE_TRY(sys_data_connector_bind_tx(SYS_DATA_CONNECTOR_TELEMETRY, ble, SYS_BLE_CHR_RUNIT_TX));
+  SE_TRY(sys_data_connector_bind_tx(SYS_DATA_CONNECTOR_INTERFACE, ble, SYS_BLE_CHR_RUNIT_TX));
+  SE_TRY(sys_data_connector_bind_rx(SYS_DATA_CONNECTOR_INTERFACE, ble, SYS_BLE_CHR_RUNIT_RX));
   ESP_LOGI(TAG, "BLE data connectors bound");
   return NULL;
 }
 
 /* sys_errors output: text lines to the logs connector, binary error packets
-   to the errors connector. Looked up per send because the settings decoder
-   can remove and recreate connectors at runtime. */
+   to the errors connector. A failed send is released, not reported: reporting
+   it would log, and the log comes straight back to this sink. A log line longer
+   than the transport's current limit is cut to it (text only; error packets
+   are sized by runit_error_packet_max_len instead). */
 static void runit_error_log_send(const void* data, size_t len) {
-  sys_data_connector_send(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_LOGS), data, len);
+  size_t max = sys_data_connector_max_payload(SYS_DATA_CONNECTOR_LOGS);
+  SE_release(sys_data_connector_send(SYS_DATA_CONNECTOR_LOGS, data, len < max ? len : max));
 }
 
 static void runit_error_packet_send(const void* data, size_t len) {
-  sys_data_connector_send(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_ERRORS), data, len);
+  SE_release(sys_data_connector_send(SYS_DATA_CONNECTOR_ERRORS, data, len));
+}
+
+static size_t runit_error_packet_max_len(void) {
+  return sys_data_connector_max_payload(SYS_DATA_CONNECTOR_ERRORS);
 }
 
 err_h runit_board_error_sink_init(void) {
   SE_register_sink(&(sys_error_sink_t){
       .send_log = runit_error_log_send,
       .send_packet = runit_error_packet_send,
-      .packet_max_len = sys_data_connector_get_max_len(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_ERRORS)),
+      .packet_max_len = runit_error_packet_max_len,
   });
   return NULL;
 }

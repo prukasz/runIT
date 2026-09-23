@@ -178,6 +178,18 @@ SE_MUST_USE err_h sys_ble_char_send(uint16_t char_uuid, const uint8_t* data, siz
 SE_MUST_USE err_h sys_ble_database_sync(void);
 
 /**
+ * @brief Largest item sys_ble_char_send() can deliver on a characteristic right now.
+ *
+ * The smaller of the link (negotiated ATT MTU - 3) and the largest item the
+ * characteristic's TX buffer accepts. The link part starts at the BLE default
+ * (23 - 3 = 20 bytes) on connect; the device requests the largest MTU itself,
+ * so it rises as soon as the client answers. While disconnected nothing is
+ * sent, so only the buffer limits it. 0 for an unknown characteristic or one
+ * without a TX buffer.
+ */
+size_t sys_ble_char_max_payload(uint16_t char_uuid);
+
+/**
  * @brief Get the current BLE connection state, MTU size, and RX overflow count.
  *
  * @param out_status Pointer to status structure to populate.

@@ -59,6 +59,25 @@ SE_MUST_USE err_h vm_store_open(uint32_t total_size, const uint16_t counts[VM_RE
  */
 SE_MUST_USE err_h vm_store_alloc(void** out, vm_reg_e r, uint16_t id, uint32_t size);
 
+/**
+ * @brief Undo the most recent vm_store_alloc(): unbind @p id and rewind the arena.
+ *
+ * For a construction that allocates, then finds the result invalid, so a
+ * rejected item costs neither its id nor arena space. Only valid while nothing
+ * else was allocated since @p mark was taken.
+ *
+ * @code
+ * uint32_t mark = vm_store_used();
+ * SE_TRY(vm_store_alloc(&p, VM_REG_BLK, id, size));
+ * if (!valid(p)) { vm_store_undo(VM_REG_BLK, id, mark); SE_FAIL(...); }
+ * @endcode
+ *
+ * @param r Registry the id was bound in (ignored for VM_ID_NONE).
+ * @param id Id passed to vm_store_alloc(), or VM_ID_NONE.
+ * @param mark vm_store_used() taken just before that allocation.
+ */
+void vm_store_undo(vm_reg_e r, uint16_t id, uint32_t mark);
+
 /** @brief Current bytes allocated from the arena. */
 uint32_t vm_store_used(void);
 

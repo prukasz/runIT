@@ -21,6 +21,7 @@
  *  - ENO reflects successful hardware assertion this pass.
  */
 
+//#ref-enum @alias IO Disabled Action
 typedef enum {
   VM_IO_DISABLED_HOLD       = 0, // Keep last state on disable
   VM_IO_DISABLED_FORCE_LOW  = 1, // Assert LOW (0) on disable
@@ -35,9 +36,9 @@ typedef struct __attribute__((aligned(8))) {
   uint64_t allowed_mask;       // Permitted pins bitmask (0..63) for dynamic selection
   uint8_t  device_id;          // Target device ID
   uint8_t  default_io_num;     // Static pin number when IN1 (IO_NUM) is unwired
-  uint8_t  disabled_action;    // vm_io_disabled_state_e
-  uint8_t  flags;              // VM_IO_SET_F_* runtime flags
-  uint8_t  last_pin;           // Cached last pin number written
+  uint8_t  disabled_action;    // What disabled does @enum-ref vm_io_disabled_state_e
+  uint8_t  flags;              // VM_IO_SET_F_*: only VM_IO_SET_F_ALWAYS (0x04) is set by the app
+  uint8_t  last_pin;           // Cached last pin written; the app writes default_io_num
   uint8_t  _pad[3];            // Align to 16 bytes
 } vm_block_io_set_level_data_t;
 
@@ -65,11 +66,9 @@ static inline void vm_block_io_set_level_init_data(void* buffer, uint8_t device_
 #define VM_IO_SET_IN_PIN   1u // optional: dynamic pin number (0..63)
 
 static inline bool vm_verify_io_set_level(vm_block_h b) {
-  if (!vm_block_shape_valid(b, 1, 0, 0x1u)) return false;
-  if (b->cfg.custom_len < sizeof(vm_block_io_set_level_data_t)) return false;
-
-  const vm_block_io_set_level_data_t* d = (const vm_block_io_set_level_data_t*)vm_block_get_custom_data(b);
-  if (!d) return false;
+  vm_block_io_set_level_data_t data;
+  memcpy(&data, vm_block_get_custom_data(b), sizeof(data));
+  const vm_block_io_set_level_data_t* d = &data;
   if (d->allowed_mask == 0) return false;
   if (d->default_io_num >= 64 || !((1ULL << d->default_io_num) & d->allowed_mask)) return false;
   if (d->disabled_action > VM_IO_DISABLED_FORCE_HIGH) return false;
@@ -78,17 +77,7 @@ static inline bool vm_verify_io_set_level(vm_block_h b) {
 }
 
 static inline void vm_blk_io_set_level(vm_block_h b) {
-  if (unlikely(!vm_block_require(b, 1, 0, 0x1u))) {
-    vm_block_set_eno(b, false);
-    return;
-  }
-
   vm_block_io_set_level_data_t* d = (vm_block_io_set_level_data_t*)vm_block_get_custom_data(b);
-  if (unlikely(!d)) {
-    vm_block_cfg_bad(b);
-    vm_block_set_eno(b, false);
-    return;
-  }
 
   IF_BLOCK_ENABLED(b) {
     // 1. Read required LEVEL input
@@ -126,7 +115,7 @@ static inline void vm_blk_io_set_level(vm_block_h b) {
 
     if (needs_write) {
       BLOCK_CALL(sys_io_set_level(SYS_IO_REF(d->device_id, pin), level), b);
-      if (unlikely(g_vm_block_fault)) {
+      if (unlikely(vm_block_failed(b))) {
         vm_block_set_eno(b, false);
         return;
       }
@@ -147,7 +136,7 @@ static inline void vm_blk_io_set_level(vm_block_h b) {
       bool last_level = (d->flags & VM_IO_SET_F_LAST_LEVEL) != 0;
       if (dis_level != last_level) {
         BLOCK_CALL(sys_io_set_level(SYS_IO_REF(d->device_id, d->last_pin), dis_level), b);
-        if (unlikely(g_vm_block_fault)) {
+        if (unlikely(vm_block_failed(b))) {
           vm_block_set_eno(b, false);
           return;
         }
@@ -160,3 +149,12 @@ static inline void vm_blk_io_set_level(vm_block_h b) {
   vm_block_set_eno(b, false);
 }
 
+
+/* Palette entry (vm_blocks_table.c): shape and state size are checked at load
+   by vm_block_verify(), so the body never re-checks them. */
+//#vm-block VM_BLK_IO_SET_LEVEL @title Set Pin Level @category io @state vm_block_io_set_level_data_t
+//@block-description Drives a pin on an IO device (ESP GPIO, expander) to the input level; writes only on change unless ALWAYS.
+//@in 0 level @title Level
+//@in 1 pin @title Pin @description Overrides default_io_num; must be in allowed_mask.
+#define VM_BLOCK_TYPE_IO_SET_LEVEL \
+  {.run = vm_blk_io_set_level, .check = vm_verify_io_set_level, .min_in = 1, .min_q = 0, .required_in = 0x1u, .state_len = VM_IO_SET_LEVEL_CUSTOM_LEN}

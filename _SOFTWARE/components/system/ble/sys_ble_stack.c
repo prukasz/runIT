@@ -124,7 +124,16 @@ static int gap_event_handler(struct ble_gap_event* event, void* arg) {
         R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
         g_ble_ctx.conn_handle = event->connect.conn_handle;
         g_ble_ctx.is_connected = true;
+        g_ble_ctx.mtu_size = BLE_ATT_MTU_DFLT; /* until the MTU exchange */
         R_MUTEX_UNLOCK(sys_ble_mutex);
+
+        /* Don't wait for the client: request the preferred (largest) MTU now.
+           The result arrives as BLE_GAP_EVENT_MTU. A client that already
+           started the exchange gets BLE_HS_EALREADY here, which is fine. */
+        int mtu_rc = ble_gattc_exchange_mtu(event->connect.conn_handle, NULL, NULL);
+        if (mtu_rc != 0 && mtu_rc != BLE_HS_EALREADY) {
+          ESP_LOGW(TAG, "MTU exchange request failed: %d", mtu_rc);
+        }
 
         SE_REPORT(sys_ble_publish(SYS_BLE_EVENT_CONNECT, event->connect.conn_handle));
       } else {
@@ -300,7 +309,7 @@ static int sys_ble_gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle, st
   if (ctxt->op == BLE_GATT_ACCESS_OP_WRITE_CHR) {
     size_t len = OS_MBUF_PKTLEN(ctxt->om);
     if (len > 0) {
-      uint8_t data_buffer[512];
+      uint8_t data_buffer[BLE_ATT_ATTR_MAX_LEN];
       size_t copy_len = len > sizeof(data_buffer) ? sizeof(data_buffer) : len;
       os_mbuf_copydata(ctxt->om, 0, copy_len, data_buffer);
 
@@ -425,7 +434,7 @@ void sys_ble_free_compiled_gatt_db(struct ble_gatt_svc_def* svcs) {
 /* Select and copy one packet while the registry is locked. No node pointer
    escapes to the sender, so runtime removal cannot free an in-use TX buffer. */
 static size_t dequeue_tx(uint8_t* data, size_t capacity, uint16_t* val_handle, bool* indicate) {
-  size_t max_payload = g_ble_ctx.mtu_size > 3 ? g_ble_ctx.mtu_size - 3 : 20;
+  size_t max_payload = (size_t)(g_ble_ctx.mtu_size - SYS_BLE_ATT_NOTIFY_HDR_LEN);
   if (max_payload > capacity) max_payload = capacity;
   sys_ble_svc_node_t* s;
   LL_FOREACH(g_ble_ctx.services, s) {
@@ -449,7 +458,7 @@ static size_t dequeue_tx(uint8_t* data, size_t capacity, uint16_t* val_handle, b
 
 static void sys_ble_task_func(void* pvParameters) {
   (void)pvParameters;
-  uint8_t tx_data[527];
+  uint8_t tx_data[BLE_ATT_MTU_MAX - SYS_BLE_ATT_NOTIFY_HDR_LEN];
 
   while (1) {
     xSemaphoreTake(sys_ble_tx_sem, portMAX_DELAY);

@@ -3,7 +3,7 @@
 IMPORTANT: If you modify the source files in this component (sys_buffers.h or sys_buffers.c), you must update this documentation to reflect the changes.
 
 ## Overview
-The `sys_buffers` component provides a variable-length item ring buffer for physical transmission channels (such as BLE notifications/indications or serial interfaces). It wraps a single FreeRTOS `RINGBUF_TYPE_NOSPLIT` ringbuffer per descriptor - every push/pop moves one whole item, so message boundaries are never split or coalesced - and optionally prepends a protocol header byte on dequeue.
+The `sys_buffers` component provides a variable-length item ring buffer for physical transmission channels (such as BLE notifications/indications or serial interfaces). It wraps a single FreeRTOS `RINGBUF_TYPE_NOSPLIT` ringbuffer per descriptor - every push/pop moves one whole item, so message boundaries are never split or coalesced.
 
 ### Directory Map
 ```
@@ -24,11 +24,10 @@ components/system/sys_buffers/
 Data flow:
 ```
 Push: caller -> sys_buff_push() -> Ringbuffer (FreeRTOS, RINGBUF_TYPE_NOSPLIT)
-Pop (framed):  Ringbuffer -> sys_buff_pop_framed() -> Header byte [0] + Item [1..N] -> Output Buffer
-Pop (raw):     Ringbuffer -> sys_buff_pop()        -> Item [0..N-1]                 -> Output Buffer
+Pop:  Ringbuffer -> sys_buff_pop() -> Item [0..N-1] -> Output Buffer
 ```
 
-Every item is pushed and popped whole. An item that doesn't fit in the destination buffer on pop (`max_size` too small) is truncated and counted in `sys_buff_t.truncated` - it is never split across two pops.
+Every item is pushed and popped whole. An item that doesn't fit in the destination buffer on pop (`max_size` too small) is **dropped and reported** (`ERR_BUFFERS_ITEM_TOO_LONG`), never truncated: a frame cut short could otherwise be decoded as a valid shorter one. It is never split across two pops either.
 
 ---
 
@@ -37,9 +36,7 @@ Every item is pushed and popped whole. An item that doesn't fit in the destinati
 ### Buffer Descriptor (sys_buff_t)
 ```c
 typedef struct {
-  RingbufHandle_t buff;       // FreeRTOS Ringbuffer handle (RINGBUF_TYPE_NOSPLIT)
-  uint8_t header;              // Prepended to frames by sys_buff_pop_framed()
-  uint32_t truncated;          // Count of items truncated on pop
+  RingbufHandle_t buff;  // FreeRTOS Ringbuffer handle (RINGBUF_TYPE_NOSPLIT)
 } sys_buff_t;
 ```
 
@@ -48,20 +45,26 @@ typedef struct {
 ## Manager API Functions
 
 ### Allocation & Initialization APIs
-* **`sys_buff_init(sys_buff_t* buff, uint8_t header, size_t size)`**:
-  Allocates the underlying FreeRTOS ringbuffer memory for a `sys_buff_t` descriptor and records its header byte. Returns `NULL` on success, or `ERR_BASE_NO_MEM`/`ERR_INVALID_VAL_UI32` on failure.
+* **`sys_buff_init(sys_buff_t* buff, size_t size)`**:
+  Allocates the underlying FreeRTOS ringbuffer memory for a `sys_buff_t` descriptor. Returns `NULL` on success, or `ERR_BASE_NO_MEM`/`ERR_INVALID_VAL_UI32` on failure.
 * **`sys_buff_free(sys_buff_t* buff)`**:
   Frees the underlying FreeRTOS ringbuffer memory and resets `buff->buff = NULL`.
+
+A statically allocated ringbuffer (`R_RINGBUFFER_DEFINE`) can be wrapped directly: `(sys_buff_t){.buff = handle}` (sys_interface's tap buffer does this).
+
+### Sizing: think in items, not bytes
+A no-split ESP ringbuffer stores each item rounded up to 4 bytes behind an 8-byte header (`SYS_BUFF_ITEM_HDR_LEN`), and **accepts one item of at most half its size minus that header**. A 512-byte buffer takes items of only 248 bytes. Size buffers with:
+
+* **`SYS_BUFF_SIZE_FOR(item_max, count)`**: bytes needed for `count` items of up to `item_max` bytes (at least 2 items, since one item may use only half). Transport buffers use `SYS_BUFF_SIZE_FOR(CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX, n)`.
+* **`sys_buff_max_item(buff)`**: the largest item an existing buffer accepts (`xRingbufferGetMaxItemSize`); BLE reports it as part of a characteristic's frame limit.
 
 ### Payload APIs
 * **`sys_buff_push(sys_buff_t* buff, const void* data, size_t len, uint32_t wait_ms)`**:
   Enqueues one variable-length item. Returns `ERR_BASE_NO_MEM` if the item doesn't fit within `wait_ms`.
-* **`sys_buff_pop_framed(sys_buff_t* buff, uint8_t* buffer, size_t max_size, size_t* out_len)`**:
-  Dequeues one item, writing `buff->header` to `buffer[0]` and the item payload to `buffer[1..out_len-1]`. Returns `ERR_BASE_NOT_FOUND` if empty, `ERR_INVALID_VAL_UI32` if `max_size < 2`.
 * **`sys_buff_pop(sys_buff_t* buff, uint8_t* buffer, size_t max_size, size_t* out_len)`**:
-  Dequeues one item verbatim (no header byte). Returns `ERR_BASE_NOT_FOUND` if empty, `ERR_INVALID_VAL_UI32` if `max_size < 1`.
-
-Both pop functions truncate (and count in `buff->truncated`) an item that exceeds the space available in `buffer` rather than failing or splitting it across calls.
+  Dequeues one item verbatim. Returns `ERR_BASE_NOT_FOUND` if empty, `ERR_BUFFERS_ITEM_TOO_LONG` (item dropped, `*out_len = 0`) if it is longer than `max_size`, `ERR_INVALID_VAL_UI32` if `max_size < 1`.
+* **`sys_buff_clear(sys_buff_t* buff)`**:
+  Removes every queued item.
 
 ---
 
@@ -71,7 +74,11 @@ Both pop functions truncate (and count in `buff->truncated`) an item that exceed
 * `OWNER_SYS_BUFF_INIT` (`0xA701`): `sys_buff_init()` owner.
 * `OWNER_SYS_BUFF_FREE` (`0xA702`): `sys_buff_free()` owner.
 * `OWNER_SYS_BUFF_PUSH` (`0xA703`): `sys_buff_push()` owner.
-* `OWNER_SYS_BUFF_POP_FRAMED` (`0xA704`): `sys_buff_pop_framed()` owner.
+* `OWNER_SYS_BUFF_POP_FRAMED` (`0xA704`): unused (the framed pop was removed; the ID stays reserved).
 * `OWNER_SYS_BUFF_POP_RAW` (`0xA705`): `sys_buff_pop()` owner.
 
-It currently raises base error tags (`ERR_INVALID_VAL_UI32`, `ERR_BASE_NO_MEM`, `ERR_BASE_NOT_FOUND`); `SYS_ERROR_BUFFERS_MAP` is reserved for future buffer-specific error payload structures.
+| Tag | Payload | Raised when |
+| :--- | :--- | :--- |
+| `ERR_BUFFERS_ITEM_TOO_LONG` (`0xA701`, MEDIUM) | `uint32_t len; uint32_t max;` | `sys_buff_pop()` found an item longer than the destination; the item was dropped. |
+
+Otherwise it raises base tags (`ERR_INVALID_VAL_UI32`, `ERR_BASE_NO_MEM`, `ERR_BASE_NOT_FOUND`).

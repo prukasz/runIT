@@ -1,46 +1,21 @@
 #pragma once
 #include "vm_block.h"
 
-/* Shared block plumbing. Configuration faults are sticky diagnostics, but
- * remain execution faults on every invocation. Helpers never choose ENO. */
+/* Shared block plumbing. Helpers never choose ENO. A block's shape (pin counts,
+ * required pins, state size) is checked once at load (vm_block_verify), so
+ * bodies don't re-check it. */
 static inline bool vm_block_check(vm_block_h b, err_h e) {
   if (!e) return true;
-  vm_block_report_error(e, b->cfg.block_idx, b->cfg.block_type);
+  vm_block_report_error(e, b);
   return false;
 }
 
-static inline bool vm_block_cfg_bad(vm_block_h b) {
-  g_vm_block_fault = true;
-  if (!(b->cfg.rt & VM_BLK_RT_CFG_BAD)) {
-    b->cfg.rt |= VM_BLK_RT_CFG_BAD;
-    vm_block_report_error(VM_BLK_ERR_NEW(ERR_VM_BLK_BAD_SHAPE, .blk_id = b->cfg.block_idx, .in_cnt = b->cfg.in_cnt, .q_cnt = b->cfg.q_cnt), b->cfg.block_idx, b->cfg.block_type);
-  }
-  return false;
-}
-
-/* Build-time predicate: the builder returns the diagnostic to its caller.
- * Runtime vm_block_require owns reporting and sticky fault state instead. */
+/* Load-time shape predicate used by vm_block_verify(); the builder reports. */
 static inline bool vm_block_shape_valid(vm_block_h b, uint8_t min_in, uint8_t min_q, uint16_t required_inputs) {
   if (b->cfg.in_cnt < min_in || b->cfg.q_cnt < min_q) return false;
   for (uint8_t pin = 0; pin < CONFIG_VM_BLOCK_MAX_IN; ++pin) {
     if (!(required_inputs & (1u << pin))) continue;
     if (pin >= b->cfg.in_cnt || !vm_block_get_inputs(b)[pin]) return false;
-  }
-  return true;
-}
-
-static inline bool vm_block_require(vm_block_h b, uint8_t min_in, uint8_t min_q, uint16_t required_inputs) {
-  if (b->cfg.in_cnt < min_in || b->cfg.q_cnt < min_q) return vm_block_cfg_bad(b);
-  for (uint8_t pin = 0; pin < CONFIG_VM_BLOCK_MAX_IN; ++pin) {
-    if (!(required_inputs & (1u << pin))) continue;
-    if (pin >= b->cfg.in_cnt) return vm_block_cfg_bad(b);
-    if (vm_block_get_inputs(b)[pin]) continue;
-    g_vm_block_fault = true;
-    if (!(b->cfg.rt & VM_BLK_RT_CFG_BAD)) {
-      b->cfg.rt |= VM_BLK_RT_CFG_BAD;
-      vm_block_report_error(vm_block_err_pin_unlinked(b->cfg.block_idx, pin, false), b->cfg.block_idx, b->cfg.block_type);
-    }
-    return false;
   }
   return true;
 }

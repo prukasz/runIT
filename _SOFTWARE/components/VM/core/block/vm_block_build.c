@@ -59,6 +59,7 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
   size_t total = vm_block_calc_size(cfg->in_cnt, cfg->q_cnt, cfg->en_cnt, cfg->custom_len);
   vm_block_h b = NULL;
   // allocates, zeroes and binds the id in one step -- see vm_store.h
+  const uint32_t mark = vm_store_used();
   SE_TRY(vm_store_alloc((void**)&b, VM_REG_BLK, id, (uint32_t)total));
 
   b->cfg.block_idx = cfg->block_idx;
@@ -80,11 +81,7 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
   }
 
   vm_obj_h* outs = vm_block_get_outputs(b);
-  for (uint8_t i = 0; i < cfg->q_cnt; i++) {
-    outs[i] = vm_obj_get_by_id(cfg->out_obj_ids[i]);
-    outs[i]->head.f.usr_protected = 1;
-  }
-  if (eno) eno->head.f.usr_protected = 1;
+  for (uint8_t i = 0; i < cfg->q_cnt; i++) outs[i] = vm_obj_get_by_id(cfg->out_obj_ids[i]);
 
   const vm_accessor_t** ens = vm_block_get_en_list(b);
   for (uint8_t i = 0; i < cfg->en_cnt; i++) ens[i] = vm_accessor_get_by_id(cfg->en_acc_ids[i]);
@@ -93,18 +90,27 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
     memcpy(vm_block_get_custom_data(b), cfg->custom_data, cfg->custom_len);
   }
 
+  /* The type's own check needs the built block. A block it rejects is taken
+     back out completely -- unbound, its arena space returned -- so it never
+     runs, and the retry still has the room it needs. */
   if (!vm_block_verify(b)) {
+    vm_store_undo(VM_REG_BLK, id, mark);
     SE_FAIL(ERR_VM_BLK_BAD_SHAPE, .blk_id = cfg->block_idx, .in_cnt = cfg->in_cnt, .q_cnt = cfg->q_cnt);
   }
+
+  /* Only an accepted block claims its outputs: protection is changed once the
+     block is known to stay. */
+  for (uint8_t i = 0; i < cfg->q_cnt; i++) outs[i]->head.f.usr_protected = 1;
+  if (eno) eno->head.f.usr_protected = 1;
 
   *out = b;
   return NULL;
 }
 
-void vm_block_report_error(err_h cause, uint16_t block_idx, uint8_t block_type) {
+void vm_block_report_error(err_h cause, vm_block_h b) {
   /* Same mark BLOCK_CALL leaves -- every route a body reports a failure by has
      to set it, or cfg.on_error would be honoured for some failures and not
      others depending on which macro the block author reached for. */
-  g_vm_block_fault = true;
-  SE_push_to_handler(SE_WRAP_ERR(cause, ERR_VM_BLOCK_FAILED, .block_idx = block_idx, .block_type = block_type));
+  vm_block_mark_failed(b);
+  SE_push_to_handler(SE_WRAP_ERR(cause, ERR_VM_BLOCK_FAILED, .block_idx = b->cfg.block_idx, .block_type = b->cfg.block_type));
 }

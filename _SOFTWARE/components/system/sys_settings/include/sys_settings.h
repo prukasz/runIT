@@ -28,6 +28,18 @@ SE_MUST_USE err_h sys_settings_init(void);
  */
 SE_MUST_USE err_h sys_settings_load(const char* key, void* out, size_t size, bool* out_found);
 
+/**
+ * @brief Read a variable-length record @p key into @p out (up to @p capacity bytes).
+ *
+ * For records whose length varies with their content (the VM's retained values).
+ *
+ * @param out_len Receives the stored length when found.
+ * @param out_found Set to true only if the record exists and fits.
+ * @return err_h NULL when found or not stored; ERR_SETTINGS_SIZE_MISMATCH when
+ *               the stored record is longer than @p capacity (out untouched).
+ */
+SE_MUST_USE err_h sys_settings_load_blob(const char* key, void* out, size_t capacity, size_t* out_len, bool* out_found);
+
 /** @brief Write record @p key and commit it. */
 SE_MUST_USE err_h sys_settings_store(const char* key, const void* data, size_t size);
 

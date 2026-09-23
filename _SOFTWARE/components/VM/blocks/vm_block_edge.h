@@ -20,6 +20,7 @@
  *    [8..11] u32 prev_val      Stored previous value (union vm_edge_val_u)
  */
 
+//#ref-enum @alias Edge Type
 typedef enum {
   VM_EDGE_RISING  = 0,  // 0 -> 1, or increase by >= threshold
   VM_EDGE_FALLING = 1,  // 1 -> 0, or decrease by >= threshold
@@ -36,11 +37,11 @@ typedef union {
 } vm_edge_val_u;
 
 typedef struct __attribute__((aligned(4))) {
-  uint8_t       edge_type;  // vm_edge_type_e
-  uint8_t       flags;      // VM_EDGE_F_*
+  uint8_t       edge_type;  // vm_edge_type_e @enum-ref vm_edge_type_e
+  uint8_t       flags;      // VM_EDGE_F_* @runtime
   uint16_t      _pad1;
   vm_edge_val_u change_by;  // Threshold for change condition (0 = any change)
-  vm_edge_val_u prev_val;   // Stored previous value (max uint32_t)
+  vm_edge_val_u prev_val;   // Stored previous value @runtime
 } vm_block_edge_data_t;
 
 _Static_assert(sizeof(vm_block_edge_data_t) == 12, "vm_block_edge_data_t must be 12 bytes");
@@ -103,11 +104,8 @@ static inline SE_MUST_USE err_h vm_edge_step(vm_block_edge_data_t* d, vm_obj_pay
 }
 
 static inline bool vm_verify_edge(vm_block_h b) {
-  if (b->cfg.custom_len < sizeof(vm_block_edge_data_t)) return false;
-  if (!vm_block_shape_valid(b, 1, 0, 0x1u)) return false;
   const vm_block_edge_data_t* d = (const vm_block_edge_data_t*)vm_block_get_custom_data(b);
-  if (d->edge_type >= VM_EDGE_TYPE_CNT) return false;
-  return true;
+  return d->edge_type < VM_EDGE_TYPE_CNT;
 }
 
 /* Enable-driven. First sample seeds history; disabled clears history and pulse.
@@ -145,3 +143,13 @@ static inline void vm_blk_edge(vm_block_h b) {
   vm_block_set_eno(b, fired);
   vm_block_drive_gate(b, VM_EDGE_Q, fired);
 }
+
+/* Palette entry (vm_blocks_table.c): shape and state size are checked at load
+   by vm_block_verify(), so the body never re-checks them. */
+//#vm-block VM_BLK_EDGE @title Edge @category logic @state vm_block_edge_data_t
+//@block-description Pulses for one pass when the input rises, falls or changes by at least the threshold.
+//@in 0 signal @title Signal
+//@in 1 threshold @title Threshold @description Overrides change_by; same type as the signal.
+//@out 0 pulse @title Pulse
+#define VM_BLOCK_TYPE_EDGE \
+  {.run = vm_blk_edge, .check = vm_verify_edge, .min_in = 1, .min_q = 0, .required_in = 0x1u, .state_len = VM_EDGE_CUSTOM_LEN}

@@ -1,6 +1,7 @@
 #include "vm_loader.h"
 #include "vm_exec.h"
 #include "vm_sub.h"
+#include "vm_retain.h"
 
 #define OWNER OWNER_VM_LOADER
 
@@ -44,9 +45,11 @@ static void end_stopped_mutation(void) {
 err_h vm_loader_reset(void) {
   vm_run_mode_e previous;
   SE_TRY(vm_exec_program_lock(&previous));
+  vm_retain_save_stopped();  // last values of the program going away
   vm_exec_reset();
   vm_sub_reset();
   vm_store_reset();
+  vm_retain_on_reset();
   s_state = VM_LOAD_EMPTY;
   vm_exec_program_unlock(VM_RUN_STOPPED);
   return NULL;
@@ -55,6 +58,7 @@ err_h vm_loader_reset(void) {
 err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint16_t blk_cnt, uint32_t total_size) {
   vm_run_mode_e previous;
   SE_TRY(vm_exec_program_lock(&previous));
+  vm_retain_save_stopped();  // last values of the program being replaced
 
   const uint16_t counts[VM_REG_CNT] = {
       [VM_REG_OBJ] = obj_cnt,
@@ -69,6 +73,7 @@ err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint16_t blk_cnt, uint3
 
   vm_exec_reset();
   vm_sub_reset();
+  vm_retain_on_open();
   s_state = VM_LOAD_OPEN;
   vm_exec_program_unlock(VM_RUN_STOPPED);
   return NULL;
@@ -81,6 +86,8 @@ static SE_MUST_USE err_h add_obj_unlocked(uint16_t id, const vm_obj_head_t* head
   if (!vm_type_ok(head->d.obj_t)) {
     SE_FAIL(ERR_VM_OBJ_BAD_TYPE, .type = head->d.obj_t);
   }
+
+  SE_TRY(vm_retain_reserve(id, head));  // retentive: named, and fits the stored record
 
   vm_obj_h obj = NULL;
   SE_TRY(vm_obj_create(&obj, id, head, head->d.name_size ? name : NULL));

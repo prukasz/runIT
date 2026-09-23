@@ -8,6 +8,10 @@ Scans all *.h files for:
     ...
   } enum_name;
 
+A member value is a literal, or a CONFIG_* symbol resolved from the project's
+sdkconfig (the value the firmware is built with), so IDs configured in Kconfig
+reach the app unchanged. An unresolved CONFIG_* value is an error.
+
 Only enums explicitly opted in via //#ref-enum (marker directly above the
 typedef) are included - a deliberate opt-in, not a blanket scan, so an
 internal/private enum never accidentally becomes public wire vocabulary.
@@ -25,6 +29,8 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parents[3]  # _SOFTWARE folder
 COMPONENTS_DIR = PROJECT_ROOT / "components"
+SDKCONFIG_PATH = PROJECT_ROOT / "sdkconfig"
+SDKCONFIG_RE = re.compile(r"^(CONFIG_\w+)=(\S+)\s*$", re.MULTILINE)
 
 MARKED_ENUM_RE = re.compile(
     r"//#ref-enum(?P<marker_rest>[^\n]*)\n\s*typedef\s+enum(?:\s+\w+)?\s*\{(?P<body>.*?)\}\s*(?P<name>\w+)\s*;",
@@ -51,7 +57,19 @@ def to_int(token: str):
         return None
 
 
-def parse_members(body: str) -> list:
+def load_sdkconfig() -> dict:
+    """Numeric CONFIG_* values of the build (sdkconfig); empty if it doesn't exist."""
+    if not SDKCONFIG_PATH.exists():
+        return {}
+    values = {}
+    for name, raw in SDKCONFIG_RE.findall(SDKCONFIG_PATH.read_text(encoding="utf-8", errors="ignore")):
+        value = to_int(raw)
+        if value is not None:
+            values[name] = value
+    return values
+
+
+def parse_members(body: str, sdkconfig: dict, context: str) -> list:
     members = []
     val = 0
     for raw_line in body.splitlines():
@@ -64,6 +82,11 @@ def parse_members(body: str) -> list:
         explicit = m.group("val")
         if explicit:
             resolved = to_int(explicit)
+            token = explicit.strip()
+            if resolved is None and token.startswith("CONFIG_"):
+                if token not in sdkconfig:
+                    sys.exit(f"ERROR: {context}: member '{m.group('name')}' = {token}, not a numeric option in {SDKCONFIG_PATH.name}")
+                resolved = sdkconfig[token]
             if resolved is not None:
                 val = resolved
         tags = parse_tags(m.group("comment") or "")
@@ -75,13 +98,14 @@ def parse_members(body: str) -> list:
 def scan(root: Path) -> dict:
     enums = {}
     symbols = {}
+    sdkconfig = load_sdkconfig()
     for h in sorted(root.rglob("*.h")):
         text = h.read_text(encoding="utf-8", errors="ignore")
         for m in MARKED_ENUM_RE.finditer(text):
             enum_name = m.group("name")
             marker_tags = parse_tags(m.group("marker_rest") or "")
             source_file = h.relative_to(PROJECT_ROOT).as_posix()
-            members = parse_members(m.group("body"))
+            members = parse_members(m.group("body"), sdkconfig, f"{source_file}: {enum_name}")
 
             if enum_name in enums:
                 sys.exit(f"ERROR: enum '{enum_name}' is //#ref-enum-marked in two places: "

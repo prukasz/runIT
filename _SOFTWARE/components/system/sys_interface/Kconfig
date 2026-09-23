@@ -33,13 +33,8 @@ menu "System Interface Options"
         range 16 1024
         help
           Capacity for the data a decoder attaches to one command's response
-          (sys_interface_respond()), not counting the 3-byte response header.
+          (sys_interface_respond()), not counting the 4-byte response header (seq, class, packet, status).
           The largest response today is the USB-PD option list (106 bytes).
-
-    config SYS_INTERFACE_RX_FRAME_CAP
-        int "Maximum RX Frame Capacity (bytes)"
-        default 512
-        range 64 4096
-        help
-          Maximum frame size accepted by RX receiver.
+          A response longer than the origin transport's current frame limit
+          (BLE: MTU - 3) is answered with an error status instead.
 endmenu

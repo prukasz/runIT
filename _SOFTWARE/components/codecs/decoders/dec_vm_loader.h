@@ -25,6 +25,7 @@
 #include "vm_exec.h"
 #include "vm_loader.h"
 #include "vm_override.h"
+#include "vm_retain.h"
 #include "vm_sub.h"
 
 #undef OWNER
@@ -330,6 +331,7 @@ static inline SE_MUST_USE err_h decoder_packet_vm_subscribe(const uint8_t* body,
  *     - 4: rewind without unloading, 5: normal mode
  *     - 6: pause, 7: resume, 8: full loader reset
  *     - 9: acknowledge a latched critical device fault
+ *     - 10: forget retained values (vm_retain_clear)
  * - **Action**:
  *   - Routes command directly to `vm_exec_control()`, or performs full `vm_loader_reset()`.
  */
@@ -341,6 +343,10 @@ static inline SE_MUST_USE err_h decoder_packet_vm_exec(const uint8_t* body, size
   if (cmd == VM_EXEC_RESET) {
     SE_TRY(vm_loader_reset());
     DBG(ESP_LOGI(DEC_VM_LOADER_TAG, "vm execution reset"););
+    return NULL;
+  }
+  if (cmd == VM_EXEC_RETAIN_CLEAR) {
+    SE_TRY(vm_retain_clear());
     return NULL;
   }
   return vm_exec_control((vm_exec_command_e)cmd);

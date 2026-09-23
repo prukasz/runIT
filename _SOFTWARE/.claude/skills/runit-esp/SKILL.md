@@ -18,7 +18,7 @@ Component `*.MD` files are the source of truth for each module's API. This skill
 | [architecture.md](architecture.md) | Layers and allowed dependencies, boot sequence, command/error/event flows, agreed design, open findings |
 | [conventions.md](conventions.md) | Writing or changing any firmware code: static RTOS objects (`utils.h`), constants vs Kconfig, no legacy leftovers, validate-once, naming, `//@` annotations, comments/docs |
 | [devices.md](devices.md) | Adding or changing a device: driver/adapter/decoder anatomy, checklist, rules, per-device state |
-| vm.md | Adding a VM block (⏳ not written yet; use `VM.MD` / `VM_EXEC.MD`) |
+| [vm/README.md](vm/README.md) | Any VM work: model, code map, runit wiring; routes to [vm/blocks.md](vm/blocks.md) (palette, adding a block), [vm/wire.md](vm/wire.md) (class `0x04`, telemetry, app JSON), [vm/findings.md](vm/findings.md) (stale docs, bugs, gaps) |
 
 ## Module docs — read the one you touch
 
@@ -30,7 +30,8 @@ Component `*.MD` files are the source of truth for each module's API. This skill
 | `components/system/sys_event/SYS_EVENT.MD` | Events: publish, subscriptions (inline / queued), routes, actions, class `0x09` |
 | `components/system/sys_interface/SYS_INTERFACE.MD` | Inbound frame router, class registry, command responses, RX suspend, frame tap |
 | `components/system/sys_actions/SYS_ACTIONS.MD` | Static / recorded (dynamic) actions, class `0x03`, boot and reset actions |
-| `components/system/ble/SYS_BLE.MD` | BLE services/characteristics, runtime GATT changes, RX/TX to data connectors |
+| `components/system/ble/SYS_BLE.MD` | BLE services/characteristics, runtime GATT changes, BLE provider, MTU |
+| `components/system/sys_data_connector/SYS_DATA_CONNECTOR.MD` | Transport-agnostic bus: connectors, providers (framing, endpoint, peer), origin-addressed responses, dynamic frame limit, system connector protection, class `0x06` |
 | `components/system/sys_buffers/SYS_BUFFERS.MD` | Item ring buffers used by transports |
 | `components/system/sys_settings/SYS_SETTINGS.MD` | Named NVS records |
 | `components/sys_errors/SYS_ERRORS.MD` | Error chain, pool, maps, handler, logging, binary packet |
@@ -39,7 +40,7 @@ Component `*.MD` files are the source of truth for each module's API. This skill
 | `components/features/FEATURES.MD` | Features (on hold) |
 | `data-structures/AGENTS.md` + `auto-annotations/*/*-annotations.md` | `//@` annotation grammar and the JSON generators (device, contracts, settings, VM) |
 
-No doc yet: `sys_i2c`, `sys_data_connector`, `sys_hbridge` (ask the user before writing one, conventions.md §8).
+No doc yet: `sys_i2c`, `sys_hbridge` (ask the user before writing one, conventions.md §8).
 
 Remaining source material: the legacy firmware skill, backed up at `../_agents_backup_2026-09-22/runit-legacy-skill/SKILL.md` (relative to `_SOFTWARE`).
 

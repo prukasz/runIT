@@ -11,12 +11,15 @@
 #include "sys_interface.h"
 #include "sys_settings.h"
 #include "vm_exec.h"
+#include "vm_retain.h"
 #include "vm_sub.h"
 
 static const char* TAG = "runit_app";
 
 void runit_enter_safe_state(void) {
-  SE_release(vm_exec_stop());
+  err_h stop = vm_exec_stop();
+  if (!stop) vm_retain_save_stopped();  // keep retained values: power may be about to go
+  SE_release(stop);
   SE_release(sys_device_suspend_all());
   ESP_LOGE(TAG, "System entered safe state (VM stopped, ready devices suspended)");
 }
@@ -61,6 +64,7 @@ err_h runit_start(void) {
       {"sys_actions_init", sys_actions_init},
       {"runit_board_invoke_boot_action", runit_board_invoke_boot_action},
       {"vm_sub_init", vm_sub_init},
+      {"vm_retain_init", vm_retain_init},
   };
 
   err_h err = runit_run_boot_steps(s_boot_setup_steps, sizeof(s_boot_setup_steps) / sizeof(s_boot_setup_steps[0]));

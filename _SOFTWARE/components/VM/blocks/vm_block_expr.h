@@ -27,10 +27,10 @@ typedef union vm_expr_k_t {
 } vm_expr_k_t;
 
 typedef struct vm_expr_code_t {
-  uint8_t const_cnt;
-  uint8_t rt;
-  uint16_t code_len;
-  vm_expr_k_t consts[];
+  uint8_t const_cnt;     // Number of u32 literals after the header
+  uint8_t rt;            // @runtime
+  uint16_t code_len;     // Bytecode length after the literals
+  vm_expr_k_t consts[];  // const_cnt literals (f32 for EXPR, u32 for EXPR_BIT), then code_len opcode bytes
 } vm_expr_code_t;
 
 _Static_assert(sizeof(vm_expr_code_t) == 4, "header must stay 4 bytes for literal alignment");
@@ -48,6 +48,7 @@ static inline const uint8_t* vm_expr_bytecode(const vm_expr_code_t* c) {
 /* ==========================================================================
    Opcodes -- VM_BLK_EXPR (float)
    ========================================================================== */
+//#ref-enum @alias Expression Opcode
 typedef enum vm_expr_op_e {
   VM_EXPR_END = 0,
   VM_EXPR_IN,
@@ -114,6 +115,7 @@ typedef enum vm_expr_op_e {
 /* ==========================================================================
    Opcodes -- VM_BLK_EXPR_BIT (uint32)
    ========================================================================== */
+//#ref-enum @alias Bit Expression Opcode
 typedef enum vm_bit_op_e {
   VM_BIT_END = 0,
   VM_BIT_IN,
@@ -167,9 +169,9 @@ typedef enum vm_bit_op_e {
 
 static inline bool vm_expr_fail(vm_block_h b, err_h e) {
   if (e) {
-    vm_block_report_error(e, b->cfg.block_idx, b->cfg.block_type);
+    vm_block_report_error(e, b);
   } else {
-    g_vm_block_fault = true;
+    vm_block_mark_failed(b);
   }
   return false;
 }
@@ -507,8 +509,10 @@ static inline bool vm_expr_eval_bit(vm_block_h b, vm_expr_code_t* c, uint32_t* o
 #undef _BIN
 #undef _CASE_STACK_OPS
 
+/* Load-time check: the header's constant and code lengths fit custom_len. The
+   bytecode itself is checked as it runs (a malformed program latches CFG_BAD). */
 static inline bool vm_verify_expr(vm_block_h b) {
-  return b->cfg.q_cnt >= 1;
+  return vm_expr_code_of(b) != NULL;
 }
 
 static inline void vm_blk_expr(vm_block_h b) {
@@ -525,7 +529,7 @@ static inline void vm_blk_expr(vm_block_h b) {
     BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(r, q, 0), b);
 
     c->rt &= (uint8_t)~VM_EXPR_RT_FAULTED;
-    if (likely(!g_vm_block_fault)) vm_block_set_eno(b, true);
+    if (likely(!vm_block_failed(b))) vm_block_set_eno(b, true);
     return;
   }
 
@@ -547,10 +551,28 @@ static inline void vm_blk_expr_bit(vm_block_h b) {
     BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(r, q, 0), b);
 
     c->rt &= (uint8_t)~VM_EXPR_RT_FAULTED;
-    if (likely(!g_vm_block_fault)) vm_block_set_eno(b, true);
+    if (likely(!vm_block_failed(b))) vm_block_set_eno(b, true);
     return;
   }
 
   // case when error or non activated
   vm_block_set_eno(b, false);
 }
+
+/* Palette entry (vm_blocks_table.c): shape and state size are checked at load
+   by vm_block_verify(), so the body never re-checks them. */
+//#vm-block VM_BLK_EXPR @title Expression @category data @state vm_expr_code_t @state-tail consts u32[const_cnt], code u8[code_len] (opcodes vm_expr_op_e)
+//@block-description Evaluates an RPN float expression over its inputs when an input is fresh and the block is enabled; the result goes to output 0.
+//@in * pin @title Input @description Read by the IN opcode; any number, only the ones the code names are read.
+//@out 0 result @title Result @description The expression's value (float).
+#define VM_BLOCK_TYPE_EXPR \
+  {.run = vm_blk_expr, .check = vm_verify_expr, .min_in = 0, .min_q = 1, .required_in = 0x0u, .state_len = sizeof(vm_expr_code_t)}
+
+/* Palette entry (vm_blocks_table.c): shape and state size are checked at load
+   by vm_block_verify(), so the body never re-checks them. */
+//#vm-block VM_BLK_EXPR_BIT @title Bit Expression @category data @state vm_expr_code_t @state-tail consts u32[const_cnt], code u8[code_len] (opcodes vm_bit_op_e)
+//@block-description Evaluates an RPN uint32 bitwise expression over its inputs when an input is fresh and the block is enabled.
+//@in * pin @title Input @description Read by the IN opcode; any number, only the ones the code names are read.
+//@out 0 result @title Result @description The expression's value (u32).
+#define VM_BLOCK_TYPE_EXPR_BIT \
+  {.run = vm_blk_expr_bit, .check = vm_verify_expr, .min_in = 0, .min_q = 1, .required_in = 0x0u, .state_len = sizeof(vm_expr_code_t)}

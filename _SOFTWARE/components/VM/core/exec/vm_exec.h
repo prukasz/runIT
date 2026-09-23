@@ -23,6 +23,7 @@ static inline const char* vm_run_mode_str(vm_run_mode_e m) {
   return vm_run_mode_name((uint8_t)m);
 }
 
+//#ref-enum @alias VM Exec Command
 typedef enum vm_exec_command_e {
   VM_EXEC_SCAN_MODE      = 0,
   VM_EXEC_ONCE           = 1,
@@ -34,6 +35,7 @@ typedef enum vm_exec_command_e {
   VM_EXEC_RESUME         = 7,
   VM_EXEC_RESET          = 8,
   VM_EXEC_ACK_FAULT      = 9,
+  VM_EXEC_RETAIN_CLEAR   = 10,  // Forget retained values (vm_retain_clear)
 } vm_exec_command_e;
 
 /** @brief String representation of VM execution command for debugging. */
@@ -171,6 +173,25 @@ void vm_exec_run_range(uint16_t start, uint16_t end);
 
 /** @brief Set telemetry hook called at end of each pass before clearing upd flags. */
 void vm_exec_set_sample_hook(void (*hook)(void));
+
+/**
+ * @brief Queues a system action for another task to run.
+ *
+ * A block never runs an action on the VM task: an action may rewind or unload
+ * the VM itself, and a recorded replay outlasts the block watchdog. The
+ * application registers a function that only queues (runit: sys_actions_request).
+ */
+typedef err_h (*vm_action_request_f)(uint8_t scope, uint8_t id);
+
+/** @brief Register the action request function (boot, by the application). */
+void vm_exec_register_action_request(vm_action_request_f request);
+
+/**
+ * @brief Queue action @p id of @p scope through the registered function.
+ * @return NULL when queued, ERR_VM_NO_ACTION_EXECUTOR when none is registered,
+ *         or the request function's error (e.g. its queue is full).
+ */
+SE_MUST_USE err_h vm_exec_request_action(uint8_t scope, uint8_t id);
 
 /** @brief Completed passes count since last stats reset. */
 uint32_t vm_exec_pass_count(void);

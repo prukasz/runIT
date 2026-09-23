@@ -19,9 +19,14 @@ static uint16_t s_sub_count = 0;
 static uint16_t s_emitted[CONFIG_VM_SUB_MAX_EMITTED_PER_PASS];
 static uint16_t s_emitted_count = 0;
 
+/* Frame header (class, packet, record count) and per-record header (id, start, byte_len). */
+#define SUB_FRAME_HDR_LEN 3u
+#define SUB_RECORD_HDR_LEN 6u
+
 typedef struct {
   uint8_t buf[CONFIG_VM_SUB_MAX_FRAME_LEN];
   size_t len;
+  size_t cap; /* this frame's limit: the buffer, or less when the transport carries less */
   uint8_t count;
 } sub_frame_t;
 
@@ -54,8 +59,11 @@ static void frame_init(sub_frame_t* f) {
   f->buf[0] = CONFIG_TX_PACKET_CLASS_VM_LOADER;
   f->buf[1] = CONFIG_TX_PACKET_HEADER_VM_SET_DATA;
   f->buf[2] = 0;
-  f->len = 3;
+  f->len = SUB_FRAME_HDR_LEN;
   f->count = 0;
+  /* Re-read per frame: the telemetry transport's limit follows the link (BLE MTU). */
+  size_t transport = sys_data_connector_max_payload(SYS_DATA_CONNECTOR_TELEMETRY);
+  f->cap = transport < sizeof(f->buf) ? transport : sizeof(f->buf);
 }
 
 static void frame_flush(sub_frame_t* f) {
@@ -97,7 +105,7 @@ static void frame_flush(sub_frame_t* f) {
     ESP_LOGI(TAG, "  Frame Hex: [ %s%s]", hex_buf, (f->len * 3 >= sizeof(hex_buf)) ? "..." : "");
   );
 
-  sys_data_connector_send(sys_data_connector_get(CONFIG_SYS_DATA_CONN_ID_TELEMETRY), f->buf, f->len);
+  SE_REPORT(sys_data_connector_send(SYS_DATA_CONNECTOR_TELEMETRY, f->buf, f->len));
   frame_init(f);
 }
 
@@ -115,13 +123,17 @@ static void frame_append_obj(sub_frame_t* f, uint16_t id, vm_obj_h o) {
   }
 
   // If adding this record exceeds maximum frame length, flush the current frame
-  if (f->len + 6 + byte_len > CONFIG_VM_SUB_MAX_FRAME_LEN) {
+  if (f->len + SUB_RECORD_HDR_LEN + byte_len > f->cap) {
     frame_flush(f);
   }
 
+  /* The transport can't carry even an empty record (no client link yet
+     reports less than SUB_FRAME_HDR_LEN + SUB_RECORD_HDR_LEN): skip it. */
+  if (f->len + SUB_RECORD_HDR_LEN > f->cap) return;
+
   // If a single record alone is larger than remaining space in an empty frame, cap to frame limit
-  if (f->len + 6 + byte_len > CONFIG_VM_SUB_MAX_FRAME_LEN) {
-    byte_len = (uint16_t)(CONFIG_VM_SUB_MAX_FRAME_LEN - f->len - 6);
+  if (f->len + SUB_RECORD_HDR_LEN + byte_len > f->cap) {
+    byte_len = (uint16_t)(f->cap - f->len - SUB_RECORD_HDR_LEN);
   }
 
   uint8_t* p = f->buf + f->len;

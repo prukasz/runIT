@@ -41,8 +41,8 @@ menu "Debug (DBG) Logging"
         bool "Enable DBG() in runit"
         default n
         help
-            Fires DBG() calls in components/runit (including selftest
-            stages) independently of DBG_GLOBAL.
+            Fires DBG() calls in components/runit independently of
+            DBG_GLOBAL.
 
 endmenu
 
@@ -145,6 +145,16 @@ menu "System-Wide Identity Assignments"
             help
               First free connector registry slot for dynamic/custom
               application connectors.
+
+        config SYS_DATA_PROVIDER_ID_BLE
+            int "BLE Provider ID"
+            default 1
+            range 1 255
+            help
+              Transport provider ID of BLE (sys_ble_provider). Board wiring
+              and the data connector settings packets (class
+              RX_PACKET_CLASS_SETTINGS_DATA_CONNECTOR) bind connectors to
+              BLE with it; the endpoint is a characteristic UUID.
     endmenu
 
     comment "Wire protocol: every frame leads with a PACKET_CLASS byte (what data/module it is). A PACKET_HEADER byte follows only when that class carries more than one packet type."
@@ -274,8 +284,8 @@ menu "System-Wide Identity Assignments"
               TX_PACKET_CLASS_TELEMETRY on purpose: both connectors are
               bound to the same physical BLE
               characteristic (RUNIT_TX) and previously shared one stream
-              byte, making the two indistinguishable on the wire the moment
-              sys_interface_send() gets a caller.
+              byte, which made command responses and telemetry
+              indistinguishable on the wire.
 
         config TX_PACKET_CLASS_VM_LOADER
             hex "VM telemetry frame class byte"

@@ -108,11 +108,15 @@ is for task context; it can invoke actions, transport callbacks and VM barriers.
 ESP log interceptor. `sys_errors` knows no transport: output goes to a sink the
 application binds at boot with `SE_register_sink(&(sys_error_sink_t){send_log,
 send_packet, packet_max_len})`. runit (`runit_board_error_sink_init`) sends text
-lines to the logs connector and binary error packets to the errors connector,
-looking the connector up per send. Unbound outputs are dropped; serial mirroring
+lines to the logs connector and binary error packets to the errors connector.
+`packet_max_len` is a function asked before every packet, because the transport
+limit changes at runtime (runit returns `sys_data_connector_max_payload()` of the
+errors connector, which follows the BLE MTU); the encoder packs as many chain
+nodes as fit. Unbound outputs are dropped; serial mirroring
 still works. Binary errors go out independently of text tracing. The encoder is
 private to this component (`enc_sys_errors.h`). The disconnected `sys_error_config` API was removed.
-`SE_send` does not acknowledge delivery: transport providers have a void send API.
+`SE_send` does not acknowledge delivery: the sink's send functions are void, and
+runit releases a failed connector send there (reporting it would recurse into the sink).
 Its returned error describes encoding failure. Log recursion guards are task-local.
 
 The binary format (no version field; formats aren't versioned before release):
@@ -198,11 +202,8 @@ Each module declares its own errors in one header, `sys_error_<module>.h`, kept 
 - `include/sys_error_hooks.h`: optional domain hooks.
 - `codes/sys_error_codes.h`: aggregate module tag/owner/logger maps (from each module's `errors/` folder, see above).
 
-`python tools/tests/test_sys_errors.py` exercises real core, dispatcher, encoder,
-device manager and application policy with host substitutes for hardware/VM/actions.
-It needs Zig and Node; see the script for a local toolchain installation. Firmware
-selftests also release intentionally discarded errors and test device policy/encoding.
-Host tests do not substitute for hardware scheduling/transport tests.
+There is no test target: the host test (`tools/tests/test_sys_errors.py`) and the
+firmware self-tests were removed in commit `47207d3`.
 
 ## Error Lifecycle & Call Tree Architecture
 

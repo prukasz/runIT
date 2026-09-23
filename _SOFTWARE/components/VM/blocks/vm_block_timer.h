@@ -26,6 +26,7 @@
  *    [28..31] u32 _pad_tail
  */
 
+//#ref-enum @alias Timer Mode
 typedef enum {
   VM_TIMER_TON      = 0,  // On-Delay
   VM_TIMER_TOF      = 1,  // Off-Delay
@@ -36,6 +37,7 @@ typedef enum {
   VM_TIMER_MODE_CNT = 6,
 } vm_timer_mode_e;
 
+//#ref-enum @alias Time Unit
 typedef enum {
   VM_TIMER_UNIT_MS  = 0,  // Milliseconds (1 ms)
   VM_TIMER_UNIT_SEC = 1,  // Seconds (1,000 ms)
@@ -70,14 +72,14 @@ static inline const char* vm_timer_unit_name(vm_timer_unit_e u) {
 #define VM_TIMER_F_INVERTED    (1u << 3)
 
 typedef struct __attribute__((aligned(8))) {
-  uint8_t  mode;        // vm_timer_mode_e
-  uint8_t  flags;       // VM_TIMER_F_*
-  uint8_t  time_base;   // vm_timer_unit_e (0=ms, 1=s, 2=min, 3=h)
+  uint8_t  mode;        // vm_timer_mode_e @enum-ref vm_timer_mode_e
+  uint8_t  flags;       // VM_TIMER_F_*: only VM_TIMER_F_INVERTED (0x08) is set by the app
+  uint8_t  time_base;   // Unit of pt and ET @enum-ref vm_timer_unit_e
   uint8_t  _pad1;
   uint32_t _pad2;
   uint32_t pt;          // Preset time in configured unit (hardcoded fallback)
-  uint64_t start_ms;    // Timestamp when timing started (from vm_now_ms())
-  uint32_t elapsed;     // Current elapsed time in configured unit
+  uint64_t start_ms;    // Timestamp when timing started @runtime
+  uint32_t elapsed;     // Current elapsed time @runtime
 } vm_block_timer_data_t;
 
 _Static_assert(sizeof(vm_block_timer_data_t) == 32, "vm_block_timer_data_t must be 32 bytes");
@@ -224,12 +226,9 @@ static inline bool vm_timer_step(vm_block_timer_data_t* d, bool in_val, uint32_t
 }
 
 static inline bool vm_verify_timer(vm_block_h b) {
-  if (b->cfg.custom_len < sizeof(vm_block_timer_data_t)) return false;
-  if (!vm_block_shape_valid(b, 1, 0, 0x1u)) return false;
-  const vm_block_timer_data_t* d = (const vm_block_timer_data_t*)vm_block_get_custom_data(b);
-  if (d->mode >= VM_TIMER_MODE_CNT) return false;
-  if (d->time_base >= VM_TIMER_UNIT_CNT) return false;
-  return true;
+  vm_block_timer_data_t d;
+  memcpy(&d, vm_block_get_custom_data(b), sizeof(d));
+  return d.mode < VM_TIMER_MODE_CNT && d.time_base < VM_TIMER_UNIT_CNT;
 }
 
 /* Enable-driven. Disabled timers reset; Q/ET are value writes, ENO follows Q. */
@@ -266,3 +265,14 @@ static inline void vm_blk_timer(vm_block_h b) {
     BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(state.elapsed, vm_block_get_outputs(b)[VM_TIMER_ET], 0), b);
   }
 }
+
+/* Palette entry (vm_blocks_table.c): shape and state size are checked at load
+   by vm_block_verify(), so the body never re-checks them. */
+//#vm-block VM_BLK_TIMER @title Timer @category time @state vm_block_timer_data_t
+//@block-description IEC timer: on-delay, off-delay or pulse (plus inverted). Q follows the timer, ENO follows Q.
+//@in 0 in @title Input
+//@in 1 pt @title Preset @description Overrides pt, in time_base units.
+//@out 0 q @title Q
+//@out 1 et @title Elapsed
+#define VM_BLOCK_TYPE_TIMER \
+  {.run = vm_blk_timer, .check = vm_verify_timer, .min_in = 1, .min_q = 0, .required_in = 0x1u, .state_len = sizeof(vm_block_timer_data_t)}

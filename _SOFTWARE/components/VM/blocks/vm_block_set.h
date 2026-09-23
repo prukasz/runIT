@@ -19,31 +19,31 @@
 #define VM_SET_IN_SRC 0u  // source -- the pin whose freshness fires the block
 #define VM_SET_IN_DST 1u  // target -- named, not read
 
-static inline bool vm_verify_set(vm_block_h b) {
-  return vm_block_shape_valid(b, 2, 0, 0x3u);
-}
-
 static inline void vm_blk_set(vm_block_h b) {
-  const vm_accessor_t* src = NULL;
-  const vm_accessor_t* dst = NULL;
+  const vm_accessor_t* src = vm_block_get_inputs(b)[VM_SET_IN_SRC];
+  const vm_accessor_t* dst = vm_block_get_inputs(b)[VM_SET_IN_DST];
 
-  if (likely(vm_block_require(b, 2, 0, 0x3u))) {
-    src = vm_block_get_inputs(b)[VM_SET_IN_SRC];
-    dst = vm_block_get_inputs(b)[VM_SET_IN_DST];
-
-    // check if anything new to set
-    if (vm_block_triggered_by(b, VM_SET_IN_SRC)) {
-      // check if block enabled (usually no input connected)
-      IF_BLOCK_ENABLED(b) {
-        // copy to target and report error if occured
-        BLOCK_CALL(vm_block_obj_copy_content(src, dst), b);
-        if (likely(!g_vm_block_fault)) {
-          vm_block_set_eno(b, true);
-          return;
-        }
+  // check if anything new to set
+  if (vm_block_triggered_by(b, VM_SET_IN_SRC)) {
+    // check if block enabled (usually no input connected)
+    IF_BLOCK_ENABLED(b) {
+      // copy to target and report error if occured
+      BLOCK_CALL(vm_block_obj_copy_content(src, dst), b);
+      if (likely(!vm_block_failed(b))) {
+        vm_block_set_eno(b, true);
+        return;
       }
     }
   }
   // case when error or non activated
   vm_block_set_eno(b, false);
 }
+
+/* Palette entry (vm_blocks_table.c): shape and state size are checked at load
+   by vm_block_verify(), so the body never re-checks them. */
+//#vm-block VM_BLK_SET @title Set @category data
+//@block-description Copies the source payload (whole trees included) into the destination when the source is fresh. Types and counts must match.
+//@in 0 source @title Source
+//@in 1 destination @title Destination
+#define VM_BLOCK_TYPE_SET \
+  {.run = vm_blk_set, .check = NULL, .min_in = 2, .min_q = 0, .required_in = 0x3u, .state_len = VM_SET_CUSTOM_LEN}

@@ -13,8 +13,6 @@ clearing its outputs when it stands down, asking whether anything arrived,
 claiming a range -- so each one is paid for only by the blocks that use it.
 */
 
-bool g_vm_block_fault = false;
-
 bool vm_block_triggered(vm_block_h b) {
   const vm_accessor_t** ins = vm_block_get_inputs(b);
   for (uint8_t i = 0; i < b->cfg.in_cnt; i++) {

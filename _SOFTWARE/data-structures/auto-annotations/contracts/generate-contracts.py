@@ -79,12 +79,15 @@ def response_layout(packet_name: str, structs: dict, path: Path, defines, sdkcon
 
 
 def response_stream(class_byte: int) -> dict:
-    """Envelope of every command response (sys_interface.h, sys_interface_status_e)."""
+    """Envelope of every command response (sys_interface.h, sys_interface_status_e).
+
+    Commands are sent as [seq][class][packet][payload]; the response echoes seq."""
     return {
         "class_header": f"0x{class_byte:02X}",
-        "header": ["request_class", "request_packet", "status"],
+        "request_prefix": ["seq"],
+        "header": ["seq", "request_class", "request_packet", "status"],
         "status_enum": "sys_interface_status_e",
-        "matching": "fifo",
+        "matching": "seq",
         "error_data": {"field_order": ["tag", "owner"], "fields": {"tag": {"type": "uint16_t"}, "owner": {"type": "uint16_t"}}},
     }
 

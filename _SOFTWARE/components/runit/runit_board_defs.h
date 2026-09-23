@@ -38,3 +38,12 @@
 #define SYS_BLE_CHR_RUNIT_RX 0xFFE2      //@STATIC_CHARACTERISTIC
 #define SYS_BLE_CHR_RUNIT_LOGS 0xFFE3    //@STATIC_CHARACTERISTIC
 #define SYS_BLE_CHT_RUNIT_STATUS 0xFFE4  //@STATIC_CHARACTERISTIC
+
+/* Transport providers this board registers with sys_data_connector. Published
+   to the app (enums.json) for the data connector settings packets; the values
+   come from Kconfig ("Data Connector Registry"). */
+#include <sdkconfig.h>
+//#ref-enum @alias Data Provider
+typedef enum runit_data_provider_e {
+  RUNIT_DATA_PROVIDER_BLE = CONFIG_SYS_DATA_PROVIDER_ID_BLE, //@alias Bluetooth LE @description The endpoint is a characteristic UUID.
+} runit_data_provider_e;

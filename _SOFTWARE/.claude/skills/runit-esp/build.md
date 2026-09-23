@@ -71,6 +71,8 @@ Project Kconfig files: `components/{runit,utils,VM,sys_errors}/Kconfig`, `compon
 
 `--policy=kconfig` only updates options still marked `# default:` in `sdkconfig`. Values set by the user are kept. Afterwards run `git diff sdkconfig` to review what changed.
 
+**Watch out:** an option can be marked `# default:` with a value that differs from its current Kconfig default (seen 2026-09-23: `CONFIG_RUNIT_SKIP_DEVICE_INIT=y` under `# default:`, Kconfig default `n`). The refresh then silently flips it. If that happens, restore the value and delete its `# default:` line so it counts as user-set, then `idf.py reconfigure`. An option the user set explicitly (no marker) keeps its old value even when a new default is required; change it by hand.
+
 `sdkconfig` and `sdkconfig.old` are **tracked in git**. There is no `sdkconfig.defaults`. Treat `sdkconfig` changes as part of the commit.
 
 Symptoms that you forgot to reconfigure: `'CONFIG_XXX' undeclared` for a newly added option, or the build still using an old default value.

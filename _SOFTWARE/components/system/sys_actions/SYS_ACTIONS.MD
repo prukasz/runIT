@@ -111,6 +111,18 @@ err_h sys_actions_invoke(uint8_t scope, uint8_t id);
    - Resumes RX (`sys_interface_resume_rx()`), frees blob, and returns status.
 3. **Other scopes:** Returns `ERR_INVALID_VAL_UI32`.
 
+### Queued requests
+
+```c
+err_h sys_actions_request(uint8_t scope, uint8_t id);
+```
+
+Queues the action instead of running it on the caller's task, for callers that must not run one themselves. The VM is the one today: an `ACTION` block runs inside a scan pass, and an action may rewind or unload the VM (static 5 and 6), which a pass can't do to itself, while a recorded replay would outlast the VM block watchdog. runit registers this function with the VM (`vm_exec_register_action_request()`).
+
+- The queue holds `CONFIG_SYS_ACTIONS_REQUEST_QUEUE_LEN` requests (default 8); a full queue returns `ERR_ACTION_QUEUE_FULL`.
+- The actions task (the same task that drains the recording tap) runs queued requests in order, between tap polls, through `sys_actions_invoke()`, and reports each one's errors itself. A request wakes the task early instead of waiting for the next poll.
+- Returning NULL means queued, not done.
+
 ---
 
 ## Error Ownership
@@ -121,6 +133,7 @@ err_h sys_actions_invoke(uint8_t scope, uint8_t id);
 | :--- | :--- | :--- |
 | `ERR_ACTION_NOT_FOUND` | `uint8_t action_id;` | `sys_actions_invoke()` on an unbound static ID or non-existent dynamic ID. |
 | `ERR_ACTION_RECORDING_BUSY` | `uint8_t action_id;` | `sys_action_record_start()` called while an action is already recording. |
+| `ERR_ACTION_QUEUE_FULL` | `uint8_t action_id;` | `sys_actions_request()` with `CONFIG_SYS_ACTIONS_REQUEST_QUEUE_LEN` requests already waiting. |
 
 ## Event execution
 

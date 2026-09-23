@@ -1,14 +1,11 @@
 #include "sys_buffers.h"
 
-static const char* TAG = __FILE_NAME__;
-
 #undef OWNER
 #define OWNER OWNER_SYS_BUFF_INIT
 err_h sys_buff_init(sys_buff_t* buff, size_t size) {
   SE_CHECK_NOT_NULL(buff);
   SE_CHECK_IN_RANGE(size, 1, UINT32_MAX);
 
-  buff->truncated = 0;
   buff->buff = xRingbufferCreate(size, RINGBUF_TYPE_NOSPLIT);
   SE_CHECK_IF_ALLOCATED(buff->buff);
 
@@ -54,19 +51,23 @@ err_h sys_buff_pop(sys_buff_t* buff, uint8_t* buffer, size_t max_size, size_t* o
     SE_FAIL(ERR_BASE_NOT_FOUND, 0);
   }
 
-  size_t copy_len = (item_size > max_size) ? max_size : item_size;
   if (item_size > max_size) {
-    buff->truncated++;
-    ESP_LOGW(TAG, "Item truncated from %zu to %zu bytes", item_size, max_size);
+    vRingbufferReturnItem(buff->buff, item);
+    *out_len = 0;
+    SE_FAIL(ERR_BUFFERS_ITEM_TOO_LONG, .len = (uint32_t)item_size, .max = (uint32_t)max_size);
   }
 
-  memcpy(buffer, item, copy_len);
-  *out_len = copy_len;
+  memcpy(buffer, item, item_size);
+  *out_len = item_size;
 
   vRingbufferReturnItem(buff->buff, item);
   return NULL;
 }
 #undef OWNER
+
+size_t sys_buff_max_item(const sys_buff_t* buff) {
+  return (buff && buff->buff) ? xRingbufferGetMaxItemSize(buff->buff) : 0;
+}
 
 void sys_buff_clear(sys_buff_t* buff) {
   if (!buff || !buff->buff) return;

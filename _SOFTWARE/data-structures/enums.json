@@ -1,5 +1,17 @@
 {
   "enums": {
+    "runit_data_provider_e": {
+      "alias": "Data Provider",
+      "source_file": "components/runit/runit_board_defs.h",
+      "members": [
+        {
+          "name": "RUNIT_DATA_PROVIDER_BLE",
+          "value": 1,
+          "alias": "Bluetooth LE",
+          "description": "The endpoint is a characteristic UUID."
+        }
+      ]
+    },
     "sys_ble_events_e": {
       "alias": "BLE Event",
       "source_file": "components/system/ble/include/sys_ble.h",
@@ -21,6 +33,42 @@
           "value": 2,
           "alias": "Failure",
           "description": "A connection, receive or send failure (value = error code)"
+        }
+      ]
+    },
+    "sys_data_connector_id_e": {
+      "alias": "Data Connector",
+      "source_file": "components/system/sys_data_connector/include/sys_data_connector.h",
+      "members": [
+        {
+          "name": "SYS_DATA_CONNECTOR_LOGS",
+          "value": 0,
+          "alias": "Logs",
+          "description": "Text log lines."
+        },
+        {
+          "name": "SYS_DATA_CONNECTOR_ERRORS",
+          "value": 1,
+          "alias": "Errors",
+          "description": "Binary error reports."
+        },
+        {
+          "name": "SYS_DATA_CONNECTOR_TELEMETRY",
+          "value": 2,
+          "alias": "Telemetry",
+          "description": "Program object values you subscribed to."
+        },
+        {
+          "name": "SYS_DATA_CONNECTOR_INTERFACE",
+          "value": 3,
+          "alias": "Commands",
+          "description": "Commands to the board and their responses."
+        },
+        {
+          "name": "SYS_DATA_CONNECTOR_APP_BASE",
+          "value": 4,
+          "alias": "First user connector",
+          "description": "Connectors you create use this ID or higher."
         }
       ]
     },
@@ -486,6 +534,792 @@
         }
       ]
     },
+    "vm_action_scope_e": {
+      "alias": "Action Scope",
+      "source_file": "components/VM/blocks/vm_block_action.h",
+      "members": [
+        {
+          "name": "VM_ACTION_SCOPE_STATIC",
+          "value": 0,
+          "alias": "Static",
+          "description": "A built-in action (freeze, safe state, device reset, ...)"
+        },
+        {
+          "name": "VM_ACTION_SCOPE_RECORDED",
+          "value": 1,
+          "alias": "Recorded",
+          "description": "A recorded packet sequence"
+        }
+      ]
+    },
+    "vm_edge_type_e": {
+      "alias": "Edge Type",
+      "source_file": "components/VM/blocks/vm_block_edge.h",
+      "members": [
+        {
+          "name": "VM_EDGE_RISING",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EDGE_FALLING",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EDGE_BOTH",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EDGE_TYPE_CNT",
+          "value": 3,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_expr_op_e": {
+      "alias": "Expression Opcode",
+      "source_file": "components/VM/blocks/vm_block_expr.h",
+      "members": [
+        {
+          "name": "VM_EXPR_END",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_IN",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_K",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_DUP",
+          "value": 3,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_DROP",
+          "value": 4,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_SWAP",
+          "value": 5,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_ADD",
+          "value": 6,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_SUB",
+          "value": 7,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_MUL",
+          "value": 8,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_DIV",
+          "value": 9,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_MOD",
+          "value": 10,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_POW",
+          "value": 11,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_ROOT",
+          "value": 12,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_MIN",
+          "value": 13,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_MAX",
+          "value": 14,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_ATAN2",
+          "value": 15,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_HYPOT",
+          "value": 16,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_NEG",
+          "value": 17,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_ABS",
+          "value": 18,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_SQRT",
+          "value": 19,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_SQUARE",
+          "value": 20,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_RECIP",
+          "value": 21,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_FLOOR",
+          "value": 22,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_CEIL",
+          "value": 23,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_ROUND",
+          "value": 24,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_TRUNC",
+          "value": 25,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_SIGN",
+          "value": 26,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_SIN",
+          "value": 27,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_COS",
+          "value": 28,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_TAN",
+          "value": 29,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_ASIN",
+          "value": 30,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_ACOS",
+          "value": 31,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_ATAN",
+          "value": 32,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_EXP",
+          "value": 33,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_LOG",
+          "value": 34,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_LOG10",
+          "value": 35,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_LOG2",
+          "value": 36,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_DEG",
+          "value": 37,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_RAD",
+          "value": 38,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_LT",
+          "value": 39,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_LE",
+          "value": 40,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_GT",
+          "value": 41,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_GE",
+          "value": 42,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_EQ",
+          "value": 43,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_NE",
+          "value": 44,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_AND",
+          "value": 45,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_OR",
+          "value": 46,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_XOR",
+          "value": 47,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_NOT",
+          "value": 48,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_SEL",
+          "value": 49,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXPR_OP_CNT",
+          "value": 50,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_bit_op_e": {
+      "alias": "Bit Expression Opcode",
+      "source_file": "components/VM/blocks/vm_block_expr.h",
+      "members": [
+        {
+          "name": "VM_BIT_END",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_IN",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_K",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_DUP",
+          "value": 3,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_DROP",
+          "value": 4,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_SWAP",
+          "value": 5,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_AND",
+          "value": 6,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_OR",
+          "value": 7,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_XOR",
+          "value": 8,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_SHL",
+          "value": 9,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_SHR",
+          "value": 10,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_SAR",
+          "value": 11,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_ROL",
+          "value": 12,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_ROR",
+          "value": 13,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_GET",
+          "value": 14,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_SET",
+          "value": 15,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_CLR",
+          "value": 16,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_TGL",
+          "value": 17,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_NOT",
+          "value": 18,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_POPCNT",
+          "value": 19,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_CLZ",
+          "value": 20,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_CTZ",
+          "value": 21,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_BSWAP",
+          "value": 22,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_BIT_OP_CNT",
+          "value": 23,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_for_op_e": {
+      "alias": "Loop Step Operation",
+      "source_file": "components/VM/blocks/vm_block_for.h",
+      "members": [
+        {
+          "name": "VM_FOR_OP_ADD",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_FOR_OP_SUB",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_FOR_OP_MUL",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_FOR_OP_DIV",
+          "value": 3,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_FOR_OP_CNT",
+          "value": 4,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_for_cmp_e": {
+      "alias": "Loop Condition",
+      "source_file": "components/VM/blocks/vm_block_for.h",
+      "members": [
+        {
+          "name": "VM_FOR_CMP_LT",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_FOR_CMP_LE",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_FOR_CMP_GT",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_FOR_CMP_GE",
+          "value": 3,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_FOR_CMP_CNT",
+          "value": 4,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_io_disabled_state_e": {
+      "alias": "IO Disabled Action",
+      "source_file": "components/VM/blocks/vm_block_io_set_level.h",
+      "members": [
+        {
+          "name": "VM_IO_DISABLED_HOLD",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IO_DISABLED_FORCE_LOW",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IO_DISABLED_FORCE_HIGH",
+          "value": 2,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_latch_mode_e": {
+      "alias": "Latch Mode",
+      "source_file": "components/VM/blocks/vm_block_latch.h",
+      "members": [
+        {
+          "name": "VM_LATCH_SET_DOMINANT",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_LATCH_RESET_DOMINANT",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_LATCH_MODE_CNT",
+          "value": 2,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_timer_mode_e": {
+      "alias": "Timer Mode",
+      "source_file": "components/VM/blocks/vm_block_timer.h",
+      "members": [
+        {
+          "name": "VM_TIMER_TON",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TOF",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TP",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TON_INV",
+          "value": 3,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TOF_INV",
+          "value": 4,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TP_INV",
+          "value": 5,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_MODE_CNT",
+          "value": 6,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_timer_unit_e": {
+      "alias": "Time Unit",
+      "source_file": "components/VM/blocks/vm_block_timer.h",
+      "members": [
+        {
+          "name": "VM_TIMER_UNIT_MS",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_SEC",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_MIN",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_HR",
+          "value": 3,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_CNT",
+          "value": 4,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_exec_command_e": {
+      "alias": "VM Exec Command",
+      "source_file": "components/VM/core/exec/vm_exec.h",
+      "members": [
+        {
+          "name": "VM_EXEC_SCAN_MODE",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_ONCE",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_BLOCK_MODE",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_NEXT",
+          "value": 3,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_RESET_TO_START",
+          "value": 4,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_NORMAL_MODE",
+          "value": 5,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_PAUSE",
+          "value": 6,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_RESUME",
+          "value": 7,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_RESET",
+          "value": 8,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_ACK_FAULT",
+          "value": 9,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_RETAIN_CLEAR",
+          "value": 10,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
     "vm_obj_t_e": {
       "alias": "VM Data Type",
       "source_file": "components/VM/core/obj/vm_obj.h",
@@ -566,6 +1400,12 @@
     }
   },
   "symbols": {
+    "RUNIT_DATA_PROVIDER_BLE": {
+      "enum": "runit_data_provider_e",
+      "value": 1,
+      "alias": "Bluetooth LE",
+      "description": "The endpoint is a characteristic UUID."
+    },
     "SYS_BLE_EVENT_CONNECT": {
       "enum": "sys_ble_events_e",
       "value": 0,
@@ -583,6 +1423,36 @@
       "value": 2,
       "alias": "Failure",
       "description": "A connection, receive or send failure (value = error code)"
+    },
+    "SYS_DATA_CONNECTOR_LOGS": {
+      "enum": "sys_data_connector_id_e",
+      "value": 0,
+      "alias": "Logs",
+      "description": "Text log lines."
+    },
+    "SYS_DATA_CONNECTOR_ERRORS": {
+      "enum": "sys_data_connector_id_e",
+      "value": 1,
+      "alias": "Errors",
+      "description": "Binary error reports."
+    },
+    "SYS_DATA_CONNECTOR_TELEMETRY": {
+      "enum": "sys_data_connector_id_e",
+      "value": 2,
+      "alias": "Telemetry",
+      "description": "Program object values you subscribed to."
+    },
+    "SYS_DATA_CONNECTOR_INTERFACE": {
+      "enum": "sys_data_connector_id_e",
+      "value": 3,
+      "alias": "Commands",
+      "description": "Commands to the board and their responses."
+    },
+    "SYS_DATA_CONNECTOR_APP_BASE": {
+      "enum": "sys_data_connector_id_e",
+      "value": 4,
+      "alias": "First user connector",
+      "description": "Connectors you create use this ID or higher."
     },
     "SYS_DEVICE_CONTRACT_IO": {
       "enum": "sys_device_contract_type_e",
@@ -967,6 +1837,726 @@
       "value": 1,
       "alias": "LiPo",
       "description": "Lithium polymer, 4.2 V per cell when full"
+    },
+    "VM_ACTION_SCOPE_STATIC": {
+      "enum": "vm_action_scope_e",
+      "value": 0,
+      "alias": "Static",
+      "description": "A built-in action (freeze, safe state, device reset, ...)"
+    },
+    "VM_ACTION_SCOPE_RECORDED": {
+      "enum": "vm_action_scope_e",
+      "value": 1,
+      "alias": "Recorded",
+      "description": "A recorded packet sequence"
+    },
+    "VM_EDGE_RISING": {
+      "enum": "vm_edge_type_e",
+      "value": 0,
+      "alias": null,
+      "description": null
+    },
+    "VM_EDGE_FALLING": {
+      "enum": "vm_edge_type_e",
+      "value": 1,
+      "alias": null,
+      "description": null
+    },
+    "VM_EDGE_BOTH": {
+      "enum": "vm_edge_type_e",
+      "value": 2,
+      "alias": null,
+      "description": null
+    },
+    "VM_EDGE_TYPE_CNT": {
+      "enum": "vm_edge_type_e",
+      "value": 3,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_END": {
+      "enum": "vm_expr_op_e",
+      "value": 0,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_IN": {
+      "enum": "vm_expr_op_e",
+      "value": 1,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_K": {
+      "enum": "vm_expr_op_e",
+      "value": 2,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_DUP": {
+      "enum": "vm_expr_op_e",
+      "value": 3,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_DROP": {
+      "enum": "vm_expr_op_e",
+      "value": 4,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_SWAP": {
+      "enum": "vm_expr_op_e",
+      "value": 5,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_ADD": {
+      "enum": "vm_expr_op_e",
+      "value": 6,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_SUB": {
+      "enum": "vm_expr_op_e",
+      "value": 7,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_MUL": {
+      "enum": "vm_expr_op_e",
+      "value": 8,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_DIV": {
+      "enum": "vm_expr_op_e",
+      "value": 9,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_MOD": {
+      "enum": "vm_expr_op_e",
+      "value": 10,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_POW": {
+      "enum": "vm_expr_op_e",
+      "value": 11,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_ROOT": {
+      "enum": "vm_expr_op_e",
+      "value": 12,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_MIN": {
+      "enum": "vm_expr_op_e",
+      "value": 13,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_MAX": {
+      "enum": "vm_expr_op_e",
+      "value": 14,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_ATAN2": {
+      "enum": "vm_expr_op_e",
+      "value": 15,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_HYPOT": {
+      "enum": "vm_expr_op_e",
+      "value": 16,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_NEG": {
+      "enum": "vm_expr_op_e",
+      "value": 17,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_ABS": {
+      "enum": "vm_expr_op_e",
+      "value": 18,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_SQRT": {
+      "enum": "vm_expr_op_e",
+      "value": 19,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_SQUARE": {
+      "enum": "vm_expr_op_e",
+      "value": 20,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_RECIP": {
+      "enum": "vm_expr_op_e",
+      "value": 21,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_FLOOR": {
+      "enum": "vm_expr_op_e",
+      "value": 22,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_CEIL": {
+      "enum": "vm_expr_op_e",
+      "value": 23,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_ROUND": {
+      "enum": "vm_expr_op_e",
+      "value": 24,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_TRUNC": {
+      "enum": "vm_expr_op_e",
+      "value": 25,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_SIGN": {
+      "enum": "vm_expr_op_e",
+      "value": 26,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_SIN": {
+      "enum": "vm_expr_op_e",
+      "value": 27,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_COS": {
+      "enum": "vm_expr_op_e",
+      "value": 28,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_TAN": {
+      "enum": "vm_expr_op_e",
+      "value": 29,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_ASIN": {
+      "enum": "vm_expr_op_e",
+      "value": 30,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_ACOS": {
+      "enum": "vm_expr_op_e",
+      "value": 31,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_ATAN": {
+      "enum": "vm_expr_op_e",
+      "value": 32,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_EXP": {
+      "enum": "vm_expr_op_e",
+      "value": 33,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_LOG": {
+      "enum": "vm_expr_op_e",
+      "value": 34,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_LOG10": {
+      "enum": "vm_expr_op_e",
+      "value": 35,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_LOG2": {
+      "enum": "vm_expr_op_e",
+      "value": 36,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_DEG": {
+      "enum": "vm_expr_op_e",
+      "value": 37,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_RAD": {
+      "enum": "vm_expr_op_e",
+      "value": 38,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_LT": {
+      "enum": "vm_expr_op_e",
+      "value": 39,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_LE": {
+      "enum": "vm_expr_op_e",
+      "value": 40,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_GT": {
+      "enum": "vm_expr_op_e",
+      "value": 41,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_GE": {
+      "enum": "vm_expr_op_e",
+      "value": 42,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_EQ": {
+      "enum": "vm_expr_op_e",
+      "value": 43,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_NE": {
+      "enum": "vm_expr_op_e",
+      "value": 44,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_AND": {
+      "enum": "vm_expr_op_e",
+      "value": 45,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_OR": {
+      "enum": "vm_expr_op_e",
+      "value": 46,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_XOR": {
+      "enum": "vm_expr_op_e",
+      "value": 47,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_NOT": {
+      "enum": "vm_expr_op_e",
+      "value": 48,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_SEL": {
+      "enum": "vm_expr_op_e",
+      "value": 49,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_OP_CNT": {
+      "enum": "vm_expr_op_e",
+      "value": 50,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_END": {
+      "enum": "vm_bit_op_e",
+      "value": 0,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_IN": {
+      "enum": "vm_bit_op_e",
+      "value": 1,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_K": {
+      "enum": "vm_bit_op_e",
+      "value": 2,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_DUP": {
+      "enum": "vm_bit_op_e",
+      "value": 3,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_DROP": {
+      "enum": "vm_bit_op_e",
+      "value": 4,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_SWAP": {
+      "enum": "vm_bit_op_e",
+      "value": 5,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_AND": {
+      "enum": "vm_bit_op_e",
+      "value": 6,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_OR": {
+      "enum": "vm_bit_op_e",
+      "value": 7,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_XOR": {
+      "enum": "vm_bit_op_e",
+      "value": 8,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_SHL": {
+      "enum": "vm_bit_op_e",
+      "value": 9,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_SHR": {
+      "enum": "vm_bit_op_e",
+      "value": 10,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_SAR": {
+      "enum": "vm_bit_op_e",
+      "value": 11,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_ROL": {
+      "enum": "vm_bit_op_e",
+      "value": 12,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_ROR": {
+      "enum": "vm_bit_op_e",
+      "value": 13,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_GET": {
+      "enum": "vm_bit_op_e",
+      "value": 14,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_SET": {
+      "enum": "vm_bit_op_e",
+      "value": 15,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_CLR": {
+      "enum": "vm_bit_op_e",
+      "value": 16,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_TGL": {
+      "enum": "vm_bit_op_e",
+      "value": 17,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_NOT": {
+      "enum": "vm_bit_op_e",
+      "value": 18,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_POPCNT": {
+      "enum": "vm_bit_op_e",
+      "value": 19,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_CLZ": {
+      "enum": "vm_bit_op_e",
+      "value": 20,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_CTZ": {
+      "enum": "vm_bit_op_e",
+      "value": 21,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_BSWAP": {
+      "enum": "vm_bit_op_e",
+      "value": 22,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_OP_CNT": {
+      "enum": "vm_bit_op_e",
+      "value": 23,
+      "alias": null,
+      "description": null
+    },
+    "VM_FOR_OP_ADD": {
+      "enum": "vm_for_op_e",
+      "value": 0,
+      "alias": null,
+      "description": null
+    },
+    "VM_FOR_OP_SUB": {
+      "enum": "vm_for_op_e",
+      "value": 1,
+      "alias": null,
+      "description": null
+    },
+    "VM_FOR_OP_MUL": {
+      "enum": "vm_for_op_e",
+      "value": 2,
+      "alias": null,
+      "description": null
+    },
+    "VM_FOR_OP_DIV": {
+      "enum": "vm_for_op_e",
+      "value": 3,
+      "alias": null,
+      "description": null
+    },
+    "VM_FOR_OP_CNT": {
+      "enum": "vm_for_op_e",
+      "value": 4,
+      "alias": null,
+      "description": null
+    },
+    "VM_FOR_CMP_LT": {
+      "enum": "vm_for_cmp_e",
+      "value": 0,
+      "alias": null,
+      "description": null
+    },
+    "VM_FOR_CMP_LE": {
+      "enum": "vm_for_cmp_e",
+      "value": 1,
+      "alias": null,
+      "description": null
+    },
+    "VM_FOR_CMP_GT": {
+      "enum": "vm_for_cmp_e",
+      "value": 2,
+      "alias": null,
+      "description": null
+    },
+    "VM_FOR_CMP_GE": {
+      "enum": "vm_for_cmp_e",
+      "value": 3,
+      "alias": null,
+      "description": null
+    },
+    "VM_FOR_CMP_CNT": {
+      "enum": "vm_for_cmp_e",
+      "value": 4,
+      "alias": null,
+      "description": null
+    },
+    "VM_IO_DISABLED_HOLD": {
+      "enum": "vm_io_disabled_state_e",
+      "value": 0,
+      "alias": null,
+      "description": null
+    },
+    "VM_IO_DISABLED_FORCE_LOW": {
+      "enum": "vm_io_disabled_state_e",
+      "value": 1,
+      "alias": null,
+      "description": null
+    },
+    "VM_IO_DISABLED_FORCE_HIGH": {
+      "enum": "vm_io_disabled_state_e",
+      "value": 2,
+      "alias": null,
+      "description": null
+    },
+    "VM_LATCH_SET_DOMINANT": {
+      "enum": "vm_latch_mode_e",
+      "value": 0,
+      "alias": null,
+      "description": null
+    },
+    "VM_LATCH_RESET_DOMINANT": {
+      "enum": "vm_latch_mode_e",
+      "value": 1,
+      "alias": null,
+      "description": null
+    },
+    "VM_LATCH_MODE_CNT": {
+      "enum": "vm_latch_mode_e",
+      "value": 2,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_TON": {
+      "enum": "vm_timer_mode_e",
+      "value": 0,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_TOF": {
+      "enum": "vm_timer_mode_e",
+      "value": 1,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_TP": {
+      "enum": "vm_timer_mode_e",
+      "value": 2,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_TON_INV": {
+      "enum": "vm_timer_mode_e",
+      "value": 3,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_TOF_INV": {
+      "enum": "vm_timer_mode_e",
+      "value": 4,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_TP_INV": {
+      "enum": "vm_timer_mode_e",
+      "value": 5,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_MODE_CNT": {
+      "enum": "vm_timer_mode_e",
+      "value": 6,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_UNIT_MS": {
+      "enum": "vm_timer_unit_e",
+      "value": 0,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_UNIT_SEC": {
+      "enum": "vm_timer_unit_e",
+      "value": 1,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_UNIT_MIN": {
+      "enum": "vm_timer_unit_e",
+      "value": 2,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_UNIT_HR": {
+      "enum": "vm_timer_unit_e",
+      "value": 3,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_UNIT_CNT": {
+      "enum": "vm_timer_unit_e",
+      "value": 4,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_SCAN_MODE": {
+      "enum": "vm_exec_command_e",
+      "value": 0,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_ONCE": {
+      "enum": "vm_exec_command_e",
+      "value": 1,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_BLOCK_MODE": {
+      "enum": "vm_exec_command_e",
+      "value": 2,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_NEXT": {
+      "enum": "vm_exec_command_e",
+      "value": 3,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_RESET_TO_START": {
+      "enum": "vm_exec_command_e",
+      "value": 4,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_NORMAL_MODE": {
+      "enum": "vm_exec_command_e",
+      "value": 5,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_PAUSE": {
+      "enum": "vm_exec_command_e",
+      "value": 6,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_RESUME": {
+      "enum": "vm_exec_command_e",
+      "value": 7,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_RESET": {
+      "enum": "vm_exec_command_e",
+      "value": 8,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_ACK_FAULT": {
+      "enum": "vm_exec_command_e",
+      "value": 9,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_RETAIN_CLEAR": {
+      "enum": "vm_exec_command_e",
+      "value": 10,
+      "alias": null,
+      "description": null
     },
     "VM_OBJ_NONE": {
       "enum": "vm_obj_t_e",

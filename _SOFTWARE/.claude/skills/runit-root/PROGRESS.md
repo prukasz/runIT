@@ -1,6 +1,6 @@
 # runIT — Progress Log
 
-Last updated: 2026-09-23 · branch `vm_ui` (all firmware work since 2026-09-22 is uncommitted)
+Last updated: 2026-09-23 · branch `vm_ui` (work through 2026-09-23 committed in `574ba86`)
 
 Status legend: 🟡 in progress · ⏳ planned · ⛔ blocked. Finished items move to the done log as one line; their design lives in the skill files and component docs.
 
@@ -19,15 +19,18 @@ Status legend: 🟡 in progress · ⏳ planned · ⛔ blocked. Finished items mo
 | Naming cleanup | ⏳ | `runit-esp/conventions.md` §5.2 |
 | `utils.h` static allocator fixes | ⏳ | `runit-esp/conventions.md` §1 (linkage, double start, stack param, buffer capacity, …) + hard-coded stacks → Kconfig |
 | Boot-log findings | ⏳ | Flash size 2 MB configured vs 16 MB on board; BLE advertising started twice; CPU 160 MHz (240 possible) (`runit-esp/build.md` §2a) |
-| Component docs missing | ⏳ | `sys_i2c`, `sys_data_connector`, `sys_hbridge` have no `.MD` (ask the user for purpose first, conventions.md §8) |
-| VM core | 🟡 | Blocks: branch, clone, edge, expr, for, io_set_level, io_toggle, set, timer. No event block reads the VM event buffer yet |
+| Component docs missing | ⏳ | `sys_i2c`, `sys_hbridge` have no `.MD` (ask the user for purpose first, conventions.md §8) |
+| Data connector rework | 🟡 | Built, not run on hardware (SYS_DATA_CONNECTOR.MD). To check on the board: responses reach the app, device-initiated MTU exchange raises the frame limit (logs no longer cut to 20 B), 249–512 B writes accepted (bigger BLE buffers), class `0x06` protection, `seq` echoed in responses. Open: Wi-Fi / UART / MQTT providers |
+| App: data connector IDs | ⏳ | Connector / provider IDs are published in `enums.json` (`sys_data_connector_id_e`, `runit_data_provider_e`) and referenced by the class `0x06` fields (`enum_ref`); the app doesn't consume `enums.json` yet |
+| App: VM program compiler | ⏳ | Build programs from `vm-blocks.generated.json` (block ids, pins, state layouts) + `vm-model.generated.json` (object header, accessors) + `enums.json`; create a VM-routed event subscription (class `0x09`) for programs with ON_EVENT blocks |
+| VM core | 🟡 | 15 blocks on one palette table (`g_vm_block_types`), catalog `data-structures/vm/vm-blocks.generated.json`. Open (`runit-esp/vm/findings.md`): `0x04` record layouts in JSON (G-2), test target (G-5, needs a toolchain decision), program storage on the device (G-8, next), NVS / flash size (G-9). Latch/periodic/action/on_event not run on hardware |
 | Features: servo, hbridge | 🟡 | Skeletons (`components/features/`) |
 | Headers cleanup | 🟡 | Part 1 done; packet defines moved to Kconfig |
 | H-bridge power-source selection (LM73100) | ⏳ | Choose rail A, rail B or direct input per H-bridge group (TCA6424A pins); must prevent shorting two sources. Needs TCA pin mapping |
 | ADS7128 digital-input mode | ⏳ | ADC read mapped to a level by threshold (below 0.5 V low, hysteresis TBD); regenerate JSON |
 | Wi-Fi coexistence | ⏳ | Not implemented |
 | User transports (LoRa, sub-GHz) | ⏳ | Concept only |
-| Host tests | ⏳ | No firmware test target; `tools/tests/test_sys_errors.py` referenced by SYS_ERRORS.MD is gone |
+| Host tests | ⛔ | Wanted for the VM core (`runit-esp/vm/findings.md` G-5). Blocked: no host C compiler on this machine; decide between installing one (LLVM-MinGW / Zig) or an on-board Unity test app |
 
 ## runit-app
 
@@ -35,7 +38,7 @@ Status legend: 🟡 in progress · ⏳ planned · ⛔ blocked. Finished items mo
 |---|---|---|
 | BLE backend (Web Bluetooth adapter, GATT catalog) | 🟡 | `app/src/backend/ble/`, test UI `BleTestApp.tsx` |
 | Packet packer + data stream / outgoing router | 🟡 | `app/src/backend/packetPack/`, `stream/` |
-| Command responses (stream 0x05) | ⏳ | Decode `[0x05][class][packet][status][data]`, match FIFO, OK data via the contract's `response` layout, errors as `u16 tag, u16 owner` (`contracts.generated.json` → `response_stream`, `response`) |
+| Command responses (stream 0x05) | ⏳ | Every command must start with a `seq` byte: `[seq][class][packet][payload]` (`packPacket` doesn't add it yet; a raw-hex test UI must too). Decode `[0x05][seq][class][packet][status][data]`, match pending commands by `seq` with a timeout, OK data via the contract's `response` layout, errors as `u16 tag, u16 owner` (`contracts.generated.json` → `response_stream`, `response`) |
 | Power page | ⏳ | Status (`0x3C` response), PSU / battery settings (settings class `0x08`), response matrix (`0x3D`), monitor alerts (`0x39`); enums `sys_power_source_e`, `sys_power_response_e`, `sys_power_battery_e` |
 | Event subscriptions page | ⏳ | Class `0x09` (`events` catalog): subscribe returns an ID, unsubscribe by ID / 255 = all; enums `sys_event_domain_e` + per-domain event enums |
 | Consume generated JSON descriptors | ⏳ | from `data-structures/*.generated.json` |
@@ -49,10 +52,9 @@ Status legend: 🟡 in progress · ⏳ planned · ⛔ blocked. Finished items mo
 
 | Item | Status | Notes |
 |---|---|---|
-| `runit-esp` skill | 🟡 | Pending: vm.md |
 | `runit-app` skill | ⏳ | Stub |
 | Migrate legacy skill content | ⏳ | From `../_agents_backup_2026-09-22/`; legacy firmware skill has absolute links to another machine (`C:/Users/krolp/...`) |
-| JSON annotations → `data-structures/` | 🟡 | Device, contracts, settings, VM model generators + schemas; uncommitted |
+| JSON annotations → `data-structures/` | 🟡 | Device, contracts, settings, VM model generators + schemas |
 
 ## Done log
 
@@ -63,4 +65,10 @@ Status legend: 🟡 in progress · ⏳ planned · ⛔ blocked. Finished items mo
 - 2026-09-22 — Flash + serial capture on COM3 (`runit-esp/scripts/serial_capture.py`).
 - 2026-09-23 — Error handling review (severity, async log task, stable tag IDs, renames), F-11 wiring, repeat suppression.
 - 2026-09-23 — Events (`sys_event`, F-15) replace callbacks; subscribe / unsubscribe packets (class `0x09`).
+- 2026-09-23 — VM retained values: `retentive` objects kept by name in one `sys_settings` record, saved every 60 s (changed only) off the VM task, on teardown and safe state; restored on the first start; `0x48 0A` forgets them; `sys_settings_load_blob()`.
+- 2026-09-23 — VM structure: one palette entry per block type (`vm_block_type_t`, shape checked once at load, no per-pass re-check); per-call fault bit replaces the global `g_vm_block_fault`; `ON_EVENT` block; block catalog generator `generate-vm-blocks.py` (+ schema), block enums and `vm_exec_command_e` published.
+- 2026-09-23 — VM patches: B-1 fixed (a block rejected by its verify is removed again, `vm_store_undo`); LATCH, PERIODIC, ACTION blocks; `sys_actions_request()` queue so the VM never runs an action in a pass; `@verified` markers removed; VM.MD / VM_EXEC.MD brought up to date (status table), perf history moved to VM_PERF.MD, stale self-test/benchmark references removed.
+- 2026-09-23 — `runit-esp` skill complete: VM subfolder `vm/` (README, blocks, wire, findings) from a review of `components/VM`.
+- 2026-09-23 — Command sequence byte: `[seq][class][packet]…`, echoed in responses; contracts JSON `matching: seq`.
+- 2026-09-23 — Data connector made transport-agnostic: ID-based API, `uint32` endpoints, provider-owned framing, responses to the frame's origin, dynamic frame limit (BLE MTU) instead of truncation, protected system connectors, BLE provider moved into `ble`, `SYS_DATA_CONNECTOR.MD`.
 - 2026-09-23 — Legacy `Python/` tooling deleted (class resolution moved to `data-structures/auto-annotations/packet_classes.py`); root `auto-annotations/` removed.

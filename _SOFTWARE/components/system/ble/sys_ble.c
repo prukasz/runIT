@@ -2,7 +2,7 @@
 
 static const char* TAG = __FILE_NAME__;
 
-sys_ble_ctx_t g_ble_ctx = {.mtu_size = 527};
+sys_ble_ctx_t g_ble_ctx = {.mtu_size = BLE_ATT_MTU_DFLT};
 
 R_MUTEX_DEFINE(sys_ble_mutex);
 R_BINARY_SEM_DEFINE(sys_ble_tx_sem);
@@ -85,8 +85,8 @@ err_h sys_ble_service_remove(uint16_t svc_uuid) {
     int rc = ble_gatts_delete_svc((const ble_uuid_t*)&temp_uuid);
     R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
     if (rc != 0) {
-      ESP_LOGE(TAG, "Failed to delete service 0x%04X from NimBLE: %d", svc_uuid, rc);
       R_MUTEX_UNLOCK(sys_ble_mutex);
+      ESP_LOGE(TAG, "Failed to delete service 0x%04X from NimBLE: %d", svc_uuid, rc);
       SE_FAIL(ERR_BASE_NOT_SUPPORTED, rc);
     }
   }
@@ -478,6 +478,16 @@ err_h sys_ble_database_sync(void) {
   return err;
 }
 #undef OWNER
+
+size_t sys_ble_char_max_payload(uint16_t char_uuid) {
+  R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+  const sys_ble_char_node_t* c = sys_ble_find_char_by_uuid(char_uuid);
+  size_t buffer = (c && !c->pending_remove) ? sys_buff_max_item(&c->tx_buff) : 0;
+  uint16_t mtu = g_ble_ctx.is_connected ? g_ble_ctx.mtu_size : BLE_ATT_MTU_MAX;
+  R_MUTEX_UNLOCK(sys_ble_mutex);
+  size_t link = (size_t)(mtu - SYS_BLE_ATT_NOTIFY_HDR_LEN);
+  return buffer < link ? buffer : link;
+}
 
 #define OWNER OWNER_SYS_BLE_GET_STATUS
 err_h sys_ble_get_status(sys_ble_status_t* out_status) {

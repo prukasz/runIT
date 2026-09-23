@@ -1,0 +1,947 @@
+{
+  "$schema": "data-structures/schema/vm-blocks.schema.json",
+  "schemaVersion": 1,
+  "kind": "vm-blocks",
+  "enums": "data-structures/enums.json",
+  "blocks": [
+    {
+      "id": 1,
+      "name": "VM_BLK_EXPR",
+      "title": "Expression",
+      "category": "data",
+      "description": "Evaluates an RPN float expression over its inputs when an input is fresh and the block is enabled; the result goes to output 0.",
+      "source_file": "components/VM/blocks/vm_block_expr.h",
+      "min_inputs": 0,
+      "min_outputs": 1,
+      "inputs": [
+        {
+          "index": "*",
+          "name": "pin",
+          "title": "Input",
+          "description": "Read by the IN opcode; any number, only the ones the code names are read.",
+          "required": false
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "result",
+          "title": "Result",
+          "description": "The expression's value (float)."
+        }
+      ],
+      "state": {
+        "struct": "vm_expr_code_t",
+        "source_file": "components/VM/blocks/vm_block_expr.h",
+        "size": 4,
+        "align": 4,
+        "fields": [
+          {
+            "name": "const_cnt",
+            "c_type": "uint8_t",
+            "offset": 0,
+            "size": 1,
+            "description": "Number of u32 literals after the header"
+          },
+          {
+            "name": "rt",
+            "c_type": "uint8_t",
+            "offset": 1,
+            "size": 1,
+            "runtime": true
+          },
+          {
+            "name": "code_len",
+            "c_type": "uint16_t",
+            "offset": 2,
+            "size": 2,
+            "description": "Bytecode length after the literals"
+          },
+          {
+            "name": "consts",
+            "c_type": "vm_expr_k_t",
+            "offset": 4,
+            "flexible": true,
+            "element_size": 4,
+            "description": "const_cnt literals (f32 for EXPR, u32 for EXPR_BIT), then code_len opcode bytes"
+          }
+        ],
+        "tail": "consts u32[const_cnt], code u8[code_len] (opcodes vm_expr_op_e)"
+      }
+    },
+    {
+      "id": 2,
+      "name": "VM_BLK_EXPR_BIT",
+      "title": "Bit Expression",
+      "category": "data",
+      "description": "Evaluates an RPN uint32 bitwise expression over its inputs when an input is fresh and the block is enabled.",
+      "source_file": "components/VM/blocks/vm_block_expr.h",
+      "min_inputs": 0,
+      "min_outputs": 1,
+      "inputs": [
+        {
+          "index": "*",
+          "name": "pin",
+          "title": "Input",
+          "description": "Read by the IN opcode; any number, only the ones the code names are read.",
+          "required": false
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "result",
+          "title": "Result",
+          "description": "The expression's value (u32)."
+        }
+      ],
+      "state": {
+        "struct": "vm_expr_code_t",
+        "source_file": "components/VM/blocks/vm_block_expr.h",
+        "size": 4,
+        "align": 4,
+        "fields": [
+          {
+            "name": "const_cnt",
+            "c_type": "uint8_t",
+            "offset": 0,
+            "size": 1,
+            "description": "Number of u32 literals after the header"
+          },
+          {
+            "name": "rt",
+            "c_type": "uint8_t",
+            "offset": 1,
+            "size": 1,
+            "runtime": true
+          },
+          {
+            "name": "code_len",
+            "c_type": "uint16_t",
+            "offset": 2,
+            "size": 2,
+            "description": "Bytecode length after the literals"
+          },
+          {
+            "name": "consts",
+            "c_type": "vm_expr_k_t",
+            "offset": 4,
+            "flexible": true,
+            "element_size": 4,
+            "description": "const_cnt literals (f32 for EXPR, u32 for EXPR_BIT), then code_len opcode bytes"
+          }
+        ],
+        "tail": "consts u32[const_cnt], code u8[code_len] (opcodes vm_bit_op_e)"
+      }
+    },
+    {
+      "id": 3,
+      "name": "VM_BLK_IF",
+      "title": "If",
+      "category": "flow",
+      "description": "Two-way router: output 0 when the condition is non-zero, else output 1. Outputs are flow (enable sources below), cleared when the block doesn't decide.",
+      "source_file": "components/VM/blocks/vm_block_branch.h",
+      "min_inputs": 1,
+      "min_outputs": 2,
+      "inputs": [
+        {
+          "index": 0,
+          "name": "condition",
+          "title": "Condition",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "yes",
+          "title": "Yes"
+        },
+        {
+          "index": 1,
+          "name": "no",
+          "title": "No"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "VM_BLK_SWITCH",
+      "title": "Switch",
+      "category": "flow",
+      "description": "N-way router: drives the output whose index equals the selector (rounded); out of range drives none.",
+      "source_file": "components/VM/blocks/vm_block_branch.h",
+      "min_inputs": 1,
+      "min_outputs": 1,
+      "inputs": [
+        {
+          "index": 0,
+          "name": "selector",
+          "title": "Selector",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "index": "*",
+          "name": "branch",
+          "title": "Branch",
+          "description": "One per case, 0..15."
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "VM_BLK_FOR",
+      "title": "For",
+      "category": "flow",
+      "description": "Runs the blocks in its span repeatedly within one pass: for (i = start; i <cmp> end; i = i <op> step), bounded by max_turns.",
+      "source_file": "components/VM/blocks/vm_block_for.h",
+      "min_inputs": 0,
+      "min_outputs": 0,
+      "inputs": [
+        {
+          "index": 0,
+          "name": "start",
+          "title": "Start",
+          "required": false
+        },
+        {
+          "index": 1,
+          "name": "end",
+          "title": "End",
+          "required": false
+        },
+        {
+          "index": 2,
+          "name": "step",
+          "title": "Step",
+          "required": false
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "index",
+          "title": "Index",
+          "description": "The iterator, published before each turn."
+        }
+      ],
+      "state": {
+        "struct": "vm_for_code_t",
+        "source_file": "components/VM/blocks/vm_block_for.h",
+        "size": 24,
+        "align": 4,
+        "fields": [
+          {
+            "name": "span",
+            "c_type": "vm_span_t",
+            "offset": 0,
+            "size": 4,
+            "description": "Block ids [start, end) this loop runs; start = own id + 1"
+          },
+          {
+            "name": "k_start",
+            "c_type": "float",
+            "offset": 4,
+            "size": 4,
+            "description": "Start when input 0 is unwired"
+          },
+          {
+            "name": "k_end",
+            "c_type": "float",
+            "offset": 8,
+            "size": 4,
+            "description": "End when input 1 is unwired"
+          },
+          {
+            "name": "k_step",
+            "c_type": "float",
+            "offset": 12,
+            "size": 4,
+            "description": "Step when input 2 is unwired"
+          },
+          {
+            "name": "max_turns",
+            "c_type": "uint16_t",
+            "offset": 16,
+            "size": 2,
+            "description": "Turn budget per pass"
+          },
+          {
+            "name": "op",
+            "c_type": "uint8_t",
+            "offset": 18,
+            "size": 1,
+            "description": "How the iterator advances",
+            "enum_ref": "vm_for_op_e"
+          },
+          {
+            "name": "cmp",
+            "c_type": "uint8_t",
+            "offset": 19,
+            "size": 1,
+            "description": "Loop condition",
+            "enum_ref": "vm_for_cmp_e"
+          },
+          {
+            "name": "rt",
+            "c_type": "uint8_t",
+            "offset": 20,
+            "size": 1,
+            "runtime": true
+          },
+          {
+            "name": "_pad",
+            "c_type": "uint8_t",
+            "offset": 21,
+            "size": 3,
+            "array_len": 3,
+            "element_size": 1,
+            "padding": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "name": "VM_BLK_SET",
+      "title": "Set",
+      "category": "data",
+      "description": "Copies the source payload (whole trees included) into the destination when the source is fresh. Types and counts must match.",
+      "source_file": "components/VM/blocks/vm_block_set.h",
+      "min_inputs": 2,
+      "min_outputs": 0,
+      "inputs": [
+        {
+          "index": 0,
+          "name": "source",
+          "title": "Source",
+          "required": true
+        },
+        {
+          "index": 1,
+          "name": "destination",
+          "title": "Destination",
+          "required": true
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "id": 7,
+      "name": "VM_BLK_CLONE",
+      "title": "Clone",
+      "category": "data",
+      "description": "Copies the source into a tree this block owns, hung off a pointer cell; rebuilds only when the source's shape changes.",
+      "source_file": "components/VM/blocks/vm_block_clone.h",
+      "min_inputs": 2,
+      "min_outputs": 0,
+      "inputs": [
+        {
+          "index": 0,
+          "name": "source",
+          "title": "Source",
+          "required": true
+        },
+        {
+          "index": 1,
+          "name": "cell",
+          "title": "Pointer cell",
+          "required": true
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "id": 8,
+      "name": "VM_BLK_EDGE",
+      "title": "Edge",
+      "category": "logic",
+      "description": "Pulses for one pass when the input rises, falls or changes by at least the threshold.",
+      "source_file": "components/VM/blocks/vm_block_edge.h",
+      "min_inputs": 1,
+      "min_outputs": 0,
+      "inputs": [
+        {
+          "index": 0,
+          "name": "signal",
+          "title": "Signal",
+          "required": true
+        },
+        {
+          "index": 1,
+          "name": "threshold",
+          "title": "Threshold",
+          "description": "Overrides change_by; same type as the signal.",
+          "required": false
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "pulse",
+          "title": "Pulse"
+        }
+      ],
+      "state": {
+        "struct": "vm_block_edge_data_t",
+        "source_file": "components/VM/blocks/vm_block_edge.h",
+        "size": 12,
+        "align": 4,
+        "fields": [
+          {
+            "name": "edge_type",
+            "c_type": "uint8_t",
+            "offset": 0,
+            "size": 1,
+            "description": "vm_edge_type_e",
+            "enum_ref": "vm_edge_type_e"
+          },
+          {
+            "name": "flags",
+            "c_type": "uint8_t",
+            "offset": 1,
+            "size": 1,
+            "description": "VM_EDGE_F_*",
+            "runtime": true
+          },
+          {
+            "name": "_pad1",
+            "c_type": "uint16_t",
+            "offset": 2,
+            "size": 2,
+            "padding": true
+          },
+          {
+            "name": "change_by",
+            "c_type": "vm_edge_val_u",
+            "offset": 4,
+            "size": 4,
+            "description": "Threshold for change condition (0 = any change)"
+          },
+          {
+            "name": "prev_val",
+            "c_type": "vm_edge_val_u",
+            "offset": 8,
+            "size": 4,
+            "description": "Stored previous value",
+            "runtime": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 9,
+      "name": "VM_BLK_TIMER",
+      "title": "Timer",
+      "category": "time",
+      "description": "IEC timer: on-delay, off-delay or pulse (plus inverted). Q follows the timer, ENO follows Q.",
+      "source_file": "components/VM/blocks/vm_block_timer.h",
+      "min_inputs": 1,
+      "min_outputs": 0,
+      "inputs": [
+        {
+          "index": 0,
+          "name": "in",
+          "title": "Input",
+          "required": true
+        },
+        {
+          "index": 1,
+          "name": "pt",
+          "title": "Preset",
+          "description": "Overrides pt, in time_base units.",
+          "required": false
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "q",
+          "title": "Q"
+        },
+        {
+          "index": 1,
+          "name": "et",
+          "title": "Elapsed"
+        }
+      ],
+      "state": {
+        "struct": "vm_block_timer_data_t",
+        "source_file": "components/VM/blocks/vm_block_timer.h",
+        "size": 32,
+        "align": 8,
+        "fields": [
+          {
+            "name": "mode",
+            "c_type": "uint8_t",
+            "offset": 0,
+            "size": 1,
+            "description": "vm_timer_mode_e",
+            "enum_ref": "vm_timer_mode_e"
+          },
+          {
+            "name": "flags",
+            "c_type": "uint8_t",
+            "offset": 1,
+            "size": 1,
+            "description": "VM_TIMER_F_*: only VM_TIMER_F_INVERTED (0x08) is set by the app"
+          },
+          {
+            "name": "time_base",
+            "c_type": "uint8_t",
+            "offset": 2,
+            "size": 1,
+            "description": "Unit of pt and ET",
+            "enum_ref": "vm_timer_unit_e"
+          },
+          {
+            "name": "_pad1",
+            "c_type": "uint8_t",
+            "offset": 3,
+            "size": 1,
+            "padding": true
+          },
+          {
+            "name": "_pad2",
+            "c_type": "uint32_t",
+            "offset": 4,
+            "size": 4,
+            "padding": true
+          },
+          {
+            "name": "pt",
+            "c_type": "uint32_t",
+            "offset": 8,
+            "size": 4,
+            "description": "Preset time in configured unit (hardcoded fallback)"
+          },
+          {
+            "name": "start_ms",
+            "c_type": "uint64_t",
+            "offset": 16,
+            "size": 8,
+            "description": "Timestamp when timing started",
+            "runtime": true
+          },
+          {
+            "name": "elapsed",
+            "c_type": "uint32_t",
+            "offset": 24,
+            "size": 4,
+            "description": "Current elapsed time",
+            "runtime": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "name": "VM_BLK_IO_SET_LEVEL",
+      "title": "Set Pin Level",
+      "category": "io",
+      "description": "Drives a pin on an IO device (ESP GPIO, expander) to the input level; writes only on change unless ALWAYS.",
+      "source_file": "components/VM/blocks/vm_block_io_set_level.h",
+      "min_inputs": 1,
+      "min_outputs": 0,
+      "inputs": [
+        {
+          "index": 0,
+          "name": "level",
+          "title": "Level",
+          "required": true
+        },
+        {
+          "index": 1,
+          "name": "pin",
+          "title": "Pin",
+          "description": "Overrides default_io_num; must be in allowed_mask.",
+          "required": false
+        }
+      ],
+      "outputs": [],
+      "state": {
+        "struct": "vm_block_io_set_level_data_t",
+        "source_file": "components/VM/blocks/vm_block_io_set_level.h",
+        "size": 16,
+        "align": 8,
+        "fields": [
+          {
+            "name": "allowed_mask",
+            "c_type": "uint64_t",
+            "offset": 0,
+            "size": 8,
+            "description": "Permitted pins bitmask (0..63) for dynamic selection"
+          },
+          {
+            "name": "device_id",
+            "c_type": "uint8_t",
+            "offset": 8,
+            "size": 1,
+            "description": "Target device ID"
+          },
+          {
+            "name": "default_io_num",
+            "c_type": "uint8_t",
+            "offset": 9,
+            "size": 1,
+            "description": "Static pin number when IN1 (IO_NUM) is unwired"
+          },
+          {
+            "name": "disabled_action",
+            "c_type": "uint8_t",
+            "offset": 10,
+            "size": 1,
+            "description": "What disabled does",
+            "enum_ref": "vm_io_disabled_state_e"
+          },
+          {
+            "name": "flags",
+            "c_type": "uint8_t",
+            "offset": 11,
+            "size": 1,
+            "description": "VM_IO_SET_F_*: only VM_IO_SET_F_ALWAYS (0x04) is set by the app"
+          },
+          {
+            "name": "last_pin",
+            "c_type": "uint8_t",
+            "offset": 12,
+            "size": 1,
+            "description": "Cached last pin written; the app writes default_io_num"
+          },
+          {
+            "name": "_pad",
+            "c_type": "uint8_t",
+            "offset": 13,
+            "size": 3,
+            "array_len": 3,
+            "element_size": 1,
+            "description": "Align to 16 bytes",
+            "padding": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 11,
+      "name": "VM_BLK_IO_TOGGLE",
+      "title": "Toggle Pin",
+      "category": "io",
+      "description": "Toggles a pin once per rising edge of its enable.",
+      "source_file": "components/VM/blocks/vm_block_io_toggle.h",
+      "min_inputs": 0,
+      "min_outputs": 0,
+      "inputs": [
+        {
+          "index": 0,
+          "name": "pin",
+          "title": "Pin",
+          "description": "Overrides default_io_num; must be in allowed_mask.",
+          "required": false
+        }
+      ],
+      "outputs": [],
+      "state": {
+        "struct": "vm_block_io_toggle_data_t",
+        "source_file": "components/VM/blocks/vm_block_io_toggle.h",
+        "size": 16,
+        "align": 8,
+        "fields": [
+          {
+            "name": "allowed_mask",
+            "c_type": "uint64_t",
+            "offset": 0,
+            "size": 8,
+            "description": "Permitted pins bitmask (0..63)"
+          },
+          {
+            "name": "device_id",
+            "c_type": "uint8_t",
+            "offset": 8,
+            "size": 1,
+            "description": "Target device ID"
+          },
+          {
+            "name": "default_io_num",
+            "c_type": "uint8_t",
+            "offset": 9,
+            "size": 1,
+            "description": "Static pin number when IN0 (IO_NUM) is unwired"
+          },
+          {
+            "name": "flags",
+            "c_type": "uint8_t",
+            "offset": 10,
+            "size": 1,
+            "description": "VM_IO_TOGGLE_F_*",
+            "runtime": true
+          },
+          {
+            "name": "_pad",
+            "c_type": "uint8_t",
+            "offset": 11,
+            "size": 5,
+            "array_len": 5,
+            "element_size": 1,
+            "description": "Align to 16 bytes",
+            "padding": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 12,
+      "name": "VM_BLK_LATCH",
+      "title": "Latch",
+      "category": "logic",
+      "description": "Set / reset bistable: turns a one-pass pulse into a held level. ENO follows Q.",
+      "source_file": "components/VM/blocks/vm_block_latch.h",
+      "min_inputs": 0,
+      "min_outputs": 0,
+      "inputs": [
+        {
+          "index": 0,
+          "name": "set",
+          "title": "Set",
+          "required": false
+        },
+        {
+          "index": 1,
+          "name": "reset",
+          "title": "Reset",
+          "required": false
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "q",
+          "title": "Q"
+        }
+      ],
+      "state": {
+        "struct": "vm_block_latch_data_t",
+        "source_file": "components/VM/blocks/vm_block_latch.h",
+        "size": 4,
+        "align": 4,
+        "fields": [
+          {
+            "name": "mode",
+            "c_type": "uint8_t",
+            "offset": 0,
+            "size": 1,
+            "description": "Which input wins when both are true",
+            "enum_ref": "vm_latch_mode_e"
+          },
+          {
+            "name": "flags",
+            "c_type": "uint8_t",
+            "offset": 1,
+            "size": 1,
+            "description": "VM_LATCH_F_*",
+            "runtime": true
+          },
+          {
+            "name": "_pad",
+            "c_type": "uint16_t",
+            "offset": 2,
+            "size": 2,
+            "padding": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 13,
+      "name": "VM_BLK_PERIODIC",
+      "title": "Every",
+      "category": "time",
+      "description": "Pulses ENO and TICK for one pass every period while enabled; never bursts after a slow pass.",
+      "source_file": "components/VM/blocks/vm_block_periodic.h",
+      "min_inputs": 0,
+      "min_outputs": 0,
+      "inputs": [
+        {
+          "index": 0,
+          "name": "period",
+          "title": "Period",
+          "description": "Overrides period, in time_base units; 0 pauses.",
+          "required": false
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "tick",
+          "title": "Tick"
+        }
+      ],
+      "state": {
+        "struct": "vm_block_periodic_data_t",
+        "source_file": "components/VM/blocks/vm_block_periodic.h",
+        "size": 16,
+        "align": 8,
+        "fields": [
+          {
+            "name": "period",
+            "c_type": "uint32_t",
+            "offset": 0,
+            "size": 4,
+            "description": "In time_base units"
+          },
+          {
+            "name": "time_base",
+            "c_type": "uint8_t",
+            "offset": 4,
+            "size": 1,
+            "description": "Unit of period",
+            "enum_ref": "vm_timer_unit_e"
+          },
+          {
+            "name": "flags",
+            "c_type": "uint8_t",
+            "offset": 5,
+            "size": 1,
+            "description": "VM_PERIODIC_F_*",
+            "runtime": true
+          },
+          {
+            "name": "_pad",
+            "c_type": "uint16_t",
+            "offset": 6,
+            "size": 2,
+            "padding": true
+          },
+          {
+            "name": "next_ms",
+            "c_type": "uint64_t",
+            "offset": 8,
+            "size": 8,
+            "description": "Next deadline",
+            "runtime": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 14,
+      "name": "VM_BLK_ACTION",
+      "title": "Run Action",
+      "category": "system",
+      "description": "Requests a system action once per rising edge of its enable; the action runs outside the program pass.",
+      "source_file": "components/VM/blocks/vm_block_action.h",
+      "min_inputs": 0,
+      "min_outputs": 0,
+      "inputs": [
+        {
+          "index": 0,
+          "name": "id",
+          "title": "Action id",
+          "description": "Overrides action_id.",
+          "required": false
+        }
+      ],
+      "outputs": [],
+      "state": {
+        "struct": "vm_block_action_data_t",
+        "source_file": "components/VM/blocks/vm_block_action.h",
+        "size": 4,
+        "align": 4,
+        "fields": [
+          {
+            "name": "scope",
+            "c_type": "uint8_t",
+            "offset": 0,
+            "size": 1,
+            "enum_ref": "vm_action_scope_e"
+          },
+          {
+            "name": "action_id",
+            "c_type": "uint8_t",
+            "offset": 1,
+            "size": 1,
+            "description": "1..255, used when input 0 is unwired"
+          },
+          {
+            "name": "flags",
+            "c_type": "uint8_t",
+            "offset": 2,
+            "size": 1,
+            "description": "VM_ACTION_F_*",
+            "runtime": true
+          },
+          {
+            "name": "_pad",
+            "c_type": "uint8_t",
+            "offset": 3,
+            "size": 1,
+            "padding": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 15,
+      "name": "VM_BLK_ON_EVENT",
+      "title": "On Event",
+      "category": "system",
+      "description": "Pulses ENO for one pass when a matching system event arrived (needs a subscription routed to the VM).",
+      "source_file": "components/VM/blocks/vm_block_on_event.h",
+      "min_inputs": 0,
+      "min_outputs": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "value",
+          "title": "Value",
+          "description": "The event's value (last match of the pass)."
+        },
+        {
+          "index": 1,
+          "name": "count",
+          "title": "Count",
+          "description": "Matches this pass."
+        }
+      ],
+      "state": {
+        "struct": "vm_block_on_event_data_t",
+        "source_file": "components/VM/blocks/vm_block_on_event.h",
+        "size": 4,
+        "align": 4,
+        "fields": [
+          {
+            "name": "domain",
+            "c_type": "uint8_t",
+            "offset": 0,
+            "size": 1,
+            "description": "Event domain, 255 = any",
+            "enum_ref": "sys_event_domain_e"
+          },
+          {
+            "name": "device_id",
+            "c_type": "uint8_t",
+            "offset": 1,
+            "size": 1,
+            "description": "Source device, 255 = any"
+          },
+          {
+            "name": "channel",
+            "c_type": "uint8_t",
+            "offset": 2,
+            "size": 1,
+            "description": "Pin / channel, 255 = any"
+          },
+          {
+            "name": "event",
+            "c_type": "uint8_t",
+            "offset": 3,
+            "size": 1,
+            "description": "Domain event, 255 = any"
+          }
+        ]
+      }
+    }
+  ]
+}

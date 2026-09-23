@@ -17,6 +17,7 @@ Generate web-app JSON descriptors from annotated C headers. C remains the source
 - Do not edit `*.generated.json`; change C annotations, schema, or generator, then regenerate.
 - `//@...` is a header directive; `@...` is field or enum-member metadata.
 - `//#ref-enum` explicitly publishes an enum. `$SYMBOL` must resolve uniquely to a member of one published enum; unresolved or ambiguous references are errors.
+- A published enum member may take its value from Kconfig (`MEMBER = CONFIG_X,`); the enum generator resolves it from `sdkconfig` (an unresolved `CONFIG_*` is an error). Used for IDs the app must match, e.g. `sys_data_connector_id_e`, `runit_data_provider_e`. Regenerate after changing such an option.
 - `//@self-property` defines local literal choices; `//@property` defines reusable global-enum choices; `@arg` reuses either in a contract parameter.
 - `//@contract` must name an existing packet struct. Include every packet field marked `@required` in `//@param`; `device_id` is generated automatically.
 - Keep annotations next to the C declarations they describe. Add a new directive only with documented grammar, generator support, schema changes when needed, and a generation test.
@@ -28,6 +29,7 @@ Generate web-app JSON descriptors from annotated C headers. C remains the source
 - `schema/device-definition.schema.json`: generated device JSON contract.
 - `auto-annotations/enums/generate-enums.py`: shared `//#ref-enum` scanner; device generation runs it live.
 - `auto-annotations/vm/generate-vm-model.py`: extracts marked VM C structs and VM enums.
+- `auto-annotations/vm/generate-vm-blocks.py`: the VM block catalog (`//#vm-block`, palette shape, state layouts); schema `schema/vm-blocks.schema.json`.
 - `schema/vm-model.schema.json`: generated VM model contract.
 - `auto-annotations/contracts/generate-contracts.py`: extracts explicitly exposed packet contracts.
 - `schema/contracts.schema.json`: generated contract catalog contract.
@@ -38,6 +40,7 @@ Generate web-app JSON descriptors from annotated C headers. C remains the source
 python data-structures/auto-annotations/device/generate-devices.py components/codecs/decoders data-structures/devices
 python data-structures/auto-annotations/enums/generate-enums.py <output-directory> <output-name>
 python data-structures/auto-annotations/vm/generate-vm-model.py
+python data-structures/auto-annotations/vm/generate-vm-blocks.py
 python data-structures/auto-annotations/contracts/generate-contracts.py
 python data-structures/auto-annotations/settings/generate-settings.py
 ```

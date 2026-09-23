@@ -1,10 +1,14 @@
 menu "System Actions Options"
     config SYS_ACTIONS_TAP_BUFFER_SIZE
         int "Actions Tap Buffer Size (bytes)"
-        default 1024
+        default 2080
         range 128 16384
         help
-          Actions tap ring buffer capacity in bytes.
+          Actions tap ring buffer capacity in bytes (multiple of 4). A frame
+          costs its length rounded up to 4 plus an 8-byte header, and the
+          buffer accepts one frame of at most half its size, so it must be at
+          least 2 * (SYS_DATA_CONNECTOR_FRAME_MAX + 8); the build checks this.
+          The default holds 4 maximum frames.
 
     config SYS_ACTIONS_TAP_TASK_STACK
         int "Actions Tap Task Stack Size (bytes)"
@@ -26,6 +30,15 @@ menu "System Actions Options"
         range 1 1000
         help
           Polling interval in milliseconds for actions tap task.
+
+    config SYS_ACTIONS_REQUEST_QUEUE_LEN
+        int "Queued Action Requests"
+        default 8
+        range 1 32
+        help
+          Action requests (sys_actions_request()) waiting for the actions
+          task. Callers that must not run an action themselves (a VM block
+          inside a scan pass) queue it here; a full queue refuses the request.
 
     config SYS_ACTIONS_ID_SPACE
         int "Total Action ID Space Size"

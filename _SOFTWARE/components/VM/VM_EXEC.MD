@@ -3,7 +3,19 @@
 This document specifies the execution model and runtime semantics for the runIT VM:
 - **Core Engine**: Implemented in `core/exec/` and `core/block/` (see [[VM.MD]]).
 - **Execution Units**: Topological block-by-block scan passes with span jumps for nested flow control.
-- **Palette**: Dispatch table in `blocks/` providing concrete block behaviours (`EXPR`, `BRANCH`, `FOR`, `SET`, `CLONE`, `EDGE`, `TIMER`).
+- **Palette**: One table in `blocks/` (15 block types, [[VM.MD]] "What ships today"), published for the app as `data-structures/vm/vm-blocks.generated.json`.
+
+This is the model's specification, and it is ahead of the code in places. What is built and what is still design:
+
+| Part of the model | Status |
+| :--- | :--- |
+| One topological order, supervisor calls every block, spans (FOR), EN list with any/all, ENO loud/quiet, `upd` sweep at end of pass, `cfg.on_error`, block watchdog, events drained per pass, runtime overrides at the pass boundary, lifecycle barrier, device-fault latch | **Built** |
+| Latch (`LATCH`), pulse (`TIMER` TP / TP_INV), "Every N" with time stretching (`PERIODIC`), action invoke (`ACTION`) | **Built** |
+| An event block (`ON_EVENT` reading the per-pass event buffer) | **Built** |
+| Sections (atomic ranges, freeze points between them, double-buffered swap) | Design — the pass has one freeze point, its start |
+| Retained values (`retentive`, kept by name in NVS, saved every 60 s) | **Built** ([[VM.MD]] "Retained values") |
+| Freeze mode as a dry run, live patch beyond runtime overrides, storing the program itself on the device | Design |
+| Editor rules (label vs wire, trigger pins, Copy across time gates, conflicting writers) | App-side, not firmware |
 
 ---
 
@@ -77,7 +89,7 @@ one event would ripple outward for a second pass. Note the asymmetry, and that
 it is deliberate: **ENO true is loud** — it is news — **ENO false is quiet**,
 because it is the absence of news.
 
-In code that is `vm_block_set_ENO(b, false)`, which owns the asymmetry so no
+In code that is `vm_block_set_eno(b, false)`, which owns the asymmetry so no
 block body can get it wrong, and which is the whole of the else-branch.
 
 ### A forest of graphs
@@ -152,6 +164,8 @@ the one thing a flat order cannot express.
 
 ### Sections are atomic units, not schedules
 
+> **Design, not built.** The pass has a single freeze point (its start); there is no section range, no section packet and no swap. The rest of this subsection is the intended design.
+
 Sections still exist, for a different job than ordering: a section is the unit
 that **runs all at once**, and therefore the only place the system may be
 interrupted. Freeze, resume and the double-buffered swap take effect at a section
@@ -217,7 +231,7 @@ its ENO and nothing else:
 ```c
 static void blk_case_io(vm_block_h b) {
   if (!vm_block_triggered(b) || !vm_block_is_enabled(b)) {
-    vm_block_set_ENO(b, false);
+    vm_block_set_eno(b, false);
     return;
   }
   ...
@@ -256,7 +270,7 @@ in section 3, even though section 3 runs after it in the same pass. Cost is one
 sweep of the object registry per pass.
 
 **The sweep must respect `upd_resetable`.** That header bit already exists and is
-carried over the wire (`VM_LOAD_F_UPD_RESETABLE`). A non-resettable object is
+carried over the wire in the object header (`0x42`). A non-resettable object is
 never cleared by anyone — the flag is reserved for constants and user variables,
 where freshness is not a meaningful signal.
 
@@ -349,7 +363,7 @@ drain point, so a section always traverses a consistent snapshot.
 Every block in a running section is called, including inactive ones — that is
 what makes `when inactive:` work at all, and it is literal: the supervisor runs
 no test of its own. Inactive means the block runs its disabled branch, which
-for every block is `vm_block_set_ENO(b, false)` — "do not pass the flow on" —
+for every block is `vm_block_set_eno(b, false)` — "do not pass the flow on" —
 pruning everything downstream by data rather than by control flow. Its outputs
 stand, and the end-of-pass `upd` sweep withdraws their freshness for it.
 
@@ -376,9 +390,10 @@ consequences:
   a section comes off the wire and nothing stops it declaring FORs inside FORs
   until the stack is gone.
 
-This is why a section packet has to carry extents, not just a flat id list —
-pruning works without structure (a disabled block's dependents self-skip), but
-repetition genuinely needs the walker to know where a span ends.
+This is why a span has to carry extents (FOR keeps `[start, end)` in its own
+`custom_data`), not just a flat id list — pruning works without structure (a
+disabled block's dependents self-skip), but repetition genuinely needs the
+walker to know where a span ends.
 
 ### Transient activation needs a latch to become a level
 
@@ -387,8 +402,8 @@ accumulate: a `Wait 50 s` downstream of an event sees its enable drop the very
 next pass and resets to zero. Event → wait → act is therefore not expressible
 directly.
 
-The palette answers it with **latch** blocks (and pulse blocks with a negated
-output), which the user places explicitly to convert a one-pass pulse into a held
+The palette answers it with the **`LATCH`** block (and `TIMER` in pulse mode,
+`TP` / `TP_INV`, for a pulse of fixed length), which the user places explicitly to convert a one-pass pulse into a held
 level. The same block solves actuators below an event, where `when inactive:` is
 otherwise the only thing keeping the output from snapping back on the next pass.
 
@@ -406,8 +421,9 @@ debugging surface rather than a guard, and it is the sharpest edge in the model.
 * "Every 100 ms" is average-rate with **time stretching**: the deadline advances
   by a fixed period so there is no drift, a late run goes as soon as possible,
   and a run that would exceed the declared frequency is **dropped and flagged**
-  rather than bursting to catch up.
-* Durations surviving reboot is per-value, decided by the NVS retention flag.
+  rather than bursting to catch up. Built as `PERIODIC`.
+* Durations surviving reboot is per-value, decided by the NVS retention flag
+  (built: retentive objects, kept by name, [[VM.MD]] "Retained values").
 
 ### Events: one scan cycle, and blocks ask
 
@@ -464,9 +480,9 @@ a taker are normal, and silent.
 
 ### Memory: the client sizes everything
 
-Every pool is allocated **before** blocks load, at exactly the size the client
-declares — per element kind (objects, accessors, blocks, sections), in the open
-packet. The device does not estimate and does not grow anything. A block header
+One arena is allocated **before** anything loads, at exactly the size the
+client declares in the open packet (`0x41`), together with the object, accessor
+and block id tables. The device does not estimate and does not grow anything. A block header
 is **16 bytes** plus 4 per input, output and enable source.
 
 The real limit is therefore contiguous internal DRAM at load time, not a
@@ -489,8 +505,8 @@ any writes. The reserved header bit preserves existing defined wire bits.
 
 **On-error behaviour is a per-block flag** — `cfg.on_error`, `VM_BLK_ERR_STOP`
 (publish a false ENO, so everything downstream self-skips) or
-`VM_BLK_ERR_CONTINUE`. **Implemented** in the struct and the wire format; what
-enforces it is the supervisor, which does not exist yet.
+`VM_BLK_ERR_CONTINUE`. Enforced by the supervisor (`run_block()`) after every
+block body.
 
 **One global watchdog, not per-block timing.** Timing every block would cost a
 clock read per block per pass for something that almost never fires. Instead the
@@ -499,18 +515,24 @@ timer ISR samples it: if the same block is still current after ~20 ms, raise the
 alarm. Cost is one store per block and no clock reads at all, and unlike the task
 watchdog it names the block that hung instead of just resetting.
 
-Two things to get right when building it. The ISR must distinguish "same block
-still running" from "same block again next pass" — a monotonically increasing
-sequence number alongside the block id, rather than the id alone. And the ISR
-must not *report* the error itself: error construction allocates, which is not
-ISR-safe. It sets a flag and something at task level builds the trace.
+It distinguishes "same block still running" from "same block again next pass"
+with a sequence number alongside the block id. As built it samples from an
+`esp_timer` callback (task level on core 0) rather than an ISR, so it can build
+the error where it detects it ([[VM.MD]] "The block watchdog").
 
 ### Invoking an action
 
-A block type that calls `sys_actions_invoke(id)` with the id in its own
-`custom_data`. That is the whole VM↔actions binding: safe states, e-stop,
-freeze and power-on behaviour are [[SYS_ACTIONS.MD]]'s, and the VM reaches them
-through one ordinary block rather than any dedicated mechanism.
+A block type, `ACTION`, with the action id in its own `custom_data`. That is
+the whole VM↔actions binding: safe states, e-stop, freeze and power-on
+behaviour are [[SYS_ACTIONS.MD]]'s, and the VM reaches them through one ordinary
+block rather than any dedicated mechanism.
+
+It **requests** the action rather than running it: an action may stop, rewind
+or unload the VM itself, which a pass cannot do to itself, and a recorded replay
+outlasts the block watchdog. The request goes to a function the application
+registers (`vm_exec_register_action_request()`; runit gives it
+`sys_actions_request()`, a queue served by the actions task), so the VM never
+depends on `sys_actions`.
 
 ### Conflicting writers
 
@@ -575,7 +597,7 @@ task; a block or sample hook may only request stop asynchronously.
 Key execution principles implemented in the VM:
 - **Execution Order**: Block-by-block in topological scan order; loops and conditional branches run nested blocks via spans (`vm_block_claim_span`).
 - **Composite Gating**: Blocks compose update-driven (`vm_block_input_fresh`) and enable-driven (`vm_block_is_enabled`) activation.
-- **Quiet Non-Activation**: Inactive blocks call `vm_block_set_ENO(b, false)`, quietly withdrawing flow without wiping data or triggering downstream update sweeps.
+- **Quiet Non-Activation**: Inactive blocks call `vm_block_set_eno(b, false)`, quietly withdrawing flow without wiping data or triggering downstream update sweeps.
 - **User Protection**: Block construction automatically sets `usr_protected` on output objects and ENO, preventing mutations from user scripts.
 - **Supervisor Task**: Core-1 FreeRTOS task running at 1 tick per pass (`vm_exec_pass`), orchestrating span jumps, error policies (`cfg.on_error`), and telemetry hooks.
 - **Watchdog & Timing**: Volatile sequence/block watchdog sampled via 20 ms `esp_timer`; scan timestamp latched per pass instant via `vm_now_ms()`.

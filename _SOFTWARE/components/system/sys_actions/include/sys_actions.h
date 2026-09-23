@@ -55,6 +55,22 @@ SE_MUST_USE err_h sys_actions_bind_static(uint8_t action_id, action_static_func_
 SE_MUST_USE err_h sys_actions_invoke(uint8_t scope, uint8_t id);
 
 /**
+ * @brief Queue an action to run on the actions task instead of the caller's.
+ *
+ * For callers that must not run an action themselves: the VM supervisor (an
+ * action may rewind or unload the VM, and a recorded replay outlasts the VM
+ * block watchdog). Returns once queued; the action's own errors are reported
+ * by the actions task.
+ *
+ * @param scope Action scope (0x00 = static, 0x01 = dynamic).
+ * @param id Action ID (1..255).
+ * @return err_h NULL when queued, ERR_ACTION_QUEUE_FULL when
+ *         CONFIG_SYS_ACTIONS_REQUEST_QUEUE_LEN requests are already waiting,
+ *         ERR_INVALID_VAL_UI32 for a bad scope or id 0.
+ */
+SE_MUST_USE err_h sys_actions_request(uint8_t scope, uint8_t id);
+
+/**
  * @brief Erase a dynamic action's stored blob from NVS.
  * No-op (returns NULL) if nothing is stored under it.
  *

@@ -247,7 +247,7 @@ err_h SE_send_error_raw(err_h chain) {
   }
 
   uint8_t packet[CONFIG_SYS_ERRORS_PACKET_MAX];
-  size_t max_len = s_sink.packet_max_len;
+  size_t max_len = s_sink.packet_max_len ? s_sink.packet_max_len() : 0;
   if (max_len == 0 || max_len > sizeof(packet)) {
     max_len = sizeof(packet);
   }

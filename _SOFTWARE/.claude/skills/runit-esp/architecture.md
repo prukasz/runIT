@@ -7,7 +7,7 @@ Layers, data flows, boot sequence, agreed design and open findings. Module APIs 
 | Layer | Components | May depend on |
 |---|---|---|
 | 0 Base | `utils` (header-only), `sys_errors` | ESP-IDF only (plus each module's `errors/` map folder, §4.2) |
-| 1 Services | `sys_i2c`, `sys_buffers`, `sys_event`, `ble`, `sys_data_connector`, `sys_settings` (persistent settings, NVS) | Layer 0 (`sys_data_connector` → `ble`) |
+| 1 Services | `sys_i2c`, `sys_buffers`, `sys_event`, `ble`, `sys_data_connector`, `sys_settings` (persistent settings, NVS) | Layer 0 (`ble` → `sys_data_connector`: BLE implements the connector's provider interface; the connector knows no transport) |
 | 2 Device core | `sys_device` (registry, lifecycle, dispatch helpers) | 0–1 |
 | 3 Contracts | `sys_io`, `sys_power` (+ the power manager), `sys_hbridge` (contract types + domain dispatch) | 0–2 |
 | 4 Devices | `devices/device_<chip>` (driver + adapter), `devices/devices` (aggregator, glob) | 0–3 |
@@ -29,12 +29,13 @@ Rules:
 
 ## 3. Data flows
 
-- **Inbound command:** transport provider (BLE queues the write and calls the registered `sys_ble_rx_wake_f`, which gives the connector's `data_present`) → `sys_data_connector` (`CONFIG_SYS_DATA_CONN_ID_INTERFACE`) → `sys_interface` RX task → class byte → codec decoder (`dec_*.h`, registered by runit) → `sys_*` / `sys_device_user_*` / `feature_*` / `vm_*` API → device adapter through `SYS_DEV_RESOLVE` / `SYS_DEV_DISPATCH` (§4.6).
+- **Inbound command:** transport provider (queues one whole frame, de-framing a byte stream itself; BLE's wake callback calls `sys_data_connector_notify_rx()`) → `sys_data_connector` (`SYS_DATA_CONNECTOR_INTERFACE`, `receive()` also returns the frame's origin) → `sys_interface` RX task → class byte → codec decoder (`dec_*.h`, registered by runit) → `sys_*` / `sys_device_user_*` / `feature_*` / `vm_*` API → device adapter through `SYS_DEV_RESOLVE` / `SYS_DEV_DISPATCH` (§4.6).
 - **Outbound:**
   - Error chains: `SE_send` → `enc_sys_errors` (private to `sys_errors`) → sink `send_packet` → errors connector.
   - Log lines (ESP_LOG and expanded chains): sink `send_log` → logs connector.
   - VM subscriptions: `vm_sub` → telemetry connector.
-  - Command responses: `[0x05][class][packet][status][data]` on the interface connector (§4.8).
+  - Command responses: `[0x05][seq][class][packet][status][data]` on the interface connector, sent only to the command's origin (`send_to`); `seq` is the byte the client put in front of its command (§4.8).
+  - Every producer sizes frames to `sys_data_connector_max_payload()` (follows the BLE MTU); nothing on the path truncates, a too-long frame is `ERR_DATA_CONNECTOR_FRAME_TOO_LONG`. Design: SYS_DATA_CONNECTOR.MD.
 - **Errors:** `SE_push_to_handler(chain)` → per node:
   - Device attribution (`device_id_of()` by tag) → per-device importance and level → registered device error policy (runit: critical → VM stop + `suspend_all`, then the configured action).
   - Non-device nodes go to the registered domain hook for `owner & 0xFF00` (ble, interface, actions, vm); others are skipped.
@@ -49,11 +50,12 @@ Every upward call goes through a `*_register_*()` function that `runit` (the com
 |---|---|---|
 | Decoder classes (9) | `runit_register_decoders()`, before `sys_interface_init()` | `dec_*_decode` (separate file because decoder headers redefine `OWNER`) |
 | Error sink | `runit_board_error_sink_init()` | logs + errors connectors (§4.2) |
-| BLE → data connector | connector's BLE provider | `sys_ble_char_link_rx_wake(uuid, fn, ctx)`; BLE doesn't know `sys_data_connector` |
+| Transport providers | `runit_board_connector_bindings_init()` | `sys_ble_provider_register(RUNIT_DATA_PROVIDER_BLE)` (in `ble`), then the bindings of the 4 system connectors; the BLE core stays consumer-agnostic (`sys_ble_char_link_rx_wake`) |
 | `SE_register_device_router` | `runit_error_wiring_init()` (first step after `SE_init`) | `sys_device_report_error_with_level`, `sys_device_is_ignored` |
 | `sys_device_register_error_policy` | 〃 | `runit_device_policy`: CRITICAL → VM stop + suspend all, then the device's action. Default without one: CRITICAL → suspend all |
 | `SE_register_system_hook` | 〃 | `runit_system_hook`: unattributed CRITICAL → VM stop + suspend all |
 | `SE_register_domain_hook` (table, `CONFIG_SYS_ERRORS_MAX_DOMAIN_HOOKS`) | 〃 | ble (failure event), interface (suspend RX), actions (abort recording), vm (latch + stop). A domain without a hook is skipped; add one only for real containment |
+| `vm_exec_register_action_request` | 〃 | `sys_actions_request` (queued; the VM task never runs an action) |
 | `sys_event_register_action_executor` / `sys_event_register_route` | 〃 | `sys_actions_invoke`, `vm_event_route` (`CONFIG_SYS_EVENT_ROUTE_VM`) |
 | `sys_power_register_safe_state` | `runit_board_power_init()` | `runit_enter_safe_state` |
 
@@ -101,7 +103,7 @@ Every module raises errors under its own owner domain (`owner & 0xFF00` selects 
 - Drivers that return `esp_err_t` define no `OWNER` (the adapter owns the error); the DRV8962 driver (`err_h`) uses `OWNER_DEVICE_DRV8962`.
 
 ### 4.8 Command responses
-- Every live command frame is answered on the interface connector: `[0x05][class][packet][status][data]`. `class`/`packet` echo the request; the app matches FIFO (no sequence numbers). `status` (`sys_interface_status_e`): `0` OK + the getter's data, `1` error + `u16 tag, u16 owner` of the root cause (the full chain still goes to the errors stream).
+- A live command is `[seq][class][packet][payload]`; the RX task strips `seq` (decoders, recorded actions and replays never see it). Every live command is answered on the interface connector, only to its origin: `[0x05][seq][class][packet][status][data]`. `seq`/`class`/`packet` echo the request; the app matches by `seq` with a timeout (a lost response fails one command, not every later one). Only stream `0x05` carries `seq`; the other streams are unsolicited pushes. `status` (`sys_interface_status_e`): `0` OK + the getter's data, `1` error + `u16 tag, u16 owner` of the root cause (the full chain still goes to the errors stream).
 - Getters declare `packet_<name>_response_t` next to the request and call `sys_interface_respond()`. The contracts generator publishes `response` layouts and the `response_stream`.
 - Frames replayed by `sys_actions` aren't answered (response capture is task-local, on only while the RX task decodes a live frame).
 

@@ -1,10 +1,7 @@
 #pragma once
 #include "utils.h"
 #include "sys_error.h"
-#include "sys_data_connector.h"
 #include <sdkconfig.h>
-
-#define SYS_INTERFACE_CONNECTOR_ID CONFIG_SYS_DATA_CONN_ID_INTERFACE
 
 /**
  * @file sys_interface.h
@@ -25,6 +22,15 @@
  *
  * sys_interface_decode() consumes `0xXX` and forwards the rest of the frame to
  * the registered handler, so a handler always sees `0xYY` at `data[0]`.
+ *
+ * A live command from a client carries one more byte in front:
+ * @code
+ *   [seq] [0xXX] [0xYY] [ payload ... ]
+ * @endcode
+ * `seq` is the client's own counter (any value, wraps at 256). The RX task
+ * removes it before recording or decoding the frame and echoes it in the
+ * response, so decoders, recorded actions and sys_interface_decode() never
+ * see it.
  */
 
 
@@ -35,11 +41,13 @@
  * Every live command frame is answered on the interface connector
  * (TX stream class CONFIG_TX_PACKET_CLASS_INTERFACE, added by the connector):
  * @code
- *   [class] [packet] [status] [data ...]
+ *   [seq] [class] [packet] [status] [data ...]
  * @endcode
- * `class` / `packet` echo the request's first two bytes (packet is 0x00 for a
- * one-byte frame). Commands are answered in order, so a client matches
- * responses to its requests first-in first-out.
+ * `seq` / `class` / `packet` echo the request's first three bytes (0x00 for
+ * the ones a too-short frame lacks). A client matches a response to its
+ * request by `seq`; every command gets exactly one response, in order.
+ * The answer goes only to the transport (and peer) the command came from,
+ * so clients on different transports never see each other's responses.
  * - SYS_INTERFACE_STATUS_OK: `data` is the packet's response struct
  *   (`packet_<name>_response_t`, little-endian, packed), or empty.
  * - SYS_INTERFACE_STATUS_ERROR: `data` is `u16 tag, u16 owner` of the error
@@ -176,10 +184,9 @@ SE_MUST_USE err_h sys_interface_tap_poll(uint8_t* buf, size_t max_len, size_t* o
  * suspended, the receiver task does not drain any registered source at all -
  * frames simply accumulate in each source's own buffer (e.g. a BLE
  * characteristic's rx_buff) rather than being dropped, up to that buffer's
- * own capacity. If the connector's wake semaphore was actually given while
- * suspended, the receiver waits 1ms and gives it back before looping, so
- * resume notices the still-pending data within ~1ms instead of waiting for
- * the next full poll tick.
+ * own capacity. The last resume notifies the receiver task, which drains the
+ * pending frames right away. A frame being decoded that suspends RX (the
+ * fault hook) stops the drain after that frame.
  *
  * Used by `sys_actions_invoke()` so a replayed packet sequence can't interleave
  * with live incoming traffic - see [[SYS_ACTIONS.MD]].
@@ -187,17 +194,6 @@ SE_MUST_USE err_h sys_interface_tap_poll(uint8_t* buf, size_t max_len, size_t* o
 void sys_interface_suspend_rx(void);
 void sys_interface_resume_rx(void);
 bool sys_interface_is_rx_suspended(void);
-
-/**
- * @brief Transmit data over the system interface data connector.
- *
- * Dispatches @p data over SYS_INTERFACE_CONNECTOR_ID via sys_data_connector_send().
- *
- * @param data Outbound payload buffer.
- * @param len Length in bytes.
- * @return err_h NULL on success, ERR_NULL_PTR if data is NULL, or ERR_BASE_NOT_FOUND if connector unallocated.
- */
-SE_MUST_USE err_h sys_interface_send(const void* data, size_t len);
 
 /** @brief Containment for this module's CRITICAL errors (sys_errors domain hook, registered by the application). */
 SE_MUST_USE err_h sys_interface_handle_fault(err_h node, err_h chain);

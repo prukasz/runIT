@@ -8,12 +8,15 @@
 
 #define SYS_ERROR_ACTIONS_MAP(X)                                                                    \
   X(ERR_ACTION_NOT_FOUND, 0xAA01, SE_LEVEL_LOW, struct { uint8_t action_id; })              \
-  X(ERR_ACTION_RECORDING_BUSY, 0xAA02, SE_LEVEL_MEDIUM, struct { uint8_t action_id; })
+  X(ERR_ACTION_RECORDING_BUSY, 0xAA02, SE_LEVEL_MEDIUM, struct { uint8_t action_id; })      \
+  X(ERR_ACTION_QUEUE_FULL, 0xAA03, SE_LEVEL_MEDIUM, struct { uint8_t action_id; })
 
 /** @brief Human-readable descriptions for the sys_actions tags - see SE_describe_payload() in sys_error.h. */
 #define SYS_ERROR_ACTIONS_LOGGER_MAP(X) \
   X(ERR_ACTION_NOT_FOUND)               \
-  X(ERR_ACTION_RECORDING_BUSY)
+  X(ERR_ACTION_RECORDING_BUSY)          \
+  X(ERR_ACTION_QUEUE_FULL)
 
 #define LOG_BODY_ERR_ACTION_NOT_FOUND(p, out, out_size) snprintf((out), (out_size), "action %u has neither a bound static function nor anything stored", (p)->action_id)
 #define LOG_BODY_ERR_ACTION_RECORDING_BUSY(p, out, out_size) snprintf((out), (out_size), "action %u: a different action is already recording", (p)->action_id)
+#define LOG_BODY_ERR_ACTION_QUEUE_FULL(p, out, out_size) snprintf((out), (out_size), "action %u not requested: the request queue is full", (p)->action_id)

@@ -4,13 +4,17 @@
   "kind": "contracts",
   "response_stream": {
     "class_header": "0x05",
+    "request_prefix": [
+      "seq"
+    ],
     "header": [
+      "seq",
       "request_class",
       "request_packet",
       "status"
     ],
     "status_enum": "sys_interface_status_e",
-    "matching": "fifo",
+    "matching": "seq",
     "error_data": {
       "field_order": [
         "tag",

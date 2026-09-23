@@ -13,7 +13,8 @@
   X(OWNER_VM_CODE, 0xA905, "OWNER_VM_CODE")         \
   X(OWNER_VM_LOADER, 0xA906, "OWNER_VM_LOADER")     \
   X(OWNER_DEC_VM_LOADER, 0xA907, "OWNER_DEC_VM_LOADER") \
-  X(OWNER_VM_EXEC, 0xA908, "OWNER_VM_EXEC")
+  X(OWNER_VM_EXEC, 0xA908, "OWNER_VM_EXEC")         \
+  X(OWNER_VM_RETAIN, 0xA909, "OWNER_VM_RETAIN")
 
 // `obj_id`/`parent_id` carry the failing object ID (or VM_OBJ_ID_DYN_BIT | dyn_id, or VM_OBJ_ID_NONE)
 // allowing direct lookup via vm_obj_lookup_by_id().
@@ -67,7 +68,13 @@
   X(ERR_VM_OVERRIDE_PTR_UNSUPPORTED, 0xA92F, SE_LEVEL_LOW, struct { uint16_t obj_id; })                                                            \
   X(ERR_VM_OVERRIDE_BAD_RECORD, 0xA930, SE_LEVEL_LOW, struct { uint16_t obj_id; uint16_t declared_len; uint16_t item_size; })                     \
   X(ERR_VM_EXEC_SELF_BARRIER, 0xA931, SE_LEVEL_LOW, struct { uint8_t operation; })                                                                \
-  X(ERR_VM_EXEC_FAULT_LATCHED, 0xA932, SE_LEVEL_CRITICAL, struct { uint8_t device_id; uint16_t root_tag; uint32_t root_owner; })
+  X(ERR_VM_EXEC_FAULT_LATCHED, 0xA932, SE_LEVEL_CRITICAL, struct { uint8_t device_id; uint16_t root_tag; uint32_t root_owner; })         \
+  X(ERR_VM_NO_ACTION_EXECUTOR, 0xA933, SE_LEVEL_HIGH, struct { uint8_t scope; uint8_t action_id; })                                               \
+  X(ERR_VM_PERIODIC_OVERRUN, 0xA934, SE_LEVEL_LOW, struct { uint16_t block_idx; uint32_t missed; uint32_t period_ms; })  \
+  X(ERR_VM_RETAIN_UNNAMED, 0xA935, SE_LEVEL_LOW, struct { uint16_t obj_id; })                                           \
+  X(ERR_VM_RETAIN_TOO_BIG, 0xA936, SE_LEVEL_LOW, struct { uint16_t obj_id; uint32_t need; uint32_t max; })               \
+  X(ERR_VM_RETAIN_MISMATCH, 0xA937, SE_LEVEL_LOW, struct { uint16_t obj_id; uint8_t type; uint16_t size; })              \
+  X(ERR_VM_RETAIN_CORRUPT, 0xA938, SE_LEVEL_MEDIUM, struct { uint32_t offset; })
 
 /**
  * @brief Human-readable descriptions for the VM tags - see
@@ -125,7 +132,13 @@
   X(ERR_VM_OVERRIDE_PTR_UNSUPPORTED) \
   X(ERR_VM_OVERRIDE_BAD_RECORD) \
   X(ERR_VM_EXEC_SELF_BARRIER) \
-  X(ERR_VM_EXEC_FAULT_LATCHED)
+  X(ERR_VM_EXEC_FAULT_LATCHED)     \
+  X(ERR_VM_NO_ACTION_EXECUTOR)     \
+  X(ERR_VM_PERIODIC_OVERRUN)       \
+  X(ERR_VM_RETAIN_UNNAMED)        \
+  X(ERR_VM_RETAIN_TOO_BIG)        \
+  X(ERR_VM_RETAIN_MISMATCH)       \
+  X(ERR_VM_RETAIN_CORRUPT)
 
 #define VM_OBJ_ID_NONE     0xFFFFu
 #define VM_OBJ_ID_DYN_BIT  0x8000u
@@ -402,6 +415,19 @@ static inline const char* vm_copy_shape_name(uint8_t r) {
 #define LOG_BODY_ERR_VM_EXEC_FAULT_LATCHED(p, out, out_size) \
   snprintf((out), (out_size), "VM restart blocked by device %u fault (root owner=0x%04lX, tag=%u)", \
            (p)->device_id, (unsigned long)(p)->root_owner, (unsigned)(p)->root_tag)
+#define LOG_BODY_ERR_VM_NO_ACTION_EXECUTOR(p, out, out_size) \
+  snprintf((out), (out_size), "action %u (scope %u) requested, but no action executor is registered with the VM", (p)->action_id, (p)->scope)
+#define LOG_BODY_ERR_VM_PERIODIC_OVERRUN(p, out, out_size)                                                              \
+  snprintf((out), (out_size), "block %u: %lu tick(s) of %lu ms dropped (a pass took longer than the period)", (p)->block_idx, \
+           (unsigned long)(p)->missed, (unsigned long)(p)->period_ms)
+#define LOG_BODY_ERR_VM_RETAIN_UNNAMED(p, out, out_size) \
+  snprintf((out), (out_size), "object %u is retentive but has no name (retained values are kept by name)", (p)->obj_id)
+#define LOG_BODY_ERR_VM_RETAIN_TOO_BIG(p, out, out_size) \
+  snprintf((out), (out_size), "object %u: retained values need %lu bytes, max %lu", (p)->obj_id, (unsigned long)(p)->need, (unsigned long)(p)->max)
+#define LOG_BODY_ERR_VM_RETAIN_MISMATCH(p, out, out_size) \
+  snprintf((out), (out_size), "object %u: stored value is type %u / %u bytes, the object differs; uploaded value kept", (p)->obj_id, (p)->type, (p)->size)
+#define LOG_BODY_ERR_VM_RETAIN_CORRUPT(p, out, out_size) \
+  snprintf((out), (out_size), "stored retained values are malformed at byte %lu; the rest is ignored", (unsigned long)(p)->offset)
 
 
 #define SE_CHECK_NOT_NULL_OWNED(owner, ptr)              \

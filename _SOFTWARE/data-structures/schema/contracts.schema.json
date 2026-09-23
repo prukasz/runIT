@@ -70,15 +70,16 @@
       }
     },
     "response_stream": {
-      "description": "Envelope of every command response: [class_header][request_class][request_packet][status][data]. OK data is the contract's response; error data is error_data.",
+      "description": "Envelope of every command response: [class_header][seq][request_class][request_packet][status][data]. Every command is sent as [seq][class][packet][payload] (request_prefix) and its response echoes seq. OK data is the contract's response; error data is error_data.",
       "type": "object",
-      "required": ["class_header", "header", "status_enum", "matching", "error_data"],
+      "required": ["class_header", "request_prefix", "header", "status_enum", "matching", "error_data"],
       "additionalProperties": false,
       "properties": {
         "class_header": { "type": "string", "pattern": "^0x[0-9A-Fa-f]+$" },
+        "request_prefix": { "type": "array", "items": { "type": "string" } },
         "header": { "type": "array", "items": { "type": "string" } },
         "status_enum": { "type": "string" },
-        "matching": { "const": "fifo" },
+        "matching": { "const": "seq" },
         "error_data": { "type": "object" }
       }
     },

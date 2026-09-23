@@ -117,6 +117,13 @@ err_h vm_store_alloc(void** out, vm_reg_e r, uint16_t id, uint32_t size) {
   return NULL;
 }
 
+void vm_store_undo(vm_reg_e r, uint16_t id, uint32_t mark) {
+  if (id != VM_ID_NONE && (unsigned)r < VM_REG_CNT && id < g_vm_store.reg[r].count) {
+    g_vm_store.reg[r].items[id] = NULL;
+  }
+  if (mark <= g_vm_store.arena.offset) g_vm_store.arena.offset = mark;
+}
+
 uint32_t vm_store_used(void) {
   return g_vm_store.arena.offset;
 }
