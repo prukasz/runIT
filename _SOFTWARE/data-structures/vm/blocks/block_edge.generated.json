@@ -1,0 +1,136 @@
+{
+  "$schema": "data-structures/schema/vm-block.schema.json",
+  "schemaVersion": 1,
+  "kind": "vm-block",
+  "id": 8,
+  "name": "VM_BLK_EDGE",
+  "title": "Edge",
+  "category": "logic",
+  "description": "Pulses for one pass when the input rises, falls or changes by at least the threshold.",
+  "source_file": "components/VM/blocks/vm_block_edge.h",
+  "activation": {
+    "kind": "enabled",
+    "description": "Runs every pass while enabled."
+  },
+  "inputs": {
+    "min": 1,
+    "max": 2,
+    "pins": [
+      {
+        "index": 0,
+        "name": "signal",
+        "title": "Signal",
+        "value": "scalar",
+        "required": true
+      },
+      {
+        "index": 1,
+        "name": "threshold",
+        "title": "Threshold",
+        "value": "scalar",
+        "description": "Overrides change_by; same type as the signal.",
+        "required": false
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "pulse",
+        "title": "Pulse",
+        "value": "gate"
+      }
+    ]
+  },
+  "rules": [
+    {
+      "rule": "edge_type is a vm_edge_type_e value.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    }
+  ],
+  "state": {
+    "struct": "vm_block_edge_data_t",
+    "source_file": "components/VM/blocks/vm_block_edge.h",
+    "size": 12,
+    "align": 4,
+    "fields": [
+      {
+        "name": "edge_type",
+        "c_type": "uint8_t",
+        "offset": 0,
+        "size": 1,
+        "description": "vm_edge_type_e",
+        "enum_ref": "vm_edge_type_e",
+        "source": "user"
+      },
+      {
+        "name": "flags",
+        "c_type": "uint8_t",
+        "offset": 1,
+        "size": 1,
+        "description": "VM_EDGE_F_*",
+        "source": "runtime"
+      },
+      {
+        "name": "_pad1",
+        "c_type": "uint16_t",
+        "offset": 2,
+        "size": 2,
+        "source": "padding"
+      },
+      {
+        "name": "change_by",
+        "c_type": "vm_edge_val_u",
+        "offset": 4,
+        "size": 4,
+        "description": "Threshold for change condition (0 = any change)",
+        "source": "user"
+      },
+      {
+        "name": "prev_val",
+        "c_type": "vm_edge_val_u",
+        "offset": 8,
+        "size": 4,
+        "description": "Stored previous value",
+        "source": "runtime"
+      }
+    ]
+  },
+  "min_custom_len": 12,
+  "enums": {
+    "vm_edge_type_e": {
+      "alias": "Edge Type",
+      "source_file": "components/VM/blocks/vm_block_edge.h",
+      "members": [
+        {
+          "name": "VM_EDGE_RISING",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EDGE_FALLING",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EDGE_BOTH",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EDGE_TYPE_CNT",
+          "value": 3,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  }
+}

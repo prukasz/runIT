@@ -1,0 +1,140 @@
+{
+  "$schema": "data-structures/schema/vm-block.schema.json",
+  "schemaVersion": 1,
+  "kind": "vm-block",
+  "id": 13,
+  "name": "VM_BLK_PERIODIC",
+  "title": "Every",
+  "category": "time",
+  "description": "Pulses ENO and TICK for one pass every period while enabled; never bursts after a slow pass.",
+  "source_file": "components/VM/blocks/vm_block_periodic.h",
+  "activation": {
+    "kind": "enabled",
+    "description": "Runs every pass while enabled."
+  },
+  "inputs": {
+    "min": 0,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "period",
+        "title": "Period",
+        "value": "u32",
+        "description": "Overrides period, in time_base units; 0 pauses.",
+        "required": false
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "tick",
+        "title": "Tick",
+        "value": "gate"
+      }
+    ]
+  },
+  "rules": [
+    {
+      "rule": "time_base is a vm_timer_unit_e value.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    },
+    {
+      "rule": "With the period input unwired, period is not 0.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    }
+  ],
+  "state": {
+    "struct": "vm_block_periodic_data_t",
+    "source_file": "components/VM/blocks/vm_block_periodic.h",
+    "size": 16,
+    "align": 8,
+    "fields": [
+      {
+        "name": "period",
+        "c_type": "uint32_t",
+        "offset": 0,
+        "size": 4,
+        "description": "In time_base units",
+        "source": "user"
+      },
+      {
+        "name": "time_base",
+        "c_type": "uint8_t",
+        "offset": 4,
+        "size": 1,
+        "description": "Unit of period",
+        "enum_ref": "vm_timer_unit_e",
+        "source": "user"
+      },
+      {
+        "name": "flags",
+        "c_type": "uint8_t",
+        "offset": 5,
+        "size": 1,
+        "description": "VM_PERIODIC_F_*",
+        "source": "runtime"
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint16_t",
+        "offset": 6,
+        "size": 2,
+        "source": "padding"
+      },
+      {
+        "name": "next_ms",
+        "c_type": "uint64_t",
+        "offset": 8,
+        "size": 8,
+        "description": "Next deadline",
+        "source": "runtime"
+      }
+    ]
+  },
+  "min_custom_len": 16,
+  "enums": {
+    "vm_timer_unit_e": {
+      "alias": "Time Unit",
+      "source_file": "components/VM/blocks/vm_block_timer.h",
+      "members": [
+        {
+          "name": "VM_TIMER_UNIT_MS",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_SEC",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_MIN",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_HR",
+          "value": 3,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_CNT",
+          "value": 4,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  }
+}

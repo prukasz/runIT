@@ -107,6 +107,8 @@ Registered by runit like every other class. There is no separate "bind action to
 
 ## `decoders/dec_vm_loader.h` — class `0x04`
 
+Records are the packed structs of `VM/core/loader/vm_wire.h`, published to `data-structures/vm/vm-program.generated.json`.
+
 Program-upload table for [[VM.MD]]. **Structurally different from the tables above**: these packets are not fixed-size structs, so there is no `X`-macro packet list and no `convert_to_packet()` copy. `0x42`/`0x43` carry a repeating record list whose entries vary in length (inline name bytes, inline payload bytes), so they are walked with an explicit cursor.
 
 | Packet | Byte | Payload | Calls |

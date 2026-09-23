@@ -3678,6 +3678,8 @@ CONFIG_RX_PACKET_HEADER_VM_SUBSCRIBE=0x47
 #
 # default:
 CONFIG_TX_PACKET_HEADER_VM_SET_DATA=0x43
+# default:
+CONFIG_TX_PACKET_HEADER_VM_DESCRIBE=0x42
 # end of TX Packet Headers (outbound, per-class packet dispatch)
 # end of System-Wide Identity Assignments
 
@@ -3764,7 +3766,7 @@ CONFIG_VM_SUB_MAX_SUBSCRIBERS=128
 # default:
 CONFIG_VM_SUB_MAX_FRAME_LEN=512
 # default:
-CONFIG_VM_SUB_MAX_EMITTED_PER_PASS=256
+CONFIG_VM_SUB_MAX_TRACKED=256
 # end of VM Block & Memory Limits
 # end of VM Configuration
 # end of Component config

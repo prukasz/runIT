@@ -41,9 +41,9 @@ static inline void vm_blk_set(vm_block_h b) {
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
-//#vm-block VM_BLK_SET @title Set @category data
+//#vm-block VM_BLK_SET @title Set @category data @activation triggered Runs when the source (input 0) is fresh and the block is enabled.
 //@block-description Copies the source payload (whole trees included) into the destination when the source is fresh. Types and counts must match.
-//@in 0 source @title Source
-//@in 1 destination @title Destination
+//@in 0 source @title Source @value object
+//@in 1 destination @title Destination @value object
 #define VM_BLOCK_TYPE_SET \
   {.run = vm_blk_set, .check = NULL, .min_in = 2, .min_q = 0, .required_in = 0x3u, .state_len = VM_SET_CUSTOM_LEN}

@@ -152,9 +152,11 @@ static inline void vm_blk_io_set_level(vm_block_h b) {
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
-//#vm-block VM_BLK_IO_SET_LEVEL @title Set Pin Level @category io @state vm_block_io_set_level_data_t
+//#vm-block VM_BLK_IO_SET_LEVEL @title Set Pin Level @category io @state vm_block_io_set_level_data_t @activation enabled Runs every pass while enabled.
 //@block-description Drives a pin on an IO device (ESP GPIO, expander) to the input level; writes only on change unless ALWAYS.
-//@in 0 level @title Level
-//@in 1 pin @title Pin @description Overrides default_io_num; must be in allowed_mask.
+//@rule allowed_mask is not 0, and default_io_num is below 64 and in allowed_mask. @error ERR_VM_BLK_BAD_SHAPE
+//@rule disabled_action is a vm_io_disabled_state_e value. @error ERR_VM_BLK_BAD_SHAPE
+//@in 0 level @title Level @value bool
+//@in 1 pin @title Pin @description Overrides default_io_num; must be in allowed_mask. @value u32
 #define VM_BLOCK_TYPE_IO_SET_LEVEL \
   {.run = vm_blk_io_set_level, .check = vm_verify_io_set_level, .min_in = 1, .min_q = 0, .required_in = 0x1u, .state_len = VM_IO_SET_LEVEL_CUSTOM_LEN}

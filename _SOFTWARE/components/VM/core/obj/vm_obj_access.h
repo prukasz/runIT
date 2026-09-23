@@ -64,26 +64,29 @@ static inline const char* vm_index_kind_str(vm_index_kind_e k) {
   return vm_index_kind_name((uint8_t)k);
 }
 
-//#vm-struct-ref @alias VM Object Index @kind vm-index
+/* One resolved path step, in memory. Its wire form is vm_wire_idx_*_t
+   (vm_wire.h); this layout only feeds the arena size. */
 typedef struct {
-  uint8_t kind;      //@alias Kind @role discriminator @enum-ref vm_index_kind_e @one-of [$VM_IDX_LITERAL, $VM_IDX_REF, $VM_IDX_NAME]
-  uint8_t name_len;  //@internal @derived-from name
-  union {            //@discriminator kind
-    uint32_t             value;  //@case $VM_IDX_LITERAL @alias Index
-    const vm_accessor_t* ref;    //@case $VM_IDX_REF @alias Accessor @reference vm-accessor
-    const char*          name;   //@case $VM_IDX_NAME @alias Child Name
+  uint8_t kind;      // vm_index_kind_e
+  uint8_t name_len;  // VM_IDX_NAME: length of name
+  union {            // by kind
+    uint32_t             value;  // VM_IDX_LITERAL
+    const vm_accessor_t* ref;    // VM_IDX_REF: resolved at load
+    const char*          name;   // VM_IDX_NAME: NUL-terminated copy in the arena
   };
 } vm_index_t;
 
+_Static_assert(sizeof(vm_index_t) == 8, "index step size feeds the arena size (0x41 total_size)");
+
 #define VM_IDX_BY_NAME(str) {.kind = VM_IDX_NAME, .name_len = (uint8_t)(sizeof(str) - 1), .name = (str)}
 
-//#vm-struct-ref @alias VM Object Accessor @kind vm-accessor
+/* An accessor, in memory. Its wire form is vm_wire_acc_t (vm_wire.h). */
 struct vm_accessor_t {
-  uint16_t          id;         //@alias Root Object ID @role root-object-id @reference vm-object
-  uint8_t           count;      //@internal @derived-from indices
-  uint8_t           flags;      //@internal
-  const vm_index_t* indices;    //@alias Indices @role indices @element vm-index @length-from count
-  vm_obj_payload_t  c_payload;  //@internal
+  uint16_t          id;         // root object ID
+  uint8_t           count;      // index steps
+  uint8_t           flags;      // VM_ACC_F_*
+  const vm_index_t* indices;    // count steps, right after the accessor in the arena
+  vm_obj_payload_t  c_payload;  // resolution cache (VM_ACC_F_CACHED)
 };
 
 _Static_assert(sizeof(struct vm_accessor_t) == 20, "accessor header size feeds the RAM budget");

@@ -1,0 +1,118 @@
+{
+  "$schema": "data-structures/schema/vm-block.schema.json",
+  "schemaVersion": 1,
+  "kind": "vm-block",
+  "id": 12,
+  "name": "VM_BLK_LATCH",
+  "title": "Latch",
+  "category": "logic",
+  "description": "Set / reset bistable: turns a one-pass pulse into a held level. ENO follows Q.",
+  "source_file": "components/VM/blocks/vm_block_latch.h",
+  "activation": {
+    "kind": "enabled",
+    "description": "Runs every pass while enabled."
+  },
+  "inputs": {
+    "min": 0,
+    "max": 2,
+    "pins": [
+      {
+        "index": 0,
+        "name": "set",
+        "title": "Set",
+        "value": "bool",
+        "required": false
+      },
+      {
+        "index": 1,
+        "name": "reset",
+        "title": "Reset",
+        "value": "bool",
+        "required": false
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "q",
+        "title": "Q",
+        "value": "bool"
+      }
+    ]
+  },
+  "rules": [
+    {
+      "rule": "At least one of set and reset is wired.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    },
+    {
+      "rule": "mode is a vm_latch_mode_e value.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    }
+  ],
+  "state": {
+    "struct": "vm_block_latch_data_t",
+    "source_file": "components/VM/blocks/vm_block_latch.h",
+    "size": 4,
+    "align": 4,
+    "fields": [
+      {
+        "name": "mode",
+        "c_type": "uint8_t",
+        "offset": 0,
+        "size": 1,
+        "description": "Which input wins when both are true",
+        "enum_ref": "vm_latch_mode_e",
+        "source": "user"
+      },
+      {
+        "name": "flags",
+        "c_type": "uint8_t",
+        "offset": 1,
+        "size": 1,
+        "description": "VM_LATCH_F_*",
+        "source": "runtime"
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint16_t",
+        "offset": 2,
+        "size": 2,
+        "source": "padding"
+      }
+    ]
+  },
+  "min_custom_len": 4,
+  "enums": {
+    "vm_latch_mode_e": {
+      "alias": "Latch Mode",
+      "source_file": "components/VM/blocks/vm_block_latch.h",
+      "members": [
+        {
+          "name": "VM_LATCH_SET_DOMINANT",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_LATCH_RESET_DOMINANT",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_LATCH_MODE_CNT",
+          "value": 2,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  }
+}

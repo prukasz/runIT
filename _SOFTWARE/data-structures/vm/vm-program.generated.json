@@ -1,0 +1,1052 @@
+{
+  "$schema": "data-structures/schema/vm-program.schema.json",
+  "schemaVersion": 1,
+  "kind": "vm-program",
+  "class_header": "0x04",
+  "request_prefix": [
+    "seq"
+  ],
+  "framing": "One packet per inbound frame: [seq][class][packet][body]. A frame carries at most the link's payload (BLE: MTU - 3); split batch records over several packets.",
+  "response": "Every packet is answered on the response stream (contracts.generated.json response_stream) with status only: no OK data.",
+  "types": [
+    {
+      "symbol": "VM_OBJ_PTR",
+      "value": 1,
+      "alias": "Object Reference",
+      "memory_width": 4,
+      "wire_width": 2,
+      "wire_type": "uint16_t",
+      "wire_note": "child object ID (VM_OBJ_ID_NONE = unlinked)"
+    },
+    {
+      "symbol": "VM_OBJ_U8",
+      "value": 2,
+      "alias": "Unsigned 8-bit Integer",
+      "memory_width": 1,
+      "wire_width": 1,
+      "wire_type": "uint8_t"
+    },
+    {
+      "symbol": "VM_OBJ_U32",
+      "value": 3,
+      "alias": "Unsigned 32-bit Integer",
+      "memory_width": 4,
+      "wire_width": 4,
+      "wire_type": "uint32_t"
+    },
+    {
+      "symbol": "VM_OBJ_I32",
+      "value": 4,
+      "alias": "Signed 32-bit Integer",
+      "memory_width": 4,
+      "wire_width": 4,
+      "wire_type": "int32_t"
+    },
+    {
+      "symbol": "VM_OBJ_F",
+      "value": 5,
+      "alias": "Float",
+      "memory_width": 4,
+      "wire_width": 4,
+      "wire_type": "float"
+    },
+    {
+      "symbol": "VM_OBJ_B",
+      "value": 6,
+      "alias": "Boolean",
+      "memory_width": 1,
+      "wire_width": 1,
+      "wire_type": "uint8_t"
+    },
+    {
+      "symbol": "VM_OBJ_STR",
+      "value": 7,
+      "alias": "Text",
+      "memory_width": 1,
+      "wire_width": 1,
+      "wire_type": "uint8_t"
+    }
+  ],
+  "constants": {
+    "VM_BLOCK_NO_ID": {
+      "value": 65535,
+      "description": "Unwired input pin, or no ENO object.",
+      "source_file": "components/VM/core/block/vm_block.h"
+    },
+    "VM_OBJ_NAME_MAX": {
+      "value": 15,
+      "description": "Longest object or accessor name, in bytes.",
+      "source_file": "components/VM/core/obj/vm_obj.h"
+    },
+    "VM_OBJ_HEAD_WIRE_SIZE": {
+      "value": 4,
+      "description": "Bytes of vm_obj_head_t on the wire.",
+      "source_file": "components/VM/core/obj/vm_obj.h"
+    },
+    "VM_OBJ_PTR_WIRE_SIZE": {
+      "value": 2,
+      "description": "Bytes of one PTR element on the wire (a child object ID).",
+      "source_file": "components/VM/core/obj/vm_obj.h"
+    },
+    "VM_OBJ_ID_NONE": {
+      "value": 65535,
+      "description": "No object (an unlinked PTR element on the wire).",
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    "VM_OBJ_ID_DYN_BIT": {
+      "value": 32768,
+      "description": "Set in the ID of a heap object (CLONE's copies); program object IDs stay below it.",
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    }
+  },
+  "limits": {
+    "CONFIG_VM_EXEC_TASK_PRIO": {
+      "value": 5,
+      "title": "Supervisor task priority",
+      "help": "FreeRTOS task priority for the VM execution supervisor."
+    },
+    "CONFIG_VM_EXEC_TASK_CORE": {
+      "value": 1,
+      "title": "Supervisor task pinned core",
+      "help": "Core affinity for VM supervisor task (default 1 to keep core 0 free for BLE)."
+    },
+    "CONFIG_VM_EXEC_MAX_SPAN_DEPTH": {
+      "value": 4,
+      "title": "Maximum nested execution span depth",
+      "help": "Maximum nested loop/span depth allowed during block execution."
+    },
+    "CONFIG_VM_EXEC_BLOCK_WD_MS": {
+      "value": 20,
+      "title": "Block watchdog timeout (ms)",
+      "help": "Maximum duration in milliseconds a single block may execute before timing out."
+    },
+    "CONFIG_VM_EVENT_DEPTH": {
+      "value": 16,
+      "title": "VM incoming event queue depth",
+      "help": "Capacity of the ring buffer receiving events between cycles."
+    },
+    "CONFIG_VM_OVERRIDE_BUF_SIZE": {
+      "value": 1024,
+      "title": "VM variable override ring buffer size (bytes)",
+      "help": "Byte capacity of the runtime variable override ring buffer."
+    },
+    "CONFIG_VM_RETAIN_PERIOD_S": {
+      "value": 60,
+      "title": "Save period (s)",
+      "help": "How often the values of retentive objects are saved to flash, if any changed. Also saved on program teardown and on the safe state; an unplanned power loss loses at most one period."
+    },
+    "CONFIG_VM_RETAIN_MAX_BYTES": {
+      "value": 1024,
+      "title": "Maximum retained bytes",
+      "help": "Size of the stored record (2 + per object: 4 + name + value). A program retaining more is refused at load (ERR_VM_RETAIN_TOO_BIG). Costs twice this in RAM."
+    },
+    "CONFIG_VM_RETAIN_TASK_STACK": {
+      "value": 3072,
+      "title": "Retain task stack (bytes)",
+      "help": "Stack of the low-priority task that writes retained values to flash, off the VM task."
+    },
+    "CONFIG_VM_RETAIN_TASK_PRIO": {
+      "value": 2,
+      "title": "Retain task priority",
+      "help": "Priority of the retain task; below the VM supervisor."
+    },
+    "CONFIG_VM_BLOCK_MAX_IN": {
+      "value": 16,
+      "title": "Maximum input accessors per block",
+      "help": "Maximum number of input accessors allowed for a single VM execution block."
+    },
+    "CONFIG_VM_BLOCK_MAX_OUT": {
+      "value": 16,
+      "title": "Maximum output objects per block",
+      "help": "Maximum number of output objects allowed for a single VM execution block."
+    },
+    "CONFIG_VM_BLOCK_MAX_EN": {
+      "value": 16,
+      "title": "Maximum enable accessors per block",
+      "help": "Maximum number of enable accessors allowed for a single VM execution block."
+    },
+    "CONFIG_VM_STORE_MAX_POOL": {
+      "value": 131072,
+      "title": "Maximum program arena pool size (bytes)",
+      "help": "Hard ceiling in bytes for the bump-allocated program storage arena."
+    },
+    "CONFIG_VM_ACCESSOR_MAX_DEPTH": {
+      "value": 8,
+      "title": "Maximum accessor path resolution depth",
+      "help": "Maximum chain depth when resolving nested accessor paths."
+    },
+    "CONFIG_VM_OBJ_COPY_MAX_DEPTH": {
+      "value": 8,
+      "title": "Maximum object copy recursion depth",
+      "help": "Maximum tree recursion depth allowed when copying objects."
+    },
+    "CONFIG_VM_DYN_MAX": {
+      "value": 128,
+      "title": "Maximum concurrent dynamic objects",
+      "help": "Upper ceiling of live dynamically registered objects on the heap."
+    },
+    "CONFIG_VM_DYN_MAX_DEPTH": {
+      "value": 16,
+      "title": "Maximum dynamic DAG ownership depth",
+      "help": "Maximum allowed ownership path depth in dynamic object graph."
+    },
+    "CONFIG_VM_SUB_MAX_SUBSCRIBERS": {
+      "value": 128,
+      "title": "Maximum subscribed object IDs",
+      "help": "Maximum count of object IDs that can be subscribed to simultaneously. A subscribe packet with more IDs is refused."
+    },
+    "CONFIG_VM_SUB_MAX_FRAME_LEN": {
+      "value": 512,
+      "title": "Maximum telemetry frame length (bytes)",
+      "help": "Maximum byte size of a generated telemetry output packet."
+    },
+    "CONFIG_VM_SUB_MAX_TRACKED": {
+      "value": 256,
+      "title": "Maximum objects reachable from subscriptions",
+      "help": "Objects telemetry keeps track of: every subscribed object plus everything reachable through its PTR children. Each costs 18 bytes of RAM (12 per entry, table sized 1.5x). Objects past the limit are not sent (ERR_VM_SUB_TRACK_FULL)."
+    }
+  },
+  "sizes": {
+    "vm_accessor_t": 20,
+    "vm_block_data_t": 16,
+    "vm_index_t": 8,
+    "vm_obj_head_t": 4,
+    "void*": 4
+  },
+  "arena": {
+    "alignment": 4,
+    "description": "Every allocation starts on a 4-byte boundary: total_size is the sum of each allocation rounded up to 4.",
+    "total_size": "sum over every allocation of its size rounded up to the alignment",
+    "allocations": [
+      {
+        "item": "registry",
+        "per": "open",
+        "size": "count * sizeof(void*)",
+        "size_bytes": "count * 4",
+        "description": "One per ID space with a nonzero count (obj_cnt, acc_cnt, blk_cnt)."
+      },
+      {
+        "item": "object",
+        "per": "HEADER_packet_vm_add_objs",
+        "per_packet": "0x42",
+        "size": "sizeof(vm_obj_head_t) + head.payload_size + head.d.name_size",
+        "size_bytes": "4 + head.payload_size + head.d.name_size"
+      },
+      {
+        "item": "accessor",
+        "per": "HEADER_packet_vm_add_acc",
+        "per_packet": "0x44",
+        "size": "sizeof(vm_accessor_t) + idx_count * sizeof(vm_index_t)",
+        "size_bytes": "20 + idx_count * 8"
+      },
+      {
+        "item": "accessor-name",
+        "per": "VM_IDX_NAME",
+        "size": "name_len + 1",
+        "size_bytes": "name_len + 1",
+        "description": "Each name step of an accessor, stored NUL-terminated."
+      },
+      {
+        "item": "block",
+        "per": "HEADER_packet_vm_add_block",
+        "per_packet": "0x45",
+        "size": "sizeof(vm_block_data_t) + (in_cnt + q_cnt + en_cnt) * sizeof(void*) + custom_len",
+        "size_bytes": "16 + (in_cnt + q_cnt + en_cnt) * 4 + custom_len"
+      }
+    ]
+  },
+  "packets": [
+    {
+      "packet_header": "0x40",
+      "symbol": "HEADER_packet_vm_reset",
+      "title": "Reset",
+      "description": "Stop the program and unload it: objects, accessors, blocks, heap objects and subscriptions. Leaves the VM empty and stopped.",
+      "when": "any",
+      "record": {
+        "name": "vm_wire_reset_t",
+        "size": 0,
+        "field_order": [],
+        "fields": {}
+      }
+    },
+    {
+      "packet_header": "0x41",
+      "symbol": "HEADER_packet_vm_open",
+      "title": "Open program",
+      "description": "Replace the loaded program with an empty one of this size. Stops a running program first (its retained values are saved). Nothing else can be loaded before it.",
+      "when": "any",
+      "record": {
+        "name": "vm_wire_open_t",
+        "size": 10,
+        "field_order": [
+          "obj_cnt",
+          "acc_cnt",
+          "blk_cnt",
+          "total_size"
+        ],
+        "fields": {
+          "obj_cnt": {
+            "type": "uint16_t",
+            "alias": "Objects",
+            "offset": 0,
+            "size": 2,
+            "description": "Object IDs 0 to obj_cnt - 1."
+          },
+          "acc_cnt": {
+            "type": "uint16_t",
+            "alias": "Accessors",
+            "offset": 2,
+            "size": 2,
+            "description": "Accessor IDs 0 to acc_cnt - 1."
+          },
+          "blk_cnt": {
+            "type": "uint16_t",
+            "alias": "Blocks",
+            "offset": 4,
+            "size": 2,
+            "description": "Block IDs 0 to blk_cnt - 1."
+          },
+          "total_size": {
+            "type": "uint32_t",
+            "alias": "Arena Size",
+            "max": 131072,
+            "unit": "bytes",
+            "offset": 6,
+            "size": 4,
+            "description": "Sum of every allocation of the program, see arena.",
+            "max_symbol": "CONFIG_VM_STORE_MAX_POOL"
+          }
+        }
+      },
+      "rules": [
+        {
+          "rule": "Open comes first: objects, values, accessors and blocks need an open program.",
+          "error": "ERR_VM_LOAD_BAD_STATE",
+          "error_tag": 43288
+        },
+        {
+          "rule": "total_size must cover every allocation (see arena) and fit CONFIG_VM_STORE_MAX_POOL; a failed open leaves the running program untouched.",
+          "error": "ERR_VM_LOAD_TOO_BIG",
+          "error_tag": 43289
+        }
+      ]
+    },
+    {
+      "packet_header": "0x42",
+      "symbol": "HEADER_packet_vm_add_objs",
+      "title": "Add objects",
+      "description": "Create objects: shape, flags and name. Payloads start zeroed; values follow with Set values.",
+      "when": "stopped",
+      "batch": {
+        "count_type": "uint8_t",
+        "max": 255
+      },
+      "record": {
+        "name": "vm_wire_obj_t",
+        "size": 6,
+        "field_order": [
+          "id",
+          "head"
+        ],
+        "fields": {
+          "id": {
+            "type": "uint16_t",
+            "alias": "Object ID",
+            "offset": 0,
+            "size": 2,
+            "reference": "object"
+          },
+          "head": {
+            "type": "uint8_t",
+            "array_len": 4,
+            "alias": "Header",
+            "offset": 2,
+            "size": 4,
+            "description": "payload_size is the in-memory size (type memory width x elements).",
+            "struct_ref": "vm_obj_head_t"
+          }
+        },
+        "tails": [
+          {
+            "name": "name",
+            "type": "char",
+            "length_from": "head.d.name_size",
+            "element_size": 1,
+            "alias": "Name",
+            "description": "Not NUL-terminated. Accessors find children by it; retained values are kept by it.",
+            "encoding": "ascii"
+          }
+        ]
+      },
+      "rules": [
+        {
+          "rule": "The ID is below obj_cnt.",
+          "error": "ERR_VM_REG_OOB",
+          "error_tag": 43294
+        },
+        {
+          "rule": "Each ID is added once.",
+          "error": "ERR_VM_REG_DUP",
+          "error_tag": 43295
+        },
+        {
+          "rule": "The type is a real type (not VM_OBJ_NONE).",
+          "error": "ERR_VM_OBJ_BAD_TYPE",
+          "error_tag": 43283
+        },
+        {
+          "rule": "payload_size is not 0.",
+          "error": "ERR_VM_OBJ_EMPTY",
+          "error_tag": 43284
+        },
+        {
+          "rule": "payload_size is a multiple of the type's memory width.",
+          "error": "ERR_VM_OBJ_BAD_SIZE",
+          "error_tag": 43285
+        },
+        {
+          "rule": "A PTR object can't be retentive.",
+          "error": "ERR_VM_OBJ_RETENTIVE_PTR",
+          "error_tag": 43287
+        },
+        {
+          "rule": "A retentive object needs a name.",
+          "error": "ERR_VM_RETAIN_UNNAMED",
+          "error_tag": 43317
+        },
+        {
+          "rule": "All retained values of the program fit CONFIG_VM_RETAIN_MAX_BYTES (2 + per object 4 + name + value).",
+          "error": "ERR_VM_RETAIN_TOO_BIG",
+          "error_tag": 43318
+        }
+      ]
+    },
+    {
+      "packet_header": "0x43",
+      "symbol": "HEADER_packet_vm_set_data",
+      "title": "Set values",
+      "description": "While stopped: initial values, and the children of PTR objects. While running: a runtime write, applied at the start of the next pass.",
+      "when": "any",
+      "batch": {
+        "count_type": "uint8_t",
+        "max": 255
+      },
+      "record": {
+        "name": "vm_wire_data_t",
+        "size": 6,
+        "field_order": [
+          "id",
+          "start_idx",
+          "byte_len"
+        ],
+        "fields": {
+          "id": {
+            "type": "uint16_t",
+            "alias": "Object ID",
+            "offset": 0,
+            "size": 2,
+            "reference": "object"
+          },
+          "start_idx": {
+            "type": "uint16_t",
+            "alias": "First Element",
+            "offset": 2,
+            "size": 2,
+            "description": "Index of the first element written: elements, not bytes."
+          },
+          "byte_len": {
+            "type": "uint16_t",
+            "alias": "Length",
+            "unit": "bytes",
+            "offset": 4,
+            "size": 2
+          }
+        },
+        "tails": [
+          {
+            "name": "data",
+            "type": "uint8_t",
+            "length_from": "byte_len",
+            "element_size": 1,
+            "alias": "Data",
+            "description": "Elements in wire form, little-endian; a PTR element is its child's u16 object ID."
+          }
+        ]
+      },
+      "rules": [
+        {
+          "rule": "The object, and every child a PTR record links, exist before the record.",
+          "error": "ERR_VM_ACCESSOR_UNKNOWN_ID",
+          "error_tag": 43266
+        },
+        {
+          "rule": "Whole elements inside the object: byte_len is a multiple of the wire width and start_idx + elements <= the object's element count.",
+          "error": "ERR_VM_LOAD_DATA_RANGE",
+          "error_tag": 43290
+        },
+        {
+          "rule": "While running, PTR objects can't be written (links change only while stopped).",
+          "error": "ERR_VM_OVERRIDE_PTR_UNSUPPORTED",
+          "error_tag": 43311
+        },
+        {
+          "rule": "While running, only mutable objects can be written.",
+          "error": "ERR_VM_OBJ_NOT_MUTABLE",
+          "error_tag": 43280
+        },
+        {
+          "rule": "While running, block outputs (user-protected) can't be written.",
+          "error": "ERR_VM_OBJ_USR_PROTECTED",
+          "error_tag": 43308
+        }
+      ]
+    },
+    {
+      "packet_header": "0x44",
+      "symbol": "HEADER_packet_vm_add_acc",
+      "title": "Add accessors",
+      "description": "A path to a value: a root object, then index steps through PTR children down to an element. Block pins read and write through accessors.",
+      "when": "stopped",
+      "batch": {
+        "count_type": "uint8_t",
+        "max": 255
+      },
+      "record": {
+        "name": "vm_wire_acc_t",
+        "size": 6,
+        "field_order": [
+          "acc_id",
+          "root_obj_id",
+          "idx_count",
+          "idx_len"
+        ],
+        "fields": {
+          "acc_id": {
+            "type": "uint16_t",
+            "alias": "Accessor ID",
+            "offset": 0,
+            "size": 2,
+            "reference": "accessor"
+          },
+          "root_obj_id": {
+            "type": "uint16_t",
+            "alias": "Root Object",
+            "offset": 2,
+            "size": 2,
+            "description": "May be added after the accessor (it then resolves on every use, slower).",
+            "reference": "object"
+          },
+          "idx_count": {
+            "type": "uint8_t",
+            "alias": "Steps",
+            "offset": 4,
+            "size": 1
+          },
+          "idx_len": {
+            "type": "uint8_t",
+            "alias": "Path Length",
+            "unit": "bytes",
+            "offset": 5,
+            "size": 1
+          }
+        },
+        "tails": [
+          {
+            "name": "indices",
+            "type": "vm_wire_index",
+            "length_from": "idx_count",
+            "element_union": "vm_wire_index",
+            "byte_length_from": "idx_len",
+            "alias": "Path",
+            "description": "Index steps, back to back."
+          }
+        ]
+      },
+      "rules": [
+        {
+          "rule": "An accessor a REF step names is added before the accessor using it.",
+          "error": "ERR_VM_REG_OOB",
+          "error_tag": 43294
+        },
+        {
+          "rule": "idx_len covers exactly the idx_count steps.",
+          "error": "ERR_VM_LOAD_SHORT_RECORD",
+          "error_tag": 43291
+        },
+        {
+          "rule": "Every step kind is a vm_index_kind_e value.",
+          "error": "ERR_VM_ACC_BAD_KIND",
+          "error_tag": 43293
+        },
+        {
+          "rule": "A name step is at most VM_OBJ_NAME_MAX bytes.",
+          "error": "ERR_VM_OBJ_NAME_TOO_LONG",
+          "error_tag": 43286
+        }
+      ]
+    },
+    {
+      "packet_header": "0x45",
+      "symbol": "HEADER_packet_vm_add_block",
+      "title": "Add block",
+      "description": "One block per packet. Blocks run in block ID order, and a block's inputs must exist before it is added.",
+      "when": "stopped",
+      "record": {
+        "name": "vm_wire_block_t",
+        "size": 14,
+        "field_order": [
+          "blk_id",
+          "block_idx",
+          "block_type",
+          "in_cnt",
+          "q_cnt",
+          "en_cnt",
+          "en_mode",
+          "on_error",
+          "custom_len",
+          "eno_obj_id"
+        ],
+        "fields": {
+          "blk_id": {
+            "type": "uint16_t",
+            "alias": "Block ID",
+            "offset": 0,
+            "size": 2,
+            "description": "Blocks run in ID order: 0 first.",
+            "reference": "block"
+          },
+          "block_idx": {
+            "type": "uint16_t",
+            "alias": "Block Label",
+            "offset": 2,
+            "size": 2,
+            "description": "The app's own number for the block; errors name the block by it."
+          },
+          "block_type": {
+            "type": "uint8_t",
+            "alias": "Block Type",
+            "offset": 4,
+            "size": 1,
+            "reference": "block-type"
+          },
+          "in_cnt": {
+            "type": "uint8_t",
+            "alias": "Inputs",
+            "max": 16,
+            "offset": 5,
+            "size": 1,
+            "max_symbol": "CONFIG_VM_BLOCK_MAX_IN"
+          },
+          "q_cnt": {
+            "type": "uint8_t",
+            "alias": "Outputs",
+            "max": 16,
+            "offset": 6,
+            "size": 1,
+            "max_symbol": "CONFIG_VM_BLOCK_MAX_OUT"
+          },
+          "en_cnt": {
+            "type": "uint8_t",
+            "alias": "Enables",
+            "max": 16,
+            "offset": 7,
+            "size": 1,
+            "description": "0 = always enabled.",
+            "max_symbol": "CONFIG_VM_BLOCK_MAX_EN"
+          },
+          "en_mode": {
+            "type": "uint8_t",
+            "alias": "Enable Mode",
+            "one_of": [
+              {
+                "symbol": "VM_BLK_EN_ANY",
+                "enum": "vm_blk_en_mode_e",
+                "value": 0,
+                "alias": "Any",
+                "description": "Runs when any enable is true (OR, a branch merge)."
+              },
+              {
+                "symbol": "VM_BLK_EN_ALL",
+                "enum": "vm_blk_en_mode_e",
+                "value": 1,
+                "alias": "All",
+                "description": "Runs when every enable is true (AND)."
+              }
+            ],
+            "enum_ref": "vm_blk_en_mode_e",
+            "offset": 8,
+            "size": 1
+          },
+          "on_error": {
+            "type": "uint8_t",
+            "alias": "On Error",
+            "one_of": [
+              {
+                "symbol": "VM_BLK_ERR_STOP",
+                "enum": "vm_blk_on_error_e",
+                "value": 0,
+                "alias": "Stop",
+                "description": "Publish a false ENO; downstream blocks skip."
+              },
+              {
+                "symbol": "VM_BLK_ERR_CONTINUE",
+                "enum": "vm_blk_on_error_e",
+                "value": 1,
+                "alias": "Continue",
+                "description": "Report the failure and carry on."
+              }
+            ],
+            "enum_ref": "vm_blk_on_error_e",
+            "offset": 9,
+            "size": 1
+          },
+          "custom_len": {
+            "type": "uint16_t",
+            "alias": "State Length",
+            "unit": "bytes",
+            "offset": 10,
+            "size": 2
+          },
+          "eno_obj_id": {
+            "type": "uint16_t",
+            "alias": "ENO Output",
+            "offset": 12,
+            "size": 2,
+            "description": "Optional: a mutable B object that receives the block's ENO.",
+            "reference": "object",
+            "none": 65535
+          }
+        },
+        "tails": [
+          {
+            "name": "in_acc_ids",
+            "type": "uint16_t",
+            "length_from": "in_cnt",
+            "element_size": 2,
+            "alias": "Inputs",
+            "description": "One accessor per input pin; VM_BLOCK_NO_ID leaves the pin unwired (the block uses its state constant).",
+            "reference": "accessor",
+            "none": 65535
+          },
+          {
+            "name": "out_obj_ids",
+            "type": "uint16_t",
+            "length_from": "q_cnt",
+            "element_size": 2,
+            "alias": "Outputs",
+            "description": "One object per output pin. The device marks them user-protected: runtime writes to them are refused.",
+            "reference": "object"
+          },
+          {
+            "name": "en_acc_ids",
+            "type": "uint16_t",
+            "length_from": "en_cnt",
+            "element_size": 2,
+            "alias": "Enables",
+            "description": "Every one must exist; combined by en_mode.",
+            "reference": "accessor"
+          },
+          {
+            "name": "custom_data",
+            "type": "uint8_t",
+            "length_from": "custom_len",
+            "element_size": 1,
+            "alias": "State",
+            "description": "Initial private state; its layout per block type is in data-structures/vm/blocks/."
+          }
+        ]
+      },
+      "rules": [
+        {
+          "rule": "Every object and accessor the block names exists before it; the ENO object is a mutable B object.",
+          "error": "ERR_VM_BLK_BAD_REF",
+          "error_tag": 43297
+        },
+        {
+          "rule": "The block type exists in the palette.",
+          "error": "ERR_VM_BLK_UNKNOWN_TYPE",
+          "error_tag": 43299
+        },
+        {
+          "rule": "Pin counts within limits, en_mode and on_error known values, and the block passes its type's check (pins, required inputs, state); a rejected block is removed again.",
+          "error": "ERR_VM_BLK_BAD_SHAPE",
+          "error_tag": 43296
+        }
+      ]
+    },
+    {
+      "packet_header": "0x47",
+      "symbol": "HEADER_packet_vm_subscribe",
+      "title": "Subscribe",
+      "description": "Replace the telemetry list; 0 records clears it. Everything reachable is sent in full once, then whatever changes (see telemetry).",
+      "when": "any",
+      "batch": {
+        "count_type": "uint8_t",
+        "max": 128,
+        "max_symbol": "CONFIG_VM_SUB_MAX_SUBSCRIBERS"
+      },
+      "record": {
+        "name": "vm_wire_sub_t",
+        "size": 2,
+        "field_order": [
+          "id"
+        ],
+        "fields": {
+          "id": {
+            "type": "uint16_t",
+            "alias": "Object ID",
+            "offset": 0,
+            "size": 2,
+            "description": "VM_OBJ_ID_DYN_BIT set for a heap object.",
+            "reference": "object"
+          }
+        }
+      },
+      "rules": [
+        {
+          "rule": "More IDs than CONFIG_VM_SUB_MAX_SUBSCRIBERS is refused and nothing changes.",
+          "error": "ERR_INVALID_VAL_UI32",
+          "error_tag": 3
+        }
+      ]
+    },
+    {
+      "packet_header": "0x48",
+      "symbol": "HEADER_packet_vm_exec",
+      "title": "Execution control",
+      "description": "Start, stop, step and reset the program.",
+      "when": "any",
+      "record": {
+        "name": "vm_wire_exec_t",
+        "size": 1,
+        "field_order": [
+          "command"
+        ],
+        "fields": {
+          "command": {
+            "type": "uint8_t",
+            "alias": "Command",
+            "required": true,
+            "enum_ref": "vm_exec_command_e",
+            "offset": 0,
+            "size": 1
+          }
+        }
+      }
+    }
+  ],
+  "unions": {
+    "vm_wire_index": {
+      "tag": "kind",
+      "tag_type": "uint8_t",
+      "enum_ref": "vm_index_kind_e",
+      "description": "One accessor path step: a u8 kind, then that kind's payload.",
+      "cases": [
+        {
+          "symbol": "VM_IDX_LITERAL",
+          "value": 0,
+          "record": {
+            "name": "vm_wire_idx_literal_t",
+            "size": 5,
+            "field_order": [
+              "kind",
+              "value"
+            ],
+            "fields": {
+              "kind": {
+                "type": "uint8_t",
+                "alias": "Kind",
+                "enum_ref": "vm_index_kind_e",
+                "offset": 0,
+                "size": 1
+              },
+              "value": {
+                "type": "uint32_t",
+                "alias": "Position",
+                "offset": 1,
+                "size": 4,
+                "description": "Child or element index."
+              }
+            }
+          }
+        },
+        {
+          "symbol": "VM_IDX_REF",
+          "value": 1,
+          "record": {
+            "name": "vm_wire_idx_ref_t",
+            "size": 3,
+            "field_order": [
+              "kind",
+              "acc_id"
+            ],
+            "fields": {
+              "kind": {
+                "type": "uint8_t",
+                "alias": "Kind",
+                "enum_ref": "vm_index_kind_e",
+                "offset": 0,
+                "size": 1
+              },
+              "acc_id": {
+                "type": "uint16_t",
+                "alias": "Accessor",
+                "offset": 1,
+                "size": 2,
+                "description": "Its value, read on every use, is the position.",
+                "reference": "accessor"
+              }
+            }
+          }
+        },
+        {
+          "symbol": "VM_IDX_NAME",
+          "value": 2,
+          "record": {
+            "name": "vm_wire_idx_name_t",
+            "size": 2,
+            "field_order": [
+              "kind",
+              "name_len"
+            ],
+            "fields": {
+              "kind": {
+                "type": "uint8_t",
+                "alias": "Kind",
+                "enum_ref": "vm_index_kind_e",
+                "offset": 0,
+                "size": 1
+              },
+              "name_len": {
+                "type": "uint8_t",
+                "alias": "Name Length",
+                "max": 15,
+                "offset": 1,
+                "size": 1,
+                "max_symbol": "VM_OBJ_NAME_MAX"
+              }
+            },
+            "tails": [
+              {
+                "name": "name",
+                "type": "char",
+                "length_from": "name_len",
+                "element_size": 1,
+                "alias": "Name",
+                "description": "Not NUL-terminated.",
+                "encoding": "ascii"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "telemetry": {
+    "stream": "0x02",
+    "stream_symbol": "CONFIG_TX_PACKET_CLASS_TELEMETRY",
+    "class_header": "0x04",
+    "description": "Device to app, on the telemetry stream: [stream][class][packet][u8 count][records]. Frames follow the link's frame size (BLE MTU), capped by CONFIG_VM_SUB_MAX_FRAME_LEN. A lost frame is resent in full the next pass; drop a value for a heap ID that has no describe.",
+    "frames": [
+      {
+        "packet_header": "0x42",
+        "symbol": "CONFIG_TX_PACKET_HEADER_VM_DESCRIBE",
+        "title": "Describe",
+        "description": "Heap objects (ID has VM_OBJ_ID_DYN_BIT), which the app never uploaded: type, size and name. Sent when first seen and when any of them change, always before a value that refers to them.",
+        "batch": {
+          "count_type": "uint8_t",
+          "max": 255
+        },
+        "record": {
+          "name": "vm_wire_obj_t",
+          "size": 6,
+          "field_order": [
+            "id",
+            "head"
+          ],
+          "fields": {
+            "id": {
+              "type": "uint16_t",
+              "alias": "Object ID",
+              "offset": 0,
+              "size": 2,
+              "reference": "object"
+            },
+            "head": {
+              "type": "uint8_t",
+              "array_len": 4,
+              "alias": "Header",
+              "offset": 2,
+              "size": 4,
+              "description": "payload_size is the in-memory size (type memory width x elements).",
+              "struct_ref": "vm_obj_head_t"
+            }
+          },
+          "tails": [
+            {
+              "name": "name",
+              "type": "char",
+              "length_from": "head.d.name_size",
+              "element_size": 1,
+              "alias": "Name",
+              "description": "Not NUL-terminated. Accessors find children by it; retained values are kept by it.",
+              "encoding": "ascii"
+            }
+          ]
+        }
+      },
+      {
+        "packet_header": "0x43",
+        "symbol": "CONFIG_TX_PACKET_HEADER_VM_SET_DATA",
+        "title": "Values",
+        "description": "Subscribed objects and their PTR children (8 levels) whose value changed since last sent, quiet writes included; everything once after a subscribe. An object bigger than a frame is split over several records (start_idx).",
+        "batch": {
+          "count_type": "uint8_t",
+          "max": 255
+        },
+        "record": {
+          "name": "vm_wire_data_t",
+          "size": 6,
+          "field_order": [
+            "id",
+            "start_idx",
+            "byte_len"
+          ],
+          "fields": {
+            "id": {
+              "type": "uint16_t",
+              "alias": "Object ID",
+              "offset": 0,
+              "size": 2,
+              "reference": "object"
+            },
+            "start_idx": {
+              "type": "uint16_t",
+              "alias": "First Element",
+              "offset": 2,
+              "size": 2,
+              "description": "Index of the first element written: elements, not bytes."
+            },
+            "byte_len": {
+              "type": "uint16_t",
+              "alias": "Length",
+              "unit": "bytes",
+              "offset": 4,
+              "size": 2
+            }
+          },
+          "tails": [
+            {
+              "name": "data",
+              "type": "uint8_t",
+              "length_from": "byte_len",
+              "element_size": 1,
+              "alias": "Data",
+              "description": "Elements in wire form, little-endian; a PTR element is its child's u16 object ID."
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

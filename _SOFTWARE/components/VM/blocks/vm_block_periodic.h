@@ -130,9 +130,11 @@ static inline void vm_blk_periodic(vm_block_h b) {
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
-//#vm-block VM_BLK_PERIODIC @title Every @category time @state vm_block_periodic_data_t
+//#vm-block VM_BLK_PERIODIC @title Every @category time @state vm_block_periodic_data_t @activation enabled Runs every pass while enabled.
 //@block-description Pulses ENO and TICK for one pass every period while enabled; never bursts after a slow pass.
-//@in 0 period @title Period @description Overrides period, in time_base units; 0 pauses.
-//@out 0 tick @title Tick
+//@rule time_base is a vm_timer_unit_e value. @error ERR_VM_BLK_BAD_SHAPE
+//@rule With the period input unwired, period is not 0. @error ERR_VM_BLK_BAD_SHAPE
+//@in 0 period @title Period @description Overrides period, in time_base units; 0 pauses. @value u32
+//@out 0 tick @title Tick @value gate
 #define VM_BLOCK_TYPE_PERIODIC \
   {.run = vm_blk_periodic, .check = vm_verify_periodic, .min_in = 0, .min_q = 0, .required_in = 0x0u, .state_len = VM_PERIODIC_CUSTOM_LEN}

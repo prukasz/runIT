@@ -2,7 +2,7 @@
 
 ## 1. Palette (`blocks/vm_blocks.h`, `vm_blocks_table.c`)
 
-Type 0 is reserved (unset type must not run). The type byte indexes `g_vm_block_types[]`: one `vm_block_type_t` per type (body, extra check, `min_in`, `min_q`, `required_in`, `state_len`), defined in the block's own header as `VM_BLOCK_TYPE_<NAME>`. The app reads the same data from `data-structures/vm/vm-blocks.generated.json`.
+Type 0 is reserved (unset type must not run). The type byte indexes `g_vm_block_types[]`: one `vm_block_type_t` per type (body, extra check, `min_in`, `min_q`, `required_in`, `state_len`), defined in the block's own header as `VM_BLOCK_TYPE_<NAME>`. The app reads the same data from `data-structures/vm/blocks/` (one descriptor per block).
 
 | Id | Type | Pins in (★ required) | Out | `custom_len` | Activates on |
 |---|---|---|---|---|---|
@@ -98,4 +98,6 @@ Hardware blocks call `sys_io_*` with `SYS_IO_REF(device_id, pin)`. `allowed_mask
 | `vm_block_obj_*` (`copy_content`, `clone_into`, `link`, `mark_updated`) | **User mutation boundary**: rejects `usr_protected` targets; use for anything a program's data pins name as a destination |
 | `VM_OBJ_SCALAR_GET` / `VM_OBJ_SET_SCALAR[_AT_IDX]` | Converting read / internal write (float→int rounds and saturates) |
 
-Faults: a malformed configuration is rejected at load (verify). A malformed bytecode program (EXPR) is a **standing** condition (report once, latch `VM_BLK_RT_CFG_BAD`); a bad **value** (zero divisor, non-finite) is reported per fault episode and re-armed by the next clean run. Never report every pass: at 100 Hz that buries the log.
+Faults: a malformed configuration is rejected at load (the palette `.check`), EXPR bytecode included (`vm_expr_check`, reported as `ERR_VM_EXPR_BAD_CODE`); bodies never re-check it. A bad **value** (zero divisor, non-finite) is reported per fault episode and re-armed by the next clean run. Never report every pass: at 100 Hz that buries the log.
+
+Publishing: every block needs `@activation`, a `@value` on each pin and a `//@rule` per check its `.check` makes (vm-annotations.md "Block catalog"); regenerate with `generate-vm-blocks.py`.

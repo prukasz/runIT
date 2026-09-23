@@ -297,7 +297,8 @@ menu "System-Wide Identity Assignments"
               so loader commands and telemetry pushes share one client-side
               parser. Kept as its own config (rather than reusing
               RX_PACKET_CLASS_VM_LOADER directly) because vm_sub.c is core VM
-              logic and must not depend on the codecs/decoders layer.
+              logic and must not depend on the codecs/decoders layer. Equality
+              is checked at build time (dec_vm_loader.h).
     endmenu
 
     menu "RX Packet Headers (inbound, per-class packet dispatch)"
@@ -309,8 +310,8 @@ menu "System-Wide Identity Assignments"
               Packet header byte for object subscription requests, under
               class RX_PACKET_CLASS_VM_LOADER. Must match dec_vm_loader.h's
               own HEADER_packet_vm_subscribe - vm_sub.c can't include that
-              decoder header (see TX_PACKET_CLASS_VM_LOADER), so this is kept
-              in sync by convention, not by a shared #define.
+              decoder header (see TX_PACKET_CLASS_VM_LOADER); a build-time
+              check in dec_vm_loader.h fails if they differ.
     endmenu
 
     menu "TX Packet Headers (outbound, per-class packet dispatch)"
@@ -322,9 +323,20 @@ menu "System-Wide Identity Assignments"
               Packet header byte for outgoing object telemetry updates, under
               class TX_PACKET_CLASS_VM_LOADER. Mirrors dec_vm_loader.h's
               inbound HEADER_packet_vm_set_data (same value, same record
-              layout) so one client-side struct parses both directions - see
-              RX_PACKET_HEADER_VM_SUBSCRIBE's note on why it's a separate
-              constant instead of a shared #define.
+              layout, checked at build time) so one client-side struct parses
+              both directions - see RX_PACKET_HEADER_VM_SUBSCRIBE's note on
+              why it's a separate constant instead of a shared #define.
+
+        config TX_PACKET_HEADER_VM_DESCRIBE
+            hex "VM telemetry describe packet header"
+            default 0x42
+            range 0x00 0xFF
+            help
+              Packet header byte for outgoing object descriptions (heap
+              objects the app did not upload), under class
+              TX_PACKET_CLASS_VM_LOADER. Mirrors dec_vm_loader.h's inbound
+              HEADER_packet_vm_add_objs (same value, same record layout;
+              checked at build time).
     endmenu
 
 endmenu

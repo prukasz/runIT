@@ -47,6 +47,10 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
     }
   }
 
+  if (cfg->en_mode > VM_BLK_EN_ALL || cfg->on_error > VM_BLK_ERR_CONTINUE) {
+    SE_FAIL(ERR_VM_BLK_BAD_SHAPE, .blk_id = cfg->block_idx, .in_cnt = cfg->in_cnt, .q_cnt = cfg->q_cnt);
+  }
+
   /* ENO stays optional, and is the one place NO_ID is still meaningful. */
   vm_obj_h eno = NULL;
   if (cfg->eno_obj_id != VM_BLOCK_NO_ID) {
@@ -56,6 +60,7 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
     }
   }
 
+  //#vm-arena block @per HEADER_packet_vm_add_block @size sizeof(vm_block_data_t) + (in_cnt + q_cnt + en_cnt) * sizeof(void*) + custom_len
   size_t total = vm_block_calc_size(cfg->in_cnt, cfg->q_cnt, cfg->en_cnt, cfg->custom_len);
   vm_block_h b = NULL;
   // allocates, zeroes and binds the id in one step -- see vm_store.h

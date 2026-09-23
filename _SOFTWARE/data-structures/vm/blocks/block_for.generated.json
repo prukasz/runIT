@@ -1,0 +1,225 @@
+{
+  "$schema": "data-structures/schema/vm-block.schema.json",
+  "schemaVersion": 1,
+  "kind": "vm-block",
+  "id": 5,
+  "name": "VM_BLK_FOR",
+  "title": "For",
+  "category": "flow",
+  "description": "Runs the blocks in its span repeatedly within one pass: for (i = start; i <cmp> end; i = i <op> step), bounded by max_turns.",
+  "source_file": "components/VM/blocks/vm_block_for.h",
+  "activation": {
+    "kind": "enabled",
+    "description": "Runs every pass while enabled."
+  },
+  "inputs": {
+    "min": 0,
+    "max": 3,
+    "pins": [
+      {
+        "index": 0,
+        "name": "start",
+        "title": "Start",
+        "value": "f32",
+        "required": false
+      },
+      {
+        "index": 1,
+        "name": "end",
+        "title": "End",
+        "value": "f32",
+        "required": false
+      },
+      {
+        "index": 2,
+        "name": "step",
+        "title": "Step",
+        "value": "f32",
+        "required": false
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "index",
+        "title": "Index",
+        "value": "f32",
+        "description": "The iterator, published before each turn."
+      }
+    ]
+  },
+  "rules": [
+    {
+      "rule": "op is a vm_for_op_e value and cmp a vm_for_cmp_e value.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    },
+    {
+      "rule": "span starts right after the loop block and ends inside the enclosing range (checked when it runs; the body then runs inline).",
+      "error": "ERR_VM_EXEC_BAD_SPAN",
+      "error_tag": 43302
+    }
+  ],
+  "state": {
+    "struct": "vm_for_code_t",
+    "source_file": "components/VM/blocks/vm_block_for.h",
+    "size": 24,
+    "align": 4,
+    "fields": [
+      {
+        "name": "span",
+        "c_type": "vm_span_t",
+        "offset": 0,
+        "size": 4,
+        "description": "Block ids [start, end) this loop runs; start = own id + 1",
+        "source": "derived",
+        "derived": "start = this block's ID + 1; end = ID of the first block after the loop body, at most the enclosing loop's end"
+      },
+      {
+        "name": "k_start",
+        "c_type": "float",
+        "offset": 4,
+        "size": 4,
+        "description": "Start when input 0 is unwired",
+        "source": "user"
+      },
+      {
+        "name": "k_end",
+        "c_type": "float",
+        "offset": 8,
+        "size": 4,
+        "description": "End when input 1 is unwired",
+        "source": "user"
+      },
+      {
+        "name": "k_step",
+        "c_type": "float",
+        "offset": 12,
+        "size": 4,
+        "description": "Step when input 2 is unwired",
+        "source": "user"
+      },
+      {
+        "name": "max_turns",
+        "c_type": "uint16_t",
+        "offset": 16,
+        "size": 2,
+        "description": "Turn budget per pass",
+        "source": "user"
+      },
+      {
+        "name": "op",
+        "c_type": "uint8_t",
+        "offset": 18,
+        "size": 1,
+        "description": "How the iterator advances",
+        "enum_ref": "vm_for_op_e",
+        "source": "user"
+      },
+      {
+        "name": "cmp",
+        "c_type": "uint8_t",
+        "offset": 19,
+        "size": 1,
+        "description": "Loop condition",
+        "enum_ref": "vm_for_cmp_e",
+        "source": "user"
+      },
+      {
+        "name": "rt",
+        "c_type": "uint8_t",
+        "offset": 20,
+        "size": 1,
+        "source": "runtime"
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint8_t",
+        "offset": 21,
+        "size": 3,
+        "array_len": 3,
+        "element_size": 1,
+        "source": "padding"
+      }
+    ]
+  },
+  "min_custom_len": 24,
+  "enums": {
+    "vm_for_cmp_e": {
+      "alias": "Loop Condition",
+      "source_file": "components/VM/blocks/vm_block_for.h",
+      "members": [
+        {
+          "name": "VM_FOR_CMP_LT",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_FOR_CMP_LE",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_FOR_CMP_GT",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_FOR_CMP_GE",
+          "value": 3,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_FOR_CMP_CNT",
+          "value": 4,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_for_op_e": {
+      "alias": "Loop Step Operation",
+      "source_file": "components/VM/blocks/vm_block_for.h",
+      "members": [
+        {
+          "name": "VM_FOR_OP_ADD",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_FOR_OP_SUB",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_FOR_OP_MUL",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_FOR_OP_DIV",
+          "value": 3,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_FOR_OP_CNT",
+          "value": 4,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  }
+}

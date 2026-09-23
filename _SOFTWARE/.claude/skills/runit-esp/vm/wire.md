@@ -23,13 +23,19 @@ Pin and list limits: `in_cnt`, `q_cnt`, `en_cnt` ≤ 16 (`CONFIG_VM_BLOCK_MAX_*`
 
 ## 2. Telemetry (subscriptions)
 
-`vm_sub` samples subscribed objects at the end of every **completed** pass (before the `upd` sweep). An object whose `upd` (or any node of its `PTR` tree) is set is emitted as a record in the same shape as `0x43`:
+`vm_sub` walks the subscribed objects and their `PTR` children (8 levels) at the end of every **completed** pass and sends each object whose **value changed** since it was last sent (value hash, not `upd`: quiet writes are sent too). A new subscription sends everything once (next pass; at once if stopped). More than `CONFIG_VM_SUB_MAX_SUBSCRIBERS` IDs is refused.
 
 ```
-[0x02 telemetry stream][0x04][0x43][u8 count] count × {u16 id, u16 start_idx, u16 byte_len, data}
+[0x02 telemetry stream][0x04][0x43][u8 count] count × {u16 id, u16 start_idx, u16 byte_len, data}   values
+[0x02 telemetry stream][0x04][0x42][u8 count] count × {u16 id, vm_obj_head_t (4 B), name}            heap objects
 ```
 
-The stream byte `0x02` is the telemetry connector's; the inner `0x04 0x43` lets the app reuse its `0x43` parser. Frames are sized to the telemetry connector's current limit (`sys_data_connector_max_payload`), so a large object may be split across records or cut at the frame limit (vm_sub.c `frame_append_obj`).
+- The stream byte `0x02` is the telemetry connector's; the inner `0x04 0x43` / `0x04 0x42` let the app reuse its upload parsers.
+- `PTR` data is the child IDs, `u16` each. Heap object IDs have bit `0x8000` set.
+- An object bigger than a frame is split: several records, `start_idx` in elements (2 B per `PTR` element, else the type width). Frames follow the telemetry connector's limit (`sys_data_connector_max_payload`, BLE MTU), capped by `CONFIG_VM_SUB_MAX_FRAME_LEN`.
+- A describe record (heap objects only: the app didn't upload them) goes out in an earlier frame than any value that may reference it; again when type, size or name change.
+- A frame the connector refuses (or a record the link can't carry) is resent in full next pass; after a refusal the rest of the pass is held back, so no value arrives without its describe. The app drops a value for a heap ID it has no describe for.
+- Up to `CONFIG_VM_SUB_MAX_TRACKED` (256) reachable objects; beyond that `ERR_VM_SUB_TRACK_FULL` once and the rest isn't sent.
 
 ## 3. Runtime writes vs load writes
 
@@ -44,9 +50,9 @@ The stream byte `0x02` is the telemetry connector's; the inner `0x04 0x43` lets 
 
 | Artifact | Status |
 |---|---|
-| `data-structures/vm/vm-model.generated.json` | Published: `vm_obj_head_t` (with wire ABI), `vm_obj_t`, `vm_index_t`, `vm_accessor_t`; enums `vm_obj_t_e`, `vm_index_kind_e` (`//#vm-struct-ref`, grammar `data-structures/auto-annotations/vm/vm-annotations.md`) |
-| Class `0x04` packet layouts | **Not published** (documented here and in VM.MD). `vm_exec_command_e` (the `0x48` command) is published in `enums.json` |
-| Block palette | **Published**: `data-structures/vm/vm-blocks.generated.json` — per block: id, title, category, description, min pins, pins with required flags, private-state layout (offsets, sizes, `enum_ref`, `runtime`, padding). Block enums (opcodes, timer modes and units, edge types, loop ops, latch modes, action scopes, IO disabled actions) are in `enums.json`. Generator: `generate-vm-blocks.py` |
+| `data-structures/vm/vm-model.generated.json` | Published: `vm_obj_head_t` (wire ABI, and `device_sets` on the flags the device forces), `vm_obj_t`; the VM enums (`//#vm-struct-ref`, grammar `data-structures/auto-annotations/vm/vm-annotations.md`) |
+| `data-structures/vm/vm-program.generated.json` | **Published** (`generate-vm-program.py`, from `core/loader/vm_wire.h`, `vm_sub.c`, `//#vm-arena`, Kconfig): every `0x40`–`0x48` packet (fields with offsets, tails, batch, when it's accepted, rules with their error tags), the accessor index-step union, both telemetry frames, type widths (memory and wire), ID constants, all VM Kconfig limits with values from `sdkconfig`, the arena formulas for `total_size` |
+| Block palette | **Published**: `data-structures/vm/blocks/block_<name>.generated.json` + `index.generated.json` — per block: id, title, category, description, activation, pins (min / max, required, value kind), load rules with error tags, private-state layout (offsets, sizes, `enum_ref`, source user / derived / runtime / padding), the enums it uses; EXPR / EXPR_BIT add the opcode table (pops, pushes, operand) and golden vectors. Generator: `generate-vm-blocks.py` |
 | Error tags | Not published (the app gets `u16 tag, u16 owner` in responses) |
 
-Open: publishing the `0x04` record layouts (findings.md G-2).
+Nothing open for the app contract (G-2 closed).

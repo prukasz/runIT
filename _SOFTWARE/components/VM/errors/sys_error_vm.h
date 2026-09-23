@@ -14,7 +14,8 @@
   X(OWNER_VM_LOADER, 0xA906, "OWNER_VM_LOADER")     \
   X(OWNER_DEC_VM_LOADER, 0xA907, "OWNER_DEC_VM_LOADER") \
   X(OWNER_VM_EXEC, 0xA908, "OWNER_VM_EXEC")         \
-  X(OWNER_VM_RETAIN, 0xA909, "OWNER_VM_RETAIN")
+  X(OWNER_VM_RETAIN, 0xA909, "OWNER_VM_RETAIN")   \
+  X(OWNER_VM_SUB, 0xA90A, "OWNER_VM_SUB")
 
 // `obj_id`/`parent_id` carry the failing object ID (or VM_OBJ_ID_DYN_BIT | dyn_id, or VM_OBJ_ID_NONE)
 // allowing direct lookup via vm_obj_lookup_by_id().
@@ -74,7 +75,8 @@
   X(ERR_VM_RETAIN_UNNAMED, 0xA935, SE_LEVEL_LOW, struct { uint16_t obj_id; })                                           \
   X(ERR_VM_RETAIN_TOO_BIG, 0xA936, SE_LEVEL_LOW, struct { uint16_t obj_id; uint32_t need; uint32_t max; })               \
   X(ERR_VM_RETAIN_MISMATCH, 0xA937, SE_LEVEL_LOW, struct { uint16_t obj_id; uint8_t type; uint16_t size; })              \
-  X(ERR_VM_RETAIN_CORRUPT, 0xA938, SE_LEVEL_MEDIUM, struct { uint32_t offset; })
+  X(ERR_VM_RETAIN_CORRUPT, 0xA938, SE_LEVEL_MEDIUM, struct { uint32_t offset; })                                       \
+  X(ERR_VM_SUB_TRACK_FULL, 0xA939, SE_LEVEL_LOW, struct { uint16_t max; })
 
 /**
  * @brief Human-readable descriptions for the VM tags - see
@@ -138,10 +140,11 @@
   X(ERR_VM_RETAIN_UNNAMED)        \
   X(ERR_VM_RETAIN_TOO_BIG)        \
   X(ERR_VM_RETAIN_MISMATCH)       \
-  X(ERR_VM_RETAIN_CORRUPT)
+  X(ERR_VM_RETAIN_CORRUPT)        \
+  X(ERR_VM_SUB_TRACK_FULL)
 
-#define VM_OBJ_ID_NONE     0xFFFFu
-#define VM_OBJ_ID_DYN_BIT  0x8000u
+#define VM_OBJ_ID_NONE     0xFFFFu  //@vm-constant @description No object (an unlinked PTR element on the wire).
+#define VM_OBJ_ID_DYN_BIT  0x8000u  //@vm-constant @description Set in the ID of a heap object (CLONE's copies); program object IDs stay below it.
 
 static inline void vm_format_obj_id(uint16_t id, char* buf, size_t buf_size) {
   if (id == VM_OBJ_ID_NONE) {
@@ -371,12 +374,13 @@ static inline const char* vm_copy_shape_name(uint8_t r) {
            (p)->depth, (p)->dropped, (p)->domain)
 /* Both expression tags name the byte offset of the *instruction*, not the
    cursor past its operand, so a trace points at what a disassembly shows.
-   `reason` is a VM_EXPR_BAD_* / VM_EXPR_MATH_* code from vm_block_expr.h. */
+   `reason` is a VM_EXPR_BAD_* / VM_EXPR_MATH_* code from vm_block_expr.h.
+   BAD_CODE is raised at load (the block is then refused), MATH at run time. */
 #define VM_EXPR_BAD_NAME(r)                                                                                 \
-  ((r) == 0 ? "header does not fit custom_data" : (r) == 1 ? "block has no output"                          \
-   : (r) == 2 ? "unknown opcode" : (r) == 3 ? "bad operand"                                                 \
-   : (r) == 4 ? "stack underflow" : (r) == 5 ? "stack overflow"                                             \
-   : (r) == 6 ? "stack did not end with one value" : "?")
+  ((r) == 0 ? "constants and code do not fit custom_data" : (r) == 1 ? "unknown opcode"                     \
+   : (r) == 2 ? "operand missing, out of range or an unwired input"                                        \
+   : (r) == 3 ? "stack underflow" : (r) == 4 ? "stack overflow"                                             \
+   : (r) == 5 ? "stack does not end with one value" : "?")
 #define VM_EXPR_MATH_NAME(r) \
   ((r) == 0 ? "divide by zero" : (r) == 1 ? "operand outside domain" : (r) == 2 ? "result not finite" : "?")
 #define LOG_BODY_ERR_VM_EXPR_BAD_CODE(p, out, out_size)                                                     \
@@ -428,6 +432,8 @@ static inline const char* vm_copy_shape_name(uint8_t r) {
   snprintf((out), (out_size), "object %u: stored value is type %u / %u bytes, the object differs; uploaded value kept", (p)->obj_id, (p)->type, (p)->size)
 #define LOG_BODY_ERR_VM_RETAIN_CORRUPT(p, out, out_size) \
   snprintf((out), (out_size), "stored retained values are malformed at byte %lu; the rest is ignored", (unsigned long)(p)->offset)
+#define LOG_BODY_ERR_VM_SUB_TRACK_FULL(p, out, out_size) \
+  snprintf((out), (out_size), "subscriptions reach more than %u objects; the rest are not sent (subscribe to fewer)", (p)->max)
 
 
 #define SE_CHECK_NOT_NULL_OWNED(owner, ptr)              \

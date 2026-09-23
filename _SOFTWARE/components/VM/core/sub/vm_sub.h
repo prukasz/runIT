@@ -7,11 +7,23 @@
  * @file vm_sub.h
  * @brief VM object subscription and telemetry mechanism.
  *
- * Allows clients to subscribe to a list of object IDs via inbound packet 0x47.
- * During each scan cycle, vm_sub_scan() checks subscribed objects.
- * If an object (or any node in its nested VM_OBJ_PTR tree) is updated (head.f.upd == 1),
- * a reverse 0x43 packet (matching decoder_packet_vm_set_data layout) is generated and
- * dispatched through the telemetry data connector.
+ * A client subscribes to a list of object IDs (inbound packet 0x47). After
+ * every completed pass, vm_sub_scan() walks each subscribed object and its PTR
+ * children (8 levels) and sends, on the telemetry connector, every object whose
+ * value differs from what was last sent -- whether or not the block that wrote
+ * it marked it fresh (a quiet write is a change too):
+ *
+ *   - 0x43 value records (layout of decoder_packet_vm_set_data):
+ *     [u16 id][u16 start_idx][u16 byte_len][data]; a PTR's data is its child
+ *     IDs (u16 each); an object larger than a frame is split, start_idx counts
+ *     elements.
+ *   - 0x42 describe records (layout of decoder_packet_vm_add_objs) for heap
+ *     objects (ID has VM_OBJ_ID_DYN_BIT), which the app never uploaded:
+ *     [u16 id][vm_obj_head_t][name]. Sent before any value that may reference
+ *     them, when first seen and whenever type, size or name change.
+ *
+ * A new subscription starts with a full snapshot: at the end of the next pass,
+ * or at once if the VM is stopped.
  */
 
 /**
@@ -23,9 +35,14 @@ SE_MUST_USE err_h vm_sub_init(void);
 /**
  * @brief Set the list of subscribed object IDs.
  *
- * @param ids Array of object IDs to subscribe to.
+ * Replaces the previous list. Everything reachable is sent in full at the end
+ * of the next pass, or right away (under the program barrier) if the VM is
+ * stopped. Safe to call from any task except the VM task.
+ *
+ * @param ids Array of object IDs to subscribe to (VM_OBJ_ID_DYN_BIT for heap objects).
  * @param count Number of IDs in the array. 0 clears all subscriptions.
- * @return err_h NULL on success, or error on invalid parameter/capacity.
+ * @return err_h NULL on success; ERR_INVALID_VAL_UI32 if count exceeds
+ *         CONFIG_VM_SUB_MAX_SUBSCRIBERS (nothing changes).
  */
 SE_MUST_USE err_h vm_sub_subscribe(const uint16_t* ids, uint16_t count);
 
@@ -43,13 +60,14 @@ SE_MUST_USE err_h vm_sub_subscribe(const uint16_t* ids, uint16_t count);
 SE_MUST_USE err_h vm_sub_handle_packet(const uint8_t* body, size_t len);
 
 /**
- * @brief Scan all subscribed objects for updates and emit reverse 0x43 packets.
- *        Called automatically each pass via vm_exec's sample hook before upd is cleared.
+ * @brief Take over a new subscription list, then send what changed since the
+ *        last sample (0x42 / 0x43 frames). Called by vm_exec's sample hook at
+ *        the end of every completed pass; must not run concurrently with a pass.
  */
 void vm_sub_scan(void);
 
 /**
- * @brief Clear all active subscriptions.
+ * @brief Clear all active subscriptions. Called by the loader under the program barrier.
  */
 void vm_sub_reset(void);
 

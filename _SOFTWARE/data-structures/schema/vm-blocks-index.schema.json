@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "data-structures/schema/vm-blocks-index.schema.json",
+  "title": "VM block palette index",
+  "description": "Lists every block descriptor in data-structures/vm/blocks/, with the vocabulary they share.",
+  "type": "object",
+  "required": ["$schema", "schemaVersion", "kind", "common_rules", "common_rules_error", "value_kinds", "activation_kinds", "blocks"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "const": "data-structures/schema/vm-blocks-index.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "vm-blocks-index" },
+    "common_rules": { "type": "array", "items": { "type": "string" } },
+    "common_rules_error": { "type": "string", "pattern": "^ERR_" },
+    "value_kinds": { "type": "object", "additionalProperties": { "type": "string" } },
+    "activation_kinds": { "type": "object", "additionalProperties": { "type": "string" } },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "title", "category", "file"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string" },
+          "title": { "type": "string" },
+          "category": { "type": "string" },
+          "file": { "type": "string", "pattern": "^block_[a-z0-9_]+\\.generated\\.json$" }
+        }
+      }
+    }
+  }
+}

@@ -3,7 +3,7 @@
 This document specifies the execution model and runtime semantics for the runIT VM:
 - **Core Engine**: Implemented in `core/exec/` and `core/block/` (see [[VM.MD]]).
 - **Execution Units**: Topological block-by-block scan passes with span jumps for nested flow control.
-- **Palette**: One table in `blocks/` (15 block types, [[VM.MD]] "What ships today"), published for the app as `data-structures/vm/vm-blocks.generated.json`.
+- **Palette**: One table in `blocks/` (15 block types, [[VM.MD]] "What ships today"), published for the app as one descriptor per block in `data-structures/vm/blocks/`.
 
 This is the model's specification, and it is ahead of the code in places. What is built and what is still design:
 
@@ -281,8 +281,9 @@ sees the consequence on the block face rather than being blocked by a rule or
 surprised by a block that never stops firing.
 
 Order within the pass matters: **run sections → sample subscriptions → clear
-`upd`.** Clearing before telemetry would silently break "send on update", which
-is the flag's other customer.
+`upd`.** Telemetry doesn't read `upd` (it sends on a value change, so quiet
+writes reach the app too, [[VM.MD]] "Subscriptions and telemetry"), but it
+samples the finished pass, before anything is swept.
 
 ### Event payloads are valid for the pass that published them
 

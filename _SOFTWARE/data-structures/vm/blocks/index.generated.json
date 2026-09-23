@@ -1,0 +1,134 @@
+{
+  "$schema": "data-structures/schema/vm-blocks-index.schema.json",
+  "schemaVersion": 1,
+  "kind": "vm-blocks-index",
+  "common_rules": [
+    "in_cnt and q_cnt are at least the block's inputs.min / outputs.min, and at most its max.",
+    "Every required input is wired (not VM_BLOCK_NO_ID).",
+    "custom_len is at least the state size."
+  ],
+  "common_rules_error": "ERR_VM_BLK_BAD_SHAPE",
+  "value_kinds": {
+    "bool": "Read as true when non-zero / written 1 or 0. Any scalar object.",
+    "u8": "Read or written as an unsigned 8-bit number. Any scalar object (converted).",
+    "u32": "Read or written as an unsigned 32-bit number. Any scalar object (converted).",
+    "i32": "Read or written as a signed 32-bit number. Any scalar object (converted).",
+    "f32": "Read or written as a float. Any scalar object (converted).",
+    "scalar": "Read in its own type; the block's behaviour depends on it (see the block). B, U8, U32, I32 or F.",
+    "gate": "Written 1 while active and cleared quietly (0 without marking it updated) otherwise: wire it to enables.",
+    "object": "A whole object or tree; source and destination must have the same types and counts.",
+    "ptr-cell": "An element of a PTR object; the block hangs its own tree there."
+  },
+  "activation_kinds": {
+    "enabled": "Runs every pass while its enables allow it (always, with no enables); resets or clears its outputs when disabled.",
+    "triggered": "Runs when an input it watches is fresh (marked updated this pass) and it is enabled.",
+    "enable-rising": "Runs once each time its enables turn it on."
+  },
+  "blocks": [
+    {
+      "id": 1,
+      "name": "VM_BLK_EXPR",
+      "title": "Expression",
+      "category": "data",
+      "file": "block_expr.generated.json"
+    },
+    {
+      "id": 2,
+      "name": "VM_BLK_EXPR_BIT",
+      "title": "Bit Expression",
+      "category": "data",
+      "file": "block_expr_bit.generated.json"
+    },
+    {
+      "id": 3,
+      "name": "VM_BLK_IF",
+      "title": "If",
+      "category": "flow",
+      "file": "block_if.generated.json"
+    },
+    {
+      "id": 4,
+      "name": "VM_BLK_SWITCH",
+      "title": "Switch",
+      "category": "flow",
+      "file": "block_switch.generated.json"
+    },
+    {
+      "id": 5,
+      "name": "VM_BLK_FOR",
+      "title": "For",
+      "category": "flow",
+      "file": "block_for.generated.json"
+    },
+    {
+      "id": 6,
+      "name": "VM_BLK_SET",
+      "title": "Set",
+      "category": "data",
+      "file": "block_set.generated.json"
+    },
+    {
+      "id": 7,
+      "name": "VM_BLK_CLONE",
+      "title": "Clone",
+      "category": "data",
+      "file": "block_clone.generated.json"
+    },
+    {
+      "id": 8,
+      "name": "VM_BLK_EDGE",
+      "title": "Edge",
+      "category": "logic",
+      "file": "block_edge.generated.json"
+    },
+    {
+      "id": 9,
+      "name": "VM_BLK_TIMER",
+      "title": "Timer",
+      "category": "time",
+      "file": "block_timer.generated.json"
+    },
+    {
+      "id": 10,
+      "name": "VM_BLK_IO_SET_LEVEL",
+      "title": "Set Pin Level",
+      "category": "io",
+      "file": "block_io_set_level.generated.json"
+    },
+    {
+      "id": 11,
+      "name": "VM_BLK_IO_TOGGLE",
+      "title": "Toggle Pin",
+      "category": "io",
+      "file": "block_io_toggle.generated.json"
+    },
+    {
+      "id": 12,
+      "name": "VM_BLK_LATCH",
+      "title": "Latch",
+      "category": "logic",
+      "file": "block_latch.generated.json"
+    },
+    {
+      "id": 13,
+      "name": "VM_BLK_PERIODIC",
+      "title": "Every",
+      "category": "time",
+      "file": "block_periodic.generated.json"
+    },
+    {
+      "id": 14,
+      "name": "VM_BLK_ACTION",
+      "title": "Run Action",
+      "category": "system",
+      "file": "block_action.generated.json"
+    },
+    {
+      "id": 15,
+      "name": "VM_BLK_ON_EVENT",
+      "title": "On Event",
+      "category": "system",
+      "file": "block_on_event.generated.json"
+    }
+  ]
+}

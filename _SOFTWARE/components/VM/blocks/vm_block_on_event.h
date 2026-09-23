@@ -94,9 +94,9 @@ static inline void vm_blk_on_event(vm_block_h b) {
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
-//#vm-block VM_BLK_ON_EVENT @title On Event @category system @state vm_block_on_event_data_t
+//#vm-block VM_BLK_ON_EVENT @title On Event @category system @state vm_block_on_event_data_t @activation enabled Runs every pass while enabled.
 //@block-description Pulses ENO for one pass when a matching system event arrived (needs a subscription routed to the VM).
-//@out 0 value @title Value @description The event's value (last match of the pass).
-//@out 1 count @title Count @description Matches this pass.
+//@out 0 value @title Value @description The event's value (last match of the pass). @value i32
+//@out 1 count @title Count @description Matches this pass. @value u32
 #define VM_BLOCK_TYPE_ON_EVENT \
   {.run = vm_blk_on_event, .check = NULL, .min_in = 0, .min_q = 0, .required_in = 0x0u, .state_len = VM_ON_EVENT_CUSTOM_LEN}

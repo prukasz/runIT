@@ -1,0 +1,975 @@
+{
+  "$schema": "data-structures/schema/vm-block.schema.json",
+  "schemaVersion": 1,
+  "kind": "vm-block",
+  "id": 1,
+  "name": "VM_BLK_EXPR",
+  "title": "Expression",
+  "category": "data",
+  "description": "Evaluates an RPN float expression over its inputs when an input is fresh and the block is enabled; the result goes to output 0.",
+  "source_file": "components/VM/blocks/vm_block_expr.h",
+  "activation": {
+    "kind": "triggered",
+    "description": "Runs when an input it reads is fresh and the block is enabled."
+  },
+  "inputs": {
+    "min": 0,
+    "max": 16,
+    "max_symbol": "CONFIG_VM_BLOCK_MAX_IN",
+    "pins": [
+      {
+        "index": "*",
+        "name": "pin",
+        "title": "Input",
+        "value": "f32",
+        "description": "Read by the IN opcode; any number, only the ones the code names are read.",
+        "required": false
+      }
+    ]
+  },
+  "outputs": {
+    "min": 1,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "result",
+        "title": "Result",
+        "value": "f32",
+        "description": "The expression's value (float)."
+      }
+    ]
+  },
+  "rules": [
+    {
+      "rule": "constants and code fit custom_len (4 + 4 x const_cnt + code_len bytes).",
+      "error": "ERR_VM_EXPR_BAD_CODE",
+      "error_tag": 43304
+    },
+    {
+      "rule": "Every opcode is a known value; code after END is ignored.",
+      "error": "ERR_VM_EXPR_BAD_CODE",
+      "error_tag": 43304
+    },
+    {
+      "rule": "An IN operand names a wired input (below in_cnt); a K operand a constant (below const_cnt).",
+      "error": "ERR_VM_EXPR_BAD_CODE",
+      "error_tag": 43304
+    },
+    {
+      "rule": "The stack never holds fewer values than an opcode takes, nor more than VM_EXPR_STACK_MAX.",
+      "error": "ERR_VM_EXPR_BAD_CODE",
+      "error_tag": 43304
+    },
+    {
+      "rule": "The code ends (END or its last byte) with exactly one value on the stack.",
+      "error": "ERR_VM_EXPR_BAD_CODE",
+      "error_tag": 43304
+    }
+  ],
+  "state": {
+    "struct": "vm_expr_code_t",
+    "source_file": "components/VM/blocks/vm_block_expr.h",
+    "size": 4,
+    "align": 4,
+    "fields": [
+      {
+        "name": "const_cnt",
+        "c_type": "uint8_t",
+        "offset": 0,
+        "size": 1,
+        "description": "Number of u32 literals after the header",
+        "source": "user"
+      },
+      {
+        "name": "rt",
+        "c_type": "uint8_t",
+        "offset": 1,
+        "size": 1,
+        "source": "runtime"
+      },
+      {
+        "name": "code_len",
+        "c_type": "uint16_t",
+        "offset": 2,
+        "size": 2,
+        "description": "Bytecode length after the literals",
+        "source": "user"
+      },
+      {
+        "name": "consts",
+        "c_type": "vm_expr_k_t",
+        "offset": 4,
+        "flexible": true,
+        "element_size": 4,
+        "description": "const_cnt literals (f32 for EXPR, u32 for EXPR_BIT), then code_len opcode bytes",
+        "source": "user"
+      }
+    ],
+    "tail": "consts u32[const_cnt], code u8[code_len] (opcodes vm_expr_op_e)"
+  },
+  "min_custom_len": 4,
+  "encoding": {
+    "kind": "bytecode",
+    "layout": "state header, then const_cnt constants of 4 bytes, then code_len code bytes; custom_len = 4 + 4 x const_cnt + code_len",
+    "constant_type": "f32",
+    "stack_max": 16,
+    "opcode_enum": "vm_expr_op_e",
+    "opcodes": [
+      {
+        "symbol": "VM_EXPR_END",
+        "value": 0,
+        "alias": "end",
+        "description": "Stop; the rest of the code is ignored.",
+        "pops": 0,
+        "pushes": 0,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_IN",
+        "value": 1,
+        "alias": "in",
+        "description": "-> input[operand] (as float)",
+        "pops": 0,
+        "pushes": 1,
+        "operand": "input"
+      },
+      {
+        "symbol": "VM_EXPR_K",
+        "value": 2,
+        "alias": "const",
+        "description": "-> constant[operand]",
+        "pops": 0,
+        "pushes": 1,
+        "operand": "const"
+      },
+      {
+        "symbol": "VM_EXPR_DUP",
+        "value": 3,
+        "alias": "dup",
+        "description": "a -> a a",
+        "pops": 1,
+        "pushes": 2,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_DROP",
+        "value": 4,
+        "alias": "drop",
+        "description": "a ->",
+        "pops": 1,
+        "pushes": 0,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_SWAP",
+        "value": 5,
+        "alias": "swap",
+        "description": "a b -> b a",
+        "pops": 2,
+        "pushes": 2,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_ADD",
+        "value": 6,
+        "alias": "+",
+        "description": "a b -> a + b",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_SUB",
+        "value": 7,
+        "alias": "-",
+        "description": "a b -> a - b",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_MUL",
+        "value": 8,
+        "alias": "*",
+        "description": "a b -> a * b",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_DIV",
+        "value": 9,
+        "alias": "/",
+        "description": "a b -> a / b (b = 0 faults)",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_MOD",
+        "value": 10,
+        "alias": "mod",
+        "description": "a b -> fmod(a, b) (b = 0 faults)",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_POW",
+        "value": 11,
+        "alias": "pow",
+        "description": "a b -> a to the power b (a < 0 with fractional b faults)",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_ROOT",
+        "value": 12,
+        "alias": "root",
+        "description": "a b -> b-th root of a (b = 0 faults; a < 0 needs an odd integer b)",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_MIN",
+        "value": 13,
+        "alias": "min",
+        "description": "a b -> the smaller",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_MAX",
+        "value": 14,
+        "alias": "max",
+        "description": "a b -> the larger",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_ATAN2",
+        "value": 15,
+        "alias": "atan2",
+        "description": "y x -> atan2(y, x), radians",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_HYPOT",
+        "value": 16,
+        "alias": "hypot",
+        "description": "a b -> sqrt(a*a + b*b)",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_NEG",
+        "value": 17,
+        "alias": "neg",
+        "description": "a -> -a",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_ABS",
+        "value": 18,
+        "alias": "abs",
+        "description": "a -> |a|",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_SQRT",
+        "value": 19,
+        "alias": "sqrt",
+        "description": "a -> square root (a < 0 faults)",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_SQUARE",
+        "value": 20,
+        "alias": "sq",
+        "description": "a -> a * a",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_RECIP",
+        "value": 21,
+        "alias": "1/x",
+        "description": "a -> 1 / a (a = 0 faults)",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_FLOOR",
+        "value": 22,
+        "alias": "floor",
+        "description": "a -> round down",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_CEIL",
+        "value": 23,
+        "alias": "ceil",
+        "description": "a -> round up",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_ROUND",
+        "value": 24,
+        "alias": "round",
+        "description": "a -> round half away from zero",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_TRUNC",
+        "value": 25,
+        "alias": "trunc",
+        "description": "a -> round toward zero",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_SIGN",
+        "value": 26,
+        "alias": "sign",
+        "description": "a -> -1, 0 or 1",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_SIN",
+        "value": 27,
+        "alias": "sin",
+        "description": "a -> sin(a), radians",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_COS",
+        "value": 28,
+        "alias": "cos",
+        "description": "a -> cos(a), radians",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_TAN",
+        "value": 29,
+        "alias": "tan",
+        "description": "a -> tan(a), radians",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_ASIN",
+        "value": 30,
+        "alias": "asin",
+        "description": "a -> asin(a) (|a| > 1 faults)",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_ACOS",
+        "value": 31,
+        "alias": "acos",
+        "description": "a -> acos(a) (|a| > 1 faults)",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_ATAN",
+        "value": 32,
+        "alias": "atan",
+        "description": "a -> atan(a)",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_EXP",
+        "value": 33,
+        "alias": "exp",
+        "description": "a -> e to the power a",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_LOG",
+        "value": 34,
+        "alias": "ln",
+        "description": "a -> natural log (a <= 0 faults)",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_LOG10",
+        "value": 35,
+        "alias": "log10",
+        "description": "a -> base-10 log (a <= 0 faults)",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_LOG2",
+        "value": 36,
+        "alias": "log2",
+        "description": "a -> base-2 log (a <= 0 faults)",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_DEG",
+        "value": 37,
+        "alias": "deg",
+        "description": "a -> radians to degrees",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_RAD",
+        "value": 38,
+        "alias": "rad",
+        "description": "a -> degrees to radians",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_LT",
+        "value": 39,
+        "alias": "<",
+        "description": "a b -> a < b",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_LE",
+        "value": 40,
+        "alias": "<=",
+        "description": "a b -> a <= b",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_GT",
+        "value": 41,
+        "alias": ">",
+        "description": "a b -> a > b",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_GE",
+        "value": 42,
+        "alias": ">=",
+        "description": "a b -> a >= b",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_EQ",
+        "value": 43,
+        "alias": "==",
+        "description": "a b -> a == b (exact)",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_NE",
+        "value": 44,
+        "alias": "!=",
+        "description": "a b -> a != b (exact)",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_AND",
+        "value": 45,
+        "alias": "and",
+        "description": "a b -> a and b",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_OR",
+        "value": 46,
+        "alias": "or",
+        "description": "a b -> a or b",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_XOR",
+        "value": 47,
+        "alias": "xor",
+        "description": "a b -> exactly one of a, b",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_NOT",
+        "value": 48,
+        "alias": "not",
+        "description": "a -> not a",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_EXPR_SEL",
+        "value": 49,
+        "alias": "select",
+        "description": "c t f -> t if c is non-zero, else f",
+        "pops": 3,
+        "pushes": 1,
+        "operand": "none"
+      }
+    ],
+    "examples": [
+      {
+        "title": "(a + 2) * b",
+        "inputs": [
+          3.0,
+          4.0
+        ],
+        "constants": [
+          2.0
+        ],
+        "code": [
+          "VM_EXPR_IN",
+          "0",
+          "VM_EXPR_K",
+          "0",
+          "VM_EXPR_ADD",
+          "VM_EXPR_IN",
+          "1",
+          "VM_EXPR_MUL",
+          "VM_EXPR_END"
+        ],
+        "custom_data": "0100090000000040010002000601010800",
+        "custom_len": 17,
+        "result": 20.0
+      },
+      {
+        "title": "larger of a and b",
+        "inputs": [
+          5.0,
+          7.0
+        ],
+        "constants": [],
+        "code": [
+          "VM_EXPR_IN",
+          "0",
+          "VM_EXPR_IN",
+          "1",
+          "VM_EXPR_GT",
+          "VM_EXPR_IN",
+          "0",
+          "VM_EXPR_IN",
+          "1",
+          "VM_EXPR_SEL"
+        ],
+        "custom_data": "00000a0001000101290100010131",
+        "custom_len": 14,
+        "result": 7.0
+      },
+      {
+        "title": "clamp a to 0..100",
+        "inputs": [
+          150.0
+        ],
+        "constants": [
+          0.0,
+          100.0
+        ],
+        "code": [
+          "VM_EXPR_IN",
+          "0",
+          "VM_EXPR_K",
+          "0",
+          "VM_EXPR_MAX",
+          "VM_EXPR_K",
+          "1",
+          "VM_EXPR_MIN"
+        ],
+        "custom_data": "02000800000000000000c842010002000e02010d",
+        "custom_len": 20,
+        "result": 100.0
+      },
+      {
+        "title": "length of (a, b)",
+        "inputs": [
+          3.0,
+          4.0
+        ],
+        "constants": [],
+        "code": [
+          "VM_EXPR_IN",
+          "0",
+          "VM_EXPR_IN",
+          "1",
+          "VM_EXPR_HYPOT"
+        ],
+        "custom_data": "000005000100010110",
+        "custom_len": 9,
+        "result": 5.0
+      }
+    ]
+  },
+  "enums": {
+    "vm_expr_op_e": {
+      "alias": "Expression Opcode",
+      "source_file": "components/VM/blocks/vm_block_expr.h",
+      "members": [
+        {
+          "name": "VM_EXPR_END",
+          "value": 0,
+          "alias": "end",
+          "description": "Stop; the rest of the code is ignored."
+        },
+        {
+          "name": "VM_EXPR_IN",
+          "value": 1,
+          "alias": "in",
+          "description": "-> input[operand] (as float)"
+        },
+        {
+          "name": "VM_EXPR_K",
+          "value": 2,
+          "alias": "const",
+          "description": "-> constant[operand]"
+        },
+        {
+          "name": "VM_EXPR_DUP",
+          "value": 3,
+          "alias": "dup",
+          "description": "a -> a a"
+        },
+        {
+          "name": "VM_EXPR_DROP",
+          "value": 4,
+          "alias": "drop",
+          "description": "a ->"
+        },
+        {
+          "name": "VM_EXPR_SWAP",
+          "value": 5,
+          "alias": "swap",
+          "description": "a b -> b a"
+        },
+        {
+          "name": "VM_EXPR_ADD",
+          "value": 6,
+          "alias": "+",
+          "description": "a b -> a + b"
+        },
+        {
+          "name": "VM_EXPR_SUB",
+          "value": 7,
+          "alias": "-",
+          "description": "a b -> a - b"
+        },
+        {
+          "name": "VM_EXPR_MUL",
+          "value": 8,
+          "alias": "*",
+          "description": "a b -> a * b"
+        },
+        {
+          "name": "VM_EXPR_DIV",
+          "value": 9,
+          "alias": "/",
+          "description": "a b -> a / b (b = 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_MOD",
+          "value": 10,
+          "alias": "mod",
+          "description": "a b -> fmod(a, b) (b = 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_POW",
+          "value": 11,
+          "alias": "pow",
+          "description": "a b -> a to the power b (a < 0 with fractional b faults)"
+        },
+        {
+          "name": "VM_EXPR_ROOT",
+          "value": 12,
+          "alias": "root",
+          "description": "a b -> b-th root of a (b = 0 faults; a < 0 needs an odd integer b)"
+        },
+        {
+          "name": "VM_EXPR_MIN",
+          "value": 13,
+          "alias": "min",
+          "description": "a b -> the smaller"
+        },
+        {
+          "name": "VM_EXPR_MAX",
+          "value": 14,
+          "alias": "max",
+          "description": "a b -> the larger"
+        },
+        {
+          "name": "VM_EXPR_ATAN2",
+          "value": 15,
+          "alias": "atan2",
+          "description": "y x -> atan2(y, x), radians"
+        },
+        {
+          "name": "VM_EXPR_HYPOT",
+          "value": 16,
+          "alias": "hypot",
+          "description": "a b -> sqrt(a*a + b*b)"
+        },
+        {
+          "name": "VM_EXPR_NEG",
+          "value": 17,
+          "alias": "neg",
+          "description": "a -> -a"
+        },
+        {
+          "name": "VM_EXPR_ABS",
+          "value": 18,
+          "alias": "abs",
+          "description": "a -> |a|"
+        },
+        {
+          "name": "VM_EXPR_SQRT",
+          "value": 19,
+          "alias": "sqrt",
+          "description": "a -> square root (a < 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_SQUARE",
+          "value": 20,
+          "alias": "sq",
+          "description": "a -> a * a"
+        },
+        {
+          "name": "VM_EXPR_RECIP",
+          "value": 21,
+          "alias": "1/x",
+          "description": "a -> 1 / a (a = 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_FLOOR",
+          "value": 22,
+          "alias": "floor",
+          "description": "a -> round down"
+        },
+        {
+          "name": "VM_EXPR_CEIL",
+          "value": 23,
+          "alias": "ceil",
+          "description": "a -> round up"
+        },
+        {
+          "name": "VM_EXPR_ROUND",
+          "value": 24,
+          "alias": "round",
+          "description": "a -> round half away from zero"
+        },
+        {
+          "name": "VM_EXPR_TRUNC",
+          "value": 25,
+          "alias": "trunc",
+          "description": "a -> round toward zero"
+        },
+        {
+          "name": "VM_EXPR_SIGN",
+          "value": 26,
+          "alias": "sign",
+          "description": "a -> -1, 0 or 1"
+        },
+        {
+          "name": "VM_EXPR_SIN",
+          "value": 27,
+          "alias": "sin",
+          "description": "a -> sin(a), radians"
+        },
+        {
+          "name": "VM_EXPR_COS",
+          "value": 28,
+          "alias": "cos",
+          "description": "a -> cos(a), radians"
+        },
+        {
+          "name": "VM_EXPR_TAN",
+          "value": 29,
+          "alias": "tan",
+          "description": "a -> tan(a), radians"
+        },
+        {
+          "name": "VM_EXPR_ASIN",
+          "value": 30,
+          "alias": "asin",
+          "description": "a -> asin(a) (|a| > 1 faults)"
+        },
+        {
+          "name": "VM_EXPR_ACOS",
+          "value": 31,
+          "alias": "acos",
+          "description": "a -> acos(a) (|a| > 1 faults)"
+        },
+        {
+          "name": "VM_EXPR_ATAN",
+          "value": 32,
+          "alias": "atan",
+          "description": "a -> atan(a)"
+        },
+        {
+          "name": "VM_EXPR_EXP",
+          "value": 33,
+          "alias": "exp",
+          "description": "a -> e to the power a"
+        },
+        {
+          "name": "VM_EXPR_LOG",
+          "value": 34,
+          "alias": "ln",
+          "description": "a -> natural log (a <= 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_LOG10",
+          "value": 35,
+          "alias": "log10",
+          "description": "a -> base-10 log (a <= 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_LOG2",
+          "value": 36,
+          "alias": "log2",
+          "description": "a -> base-2 log (a <= 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_DEG",
+          "value": 37,
+          "alias": "deg",
+          "description": "a -> radians to degrees"
+        },
+        {
+          "name": "VM_EXPR_RAD",
+          "value": 38,
+          "alias": "rad",
+          "description": "a -> degrees to radians"
+        },
+        {
+          "name": "VM_EXPR_LT",
+          "value": 39,
+          "alias": "<",
+          "description": "a b -> a < b"
+        },
+        {
+          "name": "VM_EXPR_LE",
+          "value": 40,
+          "alias": "<=",
+          "description": "a b -> a <= b"
+        },
+        {
+          "name": "VM_EXPR_GT",
+          "value": 41,
+          "alias": ">",
+          "description": "a b -> a > b"
+        },
+        {
+          "name": "VM_EXPR_GE",
+          "value": 42,
+          "alias": ">=",
+          "description": "a b -> a >= b"
+        },
+        {
+          "name": "VM_EXPR_EQ",
+          "value": 43,
+          "alias": "==",
+          "description": "a b -> a == b (exact)"
+        },
+        {
+          "name": "VM_EXPR_NE",
+          "value": 44,
+          "alias": "!=",
+          "description": "a b -> a != b (exact)"
+        },
+        {
+          "name": "VM_EXPR_AND",
+          "value": 45,
+          "alias": "and",
+          "description": "a b -> a and b"
+        },
+        {
+          "name": "VM_EXPR_OR",
+          "value": 46,
+          "alias": "or",
+          "description": "a b -> a or b"
+        },
+        {
+          "name": "VM_EXPR_XOR",
+          "value": 47,
+          "alias": "xor",
+          "description": "a b -> exactly one of a, b"
+        },
+        {
+          "name": "VM_EXPR_NOT",
+          "value": 48,
+          "alias": "not",
+          "description": "a -> not a"
+        },
+        {
+          "name": "VM_EXPR_SEL",
+          "value": 49,
+          "alias": "select",
+          "description": "c t f -> t if c is non-zero, else f"
+        },
+        {
+          "name": "VM_EXPR_OP_CNT",
+          "value": 50,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  }
+}

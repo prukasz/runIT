@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "data-structures/schema/vm-block.schema.json",
+  "title": "VM block descriptor",
+  "description": "One block type of the VM palette: what it does, when it runs, its pins and what they carry, its private state (custom_data of the 0x45 record), what the device checks at load, and for bytecode blocks the encoding. Generated from components/VM/blocks (//#vm-block).",
+  "type": "object",
+  "required": ["$schema", "schemaVersion", "kind", "id", "name", "title", "category", "description", "source_file", "activation", "inputs", "outputs", "rules", "min_custom_len", "enums"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "const": "data-structures/schema/vm-block.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "vm-block" },
+    "id": { "type": "integer", "minimum": 1, "maximum": 255, "description": "block_type in the 0x45 record." },
+    "name": { "type": "string", "pattern": "^VM_BLK_" },
+    "title": { "type": "string" },
+    "category": { "type": "string" },
+    "description": { "type": "string" },
+    "source_file": { "type": "string" },
+    "activation": {
+      "type": "object",
+      "required": ["kind", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["enabled", "triggered", "enable-rising"], "description": "See the index's activation_kinds." },
+        "description": { "type": "string" }
+      }
+    },
+    "inputs": { "$ref": "#/$defs/pin_group" },
+    "outputs": { "$ref": "#/$defs/pin_group" },
+    "rules": {
+      "description": "What the device checks for this block type at load (besides the index's common_rules), and the error it answers with.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rule", "error", "error_tag"],
+        "additionalProperties": false,
+        "properties": { "rule": { "type": "string" }, "error": { "type": "string", "pattern": "^ERR_" }, "error_tag": { "type": "integer" } }
+      }
+    },
+    "state": {
+      "type": "object",
+      "required": ["struct", "source_file", "size", "align", "fields"],
+      "additionalProperties": false,
+      "properties": {
+        "struct": { "type": "string" },
+        "source_file": { "type": "string" },
+        "size": { "type": "integer", "minimum": 0 },
+        "align": { "type": "integer", "minimum": 1 },
+        "tail": { "type": "string" },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "c_type", "offset", "source"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "c_type": { "type": "string" },
+              "offset": { "type": "integer", "minimum": 0 },
+              "size": { "type": "integer", "minimum": 0 },
+              "array_len": { "type": "integer", "minimum": 1 },
+              "element_size": { "type": "integer", "minimum": 1 },
+              "flexible": { "const": true },
+              "description": { "type": "string" },
+              "enum_ref": { "type": "string" },
+              "source": { "enum": ["user", "derived", "runtime", "padding"], "description": "user: the app sets it from the block's settings. derived: the app computes it from the program (see derived). runtime / padding: the app writes 0." },
+              "derived": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "min_custom_len": { "type": "integer", "minimum": 0, "description": "The state size; a bytecode block adds its constants and code (encoding.layout)." },
+    "encoding": {
+      "type": "object",
+      "required": ["kind", "layout", "constant_type", "stack_max", "opcode_enum", "opcodes", "examples"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "bytecode" },
+        "layout": { "type": "string" },
+        "constant_type": { "enum": ["f32", "u32"] },
+        "stack_max": { "type": "integer", "minimum": 1 },
+        "opcode_enum": { "type": "string" },
+        "opcodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["symbol", "value", "pops", "pushes", "operand"],
+            "additionalProperties": false,
+            "properties": {
+              "symbol": { "type": "string" },
+              "value": { "type": "integer", "minimum": 0, "maximum": 255 },
+              "alias": { "type": ["string", "null"] },
+              "description": { "type": ["string", "null"] },
+              "pops": { "type": "integer", "minimum": 0 },
+              "pushes": { "type": "integer", "minimum": 0 },
+              "operand": { "enum": ["none", "input", "const"], "description": "One operand byte after the opcode: an input pin index, or a constant index." }
+            }
+          }
+        },
+        "examples": {
+          "description": "Golden vectors: custom_data the device accepts and the result it computes for these inputs.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["title", "inputs", "constants", "code", "custom_data", "custom_len", "result"],
+            "additionalProperties": false,
+            "properties": {
+              "title": { "type": "string" },
+              "inputs": { "type": "array", "items": { "type": "number" } },
+              "constants": { "type": "array", "items": { "type": "number" } },
+              "code": { "type": "array", "items": { "type": "string" } },
+              "custom_data": { "type": "string", "pattern": "^([0-9a-f]{2})*$" },
+              "custom_len": { "type": "integer" },
+              "result": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "enums": { "type": "object", "description": "The published enums this block's state and encoding use." }
+  },
+  "$defs": {
+    "pin_group": {
+      "type": "object",
+      "required": ["min", "max", "pins"],
+      "additionalProperties": false,
+      "properties": {
+        "min": { "type": "integer", "minimum": 0 },
+        "max": { "type": "integer", "minimum": 0, "description": "Pins the block uses (a * pin: up to the Kconfig limit). The device accepts more, unused." },
+        "max_symbol": { "type": "string" },
+        "pins": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["index", "name", "title", "value"],
+            "additionalProperties": false,
+            "properties": {
+              "index": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "const": "*" }] },
+              "name": { "type": "string" },
+              "title": { "type": "string" },
+              "description": { "type": "string" },
+              "value": { "enum": ["bool", "u8", "u32", "i32", "f32", "scalar", "gate", "object", "ptr-cell"] },
+              "required": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

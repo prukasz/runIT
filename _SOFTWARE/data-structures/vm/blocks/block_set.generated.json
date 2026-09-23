@@ -1,0 +1,43 @@
+{
+  "$schema": "data-structures/schema/vm-block.schema.json",
+  "schemaVersion": 1,
+  "kind": "vm-block",
+  "id": 6,
+  "name": "VM_BLK_SET",
+  "title": "Set",
+  "category": "data",
+  "description": "Copies the source payload (whole trees included) into the destination when the source is fresh. Types and counts must match.",
+  "source_file": "components/VM/blocks/vm_block_set.h",
+  "activation": {
+    "kind": "triggered",
+    "description": "Runs when the source (input 0) is fresh and the block is enabled."
+  },
+  "inputs": {
+    "min": 2,
+    "max": 2,
+    "pins": [
+      {
+        "index": 0,
+        "name": "source",
+        "title": "Source",
+        "value": "object",
+        "required": true
+      },
+      {
+        "index": 1,
+        "name": "destination",
+        "title": "Destination",
+        "value": "object",
+        "required": true
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 0,
+    "pins": []
+  },
+  "rules": [],
+  "min_custom_len": 0,
+  "enums": {}
+}

@@ -1,4 +1,5 @@
 #pragma once
+#include <sdkconfig.h>
 #include "sys_error.h"
 #include "vm_obj.h"
 

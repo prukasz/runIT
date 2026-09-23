@@ -59,7 +59,8 @@ components/VM/
     │   ├── vm_override.h/.c    # runtime variable updates between scan loops
     │   └── vm_exec.h/.c        # the supervisor: pass loop, dispatch, spans, watchdog, control, action requests
     ├── loader/
-    │   └── vm_loader.h/.c      # load state machine, wire-facing validation
+    │   ├── vm_loader.h/.c      # load state machine, wire-facing validation
+    │   └── vm_wire.h           # packed wire records of class 0x04 and telemetry (published)
     ├── retain/
     │   └── vm_retain.h/.c      # retained values: capture, save (retain task), restore by name
     └── sub/
@@ -310,6 +311,8 @@ Execution granularity is the **scan cycle / pass**: every block in the registry 
 
 `vm_store` owns the pool and all allocation; `vm_loader` owns the load state and all wire-facing validation. The decoder does framing only.
 
+**The record layouts are the packed structs of `core/loader/vm_wire.h`**: the decoder, the loader (index steps) and `vm_sub` (telemetry) read and write records through them, and `generate-vm-program.py` publishes them, with the rules each packet enforces, type widths, limits and the arena formulas, to `data-structures/vm/vm-program.generated.json`. Change a layout there, never as offsets in a parser. The summary below is for reading.
+
 A command from a client is `[seq][0x04][packet][payload]`; `sys_interface` strips `seq` and echoes it in the response (SYS_INTERFACE.MD), so everything below starts at the packet byte.
 
 ```
@@ -319,11 +322,11 @@ A command from a client is `[seq][0x04][packet][payload]`; `sys_interface` strip
 0x43 set data : u8 n, n x { u16 id, u16 start_idx, u16 byte_len, u8 data[byte_len] }
 0x44 add acc  : u8 n, n x { u16 acc_id, u16 root_obj_id, u8 idx_count, u8 idx_len, u8 idx_data[idx_len] }
                 idx_data = idx_count x { u8 kind, LITERAL u32 | REF u16 acc_id | NAME u8 len + bytes }
-0x45 add block: u16 blk_id, u16 block_idx, u8 type, u8 in_cnt, u8 q_cnt, u8 en_cnt, u8 en_mode,
-                u8 on_error, u16 custom_len, u16 eno_obj_id,
+0x45 add block: u16 blk_id, u16 block_idx, u8 type, u8 in_cnt, u8 q_cnt, u8 en_cnt,
+                u8 en_mode (vm_blk_en_mode_e), u8 on_error (vm_blk_on_error_e), u16 custom_len, u16 eno_obj_id,
                 in_cnt x u16 acc_id (0xFFFF = unwired), q_cnt x u16 obj_id, en_cnt x u16 acc_id,
                 u8 custom_data[custom_len]
-0x47 subscribe: u8 n (0 = clear all), n x u16 obj_id           -- telemetry, see "Subscriptions"
+0x47 subscribe: u8 n (0 = clear all), n x u16 obj_id           -- telemetry, see "Subscriptions and telemetry"
 0x48 exec     : u8 command (vm_exec_command_e)                  -- see "Execution control packet"
 ```
 
@@ -333,6 +336,8 @@ All multi-byte fields little-endian. Design points:
 * **`start_idx` is unconditional.** Making its presence depend on comparing `byte_len` against the element width would leave framing dependent on a lookup the parser must trust, and would make a single non-zero element unaddressable (one element is never "larger than one element").
 * **The object header travels as its raw 4-byte in-memory image** (`VM_OBJ_HEAD_WIRE_SIZE`), bitfields included. Bitfield layout is compiler-defined, so the layout is pinned instead: `vm_obj_head_t` is published with `@wire-abi esp32-gcc-bitfield-v1` and explicit `@wire-offset`/`@wire-bit-offset` per field in `data-structures/vm/vm-model.generated.json`, and the app packs from that. `vm_obj_create()` forces `upd`, `tagged` (from `name_size`) and `dynamic` whatever the wire says.
 * **For a `VM_OBJ_PTR` object, `0x43` data is a list of u16 child ids**, resolved through the table and linked. Children must therefore be created by an earlier `0x42`.
+* **`total_size` is the app's arithmetic**: the sum of every allocation rounded up to 4 bytes — registries `4 × count`, object `4 + payload_size + name_size`, accessor `20 + 8 × idx_count` plus `name_len + 1` per name step, block `16 + 4 × (in + q + en) + custom_len`. Each formula is a `//#vm-arena` line on the allocation it describes, and the struct sizes come from their `_Static_assert`s, so the published formula can't drift from the code.
+* **Unknown enum values are refused**: `en_mode` / `on_error` outside their enums (`ERR_VM_BLK_BAD_SHAPE`), and an accessor whose `idx_len` doesn't end exactly after its `idx_count` steps (`ERR_VM_LOAD_SHORT_RECORD`).
 * `open` caps the arena at the **declared** `total_size` rather than the pool, so a program that under-declares then overruns fails on the object that overruns instead of silently borrowing space.
 
 `vm_loader_reset()` first prevents new passes and waits for the current pass to return. It then clears execution state and subscriptions and resets both allocation domains. IDs resolve to NULL afterwards; raw handles and cached accessors have expired and must not be reused by callbacks.
@@ -505,7 +510,7 @@ mode cannot race an active pass or a concurrent loader mutation.
 ### Execution control packet
 
 All controls use one packet type: `04 48 command` (three bytes total).
-`packet_vm_exec_t` carries the command byte; additional payload is rejected.
+`vm_wire_exec_t` carries the command byte; additional payload is rejected.
 
 | Command | Name | Behavior |
 | :--- | :--- | :--- |
@@ -650,11 +655,14 @@ is removed again (`vm_store_undo()`), so a malformed program never reaches the
 scan and bodies never re-check their own shape on every pass.
 
 **The same entry feeds the app.** `generate-vm-blocks.py` reads each header's
-`//#vm-block` annotations and its `VM_BLOCK_TYPE_<NAME>` macro and writes
-`data-structures/vm/vm-blocks.generated.json`: id, title, category, pins (with
-required flags from `required_in`), and the private-state layout with byte
-offsets, enum references and device-owned (`@runtime`) fields — cross-checked
-against each struct's `_Static_assert`. What the app compiles against is what
+`//#vm-block` annotations and its `VM_BLOCK_TYPE_<NAME>` macro and writes one
+descriptor per block to `data-structures/vm/blocks/` (plus `index.generated.json`):
+id, title, category, when it runs (`@activation`), pins with their counts,
+required flags (from `required_in`) and what each carries (`@value`), the checks
+the device makes at load (`//@rule`), and the private-state layout with byte
+offsets, enum references and who writes each field (user, derived, runtime) —
+cross-checked against each struct's `_Static_assert`. EXPR / EXPR_BIT also carry
+their opcode table and golden vectors. What the app compiles against is what
 the device checks.
 
 C lets a later designated initialiser silently override an earlier one, so the
@@ -733,18 +741,21 @@ sources is always enabled, so the common case is freshness alone). Pins are read
 if the code names them, so every occurrence of `IN 2` is the same number even
 through a dynamic accessor, and a declared-but-unused pin costs nothing.
 
-**Two fault classes, two lifetimes, because this runs at 100 Hz.** A malformed
-program (`ERR_VM_EXPR_BAD_CODE` — bad opcode, truncated operand, stack under- or
-overflow, a stack not ending on exactly one value) is a standing condition, so
-it is reported once and latched in `VM_BLK_RT_CFG_BAD`, exactly as a malformed
-span is. A bad *value* (`ERR_VM_EXPR_MATH` — zero divisor, negative square root,
-a result that came out non-finite) belongs to this pass's data: it is reported
-on entering a fault episode and re-armed by the next clean evaluation, so a
-divisor stuck at zero for a minute is one error rather than six thousand. Either
-way nothing is published — the output stands and `cfg.on_error` decides the flow.
-
-`VM_BLK_RT_CFG_BAD` (0x40) is generic, not expression-specific: any block type
-can latch "my private state is malformed" in it and report once per load.
+**The code is checked once, at load; values every run.** `vm_verify_expr` /
+`vm_verify_expr_bit` walk the code with the opcode table (`vm_expr_ops[]`,
+`vm_bit_ops[]`: what each opcode pops and pushes, and whether it takes an
+input or constant operand). There are no jumps, so one walk sees every stack
+depth: every opcode known, every operand in range and every IN pin wired, the
+stack never under- or overflowing `VM_EXPR_STACK_MAX`, and exactly one value at
+the end. A failure is reported as `ERR_VM_EXPR_BAD_CODE` with the pc, opcode
+and reason, and the block is refused (`ERR_VM_BLK_BAD_SHAPE`). The evaluator
+then trusts the code and re-checks none of it. A bad *value*
+(`ERR_VM_EXPR_MATH` — zero divisor, negative square root, a non-finite result)
+belongs to this pass's data: it is reported on entering a fault episode and
+re-armed by the next clean evaluation, so a divisor stuck at zero for a minute
+is one error rather than six thousand. Nothing is published then — the output
+stands and `cfg.on_error` decides the flow. The same table is published with
+the block (`block_expr.generated.json`), with golden vectors.
 
 ### Flow routers
 
@@ -788,9 +799,9 @@ every switch in every program 64 bytes it does not use.
 A selector outside `0..q_cnt-1` takes **no branch** — every output clears, ENO
 goes false — and is *not* reported. It is an ordinary runtime state, and at scan
 rate reporting it would bury the log; a program wanting a default branch drives
-one from an `EXPR` range test. The two genuine faults (too few outputs for the
-type, an unwired selector pin) are standing conditions and latch in
-`VM_BLK_RT_CFG_BAD` to report once per load, like malformed bytecode.
+one from an `EXPR` range test. Too few outputs or an unwired selector can't
+happen at run time: the palette entry (`min_q`, `required_in`) refuses such a
+block at load.
 
 ### Spans
 
@@ -871,11 +882,13 @@ and `DIV`. The cost is C's cost: a fractional step drifts, so `0.0` stepping by
 `0.1` toward `1.0` may turn nine times or eleven. Integer starts and steps are
 exact to 2²⁴, far past any loop that could finish inside a scan cycle.
 
-**A malformed FOR still claims.** If `custom_len` holds a span but not a count,
-the block claims the range and then runs it zero times, latching
-`VM_BLK_RT_CFG_BAD`. Not claiming would leave the body about to execute once,
+**A FOR always claims.** Its state size, `op` and `cmp` are checked at load, so
+at run time it claims the range before anything else and then runs it zero or
+more times. Not claiming would leave the body about to execute once,
 uncontrolled, in the middle of the walk — and for a body that drives actuators,
-once is strictly worse than never.
+once is strictly worse than never. The span itself (start = the FOR's ID + 1,
+end inside the enclosing range) is checked when it runs (`ERR_VM_EXEC_BAD_SPAN`,
+reported once; the body then runs inline).
 
 **The iterator is what makes a span worth having.** If the block declares an
 output, `i` is published to output 0 before each turn, *loudly*, so an
@@ -1017,13 +1030,57 @@ a program re-upload, like a PLC retain variable.
   retained values come back once the app re-uploads and starts it. Storing the
   program on the device is the next step.
 
+### Subscriptions and telemetry (`core/sub/`)
+
+The app subscribes to a list of object IDs (`0x47`, up to
+`CONFIG_VM_SUB_MAX_SUBSCRIBERS`; a longer list is refused with
+`ERR_INVALID_VAL_UI32` and nothing changes; `n = 0` clears). At the end of
+every **completed** pass `vm_sub_scan()` walks each subscribed object and its
+`PTR` children (8 levels deep) and sends every object whose **value differs from
+what was last sent**. That's decided by a hash of the value, not by `upd`, so a
+quiet write (a block that doesn't mark its output fresh) still reaches the app.
+An unchanged object costs a hash per pass and sends nothing.
+
+- **Snapshot on subscribe.** A new list starts with everything reachable sent
+  in full: at the end of the next pass while running (or frozen / scan / block
+  mode), at once while stopped (under the program barrier; taking it while
+  running would cancel the pass).
+- **Value frames**, same record layout as the `0x43` upload, so one parser reads
+  both directions:
+  `[0x04][0x43][u8 n] n x {u16 id, u16 start_idx, u16 byte_len, data}`.
+  A `PTR`'s data is its child IDs (`u16` each), so re-linking a child resends
+  the parent. An object larger than one frame is split into several records;
+  `start_idx` counts elements (2 bytes for a `PTR` element, else the type width).
+- **Describe frames** for heap objects (ID has `VM_OBJ_ID_DYN_BIT`, `0x8000`:
+  CLONE's copies), which the app never uploaded, same layout as the `0x42`
+  upload: `[0x04][0x42][u8 n] n x {u16 id, vm_obj_head_t, name}`. Sent when the
+  object is first seen or its type, size or name change, always in an earlier
+  frame than any value that may reference it.
+- **Frame size** follows the telemetry connector's current limit
+  (`sys_data_connector_max_payload`, BLE MTU), capped by
+  `CONFIG_VM_SUB_MAX_FRAME_LEN`.
+- **Lost frames.** A frame the connector refuses (TX buffer full), or a record
+  the link can't carry, marks its objects lost, and they're sent in full at the
+  next sample. After a refusal the rest of the sample is held back (marked lost
+  too), so a value never arrives without the describe before it. The app should
+  still drop a value for a heap ID it has no describe for (e.g. after
+  reconnecting mid-stream); re-subscribing gives a fresh snapshot.
+- **Tracking** keeps what was last sent for up to `CONFIG_VM_SUB_MAX_TRACKED`
+  objects (subscribed plus reachable; 18 B each). Objects past the limit aren't
+  sent, reported once per subscription (`ERR_VM_SUB_TRACK_FULL`). Objects no
+  longer reachable are forgotten at the end of the pass.
+- **Threads.** The interface task stages a new list; the VM task takes it over
+  at its next sample, so a pass never sees a half-written list. Program reset
+  (`0x40`) and open (`0x41`) clear subscriptions.
+
 ### `upd`, and who clears it
 
 The supervisor, at the **end of a pass** — not at the point of consumption
 (which would break fan-out: two blocks reading one fresh object, and whichever
 ran first steals the update). The sweep
 respects `upd_resetable`, and covers dynamic objects as well as the registry.
-Subscriptions are sampled *before* it, via `vm_exec_set_sample_hook()`.
+Subscriptions are sampled *before* it, via `vm_exec_set_sample_hook()` (telemetry
+sends on a value change, not on `upd`).
 
 ### The block watchdog
 
@@ -1151,12 +1208,12 @@ Note the app **partition** is 1 MB (`CONFIG_PARTITION_TABLE_SINGLE_APP`), not th
 ## Design Notes & Known Limitations
 
 * **No test target.** The on-target self-test suite and the access benchmark were deleted in commit `47207d3`; the performance figures they produced are kept as history in [VM_PERF.MD](VM_PERF.MD).
-* **Palette:** see "What ships today" — 15 block types, published for the app in `data-structures/vm/vm-blocks.generated.json`.
+* **Palette:** see "What ships today" — 15 block types, published for the app as one descriptor per block in `data-structures/vm/blocks/`.
 * **Retained values** are kept by name ("Retained values"); the program itself is not stored on the device yet.
 * **Hardware Drivers Boundary:** Blocks in `blocks/` interact with runtime registries and accessors; hardware drivers (`sys_io`, `sys_power`) are invoked via standard system interfaces.
 * **Timing & Clocks:** `vm_now_ms()` latches the pass timestamp per scan cycle, driving time-aware blocks such as `TIMER`.
 * **Non-scalar Movement:** `SET` (`vm_block_set.h`) performs deep copy (`vm_obj_copy_content()`) across matching schemas with pairwise pointer array traversal.
-* **Subscription & Telemetry:** Built via `vm_sub.h`/`.c`, maintaining object subscriptions and emitting telemetry on freshness updates.
+* **Subscription & Telemetry:** `vm_sub.h`/`.c` sends changed values (quiet writes included) and describes heap objects ("Subscriptions and telemetry").
 * **Unwired Pins:** Unwired input pins map to NULL accessor slots (`VM_BLOCK_NO_ID` on wire), falling back to block constants stored in `custom_data`.
 
 ---
@@ -1176,13 +1233,14 @@ Note the app **partition** is 1 MB (`CONFIG_PARTITION_TABLE_SINGLE_APP`), not th
 **Events** — `vm_event_post()`, `vm_event_count()`, `vm_event_at()`, `vm_event_drain()`, `vm_event_take_overflow()`, `vm_event_reset()`
 **Retained values** — `vm_retain_init()`, `vm_retain_reserve()`, `vm_retain_restore()`, `vm_retain_on_pass()`, `vm_retain_save_stopped()`, `vm_retain_clear()`, `vm_retain_on_open()`, `vm_retain_on_reset()`
 **Execution** — `vm_exec_start()`, `vm_exec_request_stop()`, `vm_exec_stop()`, `vm_exec_fault_latch()`, `vm_exec_fault_status()`, `vm_exec_fault_acknowledge()`, `vm_exec_program_lock()`, `vm_exec_program_unlock()`, `vm_exec_pass()`, `vm_exec_run_range()`, `vm_exec_set_mode()`, `vm_exec_mode()`, `vm_exec_status()`, `vm_exec_pass_count()`, `vm_exec_last_pass_us()`, `vm_exec_set_sample_hook()`, `vm_exec_register_action_request()`, `vm_exec_request_action()`, `vm_exec_reset()`, `vm_clock_us()`, `vm_now_ms()`
+**Telemetry** — `vm_sub_init()`, `vm_sub_subscribe()`, `vm_sub_handle_packet()`, `vm_sub_scan()`, `vm_sub_reset()`, `vm_sub_count()`, `vm_sub_get_ids()`
 **Loading** — `vm_loader_reset()`, `vm_loader_open()`, `vm_loader_add_obj()`, `vm_loader_set_data()`, `vm_loader_add_accessor()`, `vm_loader_add_block()`, `vm_loader_state()`, `vm_loader_used()`
 
 ---
 
 ## Error Ownership
 
-Owners `0xA900`–`0xA908` (`SYS_VM_OWNER_MAP` in `errors/sys_error_vm.h`): `OWNER_VM_BASE`, `OWNER_VM_STORE`, `OWNER_VM_OBJ`, `OWNER_VM_ACCESSOR`, `OWNER_VM_BLOCK`, `OWNER_VM_CODE`, `OWNER_VM_LOADER`, `OWNER_DEC_VM_LOADER`, `OWNER_VM_EXEC`.
+Owners `0xA900`–`0xA90A` (`SYS_VM_OWNER_MAP` in `errors/sys_error_vm.h`): `OWNER_VM_BASE`, `OWNER_VM_STORE`, `OWNER_VM_OBJ`, `OWNER_VM_ACCESSOR`, `OWNER_VM_BLOCK`, `OWNER_VM_CODE`, `OWNER_VM_LOADER`, `OWNER_DEC_VM_LOADER`, `OWNER_VM_EXEC`, `OWNER_VM_RETAIN`, `OWNER_VM_SUB`.
 
 Tags (`SYS_ERROR_VM_MAP`) cover allocation (`ERR_VM_ALLOC_EXHAUSTED`), resolution (`ERR_VM_ACCESSOR_UNKNOWN_ID`, `_OOB`, `_TYPE_MISMATCH`, `_NULL_OBJ`, `_DEPTH_EXCEEDED`, `_INDEX_FAILED`, `_NAME_NOT_FOUND`, `_NOT_MUTABLE`), blocks (`ERR_VM_BLOCK_INPUT_UNRESOLVED`, `_PIN_MISSING`, `_PIN_UNLINKED`, `_FAILED`), construction (`ERR_VM_OBJ_BAD_TYPE`, `_EMPTY`, `_TOO_LARGE`, `_NAME_TOO_LONG`, `_RETENTIVE_PTR`, `_COPY_MISMATCH`), loading (`ERR_VM_LOAD_BAD_STATE`, `_TOO_BIG`, `_DATA_RANGE`, `_SHORT_RECORD`), accessors (`ERR_VM_ACC_INDEX_OOB`, `ERR_VM_ACC_BAD_KIND`), blocks (`ERR_VM_BLK_BAD_SHAPE`, `ERR_VM_BLK_BAD_REF`) and the registries (`ERR_VM_REG_OOB`, `ERR_VM_REG_DUP` — one pair for all three id spaces, with `kind` naming which).
 
@@ -1192,7 +1250,7 @@ supervisor (`ERR_VM_EXEC_BLOCK_HUNG`, `ERR_VM_EXEC_SPAN_DEPTH`,
 `ERR_VM_EXEC_SELF_BARRIER`, `ERR_VM_EXEC_FAULT_LATCHED`), events (`ERR_VM_EVENT_OVERFLOW`), runtime override
 validation (`ERR_VM_OVERRIDE_PTR_UNSUPPORTED`,
 `ERR_VM_OVERRIDE_BAD_RECORD`), and the user-write guard
-(`ERR_VM_OBJ_USR_PROTECTED`). Retained values add `ERR_VM_RETAIN_UNNAMED`, `_TOO_BIG`, `_MISMATCH`, `_CORRUPT` (owner `OWNER_VM_RETAIN`, `0xA909`). Blocks add `ERR_VM_EXPR_BAD_CODE`, `ERR_VM_EXPR_MATH`, `ERR_VM_FOR_BAD_LOOP`, `ERR_VM_PERIODIC_OVERRUN`, and `ERR_VM_NO_ACTION_EXECUTOR` (an ACTION block with no request function registered).
+(`ERR_VM_OBJ_USR_PROTECTED`). Retained values add `ERR_VM_RETAIN_UNNAMED`, `_TOO_BIG`, `_MISMATCH`, `_CORRUPT` (owner `OWNER_VM_RETAIN`, `0xA909`). Telemetry adds `ERR_VM_SUB_TRACK_FULL` (owner `OWNER_VM_SUB`, `0xA90A`). Blocks add `ERR_VM_EXPR_BAD_CODE`, `ERR_VM_EXPR_MATH`, `ERR_VM_FOR_BAD_LOOP`, `ERR_VM_PERIODIC_OVERRUN`, and `ERR_VM_NO_ACTION_EXECUTOR` (an ACTION block with no request function registered).
 
 `sys_error_vm.h` also supplies `SE_*_OWNED` variants (`SE_RAISE_OWNED`, `SE_ERR_NEW_OWNED`, `SE_FAIL_OWNED`, `SE_WRAP_ERR_OWNED`, `SE_CHECK_NOT_NULL_OWNED`, `SE_CHECK_IF_ALLOCATED_OWNED`) that take the owner explicitly, for header-only code pulled into translation units with their own ambient `OWNER`.
 

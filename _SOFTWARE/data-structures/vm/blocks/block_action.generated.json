@@ -1,0 +1,106 @@
+{
+  "$schema": "data-structures/schema/vm-block.schema.json",
+  "schemaVersion": 1,
+  "kind": "vm-block",
+  "id": 14,
+  "name": "VM_BLK_ACTION",
+  "title": "Run Action",
+  "category": "system",
+  "description": "Requests a system action once per rising edge of its enable; the action runs outside the program pass.",
+  "source_file": "components/VM/blocks/vm_block_action.h",
+  "activation": {
+    "kind": "enable-rising",
+    "description": "Runs once each time its enable turns on."
+  },
+  "inputs": {
+    "min": 0,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "id",
+        "title": "Action id",
+        "value": "u32",
+        "description": "Overrides action_id.",
+        "required": false
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 0,
+    "pins": []
+  },
+  "rules": [
+    {
+      "rule": "scope is a vm_action_scope_e value.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    },
+    {
+      "rule": "With the id input unwired, action_id is not 0.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    }
+  ],
+  "state": {
+    "struct": "vm_block_action_data_t",
+    "source_file": "components/VM/blocks/vm_block_action.h",
+    "size": 4,
+    "align": 4,
+    "fields": [
+      {
+        "name": "scope",
+        "c_type": "uint8_t",
+        "offset": 0,
+        "size": 1,
+        "enum_ref": "vm_action_scope_e",
+        "source": "user"
+      },
+      {
+        "name": "action_id",
+        "c_type": "uint8_t",
+        "offset": 1,
+        "size": 1,
+        "description": "1..255, used when input 0 is unwired",
+        "source": "user"
+      },
+      {
+        "name": "flags",
+        "c_type": "uint8_t",
+        "offset": 2,
+        "size": 1,
+        "description": "VM_ACTION_F_*",
+        "source": "runtime"
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint8_t",
+        "offset": 3,
+        "size": 1,
+        "source": "padding"
+      }
+    ]
+  },
+  "min_custom_len": 4,
+  "enums": {
+    "vm_action_scope_e": {
+      "alias": "Action Scope",
+      "source_file": "components/VM/blocks/vm_block_action.h",
+      "members": [
+        {
+          "name": "VM_ACTION_SCOPE_STATIC",
+          "value": 0,
+          "alias": "Static",
+          "description": "A built-in action (freeze, safe state, device reset, ...)"
+        },
+        {
+          "name": "VM_ACTION_SCOPE_RECORDED",
+          "value": 1,
+          "alias": "Recorded",
+          "description": "A recorded packet sequence"
+        }
+      ]
+    }
+  }
+}

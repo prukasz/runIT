@@ -132,6 +132,7 @@ menu "VM Configuration"
             default 128
             help
                 Maximum count of object IDs that can be subscribed to simultaneously.
+                A subscribe packet with more IDs is refused.
 
         config VM_SUB_MAX_FRAME_LEN
             int "Maximum telemetry frame length (bytes)"
@@ -139,11 +140,15 @@ menu "VM Configuration"
             help
                 Maximum byte size of a generated telemetry output packet.
 
-        config VM_SUB_MAX_EMITTED_PER_PASS
-            int "Maximum emitted update objects per pass"
+        config VM_SUB_MAX_TRACKED
+            int "Maximum objects reachable from subscriptions"
             default 256
+            range 16 4096
             help
-                Maximum count of updated object IDs processed in a single scan pass.
+                Objects telemetry keeps track of: every subscribed object plus
+                everything reachable through its PTR children. Each costs 18
+                bytes of RAM (12 per entry, table sized 1.5x). Objects past
+                the limit are not sent (ERR_VM_SUB_TRACK_FULL).
 
     endmenu
 

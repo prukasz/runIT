@@ -71,6 +71,7 @@ err_h vm_obj_create(vm_obj_h* out, uint16_t id, const vm_obj_head_t* head, const
   SE_TRY(vm_obj_shape(head, &total));
 
   vm_obj_h o = NULL;
+  //#vm-arena object @per HEADER_packet_vm_add_objs @size sizeof(vm_obj_head_t) + head.payload_size + head.d.name_size
   SE_TRY(vm_store_alloc((void**)&o, VM_REG_OBJ, id, total));
 
   vm_obj_init(o, head, name);
@@ -89,6 +90,7 @@ err_h vm_accessor_create(vm_accessor_t** out, uint16_t id, uint16_t root_obj_id,
   // Single allocation holds accessor struct and its contiguous index array
   uint32_t total = (uint32_t)sizeof(vm_accessor_t) + (uint32_t)idx_count * sizeof(vm_index_t);
   vm_accessor_t* acc = NULL;
+  //#vm-arena accessor @per HEADER_packet_vm_add_acc @size sizeof(vm_accessor_t) + idx_count * sizeof(vm_index_t)
   SE_TRY(vm_store_alloc((void**)&acc, VM_REG_ACC, id, total));
 
   acc->id = root_obj_id;
@@ -136,6 +138,7 @@ err_h vm_accessor_set_name(vm_accessor_t* acc, uint8_t pos, const char* name, ui
 
   // Name bytes are copied into store NUL-terminated for permanent index matching
   char* copy = NULL;
+  //#vm-arena accessor-name @per VM_IDX_NAME @size name_len + 1 @description Each name step of an accessor, stored NUL-terminated.
   SE_TRY(vm_store_alloc((void**)&copy, VM_REG_ACC, VM_ID_NONE, (uint32_t)name_len + 1u));
   memcpy(copy, name, name_len);
   copy[name_len] = '\0';

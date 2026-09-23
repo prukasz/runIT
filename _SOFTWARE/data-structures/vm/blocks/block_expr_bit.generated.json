@@ -1,0 +1,540 @@
+{
+  "$schema": "data-structures/schema/vm-block.schema.json",
+  "schemaVersion": 1,
+  "kind": "vm-block",
+  "id": 2,
+  "name": "VM_BLK_EXPR_BIT",
+  "title": "Bit Expression",
+  "category": "data",
+  "description": "Evaluates an RPN uint32 bitwise expression over its inputs when an input is fresh and the block is enabled.",
+  "source_file": "components/VM/blocks/vm_block_expr.h",
+  "activation": {
+    "kind": "triggered",
+    "description": "Runs when an input it reads is fresh and the block is enabled."
+  },
+  "inputs": {
+    "min": 0,
+    "max": 16,
+    "max_symbol": "CONFIG_VM_BLOCK_MAX_IN",
+    "pins": [
+      {
+        "index": "*",
+        "name": "pin",
+        "title": "Input",
+        "value": "u32",
+        "description": "Read by the IN opcode; any number, only the ones the code names are read.",
+        "required": false
+      }
+    ]
+  },
+  "outputs": {
+    "min": 1,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "result",
+        "title": "Result",
+        "value": "u32",
+        "description": "The expression's value (u32)."
+      }
+    ]
+  },
+  "rules": [
+    {
+      "rule": "constants and code fit custom_len (4 + 4 x const_cnt + code_len bytes).",
+      "error": "ERR_VM_EXPR_BAD_CODE",
+      "error_tag": 43304
+    },
+    {
+      "rule": "Every opcode is a known value; code after END is ignored.",
+      "error": "ERR_VM_EXPR_BAD_CODE",
+      "error_tag": 43304
+    },
+    {
+      "rule": "An IN operand names a wired input (below in_cnt); a K operand a constant (below const_cnt).",
+      "error": "ERR_VM_EXPR_BAD_CODE",
+      "error_tag": 43304
+    },
+    {
+      "rule": "The stack never holds fewer values than an opcode takes, nor more than VM_EXPR_STACK_MAX.",
+      "error": "ERR_VM_EXPR_BAD_CODE",
+      "error_tag": 43304
+    },
+    {
+      "rule": "The code ends (END or its last byte) with exactly one value on the stack.",
+      "error": "ERR_VM_EXPR_BAD_CODE",
+      "error_tag": 43304
+    }
+  ],
+  "state": {
+    "struct": "vm_expr_code_t",
+    "source_file": "components/VM/blocks/vm_block_expr.h",
+    "size": 4,
+    "align": 4,
+    "fields": [
+      {
+        "name": "const_cnt",
+        "c_type": "uint8_t",
+        "offset": 0,
+        "size": 1,
+        "description": "Number of u32 literals after the header",
+        "source": "user"
+      },
+      {
+        "name": "rt",
+        "c_type": "uint8_t",
+        "offset": 1,
+        "size": 1,
+        "source": "runtime"
+      },
+      {
+        "name": "code_len",
+        "c_type": "uint16_t",
+        "offset": 2,
+        "size": 2,
+        "description": "Bytecode length after the literals",
+        "source": "user"
+      },
+      {
+        "name": "consts",
+        "c_type": "vm_expr_k_t",
+        "offset": 4,
+        "flexible": true,
+        "element_size": 4,
+        "description": "const_cnt literals (f32 for EXPR, u32 for EXPR_BIT), then code_len opcode bytes",
+        "source": "user"
+      }
+    ],
+    "tail": "consts u32[const_cnt], code u8[code_len] (opcodes vm_bit_op_e)"
+  },
+  "min_custom_len": 4,
+  "encoding": {
+    "kind": "bytecode",
+    "layout": "state header, then const_cnt constants of 4 bytes, then code_len code bytes; custom_len = 4 + 4 x const_cnt + code_len",
+    "constant_type": "u32",
+    "stack_max": 16,
+    "opcode_enum": "vm_bit_op_e",
+    "opcodes": [
+      {
+        "symbol": "VM_BIT_END",
+        "value": 0,
+        "alias": "end",
+        "description": "Stop; the rest of the code is ignored.",
+        "pops": 0,
+        "pushes": 0,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_IN",
+        "value": 1,
+        "alias": "in",
+        "description": "-> input[operand] (as u32)",
+        "pops": 0,
+        "pushes": 1,
+        "operand": "input"
+      },
+      {
+        "symbol": "VM_BIT_K",
+        "value": 2,
+        "alias": "const",
+        "description": "-> constant[operand]",
+        "pops": 0,
+        "pushes": 1,
+        "operand": "const"
+      },
+      {
+        "symbol": "VM_BIT_DUP",
+        "value": 3,
+        "alias": "dup",
+        "description": "a -> a a",
+        "pops": 1,
+        "pushes": 2,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_DROP",
+        "value": 4,
+        "alias": "drop",
+        "description": "a ->",
+        "pops": 1,
+        "pushes": 0,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_SWAP",
+        "value": 5,
+        "alias": "swap",
+        "description": "a b -> b a",
+        "pops": 2,
+        "pushes": 2,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_AND",
+        "value": 6,
+        "alias": "&",
+        "description": "a b -> a AND b",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_OR",
+        "value": 7,
+        "alias": "|",
+        "description": "a b -> a OR b",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_XOR",
+        "value": 8,
+        "alias": "^",
+        "description": "a b -> a XOR b",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_SHL",
+        "value": 9,
+        "alias": "<<",
+        "description": "a n -> a shifted left by n (n >= 32 gives 0)",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_SHR",
+        "value": 10,
+        "alias": ">>",
+        "description": "a n -> a shifted right by n, zero fill (n >= 32 gives 0)",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_SAR",
+        "value": 11,
+        "alias": ">>>",
+        "description": "a n -> a shifted right by n, sign fill",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_ROL",
+        "value": 12,
+        "alias": "rol",
+        "description": "a n -> a rotated left by n mod 32",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_ROR",
+        "value": 13,
+        "alias": "ror",
+        "description": "a n -> a rotated right by n mod 32",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_GET",
+        "value": 14,
+        "alias": "bit",
+        "description": "a n -> bit n mod 32 of a (1 or 0)",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_SET",
+        "value": 15,
+        "alias": "set",
+        "description": "a n -> a with bit n mod 32 set",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_CLR",
+        "value": 16,
+        "alias": "clear",
+        "description": "a n -> a with bit n mod 32 cleared",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_TGL",
+        "value": 17,
+        "alias": "toggle",
+        "description": "a n -> a with bit n mod 32 flipped",
+        "pops": 2,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_NOT",
+        "value": 18,
+        "alias": "~",
+        "description": "a -> every bit flipped",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_POPCNT",
+        "value": 19,
+        "alias": "popcount",
+        "description": "a -> number of set bits",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_CLZ",
+        "value": 20,
+        "alias": "clz",
+        "description": "a -> leading zero bits (32 for 0)",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_CTZ",
+        "value": 21,
+        "alias": "ctz",
+        "description": "a -> trailing zero bits (32 for 0)",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      },
+      {
+        "symbol": "VM_BIT_BSWAP",
+        "value": 22,
+        "alias": "bswap",
+        "description": "a -> byte order reversed",
+        "pops": 1,
+        "pushes": 1,
+        "operand": "none"
+      }
+    ],
+    "examples": [
+      {
+        "title": "bit 3 of a",
+        "inputs": [
+          8
+        ],
+        "constants": [
+          3
+        ],
+        "code": [
+          "VM_BIT_IN",
+          "0",
+          "VM_BIT_K",
+          "0",
+          "VM_BIT_GET",
+          "VM_BIT_END"
+        ],
+        "custom_data": "0100060003000000010002000e00",
+        "custom_len": 14,
+        "result": 1
+      },
+      {
+        "title": "(a << 4) | b",
+        "inputs": [
+          10,
+          5
+        ],
+        "constants": [
+          4
+        ],
+        "code": [
+          "VM_BIT_IN",
+          "0",
+          "VM_BIT_K",
+          "0",
+          "VM_BIT_SHL",
+          "VM_BIT_IN",
+          "1",
+          "VM_BIT_OR"
+        ],
+        "custom_data": "01000800040000000100020009010107",
+        "custom_len": 16,
+        "result": 165
+      },
+      {
+        "title": "set bits in a",
+        "inputs": [
+          61680
+        ],
+        "constants": [],
+        "code": [
+          "VM_BIT_IN",
+          "0",
+          "VM_BIT_POPCNT"
+        ],
+        "custom_data": "00000300010013",
+        "custom_len": 7,
+        "result": 8
+      }
+    ]
+  },
+  "enums": {
+    "vm_bit_op_e": {
+      "alias": "Bit Expression Opcode",
+      "source_file": "components/VM/blocks/vm_block_expr.h",
+      "members": [
+        {
+          "name": "VM_BIT_END",
+          "value": 0,
+          "alias": "end",
+          "description": "Stop; the rest of the code is ignored."
+        },
+        {
+          "name": "VM_BIT_IN",
+          "value": 1,
+          "alias": "in",
+          "description": "-> input[operand] (as u32)"
+        },
+        {
+          "name": "VM_BIT_K",
+          "value": 2,
+          "alias": "const",
+          "description": "-> constant[operand]"
+        },
+        {
+          "name": "VM_BIT_DUP",
+          "value": 3,
+          "alias": "dup",
+          "description": "a -> a a"
+        },
+        {
+          "name": "VM_BIT_DROP",
+          "value": 4,
+          "alias": "drop",
+          "description": "a ->"
+        },
+        {
+          "name": "VM_BIT_SWAP",
+          "value": 5,
+          "alias": "swap",
+          "description": "a b -> b a"
+        },
+        {
+          "name": "VM_BIT_AND",
+          "value": 6,
+          "alias": "&",
+          "description": "a b -> a AND b"
+        },
+        {
+          "name": "VM_BIT_OR",
+          "value": 7,
+          "alias": "|",
+          "description": "a b -> a OR b"
+        },
+        {
+          "name": "VM_BIT_XOR",
+          "value": 8,
+          "alias": "^",
+          "description": "a b -> a XOR b"
+        },
+        {
+          "name": "VM_BIT_SHL",
+          "value": 9,
+          "alias": "<<",
+          "description": "a n -> a shifted left by n (n >= 32 gives 0)"
+        },
+        {
+          "name": "VM_BIT_SHR",
+          "value": 10,
+          "alias": ">>",
+          "description": "a n -> a shifted right by n, zero fill (n >= 32 gives 0)"
+        },
+        {
+          "name": "VM_BIT_SAR",
+          "value": 11,
+          "alias": ">>>",
+          "description": "a n -> a shifted right by n, sign fill"
+        },
+        {
+          "name": "VM_BIT_ROL",
+          "value": 12,
+          "alias": "rol",
+          "description": "a n -> a rotated left by n mod 32"
+        },
+        {
+          "name": "VM_BIT_ROR",
+          "value": 13,
+          "alias": "ror",
+          "description": "a n -> a rotated right by n mod 32"
+        },
+        {
+          "name": "VM_BIT_GET",
+          "value": 14,
+          "alias": "bit",
+          "description": "a n -> bit n mod 32 of a (1 or 0)"
+        },
+        {
+          "name": "VM_BIT_SET",
+          "value": 15,
+          "alias": "set",
+          "description": "a n -> a with bit n mod 32 set"
+        },
+        {
+          "name": "VM_BIT_CLR",
+          "value": 16,
+          "alias": "clear",
+          "description": "a n -> a with bit n mod 32 cleared"
+        },
+        {
+          "name": "VM_BIT_TGL",
+          "value": 17,
+          "alias": "toggle",
+          "description": "a n -> a with bit n mod 32 flipped"
+        },
+        {
+          "name": "VM_BIT_NOT",
+          "value": 18,
+          "alias": "~",
+          "description": "a -> every bit flipped"
+        },
+        {
+          "name": "VM_BIT_POPCNT",
+          "value": 19,
+          "alias": "popcount",
+          "description": "a -> number of set bits"
+        },
+        {
+          "name": "VM_BIT_CLZ",
+          "value": 20,
+          "alias": "clz",
+          "description": "a -> leading zero bits (32 for 0)"
+        },
+        {
+          "name": "VM_BIT_CTZ",
+          "value": 21,
+          "alias": "ctz",
+          "description": "a -> trailing zero bits (32 for 0)"
+        },
+        {
+          "name": "VM_BIT_BSWAP",
+          "value": 22,
+          "alias": "bswap",
+          "description": "a -> byte order reversed"
+        },
+        {
+          "name": "VM_BIT_OP_CNT",
+          "value": 23,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  }
+}

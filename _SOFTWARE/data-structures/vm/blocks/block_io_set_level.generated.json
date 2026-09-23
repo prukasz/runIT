@@ -1,0 +1,147 @@
+{
+  "$schema": "data-structures/schema/vm-block.schema.json",
+  "schemaVersion": 1,
+  "kind": "vm-block",
+  "id": 10,
+  "name": "VM_BLK_IO_SET_LEVEL",
+  "title": "Set Pin Level",
+  "category": "io",
+  "description": "Drives a pin on an IO device (ESP GPIO, expander) to the input level; writes only on change unless ALWAYS.",
+  "source_file": "components/VM/blocks/vm_block_io_set_level.h",
+  "activation": {
+    "kind": "enabled",
+    "description": "Runs every pass while enabled."
+  },
+  "inputs": {
+    "min": 1,
+    "max": 2,
+    "pins": [
+      {
+        "index": 0,
+        "name": "level",
+        "title": "Level",
+        "value": "bool",
+        "required": true
+      },
+      {
+        "index": 1,
+        "name": "pin",
+        "title": "Pin",
+        "value": "u32",
+        "description": "Overrides default_io_num; must be in allowed_mask.",
+        "required": false
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 0,
+    "pins": []
+  },
+  "rules": [
+    {
+      "rule": "allowed_mask is not 0, and default_io_num is below 64 and in allowed_mask.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    },
+    {
+      "rule": "disabled_action is a vm_io_disabled_state_e value.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    }
+  ],
+  "state": {
+    "struct": "vm_block_io_set_level_data_t",
+    "source_file": "components/VM/blocks/vm_block_io_set_level.h",
+    "size": 16,
+    "align": 8,
+    "fields": [
+      {
+        "name": "allowed_mask",
+        "c_type": "uint64_t",
+        "offset": 0,
+        "size": 8,
+        "description": "Permitted pins bitmask (0..63) for dynamic selection",
+        "source": "user"
+      },
+      {
+        "name": "device_id",
+        "c_type": "uint8_t",
+        "offset": 8,
+        "size": 1,
+        "description": "Target device ID",
+        "source": "user"
+      },
+      {
+        "name": "default_io_num",
+        "c_type": "uint8_t",
+        "offset": 9,
+        "size": 1,
+        "description": "Static pin number when IN1 (IO_NUM) is unwired",
+        "source": "user"
+      },
+      {
+        "name": "disabled_action",
+        "c_type": "uint8_t",
+        "offset": 10,
+        "size": 1,
+        "description": "What disabled does",
+        "enum_ref": "vm_io_disabled_state_e",
+        "source": "user"
+      },
+      {
+        "name": "flags",
+        "c_type": "uint8_t",
+        "offset": 11,
+        "size": 1,
+        "description": "VM_IO_SET_F_*: only VM_IO_SET_F_ALWAYS (0x04) is set by the app",
+        "source": "user"
+      },
+      {
+        "name": "last_pin",
+        "c_type": "uint8_t",
+        "offset": 12,
+        "size": 1,
+        "description": "Cached last pin written; the app writes default_io_num",
+        "source": "user"
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint8_t",
+        "offset": 13,
+        "size": 3,
+        "array_len": 3,
+        "element_size": 1,
+        "description": "Align to 16 bytes",
+        "source": "padding"
+      }
+    ]
+  },
+  "min_custom_len": 16,
+  "enums": {
+    "vm_io_disabled_state_e": {
+      "alias": "IO Disabled Action",
+      "source_file": "components/VM/blocks/vm_block_io_set_level.h",
+      "members": [
+        {
+          "name": "VM_IO_DISABLED_HOLD",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IO_DISABLED_FORCE_LOW",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IO_DISABLED_FORCE_HIGH",
+          "value": 2,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  }
+}

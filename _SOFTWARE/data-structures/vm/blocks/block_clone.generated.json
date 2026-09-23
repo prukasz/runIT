@@ -1,0 +1,43 @@
+{
+  "$schema": "data-structures/schema/vm-block.schema.json",
+  "schemaVersion": 1,
+  "kind": "vm-block",
+  "id": 7,
+  "name": "VM_BLK_CLONE",
+  "title": "Clone",
+  "category": "data",
+  "description": "Copies the source into a tree this block owns, hung off a pointer cell; rebuilds only when the source's shape changes.",
+  "source_file": "components/VM/blocks/vm_block_clone.h",
+  "activation": {
+    "kind": "triggered",
+    "description": "Runs when the source (input 0) is fresh and the block is enabled."
+  },
+  "inputs": {
+    "min": 2,
+    "max": 2,
+    "pins": [
+      {
+        "index": 0,
+        "name": "source",
+        "title": "Source",
+        "value": "object",
+        "required": true
+      },
+      {
+        "index": 1,
+        "name": "cell",
+        "title": "Pointer cell",
+        "value": "ptr-cell",
+        "required": true
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 0,
+    "pins": []
+  },
+  "rules": [],
+  "min_custom_len": 0,
+  "enums": {}
+}

@@ -29,7 +29,8 @@ Generate web-app JSON descriptors from annotated C headers. C remains the source
 - `schema/device-definition.schema.json`: generated device JSON contract.
 - `auto-annotations/enums/generate-enums.py`: shared `//#ref-enum` scanner; device generation runs it live.
 - `auto-annotations/vm/generate-vm-model.py`: extracts marked VM C structs and VM enums.
-- `auto-annotations/vm/generate-vm-blocks.py`: the VM block catalog (`//#vm-block`, palette shape, state layouts); schema `schema/vm-blocks.schema.json`.
+- `auto-annotations/vm/generate-vm-blocks.py`: one descriptor per VM block in `vm/blocks/` plus `index.generated.json` (`//#vm-block`: palette shape, pins, activation, load rules, state layouts, bytecode encoding); schemas `schema/vm-block.schema.json`, `schema/vm-blocks-index.schema.json`.
+- `auto-annotations/vm/generate-vm-program.py`: the VM program wire format (`vm_wire.h` records, telemetry, widths, limits, arena formulas); schema `schema/vm-program.schema.json`.
 - `schema/vm-model.schema.json`: generated VM model contract.
 - `auto-annotations/contracts/generate-contracts.py`: extracts explicitly exposed packet contracts.
 - `schema/contracts.schema.json`: generated contract catalog contract.
@@ -41,6 +42,7 @@ python data-structures/auto-annotations/device/generate-devices.py components/co
 python data-structures/auto-annotations/enums/generate-enums.py <output-directory> <output-name>
 python data-structures/auto-annotations/vm/generate-vm-model.py
 python data-structures/auto-annotations/vm/generate-vm-blocks.py
+python data-structures/auto-annotations/vm/generate-vm-program.py
 python data-structures/auto-annotations/contracts/generate-contracts.py
 python data-structures/auto-annotations/settings/generate-settings.py
 ```

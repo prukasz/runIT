@@ -268,11 +268,12 @@ static inline void vm_blk_timer(vm_block_h b) {
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
-//#vm-block VM_BLK_TIMER @title Timer @category time @state vm_block_timer_data_t
+//#vm-block VM_BLK_TIMER @title Timer @category time @state vm_block_timer_data_t @activation enabled Runs every pass while enabled.
 //@block-description IEC timer: on-delay, off-delay or pulse (plus inverted). Q follows the timer, ENO follows Q.
-//@in 0 in @title Input
-//@in 1 pt @title Preset @description Overrides pt, in time_base units.
-//@out 0 q @title Q
-//@out 1 et @title Elapsed
+//@rule mode is a vm_timer_mode_e value and time_base a vm_timer_unit_e value. @error ERR_VM_BLK_BAD_SHAPE
+//@in 0 in @title Input @value bool
+//@in 1 pt @title Preset @description Overrides pt, in time_base units. @value u32
+//@out 0 q @title Q @value bool
+//@out 1 et @title Elapsed @value u32
 #define VM_BLOCK_TYPE_TIMER \
   {.run = vm_blk_timer, .check = vm_verify_timer, .min_in = 1, .min_q = 0, .required_in = 0x1u, .state_len = sizeof(vm_block_timer_data_t)}

@@ -1,6 +1,7 @@
 #include "vm_loader.h"
 #include "vm_exec.h"
 #include "vm_sub.h"
+#include "vm_wire.h"
 #include "vm_retain.h"
 
 #define OWNER OWNER_VM_LOADER
@@ -112,16 +113,17 @@ static SE_MUST_USE err_h set_data_unlocked(uint16_t id, uint16_t start_idx, cons
   uint16_t items = vm_obj_get_items_cnt(obj);
 
   if ((vm_obj_t_e)obj->head.d.obj_t == VM_OBJ_PTR) {
-    // Child IDs (2 bytes little-endian)
-    if ((len & 1u) != 0) {
+    // Child IDs, VM_OBJ_PTR_WIRE_SIZE bytes each, little-endian
+    if ((len % VM_OBJ_PTR_WIRE_SIZE) != 0) {
       SE_FAIL(ERR_VM_LOAD_DATA_RANGE, .id = id, .start_idx = start_idx, .len = len, .items = items);
     }
-    uint16_t n = len / 2u;
+    uint16_t n = len / VM_OBJ_PTR_WIRE_SIZE;
     if ((uint32_t)start_idx + n > items) {
       SE_FAIL(ERR_VM_LOAD_DATA_RANGE, .id = id, .start_idx = start_idx, .len = n, .items = items);
     }
     for (uint16_t i = 0; i < n; i++) {
-      uint16_t child_id = (uint16_t)(data[i * 2] | ((uint16_t)data[i * 2 + 1] << 8));
+      uint16_t child_id;
+      memcpy(&child_id, data + (size_t)i * VM_OBJ_PTR_WIRE_SIZE, sizeof(child_id));
       vm_obj_h child = vm_obj_get_by_id(child_id);
       if (!child) {
         SE_FAIL(ERR_VM_ACCESSOR_UNKNOWN_ID, .id = child_id);
@@ -156,53 +158,56 @@ static SE_MUST_USE err_h add_accessor_unlocked(uint16_t acc_id, uint16_t root_ob
   vm_accessor_t* acc = NULL;
   SE_TRY(vm_accessor_create(&acc, acc_id, root_obj_id, idx_count));
 
+  /* Index steps are vm_wire_idx_*_t records back to back; `need` bounds each
+     one before it is copied out. */
   size_t off = 0;
+#define NEED(n)                                                                                           \
+  do {                                                                                                    \
+    if (off + (n) > idx_len) {                                                                            \
+      SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = (uint16_t)(n), .got = (uint16_t)(idx_len - off)); \
+    }                                                                                                     \
+  } while (0)
   for (uint8_t i = 0; i < idx_count; i++) {
-    if (off + 1 > idx_len) {
-      SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = 1, .got = (uint16_t)(idx_len - off));
-    }
-    uint8_t kind = idx_data[off++];
-
-    switch (kind) {
+    NEED(1);
+    switch (idx_data[off]) {
       case VM_IDX_LITERAL: {
-        if (off + 4 > idx_len) {
-          SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = 4, .got = (uint16_t)(idx_len - off));
-        }
-        uint32_t v = (uint32_t)idx_data[off] | ((uint32_t)idx_data[off + 1] << 8) |
-                     ((uint32_t)idx_data[off + 2] << 16) | ((uint32_t)idx_data[off + 3] << 24);
-        off += 4;
-        SE_TRY(vm_accessor_set_literal(acc, i, v));
+        vm_wire_idx_literal_t step;
+        NEED(sizeof(step));
+        memcpy(&step, idx_data + off, sizeof(step));
+        off += sizeof(step);
+        SE_TRY(vm_accessor_set_literal(acc, i, step.value));
         break;
       }
       case VM_IDX_REF: {
-        if (off + 2 > idx_len) {
-          SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = 2, .got = (uint16_t)(idx_len - off));
-        }
-        uint16_t ref_id = (uint16_t)(idx_data[off] | ((uint16_t)idx_data[off + 1] << 8));
-        off += 2;
+        vm_wire_idx_ref_t step;
+        NEED(sizeof(step));
+        memcpy(&step, idx_data + off, sizeof(step));
+        off += sizeof(step);
         // Target accessor must already exist to prevent reference cycles
-        vm_accessor_t* ref = vm_accessor_get_by_id(ref_id);
+        vm_accessor_t* ref = vm_accessor_get_by_id(step.acc_id);
         if (!ref) {
-          SE_FAIL(ERR_VM_REG_OOB, .kind = VM_REG_ACC, .id = ref_id, .count = g_vm_store.reg[VM_REG_ACC].count);
+          SE_FAIL(ERR_VM_REG_OOB, .kind = VM_REG_ACC, .id = step.acc_id, .count = g_vm_store.reg[VM_REG_ACC].count);
         }
         SE_TRY(vm_accessor_set_ref(acc, i, ref));
         break;
       }
       case VM_IDX_NAME: {
-        if (off + 1 > idx_len) {
-          SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = 1, .got = (uint16_t)(idx_len - off));
-        }
-        uint8_t nlen = idx_data[off++];
-        if (off + nlen > idx_len) {
-          SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = nlen, .got = (uint16_t)(idx_len - off));
-        }
-        SE_TRY(vm_accessor_set_name(acc, i, (const char*)(idx_data + off), nlen));
-        off += nlen;
+        vm_wire_idx_name_t step;
+        NEED(sizeof(step));
+        memcpy(&step, idx_data + off, sizeof(step));
+        off += sizeof(step);
+        NEED(step.name_len);
+        SE_TRY(vm_accessor_set_name(acc, i, (const char*)(idx_data + off), step.name_len));
+        off += step.name_len;
         break;
       }
       default:
-        SE_FAIL(ERR_VM_ACC_BAD_KIND, .acc_id = acc_id, .pos = i, .kind = kind);
+        SE_FAIL(ERR_VM_ACC_BAD_KIND, .acc_id = acc_id, .pos = i, .kind = idx_data[off]);
     }
+  }
+#undef NEED
+  if (off != idx_len) {
+    SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = (uint16_t)off, .got = idx_len);
   }
 
   // Pre-resolve cache if root object is available

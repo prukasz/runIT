@@ -51,19 +51,19 @@ static inline void vm_blk_switch(vm_block_h b) {
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
-//#vm-block VM_BLK_IF @title If @category flow
+//#vm-block VM_BLK_IF @title If @category flow @activation enabled Runs every pass while enabled.
 //@block-description Two-way router: output 0 when the condition is non-zero, else output 1. Outputs are flow (enable sources below), cleared when the block doesn't decide.
-//@in 0 condition @title Condition
-//@out 0 yes @title Yes
-//@out 1 no @title No
+//@in 0 condition @title Condition @value bool
+//@out 0 yes @title Yes @value gate
+//@out 1 no @title No @value gate
 #define VM_BLOCK_TYPE_IF \
   {.run = vm_blk_if, .check = NULL, .min_in = 1, .min_q = 2, .required_in = 0x1u, .state_len = VM_BRANCH_CUSTOM_LEN}
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
-//#vm-block VM_BLK_SWITCH @title Switch @category flow
+//#vm-block VM_BLK_SWITCH @title Switch @category flow @activation enabled Runs every pass while enabled.
 //@block-description N-way router: drives the output whose index equals the selector (rounded); out of range drives none.
-//@in 0 selector @title Selector
-//@out * branch @title Branch @description One per case, 0..15.
+//@in 0 selector @title Selector @value i32
+//@out * branch @title Branch @description One per case, 0..15. @value gate
 #define VM_BLOCK_TYPE_SWITCH \
   {.run = vm_blk_switch, .check = NULL, .min_in = 1, .min_q = 1, .required_in = 0x1u, .state_len = VM_BRANCH_CUSTOM_LEN}

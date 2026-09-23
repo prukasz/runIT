@@ -1,0 +1,93 @@
+{
+  "$schema": "data-structures/schema/vm-block.schema.json",
+  "schemaVersion": 1,
+  "kind": "vm-block",
+  "id": 11,
+  "name": "VM_BLK_IO_TOGGLE",
+  "title": "Toggle Pin",
+  "category": "io",
+  "description": "Toggles a pin once per rising edge of its enable.",
+  "source_file": "components/VM/blocks/vm_block_io_toggle.h",
+  "activation": {
+    "kind": "enable-rising",
+    "description": "Runs once each time its enable turns on."
+  },
+  "inputs": {
+    "min": 0,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "pin",
+        "title": "Pin",
+        "value": "u32",
+        "description": "Overrides default_io_num; must be in allowed_mask.",
+        "required": false
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 0,
+    "pins": []
+  },
+  "rules": [
+    {
+      "rule": "allowed_mask is not 0, and default_io_num is below 64 and in allowed_mask.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    }
+  ],
+  "state": {
+    "struct": "vm_block_io_toggle_data_t",
+    "source_file": "components/VM/blocks/vm_block_io_toggle.h",
+    "size": 16,
+    "align": 8,
+    "fields": [
+      {
+        "name": "allowed_mask",
+        "c_type": "uint64_t",
+        "offset": 0,
+        "size": 8,
+        "description": "Permitted pins bitmask (0..63)",
+        "source": "user"
+      },
+      {
+        "name": "device_id",
+        "c_type": "uint8_t",
+        "offset": 8,
+        "size": 1,
+        "description": "Target device ID",
+        "source": "user"
+      },
+      {
+        "name": "default_io_num",
+        "c_type": "uint8_t",
+        "offset": 9,
+        "size": 1,
+        "description": "Static pin number when IN0 (IO_NUM) is unwired",
+        "source": "user"
+      },
+      {
+        "name": "flags",
+        "c_type": "uint8_t",
+        "offset": 10,
+        "size": 1,
+        "description": "VM_IO_TOGGLE_F_*",
+        "source": "runtime"
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint8_t",
+        "offset": 11,
+        "size": 5,
+        "array_len": 5,
+        "element_size": 1,
+        "description": "Align to 16 bytes",
+        "source": "padding"
+      }
+    ]
+  },
+  "min_custom_len": 16,
+  "enums": {}
+}

@@ -21,7 +21,7 @@
 // ===========================================================================
 
 // Longest tag a 4-bit name_size can describe (4-bit size in obj head)
-#define VM_OBJ_NAME_MAX 15
+#define VM_OBJ_NAME_MAX 15  //@vm-constant @description Longest object or accessor name, in bytes.
 
 /**
  * @brief Possible types of object items stored
@@ -50,7 +50,11 @@ typedef enum vm_obj_t_e {
 
 /* ESP32 GCC loader ABI: vm_obj_head_t is transmitted as its exact four-byte
  * in-memory representation. TypeScript mirrors this target-specific layout. */
-#define VM_OBJ_HEAD_WIRE_SIZE 4u
+#define VM_OBJ_HEAD_WIRE_SIZE 4u  //@vm-constant @description Bytes of vm_obj_head_t on the wire.
+
+/* A PTR element is a 4-byte pointer in memory and its child's u16 object ID
+ * on the wire (0x43 records, both directions). */
+#define VM_OBJ_PTR_WIRE_SIZE 2u  //@vm-constant @description Bytes of one PTR element on the wire (a child object ID).
 
 /**
  * @brief Object head describing every existing object.
@@ -65,12 +69,12 @@ typedef struct __attribute__((aligned(4))) vm_obj_head_t {
   } d;  //@group descriptor @wire-offset 2
   struct {
     uint8_t mutable       : 1;  //@alias Mutable @role mutable @wire-offset 3 @wire-bit-offset 0
-    uint8_t upd           : 1;  //@alias Updated @role updated @wire-offset 3 @wire-bit-offset 1
+    uint8_t upd           : 1;  //@alias Updated @role updated @wire-offset 3 @wire-bit-offset 1 @device-sets 0 at load
     uint8_t upd_resetable : 1;  //@alias Resettable Update Flag @role update-resettable @wire-offset 3 @wire-bit-offset 2
-    uint8_t tagged        : 1;  //@alias Has Name @role has-name @wire-offset 3 @wire-bit-offset 3
+    uint8_t tagged        : 1;  //@alias Has Name @role has-name @wire-offset 3 @wire-bit-offset 3 @device-sets name_size != 0
     uint8_t retentive     : 1;  //@alias Retentive @role retentive @note Not valid for pointer objects. @wire-offset 3 @wire-bit-offset 4
-    uint8_t dynamic       : 1;  //@alias Dynamic @role dynamic @note Runtime heap allocation. @wire-offset 3 @wire-bit-offset 5
-    uint8_t usr_protected : 1;  //@alias User Protected @role user-protected @wire-offset 3 @wire-bit-offset 6
+    uint8_t dynamic       : 1;  //@alias Dynamic @role dynamic @note Runtime heap allocation. @wire-offset 3 @wire-bit-offset 5 @device-sets 0 at load; 1 on heap objects
+    uint8_t usr_protected : 1;  //@alias User Protected @role user-protected @wire-offset 3 @wire-bit-offset 6 @device-sets 1 on block outputs and ENO objects
     uint8_t _pad          : 1;  //@internal @wire-offset 3 @wire-bit-offset 7
   } f;  //@group flags @wire-offset 3
 } vm_obj_head_t;

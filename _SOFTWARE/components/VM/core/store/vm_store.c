@@ -21,6 +21,7 @@ static void arena_init(vm_alloc_t* a, void* mem, uint32_t capacity) {
 // Bump-carve `size` bytes at 4-byte alignment. Bound is written as
 // `aligned > capacity - size` (not `aligned + size > capacity`) so it can't
 // overflow for a size that came off the wire.
+//#vm-arena-align 4 @description Every allocation starts on a 4-byte boundary: total_size is the sum of each allocation rounded up to 4.
 static void* arena_carve(vm_alloc_t* a, uint32_t size) {
   uint32_t aligned = (a->offset + 3u) & ~3u;
   if (size > a->capacity || aligned > a->capacity - size) {
@@ -74,6 +75,7 @@ err_h vm_store_open(uint32_t total_size, const uint16_t counts[VM_REG_CNT]) {
     uint16_t n = counts[r];
     if (n == 0) continue;  // a program with none of this kind is legal, just inert
 
+    //#vm-arena registry @per open @size count * sizeof(void*) @description One per ID space with a nonzero count (obj_cnt, acc_cnt, blk_cnt).
     uint32_t reg_size = (uint32_t)n * sizeof(void*);
     void** items = (void**)arena_carve(&g_vm_store.arena, reg_size);
     if (!items) {

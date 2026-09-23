@@ -589,302 +589,302 @@
         {
           "name": "VM_EXPR_END",
           "value": 0,
-          "alias": null,
-          "description": null
+          "alias": "end",
+          "description": "Stop; the rest of the code is ignored."
         },
         {
           "name": "VM_EXPR_IN",
           "value": 1,
-          "alias": null,
-          "description": null
+          "alias": "in",
+          "description": "-> input[operand] (as float)"
         },
         {
           "name": "VM_EXPR_K",
           "value": 2,
-          "alias": null,
-          "description": null
+          "alias": "const",
+          "description": "-> constant[operand]"
         },
         {
           "name": "VM_EXPR_DUP",
           "value": 3,
-          "alias": null,
-          "description": null
+          "alias": "dup",
+          "description": "a -> a a"
         },
         {
           "name": "VM_EXPR_DROP",
           "value": 4,
-          "alias": null,
-          "description": null
+          "alias": "drop",
+          "description": "a ->"
         },
         {
           "name": "VM_EXPR_SWAP",
           "value": 5,
-          "alias": null,
-          "description": null
+          "alias": "swap",
+          "description": "a b -> b a"
         },
         {
           "name": "VM_EXPR_ADD",
           "value": 6,
-          "alias": null,
-          "description": null
+          "alias": "+",
+          "description": "a b -> a + b"
         },
         {
           "name": "VM_EXPR_SUB",
           "value": 7,
-          "alias": null,
-          "description": null
+          "alias": "-",
+          "description": "a b -> a - b"
         },
         {
           "name": "VM_EXPR_MUL",
           "value": 8,
-          "alias": null,
-          "description": null
+          "alias": "*",
+          "description": "a b -> a * b"
         },
         {
           "name": "VM_EXPR_DIV",
           "value": 9,
-          "alias": null,
-          "description": null
+          "alias": "/",
+          "description": "a b -> a / b (b = 0 faults)"
         },
         {
           "name": "VM_EXPR_MOD",
           "value": 10,
-          "alias": null,
-          "description": null
+          "alias": "mod",
+          "description": "a b -> fmod(a, b) (b = 0 faults)"
         },
         {
           "name": "VM_EXPR_POW",
           "value": 11,
-          "alias": null,
-          "description": null
+          "alias": "pow",
+          "description": "a b -> a to the power b (a < 0 with fractional b faults)"
         },
         {
           "name": "VM_EXPR_ROOT",
           "value": 12,
-          "alias": null,
-          "description": null
+          "alias": "root",
+          "description": "a b -> b-th root of a (b = 0 faults; a < 0 needs an odd integer b)"
         },
         {
           "name": "VM_EXPR_MIN",
           "value": 13,
-          "alias": null,
-          "description": null
+          "alias": "min",
+          "description": "a b -> the smaller"
         },
         {
           "name": "VM_EXPR_MAX",
           "value": 14,
-          "alias": null,
-          "description": null
+          "alias": "max",
+          "description": "a b -> the larger"
         },
         {
           "name": "VM_EXPR_ATAN2",
           "value": 15,
-          "alias": null,
-          "description": null
+          "alias": "atan2",
+          "description": "y x -> atan2(y, x), radians"
         },
         {
           "name": "VM_EXPR_HYPOT",
           "value": 16,
-          "alias": null,
-          "description": null
+          "alias": "hypot",
+          "description": "a b -> sqrt(a*a + b*b)"
         },
         {
           "name": "VM_EXPR_NEG",
           "value": 17,
-          "alias": null,
-          "description": null
+          "alias": "neg",
+          "description": "a -> -a"
         },
         {
           "name": "VM_EXPR_ABS",
           "value": 18,
-          "alias": null,
-          "description": null
+          "alias": "abs",
+          "description": "a -> |a|"
         },
         {
           "name": "VM_EXPR_SQRT",
           "value": 19,
-          "alias": null,
-          "description": null
+          "alias": "sqrt",
+          "description": "a -> square root (a < 0 faults)"
         },
         {
           "name": "VM_EXPR_SQUARE",
           "value": 20,
-          "alias": null,
-          "description": null
+          "alias": "sq",
+          "description": "a -> a * a"
         },
         {
           "name": "VM_EXPR_RECIP",
           "value": 21,
-          "alias": null,
-          "description": null
+          "alias": "1/x",
+          "description": "a -> 1 / a (a = 0 faults)"
         },
         {
           "name": "VM_EXPR_FLOOR",
           "value": 22,
-          "alias": null,
-          "description": null
+          "alias": "floor",
+          "description": "a -> round down"
         },
         {
           "name": "VM_EXPR_CEIL",
           "value": 23,
-          "alias": null,
-          "description": null
+          "alias": "ceil",
+          "description": "a -> round up"
         },
         {
           "name": "VM_EXPR_ROUND",
           "value": 24,
-          "alias": null,
-          "description": null
+          "alias": "round",
+          "description": "a -> round half away from zero"
         },
         {
           "name": "VM_EXPR_TRUNC",
           "value": 25,
-          "alias": null,
-          "description": null
+          "alias": "trunc",
+          "description": "a -> round toward zero"
         },
         {
           "name": "VM_EXPR_SIGN",
           "value": 26,
-          "alias": null,
-          "description": null
+          "alias": "sign",
+          "description": "a -> -1, 0 or 1"
         },
         {
           "name": "VM_EXPR_SIN",
           "value": 27,
-          "alias": null,
-          "description": null
+          "alias": "sin",
+          "description": "a -> sin(a), radians"
         },
         {
           "name": "VM_EXPR_COS",
           "value": 28,
-          "alias": null,
-          "description": null
+          "alias": "cos",
+          "description": "a -> cos(a), radians"
         },
         {
           "name": "VM_EXPR_TAN",
           "value": 29,
-          "alias": null,
-          "description": null
+          "alias": "tan",
+          "description": "a -> tan(a), radians"
         },
         {
           "name": "VM_EXPR_ASIN",
           "value": 30,
-          "alias": null,
-          "description": null
+          "alias": "asin",
+          "description": "a -> asin(a) (|a| > 1 faults)"
         },
         {
           "name": "VM_EXPR_ACOS",
           "value": 31,
-          "alias": null,
-          "description": null
+          "alias": "acos",
+          "description": "a -> acos(a) (|a| > 1 faults)"
         },
         {
           "name": "VM_EXPR_ATAN",
           "value": 32,
-          "alias": null,
-          "description": null
+          "alias": "atan",
+          "description": "a -> atan(a)"
         },
         {
           "name": "VM_EXPR_EXP",
           "value": 33,
-          "alias": null,
-          "description": null
+          "alias": "exp",
+          "description": "a -> e to the power a"
         },
         {
           "name": "VM_EXPR_LOG",
           "value": 34,
-          "alias": null,
-          "description": null
+          "alias": "ln",
+          "description": "a -> natural log (a <= 0 faults)"
         },
         {
           "name": "VM_EXPR_LOG10",
           "value": 35,
-          "alias": null,
-          "description": null
+          "alias": "log10",
+          "description": "a -> base-10 log (a <= 0 faults)"
         },
         {
           "name": "VM_EXPR_LOG2",
           "value": 36,
-          "alias": null,
-          "description": null
+          "alias": "log2",
+          "description": "a -> base-2 log (a <= 0 faults)"
         },
         {
           "name": "VM_EXPR_DEG",
           "value": 37,
-          "alias": null,
-          "description": null
+          "alias": "deg",
+          "description": "a -> radians to degrees"
         },
         {
           "name": "VM_EXPR_RAD",
           "value": 38,
-          "alias": null,
-          "description": null
+          "alias": "rad",
+          "description": "a -> degrees to radians"
         },
         {
           "name": "VM_EXPR_LT",
           "value": 39,
-          "alias": null,
-          "description": null
+          "alias": "<",
+          "description": "a b -> a < b"
         },
         {
           "name": "VM_EXPR_LE",
           "value": 40,
-          "alias": null,
-          "description": null
+          "alias": "<=",
+          "description": "a b -> a <= b"
         },
         {
           "name": "VM_EXPR_GT",
           "value": 41,
-          "alias": null,
-          "description": null
+          "alias": ">",
+          "description": "a b -> a > b"
         },
         {
           "name": "VM_EXPR_GE",
           "value": 42,
-          "alias": null,
-          "description": null
+          "alias": ">=",
+          "description": "a b -> a >= b"
         },
         {
           "name": "VM_EXPR_EQ",
           "value": 43,
-          "alias": null,
-          "description": null
+          "alias": "==",
+          "description": "a b -> a == b (exact)"
         },
         {
           "name": "VM_EXPR_NE",
           "value": 44,
-          "alias": null,
-          "description": null
+          "alias": "!=",
+          "description": "a b -> a != b (exact)"
         },
         {
           "name": "VM_EXPR_AND",
           "value": 45,
-          "alias": null,
-          "description": null
+          "alias": "and",
+          "description": "a b -> a and b"
         },
         {
           "name": "VM_EXPR_OR",
           "value": 46,
-          "alias": null,
-          "description": null
+          "alias": "or",
+          "description": "a b -> a or b"
         },
         {
           "name": "VM_EXPR_XOR",
           "value": 47,
-          "alias": null,
-          "description": null
+          "alias": "xor",
+          "description": "a b -> exactly one of a, b"
         },
         {
           "name": "VM_EXPR_NOT",
           "value": 48,
-          "alias": null,
-          "description": null
+          "alias": "not",
+          "description": "a -> not a"
         },
         {
           "name": "VM_EXPR_SEL",
           "value": 49,
-          "alias": null,
-          "description": null
+          "alias": "select",
+          "description": "c t f -> t if c is non-zero, else f"
         },
         {
           "name": "VM_EXPR_OP_CNT",
@@ -901,140 +901,140 @@
         {
           "name": "VM_BIT_END",
           "value": 0,
-          "alias": null,
-          "description": null
+          "alias": "end",
+          "description": "Stop; the rest of the code is ignored."
         },
         {
           "name": "VM_BIT_IN",
           "value": 1,
-          "alias": null,
-          "description": null
+          "alias": "in",
+          "description": "-> input[operand] (as u32)"
         },
         {
           "name": "VM_BIT_K",
           "value": 2,
-          "alias": null,
-          "description": null
+          "alias": "const",
+          "description": "-> constant[operand]"
         },
         {
           "name": "VM_BIT_DUP",
           "value": 3,
-          "alias": null,
-          "description": null
+          "alias": "dup",
+          "description": "a -> a a"
         },
         {
           "name": "VM_BIT_DROP",
           "value": 4,
-          "alias": null,
-          "description": null
+          "alias": "drop",
+          "description": "a ->"
         },
         {
           "name": "VM_BIT_SWAP",
           "value": 5,
-          "alias": null,
-          "description": null
+          "alias": "swap",
+          "description": "a b -> b a"
         },
         {
           "name": "VM_BIT_AND",
           "value": 6,
-          "alias": null,
-          "description": null
+          "alias": "&",
+          "description": "a b -> a AND b"
         },
         {
           "name": "VM_BIT_OR",
           "value": 7,
-          "alias": null,
-          "description": null
+          "alias": "|",
+          "description": "a b -> a OR b"
         },
         {
           "name": "VM_BIT_XOR",
           "value": 8,
-          "alias": null,
-          "description": null
+          "alias": "^",
+          "description": "a b -> a XOR b"
         },
         {
           "name": "VM_BIT_SHL",
           "value": 9,
-          "alias": null,
-          "description": null
+          "alias": "<<",
+          "description": "a n -> a shifted left by n (n >= 32 gives 0)"
         },
         {
           "name": "VM_BIT_SHR",
           "value": 10,
-          "alias": null,
-          "description": null
+          "alias": ">>",
+          "description": "a n -> a shifted right by n, zero fill (n >= 32 gives 0)"
         },
         {
           "name": "VM_BIT_SAR",
           "value": 11,
-          "alias": null,
-          "description": null
+          "alias": ">>>",
+          "description": "a n -> a shifted right by n, sign fill"
         },
         {
           "name": "VM_BIT_ROL",
           "value": 12,
-          "alias": null,
-          "description": null
+          "alias": "rol",
+          "description": "a n -> a rotated left by n mod 32"
         },
         {
           "name": "VM_BIT_ROR",
           "value": 13,
-          "alias": null,
-          "description": null
+          "alias": "ror",
+          "description": "a n -> a rotated right by n mod 32"
         },
         {
           "name": "VM_BIT_GET",
           "value": 14,
-          "alias": null,
-          "description": null
+          "alias": "bit",
+          "description": "a n -> bit n mod 32 of a (1 or 0)"
         },
         {
           "name": "VM_BIT_SET",
           "value": 15,
-          "alias": null,
-          "description": null
+          "alias": "set",
+          "description": "a n -> a with bit n mod 32 set"
         },
         {
           "name": "VM_BIT_CLR",
           "value": 16,
-          "alias": null,
-          "description": null
+          "alias": "clear",
+          "description": "a n -> a with bit n mod 32 cleared"
         },
         {
           "name": "VM_BIT_TGL",
           "value": 17,
-          "alias": null,
-          "description": null
+          "alias": "toggle",
+          "description": "a n -> a with bit n mod 32 flipped"
         },
         {
           "name": "VM_BIT_NOT",
           "value": 18,
-          "alias": null,
-          "description": null
+          "alias": "~",
+          "description": "a -> every bit flipped"
         },
         {
           "name": "VM_BIT_POPCNT",
           "value": 19,
-          "alias": null,
-          "description": null
+          "alias": "popcount",
+          "description": "a -> number of set bits"
         },
         {
           "name": "VM_BIT_CLZ",
           "value": 20,
-          "alias": null,
-          "description": null
+          "alias": "clz",
+          "description": "a -> leading zero bits (32 for 0)"
         },
         {
           "name": "VM_BIT_CTZ",
           "value": 21,
-          "alias": null,
-          "description": null
+          "alias": "ctz",
+          "description": "a -> trailing zero bits (32 for 0)"
         },
         {
           "name": "VM_BIT_BSWAP",
           "value": 22,
-          "alias": null,
-          "description": null
+          "alias": "bswap",
+          "description": "a -> byte order reversed"
         },
         {
           "name": "VM_BIT_OP_CNT",
@@ -1245,6 +1245,42 @@
           "value": 4,
           "alias": null,
           "description": null
+        }
+      ]
+    },
+    "vm_blk_en_mode_e": {
+      "alias": "Enable Mode",
+      "source_file": "components/VM/core/block/vm_block.h",
+      "members": [
+        {
+          "name": "VM_BLK_EN_ANY",
+          "value": 0,
+          "alias": "Any",
+          "description": "Runs when any enable is true (OR, a branch merge)."
+        },
+        {
+          "name": "VM_BLK_EN_ALL",
+          "value": 1,
+          "alias": "All",
+          "description": "Runs when every enable is true (AND)."
+        }
+      ]
+    },
+    "vm_blk_on_error_e": {
+      "alias": "On Error",
+      "source_file": "components/VM/core/block/vm_block.h",
+      "members": [
+        {
+          "name": "VM_BLK_ERR_STOP",
+          "value": 0,
+          "alias": "Stop",
+          "description": "Publish a false ENO; downstream blocks skip."
+        },
+        {
+          "name": "VM_BLK_ERR_CONTINUE",
+          "value": 1,
+          "alias": "Continue",
+          "description": "Report the failure and carry on."
         }
       ]
     },
@@ -1877,302 +1913,302 @@
     "VM_EXPR_END": {
       "enum": "vm_expr_op_e",
       "value": 0,
-      "alias": null,
-      "description": null
+      "alias": "end",
+      "description": "Stop; the rest of the code is ignored."
     },
     "VM_EXPR_IN": {
       "enum": "vm_expr_op_e",
       "value": 1,
-      "alias": null,
-      "description": null
+      "alias": "in",
+      "description": "-> input[operand] (as float)"
     },
     "VM_EXPR_K": {
       "enum": "vm_expr_op_e",
       "value": 2,
-      "alias": null,
-      "description": null
+      "alias": "const",
+      "description": "-> constant[operand]"
     },
     "VM_EXPR_DUP": {
       "enum": "vm_expr_op_e",
       "value": 3,
-      "alias": null,
-      "description": null
+      "alias": "dup",
+      "description": "a -> a a"
     },
     "VM_EXPR_DROP": {
       "enum": "vm_expr_op_e",
       "value": 4,
-      "alias": null,
-      "description": null
+      "alias": "drop",
+      "description": "a ->"
     },
     "VM_EXPR_SWAP": {
       "enum": "vm_expr_op_e",
       "value": 5,
-      "alias": null,
-      "description": null
+      "alias": "swap",
+      "description": "a b -> b a"
     },
     "VM_EXPR_ADD": {
       "enum": "vm_expr_op_e",
       "value": 6,
-      "alias": null,
-      "description": null
+      "alias": "+",
+      "description": "a b -> a + b"
     },
     "VM_EXPR_SUB": {
       "enum": "vm_expr_op_e",
       "value": 7,
-      "alias": null,
-      "description": null
+      "alias": "-",
+      "description": "a b -> a - b"
     },
     "VM_EXPR_MUL": {
       "enum": "vm_expr_op_e",
       "value": 8,
-      "alias": null,
-      "description": null
+      "alias": "*",
+      "description": "a b -> a * b"
     },
     "VM_EXPR_DIV": {
       "enum": "vm_expr_op_e",
       "value": 9,
-      "alias": null,
-      "description": null
+      "alias": "/",
+      "description": "a b -> a / b (b = 0 faults)"
     },
     "VM_EXPR_MOD": {
       "enum": "vm_expr_op_e",
       "value": 10,
-      "alias": null,
-      "description": null
+      "alias": "mod",
+      "description": "a b -> fmod(a, b) (b = 0 faults)"
     },
     "VM_EXPR_POW": {
       "enum": "vm_expr_op_e",
       "value": 11,
-      "alias": null,
-      "description": null
+      "alias": "pow",
+      "description": "a b -> a to the power b (a < 0 with fractional b faults)"
     },
     "VM_EXPR_ROOT": {
       "enum": "vm_expr_op_e",
       "value": 12,
-      "alias": null,
-      "description": null
+      "alias": "root",
+      "description": "a b -> b-th root of a (b = 0 faults; a < 0 needs an odd integer b)"
     },
     "VM_EXPR_MIN": {
       "enum": "vm_expr_op_e",
       "value": 13,
-      "alias": null,
-      "description": null
+      "alias": "min",
+      "description": "a b -> the smaller"
     },
     "VM_EXPR_MAX": {
       "enum": "vm_expr_op_e",
       "value": 14,
-      "alias": null,
-      "description": null
+      "alias": "max",
+      "description": "a b -> the larger"
     },
     "VM_EXPR_ATAN2": {
       "enum": "vm_expr_op_e",
       "value": 15,
-      "alias": null,
-      "description": null
+      "alias": "atan2",
+      "description": "y x -> atan2(y, x), radians"
     },
     "VM_EXPR_HYPOT": {
       "enum": "vm_expr_op_e",
       "value": 16,
-      "alias": null,
-      "description": null
+      "alias": "hypot",
+      "description": "a b -> sqrt(a*a + b*b)"
     },
     "VM_EXPR_NEG": {
       "enum": "vm_expr_op_e",
       "value": 17,
-      "alias": null,
-      "description": null
+      "alias": "neg",
+      "description": "a -> -a"
     },
     "VM_EXPR_ABS": {
       "enum": "vm_expr_op_e",
       "value": 18,
-      "alias": null,
-      "description": null
+      "alias": "abs",
+      "description": "a -> |a|"
     },
     "VM_EXPR_SQRT": {
       "enum": "vm_expr_op_e",
       "value": 19,
-      "alias": null,
-      "description": null
+      "alias": "sqrt",
+      "description": "a -> square root (a < 0 faults)"
     },
     "VM_EXPR_SQUARE": {
       "enum": "vm_expr_op_e",
       "value": 20,
-      "alias": null,
-      "description": null
+      "alias": "sq",
+      "description": "a -> a * a"
     },
     "VM_EXPR_RECIP": {
       "enum": "vm_expr_op_e",
       "value": 21,
-      "alias": null,
-      "description": null
+      "alias": "1/x",
+      "description": "a -> 1 / a (a = 0 faults)"
     },
     "VM_EXPR_FLOOR": {
       "enum": "vm_expr_op_e",
       "value": 22,
-      "alias": null,
-      "description": null
+      "alias": "floor",
+      "description": "a -> round down"
     },
     "VM_EXPR_CEIL": {
       "enum": "vm_expr_op_e",
       "value": 23,
-      "alias": null,
-      "description": null
+      "alias": "ceil",
+      "description": "a -> round up"
     },
     "VM_EXPR_ROUND": {
       "enum": "vm_expr_op_e",
       "value": 24,
-      "alias": null,
-      "description": null
+      "alias": "round",
+      "description": "a -> round half away from zero"
     },
     "VM_EXPR_TRUNC": {
       "enum": "vm_expr_op_e",
       "value": 25,
-      "alias": null,
-      "description": null
+      "alias": "trunc",
+      "description": "a -> round toward zero"
     },
     "VM_EXPR_SIGN": {
       "enum": "vm_expr_op_e",
       "value": 26,
-      "alias": null,
-      "description": null
+      "alias": "sign",
+      "description": "a -> -1, 0 or 1"
     },
     "VM_EXPR_SIN": {
       "enum": "vm_expr_op_e",
       "value": 27,
-      "alias": null,
-      "description": null
+      "alias": "sin",
+      "description": "a -> sin(a), radians"
     },
     "VM_EXPR_COS": {
       "enum": "vm_expr_op_e",
       "value": 28,
-      "alias": null,
-      "description": null
+      "alias": "cos",
+      "description": "a -> cos(a), radians"
     },
     "VM_EXPR_TAN": {
       "enum": "vm_expr_op_e",
       "value": 29,
-      "alias": null,
-      "description": null
+      "alias": "tan",
+      "description": "a -> tan(a), radians"
     },
     "VM_EXPR_ASIN": {
       "enum": "vm_expr_op_e",
       "value": 30,
-      "alias": null,
-      "description": null
+      "alias": "asin",
+      "description": "a -> asin(a) (|a| > 1 faults)"
     },
     "VM_EXPR_ACOS": {
       "enum": "vm_expr_op_e",
       "value": 31,
-      "alias": null,
-      "description": null
+      "alias": "acos",
+      "description": "a -> acos(a) (|a| > 1 faults)"
     },
     "VM_EXPR_ATAN": {
       "enum": "vm_expr_op_e",
       "value": 32,
-      "alias": null,
-      "description": null
+      "alias": "atan",
+      "description": "a -> atan(a)"
     },
     "VM_EXPR_EXP": {
       "enum": "vm_expr_op_e",
       "value": 33,
-      "alias": null,
-      "description": null
+      "alias": "exp",
+      "description": "a -> e to the power a"
     },
     "VM_EXPR_LOG": {
       "enum": "vm_expr_op_e",
       "value": 34,
-      "alias": null,
-      "description": null
+      "alias": "ln",
+      "description": "a -> natural log (a <= 0 faults)"
     },
     "VM_EXPR_LOG10": {
       "enum": "vm_expr_op_e",
       "value": 35,
-      "alias": null,
-      "description": null
+      "alias": "log10",
+      "description": "a -> base-10 log (a <= 0 faults)"
     },
     "VM_EXPR_LOG2": {
       "enum": "vm_expr_op_e",
       "value": 36,
-      "alias": null,
-      "description": null
+      "alias": "log2",
+      "description": "a -> base-2 log (a <= 0 faults)"
     },
     "VM_EXPR_DEG": {
       "enum": "vm_expr_op_e",
       "value": 37,
-      "alias": null,
-      "description": null
+      "alias": "deg",
+      "description": "a -> radians to degrees"
     },
     "VM_EXPR_RAD": {
       "enum": "vm_expr_op_e",
       "value": 38,
-      "alias": null,
-      "description": null
+      "alias": "rad",
+      "description": "a -> degrees to radians"
     },
     "VM_EXPR_LT": {
       "enum": "vm_expr_op_e",
       "value": 39,
-      "alias": null,
-      "description": null
+      "alias": "<",
+      "description": "a b -> a < b"
     },
     "VM_EXPR_LE": {
       "enum": "vm_expr_op_e",
       "value": 40,
-      "alias": null,
-      "description": null
+      "alias": "<=",
+      "description": "a b -> a <= b"
     },
     "VM_EXPR_GT": {
       "enum": "vm_expr_op_e",
       "value": 41,
-      "alias": null,
-      "description": null
+      "alias": ">",
+      "description": "a b -> a > b"
     },
     "VM_EXPR_GE": {
       "enum": "vm_expr_op_e",
       "value": 42,
-      "alias": null,
-      "description": null
+      "alias": ">=",
+      "description": "a b -> a >= b"
     },
     "VM_EXPR_EQ": {
       "enum": "vm_expr_op_e",
       "value": 43,
-      "alias": null,
-      "description": null
+      "alias": "==",
+      "description": "a b -> a == b (exact)"
     },
     "VM_EXPR_NE": {
       "enum": "vm_expr_op_e",
       "value": 44,
-      "alias": null,
-      "description": null
+      "alias": "!=",
+      "description": "a b -> a != b (exact)"
     },
     "VM_EXPR_AND": {
       "enum": "vm_expr_op_e",
       "value": 45,
-      "alias": null,
-      "description": null
+      "alias": "and",
+      "description": "a b -> a and b"
     },
     "VM_EXPR_OR": {
       "enum": "vm_expr_op_e",
       "value": 46,
-      "alias": null,
-      "description": null
+      "alias": "or",
+      "description": "a b -> a or b"
     },
     "VM_EXPR_XOR": {
       "enum": "vm_expr_op_e",
       "value": 47,
-      "alias": null,
-      "description": null
+      "alias": "xor",
+      "description": "a b -> exactly one of a, b"
     },
     "VM_EXPR_NOT": {
       "enum": "vm_expr_op_e",
       "value": 48,
-      "alias": null,
-      "description": null
+      "alias": "not",
+      "description": "a -> not a"
     },
     "VM_EXPR_SEL": {
       "enum": "vm_expr_op_e",
       "value": 49,
-      "alias": null,
-      "description": null
+      "alias": "select",
+      "description": "c t f -> t if c is non-zero, else f"
     },
     "VM_EXPR_OP_CNT": {
       "enum": "vm_expr_op_e",
@@ -2183,140 +2219,140 @@
     "VM_BIT_END": {
       "enum": "vm_bit_op_e",
       "value": 0,
-      "alias": null,
-      "description": null
+      "alias": "end",
+      "description": "Stop; the rest of the code is ignored."
     },
     "VM_BIT_IN": {
       "enum": "vm_bit_op_e",
       "value": 1,
-      "alias": null,
-      "description": null
+      "alias": "in",
+      "description": "-> input[operand] (as u32)"
     },
     "VM_BIT_K": {
       "enum": "vm_bit_op_e",
       "value": 2,
-      "alias": null,
-      "description": null
+      "alias": "const",
+      "description": "-> constant[operand]"
     },
     "VM_BIT_DUP": {
       "enum": "vm_bit_op_e",
       "value": 3,
-      "alias": null,
-      "description": null
+      "alias": "dup",
+      "description": "a -> a a"
     },
     "VM_BIT_DROP": {
       "enum": "vm_bit_op_e",
       "value": 4,
-      "alias": null,
-      "description": null
+      "alias": "drop",
+      "description": "a ->"
     },
     "VM_BIT_SWAP": {
       "enum": "vm_bit_op_e",
       "value": 5,
-      "alias": null,
-      "description": null
+      "alias": "swap",
+      "description": "a b -> b a"
     },
     "VM_BIT_AND": {
       "enum": "vm_bit_op_e",
       "value": 6,
-      "alias": null,
-      "description": null
+      "alias": "&",
+      "description": "a b -> a AND b"
     },
     "VM_BIT_OR": {
       "enum": "vm_bit_op_e",
       "value": 7,
-      "alias": null,
-      "description": null
+      "alias": "|",
+      "description": "a b -> a OR b"
     },
     "VM_BIT_XOR": {
       "enum": "vm_bit_op_e",
       "value": 8,
-      "alias": null,
-      "description": null
+      "alias": "^",
+      "description": "a b -> a XOR b"
     },
     "VM_BIT_SHL": {
       "enum": "vm_bit_op_e",
       "value": 9,
-      "alias": null,
-      "description": null
+      "alias": "<<",
+      "description": "a n -> a shifted left by n (n >= 32 gives 0)"
     },
     "VM_BIT_SHR": {
       "enum": "vm_bit_op_e",
       "value": 10,
-      "alias": null,
-      "description": null
+      "alias": ">>",
+      "description": "a n -> a shifted right by n, zero fill (n >= 32 gives 0)"
     },
     "VM_BIT_SAR": {
       "enum": "vm_bit_op_e",
       "value": 11,
-      "alias": null,
-      "description": null
+      "alias": ">>>",
+      "description": "a n -> a shifted right by n, sign fill"
     },
     "VM_BIT_ROL": {
       "enum": "vm_bit_op_e",
       "value": 12,
-      "alias": null,
-      "description": null
+      "alias": "rol",
+      "description": "a n -> a rotated left by n mod 32"
     },
     "VM_BIT_ROR": {
       "enum": "vm_bit_op_e",
       "value": 13,
-      "alias": null,
-      "description": null
+      "alias": "ror",
+      "description": "a n -> a rotated right by n mod 32"
     },
     "VM_BIT_GET": {
       "enum": "vm_bit_op_e",
       "value": 14,
-      "alias": null,
-      "description": null
+      "alias": "bit",
+      "description": "a n -> bit n mod 32 of a (1 or 0)"
     },
     "VM_BIT_SET": {
       "enum": "vm_bit_op_e",
       "value": 15,
-      "alias": null,
-      "description": null
+      "alias": "set",
+      "description": "a n -> a with bit n mod 32 set"
     },
     "VM_BIT_CLR": {
       "enum": "vm_bit_op_e",
       "value": 16,
-      "alias": null,
-      "description": null
+      "alias": "clear",
+      "description": "a n -> a with bit n mod 32 cleared"
     },
     "VM_BIT_TGL": {
       "enum": "vm_bit_op_e",
       "value": 17,
-      "alias": null,
-      "description": null
+      "alias": "toggle",
+      "description": "a n -> a with bit n mod 32 flipped"
     },
     "VM_BIT_NOT": {
       "enum": "vm_bit_op_e",
       "value": 18,
-      "alias": null,
-      "description": null
+      "alias": "~",
+      "description": "a -> every bit flipped"
     },
     "VM_BIT_POPCNT": {
       "enum": "vm_bit_op_e",
       "value": 19,
-      "alias": null,
-      "description": null
+      "alias": "popcount",
+      "description": "a -> number of set bits"
     },
     "VM_BIT_CLZ": {
       "enum": "vm_bit_op_e",
       "value": 20,
-      "alias": null,
-      "description": null
+      "alias": "clz",
+      "description": "a -> leading zero bits (32 for 0)"
     },
     "VM_BIT_CTZ": {
       "enum": "vm_bit_op_e",
       "value": 21,
-      "alias": null,
-      "description": null
+      "alias": "ctz",
+      "description": "a -> trailing zero bits (32 for 0)"
     },
     "VM_BIT_BSWAP": {
       "enum": "vm_bit_op_e",
       "value": 22,
-      "alias": null,
-      "description": null
+      "alias": "bswap",
+      "description": "a -> byte order reversed"
     },
     "VM_BIT_OP_CNT": {
       "enum": "vm_bit_op_e",
@@ -2491,6 +2527,30 @@
       "value": 4,
       "alias": null,
       "description": null
+    },
+    "VM_BLK_EN_ANY": {
+      "enum": "vm_blk_en_mode_e",
+      "value": 0,
+      "alias": "Any",
+      "description": "Runs when any enable is true (OR, a branch merge)."
+    },
+    "VM_BLK_EN_ALL": {
+      "enum": "vm_blk_en_mode_e",
+      "value": 1,
+      "alias": "All",
+      "description": "Runs when every enable is true (AND)."
+    },
+    "VM_BLK_ERR_STOP": {
+      "enum": "vm_blk_on_error_e",
+      "value": 0,
+      "alias": "Stop",
+      "description": "Publish a false ENO; downstream blocks skip."
+    },
+    "VM_BLK_ERR_CONTINUE": {
+      "enum": "vm_blk_on_error_e",
+      "value": 1,
+      "alias": "Continue",
+      "description": "Report the failure and carry on."
     },
     "VM_EXEC_SCAN_MODE": {
       "enum": "vm_exec_command_e",

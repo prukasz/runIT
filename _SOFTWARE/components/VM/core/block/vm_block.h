@@ -3,7 +3,7 @@
 #include "vm_obj_access.h"
 
 /** @brief Sentinel for unwired pin or absent ENO. */
-#define VM_BLOCK_NO_ID 0xFFFFu
+#define VM_BLOCK_NO_ID 0xFFFFu  //@vm-constant @description Unwired input pin, or no ENO object.
 /*
  * VM Block Execution Model & API
  *
@@ -28,18 +28,23 @@
 // ===========================================================================
 
 /** @brief Enable evaluation mode across en_cnt sources. */
-#define VM_BLK_EN_ANY 0x00u  // OR / branch merge
-#define VM_BLK_EN_ALL 0x01u  // AND / all conditions met
+//#ref-enum @alias Enable Mode
+typedef enum vm_blk_en_mode_e {
+  VM_BLK_EN_ANY = 0,  //@alias Any @description Runs when any enable is true (OR, a branch merge).
+  VM_BLK_EN_ALL = 1,  //@alias All @description Runs when every enable is true (AND).
+} vm_blk_en_mode_e;
 
 /** @brief Error policy on body failure. */
-#define VM_BLK_ERR_STOP     0x00u  // Publish false ENO; downstream skips
-#define VM_BLK_ERR_CONTINUE 0x01u  // Report failure and continue execution
+//#ref-enum @alias On Error
+typedef enum vm_blk_on_error_e {
+  VM_BLK_ERR_STOP     = 0,  //@alias Stop @description Publish a false ENO; downstream blocks skip.
+  VM_BLK_ERR_CONTINUE = 1,  //@alias Continue @description Report the failure and carry on.
+} vm_blk_on_error_e;
 
 /** @brief Runtime status flags (latched per pass or sticky across load). */
 #define VM_BLK_RT_TRIGGERED (1u << 0u)  // Fresh data arrived on an input (latched by vm_block_triggered)
 #define VM_BLK_RT_SPAN      (1u << 1u)  // Block claimed an execution range (vm_block_claim_span)
 #define VM_BLK_RT_FAULT     (1u << 2u)  // This call failed (vm_block_report_error / vm_block_mark_failed); read by on_error
-#define VM_BLK_RT_CFG_BAD   (1u << 6u)  // Sticky: malformed custom_data reported once per load
 #define VM_BLK_RT_SPAN_BAD  (1u << 7u)  // Sticky: malformed span reported once per load
 
 #define VM_BLK_RT_PER_CALL (VM_BLK_RT_TRIGGERED | VM_BLK_RT_SPAN | VM_BLK_RT_FAULT)

@@ -1,0 +1,220 @@
+{
+  "$schema": "data-structures/schema/vm-block.schema.json",
+  "schemaVersion": 1,
+  "kind": "vm-block",
+  "id": 9,
+  "name": "VM_BLK_TIMER",
+  "title": "Timer",
+  "category": "time",
+  "description": "IEC timer: on-delay, off-delay or pulse (plus inverted). Q follows the timer, ENO follows Q.",
+  "source_file": "components/VM/blocks/vm_block_timer.h",
+  "activation": {
+    "kind": "enabled",
+    "description": "Runs every pass while enabled."
+  },
+  "inputs": {
+    "min": 1,
+    "max": 2,
+    "pins": [
+      {
+        "index": 0,
+        "name": "in",
+        "title": "Input",
+        "value": "bool",
+        "required": true
+      },
+      {
+        "index": 1,
+        "name": "pt",
+        "title": "Preset",
+        "value": "u32",
+        "description": "Overrides pt, in time_base units.",
+        "required": false
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 2,
+    "pins": [
+      {
+        "index": 0,
+        "name": "q",
+        "title": "Q",
+        "value": "bool"
+      },
+      {
+        "index": 1,
+        "name": "et",
+        "title": "Elapsed",
+        "value": "u32"
+      }
+    ]
+  },
+  "rules": [
+    {
+      "rule": "mode is a vm_timer_mode_e value and time_base a vm_timer_unit_e value.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    }
+  ],
+  "state": {
+    "struct": "vm_block_timer_data_t",
+    "source_file": "components/VM/blocks/vm_block_timer.h",
+    "size": 32,
+    "align": 8,
+    "fields": [
+      {
+        "name": "mode",
+        "c_type": "uint8_t",
+        "offset": 0,
+        "size": 1,
+        "description": "vm_timer_mode_e",
+        "enum_ref": "vm_timer_mode_e",
+        "source": "user"
+      },
+      {
+        "name": "flags",
+        "c_type": "uint8_t",
+        "offset": 1,
+        "size": 1,
+        "description": "VM_TIMER_F_*: only VM_TIMER_F_INVERTED (0x08) is set by the app",
+        "source": "user"
+      },
+      {
+        "name": "time_base",
+        "c_type": "uint8_t",
+        "offset": 2,
+        "size": 1,
+        "description": "Unit of pt and ET",
+        "enum_ref": "vm_timer_unit_e",
+        "source": "user"
+      },
+      {
+        "name": "_pad1",
+        "c_type": "uint8_t",
+        "offset": 3,
+        "size": 1,
+        "source": "padding"
+      },
+      {
+        "name": "_pad2",
+        "c_type": "uint32_t",
+        "offset": 4,
+        "size": 4,
+        "source": "padding"
+      },
+      {
+        "name": "pt",
+        "c_type": "uint32_t",
+        "offset": 8,
+        "size": 4,
+        "description": "Preset time in configured unit (hardcoded fallback)",
+        "source": "user"
+      },
+      {
+        "name": "start_ms",
+        "c_type": "uint64_t",
+        "offset": 16,
+        "size": 8,
+        "description": "Timestamp when timing started",
+        "source": "runtime"
+      },
+      {
+        "name": "elapsed",
+        "c_type": "uint32_t",
+        "offset": 24,
+        "size": 4,
+        "description": "Current elapsed time",
+        "source": "runtime"
+      }
+    ]
+  },
+  "min_custom_len": 32,
+  "enums": {
+    "vm_timer_mode_e": {
+      "alias": "Timer Mode",
+      "source_file": "components/VM/blocks/vm_block_timer.h",
+      "members": [
+        {
+          "name": "VM_TIMER_TON",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TOF",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TP",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TON_INV",
+          "value": 3,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TOF_INV",
+          "value": 4,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TP_INV",
+          "value": 5,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_MODE_CNT",
+          "value": 6,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_timer_unit_e": {
+      "alias": "Time Unit",
+      "source_file": "components/VM/blocks/vm_block_timer.h",
+      "members": [
+        {
+          "name": "VM_TIMER_UNIT_MS",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_SEC",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_MIN",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_HR",
+          "value": 3,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_CNT",
+          "value": 4,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  }
+}

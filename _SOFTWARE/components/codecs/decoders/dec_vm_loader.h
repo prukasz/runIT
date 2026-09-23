@@ -9,12 +9,12 @@
  *    class  packet
  * @endcode
  *
- * Architecture & framing rules:
- * - **Unfixed Payload Walking**: Records vary in length; parsed using explicit cursor
- *   bounds checks (`dec_vm_need`) rather than fixed struct casts.
- * - **Strict Bounds Checking**: Truncated frames emit `ERR_VM_LOAD_SHORT_RECORD`.
- * - **Little-Endian**: Multi-byte integers decoded explicitly via `dec_vm_u16`/`dec_vm_u32`.
- * - **Topological Execution**: Block frames (`0x45`) are uploaded in execution order.
+ * Record layouts are the packed structs of vm_wire.h (published to
+ * data-structures/vm/vm-program.generated.json): a record's fixed part is
+ * copied into its struct after a bounds check (`dec_vm_need`), its variable
+ * tails are walked with the same check. Truncated frames emit
+ * `ERR_VM_LOAD_SHORT_RECORD`. Little-endian. Blocks (`0x45`) are uploaded in
+ * execution order.
  */
 
 #include <stdint.h>
@@ -27,6 +27,7 @@
 #include "vm_override.h"
 #include "vm_retain.h"
 #include "vm_sub.h"
+#include "vm_wire.h"
 
 #undef OWNER
 #define OWNER OWNER_DEC_VM_LOADER
@@ -43,26 +44,18 @@
 #define HEADER_packet_vm_subscribe 0x47
 #define HEADER_packet_vm_exec      0x48
 
-/** Single execution-control payload layout: 04 48 <command>. */
-typedef struct {
-  uint8_t command; //@required @alias Command @enum-ref vm_exec_command_e
-} packet_vm_exec_t;
+/* The VM core (vm_sub.c) can't include this decoder, so it has its own Kconfig
+   copies of the bytes it shares with it. They must stay equal: telemetry frames
+   reuse the upload layouts, and the app parses both directions with one
+   decoder. */
+_Static_assert(CONFIG_TX_PACKET_CLASS_VM_LOADER == CONFIG_RX_PACKET_CLASS_VM_LOADER, "telemetry frames carry the loader class byte");
+_Static_assert(CONFIG_RX_PACKET_HEADER_VM_SUBSCRIBE == HEADER_packet_vm_subscribe, "vm_sub's subscribe header is the decoder's");
+_Static_assert(CONFIG_TX_PACKET_HEADER_VM_SET_DATA == HEADER_packet_vm_set_data, "telemetry values reuse the 0x43 layout and header");
+_Static_assert(CONFIG_TX_PACKET_HEADER_VM_DESCRIBE == HEADER_packet_vm_add_objs, "telemetry describes reuse the 0x42 layout and header");
 
 /* ========================================================================= */
 /* Cursor & Little-Endian Stream Helpers                                     */
 /* ========================================================================= */
-
-static inline uint16_t dec_vm_u16(const uint8_t* p) {
-  uint16_t value;
-  memcpy(&value, p, sizeof(value));
-  return value;
-}
-
-static inline uint32_t dec_vm_u32(const uint8_t* p) {
-  uint32_t value;
-  memcpy(&value, p, sizeof(value));
-  return value;
-}
 
 static inline void dec_vm_u16_array(uint16_t* dst, const uint8_t* src, uint8_t count) {
   memcpy(dst, src, (size_t)count * sizeof(*dst));
@@ -97,24 +90,18 @@ static inline SE_MUST_USE err_h decoder_packet_vm_reset(void) {
 /**
  * @brief Packet 0x41: VM Program Open
  *
- * - **Wire Layout** (10 bytes total):
- *   - `u16 obj_cnt`    : Number of object slots to allocate in `VM_REG_OBJ`
- *   - `u16 acc_cnt`    : Number of accessor slots to allocate in `VM_REG_ACC`
- *   - `u16 blk_cnt`    : Number of block slots to allocate in `VM_REG_BLK`
- *   - `u32 total_size` : Total memory footprint in bytes to allocate for bump arena
+ * - **Wire Layout**: `vm_wire_open_t` (10 bytes).
  * - **Action**:
  *   - Validates memory availability against DRAM limits before modifying active state.
  *   - Tears down prior program and re-arms registries and arena at declared capacity.
  *   - Transitions loader state to `VM_LOAD_OPEN`.
  */
 static inline SE_MUST_USE err_h decoder_packet_vm_open(const uint8_t* body, size_t len) {
-  SE_TRY(dec_vm_need(HEADER_packet_vm_open, 0, len, 10));
-  uint16_t obj_cnt = dec_vm_u16(body);
-  uint16_t acc_cnt = dec_vm_u16(body + 2);
-  uint16_t blk_cnt = dec_vm_u16(body + 4);
-  uint32_t total = dec_vm_u32(body + 6);
-  SE_TRY(vm_loader_open(obj_cnt, acc_cnt, blk_cnt, total));
-  DBG(ESP_LOGI(DEC_VM_LOADER_TAG, "open: %u objects, %u accessors, %u blocks, %lu bytes", obj_cnt, acc_cnt, blk_cnt, (unsigned long)total););
+  vm_wire_open_t rec;
+  SE_TRY(dec_vm_need(HEADER_packet_vm_open, 0, len, sizeof(rec)));
+  memcpy(&rec, body, sizeof(rec));
+  SE_TRY(vm_loader_open(rec.obj_cnt, rec.acc_cnt, rec.blk_cnt, rec.total_size));
+  DBG(ESP_LOGI(DEC_VM_LOADER_TAG, "open: %u objects, %u accessors, %u blocks, %lu bytes", rec.obj_cnt, rec.acc_cnt, rec.blk_cnt, (unsigned long)rec.total_size););
   return NULL;
 }
 
@@ -123,11 +110,8 @@ static inline SE_MUST_USE err_h decoder_packet_vm_open(const uint8_t* body, size
  *
  * - **Wire Layout**:
  *   - `u8 n`: Number of object records in frame
- *   - `n ×` records:
- *     - `u16 id`                      : Target object ID in `VM_REG_OBJ`
- *     - `vm_obj_head_t` wire header (4 bytes): Exact ESP32 GCC in-memory ABI
- *       copied into the aligned local struct. TypeScript mirrors this layout.
- *     - `char name[head.d.name_size]` : Optional tag identifier string (<= 15 bytes, unterminated)
+ *   - `n ×` `vm_wire_obj_t`: `u16 id`, `vm_obj_head_t` (4 bytes, the ESP32 GCC
+ *     bitfield ABI), then `char name[head.d.name_size]` (unterminated).
  * - **Action**:
  *   - Carves 4-byte aligned chunk in bump arena, zeroes payload memory, and stores header.
  *   - Binds object pointer into registry index `id`.
@@ -139,19 +123,20 @@ static inline SE_MUST_USE err_h decoder_packet_vm_add_objs(const uint8_t* body, 
   size_t  off = 1;
 
   for (uint8_t i = 0; i < n; i++) {
-    SE_TRY(dec_vm_need(HEADER_packet_vm_add_objs, off, len, 2 + VM_OBJ_HEAD_WIRE_SIZE));
-    uint16_t id = dec_vm_u16(body + off);
+    vm_wire_obj_t rec;
+    SE_TRY(dec_vm_need(HEADER_packet_vm_add_objs, off, len, sizeof(rec)));
+    memcpy(&rec, body + off, sizeof(rec));
+    off += sizeof(rec);
 
     vm_obj_head_t head;
-    memcpy(&head, body + off + 2, VM_OBJ_HEAD_WIRE_SIZE);
-    off += 2 + VM_OBJ_HEAD_WIRE_SIZE;
+    memcpy(&head, rec.head, VM_OBJ_HEAD_WIRE_SIZE);
 
     uint8_t name_len = head.d.name_size;
     SE_TRY(dec_vm_need(HEADER_packet_vm_add_objs, off, len, name_len));
     const char* name = name_len ? (const char*)(body + off) : NULL;
     off += name_len;
 
-    SE_TRY(vm_loader_add_obj(id, &head, name));
+    SE_TRY(vm_loader_add_obj(rec.id, &head, name));
   }
   return NULL;
 }
@@ -161,11 +146,8 @@ static inline SE_MUST_USE err_h decoder_packet_vm_add_objs(const uint8_t* body, 
  *
  * - **Wire Layout**:
  *   - `u8 n`: Number of data chunk records in frame
- *   - `n ×` records:
- *     - `u16 id`             : Target object ID in `VM_REG_OBJ`
- *     - `u16 start_idx`      : Element start index (or byte offset)
- *     - `u16 byte_len`       : Number of payload bytes
- *     - `u8 data[byte_len]`  : Raw data bytes, or child `u16` IDs for `VM_OBJ_PTR`
+ *   - `n ×` `vm_wire_data_t`: `u16 id`, `u16 start_idx` (elements), `u16 byte_len`,
+ *     then `data[byte_len]`: values, or child `u16` IDs for `VM_OBJ_PTR`.
  * - **Action**:
  *   - When VM is stopped (`VM_RUN_STOPPED`): Writes bytes directly via `vm_loader_set_data()`.
  *     For pointer containers, validates child IDs and links children in arena.
@@ -178,19 +160,18 @@ static inline SE_MUST_USE err_h decoder_packet_vm_set_data(const uint8_t* body, 
   size_t  off = 1;
 
   for (uint8_t i = 0; i < n; i++) {
-    SE_TRY(dec_vm_need(HEADER_packet_vm_set_data, off, len, 6));
-    uint16_t id = dec_vm_u16(body + off);
-    uint16_t start_idx = dec_vm_u16(body + off + 2);
-    uint16_t byte_len = dec_vm_u16(body + off + 4);
-    off += 6;
+    vm_wire_data_t rec;
+    SE_TRY(dec_vm_need(HEADER_packet_vm_set_data, off, len, sizeof(rec)));
+    memcpy(&rec, body + off, sizeof(rec));
+    off += sizeof(rec);
 
-    SE_TRY(dec_vm_need(HEADER_packet_vm_set_data, off, len, byte_len));
+    SE_TRY(dec_vm_need(HEADER_packet_vm_set_data, off, len, rec.byte_len));
     if (vm_exec_mode() != VM_RUN_STOPPED) {
-      SE_TRY(vm_override_post(id, start_idx, body + off, byte_len));
+      SE_TRY(vm_override_post(rec.id, rec.start_idx, body + off, rec.byte_len));
     } else {
-      SE_TRY(vm_loader_set_data(id, start_idx, body + off, byte_len));
+      SE_TRY(vm_loader_set_data(rec.id, rec.start_idx, body + off, rec.byte_len));
     }
-    off += byte_len;
+    off += rec.byte_len;
   }
   return NULL;
 }
@@ -200,15 +181,9 @@ static inline SE_MUST_USE err_h decoder_packet_vm_set_data(const uint8_t* body, 
  *
  * - **Wire Layout**:
  *   - `u8 n`: Number of accessor records in frame
- *   - `n ×` records:
- *     - `u16 acc_id`          : Accessor registry ID in `VM_REG_ACC`
- *     - `u16 root_obj_id`     : Root object ID in `VM_REG_OBJ`
- *     - `u8 idx_count`        : Number of chained index steps
- *     - `u8 idx_len`          : Total length in bytes of encoded index chain
- *     - `u8 idx_data[idx_len]`: Sequence of `{ u8 kind, payload }`:
- *       - `VM_IDX_LITERAL`: `u32` constant position
- *       - `VM_IDX_REF`    : `u16` accessor ID (must already exist)
- *       - `VM_IDX_NAME`   : `u8 len`, `char name[len]`
+ *   - `n ×` `vm_wire_acc_t`: `u16 acc_id`, `u16 root_obj_id`, `u8 idx_count`,
+ *     `u8 idx_len`, then `idx_len` bytes of index steps (`vm_wire_idx_*_t`,
+ *     parsed by the loader).
  * - **Action**:
  *   - Allocates accessor descriptor and trailing index array in bump arena.
  *   - Binds descriptor to registry index `acc_id`.
@@ -220,16 +195,14 @@ static inline SE_MUST_USE err_h decoder_packet_vm_add_acc(const uint8_t* body, s
   size_t  off = 1;
 
   for (uint8_t i = 0; i < n; i++) {
-    SE_TRY(dec_vm_need(HEADER_packet_vm_add_acc, off, len, 6));
-    uint16_t acc_id = dec_vm_u16(body + off);
-    uint16_t root_id = dec_vm_u16(body + off + 2);
-    uint8_t  idx_count = body[off + 4];
-    uint8_t  idx_len = body[off + 5];
-    off += 6;
+    vm_wire_acc_t rec;
+    SE_TRY(dec_vm_need(HEADER_packet_vm_add_acc, off, len, sizeof(rec)));
+    memcpy(&rec, body + off, sizeof(rec));
+    off += sizeof(rec);
 
-    SE_TRY(dec_vm_need(HEADER_packet_vm_add_acc, off, len, idx_len));
-    SE_TRY(vm_loader_add_accessor(acc_id, root_id, idx_count, body + off, idx_len));
-    off += idx_len;
+    SE_TRY(dec_vm_need(HEADER_packet_vm_add_acc, off, len, rec.idx_len));
+    SE_TRY(vm_loader_add_accessor(rec.acc_id, rec.root_obj_id, rec.idx_count, body + off, rec.idx_len));
+    off += rec.idx_len;
   }
   return NULL;
 }
@@ -238,18 +211,7 @@ static inline SE_MUST_USE err_h decoder_packet_vm_add_acc(const uint8_t* body, s
  * @brief Packet 0x45: Add Block (Single Block per Frame)
  *
  * - **Wire Layout**:
- *   - Fixed Header (14 bytes):
- *     - `u16 blk_id`    : Block registry ID in `VM_REG_BLK`
- *     - `u16 block_idx` : Sequential execution order index
- *     - `u8  block_type`: Palette block type ID (must be registered in palette table)
- *     - `u8  in_cnt`    : Number of input accessor IDs
- *     - `u8  q_cnt`     : Number of output object IDs
- *     - `u8  en_cnt`    : Number of enable accessor IDs (`0` = always enabled)
- *     - `u8  en_mode`   : Enable combination logic (`VM_BLK_EN_ANY` or `VM_BLK_EN_ALL`)
- *     - `u8  on_error`  : Error policy (`VM_BLK_ERR_STOP` or `VM_BLK_ERR_CONT`)
- *     - `u16 custom_len`: Length of initial private state bytes
- *     - `u16 eno_obj_id`: Output ENO status object ID (`VM_BLOCK_NO_ID` if unmapped)
- *   - Trailing Arrays:
+ *   - `vm_wire_block_t` (14 bytes), then:
  *     - `in_cnt  × u16` : Input accessor IDs (`VM_BLOCK_NO_ID` for unwired pins)
  *     - `q_cnt   × u16` : Output object IDs (automatically marked `usr_protected`)
  *     - `en_cnt  × u16` : Enable accessor IDs
@@ -260,20 +222,21 @@ static inline SE_MUST_USE err_h decoder_packet_vm_add_acc(const uint8_t* body, s
  *   - Copies private state into block custom data memory.
  */
 static inline SE_MUST_USE err_h decoder_packet_vm_add_block(const uint8_t* body, size_t len) {
-  SE_TRY(dec_vm_need(HEADER_packet_vm_add_block, 0, len, 14));
-  uint16_t       blk_id = dec_vm_u16(body);
+  vm_wire_block_t rec;
+  SE_TRY(dec_vm_need(HEADER_packet_vm_add_block, 0, len, sizeof(rec)));
+  memcpy(&rec, body, sizeof(rec));
   vm_block_cfg_t cfg = {
-      .block_idx = dec_vm_u16(body + 2),
-      .block_type = body[4],
-      .in_cnt = body[5],
-      .q_cnt = body[6],
-      .en_cnt = body[7],
-      .en_mode = body[8],
-      .on_error = body[9],
-      .custom_len = dec_vm_u16(body + 10),
-      .eno_obj_id = dec_vm_u16(body + 12),
+      .block_idx = rec.block_idx,
+      .block_type = rec.block_type,
+      .in_cnt = rec.in_cnt,
+      .q_cnt = rec.q_cnt,
+      .en_cnt = rec.en_cnt,
+      .en_mode = rec.en_mode,
+      .on_error = rec.on_error,
+      .custom_len = rec.custom_len,
+      .eno_obj_id = rec.eno_obj_id,
   };
-  size_t off = 14;
+  size_t off = sizeof(rec);
 
   if (cfg.in_cnt > CONFIG_VM_BLOCK_MAX_IN || cfg.q_cnt > CONFIG_VM_BLOCK_MAX_OUT || cfg.en_cnt > CONFIG_VM_BLOCK_MAX_EN) {
     SE_FAIL(ERR_VM_BLK_BAD_SHAPE, .blk_id = cfg.block_idx, .in_cnt = cfg.in_cnt, .q_cnt = cfg.q_cnt);
@@ -299,7 +262,7 @@ static inline SE_MUST_USE err_h decoder_packet_vm_add_block(const uint8_t* body,
 
   SE_TRY(dec_vm_need(HEADER_packet_vm_add_block, off, len, cfg.custom_len));
   cfg.custom_data = cfg.custom_len ? (body + off) : NULL;
-  SE_TRY(vm_loader_add_block(blk_id, &cfg));
+  SE_TRY(vm_loader_add_block(rec.blk_id, &cfg));
   return NULL;
 }
 
@@ -307,17 +270,20 @@ static inline SE_MUST_USE err_h decoder_packet_vm_add_block(const uint8_t* body,
  * @brief Packet 0x47: Subscribe Object Telemetry
  *
  * - **Wire Layout**:
- *   - `u8 count`: Number of object IDs in frame (`0` clears all subscriptions)
- *   - `count × u16`: Object registry IDs to stream
+ *   - `u8 count` (`0` clears all subscriptions), then `count ×` `vm_wire_sub_t`
+ *     (`u16` object ID, `VM_OBJ_ID_DYN_BIT` for heap objects); more than
+ *     `CONFIG_VM_SUB_MAX_SUBSCRIBERS` is refused
  * - **Action**:
- *   - Registers object IDs for cyclical freshness checks.
- *   - Emits telemetry notifications whenever marked fresh (`f.upd = 1`) at pass end.
+ *   - Replaces the subscription list; everything reachable is sent in full once.
+ *   - Then sends every object whose value changed, after each completed pass
+ *     (0x43 records; 0x42 describe records for heap objects). VM.MD
+ *     "Subscriptions and telemetry".
  */
 static inline SE_MUST_USE err_h decoder_packet_vm_subscribe(const uint8_t* body, size_t len) {
   SE_TRY(dec_vm_need(HEADER_packet_vm_subscribe, 0, len, 1));
   uint8_t n = body[0];
   if (n > 0) {
-    SE_TRY(dec_vm_need(HEADER_packet_vm_subscribe, 1, len, (size_t)n * 2u));
+    SE_TRY(dec_vm_need(HEADER_packet_vm_subscribe, 1, len, (size_t)n * sizeof(vm_wire_sub_t)));
   }
   return vm_sub_handle_packet(body, len);
 }
@@ -325,7 +291,7 @@ static inline SE_MUST_USE err_h decoder_packet_vm_subscribe(const uint8_t* body,
 /**
  * @brief Packet 0x48: Execution Control
  *
- * - **Wire Layout** (1 byte):
+ * - **Wire Layout**: `vm_wire_exec_t` (1 byte):
  *   - `u8 command`: `vm_exec_command_e` enum value:
  *     - 0: scan mode, 1: once, 2: block mode, 3: next
  *     - 4: rewind without unloading, 5: normal mode
@@ -336,10 +302,12 @@ static inline SE_MUST_USE err_h decoder_packet_vm_subscribe(const uint8_t* body,
  *   - Routes command directly to `vm_exec_control()`, or performs full `vm_loader_reset()`.
  */
 static inline SE_MUST_USE err_h decoder_packet_vm_exec(const uint8_t* body, size_t len) {
-  if (len != sizeof(packet_vm_exec_t)) {
-    SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = HEADER_packet_vm_exec, .need = sizeof(packet_vm_exec_t), .got = (uint16_t)len);
+  vm_wire_exec_t rec;
+  if (len != sizeof(rec)) {
+    SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = HEADER_packet_vm_exec, .need = sizeof(rec), .got = (uint16_t)len);
   }
-  uint8_t cmd = body[0];
+  memcpy(&rec, body, sizeof(rec));
+  uint8_t cmd = rec.command;
   if (cmd == VM_EXEC_RESET) {
     SE_TRY(vm_loader_reset());
     DBG(ESP_LOGI(DEC_VM_LOADER_TAG, "vm execution reset"););

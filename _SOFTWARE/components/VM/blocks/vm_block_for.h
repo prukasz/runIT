@@ -44,7 +44,7 @@ typedef enum vm_for_cmp_e {
 } vm_for_cmp_e;
 
 typedef struct vm_for_code_t {
-  vm_span_t span;      // Block ids [start, end) this loop runs; start = own id + 1
+  vm_span_t span;      // Block ids [start, end) this loop runs; start = own id + 1 @derived start = this block's ID + 1; end = ID of the first block after the loop body, at most the enclosing loop's end
   float k_start;       // Start when input 0 is unwired
   float k_end;         // End when input 1 is unwired
   float k_step;        // Step when input 2 is unwired
@@ -156,11 +156,13 @@ static inline void vm_blk_for(vm_block_h b) {
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
-//#vm-block VM_BLK_FOR @title For @category flow @state vm_for_code_t
+//#vm-block VM_BLK_FOR @title For @category flow @state vm_for_code_t @activation enabled Runs every pass while enabled.
 //@block-description Runs the blocks in its span repeatedly within one pass: for (i = start; i <cmp> end; i = i <op> step), bounded by max_turns.
-//@in 0 start @title Start
-//@in 1 end @title End
-//@in 2 step @title Step
-//@out 0 index @title Index @description The iterator, published before each turn.
+//@rule op is a vm_for_op_e value and cmp a vm_for_cmp_e value. @error ERR_VM_BLK_BAD_SHAPE
+//@rule span starts right after the loop block and ends inside the enclosing range (checked when it runs; the body then runs inline). @error ERR_VM_EXEC_BAD_SPAN
+//@in 0 start @title Start @value f32
+//@in 1 end @title End @value f32
+//@in 2 step @title Step @value f32
+//@out 0 index @title Index @description The iterator, published before each turn. @value f32
 #define VM_BLOCK_TYPE_FOR \
   {.run = vm_blk_for, .check = vm_verify_for, .min_in = 0, .min_q = 0, .required_in = 0x0u, .state_len = VM_FOR_CUSTOM_LEN}
