@@ -52,7 +52,7 @@ Status legend: 🟡 in progress · ⏳ planned · ⛔ blocked. Finished items mo
 
 | Item | Status | Notes |
 |---|---|---|
-| `runit-app` skill | ⏳ | Stub |
+| `runit-app` skill | 🟡 | Target features digested with decisions and accepted stack: `runit-app/features.md` (2026-09-24). Rest of the skill still a stub |
 | Migrate legacy skill content | ⏳ | From `../_agents_backup_2026-09-22/`; legacy firmware skill has absolute links to another machine (`C:/Users/krolp/...`) |
 | JSON annotations → `data-structures/` | 🟡 | Device, contracts, settings, VM model generators + schemas |
 
