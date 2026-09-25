@@ -20,12 +20,14 @@
   X(OWNER_SYS_IO_UNREGISTER_DRIVER, 0xA30E, "OWNER_SYS_IO_UNREGISTER_DRIVER")
 
 #define SYS_ERROR_IO_MAP(X)                                                                                  \
-  X(ERR_IO_PIN_UNCONFIGURED, 0xA301, SE_LEVEL_LOW, struct { uint8_t dev_id; uint8_t pin_num; })                  \
-  X(ERR_IO_PIN_UNAVAILABLE, 0xA302, SE_LEVEL_LOW, struct { uint8_t dev_id; uint8_t pin_num; })                   \
-  X(ERR_IO_PIN_ALREADY_IN_USE, 0xA303, SE_LEVEL_LOW, struct { uint8_t dev_id; uint8_t pin_num; uint8_t mode; })   \
-  X(ERR_IO_PIN_FEATURE_UNSUPPORTED, 0xA304, SE_LEVEL_LOW, struct { uint8_t dev_id; uint8_t pin_num; })           \
-  X(ERR_IO_PIN_LOCKED, 0xA305, SE_LEVEL_HIGH, struct { uint8_t dev_id; uint8_t pin_id; })                        \
-  X(ERR_IO_PIN_MODE_UNSUPPORTED, 0xA306, SE_LEVEL_LOW, struct { uint8_t dev_id; uint8_t pin_id; uint8_t mode; })
+  X(ERR_IO_PIN_UNCONFIGURED, 0xA301, SE_LEVEL_LOW, struct { uint8_t dev_id; /*@id device*/ uint8_t pin_num; })                  \
+  X(ERR_IO_PIN_UNAVAILABLE, 0xA302, SE_LEVEL_LOW, struct { uint8_t dev_id; /*@id device*/ uint8_t pin_num; })                   \
+  X(ERR_IO_PIN_ALREADY_IN_USE, 0xA303, SE_LEVEL_LOW, struct { uint8_t dev_id; /*@id device*/ uint8_t pin_num; uint8_t mode; /*@enum-ref sys_io_mode_e*/ })   \
+  X(ERR_IO_PIN_FEATURE_UNSUPPORTED, 0xA304, SE_LEVEL_LOW, struct { uint8_t dev_id; /*@id device*/ uint8_t pin_num; })           \
+  X(ERR_IO_PIN_LOCKED, 0xA305, SE_LEVEL_HIGH, struct { uint8_t dev_id; /*@id device*/ uint8_t pin_id; })                        \
+  X(ERR_IO_PIN_MODE_UNSUPPORTED, 0xA306, SE_LEVEL_LOW, struct { uint8_t dev_id; /*@id device*/ uint8_t pin_id; uint8_t mode; /*@enum-ref sys_io_mode_e*/ }) \
+  X(ERR_IO_PWM_CHANNELS_EXHAUSTED, 0xA307, SE_LEVEL_LOW, struct { uint8_t dev_id; /*@id device*/ uint8_t pin_num; uint8_t channels; }) \
+  X(ERR_IO_PWM_TIMERS_EXHAUSTED, 0xA308, SE_LEVEL_LOW, struct { uint8_t dev_id; /*@id device*/ uint8_t pin_num; uint8_t timers; uint32_t frequency_Hz; })
 
 /**
  * @brief Human-readable descriptions for the sys_io tags - see
@@ -40,7 +42,9 @@
   X(ERR_IO_PIN_ALREADY_IN_USE)         \
   X(ERR_IO_PIN_FEATURE_UNSUPPORTED)    \
   X(ERR_IO_PIN_LOCKED)                 \
-  X(ERR_IO_PIN_MODE_UNSUPPORTED)
+  X(ERR_IO_PIN_MODE_UNSUPPORTED)       \
+  X(ERR_IO_PWM_CHANNELS_EXHAUSTED)     \
+  X(ERR_IO_PWM_TIMERS_EXHAUSTED)
 
 #define LOG_BODY_ERR_IO_PIN_UNCONFIGURED(p, out, out_size) snprintf((out), (out_size), "pin %u on device %u is unconfigured", (p)->pin_num, (p)->dev_id)
 #define LOG_BODY_ERR_IO_PIN_UNAVAILABLE(p, out, out_size) snprintf((out), (out_size), "pin %u is not available on device %u (out of range or unmapped)", (p)->pin_num, (p)->dev_id)
@@ -50,3 +54,8 @@
 #define LOG_BODY_ERR_IO_PIN_LOCKED(p, out, out_size) snprintf((out), (out_size), "pin %u on device %u is locked", (p)->pin_id, (p)->dev_id)
 #define LOG_BODY_ERR_IO_PIN_MODE_UNSUPPORTED(p, out, out_size) \
   snprintf((out), (out_size), "pin %u on device %u doesn't support mode %u", (p)->pin_id, (p)->dev_id, (p)->mode)
+#define LOG_BODY_ERR_IO_PWM_CHANNELS_EXHAUSTED(p, out, out_size) \
+  snprintf((out), (out_size), "no free PWM channel for pin %u on device %u: all %u are in use", (p)->pin_num, (p)->dev_id, (p)->channels)
+#define LOG_BODY_ERR_IO_PWM_TIMERS_EXHAUSTED(p, out, out_size)                                                                        \
+  snprintf((out), (out_size), "no PWM timer for %lu Hz on pin %u, device %u: all %u timers run other frequencies", (unsigned long)(p)->frequency_Hz, \
+           (p)->pin_num, (p)->dev_id, (p)->timers)

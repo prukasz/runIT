@@ -3,7 +3,7 @@ ESP GPIO, TCA6424A (1), ADS7128 (2), PCA9685 (3), AP33772S (13).
 
 Board facts used: TCA pins 22 / 23 are status LEDs (push-pull, high = on);
 ADS7128 channel 0 or 7 sits near 3 V.
-Usage: python pcb_tests.py COM4 [--reset] [-k NAME]
+Usage: python pcb_tests.py COM4|BLE [--reset] [-k NAME]   (BLE: a Python with bleak, no --reset)
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import sys
 import time
 import traceback
 
-from runit_link import Link
+from runit_link import Link, open_link
 
 GPIO, TCA, ADS, PCA, AP = 0, 1, 2, 3, 13
 ADC, OUT_PP, INPUT = 7, 3, 0
@@ -200,7 +200,7 @@ TESTS = [v for k, v in list(globals().items()) if k.startswith("t_") and callabl
 
 def main() -> int:
     only = sys.argv[sys.argv.index("-k") + 1] if "-k" in sys.argv else None
-    with Link(sys.argv[1], reset="--reset" in sys.argv) as link:
+    with open_link(sys.argv[1], reset="--reset" in sys.argv) as link:
         time.sleep(0.3)
         for t in TESTS:
             if only and only not in t.__name__:

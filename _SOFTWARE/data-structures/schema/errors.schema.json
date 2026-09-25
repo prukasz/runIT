@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "data-structures/schema/errors.schema.json",
+  "title": "runIT error catalog",
+  "description": "Error tags, owners, severities, payload layouts and messages from the sys_errors X-macro maps (components/sys_errors/codes/sys_error_codes.h), plus the binary error packet sent on the errors stream.",
+  "type": "object",
+  "required": ["$schema", "schemaVersion", "kind", "schema_id", "packet", "levels", "owners", "tags", "value_names", "id_kinds", "esp_errors", "contract_features"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "const": "data-structures/schema/errors.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "errors" },
+    "schema_id": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295,
+      "description": "SE_schema_id() of this map set. Every error packet carries the firmware's value; a different value means the catalog is older or newer than the firmware (known tag IDs still decode, IDs are stable)."
+    },
+    "packet": { "$ref": "#/$defs/packet" },
+    "levels": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "value", "alias"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "pattern": "^SE_LEVEL_\\w+$" },
+          "value": { "type": "integer", "minimum": 0 },
+          "alias": { "type": "string" }
+        }
+      }
+    },
+    "owners": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "id", "source_file"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "pattern": "^OWNER_\\w+$" },
+          "id": { "$ref": "#/$defs/id16" },
+          "source_file": { "type": "string" }
+        }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/tag" }
+    },
+    "value_names": {
+      "type": "object",
+      "description": "Value → text tables of the C helpers a message argument goes through (args[].via), read from the error headers.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["values", "source_file"],
+        "additionalProperties": false,
+        "properties": {
+          "values": { "type": "object", "additionalProperties": { "type": "string" }, "propertyNames": { "pattern": "^\\d+$" } },
+          "default": { "type": "string" },
+          "source_file": { "type": "string" }
+        }
+      }
+    },
+    "contract_features": {
+      "type": "object",
+      "required": ["enum", "contracts"],
+      "additionalProperties": false,
+      "description": "Feature names per device contract (feature ID = index), from the //@contract-features tables; for fields marked `@id contract-feature`.",
+      "properties": {
+        "enum": { "type": "string", "description": "The contract type enum (enums.json) the keys are values of." },
+        "contracts": {
+          "type": "object",
+          "propertyNames": { "pattern": "^\\d+$" },
+          "additionalProperties": {
+            "type": "object",
+            "required": ["symbol", "table", "source_file", "features"],
+            "additionalProperties": false,
+            "properties": {
+              "symbol": { "type": "string" },
+              "table": { "type": "string" },
+              "source_file": { "type": "string" },
+              "features": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "id_kinds": {
+      "type": "object",
+      "description": "Every kind a payload field's `id.kind` can have, and where the app finds the names.",
+      "additionalProperties": { "type": "string" }
+    },
+    "esp_errors": {
+      "type": "object",
+      "required": ["source_file", "codes"],
+      "additionalProperties": false,
+      "description": "esp_err_t names of the ESP-IDF the firmware is built with, for fields marked `@id esp-err`.",
+      "properties": {
+        "source_file": { "type": "string" },
+        "codes": {
+          "type": "object",
+          "propertyNames": { "pattern": "^-?\\d+$" },
+          "additionalProperties": {
+            "type": "object",
+            "required": ["name", "description"],
+            "additionalProperties": false,
+            "properties": { "name": { "type": "string" }, "description": { "type": "string" } }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id16": { "type": "integer", "minimum": 1, "maximum": 65535 },
+    "wire_field": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" }
+      }
+    },
+    "packet": {
+      "type": "object",
+      "required": ["stream", "byte_order", "header", "node", "depth_corrupt", "notes"],
+      "additionalProperties": false,
+      "properties": {
+        "stream": { "type": "string", "pattern": "^0x[0-9A-F]{2}$", "description": "First byte of every error frame (CONFIG_TX_PACKET_CLASS_ERRORS)." },
+        "byte_order": { "const": "little" },
+        "header": { "type": "array", "items": { "$ref": "#/$defs/wire_field" } },
+        "node": { "type": "array", "items": { "$ref": "#/$defs/wire_field" }, "description": "Repeated after the header, each followed by payload_length payload bytes." },
+        "depth_corrupt": { "type": "integer" },
+        "notes": { "type": "string" }
+      }
+    },
+    "payload_field": {
+      "type": "object",
+      "required": ["name", "type", "offset"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "enum": ["uint8_t", "int8_t", "uint16_t", "int16_t", "uint32_t", "int32_t", "uint64_t", "int64_t", "float", "double"] },
+        "c_type": { "type": "string", "description": "C type when it differs from the wire type (esp_err_t, bool, char)." },
+        "offset": { "type": "integer", "minimum": 0, "description": "Byte offset in the native C struct (ESP32-S3 alignment)." },
+        "array_len": { "type": "integer", "minimum": 1 },
+        "enum_ref": { "type": "string", "description": "The value is a member of this published enum (enums.json); from /*@enum-ref <enum>*/." },
+        "id": {
+          "type": "object",
+          "description": "The value is an ID named in another catalog; from /*@id <kind> [<class field>]*/.",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "type": "string" },
+            "parent_field": { "type": "string", "description": "rx-packet / contract-feature: the payload field this value depends on (class byte, contract type)." }
+          }
+        }
+      }
+    },
+    "message": {
+      "type": "object",
+      "required": ["format", "args"],
+      "additionalProperties": false,
+      "properties": {
+        "format": { "type": "string", "description": "C printf format of the firmware's description." },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["field"],
+            "additionalProperties": false,
+            "properties": {
+              "field": { "type": "string" },
+              "via": { "type": "string", "description": "C function the firmware passes the field through (e.g. esp_err_to_name); the app has only the raw value." }
+            }
+          }
+        }
+      }
+    },
+    "tag": {
+      "type": "object",
+      "required": ["name", "id", "level", "source_file", "payload", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "pattern": "^ERR_\\w+$" },
+        "id": { "$ref": "#/$defs/id16" },
+        "level": { "type": "integer", "minimum": 0, "description": "Default severity (levels[].value)." },
+        "source_file": { "type": "string" },
+        "payload": {
+          "type": "object",
+          "required": ["size", "fields"],
+          "additionalProperties": false,
+          "properties": {
+            "size": { "type": "integer", "minimum": 1, "description": "sizeof(err_payload_<tag>_t), padding included." },
+            "fields": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/payload_field" } }
+          }
+        },
+        "message": { "oneOf": [{ "$ref": "#/$defs/message" }, { "type": "null" }] },
+        "message_unavailable": { "type": "string", "description": "Why there is no message template (the firmware's own text is still on the logs stream)." }
+      }
+    }
+  }
+}

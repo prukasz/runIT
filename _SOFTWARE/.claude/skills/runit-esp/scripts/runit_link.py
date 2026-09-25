@@ -278,9 +278,14 @@ class Link:
     def _reader(self) -> None:
         buf = b""
         while not self._stop:
+            # Read without _port_lock: re-taking it every 50 ms starved the writer
+            # (Python locks aren't fair; commands waited seconds to be sent). The
+            # lock only guards reopening; a read on a closed port raises below.
+            if not self.s.is_open:
+                time.sleep(0.05)
+                continue
             try:
-                with self._port_lock:
-                    chunk = self.s.read(4096) if self.s.is_open else b""
+                chunk = self.s.read(4096)
             except serial.SerialException:
                 time.sleep(0.05)  # port re-enumerating after a reset
                 with self._port_lock:

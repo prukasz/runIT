@@ -105,7 +105,7 @@ sys_io_* / sys_power_* / sys_hbridge_* (by device_id) ──────┘ cont
 
 | Device | Contracts | Install helpers + probe | freeze/sync | Decoder + JSON | Notes |
 |---|---|---|---|---|---|
-| gpio_esp | IO | own install (no I2C) | ✅ | ✅ 0x40 | Suspend = freeze alias: outputs not made safe on fault (§5.1) |
+| gpio_esp | IO | own install (no I2C) | ✅ | ✅ 0x40 | Suspend = freeze alias: outputs not made safe on fault (§5.1), PWM keeps running too. PWM through LEDC (`esp_pwm.c`): channel per pin, timer per frequency (Kconfig `CONFIG_DEVICE_GPIO_ESP_PWM_TIMER_MASK` / `_CHANNEL_MASK` choose which LEDC timers / channels it may use; default all), duty 0..4096. Nothing else uses LEDC today; a new LEDC user must clear its timers / channels from the masks and use the APB clock (S3 timers share one clock source) |
 | pca9685 | IO | ✅ | ✅ | ✅ 0x41 | Reference adapter. Orphaned half-finished comment ("Test implementation for the sys_device error-handling scheme…") above `device_install` |
 | tca6424a | IO | ✅ | ✅ | ✅ 0x42 | Exports `d_tca6424a_new` / `_delete` besides `_create` |
 | tps55289 | POWER_VREG | ✅, no `sys_i2c_device_present` | ⛔ **missing** | ✅ 0x43 | Suspend is safe (output off + EN low); freeze skipped (§5.2) |

@@ -285,21 +285,14 @@ err_h sys_ble_stack_init(struct ble_gatt_svc_def* svcs) {
 #undef OWNER
 
 #define OWNER OWNER_SYS_BLE_SEND
-static SE_MUST_USE err_h sys_ble_send_raw(uint16_t conn_handle, uint16_t chr_val_handle, const uint8_t* data, size_t len, bool indicate) {
-  SE_CHECK_NOT_NULL(data);
-  if (len == 0) return NULL;
-
+/* One notification / indication; returns the NimBLE code. BLE_HS_ENOMEM (no
+   mbuf, or the controller queue is full) is flow control, not a failure: the
+   TX task retries it without allocating an error, so congestion can't drain
+   the error pool - and the retry still works when the pool is empty. */
+static int sys_ble_send_raw(uint16_t conn_handle, uint16_t chr_val_handle, const uint8_t* data, size_t len, bool indicate) {
   struct os_mbuf* om = ble_hs_mbuf_from_flat(data, len);
-  SE_CHECK_IF_ALLOCATED(om);
-
-  int rc = indicate ? ble_gatts_indicate_custom(conn_handle, chr_val_handle, om) : ble_gatts_notify_custom(conn_handle, chr_val_handle, om);
-
-  if (rc != 0) {
-    if (rc == BLE_HS_ENOMEM) SE_FAIL(ERR_BASE_NO_MEM, rc);
-    if (rc == BLE_HS_ENOTCONN) SE_FAIL(ERR_BASE_INVALID_STATE, 0);
-    SE_FAIL(ERR_BLE_STACK_FAILED, rc);
-  }
-  return NULL;
+  if (om == NULL) return BLE_HS_ENOMEM;
+  return indicate ? ble_gatts_indicate_custom(conn_handle, chr_val_handle, om) : ble_gatts_notify_custom(conn_handle, chr_val_handle, om);
 }
 #undef OWNER
 
@@ -476,19 +469,20 @@ static void sys_ble_task_func(void* pvParameters) {
       R_MUTEX_UNLOCK(sys_ble_mutex);
       if (!len) break;
 
-      err_h err;
-      do {
-        err = sys_ble_send_raw(conn_handle, val_handle, tx_data, len, indicate);
-        if (!err || err->tag != ERR_BASE_NO_MEM) break;
+      int rc;
+      while ((rc = sys_ble_send_raw(conn_handle, val_handle, tx_data, len, indicate)) == BLE_HS_ENOMEM) {
         vTaskDelay(pdMS_TO_TICKS(10));
         R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
         bool connected = g_ble_ctx.is_connected && g_ble_ctx.conn_handle == conn_handle;
         R_MUTEX_UNLOCK(sys_ble_mutex);
         if (!connected) break;
-      } while (1);
+      }
 
-      if (err) {
-        if (err->tag != ERR_BASE_NO_MEM) SE_REPORT(sys_ble_publish(SYS_BLE_EVENT_FAILURE, err->tag));
+      if (rc != 0) {
+        if (rc != BLE_HS_ENOMEM) {
+          err_tag_e tag = (rc == BLE_HS_ENOTCONN) ? ERR_BASE_INVALID_STATE : ERR_BLE_STACK_FAILED;
+          SE_REPORT(sys_ble_publish(SYS_BLE_EVENT_FAILURE, tag));
+        }
         break;
       }
     }

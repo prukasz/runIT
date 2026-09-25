@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "data-structures/schema/streams.schema.json",
+  "title": "runIT board-to-app streams",
+  "description": "System data connectors and the header byte that starts every frame each one sends (sys_data_connector_init() in sys_data_connector.c).",
+  "type": "object",
+  "required": ["$schema", "schemaVersion", "kind", "source_file", "ble", "streams"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "const": "data-structures/schema/streams.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "streams" },
+    "source_file": { "type": "string" },
+    "ble": {
+      "type": "object",
+      "required": ["service", "source_files"],
+      "additionalProperties": false,
+      "properties": {
+        "service": { "$ref": "#/$defs/uuid16" },
+        "source_files": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "streams": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "header", "config", "connector", "connector_enum", "connector_id", "alias", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-z_]+$", "description": "Connector name; the app looks streams up by it (logs, errors, telemetry, interface)." },
+          "header": { "type": "string", "pattern": "^0x[0-9A-F]{2}$", "description": "First byte of every frame on this stream." },
+          "config": { "type": "string", "pattern": "^CONFIG_\\w+$" },
+          "connector": { "type": "string" },
+          "connector_enum": { "type": "string" },
+          "connector_id": { "type": "integer", "minimum": 0 },
+          "alias": { "type": "string" },
+          "description": { "type": "string" },
+          "ble": {
+            "type": "object",
+            "description": "Characteristics this stream uses on the BLE provider: notify = board to app, write = app to board.",
+            "additionalProperties": false,
+            "minProperties": 1,
+            "properties": {
+              "notify": { "$ref": "#/$defs/uuid16" },
+              "write": { "$ref": "#/$defs/uuid16" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "uuid16": { "type": "string", "pattern": "^0x[0-9A-F]{4}$" }
+  }
+}

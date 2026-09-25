@@ -20,9 +20,9 @@
   X(OWNER_SYS_POWER_SETTINGS, 0xA414, "OWNER_SYS_POWER_SETTINGS")
 
 #define SYS_ERROR_POWER_MAP(X) \
-  X(ERR_POWER_BUDGET_EXCEEDED, 0xA401, SE_LEVEL_HIGH, struct { uint8_t dev_id; uint32_t requested_mW; uint32_t available_mW; }) \
+  X(ERR_POWER_BUDGET_EXCEEDED, 0xA401, SE_LEVEL_HIGH, struct { uint8_t dev_id; /*@id device*/ uint32_t requested_mW; uint32_t available_mW; }) \
   X(ERR_POWER_SOURCE_BELOW_ALLOCATION, 0xA402, SE_LEVEL_HIGH, struct { uint32_t allocated_mW; uint32_t budget_mW; }) \
-  X(ERR_POWER_FAULT, 0xA403, SE_LEVEL_MEDIUM, struct { uint8_t source_id; uint8_t channel; uint8_t event; uint8_t response; int32_t value; })
+  X(ERR_POWER_FAULT, 0xA403, SE_LEVEL_MEDIUM, struct { uint8_t source_id; /*@id device*/ uint8_t channel; uint8_t event; /*@enum-ref sys_power_events_e*/ uint8_t response; /*@enum-ref sys_power_response_e*/ int32_t value; })
 
 /** @brief Human-readable descriptions for the sys_power tags - see SE_describe_payload() in sys_error.h. */
 #define SYS_ERROR_POWER_LOGGER_MAP(X) X(ERR_POWER_BUDGET_EXCEEDED) X(ERR_POWER_SOURCE_BELOW_ALLOCATION) X(ERR_POWER_FAULT)

@@ -5,7 +5,7 @@
   "id": "device_gpio_esp",
   "version": "1.0.0",
   "title": "ESP32 native GPIO",
-  "description": "The board's own onboard GPIO pins - digital input/output, interrupts, and ADC voltage reads. Always available; nothing to install on the wire beyond a device ID.",
+  "description": "The board's own onboard GPIO pins - digital input/output, interrupts, ADC voltage reads and PWM outputs. Always available; nothing to install on the wire beyond a device ID.",
   "protocols": [
     "native"
   ],
@@ -13,7 +13,8 @@
     "gpio",
     "io",
     "adc",
-    "voltage"
+    "voltage",
+    "pwm"
   ],
   "source_file": "dec_device_gpio_esp.h",
   "contractProvider": {
@@ -142,6 +143,13 @@
               "description": "Same as Open-Drain, but with a built-in helper enabled so the pin reads \"on\" by itself instead of needing an extra part"
             },
             {
+              "symbol": "SYS_IO_MODE_PWM",
+              "enum": "sys_io_mode_e",
+              "value": 6,
+              "alias": "PWM",
+              "description": "Rapidly switches the pin on and off to fake an in-between level - use to dim an LED or control a motor's speed"
+            },
+            {
               "symbol": "SYS_IO_MODE_ADC",
               "enum": "sys_io_mode_e",
               "value": 7,
@@ -154,7 +162,7 @@
         }
       ],
       "alias": "Configure pin mode",
-      "description": "PWM and DAC modes aren't available on native GPIO - use a PCA9685 (PWM) or DAC53202 (DAC) device for those.",
+      "description": "DAC mode isn't available on native GPIO - use a DAC53202 device. PWM takes one PWM channel per pin: up to 8 pins at once on the ESP32-S3, fewer if the firmware keeps channels for other drivers.",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
         "class_name": "SYS_CONTRACTS",
@@ -549,6 +557,113 @@
           "pin": {
             "type": "uint8_t",
             "alias": "Pin Number",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_set_pwm_frequency_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "alias": "GPIO Pin"
+        },
+        {
+          "name": "frequency_Hz",
+          "min": 5,
+          "max": 5000000,
+          "alias": "PWM Frequency",
+          "type": "uint32_t",
+          "unit": "Hz"
+        }
+      ],
+      "alias": "Set PWM frequency",
+      "description": "Pin must be in PWM mode. Each pin has its own frequency, but pins share the PWM timers by frequency: one timer per different frequency, any number of pins on each - up to 4 frequencies at once on the ESP32-S3, fewer if the firmware keeps timers for other drivers. A frequency that needs a timer when none is free is refused and the pin keeps its old one. Above ~19.5 kHz the duty has fewer than 4096 real steps (steps = 80 MHz / frequency).",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x27",
+        "decoder": "decoder_packet_sys_io_set_pwm_frequency_t()",
+        "field_order": [
+          "device_id",
+          "pin",
+          "frequency_Hz"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          },
+          "frequency_Hz": {
+            "type": "uint32_t",
+            "alias": "PWM Frequency",
+            "required": true,
+            "unit": "Hz"
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_set_pwm_duty_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "alias": "GPIO Pin"
+        },
+        {
+          "name": "duty",
+          "min": 0,
+          "max": 4096,
+          "alias": "Duty",
+          "type": "uint32_t",
+          "unit": "ticks"
+        }
+      ],
+      "alias": "Set PWM duty",
+      "description": "Pin must be in PWM mode. Before any frequency is set the pin runs at the default frequency (1 kHz), which takes a PWM timer like any other frequency.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x28",
+        "decoder": "decoder_packet_sys_io_set_pwm_duty_t()",
+        "field_order": [
+          "device_id",
+          "pin",
+          "duty"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          },
+          "duty": {
+            "type": "uint32_t",
+            "alias": "Duty Cycle",
             "required": true
           }
         }

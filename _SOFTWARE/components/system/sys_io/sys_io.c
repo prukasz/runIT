@@ -7,6 +7,7 @@ const char* const sys_io_mode_e_to_string[] = {"INPUT", "INPUT_PULLUP", "INPUT_P
 
 const char* const sys_io_intr_mode_e_to_string[] = {"DISABLE", "RISING_EDGE", "FALLING_EDGE", "BOTH_EDGES", "ADC_WINDOW_OUTSIDE", "ADC_WINDOW_INSIDE"};
 
+//@contract-features $SYS_DEVICE_CONTRACT_IO
 const char* const sys_io_feature_names[] = {"reset", "set_mode", "configure_intr", "set_level", "get_level", "toggle",
                                             "get_voltage", "set_voltage", "set_pwm_frequency", "set_pwm_duty", NULL};
 _Static_assert(sizeof(sys_io_feature_names) / sizeof(sys_io_feature_names[0]) - 1 == sizeof(sys_io_contract_t) / sizeof(void (*)(void)),

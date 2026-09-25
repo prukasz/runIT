@@ -14,7 +14,7 @@
   X(OWNER_SYS_EVENT_DISPATCH, 0xAB05, "OWNER_SYS_EVENT_DISPATCH")
 
 #define SYS_ERROR_EVENT_MAP(X)                                                                                                  \
-  X(ERR_EVENT_LOOP, 0xAB01, SE_LEVEL_MEDIUM, struct { uint8_t domain; uint8_t device_id; uint8_t channel; uint8_t event; })    \
+  X(ERR_EVENT_LOOP, 0xAB01, SE_LEVEL_MEDIUM, struct { uint8_t domain; /*@enum-ref sys_event_domain_e*/ uint8_t device_id; /*@id device*/ uint8_t channel; uint8_t event; })    \
   X(ERR_EVENT_TABLE_FULL, 0xAB02, SE_LEVEL_HIGH, struct { uint8_t capacity; })                                                  \
   X(ERR_EVENT_QUEUE_FULL, 0xAB03, SE_LEVEL_MEDIUM, struct { uint32_t dropped; })                                                \
   X(ERR_EVENT_SUB_NOT_FOUND, 0xAB04, SE_LEVEL_LOW, struct { uint8_t id; })                                                      \

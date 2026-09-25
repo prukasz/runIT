@@ -1,0 +1,95 @@
+{
+  "$schema": "data-structures/schema/board.schema.json",
+  "schemaVersion": 1,
+  "kind": "board",
+  "source_files": [
+    "components/runit/runit_board_defs.h",
+    "components/runit/runit_board_cfg.c"
+  ],
+  "devices": [
+    {
+      "id": 0,
+      "symbol": "DEVICE_ID_GPIO_ESP",
+      "name": "GPIO_ESP",
+      "driver": "gpio_esp",
+      "descriptor": "device_gpio_esp",
+      "title": "ESP32 native GPIO"
+    },
+    {
+      "id": 1,
+      "symbol": "DEVICE_ID_TCA6424A",
+      "name": "TCA6424A",
+      "driver": "tca6424a",
+      "descriptor": "device_tca6424a",
+      "title": "TCA6424A GPIO expander"
+    },
+    {
+      "id": 2,
+      "symbol": "DEVICE_ID_ADS7128",
+      "name": "ADS7128",
+      "driver": "ads7128",
+      "descriptor": "device_ads_7128",
+      "title": "ADS7128 ADC"
+    },
+    {
+      "id": 3,
+      "symbol": "DEVICE_ID_PCA9685",
+      "name": "PCA9685",
+      "driver": "pca9685",
+      "descriptor": "device_pca9685",
+      "title": "PCA9685 PWM expander"
+    },
+    {
+      "id": 4,
+      "symbol": "DEVICE_ID_DAC53202",
+      "name": "DAC53202",
+      "driver": "dac53202",
+      "descriptor": "device_dac53202",
+      "title": "DAC53202 dual DAC"
+    },
+    {
+      "id": 5,
+      "symbol": "DEVICE_ID_DRV8962_0",
+      "name": "DRV8962_0",
+      "driver": "drv8962"
+    },
+    {
+      "id": 6,
+      "symbol": "DEVICE_ID_DRV8962_1",
+      "name": "DRV8962_1",
+      "driver": "drv8962"
+    },
+    {
+      "id": 10,
+      "symbol": "DEVICE_ID_TPS55289_0",
+      "name": "TPS55289_0",
+      "driver": "tps55289",
+      "descriptor": "device_tps55289",
+      "title": "TPS55289 buck-boost regulator"
+    },
+    {
+      "id": 11,
+      "symbol": "DEVICE_ID_TPS55289_1",
+      "name": "TPS55289_1",
+      "driver": "tps55289",
+      "descriptor": "device_tps55289",
+      "title": "TPS55289 buck-boost regulator"
+    },
+    {
+      "id": 12,
+      "symbol": "DEVICE_ID_INA3221",
+      "name": "INA3221",
+      "driver": "ina3221",
+      "descriptor": "device_ina3221",
+      "title": "INA3221 power monitor"
+    },
+    {
+      "id": 13,
+      "symbol": "DEVICE_ID_AP33772S",
+      "name": "AP33772S",
+      "driver": "ap33772s",
+      "descriptor": "device_ap33772s",
+      "title": "AP33772S USB-C PD sink"
+    }
+  ]
+}

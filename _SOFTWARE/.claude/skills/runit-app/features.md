@@ -182,10 +182,10 @@ views (React)            Settings · Devices · Actions · Code(objects/canvas) 
 |---|---|---|
 | F-GAP-1 | No per-field `basic` / `advanced` visibility or default in the annotation generators | P-2, SET-5, DEV |
 | F-GAP-2 | Features (servo, hbridge) have no generated JSON descriptors | DEV-2, CAN-2 |
-| F-GAP-3 | No board profile JSON (terminals, connectors, which device channel sits where) | DEV-4 |
+| F-GAP-3 | No board profile JSON (terminals, connectors, which device channel sits where). Started 2026-09-25: `data-structures/board/board.generated.json` has the static device IDs, names and descriptors; terminals and channel wiring still missing | DEV-4 |
 | F-GAP-4 | Action recording executes the frames; upload must store without executing (record-only flag or direct blob upload) | ACT-3 |
 | F-GAP-5 | Check that pause / block-step state (`next_block`, run mode) is reported to the app | DBG-3 |
-| F-GAP-7 | Error tag payload layouts not published as JSON for the app to decode | ERR-2 |
+| F-GAP-7 | ✅ 2026-09-25: error tags, owners, severities, payload layouts, message templates and value tables published (`data-structures/errors/errors.generated.json`, `generate-errors.py`). Left: 6 tags whose `LOG_BODY` uses conditionals have no template; `esp_err_to_name` / `vm_format_obj_id` values print as numbers | ERR-2 |
 | F-GAP-8 | Device JSON doesn't list the events each device publishes (already in PROGRESS) | event subscriptions, LNK |
 | F-GAP-9 | Project hash stored with the program on the device | §4.4, with G-8 |
 | F-GAP-10 | `"required": false` (`//@optional`) in contracts / settings JSON means "may be 0 / the sentinel", **not** "may be left off the wire": decoders need the whole packed struct (a shorter frame gets `ERR_INTERFACE_SHORT_FRAME`, seen on the devkit 2026-09-24). The schema doesn't say so | Packer in the app: always send every field. Either document it in the schemas or rename the flag |

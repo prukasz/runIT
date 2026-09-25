@@ -3565,6 +3565,17 @@ CONFIG_SYS_UART_RX_QUEUE_SIZE=2048
 # end of UART Console Link
 
 #
+# Device: ESP32 native GPIO
+#
+# default:
+CONFIG_DEVICE_GPIO_ESP_PWM_DEFAULT_FREQ_HZ=1000
+# default:
+CONFIG_DEVICE_GPIO_ESP_PWM_TIMER_MASK=0xF
+# default:
+CONFIG_DEVICE_GPIO_ESP_PWM_CHANNEL_MASK=0xFF
+# end of Device: ESP32 native GPIO
+
+#
 # runIT Board & Diagnostic Configuration
 #
 # default:

@@ -46,9 +46,9 @@ typedef enum se_level_e {
       float min;                                                        \
       float max;                                                        \
     })                                                                  \
-  X(ERR_DEV_DEP_FAILED, 0x0006, SE_LEVEL_HIGH, struct { uint8_t dev_id; })   \
+  X(ERR_DEV_DEP_FAILED, 0x0006, SE_LEVEL_HIGH, struct { uint8_t dev_id; /*@id device*/ })   \
   X(ERR_DEP_FAILED, 0x0007, SE_LEVEL_HIGH, struct { uint8_t unused; })       \
-  X(ERR_ESP_ERR, 0x0008, SE_LEVEL_HIGH, struct { esp_err_t esp_code; })      \
+  X(ERR_ESP_ERR, 0x0008, SE_LEVEL_HIGH, struct { esp_err_t esp_code; /*@id esp-err*/ })      \
   X(ERR_BASE_NO_MEM, 0x0009, SE_LEVEL_HIGH, struct { uint8_t unused; })      \
   X(ERR_BASE_NOT_SUPPORTED, 0x000A, SE_LEVEL_LOW, struct { uint8_t unused; })\
   X(ERR_BASE_NOT_FOUND, 0x000B, SE_LEVEL_LOW, struct { uint8_t unused; })   \

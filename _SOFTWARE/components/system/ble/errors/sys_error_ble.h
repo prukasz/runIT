@@ -21,10 +21,10 @@
   X(OWNER_SYS_BLE_PROVIDER, 0xA50E, "OWNER_SYS_BLE_PROVIDER")
 
 #define SYS_ERROR_BLE_MAP(X) \
-  X(ERR_BLE_STACK_FAILED, 0xA501, SE_LEVEL_HIGH, struct { esp_err_t rc; }) \
-  X(ERR_BLE_HARDWARE_FAULT, 0xA502, SE_LEVEL_CRITICAL, struct { esp_err_t rc; }) /* reserved, currently unused */ \
-  X(ERR_BLE_ADV_FAILED, 0xA503, SE_LEVEL_MEDIUM, struct { esp_err_t rc; }) \
-  X(ERR_BLE_GATT_FAILED, 0xA504, SE_LEVEL_MEDIUM, struct { esp_err_t rc; })
+  X(ERR_BLE_STACK_FAILED, 0xA501, SE_LEVEL_HIGH, struct { esp_err_t rc; /*@id esp-err*/ }) \
+  X(ERR_BLE_HARDWARE_FAULT, 0xA502, SE_LEVEL_CRITICAL, struct { esp_err_t rc; /*@id esp-err*/ }) /* reserved, currently unused */ \
+  X(ERR_BLE_ADV_FAILED, 0xA503, SE_LEVEL_MEDIUM, struct { esp_err_t rc; /*@id esp-err*/ }) \
+  X(ERR_BLE_GATT_FAILED, 0xA504, SE_LEVEL_MEDIUM, struct { esp_err_t rc; /*@id esp-err*/ })
 
 /** @brief Human-readable descriptions for the sys_ble tags - see SE_describe_payload() in sys_error.h. */
 #define SYS_ERROR_BLE_LOGGER_MAP(X) \

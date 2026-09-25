@@ -67,7 +67,7 @@ All onboard chips are **static devices** created at boot by `runit_board_devices
 
 | ID | Chip | Contract | I2C (bus 0) | Board wiring | Role |
 |---|---|---|---|---|---|
-| 0 | ESP32-S3 native GPIO | Digital/Analog IO | — | — | Digital I/O, edge interrupts, ADC reads (no PWM/DAC) |
+| 0 | ESP32-S3 native GPIO | Digital/Analog IO | — | — | Digital I/O, edge interrupts, ADC reads, PWM (LEDC: 8 pins, 4 frequencies at once by default - Kconfig masks keep timers / channels for other LEDC users; no DAC) |
 | 1 | TCA6424A | Digital/Analog IO | 0x23 | INT → ESP 9, RST → ESP 8 | 24-bit expander, internal control: LM73100 switches, eFuses, regulator enables, interrupts, PCA OE |
 | 2 | ADS7128 | Digital/Analog IO | 0x10 | ALERT → ESP 42, Vref 20 V | 8 inputs up to 20 V, window comparator |
 | 3 | PCA9685 | Digital/Analog IO | 0x60 | OE → TCA 0 | CH 0–7 user PWM headers, CH 8–15 → DRV8962 #2 (12-bit duty, one shared frequency) |

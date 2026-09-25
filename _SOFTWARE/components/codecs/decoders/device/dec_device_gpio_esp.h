@@ -6,11 +6,11 @@
 //@id device_gpio_esp
 //@version 1.0.0
 //@title ESP32 native GPIO
-//@description The board's own onboard GPIO pins - digital input/output, interrupts, and ADC voltage reads. Always available; nothing to install on the wire beyond a device ID.
+//@description The board's own onboard GPIO pins - digital input/output, interrupts, ADC voltage reads and PWM outputs. Always available; nothing to install on the wire beyond a device ID.
 //@protocol native
-//@tags gpio io adc voltage
+//@tags gpio io adc voltage pwm
 //@contract-provider $SYS_DEVICE_CONTRACT_IO
-//@property PIN-MODE @enum-ref sys_io_mode_e @one-of [$SYS_IO_MODE_INPUT, $SYS_IO_MODE_INPUT_PULLUP, $SYS_IO_MODE_INPUT_PULLDOWN, $SYS_IO_MODE_OUTPUT_PUSH_PULL, $SYS_IO_MODE_OUTPUT_OPEN_DRAIN, $SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP, $SYS_IO_MODE_ADC]
+//@property PIN-MODE @enum-ref sys_io_mode_e @one-of [$SYS_IO_MODE_INPUT, $SYS_IO_MODE_INPUT_PULLUP, $SYS_IO_MODE_INPUT_PULLDOWN, $SYS_IO_MODE_OUTPUT_PUSH_PULL, $SYS_IO_MODE_OUTPUT_OPEN_DRAIN, $SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP, $SYS_IO_MODE_PWM, $SYS_IO_MODE_ADC]
 
 //@contract packet_sys_io_reset_t @alias Reset pin
 //@param pin @alias GPIO Pin @note Valid pin numbers depend on the specific ESP32 variant/board - not a fixed set
@@ -19,7 +19,7 @@
 //@contract packet_sys_io_set_mode_t @alias Configure pin mode
 //@param pin @alias GPIO Pin @note Valid pin numbers depend on the specific ESP32 variant/board - not a fixed set
 //@param mode @arg PIN-MODE @alias Pin Mode
-//@description PWM and DAC modes aren't available on native GPIO - use a PCA9685 (PWM) or DAC53202 (DAC) device for those.
+//@description DAC mode isn't available on native GPIO - use a DAC53202 device. PWM takes one PWM channel per pin: up to 8 pins at once on the ESP32-S3, fewer if the firmware keeps channels for other drivers.
 
 //@contract packet_sys_io_configure_intr_t @alias Configure pin interrupt
 //@param pin @alias GPIO Pin @note Valid pin numbers depend on the specific ESP32 variant/board - not a fixed set
@@ -44,6 +44,16 @@
 //@param pin @alias GPIO Pin @note Valid pin numbers depend on the specific ESP32 variant/board - not a fixed set
 //@returns voltage_mV @type uint32_t @unit mV
 //@description Pin must be configured in ADC mode first.
+
+//@contract packet_sys_io_set_pwm_frequency_t @alias Set PWM frequency
+//@param pin @alias GPIO Pin @note Valid pin numbers depend on the specific ESP32 variant/board - not a fixed set
+//@param frequency_Hz @alias PWM Frequency @type uint32_t @unit Hz @min 5 @max 5000000
+//@description Pin must be in PWM mode. Each pin has its own frequency, but pins share the PWM timers by frequency: one timer per different frequency, any number of pins on each - up to 4 frequencies at once on the ESP32-S3, fewer if the firmware keeps timers for other drivers. A frequency that needs a timer when none is free is refused and the pin keeps its old one. Above ~19.5 kHz the duty has fewer than 4096 real steps (steps = 80 MHz / frequency).
+
+//@contract packet_sys_io_set_pwm_duty_t @alias Set PWM duty
+//@param pin @alias GPIO Pin @note Valid pin numbers depend on the specific ESP32 variant/board - not a fixed set
+//@param duty @alias Duty @type uint32_t @unit ticks @min 0 @max 4096 @note 4096 = always on
+//@description Pin must be in PWM mode. Before any frequency is set the pin runs at the default frequency (1 kHz), which takes a PWM timer like any other frequency.
 
 #define HEADER_packet_sys_device_install_gpio_esp_t 0x40
 typedef struct __packed {

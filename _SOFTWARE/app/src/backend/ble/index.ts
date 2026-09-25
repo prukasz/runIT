@@ -2,6 +2,7 @@ export type { BleAdapter } from './BleAdapter'
 export { BleAdapterError } from './errors'
 export { BleStreamBinding } from './BleStreamBinding'
 export { WebBluetoothAdapter } from './browser/WebBluetoothAdapter'
+export { shortBleUuid } from './uuid'
 export type {
   BleAdapterCapabilities,
   BleCapability,

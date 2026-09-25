@@ -7,6 +7,7 @@
 #include "esp_adc/adc_cali_scheme.h"
 #include "esp_adc/adc_continuous.h"
 #include "esp_adc_config.h"
+#include "esp_pwm.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -83,6 +84,7 @@ static SE_MUST_USE err_h contract_io_gpio_esp_reset_pin(void* handle, sys_io_pin
   bool was_adc = false;
   adc_cali_handle_t cali_handle = NULL;
   bool was_configured = false;
+  esp_err_t pwm_err = ESP_OK;
 
   if (R_MUTEX_LOCK(gpio_mutex, portMAX_DELAY) == pdTRUE) {
     esp_pin_obj_t* pin_obj = pin_obj_get(pin);
@@ -90,7 +92,10 @@ static SE_MUST_USE err_h contract_io_gpio_esp_reset_pin(void* handle, sys_io_pin
       was_configured = true;
       was_adc = (pin_obj->pin_mode == SYS_IO_MODE_ADC);
       cali_handle = pin_obj->hw.adc_cfg.cali_handle;
+      // Under the lock: the channel and timer pools are shared by every PWM pin.
+      if (pin_obj->pin_mode == SYS_IO_MODE_PWM) pwm_err = esp_pwm_release(pin_obj);
       configured_pins &= ~(1ULL << pin);
+      ctx->pending_outputs &= ~(1ULL << pin);
       memset(pin_obj, 0, sizeof(*pin_obj));
     }
     R_MUTEX_UNLOCK(gpio_mutex);
@@ -100,6 +105,7 @@ static SE_MUST_USE err_h contract_io_gpio_esp_reset_pin(void* handle, sys_io_pin
 
   // Every step runs even if an earlier one fails; the first failure is returned.
   err_h err = NULL;
+  SYS_DEV_TEARDOWN_DRIVER_STEP(err, pwm_err, ctx);
   SYS_DEV_TEARDOWN_DRIVER_STEP(err, gpio_reset_pin((gpio_num_t)pin), ctx);
   SYS_DEV_TEARDOWN_DRIVER_STEP(err, gpio_isr_handler_remove((gpio_num_t)pin), ctx);
   SYS_DEV_TEARDOWN_DRIVER_STEP(err, gpio_set_intr_type((gpio_num_t)pin, GPIO_INTR_DISABLE), ctx);
@@ -156,6 +162,26 @@ static SE_MUST_USE err_h contract_io_gpio_esp_set_mode(void* handle, sys_io_pin_
 
     configured_pins |= (1ULL << pin);
     needs_adc_update = true;
+  } else if (mode == SYS_IO_MODE_PWM) {
+    if (!(SOC_GPIO_VALID_OUTPUT_GPIO_MASK & (1ULL << pin))) {
+      SE_SET_ERR(err, ERR_IO_PIN_MODE_UNSUPPORTED, SYS_DEV_GET_ID(ctx), pin, mode);
+      goto cleanup;
+    }
+    if (esp_pwm_claim(new_pin) != ESP_OK) {
+      SE_SET_ERR(err, ERR_IO_PWM_CHANNELS_EXHAUSTED, SYS_DEV_GET_ID(ctx), pin, ESP_PWM_CHANNELS);
+      goto cleanup;
+    }
+    // Held low until the first frequency or duty write binds a timer. Not
+    // gpio_config(): it reserves an output pin, and LEDC then warns the pin is taken.
+    esp_err_t esp_err = gpio_set_level((gpio_num_t)pin, 0);
+    if (esp_err == ESP_OK) esp_err = gpio_set_pull_mode((gpio_num_t)pin, GPIO_FLOATING);
+    if (esp_err == ESP_OK) esp_err = gpio_set_direction((gpio_num_t)pin, GPIO_MODE_OUTPUT);
+    if (esp_err != ESP_OK) {
+      (void)esp_pwm_release(new_pin);  // only frees the channel: no timer is bound yet
+      err = SYS_DEV_DRIVER_ERR(esp_err, ctx);
+      goto cleanup;
+    }
+    configured_pins |= (1ULL << pin);
   } else {
     if (mode >= (sizeof(k_gpio_mode_map) / sizeof(k_gpio_mode_map[0])) || k_gpio_mode_map[mode].mode == GPIO_MODE_DISABLE) {
       SE_SET_ERR(err, ERR_IO_PIN_MODE_UNSUPPORTED, SYS_DEV_GET_ID(ctx), pin, mode);
@@ -354,6 +380,60 @@ static SE_MUST_USE err_h contract_io_gpio_esp_get_voltage(void* handle, sys_io_p
   return NULL;
 }
 
+// The pin's object if it is in PWM mode, else sets *err. Caller holds gpio_mutex.
+static esp_pin_obj_t* pwm_pin_get(sys_io_pin_num_t pin, err_h* err) {
+  esp_pin_obj_t* pin_obj = pin_obj_get(pin);
+  if (pin_obj == NULL) {
+    SE_SET_ERR(*err, ERR_IO_PIN_UNCONFIGURED, SYS_DEV_GET_ID(ctx), pin);
+  } else if (pin_obj->pin_mode != SYS_IO_MODE_PWM) {
+    SE_SET_ERR(*err, ERR_IO_PIN_ALREADY_IN_USE, SYS_DEV_GET_ID(ctx), pin, pin_obj->pin_mode);
+    pin_obj = NULL;
+  }
+  return pin_obj;
+}
+
+// A pool refusal (no free timer) is reported as such; anything else is a driver failure.
+static err_h pwm_result(esp_err_t esp_err, sys_io_pin_num_t pin, uint32_t frequency_Hz) {
+  if (esp_err == ESP_OK) return NULL;
+  if (esp_err == ESP_ERR_NOT_FOUND) {
+    return SE_ERR_NEW(ERR_IO_PWM_TIMERS_EXHAUSTED, .dev_id = SYS_DEV_GET_ID(ctx), .pin_num = pin, .timers = ESP_PWM_TIMERS, .frequency_Hz = frequency_Hz);
+  }
+  return SYS_DEV_DRIVER_ERR(esp_err, ctx);
+}
+
+// Frequency is configuration, applied even while frozen (only duty is an output write).
+static SE_MUST_USE err_h contract_io_gpio_esp_set_pwm_frequency(void* handle, sys_io_pin_num_t pin, uint32_t frequency_Hz) {
+  VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, pin_bitmask);
+  SE_CHECK_IN_RANGE(frequency_Hz, ESP_PWM_FREQ_MIN_HZ, ESP_PWM_FREQ_MAX_HZ);
+
+  err_h err = NULL;
+  R_MUTEX_LOCK(gpio_mutex, WAIT_FOREVER);
+  esp_pin_obj_t* pin_obj = pwm_pin_get(pin, &err);
+  if (pin_obj != NULL) err = pwm_result(esp_pwm_set_frequency(pin_obj, frequency_Hz), pin, frequency_Hz);
+  R_MUTEX_UNLOCK(gpio_mutex);
+  return err;
+}
+
+static SE_MUST_USE err_h contract_io_gpio_esp_set_pwm_duty(void* handle, sys_io_pin_num_t pin, uint32_t duty) {
+  VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, pin_bitmask);
+  SE_CHECK_IN_RANGE(duty, 0, ESP_PWM_DUTY_FULL);
+
+  err_h err = NULL;
+  R_MUTEX_LOCK(gpio_mutex, WAIT_FOREVER);
+  esp_pin_obj_t* pin_obj = pwm_pin_get(pin, &err);
+  if (pin_obj != NULL) {
+    IF_SYS_DEV_FROZEN(ctx) {
+      pin_obj->hw.pwm_cfg.pending_duty = (uint16_t)duty;
+      ctx->pending_outputs |= 1ULL << pin;
+    }
+    else {
+      err = pwm_result(esp_pwm_set_duty(pin_obj, duty), pin, CONFIG_DEVICE_GPIO_ESP_PWM_DEFAULT_FREQ_HZ);
+    }
+  }
+  R_MUTEX_UNLOCK(gpio_mutex);
+  return err;
+}
+
 // Instantiate the static VTable
 static const sys_io_contract_t s_gpio_esp_io_contract = {.reset = contract_io_gpio_esp_reset_pin,
     .set_mode = contract_io_gpio_esp_set_mode,
@@ -363,8 +443,8 @@ static const sys_io_contract_t s_gpio_esp_io_contract = {.reset = contract_io_gp
     .toggle = contract_io_gpio_esp_toggle,
     .get_voltage = contract_io_gpio_esp_get_voltage,
     .set_voltage = NULL,
-    .set_pwm_frequency = NULL,
-    .set_pwm_duty = NULL};
+    .set_pwm_frequency = contract_io_gpio_esp_set_pwm_frequency,
+    .set_pwm_duty = contract_io_gpio_esp_set_pwm_duty};
 
 // --- sys_device_t Implementations ---
 
@@ -409,20 +489,25 @@ static void gpio_esp_snapshot_inputs(void) {
   }
 }
 
-// Drains every pending deferred output write. Shared by sync and resume,
-// which flush state identically.
+// Drains every pending deferred output write (levels, PWM duties). Shared by
+// sync and resume, which flush state identically. Every pin is attempted; the
+// first failure is returned.
 static SE_MUST_USE err_h gpio_esp_flush_pending_outputs(void) {
-  if (ctx->pending_outputs != 0) {
-    for (int i = 0; i < GPIO_NUM_MAX; i++) {
-      uint64_t bit = (1ULL << i);
-      if (ctx->pending_outputs & bit) {
-        bool level = (ctx->current_outputs & bit) ? true : false;
-        SYS_DEV_CHECK_DRIVER_CALL(gpio_set_level(i, level), ctx);
-      }
+  err_h err = NULL;
+  R_MUTEX_LOCK(gpio_mutex, WAIT_FOREVER);
+  for (int i = 0; i < GPIO_NUM_MAX && ctx->pending_outputs != 0; i++) {
+    uint64_t bit = (1ULL << i);
+    if (!(ctx->pending_outputs & bit)) continue;
+    ctx->pending_outputs &= ~bit;
+    esp_pin_obj_t* pin_obj = pin_obj_get(i);
+    if (pin_obj != NULL && pin_obj->pin_mode == SYS_IO_MODE_PWM) {
+      SYS_DEV_TEARDOWN_STEP(err, pwm_result(esp_pwm_set_duty(pin_obj, pin_obj->hw.pwm_cfg.pending_duty), i, CONFIG_DEVICE_GPIO_ESP_PWM_DEFAULT_FREQ_HZ));
+    } else {
+      SYS_DEV_TEARDOWN_DRIVER_STEP(err, gpio_set_level(i, (ctx->current_outputs & bit) ? 1 : 0), ctx);
     }
-    ctx->pending_outputs = 0;
   }
-  return NULL;
+  R_MUTEX_UNLOCK(gpio_mutex);
+  return err;
 }
 
 static SE_MUST_USE err_h device_freeze(void* handle) {

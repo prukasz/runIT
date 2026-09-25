@@ -77,6 +77,8 @@ export class WebBluetoothAdapter implements BleAdapter {
   private readonly stateHandlers = new Set<BleConnectionStateHandler>()
   private readonly notificationHandlers = new Map<string, EventListener>()
   private state: BleConnectionState = 'idle'
+  /** Chromium runs one GATT operation at a time and rejects overlapping ones; this chain orders them. */
+  private gattChain: Promise<unknown> = Promise.resolve()
   private diagnostics: BleDiagnostics = {
     connectCount: 0,
     discoveryCount: 0,
@@ -235,18 +237,14 @@ export class WebBluetoothAdapter implements BleAdapter {
 
   async read(characteristic: BleCharacteristic): Promise<Uint8Array> {
     const browserCharacteristic = this.resolveCharacteristic(characteristic)
-    const data = toData(await browserCharacteristic.readValue())
+    const data = toData(await this.gatt(() => browserCharacteristic.readValue()))
     this.diagnostics = { ...this.diagnostics, readCount: this.diagnostics.readCount + 1, bytesRead: this.diagnostics.bytesRead + data.byteLength }
     return data
   }
 
   async write(characteristic: BleCharacteristic, data: Uint8Array, withResponse = true): Promise<void> {
     const browserCharacteristic = this.resolveCharacteristic(characteristic)
-    if (withResponse) {
-      await browserCharacteristic.writeValueWithResponse(data)
-    } else {
-      await browserCharacteristic.writeValueWithoutResponse(data)
-    }
+    await this.gatt(() => (withResponse ? browserCharacteristic.writeValueWithResponse(data) : browserCharacteristic.writeValueWithoutResponse(data)))
     this.diagnostics = { ...this.diagnostics, writeCount: this.diagnostics.writeCount + 1, bytesWritten: this.diagnostics.bytesWritten + data.byteLength }
   }
 
@@ -267,7 +265,7 @@ export class WebBluetoothAdapter implements BleAdapter {
         handler(data, characteristic)
       }
     }
-    await browserCharacteristic.startNotifications()
+    await this.gatt(() => browserCharacteristic.startNotifications())
     browserCharacteristic.addEventListener('characteristicvaluechanged', listener)
     this.notificationHandlers.set(key, listener)
 
@@ -276,13 +274,19 @@ export class WebBluetoothAdapter implements BleAdapter {
       if (!activeListener) return
       browserCharacteristic.removeEventListener('characteristicvaluechanged', activeListener)
       this.notificationHandlers.delete(key)
-      if (this.isConnected()) await browserCharacteristic.stopNotifications()
+      if (this.isConnected()) await this.gatt(() => browserCharacteristic.stopNotifications())
     }
   }
 
   onDisconnect(handler: BleDisconnectHandler): () => void {
     this.disconnectHandlers.add(handler)
     return () => this.disconnectHandlers.delete(handler)
+  }
+
+  private gatt<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.gattChain.then(operation)
+    this.gattChain = result.catch(() => undefined)
+    return result
   }
 
   private requireBluetooth(): WebBluetooth {

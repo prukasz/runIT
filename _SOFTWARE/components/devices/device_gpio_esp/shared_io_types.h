@@ -19,12 +19,14 @@ typedef struct {
   adc_cali_handle_t cali_handle;
 } pin_adc_data_t;
 
-// 3. PWM-specific storage
+// 3. PWM-specific storage (esp_pwm.h). Duty is on the device scale
+// (0..ESP_PWM_DUTY_FULL), whatever resolution the pin's timer runs at.
 typedef struct {
-  uint32_t freq_hz;
-  uint32_t duty_cycle;
-  uint8_t timer_num;
-  uint8_t channel_num;
+  uint32_t frequency_Hz; /* of the pin's timer; 0 until one is bound */
+  uint16_t duty;         /* applied */
+  uint16_t pending_duty; /* written while the device is frozen; applied by sync */
+  uint8_t channel;       /* LEDC channel, reserved by set_mode */
+  uint8_t timer;         /* LEDC timer, ESP_PWM_TIMER_NONE until the first frequency or duty */
 } pin_pwm_data_t;
 
 // 4. The Master Unified Pin Object

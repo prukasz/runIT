@@ -7,9 +7,9 @@ export class PacketPackError extends Error {
   }
 }
 
-type ScalarInfo = { readonly size: number; readonly signed: boolean; readonly float: boolean; readonly boolean: boolean }
+export type ScalarInfo = { readonly size: number; readonly signed: boolean; readonly float: boolean; readonly boolean: boolean }
 
-const SCALARS: Readonly<Record<PacketScalarType, ScalarInfo>> = {
+export const SCALARS: Readonly<Record<PacketScalarType, ScalarInfo>> = {
   u8: { size: 1, signed: false, float: false, boolean: false }, uint8_t: { size: 1, signed: false, float: false, boolean: false }, uint8: { size: 1, signed: false, float: false, boolean: false },
   i8: { size: 1, signed: true, float: false, boolean: false }, int8_t: { size: 1, signed: true, float: false, boolean: false }, int8: { size: 1, signed: true, float: false, boolean: false },
   u16: { size: 2, signed: false, float: false, boolean: false }, uint16_t: { size: 2, signed: false, float: false, boolean: false }, uint16: { size: 2, signed: false, float: false, boolean: false },

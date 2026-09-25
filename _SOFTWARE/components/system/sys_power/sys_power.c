@@ -13,8 +13,11 @@
 #define OWNER OWNER_SYS_POWER_BASE
 
 /* Member names of the power contracts in order, NULL-terminated (feature id = index). */
+//@contract-features $SYS_DEVICE_CONTRACT_POWER_VREG
 const char* const sys_power_vreg_feature_names[] = {"set_enable", "set_voltage", "set_current", NULL};
+//@contract-features $SYS_DEVICE_CONTRACT_POWER_MONITOR
 const char* const sys_power_monitor_feature_names[] = {"get_voltage", "get_current", "set_alert", NULL};
+//@contract-features $SYS_DEVICE_CONTRACT_POWER_USB_PD
 const char* const sys_power_usb_pd_feature_names[] = {"set_settings", "list_options", "get_limits", NULL};
 _Static_assert(sizeof(sys_power_vreg_feature_names) / sizeof(sys_power_vreg_feature_names[0]) - 1 == sizeof(sys_power_vreg_contract_t) / sizeof(void (*)(void)),
                "sys_power_vreg_feature_names must list every sys_power_vreg_contract_t member in order");

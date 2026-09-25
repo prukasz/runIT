@@ -3,6 +3,7 @@
 
 #define OWNER OWNER_SYS_HBRIDGE_BASE
 
+//@contract-features $SYS_DEVICE_CONTRACT_HBRIDGE
 const char* const sys_hbridge_feature_names[] = {"set_mode",  "set_drive", "brake",          "coast",       "get_current_mA",
                                                  "set_current_limit_mA", "get_fault", "clear_fault", NULL};
 _Static_assert(sizeof(sys_hbridge_feature_names) / sizeof(sys_hbridge_feature_names[0]) - 1 == sizeof(sys_hbridge_contract_t) / sizeof(void (*)(void)),

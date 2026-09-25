@@ -1,4 +1,6 @@
 export { PacketPackError, packedSize, packPacket, packStruct } from './packetPack'
+export { unpackStruct } from './packetUnpack'
+export type { UnpackResult } from './packetUnpack'
 export type {
   BytesField,
   PacketField,

@@ -20,9 +20,9 @@
   X(OWNER_SYS_DATA_CONNECTOR_SUSPEND, 0xAD0B, "OWNER_SYS_DATA_CONNECTOR_SUSPEND")
 
 #define SYS_ERROR_DATA_CONNECTOR_MAP(X)                                                                                                  \
-  X(ERR_DATA_CONNECTOR_FRAME_TOO_LONG, 0xAD01, SE_LEVEL_MEDIUM, struct { uint8_t id; uint8_t provider_id; uint32_t len; uint32_t max; }) \
-  X(ERR_DATA_CONNECTOR_PROTECTED, 0xAD02, SE_LEVEL_LOW, struct { uint8_t id; })                                                          \
-  X(ERR_DATA_CONNECTOR_NO_PROVIDER, 0xAD03, SE_LEVEL_LOW, struct { uint8_t provider_id; })
+  X(ERR_DATA_CONNECTOR_FRAME_TOO_LONG, 0xAD01, SE_LEVEL_MEDIUM, struct { uint8_t id; /*@enum-ref sys_data_connector_id_e*/ uint8_t provider_id; /*@enum-ref runit_data_provider_e*/ uint32_t len; uint32_t max; }) \
+  X(ERR_DATA_CONNECTOR_PROTECTED, 0xAD02, SE_LEVEL_LOW, struct { uint8_t id; /*@enum-ref sys_data_connector_id_e*/ })                                                          \
+  X(ERR_DATA_CONNECTOR_NO_PROVIDER, 0xAD03, SE_LEVEL_LOW, struct { uint8_t provider_id; /*@enum-ref runit_data_provider_e*/ })
 
 /** @brief Human-readable descriptions for the sys_data_connector tags - see SE_describe_payload() in sys_error.h. */
 #define SYS_ERROR_DATA_CONNECTOR_LOGGER_MAP(X) \

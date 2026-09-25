@@ -1,0 +1,68 @@
+{
+  "$schema": "data-structures/schema/streams.schema.json",
+  "schemaVersion": 1,
+  "kind": "streams",
+  "source_file": "components/system/sys_data_connector/sys_data_connector.c",
+  "ble": {
+    "service": "0xFFE0",
+    "source_files": [
+      "components/runit/runit_board_defs.h",
+      "components/runit/runit_board_cfg.c"
+    ]
+  },
+  "streams": [
+    {
+      "name": "logs",
+      "header": "0x03",
+      "config": "CONFIG_TX_PACKET_CLASS_LOGS",
+      "connector": "SYS_DATA_CONNECTOR_LOGS",
+      "connector_enum": "sys_data_connector_id_e",
+      "connector_id": 0,
+      "alias": "Logs",
+      "description": "Text log lines.",
+      "ble": {
+        "notify": "0xFFE3"
+      }
+    },
+    {
+      "name": "errors",
+      "header": "0x04",
+      "config": "CONFIG_TX_PACKET_CLASS_ERRORS",
+      "connector": "SYS_DATA_CONNECTOR_ERRORS",
+      "connector_enum": "sys_data_connector_id_e",
+      "connector_id": 1,
+      "alias": "Errors",
+      "description": "Binary error reports.",
+      "ble": {
+        "notify": "0xFFE3"
+      }
+    },
+    {
+      "name": "telemetry",
+      "header": "0x02",
+      "config": "CONFIG_TX_PACKET_CLASS_TELEMETRY",
+      "connector": "SYS_DATA_CONNECTOR_TELEMETRY",
+      "connector_enum": "sys_data_connector_id_e",
+      "connector_id": 2,
+      "alias": "Telemetry",
+      "description": "Program object values you subscribed to.",
+      "ble": {
+        "notify": "0xFFE1"
+      }
+    },
+    {
+      "name": "interface",
+      "header": "0x05",
+      "config": "CONFIG_TX_PACKET_CLASS_INTERFACE",
+      "connector": "SYS_DATA_CONNECTOR_INTERFACE",
+      "connector_enum": "sys_data_connector_id_e",
+      "connector_id": 3,
+      "alias": "Commands",
+      "description": "Commands to the board and their responses.",
+      "ble": {
+        "notify": "0xFFE1",
+        "write": "0xFFE2"
+      }
+    }
+  ]
+}

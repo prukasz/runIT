@@ -144,6 +144,15 @@ and padding; scalar record headers are explicitly little endian.
 Formatted logs still supply human-readable descriptions. Clients with a
 matching schema may decode typed payloads.
 
+**Client tables:** `data-structures/errors/errors.generated.json`
+(`generate-errors.py`, see `data-structures/AGENTS.md`) publishes every tag,
+owner, severity, payload layout (native offsets), `LOG_BODY` format and the
+schema ID computed the same way as `SE_schema_id()`. The app decodes error
+packets from it. Keep `LOG_BODY_*` to one `snprintf` over payload fields
+(helpers of the form `switch` → `return "text"` or `(r) == N ? "text" : …`
+are published as value tables); a body with conditionals gets no template and
+the app lists the raw fields instead.
+
 ## Error maps and aggregation
 
 Each module declares its own errors in one header, `sys_error_<module>.h`, kept in the module's **`errors/` folder**:
@@ -182,6 +191,17 @@ Each module declares its own errors in one header, `sys_error_<module>.h`, kept 
 - Only data: X-macro maps and `LOG_BODY_*` macros.
 - No includes beyond `<stdint.h>` / `<stdio.h>`: it's parsed early in the `sys_error.h` include chain, before `err_h` exists.
 - A description that needs another module's names forward-declares just those symbols as `extern` (see `sys_error_dev.h`).
+- **Name the IDs in a payload for the app.** Put an annotation right after the field's `;`. It must be a block comment, because the maps are one-line macros. For example: `struct { uint8_t dev_id; /*@id device*/ uint8_t mode; /*@enum-ref sys_io_mode_e*/ }`.
+  - `/*@enum-ref <enum>*/` names a `//#ref-enum` enum.
+  - `/*@id <kind>*/` names a value from another catalog. The kinds:
+    - `device`: board device ID;
+    - `error-tag`, `error-owner`, `error-level`;
+    - `rx-class`: command class byte;
+    - `rx-packet <class field>`: command packet byte; the class byte is in the named field;
+    - `contract-feature <contract field>`: device contract feature ID (`SYS_DEV_FEATURE_ID`); the contract type is in the named field. Its names come from the feature tables marked `//@contract-features $SYS_DEVICE_CONTRACT_<X>` (`sys_io.c`, `sys_power.c`, `sys_hbridge.c`); a new contract needs one;
+    - `vm-block-type`;
+    - `esp-err`: an `esp_err_t`.
+  - The app then prints `device 12 (INA3221)` instead of `device 12`. `generate-errors.py` rejects an unknown enum or kind. Keep the annotation when moving or reformatting the field (conventions §6).
 
 **Adding a module's errors:**
 1. Create `<component>/errors/sys_error_<module>.h`.
@@ -189,6 +209,7 @@ Each module declares its own errors in one header, `sys_error_<module>.h`, kept 
 3. Include the header in `codes/sys_error_codes.h`, and add its maps to `SYS_ERROR_MAP` / `SYS_OWNER_MAP` / the logger map.
 4. Add the folder to `sys_errors/CMakeLists.txt`.
 5. Only if the domain gets a fault hook, add it to `dispatch_domain()` in `sys_error_handler.c`.
+6. Regenerate the app's tables: `python data-structures/auto-annotations/errors/generate-errors.py` (also after adding or changing any tag, owner or `LOG_BODY`).
 
 **Expected build warnings.** ESP-IDF's component check reports each of these folders once ("Include directory … belongs to component X but is being used by component sys_errors"): 16 warnings, one per `errors/` folder. They are expected. Any other project warning is new and must be fixed. Adding a tag changes the schema ID (see "Logging and telemetry"); adding an owner doesn't.
 

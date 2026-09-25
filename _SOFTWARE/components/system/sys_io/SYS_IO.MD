@@ -162,8 +162,10 @@ All return `err_h` (`NULL` on success). Every dispatched call routes through `SY
 * **`sys_io_set_pwm_frequency(ref, frequency_Hz)`**: Configures target PWM frequency.
 * **`sys_io_set_pwm_duty(ref, duty)`**: Updates PWM output duty cycle.
 
+`duty` is in the device's own ticks; each device publishes its range in its descriptor (`@max` of the `set_pwm_duty` contract). PCA9685: 0..4095. ESP native GPIO: 0..4096, 4096 = always on (the DRV8962 driver's full scale), converted to the resolution of the LEDC timer the pin runs on. Frequency is per device on the PCA9685 (one oscillator) and per pin on ESP GPIO, where pins share the LEDC timers by frequency: one timer per different frequency. Which LEDC timers and channels PWM pins may use is set in Kconfig (`CONFIG_DEVICE_GPIO_ESP_PWM_TIMER_MASK` / `_CHANNEL_MASK`, default all 4 / all 8), so other LEDC users can keep some (`device_gpio_esp/esp_pwm.h`).
+
 ---
 
 ## Error Ownership
 
-Every function in `sys_io.c` sets `#undef OWNER` / `#define OWNER OWNER_SYS_IO_<FUNCTION>` immediately before its body, per the owner tagging convention (runit-esp skill, errors.md). See `sys_error_io.h` for the full `SYS_IO_OWNER_MAP` and the `SYS_ERROR_IO_MAP` tags (`ERR_IO_PIN_UNCONFIGURED`, `ERR_IO_PIN_UNAVAILABLE`, `ERR_IO_PIN_ALREADY_IN_USE`, `ERR_IO_PIN_FEATURE_UNSUPPORTED`, `ERR_IO_PIN_LOCKED`, `ERR_IO_PIN_MODE_UNSUPPORTED`).
+Every function in `sys_io.c` sets `#undef OWNER` / `#define OWNER OWNER_SYS_IO_<FUNCTION>` immediately before its body, per the owner tagging convention (runit-esp skill, errors.md). See `sys_error_io.h` for the full `SYS_IO_OWNER_MAP` and the `SYS_ERROR_IO_MAP` tags (`ERR_IO_PIN_UNCONFIGURED`, `ERR_IO_PIN_UNAVAILABLE`, `ERR_IO_PIN_ALREADY_IN_USE`, `ERR_IO_PIN_FEATURE_UNSUPPORTED`, `ERR_IO_PIN_LOCKED`, `ERR_IO_PIN_MODE_UNSUPPORTED`, `ERR_IO_PWM_CHANNELS_EXHAUSTED`, `ERR_IO_PWM_TIMERS_EXHAUSTED`). The two PWM tags are for adapters with pooled PWM hardware: no free channel for a pin being set to PWM, no timer for a new frequency.

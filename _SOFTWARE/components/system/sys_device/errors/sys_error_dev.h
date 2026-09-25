@@ -25,17 +25,17 @@
   X(OWNER_SYS_DEVICE_USER_UNINSTALL_ALL, 0xA113, "OWNER_SYS_DEVICE_USER_UNINSTALL_ALL")
 
 #define SYS_ERROR_DEV_MAP(X) \
-    X(ERR_DEV_NO_HANDLE, 0xA101, SE_LEVEL_HIGH, struct { uint8_t dev_id; }) \
-    X(ERR_DEV_NOT_FOUND, 0xA102, SE_LEVEL_LOW, struct { uint8_t dev_id; }) \
-    X(ERR_DEV_ALREADY_EXIST, 0xA103, SE_LEVEL_LOW, struct { uint8_t dev_id; }) \
-    X(ERR_DEV_FEATURE_UNAVAILABLE, 0xA104, SE_LEVEL_LOW, struct { uint8_t dev_id; uint8_t contract_id; uint8_t feature_id; }) \
-    X(ERR_DEV_SUSPENDED, 0xA105, SE_LEVEL_MEDIUM, struct { uint8_t dev_id; }) \
-    X(ERR_DEV_NOT_INSTALLED, 0xA106, SE_LEVEL_LOW, struct { uint8_t dev_id; }) \
-    X(ERR_DEV_INSTALL_FAILED, 0xA107, SE_LEVEL_HIGH, struct { uint8_t dev_id; }) \
-    X(ERR_DEV_FAULT_RESPONSE_FAILED, 0xA108, SE_LEVEL_CRITICAL, struct { uint8_t dev_id; uint8_t level; uint8_t stage; uint8_t action_id; uint16_t cause_tag; }) \
-    X(ERR_DEV_DRIVER_FAILED, 0xA109, SE_LEVEL_HIGH, struct { uint8_t dev_id; uint16_t line; }) \
+    X(ERR_DEV_NO_HANDLE, 0xA101, SE_LEVEL_HIGH, struct { uint8_t dev_id; /*@id device*/ }) \
+    X(ERR_DEV_NOT_FOUND, 0xA102, SE_LEVEL_LOW, struct { uint8_t dev_id; /*@id device*/ }) \
+    X(ERR_DEV_ALREADY_EXIST, 0xA103, SE_LEVEL_LOW, struct { uint8_t dev_id; /*@id device*/ }) \
+    X(ERR_DEV_FEATURE_UNAVAILABLE, 0xA104, SE_LEVEL_LOW, struct { uint8_t dev_id; /*@id device*/ uint8_t contract_id; /*@enum-ref sys_device_contract_type_e*/ uint8_t feature_id; /*@id contract-feature contract_id*/ }) \
+    X(ERR_DEV_SUSPENDED, 0xA105, SE_LEVEL_MEDIUM, struct { uint8_t dev_id; /*@id device*/ }) \
+    X(ERR_DEV_NOT_INSTALLED, 0xA106, SE_LEVEL_LOW, struct { uint8_t dev_id; /*@id device*/ }) \
+    X(ERR_DEV_INSTALL_FAILED, 0xA107, SE_LEVEL_HIGH, struct { uint8_t dev_id; /*@id device*/ }) \
+    X(ERR_DEV_FAULT_RESPONSE_FAILED, 0xA108, SE_LEVEL_CRITICAL, struct { uint8_t dev_id; /*@id device*/ uint8_t level; /*@id error-level*/ uint8_t stage; uint8_t action_id; uint16_t cause_tag; /*@id error-tag*/ }) \
+    X(ERR_DEV_DRIVER_FAILED, 0xA109, SE_LEVEL_HIGH, struct { uint8_t dev_id; /*@id device*/ uint16_t line; }) \
     X(ERR_DEV_INSTALL_STEP_FAILED, 0xA10A, SE_LEVEL_HIGH, struct { uint16_t line; }) \
-    X(ERR_DEV_ONBOARD, 0xA10B, SE_LEVEL_LOW, struct { uint8_t dev_id; })
+    X(ERR_DEV_ONBOARD, 0xA10B, SE_LEVEL_LOW, struct { uint8_t dev_id; /*@id device*/ })
 
 /**
  * @brief Human-readable descriptions for the sys_device tags - see

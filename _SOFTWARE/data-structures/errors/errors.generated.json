@@ -1,0 +1,5911 @@
+{
+  "$schema": "data-structures/schema/errors.schema.json",
+  "schemaVersion": 1,
+  "kind": "errors",
+  "schema_id": 4225466988,
+  "packet": {
+    "stream": "0x04",
+    "byte_order": "little",
+    "header": [
+      {
+        "name": "node_count",
+        "type": "uint8_t"
+      },
+      {
+        "name": "depth",
+        "type": "uint8_t"
+      },
+      {
+        "name": "schema_id",
+        "type": "uint32_t"
+      }
+    ],
+    "node": [
+      {
+        "name": "payload_length",
+        "type": "uint8_t"
+      },
+      {
+        "name": "tag",
+        "type": "uint16_t"
+      },
+      {
+        "name": "owner",
+        "type": "uint16_t"
+      }
+    ],
+    "depth_corrupt": 255,
+    "notes": "Nodes run from the outermost error to the root cause. depth > node_count: the chain was cut to fit the frame. depth 255: corrupt or over-depth chain."
+  },
+  "levels": [
+    {
+      "name": "SE_LEVEL_NONE",
+      "value": 0,
+      "alias": "None"
+    },
+    {
+      "name": "SE_LEVEL_LOW",
+      "value": 1,
+      "alias": "Low"
+    },
+    {
+      "name": "SE_LEVEL_MEDIUM",
+      "value": 2,
+      "alias": "Medium"
+    },
+    {
+      "name": "SE_LEVEL_HIGH",
+      "value": 3,
+      "alias": "High"
+    },
+    {
+      "name": "SE_LEVEL_CRITICAL",
+      "value": 4,
+      "alias": "Critical"
+    }
+  ],
+  "owners": [
+    {
+      "name": "OWNER_SYS_ERRORS_BASE",
+      "id": 43008,
+      "source_file": "components/sys_errors/codes/sys_error_base.h"
+    },
+    {
+      "name": "OWNER_SYS_ERRORS_CONFIG",
+      "id": 43009,
+      "source_file": "components/sys_errors/codes/sys_error_base.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_BASE",
+      "id": 41216,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_INSTALL",
+      "id": 41217,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_UNINSTALL",
+      "id": 41218,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_RESET",
+      "id": 41219,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_GET_BY_ID",
+      "id": 41220,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_SUSPEND",
+      "id": 41221,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_RESUME",
+      "id": 41222,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_SUSPEND_ALL",
+      "id": 41223,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_RESUME_ALL",
+      "id": 41224,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_FREEZE",
+      "id": 41225,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_SYNC",
+      "id": 41226,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_FREEZE_ALL",
+      "id": 41227,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_SYNC_ALL",
+      "id": 41228,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_RESET_ALL",
+      "id": 41229,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_UNINSTALL_ALL",
+      "id": 41230,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_REPORT_ERROR",
+      "id": 41231,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_SET_ERROR_HANDLING",
+      "id": 41232,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_SET_ONBOARD",
+      "id": 41233,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_USER_UNINSTALL",
+      "id": 41234,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_USER_UNINSTALL_ALL",
+      "id": 41235,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_IO_BASE",
+      "id": 41728,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h"
+    },
+    {
+      "name": "OWNER_SYS_IO_RESET",
+      "id": 41729,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h"
+    },
+    {
+      "name": "OWNER_SYS_IO_DRIVER_RESET",
+      "id": 41730,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h"
+    },
+    {
+      "name": "OWNER_SYS_IO_SET_MODE",
+      "id": 41731,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h"
+    },
+    {
+      "name": "OWNER_SYS_IO_CONFIGURE_INTR",
+      "id": 41732,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h"
+    },
+    {
+      "name": "OWNER_SYS_IO_SET_LEVEL",
+      "id": 41733,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h"
+    },
+    {
+      "name": "OWNER_SYS_IO_GET_LEVEL",
+      "id": 41734,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h"
+    },
+    {
+      "name": "OWNER_SYS_IO_TOGGLE",
+      "id": 41735,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h"
+    },
+    {
+      "name": "OWNER_SYS_IO_GET_VOLTAGE",
+      "id": 41736,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h"
+    },
+    {
+      "name": "OWNER_SYS_IO_SET_VOLTAGE",
+      "id": 41737,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h"
+    },
+    {
+      "name": "OWNER_SYS_IO_REGISTER_DRIVER",
+      "id": 41738,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h"
+    },
+    {
+      "name": "OWNER_SYS_IO_DESTROY",
+      "id": 41739,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h"
+    },
+    {
+      "name": "OWNER_SYS_IO_SET_PWM_FREQUENCY",
+      "id": 41740,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h"
+    },
+    {
+      "name": "OWNER_SYS_IO_SET_PWM_DUTY",
+      "id": 41741,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h"
+    },
+    {
+      "name": "OWNER_SYS_IO_UNREGISTER_DRIVER",
+      "id": 41742,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h"
+    },
+    {
+      "name": "OWNER_SYS_I2C_BASE",
+      "id": 41472,
+      "source_file": "components/system/sys_i2c/errors/sys_error_i2c.h"
+    },
+    {
+      "name": "OWNER_SYS_I2C_INIT",
+      "id": 41473,
+      "source_file": "components/system/sys_i2c/errors/sys_error_i2c.h"
+    },
+    {
+      "name": "OWNER_SYS_I2C_ADD_DRIVER",
+      "id": 41474,
+      "source_file": "components/system/sys_i2c/errors/sys_error_i2c.h"
+    },
+    {
+      "name": "OWNER_SYS_I2C_REMOVE_DRIVER",
+      "id": 41475,
+      "source_file": "components/system/sys_i2c/errors/sys_error_i2c.h"
+    },
+    {
+      "name": "OWNER_SYS_I2C_DEVICE_PRESENT",
+      "id": 41476,
+      "source_file": "components/system/sys_i2c/errors/sys_error_i2c.h"
+    },
+    {
+      "name": "OWNER_SYS_POWER_BASE",
+      "id": 41984,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h"
+    },
+    {
+      "name": "OWNER_SYS_POWER_VREG_SET_ENABLE",
+      "id": 41990,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h"
+    },
+    {
+      "name": "OWNER_SYS_POWER_VREG_SET_VOLTAGE",
+      "id": 41991,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h"
+    },
+    {
+      "name": "OWNER_SYS_POWER_VREG_SET_CURRENT",
+      "id": 41992,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h"
+    },
+    {
+      "name": "OWNER_SYS_POWER_MONITOR_GET_VOLTAGE",
+      "id": 41994,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h"
+    },
+    {
+      "name": "OWNER_SYS_POWER_MONITOR_GET_CURRENT",
+      "id": 41995,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h"
+    },
+    {
+      "name": "OWNER_SYS_POWER_MONITOR_SET_ALERT",
+      "id": 41996,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h"
+    },
+    {
+      "name": "OWNER_SYS_POWER_USB_PD_SET",
+      "id": 41997,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h"
+    },
+    {
+      "name": "OWNER_SYS_POWER_USB_PD_LIST",
+      "id": 41998,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h"
+    },
+    {
+      "name": "OWNER_SYS_POWER_USB_PD_GET_LIMITS",
+      "id": 41999,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h"
+    },
+    {
+      "name": "OWNER_SYS_POWER_MANAGER",
+      "id": 42000,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h"
+    },
+    {
+      "name": "OWNER_SYS_POWER_SOURCE",
+      "id": 42001,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h"
+    },
+    {
+      "name": "OWNER_SYS_POWER_BUDGET",
+      "id": 42002,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h"
+    },
+    {
+      "name": "OWNER_SYS_POWER_EVENTS",
+      "id": 42003,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h"
+    },
+    {
+      "name": "OWNER_SYS_POWER_SETTINGS",
+      "id": 42004,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h"
+    },
+    {
+      "name": "OWNER_SYS_BLE_BASE",
+      "id": 42240,
+      "source_file": "components/system/ble/errors/sys_error_ble.h"
+    },
+    {
+      "name": "OWNER_SYS_BLE_CREATE",
+      "id": 42241,
+      "source_file": "components/system/ble/errors/sys_error_ble.h"
+    },
+    {
+      "name": "OWNER_SYS_BLE_SERVICE_CREATE",
+      "id": 42242,
+      "source_file": "components/system/ble/errors/sys_error_ble.h"
+    },
+    {
+      "name": "OWNER_SYS_BLE_SERVICE_REMOVE",
+      "id": 42243,
+      "source_file": "components/system/ble/errors/sys_error_ble.h"
+    },
+    {
+      "name": "OWNER_SYS_BLE_CHAR_CREATE",
+      "id": 42244,
+      "source_file": "components/system/ble/errors/sys_error_ble.h"
+    },
+    {
+      "name": "OWNER_SYS_BLE_CHAR_REMOVE",
+      "id": 42245,
+      "source_file": "components/system/ble/errors/sys_error_ble.h"
+    },
+    {
+      "name": "OWNER_SYS_BLE_CHAR_ASSIGN_TX",
+      "id": 42246,
+      "source_file": "components/system/ble/errors/sys_error_ble.h"
+    },
+    {
+      "name": "OWNER_SYS_BLE_SEND",
+      "id": 42247,
+      "source_file": "components/system/ble/errors/sys_error_ble.h"
+    },
+    {
+      "name": "OWNER_SYS_BLE_DATABASE_SYNC",
+      "id": 42248,
+      "source_file": "components/system/ble/errors/sys_error_ble.h"
+    },
+    {
+      "name": "OWNER_SYS_BLE_GET_STATUS",
+      "id": 42249,
+      "source_file": "components/system/ble/errors/sys_error_ble.h"
+    },
+    {
+      "name": "OWNER_SYS_BLE_ADV",
+      "id": 42250,
+      "source_file": "components/system/ble/errors/sys_error_ble.h"
+    },
+    {
+      "name": "OWNER_SYS_BLE_STACK",
+      "id": 42251,
+      "source_file": "components/system/ble/errors/sys_error_ble.h"
+    },
+    {
+      "name": "OWNER_SYS_BLE_CHANNEL_CREATE",
+      "id": 42252,
+      "source_file": "components/system/ble/errors/sys_error_ble.h"
+    },
+    {
+      "name": "OWNER_SYS_BLE_RX_INJECT",
+      "id": 42253,
+      "source_file": "components/system/ble/errors/sys_error_ble.h"
+    },
+    {
+      "name": "OWNER_SYS_BLE_PROVIDER",
+      "id": 42254,
+      "source_file": "components/system/ble/errors/sys_error_ble.h"
+    },
+    {
+      "name": "OWNER_SYS_INTERFACE_BASE",
+      "id": 42496,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
+    },
+    {
+      "name": "OWNER_SYS_INTERFACE_DECODE",
+      "id": 42497,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
+    },
+    {
+      "name": "OWNER_SYS_INTERFACE_CLASS",
+      "id": 42498,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
+    },
+    {
+      "name": "OWNER_SYS_INTERFACE_SOURCE",
+      "id": 42499,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
+    },
+    {
+      "name": "OWNER_SYS_INTERFACE_RESPOND",
+      "id": 42500,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
+    },
+    {
+      "name": "OWNER_DEC_SYS_CONTRACTS",
+      "id": 42512,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
+    },
+    {
+      "name": "OWNER_DEC_SYS_ACTIONS",
+      "id": 42513,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
+    },
+    {
+      "name": "OWNER_DEC_SYS_DEVICE_INSTALL",
+      "id": 42514,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
+    },
+    {
+      "name": "OWNER_DEC_SETTINGS_BLE",
+      "id": 42515,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
+    },
+    {
+      "name": "OWNER_DEC_SETTINGS_DATA_CONNECTOR",
+      "id": 42516,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
+    },
+    {
+      "name": "OWNER_DEC_SETTINGS_LOGS",
+      "id": 42517,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
+    },
+    {
+      "name": "OWNER_DEC_FEATURES",
+      "id": 42518,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
+    },
+    {
+      "name": "OWNER_DEC_SETTINGS_POWER",
+      "id": 42519,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
+    },
+    {
+      "name": "OWNER_DEC_SYS_EVENTS",
+      "id": 42520,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
+    },
+    {
+      "name": "OWNER_ENC_SYS_ERRORS",
+      "id": 42528,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
+    },
+    {
+      "name": "OWNER_SYS_BUFFERS_BASE",
+      "id": 42752,
+      "source_file": "components/system/sys_buffers/errors/sys_error_buffers.h"
+    },
+    {
+      "name": "OWNER_SYS_BUFF_INIT",
+      "id": 42753,
+      "source_file": "components/system/sys_buffers/errors/sys_error_buffers.h"
+    },
+    {
+      "name": "OWNER_SYS_BUFF_FREE",
+      "id": 42754,
+      "source_file": "components/system/sys_buffers/errors/sys_error_buffers.h"
+    },
+    {
+      "name": "OWNER_SYS_BUFF_PUSH",
+      "id": 42755,
+      "source_file": "components/system/sys_buffers/errors/sys_error_buffers.h"
+    },
+    {
+      "name": "OWNER_SYS_BUFF_POP_FRAMED",
+      "id": 42756,
+      "source_file": "components/system/sys_buffers/errors/sys_error_buffers.h"
+    },
+    {
+      "name": "OWNER_SYS_BUFF_POP_RAW",
+      "id": 42757,
+      "source_file": "components/system/sys_buffers/errors/sys_error_buffers.h"
+    },
+    {
+      "name": "OWNER_SYS_ACTIONS_BASE",
+      "id": 43520,
+      "source_file": "components/system/sys_actions/errors/sys_error_actions.h"
+    },
+    {
+      "name": "OWNER_SYS_ACTIONS_STATIC",
+      "id": 43521,
+      "source_file": "components/system/sys_actions/errors/sys_error_actions.h"
+    },
+    {
+      "name": "OWNER_VM_BASE",
+      "id": 43264,
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    {
+      "name": "OWNER_VM_STORE",
+      "id": 43265,
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    {
+      "name": "OWNER_VM_OBJ",
+      "id": 43266,
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    {
+      "name": "OWNER_VM_ACCESSOR",
+      "id": 43267,
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    {
+      "name": "OWNER_VM_BLOCK",
+      "id": 43268,
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    {
+      "name": "OWNER_VM_CODE",
+      "id": 43269,
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    {
+      "name": "OWNER_VM_LOADER",
+      "id": 43270,
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    {
+      "name": "OWNER_DEC_VM_LOADER",
+      "id": 43271,
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    {
+      "name": "OWNER_VM_EXEC",
+      "id": 43272,
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    {
+      "name": "OWNER_VM_RETAIN",
+      "id": 43273,
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    {
+      "name": "OWNER_VM_SUB",
+      "id": 43274,
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    {
+      "name": "OWNER_SYS_EVENT_BASE",
+      "id": 43776,
+      "source_file": "components/system/sys_event/errors/sys_error_event.h"
+    },
+    {
+      "name": "OWNER_SYS_EVENT_INIT",
+      "id": 43777,
+      "source_file": "components/system/sys_event/errors/sys_error_event.h"
+    },
+    {
+      "name": "OWNER_SYS_EVENT_PUBLISH",
+      "id": 43778,
+      "source_file": "components/system/sys_event/errors/sys_error_event.h"
+    },
+    {
+      "name": "OWNER_SYS_EVENT_REGISTER_ROUTE",
+      "id": 43779,
+      "source_file": "components/system/sys_event/errors/sys_error_event.h"
+    },
+    {
+      "name": "OWNER_SYS_EVENT_SUBSCRIBE",
+      "id": 43780,
+      "source_file": "components/system/sys_event/errors/sys_error_event.h"
+    },
+    {
+      "name": "OWNER_SYS_EVENT_DISPATCH",
+      "id": 43781,
+      "source_file": "components/system/sys_event/errors/sys_error_event.h"
+    },
+    {
+      "name": "OWNER_SYS_HBRIDGE_BASE",
+      "id": 44032,
+      "source_file": "components/system/sys_hbridge/errors/sys_error_hbridge.h"
+    },
+    {
+      "name": "OWNER_SYS_HBRIDGE_SET_MODE",
+      "id": 44033,
+      "source_file": "components/system/sys_hbridge/errors/sys_error_hbridge.h"
+    },
+    {
+      "name": "OWNER_SYS_HBRIDGE_SET_DRIVE",
+      "id": 44034,
+      "source_file": "components/system/sys_hbridge/errors/sys_error_hbridge.h"
+    },
+    {
+      "name": "OWNER_SYS_HBRIDGE_BRAKE",
+      "id": 44035,
+      "source_file": "components/system/sys_hbridge/errors/sys_error_hbridge.h"
+    },
+    {
+      "name": "OWNER_SYS_HBRIDGE_COAST",
+      "id": 44036,
+      "source_file": "components/system/sys_hbridge/errors/sys_error_hbridge.h"
+    },
+    {
+      "name": "OWNER_SYS_HBRIDGE_GET_CURRENT",
+      "id": 44037,
+      "source_file": "components/system/sys_hbridge/errors/sys_error_hbridge.h"
+    },
+    {
+      "name": "OWNER_SYS_HBRIDGE_SET_CURRENT_LIMIT",
+      "id": 44038,
+      "source_file": "components/system/sys_hbridge/errors/sys_error_hbridge.h"
+    },
+    {
+      "name": "OWNER_SYS_HBRIDGE_GET_FAULT",
+      "id": 44040,
+      "source_file": "components/system/sys_hbridge/errors/sys_error_hbridge.h"
+    },
+    {
+      "name": "OWNER_SYS_HBRIDGE_CLEAR_FAULT",
+      "id": 44041,
+      "source_file": "components/system/sys_hbridge/errors/sys_error_hbridge.h"
+    },
+    {
+      "name": "OWNER_SYS_DATA_CONNECTOR_BASE",
+      "id": 44288,
+      "source_file": "components/system/sys_data_connector/errors/sys_error_data_connector.h"
+    },
+    {
+      "name": "OWNER_SYS_DATA_CONNECTOR_REGISTER_PROVIDER",
+      "id": 44289,
+      "source_file": "components/system/sys_data_connector/errors/sys_error_data_connector.h"
+    },
+    {
+      "name": "OWNER_SYS_DATA_CONNECTOR_INIT",
+      "id": 44290,
+      "source_file": "components/system/sys_data_connector/errors/sys_error_data_connector.h"
+    },
+    {
+      "name": "OWNER_SYS_DATA_CONNECTOR_REMOVE",
+      "id": 44291,
+      "source_file": "components/system/sys_data_connector/errors/sys_error_data_connector.h"
+    },
+    {
+      "name": "OWNER_SYS_DATA_CONNECTOR_BIND_TX",
+      "id": 44292,
+      "source_file": "components/system/sys_data_connector/errors/sys_error_data_connector.h"
+    },
+    {
+      "name": "OWNER_SYS_DATA_CONNECTOR_UNBIND_TX",
+      "id": 44293,
+      "source_file": "components/system/sys_data_connector/errors/sys_error_data_connector.h"
+    },
+    {
+      "name": "OWNER_SYS_DATA_CONNECTOR_BIND_RX",
+      "id": 44294,
+      "source_file": "components/system/sys_data_connector/errors/sys_error_data_connector.h"
+    },
+    {
+      "name": "OWNER_SYS_DATA_CONNECTOR_UNBIND_RX",
+      "id": 44295,
+      "source_file": "components/system/sys_data_connector/errors/sys_error_data_connector.h"
+    },
+    {
+      "name": "OWNER_SYS_DATA_CONNECTOR_RECEIVE",
+      "id": 44296,
+      "source_file": "components/system/sys_data_connector/errors/sys_error_data_connector.h"
+    },
+    {
+      "name": "OWNER_SYS_DATA_CONNECTOR_CREATE",
+      "id": 44297,
+      "source_file": "components/system/sys_data_connector/errors/sys_error_data_connector.h"
+    },
+    {
+      "name": "OWNER_SYS_DATA_CONNECTOR_SEND",
+      "id": 44298,
+      "source_file": "components/system/sys_data_connector/errors/sys_error_data_connector.h"
+    },
+    {
+      "name": "OWNER_SYS_DATA_CONNECTOR_SUSPEND",
+      "id": 44299,
+      "source_file": "components/system/sys_data_connector/errors/sys_error_data_connector.h"
+    },
+    {
+      "name": "OWNER_FEATURES_BASE",
+      "id": 44544,
+      "source_file": "components/features/errors/sys_error_features.h"
+    },
+    {
+      "name": "OWNER_FEATURES_REGISTRY",
+      "id": 44545,
+      "source_file": "components/features/errors/sys_error_features.h"
+    },
+    {
+      "name": "OWNER_FEATURES_SERVO",
+      "id": 44546,
+      "source_file": "components/features/errors/sys_error_features.h"
+    },
+    {
+      "name": "OWNER_FEATURES_HBRIDGE",
+      "id": 44547,
+      "source_file": "components/features/errors/sys_error_features.h"
+    },
+    {
+      "name": "OWNER_RUNIT_BASE",
+      "id": 44800,
+      "source_file": "components/runit/errors/sys_error_runit.h"
+    },
+    {
+      "name": "OWNER_RUNIT_BOARD",
+      "id": 44801,
+      "source_file": "components/runit/errors/sys_error_runit.h"
+    },
+    {
+      "name": "OWNER_RUNIT_ERROR_POLICY",
+      "id": 44802,
+      "source_file": "components/runit/errors/sys_error_runit.h"
+    },
+    {
+      "name": "OWNER_SYS_SETTINGS_BASE",
+      "id": 45056,
+      "source_file": "components/system/sys_settings/errors/sys_error_settings.h"
+    },
+    {
+      "name": "OWNER_SYS_SETTINGS_INIT",
+      "id": 45057,
+      "source_file": "components/system/sys_settings/errors/sys_error_settings.h"
+    },
+    {
+      "name": "OWNER_SYS_SETTINGS_LOAD",
+      "id": 45058,
+      "source_file": "components/system/sys_settings/errors/sys_error_settings.h"
+    },
+    {
+      "name": "OWNER_SYS_SETTINGS_STORE",
+      "id": 45059,
+      "source_file": "components/system/sys_settings/errors/sys_error_settings.h"
+    },
+    {
+      "name": "OWNER_SYS_SETTINGS_ERASE",
+      "id": 45060,
+      "source_file": "components/system/sys_settings/errors/sys_error_settings.h"
+    },
+    {
+      "name": "OWNER_SYS_UART_BASE",
+      "id": 45312,
+      "source_file": "components/system/sys_uart/errors/sys_error_uart.h"
+    },
+    {
+      "name": "OWNER_SYS_UART_INIT",
+      "id": 45313,
+      "source_file": "components/system/sys_uart/errors/sys_error_uart.h"
+    },
+    {
+      "name": "OWNER_SYS_UART_PROVIDER",
+      "id": 45314,
+      "source_file": "components/system/sys_uart/errors/sys_error_uart.h"
+    },
+    {
+      "name": "OWNER_SYS_UART_RX",
+      "id": 45315,
+      "source_file": "components/system/sys_uart/errors/sys_error_uart.h"
+    },
+    {
+      "name": "OWNER_DEVICE_BASE",
+      "id": 53248,
+      "source_file": "components/devices/devices/errors/devices_owners.h"
+    },
+    {
+      "name": "OWNER_DEVICE_GPIO_ESP",
+      "id": 53249,
+      "source_file": "components/devices/devices/errors/devices_owners.h"
+    },
+    {
+      "name": "OWNER_DEVICE_TPS55289",
+      "id": 53250,
+      "source_file": "components/devices/devices/errors/devices_owners.h"
+    },
+    {
+      "name": "OWNER_DEVICE_TCA6424A",
+      "id": 53251,
+      "source_file": "components/devices/devices/errors/devices_owners.h"
+    },
+    {
+      "name": "OWNER_DEVICE_ADS7128",
+      "id": 53252,
+      "source_file": "components/devices/devices/errors/devices_owners.h"
+    },
+    {
+      "name": "OWNER_DEVICE_PCA9685",
+      "id": 53253,
+      "source_file": "components/devices/devices/errors/devices_owners.h"
+    },
+    {
+      "name": "OWNER_DEVICE_AP33772S",
+      "id": 53254,
+      "source_file": "components/devices/devices/errors/devices_owners.h"
+    },
+    {
+      "name": "OWNER_DEVICE_DAC53202",
+      "id": 53255,
+      "source_file": "components/devices/devices/errors/devices_owners.h"
+    },
+    {
+      "name": "OWNER_DEVICE_INA3221",
+      "id": 53256,
+      "source_file": "components/devices/devices/errors/devices_owners.h"
+    },
+    {
+      "name": "OWNER_DEVICE_DRV8962",
+      "id": 53257,
+      "source_file": "components/devices/devices/errors/devices_owners.h"
+    }
+  ],
+  "tags": [
+    {
+      "name": "ERR_NO_HANDLE",
+      "id": 1,
+      "level": 3,
+      "source_file": "components/sys_errors/codes/sys_error_base.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "unused",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "no handle",
+        "args": []
+      }
+    },
+    {
+      "name": "ERR_NULL_PTR",
+      "id": 2,
+      "level": 3,
+      "source_file": "components/sys_errors/codes/sys_error_base.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "unused",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "unexpected NULL pointer",
+        "args": []
+      }
+    },
+    {
+      "name": "ERR_INVALID_VAL_UI32",
+      "id": 3,
+      "level": 1,
+      "source_file": "components/sys_errors/codes/sys_error_base.h",
+      "payload": {
+        "size": 12,
+        "fields": [
+          {
+            "name": "val",
+            "type": "uint32_t",
+            "offset": 0
+          },
+          {
+            "name": "min",
+            "type": "uint32_t",
+            "offset": 4
+          },
+          {
+            "name": "max",
+            "type": "uint32_t",
+            "offset": 8
+          }
+        ]
+      },
+      "message": {
+        "format": "value %lu out of range [%lu, %lu]",
+        "args": [
+          {
+            "field": "val"
+          },
+          {
+            "field": "min"
+          },
+          {
+            "field": "max"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_INVALID_VAL_I32",
+      "id": 4,
+      "level": 1,
+      "source_file": "components/sys_errors/codes/sys_error_base.h",
+      "payload": {
+        "size": 12,
+        "fields": [
+          {
+            "name": "val",
+            "type": "int32_t",
+            "offset": 0
+          },
+          {
+            "name": "min",
+            "type": "int32_t",
+            "offset": 4
+          },
+          {
+            "name": "max",
+            "type": "int32_t",
+            "offset": 8
+          }
+        ]
+      },
+      "message": {
+        "format": "value %ld out of range [%ld, %ld]",
+        "args": [
+          {
+            "field": "val"
+          },
+          {
+            "field": "min"
+          },
+          {
+            "field": "max"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_INVALID_VAL_F",
+      "id": 5,
+      "level": 1,
+      "source_file": "components/sys_errors/codes/sys_error_base.h",
+      "payload": {
+        "size": 12,
+        "fields": [
+          {
+            "name": "val",
+            "type": "float",
+            "offset": 0
+          },
+          {
+            "name": "min",
+            "type": "float",
+            "offset": 4
+          },
+          {
+            "name": "max",
+            "type": "float",
+            "offset": 8
+          }
+        ]
+      },
+      "message": {
+        "format": "value %g out of range [%g, %g]",
+        "args": [
+          {
+            "field": "val"
+          },
+          {
+            "field": "min"
+          },
+          {
+            "field": "max"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_DEV_DEP_FAILED",
+      "id": 6,
+      "level": 3,
+      "source_file": "components/sys_errors/codes/sys_error_base.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "device %u dependency failed",
+        "args": [
+          {
+            "field": "dev_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_DEP_FAILED",
+      "id": 7,
+      "level": 3,
+      "source_file": "components/sys_errors/codes/sys_error_base.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "unused",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "nested call failed",
+        "args": []
+      }
+    },
+    {
+      "name": "ERR_ESP_ERR",
+      "id": 8,
+      "level": 3,
+      "source_file": "components/sys_errors/codes/sys_error_base.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "esp_code",
+            "type": "int32_t",
+            "offset": 0,
+            "c_type": "esp_err_t",
+            "id": {
+              "kind": "esp-err"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "ESP-IDF error %s (0x%x)",
+        "args": [
+          {
+            "field": "esp_code",
+            "via": "esp_err_to_name"
+          },
+          {
+            "field": "esp_code"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_BASE_NO_MEM",
+      "id": 9,
+      "level": 3,
+      "source_file": "components/sys_errors/codes/sys_error_base.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "unused",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "out of memory",
+        "args": []
+      }
+    },
+    {
+      "name": "ERR_BASE_NOT_SUPPORTED",
+      "id": 10,
+      "level": 1,
+      "source_file": "components/sys_errors/codes/sys_error_base.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "unused",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "operation not supported",
+        "args": []
+      }
+    },
+    {
+      "name": "ERR_BASE_NOT_FOUND",
+      "id": 11,
+      "level": 1,
+      "source_file": "components/sys_errors/codes/sys_error_base.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "unused",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "not found",
+        "args": []
+      }
+    },
+    {
+      "name": "ERR_BASE_INVALID_STATE",
+      "id": 12,
+      "level": 2,
+      "source_file": "components/sys_errors/codes/sys_error_base.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "unused",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "invalid state for this operation",
+        "args": []
+      }
+    },
+    {
+      "name": "ERR_BASE_POOL_EXHAUSTED",
+      "id": 13,
+      "level": 1,
+      "source_file": "components/sys_errors/codes/sys_error_base.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "unused",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "error pool exhausted: this error's details were not stored",
+        "args": []
+      }
+    },
+    {
+      "name": "ERR_DEV_NO_HANDLE",
+      "id": 41217,
+      "level": 3,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "device %u has no handle (installed but handle is NULL)",
+        "args": [
+          {
+            "field": "dev_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_DEV_NOT_FOUND",
+      "id": 41218,
+      "level": 1,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "device %u is not registered",
+        "args": [
+          {
+            "field": "dev_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_DEV_ALREADY_EXIST",
+      "id": 41219,
+      "level": 1,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "device %u is already registered",
+        "args": [
+          {
+            "field": "dev_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_DEV_FEATURE_UNAVAILABLE",
+      "id": 41220,
+      "level": 1,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h",
+      "payload": {
+        "size": 3,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "contract_id",
+            "type": "uint8_t",
+            "offset": 1,
+            "enum_ref": "sys_device_contract_type_e"
+          },
+          {
+            "name": "feature_id",
+            "type": "uint8_t",
+            "offset": 2,
+            "id": {
+              "kind": "contract-feature",
+              "parent_field": "contract_id"
+            }
+          }
+        ]
+      },
+      "message": null,
+      "message_unavailable": "2 snprintf calls"
+    },
+    {
+      "name": "ERR_DEV_SUSPENDED",
+      "id": 41221,
+      "level": 2,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "device %u is suspended",
+        "args": [
+          {
+            "field": "dev_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_DEV_NOT_INSTALLED",
+      "id": 41222,
+      "level": 1,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "device %u is registered but not installed",
+        "args": [
+          {
+            "field": "dev_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_DEV_INSTALL_FAILED",
+      "id": 41223,
+      "level": 3,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "device %u failed to install",
+        "args": [
+          {
+            "field": "dev_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_DEV_FAULT_RESPONSE_FAILED",
+      "id": 41224,
+      "level": 4,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h",
+      "payload": {
+        "size": 6,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "level",
+            "type": "uint8_t",
+            "offset": 1,
+            "id": {
+              "kind": "error-level"
+            }
+          },
+          {
+            "name": "stage",
+            "type": "uint8_t",
+            "offset": 2
+          },
+          {
+            "name": "action_id",
+            "type": "uint8_t",
+            "offset": 3
+          },
+          {
+            "name": "cause_tag",
+            "type": "uint16_t",
+            "offset": 4,
+            "id": {
+              "kind": "error-tag"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "device %u fault response failed (level=%u, stage=%u, action=%u, cause_tag=%u)",
+        "args": [
+          {
+            "field": "dev_id"
+          },
+          {
+            "field": "level"
+          },
+          {
+            "field": "stage"
+          },
+          {
+            "field": "action_id"
+          },
+          {
+            "field": "cause_tag"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_DEV_DRIVER_FAILED",
+      "id": 41225,
+      "level": 3,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "line",
+            "type": "uint16_t",
+            "offset": 2
+          }
+        ]
+      },
+      "message": {
+        "format": "device %u driver call failed (adapter line %u)",
+        "args": [
+          {
+            "field": "dev_id"
+          },
+          {
+            "field": "line"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_DEV_INSTALL_STEP_FAILED",
+      "id": 41226,
+      "level": 3,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "line",
+            "type": "uint16_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "install step failed (adapter line %u)",
+        "args": [
+          {
+            "field": "line"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_DEV_ONBOARD",
+      "id": 41227,
+      "level": 1,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "device %u is onboard (baked onto the PCB) and can't be uninstalled by a user",
+        "args": [
+          {
+            "field": "dev_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_IO_PIN_UNCONFIGURED",
+      "id": 41729,
+      "level": 1,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "pin_num",
+            "type": "uint8_t",
+            "offset": 1
+          }
+        ]
+      },
+      "message": {
+        "format": "pin %u on device %u is unconfigured",
+        "args": [
+          {
+            "field": "pin_num"
+          },
+          {
+            "field": "dev_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_IO_PIN_UNAVAILABLE",
+      "id": 41730,
+      "level": 1,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "pin_num",
+            "type": "uint8_t",
+            "offset": 1
+          }
+        ]
+      },
+      "message": {
+        "format": "pin %u is not available on device %u (out of range or unmapped)",
+        "args": [
+          {
+            "field": "pin_num"
+          },
+          {
+            "field": "dev_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_IO_PIN_ALREADY_IN_USE",
+      "id": 41731,
+      "level": 1,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h",
+      "payload": {
+        "size": 3,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "pin_num",
+            "type": "uint8_t",
+            "offset": 1
+          },
+          {
+            "name": "mode",
+            "type": "uint8_t",
+            "offset": 2,
+            "enum_ref": "sys_io_mode_e"
+          }
+        ]
+      },
+      "message": {
+        "format": "pin %u on device %u is already in use (mode %u)",
+        "args": [
+          {
+            "field": "pin_num"
+          },
+          {
+            "field": "dev_id"
+          },
+          {
+            "field": "mode"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_IO_PIN_FEATURE_UNSUPPORTED",
+      "id": 41732,
+      "level": 1,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "pin_num",
+            "type": "uint8_t",
+            "offset": 1
+          }
+        ]
+      },
+      "message": {
+        "format": "pin %u on device %u doesn't support this feature",
+        "args": [
+          {
+            "field": "pin_num"
+          },
+          {
+            "field": "dev_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_IO_PIN_LOCKED",
+      "id": 41733,
+      "level": 3,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "pin_id",
+            "type": "uint8_t",
+            "offset": 1
+          }
+        ]
+      },
+      "message": {
+        "format": "pin %u on device %u is locked",
+        "args": [
+          {
+            "field": "pin_id"
+          },
+          {
+            "field": "dev_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_IO_PIN_MODE_UNSUPPORTED",
+      "id": 41734,
+      "level": 1,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h",
+      "payload": {
+        "size": 3,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "pin_id",
+            "type": "uint8_t",
+            "offset": 1
+          },
+          {
+            "name": "mode",
+            "type": "uint8_t",
+            "offset": 2,
+            "enum_ref": "sys_io_mode_e"
+          }
+        ]
+      },
+      "message": {
+        "format": "pin %u on device %u doesn't support mode %u",
+        "args": [
+          {
+            "field": "pin_id"
+          },
+          {
+            "field": "dev_id"
+          },
+          {
+            "field": "mode"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_IO_PWM_CHANNELS_EXHAUSTED",
+      "id": 41735,
+      "level": 1,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h",
+      "payload": {
+        "size": 3,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "pin_num",
+            "type": "uint8_t",
+            "offset": 1
+          },
+          {
+            "name": "channels",
+            "type": "uint8_t",
+            "offset": 2
+          }
+        ]
+      },
+      "message": {
+        "format": "no free PWM channel for pin %u on device %u: all %u are in use",
+        "args": [
+          {
+            "field": "pin_num"
+          },
+          {
+            "field": "dev_id"
+          },
+          {
+            "field": "channels"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_IO_PWM_TIMERS_EXHAUSTED",
+      "id": 41736,
+      "level": 1,
+      "source_file": "components/system/sys_io/errors/sys_error_io.h",
+      "payload": {
+        "size": 8,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "pin_num",
+            "type": "uint8_t",
+            "offset": 1
+          },
+          {
+            "name": "timers",
+            "type": "uint8_t",
+            "offset": 2
+          },
+          {
+            "name": "frequency_Hz",
+            "type": "uint32_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "no PWM timer for %lu Hz on pin %u, device %u: all %u timers run other frequencies",
+        "args": [
+          {
+            "field": "frequency_Hz"
+          },
+          {
+            "field": "pin_num"
+          },
+          {
+            "field": "dev_id"
+          },
+          {
+            "field": "timers"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_I2C_DEV_NOT_FOUND",
+      "id": 41473,
+      "level": 3,
+      "source_file": "components/system/sys_i2c/errors/sys_error_i2c.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "device_address",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "no I2C device responded at address 0x%02X",
+        "args": [
+          {
+            "field": "device_address"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_POWER_BUDGET_EXCEEDED",
+      "id": 41985,
+      "level": 3,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h",
+      "payload": {
+        "size": 12,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "requested_mW",
+            "type": "uint32_t",
+            "offset": 4
+          },
+          {
+            "name": "available_mW",
+            "type": "uint32_t",
+            "offset": 8
+          }
+        ]
+      },
+      "message": {
+        "format": "device %u would exceed the power budget: requested %lu mW, available %lu mW",
+        "args": [
+          {
+            "field": "dev_id"
+          },
+          {
+            "field": "requested_mW"
+          },
+          {
+            "field": "available_mW"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_POWER_SOURCE_BELOW_ALLOCATION",
+      "id": 41986,
+      "level": 3,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h",
+      "payload": {
+        "size": 8,
+        "fields": [
+          {
+            "name": "allocated_mW",
+            "type": "uint32_t",
+            "offset": 0
+          },
+          {
+            "name": "budget_mW",
+            "type": "uint32_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "power source budget %lu mW is below the %lu mW already allocated",
+        "args": [
+          {
+            "field": "budget_mW"
+          },
+          {
+            "field": "allocated_mW"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_POWER_FAULT",
+      "id": 41987,
+      "level": 2,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h",
+      "payload": {
+        "size": 8,
+        "fields": [
+          {
+            "name": "source_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "channel",
+            "type": "uint8_t",
+            "offset": 1
+          },
+          {
+            "name": "event",
+            "type": "uint8_t",
+            "offset": 2,
+            "enum_ref": "sys_power_events_e"
+          },
+          {
+            "name": "response",
+            "type": "uint8_t",
+            "offset": 3,
+            "enum_ref": "sys_power_response_e"
+          },
+          {
+            "name": "value",
+            "type": "int32_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "power fault: event %u on device %u channel %u, value %ld, response %u",
+        "args": [
+          {
+            "field": "event"
+          },
+          {
+            "field": "source_id"
+          },
+          {
+            "field": "channel"
+          },
+          {
+            "field": "value"
+          },
+          {
+            "field": "response"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_BLE_STACK_FAILED",
+      "id": 42241,
+      "level": 3,
+      "source_file": "components/system/ble/errors/sys_error_ble.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "rc",
+            "type": "int32_t",
+            "offset": 0,
+            "c_type": "esp_err_t",
+            "id": {
+              "kind": "esp-err"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "NimBLE stack call failed: %s (0x%x)",
+        "args": [
+          {
+            "field": "rc",
+            "via": "esp_err_to_name"
+          },
+          {
+            "field": "rc"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_BLE_HARDWARE_FAULT",
+      "id": 42242,
+      "level": 4,
+      "source_file": "components/system/ble/errors/sys_error_ble.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "rc",
+            "type": "int32_t",
+            "offset": 0,
+            "c_type": "esp_err_t",
+            "id": {
+              "kind": "esp-err"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "BLE hardware fault: %s (0x%x)",
+        "args": [
+          {
+            "field": "rc",
+            "via": "esp_err_to_name"
+          },
+          {
+            "field": "rc"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_BLE_ADV_FAILED",
+      "id": 42243,
+      "level": 2,
+      "source_file": "components/system/ble/errors/sys_error_ble.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "rc",
+            "type": "int32_t",
+            "offset": 0,
+            "c_type": "esp_err_t",
+            "id": {
+              "kind": "esp-err"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "BLE advertising failed: %s (0x%x)",
+        "args": [
+          {
+            "field": "rc",
+            "via": "esp_err_to_name"
+          },
+          {
+            "field": "rc"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_BLE_GATT_FAILED",
+      "id": 42244,
+      "level": 2,
+      "source_file": "components/system/ble/errors/sys_error_ble.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "rc",
+            "type": "int32_t",
+            "offset": 0,
+            "c_type": "esp_err_t",
+            "id": {
+              "kind": "esp-err"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "BLE GATT call failed: %s (0x%x)",
+        "args": [
+          {
+            "field": "rc",
+            "via": "esp_err_to_name"
+          },
+          {
+            "field": "rc"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_INTERFACE_SHORT_FRAME",
+      "id": 42497,
+      "level": 1,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h",
+      "payload": {
+        "size": 8,
+        "fields": [
+          {
+            "name": "got",
+            "type": "uint32_t",
+            "offset": 0
+          },
+          {
+            "name": "need",
+            "type": "uint32_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "frame too short: got %lu bytes, need %lu",
+        "args": [
+          {
+            "field": "got"
+          },
+          {
+            "field": "need"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_INTERFACE_UNKNOWN_CLASS",
+      "id": 42498,
+      "level": 1,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "class_header",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "rx-class"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "unregistered class byte 0x%02X",
+        "args": [
+          {
+            "field": "class_header"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_INTERFACE_UNKNOWN_PACKET",
+      "id": 42499,
+      "level": 1,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "class_header",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "rx-class"
+            }
+          },
+          {
+            "name": "packet_header",
+            "type": "uint8_t",
+            "offset": 1,
+            "id": {
+              "kind": "rx-packet",
+              "parent_field": "class_header"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "unmapped packet 0x%02X in class 0x%02X",
+        "args": [
+          {
+            "field": "packet_header"
+          },
+          {
+            "field": "class_header"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_INTERFACE_CLASS_TAKEN",
+      "id": 42500,
+      "level": 1,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "class_header",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "rx-class"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "class byte 0x%02X is already registered",
+        "args": [
+          {
+            "field": "class_header"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_INTERFACE_NO_CLASS_SLOTS",
+      "id": 42501,
+      "level": 2,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "class_header",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "rx-class"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "no free class slots left (registering 0x%02X)",
+        "args": [
+          {
+            "field": "class_header"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_INTERFACE_ENC_BUF_TOO_SMALL",
+      "id": 42502,
+      "level": 3,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h",
+      "payload": {
+        "size": 8,
+        "fields": [
+          {
+            "name": "got",
+            "type": "uint32_t",
+            "offset": 0
+          },
+          {
+            "name": "need",
+            "type": "uint32_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "encode buffer too small: got %lu bytes, need %lu",
+        "args": [
+          {
+            "field": "got"
+          },
+          {
+            "field": "need"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_INTERFACE_RESPONSE_TOO_LONG",
+      "id": 42503,
+      "level": 2,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h",
+      "payload": {
+        "size": 8,
+        "fields": [
+          {
+            "name": "got",
+            "type": "uint32_t",
+            "offset": 0
+          },
+          {
+            "name": "max",
+            "type": "uint32_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "response data too long: %lu bytes, max %lu",
+        "args": [
+          {
+            "field": "got"
+          },
+          {
+            "field": "max"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_BUFFERS_ITEM_TOO_LONG",
+      "id": 42753,
+      "level": 2,
+      "source_file": "components/system/sys_buffers/errors/sys_error_buffers.h",
+      "payload": {
+        "size": 8,
+        "fields": [
+          {
+            "name": "len",
+            "type": "uint32_t",
+            "offset": 0
+          },
+          {
+            "name": "max",
+            "type": "uint32_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "item of %lu bytes dropped: destination holds %lu",
+        "args": [
+          {
+            "field": "len"
+          },
+          {
+            "field": "max"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_ACTION_NOT_FOUND",
+      "id": 43521,
+      "level": 1,
+      "source_file": "components/system/sys_actions/errors/sys_error_actions.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "action_id",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "action %u has neither a bound static function nor anything stored",
+        "args": [
+          {
+            "field": "action_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_ACTION_RECORDING_BUSY",
+      "id": 43522,
+      "level": 2,
+      "source_file": "components/system/sys_actions/errors/sys_error_actions.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "action_id",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "action %u: a different action is already recording",
+        "args": [
+          {
+            "field": "action_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_ACTION_QUEUE_FULL",
+      "id": 43523,
+      "level": 2,
+      "source_file": "components/system/sys_actions/errors/sys_error_actions.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "action_id",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "action %u not requested: the request queue is full",
+        "args": [
+          {
+            "field": "action_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_ALLOC_EXHAUSTED",
+      "id": 43265,
+      "level": 3,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 8,
+        "fields": [
+          {
+            "name": "requested",
+            "type": "uint32_t",
+            "offset": 0
+          },
+          {
+            "name": "remaining",
+            "type": "uint32_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "vm arena exhausted: requested %lu, %lu remaining",
+        "args": [
+          {
+            "field": "requested"
+          },
+          {
+            "field": "remaining"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_ACCESSOR_UNKNOWN_ID",
+      "id": 43266,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uint16_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "accessor referenced unknown object id %u",
+        "args": [
+          {
+            "field": "id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_ACCESSOR_OOB",
+      "id": 43267,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 8,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "chain_pos",
+            "type": "uint8_t",
+            "offset": 2
+          },
+          {
+            "name": "index",
+            "type": "uint16_t",
+            "offset": 4
+          },
+          {
+            "name": "obj_id",
+            "type": "uint16_t",
+            "offset": 6
+          }
+        ]
+      },
+      "message": {
+        "format": "accessor %u: index %u out of range at chain position %u (obj_id=%s)",
+        "args": [
+          {
+            "field": "id"
+          },
+          {
+            "field": "index"
+          },
+          {
+            "field": "chain_pos"
+          },
+          {
+            "field": "obj_id",
+            "via": "vm_format_obj_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_ACCESSOR_TYPE_MISMATCH",
+      "id": 43268,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 8,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "chain_pos",
+            "type": "uint8_t",
+            "offset": 2
+          },
+          {
+            "name": "expected",
+            "type": "uint8_t",
+            "offset": 3,
+            "enum_ref": "vm_obj_t_e"
+          },
+          {
+            "name": "actual",
+            "type": "uint8_t",
+            "offset": 4,
+            "enum_ref": "vm_obj_t_e"
+          },
+          {
+            "name": "obj_id",
+            "type": "uint16_t",
+            "offset": 6
+          }
+        ]
+      },
+      "message": {
+        "format": "accessor %u: expected type %u (%s) at chain position %u, got %u (%s) (obj_id=%s)",
+        "args": [
+          {
+            "field": "id"
+          },
+          {
+            "field": "expected"
+          },
+          {
+            "field": "expected",
+            "via": "vm_type_name"
+          },
+          {
+            "field": "chain_pos"
+          },
+          {
+            "field": "actual"
+          },
+          {
+            "field": "actual",
+            "via": "vm_type_name"
+          },
+          {
+            "field": "obj_id",
+            "via": "vm_format_obj_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_ACCESSOR_NULL_OBJ",
+      "id": 43269,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 6,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "chain_pos",
+            "type": "uint8_t",
+            "offset": 2
+          },
+          {
+            "name": "parent_id",
+            "type": "uint16_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "accessor %u: chain position %u dereferenced a null object (parent_id=%s)",
+        "args": [
+          {
+            "field": "id"
+          },
+          {
+            "field": "chain_pos"
+          },
+          {
+            "field": "parent_id",
+            "via": "vm_format_obj_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_ACCESSOR_DEPTH_EXCEEDED",
+      "id": 43270,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uint16_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "accessor %u exceeded max nesting depth",
+        "args": [
+          {
+            "field": "id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_ACCESSOR_INDEX_FAILED",
+      "id": 43271,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "chain_pos",
+            "type": "uint8_t",
+            "offset": 2
+          }
+        ]
+      },
+      "message": {
+        "format": "accessor %u: dynamic index at chain position %u failed to resolve",
+        "args": [
+          {
+            "field": "id"
+          },
+          {
+            "field": "chain_pos"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_ACCESSOR_NAME_NOT_FOUND",
+      "id": 43272,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 20,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "chain_pos",
+            "type": "uint8_t",
+            "offset": 2
+          },
+          {
+            "name": "name",
+            "type": "uint8_t",
+            "offset": 3,
+            "c_type": "char",
+            "array_len": 16
+          }
+        ]
+      },
+      "message": {
+        "format": "accessor %u: no child tagged '%s' at chain position %u",
+        "args": [
+          {
+            "field": "id"
+          },
+          {
+            "field": "name"
+          },
+          {
+            "field": "chain_pos"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_ACCESSOR_NOT_MUTABLE",
+      "id": 43273,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 6,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "chain_pos",
+            "type": "uint8_t",
+            "offset": 2
+          },
+          {
+            "name": "obj_id",
+            "type": "uint16_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "accessor %u: write rejected at chain position %u, target is not mutable (obj_id=%s)",
+        "args": [
+          {
+            "field": "id"
+          },
+          {
+            "field": "chain_pos"
+          },
+          {
+            "field": "obj_id",
+            "via": "vm_format_obj_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_BLOCK_INPUT_UNRESOLVED",
+      "id": 43274,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "block_idx",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "input_idx",
+            "type": "uint8_t",
+            "offset": 2
+          }
+        ]
+      },
+      "message": {
+        "format": "block %u input %u failed to resolve",
+        "args": [
+          {
+            "field": "block_idx"
+          },
+          {
+            "field": "input_idx"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_BLOCK_PIN_MISSING",
+      "id": 43275,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "block_idx",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "pin_id",
+            "type": "uint8_t",
+            "offset": 2
+          },
+          {
+            "name": "is_out",
+            "type": "uint8_t",
+            "offset": 3
+          }
+        ]
+      },
+      "message": null,
+      "message_unavailable": "conditional formatting"
+    },
+    {
+      "name": "ERR_VM_BLOCK_PIN_UNLINKED",
+      "id": 43276,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "block_idx",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "pin_id",
+            "type": "uint8_t",
+            "offset": 2
+          },
+          {
+            "name": "is_out",
+            "type": "uint8_t",
+            "offset": 3
+          }
+        ]
+      },
+      "message": null,
+      "message_unavailable": "conditional formatting"
+    },
+    {
+      "name": "ERR_VM_BLOCK_FAILED",
+      "id": 43277,
+      "level": 2,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "block_idx",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "block_type",
+            "type": "uint8_t",
+            "offset": 2,
+            "id": {
+              "kind": "vm-block-type"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "block %u (type %u) failed",
+        "args": [
+          {
+            "field": "block_idx"
+          },
+          {
+            "field": "block_type"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_OBJ_COPY_MISMATCH",
+      "id": 43278,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 6,
+        "fields": [
+          {
+            "name": "src_type",
+            "type": "uint8_t",
+            "offset": 0,
+            "enum_ref": "vm_obj_t_e"
+          },
+          {
+            "name": "dst_type",
+            "type": "uint8_t",
+            "offset": 1,
+            "enum_ref": "vm_obj_t_e"
+          },
+          {
+            "name": "src_size",
+            "type": "uint16_t",
+            "offset": 2
+          },
+          {
+            "name": "dst_size",
+            "type": "uint16_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "object copy mismatch: src type %u (%s) size %u, dst type %u (%s) size %u",
+        "args": [
+          {
+            "field": "src_type"
+          },
+          {
+            "field": "src_type",
+            "via": "vm_type_name"
+          },
+          {
+            "field": "src_size"
+          },
+          {
+            "field": "dst_type"
+          },
+          {
+            "field": "dst_type",
+            "via": "vm_type_name"
+          },
+          {
+            "field": "dst_size"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_OBJ_COPY_SHAPE",
+      "id": 43279,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "index",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "depth",
+            "type": "uint8_t",
+            "offset": 2
+          },
+          {
+            "name": "reason",
+            "type": "uint8_t",
+            "offset": 3
+          }
+        ]
+      },
+      "message": {
+        "format": "object copy: %s at depth %u, slot %u",
+        "args": [
+          {
+            "field": "reason",
+            "via": "vm_copy_shape_name"
+          },
+          {
+            "field": "depth"
+          },
+          {
+            "field": "index"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_OBJ_NOT_MUTABLE",
+      "id": 43280,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "obj_id",
+            "type": "uint16_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "object is not mutable (obj_id=%s)",
+        "args": [
+          {
+            "field": "obj_id",
+            "via": "vm_format_obj_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_OBJ_OOB",
+      "id": 43281,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "index",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "obj_id",
+            "type": "uint16_t",
+            "offset": 2
+          }
+        ]
+      },
+      "message": {
+        "format": "object index %u is past the end of its payload (obj_id=%s)",
+        "args": [
+          {
+            "field": "index"
+          },
+          {
+            "field": "obj_id",
+            "via": "vm_format_obj_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_OBJ_NOT_PTR",
+      "id": 43282,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "actual",
+            "type": "uint8_t",
+            "offset": 0,
+            "enum_ref": "vm_obj_t_e"
+          },
+          {
+            "name": "obj_id",
+            "type": "uint16_t",
+            "offset": 2
+          }
+        ]
+      },
+      "message": {
+        "format": "object holds type %u (%s); a link needs VM_OBJ_PTR (obj_id=%s)",
+        "args": [
+          {
+            "field": "actual"
+          },
+          {
+            "field": "actual",
+            "via": "vm_type_name"
+          },
+          {
+            "field": "obj_id",
+            "via": "vm_format_obj_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_OBJ_BAD_TYPE",
+      "id": 43283,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "type",
+            "type": "uint8_t",
+            "offset": 0,
+            "enum_ref": "vm_obj_t_e"
+          }
+        ]
+      },
+      "message": {
+        "format": "object create: unknown type %u (%s)",
+        "args": [
+          {
+            "field": "type"
+          },
+          {
+            "field": "type",
+            "via": "vm_type_name"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_OBJ_EMPTY",
+      "id": 43284,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "type",
+            "type": "uint8_t",
+            "offset": 0,
+            "enum_ref": "vm_obj_t_e"
+          }
+        ]
+      },
+      "message": {
+        "format": "object create: type %u (%s) with zero items has no storage",
+        "args": [
+          {
+            "field": "type"
+          },
+          {
+            "field": "type",
+            "via": "vm_type_name"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_OBJ_BAD_SIZE",
+      "id": 43285,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 6,
+        "fields": [
+          {
+            "name": "type",
+            "type": "uint8_t",
+            "offset": 0,
+            "enum_ref": "vm_obj_t_e"
+          },
+          {
+            "name": "payload_size",
+            "type": "uint16_t",
+            "offset": 2
+          },
+          {
+            "name": "width",
+            "type": "uint8_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "object create: payload of %u bytes is not a whole number of %u-byte type %u (%s)",
+        "args": [
+          {
+            "field": "payload_size"
+          },
+          {
+            "field": "width"
+          },
+          {
+            "field": "type"
+          },
+          {
+            "field": "type",
+            "via": "vm_type_name"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_OBJ_NAME_TOO_LONG",
+      "id": 43286,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "len",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "object create: name is %u chars, max is 15",
+        "args": [
+          {
+            "field": "len"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_OBJ_RETENTIVE_PTR",
+      "id": 43287,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "type",
+            "type": "uint8_t",
+            "offset": 0,
+            "enum_ref": "vm_obj_t_e"
+          }
+        ]
+      },
+      "message": {
+        "format": "object create: retentive is meaningless for pointer type %u (%s)",
+        "args": [
+          {
+            "field": "type"
+          },
+          {
+            "field": "type",
+            "via": "vm_type_name"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_LOAD_BAD_STATE",
+      "id": 43288,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "state",
+            "type": "uint8_t",
+            "offset": 0
+          },
+          {
+            "name": "expected",
+            "type": "uint8_t",
+            "offset": 1
+          }
+        ]
+      },
+      "message": {
+        "format": "loader in state %u (%s), this packet needs state %u (%s)",
+        "args": [
+          {
+            "field": "state"
+          },
+          {
+            "field": "state",
+            "via": "vm_load_state_name"
+          },
+          {
+            "field": "expected"
+          },
+          {
+            "field": "expected",
+            "via": "vm_load_state_name"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_LOAD_TOO_BIG",
+      "id": 43289,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 8,
+        "fields": [
+          {
+            "name": "requested",
+            "type": "uint32_t",
+            "offset": 0
+          },
+          {
+            "name": "available",
+            "type": "uint32_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "program needs %lu bytes, VM pool holds %lu",
+        "args": [
+          {
+            "field": "requested"
+          },
+          {
+            "field": "available"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_LOAD_DATA_RANGE",
+      "id": 43290,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 8,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "start_idx",
+            "type": "uint16_t",
+            "offset": 2
+          },
+          {
+            "name": "len",
+            "type": "uint16_t",
+            "offset": 4
+          },
+          {
+            "name": "items",
+            "type": "uint16_t",
+            "offset": 6
+          }
+        ]
+      },
+      "message": {
+        "format": "object %u: write of %u elements at %u exceeds its %u items",
+        "args": [
+          {
+            "field": "id"
+          },
+          {
+            "field": "len"
+          },
+          {
+            "field": "start_idx"
+          },
+          {
+            "field": "items"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_LOAD_SHORT_RECORD",
+      "id": 43291,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 6,
+        "fields": [
+          {
+            "name": "packet",
+            "type": "uint8_t",
+            "offset": 0
+          },
+          {
+            "name": "need",
+            "type": "uint16_t",
+            "offset": 2
+          },
+          {
+            "name": "got",
+            "type": "uint16_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "packet 0x%02X truncated: need %u bytes, got %u",
+        "args": [
+          {
+            "field": "packet"
+          },
+          {
+            "field": "need"
+          },
+          {
+            "field": "got"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_ACC_INDEX_OOB",
+      "id": 43292,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "acc_id",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "pos",
+            "type": "uint8_t",
+            "offset": 2
+          },
+          {
+            "name": "count",
+            "type": "uint8_t",
+            "offset": 3
+          }
+        ]
+      },
+      "message": {
+        "format": "accessor %u: index position %u past its %u declared indices",
+        "args": [
+          {
+            "field": "acc_id"
+          },
+          {
+            "field": "pos"
+          },
+          {
+            "field": "count"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_ACC_BAD_KIND",
+      "id": 43293,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "acc_id",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "pos",
+            "type": "uint8_t",
+            "offset": 2
+          },
+          {
+            "name": "kind",
+            "type": "uint8_t",
+            "offset": 3,
+            "enum_ref": "vm_index_kind_e"
+          }
+        ]
+      },
+      "message": {
+        "format": "accessor %u index %u: unknown kind %u (%s)",
+        "args": [
+          {
+            "field": "acc_id"
+          },
+          {
+            "field": "pos"
+          },
+          {
+            "field": "kind"
+          },
+          {
+            "field": "kind",
+            "via": "vm_index_kind_name"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_REG_OOB",
+      "id": 43294,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 6,
+        "fields": [
+          {
+            "name": "kind",
+            "type": "uint8_t",
+            "offset": 0
+          },
+          {
+            "name": "id",
+            "type": "uint16_t",
+            "offset": 2
+          },
+          {
+            "name": "count",
+            "type": "uint16_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "%s registry: id %u is outside the %u-entry table",
+        "args": [
+          {
+            "field": "kind",
+            "via": "vm_reg_name"
+          },
+          {
+            "field": "id"
+          },
+          {
+            "field": "count"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_REG_DUP",
+      "id": 43295,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "kind",
+            "type": "uint8_t",
+            "offset": 0
+          },
+          {
+            "name": "id",
+            "type": "uint16_t",
+            "offset": 2
+          }
+        ]
+      },
+      "message": {
+        "format": "%s registry: id %u is already bound",
+        "args": [
+          {
+            "field": "kind",
+            "via": "vm_reg_name"
+          },
+          {
+            "field": "id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_BLK_BAD_SHAPE",
+      "id": 43296,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "blk_id",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "in_cnt",
+            "type": "uint8_t",
+            "offset": 2
+          },
+          {
+            "name": "q_cnt",
+            "type": "uint8_t",
+            "offset": 3
+          }
+        ]
+      },
+      "message": {
+        "format": "block %u: %u inputs / %u outputs is not a buildable shape",
+        "args": [
+          {
+            "field": "blk_id"
+          },
+          {
+            "field": "in_cnt"
+          },
+          {
+            "field": "q_cnt"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_BLK_BAD_REF",
+      "id": 43297,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 6,
+        "fields": [
+          {
+            "name": "blk_id",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "ref_id",
+            "type": "uint16_t",
+            "offset": 2
+          },
+          {
+            "name": "slot",
+            "type": "uint8_t",
+            "offset": 4
+          },
+          {
+            "name": "kind",
+            "type": "uint8_t",
+            "offset": 5
+          }
+        ]
+      },
+      "message": null,
+      "message_unavailable": "conditional formatting"
+    },
+    {
+      "name": "ERR_VM_DYN_FULL",
+      "id": 43298,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "limit",
+            "type": "uint16_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "dynamic object register is full: %u live, none released",
+        "args": [
+          {
+            "field": "limit"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_BLK_UNKNOWN_TYPE",
+      "id": 43299,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "blk_id",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "block_type",
+            "type": "uint8_t",
+            "offset": 2,
+            "id": {
+              "kind": "vm-block-type"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "block %u: nothing in the palette runs type %u",
+        "args": [
+          {
+            "field": "blk_id"
+          },
+          {
+            "field": "block_type"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_EXEC_BLOCK_HUNG",
+      "id": 43300,
+      "level": 3,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "block_idx",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "ms",
+            "type": "uint16_t",
+            "offset": 2
+          }
+        ]
+      },
+      "message": {
+        "format": "block %u has been executing for over %u ms",
+        "args": [
+          {
+            "field": "block_idx"
+          },
+          {
+            "field": "ms"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_EXEC_SPAN_DEPTH",
+      "id": 43301,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "block_idx",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "depth",
+            "type": "uint8_t",
+            "offset": 2
+          }
+        ]
+      },
+      "message": {
+        "format": "block %u: span nesting exceeded depth %u",
+        "args": [
+          {
+            "field": "block_idx"
+          },
+          {
+            "field": "depth"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_EXEC_BAD_SPAN",
+      "id": 43302,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 6,
+        "fields": [
+          {
+            "name": "block_idx",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "start",
+            "type": "uint16_t",
+            "offset": 2
+          },
+          {
+            "name": "end",
+            "type": "uint16_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "block %u: span [%u,%u) is not a valid forward range inside its enclosing range",
+        "args": [
+          {
+            "field": "block_idx"
+          },
+          {
+            "field": "start"
+          },
+          {
+            "field": "end"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_EVENT_OVERFLOW",
+      "id": 43303,
+      "level": 2,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 6,
+        "fields": [
+          {
+            "name": "domain",
+            "type": "uint16_t",
+            "offset": 0,
+            "enum_ref": "sys_event_domain_e"
+          },
+          {
+            "name": "depth",
+            "type": "uint16_t",
+            "offset": 2
+          },
+          {
+            "name": "dropped",
+            "type": "uint16_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "vm event buffer full at %u per cycle: %u dropped, latest from event domain %u",
+        "args": [
+          {
+            "field": "depth"
+          },
+          {
+            "field": "dropped"
+          },
+          {
+            "field": "domain"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_EXPR_BAD_CODE",
+      "id": 43304,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 6,
+        "fields": [
+          {
+            "name": "block_idx",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "pc",
+            "type": "uint16_t",
+            "offset": 2
+          },
+          {
+            "name": "opcode",
+            "type": "uint8_t",
+            "offset": 4,
+            "enum_ref": "vm_expr_op_e"
+          },
+          {
+            "name": "reason",
+            "type": "uint8_t",
+            "offset": 5
+          }
+        ]
+      },
+      "message": {
+        "format": "block %u expression at pc %u (op %u): %s",
+        "args": [
+          {
+            "field": "block_idx"
+          },
+          {
+            "field": "pc"
+          },
+          {
+            "field": "opcode"
+          },
+          {
+            "field": "reason",
+            "via": "VM_EXPR_BAD_NAME"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_EXPR_MATH",
+      "id": 43305,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 6,
+        "fields": [
+          {
+            "name": "block_idx",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "pc",
+            "type": "uint16_t",
+            "offset": 2
+          },
+          {
+            "name": "opcode",
+            "type": "uint8_t",
+            "offset": 4,
+            "enum_ref": "vm_expr_op_e"
+          },
+          {
+            "name": "reason",
+            "type": "uint8_t",
+            "offset": 5
+          }
+        ]
+      },
+      "message": {
+        "format": "block %u expression at pc %u (op %u): %s",
+        "args": [
+          {
+            "field": "block_idx"
+          },
+          {
+            "field": "pc"
+          },
+          {
+            "field": "opcode"
+          },
+          {
+            "field": "reason",
+            "via": "VM_EXPR_MATH_NAME"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_FOR_BAD_LOOP",
+      "id": 43306,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 12,
+        "fields": [
+          {
+            "name": "block_idx",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "turns",
+            "type": "uint32_t",
+            "offset": 4
+          },
+          {
+            "name": "cap",
+            "type": "uint16_t",
+            "offset": 8
+          },
+          {
+            "name": "reason",
+            "type": "uint8_t",
+            "offset": 10
+          }
+        ]
+      },
+      "message": {
+        "format": "block %u loop %s after %lu of %u turns",
+        "args": [
+          {
+            "field": "block_idx"
+          },
+          {
+            "field": "reason",
+            "via": "VM_FOR_BAD_NAME"
+          },
+          {
+            "field": "turns"
+          },
+          {
+            "field": "cap"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_OBJ_OWNERSHIP",
+      "id": 43307,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "reason",
+            "type": "uint8_t",
+            "offset": 0
+          },
+          {
+            "name": "limit",
+            "type": "uint8_t",
+            "offset": 1
+          }
+        ]
+      },
+      "message": null,
+      "message_unavailable": "conditional formatting"
+    },
+    {
+      "name": "ERR_VM_OBJ_USR_PROTECTED",
+      "id": 43308,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "obj_id",
+            "type": "uint16_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "object is protected from user writes (obj_id=%s)",
+        "args": [
+          {
+            "field": "obj_id",
+            "via": "vm_format_obj_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_LOAD_RUNNING",
+      "id": 43309,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "mode",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "program initialization requires stopped execution (mode %u: %s)",
+        "args": [
+          {
+            "field": "mode"
+          },
+          {
+            "field": "mode",
+            "via": "vm_run_mode_name"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_EXEC_CONTROL",
+      "id": 43310,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "command",
+            "type": "uint8_t",
+            "offset": 0,
+            "enum_ref": "vm_exec_command_e"
+          },
+          {
+            "name": "mode",
+            "type": "uint8_t",
+            "offset": 1
+          }
+        ]
+      },
+      "message": {
+        "format": "execution command %u (%s) unavailable in mode %u (%s) (or program locked)",
+        "args": [
+          {
+            "field": "command"
+          },
+          {
+            "field": "command",
+            "via": "vm_exec_command_name"
+          },
+          {
+            "field": "mode"
+          },
+          {
+            "field": "mode",
+            "via": "vm_run_mode_name"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_OVERRIDE_PTR_UNSUPPORTED",
+      "id": 43311,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "obj_id",
+            "type": "uint16_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "runtime override cannot write pointer object (obj_id=%s)",
+        "args": [
+          {
+            "field": "obj_id",
+            "via": "vm_format_obj_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_OVERRIDE_BAD_RECORD",
+      "id": 43312,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 6,
+        "fields": [
+          {
+            "name": "obj_id",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "declared_len",
+            "type": "uint16_t",
+            "offset": 2
+          },
+          {
+            "name": "item_size",
+            "type": "uint16_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "runtime override record malformed (obj_id=%s, declared=%u, item=%u bytes)",
+        "args": [
+          {
+            "field": "obj_id",
+            "via": "vm_format_obj_id"
+          },
+          {
+            "field": "declared_len"
+          },
+          {
+            "field": "item_size"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_EXEC_SELF_BARRIER",
+      "id": 43313,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "operation",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": null,
+      "message_unavailable": "conditional formatting"
+    },
+    {
+      "name": "ERR_VM_EXEC_FAULT_LATCHED",
+      "id": 43314,
+      "level": 4,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 8,
+        "fields": [
+          {
+            "name": "device_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "root_tag",
+            "type": "uint16_t",
+            "offset": 2,
+            "id": {
+              "kind": "error-tag"
+            }
+          },
+          {
+            "name": "root_owner",
+            "type": "uint32_t",
+            "offset": 4,
+            "id": {
+              "kind": "error-owner"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "VM restart blocked by device %u fault (root owner=0x%04lX, tag=%u)",
+        "args": [
+          {
+            "field": "device_id"
+          },
+          {
+            "field": "root_owner"
+          },
+          {
+            "field": "root_tag"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_NO_ACTION_EXECUTOR",
+      "id": 43315,
+      "level": 3,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "scope",
+            "type": "uint8_t",
+            "offset": 0,
+            "enum_ref": "vm_action_scope_e"
+          },
+          {
+            "name": "action_id",
+            "type": "uint8_t",
+            "offset": 1
+          }
+        ]
+      },
+      "message": {
+        "format": "action %u (scope %u) requested, but no action executor is registered with the VM",
+        "args": [
+          {
+            "field": "action_id"
+          },
+          {
+            "field": "scope"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_PERIODIC_OVERRUN",
+      "id": 43316,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 12,
+        "fields": [
+          {
+            "name": "block_idx",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "missed",
+            "type": "uint32_t",
+            "offset": 4
+          },
+          {
+            "name": "period_ms",
+            "type": "uint32_t",
+            "offset": 8
+          }
+        ]
+      },
+      "message": {
+        "format": "block %u: %lu tick(s) of %lu ms dropped (a pass took longer than the period)",
+        "args": [
+          {
+            "field": "block_idx"
+          },
+          {
+            "field": "missed"
+          },
+          {
+            "field": "period_ms"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_RETAIN_UNNAMED",
+      "id": 43317,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "obj_id",
+            "type": "uint16_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "object %u is retentive but has no name (retained values are kept by name)",
+        "args": [
+          {
+            "field": "obj_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_RETAIN_TOO_BIG",
+      "id": 43318,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 12,
+        "fields": [
+          {
+            "name": "obj_id",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "need",
+            "type": "uint32_t",
+            "offset": 4
+          },
+          {
+            "name": "max",
+            "type": "uint32_t",
+            "offset": 8
+          }
+        ]
+      },
+      "message": {
+        "format": "object %u: retained values need %lu bytes, max %lu",
+        "args": [
+          {
+            "field": "obj_id"
+          },
+          {
+            "field": "need"
+          },
+          {
+            "field": "max"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_RETAIN_MISMATCH",
+      "id": 43319,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 6,
+        "fields": [
+          {
+            "name": "obj_id",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "type",
+            "type": "uint8_t",
+            "offset": 2,
+            "enum_ref": "vm_obj_t_e"
+          },
+          {
+            "name": "size",
+            "type": "uint16_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "object %u: stored value is type %u / %u bytes, the object differs; uploaded value kept",
+        "args": [
+          {
+            "field": "obj_id"
+          },
+          {
+            "field": "type"
+          },
+          {
+            "field": "size"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_RETAIN_CORRUPT",
+      "id": 43320,
+      "level": 2,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "offset",
+            "type": "uint32_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "stored retained values are malformed at byte %lu; the rest is ignored",
+        "args": [
+          {
+            "field": "offset"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_SUB_TRACK_FULL",
+      "id": 43321,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "max",
+            "type": "uint16_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "subscriptions reach more than %u objects; the rest are not sent (subscribe to fewer)",
+        "args": [
+          {
+            "field": "max"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_EVENT_LOOP",
+      "id": 43777,
+      "level": 2,
+      "source_file": "components/system/sys_event/errors/sys_error_event.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "domain",
+            "type": "uint8_t",
+            "offset": 0,
+            "enum_ref": "sys_event_domain_e"
+          },
+          {
+            "name": "device_id",
+            "type": "uint8_t",
+            "offset": 1,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "channel",
+            "type": "uint8_t",
+            "offset": 2
+          },
+          {
+            "name": "event",
+            "type": "uint8_t",
+            "offset": 3
+          }
+        ]
+      },
+      "message": {
+        "format": "event %u/%u/%u/%u dropped: republished too many times (loop?)",
+        "args": [
+          {
+            "field": "domain"
+          },
+          {
+            "field": "device_id"
+          },
+          {
+            "field": "channel"
+          },
+          {
+            "field": "event"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_EVENT_TABLE_FULL",
+      "id": 43778,
+      "level": 3,
+      "source_file": "components/system/sys_event/errors/sys_error_event.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "capacity",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "all %u event subscriptions are in use",
+        "args": [
+          {
+            "field": "capacity"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_EVENT_QUEUE_FULL",
+      "id": 43779,
+      "level": 2,
+      "source_file": "components/system/sys_event/errors/sys_error_event.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "dropped",
+            "type": "uint32_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "event queue full: %lu event(s) dropped",
+        "args": [
+          {
+            "field": "dropped"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_EVENT_SUB_NOT_FOUND",
+      "id": 43780,
+      "level": 1,
+      "source_file": "components/system/sys_event/errors/sys_error_event.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "no event subscription %u",
+        "args": [
+          {
+            "field": "id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_EVENT_SUB_PROTECTED",
+      "id": 43781,
+      "level": 1,
+      "source_file": "components/system/sys_event/errors/sys_error_event.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "event subscription %u belongs to the system and can't be removed",
+        "args": [
+          {
+            "field": "id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_EVENT_SUB_INVALID",
+      "id": 43782,
+      "level": 3,
+      "source_file": "components/system/sys_event/errors/sys_error_event.h",
+      "payload": {
+        "size": 3,
+        "fields": [
+          {
+            "name": "inline_call",
+            "type": "uint8_t",
+            "offset": 0
+          },
+          {
+            "name": "has_handler",
+            "type": "uint8_t",
+            "offset": 1
+          },
+          {
+            "name": "route_mask",
+            "type": "uint8_t",
+            "offset": 2
+          }
+        ]
+      },
+      "message": {
+        "format": "invalid event subscription (inline %u, handler %u, routes 0x%02X)",
+        "args": [
+          {
+            "field": "inline_call"
+          },
+          {
+            "field": "has_handler"
+          },
+          {
+            "field": "route_mask"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_EVENT_NO_EXECUTOR",
+      "id": 43783,
+      "level": 3,
+      "source_file": "components/system/sys_event/errors/sys_error_event.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "action_id",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "action %u requested by an event, but no action executor is registered",
+        "args": [
+          {
+            "field": "action_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_DATA_CONNECTOR_FRAME_TOO_LONG",
+      "id": 44289,
+      "level": 2,
+      "source_file": "components/system/sys_data_connector/errors/sys_error_data_connector.h",
+      "payload": {
+        "size": 12,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uint8_t",
+            "offset": 0,
+            "enum_ref": "sys_data_connector_id_e"
+          },
+          {
+            "name": "provider_id",
+            "type": "uint8_t",
+            "offset": 1,
+            "enum_ref": "runit_data_provider_e"
+          },
+          {
+            "name": "len",
+            "type": "uint32_t",
+            "offset": 4
+          },
+          {
+            "name": "max",
+            "type": "uint32_t",
+            "offset": 8
+          }
+        ]
+      },
+      "message": {
+        "format": "connector %u: %lu-byte frame not sent to provider %u, limit %lu",
+        "args": [
+          {
+            "field": "id"
+          },
+          {
+            "field": "len"
+          },
+          {
+            "field": "provider_id"
+          },
+          {
+            "field": "max"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_DATA_CONNECTOR_PROTECTED",
+      "id": 44290,
+      "level": 1,
+      "source_file": "components/system/sys_data_connector/errors/sys_error_data_connector.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uint8_t",
+            "offset": 0,
+            "enum_ref": "sys_data_connector_id_e"
+          }
+        ]
+      },
+      "message": {
+        "format": "connector %u is a system connector: it can't be removed, reconfigured, lose its last binding, or be suspended while it receives",
+        "args": [
+          {
+            "field": "id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_DATA_CONNECTOR_NO_PROVIDER",
+      "id": 44291,
+      "level": 1,
+      "source_file": "components/system/sys_data_connector/errors/sys_error_data_connector.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "provider_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "enum_ref": "runit_data_provider_e"
+          }
+        ]
+      },
+      "message": {
+        "format": "no provider %u registered (or it can't do this direction)",
+        "args": [
+          {
+            "field": "provider_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_SETTINGS_SIZE_MISMATCH",
+      "id": 45057,
+      "level": 1,
+      "source_file": "components/system/sys_settings/errors/sys_error_settings.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "stored",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "expected",
+            "type": "uint16_t",
+            "offset": 2
+          }
+        ]
+      },
+      "message": {
+        "format": "stored setting is %u bytes, expected %u (layout changed; defaults used)",
+        "args": [
+          {
+            "field": "stored"
+          },
+          {
+            "field": "expected"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_UART_LINE_BAD",
+      "id": 45313,
+      "level": 1,
+      "source_file": "components/system/sys_uart/errors/sys_error_uart.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "len",
+            "type": "uint16_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "UART frame line dropped: %u chars, bad hex or longer than the frame limit",
+        "args": [
+          {
+            "field": "len"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_UART_RX_FULL",
+      "id": 45314,
+      "level": 2,
+      "source_file": "components/system/sys_uart/errors/sys_error_uart.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "len",
+            "type": "uint16_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "UART %u-byte frame dropped: decoded frame queue full",
+        "args": [
+          {
+            "field": "len"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_UART_FRAME_TOO_LONG",
+      "id": 45315,
+      "level": 2,
+      "source_file": "components/system/sys_uart/errors/sys_error_uart.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "len",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "max",
+            "type": "uint16_t",
+            "offset": 2
+          }
+        ]
+      },
+      "message": {
+        "format": "UART %u-byte frame dropped: consumer buffer holds %u",
+        "args": [
+          {
+            "field": "len"
+          },
+          {
+            "field": "max"
+          }
+        ]
+      }
+    }
+  ],
+  "value_names": {
+    "VM_EXPR_BAD_NAME": {
+      "values": {
+        "0": "constants and code do not fit custom_data",
+        "1": "unknown opcode",
+        "2": "operand missing, out of range or an unwired input",
+        "3": "stack underflow",
+        "4": "stack overflow",
+        "5": "stack does not end with one value"
+      },
+      "default": "?",
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    "VM_EXPR_MATH_NAME": {
+      "values": {
+        "0": "divide by zero",
+        "1": "operand outside domain",
+        "2": "result not finite"
+      },
+      "default": "?",
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    "VM_FOR_BAD_NAME": {
+      "values": {
+        "0": "ran its whole turn budget",
+        "1": "iterator went non-finite"
+      },
+      "default": "?",
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    "vm_copy_shape_name": {
+      "values": {
+        "0": "tree deeper than the cap, or a cycle",
+        "1": "source slot empty, target holds an object",
+        "2": "target slot empty, source holds an object"
+      },
+      "default": "?",
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    "vm_exec_command_name": {
+      "values": {
+        "0": "SCAN_MODE",
+        "1": "ONCE",
+        "2": "BLOCK_MODE",
+        "3": "NEXT",
+        "4": "RESET_TO_START",
+        "5": "NORMAL_MODE",
+        "6": "PAUSE",
+        "7": "RESUME",
+        "8": "RESET",
+        "9": "ACK_FAULT"
+      },
+      "default": "UNKNOWN",
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    "vm_index_kind_name": {
+      "values": {
+        "0": "LITERAL",
+        "1": "REF",
+        "2": "NAME"
+      },
+      "default": "UNKNOWN",
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    "vm_load_state_name": {
+      "values": {
+        "0": "EMPTY",
+        "1": "OPEN"
+      },
+      "default": "UNKNOWN",
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    "vm_reg_name": {
+      "values": {
+        "0": "object",
+        "1": "accessor",
+        "2": "block"
+      },
+      "default": "unknown",
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    "vm_run_mode_name": {
+      "values": {
+        "0": "STOPPED",
+        "1": "RUNNING",
+        "2": "FROZEN",
+        "3": "STEP",
+        "4": "SCAN",
+        "5": "BLOCK",
+        "6": "BLOCK_STEP"
+      },
+      "default": "UNKNOWN",
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    },
+    "vm_type_name": {
+      "values": {
+        "0": "NONE",
+        "1": "PTR",
+        "2": "U8",
+        "3": "U32",
+        "4": "I32",
+        "5": "F",
+        "6": "B",
+        "7": "STR"
+      },
+      "default": "UNKNOWN",
+      "source_file": "components/VM/errors/sys_error_vm.h"
+    }
+  },
+  "id_kinds": {
+    "device": "board device ID (board.generated.json devices[].id)",
+    "error-tag": "error tag ID (this file, tags[].id)",
+    "error-owner": "error owner ID (this file, owners[].id)",
+    "error-level": "severity (this file, levels[].value)",
+    "rx-class": "command class byte (contracts / settings class_header)",
+    "rx-packet": "command packet byte within the class held by the parent field (contracts / settings packet_header)",
+    "contract-feature": "feature ID (contract member index) within the device contract held by the parent field (this file, contract_features)",
+    "vm-block-type": "VM block type (vm/blocks/index.generated.json blocks[].id)",
+    "esp-err": "esp_err_t code (this file, esp_errors)"
+  },
+  "esp_errors": {
+    "source_file": "$IDF_PATH/components/esp_common/src/esp_err_to_name.c",
+    "codes": {
+      "-1": {
+        "name": "ESP_FAIL",
+        "description": "Generic esp_err_t code indicating failure"
+      },
+      "0": {
+        "name": "ESP_OK",
+        "description": "esp_err_t value indicating success (no error)"
+      },
+      "257": {
+        "name": "ESP_ERR_NO_MEM",
+        "description": "Out of memory"
+      },
+      "258": {
+        "name": "ESP_ERR_INVALID_ARG",
+        "description": "Invalid argument"
+      },
+      "259": {
+        "name": "ESP_ERR_INVALID_STATE",
+        "description": "Invalid state"
+      },
+      "260": {
+        "name": "ESP_ERR_INVALID_SIZE",
+        "description": "Invalid size"
+      },
+      "261": {
+        "name": "ESP_ERR_NOT_FOUND",
+        "description": "Requested resource not found"
+      },
+      "262": {
+        "name": "ESP_ERR_NOT_SUPPORTED",
+        "description": "Operation or feature not supported"
+      },
+      "263": {
+        "name": "ESP_ERR_TIMEOUT",
+        "description": "Operation timed out"
+      },
+      "264": {
+        "name": "ESP_ERR_INVALID_RESPONSE",
+        "description": "Received response was invalid"
+      },
+      "265": {
+        "name": "ESP_ERR_INVALID_CRC",
+        "description": "CRC or checksum was invalid"
+      },
+      "266": {
+        "name": "ESP_ERR_INVALID_VERSION",
+        "description": "Version was invalid"
+      },
+      "267": {
+        "name": "ESP_ERR_INVALID_MAC",
+        "description": "MAC address was invalid"
+      },
+      "268": {
+        "name": "ESP_ERR_NOT_FINISHED",
+        "description": "Operation has not fully completed"
+      },
+      "269": {
+        "name": "ESP_ERR_NOT_ALLOWED",
+        "description": "Operation is not allowed"
+      },
+      "4352": {
+        "name": "ESP_ERR_NVS_BASE",
+        "description": "Starting number of error codes"
+      },
+      "4353": {
+        "name": "ESP_ERR_NVS_NOT_INITIALIZED",
+        "description": "The storage driver is not initialized"
+      },
+      "4356": {
+        "name": "ESP_ERR_NVS_READ_ONLY",
+        "description": "Storage handle was opened as read only"
+      },
+      "4358": {
+        "name": "ESP_ERR_NVS_INVALID_NAME",
+        "description": "Namespace name doesn\u2019t satisfy constraints"
+      },
+      "4359": {
+        "name": "ESP_ERR_NVS_INVALID_HANDLE",
+        "description": "Handle has been closed or is NULL"
+      },
+      "4361": {
+        "name": "ESP_ERR_NVS_KEY_TOO_LONG",
+        "description": "Key name is too long"
+      },
+      "4369": {
+        "name": "ESP_ERR_NVS_XTS_ENCR_FAILED",
+        "description": "XTS encryption failed while writing NVS entry"
+      },
+      "4370": {
+        "name": "ESP_ERR_NVS_XTS_DECR_FAILED",
+        "description": "XTS decryption failed while reading NVS entry"
+      },
+      "4371": {
+        "name": "ESP_ERR_NVS_XTS_CFG_FAILED",
+        "description": "XTS configuration setting failed"
+      },
+      "4372": {
+        "name": "ESP_ERR_NVS_XTS_CFG_NOT_FOUND",
+        "description": "XTS configuration not found"
+      },
+      "4373": {
+        "name": "ESP_ERR_NVS_ENCR_NOT_SUPPORTED",
+        "description": "NVS encryption is not supported in this version"
+      },
+      "4374": {
+        "name": "ESP_ERR_NVS_KEYS_NOT_INITIALIZED",
+        "description": "NVS key partition is uninitialized"
+      },
+      "4375": {
+        "name": "ESP_ERR_NVS_CORRUPT_KEY_PART",
+        "description": "NVS key partition is corrupt"
+      },
+      "4608": {
+        "name": "ESP_ERR_ULP_BASE",
+        "description": "Offset for ULP-related error codes"
+      },
+      "4612": {
+        "name": "ESP_ERR_ULP_UNDEFINED_LABEL",
+        "description": "Branch instructions references an undefined label"
+      },
+      "5376": {
+        "name": "ESP_ERR_OTA_BASE",
+        "description": "Base error code for ota_ops api"
+      },
+      "5379": {
+        "name": "ESP_ERR_OTA_VALIDATE_FAILED",
+        "description": "Error if OTA app image is invalid"
+      },
+      "5632": {
+        "name": "ESP_ERR_EFUSE",
+        "description": "Base error code for efuse api."
+      },
+      "5633": {
+        "name": "ESP_OK_EFUSE_CNT",
+        "description": "OK the required number of bits is set."
+      },
+      "5634": {
+        "name": "ESP_ERR_EFUSE_CNT_IS_FULL",
+        "description": "Error field is full."
+      },
+      "5636": {
+        "name": "ESP_ERR_CODING",
+        "description": "Error while a encoding operation."
+      },
+      "5637": {
+        "name": "ESP_ERR_NOT_ENOUGH_UNUSED_KEY_BLOCKS",
+        "description": "Error not enough unused key blocks available"
+      },
+      "5639": {
+        "name": "ESP_ERR_BURN_WR_DIS",
+        "description": "Error to burn WR_DIS field."
+      },
+      "8192": {
+        "name": "ESP_ERR_IMAGE_BASE",
+        "description": ""
+      },
+      "8193": {
+        "name": "ESP_ERR_IMAGE_FLASH_FAIL",
+        "description": ""
+      },
+      "8194": {
+        "name": "ESP_ERR_IMAGE_INVALID",
+        "description": ""
+      },
+      "12288": {
+        "name": "ESP_ERR_WIFI_BASE",
+        "description": "Starting number of WiFi error codes"
+      },
+      "12289": {
+        "name": "ESP_ERR_WIFI_NOT_INIT",
+        "description": "WiFi driver was not installed by esp_wifi_init"
+      },
+      "12290": {
+        "name": "ESP_ERR_WIFI_NOT_STARTED",
+        "description": "WiFi driver was not started by esp_wifi_start"
+      },
+      "12291": {
+        "name": "ESP_ERR_WIFI_NOT_STOPPED",
+        "description": "WiFi driver was not stopped by esp_wifi_stop"
+      },
+      "12292": {
+        "name": "ESP_ERR_WIFI_IF",
+        "description": "WiFi interface error"
+      },
+      "12293": {
+        "name": "ESP_ERR_WIFI_MODE",
+        "description": "WiFi mode error"
+      },
+      "12294": {
+        "name": "ESP_ERR_WIFI_STATE",
+        "description": "WiFi internal state error"
+      },
+      "12296": {
+        "name": "ESP_ERR_WIFI_NVS",
+        "description": "WiFi internal NVS module error"
+      },
+      "12297": {
+        "name": "ESP_ERR_WIFI_MAC",
+        "description": "MAC address is invalid"
+      },
+      "12298": {
+        "name": "ESP_ERR_WIFI_SSID",
+        "description": "SSID is invalid"
+      },
+      "12299": {
+        "name": "ESP_ERR_WIFI_PASSWORD",
+        "description": "Password is invalid"
+      },
+      "12300": {
+        "name": "ESP_ERR_WIFI_TIMEOUT",
+        "description": "Timeout error"
+      },
+      "12301": {
+        "name": "ESP_ERR_WIFI_WAKE_FAIL",
+        "description": "WiFi is in sleep state(RF closed) and wakeup fail"
+      },
+      "12302": {
+        "name": "ESP_ERR_WIFI_WOULD_BLOCK",
+        "description": "The caller would block"
+      },
+      "12303": {
+        "name": "ESP_ERR_WIFI_NOT_CONNECT",
+        "description": "Station still in disconnect status"
+      },
+      "12306": {
+        "name": "ESP_ERR_WIFI_POST",
+        "description": "Failed to post the event to WiFi task"
+      },
+      "12307": {
+        "name": "ESP_ERR_WIFI_INIT_STATE",
+        "description": "Invalid WiFi state when init/deinit is called"
+      },
+      "12308": {
+        "name": "ESP_ERR_WIFI_STOP_STATE",
+        "description": "Returned when WiFi is stopping"
+      },
+      "12309": {
+        "name": "ESP_ERR_WIFI_NOT_ASSOC",
+        "description": "The WiFi connection is not associated"
+      },
+      "12310": {
+        "name": "ESP_ERR_WIFI_TX_DISALLOW",
+        "description": "The WiFi TX is disallowed"
+      },
+      "12311": {
+        "name": "ESP_ERR_WIFI_TWT_FULL",
+        "description": "no available flow id"
+      },
+      "12313": {
+        "name": "ESP_ERR_WIFI_TWT_SETUP_TXFAIL",
+        "description": "TWT setup frame tx failed"
+      },
+      "12314": {
+        "name": "ESP_ERR_WIFI_TWT_SETUP_REJECT",
+        "description": "The twt setup request was rejected by the AP"
+      },
+      "12315": {
+        "name": "ESP_ERR_WIFI_DISCARD",
+        "description": "Discard frame"
+      },
+      "12316": {
+        "name": "ESP_ERR_WIFI_ROC_IN_PROGRESS",
+        "description": "ROC op is in progress"
+      },
+      "12339": {
+        "name": "ESP_ERR_WIFI_REGISTRAR",
+        "description": "WPS registrar is not supported"
+      },
+      "12340": {
+        "name": "ESP_ERR_WIFI_WPS_TYPE",
+        "description": "WPS type error"
+      },
+      "12341": {
+        "name": "ESP_ERR_WIFI_WPS_SM",
+        "description": "WPS state machine is not initialized"
+      },
+      "12388": {
+        "name": "ESP_ERR_ESPNOW_BASE",
+        "description": "ESPNOW error number base."
+      },
+      "12389": {
+        "name": "ESP_ERR_ESPNOW_NOT_INIT",
+        "description": "ESPNOW is not initialized."
+      },
+      "12390": {
+        "name": "ESP_ERR_ESPNOW_ARG",
+        "description": "Invalid argument"
+      },
+      "12391": {
+        "name": "ESP_ERR_ESPNOW_NO_MEM",
+        "description": "Out of memory"
+      },
+      "12392": {
+        "name": "ESP_ERR_ESPNOW_FULL",
+        "description": "ESPNOW peer list is full"
+      },
+      "12393": {
+        "name": "ESP_ERR_ESPNOW_NOT_FOUND",
+        "description": "ESPNOW peer is not found"
+      },
+      "12394": {
+        "name": "ESP_ERR_ESPNOW_INTERNAL",
+        "description": "Internal error"
+      },
+      "12395": {
+        "name": "ESP_ERR_ESPNOW_EXIST",
+        "description": "ESPNOW peer has existed"
+      },
+      "12396": {
+        "name": "ESP_ERR_ESPNOW_IF",
+        "description": "Interface error"
+      },
+      "12397": {
+        "name": "ESP_ERR_ESPNOW_CHAN",
+        "description": "Channel error"
+      },
+      "12439": {
+        "name": "ESP_ERR_DPP_FAILURE",
+        "description": "Generic failure during DPP Operation"
+      },
+      "12440": {
+        "name": "ESP_ERR_DPP_TX_FAILURE",
+        "description": "DPP Frame Tx failed OR not Acked"
+      },
+      "12441": {
+        "name": "ESP_ERR_DPP_INVALID_ATTR",
+        "description": "Encountered invalid DPP Attribute"
+      },
+      "12442": {
+        "name": "ESP_ERR_DPP_AUTH_TIMEOUT",
+        "description": "DPP Auth response was not received in time"
+      },
+      "12444": {
+        "name": "ESP_ERR_DPP_CONF_TIMEOUT",
+        "description": "DPP Configuration was not received in time"
+      },
+      "16384": {
+        "name": "ESP_ERR_MESH_BASE",
+        "description": "Starting number of MESH error codes"
+      },
+      "16385": {
+        "name": "ESP_ERR_MESH_WIFI_NOT_START",
+        "description": ""
+      },
+      "16386": {
+        "name": "ESP_ERR_MESH_NOT_INIT",
+        "description": ""
+      },
+      "16387": {
+        "name": "ESP_ERR_MESH_NOT_CONFIG",
+        "description": ""
+      },
+      "16388": {
+        "name": "ESP_ERR_MESH_NOT_START",
+        "description": ""
+      },
+      "16389": {
+        "name": "ESP_ERR_MESH_NOT_SUPPORT",
+        "description": ""
+      },
+      "16390": {
+        "name": "ESP_ERR_MESH_NOT_ALLOWED",
+        "description": ""
+      },
+      "16391": {
+        "name": "ESP_ERR_MESH_NO_MEMORY",
+        "description": ""
+      },
+      "16392": {
+        "name": "ESP_ERR_MESH_ARGUMENT",
+        "description": ""
+      },
+      "16393": {
+        "name": "ESP_ERR_MESH_EXCEED_MTU",
+        "description": ""
+      },
+      "16394": {
+        "name": "ESP_ERR_MESH_TIMEOUT",
+        "description": ""
+      },
+      "16395": {
+        "name": "ESP_ERR_MESH_DISCONNECTED",
+        "description": ""
+      },
+      "16396": {
+        "name": "ESP_ERR_MESH_QUEUE_FAIL",
+        "description": ""
+      },
+      "16397": {
+        "name": "ESP_ERR_MESH_QUEUE_FULL",
+        "description": ""
+      },
+      "16398": {
+        "name": "ESP_ERR_MESH_NO_PARENT_FOUND",
+        "description": ""
+      },
+      "16399": {
+        "name": "ESP_ERR_MESH_NO_ROUTE_FOUND",
+        "description": ""
+      },
+      "16400": {
+        "name": "ESP_ERR_MESH_OPTION_NULL",
+        "description": ""
+      },
+      "16401": {
+        "name": "ESP_ERR_MESH_OPTION_UNKNOWN",
+        "description": ""
+      },
+      "16402": {
+        "name": "ESP_ERR_MESH_XON_NO_WINDOW",
+        "description": ""
+      },
+      "16403": {
+        "name": "ESP_ERR_MESH_INTERFACE",
+        "description": ""
+      },
+      "16404": {
+        "name": "ESP_ERR_MESH_DISCARD_DUPLICATE",
+        "description": ""
+      },
+      "16405": {
+        "name": "ESP_ERR_MESH_DISCARD",
+        "description": ""
+      },
+      "16406": {
+        "name": "ESP_ERR_MESH_VOTING",
+        "description": ""
+      },
+      "16407": {
+        "name": "ESP_ERR_MESH_XMIT",
+        "description": ""
+      },
+      "16408": {
+        "name": "ESP_ERR_MESH_QUEUE_READ",
+        "description": ""
+      },
+      "16409": {
+        "name": "ESP_ERR_MESH_PS",
+        "description": ""
+      },
+      "16410": {
+        "name": "ESP_ERR_MESH_RECV_RELEASE",
+        "description": ""
+      },
+      "20480": {
+        "name": "ESP_ERR_ESP_NETIF_BASE",
+        "description": ""
+      },
+      "20481": {
+        "name": "ESP_ERR_ESP_NETIF_INVALID_PARAMS",
+        "description": ""
+      },
+      "20482": {
+        "name": "ESP_ERR_ESP_NETIF_IF_NOT_READY",
+        "description": ""
+      },
+      "20483": {
+        "name": "ESP_ERR_ESP_NETIF_DHCPC_START_FAILED",
+        "description": ""
+      },
+      "20484": {
+        "name": "ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED",
+        "description": ""
+      },
+      "20485": {
+        "name": "ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED",
+        "description": ""
+      },
+      "20486": {
+        "name": "ESP_ERR_ESP_NETIF_NO_MEM",
+        "description": ""
+      },
+      "20487": {
+        "name": "ESP_ERR_ESP_NETIF_DHCP_NOT_STOPPED",
+        "description": ""
+      },
+      "20488": {
+        "name": "ESP_ERR_ESP_NETIF_DRIVER_ATTACH_FAILED",
+        "description": ""
+      },
+      "20489": {
+        "name": "ESP_ERR_ESP_NETIF_INIT_FAILED",
+        "description": ""
+      },
+      "20490": {
+        "name": "ESP_ERR_ESP_NETIF_DNS_NOT_CONFIGURED",
+        "description": ""
+      },
+      "20491": {
+        "name": "ESP_ERR_ESP_NETIF_MLD6_FAILED",
+        "description": ""
+      },
+      "20492": {
+        "name": "ESP_ERR_ESP_NETIF_IP6_ADDR_FAILED",
+        "description": ""
+      },
+      "20493": {
+        "name": "ESP_ERR_ESP_NETIF_DHCPS_START_FAILED",
+        "description": ""
+      },
+      "20494": {
+        "name": "ESP_ERR_ESP_NETIF_TX_FAILED",
+        "description": ""
+      },
+      "24576": {
+        "name": "ESP_ERR_FLASH_BASE",
+        "description": "Starting number of flash error codes"
+      },
+      "24577": {
+        "name": "ESP_ERR_FLASH_OP_FAIL",
+        "description": ""
+      },
+      "24578": {
+        "name": "ESP_ERR_FLASH_OP_TIMEOUT",
+        "description": ""
+      },
+      "24579": {
+        "name": "ESP_ERR_FLASH_NOT_INITIALISED",
+        "description": ""
+      },
+      "24580": {
+        "name": "ESP_ERR_FLASH_UNSUPPORTED_HOST",
+        "description": ""
+      },
+      "24581": {
+        "name": "ESP_ERR_FLASH_UNSUPPORTED_CHIP",
+        "description": ""
+      },
+      "24582": {
+        "name": "ESP_ERR_FLASH_PROTECTED",
+        "description": ""
+      },
+      "28672": {
+        "name": "ESP_ERR_HTTP_BASE",
+        "description": "Starting number of HTTP error codes"
+      },
+      "28673": {
+        "name": "ESP_ERR_HTTP_MAX_REDIRECT",
+        "description": "The error exceeds the number of HTTP redirects"
+      },
+      "28674": {
+        "name": "ESP_ERR_HTTP_CONNECT",
+        "description": "Error open the HTTP connection"
+      },
+      "28675": {
+        "name": "ESP_ERR_HTTP_WRITE_DATA",
+        "description": "Error write HTTP data"
+      },
+      "28676": {
+        "name": "ESP_ERR_HTTP_FETCH_HEADER",
+        "description": "Error read HTTP header from server"
+      },
+      "28678": {
+        "name": "ESP_ERR_HTTP_CONNECTING",
+        "description": "HTTP connection hasn't been established yet"
+      },
+      "28679": {
+        "name": "ESP_ERR_HTTP_EAGAIN",
+        "description": "Mapping of errno EAGAIN to esp_err_t"
+      },
+      "28680": {
+        "name": "ESP_ERR_HTTP_CONNECTION_CLOSED",
+        "description": "Read FIN from peer and the connection closed"
+      },
+      "28681": {
+        "name": "ESP_ERR_HTTP_NOT_MODIFIED",
+        "description": "HTTP 304 Not Modified, no update available"
+      },
+      "28683": {
+        "name": "ESP_ERR_HTTP_READ_TIMEOUT",
+        "description": "HTTP data read timeout"
+      },
+      "32768": {
+        "name": "ESP_ERR_ESP_TLS_BASE",
+        "description": "Starting number of ESP-TLS error codes"
+      },
+      "32770": {
+        "name": "ESP_ERR_ESP_TLS_CANNOT_CREATE_SOCKET",
+        "description": "Failed to create socket"
+      },
+      "32771": {
+        "name": "ESP_ERR_ESP_TLS_UNSUPPORTED_PROTOCOL_FAMILY",
+        "description": "Unsupported protocol family"
+      },
+      "32772": {
+        "name": "ESP_ERR_ESP_TLS_FAILED_CONNECT_TO_HOST",
+        "description": "Failed to connect to host"
+      },
+      "32773": {
+        "name": "ESP_ERR_ESP_TLS_SOCKET_SETOPT_FAILED",
+        "description": "failed to set/get socket option"
+      },
+      "32775": {
+        "name": "ESP_ERR_ESP_TLS_SE_FAILED",
+        "description": ""
+      },
+      "32776": {
+        "name": "ESP_ERR_ESP_TLS_TCP_CLOSED_FIN",
+        "description": ""
+      },
+      "32777": {
+        "name": "ESP_ERR_ESP_TLS_SERVER_HANDSHAKE_TIMEOUT",
+        "description": "TLS handshake timeout"
+      },
+      "32784": {
+        "name": "ESP_ERR_MBEDTLS_CERT_PARTLY_OK",
+        "description": "mbedtls parse certificates was partly successful"
+      },
+      "32785": {
+        "name": "ESP_ERR_MBEDTLS_CTR_DRBG_SEED_FAILED",
+        "description": "mbedtls api returned error"
+      },
+      "32786": {
+        "name": "ESP_ERR_MBEDTLS_SSL_SET_HOSTNAME_FAILED",
+        "description": "mbedtls api returned error"
+      },
+      "32787": {
+        "name": "ESP_ERR_MBEDTLS_SSL_CONFIG_DEFAULTS_FAILED",
+        "description": "mbedtls api returned error"
+      },
+      "32788": {
+        "name": "ESP_ERR_MBEDTLS_SSL_CONF_ALPN_PROTOCOLS_FAILED",
+        "description": "mbedtls api returned error"
+      },
+      "32789": {
+        "name": "ESP_ERR_MBEDTLS_X509_CRT_PARSE_FAILED",
+        "description": "mbedtls api returned error"
+      },
+      "32790": {
+        "name": "ESP_ERR_MBEDTLS_SSL_CONF_OWN_CERT_FAILED",
+        "description": "mbedtls api returned error"
+      },
+      "32791": {
+        "name": "ESP_ERR_MBEDTLS_SSL_SETUP_FAILED",
+        "description": "mbedtls api returned error"
+      },
+      "32792": {
+        "name": "ESP_ERR_MBEDTLS_SSL_WRITE_FAILED",
+        "description": "mbedtls api returned error"
+      },
+      "32793": {
+        "name": "ESP_ERR_MBEDTLS_PK_PARSE_KEY_FAILED",
+        "description": "mbedtls api returned failed"
+      },
+      "32794": {
+        "name": "ESP_ERR_MBEDTLS_SSL_HANDSHAKE_FAILED",
+        "description": "mbedtls api returned failed"
+      },
+      "32795": {
+        "name": "ESP_ERR_MBEDTLS_SSL_CONF_PSK_FAILED",
+        "description": "mbedtls api returned failed"
+      },
+      "32796": {
+        "name": "ESP_ERR_MBEDTLS_SSL_TICKET_SETUP_FAILED",
+        "description": "mbedtls api returned failed"
+      },
+      "32797": {
+        "name": "ESP_ERR_MBEDTLS_SSL_READ_FAILED",
+        "description": "mbedtls api returned failed"
+      },
+      "36864": {
+        "name": "ESP_ERR_HTTPS_OTA_BASE",
+        "description": ""
+      },
+      "36865": {
+        "name": "ESP_ERR_HTTPS_OTA_IN_PROGRESS",
+        "description": ""
+      },
+      "45056": {
+        "name": "ESP_ERR_HTTPD_BASE",
+        "description": "Starting number of HTTPD error codes"
+      },
+      "45059": {
+        "name": "ESP_ERR_HTTPD_INVALID_REQ",
+        "description": "Invalid request pointer"
+      },
+      "45060": {
+        "name": "ESP_ERR_HTTPD_RESULT_TRUNC",
+        "description": "Result string truncated"
+      },
+      "45061": {
+        "name": "ESP_ERR_HTTPD_RESP_HDR",
+        "description": "Response header field larger than supported"
+      },
+      "45062": {
+        "name": "ESP_ERR_HTTPD_RESP_SEND",
+        "description": "Error occurred while sending response packet"
+      },
+      "45064": {
+        "name": "ESP_ERR_HTTPD_TASK",
+        "description": "Failed to launch server task/thread"
+      },
+      "49153": {
+        "name": "ESP_ERR_HW_CRYPTO_DS_HMAC_FAIL",
+        "description": "HMAC peripheral problem"
+      },
+      "49154": {
+        "name": "ESP_ERR_HW_CRYPTO_DS_INVALID_KEY",
+        "description": ""
+      },
+      "49156": {
+        "name": "ESP_ERR_HW_CRYPTO_DS_INVALID_DIGEST",
+        "description": ""
+      },
+      "49157": {
+        "name": "ESP_ERR_HW_CRYPTO_DS_INVALID_PADDING",
+        "description": ""
+      },
+      "53249": {
+        "name": "ESP_ERR_MEMPROT_MEMORY_TYPE_INVALID",
+        "description": ""
+      },
+      "53250": {
+        "name": "ESP_ERR_MEMPROT_SPLIT_ADDR_INVALID",
+        "description": ""
+      },
+      "53251": {
+        "name": "ESP_ERR_MEMPROT_SPLIT_ADDR_OUT_OF_RANGE",
+        "description": ""
+      },
+      "53252": {
+        "name": "ESP_ERR_MEMPROT_SPLIT_ADDR_UNALIGNED",
+        "description": ""
+      },
+      "53253": {
+        "name": "ESP_ERR_MEMPROT_UNIMGMT_BLOCK_INVALID",
+        "description": ""
+      },
+      "53254": {
+        "name": "ESP_ERR_MEMPROT_WORLD_INVALID",
+        "description": ""
+      },
+      "53255": {
+        "name": "ESP_ERR_MEMPROT_AREA_INVALID",
+        "description": ""
+      },
+      "53256": {
+        "name": "ESP_ERR_MEMPROT_CPUID_INVALID",
+        "description": ""
+      },
+      "57344": {
+        "name": "ESP_ERR_TCP_TRANSPORT_BASE",
+        "description": "Starting number of TCP Transport error codes"
+      },
+      "57345": {
+        "name": "ESP_ERR_TCP_TRANSPORT_CONNECTION_TIMEOUT",
+        "description": "Connection has timed out"
+      },
+      "57347": {
+        "name": "ESP_ERR_TCP_TRANSPORT_CONNECTION_FAILED",
+        "description": "Failed to connect to the peer"
+      },
+      "57348": {
+        "name": "ESP_ERR_TCP_TRANSPORT_NO_MEM",
+        "description": "Memory allocation failed"
+      },
+      "61440": {
+        "name": "ESP_ERR_NVS_SEC_BASE",
+        "description": "Starting number of error codes"
+      },
+      "61443": {
+        "name": "ESP_ERR_NVS_SEC_HMAC_KEY_GENERATION_FAILED",
+        "description": "Failed to generate/write the HMAC key to eFuse"
+      }
+    }
+  },
+  "contract_features": {
+    "enum": "sys_device_contract_type_e",
+    "contracts": {
+      "0": {
+        "symbol": "SYS_DEVICE_CONTRACT_IO",
+        "table": "sys_io_feature_names",
+        "source_file": "components/system/sys_io/sys_io.c",
+        "features": [
+          "reset",
+          "set_mode",
+          "configure_intr",
+          "set_level",
+          "get_level",
+          "toggle",
+          "get_voltage",
+          "set_voltage",
+          "set_pwm_frequency",
+          "set_pwm_duty"
+        ]
+      },
+      "1": {
+        "symbol": "SYS_DEVICE_CONTRACT_POWER_VREG",
+        "table": "sys_power_vreg_feature_names",
+        "source_file": "components/system/sys_power/sys_power.c",
+        "features": [
+          "set_enable",
+          "set_voltage",
+          "set_current"
+        ]
+      },
+      "2": {
+        "symbol": "SYS_DEVICE_CONTRACT_POWER_MONITOR",
+        "table": "sys_power_monitor_feature_names",
+        "source_file": "components/system/sys_power/sys_power.c",
+        "features": [
+          "get_voltage",
+          "get_current",
+          "set_alert"
+        ]
+      },
+      "3": {
+        "symbol": "SYS_DEVICE_CONTRACT_POWER_USB_PD",
+        "table": "sys_power_usb_pd_feature_names",
+        "source_file": "components/system/sys_power/sys_power.c",
+        "features": [
+          "set_settings",
+          "list_options",
+          "get_limits"
+        ]
+      },
+      "4": {
+        "symbol": "SYS_DEVICE_CONTRACT_HBRIDGE",
+        "table": "sys_hbridge_feature_names",
+        "source_file": "components/system/sys_hbridge/sys_hbridge.c",
+        "features": [
+          "set_mode",
+          "set_drive",
+          "brake",
+          "coast",
+          "get_current_mA",
+          "set_current_limit_mA",
+          "get_fault",
+          "clear_fault"
+        ]
+      }
+    }
+  }
+}

@@ -1,9 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
-import { WebBluetoothAdapter } from './backend/ble'
-import type { BleCharacteristic, BleDevice, BleGattDatabase } from './backend/ble'
-import { knownRunitGattName, shortBleUuid } from './backend/runitGattCatalog'
+import { shortBleUuid, WebBluetoothAdapter } from './backend/ble'
+import type { BleCharacteristic, BleDevice, BleGattDatabase, BleUuid } from './backend/ble'
+import { openRunitBleSession } from './backend/runitBleSession'
+import type { RunitBleSession } from './backend/runitBleSession'
+import CommandConsole from './CommandConsole'
+import DiagnosticsConsole from './DiagnosticsConsole'
+import { runitInterfaceProtocol, runitStreamCatalog } from './domain/descriptors'
 
-const RUNIT_SERVICE_UUID = 0xffe0
+const STREAMS = runitStreamCatalog()
+const RUNIT_SERVICE_UUID = STREAMS.ble.service
+const SESSION_CHARACTERISTICS = new Set(STREAMS.ble.notify.map((uuid) => shortBleUuid(uuid)))
+const DECODED_STREAMS = new Set(['logs', 'errors'])
+
+/** What the board uses a characteristic for, from its connector bindings (streams.generated.json). */
+const runitRole = (uuid: BleUuid): string | undefined => {
+  const short = shortBleUuid(uuid)
+  if (short === undefined) return undefined
+  if (short === shortBleUuid(STREAMS.ble.service)) return 'runIT service'
+  const uses = (key: 'notify' | 'write') => STREAMS.streams.filter((stream) => stream.ble?.[key] !== undefined && shortBleUuid(stream.ble[key]) === short).map((stream) => stream.name)
+  const parts = [uses('notify').length ? `notify: ${uses('notify').join(', ')}` : '', uses('write').length ? `write: ${uses('write').join(', ')}` : ''].filter(Boolean)
+  return parts.length ? `runIT ${parts.join(' · ')}` : undefined
+}
 
 const hexToBytes = (value: string): Uint8Array => {
   const clean = value.replaceAll('0x', '').replaceAll(/\s/g, '')
@@ -16,7 +33,7 @@ const hexToBytes = (value: string): Uint8Array => {
 const formatHex = (data: Uint8Array): string => [...data].map((byte) => byte.toString(16).padStart(2, '0').toUpperCase()).join(' ')
 
 const describe = (characteristic: BleCharacteristic): string =>
-  `${knownRunitGattName(characteristic.uuid) ?? 'Characteristic'}${shortBleUuid(characteristic.uuid) ? ` · ${shortBleUuid(characteristic.uuid)}` : ''} · ${characteristic.properties.join(', ') || 'no properties'}`
+  `${runitRole(characteristic.uuid) ?? 'Characteristic'}${shortBleUuid(characteristic.uuid) ? ` · ${shortBleUuid(characteristic.uuid)}` : ''} · ${characteristic.properties.join(', ') || 'no properties'}`
 
 export default function BleTestApp() {
   const adapterRef = useRef<WebBluetoothAdapter | null>(null)
@@ -33,10 +50,29 @@ export default function BleTestApp() {
   const [writeValues, setWriteValues] = useState<Record<string, string>>({})
   const [writeWithResponse, setWriteWithResponse] = useState(true)
   const [subscribed, setSubscribed] = useState<ReadonlySet<string>>(new Set())
+  const [session, setSession] = useState<RunitBleSession>()
+  const [rawDecoded, setRawDecoded] = useState(false)
+
+  useEffect(() => {
+    if (!session) return undefined
+    const stopFrames = session.received.subscribe((frame) => {
+      const stream = STREAMS.byHeader(frame.data[0])
+      // Logs and errors have their own panels; keep them out of the raw log unless asked.
+      if (!rawDecoded && stream && DECODED_STREAMS.has(stream.name)) return
+      setNotifications((entries) => [`${frame.route} ${stream?.name ?? 'unknown stream'}: ${formatHex(frame.data)}`, ...entries].slice(0, 100))
+    })
+    return () => stopFrames()
+  }, [session, rawDecoded])
+
+  useEffect(() => {
+    if (!session) return undefined
+    return () => void session.close()
+  }, [session])
 
   useEffect(() => {
     const stopDisconnect = adapter.onDisconnect((disconnected) => {
       subscriptions.current.clear()
+      setSession(undefined)
       setSubscribed(new Set())
       setDatabase(undefined)
       setDevice(undefined)
@@ -76,13 +112,24 @@ export default function BleTestApp() {
   })
 
   const rediscover = (): Promise<void> => run('', async () => {
+    setSession(undefined)
+    await Promise.all([...subscriptions.current.values()].map((unsubscribe) => unsubscribe()))
+    subscriptions.current.clear()
+    setSubscribed(new Set())
     const discovered = await adapter.discover()
     setDatabase(discovered)
     const mtu = await adapter.getMtu()
-    setStatus(mtu.value === null ? 'GATT database rediscovered. MTU is negotiated by Windows/Linux but hidden from Web Bluetooth.' : `GATT database rediscovered. MTU: ${mtu.value}.`)
+    const mtuText = mtu.value === null ? 'MTU is negotiated by Windows/Linux but hidden from Web Bluetooth.' : `MTU: ${mtu.value}.`
+    try {
+      setSession(await openRunitBleSession(adapter, { layout: STREAMS.ble, protocol: runitInterfaceProtocol() }))
+      setStatus(`GATT database rediscovered, command session open. ${mtuText}`)
+    } catch (error) {
+      setStatus(`GATT database rediscovered, no command session (${error instanceof Error ? error.message : String(error)}). ${mtuText}`)
+    }
   })
 
   const disconnect = (): Promise<void> => run('Disconnected.', async () => {
+    setSession(undefined)
     await Promise.all([...subscriptions.current.values()].map((unsubscribe) => unsubscribe()))
     subscriptions.current.clear()
     await adapter.disconnect()
@@ -125,7 +172,7 @@ export default function BleTestApp() {
       <section className="mx-auto max-w-5xl space-y-4">
         <header className="border-b border-slate-700 pb-4">
           <h1 className="text-lg font-semibold text-white">runIT BLE transport test</h1>
-          <p className="mt-1 text-slate-400">Raw GATT inspection only. No packet builder or device configuration.</p>
+          <p className="mt-1 text-slate-400">Raw GATT inspection plus a command console (descriptor-built packets, answers matched by seq).</p>
         </header>
 
         <section className="rounded border border-slate-700 bg-slate-900 p-4">
@@ -153,12 +200,13 @@ export default function BleTestApp() {
         <section className="space-y-3">
           {services.map((service) => (
             <article key={service.uuid} className="rounded border border-slate-700 bg-slate-900 p-4">
-              <h2 className="font-semibold text-sky-300">{knownRunitGattName(service.uuid) ?? 'Service'}{shortBleUuid(service.uuid) ? ` · ${shortBleUuid(service.uuid)}` : ''}</h2>
+              <h2 className="font-semibold text-sky-300">{runitRole(service.uuid) ?? 'Service'}{shortBleUuid(service.uuid) ? ` · ${shortBleUuid(service.uuid)}` : ''}</h2>
               <p className="mt-1 text-xs text-slate-500">Full UUID: {String(service.uuid)}</p>
               <div className="mt-3 space-y-3">
                 {service.characteristics.map((characteristic) => {
                   const canRead = characteristic.properties.includes('read')
                   const canSubscribe = characteristic.properties.includes('notify') || characteristic.properties.includes('indicate')
+                  const heldBySession = session !== undefined && SESSION_CHARACTERISTICS.has(shortBleUuid(characteristic.uuid))
                   const canWrite = characteristic.properties.includes('write') || characteristic.properties.includes('write-without-response')
                   return (
                     <div key={characteristic.id} className="rounded border border-slate-800 bg-slate-950 p-3">
@@ -171,7 +219,8 @@ export default function BleTestApp() {
                       ))}
                       <div className="mt-2 flex flex-wrap gap-2">
                         {canRead && <button onClick={() => void read(characteristic)} disabled={busy}>Read</button>}
-                        {canSubscribe && <button onClick={() => void toggleSubscription(characteristic)} disabled={busy}>{subscribed.has(characteristic.id) ? 'Unsubscribe' : 'Subscribe'}</button>}
+                        {canSubscribe && !heldBySession && <button onClick={() => void toggleSubscription(characteristic)} disabled={busy}>{subscribed.has(characteristic.id) ? 'Unsubscribe' : 'Subscribe'}</button>}
+                        {heldBySession && <span className="text-xs text-emerald-400">Subscribed by the command session</span>}
                         {canWrite && <>
                           <input aria-label={`Hex bytes for ${characteristic.uuid}`} value={writeValues[characteristic.id] ?? ''} onChange={(event) => setWriteValues((values) => ({ ...values, [characteristic.id]: event.target.value }))} placeholder="04 48 07" />
                           <button onClick={() => void write(characteristic)} disabled={busy}>Write hex</button>
@@ -186,9 +235,19 @@ export default function BleTestApp() {
           {adapter.isConnected() && services.length === 0 && <p className="text-slate-500">No services loaded. Press “Rediscover GATT”.</p>}
         </section>
 
+        <CommandConsole session={session} />
+
+        <DiagnosticsConsole session={session} />
+
         <section className="rounded border border-slate-700 bg-slate-900 p-4">
-          <h2 className="font-semibold text-white">Received data</h2>
-          <button className="mt-2" onClick={() => setNotifications([])}>Clear</button>
+          <h2 className="font-semibold text-white">Received data (raw)</h2>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <button onClick={() => setNotifications([])}>Clear</button>
+            <label className="flex items-center gap-1 text-xs text-slate-400">
+              <input type="checkbox" checked={rawDecoded} onChange={(event) => setRawDecoded(event.target.checked)} />
+              Include logs and errors frames
+            </label>
+          </div>
           <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap text-xs text-emerald-300">{notifications.join('\n') || 'No reads or notifications yet.'}</pre>
         </section>
       </section>

@@ -6,6 +6,8 @@
     "module": "esnext",
     "types": ["vite/client"],
     "allowArbitraryExtensions": true,
+    "resolveJsonModule": true,
+    "paths": { "@data-structures/*": ["../data-structures/*"] },
     "skipLibCheck": true,
 
     /* Bundler mode */

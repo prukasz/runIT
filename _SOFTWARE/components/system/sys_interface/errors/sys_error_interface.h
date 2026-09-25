@@ -21,10 +21,10 @@
 
 #define SYS_ERROR_INTERFACE_MAP(X)                                                                                                      \
   X(ERR_INTERFACE_SHORT_FRAME, 0xA601, SE_LEVEL_LOW, struct { uint32_t got; uint32_t need; })                                    \
-  X(ERR_INTERFACE_UNKNOWN_CLASS, 0xA602, SE_LEVEL_LOW, struct { uint8_t class_header; })                                         \
-  X(ERR_INTERFACE_UNKNOWN_PACKET, 0xA603, SE_LEVEL_LOW, struct { uint8_t class_header; uint8_t packet_header; })                 \
-  X(ERR_INTERFACE_CLASS_TAKEN, 0xA604, SE_LEVEL_LOW, struct { uint8_t class_header; })                                           \
-  X(ERR_INTERFACE_NO_CLASS_SLOTS, 0xA605, SE_LEVEL_MEDIUM, struct { uint8_t class_header; })                                        \
+  X(ERR_INTERFACE_UNKNOWN_CLASS, 0xA602, SE_LEVEL_LOW, struct { uint8_t class_header; /*@id rx-class*/ })                                         \
+  X(ERR_INTERFACE_UNKNOWN_PACKET, 0xA603, SE_LEVEL_LOW, struct { uint8_t class_header; /*@id rx-class*/ uint8_t packet_header; /*@id rx-packet class_header*/ })                 \
+  X(ERR_INTERFACE_CLASS_TAKEN, 0xA604, SE_LEVEL_LOW, struct { uint8_t class_header; /*@id rx-class*/ })                                           \
+  X(ERR_INTERFACE_NO_CLASS_SLOTS, 0xA605, SE_LEVEL_MEDIUM, struct { uint8_t class_header; /*@id rx-class*/ })                                        \
   X(ERR_INTERFACE_ENC_BUF_TOO_SMALL, 0xA606, SE_LEVEL_HIGH, struct { uint32_t got; uint32_t need; })                          \
   X(ERR_INTERFACE_RESPONSE_TOO_LONG, 0xA607, SE_LEVEL_MEDIUM, struct { uint32_t got; uint32_t max; })
 
