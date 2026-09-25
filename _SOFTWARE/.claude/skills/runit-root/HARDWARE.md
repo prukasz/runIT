@@ -71,14 +71,15 @@ All onboard chips are **static devices** created at boot by `runit_board_devices
 | 1 | TCA6424A | Digital/Analog IO | 0x23 | INT → ESP 9, RST → ESP 8 | 24-bit expander, internal control: LM73100 switches, eFuses, regulator enables, interrupts, PCA OE |
 | 2 | ADS7128 | Digital/Analog IO | 0x10 | ALERT → ESP 42, Vref 20 V | 8 inputs up to 20 V, window comparator |
 | 3 | PCA9685 | Digital/Analog IO | 0x60 | OE → TCA 0 | CH 0–7 user PWM headers, CH 8–15 → DRV8962 #2 (12-bit duty, one shared frequency) |
-| 4 | DAC53202 | Digital/Analog IO | — | not created | CH 0/1 → VREF of DRV8962 #1/#2 (separate) |
+| 4 | DAC53202 | Digital/Analog IO | 0x48 (A0 = GND) | — | OUT0/OUT1 → VREF of DRV8962 #1/#2; VDD reference, gain 1x (full scale 3.3 V) |
+| 5 | DRV8962 #1 | H-bridge | — | IN1-4 → ESP 21/47/48/45, EN1-4 → ESP 38/39/2/1, IPROPI1-4 → ESP 7/6/5/4, nSLEEP → TCA 9, nFAULT → TCA 11, VM ← TCA 14 (VSUP) / 15 (rail B) | 2 full bridges; **off**: ESP GPIO has no PWM yet |
+| 6 | DRV8962 #2 | H-bridge | — | IN1-4 → PCA CH 8-11, EN1-4 → PCA CH 12-15, nSLEEP → TCA 8, nFAULT → TCA 10, VM ← TCA 12 (rail A) / 13 (VSUP), IPROPI resistors only | 2 full bridges, PWM at the PCA frequency (1 kHz) |
 | 10 | TPS55289 #0 | Voltage Regulator | 0x74 | INT → TCA 1, EN → TCA 17 | Adjustable rail A |
 | 11 | TPS55289 #1 | Voltage Regulator | 0x75 | INT → TCA 2, EN → TCA 16 | Adjustable rail B |
 | 12 | INA3221 | Power Monitor | 0x40 | CRIT → TCA 5, WARN → TCA 6 | V/I of rail A, rail B and whole-board input, with alerts |
-| 13 | AP33772S | USB-C Power Delivery | 0x52 | INT → TCA 12 | PD sink: request/read PDOs, negotiated V/I, protection events |
-| — | DRV8962 ×2 | H-bridge | — | not in board config yet; #2 driven by PCA CH 8–15 | Full/half-bridge topology, IPROPI current, VREF current limit, OCP cut-off |
-| — | LM73100 ×4 | — (not modelled) | — | controlled by TCA6424A | H-bridge power-source selection |
-| — | TPS259474 ×2 | — (not modelled) | — | controlled by TCA6424A | Input eFuses |
+| 13 | AP33772S | USB-C Power Delivery | 0x52 | INT → TCA 21 | PD sink: request/read PDOs, negotiated V/I, protection events |
+| — | LM73100 ×4 | — (not modelled) | — | EN (high = on) → TCA 12 DRV2←rail A, 13 DRV2←VSUP, 14 DRV1←VSUP, 15 DRV1←rail B; all low at boot | H-bridge VM source (one VM node per DRV8962: one switch at a time) |
+| — | TPS259474 ×2 | — (not modelled) | — | PG → TCA 3 (VUSB_OK), TCA 4 (VEXT_OK) | Input eFuses |
 
 Also driven at boot: TCA pins 22 and 23 as push-pull outputs (roles not documented in code).
 
@@ -109,8 +110,8 @@ Also driven at boot: TCA pins 22 and 23 as push-pull outputs (roles not document
 
 | Hardware | Firmware status |
 |---|---|
-| DRV8962 ×2 (H-bridges) | Driver + adapter + `sys_hbridge` contract exist; not instantiated in `runit_board_cfg.c`; no generated JSON descriptor |
-| DAC53202 | Driver + descriptor exist; ID 4 reserved but not created — needed for DRV8962 VREF / constant-current mode |
+| DRV8962 ×2 (H-bridges) | #2 created (ID 6); #1 (ID 5) written but off until its ESP pins are confirmed; no generated JSON descriptor |
+| DAC53202 | Created (ID 4); used as DRV8962 VREF |
 | LM73100 ×4 (power-source selection) | No firmware device or API — needs a model for "which source feeds which H-bridge" |
 | TPS259474 eFuses ×2 | No firmware device |
 | ADS7128 digital mode | Hardware supports analog **and** digital inputs; adapter is ADC-only |
@@ -128,7 +129,7 @@ Also driven at boot: TCA pins 22 and 23 as push-pull outputs (roles not document
 
 ## 7. Deferred questions (not needed for now)
 
-- Exact TCA6424A pin numbers for each LM73100 and eFuse.
-- INA3221 channel order.
-- DRV8962 #1 control pins and nSLEEP/nFAULT/IPROPI routing for both chips.
+- ~~TCA6424A pins for LM73100 / eFuses~~ — from the legacy firmware header (2026-09-24), see §3. TCA 7 = DRV8962 OCPM (both chips).
+- ~~INA3221 channel order~~ — measured 2026-09-24: ch0 = rail B (TPS55289 0x75), ch1 = board input (shunt reversed by design), ch2 = rail A (0x74).
+- DRV8962 IPROPI resistor value (3.09 kΩ assumed).
 - Which of the two TPS55289 rails feeds the PWM headers.

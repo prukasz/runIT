@@ -39,6 +39,15 @@ static SE_MUST_USE err_h contract_monitor_ina3221_get_voltage(void* device_handl
   return NULL;
 }
 
+#define INA_FEATURE_SET_ALERT 2 /* index in sys_power_monitor_feature_names */
+
+/* Current as the board sees it: flipped for a reversed shunt (cfg.inverted_mask). */
+static esp_err_t ina_read_current(const ina_adapter_ctx_t* ctx, ina3221_handle_t hw, uint8_t channel, int32_t* out_mA) {
+  esp_err_t rc = ina3221_read_shunt_current(hw, channel, out_mA);
+  if (rc == ESP_OK && (ctx->cfg.inverted_mask & (1u << channel))) *out_mA = -*out_mA;
+  return rc;
+}
+
 static SE_MUST_USE err_h contract_monitor_ina3221_get_current(void* device_handle, uint8_t channel, int32_t* out_mA) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, device_handle);
   SE_CHECK_HANDLE(out_mA);
@@ -48,13 +57,16 @@ static SE_MUST_USE err_h contract_monitor_ina3221_get_current(void* device_handl
     *out_mA = ctx->cached_current[channel];
     return NULL;
   }
-  SYS_DEV_CHECK_DRIVER_CALL(ina3221_read_shunt_current(hw, channel, out_mA), ctx);
+  SYS_DEV_CHECK_DRIVER_CALL(ina_read_current(ctx, hw, channel, out_mA), ctx);
   return NULL;
 }
 
 static SE_MUST_USE err_h contract_monitor_ina3221_set_alert(void* device_handle, uint8_t channel, sys_power_events_e alert, int32_t threshold_mA) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, device_handle);
   SE_CHECK_IN_RANGE(channel, 0, 2);
+  if (ctx->cfg.inverted_mask & (1u << channel)) {
+    SE_FAIL(ERR_DEV_FEATURE_UNAVAILABLE, SYS_DEV_GET_ID(ctx), SYS_DEVICE_CONTRACT_POWER_MONITOR, INA_FEATURE_SET_ALERT);  // reversed shunt: the limit could never trip
+  }
 
   if (alert == SYS_PWR_EVENT_OCP_CRITICAL) {
     SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_alert(hw, channel, threshold_mA, true), ctx);
@@ -135,7 +147,7 @@ static SE_MUST_USE err_h device_freeze(void* handle) {
   SYS_DEV_CTX_FREEZE(ctx);
   for (int i = 0; i < 3; i++) {
     SYS_DEV_CHECK_DRIVER_CALL(ina3221_read_bus_voltage(hw, i, &ctx->cached_voltage[i]), ctx);
-    SYS_DEV_CHECK_DRIVER_CALL(ina3221_read_shunt_current(hw, i, &ctx->cached_current[i]), ctx);
+    SYS_DEV_CHECK_DRIVER_CALL(ina_read_current(ctx, hw, i, &ctx->cached_current[i]), ctx);
   }
   return NULL;
 }
@@ -215,7 +227,7 @@ static SE_MUST_USE err_h device_event_handler(const sys_event_t* event, void* ha
   for (uint8_t ch = 0; ch < 3; ch++) {
     if (((cf >> (2 - ch)) & 1)) {
       int32_t ma_val = 0;
-      SYS_DEV_TEARDOWN_DRIVER_STEP(err, ina3221_read_shunt_current(hw, ch, &ma_val), ctx);
+      SYS_DEV_TEARDOWN_DRIVER_STEP(err, ina_read_current(ctx, hw, ch, &ma_val), ctx);
       SYS_DEV_TEARDOWN_STEP(err, sys_power_publish(SYS_DEV_GET_ID(ctx), ch, SYS_PWR_EVENT_OCP_CRITICAL, ma_val, SYS_EVENT_CAUSED_BY(event)));
     }
   }
@@ -224,7 +236,7 @@ static SE_MUST_USE err_h device_event_handler(const sys_event_t* event, void* ha
   for (uint8_t ch = 0; ch < 3; ch++) {
     if (((wf >> (2 - ch)) & 1)) {
       int32_t ma_val = 0;
-      SYS_DEV_TEARDOWN_DRIVER_STEP(err, ina3221_read_shunt_current(hw, ch, &ma_val), ctx);
+      SYS_DEV_TEARDOWN_DRIVER_STEP(err, ina_read_current(ctx, hw, ch, &ma_val), ctx);
       SYS_DEV_TEARDOWN_STEP(err, sys_power_publish(SYS_DEV_GET_ID(ctx), ch, SYS_PWR_EVENT_OCP_WARNING, ma_val, SYS_EVENT_CAUSED_BY(event)));
     }
   }

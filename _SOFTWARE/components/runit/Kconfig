@@ -1,11 +1,13 @@
 menu "runIT Board & Diagnostic Configuration"
 
-    config RUNIT_SKIP_DEVICE_INIT
-        bool "Skip I2C device initialization at boot"
-        default n
+    config RUNIT_UART_CONSOLE_LINK
+        bool "Command link on the console UART"
+        default y
         help
-            Skips binding or invoking boot action 1, so no I2C devices are probed
-            or installed during boot. Set to 'y' for bench testing without hardware.
-            In production, this must remain disabled ('n').
+            Registers the console UART as a data connector provider and binds
+            the interface (commands in, responses out), telemetry and error
+            packet connectors to it, next to BLE. Frames are "#R:<hex>" lines
+            mixed with the text log (sys_uart_provider.h). Used by the host
+            test scripts; disable to keep the console log-only.
 
 endmenu

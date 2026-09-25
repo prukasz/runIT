@@ -11,6 +11,10 @@ typedef struct d_ina3221_cfg_t {
   uint8_t i2c_addr;
   sys_io_pin_ref_t crit_pin;
   sys_io_pin_ref_t warn_pin;
+  /* Bit N set: channel N's shunt is wired reversed. Its current is reported
+     with the sign flipped; its OCP alerts can't be armed (the chip compares
+     the signed shunt voltage against a positive limit, so it could never trip). */
+  uint8_t inverted_mask;
 } d_ina3221_cfg_t;
 
 /**

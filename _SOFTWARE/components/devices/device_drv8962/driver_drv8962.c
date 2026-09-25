@@ -148,6 +148,28 @@ static SE_MUST_USE err_h drv8962_fault_handler(const sys_event_t* event, void* h
   return err;
 }
 
+/* Pin mode for a dependency pin. Fixed-function outputs (PCA9685 channels,
+   DAC53202 outputs) have no modes: their IO contract has no set_mode, which
+   is fine here. */
+static SE_MUST_USE err_h prepare_pin(sys_io_pin_ref_t pin) {
+  err_h err = sys_io_set_mode(pin);
+  err_h root = err ? SE_get_error_root(err) : NULL;
+  if (root && root->tag == ERR_DEV_FEATURE_UNAVAILABLE) {
+    SE_release(err);
+    return NULL;
+  }
+  return err;
+}
+
+/* Largest configured channel limit: VREF is one pin for the whole chip. */
+static uint32_t chip_current_limit_mA(const drv8962_dev_t* dev) {
+  uint32_t max = 0;
+  for (int i = 0; i < 4; i++) {
+    if (dev->cfg.current_limit_mA[i] > max) max = dev->cfg.current_limit_mA[i];
+  }
+  return max;
+}
+
 drv8962_handle_t drv8962_new(const d_drv8962_cfg_t* cfg) {
   if (!cfg) return NULL;
 
@@ -177,7 +199,7 @@ err_h drv8962_start(drv8962_handle_t handle) {
   /* 1. Configure IN pins as PWM */
   for (int i = 0; i < 4; i++) {
     if (sys_io_pin_is_valid(dev->cfg.in_pins[i])) {
-      SE_TRY(sys_io_set_mode(dev->cfg.in_pins[i]));
+      SE_TRY(prepare_pin(dev->cfg.in_pins[i]));
       SE_TRY(sys_io_set_pwm_frequency(dev->cfg.in_pins[i], dev->cfg.pwm_freq_Hz));
       SE_TRY(sys_io_set_pwm_duty(dev->cfg.in_pins[i], 0));
     }
@@ -186,20 +208,21 @@ err_h drv8962_start(drv8962_handle_t handle) {
   /* 2. Configure EN pins as Digital Output */
   for (int i = 0; i < 4; i++) {
     if (sys_io_pin_is_valid(dev->cfg.en_pins[i])) {
-      SE_TRY(sys_io_set_mode(dev->cfg.en_pins[i]));
+      SE_TRY(prepare_pin(dev->cfg.en_pins[i]));
       SE_TRY(sys_io_set_level(dev->cfg.en_pins[i], true));
     }
   }
 
   /* 3. Configure nSLEEP pin: drive HIGH to wake up */
   if (sys_io_pin_is_valid(dev->cfg.nsleep_pin)) {
-    SE_TRY(sys_io_set_mode(dev->cfg.nsleep_pin));
+    SE_TRY(prepare_pin(dev->cfg.nsleep_pin));
     SE_TRY(sys_io_set_level(dev->cfg.nsleep_pin, true));
+    vTaskDelay(pdMS_TO_TICKS(2)); /* tWAKE: 1.2 ms max before inputs are taken */
   }
 
   /* 4. Configure nFAULT pin interrupt */
   if (sys_io_pin_is_valid(dev->cfg.nfault_pin)) {
-    SE_TRY(sys_io_set_mode(dev->cfg.nfault_pin));
+    SE_TRY(prepare_pin(dev->cfg.nfault_pin));
     SE_TRY(sys_io_subscribe_pin(dev->cfg.nfault_pin, drv8962_fault_handler, dev, &dev->nfault_sub));
     dev->nfault_subscribed = true;
     sys_io_intr_config_t intr_cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
@@ -209,13 +232,15 @@ err_h drv8962_start(drv8962_handle_t handle) {
   /* 5. Configure IPROPI ADC pins */
   for (int i = 0; i < 4; i++) {
     if (sys_io_pin_is_valid(dev->cfg.current_adc_pins[i])) {
-      SE_TRY(sys_io_set_mode(dev->cfg.current_adc_pins[i]));
+      SE_TRY(prepare_pin(dev->cfg.current_adc_pins[i]));
     }
   }
 
-  /* 6. Configure VREF DAC pin */
+  /* 6. VREF DAC pin: must be driven (0.05..3.3 V) - a floating VREF sets an
+     undefined chopping threshold. Set from the largest channel limit. */
   if (sys_io_pin_is_valid(dev->cfg.vref_dac_pin)) {
-    SE_TRY(sys_io_set_mode(dev->cfg.vref_dac_pin));
+    SE_TRY(prepare_pin(dev->cfg.vref_dac_pin));
+    SE_TRY(drv8962_set_current_limit_mA(dev, 0, dev->cfg.current_limit_mA[0]));
   }
 
   /* Brake all channels by default */
@@ -390,9 +415,12 @@ err_h drv8962_set_current_limit_mA(drv8962_handle_t handle, uint8_t channel, uin
 
   dev->cfg.current_limit_mA[channel] = limit_mA;
 
-  /* If VREF DAC pin is connected, set analog reference voltage */
+  /* VREF sets the chopping threshold of every channel of the chip:
+     ITRIP x AIPROPI = VREF / RIPROPI. It follows the largest channel limit;
+     0 everywhere = no regulation (VREF at its 3.3 V maximum). */
   if (sys_io_pin_is_valid(dev->cfg.vref_dac_pin)) {
-    float vref_mV = ((float)limit_mA) * DRV8962_AIPROPI_GAIN * ((float)dev->cfg.ripropi_ohms[channel]);
+    uint32_t chip_mA = chip_current_limit_mA(dev);
+    float vref_mV = chip_mA ? ((float)chip_mA) * DRV8962_AIPROPI_GAIN * ((float)dev->cfg.ripropi_ohms[channel]) : 3300.0f;
     if (vref_mV > 3300.0f) vref_mV = 3300.0f;
     if (vref_mV < 50.0f) vref_mV = 50.0f;
     SE_TRY(sys_io_set_voltage(dev->cfg.vref_dac_pin, (uint32_t)lroundf(vref_mV)));

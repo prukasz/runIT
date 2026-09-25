@@ -21,10 +21,16 @@
 
 #define SYS_ERROR_POWER_MAP(X) \
   X(ERR_POWER_BUDGET_EXCEEDED, 0xA401, SE_LEVEL_HIGH, struct { uint8_t dev_id; uint32_t requested_mW; uint32_t available_mW; }) \
-  X(ERR_POWER_SOURCE_BELOW_ALLOCATION, 0xA402, SE_LEVEL_HIGH, struct { uint32_t allocated_mW; uint32_t budget_mW; })
+  X(ERR_POWER_SOURCE_BELOW_ALLOCATION, 0xA402, SE_LEVEL_HIGH, struct { uint32_t allocated_mW; uint32_t budget_mW; }) \
+  X(ERR_POWER_FAULT, 0xA403, SE_LEVEL_MEDIUM, struct { uint8_t source_id; uint8_t channel; uint8_t event; uint8_t response; int32_t value; })
 
 /** @brief Human-readable descriptions for the sys_power tags - see SE_describe_payload() in sys_error.h. */
-#define SYS_ERROR_POWER_LOGGER_MAP(X) X(ERR_POWER_BUDGET_EXCEEDED) X(ERR_POWER_SOURCE_BELOW_ALLOCATION)
+#define SYS_ERROR_POWER_LOGGER_MAP(X) X(ERR_POWER_BUDGET_EXCEEDED) X(ERR_POWER_SOURCE_BELOW_ALLOCATION) X(ERR_POWER_FAULT)
 
 #define LOG_BODY_ERR_POWER_BUDGET_EXCEEDED(p, out, out_size) snprintf((out), (out_size), "device %u would exceed the power budget: requested %lu mW, available %lu mW", (p)->dev_id, (unsigned long)(p)->requested_mW, (unsigned long)(p)->available_mW)
+/* event: sys_power_events_e (1 OVP, 2 UVP, 3 short, 4 OCP warning, 5 OCP critical, 6 OTP);
+   response: sys_power_response_e (0 notify, 1 disable, 2 reset, 3 safe state). */
+#define LOG_BODY_ERR_POWER_FAULT(p, out, out_size)                                                                            \
+  snprintf((out), (out_size), "power fault: event %u on device %u channel %u, value %ld, response %u", (p)->event, (p)->source_id, \
+           (p)->channel, (long)(p)->value, (p)->response)
 #define LOG_BODY_ERR_POWER_SOURCE_BELOW_ALLOCATION(p, out, out_size) snprintf((out), (out_size), "power source budget %lu mW is below the %lu mW already allocated", (unsigned long)(p)->budget_mW, (unsigned long)(p)->allocated_mW)

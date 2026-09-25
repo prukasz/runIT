@@ -82,14 +82,17 @@ void se_log_error_chain(err_h chain) {
     int32_t len = snprintf(line, sizeof(line), "[%lu] owner=%s (0x%04lX) tag=%s (%ld): %s\n",
                        (long)depth, SE_get_owner_name(node->owner), (unsigned long)node->owner,
                        SE_get_tag_name(node->tag), (long)node->tag, desc);
+    size_t out_len = 0;
     if (len > 0) {
-      size_t out_len = ((size_t)len < sizeof(line)) ? (size_t)len : sizeof(line) - 1u;
+      out_len = ((size_t)len < sizeof(line)) ? (size_t)len : sizeof(line) - 1u;
       sink_send_log(line, out_len);
     }
     if (s_log_state.mirror_on_serial) {
       bool previous = s_in_log_sink;
       s_in_log_sink = true;
-      ESP_LOGE(TAG, "%s", line);
+      // ESP_LOGE ends the line itself: leave out the sink line's '\n'.
+      int text_len = (out_len > 0 && line[out_len - 1] == '\n') ? (int)out_len - 1 : (int)out_len;
+      ESP_LOGE(TAG, "%.*s", text_len, line);
       s_in_log_sink = previous;
     }
   }

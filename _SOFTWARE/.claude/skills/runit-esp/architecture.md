@@ -25,7 +25,7 @@ Rules:
 
 - A failing step logs its name, sends the error, enters the safe state (`vm_exec_stop` + `sys_device_suspend_all`) and aborts boot. `main` then idles.
 - Devices are installed by the boot **action**, not by a boot step, so the hard-reset static action re-runs the same install. Each onboard device is marked with `RUNIT_BOARD_DEVICE(id, d_<chip>_create(...))` (§4.5).
-- Device install is skipped when `CONFIG_RUNIT_SKIP_DEVICE_INIT=y` (Kconfig, runIT Board menu). It's `y` in `sdkconfig` while testing on an empty devkit; set it to `n` on the board.
+- Boot action 1 always installs the ESP GPIO device; each onboard I2C device has an in-file switch `RUNIT_BOARD_DEV_*` at the top of `runit_board_cfg.c` (not Kconfig, so toggling rebuilds one file). All 0 = bare devkit; staged bring-up turns them on one by one; the devices wired through the TCA6424A need it on.
 
 ## 3. Data flows
 

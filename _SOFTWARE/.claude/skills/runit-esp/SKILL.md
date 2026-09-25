@@ -13,7 +13,7 @@ Component `*.MD` files are the source of truth for each module's API. This skill
 
 | File | Read when |
 |---|---|
-| [build.md](build.md) | Building, Kconfig changes (reconfigure / refresh-config), flashing, serial capture, clangd |
+| [build.md](build.md) | Building, Kconfig changes (reconfigure / refresh-config), flashing, serial capture, clangd, **hardware test scripts** (§6: UART command link, devkit / VM / persistence / BLE suites) |
 | [errors.md](errors.md) | Raising, propagating or handling errors; owners; severity |
 | [architecture.md](architecture.md) | Layers and allowed dependencies, boot sequence, command/error/event flows, agreed design, open findings |
 | [conventions.md](conventions.md) | Writing or changing any firmware code: static RTOS objects (`utils.h`), constants vs Kconfig, no legacy leftovers, validate-once, naming, `//@` annotations, comments/docs |
@@ -31,6 +31,7 @@ Component `*.MD` files are the source of truth for each module's API. This skill
 | `components/system/sys_interface/SYS_INTERFACE.MD` | Inbound frame router, class registry, command responses, RX suspend, frame tap |
 | `components/system/sys_actions/SYS_ACTIONS.MD` | Static / recorded (dynamic) actions, class `0x03`, boot and reset actions |
 | `components/system/ble/SYS_BLE.MD` | BLE services/characteristics, runtime GATT changes, BLE provider, MTU |
+| `components/system/sys_uart/SYS_UART.MD` | Console UART provider: `#R:<hex>` frame lines next to the log (test / fallback command link) |
 | `components/system/sys_data_connector/SYS_DATA_CONNECTOR.MD` | Transport-agnostic bus: connectors, providers (framing, endpoint, peer), origin-addressed responses, dynamic frame limit, system connector protection, class `0x06` |
 | `components/system/sys_buffers/SYS_BUFFERS.MD` | Item ring buffers used by transports |
 | `components/system/sys_settings/SYS_SETTINGS.MD` | Named NVS records |

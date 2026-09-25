@@ -43,8 +43,17 @@ esp_err_t tps55289_set_output_enable(tps55289_handle_t handle, bool enable);
 esp_err_t tps55289_set_current_limit(tps55289_handle_t handle, bool enable,
                                      uint16_t limit_mA);
 esp_err_t tps55289_set_voltage(tps55289_handle_t handle, uint16_t voltage_mV);
+/* VOUT_SR[1:0]: slew rate of output voltage changes (reset default 2.5 mV/us). */
+typedef enum {
+  TPS55289_SLEW_1_25_MV_US = 0,
+  TPS55289_SLEW_2_5_MV_US = 1,
+  TPS55289_SLEW_5_MV_US = 2,
+  TPS55289_SLEW_10_MV_US = 3,
+} tps55289_slew_rate_e;
+esp_err_t tps55289_set_slew_rate(tps55289_handle_t handle, tps55289_slew_rate_e rate);
 esp_err_t tps55289_set_mode(tps55289_handle_t handle, bool fpwm, bool hiccup);
-esp_err_t tps55289_set_fault_masks(tps55289_handle_t handle, bool mask_scp,
-                                   bool mask_ocp, bool mask_ovp);
+/* true = the fault drives the FB/INT pin low (and sets its STATUS bit). */
+esp_err_t tps55289_set_fault_reporting(tps55289_handle_t handle, bool report_scp,
+                                       bool report_ocp, bool report_ovp);
 
 esp_err_t tps55289_get_status(tps55289_handle_t handle);

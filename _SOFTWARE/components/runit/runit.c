@@ -1,5 +1,6 @@
 #include "runit.h"
 #include <esp_log.h>
+#include <esp_system.h>
 #include "runit_board_cfg.h"
 #include "runit_decoders.h"
 #include "runit_error_policy.h"
@@ -44,8 +45,27 @@ static SE_MUST_USE err_h runit_step_error_configure(void) {
   return SE_set_logging(ESP_LOG_INFO, true, true);
 }
 
+/* Why the chip started. Needed on the native USB console: the ROM's own "rst:" line
+   is gone before the host reopens the re-enumerated port. */
+static const char* reset_reason_name(esp_reset_reason_t r) {
+  switch (r) {
+    case ESP_RST_POWERON: return "power-on";
+    case ESP_RST_EXT: return "external pin";
+    case ESP_RST_SW: return "software";
+    case ESP_RST_PANIC: return "panic";
+    case ESP_RST_INT_WDT: return "interrupt watchdog";
+    case ESP_RST_TASK_WDT: return "task watchdog";
+    case ESP_RST_WDT: return "other watchdog";
+    case ESP_RST_BROWNOUT: return "brownout";
+    case ESP_RST_USB: return "USB";
+    default: return "other";
+  }
+}
+
 err_h runit_start(void) {
   SE_init();
+  esp_reset_reason_t reason = esp_reset_reason();
+  ESP_LOGI(TAG, "reset reason: %s (%d)", reset_reason_name(reason), (int)reason);
 
   static const runit_boot_step_entry_t s_boot_setup_steps[] = {
       {"runit_error_wiring_init", runit_error_wiring_init},

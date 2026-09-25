@@ -155,6 +155,15 @@ menu "System-Wide Identity Assignments"
               and the data connector settings packets (class
               RX_PACKET_CLASS_SETTINGS_DATA_CONNECTOR) bind connectors to
               BLE with it; the endpoint is a characteristic UUID.
+
+        config SYS_DATA_PROVIDER_ID_UART
+            int "UART Console Provider ID"
+            default 2
+            range 1 255
+            help
+              Transport provider ID of the console UART (sys_uart_provider).
+              Frames travel as "#R:<hex>" lines next to the text log; the
+              only endpoint is 0.
     endmenu
 
     comment "Wire protocol: every frame leads with a PACKET_CLASS byte (what data/module it is). A PACKET_HEADER byte follows only when that class carries more than one packet type."

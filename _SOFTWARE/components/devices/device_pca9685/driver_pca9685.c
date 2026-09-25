@@ -82,10 +82,12 @@ esp_err_t pca9685_set_pwm_value(pca9685_handle_t handle, uint8_t channel, uint16
 esp_err_t pca9685_set_pwm_frequency(pca9685_handle_t handle, uint16_t freq) {
   CHECK_DRV_HANDLE(handle && freq != 0);
 
-  uint8_t prescaler = (uint8_t)(round((float)PCA9685_INTERNAL_FREQ / (PCA9685_MAX_PWM_VALUE * freq))) - 1;
-  if (prescaler < MIN_PRESCALER) {
-    prescaler = MIN_PRESCALER;
-  }
+  // prescale = round(25 MHz / (4096 * f)) - 1, clamped to 3..255 (~1526 Hz .. ~24 Hz).
+  // Signed first: above ~1.5 kHz the value is negative and must clamp, not wrap.
+  long pre = lround((double)PCA9685_INTERNAL_FREQ / (4096.0 * freq)) - 1;
+  if (pre < MIN_PRESCALER) pre = MIN_PRESCALER;
+  if (pre > 0xFF) pre = 0xFF;
+  uint8_t prescaler = (uint8_t)pre;
 
   handle->freq = freq;
   handle->prescale = prescaler;

@@ -13,7 +13,7 @@ Decoder: `components/codecs/decoders/dec_vm_loader.h` (framing and bounds only; 
 | `0x44` add accessors | `u8 n`, n × `{u16 acc_id, u16 root_obj_id, u8 idx_count, u8 idx_len, u8 idx_data[idx_len]}`; index = `u8 kind` + `LITERAL u32` / `REF u16 acc_id` / `NAME u8 len, bytes` | Create + bind + pre-resolve (cache) |
 | `0x45` add block | one block: `u16 blk_id, u16 block_idx, u8 type, u8 in_cnt, u8 q_cnt, u8 en_cnt, u8 en_mode, u8 on_error, u16 custom_len, u16 eno_obj_id` (14 B), then `in_cnt × u16` accessor ids (`0xFFFF` = unwired), `q_cnt × u16` object ids, `en_cnt × u16` accessor ids, `custom_len` bytes | Type must be in the palette; every reference must be bound; the type's verify runs, and a rejected block is removed again |
 | `0x47` subscribe | `u8 n` (0 = clear all), n × `u16` object id | Telemetry for those objects (below) |
-| `0x48` exec control | `u8 command` (`vm_exec_command_e`) | 0 scan mode, 1 once, 2 block mode, 3 next, 4 rewind to start, 5 normal, 6 pause, 7 resume, 8 reset (= `0x40`), 9 acknowledge latched device fault, 10 forget retained values |
+| `0x48` exec control | `u8 command` (`vm_exec_command_e`) | 0 scan mode, 1 once, 2 block mode, 3 next, 4 rewind to start (clears `upd`, next pass starts at block 0; **values are kept** and a running VM is left frozen until 7 resume), 5 normal, 6 pause, 7 resume, 8 reset (= `0x40`), 9 acknowledge latched device fault, 10 forget retained values |
 
 **Upload order** (client-side, one-way):
 `0x40` → `0x41` → objects (`0x42`) → data and `PTR` links (`0x43`, children before parents) → accessors (`0x44`, `REF` targets first, roots existing) → blocks (`0x45`, one per frame, **in execution order**) → `0x48 05` (normal mode).

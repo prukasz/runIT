@@ -145,6 +145,14 @@ static SE_MUST_USE err_h on_power_event(const sys_event_t* ev, void* ctx) {
   // SYS_POWER_NO_DEVICE: the manager's own event, already answered.
   if (ev->device_id == SYS_POWER_NO_DEVICE || ev->event >= SYS_PWR_EVENT_COUNT) return NULL;
 
+  /* Hardware faults (OVP .. OTP) are reported as errors too, so they reach the
+     app's error stream with the response taken; events alone go only to
+     subscribed listeners. MEDIUM: the response matrix is the reaction. */
+  if (ev->event >= SYS_PWR_EVENT_OVP && ev->event <= SYS_PWR_EVENT_OTP) {
+    SE_RAISE(ERR_POWER_FAULT, .source_id = ev->device_id, .channel = ev->channel, .event = ev->event,
+             .response = s_responses[ev->event], .value = ev->value);
+  }
+
   PWR_LOCK();
   if (consumer_index(ev->device_id) >= 0) {
     apply_response((sys_power_events_e)ev->event, ev->device_id);
@@ -191,7 +199,12 @@ static SE_MUST_USE err_h rebalance(bool* starved) {
     }
     if (cap_mA != c->applied_mA) {
       err_h set_err = vreg_hw_set_current(s_board->consumers[i].vreg_id, cap_mA);
-      if (set_err) {
+      err_h root = set_err ? SE_get_error_root(set_err) : NULL;
+      if (root && root->tag == ERR_DEV_SUSPENDED) {
+        /* A rail suspended by a fault is off: skip it instead of failing the
+           change another rail asked for; it gets its share after resume. */
+        SE_release(set_err);
+      } else if (set_err) {
         SYS_DEV_TEARDOWN_STEP(err, set_err); /* the old limit stays programmed and counted */
       } else {
         c->applied_mA = cap_mA;

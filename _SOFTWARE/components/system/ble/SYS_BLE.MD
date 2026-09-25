@@ -74,8 +74,12 @@ buffer returns success with zero length. Unlinking removes the wake target.
 
 ### MTU
 
-`g_ble_ctx.mtu_size` is the real ATT MTU: `BLE_ATT_MTU_DFLT` (23) on connect,
-then the result of the MTU exchange (`BLE_GAP_EVENT_MTU`). The device doesn't
+`g_ble_ctx.mtu_size` is the real ATT MTU: on connect, the link's current MTU
+(`ble_att_mtu()`, 23 before any exchange), then the result of the MTU exchange
+(`BLE_GAP_EVENT_MTU`). A client that starts the exchange itself (Windows) can
+finish it before the connect event is delivered, so the MTU event may come
+first; the connect handler must not reset it to 23 (fixed 2026-09-24: every
+frame was capped at 20 B on Windows). The device doesn't
 wait for the client: on connect it requests the preferred MTU itself
 (`ble_gattc_exchange_mtu`, preferred = `BLE_ATT_MTU_MAX`; `BLE_HS_EALREADY`
 when the client already started it is fine). **runIT needs the larger MTU.** Frames

@@ -188,6 +188,7 @@ views (React)            Settings · Devices · Actions · Code(objects/canvas) 
 | F-GAP-7 | Error tag payload layouts not published as JSON for the app to decode | ERR-2 |
 | F-GAP-8 | Device JSON doesn't list the events each device publishes (already in PROGRESS) | event subscriptions, LNK |
 | F-GAP-9 | Project hash stored with the program on the device | §4.4, with G-8 |
+| F-GAP-10 | `"required": false` (`//@optional`) in contracts / settings JSON means "may be 0 / the sentinel", **not** "may be left off the wire": decoders need the whole packed struct (a shorter frame gets `ERR_INTERFACE_SHORT_FRAME`, seen on the devkit 2026-09-24). The schema doesn't say so | Packer in the app: always send every field. Either document it in the schemas or rename the flag |
 
 These stay here only (not in PROGRESS.md) until picked up — user decision 2026-09-24.
 

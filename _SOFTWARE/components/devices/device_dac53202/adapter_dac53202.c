@@ -20,6 +20,7 @@ typedef struct dac_adapter_ctx_t {
   bool cached_voltage_dirty[2];
   uint8_t cached_power_mask;
   bool cached_power_dirty;
+  uint8_t suspended_power_mask;
 } dac_adapter_ctx_t;
 
 enum { DAC53202_STEP_I2C_ADDED = 0 };
@@ -33,15 +34,13 @@ static SE_MUST_USE err_h contract_io_dac53202_reset_pin(void* handle, sys_io_pin
     if (ctx->cached_power_dirty) {
       ctx->cached_power_mask &= ~(1 << pin);
     } else {
-      ctx->cached_power_mask = (hw->common_config & 0xFF) & ~(1 << pin);
+      ctx->cached_power_mask = hw->power_on_mask & ~(1 << pin);
       ctx->cached_power_dirty = true;
     }
     return NULL;
   }
 
-  uint8_t current_power_on = hw->common_config & 0xFF;
-  uint8_t next_power_on = current_power_on & ~(1 << pin);
-  SYS_DEV_CHECK_DRIVER_CALL(dac53202_preset_cfg(hw, 0x03, next_power_on), ctx);
+  SYS_DEV_CHECK_DRIVER_CALL(dac53202_set_power(hw, hw->power_on_mask & ~(1 << pin)), ctx);
   return NULL;
 }
 
@@ -105,20 +104,22 @@ static SE_MUST_USE err_h device_uninstall(void* handle) {
 
 static SE_MUST_USE err_h device_reset(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(dac_adapter_ctx_t, dac53202_handle_t, ctx, hw, handle);
-
-  SYS_DEV_CHECK_DRIVER_CALL(dac53202_preset_cfg(hw, 0x03, 0x00), ctx);
+  SYS_DEV_CHECK_DRIVER_CALL(dac53202_set_power(hw, 0x00), ctx);
   return NULL;
 }
 
+/* Suspend powers both outputs down (Hi-Z) and remembers which were on;
+   resume powers those back up with their last code. */
 static SE_MUST_USE err_h device_suspend(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(dac_adapter_ctx_t, dac53202_handle_t, ctx, hw, handle);
-  SYS_DEV_CHECK_DRIVER_CALL(dac53202_preset_cfg(hw, 0x03, 0x00), ctx);
+  ctx->suspended_power_mask = hw->power_on_mask;
+  SYS_DEV_CHECK_DRIVER_CALL(dac53202_set_power(hw, 0x00), ctx);
   return NULL;
 }
 
 static SE_MUST_USE err_h device_resume(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(dac_adapter_ctx_t, dac53202_handle_t, ctx, hw, handle);
-  SYS_DEV_CHECK_DRIVER_CALL(dac53202_preset_cfg(hw, 0x03, 0x03), ctx);
+  SYS_DEV_CHECK_DRIVER_CALL(dac53202_set_power(hw, ctx->suspended_power_mask), ctx);
   return NULL;
 }
 
@@ -139,7 +140,7 @@ static SE_MUST_USE err_h device_sync(void* handle) {
   SYS_DEV_CTX_UNFREEZE(ctx);
 
   if (ctx->cached_power_dirty) {
-    SYS_DEV_CHECK_DRIVER_CALL(dac53202_preset_cfg(hw, 0x03, ctx->cached_power_mask), ctx);
+    SYS_DEV_CHECK_DRIVER_CALL(dac53202_set_power(hw, ctx->cached_power_mask), ctx);
     ctx->cached_power_dirty = false;
   }
 
@@ -172,7 +173,8 @@ static SE_MUST_USE err_h device_install(const void* cfg_blob, void** out_device_
 
   SYS_DEV_INSTALL_STEP(sys_i2c_device_present(hw), "probe i2c device");
 
-  SYS_DEV_INSTALL_STEP(SE_CONVERT_ESP(dac53202_preset_cfg(hw, 0x03, 0x03)), "dac preset cfg");
+  // Outputs stay powered down (Hi-Z) until a voltage is set.
+  SYS_DEV_INSTALL_STEP(SE_CONVERT_ESP(dac53202_start(hw)), "reference and power-down");
 
   *out_device_handle = ctx;
   return NULL;

@@ -8,12 +8,14 @@ IMPORTANT: When changing this component, update this document to match its API a
  producers / consumers                connectors (logical)         providers (transports)
  ─────────────────────                ────────────────────         ──────────────────────
  error sink: text  ────────────────▶  0 logs       [0x03] ──TX──▶  BLE  (char 0xFFE3)
- error sink: packets ──────────────▶  1 errors     [0x04] ──TX──▶  BLE  (char 0xFFE3)
- vm_sub telemetry  ────────────────▶  2 telemetry  [0x02] ──TX──▶  BLE  (char 0xFFE1)
- sys_interface responses ─send_to──▶  3 interface  [0x05] ──TX──▶  BLE  (char 0xFFE1)
- sys_interface RX task ◀──receive───  3 interface         ◀──RX──  BLE  (char 0xFFE2)
+ error sink: packets ──────────────▶  1 errors     [0x04] ──TX──▶  BLE  (char 0xFFE3), UART
+ vm_sub telemetry  ────────────────▶  2 telemetry  [0x02] ──TX──▶  BLE  (char 0xFFE1), UART
+ sys_interface responses ─send_to──▶  3 interface  [0x05] ──TX──▶  BLE  (char 0xFFE1), UART (origin only)
+ sys_interface RX task ◀──receive───  3 interface         ◀──RX──  BLE  (char 0xFFE2), UART
                                       4+ user connectors (class 0x06 packets)
 ```
+
+UART is the console UART ("#R:<hex>" lines next to the text log, [[SYS_UART.MD]]), bound when `CONFIG_RUNIT_UART_CONSOLE_LINK=y`.
 
 `[0xNN]` is the connector's **stream byte**, prepended to every outbound frame so a client can tell streams apart when several share one transport endpoint.
 
@@ -31,7 +33,7 @@ Connector and provider IDs are configured in `components/utils/Kconfig` ("Data C
 | Enum | Where | Members |
 |---|---|---|
 | `sys_data_connector_id_e` | `include/sys_data_connector.h` | `SYS_DATA_CONNECTOR_LOGS / _ERRORS / _TELEMETRY / _INTERFACE`, and `_APP_BASE` (first ID for user connectors) |
-| `runit_data_provider_e` | `components/runit/runit_board_defs.h` (the board decides which transports exist) | `RUNIT_DATA_PROVIDER_BLE` |
+| `runit_data_provider_e` | `components/runit/runit_board_defs.h` (the board decides which transports exist) | `RUNIT_DATA_PROVIDER_BLE`, `RUNIT_DATA_PROVIDER_UART` |
 
 Both are `//#ref-enum`, so they are in `data-structures/enums.json`, and the class `0x06` packet fields reference them (`@enum-ref`) in `settings.generated.json`. The enum generator resolves `= CONFIG_*` member values from `sdkconfig`, so the app always gets the IDs the firmware was built with. After changing an ID in Kconfig, regenerate the enums and settings JSON.
 
@@ -55,7 +57,7 @@ A transport registered once at boot with `sys_data_connector_register_provider(i
 
 **Framing belongs to the provider.** A message transport (BLE: one write = one frame) needs none. A byte-stream transport (UART, TCP) de-frames its bytes (length prefix, COBS, …) inside the provider and queues whole frames, so nothing above it ever sees partial frames.
 
-**Endpoint** is the provider's own address for a binding: a plain `uint32_t` value from the board wiring or a settings packet, never a pointer. BLE: a characteristic UUID. An MQTT provider would map it to a topic slot in its own table.
+**Endpoint** is the provider's own address for a binding: a plain `uint32_t` value from the board wiring or a settings packet, never a pointer. BLE: a characteristic UUID. UART: always 0. A binding isn't checked against the provider: a bad endpoint is accepted by `bind_tx` and fails only on send. An MQTT provider would map it to a topic slot in its own table.
 
 **Peer** tells apart several clients on one endpoint. BLE has one connection and always reports 0; a TCP provider would report its session, so `send_to` answers the right client.
 
@@ -114,7 +116,7 @@ All functions take a connector ID and are safe from any task (not from an ISR). 
 
 ## Board wiring (runit)
 
-`runit_board_connector_bindings_init()` registers the BLE provider (`sys_ble_provider_register(RUNIT_DATA_PROVIDER_BLE)`, [[SYS_BLE.MD]]) and binds the four system connectors to the runIT characteristics, as in the diagram above. Adding a transport means: implement `sys_data_connector_provider_t` in that transport's component, give it a `CONFIG_SYS_DATA_PROVIDER_ID_*` and a member of `runit_data_provider_e`, register and bind it in runit, and regenerate the JSON. Nothing in this component or above changes.
+`runit_board_connector_bindings_init()` registers the BLE provider (`sys_ble_provider_register(RUNIT_DATA_PROVIDER_BLE)`, [[SYS_BLE.MD]]) and binds the four system connectors to the runIT characteristics, as in the diagram above. With `CONFIG_RUNIT_UART_CONSOLE_LINK` it also registers the console UART provider ([[SYS_UART.MD]]) and binds errors, telemetry and interface (TX + RX) to it. Adding a transport means: implement `sys_data_connector_provider_t` in that transport's component, give it a `CONFIG_SYS_DATA_PROVIDER_ID_*` and a member of `runit_data_provider_e`, register and bind it in runit, and regenerate the JSON. Nothing in this component or above changes.
 
 ## Errors
 

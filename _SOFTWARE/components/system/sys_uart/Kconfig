@@ -1,0 +1,33 @@
+menu "UART Console Link"
+    config SYS_UART_TASK_PRIO
+        int "UART RX Task Priority"
+        default 5
+        range 1 24
+        help
+          Priority of the task that reads the console UART and de-frames
+          "#R:" hex lines into data connector frames.
+
+    config SYS_UART_TASK_STACK_SIZE
+        int "UART RX Task Stack Size (bytes)"
+        default 3072
+        range 2048 16384
+        help
+          Stack size in bytes of the UART RX task. The line buffer is static,
+          not on this stack.
+
+    config SYS_UART_DRIVER_RX_BUF
+        int "UART Driver RX Buffer (bytes)"
+        default 1024
+        range 256 8192
+        help
+          RX ring buffer of the UART driver installed on the console UART.
+          Must be larger than the hardware FIFO (128 bytes).
+
+    config SYS_UART_RX_QUEUE_SIZE
+        int "Decoded Frame Queue Size (bytes)"
+        default 2048
+        range 512 16384
+        help
+          Ring buffer holding decoded frames until the bound connector's
+          consumer dequeues them. Must be a multiple of 4.
+endmenu

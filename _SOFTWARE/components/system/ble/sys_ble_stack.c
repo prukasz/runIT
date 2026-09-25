@@ -124,7 +124,11 @@ static int gap_event_handler(struct ble_gap_event* event, void* arg) {
         R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
         g_ble_ctx.conn_handle = event->connect.conn_handle;
         g_ble_ctx.is_connected = true;
-        g_ble_ctx.mtu_size = BLE_ATT_MTU_DFLT; /* until the MTU exchange */
+        /* A client that starts the MTU exchange itself (Windows) can have it
+           finish before this event is delivered, so BLE_GAP_EVENT_MTU came
+           first: take the link's current MTU instead of assuming the default. */
+        uint16_t mtu = ble_att_mtu(event->connect.conn_handle);
+        g_ble_ctx.mtu_size = mtu ? mtu : BLE_ATT_MTU_DFLT;
         R_MUTEX_UNLOCK(sys_ble_mutex);
 
         /* Don't wait for the client: request the preferred (largest) MTU now.
@@ -139,7 +143,7 @@ static int gap_event_handler(struct ble_gap_event* event, void* arg) {
       } else {
         ESP_LOGW(TAG, "Connection failed: err = %d", event->connect.status);
         SE_REPORT(sys_ble_publish(SYS_BLE_EVENT_FAILURE, ESP_FAIL));
-        SE_release(sys_ble_advertising_init());
+        SE_REPORT(sys_ble_advertising_init());
       }
       return 0;
 
@@ -165,7 +169,8 @@ static int gap_event_handler(struct ble_gap_event* event, void* arg) {
       R_MUTEX_UNLOCK(sys_ble_mutex);
 
       SE_REPORT(sys_ble_publish(SYS_BLE_EVENT_DISCONNECT, reason));
-      SE_release(sys_ble_reconfigure_advertising());
+      // Reported, not released: a failed restart leaves the board invisible.
+      SE_REPORT(sys_ble_reconfigure_advertising());
       break;
     }
 
@@ -174,7 +179,7 @@ static int gap_event_handler(struct ble_gap_event* event, void* arg) {
       return 0;
 
     case BLE_GAP_EVENT_ADV_COMPLETE:
-      SE_release(sys_ble_advertising_init());
+      SE_REPORT(sys_ble_advertising_init());
       return 0;
 
     case BLE_GAP_EVENT_NOTIFY_TX:

@@ -3552,9 +3552,23 @@ CONFIG_SYS_POWER_BATTERY_HYSTERESIS_PCT=3
 # end of System Power Management Options
 
 #
+# UART Console Link
+#
+# default:
+CONFIG_SYS_UART_TASK_PRIO=5
+# default:
+CONFIG_SYS_UART_TASK_STACK_SIZE=3072
+# default:
+CONFIG_SYS_UART_DRIVER_RX_BUF=1024
+# default:
+CONFIG_SYS_UART_RX_QUEUE_SIZE=2048
+# end of UART Console Link
+
+#
 # runIT Board & Diagnostic Configuration
 #
-CONFIG_RUNIT_SKIP_DEVICE_INIT=y
+# default:
+CONFIG_RUNIT_UART_CONSOLE_LINK=y
 # end of runIT Board & Diagnostic Configuration
 
 #
@@ -3620,6 +3634,8 @@ CONFIG_SYS_DATA_CONN_ID_INTERFACE=3
 CONFIG_SYS_DATA_CONN_ID_APP_BASE=4
 # default:
 CONFIG_SYS_DATA_PROVIDER_ID_BLE=1
+# default:
+CONFIG_SYS_DATA_PROVIDER_ID_UART=2
 # end of Data Connector Registry
 
 #

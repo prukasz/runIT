@@ -9,6 +9,12 @@
           "value": 1,
           "alias": "Bluetooth LE",
           "description": "The endpoint is a characteristic UUID."
+        },
+        {
+          "name": "RUNIT_DATA_PROVIDER_UART",
+          "value": 2,
+          "alias": "UART console",
+          "description": "Frames are \"#R:<hex>\" lines on the console UART, next to the text log. The only endpoint is 0."
         }
       ]
     },
@@ -1441,6 +1447,12 @@
       "value": 1,
       "alias": "Bluetooth LE",
       "description": "The endpoint is a characteristic UUID."
+    },
+    "RUNIT_DATA_PROVIDER_UART": {
+      "enum": "runit_data_provider_e",
+      "value": 2,
+      "alias": "UART console",
+      "description": "Frames are \"#R:<hex>\" lines on the console UART, next to the text log. The only endpoint is 0."
     },
     "SYS_BLE_EVENT_CONNECT": {
       "enum": "sys_ble_events_e",

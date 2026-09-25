@@ -103,14 +103,10 @@ static inline uint8_t event_count_field(uint16_t event_counter_threshold) {
    Only a real recovery re-arms the original entry watch. Net effect: exactly
    one ALERT edge per genuine transition in either direction, entirely
    chip-driven, no polling. */
-/* Deliberately reuses OUT_OF_BAND for the exit watch too, rather than
- * IN_BAND: OUT_OF_BAND + EVENT_HIGH_FLAG/EVENT_LOW_FLAG is the mechanism
- * this whole adapter has already proven works (every "above threshold"
- * dispatch in this file goes through it); IN_BAND's exact flag-setting
- * behavior isn't nailed down by the datasheet text available here, so it's
- * not worth trusting for the leg of this that has no independent way to be
- * noticed if it's silently wrong. A single-sided OUT_OF_BAND config (one
- * threshold disabled) is exactly equivalent to "watch this one side only". */
+/* The exit watch is always OUT_OF_BAND. After an out-of-band crossing it is
+ * single-sided (one threshold disabled = "watch this one side only"); after
+ * an in-band entry it watches both sides of the band, since leaving it either
+ * way is the recovery. */
 static void ads_arm_exit_watch(ads7128_alert_cfg_t* out, const ads7128_alert_cfg_t* entry, bool high_fired, bool low_fired) {
   *out = (ads7128_alert_cfg_t){
       .enabled = true,
@@ -121,6 +117,14 @@ static void ads_arm_exit_watch(ads7128_alert_cfg_t* out, const ads7128_alert_cfg
       .region = ADS7128_ALERT_OUT_OF_BAND,
   };
   uint16_t hyst_codes = (uint16_t)entry->hysteresis * ADS_HYSTERESIS_STEP;
+  if (entry->region == ADS7128_ALERT_IN_BAND) {
+    // Was inside (entry->high_th, entry->low_th) - the in-band register swap;
+    // recovered once it leaves the band on either side, past the hysteresis.
+    out->low_th = (entry->high_th > hyst_codes) ? (uint16_t)(entry->high_th - hyst_codes) : 0;
+    uint32_t above = (uint32_t)entry->low_th + hyst_codes;
+    out->high_th = (above > ADS7128_MAX_CODE) ? ADS7128_MAX_CODE : (uint16_t)above;
+    return;
+  }
   if (high_fired) {
     // Was above entry->high_th; recovered once it drops back below (high_th - hysteresis).
     out->low_th = (entry->high_th > hyst_codes) ? (uint16_t)(entry->high_th - hyst_codes) : 0;
@@ -224,11 +228,17 @@ static SE_MUST_USE err_h contract_io_ads7128_configure_intr(void* handle, sys_io
     SE_FAIL(ERR_IO_PIN_FEATURE_UNSUPPORTED, SYS_DEV_GET_ID(ctx), pin);
   }
 
+  /* 0 mV up means "no high limit": full scale never trips the comparator */
+  uint16_t upper = (config->adc.adc_threshold_up_mV == 0) ? ADS7128_MAX_CODE : mv_to_code(ctx, config->adc.adc_threshold_up_mV);
+  uint16_t lower = mv_to_code(ctx, config->adc.adc_threshold_down_mV);
+  bool inside = config->mode == SYS_IO_INTR_ADC_WINDOW_INSIDE;
   ads7128_alert_cfg_t alert = {
       .enabled = true,
-      /* 0 mV up means "no high limit": full scale never trips the comparator */
-      .high_th = (config->adc.adc_threshold_up_mV == 0) ? ADS7128_MAX_CODE : mv_to_code(ctx, config->adc.adc_threshold_up_mV),
-      .low_th = mv_to_code(ctx, config->adc.adc_threshold_down_mV),
+      /* In-band (EVENT_RGN = 1) the chip flags HIGH_TH < code < LOW_TH, so the
+         bounds swap registers (verified on the board 2026-09-24; datasheet
+         8.6.21 misprints it as "low threshold > result < high threshold"). */
+      .high_th = inside ? lower : upper,
+      .low_th = inside ? upper : lower,
       .hysteresis = hysteresis_field(ctx, config->adc.adc_threshold_hysteresis_mV),
       .event_count = event_count_field(config->adc.adc_event_counter_threshold),
       .region = (config->mode == SYS_IO_INTR_ADC_WINDOW_INSIDE) ? ADS7128_ALERT_IN_BAND : ADS7128_ALERT_OUT_OF_BAND,
