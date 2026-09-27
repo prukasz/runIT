@@ -31,6 +31,13 @@ export interface RunitBleSession {
   readonly received: ReceivedDataStream
   readonly commands: CommandClient
   readonly layout: RunitBleLayout
+  /**
+   * Reconnect and re-attach the notify characteristics, keeping this session.
+   * Call after the board applied a GATT table change (the BLE settings
+   * `apply`): Windows drops every GATT object of the device on the board's
+   * Service Changed indication, so writes fail until the link is re-opened.
+   */
+  refreshGatt(): Promise<void>
   /** Stop listening and cancel pending commands. The BLE link stays up. */
   close(): Promise<void>
 }
@@ -70,15 +77,18 @@ export const openRunitBleSession = async (adapter: BleAdapter, options: RunitBle
     const pending = unsubscribes.splice(0)
     await Promise.allSettled(pending.map((unsubscribe) => unsubscribe()))
   }
-  try {
-    for (const characteristicUuid of layout.notify) {
-      const route = `${RUNIT_ROUTE.notifyPrefix}${hex16(characteristicUuid)}`
-      unsubscribes.push(await binding.attachInbound({ targetId, route, serviceUuid: layout.service, characteristicUuid }))
+  const attach = async (): Promise<void> => {
+    try {
+      for (const characteristicUuid of layout.notify) {
+        const route = `${RUNIT_ROUTE.notifyPrefix}${hex16(characteristicUuid)}`
+        unsubscribes.push(await binding.attachInbound({ targetId, route, serviceUuid: layout.service, characteristicUuid }))
+      }
+    } catch (error) {
+      await detach()
+      throw error
     }
-  } catch (error) {
-    await detach()
-    throw error
   }
+  await attach()
 
   const commands = new CommandClient({ sender: router, frames: received, protocol, targetId, timeoutMs: options.timeoutMs })
   let closed = false
@@ -92,5 +102,11 @@ export const openRunitBleSession = async (adapter: BleAdapter, options: RunitBle
   }
   const stopDisconnect = adapter.onDisconnect(() => void close('The board disconnected.'))
 
-  return { targetId, received, commands, layout, close: () => close() }
+  const refreshGatt = async (): Promise<void> => {
+    await detach()
+    await adapter.reconnect()
+    await attach()
+  }
+
+  return { targetId, received, commands, layout, refreshGatt, close: () => close() }
 }

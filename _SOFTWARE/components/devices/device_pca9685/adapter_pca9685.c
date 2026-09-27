@@ -44,8 +44,11 @@ static SE_MUST_USE err_h contract_io_pca9685_set_pwm_duty(void* handle, sys_io_p
   return NULL;
 }
 
+/* One frequency for all 16 channels: the pin is not used. */
 static SE_MUST_USE err_h contract_io_pca9685_set_pwm_frequency(void* handle, sys_io_pin_num_t pin, uint32_t frequency_Hz) {
   SYS_DEV_GET_ADAPTER_CONTEXT(pca_adapter_ctx_t, pca9685_handle_t, ctx, hw, handle);
+  (void)pin;
+  SE_CHECK_IN_RANGE(frequency_Hz, PCA9685_MIN_FREQUENCY_HZ, PCA9685_MAX_FREQUENCY_HZ);
 
   IF_SYS_DEV_FROZEN(ctx) {
     ctx->frozen_freq = (uint16_t)frequency_Hz;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { runitDeviceCatalog } from '../domain/descriptors'
-import { checkDevices, checkSetup, defaultInstall, nextActionId, nextDeviceId } from '../domain/devices'
+import { checkDevices, checkPwm, checkSetup, defaultInstall, nextActionId, nextDeviceId } from '../domain/devices'
 import { parseActions, parseDevices, parseSetup } from '../domain/project'
 import type { ActionStep, DeviceRef, ProjectAction, ProjectDevice, StepValues } from '../domain/project'
 
@@ -75,7 +75,7 @@ export function useDevicesWorkspace(onSelect?: () => void) {
     }
   }, [history.present])
 
-  const diagnostics = useMemo(() => [...checkDevices(catalog, devices), ...checkSetup(catalog, devices, setup)], [devices, setup])
+  const diagnostics = useMemo(() => [...checkDevices(catalog, devices), ...checkSetup(catalog, devices, setup), ...checkPwm(catalog, devices, setup, actions)], [devices, setup, actions])
 
   /** Apply a change with undo; a thrown error is shown and nothing changes. */
   const edit = (change: (current: DevicesState) => DevicesState): boolean => {

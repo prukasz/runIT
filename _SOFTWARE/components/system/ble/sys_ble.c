@@ -11,9 +11,11 @@ R_BINARY_SEM_DEFINE(sys_ble_tx_sem);
 /* Helper Data Structure Management                                                      */
 /*****************************************************************************************/
 
+/* Lookups skip a service being removed: its UUIDs are free for the same batch. */
 static sys_ble_char_node_t* sys_ble_find_char_by_uuid(uint16_t char_uuid) {
   sys_ble_svc_node_t* s;
   LL_FOREACH(g_ble_ctx.services, s) {
+    if (s->removing) continue;
     sys_ble_char_node_t* ch;
     LL_FOREACH(s->chars, ch) {
       if (ch->cfg.uuid == char_uuid) return ch;
@@ -25,7 +27,7 @@ static sys_ble_char_node_t* sys_ble_find_char_by_uuid(uint16_t char_uuid) {
 static sys_ble_svc_node_t* sys_ble_find_svc_by_uuid(uint16_t svc_uuid) {
   sys_ble_svc_node_t* s;
   LL_FOREACH(g_ble_ctx.services, s) {
-    if (s->cfg.uuid == svc_uuid) return s;
+    if (!s->removing && s->cfg.uuid == svc_uuid) return s;
   }
   return NULL;
 }
@@ -36,6 +38,17 @@ static void sys_ble_free_char_node(sys_ble_char_node_t* c) {
   SE_release(sys_buff_free(&c->tx_buff));
   free(c->desc);
   free(c);
+}
+
+/* Free a service node and its characteristics (no longer in NimBLE). */
+static void sys_ble_free_svc_node(sys_ble_svc_node_t* s) {
+  if (s->compiled_def) sys_ble_free_compiled_gatt_db(s->compiled_def);
+  sys_ble_char_node_t *c, *tmp;
+  LL_FOREACH_SAFE(s->chars, c, tmp) {
+    sys_ble_free_char_node(c);
+  }
+  LL_DELETE(g_ble_ctx.services, s);
+  free(s);
 }
 
 /*****************************************************************************************/
@@ -49,7 +62,7 @@ err_h sys_ble_service_create(const sys_ble_svc_cfg_t* cfg) {
 
   if (sys_ble_find_svc_by_uuid(cfg->uuid)) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
-    SE_FAIL(ERR_DEV_ALREADY_EXIST, cfg->uuid);
+    SE_FAIL(ERR_BLE_UUID_TAKEN, cfg->uuid);
   }
 
   sys_ble_svc_node_t* new_svc = calloc(1, sizeof(sys_ble_svc_node_t));
@@ -74,37 +87,32 @@ err_h sys_ble_service_remove(uint16_t svc_uuid) {
 
   sys_ble_svc_node_t* target = NULL;
   CHECK_BLE_SVC_FIND(target, svc_uuid, true);
-
-  if (g_ble_ctx.driver_started && target->registered) {
-    ble_uuid16_t temp_uuid;
-    temp_uuid.u.type = BLE_UUID_TYPE_16;
-    temp_uuid.value = target->cfg.uuid;
-
-    /* GATT access callbacks take sys_ble_mutex while the host is locked. */
+  if (target->locked) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
-    int rc = ble_gatts_delete_svc((const ble_uuid_t*)&temp_uuid);
-    R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
-    if (rc != 0) {
-      R_MUTEX_UNLOCK(sys_ble_mutex);
-      ESP_LOGE(TAG, "Failed to delete service 0x%04X from NimBLE: %d", svc_uuid, rc);
-      SE_FAIL(ERR_BASE_NOT_SUPPORTED, rc);
-    }
+    SE_FAIL(ERR_BLE_SERVICE_LOCKED, svc_uuid);
   }
 
-  if (target->compiled_def) {
-    sys_ble_free_compiled_gatt_db(target->compiled_def);
+  /* A live service stays in NimBLE until the next sync (sys_ble_database_apply);
+     one never registered goes now. */
+  if (target->registered) {
+    target->removing = true;
+  } else {
+    sys_ble_free_svc_node(target);
   }
-
-  sys_ble_char_node_t *c, *tmp;
-  LL_FOREACH_SAFE(target->chars, c, tmp) {
-    sys_ble_free_char_node(c);
-  }
-
-  LL_DELETE(g_ble_ctx.services, target);
-  free(target);
 
   R_MUTEX_UNLOCK(sys_ble_mutex);
   ESP_LOGI(TAG, "Removed BLE service UUID 0x%04X", svc_uuid);
+  return NULL;
+}
+#undef OWNER
+
+#define OWNER OWNER_SYS_BLE_SERVICE_LOCK
+err_h sys_ble_service_lock(uint16_t svc_uuid) {
+  R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+  sys_ble_svc_node_t* svc = NULL;
+  CHECK_BLE_SVC_FIND(svc, svc_uuid, true);
+  svc->locked = true;
+  R_MUTEX_UNLOCK(sys_ble_mutex);
   return NULL;
 }
 #undef OWNER
@@ -128,10 +136,14 @@ err_h sys_ble_char_create(uint16_t svc_uuid, const sys_ble_char_cfg_t* cfg) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
     SE_FAIL(ERR_BASE_NOT_FOUND, svc_uuid);
   }
+  if (svc->locked) {
+    R_MUTEX_UNLOCK(sys_ble_mutex);
+    SE_FAIL(ERR_BLE_SERVICE_LOCKED, svc_uuid);
+  }
 
   if (sys_ble_find_char_by_uuid(cfg->uuid)) {
     R_MUTEX_UNLOCK(sys_ble_mutex);
-    SE_FAIL(ERR_DEV_ALREADY_EXIST, cfg->uuid);
+    SE_FAIL(ERR_BLE_UUID_TAKEN, cfg->uuid);
   }
 
   sys_ble_char_node_t* new_char = calloc(1, sizeof(*new_char));
@@ -179,6 +191,10 @@ err_h sys_ble_char_remove(uint16_t svc_uuid, uint16_t char_uuid) {
 
   sys_ble_svc_node_t* svc = NULL;
   CHECK_BLE_SVC_FIND(svc, svc_uuid, true);
+  if (svc->locked) {
+    R_MUTEX_UNLOCK(sys_ble_mutex);
+    SE_FAIL(ERR_BLE_SERVICE_LOCKED, svc_uuid);
+  }
 
   sys_ble_char_node_t* target = NULL;
   LL_FOREACH(svc->chars, target) {
@@ -460,22 +476,56 @@ static SE_MUST_USE err_h sys_ble_database_start(void) {
   return NULL;
 }
 
+/* Delete a removed service from NimBLE and free it. */
+static SE_MUST_USE err_h sys_ble_svc_delete(sys_ble_svc_node_t* s) {
+  ble_uuid16_t uuid = BLE_UUID16_INIT(s->cfg.uuid);
+  /* GATT access callbacks take sys_ble_mutex while the host is locked. */
+  R_MUTEX_UNLOCK(sys_ble_mutex);
+  int rc = ble_gatts_delete_svc(&uuid.u);
+  R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+  if (rc != 0) SE_FAIL(ERR_BLE_GATT_FAILED, rc);
+  sys_ble_free_svc_node(s);
+  return NULL;
+}
+
 err_h sys_ble_database_sync(void) {
   R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
   err_h err = NULL;
+  g_ble_ctx.apply_pending = false;
   if (!g_ble_ctx.driver_started) {
     err = sys_ble_database_start();
   } else {
-    sys_ble_svc_node_t* s;
-    LL_FOREACH(g_ble_ctx.services, s) {
-      err = sys_ble_svc_sync(s);
+    /* Removals first: a service removed and created again in one batch has the same UUID. */
+    sys_ble_svc_node_t *s, *tmp;
+    LL_FOREACH_SAFE(g_ble_ctx.services, s, tmp) {
+      if (!s->removing) continue;
+      err = sys_ble_svc_delete(s);
       if (SE_IS_ERR(err)) break;
+    }
+    if (SE_IS_OK(err)) {
+      LL_FOREACH(g_ble_ctx.services, s) {
+        err = sys_ble_svc_sync(s);
+        if (SE_IS_ERR(err)) break;
+      }
     }
   }
   R_MUTEX_UNLOCK(sys_ble_mutex);
   /* Resume packets queued before their characteristic became live. */
   xSemaphoreGive(sys_ble_tx_sem);
   return err;
+}
+
+err_h sys_ble_database_apply(void) {
+  R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+  bool later = g_ble_ctx.driver_started && g_ble_ctx.is_connected;
+  if (later) {
+    g_ble_ctx.apply_pending = true;
+    g_ble_ctx.apply_at = xTaskGetTickCount() + pdMS_TO_TICKS(SYS_BLE_APPLY_DELAY_MS);
+  }
+  R_MUTEX_UNLOCK(sys_ble_mutex);
+  if (!later) return sys_ble_database_sync();
+  xSemaphoreGive(sys_ble_tx_sem);
+  return NULL;
 }
 #undef OWNER
 

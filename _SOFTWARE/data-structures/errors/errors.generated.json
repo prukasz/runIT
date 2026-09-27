@@ -2,7 +2,7 @@
   "$schema": "data-structures/schema/errors.schema.json",
   "schemaVersion": 1,
   "kind": "errors",
-  "schema_id": 4286704576,
+  "schema_id": 4216747962,
   "packet": {
     "stream": "0x04",
     "byte_order": "little",
@@ -423,6 +423,11 @@
     {
       "name": "OWNER_SYS_BLE_PROVIDER",
       "id": 42254,
+      "source_file": "components/system/ble/errors/sys_error_ble.h"
+    },
+    {
+      "name": "OWNER_SYS_BLE_SERVICE_LOCK",
+      "id": 42255,
       "source_file": "components/system/ble/errors/sys_error_ble.h"
     },
     {
@@ -2237,6 +2242,54 @@
           },
           {
             "field": "rc"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_BLE_SERVICE_LOCKED",
+      "id": 42245,
+      "level": 1,
+      "source_file": "components/system/ble/errors/sys_error_ble.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "svc_uuid",
+            "type": "uint16_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "BLE service 0x%04X is locked (the board's own): its characteristics can't change",
+        "args": [
+          {
+            "field": "svc_uuid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_BLE_UUID_TAKEN",
+      "id": 42246,
+      "level": 1,
+      "source_file": "components/system/ble/errors/sys_error_ble.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "uuid",
+            "type": "uint16_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "BLE UUID 0x%04X is already in use",
+        "args": [
+          {
+            "field": "uuid"
           }
         ]
       }

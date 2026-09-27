@@ -43,6 +43,8 @@ typedef struct sys_ble_svc_node {
   sys_ble_svc_cfg_t cfg;
   sys_ble_char_node_t* chars;
   bool registered;
+  bool locked;                            // sys_ble_service_lock(): no characteristic changes, no removal
+  bool removing;                          // sys_ble_service_remove() on a live service: deleted by the next sync, invisible to lookups
   bool dirty;                             // true when a characteristic was added/removed while registered == true; tells sync() to recompile
   struct ble_gatt_svc_def* compiled_def;  // Heap allocated for this specific service
   struct sys_ble_svc_node* next;
@@ -59,7 +61,15 @@ typedef struct {
 
   // Pointer to compiled GATT database definitions for initial cleanup
   struct ble_gatt_svc_def* compiled_db;
+
+  // sys_ble_database_apply() with a client connected: the BLE task syncs at apply_at.
+  bool apply_pending;
+  TickType_t apply_at;
 } sys_ble_ctx_t;
+
+/* How long an apply waits with a client connected: the command asking for it
+   is answered and its write acknowledged first. */
+#define SYS_BLE_APPLY_DELAY_MS 200u
 
 /* ATT notification / indication header (opcode + handle): payload = MTU - 3. */
 #define SYS_BLE_ATT_NOTIFY_HDR_LEN 3u

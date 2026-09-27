@@ -275,7 +275,7 @@ def parse_packet_file(path: Path, all_classes: Dict[str, str], defines, sdkconfi
     return out
 
 
-def parse_device_descriptor(path: Path, symbols: Dict[str, dict]) -> Optional[dict]:
+def parse_device_descriptor(path: Path, symbols: Dict[str, dict], defines: Dict[str, str], sdkconfig: Dict[str, int]) -> Optional[dict]:
     metadata: Dict[str, str] = {}
     self_properties: Dict[str, dict] = {}
     properties: Dict[str, dict] = {}
@@ -347,9 +347,15 @@ def parse_device_descriptor(path: Path, symbols: Dict[str, dict]) -> Optional[di
                 parameter["available"] = parse_choice_list(tags["available"], symbols, ctx)
             if "optional" in tags:
                 parameter["required"] = False
+            if "device_wide" in tags:
+                # The field selects nothing: the call applies to the whole device and the field is sent as 0.
+                parameter["device_wide"] = True
             for tag in ("min", "max", "default"):
                 if tag in tags:
-                    parameter[tag] = resolve_numeric(tags[tag], {}, {})[0] if to_int(tags[tag]) is not None else tags[tag]
+                    resolved, shown = resolve_numeric(tags[tag], defines, sdkconfig)
+                    if resolved is None:
+                        sys.exit(f"ERROR: {ctx}: @{tag} {shown}")
+                    parameter[tag] = resolved
             for tag in ("alias", "type", "unit"):
                 if tag in tags:
                     parameter[tag] = tags[tag]
@@ -373,7 +379,19 @@ def parse_device_descriptor(path: Path, symbols: Dict[str, dict]) -> Optional[di
     }
 
 
-def build_device_document(device: dict, packets: Dict[str, dict]) -> dict:
+def pwm_frequencies(metadata: Dict[str, str], defines: Dict[str, str], sdkconfig: Dict[str, int], source: str) -> Optional[int]:
+    """//@pwm-frequencies <value> [@count-bits]: how many different PWM frequencies the device runs at once."""
+    raw = metadata.get("pwm-frequencies")
+    if raw is None:
+        return None
+    tags = parse_tags(raw)
+    value, shown = resolve_numeric(tags.get("desc", ""), defines, sdkconfig)
+    if value is None:
+        sys.exit(f"ERROR: {source}: //@pwm-frequencies {shown}")
+    return bin(value).count("1") if "count_bits" in tags else value
+
+
+def build_device_document(device: dict, packets: Dict[str, dict], defines: Dict[str, str], sdkconfig: Dict[str, int]) -> dict:
     metadata = device["metadata"]
     install_packets = [n for n, p in packets.items() if p["source_file"] == device["source_file"] and n.startswith("packet_sys_device_install_")]
     if len(install_packets) != 1:
@@ -413,6 +431,7 @@ def build_device_document(device: dict, packets: Dict[str, dict]) -> dict:
         "protocols": metadata.get("protocol", "").split(),
         "tags": metadata.get("tags", "").split(),
         **({"datasheet": metadata["datasheet"]} if metadata.get("datasheet") else {}),
+        **({"pwm_frequencies": frequencies} if (frequencies := pwm_frequencies(metadata, defines, sdkconfig, device["source_file"])) is not None else {}),
         "source_file": device["source_file"],
         "contractProvider": device["contract_provider"],
         "install": {"packet": install_packets[0], "packet_definition": packets[install_packets[0]]},
@@ -466,9 +485,9 @@ def main() -> int:
 
     devices = []
     for path in (p for p in header_files if p.parent.name == "device"):
-        descriptor = parse_device_descriptor(path, symbols)
+        descriptor = parse_device_descriptor(path, symbols, defines, sdkconfig)
         if descriptor:
-            devices.append(build_device_document(descriptor, packets))
+            devices.append(build_device_document(descriptor, packets, defines, sdkconfig))
 
     target_dir = Path(args.target_dir)
     target_dir.mkdir(parents=True, exist_ok=True)

@@ -19,6 +19,7 @@ export interface GeneratedDeviceFile {
   readonly protocols?: readonly string[]
   readonly tags?: readonly string[]
   readonly datasheet?: string
+  readonly pwm_frequencies?: number
   readonly contractProvider?: { readonly symbol: string; readonly value: number; readonly alias?: string; readonly description?: string }
   readonly install: {
     readonly packet: string
@@ -41,6 +42,7 @@ export interface GeneratedDeviceParameter {
   readonly name: string
   readonly alias?: string
   readonly instance?: boolean
+  readonly device_wide?: boolean
   readonly one_of?: readonly (number | GeneratedChoice)[]
   readonly enum_ref?: string
   readonly type?: string
@@ -64,6 +66,8 @@ export interface DeviceParameter {
   readonly label: string
   /** The device ID: filled from the device the contract runs on. */
   readonly instance: boolean
+  /** Selects nothing on this device (the setting is the whole device's): hidden, sent as 0. */
+  readonly deviceWide: boolean
   readonly field: CommandFieldInfo
   readonly choices?: readonly DeviceChoice[]
   /** A 0/1 value shown as a switch. */
@@ -106,6 +110,8 @@ export interface DeviceType {
   readonly tags: readonly string[]
   readonly protocols: readonly string[]
   readonly datasheet?: string
+  /** Different PWM frequencies the device runs at once (per-pin frequencies on shared timers). */
+  readonly pwmFrequencies?: number
   readonly provider?: { readonly value: number; readonly label: string; readonly description?: string }
   /** The install packet; its `device_id` field is filled from the device. */
   readonly install: CommandDescriptor
@@ -196,6 +202,7 @@ const parameterFrom = (generated: GeneratedDeviceParameter | undefined, field: C
   name: field.name,
   label: generated?.alias ?? field.label,
   instance: generated?.instance === true || (!generated && field.name === 'device_id'),
+  deviceWide: generated?.device_wide === true,
   field,
   choices: choicesOf(generated?.one_of) ?? choicesOf(field.choices) ?? enumChoices(enums, generated?.enum_ref ?? field.enumRef),
   boolean: generated?.type === 'bool' || field.type === 'bool',
@@ -283,6 +290,7 @@ export const buildDeviceCatalog = (files: readonly GeneratedDeviceFile[], board:
       tags: file.tags ?? [],
       protocols: file.protocols ?? [],
       ...(file.datasheet ? { datasheet: file.datasheet } : {}),
+      ...(file.pwm_frequencies ? { pwmFrequencies: file.pwm_frequencies } : {}),
       ...(file.contractProvider ? { provider: { value: file.contractProvider.value, label: file.contractProvider.alias ?? file.contractProvider.symbol, ...(file.contractProvider.description ? { description: file.contractProvider.description } : {}) } } : {}),
       install,
       installChoices,

@@ -4,7 +4,7 @@ import { boardDeviceRef, createProject, parseProject, serializeProject } from '.
 import type { ActionStep, ProjectAction, ProjectDevice } from '../project'
 import { buildStoredCode, decodeStoredCode } from '../storedCode'
 import { boardDefaultSettings, runitSettingsIds } from '../upload'
-import { actionRecordSteps, buildAction, checkDevices, checkSetup, clampErrorActions, decodeErrorActions, encodeErrorActions, reachableErrorLevels, contractFrame, defaultInstall, deviceInstallSteps, findContract, installFrame, nextDeviceId, pinKey, pinsOf, pinUsers, resolveDevice } from '.'
+import { actionRecordSteps, buildAction, checkDevices, checkPwm, frequencyWarnings, checkSetup, clampErrorActions, decodeErrorActions, encodeErrorActions, reachableErrorLevels, contractFrame, defaultInstall, deviceInstallSteps, findContract, installFrame, nextDeviceId, pinKey, pinsOf, pinUsers, resolveDevice } from '.'
 
 const hex = (data: Uint8Array): string => [...data].map((byte) => byte.toString(16).padStart(2, '0')).join(' ')
 const catalog = runitDeviceCatalog()
@@ -29,6 +29,45 @@ describe('device catalog', () => {
     expect(setLevel.parameters.find((parameter) => parameter.name === 'device_id')?.instance).toBe(true)
     expect(setLevel.parameters.find((parameter) => parameter.name === 'pin')?.choices?.length).toBe(16)
     expect(type.pinGroups).toEqual([expect.objectContaining({ pinField: 'oe_pin_pin', deviceField: 'oe_pin_device_id', modeField: 'oe_pin_mode', sentinel: 255 })])
+  })
+})
+
+describe('device-wide settings and board limits', () => {
+  it('sends a device-wide PCA frequency with the channel field hidden and 0', () => {
+    const board = resolveDevice(catalog, [], boardDeviceRef(3))!
+    const frequency = findContract(catalog, board, 'packet_sys_io_set_pwm_frequency_t')!
+    expect(frequency.parameters.find((parameter) => parameter.name === 'pin')?.deviceWide).toBe(true)
+    expect(frequency.parameters.find((parameter) => parameter.name === 'frequency_Hz')).toMatchObject({ min: 24, max: 1526, defaultValue: 50 })
+    expect(hex(contractFrame(frequency, 3, { pin: 7, frequency_Hz: 50 }))).toBe('01 27 03 07 32 00 00 00')
+    expect(hex(contractFrame(frequency, 3, { frequency_Hz: 50 }))).toBe('01 27 03 00 32 00 00 00')
+    expect(findContract(catalog, board, 'packet_sys_io_set_pwm_duty_t')?.parameters.find((parameter) => parameter.name === 'duty')?.max).toBe(4095)
+  })
+})
+
+describe('PWM frequency warnings', () => {
+  const frequency = (device: string, hz: number, pin = 0): ActionStep => ({ id: `f-${device}-${hz}-${pin}`, device, contract: 'packet_sys_io_set_pwm_frequency_t', values: { pin, frequency_Hz: hz } })
+
+  it('warns that a PCA frequency changes every channel in use, and about a second frequency', () => {
+    const live = frequencyWarnings(catalog, [], [], [], { device: boardDeviceRef(3), hz: 50 })
+    expect(live.join()).toMatch(/PCA9685 has one PWM frequency for all its pins: 50 Hz also changes DRV8962_1 \(pins 8–15\)/)
+    const servo: ActionStep = { id: 'd', device: boardDeviceRef(3), contract: 'packet_sys_io_set_pwm_duty_t', values: { pin: 0, duty: 300 } }
+    const action: ProjectAction = { id: 'a1', actionId: 3, name: 'fast', steps: [frequency(boardDeviceRef(3), 1000)] }
+    const warnings = checkPwm(catalog, [], [frequency(boardDeviceRef(3), 50), servo], [action])
+    expect(warnings.every((entry) => entry.severity === 'warning')).toBe(true)
+    expect(warnings.find((entry) => entry.subjectId === 'a1' && /default settings \(pins 0\)/.test(entry.message))).toBeTruthy()
+    expect(warnings.find((entry) => entry.subjectId === `setup:${boardDeviceRef(3)}` && /also set to 1000 Hz \(action 'fast'\)/.test(entry.message))).toBeTruthy()
+  })
+
+  it('warns when ESP pins need more frequencies than it has timers, never for pins that share one', () => {
+    const esp = boardDeviceRef(0)
+    expect(catalog.type('device_gpio_esp')?.pwmFrequencies).toBe(4)
+    const four = [frequency(esp, 100, 10), frequency(esp, 200, 11), frequency(esp, 300, 12), frequency(esp, 400, 13), frequency(esp, 400, 14)]
+    expect(checkPwm(catalog, [], four, [])).toEqual([])
+    const five = [...four, frequency(esp, 500, 17)]
+    expect(checkPwm(catalog, [], five, [])[0]?.message).toMatch(/at most 4 different PWM frequencies at once .* uses 5 \(100, 200, 300, 400, 500 Hz\)/)
+    expect(frequencyWarnings(catalog, [], four, [], { device: esp, pin: 18, hz: 600 }).join()).toMatch(/uses 5/)
+    expect(frequencyWarnings(catalog, [], four, [], { device: esp, pin: 13, hz: 600 }).join()).toMatch(/uses 5/) // pin 14 keeps the 400 Hz timer
+    expect(frequencyWarnings(catalog, [], four, [], { device: esp, pin: 12, hz: 600 })).toEqual([]) // 300 Hz was pin 12's alone
   })
 })
 

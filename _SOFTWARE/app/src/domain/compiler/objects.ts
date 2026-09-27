@@ -21,6 +21,8 @@ export interface Diagnostic {
   readonly severity: 'error' | 'warning'
   /** Project ID of the object concerned. */
   readonly objectId?: string
+  /** Key of the accessor request (a block pin …) concerned. */
+  readonly pathKey?: string
   readonly message: string
   /** The firmware error this rule mirrors, if the device would raise one. */
   readonly firmwareError?: string

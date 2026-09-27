@@ -55,7 +55,7 @@
         "properties": {
           "id": { "type": "integer", "minimum": 0, "maximum": 255 },
           "symbol": { "type": "string", "pattern": "^DEVICE_ID_\\w+$" },
-          "name": { "type": "string", "description": "Symbol without DEVICE_ID_, e.g. TPS55289_0." },
+          "name": { "type": "string", "description": "Symbol without DEVICE_ID_, e.g. TPS55289_2." },
           "driver": { "type": "string", "description": "d_<driver>_create() that installs it; absent when the board doesn't create it at boot." },
           "descriptor": { "type": "string", "description": "id of the device descriptor in data-structures/devices/." },
           "title": { "type": "string", "description": "Title of that descriptor." },

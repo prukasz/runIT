@@ -5,7 +5,7 @@ import type { BleCharacteristicSettings, ConnectorSettings, ProjectDocument, Pro
 import { buildStoredCode, decodeStoredCode } from '../storedCode'
 import type { StoredCodeContext } from '../storedCode'
 import { boardDefaultSettings, planSettingsUpload, runitSettingsIds } from '../upload'
-import { defaultProjectSettings, refreshSettings, settingsFromState, settingsState } from '.'
+import { defaultProjectSettings, isBoardCharacteristic, refreshSettings, settingsFromState, settingsState } from '.'
 
 const ctx: StoredCodeContext = { vm: runitVmCatalog(), commands: runitCommandCatalog(), layout: runitStreamCatalog().ble, ids: runitSettingsIds(), devices: runitDeviceCatalog() }
 const boardDefaults = boardDefaultSettings()
@@ -14,7 +14,7 @@ const char = (id: string, uuid: string, extra: Partial<BleCharacteristicSettings
   id, name: id, uuid, system: false, read: false, write: false, writeNoResponse: false, notify: true, indicate: false, txBufferSize: 64, rxBufferSize: 0, format: 'RAW', ...extra,
 })
 
-/** Defaults plus a user characteristic in the board's service, a user service, a user connector and a system connector change. */
+/** Defaults plus a user service, a user connector and a system connector change. */
 const edited = (): ProjectSettings => {
   const defaults = defaultProjectSettings()
   const system = defaults.ble.services[0]!
@@ -28,8 +28,8 @@ const edited = (): ProjectSettings => {
       ...defaults.ble,
       general: { ...defaults.ble.general, deviceName: 'rover' },
       services: [
-        { ...system, characteristics: [...system.characteristics, char('c-extra', '0xFF30', { description: 'extra', format: 'F' })] },
-        { id: 's-user', name: 'user', uuid: '0xFF10', system: false, isPrimary: true, advertised: false, characteristics: [char('c-a', '0xFF11')] },
+        system,
+        { id: 's-user', name: 'user', uuid: '0xFF10', system: false, isPrimary: true, advertised: false, characteristics: [char('c-a', '0xFF11'), char('c-extra', '0xFF30', { description: 'extra', format: 'F' })] },
       ],
     },
     connectors: [...defaults.connectors.map((connector) => (connector === telemetry ? { ...connector, isSuspended: true } : connector)), user],
@@ -84,6 +84,24 @@ describe('settings refresh and recovery', () => {
     expect(plan.steps).toEqual([])
     expect(back.ble.general.deviceName).toBe('rover')
     expect(back.connectors.find((connector) => connector.key === 'telemetry')?.isSuspended).toBe(true)
+  })
+
+  it('refuses a characteristic in the locked board service', () => {
+    const defaults = defaultProjectSettings()
+    const system = defaults.ble.services[0]!
+    const extra: ProjectSettings = { ...defaults, ble: { ...defaults.ble, services: [{ ...system, characteristics: [...system.characteristics, char('c-x', '0xFFE5')] }] } }
+    const plan = planSettingsUpload(ctx.commands, ctx.layout, ctx.ids, boardDefaults, settingsState(extra))
+    expect(plan.steps).toEqual([])
+    expect(plan.diagnostics.map((entry) => entry.message).join()).toMatch(/service 0xFFE0 is locked/)
+    expect(refreshSettings(extra).ble.services[0]).toEqual(system)
+  })
+
+  it('a board UUID in a user service is the user’s duplicate, not a board characteristic', () => {
+    const defaults = defaultProjectSettings()
+    const dup: ProjectSettings = { ...defaults, ble: { ...defaults.ble, services: [...defaults.ble.services, { id: 's-u', name: 'user', uuid: '0xFF20', system: false, isPrimary: true, advertised: false, characteristics: [char('c-dup', '0xFFE3')] }] } }
+    expect(isBoardCharacteristic(dup.ble.services[1]!.characteristics[0])).toBe(false)
+    const plan = planSettingsUpload(ctx.commands, ctx.layout, ctx.ids, boardDefaults, settingsState(dup))
+    expect(plan.diagnostics.map((entry) => entry.message).join()).toMatch(/share UUID 0xFFE3/)
   })
 
   it('defaults need no stored settings frames', () => {

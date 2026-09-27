@@ -30,6 +30,12 @@ export interface VmPacketWire {
   readonly batch?: { readonly max: number; readonly countBytes: number }
 }
 
+/** One accessor path step kind (0x44 idx_data): its kind byte and the bytes of its record (a name step adds the name after them). */
+export interface VmIndexKind {
+  readonly value: number
+  readonly size: number
+}
+
 /** One header field: a whole u16, or a bit field inside one byte. */
 export interface VmHeadField {
   readonly offset: number
@@ -64,7 +70,19 @@ export interface VmCatalog {
   readonly idNone: number
   /** Heap object IDs carry this bit; program object IDs stay below it. */
   readonly dynBit: number
-  readonly arena: { readonly alignment: number; readonly pointer: number; readonly objectHead: number; readonly maxBytes: number }
+  readonly arena: {
+    readonly alignment: number
+    readonly pointer: number
+    readonly objectHead: number
+    /** vm_accessor_t, and vm_index_t per path step. */
+    readonly accessorHead: number
+    readonly indexStep: number
+    readonly maxBytes: number
+  }
+  /** Accessor path steps (vm_wire_index): a fixed position, a position read from another accessor, a child by name. */
+  readonly indexKinds: { readonly literal: VmIndexKind; readonly ref: VmIndexKind; readonly name: VmIndexKind }
+  /** Accessors the device resolves in one read: an accessor and the ones its dynamic steps read, nested (CONFIG_VM_ACCESSOR_MAX_DEPTH). */
+  readonly accessorMaxDepth: number
   readonly retainMaxBytes: number
   /** vm_exec_command_e (0x48) by member name without `VM_EXEC_`: `NORMAL_MODE`, `PAUSE`, `RESET` … */
   readonly execCommands: ReadonlyMap<string, number>
@@ -140,6 +158,11 @@ export const buildVmCatalog = (program: GeneratedVmProgramFile, model: Generated
   const constant = (name: string) => need(program.constants[name], `constant ${name}`).value
   const limit = (name: string) => need(program.limits[name], `limit ${name}`).value
   const size = (name: string) => need(program.sizes[name], `size of ${name}`)
+  const indexCases = need(program.unions.vm_wire_index, 'union vm_wire_index').cases
+  const indexKind = (symbol: string): VmIndexKind => {
+    const entry = need(indexCases.find((item) => item.symbol === symbol), `index kind ${symbol}`)
+    return { value: entry.value, size: entry.record.size }
+  }
   const telemetryPacket = (symbol: string) => parseByte(need(program.telemetry.frames.find((entry) => entry.symbol === symbol), `telemetry frame ${symbol}`).packet_header, symbol)
 
   return {
@@ -155,7 +178,16 @@ export const buildVmCatalog = (program: GeneratedVmProgramFile, model: Generated
     maxElements: (type) => Math.floor(payloadMax / type.memoryWidth),
     idNone: constant('VM_OBJ_ID_NONE'),
     dynBit: constant('VM_OBJ_ID_DYN_BIT'),
-    arena: { alignment: program.arena.alignment, pointer: size('void*'), objectHead: size('vm_obj_head_t'), maxBytes: limit('CONFIG_VM_STORE_MAX_POOL') },
+    arena: {
+      alignment: program.arena.alignment,
+      pointer: size('void*'),
+      objectHead: size('vm_obj_head_t'),
+      accessorHead: size('vm_accessor_t'),
+      indexStep: size('vm_index_t'),
+      maxBytes: limit('CONFIG_VM_STORE_MAX_POOL'),
+    },
+    indexKinds: { literal: indexKind('VM_IDX_LITERAL'), ref: indexKind('VM_IDX_REF'), name: indexKind('VM_IDX_NAME') },
+    accessorMaxDepth: limit('CONFIG_VM_ACCESSOR_MAX_DEPTH'),
     retainMaxBytes: limit('CONFIG_VM_RETAIN_MAX_BYTES'),
     execCommands: new Map(need(model.enums.vm_exec_command_e, 'enum vm_exec_command_e').members.map((member) => [member.name.replace(/^VM_EXEC_/, ''), member.value])),
     telemetry: {

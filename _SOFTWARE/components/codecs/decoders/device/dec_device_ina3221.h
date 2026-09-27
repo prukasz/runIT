@@ -26,7 +26,7 @@
 //@param channel @arg CHANNEL @alias Monitor Channel
 //@param threshold_mA @alias Current Threshold @type int32_t @unit mA
 //@param alert @arg ALERT-SEVERITY @alias Alert Severity
-//@description Set the selected channel's critical or warning over-current alert. It is raised as a power event; link it with an event subscription.
+//@description Set the selected channel's critical or warning over-current alert. It is raised as a power event; link it with an event subscription. On a reversed shunt (the board's own INA3221) each alert watches one channel: the critical and the warning alert can each be set on one channel.
 
 #define HEADER_packet_sys_device_install_ina3221_t 0x44
 typedef struct __packed {

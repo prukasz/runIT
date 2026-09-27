@@ -144,8 +144,9 @@ interface ServiceEntry {
 
 const isSystemService = (ctx: Context, service: BleServiceSpec, uuid: number | undefined): boolean => service.system === true || uuid === ctx.layout.service
 
-const isSystemChar = (ctx: Context, char: BleCharSpec, uuid: number | undefined): boolean =>
-  char.system === true || (uuid !== undefined && (uuid === ctx.layout.commandWrite || ctx.layout.notify.includes(uuid)))
+/** A board characteristic: flagged, or (decoded from a board) one of the board's UUIDs in the board service. The same UUID in a user service is a duplicate. */
+const isSystemChar = (ctx: Context, char: BleCharSpec, uuid: number | undefined, inSystemService: boolean): boolean =>
+  char.system === true || (inSystemService && uuid !== undefined && (uuid === ctx.layout.commandWrite || ctx.layout.notify.includes(uuid)))
 
 /** Index a GATT profile; `check` reports problems (only for the target state). */
 const indexBle = (ctx: Context, services: readonly BleServiceSpec[], check: boolean) => {
@@ -176,7 +177,9 @@ const indexBle = (ctx: Context, services: readonly BleServiceSpec[], check: bool
       // The firmware looks characteristics up by UUID alone, across services.
       if (charUuids.has(charUuid)) problem(`Characteristics '${charUuids.get(charUuid)}' and '${char.name}' share UUID ${hex4(charUuid)}: the board finds characteristics by UUID alone.`, char.id)
       charUuids.set(charUuid, char.name)
-      const charSystem = isSystemChar(ctx, char, charUuid)
+      const charSystem = isSystemChar(ctx, char, charUuid, system)
+      // sys_ble_service_lock: a change would rebuild the service and drop the app's link, which runs on it.
+      if (!charSystem && system) problem(`Characteristic '${char.name}': the board's service ${hex4(uuid)} is locked (the app's link runs on it); put it in a user service.`, char.id)
       if (!charSystem && check) {
         // What the board can express (sys_ble_stack.c): no READ flag, and is_write allows both write kinds.
         if (char.read) ctx.diagnostics.push({ severity: 'warning', message: `Characteristic '${char.name}': the board doesn't make characteristics readable; 'read' is not sent.`, subjectId: char.id })
@@ -386,7 +389,10 @@ export const planSettingsUpload = (catalog: CommandCatalog, layout: BleLayout, i
   try {
     const ble = planBle(ctx, from.services, to.services)
     const connectors = planConnectors(ctx, from.connectors, to.connectors)
-    steps = [...connectors.early, ...ble.removes, ...ble.creates, ...connectors.late]
+    const gattChanges = [...ble.removes, ...ble.creates]
+    // The board stages GATT changes; `apply` puts them in the table (last: the client reconnects after it).
+    const apply = gattChanges.length ? [step(ctx, 'packet_settings_ble_apply_t', {}, 'ble apply')] : []
+    steps = [...connectors.early, ...gattChanges, ...connectors.late, ...apply]
   } catch (error) {
     ctx.diagnostics.push({ severity: 'error', message: error instanceof Error ? error.message : String(error) })
   }

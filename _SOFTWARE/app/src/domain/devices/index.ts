@@ -32,3 +32,5 @@ export {
   resolveDevice,
 } from './devices'
 export type { ActionBuild, ErrorAction, PinUser, ResolvedDevice } from './devices'
+export { checkPwm, frequencyWarnings, SET_PWM_FREQUENCY } from './pwm'
+export type { FrequencySetting } from './pwm'

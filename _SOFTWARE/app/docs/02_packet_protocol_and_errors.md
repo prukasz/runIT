@@ -96,7 +96,7 @@ read from `data-structures/` through `src/domain/descriptors/runitDescriptors.ts
 | `enums.json` | enum values and names (e.g. the response `status_enum`) | `//#ref-enum` enums |
 | `streams/streams.generated.json` | the stream byte of every board connector, and the BLE service / characteristics each one uses | `sys_data_connector_init()` table, `runit_board_defs.h` `//@STATIC_*` UUIDs, `runit_board_connector_bindings_init()` |
 | `errors/errors.generated.json` | error tags, owners, severities, payload layouts with naming annotations, message templates, the schema ID, esp_err_t names | the sys_errors X-macro maps (`codes/sys_error_codes.h`), ESP-IDF `esp_err_to_name.c` |
-| `board/board.generated.json` | onboard device IDs → names (`INA3221`, `TPS55289_0`) and their descriptors | `//@STATIC_DEVICE` in `runit_board_defs.h`, `RUNIT_BOARD_DEVICE` in `runit_board_cfg.c` |
+| `board/board.generated.json` | onboard device IDs → names (`INA3221`, `TPS55289_2`) and their descriptors | `//@STATIC_DEVICE` in `runit_board_defs.h`, `RUNIT_BOARD_DEVICE` in `runit_board_cfg.c` |
 | `vm/blocks/index.generated.json` | VM block type → title | `//#vm-block` |
 
 The loaders cross-check the files against each other: the response stream in

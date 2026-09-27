@@ -117,6 +117,8 @@ class SettingsReplay {
         })
         return
       }
+      case 'packet_settings_ble_apply_t':
+        return // applies the staged changes above: nothing of its own
       case 'packet_settings_ble_char_remove_t': {
         const service = this.serviceByUuid(num(values, 'service_uuid'))
         if (service) service.chars = service.chars.filter((char) => uuidOf(char.uuid) !== num(values, 'uuid'))

@@ -37,6 +37,7 @@ def code_frames() -> list[bytes]:
     frames = [
         bytes([0x02, 0x01]) + struct.pack("<HB", SVC, 1),
         bytes([0x02, 0x03]) + struct.pack("<HHBBBII", SVC, CHR, 0, 0, 1, 256, 0) + b"prj test\0",
+        bytes([0x02, 0x05]),  # apply: the staged service goes into the GATT table
         bytes([0x06, 0x01]) + struct.pack("<BBH", CONNECTOR, 0x10, 128) + b"prjc\0",
         bytes([0x06, 0x05]) + struct.pack("<BBI", CONNECTOR, 1, CHR),
     ]
@@ -133,7 +134,7 @@ def main(port: str) -> int:
     check("autostart reported", after.get("autostart") == 1)
     check("replayed CRC = stored CRC (the board runs the stored code)", after.get("replay_crc32") == zlib.crc32(blob), str(after.get("replay_crc32")))
     svc = link.call("packet_settings_ble_service_create_t", uuid=SVC, is_primary=1)
-    check("BLE service exists after restart", err(svc) == "ERR_DEV_ALREADY_EXIST", err(svc))
+    check("BLE service exists after restart", err(svc) == "ERR_BLE_UUID_TAKEN", err(svc))
     add = link.request(v.VM, 0x42, bytes([1]) + struct.pack("<H", 0) + v.obj_head(v.T_U8, 1, "x") + b"x")
     check("VM program running (autostart)", err(add) == "ERR_VM_LOAD_RUNNING", err(add))
 

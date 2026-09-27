@@ -130,6 +130,8 @@ describe('settings upload plan', () => {
       'ble create service 0xFF10: 02 01 10 ff 01',
       // svc, uuid, write 0, indicate 0, notify 1, tx 64, rx 0, "c\0"
       'ble create char 0xFF11: 02 03 10 ff 11 ff 00 00 01 40 00 00 00 00 00 00 00 63 00',
+      // the board stages GATT changes; apply puts them in the table
+      'ble apply: 02 05',
     ])
   })
 
@@ -139,7 +141,7 @@ describe('settings upload plan', () => {
       services: [system, { id: 's', name: 's', uuid: '0xFF10', isPrimary: true, characteristics: [char('c', '0xFF11')] }, { id: 't', name: 't', uuid: '0xFF20', isPrimary: true, characteristics: [char('d', '0xFF21')] }],
     }
     const after: SettingsState = { ...base, services: [system, { id: 's', name: 's', uuid: '0xFF10', isPrimary: true, characteristics: [char('c', '0xFF11', { txBufferSize: 512 })] }] }
-    expect(plan(after, before).steps.map((step) => step.label)).toEqual(['ble remove char 0xFF11', 'ble remove service 0xFF20', 'ble create char 0xFF11'])
+    expect(plan(after, before).steps.map((step) => step.label)).toEqual(['ble remove char 0xFF11', 'ble remove service 0xFF20', 'ble create char 0xFF11', 'ble apply'])
   })
 
   it('refuses to remove a system characteristic or cut the command link', () => {
@@ -154,7 +156,7 @@ describe('settings upload plan', () => {
     expect(plan({ ...base, services: [system, svc] }).ok).toBe(false)
   })
 
-  it('creates a user connector and binds it after the BLE changes, unbinds before', () => {
+  it('creates a user connector and binds it after the BLE changes, unbinds before; apply comes last', () => {
     const svc: BleServiceSpec = { id: 's', name: 's', uuid: '0xFF10', isPrimary: true, characteristics: [char('c', '0xFF11')] }
     const user: ConnectorSpec = {
       id: ids.appConnectorBase, key: 'app', name: 'app', header: '0x10', system: false, maxPacketLen: 128, isSuspended: false,
@@ -162,9 +164,9 @@ describe('settings upload plan', () => {
     }
     const added = { services: [system, svc], connectors: [iface, user] }
     expect(plan(added).steps.map((step) => step.label)).toEqual([
-      'ble create service 0xFF10', 'ble create char 0xFF11', 'connector create app', 'connector app bind TX BLE 0xFF11',
+      'ble create service 0xFF10', 'ble create char 0xFF11', 'connector create app', 'connector app bind TX BLE 0xFF11', 'ble apply',
     ])
-    expect(plan(base, added).steps.map((step) => step.label)).toEqual(['connector remove app', 'ble remove service 0xFF10'])
+    expect(plan(base, added).steps.map((step) => step.label)).toEqual(['connector remove app', 'ble remove service 0xFF10', 'ble apply'])
   })
 })
 

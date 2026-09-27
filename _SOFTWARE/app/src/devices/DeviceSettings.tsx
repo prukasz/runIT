@@ -127,7 +127,7 @@ export function DefaultSettingsCard({ w, device }: { w: DevicesWorkspace; device
     <div className="ble-card">
       <h3>Default settings</h3>
       <p className="devices-muted">Set by the stored code right after the devices are installed, at every boot.</p>
-      {problems.map((entry, index) => <p key={index} className="program-diag is-error">{entry.message}</p>)}
+      {problems.map((entry, index) => <p key={index} className={`program-diag ${entry.severity === 'error' ? 'is-error' : 'is-warning'}`}>{entry.message}</p>)}
 
       {table && (
         <div className="devices-pin-table" role="table" aria-label="Pin defaults">

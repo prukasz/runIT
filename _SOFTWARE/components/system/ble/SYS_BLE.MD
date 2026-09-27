@@ -30,7 +30,14 @@ constructed at load time. Subsequent sync calls apply runtime changes.
 ## Runtime changes
 
 Services and characteristics can be created and removed after startup.
-Characteristic UUIDs are unique across the registry.
+Service and characteristic UUIDs are unique across the registry (`ERR_BLE_UUID_TAKEN`).
+
+A locked service (`sys_ble_service_lock()`) refuses characteristic changes and
+its own removal (`ERR_BLE_SERVICE_LOCKED`). Changing a live service rebuilds it
+in NimBLE, which resets every client subscription on it; the board locks the
+service of its command link (runIT service `0xFFE0`), so a runtime change can't
+cut the link that carries the change's own answer. User characteristics go in
+user services.
 
 - Adding a characteristic to a registered service marks that service dirty.
 - Removing a characteristic from a registered service marks it pending removal.
@@ -40,8 +47,17 @@ Characteristic UUIDs are unique across the registry.
   New services use the same compile/add path.
 - If compilation or re-add fails after deletion, the service remains
   unregistered so the next sync can retry.
-- Removing a service deletes it immediately from NimBLE before freeing its nodes.
+- Removing a live service marks it; the next sync deletes it from NimBLE (removals first,
+  so a service removed and created again in one batch keeps working) and frees its nodes.
+  Lookups skip it, so its UUIDs are free at once.
 - NimBLE's dynamic add/delete APIs generate Service Changed notifications.
+
+Changes are staged; `sys_ble_database_apply()` applies them (the BLE settings class's
+`apply` packet). Without a client it syncs at once. With a client connected the BLE task
+syncs `SYS_BLE_APPLY_DELAY_MS` (200 ms) later: the apply command is answered and its
+write acknowledged before the Service Changed indication. Windows drops every GATT
+object of the device on that indication (measured 2026-09-27: the next write is
+cancelled, then "object closed"), so the client reconnects after an apply.
 
 The initial compiled database is retained in the context because NimBLE
 references its definitions. Later compiled definitions are owned per service.

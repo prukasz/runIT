@@ -18,22 +18,29 @@
   X(OWNER_SYS_BLE_STACK, 0xA50B, "OWNER_SYS_BLE_STACK") \
   X(OWNER_SYS_BLE_CHANNEL_CREATE, 0xA50C, "OWNER_SYS_BLE_CHANNEL_CREATE") \
   X(OWNER_SYS_BLE_RX_INJECT, 0xA50D, "OWNER_SYS_BLE_RX_INJECT") \
-  X(OWNER_SYS_BLE_PROVIDER, 0xA50E, "OWNER_SYS_BLE_PROVIDER")
+  X(OWNER_SYS_BLE_PROVIDER, 0xA50E, "OWNER_SYS_BLE_PROVIDER") \
+  X(OWNER_SYS_BLE_SERVICE_LOCK, 0xA50F, "OWNER_SYS_BLE_SERVICE_LOCK")
 
 #define SYS_ERROR_BLE_MAP(X) \
   X(ERR_BLE_STACK_FAILED, 0xA501, SE_LEVEL_HIGH, struct { esp_err_t rc; /*@id esp-err*/ }) \
   X(ERR_BLE_HARDWARE_FAULT, 0xA502, SE_LEVEL_CRITICAL, struct { esp_err_t rc; /*@id esp-err*/ }) /* reserved, currently unused */ \
   X(ERR_BLE_ADV_FAILED, 0xA503, SE_LEVEL_MEDIUM, struct { esp_err_t rc; /*@id esp-err*/ }) \
-  X(ERR_BLE_GATT_FAILED, 0xA504, SE_LEVEL_MEDIUM, struct { esp_err_t rc; /*@id esp-err*/ })
+  X(ERR_BLE_GATT_FAILED, 0xA504, SE_LEVEL_MEDIUM, struct { esp_err_t rc; /*@id esp-err*/ }) \
+  X(ERR_BLE_SERVICE_LOCKED, 0xA505, SE_LEVEL_LOW, struct { uint16_t svc_uuid; }) \
+  X(ERR_BLE_UUID_TAKEN, 0xA506, SE_LEVEL_LOW, struct { uint16_t uuid; })
 
 /** @brief Human-readable descriptions for the sys_ble tags - see SE_describe_payload() in sys_error.h. */
 #define SYS_ERROR_BLE_LOGGER_MAP(X) \
   X(ERR_BLE_STACK_FAILED)           \
   X(ERR_BLE_HARDWARE_FAULT)         \
   X(ERR_BLE_ADV_FAILED)             \
-  X(ERR_BLE_GATT_FAILED)
+  X(ERR_BLE_GATT_FAILED)            \
+  X(ERR_BLE_SERVICE_LOCKED)         \
+  X(ERR_BLE_UUID_TAKEN)
 
 #define LOG_BODY_ERR_BLE_STACK_FAILED(p, out, out_size) snprintf((out), (out_size), "NimBLE stack call failed: %s (0x%x)", esp_err_to_name((p)->rc), (p)->rc)
 #define LOG_BODY_ERR_BLE_HARDWARE_FAULT(p, out, out_size) snprintf((out), (out_size), "BLE hardware fault: %s (0x%x)", esp_err_to_name((p)->rc), (p)->rc)
 #define LOG_BODY_ERR_BLE_ADV_FAILED(p, out, out_size) snprintf((out), (out_size), "BLE advertising failed: %s (0x%x)", esp_err_to_name((p)->rc), (p)->rc)
+#define LOG_BODY_ERR_BLE_SERVICE_LOCKED(p, out, out_size) snprintf((out), (out_size), "BLE service 0x%04X is locked (the board's own): its characteristics can't change", (p)->svc_uuid)
+#define LOG_BODY_ERR_BLE_UUID_TAKEN(p, out, out_size) snprintf((out), (out_size), "BLE UUID 0x%04X is already in use", (p)->uuid)
 #define LOG_BODY_ERR_BLE_GATT_FAILED(p, out, out_size) snprintf((out), (out_size), "BLE GATT call failed: %s (0x%x)", esp_err_to_name((p)->rc), (p)->rc)

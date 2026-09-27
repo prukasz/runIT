@@ -79,8 +79,8 @@ err_h runit_board_i2c_init(void) {
 /* Power layout of this board revision. Both TPS55289 rails are budgeted;
    the INA3221 measures them and the board input. */
 static const sys_power_consumer_t s_power_consumers[] = {
-    {.vreg_id = DEVICE_ID_TPS55289_0, .monitor = {.device_id = DEVICE_ID_INA3221, .channel = RUNIT_BOARD_INA_CH_RAIL_A}},
-    {.vreg_id = DEVICE_ID_TPS55289_1, .monitor = {.device_id = DEVICE_ID_INA3221, .channel = RUNIT_BOARD_INA_CH_RAIL_B}},
+    {.vreg_id = DEVICE_ID_TPS55289_2, .monitor = {.device_id = DEVICE_ID_INA3221, .channel = RUNIT_BOARD_INA_CH_RAIL_A}, .min_mA = DEVICE_TPS55289_MIN_CURRENT_MA},
+    {.vreg_id = DEVICE_ID_TPS55289_1, .monitor = {.device_id = DEVICE_ID_INA3221, .channel = RUNIT_BOARD_INA_CH_RAIL_B}, .min_mA = DEVICE_TPS55289_MIN_CURRENT_MA},
 };
 
 /* Default response per power event; the app can change them at runtime. */
@@ -146,6 +146,8 @@ err_h runit_board_ble_init(void) {
   sys_ble_char_cfg_t logs_cfg = {.uuid = SYS_BLE_CHR_RUNIT_LOGS, .is_notify = true, .desc = "runit LOGS",
                                  .tx_buffer_size = SYS_BUFF_SIZE_FOR(CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX, 4)};
   SE_TRY(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &logs_cfg));
+  /* The command link lives here: a runtime change would rebuild the service and drop the client's subscriptions. */
+  SE_TRY(sys_ble_service_lock(SYS_BLE_SVC_RUNIT));
 
   SE_TRY(sys_ble_database_sync());
   ESP_LOGI(TAG, "BLE initialized");
@@ -241,8 +243,8 @@ err_h runit_board_devices_init(void) {
   }));
 #endif
 #if RUNIT_BOARD_DEV_TPS55289
-  RUNIT_BOARD_DEVICE(DEVICE_ID_TPS55289_0, d_tps55289_create(&(d_tps55289_cfg_t){
-      .device_id = DEVICE_ID_TPS55289_0, .i2c_bus = SYS_I2C_BUS_INTERNAL, .i2c_addr = 0x74,
+  RUNIT_BOARD_DEVICE(DEVICE_ID_TPS55289_2, d_tps55289_create(&(d_tps55289_cfg_t){
+      .device_id = DEVICE_ID_TPS55289_2, .i2c_bus = SYS_I2C_BUS_INTERNAL, .i2c_addr = 0x74,
       .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 1, SYS_IO_MODE_INPUT),
       .en_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 17, SYS_IO_MODE_OUTPUT_PUSH_PULL),
   }));
@@ -255,8 +257,9 @@ err_h runit_board_devices_init(void) {
 #if RUNIT_BOARD_DEV_INA3221
   RUNIT_BOARD_DEVICE(DEVICE_ID_INA3221, d_ina3221_create(&(d_ina3221_cfg_t){
       .device_id = DEVICE_ID_INA3221, .i2c_bus = SYS_I2C_BUS_INTERNAL, .i2c_addr = 0x40,
-      .crit_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 5, SYS_IO_MODE_INPUT),
-      .warn_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 6, SYS_IO_MODE_INPUT),
+      // Critical on TCA 6, warning on TCA 5: measured on the PCB 2026-09-27 (arming each alert moves that pin).
+      .crit_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 6, SYS_IO_MODE_INPUT),
+      .warn_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 5, SYS_IO_MODE_INPUT),
       .inverted_mask = 0x07,  // all three shunts reversed by design (input and both rails)
   }));
 #endif

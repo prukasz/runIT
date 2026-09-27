@@ -197,6 +197,14 @@ static SE_MUST_USE err_h rebalance(bool* starved) {
       *starved = true;
       continue;
     }
+    if (cap_mA < s_board->consumers[i].min_mA) {
+      /* The regulator can't limit this low: the budget doesn't cover the rail at
+         this voltage. The old limit stays programmed and counted. */
+      SYS_DEV_TEARDOWN_STEP(err, SE_ERR_NEW(ERR_POWER_BUDGET_EXCEEDED, .dev_id = s_board->consumers[i].vreg_id,
+                                            .requested_mW = rail_input_mW(c->set_mV, s_board->consumers[i].min_mA), .available_mW = share_mW));
+      allocated += rail_input_mW(c->set_mV, c->applied_mA);
+      continue;
+    }
     if (cap_mA != c->applied_mA) {
       err_h set_err = vreg_hw_set_current(s_board->consumers[i].vreg_id, cap_mA);
       err_h root = set_err ? SE_get_error_root(set_err) : NULL;

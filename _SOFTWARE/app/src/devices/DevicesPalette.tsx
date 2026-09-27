@@ -90,7 +90,7 @@ export function DevicesPalette({ workspace: w }: { workspace: DevicesWorkspace }
                     icon={<DeviceTile appearance={device.appearance} type={w.catalog.type(device.type)} size="small" />}
                     label={device.name}
                     title={w.catalog.type(device.type)?.title}
-                    badges={<>{w.diagnostics.some((entry) => entry.subjectId === device.id || entry.subjectId === `setup:${device.id}`) && <span className="devices-error-dot" title="Has problems" />}<span className="ble-uuid-chip">#{device.deviceId}</span></>}
+                    badges={<>{w.diagnostics.some((entry) => entry.severity === 'error' && (entry.subjectId === device.id || entry.subjectId === `setup:${device.id}`)) && <span className="devices-error-dot" title="Has problems" />}<span className="ble-uuid-chip">#{device.deviceId}</span></>}
                     actions={<button type="button" className="tree-slab-action" title="Delete device" aria-label={`Delete ${device.name}`} onClick={(event) => { event.stopPropagation(); w.removeDevice(device.id) }}><Trash2 aria-hidden="true" /></button>}
                   />
                 ))}

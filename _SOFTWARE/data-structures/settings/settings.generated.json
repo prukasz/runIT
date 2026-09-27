@@ -129,6 +129,13 @@
               "required": true
             }
           }
+        },
+        {
+          "id": "packet_settings_ble_apply_t",
+          "packet": "packet_settings_ble_apply_t",
+          "packet_header": "0x05",
+          "field_order": [],
+          "fields": {}
         }
       ]
     },

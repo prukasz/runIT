@@ -34,10 +34,10 @@
 //@param duty @alias Duty @type uint32_t @unit ticks @min 0 @max PCA9685_MAX_PWM_VALUE
 //@description Duty values above 4095 are clamped by the adapter.
 
-//@contract packet_sys_io_set_pwm_frequency_t @alias Set PWM frequency
-//@param pin @arg PIN @alias PWM Channel
-//@param frequency_Hz @alias PWM Frequency @type uint32_t @unit Hz
-//@description Frequency is shared by all PCA9685 output channels.
+//@contract packet_sys_io_set_pwm_frequency_t @alias Set PWM frequency (all channels)
+//@param pin @device-wide
+//@param frequency_Hz @alias PWM Frequency @type uint32_t @unit Hz @min PCA9685_MIN_FREQUENCY_HZ @max PCA9685_MAX_FREQUENCY_HZ @default 50
+//@description The PCA9685 has one PWM frequency for all 16 channels: setting it changes every channel.
 
 #define HEADER_packet_sys_device_install_pca9685_t 0x41
 typedef struct __packed {

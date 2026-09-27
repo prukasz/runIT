@@ -1,12 +1,14 @@
 import { packPacket } from '../../backend/packetPack'
 import type { VmCatalog } from '../descriptors'
 import type { ObjectSection, ProjectDocument } from '../project'
+import { compileAccessors } from './accessors'
+import type { AccessorLayout, AccessorRequest } from './accessors'
 import { compileObjects } from './objects'
 import type { Diagnostic, ObjectLayout } from './objects'
 
 /*
- * Project → the VM load sequence: 0x41 open, 0x42 objects, 0x43 values.
- * Accessors (0x44) and blocks (0x45) come with the canvas. Every frame is
+ * Project → the VM load sequence: 0x41 open, 0x42 objects, 0x43 values, 0x44
+ * accessors. Blocks (0x45) come with the canvas. Every frame is
  * [class][packet][body] without the seq byte (CommandClient adds it), at most
  * `maxFrameBytes` long; batched packets are split to fit.
  */
@@ -16,6 +18,10 @@ export interface CompileOptions {
   readonly maxFrameBytes: number
   /** Object sections after the user's tree (block outputs, ENO), numbered in order. */
   readonly sections?: readonly ObjectSection[]
+  /** Paths the blocks read and write (pins, enable sources), by use key. */
+  readonly accessors?: readonly AccessorRequest[]
+  /** Folder entries (project IDs) whose slot a block re-links at run time (CLONE's target). */
+  readonly liveCells?: ReadonlySet<string>
 }
 
 export interface CompiledProgram {
@@ -24,6 +30,7 @@ export interface CompiledProgram {
   readonly diagnostics: readonly Diagnostic[]
   readonly frames: readonly Uint8Array[]
   readonly objects: ObjectLayout
+  readonly accessors: AccessorLayout
   readonly counts: { readonly objects: number; readonly accessors: number; readonly blocks: number }
   readonly arenaBytes: number
   readonly retainBytes: number
@@ -91,9 +98,10 @@ export const dataRecords = (catalog: VmCatalog, data: ReturnType<typeof compileO
 
 export const compileProgram = (project: ProjectDocument, catalog: VmCatalog, options: CompileOptions): CompiledProgram => {
   const objects = compileObjects(project, catalog, options.sections)
-  const diagnostics = [...objects.diagnostics]
-  const counts = { objects: objects.layout.objects.length, accessors: 0, blocks: 0 }
-  const arenaBytes = objects.arenaBytes
+  const accessors = compileAccessors(options.accessors ?? [], objects.layout, catalog, { liveCells: options.liveCells })
+  const diagnostics = [...objects.diagnostics, ...accessors.diagnostics]
+  const counts = { objects: objects.layout.objects.length, accessors: accessors.layout.accessors.length, blocks: 0 }
+  const arenaBytes = objects.arenaBytes + accessors.arenaBytes
   if (arenaBytes > catalog.arena.maxBytes) diagnostics.push({ severity: 'error', message: `The program needs ${arenaBytes} bytes of arena, the device has ${catalog.arena.maxBytes}.`, firmwareError: 'ERR_VM_LOAD_TOO_BIG' })
 
   let frames: Uint8Array[] = []
@@ -116,6 +124,8 @@ export const compileProgram = (project: ProjectDocument, catalog: VmCatalog, opt
         open,
         ...batchFrames(catalog, 'addObjects', objects.createRecords, options.maxFrameBytes),
         ...batchFrames(catalog, 'setData', dataRecords(catalog, objects.data, options.maxFrameBytes), options.maxFrameBytes),
+        // In wire ID order: an accessor a dynamic step reads has the lower ID, so it exists first.
+        ...batchFrames(catalog, 'addAccessors', accessors.records, options.maxFrameBytes),
       ]
     } catch (error) {
       diagnostics.push({ severity: 'error', message: error instanceof Error ? error.message : String(error) })
@@ -127,6 +137,7 @@ export const compileProgram = (project: ProjectDocument, catalog: VmCatalog, opt
     diagnostics,
     frames,
     objects: objects.layout,
+    accessors: accessors.layout,
     counts,
     arenaBytes,
     retainBytes: objects.retainBytes,

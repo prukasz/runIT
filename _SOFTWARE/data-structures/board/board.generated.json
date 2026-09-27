@@ -278,8 +278,8 @@
     },
     {
       "id": 10,
-      "symbol": "DEVICE_ID_TPS55289_0",
-      "name": "TPS55289_0",
+      "symbol": "DEVICE_ID_TPS55289_2",
+      "name": "TPS55289_2",
       "driver": "tps55289",
       "descriptor": "device_tps55289",
       "title": "TPS55289 buck-boost regulator",
@@ -346,13 +346,13 @@
         {
           "use": "crit_pin",
           "device": 1,
-          "pin": 5,
+          "pin": 6,
           "mode": "SYS_IO_MODE_INPUT"
         },
         {
           "use": "warn_pin",
           "device": 1,
-          "pin": 6,
+          "pin": 5,
           "mode": "SYS_IO_MODE_INPUT"
         }
       ]

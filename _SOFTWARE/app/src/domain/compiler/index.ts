@@ -1,3 +1,5 @@
+export { compileAccessors } from './accessors'
+export type { AccessorLayout, AccessorOptions, AccessorRequest, CompiledAccessors, PlacedAccessor, WireStep } from './accessors'
 export { compileObjects, encodeObjectValue } from './objects'
 export type { CompiledObjects, Diagnostic, ObjectLayout, PlacedObject } from './objects'
 export { compileProgram } from './program'

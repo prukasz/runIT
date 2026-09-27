@@ -459,7 +459,21 @@ static void sys_ble_task_func(void* pvParameters) {
   uint8_t tx_data[BLE_ATT_MTU_MAX - SYS_BLE_ATT_NOTIFY_HDR_LEN];
 
   while (1) {
-    xSemaphoreTake(sys_ble_tx_sem, portMAX_DELAY);
+    /* A pending apply bounds the wait: it runs once its delay is over. */
+    R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+    TickType_t wait = portMAX_DELAY;
+    if (g_ble_ctx.apply_pending) {
+      TickType_t left = g_ble_ctx.apply_at - xTaskGetTickCount();
+      wait = ((int32_t)left > 0) ? left : 0;
+    }
+    R_MUTEX_UNLOCK(sys_ble_mutex);
+    xSemaphoreTake(sys_ble_tx_sem, wait);
+
+    R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+    bool apply_due = g_ble_ctx.apply_pending && (int32_t)(xTaskGetTickCount() - g_ble_ctx.apply_at) >= 0;
+    R_MUTEX_UNLOCK(sys_ble_mutex);
+    if (apply_due) SE_REPORT(sys_ble_database_sync());
+
     while (1) {
       uint16_t val_handle = 0;
       bool indicate = false;

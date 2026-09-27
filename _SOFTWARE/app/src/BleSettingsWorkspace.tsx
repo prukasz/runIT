@@ -152,14 +152,20 @@ export function useBleSettingsWorkspace(onSelect?: (id: string) => void) {
     pushState(next)
   }
 
+  /** The first UUID from `start` up that no service or characteristic uses (the board's included). */
+  const freeUuid = (start: number): string => {
+    const used = new Set(profile.services.flatMap((s) => [parseInt(s.uuid, 16), ...s.characteristics.map((c) => parseInt(c.uuid, 16))]))
+    let value = start & 0xffff
+    while (used.has(value) || value === 0) value = (value + 1) & 0xffff
+    return `0x${value.toString(16).toUpperCase().padStart(4, '0')}`
+  }
+
   const addService = () => {
     const svcIndex = profile.services.length + 1
-    const hexNum = (0xffe0 + svcIndex) & 0xffff
-    const hex = hexNum.toString(16).toUpperCase().padStart(4, '0')
     const newService: BleService = {
       id: newId('svc'),
       name: `Custom Service ${svcIndex}`,
-      uuid: `0x${hex}`,
+      uuid: freeUuid(0xff00),
       isPrimary: true,
       advertised: false,
       characteristics: [],
@@ -179,19 +185,18 @@ export function useBleSettingsWorkspace(onSelect?: (id: string) => void) {
         ? selectedItem.service.id
         : selectedItem?.kind === 'characteristic'
           ? selectedItem.service.id
-          : profile.services[0]?.id)
+          : profile.services.find((s) => !isSystemBleService(s))?.id)
     if (!targetServiceId) return
     const service = profile.services.find((s) => s.id === targetServiceId)
-    if (!service) return
+    // The board's service is locked on the board (sys_ble_service_lock): user characteristics go in user services.
+    if (!service || isSystemBleService(service)) return
 
     const charIndex = service.characteristics.length + 1
-    const baseUuidNum = parseInt(service.uuid, 16) || 0xffe0
-    const charUuidHex = (baseUuidNum + charIndex).toString(16).toUpperCase().padStart(4, '0')
 
     const newChar: BleCharacteristic = {
       id: newId('chr'),
       name: `Characteristic_${charIndex}`,
-      uuid: `0x${charUuidHex}`,
+      uuid: freeUuid((parseInt(service.uuid, 16) || 0xff00) + 1),
       read: true,
       write: false,
       writeNoResponse: false,
@@ -963,14 +968,16 @@ export function BleSettingsEditor({ workspace: w }: { workspace: BleSettingsWork
                     )
                   })}
 
-                  <button
-                    type="button"
-                    className="ble-add-char-inline-btn"
-                    onClick={() => w.addCharacteristic(service.id)}
-                  >
-                    <Plus aria-hidden="true" />
-                    <span>Add Characteristic</span>
-                  </button>
+                  {!isSystemBleService(service) && (
+                    <button
+                      type="button"
+                      className="ble-add-char-inline-btn"
+                      onClick={() => w.addCharacteristic(service.id)}
+                    >
+                      <Plus aria-hidden="true" />
+                      <span>Add Characteristic</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>

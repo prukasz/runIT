@@ -258,7 +258,7 @@
         }
       ],
       "alias": "Configure current alert",
-      "description": "Set the selected channel's critical or warning over-current alert. It is raised as a power event; link it with an event subscription.",
+      "description": "Set the selected channel's critical or warning over-current alert. It is raised as a power event; link it with an event subscription. On a reversed shunt (the board's own INA3221) each alert watches one channel: the critical and the warning alert can each be set on one channel.",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
         "class_name": "SYS_CONTRACTS",

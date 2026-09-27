@@ -208,6 +208,7 @@ export interface GeneratedVmProgramFile {
     readonly batch?: { readonly count_type: string; readonly max: number }
     readonly record: { readonly name: string; readonly size: number }
   }[]
+  readonly unions: Readonly<Record<string, { readonly cases: readonly { readonly symbol: string; readonly value: number; readonly record: { readonly size: number } }[] }>>
   readonly telemetry: { readonly stream: string; readonly class_header: string; readonly frames: readonly { readonly packet_header: string; readonly symbol: string }[] }
 }
 

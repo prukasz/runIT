@@ -17,7 +17,7 @@
 #define RUNIT_BOARD_POWER_UNKNOWN_SOURCE_MA 1000  // assumed while the source's current limit is unknown
 #define RUNIT_BOARD_VREG_EFFICIENCY_PCT 90        // TPS55289 rails
 // INA3221 channels (0-based), measured on the PCB 2026-09-24: rail A (TPS55289 0x74,
-// DEVICE_ID_TPS55289_0) on 2, the board input on 1, rail B (0x75, _1) on 0.
+// DEVICE_ID_TPS55289_2) on 2, the board input on 1, rail B (0x75, _1) on 0.
 // All three shunts are wired reversed by design (INA3221 inverted_mask = 0x07).
 #define RUNIT_BOARD_INA_CH_RAIL_B 0
 #define RUNIT_BOARD_INA_CH_INPUT 1
@@ -42,7 +42,7 @@
 #define DEVICE_ID_DRV8962_0 5 //@STATIC_DEVICE
 #define DEVICE_ID_DRV8962_1 6 //@STATIC_DEVICE
 
-#define DEVICE_ID_TPS55289_0 10  //@STATIC_DEVICE
+#define DEVICE_ID_TPS55289_2 10  //@STATIC_DEVICE
 #define DEVICE_ID_TPS55289_1 11  //@STATIC_DEVICE
 #define DEVICE_ID_INA3221 12     //@STATIC_DEVICE
 #define DEVICE_ID_AP33772S 13    //@STATIC_DEVICE

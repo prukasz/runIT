@@ -129,6 +129,7 @@ typedef struct sys_power_source_pin_t {
 typedef struct sys_power_consumer_t {
   uint8_t vreg_id;             /* device with the POWER_VREG contract */
   sys_power_channel_t monitor; /* channel measuring this rail's output, or device SYS_POWER_NO_DEVICE */
+  uint32_t min_mA;             /* lowest current limit the regulator takes: a share below it can't run the rail */
 } sys_power_consumer_t;
 
 /* Board power layout. Owned by the board config; must stay valid (static). */

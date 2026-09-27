@@ -47,4 +47,10 @@ export interface BleAdapter {
   write(characteristic: BleCharacteristic, data: Uint8Array, withResponse?: boolean): Promise<void>
   subscribe(characteristic: BleCharacteristic, handler: BleNotificationHandler): Promise<() => Promise<void>>
   onDisconnect(handler: BleDisconnectHandler): () => void
+  /**
+   * Drop and re-open the link to the connected device (no chooser), then
+   * discover(). Disconnect handlers are not called. For after the device
+   * changed its GATT table: the OS may have dropped every GATT object.
+   */
+  reconnect(): Promise<BleGattDatabase>
 }

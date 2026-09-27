@@ -17,6 +17,7 @@
     "protocols": { "type": "array", "items": { "type": "string" } },
     "tags": { "type": "array", "items": { "type": "string" } },
     "datasheet": { "type": "string", "format": "uri", "description": "Manufacturer datasheet (PDF URL), from //@datasheet." },
+    "pwm_frequencies": { "type": "integer", "minimum": 1, "description": "Different PWM frequencies the device runs at once (per-pin frequencies on shared timers), from //@pwm-frequencies." },
     "source_file": { "type": "string" },
     "contractProvider": {
       "oneOf": [{ "type": "null" }, { "type": "string" }, { "$ref": "#/$defs/symbolRef" }]
@@ -122,7 +123,8 @@
         "default": { "type": ["integer", "string"] },
         "required": { "type": "boolean" },
         "enum_ref": { "type": "string" },
-        "instance": { "const": true }
+        "instance": { "const": true },
+        "device_wide": { "const": true, "description": "The field selects nothing (//@param <field> @device-wide): the call applies to the whole device; the field is sent as 0." }
       }
     },
     "contractEntry": {

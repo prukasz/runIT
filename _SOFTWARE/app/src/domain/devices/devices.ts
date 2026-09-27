@@ -302,7 +302,7 @@ export const describeStep = (catalog: DeviceCatalog, devices: readonly ProjectDe
   const device = resolveDevice(catalog, devices, step.device)
   const contract = findContract(catalog, device, step.contract)
   const values = contract?.parameters
-    .filter((parameter) => !parameter.instance)
+    .filter((parameter) => !parameter.instance && !parameter.deviceWide)
     .map((parameter) => {
       const value = parameterValue(parameter, step.values)
       if (Array.isArray(value)) return `${parameter.label} [${value.join(', ')}]`

@@ -2,7 +2,9 @@
 #include "sys_i2c.h"
 
 #define PCA9685_I2C_DEFAULT_FREQUENCY   100000
-#define PCA9685_MAX_PWM_VALUE           4095   
+#define PCA9685_MAX_PWM_VALUE           4095
+#define PCA9685_MIN_FREQUENCY_HZ        24    // prescaler 255 at the 25 MHz oscillator
+#define PCA9685_MAX_FREQUENCY_HZ        1526  // prescaler 3   
 #define PCA9685_CHANNEL_ALL             16
 
 typedef struct _pca9685_data_t {

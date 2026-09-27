@@ -362,7 +362,8 @@ function DeviceGuide({ type }: { type?: DeviceType }) {
 function ActionSummary({ workspace: w, actionId }: { workspace: DevicesWorkspace; actionId: string }) {
   const action = w.actions.find((entry) => entry.id === actionId)
   if (!action) return <div className="object-editor devices-editor"><p className="devices-muted">This action is gone.</p></div>
-  const build = buildAction(w.catalog, w.devices, action)
+  const built = buildAction(w.catalog, w.devices, action)
+  const build = { ...built, diagnostics: [...built.diagnostics, ...w.diagnostics.filter((entry) => entry.subjectId === action.id)] }
   return (
     <div className="object-editor devices-editor">
       <div className="devices-page-header">
@@ -432,7 +433,8 @@ function StepEditor({ workspace: w, action, step, index }: { workspace: DevicesW
 
 /** The composer: over the dimmed app, a list of contract calls recorded as one action. */
 function ActionComposer({ workspace: w, action, session }: { workspace: DevicesWorkspace; action: ProjectAction; session?: RunitBleSession }) {
-  const build = buildAction(w.catalog, w.devices, action)
+  const built = buildAction(w.catalog, w.devices, action)
+  const build = { ...built, diagnostics: [...built.diagnostics, ...w.diagnostics.filter((entry) => entry.subjectId === action.id)] }
   const [status, setStatus] = useState<{ ok: boolean; text: string }>()
   const [busy, setBusy] = useState(false)
   const onBoard = async (label: string, steps: Parameters<typeof sendSteps>[1]) => {

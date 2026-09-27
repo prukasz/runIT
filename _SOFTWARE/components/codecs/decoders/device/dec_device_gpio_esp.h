@@ -9,6 +9,7 @@
 //@description The board's own onboard GPIO pins - digital input/output, interrupts, ADC voltage reads and PWM outputs. Always available; nothing to install on the wire beyond a device ID.
 //@protocol native
 //@tags gpio io adc voltage pwm
+//@pwm-frequencies CONFIG_DEVICE_GPIO_ESP_PWM_TIMER_MASK @count-bits
 //@datasheet https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf
 //@contract-provider $SYS_DEVICE_CONTRACT_IO
 // ESP32-S3 GPIOs (SOC_GPIO_VALID_GPIO_MASK): 0-21 and 26-48.

@@ -26,4 +26,4 @@ export { runitCommandCatalog, runitDeviceCatalog, runitEnumValue, runitErrorCata
 export { buildValueNames } from './valueNames'
 export type { NamedField, ValueNames, ValueNameSources } from './valueNames'
 export { buildVmCatalog, decodeVmObjectHead, encodeVmObjectHead } from './vmCatalog'
-export type { VmCatalog, VmHeadField, VmObjectType, VmPacketWire } from './vmCatalog'
+export type { VmCatalog, VmHeadField, VmIndexKind, VmObjectType, VmPacketWire } from './vmCatalog'

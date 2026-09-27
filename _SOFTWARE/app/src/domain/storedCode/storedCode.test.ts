@@ -32,8 +32,8 @@ const blocks: ObjectSection = { key: 'blocks', owner: 'block', objects: [value('
 
 const userSettings: SettingsState = {
   services: [
-    { ...defaults.services[0]!, characteristics: [...defaults.services[0]!.characteristics, char('c-sys-extra', '0xFF30')] },
-    { id: 's-user', name: 's', uuid: '0xFF10', isPrimary: true, characteristics: [char('c-a', '0xFF11', { txBufferSize: 64 }), char('c-b', '0xFF12', { write: true, writeNoResponse: true, notify: false, txBufferSize: 0, rxBufferSize: 520 })] },
+    defaults.services[0]!,
+    { id: 's-user', name: 's', uuid: '0xFF10', isPrimary: true, characteristics: [char('c-a', '0xFF11', { txBufferSize: 64 }), char('c-extra', '0xFF30'), char('c-b', '0xFF12', { write: true, writeNoResponse: true, notify: false, txBufferSize: 0, rxBufferSize: 520 })] },
   ],
   connectors: [
     ...defaults.connectors,

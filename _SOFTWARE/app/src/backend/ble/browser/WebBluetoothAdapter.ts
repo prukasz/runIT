@@ -77,6 +77,8 @@ export class WebBluetoothAdapter implements BleAdapter {
   private readonly stateHandlers = new Set<BleConnectionStateHandler>()
   private readonly notificationHandlers = new Map<string, EventListener>()
   private state: BleConnectionState = 'idle'
+  /** reconnect() is dropping the link on purpose: the disconnect is not reported. */
+  private reconnecting = false
   /** Chromium runs one GATT operation at a time and rejects overlapping ones; this chain orders them. */
   private gattChain: Promise<unknown> = Promise.resolve()
   private diagnostics: BleDiagnostics = {
@@ -322,11 +324,33 @@ export class WebBluetoothAdapter implements BleAdapter {
     this.device.addEventListener('gattserverdisconnected', this.handleDisconnect)
   }
 
+  async reconnect(): Promise<BleGattDatabase> {
+    const device = this.device
+    if (!device?.gatt?.connected) throw new BleAdapterError('Connect before reconnecting.', 'not-connected')
+    this.reconnecting = true
+    try {
+      device.gatt.disconnect()
+      // gattserverdisconnected is dispatched as a task: let it run while the drop is still ours.
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      this.setState('connecting')
+      await device.gatt.connect()
+      this.diagnostics = { ...this.diagnostics, connectCount: this.diagnostics.connectCount + 1, lastConnectedAt: Date.now() }
+      this.setState('connected')
+    } catch (error) {
+      this.setState('failed')
+      throw error
+    } finally {
+      this.reconnecting = false
+    }
+    return this.discover()
+  }
+
   private readonly handleDisconnect = (): void => {
     const disconnected = this.device
     this.database = undefined
     this.characteristics.clear()
     this.notificationHandlers.clear()
+    if (this.reconnecting) return
     this.diagnostics = { ...this.diagnostics, lastDisconnectedAt: Date.now() }
     this.setState('disconnected')
     if (disconnected) {

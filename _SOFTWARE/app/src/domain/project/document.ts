@@ -262,6 +262,27 @@ export interface ObjectSection {
   readonly objects: readonly ObjectNode[]
 }
 
+/**
+ * What a block pin reads or writes: an object of the tree, then steps below it
+ * (compiled to a VM accessor). Each step picks an element of the object reached
+ * so far; when that element is a folder's child, the next step goes into the
+ * child. A path that ends on a folder's child is its slot in the folder (what
+ * CLONE writes into), not the child itself.
+ */
+export interface ObjectPath {
+  /** Project ID of a value, folder or reference (any section). */
+  readonly root: string
+  readonly steps?: readonly PathStep[]
+}
+
+export type PathStep =
+  /** A fixed element or child position. */
+  | { readonly kind: 'index'; readonly index: number }
+  /** The child with this name: for data whose shape is only known at run time (CLONE copies). */
+  | { readonly kind: 'name'; readonly name: string }
+  /** The position is read from another path on every use (a selector, a step counter). */
+  | { readonly kind: 'dynamic'; readonly index: ObjectPath }
+
 /** The user's tree as the first section. */
 export const userSection = (project: ProjectDocument): ObjectSection => ({ key: 'user', owner: 'user', objects: project.objects })
 

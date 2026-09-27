@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { AlertCircle, ChevronDown, ChevronRight, Download, ListPlus, Send, SlidersHorizontal, Trash2 } from 'lucide-react'
+import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Download, ListPlus, Send, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { decodeResponseData } from '../domain/descriptors'
 import type { DeviceContract } from '../domain/descriptors'
-import { contractFrame, contractsOf, describeStep, findContract, installFrame, resolveDevice } from '../domain/devices'
+import { contractFrame, contractsOf, describeStep, findContract, frequencyWarnings, installFrame, resolveDevice, SET_PWM_FREQUENCY } from '../domain/devices'
 import type { ResolvedDevice } from '../domain/devices'
 import type { StepValues } from '../domain/project'
 import { toHex } from '../domain/upload'
@@ -75,8 +75,8 @@ function Commands({ workspace: w, device, session }: { workspace: DevicesWorkspa
   const [busy, setBusy] = useState(false)
 
   const project = w.devices.find((entry) => entry.id === device.ref)
-  const installProblems = w.diagnostics.some((entry) => entry.subjectId === device.ref)
-  const setupProblems = w.diagnostics.some((entry) => entry.subjectId === `setup:${device.ref}`)
+  const installProblems = w.diagnostics.some((entry) => entry.severity === 'error' && entry.subjectId === device.ref)
+  const setupProblems = w.diagnostics.some((entry) => entry.severity === 'error' && entry.subjectId === `setup:${device.ref}`)
   const defaults = [...w.setup.filter((step) => step.device === device.ref && step.contract === SET_MODE), ...w.setup.filter((step) => step.device === device.ref && step.contract !== SET_MODE)]
   const all = contractsOf(w.catalog, device)
   const quick = QUICK.flatMap((name) => all.filter((contract) => contract.kind === 'device' && contract.command.name === `sys_device_${name}`))
@@ -106,6 +106,10 @@ function Commands({ workspace: w, device, session }: { workspace: DevicesWorkspa
   const card = (contract: DeviceContract) => {
     const expanded = open === contract.id
     const result = results[contract.id]
+    const current = valuesOf(contract)
+    const warnings = contract.id === SET_PWM_FREQUENCY && typeof current.frequency_Hz === 'number'
+      ? frequencyWarnings(w.catalog, w.devices, w.setup, w.actions, { device: device.ref, hz: current.frequency_Hz, ...(typeof current.pin === 'number' ? { pin: current.pin } : {}) })
+      : []
     return (
       <div key={contract.id} className={`devices-contract ${expanded ? 'is-open' : ''}`}>
         <button type="button" className="devices-contract-head" onClick={() => setOpen(expanded ? undefined : contract.id)} aria-expanded={expanded}>
@@ -116,6 +120,7 @@ function Commands({ workspace: w, device, session }: { workspace: DevicesWorkspa
         {expanded && (
           <div className="devices-contract-body">
             {contract.description && <p className="devices-muted">{contract.description}</p>}
+            {warnings.map((warning) => <p key={warning} className="program-diag is-warning"><AlertTriangle aria-hidden="true" />{warning}</p>)}
             <ContractFields contract={contract} deviceId={device.deviceId} values={valuesOf(contract)} actions={w.actions} onChange={(next) => setValues((current) => ({ ...current, [contract.id]: next }))} />
             {contract.returns && <p className="devices-hint">Returns {contract.returns.split(' @')[0]}</p>}
             <div className="program-actions">

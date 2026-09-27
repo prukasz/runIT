@@ -20,6 +20,9 @@ typedef struct {
 
   uint8_t crit_sub; /* sys_event subscriptions on the alert pins */
   uint8_t warn_sub;
+
+  /* Reversed-shunt channel armed on the critical [0] / warning [1] pin, -1 = none (set_inverted_alert). */
+  int8_t inverted_alert[2];
 } ina_adapter_ctx_t;
 
 enum { INA_STEP_I2C_ADDED = 0, INA_STEP_CRIT_READY = 1, INA_STEP_WARN_READY = 2, INA_STEP_CRIT_SUB = 3, INA_STEP_WARN_SUB = 4 };
@@ -61,21 +64,54 @@ static SE_MUST_USE err_h contract_monitor_ina3221_get_current(void* device_handl
   return NULL;
 }
 
+/* An alert pin's interrupt edge; the pin stays locked to this device. */
+static SE_MUST_USE err_h set_pin_edge(sys_io_pin_ref_t pin, sys_io_intr_mode_e mode) {
+  SE_TRY(sys_io_unlock_pin(pin));
+  sys_io_intr_config_t intr_cfg = {.mode = mode};
+  err_h err = sys_io_configure_intr(pin, &intr_cfg);
+  SYS_DEV_TEARDOWN_STEP(err, sys_io_lock_pin(pin));
+  return err;
+}
+
+/* A reversed shunt reads negative and the chip compares signed, so the limit
+   is -threshold: the alert is active while the current is below the threshold
+   and releases above it (checked on the PCB). It is transparent (not latched),
+   and its pin takes this one channel only - an active channel holds the shared
+   pin and would hide the others. The pin's release (rising edge) is the alert. */
+static SE_MUST_USE err_h set_inverted_alert(ina_adapter_ctx_t* ctx, ina3221_handle_t hw, uint8_t channel, bool critical, int32_t threshold_mA) {
+  SE_CHECK_IN_RANGE(threshold_mA, 1, INT32_MAX);
+  sys_io_pin_ref_t pin = critical ? ctx->cfg.crit_pin : ctx->cfg.warn_pin;
+  if (!sys_io_pin_is_valid(pin)) SE_FAIL(ERR_DEV_FEATURE_UNAVAILABLE, SYS_DEV_GET_ID(ctx), SYS_DEVICE_CONTRACT_POWER_MONITOR, INA_FEATURE_SET_ALERT);
+  int8_t* armed = &ctx->inverted_alert[critical ? 0 : 1];
+  if (*armed >= 0 && *armed != channel) SE_FAIL(ERR_IO_PIN_ALREADY_IN_USE, pin.device_id, pin.pin, pin.mode);
+  // Rising edge first: arming pulls the pin low (its normal state now), which must not count.
+  if (*armed < 0) SE_TRY(set_pin_edge(pin, SYS_IO_INTR_MODE_RISING_EDGE));
+  SYS_DEV_CHECK_DRIVER_CALL(ina3221_enable_latch_pin(hw, critical ? hw->mask.wen : false, critical ? false : hw->mask.cen), ctx);
+  SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_alert(hw, channel, -threshold_mA, critical), ctx);
+  *armed = (int8_t)channel;
+  return NULL;
+}
+
+/* After a chip reset (limits at their defaults): the armed reversed-shunt alerts are gone, their pins back to the falling edge. */
+static SE_MUST_USE err_h disarm_inverted_alerts(ina_adapter_ctx_t* ctx) {
+  err_h err = NULL;
+  const sys_io_pin_ref_t pins[2] = {ctx->cfg.crit_pin, ctx->cfg.warn_pin};
+  for (int i = 0; i < 2; i++) {
+    if (ctx->inverted_alert[i] < 0) continue;
+    ctx->inverted_alert[i] = -1;
+    SYS_DEV_TEARDOWN_STEP(err, set_pin_edge(pins[i], SYS_IO_INTR_MODE_FALLING_EDGE));
+  }
+  return err;
+}
+
 static SE_MUST_USE err_h contract_monitor_ina3221_set_alert(void* device_handle, uint8_t channel, sys_power_events_e alert, int32_t threshold_mA) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, device_handle);
   SE_CHECK_IN_RANGE(channel, 0, 2);
-  if (ctx->cfg.inverted_mask & (1u << channel)) {
-    SE_FAIL(ERR_DEV_FEATURE_UNAVAILABLE, SYS_DEV_GET_ID(ctx), SYS_DEVICE_CONTRACT_POWER_MONITOR, INA_FEATURE_SET_ALERT);  // reversed shunt: the limit could never trip
-  }
+  bool critical = alert == SYS_PWR_EVENT_OCP_CRITICAL;
+  if (!critical && alert != SYS_PWR_EVENT_OCP_WARNING) SE_FAIL(ERR_DEV_FEATURE_UNAVAILABLE, SYS_DEV_GET_ID(ctx), 0, alert);
+  if (ctx->cfg.inverted_mask & (1u << channel)) return set_inverted_alert(ctx, hw, channel, critical, threshold_mA);
 
-  if (alert == SYS_PWR_EVENT_OCP_CRITICAL) {
-    SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_alert(hw, channel, threshold_mA, true), ctx);
-  } else if (alert == SYS_PWR_EVENT_OCP_WARNING) {
-    SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_alert(hw, channel, threshold_mA, false), ctx);
-  } else {
-    SE_FAIL(ERR_DEV_FEATURE_UNAVAILABLE, SYS_DEV_GET_ID(ctx), 0, alert);
-  }
-
+  SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_alert(hw, channel, threshold_mA, critical), ctx);
   return NULL;
 }
 
@@ -114,6 +150,7 @@ static SE_MUST_USE err_h device_reset(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
 
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_reset(hw), ctx);
+  SE_TRY(disarm_inverted_alerts(ctx));
   // Enable latches & options (Warning & Critical alert latch)
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_enable_latch_pin(hw, true, true), ctx);
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_options(hw, true, true, true), ctx);
@@ -163,6 +200,7 @@ static SE_MUST_USE err_h device_install(const void* cfg_blob, void** out_device_
   SE_CHECK_IN_RANGE(cfg->i2c_addr, INA3221_I2C_ADDR_GND, INA3221_I2C_ADDR_SCL);
 
   SYS_DEV_CTX_NEW(ina_adapter_ctx_t, ctx, cfg);
+  ctx->inverted_alert[0] = ctx->inverted_alert[1] = -1;
   err_h err = NULL;
 
   ctx->base.hw_handle = ina3221_new(ctx->cfg.i2c_addr, ctx->cfg.i2c_bus);
@@ -219,12 +257,27 @@ static SE_MUST_USE err_h device_event_handler(const sys_event_t* event, void* ha
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
   // Read and clear alert flags from the mask/status register
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_get_status(hw), ctx);
+
+  // A reversed-shunt alert's pin released: that channel went over its threshold.
+  bool on_crit = event->device_id == ctx->cfg.crit_pin.device_id && event->channel == ctx->cfg.crit_pin.pin;
+  bool on_warn = event->device_id == ctx->cfg.warn_pin.device_id && event->channel == ctx->cfg.warn_pin.pin;
+  int8_t inverted = on_crit ? ctx->inverted_alert[0] : on_warn ? ctx->inverted_alert[1] : -1;
+  if (inverted >= 0) {
+    int32_t ma_val = 0;
+    err_h alert_err = NULL;
+    SYS_DEV_TEARDOWN_DRIVER_STEP(alert_err, ina_read_current(ctx, hw, (uint8_t)inverted, &ma_val), ctx);
+    SYS_DEV_TEARDOWN_STEP(alert_err, sys_power_publish(SYS_DEV_GET_ID(ctx), (uint8_t)inverted, on_crit ? SYS_PWR_EVENT_OCP_CRITICAL : SYS_PWR_EVENT_OCP_WARNING, ma_val, SYS_EVENT_CAUSED_BY(event)));
+    return alert_err;
+  }
+
   // Every flagged channel is published, even if a current read fails (the
   // value is then 0); the first failure is returned.
   err_h err = NULL;
   // Check critical alert flags
+  // A reversed-shunt channel's flag is set while it is under its threshold (its normal state): skipped.
   uint8_t cf = hw->mask.cf;
   for (uint8_t ch = 0; ch < 3; ch++) {
+    if (ctx->cfg.inverted_mask & (1u << ch)) continue;
     if (((cf >> (2 - ch)) & 1)) {
       int32_t ma_val = 0;
       SYS_DEV_TEARDOWN_DRIVER_STEP(err, ina_read_current(ctx, hw, ch, &ma_val), ctx);
@@ -234,6 +287,7 @@ static SE_MUST_USE err_h device_event_handler(const sys_event_t* event, void* ha
   // Check warning alert flags
   uint8_t wf = hw->mask.wf;
   for (uint8_t ch = 0; ch < 3; ch++) {
+    if (ctx->cfg.inverted_mask & (1u << ch)) continue;
     if (((wf >> (2 - ch)) & 1)) {
       int32_t ma_val = 0;
       SYS_DEV_TEARDOWN_DRIVER_STEP(err, ina_read_current(ctx, hw, ch, &ma_val), ctx);

@@ -14,11 +14,11 @@ The first argument is the decoders root to scan, the second is the output direct
 
 | Case | Keywords |
 |---|---|
-| Device metadata (top-level, before first `//@contract`) | `id`, `version`, `title`, `description`, `protocol`, `tags`, `datasheet`, `contract-provider` |
+| Device metadata (top-level, before first `//@contract`) | `id`, `version`, `title`, `description`, `protocol`, `tags`, `datasheet`, `contract-provider`, `pwm-frequencies` |
 | `//@self-property NAME` | `one-of` |
 | `//@property NAME` | `enum-ref`, `one-of` |
 | `//@contract <packet>` | `alias` |
-| `//@param <field>` | `arg`, `alias`, `type`, `unit`, `one-of`, `available`, `min`, `max`, `default`, `optional` |
+| `//@param <field>` | `arg`, `alias`, `type`, `unit`, `one-of`, `available`, `min`, `max`, `default`, `optional`, `device-wide` |
 | `//@returns <name>` | `type`, `unit` |
 | `//@description` (after `@contract`) | *(free text, no sub-keywords)* |
 | Install struct field (`// ...` on a packed field) | `required`, `optional`, `alias`, `min`, `max`, `one-of`, `available`, `default`, `unit`, `enum-ref`, `sentinel`, `group`, `role`, `note` |
@@ -91,7 +91,7 @@ typedef enum sys_io_mode_e {
 
 ```c
 //@contract <packet_struct_name> [@alias <action label>]
-//@param <packet_field> [@arg <PROPERTY_NAME>] [@alias <label>] [@type <C type>] [@unit <unit>] [@one-of [value,...]] [@min <value>] [@max <value>] [@default <value>] [@optional]
+//@param <packet_field> [@arg <PROPERTY_NAME>] [@alias <label>] [@type <C type>] [@unit <unit>] [@one-of [value,...]] [@min <value>] [@max <value>] [@default <value>] [@optional] [@device-wide]
 //@returns <name> [@type <C type>] [@unit <unit>]
 //@description <text>
 ```
@@ -104,7 +104,11 @@ A contract is the device-restricted view of a generic system packet. List only o
 
 `@arg <NAME>` pulls a param's constraint (its `@one-of` list, and `@enum-ref` if the property has one) from a `@self-property`/`@property` defined earlier in the same header, instead of retyping it. A param may still use its own inline `@one-of`/`@min`/`@max` when the value domain isn't shared with anything else.
 
-`@one-of` accepts numbers and `$`-prefixed enum symbols (which resolve per the rules above). `@min`, `@max`, and `@default` resolve C defines and `CONFIG_*` symbols where possible; unresolved non-`$` values become JSON `null` and are reported by the generator - only `$`-prefixed values are hard errors on failure to resolve.
+`@one-of` accepts numbers and `$`-prefixed enum symbols (which resolve per the rules above). A contract `@param`'s `@min`, `@max` and `@default` resolve C defines (any header under `components/`) and `CONFIG_*` symbols; one that doesn't resolve fails generation.
+
+`//@pwm-frequencies <value> [@count-bits]` (metadata): how many different PWM frequencies a per-pin-frequency device runs at once (pins with one frequency share a timer). The value resolves like `@min`; `@count-bits` counts the set bits of a mask (ESP GPIO: `CONFIG_DEVICE_GPIO_ESP_PWM_TIMER_MASK`). JSON `pwm_frequencies`; the app warns when a project needs more.
+
+`@device-wide` marks a generic field that selects nothing on this device: the setting applies to the whole device (the PCA9685 has one PWM frequency for all channels, so `set_pwm_frequency`'s `pin` is `@device-wide`). The JSON parameter gets `"device_wide": true`; a client hides the field and sends 0.
 
 ## Install packet fields
 

@@ -74,9 +74,9 @@ All onboard chips are **static devices** created at boot by `runit_board_devices
 | 4 | DAC53202 | Digital/Analog IO | 0x48 (A0 = GND) | — | OUT0/OUT1 → VREF of DRV8962 #1/#2; VDD reference, gain 1x (full scale 3.3 V) |
 | 5 | DRV8962 #1 | H-bridge | — | IN1-4 → ESP 21/47/48/45, EN1-4 → ESP 38/39/2/1, IPROPI1-4 → ESP 7/6/5/4, nSLEEP → TCA 9, nFAULT → TCA 11, VM ← TCA 14 (VSUP) / 15 (rail B) | 2 full bridges; **off**: ESP GPIO has no PWM yet |
 | 6 | DRV8962 #2 | H-bridge | — | IN1-4 → PCA CH 8-11, EN1-4 → PCA CH 12-15, nSLEEP → TCA 8, nFAULT → TCA 10, VM ← TCA 12 (rail A) / 13 (VSUP), IPROPI resistors only | 2 full bridges, PWM at the PCA frequency (1 kHz) |
-| 10 | TPS55289 #0 | Voltage Regulator | 0x74 | INT → TCA 1, EN → TCA 17 | Adjustable rail A |
-| 11 | TPS55289 #1 | Voltage Regulator | 0x75 | INT → TCA 2, EN → TCA 16 | Adjustable rail B |
-| 12 | INA3221 | Power Monitor | 0x40 | CRIT → TCA 5, WARN → TCA 6 | V/I of rail A, rail B and whole-board input, with alerts |
+| 10 | TPS55289 `TPS55289_2` | Voltage Regulator | 0x74 | INT → TCA 1, EN → TCA 17 | Adjustable rail A |
+| 11 | TPS55289 `TPS55289_1` | Voltage Regulator | 0x75 | INT → TCA 2, EN → TCA 16 | Adjustable rail B |
+| 12 | INA3221 | Power Monitor | 0x40 | CRIT → TCA 6, WARN → TCA 5 (measured 2026-09-27; the legacy header had them swapped) | V/I of rail A, rail B and whole-board input, with alerts |
 | 13 | AP33772S | USB-C Power Delivery | 0x52 | INT → TCA 21 | PD sink: request/read PDOs, negotiated V/I, protection events |
 | — | LM73100 ×4 | — (not modelled) | — | EN (high = on) → TCA 12 DRV2←rail A, 13 DRV2←VSUP, 14 DRV1←VSUP, 15 DRV1←rail B; all low at boot | H-bridge VM source (one VM node per DRV8962: one switch at a time) |
 | — | TPS259474 ×2 | — (not modelled) | — | PG → TCA 3 (VUSB_OK), TCA 4 (VEXT_OK) | Input eFuses |
@@ -86,6 +86,11 @@ Also driven at boot: TCA pins 22 and 23 as push-pull outputs (roles not document
 **Design constraints worth remembering:**
 - The PCA9685 has one PWM frequency for all 16 channels, so the servo headers (CH 0–7) and DRV8962 #2 (CH 8–15) always share a frequency. Servos typically want ~50 Hz; motor drive usually runs much faster.
 - The servo header voltage follows the TPS55289 rail that feeds it — changing that rail's voltage changes the servo supply.
+- Rail names: `DEVICE_ID_TPS55289_2` = rail A (ID 10, 0x74), `DEVICE_ID_TPS55289_1` = rail B (ID 11, 0x75) (renamed from `_0` 2026-09-27; IDs unchanged).
+- The TPS55289 current limit can't go below 200 mA. On USB 5 V with the assumed 1 A, a rail above ~6 V doesn't fit the budget: the power manager answers `ERR_POWER_BUDGET_EXCEEDED` (consumer `min_mA`, SYS_POWER.MD).
+- INA3221 shunts are all wired reversed (`inverted_mask = 0x07`). Its alerts still work: the limit registers and the compare are signed, so the adapter writes −threshold and takes the pin's release as the alert (one channel per alert pin; measured 2026-09-27). The power manager arms both alerts on the input channel (critical at the source current, warning at 90 %), so on the board both alert pins belong to the input.
+- ESP32-S3 strapping pins (0, 3, 45, 46) and USB D−/D+ (19, 20) are not reserved in firmware (`SYS_PIN_*` has only the I2C pins), so the app offers them in pin pickers. Open question: reserve them.
+- The board's input current has short peaks above 100 mA (likely BLE transmit) while the average is ~50 mA: a low critical (per-conversion) alert trips on them; the warning alert (averaged) suits low thresholds.
 
 ### Contract ops per device (from generated catalog)
 

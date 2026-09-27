@@ -17,6 +17,7 @@
     "pwm"
   ],
   "datasheet": "https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf",
+  "pwm_frequencies": 4,
   "source_file": "dec_device_gpio_esp.h",
   "contractProvider": {
     "symbol": "SYS_DEVICE_CONTRACT_IO",

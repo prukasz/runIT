@@ -43,7 +43,7 @@ Filled by the board config (`runit_board_cfg.c`) and passed to `sys_power_init()
 | `input` | Monitor channel measuring the board input (INA3221 input channel). |
 | `usb_pd_id` | USB-PD sink device (AP33772S), or `SYS_POWER_NO_DEVICE`. |
 | `source_pins` | Pins identifying the active source (`{pin, active_level, source}`; first match wins). None on rev 1 yet. |
-| `consumers` | Budgeted rails: `{vreg_id, monitor}`. Rev 1: both TPS55289 rails with their INA3221 channels. |
+| `consumers` | Budgeted rails: `{vreg_id, monitor, min_mA}` (`min_mA`: the regulator's lowest current limit). Rev 1: both TPS55289 rails (200 mA) with their INA3221 channels. |
 | `responses` | Default response per event (the response matrix). |
 
 ### Source and budget
@@ -73,7 +73,7 @@ Only rails listed in `consumers` are budgeted; other vregs are dispatched direct
 
 - **Allocation:** a rail's input power is `set_mV × current_mA × 100 / efficiency`.
 - **Fixed rail** (current limit set by the user, `set_current(mA > 0)`): its allocation must fit in `budget − reserve − other fixed rails`, otherwise the call fails with `ERR_POWER_BUDGET_EXCEEDED {dev_id, requested_mW, available_mW}`.
-- **Automatic rail** (`set_current(0)`, the default): the rails without a user limit split what's left equally. Each gets `share / set_mV` as its current limit, capped by `max_mA`, and the caps are reprogrammed when anything changes. An automatic rail can't be turned on when nothing is left.
+- **Automatic rail** (`set_current(0)`, the default): the rails without a user limit split what's left equally. Each gets `share / set_mV` as its current limit, capped by `max_mA`, and the caps are reprogrammed when anything changes. An automatic rail can't be turned on when nothing is left. A share below the rail's `min_mA` (the regulator can't limit that low) refuses the change with `ERR_POWER_BUDGET_EXCEEDED` (requested = the rail at `min_mA`, available = its share) and rolls it back; on USB 5 V with the assumed 1 A, that is any rail above ~6 V.
 - **Ordering:** the hardware is written so the budget isn't exceeded in between. When a rail grows (voltage up, enabled, limit up), the other automatic rails are lowered first. On a hardware error the rail's state is rolled back.
 - **What's counted:** only settings made through `sys_power`, so a rail's power-on state isn't counted until it's set.
 

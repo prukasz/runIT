@@ -30,8 +30,8 @@ export const streamsOnCharacteristic = (uuid: number, streams: StreamCatalog = r
 export const isBoardService = (service: { readonly uuid: string; readonly system?: boolean } | null | undefined, streams: StreamCatalog = runitStreamCatalog()): boolean =>
   !!service && (service.system === true || uuidValue(service.uuid) === streams.board.service.uuid)
 
-export const isBoardCharacteristic = (char: { readonly uuid: string; readonly system?: boolean } | null | undefined, streams: StreamCatalog = runitStreamCatalog()): boolean =>
-  !!char && (char.system === true || streams.board.characteristics.some((own) => own.uuid === uuidValue(char.uuid)))
+/** The board's own characteristic: flagged `system` (they come from the descriptors, in the locked board service). A board UUID elsewhere is a user's duplicate, not the board's. */
+export const isBoardCharacteristic = (char: { readonly system?: boolean } | null | undefined): boolean => char?.system === true
 
 const userCharacteristic = (char: BleCharSpec | BleCharacteristicSettings): BleCharacteristicSettings => ({
   format: 'RAW',
@@ -87,19 +87,17 @@ const systemConnector = (fresh: ConnectorSettings, saved: Pick<ConnectorSpec, 'b
 
 /**
  * Saved settings (or none: the defaults) with the board's own entries from the
- * descriptors. Kept from the file: user characteristics in the board's
- * service, user services, user connectors, and bindings and suspension of the
- * system connectors.
+ * descriptors (the board's service is locked: nothing of the user's in it).
+ * Kept from the file: user services, user connectors, and bindings and
+ * suspension of the system connectors.
  */
 export const refreshSettings = (saved: ProjectSettings | undefined, streams: StreamCatalog = runitStreamCatalog()): ProjectSettings => {
   const defaults = defaultProjectSettings(streams)
   if (!saved) return defaults
   const fresh = defaults.ble.services[0]!
-  const storedSystem = saved.ble.services.find((service) => isBoardService(service, streams))
-  const userInSystem = (storedSystem?.characteristics ?? []).filter((char) => !isBoardCharacteristic(char, streams)).map(userCharacteristic)
   const userServices = saved.ble.services
     .filter((service) => !isBoardService(service, streams))
-    .map((service) => ({ ...service, system: false, characteristics: service.characteristics.filter((char) => !isBoardCharacteristic(char, streams)).map(userCharacteristic) }))
+    .map((service) => ({ ...service, system: false, characteristics: service.characteristics.filter((char) => !isBoardCharacteristic(char)).map(userCharacteristic) }))
 
   const systemIds = new Set(defaults.connectors.map((connector) => connector.id))
   const connectors = [
@@ -107,7 +105,7 @@ export const refreshSettings = (saved: ProjectSettings | undefined, streams: Str
     ...saved.connectors.filter((connector) => !connector.system && !systemIds.has(connector.id)),
   ]
   return {
-    ble: { name: saved.ble.name || defaults.ble.name, general: saved.ble.general, services: [{ ...fresh, characteristics: [...fresh.characteristics, ...userInSystem] }, ...userServices] },
+    ble: { name: saved.ble.name || defaults.ble.name, general: saved.ble.general, services: [fresh, ...userServices] },
     connectors,
   }
 }
@@ -121,9 +119,7 @@ export const settingsFromState = (state: SettingsState, base: ProjectSettings = 
   const defaults = defaultProjectSettings(streams)
   const fresh = defaults.ble.services[0]!
   const services = state.services.map((service: BleServiceSpec): BleServiceSettings => {
-    if (isBoardService(service, streams)) {
-      return { ...fresh, characteristics: [...fresh.characteristics, ...service.characteristics.filter((char) => !isBoardCharacteristic(char, streams)).map(userCharacteristic)] }
-    }
+    if (isBoardService(service, streams)) return fresh
     return { id: service.id, name: service.name, uuid: service.uuid, system: false, isPrimary: service.isPrimary, advertised: true, characteristics: service.characteristics.map(userCharacteristic) }
   })
   const connectors = state.connectors.map((connector): ConnectorSettings => {

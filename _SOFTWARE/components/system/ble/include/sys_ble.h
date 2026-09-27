@@ -71,6 +71,19 @@ SE_MUST_USE err_h sys_ble_service_create(const sys_ble_svc_cfg_t* cfg);
 SE_MUST_USE err_h sys_ble_service_remove(uint16_t svc_uuid);
 
 /**
+ * @brief Lock a service: its characteristics can't be created or removed and
+ * the service can't be removed any more (ERR_BLE_SERVICE_LOCKED).
+ *
+ * A change to a live service deletes and re-adds it in NimBLE, which resets
+ * every client subscription on it. The board locks the service that carries
+ * its own command link, so no runtime change can cut that link.
+ *
+ * @param svc_uuid 16-bit UUID of the service.
+ * @return err_h NULL, or ERR_BASE_NOT_FOUND.
+ */
+SE_MUST_USE err_h sys_ble_service_lock(uint16_t svc_uuid);
+
+/**
  * @brief Create a new BLE GATT characteristic under a parent service.
  *
  * @param svc_uuid 16-bit UUID of the parent service.
@@ -176,6 +189,17 @@ SE_MUST_USE err_h sys_ble_char_send(uint16_t char_uuid, const uint8_t* data, siz
  * @return err_h Status report (NULL on success, or error status).
  */
 SE_MUST_USE err_h sys_ble_database_sync(void);
+
+/**
+ * @brief Apply the staged service / characteristic changes to the GATT table.
+ *
+ * Without a client (or before the stack runs) this is sys_ble_database_sync().
+ * With a client connected the BLE task syncs SYS_BLE_APPLY_DELAY_MS later, so
+ * the command that asked for it is answered and its write acknowledged before
+ * the Service Changed indication: a client's stack may drop every GATT object
+ * on it (Windows does), and a write in flight fails. The client reconnects.
+ */
+SE_MUST_USE err_h sys_ble_database_apply(void);
 
 /**
  * @brief Largest item sys_ble_char_send() can deliver on a characteristic right now.

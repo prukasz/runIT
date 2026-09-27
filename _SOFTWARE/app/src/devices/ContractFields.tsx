@@ -23,7 +23,8 @@ export function ContractFields({ contract, deviceId, values, onChange, actions =
   const set = (name: string, value: number | readonly number[]) => onChange({ ...values, [name]: value })
   return (
     <div className="contract-fields">
-      {contract.parameters.map((parameter) => {
+      {contract.parameters.some((parameter) => parameter.deviceWide) && <p className="devices-hint">Applies to the whole device.</p>}
+      {contract.parameters.filter((parameter) => !parameter.deviceWide).map((parameter) => {
         const current = parameterValue(parameter, values)
         if (parameter.instance) {
           return (
