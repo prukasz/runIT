@@ -147,7 +147,7 @@ static inline SE_MUST_USE err_h decoder_packet_sys_device_sync_all_t(packet_sys_
 typedef struct __packed {
   uint8_t device_id;                 //@required @alias Device ID
   uint8_t importance;                //@required @alias Importance Level @enum-ref sys_device_importance_e @one-of [$SYS_DEV_IMPORTANCE_NONE, $SYS_DEV_IMPORTANCE_LOW, $SYS_DEV_IMPORTANCE_MEDIUM, $SYS_DEV_IMPORTANCE_HIGH, $SYS_DEV_IMPORTANCE_CRITICAL]
-  uint8_t actions[5];                //@required @alias Error-Level Actions @note sys_actions ids, indexed by se_level_e
+  uint8_t actions[5];                //@required @alias Error-Level Actions @note actions[0]: scope bits, bit n-1 set = level n runs a dynamic (recorded) action, clear = static; actions[1..4]: action IDs for Low, Medium, High, Critical (0 = none)
 } packet_sys_device_set_error_handling_t;
 
 static inline SE_MUST_USE err_h decoder_packet_sys_device_set_error_handling_t(packet_sys_device_set_error_handling_t* packet) {

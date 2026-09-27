@@ -7,7 +7,8 @@ export interface CommandFieldInfo {
   readonly name: string
   readonly label: string
   readonly type: string
-  readonly kind: 'number' | 'array' | 'text'
+  /** `bytes`: a trailing flexible array of non-char elements (opaque data, e.g. stored code chunks). */
+  readonly kind: 'number' | 'array' | 'text' | 'bytes'
   readonly required: boolean
   /** Value sent when an optional field is left out. */
   readonly fallback: number
@@ -73,13 +74,15 @@ export const parseByte = (text: string, where: string): number => {
 
 const toFieldInfo = (name: string, field: GeneratedField, where: string): CommandFieldInfo => {
   const text = field.type === 'char' && field.flexible_array === true
+  const bytes = field.flexible_array === true && !text
+  if (bytes && field.type !== 'uint8_t') throw new DescriptorError(`${where}.${name}: a flexible array of ${field.type} is not supported (uint8_t or char).`)
   if (!text && !SCALAR_TYPES.has(field.type)) throw new DescriptorError(`${where}.${name}: unsupported type '${field.type}'.`)
   if (text && field.encoding !== undefined && field.encoding !== 'utf-8') throw new DescriptorError(`${where}.${name}: unsupported encoding '${field.encoding}'.`)
   return {
     name,
     label: field.alias ?? name,
     type: field.type,
-    kind: text ? 'text' : field.array_len !== undefined ? 'array' : 'number',
+    kind: text ? 'text' : bytes ? 'bytes' : field.array_len !== undefined ? 'array' : 'number',
     required: field.required ?? true,
     fallback: field.sentinel ?? 0,
     arrayLength: field.array_len,
@@ -94,6 +97,7 @@ const toFieldInfo = (name: string, field: GeneratedField, where: string): Comman
 
 const toWireField = (info: CommandFieldInfo): PacketField => {
   if (info.kind === 'text') return { kind: 'text', name: info.name, nulTerminate: true }
+  if (info.kind === 'bytes') return { kind: 'bytes', name: info.name }
   return { kind: 'scalar', name: info.name, type: info.type as PacketScalarType, length: info.arrayLength }
 }
 
@@ -103,8 +107,8 @@ const toLayout = (layout: GeneratedLayout, where: string): CommandLayout => {
     if (!field) throw new DescriptorError(`${where}: field_order names '${name}', which has no field entry.`)
     return toFieldInfo(name, field, where)
   })
-  const textIndex = fields.findIndex((field) => field.kind === 'text')
-  if (textIndex >= 0 && textIndex !== fields.length - 1) throw new DescriptorError(`${where}: a flexible text field must be last.`)
+  const flexibleIndex = fields.findIndex((field) => field.kind === 'text' || field.kind === 'bytes')
+  if (flexibleIndex >= 0 && flexibleIndex !== fields.length - 1) throw new DescriptorError(`${where}: a flexible field must be last.`)
   return { fields, wire: fields.map(toWireField) }
 }
 
@@ -116,6 +120,16 @@ const toDescriptor = (packet: GeneratedPacket, group: CommandGroup): CommandDesc
   packetHeader: parseByte(packet.packet_header, packet.id),
   request: toLayout(packet, packet.id),
   response: packet.response ? toLayout(packet.response, `${packet.id} response`) : undefined,
+})
+
+/** A command from a packet definition outside the catalogs (device install packets, device JSON). */
+export const commandFromDefinition = (id: string, classHeader: number, packetHeader: number, layout: GeneratedLayout, group: CommandGroup): CommandDescriptor => ({
+  id,
+  name: id.replace(/^packet_/, '').replace(/_t$/, ''),
+  group,
+  classHeader,
+  packetHeader,
+  request: toLayout(layout, id),
 })
 
 /** Build the command catalog from the generated contracts and settings files. */
@@ -166,6 +180,7 @@ export const packCommand = (command: CommandDescriptor, values: PacketStructValu
     if (value !== undefined) filled[field.name] = value
     else if (field.required) throw new PacketPackError(`${command.id}: required field '${field.name}' is missing.`)
     else if (field.kind === 'text') filled[field.name] = ''
+    else if (field.kind === 'bytes') filled[field.name] = new Uint8Array()
     else if (field.kind === 'array') filled[field.name] = new Array<number>(field.arrayLength ?? 0).fill(field.fallback)
     else filled[field.name] = field.fallback
   }

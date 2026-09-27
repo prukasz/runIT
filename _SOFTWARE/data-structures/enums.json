@@ -42,6 +42,48 @@
         }
       ]
     },
+    "sys_action_static_e": {
+      "alias": "Static Action",
+      "source_file": "components/system/sys_actions/include/sys_actions.h",
+      "members": [
+        {
+          "name": "SYS_ACTION_STATIC_BOOT",
+          "value": 1,
+          "alias": "Boot setup",
+          "description": "Installs the board's own devices (bound by the application)."
+        },
+        {
+          "name": "SYS_ACTION_STATIC_FREEZE",
+          "value": 2,
+          "alias": "Freeze all devices",
+          "description": "Holds every device at its current state."
+        },
+        {
+          "name": "SYS_ACTION_STATIC_RESUME",
+          "value": 3,
+          "alias": "Resume all devices",
+          "description": "Resumes and syncs every device."
+        },
+        {
+          "name": "SYS_ACTION_STATIC_SUSPEND",
+          "value": 4,
+          "alias": "Suspend all devices",
+          "description": "Suspends every device."
+        },
+        {
+          "name": "SYS_ACTION_STATIC_RESET",
+          "value": 5,
+          "alias": "Reset",
+          "description": "Resets every device, rewinds the VM and runs the boot setup again."
+        },
+        {
+          "name": "SYS_ACTION_STATIC_HARD_RESET",
+          "value": 6,
+          "alias": "Hard reset",
+          "description": "Unloads the VM program, uninstalls every device and runs the boot setup again."
+        }
+      ]
+    },
     "sys_data_connector_id_e": {
       "alias": "Data Connector",
       "source_file": "components/system/sys_data_connector/include/sys_data_connector.h",
@@ -128,7 +170,7 @@
           "name": "SYS_DEV_IMPORTANCE_NONE",
           "value": 0,
           "alias": "Disabled",
-          "description": "Disables automatic handling for this device."
+          "description": "Ignores the device's errors except critical ones (a device under test). Every device starts here."
         },
         {
           "name": "SYS_DEV_IMPORTANCE_LOW",
@@ -537,6 +579,36 @@
           "value": 1,
           "alias": "LiPo",
           "description": "Lithium polymer, 4.2 V per cell when full"
+        }
+      ]
+    },
+    "sys_project_replay_e": {
+      "alias": "Replay State",
+      "source_file": "components/system/sys_project/include/sys_project.h",
+      "members": [
+        {
+          "name": "SYS_PROJECT_REPLAY_NONE",
+          "value": 0,
+          "alias": "Not run",
+          "description": "No stored code at boot, or the replay hasn't run yet."
+        },
+        {
+          "name": "SYS_PROJECT_REPLAY_DONE",
+          "value": 1,
+          "alias": "Replayed",
+          "description": "Every frame was decoded; `failed` counts the refused ones."
+        },
+        {
+          "name": "SYS_PROJECT_REPLAY_SKIPPED",
+          "value": 2,
+          "alias": "Skipped",
+          "description": "Built for another firmware (schema ID differs); nothing applied."
+        },
+        {
+          "name": "SYS_PROJECT_REPLAY_CORRUPT",
+          "value": 3,
+          "alias": "Corrupt",
+          "description": "The stored list failed its CRC or framing check; nothing applied."
         }
       ]
     },
@@ -1472,6 +1544,42 @@
       "alias": "Failure",
       "description": "A connection, receive or send failure (value = error code)"
     },
+    "SYS_ACTION_STATIC_BOOT": {
+      "enum": "sys_action_static_e",
+      "value": 1,
+      "alias": "Boot setup",
+      "description": "Installs the board's own devices (bound by the application)."
+    },
+    "SYS_ACTION_STATIC_FREEZE": {
+      "enum": "sys_action_static_e",
+      "value": 2,
+      "alias": "Freeze all devices",
+      "description": "Holds every device at its current state."
+    },
+    "SYS_ACTION_STATIC_RESUME": {
+      "enum": "sys_action_static_e",
+      "value": 3,
+      "alias": "Resume all devices",
+      "description": "Resumes and syncs every device."
+    },
+    "SYS_ACTION_STATIC_SUSPEND": {
+      "enum": "sys_action_static_e",
+      "value": 4,
+      "alias": "Suspend all devices",
+      "description": "Suspends every device."
+    },
+    "SYS_ACTION_STATIC_RESET": {
+      "enum": "sys_action_static_e",
+      "value": 5,
+      "alias": "Reset",
+      "description": "Resets every device, rewinds the VM and runs the boot setup again."
+    },
+    "SYS_ACTION_STATIC_HARD_RESET": {
+      "enum": "sys_action_static_e",
+      "value": 6,
+      "alias": "Hard reset",
+      "description": "Unloads the VM program, uninstalls every device and runs the boot setup again."
+    },
     "SYS_DATA_CONNECTOR_LOGS": {
       "enum": "sys_data_connector_id_e",
       "value": 0,
@@ -1542,7 +1650,7 @@
       "enum": "sys_device_importance_e",
       "value": 0,
       "alias": "Disabled",
-      "description": "Disables automatic handling for this device."
+      "description": "Ignores the device's errors except critical ones (a device under test). Every device starts here."
     },
     "SYS_DEV_IMPORTANCE_LOW": {
       "enum": "sys_device_importance_e",
@@ -1885,6 +1993,30 @@
       "value": 1,
       "alias": "LiPo",
       "description": "Lithium polymer, 4.2 V per cell when full"
+    },
+    "SYS_PROJECT_REPLAY_NONE": {
+      "enum": "sys_project_replay_e",
+      "value": 0,
+      "alias": "Not run",
+      "description": "No stored code at boot, or the replay hasn't run yet."
+    },
+    "SYS_PROJECT_REPLAY_DONE": {
+      "enum": "sys_project_replay_e",
+      "value": 1,
+      "alias": "Replayed",
+      "description": "Every frame was decoded; `failed` counts the refused ones."
+    },
+    "SYS_PROJECT_REPLAY_SKIPPED": {
+      "enum": "sys_project_replay_e",
+      "value": 2,
+      "alias": "Skipped",
+      "description": "Built for another firmware (schema ID differs); nothing applied."
+    },
+    "SYS_PROJECT_REPLAY_CORRUPT": {
+      "enum": "sys_project_replay_e",
+      "value": 3,
+      "alias": "Corrupt",
+      "description": "The stored list failed its CRC or framing check; nothing applied."
     },
     "VM_ACTION_SCOPE_STATIC": {
       "enum": "vm_action_scope_e",

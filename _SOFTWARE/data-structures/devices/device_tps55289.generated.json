@@ -16,6 +16,7 @@
     "current",
     "regulator"
   ],
+  "datasheet": "https://www.ti.com/lit/ds/symlink/tps55289.pdf",
   "source_file": "dec_device_tps55289.h",
   "contractProvider": {
     "symbol": "SYS_DEVICE_CONTRACT_POWER_VREG",

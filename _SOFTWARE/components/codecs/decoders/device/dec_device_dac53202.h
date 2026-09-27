@@ -9,6 +9,7 @@
 //@description Two-channel I2C digital-to-analog converter - outputs a steady voltage on each channel.
 //@protocol i2c
 //@tags i2c dac voltage
+//@datasheet https://www.ti.com/lit/ds/symlink/dac53202.pdf
 //@contract-provider $SYS_DEVICE_CONTRACT_IO
 //@self-property CHANNEL @one-of [0,1]
 

@@ -9,6 +9,7 @@
 //@description Adjustable I2C buck-boost voltage regulator - a programmable power output with a current limit and enable control.
 //@protocol i2c
 //@tags i2c power voltage current regulator
+//@datasheet https://www.ti.com/lit/ds/symlink/tps55289.pdf
 //@contract-provider $SYS_DEVICE_CONTRACT_POWER_VREG
 
 //@contract packet_sys_power_vreg_set_enable_t @alias Enable output
@@ -38,6 +39,8 @@ static inline SE_MUST_USE err_h decoder_packet_sys_device_install_tps55289_t(pac
   d_tps55289_cfg_t cfg = {.device_id = packet->device_id, .i2c_bus = packet->i2c_bus != 0, .i2c_addr = packet->i2c_addr,
                            .intr_pin = pin_ref_from_wire(packet->intr_pin_device_id, packet->intr_pin_pin, packet->intr_pin_mode),
                            .en_pin = pin_ref_from_wire(packet->en_pin_device_id, packet->en_pin_pin, packet->en_pin_mode)};
+  err_h err = PIN_REFS_BELOW(cfg.device_id, cfg.intr_pin, cfg.en_pin);
+  if (err) return err;
   return d_tps55289_create(&cfg);
 }
 

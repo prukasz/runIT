@@ -14,6 +14,7 @@
     "dac",
     "voltage"
   ],
+  "datasheet": "https://www.ti.com/lit/ds/symlink/dac53202.pdf",
   "source_file": "dec_device_dac53202.h",
   "contractProvider": {
     "symbol": "SYS_DEVICE_CONTRACT_IO",

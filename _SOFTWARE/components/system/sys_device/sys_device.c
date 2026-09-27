@@ -195,13 +195,14 @@ err_h sys_device_report_error_with_level(uint8_t device_id, se_level_e level, er
 
   sys_device_t* dev = sys_device_get_by_id(device_id);
 
-  /* User rule: when device importance is NONE (test device), ignore all error handling */
-  if (dev && dev->importance == SYS_DEV_IMPORTANCE_NONE) {
-    return NULL;
-  }
-
   SE_CHECK_IN_RANGE((unsigned)level, SE_LEVEL_NONE, SE_LEVEL_CRITICAL);
   if (level == SE_LEVEL_NONE) return NULL;
+
+  /* Importance NONE (a device under test) ignores its non-critical errors.
+     Critical ones always go through: they mean the system must stop. */
+  if (dev && dev->importance == SYS_DEV_IMPORTANCE_NONE && level != SE_LEVEL_CRITICAL) {
+    return NULL;
+  }
 
   /* Non-critical errors obey device importance clamping */
   if (level != SE_LEVEL_CRITICAL) {
@@ -225,6 +226,7 @@ err_h sys_device_report_error(uint8_t device_id, err_h error) {
              ? sys_device_report_error_with_level(device_id, SE_get_tag_level(error->tag), error) : NULL;
 }
 
+/* Only non-critical errors of an ignored device are suppressed (SE_push_to_handler). */
 bool sys_device_is_ignored(uint8_t device_id) {
   sys_device_t* dev = sys_device_get_by_id(device_id);
   return (dev != NULL) && (dev->importance == SYS_DEV_IMPORTANCE_NONE);
@@ -243,8 +245,8 @@ err_h sys_device_set_error_handling(uint8_t device_id, sys_device_importance_e i
     SE_CHECK_IN_RANGE(actions[0], 0, 0x0f);
     for (int i = 1; i < 5; i++) {
       uint8_t scope = (actions[0] & (1u << (i - 1))) ? 0x01 : 0x00;
-      unsigned limit = (scope == 0x01) ? CONFIG_SYS_ACTIONS_ID_SPACE : CONFIG_SYS_ACTIONS_STATIC_SLOTS;
-      SE_CHECK_IN_RANGE(actions[i], 0, limit - 1);
+      unsigned max = (scope == 0x01) ? UINT8_MAX : CONFIG_SYS_ACTIONS_STATIC_SLOTS - 1;
+      SE_CHECK_IN_RANGE(actions[i], 0, max);
       dev->actions[i].scope = scope;
       dev->actions[i].id    = actions[i];
     }

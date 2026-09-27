@@ -9,6 +9,7 @@
 //@description 24-bit I2C GPIO expander - adds extra digital input/output pins over I2C.
 //@protocol i2c
 //@tags i2c gpio io expander
+//@datasheet https://www.ti.com/lit/ds/symlink/tca6424a.pdf
 //@contract-provider $SYS_DEVICE_CONTRACT_IO
 //@self-property PIN @one-of [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
 //@property PIN-MODE @enum-ref sys_io_mode_e @one-of [$SYS_IO_MODE_INPUT, $SYS_IO_MODE_OUTPUT_PUSH_PULL]
@@ -58,6 +59,8 @@ static inline SE_MUST_USE err_h decoder_packet_sys_device_install_tca6424a_t(pac
   d_tca6424a_cfg_t cfg = {.device_id = packet->device_id, .i2c_bus = packet->i2c_bus != 0, .i2c_addr = packet->i2c_addr,
                            .intr_pin = pin_ref_from_wire(packet->intr_pin_device_id, packet->intr_pin_pin, packet->intr_pin_mode),
                            .rst_pin = pin_ref_from_wire(packet->rst_pin_device_id, packet->rst_pin_pin, packet->rst_pin_mode)};
+  err_h err = PIN_REFS_BELOW(cfg.device_id, cfg.intr_pin, cfg.rst_pin);
+  if (err) return err;
   return d_tca6424a_create(&cfg);
 }
 

@@ -74,7 +74,7 @@ typedef struct __attribute__((aligned(4))) vm_obj_head_t {
     uint8_t tagged        : 1;  //@alias Has Name @role has-name @wire-offset 3 @wire-bit-offset 3 @device-sets name_size != 0
     uint8_t retentive     : 1;  //@alias Retentive @role retentive @note Not valid for pointer objects. @wire-offset 3 @wire-bit-offset 4
     uint8_t dynamic       : 1;  //@alias Dynamic @role dynamic @note Runtime heap allocation. @wire-offset 3 @wire-bit-offset 5 @device-sets 0 at load; 1 on heap objects
-    uint8_t usr_protected : 1;  //@alias User Protected @role user-protected @wire-offset 3 @wire-bit-offset 6 @device-sets 1 on block outputs and ENO objects
+    uint8_t usr_protected : 1;  //@alias User Protected @role user-protected @wire-offset 3 @wire-bit-offset 6 @device-sets 0 at load; 1 on block outputs and ENO objects
     uint8_t _pad          : 1;  //@internal @wire-offset 3 @wire-bit-offset 7
   } f;  //@group flags @wire-offset 3
 } vm_obj_head_t;

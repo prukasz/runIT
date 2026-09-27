@@ -9,6 +9,7 @@
 //@description USB-C Power Delivery sink controller that negotiates voltage/current from a charger and can also act as a regulated, monitored output.
 //@protocol i2c
 //@tags i2c usb-c power-delivery power voltage current
+//@datasheet https://www.diodes.com/assets/Datasheets/AP33772S.pdf
 //@contract-provider $SYS_DEVICE_CONTRACT_POWER_USB_PD
 //@self-property CHANNEL @one-of [0]
 
@@ -56,6 +57,8 @@ static inline SE_MUST_USE err_h decoder_packet_sys_device_install_ap33772s_t(pac
   ESP_LOGI(DEC_SYS_DEVICE_INSTALL_TAG, "installing ap33772s (dev %u, i2c bus %u addr 0x%02X)", packet->device_id, packet->i2c_bus, packet->i2c_addr);
   d_ap33772s_cfg_t cfg = {.device_id = packet->device_id, .i2c_bus = packet->i2c_bus != 0, .i2c_addr = packet->i2c_addr,
                            .intr_pin = pin_ref_from_wire(packet->intr_pin_device_id, packet->intr_pin_pin, packet->intr_pin_mode)};
+  err_h err = PIN_REFS_BELOW(cfg.device_id, cfg.intr_pin);
+  if (err) return err;
   return d_ap33772s_create(&cfg);
 }
 

@@ -40,13 +40,6 @@ menu "System Actions Options"
           task. Callers that must not run an action themselves (a VM block
           inside a scan pass) queue it here; a full queue refuses the request.
 
-    config SYS_ACTIONS_ID_SPACE
-        int "Total Action ID Space Size"
-        default 64
-        range 8 256
-        help
-          Total action ID space (0..ID_SPACE-1).
-
     config SYS_ACTIONS_STATIC_SLOTS
         int "Static Action Slots Count"
         default 16

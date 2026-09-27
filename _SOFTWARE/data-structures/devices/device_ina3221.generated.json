@@ -18,6 +18,7 @@
     "alert",
     "ic"
   ],
+  "datasheet": "https://www.ti.com/lit/ds/symlink/ina3221.pdf",
   "source_file": "dec_device_ina3221.h",
   "contractProvider": {
     "symbol": "SYS_DEVICE_CONTRACT_POWER_MONITOR",

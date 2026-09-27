@@ -9,6 +9,7 @@
 //@description Sixteen-channel I2C PWM expander with optional active-low output enable.
 //@protocol i2c
 //@tags i2c pwm gpio servo led ic
+//@datasheet https://www.nxp.com/docs/en/data-sheet/PCA9685.pdf
 //@contract-provider $SYS_DEVICE_CONTRACT_IO
 //@self-property PIN @one-of [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
 
@@ -52,6 +53,8 @@ static inline SE_MUST_USE err_h decoder_packet_sys_device_install_pca9685_t(pack
   ESP_LOGI(DEC_SYS_DEVICE_INSTALL_TAG, "installing pca9685 (dev %u, i2c bus %u addr 0x%02X)", packet->device_id, packet->i2c_bus, packet->i2c_addr);
   d_pca9685_cfg_t cfg = {.device_id = packet->device_id, .i2c_bus = packet->i2c_bus != 0, .i2c_addr = packet->i2c_addr,
                          .oe_pin = pin_ref_from_wire(packet->oe_pin_device_id, packet->oe_pin_pin, packet->oe_pin_mode)};
+  err_h err = PIN_REFS_BELOW(cfg.device_id, cfg.oe_pin);
+  if (err) return err;
   return d_pca9685_create(&cfg);
 }
 

@@ -27,6 +27,7 @@ idf_component_register(
                  "../system/sys_data_connector/errors"
                  "../system/sys_settings/errors"
                  "../system/sys_uart/errors"
+                 "../system/sys_project/errors"
                  "../VM/errors"
                  "../devices/devices/errors"
                  "../features/errors"

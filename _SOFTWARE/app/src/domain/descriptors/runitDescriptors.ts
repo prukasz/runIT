@@ -5,16 +5,22 @@ import errors from '@data-structures/errors/errors.generated.json'
 import settings from '@data-structures/settings/settings.generated.json'
 import streams from '@data-structures/streams/streams.generated.json'
 import vmBlocks from '@data-structures/vm/blocks/index.generated.json'
+import vmModel from '@data-structures/vm/vm-model.generated.json'
+import vmProgram from '@data-structures/vm/vm-program.generated.json'
 import type { InterfaceProtocol } from '../../backend/protocol'
 import { buildCommandCatalog, DescriptorError, parseByte } from './commandCatalog'
 import type { CommandCatalog } from './commandCatalog'
+import { buildDeviceCatalog } from './deviceCatalog'
+import type { DeviceCatalog, GeneratedDeviceFile } from './deviceCatalog'
 import { buildErrorCatalog } from './errorCatalog'
 import type { ErrorCatalog } from './errorCatalog'
-import type { GeneratedBoardFile, GeneratedContractsFile, GeneratedEnumsFile, GeneratedErrorsFile, GeneratedSettingsFile, GeneratedStreamsFile, GeneratedVmBlocksIndex } from './generatedTypes'
+import type { GeneratedBoardFile, GeneratedContractsFile, GeneratedEnumsFile, GeneratedErrorsFile, GeneratedSettingsFile, GeneratedStreamsFile, GeneratedVmBlocksIndex, GeneratedVmModelFile, GeneratedVmProgramFile } from './generatedTypes'
 import { buildStreamCatalog } from './streamCatalog'
 import type { StreamCatalog } from './streamCatalog'
 import { buildValueNames } from './valueNames'
 import type { ValueNames } from './valueNames'
+import { buildVmCatalog } from './vmCatalog'
+import type { VmCatalog } from './vmCatalog'
 
 /*
  * The descriptors of the firmware this app was built against (data-structures/).
@@ -28,6 +34,8 @@ let streamCatalog: StreamCatalog | undefined
 let errorCatalog: ErrorCatalog | undefined
 let interfaceProtocol: InterfaceProtocol | undefined
 let valueNames: ValueNames | undefined
+let vmCatalog: VmCatalog | undefined
+let deviceCatalog: DeviceCatalog | undefined
 const enumsFile: GeneratedEnumsFile = enums
 
 export const runitCommandCatalog = (): CommandCatalog => {
@@ -64,6 +72,13 @@ export const runitInterfaceProtocol = (): InterfaceProtocol => {
   return interfaceProtocol
 }
 
+/** A member of a firmware enum (enums.json) by name; throws when the firmware doesn't publish it. */
+export const runitEnumValue = (enumName: string, member: string): number => {
+  const value = enumsFile.enums[enumName]?.members.find((entry) => entry.name === member)?.value
+  if (value === undefined) throw new DescriptorError(`enums.json has no ${enumName}.${member}.`)
+  return value
+}
+
 /** Names for annotated values (error payload fields): enums, board devices, error tags / owners / levels, commands, VM blocks, esp_err_t. */
 export const runitValueNames = (): ValueNames => {
   if (!valueNames) {
@@ -85,4 +100,24 @@ export const runitValueNames = (): ValueNames => {
     valueNames = built
   }
   return valueNames
+}
+
+/** VM program packets, object types and header layout, limits. */
+export const runitVmCatalog = (): VmCatalog => {
+  if (!vmCatalog) {
+    const built = buildVmCatalog(vmProgram satisfies GeneratedVmProgramFile, vmModel satisfies GeneratedVmModelFile)
+    const stream = runitStreamCatalog().require('telemetry')
+    if (built.telemetry.stream !== stream.header) throw new DescriptorError(`VM telemetry names stream 0x${built.telemetry.stream.toString(16)}, the telemetry connector sends 0x${stream.header.toString(16)}.`)
+    vmCatalog = built
+  }
+  return vmCatalog
+}
+
+/** Device types (one JSON per dec_device_*.h), the board's own devices and the lifecycle commands. */
+export const runitDeviceCatalog = (): DeviceCatalog => {
+  if (!deviceCatalog) {
+    const files = Object.values(import.meta.glob<GeneratedDeviceFile>('@data-structures/devices/*.generated.json', { eager: true, import: 'default' }))
+    deviceCatalog = buildDeviceCatalog(files, board satisfies GeneratedBoardFile, runitCommandCatalog(), enumsFile)
+  }
+  return deviceCatalog
 }

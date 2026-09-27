@@ -16,6 +16,7 @@
     "voltage",
     "ic"
   ],
+  "datasheet": "https://www.ti.com/lit/ds/symlink/ads7128.pdf",
   "source_file": "dec_device_ads7128.h",
   "contractProvider": {
     "symbol": "SYS_DEVICE_CONTRACT_IO",

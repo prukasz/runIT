@@ -61,3 +61,13 @@ describe('stream, error and protocol catalogs', () => {
     expect(runitErrorCatalog().tagByName('ERR_DEV_NOT_FOUND')?.name).toBe('ERR_DEV_NOT_FOUND')
   })
 })
+
+describe('stored code packets (class 0x0A)', () => {
+  it('packs a write chunk as offset + raw bytes and reads the info response', () => {
+    const write = command('packet_settings_project_write_t')
+    expect(write.request.fields.map((field) => [field.name, field.kind])).toEqual([['offset', 'number'], ['data', 'bytes']])
+    expect(hex(packCommand(write, { offset: 0x0102, data: Uint8Array.from([0xaa, 0xbb]) }))).toBe('0a 02 02 01 00 00 aa bb')
+    const info = command('packet_settings_project_info_t')
+    expect(info.response?.fields.map((field) => field.name)).toEqual(expect.arrayContaining(['stored', 'length', 'crc32', 'firmware_schema_id', 'replay_state']))
+  })
+})

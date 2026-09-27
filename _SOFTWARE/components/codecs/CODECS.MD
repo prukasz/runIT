@@ -145,6 +145,12 @@ Registered by runit for class byte `0x05`.
 
 ---
 
+## `decoders/dec_settings_project.h` — class `0x0A`
+
+Stored code ([[SYS_PROJECT.MD]]): begin / write / commit / abort / erase / options / info / read / load. Settings-style table (`//@settings project`, published to `settings.generated.json`, the `info` response layout too). `write` carries a trailing `uint8_t data[]` (the settings generator publishes it as `flexible_array` without an encoding: opaque bytes); `read` answers with the raw bytes. The header also holds the commit filter (`dec_settings_project_frame_allowed`: no class `0x0A`, no action recording, no VM exec) and `dec_settings_project_is_vm_frame` for the boot replay, which runit wires in `runit_project_boot`.
+
+---
+
 ## `decoders/dec_sys_events.h` — class `0x09`
 
 Links events to the program and to actions ([[SYS_EVENT.MD]]). Exposed as the `events` contract catalog.

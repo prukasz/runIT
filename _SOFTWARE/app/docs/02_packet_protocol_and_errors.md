@@ -25,12 +25,11 @@ characteristics carry which stream comes from the generated stream catalog
 
 ## Desktop test console
 
-The temporary `BleTestApp.tsx` is a manual integration console for the Web
-Bluetooth adapter. It selects a runIT-advertising device, connects,
-rediscovers its GATT database, reads or subscribes to individual
-characteristics, and writes explicit hexadecimal bytes. After GATT discovery it
-opens a runIT session and adds the command console and the Errors and Logs
-panels (see below). It has no device state and no VM/device screens.
+The main app's Terminal panel (left strip) has two tabs over the connected
+board's runIT session: **Commands** (`CommandConsole.tsx`: any catalog command
+as a form, or raw bytes, with the answer decoded) and **Errors & logs**
+(`DiagnosticsConsole.tsx`, see below). The old stand-alone test UI
+(`BleTestApp.tsx`) was removed on 2026-09-26.
 
 Web Bluetooth does not expose GATT descriptor enumeration or direct descriptor
 reads/writes. Discovery therefore adds an **inferred** Client Characteristic
@@ -40,7 +39,7 @@ change its value. Native adapters may replace inferred entries with enumerated
 descriptor metadata later.
 
 The raw BLE adapter deliberately returns platform-provided UUIDs only. The
-test app names the runIT service and characteristics from the stream catalog,
+app names the runIT service and characteristics from the stream catalog,
 by the streams the board binds to each one (e.g. "runIT notify: logs, errors"),
 and shows both 16-bit and full UUID forms.
 

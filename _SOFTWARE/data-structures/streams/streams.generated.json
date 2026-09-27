@@ -3,8 +3,58 @@
   "schemaVersion": 1,
   "kind": "streams",
   "source_file": "components/system/sys_data_connector/sys_data_connector.c",
+  "limits": {
+    "connectors_max": 8,
+    "providers_per_connector_max": 4,
+    "name_max": 16,
+    "frame_max": 512
+  },
   "ble": {
     "service": "0xFFE0",
+    "service_symbol": "SYS_BLE_SVC_RUNIT",
+    "is_primary": true,
+    "characteristics": [
+      {
+        "symbol": "SYS_BLE_CHR_RUNIT_RX",
+        "uuid": "0xFFE2",
+        "name": "runit RX",
+        "write": true,
+        "notify": false,
+        "indicate": false,
+        "tx_buffer_size": 0,
+        "rx_buffer_size": 1040
+      },
+      {
+        "symbol": "SYS_BLE_CHR_RUNIT_TX",
+        "uuid": "0xFFE1",
+        "name": "runit TX",
+        "write": false,
+        "notify": true,
+        "indicate": false,
+        "tx_buffer_size": 2080,
+        "rx_buffer_size": 0
+      },
+      {
+        "symbol": "SYS_BLE_CHT_RUNIT_STATUS",
+        "uuid": "0xFFE4",
+        "name": "runit Status",
+        "write": false,
+        "notify": true,
+        "indicate": false,
+        "tx_buffer_size": 512,
+        "rx_buffer_size": 0
+      },
+      {
+        "symbol": "SYS_BLE_CHR_RUNIT_LOGS",
+        "uuid": "0xFFE3",
+        "name": "runit LOGS",
+        "write": false,
+        "notify": true,
+        "indicate": false,
+        "tx_buffer_size": 2080,
+        "rx_buffer_size": 0
+      }
+    ],
     "source_files": [
       "components/runit/runit_board_defs.h",
       "components/runit/runit_board_cfg.c"
@@ -20,6 +70,7 @@
       "connector_id": 0,
       "alias": "Logs",
       "description": "Text log lines.",
+      "max_frame": 512,
       "ble": {
         "notify": "0xFFE3"
       }
@@ -33,6 +84,7 @@
       "connector_id": 1,
       "alias": "Errors",
       "description": "Binary error reports.",
+      "max_frame": 512,
       "ble": {
         "notify": "0xFFE3"
       }
@@ -46,6 +98,7 @@
       "connector_id": 2,
       "alias": "Telemetry",
       "description": "Program object values you subscribed to.",
+      "max_frame": 512,
       "ble": {
         "notify": "0xFFE1"
       }
@@ -59,10 +112,98 @@
       "connector_id": 3,
       "alias": "Commands",
       "description": "Commands to the board and their responses.",
+      "max_frame": 512,
       "ble": {
         "notify": "0xFFE1",
         "write": "0xFFE2"
       }
+    }
+  ],
+  "bindings": [
+    {
+      "connector": "SYS_DATA_CONNECTOR_LOGS",
+      "connector_id": 0,
+      "direction": "tx",
+      "provider": "RUNIT_DATA_PROVIDER_BLE",
+      "provider_id": 1,
+      "endpoint": 65507,
+      "endpoint_symbol": "SYS_BLE_CHR_RUNIT_LOGS"
+    },
+    {
+      "connector": "SYS_DATA_CONNECTOR_ERRORS",
+      "connector_id": 1,
+      "direction": "tx",
+      "provider": "RUNIT_DATA_PROVIDER_BLE",
+      "provider_id": 1,
+      "endpoint": 65507,
+      "endpoint_symbol": "SYS_BLE_CHR_RUNIT_LOGS"
+    },
+    {
+      "connector": "SYS_DATA_CONNECTOR_TELEMETRY",
+      "connector_id": 2,
+      "direction": "tx",
+      "provider": "RUNIT_DATA_PROVIDER_BLE",
+      "provider_id": 1,
+      "endpoint": 65505,
+      "endpoint_symbol": "SYS_BLE_CHR_RUNIT_TX"
+    },
+    {
+      "connector": "SYS_DATA_CONNECTOR_INTERFACE",
+      "connector_id": 3,
+      "direction": "tx",
+      "provider": "RUNIT_DATA_PROVIDER_BLE",
+      "provider_id": 1,
+      "endpoint": 65505,
+      "endpoint_symbol": "SYS_BLE_CHR_RUNIT_TX"
+    },
+    {
+      "connector": "SYS_DATA_CONNECTOR_INTERFACE",
+      "connector_id": 3,
+      "direction": "rx",
+      "provider": "RUNIT_DATA_PROVIDER_BLE",
+      "provider_id": 1,
+      "endpoint": 65506,
+      "endpoint_symbol": "SYS_BLE_CHR_RUNIT_RX"
+    },
+    {
+      "connector": "SYS_DATA_CONNECTOR_ERRORS",
+      "connector_id": 1,
+      "direction": "tx",
+      "provider": "RUNIT_DATA_PROVIDER_UART",
+      "provider_id": 2,
+      "endpoint": 0,
+      "endpoint_symbol": "SYS_UART_ENDPOINT_CONSOLE",
+      "when": "CONFIG_RUNIT_UART_CONSOLE_LINK"
+    },
+    {
+      "connector": "SYS_DATA_CONNECTOR_TELEMETRY",
+      "connector_id": 2,
+      "direction": "tx",
+      "provider": "RUNIT_DATA_PROVIDER_UART",
+      "provider_id": 2,
+      "endpoint": 0,
+      "endpoint_symbol": "SYS_UART_ENDPOINT_CONSOLE",
+      "when": "CONFIG_RUNIT_UART_CONSOLE_LINK"
+    },
+    {
+      "connector": "SYS_DATA_CONNECTOR_INTERFACE",
+      "connector_id": 3,
+      "direction": "tx",
+      "provider": "RUNIT_DATA_PROVIDER_UART",
+      "provider_id": 2,
+      "endpoint": 0,
+      "endpoint_symbol": "SYS_UART_ENDPOINT_CONSOLE",
+      "when": "CONFIG_RUNIT_UART_CONSOLE_LINK"
+    },
+    {
+      "connector": "SYS_DATA_CONNECTOR_INTERFACE",
+      "connector_id": 3,
+      "direction": "rx",
+      "provider": "RUNIT_DATA_PROVIDER_UART",
+      "provider_id": 2,
+      "endpoint": 0,
+      "endpoint_symbol": "SYS_UART_ENDPOINT_CONSOLE",
+      "when": "CONFIG_RUNIT_UART_CONSOLE_LINK"
     }
   ]
 }

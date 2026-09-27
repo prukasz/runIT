@@ -2,7 +2,7 @@
   "$schema": "data-structures/schema/errors.schema.json",
   "schemaVersion": 1,
   "kind": "errors",
-  "schema_id": 4225466988,
+  "schema_id": 4286704576,
   "packet": {
     "stream": "0x04",
     "byte_order": "little",
@@ -496,6 +496,11 @@
       "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
     },
     {
+      "name": "OWNER_DEC_SETTINGS_PROJECT",
+      "id": 42521,
+      "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
+    },
+    {
       "name": "OWNER_ENC_SYS_ERRORS",
       "id": 42528,
       "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
@@ -809,6 +814,36 @@
       "name": "OWNER_SYS_UART_RX",
       "id": 45315,
       "source_file": "components/system/sys_uart/errors/sys_error_uart.h"
+    },
+    {
+      "name": "OWNER_SYS_PROJECT_BASE",
+      "id": 45568,
+      "source_file": "components/system/sys_project/errors/sys_error_project.h"
+    },
+    {
+      "name": "OWNER_SYS_PROJECT_INIT",
+      "id": 45569,
+      "source_file": "components/system/sys_project/errors/sys_error_project.h"
+    },
+    {
+      "name": "OWNER_SYS_PROJECT_STORE",
+      "id": 45570,
+      "source_file": "components/system/sys_project/errors/sys_error_project.h"
+    },
+    {
+      "name": "OWNER_SYS_PROJECT_COMMIT",
+      "id": 45571,
+      "source_file": "components/system/sys_project/errors/sys_error_project.h"
+    },
+    {
+      "name": "OWNER_SYS_PROJECT_READ",
+      "id": 45572,
+      "source_file": "components/system/sys_project/errors/sys_error_project.h"
+    },
+    {
+      "name": "OWNER_SYS_PROJECT_REPLAY",
+      "id": 45573,
+      "source_file": "components/system/sys_project/errors/sys_error_project.h"
     },
     {
       "name": "OWNER_DEVICE_BASE",
@@ -1546,6 +1581,52 @@
         "args": [
           {
             "field": "dev_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_DEV_PIN_ORDER",
+      "id": 41228,
+      "level": 1,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h",
+      "payload": {
+        "size": 3,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "pin_dev_id",
+            "type": "uint8_t",
+            "offset": 1,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "pin",
+            "type": "uint8_t",
+            "offset": 2
+          }
+        ]
+      },
+      "message": {
+        "format": "device %u: pin %u is on device %u; a device's pins must be on a lower-ID device",
+        "args": [
+          {
+            "field": "dev_id"
+          },
+          {
+            "field": "pin"
+          },
+          {
+            "field": "pin_dev_id"
           }
         ]
       }
@@ -4528,6 +4609,59 @@
       }
     },
     {
+      "name": "ERR_VM_BLK_OUTPUT_TAKEN",
+      "id": 43322,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 6,
+        "fields": [
+          {
+            "name": "blk_id",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "obj_id",
+            "type": "uint16_t",
+            "offset": 2
+          },
+          {
+            "name": "slot",
+            "type": "uint8_t",
+            "offset": 4
+          },
+          {
+            "name": "kind",
+            "type": "uint8_t",
+            "offset": 5
+          }
+        ]
+      },
+      "message": null,
+      "message_unavailable": "2 snprintf calls"
+    },
+    {
+      "name": "ERR_VM_LOAD_EMPTY",
+      "id": 43323,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "unused",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "the program is empty (0 bytes): nothing to load",
+        "args": []
+      }
+    },
+    {
       "name": "ERR_EVENT_LOOP",
       "id": 43777,
       "level": 2,
@@ -4947,6 +5081,333 @@
           },
           {
             "field": "max"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_PROJECT_TOO_BIG",
+      "id": 45569,
+      "level": 2,
+      "source_file": "components/system/sys_project/errors/sys_error_project.h",
+      "payload": {
+        "size": 8,
+        "fields": [
+          {
+            "name": "length",
+            "type": "uint32_t",
+            "offset": 0
+          },
+          {
+            "name": "capacity",
+            "type": "uint32_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "stored code of %lu bytes doesn't fit %lu",
+        "args": [
+          {
+            "field": "length"
+          },
+          {
+            "field": "capacity"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_PROJECT_NOT_STORING",
+      "id": 45570,
+      "level": 1,
+      "source_file": "components/system/sys_project/errors/sys_error_project.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "unused",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "no store in progress (begin first)",
+        "args": []
+      }
+    },
+    {
+      "name": "ERR_PROJECT_OFFSET",
+      "id": 45571,
+      "level": 1,
+      "source_file": "components/system/sys_project/errors/sys_error_project.h",
+      "payload": {
+        "size": 8,
+        "fields": [
+          {
+            "name": "offset",
+            "type": "uint32_t",
+            "offset": 0
+          },
+          {
+            "name": "expected",
+            "type": "uint32_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "stored code chunk at %lu, expected %lu (chunks go in order)",
+        "args": [
+          {
+            "field": "offset"
+          },
+          {
+            "field": "expected"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_PROJECT_INCOMPLETE",
+      "id": 45572,
+      "level": 1,
+      "source_file": "components/system/sys_project/errors/sys_error_project.h",
+      "payload": {
+        "size": 8,
+        "fields": [
+          {
+            "name": "received",
+            "type": "uint32_t",
+            "offset": 0
+          },
+          {
+            "name": "length",
+            "type": "uint32_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "stored code has %lu of %lu bytes",
+        "args": [
+          {
+            "field": "received"
+          },
+          {
+            "field": "length"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_PROJECT_CRC",
+      "id": 45573,
+      "level": 2,
+      "source_file": "components/system/sys_project/errors/sys_error_project.h",
+      "payload": {
+        "size": 8,
+        "fields": [
+          {
+            "name": "crc",
+            "type": "uint32_t",
+            "offset": 0
+          },
+          {
+            "name": "expected",
+            "type": "uint32_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "stored code CRC 0x%08lX, expected 0x%08lX",
+        "args": [
+          {
+            "field": "crc"
+          },
+          {
+            "field": "expected"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_PROJECT_BAD_FRAME",
+      "id": 45574,
+      "level": 2,
+      "source_file": "components/system/sys_project/errors/sys_error_project.h",
+      "payload": {
+        "size": 12,
+        "fields": [
+          {
+            "name": "index",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "offset",
+            "type": "uint32_t",
+            "offset": 4
+          },
+          {
+            "name": "len",
+            "type": "uint16_t",
+            "offset": 8
+          }
+        ]
+      },
+      "message": {
+        "format": "stored frame %u at byte %lu has length %u",
+        "args": [
+          {
+            "field": "index"
+          },
+          {
+            "field": "offset"
+          },
+          {
+            "field": "len"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_PROJECT_FRAME_REFUSED",
+      "id": 45575,
+      "level": 1,
+      "source_file": "components/system/sys_project/errors/sys_error_project.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "index",
+            "type": "uint16_t",
+            "offset": 0
+          },
+          {
+            "name": "class_header",
+            "type": "uint8_t",
+            "offset": 2,
+            "id": {
+              "kind": "rx-class"
+            }
+          },
+          {
+            "name": "packet_header",
+            "type": "uint8_t",
+            "offset": 3,
+            "id": {
+              "kind": "rx-packet",
+              "parent_field": "class_header"
+            }
+          }
+        ]
+      },
+      "message": {
+        "format": "stored frame %u (class 0x%02X packet 0x%02X) can't be part of stored code",
+        "args": [
+          {
+            "field": "index"
+          },
+          {
+            "field": "class_header"
+          },
+          {
+            "field": "packet_header"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_PROJECT_SCHEMA",
+      "id": 45576,
+      "level": 2,
+      "source_file": "components/system/sys_project/errors/sys_error_project.h",
+      "payload": {
+        "size": 8,
+        "fields": [
+          {
+            "name": "stored",
+            "type": "uint32_t",
+            "offset": 0
+          },
+          {
+            "name": "firmware",
+            "type": "uint32_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "stored code is for schema 0x%08lX, firmware is 0x%08lX",
+        "args": [
+          {
+            "field": "stored"
+          },
+          {
+            "field": "firmware"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_PROJECT_NOT_STORED",
+      "id": 45577,
+      "level": 1,
+      "source_file": "components/system/sys_project/errors/sys_error_project.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "unused",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "no stored code",
+        "args": []
+      }
+    },
+    {
+      "name": "ERR_PROJECT_READ_RANGE",
+      "id": 45578,
+      "level": 1,
+      "source_file": "components/system/sys_project/errors/sys_error_project.h",
+      "payload": {
+        "size": 12,
+        "fields": [
+          {
+            "name": "offset",
+            "type": "uint32_t",
+            "offset": 0
+          },
+          {
+            "name": "len",
+            "type": "uint32_t",
+            "offset": 4
+          },
+          {
+            "name": "length",
+            "type": "uint32_t",
+            "offset": 8
+          }
+        ]
+      },
+      "message": {
+        "format": "read %lu bytes at %lu, stored code has %lu",
+        "args": [
+          {
+            "field": "len"
+          },
+          {
+            "field": "offset"
+          },
+          {
+            "field": "length"
           }
         ]
       }

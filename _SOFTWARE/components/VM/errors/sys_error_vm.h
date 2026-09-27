@@ -76,7 +76,9 @@
   X(ERR_VM_RETAIN_TOO_BIG, 0xA936, SE_LEVEL_LOW, struct { uint16_t obj_id; uint32_t need; uint32_t max; })               \
   X(ERR_VM_RETAIN_MISMATCH, 0xA937, SE_LEVEL_LOW, struct { uint16_t obj_id; uint8_t type; /*@enum-ref vm_obj_t_e*/ uint16_t size; })              \
   X(ERR_VM_RETAIN_CORRUPT, 0xA938, SE_LEVEL_MEDIUM, struct { uint32_t offset; })                                       \
-  X(ERR_VM_SUB_TRACK_FULL, 0xA939, SE_LEVEL_LOW, struct { uint16_t max; })
+  X(ERR_VM_SUB_TRACK_FULL, 0xA939, SE_LEVEL_LOW, struct { uint16_t max; })                                           \
+  X(ERR_VM_BLK_OUTPUT_TAKEN,0xA93A, SE_LEVEL_LOW, struct { uint16_t blk_id; uint16_t obj_id; uint8_t slot; uint8_t kind; }) \
+  X(ERR_VM_LOAD_EMPTY, 0xA93B, SE_LEVEL_LOW, struct { uint8_t unused; })
 
 /**
  * @brief Human-readable descriptions for the VM tags - see
@@ -141,7 +143,9 @@
   X(ERR_VM_RETAIN_TOO_BIG)        \
   X(ERR_VM_RETAIN_MISMATCH)       \
   X(ERR_VM_RETAIN_CORRUPT)        \
-  X(ERR_VM_SUB_TRACK_FULL)
+  X(ERR_VM_SUB_TRACK_FULL)        \
+  X(ERR_VM_BLK_OUTPUT_TAKEN)      \
+  X(ERR_VM_LOAD_EMPTY)
 
 #define VM_OBJ_ID_NONE     0xFFFFu  //@vm-constant @description No object (an unlinked PTR element on the wire).
 #define VM_OBJ_ID_DYN_BIT  0x8000u  //@vm-constant @description Set in the ID of a heap object (CLONE's copies); program object IDs stay below it.
@@ -434,6 +438,11 @@ static inline const char* vm_copy_shape_name(uint8_t r) {
   snprintf((out), (out_size), "stored retained values are malformed at byte %lu; the rest is ignored", (unsigned long)(p)->offset)
 #define LOG_BODY_ERR_VM_SUB_TRACK_FULL(p, out, out_size) \
   snprintf((out), (out_size), "subscriptions reach more than %u objects; the rest are not sent (subscribe to fewer)", (p)->max)
+/* kind as in ERR_VM_BLK_BAD_REF: 1 = output (slot = pin), 3 = ENO */
+#define LOG_BODY_ERR_VM_LOAD_EMPTY(p, out, out_size) snprintf((out), (out_size), "the program is empty (0 bytes): nothing to load")
+#define LOG_BODY_ERR_VM_BLK_OUTPUT_TAKEN(p, out, out_size) \
+  ((p)->kind == 3 ? snprintf((out), (out_size), "block %u ENO: object %u already has a writer (an output or ENO of a block)", (p)->blk_id, (p)->obj_id) \
+                  : snprintf((out), (out_size), "block %u output %u: object %u already has a writer (an output or ENO of a block)", (p)->blk_id, (p)->slot, (p)->obj_id))
 
 
 #define SE_CHECK_NOT_NULL_OWNED(owner, ptr)              \

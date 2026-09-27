@@ -15,6 +15,7 @@
     "io",
     "expander"
   ],
+  "datasheet": "https://www.ti.com/lit/ds/symlink/tca6424a.pdf",
   "source_file": "dec_device_tca6424a.h",
   "contractProvider": {
     "symbol": "SYS_DEVICE_CONTRACT_IO",

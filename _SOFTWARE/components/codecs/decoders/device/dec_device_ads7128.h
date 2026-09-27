@@ -9,6 +9,7 @@
 //@description Eight-channel ADC with I2C control and an on-chip window comparator.
 //@protocol i2c
 //@tags i2c adc io voltage ic
+//@datasheet https://www.ti.com/lit/ds/symlink/ads7128.pdf
 //@contract-provider $SYS_DEVICE_CONTRACT_IO
 //@self-property PIN @one-of [0,1,2,3,4,5,6,7]
 //@self-property I2C_ADDRESS @one-of[0x10,0x11,0x12,0x13,0x14,0x15,0x16]
@@ -54,6 +55,8 @@ static inline SE_MUST_USE err_h decoder_packet_sys_device_install_ads7128_t(pack
   ESP_LOGI(DEC_SYS_DEVICE_INSTALL_TAG, "installing ads7128 (dev %u, i2c bus %u addr 0x%02X, vref %lu mV)", packet->device_id, packet->i2c_bus, packet->i2c_addr, (unsigned long)packet->vref_mV);
   d_ads7128_cfg_t cfg = {.device_id = packet->device_id, .i2c_bus = packet->i2c_bus != 0, .i2c_addr = packet->i2c_addr,
                           .intr_pin = pin_ref_from_wire(packet->intr_pin_device_id, packet->intr_pin_pin, packet->intr_pin_mode), .vref_mV = packet->vref_mV};
+  err_h err = PIN_REFS_BELOW(cfg.device_id, cfg.intr_pin);
+  if (err) return err;
   return d_ads7128_create(&cfg);
 }
 

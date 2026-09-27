@@ -35,6 +35,7 @@ Component `*.MD` files are the source of truth for each module's API. This skill
 | `components/system/sys_data_connector/SYS_DATA_CONNECTOR.MD` | Transport-agnostic bus: connectors, providers (framing, endpoint, peer), origin-addressed responses, dynamic frame limit, system connector protection, class `0x06` |
 | `components/system/sys_buffers/SYS_BUFFERS.MD` | Item ring buffers used by transports |
 | `components/system/sys_settings/SYS_SETTINGS.MD` | Named NVS records |
+| `components/system/sys_project/SYS_PROJECT.MD` | Stored code: frame list in the `project` NVS partition, replayed at boot, read back for recovery, class `0x0A` |
 | `components/sys_errors/SYS_ERRORS.MD` | Error chain, pool, maps, handler, logging, binary packet |
 | `components/codecs/CODECS.MD` | Decoder tables per class, packet byte ranges, adding a class |
 | `components/VM/VM.MD`, `VM_EXEC.MD` | VM objects, loader, execution, events |

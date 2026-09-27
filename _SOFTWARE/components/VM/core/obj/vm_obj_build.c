@@ -57,6 +57,7 @@ void vm_obj_init(vm_obj_h o, const vm_obj_head_t* head, const char* name) {
   o->head.f.upd = 0;
   o->head.f.tagged = head->d.name_size ? 1 : 0;
   o->head.f.dynamic = 0;
+  o->head.f.usr_protected = 0;  // set only by the block that claims the object as output / ENO
 
   if (head->d.name_size && name) {
     memcpy(o->payload + head->payload_size, name, head->d.name_size);

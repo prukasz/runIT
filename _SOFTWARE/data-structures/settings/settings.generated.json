@@ -459,6 +459,228 @@
           }
         }
       ]
+    },
+    {
+      "tag": "project",
+      "title": "Stored code",
+      "description": "Store the code the board replays at boot, read it back, set its options and load it.",
+      "source_file": "components/codecs/decoders/dec_settings_project.h",
+      "class_name": "SETTINGS_PROJECT",
+      "class_header": "0x0A",
+      "packets": [
+        {
+          "id": "packet_settings_project_begin_t",
+          "packet": "packet_settings_project_begin_t",
+          "packet_header": "0x01",
+          "field_order": [
+            "length"
+          ],
+          "fields": {
+            "length": {
+              "type": "uint32_t",
+              "alias": "Length",
+              "required": true,
+              "unit": "bytes"
+            }
+          }
+        },
+        {
+          "id": "packet_settings_project_write_t",
+          "packet": "packet_settings_project_write_t",
+          "packet_header": "0x02",
+          "field_order": [
+            "offset",
+            "data"
+          ],
+          "fields": {
+            "offset": {
+              "type": "uint32_t",
+              "alias": "Offset",
+              "required": true,
+              "unit": "bytes"
+            },
+            "data": {
+              "type": "uint8_t",
+              "flexible_array": true,
+              "alias": "Data",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_project_commit_t",
+          "packet": "packet_settings_project_commit_t",
+          "packet_header": "0x03",
+          "field_order": [
+            "crc32",
+            "schema_id"
+          ],
+          "fields": {
+            "crc32": {
+              "type": "uint32_t",
+              "alias": "CRC-32",
+              "required": true
+            },
+            "schema_id": {
+              "type": "uint32_t",
+              "alias": "Schema ID",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_project_abort_t",
+          "packet": "packet_settings_project_abort_t",
+          "packet_header": "0x04",
+          "field_order": [],
+          "fields": {}
+        },
+        {
+          "id": "packet_settings_project_erase_t",
+          "packet": "packet_settings_project_erase_t",
+          "packet_header": "0x05",
+          "field_order": [],
+          "fields": {}
+        },
+        {
+          "id": "packet_settings_project_options_t",
+          "packet": "packet_settings_project_options_t",
+          "packet_header": "0x06",
+          "field_order": [
+            "autostart"
+          ],
+          "fields": {
+            "autostart": {
+              "type": "uint8_t",
+              "alias": "Autostart",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_project_info_t",
+          "packet": "packet_settings_project_info_t",
+          "packet_header": "0x07",
+          "field_order": [],
+          "fields": {},
+          "response": {
+            "struct": "packet_settings_project_info_response_t",
+            "field_order": [
+              "stored",
+              "autostart",
+              "length",
+              "frame_count",
+              "crc32",
+              "schema_id",
+              "firmware_schema_id",
+              "capacity",
+              "replay_state",
+              "replay_applied",
+              "replay_failed",
+              "replay_first_failed",
+              "replay_first_tag",
+              "replay_first_owner",
+              "replay_crc32"
+            ],
+            "fields": {
+              "stored": {
+                "type": "uint8_t",
+                "alias": "Code Stored"
+              },
+              "autostart": {
+                "type": "uint8_t",
+                "alias": "Autostart"
+              },
+              "length": {
+                "type": "uint32_t",
+                "alias": "Length",
+                "unit": "bytes"
+              },
+              "frame_count": {
+                "type": "uint16_t",
+                "alias": "Frames"
+              },
+              "crc32": {
+                "type": "uint32_t",
+                "alias": "CRC-32"
+              },
+              "schema_id": {
+                "type": "uint32_t",
+                "alias": "Stored Schema ID"
+              },
+              "firmware_schema_id": {
+                "type": "uint32_t",
+                "alias": "Firmware Schema ID"
+              },
+              "capacity": {
+                "type": "uint32_t",
+                "alias": "Capacity",
+                "unit": "bytes"
+              },
+              "replay_state": {
+                "type": "uint8_t",
+                "alias": "Last Replay",
+                "enum_ref": "sys_project_replay_e"
+              },
+              "replay_applied": {
+                "type": "uint16_t",
+                "alias": "Frames Applied"
+              },
+              "replay_failed": {
+                "type": "uint16_t",
+                "alias": "Frames Refused"
+              },
+              "replay_first_failed": {
+                "type": "uint16_t",
+                "alias": "First Refused Frame"
+              },
+              "replay_first_tag": {
+                "type": "uint16_t",
+                "alias": "First Refusal Tag"
+              },
+              "replay_first_owner": {
+                "type": "uint16_t",
+                "alias": "First Refusal Owner"
+              },
+              "replay_crc32": {
+                "type": "uint32_t",
+                "alias": "Replayed CRC-32"
+              }
+            }
+          }
+        },
+        {
+          "id": "packet_settings_project_read_t",
+          "packet": "packet_settings_project_read_t",
+          "packet_header": "0x08",
+          "field_order": [
+            "offset",
+            "length"
+          ],
+          "fields": {
+            "offset": {
+              "type": "uint32_t",
+              "alias": "Offset",
+              "required": true,
+              "unit": "bytes"
+            },
+            "length": {
+              "type": "uint16_t",
+              "alias": "Length",
+              "required": true,
+              "max": 128,
+              "unit": "bytes"
+            }
+          }
+        },
+        {
+          "id": "packet_settings_project_load_t",
+          "packet": "packet_settings_project_load_t",
+          "packet_header": "0x09",
+          "field_order": [],
+          "fields": {}
+        }
+      ]
     }
   ]
 }

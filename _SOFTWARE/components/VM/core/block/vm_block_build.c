@@ -60,6 +60,24 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
     }
   }
 
+  /* One writer per object. An output or ENO another block already claimed
+     (usr_protected), or one this block names twice, is refused: two writers
+     would otherwise race silently, the last in execution order winning. */
+  for (uint8_t i = 0; i < cfg->q_cnt; i++) {
+    bool taken = vm_obj_get_by_id(cfg->out_obj_ids[i])->head.f.usr_protected;
+    for (uint8_t j = 0; j < i && !taken; j++) taken = cfg->out_obj_ids[j] == cfg->out_obj_ids[i];
+    if (taken) {
+      SE_FAIL(ERR_VM_BLK_OUTPUT_TAKEN, .blk_id = cfg->block_idx, .obj_id = cfg->out_obj_ids[i], .slot = i, .kind = REF_KIND_OUT);
+    }
+  }
+  if (eno) {
+    bool taken = eno->head.f.usr_protected;
+    for (uint8_t i = 0; i < cfg->q_cnt && !taken; i++) taken = cfg->out_obj_ids[i] == cfg->eno_obj_id;
+    if (taken) {
+      SE_FAIL(ERR_VM_BLK_OUTPUT_TAKEN, .blk_id = cfg->block_idx, .obj_id = cfg->eno_obj_id, .slot = 0, .kind = REF_KIND_ENO);
+    }
+  }
+
   //#vm-arena block @per HEADER_packet_vm_add_block @size sizeof(vm_block_data_t) + (in_cnt + q_cnt + en_cnt) * sizeof(void*) + custom_len
   size_t total = vm_block_calc_size(cfg->in_cnt, cfg->q_cnt, cfg->en_cnt, cfg->custom_len);
   vm_block_h b = NULL;

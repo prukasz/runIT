@@ -42,6 +42,13 @@ const toValues = (command: CommandDescriptor, inputs: Readonly<Record<string, st
       continue
     }
     if (!text.trim()) continue
+    if (field.kind === 'bytes') {
+      // Hex bytes, e.g. "0a 02 ff" or "0a02ff".
+      const digits = text.replace(/[\s,;]+/g, '')
+      if (!/^([0-9a-f]{2})*$/i.test(digits)) throw new Error(`${field.label}: hex bytes, two digits each.`)
+      values[field.name] = Uint8Array.from(digits.match(/../g) ?? [], (pair) => Number.parseInt(pair, 16))
+      continue
+    }
     if (field.kind === 'array') {
       const entries = text.split(/[\s,;]+/).filter(Boolean).map((entry) => parseNumber(entry, field))
       const length = field.arrayLength ?? entries.length

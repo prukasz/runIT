@@ -85,7 +85,22 @@ export interface GeneratedEnumsFile {
 
 /** `data-structures/streams/streams.generated.json` */
 export interface GeneratedStreamsFile {
-  readonly ble: { readonly service: string }
+  readonly limits: { readonly connectors_max: number; readonly providers_per_connector_max: number; readonly name_max: number; readonly frame_max: number }
+  readonly ble: {
+    readonly service: string
+    readonly service_symbol: string
+    readonly is_primary: boolean
+    readonly characteristics: readonly {
+      readonly symbol: string
+      readonly uuid: string
+      readonly name: string
+      readonly write: boolean
+      readonly notify: boolean
+      readonly indicate: boolean
+      readonly tx_buffer_size: number
+      readonly rx_buffer_size: number
+    }[]
+  }
   readonly streams: readonly {
     readonly name: string
     readonly header: string
@@ -93,7 +108,18 @@ export interface GeneratedStreamsFile {
     readonly connector_id: number
     readonly alias: string
     readonly description: string
+    readonly max_frame: number
     readonly ble?: { readonly notify?: string; readonly write?: string }
+  }[]
+  readonly bindings: readonly {
+    readonly connector: string
+    readonly connector_id: number
+    readonly direction: string
+    readonly provider: string
+    readonly provider_id: number
+    readonly endpoint: number
+    readonly endpoint_symbol: string
+    readonly when?: string
   }[]
 }
 
@@ -142,10 +168,60 @@ export interface GeneratedErrorsFile {
 
 /** `data-structures/board/board.generated.json` */
 export interface GeneratedBoardFile {
-  readonly devices: readonly { readonly id: number; readonly symbol: string; readonly name: string; readonly driver?: string; readonly descriptor?: string; readonly title?: string }[]
+  /** SYS_I2C_BUS_*: onboard devices sit on `internal`, user devices go on `user`. */
+  readonly i2c_buses: { readonly internal: number; readonly user: number }
+  readonly devices: readonly {
+    readonly id: number
+    readonly symbol: string
+    readonly name: string
+    readonly driver?: string
+    readonly descriptor?: string
+    readonly title?: string
+    /** The board installs it at boot (bring-up switch on). */
+    readonly installed: boolean
+    readonly i2c?: { readonly bus: number; readonly address: number }
+    /** Pins it takes on other devices; `mode` is a sys_io_mode_e symbol. */
+    readonly pins?: readonly { readonly use: string; readonly device: number; readonly pin: number; readonly mode: string }[]
+  }[]
+  /** Pins the board sets up itself at boot (status LEDs, supply switches …). */
+  readonly pin_setup: readonly { readonly device: number; readonly pin: number; readonly mode: string; readonly level?: boolean; readonly installed: boolean; readonly label?: string }[]
+  /** ESP pins the board uses outside sys_io (I2C buses …). */
+  readonly reserved_pins: readonly { readonly device: number; readonly pin: number; readonly label: string }[]
 }
 
 /** `data-structures/vm/blocks/index.generated.json` (the parts the app reads) */
 export interface GeneratedVmBlocksIndex {
   readonly blocks: readonly { readonly id: number; readonly name: string; readonly title: string }[]
+}
+
+/** `data-structures/vm/vm-program.generated.json` (the parts the app reads) */
+export interface GeneratedVmProgramFile {
+  readonly class_header: string
+  readonly types: readonly { readonly symbol: string; readonly value: number; readonly alias: string; readonly memory_width: number; readonly wire_width: number; readonly wire_type: string }[]
+  readonly constants: Readonly<Record<string, { readonly value: number }>>
+  readonly limits: Readonly<Record<string, { readonly value: number }>>
+  readonly sizes: Readonly<Record<string, number>>
+  readonly arena: { readonly alignment: number }
+  readonly packets: readonly {
+    readonly packet_header: string
+    readonly symbol: string
+    readonly batch?: { readonly count_type: string; readonly max: number }
+    readonly record: { readonly name: string; readonly size: number }
+  }[]
+  readonly telemetry: { readonly stream: string; readonly class_header: string; readonly frames: readonly { readonly packet_header: string; readonly symbol: string }[] }
+}
+
+export interface GeneratedVmModelField {
+  readonly name: string
+  readonly kind: string
+  readonly c_type?: string
+  readonly bit_width?: number
+  readonly annotations?: Readonly<Record<string, unknown>>
+  readonly fields?: readonly GeneratedVmModelField[]
+}
+
+/** `data-structures/vm/vm-model.generated.json` (the parts the app reads) */
+export interface GeneratedVmModelFile {
+  readonly enums: Readonly<Record<string, { readonly members: readonly { readonly name: string; readonly value: number }[] }>>
+  readonly structures: readonly { readonly name: string; readonly annotations?: Readonly<Record<string, unknown>>; readonly fields: readonly GeneratedVmModelField[] }[]
 }

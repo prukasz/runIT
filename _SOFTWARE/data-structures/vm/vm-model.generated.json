@@ -1117,7 +1117,7 @@
                 "role": "user-protected",
                 "wire_offset": "3",
                 "wire_bit_offset": "6",
-                "device_sets": "1 on block outputs and ENO objects"
+                "device_sets": "0 at load; 1 on block outputs and ENO objects"
               },
               "bit_width": 1
             },

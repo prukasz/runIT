@@ -32,6 +32,97 @@
   },
   "catalogs": [
     {
+      "id": "actions",
+      "title": "Actions",
+      "description": "Run the board's static actions, record contract sequences as dynamic actions and run or remove them.",
+      "source_file": "components/codecs/decoders/dec_sys_actions.h",
+      "class_name": "SYS_ACTIONS",
+      "class_header": "0x03",
+      "contracts": [
+        {
+          "id": "packet_sys_action_static_t",
+          "packet": "packet_sys_action_static_t",
+          "packet_header": "0x00",
+          "decoder": "decoder_packet_sys_action_static_t()",
+          "field_order": [
+            "id"
+          ],
+          "fields": {
+            "id": {
+              "type": "uint8_t",
+              "alias": "Static Action ID",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_sys_action_dynamic_t",
+          "packet": "packet_sys_action_dynamic_t",
+          "packet_header": "0x01",
+          "decoder": "decoder_packet_sys_action_dynamic_t()",
+          "field_order": [
+            "id"
+          ],
+          "fields": {
+            "id": {
+              "type": "uint8_t",
+              "alias": "Dynamic Action ID",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_sys_action_record_start_t",
+          "packet": "packet_sys_action_record_start_t",
+          "packet_header": "0x02",
+          "decoder": "decoder_packet_sys_action_record_start_t()",
+          "field_order": [
+            "id"
+          ],
+          "fields": {
+            "id": {
+              "type": "uint8_t",
+              "alias": "Dynamic Action ID",
+              "required": true,
+              "note": "action id that recorded blocks will be attached to"
+            }
+          }
+        },
+        {
+          "id": "packet_sys_action_record_stop_t",
+          "packet": "packet_sys_action_record_stop_t",
+          "packet_header": "0x03",
+          "decoder": "decoder_packet_sys_action_record_stop_t()",
+          "field_order": [],
+          "fields": {}
+        },
+        {
+          "id": "packet_sys_action_remove_t",
+          "packet": "packet_sys_action_remove_t",
+          "packet_header": "0x04",
+          "decoder": "decoder_packet_sys_action_remove_t()",
+          "field_order": [
+            "id"
+          ],
+          "fields": {
+            "id": {
+              "type": "uint8_t",
+              "alias": "Dynamic Action ID",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_sys_action_remove_all_t",
+          "packet": "packet_sys_action_remove_all_t",
+          "packet_header": "0x05",
+          "decoder": "decoder_packet_sys_action_remove_all_t()",
+          "field_order": [],
+          "fields": {}
+        }
+      ]
+    },
+    {
       "id": "system",
       "title": "System contracts",
       "description": "Device lifecycle, IO, power, and H-bridge operations exposed by the system-contracts interface class.",
@@ -193,7 +284,7 @@
                   "enum": "sys_device_importance_e",
                   "value": 0,
                   "alias": "Disabled",
-                  "description": "Disables automatic handling for this device."
+                  "description": "Ignores the device's errors except critical ones (a device under test). Every device starts here."
                 },
                 {
                   "symbol": "SYS_DEV_IMPORTANCE_LOW",
@@ -231,7 +322,7 @@
               "array_len": 5,
               "alias": "Error-Level Actions",
               "required": true,
-              "note": "sys_actions ids, indexed by se_level_e"
+              "note": "actions[0]: scope bits, bit n-1 set = level n runs a dynamic (recorded) action, clear = static; actions[1..4]: action IDs for Low, Medium, High, Critical (0 = none)"
             }
           }
         },

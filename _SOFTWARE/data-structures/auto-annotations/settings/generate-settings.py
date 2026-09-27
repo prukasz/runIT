@@ -30,6 +30,16 @@ def fail(message: str) -> None:
     raise SystemExit(f"ERROR: {message}")
 
 
+def response_layout(packet_name: str, structs: dict, path: Path, defines, sdkconfig, symbols):
+    """OK-status data of a packet: packet_<name>_response_t, if the decoder declares one (as contracts do)."""
+    response_name = packet_name[: -len("_t")] + "_response_t"
+    if response_name not in structs:
+        return None
+    fields = device.parse_struct_fields(structs[response_name], defines, sdkconfig)
+    entry = device.build_packet_entry(response_name, "0x00", fields, path.name, None, None, defines, sdkconfig, symbols)
+    return {"struct": response_name, "field_order": entry["field_order"], "fields": entry["fields"]}
+
+
 def build_document() -> dict:
     all_classes = device.scan_all_class_headers()
     all_classes.update(device.scan_kconfig_class_headers())
@@ -56,6 +66,8 @@ def build_document() -> dict:
         if not packets:
             fail(f"{path}: settings decoder has no packet structs")
         class_name, class_header = class_info
+        structs = {m.group(2): m.group(1) for m in device.STRUCT_RE.finditer(text)}
+        responses = {name: response_layout(name, structs, path, defines, sdkconfig, symbols) for name in packets}
         settings.append({
             "tag": directive.group("tag"),
             "title": tags["title"],
@@ -70,6 +82,7 @@ def build_document() -> dict:
                 "field_order": packet["field_order"],
                 "fields": packet["fields"],
                 **({"groups": packet["groups"]} if "groups" in packet else {}),
+                **({"response": responses[name]} if responses[name] else {}),
             } for name, packet in packets.items()],
         })
 

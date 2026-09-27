@@ -334,7 +334,7 @@ All multi-byte fields little-endian. Design points:
 
 * **`payload_size` in bytes, not an element count.** This reversed once: the wire used to carry `item_count` so a client needed no type-width table. Sizing is the client's job now, so it has that table anyway, and in exchange the device does **no arithmetic on sizes at all** — which removes the overflow that multiplying a 16-bit count by a width and truncating back into 16 bits used to risk. Two rejections replace it: `0` (`ERR_VM_OBJ_EMPTY`) because an object with no storage still has an address, and that address is the next allocation's first byte; and a size that is not a whole number of elements (`ERR_VM_OBJ_BAD_SIZE`), because 5 bytes of `U32` would let `vm_obj_elem_ptr()` return an element whose last three bytes lie past the payload. A wrong-but-aligned size is *contained* rather than rejected — every access is bounds-checked against it.
 * **`start_idx` is unconditional.** Making its presence depend on comparing `byte_len` against the element width would leave framing dependent on a lookup the parser must trust, and would make a single non-zero element unaddressable (one element is never "larger than one element").
-* **The object header travels as its raw 4-byte in-memory image** (`VM_OBJ_HEAD_WIRE_SIZE`), bitfields included. Bitfield layout is compiler-defined, so the layout is pinned instead: `vm_obj_head_t` is published with `@wire-abi esp32-gcc-bitfield-v1` and explicit `@wire-offset`/`@wire-bit-offset` per field in `data-structures/vm/vm-model.generated.json`, and the app packs from that. `vm_obj_create()` forces `upd`, `tagged` (from `name_size`) and `dynamic` whatever the wire says.
+* **The object header travels as its raw 4-byte in-memory image** (`VM_OBJ_HEAD_WIRE_SIZE`), bitfields included. Bitfield layout is compiler-defined, so the layout is pinned instead: `vm_obj_head_t` is published with `@wire-abi esp32-gcc-bitfield-v1` and explicit `@wire-offset`/`@wire-bit-offset` per field in `data-structures/vm/vm-model.generated.json`, and the app packs from that. `vm_obj_create()` forces `upd`, `tagged` (from `name_size`), `dynamic` and `usr_protected` (0; the claiming block sets it) whatever the wire says.
 * **For a `VM_OBJ_PTR` object, `0x43` data is a list of u16 child ids**, resolved through the table and linked. Children must therefore be created by an earlier `0x42`.
 * **`total_size` is the app's arithmetic**: the sum of every allocation rounded up to 4 bytes — registries `4 × count`, object `4 + payload_size + name_size`, accessor `20 + 8 × idx_count` plus `name_len + 1` per name step, block `16 + 4 × (in + q + en) + custom_len`. Each formula is a `//#vm-arena` line on the allocation it describes, and the struct sizes come from their `_Static_assert`s, so the published formula can't drift from the code.
 * **Unknown enum values are refused**: `en_mode` / `on_error` outside their enums (`ERR_VM_BLK_BAD_SHAPE`), and an accessor whose `idx_len` doesn't end exactly after its `idx_count` steps (`ERR_VM_LOAD_SHORT_RECORD`).
@@ -411,7 +411,7 @@ The accessor is the one that expresses it differently: `indices` is a *pointer* 
 
 **0x40 — reset.** `vm_loader_reset()` owns the complete lifecycle: stop pass admission, wait for active execution, reset execution and subscriptions, then reset dynamic objects, three registries, and the arena. It returns with execution stopped. Transport callbacks remain installed, but no program handle survives.
 
-**0x41 — open.** Replaces whatever was loaded, so an upload that restarts mid-stream cannot mix two programs — but **allocates the new pool first**: `total_size` is checked against `CONFIG_VM_STORE_MAX_POOL` and the largest free internal-DRAM block (`ERR_VM_LOAD_TOO_BIG`, carrying requested-vs-available), and only once the new pool is secured is the old program torn down. A failed open leaves the running program, its subscriptions and its run mode intact. The arena is exactly the **declared** size — a program that under-declares fails on the object that overruns, which points at the bug, instead of quietly borrowing space it never asked for. The three id tables are bump-allocated and zeroed. State becomes `VM_LOAD_OPEN`.
+**0x41 — open.** Replaces whatever was loaded, so an upload that restarts mid-stream cannot mix two programs — but **allocates the new pool first**: `total_size` 0 is refused (`ERR_VM_LOAD_EMPTY`: a client with no program sends no frames), then checked against `CONFIG_VM_STORE_MAX_POOL` and the largest free internal-DRAM block (`ERR_VM_LOAD_TOO_BIG`, carrying requested-vs-available), and only once the new pool is secured is the old program torn down. A failed open leaves the running program, its subscriptions and its run mode intact. The arena is exactly the **declared** size — a program that under-declares fails on the object that overruns, which points at the bug, instead of quietly borrowing space it never asked for. The three id tables are bump-allocated and zeroed. State becomes `VM_LOAD_OPEN`.
 
 **0x42 — objects.** The loader passes the received `vm_obj_head_t` directly to `vm_obj_create()`, which takes that head plus a name pointer — there is no separate config type. The name is copied straight out of the frame, because `name_size` in the head says how many bytes to take, so the wire form needs no NUL and no staging buffer.
 
@@ -440,6 +440,7 @@ Three shape limits, all enforced at load — `in_cnt`, `q_cnt` and `en_cnt` each
 | a child object before the `0x43` that links it | `ERR_VM_ACCESSOR_UNKNOWN_ID` |
 | a referenced accessor before the one referencing it | `ERR_VM_REG_OOB` (`kind` = accessor registry) |
 | every object and accessor a block names, before the block | `ERR_VM_BLK_BAD_REF`, naming the slot |
+| each object is an output or ENO of at most one block (one writer), named once | `ERR_VM_BLK_OUTPUT_TAKEN`; `usr_protected` is 0 at load, set by the claiming block |
 | a block's type registered in the palette, before the block | `ERR_VM_BLK_UNKNOWN_TYPE` |
 | a block that passes its type's check (shape, required pins, private state) | `ERR_VM_BLK_BAD_SHAPE`; the block is removed again |
 | `0x42`/`0x43`(PTR links)/`0x44`/`0x45` only while stopped | `ERR_VM_LOAD_BAD_STATE` (a running `0x43` is a runtime override instead) |
@@ -1026,9 +1027,10 @@ a program re-upload, like a PLC retain variable.
 - **Size:** everything a program retains must fit `CONFIG_VM_RETAIN_MAX_BYTES`
   (1024; record = 2 + per object 4 + name + value), checked per object at load
   (`ERR_VM_RETAIN_TOO_BIG`). RAM cost is twice that.
-- **Across reboots** the program itself is not stored yet (it lives in RAM), so
-  retained values come back once the app re-uploads and starts it. Storing the
-  program on the device is the next step.
+- **Across reboots** the program comes back from the board's stored code
+  ([[SYS_PROJECT.MD]]): the boot replay loads it, and with autostart on it
+  starts, which restores the retained values. Without stored code, retained
+  values wait until the app uploads and starts the program again.
 
 ### Subscriptions and telemetry (`core/sub/`)
 
@@ -1201,7 +1203,7 @@ That figure is a **reference for the client's own estimate**, not a device-side 
 
 A program that does not fit — past `VM_STORE_MAX_POOL`, or larger than the biggest contiguous block internal DRAM can currently give — fails its load with `ERR_VM_LOAD_TOO_BIG` carrying requested-vs-available. Fragmentation is the real limit rather than free-heap total, which is why the error reports the largest available block: a client can tell "no room at all" from "no room in one piece".
 
-Note the app **partition** is 1 MB (`CONFIG_PARTITION_TABLE_SINGLE_APP`), not the board's 16 MB flash (`sdkconfig` still declares 2 MB; see the runit-esp build notes). Code size is bounded by that partition: the whole firmware image was ~710 kB of 1 MB on 2026-09-23.
+Code size is bounded by the app partition: 2 MB (`partitions.csv`, 16 MB flash); the firmware image was ~740 kB on 2026-09-26.
 
 ---
 
@@ -1209,7 +1211,7 @@ Note the app **partition** is 1 MB (`CONFIG_PARTITION_TABLE_SINGLE_APP`), not th
 
 * **No test target.** The on-target self-test suite and the access benchmark were deleted in commit `47207d3`; the performance figures they produced are kept as history in [VM_PERF.MD](VM_PERF.MD).
 * **Palette:** see "What ships today" — 15 block types, published for the app as one descriptor per block in `data-structures/vm/blocks/`.
-* **Retained values** are kept by name ("Retained values"); the program itself is not stored on the device yet.
+* **Retained values** are kept by name ("Retained values"); the program is kept as part of the board's stored code ([[SYS_PROJECT.MD]]).
 * **Hardware Drivers Boundary:** Blocks in `blocks/` interact with runtime registries and accessors; hardware drivers (`sys_io`, `sys_power`) are invoked via standard system interfaces.
 * **Timing & Clocks:** `vm_now_ms()` latches the pass timestamp per scan cycle, driving time-aware blocks such as `TIMER`.
 * **Non-scalar Movement:** `SET` (`vm_block_set.h`) performs deep copy (`vm_obj_copy_content()`) across matching schemas with pairwise pointer array traversal.

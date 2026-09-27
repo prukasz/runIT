@@ -74,17 +74,22 @@ See [sys_errors](../../sys_errors/SYS_ERRORS.MD) for ownership and traversal rul
 `sys_device_report_error_with_level()` accepts a validated explicit level; NONE
 means no response. Both borrow the input and return an owned response failure.
 
-Importance NONE ignores the device, including critical faults. During chain dispatch
-it stops this device and all deeper causes, retaining diagnostics and any already
-executed outer responses. For enabled devices, noncritical severity is capped by
-importance; critical still invokes global shutdown and the configured device action.
+Importance NONE (every device's start value) ignores the device's non-critical
+errors. During chain dispatch it stops non-critical handling of this device and all
+deeper causes, retaining diagnostics and any already executed outer responses.
+Noncritical severity is capped by importance; a critical error always goes through,
+NONE included: global shutdown and the device's Critical action.
 
 `actions[5]` keeps the existing configuration packet size:
 
 - `actions[0]`: four scope bits; bit 0 LOW, bit 1 MEDIUM, bit 2 HIGH, bit 3 CRITICAL.
   A set bit selects the dynamic action namespace; a clear bit selects static.
 - `actions[1..4]`: full eight-bit IDs for LOW through CRITICAL; zero disables an action.
-- Each ID is validated against its selected namespace. NULL resets all five bytes.
+- Each ID is validated against its selected namespace: static `0..CONFIG_SYS_ACTIONS_STATIC_SLOTS-1`,
+  dynamic `0..255` (the range sys_actions records and runs). NULL resets all five bytes.
+
+Which levels' actions can run under an importance: NONE → Critical; LOW → Low,
+Critical; MEDIUM → Low, Medium, Critical; HIGH / CRITICAL → all four.
 
 The former unused NONE action slot is now the scope mask. There is no static-to-dynamic
 fallback. Existing static IDs with a zero first byte keep their meaning; dynamic
@@ -157,11 +162,11 @@ typedef struct {
 * **User entry points** are what inbound packets and replayed recorded actions call. **`sys_device_user_uninstall(id)`** returns `ERR_DEV_ONBOARD {dev_id}` for an onboard device, otherwise it's `sys_device_uninstall()`. **`sys_device_user_uninstall_all()`** uninstalls every non-onboard device (same order, best effort). Because an onboard ID stays occupied, a user install on it fails with `ERR_DEV_ALREADY_EXIST`, so onboard devices can't be replaced either.
 * That's the only firmware rule. Everything else users may do with onboard devices (contracts, reset, suspend, error handling) is app policy, enforced in the client.
 * System paths (boot action, static actions such as hard reset, fault handling) keep using the plain functions.
-* **Sweep direction follows the device-id dependency convention.** A device's `sys_io_pin_ref_t` fields (`oe_pin`, `rst_pin`, `en_pin`, ...) always point at a *lower*-id device — see `runit_board_cfg.c`'s boot-order device ids. Several adapters' `suspend`/`uninstall` ops call back into that dependency's `sys_io_*` while they run (e.g. `tca6424a`'s `suspend` drives its `rst_pin` low, which is a `gpio_esp` pin). Tear-down sweeps (`suspend_all`, `uninstall_all`) therefore go **high id → low id**, so a dependent finishes its own teardown before the lower-id device it depends on goes down; bring-up sweeps (`resume_all`) go **low id → high id**, so a dependency is already active by the time a higher-id dependent resumes and touches it. `reset_all`/`freeze_all`/`sync_all` sweep low → high since none of today's adapters reach into another device's `sys_io` from those ops — if one ever does, it needs the same high→low treatment.
+* **Sweep direction follows the device-id dependency convention.** A device's `sys_io_pin_ref_t` fields (`oe_pin`, `rst_pin`, `en_pin`, ...) always point at a *lower*-id device — see `runit_board_cfg.c`'s boot-order device ids. Several adapters' `suspend`/`uninstall` ops call back into that dependency's `sys_io_*` while they run (e.g. `tca6424a`'s `suspend` drives its `rst_pin` low, which is a `gpio_esp` pin). Tear-down sweeps (`suspend_all`, `uninstall_all`) therefore go **high id → low id**, so a dependent finishes its own teardown before the lower-id device it depends on goes down; bring-up sweeps (`resume_all`) go **low id → high id**, so a dependency is already active by the time a higher-id dependent resumes and touches it. `reset_all`/`freeze_all`/`sync_all` sweep low → high since none of today's adapters reach into another device's `sys_io` from those ops — if one ever does, it needs the same high→low treatment. User installs (the install decoders, `PIN_REFS_BELOW` in `dec_device_common.h`) enforce the convention: a pin ref on the same or a higher ID is refused with `ERR_DEV_PIN_ORDER` (dev_id, pin_dev_id, pin) before the device is created.
 * **Faults use suspend, not freeze.** Suspend is the safe state: each adapter's `suspend` puts its outputs into a safe condition (PWM off via OE + sleep, expander in reset, regulator output off + EN low, PD output off, DAC powered down, H-bridges coast) and the device state becomes `SUSPENDED`, so dispatch rejects new writes (`ERR_DEV_SUSPENDED`) instead of queueing them. Critical faults (`runit_system_fault`, `runit_enter_safe_state`, and this component's weak fallbacks) call `sys_device_suspend_all()`. Exception still open: `device_gpio_esp`'s suspend aliases its freeze, so ESP GPIO outputs keep their level.
 * **Freeze vs. suspend are orthogonal.** `freeze`/`freeze_all` never touch `state` (an adapter tracks its own `is_frozen` flag via `SYS_DEV_CTX_FREEZE`/`SYS_DEV_CTX_UNFREEZE`); only `suspend`/`suspend_all` set `state = SYS_DEV_STATE_SUSPENDED`. Consequently `resume`/`resume_all` (which only act on devices `SYS_DEV_IS_SUSPENDED`) do **not** clear a freeze that was applied without a suspend — several adapters (see e.g. `device_gpio_esp`'s `device_sync()`) clear `is_frozen` from their `sync` op instead, so lifting a freeze system-wide is `sys_device_sync_all()`, not `sys_device_resume_all()`. [[SYS_ACTIONS.MD]]'s "resume" static function calls both together for exactly this reason.
 * **`sys_device_get_by_id(device_id)`**: Lock-free registry lookup; returns `NULL` if out of range or unset.
-* **`sys_device_report_error(device_id, error)`**: Evaluates the supplied node's error severity against the device's `importance`. Critical errors unconditionally invoke `sys_device_app_error_policy()`. Non-critical errors are gated and clamped by `dev->importance`.
+* **`sys_device_report_error(device_id, error)`**: Evaluates the supplied node's error severity against the device's `importance`. Critical errors always invoke the registered error policy, whatever the importance. Non-critical errors are ignored at NONE and clamped by `dev->importance` otherwise.
 * **`sys_device_report_error_with_level(device_id, level, error)`**: Explicit severity level override variant of `sys_device_report_error()`.
 * **`sys_device_register_error_policy(fn)`**: The application registers its error policy (`sys_device_error_policy_f`: device, level, action scope/id, error). runit does it in `runit_error_wiring_init()`, the first boot step. Without one, a CRITICAL device error suspends all devices.
 * **`sys_device_set_error_handling(device_id, importance, actions)`**: Configures device importance and action IDs in one call — maps 1:1 to wire packet `0x1A` (`packet_sys_device_set_error_handling_t`). `actions` is copied into `dev->actions[5]` (IDs validated against the namespace selected by `actions[0]`), or pass `NULL` to zero it. Returns `ERR_DEV_NOT_FOUND` if `device_id` isn't registered, `ERR_INVALID_VAL_UI32` if an `actions[]` entry is out of range.

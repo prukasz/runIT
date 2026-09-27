@@ -22,7 +22,7 @@ Full design: [components/sys_errors/SYS_ERRORS.MD](../../../components/sys_error
 
   `_OWNED` variants take an explicit owner. Report at the origin (top-level entry points, task loops) with `SE_REPORT`.
 - **Severity (`se_level_e`: NONE / LOW / MEDIUM / HIGH / CRITICAL) follows the consequence.**
-  - CRITICAL means the whole system must stop: VM stop + suspend all. Only real system faults use it (`BLE_HARDWARE_FAULT`, `DEV_FAULT_RESPONSE_FAILED`, `VM_EXEC_FAULT_LATCHED`). It bypasses the per-device importance cap; with no device attributed it goes to the registered system hook.
+  - CRITICAL means the whole system must stop: VM stop + suspend all. Only real system faults use it (`BLE_HARDWARE_FAULT`, `DEV_FAULT_RESPONSE_FAILED`, `VM_EXEC_FAULT_LATCHED`). It bypasses the per-device importance cap, NONE included (NONE only ignores non-critical errors); with no device attributed it goes to the registered system hook.
   - Bad arguments, missing handles, out of memory and install failures are HIGH.
   - Pool exhaustion (`ERR_BASE_POOL_EXHAUSTED`) is LOW.
 - **New tags:** add them to the module's `SYS_ERROR_<MODULE>_MAP` with an explicit ID in the module's domain, `X(ERR_<MODULE>_<WHAT>, 0xDDnn, level, struct)`, plus a `LOG_BODY_<tag>` in its `LOGGER_MAP`. Never renumber existing ones. Tags that carry a device ID must be added to `device_id_of()` in `sys_error_handler.c` to take part in device policy.

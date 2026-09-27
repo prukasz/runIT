@@ -9,6 +9,7 @@
 //@description Three-channel I2C bus-voltage and shunt-current monitor with warning and critical alerts.
 //@protocol i2c
 //@tags i2c power voltage current monitor alert ic
+//@datasheet https://www.ti.com/lit/ds/symlink/ina3221.pdf
 //@contract-provider $SYS_DEVICE_CONTRACT_POWER_MONITOR
 //@self-property CHANNEL @one-of [0,1,2]
 //@property ALERT-SEVERITY @enum-ref sys_power_events_e @one-of [$SYS_PWR_EVENT_OCP_CRITICAL, $SYS_PWR_EVENT_OCP_WARNING]
@@ -45,6 +46,8 @@ static inline SE_MUST_USE err_h decoder_packet_sys_device_install_ina3221_t(pack
   d_ina3221_cfg_t cfg = {.device_id = packet->device_id, .i2c_bus = packet->i2c_bus != 0, .i2c_addr = packet->i2c_addr,
                           .crit_pin = pin_ref_from_wire(packet->crit_pin_device_id, packet->crit_pin_pin, packet->crit_pin_mode),
                           .warn_pin = pin_ref_from_wire(packet->warn_pin_device_id, packet->warn_pin_pin, packet->warn_pin_mode)};
+  err_h err = PIN_REFS_BELOW(cfg.device_id, cfg.crit_pin, cfg.warn_pin);
+  if (err) return err;
   return d_ina3221_create(&cfg);
 }
 

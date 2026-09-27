@@ -17,6 +17,7 @@
     "voltage",
     "current"
   ],
+  "datasheet": "https://www.diodes.com/assets/Datasheets/AP33772S.pdf",
   "source_file": "dec_device_ap33772s.h",
   "contractProvider": {
     "symbol": "SYS_DEVICE_CONTRACT_POWER_USB_PD",

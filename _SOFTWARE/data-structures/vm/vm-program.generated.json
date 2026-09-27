@@ -734,7 +734,7 @@
             "length_from": "q_cnt",
             "element_size": 2,
             "alias": "Outputs",
-            "description": "One object per output pin. The device marks them user-protected: runtime writes to them are refused.",
+            "description": "One object per output pin, each with no other writer. The device marks them user-protected: runtime writes to them are refused.",
             "reference": "object"
           },
           {
@@ -761,6 +761,11 @@
           "rule": "Every object and accessor the block names exists before it; the ENO object is a mutable B object.",
           "error": "ERR_VM_BLK_BAD_REF",
           "error_tag": 43297
+        },
+        {
+          "rule": "One writer per object: no output or ENO object is already an output or ENO of another block, or named twice by this one.",
+          "error": "ERR_VM_BLK_OUTPUT_TAKEN",
+          "error_tag": 43322
         },
         {
           "rule": "The block type exists in the palette.",

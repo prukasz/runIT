@@ -10,12 +10,24 @@
 #include "dec_settings_data_connector.h"
 #include "dec_settings_logs.h"
 #include "dec_settings_power.h"
+#include "dec_settings_project.h"
 #include "dec_sys_actions.h"
 #include "dec_sys_contracts.h"
 #include "dec_sys_events.h"
 #include "dec_vm_loader.h"
 #include "sys_interface.h"
 #include "utils.h"
+
+err_h runit_project_boot(void) {
+  SE_REPORT(sys_project_replay(dec_settings_project_is_vm_frame));
+  sys_project_report_t report;
+  bool autostart = false;
+  sys_project_report(&report, &autostart);
+  if (autostart && report.state == SYS_PROJECT_REPLAY_DONE && !report.vm_failed && vm_loader_state() == VM_LOAD_OPEN) {
+    SE_REPORT(vm_exec_control(VM_EXEC_NORMAL_MODE));
+  }
+  return NULL;
+}
 
 err_h runit_register_decoders(void) {
   SE_TRY(sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_SYS_CONTRACTS, dec_sys_contracts_decode, "sys_contracts"));
@@ -27,5 +39,6 @@ err_h runit_register_decoders(void) {
   SE_TRY(sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_SYS_FEATURES, dec_features_decode, "features"));
   SE_TRY(sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_SYS_ACTIONS, dec_sys_actions_decode, "sys_actions"));
   SE_TRY(sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_SYS_EVENTS, dec_sys_events_decode, "sys_events"));
+  SE_TRY(sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_SETTINGS_PROJECT, dec_settings_project_decode, "settings_project"));
   return NULL;
 }

@@ -1,7 +1,7 @@
 """
 Device JSON generator for components/codecs/decoders/**/dec_device_*.h.
 
-Reads device-level //@ directives (id/version/title/description/protocol/tags/
+Reads device-level //@ directives (id/version/title/description/protocol/tags/datasheet/
 contract-provider/self-property/property/contract/param/returns) plus the
 field-level @tag comments already used across every dec_*.h packet struct, and
 renders one self-contained JSON descriptor per annotated device header. See
@@ -412,6 +412,7 @@ def build_device_document(device: dict, packets: Dict[str, dict]) -> dict:
         "description": metadata["description"],
         "protocols": metadata.get("protocol", "").split(),
         "tags": metadata.get("tags", "").split(),
+        **({"datasheet": metadata["datasheet"]} if metadata.get("datasheet") else {}),
         "source_file": device["source_file"],
         "contractProvider": device["contract_provider"],
         "install": {"packet": install_packets[0], "packet_definition": packets[install_packets[0]]},

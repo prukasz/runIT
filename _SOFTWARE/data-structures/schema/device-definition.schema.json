@@ -16,6 +16,7 @@
     "description": { "type": "string" },
     "protocols": { "type": "array", "items": { "type": "string" } },
     "tags": { "type": "array", "items": { "type": "string" } },
+    "datasheet": { "type": "string", "format": "uri", "description": "Manufacturer datasheet (PDF URL), from //@datasheet." },
     "source_file": { "type": "string" },
     "contractProvider": {
       "oneOf": [{ "type": "null" }, { "type": "string" }, { "$ref": "#/$defs/symbolRef" }]

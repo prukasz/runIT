@@ -14,7 +14,7 @@ The first argument is the decoders root to scan, the second is the output direct
 
 | Case | Keywords |
 |---|---|
-| Device metadata (top-level, before first `//@contract`) | `id`, `version`, `title`, `description`, `protocol`, `tags`, `contract-provider` |
+| Device metadata (top-level, before first `//@contract`) | `id`, `version`, `title`, `description`, `protocol`, `tags`, `datasheet`, `contract-provider` |
 | `//@self-property NAME` | `one-of` |
 | `//@property NAME` | `enum-ref`, `one-of` |
 | `//@contract <packet>` | `alias` |
@@ -58,6 +58,7 @@ Place the annotations after includes and before the install packet. An annotated
 | `//@description <text>` | yes | `description` | Concise user-facing purpose and behavior. |
 | `//@protocol <items>` | no | `protocols` | Whitespace-separated transports, for example `i2c spi`. |
 | `//@tags <items>` | no | `tags` | Whitespace-separated search terms. |
+| `//@datasheet <url>` | no | `datasheet` | The manufacturer's datasheet (PDF URL); the app links it on the device page. |
 | `//@contract-provider $<symbol>` | no | `contractProvider` | Firmware contract actually exposed by the adapter. The `$` marks it as a global symbol - it must resolve against a `//#ref-enum` enum (see below) or generation fails. |
 | `//@self-property NAME @one-of [...]` | no, repeatable | (lookup table only, not emitted directly) | A device-local value domain with no meaning outside this device - plain literals, nothing to resolve (e.g. channel indices, address straps). |
 | `//@property NAME [@enum-ref <enum>] @one-of [$SYMBOL, ...]` | no, repeatable | (lookup table only, not emitted directly) | A value domain whose members are real global symbols. Each `$SYMBOL` must resolve against a `//#ref-enum` enum or generation fails. `@enum-ref` documents the owning enum, which is also inferred from the `$` members. |

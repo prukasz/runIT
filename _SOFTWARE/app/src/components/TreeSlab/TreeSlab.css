@@ -1,0 +1,426 @@
+/* Universal TreeSlab Component */
+.tree-slab-row,
+.shell .tree-slab-row {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  height: auto !important;
+  margin: 3px 8px 3px 6px;
+  padding: 2px 4px;
+  border: 1px solid var(--divider, #444444);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--active, #f2f2f2) 5%, var(--panel, #303030));
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.tree-slab-row:hover,
+.shell .tree-slab-row:hover {
+  border-color: color-mix(in srgb, var(--accent, #e9ad50) 32%, var(--divider, #444444));
+  background: var(--hover, #3a3a3a);
+}
+
+.tree-slab-row.selected,
+.shell .tree-slab-row.selected {
+  border-color: color-mix(in srgb, var(--accent, #e9ad50) 55%, var(--divider, #444444));
+  background: color-mix(in srgb, var(--accent, #e9ad50) 16%, var(--panel, #303030));
+  box-shadow: inset 3px 0 var(--accent, #e9ad50);
+}
+
+.tree-slab-row.folder,
+.shell .tree-slab-row.folder {
+  background: color-mix(in srgb, var(--panel, #303030) 75%, var(--background, #272727));
+}
+
+.tree-slab-row.folder.selected,
+.shell .tree-slab-row.folder.selected {
+  background: color-mix(in srgb, var(--accent, #e9ad50) 16%, var(--panel, #303030));
+}
+
+.tree-slab-row.reference,
+.shell .tree-slab-row.reference {
+  border-color: color-mix(in srgb, #dfa84f 35%, var(--divider, #444444));
+  background: color-mix(in srgb, #dfa84f 14%, var(--panel, #303030));
+}
+
+.tree-slab-row.link-target,
+.tree-slab-row.is-search-match,
+.shell .tree-slab-row.link-target,
+.shell .tree-slab-row.is-search-match {
+  border-color: #e9ad50;
+  background: color-mix(in srgb, #e9ad50 18%, var(--panel, #303030));
+  box-shadow: 0 0 10px rgba(233, 173, 80, 0.45);
+}
+
+.tree-slab-row.link-target:hover,
+.tree-slab-row.is-search-match:hover,
+.shell .tree-slab-row.link-target:hover,
+.shell .tree-slab-row.is-search-match:hover {
+  border-color: #ffbe5e;
+  background: color-mix(in srgb, #e9ad50 30%, var(--panel, #303030));
+  box-shadow: 0 0 16px rgba(233, 173, 80, 0.7);
+}
+
+.tree-slab-row.link-disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.tree-slab-row.is-dragging {
+  opacity: 0.4;
+}
+
+.tree-slab-row.drop-into {
+  border-color: var(--accent, #e9ad50);
+  background: color-mix(in srgb, var(--accent, #e9ad50) 24%, var(--panel, #303030));
+  box-shadow: inset 0 0 0 1px var(--accent, #e9ad50);
+}
+
+.tree-slab-row.drop-before {
+  box-shadow: inset 0 3px 0 0 var(--accent, #e9ad50);
+}
+
+.tree-slab-row.drop-after {
+  box-shadow: inset 0 -3px 0 0 var(--accent, #e9ad50);
+}
+
+/* Internal interactive button */
+.tree-slab-item,
+.shell .tree-slab-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  min-height: 28px;
+  height: auto !important;
+  padding: 1px 3px;
+  color: var(--active, #f2f2f2);
+  font-size: 12px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+/* 1. Icon slot */
+.tree-slab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+/* Main content body */
+.tree-slab-content {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 8px;
+}
+
+/* Row 1: Header / Label */
+.tree-slab-header {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+
+.tree-slab-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--active, #f2f2f2);
+  line-height: 1.25;
+}
+
+/* Disclosure slot in header */
+.tree-slab-disclosure-slot {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  margin-left: 2px;
+}
+
+/* Badges container */
+.tree-slab-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Badges / Chips styling */
+.tree-slab-chip {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+  color: var(--muted, #a3a3a3);
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--active, #f2f2f2) 7%, transparent);
+  white-space: nowrap;
+}
+
+.tree-slab-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  line-height: 1.1;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  color: var(--muted, #a3a3a3);
+  background: color-mix(in srgb, var(--active, #f2f2f2) 8%, transparent);
+}
+
+.tree-slab-badge.count {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: #66c9aa;
+  background: color-mix(in srgb, #66c9aa 16%, transparent);
+}
+
+/* Disclosure button (Chevron) */
+.tree-slab-disclosure {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted, #a3a3a3);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color 120ms ease, background 120ms ease;
+  flex: none;
+}
+
+.tree-slab-disclosure:hover {
+  color: var(--active, #f2f2f2);
+  background: color-mix(in srgb, var(--active, #f2f2f2) 12%, transparent);
+}
+
+.tree-slab-disclosure svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Action button (e.g. Delete) */
+.tree-slab-action {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted, #a3a3a3);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color 120ms ease, background 120ms ease, opacity 120ms ease;
+  opacity: 0.6;
+  flex: none;
+  margin-left: 2px;
+}
+
+.tree-slab-row:hover .tree-slab-action,
+.tree-slab-row.selected .tree-slab-action {
+  display: inline-flex;
+}
+
+.tree-slab-action:hover {
+  opacity: 1;
+  color: #ef6565 !important;
+  background: color-mix(in srgb, #ef6565 18%, transparent) !important;
+}
+
+.tree-slab-action svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Specific badge overrides inside TreeSlab */
+.tree-slab-badges .ble-prop-badges {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.tree-slab-badges .ble-adv-tag {
+  display: inline-flex !important;
+  align-items: center !important;
+  font-size: 9px !important;
+  padding: 1px 5px !important;
+  font-weight: 600 !important;
+  border-radius: 3px !important;
+  line-height: 1.1 !important;
+  color: #50d782 !important;
+  background: color-mix(in srgb, #50d782 14%, transparent) !important;
+}
+
+.tree-slab-badges .conn-system-label {
+  display: inline-flex !important;
+  align-items: center !important;
+  font-size: 8.5px !important;
+  padding: 1px 4px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.4px !important;
+  line-height: 1.1 !important;
+  border-radius: 3px !important;
+}
+
+.tree-slab-badges .ble-uuid-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  font-size: 9.5px !important;
+  padding: 1px 4px !important;
+  border-radius: 3px !important;
+  margin-left: auto !important;
+}
+
+/* =========================================================================
+   TWO-ROW NARROW LAYOUT:
+   Row 1: Icon (first badge) + Text
+   Row 2: Badges
+   ========================================================================= */
+@container (max-width: 290px) {
+  .tree-slab-row.has-badges.two-row-narrow,
+  .shell .tree-slab-row.has-badges.two-row-narrow {
+    min-height: 48px !important;
+    height: auto !important;
+    padding: 5px 6px !important;
+    align-items: flex-start !important;
+  }
+
+  .tree-slab-row.has-badges.two-row-narrow .tree-slab-item,
+  .shell .tree-slab-row.has-badges.two-row-narrow .tree-slab-item {
+    align-items: flex-start !important;
+    height: auto !important;
+    min-height: 38px !important;
+    gap: 8px;
+    padding: 0 2px;
+  }
+
+  .tree-slab-row.has-badges.two-row-narrow .tree-slab-icon {
+    margin-top: 1px !important;
+    flex-shrink: 0;
+  }
+
+  .tree-slab-row.has-badges.two-row-narrow .tree-slab-disclosure {
+    margin-top: 2px !important;
+    flex-shrink: 0;
+  }
+
+  .tree-slab-row.has-badges.two-row-narrow .tree-slab-action {
+    margin-top: 2px !important;
+    flex-shrink: 0;
+  }
+
+  .tree-slab-row.has-badges.two-row-narrow .tree-slab-content {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .tree-slab-row.has-badges.two-row-narrow .tree-slab-header {
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 18px !important;
+  }
+
+  .tree-slab-row.has-badges.two-row-narrow .tree-slab-badges {
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin-left: 0 !important;
+    margin-top: 1px !important;
+    gap: 4px !important;
+    flex-wrap: wrap !important;
+  }
+}
+
+/* Also support explicit .two-row class */
+.tree-slab-row.has-badges.two-row,
+.shell .tree-slab-row.has-badges.two-row {
+  min-height: 48px !important;
+  height: auto !important;
+  padding: 5px 6px !important;
+  align-items: flex-start !important;
+}
+
+.tree-slab-row.has-badges.two-row .tree-slab-item,
+.shell .tree-slab-row.has-badges.two-row .tree-slab-item {
+  align-items: flex-start !important;
+  height: auto !important;
+  min-height: 38px !important;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.tree-slab-row.has-badges.two-row .tree-slab-icon {
+  margin-top: 1px !important;
+  flex-shrink: 0;
+}
+
+.tree-slab-row.has-badges.two-row .tree-slab-disclosure {
+  margin-top: 2px !important;
+  flex-shrink: 0;
+}
+
+.tree-slab-row.has-badges.two-row .tree-slab-action {
+  margin-top: 2px !important;
+  flex-shrink: 0;
+}
+
+.tree-slab-row.has-badges.two-row .tree-slab-content {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.tree-slab-row.has-badges.two-row .tree-slab-header {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 18px !important;
+}
+
+.tree-slab-row.has-badges.two-row .tree-slab-badges {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin-left: 0 !important;
+  margin-top: 1px !important;
+  gap: 4px !important;
+  flex-wrap: wrap !important;
+}

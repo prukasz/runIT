@@ -24,6 +24,9 @@
 #include "sys_error.h"
 #include "sys_interface.h"
 
+//@contract-catalog actions @title Actions @description Run the board's static actions, record contract sequences as dynamic actions and run or remove them.
+//@contract-list SYS_ACTIONS_PACKET_LIST
+
 #undef OWNER
 #define OWNER OWNER_DEC_SYS_ACTIONS
 

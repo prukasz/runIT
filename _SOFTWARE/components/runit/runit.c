@@ -10,6 +10,7 @@
 #include "sys_error_log.h"
 #include "sys_event.h"
 #include "sys_interface.h"
+#include "sys_project.h"
 #include "sys_settings.h"
 #include "vm_exec.h"
 #include "vm_retain.h"
@@ -71,6 +72,7 @@ err_h runit_start(void) {
       {"runit_error_wiring_init", runit_error_wiring_init},
       {"runit_board_i2c_init", runit_board_i2c_init},
       {"sys_settings_init", sys_settings_init},
+      {"sys_project_init", sys_project_init},
       {"runit_board_ble_init", runit_board_ble_init},
       {"sys_data_connector_init", sys_data_connector_init},
       {"runit_board_connector_bindings_init", runit_board_connector_bindings_init},
@@ -96,6 +98,7 @@ err_h runit_start(void) {
 
   static const runit_boot_step_entry_t s_boot_runtime_steps[] = {
       {"vm_exec_start", vm_exec_start},
+      {"runit_project_boot", runit_project_boot},
   };
 
   err = runit_run_boot_steps(s_boot_runtime_steps, sizeof(s_boot_runtime_steps) / sizeof(s_boot_runtime_steps[0]));

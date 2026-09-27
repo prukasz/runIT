@@ -45,19 +45,19 @@ Status tags: **✅ decided** (survey 2026-09-24, §6) · **⚠ firmware gap** (�
 ### DEV — Devices and features page
 | ID | Feature | Firmware link |
 |---|---|---|
-| DEV-1 | Install / test / set up devices | install decoders (class `0x01` `0x40–0x47`), `device_*.generated.json` |
+| DEV-1 | Install / test / set up devices | ✅ 2026-09-26 Board view (`app/src/devices/`): add from the device types, configure install values and pin groups, live install / uninstall; the stored code installs user devices at boot. Install decoders (class `0x01` `0x40–0x47`), `device_*.generated.json` |
 | DEV-2 | Features (servo, H-bridge, …) with the devices they use | ⚠ F-GAP-2 features have no JSON descriptors yet |
-| DEV-3 | Linked contracts per device, callable for testing | `contracts.generated.json` (`response`, `response_stream`) |
+| DEV-3 | Linked contracts per device, callable for testing | ✅ 2026-09-26 right panel Contracts tab: device ID filled from the device, answers decoded. `contracts.generated.json` (`response`, `response_stream`) |
 | DEV-4 | **Board overview**: runIT board SVG mapping connected elements to physical terminals (STM32CubeMX-like) | Needs a board profile JSON (terminals ↔ device channels ↔ pins) ⚠ F-GAP-3 |
 | DEV-5 | Hardware presence (what's actually there vs configured) | device sync / status contracts |
 
 ### ACT — Action setup (recorder)
 | ID | Feature | Firmware link |
 |---|---|---|
-| ACT-1 | Compose an action: set the desired device states + add commands, then upload all under an action ID | `sys_actions` class `0x03`: record start `0x02 id` → frames → record stop `0x03`; 2 KB per action, IDs 1–255, NVS |
-| ACT-2 | Action source stored in the project JSON (re-editable) | app-side; device only keeps the raw blob |
+| ACT-1 | Compose an action: set the desired device states + add commands, then upload all under an action ID (✅ 2026-09-26 action composer: contract steps on any device, record / run) | `sys_actions` class `0x03`: record start `0x02 id` → frames → record stop `0x03`; 2 KB per action, IDs 1–255, NVS |
+| ACT-2 | Action source stored in the project JSON (re-editable) (✅ 2026-09-26 `actions`) | app-side; device only keeps the raw blob |
 | ACT-3 | **Sandbox mode** — build without sending live, with a readable summary of what the action does | ✅ While composing, device setup and commands are only buffered in the app, never sent. Upload must **store without executing** (nothing moves until the action is invoked) → ⚠ F-GAP-4 |
-| ACT-4 | Size meter against the 2 KB limit | computed from packed frames |
+| ACT-4 | Size meter against the 2 KB limit (✅ 2026-09-26) | computed from packed frames |
 
 ### OBJ — Code: objects tab
 | ID | Feature | Firmware link |
@@ -66,6 +66,7 @@ Status tags: **✅ decided** (survey 2026-09-24, §6) · **⚠ firmware gap** (�
 | OBJ-2 | Create objects in a folder structure (PTR trees), assign values | `0x42` add objects, `0x43` set data |
 | OBJ-3 | Basic = simplified view (auto type, hidden flags) | CMP-3 |
 | OBJ-4 | Show linked blocks per object (jump) | LNK |
+| OBJ-5 | Block outputs: (a) default, a hidden block-owned object per output / ENO (user sets only its name and subscription); (b) an output may target a user object instead | `0x45` `out_obj_ids` / `eno_obj_id`, `ERR_VM_BLK_OUTPUT_TAKEN` |
 
 ### CAN — Code: canvas
 | ID | Feature | Notes |
@@ -169,7 +170,7 @@ views (React)            Settings · Devices · Actions · Code(objects/canvas) 
 
 ### 4.4 Ideas beyond the list
 - **Upload diff**: before upload, show what changes on the device (objects added, blocks changed, retained values lost).
-- ✅ **Program on device ↔ project**: the project file is the source of truth; the device stores a project hash (with G-8 program storage) so the app knows whether the running program matches the open project. No full readback.
+- ✅ **Program on device ↔ project**: the project file is the source of truth; the board stores the built code (`sys_project`, app/docs/03_records_as_storage.md) and reports its CRC, so the app knows whether the board holds the open project; reading it back is recovery only.
 - **Timeline / recorder** (legacy doc 06): record telemetry + commands + errors, scrub back in Debug.
 - **Wire value probes**: pin a value on any link; watch list in the right sidebar.
 - **Templates**: starter projects (blink, servo sweep, motor ramp) — good for Basic users.
@@ -187,7 +188,7 @@ views (React)            Settings · Devices · Actions · Code(objects/canvas) 
 | F-GAP-5 | Check that pause / block-step state (`next_block`, run mode) is reported to the app | DBG-3 |
 | F-GAP-7 | ✅ 2026-09-25: error tags, owners, severities, payload layouts, message templates and value tables published (`data-structures/errors/errors.generated.json`, `generate-errors.py`). Left: 6 tags whose `LOG_BODY` uses conditionals have no template; `esp_err_to_name` / `vm_format_obj_id` values print as numbers | ERR-2 |
 | F-GAP-8 | Device JSON doesn't list the events each device publishes (already in PROGRESS) | event subscriptions, LNK |
-| F-GAP-9 | Project hash stored with the program on the device | §4.4, with G-8 |
+| F-GAP-9 | ✅ 2026-09-26: stored code CRC (`info`) and the CRC of the code the boot replayed | §4.4 |
 | F-GAP-10 | `"required": false` (`//@optional`) in contracts / settings JSON means "may be 0 / the sentinel", **not** "may be left off the wire": decoders need the whole packed struct (a shorter frame gets `ERR_INTERFACE_SHORT_FRAME`, seen on the devkit 2026-09-24). The schema doesn't say so | Packer in the app: always send every field. Either document it in the schemas or rename the flag |
 
 These stay here only (not in PROGRESS.md) until picked up — user decision 2026-09-24.
@@ -206,10 +207,11 @@ These stay here only (not in PROGRESS.md) until picked up — user decision 2026
 | Readback | None; project file is the source; device keeps a project hash |
 | Settings | App profile (theme, mode, language, panels) separate from project (board settings) |
 | Stack | §7 accepted, incl. Tailwind v4 |
-| Existing `App.tsx` | Visual reference only; shell starts fresh (`main.tsx` renders `BleTestApp` today) |
+| Existing `App.tsx` | The app shell (`main.tsx` renders it) |
 | Extras in scope | Gamepad in Remote; Polish + English |
 | Out of scope for now | Offline simulated board; several boards at once; docs page (info window only) |
 | Firmware gaps | Tracked in §5 only, not in PROGRESS.md |
+| Block outputs (OBJ-5, 2026-09-25) | (a) is the default. (b) is allowed: the object becomes block-driven. Compiler rules: one writer per object (the device also refuses a second one, `ERR_VM_BLK_OUTPUT_TAKEN`); `mutable` forced on; `upd_resetable` = 1 for driven objects, 0 for other user objects (derived at compile time, not stored). Editor: a driven object is read-only (no remote write widget, no second output, no write-target block), shows a lock and "driven by Block N" with a jump; the pin shows `→ folder/name`. Reading is unrestricted: wires from the pin compile to an accessor on the object either way |
 
 New open questions go below this table.
 

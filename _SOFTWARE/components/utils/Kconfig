@@ -244,6 +244,14 @@ menu "System-Wide Identity Assignments"
               Class byte identifying the event subscription decoder table
               (dec_sys_events.h) on the wire.
 
+        config RX_PACKET_CLASS_SETTINGS_PROJECT
+            hex "Stored code (project store) wire class byte"
+            default 0x0A
+            range 0x00 0xFF
+            help
+              Class byte identifying the stored code decoder table
+              (dec_settings_project.h, SYS_PROJECT.MD) on the wire.
+
     endmenu
 
     menu "TX Packet Classes (outbound, sys_data_connector stream framing)"

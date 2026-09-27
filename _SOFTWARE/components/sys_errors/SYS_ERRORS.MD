@@ -77,11 +77,12 @@ remains invalid, even if its address is later allocated again.
   severity among its mentions before the first ignored-device boundary. Run that
   device's policy once, at its first occurrence; pass the node supplying that level.
   The leaf does not silently replace another node's severity.
-- Importance NONE stops handling that device and all deeper causes. Earlier
-  responses remain in effect; the full chain still goes to diagnostics. To suppress
-  an entire incident, the ignored-device context must precede any actionable nodes.
-- Noncritical response levels are capped by importance. Critical bypasses that cap
-  for enabled devices; NONE still disables it. Tag severities themselves are unchanged.
+- Importance NONE stops non-critical handling of that device and all deeper causes.
+  Earlier responses remain in effect; the full chain still goes to diagnostics.
+  Critical nodes past the boundary are still handled: a critical error always stops
+  the system, whatever the device's importance.
+- Noncritical response levels are capped by importance. Critical bypasses that cap,
+  NONE included. Tag severities themselves are unchanged.
 - Domain hooks receive `(node, full_chain)` for each visited node in that domain.
   Hooks are registered at boot (`SE_register_domain_hook(domain, fn)`, a table of
   `CONFIG_SYS_ERRORS_MAX_DOMAIN_HOOKS`); a domain without one is skipped. The device
@@ -246,7 +247,7 @@ flowchart TD
 
         %% Device Policy Path
         G -->|Yes| H["sys_device_report_error_with_level()"]
-        H --> I{"dev->importance == NONE?"}
+        H --> I{"importance NONE and not critical?"}
         I -->|Yes| J["Drop error (Ignored/Test Device)"]
         I -->|No| K["Clamp severity level & lookup action_id"]
         K --> L["registered device error policy (runit_device_policy)"]
@@ -320,7 +321,7 @@ sequenceDiagram
         alt Node is attributed to a device
             Handler->>SysDev: sys_device_report_error_with_level(dev_id, level, node)
             SysDev->>SysDev: sys_device_get_by_id(dev_id)
-            alt dev->importance == SYS_DEV_IMPORTANCE_NONE
+            alt importance NONE and level != CRITICAL
                 SysDev-->>Handler: NULL (Ignored test device)
             else Active Device
                 SysDev->>SysDev: Clamp level to dev->importance (if non-critical)

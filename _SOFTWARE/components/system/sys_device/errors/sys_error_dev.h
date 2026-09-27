@@ -35,7 +35,8 @@
     X(ERR_DEV_FAULT_RESPONSE_FAILED, 0xA108, SE_LEVEL_CRITICAL, struct { uint8_t dev_id; /*@id device*/ uint8_t level; /*@id error-level*/ uint8_t stage; uint8_t action_id; uint16_t cause_tag; /*@id error-tag*/ }) \
     X(ERR_DEV_DRIVER_FAILED, 0xA109, SE_LEVEL_HIGH, struct { uint8_t dev_id; /*@id device*/ uint16_t line; }) \
     X(ERR_DEV_INSTALL_STEP_FAILED, 0xA10A, SE_LEVEL_HIGH, struct { uint16_t line; }) \
-    X(ERR_DEV_ONBOARD, 0xA10B, SE_LEVEL_LOW, struct { uint8_t dev_id; /*@id device*/ })
+    X(ERR_DEV_ONBOARD, 0xA10B, SE_LEVEL_LOW, struct { uint8_t dev_id; /*@id device*/ }) \
+    X(ERR_DEV_PIN_ORDER, 0xA10C, SE_LEVEL_LOW, struct { uint8_t dev_id; /*@id device*/ uint8_t pin_dev_id; /*@id device*/ uint8_t pin; })
 
 /**
  * @brief Human-readable descriptions for the sys_device tags - see
@@ -74,7 +75,8 @@ extern const char* const sys_hbridge_feature_names[];        // sys_hbridge.c
   X(ERR_DEV_FAULT_RESPONSE_FAILED)   \
   X(ERR_DEV_DRIVER_FAILED)           \
   X(ERR_DEV_INSTALL_STEP_FAILED)     \
-  X(ERR_DEV_ONBOARD)
+  X(ERR_DEV_ONBOARD)                 \
+  X(ERR_DEV_PIN_ORDER)
 
 #define LOG_BODY_ERR_DEV_NO_HANDLE(p, out, out_size) snprintf((out), (out_size), "device %u has no handle (installed but handle is NULL)", (p)->dev_id)
 #define LOG_BODY_ERR_DEV_NOT_FOUND(p, out, out_size) snprintf((out), (out_size), "device %u is not registered", (p)->dev_id)
@@ -105,6 +107,7 @@ extern const char* const sys_hbridge_feature_names[];        // sys_hbridge.c
 #define LOG_BODY_ERR_DEV_DRIVER_FAILED(p, out, out_size) snprintf((out), (out_size), "device %u driver call failed (adapter line %u)", (p)->dev_id, (unsigned)(p)->line)
 #define LOG_BODY_ERR_DEV_INSTALL_STEP_FAILED(p, out, out_size) snprintf((out), (out_size), "install step failed (adapter line %u)", (unsigned)(p)->line)
 #define LOG_BODY_ERR_DEV_ONBOARD(p, out, out_size) snprintf((out), (out_size), "device %u is onboard (baked onto the PCB) and can't be uninstalled by a user", (p)->dev_id)
+#define LOG_BODY_ERR_DEV_PIN_ORDER(p, out, out_size) snprintf((out), (out_size), "device %u: pin %u is on device %u; a device's pins must be on a lower-ID device", (p)->dev_id, (p)->pin, (p)->pin_dev_id)
 #define LOG_BODY_ERR_DEV_FAULT_RESPONSE_FAILED(p, out, out_size) \
   snprintf((out), (out_size), "device %u fault response failed (level=%u, stage=%u, action=%u, cause_tag=%u)", \
            (p)->dev_id, (p)->level, (p)->stage, (p)->action_id, (unsigned)(p)->cause_tag)

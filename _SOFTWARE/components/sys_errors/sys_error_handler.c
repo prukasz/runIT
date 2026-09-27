@@ -103,13 +103,16 @@ void SE_push_to_handler(err_h err) {
     uint8_t devices[SE_MAX_CHAIN_DEPTH];
     size_t  handled        = 0;
     bool    system_handled = false;
+    bool    ignoring       = false;
     for (size_t i = 0; i < count; ++i) {
-      err_h   node = nodes[i];
-      uint8_t id;
-      bool    device = device_id_of(node, &id);
-      // NONE suppresses this node and its causes, but not preceding responses.
-      if (device && s_device_ignored && s_device_ignored(id)) break;
-      se_level_e level = SE_get_tag_level(node->tag);
+      err_h      node = nodes[i];
+      uint8_t    id;
+      bool       device = device_id_of(node, &id);
+      se_level_e level  = SE_get_tag_level(node->tag);
+      // An ignored (NONE) device suppresses this node and its causes, but not
+      // preceding responses and not critical nodes: those always stop the system.
+      if (device && s_device_ignored && s_device_ignored(id)) ignoring = true;
+      if (ignoring && level != SE_LEVEL_CRITICAL) continue;
       if (device) {
         size_t j = 0;
         while (j < handled && devices[j] != id) ++j;

@@ -1,9 +1,11 @@
-export { buildCommandCatalog, decodeResponseData, DescriptorError, packCommand } from './commandCatalog'
+export { buildCommandCatalog, commandFromDefinition, decodeResponseData, DescriptorError, packCommand } from './commandCatalog'
+export { buildDeviceCatalog, pinUseLabel } from './deviceCatalog'
+export type { BoardDevice, BoardPinLink, BoardPinSetup, DeviceCatalog, DeviceChoice, DeviceContract, DeviceParameter, DeviceType, GeneratedDeviceFile, InstallPinGroup } from './deviceCatalog'
 export type { CommandCatalog, CommandDescriptor, CommandFieldInfo, CommandGroup, CommandLayout, DecodedResponseData } from './commandCatalog'
 export { buildErrorCatalog } from './errorCatalog'
 export type { ErrorCatalog, ErrorLevelInfo, ErrorMessageTemplate, ErrorOwnerInfo, ErrorPayloadField, ErrorPayloadType, ErrorTagInfo } from './errorCatalog'
 export { buildStreamCatalog } from './streamCatalog'
-export type { BleLayout, StreamCatalog, StreamInfo } from './streamCatalog'
+export type { BleLayout, BoardBinding, BoardCharacteristic, BoardSetup, StreamCatalog, StreamInfo } from './streamCatalog'
 export type {
   GeneratedChoice,
   GeneratedContractsFile,
@@ -17,7 +19,11 @@ export type {
   GeneratedStreamsFile,
   GeneratedBoardFile,
   GeneratedVmBlocksIndex,
+  GeneratedVmModelFile,
+  GeneratedVmProgramFile,
 } from './generatedTypes'
-export { runitCommandCatalog, runitErrorCatalog, runitInterfaceProtocol, runitStreamCatalog, runitValueNames } from './runitDescriptors'
+export { runitCommandCatalog, runitDeviceCatalog, runitEnumValue, runitErrorCatalog, runitInterfaceProtocol, runitStreamCatalog, runitValueNames, runitVmCatalog } from './runitDescriptors'
 export { buildValueNames } from './valueNames'
 export type { NamedField, ValueNames, ValueNameSources } from './valueNames'
+export { buildVmCatalog, decodeVmObjectHead, encodeVmObjectHead } from './vmCatalog'
+export type { VmCatalog, VmHeadField, VmObjectType, VmPacketWire } from './vmCatalog'

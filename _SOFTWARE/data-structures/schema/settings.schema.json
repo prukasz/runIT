@@ -48,7 +48,18 @@
         "packet_header": { "type": "string", "pattern": "^0x[0-9A-Fa-f]+$" },
         "field_order": { "type": "array", "items": { "type": "string" } },
         "fields": { "type": "object", "additionalProperties": { "$ref": "#/$defs/field" } },
-        "groups": { "type": "object" }
+        "groups": { "type": "object" },
+        "response": {
+          "type": "object",
+          "description": "OK-status data: packet_<name>_response_t, when the decoder declares one.",
+          "required": ["struct", "field_order", "fields"],
+          "additionalProperties": false,
+          "properties": {
+            "struct": { "type": "string" },
+            "field_order": { "type": "array", "items": { "type": "string" } },
+            "fields": { "type": "object", "additionalProperties": { "$ref": "#/$defs/field" } }
+          }
+        }
       }
     },
     "setting": {

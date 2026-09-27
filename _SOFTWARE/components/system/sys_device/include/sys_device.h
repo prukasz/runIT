@@ -80,7 +80,7 @@ typedef struct {
 
 //#ref-enum @alias Device Error Importance
 typedef enum sys_device_importance_e {
-  SYS_DEV_IMPORTANCE_NONE = 0, //@alias Disabled @description Disables automatic handling for this device.
+  SYS_DEV_IMPORTANCE_NONE = 0, //@alias Disabled @description Ignores the device's errors except critical ones (a device under test). Every device starts here.
   SYS_DEV_IMPORTANCE_LOW = 1, //@alias Low @description Handles only low-severity device errors.
   SYS_DEV_IMPORTANCE_MEDIUM = 2, //@alias Medium @description Handles low and medium-severity device errors.
   SYS_DEV_IMPORTANCE_HIGH = 3, //@alias High @description Handles low through high-severity device errors.
@@ -205,12 +205,12 @@ sys_device_t* sys_device_get_by_id(uint8_t device_id);
  * The fault severity level is determined automatically from the supplied error node's tag
  * (via SE_get_tag_level()).
  *
- * If dev->importance is SYS_DEV_IMPORTANCE_NONE, all error handling is ignored
- * (treated as a test/non-essential device; no actions or latches are triggered).
+ * If dev->importance is SYS_DEV_IMPORTANCE_NONE, non-critical errors are
+ * ignored (a device under test; no actions are triggered).
  *
- * If effective severity is SE_LEVEL_CRITICAL and importance != NONE:
- * it unconditionally latches the fault in the VM, halts the VM, suspends all devices,
- * and invokes dev->actions[SE_LEVEL_CRITICAL].
+ * If the severity is SE_LEVEL_CRITICAL, whatever the importance (NONE
+ * included): it latches the fault in the VM, halts the VM, suspends all
+ * devices, and invokes dev->actions[SE_LEVEL_CRITICAL].
  *
  * For non-critical errors (LOW, MEDIUM, HIGH):
  * - If the level exceeds dev->importance, it is clamped down to dev->importance.
