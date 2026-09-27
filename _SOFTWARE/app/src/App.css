@@ -25,6 +25,7 @@ html, body {
   --accent: #0e86d4;
   --shadow: #0006;
   --canvas-dot: #444444;
+  --canvas-dot-major: #5c5c5c;
   display: flex;
   width: 100%;
   height: 100vh;
@@ -48,6 +49,7 @@ html, body {
   --accent: #0078d4;
   --shadow: #0002;
   --canvas-dot: #e2e5eb;
+  --canvas-dot-major: #c4c9d2;
 }
 
 .shell * { box-sizing: border-box; }
@@ -553,7 +555,6 @@ input[type="range"] {
 .shell .main-action-bar button:disabled { opacity: .45; cursor: default; }
 .shell .main-action-bar button:disabled:hover { background: transparent; color: var(--icon); }
 .main-surface { flex: 1; min-height: 0; background: var(--background); }
-.main-surface.code-canvas { background-image: radial-gradient(var(--canvas-dot) 1px, transparent 1px); background-size: 20px 20px; }
 .terminal-panel { position: relative; display: flex; flex: none; flex-direction: column; min-height: 120px; max-height: calc(100vh - 160px); border-top: 1px solid var(--divider); background: var(--panel); }
 .bottom-resize-handle {
   position: absolute;

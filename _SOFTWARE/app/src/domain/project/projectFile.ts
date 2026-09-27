@@ -8,11 +8,15 @@ import type {
   ConnectorBindingSettings,
   ConnectorSettings,
   ActionStep,
+  CanvasBlock,
   DeviceAppearance,
   FolderNode,
   ObjectNode,
+  ObjectPath,
   ObjectValue,
+  PathStep,
   ProjectAction,
+  ProjectCanvas,
   ProjectDevice,
   ProjectDocument,
   ProjectSettings,
@@ -274,6 +278,15 @@ const parseAppearance = (value: Json, path: string): DeviceAppearance => {
   return { ...optional('icon', optionalString(appearance.icon, `${path}.icon`)), ...optional('image', optionalString(appearance.image, `${path}.image`)) }
 }
 
+export const parseDeviceAliases = (value: Json, path: string): Readonly<Record<string, string>> => {
+  if (value === undefined) return {}
+  return Object.fromEntries(Object.entries(record(value, path)).flatMap(([ref, value]) => {
+    if (!ref) throw new ProjectFormatError(path, 'device reference is empty')
+    const alias = string(value, `${path}.${ref}`).trim()
+    return alias ? [[ref, alias]] : []
+  }))
+}
+
 export const parseDevices = (value: Json, path: string): ProjectDevice[] => {
   const ids = new Set<string>()
   const deviceIds = new Set<number>()
@@ -332,6 +345,74 @@ export const parseActions = (value: Json, path: string): ProjectAction[] => {
   })
 }
 
+const finite = (value: Json, path: string): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw new ProjectFormatError(path, 'expected a number')
+  return value
+}
+
+const parsePath = (value: Json, path: string): ObjectPath => {
+  const entry = record(value, path)
+  const steps = entry.steps === undefined ? undefined : array(entry.steps, `${path}.steps`).map((step, index) => parsePathStep(step, `${path}.steps[${index}]`))
+  return { root: string(entry.root, `${path}.root`), ...optional('steps', steps) }
+}
+
+const parsePathStep = (value: Json, path: string): PathStep => {
+  const step = record(value, path)
+  const kind = oneOf(step.kind, `${path}.kind`, ['index', 'name', 'dynamic'] as const)
+  if (kind === 'index') return { kind, index: count(step.index, `${path}.index`) }
+  if (kind === 'name') return { kind, name: string(step.name, `${path}.name`) }
+  return { kind, index: parsePath(step.index, `${path}.index`) }
+}
+
+const parseCanvasBlock = (value: Json, path: string): CanvasBlock => {
+  const block = record(value, path)
+  const settings = block.settings === undefined ? undefined : Object.fromEntries(Object.entries(record(block.settings, `${path}.settings`)).map(([name, entry]) => [name, typeof entry === 'string' ? entry : finite(entry, `${path}.settings.${name}`)]))
+  const expression = block.expression === undefined ? undefined : (() => {
+    const at = `${path}.expression`
+    const entry = record(block.expression, at)
+    const constants = entry.constants === undefined ? undefined : array(entry.constants, `${at}.constants`).map((constant, index) => finite(constant, `${at}.constants[${index}]`))
+    const code = array(entry.code, `${at}.code`).map((token, index) => (typeof token === 'string' ? token : finite(token, `${at}.code[${index}]`)))
+    return { ...optional('constants', constants), code }
+  })()
+  return {
+    id: string(block.id, `${path}.id`),
+    type: string(block.type, `${path}.type`),
+    x: finite(block.x, `${path}.x`),
+    y: finite(block.y, `${path}.y`),
+    ...optional('view', block.view === undefined ? undefined : oneOf(block.view, `${path}.view`, ['simple', 'detailed'] as const)),
+    ...optional('dynamicInputs', block.dynamicInputs === undefined ? undefined : array(block.dynamicInputs, `${path}.dynamicInputs`).map((entry, index) => count(entry, `${path}.dynamicInputs[${index}]`))),
+    ...optional('inputs', block.inputs === undefined ? undefined : array(block.inputs, `${path}.inputs`).map((entry, index) => (entry === null ? null : parsePath(entry, `${path}.inputs[${index}]`)))),
+    ...optional('outputs', block.outputs === undefined ? undefined : array(block.outputs, `${path}.outputs`).map((entry, index) => (entry === null ? null : string(entry, `${path}.outputs[${index}]`)))),
+    ...optional('enables', block.enables === undefined ? undefined : array(block.enables, `${path}.enables`).map((entry, index) => parsePath(entry, `${path}.enables[${index}]`))),
+    ...optional('enableMode', block.enableMode === undefined ? undefined : oneOf(block.enableMode, `${path}.enableMode`, ['any', 'all'] as const)),
+    ...optional('onError', block.onError === undefined ? undefined : oneOf(block.onError, `${path}.onError`, ['stop', 'continue'] as const)),
+    ...optional('eno', optionalBoolean(block.eno, `${path}.eno`)),
+    ...optional('settings', settings),
+    ...optional('expression', expression),
+    ...optional('body', block.body === undefined ? undefined : count(block.body, `${path}.body`)),
+  }
+}
+
+/** Canvases in execution order; canvas IDs and block IDs are unique (the blocks of all canvases are one program). */
+export const parseCanvases = (value: Json, path: string): ProjectCanvas[] => {
+  const ids = new Set<string>()
+  const blockIds = new Set<string>()
+  return array(value, path).map((entry, index) => {
+    const at = `${path}[${index}]`
+    const canvas = record(entry, at)
+    const id = string(canvas.id, `${at}.id`)
+    if (ids.has(id)) throw new ProjectFormatError(`${at}.id`, `'${id}' is used twice`)
+    ids.add(id)
+    const blocks = array(canvas.blocks, `${at}.blocks`).map((block, blockIndex) => {
+      const parsed = parseCanvasBlock(block, `${at}.blocks[${blockIndex}]`)
+      if (blockIds.has(parsed.id)) throw new ProjectFormatError(`${at}.blocks[${blockIndex}].id`, `block '${parsed.id}' is used twice`)
+      blockIds.add(parsed.id)
+      return parsed
+    })
+    return { id, name: string(canvas.name, `${at}.name`), ...optional('disabled', optionalBoolean(canvas.disabled, `${at}.disabled`)), blocks }
+  })
+}
+
 const frameHex = (frame: Uint8Array): string => Array.from(frame, (byte) => byte.toString(16).padStart(2, '0')).join(' ')
 
 /** Parse a project file. Throws ProjectFormatError naming the first bad value. */
@@ -355,8 +436,10 @@ export const parseProject = (text: string): ProjectDocument => {
     objects: array(doc.objects, 'objects').map((node, index) => parseNode(node, `objects[${index}]`, ids)),
     ...optional('settings', doc.settings === undefined ? undefined : parseSettings(doc.settings, 'settings')),
     ...optional('devices', doc.devices === undefined ? undefined : parseDevices(doc.devices, 'devices')),
+    ...optional('deviceAliases', doc.deviceAliases === undefined ? undefined : parseDeviceAliases(doc.deviceAliases, 'deviceAliases')),
     ...optional('actions', doc.actions === undefined ? undefined : parseActions(doc.actions, 'actions')),
     ...optional('setup', doc.setup === undefined ? undefined : parseSetup(doc.setup, 'setup')),
+    ...optional('canvases', doc.canvases === undefined ? undefined : parseCanvases(doc.canvases, 'canvases')),
     ...optional('extraFrames', doc.extra_frames === undefined ? undefined : parseFrames(doc.extra_frames, 'extra_frames')),
   }
 }
@@ -383,8 +466,10 @@ export const serializeProject = (project: ProjectDocument): string =>
       ...optional('settings', project.settings && parseSettings(JSON.parse(JSON.stringify(project.settings)), 'settings')),
       // Rebuilt by the parser too: fixed key order.
       ...optional('devices', project.devices && parseDevices(JSON.parse(JSON.stringify(project.devices)), 'devices')),
+      ...optional('deviceAliases', project.deviceAliases && parseDeviceAliases(project.deviceAliases, 'deviceAliases')),
       ...optional('actions', project.actions && parseActions(JSON.parse(JSON.stringify(project.actions)), 'actions')),
       ...optional('setup', project.setup && parseSetup(JSON.parse(JSON.stringify(project.setup)), 'setup')),
+      ...optional('canvases', project.canvases && parseCanvases(JSON.parse(JSON.stringify(project.canvases)), 'canvases')),
       ...optional('extra_frames', project.extraFrames?.map((entry) => ({ label: entry.label, frame: frameHex(entry.frame) }))),
     },
     null,

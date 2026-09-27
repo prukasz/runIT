@@ -1,19 +1,23 @@
+import { programBlocks } from '../canvas'
 import { compileProgram, packSubscribe, subscribedWireIds } from '../compiler'
 import type { CompiledProgram } from '../compiler'
 import type { VmCatalog } from '../descriptors'
-import type { ObjectSection, ProjectDocument } from '../project'
+import type { ObjectSection, ProgramBlock, ProjectDocument } from '../project'
 import type { UploadPlan, UploadStep } from './bundle'
 
 /*
  * Project (+ extra object sections) → the frames that load it: 0x41 open,
- * 0x42 objects, 0x43 values and folder links, then 0x47 subscribe to the
- * objects marked `subscribed` (always sent, so an empty list clears an old
+ * 0x42 objects, 0x43 values and folder links, 0x44 accessors, 0x45 the blocks
+ * of the project's enabled canvases, then 0x47 subscribe to the objects
+ * marked `subscribed` (always sent, so an empty list clears an old
  * subscription).
  */
 
 export interface VmUploadOptions {
   readonly maxFrameBytes: number
   readonly sections?: readonly ObjectSection[]
+  /** The program's blocks; default: the project's enabled canvases in order. */
+  readonly blocks?: readonly ProgramBlock[]
 }
 
 export interface VmUploadPlan extends UploadPlan {
@@ -44,7 +48,7 @@ const labelFrames = (catalog: VmCatalog, frames: readonly Uint8Array[]): UploadS
 }
 
 export const planVmUpload = (project: ProjectDocument, catalog: VmCatalog, options: VmUploadOptions): VmUploadPlan => {
-  const program = compileProgram(project, catalog, options)
+  const program = compileProgram(project, catalog, { ...options, blocks: options.blocks ?? programBlocks(project.canvases ?? []) })
   const diagnostics = program.diagnostics.map((entry) => ({ severity: entry.severity, message: entry.message, ...(entry.objectId ? { subjectId: entry.objectId } : {}) }))
   if (!program.ok) return { ok: false, steps: [], diagnostics, program, subscribed: [] }
   // No program, no frames: the board refuses to open an empty one (a project of devices only is fine).

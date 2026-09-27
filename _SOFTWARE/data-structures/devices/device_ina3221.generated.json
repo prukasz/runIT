@@ -62,9 +62,13 @@
         "i2c_addr": {
           "type": "uint8_t",
           "required": true,
-          "min": 64,
-          "max": 67,
-          "note": "enforced in ina3221_new() against INA3221_I2C_ADDR_GND/_SCL - A0 pin strap (GND/Vs+/SDA/SCL) selects the address"
+          "one_of": [
+            64,
+            65,
+            66,
+            67
+          ],
+          "note": "A0 pin strap (GND/Vs+/SDA/SCL) selects the address"
         },
         "crit_pin_device_id": {
           "type": "uint8_t",
@@ -80,6 +84,22 @@
         },
         "crit_pin_mode": {
           "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_INPUT",
+              "enum": "sys_io_mode_e",
+              "value": 0,
+              "alias": "Input",
+              "description": "Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal"
+            },
+            {
+              "symbol": "SYS_IO_MODE_INPUT_PULLUP",
+              "enum": "sys_io_mode_e",
+              "value": 1,
+              "alias": "Input with Pullup",
+              "description": "Same as Input, but reads \"on\" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed"
+            }
+          ],
           "enum_ref": "sys_io_mode_e",
           "group": "critical-alert-pin",
           "role": "mode"
@@ -98,6 +118,22 @@
         },
         "warn_pin_mode": {
           "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_INPUT",
+              "enum": "sys_io_mode_e",
+              "value": 0,
+              "alias": "Input",
+              "description": "Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal"
+            },
+            {
+              "symbol": "SYS_IO_MODE_INPUT_PULLUP",
+              "enum": "sys_io_mode_e",
+              "value": 1,
+              "alias": "Input with Pullup",
+              "description": "Same as Input, but reads \"on\" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed"
+            }
+          ],
           "enum_ref": "sys_io_mode_e",
           "group": "warning-alert-pin",
           "role": "mode"

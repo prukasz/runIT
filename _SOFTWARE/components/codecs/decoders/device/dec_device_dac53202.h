@@ -31,7 +31,7 @@
 typedef struct __packed {
   uint8_t device_id; //@required @min 0 @max CONFIG_SYS_DEVICE_MAX_ID
   uint8_t i2c_bus;   //@required @min 0 @max 1
-  uint8_t i2c_addr;  //@required @note not range-checked by driver_dac53202.c - no software-enforced bound
+  uint8_t i2c_addr;  //@required @one-of [0x48,0x49,0x4A,0x4B] @note A0 pin selects one of four I2C addresses
 } packet_sys_device_install_dac53202_t;
 
 static inline SE_MUST_USE err_h decoder_packet_sys_device_install_dac53202_t(packet_sys_device_install_dac53202_t* packet) {

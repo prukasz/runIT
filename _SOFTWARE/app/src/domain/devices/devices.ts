@@ -22,6 +22,15 @@ export interface ResolvedDevice {
   readonly system: boolean
 }
 
+/** Apply project display names without changing the shared firmware catalog. */
+export const withDeviceAliases = (catalog: DeviceCatalog, aliases: Readonly<Record<DeviceRef, string>> = {}): DeviceCatalog => ({
+  ...catalog,
+  deviceAliases: aliases,
+  board: catalog.board.map((device) => ({ ...device, name: aliases[boardDeviceRef(device.deviceId)] || device.name })),
+})
+
+export const deviceDisplayName = (catalog: DeviceCatalog, device: ProjectDevice): string => catalog.deviceAliases?.[device.id] || device.name
+
 export const resolveDevice = (catalog: DeviceCatalog, devices: readonly ProjectDevice[], ref: DeviceRef): ResolvedDevice | undefined => {
   if (ref.startsWith('board:')) {
     const deviceId = Number(ref.slice('board:'.length))
@@ -30,7 +39,7 @@ export const resolveDevice = (catalog: DeviceCatalog, devices: readonly ProjectD
   }
   const device = devices.find((entry) => entry.id === ref)
   const type = device && catalog.type(device.type)
-  return device && { ref, deviceId: device.deviceId, name: device.name, ...(type ? { type } : {}), system: false }
+  return device && { ref, deviceId: device.deviceId, name: deviceDisplayName(catalog, device), ...(type ? { type } : {}), system: false }
 }
 
 /** Every device a contract can run on: the board's, then the user's. */
@@ -77,7 +86,7 @@ export const pinUsers = (catalog: DeviceCatalog, devices: readonly ProjectDevice
     for (const group of type?.pinGroups ?? []) {
       if (group.sentinelField && device.install[group.sentinelField] === group.sentinel) continue
       if (!group.deviceField || !group.pinField) continue
-      add(device.install[group.deviceField] ?? 0, device.install[group.pinField] ?? 0, { owner: device.id, ownerName: device.name, use: group.label.replace(/ pin$/, ''), mode: group.modeField ? device.install[group.modeField] ?? 0 : 0 })
+      add(device.install[group.deviceField] ?? 0, device.install[group.pinField] ?? 0, { owner: device.id, ownerName: deviceDisplayName(catalog, device), use: group.label.replace(/ pin$/, ''), mode: group.modeField ? device.install[group.modeField] ?? 0 : 0 })
     }
   }
   return users
@@ -88,6 +97,10 @@ export const pinsOf = (type: DeviceType | undefined): readonly DeviceChoice[] =>
   const contract = type?.contracts.find((entry) => entry.command.name === 'sys_io_set_mode') ?? type?.contracts.find((entry) => entry.parameters.some((parameter) => parameter.name === 'pin' && parameter.choices))
   return contract?.parameters.find((parameter) => parameter.name === 'pin')?.choices ?? []
 }
+
+/** Modes a provider can actually configure through sys_io_set_mode. */
+export const modesOf = (type: DeviceType | undefined): readonly DeviceChoice[] =>
+  type?.contracts.find((entry) => entry.id === 'packet_sys_io_set_mode_t')?.parameters.find((parameter) => parameter.name === 'mode')?.choices ?? []
 
 /** Contracts that set something up (default settings): not reads, not the lifecycle commands. */
 export const isSetupContract = (contract: DeviceContract): boolean =>
@@ -105,7 +118,7 @@ export const defaultInstall = (type: DeviceType, i2cBus?: number): Record<string
   const values: Record<string, number> = {}
   for (const field of type.install.request.fields) {
     if (field.name === 'device_id') continue
-    values[field.name] = field.name === 'i2c_bus' && i2cBus !== undefined ? i2cBus : type.installChoices.get(field.name)?.[0]?.value ?? field.min ?? field.fallback
+    values[field.name] = field.name === 'i2c_bus' && i2cBus !== undefined ? i2cBus : field.defaultValue ?? type.installChoices.get(field.name)?.[0]?.value ?? field.min ?? field.fallback
   }
   for (const group of type.pinGroups) if (group.sentinelField) values[group.sentinelField] = group.sentinel
   return values
@@ -147,7 +160,7 @@ export const checkDevices = (catalog: DeviceCatalog, devices: readonly ProjectDe
   const addresses = new Map<string, string>()
   const users = pinUsers(catalog, devices)
   for (const device of devices) {
-    const error = (message: string) => diagnostics.push({ severity: 'error', message: `Device '${device.name}': ${message}`, subjectId: device.id })
+    const error = (message: string) => diagnostics.push({ severity: 'error', message: `Device '${deviceDisplayName(catalog, device)}': ${message}`, subjectId: device.id })
     const type = catalog.type(device.type)
     if (!type) {
       error(`the firmware has no device type '${device.type}'.`)
@@ -162,6 +175,7 @@ export const checkDevices = (catalog: DeviceCatalog, devices: readonly ProjectDe
       const sentinel = type.pinGroups.some((group) => group.sentinelField === field.name && group.sentinel === value)
       if (value === undefined) error(`${field.label} is not set.`)
       else if (!sentinel && ((field.min !== undefined && value < field.min) || (field.max !== undefined && value > field.max))) error(`${field.label} ${value} is outside ${field.min ?? ''}..${field.max ?? ''}.`)
+      else if (field.name === 'i2c_addr' && !type.installChoices.get(field.name)?.some((choice) => choice.value === value)) error(`I2C address 0x${value.toString(16).toUpperCase()} is not available for this device.`)
     }
     const bus = device.install.i2c_bus
     if (bus !== undefined && bus !== catalog.i2cBuses.user) error(`user devices go on the user I2C bus ${catalog.i2cBuses.user}; bus ${bus} is the board's own.`)
@@ -174,6 +188,12 @@ export const checkDevices = (catalog: DeviceCatalog, devices: readonly ProjectDe
       else if (owner.system && !catalog.board.find((entry) => entry.deviceId === target)?.installed) error(`${group.label}: ${owner.name} isn't installed on this board.`)
       // SYS_DEVICE.MD: the board installs and resumes devices from the lowest ID and suspends / removes them from the highest.
       else if (target >= device.deviceId) error(`${group.label} is on ${owner.name} (ID ${target}): a device's pins must be on a device with a lower ID, so give ${owner.name} an ID below ${device.deviceId}.`)
+      if (group.modeField && owner && device.install[group.modeField] !== undefined) {
+        const mode = device.install[group.modeField]
+        if (!type.installChoices.get(group.modeField)?.some((choice) => choice.value === mode) || !modesOf(owner.type).some((choice) => choice.value === mode)) {
+          error(`${group.label}: mode ${mode} is not available on ${owner.name}.`)
+        }
+      }
       const others = (users.get(pinKey(target, pin)) ?? []).filter((user) => user.owner !== device.id)
       if (others.length) error(`${group.label}: ${owner?.name ?? `device ${target}`} pin ${pin} is taken by ${others.map((user) => `${user.ownerName} (${user.use})`).join(', ')}.`)
     }
@@ -181,7 +201,7 @@ export const checkDevices = (catalog: DeviceCatalog, devices: readonly ProjectDe
     if (bus !== undefined && address !== undefined) {
       const key = `${bus}:${address}`
       if (addresses.has(key)) error(`I2C bus ${bus} address 0x${address.toString(16)} is also '${addresses.get(key)}'.`)
-      addresses.set(key, device.name)
+      addresses.set(key, deviceDisplayName(catalog, device))
     }
   }
   return diagnostics
@@ -229,7 +249,7 @@ export const deviceSetupSteps = (catalog: DeviceCatalog, devices: readonly Proje
 export const deviceInstallSteps = (catalog: DeviceCatalog, devices: readonly ProjectDevice[]): { steps: UploadStep[]; diagnostics: UploadDiagnostic[] } => {
   const diagnostics = checkDevices(catalog, devices)
   if (diagnostics.some((entry) => entry.severity === 'error')) return { steps: [], diagnostics }
-  const steps = [...devices].sort((a, b) => a.deviceId - b.deviceId).map((device) => ({ label: `device install ${device.name} (${device.deviceId})`, frame: installFrame(catalog.type(device.type)!, device) }))
+  const steps = [...devices].sort((a, b) => a.deviceId - b.deviceId).map((device) => ({ label: `device install ${deviceDisplayName(catalog, device)} (${device.deviceId})`, frame: installFrame(catalog.type(device.type)!, device) }))
   return { steps, diagnostics }
 }
 
@@ -259,13 +279,13 @@ export const decodeErrorActions = (array: readonly number[]): ErrorAction[] =>
   ERROR_ACTION_LEVELS.map((level) => ({ scope: ((array[0] ?? 0) >> (level - 1)) & 1 ? 'dynamic' : 'static', id: array[level] ?? 0 }))
 
 /**
- * The levels whose action can run under an importance (sys_device.c): an
- * error above the importance runs the importance level's action, critical
- * errors always run the Critical one, and Disabled (0) ignores the rest.
- * Disabled → Critical; Low → Low, Critical; Medium → Low, Medium, Critical; …
+ * The levels whose action can run under an importance (sys_device.c).
+ * Critical always runs; each higher importance also admits one lower severity:
+ * Disabled/Low → Critical; Medium → High, Critical; High → Medium and above;
+ * Critical → all four.
  */
 export const reachableErrorLevels = (importance: number): number[] =>
-  ERROR_ACTION_LEVELS.filter((level) => level <= importance || level === ERROR_ACTION_LEVELS.at(-1))
+  ERROR_ACTION_LEVELS.filter((level) => level + importance > ERROR_ACTION_LEVELS.at(-1)! || level === ERROR_ACTION_LEVELS.at(-1))
 
 /** Actions for levels the importance can't reach cleared (they would never run). */
 export const clampErrorActions = (array: readonly number[], importance: number): number[] => {

@@ -52,7 +52,13 @@
         "i2c_addr": {
           "type": "uint8_t",
           "required": true,
-          "note": "not range-checked by driver_dac53202.c - no software-enforced bound"
+          "one_of": [
+            72,
+            73,
+            74,
+            75
+          ],
+          "note": "A0 pin selects one of four I2C addresses"
         }
       }
     }

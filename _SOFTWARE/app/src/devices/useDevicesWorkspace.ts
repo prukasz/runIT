@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { runitDeviceCatalog } from '../domain/descriptors'
-import { checkDevices, checkPwm, checkSetup, defaultInstall, nextActionId, nextDeviceId } from '../domain/devices'
-import { parseActions, parseDevices, parseSetup } from '../domain/project'
+import { checkDevices, checkPwm, checkSetup, defaultInstall, nextActionId, nextDeviceId, resolveDevice, withDeviceAliases } from '../domain/devices'
+import { parseActions, parseDeviceAliases, parseDevices, parseSetup } from '../domain/project'
 import type { ActionStep, DeviceRef, ProjectAction, ProjectDevice, StepValues } from '../domain/project'
 
 /*
@@ -12,9 +12,10 @@ import type { ActionStep, DeviceRef, ProjectAction, ProjectDevice, StepValues } 
  */
 
 const STORAGE_KEY = 'runit.devices'
-const catalog = runitDeviceCatalog()
+const baseCatalog = runitDeviceCatalog()
 
 export interface DevicesState {
+  readonly deviceAliases?: Readonly<Record<DeviceRef, string>>
   readonly devices: readonly ProjectDevice[]
   readonly actions: readonly ProjectAction[]
   readonly setup: readonly ActionStep[]
@@ -33,12 +34,23 @@ interface History {
 
 const EMPTY: DevicesState = { devices: [], actions: [], setup: [] }
 
+/** Older app files stored a second name for user devices; keep just their editable name. */
+const restoreDeviceNames = (state: DevicesState): DevicesState => {
+  const aliases = parseDeviceAliases(state.deviceAliases, 'deviceAliases')
+  const userIds = new Set(state.devices.map((device) => device.id))
+  return {
+    ...state,
+    devices: state.devices.map((device) => aliases[device.id] ? { ...device, name: aliases[device.id]! } : device),
+    deviceAliases: Object.fromEntries(Object.entries(aliases).filter(([ref]) => !userIds.has(ref))),
+  }
+}
+
 const loadState = (): DevicesState => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
-      const saved = JSON.parse(raw) as { devices: unknown; actions: unknown; setup: unknown }
-      return { devices: parseDevices(saved.devices, 'devices'), actions: parseActions(saved.actions, 'actions'), setup: parseSetup(saved.setup, 'setup') }
+      const saved = JSON.parse(raw) as { devices: unknown; actions: unknown; setup: unknown; deviceAliases?: unknown }
+      return restoreDeviceNames({ devices: parseDevices(saved.devices, 'devices'), actions: parseActions(saved.actions, 'actions'), setup: parseSetup(saved.setup, 'setup'), deviceAliases: parseDeviceAliases(saved.deviceAliases, 'deviceAliases') })
     }
   } catch {
     /* Storage unavailable or unreadable: start empty. */
@@ -65,7 +77,8 @@ export function useDevicesWorkspace(onSelect?: () => void) {
   /** Project ID of the action open in the composer. */
   const [composing, setComposing] = useState<string>()
   const [error, setError] = useState('')
-  const { devices, actions, setup } = history.present
+  const { devices, actions, setup, deviceAliases } = history.present
+  const catalog = useMemo(() => withDeviceAliases(baseCatalog, deviceAliases), [deviceAliases])
 
   useEffect(() => {
     try {
@@ -75,7 +88,7 @@ export function useDevicesWorkspace(onSelect?: () => void) {
     }
   }, [history.present])
 
-  const diagnostics = useMemo(() => [...checkDevices(catalog, devices), ...checkSetup(catalog, devices, setup), ...checkPwm(catalog, devices, setup, actions)], [devices, setup, actions])
+  const diagnostics = useMemo(() => [...checkDevices(catalog, devices), ...checkSetup(catalog, devices, setup), ...checkPwm(catalog, devices, setup, actions)], [catalog, devices, setup, actions])
 
   /** Apply a change with undo; a thrown error is shown and nothing changes. */
   const edit = (change: (current: DevicesState) => DevicesState): boolean => {
@@ -119,9 +132,19 @@ export function useDevicesWorkspace(onSelect?: () => void) {
     edit((current) => ({ ...current, devices: current.devices.map((device) => (device.id === id ? { ...device, ...patch } : device)) }))
 
   const removeDevice = (id: string) => {
-    const removed = edit((current) => ({ ...current, devices: current.devices.filter((device) => device.id !== id), setup: current.setup.filter((step) => step.device !== id) }))
+    const removed = edit((current) => ({ ...current, devices: current.devices.filter((device) => device.id !== id), setup: current.setup.filter((step) => step.device !== id), deviceAliases: Object.fromEntries(Object.entries(current.deviceAliases ?? {}).filter(([ref]) => ref !== id)) }))
     if (removed && selection?.kind === 'device' && selection.ref === id) setSelection(undefined)
   }
+
+  const setDeviceAlias = (ref: DeviceRef, value: string) => edit((current) => {
+    if (!resolveDevice(baseCatalog, current.devices, ref)) return current
+    const alias = value.trim()
+    if ((current.deviceAliases?.[ref] ?? '') === alias) return current
+    const aliases = { ...current.deviceAliases }
+    if (alias) aliases[ref] = alias
+    else delete aliases[ref]
+    return { ...current, deviceAliases: aliases }
+  })
 
   // Default settings -------------------------------------------------------
 
@@ -199,7 +222,7 @@ export function useDevicesWorkspace(onSelect?: () => void) {
   /** Replace devices and actions (project opened or recovered); undo goes back. */
   const load = (next: DevicesState) => {
     const curr = historyRef.current
-    commit({ past: [...curr.past, curr.present], present: { devices: [...next.devices], actions: [...next.actions], setup: [...next.setup] }, future: [] })
+    commit({ past: [...curr.past, curr.present], present: restoreDeviceNames({ devices: [...next.devices], actions: [...next.actions], setup: [...next.setup], deviceAliases: next.deviceAliases }), future: [] })
     setSelection(undefined)
     setComposing(undefined)
     setError('')
@@ -218,6 +241,8 @@ export function useDevicesWorkspace(onSelect?: () => void) {
 
   return {
     catalog,
+    deviceAliases,
+    setDeviceAlias,
     devices,
     actions,
     setup,

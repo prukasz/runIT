@@ -7,6 +7,7 @@ import { defaultInstall } from '../domain/devices'
 import { DeviceDetails } from './DeviceDetails'
 import { DevicesEditor } from './DevicesEditor'
 import { DevicesPalette } from './DevicesPalette'
+import { ErrorActionsField } from './ErrorHandling'
 import { useDevicesWorkspace } from './useDevicesWorkspace'
 import type { DeviceSelection, DevicesWorkspace } from './useDevicesWorkspace'
 
@@ -46,5 +47,18 @@ describe('Board view renders', () => {
     expect(tca).toContain('Error handling')
     expect(tca).toContain('Suspend all devices')
     expect(renderToString(<Harness part="editor" selection={{ kind: 'device', ref: boardDeviceRef(3) }} />)).toContain('Pins it uses')
+    const ads = renderToString(<Harness part="editor" selection={{ kind: 'device', ref: boardDeviceRef(2) }} />)
+    expect(ads.match(/<small>Device default<\/small>/g)).toHaveLength(8)
+  })
+
+  it('shows only actions admitted by each importance threshold', () => {
+    const labels = (importance: number) => [...renderToString(<ErrorActionsField value={[0, 0, 0, 0, 0]} actions={[]} importance={importance} onChange={() => {}} />).matchAll(/<label class="devices-error-action"><span>([^<]+)<\/span>/g)].map((match) => match[1])
+    expect([0, 1, 2, 3, 4].map(labels)).toEqual([
+      ['Critical'],
+      ['Critical'],
+      ['High', 'Critical'],
+      ['Medium', 'High', 'Critical'],
+      ['Low', 'Medium', 'High', 'Critical'],
+    ])
   })
 })

@@ -70,6 +70,7 @@
         "offset": 0,
         "size": 1,
         "description": "vm_timer_mode_e",
+        "extended_view_show": true,
         "enum_ref": "vm_timer_mode_e",
         "source": "user"
       },
@@ -87,6 +88,7 @@
         "offset": 2,
         "size": 1,
         "description": "Unit of pt and ET",
+        "extended_view_show": true,
         "enum_ref": "vm_timer_unit_e",
         "source": "user"
       },
@@ -110,6 +112,7 @@
         "offset": 8,
         "size": 4,
         "description": "Preset time in configured unit (hardcoded fallback)",
+        "extended_view_show": true,
         "source": "user"
       },
       {

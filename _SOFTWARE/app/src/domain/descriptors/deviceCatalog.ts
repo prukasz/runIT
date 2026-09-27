@@ -152,6 +152,8 @@ export interface BoardPinSetup {
 }
 
 export interface DeviceCatalog {
+  /** App-only display overrides, keyed by project device reference. */
+  readonly deviceAliases?: Readonly<Record<string, string>>
   readonly types: readonly DeviceType[]
   type(id: string): DeviceType | undefined
   /** The board's own devices (installed at boot by boot action 1 unless a bring-up switch is off). */
@@ -164,7 +166,7 @@ export interface DeviceCatalog {
   readonly ioModes: readonly DeviceChoice[]
   /** The built-in static actions (sys_action_static_e): freeze, suspend, reset … */
   readonly staticActions: readonly DeviceChoice[]
-  /** sys_device_importance_e: how far a device's errors are handled. */
+  /** sys_device_importance_e: which error severities reach device policy. */
   readonly importance: readonly DeviceChoice[]
   /** ESP pins the board uses outside sys_io (I2C buses …): never free. */
   readonly reservedPins: readonly { readonly deviceId: number; readonly pin: number; readonly label: string }[]

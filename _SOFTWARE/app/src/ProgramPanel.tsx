@@ -4,8 +4,9 @@ import { packExec } from './domain/compiler'
 import type { ObjectLayout } from './domain/compiler'
 import { applyVmValues, decodeVmElements, decodeVmTelemetry } from './domain/decoder'
 import { runitStreamCatalog, runitVmCatalog } from './domain/descriptors'
+import type { DeviceCatalog } from './domain/descriptors'
 import { serializeProject } from './domain/project'
-import type { ActionStep, ProjectDevice, ProjectSettings } from './domain/project'
+import type { ActionStep, ProjectCanvas, ProjectDevice, ProjectSettings } from './domain/project'
 import type { RecoveredCode } from './domain/storedCode'
 import { planVmUpload } from './domain/upload'
 import { StoredCodeSection } from './StoredCodeSection'
@@ -41,11 +42,15 @@ interface Props {
   readonly board: BoardCodeState
   readonly settings: ProjectSettings
   readonly devices: readonly ProjectDevice[]
+  readonly deviceCatalog?: DeviceCatalog
   readonly setup: readonly ActionStep[]
+  /** The canvases: their blocks are the program. */
+  readonly canvases: readonly ProjectCanvas[]
   readonly onRecover: (recovered: RecoveredCode, autostart: boolean) => void
 }
 
-export function ProgramPanel({ workspace: w, connection, board, settings, devices, setup, onRecover }: Props) {
+export function ProgramPanel({ workspace: w, connection, board, settings, devices, deviceCatalog, setup, canvases, onRecover }: Props) {
+  const project = useMemo(() => ({ ...w.project, canvases }), [w.project, canvases])
   const [maxFrameBytes, setMaxFrameBytes] = useState(DEFAULT_MAX_FRAME_BYTES)
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<{ done: number; total: number }>()
@@ -55,8 +60,8 @@ export function ProgramPanel({ workspace: w, connection, board, settings, device
   const { session } = connection
   const uploaded = lastUpload && lastUpload.session === session ? lastUpload : undefined
 
-  const plan = useMemo(() => planVmUpload(w.project, catalog, { maxFrameBytes, sections: w.sections }), [w.project, w.sections, maxFrameBytes])
-  const source = useMemo(() => JSON.stringify([serializeProject(w.project), w.sections]), [w.project, w.sections])
+  const plan = useMemo(() => planVmUpload(project, catalog, { maxFrameBytes, sections: w.sections }), [project, w.sections, maxFrameBytes])
+  const source = useMemo(() => JSON.stringify([serializeProject(project), w.sections]), [project, w.sections])
   const errors = plan.diagnostics.filter((entry) => entry.severity === 'error')
   const warnings = plan.diagnostics.filter((entry) => entry.severity === 'warning')
   const note = (ok: boolean, text: string) => setLog((entries) => [{ ok, text: `${new Date().toLocaleTimeString()} ${text}` }, ...entries].slice(0, 30))
@@ -147,10 +152,11 @@ export function ProgramPanel({ workspace: w, connection, board, settings, device
       </div>
 
       <StoredCodeSection
-        project={w.project}
+        project={project}
         sections={w.sections}
         settings={settings}
         devices={devices}
+        deviceCatalog={deviceCatalog}
         setup={setup}
         board={board}
         session={session}

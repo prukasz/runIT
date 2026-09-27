@@ -102,6 +102,48 @@ def parse_tags(text):
     return tags
 
 
+def editor_metadata(tags, context):
+    metadata = {}
+    if "id" in tags:
+        if tags["id"] not in ("device", "pin"):
+            fail(f"{context}: @id must be device or pin")
+        metadata["id_kind"] = tags["id"]
+    for tag in ("device_field", "contract", "let_user_select_available"):
+        if tag in tags:
+            if not re.fullmatch(r"\w+", tags[tag]):
+                fail(f"{context}: @{tag.replace('_', '-')} needs one identifier")
+            metadata[tag] = tags[tag]
+    for tag in ("hidden_by_default", "extended_view_show"):
+        if tag in tags:
+            if tags[tag]:
+                fail(f"{context}: @{tag.replace('_', '-')} takes no value")
+            metadata[tag] = True
+    if "dynamic_input" in tags:
+        if not re.fullmatch(r"\d+", tags["dynamic_input"]):
+            fail(f"{context}: @dynamic-input needs an input index")
+        metadata["dynamic_input"] = int(tags["dynamic_input"])
+    return metadata
+
+
+def validate_editor_links(block, context):
+    fields = {field["name"]: field for field in block.get("state", {}).get("fields", [])}
+    pins = block["inputs"]["pins"]
+    for entry in [*fields.values(), *pins, *block["outputs"]["pins"]]:
+        device = entry.get("device_field")
+        if device and fields.get(device, {}).get("id_kind") != "device":
+            fail(f"{context}.{entry['name']}: @device-field {device} must name a device ID field")
+        if entry.get("id_kind") == "pin" and not device:
+            fail(f"{context}.{entry['name']}: a pin ID needs @device-field")
+        if entry.get("hidden_by_default") and entry.get("required"):
+            fail(f"{context}.{entry['name']}: a required input cannot be hidden by default")
+        selection = entry.get("let_user_select_available")
+        if selection:
+            if fields.get(selection, {}).get("id_kind") != "pin" or entry.get("c_type") != "uint64_t":
+                fail(f"{context}.{entry['name']}: a selectable mask must be uint64_t and name a pin ID field")
+            if not any(pin["index"] == entry.get("dynamic_input") and pin.get("hidden_by_default") for pin in pins):
+                fail(f"{context}.{entry['name']}: @dynamic-input must name a hidden optional input")
+
+
 def load_enum_catalog():
     path = PROJECT_ROOT / "data-structures" / "auto-annotations" / "enums" / "generate-enums.py"
     spec = importlib.util.spec_from_file_location("generate_enums", path)
@@ -171,6 +213,7 @@ def layout_state(name, enums, context):
             offset += size * count
         if description:
             field["description"] = description
+        field.update(editor_metadata(tags, f"{context}.{field['name']}"))
         if "enum_ref" in tags:
             if tags["enum_ref"] not in enums:
                 fail(f"{context}: {name}.{field['name']} @enum-ref {tags['enum_ref']} is not a published //#ref-enum")
@@ -219,6 +262,7 @@ def parse_pins(lines, required_in, context):
             fail(f"{context}: pin `{raw}` needs @value, one of {sorted(VALUE_KINDS)}")
         index = m.group("index")
         pin = {"index": "*" if index == "*" else int(index), "name": m.group("name"), "title": tags["title"], "value": tags["value"]}
+        pin.update(editor_metadata(tags, f"{context}.{pin['name']}"))
         if tags.get("description"):
             pin["description"] = tags["description"]
         if m.group("dir") == "in":
@@ -423,6 +467,7 @@ def build():
             used = sorted({f["enum_ref"] for f in block.get("state", {}).get("fields", []) if "enum_ref" in f} |
                           ({block["encoding"]["opcode_enum"]} if "encoding" in block else set()))
             block["enums"] = {e: enums[e] for e in used}
+            validate_editor_links(block, context)
             blocks.append(block)
     listed = {b["name"] for b in blocks}
     missing = sorted(f"VM_BLK_{n}" for n, v in ids.items() if v != 0 and f"VM_BLK_{n}" not in listed)

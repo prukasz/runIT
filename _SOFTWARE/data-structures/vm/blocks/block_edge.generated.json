@@ -64,6 +64,7 @@
         "offset": 0,
         "size": 1,
         "description": "vm_edge_type_e",
+        "extended_view_show": true,
         "enum_ref": "vm_edge_type_e",
         "source": "user"
       },
@@ -88,6 +89,7 @@
         "offset": 4,
         "size": 4,
         "description": "Threshold for change condition (0 = any change)",
+        "extended_view_show": true,
         "source": "user"
       },
       {

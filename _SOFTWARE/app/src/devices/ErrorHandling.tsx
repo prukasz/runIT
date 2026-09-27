@@ -8,8 +8,8 @@ import { runitDeviceCatalog } from '../domain/descriptors'
 
 /*
  * A device's error handling (sys_device_set_error_handling): its importance,
- * which caps how severe its errors count (Disabled ignores them; Critical
- * errors always go through), and the action to run per error level: none, a
+ * which selects the minimum severity to handle (Disabled ignores noncritical
+ * errors; Critical errors always go through), and the action per level: none, a
  * built-in static action or one of the project's recorded actions.
  */
 
@@ -77,7 +77,7 @@ export function ErrorHandlingCard({ w, device }: { w: DevicesWorkspace; device: 
         <h3>Error handling</h3>
         {step && <button type="button" className="devices-card-clear" onClick={() => w.removeSetup(step.id)} title="Back to the firmware default"><Trash2 aria-hidden="true" />Clear</button>}
       </div>
-      <p className="devices-muted">How this device's errors are handled, set at every boot. An error above the importance runs the importance level's action; a critical error always stops the system and runs the Critical action; Disabled (the default, for a device under test) ignores everything else.</p>
+      <p className="devices-muted">Choose which error severities this device handles. Low handles Critical only; Medium also handles High; High also handles Medium; Critical handles all. A Critical error always stops the system. Disabled (the default) ignores noncritical errors.</p>
       <div className="devices-error-grid">
         <label className="devices-error-action">
           <span>Importance</span>

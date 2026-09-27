@@ -45,10 +45,10 @@
 typedef struct __packed {
   uint8_t device_id; //@required @min 0 @max CONFIG_SYS_DEVICE_MAX_ID
   uint8_t i2c_bus;   //@required @min 0 @max 1
-  uint8_t i2c_addr;  //@required @note not range-checked by driver_tca6424a.c - no software-enforced bound
+  uint8_t i2c_addr;  //@required @one-of [0x22,0x23] @note ADDR low selects 0x22; high selects 0x23
   uint8_t intr_pin_device_id; //@group interrupt-pin @role device_id
   uint8_t intr_pin_pin;       //@group interrupt-pin @role pin @sentinel SYS_GPIO_NONE
-  uint8_t intr_pin_mode;      //@group interrupt-pin @role mode @enum-ref sys_io_mode_e
+  uint8_t intr_pin_mode;      //@group interrupt-pin @role mode @enum-ref sys_io_mode_e @one-of [$SYS_IO_MODE_INPUT, $SYS_IO_MODE_INPUT_PULLUP]
   uint8_t rst_pin_device_id; //@group reset-pin @role device_id
   uint8_t rst_pin_pin;       //@group reset-pin @role pin @sentinel SYS_GPIO_NONE
   uint8_t rst_pin_mode;      //@group reset-pin @role mode @enum-ref sys_io_mode_e

@@ -114,6 +114,8 @@ export function DefaultSettingsCard({ w, device }: { w: DevicesWorkspace; device
   const setMode = findContract(w.catalog, device, SET_MODE)
   const setLevel = findContract(w.catalog, device, SET_LEVEL)
   const modes = setMode?.parameters.find((parameter) => parameter.name === 'mode')?.choices ?? []
+  const defaultMode = setMode?.parameters.find((parameter) => parameter.name === 'mode')?.defaultValue
+  const defaultChoice = modes.find((choice) => choice.value === defaultMode)
   const table = pins.length > 0 && !!setMode
   const users = pinUsers(w.catalog, w.devices)
   const steps = w.setup.filter((step) => step.device === device.ref)
@@ -126,7 +128,7 @@ export function DefaultSettingsCard({ w, device }: { w: DevicesWorkspace; device
   return (
     <div className="ble-card">
       <h3>Default settings</h3>
-      <p className="devices-muted">Set by the stored code right after the devices are installed, at every boot.</p>
+      <p className="devices-muted">Device defaults apply at boot; project settings run after installation.</p>
       {problems.map((entry, index) => <p key={index} className={`program-diag ${entry.severity === 'error' ? 'is-error' : 'is-warning'}`}>{entry.message}</p>)}
 
       {table && (
@@ -140,7 +142,7 @@ export function DefaultSettingsCard({ w, device }: { w: DevicesWorkspace; device
             const taken = (users.get(pinKey(device.deviceId, pin.value)) ?? []).filter((user) => user.owner !== device.ref)
             const modeStep = steps.find((step) => step.contract === SET_MODE && step.values.pin === pin.value)
             const levelStep = steps.find((step) => step.contract === SET_LEVEL && step.values.pin === pin.value)
-            const mode = modes.find((choice) => choice.value === modeStep?.values.mode)
+            const mode = modes.find((choice) => choice.value === (modeStep?.values.mode ?? defaultMode))
             return (
               <div key={pin.value} className={`devices-pin-row ${taken.length ? 'is-taken' : ''} ${modeStep ? 'is-set' : ''}`} role="row">
                 <span className="devices-pin-name" role="cell">{pin.label === String(pin.value) ? `Pin ${pin.value}` : pin.label}</span>
@@ -149,10 +151,12 @@ export function DefaultSettingsCard({ w, device }: { w: DevicesWorkspace; device
                 ) : (
                   <>
                     <span role="cell">
-                      <select aria-label={`Pin ${pin.value} mode`} value={typeof modeStep?.values.mode === 'number' ? modeStep.values.mode : ''} onChange={(event) => w.setPinMode(device.ref, pin.value, event.target.value === '' ? undefined : Number(event.target.value))}>
-                        <option value="">— not set —</option>
-                        {modes.map((choice) => <option key={choice.value} value={choice.value} title={choice.description}>{choice.label}</option>)}
-                      </select>
+                      {defaultChoice && modes.length === 1 && !modeStep
+                        ? <span className="devices-pin-default">{defaultChoice.label}<small>Device default</small></span>
+                        : <select aria-label={`Pin ${pin.value} mode`} value={typeof modeStep?.values.mode === 'number' ? modeStep.values.mode : ''} onChange={(event) => w.setPinMode(device.ref, pin.value, event.target.value === '' ? undefined : Number(event.target.value))}>
+                          <option value="">{defaultChoice ? `${defaultChoice.label} (device default)` : '— not set —'}</option>
+                          {modes.map((choice) => <option key={choice.value} value={choice.value} title={choice.description}>{choice.label}</option>)}
+                        </select>}
                     </span>
                     <span role="cell">
                       {setLevel && isOutput(mode) && (

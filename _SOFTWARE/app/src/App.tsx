@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ArrowLeftRight, Bug, Check, ChevronRight, Code2, Cpu, FileDown, FileUp, Gamepad2, Grid2X2, Info, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Radio, Redo2, Settings2, Sliders, Square, SquareTerminal, Sun, Undo2, X } from 'lucide-react'
+import { ArrowLeft, ArrowLeftRight, Bug, Check, ChevronRight, Code2, Cpu, FileDown, FileUp, Gamepad2, Grid2X2, Info, ListTree, Magnet, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Radio, Redo2, Settings2, Sliders, Square, SquareTerminal, Sun, Undo2, X } from 'lucide-react'
 import { ObjectDetails, ObjectTreeEditor, ObjectTreePalette, useObjectTreeWorkspace } from './ObjectTreeWorkspace'
 import { BleDetails, BleSettingsEditor, BleSettingsPalette, useBleSettingsWorkspace } from './BleSettingsWorkspace'
 import { useBleDeviceConnection } from './useBleDeviceConnection'
@@ -12,6 +12,8 @@ import {
 } from './DataConnectorsWorkspace'
 import { ProgramPanel } from './ProgramPanel'
 import { DeviceDetails, DevicesEditor, DevicesPalette, useDevicesWorkspace } from './devices'
+import { BlockDetails, blockDiagnostics, BlockPalette, CanvasEditor, useCanvasWorkspace } from './canvas'
+import { runitVmCatalog } from './domain/descriptors'
 import CommandConsole from './CommandConsole'
 import DiagnosticsConsole from './DiagnosticsConsole'
 import { useSettingsSync } from './useSettingsSync'
@@ -69,6 +71,7 @@ export default function App() {
   })
   const connectorsWorkspace = useDataConnectorsWorkspace(() => { setRightOpen(true); setDetail('Info') })
   const devicesWorkspace = useDevicesWorkspace(() => { setRightOpen(true); setDetail('Info') })
+  const canvasWorkspace = useCanvasWorkspace(() => { setRightOpen(true); setDetail('Info') })
   // User services must be named when the board is picked, or Web Bluetooth hides them.
   const userServiceUuids = useMemo(
     () => bleWorkspace.profile.services.map((service) => Number.parseInt(service.uuid.replace(/^0x/i, ''), 16)).filter((uuid) => Number.isInteger(uuid) && uuid > 0),
@@ -93,6 +96,8 @@ export default function App() {
     if (await settingsSync.apply()) bleWorkspace.markApplied()
   }
   const { selectedId, remove, linkingParentId, setLinkingParentId } = objectWorkspace
+  // What the compiler says about each block, against the project's objects.
+  const canvasDiagnostics = useMemo(() => blockDiagnostics(objectWorkspace.project, canvasWorkspace.canvases, runitVmCatalog(), 240), [objectWorkspace.project, canvasWorkspace.canvases])
 
   // The project file: objects from the object workspace, settings from the BLE and connector workspaces.
   const loadSettings = (settings: ProjectSettings) => {
@@ -105,13 +110,14 @@ export default function App() {
       const project = parseProject(await file.text())
       objectWorkspace.load(project)
       loadSettings(refreshSettings(project.settings))
-      devicesWorkspace.load({ devices: project.devices ?? [], actions: project.actions ?? [], setup: project.setup ?? [] })
+      devicesWorkspace.load({ devices: project.devices ?? [], deviceAliases: project.deviceAliases, actions: project.actions ?? [], setup: project.setup ?? [] })
+      canvasWorkspace.load(project.canvases ?? [])
     } catch (cause) {
       window.alert(`Can't open ${file.name}: ${cause instanceof Error ? cause.message : String(cause)}`)
     }
   }
   const saveProject = () => {
-    const project = { ...objectWorkspace.project, settings: projectSettings, devices: devicesWorkspace.devices, actions: devicesWorkspace.actions, setup: devicesWorkspace.setup }
+    const project = { ...objectWorkspace.project, settings: projectSettings, devices: devicesWorkspace.devices, deviceAliases: devicesWorkspace.deviceAliases, actions: devicesWorkspace.actions, setup: devicesWorkspace.setup, canvases: canvasWorkspace.canvases }
     let text: string
     try {
       text = serializeProject(project)
@@ -130,7 +136,7 @@ export default function App() {
   const recoverProject = (recovered: RecoveredCode, autostart: boolean) => {
     objectWorkspace.load({ ...recovered.project, autostart, extraFrames: recovered.extraFrames }, recovered.sections)
     loadSettings(settingsFromState(recovered.settings, projectSettings))
-    devicesWorkspace.load({ devices: recovered.devices, actions: devicesWorkspace.actions, setup: recovered.setup })
+    devicesWorkspace.load({ devices: recovered.devices, deviceAliases: devicesWorkspace.deviceAliases, actions: devicesWorkspace.actions, setup: recovered.setup })
   }
   const resizeActive = useRef(false)
   const leftResizeActive = useRef(false)
@@ -139,18 +145,21 @@ export default function App() {
   const isCodeVariables = view === 'Code' && codePalette === 'Variables'
   const isSettingsBle = view === 'Settings' && settingsGroup === 'BLE'
   const isBoard = view === 'Board'
+  const isCanvas = view === 'Code' && codeMode === 'canvas'
 
-  const activeCanUndo = isCodeVariables ? objectWorkspace.canUndo : isSettingsBle ? bleWorkspace.canUndo : isBoard ? devicesWorkspace.canUndo : false
-  const activeCanRedo = isCodeVariables ? objectWorkspace.canRedo : isSettingsBle ? bleWorkspace.canRedo : isBoard ? devicesWorkspace.canRedo : false
+  const activeCanUndo = isCanvas ? canvasWorkspace.canUndo : isCodeVariables ? objectWorkspace.canUndo : isSettingsBle ? bleWorkspace.canUndo : isBoard ? devicesWorkspace.canUndo : false
+  const activeCanRedo = isCanvas ? canvasWorkspace.canRedo : isCodeVariables ? objectWorkspace.canRedo : isSettingsBle ? bleWorkspace.canRedo : isBoard ? devicesWorkspace.canRedo : false
 
   const activeUndo = () => {
-    if (isCodeVariables) objectWorkspace.undo()
+    if (isCanvas) canvasWorkspace.undo()
+    else if (isCodeVariables) objectWorkspace.undo()
     else if (isSettingsBle) bleWorkspace.undo()
     else if (isBoard) devicesWorkspace.undo()
   }
 
   const activeRedo = () => {
-    if (isCodeVariables) objectWorkspace.redo()
+    if (isCanvas) canvasWorkspace.redo()
+    else if (isCodeVariables) objectWorkspace.redo()
     else if (isSettingsBle) bleWorkspace.redo()
     else if (isBoard) devicesWorkspace.redo()
   }
@@ -353,9 +362,9 @@ export default function App() {
           )}
           {view === 'Code' && <div className="code-palette">
             <div className="code-palette-tabs" role="tablist" aria-label="Code palettes">
-              {codePalettes.map((palette) => <button key={palette} role="tab" aria-selected={codePalette === palette} className={codePalette === palette ? 'selected' : ''} onClick={() => { setCodePalette(palette); setCodeMode('manage') }}>{palette}</button>)}
+              {codePalettes.map((palette) => <button key={palette} role="tab" aria-selected={codePalette === palette} className={codePalette === palette ? 'selected' : ''} onClick={() => { setCodePalette(palette); setCodeMode(palette === 'Blocks' ? 'canvas' : 'manage') }}>{palette}</button>)}
             </div>
-            <div className="code-palette-body" aria-label={`${codePalette} palette`}>{codePalette === 'Variables' && <ObjectTreePalette workspace={objectWorkspace} />}</div>
+            <div className="code-palette-body" aria-label={`${codePalette} palette`}>{codePalette === 'Variables' && <ObjectTreePalette workspace={objectWorkspace} />}{codePalette === 'Blocks' && <BlockPalette workspace={canvasWorkspace} />}</div>
             <div className="code-mode-footer">
               <button className="code-mode-toggle" onClick={() => setCodeMode(codeMode === 'manage' ? 'canvas' : 'manage')}><ArrowLeftRight aria-hidden="true" /><span>Switch to {codeMode === 'manage' ? 'Canvas' : 'View / Manage'}</span></button>
             </div>
@@ -469,11 +478,14 @@ export default function App() {
             </div>
           )}
           <div className="screen-actions" aria-label={`${view} specific actions`}>
-            {view === 'Code' && codeMode === 'canvas' && <button aria-label={showCanvasGrid ? 'Hide canvas grid' : 'Show canvas grid'} title={showCanvasGrid ? 'Hide canvas grid' : 'Show canvas grid'} aria-pressed={showCanvasGrid} className={showCanvasGrid ? 'selected' : ''} onClick={() => setShowCanvasGrid(!showCanvasGrid)}><Grid2X2 aria-hidden="true" /></button>}
+            {isCanvas && <button aria-label="Detailed block view" title="Toggle detailed block view" aria-pressed={canvasWorkspace.detailed} className={canvasWorkspace.detailed ? 'selected' : ''} onClick={() => canvasWorkspace.setDetailed(!canvasWorkspace.detailed)}><ListTree aria-hidden="true" /></button>}
+            {isCanvas && <button aria-label={showCanvasGrid ? 'Hide canvas grid' : 'Show canvas grid'} title={showCanvasGrid ? 'Hide canvas grid' : 'Show canvas grid'} aria-pressed={showCanvasGrid} className={showCanvasGrid ? 'selected' : ''} onClick={() => setShowCanvasGrid(!showCanvasGrid)}><Grid2X2 aria-hidden="true" /></button>}
+            {isCanvas && <button aria-label={canvasWorkspace.snap ? 'Turn snap to grid off' : 'Turn snap to grid on'} title={canvasWorkspace.snap ? 'Snap to grid: on' : 'Snap to grid: off'} aria-pressed={canvasWorkspace.snap} className={canvasWorkspace.snap ? 'selected' : ''} onClick={() => canvasWorkspace.setSnap(!canvasWorkspace.snap)}><Magnet aria-hidden="true" /></button>}
           </div>
           <button className="theme-toggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} onClick={toggleTheme}>{theme === 'dark' ? <Sun /> : <Moon />}</button>
         </div>
-        <div className={`main-surface ${view === 'Code' && codeMode === 'canvas' && showCanvasGrid ? 'code-canvas' : ''}`}>
+        <div className="main-surface">
+          {isCanvas && <CanvasEditor workspace={canvasWorkspace} showGrid={showCanvasGrid} diagnostics={canvasDiagnostics} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} />}
           {view === 'Code' && codePalette === 'Variables' && codeMode === 'manage' && <ObjectTreeEditor workspace={objectWorkspace} />}
           {view === 'Board' && <DevicesEditor workspace={devicesWorkspace} session={bleConnection.session} />}
           {view === 'Settings' && settingsGroup === 'BLE' && <BleSettingsEditor workspace={bleWorkspace} />}
@@ -583,7 +595,8 @@ export default function App() {
         {rightOpen && (
           <div className="detail-content" aria-label={`${detail} content panel`}>
             {view === 'Board' && detail === 'Info' && <DeviceDetails workspace={devicesWorkspace} session={bleConnection.session} />}
-            {view === 'Code' && codePalette === 'Variables' && detail === 'Info' && (
+              {isCanvas && detail === 'Info' && <BlockDetails workspace={canvasWorkspace} diagnostics={canvasDiagnostics} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} />}
+            {view === 'Code' && codePalette === 'Variables' && !isCanvas && detail === 'Info' && (
               <ObjectDetails workspace={objectWorkspace} onJump={(id) => { setLeftOpen(true); objectWorkspace.select(id) }} />
             )}
             {view === 'Settings' && settingsGroup === 'BLE' && detail === 'Info' && (
@@ -606,7 +619,7 @@ export default function App() {
                 applyReading={settingsSync.reading}
               />
             )}
-            {detail === 'Run' && <ProgramPanel workspace={objectWorkspace} connection={bleConnection} board={boardCode} settings={projectSettings} devices={devicesWorkspace.devices} setup={devicesWorkspace.setup} onRecover={recoverProject} />}
+            {detail === 'Run' && <ProgramPanel workspace={objectWorkspace} connection={bleConnection} board={boardCode} settings={projectSettings} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} setup={devicesWorkspace.setup} canvases={canvasWorkspace.canvases} onRecover={recoverProject} />}
           </div>
         )}
         {!rightOpen && (

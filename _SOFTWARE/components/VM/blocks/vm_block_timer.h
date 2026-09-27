@@ -72,12 +72,12 @@ static inline const char* vm_timer_unit_name(vm_timer_unit_e u) {
 #define VM_TIMER_F_INVERTED    (1u << 3)
 
 typedef struct __attribute__((aligned(8))) {
-  uint8_t  mode;        // vm_timer_mode_e @enum-ref vm_timer_mode_e
+  uint8_t  mode;        // vm_timer_mode_e @enum-ref vm_timer_mode_e @extended-view-show
   uint8_t  flags;       // VM_TIMER_F_*: only VM_TIMER_F_INVERTED (0x08) is set by the app
-  uint8_t  time_base;   // Unit of pt and ET @enum-ref vm_timer_unit_e
+  uint8_t  time_base;   // Unit of pt and ET @enum-ref vm_timer_unit_e @extended-view-show
   uint8_t  _pad1;
   uint32_t _pad2;
-  uint32_t pt;          // Preset time in configured unit (hardcoded fallback)
+  uint32_t pt;          // Preset time in configured unit (hardcoded fallback) @extended-view-show
   uint64_t start_ms;    // Timestamp when timing started @runtime
   uint32_t elapsed;     // Current elapsed time @runtime
 } vm_block_timer_data_t;

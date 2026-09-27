@@ -27,6 +27,7 @@ export interface GeneratedField {
   readonly unit?: string
   readonly min?: number
   readonly max?: number
+  readonly default?: number
   readonly array_len?: number
   readonly one_of?: readonly GeneratedChoice[]
   readonly enum_ref?: string
@@ -192,6 +193,73 @@ export interface GeneratedBoardFile {
 /** `data-structures/vm/blocks/index.generated.json` (the parts the app reads) */
 export interface GeneratedVmBlocksIndex {
   readonly blocks: readonly { readonly id: number; readonly name: string; readonly title: string }[]
+}
+
+export interface GeneratedVmBlockEditorMetadata {
+  readonly id_kind?: 'device' | 'pin'
+  readonly device_field?: string
+  readonly contract?: string
+  readonly hidden_by_default?: boolean
+  readonly extended_view_show?: boolean
+  readonly let_user_select_available?: string
+  readonly dynamic_input?: number
+}
+
+export interface GeneratedVmBlockPin extends GeneratedVmBlockEditorMetadata {
+  readonly index: number
+  readonly name: string
+  readonly title: string
+  readonly value: string
+  readonly description?: string
+  readonly required?: boolean
+}
+
+export interface GeneratedVmBlockStateField extends GeneratedVmBlockEditorMetadata {
+  readonly name: string
+  readonly c_type: string
+  readonly offset: number
+  readonly size?: number
+  readonly description?: string
+  /** user: set by the app; derived: computed by the compiler; runtime / padding: 0 on the wire. */
+  readonly source: string
+  readonly enum_ref?: string
+  readonly derived?: string
+  readonly flexible?: boolean
+  readonly element_size?: number
+}
+
+export interface GeneratedVmBlockOpcode {
+  readonly symbol: string
+  readonly value: number
+  readonly alias: string
+  readonly description?: string
+  readonly pops: number
+  readonly pushes: number
+  readonly operand: string
+}
+
+/** `data-structures/vm/blocks/block_*.generated.json` */
+export interface GeneratedVmBlockFile {
+  readonly kind: string
+  readonly id: number
+  readonly name: string
+  readonly title: string
+  readonly category: string
+  readonly description: string
+  readonly activation: { readonly kind: string; readonly description?: string }
+  readonly inputs: { readonly min: number; readonly max: number; readonly pins: readonly GeneratedVmBlockPin[] }
+  readonly outputs: { readonly min: number; readonly max: number; readonly pins: readonly GeneratedVmBlockPin[] }
+  readonly rules: readonly { readonly rule: string; readonly error: string }[]
+  readonly state?: { readonly size: number; readonly fields: readonly GeneratedVmBlockStateField[] }
+  readonly min_custom_len: number
+  readonly enums?: Readonly<Record<string, { readonly alias?: string | null; readonly members: readonly { readonly name: string; readonly value: number; readonly alias?: string | null }[] }>>
+  readonly encoding?: {
+    readonly kind: string
+    readonly constant_type: string
+    readonly stack_max: number
+    readonly opcodes: readonly GeneratedVmBlockOpcode[]
+    readonly examples?: readonly { readonly title: string; readonly constants: readonly number[]; readonly code: readonly string[]; readonly custom_data: string }[]
+  }
 }
 
 /** `data-structures/vm/vm-program.generated.json` (the parts the app reads) */

@@ -19,6 +19,7 @@ export interface CommandFieldInfo {
   readonly note?: string
   readonly min?: number
   readonly max?: number
+  readonly defaultValue?: number
 }
 
 export interface CommandLayout {
@@ -92,6 +93,7 @@ const toFieldInfo = (name: string, field: GeneratedField, where: string): Comman
     note: field.note,
     min: field.min,
     max: field.max,
+    defaultValue: field.default,
   }
 }
 

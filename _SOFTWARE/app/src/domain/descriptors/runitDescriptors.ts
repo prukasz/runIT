@@ -14,7 +14,7 @@ import { buildDeviceCatalog } from './deviceCatalog'
 import type { DeviceCatalog, GeneratedDeviceFile } from './deviceCatalog'
 import { buildErrorCatalog } from './errorCatalog'
 import type { ErrorCatalog } from './errorCatalog'
-import type { GeneratedBoardFile, GeneratedContractsFile, GeneratedEnumsFile, GeneratedErrorsFile, GeneratedSettingsFile, GeneratedStreamsFile, GeneratedVmBlocksIndex, GeneratedVmModelFile, GeneratedVmProgramFile } from './generatedTypes'
+import type { GeneratedBoardFile, GeneratedContractsFile, GeneratedEnumsFile, GeneratedErrorsFile, GeneratedSettingsFile, GeneratedStreamsFile, GeneratedVmBlockFile, GeneratedVmBlocksIndex, GeneratedVmModelFile, GeneratedVmProgramFile } from './generatedTypes'
 import { buildStreamCatalog } from './streamCatalog'
 import type { StreamCatalog } from './streamCatalog'
 import { buildValueNames } from './valueNames'
@@ -105,7 +105,9 @@ export const runitValueNames = (): ValueNames => {
 /** VM program packets, object types and header layout, limits. */
 export const runitVmCatalog = (): VmCatalog => {
   if (!vmCatalog) {
-    const built = buildVmCatalog(vmProgram satisfies GeneratedVmProgramFile, vmModel satisfies GeneratedVmModelFile)
+    const blockFiles = Object.values(import.meta.glob<GeneratedVmBlockFile>('@data-structures/vm/blocks/block_*.generated.json', { eager: true, import: 'default' }))
+    if (blockFiles.length !== vmBlocks.blocks.length) throw new DescriptorError(`The VM block index lists ${vmBlocks.blocks.length} blocks, ${blockFiles.length} block files were found.`)
+    const built = buildVmCatalog(vmProgram satisfies GeneratedVmProgramFile, vmModel satisfies GeneratedVmModelFile, blockFiles)
     const stream = runitStreamCatalog().require('telemetry')
     if (built.telemetry.stream !== stream.header) throw new DescriptorError(`VM telemetry names stream 0x${built.telemetry.stream.toString(16)}, the telemetry connector sends 0x${stream.header.toString(16)}.`)
     vmCatalog = built

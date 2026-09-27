@@ -37,10 +37,10 @@ typedef union {
 } vm_edge_val_u;
 
 typedef struct __attribute__((aligned(4))) {
-  uint8_t       edge_type;  // vm_edge_type_e @enum-ref vm_edge_type_e
+  uint8_t       edge_type;  // vm_edge_type_e @enum-ref vm_edge_type_e @extended-view-show
   uint8_t       flags;      // VM_EDGE_F_* @runtime
   uint16_t      _pad1;
-  vm_edge_val_u change_by;  // Threshold for change condition (0 = any change)
+  vm_edge_val_u change_by;  // Threshold for change condition (0 = any change) @extended-view-show
   vm_edge_val_u prev_val;   // Stored previous value @runtime
 } vm_block_edge_data_t;
 

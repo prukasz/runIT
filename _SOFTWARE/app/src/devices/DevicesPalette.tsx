@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, ListChecks, Plus, Search, Trash2, X } from '
 import { TreeSlab } from '../components/TreeSlab'
 import { boardDeviceRef } from '../domain/project'
 import { DeviceTile } from './DeviceTile'
+import { deviceDisplayName } from '../domain/devices'
 import type { DevicesWorkspace } from './useDevicesWorkspace'
 
 const tabs = ['Devices', 'Features'] as const
@@ -28,7 +29,7 @@ export function DevicesPalette({ workspace: w }: { workspace: DevicesWorkspace }
   const selectedRef = w.selection?.kind === 'device' ? w.selection.ref : undefined
 
   const board = w.catalog.board.filter((device) => matches(query, device.name, device.title, String(device.deviceId), ...(device.type?.tags ?? [])))
-  const user = w.devices.filter((device) => matches(query, device.name, device.description, String(device.deviceId), w.catalog.type(device.type)?.title, ...device.tags))
+  const user = w.devices.filter((device) => matches(query, deviceDisplayName(w.catalog, device), device.name, device.description, String(device.deviceId), w.catalog.type(device.type)?.title, ...device.tags))
   const actions = w.actions.filter((action) => matches(query, action.name, String(action.actionId)))
 
   const folder = (key: Folder, label: string, count: number, add?: { title: string; onClick: () => void }) => (
@@ -88,10 +89,10 @@ export function DevicesPalette({ workspace: w }: { workspace: DevicesWorkspace }
                     isMatch={!!query.trim()}
                     onClick={() => w.select({ kind: 'device', ref: device.id })}
                     icon={<DeviceTile appearance={device.appearance} type={w.catalog.type(device.type)} size="small" />}
-                    label={device.name}
+                    label={deviceDisplayName(w.catalog, device)}
                     title={w.catalog.type(device.type)?.title}
                     badges={<>{w.diagnostics.some((entry) => entry.severity === 'error' && (entry.subjectId === device.id || entry.subjectId === `setup:${device.id}`)) && <span className="devices-error-dot" title="Has problems" />}<span className="ble-uuid-chip">#{device.deviceId}</span></>}
-                    actions={<button type="button" className="tree-slab-action" title="Delete device" aria-label={`Delete ${device.name}`} onClick={(event) => { event.stopPropagation(); w.removeDevice(device.id) }}><Trash2 aria-hidden="true" /></button>}
+                    actions={<button type="button" className="tree-slab-action" title="Delete device" aria-label={`Delete ${deviceDisplayName(w.catalog, device)}`} onClick={(event) => { event.stopPropagation(); w.removeDevice(device.id) }}><Trash2 aria-hidden="true" /></button>}
                   />
                 ))}
                 {!w.devices.length && <button type="button" className="devices-empty-add" onClick={() => w.select({ kind: 'add' })}><Plus aria-hidden="true" />Add a device</button>}

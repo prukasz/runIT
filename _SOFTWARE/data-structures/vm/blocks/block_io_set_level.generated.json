@@ -28,6 +28,9 @@
         "name": "pin",
         "title": "Pin",
         "value": "u32",
+        "id_kind": "pin",
+        "device_field": "device_id",
+        "hidden_by_default": true,
         "description": "Overrides default_io_num; must be in allowed_mask.",
         "required": false
       }
@@ -61,7 +64,10 @@
         "c_type": "uint64_t",
         "offset": 0,
         "size": 8,
-        "description": "Permitted pins bitmask (0..63) for dynamic selection",
+        "description": "Permitted pins for dynamic selection",
+        "let_user_select_available": "default_io_num",
+        "hidden_by_default": true,
+        "dynamic_input": 1,
         "source": "user"
       },
       {
@@ -69,7 +75,10 @@
         "c_type": "uint8_t",
         "offset": 8,
         "size": 1,
-        "description": "Target device ID",
+        "description": "Target device",
+        "id_kind": "device",
+        "contract": "packet_sys_io_set_level_t",
+        "extended_view_show": true,
         "source": "user"
       },
       {
@@ -77,7 +86,10 @@
         "c_type": "uint8_t",
         "offset": 9,
         "size": 1,
-        "description": "Static pin number when IN1 (IO_NUM) is unwired",
+        "description": "Static pin when the Pin input is unwired",
+        "id_kind": "pin",
+        "device_field": "device_id",
+        "extended_view_show": true,
         "source": "user"
       },
       {
@@ -102,8 +114,8 @@
         "c_type": "uint8_t",
         "offset": 12,
         "size": 1,
-        "description": "Cached last pin written; the app writes default_io_num",
-        "source": "user"
+        "description": "Cached last pin written",
+        "source": "runtime"
       },
       {
         "name": "_pad",

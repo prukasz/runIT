@@ -1,11 +1,14 @@
 import type { PacketScalarType } from '../../backend/packetPack'
 import { DescriptorError, parseByte } from './commandCatalog'
-import type { GeneratedVmModelField, GeneratedVmModelFile, GeneratedVmProgramFile } from './generatedTypes'
+import type { GeneratedVmBlockFile, GeneratedVmModelField, GeneratedVmModelFile, GeneratedVmProgramFile } from './generatedTypes'
+import { buildVmBlockType } from './vmBlocks'
+import type { VmBlockType } from './vmBlocks'
 
 /*
  * The VM program format (vm-program.generated.json) and object header
  * (vm-model.generated.json): packet bytes, object types, the wire layout of
- * vm_obj_head_t, limits and arena sizes. The compiler builds packets from it.
+ * vm_obj_head_t, limits and arena sizes, and the block palette (vm/blocks).
+ * The compiler builds packets from it.
  */
 
 export interface VmObjectType {
@@ -77,12 +80,27 @@ export interface VmCatalog {
     /** vm_accessor_t, and vm_index_t per path step. */
     readonly accessorHead: number
     readonly indexStep: number
+    /** vm_block_data_t (a block's config; a pointer per pin follows). */
+    readonly blockHead: number
     readonly maxBytes: number
   }
   /** Accessor path steps (vm_wire_index): a fixed position, a position read from another accessor, a child by name. */
   readonly indexKinds: { readonly literal: VmIndexKind; readonly ref: VmIndexKind; readonly name: VmIndexKind }
   /** Accessors the device resolves in one read: an accessor and the ones its dynamic steps read, nested (CONFIG_VM_ACCESSOR_MAX_DEPTH). */
   readonly accessorMaxDepth: number
+  /** Block palette, by type ID order. */
+  readonly blocks: readonly VmBlockType[]
+  /** A block type by key (`EXPR`, `PERIODIC` …). */
+  readonly block: (key: string) => VmBlockType | undefined
+  /** Most inputs, outputs and enables per block (CONFIG_VM_BLOCK_MAX_*). */
+  readonly blockPinMax: { readonly in: number; readonly out: number; readonly en: number }
+  /** Unwired input pin / no ENO object in 0x45. */
+  readonly blockNoId: number
+  /** Loops (span owners) nested at most this deep (CONFIG_VM_EXEC_MAX_SPAN_DEPTH). */
+  readonly spanDepthMax: number
+  /** vm_blk_en_mode_e and vm_blk_on_error_e by member name without `VM_BLK_EN_` / `VM_BLK_ERR_`: `ANY`, `ALL`; `STOP`, `CONTINUE`. */
+  readonly enModes: ReadonlyMap<string, number>
+  readonly onErrors: ReadonlyMap<string, number>
   readonly retainMaxBytes: number
   /** vm_exec_command_e (0x48) by member name without `VM_EXEC_`: `NORMAL_MODE`, `PAUSE`, `RESET` … */
   readonly execCommands: ReadonlyMap<string, number>
@@ -128,7 +146,7 @@ const flattenHead = (fields: readonly GeneratedVmModelField[], prefix: string, o
   }
 }
 
-export const buildVmCatalog = (program: GeneratedVmProgramFile, model: GeneratedVmModelFile): VmCatalog => {
+export const buildVmCatalog = (program: GeneratedVmProgramFile, model: GeneratedVmModelFile, blockFiles: readonly GeneratedVmBlockFile[] = []): VmCatalog => {
   const entryOf = (symbol: string) => need(program.packets.find((entry) => entry.symbol === symbol), `packet ${symbol}`)
   const packets = Object.fromEntries(Object.entries(PACKET_SYMBOLS).map(([key, symbol]) => [key, parseByte(entryOf(symbol).packet_header, symbol)])) as VmCatalog['packets']
   const wire = Object.fromEntries(Object.entries(PACKET_SYMBOLS).map(([key, symbol]) => {
@@ -163,6 +181,10 @@ export const buildVmCatalog = (program: GeneratedVmProgramFile, model: Generated
     const entry = need(indexCases.find((item) => item.symbol === symbol), `index kind ${symbol}`)
     return { value: entry.value, size: entry.record.size }
   }
+  const enumMembers = (name: string, prefix: string) => new Map(need(model.enums[name], `enum ${name}`).members.map((member) => [member.name.replace(prefix, ''), member.value]))
+  const blocks = blockFiles.map(buildVmBlockType).sort((a, b) => a.id - b.id)
+  const blockByKey = new Map(blocks.map((entry) => [entry.key, entry]))
+  if (blockByKey.size !== blocks.length) throw new DescriptorError('Two VM block files share a name.')
   const telemetryPacket = (symbol: string) => parseByte(need(program.telemetry.frames.find((entry) => entry.symbol === symbol), `telemetry frame ${symbol}`).packet_header, symbol)
 
   return {
@@ -184,10 +206,18 @@ export const buildVmCatalog = (program: GeneratedVmProgramFile, model: Generated
       objectHead: size('vm_obj_head_t'),
       accessorHead: size('vm_accessor_t'),
       indexStep: size('vm_index_t'),
+      blockHead: size('vm_block_data_t'),
       maxBytes: limit('CONFIG_VM_STORE_MAX_POOL'),
     },
     indexKinds: { literal: indexKind('VM_IDX_LITERAL'), ref: indexKind('VM_IDX_REF'), name: indexKind('VM_IDX_NAME') },
     accessorMaxDepth: limit('CONFIG_VM_ACCESSOR_MAX_DEPTH'),
+    blocks,
+    block: (key) => blockByKey.get(key),
+    blockPinMax: { in: limit('CONFIG_VM_BLOCK_MAX_IN'), out: limit('CONFIG_VM_BLOCK_MAX_OUT'), en: limit('CONFIG_VM_BLOCK_MAX_EN') },
+    blockNoId: constant('VM_BLOCK_NO_ID'),
+    spanDepthMax: limit('CONFIG_VM_EXEC_MAX_SPAN_DEPTH'),
+    enModes: enumMembers('vm_blk_en_mode_e', 'VM_BLK_EN_'),
+    onErrors: enumMembers('vm_blk_on_error_e', 'VM_BLK_ERR_'),
     retainMaxBytes: limit('CONFIG_VM_RETAIN_MAX_BYTES'),
     execCommands: new Map(need(model.enums.vm_exec_command_e, 'enum vm_exec_command_e').members.map((member) => [member.name.replace(/^VM_EXEC_/, ''), member.value])),
     telemetry: {

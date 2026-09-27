@@ -198,24 +198,16 @@ err_h sys_device_report_error_with_level(uint8_t device_id, se_level_e level, er
   SE_CHECK_IN_RANGE((unsigned)level, SE_LEVEL_NONE, SE_LEVEL_CRITICAL);
   if (level == SE_LEVEL_NONE) return NULL;
 
-  /* Importance NONE (a device under test) ignores its non-critical errors.
-     Critical ones always go through: they mean the system must stop. */
-  if (dev && dev->importance == SYS_DEV_IMPORTANCE_NONE && level != SE_LEVEL_CRITICAL) {
-    return NULL;
-  }
-
-  /* Non-critical errors obey device importance clamping */
+  /* Importance is a severity threshold: MEDIUM admits HIGH, HIGH admits
+     MEDIUM, and CRITICAL admits LOW. CRITICAL errors always go through. */
   if (level != SE_LEVEL_CRITICAL) {
-    if (!dev) {
+    if (!dev || dev->importance == SYS_DEV_IMPORTANCE_NONE ||
+        (unsigned)level + (unsigned)dev->importance <= (unsigned)SE_LEVEL_CRITICAL) {
       return NULL;
     }
-    if ((uint8_t)level > (uint8_t)dev->importance) {
-      level = (se_level_e)dev->importance;
-    }
-    if (level == SE_LEVEL_NONE) return NULL;
   }
 
-  /* CRITICAL or clamped level dispatch */
+  /* Dispatch at the error's original severity. */
   uint8_t action_scope = dev ? dev->actions[level].scope : 0;
   uint8_t action_id    = dev ? dev->actions[level].id : 0;
   return (s_error_policy ? s_error_policy : default_error_policy)(device_id, level, action_scope, action_id, error);

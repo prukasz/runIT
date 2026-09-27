@@ -54,6 +54,18 @@ Every block header in `components/VM/blocks/` describes its block for the app ri
 - **State layout is computed** from the struct (natural C alignment; every state struct pads explicitly) and must equal its `_Static_assert(sizeof(...) == N)`. Field comments: text before the first tag is the description; `@enum-ref <enum>` names a published `//#ref-enum`; `@runtime` marks device-owned bytes the app writes as 0; fields starting with `_` are padding. A new field type needs a size in the generator's `TYPES` table.
 - Every palette id (except 0) must have a `//#vm-block`; the generator fails otherwise.
 
+### Block editor metadata
+
+These tags apply to state-field comments and `//@in` / `//@out` pin metadata. They change editor presentation; they do not change C layout or firmware pin indices.
+
+- `@id device` marks a device ID; `@contract <packet_*_t>` on that field limits the device picker to installed board/project devices supporting that operation.
+- `@id pin @device-field <state field>` marks a pin ID and links it to its device picker. The app excludes board-reserved and device-owned pins.
+- `@hidden-by-default` hides optional inputs in the ordinary block view. A wired input or an explicitly selected dynamic input remains visible. Required inputs cannot use this tag.
+- `@extended-view-show` is a flag with no argument. It publishes `extended_view_show: true` and includes that user setting in the detailed block's content; unmarked settings stay in the inspector. Device/pin IDs resolve to the chosen device name and pin label. IO blocks mark only their device and constant/default pin. Expressions and derived loop-body summaries remain visible separately.
+- A `uint64_t` mask uses `@hidden-by-default @let-user-select-available <pin field> @dynamic-input <input index>`. Static mode derives one bit from the selected constant pin; Dynamic mode reveals that input and a checklist of available pins. The default pin must stay included. Masks are stored as hexadecimal strings in project settings to preserve all 64 bits.
+
+The generator validates field/input links. Check generation with `python data-structures/auto-annotations/vm/test_vm_block_editor.py`; install `jsonschema` to include schema validation.
+
 ```powershell
 python data-structures/auto-annotations/vm/generate-vm-blocks.py
 ```

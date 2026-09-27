@@ -23,6 +23,8 @@ export interface Diagnostic {
   readonly objectId?: string
   /** Key of the accessor request (a block pin …) concerned. */
   readonly pathKey?: string
+  /** Project ID of the block concerned. */
+  readonly blockId?: string
   readonly message: string
   /** The firmware error this rule mirrors, if the device would raise one. */
   readonly firmwareError?: string
@@ -124,9 +126,10 @@ const align = (size: number, to: number): number => Math.ceil(size / to) * to
 
 /**
  * Compile the project's objects, followed by `extraSections` (block outputs,
- * attached object files) in the same wire ID space.
+ * attached object files) in the same wire ID space. `driven`: user objects a
+ * block writes as its output (mutable, fresh only in the pass that wrote them).
  */
-export const compileObjects = (project: ProjectDocument, catalog: VmCatalog, extraSections: readonly ObjectSection[] = []): CompiledObjects => {
+export const compileObjects = (project: ProjectDocument, catalog: VmCatalog, extraSections: readonly ObjectSection[] = [], driven: ReadonlySet<string> = new Set()): CompiledObjects => {
   const sections = [userSection(project), ...extraSections]
   const diagnostics: Diagnostic[] = []
   const placed: PlacedObject[] = []
@@ -284,10 +287,10 @@ export const compileObjects = (project: ProjectDocument, catalog: VmCatalog, ext
       'd.name_size': Math.min(entry.name.byteLength, catalog.nameMax),
       'f.tagged': entry.name.byteLength ? 1 : 0,
       // Folders are linked by 0x43 records, which the device allows only on a mutable PTR (vm_obj_link_direct).
-      'f.mutable': entry.node.kind === 'folder' || (entry.node.kind === 'value' && entry.node.mutable) ? 1 : 0,
+      'f.mutable': entry.node.kind === 'folder' || (entry.node.kind === 'value' && (entry.node.mutable || driven.has(entry.node.id))) ? 1 : 0,
       'f.retentive': retentive ? 1 : 0,
       // Constants and user variables never clear their update flag; block-owned objects are fresh only in the pass that wrote them (VM_EXEC.MD).
-      'f.upd_resetable': ownerOf.get(entry.section) === 'block' ? 1 : 0,
+      'f.upd_resetable': ownerOf.get(entry.section) === 'block' || driven.has(entry.node.id) ? 1 : 0,
     })
     const record = new Uint8Array(2 + head.byteLength + Math.min(entry.name.byteLength, catalog.nameMax))
     new DataView(record.buffer).setUint16(0, entry.wireId, true)

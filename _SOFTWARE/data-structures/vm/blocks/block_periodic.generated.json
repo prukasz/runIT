@@ -62,6 +62,7 @@
         "offset": 0,
         "size": 4,
         "description": "In time_base units",
+        "extended_view_show": true,
         "source": "user"
       },
       {
@@ -70,6 +71,7 @@
         "offset": 4,
         "size": 1,
         "description": "Unit of period",
+        "extended_view_show": true,
         "enum_ref": "vm_timer_unit_e",
         "source": "user"
       },

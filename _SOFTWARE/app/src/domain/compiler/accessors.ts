@@ -45,11 +45,23 @@ export interface PlacedAccessor {
   readonly keys: readonly string[]
 }
 
+/**
+ * What a path reaches, as far as the compiler knows: `object` undefined =
+ * unknown (past a live cell or a dynamic folder entry); `element` false = the
+ * whole object, true = one element of it (a folder's element is a slot).
+ */
+export interface PathReach {
+  readonly object?: PlacedObject
+  readonly element: boolean
+}
+
 export interface AccessorLayout {
   /** Index = wire ID. */
   readonly accessors: readonly PlacedAccessor[]
   /** Request key → accessor wire ID. */
   readonly wireIdOf: ReadonlyMap<string, number>
+  /** Request key → what its path reaches. */
+  readonly reachOf: ReadonlyMap<string, PathReach>
 }
 
 export interface CompiledAccessors {
@@ -92,6 +104,7 @@ export const compileAccessors = (requests: readonly AccessorRequest[], objects: 
   const placed: { root: number; steps: WireStep[]; keys: string[] }[] = []
   const byShape = new Map<string, number>()
   const wireIdOf = new Map<string, number>()
+  const reachOf = new Map<string, PathReach>()
 
   /** The folder's uploaded entries, aligned with its children's wire IDs. */
   const entriesOf = (folder: PlacedObject): readonly ObjectNode[] =>
@@ -190,6 +203,7 @@ export const compileAccessors = (requests: readonly AccessorRequest[], objects: 
     const reach = compilePath(request.path, request.key, request.key)
     if (!reach) continue
     wireIdOf.set(request.key, reach.wireId)
+    reachOf.set(request.key, { object: reach.object, element: reach.element })
     placed[reach.wireId]!.keys.push(request.key)
   }
 
@@ -234,5 +248,5 @@ export const compileAccessors = (requests: readonly AccessorRequest[], objects: 
     cached: entry.steps.length === 0 || (entry.steps.length === 1 && entry.steps[0]!.kind === 'literal'),
     keys: entry.keys,
   }))
-  return { layout: { accessors, wireIdOf }, diagnostics, records, arenaBytes }
+  return { layout: { accessors, wireIdOf, reachOf }, diagnostics, records, arenaBytes }
 }

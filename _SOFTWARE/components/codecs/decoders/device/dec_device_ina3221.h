@@ -32,13 +32,13 @@
 typedef struct __packed {
   uint8_t device_id; //@required @min 0 @max CONFIG_SYS_DEVICE_MAX_ID
   uint8_t i2c_bus;   //@required @min 0 @max 1
-  uint8_t i2c_addr;  //@required @min 0x40 @max 0x43 @note enforced in ina3221_new() against INA3221_I2C_ADDR_GND/_SCL - A0 pin strap (GND/Vs+/SDA/SCL) selects the address
+  uint8_t i2c_addr;  //@required @one-of [0x40,0x41,0x42,0x43] @note A0 pin strap (GND/Vs+/SDA/SCL) selects the address
   uint8_t crit_pin_device_id; //@group critical-alert-pin @role device_id
   uint8_t crit_pin_pin;       //@group critical-alert-pin @role pin @sentinel SYS_GPIO_NONE @note SYS_GPIO_NONE disables external critical-alert reporting; the pin is active-low
-  uint8_t crit_pin_mode;      //@group critical-alert-pin @role mode @enum-ref sys_io_mode_e
+  uint8_t crit_pin_mode;      //@group critical-alert-pin @role mode @enum-ref sys_io_mode_e @one-of [$SYS_IO_MODE_INPUT, $SYS_IO_MODE_INPUT_PULLUP]
   uint8_t warn_pin_device_id; //@group warning-alert-pin @role device_id
   uint8_t warn_pin_pin;       //@group warning-alert-pin @role pin @sentinel SYS_GPIO_NONE @note SYS_GPIO_NONE disables external warning-alert reporting; the pin is active-low
-  uint8_t warn_pin_mode;      //@group warning-alert-pin @role mode @enum-ref sys_io_mode_e
+  uint8_t warn_pin_mode;      //@group warning-alert-pin @role mode @enum-ref sys_io_mode_e @one-of [$SYS_IO_MODE_INPUT, $SYS_IO_MODE_INPUT_PULLUP]
 } packet_sys_device_install_ina3221_t;
 
 static inline SE_MUST_USE err_h decoder_packet_sys_device_install_ina3221_t(packet_sys_device_install_ina3221_t* packet) {

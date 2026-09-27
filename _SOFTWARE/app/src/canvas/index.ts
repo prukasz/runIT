@@ -1,0 +1,6 @@
+export { BlockDetails } from './BlockDetails'
+export { BlockPalette } from './BlockPalette'
+export { blockDiagnostics } from './blockView'
+export { CanvasEditor } from './CanvasEditor'
+export { useCanvasWorkspace } from './useCanvasWorkspace'
+export type { CanvasWorkspace } from './useCanvasWorkspace'

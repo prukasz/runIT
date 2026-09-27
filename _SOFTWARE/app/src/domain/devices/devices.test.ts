@@ -4,7 +4,7 @@ import { boardDeviceRef, createProject, parseProject, serializeProject } from '.
 import type { ActionStep, ProjectAction, ProjectDevice } from '../project'
 import { buildStoredCode, decodeStoredCode } from '../storedCode'
 import { boardDefaultSettings, runitSettingsIds } from '../upload'
-import { actionRecordSteps, buildAction, checkDevices, checkPwm, frequencyWarnings, checkSetup, clampErrorActions, decodeErrorActions, encodeErrorActions, reachableErrorLevels, contractFrame, defaultInstall, deviceInstallSteps, findContract, installFrame, nextDeviceId, pinKey, pinsOf, pinUsers, resolveDevice } from '.'
+import { actionRecordSteps, allDevices, buildAction, checkDevices, checkPwm, frequencyWarnings, checkSetup, clampErrorActions, decodeErrorActions, encodeErrorActions, reachableErrorLevels, contractFrame, defaultInstall, deviceInstallSteps, deviceSetupSteps, findContract, installFrame, modesOf, nextDeviceId, pinKey, pinsOf, pinUsers, resolveDevice, withDeviceAliases } from '.'
 
 const hex = (data: Uint8Array): string => [...data].map((byte) => byte.toString(16).padStart(2, '0')).join(' ')
 const catalog = runitDeviceCatalog()
@@ -16,6 +16,62 @@ const pca = (deviceId: number, extra: Record<string, number> = {}): ProjectDevic
 }
 
 describe('device catalog', () => {
+  it('marks ADC as the ADS7128 device default without adding setup frames', () => {
+    const adc = resolveDevice(catalog, [], boardDeviceRef(2))!
+    const mode = findContract(catalog, adc, 'packet_sys_io_set_mode_t')!.parameters.find((parameter) => parameter.name === 'mode')!
+    expect(mode.choices?.map((choice) => choice.value)).toEqual([7])
+    expect(mode.defaultValue).toBe(7)
+    expect(deviceSetupSteps(catalog, [], []).steps).toEqual([])
+  })
+
+  it('defaults ADS7128 ALERT to pull-up and exposes only input modes supported by the chosen provider', () => {
+    const type = catalog.type('device_ads_7128')!
+    expect(type.installChoices.get('intr_pin_mode')?.map((choice) => choice.value)).toEqual([0, 1])
+    expect(defaultInstall(type, catalog.i2cBuses.user).intr_pin_mode).toBe(1)
+    expect(modesOf(catalog.board.find((device) => device.deviceId === 0)?.type).map((choice) => choice.value)).toContain(1)
+    expect(modesOf(catalog.board.find((device) => device.deviceId === 1)?.type).map((choice) => choice.value)).not.toContain(1)
+    const device: ProjectDevice = { id: 'adc', deviceId: 20, type: type.id, name: 'ADC', tags: [], install: { ...defaultInstall(type, catalog.i2cBuses.user), intr_pin_device_id: 1, intr_pin_pin: 0 } }
+    expect(checkDevices(catalog, [device]).some((diagnostic) => diagnostic.message.includes('mode 1 is not available'))).toBe(true)
+    expect(checkDevices(catalog, [{ ...device, install: { ...device.install, intr_pin_mode: 0 } }]).some((diagnostic) => diagnostic.message.includes('mode 0 is not available'))).toBe(false)
+  })
+
+  it('publishes selectable I2C addresses and rejects a loaded address outside the list', () => {
+    const expected: Record<string, number[]> = {
+      device_ads_7128: [0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17],
+      device_ap33772s: [0x52],
+      device_dac53202: [0x48, 0x49, 0x4a, 0x4b],
+      device_ina3221: [0x40, 0x41, 0x42, 0x43],
+      device_tca6424a: [0x22, 0x23],
+      device_tps55289: [0x74, 0x75],
+    }
+    for (const [id, addresses] of Object.entries(expected)) {
+      const type = catalog.type(id)!
+      expect(type.installChoices.get('i2c_addr')?.map((choice) => choice.value)).toEqual(addresses)
+      expect(addresses).toContain(defaultInstall(type, catalog.i2cBuses.user).i2c_addr)
+    }
+    const pcaAddresses = catalog.type('device_pca9685')!.installChoices.get('i2c_addr')!.map((choice) => choice.value)
+    expect(pcaAddresses).toContain(0x40)
+    expect(pcaAddresses).not.toContain(0x70)
+    expect(pcaAddresses).not.toContain(0x7f)
+    expect(checkDevices(catalog, [pca(20, { i2c_addr: 0 })])).toEqual(expect.arrayContaining([expect.objectContaining({ message: expect.stringContaining('I2C address 0x0 is not available') })]))
+  })
+
+  it('uses project aliases for display without changing device identities or install frames', () => {
+    const device = pca(20)
+    const named = withDeviceAliases(catalog, { 'board:0': 'Front switches', [device.id]: 'Arm servos' })
+    expect(allDevices(named, [device])).toEqual(expect.arrayContaining([
+      expect.objectContaining({ ref: 'board:0', deviceId: 0, name: 'Front switches' }),
+      expect.objectContaining({ ref: device.id, deviceId: 20, name: 'Arm servos' }),
+    ]))
+    const original = deviceInstallSteps(catalog, [device])
+    const aliased = deviceInstallSteps(named, [device])
+    expect(aliased.steps[0]?.label).toContain('Arm servos')
+    expect(aliased.steps.map((step) => step.frame)).toEqual(original.steps.map((step) => step.frame))
+    expect(resolveDevice(catalog, [device], device.id)?.name).toBe(device.name)
+    expect(catalog.board.find((entry) => entry.deviceId === 0)?.name).not.toBe('Front switches')
+    expect(resolveDevice(withDeviceAliases(catalog), [device], device.id)?.name).toBe(device.name)
+  })
+
   it('loads every device type, the board devices and the lifecycle commands', () => {
     expect(catalog.types.map((type) => type.id)).toEqual(expect.arrayContaining(['device_gpio_esp', 'device_pca9685', 'device_tca6424a', 'device_ina3221']))
     expect(catalog.board.find((device) => device.deviceId === 3)?.type?.id).toBe('device_pca9685')
@@ -169,9 +225,9 @@ describe('actions', () => {
     expect(build.diagnostics).toEqual([])
     expect(build.frames.map((step) => hex(step.frame))).toEqual(['01 1a 0d 02 04 00 04 07 00'])
     expect(catalog.staticActions.map((entry) => entry.value)).toEqual([1, 2, 3, 4, 5, 6])
-    // sys_device.c: above the importance → the importance level; critical always, Disabled included.
-    expect([0, 1, 2, 3, 4].map(reachableErrorLevels)).toEqual([[4], [1, 4], [1, 2, 4], [1, 2, 3, 4], [1, 2, 3, 4]])
-    expect(clampErrorActions(encodeErrorActions([{ scope: 'dynamic', id: 1 }, { scope: 'dynamic', id: 2 }, { scope: 'static', id: 3 }, { scope: 'static', id: 4 }]), 1)).toEqual([0b0001, 1, 0, 0, 4])
+    // sys_device.c: importance admits progressively lower severities; critical always runs.
+    expect([0, 1, 2, 3, 4].map(reachableErrorLevels)).toEqual([[4], [4], [3, 4], [2, 3, 4], [1, 2, 3, 4]])
+    expect(clampErrorActions(encodeErrorActions([{ scope: 'dynamic', id: 1 }, { scope: 'dynamic', id: 2 }, { scope: 'static', id: 3 }, { scope: 'static', id: 4 }]), 1)).toEqual([0, 0, 0, 0, 4])
     const project = { ...createProject('x'), actions: [errorHandling] }
     expect(parseProject(serializeProject(project))).toEqual(project)
   })

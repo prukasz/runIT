@@ -64,10 +64,17 @@
           "type": "uint8_t",
           "alias": "I2C Address",
           "required": true,
-          "min": 0,
-          "max": 127,
-          "unit": "7-bit-address",
-          "note": "7-bit I2C address; driver_ads7128.c does not enforce a device-specific address list"
+          "one_of": [
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "note": "ADDR pin resistor selects the address at power-up"
         },
         "intr_pin_device_id": {
           "type": "uint8_t",
@@ -88,6 +95,13 @@
           "alias": "ALERT Pin Mode",
           "one_of": [
             {
+              "symbol": "SYS_IO_MODE_INPUT",
+              "enum": "sys_io_mode_e",
+              "value": 0,
+              "alias": "Input",
+              "description": "Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal"
+            },
+            {
               "symbol": "SYS_IO_MODE_INPUT_PULLUP",
               "enum": "sys_io_mode_e",
               "value": 1,
@@ -95,6 +109,7 @@
               "description": "Same as Input, but reads \"on\" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed"
             }
           ],
+          "default": 1,
           "enum_ref": "sys_io_mode_e",
           "group": "alert-pin",
           "role": "mode",
@@ -205,6 +220,7 @@
             }
           ],
           "enum_ref": "sys_io_mode_e",
+          "default": 7,
           "alias": "Channel Mode"
         }
       ],

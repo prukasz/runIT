@@ -85,6 +85,7 @@
         "offset": 4,
         "size": 4,
         "description": "Start when input 0 is unwired",
+        "extended_view_show": true,
         "source": "user"
       },
       {
@@ -93,6 +94,7 @@
         "offset": 8,
         "size": 4,
         "description": "End when input 1 is unwired",
+        "extended_view_show": true,
         "source": "user"
       },
       {
@@ -101,6 +103,7 @@
         "offset": 12,
         "size": 4,
         "description": "Step when input 2 is unwired",
+        "extended_view_show": true,
         "source": "user"
       },
       {
@@ -109,6 +112,7 @@
         "offset": 16,
         "size": 2,
         "description": "Turn budget per pass",
+        "extended_view_show": true,
         "source": "user"
       },
       {
@@ -117,6 +121,7 @@
         "offset": 18,
         "size": 1,
         "description": "How the iterator advances",
+        "extended_view_show": true,
         "enum_ref": "vm_for_op_e",
         "source": "user"
       },
@@ -126,6 +131,7 @@
         "offset": 19,
         "size": 1,
         "description": "Loop condition",
+        "extended_view_show": true,
         "enum_ref": "vm_for_cmp_e",
         "source": "user"
       },

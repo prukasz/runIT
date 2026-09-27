@@ -33,12 +33,12 @@ typedef enum {
 #define VM_IO_SET_F_ALWAYS      (1u << 2) // Force hardware write on every pass
 
 typedef struct __attribute__((aligned(8))) {
-  uint64_t allowed_mask;       // Permitted pins bitmask (0..63) for dynamic selection
-  uint8_t  device_id;          // Target device ID
-  uint8_t  default_io_num;     // Static pin number when IN1 (IO_NUM) is unwired
+  uint64_t allowed_mask;       // Permitted pins for dynamic selection @hidden-by-default @let-user-select-available default_io_num @dynamic-input 1
+  uint8_t  device_id;          // Target device @id device @contract packet_sys_io_set_level_t @extended-view-show
+  uint8_t  default_io_num;     // Static pin when the Pin input is unwired @id pin @device-field device_id @extended-view-show
   uint8_t  disabled_action;    // What disabled does @enum-ref vm_io_disabled_state_e
   uint8_t  flags;              // VM_IO_SET_F_*: only VM_IO_SET_F_ALWAYS (0x04) is set by the app
-  uint8_t  last_pin;           // Cached last pin written; the app writes default_io_num
+  uint8_t  last_pin;           // Cached last pin written @runtime
   uint8_t  _pad[3];            // Align to 16 bytes
 } vm_block_io_set_level_data_t;
 
@@ -157,6 +157,6 @@ static inline void vm_blk_io_set_level(vm_block_h b) {
 //@rule allowed_mask is not 0, and default_io_num is below 64 and in allowed_mask. @error ERR_VM_BLK_BAD_SHAPE
 //@rule disabled_action is a vm_io_disabled_state_e value. @error ERR_VM_BLK_BAD_SHAPE
 //@in 0 level @title Level @value bool
-//@in 1 pin @title Pin @description Overrides default_io_num; must be in allowed_mask. @value u32
+//@in 1 pin @title Pin @description Overrides default_io_num; must be in allowed_mask. @value u32 @id pin @device-field device_id @hidden-by-default
 #define VM_BLOCK_TYPE_IO_SET_LEVEL \
   {.run = vm_blk_io_set_level, .check = vm_verify_io_set_level, .min_in = 1, .min_q = 0, .required_in = 0x1u, .state_len = VM_IO_SET_LEVEL_CUSTOM_LEN}

@@ -38,7 +38,7 @@ typedef enum {
 #define VM_LATCH_F_WRITTEN (1u << 1)  // Q output published at least once
 
 typedef struct __attribute__((aligned(4))) {
-  uint8_t mode;   // Which input wins when both are true @enum-ref vm_latch_mode_e
+  uint8_t mode;   // Which input wins when both are true @enum-ref vm_latch_mode_e @extended-view-show
   uint8_t flags;  // VM_LATCH_F_* @runtime
   uint16_t _pad;
 } vm_block_latch_data_t;

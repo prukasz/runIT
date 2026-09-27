@@ -47,10 +47,10 @@
 typedef struct __packed {
   uint8_t device_id; //@required @min 0 @max CONFIG_SYS_DEVICE_MAX_ID
   uint8_t i2c_bus;   //@required @min 0 @max 1
-  uint8_t i2c_addr;  //@required @default 0x52 @note AP33772S has a fixed datasheet address (AP33772S_ADDRESS); the field is honored (adapter_ap33772s.c overwrites the driver handle's address with it) but the real chip only answers at 0x52
+  uint8_t i2c_addr;  //@required @one-of [0x52] @note Fixed I2C address of the AP33772S
   uint8_t intr_pin_device_id; //@group interrupt-pin @role device_id
   uint8_t intr_pin_pin;       //@group interrupt-pin @role pin @sentinel SYS_GPIO_NONE
-  uint8_t intr_pin_mode;      //@group interrupt-pin @role mode @enum-ref sys_io_mode_e
+  uint8_t intr_pin_mode;      //@group interrupt-pin @role mode @enum-ref sys_io_mode_e @one-of [$SYS_IO_MODE_INPUT, $SYS_IO_MODE_INPUT_PULLUP]
 } packet_sys_device_install_ap33772s_t;
 
 static inline SE_MUST_USE err_h decoder_packet_sys_device_install_ap33772s_t(packet_sys_device_install_ap33772s_t* packet) {

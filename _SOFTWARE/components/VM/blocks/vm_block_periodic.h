@@ -35,8 +35,8 @@
 #define VM_PERIODIC_F_OVERRUN (1u << 1)  // Current overrun episode already reported
 
 typedef struct __attribute__((aligned(8))) {
-  uint32_t period;    // In time_base units
-  uint8_t time_base;  // Unit of period @enum-ref vm_timer_unit_e
+  uint32_t period;    // In time_base units @extended-view-show
+  uint8_t time_base;  // Unit of period @enum-ref vm_timer_unit_e @extended-view-show
   uint8_t flags;      // VM_PERIODIC_F_* @runtime
   uint16_t _pad;
   uint64_t next_ms;   // Next deadline @runtime

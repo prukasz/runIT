@@ -25,10 +25,10 @@
 typedef struct __packed {
   uint8_t device_id; //@required @min 0 @max CONFIG_SYS_DEVICE_MAX_ID
   uint8_t i2c_bus;   //@required @min 0 @max 1
-  uint8_t i2c_addr;  //@required @available [0x74, 0x75] @note enforced in tps55289_new() via TPS55289_I2C_ADDR_74/_75 - any other value fails at driver init
+  uint8_t i2c_addr;  //@required @one-of [0x74,0x75] @note MODE pin selects one of two I2C addresses
   uint8_t intr_pin_device_id; //@group interrupt-pin @role device_id
   uint8_t intr_pin_pin;       //@group interrupt-pin @role pin @sentinel SYS_GPIO_NONE
-  uint8_t intr_pin_mode;      //@group interrupt-pin @role mode @enum-ref sys_io_mode_e
+  uint8_t intr_pin_mode;      //@group interrupt-pin @role mode @enum-ref sys_io_mode_e @one-of [$SYS_IO_MODE_INPUT, $SYS_IO_MODE_INPUT_PULLUP]
   uint8_t en_pin_device_id; //@group enable-pin @role device_id
   uint8_t en_pin_pin;       //@group enable-pin @role pin @sentinel SYS_GPIO_NONE
   uint8_t en_pin_mode;      //@group enable-pin @role mode @enum-ref sys_io_mode_e

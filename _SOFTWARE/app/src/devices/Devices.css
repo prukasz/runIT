@@ -32,6 +32,19 @@
 .devices-page-header { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; }
 .devices-page-header h1 { margin: 2px 0 4px; font-size: 24px; font-weight: 600; color: var(--active); overflow-wrap: anywhere; }
 .devices-page-title { flex: 1; min-width: 0; }
+.devices-header-name { width: fit-content; max-width: 100%; margin: 2px 0 4px; }
+.devices-header-name .editable-field-wrap { width: auto; min-width: 0; max-width: 100%; flex: none; }
+.devices-header-name .editable-field-input { field-sizing: content; width: auto; min-width: 100px; max-width: min(55vw, 520px); height: 38px; padding-left: 0; border-color: transparent; background: transparent; font-size: 24px; font-weight: 600; }
+.devices-header-name .editable-field-input:hover,
+.devices-header-name .editable-field-input:focus { padding-left: 8px; }
+.devices-header-id { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 7px; color: var(--muted); font-size: 12px; }
+.devices-header-id input { width: 66px; height: 26px; padding: 2px 7px; border: 1px solid var(--divider); border-radius: 5px; background: var(--panel); color: var(--active); font: inherit; font-variant-numeric: tabular-nums; }
+.devices-header-id input:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+.devices-header-id-fixed { color: var(--active); font-variant-numeric: tabular-nums; }
+.devices-header-description { display: flex; max-width: 560px; margin-top: 5px; }
+.devices-header-description .editable-field-input { height: 27px; padding-left: 0; border-color: transparent; background: transparent; color: var(--muted); font-size: 12px; font-weight: 400; }
+.devices-header-description .editable-field-input:hover,
+.devices-header-description .editable-field-input:focus { padding-left: 8px; color: var(--active); }
 .devices-page-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .shell .devices-primary, .shell .devices-page-actions button, .devices-link-button,
 .shell .devices-composer-footer button, .shell .devices-add-step, .shell .devices-composer-header button:not(.devices-composer-close) {
@@ -143,6 +156,8 @@
 .devices-pin-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) 90px; align-items: center; gap: 10px; min-height: 36px; padding: 3px 10px; border-top: 1px solid var(--divider); font-size: 12px; color: var(--active); }
 .devices-pin-row.is-head { position: sticky; top: 0; z-index: 1; min-height: 30px; border-top: 0; background: var(--panel); color: var(--muted); font-size: 11px; font-weight: 600; }
 .devices-pin-row.is-set { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.devices-pin-default { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; color: var(--active); }
+.devices-pin-default small { color: var(--muted); font-size: 11px; }
 .devices-pin-row.is-taken { color: var(--muted); }
 .devices-pin-row select { width: 100%; height: 28px; padding: 0 6px; border: 1px solid var(--divider); border-radius: 5px; background: var(--background); color: var(--active); font-size: 12px; }
 .devices-pin-taken { grid-column: 2 / 4; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

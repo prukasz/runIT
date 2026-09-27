@@ -11,10 +11,10 @@
  * Sections so far: the object tree, BLE and data connector settings
  * (`settings`), user devices (`devices`, installed by the stored code) and
  * the devices' default settings (`setup`, contract calls run after them),
- * actions (`actions`, recorded on the board on demand), the board's autostart
- * option and frames of classes without an editor yet (`extraFrames`, kept from
- * a recovered board). Canvases and remote layouts follow as their own
- * sections.
+ * actions (`actions`, recorded on the board on demand), the canvases with
+ * the program's blocks (`canvases`), the board's autostart option and frames
+ * of classes without an editor yet (`extraFrames`, kept from a recovered
+ * board). Remote layouts follow as their own section.
  *
  * The program's object space can hold more than the user's tree: block-owned
  * objects (outputs, ENO) come as further ObjectSections, generated from the
@@ -40,10 +40,14 @@ export interface ProjectDocument {
   readonly extraFrames?: readonly RawFrame[]
   /** Devices the user adds on top of the board's own; the stored code installs them at boot. */
   readonly devices?: readonly ProjectDevice[]
+  /** User-given display names, keyed by stable device reference; never sent to firmware. */
+  readonly deviceAliases?: Readonly<Record<DeviceRef, string>>
   /** Contract sequences recorded on the board as dynamic actions (sys_actions). */
   readonly actions?: readonly ProjectAction[]
   /** Default settings: contract calls (pin modes, levels, frequencies …) the stored code runs after installing the devices. */
   readonly setup?: readonly ActionStep[]
+  /** The program's canvases, in execution order. */
+  readonly canvases?: readonly ProjectCanvas[]
 }
 
 // ---------------------------------------------------------------------------
@@ -282,6 +286,62 @@ export type PathStep =
   | { readonly kind: 'name'; readonly name: string }
   /** The position is read from another path on every use (a selector, a step counter). */
   | { readonly kind: 'dynamic'; readonly index: ObjectPath }
+
+/**
+ * One block of a program. Programs are lists of these in execution order (the
+ * canvas compiles its tabs to one). Wires are paths: a block reading another
+ * block's output uses that output's object ID, `<block id>:q<n>` (or
+ * `<block id>:eno`) for a block-owned one.
+ */
+export interface ProgramBlock {
+  readonly id: string
+  /** Block type key: `EXPR`, `PERIODIC` … (vm/blocks, VM_BLK_ without its prefix). */
+  readonly type: string
+  /** Input pins in order: a path, or null = unwired (the block uses its setting instead). */
+  readonly inputs?: readonly (ObjectPath | null)[]
+  /** Optional input indices exposed for dynamic selection (wired inputs are always exposed). */
+  readonly dynamicInputs?: readonly number[]
+  /**
+   * Output pins in order: a user object (project ID) the block drives, or null
+   * for a block-owned object `<block id>:q<n>`. Every pin the type lists is
+   * made (block-owned past the list); a repeating pin (SWITCH) as often as listed.
+   */
+  readonly outputs?: readonly (string | null)[]
+  /** Enable sources; none = always enabled. */
+  readonly enables?: readonly ObjectPath[]
+  /** How several enables combine (default `any`). */
+  readonly enableMode?: 'any' | 'all'
+  /** After a failed call: `stop` drops ENO (default), `continue` carries on. */
+  readonly onError?: 'stop' | 'continue'
+    /** Explicitly allocate ENO (legacy / telemetry); pin references allocate it automatically. */
+  readonly eno?: boolean
+  /** Its state fields by name (the `user` ones): a number, or an enum member name. */
+  readonly settings?: Readonly<Record<string, number | string>>
+  /** EXPR / EXPR_BIT: constants and RPN code (opcode aliases or symbols, each operand a number after its opcode). */
+  readonly expression?: { readonly constants?: readonly number[]; readonly code: readonly (string | number)[] }
+  /** FOR: how many of the blocks after it are the loop body. */
+  readonly body?: number
+}
+
+/** A block on a canvas: the block, and where its top-left corner sits (canvas units, px at 100 %). */
+export interface CanvasBlock extends ProgramBlock {
+  readonly x: number
+  readonly y: number
+  /** Omitted = follow the toolbar's view preference. */
+  readonly view?: 'simple' | 'detailed'
+}
+
+/**
+ * One canvas (a flow tab). A project is one program run in one scan cycle:
+ * every enabled canvas's blocks, the canvases in list order. A disabled canvas
+ * is left out of the compile.
+ */
+export interface ProjectCanvas {
+  readonly id: string
+  readonly name: string
+  readonly disabled?: boolean
+  readonly blocks: readonly CanvasBlock[]
+}
 
 /** The user's tree as the first section. */
 export const userSection = (project: ProjectDocument): ObjectSection => ({ key: 'user', owner: 'user', objects: project.objects })

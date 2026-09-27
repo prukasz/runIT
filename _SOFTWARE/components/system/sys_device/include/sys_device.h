@@ -65,12 +65,6 @@ typedef enum sys_device_state_e {
 } sys_device_state_e;
 
 /**
- * @brief Device importance level.
- *
- * Determines whether error handling is active (NONE disables it) and caps
- * the maximum error severity that this device can escalate to.
- */
-/**
  * @brief Device action reference containing scope and action ID.
  */
 typedef struct {
@@ -78,12 +72,18 @@ typedef struct {
   uint8_t id;    /**< Action ID in selected scope (0 = disabled) */
 } sys_device_action_t;
 
+/**
+ * @brief Device importance level.
+ *
+ * Determines the minimum error severity handled by the device policy.
+ * CRITICAL errors always go through, including when importance is NONE.
+ */
 //#ref-enum @alias Device Error Importance
 typedef enum sys_device_importance_e {
   SYS_DEV_IMPORTANCE_NONE = 0, //@alias Disabled @description Ignores the device's errors except critical ones (a device under test). Every device starts here.
-  SYS_DEV_IMPORTANCE_LOW = 1, //@alias Low @description Handles only low-severity device errors.
-  SYS_DEV_IMPORTANCE_MEDIUM = 2, //@alias Medium @description Handles low and medium-severity device errors.
-  SYS_DEV_IMPORTANCE_HIGH = 3, //@alias High @description Handles low through high-severity device errors.
+  SYS_DEV_IMPORTANCE_LOW = 1, //@alias Low @description Handles only critical device errors.
+  SYS_DEV_IMPORTANCE_MEDIUM = 2, //@alias Medium @description Handles high and critical device errors.
+  SYS_DEV_IMPORTANCE_HIGH = 3, //@alias High @description Handles medium, high and critical device errors.
   SYS_DEV_IMPORTANCE_CRITICAL = 4, //@alias Critical @description Handles every device error severity.
 } sys_device_importance_e;
 
@@ -126,7 +126,7 @@ typedef struct sys_device_t {
    * @brief Per-instance error handling mode - see sys_device_report_error().
    */
   sys_device_action_t actions[5];       /* indexed by se_level_e (1..4) */
-  sys_device_importance_e importance; /* NONE disables error handling; clamps max error level */
+  sys_device_importance_e importance; /* NONE ignores non-critical errors; higher importance handles more severities */
 
   bool onboard; /* baked onto the PCB (sys_device_set_onboard): users can't uninstall it */
 
@@ -212,9 +212,10 @@ sys_device_t* sys_device_get_by_id(uint8_t device_id);
  * included): it latches the fault in the VM, halts the VM, suspends all
  * devices, and invokes dev->actions[SE_LEVEL_CRITICAL].
  *
- * For non-critical errors (LOW, MEDIUM, HIGH):
- * - If the level exceeds dev->importance, it is clamped down to dev->importance.
- * - Dispatches dev->actions[level] to the application policy.
+ * For non-critical errors (LOW, MEDIUM, HIGH), importance is a minimum
+ * severity threshold: LOW handles none, MEDIUM handles HIGH, HIGH handles
+ * MEDIUM and HIGH, and CRITICAL handles all. An admitted error dispatches
+ * dev->actions[level] at its original severity.
  *
  * @param device_id Target device.
  * @param error Error handle (must not be NULL).

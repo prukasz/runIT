@@ -176,19 +176,19 @@
           "name": "SYS_DEV_IMPORTANCE_LOW",
           "value": 1,
           "alias": "Low",
-          "description": "Handles only low-severity device errors."
+          "description": "Handles only critical device errors."
         },
         {
           "name": "SYS_DEV_IMPORTANCE_MEDIUM",
           "value": 2,
           "alias": "Medium",
-          "description": "Handles low and medium-severity device errors."
+          "description": "Handles high and critical device errors."
         },
         {
           "name": "SYS_DEV_IMPORTANCE_HIGH",
           "value": 3,
           "alias": "High",
-          "description": "Handles low through high-severity device errors."
+          "description": "Handles medium, high and critical device errors."
         },
         {
           "name": "SYS_DEV_IMPORTANCE_CRITICAL",
@@ -1656,19 +1656,19 @@
       "enum": "sys_device_importance_e",
       "value": 1,
       "alias": "Low",
-      "description": "Handles only low-severity device errors."
+      "description": "Handles only critical device errors."
     },
     "SYS_DEV_IMPORTANCE_MEDIUM": {
       "enum": "sys_device_importance_e",
       "value": 2,
       "alias": "Medium",
-      "description": "Handles low and medium-severity device errors."
+      "description": "Handles high and critical device errors."
     },
     "SYS_DEV_IMPORTANCE_HIGH": {
       "enum": "sys_device_importance_e",
       "value": 3,
       "alias": "High",
-      "description": "Handles low through high-severity device errors."
+      "description": "Handles medium, high and critical device errors."
     },
     "SYS_DEV_IMPORTANCE_CRITICAL": {
       "enum": "sys_device_importance_e",

@@ -35,10 +35,10 @@
 #define VM_EVENT_ANY 0xFFu  // Same value as SYS_EVENT_ANY
 
 typedef struct __attribute__((aligned(4))) {
-  uint8_t domain;     // Event domain, 255 = any @enum-ref sys_event_domain_e
-  uint8_t device_id;  // Source device, 255 = any
-  uint8_t channel;    // Pin / channel, 255 = any
-  uint8_t event;      // Domain event, 255 = any
+  uint8_t domain;     // Event domain, 255 = any @enum-ref sys_event_domain_e @extended-view-show
+  uint8_t device_id;  // Source device, 255 = any @extended-view-show
+  uint8_t channel;    // Pin / channel, 255 = any @extended-view-show
+  uint8_t event;      // Domain event, 255 = any @extended-view-show
 } vm_block_on_event_data_t;
 
 _Static_assert(sizeof(vm_block_on_event_data_t) == 4, "vm_block_on_event_data_t must be 4 bytes");

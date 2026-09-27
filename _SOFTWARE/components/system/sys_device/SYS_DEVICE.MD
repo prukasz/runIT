@@ -77,8 +77,9 @@ means no response. Both borrow the input and return an owned response failure.
 Importance NONE (every device's start value) ignores the device's non-critical
 errors. During chain dispatch it stops non-critical handling of this device and all
 deeper causes, retaining diagnostics and any already executed outer responses.
-Noncritical severity is capped by importance; a critical error always goes through,
-NONE included: global shutdown and the device's Critical action.
+Importance selects which severities reach the device policy; admitted errors keep
+their original severity. A critical error always goes through, NONE included:
+global shutdown and the device's Critical action.
 
 `actions[5]` keeps the existing configuration packet size:
 
@@ -88,8 +89,8 @@ NONE included: global shutdown and the device's Critical action.
 - Each ID is validated against its selected namespace: static `0..CONFIG_SYS_ACTIONS_STATIC_SLOTS-1`,
   dynamic `0..255` (the range sys_actions records and runs). NULL resets all five bytes.
 
-Which levels' actions can run under an importance: NONE → Critical; LOW → Low,
-Critical; MEDIUM → Low, Medium, Critical; HIGH / CRITICAL → all four.
+Which levels' actions can run under an importance: NONE / LOW → Critical;
+MEDIUM → High, Critical; HIGH → Medium, High, Critical; CRITICAL → all four.
 
 The former unused NONE action slot is now the scope mask. There is no static-to-dynamic
 fallback. Existing static IDs with a zero first byte keep their meaning; dynamic
@@ -166,7 +167,7 @@ typedef struct {
 * **Faults use suspend, not freeze.** Suspend is the safe state: each adapter's `suspend` puts its outputs into a safe condition (PWM off via OE + sleep, expander in reset, regulator output off + EN low, PD output off, DAC powered down, H-bridges coast) and the device state becomes `SUSPENDED`, so dispatch rejects new writes (`ERR_DEV_SUSPENDED`) instead of queueing them. Critical faults (`runit_system_fault`, `runit_enter_safe_state`, and this component's weak fallbacks) call `sys_device_suspend_all()`. Exception still open: `device_gpio_esp`'s suspend aliases its freeze, so ESP GPIO outputs keep their level.
 * **Freeze vs. suspend are orthogonal.** `freeze`/`freeze_all` never touch `state` (an adapter tracks its own `is_frozen` flag via `SYS_DEV_CTX_FREEZE`/`SYS_DEV_CTX_UNFREEZE`); only `suspend`/`suspend_all` set `state = SYS_DEV_STATE_SUSPENDED`. Consequently `resume`/`resume_all` (which only act on devices `SYS_DEV_IS_SUSPENDED`) do **not** clear a freeze that was applied without a suspend — several adapters (see e.g. `device_gpio_esp`'s `device_sync()`) clear `is_frozen` from their `sync` op instead, so lifting a freeze system-wide is `sys_device_sync_all()`, not `sys_device_resume_all()`. [[SYS_ACTIONS.MD]]'s "resume" static function calls both together for exactly this reason.
 * **`sys_device_get_by_id(device_id)`**: Lock-free registry lookup; returns `NULL` if out of range or unset.
-* **`sys_device_report_error(device_id, error)`**: Evaluates the supplied node's error severity against the device's `importance`. Critical errors always invoke the registered error policy, whatever the importance. Non-critical errors are ignored at NONE and clamped by `dev->importance` otherwise.
+* **`sys_device_report_error(device_id, error)`**: Evaluates the supplied node's error severity against the device's `importance`. Critical errors always invoke the registered error policy, whatever the importance. Non-critical errors below the importance threshold are ignored; admitted errors keep their original severity.
 * **`sys_device_report_error_with_level(device_id, level, error)`**: Explicit severity level override variant of `sys_device_report_error()`.
 * **`sys_device_register_error_policy(fn)`**: The application registers its error policy (`sys_device_error_policy_f`: device, level, action scope/id, error). runit does it in `runit_error_wiring_init()`, the first boot step. Without one, a CRITICAL device error suspends all devices.
 * **`sys_device_set_error_handling(device_id, importance, actions)`**: Configures device importance and action IDs in one call — maps 1:1 to wire packet `0x1A` (`packet_sys_device_set_error_handling_t`). `actions` is copied into `dev->actions[5]` (IDs validated against the namespace selected by `actions[0]`), or pass `NULL` to zero it. Returns `ERR_DEV_NOT_FOUND` if `device_id` isn't registered, `ERR_INVALID_VAL_UI32` if an `actions[]` entry is out of range.

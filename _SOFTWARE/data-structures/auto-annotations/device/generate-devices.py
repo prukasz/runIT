@@ -208,7 +208,8 @@ def field_json(f: Field, defines: Dict[str, str], sdkconfig: Dict[str, int], sym
     if "available" in f.tags:
         out["available"] = parse_choice_list(f.tags["available"], symbols, context)
     if "default" in f.tags:
-        out["default"] = resolve_numeric(f.tags["default"], defines, sdkconfig)[0]
+        token = f.tags["default"]
+        out["default"] = resolve_symbol(token, symbols, context)["value"] if token.startswith("$") else resolve_numeric(token, defines, sdkconfig)[0]
     if "sentinel" in f.tags:
         out["sentinel"] = resolve_numeric(f.tags["sentinel"], defines, sdkconfig)[0]
     if "unit" in f.tags:
@@ -308,7 +309,12 @@ def parse_device_descriptor(path: Path, symbols: Dict[str, dict], defines: Dict[
                     sys.exit(f"ERROR: {ctx}: @property '{prop_name}' mixes symbols from different enums ({enum_names}) - enum-ref would be ambiguous")
                 enum_ref = next(iter(enum_names), None)
             target = self_properties if name == "self-property" else properties
-            target[prop_name] = {"one_of": one_of, "enum_ref": enum_ref}
+            default = tags.get("default")
+            if default is not None:
+                resolved = resolve_symbol(default, symbols, ctx)["value"] if default.startswith("$") else resolve_numeric(default, defines, sdkconfig)[0]
+                if resolved is None or resolved not in [choice["value"] if isinstance(choice, dict) else choice for choice in one_of]:
+                    sys.exit(f"ERROR: {ctx}: @default must name a value in @one-of")
+            target[prop_name] = {"one_of": one_of, "enum_ref": enum_ref, **({"default": resolved} if default is not None else {})}
             continue
 
         if name == "contract":
@@ -341,6 +347,8 @@ def parse_device_descriptor(path: Path, symbols: Dict[str, dict], defines: Dict[
                 parameter["one_of"] = prop["one_of"]
                 if prop["enum_ref"]:
                     parameter["enum_ref"] = prop["enum_ref"]
+                if "default" in prop:
+                    parameter["default"] = prop["default"]
             if "one_of" in tags:
                 parameter["one_of"] = parse_choice_list(tags["one_of"], symbols, ctx)
             if "available" in tags:
@@ -352,7 +360,7 @@ def parse_device_descriptor(path: Path, symbols: Dict[str, dict], defines: Dict[
                 parameter["device_wide"] = True
             for tag in ("min", "max", "default"):
                 if tag in tags:
-                    resolved, shown = resolve_numeric(tags[tag], defines, sdkconfig)
+                    resolved, shown = (resolve_symbol(tags[tag], symbols, ctx)["value"], tags[tag]) if tag == "default" and tags[tag].startswith("$") else resolve_numeric(tags[tag], defines, sdkconfig)
                     if resolved is None:
                         sys.exit(f"ERROR: {ctx}: @{tag} {shown}")
                     parameter[tag] = resolved
@@ -396,6 +404,9 @@ def build_device_document(device: dict, packets: Dict[str, dict], defines: Dict[
     install_packets = [n for n, p in packets.items() if p["source_file"] == device["source_file"] and n.startswith("packet_sys_device_install_")]
     if len(install_packets) != 1:
         sys.exit(f"ERROR: {device['source_file']}: expected exactly one install packet, found {install_packets}")
+    address = packets[install_packets[0]]["fields"].get("i2c_addr")
+    if address is not None and not address.get("one_of"):
+        sys.exit(f"ERROR: {device['source_file']}: install i2c_addr must declare @one-of with the device's available addresses")
 
     contract_documents = []
     for contract in device["contracts"]:

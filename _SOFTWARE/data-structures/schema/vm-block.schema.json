@@ -63,6 +63,13 @@
               "flexible": { "const": true },
               "description": { "type": "string" },
               "enum_ref": { "type": "string" },
+              "id_kind": {"enum": ["device", "pin"]},
+              "device_field": {"type": "string"},
+              "contract": {"type": "string"},
+              "hidden_by_default": {"type": "boolean"},
+              "extended_view_show": {"type": "boolean"},
+              "let_user_select_available": {"type": "string"},
+              "dynamic_input": {"type": "integer", "minimum": 0},
               "source": { "enum": ["user", "derived", "runtime", "padding"], "description": "user: the app sets it from the block's settings. derived: the app computes it from the program (see derived). runtime / padding: the app writes 0." },
               "derived": { "type": "string" }
             }
@@ -141,6 +148,13 @@
               "title": { "type": "string" },
               "description": { "type": "string" },
               "value": { "enum": ["bool", "u8", "u32", "i32", "f32", "scalar", "gate", "object", "ptr-cell"] },
+              "id_kind": {"enum": ["device", "pin"]},
+              "device_field": {"type": "string"},
+              "contract": {"type": "string"},
+              "hidden_by_default": {"type": "boolean"},
+              "extended_view_show": {"type": "boolean"},
+              "let_user_select_available": {"type": "string"},
+              "dynamic_input": {"type": "integer", "minimum": 0},
               "required": { "type": "boolean" }
             }
           }

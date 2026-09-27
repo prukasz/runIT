@@ -1,5 +1,7 @@
 export { compileAccessors } from './accessors'
-export type { AccessorLayout, AccessorOptions, AccessorRequest, CompiledAccessors, PlacedAccessor, WireStep } from './accessors'
+export type { AccessorLayout, AccessorOptions, AccessorRequest, CompiledAccessors, PathReach, PlacedAccessor, WireStep } from './accessors'
+export { BLOCK_SECTION, enableKey, encodeBlocks, enoObjectId, inputKey, outputObjectId, planBlocks } from './blocks'
+export type { BlockLayout, BlockPlan, CompiledBlocks, PlacedBlock } from './blocks'
 export { compileObjects, encodeObjectValue } from './objects'
 export type { CompiledObjects, Diagnostic, ObjectLayout, PlacedObject } from './objects'
 export { compileProgram } from './program'

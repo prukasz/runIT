@@ -4,6 +4,7 @@ export type {
   DeviceAppearance,
   DeviceRef,
   ProjectAction,
+  ProjectCanvas,
   ProjectDevice,
   StepValues,
   BleCharacteristicSettings,
@@ -11,6 +12,7 @@ export type {
   BleProfile,
   BleServiceSettings,
   BleValueFormat,
+  CanvasBlock,
   ConnectorBindingSettings,
   ConnectorSettings,
   FolderNode,
@@ -20,6 +22,7 @@ export type {
   ObjectSection,
   ObjectValue,
   PathStep,
+  ProgramBlock,
   ProjectDocument,
   ProjectSettings,
   RawFrame,
@@ -28,4 +31,4 @@ export type {
 } from './document'
 export { addObject, findObject, moveObject, newObjectId, ObjectTreeError, removeObject, setFolderChildren, updateObject, walkObjects } from './objectTree'
 export type { FolderPatch, FoundObject, ReferencePatch, ValuePatch } from './objectTree'
-export { parseActions, parseDevices, parseProject, parseSetup, parseSettings, ProjectFormatError, serializeProject } from './projectFile'
+export { parseActions, parseCanvases, parseDeviceAliases, parseDevices, parseProject, parseSetup, parseSettings, ProjectFormatError, serializeProject } from './projectFile'

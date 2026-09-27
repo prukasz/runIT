@@ -45,12 +45,12 @@ typedef enum vm_for_cmp_e {
 
 typedef struct vm_for_code_t {
   vm_span_t span;      // Block ids [start, end) this loop runs; start = own id + 1 @derived start = this block's ID + 1; end = ID of the first block after the loop body, at most the enclosing loop's end
-  float k_start;       // Start when input 0 is unwired
-  float k_end;         // End when input 1 is unwired
-  float k_step;        // Step when input 2 is unwired
-  uint16_t max_turns;  // Turn budget per pass
-  uint8_t op;          // How the iterator advances @enum-ref vm_for_op_e
-  uint8_t cmp;         // Loop condition @enum-ref vm_for_cmp_e
+  float k_start;       // Start when input 0 is unwired @extended-view-show
+  float k_end;         // End when input 1 is unwired @extended-view-show
+  float k_step;        // Step when input 2 is unwired @extended-view-show
+  uint16_t max_turns;  // Turn budget per pass @extended-view-show
+  uint8_t op;          // How the iterator advances @enum-ref vm_for_op_e @extended-view-show
+  uint8_t cmp;         // Loop condition @enum-ref vm_for_cmp_e @extended-view-show
   uint8_t rt;          // @runtime
   uint8_t _pad[3];
 } vm_for_code_t;

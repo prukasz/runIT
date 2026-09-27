@@ -16,7 +16,7 @@ The first argument is the decoders root to scan, the second is the output direct
 |---|---|
 | Device metadata (top-level, before first `//@contract`) | `id`, `version`, `title`, `description`, `protocol`, `tags`, `datasheet`, `contract-provider`, `pwm-frequencies` |
 | `//@self-property NAME` | `one-of` |
-| `//@property NAME` | `enum-ref`, `one-of` |
+| `//@property NAME` | `enum-ref`, `one-of`, `default` |
 | `//@contract <packet>` | `alias` |
 | `//@param <field>` | `arg`, `alias`, `type`, `unit`, `one-of`, `available`, `min`, `max`, `default`, `optional`, `device-wide` |
 | `//@returns <name>` | `type`, `unit` |
@@ -61,11 +61,11 @@ Place the annotations after includes and before the install packet. An annotated
 | `//@datasheet <url>` | no | `datasheet` | The manufacturer's datasheet (PDF URL); the app links it on the device page. |
 | `//@contract-provider $<symbol>` | no | `contractProvider` | Firmware contract actually exposed by the adapter. The `$` marks it as a global symbol - it must resolve against a `//#ref-enum` enum (see below) or generation fails. |
 | `//@self-property NAME @one-of [...]` | no, repeatable | (lookup table only, not emitted directly) | A device-local value domain with no meaning outside this device - plain literals, nothing to resolve (e.g. channel indices, address straps). |
-| `//@property NAME [@enum-ref <enum>] @one-of [$SYMBOL, ...]` | no, repeatable | (lookup table only, not emitted directly) | A value domain whose members are real global symbols. Each `$SYMBOL` must resolve against a `//#ref-enum` enum or generation fails. `@enum-ref` documents the owning enum, which is also inferred from the `$` members. |
+| `//@property NAME [@enum-ref <enum>] @one-of [$SYMBOL, ...] [@default $SYMBOL]` | no, repeatable | (lookup table only, not emitted directly) | A value domain whose members are real global symbols. Each `$SYMBOL` must resolve against a `//#ref-enum` enum or generation fails. `@default` must be one of its choices and is copied to parameters using `@arg NAME`. |
 
 Only put device-intrinsic values here: channel count, fixed address straps, supported modes, or silicon limits. Board pin assignments, bus topology, and installed IDs belong to the project/board. Runtime-negotiated limits belong to runtime discovery.
 
-`@self-property`/`@property` exist to be referenced from a `@param` via `@arg NAME` (see below) so the same value domain isn't retyped on every contract that takes it. Don't define one that nothing references.
+`@self-property`/`@property` exist to be referenced from a `@param` via `@arg NAME` (see below) so the same value domain isn't retyped on every contract that takes it. Don't define one that nothing references. Use a property `@default` only when the device or its driver actually establishes that value without a project setup command. The app may show this as the effective pin state while leaving stored setup empty.
 
 ## Referencing global enums (`$SYMBOL` / `//#ref-enum`)
 
@@ -102,7 +102,7 @@ A contract is the device-restricted view of a generic system packet. List only o
 
 **`device_id` is synthesized automatically**, never annotated: it means "which installed device instance this call addresses," supplied by the calling context (the device the client is already configuring), not a value a user picks per contract. The generator injects it into every contract's `parameters` as `{"name": "device_id", "alias": ..., "instance": true}` - a client renders anything with `"instance": true` as auto-filled context, never as a form field, and never needs its own `@param device_id` line in any header.
 
-`@arg <NAME>` pulls a param's constraint (its `@one-of` list, and `@enum-ref` if the property has one) from a `@self-property`/`@property` defined earlier in the same header, instead of retyping it. A param may still use its own inline `@one-of`/`@min`/`@max` when the value domain isn't shared with anything else.
+`@arg <NAME>` pulls a param's constraint (its `@one-of` list, `@enum-ref` and `@default` when present) from a `@self-property`/`@property` defined earlier in the same header, instead of retyping it. A param may still use its own inline `@one-of`/`@min`/`@max` when the value domain isn't shared with anything else.
 
 `@one-of` accepts numbers and `$`-prefixed enum symbols (which resolve per the rules above). A contract `@param`'s `@min`, `@max` and `@default` resolve C defines (any header under `components/`) and `CONFIG_*` symbols; one that doesn't resolve fails generation.
 
@@ -121,6 +121,10 @@ uint32_t vref_mv; //@required @alias ADC Reference Voltage @unit mV @min 1
 ```
 
 Supported field annotations: `@required`, `@optional`, `@alias`, `@min`, `@max`, `@one-of`, `@available`, `@default`, `@unit`, `@enum-ref`, `@sentinel`, `@group`, `@role`, and `@note`. Install-packet fields don't support `@arg` - they're always inline, since the install struct is unique per device and its fields aren't shared across contracts the way a `pin` parameter is. `@ref` remains accepted only while older headers are migrated.
+
+An install field's `@default` may name a published enum member with `$SYMBOL`; the generator writes its numeric value. For a pin mode, use this with `@enum-ref sys_io_mode_e` and an explicit `@one-of` subset. The app applies this default when creating a device.
+
+Every install packet with an `i2c_addr` field must declare a nonempty `@one-of` list of the chip's usable 7-bit addresses. The generator rejects missing lists. Include addresses selected by hardware straps, not arbitrary values that the driver happens to accept. The app shows these as hexadecimal choices and checks loaded project values against the same list.
 
 Use field `@alias` for the canonical wire-field label. Use parameter `@alias` only when a generic field has clearer device-specific meaning: generic `pin` becomes `ADC Channel` for ADS7128 or `PWM Channel` for PCA9685. Do not duplicate identical labels in both places.
 

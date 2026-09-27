@@ -71,19 +71,19 @@ Status tags: **✅ decided** (survey 2026-09-24, §6) · **⚠ firmware gap** (�
 ### CAN — Code: canvas
 | ID | Feature | Notes |
 |---|---|---|
-| CAN-1 | Block palette + object palette (tree) on the left, drag & drop onto canvas | blocks from `vm/blocks/*.generated.json` |
+| CAN-1 | Block palette + object palette (tree) on the left, drag & drop onto canvas | blocks from `vm/blocks/*.generated.json`. ✅ blocks 2026-09-27 (drag or click); objects onto pins come with wiring (§8) |
 | CAN-2 | Feature list (created features) as a palette source | DEV-2 |
-| CAN-3 | Block settings in the inspector when a block is selected | pins, `custom` fields from descriptor `state` layout (source `user`) |
+| CAN-3 | Block settings in the inspector when a block is selected | pins, `custom` fields from descriptor `state` layout (source `user`). ✅ 2026-09-27 (`BlockDetails`, formula editor for EXPR / EXPR_BIT) |
 | CAN-4 | **Multiple canvases**, executed in order (canvas 1 first) | ✅ Node-RED-style flow tabs sharing the same objects; one program, tabs concatenated in tab order within a pass. A tab can be disabled: the compiler leaves it out (re-upload needed, no live toggle) |
-| CAN-5 | Two block looks: basic and extended | extended shows pins/values/state |
-| CAN-6 | Snap-to-grid | |
+| CAN-5 | Two block looks: basic and extended | ✅ 2026-09-27: toolbar toggle (saved preference), inspector can fix each block to simple/detailed (saved in project); basic = type name + input/output pins, extended = ID, formula or descriptor user settings, pin paths and activation. Red EN / green ENO side strips always visible; referenced ENO storage is allocated automatically; live values / runtime state await DBG |
+| CAN-6 | Snap-to-grid | ✅ 2026-09-27: 20-unit grid, toggle in the action bar; blocks will snap their top-left corner |
 | CAN-7 | Loops visibly marked (FOR span) | FOR span is a derived field in the descriptor |
 | CAN-8 | Live values on blocks and wires while running | DBG |
 
 ### CMP — Compiler (app-side, pure TS)
 | ID | Feature | Firmware link |
 |---|---|---|
-| CMP-1 | Compile project → VM packets `0x40…0x48` in the required order | `vm-program.generated.json` (records, widths, limits, `total_size` formulas) |
+| CMP-1 | Compile project → VM packets `0x40…0x48` in the required order (✅ 2026-09-27: `0x41`–`0x45`, `0x47`, `0x48`; board-tested) | `vm-program.generated.json` (records, widths, limits, `total_size` formulas) |
 | CMP-2 | **Bad-pattern detection** (lint) before upload | see §4.3 list |
 | CMP-3 | Basic mode: **automatic object types** from the pins they connect to | pin `@value` kinds in block descriptors |
 | CMP-4 | Memory / limit budget (arena size, Kconfig limits, frame size) shown before upload | Kconfig limits + arena formulas in `vm-program.generated.json` |
@@ -238,3 +238,33 @@ New open questions go below this table.
 | Styling | Tailwind v4 (repo has 3.4) | Upgrade before building the shell |
 | i18n | `i18next` + `react-i18next` | P-10 |
 | Gamepad | browser Gamepad API (no library) | REM-4 |
+
+## 8. Wiring and enables (proposed 2026-09-27 — owner's answers pending)
+
+Firmware semantics this rests on: `components/VM/VM_EXEC.MD` §1 and `vm_block_is_enabled()` (`core/block/vm_block.h`).
+
+**Storage: no format change.** A wire lives on the input side: `inputs[i]` is an `ObjectPath`.
+- output → input: `{ root: "<block>:q<n>" }` (fan-out free, one source per input);
+- variable → input: the variable's path (`count`, `motor.gains[2]`, `table[sel]`);
+- output → variable: `outputs[i] = "<object id>"` (one writer per object, `ERR_VM_BLK_OUTPUT_TAKEN`);
+- enable: `enables[]` paths; wiring from `<block>:eno` turns `eno` on for that block.
+
+**Three kinds of connection** (VM_EXEC.MD): data wire = order + value; EN wire = order + gating; variable label = neither (a global read).
+
+**Gestures (proposal):** drag output → input (or back), candidate pins light up, dropping on a wired input replaces it; tap-tap on touch; click a wire + Delete. Variables are dragged from the Variables tab onto a pin and shown as a **label on the pin** (not a canvas node), which also carries wires across canvases. Nested / dynamic sources get a per-pin source editor in the details panel.
+
+**EN / ENO on every block** (IF included: nesting is IF₂ enabled by IF₁ yes; a disabled IF drives both outputs false, so the whole branch below stops):
+
+| Activation | Blocks | EN | Unconnected EN |
+|---|---|---|---|
+| every pass | IF, SWITCH, FOR, PERIODIC, TIMER, EDGE, LATCH, IO_SET_LEVEL, ON_EVENT | active while; disabled: gates false, TIMER resets, PERIODIC disarms, EDGE forgets, LATCH holds, IO_SET_LEVEL does its `disabled_action` | runs every pass |
+| triggered | EXPR, EXPR_BIT, SET, CLONE | extra condition: fresh input **and** enabled | runs on every fresh input |
+| enable-rising | ACTION, IO_TOGGLE | the trigger itself (label it "Do") | **fires once at program start** (warn) |
+
+- 0 sources = always enabled; a wired source that can't be read = off (fail closed).
+- Mode **any** (default, branches rejoining) / **all** (independent conditions), one per block, shown as ∨ / ∧ on the EN pin from the second wire; nested logic goes through an EXPR / logic block into one EN.
+- ENO: true (loud) when the block acted, false (quiet) otherwise.
+
+**Execution order (proposal):** sorted from the wires per canvas (a block runs after what it reads), position left→right, top→bottom as the tie-break, the order shown on each block; a cycle reads the previous pass (the closing wire marked); FOR's body becomes a frame on the canvas instead of the `body` count. Canvases run in tab order.
+
+**Decisions asked of the owner:** (1) variables as pin labels (recommended) or canvas nodes; (2) automatic order from wires (recommended) or manual; (3) EN + ENO on every block (recommended). **Firmware (G-11):** triggered blocks never run on an enable alone; proposed fix: a fresh enable source counts as a trigger.

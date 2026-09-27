@@ -54,6 +54,7 @@
         "c_type": "uint8_t",
         "offset": 0,
         "size": 1,
+        "extended_view_show": true,
         "enum_ref": "vm_action_scope_e",
         "source": "user"
       },
@@ -63,6 +64,7 @@
         "offset": 1,
         "size": 1,
         "description": "1..255, used when input 0 is unwired",
+        "extended_view_show": true,
         "source": "user"
       },
       {

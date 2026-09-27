@@ -12,6 +12,13 @@ const tree: ProjectDocument = {
 }
 
 describe('project file', () => {
+  it('round-trips app-only aliases for board and user devices', () => {
+    const project = { ...tree, deviceAliases: { 'board:0': 'Front switches', 'device-1': 'Servo controller' } }
+    expect(parseProject(serializeProject(project))).toEqual(project)
+    expect(parseProject(JSON.stringify({ ...tree, deviceAliases: { 'board:0': '  Front switches  ', unused: '  ' } })).deviceAliases).toEqual({ 'board:0': 'Front switches' })
+    expect(() => parseProject(JSON.stringify({ ...tree, deviceAliases: { 'board:0': 12 } }))).toThrow(/deviceAliases.board:0: expected a string/)
+  })
+
   it('saves and loads back the same document', () => {
     const text = serializeProject(tree)
     expect(parseProject(text)).toEqual(tree)

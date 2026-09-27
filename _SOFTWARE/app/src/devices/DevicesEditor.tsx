@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { AlertCircle, AlertTriangle, ArrowDown, ArrowUp, BookOpen, FileText, ImagePlus, ListPlus, Play, Plus, Trash2, Upload, X } from 'lucide-react'
 import type { DeviceType } from '../domain/descriptors'
-import { runitCommandCatalog } from '../domain/descriptors'
-import { actionRecordSteps, actionRunStep, allDevices, buildAction, contractsOf, describeStep, findContract, pinKey, pinsOf, pinUsers, resolveDevice } from '../domain/devices'
+import { runitCommandCatalog, runitDeviceCatalog } from '../domain/descriptors'
+import { actionRecordSteps, actionRunStep, allDevices, buildAction, contractsOf, describeStep, deviceDisplayName, findContract, modesOf, pinKey, pinsOf, pinUsers, resolveDevice } from '../domain/devices'
 import type { ResolvedDevice } from '../domain/devices'
 import type { ActionStep, ProjectAction, ProjectDevice } from '../domain/project'
+import { EditableField } from '../components/EditableField'
 import { ContractFields, initialValues } from './ContractFields'
 import { DEVICE_ICONS, DeviceTile } from './DeviceTile'
 import { Markdown } from './Markdown'
@@ -47,7 +48,7 @@ function DevicesOverview({ workspace: w }: { workspace: DevicesWorkspace }) {
       </div>
       <div className="devices-card-grid">
         {[...w.catalog.board.map((device) => ({ key: `b${device.deviceId}`, ref: `board:${device.deviceId}`, name: device.name, sub: device.title, type: device.type, appearance: undefined })),
-          ...w.devices.map((device) => ({ key: device.id, ref: device.id, name: device.name, sub: w.catalog.type(device.type)?.title ?? device.type, type: w.catalog.type(device.type), appearance: device.appearance }))].map((entry) => (
+          ...w.devices.map((device) => ({ key: device.id, ref: device.id, name: deviceDisplayName(w.catalog, device), sub: w.catalog.type(device.type)?.title ?? device.type, type: w.catalog.type(device.type), appearance: device.appearance }))].map((entry) => (
           <button key={entry.key} type="button" className="devices-card" onClick={() => w.select({ kind: 'device', ref: entry.ref })}>
             <DeviceTile appearance={entry.appearance} type={entry.type} />
             <strong>{entry.name}</strong>
@@ -124,9 +125,20 @@ function DevicePage({ workspace: w, deviceRef }: { workspace: DevicesWorkspace; 
       <div className="devices-page-header">
         <DeviceTile appearance={device?.appearance} type={type} size="large" />
         <div className="devices-page-title">
-          <span className="object-editor-kicker">{resolved.system ? 'System device' : 'User device'} · ID {resolved.deviceId}{type ? ` · ${type.title}` : ''}</span>
-          <h1>{resolved.name}</h1>
+          <span className="object-editor-kicker">{resolved.system ? 'System device' : 'User device'}{type ? ` · ${type.title}` : ''}</span>
+          <div className="devices-header-name" role="heading" aria-level={1} aria-label={resolved.name}>
+            {device
+              ? <EditableField aria-label="Device name" value={device.name} onChange={(name) => w.updateDevice(device.id, { name })} iconTitle="Edit device name" />
+              : <BoardNameField key={w.deviceAliases?.[deviceRef] ?? ''} name={resolved.name} original={runitDeviceCatalog().board.find((entry) => entry.deviceId === resolved.deviceId)?.name ?? resolved.name} onSave={(name) => w.setDeviceAlias(deviceRef, name)} />}
+          </div>
+          <label className="devices-header-id">
+            <span>Device ID</span>
+            {device
+              ? <input aria-label="Device ID" type="number" min={0} max={w.catalog.maxDeviceId} value={device.deviceId} onChange={(event) => w.updateDevice(device.id, { deviceId: Math.max(0, Math.floor(Number(event.target.value) || 0)) })} />
+              : <span className="devices-header-id-fixed">{resolved.deviceId}</span>}
+          </label>
           {type && <p className="devices-muted">{type.description}</p>}
+          {device && <EditableField className="devices-header-description" aria-label="Device description" value={device.description ?? ''} placeholder="Describe this device in your project" onChange={(description) => w.updateDevice(device.id, { description: description || undefined })} iconTitle="Edit device description" />}
         </div>
         <div className="devices-page-actions">
           <button type="button" className="devices-primary" disabled={!firstContract} onClick={() => firstContract && w.compose(w.composing?.id, { device: deviceRef, contract: firstContract.id, values: initialValues(firstContract) })} title="Open the action composer with a step on this device">
@@ -149,6 +161,11 @@ function DevicePage({ workspace: w, deviceRef }: { workspace: DevicesWorkspace; 
       )}
     </div>
   )
+}
+
+function BoardNameField({ name, original, onSave }: { name: string; original: string; onSave: (name: string) => void }) {
+  const [draft, setDraft] = useState(name)
+  return <EditableField aria-label="Device name" value={draft} onChange={setDraft} onBlur={() => { onSave(draft); if (!draft.trim()) setDraft(original) }} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} iconTitle="Edit device name" />
 }
 
 function SystemDeviceInfo({ workspace: w, device }: { workspace: DevicesWorkspace; device: ResolvedDevice }) {
@@ -187,24 +204,6 @@ function UserDeviceConfig({ workspace: w, device, resolved, type }: { workspace:
 
   return (
     <>
-      <div className="ble-card">
-        <h3>Device</h3>
-        <div className="ble-two-col-grid">
-          <div className="ble-form-row">
-            <label>Name</label>
-            <input className="ble-input-field" value={device.name} onChange={(event) => update({ name: event.target.value })} />
-          </div>
-          <div className="ble-form-row">
-            <label>Device ID</label>
-            <input className="ble-input-field" type="number" min={0} max={w.catalog.maxDeviceId} value={device.deviceId} onChange={(event) => update({ deviceId: Math.max(0, Math.floor(Number(event.target.value) || 0)) })} />
-          </div>
-        </div>
-        <div className="ble-form-row">
-          <label>Description</label>
-          <input className="ble-input-field" value={device.description ?? ''} placeholder="What it does in this project" onChange={(event) => update({ description: event.target.value || undefined })} />
-        </div>
-      </div>
-
       {type && <InstallCard workspace={w} device={device} type={type} />}
       <PinsUsedCard w={w} device={resolved} />
       <DefaultSettingsCard w={w} device={resolved} />
@@ -245,7 +244,6 @@ function InstallCard({ workspace: w, device, type }: { workspace: DevicesWorkspa
   const set = (name: string, value: number) => w.updateDevice(device.id, { install: { ...device.install, [name]: value } })
   const grouped = new Set(type.pinGroups.flatMap((group) => [group.deviceField, group.pinField, group.modeField].filter(Boolean) as string[]))
   const plain = type.install.request.fields.filter((field) => field.name !== 'device_id' && field.name !== 'i2c_bus' && !grouped.has(field.name))
-  const i2c = type.install.request.fields.some((field) => field.name === 'i2c_bus')
   // IO devices on this board: installed board devices and the other user devices.
   const targets = allDevices(w.catalog, w.devices).filter((entry) => entry.ref !== device.id && entry.type?.provider?.label.toLowerCase().includes('io') && (!entry.system || w.catalog.board.find((board) => board.deviceId === entry.deviceId)?.installed))
   const users = pinUsers(w.catalog, w.devices)
@@ -253,10 +251,6 @@ function InstallCard({ workspace: w, device, type }: { workspace: DevicesWorkspa
   return (
     <div className="ble-card">
       <h3>Install</h3>
-      <p className="devices-muted">
-        Sent as {type.install.name} (0x{type.install.classHeader.toString(16).padStart(2, '0')} 0x{type.install.packetHeader.toString(16).padStart(2, '0')}): by the stored code at boot, or live with Install under Commands on the right.
-        {i2c && ` On the external I2C connector (bus ${w.catalog.i2cBuses.user}); bus ${w.catalog.i2cBuses.internal} is the board's own.`}
-      </p>
       <div className="ble-two-col-grid">
         {plain.map((field) => {
           const choices = type.installChoices.get(field.name)
@@ -266,18 +260,25 @@ function InstallCard({ workspace: w, device, type }: { workspace: DevicesWorkspa
               <label title={field.note}>{field.label === field.name ? field.name.replaceAll('_', ' ') : field.label}{field.unit ? ` (${field.unit})` : ''}</label>
               {choices ? (
                 <select className="ble-input-field" value={value} onChange={(event) => set(field.name, Number(event.target.value))}>
-                  {choices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
+                  {!choices.some((choice) => choice.value === value) && <option value={value}>Invalid: {field.name === 'i2c_addr' ? hex2(value) : value}</option>}
+                  {choices.map((choice) => <option key={choice.value} value={choice.value}>{field.name === 'i2c_addr' ? hex2(choice.value) : choice.label}</option>)}
                 </select>
               ) : (
                 <input className="ble-input-field" type="number" min={field.min} max={field.max} value={value} onChange={(event) => set(field.name, Number(event.target.value))} />
               )}
-              {field.name === 'i2c_addr' && <span className="devices-hint">{hex2(value)}{field.min !== undefined ? ` · ${hex2(field.min)}–${hex2(field.max ?? 0x7f)}` : ''}</span>}
             </div>
           )
         })}
       </div>
       {type.pinGroups.map((group) => {
         const none = group.sentinelField !== undefined && device.install[group.sentinelField] === group.sentinel
+        const modes = type.installChoices.get(group.modeField ?? '') ?? []
+        const availableModes = (target: ResolvedDevice | undefined) => modes.filter((mode) => modesOf(target?.type).some((supported) => supported.value === mode.value))
+        const groupTargets = group.modeField ? targets.filter((target) => availableModes(target).length > 0) : targets
+        const targetId = group.deviceField ? device.install[group.deviceField] ?? 0 : 0
+        const currentTarget = groupTargets.find((entry) => entry.deviceId === targetId)
+        const choices = availableModes(currentTarget)
+        const currentMode = group.modeField ? device.install[group.modeField] ?? 0 : 0
         return (
           <div key={group.key} className="devices-pin-group">
             <div className="devices-pin-group-title">
@@ -292,14 +293,20 @@ function InstallCard({ workspace: w, device, type }: { workspace: DevicesWorkspa
                 {group.deviceField && (
                   <div className="ble-form-row">
                     <label>On device</label>
-                    <select className="ble-input-field" value={device.install[group.deviceField] ?? 0} onChange={(event) => set(group.deviceField!, Number(event.target.value))}>
-                      {targets.map((target) => <option key={target.ref} value={target.deviceId}>{target.name} (#{target.deviceId})</option>)}
+                    <select className="ble-input-field" value={targetId} onChange={(event) => {
+                      const selected = Number(event.target.value)
+                      const supported = availableModes(groupTargets.find((target) => target.deviceId === selected))
+                      const preferred = type.install.request.fields.find((field) => field.name === group.modeField)?.defaultValue
+                      const mode = supported.some((choice) => choice.value === currentMode) ? currentMode : supported.find((choice) => choice.value === preferred)?.value ?? supported[0]?.value
+                      w.updateDevice(device.id, { install: { ...device.install, [group.deviceField!]: selected, ...(group.modeField && mode !== undefined ? { [group.modeField]: mode } : {}) } })
+                    }}>
+                      {!currentTarget && <option value={targetId}>Unavailable device #{targetId}</option>}
+                      {groupTargets.map((target) => <option key={target.ref} value={target.deviceId}>{target.name} (#{target.deviceId})</option>)}
                     </select>
                   </div>
                 )}
                 {group.pinField && (() => {
-                  const targetId = group.deviceField ? device.install[group.deviceField] ?? 0 : 0
-                  const pins = pinsOf(targets.find((entry) => entry.deviceId === targetId)?.type)
+                  const pins = pinsOf(currentTarget?.type)
                   const value = device.install[group.pinField] ?? 0
                   return (
                     <div className="ble-form-row">
@@ -321,8 +328,9 @@ function InstallCard({ workspace: w, device, type }: { workspace: DevicesWorkspa
                 {group.modeField && (
                   <div className="ble-form-row">
                     <label>Mode</label>
-                    <select className="ble-input-field" value={device.install[group.modeField] ?? 0} onChange={(event) => set(group.modeField!, Number(event.target.value))}>
-                      {(type.installChoices.get(group.modeField) ?? []).map((choice) => <option key={choice.value} value={choice.value} title={choice.description}>{choice.label}</option>)}
+                    <select className="ble-input-field" value={currentMode} onChange={(event) => set(group.modeField!, Number(event.target.value))}>
+                      {!choices.some((choice) => choice.value === currentMode) && <option value={currentMode}>Unavailable mode {currentMode}</option>}
+                      {choices.map((choice) => <option key={choice.value} value={choice.value} title={choice.description}>{choice.label}</option>)}
                     </select>
                   </div>
                 )}

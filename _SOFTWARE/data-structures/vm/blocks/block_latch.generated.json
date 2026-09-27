@@ -68,6 +68,7 @@
         "offset": 0,
         "size": 1,
         "description": "Which input wins when both are true",
+        "extended_view_show": true,
         "enum_ref": "vm_latch_mode_e",
         "source": "user"
       },

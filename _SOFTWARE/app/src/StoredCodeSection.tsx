@@ -3,6 +3,7 @@ import { AlertCircle, AlertTriangle, CheckCircle2, Download, HardDriveDownload, 
 import { eraseCode, loadCode, readCode, REPLAY_STATES, setCodeAutostart, storeCode } from './boardCode'
 import { errorOwnerName, errorTagName } from './domain/decoder'
 import { runitErrorCatalog } from './domain/descriptors'
+import type { DeviceCatalog } from './domain/descriptors'
 import type { ActionStep, ObjectSection, ProjectDevice, ProjectDocument, ProjectSettings } from './domain/project'
 import { settingsState } from './domain/settings'
 import { buildStoredCode, crc32, decodeFrameList, decodeStoredCode, encodeFrameList, serializeStoredCode } from './domain/storedCode'
@@ -26,6 +27,7 @@ interface Props {
   readonly sections: readonly ObjectSection[]
   readonly settings: ProjectSettings
   readonly devices: readonly ProjectDevice[]
+  readonly deviceCatalog?: DeviceCatalog
   readonly setup: readonly ActionStep[]
   readonly board: BoardCodeState
   readonly session?: RunitBleSession
@@ -37,12 +39,15 @@ interface Props {
   readonly note: (ok: boolean, text: string) => void
 }
 
-export function StoredCodeSection({ project, sections, settings, devices, setup, board, session, maxFrameBytes, setAutostart, onRecover, note }: Props) {
+export function StoredCodeSection({ project, sections, settings, devices, deviceCatalog, setup, board, session, maxFrameBytes, setAutostart, onRecover, note }: Props) {
   const [busy, setBusy] = useState<string>()
   const [progress, setProgress] = useState<{ done: number; total: number }>()
   const code = useMemo(
-    () => buildStoredCode({ project, sections, settings: settingsState(settings), boardDefaults: BOARD_DEFAULT_SETTINGS, devices, setup, extraFrames: project.extraFrames }, storedCodeContext()),
-    [project, sections, settings, devices, setup],
+    () => {
+      const context = storedCodeContext()
+      return buildStoredCode({ project, sections, settings: settingsState(settings), boardDefaults: BOARD_DEFAULT_SETTINGS, devices, setup, extraFrames: project.extraFrames }, deviceCatalog ? { ...context, devices: deviceCatalog } : context)
+    },
+    [project, sections, settings, devices, deviceCatalog, setup],
   )
   const bytes = useMemo(() => encodeFrameList(code.steps.map((step) => step.frame)), [code])
   const crc = useMemo(() => crc32(bytes), [bytes])
