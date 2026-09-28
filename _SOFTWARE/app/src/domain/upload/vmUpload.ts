@@ -1,6 +1,6 @@
-import { programBlocks } from '../canvas'
+import { arrangeProgram } from '../canvas'
 import { compileProgram, packSubscribe, subscribedWireIds } from '../compiler'
-import type { CompiledProgram } from '../compiler'
+import type { CompiledProgram, Diagnostic } from '../compiler'
 import type { VmCatalog } from '../descriptors'
 import type { ObjectSection, ProgramBlock, ProjectDocument } from '../project'
 import type { UploadPlan, UploadStep } from './bundle'
@@ -47,9 +47,14 @@ const labelFrames = (catalog: VmCatalog, frames: readonly Uint8Array[]): UploadS
   })
 }
 
+const toUploadDiagnostic = (entry: Diagnostic) => ({ severity: entry.severity, message: entry.message, ...(entry.objectId ? { subjectId: entry.objectId } : {}) })
+
 export const planVmUpload = (project: ProjectDocument, catalog: VmCatalog, options: VmUploadOptions): VmUploadPlan => {
-  const program = compileProgram(project, catalog, { ...options, blocks: options.blocks ?? programBlocks(project.canvases ?? []) })
-  const diagnostics = program.diagnostics.map((entry) => ({ severity: entry.severity, message: entry.message, ...(entry.objectId ? { subjectId: entry.objectId } : {}) }))
+  const arranged = options.blocks ? undefined : arrangeProgram(project.canvases ?? [])
+  const program = compileProgram(project, catalog, { ...options, blocks: options.blocks ?? arranged!.blocks })
+  const found = [...(arranged?.diagnostics ?? []), ...program.diagnostics]
+  if (arranged?.diagnostics.some((entry) => entry.severity === 'error')) return { ok: false, steps: [], diagnostics: found.map(toUploadDiagnostic), program, subscribed: [] }
+  const diagnostics = found.map(toUploadDiagnostic)
   if (!program.ok) return { ok: false, steps: [], diagnostics, program, subscribed: [] }
   // No program, no frames: the board refuses to open an empty one (a project of devices only is fine).
   if (!program.counts.objects && !program.counts.blocks) return { ok: true, steps: [], diagnostics, program, subscribed: [] }

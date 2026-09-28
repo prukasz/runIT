@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { addBlock, addCanvas, DEFAULT_VIEWPORT, findBlock, GRID, moveBlock, moveCanvas, newBlockId, removeBlock, removeCanvas, renameCanvas, screenToCanvas, setCanvasDisabled, snapPoint, updateBlock } from '../domain/canvas'
+import { addBlock, addCanvas, DEFAULT_VIEWPORT, findBlock, GRID, moveBlock, moveCanvas, newBlockId, pasteBlock, removeBlock, removeCanvas, renameCanvas, screenToCanvas, setCanvasDisabled, snapPoint, updateBlock } from '../domain/canvas'
 import type { Point, Viewport } from '../domain/canvas'
 import { runitVmCatalog } from '../domain/descriptors'
 import { parseCanvases } from '../domain/project'
@@ -135,6 +135,27 @@ export function useCanvasWorkspace(onSelectBlock?: () => void) {
     if (edit((current) => addBlock(current, active.id, { id, type: typeKey, x: place.x, y: place.y }))) selectBlock(id)
   }
 
+  // Copy / paste: the copied block, and how many times it was pasted (each paste steps down-right).
+  const [clipboard, setClipboard] = useState<CanvasBlock>()
+  const pasted = useRef(0)
+  const copy = () => {
+    const found = selectedBlockId ? findBlock(canvases, selectedBlockId) : undefined
+    if (!found) return
+    setClipboard(found.block)
+    pasted.current = 0
+  }
+  const paste = () => {
+    if (!clipboard || !active) return
+    pasted.current += 1
+    const at = snapPoint({ x: clipboard.x + 2 * GRID * pasted.current, y: clipboard.y + 2 * GRID * pasted.current })
+    let id: string | undefined
+    if (edit((current) => {
+      const result = pasteBlock(current, active.id, clipboard, at)
+      id = result.id
+      return result.canvases
+    }) && id) selectBlock(id)
+  }
+
   const deleteBlock = (id: string) => {
     if (edit((current) => removeBlock(current, id)) && selectedBlockId === id) setSelectedBlockId(undefined)
   }
@@ -200,7 +221,13 @@ export function useCanvasWorkspace(onSelectBlock?: () => void) {
     placeBlock,
     moveBlock: (id: string, to: Point) => edit((current) => moveBlock(current, id, to)),
     updateBlock: (id: string, change: (block: CanvasBlock) => CanvasBlock) => edit((current) => updateBlock(current, id, change)),
+    /** Edits the open canvas as a whole (its variable chips), one undo step. */
+    updateActive: (change: (canvas: ProjectCanvas) => ProjectCanvas) => edit((current) => current.map((canvas) => (canvas.id === active?.id ? change(canvas) : canvas))),
     deleteBlock,
+    /** Copy the selected block; paste puts a copy on the open canvas (one undo step). */
+    copy,
+    paste,
+    canPaste: !!clipboard && !!active,
     error,
     clearError: () => setError(''),
     load,

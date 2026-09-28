@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { ArrowRight, Lock, Plus, Trash2 } from 'lucide-react'
-import { pinUseLabel } from '../domain/descriptors'
 import type { DeviceChoice } from '../domain/descriptors'
 import { contractsOf, findContract, isSetupContract, pinKey, pinsOf, pinUsers, resolveDevice, SET_ERROR_HANDLING } from '../domain/devices'
 import type { PinUser, ResolvedDevice } from '../domain/devices'
@@ -43,13 +42,8 @@ export function BoardInstallCard({ w, device }: { w: DevicesWorkspace; device: R
   return (
     <div className="ble-card">
       <h3>Installed by the board</h3>
-      <p className="devices-muted">
-        {board?.installed
-          ? 'The board installs this device at every boot (static boot action 1, runit_board_cfg.c): its bus, address and pins are fixed.'
-          : 'Not installed on this board: its bring-up switch (RUNIT_BOARD_DEV_*) is off in runit_board_cfg.c.'}
-      </p>
+      {!board?.installed && <p className="devices-muted">Not installed on this board.</p>}
       <dl className="devices-facts">
-        <div><dt>Device ID</dt><dd>{device.deviceId}</dd></div>
         {board?.i2c && <div><dt>I2C</dt><dd>bus {board.i2c.bus}{board.i2c.bus === w.catalog.i2cBuses.internal ? ' (internal)' : ''} · {hex2(board.i2c.address)}</dd></div>}
         {device.type && <div><dt>Provides</dt><dd>{device.type.provider?.label ?? '—'}</dd></div>}
       </dl>
@@ -61,7 +55,7 @@ export function BoardInstallCard({ w, device }: { w: DevicesWorkspace; device: R
 export function PinsUsedCard({ w, device }: { w: DevicesWorkspace; device: ResolvedDevice }) {
   const links: { use: string; deviceId: number; pin: number; mode?: number }[] = []
   const board = w.catalog.board.find((entry) => boardDeviceRef(entry.deviceId) === device.ref)
-  if (board) links.push(...board.pins.map((link) => ({ ...link, use: pinUseLabel(link.use) })))
+  if (board) links.push(...board.pins.map((link) => ({ ...link, use: link.label })))
   else {
     for (const [key, users] of pinUsers(w.catalog, w.devices)) {
       for (const user of users) {
@@ -73,7 +67,7 @@ export function PinsUsedCard({ w, device }: { w: DevicesWorkspace; device: Resol
   }
   if (!links.length) return null
   return (
-    <div className="ble-card">
+    <div className="ble-card devices-refs-card">
       <h3>Pins it uses</h3>
       <div className="devices-ref-grid">
         {links.map((link) => {
@@ -183,7 +177,7 @@ export function DefaultSettingsCard({ w, device }: { w: DevicesWorkspace; device
               <strong>{contract?.label ?? step.contract}</strong>
               <button type="button" onClick={() => w.removeSetup(step.id)} title="Remove this default" aria-label="Remove default"><Trash2 aria-hidden="true" /></button>
             </div>
-            {contract && <ContractFields contract={contract} deviceId={device.deviceId} values={step.values} actions={w.actions} onChange={(values) => w.updateSetup(step.id, { values })} />}
+            {contract && <ContractFields contract={contract} values={step.values} actions={w.actions} onChange={(values) => w.updateSetup(step.id, { values })} />}
           </div>
         )
       })}

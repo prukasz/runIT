@@ -380,11 +380,14 @@ const parseCanvasBlock = (value: Json, path: string): CanvasBlock => {
     x: finite(block.x, `${path}.x`),
     y: finite(block.y, `${path}.y`),
     ...optional('view', block.view === undefined ? undefined : oneOf(block.view, `${path}.view`, ['simple', 'detailed'] as const)),
+    ...optional('name', block.name === undefined ? undefined : string(block.name, `${path}.name`)),
+    ...optional('outputAliases', block.outputAliases === undefined ? undefined : array(block.outputAliases, `${path}.outputAliases`).map((entry, index) => entry === null ? null : string(entry, `${path}.outputAliases[${index}]`))),
     ...optional('dynamicInputs', block.dynamicInputs === undefined ? undefined : array(block.dynamicInputs, `${path}.dynamicInputs`).map((entry, index) => count(entry, `${path}.dynamicInputs[${index}]`))),
     ...optional('inputs', block.inputs === undefined ? undefined : array(block.inputs, `${path}.inputs`).map((entry, index) => (entry === null ? null : parsePath(entry, `${path}.inputs[${index}]`)))),
     ...optional('outputs', block.outputs === undefined ? undefined : array(block.outputs, `${path}.outputs`).map((entry, index) => (entry === null ? null : string(entry, `${path}.outputs[${index}]`)))),
     ...optional('enables', block.enables === undefined ? undefined : array(block.enables, `${path}.enables`).map((entry, index) => parsePath(entry, `${path}.enables[${index}]`))),
     ...optional('enableMode', block.enableMode === undefined ? undefined : oneOf(block.enableMode, `${path}.enableMode`, ['any', 'all'] as const)),
+    ...optional('inheritGates', optionalBoolean(block.inheritGates, `${path}.inheritGates`) === false ? (false as const) : undefined),
     ...optional('onError', block.onError === undefined ? undefined : oneOf(block.onError, `${path}.onError`, ['stop', 'continue'] as const)),
     ...optional('eno', optionalBoolean(block.eno, `${path}.eno`)),
     ...optional('settings', settings),
@@ -409,7 +412,12 @@ export const parseCanvases = (value: Json, path: string): ProjectCanvas[] => {
       blockIds.add(parsed.id)
       return parsed
     })
-    return { id, name: string(canvas.name, `${at}.name`), ...optional('disabled', optionalBoolean(canvas.disabled, `${at}.disabled`)), blocks }
+    const variables = canvas.variables === undefined ? undefined : array(canvas.variables, `${at}.variables`).map((variable, variableIndex) => {
+      const where = `${at}.variables[${variableIndex}]`
+      const entry = record(variable, where)
+      return { id: string(entry.id, `${where}.id`), path: parsePath(entry.path, `${where}.path`), x: finite(entry.x, `${where}.x`), y: finite(entry.y, `${where}.y`) }
+    })
+    return { id, name: string(canvas.name, `${at}.name`), ...optional('disabled', optionalBoolean(canvas.disabled, `${at}.disabled`)), blocks, ...optional('variables', variables?.length ? variables : undefined) }
   })
 }
 

@@ -6,6 +6,7 @@ import { applyVmValues, decodeVmElements, decodeVmTelemetry } from './domain/dec
 import { runitStreamCatalog, runitVmCatalog } from './domain/descriptors'
 import type { DeviceCatalog } from './domain/descriptors'
 import { serializeProject } from './domain/project'
+import { nameIds } from './domain/canvas'
 import type { ActionStep, ProjectCanvas, ProjectDevice, ProjectSettings } from './domain/project'
 import type { RecoveredCode } from './domain/storedCode'
 import { planVmUpload } from './domain/upload'
@@ -134,8 +135,8 @@ export function ProgramPanel({ workspace: w, connection, board, settings, device
             <dd><input type="number" min={16} max={MAX_FRAME_BYTES} value={maxFrameBytes} onChange={(event) => setMaxFrameBytes(Math.max(16, Math.min(MAX_FRAME_BYTES, Math.floor(Number(event.target.value)) || DEFAULT_MAX_FRAME_BYTES)))} /> B</dd>
           </div>
         </dl>
-        {errors.map((entry, index) => <p key={`e${index}`} className="program-diag is-error"><AlertCircle aria-hidden="true" />{entry.message}</p>)}
-        {warnings.map((entry, index) => <p key={`w${index}`} className="program-diag is-warning"><AlertTriangle aria-hidden="true" />{entry.message}</p>)}
+        {errors.map((entry, index) => <p key={`e${index}`} className="program-diag is-error"><AlertCircle aria-hidden="true" />{nameIds(entry.message, project)}</p>)}
+        {warnings.map((entry, index) => <p key={`w${index}`} className="program-diag is-warning"><AlertTriangle aria-hidden="true" />{nameIds(entry.message, project)}</p>)}
       </div>
 
       <div className="object-details-section">

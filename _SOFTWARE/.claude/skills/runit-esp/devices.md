@@ -20,7 +20,7 @@ Plus, outside the component:
 |---|---|
 | `components/devices/devices/include/devices.h` | Includes every `device_<chip>.h` |
 | `components/devices/devices/errors/devices_owners.h` | `OWNER_DEVICE_<CHIP>` (0xD0xx) in `PROVIDER_OWNER_MAP` |
-| `components/codecs/decoders/device/dec_device_<chip>.h` | Install packet (`HEADER_packet_sys_device_install_<chip>_t`, 0x4x), decoder → `d_<chip>_create`, and **`//@` annotations** describing the device and its contract ops for the app |
+| `components/codecs/decoders/device/dec_device_<chip>.h` | Install packet (`HEADER_packet_sys_device_install_<chip>_t`, 0x4x), decoder → `d_<chip>_create`, and **`//#device` / `//#contract` annotation records** describing the device and its contract ops for the app |
 | `components/codecs/decoders/dec_sys_device_install.h` | Includes the decoder header and adds `SYS_CONTRACTS_DEVICE_<CHIP>_PACKET_LIST(X)` to `SYS_CONTRACTS_INSTALL_PACKET_LIST` |
 | `components/codecs/CMakeLists.txt` | `device_<chip>` in `REQUIRES` |
 | `data-structures/devices/device_<chip>.generated.json` | Generated from the decoder annotations. Never edit by hand |
@@ -80,12 +80,12 @@ sys_io_* / sys_power_* / sys_hbridge_* (by device_id) ──────┘ cont
 4. **Owner:** add `X(OWNER_DEVICE_<CHIP>, 0xD0xx, "...")` to `devices/devices/errors/devices_owners.h`.
 5. **Aggregate:** include `device_<chip>.h` in `devices.h`.
 6. **CMake:** `CMakeLists.txt` for the component, and add `device_<chip>` to `components/codecs/CMakeLists.txt` `REQUIRES`.
-7. **Install packet:** create `codecs/decoders/device/dec_device_<chip>.h`:
+7. **Install packet:** create `codecs/decoders/device/dec_device_<chip>.h` from `data-structures/auto-annotations/device/device-template.txt` (a complete header with every annotation and what the app does with it):
    - Next free header byte in class 0x01 (0x40–0x47 used, **0x48** is next; header bytes are per class, so `vm_exec` using 0x48 in class 0x04 doesn't conflict).
-   - `__packed` struct with `@required` / `@min` / `@max` / `@group` / `@role` field annotations.
-   - A decoder that builds the cfg (`pin_ref_from_wire` for pin refs) and calls `d_<chip>_create`.
+   - `__packed` struct; field annotations only where the app shows the field (`@alias`, `@one-of`, `@min` / `@max`, `@unit`, `@note`). A pin on another device is one `pin_ref_wire_t <name>_pin` field (`@alias`, `@note`, `@modes`, `@default-mode`).
+   - A decoder that builds the cfg (`pin_ref_from_wire(packet-><name>_pin)` for pin refs) and calls `d_<chip>_create`.
    - `SYS_CONTRACTS_DEVICE_<CHIP>_PACKET_LIST(X)`.
-8. **Annotations** in that header (after the includes, before the packet): `//@id`, `//@version`, `//@title`, `//@description`, `//@protocol`, `//@tags`, `//@contract-provider $SYS_DEVICE_CONTRACT_…`, `//@self-property`, and one `//@contract packet_… @alias …` block per supported op. Every `@required` field of the generic packet needs an `@param`. Descriptions are user-facing.
+8. **Annotations** in that header (after the includes, before the packet): one `//#device <id>` record (`@title`, `@description`, `@protocol`, `@tags`, `@datasheet`, `@contract-provider $SYS_DEVICE_CONTRACT_…`), `//#self-property` / `//#property` value sets, and one `//#contract packet_…` record per supported op. Every `@required` field of the generic packet needs a `@param` line. Descriptions and notes are user-facing; the generator rejects tags the app doesn't read. Run `test_generate_devices.py` after grammar changes.
 9. **Register** the list in `dec_sys_device_install.h`.
 10. **Regenerate:** `python data-structures/auto-annotations/device/generate-devices.py components/codecs/decoders data-structures/devices`.
 11. **Onboard chip only:** add `DEVICE_ID_<CHIP>` to `runit_board_defs.h` and a create call to `runit_board_cfg.c`. Update [HARDWARE.md](../runit-root/HARDWARE.md).
@@ -99,7 +99,7 @@ sys_io_* / sys_power_* / sys_hbridge_* (by device_id) ──────┘ cont
 - **Validate once** ([conventions.md](conventions.md) §4). `d_<chip>_create` checks `cfg`. `install` receives the manager's own copy, so it doesn't need to re-check it. Internal helpers trust their caller.
 - **Onboard devices** (on the PCB) are installed in `runit_board_devices_init` with `RUNIT_BOARD_DEVICE(id, d_<chip>_create(...))`, which marks them onboard. Users (packets, recorded actions) go through `sys_device_user_uninstall[_all]` and can't uninstall or replace them. Any other restriction is app policy. Keep `//@STATIC_DEVICE` on their ID so the app knows them.
 - **Locked pins:** pins an adapter depends on (OE, RST, EN, INT) are locked after setup (`SYS_DEV_INSTALL_STEP(sys_io_lock_pin(pin), …)`) and unlocked in uninstall (`SYS_DEV_TEARDOWN_STEP`). Drive a locked pin later with `sys_io_set_locked_level(pin, level)`, which always restores the lock.
-- **Annotations (`//@`) stay** ([conventions.md](conventions.md) §6). When an adapter gains or loses a contract op, update the matching `//@contract` block and regenerate. Grammar: `data-structures/auto-annotations/device/device-annotations.md`. Added 2026-09-27: `@param <field> @device-wide` (the field selects nothing: PCA9685 frequency pin, the app hides it and sends 0); `//@pwm-frequencies <value> [@count-bits]` (per-pin-frequency devices: how many frequencies at once, ESP GPIO = LEDC timers); contract `@min` / `@max` / `@default` resolve C defines and `CONFIG_*` (unresolved fails generation).
+- **Annotations stay** ([conventions.md](conventions.md) §6). When an adapter gains or loses a contract op, update the matching `//#contract` record and regenerate. Layout (2026-09-28): records continued by `//  @tag` lines, `a..b` ranges, `pin_ref_wire_t` pin fields, only tags the app reads. Grammar: `data-structures/auto-annotations/device/device-annotations.md`. Added 2026-09-27: `@param <field> @device-wide` (the field selects nothing: PCA9685 frequency pin, the app hides it and sends 0); `//@pwm-frequencies <value> [@count-bits]` (per-pin-frequency devices: how many frequencies at once, ESP GPIO = LEDC timers); contract `@min` / `@max` / `@default` resolve C defines and `CONFIG_*` (unresolved fails generation).
 - **Range-check in the adapter, not by clamping.** PCA9685 frequency: `SE_CHECK_IN_RANGE(PCA9685_MIN_FREQUENCY_HZ 24, PCA9685_MAX_FREQUENCY_HZ 1526)` (it used to clamp, and >65535 wrapped).
 - **Reversed shunts (INA3221 `inverted_mask`):** alerts stay possible (signed limit compare): `set_inverted_alert` writes −threshold, makes that alert transparent (no latch), moves its pin to the rising edge and remembers the channel per pin; the release edge publishes the event. One reversed channel per alert pin (`ERR_IO_PIN_ALREADY_IN_USE`); a device reset disarms them. The normal-polarity path is unchanged (flag loops only skip reversed channels).
 

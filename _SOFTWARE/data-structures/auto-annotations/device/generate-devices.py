@@ -1,13 +1,18 @@
 """
 Device JSON generator for components/codecs/decoders/**/dec_device_*.h.
 
-Reads device-level //@ directives (id/version/title/description/protocol/tags/datasheet/
-contract-provider/self-property/property/contract/param/returns) plus the
-field-level @tag comments already used across every dec_*.h packet struct, and
-renders one self-contained JSON descriptor per annotated device header. See
-data-structures/auto-annotations/device/device-annotations.md for the annotation grammar.
+Reads the device records (//#device, //#self-property, //#property, //#contract, each
+continued by `//  @tag ...` lines) plus the field-level @tag comments used across every
+dec_*.h packet struct, and renders one self-contained JSON descriptor per annotated device
+header. See data-structures/auto-annotations/device/device-annotations.md for the grammar.
 
 Design notes:
+  - Every record kind lists the tags it accepts; an unknown tag fails generation, so a typo
+    or a tag nothing reads never lands silently. The old one-line //@id / //@contract
+    directives fail with a pointer to the record form.
+  - A pin_ref_wire_t install field expands to its three wire fields (<name>_device_id,
+    <name>_pin, <name>_mode) and one pin group keyed by <name>, the same key the board
+    descriptor uses for the pins its devices take.
   - This replaces the older generate-device-json.py, which used a plain
     @capability directive and left enum symbols as bare unchecked strings.
     That's gone - @self-property/@property + @arg + $SYMBOL resolution is the
@@ -64,7 +69,24 @@ FIELD_LINE_RE = re.compile(
 TAG_RE = re.compile(r"@([\w-]+)\b")
 DEFINE_RE = re.compile(r"#define\s+([A-Z][A-Z0-9_]*)\s+([^\s/][^\n/]*)")
 SDKCONFIG_RE = re.compile(r"^(CONFIG_\w+)=(.+)$", re.MULTILINE)
-DEVICE_DIRECTIVE_RE = re.compile(r"^\s*//@(?P<name>[\w-]+)(?:\s+(?P<value>.*))?\s*$")
+# `//#<kind> <name> [@tag ...]` starts a record; `//  <text>` (two or more spaces) continues it.
+RECORD_RE = re.compile(r"^\s*//#(?P<kind>[\w-]+)(?:\s+(?P<rest>.*?))?\s*$")
+CONTINUATION_RE = re.compile(r"^\s*//\s{2,}(?P<text>\S.*?)\s*$")
+LEGACY_DIRECTIVE_RE = re.compile(r"^\s*//@(id|version|title|description|protocol|tags|datasheet|contract-provider|pwm-frequencies|self-property|property|contract|param|returns)\b")
+
+# Tags each record accepts (normalized: `-` -> `_`).
+RECORD_TAGS = {
+    "device": {"title", "description", "protocol", "tags", "datasheet", "contract_provider", "pwm_frequencies", "count_bits"},
+    "self-property": {"one_of", "alias", "note"},
+    "property": {"enum_ref", "one_of", "default", "alias", "note"},
+    "contract": {"alias", "description", "returns"},
+}
+PARAM_TAGS = {"arg", "alias", "type", "unit", "one_of", "min", "max", "default", "device_wide", "note"}
+
+# One pin on another device in an install packet (dec_device_common.h): three uint8_t on the wire.
+PIN_REF_TYPE = "pin_ref_wire_t"
+PIN_REF_TAGS = {"alias", "note", "modes", "default_mode"}
+MAX_RANGE = 4096
 
 
 def normalize_tag(name: str) -> str:
@@ -97,27 +119,60 @@ class Field:
     array_len: Optional[int]
     flexible_array: bool
     tags: Dict[str, str]
+    group_info: Optional[Dict[str, str]] = None  # alias / note of the pin group this field opens
+
+
+def pin_ref_fields(name: str, arr: Optional[str], tags: Dict[str, str]) -> List[Field]:
+    """`pin_ref_wire_t <name>; //@alias ... @note ... @modes [...] @default-mode $X` -> its three wire fields."""
+    if arr is not None:
+        sys.exit(f"ERROR: field '{name}': arrays of {PIN_REF_TYPE} are not supported")
+    unknown = sorted(set(tags) - PIN_REF_TAGS)
+    if unknown:
+        sys.exit(f"ERROR: field '{name}' ({PIN_REF_TYPE}): unsupported tag(s) {unknown}; allowed: {sorted(PIN_REF_TAGS)}")
+    mode_tags = {"group": name, "enum_ref": "sys_io_mode_e"}
+    if "modes" in tags:
+        mode_tags["one_of"] = tags["modes"]
+    if "default_mode" in tags:
+        mode_tags["default"] = tags["default_mode"]
+    info = {key: tags[key] for key in ("alias", "note") if tags.get(key)}
+    return [
+        Field("uint8_t", f"{name}_device_id", None, False, {"group": name}, info),
+        Field("uint8_t", f"{name}_pin", None, False, {"group": name, "sentinel": "SYS_GPIO_NONE"}),
+        Field("uint8_t", f"{name}_mode", None, False, mode_tags),
+    ]
 
 
 def parse_struct_fields(body: str, defines: Optional[Dict[str, str]] = None, sdkconfig: Optional[Dict[str, int]] = None) -> List[Field]:
     """Array lengths may be a literal or a symbol (#define / CONFIG_*), resolved one hop.
     An unresolvable symbolic length is a hard error: silently dropping the field would
-    shift every following wire offset."""
-    fields = []
+    shift every following wire offset. A comment-only line `//  ...` (two or more spaces)
+    right after a field continues that field's annotation."""
+    raw: List[List] = []  # [type, name, arr, comment]
+    continuing = False
     for raw_line in body.splitlines():
         line = raw_line.strip()
-        if not line:
-            continue
         m = FIELD_LINE_RE.match(line)
-        if not m:
+        if m:
+            raw.append([m.group("type").strip(), m.group("name"), m.group("arr"), m.group("comment") or ""])
+            continuing = True
             continue
-        arr = m.group("arr")
+        c = CONTINUATION_RE.match(line)
+        if c and continuing:
+            raw[-1][3] += " " + c.group("text")
+            continue
+        continuing = False
+    fields: List[Field] = []
+    for type_, name, arr, comment in raw:
+        tags = parse_tags(comment)
+        if type_ == PIN_REF_TYPE:
+            fields.extend(pin_ref_fields(name, arr, tags))
+            continue
         array_len = None
         if arr:
             array_len, shown = resolve_numeric(arr, defines or {}, sdkconfig or {})
             if array_len is None:
-                sys.exit(f"ERROR: field '{m.group('name')}[{arr}]': array length {shown}")
-        fields.append(Field(m.group("type").strip(), m.group("name"), array_len, arr == "", parse_tags(m.group("comment") or "")))
+                sys.exit(f"ERROR: field '{name}[{arr}]': array length {shown}")
+        fields.append(Field(type_, name, array_len, arr == "", tags))
     return fields
 
 
@@ -182,6 +237,13 @@ def parse_choice_list(raw: str, symbols: Dict[str, dict], context: str) -> List[
             continue
         if token.startswith("$"):
             values.append(resolve_symbol(token, symbols, context))
+        elif ".." in token:
+            # `a..b`: every integer from a to b, both included (`0..7`, `0x10..0x17`).
+            low, _, high = token.partition("..")
+            first, last = to_int(low), to_int(high)
+            if first is None or last is None or last < first or last - first >= MAX_RANGE:
+                sys.exit(f"ERROR: {context}: bad range '{token}' (want a..b with integers a <= b, at most {MAX_RANGE} values)")
+            values.extend(range(first, last + 1))
         else:
             values.append(to_int(token) if to_int(token) is not None else token)
     return values
@@ -205,8 +267,6 @@ def field_json(f: Field, defines: Dict[str, str], sdkconfig: Dict[str, int], sym
         out["max"] = resolve_numeric(f.tags["max"], defines, sdkconfig)[0]
     if "one_of" in f.tags:
         out["one_of"] = parse_choice_list(f.tags["one_of"], symbols, context)
-    if "available" in f.tags:
-        out["available"] = parse_choice_list(f.tags["available"], symbols, context)
     if "default" in f.tags:
         token = f.tags["default"]
         out["default"] = resolve_symbol(token, symbols, context)["value"] if token.startswith("$") else resolve_numeric(token, defines, sdkconfig)[0]
@@ -219,10 +279,10 @@ def field_json(f: Field, defines: Dict[str, str], sdkconfig: Dict[str, int], sym
     enum_ref = f.tags.get("enum_ref", f.tags.get("ref"))
     if enum_ref:
         out["enum_ref"] = enum_ref
+    if "default" in out and "one_of" in out and out["default"] not in [choice["value"] if isinstance(choice, dict) else choice for choice in out["one_of"]]:
+        sys.exit(f"ERROR: {context}: field '{f.name}' @default is not one of its choices")
     if "group" in f.tags:
         out["group"] = f.tags["group"]
-    if "role" in f.tags:
-        out["role"] = f.tags["role"]
     if f.tags.get("desc"):
         out["desc"] = f.tags["desc"]
     if "note" in f.tags:
@@ -241,10 +301,12 @@ def build_packet_entry(name: str, header_value: str, fields: List[Field], source
             sys.exit(f"ERROR: {context}: flexible array '{field.name}[]' must be the final wire field")
     order = [f.name for f in fields]
     groups: Dict[str, List[str]] = {}
+    group_info: Dict[str, Dict[str, str]] = {}
     for f in fields:
         g = f.tags.get("group")
         if g:
             groups.setdefault(g, []).append(f.name)
+            group_info.setdefault(g, {}).update(f.group_info or {})
     entry = {
         "source_file": source_file,
         "class_name": class_name,
@@ -255,7 +317,10 @@ def build_packet_entry(name: str, header_value: str, fields: List[Field], source
         "fields": {f.name: field_json(f, defines, sdkconfig, symbols, context) for f in fields},
     }
     if groups:
-        entry["groups"] = {gname: {"fields": gfields, "sentinel_field": next((f.name for f in fields if f.name in gfields and "sentinel" in f.tags), None)} for gname, gfields in groups.items()}
+        entry["groups"] = {
+            gname: {"fields": gfields, "sentinel_field": next((f.name for f in fields if f.name in gfields and "sentinel" in f.tags), None), **group_info.get(gname, {})}
+            for gname, gfields in groups.items()
+        }
     return entry
 
 
@@ -276,111 +341,160 @@ def parse_packet_file(path: Path, all_classes: Dict[str, str], defines, sdkconfi
     return out
 
 
+def read_records(path: Path) -> List[dict]:
+    """The //#<kind> records of one header, each with its continuation lines, in file order."""
+    records: List[dict] = []
+    current: Optional[dict] = None
+    for number, line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+        legacy = LEGACY_DIRECTIVE_RE.match(line)
+        if legacy:
+            sys.exit(f"ERROR: {path.name}:{number}: //@{legacy.group(1)} is the old one-line form - use the //#device / //#contract records (device-annotations.md)")
+        record = RECORD_RE.match(line)
+        if record:
+            if record.group("kind") not in RECORD_TAGS:
+                sys.exit(f"ERROR: {path.name}:{number}: unknown record //#{record.group('kind')} (known: {', '.join(RECORD_TAGS)})")
+            current = {"kind": record.group("kind"), "head": record.group("rest") or "", "lines": [], "where": f"{path.name}:{number}"}
+            records.append(current)
+            continue
+        continuation = CONTINUATION_RE.match(line)
+        if continuation and current is not None:
+            current["lines"].append(continuation.group("text"))
+            continue
+        current = None
+    return records
+
+
+def parse_record(record: dict) -> Tuple[str, Dict[str, str], List[dict]]:
+    """A record's name, its tags and (contracts only) its @param lines. A line whose first token is
+    not a tag continues the text of the tag before it."""
+    kind, where = record["kind"], record["where"]
+    name, _, inline = record["head"].partition(" ")
+    if not name or name.startswith("@"):
+        sys.exit(f"ERROR: {where}: //#{kind} needs a name")
+    tags: Dict[str, str] = {}
+    params: List[dict] = []
+    last: Optional[Tuple[Dict[str, str], str]] = None
+    for text in [inline.strip(), *record["lines"]]:
+        if not text:
+            continue
+        if not text.startswith("@"):
+            if last is None:
+                sys.exit(f"ERROR: {where}: text '{text}' does not follow a tag")
+            target, key = last
+            target[key] = f"{target[key]} {text}".strip()
+            continue
+        if re.match(r"@param\b", text):
+            if kind != "contract":
+                sys.exit(f"ERROR: {where}: @param belongs in a //#contract record")
+            param_name, _, annotation = text[len("@param"):].strip().partition(" ")
+            param_tags = parse_tags(annotation)
+            if not param_name or "desc" in param_tags:
+                sys.exit(f"ERROR: {where}: '@param {param_name}' needs a field name followed by tags")
+            unknown = sorted(set(param_tags) - PARAM_TAGS)
+            if unknown:
+                sys.exit(f"ERROR: {where}: @param {param_name}: unsupported tag(s) {unknown}; allowed: {sorted(PARAM_TAGS)}")
+            params.append({"name": param_name, "tags": param_tags})
+            last = (param_tags, list(param_tags)[-1]) if param_tags else None
+            continue
+        parsed = parse_tags(text)
+        unknown = sorted(set(parsed) - RECORD_TAGS[kind])
+        if unknown:
+            sys.exit(f"ERROR: {where}: //#{kind} {name}: unsupported tag(s) {unknown}; allowed: {sorted(RECORD_TAGS[kind])}")
+        for key, value in parsed.items():
+            if key in tags:
+                sys.exit(f"ERROR: {where}: //#{kind} {name}: @{key} given twice")
+            tags[key] = value
+        last = (tags, list(parsed)[-1])
+    return name, tags, params
+
+
+def parse_property(kind: str, name: str, tags: Dict[str, str], symbols: Dict[str, dict], defines: Dict[str, str], sdkconfig: Dict[str, int], ctx: str) -> dict:
+    one_of = parse_choice_list(tags["one_of"], symbols, ctx) if "one_of" in tags else []
+    enum_ref = tags.get("enum_ref")
+    if kind == "property" and not enum_ref:
+        enum_names = {v["enum"] for v in one_of if isinstance(v, dict)}
+        if len(enum_names) > 1:
+            sys.exit(f"ERROR: {ctx}: property '{name}' mixes symbols from different enums ({enum_names}) - enum-ref would be ambiguous")
+        enum_ref = next(iter(enum_names), None)
+    prop = {"one_of": one_of, "enum_ref": enum_ref}
+    default = tags.get("default")
+    if default is not None:
+        resolved = resolve_symbol(default, symbols, ctx)["value"] if default.startswith("$") else resolve_numeric(default, defines, sdkconfig)[0]
+        if resolved is None or resolved not in [choice["value"] if isinstance(choice, dict) else choice for choice in one_of]:
+            sys.exit(f"ERROR: {ctx}: @default must name a value in @one-of")
+        prop["default"] = resolved
+    for key in ("alias", "note"):
+        if tags.get(key):
+            prop[key] = tags[key]
+    return prop
+
+
+def parse_parameter(param: dict, registry: Dict[str, dict], symbols: Dict[str, dict], defines: Dict[str, str], sdkconfig: Dict[str, int], ctx: str) -> dict:
+    tags = param["tags"]
+    parameter: dict = {"name": param["name"]}
+    arg = tags.get("arg")
+    if arg:
+        if arg not in registry:
+            sys.exit(f"ERROR: {ctx}: @arg '{arg}' does not match any //#self-property or //#property in this file")
+        prop = registry[arg]
+        parameter["one_of"] = prop["one_of"]
+        if prop["enum_ref"]:
+            parameter["enum_ref"] = prop["enum_ref"]
+        # The property's label, note and default hold for every parameter using it; the parameter's own tags win.
+        for key in ("default", "alias", "note"):
+            if key in prop:
+                parameter[key] = prop[key]
+    if "one_of" in tags:
+        parameter["one_of"] = parse_choice_list(tags["one_of"], symbols, ctx)
+    if "device_wide" in tags:
+        # The field selects nothing: the call applies to the whole device and the field is sent as 0.
+        parameter["device_wide"] = True
+    for tag in ("min", "max", "default"):
+        if tag in tags:
+            resolved, shown = (resolve_symbol(tags[tag], symbols, ctx)["value"], tags[tag]) if tag == "default" and tags[tag].startswith("$") else resolve_numeric(tags[tag], defines, sdkconfig)
+            if resolved is None:
+                sys.exit(f"ERROR: {ctx}: @{tag} {shown}")
+            parameter[tag] = resolved
+    for tag in ("alias", "type", "unit", "note"):
+        if tag in tags:
+            parameter[tag] = tags[tag]
+    return parameter
+
+
 def parse_device_descriptor(path: Path, symbols: Dict[str, dict], defines: Dict[str, str], sdkconfig: Dict[str, int]) -> Optional[dict]:
-    metadata: Dict[str, str] = {}
-    self_properties: Dict[str, dict] = {}
-    properties: Dict[str, dict] = {}
-    contracts: List[dict] = []
-    current_contract: Optional[dict] = None
-    contract_provider = None
-
-    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
-        match = DEVICE_DIRECTIVE_RE.match(line)
-        if not match:
-            continue
-        name = match.group("name")
-        value = (match.group("value") or "").strip()
-        ctx = f"{path.name}: //@{name} {value}"
-
-        if name == "contract-provider":
-            contract_provider = resolve_symbol(value, symbols, ctx) if value.startswith("$") else value
-            continue
-
-        if name in ("self-property", "property"):
-            prop_name, _, annotation = value.partition(" ")
-            if not prop_name:
-                sys.exit(f"ERROR: {ctx}: //@{name} requires a NAME")
-            tags = parse_tags(annotation)
-            one_of = parse_choice_list(tags["one_of"], symbols, ctx) if "one_of" in tags else []
-            enum_ref = tags.get("enum_ref", tags.get("ref"))
-            if name == "property" and not enum_ref:
-                enum_names = {v["enum"] for v in one_of if isinstance(v, dict)}
-                if len(enum_names) > 1:
-                    sys.exit(f"ERROR: {ctx}: @property '{prop_name}' mixes symbols from different enums ({enum_names}) - enum-ref would be ambiguous")
-                enum_ref = next(iter(enum_names), None)
-            target = self_properties if name == "self-property" else properties
-            default = tags.get("default")
-            if default is not None:
-                resolved = resolve_symbol(default, symbols, ctx)["value"] if default.startswith("$") else resolve_numeric(default, defines, sdkconfig)[0]
-                if resolved is None or resolved not in [choice["value"] if isinstance(choice, dict) else choice for choice in one_of]:
-                    sys.exit(f"ERROR: {ctx}: @default must name a value in @one-of")
-            target[prop_name] = {"one_of": one_of, "enum_ref": enum_ref, **({"default": resolved} if default is not None else {})}
-            continue
-
-        if name == "contract":
-            packet_name, _, annotation = value.partition(" ")
-            if not packet_name:
-                sys.exit(f"ERROR: {ctx}: @contract requires a packet name")
-            current_contract = {"packet": packet_name, "parameters": []}
-            for tag, tag_value in parse_tags(annotation).items():
-                if tag == "alias":
-                    current_contract["alias"] = tag_value
-            contracts.append(current_contract)
-            continue
-
-        if current_contract is None:
-            metadata[name] = value
-            continue
-
-        if name == "param":
-            param_name, _, annotation = value.partition(" ")
-            if not param_name:
-                sys.exit(f"ERROR: {ctx}: @param requires a field name")
-            tags = parse_tags(annotation)
-            parameter: dict = {"name": param_name}
-            arg = tags.get("arg")
-            if arg:
-                registry = {**self_properties, **properties}
-                if arg not in registry:
-                    sys.exit(f"ERROR: {ctx}: @arg '{arg}' does not match any //@self-property or //@property in this file")
-                prop = registry[arg]
-                parameter["one_of"] = prop["one_of"]
-                if prop["enum_ref"]:
-                    parameter["enum_ref"] = prop["enum_ref"]
-                if "default" in prop:
-                    parameter["default"] = prop["default"]
-            if "one_of" in tags:
-                parameter["one_of"] = parse_choice_list(tags["one_of"], symbols, ctx)
-            if "available" in tags:
-                parameter["available"] = parse_choice_list(tags["available"], symbols, ctx)
-            if "optional" in tags:
-                parameter["required"] = False
-            if "device_wide" in tags:
-                # The field selects nothing: the call applies to the whole device and the field is sent as 0.
-                parameter["device_wide"] = True
-            for tag in ("min", "max", "default"):
-                if tag in tags:
-                    resolved, shown = (resolve_symbol(tags[tag], symbols, ctx)["value"], tags[tag]) if tag == "default" and tags[tag].startswith("$") else resolve_numeric(tags[tag], defines, sdkconfig)
-                    if resolved is None:
-                        sys.exit(f"ERROR: {ctx}: @{tag} {shown}")
-                    parameter[tag] = resolved
-            for tag in ("alias", "type", "unit"):
-                if tag in tags:
-                    parameter[tag] = tags[tag]
-            current_contract["parameters"].append(parameter)
-        elif name == "returns":
-            current_contract["returns"] = value
-        elif name == "description":
-            current_contract["description"] = value
-
-    if not metadata:
+    records = [(record, *parse_record(record)) for record in read_records(path)]
+    if not records:
         return None
-    missing = [key for key in ("id", "version", "title", "description") if not metadata.get(key)]
+    devices = [entry for entry in records if entry[0]["kind"] == "device"]
+    if len(devices) != 1:
+        sys.exit(f"ERROR: {path.name}: expected exactly one //#device record, found {len(devices)}")
+    _, device_id, metadata, _ = devices[0]
+    missing = [key for key in ("title", "description") if not metadata.get(key)]
     if missing:
-        sys.exit(f"ERROR: {path}: device metadata is missing //@{', //@'.join(missing)}")
+        sys.exit(f"ERROR: {devices[0][0]['where']}: //#device {device_id} is missing @{', @'.join(missing)}")
+    provider = metadata.get("contract_provider")
+    ctx = devices[0][0]["where"]
+    contract_provider = resolve_symbol(provider, symbols, ctx) if provider and provider.startswith("$") else provider
+
+    registry: Dict[str, dict] = {}
+    for record, name, tags, _ in records:
+        if record["kind"] in ("self-property", "property"):
+            if name in registry:
+                sys.exit(f"ERROR: {record['where']}: property '{name}' defined twice")
+            registry[name] = parse_property(record["kind"], name, tags, symbols, defines, sdkconfig, record["where"])
+
+    contracts: List[dict] = []
+    for record, name, tags, params in records:
+        if record["kind"] != "contract":
+            continue
+        contract: dict = {"packet": name, "parameters": [parse_parameter(param, registry, symbols, defines, sdkconfig, f"{record['where']}: @param {param['name']}") for param in params]}
+        for key in ("alias", "description", "returns"):
+            if tags.get(key):
+                contract[key] = tags[key]
+        contracts.append(contract)
 
     return {
-        "metadata": metadata,
+        "metadata": {"id": device_id, **metadata},
         "contract_provider": contract_provider,
         "contracts": contracts,
         "source_file": path.name,
@@ -388,15 +502,14 @@ def parse_device_descriptor(path: Path, symbols: Dict[str, dict], defines: Dict[
 
 
 def pwm_frequencies(metadata: Dict[str, str], defines: Dict[str, str], sdkconfig: Dict[str, int], source: str) -> Optional[int]:
-    """//@pwm-frequencies <value> [@count-bits]: how many different PWM frequencies the device runs at once."""
-    raw = metadata.get("pwm-frequencies")
+    """@pwm-frequencies <value> [@count-bits]: how many different PWM frequencies the device runs at once."""
+    raw = metadata.get("pwm_frequencies")
     if raw is None:
         return None
-    tags = parse_tags(raw)
-    value, shown = resolve_numeric(tags.get("desc", ""), defines, sdkconfig)
+    value, shown = resolve_numeric(raw, defines, sdkconfig)
     if value is None:
-        sys.exit(f"ERROR: {source}: //@pwm-frequencies {shown}")
-    return bin(value).count("1") if "count_bits" in tags else value
+        sys.exit(f"ERROR: {source}: @pwm-frequencies {shown}")
+    return bin(value).count("1") if "count_bits" in metadata else value
 
 
 def build_device_document(device: dict, packets: Dict[str, dict], defines: Dict[str, str], sdkconfig: Dict[str, int]) -> dict:
@@ -436,7 +549,6 @@ def build_device_document(device: dict, packets: Dict[str, dict], defines: Dict[
         "schemaVersion": 1,
         "kind": "device-definition",
         "id": metadata["id"],
-        "version": metadata["version"],
         "title": metadata["title"],
         "description": metadata["description"],
         "protocols": metadata.get("protocol", "").split(),
@@ -465,6 +577,32 @@ def validate_document(device: dict) -> None:
         sys.exit(f"ERROR: {device['id']} failed schema validation against {SCHEMA_PATH.name}:\n{details}")
 
 
+def scan_context() -> Tuple[Dict[str, str], Dict[str, dict], Dict[str, str], Dict[str, int]]:
+    """Packet classes, published enum symbols, #defines and sdkconfig values the headers resolve against."""
+    all_classes = scan_all_class_headers()
+    all_classes.update(scan_kconfig_class_headers())
+    symbols = generate_enums.scan(generate_enums.COMPONENTS_DIR)["symbols"]
+    defines = scan_defines(PROJECT_ROOT / "components")
+    sdkconfig = scan_sdkconfig(SDKCONFIG_PATH)
+    if not sdkconfig:
+        print(f"  WARNING: no sdkconfig found at {SDKCONFIG_PATH} - CONFIG_* symbols in @min/@max will stay unresolved")
+    return all_classes, symbols, defines, sdkconfig
+
+
+def build_devices(header_files: List[Path], context: Tuple[Dict[str, str], Dict[str, dict], Dict[str, str], Dict[str, int]]) -> List[dict]:
+    """One device document per annotated header under a `device/` folder, packets from every header."""
+    all_classes, symbols, defines, sdkconfig = context
+    packets: Dict[str, dict] = {}
+    for path in header_files:
+        packets.update(parse_packet_file(path, all_classes, defines, sdkconfig, symbols))
+    devices = []
+    for path in (p for p in header_files if p.parent.name == "device"):
+        descriptor = parse_device_descriptor(path, symbols, defines, sdkconfig)
+        if descriptor:
+            devices.append(build_device_document(descriptor, packets, defines, sdkconfig))
+    return devices
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate one self-contained device JSON per annotated dec_device_*.h.")
     parser.add_argument("root_folder", help="Decoders root to scan (e.g. components/codecs/decoders)")
@@ -482,23 +620,9 @@ def main() -> int:
         return 1
 
     print("Resolving classes, enums, defines, sdkconfig...")
-    all_classes = scan_all_class_headers()
-    all_classes.update(scan_kconfig_class_headers())
-    symbols = generate_enums.scan(generate_enums.COMPONENTS_DIR)["symbols"]
-    defines = scan_defines(PROJECT_ROOT / "components")
-    sdkconfig = scan_sdkconfig(SDKCONFIG_PATH)
-    if not sdkconfig:
-        print(f"  WARNING: no sdkconfig found at {SDKCONFIG_PATH} - CONFIG_* symbols in @min/@max will stay unresolved")
-
-    packets: Dict[str, dict] = {}
-    for path in header_files:
-        packets.update(parse_packet_file(path, all_classes, defines, sdkconfig, symbols))
-
-    devices = []
-    for path in (p for p in header_files if p.parent.name == "device"):
-        descriptor = parse_device_descriptor(path, symbols, defines, sdkconfig)
-        if descriptor:
-            devices.append(build_device_document(descriptor, packets, defines, sdkconfig))
+    context = scan_context()
+    symbols = context[1]
+    devices = build_devices(header_files, context)
 
     target_dir = Path(args.target_dir)
     target_dir.mkdir(parents=True, exist_ok=True)

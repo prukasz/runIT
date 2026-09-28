@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ArrowLeftRight, Bug, Check, ChevronRight, Code2, Cpu, FileDown, FileUp, Gamepad2, Grid2X2, Info, ListTree, Magnet, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Radio, Redo2, Settings2, Sliders, Square, SquareTerminal, Sun, Undo2, X } from 'lucide-react'
+import { ArrowLeft, ArrowLeftRight, Bug, Check, ChevronRight, ClipboardPaste, Code2, Copy, Cpu, FileDown, FileUp, Gamepad2, Grid2X2, Info, ListTree, Magnet, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Radio, Redo2, Settings2, Sliders, Square, SquareTerminal, Sun, Undo2, Variable, X } from 'lucide-react'
 import { ObjectDetails, ObjectTreeEditor, ObjectTreePalette, useObjectTreeWorkspace } from './ObjectTreeWorkspace'
 import { BleDetails, BleSettingsEditor, BleSettingsPalette, useBleSettingsWorkspace } from './BleSettingsWorkspace'
 import { useBleDeviceConnection } from './useBleDeviceConnection'
@@ -13,6 +13,7 @@ import {
 import { ProgramPanel } from './ProgramPanel'
 import { DeviceDetails, DevicesEditor, DevicesPalette, useDevicesWorkspace } from './devices'
 import { BlockDetails, blockDiagnostics, BlockPalette, CanvasEditor, useCanvasWorkspace } from './canvas'
+import { OBJECT_DRAG_TYPE, objectKindDragType } from './domain/canvas'
 import { runitVmCatalog } from './domain/descriptors'
 import CommandConsole from './CommandConsole'
 import DiagnosticsConsole from './DiagnosticsConsole'
@@ -47,8 +48,21 @@ type CodeMode = 'manage' | 'canvas'
 export default function App() {
   const [view, setView] = useState('Settings')
   const [settingsGroup, setSettingsGroup] = useState<SettingsGroup>('BLE')
-  const [codePalette, setCodePalette] = useState<CodePalette>('Variables')
-  const [codeMode, setCodeMode] = useState<CodeMode>('manage')
+  // The Code view's palette and main view (canvas or the variables manager) are remembered.
+  const [codePalette, setCodePaletteState] = useState<CodePalette>(() => {
+    try { return localStorage.getItem('runit.code.palette') === 'Blocks' ? 'Blocks' : 'Variables' } catch { return 'Variables' }
+  })
+  const [codeMode, setCodeModeState] = useState<CodeMode>(() => {
+    try { return localStorage.getItem('runit.code.mode') === 'canvas' ? 'canvas' : 'manage' } catch { return 'manage' }
+  })
+  const setCodePalette = (palette: CodePalette) => {
+    setCodePaletteState(palette)
+    try { localStorage.setItem('runit.code.palette', palette) } catch { /* A preference only. */ }
+  }
+  const setCodeMode = (mode: CodeMode) => {
+    setCodeModeState(mode)
+    try { localStorage.setItem('runit.code.mode', mode) } catch { /* A preference only. */ }
+  }
   const [showCanvasGrid, setShowCanvasGrid] = useState(true)
   const [leftOpen, setLeftOpen] = useState(true)
   const [leftWidth, setLeftWidth] = useState(260)
@@ -362,11 +376,19 @@ export default function App() {
           )}
           {view === 'Code' && <div className="code-palette">
             <div className="code-palette-tabs" role="tablist" aria-label="Code palettes">
-              {codePalettes.map((palette) => <button key={palette} role="tab" aria-selected={codePalette === palette} className={codePalette === palette ? 'selected' : ''} onClick={() => { setCodePalette(palette); setCodeMode(palette === 'Blocks' ? 'canvas' : 'manage') }}>{palette}</button>)}
+              {codePalettes.map((palette) => <button key={palette} role="tab" aria-selected={codePalette === palette} className={codePalette === palette ? 'selected' : ''} onClick={() => {
+                // Blocks only make sense on the canvas; Variables keep whichever view is open (drag them onto blocks).
+                setCodePalette(palette)
+                if (palette === 'Blocks') setCodeMode('canvas')
+              }}>{palette}</button>)}
             </div>
             <div className="code-palette-body" aria-label={`${codePalette} palette`}>{codePalette === 'Variables' && <ObjectTreePalette workspace={objectWorkspace} />}{codePalette === 'Blocks' && <BlockPalette workspace={canvasWorkspace} />}</div>
             <div className="code-mode-footer">
-              <button className="code-mode-toggle" onClick={() => setCodeMode(codeMode === 'manage' ? 'canvas' : 'manage')}><ArrowLeftRight aria-hidden="true" /><span>Switch to {codeMode === 'manage' ? 'Canvas' : 'View / Manage'}</span></button>
+              <button className="code-mode-toggle" onClick={() => {
+                const next = codeMode === 'manage' ? 'canvas' : 'manage'
+                setCodeMode(next)
+                if (next === 'manage') setCodePalette('Variables')
+              }}><ArrowLeftRight aria-hidden="true" /><span>Switch to {codeMode === 'manage' ? 'Canvas' : 'View / Manage'}</span></button>
             </div>
           </div>}
           {view === 'Board' && <DevicesPalette workspace={devicesWorkspace} />}
@@ -480,12 +502,27 @@ export default function App() {
           <div className="screen-actions" aria-label={`${view} specific actions`}>
             {isCanvas && <button aria-label="Detailed block view" title="Toggle detailed block view" aria-pressed={canvasWorkspace.detailed} className={canvasWorkspace.detailed ? 'selected' : ''} onClick={() => canvasWorkspace.setDetailed(!canvasWorkspace.detailed)}><ListTree aria-hidden="true" /></button>}
             {isCanvas && <button aria-label={showCanvasGrid ? 'Hide canvas grid' : 'Show canvas grid'} title={showCanvasGrid ? 'Hide canvas grid' : 'Show canvas grid'} aria-pressed={showCanvasGrid} className={showCanvasGrid ? 'selected' : ''} onClick={() => setShowCanvasGrid(!showCanvasGrid)}><Grid2X2 aria-hidden="true" /></button>}
+            {isCanvas && <button aria-label="Copy block" title="Copy the selected block (Ctrl+C)" disabled={!canvasWorkspace.selectedBlock} onClick={canvasWorkspace.copy}><Copy aria-hidden="true" /></button>}
+            {isCanvas && <button aria-label="Paste block" title="Paste the copied block (Ctrl+V)" disabled={!canvasWorkspace.canPaste} onClick={canvasWorkspace.paste}><ClipboardPaste aria-hidden="true" /></button>}
+            {isCanvas && (
+              <button
+                aria-label="Empty variable: drag onto a block pin"
+                title="Empty variable: drag onto a block pin, then choose it in the block details"
+                draggable
+                className="canvas-empty-variable"
+                onDragStart={(event) => {
+                  event.dataTransfer.setData(OBJECT_DRAG_TYPE, '')
+                  event.dataTransfer.setData(objectKindDragType('any'), '')
+                  event.dataTransfer.effectAllowed = 'all'
+                }}
+              ><Variable aria-hidden="true" /></button>
+            )}
             {isCanvas && <button aria-label={canvasWorkspace.snap ? 'Turn snap to grid off' : 'Turn snap to grid on'} title={canvasWorkspace.snap ? 'Snap to grid: on' : 'Snap to grid: off'} aria-pressed={canvasWorkspace.snap} className={canvasWorkspace.snap ? 'selected' : ''} onClick={() => canvasWorkspace.setSnap(!canvasWorkspace.snap)}><Magnet aria-hidden="true" /></button>}
           </div>
           <button className="theme-toggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} onClick={toggleTheme}>{theme === 'dark' ? <Sun /> : <Moon />}</button>
         </div>
         <div className="main-surface">
-          {isCanvas && <CanvasEditor workspace={canvasWorkspace} showGrid={showCanvasGrid} diagnostics={canvasDiagnostics} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} />}
+          {isCanvas && <CanvasEditor workspace={canvasWorkspace} showGrid={showCanvasGrid} diagnostics={canvasDiagnostics} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} project={objectWorkspace.project} />}
           {view === 'Code' && codePalette === 'Variables' && codeMode === 'manage' && <ObjectTreeEditor workspace={objectWorkspace} />}
           {view === 'Board' && <DevicesEditor workspace={devicesWorkspace} session={bleConnection.session} />}
           {view === 'Settings' && settingsGroup === 'BLE' && <BleSettingsEditor workspace={bleWorkspace} />}
@@ -595,7 +632,7 @@ export default function App() {
         {rightOpen && (
           <div className="detail-content" aria-label={`${detail} content panel`}>
             {view === 'Board' && detail === 'Info' && <DeviceDetails workspace={devicesWorkspace} session={bleConnection.session} />}
-              {isCanvas && detail === 'Info' && <BlockDetails workspace={canvasWorkspace} diagnostics={canvasDiagnostics} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} />}
+              {isCanvas && detail === 'Info' && <BlockDetails workspace={canvasWorkspace} diagnostics={canvasDiagnostics} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} project={objectWorkspace.project} />}
             {view === 'Code' && codePalette === 'Variables' && !isCanvas && detail === 'Info' && (
               <ObjectDetails workspace={objectWorkspace} onJump={(id) => { setLeftOpen(true); objectWorkspace.select(id) }} />
             )}

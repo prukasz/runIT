@@ -1,0 +1,7 @@
+.type-badge-group { display: inline-flex; align-items: center; gap: 3px; vertical-align: middle; white-space: nowrap; }
+.type-badge, .type-badge-count { display: inline-flex; align-items: center; min-height: 17px; padding: 1px 5px; border: 1px solid color-mix(in srgb, var(--muted) 22%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--active) 6%, transparent); color: var(--muted); font: 600 10px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.type-badge-count { color: var(--active); background: color-mix(in srgb, var(--active) 10%, transparent); }
+.type-badge.is-number { color: #4aa8ff; border-color: color-mix(in srgb, #4aa8ff 25%, transparent); background: color-mix(in srgb, #4aa8ff 10%, transparent); }
+.type-badge.is-text { color: #bf91f3; border-color: color-mix(in srgb, #bf91f3 25%, transparent); background: color-mix(in srgb, #bf91f3 10%, transparent); }
+.type-badge.is-bool { color: #2dd4bf; border-color: color-mix(in srgb, #2dd4bf 25%, transparent); background: color-mix(in srgb, #2dd4bf 10%, transparent); }
+.type-badge.is-other { color: #e9ad50; border-color: color-mix(in srgb, #e9ad50 25%, transparent); background: color-mix(in srgb, #e9ad50 10%, transparent); }

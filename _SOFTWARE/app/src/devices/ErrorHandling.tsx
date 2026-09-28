@@ -1,6 +1,6 @@
-import { Trash2 } from 'lucide-react'
+import { AlertTriangle, Check, Trash2 } from 'lucide-react'
 import { runitErrorCatalog } from '../domain/descriptors'
-import { clampErrorActions, decodeErrorActions, encodeErrorActions, ERROR_ACTION_LEVELS, findContract, initialParameterValue, reachableErrorLevels, SET_ERROR_HANDLING } from '../domain/devices'
+import { clampErrorActions, decodeErrorActions, DISABLED_IMPORTANCE_WARNING, encodeErrorActions, ERROR_ACTION_LEVELS, findContract, initialParameterValue, reachableErrorLevels, SET_ERROR_HANDLING } from '../domain/devices'
 import type { ErrorAction, ResolvedDevice } from '../domain/devices'
 import type { ProjectAction } from '../domain/project'
 import type { DevicesWorkspace } from './useDevicesWorkspace'
@@ -8,9 +8,9 @@ import { runitDeviceCatalog } from '../domain/descriptors'
 
 /*
  * A device's error handling (sys_device_set_error_handling): its importance,
- * which selects the minimum severity to handle (Disabled ignores noncritical
- * errors; Critical errors always go through), and the action per level: none, a
- * built-in static action or one of the project's recorded actions.
+ * which selects the minimum severity to handle (Disabled ignores every error,
+ * Critical ones included; a device starts at Low, Critical only), and the action
+ * per level: none, a built-in static action or one of the project's recorded actions.
  */
 
 const levelName = (level: number): string => runitErrorCatalog().level(level)?.alias ?? `Level ${level}`
@@ -23,6 +23,7 @@ export function ErrorActionsField({ value, actions, importance, onChange }: { va
   const current = decodeErrorActions(value)
   const staticActions = runitDeviceCatalog().staticActions
   const set = (index: number, option: string) => onChange(encodeErrorActions(current.map((entry, at) => (at === index ? actionOf(option) : entry))))
+  if (!reachable.length) return <p className="program-diag is-warning"><AlertTriangle aria-hidden="true" />{DISABLED_IMPORTANCE_WARNING}</p>
   return (
     <div className="devices-error-actions">
       {ERROR_ACTION_LEVELS.map((level, index) => {
@@ -59,8 +60,9 @@ export function ErrorHandlingCard({ w, device }: { w: DevicesWorkspace; device: 
   const step = w.setup.find((entry) => entry.device === device.ref && entry.contract === SET_ERROR_HANDLING)
   const importanceParameter = contract.parameters.find((parameter) => parameter.name === 'importance')
   const actionsParameter = contract.parameters.find((parameter) => parameter.name === 'actions')
-  // A new device starts at 0 (calloc in sys_device.c): Disabled until set.
-  const importance = typeof step?.values.importance === 'number' ? step.values.importance : 0
+  // What a device starts with (sys_device.c: Low), published as the packet field's default.
+  const start = importanceParameter?.defaultValue ?? 0
+  const importance = typeof step?.values.importance === 'number' ? step.values.importance : start
   const actions = Array.isArray(step?.values.actions) ? step.values.actions : actionsParameter ? (initialParameterValue(actionsParameter) as number[]) : [0, 0, 0, 0, 0]
   const choices = importanceParameter?.choices ?? w.catalog.importance
   const save = (patch: { importance?: number; actions?: number[] }) => {
@@ -69,7 +71,6 @@ export function ErrorHandlingCard({ w, device }: { w: DevicesWorkspace; device: 
     if (step) w.updateSetup(step.id, { values })
     else w.addSetup(device.ref, SET_ERROR_HANDLING, values)
   }
-  const current = choices.find((choice) => choice.value === importance)
 
   return (
     <div className="ble-card">
@@ -77,17 +78,34 @@ export function ErrorHandlingCard({ w, device }: { w: DevicesWorkspace; device: 
         <h3>Error handling</h3>
         {step && <button type="button" className="devices-card-clear" onClick={() => w.removeSetup(step.id)} title="Back to the firmware default"><Trash2 aria-hidden="true" />Clear</button>}
       </div>
-      <p className="devices-muted">Choose which error severities this device handles. Low handles Critical only; Medium also handles High; High also handles Medium; Critical handles all. A Critical error always stops the system. Disabled (the default) ignores noncritical errors.</p>
+      <p className="devices-muted">Each step up in importance handles one more, less severe error level. A handled error runs the action set for its severity; the others are ignored.</p>
+      <table className="devices-importance-table">
+        <thead>
+          <tr><th scope="col">Importance</th>{ERROR_ACTION_LEVELS.map((level) => <th key={level} scope="col">{levelName(level)}</th>)}</tr>
+        </thead>
+        <tbody>
+          {choices.map((choice) => {
+            const handled = reachableErrorLevels(choice.value)
+            return (
+              <tr key={choice.value} className={choice.value === importance ? 'is-current' : ''} aria-current={choice.value === importance ? 'true' : undefined}>
+                <th scope="row">{choice.label}</th>
+                {ERROR_ACTION_LEVELS.map((level) => <td key={level}>{handled.includes(level) ? <Check aria-label="handled" /> : <span aria-label="ignored">–</span>}</td>)}
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      <p className="devices-hint">A handled Critical error also halts the program and suspends the devices. Disabled ignores every error.</p>
       <div className="devices-error-grid">
         <label className="devices-error-action">
           <span>Importance</span>
           <select className={`devices-importance is-level-${importance}`} value={importance} onChange={(event) => save({ importance: Number(event.target.value) })}>
-            {choices.map((choice) => <option key={choice.value} value={choice.value} title={choice.description}>{choice.label}{choice.value === 0 && !step ? ' (default)' : ''}</option>)}
+            {choices.map((choice) => <option key={choice.value} value={choice.value} title={choice.description}>{choice.label}{choice.value === start ? ' (default)' : ''}</option>)}
           </select>
         </label>
-        {current?.description && <p className="devices-hint">{current.description}</p>}
       </div>
       <h4 className="devices-subheading">When an error happens</h4>
+      <p className="devices-hint">An action for each severity the importance handles.</p>
       <ErrorActionsField value={actions} actions={w.actions} importance={importance} onChange={(next) => save({ actions: next })} />
     </div>
   )

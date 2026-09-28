@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, Boxes, ChevronDown, ChevronRight, Eye, Folder, FolderPlus, Grid2X2, Link2, Plus, Search, Trash2, Type, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Boxes, ChevronDown, ChevronRight, Eye, Folder, FolderPlus, Grid2X2, Link2, Plus, Search, Trash2, X } from 'lucide-react'
 import { TreeSlab } from './components/TreeSlab'
+import { TypeBadge, ValueKindBadge } from './components/TypeBadge/TypeBadge'
+import { OBJECT_DRAG_TYPE, objectKindDragType, variableKind } from './domain/canvas'
 import { compileObjects } from './domain/compiler/objects'
 import { runitVmCatalog } from './domain/descriptors'
 import type { VmObjectType } from './domain/descriptors'
@@ -485,10 +487,11 @@ export const matchesSearch = (name: string, query: string): boolean => {
 export type ObjectWorkspace = ReturnType<typeof useObjectTreeWorkspace>
 
 function ObjectDesignator({ node }: { node: ObjectNode }) {
-  const category = node.kind === 'reference' ? 'reference' : node.kind === 'folder' ? 'folder' : node.type === 'STR' ? 'text' : node.type === 'B' ? 'bool' : 'number'
-  const title = node.kind === 'reference' ? 'Reference' : node.kind === 'folder' ? 'Folder (owns its children)' : node.type === 'B' ? 'Boolean (T/F)' : node.type === 'STR' ? 'String text' : `${node.type} number`
+  if (node.kind === 'value') return <ValueKindBadge type={node.type} />
+  const category = node.kind === 'reference' ? 'reference' : 'folder'
+  const title = node.kind === 'reference' ? 'Reference' : 'Folder (owns its children)'
   return <span className={`object-type-icon ${category}`} title={title} aria-hidden="true">
-    {category === 'reference' ? <Link2 /> : category === 'folder' ? <Folder /> : category === 'text' ? <Type /> : category === 'bool' ? <span className="object-bool-glyph">T/F</span> : <span className="object-number-glyph">1.2.3</span>}
+    {category === 'reference' ? <Link2 /> : <Folder />}
   </span>
 }
 
@@ -553,7 +556,10 @@ export function ObjectTreePalette({ workspace: w }: { workspace: ObjectWorkspace
           onDragStart={(event) => {
             event.stopPropagation()
             event.dataTransfer.setData('text/plain', node.id)
-            event.dataTransfer.effectAllowed = 'move'
+            // Also a variable for the canvas: dropped on a block pin it becomes that pin's source.
+            event.dataTransfer.setData(OBJECT_DRAG_TYPE, node.id)
+            event.dataTransfer.setData(objectKindDragType(variableKind(node.kind === 'reference' ? findObject(w.project, node.targetId)?.node : node)), '')
+            event.dataTransfer.effectAllowed = 'all'
             setDraggedId(node.id)
           }}
           onDragEnd={() => {
@@ -642,9 +648,7 @@ export function ObjectTreePalette({ workspace: w }: { workspace: ObjectWorkspace
           label={node.kind === 'reference' ? findObject(w.project, node.targetId)?.node.name ?? node.name : node.name}
           badges={
             node.kind === 'value' ? (
-              <span className="tree-slab-chip">
-                {node.length > 1 ? `${node.type}[${node.length}]` : node.type}
-              </span>
+              <TypeBadge type={node.type} count={node.length > 1 ? node.length : undefined} />
             ) : node.kind === 'folder' && node.children.length > 0 ? (
               <span className="tree-slab-badge count" title={`${node.children.length} items`}>
                 {node.children.length}

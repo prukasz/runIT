@@ -4,14 +4,13 @@
   "title": "runIT device definition",
   "description": "Shape emitted by data-structures/auto-annotations/device/generate-devices.py for one dec_device_*.h. generate-devices.py validates every file it writes against this schema before writing it - see device-annotations.md.",
   "type": "object",
-  "required": ["$schema", "schemaVersion", "kind", "id", "version", "title", "description", "source_file", "install", "contracts"],
+  "required": ["$schema", "schemaVersion", "kind", "id", "title", "description", "source_file", "install", "contracts"],
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
     "schemaVersion": { "const": 1 },
     "kind": { "const": "device-definition" },
     "id": { "type": "string" },
-    "version": { "type": "string" },
     "title": { "type": "string" },
     "description": { "type": "string" },
     "protocols": { "type": "array", "items": { "type": "string" } },
@@ -65,13 +64,11 @@
         "min": { "type": ["integer", "null"] },
         "max": { "type": ["integer", "null"] },
         "one_of": { "type": "array", "items": { "$ref": "#/$defs/oneOfValue" } },
-        "available": { "type": "array", "items": { "$ref": "#/$defs/oneOfValue" } },
         "default": { "type": ["integer", "null"] },
         "sentinel": { "type": ["integer", "null"] },
         "unit": { "type": "string" },
         "enum_ref": { "type": "string" },
         "group": { "type": "string" },
-        "role": { "type": "string" },
         "desc": { "type": "string" },
           "note": { "type": "string" },
           "encoding": { "type": "string" },
@@ -101,7 +98,9 @@
             "additionalProperties": false,
             "properties": {
               "fields": { "type": "array", "items": { "type": "string" } },
-              "sentinel_field": { "type": ["string", "null"] }
+              "sentinel_field": { "type": ["string", "null"] },
+              "alias": { "type": "string", "description": "What the pin is for (pin_ref_wire_t @alias); the app falls back to a name from the field." },
+              "note": { "type": "string", "description": "Shown behind the field's info button (pin_ref_wire_t @note)." }
             }
           }
         }
@@ -117,12 +116,11 @@
         "type": { "type": "string" },
         "unit": { "type": "string" },
         "one_of": { "type": "array", "items": { "$ref": "#/$defs/oneOfValue" } },
-        "available": { "type": "array", "items": { "$ref": "#/$defs/oneOfValue" } },
         "min": { "type": ["integer", "string"] },
         "max": { "type": ["integer", "string"] },
         "default": { "type": ["integer", "string"] },
-        "required": { "type": "boolean" },
         "enum_ref": { "type": "string" },
+        "note": { "type": "string", "description": "Shown behind the field's info button; from @param @note or the @arg property's @note." },
         "instance": { "const": true },
         "device_wide": { "const": true, "description": "The field selects nothing (//@param <field> @device-wide): the call applies to the whole device; the field is sent as 0." }
       }
@@ -135,7 +133,7 @@
         "packet": { "type": "string" },
         "alias": { "type": "string" },
         "description": { "type": "string" },
-        "returns": { "type": "string" },
+        "returns": { "type": "string", "description": "Name of the answer's value (the response packet gives its type and unit)." },
         "parameters": { "type": "array", "items": { "$ref": "#/$defs/contractParameter" } },
         "packet_definition": { "$ref": "#/$defs/packetDefinition" }
       }

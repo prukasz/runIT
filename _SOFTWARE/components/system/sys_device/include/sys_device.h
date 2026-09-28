@@ -76,12 +76,14 @@ typedef struct {
  * @brief Device importance level.
  *
  * Determines the minimum error severity handled by the device policy.
- * CRITICAL errors always go through, including when importance is NONE.
+ * CRITICAL errors go through at every importance except NONE, which ignores
+ * every error of the device (the user's choice, for a device under test).
+ * A new device starts at LOW.
  */
 //#ref-enum @alias Device Error Importance
 typedef enum sys_device_importance_e {
-  SYS_DEV_IMPORTANCE_NONE = 0, //@alias Disabled @description Ignores the device's errors except critical ones (a device under test). Every device starts here.
-  SYS_DEV_IMPORTANCE_LOW = 1, //@alias Low @description Handles only critical device errors.
+  SYS_DEV_IMPORTANCE_NONE = 0, //@alias Disabled @description Ignores every error of the device, critical ones included: nothing stops the system when it fails. Only for a device under test.
+  SYS_DEV_IMPORTANCE_LOW = 1, //@alias Low @description Handles only critical device errors. Every device starts here.
   SYS_DEV_IMPORTANCE_MEDIUM = 2, //@alias Medium @description Handles high and critical device errors.
   SYS_DEV_IMPORTANCE_HIGH = 3, //@alias High @description Handles medium, high and critical device errors.
   SYS_DEV_IMPORTANCE_CRITICAL = 4, //@alias Critical @description Handles every device error severity.
@@ -126,7 +128,7 @@ typedef struct sys_device_t {
    * @brief Per-instance error handling mode - see sys_device_report_error().
    */
   sys_device_action_t actions[5];       /* indexed by se_level_e (1..4) */
-  sys_device_importance_e importance; /* NONE ignores non-critical errors; higher importance handles more severities */
+  sys_device_importance_e importance; /* NONE ignores every error; LOW (the start value) handles critical ones; higher handles more severities */
 
   bool onboard; /* baked onto the PCB (sys_device_set_onboard): users can't uninstall it */
 
@@ -205,12 +207,13 @@ sys_device_t* sys_device_get_by_id(uint8_t device_id);
  * The fault severity level is determined automatically from the supplied error node's tag
  * (via SE_get_tag_level()).
  *
- * If dev->importance is SYS_DEV_IMPORTANCE_NONE, non-critical errors are
- * ignored (a device under test; no actions are triggered).
+ * If dev->importance is SYS_DEV_IMPORTANCE_NONE, every error is ignored,
+ * critical ones included (a device under test; no actions are triggered, the
+ * chain is still logged).
  *
- * If the severity is SE_LEVEL_CRITICAL, whatever the importance (NONE
- * included): it latches the fault in the VM, halts the VM, suspends all
- * devices, and invokes dev->actions[SE_LEVEL_CRITICAL].
+ * If the severity is SE_LEVEL_CRITICAL (any importance but NONE): it latches
+ * the fault in the VM, halts the VM, suspends all devices, and invokes
+ * dev->actions[SE_LEVEL_CRITICAL].
  *
  * For non-critical errors (LOW, MEDIUM, HIGH), importance is a minimum
  * severity threshold: LOW handles none, MEDIUM handles HIGH, HIGH handles
@@ -229,7 +232,7 @@ SE_MUST_USE err_h sys_device_report_error(uint8_t device_id, err_h error);
 SE_MUST_USE err_h sys_device_report_error_with_level(uint8_t device_id, se_level_e level, err_h error);
 
 /**
- * @brief Returns true if device has SYS_DEV_IMPORTANCE_NONE (ignored test device).
+ * @brief Returns true if device has SYS_DEV_IMPORTANCE_NONE (ignored test device: none of its errors are handled).
  */
 bool sys_device_is_ignored(uint8_t device_id);
 

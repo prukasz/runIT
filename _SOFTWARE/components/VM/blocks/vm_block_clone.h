@@ -40,7 +40,7 @@ static inline void vm_blk_clone(vm_block_h b) {
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
-//#vm-block VM_BLK_CLONE @title Clone @category data @activation triggered Runs when the source (input 0) is fresh and the block is enabled.
+//#vm-block VM_BLK_CLONE @title Clone @category data @activation triggered Runs when the source (input 0) is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled.
 //@block-description Copies the source into a tree this block owns, hung off a pointer cell; rebuilds only when the source's shape changes.
 //@in 0 source @title Source @value object
 //@in 1 cell @title Pointer cell @value ptr-cell

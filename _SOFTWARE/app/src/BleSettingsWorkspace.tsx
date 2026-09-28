@@ -15,6 +15,7 @@ import {
 import { EditableField } from './components/EditableField'
 import { ListableField } from './components/ListableField'
 import { TreeSlab } from './components/TreeSlab'
+import { TypeBadge } from './components/TypeBadge/TypeBadge'
 import { runitStreamCatalog } from './domain/descriptors'
 import { parseSettings } from './domain/project'
 import type { BleCharacteristicSettings, BleGeneralSettings, BleProfile, BleServiceSettings } from './domain/project'
@@ -1126,7 +1127,7 @@ export function BleDetails({
         <h2>{char.name}</h2>
         {isSystemBleChar(char) && <span className="conn-system-label">SYS</span>}
         <span className="ble-uuid-chip">{char.uuid}</span>
-        <span className="object-details-badge">{char.format}</span>
+        <TypeBadge type={char.format} />
         {!isSystemBleChar(char) && (
           <button
             type="button"

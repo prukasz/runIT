@@ -3,9 +3,8 @@
   "schemaVersion": 1,
   "kind": "device-definition",
   "id": "device_gpio_esp",
-  "version": "1.0.0",
   "title": "ESP32 native GPIO",
-  "description": "The board's own onboard GPIO pins - digital input/output, interrupts, ADC voltage reads and PWM outputs. Always available; nothing to install on the wire beyond a device ID.",
+  "description": "ESP32-S3 GPIO. Some pins are reserved for internal use, the rest are free for yours.",
   "protocols": [
     "native"
   ],
@@ -40,8 +39,6 @@
       "fields": {
         "device_id": {
           "type": "uint8_t",
-          "required": true,
-          "min": 0,
           "max": 127
         }
       }
@@ -253,8 +250,7 @@
               "description": "Measures the exact voltage on the pin instead of just on/off - use to read sensors that report a varying value, like a potentiometer or a temperature sensor"
             }
           ],
-          "enum_ref": "sys_io_mode_e",
-          "alias": "Pin Mode"
+          "enum_ref": "sys_io_mode_e"
         }
       ],
       "alias": "Configure pin mode",
@@ -417,13 +413,6 @@
         {
           "name": "mode",
           "alias": "Trigger Mode"
-        },
-        {
-          "name": "debounce",
-          "required": false,
-          "default": 0,
-          "alias": "Debounce",
-          "type": "uint8_t"
         }
       ],
       "alias": "Configure pin interrupt",
@@ -598,7 +587,6 @@
         },
         {
           "name": "level",
-          "alias": "Level",
           "type": "bool"
         }
       ],
@@ -695,7 +683,7 @@
         }
       ],
       "alias": "Read pin level",
-      "returns": "level @type bool",
+      "returns": "level",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
         "class_name": "SYS_CONTRACTS",
@@ -867,8 +855,8 @@
         }
       ],
       "alias": "Read pin voltage",
-      "returns": "voltage_mV @type uint32_t @unit mV",
       "description": "Pin must be configured in ADC mode first.",
+      "returns": "voltage_mV",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
         "class_name": "SYS_CONTRACTS",
@@ -955,10 +943,7 @@
         {
           "name": "frequency_Hz",
           "min": 5,
-          "max": 5000000,
-          "alias": "PWM Frequency",
-          "type": "uint32_t",
-          "unit": "Hz"
+          "max": 5000000
         }
       ],
       "alias": "Set PWM frequency",
@@ -1058,8 +1043,8 @@
           "min": 0,
           "max": 4096,
           "alias": "Duty",
-          "type": "uint32_t",
-          "unit": "ticks"
+          "unit": "ticks",
+          "note": "4096 = always on."
         }
       ],
       "alias": "Set PWM duty",

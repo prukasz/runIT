@@ -3,7 +3,6 @@
   "schemaVersion": 1,
   "kind": "device-definition",
   "id": "device_pca9685",
-  "version": "1.0.0",
   "title": "PCA9685 PWM expander",
   "description": "Sixteen-channel I2C PWM expander with optional active-low output enable.",
   "protocols": [
@@ -45,19 +44,14 @@
       "fields": {
         "device_id": {
           "type": "uint8_t",
-          "required": true,
-          "min": 0,
           "max": 127
         },
         "i2c_bus": {
-          "type": "uint8_t",
-          "required": true,
-          "min": 0,
-          "max": 1
+          "type": "uint8_t"
         },
         "i2c_addr": {
           "type": "uint8_t",
-          "required": true,
+          "alias": "I2C Address",
           "one_of": [
             64,
             65,
@@ -115,35 +109,32 @@
             118,
             119
           ],
-          "note": "Address pins A0-A5 select the address; 0x70 is All Call and 0x78-0x7F are reserved"
+          "note": "Address pins A0-A5 select the address; 0x70 is All Call and 0x78-0x7F are reserved."
         },
         "oe_pin_device_id": {
           "type": "uint8_t",
-          "group": "enable-output-pin",
-          "role": "device_id"
+          "group": "oe_pin"
         },
         "oe_pin_pin": {
           "type": "uint8_t",
           "sentinel": 255,
-          "group": "enable-output-pin",
-          "role": "pin",
-          "note": "SYS_GPIO_NONE disables the output-enable pin; the pin is active-low"
+          "group": "oe_pin"
         },
         "oe_pin_mode": {
           "type": "uint8_t",
           "enum_ref": "sys_io_mode_e",
-          "group": "enable-output-pin",
-          "role": "mode"
+          "group": "oe_pin"
         }
       },
       "groups": {
-        "enable-output-pin": {
+        "oe_pin": {
           "fields": [
             "oe_pin_device_id",
             "oe_pin_pin",
             "oe_pin_mode"
           ],
-          "sentinel_field": "oe_pin_pin"
+          "sentinel_field": "oe_pin_pin",
+          "note": "Active-low."
         }
       }
     }
@@ -306,7 +297,7 @@
         }
       ],
       "alias": "Read output level",
-      "returns": "level @type bool",
+      "returns": "level",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
         "class_name": "SYS_CONTRACTS",
@@ -422,7 +413,6 @@
           "min": 0,
           "max": 4095,
           "alias": "Duty",
-          "type": "uint32_t",
           "unit": "ticks"
         }
       ],
@@ -474,10 +464,7 @@
           "name": "frequency_Hz",
           "min": 24,
           "max": 1526,
-          "default": 50,
-          "alias": "PWM Frequency",
-          "type": "uint32_t",
-          "unit": "Hz"
+          "default": 50
         }
       ],
       "alias": "Set PWM frequency (all channels)",

@@ -121,7 +121,7 @@ function Commands({ workspace: w, device, session }: { workspace: DevicesWorkspa
           <div className="devices-contract-body">
             {contract.description && <p className="devices-muted">{contract.description}</p>}
             {warnings.map((warning) => <p key={warning} className="program-diag is-warning"><AlertTriangle aria-hidden="true" />{warning}</p>)}
-            <ContractFields contract={contract} deviceId={device.deviceId} values={valuesOf(contract)} actions={w.actions} onChange={(next) => setValues((current) => ({ ...current, [contract.id]: next }))} />
+            <ContractFields contract={contract} values={valuesOf(contract)} actions={w.actions} onChange={(next) => setValues((current) => ({ ...current, [contract.id]: next }))} />
             {contract.returns && <p className="devices-hint">Returns {contract.returns.split(' @')[0]}</p>}
             <div className="program-actions">
               <button type="button" className="program-primary" disabled={!session || busy} onClick={() => void run(contract.id, contract.label, one(contract))}><Send aria-hidden="true" /><span>Send</span></button>

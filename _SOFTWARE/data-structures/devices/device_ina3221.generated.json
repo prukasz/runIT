@@ -3,7 +3,6 @@
   "schemaVersion": 1,
   "kind": "device-definition",
   "id": "device_ina3221",
-  "version": "1.0.0",
   "title": "INA3221 power monitor",
   "description": "Three-channel I2C bus-voltage and shunt-current monitor with warning and critical alerts.",
   "protocols": [
@@ -49,38 +48,30 @@
       "fields": {
         "device_id": {
           "type": "uint8_t",
-          "required": true,
-          "min": 0,
           "max": 127
         },
         "i2c_bus": {
-          "type": "uint8_t",
-          "required": true,
-          "min": 0,
-          "max": 1
+          "type": "uint8_t"
         },
         "i2c_addr": {
           "type": "uint8_t",
-          "required": true,
+          "alias": "I2C Address",
           "one_of": [
             64,
             65,
             66,
             67
           ],
-          "note": "A0 pin strap (GND/Vs+/SDA/SCL) selects the address"
+          "note": "The A0 pin strap (GND/Vs+/SDA/SCL) selects the address."
         },
         "crit_pin_device_id": {
           "type": "uint8_t",
-          "group": "critical-alert-pin",
-          "role": "device_id"
+          "group": "crit_pin"
         },
         "crit_pin_pin": {
           "type": "uint8_t",
           "sentinel": 255,
-          "group": "critical-alert-pin",
-          "role": "pin",
-          "note": "SYS_GPIO_NONE disables external critical-alert reporting; the pin is active-low"
+          "group": "crit_pin"
         },
         "crit_pin_mode": {
           "type": "uint8_t",
@@ -101,20 +92,16 @@
             }
           ],
           "enum_ref": "sys_io_mode_e",
-          "group": "critical-alert-pin",
-          "role": "mode"
+          "group": "crit_pin"
         },
         "warn_pin_device_id": {
           "type": "uint8_t",
-          "group": "warning-alert-pin",
-          "role": "device_id"
+          "group": "warn_pin"
         },
         "warn_pin_pin": {
           "type": "uint8_t",
           "sentinel": 255,
-          "group": "warning-alert-pin",
-          "role": "pin",
-          "note": "SYS_GPIO_NONE disables external warning-alert reporting; the pin is active-low"
+          "group": "warn_pin"
         },
         "warn_pin_mode": {
           "type": "uint8_t",
@@ -135,26 +122,27 @@
             }
           ],
           "enum_ref": "sys_io_mode_e",
-          "group": "warning-alert-pin",
-          "role": "mode"
+          "group": "warn_pin"
         }
       },
       "groups": {
-        "critical-alert-pin": {
+        "crit_pin": {
           "fields": [
             "crit_pin_device_id",
             "crit_pin_pin",
             "crit_pin_mode"
           ],
-          "sentinel_field": "crit_pin_pin"
+          "sentinel_field": "crit_pin_pin",
+          "note": "Active-low."
         },
-        "warning-alert-pin": {
+        "warn_pin": {
           "fields": [
             "warn_pin_device_id",
             "warn_pin_pin",
             "warn_pin_mode"
           ],
-          "sentinel_field": "warn_pin_pin"
+          "sentinel_field": "warn_pin_pin",
+          "note": "Active-low."
         }
       }
     }
@@ -179,7 +167,7 @@
         }
       ],
       "alias": "Read bus voltage",
-      "returns": "voltage_mV @type int32_t @unit mV",
+      "returns": "voltage_mV",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
         "class_name": "SYS_CONTRACTS",
@@ -223,7 +211,7 @@
         }
       ],
       "alias": "Read shunt current",
-      "returns": "current_mA @type int32_t @unit mA",
+      "returns": "current_mA",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
         "class_name": "SYS_CONTRACTS",
@@ -266,12 +254,6 @@
           "alias": "Monitor Channel"
         },
         {
-          "name": "threshold_mA",
-          "alias": "Current Threshold",
-          "type": "int32_t",
-          "unit": "mA"
-        },
-        {
           "name": "alert",
           "one_of": [
             {
@@ -291,6 +273,9 @@
           ],
           "enum_ref": "sys_power_events_e",
           "alias": "Alert Severity"
+        },
+        {
+          "name": "threshold_mA"
         }
       ],
       "alias": "Configure current alert",

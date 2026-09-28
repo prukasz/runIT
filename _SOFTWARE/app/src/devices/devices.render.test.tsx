@@ -49,16 +49,26 @@ describe('Board view renders', () => {
     expect(renderToString(<Harness part="editor" selection={{ kind: 'device', ref: boardDeviceRef(3) }} />)).toContain('Pins it uses')
     const ads = renderToString(<Harness part="editor" selection={{ kind: 'device', ref: boardDeviceRef(2) }} />)
     expect(ads.match(/<small>Device default<\/small>/g)).toHaveLength(8)
+    expect(ads).toContain('ALERT')
+  })
+
+  it('puts a field note behind an (i) button, closed until clicked', () => {
+    const user = renderToString(<Harness part="editor" selection={{ kind: 'device', ref: 'd1' }} />)
+    expect(user).toMatch(/<button type="button" class="field-note-toggle [^"]*" aria-label="Show note" aria-expanded="false"/)
+    expect(user).toMatch(/<span id="[^"]+" class="field-note" role="note" hidden="">Address pins A0-A5 select the address/)
+    expect(user).toMatch(/role="note" hidden="">Active-low\.<\/span>/)
   })
 
   it('shows only actions admitted by each importance threshold', () => {
     const labels = (importance: number) => [...renderToString(<ErrorActionsField value={[0, 0, 0, 0, 0]} actions={[]} importance={importance} onChange={() => {}} />).matchAll(/<label class="devices-error-action"><span>([^<]+)<\/span>/g)].map((match) => match[1])
     expect([0, 1, 2, 3, 4].map(labels)).toEqual([
-      ['Critical'],
+      [],
       ['Critical'],
       ['High', 'Critical'],
       ['Medium', 'High', 'Critical'],
       ['Low', 'Medium', 'High', 'Critical'],
     ])
+    const disabled = renderToString(<ErrorActionsField value={[0, 0, 0, 0, 0]} actions={[]} importance={0} onChange={() => {}} />)
+    expect(disabled).toContain('Disabled ignores every error of this device, Critical included')
   })
 })

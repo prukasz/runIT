@@ -170,13 +170,13 @@
           "name": "SYS_DEV_IMPORTANCE_NONE",
           "value": 0,
           "alias": "Disabled",
-          "description": "Ignores the device's errors except critical ones (a device under test). Every device starts here."
+          "description": "Ignores every error of the device, critical ones included: nothing stops the system when it fails. Only for a device under test."
         },
         {
           "name": "SYS_DEV_IMPORTANCE_LOW",
           "value": 1,
           "alias": "Low",
-          "description": "Handles only critical device errors."
+          "description": "Handles only critical device errors. Every device starts here."
         },
         {
           "name": "SYS_DEV_IMPORTANCE_MEDIUM",
@@ -1650,13 +1650,13 @@
       "enum": "sys_device_importance_e",
       "value": 0,
       "alias": "Disabled",
-      "description": "Ignores the device's errors except critical ones (a device under test). Every device starts here."
+      "description": "Ignores every error of the device, critical ones included: nothing stops the system when it fails. Only for a device under test."
     },
     "SYS_DEV_IMPORTANCE_LOW": {
       "enum": "sys_device_importance_e",
       "value": 1,
       "alias": "Low",
-      "description": "Handles only critical device errors."
+      "description": "Handles only critical device errors. Every device starts here."
     },
     "SYS_DEV_IMPORTANCE_MEDIUM": {
       "enum": "sys_device_importance_e",

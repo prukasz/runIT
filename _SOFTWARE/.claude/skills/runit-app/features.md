@@ -71,13 +71,13 @@ Status tags: **✅ decided** (survey 2026-09-24, §6) · **⚠ firmware gap** (�
 ### CAN — Code: canvas
 | ID | Feature | Notes |
 |---|---|---|
-| CAN-1 | Block palette + object palette (tree) on the left, drag & drop onto canvas | blocks from `vm/blocks/*.generated.json`. ✅ blocks 2026-09-27 (drag or click); objects onto pins come with wiring (§8) |
+| CAN-1 | Block palette + object palette (tree) on the left, drag & drop onto canvas | blocks from `vm/blocks/*.generated.json`. ✅ blocks 2026-09-27 (drag or click); ✅ variables onto pins 2026-09-28 (§8.1 chips) |
 | CAN-2 | Feature list (created features) as a palette source | DEV-2 |
 | CAN-3 | Block settings in the inspector when a block is selected | pins, `custom` fields from descriptor `state` layout (source `user`). ✅ 2026-09-27 (`BlockDetails`, formula editor for EXPR / EXPR_BIT) |
 | CAN-4 | **Multiple canvases**, executed in order (canvas 1 first) | ✅ Node-RED-style flow tabs sharing the same objects; one program, tabs concatenated in tab order within a pass. A tab can be disabled: the compiler leaves it out (re-upload needed, no live toggle) |
 | CAN-5 | Two block looks: basic and extended | ✅ 2026-09-27: toolbar toggle (saved preference), inspector can fix each block to simple/detailed (saved in project); basic = type name + input/output pins, extended = ID, formula or descriptor user settings, pin paths and activation. Red EN / green ENO side strips always visible; referenced ENO storage is allocated automatically; live values / runtime state await DBG |
 | CAN-6 | Snap-to-grid | ✅ 2026-09-27: 20-unit grid, toggle in the action bar; blocks will snap their top-left corner |
-| CAN-7 | Loops visibly marked (FOR span) | FOR span is a derived field in the descriptor |
+| CAN-7 | Loops visibly marked (FOR span) | ✅ 2026-09-28: FOR body = the blocks its Body handle gates; tinted areas for loops and branches (§8.1) |
 | CAN-8 | Live values on blocks and wires while running | DBG |
 
 ### CMP — Compiler (app-side, pure TS)
@@ -239,7 +239,7 @@ New open questions go below this table.
 | i18n | `i18next` + `react-i18next` | P-10 |
 | Gamepad | browser Gamepad API (no library) | REM-4 |
 
-## 8. Wiring and enables (proposed 2026-09-27 — owner's answers pending)
+## 8. Wiring and enables (proposed 2026-09-27; decided 2026-09-28, §8.1 wins where they differ)
 
 Firmware semantics this rests on: `components/VM/VM_EXEC.MD` §1 and `vm_block_is_enabled()` (`core/block/vm_block.h`).
 
@@ -268,3 +268,31 @@ Firmware semantics this rests on: `components/VM/VM_EXEC.MD` §1 and `vm_block_i
 **Execution order (proposal):** sorted from the wires per canvas (a block runs after what it reads), position left→right, top→bottom as the tie-break, the order shown on each block; a cycle reads the previous pass (the closing wire marked); FOR's body becomes a frame on the canvas instead of the `body` count. Canvases run in tab order.
 
 **Decisions asked of the owner:** (1) variables as pin labels (recommended) or canvas nodes; (2) automatic order from wires (recommended) or manual; (3) EN + ENO on every block (recommended). **Firmware (G-11):** triggered blocks never run on an enable alone; proposed fix: a fresh enable source counts as a trigger.
+
+### 8.1 Decided 2026-09-28 (owner's notes `wire.md` + answers); built the same day
+
+Built: `domain/canvas/arrange.ts` (order, gate inheritance, loop bodies), `wiring.ts`, `variablePath.ts`; canvas wires, pin picker, chips, block details, areas (runit-app SKILL.md code map). Firmware G-11 fixed, not yet tested on a board.
+
+**Always run and order (owner, 2026-09-28).** An unlinked EN always stays available: a block set to *Always run* (`inheritGates: false`) takes no gates from its feeders and runs every pass. Execution: per canvas, the trees (blocks joined by wires) top to bottom, inside a tree after what feeds it, then the next canvas.
+
+**Gates flow down data wires (EN without wiring EN).**
+- A *gate* is an output of kind `gate` (IF yes/no, SWITCH branch, PERIODIC tick, EDGE pulse) or any bool output the user drops on a block's red EN strip.
+- A block with no explicit gate **inherits the gates of the blocks feeding its data inputs** (from blocks, not from variables): the compiler copies their EN sources into its EN list. It copies the gate, never the upstream ENO: a triggered producer (EXPR, SET) drops ENO in every pass without fresh data, and linking that ENO would switch every-pass consumers (IO_SET_LEVEL …) off and on.
+- Merges: sources from different branches → mode any (∨). An explicit gate on a block that also inherits narrows it (∧). A mix the VM's single mode can't express is a compiler error asking for a logic block. ∨/∧ is shown on the EN strip only with explicit gates.
+- Nesting works through the gate itself (a disabled IF drives yes and no false).
+- ENO (green strip) is opt-in: dragged onto another block's EN it means "only if that block acted / succeeded". Nothing else is linked automatically.
+- The canvas shows each branch as a rounded area with a plain transparent tint around the blocks carrying that gate (a block gated by a member of a branch is in it too); areas may overlap. An area holding another grows to wrap it and the inner one is drawn on top. The same for IF, SWITCH, PERIODIC … and FOR.
+- EN links are drawn as a faded ribbon, narrow at the source and as tall as the whole red EN strip where it arrives (gate red, ENO green, a FOR's loop link purple); data wires stay thin lines.
+
+**FOR body = the FOR's ENO chain** (owner, 2026-09-28, replacing a Body output). A FOR's green ENO dropped on a block's EN puts that block in the loop, and with it every block whose chain depends on it (data wires, or gated by a member). The link is compiler-only, never a VM enable; the compiler places the body right after the FOR and sets the span. Older `<for>:body` links still load.
+
+**Firmware G-11: a fresh enable counts as a trigger.** Triggered blocks (EXPR, EXPR_BIT, SET, CLONE) also activate when an enable source is true and freshly written; gates and ticks are written loud while true.
+
+**Accessors (variables on the canvas).**
+- A short rectangle ("chip") named after the accessed object, truncated from the front (`…temperature`); click → the right panel edits the path when it needs more than a drag (index, dynamic parts).
+- Dragged from the Objects tree (folders and variables) onto a block: while dragging over a block a zoomed view shows its pins and EN; a pin accepts it on drop or by click. Only compatible pins accept: number ⇄ bool cast; `object` / `ptr-cell` pins and strings only take their own kind.
+- An empty accessor from the toolbar drops on any pin; the compiler still checks the final path.
+- The chip snaps onto the pin (no wire); pulled away it keeps a wire; one detached chip may feed several pins.
+- On an **output** pin the chip means the block writes that variable (one writer per object).
+
+**Strips:** EN red, ENO green (as built).

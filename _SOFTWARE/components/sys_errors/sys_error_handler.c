@@ -109,10 +109,10 @@ void SE_push_to_handler(err_h err) {
       uint8_t    id;
       bool       device = device_id_of(node, &id);
       se_level_e level  = SE_get_tag_level(node->tag);
-      // An ignored (NONE) device suppresses this node and its causes, but not
-      // preceding responses and not critical nodes: those always stop the system.
+      // An ignored (NONE) device suppresses this node and its causes, critical
+      // ones included (the user chose to ignore it), but not preceding responses.
       if (device && s_device_ignored && s_device_ignored(id)) ignoring = true;
-      if (ignoring && level != SE_LEVEL_CRITICAL) continue;
+      if (ignoring) continue;
       if (device) {
         size_t j = 0;
         while (j < handled && devices[j] != id) ++j;

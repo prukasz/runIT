@@ -15,17 +15,18 @@ Generate web-app JSON descriptors from annotated C headers. C remains the source
 - Read `auto-annotations/vm/vm-annotations.md` before changing VM annotations or the VM generator.
 - Read `auto-annotations/settings/settings-annotations.md` before changing runtime settings annotations or the settings generator.
 - Do not edit `*.generated.json`; change C annotations, schema, or generator, then regenerate.
-- `//@...` is a header directive; `@...` is field or enum-member metadata.
+- `//@...` is a header directive; `@...` is field or enum-member metadata. Device headers use records instead: `//#device`, `//#self-property`, `//#property`, `//#contract`, each continued by `//  @tag` lines (two or more spaces).
 - `//#ref-enum` explicitly publishes an enum. `$SYMBOL` must resolve uniquely to a member of one published enum; unresolved or ambiguous references are errors.
 - A published enum member may take its value from Kconfig (`MEMBER = CONFIG_X,`); the enum generator resolves it from `sdkconfig` (an unresolved `CONFIG_*` is an error). Used for IDs the app must match, e.g. `sys_data_connector_id_e`, `runit_data_provider_e`. Regenerate after changing such an option.
-- `//@self-property` defines local literal choices; `//@property` defines reusable global-enum choices; `@arg` reuses either in a contract parameter.
-- `//@contract` must name an existing packet struct. Include every packet field marked `@required` in `//@param`; `device_id` is generated automatically.
+- `//#self-property` defines local literal choices; `//#property` defines reusable global-enum choices; `@arg` reuses either (with its alias and note) in a contract parameter.
+- `//#contract` must name an existing packet struct. Give every packet field marked `@required` a `@param` line; `device_id` is generated automatically.
+- Write only tags the app reads; the device generator rejects any other tag. A pin on another device is a `pin_ref_wire_t` install field. New device headers start from `auto-annotations/device/device-template.txt` (every tag, with what the app does with it).
 - Keep annotations next to the C declarations they describe. Add a new directive only with documented grammar, generator support, schema changes when needed, and a generation test.
 - Descriptions are client-facing. Describe purpose and use, not implementation details.
 
 ## Files and commands
 
-- `auto-annotations/device/generate-devices.py`: parser and descriptor generator.
+- `auto-annotations/device/generate-devices.py`: parser and descriptor generator; tests `auto-annotations/device/test_generate_devices.py` (`python -m unittest data-structures/auto-annotations/device/test_generate_devices.py`).
 - `schema/device-definition.schema.json`: generated device JSON contract.
 - `auto-annotations/enums/generate-enums.py`: shared `//#ref-enum` scanner; device generation runs it live.
 - `auto-annotations/vm/generate-vm-model.py`: extracts marked VM C structs and VM enums.

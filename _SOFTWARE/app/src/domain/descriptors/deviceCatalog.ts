@@ -26,7 +26,8 @@ export interface GeneratedDeviceFile {
     readonly packet_definition: GeneratedLayout & {
       readonly class_header: string
       readonly packet_header: string
-      readonly groups?: Readonly<Record<string, { readonly fields: readonly string[]; readonly sentinel_field?: string } | undefined>>
+      /** Keyed by the pin_ref_wire_t field (`intr_pin`), the name board.generated.json uses for the pins its devices take. */
+      readonly groups?: Readonly<Record<string, { readonly fields: readonly string[]; readonly sentinel_field?: string; readonly alias?: string; readonly note?: string } | undefined>>
     }
   }
   readonly contracts: readonly {
@@ -50,7 +51,7 @@ export interface GeneratedDeviceParameter {
   readonly min?: number | string
   readonly max?: number | string
   readonly default?: number | string
-  readonly required?: boolean
+  readonly note?: string
 }
 
 export interface DeviceChoice {
@@ -76,6 +77,8 @@ export interface DeviceParameter {
   readonly min?: number
   readonly max?: number
   readonly defaultValue?: number
+  /** The header's @note (the parameter's, its property's, else the generic packet field's). */
+  readonly note?: string
 }
 
 export interface DeviceContract {
@@ -87,14 +90,19 @@ export interface DeviceContract {
   readonly kind: 'device' | 'contract'
   readonly command: CommandDescriptor
   readonly parameters: readonly DeviceParameter[]
-  /** What an OK answer carries, as the annotation says (`voltage_mV @type int32_t @unit mV`). */
+  /** Name of the value an OK answer carries (`voltage_mV`). */
   readonly returns?: string
 }
 
 /** Fields that describe one pin on another device: device ID + pin (+ mode); the sentinel field set to its sentinel means "none". */
 export interface InstallPinGroup {
+  /** The pin_ref_wire_t field, e.g. `intr_pin`. */
   readonly key: string
+  /** What the pin is for: the header's @alias, else a name from the field (`Interrupt`). */
+  readonly use: string
+  /** `<use> pin` */
   readonly label: string
+  readonly note?: string
   readonly deviceField?: string
   readonly pinField?: string
   readonly modeField?: string
@@ -124,6 +132,8 @@ export interface DeviceType {
 export interface BoardPinLink {
   /** Config field, e.g. `intr_pin`, `in_pins[2]`. */
   readonly use: string
+  /** What the pin is for, e.g. `Interrupt` (the device type's pin group alias when it has one). */
+  readonly label: string
   readonly deviceId: number
   readonly pin: number
   /** sys_io_mode_e value. */
@@ -211,7 +221,8 @@ const parameterFrom = (generated: GeneratedDeviceParameter | undefined, field: C
   unit: generated?.unit ?? field.unit,
   min: toNumber(generated?.min) ?? field.min,
   max: toNumber(generated?.max) ?? field.max,
-  defaultValue: toNumber(generated?.default),
+  defaultValue: toNumber(generated?.default) ?? field.defaultValue,
+  ...((generated?.note ?? field.note) ? { note: generated?.note ?? field.note } : {}),
 })
 
 const contractFrom = (command: CommandDescriptor, kind: DeviceContract['kind'], enums: GeneratedEnumsFile, generated?: GeneratedDeviceFile['contracts'][number]): DeviceContract => {
@@ -256,9 +267,12 @@ const pinGroupsOf = (definition: GeneratedDeviceFile['install']['packet_definiti
     const role = (suffix: string) => group.fields.find((name) => name.endsWith(`_${suffix}`))
     const sentinelField = group.sentinel_field
     const sentinel = sentinelField ? (definition.fields[sentinelField]?.sentinel ?? 255) : 255
+    const use = group.alias ?? pinUseLabel(group.fields[0] ?? key)
     return [{
       key,
-      label: `${pinUseLabel(group.fields[0] ?? key)} pin`,
+      use,
+      label: `${use} pin`,
+      ...(group.note ? { note: group.note } : {}),
       deviceField: role('device_id'),
       pinField: role('pin'),
       modeField: role('mode'),
@@ -323,7 +337,7 @@ export const buildDeviceCatalog = (files: readonly GeneratedDeviceFile[], board:
         ...(type ? { type } : {}),
         installed: device.installed,
         ...(device.i2c ? { i2c: device.i2c } : {}),
-        pins: (device.pins ?? []).map((pin) => ({ use: pin.use, deviceId: pin.device, pin: pin.pin, mode: ioMode(enums, pin.mode) })),
+        pins: (device.pins ?? []).map((pin) => ({ use: pin.use, label: type?.pinGroups.find((group) => group.key === pin.use)?.use ?? pinUseLabel(pin.use), deviceId: pin.device, pin: pin.pin, mode: ioMode(enums, pin.mode) })),
       }
     }),
     boardPinSetup: board.pin_setup.filter((entry) => entry.installed && installed.has(entry.device)).map((entry) => ({

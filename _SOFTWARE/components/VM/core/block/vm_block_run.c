@@ -21,6 +21,26 @@ bool vm_block_triggered(vm_block_h b) {
       return true;
     }
   }
+  if (!vm_block_en_triggered(b)) return false;
+  b->cfg.rt |= VM_BLK_RT_TRIGGERED;
+  return true;
+}
+
+bool vm_block_en_triggered(vm_block_h b) {
+  /* Fresh first: it is the cheap test and rules out every level that wasn't
+     written this pass. A source that can't be read fails closed here without a
+     report; vm_block_is_enabled() reports it when the body asks. */
+  const vm_accessor_t** en = vm_block_get_en_list(b);
+  for (uint8_t i = 0; i < b->cfg.en_cnt; i++) {
+    if (!vm_block_pin_fresh(en[i])) continue;
+    bool  v = false;
+    err_h e = VM_OBJ_SCALAR_GET(v, en[i]);
+    if (unlikely(e)) {
+      SE_release(e);
+      continue;
+    }
+    if (v) return true;
+  }
   return false;
 }
 

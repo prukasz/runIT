@@ -1,4 +1,5 @@
-import { Lock } from 'lucide-react'
+import { useId } from 'react'
+import { FieldLabel } from '../components/FieldNote'
 import type { DeviceContract } from '../domain/descriptors'
 import { initialParameterValue, parameterValue, SET_ERROR_HANDLING } from '../domain/devices'
 import type { ProjectAction, StepValues } from '../domain/project'
@@ -9,43 +10,37 @@ export const initialValues = (contract: DeviceContract): Record<string, number |
 
 
 /**
- * A contract's parameters as a form. The device ID (`instance`) is shown
- * locked: it comes from the device the contract runs on.
+ * A contract's parameters as a form. The device ID (`instance`) isn't shown:
+ * it comes from the device the contract runs on.
  */
-export function ContractFields({ contract, deviceId, values, onChange, actions = [] }: {
+export function ContractFields({ contract, values, onChange, actions = [] }: {
   contract: DeviceContract
-  deviceId: number
   values: StepValues
   onChange: (values: Record<string, number | readonly number[]>) => void
   /** The project's actions, for fields that pick one (error handling). */
   actions?: readonly ProjectAction[]
 }) {
   const set = (name: string, value: number | readonly number[]) => onChange({ ...values, [name]: value })
+  const idBase = useId()
   return (
     <div className="contract-fields">
       {contract.parameters.some((parameter) => parameter.deviceWide) && <p className="devices-hint">Applies to the whole device.</p>}
-      {contract.parameters.filter((parameter) => !parameter.deviceWide).map((parameter) => {
+      {contract.parameters.filter((parameter) => !parameter.deviceWide && !parameter.instance).map((parameter) => {
         const current = parameterValue(parameter, values)
-        if (parameter.instance) {
-          return (
-            <div key={parameter.name} className="contract-field is-instance">
-              <span>{parameter.label}</span>
-              <span className="contract-instance" title="Filled from the device this contract runs on"><Lock aria-hidden="true" />{deviceId} · auto</span>
-            </div>
-          )
-        }
+        const id = `${idBase}-${parameter.name}`
+        const label = `${parameter.label}${parameter.unit ? ` (${parameter.unit})` : ''}`
         if (Array.isArray(current) && contract.id === SET_ERROR_HANDLING && parameter.name === 'actions') {
           return (
             <fieldset key={parameter.name} className="contract-field is-array">
               <legend>{parameter.label}</legend>
-              <ErrorActionsField value={current} actions={actions} importance={typeof values.importance === 'number' ? values.importance : 0} onChange={(next) => set(parameter.name, next)} />
+              <ErrorActionsField value={current} actions={actions} importance={typeof values.importance === 'number' ? values.importance : contract.parameters.find((entry) => entry.name === 'importance')?.defaultValue ?? 0} onChange={(next) => set(parameter.name, next)} />
             </fieldset>
           )
         }
         if (Array.isArray(current)) {
           return (
-            <fieldset key={parameter.name} className="contract-field is-array" title={parameter.field.note}>
-              <legend>{parameter.label}{parameter.unit ? ` (${parameter.unit})` : ''}</legend>
+            <fieldset key={parameter.name} className="contract-field is-array">
+              <legend><FieldLabel note={parameter.note}>{label}</FieldLabel></legend>
               <div className="contract-array">
                 {current.map((item, index) => (
                   <label key={index}>
@@ -59,19 +54,20 @@ export function ContractFields({ contract, deviceId, values, onChange, actions =
         }
         const value = current
         return (
-          <label key={parameter.name} className="contract-field">
-            <span>{parameter.label}{parameter.unit ? ` (${parameter.unit})` : ''}</span>
+          <div key={parameter.name} className="contract-field">
+            <FieldLabel htmlFor={id} note={parameter.note}>{label}</FieldLabel>
             {parameter.boolean ? (
-              <span className="contract-switch">
-                <input type="checkbox" checked={value !== 0} onChange={(event) => set(parameter.name, event.target.checked ? 1 : 0)} />
+              <label className="contract-switch">
+                <input id={id} type="checkbox" checked={value !== 0} onChange={(event) => set(parameter.name, event.target.checked ? 1 : 0)} />
                 <span>{value ? 'On / high' : 'Off / low'}</span>
-              </span>
+              </label>
             ) : parameter.choices ? (
-              <select value={value} onChange={(event) => set(parameter.name, Number(event.target.value))}>
+              <select id={id} value={value} onChange={(event) => set(parameter.name, Number(event.target.value))}>
                 {parameter.choices.map((choice) => <option key={choice.value} value={choice.value} title={choice.description}>{choice.label === String(choice.value) ? choice.label : `${choice.label} (${choice.value})`}</option>)}
               </select>
             ) : (
               <input
+                id={id}
                 type="number"
                 value={value}
                 min={parameter.min}
@@ -80,7 +76,7 @@ export function ContractFields({ contract, deviceId, values, onChange, actions =
                 onChange={(event) => set(parameter.name, Number(event.target.value))}
               />
             )}
-          </label>
+          </div>
         )
       })}
     </div>

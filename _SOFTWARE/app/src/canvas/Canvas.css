@@ -83,13 +83,28 @@
 .canvas-block-enable.is-en { left: -1px; border-radius: 6px 0 0 6px; background: #e5484d; }
 .canvas-block-enable.is-eno { right: -1px; border-radius: 0 6px 6px 0; background: #35b970; }
 .canvas-block-heading { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.canvas-block-rename { width: 100%; min-width: 0; height: 20px; padding: 0 4px; border: 1px solid var(--accent); border-radius: 4px; background: var(--background); color: var(--active); font-size: 12px; font-weight: 600; }
 .canvas-block-title { overflow: hidden; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .canvas-block-id { overflow: hidden; color: var(--muted); font: 10px ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.block-name-field { display: block; width: 100%; max-width: 240px; margin-top: 5px; padding: 5px 7px; border: 1px solid var(--divider); border-radius: 5px; background: var(--background); color: var(--active); font-family: inherit; font-size: 12px; }
+.block-name-field:focus { border-color: var(--accent); outline: none; }
+.block-output-alias { width: 100%; min-width: 70px; margin-top: 5px; padding: 4px 6px; border: 1px solid var(--divider); border-radius: 4px; background: var(--background); color: var(--active); font-family: inherit; font-size: 11px; }
+.block-output-alias:focus { border-color: var(--accent); outline: none; }
+.block-alias-inline { width: 100%; min-width: 0; padding: 2px 4px; border: 1px solid var(--accent); border-radius: 4px; background: var(--background); color: var(--active); font: inherit; }
+.block-alias-edit { display: inline-flex; align-items: center; gap: 5px; }
+.block-alias-edit button { width: 20px; height: 20px; padding: 3px; color: var(--muted); }
+.block-alias-edit button:hover { color: var(--active); }
+.block-alias-edit svg { width: 13px; height: 13px; }
 .canvas-block-errors { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #e5484d; color: #fff; font-size: 10px; font-weight: 600; }
 .canvas-block-pins { display: flex; flex: 1; justify-content: space-between; min-height: 0; }
 .canvas-block-side { display: flex; flex-direction: column; min-width: 0; max-width: calc(50% - 6px); }
 .canvas-block-side.is-out { align-items: flex-end; }
 .canvas-block-pin { display: flex; flex: none; align-items: center; gap: 7px; width: 100%; height: 20px; color: var(--active); font-size: 10px; white-space: nowrap; }
+.canvas-block-side.is-in .canvas-block-pin { position: relative; padding-left: 22px; }
+.canvas-block-side.is-out .canvas-block-pin { position: relative; padding-right: 22px; }
+.canvas-block-input-type { position: absolute; z-index: 2; left: 0; top: 50%; transform: translate(-50%, -50%); }
+.canvas-block-output-type { position: absolute; z-index: 2; right: 0; top: 50%; transform: translate(50%, -50%); cursor: crosshair; }
+.canvas-block-output-type .object-type-icon { pointer-events: none; }
 .is-out .canvas-block-pin { justify-content: flex-end; text-align: right; }
 .canvas-block-pin-label { display: flex; flex-direction: column; min-width: 0; }
 .canvas-block-pin-label > span, .canvas-block-pin-label small { overflow: hidden; text-overflow: ellipsis; }
@@ -164,8 +179,9 @@
 .shell .block-counter svg { width: 13px; height: 13px; }
 .block-pins { display: flex; flex-direction: column; gap: 5px; margin: 0 0 6px; }
 .block-pins > div { display: flex; justify-content: space-between; gap: 10px; }
-.block-pins dt { display: flex; flex-direction: column; color: var(--active); font-size: 12px; }
+.block-pins dt { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--active); font-size: 12px; }
 .block-pins dt small { color: var(--muted); font-size: 10px; }
+.block-pin-title { display: flex; flex-direction: column; min-width: 0; }
 .block-pins dd { margin: 0; overflow: hidden; color: var(--active); font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
 .block-pins dd.is-unwired { color: var(--muted); font-family: inherit; font-style: italic; }
 .block-check { display: flex; align-items: flex-start; gap: 8px; color: var(--muted); font-size: 11px; line-height: 1.45; }
@@ -243,3 +259,89 @@
   .shell .canvas-tab-more { opacity: 1; }
   .canvas-hint { white-space: normal; width: 80%; text-align: center; }
 }
+
+/* Wires (world layer, under the blocks) */
+.canvas-wires { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.canvas-wire-line { fill: none; stroke: var(--muted); stroke-width: 1.8; }
+.canvas-wire.is-gate .canvas-wire-line { stroke: #e5484d; stroke-dasharray: 6 4; }
+.canvas-wire.is-eno .canvas-wire-line { stroke: #35b970; stroke-dasharray: 6 4; }
+.canvas-wire.is-selected .canvas-wire-line { stroke: var(--accent); stroke-width: 3; }
+.canvas-wire-hit { fill: none; stroke: transparent; stroke-width: 12; pointer-events: stroke; cursor: pointer; }
+.canvas-wire-draft { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 4 3; }
+.canvas-wire-start { cursor: crosshair; }
+.canvas-block-pin i.canvas-wire-start::after { content: ''; position: absolute; inset: -6px; }
+.canvas-block-enable.is-eno.canvas-wire-start { width: 7px; }
+.canvas-wire-hint { position: absolute; left: 50%; bottom: 44px; transform: translateX(-50%); padding: 5px 10px; border-radius: 6px; background: var(--panel); box-shadow: 0 1px 4px var(--shadow); color: var(--muted); font-size: 11px; pointer-events: none; }
+
+/* Pin picker: an enlarged list of a block's EN and pins while connecting */
+.wire-picker { position: absolute; z-index: 20; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--accent); border-radius: 8px; background: var(--panel); box-shadow: 0 6px 24px var(--shadow); font-size: 12px; }
+.wire-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--divider); color: var(--muted); font-size: 11px; font-weight: 600; }
+.shell .wire-picker-head button { width: 22px; height: 22px; font-size: 16px; }
+.shell .wire-picker-row { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; width: 100%; height: auto; min-height: 36px; padding: 5px 12px; border-radius: 0; border-top: 1px solid var(--divider); color: var(--active); text-align: left; cursor: pointer; }
+.shell .wire-picker-row:first-of-type { border-top: 0; }
+.shell .wire-picker-row.is-en { box-shadow: inset 3px 0 0 #e5484d; }
+.shell .wire-picker-row:hover:not(:disabled), .shell .wire-picker-row.is-hovered { background: color-mix(in srgb, var(--accent) 16%, var(--panel)); }
+.shell .wire-picker-row:disabled { color: var(--muted); opacity: 0.55; cursor: not-allowed; }
+.wire-picker-label { font-weight: 600; }
+.wire-picker-detail { color: var(--muted); font-size: 10px; }
+
+/* Block details: what enables the block */
+.block-gates { display: flex; flex-direction: column; gap: 4px; margin: 0 0 10px; padding: 0; list-style: none; font-size: 12px; }
+.block-gates li { display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 2px 4px 2px 8px; border: 1px solid var(--divider); border-radius: 5px; color: var(--active); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.block-gates li > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.block-gates li small { color: var(--muted); font-family: system-ui, sans-serif; font-size: 10px; }
+.block-gates li.is-inherited { border-style: dashed; color: var(--muted); }
+.block-gates li.is-empty { border: 0; padding-left: 0; color: var(--muted); font-family: inherit; font-style: italic; }
+.block-gate-dot { flex: none; width: 8px; height: 8px; border-radius: 2px; background: color-mix(in srgb, #e5484d 50%, transparent); }
+.block-gate-dot.is-own { background: #e5484d; }
+.block-gate-dot.is-loop { background: #c586c0; }
+.shell .block-gates button, .shell .block-pins dd button { width: 22px; height: 22px; margin-left: 4px; }
+.shell .block-gates svg, .shell .block-pins dd svg { width: 13px; height: 13px; }
+.block-pins dd { display: flex; align-items: center; }
+
+/* Variable chips: docked at a pin (outside the block), free on the canvas, or following the pointer */
+.canvas-block-pin { position: relative; }
+.canvas-chip { --chip: #4fc1ff; display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box; padding: 0 8px; border: 1px solid color-mix(in srgb, var(--chip) 60%, var(--divider)); border-radius: 5px; background: color-mix(in srgb, var(--chip) 14%, var(--panel)); color: var(--active); font: 10px ui-monospace, SFMono-Regular, Consolas, monospace; white-space: nowrap; cursor: grab; user-select: none; touch-action: none; }
+.theme-light .canvas-chip { --chip: #0a6fb0; }
+.canvas-chip.is-docked { position: absolute; top: 50%; z-index: 3; max-width: 120px; height: 18px; transform: translateY(-50%); }
+.canvas-chip-text { overflow: hidden; text-overflow: ellipsis; }
+/* A short wire from the chip to its pin circle, in the variable wires' colour */
+.canvas-chip.is-docked::after { content: ''; position: absolute; top: 50%; width: 12px; border-top: 1.5px solid var(--chip); transform: translateY(-50%); pointer-events: none; }
+.canvas-chip.is-docked.is-in { right: calc(100% + 14px); }
+.canvas-chip.is-docked.is-in::after { left: 100%; }
+.canvas-chip.is-docked.is-out { left: calc(100% + 14px); }
+.canvas-chip.is-docked.is-out::after { right: 100%; }
+.canvas-chip.is-docked.is-empty { --chip: #e5933a; border-style: dashed; font-weight: 700; }
+.canvas-chip.is-free, .canvas-chip.is-ghost { position: absolute; justify-content: space-between; height: 24px; font-size: 11px; }
+.canvas-chip.is-free > span, .canvas-chip.is-ghost { overflow: hidden; text-overflow: ellipsis; }
+.canvas-chip.is-free i { flex: none; width: 9px; height: 9px; margin-right: -13px; border: 1.5px solid var(--chip); border-radius: 50%; background: var(--panel); }
+.canvas-chip.is-free.is-selected { box-shadow: 0 0 0 2px var(--accent); }
+.canvas-chip.is-ghost { border-style: dashed; opacity: 0.85; pointer-events: none; }
+.canvas-wire-line.is-variable { stroke: #4fc1ff; stroke-opacity: 0.8; }
+.theme-light .canvas-wire-line.is-variable { stroke: #0a6fb0; }
+
+/* Block details: a pin's variable typed as text */
+.block-path-field { display: flex; flex-direction: column; align-items: stretch; gap: 3px; width: 100%; min-width: 0; }
+.block-path-field input { width: 100%; min-width: 0; height: 26px; padding: 0 6px; border: 1px solid var(--divider); border-radius: 4px; background: var(--background); color: var(--active); font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; text-align: left; }
+.block-path-field input[aria-invalid="true"] { border-color: #e5484d; }
+.block-path-field em { color: #e5484d; font: 10px system-ui, sans-serif; font-style: normal; white-space: normal; text-align: left; }
+.shell .canvas-empty-variable { cursor: grab; }
+
+/* Branch and loop areas behind the blocks: rounded, plain transparent tint, inner over outer */
+.canvas-groups { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.canvas-group-area { fill: var(--tint); fill-opacity: 0.07; stroke: var(--tint); stroke-opacity: 0.45; stroke-width: 1; stroke-linejoin: round; }
+.canvas-group.is-loop .canvas-group-area { fill-opacity: 0.09; stroke-width: 1.4; }
+.canvas-group-label { fill: var(--tint); font: 600 10px system-ui, sans-serif; letter-spacing: .03em; }
+
+/* EN links: a faded ribbon widening into the whole EN strip (gate red, ENO green, a loop purple) */
+.canvas-ribbon { --ribbon: #e5484d; fill: var(--ribbon); fill-opacity: 0.16; stroke: var(--ribbon); stroke-opacity: 0.25; stroke-width: 0.8; pointer-events: fill; cursor: pointer; }
+.canvas-wire.is-eno .canvas-ribbon { --ribbon: #35b970; }
+.canvas-wire.is-loop .canvas-ribbon { --ribbon: #b05fb0; }
+.canvas-ribbon.is-variable { --ribbon: #4fc1ff; pointer-events: none; }
+.theme-light .canvas-ribbon.is-variable { --ribbon: #0a6fb0; }
+.canvas-wire.is-ribbon:hover .canvas-ribbon { fill-opacity: 0.26; }
+.canvas-wire.is-ribbon.is-selected .canvas-ribbon { fill-opacity: 0.34; stroke: var(--accent); stroke-opacity: 1; stroke-width: 1.5; }
+.canvas-chip.is-docked.is-selected { box-shadow: 0 0 0 2px var(--accent); }
+/* A variable on EN: docked on the red strip at header height, stacked when several */
+.canvas-chip.is-docked.is-en { --chip: #e5484d; }
+.canvas-chip.is-docked.is-en::after { border-top-style: dashed; }

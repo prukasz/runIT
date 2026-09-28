@@ -5,6 +5,8 @@ export {
   encodeErrorActions,
   ERROR_ACTION_LEVELS,
   SET_ERROR_HANDLING,
+  IMPORTANCE_DISABLED,
+  DISABLED_IMPORTANCE_WARNING,
   actionRecordSteps,
   actionRemoveStep,
   actionRunStep,

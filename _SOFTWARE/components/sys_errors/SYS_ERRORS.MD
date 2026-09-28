@@ -77,13 +77,13 @@ remains invalid, even if its address is later allocated again.
   severity among its mentions before the first ignored-device boundary. Run that
   device's policy once, at its first occurrence; pass the node supplying that level.
   The leaf does not silently replace another node's severity.
-- Importance NONE stops non-critical handling of that device and all deeper causes.
-  Earlier responses remain in effect; the full chain still goes to diagnostics.
-  Critical nodes past the boundary are still handled: a critical error always stops
-  the system, whatever the device's importance.
-- Importance filters which noncritical severities reach the device policy:
-  MEDIUM admits HIGH, HIGH admits MEDIUM and HIGH, CRITICAL admits all.
-  Critical always goes through, NONE included. Tag severities stay unchanged.
+- Importance NONE stops all handling of that device and all deeper causes,
+  critical nodes included (the user's opt-out for a device under test). Earlier
+  responses remain in effect; the full chain still goes to diagnostics.
+- From LOW (a device's start value) up, importance filters which noncritical
+  severities reach the device policy: MEDIUM admits HIGH, HIGH admits MEDIUM and
+  HIGH, CRITICAL admits all. Critical always goes through. Tag severities stay
+  unchanged.
 - Domain hooks receive `(node, full_chain)` for each visited node in that domain.
   Hooks are registered at boot (`SE_register_domain_hook(domain, fn)`, a table of
   `CONFIG_SYS_ERRORS_MAX_DOMAIN_HOOKS`); a domain without one is skipped. The device
@@ -248,7 +248,7 @@ flowchart TD
 
         %% Device Policy Path
         G -->|Yes| H["sys_device_report_error_with_level()"]
-        H --> I{"noncritical level below importance threshold?"}
+        H --> I{"importance NONE, or noncritical level below threshold?"}
         I -->|Yes| J["Skip device response"]
         I -->|No| K["Lookup action_id at original severity"]
         K --> L["registered device error policy (runit_device_policy)"]
@@ -322,7 +322,7 @@ sequenceDiagram
         alt Node is attributed to a device
             Handler->>SysDev: sys_device_report_error_with_level(dev_id, level, node)
             SysDev->>SysDev: sys_device_get_by_id(dev_id)
-            alt noncritical level below importance threshold
+            alt importance NONE, or noncritical level below threshold
                 SysDev-->>Handler: NULL (no device response)
             else Admitted level
                 SysDev->>SysDev: action_id = dev->actions[level]

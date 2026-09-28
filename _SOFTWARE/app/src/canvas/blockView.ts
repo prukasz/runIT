@@ -1,3 +1,4 @@
+import { arrangeProgram } from '../domain/canvas'
 import { compileProgram } from '../domain/compiler'
 import type { Diagnostic } from '../domain/compiler'
 import { blockPinAt, runitDeviceCatalog } from '../domain/descriptors'
@@ -29,6 +30,8 @@ export interface BlockShape {
   readonly height: number
   readonly inputs: readonly BlockPinView[]
   readonly outputs: readonly BlockPinView[]
+  /** Pin row height (doubled when expanded). */
+  readonly row: number
 }
 
 /** Editor settings only; never present private runtime state as a live value. */
@@ -77,7 +80,17 @@ export const blockShape = (type: VmBlockType | undefined, block: ProgramBlock & 
   const inputs = type ? pinViews(type.inputs, pinCount(type.inputs, block.inputs?.length ?? 0)).filter((pin) => !blockPinAt(type.inputs, pin.index)?.hiddenByDefault || block.dynamicInputs?.includes(pin.index) || block.inputs?.[pin.index]) : []
   const outputs = type ? pinViews(type.outputs, pinCount(type.outputs, block.outputs?.length ?? 0)) : []
   const rows = Math.max(1, inputs.length, outputs.length)
-  return { width: BLOCK_WIDTH + (expanded ? 4 * GRID : 0), height: HEADER + rows * ROW + (expanded ? rows * ROW + Math.max(1, blockSummary(type, block).length) * ROW + GRID : 0), inputs, outputs }
+  return { width: BLOCK_WIDTH + (expanded ? 4 * GRID : 0), height: HEADER + rows * ROW + (expanded ? rows * ROW + Math.max(1, blockSummary(type, block).length) * ROW + GRID : 0), inputs, outputs, row: expanded ? 2 * ROW : ROW }
+}
+
+/** Where a wire meets a block, in canvas units: input pins on the left edge, outputs on the right, EN / ENO at header height. */
+export const pinAnchor = (block: { readonly x: number; readonly y: number }, shape: BlockShape, end: { side: 'in' | 'out'; index: number } | 'en' | 'eno'): { x: number; y: number } => {
+  if (end === 'en') return { x: block.x, y: block.y + HEADER / 2 }
+  if (end === 'eno') return { x: block.x + shape.width, y: block.y + HEADER / 2 }
+  const rowOf = (row: number) => block.y + HEADER + row * shape.row + shape.row / 2
+  const pins = end.side === 'in' ? shape.inputs : shape.outputs
+  const row = Math.max(0, pins.findIndex((pin) => pin.index === end.index))
+  return { x: end.side === 'in' ? block.x : block.x + shape.width, y: rowOf(row) }
 }
 
 /** A path as text: `motor.gains[2]`, `table[sel]`, `periodic1:q0`. */
@@ -92,11 +105,11 @@ const blockOf = (diagnostic: Diagnostic): string | undefined => diagnostic.block
  * it can be fixed before it is enabled). Program-wide findings are under ''.
  */
 export const blockDiagnostics = (project: ProjectDocument, canvases: readonly ProjectCanvas[], catalog: VmCatalog, maxFrameBytes: number): ReadonlyMap<string, readonly Diagnostic[]> => {
-  const blocks = canvases.flatMap((canvas) => canvas.blocks.map(({ x: _x, y: _y, view: _view, ...block }) => block))
   const byBlock = new Map<string, Diagnostic[]>()
-  if (!blocks.length) return byBlock
-  const compiled = compileProgram(project, catalog, { maxFrameBytes, blocks })
-  for (const diagnostic of compiled.diagnostics) {
+  if (!canvases.some((canvas) => canvas.blocks.length)) return byBlock
+  const arranged = arrangeProgram(canvases, { includeDisabled: true })
+  const compiled = compileProgram(project, catalog, { maxFrameBytes, blocks: arranged.blocks })
+  for (const diagnostic of [...arranged.diagnostics, ...compiled.diagnostics]) {
     const key = blockOf(diagnostic) ?? ''
     byBlock.set(key, [...(byBlock.get(key) ?? []), diagnostic])
   }

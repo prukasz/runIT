@@ -1,4 +1,5 @@
 import type { CanvasBlock, ProgramBlock, ProjectCanvas } from '../project'
+import { arrangeProgram } from './arrange'
 
 /*
  * Canvases: the list (execution order), the grid and the viewport. A project
@@ -100,9 +101,8 @@ export const setCanvasDisabled = (canvases: readonly ProjectCanvas[], id: string
   })
 }
 
-/** The program: every enabled canvas's blocks, canvases in list order, without their positions. */
-export const programBlocks = (canvases: readonly ProjectCanvas[]): ProgramBlock[] =>
-  canvases.filter((canvas) => !canvas.disabled).flatMap((canvas) => canvas.blocks.map(({ x: _x, y: _y, view: _view, ...block }) => block))
+/** The program: every enabled canvas's blocks in execution order, gates inherited, loop bodies placed (arrange.ts). */
+export const programBlocks = (canvases: readonly ProjectCanvas[]): readonly ProgramBlock[] => arrangeProgram(canvases).blocks
 
 // ---------------------------------------------------------------------------
 // Blocks
@@ -132,6 +132,19 @@ const replaceBlocks = (canvases: readonly ProjectCanvas[], canvasId: string, cha
 export const addBlock = (canvases: readonly ProjectCanvas[], canvasId: string, block: CanvasBlock): ProjectCanvas[] => {
   if (findBlock(canvases, block.id)) throw new Error(`Block ID '${block.id}' is taken.`)
   return replaceBlocks(canvases, canvasId, (blocks) => [...blocks, block])
+}
+
+/**
+ * A copy of a block on a canvas at `at`, under a new ID of its type. It keeps
+ * its settings, inputs and gates (it reads what the original reads); the user
+ * variables the original writes are dropped, as a variable has one writer.
+ */
+export const pasteBlock = (canvases: readonly ProjectCanvas[], canvasId: string, copy: CanvasBlock, at: Point): { canvases: ProjectCanvas[]; id: string } => {
+  const id = newBlockId(canvases, copy.type)
+  const outputs = copy.outputs?.map(() => null)
+  const { outputs: _outputs, ...rest } = copy
+  const block: CanvasBlock = { ...rest, id, x: at.x, y: at.y, ...(outputs?.length ? { outputs } : {}) }
+  return { canvases: addBlock(canvases, canvasId, block), id }
 }
 
 /** Change a block (settings, position …); its ID stays. */

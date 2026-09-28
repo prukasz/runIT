@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseProject, serializeProject, createProject } from '../project'
 import type { ProjectCanvas } from '../project'
-import { addBlock, addCanvas, canvasToScreen, findBlock, GRID, moveBlock, moveCanvas, newBlockId, newCanvasName, programBlocks, removeBlock, removeCanvas, renameCanvas, screenToCanvas, setCanvasDisabled, snap, snapPoint, updateBlock, ZOOM_MAX, zoomAt } from '.'
+import { addBlock, addCanvas, canvasToScreen, findBlock, GRID, moveBlock, moveCanvas, newBlockId, newCanvasName, pasteBlock, programBlocks, removeBlock, removeCanvas, renameCanvas, screenToCanvas, setCanvasDisabled, snap, snapPoint, updateBlock, ZOOM_MAX, zoomAt } from '.'
 
 const canvas = (id: string, name: string, extra: Partial<ProjectCanvas> = {}): ProjectCanvas => ({ id, name, blocks: [], ...extra })
 
@@ -101,3 +101,15 @@ describe('blocks on canvases', () => {
     expect(() => removeBlock(list, 'nope')).toThrow('No block')
   })
 })
+
+describe('copy and paste', () => {
+  it('pastes a copy under a new ID that reads what the original reads but writes no variable', () => {
+    const original = { id: 'expr1', type: 'EXPR', x: 40, y: 40, inputs: [{ root: 'if1:q0' }, { root: 'count' }], outputs: ['total'], enables: [{ root: 'if1:q0' }], expression: { code: ['in', 0] } }
+    const canvases: ProjectCanvas[] = [canvas('a', 'Main', { blocks: [original] })]
+    const { canvases: next, id } = pasteBlock(canvases, 'a', original, { x: 80, y: 80 })
+    expect(id).toBe('expr2')
+    expect(next[0]!.blocks[1]).toEqual({ ...original, id: 'expr2', x: 80, y: 80, outputs: [null] })
+    expect(next[0]!.blocks[0]).toBe(original)
+  })
+})
+

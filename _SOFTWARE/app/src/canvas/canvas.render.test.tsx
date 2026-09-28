@@ -65,7 +65,11 @@ describe('canvas renders', () => {
     const render = (selected: CanvasBlock) => renderToString(<Harness part="details" canvases={[{ id: 'a', name: 'Main', blocks: [selected] }]} selected={selected} />)
     const fixed = render(block)
     expect(fixed.indexOf('<h3>Running</h3>')).toBeLessThan(fixed.indexOf('<h3>Settings</h3>'))
-    expect(fixed).toContain('role="group" aria-label="Enables combine"')
+    expect(fixed).toContain('role="group" aria-label="Branch"')
+    expect(fixed).toContain('Runs every cycle (nothing on EN)')
+    // Any / all only matters with two gates of its own.
+    expect(fixed).not.toContain('aria-label="Enables combine"')
+    expect(render({ ...block, enables: [{ root: 'a' }, { root: 'b' }] })).toContain('role="group" aria-label="Enables combine"')
     expect(fixed).toContain('role="group" aria-label="On error"')
     expect(fixed).toContain('GPIO_ESP (#0)')
     expect(fixed).not.toContain('<legend>Allowed pins</legend>')

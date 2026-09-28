@@ -155,6 +155,8 @@ err_h sys_device_install_cfg(const sys_device_class_t* cls, uint8_t device_id, c
 
   new_dev->device_id = device_id;
   new_dev->cls = cls;
+  /* NONE would ignore even critical errors: a device handles them until the user opts out. */
+  new_dev->importance = SYS_DEV_IMPORTANCE_LOW;
 
   /*cls is set before install: adapters (and their dependencies) may look this
     device up mid-install and read dev->cls->contracts[]. The state stays
@@ -198,11 +200,13 @@ err_h sys_device_report_error_with_level(uint8_t device_id, se_level_e level, er
   SE_CHECK_IN_RANGE((unsigned)level, SE_LEVEL_NONE, SE_LEVEL_CRITICAL);
   if (level == SE_LEVEL_NONE) return NULL;
 
-  /* Importance is a severity threshold: MEDIUM admits HIGH, HIGH admits
-     MEDIUM, and CRITICAL admits LOW. CRITICAL errors always go through. */
+  /* NONE ignores every error of the device, critical ones included (the
+     user's choice). Otherwise importance is a severity threshold: MEDIUM admits
+     HIGH, HIGH admits MEDIUM, and CRITICAL admits LOW; CRITICAL errors always
+     go through. */
+  if (dev && dev->importance == SYS_DEV_IMPORTANCE_NONE) return NULL;
   if (level != SE_LEVEL_CRITICAL) {
-    if (!dev || dev->importance == SYS_DEV_IMPORTANCE_NONE ||
-        (unsigned)level + (unsigned)dev->importance <= (unsigned)SE_LEVEL_CRITICAL) {
+    if (!dev || (unsigned)level + (unsigned)dev->importance <= (unsigned)SE_LEVEL_CRITICAL) {
       return NULL;
     }
   }
@@ -218,7 +222,7 @@ err_h sys_device_report_error(uint8_t device_id, err_h error) {
              ? sys_device_report_error_with_level(device_id, SE_get_tag_level(error->tag), error) : NULL;
 }
 
-/* Only non-critical errors of an ignored device are suppressed (SE_push_to_handler). */
+/* Every error of an ignored device, and its causes, is suppressed (SE_push_to_handler); it is still logged. */
 bool sys_device_is_ignored(uint8_t device_id) {
   sys_device_t* dev = sys_device_get_by_id(device_id);
   return (dev != NULL) && (dev->importance == SYS_DEV_IMPORTANCE_NONE);

@@ -84,7 +84,20 @@ describe('device catalog', () => {
     const setLevel = type.contracts.find((contract) => contract.id === 'packet_sys_io_set_level_t')!
     expect(setLevel.parameters.find((parameter) => parameter.name === 'device_id')?.instance).toBe(true)
     expect(setLevel.parameters.find((parameter) => parameter.name === 'pin')?.choices?.length).toBe(16)
-    expect(type.pinGroups).toEqual([expect.objectContaining({ pinField: 'oe_pin_pin', deviceField: 'oe_pin_device_id', modeField: 'oe_pin_mode', sentinel: 255 })])
+    expect(type.pinGroups).toEqual([expect.objectContaining({ key: 'oe_pin', use: 'Output enable', label: 'Output enable pin', note: 'Active-low.', pinField: 'oe_pin_pin', deviceField: 'oe_pin_device_id', modeField: 'oe_pin_mode', sentinel: 255 })])
+  })
+
+  it('names pins from the header alias, board links included, and carries field notes', () => {
+    const ads = catalog.type('device_ads_7128')!
+    expect(ads.pinGroups).toEqual([expect.objectContaining({ key: 'intr_pin', use: 'ALERT', label: 'ALERT pin', note: 'Open-drain, active-low.' })])
+    expect(catalog.board.find((device) => device.deviceId === 2)?.pins).toEqual([expect.objectContaining({ use: 'intr_pin', label: 'ALERT' })])
+    expect(catalog.board.find((device) => device.deviceId === 1)?.pins.map((pin) => pin.label)).toEqual(['Interrupt', 'Reset'])
+    expect(pinUsers(catalog, []).get(pinKey(0, 42))).toEqual([expect.objectContaining({ ownerName: 'ADS7128', use: 'ALERT' })])
+    const gpio = catalog.type('device_gpio_esp')!
+    const parameter = (contract: string, name: string) => gpio.contracts.find((entry) => entry.id === contract)?.parameters.find((entry) => entry.name === name)
+    expect(parameter('packet_sys_io_set_pwm_duty_t', 'duty')?.note).toBe('4096 = always on.')
+    expect(parameter('packet_sys_io_configure_intr_t', 'debounce')?.note).toBe('1 = ignore switch bounce')
+    expect(parameter('packet_sys_io_reset_t', 'pin')?.note).toBeUndefined()
   })
 })
 
@@ -225,8 +238,13 @@ describe('actions', () => {
     expect(build.diagnostics).toEqual([])
     expect(build.frames.map((step) => hex(step.frame))).toEqual(['01 1a 0d 02 04 00 04 07 00'])
     expect(catalog.staticActions.map((entry) => entry.value)).toEqual([1, 2, 3, 4, 5, 6])
-    // sys_device.c: importance admits progressively lower severities; critical always runs.
-    expect([0, 1, 2, 3, 4].map(reachableErrorLevels)).toEqual([[4], [4], [3, 4], [2, 3, 4], [1, 2, 3, 4]])
+    // sys_device.c: Disabled ignores everything; from Low up, importance admits progressively lower severities.
+    expect([0, 1, 2, 3, 4].map(reachableErrorLevels)).toEqual([[], [4], [3, 4], [2, 3, 4], [1, 2, 3, 4]])
+    // A device starts at Low (the packet's default), so a new form doesn't switch errors off.
+    const handling = findContract(catalog, resolveDevice(catalog, [], boardDeviceRef(13))!, 'packet_sys_device_set_error_handling_t')!
+    expect(handling.parameters.find((parameter) => parameter.name === 'importance')?.defaultValue).toBe(1)
+    const disabled = checkSetup(catalog, [], [{ id: 'e1', device: boardDeviceRef(13), contract: 'packet_sys_device_set_error_handling_t', values: { importance: 0, actions: [0, 0, 0, 0, 0] } }])
+    expect(disabled).toEqual([expect.objectContaining({ severity: 'warning', message: expect.stringMatching(/Disabled — every error of this device is ignored, Critical included/) })])
     expect(clampErrorActions(encodeErrorActions([{ scope: 'dynamic', id: 1 }, { scope: 'dynamic', id: 2 }, { scope: 'static', id: 3 }, { scope: 'static', id: 4 }]), 1)).toEqual([0, 0, 0, 0, 4])
     const project = { ...createProject('x'), actions: [errorHandling] }
     expect(parseProject(serializeProject(project))).toEqual(project)

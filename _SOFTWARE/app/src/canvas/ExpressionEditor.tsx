@@ -3,7 +3,7 @@ import { AlertCircle, Calculator, Check, CornerDownLeft, Delete, Undo2 } from 'l
 import { compileExpression, decompileExpression, expressionLanguage, tokenize } from '../domain/expression'
 import type { ExpressionLanguage } from '../domain/expression'
 import type { VmBlockType } from '../domain/descriptors'
-import type { CanvasBlock } from '../domain/project'
+import type { CanvasBlock, ObjectPath } from '../domain/project'
 import { pathText } from './blockView'
 
 /*
@@ -20,6 +20,8 @@ interface Props {
   /** Input pins the block has now. */
   readonly inputCount: number
   readonly onApply: (expression: { constants: readonly number[]; code: readonly (string | number)[] }, inputsNeeded: number) => void
+  /** A pin's path as the user reads it (names, not IDs). */
+  readonly labelOf?: (path: ObjectPath) => string
 }
 
 type CharClass = 'input' | 'number' | 'fn' | 'op' | 'paren' | 'bad' | 'plain'
@@ -64,7 +66,7 @@ const classify = (text: string, language: ExpressionLanguage): CharClass[] => {
   return classes
 }
 
-export function ExpressionEditor({ block, type, inputCount, onApply }: Props) {
+export function ExpressionEditor({ block, type, inputCount, onApply, labelOf = pathText }: Props) {
   const language = useMemo(() => expressionLanguage(type.encoding!), [type])
   const stored = block.expression
   const storedText = useMemo(() => {
@@ -168,7 +170,7 @@ export function ExpressionEditor({ block, type, inputCount, onApply }: Props) {
               if (token.start > at) out.push(draft.slice(at, token.start))
               if (token.kind === 'input') {
                 const path = block.inputs?.[token.value!]
-                out.push(<span key={token.start} className={`expr-target ${path ? '' : 'is-unwired'}`} title={`IN${token.value}`}>{path ? pathText(path) : `IN${token.value}: not wired`}</span>)
+                out.push(<span key={token.start} className={`expr-target ${path ? '' : 'is-unwired'}`} title={`IN${token.value}`}>{path ? labelOf(path) : `IN${token.value}: not wired`}</span>)
               } else out.push(<span key={token.start} className={`expr-tok-${classes[token.start]}`}>{token.text}</span>)
               at = token.end
             }
@@ -232,7 +234,7 @@ export function ExpressionEditor({ block, type, inputCount, onApply }: Props) {
         <div className="expr-pad" onPointerDown={(event) => { if ((event.target as HTMLElement).closest('button')) event.preventDefault() }}>
           <div className="expr-pad-row is-inputs">
             {Array.from({ length: inputCount }, (_, pin) => (
-              <button key={pin} type="button" className="expr-key is-input" title={block.inputs?.[pin] ? pathText(block.inputs[pin]) : 'not wired'} onClick={() => insert(`IN${pin}`)}>IN{pin}</button>
+              <button key={pin} type="button" className="expr-key is-input" title={block.inputs?.[pin] ? labelOf(block.inputs[pin]!) : 'not wired'} onClick={() => insert(`IN${pin}`)}>IN{pin}</button>
             ))}
             {inputCount < type.inputs.max && <button type="button" className="expr-key is-input is-new" title="A new input" onClick={() => insert(`IN${Math.max(inputCount, inputsNeeded)}`)}>+IN</button>}
           </div>

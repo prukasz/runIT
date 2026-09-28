@@ -3,7 +3,6 @@
   "schemaVersion": 1,
   "kind": "device-definition",
   "id": "device_tca6424a",
-  "version": "1.0.0",
   "title": "TCA6424A GPIO expander",
   "description": "24-bit I2C GPIO expander - adds extra digital input/output pins over I2C.",
   "protocols": [
@@ -46,35 +45,28 @@
       "fields": {
         "device_id": {
           "type": "uint8_t",
-          "required": true,
-          "min": 0,
           "max": 127
         },
         "i2c_bus": {
-          "type": "uint8_t",
-          "required": true,
-          "min": 0,
-          "max": 1
+          "type": "uint8_t"
         },
         "i2c_addr": {
           "type": "uint8_t",
-          "required": true,
+          "alias": "I2C Address",
           "one_of": [
             34,
             35
           ],
-          "note": "ADDR low selects 0x22; high selects 0x23"
+          "note": "ADDR low selects 0x22; high selects 0x23."
         },
         "intr_pin_device_id": {
           "type": "uint8_t",
-          "group": "interrupt-pin",
-          "role": "device_id"
+          "group": "intr_pin"
         },
         "intr_pin_pin": {
           "type": "uint8_t",
           "sentinel": 255,
-          "group": "interrupt-pin",
-          "role": "pin"
+          "group": "intr_pin"
         },
         "intr_pin_mode": {
           "type": "uint8_t",
@@ -95,29 +87,25 @@
             }
           ],
           "enum_ref": "sys_io_mode_e",
-          "group": "interrupt-pin",
-          "role": "mode"
+          "group": "intr_pin"
         },
         "rst_pin_device_id": {
           "type": "uint8_t",
-          "group": "reset-pin",
-          "role": "device_id"
+          "group": "rst_pin"
         },
         "rst_pin_pin": {
           "type": "uint8_t",
           "sentinel": 255,
-          "group": "reset-pin",
-          "role": "pin"
+          "group": "rst_pin"
         },
         "rst_pin_mode": {
           "type": "uint8_t",
           "enum_ref": "sys_io_mode_e",
-          "group": "reset-pin",
-          "role": "mode"
+          "group": "rst_pin"
         }
       },
       "groups": {
-        "interrupt-pin": {
+        "intr_pin": {
           "fields": [
             "intr_pin_device_id",
             "intr_pin_pin",
@@ -125,7 +113,7 @@
           ],
           "sentinel_field": "intr_pin_pin"
         },
-        "reset-pin": {
+        "rst_pin": {
           "fields": [
             "rst_pin_device_id",
             "rst_pin_pin",
@@ -258,8 +246,7 @@
               "description": "Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays"
             }
           ],
-          "enum_ref": "sys_io_mode_e",
-          "alias": "Pin Mode"
+          "enum_ref": "sys_io_mode_e"
         }
       ],
       "alias": "Configure pin mode",
@@ -585,7 +572,6 @@
         },
         {
           "name": "level",
-          "alias": "Level",
           "type": "bool"
         }
       ],
@@ -660,7 +646,7 @@
         }
       ],
       "alias": "Read pin level",
-      "returns": "level @type bool",
+      "returns": "level",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
         "class_name": "SYS_CONTRACTS",

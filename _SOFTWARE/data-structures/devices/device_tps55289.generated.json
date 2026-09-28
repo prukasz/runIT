@@ -3,7 +3,6 @@
   "schemaVersion": 1,
   "kind": "device-definition",
   "id": "device_tps55289",
-  "version": "1.0.0",
   "title": "TPS55289 buck-boost regulator",
   "description": "Adjustable I2C buck-boost voltage regulator - a programmable power output with a current limit and enable control.",
   "protocols": [
@@ -47,35 +46,28 @@
       "fields": {
         "device_id": {
           "type": "uint8_t",
-          "required": true,
-          "min": 0,
           "max": 127
         },
         "i2c_bus": {
-          "type": "uint8_t",
-          "required": true,
-          "min": 0,
-          "max": 1
+          "type": "uint8_t"
         },
         "i2c_addr": {
           "type": "uint8_t",
-          "required": true,
+          "alias": "I2C Address",
           "one_of": [
             116,
             117
           ],
-          "note": "MODE pin selects one of two I2C addresses"
+          "note": "The MODE pin selects one of two I2C addresses."
         },
         "intr_pin_device_id": {
           "type": "uint8_t",
-          "group": "interrupt-pin",
-          "role": "device_id"
+          "group": "intr_pin"
         },
         "intr_pin_pin": {
           "type": "uint8_t",
           "sentinel": 255,
-          "group": "interrupt-pin",
-          "role": "pin"
+          "group": "intr_pin"
         },
         "intr_pin_mode": {
           "type": "uint8_t",
@@ -96,29 +88,25 @@
             }
           ],
           "enum_ref": "sys_io_mode_e",
-          "group": "interrupt-pin",
-          "role": "mode"
+          "group": "intr_pin"
         },
         "en_pin_device_id": {
           "type": "uint8_t",
-          "group": "enable-pin",
-          "role": "device_id"
+          "group": "en_pin"
         },
         "en_pin_pin": {
           "type": "uint8_t",
           "sentinel": 255,
-          "group": "enable-pin",
-          "role": "pin"
+          "group": "en_pin"
         },
         "en_pin_mode": {
           "type": "uint8_t",
           "enum_ref": "sys_io_mode_e",
-          "group": "enable-pin",
-          "role": "mode"
+          "group": "en_pin"
         }
       },
       "groups": {
-        "interrupt-pin": {
+        "intr_pin": {
           "fields": [
             "intr_pin_device_id",
             "intr_pin_pin",
@@ -126,7 +114,7 @@
           ],
           "sentinel_field": "intr_pin_pin"
         },
-        "enable-pin": {
+        "en_pin": {
           "fields": [
             "en_pin_device_id",
             "en_pin_pin",
@@ -186,10 +174,7 @@
           "instance": true
         },
         {
-          "name": "voltage_mV",
-          "alias": "Voltage",
-          "type": "uint32_t",
-          "unit": "mV"
+          "name": "voltage_mV"
         }
       ],
       "alias": "Set output voltage",
@@ -227,10 +212,7 @@
           "instance": true
         },
         {
-          "name": "current_mA",
-          "alias": "Current Limit",
-          "type": "uint32_t",
-          "unit": "mA"
+          "name": "current_mA"
         }
       ],
       "alias": "Set output current limit",

@@ -3,35 +3,40 @@
 #include "dec_device_common.h"
 #include "../../../devices/device_dac53202/include/device_dac53202.h"
 
-//@id device_dac53202
-//@version 1.0.0
-//@title DAC53202 dual DAC
-//@description Two-channel I2C digital-to-analog converter - outputs a steady voltage on each channel.
-//@protocol i2c
-//@tags i2c dac voltage
-//@datasheet https://www.ti.com/lit/ds/symlink/dac53202.pdf
-//@contract-provider $SYS_DEVICE_CONTRACT_IO
-//@self-property CHANNEL @one-of [0,1]
+//#device device_dac53202
+//  @title       DAC53202 dual DAC
+//  @description Two-channel I2C digital-to-analog converter - outputs a steady voltage on each channel.
+//  @protocol    i2c
+//  @tags        i2c dac voltage
+//  @datasheet   https://www.ti.com/lit/ds/symlink/dac53202.pdf
+//  @contract-provider $SYS_DEVICE_CONTRACT_IO
 
-//@contract packet_sys_io_reset_t @alias Reset channel
-//@param pin @arg CHANNEL @alias DAC Channel
-//@description Power off the selected DAC channel.
+//#self-property CHANNEL
+//  @one-of   [0, 1]
+//  @alias    DAC Channel
 
-//@contract packet_sys_io_get_voltage_t @alias Read channel voltage
-//@param pin @arg CHANNEL @alias DAC Channel
-//@returns voltage_mV @type uint32_t @unit mV
-//@description Reads back the last voltage this channel was set to.
+//#contract packet_sys_io_reset_t
+//  @alias       Reset channel
+//  @description Power off the selected DAC channel.
+//  @param pin   @arg CHANNEL
 
-//@contract packet_sys_io_set_voltage_t @alias Set channel voltage
-//@param pin @arg CHANNEL @alias DAC Channel
-//@param voltage_mV @alias Voltage @type uint32_t @unit mV
-//@description Drive the selected channel to an exact output voltage.
+//#contract packet_sys_io_get_voltage_t
+//  @alias       Read channel voltage
+//  @description Reads back the last voltage this channel was set to.
+//  @param pin   @arg CHANNEL
+//  @returns     voltage_mV
+
+//#contract packet_sys_io_set_voltage_t
+//  @alias       Set channel voltage
+//  @description Drive the selected channel to an exact output voltage.
+//  @param pin   @arg CHANNEL
+//  @param voltage_mV
 
 #define HEADER_packet_sys_device_install_dac53202_t 0x46
 typedef struct __packed {
-  uint8_t device_id; //@required @min 0 @max CONFIG_SYS_DEVICE_MAX_ID
-  uint8_t i2c_bus;   //@required @min 0 @max 1
-  uint8_t i2c_addr;  //@required @one-of [0x48,0x49,0x4A,0x4B] @note A0 pin selects one of four I2C addresses
+  uint8_t device_id; //@max CONFIG_SYS_DEVICE_MAX_ID
+  uint8_t i2c_bus;
+  uint8_t i2c_addr;  //@alias I2C Address @one-of [0x48..0x4B] @note The A0 pin selects one of four I2C addresses.
 } packet_sys_device_install_dac53202_t;
 
 static inline SE_MUST_USE err_h decoder_packet_sys_device_install_dac53202_t(packet_sys_device_install_dac53202_t* packet) {

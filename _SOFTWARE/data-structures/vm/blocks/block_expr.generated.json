@@ -10,7 +10,7 @@
   "source_file": "components/VM/blocks/vm_block_expr.h",
   "activation": {
     "kind": "triggered",
-    "description": "Runs when an input it reads is fresh and the block is enabled."
+    "description": "Runs when an input it reads is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled."
   },
   "inputs": {
     "min": 0,

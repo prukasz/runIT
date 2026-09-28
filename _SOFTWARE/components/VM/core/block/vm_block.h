@@ -274,9 +274,17 @@ static inline void vm_block_set_eno(vm_block_h b, bool state) {
   }
 }
 
-/** @brief True if any input carries fresh data (latches VM_BLK_RT_TRIGGERED).
+/** @brief True if any input carries fresh data, or an enable fires (vm_block_en_triggered);
+ *  latches VM_BLK_RT_TRIGGERED.
  */
 bool vm_block_triggered(vm_block_h b);
+
+/** @brief True if an enable source is true and fresh this pass: a gate held open (written
+ *  loud every pass while true) or a tick. For a triggered block that counts as a trigger, so
+ *  "compute this while the branch is open" works on inputs that don't change (VM_EXEC.MD).
+ *  A level that is merely true (not written this pass) does not trigger.
+ */
+bool vm_block_en_triggered(vm_block_h b);
 
 /**
  * @brief Freshness (`upd`) belongs to the owning object; unresolved pins fail closed silently.
@@ -308,10 +316,10 @@ static inline bool vm_block_input_fresh(vm_block_h b, uint8_t pin) {
   return vm_block_pin_fresh(vm_block_get_inputs(b)[pin]);
 }
 
-/** @brief Trigger from one source pin, ignoring destination/parameter inputs.
+/** @brief Trigger from one source pin (ignoring destination/parameter inputs) or a firing enable.
  */
 static inline bool vm_block_triggered_by(vm_block_h b, uint8_t pin) {
-  if (!vm_block_input_fresh(b, pin)) return false;
+  if (!vm_block_input_fresh(b, pin) && !vm_block_en_triggered(b)) return false;
   b->cfg.rt |= VM_BLK_RT_TRIGGERED;
   return true;
 }

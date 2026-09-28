@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { AlertCircle, AlertTriangle, ArrowDown, ArrowUp, BookOpen, FileText, ImagePlus, ListPlus, Play, Plus, Trash2, Upload, X } from 'lucide-react'
 import type { DeviceType } from '../domain/descriptors'
 import { runitCommandCatalog, runitDeviceCatalog } from '../domain/descriptors'
@@ -6,6 +6,7 @@ import { actionRecordSteps, actionRunStep, allDevices, buildAction, contractsOf,
 import type { ResolvedDevice } from '../domain/devices'
 import type { ActionStep, ProjectAction, ProjectDevice } from '../domain/project'
 import { EditableField } from '../components/EditableField'
+import { FieldLabel } from '../components/FieldNote'
 import { ContractFields, initialValues } from './ContractFields'
 import { DEVICE_ICONS, DeviceTile } from './DeviceTile'
 import { Markdown } from './Markdown'
@@ -247,6 +248,7 @@ function InstallCard({ workspace: w, device, type }: { workspace: DevicesWorkspa
   // IO devices on this board: installed board devices and the other user devices.
   const targets = allDevices(w.catalog, w.devices).filter((entry) => entry.ref !== device.id && entry.type?.provider?.label.toLowerCase().includes('io') && (!entry.system || w.catalog.board.find((board) => board.deviceId === entry.deviceId)?.installed))
   const users = pinUsers(w.catalog, w.devices)
+  const idBase = useId()
 
   return (
     <div className="ble-card">
@@ -257,14 +259,14 @@ function InstallCard({ workspace: w, device, type }: { workspace: DevicesWorkspa
           const value = device.install[field.name] ?? 0
           return (
             <div key={field.name} className="ble-form-row">
-              <label title={field.note}>{field.label === field.name ? field.name.replaceAll('_', ' ') : field.label}{field.unit ? ` (${field.unit})` : ''}</label>
+              <FieldLabel htmlFor={`${idBase}-${field.name}`} note={field.note}>{field.label === field.name ? field.name.replaceAll('_', ' ') : field.label}{field.unit ? ` (${field.unit})` : ''}</FieldLabel>
               {choices ? (
-                <select className="ble-input-field" value={value} onChange={(event) => set(field.name, Number(event.target.value))}>
+                <select id={`${idBase}-${field.name}`} className="ble-input-field" value={value} onChange={(event) => set(field.name, Number(event.target.value))}>
                   {!choices.some((choice) => choice.value === value) && <option value={value}>Invalid: {field.name === 'i2c_addr' ? hex2(value) : value}</option>}
                   {choices.map((choice) => <option key={choice.value} value={choice.value}>{field.name === 'i2c_addr' ? hex2(choice.value) : choice.label}</option>)}
                 </select>
               ) : (
-                <input className="ble-input-field" type="number" min={field.min} max={field.max} value={value} onChange={(event) => set(field.name, Number(event.target.value))} />
+                <input id={`${idBase}-${field.name}`} className="ble-input-field" type="number" min={field.min} max={field.max} value={value} onChange={(event) => set(field.name, Number(event.target.value))} />
               )}
             </div>
           )
@@ -282,7 +284,7 @@ function InstallCard({ workspace: w, device, type }: { workspace: DevicesWorkspa
         return (
           <div key={group.key} className="devices-pin-group">
             <div className="devices-pin-group-title">
-              <strong>{group.label}</strong>
+              <FieldLabel note={group.note} className="devices-pin-group-name">{group.label}</FieldLabel>
               <div className="devices-segmented" role="radiogroup" aria-label={`${group.label} connection`}>
                 <button type="button" role="radio" aria-checked={none} className={none ? 'selected' : ''} onClick={() => group.sentinelField && set(group.sentinelField, group.sentinel)}>Not connected</button>
                 <button type="button" role="radio" aria-checked={!none} className={!none ? 'selected' : ''} onClick={() => none && group.sentinelField && set(group.sentinelField, 0)}>Connected</button>
@@ -434,7 +436,7 @@ function StepEditor({ workspace: w, action, step, index }: { workspace: DevicesW
           <button type="button" onClick={() => w.updateAction(action.id, { steps: action.steps.filter((entry) => entry.id !== step.id) })} title="Remove step" aria-label="Remove step"><Trash2 aria-hidden="true" /></button>
         </div>
       </div>
-      {contract && device && <ContractFields contract={contract} deviceId={device.deviceId} values={step.values} actions={w.actions} onChange={(values) => replace({ values })} />}
+      {contract && device && <ContractFields contract={contract} values={step.values} actions={w.actions} onChange={(values) => replace({ values })} />}
     </li>
   )
 }

@@ -3,7 +3,6 @@
   "schemaVersion": 1,
   "kind": "device-definition",
   "id": "device_dac53202",
-  "version": "1.0.0",
   "title": "DAC53202 dual DAC",
   "description": "Two-channel I2C digital-to-analog converter - outputs a steady voltage on each channel.",
   "protocols": [
@@ -39,26 +38,21 @@
       "fields": {
         "device_id": {
           "type": "uint8_t",
-          "required": true,
-          "min": 0,
           "max": 127
         },
         "i2c_bus": {
-          "type": "uint8_t",
-          "required": true,
-          "min": 0,
-          "max": 1
+          "type": "uint8_t"
         },
         "i2c_addr": {
           "type": "uint8_t",
-          "required": true,
+          "alias": "I2C Address",
           "one_of": [
             72,
             73,
             74,
             75
           ],
-          "note": "A0 pin selects one of four I2C addresses"
+          "note": "The A0 pin selects one of four I2C addresses."
         }
       }
     }
@@ -125,8 +119,8 @@
         }
       ],
       "alias": "Read channel voltage",
-      "returns": "voltage_mV @type uint32_t @unit mV",
       "description": "Reads back the last voltage this channel was set to.",
+      "returns": "voltage_mV",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
         "class_name": "SYS_CONTRACTS",
@@ -168,10 +162,7 @@
           "alias": "DAC Channel"
         },
         {
-          "name": "voltage_mV",
-          "alias": "Voltage",
-          "type": "uint32_t",
-          "unit": "mV"
+          "name": "voltage_mV"
         }
       ],
       "alias": "Set channel voltage",

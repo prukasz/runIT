@@ -86,7 +86,9 @@
 .devices-facts dd { margin: 0; color: var(--active); }
 
 .devices-pin-group { margin-top: 6px; padding: 12px 14px 0; border: 1px solid var(--divider); border-radius: 8px; }
-.devices-pin-group-title { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; font-size: 13px; color: var(--active); }
+.devices-pin-group-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 12px; font-size: 13px; color: var(--active); }
+.devices-pin-group-name { font-weight: 600; }
+.devices-pin-group-title > .field-note { order: 1; flex-basis: 100%; }
 .devices-check { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; cursor: pointer; }
 
 .devices-markdown { color: var(--active); font-size: 13px; line-height: 1.6; }
@@ -105,8 +107,6 @@
 .contract-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px 12px; margin: 8px 0; }
 .contract-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; color: var(--muted); font-size: 11px; }
 .contract-field input:not([type=checkbox]), .contract-field select { width: 100%; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--divider); border-radius: 5px; background: var(--background); color: var(--active); font-size: 12px; }
-.contract-instance { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 8px; border: 1px dashed var(--divider); border-radius: 5px; color: var(--active); font-size: 12px; }
-.shell .contract-instance svg { width: 12px; height: 12px; color: var(--muted); }
 .contract-switch { display: inline-flex; align-items: center; gap: 6px; height: 30px; color: var(--active); font-size: 12px; }
 
 /* Right panel */
@@ -152,8 +152,8 @@
 }
 
 /* Pins it uses, pin defaults, other defaults */
-.devices-pin-table { display: flex; flex-direction: column; max-height: 420px; overflow: auto; margin: 10px 0; border: 1px solid var(--divider); border-radius: 8px; }
-.devices-pin-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) 90px; align-items: center; gap: 10px; min-height: 36px; padding: 3px 10px; border-top: 1px solid var(--divider); font-size: 12px; color: var(--active); }
+.devices-pin-table { container: pin-table / inline-size; display: flex; flex-direction: column; max-height: 420px; overflow: auto; margin: 10px 0; border: 1px solid var(--divider); border-radius: 8px; }
+.devices-pin-row { flex: none; display: grid; grid-template-columns: minmax(56px, 110px) minmax(0, 1fr) minmax(0, 90px); align-items: center; gap: 10px; min-height: 36px; padding: 3px 10px; border-top: 1px solid var(--divider); font-size: 12px; color: var(--active); }
 .devices-pin-row.is-head { position: sticky; top: 0; z-index: 1; min-height: 30px; border-top: 0; background: var(--panel); color: var(--muted); font-size: 11px; font-weight: 600; }
 .devices-pin-row.is-set { background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .devices-pin-default { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; color: var(--active); }
@@ -168,8 +168,8 @@
 .shell .devices-default-head button { width: 28px; height: 28px; }
 .shell .devices-default-head svg { width: 15px; height: 15px; }
 .devices-default-add { display: flex; gap: 8px; margin-top: 12px; }
-.devices-default-add select { flex: 1; height: 32px; padding: 0 8px; border: 1px solid var(--divider); border-radius: 6px; background: var(--background); color: var(--active); font-size: 12px; }
-.shell .devices-default-add button { gap: 6px; width: auto; height: 32px; padding: 0 12px; border: 1px solid var(--divider); border-radius: 6px; color: var(--active); font-size: 12px; }
+.devices-default-add select { flex: 1; min-width: 0; height: 32px; padding: 0 8px; border: 1px solid var(--divider); border-radius: 6px; background: var(--background); color: var(--active); font-size: 12px; }
+.shell .devices-default-add button { flex: none; gap: 6px; width: auto; height: 32px; padding: 0 12px; border: 1px solid var(--divider); border-radius: 6px; color: var(--active); font-size: 12px; }
 .shell .devices-default-add svg { width: 15px; height: 15px; }
 
 /* Device references: a pill (tile, name, detail); in a ref grid the parts line up in columns */
@@ -184,6 +184,14 @@
 .shell .devices-ref-arrow { width: 14px; height: 14px; color: var(--muted); }
 .shell .devices-ref-grid .devices-pill { display: grid; grid-column: span 3; grid-template-columns: subgrid; column-gap: 8px; }
 .devices-ref-grid .devices-pill-detail { justify-self: end; }
+.devices-refs-card { container: refs / inline-size; }
+/* Narrow card: each reference is its own wrapping row (label, arrow, pill, mode) instead of grid columns */
+@container refs (max-width: 440px) {
+  .devices-ref-grid { display: flex; flex-direction: column; gap: 10px; }
+  .devices-ref-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+  .shell .devices-ref-grid .devices-pill { display: inline-flex; min-width: 0; max-width: 100%; }
+  .devices-ref-grid .devices-pill-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
 .devices-mode-chip, .devices-pin-taken em { justify-self: start; padding: 2px 8px; border-radius: 10px; background: color-mix(in srgb, var(--active) 7%, transparent); color: var(--muted); font-size: 11px; font-style: normal; }
 .devices-facts { display: grid; gap: 6px; margin: 12px 0 0; font-size: 12px; }
 
@@ -203,6 +211,21 @@
 .devices-pin-taken .devices-pill-name { min-width: 80px; }
 .devices-pin-taken .devices-pill-detail { min-width: 96px; }
 
+/* Narrow pin table: compact columns and shrinking pills; narrower still, the pin name on its own line with mode and level under it */
+@container pin-table (max-width: 420px) {
+  .devices-pin-row { grid-template-columns: 52px minmax(0, 1fr) 72px; gap: 8px; }
+  .devices-pin-taken, .devices-taken { min-width: 0; max-width: 100%; }
+  .shell .devices-pin-taken .devices-pill { min-width: 0; max-width: 100%; }
+  .devices-pin-taken .devices-pill-name, .devices-pin-taken .devices-pill-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+@container pin-table (max-width: 260px) {
+  .devices-pin-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); row-gap: 4px; padding: 6px 10px; }
+  .devices-pin-row > :first-child, .devices-pin-taken { grid-column: 1 / -1; }
+  .devices-pin-row.is-head > :first-child { display: none; }
+  .devices-pin-row > [role="cell"]:nth-child(2):has(+ :empty) { grid-column: 1 / -1; }
+  .devices-pin-row > [role="cell"]:empty { display: none; }
+}
+
 /* Array fields: one small input per element, labelled */
 .contract-field.is-array { grid-column: 1 / -1; margin: 0; padding: 0; border: 0; }
 .contract-field.is-array legend { padding: 0; margin-bottom: 4px; }
@@ -215,6 +238,14 @@
 .shell .devices-card-clear svg { width: 14px; height: 14px; }
 .devices-subheading { margin: 16px 0 8px; color: var(--active); font-size: 12px; font-weight: 600; }
 .devices-error-grid { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.devices-importance-table { width: 100%; max-width: 420px; margin: 10px 0 6px; border-collapse: collapse; font-size: 11px; }
+.devices-importance-table th, .devices-importance-table td { padding: 4px 8px; border-bottom: 1px solid var(--divider); text-align: center; font-weight: 400; }
+.devices-importance-table thead th { color: var(--muted); font-weight: 600; }
+.devices-importance-table th[scope="row"], .devices-importance-table thead th:first-child { text-align: left; color: var(--active); }
+.devices-importance-table td { color: var(--muted); }
+.shell .devices-importance-table svg { display: inline-block; width: 14px; height: 14px; color: var(--accent); vertical-align: middle; }
+.devices-importance-table tr.is-current { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.devices-importance-table tr.is-current th[scope="row"] { font-weight: 600; }
 .devices-error-actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px 12px; }
 .devices-error-action { display: flex; flex-direction: column; gap: 4px; max-width: 320px; color: var(--muted); font-size: 11px; }
 .devices-error-action select { height: 30px; padding: 0 8px; border: 1px solid var(--divider); border-radius: 5px; background: var(--background); color: var(--active); font-size: 12px; }

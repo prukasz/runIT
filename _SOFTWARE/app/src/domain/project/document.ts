@@ -307,10 +307,17 @@ export interface ProgramBlock {
    * made (block-owned past the list); a repeating pin (SWITCH) as often as listed.
    */
   readonly outputs?: readonly (string | null)[]
-  /** Enable sources; none = always enabled. */
+  /**
+   * Enable sources the user dropped on the EN strip (a gate, an ENO, a bool;
+   * `<for id>:body` puts the block in that loop's body). On a canvas a block
+   * also takes the gates of the blocks feeding it (arrange.ts); none at all =
+   * always enabled.
+   */
   readonly enables?: readonly ObjectPath[]
-  /** How several enables combine (default `any`). */
+  /** How several explicit enables combine (default `any`). */
   readonly enableMode?: 'any' | 'all'
+  /** `false`: don't take the gates of the blocks feeding it (runs whatever branch they are in). */
+  readonly inheritGates?: false
   /** After a failed call: `stop` drops ENO (default), `continue` carries on. */
   readonly onError?: 'stop' | 'continue'
     /** Explicitly allocate ENO (legacy / telemetry); pin references allocate it automatically. */
@@ -319,7 +326,7 @@ export interface ProgramBlock {
   readonly settings?: Readonly<Record<string, number | string>>
   /** EXPR / EXPR_BIT: constants and RPN code (opcode aliases or symbols, each operand a number after its opcode). */
   readonly expression?: { readonly constants?: readonly number[]; readonly code: readonly (string | number)[] }
-  /** FOR: how many of the blocks after it are the loop body. */
+  /** FOR: how many of the blocks after it are the loop body (on a canvas: counted from the blocks it gates). */
   readonly body?: number
 }
 
@@ -329,6 +336,10 @@ export interface CanvasBlock extends ProgramBlock {
   readonly y: number
   /** Omitted = follow the toolbar's view preference. */
   readonly view?: 'simple' | 'detailed'
+  /** The user's name for the block, shown on the canvas (its ID stays the reference). */
+  readonly name?: string
+  /** Optional names for block-owned output pins, by output index. */
+  readonly outputAliases?: readonly (string | null)[]
 }
 
 /**
@@ -336,11 +347,24 @@ export interface CanvasBlock extends ProgramBlock {
  * every enabled canvas's blocks, the canvases in list order. A disabled canvas
  * is left out of the compile.
  */
+/**
+ * A variable chip pulled off its pin onto the canvas: every pin of the canvas
+ * reading this path is drawn wired to it instead of carrying its own chip.
+ * Only a picture: the pins keep their paths.
+ */
+export interface CanvasVariable {
+  readonly id: string
+  readonly path: ObjectPath
+  readonly x: number
+  readonly y: number
+}
+
 export interface ProjectCanvas {
   readonly id: string
   readonly name: string
   readonly disabled?: boolean
   readonly blocks: readonly CanvasBlock[]
+  readonly variables?: readonly CanvasVariable[]
 }
 
 /** The user's tree as the first section. */

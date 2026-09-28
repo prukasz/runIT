@@ -2,74 +2,85 @@
 
 Device annotations are source comments in `components/codecs/decoders/device/dec_device_<name>.h`. They generate one self-contained descriptor at `data-structures/devices/<device-id>.generated.json`. Generated files are output only; do not edit them.
 
-Generate all annotated devices with:
-
 ```powershell
 python data-structures/auto-annotations/device/generate-devices.py components/codecs/decoders data-structures/devices
+python -m unittest data-structures/auto-annotations/device/test_generate_devices.py
 ```
 
-The first argument is the decoders root to scan, the second is the output directory - each device's output filename is generated automatically from its own `//@id` (`<device-id>.generated.json`), never passed explicitly. `$SYMBOL` resolution pulls live from `data-structures/auto-annotations/enums/generate-enums.py`'s scan (see that script's own doc comment) - no separate enums JSON needs to be generated or committed first.
+The first argument is the decoders root to scan, the second the output directory; each file is named from its `//#device` ID. `$SYMBOL` resolution runs `data-structures/auto-annotations/enums/generate-enums.py`'s scan live, so no enums JSON has to be generated first.
 
-## Keyword reference by case
+**Start from [device-template.txt](device-template.txt)**: a complete header using every tag, with a reference of what the app does with each one (`test_generate_devices.py` keeps it generating).
 
-| Case | Keywords |
-|---|---|
-| Device metadata (top-level, before first `//@contract`) | `id`, `version`, `title`, `description`, `protocol`, `tags`, `datasheet`, `contract-provider`, `pwm-frequencies` |
-| `//@self-property NAME` | `one-of` |
-| `//@property NAME` | `enum-ref`, `one-of`, `default` |
-| `//@contract <packet>` | `alias` |
-| `//@param <field>` | `arg`, `alias`, `type`, `unit`, `one-of`, `available`, `min`, `max`, `default`, `optional`, `device-wide` |
-| `//@returns <name>` | `type`, `unit` |
-| `//@description` (after `@contract`) | *(free text, no sub-keywords)* |
-| Install struct field (`// ...` on a packed field) | `required`, `optional`, `alias`, `min`, `max`, `one-of`, `available`, `default`, `unit`, `enum-ref`, `sentinel`, `group`, `role`, `note` |
-| `//#ref-enum` marker | `alias` |
-| Enum member (`// ...` on an enum value) | `alias`, `description` |
-| Anywhere a value is expected | `$SYMBOL` prefix - resolve against a `//#ref-enum` enum, hard error if unresolved |
-| Generated only, never authored | `instance` (`true` on a synthesized `device_id` parameter - see Contracts) |
+**Only write what the app reads.** Every record kind accepts a fixed set of tags and generation fails on any other, so a typo or a tag nothing uses never lands silently. When a value is already on the generic packet (alias, unit, type, optional, note of `dec_sys_contracts.h`), don't repeat it on the device.
 
-## Header layout
-
-Place the annotations after includes and before the install packet. An annotated header must declare exactly one `packet_sys_device_install_<name>_t` packet.
+## Layout
 
 ```c
-//@id device_example
-//@version 1.0.0
-//@title Example device
-//@description Short user-facing device description.
-//@protocol i2c
-//@tags i2c adc monitor
-//@contract-provider $SYS_DEVICE_CONTRACT_IO
-//@self-property PIN @one-of [0,1,2,3]
-//@property PIN-MODE @enum-ref sys_io_mode_e @one-of [$SYS_IO_MODE_ADC]
+//#device device_example                 <- a record starts: //#<kind> <name> [@tag ...]
+//  @title       Example device           <- continuation: comment + two or more spaces
+//  @description First line of the text
+//               and its second line.      <- a line with no tag continues the tag above
+//  @contract-provider $SYS_DEVICE_CONTRACT_IO
 
-//@contract packet_sys_io_get_voltage_t @alias Read channel voltage
-//@param pin @arg PIN @alias Channel
-//@returns voltage_mV @type uint32_t @unit mV
-//@description Read the selected channel.
+// A plain comment (one space) ends the record; it is for developers and never read.
 ```
 
-## Device metadata
+- A record runs until the first line that is not `//` followed by two or more spaces.
+- Several tags may share a line (`@one-of [0..7] @alias ADC Channel`).
+- Free text only follows `@description` and `@note`. Both are client-facing: say what the thing is for and how to use it, never how the firmware implements it. Implementation remarks go in plain `//` comments.
+- The old one-line directives (`//@id`, `//@contract`, `//@param` …) fail generation with a pointer here.
 
-| Annotation | Required | Generated field | Rule |
-|---|---:|---|---|
-| `//@id <id>` | yes | `id` | Stable, unique device identifier. |
-| `//@version <semver>` | yes | `version` | Descriptor schema version for this device, not firmware build version. |
-| `//@title <text>` | yes | `title` | Short UI name. |
-| `//@description <text>` | yes | `description` | Concise user-facing purpose and behavior. |
-| `//@protocol <items>` | no | `protocols` | Whitespace-separated transports, for example `i2c spi`. |
-| `//@tags <items>` | no | `tags` | Whitespace-separated search terms. |
-| `//@datasheet <url>` | no | `datasheet` | The manufacturer's datasheet (PDF URL); the app links it on the device page. |
-| `//@contract-provider $<symbol>` | no | `contractProvider` | Firmware contract actually exposed by the adapter. The `$` marks it as a global symbol - it must resolve against a `//#ref-enum` enum (see below) or generation fails. |
-| `//@self-property NAME @one-of [...]` | no, repeatable | (lookup table only, not emitted directly) | A device-local value domain with no meaning outside this device - plain literals, nothing to resolve (e.g. channel indices, address straps). |
-| `//@property NAME [@enum-ref <enum>] @one-of [$SYMBOL, ...] [@default $SYMBOL]` | no, repeatable | (lookup table only, not emitted directly) | A value domain whose members are real global symbols. Each `$SYMBOL` must resolve against a `//#ref-enum` enum or generation fails. `@default` must be one of its choices and is copied to parameters using `@arg NAME`. |
+## Keyword reference
 
-Only put device-intrinsic values here: channel count, fixed address straps, supported modes, or silicon limits. Board pin assignments, bus topology, and installed IDs belong to the project/board. Runtime-negotiated limits belong to runtime discovery.
+| Where | Tags |
+|---|---|
+| `//#device <id>` | `title` (required), `description` (required), `protocol`, `tags`, `datasheet`, `contract-provider`, `pwm-frequencies` (+ `count-bits`) |
+| `//#self-property NAME` | `one-of`, `alias`, `note` |
+| `//#property NAME` | `enum-ref`, `one-of`, `default`, `alias`, `note` |
+| `//#contract <packet>` | `alias`, `description`, `returns`, and `@param` lines |
+| `@param <field>` (one per line, in a contract) | `arg`, `alias`, `type`, `unit`, `one-of`, `min`, `max`, `default`, `device-wide`, `note` |
+| Install struct field (`//` after the `;`) | `optional`, `alias`, `min`, `max`, `one-of`, `default`, `unit`, `enum-ref`, `note`; rare: `sentinel`, `group`, `encoding`, `terminator` |
+| `pin_ref_wire_t` install field | `alias`, `note`, `modes`, `default-mode` |
+| Any value | `$SYMBOL` (a `//#ref-enum` member), `CONFIG_*` / `#define` for `min` / `max` / `default`, `a..b` ranges in lists |
 
-`@self-property`/`@property` exist to be referenced from a `@param` via `@arg NAME` (see below) so the same value domain isn't retyped on every contract that takes it. Don't define one that nothing references. Use a property `@default` only when the device or its driver actually establishes that value without a project setup command. The app may show this as the effective pin state while leaving stored setup empty.
+## Device record
+
+| Tag | JSON | Rule |
+|---|---|---|
+| `//#device <id>` | `id` | Stable, unique device identifier; names the output file. |
+| `@title` | `title` | Short UI name. |
+| `@description` | `description` | What the device is and does, for the user. |
+| `@protocol` | `protocols` | Whitespace-separated transports (`i2c`, `native`); shown on the device card, `native` picks the tile icon. |
+| `@tags` | `tags` | Whitespace-separated search terms; palette search and tag chips. |
+| `@datasheet` | `datasheet` | Manufacturer datasheet URL; the device page links it. |
+| `@contract-provider $<symbol>` | `contractProvider` | The `sys_device_contract_type_e` the adapter exposes; must resolve. |
+| `@pwm-frequencies <value> [@count-bits]` | `pwm_frequencies` | How many different PWM frequencies a per-pin-frequency device runs at once. The value resolves like `@min`; `@count-bits` counts the set bits of a mask (ESP GPIO: `CONFIG_DEVICE_GPIO_ESP_PWM_TIMER_MASK`). The app warns when a project needs more. |
+
+There is no `@version`: nothing reads a descriptor version.
+
+## Value sets: `//#self-property` and `//#property`
+
+A value set is written once and used by parameters through `@arg NAME`, so the same list, label and note aren't retyped on every contract.
+
+- `//#self-property NAME` holds device-local literals with no meaning elsewhere (channel indices).
+- `//#property NAME` holds `$SYMBOL`s of one published enum (`@enum-ref` is inferred when all symbols come from one enum). `@default` must be one of its choices; use it only when the device or its driver establishes that value without a setup command (the app shows it as the effective state and leaves the stored setup empty).
+- `@alias` and `@note` on a value set are inherited by every `@param ... @arg NAME`; a parameter's own `@alias` / `@note` wins.
+- Define one only when a parameter uses it. Board pin assignments, bus topology and installed IDs belong to the project or the board, not here.
+
+```c
+//#self-property PIN
+//  @one-of   [0..7]
+//  @alias    ADC Channel
+
+//#property PIN-MODE
+//  @enum-ref sys_io_mode_e
+//  @one-of   [$SYS_IO_MODE_ADC]
+//  @default  $SYS_IO_MODE_ADC
+```
 
 ## Referencing global enums (`$SYMBOL` / `//#ref-enum`)
 
-A `$`-prefixed token (in a `@property @one-of` list, `@contract-provider`, or a field's own `@one-of`/`@sentinel`) means "resolve this against a real enum member, don't treat it as a string." It only resolves against enums explicitly opted in at their C definition site:
+A `$`-prefixed token means "resolve against a real enum member". It only resolves against enums opted in at their definition:
 
 ```c
 //#ref-enum @alias IO Mode
@@ -79,75 +90,82 @@ typedef enum sys_io_mode_e {
 } sys_io_mode_e;
 ```
 
-- `//#ref-enum` goes on the line immediately before the `typedef enum`. Only marked enums are scanned - this is a deliberate opt-in, not a blanket project-wide scan, so an internal/private enum never accidentally becomes public wire vocabulary.
-- The marker's own `@alias` is the enum's display title (e.g. "IO Mode").
-- Each member's trailing `// @alias <label> @description <text>` is optional. No comment (or an empty one) means no alias - a client falls back to formatting the raw symbol name. `@description` should be written for someone who doesn't know the underlying electrical/firmware concept - explain what the option is *for*, with a concrete use case, not just what it technically does.
-- An unresolved `$SYMBOL` (not found in any `//#ref-enum` enum) is a hard generation error, never a silent fallback to a bare string - that silent-fallback behavior was the old design's actual bug.
-- A member name defined in two different `//#ref-enum` enums is also a hard error (ambiguous).
+- `//#ref-enum` goes on the line before the `typedef enum`; only marked enums are scanned.
+- The marker's `@alias` is the enum's display title; each member's `@alias` / `@description` is optional. Write `@description` for someone who doesn't know the electrical or firmware concept: what the option is for, with a use case.
+- An unresolved `$SYMBOL`, or a member name defined in two published enums, fails generation.
 
 ## Contracts
 
-`//@contract` must reference a packet struct name, never a decoder function or a `HEADER_` macro. Generation fails for an unknown packet.
-
 ```c
-//@contract <packet_struct_name> [@alias <action label>]
-//@param <packet_field> [@arg <PROPERTY_NAME>] [@alias <label>] [@type <C type>] [@unit <unit>] [@one-of [value,...]] [@min <value>] [@max <value>] [@default <value>] [@optional] [@device-wide]
-//@returns <name> [@type <C type>] [@unit <unit>]
-//@description <text>
+//#contract packet_sys_io_configure_intr_t
+//  @alias       Configure alert
+//  @description Configure the on-chip ADC window comparator.
+//  @param pin                @arg PIN
+//  @param mode               @arg INTR-MODE
+//  @param adc_thresh_up_mV   @alias Upper Threshold
 ```
 
-A contract is the device-restricted view of a generic system packet. List only operations whose vtable function is supported by the adapter. The generated descriptor embeds the referenced packet definition, including class/header bytes and wire-field layout.
+A contract is the device's view of a generic system packet. List only operations the adapter supports. The name must be a packet struct (not a decoder or `HEADER_` macro); an unknown packet fails generation. The descriptor embeds the packet definition (class and header bytes, wire fields).
 
-**Completeness rule:** every field the referenced packet marks `@required` (in the generic decoder, e.g. `dec_sys_contracts.h`) must appear in the contract's own `@param` list. Generation fails otherwise - a device that silently omits a required generic field (like `route_mask` on `packet_sys_io_configure_intr_t`) produces a client-facing form that can't actually build a valid wire packet.
+- **Completeness:** every field the generic packet marks `@required` must have a `@param` line, even a bare one (`@param voltage_mV`). Optional generic fields appear in the app without one.
+- **`device_id` is synthesized**, never annotated: the generator adds `{"name": "device_id", "instance": true}`, which the app fills from the device.
+- **Add a tag only when it changes something.** The app merges each parameter with its generic field, so `@alias`, `@unit`, `@note` equal to the generic field's are noise; whether a field is optional always comes from the generic packet. `@type bool` is still needed where the generic field is a `uint8_t` on/off (`level`, `state`): the app shows a switch.
+- `@min` / `@max` / `@default` resolve numbers, `$SYMBOL`s, C defines and `CONFIG_*`; an unresolved value fails generation.
+- `@device-wide`: the field selects nothing on this device (PCA9685 has one PWM frequency for all channels, so `set_pwm_frequency`'s `pin`). JSON `device_wide: true`; the app hides the field and sends 0.
+- `@note`: shown behind the field's (i) button. Falls back to the `@arg` property's note, then to the generic field's.
+- `@returns <name>`: the name of the value an OK answer carries. Its type and unit come from the response packet, so nothing else goes on the line.
 
-**`device_id` is synthesized automatically**, never annotated: it means "which installed device instance this call addresses," supplied by the calling context (the device the client is already configuring), not a value a user picks per contract. The generator injects it into every contract's `parameters` as `{"name": "device_id", "alias": ..., "instance": true}` - a client renders anything with `"instance": true` as auto-filled context, never as a form field, and never needs its own `@param device_id` line in any header.
+## Install packet
 
-`@arg <NAME>` pulls a param's constraint (its `@one-of` list, `@enum-ref` and `@default` when present) from a `@self-property`/`@property` defined earlier in the same header, instead of retyping it. A param may still use its own inline `@one-of`/`@min`/`@max` when the value domain isn't shared with anything else.
-
-`@one-of` accepts numbers and `$`-prefixed enum symbols (which resolve per the rules above). A contract `@param`'s `@min`, `@max` and `@default` resolve C defines (any header under `components/`) and `CONFIG_*` symbols; one that doesn't resolve fails generation.
-
-`//@pwm-frequencies <value> [@count-bits]` (metadata): how many different PWM frequencies a per-pin-frequency device runs at once (pins with one frequency share a timer). The value resolves like `@min`; `@count-bits` counts the set bits of a mask (ESP GPIO: `CONFIG_DEVICE_GPIO_ESP_PWM_TIMER_MASK`). JSON `pwm_frequencies`; the app warns when a project needs more.
-
-`@device-wide` marks a generic field that selects nothing on this device: the setting applies to the whole device (the PCA9685 has one PWM frequency for all channels, so `set_pwm_frequency`'s `pin` is `@device-wide`). The JSON parameter gets `"device_wide": true`; a client hides the field and sends 0.
-
-## Install packet fields
-
-Inline annotations on fields of the packed install packet are the canonical wire metadata:
+Each annotated header declares exactly one `packet_sys_device_install_<name>_t`. Field annotations go after the `;`. A comment-only line of `//` plus two or more spaces right under a field continues that field's annotation (for a long `@note`).
 
 ```c
-uint8_t i2c_bus; //@required @alias I2C Bus @one-of [0,1]
-uint8_t alert_pin; //@group alert-pin @role pin @sentinel SYS_GPIO_NONE
-uint32_t vref_mv; //@required @alias ADC Reference Voltage @unit mV @min 1
+typedef struct __packed {
+  uint8_t device_id;       //@max CONFIG_SYS_DEVICE_MAX_ID
+  uint8_t i2c_bus;
+  uint8_t i2c_addr;        //@alias I2C Address @one-of [0x10..0x17] @note The resistor on the ADDR pin selects the address at power-up.
+  pin_ref_wire_t intr_pin; //@alias ALERT @modes [$SYS_IO_MODE_INPUT, $SYS_IO_MODE_INPUT_PULLUP] @default-mode $SYS_IO_MODE_INPUT_PULLUP
+                           //  @note Open-drain, active-low.
+  uint32_t vref_mV;        //@alias ADC Reference Voltage @unit mV @min 1
+} packet_sys_device_install_ads7128_t;
 ```
 
-Supported field annotations: `@required`, `@optional`, `@alias`, `@min`, `@max`, `@one-of`, `@available`, `@default`, `@unit`, `@enum-ref`, `@sentinel`, `@group`, `@role`, and `@note`. Install-packet fields don't support `@arg` - they're always inline, since the install struct is unique per device and its fields aren't shared across contracts the way a `pin` parameter is. `@ref` remains accepted only while older headers are migrated.
+- **What the app reads:** `device_id`'s `@max` (highest free ID it hands out); `i2c_bus` takes nothing (the app sets the board's user bus); every other field is a form control, so give it `@alias`, `@unit`, `@min` / `@max` or `@one-of`, and `@note` when the user needs to know something.
+- Fields are required unless `@optional`, so `@required` isn't written.
+- An `i2c_addr` field must have a nonempty `@one-of` with the chip's strap-selectable 7-bit addresses; the app shows them in hex and flags loaded values outside the list.
+- `@default` may be a `$SYMBOL`; it must be one of the field's `@one-of` when both are given. The app uses it when creating a device.
 
-An install field's `@default` may name a published enum member with `$SYMBOL`; the generator writes its numeric value. For a pin mode, use this with `@enum-ref sys_io_mode_e` and an explicit `@one-of` subset. The app applies this default when creating a device.
+### Pins on other devices: `pin_ref_wire_t`
 
-Every install packet with an `i2c_addr` field must declare a nonempty `@one-of` list of the chip's usable 7-bit addresses. The generator rejects missing lists. Include addresses selected by hardware straps, not arbitrary values that the driver happens to accept. The app shows these as hexadecimal choices and checks loaded project values against the same list.
+A pin the device uses on another device (interrupt, reset, enable) is one `pin_ref_wire_t <name>_pin` field (`dec_device_common.h`: provider device ID, pin, mode; three bytes). The decoder turns it into a `sys_io_pin_ref_t` with `pin_ref_from_wire(packet-><name>_pin)`.
 
-Use field `@alias` for the canonical wire-field label. Use parameter `@alias` only when a generic field has clearer device-specific meaning: generic `pin` becomes `ADC Channel` for ADS7128 or `PWM Channel` for PCA9685. Do not duplicate identical labels in both places.
+The generator expands it to the wire fields `<name>_pin_device_id`, `<name>_pin_pin` (sentinel `SYS_GPIO_NONE` = not connected) and `<name>_pin_mode` (`sys_io_mode_e`), and one pin group keyed `<name>_pin`. That key is also how `board.generated.json` names the pins the board's own devices take, so board devices show the same label.
 
-A hardware characteristic that isn't a value-domain (e.g. "this pin is active-low") belongs in that field's own `@note`, not in a property - see `intr_pin_pin`/`crit_pin_pin` in the ADS7128/INA3221 headers for the pattern.
+| Tag | Effect |
+|---|---|
+| `@alias` | What the pin is for, as the app names it ("ALERT" -> "ALERT pin"). Without it the app derives a name from the field (`intr_pin` -> "Interrupt"), so only write it when that name is wrong for the chip. |
+| `@note` | Shown behind the pin block's (i) button (active-low, open-drain …). |
+| `@modes [$...]` | The pin modes that make sense for this use; the app also intersects them with what the chosen provider supports. Without it, every `sys_io_mode_e`. |
+| `@default-mode $X` | The mode a new device starts with; must be one of `@modes`. |
 
 ## Generated JSON shape
 
 ```json
 {
-  "$schema": "runit://schemas/device-definition/v1",
+  "$schema": "data-structures/schema/device-definition.schema.json",
   "schemaVersion": 1,
   "kind": "device-definition",
   "id": "device_example",
-  "version": "1.0.0",
-  "install": { "packet": "packet_sys_device_install_example_t", "packet_definition": {} },
+  "title": "Example device",
+  "install": { "packet": "packet_sys_device_install_example_t", "packet_definition": { "groups": { "intr_pin": { "fields": ["..."], "sentinel_field": "intr_pin_pin", "alias": "ALERT", "note": "..." } } } },
   "contracts": [
-    { "packet": "packet_sys_io_get_voltage_t", "alias": "Read channel voltage", "parameters": [], "packet_definition": {} }
+    { "packet": "packet_sys_io_get_voltage_t", "alias": "Read channel voltage", "returns": "voltage_mV", "parameters": [], "packet_definition": {} }
   ]
 }
 ```
 
-`packet_definition` is generated directly from C and drives little-endian command packing. Firmware remains the final validation authority.
+Every file is validated against `data-structures/schema/device-definition.schema.json` before it is written. `packet_definition` is generated from C and drives little-endian packing; firmware remains the final validation authority.
 
-## Current scope
+## Adding a tag
 
-The generator currently supports device identity, capabilities, installation fields, contract restrictions, aliases, parameter constraints, and descriptions. Assets, errors, layout metadata, and runtime capability queries are future directives; document and test any new directive before using it.
+Add a tag only together with the app code that reads it: the tag set of its record in `generate-devices.py`, the schema, a case in `test_generate_devices.py`, [device-template.txt](device-template.txt) (the test fails until the template uses it), and this page.

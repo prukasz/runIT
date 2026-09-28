@@ -1,4 +1,4 @@
-import { packCommand, pinUseLabel } from '../descriptors'
+import { packCommand } from '../descriptors'
 import type { CommandCatalog, DeviceCatalog, DeviceChoice, DeviceContract, DeviceParameter, DeviceType } from '../descriptors'
 import { boardDeviceRef } from '../project'
 import type { ActionStep, DeviceRef, ProjectAction, ProjectDevice, StepValues } from '../project'
@@ -77,7 +77,7 @@ export const pinUsers = (catalog: DeviceCatalog, devices: readonly ProjectDevice
   const add = (deviceId: number, pin: number, user: PinUser) => users.set(pinKey(deviceId, pin), [...(users.get(pinKey(deviceId, pin)) ?? []), user])
   for (const board of catalog.board) {
     if (!board.installed) continue
-    for (const link of board.pins) add(link.deviceId, link.pin, { owner: boardDeviceRef(board.deviceId), ownerName: board.name, use: pinUseLabel(link.use), mode: link.mode })
+    for (const link of board.pins) add(link.deviceId, link.pin, { owner: boardDeviceRef(board.deviceId), ownerName: board.name, use: link.label, mode: link.mode })
   }
   for (const reserved of catalog.reservedPins) add(reserved.deviceId, reserved.pin, { ownerName: 'Board', use: reserved.label })
   for (const setup of catalog.boardPinSetup) add(setup.deviceId, setup.pin, { ownerName: 'Board', use: setup.label ?? 'Board pin', mode: setup.mode, ...(setup.level === undefined ? {} : { level: setup.level }) })
@@ -86,7 +86,7 @@ export const pinUsers = (catalog: DeviceCatalog, devices: readonly ProjectDevice
     for (const group of type?.pinGroups ?? []) {
       if (group.sentinelField && device.install[group.sentinelField] === group.sentinel) continue
       if (!group.deviceField || !group.pinField) continue
-      add(device.install[group.deviceField] ?? 0, device.install[group.pinField] ?? 0, { owner: device.id, ownerName: deviceDisplayName(catalog, device), use: group.label.replace(/ pin$/, ''), mode: group.modeField ? device.install[group.modeField] ?? 0 : 0 })
+      add(device.install[group.deviceField] ?? 0, device.install[group.pinField] ?? 0, { owner: device.id, ownerName: deviceDisplayName(catalog, device), use: group.use, mode: group.modeField ? device.install[group.modeField] ?? 0 : 0 })
     }
   }
   return users
@@ -222,6 +222,9 @@ export const checkSetup = (catalog: DeviceCatalog, devices: readonly ProjectDevi
       diagnostics.push({ severity: 'error', message: `Default setting ${step.contract}: ${device ? `${device.name} has no such contract` : `device ${step.device} is gone`}.`, subjectId: `setup:${step.device}` })
       continue
     }
+    if (step.contract === SET_ERROR_HANDLING && step.values.importance === IMPORTANCE_DISABLED) {
+      diagnostics.push({ severity: 'warning', message: `${device.name}: error handling is Disabled — every error of this device is ignored, Critical included.`, subjectId: `errors:${step.device}` })
+    }
     const pin = typeof step.values.pin === 'number' ? step.values.pin : undefined
     const taken = pin === undefined ? [] : (users.get(pinKey(device.deviceId, pin)) ?? []).filter((user) => user.owner !== step.device)
     if (taken.length) diagnostics.push({ severity: 'error', message: `${device.name} pin ${pin}: ${contract.label} — the pin is taken by ${taken.map((user) => `${user.ownerName} (${user.use})`).join(', ')}.`, subjectId: `setup:${step.device}` })
@@ -260,6 +263,11 @@ export const deviceInstallSteps = (catalog: DeviceCatalog, devices: readonly Pro
 /** The contract that sets a device's importance and its action per error level. */
 export const SET_ERROR_HANDLING = 'packet_sys_device_set_error_handling_t'
 
+/** sys_device_importance_e NONE: the device's errors are all ignored, critical ones included. */
+export const IMPORTANCE_DISABLED = 0
+
+export const DISABLED_IMPORTANCE_WARNING = 'Disabled ignores every error of this device, Critical included: nothing stops the program or the other devices when it fails. Its errors still show in Errors & logs. Use it only for a device under test, at your own risk.'
+
 /** What runs when the device reports an error of one level: nothing, a static (built-in) or a dynamic (recorded) action. */
 export interface ErrorAction {
   readonly scope: 'static' | 'dynamic'
@@ -280,12 +288,12 @@ export const decodeErrorActions = (array: readonly number[]): ErrorAction[] =>
 
 /**
  * The levels whose action can run under an importance (sys_device.c).
- * Critical always runs; each higher importance also admits one lower severity:
- * Disabled/Low → Critical; Medium → High, Critical; High → Medium and above;
- * Critical → all four.
+ * Disabled → none (every error ignored); Low → Critical; each higher
+ * importance admits one lower severity: Medium → High, Critical;
+ * High → Medium and above; Critical → all four.
  */
 export const reachableErrorLevels = (importance: number): number[] =>
-  ERROR_ACTION_LEVELS.filter((level) => level + importance > ERROR_ACTION_LEVELS.at(-1)! || level === ERROR_ACTION_LEVELS.at(-1))
+  importance === IMPORTANCE_DISABLED ? [] : ERROR_ACTION_LEVELS.filter((level) => level + importance > ERROR_ACTION_LEVELS.at(-1)! || level === ERROR_ACTION_LEVELS.at(-1))
 
 /** Actions for levels the importance can't reach cleared (they would never run). */
 export const clampErrorActions = (array: readonly number[], importance: number): number[] => {

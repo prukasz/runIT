@@ -1,2 +1,7 @@
-export { addBlock, addCanvas, canvasToScreen, DEFAULT_VIEWPORT, findBlock, GRID, moveBlock, moveCanvas, newBlockId, newCanvasName, programBlocks, removeBlock, removeCanvas, renameCanvas, screenToCanvas, setCanvasDisabled, snap, snapPoint, updateBlock, ZOOM_MAX, ZOOM_MIN, zoomAt } from './canvas'
+export { addBlock, addCanvas, canvasToScreen, DEFAULT_VIEWPORT, findBlock, GRID, moveBlock, moveCanvas, newBlockId, newCanvasName, pasteBlock, programBlocks, removeBlock, removeCanvas, renameCanvas, screenToCanvas, setCanvasDisabled, snap, snapPoint, updateBlock, ZOOM_MAX, ZOOM_MIN, zoomAt } from './canvas'
 export type { Point, Viewport } from './canvas'
+export { arrangeProgram, loopBodyGate } from './arrange'
+export type { Arrangement } from './arrange'
+export { accepts, connect, disconnect, kindOfDrag, OBJECT_DRAG_TYPE, objectKindDragType, pinKind, sourceKind, sourceOf, sourcePath, variableKind, wiresOf } from './wiring'
+export type { Wire, WireKind, WireSource, WireTarget } from './wiring'
+export { chipLabel, nameIds, parsePathText, pathLabel, PathTextError } from './variablePath'

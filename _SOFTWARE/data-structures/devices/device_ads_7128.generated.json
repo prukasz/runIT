@@ -3,7 +3,6 @@
   "schemaVersion": 1,
   "kind": "device-definition",
   "id": "device_ads_7128",
-  "version": "1.0.0",
   "title": "ADS7128 ADC",
   "description": "Eight-channel ADC with I2C control and an on-chip window comparator.",
   "protocols": [
@@ -45,25 +44,14 @@
       "fields": {
         "device_id": {
           "type": "uint8_t",
-          "alias": "Device ID",
-          "required": true,
-          "min": 0,
           "max": 127
         },
         "i2c_bus": {
-          "type": "uint8_t",
-          "alias": "I2C Bus",
-          "required": true,
-          "one_of": [
-            0,
-            1
-          ],
-          "note": "0 selects the first logical I2C bus; any non-zero wire value is converted to bus 1 by the decoder"
+          "type": "uint8_t"
         },
         "i2c_addr": {
           "type": "uint8_t",
           "alias": "I2C Address",
-          "required": true,
           "one_of": [
             16,
             17,
@@ -74,25 +62,19 @@
             22,
             23
           ],
-          "note": "ADDR pin resistor selects the address at power-up"
+          "note": "The resistor on the ADDR pin selects the address at power-up."
         },
         "intr_pin_device_id": {
           "type": "uint8_t",
-          "alias": "ALERT GPIO Provider",
-          "group": "alert-pin",
-          "role": "device_id"
+          "group": "intr_pin"
         },
         "intr_pin_pin": {
           "type": "uint8_t",
-          "alias": "ALERT Pin",
           "sentinel": 255,
-          "group": "alert-pin",
-          "role": "pin",
-          "note": "SYS_GPIO_NONE disables external ALERT reporting; ALERT is open-drain and active-low"
+          "group": "intr_pin"
         },
         "intr_pin_mode": {
           "type": "uint8_t",
-          "alias": "ALERT Pin Mode",
           "one_of": [
             {
               "symbol": "SYS_IO_MODE_INPUT",
@@ -111,27 +93,26 @@
           ],
           "default": 1,
           "enum_ref": "sys_io_mode_e",
-          "group": "alert-pin",
-          "role": "mode",
-          "note": "Required when ALERT reporting is enabled"
+          "group": "intr_pin"
         },
         "vref_mV": {
           "type": "uint32_t",
           "alias": "ADC Reference Voltage",
-          "required": true,
           "min": 1,
           "unit": "mV",
-          "note": "AVDD doubles as ADC reference; adapter_ads7128.c rejects zero and firmware has no additional numeric bound"
+          "note": "The chip's AVDD supply, which is also the ADC reference."
         }
       },
       "groups": {
-        "alert-pin": {
+        "intr_pin": {
           "fields": [
             "intr_pin_device_id",
             "intr_pin_pin",
             "intr_pin_mode"
           ],
-          "sentinel_field": "intr_pin_pin"
+          "sentinel_field": "intr_pin_pin",
+          "alias": "ALERT",
+          "note": "Open-drain, active-low."
         }
       }
     }
@@ -160,7 +141,7 @@
           "alias": "ADC Channel"
         }
       ],
-      "alias": "Reset Configuration",
+      "alias": "Reset configuration",
       "description": "Reset one ADC channel and clear its comparator configuration.",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
@@ -346,8 +327,8 @@
         }
       ],
       "alias": "Read voltage on pin",
-      "returns": "voltage_mV @type uint32_t @unit mV",
       "description": "Read the selected ADC channel using the installed AVDD reference voltage.",
+      "returns": "voltage_mV",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
         "class_name": "SYS_CONTRACTS",
@@ -417,34 +398,19 @@
         },
         {
           "name": "adc_thresh_up_mV",
-          "required": false,
-          "default": 0,
-          "alias": "Upper Threshold",
-          "type": "uint16_t",
-          "unit": "mV"
+          "alias": "Upper Threshold"
         },
         {
           "name": "adc_thresh_down_mV",
-          "required": false,
-          "default": 0,
-          "alias": "Lower Threshold",
-          "type": "uint16_t",
-          "unit": "mV"
+          "alias": "Lower Threshold"
         },
         {
           "name": "adc_thresh_hyst_mV",
-          "required": false,
-          "default": 0,
-          "alias": "Hysteresis",
-          "type": "uint16_t",
-          "unit": "mV"
+          "alias": "Hysteresis"
         },
         {
           "name": "adc_counter_thresh",
-          "required": false,
-          "default": 0,
-          "alias": "Event Count Threshold",
-          "type": "uint16_t"
+          "alias": "Event Count Threshold"
         }
       ],
       "alias": "Configure alert",

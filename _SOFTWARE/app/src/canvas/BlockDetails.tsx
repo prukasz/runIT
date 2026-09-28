@@ -1,22 +1,25 @@
 import type { DeviceCatalog } from '../domain/descriptors'
-import { AlertCircle, AlertTriangle, Minus, Plus, Trash2 } from 'lucide-react'
+import { AlertCircle, AlertTriangle, Minus, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { arrangeProgram, disconnect, nameIds, parsePathText, pathLabel, PathTextError, sourceOf } from '../domain/canvas'
 import type { Diagnostic } from '../domain/compiler'
-import { outputObjectId } from '../domain/compiler'
 import { runitVmCatalog } from '../domain/descriptors'
 import type { VmBlockField, VmBlockType } from '../domain/descriptors'
-import type { CanvasBlock, ProjectDevice } from '../domain/project'
+import type { CanvasBlock, ObjectPath, ProjectDevice, ProjectDocument } from '../domain/project'
+import { useState } from 'react'
 import { blockShape, pathText } from './blockView'
 import { ExpressionEditor } from './ExpressionEditor'
 import { BlockHardwareFields } from './BlockHardwareFields'
 import { BlockSwitch } from './BlockSwitch'
+import { TypeBadge } from '../components/TypeBadge/TypeBadge'
 import type { CanvasWorkspace } from './useCanvasWorkspace'
 import './Canvas.css'
 
 /*
  * Right panel of the canvas: the selected block's settings (its state fields
  * from the block descriptor, the expression of EXPR / EXPR_BIT, the loop body
- * of FOR, pin counts where they vary), how it runs (enables, on error, ENO),
- * its pins, and what the compiler says about it. Text fields apply on Enter or
+ * of FOR, pin counts where they vary), how it runs (the gates it has and the
+ * ones it takes from the blocks feeding it, always run, on error), its pins
+ * with what feeds them, and what the compiler says about it. Text fields apply on Enter or
  * when they lose focus (one undo step each).
  */
 
@@ -78,13 +81,65 @@ function Counter({ label, value, min, max, onChange }: { label: string; value: n
   )
 }
 
+const isLoopType = (type: VmBlockType): boolean => type.fields.some((field) => field.source === 'derived' && field.cType === 'vm_span_t')
+
 /** A compiler message about this block, with its own name dropped and pin keys (`block:<id>:in1`) named. */
-const problemText = (message: string, id: string, title: string, shape: ReturnType<typeof blockShape>): string =>
-  message
+const problemText = (message: string, id: string, title: string, shape: ReturnType<typeof blockShape>, project?: ProjectDocument): string =>
+  nameIds(message, project)
     .replace(new RegExp(`^Block '${id}'( \\(${title}\\))?: `), '')
     .replace(new RegExp(`block:${id}:(in|en)(\\d+)`, 'g'), (_, kind: string, index: string) => (kind === 'in' ? shape.inputs.find((pin) => pin.index === Number(index))?.title ?? `Input ${index}` : `Enable ${Number(index) + 1}`))
 
-export function BlockDetails({ workspace, diagnostics, devices = [], deviceCatalog }: { workspace: CanvasWorkspace; diagnostics: ReadonlyMap<string, readonly Diagnostic[]>; devices?: readonly ProjectDevice[]; deviceCatalog?: DeviceCatalog }) {
+/** A pin's variable as typed text (`motor.gains[2]`, `table[sel]`): applied on Enter or blur, a mistake is said under it. */
+function PathField({ path, project, onCommit }: { path: ObjectPath; project?: ProjectDocument; onCommit: (path: ObjectPath) => void }) {
+  const [problem, setProblem] = useState('')
+  const shown = path.root === '' ? '' : pathLabel(path, project)
+  return (
+    <span className="block-path-field">
+      <input
+        key={shown}
+        defaultValue={shown}
+        placeholder="variable, e.g. motor.gains[2]"
+        aria-label="Variable path"
+        aria-invalid={problem ? 'true' : undefined}
+        autoFocus={path.root === ''}
+        onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
+        onBlur={(event) => {
+          const text = event.currentTarget.value.trim()
+          if (!text || text === shown || !project) return setProblem('')
+          try {
+            onCommit(parsePathText(text, project))
+            setProblem('')
+          } catch (error) {
+            setProblem(error instanceof PathTextError ? error.message : String(error))
+          }
+        }}
+      />
+      {problem && <em className="is-error">{problem}</em>}
+    </span>
+  )
+}
+
+function BlockAlias({ path, blocks, label, onRename }: { path: ObjectPath; blocks: readonly CanvasBlock[]; label: string; onRename: (blockId: string, name: string | undefined, outputIndex?: number) => void }) {
+  const [editing, setEditing] = useState(false)
+  const match = /^(.+):(q(\d+)|eno)$/.exec(path.root)
+  if (!match || !blocks.some((entry) => entry.id === match[1])) return <span>{label}</span>
+  const source = blocks.find((entry) => entry.id === match[1])!
+  const outputIndex = match[3] === undefined ? undefined : Number(match[3])
+  const current = outputIndex === undefined ? source.name ?? '' : source.outputAliases?.[outputIndex] ?? ''
+  const commit = (value: string) => {
+    setEditing(false)
+    const name = value.trim() || undefined
+    if (name !== current) onRename(source.id, name, outputIndex)
+  }
+  return editing ? <input className="block-alias-inline" autoFocus aria-label={outputIndex === undefined ? `Alias for ${source.id}` : `Alias for ${source.id} output ${outputIndex}`} defaultValue={current} placeholder={outputIndex === undefined ? source.id : `q${outputIndex}`} onPointerDown={(event) => event.stopPropagation()} onKeyDown={(event) => {
+    if (event.key === 'Enter') event.currentTarget.blur()
+    if (event.key === 'Escape') { event.currentTarget.dataset.cancel = 'true'; event.currentTarget.blur() }
+    event.stopPropagation()
+  }} onBlur={(event) => { if (event.currentTarget.dataset.cancel !== 'true') commit(event.currentTarget.value); else setEditing(false) }} />
+    : <span className="block-alias-edit"><span title="Block or output alias">{label}</span><button type="button" aria-label="Edit alias" title="Edit block or output alias" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /></button></span>
+}
+
+export function BlockDetails({ workspace, diagnostics, devices = [], deviceCatalog, project }: { workspace: CanvasWorkspace; diagnostics: ReadonlyMap<string, readonly Diagnostic[]>; devices?: readonly ProjectDevice[]; deviceCatalog?: DeviceCatalog; project?: ProjectDocument }) {
   const block = workspace.selectedBlock
   if (!block) {
     return (
@@ -98,6 +153,7 @@ export function BlockDetails({ workspace, diagnostics, devices = [], deviceCatal
   const type = catalog.block(block.type)
   const problems = diagnostics.get(block.id) ?? []
   const update = (change: (current: CanvasBlock) => CanvasBlock) => workspace.updateBlock(block.id, change)
+  const labelPath = (path: ObjectPath) => pathLabel(path, project, workspace.active?.blocks)
   const setSetting = (name: string, value: number | string | undefined) => update((current) => {
     const { [name]: _, ...rest } = current.settings ?? {}
     const settings = value === undefined ? rest : { ...rest, [name]: value }
@@ -116,11 +172,18 @@ export function BlockDetails({ workspace, diagnostics, devices = [], deviceCatal
   }
 
   const shape = blockShape(type, block)
+  // What the arrangement makes of it: its gates after inheritance and the loops it runs in.
+  const arranged = arrangeProgram(workspace.canvases, { includeDisabled: true })
+  const gates = arranged.gates.get(block.id)
+  const own = new Set((block.enables ?? []).map((path) => JSON.stringify(path)))
+  const inherited = (gates?.enables ?? []).filter((path) => !own.has(JSON.stringify(path)))
+  const loopBody = isLoopType(type) ? arranged.blocks.find((entry) => entry.id === block.id)?.body : undefined
+  const members = [...arranged.gates].filter(([, entry]) => entry.loops.includes(block.id)).length
   const fields = type.fields.filter((field) => field.source === 'user' && !field.flexible && !field.idKind && !field.letUserSelectAvailable && !field.hiddenByDefault && !(type.encoding && EXPRESSION_COUNTS.has(field.name)))
   const hardware = type.fields.some((field) => field.idKind === 'device')
   const inputsVary = type.inputs.max > Math.max(type.inputs.min, type.inputs.pins.length)
   const outputsVary = type.outputs.max > Math.max(type.outputs.min, type.outputs.pins.length)
-  const isLoop = type.fields.some((field) => field.source === 'derived' && field.cType === 'vm_span_t')
+  const isLoop = isLoopType(type)
   const expression = block.expression
 
   return (
@@ -129,15 +192,59 @@ export function BlockDetails({ workspace, diagnostics, devices = [], deviceCatal
         <span className={`block-details-swatch cat-${type.category}`} aria-hidden="true" />
         <div>
           <h2>{type.title}</h2>
-          <code>{block.id}</code>
+          <code>{block.name || block.id}</code>
+          <input
+            className="block-name-field"
+            key={`${block.id}:${block.name ?? ''}`}
+            defaultValue={block.name ?? ''}
+            placeholder="Name this block"
+            aria-label="Block name"
+            onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
+            onBlur={(event) => {
+              const name = event.currentTarget.value.trim()
+              if (name !== (block.name ?? '')) update((current) => ({ ...current, name: name || undefined }))
+            }}
+          />
         </div>
       </div>
       <section className="block-section">
         <h3>Running</h3>
+        <ul className="block-gates" aria-label="Enabled by">
+          {(block.enables ?? []).map((path, index) => (
+            <li key={`own${index}`}>
+              <span className="block-gate-dot is-own" aria-hidden="true" />
+              <BlockAlias path={path} blocks={workspace.active?.blocks ?? []} label={(() => {
+                const owner = path.root.slice(0, path.root.lastIndexOf(':'))
+                const loop = path.root.endsWith(':body') || (path.root.endsWith(':eno') && workspace.active?.blocks.some((entry) => entry.id === owner && entry.type === 'FOR'))
+                return loop ? `In the loop of ${workspace.active?.blocks.find((entry) => entry.id === owner)?.name || owner}` : labelPath(path)
+              })()} onRename={(blockId, name, outputIndex) => workspace.updateBlock(blockId, (current) => outputIndex === undefined
+                ? { ...current, name }
+                : { ...current, outputAliases: Array.from({ length: Math.max(current.outputAliases?.length ?? 0, outputIndex + 1) }, (_, at) => at === outputIndex ? name ?? null : current.outputAliases?.[at] ?? null) })} />
+              <button type="button" aria-label={`Remove enable ${labelPath(path)}`} title="Remove this enable" onClick={() => update((current) => disconnect(current, { block: current.id, kind: 'en' }, index))}><X aria-hidden="true" /></button>
+            </li>
+          ))}
+          {inherited.map((path) => (
+            <li key={`from${pathText(path)}`} className="is-inherited" title="Taken from the blocks feeding it: it is in their branch">
+              <span className="block-gate-dot" aria-hidden="true" />
+              <span><BlockAlias path={path} blocks={workspace.active?.blocks ?? []} label={labelPath(path)} onRename={(blockId, name, outputIndex) => workspace.updateBlock(blockId, (current) => outputIndex === undefined
+                ? { ...current, name }
+                : { ...current, outputAliases: Array.from({ length: Math.max(current.outputAliases?.length ?? 0, outputIndex + 1) }, (_, at) => at === outputIndex ? name ?? null : current.outputAliases?.[at] ?? null) })} /> <small>from the branch</small></span>
+            </li>
+          ))}
+          {(gates?.loops ?? []).filter((loop) => !(block.enables ?? []).some((path) => path.root === `${loop}:body` || path.root === `${loop}:eno`)).map((loop) => (
+            <li key={`loop${loop}`} className="is-inherited"><span className="block-gate-dot is-loop" aria-hidden="true" /><span>In the loop of {loop} <small>from the chain</small></span></li>
+          ))}
+          {!gates?.enables.length && !gates?.loops.length && <li className="is-empty">Runs every cycle (nothing on EN)</li>}
+        </ul>
         <div className="block-fields">
-          <BlockSwitch label="Enables combine" value={block.enableMode ?? 'any'} options={[["any", "Any (OR)"], ["all", "All (AND)"]]} onChange={(value) => update((current) => ({ ...current, enableMode: value as 'any' | 'all' }))} />
+          <BlockSwitch label="Branch" value={block.inheritGates === false ? 'always' : 'follow'} options={[["follow", "Follow feeders"], ["always", "Always run"]]} onChange={(value) => update((current) => {
+            const { inheritGates: _, ...rest } = current
+            return value === 'always' ? { ...rest, inheritGates: false } : rest
+          })} />
+          {(block.enables?.length ?? 0) > 1 && <BlockSwitch label="Enables combine" value={block.enableMode ?? 'any'} options={[["any", "Any (OR)"], ["all", "All (AND)"]]} onChange={(value) => update((current) => ({ ...current, enableMode: value as 'any' | 'all' }))} />}
           <BlockSwitch label="On error" value={block.onError ?? 'stop'} options={[["stop", "Stop"], ["continue", "Continue"]]} onChange={(value) => update((current) => ({ ...current, onError: value as 'stop' | 'continue' }))} />
         </div>
+        <p className="block-muted">A block runs in the branch of the blocks feeding it. "Always run" ignores that; a gate dropped on its EN narrows it.</p>
       </section>
 
       <p className="block-description">{type.description}</p>
@@ -148,7 +255,7 @@ export function BlockDetails({ workspace, diagnostics, devices = [], deviceCatal
           {problems.map((problem, index) => (
             <li key={index} className={problem.severity === 'error' ? 'is-error' : 'is-warning'}>
               {problem.severity === 'error' ? <AlertCircle aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
-              <span>{problemText(problem.message, block.id, type.title, shape)}</span>
+              <span>{problemText(problem.message, block.id, type.title, shape, project)}</span>
             </li>
           ))}
         </ul>
@@ -187,8 +294,9 @@ export function BlockDetails({ workspace, diagnostics, devices = [], deviceCatal
                 />
               )
             })}
-            {isLoop && (
-              <NumberField label="Body" hint="How many blocks after it are the loop body" value={block.body} integer min={0} onCommit={(value) => update((current) => {
+            {isLoop && members > 0 && <p className="block-muted">Body: {loopBody} blocks, the ones its ENO is on (and what depends on them).</p>}
+            {isLoop && members === 0 && (
+              <NumberField label="Body" hint="Drag its green ENO onto the EN of the first block to repeat, or count the blocks after it here" value={block.body} integer min={0} onCommit={(value) => update((current) => {
                 const { body: _, ...rest } = current
                 return value === undefined ? rest : { ...rest, body: value }
               })} />
@@ -200,6 +308,7 @@ export function BlockDetails({ workspace, diagnostics, devices = [], deviceCatal
               block={block}
               type={type}
               inputCount={shape.inputs.length}
+              labelOf={labelPath}
               onApply={(next, inputsNeeded) => update((current) => ({
                 ...current,
                 expression: { ...(next.constants.length ? { constants: next.constants } : {}), code: next.code },
@@ -221,18 +330,33 @@ export function BlockDetails({ workspace, diagnostics, devices = [], deviceCatal
         <dl className="block-pins">
           {shape.inputs.map((pin) => (
             <div key={`in${pin.index}`}>
-              <dt>{pin.title}<small>{pin.value}{pin.required ? ', required' : ''}</small></dt>
-              <dd className={block.inputs?.[pin.index] ? '' : 'is-unwired'}>← {block.inputs?.[pin.index] ? pathText(block.inputs[pin.index]!) : 'not wired'}</dd>
+              <dt><span className="block-pin-title">{pin.title}{pin.required && <small>required</small>}</span><TypeBadge type={pin.value} /></dt>
+              <dd className={block.inputs?.[pin.index] ? '' : 'is-unwired'}>
+                {(() => {
+                  const path = block.inputs?.[pin.index]
+                  const wired = path && sourceOf(path, new Map(workspace.active?.blocks.map((entry) => [entry.id, entry]) ?? []))
+                  if (path && !wired) return <PathField path={path} project={project} onCommit={(next) => update((current) => ({ ...current, inputs: (current.inputs ?? []).map((entry, index) => (index === pin.index ? next : entry)) }))} />
+                  return <>← {path ? labelPath(path) : 'not wired'}</>
+                })()}
+                {block.inputs?.[pin.index] && <button type="button" aria-label={`Unwire ${pin.title}`} title="Unwire" onClick={() => update((current) => disconnect(current, { block: current.id, kind: 'in', index: pin.index }))}><X aria-hidden="true" /></button>}
+              </dd>
             </div>
           ))}
           {shape.outputs.map((pin, index) => (
             <div key={`out${index}`}>
-              <dt>{pin.title}<small>{pin.value}</small></dt>
-              <dd>→ {block.outputs?.[index] ?? outputObjectId(block.id, index)}</dd>
+              <dt><span className="block-pin-title">{pin.title}</span><TypeBadge type={pin.value} /></dt>
+              <dd>
+                → {block.outputs?.[index] ? pathLabel({ root: block.outputs[index]! }, project, workspace.active?.blocks) : `${block.name || block.id}.${block.outputAliases?.[index] || pin.title}`}
+                <input className="block-output-alias" aria-label={`Alias for ${pin.title}`} placeholder={pin.title} defaultValue={block.outputAliases?.[index] ?? ''} key={`${block.id}:${index}:${block.outputAliases?.[index] ?? ''}`} onBlur={(event) => {
+                  const alias = event.currentTarget.value.trim() || null
+                  if (alias !== (block.outputAliases?.[index] ?? null)) update((current) => ({ ...current, outputAliases: Array.from({ length: Math.max(current.outputAliases?.length ?? 0, index + 1) }, (_, at) => at === index ? alias : current.outputAliases?.[at] ?? null) }))
+                }} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} />
+                {block.outputs?.[index] && <button type="button" aria-label={`Stop writing ${labelPath({ root: block.outputs[index]! })}`} title="Back to its own output" onClick={() => update((current) => disconnect(current, { block: current.id, kind: 'out', index }))}><X aria-hidden="true" /></button>}
+              </dd>
             </div>
           ))}
         </dl>
-        <p className="block-muted">Wiring comes with the block design.</p>
+        <p className="block-muted">Drag from an output (right side), ENO or Body onto another block to wire it; drag a variable from the Variables tab onto a block to use it.</p>
       </section>
 
       <section className="block-section">

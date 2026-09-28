@@ -3,7 +3,6 @@
   "schemaVersion": 1,
   "kind": "device-definition",
   "id": "device_ap33772s",
-  "version": "1.0.0",
   "title": "AP33772S USB-C PD sink",
   "description": "USB-C Power Delivery sink controller that negotiates voltage/current from a charger and can also act as a regulated, monitored output.",
   "protocols": [
@@ -45,34 +44,27 @@
       "fields": {
         "device_id": {
           "type": "uint8_t",
-          "required": true,
-          "min": 0,
           "max": 127
         },
         "i2c_bus": {
-          "type": "uint8_t",
-          "required": true,
-          "min": 0,
-          "max": 1
+          "type": "uint8_t"
         },
         "i2c_addr": {
           "type": "uint8_t",
-          "required": true,
+          "alias": "I2C Address",
           "one_of": [
             82
           ],
-          "note": "Fixed I2C address of the AP33772S"
+          "note": "Fixed I2C address of the AP33772S."
         },
         "intr_pin_device_id": {
           "type": "uint8_t",
-          "group": "interrupt-pin",
-          "role": "device_id"
+          "group": "intr_pin"
         },
         "intr_pin_pin": {
           "type": "uint8_t",
           "sentinel": 255,
-          "group": "interrupt-pin",
-          "role": "pin"
+          "group": "intr_pin"
         },
         "intr_pin_mode": {
           "type": "uint8_t",
@@ -93,12 +85,11 @@
             }
           ],
           "enum_ref": "sys_io_mode_e",
-          "group": "interrupt-pin",
-          "role": "mode"
+          "group": "intr_pin"
         }
       },
       "groups": {
-        "interrupt-pin": {
+        "intr_pin": {
           "fields": [
             "intr_pin_device_id",
             "intr_pin_pin",
@@ -119,16 +110,10 @@
           "instance": true
         },
         {
-          "name": "voltage_mV",
-          "alias": "Requested Voltage",
-          "type": "uint32_t",
-          "unit": "mV"
+          "name": "voltage_mV"
         },
         {
-          "name": "current_mA",
-          "alias": "Requested Current",
-          "type": "uint32_t",
-          "unit": "mA"
+          "name": "current_mA"
         }
       ],
       "alias": "Request USB-PD profile",
@@ -271,10 +256,7 @@
           "instance": true
         },
         {
-          "name": "voltage_mV",
-          "alias": "Voltage",
-          "type": "uint32_t",
-          "unit": "mV"
+          "name": "voltage_mV"
         }
       ],
       "alias": "Set output voltage",
@@ -312,10 +294,7 @@
           "instance": true
         },
         {
-          "name": "current_mA",
-          "alias": "Current Limit",
-          "type": "uint32_t",
-          "unit": "mA"
+          "name": "current_mA"
         }
       ],
       "alias": "Set output current limit",
@@ -356,13 +335,12 @@
           "name": "channel",
           "one_of": [
             0
-          ],
-          "alias": "Channel"
+          ]
         }
       ],
       "alias": "Read output voltage",
-      "returns": "voltage_mV @type int32_t @unit mV",
       "description": "Single-rail device - channel is always 0.",
+      "returns": "voltage_mV",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
         "class_name": "SYS_CONTRACTS",
@@ -399,13 +377,12 @@
           "name": "channel",
           "one_of": [
             0
-          ],
-          "alias": "Channel"
+          ]
         }
       ],
       "alias": "Read output current",
-      "returns": "current_mA @type int32_t @unit mA",
       "description": "Single-rail device - channel is always 0.",
+      "returns": "current_mA",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
         "class_name": "SYS_CONTRACTS",

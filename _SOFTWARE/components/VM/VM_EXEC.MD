@@ -250,6 +250,14 @@ The two groups therefore stop being a property of the type at all. They are
 just two shapes of block body, and they compose for free: a block that wants
 "route this event, but only while armed" tests both, in the order it likes.
 
+**A firing enable is a trigger too** (2026-09-28, finding G-11). An enable
+source that is true *and* fresh this pass — a gate held open (IF / SWITCH write
+it loud every pass while true) or a tick — also answers `vm_block_triggered()` /
+`vm_block_triggered_by()` (`vm_block_en_triggered()`). Without it an expression
+under an IF branch whose inputs never change (user objects, constants) never
+computes, which is the first thing a canvas user builds. A level that is merely
+true, not written this pass, still does not trigger.
+
 One editor rule survives unchanged: **a trigger pin must be fed by a wire, not
 a label.** A label gives freshness without ordering, so the block could observe
 the update a pass late — a race, and a confusing one.

@@ -11,9 +11,21 @@
 
 #define DEC_SYS_DEVICE_INSTALL_TAG "dec_sys_device_install"
 
-/** Reassemble one flattened sys_io_pin_ref_t from its wire fields. */
-static inline sys_io_pin_ref_t pin_ref_from_wire(uint8_t device_id, uint8_t pin, uint8_t mode) {
-  return (sys_io_pin_ref_t){.device_id = device_id, .pin = pin, .mode = (sys_io_mode_e)mode};
+/**
+ * A pin on another device, as install packets carry it: the provider's device ID,
+ * the pin (SYS_GPIO_NONE = not connected) and its sys_io_mode_e. The device
+ * generator expands a field of this type to <name>_device_id / _pin / _mode and one
+ * pin group; annotate the field with @alias, @note, @modes [...], @default-mode.
+ */
+typedef struct __packed {
+  uint8_t device_id;
+  uint8_t pin;
+  uint8_t mode;
+} pin_ref_wire_t;
+_Static_assert(sizeof(pin_ref_wire_t) == 3, "pin_ref_wire_t is three bytes on the wire");
+
+static inline sys_io_pin_ref_t pin_ref_from_wire(pin_ref_wire_t wire) {
+  return (sys_io_pin_ref_t){.device_id = wire.device_id, .pin = wire.pin, .mode = (sys_io_mode_e)wire.mode};
 }
 
 /**
