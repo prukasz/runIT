@@ -6,6 +6,7 @@ export type {
   ProjectAction,
   ProjectCanvas,
   CanvasVariable,
+  CanvasVariableTarget,
   ProjectDevice,
   StepValues,
   BleCharacteristicSettings,

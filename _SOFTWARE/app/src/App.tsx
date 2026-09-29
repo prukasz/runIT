@@ -19,7 +19,7 @@ import CommandConsole from './CommandConsole'
 import DiagnosticsConsole from './DiagnosticsConsole'
 import { useSettingsSync } from './useSettingsSync'
 import { useBoardCode } from './useBoardCode'
-import { parseProject, serializeProject } from './domain/project'
+import { addObject, parseProject, serializeProject } from './domain/project'
 import type { ProjectSettings } from './domain/project'
 import { refreshSettings, settingsFromState, settingsState } from './domain/settings'
 import type { RecoveredCode } from './domain/storedCode'
@@ -69,6 +69,8 @@ export default function App() {
   const [detail, setDetail] = useState('Info')
   const [rightOpen, setRightOpen] = useState(false)
   const [rightWidth, setRightWidth] = useState(320)
+  const [rightExpanded, setRightExpanded] = useState(false)
+  const prevRightWidthRef = useRef<number | undefined>(undefined)
   const [terminalOpen, setTerminalOpen] = useState(false)
   const [terminalHeight, setTerminalHeight] = useState(220)
   const [terminalTab, setTerminalTab] = useState<'Commands' | 'Errors & logs'>('Commands')
@@ -522,7 +524,18 @@ export default function App() {
           <button className="theme-toggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} onClick={toggleTheme}>{theme === 'dark' ? <Sun /> : <Moon />}</button>
         </div>
         <div className="main-surface">
-          {isCanvas && <CanvasEditor workspace={canvasWorkspace} showGrid={showCanvasGrid} diagnostics={canvasDiagnostics} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} project={objectWorkspace.project} />}
+          {isCanvas && (
+            <CanvasEditor
+              workspace={canvasWorkspace}
+              showGrid={showCanvasGrid}
+              diagnostics={canvasDiagnostics}
+              devices={devicesWorkspace.devices}
+              deviceCatalog={devicesWorkspace.catalog}
+              project={objectWorkspace.project}
+              selectedObjectId={codePalette === 'Variables' ? (objectWorkspace.selectedId ?? undefined) : undefined}
+              onClearSelectedObject={() => objectWorkspace.select(null)}
+            />
+          )}
           {view === 'Code' && codePalette === 'Variables' && codeMode === 'manage' && <ObjectTreeEditor workspace={objectWorkspace} />}
           {view === 'Board' && <DevicesEditor workspace={devicesWorkspace} session={bleConnection.session} />}
           {view === 'Settings' && settingsGroup === 'BLE' && <BleSettingsEditor workspace={bleWorkspace} />}
@@ -606,7 +619,11 @@ export default function App() {
       </section>}
       </div>
 
-      <aside className={`right-panel ${rightOpen ? 'is-open' : ''}`} style={rightOpen ? { width: rightWidth } : undefined} aria-label="Details panel">
+      <aside
+        className={`right-panel ${rightOpen ? 'is-open' : ''} ${rightOpen && rightExpanded ? 'is-expanded' : ''}`}
+        style={rightOpen ? { width: rightExpanded ? Math.max(rightWidth, 500) : rightWidth } : undefined}
+        aria-label="Details panel"
+      >
         {rightOpen && <div className="resize-handle" role="separator" aria-label="Resize details panel" aria-orientation="vertical" tabIndex={0} onPointerDown={(event) => { resizeActive.current = true; setResizing('right'); event.currentTarget.setPointerCapture(event.pointerId) }} onPointerMove={(event) => { if (resizeActive.current) resizeRight(event.clientX) }} onPointerUp={() => { resizeActive.current = false; setResizing(null) }} onPointerCancel={() => { resizeActive.current = false; setResizing(null) }} onKeyDown={(event) => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); resizeRight(window.innerWidth - rightWidth + (event.key === 'ArrowLeft' ? -16 : 16)) } }} />}
         <div className="right-header">
           {rightOpen && (
@@ -632,7 +649,35 @@ export default function App() {
         {rightOpen && (
           <div className="detail-content" aria-label={`${detail} content panel`}>
             {view === 'Board' && detail === 'Info' && <DeviceDetails workspace={devicesWorkspace} session={bleConnection.session} />}
-              {isCanvas && detail === 'Info' && <BlockDetails workspace={canvasWorkspace} diagnostics={canvasDiagnostics} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} project={objectWorkspace.project} />}
+              {isCanvas && detail === 'Info' && (
+              <BlockDetails
+                workspace={canvasWorkspace}
+                diagnostics={canvasDiagnostics}
+                devices={devicesWorkspace.devices}
+                deviceCatalog={devicesWorkspace.catalog}
+                project={objectWorkspace.project}
+                selectedObjectId={objectWorkspace.selectedId ?? undefined}
+                onClearSelectedObject={() => objectWorkspace.select(undefined)}
+                onCreateVariable={(node) => {
+                  objectWorkspace.edit((proj) => addObject(proj, null, node))
+                  objectWorkspace.select(node.id)
+                }}
+                onExpandDetails={(expanded) => {
+                  setRightExpanded(expanded)
+                  if (expanded) {
+                    if (rightWidth < 500) {
+                      prevRightWidthRef.current = rightWidth
+                      setRightWidth(500)
+                    }
+                  } else {
+                    if (prevRightWidthRef.current !== undefined) {
+                      setRightWidth(prevRightWidthRef.current)
+                      prevRightWidthRef.current = undefined
+                    }
+                  }
+                }}
+              />
+            )}
             {view === 'Code' && codePalette === 'Variables' && !isCanvas && detail === 'Info' && (
               <ObjectDetails workspace={objectWorkspace} onJump={(id) => { setLeftOpen(true); objectWorkspace.select(id) }} />
             )}

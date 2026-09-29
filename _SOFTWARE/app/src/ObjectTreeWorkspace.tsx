@@ -186,7 +186,11 @@ export function useObjectTreeWorkspace(onSelect?: () => void) {
   }
 
 
-  const select = (id: string) => {
+  const select = (id?: string | null) => {
+    if (!id) {
+      setSelectedId(null)
+      return
+    }
     const found = findObject(project, id)
     if (!found) return
     setSelectedId(id)
@@ -631,7 +635,7 @@ export function ObjectTreePalette({ workspace: w }: { workspace: ObjectWorkspace
             if (w.linkingParentId !== undefined) {
               if (isLinkTarget) w.linkTo(node.id)
             } else {
-              w.select(node.id)
+              w.select(w.selectedId === node.id ? null : node.id)
             }
           }}
           onDoubleClick={() => {

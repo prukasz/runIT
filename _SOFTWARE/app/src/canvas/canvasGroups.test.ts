@@ -8,7 +8,7 @@ const expr = (id: string, extra: Partial<CanvasBlock> = {}): CanvasBlock => ({ i
 const summary = (blocks: readonly CanvasBlock[]) => canvasGroups({ id: 'c', name: 'c', blocks }, runitVmCatalog()).map((group) => [group.label, group.members.map((block) => block.id), group.depth])
 
 describe('branch and loop areas', () => {
-  it('groups the blocks of each gate, inherited ones included, and a loop with its body', () => {
+  it('groups explicitly gated blocks and a loop with its body', () => {
     expect(summary([
       { id: 'if1', type: 'IF', x: 0, y: 0 },
       expr('scale', { inputs: [null], enables: [{ root: 'if1:q0' }] }),
@@ -19,7 +19,7 @@ describe('branch and loop areas', () => {
     // Areas of the same depth come in no particular order.
     ]).sort((a, b) => String(a[0]).localeCompare(String(b[0])))).toEqual([
       ['if1 · No', ['other'], 0],
-      ['if1 · Yes', ['scale', 'use'], 0],
+      ['if1 · Yes', ['scale'], 0],
       ['loop1 · loop', ['loop1', 'step'], 0],
     ])
   })

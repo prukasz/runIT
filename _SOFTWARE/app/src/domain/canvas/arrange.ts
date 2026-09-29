@@ -11,14 +11,9 @@ import type { CanvasBlock, ObjectPath, ProgramBlock, ProjectCanvas } from '../pr
  *   canvases follow in list order. A loop in the wires is cut at the block
  *   placed first; the block reading across the cut sees the previous pass.
  *
- * - Enables. A block takes the gates of the blocks feeding its data inputs (it
- *   is in their branch) unless `inheritGates: false`. It copies their enable
- *   sources, never their ENO: a triggered producer drops ENO in every pass
- *   without fresh data, which would switch an every-pass consumer off and on.
- *   Only block gates are inherited; a variable on a feeder's EN stays that
- *   block's own read. Inherited gates from different branches combine as any (a merge); gates the
- *   user dropped on the block narrow the branch (all). Anything the VM's one
- *   mode per block can't say is an error asking for a logic block.
+ * - Enables. Only paths explicitly connected to a block's EN gate it. No EN
+ *   paths means always enabled. Loop membership still follows data wires so
+ *   dependent blocks execute inside their FOR body.
  *
  * - Loop bodies. A FOR's ENO on a block's EN puts the block in the loop: it,
  *   and every block depending on it (through data wires or its gates), is that
@@ -36,17 +31,11 @@ export interface Arrangement {
 }
 
 const BLOCK_PIN = /^(.+):(q\d+|eno|body)$/
-const pathKey = (path: ObjectPath): string => JSON.stringify(path)
 /** The link that puts a block in a FOR's body: the FOR's ENO on its EN. */
 export const loopBodyGate = (forId: string): ObjectPath => ({ root: `${forId}:eno` })
 
 /** Every root a path reads: the path itself and the dynamic indices inside it. */
 const roots = (path: ObjectPath): string[] => [path.root, ...(path.steps ?? []).flatMap((step) => (step.kind === 'dynamic' ? roots(step.index) : []))]
-
-const unique = (paths: readonly ObjectPath[]): ObjectPath[] => {
-  const seen = new Set<string>()
-  return paths.filter((path) => (seen.has(pathKey(path)) ? false : (seen.add(pathKey(path)), true)))
-}
 
 const strip = ({ x: _x, y: _y, view: _view, name: _name, outputAliases: _outputAliases, inheritGates: _inherit, ...block }: CanvasBlock): ProgramBlock => block
 
@@ -115,31 +104,10 @@ export const arrangeProgram = (canvases: readonly ProjectCanvas[], options: { in
         else if (!path.root.endsWith(':body') || path.steps?.length) explicit.push(path)
       }
       for (const source of gating.get(block.id)!) for (const loop of loopsOf.get(source) ?? []) loops.add(loop)
-      const inherits = block.inheritGates !== false
-      // Only block gates flow down the wires; a variable on a feeder's EN is that block's own read.
-      const inherited = inherits ? unique(data.get(block.id)!.flatMap((source) => (gates.get(source)?.enables ?? []).filter((path) => blockOf(path.root) !== undefined))) : []
-      if (inherits) for (const source of data.get(block.id)!) for (const loop of loopsOf.get(source) ?? []) loops.add(loop)
+      for (const source of data.get(block.id)!) for (const loop of loopsOf.get(source) ?? []) loops.add(loop)
       loopsOf.set(block.id, loops)
 
-      let enables: ObjectPath[]
-      let mode: 'any' | 'all' | undefined
-      const keys = new Set(explicit.map(pathKey))
-      const extra = inherited.filter((path) => !keys.has(pathKey(path)))
-      if (!extra.length) {
-        enables = explicit
-        mode = block.enableMode
-      } else if (!explicit.length) {
-        enables = inherited
-        mode = inherited.length > 1 ? 'any' : undefined
-      } else if (extra.length === 1 && (explicit.length === 1 || block.enableMode === 'all')) {
-        enables = [...explicit, ...extra]
-        mode = 'all'
-      } else {
-        enables = explicit
-        mode = block.enableMode
-        error('its own enables and the branches it is fed from need both "any" and "all"; combine them in a logic block (EXPR_BIT) wired to EN, or set it to always run.')
-      }
-      gates.set(block.id, { enables, ...(mode ? { mode } : {}), loops: [] })
+      gates.set(block.id, { enables: explicit, ...(block.enableMode ? { mode: block.enableMode } : {}), loops: [] })
     }
 
     // A block in two loops that aren't nested can't be placed.

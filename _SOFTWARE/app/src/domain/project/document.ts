@@ -309,14 +309,13 @@ export interface ProgramBlock {
   readonly outputs?: readonly (string | null)[]
   /**
    * Enable sources the user dropped on the EN strip (a gate, an ENO, a bool;
-   * `<for id>:body` puts the block in that loop's body). On a canvas a block
-   * also takes the gates of the blocks feeding it (arrange.ts); none at all =
-   * always enabled.
+   * `<for id>:body` puts the block in that loop's body). Only explicit paths
+   * gate a block; none at all = always enabled.
    */
   readonly enables?: readonly ObjectPath[]
   /** How several explicit enables combine (default `any`). */
   readonly enableMode?: 'any' | 'all'
-  /** `false`: don't take the gates of the blocks feeding it (runs whatever branch they are in). */
+  /** Legacy canvas setting, accepted in old project files and ignored. */
   readonly inheritGates?: false
   /** After a failed call: `stop` drops ENO (default), `continue` carries on. */
   readonly onError?: 'stop' | 'continue'
@@ -348,16 +347,22 @@ export interface CanvasBlock extends ProgramBlock {
  * is left out of the compile.
  */
 /**
- * A variable chip pulled off its pin onto the canvas: every pin of the canvas
- * reading this path is drawn wired to it instead of carrying its own chip.
- * Only a picture: the pins keep their paths.
+ * A variable chip pulled off a pin onto the canvas. It keeps the original path
+ * and identifies the pin(s) whose wires are drawn to it; older chips without
+ * targets represent every pin reading that path.
  */
 export interface CanvasVariable {
   readonly id: string
   readonly path: ObjectPath
   readonly x: number
   readonly y: number
+  /** Pins represented by this label. Omitted on older projects means every matching pin. */
+  readonly targets?: readonly CanvasVariableTarget[]
 }
+
+export type CanvasVariableTarget =
+  | { readonly block: string; readonly kind: 'in'; readonly index: number }
+  | { readonly block: string; readonly kind: 'en'; readonly index?: number }
 
 export interface ProjectCanvas {
   readonly id: string

@@ -3,7 +3,7 @@ import type { Point, Viewport, Wire, WireKind, WireSource, WireTarget } from '..
 import { canvasToScreen } from '../domain/canvas'
 import { blockPinAt } from '../domain/descriptors'
 import type { VmBlockType } from '../domain/descriptors'
-import type { CanvasBlock, CanvasVariable, ObjectPath, ProjectCanvas } from '../domain/project'
+import type { CanvasBlock, CanvasVariable, CanvasVariableTarget, ObjectPath, ProjectCanvas } from '../domain/project'
 import { pathText, pinAnchor } from './blockView'
 import type { BlockShape } from './blockView'
 import { TypeBadge } from '../components/TypeBadge/TypeBadge'
@@ -26,12 +26,30 @@ export const CHIP_HEIGHT = 24
 
 const samePath = (a: ObjectPath | null | undefined, b: ObjectPath): boolean => !!a && JSON.stringify(a) === JSON.stringify(b)
 
+const sameTarget = (a: CanvasVariableTarget, b: CanvasVariableTarget): boolean =>
+  a.block === b.block && a.kind === b.kind && (a.kind === 'in' ? b.kind === 'in' && a.index === b.index : b.kind === 'en' && a.index === b.index)
+
+const asCanvasTarget = (target: WireTarget): CanvasVariableTarget | undefined => {
+  if (target.kind === 'in') return { block: target.block, kind: 'in', index: target.index }
+  if (target.kind === 'en') return { block: target.block, kind: 'en', ...('index' in target && target.index !== undefined ? { index: target.index } : {}) }
+  return undefined
+}
+
+/** Whether a free label replaces the docked chip at this input or enable. */
+export const chipAtTarget = (canvas: ProjectCanvas, path: ObjectPath, target: WireTarget): boolean => {
+  const pin = asCanvasTarget(target)
+  return !!pin && (canvas.variables ?? []).some((variable) =>
+    samePath(variable.path, path) && (variable.targets === undefined || variable.targets.some((entry) => sameTarget(entry, pin))),
+  )
+}
+
 /** The pins and EN strips of a canvas reading a free chip's path. */
 export const chipTargets = (canvas: ProjectCanvas, variable: CanvasVariable): WireTarget[] =>
   canvas.blocks.flatMap((block) => [
     ...(block.inputs ?? []).flatMap((path, index) => (samePath(path, variable.path) ? [{ block: block.id, kind: 'in' as const, index }] : [])),
-    ...((block.enables ?? []).some((path) => samePath(path, variable.path)) ? [{ block: block.id, kind: 'en' as const }] : []),
+    ...(block.enables ?? []).flatMap((path, index) => (samePath(path, variable.path) ? [{ block: block.id, kind: 'en' as const, index }] : [])),
   ])
+    .filter((target) => variable.targets === undefined || variable.targets.some((entry) => sameTarget(entry, target)))
 
 export interface PickerRow {
   readonly key: string
@@ -59,12 +77,15 @@ const wireClass = (wire: Wire, blocks: ReadonlyMap<string, CanvasBlock>): string
  * An EN link as a faded ribbon: narrow where it leaves its source, as tall as
  * the whole red EN strip where it arrives, so it reads as "powers this block".
  */
-const ribbon = (from: Point, block: CanvasBlock, shape: BlockShape): string => {
-  const top = block.y + 3
-  const bottom = block.y + shape.height - 3
-  const half = 2.5
-  const dx = Math.max(40, Math.abs(block.x - from.x) / 2)
-  return `M ${from.x} ${from.y - half} C ${from.x + dx} ${from.y - half}, ${block.x - dx} ${top}, ${block.x} ${top} L ${block.x} ${bottom} C ${block.x - dx} ${bottom}, ${from.x + dx} ${from.y + half}, ${from.x} ${from.y + half} Z`
+interface RibbonSpan {
+  readonly x: number
+  readonly top: number
+  readonly bottom: number
+}
+
+const ribbon = (from: RibbonSpan, to: RibbonSpan): string => {
+  const dx = Math.max(40, Math.abs(to.x - from.x) / 2)
+  return `M ${from.x} ${from.top} C ${from.x + dx} ${from.top}, ${to.x - dx} ${to.top}, ${to.x} ${to.top} L ${to.x} ${to.bottom} C ${to.x - dx} ${to.bottom}, ${from.x + dx} ${from.bottom}, ${from.x} ${from.bottom} Z`
 }
 
 /** The rows a block offers for what is being dragged: EN first, then inputs, then (a variable) outputs. */
@@ -81,7 +102,9 @@ export const pickerRows = (block: CanvasBlock, type: VmBlockType | undefined, sh
   }]
   for (const pin of shape.inputs) {
     const current = block.inputs?.[pin.index]
-    rows.push({ key: `in${pin.index}`, label: pin.title, detail: current ? `now ${labelOf(current)}` : '', type: pin.value, target: { block: block.id, kind: 'in', index: pin.index }, ok: accepts(pin.value, pending.carries, { fromBlock, body }) })
+    const taken = Boolean(current && (typeof current === 'string' ? current !== '' : current.root !== ''))
+    if (taken) continue
+    rows.push({ key: `in${pin.index}`, label: pin.title, detail: '', type: pin.value, target: { block: block.id, kind: 'in', index: pin.index }, ok: accepts(pin.value, pending.carries, { fromBlock, body }) })
   }
   // A block whose inputs repeat (EXPR, EXPR_BIT) takes one more.
   const next = Math.max(-1, ...shape.inputs.map((pin) => pin.index)) + 1
@@ -119,7 +142,13 @@ export function CanvasWires({ canvas, shapeOf, selected, draft, onSelect }: {
         const from = pinAnchor(source, shapeOf(source), anchorOfSource(wire.from.pin))
         const select = (event: React.PointerEvent) => { event.stopPropagation(); onSelect(wire) }
         if (wire.to.kind === 'en') {
-          const d = ribbon(from, target, shapeOf(target))
+          const sourceShape = shapeOf(source)
+          const targetShape = shapeOf(target)
+          const fromSpan: RibbonSpan = wire.from.pin === 'eno'
+            ? { x: source.x + sourceShape.width, top: source.y + 1, bottom: source.y + sourceShape.height - 1 }
+            : { x: from.x, top: from.y - 2.5, bottom: from.y + 2.5 }
+          const toSpan: RibbonSpan = { x: target.x, top: target.y + 1, bottom: target.y + targetShape.height - 1 }
+          const d = ribbon(fromSpan, toSpan)
           return (
             <g key={key(wire)} className={`canvas-wire is-ribbon ${wireClass(wire, blocks)} ${selectedKey === key(wire) ? 'is-selected' : ''}`}>
               <path className="canvas-ribbon" d={d} onPointerDown={select} />
@@ -138,9 +167,10 @@ export function CanvasWires({ canvas, shapeOf, selected, draft, onSelect }: {
         const block = blocks.get(target.block)!
         const from = { x: variable.x + CHIP_WIDTH, y: variable.y + CHIP_HEIGHT / 2 }
         const key = `${variable.id}>${target.block}:${target.kind}${'index' in target ? target.index : ''}`
+        const blockShape = shapeOf(block)
         return target.kind === 'en'
-          ? <path key={key} className="canvas-ribbon is-variable" d={ribbon(from, block, shapeOf(block))} />
-          : <path key={key} className="canvas-wire-line is-variable" d={curve(from, pinAnchor(block, shapeOf(block), anchorOfTarget(target)))} />
+          ? <path key={key} className="canvas-ribbon is-variable" d={ribbon({ x: from.x, top: from.y - 2.5, bottom: from.y + 2.5 }, { x: block.x, top: block.y + 1, bottom: block.y + blockShape.height - 1 })} />
+          : <path key={key} className="canvas-wire-line is-variable" d={curve(from, pinAnchor(block, blockShape, anchorOfTarget(target)))} />
       }))}
       {draft && draftFrom && <path className="canvas-wire-draft" d={curve(draftFrom, draft.to)} />}
     </svg>
@@ -160,28 +190,56 @@ export function WirePicker({ block, shape, rows, viewport, hovered, picking, onP
 }) {
   const at = canvasToScreen(viewport, { x: block.x, y: block.y })
   const width = Math.max(220, shape.width * viewport.zoom)
+  const enRow = rows.find((r) => r.target.kind === 'en')
+  const pinRows = rows.filter((r) => r.target.kind !== 'en')
+
   return (
     <div className="wire-picker" role="listbox" aria-label={`Connect to ${block.id}`} style={{ left: at.x, top: at.y, width }}>
+      {enRow && (
+        <button
+          type="button"
+          role="option"
+          aria-selected={hovered === enRow.key}
+          aria-disabled={!enRow.ok}
+          disabled={!enRow.ok}
+          data-wire-target={enRow.key}
+          className={`wire-picker-tab-en ${hovered === enRow.key && enRow.ok ? 'is-hovered' : ''}`}
+          onClick={() => enRow.ok && onPick(enRow)}
+        >
+          <span className="wire-picker-en-pill">EN</span>
+          <span className="wire-picker-detail">
+            {enRow.ok && enRow.type && <TypeBadge type={enRow.type} />}
+            <span className="wire-picker-text">{enRow.ok ? enRow.detail : "doesn't fit"}</span>
+          </span>
+        </button>
+      )}
       <div className="wire-picker-head">
         <span>{picking ? `Choose a pin of ${block.id}` : block.id}</span>
         {picking && <button type="button" onClick={onCancel} aria-label="Cancel">×</button>}
       </div>
-      {rows.map((row) => (
-        <button
-          key={row.key}
-          type="button"
-          role="option"
-          aria-selected={hovered === row.key}
-          aria-disabled={!row.ok}
-          disabled={!row.ok}
-          data-wire-target={row.key}
-          className={`wire-picker-row ${row.target.kind === 'en' ? 'is-en' : ''} ${hovered === row.key && row.ok ? 'is-hovered' : ''}`}
-          onClick={() => row.ok && onPick(row)}
-        >
-          <span className="wire-picker-label">{row.label}</span>
-          <span className="wire-picker-detail">{row.ok && row.type && <TypeBadge type={row.type} />}{row.ok ? row.detail : 'doesn\'t fit'}</span>
-        </button>
-      ))}
+      {pinRows.length > 0 ? (
+        pinRows.map((row) => (
+          <button
+            key={row.key}
+            type="button"
+            role="option"
+            aria-selected={hovered === row.key}
+            aria-disabled={!row.ok}
+            disabled={!row.ok}
+            data-wire-target={row.key}
+            className={`wire-picker-row ${hovered === row.key && row.ok ? 'is-hovered' : ''}`}
+            onClick={() => row.ok && onPick(row)}
+          >
+            <span className="wire-picker-label">{row.label}</span>
+            <span className="wire-picker-detail">
+              {row.ok && row.type && <TypeBadge type={row.type} />}
+              <span className="wire-picker-text">{row.ok ? row.detail : "doesn't fit"}</span>
+            </span>
+          </button>
+        ))
+      ) : (
+        <div className="wire-picker-empty">All inputs connected</div>
+      )}
     </div>
   )
 }

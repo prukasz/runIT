@@ -12,7 +12,7 @@ import { runitVmCatalog } from '../domain/descriptors'
 import { BLOCK_DRAG_TYPE } from './BlockPalette'
 import { CanvasBlockView } from './CanvasBlockView'
 import { CanvasGroups } from './CanvasGroups'
-import { CanvasWires, CHIP_HEIGHT, CHIP_WIDTH, FreeChip, pickerRows, WirePicker } from './CanvasWiring'
+import { CanvasWires, chipAtTarget, CHIP_HEIGHT, CHIP_WIDTH, FreeChip, pickerRows, WirePicker } from './CanvasWiring'
 import type { Pending, PickerRow } from './CanvasWiring'
 import { blockShape } from './blockView'
 import type { CanvasWorkspace } from './useCanvasWorkspace'
@@ -37,9 +37,29 @@ const CLICK_SLOP = 4
 
 const isEditing = (target: EventTarget | null): boolean => target instanceof HTMLElement && (target.isContentEditable || !!target.closest('input, textarea, select, [contenteditable="true"]'))
 
-export function CanvasSurface({ workspace, showGrid, diagnostics, devices = [], deviceCatalog, project }: { workspace: CanvasWorkspace; showGrid: boolean; diagnostics: ReadonlyMap<string, readonly Diagnostic[]>; devices?: readonly ProjectDevice[]; deviceCatalog?: DeviceCatalog; project?: ProjectDocument }) {
+export function CanvasSurface({
+  workspace,
+  showGrid,
+  diagnostics,
+  devices = [],
+  deviceCatalog,
+  project,
+  selectedObjectId,
+  onClearSelectedObject,
+}: {
+  workspace: CanvasWorkspace
+  showGrid: boolean
+  diagnostics: ReadonlyMap<string, readonly Diagnostic[]>
+  devices?: readonly ProjectDevice[]
+  deviceCatalog?: DeviceCatalog
+  project?: ProjectDocument
+  selectedObjectId?: string
+  onClearSelectedObject?: () => void
+}) {
   const { active, snap, selectedBlock } = workspace
   const catalog = runitVmCatalog()
+  const selectedObjectNode = selectedObjectId && project ? findObject(project, selectedObjectId)?.node : undefined
+  const isLinking = Boolean(selectedObjectNode)
   const [ghost, setGhost] = useState<{ at: Point; type?: string }>()
   const pressAt = useRef<Point | undefined>(undefined)
   const surfaceRef = useRef<HTMLDivElement>(null)
@@ -112,9 +132,9 @@ export function CanvasSurface({ workspace, showGrid, diagnostics, devices = [], 
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  // Delete removes the selected wire; Escape drops it, or a connection in progress.
+  // Delete removes the selected wire; Escape drops it, or a connection in progress, or clears selected variable.
   useEffect(() => {
-    if (!selectedWire && !draft && !selectedChip && !selectedPinChip) return
+    if (!selectedWire && !draft && !selectedChip && !selectedPinChip && !selectedObjectId) return
     const onKey = (event: KeyboardEvent) => {
       if (isEditing(event.target)) return
       if (event.key === 'Escape') {
@@ -122,6 +142,7 @@ export function CanvasSurface({ workspace, showGrid, diagnostics, devices = [], 
         setSelectedWire(undefined)
         setSelectedChip(undefined)
         setSelectedPinChip(undefined)
+        onClearSelectedObject?.()
       } else if (event.key === 'Delete' || event.key === 'Backspace') {
         if (selectedWire) workspace.updateBlock(selectedWire.to.block, (block) => disconnect(block, selectedWire.to, selectedWire.enableIndex))
         else if (selectedPinChip) workspace.updateBlock(selectedPinChip.block, (block) => disconnect(block, selectedPinChip))
@@ -138,7 +159,7 @@ export function CanvasSurface({ workspace, showGrid, diagnostics, devices = [], 
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedWire, draft, selectedChip, selectedPinChip])
+  }, [selectedWire, draft, selectedChip, selectedPinChip, selectedObjectId])
 
   const save = (delay = 0) => {
     window.clearTimeout(saveTimer.current)
@@ -172,6 +193,7 @@ export function CanvasSurface({ workspace, showGrid, diagnostics, devices = [], 
     setSelectedWire(undefined)
     setSelectedChip(undefined)
     setSelectedPinChip(undefined)
+    onClearSelectedObject?.()
     event.currentTarget.setPointerCapture(event.pointerId)
     const point = local(event.clientX, event.clientY)
     pointers.current.set(event.pointerId, point)
@@ -310,13 +332,13 @@ export function CanvasSurface({ workspace, showGrid, diagnostics, devices = [], 
       workspace.updateActive((canvas) => ({ ...canvas, variables: (canvas.variables ?? []).filter((entry) => entry.id !== id) }))
       setSelectedChip(undefined)
     }
+    onClearSelectedObject?.()
   }
   const kindOfPath = (path: ObjectPath) => (path.steps?.length ? 'any' as const : variableKind(project ? findObject(project, path.root)?.node : undefined))
   const blocksById = new Map((active?.blocks ?? []).map((block) => [block.id, block]))
-  const freeKeys = new Set((active?.variables ?? []).map((variable) => JSON.stringify(variable.path)))
-  /** The chip a pin shows: none for a wire, or where the variable has a free chip on this canvas (inputs only). */
-  const chipOf = (path: ObjectPath, output: boolean) => {
-    if (!output && (sourceOf(path, blocksById) || freeKeys.has(JSON.stringify(path)))) return undefined
+  /** The chip a pin shows: none for a wire, or where a free label represents this exact pin. */
+  const chipOf = (path: ObjectPath, output: boolean, target?: WireTarget) => {
+    if (!output && (sourceOf(path, blocksById) || (target && active && chipAtTarget(active, path, target)))) return undefined
     const full = pathLabel(path, project, active?.blocks)
     return { label: chipLabel(full), full }
   }
@@ -365,13 +387,20 @@ export function CanvasSurface({ workspace, showGrid, diagnostics, devices = [], 
     }
     setSelectedPinChip(undefined)
     if (draft.over || draft.hovered) return finish(clientX, clientY)
-    // Dropped on the empty canvas: the chip stays there, wired to every pin reading it.
+    // Dropped on the empty canvas: this label represents only the pin it came from.
     if (!draft.over && !draft.hovered && press.target.kind !== 'out') {
       const at = snap ? snapPoint({ x: draft.at.x - CHIP_WIDTH / 2, y: draft.at.y - CHIP_HEIGHT / 2 }) : { x: draft.at.x - CHIP_WIDTH / 2, y: draft.at.y - CHIP_HEIGHT / 2 }
-      const key = JSON.stringify(press.path)
-      workspace.updateActive((canvas) => (canvas.variables ?? []).some((entry) => JSON.stringify(entry.path) === key)
-        ? canvas
-        : { ...canvas, variables: [...(canvas.variables ?? []), { id: `var-${Date.now().toString(36)}`, path: press.path, ...at }] })
+      const target = press.target.kind === 'in'
+        ? { block: press.target.block, kind: 'in' as const, index: press.target.index }
+        : { block: press.target.block, kind: 'en' as const, ...('index' in press.target && press.target.index !== undefined ? { index: press.target.index } : {}) }
+      workspace.updateActive((canvas) => {
+        const variables = canvas.variables ?? []
+        const prefix = `var-${Date.now().toString(36)}`
+        let id = prefix
+        let suffix = 1
+        while (variables.some((entry) => entry.id === id)) id = `${prefix}-${suffix++}`
+        return { ...canvas, variables: [...variables, { id, path: press.path, targets: [target], ...at }] }
+      })
       setDraft(undefined)
     }
   }
@@ -399,6 +428,22 @@ export function CanvasSurface({ workspace, showGrid, diagnostics, devices = [], 
     const output = from.pin.startsWith('q') ? shapeOf(block).outputs[Number(from.pin.slice(1))]?.value : undefined
     setSelectedWire(undefined)
     track({ kind: 'wire', from, carries: sourceKind(from.pin, output), ...(from.pin === 'eno' && block.type === 'FOR' ? { loop: true } : {}) }, event.clientX, event.clientY)
+  }
+  const onBlockSelect = (block: CanvasBlock) => {
+    if (selectedObjectNode && project) {
+      const targetId = selectedObjectNode.kind === 'reference' ? selectedObjectNode.targetId : selectedObjectNode.id
+      const targetNode = selectedObjectNode.kind === 'reference' ? findObject(project, targetId)?.node : selectedObjectNode
+      const carries = variableKind(targetNode)
+      const shape = shapeOf(block)
+      setDraft({
+        pending: { kind: 'variable', path: { root: selectedObjectNode.id }, carries },
+        at: { x: block.x + shape.width / 2, y: block.y + shape.height / 2 },
+        over: block.id,
+        picking: true,
+      })
+      return
+    }
+    workspace.selectBlock(block.id)
   }
   const draggingObject = (event: React.DragEvent) => !!active && event.dataTransfer.types.includes(OBJECT_DRAG_TYPE)
   const pickerBlock = draft?.over ? active?.blocks.find((entry) => entry.id === draft.over) : undefined
@@ -481,7 +526,8 @@ export function CanvasSurface({ workspace, showGrid, diagnostics, devices = [], 
               errors={(diagnostics.get(block.id) ?? []).filter((entry) => entry.severity === 'error').length}
               zoom={viewport.zoom}
               snap={snap}
-              onSelect={() => workspace.selectBlock(block.id)}
+              isLinking={isLinking}
+              onSelect={() => onBlockSelect(block)}
               onMove={(to) => workspace.moveBlock(block.id, to)}
               onRename={(name) => workspace.updateBlock(block.id, (current) => ({ ...current, name }))}
               onWireStart={startWire}
@@ -503,12 +549,25 @@ export function CanvasSurface({ workspace, showGrid, diagnostics, devices = [], 
           hovered={draft.hovered}
           picking={!!draft.picking}
           onPick={(row) => pick(row, draft.pending)}
-          onCancel={() => setDraft(undefined)}
+          onCancel={() => {
+            setDraft(undefined)
+            onClearSelectedObject?.()
+          }}
         />
       )}
       {selectedWire && <div className="canvas-wire-hint">Wire selected: Delete removes it, Esc keeps it</div>}
       {selectedChip && <div className="canvas-wire-hint">Variable chip selected: Delete puts it back on its pins, Esc keeps it</div>}
       {selectedPinChip && <div className="canvas-wire-hint">Variable selected: Delete takes it off the pin, drag it to move it, Esc keeps it</div>}
+      {selectedObjectNode && !draft?.picking && (
+        <div className="canvas-wire-hint">
+          Variable &quot;{selectedObjectNode.name || 'selected'}&quot;: click a block to choose a pin · Esc to cancel
+        </div>
+      )}
+      {draft?.picking && (
+        <div className="canvas-wire-hint">
+          Choose a pin for &quot;{selectedObjectNode?.name ?? (draft.pending.kind === 'variable' && draft.pending.path ? pathLabel(draft.pending.path, project, active?.blocks) : 'variable')}&quot; · Esc to cancel
+        </div>
+      )}
       {marker && snap && !panning && !ghost && <div className="canvas-snap-marker" aria-hidden="true" style={{ left: marker.x, top: marker.y }} />}
       {!active && (
         <div className="canvas-empty">

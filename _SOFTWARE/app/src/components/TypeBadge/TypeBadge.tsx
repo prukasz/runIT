@@ -1,12 +1,12 @@
 import './TypeBadge.css'
-import { Link2, Type } from 'lucide-react'
+import { Link2 } from 'lucide-react'
 
 /** The same compact kind badge used for object values and block pins. */
 export function ValueKindBadge({ type, title }: { type: string; title?: string }) {
   const category = /^(b|bool|boolean|gate)$/i.test(type) ? 'bool' : /^(str|string)$/i.test(type) ? 'text' : /^(object|ptr-cell)$/i.test(type) ? 'reference' : 'number'
   const label = category === 'bool' ? 'Boolean (T/F)' : category === 'text' ? 'String text' : category === 'reference' ? 'Object' : `${type} number`
   return <span className={`object-type-icon ${category}`} title={title ?? label} aria-hidden="true">
-    {category === 'bool' ? <span className="object-bool-glyph">T/F</span> : category === 'text' ? <Type /> : category === 'reference' ? <Link2 /> : <span className="object-number-glyph">1.2.3</span>}
+    {category === 'bool' ? <span className="object-bool-glyph">T/F</span> : category === 'text' ? <span className="object-text-glyph">T</span> : category === 'reference' ? <Link2 /> : <span className="object-number-glyph">1.2.3</span>}
   </span>
 }
 

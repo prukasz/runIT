@@ -9,6 +9,7 @@ import type {
   ConnectorSettings,
   ActionStep,
   CanvasBlock,
+  CanvasVariableTarget,
   DeviceAppearance,
   FolderNode,
   ObjectNode,
@@ -387,13 +388,21 @@ const parseCanvasBlock = (value: Json, path: string): CanvasBlock => {
     ...optional('outputs', block.outputs === undefined ? undefined : array(block.outputs, `${path}.outputs`).map((entry, index) => (entry === null ? null : string(entry, `${path}.outputs[${index}]`)))),
     ...optional('enables', block.enables === undefined ? undefined : array(block.enables, `${path}.enables`).map((entry, index) => parsePath(entry, `${path}.enables[${index}]`))),
     ...optional('enableMode', block.enableMode === undefined ? undefined : oneOf(block.enableMode, `${path}.enableMode`, ['any', 'all'] as const)),
-    ...optional('inheritGates', optionalBoolean(block.inheritGates, `${path}.inheritGates`) === false ? (false as const) : undefined),
     ...optional('onError', block.onError === undefined ? undefined : oneOf(block.onError, `${path}.onError`, ['stop', 'continue'] as const)),
     ...optional('eno', optionalBoolean(block.eno, `${path}.eno`)),
     ...optional('settings', settings),
     ...optional('expression', expression),
     ...optional('body', block.body === undefined ? undefined : count(block.body, `${path}.body`)),
   }
+}
+
+const parseCanvasVariableTarget = (value: Json, path: string): CanvasVariableTarget => {
+  const entry = record(value, path)
+  const block = string(entry.block, `${path}.block`)
+  const kind = oneOf(entry.kind, `${path}.kind`, ['in', 'en'] as const)
+  return kind === 'in'
+    ? { block, kind, index: count(entry.index, `${path}.index`) }
+    : { block, kind, ...optional('index', entry.index === undefined ? undefined : count(entry.index, `${path}.index`)) }
 }
 
 /** Canvases in execution order; canvas IDs and block IDs are unique (the blocks of all canvases are one program). */
@@ -415,7 +424,13 @@ export const parseCanvases = (value: Json, path: string): ProjectCanvas[] => {
     const variables = canvas.variables === undefined ? undefined : array(canvas.variables, `${at}.variables`).map((variable, variableIndex) => {
       const where = `${at}.variables[${variableIndex}]`
       const entry = record(variable, where)
-      return { id: string(entry.id, `${where}.id`), path: parsePath(entry.path, `${where}.path`), x: finite(entry.x, `${where}.x`), y: finite(entry.y, `${where}.y`) }
+      return {
+        id: string(entry.id, `${where}.id`),
+        path: parsePath(entry.path, `${where}.path`),
+        x: finite(entry.x, `${where}.x`),
+        y: finite(entry.y, `${where}.y`),
+        ...optional('targets', entry.targets === undefined ? undefined : array(entry.targets, `${where}.targets`).map((target, targetIndex) => parseCanvasVariableTarget(target, `${where}.targets[${targetIndex}]`))),
+      }
     })
     return { id, name: string(canvas.name, `${at}.name`), ...optional('disabled', optionalBoolean(canvas.disabled, `${at}.disabled`)), blocks, ...optional('variables', variables?.length ? variables : undefined) }
   })

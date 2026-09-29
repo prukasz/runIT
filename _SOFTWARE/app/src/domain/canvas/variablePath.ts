@@ -10,7 +10,7 @@ import { blockPinAt, runitVmCatalog } from '../descriptors'
 const BLOCK_PIN = /^[^.[\]]+:(q\d+|eno|body)$/
 
 /** Name path of an object: its folders' names and its own (`motor.gains`). */
-const nameOf = (project: ProjectDocument, id: string): string | undefined => {
+export const nameOf = (project: ProjectDocument, id: string): string | undefined => {
   let found: string | undefined
   walkObjects(project.objects, (node: ObjectNode, ancestors: readonly FolderNode[]) => {
     if (found === undefined && node.id === id) found = [...ancestors.map((folder) => folder.name), node.name].join('.')
@@ -91,16 +91,22 @@ export const parsePathText = (text: string, project: ProjectDocument): ObjectPat
     while (source[at] === '[') {
       at++
       const close = source.indexOf(']', at)
-      const inner = source.slice(at, close === -1 ? source.length : close).trim()
+      if (close === -1) throw new PathTextError(`']' is missing.`)
+      const inner = source.slice(at, close).trim()
+      const strMatch = /^"([^"]*)"$|^'([^']*)'$/.exec(inner)
       if (/^\d+$/.test(inner)) {
         steps.push({ kind: 'index', index: Number(inner) })
+        at = close + 1
+      } else if (strMatch) {
+        const keyName = strMatch[1] ?? strMatch[2]
+        if (!keyName) throw new PathTextError('An empty key inside brackets [""].')
+        steps.push({ kind: 'name', name: keyName })
         at = close + 1
       } else {
         steps.push({ kind: 'dynamic', index: parse() })
         if (source[at] !== ']') throw new PathTextError(`']' is missing after '${inner}'.`)
         at++
       }
-      if (close === -1) throw new PathTextError(`']' is missing.`)
       while (source[at] === '.') {
         at++
         const nameStart = at

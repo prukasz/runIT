@@ -80,7 +80,8 @@ export const blockShape = (type: VmBlockType | undefined, block: ProgramBlock & 
   const inputs = type ? pinViews(type.inputs, pinCount(type.inputs, block.inputs?.length ?? 0)).filter((pin) => !blockPinAt(type.inputs, pin.index)?.hiddenByDefault || block.dynamicInputs?.includes(pin.index) || block.inputs?.[pin.index]) : []
   const outputs = type ? pinViews(type.outputs, pinCount(type.outputs, block.outputs?.length ?? 0)) : []
   const rows = Math.max(1, inputs.length, outputs.length)
-  return { width: BLOCK_WIDTH + (expanded ? 4 * GRID : 0), height: HEADER + rows * ROW + (expanded ? rows * ROW + Math.max(1, blockSummary(type, block).length) * ROW + GRID : 0), inputs, outputs, row: expanded ? 2 * ROW : ROW }
+  const summaryHeight = expanded ? (type?.encoding ? 2 * ROW + 16 : Math.max(1, blockSummary(type, block).length) * ROW + 16) : 0
+  return { width: BLOCK_WIDTH + (expanded ? 4 * GRID : 0), height: HEADER + rows * ROW + summaryHeight, inputs, outputs, row: ROW }
 }
 
 /** Where a wire meets a block, in canvas units: input pins on the left edge, outputs on the right, EN / ENO at header height. */

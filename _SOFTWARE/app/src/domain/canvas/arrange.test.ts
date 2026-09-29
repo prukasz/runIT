@@ -32,7 +32,7 @@ describe('execution order', () => {
   })
 })
 
-describe('gates flow down data wires', () => {
+describe('explicit EN gates', () => {
   const branch = [
     block('check', 'IF', 0, 0, { inputs: [at('go')] }),
     expr('scale', 0, 100, [at('x')], { enables: [at('check:q0')] }),
@@ -40,17 +40,16 @@ describe('gates flow down data wires', () => {
     expr('free', 0, 300, [at('scale:q0')], { inheritGates: false }),
   ]
 
-  it('puts the blocks fed from a gated block in its branch, copying the gate and not the ENO', () => {
+  it('does not inherit gates from data feeders; an unconnected EN always runs', () => {
     const { blocks, gates } = arrangeProgram([canvas('c', branch)])
-    expect(blocks.find((entry) => entry.id === 'use')).toMatchObject({ enables: [at('check:q0')] })
+    expect(blocks.find((entry) => entry.id === 'use')).not.toHaveProperty('enables')
     expect(blocks.find((entry) => entry.id === 'use')).not.toHaveProperty('enableMode')
-    expect(gates.get('use')?.enables).toEqual([at('check:q0')])
-    // Opted out: runs every pass, whatever branch its source is in.
+    expect(gates.get('use')?.enables).toEqual([])
     expect(blocks.find((entry) => entry.id === 'free')).not.toHaveProperty('enables')
     expect(blocks.find((entry) => entry.id === 'free')).not.toHaveProperty('inheritGates')
   })
 
-  it('merges branches with any and narrows a branch with the block\'s own gate', () => {
+  it('keeps explicit EN sources and their selected combine mode', () => {
     const { blocks } = arrangeProgram([canvas('c', [
       ...branch,
       block('tick', 'PERIODIC', 400, 0),
@@ -59,19 +58,19 @@ describe('gates flow down data wires', () => {
       expr('narrow', 0, 500, [at('use:q0')], { enables: [at('tick:q0')] }),
       expr('mixed', 200, 600, [at('use:q0'), at('other:q0')], { enables: [at('tick:q0')] }),
     ])])
-    expect(blocks.find((entry) => entry.id === 'merge')).toMatchObject({ enables: [at('check:q0'), at('check:q1')], enableMode: 'any' })
-    expect(blocks.find((entry) => entry.id === 'narrow')).toMatchObject({ enables: [at('tick:q0'), at('check:q0')], enableMode: 'all' })
+    expect(blocks.find((entry) => entry.id === 'merge')).not.toHaveProperty('enables')
+    expect(blocks.find((entry) => entry.id === 'narrow')).toMatchObject({ enables: [at('tick:q0')] })
     const { diagnostics } = arrangeProgram([canvas('c', [...branch, block('tick', 'PERIODIC', 400, 0), expr('other', 400, 100, [at('x')], { enables: [at('check:q1')] }), expr('mixed', 200, 600, [at('use:q0'), at('other:q0')], { enables: [at('tick:q0')] })])])
-    expect(diagnostics).toEqual([expect.objectContaining({ severity: 'error', blockId: 'mixed', message: expect.stringMatching(/both "any" and "all"/) })])
+    expect(diagnostics).toEqual([])
   })
 
-  it('keeps a variable on EN to its own block: only block gates flow down the wires', () => {
+  it('does not inherit EN sources even when a data feeder has explicit enables', () => {
     const { blocks } = arrangeProgram([canvas('c', [
       block('check', 'IF', 0, 0, { inputs: [at('go')] }),
       expr('armed', 0, 100, [at('x')], { enables: [at('check:q0'), at('armedFlag')], enableMode: 'all' }),
       expr('next', 0, 200, [at('armed:q0')]),
     ])])
-    expect(blocks.find((entry) => entry.id === 'next')).toMatchObject({ enables: [at('check:q0')] })
+    expect(blocks.find((entry) => entry.id === 'next')).not.toHaveProperty('enables')
   })
 
   it('leaves a block fed by variables alone (a variable is a plain read)', () => {

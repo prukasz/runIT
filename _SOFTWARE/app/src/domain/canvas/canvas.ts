@@ -101,7 +101,7 @@ export const setCanvasDisabled = (canvases: readonly ProjectCanvas[], id: string
   })
 }
 
-/** The program: every enabled canvas's blocks in execution order, gates inherited, loop bodies placed (arrange.ts). */
+/** The program: every enabled canvas's blocks in execution order, explicit gates kept, and loop bodies placed (arrange.ts). */
 export const programBlocks = (canvases: readonly ProjectCanvas[]): readonly ProgramBlock[] => arrangeProgram(canvases).blocks
 
 // ---------------------------------------------------------------------------

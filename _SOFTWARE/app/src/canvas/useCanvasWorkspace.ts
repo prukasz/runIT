@@ -3,7 +3,7 @@ import { addBlock, addCanvas, DEFAULT_VIEWPORT, findBlock, GRID, moveBlock, move
 import type { Point, Viewport } from '../domain/canvas'
 import { runitVmCatalog } from '../domain/descriptors'
 import { parseCanvases } from '../domain/project'
-import type { CanvasBlock, ProjectCanvas } from '../domain/project'
+import type { CanvasBlock, CanvasVariableTarget, ProjectCanvas } from '../domain/project'
 import { blockShape } from './blockView'
 
 /*
@@ -27,10 +27,32 @@ interface History {
 
 const newId = (): string => `canvas-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 
+/** Split older shared labels into one free label per pin using that accessor. */
+const splitSharedVariableLabels = (canvases: readonly ProjectCanvas[]): readonly ProjectCanvas[] => canvases.map((canvas) => {
+  const usedIds = new Set((canvas.variables ?? []).map((variable) => variable.id))
+  let suffix = 1
+  const variables = (canvas.variables ?? []).flatMap((variable) => {
+    if (variable.targets !== undefined) return [variable]
+    const pathKey = JSON.stringify(variable.path)
+    const targets: CanvasVariableTarget[] = canvas.blocks.flatMap((block) => [
+      ...(block.inputs ?? []).flatMap((path, index) => path && JSON.stringify(path) === pathKey ? [{ block: block.id, kind: 'in' as const, index }] : []),
+      ...(block.enables ?? []).flatMap((path, index) => JSON.stringify(path) === pathKey ? [{ block: block.id, kind: 'en' as const, index }] : []),
+    ])
+    if (targets.length <= 1) return [variable]
+    return targets.map((target, index) => {
+      let id = index === 0 ? variable.id : `${variable.id}-${index + 1}`
+      while (usedIds.has(id) && id !== variable.id) id = `${variable.id}-${++suffix}`
+      usedIds.add(id)
+      return { ...variable, id, y: variable.y + index * GRID * 1.5, targets: [target] }
+    })
+  })
+  return { ...canvas, variables }
+})
+
 const loadCanvases = (): readonly ProjectCanvas[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return parseCanvases(JSON.parse(raw), 'canvases')
+    if (raw) return splitSharedVariableLabels(parseCanvases(JSON.parse(raw), 'canvases'))
   } catch {
     /* Storage unavailable or unreadable: start with one canvas. */
   }
@@ -163,8 +185,9 @@ export function useCanvasWorkspace(onSelectBlock?: () => void) {
   /** Replace the canvases (project opened); undo goes back. */
   const load = (next: readonly ProjectCanvas[]) => {
     const curr = historyRef.current
-    commit({ past: [...curr.past, curr.present], present: [...next], future: [] })
-    setActiveId(next[0]?.id)
+    const normalized = splitSharedVariableLabels(next)
+    commit({ past: [...curr.past, curr.present], present: [...normalized], future: [] })
+    setActiveId(normalized[0]?.id)
     setSelectedBlockId(undefined)
     setViewports(new Map())
     setError('')

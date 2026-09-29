@@ -271,17 +271,16 @@ Firmware semantics this rests on: `components/VM/VM_EXEC.MD` §1 and `vm_block_i
 
 ### 8.1 Decided 2026-09-28 (owner's notes `wire.md` + answers); built the same day
 
-Built: `domain/canvas/arrange.ts` (order, gate inheritance, loop bodies), `wiring.ts`, `variablePath.ts`; canvas wires, pin picker, chips, block details, areas (runit-app SKILL.md code map). Firmware G-11 fixed, not yet tested on a board.
+Built: `domain/canvas/arrange.ts` (order, explicit gates, loop bodies), `wiring.ts`, `variablePath.ts`; canvas wires, pin picker, chips, block details, areas (runit-app SKILL.md code map). Firmware G-11 fixed, not yet tested on a board.
 
-**Always run and order (owner, 2026-09-28).** An unlinked EN always stays available: a block set to *Always run* (`inheritGates: false`) takes no gates from its feeders and runs every pass. Execution: per canvas, the trees (blocks joined by wires) top to bottom, inside a tree after what feeds it, then the next canvas.
+**Explicit enables and order (owner update, 2026-09-28).** A block with no EN source is always enabled; only sources wired directly to EN control it. Data wires set execution order but do not pass gates from one block to another. Execution: per canvas, the trees (blocks joined by wires) top to bottom, inside a tree after what feeds it, then the next canvas.
 
-**Gates flow down data wires (EN without wiring EN).**
-- A *gate* is an output of kind `gate` (IF yes/no, SWITCH branch, PERIODIC tick, EDGE pulse) or any bool output the user drops on a block's red EN strip.
-- A block with no explicit gate **inherits the gates of the blocks feeding its data inputs** (from blocks, not from variables): the compiler copies their EN sources into its EN list. It copies the gate, never the upstream ENO: a triggered producer (EXPR, SET) drops ENO in every pass without fresh data, and linking that ENO would switch every-pass consumers (IO_SET_LEVEL …) off and on.
-- Merges: sources from different branches → mode any (∨). An explicit gate on a block that also inherits narrows it (∧). A mix the VM's single mode can't express is a compiler error asking for a logic block. ∨/∧ is shown on the EN strip only with explicit gates.
-- Nesting works through the gate itself (a disabled IF drives yes and no false).
+**Explicit gates only (owner update, 2026-09-28).**
+- A *gate* is an output of kind `gate` (IF yes/no, SWITCH branch, PERIODIC tick, EDGE pulse) or any bool output the user drops on a block's orange EN strip. A block is gated only by paths explicitly wired to its EN; inherited feeder gates and the Branch control are removed.
+- Several explicit EN sources combine as any (∨) by default or all (∧) when selected on the block. Nested logic goes through an EXPR / logic block wired to EN.
+- A disabled IF drives its yes and no outputs false; a block that reads either output still needs its own EN wire if it should follow that branch.
 - ENO (green strip) is opt-in: dragged onto another block's EN it means "only if that block acted / succeeded". Nothing else is linked automatically.
-- The canvas shows each branch as a rounded area with a plain transparent tint around the blocks carrying that gate (a block gated by a member of a branch is in it too); areas may overlap. An area holding another grows to wrap it and the inner one is drawn on top. The same for IF, SWITCH, PERIODIC … and FOR.
+- The canvas shows each explicitly gated branch as a rounded area with a plain transparent tint around the blocks carrying that gate; areas may overlap. An area holding another grows to wrap it and the inner one is drawn on top. The same for IF, SWITCH, PERIODIC … and FOR.
 - EN links are drawn as a faded ribbon, narrow at the source and as tall as the whole red EN strip where it arrives (gate red, ENO green, a FOR's loop link purple); data wires stay thin lines.
 
 **FOR body = the FOR's ENO chain** (owner, 2026-09-28, replacing a Body output). A FOR's green ENO dropped on a block's EN puts that block in the loop, and with it every block whose chain depends on it (data wires, or gated by a member). The link is compiler-only, never a VM enable; the compiler places the body right after the FOR and sets the span. Older `<for>:body` links still load.
@@ -295,4 +294,4 @@ Built: `domain/canvas/arrange.ts` (order, gate inheritance, loop bodies), `wirin
 - The chip snaps onto the pin (no wire); pulled away it keeps a wire; one detached chip may feed several pins.
 - On an **output** pin the chip means the block writes that variable (one writer per object).
 
-**Strips:** EN red, ENO green (as built).
+**Strips:** EN orange, ENO green (as built).

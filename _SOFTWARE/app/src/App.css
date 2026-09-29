@@ -229,10 +229,11 @@ input[type="range"] {
 .object-type-icon { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 22px; flex: none; border-radius: 4px; }
 .object-type-icon svg { width: 15px; height: 15px; stroke-width: 2.2; }
 .object-number-glyph { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 9px; font-weight: 700; letter-spacing: -1.1px; white-space: nowrap; }
-.object-type-icon.number { color: #4aa8ff; background: color-mix(in srgb, #4aa8ff 13%, transparent); }
-.object-type-icon.text { color: #bf91f3; background: color-mix(in srgb, #bf91f3 13%, transparent); }
-.object-type-icon.bool { color: #2dd4bf; background: color-mix(in srgb, #2dd4bf 14%, transparent); }
-.object-bool-glyph { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 9px; font-weight: 700; letter-spacing: -0.6px; white-space: nowrap; }
+.object-type-icon.number { color: #38bdf8; background: color-mix(in srgb, #38bdf8 26%, transparent); }
+.object-type-icon.text { color: #bf91f3; background: color-mix(in srgb, #bf91f3 24%, transparent); }
+.object-type-icon.bool { color: #35b970; background: color-mix(in srgb, #35b970 26%, transparent); }
+.object-bool-glyph { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 9.5px; font-weight: 700; letter-spacing: -0.5px; white-space: nowrap; }
+.object-text-glyph { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; font-weight: 700; white-space: nowrap; }
 .object-type-icon.folder { color: #66c9aa; background: color-mix(in srgb, #66c9aa 13%, transparent); }
 .object-type-icon.reference { color: #e9ad50; background: color-mix(in srgb, #e9ad50 17%, transparent); }
 .object-link-backdrop {
@@ -589,6 +590,7 @@ input[type="range"] {
 
 .right-panel { position: relative; display: flex; flex-direction: column; width: 54px; flex: none; overflow: hidden; border-left: 1px solid var(--divider); background: var(--panel); transition: width 180ms ease; }
 .right-panel.is-open { width: 320px; }
+.right-panel.is-expanded { width: 500px !important; min-width: 480px; }
 .shell.is-resizing-left, .shell.is-resizing-left *, .shell.is-resizing-right, .shell.is-resizing-right * { cursor: col-resize !important; user-select: none; }
 .shell.is-resizing-bottom, .shell.is-resizing-bottom * { cursor: row-resize !important; user-select: none; }
 .shell.is-resizing-left .left-panel, .shell.is-resizing-right .right-panel { transition: none; }
