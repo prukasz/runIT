@@ -1,5 +1,6 @@
 import './TypeBadge.css'
 import { Link2 } from 'lucide-react'
+import { Badge } from '../Badge'
 
 /** The same compact kind badge used for object values and block pins. */
 export function ValueKindBadge({ type, title }: { type: string; title?: string }) {
@@ -11,18 +12,10 @@ export function ValueKindBadge({ type, title }: { type: string; title?: string }
 }
 
 /** Compact, shared label for a value or pin type. Arrays can show their length beside it. */
-export function typeKindLabel(type: string): string {
-  if (/^(b|bool|boolean|gate)$/i.test(type)) return 'Bool'
-  if (/^(str|string)$/i.test(type)) return 'String'
-  if (/^(object|ptr-cell)$/i.test(type)) return 'Object'
-  if (/^raw$/i.test(type)) return 'Data'
-  return 'Number'
-}
-
-export function TypeBadge({ type, count, title, label }: { type: string; count?: number; title?: string; label?: string }) {
-  const tone = /^(b|bool|gate)$/i.test(type) ? 'bool' : /^(str|string)$/i.test(type) ? 'text' : /^(object|ptr-cell|raw)$/i.test(type) ? 'other' : 'number'
+export function TypeBadge({ type, count, title }: { type: string; count?: number; title?: string }) {
+  const tone = /^(b|bool|boolean|gate)$/i.test(type) ? 'boolean' : /^(str|string)$/i.test(type) ? 'text' : /^(object|ptr-cell|raw)$/i.test(type) ? 'other' : 'number'
   return <span className="type-badge-group" title={title ?? type}>
-    {count !== undefined && <span className="type-badge-count">{count}</span>}
-    <span className={`type-badge is-${tone}`}>{label ?? type}</span>
+    {count !== undefined && <Badge tone="count">{count}</Badge>}
+    <Badge tone={tone}>{type}</Badge>
   </span>
 }

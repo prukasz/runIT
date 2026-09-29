@@ -6,7 +6,7 @@
   "name": "VM_BLK_EXPR_BIT",
   "title": "Bit Expression",
   "category": "data",
-  "description": "Evaluates an RPN uint32 bitwise expression over its inputs when an input is fresh and the block is enabled.",
+  "description": "Evaluates a bitwise formula over its inputs, on whole numbers; the result goes to output 0.",
   "source_file": "components/VM/blocks/vm_block_expr.h",
   "activation": {
     "kind": "triggered",

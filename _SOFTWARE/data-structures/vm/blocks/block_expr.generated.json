@@ -6,7 +6,7 @@
   "name": "VM_BLK_EXPR",
   "title": "Expression",
   "category": "data",
-  "description": "Evaluates an RPN float expression over its inputs when an input is fresh and the block is enabled; the result goes to output 0.",
+  "description": "Evaluates a numeric or logical formula over its inputs; the result goes to output 0.",
   "source_file": "components/VM/blocks/vm_block_expr.h",
   "activation": {
     "kind": "triggered",

@@ -100,8 +100,8 @@ describe('compileProgram: blocks', () => {
     const blocks: ProgramBlock[] = [
       { id: 'outer', type: 'FOR', body: 3, settings: { k_start: 0, k_end: 3, k_step: 1, max_turns: 10 } },
       { id: 'inner', type: 'FOR', body: 1, settings: { k_start: 0, k_end: 2, k_step: 1, max_turns: 10 } },
-      { id: 'x', type: 'PERIODIC', settings: { period: 1 } },
-      { id: 'y', type: 'PERIODIC', settings: { period: 1 } },
+      { id: 'x', type: 'EXPR', expression: { constants: [1], code: ['const', 0] } },
+      { id: 'y', type: 'EXPR', expression: { constants: [1], code: ['const', 0] } },
       { id: 'after', type: 'PERIODIC', settings: { period: 1 } },
     ]
     const compiled = compile([], blocks)
@@ -110,6 +110,14 @@ describe('compileProgram: blocks', () => {
     expect(hex(blockRecords(compiled)[1]!.subarray(16, 20))).toBe('02000300')
     const past = compile([], [{ ...blocks[0]!, body: 1 }, { ...blocks[1]!, body: 2 }, ...blocks.slice(2)])
     expect(errors(past)).toEqual([expect.objectContaining({ blockId: 'inner', message: expect.stringContaining("loop 'outer'") })])
+  })
+
+  it('refuses timers in a loop body and warns about blocks that act on every turn', () => {
+    const loop: ProgramBlock = { id: 'loop', type: 'FOR', body: 3, settings: { k_start: 0, k_end: 3, k_step: 1, max_turns: 10 } }
+    const inside = compile([], [loop, { id: 't', type: 'PERIODIC', settings: { period: 1 } }, { id: 'x', type: 'EXPR', expression: { constants: [1], code: ['const', 0] } }, { id: 'k', type: 'IO_TOGGLE', settings: { allowed_mask: 1 << 5, device_id: 0, default_io_num: 5 } }])
+    expect(errors(inside)).toEqual([expect.objectContaining({ blockId: 't', message: expect.stringContaining('one state') })])
+    expect(inside.diagnostics.filter((entry) => entry.severity === 'warning')).toEqual([expect.objectContaining({ blockId: 'k' })])
+    expect(errors(compile([], [{ ...loop, body: 0 }, { id: 't', type: 'PERIODIC', settings: { period: 1 } }]))).toEqual([])
   })
 
   it('stores the EDGE threshold in the type of the signal', () => {

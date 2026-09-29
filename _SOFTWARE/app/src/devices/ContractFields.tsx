@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { SelectField, TextField } from '../components/FormField'
 import { FieldLabel } from '../components/FieldNote'
 import type { DeviceContract } from '../domain/descriptors'
 import { initialParameterValue, parameterValue, SET_ERROR_HANDLING } from '../domain/devices'
@@ -45,7 +46,7 @@ export function ContractFields({ contract, values, onChange, actions = [] }: {
                 {current.map((item, index) => (
                   <label key={index}>
                     <span>{index + 1}</span>
-                    <input type="number" value={item} min={parameter.min} max={parameter.max} onChange={(event) => set(parameter.name, current.map((entry, at) => (at === index ? Number(event.target.value) : entry)))} />
+                    <TextField type="number" value={item} min={parameter.min} max={parameter.max} onChange={(event) => set(parameter.name, current.map((entry, at) => (at === index ? Number(event.target.value) : entry)))} />
                   </label>
                 ))}
               </div>
@@ -58,15 +59,15 @@ export function ContractFields({ contract, values, onChange, actions = [] }: {
             <FieldLabel htmlFor={id} note={parameter.note}>{label}</FieldLabel>
             {parameter.boolean ? (
               <label className="contract-switch">
-                <input id={id} type="checkbox" checked={value !== 0} onChange={(event) => set(parameter.name, event.target.checked ? 1 : 0)} />
+                <TextField id={id} type="checkbox" checked={value !== 0} onChange={(event) => set(parameter.name, event.target.checked ? 1 : 0)} />
                 <span>{value ? 'On / high' : 'Off / low'}</span>
               </label>
             ) : parameter.choices ? (
-              <select id={id} value={value} onChange={(event) => set(parameter.name, Number(event.target.value))}>
+              <SelectField id={id} value={value} onChange={(event) => set(parameter.name, Number(event.target.value))}>
                 {parameter.choices.map((choice) => <option key={choice.value} value={choice.value} title={choice.description}>{choice.label === String(choice.value) ? choice.label : `${choice.label} (${choice.value})`}</option>)}
-              </select>
+              </SelectField>
             ) : (
-              <input
+              <TextField
                 id={id}
                 type="number"
                 value={value}

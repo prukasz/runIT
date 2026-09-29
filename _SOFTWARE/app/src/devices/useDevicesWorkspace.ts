@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { readStored, usePersistEffect } from '../hooks/useStorage'
 import { runitDeviceCatalog } from '../domain/descriptors'
 import { checkDevices, checkPwm, checkSetup, defaultInstall, nextActionId, nextDeviceId, resolveDevice, withDeviceAliases } from '../domain/devices'
 import { parseActions, parseDeviceAliases, parseDevices, parseSetup } from '../domain/project'
 import type { ActionStep, DeviceRef, ProjectAction, ProjectDevice, StepValues } from '../domain/project'
+import { useUndoHistory } from '../hooks/useUndoHistory'
 
 /*
  * The Board view's state: the user's devices, every device's default settings
@@ -26,12 +28,6 @@ export type DeviceSelection =
   | { readonly kind: 'add' }
   | { readonly kind: 'action'; readonly id: string }
 
-interface History {
-  readonly past: readonly DevicesState[]
-  readonly present: DevicesState
-  readonly future: readonly DevicesState[]
-}
-
 const EMPTY: DevicesState = { devices: [], actions: [], setup: [] }
 
 /** Older app files stored a second name for user devices; keep just their editable name. */
@@ -45,18 +41,11 @@ const restoreDeviceNames = (state: DevicesState): DevicesState => {
   }
 }
 
-const loadState = (): DevicesState => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const saved = JSON.parse(raw) as { devices: unknown; actions: unknown; setup: unknown; deviceAliases?: unknown }
-      return restoreDeviceNames({ devices: parseDevices(saved.devices, 'devices'), actions: parseActions(saved.actions, 'actions'), setup: parseSetup(saved.setup, 'setup'), deviceAliases: parseDeviceAliases(saved.deviceAliases, 'deviceAliases') })
-    }
-  } catch {
-    /* Storage unavailable or unreadable: start empty. */
-  }
-  return EMPTY
-}
+const loadState = (): DevicesState =>
+  readStored(STORAGE_KEY, (raw) => {
+    const saved = JSON.parse(raw) as { devices: unknown; actions: unknown; setup: unknown; deviceAliases?: unknown }
+    return restoreDeviceNames({ devices: parseDevices(saved.devices, 'devices'), actions: parseActions(saved.actions, 'actions'), setup: parseSetup(saved.setup, 'setup'), deviceAliases: parseDeviceAliases(saved.deviceAliases, 'deviceAliases') })
+  }, EMPTY)
 
 const newId = (prefix: string): string => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 
@@ -67,12 +56,7 @@ const uniqueName = (taken: readonly string[], base: string): string => {
 }
 
 export function useDevicesWorkspace(onSelect?: () => void) {
-  const [history, setHistory] = useState<History>(() => ({ past: [], present: loadState(), future: [] }))
-  const historyRef = useRef(history)
-  const commit = (next: History) => {
-    historyRef.current = next
-    setHistory(next)
-  }
+  const history = useUndoHistory(loadState)
   const [selection, setSelection] = useState<DeviceSelection>()
   /** Project ID of the action open in the composer. */
   const [composing, setComposing] = useState<string>()
@@ -80,22 +64,14 @@ export function useDevicesWorkspace(onSelect?: () => void) {
   const { devices, actions, setup, deviceAliases } = history.present
   const catalog = useMemo(() => withDeviceAliases(baseCatalog, deviceAliases), [deviceAliases])
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(history.present))
-    } catch {
-      /* The project file keeps them. */
-    }
-  }, [history.present])
+  usePersistEffect(STORAGE_KEY, history.present)
 
   const diagnostics = useMemo(() => [...checkDevices(catalog, devices), ...checkSetup(catalog, devices, setup), ...checkPwm(catalog, devices, setup, actions)], [catalog, devices, setup, actions])
 
   /** Apply a change with undo; a thrown error is shown and nothing changes. */
   const edit = (change: (current: DevicesState) => DevicesState): boolean => {
-    const curr = historyRef.current
     try {
-      const next = change(curr.present)
-      if (next !== curr.present) commit({ past: [...curr.past, curr.present].slice(-50), present: next, future: [] })
+      history.record(change(history.current()))
       setError('')
       return true
     } catch (cause) {
@@ -112,7 +88,7 @@ export function useDevicesWorkspace(onSelect?: () => void) {
   const addDevice = (typeId: string) => {
     const type = catalog.type(typeId)
     if (!type) return
-    const deviceId = nextDeviceId(catalog, historyRef.current.present.devices)
+    const deviceId = nextDeviceId(catalog, history.current().devices)
     if (deviceId === undefined) {
       setError(`No free device ID left (up to ${catalog.maxDeviceId}).`)
       return
@@ -121,7 +97,7 @@ export function useDevicesWorkspace(onSelect?: () => void) {
       id: newId('device'),
       deviceId,
       type: type.id,
-      name: uniqueName(historyRef.current.present.devices.map((entry) => entry.name), type.title.split(' ')[0] ?? type.title),
+      name: uniqueName(history.current().devices.map((entry) => entry.name), type.title.split(' ')[0] ?? type.title),
       tags: [],
       install: defaultInstall(type, catalog.i2cBuses.user),
     }
@@ -178,7 +154,7 @@ export function useDevicesWorkspace(onSelect?: () => void) {
 
   /** A new action, optionally with a first step; opens the composer on it. */
   const addAction = (firstStep?: Omit<ActionStep, 'id'>): string | undefined => {
-    const actionId = nextActionId(historyRef.current.present.actions)
+    const actionId = nextActionId(history.current().actions)
     if (actionId === undefined) {
       setError('All 255 action IDs are used.')
       return undefined
@@ -186,7 +162,7 @@ export function useDevicesWorkspace(onSelect?: () => void) {
     const action: ProjectAction = {
       id: newId('action'),
       actionId,
-      name: uniqueName(historyRef.current.present.actions.map((entry) => entry.name), 'action'),
+      name: uniqueName(history.current().actions.map((entry) => entry.name), 'action'),
       steps: firstStep ? [{ ...firstStep, id: newId('step') }] : [],
     }
     if (!edit((current) => ({ ...current, actions: [...current.actions, action] }))) return undefined
@@ -201,7 +177,7 @@ export function useDevicesWorkspace(onSelect?: () => void) {
     })
 
   const addStep = (actionId: string, step: Omit<ActionStep, 'id'>) => {
-    const action = historyRef.current.present.actions.find((entry) => entry.id === actionId)
+    const action = history.current().actions.find((entry) => entry.id === actionId)
     if (action) updateAction(actionId, { steps: [...action.steps, { ...step, id: newId('step') }] })
   }
 
@@ -221,22 +197,10 @@ export function useDevicesWorkspace(onSelect?: () => void) {
 
   /** Replace devices and actions (project opened or recovered); undo goes back. */
   const load = (next: DevicesState) => {
-    const curr = historyRef.current
-    commit({ past: [...curr.past, curr.present], present: restoreDeviceNames({ devices: [...next.devices], actions: [...next.actions], setup: [...next.setup], deviceAliases: next.deviceAliases }), future: [] })
+    history.replace(restoreDeviceNames({ devices: [...next.devices], actions: [...next.actions], setup: [...next.setup], deviceAliases: next.deviceAliases }))
     setSelection(undefined)
     setComposing(undefined)
     setError('')
-  }
-
-  const undo = () => {
-    const curr = historyRef.current
-    if (!curr.past.length) return
-    commit({ past: curr.past.slice(0, -1), present: curr.past.at(-1)!, future: [curr.present, ...curr.future] })
-  }
-  const redo = () => {
-    const curr = historyRef.current
-    if (!curr.future.length) return
-    commit({ past: [...curr.past, curr.present], present: curr.future[0]!, future: curr.future.slice(1) })
   }
 
   return {
@@ -266,10 +230,10 @@ export function useDevicesWorkspace(onSelect?: () => void) {
     addStep,
     removeAction,
     load,
-    canUndo: history.past.length > 0,
-    canRedo: history.future.length > 0,
-    undo,
-    redo,
+    canUndo: history.canUndo,
+    canRedo: history.canRedo,
+    undo: history.undo,
+    redo: history.redo,
   }
 }
 

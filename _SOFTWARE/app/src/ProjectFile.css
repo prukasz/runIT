@@ -1,0 +1,8 @@
+/* File view (ProjectFile.tsx) */
+.file-panel { display: flex; flex-direction: column; gap: 18px; padding: 14px; overflow-y: auto; }
+.file-group { display: flex; flex-direction: column; gap: 6px; }
+.file-group h3 { margin: 0 0 2px; color: var(--active); font-size: 12px; font-weight: 600; }
+.file-hint { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.shell .file-group label.ui-button { justify-content: flex-start; }
+.shell .file-group .ui-button { justify-content: flex-start; }
+.file-page { max-width: 640px; padding: 20px; }

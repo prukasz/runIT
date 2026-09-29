@@ -1,4 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { readStored, usePersistEffect } from './hooks/useStorage'
+import { PanelHeader } from './components/PanelHeader'
+import { Badge } from './components/Badge'
+import { Card, CardStack } from './components/Card'
+import { FormGrid, FormRow, SelectField, TextField } from './components/FormField'
+import { PaletteSearch } from './components/PaletteSearch'
 import {
   ArrowLeft,
   ChevronDown,
@@ -7,15 +13,14 @@ import {
   Layers,
   Plus,
   Radio,
-  Search,
   Sliders,
   Trash2,
-  X,
 } from 'lucide-react'
 import { EditableField } from './components/EditableField'
 import { ListableField } from './components/ListableField'
 import { TreeSlab } from './components/TreeSlab'
 import { TypeBadge } from './components/TypeBadge/TypeBadge'
+import { useUndoHistory } from './hooks/useUndoHistory'
 import { runitStreamCatalog } from './domain/descriptors'
 import { parseSettings } from './domain/project'
 import type { BleCharacteristicSettings, BleGeneralSettings, BleProfile, BleServiceSettings } from './domain/project'
@@ -40,15 +45,8 @@ export const isSystemBleChar = (char?: BleCharacteristic | null): boolean => isB
 export const defaultBleProfile: BleProfile = defaultProjectSettings().ble
 
 /** The saved profile, the board's own entries refreshed from the descriptors (refreshSettings). */
-const loadBleProfile = (): BleProfile => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return refreshSettings(parseSettings({ ble: JSON.parse(raw), connectors: [] }, 'ble-profile')).ble
-  } catch {
-    /* Storage unavailable or unreadable: start from the defaults. */
-  }
-  return defaultBleProfile
-}
+const loadBleProfile = (): BleProfile =>
+  readStored(STORAGE_KEY, (raw) => refreshSettings(parseSettings({ ble: JSON.parse(raw), connectors: [] }, 'ble-profile')).ble, defaultBleProfile)
 
 const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 
@@ -78,36 +76,22 @@ export const padUuid16 = (raw: string): string => {
 }
 
 export function useBleSettingsWorkspace(onSelect?: (id: string) => void) {
-  const [initial] = useState(loadBleProfile)
-  const [profile, setProfile] = useState<BleProfile>(initial)
-  const [history, setHistory] = useState<BleProfile[]>([initial])
-  const [historyIndex, setHistoryIndex] = useState(0)
+  const history = useUndoHistory(loadBleProfile)
+  const profile = history.present
   const [justApplied, setJustApplied] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(defaultBleProfile.services[0]?.characteristics[0]?.id ?? null)
   const [collapsedServices, setCollapsedServices] = useState<Set<string>>(new Set())
 
-  const canUndo = historyIndex > 0
-  const canRedo = historyIndex < history.length - 1
+  const canUndo = history.canUndo
+  const canRedo = history.canRedo
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(profile))
-    } catch {
-      /* The project file keeps it. */
-    }
-  }, [profile])
+  usePersistEffect(STORAGE_KEY, profile)
 
-  const pushState = (next: BleProfile) => {
-    setProfile(next)
-    setHistory((prev) => [...prev.slice(0, historyIndex + 1), next])
-    setHistoryIndex((prev) => prev + 1)
-  }
+  const pushState = (next: BleProfile) => { history.record(next) }
 
   /** Replace the profile (project opened or recovered); undo history starts over. */
   const load = (next: BleProfile) => {
-    setProfile(next)
-    setHistory([next])
-    setHistoryIndex(0)
+    history.replace(next, 'reset')
     setSelectedId(next.services[0]?.characteristics[0]?.id ?? null)
   }
 
@@ -116,19 +100,8 @@ export function useBleSettingsWorkspace(onSelect?: (id: string) => void) {
     onSelect?.(id)
   }
 
-  const undo = () => {
-    if (!canUndo) return
-    const nextIndex = historyIndex - 1
-    setHistoryIndex(nextIndex)
-    setProfile(history[nextIndex])
-  }
-
-  const redo = () => {
-    if (!canRedo) return
-    const nextIndex = historyIndex + 1
-    setHistoryIndex(nextIndex)
-    setProfile(history[nextIndex])
-  }
+  const undo = history.undo
+  const redo = history.redo
 
   /** Flash the apply button after the board took the settings. */
   const markApplied = () => {
@@ -401,30 +374,7 @@ export function BleSettingsPalette({
         </button>
       </div>
 
-      <div className="object-tree-search-bar">
-        <Search className="search-icon" aria-hidden="true" />
-        <input
-          type="text"
-          placeholder="Search BLE services & chars..."
-          aria-label="Search BLE services & chars"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') setSearchQuery('')
-          }}
-        />
-        {searchQuery && (
-          <button
-            type="button"
-            className="search-clear-btn"
-            title="Clear search"
-            aria-label="Clear search"
-            onClick={() => setSearchQuery('')}
-          >
-            <X aria-hidden="true" />
-          </button>
-        )}
-      </div>
+      <PaletteSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search BLE services & chars..." label="Search BLE services & chars" />
 
       <div className="object-tree-heading">
         <span className="ble-palette-title">GATT Profile</span>
@@ -488,9 +438,9 @@ export function BleSettingsPalette({
                 label={service.name}
                 badges={
                   <>
-                    {service.advertised && <span className="ble-adv-tag">ADV</span>}
-                    {isSystemBleService(service) && <span className="conn-system-label">SYS</span>}
-                    <span className="ble-uuid-chip">{service.uuid}</span>
+                    {service.advertised && <Badge tone="success">ADV</Badge>}
+                    {isSystemBleService(service) && <Badge tone="system">SYS</Badge>}
+                    <Badge push>{service.uuid}</Badge>
                   </>
                 }
                 disclosure={
@@ -546,14 +496,14 @@ export function BleSettingsPalette({
                         badges={
                           <>
                             <div className="ble-prop-badges">
-                              {char.read && <span className="ble-badge r" title="Read">R</span>}
-                              {char.write && <span className="ble-badge w" title="Write">W</span>}
-                              {char.writeNoResponse && <span className="ble-badge wr" title="Write Without Response">WNR</span>}
-                              {char.notify && <span className="ble-badge n" title="Notify">N</span>}
-                              {char.indicate && <span className="ble-badge i" title="Indicate">I</span>}
+                              {char.read && <Badge tone="info" size="compact" title="Read">R</Badge>}
+                              {char.write && <Badge tone="warning" size="compact" title="Write">W</Badge>}
+                              {char.writeNoResponse && <Badge tone="warning" size="compact" title="Write Without Response">WNR</Badge>}
+                              {char.notify && <Badge tone="success" size="compact" title="Notify">N</Badge>}
+                              {char.indicate && <Badge tone="success" size="compact" title="Indicate">I</Badge>}
                             </div>
-                            {isSystemBleChar(char) && <span className="conn-system-label">SYS</span>}
-                            <span className="ble-uuid-chip">{char.uuid}</span>
+                            {isSystemBleChar(char) && <Badge tone="system">SYS</Badge>}
+                            <Badge push>{char.uuid}</Badge>
                           </>
                         }
                         actions={
@@ -638,116 +588,99 @@ export function BleSettingsEditor({ workspace: w }: { workspace: BleSettingsWork
           <h1>BLE General Settings</h1>
         </div>
 
-        <div className="ble-editor-grid">
+        <CardStack>
           {/* Device & Advertising Settings */}
-          <div className="ble-card">
-            <h3>Device Identity &amp; Advertising</h3>
-            <div className="ble-form-row">
-              <label>Broadcast Device Name</label>
-              <input
+          <Card title="Device Identity &amp; Advertising">
+            <FormRow label="Broadcast Device Name">
+              <TextField
                 type="text"
-                className="ble-input-field"
+                className="form-field-panel"
                 value={gen.deviceName}
                 onChange={(e) => w.updateGeneral({ deviceName: e.target.value })}
                 placeholder="runIT-Device"
               />
-            </div>
+            </FormRow>
 
-            <div className="ble-two-col-grid">
-              <div className="ble-form-row">
-                <label>Advertising Interval (ms)</label>
-                <input
+            <FormGrid>
+              <FormRow label="Advertising Interval (ms)">
+                <TextField
                   type="number"
                   min="20"
                   max="10240"
-                  className="ble-input-field"
+                  className="form-field-panel"
                   value={gen.advIntervalMs}
                   onChange={(e) => w.updateGeneral({ advIntervalMs: Math.max(20, Number(e.target.value) || 20) })}
                 />
-              </div>
+              </FormRow>
 
-              <div className="ble-form-row">
-                <label>Fast Advertising Timeout (s)</label>
-                <input
+              <FormRow label="Fast Advertising Timeout (s)">
+                <TextField
                   type="number"
                   min="0"
                   max="3600"
-                  className="ble-input-field"
+                  className="form-field-panel"
                   value={gen.advFastTimeoutSec}
                   onChange={(e) => w.updateGeneral({ advFastTimeoutSec: Math.max(0, Number(e.target.value) || 0) })}
                 />
-              </div>
-            </div>
-          </div>
+              </FormRow>
+            </FormGrid>
+          </Card>
 
           {/* Connection Parameters & RF */}
-          <div className="ble-card">
-            <h3>Connection Parameters &amp; RF</h3>
-            <div className="ble-two-col-grid">
-              <div className="ble-form-row">
-                <label>Min Connection Interval (ms)</label>
-                <input
+          <Card title="Connection Parameters &amp; RF">
+            <FormGrid>
+              <FormRow label="Min Connection Interval (ms)">
+                <TextField
                   type="number"
                   min="7.5"
                   max="4000"
                   step="1.25"
-                  className="ble-input-field"
+                  className="form-field-panel"
                   value={gen.minConnIntervalMs}
                   onChange={(e) => w.updateGeneral({ minConnIntervalMs: Number(e.target.value) || 15 })}
                 />
-              </div>
+              </FormRow>
 
-              <div className="ble-form-row">
-                <label>Max Connection Interval (ms)</label>
-                <input
+              <FormRow label="Max Connection Interval (ms)">
+                <TextField
                   type="number"
                   min="7.5"
                   max="4000"
                   step="1.25"
-                  className="ble-input-field"
+                  className="form-field-panel"
                   value={gen.maxConnIntervalMs}
                   onChange={(e) => w.updateGeneral({ maxConnIntervalMs: Number(e.target.value) || 30 })}
                 />
-              </div>
+              </FormRow>
 
-              <div className="ble-form-row">
-                <label>Supervision Timeout (ms)</label>
-                <input
+              <FormRow label="Supervision Timeout (ms)">
+                <TextField
                   type="number"
                   min="100"
                   max="32000"
-                  className="ble-input-field"
+                  className="form-field-panel"
                   value={gen.supervisionTimeoutMs}
                   onChange={(e) => w.updateGeneral({ supervisionTimeoutMs: Number(e.target.value) || 5000 })}
                 />
-              </div>
+              </FormRow>
 
-              <div className="ble-form-row">
-                <label>Preferred MTU Size (bytes)</label>
-                <input
+              <FormRow label="Preferred MTU Size (bytes)" hint="Range 23 – 517 B. ATT MTU exchange requested upon client connection.">
+                <TextField
                   type="number"
                   min="23"
                   max="517"
-                  className="ble-input-field"
+                  className="form-field-panel"
                   value={gen.mtuSize}
                   onChange={(e) => w.updateGeneral({ mtuSize: Math.min(517, Math.max(23, Number(e.target.value) || 23)) })}
                 />
-                <span className="ble-field-hint">Range 23 – 517 B. ATT MTU exchange requested upon client connection.</span>
-              </div>
-            </div>
-          </div>
+              </FormRow>
+            </FormGrid>
+          </Card>
 
           {/* BLE Buffer Sizes & ATT Limits */}
-          <div className="ble-card">
-            <div className="card-header-badge">
-              <Layers aria-hidden="true" />
-              <h3>Buffer Sizes &amp; Memory Allocation</h3>
-            </div>
-            <p className="card-subhead">
-              Configured static buffers and maximum throughput limits for Bluetooth Low Energy GATT transport.
-            </p>
+          <Card icon={<Layers aria-hidden="true" />} title="Buffer Sizes &amp; Memory Allocation" subhead="Configured static buffers and maximum throughput limits for Bluetooth Low Energy GATT transport.">
 
-            <div className="ble-two-col-grid">
+            <FormGrid>
               <div className="conn-buffer-stat-box">
                 <span className="stat-title">Maximum MTU</span>
                 <span className="stat-val">{gen.mtuSize} B</span>
@@ -771,40 +704,37 @@ export function BleSettingsEditor({ workspace: w }: { workspace: BleSettingsWork
                 <span className="stat-val">{Math.max(0, Math.min(511, gen.mtuSize - 4))} B</span>
                 <span className="stat-hint">Usable stream throughput per transmission.</span>
               </div>
-            </div>
-          </div>
+            </FormGrid>
+          </Card>
 
           {/* Security & Passkey Management */}
-          <div className="ble-card">
-            <h3>Security &amp; PIN / Passkey Management</h3>
-            <div className="ble-form-row">
-              <label>Pairing Security Level</label>
-              <select
-                className="ble-select-field"
+          <Card title="Security &amp; PIN / Passkey Management">
+            <FormRow label="Pairing Security Level">
+              <SelectField
+                className="form-field-panel"
                 value={gen.securityMode}
                 onChange={(e) => w.updateGeneral({ securityMode: e.target.value as BleGeneralSettings['securityMode'] })}
               >
                 <option value="just_works">No Security (Just Works)</option>
                 <option value="passkey">Static 6-Digit PIN / Passkey</option>
                 <option value="mitm">Encrypted MITM (Man-In-The-Middle Protection)</option>
-              </select>
-            </div>
+              </SelectField>
+            </FormRow>
 
             {gen.securityMode !== 'just_works' && (
-              <div className="ble-form-row">
-                <label>Static 6-Digit Passkey PIN</label>
-                <input
+              <FormRow label="Static 6-Digit Passkey PIN">
+                <TextField
                   type="text"
                   maxLength={6}
-                  className="ble-input-field"
+                  className="form-field-panel"
                   value={gen.passkeyPin}
                   onChange={(e) => w.updateGeneral({ passkeyPin: e.target.value.replace(/\D/g, '') })}
                   placeholder="123456"
                 />
-              </div>
+              </FormRow>
             )}
-          </div>
-        </div>
+          </Card>
+        </CardStack>
       </div>
     )
   }
@@ -865,7 +795,7 @@ export function BleSettingsEditor({ workspace: w }: { workspace: BleSettingsWork
                   </span>
                   <div className="ble-col-action">
                     {isSystemBleService(service) ? (
-                      <span className="conn-system-label ble-sys-badge" title="Core System Service">SYS</span>
+                      <Badge tone="system" className="ble-sys-badge" title="Core System Service">SYS</Badge>
                     ) : (
                       <button
                         type="button"
@@ -887,7 +817,7 @@ export function BleSettingsEditor({ workspace: w }: { workspace: BleSettingsWork
                     {service.characteristics.length}{' '}
                     {service.characteristics.length === 1 ? 'characteristic' : 'characteristics'}
                   </span>
-                  {service.advertised && <span className="ble-adv-tag">Advertised in broadcast</span>}
+                  {service.advertised && <Badge tone="success">Advertised in broadcast</Badge>}
                 </div>
               </div>
 
@@ -947,7 +877,7 @@ export function BleSettingsEditor({ workspace: w }: { workspace: BleSettingsWork
                             />
                             <div className="ble-col-action">
                               {isSystemBleChar(char) ? (
-                                <span className="conn-system-label ble-sys-badge" title="Core System Characteristic">SYS</span>
+                                <Badge tone="system" className="ble-sys-badge" title="Core System Characteristic">SYS</Badge>
                               ) : (
                                 <button
                                   type="button"
@@ -1021,11 +951,9 @@ export function BleDetails({
     const { service } = item
     return (
       <div className="object-details ble-details">
-        <div className="object-details-header">
-          <Layers className="object-check-eye" />
-          <h2>{service.name}</h2>
-          {isSystemBleService(service) && <span className="conn-system-label">SYS</span>}
-          <span className="ble-uuid-chip">{service.uuid}</span>
+        <PanelHeader icon={<Layers className="object-check-eye" />} title={service.name}>
+          {isSystemBleService(service) && <Badge tone="system">SYS</Badge>}
+          <Badge push>{service.uuid}</Badge>
           {!isSystemBleService(service) && (
             <button
               type="button"
@@ -1037,13 +965,13 @@ export function BleDetails({
               <Trash2 />
             </button>
           )}
-        </div>
+        </PanelHeader>
 
         <div className="object-details-section">
           <h3>Service Options</h3>
           <div className="object-details-toggles">
             <label className="object-details-check">
-              <input
+              <TextField
                 type="checkbox"
                 checked={service.isPrimary}
                 onChange={(e) => w.updateService(service.id, { isPrimary: e.target.checked })}
@@ -1052,7 +980,7 @@ export function BleDetails({
               <span>Primary Service</span>
             </label>
             <label className="object-details-check">
-              <input
+              <TextField
                 type="checkbox"
                 checked={service.advertised}
                 onChange={(e) => w.updateService(service.id, { advertised: e.target.checked })}
@@ -1077,7 +1005,7 @@ export function BleDetails({
               >
                 <Radio className="object-type-icon text" />
                 <span className="ble-related-name">{c.name}</span>
-                <span className="ble-uuid-chip">{c.uuid}</span>
+                <Badge push>{c.uuid}</Badge>
                 <ChevronRight />
               </button>
             ))}
@@ -1100,9 +1028,9 @@ export function BleDetails({
                     </span>
                   </div>
                   {stream && (
-                    <span className={`ble-direction-tag ${stream.direction}`}>
+                    <Badge tone={stream.direction === 'in' ? 'success' : stream.direction === 'out' ? 'warning' : 'info'} caps>
                       {stream.direction === 'in' ? 'IN' : stream.direction === 'out' ? 'OUT' : 'IN/OUT'}
-                    </span>
+                    </Badge>
                   )}
                 </div>
               )
@@ -1122,11 +1050,9 @@ export function BleDetails({
 
   return (
     <div className="object-details ble-details">
-      <div className="object-details-header">
-        <Radio className="object-check-eye" />
-        <h2>{char.name}</h2>
-        {isSystemBleChar(char) && <span className="conn-system-label">SYS</span>}
-        <span className="ble-uuid-chip">{char.uuid}</span>
+      <PanelHeader icon={<Radio className="object-check-eye" />} title={char.name}>
+        {isSystemBleChar(char) && <Badge tone="system">SYS</Badge>}
+        <Badge push>{char.uuid}</Badge>
         <TypeBadge type={char.format} />
         {!isSystemBleChar(char) && (
           <button
@@ -1139,13 +1065,13 @@ export function BleDetails({
             <Trash2 />
           </button>
         )}
-      </div>
+      </PanelHeader>
 
       <div className="object-details-section">
         <h3>Properties</h3>
         <div className="object-details-toggles">
           <label className="object-details-check">
-            <input
+            <TextField
               type="checkbox"
               checked={char.read}
               onChange={(e) => {
@@ -1161,7 +1087,7 @@ export function BleDetails({
             <span>Read</span>
           </label>
           <label className="object-details-check">
-            <input
+            <TextField
               type="checkbox"
               checked={char.write}
               onChange={(e) => {
@@ -1177,7 +1103,7 @@ export function BleDetails({
             <span>Write</span>
           </label>
           <label className="object-details-check">
-            <input
+            <TextField
               type="checkbox"
               checked={char.writeNoResponse}
               onChange={(e) => {
@@ -1193,7 +1119,7 @@ export function BleDetails({
             <span>Write Without Response (Fast)</span>
           </label>
           <label className="object-details-check">
-            <input
+            <TextField
               type="checkbox"
               checked={char.notify}
               onChange={(e) => {
@@ -1209,7 +1135,7 @@ export function BleDetails({
             <span>Notify</span>
           </label>
           <label className="object-details-check">
-            <input
+            <TextField
               type="checkbox"
               checked={char.indicate}
               onChange={(e) => {
@@ -1231,7 +1157,7 @@ export function BleDetails({
         <h3>Default Value</h3>
         <label>
           Initial Value
-          <input
+          <TextField
             value={char.initialValue ?? ''}
             placeholder={char.format === 'STR' ? 'Default text' : '0 or hex'}
             onChange={(e) => w.updateCharacteristic(service.id, char.id, { initialValue: e.target.value })}
@@ -1243,7 +1169,7 @@ export function BleDetails({
         <h3>Relations to connectors</h3>
         <label>
           Connector Stream Binding
-          <select
+          <SelectField
             value={boundStreamId ?? 'none'}
             onChange={(e) => {
               const val = e.target.value === 'none' ? undefined : e.target.value
@@ -1256,16 +1182,16 @@ export function BleDetails({
                 {st.alias} · {st.direction === 'in' ? 'IN' : st.direction === 'out' ? 'OUT' : 'IN/OUT'}
               </option>
             ))}
-          </select>
+          </SelectField>
         </label>
 
         {currentStream ? (
           <div className="ble-connector-card">
             <div className="ble-connector-header">
               <span className="ble-connector-title">{currentStream.name}</span>
-              <span className={`ble-direction-tag ${currentStream.direction}`}>
+              <Badge tone={currentStream.direction === 'in' ? 'success' : currentStream.direction === 'out' ? 'warning' : 'info'} caps>
                 {currentStream.direction === 'in' ? 'IN' : currentStream.direction === 'out' ? 'OUT' : 'IN/OUT'}
-              </span>
+              </Badge>
             </div>
             <p className="ble-connector-desc">{currentStream.description}</p>
             <div className="ble-connector-meta">
@@ -1281,13 +1207,12 @@ export function BleDetails({
         <div className="object-details-section">
           <h3>Buffer Sizes</h3>
           {canTransmit && (
-            <div className="ble-form-row">
-              <label>Transmit Buffer</label>
-              <input
+            <FormRow label="Transmit Buffer">
+              <TextField
                 type="number"
                 min="0"
                 step="64"
-                className="ble-input-field"
+                className="form-field-panel"
                 value={char.txBufferSize ?? 0}
                 onChange={(e) =>
                   w.updateCharacteristic(service.id, char.id, {
@@ -1312,17 +1237,16 @@ export function BleDetails({
                   </button>
                 ))}
               </div>
-            </div>
+            </FormRow>
           )}
 
           {canReceive && (
-            <div className="ble-form-row">
-              <label>Receive Buffer</label>
-              <input
+            <FormRow label="Receive Buffer">
+              <TextField
                 type="number"
                 min="0"
                 step="64"
-                className="ble-input-field"
+                className="form-field-panel"
                 value={char.rxBufferSize ?? 0}
                 onChange={(e) =>
                   w.updateCharacteristic(service.id, char.id, {
@@ -1347,14 +1271,14 @@ export function BleDetails({
                   </button>
                 ))}
               </div>
-            </div>
+            </FormRow>
           )}
         </div>
       )}
 
       <div className="object-details-section">
         <h3>Description</h3>
-        <input
+        <TextField
           type="text"
           value={char.description ?? ''}
           placeholder="Optional description"
@@ -1373,7 +1297,7 @@ export function BleDetails({
         >
           <Layers className="object-type-icon folder" />
           <span className="ble-related-name">{service.name}</span>
-          <span className="ble-uuid-chip">{service.uuid}</span>
+          <Badge push>{service.uuid}</Badge>
           <ChevronRight />
         </button>
       </div>

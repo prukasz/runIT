@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ArrowLeftRight, Bug, Check, ChevronRight, ClipboardPaste, Code2, Copy, Cpu, FileDown, FileUp, Gamepad2, Grid2X2, Info, ListTree, Magnet, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Radio, Redo2, Settings2, Sliders, Square, SquareTerminal, Sun, Undo2, Variable, X } from 'lucide-react'
+import { usePersistedChoice } from './hooks/useStorage'
+import { DetailsPanel, ExplorerPanel, MainScreen, WorkspaceShell } from './layout'
+import { ArrowLeft, ArrowLeftRight, Bug, Check, ChevronRight, ClipboardPaste, Code2, Copy, Cpu, FolderOpen, Gamepad2, Grid2X2, Info, ListTree, Magnet, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Radio, Redo2, Settings2, Sliders, Square, SquareTerminal, Sun, Undo2, Variable, X } from 'lucide-react'
 import { ObjectDetails, ObjectTreeEditor, ObjectTreePalette, useObjectTreeWorkspace } from './ObjectTreeWorkspace'
 import { BleDetails, BleSettingsEditor, BleSettingsPalette, useBleSettingsWorkspace } from './BleSettingsWorkspace'
 import { useBleDeviceConnection } from './useBleDeviceConnection'
@@ -11,6 +13,7 @@ import {
   useDataConnectorsWorkspace,
 } from './DataConnectorsWorkspace'
 import { ProgramPanel } from './ProgramPanel'
+import { ProjectFilePage, ProjectFilePalette } from './ProjectFile'
 import { DeviceDetails, DevicesEditor, DevicesPalette, useDevicesWorkspace } from './devices'
 import { BlockDetails, blockDiagnostics, BlockPalette, CanvasEditor, useCanvasWorkspace } from './canvas'
 import { OBJECT_DRAG_TYPE, objectKindDragType } from './domain/canvas'
@@ -19,13 +22,16 @@ import CommandConsole from './CommandConsole'
 import DiagnosticsConsole from './DiagnosticsConsole'
 import { useSettingsSync } from './useSettingsSync'
 import { useBoardCode } from './useBoardCode'
-import { addObject, parseProject, serializeProject } from './domain/project'
+import { addObject, createProject, parseProject, serializeProject } from './domain/project'
+import type { ProjectDocument } from './domain/project'
 import type { ProjectSettings } from './domain/project'
 import { refreshSettings, settingsFromState, settingsState } from './domain/settings'
 import type { RecoveredCode } from './domain/storedCode'
+import './styles/theme.css'
 import './App.css'
 
 const views = [
+  { name: 'File', icon: FolderOpen },
   { name: 'Settings', icon: Settings2 },
   { name: 'Board', icon: Cpu },
   { name: 'Code', icon: Code2 },
@@ -49,20 +55,8 @@ export default function App() {
   const [view, setView] = useState('Settings')
   const [settingsGroup, setSettingsGroup] = useState<SettingsGroup>('BLE')
   // The Code view's palette and main view (canvas or the variables manager) are remembered.
-  const [codePalette, setCodePaletteState] = useState<CodePalette>(() => {
-    try { return localStorage.getItem('runit.code.palette') === 'Blocks' ? 'Blocks' : 'Variables' } catch { return 'Variables' }
-  })
-  const [codeMode, setCodeModeState] = useState<CodeMode>(() => {
-    try { return localStorage.getItem('runit.code.mode') === 'canvas' ? 'canvas' : 'manage' } catch { return 'manage' }
-  })
-  const setCodePalette = (palette: CodePalette) => {
-    setCodePaletteState(palette)
-    try { localStorage.setItem('runit.code.palette', palette) } catch { /* A preference only. */ }
-  }
-  const setCodeMode = (mode: CodeMode) => {
-    setCodeModeState(mode)
-    try { localStorage.setItem('runit.code.mode', mode) } catch { /* A preference only. */ }
-  }
+  const [codePalette, setCodePalette] = usePersistedChoice<CodePalette>('runit.code.palette', ['Variables', 'Blocks'], 'Variables')
+  const [codeMode, setCodeMode] = usePersistedChoice<CodeMode>('runit.code.mode', ['manage', 'canvas'], 'manage')
   const [showCanvasGrid, setShowCanvasGrid] = useState(true)
   const [leftOpen, setLeftOpen] = useState(true)
   const [leftWidth, setLeftWidth] = useState(260)
@@ -75,7 +69,7 @@ export default function App() {
   const [terminalHeight, setTerminalHeight] = useState(220)
   const [terminalTab, setTerminalTab] = useState<'Commands' | 'Errors & logs'>('Commands')
   const [resizing, setResizing] = useState<'left' | 'right' | 'bottom' | null>(null)
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => window.localStorage.getItem('runit-shell-theme') === 'light' ? 'light' : 'dark')
+  const [theme, setTheme] = usePersistedChoice<'dark' | 'light'>('runit-shell-theme', ['dark', 'light'], 'dark')
   const objectWorkspace = useObjectTreeWorkspace(() => { setRightOpen(true); setDetail('Info') })
   const bleWorkspace = useBleSettingsWorkspace((id) => {
     if (id === 'general') {
@@ -120,14 +114,21 @@ export default function App() {
     bleWorkspace.load(settings.ble)
     connectorsWorkspace.load(settings.connectors)
   }
+  /** Every workspace takes its part of a project document. */
+  const applyProject = (project: ProjectDocument) => {
+    objectWorkspace.load(project)
+    loadSettings(refreshSettings(project.settings))
+    devicesWorkspace.load({ devices: project.devices ?? [], deviceAliases: project.deviceAliases, actions: project.actions ?? [], setup: project.setup ?? [] })
+    canvasWorkspace.load(project.canvases ?? [])
+  }
+  const newProject = () => {
+    if (!window.confirm('Start a new empty project? Save the current one first if you want to keep it.')) return
+    applyProject(createProject('Untitled'))
+  }
   const openProject = async (file: File | undefined) => {
     if (!file) return
     try {
-      const project = parseProject(await file.text())
-      objectWorkspace.load(project)
-      loadSettings(refreshSettings(project.settings))
-      devicesWorkspace.load({ devices: project.devices ?? [], deviceAliases: project.deviceAliases, actions: project.actions ?? [], setup: project.setup ?? [] })
-      canvasWorkspace.load(project.canvases ?? [])
+      applyProject(parseProject(await file.text()))
     } catch (cause) {
       window.alert(`Can't open ${file.name}: ${cause instanceof Error ? cause.message : String(cause)}`)
     }
@@ -266,17 +267,15 @@ export default function App() {
   }
 
   const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark'
-    setTheme(next)
-    window.localStorage.setItem('runit-shell-theme', next)
+    setTheme(theme === 'dark' ? 'light' : 'dark')
   }
 
   return (
-    <main className={`shell theme-${theme} ${resizing ? `is-resizing-${resizing}` : ''} ${linkingParentId !== undefined ? 'is-linking' : ''} ${view === 'Board' && devicesWorkspace.composing ? 'is-composing' : ''}`}>
+    <WorkspaceShell className={`theme-${theme} ${resizing ? `is-resizing-${resizing}` : ''} ${linkingParentId !== undefined ? 'is-linking' : ''} ${view === 'Board' && devicesWorkspace.composing ? 'is-composing' : ''}`}>
       {linkingParentId !== undefined && <div className="object-link-backdrop" onClick={() => setLinkingParentId(undefined)} />}
-      <aside className={`left-panel ${leftOpen ? 'is-open' : ''}`} style={leftOpen ? { width: leftWidth } : undefined} aria-label="Explorer">
-        {leftOpen && <div className="left-resize-handle" role="separator" aria-label="Resize explorer panel" aria-orientation="vertical" tabIndex={0} onPointerDown={(event) => { leftResizeActive.current = true; setResizing('left'); event.currentTarget.setPointerCapture(event.pointerId) }} onPointerMove={(event) => { if (leftResizeActive.current) resizeLeft(event.clientX) }} onPointerUp={() => { leftResizeActive.current = false; setResizing(null) }} onPointerCancel={() => { leftResizeActive.current = false; setResizing(null) }} onKeyDown={(event) => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); resizeLeft(leftWidth + (event.key === 'ArrowLeft' ? -16 : 16)) } }} />}
-        <div className="left-strip">
+      <ExplorerPanel open={leftOpen} width={leftWidth}>
+        {leftOpen && <div className="panel-resize-handle left-resize-handle" role="separator" aria-label="Resize explorer panel" aria-orientation="vertical" tabIndex={0} onPointerDown={(event) => { leftResizeActive.current = true; setResizing('left'); event.currentTarget.setPointerCapture(event.pointerId) }} onPointerMove={(event) => { if (leftResizeActive.current) resizeLeft(event.clientX) }} onPointerUp={() => { leftResizeActive.current = false; setResizing(null) }} onPointerCancel={() => { leftResizeActive.current = false; setResizing(null) }} onKeyDown={(event) => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); resizeLeft(leftWidth + (event.key === 'ArrowLeft' ? -16 : 16)) } }} />}
+        <div className="side-panel-header left-strip">
           {leftOpen && (
             <div className="view-menu" role="tablist" aria-label="Current view">
               {views.map(({ name, icon: Icon }) => (
@@ -301,6 +300,7 @@ export default function App() {
           <button className="panel-toggle" aria-label={leftOpen ? 'Collapse explorer' : 'Expand explorer'} onClick={() => setLeftOpen(!leftOpen)}>{leftOpen ? <PanelLeftClose /> : <PanelLeftOpen />}</button>
         </div>
         {leftOpen && <div className="left-content" aria-label={`${view} explorer panel`}>
+          {view === 'File' && <ProjectFilePalette workspace={objectWorkspace} settings={projectSettings} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} setup={devicesWorkspace.setup} canvases={canvasWorkspace.canvases} board={boardCode} session={bleConnection.session} onNew={newProject} onOpen={(file) => void openProject(file)} onSave={saveProject} onRecover={recoverProject} />}
           {view === 'Settings' && (
             <div className="settings-sidebar-wrapper">
               {settingsGroup === 'all' && (
@@ -400,7 +400,7 @@ export default function App() {
           </div>}
         </div>}
         {!leftOpen && (
-          <div className="left-collapsed-icons">
+          <div className="side-panel-collapsed-icons left-collapsed-icons">
             <div className="view-menu" role="tablist" aria-label="Current view">
               {views.map(({ name, icon: Icon }) => (
                 <button
@@ -421,11 +421,10 @@ export default function App() {
             <button className={`terminal-launch ${terminalOpen ? 'selected' : ''}`} aria-label={terminalOpen ? 'Hide terminal' : 'Show terminal'} title="Terminal" aria-pressed={terminalOpen} onClick={() => setTerminalOpen(!terminalOpen)}><SquareTerminal aria-hidden="true" /></button>
           </div>
         )}
-      </aside>
+      </ExplorerPanel>
 
       <div className="center-column">
-      <section className="main-panel" aria-label={view === 'Settings' ? `${settingsGroup} screen` : view === 'Code' ? `${codePalette} ${codeMode} screen` : `${view} main panel`}>
-        <div className="main-action-bar" role="toolbar" aria-label="Screen actions">
+      <MainScreen label={view === 'Settings' ? `${settingsGroup} screen` : view === 'Code' ? `${codePalette} ${codeMode} screen` : `${view} main panel`} toolbar={<>
           <div className="history-actions">
             <button aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!activeCanUndo} onClick={activeUndo}><Undo2 aria-hidden="true" /></button>
             <button aria-label="Redo" title="Redo (Ctrl+Y)" disabled={!activeCanRedo} onClick={activeRedo}><Redo2 aria-hidden="true" /></button>
@@ -475,32 +474,6 @@ export default function App() {
               </button>
             </>
           )}
-          {(view === 'Code' || view === 'Settings' || view === 'Board') && (
-            <div className="project-file-actions">
-              <label className="project-file-button" title="Open project" aria-label="Open project">
-                <FileUp aria-hidden="true" />
-                <span>Open</span>
-                <input
-                  type="file"
-                  accept=".json,application/json"
-                  hidden
-                  onChange={(event) => {
-                    void openProject(event.target.files?.[0])
-                    event.target.value = ''
-                  }}
-                />
-              </label>
-              <button
-                className="project-file-button"
-                aria-label="Save project"
-                title="Save project"
-                onClick={saveProject}
-              >
-                <FileDown aria-hidden="true" />
-                <span>Save</span>
-              </button>
-            </div>
-          )}
           <div className="screen-actions" aria-label={`${view} specific actions`}>
             {isCanvas && <button aria-label="Detailed block view" title="Toggle detailed block view" aria-pressed={canvasWorkspace.detailed} className={canvasWorkspace.detailed ? 'selected' : ''} onClick={() => canvasWorkspace.setDetailed(!canvasWorkspace.detailed)}><ListTree aria-hidden="true" /></button>}
             {isCanvas && <button aria-label={showCanvasGrid ? 'Hide canvas grid' : 'Show canvas grid'} title={showCanvasGrid ? 'Hide canvas grid' : 'Show canvas grid'} aria-pressed={showCanvasGrid} className={showCanvasGrid ? 'selected' : ''} onClick={() => setShowCanvasGrid(!showCanvasGrid)}><Grid2X2 aria-hidden="true" /></button>}
@@ -522,8 +495,7 @@ export default function App() {
             {isCanvas && <button aria-label={canvasWorkspace.snap ? 'Turn snap to grid off' : 'Turn snap to grid on'} title={canvasWorkspace.snap ? 'Snap to grid: on' : 'Snap to grid: off'} aria-pressed={canvasWorkspace.snap} className={canvasWorkspace.snap ? 'selected' : ''} onClick={() => canvasWorkspace.setSnap(!canvasWorkspace.snap)}><Magnet aria-hidden="true" /></button>}
           </div>
           <button className="theme-toggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} onClick={toggleTheme}>{theme === 'dark' ? <Sun /> : <Moon />}</button>
-        </div>
-        <div className="main-surface">
+      </>}>
           {isCanvas && (
             <CanvasEditor
               workspace={canvasWorkspace}
@@ -537,6 +509,7 @@ export default function App() {
             />
           )}
           {view === 'Code' && codePalette === 'Variables' && codeMode === 'manage' && <ObjectTreeEditor workspace={objectWorkspace} />}
+          {view === 'File' && <ProjectFilePage workspace={objectWorkspace} settings={projectSettings} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} setup={devicesWorkspace.setup} canvases={canvasWorkspace.canvases} />}
           {view === 'Board' && <DevicesEditor workspace={devicesWorkspace} session={bleConnection.session} />}
           {view === 'Settings' && settingsGroup === 'BLE' && <BleSettingsEditor workspace={bleWorkspace} />}
           {view === 'Settings' && settingsGroup === 'all' && (
@@ -603,10 +576,9 @@ export default function App() {
               <p>System identity, board configuration, and power defaults.</p>
             </div>
           )}
-        </div>
-      </section>
+      </MainScreen>
       {terminalOpen && <section className="terminal-panel" style={{ height: terminalHeight }} aria-label="Terminal panel">
-        <div className="bottom-resize-handle" role="separator" aria-label="Resize terminal panel" aria-orientation="horizontal" tabIndex={0} onPointerDown={(event) => { bottomResizeActive.current = true; setResizing('bottom'); event.currentTarget.setPointerCapture(event.pointerId) }} onPointerMove={(event) => { if (bottomResizeActive.current) resizeBottom(event.clientY) }} onPointerUp={() => { bottomResizeActive.current = false; setResizing(null) }} onPointerCancel={() => { bottomResizeActive.current = false; setResizing(null) }} onKeyDown={(event) => { if (event.key === 'ArrowUp' || event.key === 'ArrowDown') { event.preventDefault(); resizeBottom(window.innerHeight - terminalHeight + (event.key === 'ArrowUp' ? -16 : 16)) } }} />
+        <div className="panel-resize-handle bottom-resize-handle" role="separator" aria-label="Resize terminal panel" aria-orientation="horizontal" tabIndex={0} onPointerDown={(event) => { bottomResizeActive.current = true; setResizing('bottom'); event.currentTarget.setPointerCapture(event.pointerId) }} onPointerMove={(event) => { if (bottomResizeActive.current) resizeBottom(event.clientY) }} onPointerUp={() => { bottomResizeActive.current = false; setResizing(null) }} onPointerCancel={() => { bottomResizeActive.current = false; setResizing(null) }} onKeyDown={(event) => { if (event.key === 'ArrowUp' || event.key === 'ArrowDown') { event.preventDefault(); resizeBottom(window.innerHeight - terminalHeight + (event.key === 'ArrowUp' ? -16 : 16)) } }} />
         <div className="terminal-header">
           <div className="terminal-tabs" role="tablist" aria-label="Terminal views">
             {(['Commands', 'Errors & logs'] as const).map((tab) => <button key={tab} role="tab" aria-selected={terminalTab === tab} className={terminalTab === tab ? 'selected' : ''} onClick={() => setTerminalTab(tab)}>{tab}</button>)}
@@ -619,13 +591,13 @@ export default function App() {
       </section>}
       </div>
 
-      <aside
-        className={`right-panel ${rightOpen ? 'is-open' : ''} ${rightOpen && rightExpanded ? 'is-expanded' : ''}`}
+      <DetailsPanel
+        open={rightOpen}
+        expanded={rightExpanded}
         style={rightOpen ? { width: rightExpanded ? Math.max(rightWidth, 500) : rightWidth } : undefined}
-        aria-label="Details panel"
       >
-        {rightOpen && <div className="resize-handle" role="separator" aria-label="Resize details panel" aria-orientation="vertical" tabIndex={0} onPointerDown={(event) => { resizeActive.current = true; setResizing('right'); event.currentTarget.setPointerCapture(event.pointerId) }} onPointerMove={(event) => { if (resizeActive.current) resizeRight(event.clientX) }} onPointerUp={() => { resizeActive.current = false; setResizing(null) }} onPointerCancel={() => { resizeActive.current = false; setResizing(null) }} onKeyDown={(event) => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); resizeRight(window.innerWidth - rightWidth + (event.key === 'ArrowLeft' ? -16 : 16)) } }} />}
-        <div className="right-header">
+        {rightOpen && <div className="panel-resize-handle resize-handle" role="separator" aria-label="Resize details panel" aria-orientation="vertical" tabIndex={0} onPointerDown={(event) => { resizeActive.current = true; setResizing('right'); event.currentTarget.setPointerCapture(event.pointerId) }} onPointerMove={(event) => { if (resizeActive.current) resizeRight(event.clientX) }} onPointerUp={() => { resizeActive.current = false; setResizing(null) }} onPointerCancel={() => { resizeActive.current = false; setResizing(null) }} onKeyDown={(event) => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); resizeRight(window.innerWidth - rightWidth + (event.key === 'ArrowLeft' ? -16 : 16)) } }} />}
+        <div className="side-panel-header right-header">
           {rightOpen && (
             <div className="detail-menu" role="tablist" aria-label="Detail sections">
               {details.map(({ name, icon: Icon }) => (
@@ -701,11 +673,11 @@ export default function App() {
                 applyReading={settingsSync.reading}
               />
             )}
-            {detail === 'Run' && <ProgramPanel workspace={objectWorkspace} connection={bleConnection} board={boardCode} settings={projectSettings} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} setup={devicesWorkspace.setup} canvases={canvasWorkspace.canvases} onRecover={recoverProject} />}
+            {detail === 'Run' && <ProgramPanel workspace={objectWorkspace} connection={bleConnection} board={boardCode} settings={projectSettings} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} setup={devicesWorkspace.setup} canvases={canvasWorkspace.canvases} />}
           </div>
         )}
         {!rightOpen && (
-          <div className="right-collapsed-icons">
+          <div className="side-panel-collapsed-icons right-collapsed-icons">
             {details.map(({ name, icon: Icon }) => (
               <button
                 key={name}
@@ -723,7 +695,7 @@ export default function App() {
             ))}
           </div>
         )}
-      </aside>
-    </main>
+      </DetailsPanel>
+    </WorkspaceShell>
   )
 }

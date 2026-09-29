@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { SelectField, TextField } from './components/FormField'
 import type { RunitBleSession } from './backend/runitBleSession'
 import { decodeBoardFrame, errorOwnerName, errorTagName } from './domain/decoder'
 import type { ErrorNodeReport, ErrorReport, LogEntry, LogLevel } from './domain/decoder'
@@ -184,19 +185,19 @@ export default function DiagnosticsConsole({ session }: Props) {
           <button onClick={() => setLogs([])}>Clear</button>
           <label className="flex items-center gap-1 text-xs text-slate-400">
             Level
-            <select value={minLevel} onChange={(event) => setMinLevel(event.target.value as LogLevel)}>
+            <SelectField value={minLevel} onChange={(event) => setMinLevel(event.target.value as LogLevel)}>
               {LOG_LEVELS.map((level) => <option key={level} value={level}>{level} and above</option>)}
-            </select>
+            </SelectField>
           </label>
           <label className="flex items-center gap-1 text-xs text-slate-400">
-            <input type="checkbox" checked={showChainLines} onChange={(event) => setShowChainLines(event.target.checked)} />
+            <TextField type="checkbox" checked={showChainLines} onChange={(event) => setShowChainLines(event.target.checked)} />
             Error-chain lines
           </label>
           <label className="flex items-center gap-1 text-xs text-slate-400">
-            <input type="checkbox" checked={showText} onChange={(event) => setShowText(event.target.checked)} />
+            <TextField type="checkbox" checked={showText} onChange={(event) => setShowText(event.target.checked)} />
             Other text
           </label>
-          <input aria-label="Filter logs" className="w-40" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="filter" />
+          <TextField aria-label="Filter logs" className="w-40" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="filter" />
         </div>
         <div className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap text-xs">
           {visibleLogs.length === 0 ? <p className="text-slate-500">{session ? 'No log lines yet.' : 'Open a command session to receive logs.'}</p> : visibleLogs.map((item) => <LogLine key={item.id} item={item} />)}

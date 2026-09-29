@@ -1,4 +1,7 @@
 import { AlertTriangle, Check, Trash2 } from 'lucide-react'
+import { Button } from '../components/Button'
+import { Card } from '../components/Card'
+import { SelectField } from '../components/FormField'
 import { runitErrorCatalog } from '../domain/descriptors'
 import { clampErrorActions, decodeErrorActions, DISABLED_IMPORTANCE_WARNING, encodeErrorActions, ERROR_ACTION_LEVELS, findContract, initialParameterValue, reachableErrorLevels, SET_ERROR_HANDLING } from '../domain/devices'
 import type { ErrorAction, ResolvedDevice } from '../domain/devices'
@@ -34,7 +37,7 @@ export function ErrorActionsField({ value, actions, importance, onChange }: { va
         return (
           <label key={level} className="devices-error-action">
             <span>{levelName(level)}</span>
-            <select value={option} onChange={(event) => set(index, event.target.value)}>
+            <SelectField value={option} onChange={(event) => set(index, event.target.value)}>
               <option value="">No action</option>
               {!known && <option value={option}>{action.scope === 'dynamic' ? 'Recorded' : 'Static'} action {action.id} (not in this project)</option>}
               <optgroup label="Built-in">
@@ -45,7 +48,7 @@ export function ErrorActionsField({ value, actions, importance, onChange }: { va
                   {actions.map((entry) => <option key={entry.id} value={`d:${entry.actionId}`}>{entry.name} (ID {entry.actionId})</option>)}
                 </optgroup>
               )}
-            </select>
+            </SelectField>
           </label>
         )
       })}
@@ -73,10 +76,10 @@ export function ErrorHandlingCard({ w, device }: { w: DevicesWorkspace; device: 
   }
 
   return (
-    <div className="ble-card">
+    <Card>
       <div className="devices-card-title">
         <h3>Error handling</h3>
-        {step && <button type="button" className="devices-card-clear" onClick={() => w.removeSetup(step.id)} title="Back to the firmware default"><Trash2 aria-hidden="true" />Clear</button>}
+        {step && <Button size="sm" onClick={() => w.removeSetup(step.id)} title="Back to the firmware default"><Trash2 aria-hidden="true" />Clear</Button>}
       </div>
       <p className="devices-muted">Each step up in importance handles one more, less severe error level. A handled error runs the action set for its severity; the others are ignored.</p>
       <table className="devices-importance-table">
@@ -99,14 +102,14 @@ export function ErrorHandlingCard({ w, device }: { w: DevicesWorkspace; device: 
       <div className="devices-error-grid">
         <label className="devices-error-action">
           <span>Importance</span>
-          <select className={`devices-importance is-level-${importance}`} value={importance} onChange={(event) => save({ importance: Number(event.target.value) })}>
+          <SelectField className={`devices-importance is-level-${importance}`} value={importance} onChange={(event) => save({ importance: Number(event.target.value) })}>
             {choices.map((choice) => <option key={choice.value} value={choice.value} title={choice.description}>{choice.label}{choice.value === start ? ' (default)' : ''}</option>)}
-          </select>
+          </SelectField>
         </label>
       </div>
       <h4 className="devices-subheading">When an error happens</h4>
       <p className="devices-hint">An action for each severity the importance handles.</p>
       <ErrorActionsField value={actions} actions={w.actions} importance={importance} onChange={(next) => save({ actions: next })} />
-    </div>
+    </Card>
   )
 }

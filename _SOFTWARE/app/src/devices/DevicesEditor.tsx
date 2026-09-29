@@ -1,10 +1,13 @@
 import { useId, useMemo, useState } from 'react'
+import { Card, CardStack } from '../components/Card'
+import { FormGrid, FormRow, SelectField, TextField } from '../components/FormField'
 import { AlertCircle, AlertTriangle, ArrowDown, ArrowUp, BookOpen, FileText, ImagePlus, ListPlus, Play, Plus, Trash2, Upload, X } from 'lucide-react'
 import type { DeviceType } from '../domain/descriptors'
 import { runitCommandCatalog, runitDeviceCatalog } from '../domain/descriptors'
 import { actionRecordSteps, actionRunStep, allDevices, buildAction, contractsOf, describeStep, deviceDisplayName, findContract, modesOf, pinKey, pinsOf, pinUsers, resolveDevice } from '../domain/devices'
 import type { ResolvedDevice } from '../domain/devices'
 import type { ActionStep, ProjectAction, ProjectDevice } from '../domain/project'
+import { Button, ToggleChip, buttonClass } from '../components/Button'
 import { EditableField } from '../components/EditableField'
 import { FieldLabel } from '../components/FieldNote'
 import { ContractFields, initialValues } from './ContractFields'
@@ -90,7 +93,7 @@ function DeviceTypeCatalog({ workspace: w }: { workspace: DevicesWorkspace }) {
         </div>
       </div>
       <div className="devices-tags" role="group" aria-label="Filter by tag">
-        {allTags.map((tag) => <button key={tag} type="button" className={`devices-tag ${tags.has(tag) ? 'selected' : ''}`} aria-pressed={tags.has(tag)} onClick={() => toggle(tag)}>{tag}</button>)}
+        {allTags.map((tag) => <ToggleChip key={tag} selected={tags.has(tag)} onClick={() => toggle(tag)}>{tag}</ToggleChip>)}
       </div>
       {w.error && <p className="program-diag is-error"><AlertCircle aria-hidden="true" />{w.error}</p>}
       <div className="devices-card-grid">
@@ -135,17 +138,17 @@ function DevicePage({ workspace: w, deviceRef }: { workspace: DevicesWorkspace; 
           <label className="devices-header-id">
             <span>Device ID</span>
             {device
-              ? <input aria-label="Device ID" type="number" min={0} max={w.catalog.maxDeviceId} value={device.deviceId} onChange={(event) => w.updateDevice(device.id, { deviceId: Math.max(0, Math.floor(Number(event.target.value) || 0)) })} />
+              ? <TextField aria-label="Device ID" type="number" min={0} max={w.catalog.maxDeviceId} value={device.deviceId} onChange={(event) => w.updateDevice(device.id, { deviceId: Math.max(0, Math.floor(Number(event.target.value) || 0)) })} />
               : <span className="devices-header-id-fixed">{resolved.deviceId}</span>}
           </label>
           {type && <p className="devices-muted">{type.description}</p>}
           {device && <EditableField className="devices-header-description" aria-label="Device description" value={device.description ?? ''} placeholder="Describe this device in your project" onChange={(description) => w.updateDevice(device.id, { description: description || undefined })} iconTitle="Edit device description" />}
         </div>
         <div className="devices-page-actions">
-          <button type="button" className="devices-primary" disabled={!firstContract} onClick={() => firstContract && w.compose(w.composing?.id, { device: deviceRef, contract: firstContract.id, values: initialValues(firstContract) })} title="Open the action composer with a step on this device">
+          <Button variant="primary" disabled={!firstContract} onClick={() => firstContract && w.compose(w.composing?.id, { device: deviceRef, contract: firstContract.id, values: initialValues(firstContract) })} title="Open the action composer with a step on this device">
             <ListPlus aria-hidden="true" /><span>Add to action</span>
-          </button>
-          {type?.datasheet && <a className="devices-link-button" href={type.datasheet} target="_blank" rel="noreferrer" title="Manufacturer datasheet (PDF)"><FileText aria-hidden="true" /><span>Datasheet</span></a>}
+          </Button>
+          {type?.datasheet && <a className={buttonClass()} href={type.datasheet} target="_blank" rel="noreferrer" title="Manufacturer datasheet (PDF)"><FileText aria-hidden="true" /><span>Datasheet</span></a>}
         </div>
       </div>
 
@@ -155,10 +158,10 @@ function DevicePage({ workspace: w, deviceRef }: { workspace: DevicesWorkspace; 
       </div>
 
       {page === 'guide' ? <DeviceGuide type={type} /> : (
-        <div className="ble-editor-grid">
+        <CardStack>
           {problems.map((entry, index) => <p key={index} className="program-diag is-error"><AlertCircle aria-hidden="true" />{entry.message}</p>)}
           {device ? <UserDeviceConfig workspace={w} device={device} resolved={resolved} type={type} /> : <SystemDeviceInfo workspace={w} device={resolved} />}
-        </div>
+        </CardStack>
       )}
     </div>
   )
@@ -177,7 +180,7 @@ function SystemDeviceInfo({ workspace: w, device }: { workspace: DevicesWorkspac
       <PinsUsedCard w={w} device={device} />
       <DefaultSettingsCard w={w} device={device} />
       <ErrorHandlingCard w={w} device={device} />
-      {!type && <div className="ble-card"><p className="devices-muted">The firmware publishes no descriptor for this device yet: only the device commands (reset, suspend …) are available.</p></div>}
+      {!type && <Card><p className="devices-muted">The firmware publishes no descriptor for this device yet: only the device commands (reset, suspend …) are available.</p></Card>}
     </>
   )
 }
@@ -210,18 +213,16 @@ function UserDeviceConfig({ workspace: w, device, resolved, type }: { workspace:
       <DefaultSettingsCard w={w} device={resolved} />
       <ErrorHandlingCard w={w} device={resolved} />
 
-      <div className="ble-card">
-        <h3>Tags</h3>
+      <Card title="Tags">
         <div className="devices-tags">
-          {tagChoices.map((tag) => <button key={tag} type="button" className={`devices-tag ${device.tags.includes(tag) ? 'selected' : ''}`} aria-pressed={device.tags.includes(tag)} onClick={() => toggleTag(tag)}>{tag}</button>)}
+          {tagChoices.map((tag) => <ToggleChip key={tag} selected={device.tags.includes(tag)} onClick={() => toggleTag(tag)}>{tag}</ToggleChip>)}
           <form className="devices-tag-add" onSubmit={(event) => { event.preventDefault(); const tag = newTag.trim().toLowerCase(); if (tag && !device.tags.includes(tag)) update({ tags: [...device.tags, tag] }); setNewTag('') }}>
-            <input value={newTag} placeholder="new tag" aria-label="New tag" onChange={(event) => setNewTag(event.target.value)} />
+            <TextField value={newTag} placeholder="new tag" aria-label="New tag" onChange={(event) => setNewTag(event.target.value)} />
           </form>
         </div>
-      </div>
+      </Card>
 
-      <div className="ble-card">
-        <h3>Tile</h3>
+      <Card title="Tile">
         <div className="devices-tile-picker">
           <button type="button" className={`devices-tile-choice ${!device.appearance ? 'selected' : ''}`} title="Type default" onClick={() => update({ appearance: undefined })}><DeviceTile type={type} /></button>
           {Object.entries(DEVICE_ICONS).map(([name, Icon]) => (
@@ -232,11 +233,11 @@ function UserDeviceConfig({ workspace: w, device, resolved, type }: { workspace:
           {device.appearance?.image && <span className="devices-tile-choice selected" title="Image"><DeviceTile appearance={device.appearance} /></span>}
           <label className="devices-tile-choice is-upload" title="Image or SVG (up to 256 KB)">
             <span className="device-tile is-medium"><ImagePlus aria-hidden="true" /></span>
-            <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden onChange={(event) => { void pickImage(event.target.files?.[0]); event.target.value = '' }} />
+            <TextField type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden onChange={(event) => { void pickImage(event.target.files?.[0]); event.target.value = '' }} />
           </label>
         </div>
         {imageError && <p className="program-diag is-error"><AlertCircle aria-hidden="true" />{imageError}</p>}
-      </div>
+      </Card>
     </>
   )
 }
@@ -251,27 +252,25 @@ function InstallCard({ workspace: w, device, type }: { workspace: DevicesWorkspa
   const idBase = useId()
 
   return (
-    <div className="ble-card">
-      <h3>Install</h3>
-      <div className="ble-two-col-grid">
+    <Card title="Install">
+      <FormGrid>
         {plain.map((field) => {
           const choices = type.installChoices.get(field.name)
           const value = device.install[field.name] ?? 0
           return (
-            <div key={field.name} className="ble-form-row">
-              <FieldLabel htmlFor={`${idBase}-${field.name}`} note={field.note}>{field.label === field.name ? field.name.replaceAll('_', ' ') : field.label}{field.unit ? ` (${field.unit})` : ''}</FieldLabel>
+            <FormRow key={field.name} htmlFor={`${idBase}-${field.name}`} note={field.note} label={<>{field.label === field.name ? field.name.replaceAll('_', ' ') : field.label}{field.unit ? ` (${field.unit})` : ''}</>}>
               {choices ? (
-                <select id={`${idBase}-${field.name}`} className="ble-input-field" value={value} onChange={(event) => set(field.name, Number(event.target.value))}>
+                <SelectField id={`${idBase}-${field.name}`} className="form-field-panel" value={value} onChange={(event) => set(field.name, Number(event.target.value))}>
                   {!choices.some((choice) => choice.value === value) && <option value={value}>Invalid: {field.name === 'i2c_addr' ? hex2(value) : value}</option>}
                   {choices.map((choice) => <option key={choice.value} value={choice.value}>{field.name === 'i2c_addr' ? hex2(choice.value) : choice.label}</option>)}
-                </select>
+                </SelectField>
               ) : (
-                <input id={`${idBase}-${field.name}`} className="ble-input-field" type="number" min={field.min} max={field.max} value={value} onChange={(event) => set(field.name, Number(event.target.value))} />
+                <TextField id={`${idBase}-${field.name}`} className="form-field-panel" type="number" min={field.min} max={field.max} value={value} onChange={(event) => set(field.name, Number(event.target.value))} />
               )}
-            </div>
+            </FormRow>
           )
         })}
-      </div>
+      </FormGrid>
       {type.pinGroups.map((group) => {
         const none = group.sentinelField !== undefined && device.install[group.sentinelField] === group.sentinel
         const modes = type.installChoices.get(group.modeField ?? '') ?? []
@@ -291,11 +290,10 @@ function InstallCard({ workspace: w, device, type }: { workspace: DevicesWorkspa
               </div>
             </div>
             {!none && (
-              <div className="ble-two-col-grid">
+              <FormGrid>
                 {group.deviceField && (
-                  <div className="ble-form-row">
-                    <label>On device</label>
-                    <select className="ble-input-field" value={targetId} onChange={(event) => {
+                  <FormRow label="On device">
+                    <SelectField className="form-field-panel" value={targetId} onChange={(event) => {
                       const selected = Number(event.target.value)
                       const supported = availableModes(groupTargets.find((target) => target.deviceId === selected))
                       const preferred = type.install.request.fields.find((field) => field.name === group.modeField)?.defaultValue
@@ -304,64 +302,61 @@ function InstallCard({ workspace: w, device, type }: { workspace: DevicesWorkspa
                     }}>
                       {!currentTarget && <option value={targetId}>Unavailable device #{targetId}</option>}
                       {groupTargets.map((target) => <option key={target.ref} value={target.deviceId}>{target.name} (#{target.deviceId})</option>)}
-                    </select>
-                  </div>
+                    </SelectField>
+                  </FormRow>
                 )}
                 {group.pinField && (() => {
                   const pins = pinsOf(currentTarget?.type)
                   const value = device.install[group.pinField] ?? 0
                   return (
-                    <div className="ble-form-row">
-                      <label>Pin</label>
+                    <FormRow label="Pin">
                       {pins.length ? (
-                        <select className="ble-input-field" value={value} onChange={(event) => set(group.pinField!, Number(event.target.value))}>
+                        <SelectField className="form-field-panel" value={value} onChange={(event) => set(group.pinField!, Number(event.target.value))}>
                           {!pins.some((pin) => pin.value === value) && <option value={value}>Pin {value}</option>}
                           {pins.map((pin) => {
                             const taken = (users.get(pinKey(targetId, pin.value)) ?? []).filter((user) => user.owner !== device.id)
                             return <option key={pin.value} value={pin.value} disabled={taken.length > 0}>{`Pin ${pin.value}${taken.length ? ` — ${taken.map((user) => user.ownerName).join(', ')}` : ''}`}</option>
                           })}
-                        </select>
+                        </SelectField>
                       ) : (
-                        <input className="ble-input-field" type="number" min={0} max={254} value={value} onChange={(event) => set(group.pinField!, Number(event.target.value))} />
+                        <TextField className="form-field-panel" type="number" min={0} max={254} value={value} onChange={(event) => set(group.pinField!, Number(event.target.value))} />
                       )}
-                    </div>
+                    </FormRow>
                   )
                 })()}
                 {group.modeField && (
-                  <div className="ble-form-row">
-                    <label>Mode</label>
-                    <select className="ble-input-field" value={currentMode} onChange={(event) => set(group.modeField!, Number(event.target.value))}>
+                  <FormRow label="Mode">
+                    <SelectField className="form-field-panel" value={currentMode} onChange={(event) => set(group.modeField!, Number(event.target.value))}>
                       {!choices.some((choice) => choice.value === currentMode) && <option value={currentMode}>Unavailable mode {currentMode}</option>}
                       {choices.map((choice) => <option key={choice.value} value={choice.value} title={choice.description}>{choice.label}</option>)}
-                    </select>
-                  </div>
+                    </SelectField>
+                  </FormRow>
                 )}
-              </div>
+              </FormGrid>
             )}
           </div>
         )
       })}
-    </div>
+    </Card>
   )
 }
 
 function DeviceGuide({ type }: { type?: DeviceType }) {
   const guide = type ? GUIDES[type.id] : undefined
   return (
-    <div className="ble-editor-grid">
-      <div className="ble-card">
+    <CardStack>
+      <Card>
         {guide ? <Markdown source={guide} /> : <p className="devices-muted">No user guide for this device yet (app/docs/devices/{type?.id ?? '…'}.md).</p>}
-      </div>
+      </Card>
       {type && (
-        <div className="ble-card">
-          <h3>Commands</h3>
+        <Card title="Commands">
           <ul className="devices-guide-contracts">
             {type.contracts.map((contract) => <li key={contract.id}><strong>{contract.label}</strong>{contract.description ? ` — ${contract.description}` : ''}{contract.returns ? <em> Returns {contract.returns.split(' @')[0]}.</em> : null}</li>)}
           </ul>
           {type.datasheet && <p><a href={type.datasheet} target="_blank" rel="noreferrer">Datasheet (PDF)</a></p>}
-        </div>
+        </Card>
       )}
-    </div>
+    </CardStack>
   )
 }
 
@@ -383,14 +378,14 @@ function ActionSummary({ workspace: w, actionId }: { workspace: DevicesWorkspace
           <h1>{action.name}</h1>
         </div>
         <div className="devices-page-actions">
-          <button type="button" className="devices-primary" onClick={() => w.compose(action.id)}><ListPlus aria-hidden="true" /><span>Edit steps</span></button>
+          <Button variant="primary" onClick={() => w.compose(action.id)}><ListPlus aria-hidden="true" /><span>Edit steps</span></Button>
         </div>
       </div>
-      <div className="ble-card">
+      <Card>
         <ol className="devices-step-summary">{action.steps.map((step) => <li key={step.id}>{describeStep(w.catalog, w.devices, step)}</li>)}</ol>
         {!action.steps.length && <p className="devices-muted">No steps yet.</p>}
         {build.diagnostics.map((entry, index) => <p key={index} className={`program-diag ${entry.severity === 'error' ? 'is-error' : 'is-warning'}`}>{entry.severity === 'error' ? <AlertCircle aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}{entry.message}</p>)}
-      </div>
+      </Card>
     </div>
   )
 }
@@ -422,14 +417,14 @@ function StepEditor({ workspace: w, action, step, index }: { workspace: DevicesW
     <li className="devices-step">
       <div className="devices-step-head">
         <span className="devices-step-index">{index + 1}</span>
-        <select value={step.device} onChange={(event) => chooseDevice(event.target.value)} aria-label="Device">
+        <SelectField value={step.device} onChange={(event) => chooseDevice(event.target.value)} aria-label="Device">
           {!device && <option value={step.device}>{step.device} (gone)</option>}
           {devices.map((entry) => <option key={entry.ref} value={entry.ref}>{entry.name} (#{entry.deviceId})</option>)}
-        </select>
-        <select value={step.contract} onChange={(event) => chooseContract(event.target.value)} aria-label="Contract">
+        </SelectField>
+        <SelectField value={step.contract} onChange={(event) => chooseContract(event.target.value)} aria-label="Contract">
           {!contract && <option value={step.contract}>{step.contract}</option>}
           {contracts.map((entry) => <option key={entry.id} value={entry.id}>{entry.kind === 'device' ? `Device: ${entry.label}` : entry.label}</option>)}
-        </select>
+        </SelectField>
         <div className="devices-step-buttons">
           <button type="button" disabled={index === 0} onClick={() => move(-1)} title="Move up" aria-label="Move step up"><ArrowUp aria-hidden="true" /></button>
           <button type="button" disabled={index === action.steps.length - 1} onClick={() => move(1)} title="Move down" aria-label="Move step down"><ArrowDown aria-hidden="true" /></button>
@@ -477,16 +472,16 @@ function ActionComposer({ workspace: w, action, session }: { workspace: DevicesW
       <section className="devices-composer" role="dialog" aria-label="Action composer" aria-modal="true">
         <header className="devices-composer-header">
           <ListPlus aria-hidden="true" />
-          <select value={action.id} onChange={(event) => w.compose(event.target.value)} aria-label="Action">
+          <SelectField value={action.id} onChange={(event) => w.compose(event.target.value)} aria-label="Action">
             {w.actions.map((entry) => <option key={entry.id} value={entry.id}>{entry.name} (ID {entry.actionId})</option>)}
-          </select>
-          <button type="button" onClick={() => w.compose()} title="New action"><Plus aria-hidden="true" />New</button>
-          <button type="button" className="devices-composer-close" onClick={w.closeComposer} aria-label="Close composer"><X aria-hidden="true" /></button>
+          </SelectField>
+          <Button onClick={() => w.compose()} title="New action"><Plus aria-hidden="true" />New</Button>
+          <Button size="icon" onClick={w.closeComposer} aria-label="Close composer"><X aria-hidden="true" /></Button>
         </header>
 
         <div className="devices-composer-fields">
-          <label>Name<input value={action.name} onChange={(event) => w.updateAction(action.id, { name: event.target.value })} /></label>
-          <label>Action ID<input type="number" min={1} max={255} value={action.actionId} onChange={(event) => w.updateAction(action.id, { actionId: Math.max(1, Math.min(255, Math.floor(Number(event.target.value) || 1))) })} /></label>
+          <label>Name<TextField value={action.name} onChange={(event) => w.updateAction(action.id, { name: event.target.value })} /></label>
+          <label>Action ID<TextField type="number" min={1} max={255} value={action.actionId} onChange={(event) => w.updateAction(action.id, { actionId: Math.max(1, Math.min(255, Math.floor(Number(event.target.value) || 1))) })} /></label>
           <div className="devices-meter" title={`${build.bytes} of ${build.limit} bytes the board keeps per action`}>
             <span>Size {build.bytes} / {build.limit} B</span>
             <div><i style={{ width: `${percent}%` }} className={build.bytes > build.limit ? 'is-over' : ''} /></div>
@@ -498,17 +493,17 @@ function ActionComposer({ workspace: w, action, session }: { workspace: DevicesW
           {action.steps.map((step, index) => <StepEditor key={step.id} workspace={w} action={action} step={step} index={index} />)}
         </ol>
         {!action.steps.length && <p className="devices-muted">No steps yet. Add one here, or use "Add to action" on a command in the right panel.</p>}
-        <button type="button" className="devices-add-step" onClick={addStep}><Plus aria-hidden="true" />Add step</button>
+        <Button variant="dashed" className="devices-add-step" onClick={addStep}><Plus aria-hidden="true" />Add step</Button>
 
         {build.diagnostics.map((entry, index) => <p key={index} className={`program-diag ${entry.severity === 'error' ? 'is-error' : 'is-warning'}`}>{entry.severity === 'error' ? <AlertCircle aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}{entry.message}</p>)}
 
         {status && <p className={`program-diag ${status.ok ? '' : 'is-error'}`}>{status.ok ? null : <AlertCircle aria-hidden="true" />}{status.text}</p>}
         <footer className="devices-composer-footer">
-          <button type="button" className="devices-danger" onClick={() => w.removeAction(action.id)}><Trash2 aria-hidden="true" />Delete</button>
+          <Button variant="danger" onClick={() => w.removeAction(action.id)}><Trash2 aria-hidden="true" />Delete</Button>
           <span className="devices-muted">{session ? 'Saved in the project.' : 'Saved in the project. Connect a board to record or run it.'}</span>
-          <button type="button" disabled={!session || busy || !build.ok || !action.steps.length} onClick={record} title="Store the steps on the board as this dynamic action (runs them once)"><Upload aria-hidden="true" />Record on board</button>
-          <button type="button" disabled={!session || busy} onClick={() => void onBoard(`Action ${action.actionId} ran.`, [actionRunStep(runitCommandCatalog(), action.actionId)])} title="Run the action stored on the board under this ID"><Play aria-hidden="true" />Run</button>
-          <button type="button" className="devices-primary" onClick={w.closeComposer}>Done</button>
+          <Button disabled={!session || busy || !build.ok || !action.steps.length} onClick={record} title="Store the steps on the board as this dynamic action (runs them once)"><Upload aria-hidden="true" />Record on board</Button>
+          <Button disabled={!session || busy} onClick={() => void onBoard(`Action ${action.actionId} ran.`, [actionRunStep(runitCommandCatalog(), action.actionId)])} title="Run the action stored on the board under this ID"><Play aria-hidden="true" />Run</Button>
+          <Button variant="primary" onClick={w.closeComposer}>Done</Button>
         </footer>
       </section>
     </>

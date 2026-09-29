@@ -1,21 +1,20 @@
-import { useMemo, useState } from 'react'
-import { AlertCircle, AlertTriangle, CheckCircle2, Download, HardDriveDownload, HardDriveUpload, RotateCcw, Trash2 } from 'lucide-react'
-import { eraseCode, loadCode, readCode, REPLAY_STATES, setCodeAutostart, storeCode } from './boardCode'
+import { useState } from 'react'
+import { Button } from './components/Button'
+import { TextField } from './components/FormField'
+import { AlertCircle, AlertTriangle, CheckCircle2, HardDriveUpload, RotateCcw, Trash2 } from 'lucide-react'
+import { eraseCode, loadCode, REPLAY_STATES, setCodeAutostart, storeCode } from './boardCode'
 import { errorOwnerName, errorTagName } from './domain/decoder'
 import { runitErrorCatalog } from './domain/descriptors'
 import type { DeviceCatalog } from './domain/descriptors'
 import type { ActionStep, ObjectSection, ProjectDevice, ProjectDocument, ProjectSettings } from './domain/project'
-import { settingsState } from './domain/settings'
-import { buildStoredCode, crc32, decodeFrameList, decodeStoredCode, encodeFrameList, serializeStoredCode } from './domain/storedCode'
-import type { RecoveredCode } from './domain/storedCode'
-import { BOARD_DEFAULT_SETTINGS, storedCodeContext } from './useBoardCode'
 import type { BoardCodeState } from './useBoardCode'
+import { useProjectCode } from './useProjectCode'
 import type { RunitBleSession } from './backend/runitBleSession'
 
 /*
  * "Code is ready": the project built into the frames a board replays at boot
- * (app/docs/03_records_as_storage.md). Store it, restart the board with it,
- * read it back into a project (recovery), or export it (`runit-code`).
+ * (app/docs/03_records_as_storage.md). Store it, restart the board with it, or
+ * erase it. Recovery and code files are in the File view.
  */
 
 const errors = runitErrorCatalog()
@@ -34,23 +33,13 @@ interface Props {
   /** Longest command the link takes (store chunks). */
   readonly maxFrameBytes: number
   readonly setAutostart: (autostart: boolean) => void
-  /** Replace the project with code read from the board. */
-  readonly onRecover: (recovered: RecoveredCode, autostart: boolean) => void
   readonly note: (ok: boolean, text: string) => void
 }
 
-export function StoredCodeSection({ project, sections, settings, devices, deviceCatalog, setup, board, session, maxFrameBytes, setAutostart, onRecover, note }: Props) {
+export function StoredCodeSection({ project, sections, settings, devices, deviceCatalog, setup, board, session, maxFrameBytes, setAutostart, note }: Props) {
   const [busy, setBusy] = useState<string>()
   const [progress, setProgress] = useState<{ done: number; total: number }>()
-  const code = useMemo(
-    () => {
-      const context = storedCodeContext()
-      return buildStoredCode({ project, sections, settings: settingsState(settings), boardDefaults: BOARD_DEFAULT_SETTINGS, devices, setup, extraFrames: project.extraFrames }, deviceCatalog ? { ...context, devices: deviceCatalog } : context)
-    },
-    [project, sections, settings, devices, deviceCatalog, setup],
-  )
-  const bytes = useMemo(() => encodeFrameList(code.steps.map((step) => step.frame)), [code])
-  const crc = useMemo(() => crc32(bytes), [bytes])
+  const { code, bytes, crc } = useProjectCode({ project, sections, settings, devices, deviceCatalog, setup })
   const autostart = project.autostart ?? false
   const { info } = board
   const schemaMismatch = info && info.firmwareSchemaId !== errors.schemaId
@@ -96,28 +85,6 @@ export function StoredCodeSection({ project, sections, settings, devices, device
     })
   }
 
-  const recover = () => {
-    if (!info?.stored) return
-    if (!window.confirm('Replace this project (objects, devices, BLE and connector settings) with the code stored on the board? Save the project first if you want to keep it.')) return
-    void run('Recover', async () => {
-      if (!session) throw new Error('Connect a runIT board first.')
-      const { bytes: stored } = await readCode(session, info, (done, total) => setProgress({ done, total }))
-      const recovered = decodeStoredCode(decodeFrameList(stored), BOARD_DEFAULT_SETTINGS, storedCodeContext(), project.name || 'Recovered')
-      onRecover(recovered, info.autostart)
-      const warnings = recovered.diagnostics.length ? ` ${recovered.diagnostics.length} note(s): ${recovered.diagnostics.map((entry) => entry.message).join(' ')}` : ''
-      return `Recovered ${info.frameCount} frames from the board.${warnings}`
-    })
-  }
-
-  const exportCode = () => {
-    const url = URL.createObjectURL(new Blob([serializeStoredCode({ schemaId: errors.schemaId, steps: code.steps })], { type: 'application/json' }))
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `${project.name || 'project'}.code.json`
-    link.click()
-    setTimeout(() => URL.revokeObjectURL(url), 0)
-  }
-
   const replay = info?.replay
   const disabled = !session || !!busy
 
@@ -146,19 +113,15 @@ export function StoredCodeSection({ project, sections, settings, devices, device
         : <p className="program-diag is-warning"><AlertTriangle aria-hidden="true" />{info.stored ? 'The code on the board differs from this project.' : 'No code stored on the board.'}</p>)}
       {board.note && <p className="program-diag is-warning"><AlertTriangle aria-hidden="true" />{board.note}</p>}
       <label className="program-check">
-        <input type="checkbox" checked={autostart} onChange={(event) => setAutostart(event.target.checked)} />
+        <TextField type="checkbox" checked={autostart} onChange={(event) => setAutostart(event.target.checked)} />
         <span>Run the program after boot (autostart)</span>
       </label>
       <div className="program-actions">
-        <button className="program-primary" disabled={disabled || !code.ok || !!schemaMismatch} onClick={() => void store()} title="Write the project's code to the board (replaces its stored code)">
+        <Button variant="primary" disabled={disabled || !code.ok || !!schemaMismatch} onClick={() => void store()} title="Write the project's code to the board (replaces its stored code)">
           <HardDriveUpload aria-hidden="true" /><span>{busy === 'Store' && progress ? `${progress.done}/${progress.total}` : 'Store'}</span>
-        </button>
-        <button disabled={disabled} onClick={load} title="Restart the board: it replays its stored code"><RotateCcw aria-hidden="true" /><span>Load</span></button>
-        <button disabled={disabled || !info?.stored} onClick={recover} title="Read the board's code back into this project">
-          <HardDriveDownload aria-hidden="true" /><span>{busy === 'Recover' && progress ? `${Math.round((100 * progress.done) / Math.max(1, progress.total))}%` : 'Recover'}</span>
-        </button>
-        <button disabled={disabled || !info?.stored} onClick={erase} title="Erase the stored code"><Trash2 aria-hidden="true" /><span>Erase</span></button>
-        <button disabled={!code.ok} onClick={exportCode} title="Save the code as JSON (runit-code): frames as hex, CRC, schema ID"><Download aria-hidden="true" /><span>Export</span></button>
+        </Button>
+        <Button disabled={disabled} onClick={load} title="Restart the board: it replays its stored code"><RotateCcw aria-hidden="true" /><span>Load</span></Button>
+        <Button disabled={disabled || !info?.stored} onClick={erase} title="Erase the stored code"><Trash2 aria-hidden="true" /><span>Erase</span></Button>
       </div>
     </div>
   )

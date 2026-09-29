@@ -1,7 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, Boxes, ChevronDown, ChevronRight, Eye, Folder, FolderPlus, Grid2X2, Link2, Plus, Search, Trash2, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { readStored, usePersistEffect } from './hooks/useStorage'
+import { PanelHeader } from './components/PanelHeader'
+import { Badge } from './components/Badge'
+import { SelectField, TextField } from './components/FormField'
+import { PaletteSearch } from './components/PaletteSearch'
+import { ArrowDown, ArrowUp, Boxes, ChevronDown, ChevronRight, Eye, Folder, FolderPlus, Grid2X2, Link2, Plus, Trash2 } from 'lucide-react'
 import { TreeSlab } from './components/TreeSlab'
 import { TypeBadge, ValueKindBadge } from './components/TypeBadge/TypeBadge'
+import { useUndoHistory } from './hooks/useUndoHistory'
 import { OBJECT_DRAG_TYPE, objectKindDragType, variableKind } from './domain/canvas'
 import { compileObjects } from './domain/compiler/objects'
 import { runitVmCatalog } from './domain/descriptors'
@@ -18,19 +24,7 @@ const maxElementsOf = (key: string): number => {
   return type ? catalog.maxElements(type) : catalog.payloadMax
 }
 
-const loadProject = (): ProjectDocument => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) return parseProject(saved)
-  } catch { /* Browser storage can be unavailable. */ }
-  return createProject('Untitled')
-}
-
-interface History {
-  readonly past: readonly ProjectDocument[]
-  readonly present: ProjectDocument
-  readonly future: readonly ProjectDocument[]
-}
+const loadProject = (): ProjectDocument => readStored<ProjectDocument | undefined>(STORAGE_KEY, parseProject, undefined) ?? createProject('Untitled')
 
 const nextName = (siblings: readonly ObjectNode[], prefix: string): string => {
   const names = new Set(siblings.map((node) => node.name))
@@ -115,16 +109,8 @@ export const isViableLinkTarget = (project: ProjectDocument, folderId: string, n
 }
 
 export function useObjectTreeWorkspace(onSelect?: () => void) {
-  const [history, setHistory] = useState<History>(() => ({ past: [], present: loadProject(), future: [] }))
-  // Edits compute the next document from here, outside the state updater, so a
-  // refused edit (ObjectTreeError) is caught and shown instead of failing the render.
-  const historyRef = useRef<History>(history)
-  const commit = (next: History) => {
-    historyRef.current = next
-    setHistory(next)
-  }
+  const history = useUndoHistory(loadProject, { coalesceMs: 800 })
   const [historyVersion, setHistoryVersion] = useState(0)
-  const lastEditRef = useRef<{ time: number; key?: string }>({ time: 0 })
   // Block-owned objects: generated from blocks later; for now only what a recovery brings (not saved).
   const [sections, setSections] = useState<ObjectSection[]>([])
 
@@ -136,51 +122,30 @@ export function useObjectTreeWorkspace(onSelect?: () => void) {
   const selected = selectedId ? findObject(project, selectedId) : undefined
   const diagnostics = useMemo(() => compileObjects(project, catalog, sections).diagnostics, [project, sections])
 
-  useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, serializeProject(project)) }
-    catch { /* File export remains available. */ }
-  }, [project])
+  usePersistEffect(STORAGE_KEY, project, serializeProject)
 
   /** Apply a document change; false (and the reason in `error`) when it was refused. */
   const edit = (change: (current: ProjectDocument) => ProjectDocument, options?: { key?: string; discrete?: boolean }): boolean => {
-    const curr = historyRef.current
     let next: ProjectDocument
     try {
-      next = change(curr.present)
+      next = change(history.current())
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
       return false
     }
     setError('')
-    if (next === curr.present) return true
-
-    const now = Date.now()
-    const isContinuous =
-      !options?.discrete &&
-      options?.key !== undefined &&
-      lastEditRef.current.key === options.key &&
-      now - lastEditRef.current.time < 800
-    lastEditRef.current = { time: now, key: options?.key }
-
-    if (isContinuous && curr.past.length > 0) commit({ past: curr.past, present: next, future: [] })
-    else commit({ past: curr.past.length >= 50 ? [...curr.past.slice(1), curr.present] : [...curr.past, curr.present], present: next, future: [] })
+    history.record(next, options)
     return true
   }
 
   const undo = () => {
-    lastEditRef.current = { time: 0 }
-    const curr = historyRef.current
-    if (curr.past.length === 0) return
-    commit({ past: curr.past.slice(0, -1), present: curr.past[curr.past.length - 1]!, future: [curr.present, ...curr.future] })
+    if (!history.undo()) return
     setHistoryVersion((v) => v + 1)
     setError('')
   }
 
   const redo = () => {
-    lastEditRef.current = { time: 0 }
-    const curr = historyRef.current
-    if (curr.future.length === 0) return
-    commit({ past: [...curr.past, curr.present], present: curr.future[0]!, future: curr.future.slice(1) })
+    if (!history.redo()) return
     setHistoryVersion((v) => v + 1)
     setError('')
   }
@@ -428,9 +393,7 @@ export function useObjectTreeWorkspace(onSelect?: () => void) {
    */
   const load = (loaded: ProjectDocument, nextSections?: readonly ObjectSection[]) => {
     const { settings: _settings, devices: _devices, actions: _actions, setup: _setup, ...document } = loaded
-    lastEditRef.current = { time: 0 }
-    const curr = historyRef.current
-    commit({ past: [...curr.past, curr.present], present: document, future: [] })
+    history.replace(document)
     setHistoryVersion((v) => v + 1)
     if (nextSections) setSections([...nextSections])
     setSelectedId(null)
@@ -443,8 +406,8 @@ export function useObjectTreeWorkspace(onSelect?: () => void) {
 
   return {
     project,
-    canUndo: history.past.length > 0,
-    canRedo: history.future.length > 0,
+    canUndo: history.canUndo,
+    canRedo: history.canRedo,
     undo,
     redo,
     historyVersion,
@@ -654,9 +617,9 @@ export function ObjectTreePalette({ workspace: w }: { workspace: ObjectWorkspace
             node.kind === 'value' ? (
               <TypeBadge type={node.type} count={node.length > 1 ? node.length : undefined} />
             ) : node.kind === 'folder' && node.children.length > 0 ? (
-              <span className="tree-slab-badge count" title={`${node.children.length} items`}>
+              <Badge tone="count" title={`${node.children.length} items`}>
                 {node.children.length}
-              </span>
+              </Badge>
             ) : null
           }
           disclosure={
@@ -704,30 +667,7 @@ export function ObjectTreePalette({ workspace: w }: { workspace: ObjectWorkspace
 
   return (
     <div className="object-tree-palette">
-      <div className="object-tree-search-bar">
-        <Search className="search-icon" aria-hidden="true" />
-        <input
-          type="text"
-          placeholder="Search variables..."
-          aria-label="Search variables"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') setSearchQuery('')
-          }}
-        />
-        {searchQuery && (
-          <button
-            type="button"
-            className="search-clear-btn"
-            title="Clear search"
-            aria-label="Clear search"
-            onClick={() => setSearchQuery('')}
-          >
-            <X aria-hidden="true" />
-          </button>
-        )}
-      </div>
+      <PaletteSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search variables..." label="Search variables" />
       <div className="object-tree-heading">
         <span />
         <button title="Add value" aria-label="Add value" onClick={() => w.add('value', w.selected?.node.kind === 'folder' ? w.selected.node.id : w.selected?.parent?.id ?? null)}><Plus /></button>
@@ -870,7 +810,7 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                     <ChevronDown />
                   </button>
                   <span className="object-main-array-index">[{index}]</span>
-                  <input
+                  <TextField
                     aria-label={`Name of ${label}`}
                     placeholder={`[${index}]`}
                     value={node.name}
@@ -879,7 +819,7 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                   <div className="object-main-type-picker" title="Click to override type" onClick={(e) => e.stopPropagation()}>
                     {node.type !== 'STR' && node.length > 1 && <span className="object-main-shape">Table</span>}
                     <ObjectDesignator node={node} />
-                    <select
+                    <SelectField
                       aria-label={`Type of ${label}`}
                       value={node.typeMode === 'auto' ? 'auto' : node.type}
                       onChange={(event) => {
@@ -892,7 +832,7 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                     >
                       <option value="auto">Auto · {node.type === 'B' ? 'T/F' : node.type}</option>
                       {valueTypes.map((type) => <option key={type.key} value={type.key}>{type.key === 'B' ? 'T/F' : type.key}</option>)}
-                    </select>
+                    </SelectField>
                   </div>
                   <button
                     type="button"
@@ -910,7 +850,7 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                 <div className="object-main-row object-main-bottom">
                   <label className="object-main-value">
                     Initial value
-                    <input
+                    <TextField
                       aria-label={`Initial value of ${label}`}
                       value={drafts[node.id]?.text ?? valueText(node.value)}
                       onChange={(event) => changeValue(node, event.target.value)}
@@ -919,7 +859,7 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                   </label>
                   <label className="object-main-length">
                     <span>{node.type === 'STR' ? 'Characters' : 'Items'}</span>
-                    <input
+                    <TextField
                       aria-label={`Items of ${label}`}
                       type="number"
                       min="1"
@@ -944,7 +884,7 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                   <ChevronRight />
                 </button>
                 <span className="object-main-array-index">[{index}]</span>
-                <input
+                <TextField
                   className="object-main-array-inline-value"
                   aria-label={`Value of ${label}`}
                   value={drafts[node.id]?.text ?? valueText(node.value)}
@@ -955,7 +895,7 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                 <div className="object-main-type-picker" title="Click to override type" onClick={(e) => e.stopPropagation()}>
                   {node.type !== 'STR' && node.length > 1 && <span className="object-main-shape">Table</span>}
                   <ObjectDesignator node={node} />
-                  <select
+                  <SelectField
                     aria-label={`Type of ${label}`}
                     value={node.typeMode === 'auto' ? 'auto' : node.type}
                     onChange={(event) => {
@@ -968,7 +908,7 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                   >
                     <option value="auto">Auto · {node.type === 'B' ? 'T/F' : node.type}</option>
                     {valueTypes.map((type) => <option key={type.key} value={type.key}>{type.key === 'B' ? 'T/F' : type.key}</option>)}
-                  </select>
+                  </SelectField>
                 </div>
                 <button
                   type="button"
@@ -1009,7 +949,7 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
               {node.kind === 'reference' ? (
                 <span className="object-main-name">{label}</span>
               ) : (
-                <input
+                <TextField
                   aria-label={`Name of ${node.name}`}
                   placeholder={node.name ? "Name" : `[${index}]`}
                   value={node.name}
@@ -1021,7 +961,7 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                 <div className="object-main-type-picker" title="Click to override type">
                   {node.type !== 'STR' && node.length > 1 && <span className="object-main-shape">Table</span>}
                   <ObjectDesignator node={node} />
-                  <select
+                  <SelectField
                     aria-label={`Type of ${node.name}`}
                     value={node.typeMode === 'auto' ? 'auto' : node.type}
                     onChange={(event) => {
@@ -1034,7 +974,7 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                   >
                     <option value="auto">Auto · {node.type === 'B' ? 'T/F' : node.type}</option>
                     {valueTypes.map((type) => <option key={type.key} value={type.key}>{type.key === 'B' ? 'T/F' : type.key}</option>)}
-                  </select>
+                  </SelectField>
                 </div>
               ) : (
                 <span className="object-main-kind">{is2DArray ? '2D Array' : is3DArray ? '3D Array' : node.kind === 'folder' ? 'Folder' : 'Reference'}</span>
@@ -1060,7 +1000,7 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                 <>
                   <label className="object-main-value">
                     Initial value
-                    <input
+                    <TextField
                       aria-label={`Initial value of ${label}`}
                       value={drafts[node.id]?.text ?? valueText(node.value)}
                       onChange={(event) => changeValue(node, event.target.value)}
@@ -1070,7 +1010,7 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                   {!isArrayItem && (
                     <label className="object-main-length">
                       <span>{node.type === 'STR' ? 'Characters' : 'Items'}</span>
-                      <input
+                      <TextField
                         aria-label={`Items of ${node.name || 'array'}`}
                         type="number"
                         min="1"
@@ -1091,7 +1031,7 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                 return (
                   <>
                     <span>{node.children.length} rows {isUniformLength ? `× ${lengths[0]} items` : '· mixed items'}</span>
-                    <span className="object-main-array-type-tag">Type: {typeLabel}</span>
+                    <Badge size="detail">Type: {typeLabel}</Badge>
                   </>
                 )
               })() : is3DArray ? (() => {
@@ -1107,7 +1047,7 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                 return (
                   <>
                     <span>{node.children.length} planes {isUniformRows && isUniformCols ? `× ${planeRows[0]} × ${leafLengths[0]} items` : '· mixed'}</span>
-                    <span className="object-main-array-type-tag">Type: {typeLabel}</span>
+                    <Badge size="detail">Type: {typeLabel}</Badge>
                   </>
                 )
               })() : node.kind === 'folder' ? (
@@ -1180,25 +1120,22 @@ export function ObjectDetails({ workspace: w, onJump }: { workspace: ObjectWorks
   const displayName = target?.name || selected.name || (w.selected?.parent ? `${w.selected.parent.name || 'folder'}[${w.selected.index}]` : `[${w.selected?.index ?? 0}]`)
 
   return <div className="object-details">
-    <div className="object-details-header">
-      <ObjectDesignator node={selected} />
-      <h2>{displayName}</h2>
-    </div>
+    <PanelHeader icon={<ObjectDesignator node={selected} />} title={displayName} />
 
     {is2DArray && (
       <div className="object-details-section">
         <div className="object-details-section-title">
           <h3>2D Array Configuration</h3>
           {isUniformCols2D ? (
-            <span className="object-details-badge">{rows2D} × {cols2D} = {rows2D * cols2D} items</span>
+            <Badge tone="accent" size="detail">{rows2D} × {cols2D} = {rows2D * cols2D} items</Badge>
           ) : (
-            <span className="object-details-badge mixed">{rows2D} rows · mixed items</span>
+            <Badge tone="warning" size="detail">{rows2D} rows · mixed items</Badge>
           )}
         </div>
         <div className="object-details-grid">
           <label>
             Rows
-            <input
+            <TextField
               type="number"
               min="1"
               max="256"
@@ -1211,7 +1148,7 @@ export function ObjectDetails({ workspace: w, onJump }: { workspace: ObjectWorks
           </label>
           <label>
             Items (Cols)
-            <input
+            <TextField
               type="number"
               min="1"
               max="1024"
@@ -1226,7 +1163,7 @@ export function ObjectDetails({ workspace: w, onJump }: { workspace: ObjectWorks
         </div>
         <label>
           Element Type
-          <select
+          <SelectField
             value={type2D}
             onChange={(e) => w.resizeArray2D(selected.id, rows2D, cols2D, e.target.value)}
           >
@@ -1235,7 +1172,7 @@ export function ObjectDetails({ workspace: w, onJump }: { workspace: ObjectWorks
                 {type.key === 'B' ? 'T/F (Boolean)' : `${type.key} · ${type.alias}`}
               </option>
             ))}
-          </select>
+          </SelectField>
         </label>
       </div>
     )}
@@ -1244,12 +1181,12 @@ export function ObjectDetails({ workspace: w, onJump }: { workspace: ObjectWorks
       <div className="object-details-section">
         <div className="object-details-section-title">
           <h3>3D Array Configuration</h3>
-          <span className="object-details-badge">{depth3D} × {rows3D} × {cols3D} = {depth3D * rows3D * cols3D} items</span>
+          <Badge tone="accent" size="detail">{depth3D} × {rows3D} × {cols3D} = {depth3D * rows3D * cols3D} items</Badge>
         </div>
         <div className="object-details-grid-3">
           <label>
             Depth
-            <input
+            <TextField
               type="number"
               min="1"
               max="64"
@@ -1262,7 +1199,7 @@ export function ObjectDetails({ workspace: w, onJump }: { workspace: ObjectWorks
           </label>
           <label>
             Rows
-            <input
+            <TextField
               type="number"
               min="1"
               max="128"
@@ -1275,7 +1212,7 @@ export function ObjectDetails({ workspace: w, onJump }: { workspace: ObjectWorks
           </label>
           <label>
             Items (Cols)
-            <input
+            <TextField
               type="number"
               min="1"
               max="512"
@@ -1289,7 +1226,7 @@ export function ObjectDetails({ workspace: w, onJump }: { workspace: ObjectWorks
         </div>
         <label>
           Element Type
-          <select
+          <SelectField
             value={type3D}
             onChange={(e) => w.resizeArray3D(selected.id, depth3D, rows3D, cols3D, e.target.value)}
           >
@@ -1298,7 +1235,7 @@ export function ObjectDetails({ workspace: w, onJump }: { workspace: ObjectWorks
                 {type.key === 'B' ? 'T/F (Boolean)' : `${type.key} · ${type.alias}`}
               </option>
             ))}
-          </select>
+          </SelectField>
         </label>
       </div>
     )}
@@ -1318,12 +1255,12 @@ export function ObjectDetails({ workspace: w, onJump }: { workspace: ObjectWorks
       <div className="object-details-section">
         <div className="object-details-section-title">
           <h3>Variable / 1D Array</h3>
-          {selected.length > 1 && <span className="object-details-badge">{selected.length} items</span>}
+          {selected.length > 1 && <Badge tone="accent" size="detail">{selected.length} items</Badge>}
         </div>
         <div className="object-details-grid">
           <label>
             Type
-            <select
+            <SelectField
               value={selected.typeMode === 'auto' ? 'auto' : selected.type}
               onChange={(e) => {
                 const type = e.target.value
@@ -1338,11 +1275,11 @@ export function ObjectDetails({ workspace: w, onJump }: { workspace: ObjectWorks
                   {t.key === 'B' ? 'T/F' : t.key}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </label>
           <label>
             {selected.type === 'STR' ? 'Characters' : 'Items'}
-            <input
+            <TextField
               type="number"
               min="1"
               max={maxElementsOf(selected.type)}
@@ -1356,7 +1293,7 @@ export function ObjectDetails({ workspace: w, onJump }: { workspace: ObjectWorks
 
     <div className="object-details-section">
       <h3>Properties</h3>
-      <label>Location<select value={w.selected?.parent?.id ?? ''} onChange={(event) => w.edit((current) => moveObject(current, selected.id, event.target.value || null))}>{selected.kind !== 'reference' && <option value="">Top level</option>}{availableFolders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>
+      <label>Location<SelectField value={w.selected?.parent?.id ?? ''} onChange={(event) => w.edit((current) => moveObject(current, selected.id, event.target.value || null))}>{selected.kind !== 'reference' && <option value="">Top level</option>}{availableFolders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</SelectField></label>
       <div className="object-details-move">
         <button disabled={w.selected?.index === 0} onClick={() => w.move(selected.id, -1)}>
           <ArrowUp />
@@ -1371,7 +1308,7 @@ export function ObjectDetails({ workspace: w, onJump }: { workspace: ObjectWorks
       {selected.kind === 'value' && (
         <div className="object-details-toggles">
           <label className="object-details-check">
-            <input
+            <TextField
               type="checkbox"
               checked={!selected.mutable}
               onChange={(event) => w.edit((current) => updateObject(current, selected.id, { mutable: !event.target.checked }))}
@@ -1380,7 +1317,7 @@ export function ObjectDetails({ workspace: w, onJump }: { workspace: ObjectWorks
             <span>Read only</span>
           </label>
           <label className="object-details-check">
-            <input
+            <TextField
               type="checkbox"
               checked={selected.retentive}
               onChange={(event) => w.edit((current) => updateObject(current, selected.id, { retentive: event.target.checked }))}
@@ -1389,7 +1326,7 @@ export function ObjectDetails({ workspace: w, onJump }: { workspace: ObjectWorks
             <span>Keep after restart</span>
           </label>
           <label className="object-details-check subscribe-check">
-            <input
+            <TextField
               type="checkbox"
               checked={selected.subscribed ?? false}
               onChange={(event) => w.edit((current) => updateObject(current, selected.id, { subscribed: event.target.checked }))}
@@ -1403,7 +1340,7 @@ export function ObjectDetails({ workspace: w, onJump }: { workspace: ObjectWorks
       {selected.kind === 'folder' && (
         <div className="object-details-toggles">
           <label className="object-details-check subscribe-check">
-            <input
+            <TextField
               type="checkbox"
               checked={selected.subscribed ?? false}
               onChange={(event) => w.edit((current) => updateObject(current, selected.id, { subscribed: event.target.checked }))}

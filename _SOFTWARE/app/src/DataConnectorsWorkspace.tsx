@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useMemo, useState, useCallback } from 'react'
+import { readStored, usePersistEffect } from './hooks/useStorage'
+import { PanelHeader } from './components/PanelHeader'
+import { Badge } from './components/Badge'
+import { Card, CardStack } from './components/Card'
+import { FormGrid, FormRow, SelectField, TextField } from './components/FormField'
+import { PaletteSearch } from './components/PaletteSearch'
 import {
   ArrowLeft,
   ArrowLeftRight,
@@ -7,10 +13,8 @@ import {
   Network,
   Plus,
   Radio,
-  Search,
   Shield,
   Trash2,
-  X,
 } from 'lucide-react'
 import { TreeSlab } from './components/TreeSlab'
 import type { BleProfile } from './BleSettingsWorkspace'
@@ -45,15 +49,8 @@ export const UART_ENDPOINTS = [...new Map(board.bindings.filter((b) => b.provide
 export const DEFAULT_CONNECTORS: DataConnectorItem[] = boardConnectors()
 
 /** The saved connectors, the system ones refreshed from the descriptors (refreshSettings). */
-const loadConnectors = (): DataConnectorItem[] => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return [...refreshSettings(parseSettings({ ble: defaultProjectSettings().ble, connectors: JSON.parse(raw) }, 'connectors')).connectors]
-  } catch {
-    /* Storage unavailable or unreadable: start from the defaults. */
-  }
-  return DEFAULT_CONNECTORS
-}
+const loadConnectors = (): DataConnectorItem[] =>
+  readStored(STORAGE_KEY, (raw) => [...refreshSettings(parseSettings({ ble: defaultProjectSettings().ble, connectors: JSON.parse(raw) }, 'connectors')).connectors], DEFAULT_CONNECTORS)
 
 export interface DataConnectorsWorkspace {
   connectors: DataConnectorItem[]
@@ -74,13 +71,7 @@ export function useDataConnectorsWorkspace(onSelect?: (key: string) => void): Da
   const [connectors, setConnectors] = useState<DataConnectorItem[]>(loadConnectors)
   const [selectedKey, setSelectedKey] = useState<string>('telemetry')
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(connectors))
-    } catch {
-      /* The project file keeps them. */
-    }
-  }, [connectors])
+  usePersistEffect(STORAGE_KEY, connectors)
 
   const load = useCallback((next: readonly DataConnectorItem[]) => setConnectors([...next]), [])
 
@@ -224,29 +215,7 @@ export function DataConnectorsPalette({ workspace, onBackToSettings }: DataConne
         </div>
       )}
 
-      <div className="object-tree-search-bar">
-        <Search className="search-icon" aria-hidden="true" />
-        <input
-          type="text"
-          placeholder="Search data connectors..."
-          aria-label="Search data connectors"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') setSearch('')
-          }}
-        />
-        {search && (
-          <button
-            type="button"
-            className="search-clear-btn"
-            title="Clear search"
-            onClick={() => setSearch('')}
-          >
-            <X aria-hidden="true" />
-          </button>
-        )}
-      </div>
+      <PaletteSearch value={search} onChange={setSearch} placeholder="Search data connectors..." label="Search data connectors" />
 
       <div className="object-tree-heading">
         <span className="ble-palette-title">Data Connectors</span>
@@ -275,8 +244,8 @@ export function DataConnectorsPalette({ workspace, onBackToSettings }: DataConne
               label={conn.alias}
               badges={
                 <>
-                  {conn.system && <span className="conn-system-label">SYS</span>}
-                  <span className="ble-uuid-chip">{conn.header}</span>
+                  {conn.system && <Badge tone="system">SYS</Badge>}
+                  <Badge push>{conn.header}</Badge>
                 </>
               }
             />
@@ -331,7 +300,7 @@ export function DataConnectorsEditor({ workspace, bleProfile }: DataConnectorsEd
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <h1 style={{ margin: 0 }}>{selectedConnector.alias}</h1>
             {selectedConnector.system && (
-              <span className="conn-system-label">system</span>
+              <Badge tone="system">system</Badge>
             )}
           </div>
           <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
@@ -350,47 +319,37 @@ export function DataConnectorsEditor({ workspace, bleProfile }: DataConnectorsEd
         )}
       </div>
 
-      <div className="ble-editor-grid">
+      <CardStack>
         {/* Stream Settings Card */}
-        <div className="ble-card">
-          <div className="card-header-badge">
-            <Cable aria-hidden="true" />
-            <h3>Stream Settings</h3>
-          </div>
-          <p className="card-subhead">
-            Basic configuration and buffer size for this data stream.
-          </p>
+        <Card icon={<Cable aria-hidden="true" />} title="Stream Settings" subhead="Basic configuration and buffer size for this data stream.">
 
-          <div className="ble-two-col-grid">
-            <div className="ble-form-row">
-              <label>Stream Name</label>
-              <input
+          <FormGrid>
+            <FormRow label="Stream Name">
+              <TextField
                 type="text"
-                className="ble-input-field"
+                className="form-field-panel"
                 value={selectedConnector.alias}
                 onChange={(e) => updateConnector(selectedConnector.key, { alias: e.target.value })}
               />
-            </div>
-            <div className="ble-form-row">
-              <label>Stream ID</label>
-              <input
+            </FormRow>
+            <FormRow label="Stream ID">
+              <TextField
                 type="text"
-                className="ble-input-field"
+                className="form-field-panel"
                 value={selectedConnector.header}
                 disabled={selectedConnector.system}
                 placeholder="0xNN"
                 maxLength={6}
                 onChange={(e) => updateConnector(selectedConnector.key, { header: e.target.value })}
               />
-            </div>
-          </div>
+            </FormRow>
+          </FormGrid>
 
-          <div className="ble-two-col-grid">
-            <div className="ble-form-row">
-              <label>Buffer Size</label>
-              <input
+          <FormGrid>
+            <FormRow label="Buffer Size">
+              <TextField
                 type="number"
-                className="ble-input-field"
+                className="form-field-panel"
                 value={selectedConnector.maxPacketLen}
                 min={2}
                 max={CONNECTOR_LIMITS.frameMax}
@@ -414,35 +373,33 @@ export function DataConnectorsEditor({ workspace, bleProfile }: DataConnectorsEd
                   </button>
                 ))}
               </div>
-            </div>
+            </FormRow>
 
-            <div className="ble-form-row">
-              <label>Useful Payload</label>
-              <input
+            <FormRow label="Useful Payload">
+              <TextField
                 type="text"
-                className="ble-input-field"
+                className="form-field-panel"
                 value={`${Math.max(0, selectedConnector.maxPacketLen - 1)} B`}
                 disabled
                 readOnly
               />
-            </div>
-          </div>
+            </FormRow>
+          </FormGrid>
 
-          <div className="ble-form-row">
-            <label>Description</label>
-            <input
+          <FormRow label="Description">
+            <TextField
               type="text"
-              className="ble-input-field"
+              className="form-field-panel"
               value={selectedConnector.description}
               placeholder="Optional description"
               onChange={(e) => updateConnector(selectedConnector.key, { description: e.target.value })}
             />
-          </div>
+          </FormRow>
 
           {/* Pause / Resume Option */}
           <div className="ble-ticks-section">
             <label className="ble-tick-label">
-              <input
+              <TextField
                 type="checkbox"
                 checked={selectedConnector.isSuspended}
                 onChange={() => toggleSuspend(selectedConnector.key)}
@@ -456,17 +413,10 @@ export function DataConnectorsEditor({ workspace, bleProfile }: DataConnectorsEd
               </div>
             </label>
           </div>
-        </div>
+        </Card>
 
         {/* Connected Transports Card */}
-        <div className="ble-card">
-          <div className="card-header-badge">
-            <ArrowLeftRight aria-hidden="true" />
-            <h3>Connected Transports</h3>
-          </div>
-          <p className="card-subhead">
-            Physical communication channels connected to this stream.
-          </p>
+        <Card icon={<ArrowLeftRight aria-hidden="true" />} title="Connected Transports" subhead="Physical communication channels connected to this stream.">
 
           <div className="conn-bindings-table">
             <div className="conn-bindings-head">
@@ -482,9 +432,9 @@ export function DataConnectorsEditor({ workspace, bleProfile }: DataConnectorsEd
                   {b.provider === 'BLE' ? 'Bluetooth' : 'Serial'}
                 </span>
                 <span className="conn-endpoint-val">{b.endpoint}</span>
-                <span className={`ble-direction-tag ${b.direction === 'TX_RX' ? 'inout' : b.direction === 'RX' ? 'in' : 'out'}`}>
+                <Badge tone={b.direction === 'TX_RX' ? 'info' : b.direction === 'RX' ? 'success' : 'warning'} caps>
                   {b.direction === 'TX_RX' ? 'In / Out' : b.direction === 'TX' ? 'Outbound' : 'Inbound'}
-                </span>
+                </Badge>
                 <span>
                   <button
                     type="button"
@@ -506,8 +456,8 @@ export function DataConnectorsEditor({ workspace, bleProfile }: DataConnectorsEd
           <div className="conn-add-binding-bar">
             <h4>Connect Transport</h4>
             <div className="conn-add-binding-controls">
-              <select
-                className="ble-select-field"
+              <SelectField
+                className="form-field-panel"
                 value={newProvider}
                 onChange={(e) => {
                   const val = e.target.value as 'BLE' | 'UART'
@@ -517,11 +467,11 @@ export function DataConnectorsEditor({ workspace, bleProfile }: DataConnectorsEd
               >
                 <option value="BLE">Bluetooth LE</option>
                 <option value="UART">Serial Console (UART)</option>
-              </select>
+              </SelectField>
 
               {newProvider === 'BLE' ? (
-                <select
-                  className="ble-select-field"
+                <SelectField
+                  className="form-field-panel"
                   value={newEndpoint}
                   onChange={(e) => setNewEndpoint(e.target.value)}
                 >
@@ -537,26 +487,26 @@ export function DataConnectorsEditor({ workspace, bleProfile }: DataConnectorsEd
                         {c.uuid} ({c.name})
                       </option>
                     ))}
-                </select>
+                </SelectField>
               ) : (
-                <input
+                <TextField
                   type="text"
-                  className="ble-input-field"
+                  className="form-field-panel"
                   value={newEndpoint}
                   onChange={(e) => setNewEndpoint(e.target.value)}
                   placeholder={DEFAULT_UART_ENDPOINT}
                 />
               )}
 
-              <select
-                className="ble-select-field"
+              <SelectField
+                className="form-field-panel"
                 value={newDirection}
                 onChange={(e) => setNewDirection(e.target.value as 'TX' | 'RX' | 'TX_RX')}
               >
                 <option value="TX">Outbound (Send)</option>
                 <option value="RX">Inbound (Receive)</option>
                 <option value="TX_RX">Bidirectional (In / Out)</option>
-              </select>
+              </SelectField>
 
               <button
                 type="button"
@@ -568,8 +518,8 @@ export function DataConnectorsEditor({ workspace, bleProfile }: DataConnectorsEd
               </button>
             </div>
           </div>
-        </div>
-      </div>
+        </Card>
+      </CardStack>
     </div>
   )
 }
@@ -592,13 +542,9 @@ export function DataConnectorDetails({ workspace, onJumpToBle }: DataConnectorDe
 
   return (
     <div className="object-details ble-details">
-      <div className="object-details-header">
-        <span className="object-type-icon folder">
-          <Network aria-hidden="true" />
-        </span>
-        <h2>{selectedConnector.alias}</h2>
-        <span className="object-details-badge">{selectedConnector.header}</span>
-      </div>
+      <PanelHeader icon={<span className="object-type-icon folder"><Network aria-hidden="true" /></span>} title={selectedConnector.alias}>
+        <Badge tone="accent" size="detail">{selectedConnector.header}</Badge>
+      </PanelHeader>
 
       <div className="object-details-section">
         <h3>Stream Details</h3>
@@ -627,9 +573,9 @@ export function DataConnectorDetails({ workspace, onJumpToBle }: DataConnectorDe
                   Direction: {b.direction === 'TX_RX' ? 'In / Out' : b.direction === 'TX' ? 'Outbound' : 'Inbound'}
                 </span>
               </div>
-              <span className={`ble-direction-tag ${b.direction === 'TX_RX' ? 'inout' : b.direction === 'RX' ? 'in' : 'out'}`}>
+              <Badge tone={b.direction === 'TX_RX' ? 'info' : b.direction === 'RX' ? 'success' : 'warning'} caps>
                 {b.direction === 'TX_RX' ? 'Both' : b.direction}
-              </span>
+              </Badge>
             </div>
           ))}
           {!selectedConnector.bindings.length && (

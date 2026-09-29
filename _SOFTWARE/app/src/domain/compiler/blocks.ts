@@ -256,6 +256,11 @@ export interface CompiledBlocks {
   readonly arenaBytes: number
 }
 
+/** Blocks that keep one state over time: a loop body runs N times in one pass, so they cannot serve each turn. */
+const NOT_IN_LOOP = new Set(['TIMER', 'PERIODIC'])
+/** Blocks that work in a loop but act once per turn, which is rarely what a first-time user expects. */
+const ONCE_PER_TURN = new Set(['EDGE', 'LATCH', 'IO_TOGGLE', 'ACTION', 'ON_EVENT'])
+
 const align = (size: number, to: number): number => Math.ceil(size / to) * to
 
 export const encodeBlocks = (plan: BlockPlan, objects: ObjectLayout, accessors: AccessorLayout, catalog: VmCatalog): CompiledBlocks => {
@@ -294,6 +299,8 @@ export const encodeBlocks = (plan: BlockPlan, objects: ObjectLayout, accessors: 
 
     // Loop spans: a FOR runs the `body` blocks after it, inside any loop around it.
     while (loops.length && loops.at(-1)!.end <= wireId) loops.pop()
+    if (loops.length && NOT_IN_LOOP.has(type.key)) error(`it keeps one state, so it cannot run once per turn of loop '${loops.at(-1)!.id}'. Put it outside the loop.`)
+    else if (loops.length && ONCE_PER_TURN.has(type.key)) diagnostics.push({ severity: 'warning', blockId: block.id, message: `Block '${block.id}' (${type.title}): it acts on every turn of loop '${loops.at(-1)!.id}', not once per pass.` })
     let span: PlacedBlock['span']
     if (type.fields.some((field) => field.source === 'derived' && field.cType === 'vm_span_t')) {
       const body = block.body ?? 0

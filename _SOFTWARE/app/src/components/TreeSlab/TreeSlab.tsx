@@ -16,6 +16,10 @@ export interface TreeSlabProps {
   disclosurePosition?: 'right' | 'left'
   /** Trailing action buttons (e.g. delete trash button) */
   actions?: React.ReactNode
+  /** Prevent selection or activation (for unavailable palette entries). */
+  disabled?: boolean
+  /** Optional semantic role for flat palettes. */
+  role?: React.AriaRole
   /** Selection state */
   selected?: boolean
   /** Folder style variant */
@@ -61,6 +65,8 @@ export const TreeSlab: React.FC<TreeSlabProps> = ({
   disclosure,
   disclosurePosition = 'right',
   actions,
+  disabled = false,
+  role,
   selected = false,
   isFolder = false,
   isReference = false,
@@ -86,13 +92,13 @@ export const TreeSlab: React.FC<TreeSlabProps> = ({
   ariaLabel,
   children,
 }) => {
-  const hasBadges = Boolean(badges) || Boolean(actions)
+  const hasBadges = Boolean(badges)
   const computedTitle = title || (typeof label === 'string' ? label : undefined)
 
   const rowClasses = [
     'tree-slab-row',
-    'object-tree-row',
     hasBadges ? 'has-badges' : '',
+    disabled ? 'is-disabled' : '',
     twoRowOnNarrow ? 'two-row-narrow' : '',
     twoRow ? 'two-row' : '',
     selected ? 'selected' : '',
@@ -113,13 +119,16 @@ export const TreeSlab: React.FC<TreeSlabProps> = ({
   return (
     <div
       className={rowClasses}
-      draggable={draggable}
+      role={role}
+      title={computedTitle}
+      draggable={disabled ? false : draggable}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       onClick={(e) => {
+        if (disabled) return
         if ((e.target as HTMLElement).closest('.tree-slab-disclosure, .tree-slab-action, .tree-slab-item')) {
           return
         }
@@ -129,9 +138,10 @@ export const TreeSlab: React.FC<TreeSlabProps> = ({
       {disclosurePosition === 'left' && disclosure}
       <button
         type="button"
-        className={`tree-slab-item object-tree-item ${itemClassName}`.trim()}
+        className={`tree-slab-item ${itemClassName}`.trim()}
         aria-label={ariaLabel || computedTitle}
         aria-current={selected ? 'true' : undefined}
+        disabled={disabled}
         onClick={onClick}
         onDoubleClick={onDoubleClick}
       >
@@ -142,7 +152,7 @@ export const TreeSlab: React.FC<TreeSlabProps> = ({
             {icon && <span className="tree-slab-icon">{icon}</span>}
             <div className="tree-slab-content">
               <div className="tree-slab-header">
-                <span className="tree-slab-label object-tree-name" title={computedTitle}>
+                <span className="tree-slab-label" title={computedTitle}>
                   {label}
                 </span>
                 {disclosurePosition === 'right' && disclosure && (

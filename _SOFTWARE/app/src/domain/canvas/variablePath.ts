@@ -53,8 +53,9 @@ const resolveName = (project: ProjectDocument, text: string): string | undefined
   const byPath: string[] = []
   const byName: string[] = []
   walkObjects(project.objects, (node: ObjectNode, ancestors: readonly FolderNode[]) => {
-    if ([...ancestors.map((folder) => folder.name), node.name].join('.') === text) byPath.push(node.id)
-    if (node.name === text) byName.push(node.id)
+    // A name with stray spaces (`Speed `) still reads as the name the user sees.
+    if ([...ancestors.map((folder) => folder.name.trim()), node.name.trim()].join('.') === text) byPath.push(node.id)
+    if (node.name.trim() === text) byName.push(node.id)
     if (node.id === text) byPath.push(node.id)
   })
   return byPath[0] ?? (byName.length === 1 ? byName[0] : undefined)

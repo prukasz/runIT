@@ -1,4 +1,5 @@
 import { AlertCircle, CheckCircle2, Loader2, Plug, Unplug, WifiOff } from 'lucide-react'
+import { PanelHeader } from './components/PanelHeader'
 import type { BleDeviceConnection } from './useBleDeviceConnection'
 
 export interface BleConnectPanelProps {
@@ -30,11 +31,7 @@ export function BleConnectPanel({ connection, onApplyProfile, hasUnappliedChange
 
   return (
     <div className="ble-connect-panel">
-      <div className="object-details-header">
-        <span className="object-type-icon text" title="BLE Connection">
-          <Plug aria-hidden="true" />
-        </span>
-        <h2>BLE Connection</h2>
+      <PanelHeader icon={<span className="object-type-icon text" title="BLE Connection"><Plug aria-hidden="true" /></span>} title="BLE Connection">
         <span className={`ble-conn-badge ${isConnected ? 'connected' : isConnecting ? 'connecting' : 'disconnected'}`}>
           {isConnected ? (
             <>
@@ -50,7 +47,7 @@ export function BleConnectPanel({ connection, onApplyProfile, hasUnappliedChange
             </>
           )}
         </span>
-      </div>
+      </PanelHeader>
 
       {promptMessage && (
         <div className="ble-conn-prompt-alert" role="alert">

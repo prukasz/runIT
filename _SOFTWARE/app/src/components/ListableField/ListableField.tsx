@@ -1,5 +1,6 @@
 import React from 'react'
 import { ChevronDown, Lock } from 'lucide-react'
+import { SelectField } from '../FormField'
 import './ListableField.css'
 
 export interface ListableOptionObject {
@@ -41,8 +42,8 @@ export const ListableField: React.FC<ListableFieldProps> = ({
   const computedIconTitle = iconTitle || (isBlocked ? 'Locked dropdown' : 'Select option')
 
   return (
-    <div className={`listable-field-wrap ${statusClass} ${className}`.trim()}>
-      <select
+    <div className={`adorned-field-wrap listable-field-wrap ${statusClass} ${className}`.trim()}>
+      <SelectField
         className={`listable-field-select ${selectClassName}`.trim()}
         value={value}
         disabled={disabled}
@@ -62,13 +63,13 @@ export const ListableField: React.FC<ListableFieldProps> = ({
             </option>
           )
         })}
-      </select>
+      </SelectField>
       {showIcon && (
-        <span className="listable-field-icon-slot" title={computedIconTitle}>
+        <span className="field-adornment-slot" title={computedIconTitle}>
           {isBlocked ? (
-            <Lock className="listable-field-icon is-blocked" aria-hidden="true" />
+            <Lock className="field-adornment-icon is-blocked" aria-hidden="true" />
           ) : (
-            <ChevronDown className="listable-field-icon is-editable" aria-hidden="true" />
+            <ChevronDown className="field-adornment-icon is-editable" aria-hidden="true" />
           )}
         </span>
       )}

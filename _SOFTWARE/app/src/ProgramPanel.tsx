@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { PanelHeader } from './components/PanelHeader'
+import { Button } from './components/Button'
+import { TextField } from './components/FormField'
 import { AlertCircle, AlertTriangle, Pause, Play, Upload } from 'lucide-react'
 import { packExec } from './domain/compiler'
 import type { ObjectLayout } from './domain/compiler'
@@ -8,7 +11,6 @@ import type { DeviceCatalog } from './domain/descriptors'
 import { serializeProject } from './domain/project'
 import { nameIds } from './domain/canvas'
 import type { ActionStep, ProjectCanvas, ProjectDevice, ProjectSettings } from './domain/project'
-import type { RecoveredCode } from './domain/storedCode'
 import { planVmUpload } from './domain/upload'
 import { StoredCodeSection } from './StoredCodeSection'
 import type { BoardCodeState } from './useBoardCode'
@@ -47,10 +49,9 @@ interface Props {
   readonly setup: readonly ActionStep[]
   /** The canvases: their blocks are the program. */
   readonly canvases: readonly ProjectCanvas[]
-  readonly onRecover: (recovered: RecoveredCode, autostart: boolean) => void
 }
 
-export function ProgramPanel({ workspace: w, connection, board, settings, devices, deviceCatalog, setup, canvases, onRecover }: Props) {
+export function ProgramPanel({ workspace: w, connection, board, settings, devices, deviceCatalog, setup, canvases }: Props) {
   const project = useMemo(() => ({ ...w.project, canvases }), [w.project, canvases])
   const [maxFrameBytes, setMaxFrameBytes] = useState(DEFAULT_MAX_FRAME_BYTES)
   const [busy, setBusy] = useState(false)
@@ -115,10 +116,7 @@ export function ProgramPanel({ workspace: w, connection, board, settings, device
 
   return (
     <div className="program-panel">
-      <div className="object-details-header">
-        <span className="object-type-icon text"><Upload aria-hidden="true" /></span>
-        <h2>Program</h2>
-      </div>
+      <PanelHeader icon={<span className="object-type-icon text"><Upload aria-hidden="true" /></span>} title="Program" />
 
       <div className="object-details-section">
         <h3>Build</h3>
@@ -132,7 +130,7 @@ export function ProgramPanel({ workspace: w, connection, board, settings, device
           <div><dt>Subscribed</dt><dd>{plan.subscribed.length}</dd></div>
           <div>
             <dt>Frame size</dt>
-            <dd><input type="number" min={16} max={MAX_FRAME_BYTES} value={maxFrameBytes} onChange={(event) => setMaxFrameBytes(Math.max(16, Math.min(MAX_FRAME_BYTES, Math.floor(Number(event.target.value)) || DEFAULT_MAX_FRAME_BYTES)))} /> B</dd>
+            <dd><TextField type="number" min={16} max={MAX_FRAME_BYTES} value={maxFrameBytes} onChange={(event) => setMaxFrameBytes(Math.max(16, Math.min(MAX_FRAME_BYTES, Math.floor(Number(event.target.value)) || DEFAULT_MAX_FRAME_BYTES)))} /> B</dd>
           </div>
         </dl>
         {errors.map((entry, index) => <p key={`e${index}`} className="program-diag is-error"><AlertCircle aria-hidden="true" />{nameIds(entry.message, project)}</p>)}
@@ -144,11 +142,11 @@ export function ProgramPanel({ workspace: w, connection, board, settings, device
         {!session && <p className="program-muted">{connection.isConnected ? 'Connected, but the board has no runIT command channel.' : 'Connect a board to upload.'}</p>}
         {uploaded && uploaded.source !== source && <p className="program-diag is-warning"><AlertTriangle aria-hidden="true" />The project changed since the upload.</p>}
         <div className="program-actions">
-          <button className="program-primary" disabled={!session || !plan.ok || !plan.steps.length || busy} onClick={() => void upload()} title={!plan.ok ? 'Fix the errors first' : plan.steps.length ? 'Load the program (stops a running one first)' : 'The program is empty'}>
+          <Button variant="primary" disabled={!session || !plan.ok || !plan.steps.length || busy} onClick={() => void upload()} title={!plan.ok ? 'Fix the errors first' : plan.steps.length ? 'Load the program (stops a running one first)' : 'The program is empty'}>
             <Upload aria-hidden="true" /><span>{progress ? `${progress.done}/${progress.total}` : 'Upload'}</span>
-          </button>
-          <button disabled={!session || !uploaded || busy} onClick={() => void exec('NORMAL_MODE', 'Program running.')}><Play aria-hidden="true" /><span>Run</span></button>
-          <button disabled={!session || !uploaded || busy} onClick={() => void exec('PAUSE', 'Program paused.')}><Pause aria-hidden="true" /><span>Pause</span></button>
+          </Button>
+          <Button disabled={!session || !uploaded || busy} onClick={() => void exec('NORMAL_MODE', 'Program running.')}><Play aria-hidden="true" /><span>Run</span></Button>
+          <Button disabled={!session || !uploaded || busy} onClick={() => void exec('PAUSE', 'Program paused.')}><Pause aria-hidden="true" /><span>Pause</span></Button>
         </div>
       </div>
 
@@ -163,7 +161,6 @@ export function ProgramPanel({ workspace: w, connection, board, settings, device
         session={session}
         maxFrameBytes={maxFrameBytes}
         setAutostart={w.setAutostart}
-        onRecover={onRecover}
         note={note}
       />
 

@@ -1,5 +1,9 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, ListChecks, Plus, Search, Trash2, X } from 'lucide-react'
+import { Badge } from '../components/Badge'
+import { Button } from '../components/Button'
+import { PaletteSearch } from '../components/PaletteSearch'
+import { PaletteSectionHeader } from '../components/PaletteSectionHeader'
+import { ListChecks, Plus, Trash2 } from 'lucide-react'
 import { TreeSlab } from '../components/TreeSlab'
 import { boardDeviceRef } from '../domain/project'
 import { DeviceTile } from './DeviceTile'
@@ -33,14 +37,7 @@ export function DevicesPalette({ workspace: w }: { workspace: DevicesWorkspace }
   const actions = w.actions.filter((action) => matches(query, action.name, String(action.actionId)))
 
   const folder = (key: Folder, label: string, count: number, add?: { title: string; onClick: () => void }) => (
-    <div className="devices-folder-heading">
-      <button type="button" className="devices-folder-toggle" onClick={() => toggle(key)} aria-expanded={!collapsed.has(key)}>
-        {collapsed.has(key) ? <ChevronRight aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
-        <span>{label}</span>
-        <em>{count}</em>
-      </button>
-      {add && <button type="button" className="devices-folder-add" title={add.title} aria-label={add.title} onClick={add.onClick}><Plus aria-hidden="true" /></button>}
-    </div>
+    <PaletteSectionHeader label={label} count={count} open={!collapsed.has(key)} onToggle={() => toggle(key)} addAction={add && { label: add.title, onClick: add.onClick }} />
   )
 
   return (
@@ -55,11 +52,7 @@ export function DevicesPalette({ workspace: w }: { workspace: DevicesWorkspace }
         </div>
       ) : (
         <div className="devices-palette-body">
-          <div className="object-tree-search-bar">
-            <Search className="search-icon" aria-hidden="true" />
-            <input type="text" placeholder="Search devices & actions..." aria-label="Search devices and actions" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') setQuery('') }} />
-            {query && <button type="button" className="search-clear-btn" title="Clear search" aria-label="Clear search" onClick={() => setQuery('')}><X aria-hidden="true" /></button>}
-          </div>
+          <PaletteSearch value={query} onChange={setQuery} placeholder="Search devices & actions..." label="Search devices and actions" />
 
           <div className="object-tree-scroll" role="navigation" aria-label="Devices and actions">
             {folder('system', 'System devices', board.length)}
@@ -73,7 +66,7 @@ export function DevicesPalette({ workspace: w }: { workspace: DevicesWorkspace }
                     icon={<DeviceTile type={device.type} size="small" />}
                     label={device.name}
                     title={device.title}
-                    badges={<><span className="conn-system-label">SYS</span><span className="ble-uuid-chip">#{device.deviceId}</span></>}
+                    badges={<><Badge tone="system">SYS</Badge><Badge push>#{device.deviceId}</Badge></>}
                   />
                 ))}
               </div>
@@ -91,11 +84,11 @@ export function DevicesPalette({ workspace: w }: { workspace: DevicesWorkspace }
                     icon={<DeviceTile appearance={device.appearance} type={w.catalog.type(device.type)} size="small" />}
                     label={deviceDisplayName(w.catalog, device)}
                     title={w.catalog.type(device.type)?.title}
-                    badges={<>{w.diagnostics.some((entry) => entry.severity === 'error' && (entry.subjectId === device.id || entry.subjectId === `setup:${device.id}`)) && <span className="devices-error-dot" title="Has problems" />}<span className="ble-uuid-chip">#{device.deviceId}</span></>}
+                    badges={<>{w.diagnostics.some((entry) => entry.severity === 'error' && (entry.subjectId === device.id || entry.subjectId === `setup:${device.id}`)) && <span className="devices-error-dot" title="Has problems" />}<Badge push>#{device.deviceId}</Badge></>}
                     actions={<button type="button" className="tree-slab-action" title="Delete device" aria-label={`Delete ${deviceDisplayName(w.catalog, device)}`} onClick={(event) => { event.stopPropagation(); w.removeDevice(device.id) }}><Trash2 aria-hidden="true" /></button>}
                   />
                 ))}
-                {!w.devices.length && <button type="button" className="devices-empty-add" onClick={() => w.select({ kind: 'add' })}><Plus aria-hidden="true" />Add a device</button>}
+                {!w.devices.length && <Button variant="dashed" block onClick={() => w.select({ kind: 'add' })}><Plus aria-hidden="true" />Add a device</Button>}
               </div>
             )}
 
@@ -110,7 +103,7 @@ export function DevicesPalette({ workspace: w }: { workspace: DevicesWorkspace }
                     onDoubleClick={() => w.compose(action.id)}
                     icon={<span className="object-type-icon text"><ListChecks aria-hidden="true" /></span>}
                     label={action.name}
-                    badges={<><span className="ble-uuid-chip">{action.steps.length} steps</span><span className="ble-uuid-chip">ID {action.actionId}</span></>}
+                    badges={<><Badge tone="count">{action.steps.length} steps</Badge><Badge>ID {action.actionId}</Badge></>}
                     actions={<button type="button" className="tree-slab-action" title="Delete action" aria-label={`Delete ${action.name}`} onClick={(event) => { event.stopPropagation(); w.removeAction(action.id) }}><Trash2 aria-hidden="true" /></button>}
                   />
                 ))}

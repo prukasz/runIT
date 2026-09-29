@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { PanelHeader } from '../components/PanelHeader'
+import { Badge } from '../components/Badge'
+import { Button } from '../components/Button'
 import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Download, ListPlus, Send, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { decodeResponseData } from '../domain/descriptors'
 import type { DeviceContract } from '../domain/descriptors'
@@ -48,7 +51,7 @@ export function DeviceDetails({ workspace: w, session }: { workspace: DevicesWor
   if (!device) {
     return (
       <div className="program-panel devices-details">
-        <div className="object-details-header"><h2>Commands</h2></div>
+        <PanelHeader title="Commands" />
         <p className="devices-muted">Select a device on the left to send it commands.</p>
       </div>
     )
@@ -56,11 +59,9 @@ export function DeviceDetails({ workspace: w, session }: { workspace: DevicesWor
 
   return (
     <div className="program-panel devices-details">
-      <div className="object-details-header">
-        <DeviceTile appearance={w.devices.find((entry) => entry.id === ref)?.appearance} type={device.type} size="small" />
-        <h2>{device.name}</h2>
-        <span className="ble-uuid-chip">#{device.deviceId}</span>
-      </div>
+      <PanelHeader icon={<DeviceTile appearance={w.devices.find((entry) => entry.id === ref)?.appearance} type={device.type} size="small" />} title={device.name}>
+        <Badge push>#{device.deviceId}</Badge>
+      </PanelHeader>
       {!session && <p className="devices-notice">Connect a board to send commands.</p>}
       {w.composing && <p className="devices-notice is-accent">Adding to <strong>{w.composing.name}</strong>: use "Add to action" on a command.</p>}
       <Commands key={device.ref} workspace={w} device={device} session={session} />
@@ -124,10 +125,10 @@ function Commands({ workspace: w, device, session }: { workspace: DevicesWorkspa
             <ContractFields contract={contract} values={valuesOf(contract)} actions={w.actions} onChange={(next) => setValues((current) => ({ ...current, [contract.id]: next }))} />
             {contract.returns && <p className="devices-hint">Returns {contract.returns.split(' @')[0]}</p>}
             <div className="program-actions">
-              <button type="button" className="program-primary" disabled={!session || busy} onClick={() => void run(contract.id, contract.label, one(contract))}><Send aria-hidden="true" /><span>Send</span></button>
-              <button type="button" onClick={() => w.compose(w.composing?.id, { device: device.ref, contract: contract.id, values: valuesOf(contract) })} title={w.composing ? `Add to ${w.composing.name}` : 'Start a new action with this command'}>
+              <Button variant="primary" disabled={!session || busy} onClick={() => void run(contract.id, contract.label, one(contract))}><Send aria-hidden="true" /><span>Send</span></Button>
+              <Button onClick={() => w.compose(w.composing?.id, { device: device.ref, contract: contract.id, values: valuesOf(contract) })} title={w.composing ? `Add to ${w.composing.name}` : 'Start a new action with this command'}>
                 <ListPlus aria-hidden="true" /><span>Add to action</span>
-              </button>
+              </Button>
             </div>
             {result && <p className={`program-diag ${result.ok ? '' : 'is-error'}`}>{result.ok ? null : <AlertCircle aria-hidden="true" />}{result.text}</p>}
           </div>
@@ -144,20 +145,20 @@ function Commands({ workspace: w, device, session }: { workspace: DevicesWorkspa
         <div className="devices-command-buttons">
           {project && device.type && (
             <>
-              <button type="button" className="is-primary" disabled={!session || busy || installProblems} title={installProblems ? 'Fix the device configuration first' : 'Install with the configuration from the main view'}
-                onClick={() => void run('device', 'Install', [{ frame: installFrame(device.type!, project), label: 'install' }])}><Download aria-hidden="true" />Install</button>
-              {lifecycle('uninstall') && <button type="button" disabled={!session || busy} onClick={() => void run('device', 'Uninstall', one(lifecycle('uninstall')!))}><Trash2 aria-hidden="true" />Uninstall</button>}
+              <Button variant="primary" size="sm" disabled={!session || busy || installProblems} title={installProblems ? 'Fix the device configuration first' : 'Install with the configuration from the main view'}
+                onClick={() => void run('device', 'Install', [{ frame: installFrame(device.type!, project), label: 'install' }])}><Download aria-hidden="true" />Install</Button>
+              {lifecycle('uninstall') && <Button size="sm" disabled={!session || busy} onClick={() => void run('device', 'Uninstall', one(lifecycle('uninstall')!))}><Trash2 aria-hidden="true" />Uninstall</Button>}
             </>
           )}
           {defaults.length > 0 && (
-            <button type="button" disabled={!session || busy || setupProblems} title="Send this device's default settings now (the stored code sets them at every boot)"
+            <Button size="sm" disabled={!session || busy || setupProblems} title="Send this device's default settings now (the stored code sets them at every boot)"
               onClick={() => void run('device', 'Default settings', defaults.flatMap((step) => {
                 const contract = findContract(w.catalog, device, step.contract)
                 return contract ? [{ frame: contractFrame(contract, device.deviceId, step.values), contract, label: describeStep(w.catalog, w.devices, step) }] : []
-              }))}><SlidersHorizontal aria-hidden="true" />Apply defaults ({defaults.length})</button>
+              }))}><SlidersHorizontal aria-hidden="true" />Apply defaults ({defaults.length})</Button>
           )}
           {quick.map((contract) => (
-            <button key={contract.id} type="button" disabled={!session || busy} title={contract.description} onClick={() => void run('device', contract.label, one(contract))}>{contract.label.replace(/^./, (c) => c.toUpperCase())}</button>
+            <Button key={contract.id} size="sm" disabled={!session || busy} title={contract.description} onClick={() => void run('device', contract.label, one(contract))}>{contract.label.replace(/^./, (c) => c.toUpperCase())}</Button>
           ))}
         </div>
         {deviceResult && <p className={`program-diag ${deviceResult.ok ? '' : 'is-error'}`}>{deviceResult.ok ? null : <AlertCircle aria-hidden="true" />}{deviceResult.text}</p>}

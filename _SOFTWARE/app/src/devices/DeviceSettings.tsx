@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { Card } from '../components/Card'
+import { SelectField } from '../components/FormField'
 import { ArrowRight, Lock, Plus, Trash2 } from 'lucide-react'
 import type { DeviceChoice } from '../domain/descriptors'
 import { contractsOf, findContract, isSetupContract, pinKey, pinsOf, pinUsers, resolveDevice, SET_ERROR_HANDLING } from '../domain/devices'
@@ -40,14 +42,13 @@ function DevicePill({ w, deviceRef, name, detail }: { w: DevicesWorkspace; devic
 export function BoardInstallCard({ w, device }: { w: DevicesWorkspace; device: ResolvedDevice }) {
   const board = w.catalog.board.find((entry) => boardDeviceRef(entry.deviceId) === device.ref)
   return (
-    <div className="ble-card">
-      <h3>Installed by the board</h3>
+    <Card title="Installed by the board">
       {!board?.installed && <p className="devices-muted">Not installed on this board.</p>}
       <dl className="devices-facts">
         {board?.i2c && <div><dt>I2C</dt><dd>bus {board.i2c.bus}{board.i2c.bus === w.catalog.i2cBuses.internal ? ' (internal)' : ''} · {hex2(board.i2c.address)}</dd></div>}
         {device.type && <div><dt>Provides</dt><dd>{device.type.provider?.label ?? '—'}</dd></div>}
       </dl>
-    </div>
+    </Card>
   )
 }
 
@@ -67,8 +68,7 @@ export function PinsUsedCard({ w, device }: { w: DevicesWorkspace; device: Resol
   }
   if (!links.length) return null
   return (
-    <div className="ble-card devices-refs-card">
-      <h3>Pins it uses</h3>
+    <Card title="Pins it uses" className="devices-refs-card">
       <div className="devices-ref-grid">
         {links.map((link) => {
           const ref = refOf(w, link.deviceId)
@@ -83,7 +83,7 @@ export function PinsUsedCard({ w, device }: { w: DevicesWorkspace; device: Resol
           )
         })}
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -120,8 +120,7 @@ export function DefaultSettingsCard({ w, device }: { w: DevicesWorkspace; device
   if (!table && !addable.length) return null
 
   return (
-    <div className="ble-card">
-      <h3>Default settings</h3>
+    <Card title="Default settings">
       <p className="devices-muted">Device defaults apply at boot; project settings run after installation.</p>
       {problems.map((entry, index) => <p key={index} className={`program-diag ${entry.severity === 'error' ? 'is-error' : 'is-warning'}`}>{entry.message}</p>)}
 
@@ -147,18 +146,18 @@ export function DefaultSettingsCard({ w, device }: { w: DevicesWorkspace; device
                     <span role="cell">
                       {defaultChoice && modes.length === 1 && !modeStep
                         ? <span className="devices-pin-default">{defaultChoice.label}<small>Device default</small></span>
-                        : <select aria-label={`Pin ${pin.value} mode`} value={typeof modeStep?.values.mode === 'number' ? modeStep.values.mode : ''} onChange={(event) => w.setPinMode(device.ref, pin.value, event.target.value === '' ? undefined : Number(event.target.value))}>
+                        : <SelectField aria-label={`Pin ${pin.value} mode`} value={typeof modeStep?.values.mode === 'number' ? modeStep.values.mode : ''} onChange={(event) => w.setPinMode(device.ref, pin.value, event.target.value === '' ? undefined : Number(event.target.value))}>
                           <option value="">{defaultChoice ? `${defaultChoice.label} (device default)` : '— not set —'}</option>
                           {modes.map((choice) => <option key={choice.value} value={choice.value} title={choice.description}>{choice.label}</option>)}
-                        </select>}
+                        </SelectField>}
                     </span>
                     <span role="cell">
                       {setLevel && isOutput(mode) && (
-                        <select aria-label={`Pin ${pin.value} level`} value={levelStep === undefined ? '' : String(levelStep.values.level ?? 0)} onChange={(event) => w.setPinLevel(device.ref, pin.value, event.target.value === '' ? undefined : event.target.value === '1')}>
+                        <SelectField aria-label={`Pin ${pin.value} level`} value={levelStep === undefined ? '' : String(levelStep.values.level ?? 0)} onChange={(event) => w.setPinLevel(device.ref, pin.value, event.target.value === '' ? undefined : event.target.value === '1')}>
                           <option value="">—</option>
                           <option value="0">Low</option>
                           <option value="1">High</option>
-                        </select>
+                        </SelectField>
                       )}
                     </span>
                   </>
@@ -184,10 +183,10 @@ export function DefaultSettingsCard({ w, device }: { w: DevicesWorkspace; device
 
       {addable.length > 0 && (
         <div className="devices-default-add">
-          <select value={adding} onChange={(event) => setAdding(event.target.value)} aria-label="Default to add">
+          <SelectField value={adding} onChange={(event) => setAdding(event.target.value)} aria-label="Default to add">
             <option value="">Add a default setting…</option>
             {addable.map((contract) => <option key={contract.id} value={contract.id}>{contract.label}</option>)}
-          </select>
+          </SelectField>
           <button type="button" disabled={!adding} onClick={() => {
             const contract = addable.find((entry) => entry.id === adding)
             if (contract) w.addSetup(device.ref, contract.id, initialValues(contract))
@@ -195,6 +194,6 @@ export function DefaultSettingsCard({ w, device }: { w: DevicesWorkspace; device
           }}><Plus aria-hidden="true" />Add</button>
         </div>
       )}
-    </div>
+    </Card>
   )
 }

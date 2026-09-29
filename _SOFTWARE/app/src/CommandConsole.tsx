@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { SelectField, TextField } from './components/FormField'
 import type { PacketStructValues, PacketValue } from './backend/packetPack'
 import { CommandError } from './backend/protocol'
 import type { CommandEvent, CommandResponse } from './backend/protocol'
@@ -150,7 +151,7 @@ export default function CommandConsole({ session }: Props) {
       </p>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <select aria-label="Command" value={commandId} onChange={(event) => selectCommand(event.target.value)}>
+        <SelectField aria-label="Command" value={commandId} onChange={(event) => selectCommand(event.target.value)}>
           {catalog.groups.map((group) => (
             <optgroup key={`${group.source}-${group.id}`} label={`${group.title} (class 0x${group.classHeader.toString(16).padStart(2, '0')})`}>
               {catalog.commands.filter((entry) => entry.group === group).map((entry) => (
@@ -158,10 +159,10 @@ export default function CommandConsole({ session }: Props) {
               ))}
             </optgroup>
           ))}
-        </select>
+        </SelectField>
         <label className="flex items-center gap-1 text-xs text-slate-400">
           Timeout ms
-          <input className="w-20" value={timeoutMs} onChange={(event) => setTimeoutMs(event.target.value)} />
+          <TextField className="w-20" value={timeoutMs} onChange={(event) => setTimeoutMs(event.target.value)} />
         </label>
       </div>
 
@@ -172,14 +173,14 @@ export default function CommandConsole({ session }: Props) {
               <span className="text-slate-300">{field.label}{field.required ? ' *' : ''}</span>
               <span className="flex flex-col gap-1">
                 {field.choices && field.kind === 'number' ? (
-                  <select value={inputs[field.name] ?? ''} onChange={(event) => setInputs((values) => ({ ...values, [field.name]: event.target.value }))}>
+                  <SelectField value={inputs[field.name] ?? ''} onChange={(event) => setInputs((values) => ({ ...values, [field.name]: event.target.value }))}>
                     <option value="">{field.required ? '— choose —' : `default (${field.fallback})`}</option>
                     {field.choices.map((choice) => (
                       <option key={choice.symbol} value={String(choice.value)} title={choice.description}>{`${choice.value} · ${choice.alias ?? choice.symbol}`}</option>
                     ))}
-                  </select>
+                  </SelectField>
                 ) : (
-                  <input
+                  <TextField
                     value={inputs[field.name] ?? ''}
                     placeholder={field.kind === 'array' ? 'values separated by spaces or commas' : field.required ? '' : String(field.fallback)}
                     onChange={(event) => setInputs((values) => ({ ...values, [field.name]: event.target.value }))}
@@ -194,7 +195,7 @@ export default function CommandConsole({ session }: Props) {
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-3">
-        <input aria-label="Raw command body" className="min-w-64 flex-1" value={rawBody} onChange={(event) => setRawBody(event.target.value)} placeholder="raw [class][packet][payload], e.g. 01 24 03 04" />
+        <TextField aria-label="Raw command body" className="min-w-64 flex-1" value={rawBody} onChange={(event) => setRawBody(event.target.value)} placeholder="raw [class][packet][payload], e.g. 01 24 03 04" />
         <button disabled={!session} onClick={() => send('raw', () => hexToBytes(rawBody))}>Send raw</button>
       </div>
 
