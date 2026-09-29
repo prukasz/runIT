@@ -1,7 +1,7 @@
 import { arrangeProgram } from '../../domain/canvas'
 import { compileProgram } from '../../domain/compiler'
 import type { Diagnostic } from '../../domain/compiler'
-import { blockPinAt, runitDeviceCatalog } from '../../domain/descriptors'
+import { blockPinAt, enumAlias, runitDeviceCatalog } from '../../domain/descriptors'
 import type { DeviceCatalog, VmBlockPins, VmBlockType, VmCatalog } from '../../domain/descriptors'
 import { GRID } from '../../domain/canvas'
 import { decompileExpression, expressionLanguage } from '../../domain/expression'
@@ -57,11 +57,33 @@ export const blockSummary = (type: VmBlockType | undefined, block: ProgramBlock,
     }
     const members = field.enumRef ? type.enums.get(field.enumRef) : undefined
     const member = members?.find((entry) => entry.value === value || entry.name === value || entry.name.endsWith(`_${value}`))
-    const label = member ? member.name.replace(/^VM_[A-Z]+_(?:UNIT_)?/, '') : String(value)
+    const label = member ? enumAlias(member.name.replace(/^VM_[A-Z]+_(?:UNIT_)?/, '')) : String(value)
     return `${field.name.replace(/^k_/, '').replace(/_/g, ' ')}: ${label}`
   })
   if (type.fields.some((field) => field.source === 'derived' && field.cType === 'vm_span_t')) summary.push(`body: ${block.body ?? 0} blocks`)
   return summary
+}
+
+/** A setting the way the block shows it: an enum member's short name, else the number. */
+const settingText = (type: VmBlockType, block: ProgramBlock, name: string): string => {
+  const field = type.fields.find((entry) => entry.name === name)
+  const value = block.settings?.[name] ?? 0
+  const member = field?.enumRef ? type.enums.get(field.enumRef)?.find((entry) => entry.value === value || entry.name === value || entry.name.endsWith(`_${value}`)) : undefined
+  return member ? enumAlias(member.name.replace(/^VM_[A-Z]+_(?:UNIT_)?/, '')) : String(value)
+}
+
+/** The block's title with its main settings, for the block face: `Every 100 MS`. Nothing to add for a block without settings worth a glance. */
+export const blockHeadline = (type: VmBlockType | undefined, block: ProgramBlock): string | undefined => {
+  if (!type) return undefined
+  const text = (name: string) => settingText(type, block, name)
+  switch (type.key) {
+    case 'PERIODIC': return `Every ${text('period')} ${text('time_base')}`
+    case 'TIMER': return `Timer ${text('mode')} ${text('pt')} ${text('time_base')}`
+    case 'EDGE': return `${text('edge_type')} edge, change ${text('change_by')}`
+    case 'LATCH': return `Latch ${text('mode')}`
+    case 'FOR': return `For ${text('k_start')} to ${text('k_end')} step ${text('k_step')}`
+    default: return undefined
+  }
 }
 
 /** Pins the block has: as many as wired or chosen, at least the minimum and every listed pin, at most the maximum (like the compiler). */

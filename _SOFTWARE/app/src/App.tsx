@@ -20,6 +20,7 @@ import { OBJECT_DRAG_TYPE, objectKindDragType } from './domain/canvas'
 import { runitVmCatalog } from './domain/descriptors'
 import CommandConsole from './CommandConsole'
 import DiagnosticsConsole from './DiagnosticsConsole'
+import { sampleProject } from './sampleProject'
 import { useSettingsSync } from './useSettingsSync'
 import { useBoardCode } from './useBoardCode'
 import { addObject, createProject, parseProject, serializeProject } from './domain/project'
@@ -29,6 +30,9 @@ import { refreshSettings, settingsFromState, settingsState } from './domain/sett
 import type { RecoveredCode } from './domain/storedCode'
 import './styles/theme.css'
 import './App.css'
+
+/** Browser storage key of the project a replace (new, open, import, recover) put aside. */
+const PREVIOUS_KEY = 'runit.project.previous'
 
 const views = [
   { name: 'File', icon: FolderOpen },
@@ -121,20 +125,45 @@ export default function App() {
     devicesWorkspace.load({ devices: project.devices ?? [], deviceAliases: project.deviceAliases, actions: project.actions ?? [], setup: project.setup ?? [] })
     canvasWorkspace.load(project.canvases ?? [])
   }
+  const currentProject = (): ProjectDocument => ({ ...objectWorkspace.project, settings: projectSettings, devices: devicesWorkspace.devices, deviceAliases: devicesWorkspace.deviceAliases, actions: devicesWorkspace.actions, setup: devicesWorkspace.setup, canvases: canvasWorkspace.canvases })
+  // Replacing the project never asks: what was there is kept in the browser and comes back with Restore previous.
+  const [hasPrevious, setHasPrevious] = useState(() => { try { return !!localStorage.getItem(PREVIOUS_KEY) } catch { return false } })
+  const keepPrevious = () => {
+    try {
+      localStorage.setItem(PREVIOUS_KEY, serializeProject(currentProject()))
+      setHasPrevious(true)
+    } catch { /* storage unavailable: nothing to keep */ }
+  }
+  const restorePrevious = () => {
+    try {
+      const text = localStorage.getItem(PREVIOUS_KEY)
+      if (!text) return
+      keepPrevious()
+      applyProject(parseProject(text))
+    } catch (cause) {
+      window.alert(`Can't restore: ${cause instanceof Error ? cause.message : String(cause)}`)
+    }
+  }
   const newProject = () => {
-    if (!window.confirm('Start a new empty project? Save the current one first if you want to keep it.')) return
+    keepPrevious()
     applyProject(createProject('Untitled'))
+  }
+  const loadSample = () => {
+    keepPrevious()
+    applyProject(sampleProject())
   }
   const openProject = async (file: File | undefined) => {
     if (!file) return
     try {
-      applyProject(parseProject(await file.text()))
+      const opened = parseProject(await file.text())
+      keepPrevious()
+      applyProject(opened)
     } catch (cause) {
       window.alert(`Can't open ${file.name}: ${cause instanceof Error ? cause.message : String(cause)}`)
     }
   }
   const saveProject = () => {
-    const project = { ...objectWorkspace.project, settings: projectSettings, devices: devicesWorkspace.devices, deviceAliases: devicesWorkspace.deviceAliases, actions: devicesWorkspace.actions, setup: devicesWorkspace.setup, canvases: canvasWorkspace.canvases }
+    const project = currentProject()
     let text: string
     try {
       text = serializeProject(project)
@@ -151,6 +180,7 @@ export default function App() {
   }
   /** Code read back from a board becomes the project (recovery); the BLE general settings and the actions stay. */
   const recoverProject = (recovered: RecoveredCode, autostart: boolean) => {
+    keepPrevious()
     objectWorkspace.load({ ...recovered.project, autostart, extraFrames: recovered.extraFrames }, recovered.sections)
     loadSettings(settingsFromState(recovered.settings, projectSettings))
     devicesWorkspace.load({ devices: recovered.devices, deviceAliases: devicesWorkspace.deviceAliases, actions: devicesWorkspace.actions, setup: recovered.setup })
@@ -302,7 +332,7 @@ export default function App() {
           <button className="panel-toggle" aria-label={leftOpen ? 'Collapse explorer' : 'Expand explorer'} onClick={() => setLeftOpen(!leftOpen)}>{leftOpen ? <PanelLeftClose /> : <PanelLeftOpen />}</button>
         </div>
         {leftOpen && <div className="left-content" aria-label={`${view} explorer panel`}>
-          {view === 'File' && <ProjectFilePalette workspace={objectWorkspace} settings={projectSettings} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} setup={devicesWorkspace.setup} canvases={canvasWorkspace.canvases} board={boardCode} session={bleConnection.session} onNew={newProject} onOpen={(file) => void openProject(file)} onSave={saveProject} onRecover={recoverProject} />}
+          {view === 'File' && <ProjectFilePalette workspace={objectWorkspace} settings={projectSettings} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} setup={devicesWorkspace.setup} canvases={canvasWorkspace.canvases} board={boardCode} session={bleConnection.session} onNew={newProject} onOpen={(file) => void openProject(file)} onSave={saveProject} onRecover={recoverProject} canRestore={hasPrevious} onRestore={restorePrevious} onSample={loadSample} />}
           {view === 'Settings' && (
             <div className="settings-sidebar-wrapper">
               {settingsGroup === 'all' && (
@@ -511,7 +541,7 @@ export default function App() {
             />
           )}
           {view === 'Code' && codePalette === 'Variables' && codeMode === 'manage' && <ObjectTreeEditor workspace={objectWorkspace} />}
-          {view === 'File' && <ProjectFilePage workspace={objectWorkspace} settings={projectSettings} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} setup={devicesWorkspace.setup} canvases={canvasWorkspace.canvases} />}
+          {view === 'File' && <ProjectFilePage workspace={objectWorkspace} settings={projectSettings} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} setup={devicesWorkspace.setup} canvases={canvasWorkspace.canvases} onRecover={recoverProject} />}
           {view === 'Board' && <DevicesEditor workspace={devicesWorkspace} session={bleConnection.session} />}
           {view === 'Settings' && settingsGroup === 'BLE' && <BleSettingsEditor workspace={bleWorkspace} />}
           {view === 'Settings' && settingsGroup === 'all' && (
@@ -653,7 +683,7 @@ export default function App() {
               />
             )}
             {view === 'Code' && codePalette === 'Variables' && !isCanvas && detail === 'Info' && (
-              <ObjectDetails workspace={objectWorkspace} onJump={(id) => { setLeftOpen(true); objectWorkspace.select(id) }} />
+              <ObjectDetails workspace={objectWorkspace} onJump={(id) => { setLeftOpen(true); objectWorkspace.select(id) }} canvases={canvasWorkspace.canvases} onOpenBlock={(canvasId, blockId) => { setView('Code'); setCodeMode('canvas'); canvasWorkspace.reveal(canvasId, blockId) }} />
             )}
             {view === 'Settings' && settingsGroup === 'BLE' && detail === 'Info' && (
               <BleDetails workspace={bleWorkspace} onJump={(id) => { setLeftOpen(true); bleWorkspace.select(id) }} />

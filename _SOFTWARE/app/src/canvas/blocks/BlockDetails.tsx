@@ -6,7 +6,7 @@ import { InlineRename } from '../../components/InlineRename'
 import { AlertCircle, AlertTriangle, Minus, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { arrangeProgram, disconnect, nameIds, parsePathText, pathLabel, PathTextError, sourceOf } from '../../domain/canvas'
 import type { Diagnostic } from '../../domain/compiler'
-import { enumMemberLabels, runitVmCatalog } from '../../domain/descriptors'
+import { enumAlias, enumMemberLabels, runitVmCatalog } from '../../domain/descriptors'
 import type { VmBlockField, VmBlockType } from '../../domain/descriptors'
 import type { CanvasBlock, ObjectNode, ObjectPath, ProjectDevice, ProjectDocument } from '../../domain/project'
 import { findObject } from '../../domain/project'
@@ -467,7 +467,7 @@ export function BlockDetails({
                     <span>{humanize(field.name)}</span>
                     <SelectField value={current?.label ?? ''} onChange={(event) => setSetting(field.name, event.target.value)}>
                       {!current && <option value="">{String(raw)}?</option>}
-                      {choices.map((choice) => <option key={choice.value} value={choice.label}>{choice.label}</option>)}
+                      {choices.map((choice) => <option key={choice.value} value={choice.label}>{enumAlias(choice.label)}</option>)}
                     </SelectField>
                     {field.description && <em>{field.description}</em>}
                   </label>

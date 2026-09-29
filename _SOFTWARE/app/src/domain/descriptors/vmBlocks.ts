@@ -98,6 +98,13 @@ export const enumMemberLabels = (members: readonly { readonly name: string; read
   return members.map((member) => ({ label: member.name.slice(prefix.length) || member.name, value: member.value }))
 }
 
+/** How the app words an enum member: `SET_DOMINANT` → `Set dominant`. One-word members (`TON`, `MS`, `RISING`) are already short and stay. Stored values keep the label. */
+export const enumAlias = (label: string): string => {
+  if (!label.includes('_')) return label
+  const words = label.toLowerCase().split('_').join(' ')
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
 /** The pin descriptor for position `index`: a listed pin, or the last listed one repeated. */
 export const blockPinAt = (pins: VmBlockPins, index: number): VmBlockPin | undefined => pins.pins[index] ?? pins.pins.at(-1)
 

@@ -5,7 +5,7 @@ import type { Point, WireSource, WireTarget } from '../../domain/canvas'
 import type { DeviceCatalog, VmBlockType } from '../../domain/descriptors'
 import { decompileExpression, expressionLanguage, tokenize } from '../../domain/expression'
 import type { CanvasBlock, ObjectPath, ProjectDevice } from '../../domain/project'
-import { blockSummary, pathText } from './blockView'
+import { blockHeadline, blockSummary, pathText } from './blockView'
 import type { BlockPinView, BlockShape } from './blockView'
 import { ValueKindBadge } from '../../components/TypeBadge/TypeBadge'
 
@@ -51,6 +51,7 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
   const [drag, setDrag] = useState<{ start: Point; origin: Point; at: Point }>()
   const [renaming, setRenaming] = useState(false)
   const typeTitle = type?.title ?? `Unknown ${block.type}`
+  const headline = blockHeadline(type, block) ?? typeTitle
   const commitName = (text: string) => {
     setRenaming(false)
     const name = text.trim()
@@ -265,9 +266,9 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
               onCancel={() => setRenaming(false)}
             />
           ) : (
-            <span className="canvas-block-title" title={onRename ? 'Double-click the header to name it' : undefined}>{block.name || typeTitle}</span>
+            <span className="canvas-block-title" title={onRename ? 'Double-click the header to name it' : undefined}>{block.name || headline}</span>
           )}
-          {(block.name || expanded) && <span className="canvas-block-id" title={block.id}>{[block.name ? typeTitle : '', expanded ? block.id : ''].filter(Boolean).join(' · ')}</span>}
+          {(block.name || expanded) && <span className="canvas-block-id" title={block.id}>{[block.name ? headline : '', expanded ? block.id : ''].filter(Boolean).join(' · ')}</span>}
         </span>
         {errors > 0 && <span className="canvas-block-errors" title={`${errors} problem(s): see the block's details`}>{errors}</span>}
       </div>
