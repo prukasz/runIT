@@ -4,7 +4,7 @@ import { PanelHeader } from './components/PanelHeader'
 import { Badge } from './components/Badge'
 import { SelectField, TextField } from './components/FormField'
 import { PaletteSearch } from './components/PaletteSearch'
-import { ArrowDown, ArrowUp, Boxes, ChevronDown, ChevronRight, Eye, Folder, FolderPlus, Grid2X2, Link2, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Box, Boxes, ChevronDown, ChevronRight, Eye, Folder, FolderPlus, Grid2X2, Link2, Plus, Trash2 } from 'lucide-react'
 import { TreeSlab } from './components/TreeSlab'
 import { TypeBadge, ValueKindBadge } from './components/TypeBadge/TypeBadge'
 import { useUndoHistory } from './hooks/useUndoHistory'
@@ -13,7 +13,8 @@ import { compileObjects } from './domain/compiler/objects'
 import { runitVmCatalog } from './domain/descriptors'
 import type { VmObjectType } from './domain/descriptors'
 import { addObject, createProject, findObject, moveObject, newObjectId, parseProject, removeObject, serializeProject, setFolderChildren, updateObject, walkObjects } from './domain/project'
-import type { FolderNode, ObjectNode, ObjectSection, ObjectValue, ProjectDocument, ValueNode } from './domain/project'
+import type { FolderNode, ObjectNode, ObjectSection, ObjectValue, ProjectCanvas, ProjectDocument, ValueNode } from './domain/project'
+import { objectUses } from './canvas/blocks/objectUses'
 
 const STORAGE_KEY = 'runit.project'
 const catalog = runitVmCatalog()
@@ -1082,11 +1083,15 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
   </div>
 }
 
-export function ObjectDetails({ workspace: w, onJump }: { workspace: ObjectWorkspace; onJump: (id: string) => void }) {
+export function ObjectDetails({ workspace: w, onJump, canvases = [], onOpenBlock }: { workspace: ObjectWorkspace; onJump: (id: string) => void; canvases?: readonly ProjectCanvas[]; onOpenBlock?: (canvasId: string, blockId: string) => void }) {
   const selected = w.selected?.node
   if (!selected) return <div className="object-details"><p>Select an item to see its properties and relations.</p></div>
   const target = selected.kind === 'reference' ? findObject(w.project, selected.targetId)?.node : selected
   const related = new Map<string, string>()
+  // Blocks wired to it, or to a folder that holds it.
+  const holders = new Set<string>()
+  if (target) walkObjects(w.project.objects, (node, ancestors) => { if (node.id === target.id) ancestors.forEach((folder) => holders.add(folder.id)) })
+  const uses = target ? objectUses(canvases, new Set([selected.id, target.id]), holders) : []
   const availableFolders: { id: string; name: string }[] = []
   if (w.selected?.parent) related.set(w.selected.parent.id, w.selected.parent.name)
   const targetParent = target ? findObject(w.project, target.id)?.parent : undefined
@@ -1352,7 +1357,12 @@ export function ObjectDetails({ workspace: w, onJump }: { workspace: ObjectWorks
         </div>
       )}
     </div>
-    <div className="object-details-section"><h3>Connected blocks</h3><p>No connected blocks yet.</p></div>
+    <div className="object-details-section">
+      <h3>Connected blocks</h3>
+      {uses.length
+        ? uses.map((use, index) => <button key={`${use.blockId}:${index}`} onClick={() => onOpenBlock?.(use.canvasId, use.blockId)} title={`Show ${use.blockLabel} on canvas ${use.canvasName}`}><Box aria-hidden="true" />{use.blockLabel} · {use.role}<ChevronRight /></button>)
+        : <p>No connected blocks yet.</p>}
+    </div>
     <div className="object-details-section"><h3>Related folders</h3>{related.size ? [...related].map(([id, name]) => <button key={id} onClick={() => onJump(id)}><Folder />{name}<ChevronRight /></button>) : <p>No related folders.</p>}</div>
     {selected.kind === 'reference' && <div className="object-details-section"><h3>Reference target</h3><button onClick={() => onJump(selected.targetId)}><Link2 />{target?.name ?? 'Missing target'}<ChevronRight /></button></div>}
   </div>

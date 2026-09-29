@@ -56,6 +56,8 @@ export function useCanvasWorkspace(onSelectBlock?: () => void) {
   const [detailed, setDetailed] = usePersistedFlag(DETAIL_KEY, false)
   const [error, setError] = useState('')
   const [selectedBlockId, setSelectedBlockId] = useState<string>()
+  /** A block to bring to the middle of the view once its canvas is shown (the surface clears it). */
+  const [focus, setFocus] = useState<{ canvasId: string; blockId: string }>()
   /** Size of the canvas on screen (set by the surface): where the middle of the view is. */
   const surfaceSize = useRef({ width: 0, height: 0 })
   /** The block type being dragged from the palette (a drag shows only its data types until the drop). */
@@ -156,9 +158,19 @@ export function useCanvasWorkspace(onSelectBlock?: () => void) {
     setError('')
   }
 
+  /** Open a block on its canvas: that canvas, the block selected and centered. */
+  const reveal = (canvasId: string, blockId: string) => {
+    setActiveId(canvasId)
+    setSelectedBlockId(blockId)
+    setFocus({ canvasId, blockId })
+  }
+
   return {
     canvases,
     active,
+    focus,
+    clearFocus: () => setFocus(undefined),
+    reveal,
     select: (id: string | undefined) => {
       setActiveId(id)
       setSelectedBlockId(undefined)

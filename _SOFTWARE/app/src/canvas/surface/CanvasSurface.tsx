@@ -107,6 +107,22 @@ export function CanvasSurface({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.id, workspace.hasViewport])
 
+  // A block asked for (from a variable's connected blocks): its canvas is open, bring it to the middle.
+  useLayoutEffect(() => {
+    const focus = workspace.focus
+    const surface = surfaceRef.current
+    if (!focus || !surface || focus.canvasId !== active?.id) return
+    const block = active.blocks.find((entry) => entry.id === focus.blockId)
+    if (block) {
+      const shape = shapeOf(block)
+      const zoom = viewportRef.current.zoom
+      setViewport({ zoom, x: Math.round(surface.clientWidth / 2 - (block.x + shape.width / 2) * zoom), y: Math.round(surface.clientHeight / 2 - (block.y + shape.height / 2) * zoom) })
+      save()
+    }
+    workspace.clearFocus()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace.focus, active?.id])
+
   // The middle of the view, for blocks placed by a click in the palette.
   useEffect(() => {
     const surface = surfaceRef.current
