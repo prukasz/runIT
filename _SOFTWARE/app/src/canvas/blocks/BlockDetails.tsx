@@ -6,7 +6,7 @@ import { InlineRename } from '../../components/InlineRename'
 import { AlertCircle, AlertTriangle, Minus, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { arrangeProgram, disconnect, nameIds, parsePathText, pathLabel, PathTextError, sourceOf } from '../../domain/canvas'
 import type { Diagnostic } from '../../domain/compiler'
-import { runitVmCatalog } from '../../domain/descriptors'
+import { enumMemberLabels, runitVmCatalog } from '../../domain/descriptors'
 import type { VmBlockField, VmBlockType } from '../../domain/descriptors'
 import type { CanvasBlock, ObjectNode, ObjectPath, ProjectDevice, ProjectDocument } from '../../domain/project'
 import { findObject } from '../../domain/project'
@@ -42,14 +42,7 @@ const humanize = (name: string): string => {
 }
 
 /** Members of an enum without their shared prefix (`VM_TIMER_UNIT_MS` → `MS`). */
-const enumChoices = (type: VmBlockType, field: VmBlockField): { label: string; value: number }[] => {
-  const members = type.enums.get(field.enumRef!) ?? []
-  const names = members.map((member) => member.name)
-  let prefix = names[0] ?? ''
-  for (const name of names) while (!name.startsWith(prefix)) prefix = prefix.slice(0, -1)
-  prefix = prefix.slice(0, prefix.lastIndexOf('_') + 1)
-  return members.map((member) => ({ label: member.name.slice(prefix.length) || member.name, value: member.value }))
-}
+const enumChoices = (type: VmBlockType, field: VmBlockField): { label: string; value: number }[] => enumMemberLabels(type.enums.get(field.enumRef!) ?? [])
 
 
 const isInteger = (field: VmBlockField): boolean => field.cType !== 'float' && !field.cType.endsWith('_u')

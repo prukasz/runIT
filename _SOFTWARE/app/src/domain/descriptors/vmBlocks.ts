@@ -89,6 +89,15 @@ export interface VmBlockType {
   readonly encoding?: VmBlockEncoding
 }
 
+/** Members of an enum without their shared prefix (`VM_TIMER_UNIT_MS` → `MS`): how the editor names and stores them. */
+export const enumMemberLabels = (members: readonly { readonly name: string; readonly value: number }[]): { label: string; value: number }[] => {
+  const names = members.map((member) => member.name)
+  let prefix = names[0] ?? ''
+  for (const name of names) while (!name.startsWith(prefix)) prefix = prefix.slice(0, -1)
+  prefix = prefix.slice(0, prefix.lastIndexOf('_') + 1)
+  return members.map((member) => ({ label: member.name.slice(prefix.length) || member.name, value: member.value }))
+}
+
 /** The pin descriptor for position `index`: a listed pin, or the last listed one repeated. */
 export const blockPinAt = (pins: VmBlockPins, index: number): VmBlockPin | undefined => pins.pins[index] ?? pins.pins.at(-1)
 

@@ -15,7 +15,7 @@ import {
 import { ProgramPanel } from './ProgramPanel'
 import { ProjectFilePage, ProjectFilePalette } from './ProjectFile'
 import { DeviceDetails, DevicesEditor, DevicesPalette, useDevicesWorkspace } from './devices'
-import { BlockDetails, blockDiagnostics, BlockPalette, CanvasEditor, useCanvasWorkspace } from './canvas'
+import { BlockDetails, blockDiagnostics, BlockPalette, CanvasEditor, recoveredCanvases, useCanvasWorkspace } from './canvas'
 import { OBJECT_DRAG_TYPE, objectKindDragType } from './domain/canvas'
 import { runitVmCatalog } from './domain/descriptors'
 import CommandConsole from './CommandConsole'
@@ -154,6 +154,8 @@ export default function App() {
     objectWorkspace.load({ ...recovered.project, autostart, extraFrames: recovered.extraFrames }, recovered.sections)
     loadSettings(settingsFromState(recovered.settings, projectSettings))
     devicesWorkspace.load({ devices: recovered.devices, deviceAliases: devicesWorkspace.deviceAliases, actions: devicesWorkspace.actions, setup: recovered.setup })
+    // The recovered program is the code now: its blocks on a canvas of their own.
+    canvasWorkspace.load(recoveredCanvases(recovered.blocks))
   }
   const resizeActive = useRef(false)
   const leftResizeActive = useRef(false)
