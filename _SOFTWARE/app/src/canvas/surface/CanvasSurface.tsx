@@ -347,7 +347,7 @@ export function CanvasSurface({
   const empty = active && active.blocks.length === 0
 
   // Connecting: the block under a canvas point (topmost), the picker row under the pointer.
-  const shapeOf = (block: CanvasBlock) => blockShape(catalog.block(block.type), block, workspace.detailed)
+  const shapeOf = (block: CanvasBlock) => blockShape(catalog.block(block.type), block, workspace.detailed, devices, deviceCatalog)
   const blockAt = (point: Point, except?: string): CanvasBlock | undefined =>
     [...(active?.blocks ?? [])].reverse().find((block) => {
       if (block.id === except) return false
@@ -624,7 +624,7 @@ export function CanvasSurface({
               key={block.id}
               block={block}
               type={type}
-              shape={blockShape(type, block, workspace.detailed)}
+              shape={blockShape(type, block, workspace.detailed, devices, deviceCatalog)}
               detailed={workspace.detailed}
               devices={devices} deviceCatalog={deviceCatalog}
               selected={selectedIds.includes(block.id)}

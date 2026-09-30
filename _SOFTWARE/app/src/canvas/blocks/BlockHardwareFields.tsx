@@ -6,12 +6,14 @@ import type { CanvasBlock, ProjectDevice } from '../../domain/project'
 import { isDynamicInput, pinMaskText, readPinMask } from '../../domain/project/blockPins'
 import { BlockSwitch } from './BlockSwitch'
 import { blockDevicePins, blockDevices } from './blockDevicePins'
+import { pinDisplayLabel } from '../../domain/devices'
 
 export function BlockHardwareFields({ block, type, devices, deviceCatalog, onUpdate }: { block: CanvasBlock; type: VmBlockType; devices: readonly ProjectDevice[]; deviceCatalog?: DeviceCatalog; onUpdate: (change: (block: CanvasBlock) => CanvasBlock) => void }) {
   const catalog = deviceCatalog ?? runitDeviceCatalog()
   return <>{type.fields.filter((field) => field.idKind === 'device').map((deviceField) => {
     const deviceId = Number(block.settings?.[deviceField.name] ?? 0)
     const targets = blockDevices(catalog, devices, deviceField)
+    const targetRef = targets.find((device) => device.deviceId === deviceId)?.ref
     const pinFields = type.fields.filter((field) => field.idKind === 'pin' && field.deviceField === deviceField.name)
     const pins = blockDevicePins(catalog, devices, deviceId, deviceField.contract)
     const set = (name: string, value: number | string) => onUpdate((current) => ({ ...current, settings: { ...current.settings, [name]: value } }))
@@ -44,7 +46,7 @@ export function BlockHardwareFields({ block, type, devices, deviceCatalog, onUpd
             onUpdate((current) => ({ ...current, settings: { ...current.settings, [pinField.name]: next, ...(maskField ? { [maskField.name]: pinMaskText(dynamic ? mask | (1n << BigInt(next)) : 1n << BigInt(next)) } : {}) } }))
           }}>
             {!available.some((entry) => entry.value === pin) && <option value={pin}>Pin {pin} (unavailable)</option>}
-            {available.map((entry) => <option key={entry.value} value={entry.value}>{entry.label === String(entry.value) ? `Pin ${entry.value}` : `${entry.label} (${entry.value})`}</option>)}
+            {available.map((entry) => <option key={entry.value} value={entry.value}>{pinDisplayLabel(catalog, targetRef, entry.value, entry.label)}</option>)}
           </SelectField></label>
           {maskField && <>
             <BlockSwitch label="Pin selection" value={dynamic ? 'dynamic' : 'static'} options={[["static", "Static"], ["dynamic", "Dynamic"]]} onChange={(value) => onUpdate((current) => {
@@ -54,7 +56,7 @@ export function BlockHardwareFields({ block, type, devices, deviceCatalog, onUpd
               const inputs = current.inputs?.map((path, at) => at === index && value === 'static' ? null : path)
               return { ...rest, ...(inputs ? { inputs } : {}), ...(value === 'dynamic' || selected.length ? { dynamicInputs: value === 'dynamic' ? [...selected, index] : selected } : {}), settings: { ...current.settings, [maskField.name]: pinMaskText(mask | (1n << BigInt(pin))) } }
             })} />
-            {dynamic && <fieldset className="block-pin-mask"><legend>Allowed pins</legend><p className="block-muted">Mark the pins the dynamic Pin input may select. The default pin stays included.</p><div>{available.map((entry) => <label key={entry.value}><TextField type="checkbox" checked={!!(mask & (1n << BigInt(entry.value)))} disabled={entry.value === pin} onChange={(event) => set(maskField.name, pinMaskText(event.target.checked ? mask | (1n << BigInt(entry.value)) : mask & ~(1n << BigInt(entry.value))))} /><span>{entry.label === String(entry.value) ? `Pin ${entry.value}` : entry.label}</span></label>)}</div></fieldset>}
+            {dynamic && <fieldset className="block-pin-mask"><legend>Allowed pins</legend><p className="block-muted">Mark the pins the dynamic Pin input may select. The default pin stays included.</p><div>{available.map((entry) => <label key={entry.value}><TextField type="checkbox" checked={!!(mask & (1n << BigInt(entry.value)))} disabled={entry.value === pin} onChange={(event) => set(maskField.name, pinMaskText(event.target.checked ? mask | (1n << BigInt(entry.value)) : mask & ~(1n << BigInt(entry.value))))} /><span>{pinDisplayLabel(catalog, targetRef, entry.value, entry.label)}</span></label>)}</div></fieldset>}
           </>}
           {!available.length && <p className="block-muted">No available pins on this device.</p>}
         </div>

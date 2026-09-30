@@ -31,6 +31,7 @@ export {
   nextDeviceId,
   parameterValue,
   pinKey,
+  pinDisplayLabel,
   pinsOf,
   pinUsers,
   reachableErrorLevels,

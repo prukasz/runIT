@@ -132,7 +132,11 @@
 
 /* Pins it uses, pin defaults, other defaults */
 .devices-pin-table { container: pin-table / inline-size; display: flex; flex-direction: column; max-height: 420px; overflow: auto; margin: 10px 0; border: 1px solid var(--divider); border-radius: 8px; }
-.devices-pin-row { flex: none; display: grid; grid-template-columns: minmax(56px, 110px) minmax(0, 1fr) minmax(0, 90px); align-items: center; gap: 10px; min-height: 36px; padding: 3px 10px; border-top: 1px solid var(--divider); font-size: 12px; color: var(--active); }
+.devices-pin-row { flex: none; display: grid; grid-template-columns: minmax(145px, 220px) minmax(0, 1fr) minmax(0, 90px); align-items: center; gap: 10px; min-height: 36px; padding: 3px 10px; border-top: 1px solid var(--divider); font-size: 12px; color: var(--active); }
+.devices-pin-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.devices-pin-name > span { flex: none; min-width: 26px; color: var(--muted); }
+.devices-pin-name input { min-width: 0; width: 100%; height: 28px; font-size: 12px; }
+.devices-pin-names { display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 8px; margin-top: 8px; }
 .devices-pin-row.is-head { position: sticky; top: 0; z-index: 1; min-height: 30px; border-top: 0; background: var(--panel); color: var(--muted); font-size: 11px; font-weight: 600; }
 .devices-pin-row.is-set { background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .devices-pin-default { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; color: var(--active); }
@@ -187,7 +191,7 @@
 
 /* Narrow pin table: compact columns and shrinking pills; narrower still, the pin name on its own line with mode and level under it */
 @container pin-table (max-width: 420px) {
-  .devices-pin-row { grid-template-columns: 52px minmax(0, 1fr) 72px; gap: 8px; }
+  .devices-pin-row { grid-template-columns: minmax(110px, 140px) minmax(0, 1fr) 72px; gap: 8px; }
   .devices-pin-taken, .devices-taken { min-width: 0; max-width: 100%; }
   .shell .devices-pin-taken .devices-pill { min-width: 0; max-width: 100%; }
   .devices-pin-taken .devices-pill-name, .devices-pin-taken .devices-pill-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Card } from '../components/Card'
-import { SelectField } from '../components/FormField'
+import { SelectField, TextField } from '../components/FormField'
 import { ArrowRight, Lock, Plus, Trash2 } from 'lucide-react'
 import type { DeviceChoice } from '../domain/descriptors'
-import { contractsOf, findContract, isSetupContract, pinKey, pinsOf, pinUsers, resolveDevice, SET_ERROR_HANDLING } from '../domain/devices'
+import { contractsOf, findContract, isSetupContract, pinDisplayLabel, pinKey, pinsOf, pinUsers, resolveDevice, SET_ERROR_HANDLING } from '../domain/devices'
 import type { PinUser, ResolvedDevice } from '../domain/devices'
 import { boardDeviceRef } from '../domain/project'
 import { ContractFields, initialValues } from './ContractFields'
@@ -77,7 +77,7 @@ export function PinsUsedCard({ w, device }: { w: DevicesWorkspace; device: Resol
             <div key={`${link.use}-${link.deviceId}-${link.pin}`} className="devices-ref-row">
               <span className="devices-ref-label">{link.use}</span>
               <ArrowRight className="devices-ref-arrow" aria-hidden="true" />
-              <DevicePill w={w} deviceRef={ref} name={target?.name ?? `Device ${link.deviceId}`} detail={`pin ${link.pin}`} />
+              <DevicePill w={w} deviceRef={ref} name={target?.name ?? `Device ${link.deviceId}`} detail={pinDisplayLabel(w.catalog, ref, link.pin)} />
               {link.mode !== undefined ? <span className="devices-mode-chip">{modeName(w, link.mode)}</span> : <span />}
             </div>
           )
@@ -85,6 +85,23 @@ export function PinsUsedCard({ w, device }: { w: DevicesWorkspace; device: Resol
       </div>
     </Card>
   )
+}
+
+function PinAliasField({ pin, label, alias, onSave, inTable = false }: { pin: number; label: string; alias: string; onSave: (value: string) => void; inTable?: boolean }) {
+  const [draft, setDraft] = useState(alias)
+  return <span className="devices-pin-name" role={inTable ? 'cell' : undefined}>
+    <span>#{pin}</span>
+    <TextField aria-label={`Alias for pin ${pin}`} title={`Name for pin ${pin}`} placeholder={label === String(pin) ? 'Add alias' : label} value={draft} onChange={(event) => setDraft(event.target.value)} onBlur={() => onSave(draft)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} />
+  </span>
+}
+
+/** Devices with pin choices but no mode contract still have project pin names. */
+export function PinNamesCard({ w, device }: { w: DevicesWorkspace; device: ResolvedDevice }) {
+  const pins = pinsOf(device.type)
+  if (!pins.length || findContract(w.catalog, device, SET_MODE)) return null
+  return <Card title="Pin names"><div className="devices-pin-names">
+    {pins.map((pin) => <PinAliasField key={`${device.ref}:${pin.value}:${w.pinAliases?.[device.ref]?.[String(pin.value)] ?? ''}`} pin={pin.value} label={pin.label} alias={w.pinAliases?.[device.ref]?.[String(pin.value)] ?? ''} onSave={(value) => w.setPinAlias(device.ref, pin.value, value)} />)}
+  </div></Card>
 }
 
 function TakenBy({ w, users }: { w: DevicesWorkspace; users: readonly PinUser[] }) {
@@ -138,7 +155,7 @@ export function DefaultSettingsCard({ w, device }: { w: DevicesWorkspace; device
             const mode = modes.find((choice) => choice.value === (modeStep?.values.mode ?? defaultMode))
             return (
               <div key={pin.value} className={`devices-pin-row ${taken.length ? 'is-taken' : ''} ${modeStep ? 'is-set' : ''}`} role="row">
-                <span className="devices-pin-name" role="cell">{pin.label === String(pin.value) ? `Pin ${pin.value}` : pin.label}</span>
+                <PinAliasField key={`${device.ref}:${pin.value}:${w.pinAliases?.[device.ref]?.[String(pin.value)] ?? ''}`} pin={pin.value} label={pin.label} alias={w.pinAliases?.[device.ref]?.[String(pin.value)] ?? ''} onSave={(value) => w.setPinAlias(device.ref, pin.value, value)} inTable />
                 {taken.length ? (
                   <span className="devices-pin-taken" role="cell"><TakenBy w={w} users={taken} />{taken[0]?.mode !== undefined && <em>{modeName(w, taken[0].mode)}</em>}</span>
                 ) : (
@@ -176,7 +193,7 @@ export function DefaultSettingsCard({ w, device }: { w: DevicesWorkspace; device
               <strong>{contract?.label ?? step.contract}</strong>
               <button type="button" onClick={() => w.removeSetup(step.id)} title="Remove this default" aria-label="Remove default"><Trash2 aria-hidden="true" /></button>
             </div>
-            {contract && <ContractFields contract={contract} values={step.values} actions={w.actions} onChange={(values) => w.updateSetup(step.id, { values })} />}
+            {contract && <ContractFields contract={contract} values={step.values} actions={w.actions} pinLabel={(pin, label) => pinDisplayLabel(w.catalog, device.ref, pin, label)} onChange={(values) => w.updateSetup(step.id, { values })} />}
           </div>
         )
       })}

@@ -147,7 +147,8 @@ describe('an arranged canvas compiles', () => {
     expect(plan.ok).toBe(true)
     const placed = plan.program.blocks.blocks
     expect(placed.map((entry) => entry.id)).toEqual(['check', 'scale', 'use', 'loop', 'step'])
-    expect(placed.find((entry) => entry.id === 'use')?.enables).toEqual(placed.find((entry) => entry.id === 'scale')?.enables)
+    expect(placed.find((entry) => entry.id === 'scale')?.enables).toHaveLength(1)
+    expect(placed.find((entry) => entry.id === 'use')?.enables).toEqual([])
     expect(placed.find((entry) => entry.id === 'loop')?.span).toEqual({ start: 4, end: 5 })
   })
 })

@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { readStored, usePersistEffect } from '../hooks/useStorage'
 import { runitDeviceCatalog } from '../domain/descriptors'
-import { checkDevices, checkPwm, checkSetup, defaultInstall, nextActionId, nextDeviceId, resolveDevice, withDeviceAliases } from '../domain/devices'
-import { parseActions, parseDeviceAliases, parseDevices, parseSetup } from '../domain/project'
-import type { ActionStep, DeviceRef, ProjectAction, ProjectDevice, StepValues } from '../domain/project'
+import { checkDevices, checkPwm, checkSetup, defaultInstall, nextActionId, nextDeviceId, pinsOf, resolveDevice, withDeviceAliases } from '../domain/devices'
+import { parseActions, parseDeviceAliases, parsePinAliases, parseDevices, parseSetup } from '../domain/project'
+import type { ActionStep, DeviceRef, PinAliases, ProjectAction, ProjectDevice, StepValues } from '../domain/project'
 import { useUndoHistory } from '../hooks/useUndoHistory'
 
 /*
@@ -18,6 +18,7 @@ const baseCatalog = runitDeviceCatalog()
 
 export interface DevicesState {
   readonly deviceAliases?: Readonly<Record<DeviceRef, string>>
+  readonly pinAliases?: PinAliases
   readonly devices: readonly ProjectDevice[]
   readonly actions: readonly ProjectAction[]
   readonly setup: readonly ActionStep[]
@@ -43,8 +44,8 @@ const restoreDeviceNames = (state: DevicesState): DevicesState => {
 
 const loadState = (): DevicesState =>
   readStored(STORAGE_KEY, (raw) => {
-    const saved = JSON.parse(raw) as { devices: unknown; actions: unknown; setup: unknown; deviceAliases?: unknown }
-    return restoreDeviceNames({ devices: parseDevices(saved.devices, 'devices'), actions: parseActions(saved.actions, 'actions'), setup: parseSetup(saved.setup, 'setup'), deviceAliases: parseDeviceAliases(saved.deviceAliases, 'deviceAliases') })
+    const saved = JSON.parse(raw) as { devices: unknown; actions: unknown; setup: unknown; deviceAliases?: unknown; pinAliases?: unknown }
+    return restoreDeviceNames({ devices: parseDevices(saved.devices, 'devices'), actions: parseActions(saved.actions, 'actions'), setup: parseSetup(saved.setup, 'setup'), deviceAliases: parseDeviceAliases(saved.deviceAliases, 'deviceAliases'), pinAliases: parsePinAliases(saved.pinAliases, 'pinAliases') })
   }, EMPTY)
 
 const newId = (prefix: string): string => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
@@ -61,8 +62,8 @@ export function useDevicesWorkspace(onSelect?: () => void) {
   /** Project ID of the action open in the composer. */
   const [composing, setComposing] = useState<string>()
   const [error, setError] = useState('')
-  const { devices, actions, setup, deviceAliases } = history.present
-  const catalog = useMemo(() => withDeviceAliases(baseCatalog, deviceAliases), [deviceAliases])
+  const { devices, actions, setup, deviceAliases, pinAliases } = history.present
+  const catalog = useMemo(() => withDeviceAliases(baseCatalog, deviceAliases, pinAliases), [deviceAliases, pinAliases])
 
   usePersistEffect(STORAGE_KEY, history.present)
 
@@ -108,7 +109,7 @@ export function useDevicesWorkspace(onSelect?: () => void) {
     edit((current) => ({ ...current, devices: current.devices.map((device) => (device.id === id ? { ...device, ...patch } : device)) }))
 
   const removeDevice = (id: string) => {
-    const removed = edit((current) => ({ ...current, devices: current.devices.filter((device) => device.id !== id), setup: current.setup.filter((step) => step.device !== id), deviceAliases: Object.fromEntries(Object.entries(current.deviceAliases ?? {}).filter(([ref]) => ref !== id)) }))
+    const removed = edit((current) => ({ ...current, devices: current.devices.filter((device) => device.id !== id), setup: current.setup.filter((step) => step.device !== id), deviceAliases: Object.fromEntries(Object.entries(current.deviceAliases ?? {}).filter(([ref]) => ref !== id)), pinAliases: Object.fromEntries(Object.entries(current.pinAliases ?? {}).filter(([ref]) => ref !== id)) }))
     if (removed && selection?.kind === 'device' && selection.ref === id) setSelection(undefined)
   }
 
@@ -120,6 +121,20 @@ export function useDevicesWorkspace(onSelect?: () => void) {
     if (alias) aliases[ref] = alias
     else delete aliases[ref]
     return { ...current, deviceAliases: aliases }
+  })
+
+  const setPinAlias = (ref: DeviceRef, pin: number, value: string) => edit((current) => {
+    const device = resolveDevice(baseCatalog, current.devices, ref)
+    if (!device || !Number.isSafeInteger(pin) || pin < 0 || !pinsOf(device.type).some((choice) => choice.value === pin)) return current
+    const alias = value.trim()
+    if ((current.pinAliases?.[ref]?.[String(pin)] ?? '') === alias) return current
+    const aliases = { ...current.pinAliases }
+    const pins = { ...aliases[ref] }
+    if (alias) pins[String(pin)] = alias
+    else delete pins[String(pin)]
+    if (Object.keys(pins).length) aliases[ref] = pins
+    else delete aliases[ref]
+    return { ...current, pinAliases: aliases }
   })
 
   // Default settings -------------------------------------------------------
@@ -197,7 +212,7 @@ export function useDevicesWorkspace(onSelect?: () => void) {
 
   /** Replace devices and actions (project opened or recovered); undo goes back. */
   const load = (next: DevicesState) => {
-    history.replace(restoreDeviceNames({ devices: [...next.devices], actions: [...next.actions], setup: [...next.setup], deviceAliases: next.deviceAliases }))
+    history.replace(restoreDeviceNames({ devices: [...next.devices], actions: [...next.actions], setup: [...next.setup], deviceAliases: next.deviceAliases, pinAliases: next.pinAliases }))
     setSelection(undefined)
     setComposing(undefined)
     setError('')
@@ -206,7 +221,9 @@ export function useDevicesWorkspace(onSelect?: () => void) {
   return {
     catalog,
     deviceAliases,
+    pinAliases,
     setDeviceAlias,
+    setPinAlias,
     devices,
     actions,
     setup,

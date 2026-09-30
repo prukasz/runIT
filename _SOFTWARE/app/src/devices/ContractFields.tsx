@@ -14,12 +14,13 @@ export const initialValues = (contract: DeviceContract): Record<string, number |
  * A contract's parameters as a form. The device ID (`instance`) isn't shown:
  * it comes from the device the contract runs on.
  */
-export function ContractFields({ contract, values, onChange, actions = [] }: {
+export function ContractFields({ contract, values, onChange, actions = [], pinLabel }: {
   contract: DeviceContract
   values: StepValues
   onChange: (values: Record<string, number | readonly number[]>) => void
   /** The project's actions, for fields that pick one (error handling). */
   actions?: readonly ProjectAction[]
+  pinLabel?: (pin: number, label: string) => string
 }) {
   const set = (name: string, value: number | readonly number[]) => onChange({ ...values, [name]: value })
   const idBase = useId()
@@ -64,7 +65,7 @@ export function ContractFields({ contract, values, onChange, actions = [] }: {
               </label>
             ) : parameter.choices ? (
               <SelectField id={id} value={value} onChange={(event) => set(parameter.name, Number(event.target.value))}>
-                {parameter.choices.map((choice) => <option key={choice.value} value={choice.value} title={choice.description}>{choice.label === String(choice.value) ? choice.label : `${choice.label} (${choice.value})`}</option>)}
+                {parameter.choices.map((choice) => <option key={choice.value} value={choice.value} title={choice.description}>{parameter.name === 'pin' && pinLabel ? pinLabel(choice.value, choice.label) : choice.label === String(choice.value) ? choice.label : `${choice.label} (${choice.value})`}</option>)}
               </SelectField>
             ) : (
               <TextField

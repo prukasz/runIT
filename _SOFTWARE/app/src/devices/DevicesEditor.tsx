@@ -4,7 +4,7 @@ import { FormGrid, FormRow, SelectField, TextField } from '../components/FormFie
 import { AlertCircle, AlertTriangle, ArrowDown, ArrowUp, BookOpen, FileText, ImagePlus, ListPlus, Play, Plus, Trash2, Upload, X } from 'lucide-react'
 import type { DeviceType } from '../domain/descriptors'
 import { runitCommandCatalog, runitDeviceCatalog } from '../domain/descriptors'
-import { actionRecordSteps, actionRunStep, allDevices, buildAction, contractsOf, describeStep, deviceDisplayName, findContract, modesOf, pinKey, pinsOf, pinUsers, resolveDevice } from '../domain/devices'
+import { actionRecordSteps, actionRunStep, allDevices, buildAction, contractsOf, describeStep, deviceDisplayName, findContract, modesOf, pinDisplayLabel, pinKey, pinsOf, pinUsers, resolveDevice } from '../domain/devices'
 import type { ResolvedDevice } from '../domain/devices'
 import type { ActionStep, ProjectAction, ProjectDevice } from '../domain/project'
 import { Button, ToggleChip, buttonClass } from '../components/Button'
@@ -13,7 +13,7 @@ import { FieldLabel } from '../components/FieldNote'
 import { ContractFields, initialValues } from './ContractFields'
 import { DEVICE_ICONS, DeviceTile } from './DeviceTile'
 import { Markdown } from './Markdown'
-import { BoardInstallCard, DefaultSettingsCard, PinsUsedCard } from './DeviceSettings'
+import { BoardInstallCard, DefaultSettingsCard, PinNamesCard, PinsUsedCard } from './DeviceSettings'
 import { ErrorHandlingCard } from './ErrorHandling'
 import type { DevicesWorkspace } from './useDevicesWorkspace'
 import type { RunitBleSession } from '../backend/runitBleSession'
@@ -178,6 +178,7 @@ function SystemDeviceInfo({ workspace: w, device }: { workspace: DevicesWorkspac
     <>
       <BoardInstallCard w={w} device={device} />
       <PinsUsedCard w={w} device={device} />
+      <PinNamesCard w={w} device={device} />
       <DefaultSettingsCard w={w} device={device} />
       <ErrorHandlingCard w={w} device={device} />
       {!type && <Card><p className="devices-muted">The firmware publishes no descriptor for this device yet: only the device commands (reset, suspend …) are available.</p></Card>}
@@ -210,6 +211,7 @@ function UserDeviceConfig({ workspace: w, device, resolved, type }: { workspace:
     <>
       {type && <InstallCard workspace={w} device={device} type={type} />}
       <PinsUsedCard w={w} device={resolved} />
+      <PinNamesCard w={w} device={resolved} />
       <DefaultSettingsCard w={w} device={resolved} />
       <ErrorHandlingCard w={w} device={resolved} />
 
@@ -315,7 +317,7 @@ function InstallCard({ workspace: w, device, type }: { workspace: DevicesWorkspa
                           {!pins.some((pin) => pin.value === value) && <option value={value}>Pin {value}</option>}
                           {pins.map((pin) => {
                             const taken = (users.get(pinKey(targetId, pin.value)) ?? []).filter((user) => user.owner !== device.id)
-                            return <option key={pin.value} value={pin.value} disabled={taken.length > 0}>{`Pin ${pin.value}${taken.length ? ` — ${taken.map((user) => user.ownerName).join(', ')}` : ''}`}</option>
+                            return <option key={pin.value} value={pin.value} disabled={taken.length > 0}>{`${pinDisplayLabel(w.catalog, currentTarget?.ref, pin.value, pin.label)}${taken.length ? ` — ${taken.map((user) => user.ownerName).join(', ')}` : ''}`}</option>
                           })}
                         </SelectField>
                       ) : (
@@ -431,7 +433,7 @@ function StepEditor({ workspace: w, action, step, index }: { workspace: DevicesW
           <button type="button" onClick={() => w.updateAction(action.id, { steps: action.steps.filter((entry) => entry.id !== step.id) })} title="Remove step" aria-label="Remove step"><Trash2 aria-hidden="true" /></button>
         </div>
       </div>
-      {contract && device && <ContractFields contract={contract} values={step.values} actions={w.actions} onChange={(values) => replace({ values })} />}
+      {contract && device && <ContractFields contract={contract} values={step.values} actions={w.actions} pinLabel={(pin, label) => pinDisplayLabel(w.catalog, device.ref, pin, label)} onChange={(values) => replace({ values })} />}
     </li>
   )
 }

@@ -13,6 +13,7 @@ html, body {
 
 .shell {
   display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100vh;
   min-height: 320px;
@@ -20,6 +21,7 @@ html, body {
   background: var(--background);
   color: var(--active);
 }
+.workspace-row { display: flex; flex: 1; min-width: 0; min-height: 0; }
 
 .shell * { box-sizing: border-box; }
 
@@ -114,10 +116,10 @@ input[type="range"] {
   width: 100%;
 }
 .view-menu { display: flex; align-items: center; gap: 2px; min-width: 0; }
-.left-strip .terminal-launch { margin-left: auto; }
+.left-panel.is-open .left-strip .panel-toggle { margin-left: auto; }
 .shell .view-menu button,
-.shell .left-strip .terminal-launch,
 .shell .panel-toggle,
+.shell .right-header .terminal-launch,
 .shell .right-header .detail-toggle {
   width: 32px;
   height: 34px;
@@ -145,15 +147,6 @@ input[type="range"] {
 }
 .left-collapsed-icons .view-menu button,
 .shell .left-collapsed-icons .view-menu button {
-  width: 36px;
-  height: 36px;
-}
-.left-collapsed-icons .terminal-launch,
-.shell .left-collapsed-icons .terminal-launch {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 4px 0 0 0;
   width: 36px;
   height: 36px;
 }
@@ -460,7 +453,7 @@ input[type="range"] {
 .shell .main-action-bar button:disabled { opacity: .45; cursor: default; }
 .shell .main-action-bar button:disabled:hover { background: transparent; color: var(--icon); }
 .main-surface { flex: 1; min-height: 0; background: var(--background); }
-.terminal-panel { position: relative; display: flex; flex: none; flex-direction: column; min-height: 120px; max-height: calc(100vh - 160px); border-top: 1px solid var(--divider); background: var(--panel); }
+.terminal-panel { position: relative; display: flex; flex: none; flex-direction: column; width: 100%; min-height: 120px; max-height: calc(100vh - 160px); border-top: 1px solid var(--divider); background: var(--panel); }
 .terminal-header { display: flex; align-items: center; justify-content: space-between; height: 41px; min-height: 41px; padding: 3px 10px 0 16px; border-bottom: 1px solid var(--divider); color: var(--active); font-size: 12px; }
 .shell .terminal-header button { width: 28px; height: 28px; }
 .terminal-header svg { width: 16px; height: 16px; }
@@ -481,8 +474,9 @@ input[type="range"] {
   gap: 4px;
 }
 .right-panel.is-open .right-header .detail-toggle {
-  margin-left: auto;
+  margin-left: 0;
 }
+.right-panel.is-open .right-header .terminal-launch { margin-left: auto; }
 .detail-menu {
   display: flex;
   align-items: center;
@@ -507,6 +501,7 @@ input[type="range"] {
   width: 36px;
   height: 36px;
 }
+.right-collapsed-icons .terminal-launch { margin-top: 4px; }
 .detail-content { flex: 1; min-height: 0; }
 
 @media (max-width: 700px) {

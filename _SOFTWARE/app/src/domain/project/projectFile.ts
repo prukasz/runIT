@@ -20,6 +20,7 @@ import type {
   ProjectCanvas,
   ProjectDevice,
   ProjectDocument,
+  PinAliases,
   LogSettings,
   ProjectSettings,
   RawFrame,
@@ -294,6 +295,19 @@ export const parseDeviceAliases = (value: Json, path: string): Readonly<Record<s
   }))
 }
 
+export const parsePinAliases = (value: Json, path: string): PinAliases => {
+  if (value === undefined) return {}
+  return Object.fromEntries(Object.entries(record(value, path)).flatMap(([ref, pins]) => {
+    if (!ref) throw new ProjectFormatError(path, 'device reference is empty')
+    const aliases = Object.fromEntries(Object.entries(record(pins, `${path}.${ref}`)).flatMap(([pin, value]) => {
+      if (!/^(0|[1-9]\d*)$/.test(pin) || !Number.isSafeInteger(Number(pin))) throw new ProjectFormatError(`${path}.${ref}.${pin}`, 'expected a nonnegative pin number')
+      const alias = string(value, `${path}.${ref}.${pin}`).trim()
+      return alias ? [[pin, alias]] : []
+    }))
+    return Object.keys(aliases).length ? [[ref, aliases]] : []
+  }))
+}
+
 export const parseDevices = (value: Json, path: string): ProjectDevice[] => {
   const ids = new Set<string>()
   const deviceIds = new Set<number>()
@@ -466,6 +480,7 @@ export const parseProject = (text: string): ProjectDocument => {
     ...optional('settings', doc.settings === undefined ? undefined : parseSettings(doc.settings, 'settings')),
     ...optional('devices', doc.devices === undefined ? undefined : parseDevices(doc.devices, 'devices')),
     ...optional('deviceAliases', doc.deviceAliases === undefined ? undefined : parseDeviceAliases(doc.deviceAliases, 'deviceAliases')),
+    ...optional('pinAliases', doc.pinAliases === undefined ? undefined : parsePinAliases(doc.pinAliases, 'pinAliases')),
     ...optional('actions', doc.actions === undefined ? undefined : parseActions(doc.actions, 'actions')),
     ...optional('setup', doc.setup === undefined ? undefined : parseSetup(doc.setup, 'setup')),
     ...optional('canvases', doc.canvases === undefined ? undefined : parseCanvases(doc.canvases, 'canvases')),
@@ -496,6 +511,7 @@ export const serializeProject = (project: ProjectDocument): string =>
       // Rebuilt by the parser too: fixed key order.
       ...optional('devices', project.devices && parseDevices(JSON.parse(JSON.stringify(project.devices)), 'devices')),
       ...optional('deviceAliases', project.deviceAliases && parseDeviceAliases(project.deviceAliases, 'deviceAliases')),
+      ...optional('pinAliases', project.pinAliases && parsePinAliases(project.pinAliases, 'pinAliases')),
       ...optional('actions', project.actions && parseActions(JSON.parse(JSON.stringify(project.actions)), 'actions')),
       ...optional('setup', project.setup && parseSetup(JSON.parse(JSON.stringify(project.setup)), 'setup')),
       ...optional('canvases', project.canvases && parseCanvases(JSON.parse(JSON.stringify(project.canvases)), 'canvases')),

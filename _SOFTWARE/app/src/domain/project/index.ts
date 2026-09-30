@@ -3,6 +3,7 @@ export type {
   ActionStep,
   DeviceAppearance,
   DeviceRef,
+  PinAliases,
   ProjectAction,
   ProjectCanvas,
   CanvasVariable,
@@ -34,4 +35,4 @@ export type {
 } from './document'
 export { addObject, findObject, moveObject, newObjectId, ObjectTreeError, removeObject, setFolderChildren, updateObject, walkObjects } from './objectTree'
 export type { FolderPatch, FoundObject, ReferencePatch, ValuePatch } from './objectTree'
-export { parseActions, parseCanvases, parseDeviceAliases, parseDevices, parseProject, parseSetup, parseSettings, ProjectFormatError, serializeProject } from './projectFile'
+export { parseActions, parseCanvases, parseDeviceAliases, parsePinAliases, parseDevices, parseProject, parseSetup, parseSettings, ProjectFormatError, serializeProject } from './projectFile'

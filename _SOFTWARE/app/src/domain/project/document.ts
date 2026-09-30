@@ -42,6 +42,8 @@ export interface ProjectDocument {
   readonly devices?: readonly ProjectDevice[]
   /** User-given display names, keyed by stable device reference; never sent to firmware. */
   readonly deviceAliases?: Readonly<Record<DeviceRef, string>>
+  /** User-given pin names by stable device reference and numeric pin; editor only. */
+  readonly pinAliases?: PinAliases
   /** Contract sequences recorded on the board as dynamic actions (sys_actions). */
   readonly actions?: readonly ProjectAction[]
   /** Default settings: contract calls (pin modes, levels, frequencies …) the stored code runs after installing the devices. */
@@ -76,6 +78,8 @@ export interface ProjectDevice {
 
 /** A board device (`board:<device ID>`) or a user device (its project ID). */
 export type DeviceRef = string
+
+export type PinAliases = Readonly<Record<DeviceRef, Readonly<Record<string, string>>>>
 
 export const boardDeviceRef = (deviceId: number): DeviceRef => `board:${deviceId}`
 

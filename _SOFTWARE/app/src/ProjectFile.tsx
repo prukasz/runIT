@@ -21,7 +21,7 @@ import type { RunitBleSession } from './backend/runitBleSession'
 import './ProjectFile.css'
 
 /*
- * The File view: the project as a file (new, open, save), its code as a file
+ * The Home view: the project as a file (new, open, save), its code as a file
  * (import, export: `runit-code`), and the code stored on a board (recover).
  * The Run view keeps what changes the board: store, load, erase.
  */

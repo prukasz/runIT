@@ -5,7 +5,7 @@ import { Button } from '../components/Button'
 import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Download, ListPlus, Send, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { decodeResponseData } from '../domain/descriptors'
 import type { DeviceContract } from '../domain/descriptors'
-import { contractFrame, contractsOf, describeStep, findContract, frequencyWarnings, installFrame, resolveDevice, SET_PWM_FREQUENCY } from '../domain/devices'
+import { contractFrame, contractsOf, describeStep, findContract, frequencyWarnings, installFrame, pinDisplayLabel, resolveDevice, SET_PWM_FREQUENCY } from '../domain/devices'
 import type { ResolvedDevice } from '../domain/devices'
 import type { StepValues } from '../domain/project'
 import { toHex } from '../domain/upload'
@@ -122,7 +122,7 @@ function Commands({ workspace: w, device, session }: { workspace: DevicesWorkspa
           <div className="devices-contract-body">
             {contract.description && <p className="devices-muted">{contract.description}</p>}
             {warnings.map((warning) => <p key={warning} className="program-diag is-warning"><AlertTriangle aria-hidden="true" />{warning}</p>)}
-            <ContractFields contract={contract} values={valuesOf(contract)} actions={w.actions} onChange={(next) => setValues((current) => ({ ...current, [contract.id]: next }))} />
+            <ContractFields contract={contract} values={valuesOf(contract)} actions={w.actions} pinLabel={(pin, label) => pinDisplayLabel(w.catalog, device.ref, pin, label)} onChange={(next) => setValues((current) => ({ ...current, [contract.id]: next }))} />
             {contract.returns && <p className="devices-hint">Returns {contract.returns.split(' @')[0]}</p>}
             <div className="program-actions">
               <Button variant="primary" disabled={!session || busy} onClick={() => void run(contract.id, contract.label, one(contract))}><Send aria-hidden="true" /><span>Send</span></Button>

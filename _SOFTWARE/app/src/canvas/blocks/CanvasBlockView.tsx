@@ -58,8 +58,8 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
   const [drag, setDrag] = useState<{ start: Point; origin: Point; at: Point }>()
   const [renaming, setRenaming] = useState(false)
   const typeTitle = type?.title ?? `Unknown ${block.type}`
-  const headline = blockHeadline(type, block, labelOf) ?? typeTitle
-  const headlineParts = blockHeadlineParts(type, block, labelOf)
+  const headline = blockHeadline(type, block, labelOf, devices, deviceCatalog) ?? typeTitle
+  const headlineParts = blockHeadlineParts(type, block, labelOf, devices, deviceCatalog)
   const deviceLine = blockDeviceLine(type, block, devices, deviceCatalog)
   const commitName = (text: string) => {
     setRenaming(false)
@@ -300,7 +300,7 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
           ) : (
             <span className="canvas-block-title" title={onRename ? 'Double-click the header to name it' : undefined}>{block.name || (headlineParts ? <>{headlineParts.lead}{headlineParts.value && <> <span className="canvas-block-value">{headlineParts.value}</span></>}</> : headline)}</span>
           )}
-          {(block.name || expanded) && <span className="canvas-block-id" title={block.id}>{[block.name ? blockSubtitleHeadline(type, block, labelOf) ?? headline : '', expanded ? block.id : ''].filter(Boolean).join(' · ')}</span>}
+          {(block.name || expanded) && <span className="canvas-block-id" title={block.id}>{[block.name ? blockSubtitleHeadline(type, block, labelOf, devices, deviceCatalog) ?? headline : '', expanded ? block.id : ''].filter(Boolean).join(' · ')}</span>}
         </span>
         {enoNamed && <span className="canvas-block-eno-tag" title={`${enoName.title}: ${enoName.description}`}>{enoName.title}</span>}
         {errors > 0 && <span className="canvas-block-errors" title={`${errors} problem(s): see the block's details`}>{errors}</span>}

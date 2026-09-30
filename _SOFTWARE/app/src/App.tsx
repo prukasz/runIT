@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePersistedChoice } from './hooks/useStorage'
 import { DetailsPanel, ExplorerPanel, MainScreen, WorkspaceShell } from './layout'
-import { ArrowLeft, ArrowLeftRight, BoxSelect, Bug, Check, ChevronRight, ClipboardPaste, Code2, Copy, Cpu, FolderOpen, Gamepad2, Grid2X2, Info, ListTree, Magnet, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Radio, Redo2, ScrollText, Settings2, Sliders, Square, SquareTerminal, Sun, Undo2, Variable, X } from 'lucide-react'
+import { ArrowLeft, ArrowLeftRight, BoxSelect, Bug, Check, ChevronRight, ClipboardPaste, Code2, Copy, Cpu, Gamepad2, Grid2X2, House, Info, ListTree, Magnet, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Radio, Redo2, ScrollText, Settings2, Sliders, Square, SquareTerminal, Sun, Undo2, Variable, X } from 'lucide-react'
 import { ObjectDetails, ObjectTreeEditor, ObjectTreePalette, useObjectTreeWorkspace } from './ObjectTreeWorkspace'
 import { LogSettingsEditor, useLogSettingsWorkspace } from './LogSettingsWorkspace'
 import { BleDetails, BleSettingsEditor, BleSettingsPalette, useBleSettingsWorkspace } from './BleSettingsWorkspace'
@@ -21,7 +21,11 @@ import { ProjectFilePage, ProjectFilePalette } from './ProjectFile'
 import { DeviceDetails, DevicesEditor, DevicesPalette, useDevicesWorkspace } from './devices'
 import { BlockDetails, blockDiagnostics, BlockPalette, CanvasEditor, recoveredCanvases, useCanvasWorkspace } from './canvas'
 import { OBJECT_DRAG_TYPE, objectKindDragType } from './domain/canvas'
+import { programBlocks } from './domain/canvas'
+import { compileProgram } from './domain/compiler'
 import { runitVmCatalog } from './domain/descriptors'
+import { allDevices, pinDisplayLabel } from './domain/devices'
+import type { ResolveConsoleReference } from './ConsoleReference'
 import CommandConsole from './CommandConsole'
 import DiagnosticsConsole from './DiagnosticsConsole'
 import { sampleProject } from './sampleProject'
@@ -33,18 +37,19 @@ import type { ProjectSettings } from './domain/project'
 import { refreshSettings, settingsFromState, settingsState } from './domain/settings'
 import type { RecoveredCode } from './domain/storedCode'
 import './styles/theme.css'
+import './Console.css'
 import './App.css'
 
 /** Browser storage key of the project a replace (new, open, import, recover) put aside. */
 const PREVIOUS_KEY = 'runit.project.previous'
 
 const views = [
-  { name: 'File', icon: FolderOpen },
+  { name: 'Home', icon: House },
   { name: 'Settings', icon: Settings2 },
   { name: 'Board', icon: Cpu },
   { name: 'Code', icon: Code2 },
   { name: 'Remote', icon: Gamepad2 },
-]
+] as const
 
 const details = [
   { name: 'Info', icon: Info },
@@ -60,8 +65,8 @@ type CodePalette = typeof codePalettes[number]
 type CodeMode = 'manage' | 'canvas'
 
 export default function App() {
-  const [view, setView] = useState('Settings')
-  const [settingsGroup, setSettingsGroup] = useState<SettingsGroup>('BLE')
+  const [view, setView] = usePersistedChoice('runit.shell.view', views.map(({ name }) => name), 'Home')
+  const [settingsGroup, setSettingsGroup] = usePersistedChoice<SettingsGroup>('runit.settings.group', ['all', 'BLE', 'General', 'Connectors', 'Logging'], 'BLE')
   // The Code view's palette and main view (canvas or the variables manager) are remembered.
   const [codePalette, setCodePalette] = usePersistedChoice<CodePalette>('runit.code.palette', ['Variables', 'Blocks'], 'Variables')
   const [codeMode, setCodeMode] = usePersistedChoice<CodeMode>('runit.code.mode', ['manage', 'canvas'], 'manage')
@@ -91,6 +96,7 @@ export default function App() {
   const logWorkspace = useLogSettingsWorkspace()
   const devicesWorkspace = useDevicesWorkspace(() => { setRightOpen(true); setDetail('Info') })
   const canvasWorkspace = useCanvasWorkspace(() => { setRightOpen(true); setDetail('Info') })
+  const compiledReferences = useMemo(() => terminalOpen ? compileProgram(objectWorkspace.project, runitVmCatalog(), { maxFrameBytes: 240, sections: objectWorkspace.sections, blocks: programBlocks(canvasWorkspace.canvases) }) : undefined, [terminalOpen, objectWorkspace.project, objectWorkspace.sections, canvasWorkspace.canvases])
   // User services must be named when the board is picked, or Web Bluetooth hides them.
   const userServiceUuids = useMemo(
     () => bleWorkspace.profile.services.map((service) => Number.parseInt(service.uuid.replace(/^0x/i, ''), 16)).filter((uuid) => Number.isInteger(uuid) && uuid > 0),
@@ -131,10 +137,10 @@ export default function App() {
   const applyProject = (project: ProjectDocument) => {
     objectWorkspace.load(project)
     loadSettings(refreshSettings(project.settings))
-    devicesWorkspace.load({ devices: project.devices ?? [], deviceAliases: project.deviceAliases, actions: project.actions ?? [], setup: project.setup ?? [] })
+    devicesWorkspace.load({ devices: project.devices ?? [], deviceAliases: project.deviceAliases, pinAliases: project.pinAliases, actions: project.actions ?? [], setup: project.setup ?? [] })
     canvasWorkspace.load(project.canvases ?? [])
   }
-  const currentProject = (): ProjectDocument => ({ ...objectWorkspace.project, settings: projectSettings, devices: devicesWorkspace.devices, deviceAliases: devicesWorkspace.deviceAliases, actions: devicesWorkspace.actions, setup: devicesWorkspace.setup, canvases: canvasWorkspace.canvases })
+  const currentProject = (): ProjectDocument => ({ ...objectWorkspace.project, settings: projectSettings, devices: devicesWorkspace.devices, deviceAliases: devicesWorkspace.deviceAliases, pinAliases: devicesWorkspace.pinAliases, actions: devicesWorkspace.actions, setup: devicesWorkspace.setup, canvases: canvasWorkspace.canvases })
   // Replacing the project never asks: what was there is kept in the browser and comes back with Restore previous.
   const [hasPrevious, setHasPrevious] = useState(() => { try { return !!localStorage.getItem(PREVIOUS_KEY) } catch { return false } })
   const keepPrevious = () => {
@@ -192,7 +198,7 @@ export default function App() {
     keepPrevious()
     objectWorkspace.load({ ...recovered.project, autostart, extraFrames: recovered.extraFrames }, recovered.sections)
     loadSettings(settingsFromState(recovered.settings, projectSettings))
-    devicesWorkspace.load({ devices: recovered.devices, deviceAliases: devicesWorkspace.deviceAliases, actions: devicesWorkspace.actions, setup: recovered.setup })
+    devicesWorkspace.load({ devices: recovered.devices, deviceAliases: devicesWorkspace.deviceAliases, pinAliases: devicesWorkspace.pinAliases, actions: devicesWorkspace.actions, setup: recovered.setup })
     // The recovered program is the code now: its blocks on a canvas of their own.
     canvasWorkspace.load(recoveredCanvases(recovered.blocks))
   }
@@ -204,6 +210,60 @@ export default function App() {
   const isSettingsBle = view === 'Settings' && settingsGroup === 'BLE'
   const isBoard = view === 'Board'
   const isCanvas = view === 'Code' && codeMode === 'canvas'
+
+  const openBlock = (id: string) => {
+    const canvas = canvasWorkspace.canvases.find((entry) => entry.blocks.some((block) => block.id === id))
+    if (!canvas) return
+    setView('Code')
+    setCodeMode('canvas')
+    setRightOpen(true)
+    setDetail('Info')
+    canvasWorkspace.reveal(canvas.id, id)
+  }
+  const resolveConsoleReference: ResolveConsoleReference = (field, value, siblings) => {
+    if (!Number.isSafeInteger(value) || value < 0) return undefined
+    const destination = (label: string, open: () => void) => ({ label, open: () => { setTerminalOpen(false); open() } })
+    const rawName = field.toLowerCase()
+    const name = rawName.split(':').at(-1)!
+    const devices = allDevices(devicesWorkspace.catalog, devicesWorkspace.devices)
+    const deviceId = [siblings.device_id, siblings.dev_id, siblings.device].find((entry) => typeof entry === 'number') as number | undefined
+    if (['device_id', 'dev_id', 'device'].includes(name) || name === 'id' && rawName.includes('device')) {
+      const device = devices.find((entry) => entry.deviceId === value)
+      return device && destination(device.name, () => { setView('Board'); setLeftOpen(true); devicesWorkspace.select({ kind: 'device', ref: device.ref }) })
+    }
+    if (['pin', 'pin_num', 'io_num'].includes(name) && deviceId !== undefined) {
+      const device = devices.find((entry) => entry.deviceId === deviceId)
+      return device && destination(`${device.name}: ${pinDisplayLabel(devicesWorkspace.catalog, device.ref, value)}`, () => {
+        setView('Board')
+        setLeftOpen(true)
+        devicesWorkspace.select({ kind: 'device', ref: device.ref })
+        setTimeout(() => { const input = [...document.querySelectorAll<HTMLInputElement>('input[aria-label^="Alias for pin "]')].find((entry) => entry.getAttribute('aria-label') === `Alias for pin ${value}`); input?.scrollIntoView({ block: 'center' }); input?.focus() }, 0)
+      })
+    }
+    if (['object_id', 'obj_id', 'object_idx', 'obj_idx', 'object', 'variable_id', 'variable'].includes(name)) {
+      const placed = compiledReferences?.objects.objects[value]
+      if (!placed) return undefined
+      if (placed.section === 'blocks') {
+        const blockId = placed.node.id.split(':')[0]!
+        return destination(placed.node.name || blockId, () => openBlock(blockId))
+      }
+      if (placed.section !== 'user') return undefined
+      return destination(placed.node.name || placed.node.id, () => { setView('Code'); setCodePalette('Variables'); setCodeMode('manage'); setLeftOpen(true); objectWorkspace.select(placed.node.id) })
+    }
+    if (['action_id', 'dynamic_action_id'].includes(name) || name === 'id' && rawName.includes('action') && !rawName.includes('static')) {
+      const action = devicesWorkspace.actions.find((entry) => entry.actionId === value)
+      return action && destination(action.name, () => { setView('Board'); setLeftOpen(true); devicesWorkspace.select({ kind: 'action', id: action.id }) })
+    }
+    if (['connector_id', 'connector'].includes(name) || name === 'id' && rawName.includes('connector')) {
+      const connector = connectorsWorkspace.connectors.find((entry) => entry.id === value)
+      return connector && destination(connector.name, () => { setView('Settings'); setSettingsGroup('Connectors'); setLeftOpen(true); connectorsWorkspace.select(connector.key); setRightOpen(true); setDetail('Info') })
+    }
+    if (name === 'block_idx' || name === 'block') {
+      const block = compiledReferences?.blocks.blocks[value]
+      return block && destination(block.id, () => openBlock(block.id))
+    }
+    return undefined
+  }
 
   const activeCanUndo = isCanvas ? canvasWorkspace.canUndo : isCodeVariables ? objectWorkspace.canUndo : isSettingsBle ? bleWorkspace.canUndo : isBoard ? devicesWorkspace.canUndo : false
   const activeCanRedo = isCanvas ? canvasWorkspace.canRedo : isCodeVariables ? objectWorkspace.canRedo : isSettingsBle ? bleWorkspace.canRedo : isBoard ? devicesWorkspace.canRedo : false
@@ -315,6 +375,7 @@ export default function App() {
     <DebugHost project={debugProject} sections={objectWorkspace.sections} session={bleConnection.session}>
     <WorkspaceShell className={`theme-${theme} ${resizing ? `is-resizing-${resizing}` : ''} ${linkingParentId !== undefined ? 'is-linking' : ''} ${view === 'Board' && devicesWorkspace.composing ? 'is-composing' : ''}`}>
       {linkingParentId !== undefined && <div className="object-link-backdrop" onClick={() => setLinkingParentId(undefined)} />}
+      <div className="workspace-row">
       <ExplorerPanel open={leftOpen} width={leftWidth}>
         {leftOpen && <div className="panel-resize-handle left-resize-handle" role="separator" aria-label="Resize explorer panel" aria-orientation="vertical" tabIndex={0} onPointerDown={(event) => { leftResizeActive.current = true; setResizing('left'); event.currentTarget.setPointerCapture(event.pointerId) }} onPointerMove={(event) => { if (leftResizeActive.current) resizeLeft(event.clientX) }} onPointerUp={() => { leftResizeActive.current = false; setResizing(null) }} onPointerCancel={() => { leftResizeActive.current = false; setResizing(null) }} onKeyDown={(event) => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); resizeLeft(leftWidth + (event.key === 'ArrowLeft' ? -16 : 16)) } }} />}
         <div className="side-panel-header left-strip">
@@ -336,13 +397,10 @@ export default function App() {
               ))}
             </div>
           )}
-          {leftOpen && (
-            <button className={`terminal-launch ${terminalOpen ? 'selected' : ''}`} aria-label={terminalOpen ? 'Hide terminal' : 'Show terminal'} title="Terminal" aria-pressed={terminalOpen} onClick={() => setTerminalOpen(!terminalOpen)}><SquareTerminal aria-hidden="true" /></button>
-          )}
           <button className="panel-toggle" aria-label={leftOpen ? 'Collapse explorer' : 'Expand explorer'} onClick={() => setLeftOpen(!leftOpen)}>{leftOpen ? <PanelLeftClose /> : <PanelLeftOpen />}</button>
         </div>
         {leftOpen && <div className="left-content" aria-label={`${view} explorer panel`}>
-          {view === 'File' && <ProjectFilePalette workspace={objectWorkspace} settings={projectSettings} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} setup={devicesWorkspace.setup} canvases={canvasWorkspace.canvases} board={boardCode} session={bleConnection.session} onNew={newProject} onOpen={(file) => void openProject(file)} onSave={saveProject} onRecover={recoverProject} canRestore={hasPrevious} onRestore={restorePrevious} onSample={loadSample} />}
+          {view === 'Home' && <ProjectFilePalette workspace={objectWorkspace} settings={projectSettings} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} setup={devicesWorkspace.setup} canvases={canvasWorkspace.canvases} board={boardCode} session={bleConnection.session} onNew={newProject} onOpen={(file) => void openProject(file)} onSave={saveProject} onRecover={recoverProject} canRestore={hasPrevious} onRestore={restorePrevious} onSample={loadSample} />}
           {view === 'Settings' && (
             <div className="settings-sidebar-wrapper">
               {settingsGroup === 'all' && (
@@ -485,7 +543,6 @@ export default function App() {
                 </button>
               ))}
             </div>
-            <button className={`terminal-launch ${terminalOpen ? 'selected' : ''}`} aria-label={terminalOpen ? 'Hide terminal' : 'Show terminal'} title="Terminal" aria-pressed={terminalOpen} onClick={() => setTerminalOpen(!terminalOpen)}><SquareTerminal aria-hidden="true" /></button>
           </div>
         )}
       </ExplorerPanel>
@@ -577,7 +634,7 @@ export default function App() {
             />
           )}
           {view === 'Code' && codePalette === 'Variables' && codeMode === 'manage' && <ObjectTreeEditor workspace={objectWorkspace} />}
-          {view === 'File' && <ProjectFilePage workspace={objectWorkspace} settings={projectSettings} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} setup={devicesWorkspace.setup} canvases={canvasWorkspace.canvases} onRecover={recoverProject} />}
+          {view === 'Home' && <ProjectFilePage workspace={objectWorkspace} settings={projectSettings} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} setup={devicesWorkspace.setup} canvases={canvasWorkspace.canvases} onRecover={recoverProject} />}
           {view === 'Board' && <DevicesEditor workspace={devicesWorkspace} session={bleConnection.session} />}
           {view === 'Settings' && settingsGroup === 'BLE' && <BleSettingsEditor workspace={bleWorkspace} />}
           {view === 'Settings' && settingsGroup === 'all' && (
@@ -660,18 +717,6 @@ export default function App() {
             </div>
           )}
       </MainScreen>
-      {terminalOpen && <section className="terminal-panel" style={{ height: terminalHeight }} aria-label="Terminal panel">
-        <div className="panel-resize-handle bottom-resize-handle" role="separator" aria-label="Resize terminal panel" aria-orientation="horizontal" tabIndex={0} onPointerDown={(event) => { bottomResizeActive.current = true; setResizing('bottom'); event.currentTarget.setPointerCapture(event.pointerId) }} onPointerMove={(event) => { if (bottomResizeActive.current) resizeBottom(event.clientY) }} onPointerUp={() => { bottomResizeActive.current = false; setResizing(null) }} onPointerCancel={() => { bottomResizeActive.current = false; setResizing(null) }} onKeyDown={(event) => { if (event.key === 'ArrowUp' || event.key === 'ArrowDown') { event.preventDefault(); resizeBottom(window.innerHeight - terminalHeight + (event.key === 'ArrowUp' ? -16 : 16)) } }} />
-        <div className="terminal-header">
-          <div className="terminal-tabs" role="tablist" aria-label="Terminal views">
-            {(['Commands', 'Errors & logs'] as const).map((tab) => <button key={tab} role="tab" aria-selected={terminalTab === tab} className={terminalTab === tab ? 'selected' : ''} onClick={() => setTerminalTab(tab)}>{tab}</button>)}
-          </div>
-          <button aria-label="Close terminal" title="Close terminal" onClick={() => setTerminalOpen(false)}><X aria-hidden="true" /></button>
-        </div>
-        <div className="terminal-body">
-          {terminalTab === 'Commands' ? <CommandConsole session={bleConnection.session} /> : <DiagnosticsConsole session={bleConnection.session} />}
-        </div>
-      </section>}
       </div>
 
       <DetailsPanel
@@ -699,6 +744,7 @@ export default function App() {
               ))}
             </div>
           )}
+          {rightOpen && <button className={`terminal-launch ${terminalOpen ? 'selected' : ''}`} aria-label={terminalOpen ? 'Hide terminal' : 'Show terminal'} title="Terminal" aria-pressed={terminalOpen} onClick={() => setTerminalOpen(!terminalOpen)}><SquareTerminal aria-hidden="true" /></button>}
           <button className="panel-toggle detail-toggle" aria-label={rightOpen ? 'Collapse details' : 'Expand details'} onClick={() => setRightOpen(!rightOpen)}>{rightOpen ? <PanelRightClose /> : <PanelRightOpen />}</button>
         </div>
         {rightOpen && (
@@ -777,9 +823,23 @@ export default function App() {
                 <Icon aria-hidden="true" />
               </button>
             ))}
+            <button className={`terminal-launch ${terminalOpen ? 'selected' : ''}`} aria-label={terminalOpen ? 'Hide terminal' : 'Show terminal'} title="Terminal" aria-pressed={terminalOpen} onClick={() => setTerminalOpen(!terminalOpen)}><SquareTerminal aria-hidden="true" /></button>
           </div>
         )}
       </DetailsPanel>
+      </div>
+      {terminalOpen && <section className="terminal-panel" style={{ height: terminalHeight }} aria-label="Terminal panel">
+        <div className="panel-resize-handle bottom-resize-handle" role="separator" aria-label="Resize terminal panel" aria-orientation="horizontal" tabIndex={0} onPointerDown={(event) => { bottomResizeActive.current = true; setResizing('bottom'); event.currentTarget.setPointerCapture(event.pointerId) }} onPointerMove={(event) => { if (bottomResizeActive.current) resizeBottom(event.clientY) }} onPointerUp={() => { bottomResizeActive.current = false; setResizing(null) }} onPointerCancel={() => { bottomResizeActive.current = false; setResizing(null) }} onKeyDown={(event) => { if (event.key === 'ArrowUp' || event.key === 'ArrowDown') { event.preventDefault(); resizeBottom(window.innerHeight - terminalHeight + (event.key === 'ArrowUp' ? -16 : 16)) } }} />
+        <div className="terminal-header">
+          <div className="terminal-tabs" role="tablist" aria-label="Terminal views">
+            {(['Commands', 'Errors & logs'] as const).map((tab) => <button key={tab} role="tab" aria-selected={terminalTab === tab} className={terminalTab === tab ? 'selected' : ''} onClick={() => setTerminalTab(tab)}>{tab}</button>)}
+          </div>
+          <button aria-label="Close terminal" title="Close terminal" onClick={() => setTerminalOpen(false)}><X aria-hidden="true" /></button>
+        </div>
+        <div className="terminal-body">
+          {terminalTab === 'Commands' ? <CommandConsole session={bleConnection.session} resolveReference={resolveConsoleReference} /> : <DiagnosticsConsole session={bleConnection.session} resolveReference={resolveConsoleReference} />}
+        </div>
+      </section>}
     </WorkspaceShell>
     </DebugHost>
   )

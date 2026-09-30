@@ -1,7 +1,7 @@
 import { packCommand } from '../descriptors'
 import type { CommandCatalog, DeviceCatalog, DeviceChoice, DeviceContract, DeviceParameter, DeviceType } from '../descriptors'
 import { boardDeviceRef } from '../project'
-import type { ActionStep, DeviceRef, ProjectAction, ProjectDevice, StepValues } from '../project'
+import type { ActionStep, DeviceRef, PinAliases, ProjectAction, ProjectDevice, StepValues } from '../project'
 import type { UploadDiagnostic, UploadStep } from '../upload'
 
 /*
@@ -23,11 +23,19 @@ export interface ResolvedDevice {
 }
 
 /** Apply project display names without changing the shared firmware catalog. */
-export const withDeviceAliases = (catalog: DeviceCatalog, aliases: Readonly<Record<DeviceRef, string>> = {}): DeviceCatalog => ({
+export const withDeviceAliases = (catalog: DeviceCatalog, aliases: Readonly<Record<DeviceRef, string>> = {}, pinAliases: PinAliases = {}): DeviceCatalog => ({
   ...catalog,
   deviceAliases: aliases,
+  pinAliases,
   board: catalog.board.map((device) => ({ ...device, name: aliases[boardDeviceRef(device.deviceId)] || device.name })),
 })
+
+/** Display a project pin name while keeping its physical pin number visible. */
+export const pinDisplayLabel = (catalog: DeviceCatalog, ref: DeviceRef | undefined, pin: number, baseLabel?: string): string => {
+  const alias = ref && catalog.pinAliases?.[ref]?.[String(pin)]
+  if (alias) return `${alias} (pin ${pin})`
+  return baseLabel && baseLabel !== String(pin) ? `${baseLabel} (${pin})` : `Pin ${pin}`
+}
 
 export const deviceDisplayName = (catalog: DeviceCatalog, device: ProjectDevice): string => catalog.deviceAliases?.[device.id] || device.name
 
@@ -335,6 +343,7 @@ export const describeStep = (catalog: DeviceCatalog, devices: readonly ProjectDe
       const value = parameterValue(parameter, step.values)
       if (Array.isArray(value)) return `${parameter.label} [${value.join(', ')}]`
       const choice = parameter.choices?.find((entry) => entry.value === value)
+      if (parameter.name === 'pin' && typeof value === 'number' && catalog.pinAliases?.[step.device]?.[String(value)]) return `${parameter.label} ${pinDisplayLabel(catalog, step.device, value, choice?.label)}`
       return `${parameter.label} ${parameter.boolean ? (value ? 'on' : 'off') : choice && choice.label !== String(value) ? choice.label : `${value}${parameter.unit ? ` ${parameter.unit}` : ''}`}`
     })
     .join(', ')

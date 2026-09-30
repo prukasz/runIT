@@ -164,6 +164,7 @@ export interface BoardPinSetup {
 export interface DeviceCatalog {
   /** App-only display overrides, keyed by project device reference. */
   readonly deviceAliases?: Readonly<Record<string, string>>
+  readonly pinAliases?: Readonly<Record<string, Readonly<Record<string, string>>>>
   readonly types: readonly DeviceType[]
   type(id: string): DeviceType | undefined
   /** The board's own devices (installed at boot by boot action 1 unless a bring-up switch is off). */

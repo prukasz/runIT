@@ -7,6 +7,8 @@ import type { RunitBleSession } from './backend/runitBleSession'
 import { errorOwnerName, errorTagName } from './domain/decoder'
 import { decodeResponseData, packCommand, runitCommandCatalog, runitErrorCatalog } from './domain/descriptors'
 import type { CommandDescriptor, CommandFieldInfo } from './domain/descriptors'
+import { ConsoleFieldTarget, ConsoleLinkedText } from './ConsoleReference'
+import type { ResolveConsoleReference } from './ConsoleReference'
 
 const formatHex = (data: Uint8Array): string => [...data].map((byte) => byte.toString(16).padStart(2, '0').toUpperCase()).join(' ')
 
@@ -80,7 +82,7 @@ const describeResponse = (response: CommandResponse, command: CommandDescriptor 
   if (!command?.response) return response.data.byteLength ? `${head}  data ${formatHex(response.data)}` : head
   try {
     const decoded = decodeResponseData(command, response.data)!
-    const fields = command.response.fields.map((field) => `${field.label}: ${formatValue(decoded.values[field.name], field)}`).join(' · ')
+    const fields = command.response.fields.map((field) => `${field.name}=${formatValue(decoded.values[field.name], field)}`).join(' · ')
     return `${head}  ${fields}${decoded.extra.byteLength ? ` · extra ${formatHex(decoded.extra)}` : ''}`
   } catch (error) {
     return `${head}  data ${formatHex(response.data)} (${error instanceof Error ? error.message : String(error)})`
@@ -98,19 +100,20 @@ const fieldHint = (field: CommandFieldInfo): string => {
 
 interface Props {
   readonly session?: RunitBleSession
+  readonly resolveReference?: ResolveConsoleReference
 }
 
 /** Test-console panel: send catalog commands or raw bodies and watch their answers. */
-export default function CommandConsole({ session }: Props) {
+export default function CommandConsole({ session, resolveReference }: Props) {
   const catalog = useMemo(() => runitCommandCatalog(), [])
   const [commandId, setCommandId] = useState(catalog.commands[0]?.id ?? '')
   const [inputs, setInputs] = useState<Record<string, string>>({})
   const [rawBody, setRawBody] = useState('')
   const [timeoutMs, setTimeoutMs] = useState('2000')
-  const [log, setLog] = useState<string[]>([])
+  const [log, setLog] = useState<{ readonly line: string; readonly context?: string }[]>([])
   const command = catalog.get(commandId)
 
-  const append = (line: string): void => setLog((entries) => [line, ...entries].slice(0, 200))
+  const append = (line: string, context?: string): void => setLog((entries) => [{ line, context }, ...entries].slice(0, 200))
 
   useEffect(() => {
     if (!session) return undefined
@@ -119,7 +122,10 @@ export default function CommandConsole({ session }: Props) {
       if (event.type === 'sent') append(`→ #${event.seq} ${event.label ?? ''}  ${formatHex(event.frame)}`)
       else if (event.type === 'timeout') append(`✕ #${event.seq} ${event.label ?? ''} no answer (timeout)`)
       else if (event.type === 'unmatched') append(`? #${event.frame.seq} answer nobody waits for: ${event.frame.requestClass.toString(16)}/${event.frame.requestPacket.toString(16)} status ${event.frame.status}`)
-      else append(describeResponse(event.response, byHeader.get((event.response.requestClass << 8) | event.response.requestPacket)))
+      else {
+        const command = byHeader.get((event.response.requestClass << 8) | event.response.requestPacket)
+        append(describeResponse(event.response, command), command?.name)
+      }
     })
   }, [session, catalog])
 
@@ -143,15 +149,15 @@ export default function CommandConsole({ session }: Props) {
   }
 
   return (
-    <section className="rounded border border-slate-700 bg-slate-900 p-4">
-      <h2 className="font-semibold text-white">Commands</h2>
-      <p className="mt-1 text-xs text-slate-500">
+    <section className="console-section">
+      <h2>Commands</h2>
+      <p className="console-muted">
         {catalog.commands.length} commands from data-structures/. Sent as [seq][class][packet][payload]; answers matched by seq on stream 0x05.
         {!session && ' Connect and rediscover GATT to open the command session.'}
       </p>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <SelectField aria-label="Command" value={commandId} onChange={(event) => selectCommand(event.target.value)}>
+      <div className="console-toolbar">
+        <SelectField className="console-command-select" aria-label="Command" value={commandId} onChange={(event) => selectCommand(event.target.value)}>
           {catalog.groups.map((group) => (
             <optgroup key={`${group.source}-${group.id}`} label={`${group.title} (class 0x${group.classHeader.toString(16).padStart(2, '0')})`}>
               {catalog.commands.filter((entry) => entry.group === group).map((entry) => (
@@ -160,18 +166,18 @@ export default function CommandConsole({ session }: Props) {
             </optgroup>
           ))}
         </SelectField>
-        <label className="flex items-center gap-1 text-xs text-slate-400">
+        <label className="console-timeout">
           Timeout ms
-          <TextField className="w-20" value={timeoutMs} onChange={(event) => setTimeoutMs(event.target.value)} />
+          <TextField type="number" min="1" value={timeoutMs} onChange={(event) => setTimeoutMs(event.target.value)} />
         </label>
       </div>
 
       {command && (
-        <div className="mt-3 space-y-2">
+        <div className="console-form">
           {command.request.fields.map((field) => (
-            <label key={field.name} className="grid gap-1 sm:grid-cols-[12rem_1fr] sm:items-center">
-              <span className="text-slate-300">{field.label}{field.required ? ' *' : ''}</span>
-              <span className="flex flex-col gap-1">
+            <label key={field.name} className="console-field">
+              <span className="console-field-label">{field.label}{field.required ? ' *' : ''}</span>
+              <span className="console-field-input">
                 {field.choices && field.kind === 'number' ? (
                   <SelectField value={inputs[field.name] ?? ''} onChange={(event) => setInputs((values) => ({ ...values, [field.name]: event.target.value }))}>
                     <option value="">{field.required ? '— choose —' : `default (${field.fallback})`}</option>
@@ -186,24 +192,25 @@ export default function CommandConsole({ session }: Props) {
                     onChange={(event) => setInputs((values) => ({ ...values, [field.name]: event.target.value }))}
                   />
                 )}
-                <span className="text-xs text-slate-500">{fieldHint(field)}</span>
+                <small>{fieldHint(field)}</small>
+                {field.kind === 'number' && inputs[field.name]?.trim() && Number.isSafeInteger(Number(inputs[field.name])) && <span className="console-field-target"><ConsoleFieldTarget field={`${command.name}:${field.name}`} value={Number(inputs[field.name])} siblings={Object.fromEntries(Object.entries(inputs).filter(([, value]) => value.trim() && Number.isSafeInteger(Number(value))).map(([key, value]) => [key, Number(value)]))} resolveReference={resolveReference} /></span>}
               </span>
             </label>
           ))}
-          <button disabled={!session} onClick={() => send(command.name, () => packCommand(command, toValues(command, inputs)))}>Send {command.name}</button>
+          <button className="console-button console-primary" disabled={!session} onClick={() => send(command.name, () => packCommand(command, toValues(command, inputs)))}>Send {command.name}</button>
         </div>
       )}
 
-      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-3">
-        <TextField aria-label="Raw command body" className="min-w-64 flex-1" value={rawBody} onChange={(event) => setRawBody(event.target.value)} placeholder="raw [class][packet][payload], e.g. 01 24 03 04" />
-        <button disabled={!session} onClick={() => send('raw', () => hexToBytes(rawBody))}>Send raw</button>
+      <div className="console-raw">
+        <TextField aria-label="Raw command body" value={rawBody} onChange={(event) => setRawBody(event.target.value)} placeholder="raw [class][packet][payload], e.g. 01 24 03 04" />
+        <button className="console-button" disabled={!session} onClick={() => send('raw', () => hexToBytes(rawBody))}>Send raw</button>
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
-        <h3 className="text-slate-300">Command log</h3>
-        <button onClick={() => setLog([])}>Clear</button>
+      <div className="console-heading">
+        <h3>Command log</h3>
+        <button className="console-button" onClick={() => setLog([])}>Clear</button>
       </div>
-      <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap text-xs text-amber-200">{log.join('\n') || 'No commands yet.'}</pre>
+      <div className="console-log" role="log">{log.length ? log.map((entry, index) => <div key={`${log.length}-${index}`}><ConsoleLinkedText text={entry.line} context={entry.context} resolveReference={resolveReference} /></div>) : 'No commands yet.'}</div>
     </section>
   )
 }

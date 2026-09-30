@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite'
 
 // Generated firmware descriptors live next to the app, in the repo's data-structures/.
@@ -7,7 +8,7 @@ const dataStructures = fileURLToPath(new URL('../data-structures', import.meta.u
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: { '@data-structures': dataStructures },
   },

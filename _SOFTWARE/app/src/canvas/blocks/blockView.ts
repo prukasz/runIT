@@ -5,7 +5,7 @@ import { blockPinAt, DEFAULT_ENO, enumAlias, runitDeviceCatalog } from '../../do
 import type { DeviceCatalog, VmBlockPins, VmBlockType, VmCatalog, VmTemplate, VmTemplatePart } from '../../domain/descriptors'
 import { GRID } from '../../domain/canvas'
 import { isDynamicInput } from '../../domain/project/blockPins'
-import { allDevices, pinsOf } from '../../domain/devices'
+import { allDevices, pinDisplayLabel, pinsOf } from '../../domain/devices'
 import type { ObjectPath, ProgramBlock, ProjectCanvas, ProjectDevice, ProjectDocument } from '../../domain/project'
 
 /*
@@ -73,11 +73,13 @@ const fieldText = (ctx: FaceContext, name: string, long: boolean): string => {
   if (field.idKind === 'pin') {
     const mask = type.fields.find((entry) => entry.letUserSelectAvailable === field.name)
     const dynamic = mask?.dynamicInput !== undefined && isDynamicInput(block, mask.dynamicInput)
-    if (!long) return dynamic ? 'dynamic pin' : `#${value}`
     const deviceId = block.settings?.[field.deviceField!] ?? 0
-    const device = allDevices(ctx.deviceCatalog ?? runitDeviceCatalog(), ctx.devices).find((entry) => entry.deviceId === deviceId)
+    const catalog = ctx.deviceCatalog ?? runitDeviceCatalog()
+    const device = allDevices(catalog, ctx.devices).find((entry) => entry.deviceId === deviceId)
+    const alias = device && catalog.pinAliases?.[device.ref]?.[String(value)]
+    if (!long) return dynamic ? 'dynamic pin' : alias ? `${alias} (#${value})` : `#${value}`
     const pin = pinsOf(device?.type).find((entry) => entry.value === value)
-    const label = pin && pin.label !== String(value) ? `${pin.label} (${value})` : String(value)
+    const label = alias ? pinDisplayLabel(catalog, device?.ref, Number(value), pin?.label) : pin && pin.label !== String(value) ? `${pin.label} (${value})` : String(value)
     return dynamic ? `Dynamic (default ${label})` : label
   }
   return field.enumRef ? enumText(type, field.enumRef, value) : String(value)
@@ -126,8 +128,8 @@ export const blockHeadlineParts = (type: VmBlockType | undefined, block: FaceBlo
 }
 
 /** `blockHeadlineParts` as one line: `Every 100 MS`. */
-export const blockHeadline = (type: VmBlockType | undefined, block: FaceBlock, labelOf?: (path: ObjectPath) => string): string | undefined => {
-  const parts = blockHeadlineParts(type, block, labelOf)
+export const blockHeadline = (type: VmBlockType | undefined, block: FaceBlock, labelOf?: (path: ObjectPath) => string, devices: readonly ProjectDevice[] = [], deviceCatalog?: DeviceCatalog): string | undefined => {
+  const parts = blockHeadlineParts(type, block, labelOf, devices, deviceCatalog)
   return parts && (parts.value ? `${parts.lead} ${parts.value}` : parts.lead)
 }
 
@@ -152,9 +154,9 @@ const pinViews = (pins: VmBlockPins, count: number): BlockPinView[] =>
   })
 
 /** The headline as the small line under the title says it: without the block's own title when the face already has it (`For 0 to 3` under the name `For` reads `0 to 3`). */
-export const blockSubtitleHeadline = (type: VmBlockType | undefined, block: FaceBlock, labelOf?: (path: ObjectPath) => string): string | undefined => {
-  const parts = blockHeadlineParts(type, block, labelOf)
-  return parts?.value !== undefined && parts.lead === type?.title ? parts.value : blockHeadline(type, block, labelOf)
+export const blockSubtitleHeadline = (type: VmBlockType | undefined, block: FaceBlock, labelOf?: (path: ObjectPath) => string, devices: readonly ProjectDevice[] = [], deviceCatalog?: DeviceCatalog): string | undefined => {
+  const parts = blockHeadlineParts(type, block, labelOf, devices, deviceCatalog)
+  return parts?.value !== undefined && parts.lead === type?.title ? parts.value : blockHeadline(type, block, labelOf, devices, deviceCatalog)
 }
 
 let measuring: CanvasRenderingContext2D | null | undefined
@@ -176,22 +178,28 @@ const textWidth = (text: string, font: string, perChar: number): number => {
 const MONO = 'ui-monospace, SFMono-Regular, Consolas, monospace'
 
 /** Width the block's title lines need, in canvas units, so a long header is never cut off: the title, the small line under it and the named ENO tag beside them, measured, plus the header's padding. */
-const headerWidth = (type: VmBlockType | undefined, block: FaceBlock, expanded: boolean): number => {
+const headerWidth = (type: VmBlockType | undefined, block: FaceBlock, expanded: boolean, devices: readonly ProjectDevice[], deviceCatalog?: DeviceCatalog): number => {
   if (!type) return 0
   const family = typeof document === 'undefined' ? 'sans-serif' : getComputedStyle(document.body).fontFamily
-  const title = block.name || blockHeadline(type, block) || type.title
-  const subtitle = [block.name ? blockSubtitleHeadline(type, block) ?? '' : '', expanded ? block.id : ''].filter(Boolean).join(' · ')
+  const title = block.name || blockHeadline(type, block, pathText, devices, deviceCatalog) || type.title
+  const subtitle = [block.name ? blockSubtitleHeadline(type, block, pathText, devices, deviceCatalog) ?? '' : '', expanded ? block.id : ''].filter(Boolean).join(' · ')
   const eno = type.eno.title !== DEFAULT_ENO.title ? textWidth(type.eno.title, `600 10px ${family}`, 6.2) + 6 : 0
   return Math.max(textWidth(title, `600 12px ${family}`, 6.8), textWidth(subtitle, `10px ${MONO}`, 6)) + eno + 24 + 8
 }
 
-export const blockShape = (type: VmBlockType | undefined, block: FaceBlock & { readonly view?: 'simple' | 'detailed' }, detailed = false): BlockShape => {
+export const blockShape = (type: VmBlockType | undefined, block: FaceBlock & { readonly view?: 'simple' | 'detailed' }, detailed = false, devices: readonly ProjectDevice[] = [], deviceCatalog?: DeviceCatalog): BlockShape => {
   const expanded = !!type?.hasDetail && (block.view ? block.view === 'detailed' : detailed)
   const inputs = type ? pinViews(type.inputs, pinCount(type.inputs, block.inputs?.length ?? 0)).filter((pin) => !blockPinAt(type.inputs, pin.index)?.hiddenByDefault || block.dynamicInputs?.includes(pin.index) || block.inputs?.[pin.index] || (expanded && blockPinAt(type.inputs, pin.index)?.overrides)) : []
   const outputs = type ? pinViews(type.outputs, pinCount(type.outputs, block.outputs?.length ?? 0)) : []
   const rows = Math.max(1, inputs.length, outputs.length)
   const summaryHeight = expanded && type?.encoding ? 2 * ROW + 16 : 0
-  const width = Math.max(BLOCK_WIDTH + (expanded && type?.encoding ? 4 * GRID : 0), Math.ceil(headerWidth(type, block, expanded) / GRID) * GRID)
+  // Blocks without visible pins need room for their text, not the two pin columns.
+  const minimum = inputs.length || outputs.length ? BLOCK_WIDTH : 6 * GRID
+  const deviceLine = blockDeviceLine(type, block, devices, deviceCatalog)
+  const family = typeof document === 'undefined' ? 'sans-serif' : getComputedStyle(document.body).fontFamily
+  const deviceWidth = deviceLine ? textWidth(deviceLine, `10.5px ${family}`, 5.8) + 24 : 0
+  const contentWidth = Math.max(headerWidth(type, block, expanded, devices, deviceCatalog), deviceWidth)
+  const width = Math.max(minimum + (expanded && type?.encoding ? 4 * GRID : 0), Math.ceil(contentWidth / GRID) * GRID)
   return { width, height: HEADER + rows * ROW + summaryHeight, inputs, outputs, row: ROW }
 }
 
