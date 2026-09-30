@@ -16,10 +16,6 @@ typedef struct ap_adapter_ctx_t {
 
   d_ap33772s_cfg_t cfg;
 
-  // Caching mechanism for freeze/sync (Read-only get voltage and current)
-  uint32_t cached_voltage_mV;
-  int32_t cached_current_mA;
-
   // Tracked VREG target values
   uint32_t last_voltage_mV;
   uint32_t last_current_mA;
@@ -199,11 +195,6 @@ static SE_MUST_USE err_h d_ap33772s_get_telemetry_voltage(void* device_handle, u
   SE_CHECK_HANDLE(ctx);
   SE_CHECK_NOT_NULL(out_mV);
 
-  IF_SYS_DEV_FROZEN(ctx) {
-    *out_mV = ctx->cached_voltage_mV;
-    return NULL;
-  }
-
   ap33772s_handle_t hw = get_hw_handle(ctx);
   SE_CHECK_HANDLE(hw);
 
@@ -217,11 +208,6 @@ static SE_MUST_USE err_h d_ap33772s_get_telemetry_current(void* device_handle, u
   ap_adapter_ctx_t* ctx = (ap_adapter_ctx_t*)device_handle;
   SE_CHECK_HANDLE(ctx);
   SE_CHECK_NOT_NULL(out_mA);
-
-  IF_SYS_DEV_FROZEN(ctx) {
-    *out_mA = ctx->cached_current_mA;
-    return NULL;
-  }
 
   ap33772s_handle_t hw = get_hw_handle(ctx);
   SE_CHECK_HANDLE(hw);
@@ -283,28 +269,6 @@ static SE_MUST_USE err_h adapter_resume_device(void* driver_handle) {
   return NULL;
 }
 
-static SE_MUST_USE err_h adapter_freeze_device(void* driver_handle) {
-  SYS_DEV_GET_ADAPTER_CONTEXT(ap_adapter_ctx_t, ap33772s_handle_t, ctx, hw, driver_handle);
-
-  // Snapshot first; the device only counts as frozen once the snapshot is complete
-  int vol = ap33772s_read_voltage(hw);
-  if (vol < 0) SE_FAIL(ERR_DEV_DRIVER_FAILED, .dev_id = SYS_DEV_GET_ID(ctx), .line = __LINE__);
-  int curr = ap33772s_read_current(hw);
-  if (curr < 0) SE_FAIL(ERR_DEV_DRIVER_FAILED, .dev_id = SYS_DEV_GET_ID(ctx), .line = __LINE__);
-  ctx->cached_voltage_mV = (uint32_t)vol;
-  ctx->cached_current_mA = curr;
-  ctx->base.is_frozen = true;
-
-  return NULL;
-}
-
-static SE_MUST_USE err_h adapter_sync_device(void* driver_handle) {
-  ap_adapter_ctx_t* ctx = (ap_adapter_ctx_t*)driver_handle;
-  SE_CHECK_HANDLE(ctx);
-  ctx->base.is_frozen = false;
-  return NULL;
-}
-
 static SE_MUST_USE err_h device_install(const void* cfg_blob, void** out_device_handle) {
   const d_ap33772s_cfg_t* cfg = (const d_ap33772s_cfg_t*)cfg_blob;
 
@@ -356,7 +320,7 @@ fail:
 static const sys_device_class_t s_ap33772s_class = {
     .name = "AP33772S",
     .contracts = {[SYS_DEVICE_CONTRACT_POWER_VREG] = &s_ap33772s_vreg_contract, [SYS_DEVICE_CONTRACT_POWER_USB_PD] = &s_ap33772s_usb_pd_contract, [SYS_DEVICE_CONTRACT_POWER_MONITOR] = &s_ap33772s_monitor_contract},
-    .ops = {.install = device_install, .uninstall = device_uninstall, .reset = adapter_reset_device, .suspend = adapter_suspend_device, .resume = adapter_resume_device, .freeze = adapter_freeze_device, .sync = adapter_sync_device},
+    .ops = {.install = device_install, .uninstall = device_uninstall, .reset = adapter_reset_device, .suspend = adapter_suspend_device, .resume = adapter_resume_device},
 };
 
 err_h d_ap33772s_create(const d_ap33772s_cfg_t* cfg) {

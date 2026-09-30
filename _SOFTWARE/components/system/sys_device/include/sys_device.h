@@ -1,7 +1,9 @@
 #pragma once
 #include <stddef.h>
+#include <string.h>
 #include "sys_error.h"
 #include <sdkconfig.h>
+#include <stdint.h>
 //#ref-enum @alias Device Contract
 typedef enum {
   SYS_DEVICE_CONTRACT_IO = 0, //@alias Digital/Analog IO @description Basic pin control - read or drive a pin, or measure/generate a voltage on it
@@ -13,17 +15,20 @@ typedef enum {
 } sys_device_contract_type_e;
 
 /**
- * @brief String form of sys_device_contract_type_e, indexed by contract_id -
- * used e.g. by sys_error_dev.h's ERR_DEV_FEATURE_UNAVAILABLE description.
- * sys_error_dev.h forward-declares this same extern rather than including
- * this header, since it's parsed too early in the include chain to safely
- * pull in sys_device.h - see that file's comment. That logger also lists each
- * contract's feature-name table in enum order; the static_assert below fails
- * if the enum changes, so the list gets updated with it.
+ * @brief How a contract describes itself to the device layer.
+ *
+ * Each contract module owns the names of its functions (the NULL-terminated
+ * `<contract>_feature_names[]`, in vtable member order); runit registers them once,
+ * at boot, so the error log can say "feature set_level unavailable on contract IO"
+ * without sys_device or sys_error_dev.h knowing any contract module.
+ * The enum above stays the stable id of a contract (slot in `cls->contracts[]`,
+ * published to the app).
  */
-extern const char* const sys_device_contract_type_e_to_string[];
-_Static_assert(SYS_DEVICE_CONTRACT_IO == 0 && SYS_DEVICE_CONTRACT_HBRIDGE == 4 && SYS_DEVICE_CONTRACT_MAX == 5,
-               "sys_error_dev.h's ERR_DEV_FEATURE_UNAVAILABLE logger lists the 5 contracts' feature-name tables in enum order");
+SE_MUST_USE err_h sys_device_register_contract(sys_device_contract_type_e id, const char* name, const char* const* feature_names);
+/** Name of a registered contract, or NULL. */
+const char* sys_device_contract_name(uint8_t contract_id);
+/** Name of a contract function (feature id = vtable member index), or NULL. */
+const char* sys_device_feature_name(uint8_t contract_id, uint8_t feature_id);
 
 /*Lifecycle callbacks, shared by every instance of a device type*/
 typedef struct sys_device_ops_t {
@@ -32,9 +37,49 @@ typedef struct sys_device_ops_t {
   err_h (*reset)(void* device_handle);
   err_h (*suspend)(void* device_handle);
   err_h (*resume)(void* device_handle);
-  err_h (*freeze)(void* device_handle);
-  err_h (*sync)(void* device_handle);
 } sys_device_ops_t;
+
+/**
+ * Packet router - headers the system does not know
+ * -------------------------------------------------
+ * Frame (class 0x01, header byte first):
+ *   [0x00][type_id][cfg...]              create; cfg[0] is the device_id (the wire cfg struct)
+ *   [0x80..0xFF][device_id][args...]     operation of the device itself
+ * Everything in between belongs to the fixed system packets (uninstall, io, power, ...).
+ */
+#define SYS_DEVICE_OP_CREATE 0x00
+#define SYS_DEVICE_OP_CUSTOM_FIRST 0x80
+#define SYS_DEVICE_MAX_TYPES 16
+
+/** Room for the data an operation hands back; the caller decides where it goes (sys_interface_respond for a packet). */
+typedef struct sys_device_reply_t {
+  uint8_t* buf;
+  size_t cap;
+  size_t len;
+} sys_device_reply_t;
+
+/** Appends `len` bytes to the reply. ERR_INVALID_VAL (range) when it doesn't fit. */
+SE_MUST_USE err_h sys_device_reply_put(sys_device_reply_t* reply, const void* data, size_t len);
+
+/** An operation of one device type. `args` is exactly `size` bytes; fill `reply` for a getter. */
+typedef err_h (*sys_device_op_f)(void* device_handle, const uint8_t* args, size_t len, sys_device_reply_t* reply);
+
+typedef struct sys_device_op_t {
+  uint8_t op;         /* SYS_DEVICE_OP_CUSTOM_FIRST..0xFF */
+  uint8_t size;       /* exact size of the argument bytes */
+  bool read_only;     /* allowed while the device is suspended (it changes nothing) */
+  sys_device_op_f fn;
+} sys_device_op_t;
+
+/* One row of a class's op table: SYS_DEVICE_OP(0x80, servo_home_t, op_home). */
+#define SYS_DEVICE_OP(code, arg_type, handler) {.op = (code), .size = sizeof(arg_type), .read_only = false, .fn = (handler)}
+#define SYS_DEVICE_OP_RO(code, arg_type, handler) {.op = (code), .size = sizeof(arg_type), .read_only = true, .fn = (handler)}
+/* Both class fields: `.contracts = {...}, SYS_DEVICE_OPS(s_ops)` inside the class initializer. */
+#define SYS_DEVICE_OPS(table) .dev_ops = (table), .dev_ops_count = (uint8_t)(sizeof(table) / sizeof((table)[0]))
+/* Reads `args` into a local of `arg_type` (no alignment assumptions on the rx buffer). */
+#define SYS_DEVICE_OP_ARGS(arg_type, name, args) \
+  arg_type name;                                 \
+  memcpy(&name, (args), sizeof(arg_type))
 
 /**
  * @brief Everything about a device TYPE that is a compile-time constant.
@@ -48,6 +93,8 @@ typedef struct sys_device_class_t {
   const char* name;
   const void* contracts[SYS_DEVICE_CONTRACT_MAX]; /* static const vtables, kept in flash */
   sys_device_ops_t ops;
+  const sys_device_op_t* dev_ops; /* the device's own operations (router), NULL when none */
+  uint8_t dev_ops_count;
 } sys_device_class_t;
 
 /**
@@ -116,12 +163,14 @@ void sys_device_register_error_policy(sys_device_error_policy_f policy);
  */
 typedef struct sys_device_t {
   uint8_t device_id;
+  uint8_t state;
+  bool onboard;
+
+
+  uint64_t io_locked_pins;
 
   const sys_device_class_t* cls;
-  void* cfg;       /* manager-owned heap copy of the device config */
-  size_t cfg_size; /* 0 when there is no config */
 
-  sys_device_state_e state;
   void* device_handle;
 
   /**
@@ -130,9 +179,6 @@ typedef struct sys_device_t {
   sys_device_action_t actions[5];       /* indexed by se_level_e (1..4) */
   sys_device_importance_e importance; /* NONE ignores every error; LOW (the start value) handles critical ones; higher handles more severities */
 
-  bool onboard; /* baked onto the PCB (sys_device_set_onboard): users can't uninstall it */
-
-  uint64_t io_locked_pins; /* per-instance IO pin locks, owned by sys_io (sys_io_lock_pin) */
 } sys_device_t;
 
 /**
@@ -141,23 +187,53 @@ typedef struct sys_device_t {
 typedef struct {
   void* hw_handle;
   uint8_t device_id;
-  bool is_frozen;
   uint16_t steps_done; /* adapter-defined bitmask of completed install steps */
 } sys_device_adapter_base_t;
 
 /**
  * @brief Install a device from a static class plus a typed config struct.
  *
- * sys_device takes a heap copy of `cfg` (it only ever knows a pointer and a
- * length - never the device's field layout), sets `cls` on the instance, then
- * runs `cls->ops.install`. Contracts are looked up via `dev->cls->contracts[]`
+ * Sets `cls` on the instance, then runs `cls->ops.install(cfg, ...)`. The manager
+ * keeps no copy of `cfg`: it is valid for the call only, so install copies what it
+ * needs into the device's own state. Contracts are looked up via `dev->cls->contracts[]`.
  *
- * Prefer the SYS_DEVICE_CREATE() wrapper, which derives device_id and size.
+ * Prefer the SYS_DEVICE_CREATE() wrapper, which derives device_id.
  */
-SE_MUST_USE err_h sys_device_install_cfg(const sys_device_class_t* cls, uint8_t device_id, const void* cfg, size_t cfg_size);
+SE_MUST_USE err_h sys_device_install(const sys_device_class_t* cls, uint8_t device_id, const void* cfg);
 
 /*Requires cfg_ptr's first member to be `uint8_t device_id`*/
-#define SYS_DEVICE_CREATE(cls_ptr, cfg_ptr) sys_device_install_cfg((cls_ptr), (cfg_ptr)->device_id, (cfg_ptr), sizeof(*(cfg_ptr)))
+#define SYS_DEVICE_CREATE(cls_ptr, cfg_ptr) sys_device_install((cls_ptr), (cfg_ptr)->device_id, (cfg_ptr))
+
+/**
+ * @brief Register how a device type is created from the wire.
+ *
+ * @param type_id   The byte after 0x00 in a create frame.
+ * @param cfg_size  Exact size of the wire cfg (its first byte is the device_id).
+ * @param create    Builds the device from the cfg bytes (validates, then d_<chip>_create()).
+ *
+ * Boot only (runit registers every type before the interface starts).
+ */
+typedef err_h (*sys_device_create_f)(const void* cfg);
+SE_MUST_USE err_h sys_device_register_type(uint8_t type_id, size_t cfg_size, sys_device_create_f create);
+
+/**
+ * Wrapper so a device's own `err_h d_x_create(const d_x_cfg_t*)` can be registered with no
+ * decoder: the cfg struct is the wire struct (`__packed`, alignment 1, device_id first).
+ * File scope: SYS_DEVICE_TYPE_FN(d_x_cfg_t, d_x_create), then
+ * sys_device_register_type(type_id, sizeof(d_x_cfg_t), type_create_d_x_create).
+ */
+#define SYS_DEVICE_TYPE_FN(cfg_type, create_fn)   static SE_MUST_USE err_h type_create_##create_fn(const void* cfg) { return create_fn((const cfg_type*)cfg); }
+
+/**
+ * @brief Route one frame: create (0x00) or an operation of a device (0x80..0xFF).
+ *
+ * @param frame  Bytes starting at the header byte (the class byte is already stripped).
+ * @param reply  Filled by an operation that returns data; `reply->len` is reset to 0 first.
+ * @return NULL, ERR_DEV_TYPE_UNKNOWN / ERR_DEV_CREATE_SIZE (create), ERR_DEV_NOT_FOUND /
+ *         ERR_DEV_NOT_INSTALLED / ERR_DEV_SUSPENDED / ERR_DEV_OP_UNKNOWN / ERR_DEV_OP_SIZE,
+ *         or the operation's own error wrapped with the device id.
+ */
+SE_MUST_USE err_h sys_device_route(const uint8_t* frame, size_t len, sys_device_reply_t* reply);
 
 SE_MUST_USE err_h sys_device_uninstall(uint8_t device_id);
 SE_MUST_USE err_h sys_device_uninstall_all(void);
@@ -194,10 +270,6 @@ SE_MUST_USE err_h sys_device_suspend(uint8_t device_id);
 SE_MUST_USE err_h sys_device_resume(uint8_t device_id);
 SE_MUST_USE err_h sys_device_suspend_all(void);
 SE_MUST_USE err_h sys_device_resume_all(void);
-SE_MUST_USE err_h sys_device_freeze(uint8_t device_id);
-SE_MUST_USE err_h sys_device_sync(uint8_t device_id);
-SE_MUST_USE err_h sys_device_freeze_all(void);
-SE_MUST_USE err_h sys_device_sync_all(void);
 
 sys_device_t* sys_device_get_by_id(uint8_t device_id);
 
@@ -256,9 +328,9 @@ SE_MUST_USE err_h sys_device_set_error_handling(uint8_t device_id, sys_device_im
  * ========================================================================== */
 
 #define SYS_DEV_GET_ID(ctx) ((ctx)->base.device_id)
-#define IF_SYS_DEV_FROZEN(ctx) if (((ctx))->base.is_frozen)
-#define SYS_DEV_CTX_FREEZE(ctx) ((ctx))->base.is_frozen = true
-#define SYS_DEV_CTX_UNFREEZE(ctx) ((ctx))->base.is_frozen = false
+/* Declares `ctx_var` from the handle an op or contract function receives. No NULL
+   check: sys_device never calls an op without its handle (validate once). */
+#define SYS_DEV_CTX_FROM(ctx_type, ctx_var, handle) ctx_type* ctx_var = (ctx_type*)(handle)
 #define SYS_DEV_IS_READY(d) ((d)->state == SYS_DEV_STATE_INSTALLED)
 #define SYS_DEV_IS_INSTALLED(d) ((d)->state >= SYS_DEV_STATE_INSTALLED)
 #define SYS_DEV_IS_SUSPENDED(d) ((d)->state == SYS_DEV_STATE_SUSPENDED)
@@ -365,7 +437,7 @@ SE_MUST_USE err_h sys_device_set_error_handling(uint8_t device_id, sys_device_im
 // `err` has been set to the failing step's error and before returning.
 // Rolls back any partially-constructed state via `uninstall_fn`, suspending
 // error reporting for the duration (teardown failures here are noise next to
-// the real cause), then returns `err`. sys_device_install_cfg() adds ERR_DEV_INSTALL_FAILED
+// the real cause), then returns `err`. sys_device_install() adds ERR_DEV_INSTALL_FAILED
 // {dev_id} on top, so the adapter doesn't wrap it again.
 //
 // Contract for uninstall_fn (same function used for real sys_device_uninstall()):

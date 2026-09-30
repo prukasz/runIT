@@ -14,10 +14,6 @@ typedef struct {
 
   d_ina3221_cfg_t cfg;
 
-  // Cached readings when frozen
-  int32_t cached_voltage[3];
-  int32_t cached_current[3];
-
   uint8_t crit_sub; /* sys_event subscriptions on the alert pins */
   uint8_t warn_sub;
 
@@ -34,10 +30,6 @@ static SE_MUST_USE err_h contract_monitor_ina3221_get_voltage(void* device_handl
   SE_CHECK_HANDLE(out_mV);
   SE_CHECK_IN_RANGE(channel, 0, 2);
 
-  IF_SYS_DEV_FROZEN(ctx) {
-    *out_mV = ctx->cached_voltage[channel];
-    return NULL;
-  }
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_read_bus_voltage(hw, channel, out_mV), ctx);
   return NULL;
 }
@@ -56,10 +48,6 @@ static SE_MUST_USE err_h contract_monitor_ina3221_get_current(void* device_handl
   SE_CHECK_HANDLE(out_mA);
   SE_CHECK_IN_RANGE(channel, 0, 2);
 
-  IF_SYS_DEV_FROZEN(ctx) {
-    *out_mA = ctx->cached_current[channel];
-    return NULL;
-  }
   SYS_DEV_CHECK_DRIVER_CALL(ina_read_current(ctx, hw, channel, out_mA), ctx);
   return NULL;
 }
@@ -154,11 +142,6 @@ static SE_MUST_USE err_h device_reset(void* handle) {
   // Enable latches & options (Warning & Critical alert latch)
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_enable_latch_pin(hw, true, true), ctx);
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_options(hw, true, true, true), ctx);
-
-  for (uint8_t i = 0; i < 3; i++) {
-    ctx->cached_current[i] = 0;
-    ctx->cached_voltage[i] = 0;
-  }
   return NULL;
 }
 
@@ -173,25 +156,6 @@ static SE_MUST_USE err_h device_resume(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
   // Put INA3221 back into continuous mode (mode = 1)
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_options(hw, true, true, true), ctx);
-  return NULL;
-}
-
-static SE_MUST_USE err_h device_freeze(void* handle) {
-  SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
-  IF_SYS_DEV_FROZEN(ctx) {
-    return NULL;
-  }
-  SYS_DEV_CTX_FREEZE(ctx);
-  for (int i = 0; i < 3; i++) {
-    SYS_DEV_CHECK_DRIVER_CALL(ina3221_read_bus_voltage(hw, i, &ctx->cached_voltage[i]), ctx);
-    SYS_DEV_CHECK_DRIVER_CALL(ina_read_current(ctx, hw, i, &ctx->cached_current[i]), ctx);
-  }
-  return NULL;
-}
-
-static SE_MUST_USE err_h device_sync(void* handle) {
-  SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
-  SYS_DEV_CTX_UNFREEZE(ctx);
   return NULL;
 }
 
@@ -300,7 +264,7 @@ static SE_MUST_USE err_h device_event_handler(const sys_event_t* event, void* ha
 static const sys_device_class_t s_ina3221_class = {
     .name = "INA3221_PWR_MONITOR",
     .contracts = {[SYS_DEVICE_CONTRACT_POWER_MONITOR] = &s_ina3221_monitor_contract},
-    .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume, .freeze = device_freeze, .sync = device_sync},
+    .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume},
 };
 
 // --- Exposed Initialization API ---

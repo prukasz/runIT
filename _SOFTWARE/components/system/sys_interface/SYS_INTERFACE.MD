@@ -30,7 +30,6 @@ The decoder tables themselves live in the `codecs` component (`components/codecs
 | `0x02` | BLE settings | `dec_settings_ble_decode()` |
 | `0x03` | System actions (record/stop/remove) | `dec_sys_actions_decode()`, see [[SYS_ACTIONS.MD]] |
 | `0x04` | VM program upload (reset/open/add objects/set data) | `dec_vm_loader_decode()`, see [[VM.MD]] |
-| `0x05` | Features (servo, H-bridge) | `dec_features_decode()` |
 | `0x06` | Data connector settings | `dec_settings_data_connector_decode()` |
 | `0x07` | Log settings | `dec_settings_logs_decode()` |
 | `0x08` | Power settings (persisted) | `dec_settings_power_decode()`, see [[SYS_POWER.MD]] |

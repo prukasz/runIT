@@ -7,7 +7,7 @@
 /*
  * Events: one publisher, any number of listeners (SYS_EVENT.MD).
  *
- * A source (device adapter, power manager, BLE, feature) publishes what
+ * A source (device adapter, power manager, BLE) publishes what
  * happened; it doesn't know who listens. Listeners live in one static
  * subscription table and are matched by domain / device / channel / event,
  * each field exact or SYS_EVENT_ANY.
@@ -28,13 +28,12 @@ typedef enum sys_event_domain_e {
   SYS_EVENT_DOMAIN_POWER = 1,   //@alias Power @description Regulator, monitor and board power events. Event = power event; board events use device 255
   SYS_EVENT_DOMAIN_HBRIDGE = 2, //@alias H-Bridge @description Motor driver faults. Channel = bridge channel, event = fault reason, value = current in mA
   SYS_EVENT_DOMAIN_BLE = 3,     //@alias Bluetooth @description Connection events. Event = BLE event
-  SYS_EVENT_DOMAIN_FEATURE = 4, //@alias Feature @description Events raised by features. Device = feature ID
 } sys_event_domain_e;
 
 /* One occurrence. Copied into the queue, so it holds no pointers. */
 typedef struct sys_event_t {
   uint8_t domain;    /* sys_event_domain_e */
-  uint8_t device_id; /* source device (or feature) ID */
+  uint8_t device_id; /* source device ID */
   uint8_t channel;   /* pin / channel on that device, 0 when it has one */
   uint8_t event;     /* domain-specific event enum */
   int32_t value;     /* level, mV, mA, ... per domain */

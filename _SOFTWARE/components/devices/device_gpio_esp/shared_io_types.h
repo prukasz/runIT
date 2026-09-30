@@ -13,7 +13,6 @@
 // 2. ADC-specific storage
 typedef struct {
   uint16_t adc_last_read_mV;
-  uint16_t adc_cached_mV;
   float internal_raw_filtered;
   bool alert_was_triggered;
   adc_cali_handle_t cali_handle;
@@ -24,7 +23,6 @@ typedef struct {
 typedef struct {
   uint32_t frequency_Hz; /* of the pin's timer; 0 until one is bound */
   uint16_t duty;         /* applied */
-  uint16_t pending_duty; /* written while the device is frozen; applied by sync */
   uint8_t channel;       /* LEDC channel, reserved by set_mode */
   uint8_t timer;         /* LEDC timer, ESP_PWM_TIMER_NONE until the first frequency or duty */
 } pin_pwm_data_t;
@@ -48,9 +46,6 @@ typedef struct {
 typedef struct {
   sys_device_adapter_base_t base;
   d_gpio_esp_cfg_t cfg;
-  uint64_t cached_inputs;
-  uint64_t pending_outputs;
-  uint64_t current_outputs;
 } gpio_esp_ctx_t;
 
 // Static pin pool: one fixed-size slot per GPIO, indexed by pin number.

@@ -2,7 +2,7 @@
   "$schema": "data-structures/schema/errors.schema.json",
   "schemaVersion": 1,
   "kind": "errors",
-  "schema_id": 4216747962,
+  "schema_id": 4086259248,
   "packet": {
     "stream": "0x04",
     "byte_order": "little",
@@ -121,26 +121,6 @@
       "source_file": "components/system/sys_device/errors/sys_error_dev.h"
     },
     {
-      "name": "OWNER_SYS_DEVICE_FREEZE",
-      "id": 41225,
-      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
-    },
-    {
-      "name": "OWNER_SYS_DEVICE_SYNC",
-      "id": 41226,
-      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
-    },
-    {
-      "name": "OWNER_SYS_DEVICE_FREEZE_ALL",
-      "id": 41227,
-      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
-    },
-    {
-      "name": "OWNER_SYS_DEVICE_SYNC_ALL",
-      "id": 41228,
-      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
-    },
-    {
       "name": "OWNER_SYS_DEVICE_RESET_ALL",
       "id": 41229,
       "source_file": "components/system/sys_device/errors/sys_error_dev.h"
@@ -176,6 +156,26 @@
       "source_file": "components/system/sys_device/errors/sys_error_dev.h"
     },
     {
+      "name": "OWNER_SYS_DEVICE_ROUTE",
+      "id": 41236,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_REGISTER_TYPE",
+      "id": 41237,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_REPLY_PUT",
+      "id": 41238,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_REGISTER_CONTRACT",
+      "id": 41239,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
       "name": "OWNER_SYS_IO_BASE",
       "id": 41728,
       "source_file": "components/system/sys_io/errors/sys_error_io.h"
@@ -183,11 +183,6 @@
     {
       "name": "OWNER_SYS_IO_RESET",
       "id": 41729,
-      "source_file": "components/system/sys_io/errors/sys_error_io.h"
-    },
-    {
-      "name": "OWNER_SYS_IO_DRIVER_RESET",
-      "id": 41730,
       "source_file": "components/system/sys_io/errors/sys_error_io.h"
     },
     {
@@ -226,16 +221,6 @@
       "source_file": "components/system/sys_io/errors/sys_error_io.h"
     },
     {
-      "name": "OWNER_SYS_IO_REGISTER_DRIVER",
-      "id": 41738,
-      "source_file": "components/system/sys_io/errors/sys_error_io.h"
-    },
-    {
-      "name": "OWNER_SYS_IO_DESTROY",
-      "id": 41739,
-      "source_file": "components/system/sys_io/errors/sys_error_io.h"
-    },
-    {
       "name": "OWNER_SYS_IO_SET_PWM_FREQUENCY",
       "id": 41740,
       "source_file": "components/system/sys_io/errors/sys_error_io.h"
@@ -246,8 +231,8 @@
       "source_file": "components/system/sys_io/errors/sys_error_io.h"
     },
     {
-      "name": "OWNER_SYS_IO_UNREGISTER_DRIVER",
-      "id": 41742,
+      "name": "OWNER_SYS_IO_PIN_REFS_BELOW",
+      "id": 41743,
       "source_file": "components/system/sys_io/errors/sys_error_io.h"
     },
     {
@@ -273,6 +258,31 @@
     {
       "name": "OWNER_SYS_I2C_DEVICE_PRESENT",
       "id": 41476,
+      "source_file": "components/system/sys_i2c/errors/sys_error_i2c.h"
+    },
+    {
+      "name": "OWNER_SYS_I2C_DEV_ADD",
+      "id": 41477,
+      "source_file": "components/system/sys_i2c/errors/sys_error_i2c.h"
+    },
+    {
+      "name": "OWNER_SYS_I2C_DEV_REMOVE",
+      "id": 41478,
+      "source_file": "components/system/sys_i2c/errors/sys_error_i2c.h"
+    },
+    {
+      "name": "OWNER_SYS_I2C_WRITE",
+      "id": 41479,
+      "source_file": "components/system/sys_i2c/errors/sys_error_i2c.h"
+    },
+    {
+      "name": "OWNER_SYS_I2C_WRITE_READ",
+      "id": 41480,
+      "source_file": "components/system/sys_i2c/errors/sys_error_i2c.h"
+    },
+    {
+      "name": "OWNER_SYS_I2C_REG",
+      "id": 41481,
       "source_file": "components/system/sys_i2c/errors/sys_error_i2c.h"
     },
     {
@@ -356,11 +366,6 @@
       "source_file": "components/system/ble/errors/sys_error_ble.h"
     },
     {
-      "name": "OWNER_SYS_BLE_CREATE",
-      "id": 42241,
-      "source_file": "components/system/ble/errors/sys_error_ble.h"
-    },
-    {
       "name": "OWNER_SYS_BLE_SERVICE_CREATE",
       "id": 42242,
       "source_file": "components/system/ble/errors/sys_error_ble.h"
@@ -378,11 +383,6 @@
     {
       "name": "OWNER_SYS_BLE_CHAR_REMOVE",
       "id": 42245,
-      "source_file": "components/system/ble/errors/sys_error_ble.h"
-    },
-    {
-      "name": "OWNER_SYS_BLE_CHAR_ASSIGN_TX",
-      "id": 42246,
       "source_file": "components/system/ble/errors/sys_error_ble.h"
     },
     {
@@ -408,11 +408,6 @@
     {
       "name": "OWNER_SYS_BLE_STACK",
       "id": 42251,
-      "source_file": "components/system/ble/errors/sys_error_ble.h"
-    },
-    {
-      "name": "OWNER_SYS_BLE_CHANNEL_CREATE",
-      "id": 42252,
       "source_file": "components/system/ble/errors/sys_error_ble.h"
     },
     {
@@ -486,11 +481,6 @@
       "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
     },
     {
-      "name": "OWNER_DEC_FEATURES",
-      "id": 42518,
-      "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
-    },
-    {
       "name": "OWNER_DEC_SETTINGS_POWER",
       "id": 42519,
       "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
@@ -531,11 +521,6 @@
       "source_file": "components/system/sys_buffers/errors/sys_error_buffers.h"
     },
     {
-      "name": "OWNER_SYS_BUFF_POP_FRAMED",
-      "id": 42756,
-      "source_file": "components/system/sys_buffers/errors/sys_error_buffers.h"
-    },
-    {
       "name": "OWNER_SYS_BUFF_POP_RAW",
       "id": 42757,
       "source_file": "components/system/sys_buffers/errors/sys_error_buffers.h"
@@ -573,11 +558,6 @@
     {
       "name": "OWNER_VM_BLOCK",
       "id": 43268,
-      "source_file": "components/VM/errors/sys_error_vm.h"
-    },
-    {
-      "name": "OWNER_VM_CODE",
-      "id": 43269,
       "source_file": "components/VM/errors/sys_error_vm.h"
     },
     {
@@ -741,26 +721,6 @@
       "source_file": "components/system/sys_data_connector/errors/sys_error_data_connector.h"
     },
     {
-      "name": "OWNER_FEATURES_BASE",
-      "id": 44544,
-      "source_file": "components/features/errors/sys_error_features.h"
-    },
-    {
-      "name": "OWNER_FEATURES_REGISTRY",
-      "id": 44545,
-      "source_file": "components/features/errors/sys_error_features.h"
-    },
-    {
-      "name": "OWNER_FEATURES_SERVO",
-      "id": 44546,
-      "source_file": "components/features/errors/sys_error_features.h"
-    },
-    {
-      "name": "OWNER_FEATURES_HBRIDGE",
-      "id": 44547,
-      "source_file": "components/features/errors/sys_error_features.h"
-    },
-    {
       "name": "OWNER_RUNIT_BASE",
       "id": 44800,
       "source_file": "components/runit/errors/sys_error_runit.h"
@@ -898,6 +858,11 @@
     {
       "name": "OWNER_DEVICE_DRV8962",
       "id": 53257,
+      "source_file": "components/devices/devices/errors/devices_owners.h"
+    },
+    {
+      "name": "OWNER_DEVICE_SERVO",
+      "id": 53258,
       "source_file": "components/devices/devices/errors/devices_owners.h"
     }
   ],
@@ -1637,6 +1602,156 @@
       }
     },
     {
+      "name": "ERR_DEV_OP_UNKNOWN",
+      "id": 41229,
+      "level": 1,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h",
+      "payload": {
+        "size": 2,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "op",
+            "type": "uint8_t",
+            "offset": 1
+          }
+        ]
+      },
+      "message": {
+        "format": "device %u has no operation 0x%02X",
+        "args": [
+          {
+            "field": "dev_id"
+          },
+          {
+            "field": "op"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_DEV_OP_SIZE",
+      "id": 41230,
+      "level": 1,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h",
+      "payload": {
+        "size": 6,
+        "fields": [
+          {
+            "name": "dev_id",
+            "type": "uint8_t",
+            "offset": 0,
+            "id": {
+              "kind": "device"
+            }
+          },
+          {
+            "name": "op",
+            "type": "uint8_t",
+            "offset": 1
+          },
+          {
+            "name": "got",
+            "type": "uint16_t",
+            "offset": 2
+          },
+          {
+            "name": "need",
+            "type": "uint16_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "device %u operation 0x%02X: got %u argument bytes, expected %u",
+        "args": [
+          {
+            "field": "dev_id"
+          },
+          {
+            "field": "op"
+          },
+          {
+            "field": "got"
+          },
+          {
+            "field": "need"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_DEV_TYPE_UNKNOWN",
+      "id": 41231,
+      "level": 1,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "type_id",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "no device type 0x%02X is registered",
+        "args": [
+          {
+            "field": "type_id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_DEV_CREATE_SIZE",
+      "id": 41232,
+      "level": 1,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h",
+      "payload": {
+        "size": 6,
+        "fields": [
+          {
+            "name": "type_id",
+            "type": "uint8_t",
+            "offset": 0
+          },
+          {
+            "name": "got",
+            "type": "uint16_t",
+            "offset": 2
+          },
+          {
+            "name": "need",
+            "type": "uint16_t",
+            "offset": 4
+          }
+        ]
+      },
+      "message": {
+        "format": "create device type 0x%02X: got %u config bytes, expected %u",
+        "args": [
+          {
+            "field": "type_id"
+          },
+          {
+            "field": "got"
+          },
+          {
+            "field": "need"
+          }
+        ]
+      }
+    },
+    {
       "name": "ERR_IO_PIN_UNCONFIGURED",
       "id": 41729,
       "level": 1,
@@ -2139,38 +2254,6 @@
       },
       "message": {
         "format": "NimBLE stack call failed: %s (0x%x)",
-        "args": [
-          {
-            "field": "rc",
-            "via": "esp_err_to_name"
-          },
-          {
-            "field": "rc"
-          }
-        ]
-      }
-    },
-    {
-      "name": "ERR_BLE_HARDWARE_FAULT",
-      "id": 42242,
-      "level": 4,
-      "source_file": "components/system/ble/errors/sys_error_ble.h",
-      "payload": {
-        "size": 4,
-        "fields": [
-          {
-            "name": "rc",
-            "type": "int32_t",
-            "offset": 0,
-            "c_type": "esp_err_t",
-            "id": {
-              "kind": "esp-err"
-            }
-          }
-        ]
-      },
-      "message": {
-        "format": "BLE hardware fault: %s (0x%x)",
         "args": [
           {
             "field": "rc",
@@ -2962,38 +3045,6 @@
           {
             "field": "obj_id",
             "via": "vm_format_obj_id"
-          }
-        ]
-      }
-    },
-    {
-      "name": "ERR_VM_BLOCK_INPUT_UNRESOLVED",
-      "id": 43274,
-      "level": 1,
-      "source_file": "components/VM/errors/sys_error_vm.h",
-      "payload": {
-        "size": 4,
-        "fields": [
-          {
-            "name": "block_idx",
-            "type": "uint16_t",
-            "offset": 0
-          },
-          {
-            "name": "input_idx",
-            "type": "uint8_t",
-            "offset": 2
-          }
-        ]
-      },
-      "message": {
-        "format": "block %u input %u failed to resolve",
-        "args": [
-          {
-            "field": "block_idx"
-          },
-          {
-            "field": "input_idx"
           }
         ]
       }

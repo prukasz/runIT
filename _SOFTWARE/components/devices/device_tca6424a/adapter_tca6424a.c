@@ -20,8 +20,6 @@ typedef struct tca_adapter_ctx_t {
   d_tca6424a_cfg_t cfg;
 
   uint32_t cached_inputs;
-  uint32_t frozen_outputs_mask;
-  uint32_t frozen_outputs_state;
   uint32_t configured_pins;  // 24-bit bitmask tracking pin usage
 
   sys_io_intr_mode_e intr_modes[PINS_COUNT];
@@ -99,12 +97,6 @@ err_h contract_io_tca6424a_set_level(void* handle, sys_io_pin_num_t pin, bool le
   uint32_t pin_mask = (1UL << pin);
   uint32_t state_mask = level ? pin_mask : 0;
 
-  IF_SYS_DEV_FROZEN(ctx) {
-    ctx->frozen_outputs_mask |= pin_mask;
-    ctx->frozen_outputs_state = (ctx->frozen_outputs_state & ~pin_mask) | state_mask;
-    return NULL;
-  }
-
   SYS_DEV_CHECK_DRIVER_CALL(tca_set_pins(hw, pin_mask, state_mask), ctx);
   return NULL;
 }
@@ -117,13 +109,8 @@ err_h contract_io_tca6424a_get_level(void* handle, sys_io_pin_num_t pin, bool* l
   uint32_t pin_mask = (1UL << pin);
   uint32_t all_levels = 0;
 
-  IF_SYS_DEV_FROZEN(ctx) {
-    all_levels = ctx->cached_inputs;
-  }
-  else {
-    SYS_DEV_CHECK_DRIVER_CALL(tca_get_pins(hw, &all_levels), ctx);
-    ctx->cached_inputs = all_levels;
-  }
+  SYS_DEV_CHECK_DRIVER_CALL(tca_get_pins(hw, &all_levels), ctx);
+  ctx->cached_inputs = all_levels;
 
   *level = (all_levels & pin_mask) ? true : false;
   return NULL;
@@ -134,14 +121,7 @@ err_h contract_io_tca6424a_toggle(void* handle, sys_io_pin_num_t pin) {
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, PINS_MASK);
 
   uint32_t pin_mask = (1UL << pin);
-  bool is_high;
-
-  if (ctx->base.is_frozen && (ctx->frozen_outputs_mask & pin_mask)) {
-    is_high = (ctx->frozen_outputs_state & pin_mask) != 0;
-  } else {
-    uint32_t current_outputs = tca_get_pin_output(hw);
-    is_high = (current_outputs & pin_mask) != 0;
-  }
+  bool is_high = (tca_get_pin_output(hw) & pin_mask) != 0;
 
   return contract_io_tca6424a_set_level(handle, pin, !is_high);
 }
@@ -187,29 +167,6 @@ static const sys_io_contract_t s_tca6424a_io_contract = {.reset = contract_io_tc
     .set_pwm_frequency = NULL,
     .set_pwm_duty = NULL};
 
-static SE_MUST_USE err_h device_freeze(void* handle) {
-  SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
-  IF_SYS_DEV_FROZEN(ctx) {
-    return NULL;
-  }
-  SYS_DEV_CTX_FREEZE(ctx);
-  SYS_DEV_CHECK_DRIVER_CALL(tca_get_pins(hw, &ctx->cached_inputs), ctx);
-  ctx->frozen_outputs_mask = 0;
-  ctx->frozen_outputs_state = 0;
-  return NULL;
-}
-
-static SE_MUST_USE err_h device_sync(void* handle) {
-  SYS_DEV_GET_ADAPTER_CONTEXT(tca_adapter_ctx_t, tca6424a_handle_t, ctx, hw, handle);
-  SYS_DEV_CTX_UNFREEZE(ctx);
-  SYS_DEV_CHECK_DRIVER_CALL(tca_get_pins(hw, &ctx->cached_inputs), ctx);
-  if (ctx->frozen_outputs_mask != 0) {
-    SYS_DEV_CHECK_DRIVER_CALL(tca_set_pins(hw, ctx->frozen_outputs_mask, ctx->frozen_outputs_state), ctx);
-    ctx->frozen_outputs_mask = 0;
-  }
-  return NULL;
-}
-
 // Teardown must never early-return: a failing step would leak the i2c
 // registration, the hw handle and ctx. Keep the first error, free everything.
 static SE_MUST_USE err_h device_uninstall(void* handle) {
@@ -249,8 +206,6 @@ static SE_MUST_USE err_h device_reset(void* handle) {
   }
   ctx->cached_inputs = 0;
   ctx->configured_pins = 0;
-  ctx->frozen_outputs_mask = 0;
-  ctx->frozen_outputs_state = 0;
   return d_tca6424a_driver_reset(handle);
 }
 
@@ -326,7 +281,7 @@ fail:
 static const sys_device_class_t s_tca6424a_class = {
     .name = "TCA6424A_IO_EXP",
     .contracts = {[SYS_DEVICE_CONTRACT_IO] = &s_tca6424a_io_contract},
-    .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume, .freeze = device_freeze, .sync = device_sync},
+    .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume},
 };
 
 err_h d_tca6424a_create(const d_tca6424a_cfg_t* cfg) {

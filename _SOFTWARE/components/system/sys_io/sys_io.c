@@ -25,6 +25,11 @@ _Static_assert(sizeof(sys_io_feature_names) / sizeof(sys_io_feature_names[0]) - 
     return NULL;                                                                                                    \
   } while (0)
 
+/* The device's IO vtable, to tell a function it implements from one sys_io derives. */
+static const sys_io_contract_t* io_contract(uint8_t device_id) {
+  return (const sys_io_contract_t*)SYS_DEV_GET_CONTRACT(sys_device_get_by_id(device_id), SYS_DEVICE_CONTRACT_IO);
+}
+
 #undef OWNER
 #define OWNER OWNER_SYS_IO_SET_MODE
 err_h sys_io_set_mode(sys_io_pin_ref_t ref) {
@@ -34,6 +39,11 @@ err_h sys_io_set_mode(sys_io_pin_ref_t ref) {
 #undef OWNER
 #define OWNER OWNER_SYS_IO_RESET
 err_h sys_io_reset(sys_io_pin_ref_t ref) {
+  const sys_io_contract_t* c = io_contract(ref.device_id);
+  if (c && !c->reset && (c->set_level || c->set_pwm_duty)) {
+    SE_TRY(sys_io_set_level(ref, false));
+    return NULL;
+  }
   SYS_IO_DISPATCH(ref, reset);
 }
 
@@ -47,6 +57,11 @@ err_h sys_io_configure_intr(sys_io_pin_ref_t ref, const sys_io_intr_config_t* co
 #undef OWNER
 #define OWNER OWNER_SYS_IO_SET_LEVEL
 err_h sys_io_set_level(sys_io_pin_ref_t ref, bool level) {
+  const sys_io_contract_t* c = io_contract(ref.device_id);
+  if (c && !c->set_level && c->set_pwm_duty) {
+    SE_TRY(sys_io_set_pwm_duty(ref, level ? SYS_IO_PWM_DUTY_FULL : 0));
+    return NULL;
+  }
   SYS_IO_DISPATCH(ref, set_level, level);
 }
 
@@ -60,6 +75,13 @@ err_h sys_io_get_level(sys_io_pin_ref_t ref, bool* level) {
 #undef OWNER
 #define OWNER OWNER_SYS_IO_TOGGLE
 err_h sys_io_toggle(sys_io_pin_ref_t ref) {
+  const sys_io_contract_t* c = io_contract(ref.device_id);
+  if (c && !c->toggle && c->get_level && (c->set_level || c->set_pwm_duty)) {
+    bool level = false;
+    SE_TRY(sys_io_get_level(ref, &level));
+    SE_TRY(sys_io_set_level(ref, !level));
+    return NULL;
+  }
   SYS_IO_DISPATCH(ref, toggle);
 }
 
@@ -166,4 +188,15 @@ err_h sys_io_subscribe_pin(sys_io_pin_ref_t ref, sys_event_handler_f handler, vo
       .ctx = ctx,
   };
   return sys_event_subscribe(&sub, out_id);
+}
+
+#undef OWNER
+#define OWNER OWNER_SYS_IO_PIN_REFS_BELOW
+err_h pin_refs_below(uint8_t device_id, const sys_io_pin_ref_t* refs, size_t count) {
+  for (size_t i = 0; i < count; i++) {
+    if (sys_io_pin_is_valid(refs[i]) && refs[i].device_id >= device_id) {
+      SE_FAIL(ERR_DEV_PIN_ORDER, .dev_id = device_id, .pin_dev_id = refs[i].device_id, .pin = refs[i].pin);
+    }
+  }
+  return NULL;
 }

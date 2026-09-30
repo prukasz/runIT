@@ -1,6 +1,6 @@
 ---
 name: runit-esp
-description: Firmware skill for runIT-ESP32 (ESP-IDF v6.1, FreeRTOS, ESP32-S3) — contracts, device adapters, sys_* modules, error chain, BLE/data connector, VM and features. Load for any work under components/ or main/, and for building, configuring (Kconfig) or flashing the firmware.
+description: Firmware skill for runIT-ESP32 (ESP-IDF v6.1, FreeRTOS, ESP32-S3) — contracts, device adapters, sys_* modules, error chain, BLE/data connector and VM. Load for any work under components/ or main/, and for building, configuring (Kconfig) or flashing the firmware.
 ---
 
 # runIT-ESP32 — Firmware Skill
@@ -39,7 +39,6 @@ Component `*.MD` files are the source of truth for each module's API. This skill
 | `components/sys_errors/SYS_ERRORS.MD` | Error chain, pool, maps, handler, logging, binary packet |
 | `components/codecs/CODECS.MD` | Decoder tables per class, packet byte ranges, adding a class |
 | `components/VM/VM.MD`, `VM_EXEC.MD` | VM objects, loader, execution, events |
-| `components/features/FEATURES.MD` | Features (on hold) |
 | `data-structures/AGENTS.md` + `auto-annotations/*/*-annotations.md` | `//@` annotation grammar and the JSON generators (device, contracts, settings, VM) |
 
 No doc yet: `sys_i2c`, `sys_hbridge` (ask the user before writing one, conventions.md §8).

@@ -15,11 +15,6 @@ typedef struct dac_adapter_ctx_t {
 
   d_dac53202_cfg_t cfg;
 
-  // Caching mechanism for freeze/sync
-  uint32_t cached_voltage_mV[2];
-  bool cached_voltage_dirty[2];
-  uint8_t cached_power_mask;
-  bool cached_power_dirty;
   uint8_t suspended_power_mask;
 } dac_adapter_ctx_t;
 
@@ -30,16 +25,6 @@ static SE_MUST_USE err_h contract_io_dac53202_reset_pin(void* handle, sys_io_pin
   SYS_DEV_GET_ADAPTER_CONTEXT(dac_adapter_ctx_t, dac53202_handle_t, ctx, hw, handle);
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, 0x03);
 
-  IF_SYS_DEV_FROZEN(ctx) {
-    if (ctx->cached_power_dirty) {
-      ctx->cached_power_mask &= ~(1 << pin);
-    } else {
-      ctx->cached_power_mask = hw->power_on_mask & ~(1 << pin);
-      ctx->cached_power_dirty = true;
-    }
-    return NULL;
-  }
-
   SYS_DEV_CHECK_DRIVER_CALL(dac53202_set_power(hw, hw->power_on_mask & ~(1 << pin)), ctx);
   return NULL;
 }
@@ -47,12 +32,6 @@ static SE_MUST_USE err_h contract_io_dac53202_reset_pin(void* handle, sys_io_pin
 static SE_MUST_USE err_h contract_io_dac53202_set_voltage(void* handle, sys_io_pin_num_t pin, uint32_t voltage_mV) {
   SYS_DEV_GET_ADAPTER_CONTEXT(dac_adapter_ctx_t, dac53202_handle_t, ctx, hw, handle);
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, 0x03);
-
-  IF_SYS_DEV_FROZEN(ctx) {
-    ctx->cached_voltage_mV[pin] = voltage_mV;
-    ctx->cached_voltage_dirty[pin] = true;
-    return NULL;
-  }
 
   SYS_DEV_CHECK_DRIVER_CALL(dac53202_set_voltage_mV(hw, 1 << pin, (uint16_t)voltage_mV), ctx);
   return NULL;
@@ -62,11 +41,6 @@ static SE_MUST_USE err_h contract_io_dac53202_get_voltage(void* handle, sys_io_p
   SYS_DEV_GET_ADAPTER_CONTEXT(dac_adapter_ctx_t, dac53202_handle_t, ctx, hw, handle);
   SE_CHECK_HANDLE(out_mV);
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, 0x03);
-
-  if (ctx->base.is_frozen && ctx->cached_voltage_dirty[pin]) {
-    *out_mV = ctx->cached_voltage_mV[pin];
-    return NULL;
-  }
 
   uint16_t v_mV = 0;
   SYS_DEV_CHECK_DRIVER_CALL(dac53202_get_voltage_mV(hw, pin, &v_mV), ctx);
@@ -123,37 +97,6 @@ static SE_MUST_USE err_h device_resume(void* handle) {
   return NULL;
 }
 
-static SE_MUST_USE err_h device_freeze(void* handle) {
-  SYS_DEV_GET_ADAPTER_CONTEXT(dac_adapter_ctx_t, dac53202_handle_t, ctx, hw, handle);
-  IF_SYS_DEV_FROZEN(ctx) {
-    return NULL;
-  }
-  SYS_DEV_CTX_FREEZE(ctx);
-  ctx->cached_voltage_dirty[0] = false;
-  ctx->cached_voltage_dirty[1] = false;
-  ctx->cached_power_dirty = false;
-  return NULL;
-}
-
-static SE_MUST_USE err_h device_sync(void* handle) {
-  SYS_DEV_GET_ADAPTER_CONTEXT(dac_adapter_ctx_t, dac53202_handle_t, ctx, hw, handle);
-  SYS_DEV_CTX_UNFREEZE(ctx);
-
-  if (ctx->cached_power_dirty) {
-    SYS_DEV_CHECK_DRIVER_CALL(dac53202_set_power(hw, ctx->cached_power_mask), ctx);
-    ctx->cached_power_dirty = false;
-  }
-
-  for (int i = 0; i < 2; i++) {
-    if (ctx->cached_voltage_dirty[i]) {
-      SYS_DEV_CHECK_DRIVER_CALL(dac53202_set_voltage_mV(hw, 1 << i, (uint16_t)ctx->cached_voltage_mV[i]), ctx);
-      ctx->cached_voltage_dirty[i] = false;
-    }
-  }
-
-  return NULL;
-}
-
 static SE_MUST_USE err_h device_install(const void* cfg_blob, void** out_device_handle) {
   const d_dac53202_cfg_t* cfg = (const d_dac53202_cfg_t*)cfg_blob;
 
@@ -193,8 +136,6 @@ static const sys_device_class_t s_dac53202_class = {
         .reset = device_reset,
         .suspend = device_suspend,
         .resume = device_resume,
-        .freeze = device_freeze,
-        .sync = device_sync,
     },
 };
 

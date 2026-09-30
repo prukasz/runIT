@@ -16,6 +16,5 @@ list(APPEND EXTRA_COMPONENT_DIRS
     "components/utils"
     "components/sys_errors"
     "components/codecs"
-    "components/features"
 )
 project(runIT)

@@ -13,3 +13,4 @@
 #include "device_tca6424a.h"
 #include "device_tps55289.h"
 #include "device_drv8962.h"
+#include "device_servo.h"

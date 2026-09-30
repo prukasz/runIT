@@ -74,7 +74,6 @@ A no-split ESP ringbuffer stores each item rounded up to 4 bytes behind an 8-byt
 * `OWNER_SYS_BUFF_INIT` (`0xA701`): `sys_buff_init()` owner.
 * `OWNER_SYS_BUFF_FREE` (`0xA702`): `sys_buff_free()` owner.
 * `OWNER_SYS_BUFF_PUSH` (`0xA703`): `sys_buff_push()` owner.
-* `OWNER_SYS_BUFF_POP_FRAMED` (`0xA704`): unused (the framed pop was removed; the ID stays reserved).
 * `OWNER_SYS_BUFF_POP_RAW` (`0xA705`): `sys_buff_pop()` owner.
 
 | Tag | Payload | Raised when |

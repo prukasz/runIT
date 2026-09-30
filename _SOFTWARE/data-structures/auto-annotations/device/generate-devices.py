@@ -63,6 +63,9 @@ SDKCONFIG_PATH = PROJECT_ROOT / "sdkconfig"
 
 PACKET_HEADER_RE = re.compile(r"#define\s+HEADER_(packet_\w+)\s+(0x[0-9A-Fa-f]+)")
 STRUCT_RE = re.compile(r"typedef\s+struct\s+(?:__packed\s*)?\{(.*?)\}\s*(packet_\w+_t)\s*;", re.DOTALL)
+# A device that takes its create frame as it is: the cfg struct in its own header IS the packet.
+DEVICE_CFG_RE = re.compile(r"typedef\s+struct\s+(?:__packed\s*)?\{(.*?)\}\s*(d_\w+_cfg_t)\s*;", re.DOTALL)
+CREATE_FRAME_CLASS = "SYS_CONTRACTS"  # create frames ([0x00][type_id][cfg]) travel in class 0x01
 FIELD_LINE_RE = re.compile(
     r"^\s*(?P<type>[A-Za-z_][\w ]*?)\s+(?P<name>\w+)\s*(?:\[\s*(?P<arr>\w*)\s*\])?\s*;\s*(?://\s*(?P<comment>.*))?\s*$"
 )
@@ -76,7 +79,7 @@ LEGACY_DIRECTIVE_RE = re.compile(r"^\s*//@(id|version|title|description|protocol
 
 # Tags each record accepts (normalized: `-` -> `_`).
 RECORD_TAGS = {
-    "device": {"title", "description", "protocol", "tags", "datasheet", "contract_provider", "pwm_frequencies", "count_bits"},
+    "device": {"title", "description", "protocol", "tags", "datasheet", "contract_provider", "pwm_frequencies", "count_bits", "type_id"},
     "self-property": {"one_of", "alias", "note"},
     "property": {"enum_ref", "one_of", "default", "alias", "note"},
     "contract": {"alias", "description", "returns"},
@@ -341,6 +344,43 @@ def parse_packet_file(path: Path, all_classes: Dict[str, str], defines, sdkconfi
     return out
 
 
+def device_header_record(path: Path) -> Optional[Tuple[str, Dict[str, str]]]:
+    """(device id, //#device tags) of a header that carries its own //#device record, else None."""
+    for record in read_records(path):
+        if record["kind"] == "device":
+            name, tags, _ = parse_record(record)
+            return name, tags
+    return None
+
+
+def parse_device_header_packet(path: Path, all_classes: Dict[str, str], defines, sdkconfig, symbols) -> Dict[str, dict]:
+    """The create packet of a device that keeps everything in its own header: the packed
+    `d_<chip>_cfg_t` struct, the `@type-id` of its //#device record as the packet header byte,
+    class 0x01 (create frames). The packet is named packet_sys_device_install_<chip>_t, as
+    the decoder headers name theirs, so the descriptor side doesn't care where it came from."""
+    record = device_header_record(path)
+    if record is None:
+        return {}
+    device_id, tags = record
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    match = DEVICE_CFG_RE.search(text)
+    if not match:
+        sys.exit(f"ERROR: {path.name}: //#device {device_id} needs a `typedef struct __packed {{ ... }} d_<chip>_cfg_t;` (its create frame)")
+    if "type_id" not in tags:
+        sys.exit(f"ERROR: {path.name}: //#device {device_id} is missing @type-id (the byte after 0x00 in its create frame)")
+    type_id, shown = resolve_numeric(tags["type_id"], defines, sdkconfig)
+    if type_id is None:
+        sys.exit(f"ERROR: {path.name}: @type-id {shown}")
+    if CREATE_FRAME_CLASS not in all_classes:
+        sys.exit(f"ERROR: no packet class {CREATE_FRAME_CLASS} for the create frame")
+    chip = device_id.removeprefix("device_")
+    packet = f"packet_sys_device_install_{chip}_t"
+    fields = parse_struct_fields(match.group(1), defines, sdkconfig)
+    entry = build_packet_entry(packet, f"0x{type_id:02X}", fields, path.name, CREATE_FRAME_CLASS, all_classes[CREATE_FRAME_CLASS], defines, sdkconfig, symbols)
+    entry["decoder"] = f"d_{chip}_create()"
+    return {packet: entry}
+
+
 def read_records(path: Path) -> List[dict]:
     """The //#<kind> records of one header, each with its continuation lines, in file order."""
     records: List[dict] = []
@@ -589,14 +629,22 @@ def scan_context() -> Tuple[Dict[str, str], Dict[str, dict], Dict[str, str], Dic
     return all_classes, symbols, defines, sdkconfig
 
 
-def build_devices(header_files: List[Path], context: Tuple[Dict[str, str], Dict[str, dict], Dict[str, str], Dict[str, int]]) -> List[dict]:
-    """One device document per annotated header under a `device/` folder, packets from every header."""
+def find_device_headers(devices_root: Path) -> List[Path]:
+    """Headers of components/devices/device_*/include that describe their own device (//#device)."""
+    return sorted(p for p in devices_root.glob("device_*/include/device_*.h") if device_header_record(p) is not None)
+
+
+def build_devices(header_files: List[Path], context: Tuple[Dict[str, str], Dict[str, dict], Dict[str, str], Dict[str, int]], device_headers: List[Path] = ()) -> List[dict]:
+    """One device document per annotated header: the dec_device_*.h decoder headers under a `device/`
+    folder, and the device headers that carry their own //#device record. Packets from every header."""
     all_classes, symbols, defines, sdkconfig = context
     packets: Dict[str, dict] = {}
     for path in header_files:
         packets.update(parse_packet_file(path, all_classes, defines, sdkconfig, symbols))
+    for path in device_headers:
+        packets.update(parse_device_header_packet(path, all_classes, defines, sdkconfig, symbols))
     devices = []
-    for path in (p for p in header_files if p.parent.name == "device"):
+    for path in [*(p for p in header_files if p.parent.name == "device"), *device_headers]:
         descriptor = parse_device_descriptor(path, symbols, defines, sdkconfig)
         if descriptor:
             devices.append(build_device_document(descriptor, packets, defines, sdkconfig))
@@ -622,7 +670,7 @@ def main() -> int:
     print("Resolving classes, enums, defines, sdkconfig...")
     context = scan_context()
     symbols = context[1]
-    devices = build_devices(header_files, context)
+    devices = build_devices(header_files, context, find_device_headers(decoders_dir.resolve().parents[1] / "devices"))
 
     target_dir = Path(args.target_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -632,7 +680,7 @@ def main() -> int:
         out_path.write_text(json.dumps(device, indent=2) + "\n", encoding="utf-8")
         print(f"Wrote {out_path}")
 
-    print(f"  Device headers scanned : {sum(p.parent.name == 'device' for p in header_files)}")
+    print(f"  Device headers scanned : {sum(p.parent.name == 'device' for p in header_files)} decoder + {len(find_device_headers(decoders_dir.resolve().parents[1] / 'devices'))} own")
     print(f"  Device descriptors     : {len(devices)}")
     print(f"  Symbols available      : {len(symbols)}")
     return 0

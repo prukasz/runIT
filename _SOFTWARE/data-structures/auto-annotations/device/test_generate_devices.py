@@ -15,7 +15,8 @@ class DeviceRecords(unittest.TestCase):
     def setUpClass(cls):
         cls.context = generator.scan_context()
         headers = sorted(p for p in DECODERS.rglob("dec_*.h") if p.name != "dec_device_common.h")
-        cls.devices = {device["id"]: device for device in generator.build_devices(headers, cls.context)}
+        own = generator.find_device_headers(generator.PROJECT_ROOT / "components" / "devices")
+        cls.devices = {device["id"]: device for device in generator.build_devices(headers, cls.context, own)}
 
     def parse(self, text: str):
         """parse_device_descriptor on a throwaway header."""
@@ -26,7 +27,7 @@ class DeviceRecords(unittest.TestCase):
             return generator.parse_device_descriptor(path, symbols, defines, sdkconfig)
 
     def test_every_header_generates_and_validates(self):
-        self.assertEqual(len(self.devices), 8)
+        self.assertEqual(len(self.devices), 9)
         for device in self.devices.values():
             generator.validate_document(device)
 

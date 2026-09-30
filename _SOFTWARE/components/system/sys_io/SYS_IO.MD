@@ -154,6 +154,8 @@ All return `err_h` (`NULL` on success). Every dispatched call routes through `SY
 * **`sys_io_set_level(ref, level)`** / **`sys_io_get_level(ref, out_level)`**: Writes or reads a digital pin level.
 * **`sys_io_toggle(ref)`**: Inverts digital output level.
 
+**Derived functions.** A contract leaves `set_level`, `toggle` and `reset` out when they only follow from others: `set_level` = `set_pwm_duty(SYS_IO_PWM_DUTY_FULL or 0)`, `toggle` = `get_level` + `set_level`, `reset` = `set_level(false)`. `sys_io` composes them from the public calls (so pin locks and the device state are checked as for any call); a function the vtable does implement always wins. `SYS_IO_PWM_DUTY_FULL` (4096) is the duty scale of the contract, a chip with a lower top value clamps (PCA9685: full on). A device implements them itself only when they mean something else: release the pin, power a channel down, clear an alert (GPIO ESP, TCA6424A, DAC53202, ADS7128). With neither `set_level` nor `set_pwm_duty` the call is still `ERR_DEV_FEATURE_UNAVAILABLE`.
+
 ### Analog (ADC / DAC) Actions
 * **`sys_io_get_voltage(ref, out_mV)`**: Reads analog voltage (mV).
 * **`sys_io_set_voltage(ref, voltage_mV)`**: Outputs analog voltage (mV).

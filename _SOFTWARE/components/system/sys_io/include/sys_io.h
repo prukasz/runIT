@@ -124,6 +124,15 @@ SE_MUST_USE err_h sys_io_get_voltage(sys_io_pin_ref_t ref, int32_t* out_mV);
 SE_MUST_USE err_h sys_io_set_voltage(sys_io_pin_ref_t ref, uint32_t voltage_mV);
 
 SE_MUST_USE err_h sys_io_set_pwm_frequency(sys_io_pin_ref_t ref, uint32_t frequency_Hz);
+/**
+ * PWM duty is on a 0..SYS_IO_PWM_DUTY_FULL scale whatever the chip's resolution; a value
+ * above what the chip can do is the chip's "full on" (it may clamp).
+ *
+ * Defaults, when a device's contract leaves the function out: set_level = set_pwm_duty
+ * (FULL / 0), toggle = get_level + set_level, reset = set_level(false). A device only
+ * spells them out when it does something else (release the pin, power a channel down).
+ */
+#define SYS_IO_PWM_DUTY_FULL 4096u
 SE_MUST_USE err_h sys_io_set_pwm_duty(sys_io_pin_ref_t ref, uint32_t duty);
 
 SE_MUST_USE err_h sys_io_lock_pin(sys_io_pin_ref_t ref);
@@ -160,6 +169,33 @@ SE_MUST_USE err_h sys_io_subscribe_pin(sys_io_pin_ref_t ref, sys_event_handler_f
 static inline bool sys_io_pin_is_valid(sys_io_pin_ref_t ref) {
   return ref.pin != SYS_GPIO_NONE;
 }
+
+/**
+ * A pin on another device as a device config / install packet carries it: the
+ * provider's device ID, the pin (SYS_GPIO_NONE = not connected) and its
+ * sys_io_mode_e. Same member names as sys_io_pin_ref_t, so SYS_IO_PIN_INIT(...)
+ * and SYS_IO_PIN_NONE_INIT initialize it too. The device generator expands a field
+ * of this type to <name>_device_id / _pin / _mode and one pin group.
+ */
+typedef struct __packed {
+  uint8_t device_id;
+  uint8_t pin;
+  uint8_t mode;
+} pin_ref_wire_t;
+_Static_assert(sizeof(pin_ref_wire_t) == 3, "pin_ref_wire_t is three bytes on the wire");
+
+static inline sys_io_pin_ref_t pin_ref_from_wire(pin_ref_wire_t wire) {
+  return (sys_io_pin_ref_t){.device_id = wire.device_id, .pin = wire.pin, .mode = (sys_io_mode_e)wire.mode};
+}
+
+/**
+ * A device's pins must be on a lower-ID device (SYS_DEVICE.MD, sweep
+ * direction): the board resumes devices from the lowest ID and suspends /
+ * removes them from the highest, so a dependent goes down before the device
+ * its pins are on. Unused pins (SYS_GPIO_NONE) pass. ERR_DEV_PIN_ORDER otherwise.
+ */
+SE_MUST_USE err_h pin_refs_below(uint8_t device_id, const sys_io_pin_ref_t* refs, size_t count);
+#define PIN_REFS_BELOW(device_id, ...)   pin_refs_below((device_id), (const sys_io_pin_ref_t[]){__VA_ARGS__}, sizeof((sys_io_pin_ref_t[]){__VA_ARGS__}) / sizeof(sys_io_pin_ref_t))
 
 extern const char* const sys_io_mode_e_to_string[];
 extern const char* const sys_io_intr_mode_e_to_string[];

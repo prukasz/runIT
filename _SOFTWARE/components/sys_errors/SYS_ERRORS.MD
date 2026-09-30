@@ -180,7 +180,6 @@ Each module declares its own errors in one header, `sys_error_<module>.h`, kept 
 | `sys_event` | `system/sys_event/errors/sys_error_event.h` | `0xAB` |
 | `sys_hbridge` | `system/sys_hbridge/errors/sys_error_hbridge.h` | `0xAC` |
 | `sys_data_connector` | `system/sys_data_connector/errors/sys_error_data_connector.h` | `0xAD` |
-| `features` | `features/errors/sys_error_features.h` | `0xAE` |
 | `runit` | `runit/errors/sys_error_runit.h` | `0xAF` |
 | `sys_settings` | `system/sys_settings/errors/sys_error_settings.h` | `0xB0` |
 | devices | `devices/devices/errors/devices_owners.h` | `0xD0` |

@@ -7,7 +7,7 @@ IMPORTANT: If you modify the source files in this component (sys_actions.h or sy
 `sys_actions` is the single mechanism for both **preconfiguration** (recorded control packets, replayed on demand) and **hardcoded system behavior** (what used to be a separate `sys_states` component).
 
 Actions are split into two distinct scopes:
-* **Static Actions (Scope `0x00`)**: Hardcoded compile-time C functions (`action_static_func_t`, taking `void`), indexed `1..CONFIG_SYS_ACTIONS_STATIC_SLOTS-1` (default 16). `sys_actions_init()` registers built-in system sweeps on IDs 2-6 (freeze, resume, suspend, reset, hard-reset), and additional slots can be bound at compile time / boot via `sys_actions_bind_static(id, fn)`.
+* **Static Actions (Scope `0x00`)**: Hardcoded compile-time C functions (`action_static_func_t`, taking `void`), indexed `1..CONFIG_SYS_ACTIONS_STATIC_SLOTS-1` (default 16). `sys_actions_init()` registers built-in system sweeps on IDs 3-6 (resume, suspend, reset, hard-reset), and additional slots can be bound at compile time / boot via `sys_actions_bind_static(id, fn)`.
 * **Dynamic Actions (Scope `0x01`)**: Runtime packet sequences persisted in NVS (`"act_<id>"` keys), indexed `1..255` (`uint8_t`). Each dynamic action has a strict size limit of **2 KB** (2048 bytes). Frames are recorded from live traffic and replayed through `sys_interface_decode()`.
 
 Naming is hidden from user-facing APIs — actions are exclusively identified and manipulated via `scope` and `id`.
@@ -86,8 +86,7 @@ Slots `1..CONFIG_SYS_ACTIONS_STATIC_SLOTS-1` (default 16):
 | Action id | Static function | Notes |
 | :--- | :--- | :--- |
 | `1` | *(unbound by default)* | Boot action (e.g. `runit_board_devices_init`). Explicitly invoked by application boot. |
-| `2` | `sys_device_freeze_all()` | Freezes all devices. |
-| `3` | `sys_device_resume_all()` + `sync_all()` | Normal operation resumed. |
+| `3` | `sys_device_resume_all()` | Normal operation resumed. |
 | `4` | `sys_device_suspend_all()` | Suspends all devices. |
 | `5` | `reset_all()` + `vm_exec_control(VM_EXEC_RESET_TO_START)` + invoke boot action `1` | Resets devices, rewinds VM, and re-applies boot config. |
 | `6` | `vm_loader_reset()` + `uninstall_all()` + invoke boot action `1` | Hard reset: unloads VM program, uninstalls devices, re-applies boot config. |

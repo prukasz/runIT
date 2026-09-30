@@ -38,8 +38,8 @@ sys_io_* / sys_power_* / sys_hbridge_* (by device_id) ──────┘ cont
 ```
 
 - **Contracts** (`sys_device_contract_type_e`): `IO`, `POWER_VREG`, `POWER_MONITOR`, `POWER_USB_PD`, `HBRIDGE`. The vtable types are defined by `sys_io`, `sys_power` and `sys_hbridge`. A device may provide several contracts (AP33772S: VREG + USB_PD + MONITOR).
-- **Class vs instance:** each adapter declares one `static const sys_device_class_t` (name, `contracts[]`, `ops`). `sys_device` owns the instance: the registry slot, a heap copy of the cfg, state and error-handling settings.
-- **Lifecycle ops:** `install`, `uninstall`, `reset`, `suspend`, `resume`, `freeze`, `sync`. A missing op makes the manager return `ERR_BASE_NOT_SUPPORTED`. **`suspend` is the fault safe state** (critical faults call `sys_device_suspend_all()`), and `resume` brings the device back. `freeze` latches an input snapshot and defers output writes (a process image); `sync` flushes and releases. Freeze is under review (§5.2).
+- **Class vs instance:** each adapter declares one `static const sys_device_class_t` (name, `contracts[]`, `ops`). `sys_device` owns the instance: the registry slot, state and error-handling settings. It keeps no copy of the cfg: `install` receives it for the call only and copies it into the device's own state.
+- **Lifecycle ops:** `install`, `uninstall`, `reset`, `suspend`, `resume`. A missing op makes the manager return `ERR_BASE_NOT_SUPPORTED`. **`suspend` is the fault safe state** (critical faults call `sys_device_suspend_all()`), and `resume` brings the device back. Freeze / sync were removed (§5.2).
 
 ## 2. Adding a new device — checklist
 
@@ -62,7 +62,6 @@ sys_io_* / sys_power_* / sys_hbridge_* (by device_id) ──────┘ cont
    - Call the driver through `SYS_DEV_CHECK_DRIVER_CALL(call, ctx)`, which gives `ERR_DEV_DRIVER_FAILED {dev_id, line}` over the ESP code. For an `esp_err_t` obtained elsewhere (a direct ESP-IDF call, a driver-task callback), use `SYS_DEV_DRIVER_ERR(code, ctx)`.
    - IO errors take `SYS_DEV_GET_ID(ctx)` as their first field (`ERR_IO_PIN_*` payloads are `{dev_id, pin, …}`). Use designated initializers when the order isn't obvious.
    - **No `ESP_LOG*`** in drivers or adapters, and no `TAG`. Context goes into errors. Success messages aren't needed: `sys_device` logs installs.
-   - Freeze-aware writes: `IF_SYS_DEV_FROZEN(ctx) { store deferred value; return NULL; }`. `device_sync` flushes the deferred values and clears the freeze.
    - `static const` contract vtables (unsupported ops = `NULL`), and one `static const sys_device_class_t` with `.contracts = {[SYS_DEVICE_CONTRACT_X] = &s_vtable}` (no casts). Never store runtime state in a vtable.
    - **install:**
      - `SYS_DEV_CTX_NEW`, then `<chip>_new`.
@@ -75,12 +74,13 @@ sys_io_* / sys_power_* / sys_hbridge_* (by device_id) ──────┘ cont
      - Gate each step on `IF_SYS_DEV_STEP_DONE`.
      - Accumulate errors with `SYS_DEV_TEARDOWN_STEP` and never return early.
      - Always free the hw handle and ctx.
-   - Implement all 7 ops. **`suspend` must leave every output safe** (off / coast / high-Z), because it's the fault path. While frozen, output writes are deferred and input reads return the snapshot (PCA9685 pattern; freeze is under review, §5.2).
+   - Implement the 5 ops. **`suspend` must leave every output safe** (off / coast / high-Z), because it's the fault path. Writes go straight to the chip; a suspended device rejects them (`ERR_DEV_SUSPENDED`).
    - `d_<chip>_create` is just `SYS_DEVICE_CREATE(&s_<chip>_class, cfg)`.
 4. **Owner:** add `X(OWNER_DEVICE_<CHIP>, 0xD0xx, "...")` to `devices/devices/errors/devices_owners.h`.
 5. **Aggregate:** include `device_<chip>.h` in `devices.h`.
 6. **CMake:** `CMakeLists.txt` for the component, and add `device_<chip>` to `components/codecs/CMakeLists.txt` `REQUIRES`.
-7. **Install packet:** create `codecs/decoders/device/dec_device_<chip>.h` from `data-structures/auto-annotations/device/device-template.txt` (a complete header with every annotation and what the app does with it):
+7. **Install packet, new devices (no decoder):** the `include/device_<chip>.h` holds the `//#device` + `//#contract` records (`@type-id <CHIP>_TYPE_ID`) and the `typedef struct __packed { ... } d_<chip>_cfg_t;` with `device_id` first and `pin_ref_wire_t` pins, annotated like a packet: it is the create frame, `d_<chip>_create` validates it (`PIN_REFS_BELOW`) and copies what it needs. Register it in `runit_decoders.c` (`SYS_DEVICE_TYPE_FN(d_<chip>_cfg_t, d_<chip>_create)` + `sys_device_register_type(<CHIP>_TYPE_ID, sizeof(...), type_create_d_<chip>_create)`). Reference: `device_pca9685` (PCA9685), `device_servo`. Devices not migrated yet keep the decoder route below.
+   **Install packet with a decoder (older devices):** create `codecs/decoders/device/dec_device_<chip>.h` from `data-structures/auto-annotations/device/device-template.txt` (a complete header with every annotation and what the app does with it):
    - Next free header byte in class 0x01 (0x40–0x47 used, **0x48** is next; header bytes are per class, so `vm_exec` using 0x48 in class 0x04 doesn't conflict).
    - `__packed` struct; field annotations only where the app shows the field (`@alias`, `@one-of`, `@min` / `@max`, `@unit`, `@note`). A pin on another device is one `pin_ref_wire_t <name>_pin` field (`@alias`, `@note`, `@modes`, `@default-mode`).
    - A decoder that builds the cfg (`pin_ref_from_wire(packet-><name>_pin)` for pin refs) and calls `d_<chip>_create`.
@@ -95,7 +95,7 @@ sys_io_* / sys_power_* / sys_hbridge_* (by device_id) ──────┘ cont
 
 - **Device ID order = dependency order.** A device's `sys_io_pin_ref_t` fields always point at a **lower** device ID. Teardown sweeps go high→low and bring-up sweeps go low→high (SYS_DEVICE.MD). Onboard IDs: 0–4 IO/expanders/ADC/PWM/DAC, 10–13 power chips (HARDWARE.md §3). User installs enforce it: every install decoder with pin refs calls `PIN_REFS_BELOW(cfg.device_id, pins…)` (`dec_device_common.h`) → `ERR_DEV_PIN_ORDER` (dev_id, pin_dev_id, pin). The app installs user devices in ID order and refuses a pin on a same / higher ID.
 - **One public function per device** (`d_<chip>_create`). All runtime access goes through contracts by `device_id`. If a chip needs an operation no contract has, extend the contract (in `sys_io` / `sys_power` / `sys_hbridge`) instead of exporting a device-specific API.
-- **The driver/adapter split is strict:** register and bus logic stays in the driver, and system binding (contracts, errors, pins, freeze) stays in the adapter.
+- **The driver/adapter split is strict:** register and bus logic stays in the driver, and system binding (contracts, errors, pins) stays in the adapter.
 - **Validate once** ([conventions.md](conventions.md) §4). `d_<chip>_create` checks `cfg`. `install` receives the manager's own copy, so it doesn't need to re-check it. Internal helpers trust their caller.
 - **Onboard devices** (on the PCB) are installed in `runit_board_devices_init` with `RUNIT_BOARD_DEVICE(id, d_<chip>_create(...))`, which marks them onboard. Users (packets, recorded actions) go through `sys_device_user_uninstall[_all]` and can't uninstall or replace them. Any other restriction is app policy. Keep `//@STATIC_DEVICE` on their ID so the app knows them.
 - **Locked pins:** pins an adapter depends on (OE, RST, EN, INT) are locked after setup (`SYS_DEV_INSTALL_STEP(sys_io_lock_pin(pin), …)`) and unlocked in uninstall (`SYS_DEV_TEARDOWN_STEP`). Drive a locked pin later with `sys_io_set_locked_level(pin, level)`, which always restores the lock.
@@ -105,17 +105,17 @@ sys_io_* / sys_power_* / sys_hbridge_* (by device_id) ──────┘ cont
 
 ## 4. Current state (review 2026-09-22)
 
-| Device | Contracts | Install helpers + probe | freeze/sync | Decoder + JSON | Notes |
-|---|---|---|---|---|---|
-| gpio_esp | IO | own install (no I2C) | ✅ | ✅ 0x40 | Suspend = freeze alias: outputs not made safe on fault (§5.1), PWM keeps running too. PWM through LEDC (`esp_pwm.c`): channel per pin, timer per frequency (Kconfig `CONFIG_DEVICE_GPIO_ESP_PWM_TIMER_MASK` / `_CHANNEL_MASK` choose which LEDC timers / channels it may use; default all), duty 0..4096. Nothing else uses LEDC today; a new LEDC user must clear its timers / channels from the masks and use the APB clock (S3 timers share one clock source) |
-| pca9685 | IO | ✅ | ✅ | ✅ 0x41 | Reference adapter. Orphaned half-finished comment ("Test implementation for the sys_device error-handling scheme…") above `device_install` |
-| tca6424a | IO | ✅ | ✅ | ✅ 0x42 | Exports `d_tca6424a_new` / `_delete` besides `_create` |
-| tps55289 | POWER_VREG | ✅, no `sys_i2c_device_present` | ⛔ **missing** | ✅ 0x43 | Suspend is safe (output off + EN low); freeze skipped (§5.2) |
-| ina3221 | POWER_MONITOR | ✅ | ✅ | ✅ 0x44 | |
-| ap33772s | VREG + USB_PD + MONITOR | ✅ | ✅ | ✅ 0x45 | Driver creates its own task dynamically (hard-coded 3072 B / prio 5) |
-| dac53202 | IO | ✅ | ✅ | ✅ 0x46 | Not created on the board yet (needed for DRV8962 VREF) |
-| ads7128 | IO | ✅ | ✅ | ✅ 0x47 | ADC-only; digital-input mode planned (PROGRESS) |
-| drv8962 | HBRIDGE | ✅ install step + rollback (uninstall stops the chip and resets every dependency pin) | ✅ | ⛔ **no decoder, no JSON, not in `codecs` REQUIRES** | Pin-controlled chip: its driver works through `sys_io` and returns `err_h` (accepted exception). Dependency pins aren't locked because the driver writes its IN pins continuously. Not in the board config; 2nd chip is driven by PCA9685 CH 8–15 |
+| Device | Contracts | Install helpers + probe | Decoder + JSON | Notes |
+|---|---|---|---|---|
+| gpio_esp | IO | own install (no I2C) | ✅ 0x40 | Suspend only flips the state: outputs not made safe on fault (§5.1), PWM keeps running too. PWM through LEDC (`esp_pwm.c`): channel per pin, timer per frequency (Kconfig `CONFIG_DEVICE_GPIO_ESP_PWM_TIMER_MASK` / `_CHANNEL_MASK` choose which LEDC timers / channels it may use; default all), duty 0..4096. Nothing else uses LEDC today; a new LEDC user must clear its timers / channels from the masks and use the APB clock (S3 timers share one clock source) |
+| pca9685 | IO | ✅ | ✅ 0x41 | Reference adapter. Orphaned half-finished comment ("Test implementation for the sys_device error-handling scheme…") above `device_install` |
+| tca6424a | IO | ✅ | ✅ 0x42 | Exports `d_tca6424a_new` / `_delete` besides `_create` |
+| tps55289 | POWER_VREG | ✅, no `sys_i2c_device_present` | ✅ 0x43 | Suspend is safe (output off + EN low) |
+| ina3221 | POWER_MONITOR | ✅ | ✅ 0x44 | |
+| ap33772s | VREG + USB_PD + MONITOR | ✅ | ✅ 0x45 | Driver creates its own task dynamically (hard-coded 3072 B / prio 5) |
+| dac53202 | IO | ✅ | ✅ 0x46 | Not created on the board yet (needed for DRV8962 VREF) |
+| ads7128 | IO | ✅ | ✅ 0x47 | ADC-only; digital-input mode planned (PROGRESS) |
+| drv8962 | HBRIDGE | ✅ install step + rollback (uninstall stops the chip and resets every dependency pin) | ⛔ **no decoder, no JSON, not in `codecs` REQUIRES** | Pin-controlled chip: its driver works through `sys_io` and returns `err_h` (accepted exception). Dependency pins aren't locked because the driver writes its IN pins continuously. Not in the board config; 2nd chip is driven by PCA9685 CH 8–15 |
 
 Cross-cutting:
 - **Naming:** see [conventions.md](conventions.md) §5.2 (`*_handle_t`, `_<chip>_data_t`, `ads_` / `tca_` / `esp_` prefixes, INA3221 enums).
@@ -123,7 +123,7 @@ Cross-cutting:
 ## 5. Design decisions
 
 ### 5.1 Faults → suspend
-- **Suspend is the fault safe state.** The error policy, the system hook and `runit_enter_safe_state` suspend (never freeze). State becomes `SUSPENDED`, so new writes are **rejected** (`ERR_DEV_SUSPENDED`), not queued; the "resume" action (`resume_all` + `sync_all`) brings devices back.
+- **Suspend is the fault safe state.** The error policy, the system hook and `runit_enter_safe_state` suspend. State becomes `SUSPENDED`, so new writes are **rejected** (`ERR_DEV_SUSPENDED`), not queued; the "resume" action (`resume_all`) brings devices back.
 - Each adapter's `suspend` leaves its outputs safe:
 
   | Device | Suspend action |
@@ -137,15 +137,11 @@ Cross-cutting:
   | DRV8962 | All bridges coast |
   | ADS7128 | Nothing to do (input only) |
 
-- **Open:** `device_gpio_esp`'s suspend is an alias of its freeze, so ESP GPIO outputs keep their level. It needs a real safe suspend. Careful: TCA6424A's RST is an ESP pin, and the reverse sweep suspends GPIO ESP (ID 0) last.
+- **Open:** `device_gpio_esp`'s suspend only flips the state, so ESP GPIO outputs keep their level. It needs a real safe suspend. Careful: TCA6424A's RST is an ESP pin, and the reverse sweep suspends GPIO ESP (ID 0) last.
 
-### 5.2 Freeze — kept for now, to be reconsidered (TODO)
+### 5.2 Freeze removed (2026-10-01)
 
-Freeze is a process image: an input snapshot plus deferred output writes; `sync` flushes them. The "freeze" action and packets 0x16–0x19 use it.
-
-Open question before reusing it (for example for VM pass boundaries): **write → read-back sequences** (write a config or trigger a conversion, then read the response) can never complete while frozen: the write waits for `sync`, the read returns the old snapshot. Options: exempt some ops (per contract op or a "transactional" flag), a per-device flush-and-relatch mid-pass, don't freeze such devices, or drop freeze.
-
-Also open: coverage gaps (TPS55289 and DRV8962 have no freeze; AP33772S doesn't defer its VREG writes), and INA3221 sets `is_frozen` before its snapshot reads.
+Freeze / sync (a process image: input snapshot plus deferred output writes) is gone from `sys_device`, every adapter, the packets `0x16`–`0x19` and the "freeze" static action (Kconfig `SYS_ACTION_ID_FREEZE`; ids 3–6 keep their numbers). Write → read-back sequences can't complete while frozen, and coverage was uneven (TPS55289 / DRV8962 had none). A consistent image for a VM pass belongs in the VM (read inputs at pass start, write outputs at pass end), not in the devices. The app (`DeviceDetails.tsx`, `deviceCatalog.ts`) and the generated contracts / enums JSON still list freeze until they are regenerated.
 
 ### 5.3 `const` vtables, per-instance pin locks
 - Contract vtables are `static const` (flash); `sys_device_class_t.contracts[]` is `const void*` (no casts).

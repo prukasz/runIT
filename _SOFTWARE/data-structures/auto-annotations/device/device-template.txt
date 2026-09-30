@@ -2,10 +2,16 @@
  * ============================================================================
  *  runIT device header - TEMPLATE (every annotation there is)
  * ============================================================================
- *  1. Copy this file to components/codecs/decoders/device/dec_device_<chip>.h
+ *  1. The device describes itself in its own header, components/devices/device_<chip>/include/
+ *     device_<chip>.h: this //#device record + the contract records + the packed cfg struct
+ *     `d_<chip>_cfg_t` (its create frame, annotated like the packet below; the router hands
+ *     the received bytes to d_<chip>_create() as they are, @type-id is its type byte).
+ *     Devices that still have a decoder keep the same records in
+ *     components/codecs/decoders/device/dec_device_<chip>.h (packet_sys_device_install_<chip>_t).
  *  2. Rename every example / EXAMPLE, fill the texts, delete what the chip
  *     doesn't need (every tag below is optional unless marked "required").
- *  3. Register SYS_CONTRACTS_DEVICE_<CHIP>_PACKET_LIST in dec_sys_device_install.h
+ *  3. Register the type in runit_decoders.c (SYS_DEVICE_TYPE_FN + sys_device_register_type); a
+ *     device with a decoder registers SYS_CONTRACTS_DEVICE_<CHIP>_PACKET_LIST in dec_sys_device_install.h
  *     (the other firmware steps: .claude/skills/runit-esp/devices.md).
  *  4. python data-structures/auto-annotations/device/generate-devices.py components/codecs/decoders data-structures/devices
  *
@@ -42,6 +48,8 @@
  *    @tags <words>                                palette search, tag chips
  *    @datasheet <url>                             Datasheet button
  *    @contract-provider $<SYMBOL>                 provider label; IO providers can lend pins
+ *    @type-id <n>                                 create frame byte ([0x00][type-id][cfg]); only for a
+ *                                                 device with its own header (the cfg struct IS the packet)
  *    @pwm-frequencies <n> [@count-bits]           PWM frequencies at once (per-pin devices);
  *                                                 @count-bits counts the set bits of a mask
  *
@@ -113,6 +121,7 @@
 //  @datasheet   https://www.example.com/example-datasheet.pdf
 //  @pwm-frequencies 1
 //  @contract-provider $SYS_DEVICE_CONTRACT_IO
+//  @type-id     0x4F
 
 // ── Value sets (write once, use with @arg) ───────────────────────────────────
 

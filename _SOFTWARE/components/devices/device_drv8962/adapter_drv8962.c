@@ -130,15 +130,6 @@ static SE_MUST_USE err_h device_resume(void* handle) {
   return NULL;
 }
 
-static SE_MUST_USE err_h device_freeze(void* handle) {
-  return device_reset(handle);
-}
-
-static SE_MUST_USE err_h device_sync(void* handle) {
-  (void)handle;
-  return NULL;
-}
-
 static SE_MUST_USE err_h device_install(const void* cfg_blob, void** out_device_handle) {
   const d_drv8962_cfg_t* cfg = (const d_drv8962_cfg_t*)cfg_blob;
 
@@ -172,8 +163,6 @@ static const sys_device_class_t s_drv8962_class = {
         .reset = device_reset,
         .suspend = device_suspend,
         .resume = device_resume,
-        .freeze = device_freeze,
-        .sync = device_sync,
     },
 };
 

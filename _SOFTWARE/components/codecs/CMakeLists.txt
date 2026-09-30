@@ -13,6 +13,5 @@ idf_component_register(
         sys_event
         VM
         devices
-        features
         sys_project
 )

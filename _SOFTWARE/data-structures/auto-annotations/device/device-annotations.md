@@ -1,13 +1,13 @@
 # Device auto-annotations
 
-Device annotations are source comments in `components/codecs/decoders/device/dec_device_<name>.h`. They generate one self-contained descriptor at `data-structures/devices/<device-id>.generated.json`. Generated files are output only; do not edit them.
+Device annotations are source comments in the device's own header, `components/devices/device_<name>/include/device_<name>.h` (a device whose create frame is its cfg struct: PCA9685, servo), or in `components/codecs/decoders/device/dec_device_<name>.h` (devices that still have a decoder). They generate one self-contained descriptor at `data-structures/devices/<device-id>.generated.json`. Generated files are output only; do not edit them.
 
 ```powershell
 python data-structures/auto-annotations/device/generate-devices.py components/codecs/decoders data-structures/devices
 python -m unittest data-structures/auto-annotations/device/test_generate_devices.py
 ```
 
-The first argument is the decoders root to scan, the second the output directory; each file is named from its `//#device` ID. `$SYMBOL` resolution runs `data-structures/auto-annotations/enums/generate-enums.py`'s scan live, so no enums JSON has to be generated first.
+The first argument is the decoders root to scan (the device headers are found next to it, in `components/devices`), the second the output directory; each file is named from its `//#device` ID. `$SYMBOL` resolution runs `data-structures/auto-annotations/enums/generate-enums.py`'s scan live, so no enums JSON has to be generated first.
 
 **Start from [device-template.txt](device-template.txt)**: a complete header using every tag, with a reference of what the app does with each one (`test_generate_devices.py` keeps it generating).
 
@@ -54,6 +54,7 @@ The first argument is the decoders root to scan, the second the output directory
 | `@tags` | `tags` | Whitespace-separated search terms; palette search and tag chips. |
 | `@datasheet` | `datasheet` | Manufacturer datasheet URL; the device page links it. |
 | `@contract-provider $<symbol>` | `contractProvider` | The `sys_device_contract_type_e` the adapter exposes; must resolve. |
+| `@type-id <value>` | (install `packet_header`) | Only in a device's own header: the byte after `0x00` in its create frame (`[0x00][type-id][cfg]`, class `0x01`). The value resolves like `@min` (use the `#define` the firmware registers the type with). |
 | `@pwm-frequencies <value> [@count-bits]` | `pwm_frequencies` | How many different PWM frequencies a per-pin-frequency device runs at once. The value resolves like `@min`; `@count-bits` counts the set bits of a mask (ESP GPIO: `CONFIG_DEVICE_GPIO_ESP_PWM_TIMER_MASK`). The app warns when a project needs more. |
 
 There is no `@version`: nothing reads a descriptor version.
@@ -117,7 +118,7 @@ A contract is the device's view of a generic system packet. List only operations
 
 ## Install packet
 
-Each annotated header declares exactly one `packet_sys_device_install_<name>_t`. Field annotations go after the `;`. A comment-only line of `//` plus two or more spaces right under a field continues that field's annotation (for a long `@note`).
+Each annotated header declares exactly one install packet: `packet_sys_device_install_<name>_t` in a decoder header, or in a device's own header the `typedef struct __packed { ... } d_<name>_cfg_t;` (the generator names its packet `packet_sys_device_install_<name>_t` and `decoder` `d_<name>_create()`). Field annotations go after the `;`. A comment-only line of `//` plus two or more spaces right under a field continues that field's annotation (for a long `@note`).
 
 ```c
 typedef struct __packed {
@@ -137,7 +138,7 @@ typedef struct __packed {
 
 ### Pins on other devices: `pin_ref_wire_t`
 
-A pin the device uses on another device (interrupt, reset, enable) is one `pin_ref_wire_t <name>_pin` field (`dec_device_common.h`: provider device ID, pin, mode; three bytes). The decoder turns it into a `sys_io_pin_ref_t` with `pin_ref_from_wire(packet-><name>_pin)`.
+A pin the device uses on another device (interrupt, reset, enable) is one `pin_ref_wire_t <name>_pin` field (`sys_io.h`: provider device ID, pin, mode; three bytes). The decoder, or the device itself when its cfg is the packet, turns it into a `sys_io_pin_ref_t` with `pin_ref_from_wire(...)`.
 
 The generator expands it to the wire fields `<name>_pin_device_id`, `<name>_pin_pin` (sentinel `SYS_GPIO_NONE` = not connected) and `<name>_pin_mode` (`sys_io_mode_e`), and one pin group keyed `<name>_pin`. That key is also how `board.generated.json` names the pins the board's own devices take, so board devices show the same label.
 

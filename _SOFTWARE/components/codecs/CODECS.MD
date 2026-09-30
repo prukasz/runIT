@@ -45,7 +45,7 @@ Every decoder logs what it is about to do at `ESP_LOGI` under the tag `dec_sys_c
 
 | Range | Domain | API |
 | :--- | :--- | :--- |
-| `0x10`–`0x19` | Device lifecycle | `sys_device_user_uninstall` (onboard devices are refused), `reset/suspend/resume/freeze/sync` (+ `_all` variants; `0x1C` → `sys_device_user_uninstall_all`, which skips onboard devices) |
+| `0x10`–`0x15`, `0x1A`–`0x1C` | Device lifecycle | `sys_device_user_uninstall` (onboard devices are refused), `reset/suspend/resume` (+ `_all` variants; `0x1C` → `sys_device_user_uninstall_all`, which skips onboard devices) |
 | `0x1A` | Device error handling | `sys_device_set_error_handling` — `device_id, importance, actions[5]`; see [[SYS_DEVICE.MD]]'s "Per-Instance Error Handling" |
 | `0x1B`–`0x1F` | *(free)* | |
 | `0x20`–`0x2F` | IO | `sys_io_reset/set_mode/set_level/get_level/toggle/get_voltage/set_voltage/set_pwm_frequency/set_pwm_duty`, `0x29`: `sys_io_configure_intr` (mode, debounce, ADC window; arms the pin only, events are linked with class `0x09`) |
@@ -134,17 +134,6 @@ Registered by runit like every other class. The VM can't register it itself: `co
 
 ---
 
-## `decoders/dec_features.h` — class `0x05`
-
-Decoder table for higher-order features (servos, H-bridges, etc.):
-- `0x01`–`0x0F`: Feature lifecycle (`remove`, `remove_all`).
-- `0x10`–`0x1F`: Servo control (`create`, `set_angle`, `go_home`, `set_trim`, `attach/detach`).
-- `0x20`–`0x2F`: H-bridge / motor control (`create`, `set_speed`, `brake`, `coast`, `set_current_limit`, `clear_fault`).
-
-Registered by runit for class byte `0x05`.
-
----
-
 ## `decoders/dec_settings_project.h` — class `0x0A`
 
 Stored code ([[SYS_PROJECT.MD]]): begin / write / commit / abort / erase / options / info / read / load. Settings-style table (`//@settings project`, published to `settings.generated.json`, the `info` response layout too). `write` carries a trailing `uint8_t data[]` (the settings generator publishes it as `flexible_array` without an encoding: opaque bytes); `read` answers with the raw bytes. The header also holds the commit filter (`dec_settings_project_frame_allowed`: no class `0x0A`, no action recording, no VM exec) and `dec_settings_project_is_vm_frame` for the boot replay, which runit wires in `runit_project_boot`.
@@ -160,7 +149,7 @@ Links events to the program and to actions ([[SYS_EVENT.MD]]). Exposed as the `e
 | `0x01` subscribe | `domain, device_id, channel, event` (255 = any), `route_mask` (bit 0 = program), `static_action_id`, `dynamic_action_id` | `subscription_id` |
 | `0x02` unsubscribe | `subscription_id` (255 = every subscription made by packets) | — |
 
-Packet subscriptions are user-owned: the unsubscribe packet can't remove the system's own (device IRQ chaining, power manager, features). Tagged `OWNER_DEC_SYS_EVENTS` (`0xA618`).
+Packet subscriptions are user-owned: the unsubscribe packet can't remove the system's own (device IRQ chaining, power manager). Tagged `OWNER_DEC_SYS_EVENTS` (`0xA618`).
 
 ---
 

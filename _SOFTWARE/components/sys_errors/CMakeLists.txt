@@ -30,7 +30,6 @@ idf_component_register(
                  "../system/sys_project/errors"
                  "../VM/errors"
                  "../devices/devices/errors"
-                 "../features/errors"
                  "../runit/errors"
     REQUIRES esp_ringbuf
     PRIV_REQUIRES utils

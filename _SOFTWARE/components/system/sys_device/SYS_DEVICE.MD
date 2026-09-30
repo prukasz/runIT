@@ -3,14 +3,14 @@
 IMPORTANT: If you modify the source files in this component (sys_device.h or sys_device.c), you must update this documentation to reflect the changes.
 
 ## Overview
-The `sys_device` component is the central registry and lifecycle manager for every hardware device instance in runIT. Device drivers/adapters describe themselves declaratively as a `sys_device_class_t` (name, roles, feature contracts, lifecycle ops) and hand a typed config struct to `sys_device_install_cfg()` (via the `SYS_DEVICE_CREATE()` wrapper); `sys_device` owns the registry slot, the heap copy of the config, and dispatch of every subsequent lifecycle/feature call by `device_id`.
+The `sys_device` component is the central registry and lifecycle manager for every hardware device instance in runIT. Device drivers/adapters describe themselves declaratively as a `sys_device_class_t` (name, roles, feature contracts, lifecycle ops) and hand a typed config struct to `sys_device_install_cfg()` (via the `SYS_DEVICE_CREATE()` wrapper); `sys_device` owns the registry slot and dispatch of every subsequent lifecycle/feature call by `device_id`.
 
 ### Directory Map
 ```
 components/system/sys_device/
 ├── CMakeLists.txt
 ├── SYS_DEVICE.MD         # This documentation
-├── sys_device.c          # Registry, install/uninstall, dispatch, suspend/resume/freeze/sync
+├── sys_device.c          # Registry, install/uninstall, dispatch, suspend/resume
 └── include/
     ├── sys_device.h      # Contracts, class/instance structs, dispatch & adapter-construction macros
     └── sys_error_dev.h   # sys_device owner map and ERR_DEV_* error tag map
@@ -22,7 +22,7 @@ components/system/sys_device/
 
 ### Class vs. Instance
 * **`sys_device_class_t`** — everything about a device *type* that is a compile-time constant: `name`, `roles` (bitmask of `sys_device_role_e`), the feature `contracts[]` (`const void*` slots pointing at `static const` vtables, kept in flash), and the `sys_device_ops_t` lifecycle function table. Declared once per device type as a `static const`.
-* **`sys_device_t`** — one *instance* in the registry: `device_id`, a pointer back to its `cls`, a manager-owned heap copy of the typed config (`cfg`/`cfg_size`), `state`, `device_handle`, and its per-instance error handling configuration (`actions[5]`, `importance` — see [Per-Instance Error Handling](#per-instance-error-handling)), and `io_locked_pins` (per-instance IO pin locks, owned by `sys_io`). Contracts are not copied onto the instance; lookups go through `dev->cls->contracts[]`.
+* **`sys_device_t`** — one *instance* in the registry: `device_id`, a pointer back to its `cls`, `state`, `device_handle`, and its per-instance error handling configuration (`actions[5]`, `importance` — see [Per-Instance Error Handling](#per-instance-error-handling)), and `io_locked_pins` (per-instance IO pin locks, owned by `sys_io`). Contracts are not copied onto the instance; lookups go through `dev->cls->contracts[]`.
 
 Contracts are declarative: `sys_device` sets `cls` on the instance before running `cls->ops.install` — an adapter never calls something like `sys_io_register_driver()` / `sys_power_register_*()` itself.
 
@@ -46,7 +46,7 @@ typedef enum sys_device_state_e {
 ```c
 typedef enum { SYS_DEVICE_CONTRACT_IO = 0, SYS_DEVICE_CONTRACT_POWER_VREG = 1, SYS_DEVICE_CONTRACT_POWER_MONITOR = 2, SYS_DEVICE_CONTRACT_POWER_USB_PD = 3, SYS_DEVICE_CONTRACT_HBRIDGE = 4, SYS_DEVICE_CONTRACT_MAX = 5 } sys_device_contract_type_e;
 ```
-A device's capabilities are determined by its contracts (the vtable slots above, defined by `sys_io` / `sys_power` / `sys_hbridge`). Vtables are always `static const`: nothing writes to them at runtime (per-instance state such as IO pin locks lives on `sys_device_t`). A device may implement more than one contract (e.g. a combined VREG + monitor chip). String form available via `sys_device_contract_type_e_to_string[]` — used by `sys_error_dev.h`'s `ERR_DEV_FEATURE_UNAVAILABLE` description (see [[SYS_ERRORS.MD]]'s `SE_describe_payload()`), which forward-declares it as an `extern` rather than including this header (breaks include ordering that early in the chain).
+A device's capabilities are determined by its contracts (the vtable slots above, defined by `sys_io` / `sys_power` / `sys_hbridge`). Vtables are always `static const`: nothing writes to them at runtime (per-instance state such as IO pin locks lives on `sys_device_t`). A device may implement more than one contract (e.g. a combined VREG + monitor chip). **Contracts name themselves.** The enum is the stable id of a contract (slot in `cls->contracts[]`, published to the app), but the names come from the contract modules: each keeps its NULL-terminated `<contract>_feature_names[]` (vtable member order) and runit registers them once in `runit_error_wiring_init()` with `sys_device_register_contract(id, name, feature_names)`. `sys_device_contract_name()` / `sys_device_feature_name()` read the registry; `sys_error_dev.h`'s `ERR_DEV_FEATURE_UNAVAILABLE` description forward-declares just those two functions (it is parsed before `err_h` exists, so it can't include this header). Adding a contract: one enum entry, the module's names table, one register line.
 
 ### Lifecycle Ops
 ```c
@@ -56,8 +56,6 @@ typedef struct sys_device_ops_t {
   err_h (*reset)(void* device_handle);
   err_h (*suspend)(void* device_handle);
   err_h (*resume)(void* device_handle);
-  err_h (*freeze)(void* device_handle);
-  err_h (*sync)(void* device_handle);
 } sys_device_ops_t;
 ```
 Any op left NULL causes the corresponding single-device manager call to return `ERR_BASE_NOT_SUPPORTED` for that device (sweeps skip it).
@@ -138,7 +136,6 @@ Adapter contexts are expected to embed a `sys_device_adapter_base_t base` as the
 typedef struct {
   void* hw_handle;
   uint8_t device_id;
-  bool is_frozen;
   uint16_t steps_done; /* adapter-defined bitmask of completed install steps */
 } sys_device_adapter_base_t;
 ```
@@ -147,16 +144,16 @@ typedef struct {
 * **`SYS_DEV_STEP_DONE(ctx, bit)`** / **`IF_SYS_DEV_STEP_DONE(ctx, bit)`**: Set/test a bit in `steps_done`, so teardown can roll back exactly what was built instead of inferring it from field sentinels.
 * **`SYS_DEV_INSTALL_STEP(expr, what)`**: Runs one install step; on error, wraps it as `ERR_DEV_INSTALL_STEP_FAILED {line}` (the adapter call site) and `goto fail`. `what` is a source-level label only. Requires `err_h err` and a `fail:` label in scope.
 * **`SYS_DEV_TEARDOWN_STEP(err_acc, expr)`**: Runs one teardown step, keeping only the *first* error seen in `err_acc`. Never early-returns — every subsequent teardown step still runs even if an earlier one failed.
-* **`SYS_DEVICE_CREATE(cls_ptr, cfg_ptr)`**: Shorthand for `sys_device_install_cfg(cls_ptr, cfg_ptr->device_id, cfg_ptr, sizeof(*cfg_ptr))`. Requires `cfg_ptr`'s first member to be `uint8_t device_id`. This is the standard way a `d_xxx_create()` function installs its device.
+* **`SYS_DEVICE_CREATE(cls_ptr, cfg_ptr)`**: Shorthand for `sys_device_install(cls_ptr, cfg_ptr->device_id, cfg_ptr)`. Requires `cfg_ptr`'s first member to be `uint8_t device_id`. This is the standard way a `d_xxx_create()` function installs its device.
 
 ---
 
 ## Manager API Functions
 
-* **`sys_device_install_cfg(cls, device_id, cfg, cfg_size)`**: Heap-copies `cfg`, sets `cls` on the instance, marks it `INSTALLING`, then runs `cls->ops.install`. On failure the registry slot and heap copy are freed and the error is returned; on success state becomes `INSTALLED`. Prefer `SYS_DEVICE_CREATE()`.
+* **`sys_device_install(cls, device_id, cfg)`**: Sets `cls` on the instance, marks it `INSTALLING`, then runs `cls->ops.install(cfg, ...)`. The manager keeps no copy of `cfg`: it is valid for the call only (a compound literal, or the bytes of a received frame), so install copies what it needs into the device's own state. On failure the registry slot is freed and the error is returned; on success state becomes `INSTALLED`. Prefer `SYS_DEVICE_CREATE()`.
 * **`sys_device_uninstall(device_id)`**: Removes the registry entry, runs the device's `uninstall` op, then frees the config copy and the instance. Config is freed only *after* the adapter has torn down, since it may still read its own copy of the config until then.
-* **`sys_device_reset(device_id)`** / **`sys_device_suspend(device_id)`** / **`sys_device_resume(device_id)`** / **`sys_device_freeze(device_id)`** / **`sys_device_sync(device_id)`**: Single-device lifecycle calls; each checks found/installed/not-suspended (where relevant) before invoking the corresponding op, and returns `ERR_BASE_NOT_SUPPORTED` if the device doesn't implement it. `suspend`/`resume` no-op (return `NULL`) if the device is already in the target state.
-* **`sys_device_suspend_all()`** / **`sys_device_resume_all()`** / **`sys_device_sync_all()`** / **`sys_device_reset_all()`**: Sweep the whole registry, applying the op to every eligible device. All sweeps (including `sys_device_freeze_all()` and `sys_device_uninstall_all()`) are **best effort**: a failing device doesn't stop the sweep, the first failure (wrapped with its `device_id`) is returned, and later failures are sent to diagnostics (`SE_send`) and released. `suspend_all` is the fault safe-state path, so it must reach every device.
+* **`sys_device_reset(device_id)`** / **`sys_device_suspend(device_id)`** / **`sys_device_resume(device_id)`**: Single-device lifecycle calls; each checks found/installed/not-suspended (where relevant) before invoking the corresponding op, and returns `ERR_BASE_NOT_SUPPORTED` if the device doesn't implement it. `suspend`/`resume` no-op (return `NULL`) if the device is already in the target state.
+* **`sys_device_suspend_all()`** / **`sys_device_resume_all()`** / **`sys_device_reset_all()`**: Sweep the whole registry, applying the op to every eligible device. All sweeps (including `sys_device_uninstall_all()`) are **best effort**: a failing device doesn't stop the sweep, the first failure (wrapped with its `device_id`) is returned, and later failures are sent to diagnostics (`SE_send`) and released. `suspend_all` is the fault safe-state path, so it must reach every device.
 * **`sys_device_uninstall_all()`**: Sweeps every populated registry slot and calls `sys_device_uninstall()` on each — same semantics as the single-device call (tolerates any device state, doesn't check ready/suspended).
 
 ### Onboard devices and user entry points
@@ -165,9 +162,8 @@ typedef struct {
 * **User entry points** are what inbound packets and replayed recorded actions call. **`sys_device_user_uninstall(id)`** returns `ERR_DEV_ONBOARD {dev_id}` for an onboard device, otherwise it's `sys_device_uninstall()`. **`sys_device_user_uninstall_all()`** uninstalls every non-onboard device (same order, best effort). Because an onboard ID stays occupied, a user install on it fails with `ERR_DEV_ALREADY_EXIST`, so onboard devices can't be replaced either.
 * That's the only firmware rule. Everything else users may do with onboard devices (contracts, reset, suspend, error handling) is app policy, enforced in the client.
 * System paths (boot action, static actions such as hard reset, fault handling) keep using the plain functions.
-* **Sweep direction follows the device-id dependency convention.** A device's `sys_io_pin_ref_t` fields (`oe_pin`, `rst_pin`, `en_pin`, ...) always point at a *lower*-id device — see `runit_board_cfg.c`'s boot-order device ids. Several adapters' `suspend`/`uninstall` ops call back into that dependency's `sys_io_*` while they run (e.g. `tca6424a`'s `suspend` drives its `rst_pin` low, which is a `gpio_esp` pin). Tear-down sweeps (`suspend_all`, `uninstall_all`) therefore go **high id → low id**, so a dependent finishes its own teardown before the lower-id device it depends on goes down; bring-up sweeps (`resume_all`) go **low id → high id**, so a dependency is already active by the time a higher-id dependent resumes and touches it. `reset_all`/`freeze_all`/`sync_all` sweep low → high since none of today's adapters reach into another device's `sys_io` from those ops — if one ever does, it needs the same high→low treatment. User installs (the install decoders, `PIN_REFS_BELOW` in `dec_device_common.h`) enforce the convention: a pin ref on the same or a higher ID is refused with `ERR_DEV_PIN_ORDER` (dev_id, pin_dev_id, pin) before the device is created.
-* **Faults use suspend, not freeze.** Suspend is the safe state: each adapter's `suspend` puts its outputs into a safe condition (PWM off via OE + sleep, expander in reset, regulator output off + EN low, PD output off, DAC powered down, H-bridges coast) and the device state becomes `SUSPENDED`, so dispatch rejects new writes (`ERR_DEV_SUSPENDED`) instead of queueing them. Critical faults (`runit_system_fault`, `runit_enter_safe_state`, and this component's weak fallbacks) call `sys_device_suspend_all()`. Exception still open: `device_gpio_esp`'s suspend aliases its freeze, so ESP GPIO outputs keep their level.
-* **Freeze vs. suspend are orthogonal.** `freeze`/`freeze_all` never touch `state` (an adapter tracks its own `is_frozen` flag via `SYS_DEV_CTX_FREEZE`/`SYS_DEV_CTX_UNFREEZE`); only `suspend`/`suspend_all` set `state = SYS_DEV_STATE_SUSPENDED`. Consequently `resume`/`resume_all` (which only act on devices `SYS_DEV_IS_SUSPENDED`) do **not** clear a freeze that was applied without a suspend — several adapters (see e.g. `device_gpio_esp`'s `device_sync()`) clear `is_frozen` from their `sync` op instead, so lifting a freeze system-wide is `sys_device_sync_all()`, not `sys_device_resume_all()`. [[SYS_ACTIONS.MD]]'s "resume" static function calls both together for exactly this reason.
+* **Sweep direction follows the device-id dependency convention.** A device's `sys_io_pin_ref_t` fields (`oe_pin`, `rst_pin`, `en_pin`, ...) always point at a *lower*-id device — see `runit_board_cfg.c`'s boot-order device ids. Several adapters' `suspend`/`uninstall` ops call back into that dependency's `sys_io_*` while they run (e.g. `tca6424a`'s `suspend` drives its `rst_pin` low, which is a `gpio_esp` pin). Tear-down sweeps (`suspend_all`, `uninstall_all`) therefore go **high id → low id**, so a dependent finishes its own teardown before the lower-id device it depends on goes down; bring-up sweeps (`resume_all`) go **low id → high id**, so a dependency is already active by the time a higher-id dependent resumes and touches it. `reset_all` sweeps low → high since none of today's adapters reach into another device's `sys_io` from those ops — if one ever does, it needs the same high→low treatment. User installs (the install decoders, `PIN_REFS_BELOW` in `dec_device_common.h`) enforce the convention: a pin ref on the same or a higher ID is refused with `ERR_DEV_PIN_ORDER` (dev_id, pin_dev_id, pin) before the device is created.
+* **Faults use suspend.** Suspend is the safe state: each adapter's `suspend` puts its outputs into a safe condition (PWM off via OE + sleep, expander in reset, regulator output off + EN low, PD output off, DAC powered down, H-bridges coast) and the device state becomes `SUSPENDED`, so dispatch rejects new writes (`ERR_DEV_SUSPENDED`) instead of queueing them. Critical faults (`runit_system_fault`, `runit_enter_safe_state`, and this component's weak fallbacks) call `sys_device_suspend_all()`. Exception still open: `device_gpio_esp`'s suspend only flips the state (writes are rejected), so ESP GPIO outputs keep their level and PWM keeps running.
 * **`sys_device_get_by_id(device_id)`**: Lock-free registry lookup; returns `NULL` if out of range or unset.
 * **`sys_device_report_error(device_id, error)`**: Evaluates the supplied node's error severity against the device's `importance`. Critical errors invoke the registered error policy at every importance but NONE, which ignores every error. Non-critical errors below the importance threshold are ignored; admitted errors keep their original severity.
 * **`sys_device_report_error_with_level(device_id, level, error)`**: Explicit severity level override variant of `sys_device_report_error()`.
@@ -175,6 +171,23 @@ typedef struct {
 * **`sys_device_set_error_handling(device_id, importance, actions)`**: Configures device importance and action IDs in one call — maps 1:1 to wire packet `0x1A` (`packet_sys_device_set_error_handling_t`). `actions` is copied into `dev->actions[5]` (IDs validated against the namespace selected by `actions[0]`), or pass `NULL` to zero it. Returns `ERR_DEV_NOT_FOUND` if `device_id` isn't registered, `ERR_INVALID_VAL_UI32` if an `actions[]` entry is out of range.
 
 ---
+
+## Packet Router
+
+`sys_device_route(frame, len, reply)` handles the headers of class `0x01` that the fixed system packets (uninstall, io, power, ...) don't own. `dec_sys_contracts_decode()` hands it every header that is `0x00` or `>= 0x80`; anything else in between is still `ERR_INTERFACE_UNKNOWN_PACKET`. A getter's bytes go to `sys_interface_respond()` (`sys_device` knows no transport: it fills the caller's `sys_device_reply_t`).
+
+```
+[0x00][type_id][cfg...]             create: cfg is the wire struct, cfg[0] = device_id
+[0x80..0xFF][device_id][args...]    an operation of the device itself
+```
+
+* **Create.** `sys_device_register_type(type_id, cfg_size, create)` (runit, before the interface starts: `register_device_types()` in `runit_decoders.c` registers every install packet of `dec_sys_device_install.h`, `type_id` = its 0x40..0x47 header). The router checks the exact size (`ERR_DEV_CREATE_SIZE`, `ERR_DEV_TYPE_UNKNOWN`) and calls `create(cfg)`. For most types that is the decoder of the 0x40..0x47 install packet. A device whose `d_x_cfg_t` is the wire struct itself (`__packed`, device_id first, `pin_ref_wire_t` pins; PCA9685 and servo) needs no decoder: `SYS_DEVICE_TYPE_FN(d_x_cfg_t, d_x_create)` and `sys_device_register_type(type_id, sizeof(d_x_cfg_t), type_create_d_x_create)` in `runit_decoders.c`, and `d_x_create` checks `PIN_REFS_BELOW` itself. The cfg struct and the `//#device` / `//#contract` annotations live in the device's own header (`device_<chip>.h`: the generator reads them from there, `@type-id` is the type byte, `<CHIP>_TYPE_ID` the same number for the registration), so such a device has no `dec_device_<chip>.h` and no 0x40..0x48 install packet. The type table is `SYS_DEVICE_MAX_TYPES` (16), read-only after boot.
+* **Operations.** A class lists its own operations (`dev_ops` / `dev_ops_count`, set with `SYS_DEVICE_OPS(table)`; one row = `SYS_DEVICE_OP(code, arg_type, handler)` or `SYS_DEVICE_OP_RO` for a getter). One table per device, in the file with the class. The handler is `err_h (void* device_handle, const uint8_t* args, size_t len, sys_device_reply_t* reply)`; read the arguments with `SYS_DEVICE_OP_ARGS(type, name, args)` (copy, no alignment assumption) and return data with `sys_device_reply_put()`.
+* **Checks before the handler:** device found (`ERR_DEV_NOT_FOUND`), installed (`ERR_DEV_NOT_INSTALLED`), not suspended unless the op is read-only (`ERR_DEV_SUSPENDED`), op known (`ERR_DEV_OP_UNKNOWN`) and the argument size exact (`ERR_DEV_OP_SIZE`). The handler's own error is wrapped with `ERR_DEV_DEP_FAILED {dev_id}` like every lifecycle op.
+* **Rejections aren't faults.** `ERR_DEV_OP_UNKNOWN / OP_SIZE / TYPE_UNKNOWN / CREATE_SIZE` are rejected commands: they are not attributed to a device by `device_id_of()` (like `ERR_DEV_ONBOARD`).
+* **Rules for an op:** never block (set a target, let the chip or a task move); change IO / power outputs only through the contracts (pin locks, budget, events live there); an operation two device types both need becomes a contract function.
+
+Planned: the class carries `type_id`, `cfg_size` and its pin-ref offsets, so creating a device needs no per-device `d_<chip>_create` and no registration wrapper (proposal: [DEVICE_CLASS.MD](DEVICE_CLASS.MD)).
 
 ## Error Ownership
 

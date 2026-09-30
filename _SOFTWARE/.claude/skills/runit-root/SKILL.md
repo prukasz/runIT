@@ -32,7 +32,6 @@ runIT is a plug-and-play framework for hobbyists spanning hardware, firmware and
 | `main/` | ESP-IDF entry (`main.c`) |
 | `components/system/` | Core system modules: `sys_device`, `sys_io`, `sys_power`, `sys_i2c`, `ble`, `sys_interface`, `sys_data_connector`, `sys_actions`, `sys_buffers`, `sys_event`, `sys_hbridge`, `sys_settings` — each with a `*.MD` doc |
 | `components/devices/` | Chip drivers + adapters (`device_<chip>/driver_*.c`, `adapter_*.c`) |
-| `components/features/` | High-level features (servo, hbridge, registry) |
 | `components/VM/` | Flow-language VM (`core/`, `blocks/`, `VM.MD`, `VM_EXEC.MD`) |
 | `components/codecs/` | Packet decoders/encoders (`CODECS.MD`) |
 | `components/sys_errors/` | Error chain, codes, logging (`SYS_ERRORS.MD`) |

@@ -14,7 +14,6 @@
 #include "sys_error_event.h"
 #include "sys_error_hbridge.h"
 #include "sys_error_data_connector.h"
-#include "sys_error_features.h"
 #include "sys_error_runit.h"
 #include "sys_error_settings.h"
 #include "sys_error_uart.h"
@@ -54,7 +53,6 @@
     SYS_EVENT_OWNER_MAP(X) \
     SYS_HBRIDGE_OWNER_MAP(X) \
     SYS_DATA_CONNECTOR_OWNER_MAP(X) \
-    FEATURES_OWNER_MAP(X) \
     RUNIT_OWNER_MAP(X) \
     SYS_SETTINGS_OWNER_MAP(X) \
     SYS_UART_OWNER_MAP(X) \

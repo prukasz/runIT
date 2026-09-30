@@ -125,7 +125,6 @@ Places not yet following the rule:
 | `sys_buffers` | `sys_buff_*` | `sys_buffers_*` |
 | `sys_errors` | Internal `se_log_*` next to `SE_*` | pick one case for the prefix |
 | Public headers exporting generic names | `populate_svc_def` (ble), `convert_to_packet` (sys_interface), `slot_store` (VM), `vm_internal_*` in a public header | make them `static`/private, or give them a module prefix |
-| `features/registry` | `feature_alloc`, `feature_get_by_id`, `feature_remove_*` (sounds like per-feature API) | `features_registry_*` or `feature_registry_*` |
 | Function-pointer typedefs | `vm_block_fn` (+ verify), `feature_teardown_fn`, `runit_boot_step_fn`, `action_static_func_t` | `_f`: `vm_block_f`, `vm_block_verify_f`, `feature_teardown_f`, `runit_boot_step_f`, `sys_actions_static_f` (the last also fixes the prefix) |
 
 Integer types are clean: the only non-`stdint` uses are the accepted exceptions above plus the AP33772S bit-fields.

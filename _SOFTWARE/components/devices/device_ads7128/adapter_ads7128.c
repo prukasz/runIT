@@ -27,7 +27,6 @@ typedef struct ads_adapter_ctx_t {
 
   float mv_per_code;
 
-  uint16_t cached_codes[PINS_COUNT];  // snapshot served while the device is frozen
   sys_io_intr_mode_e intr_modes[PINS_COUNT];
   uint8_t intr_sub; /* sys_event subscription on intr_pin */
   // The user-facing config from sys_io_configure_intr(), remembered so
@@ -187,12 +186,7 @@ static SE_MUST_USE err_h contract_io_ads7128_get_voltage(void* handle, sys_io_pi
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, PINS_MASK);
 
   uint16_t code = 0;
-  IF_SYS_DEV_FROZEN(ctx) {
-    code = ctx->cached_codes[pin];
-  }
-  else {
-    SYS_DEV_CHECK_DRIVER_CALL(ads_read_channel(hw, pin, &code), ctx);
-  }
+  SYS_DEV_CHECK_DRIVER_CALL(ads_read_channel(hw, pin, &code), ctx);
 
   *out_mV = (int32_t)code_to_mV(ctx, code);
   return NULL;
@@ -262,7 +256,6 @@ static SE_MUST_USE err_h contract_io_ads7128_reset_pin(void* handle, sys_io_pin_
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, PINS_MASK);
 
   ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
-  ctx->cached_codes[pin] = 0;
 
   SYS_DEV_CHECK_DRIVER_CALL(ads_clear_alert_cfg(hw, pin), ctx);
   return NULL;
@@ -310,7 +303,6 @@ static SE_MUST_USE err_h device_reset(void* handle) {
 
   for (uint8_t pin = 0; pin < PINS_COUNT; pin++) {
     ctx->intr_modes[pin] = SYS_IO_INTR_DISABLE;
-    ctx->cached_codes[pin] = 0;
   }
 
   SYS_DEV_CHECK_DRIVER_CALL(ads_reset(hw), ctx);
@@ -327,35 +319,6 @@ static SE_MUST_USE err_h device_suspend(void* handle) {
 static SE_MUST_USE err_h device_resume(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ads_adapter_ctx_t, ads_handle_t, ctx, hw, handle);
   SYS_DEV_CHECK_DRIVER_CALL(ads_restore_state(hw), ctx);
-  return NULL;
-}
-
-/* Frozen readings are served from a snapshot, so a whole control cycle sees one
-   consistent set of samples no matter how often it asks. */
-static SE_MUST_USE err_h device_freeze(void* handle) {
-  SYS_DEV_GET_ADAPTER_CONTEXT(ads_adapter_ctx_t, ads_handle_t, ctx, hw, handle);
-  IF_SYS_DEV_FROZEN(ctx) {
-    return NULL;
-  }
-
-  SYS_DEV_CHECK_DRIVER_CALL(ads_read_channels(hw, ADS7128_CH_MASK_ALL), ctx);
-  for (uint8_t ch = 0; ch < PINS_COUNT; ch++) {
-    ctx->cached_codes[ch] = hw->recent_codes[ch];
-  }
-
-  SYS_DEV_CTX_FREEZE(ctx);
-  return NULL;
-}
-
-static SE_MUST_USE err_h device_sync(void* handle) {
-  SYS_DEV_GET_ADAPTER_CONTEXT(ads_adapter_ctx_t, ads_handle_t, ctx, hw, handle);
-  SYS_DEV_CTX_UNFREEZE(ctx);
-
-  // Inputs only: nothing was deferred, the snapshot just gets refreshed
-  SYS_DEV_CHECK_DRIVER_CALL(ads_read_channels(hw, ADS7128_CH_MASK_ALL), ctx);
-  for (uint8_t ch = 0; ch < PINS_COUNT; ch++) {
-    ctx->cached_codes[ch] = hw->recent_codes[ch];
-  }
   return NULL;
 }
 
@@ -397,11 +360,6 @@ static SE_MUST_USE err_h device_install(const void* cfg_blob, void** out_device_
     SYS_DEV_STEP_DONE(ctx, ADS_STEP_INTR_READY);
   }
 
-  SYS_DEV_INSTALL_STEP(SE_CONVERT_ESP(ads_read_channels(hw, ADS7128_CH_MASK_ALL)), "initial read");
-  for (uint8_t ch = 0; ch < PINS_COUNT; ch++) {
-    ctx->cached_codes[ch] = hw->recent_codes[ch];
-  }
-
   *out_device_handle = ctx;
   return NULL;
 
@@ -414,7 +372,7 @@ fail:
 static const sys_device_class_t s_ads7128_class = {
     .name = "ADS7128_ADC",
     .contracts = {[SYS_DEVICE_CONTRACT_IO] = &s_ads7128_io_contract},
-    .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume, .freeze = device_freeze, .sync = device_sync},
+    .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume},
 };
 
 // --- Exposed Initialization API ---

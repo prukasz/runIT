@@ -11,7 +11,7 @@ Layers, data flows, boot sequence, agreed design and open findings. Module APIs 
 | 2 Device core | `sys_device` (registry, lifecycle, dispatch helpers) | 0–1 |
 | 3 Contracts | `sys_io`, `sys_power` (+ the power manager), `sys_hbridge` (contract types + domain dispatch) | 0–2 |
 | 4 Devices | `devices/device_<chip>` (driver + adapter), `devices/devices` (aggregator, glob) | 0–3 |
-| 5 Logic | `features`, `VM` | 0–3 (never a concrete device) |
+| 5 Logic | `VM` | 0–3 (never a concrete device) |
 | 6 Command | `codecs` (header-only decoders), `sys_interface` (class router), `sys_actions` (static/recorded actions) | 0–5; `sys_interface` and `sys_actions` don't depend on `codecs` |
 | 7 App | `runit` (composition root: boot steps, board config, decoder registration, error sink, error policy), `main` | everything |
 
@@ -58,6 +58,8 @@ Every upward call goes through a `*_register_*()` function that `runit` (the com
 | `vm_exec_register_action_request` | 〃 | `sys_actions_request` (queued; the VM task never runs an action) |
 | `sys_event_register_action_executor` / `sys_event_register_route` | 〃 | `sys_actions_invoke`, `vm_event_route` (`CONFIG_SYS_EVENT_ROUTE_VM`) |
 | `sys_power_register_safe_state` | `runit_board_power_init()` | `runit_enter_safe_state` |
+| `sys_device_register_contract` (5) | `runit_error_wiring_init()` | each contract's `<contract>_feature_names[]`, for the error log |
+| `sys_device_register_type` | `register_device_types()` in `runit_decoders.c` | `d_<chip>_create` (create frame, SYS_DEVICE.MD Packet Router) |
 
 ### 4.2 `sys_errors` as a base layer: keep maps, inject the sink
 - **Sink:** `sys_errors` knows no transport. `SE_register_sink(&(sys_error_sink_t){send_log, send_packet, packet_max_len})`, bound by runit, looked up per send. Unbound output is dropped (serial mirroring still works).
@@ -69,9 +71,6 @@ Every upward call goes through a `*_register_*()` function that `runit` (the com
 - Steps that must all run (teardown, suspend, per-channel sweeps, fault notification) accumulate with `SYS_DEV_TEARDOWN_STEP` / `SYS_DEV_TEARDOWN_DRIVER_STEP` and return the first error.
 - A locked dependency pin is driven only through `sys_io_set_locked_level()`, which re-locks on every path.
 - The compiler doesn't check `esp_err_t` results or `err_h` returned through function pointers (vtables, event handlers; the event dispatcher reports handler errors).
-
-### 4.4 Features: on hold
-Features need their own analysis before any redesign (type safety, lifecycle, fault handling, relation to devices). Change `components/features/` only as far as other work requires. Findings: F-2, F-17.
 
 ### 4.5 Onboard vs runtime devices
 - Users plug devices in and remove them at runtime (install/uninstall packets). Onboard ones are installed by the board config and flagged with `sys_device_set_onboard()`.
@@ -95,11 +94,11 @@ Every module raises errors under its own owner domain (`owner & 0xFF00` selects 
 | `0xA3` | sys_io | `0xAB` | sys_event |
 | `0xA4` | sys_power | `0xAC` | sys_hbridge |
 | `0xA5` | ble | `0xAD` | sys_data_connector |
-| `0xA6` | sys_interface + `OWNER_DEC_*` decoders + error encoder | `0xAE` | features |
+| `0xA6` | sys_interface + `OWNER_DEC_*` decoders + error encoder | `0xAE` | (free) |
 | `0xA7` | sys_buffers | `0xAF` | runit |
 | `0xA8` | sys_errors | `0xD0` | devices |
 
-- System modules use per-function owners (`OWNER_<MODULE>_<FUNCTION>`); features per-part, runit board / error-policy owners.
+- System modules use per-function owners (`OWNER_<MODULE>_<FUNCTION>`); runit board / error-policy owners.
 - Drivers that return `esp_err_t` define no `OWNER` (the adapter owns the error); the DRV8962 driver (`err_h`) uses `OWNER_DEVICE_DRV8962`.
 
 ### 4.8 Command responses
@@ -130,20 +129,16 @@ Full design: SYS_EVENT.MD.
 - Loops: republish with `SYS_EVENT_CAUSED_BY(cause)`; dropped at `CONFIG_SYS_EVENT_MAX_HOPS` (4) with `ERR_EVENT_LOOP`.
 - Packets (class `0x09`) make only queued route / action subscriptions (`user`) and can't remove system ones.
 - Arming is device config, not subscription: `sys_io_configure_intr`, `sys_power_monitor_set_alert`. Regulator and bridge faults are always armed.
-- Chip alert pins chain with `sys_io_subscribe_pin` (inline, system); features republish under FEATURE.
+- Chip alert pins chain with `sys_io_subscribe_pin` (inline, system).
 
 ## 5. Open findings
 
 IDs are stable, so gaps are expected. Fixed findings are removed.
 
-| ID | Finding | Where |
-|---|---|---|
-| F-2 | Feature type confusion: one ID space for all feature types, `feature_get_by_id` returns untyped `void*`, and each feature casts it to its own struct. A servo call on an H-bridge ID writes into the wrong struct (on hold, §4.4) | `features/registry`, `feature_servo.c`, `feature_hbridge.c` |
-| F-17 | Features: heap linked list vs device fixed table; no lifecycle (not suspended on fault); `teardown` returns `void` (teardown errors are released with a TODO); errors are `ERR_BASE_NOT_FOUND(0)` without a feature ID (on hold, §4.4) | `features/` |
+None open.
 
 ## 6. Suggested order
 
 1. Power: confirm the rev 1 facts (INA3221 channel order, source indicator pins) in `runit_board_defs.h` / `runit_board_cfg.c`; test power and events on the board.
 2. Naming cleanup (conventions.md §5.2).
 3. App: response stream decoder, power page, event subscriptions (runit-app).
-4. Features analysis (§4.4) → F-2, F-17.

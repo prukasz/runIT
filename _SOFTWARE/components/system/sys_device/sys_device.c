@@ -5,7 +5,35 @@
 
 static const char* TAG = __FILE_NAME__;
 
-const char* const sys_device_contract_type_e_to_string[] = {"IO", "POWER_VREG", "POWER_MONITOR", "POWER_USB_PD", "HBRIDGE"};
+/* Filled at boot (runit_error_wiring_init), read-only afterwards. */
+static struct {
+  const char* name;
+  const char* const* feature_names;
+} s_contracts[SYS_DEVICE_CONTRACT_MAX];
+
+#undef OWNER
+#define OWNER OWNER_SYS_DEVICE_REGISTER_CONTRACT
+err_h sys_device_register_contract(sys_device_contract_type_e id, const char* name, const char* const* feature_names) {
+  SE_CHECK_IN_RANGE((uint32_t)id, 0, SYS_DEVICE_CONTRACT_MAX - 1);
+  SE_CHECK_NOT_NULL(name);
+  SE_CHECK_NOT_NULL(feature_names);
+  s_contracts[id].name = name;
+  s_contracts[id].feature_names = feature_names;
+  return NULL;
+}
+
+const char* sys_device_contract_name(uint8_t contract_id) {
+  return contract_id < SYS_DEVICE_CONTRACT_MAX ? s_contracts[contract_id].name : NULL;
+}
+
+const char* sys_device_feature_name(uint8_t contract_id, uint8_t feature_id) {
+  if (contract_id >= SYS_DEVICE_CONTRACT_MAX || s_contracts[contract_id].feature_names == NULL) return NULL;
+  const char* const* names = s_contracts[contract_id].feature_names;
+  for (uint8_t i = 0; names[i] != NULL; i++) {
+    if (i == feature_id) return names[i];
+  }
+  return NULL;
+}
 
 /*Registry mutations (install / uninstall) are init/config context only.
   Reads are lock-free: sys_device_get_by_id() sits on the hot dispatch path and
@@ -47,7 +75,7 @@ void sys_device_register_error_policy(sys_device_error_policy_f policy) {
 /* Shared skeleton for a single-device op that requires the device to be
  * active (found + installed + not suspended, via SYS_DEV_REQUIRE_ACTIVE) and
  * errors with ERR_BASE_NOT_SUPPORTED if op_field isn't implemented. Used by
- * reset/freeze/sync, none of which change dev->state on success. */
+ * reset, which doesn't change dev->state on success. */
 #define SYS_DEV_LIFECYCLE_OP(device_id, op_field, verb, log_level)                  \
   do {                                                                              \
     sys_device_t* __disp_dev = sys_device_get_by_id((device_id));                   \
@@ -129,7 +157,7 @@ static void sweep_keep_first(err_h* first, err_h err) {
 
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_INSTALL
-err_h sys_device_install_cfg(const sys_device_class_t* cls, uint8_t device_id, const void* cfg, size_t cfg_size) {
+err_h sys_device_install(const sys_device_class_t* cls, uint8_t device_id, const void* cfg) {
   SE_CHECK_NOT_NULL(cls);
   SE_CHECK_NOT_NULL(cls->ops.install);
   SE_CHECK_IN_RANGE(device_id, 0, CONFIG_SYS_DEVICE_MAX_ID);
@@ -140,18 +168,6 @@ err_h sys_device_install_cfg(const sys_device_class_t* cls, uint8_t device_id, c
 
   sys_device_t* new_dev = (sys_device_t*)calloc(1, sizeof(sys_device_t));
   SE_CHECK_IF_ALLOCATED(new_dev);
-
-  /*Heap-copy the config: the caller's struct is typically a stack compound
-    literal that dies as soon as create() returns.*/
-  if (cfg != NULL && cfg_size > 0) {
-    new_dev->cfg = malloc(cfg_size);
-    if (new_dev->cfg == NULL) {
-      free(new_dev);
-      SE_FAIL(ERR_BASE_NO_MEM, 0);
-    }
-    memcpy(new_dev->cfg, cfg, cfg_size);
-    new_dev->cfg_size = cfg_size;
-  }
 
   new_dev->device_id = device_id;
   new_dev->cls = cls;
@@ -167,12 +183,11 @@ err_h sys_device_install_cfg(const sys_device_class_t* cls, uint8_t device_id, c
 
   ESP_LOGI(TAG, "Installing device: %s (ID: %u)", cls->name, device_id);
 
-  err_h install_status = cls->ops.install(new_dev->cfg, &new_dev->device_handle);
+  err_h install_status = cls->ops.install(cfg, &new_dev->device_handle);
 
   if (SE_IS_ERR(install_status)) {
     ESP_LOGE(TAG, "Failed to install %s (ID: %u)", cls->name, device_id);
     s_device_registry[device_id] = NULL;
-    free(new_dev->cfg);
     free(new_dev);
     return SE_WRAP_ERR(install_status, ERR_DEV_INSTALL_FAILED, .dev_id = device_id);
   }
@@ -273,9 +288,6 @@ err_h sys_device_uninstall(uint8_t device_id) {
     err_h (*fn)(void*) = DEV_OP(dev, uninstall);
     err_h err = fn ? DEV_WRAP(fn(dev->device_handle), device_id) : NULL;
     ESP_LOGW(TAG, "Deleted device: %s", DEV_NAME(dev));
-    /*Released only after the adapter has torn down - it may still be reading
-      its own copy of the config until then.*/
-    free(dev->cfg);
     free(dev);
     return err;
   }
@@ -361,26 +373,96 @@ err_h sys_device_resume_all(void) {
   SYS_DEV_LIFECYCLE_OP_ALL(resume, "Resuming", "resume", SYS_DEV_IS_SUSPENDED(__disp_dev), false, SYS_DEV_STATE_INSTALLED, false);
 }
 
-#undef OWNER
-#define OWNER OWNER_SYS_DEVICE_FREEZE
-err_h sys_device_freeze(uint8_t device_id) {
-  SYS_DEV_LIFECYCLE_OP(device_id, freeze, "Freezing", ESP_LOG_DEBUG);
+/* ---- Packet router ---------------------------------------------------- */
+
+typedef struct {
+  uint8_t type_id;
+  size_t cfg_size;
+  sys_device_create_f create;
+} device_type_t;
+
+/* Filled at boot (runit), read-only afterwards. */
+static device_type_t s_types[SYS_DEVICE_MAX_TYPES];
+static uint8_t s_type_count;
+
+static const device_type_t* find_type(uint8_t type_id) {
+  for (uint8_t i = 0; i < s_type_count; i++) {
+    if (s_types[i].type_id == type_id) return &s_types[i];
+  }
+  return NULL;
+}
+
+static const sys_device_op_t* find_op(const sys_device_class_t* cls, uint8_t op) {
+  for (uint8_t i = 0; i < cls->dev_ops_count; i++) {
+    if (cls->dev_ops[i].op == op) return &cls->dev_ops[i];
+  }
+  return NULL;
 }
 
 #undef OWNER
-#define OWNER OWNER_SYS_DEVICE_SYNC
-err_h sys_device_sync(uint8_t device_id) {
-  SYS_DEV_LIFECYCLE_OP(device_id, sync, "Syncing", ESP_LOG_DEBUG);
+#define OWNER OWNER_SYS_DEVICE_REGISTER_TYPE
+err_h sys_device_register_type(uint8_t type_id, size_t cfg_size, sys_device_create_f create) {
+  SE_CHECK_NOT_NULL(create);
+  if (find_type(type_id) != NULL) {
+    SE_FAIL(ERR_BASE_INVALID_STATE, 0);
+  }
+  if (s_type_count >= SYS_DEVICE_MAX_TYPES) {
+    SE_FAIL(ERR_BASE_NO_MEM, 0);
+  }
+  s_types[s_type_count++] = (device_type_t){.type_id = type_id, .cfg_size = cfg_size, .create = create};
+  return NULL;
 }
 
 #undef OWNER
-#define OWNER OWNER_SYS_DEVICE_FREEZE_ALL
-err_h sys_device_freeze_all(void) {
-  SYS_DEV_LIFECYCLE_OP_ALL(freeze, "Freezing", "freeze", SYS_DEV_IS_READY(__disp_dev), false, SYS_DEV_STATE_NONE, false);
+#define OWNER OWNER_SYS_DEVICE_REPLY_PUT
+err_h sys_device_reply_put(sys_device_reply_t* reply, const void* data, size_t len) {
+  SE_CHECK_NOT_NULL(reply);
+  SE_CHECK_IN_RANGE((uint32_t)(reply->len + len), 0, (uint32_t)reply->cap);
+  memcpy(reply->buf + reply->len, data, len);
+  reply->len += len;
+  return NULL;
 }
 
 #undef OWNER
-#define OWNER OWNER_SYS_DEVICE_SYNC_ALL
-err_h sys_device_sync_all(void) {
-  SYS_DEV_LIFECYCLE_OP_ALL(sync, "Syncing", "sync", SYS_DEV_IS_READY(__disp_dev), false, SYS_DEV_STATE_NONE, false);
+#define OWNER OWNER_SYS_DEVICE_ROUTE
+err_h sys_device_route(const uint8_t* frame, size_t len, sys_device_reply_t* reply) {
+  SE_CHECK_NOT_NULL(frame);
+  SE_CHECK_NOT_NULL(reply);
+  reply->len = 0;
+
+  if (len < 2) {  // every frame carries a header byte and a type / device id
+    SE_FAIL(ERR_DEV_OP_SIZE, .dev_id = 0, .op = len ? frame[0] : 0, .got = (uint16_t)len, .need = 2);
+  }
+  const uint8_t op = frame[0];
+
+  if (op == SYS_DEVICE_OP_CREATE) {
+    const device_type_t* type = find_type(frame[1]);
+    if (type == NULL) {
+      SE_FAIL(ERR_DEV_TYPE_UNKNOWN, frame[1]);
+    }
+    if (len - 2 != type->cfg_size) {
+      SE_FAIL(ERR_DEV_CREATE_SIZE, .type_id = type->type_id, .got = (uint16_t)(len - 2), .need = (uint16_t)type->cfg_size);
+    }
+    return type->create(frame + 2);
+  }
+
+  const uint8_t device_id = frame[1];
+  if (op < SYS_DEVICE_OP_CUSTOM_FIRST) {
+    SE_FAIL(ERR_DEV_OP_UNKNOWN, .dev_id = device_id, .op = op);
+  }
+
+  sys_device_t* dev = sys_device_get_by_id(device_id);
+  if (!dev) SE_FAIL(ERR_DEV_NOT_FOUND, device_id);
+  if (!SYS_DEV_IS_INSTALLED(dev)) SE_FAIL(ERR_DEV_NOT_INSTALLED, device_id);
+
+  const sys_device_op_t* entry = find_op(dev->cls, op);
+  if (entry == NULL) {
+    SE_FAIL(ERR_DEV_OP_UNKNOWN, .dev_id = device_id, .op = op);
+  }
+  /* Suspended is the fault safe state: only operations that change nothing may run. */
+  if (SYS_DEV_IS_SUSPENDED(dev) && !entry->read_only) SE_FAIL(ERR_DEV_SUSPENDED, device_id);
+  if (len - 2 != entry->size) {
+    SE_FAIL(ERR_DEV_OP_SIZE, .dev_id = device_id, .op = op, .got = (uint16_t)(len - 2), .need = entry->size);
+  }
+  return DEV_WRAP(entry->fn(dev->device_handle, frame + 2, len - 2, reply), device_id);
 }

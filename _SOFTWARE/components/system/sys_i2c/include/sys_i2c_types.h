@@ -14,3 +14,10 @@ typedef struct sys_i2c_driver_header_t {
 
   esp_err_t (*transmit_receive)(void* hw_handle, const uint8_t* write_buffer, size_t write_size, uint8_t* read_buffer, size_t read_size);
 } sys_i2c_driver_header_t;
+/** One chip on an I2C bus. Embedded by value in the owner's state; nothing needs to be first. */
+typedef struct sys_i2c_dev_t {
+  i2c_master_dev_handle_t handle;  // NULL until sys_i2c_dev_add()
+  uint32_t speed_hz;
+  uint8_t addr;
+  bool bus1;
+} sys_i2c_dev_t;

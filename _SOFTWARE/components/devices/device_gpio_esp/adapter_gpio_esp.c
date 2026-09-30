@@ -95,7 +95,6 @@ static SE_MUST_USE err_h contract_io_gpio_esp_reset_pin(void* handle, sys_io_pin
       // Under the lock: the channel and timer pools are shared by every PWM pin.
       if (pin_obj->pin_mode == SYS_IO_MODE_PWM) pwm_err = esp_pwm_release(pin_obj);
       configured_pins &= ~(1ULL << pin);
-      ctx->pending_outputs &= ~(1ULL << pin);
       memset(pin_obj, 0, sizeof(*pin_obj));
     }
     R_MUTEX_UNLOCK(gpio_mutex);
@@ -294,26 +293,10 @@ static SE_MUST_USE err_h contract_io_gpio_esp_set_level(void* handle, sys_io_pin
     goto cleanup;
   }
 
-  uint64_t pin_mask = 1ULL << pin;
-  IF_SYS_DEV_FROZEN(ctx) {
-    ctx->pending_outputs |= pin_mask;
-    if (level) {
-      ctx->current_outputs |= pin_mask;
-    } else {
-      ctx->current_outputs &= ~pin_mask;
-    }
-  }
-  else {
-    esp_err_t esp_err = gpio_set_level((gpio_num_t)pin, level);
-    if (esp_err != ESP_OK) {
-      err = SYS_DEV_DRIVER_ERR(esp_err, ctx);
-      goto cleanup;
-    }
-    if (level) {
-      ctx->current_outputs |= pin_mask;
-    } else {
-      ctx->current_outputs &= ~pin_mask;
-    }
+  esp_err_t esp_err = gpio_set_level((gpio_num_t)pin, level);
+  if (esp_err != ESP_OK) {
+    err = SYS_DEV_DRIVER_ERR(esp_err, ctx);
+    goto cleanup;
   }
 
 cleanup:
@@ -339,22 +322,12 @@ static SE_MUST_USE err_h contract_io_gpio_esp_get_level(void* handle, sys_io_pin
     goto cleanup;
   }
 
-  uint64_t pin_mask = 1ULL << pin;
-  IF_SYS_DEV_FROZEN(ctx) {
-    if (pin_obj->pin_mode == SYS_IO_MODE_OUTPUT_PUSH_PULL || pin_obj->pin_mode == SYS_IO_MODE_OUTPUT_OPEN_DRAIN) {
-      *level = (ctx->current_outputs & pin_mask) ? true : false;
-    } else {
-      *level = (ctx->cached_inputs & pin_mask) ? true : false;
-    }
+  int val = gpio_get_level((gpio_num_t)pin);
+  if (val < 0) {
+    err = SYS_DEV_DRIVER_ERR(val, ctx);
+    goto cleanup;
   }
-  else {
-    int val = gpio_get_level((gpio_num_t)pin);
-    if (val < 0) {
-      err = SYS_DEV_DRIVER_ERR(val, ctx);
-      goto cleanup;
-    }
-    *level = (val > 0);
-  }
+  *level = (val > 0);
 
 cleanup:
   R_MUTEX_UNLOCK(gpio_mutex);
@@ -401,7 +374,6 @@ static err_h pwm_result(esp_err_t esp_err, sys_io_pin_num_t pin, uint32_t freque
   return SYS_DEV_DRIVER_ERR(esp_err, ctx);
 }
 
-// Frequency is configuration, applied even while frozen (only duty is an output write).
 static SE_MUST_USE err_h contract_io_gpio_esp_set_pwm_frequency(void* handle, sys_io_pin_num_t pin, uint32_t frequency_Hz) {
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, pin_bitmask);
   SE_CHECK_IN_RANGE(frequency_Hz, ESP_PWM_FREQ_MIN_HZ, ESP_PWM_FREQ_MAX_HZ);
@@ -422,13 +394,7 @@ static SE_MUST_USE err_h contract_io_gpio_esp_set_pwm_duty(void* handle, sys_io_
   R_MUTEX_LOCK(gpio_mutex, WAIT_FOREVER);
   esp_pin_obj_t* pin_obj = pwm_pin_get(pin, &err);
   if (pin_obj != NULL) {
-    IF_SYS_DEV_FROZEN(ctx) {
-      pin_obj->hw.pwm_cfg.pending_duty = (uint16_t)duty;
-      ctx->pending_outputs |= 1ULL << pin;
-    }
-    else {
-      err = pwm_result(esp_pwm_set_duty(pin_obj, duty), pin, CONFIG_DEVICE_GPIO_ESP_PWM_DEFAULT_FREQ_HZ);
-    }
+    err = pwm_result(esp_pwm_set_duty(pin_obj, duty), pin, CONFIG_DEVICE_GPIO_ESP_PWM_DEFAULT_FREQ_HZ);
   }
   R_MUTEX_UNLOCK(gpio_mutex);
   return err;
@@ -471,68 +437,16 @@ static SE_MUST_USE err_h device_reset(void* handle) {
   return NULL;
 }
 
-// Snapshots every non-ADC input pin's level into ctx->cached_inputs. Shared
-// by freeze and suspend, which capture state identically.
-static void gpio_esp_snapshot_inputs(void) {
-  ctx->cached_inputs = 0;
-  if (R_MUTEX_LOCK(gpio_mutex, portMAX_DELAY) == pdTRUE) {
-    for (int i = 0; i < GPIO_NUM_MAX; i++) {
-      esp_pin_obj_t* pin_obj = pin_obj_get(i);
-      if (pin_obj && pin_obj->pin_mode != SYS_IO_MODE_ADC) {
-        int level = gpio_get_level(i);
-        if (level > 0) {
-          ctx->cached_inputs |= (1ULL << i);
-        }
-      }
-    }
-    R_MUTEX_UNLOCK(gpio_mutex);
-  }
-}
-
-// Drains every pending deferred output write (levels, PWM duties). Shared by
-// sync and resume, which flush state identically. Every pin is attempted; the
-// first failure is returned.
-static SE_MUST_USE err_h gpio_esp_flush_pending_outputs(void) {
-  err_h err = NULL;
-  R_MUTEX_LOCK(gpio_mutex, WAIT_FOREVER);
-  for (int i = 0; i < GPIO_NUM_MAX && ctx->pending_outputs != 0; i++) {
-    uint64_t bit = (1ULL << i);
-    if (!(ctx->pending_outputs & bit)) continue;
-    ctx->pending_outputs &= ~bit;
-    esp_pin_obj_t* pin_obj = pin_obj_get(i);
-    if (pin_obj != NULL && pin_obj->pin_mode == SYS_IO_MODE_PWM) {
-      SYS_DEV_TEARDOWN_STEP(err, pwm_result(esp_pwm_set_duty(pin_obj, pin_obj->hw.pwm_cfg.pending_duty), i, CONFIG_DEVICE_GPIO_ESP_PWM_DEFAULT_FREQ_HZ));
-    } else {
-      SYS_DEV_TEARDOWN_DRIVER_STEP(err, gpio_set_level(i, (ctx->current_outputs & bit) ? 1 : 0), ctx);
-    }
-  }
-  R_MUTEX_UNLOCK(gpio_mutex);
-  return err;
-}
-
-static SE_MUST_USE err_h device_freeze(void* handle) {
-  IF_SYS_DEV_FROZEN(ctx) {
-    return NULL;
-  }
-  SYS_DEV_CTX_FREEZE(ctx);
-  gpio_esp_snapshot_inputs();
-  ctx->pending_outputs = 0;
+// No safe state yet: suspend / resume only flip the device state (writes are then
+// rejected with ERR_DEV_SUSPENDED), outputs keep their level and PWM keeps running.
+static SE_MUST_USE err_h device_suspend(void* handle) {
+  (void)handle;
   return NULL;
 }
 
-static SE_MUST_USE err_h device_sync(void* handle) {
-  SYS_DEV_CTX_UNFREEZE(ctx);
-  return gpio_esp_flush_pending_outputs();
-}
-
-// suspend/resume alias freeze/sync: this device has no lower-power state
-// beyond deferring output writes and snapshotting inputs.
-static SE_MUST_USE err_h device_suspend(void* handle) {
-  return device_freeze(handle);
-}
-
 static SE_MUST_USE err_h device_resume(void* handle) {
-  return device_sync(handle);
+  (void)handle;
+  return NULL;
 }
 
 static SE_MUST_USE err_h device_install(const void* cfg_blob, void** out_device_handle) {
@@ -567,8 +481,6 @@ static const sys_device_class_t s_gpio_esp_class = {
         .reset = device_reset,
         .suspend = device_suspend,
         .resume = device_resume,
-        .freeze = device_freeze,
-        .sync = device_sync,
     },
 };
 
