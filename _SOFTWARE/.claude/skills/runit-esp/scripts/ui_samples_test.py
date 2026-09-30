@@ -1,8 +1,8 @@
 """Frames the app UI builds, sent to a board: do they work?
 
 Usage: python ui_samples_test.py [COM4]
-Reads app/src/domain/devices/fixtures/ui-samples.json (made by the app's
-uiSamples.test.ts), sends every sample and checks the answer against its
+Reads app/tests/domain/devices/fixtures/ui-samples.json (made by the app's
+app/tests/domain/devices/uiSamples.test.ts), sends every sample and checks the answer against its
 `expect` ("ok", an error tag, or "ok|<tag>") and `fields`. Then stores the
 sample stored code, restarts, and checks the replay. Erases the stored code
 and restarts at the end. The board's answers go to ui-samples.board.json next
@@ -19,7 +19,7 @@ from pathlib import Path
 from runit_link import PACKETS, Link, unpack_fields
 from project_store_tests import err, info, reboot_via_load, store
 
-FIXTURES = Path(__file__).resolve().parents[4] / "app" / "src" / "domain" / "devices" / "fixtures"
+FIXTURES = Path(__file__).resolve().parents[4] / "app" / "tests" / "domain" / "devices" / "fixtures"
 fails = 0
 
 

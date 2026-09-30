@@ -1,5 +1,5 @@
 import { DescriptorError } from './commandCatalog'
-import type { GeneratedVmBlockEditorMetadata, GeneratedVmBlockFile, GeneratedVmBlockOpcode } from './generatedTypes'
+import type { GeneratedVmBlockEditorMetadata, GeneratedVmBlockFile, GeneratedVmBlockOpcode, GeneratedVmTemplatePart } from './generatedTypes'
 
 /*
  * The VM block palette (data-structures/vm/blocks/block_*.generated.json):
@@ -12,12 +12,23 @@ export interface VmBlockEditorMetadata {
   readonly deviceField?: string
   readonly contract?: string
   readonly hiddenByDefault?: boolean
-  readonly extendedViewShow?: boolean
   readonly letUserSelectAvailable?: string
   readonly dynamicInput?: number
 }
 
+/** A line of the block's face: literal text, or a reference resolved against the block (an input pin's wired source or its constant, an output pin, a setting, the block title). */
+export type VmTemplatePart = GeneratedVmTemplatePart
+export type VmTemplate = readonly VmTemplatePart[]
+
+/** The face's line under the title: the block's words, then the value it is set to, which the face draws apart. */
+export interface VmBlockHeader {
+  readonly lead: VmTemplate
+  readonly value?: VmTemplate
+}
+
 export interface VmBlockPin extends VmBlockEditorMetadata {
+  /** The setting used as a constant while this pin is unwired: the pin is hidden until wired, and the user enters the constant instead. */
+  readonly overrides?: string
   readonly index: number
   readonly name: string
   readonly title: string
@@ -43,6 +54,8 @@ export interface VmBlockField extends VmBlockEditorMetadata {
   readonly source: 'user' | 'derived' | 'runtime' | 'padding'
   readonly enumRef?: string
   readonly description?: string
+  /** Index of the input pin that replaces this setting while it is wired. */
+  readonly overriddenBy?: number
   /** A trailing array (the expression blocks' constants and code). */
   readonly flexible: boolean
 }
@@ -89,14 +102,16 @@ export interface VmBlockType {
   readonly outputs: VmBlockPins
   readonly rules: readonly { readonly rule: string; readonly error: string }[]
   readonly eno: VmBlockEno
-  /** The face already shows everything a detailed view would (`//@view simple`): the app offers none. */
-  readonly simpleOnly: boolean
+  /** The block has a detailed view: it has inputs with a constant to show, or a formula. Other blocks are their face. */
+  readonly hasDetail: boolean
+  /** The line under the title on the face (`//@header`); none: the title alone. */
+  readonly header?: VmBlockHeader
   /** Private state: its fixed size and fields (empty for stateless blocks). */
   readonly stateSize: number
   readonly fields: readonly VmBlockField[]
   readonly minCustomLen: number
-  /** Enum members a field may take (a `*_CNT` count member excluded), by enum name. */
-  readonly enums: ReadonlyMap<string, readonly { readonly name: string; readonly value: number }[]>
+  /** Enum members a field may take (a `*_CNT` count member excluded), by enum name; `alias` is how a face words it (`<`). */
+  readonly enums: ReadonlyMap<string, readonly { readonly name: string; readonly value: number; readonly alias?: string }[]>
   readonly encoding?: VmBlockEncoding
 }
 
@@ -135,12 +150,12 @@ const buildOpcodes = (opcodes: readonly GeneratedVmBlockOpcode[]) => {
 export const buildVmBlockType = (file: GeneratedVmBlockFile): VmBlockType => {
   const metadata = (entry: GeneratedVmBlockEditorMetadata): VmBlockEditorMetadata => ({
     idKind: entry.id_kind, deviceField: entry.device_field, contract: entry.contract,
-    hiddenByDefault: entry.hidden_by_default, extendedViewShow: entry.extended_view_show, letUserSelectAvailable: entry.let_user_select_available, dynamicInput: entry.dynamic_input,
+    hiddenByDefault: entry.hidden_by_default, letUserSelectAvailable: entry.let_user_select_available, dynamicInput: entry.dynamic_input,
   })
   const pins = (side: GeneratedVmBlockFile['inputs']): VmBlockPins => ({
     min: side.min,
     max: side.max,
-    pins: side.pins.map((pin) => ({ index: pin.index, name: pin.name, title: pin.title, value: pin.value, description: pin.description, required: pin.required ?? false, ...metadata(pin) })),
+    pins: side.pins.map((pin) => ({ index: pin.index, name: pin.name, title: pin.title, value: pin.value, description: pin.description, overrides: pin.overrides, required: pin.required ?? false, ...metadata(pin) })),
   })
   const fields = (file.state?.fields ?? []).map((field): VmBlockField => {
     if (!SOURCES.has(field.source)) throw new DescriptorError(`${file.name}.${field.name}: unknown state source '${field.source}'.`)
@@ -152,11 +167,12 @@ export const buildVmBlockType = (file: GeneratedVmBlockFile): VmBlockType => {
       source: field.source as VmBlockField['source'],
       enumRef: field.enum_ref,
       description: field.description,
+      overriddenBy: field.overridden_by,
       flexible: field.flexible ?? false,
       ...metadata(field),
     }
   })
-  const enums = new Map(Object.entries(file.enums ?? {}).map(([name, entry]) => [name, entry.members.filter((member) => !member.name.endsWith('_CNT')).map(({ name: member, value }) => ({ name: member, value }))]))
+  const enums = new Map(Object.entries(file.enums ?? {}).map(([name, entry]) => [name, entry.members.filter((member) => !member.name.endsWith('_CNT')).map(({ name: member, value, alias }) => ({ name: member, value, ...(alias ? { alias } : {}) }))]))
   for (const field of fields) if (field.enumRef && !enums.has(field.enumRef)) throw new DescriptorError(`${file.name}.${field.name} names enum ${field.enumRef}, which the block file lacks.`)
   const encoding = file.encoding && (() => {
     const { list, opcode } = buildOpcodes(file.encoding.opcodes)
@@ -180,7 +196,8 @@ export const buildVmBlockType = (file: GeneratedVmBlockFile): VmBlockType => {
     outputs: pins(file.outputs),
     rules: file.rules,
     eno: { title: file.eno?.title ?? DEFAULT_ENO.title, description: file.eno?.description ?? DEFAULT_ENO.description },
-    simpleOnly: file.view === 'simple',
+    hasDetail: !!encoding || pins(file.inputs).pins.some((pin) => pin.overrides),
+    ...(file.header ? { header: file.header } : {}),
     stateSize: file.state?.size ?? 0,
     fields,
     minCustomLen: file.min_custom_len,

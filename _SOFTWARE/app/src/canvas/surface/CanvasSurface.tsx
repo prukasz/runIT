@@ -25,7 +25,9 @@ import type { CanvasWorkspace } from '../workspace/useCanvasWorkspace'
  * the world layer, which carries the viewport transform. Blocks dropped from
  * the palette show where they will land first; with snap on, the grid point
  * the pointer is nearest is marked. A click on the background clears the
- * selection; Delete removes the selected block.
+ * selection; Delete removes the selected blocks. Several blocks are selected by
+ * tapping them in multiple-select mode (or with Shift / Ctrl), or by drawing a box
+ * on the background (that mode, or Shift); a dragged selected block takes the others along.
  */
 
 /** Every MAJOR-th grid line is drawn stronger. */
@@ -58,7 +60,7 @@ export function CanvasSurface({
   selectedObjectId?: string
   onClearSelectedObject?: () => void
 }) {
-  const { active, snap, selectedBlock } = workspace
+  const { active, snap, selectedBlock, selectedIds } = workspace
   const debug = useDebug()
   const catalog = runitVmCatalog()
   const selectedObjectNode = selectedObjectId && project ? findObject(project, selectedObjectId)?.node : undefined
@@ -85,6 +87,11 @@ export function CanvasSurface({
   const [selectedChip, setSelectedChip] = useState<string>()
   // A docked chip clicked: Delete takes the variable off its pin.
   const [selectedPinChip, setSelectedPinChip] = useState<WireTarget>()
+  // A box being drawn on the background (screen points), and how far the dragged block of a selected group has moved.
+  const [marquee, setMarquee] = useState<{ from: Point; to: Point }>()
+  const [groupDrag, setGroupDrag] = useState<{ from: string; by: Point }>()
+  // A press on a selected block waits to see whether it becomes a drag (the group moves) or a tap (the block leaves the group, or is all that stays selected).
+  const tapAction = useRef<{ id: string; kind: 'toggle' | 'only' } | undefined>(undefined)
 
   // Another canvas opened: show where it was left; one not shown yet starts centered on its blocks (or on the origin when empty).
   useLayoutEffect(() => {
@@ -137,25 +144,25 @@ export function CanvasSurface({
 
   // Delete removes the selected block, Escape clears the selection (not while typing in a field).
   useEffect(() => {
-    if (!selectedBlock) return
+    if (!selectedIds.length) return
     const onKey = (event: KeyboardEvent) => {
       if (isEditing(event.target) || event.ctrlKey || event.metaKey || event.altKey) return
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault()
-        workspace.deleteBlock(selectedBlock.id)
+        workspace.deleteBlocks(selectedIds)
       } else if (event.key === 'Escape') workspace.selectBlock(undefined)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBlock?.id])
+  }, [selectedIds.join('\n')])
 
   // Ctrl / Cmd + C copies the selected block, + V pastes it (not while typing in a field).
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (isEditing(event.target) || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return
       const key = event.key.toLowerCase()
-      if (key === 'c' && workspace.selectedBlock) {
+      if (key === 'c' && workspace.selectedIds.length) {
         if (window.getSelection()?.toString()) return
         event.preventDefault()
         workspace.copy()
@@ -234,7 +241,9 @@ export function CanvasSurface({
     const point = local(event.clientX, event.clientY)
     pointers.current.set(event.pointerId, point)
     pressAt.current = pointers.current.size === 1 ? point : undefined
-    setPanning(true)
+    // Multiple-select mode (or Shift): one finger draws a box instead of panning; a second finger still pinches.
+    if (pointers.current.size === 1 && (workspace.multiSelect || event.shiftKey)) setMarquee({ from: point, to: point })
+    else setPanning(true)
   }
 
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -252,6 +261,14 @@ export function CanvasSurface({
     if (!previous) return
     const others = [...pointers.current].filter(([id]) => id !== event.pointerId).map(([, at]) => at)
     pointers.current.set(event.pointerId, point)
+    if (marquee) {
+      if (others.length === 0) {
+        setMarquee({ from: marquee.from, to: point })
+        return
+      }
+      setMarquee(undefined)
+      setPanning(true)
+    }
     const current = viewportRef.current
     if (others.length === 1) {
       // Pinch: zoom by the change in finger distance around their midpoint, pan by the midpoint's move.
@@ -279,13 +296,26 @@ export function CanvasSurface({
     if (press && pointers.current.size === 1 && pointers.current.has(event.pointerId)) {
       const end = local(event.clientX, event.clientY)
       if (Math.hypot(end.x - press.x, end.y - press.y) < CLICK_SLOP) workspace.selectBlock(undefined)
+      else if (marquee) selectInside(marquee.from, end)
     }
     pressAt.current = undefined
     pointers.current.delete(event.pointerId)
+    setMarquee(undefined)
     if (!pointers.current.size) {
       setPanning(false)
       save()
     }
+  }
+
+  /** The blocks a box drawn on the screen touches join the selection. */
+  const selectInside = (a: Point, b: Point) => {
+    const from = screenToCanvas(viewportRef.current, { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y) })
+    const to = screenToCanvas(viewportRef.current, { x: Math.max(a.x, b.x), y: Math.max(a.y, b.y) })
+    const inside = (active?.blocks ?? []).filter((block) => {
+      const shape = shapeOf(block)
+      return block.x < to.x && block.x + shape.width > from.x && block.y < to.y && block.y + shape.height > from.y
+    })
+    workspace.selectBlocks(inside.map((block) => block.id), true)
   }
 
   const zoomButton = (factor: number) => {
@@ -482,7 +512,7 @@ export function CanvasSurface({
     setSelectedWire(undefined)
     track({ kind: 'wire', from, carries: sourceKind(from.pin, output), ...(from.pin === 'eno' && block.type === 'FOR' ? { loop: true } : {}) }, event.clientX, event.clientY)
   }
-  const onBlockSelect = (block: CanvasBlock) => {
+  const onBlockSelect = (block: CanvasBlock, additive = false) => {
     if (selectedObjectNode && project) {
       const targetId = selectedObjectNode.kind === 'reference' ? selectedObjectNode.targetId : selectedObjectNode.id
       const targetNode = selectedObjectNode.kind === 'reference' ? findObject(project, targetId)?.node : selectedObjectNode
@@ -494,6 +524,17 @@ export function CanvasSurface({
         over: block.id,
         picking: true,
       })
+      return
+    }
+    // Several blocks: a tap adds the block or takes it out; a press on one of a selected group keeps the group (to drag it).
+    tapAction.current = undefined
+    if (additive || workspace.multiSelect) {
+      if (selectedIds.includes(block.id)) tapAction.current = { id: block.id, kind: 'toggle' }
+      else workspace.toggleBlock(block.id)
+      return
+    }
+    if (selectedIds.length > 1 && selectedIds.includes(block.id)) {
+      tapAction.current = { id: block.id, kind: 'only' }
       return
     }
     // A block is selected and another is touched: two windows, what the selected one sends and where the touched one takes it.
@@ -586,13 +627,27 @@ export function CanvasSurface({
               shape={blockShape(type, block, workspace.detailed)}
               detailed={workspace.detailed}
               devices={devices} deviceCatalog={deviceCatalog}
-              selected={selectedBlock?.id === block.id}
+              selected={selectedIds.includes(block.id)}
               errors={(diagnostics.get(block.id) ?? []).filter((entry) => entry.severity === 'error').length}
               zoom={viewport.zoom}
               snap={snap}
               isLinking={isLinking}
-              onSelect={() => onBlockSelect(block)}
-              onMove={(to) => workspace.moveBlock(block.id, to)}
+              onSelect={(additive) => onBlockSelect(block, additive)}
+              onTap={() => {
+                const action = tapAction.current
+                tapAction.current = undefined
+                if (action?.id !== block.id) return
+                if (action.kind === 'toggle') workspace.toggleBlock(block.id)
+                else workspace.selectBlock(block.id)
+              }}
+              onMove={(to) => {
+                tapAction.current = undefined
+                // A block of a selected group takes the whole group along, as one undo step.
+                if (selectedIds.length > 1 && selectedIds.includes(block.id)) workspace.moveBlocks(selectedIds, { x: to.x - block.x, y: to.y - block.y })
+                else workspace.moveBlock(block.id, to)
+              }}
+              onDrag={(by) => setGroupDrag(by && selectedIds.length > 1 && selectedIds.includes(block.id) ? { from: block.id, by } : undefined)}
+              offset={groupDrag && groupDrag.from !== block.id && selectedIds.includes(block.id) ? groupDrag.by : undefined}
               onRename={(name) => workspace.updateBlock(block.id, (current) => ({ ...current, name }))}
               onWireStart={startWire}
               chipOf={chipOf}
@@ -649,6 +704,8 @@ export function CanvasSurface({
           }}
         />
       )}
+      {marquee && <div className="canvas-marquee" aria-hidden="true" style={{ left: Math.min(marquee.from.x, marquee.to.x), top: Math.min(marquee.from.y, marquee.to.y), width: Math.abs(marquee.to.x - marquee.from.x), height: Math.abs(marquee.to.y - marquee.from.y) }} />}
+      {workspace.multiSelect && !selectedWire && !selectedChip && !selectedPinChip && !draft && !selectedObjectNode && <div className="canvas-wire-hint">Select multiple: tap blocks to add or remove them, drag the background to draw a box · {selectedIds.length} selected</div>}
       {selectedWire && <div className="canvas-wire-hint">Wire selected: Delete removes it, Esc keeps it</div>}
       {selectedChip && <div className="canvas-wire-hint">Variable chip selected: Delete puts it back on its pins, Esc keeps it</div>}
       {selectedPinChip && <div className="canvas-wire-hint">Variable selected: Delete takes it off the pin, drag it to move it, Esc keeps it</div>}

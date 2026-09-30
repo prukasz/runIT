@@ -1,8 +1,8 @@
 """The app's debug build (every block with an ENO object, debug subscriptions), run on a board.
 
 Usage: python debug_build_test.py [COM4] [log.txt]
-Reads app/src/domain/upload/fixtures/debug-samples.json (made by the app's
-debugSamples.test.ts): the upload steps of `planVmUpload(..., { debug: true })`.
+Reads app/tests/domain/upload/fixtures/debug-samples.json (made by the app's
+app/tests/domain/upload/debugSamples.test.ts): the upload steps of `planVmUpload(..., { debug: true })`.
 Resets the board (boot log kept), uploads, runs 5 s and reports, per block, the
 ENO it reported and what its enable sources did (the debug view colours a block
 from exactly these), then checks that every subscribed object reported and no
@@ -19,7 +19,7 @@ from pathlib import Path
 from runit_link import Link
 from vm_tests import VM, st
 
-FIXTURE = Path(__file__).resolve().parents[4] / "app" / "src" / "domain" / "upload" / "fixtures" / "debug-samples.json"
+FIXTURE = Path(__file__).resolve().parents[4] / "app" / "tests" / "domain" / "upload" / "fixtures" / "debug-samples.json"
 FORMATS = {"F": "<f", "U32": "<I", "I32": "<i", "U8": "<B", "B": "<B", "U16": "<H"}
 fails = 0
 report: list[str] = []

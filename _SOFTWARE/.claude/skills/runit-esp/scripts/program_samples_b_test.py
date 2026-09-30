@@ -1,8 +1,8 @@
 """Second whole-program sample (sawtooth, EXPR_BIT, TOF / TP, falling EDGE, RS latch, folder paths), run on a board.
 
 Usage: python program_samples_b_test.py [COM4] [report.txt]
-Reads app/src/domain/compiler/fixtures/program-samples-b.json (made by the app's
-programSamplesB.test.ts). Resets the board (boot log kept), uploads, subscribes
+Reads app/tests/domain/compiler/fixtures/program-samples-b.json (made by the app's
+app/tests/domain/compiler/programSamplesB.test.ts). Resets the board (boot log kept), uploads, subscribes
 to EVERY value object, runs 6 s (phase 0), writes k = 3, runs 2 s (phase 1).
 Prints and saves a report: boot log, per-object stats, checks, logs, errors.
 """
@@ -17,7 +17,7 @@ from pathlib import Path
 from runit_link import Link
 from vm_tests import VM, st
 
-FIXTURE = Path(__file__).resolve().parents[4] / "app" / "src" / "domain" / "compiler" / "fixtures" / "program-samples-b.json"
+FIXTURE = Path(__file__).resolve().parents[4] / "app" / "tests" / "domain" / "compiler" / "fixtures" / "program-samples-b.json"
 FORMATS = {"F": "<f", "U32": "<I", "I32": "<i", "U8": "<B", "B": "<B", "U16": "<H", "I16": "<h", "I8": "<b"}
 fails = 0
 report: list[str] = []

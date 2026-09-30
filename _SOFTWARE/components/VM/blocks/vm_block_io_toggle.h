@@ -22,8 +22,8 @@
 
 typedef struct __attribute__((aligned(8))) {
   uint64_t allowed_mask;       // Permitted pins for dynamic selection @hidden-by-default @let-user-select-available default_io_num @dynamic-input 0
-  uint8_t  device_id;          // Target device @id device @contract packet_sys_io_toggle_t @extended-view-show
-  uint8_t  default_io_num;     // Static pin when the Pin input is unwired @id pin @device-field device_id @extended-view-show
+  uint8_t  device_id;          // Target device @id device @contract packet_sys_io_toggle_t
+  uint8_t  default_io_num;     // Static pin when the Pin input is unwired @id pin @device-field device_id
   uint8_t  flags;              // VM_IO_TOGGLE_F_* @runtime
   uint8_t  _pad[5];            // Align to 16 bytes
 } vm_block_io_toggle_data_t;
@@ -96,10 +96,14 @@ static inline void vm_blk_io_toggle(vm_block_h b) {
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
-//#vm-block VM_BLK_IO_TOGGLE @title Toggle Pin @category io @state vm_block_io_toggle_data_t @activation enable-rising Runs once each time its enable turns on.
+//#vm-block VM_BLK_IO_TOGGLE
+//@title Toggle Pin
+//@category io
+//@activation enable-rising Runs once each time its enable turns on.
+//@data vm_block_io_toggle_data_t
 //@block-description Toggles a pin once per rising edge of its enable.
-//@view simple
+//@header {title} | {pin}
 //@rule allowed_mask is not 0, and default_io_num is below 64 and in allowed_mask. @error ERR_VM_BLK_BAD_SHAPE
-//@in 0 pin @title Pin @description Overrides default_io_num; must be in allowed_mask. @value u32 @id pin @device-field device_id @hidden-by-default
+//@in 0 pin @title Pin @description Overrides default_io_num; must be in allowed_mask. @value u32 @id pin @device-field device_id @overrides default_io_num @macro VM_IO_TOGGLE_IN_PIN
 #define VM_BLOCK_TYPE_IO_TOGGLE \
   {.run = vm_blk_io_toggle, .check = vm_verify_io_toggle, .min_in = 0, .min_q = 0, .required_in = 0x0u, .state_len = VM_IO_TOGGLE_CUSTOM_LEN}

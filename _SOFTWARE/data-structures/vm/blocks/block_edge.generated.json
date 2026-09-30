@@ -29,7 +29,9 @@
         "title": "Threshold",
         "value": "scalar",
         "description": "Overrides change_by; same type as the signal.",
-        "required": false
+        "overrides": "change_by",
+        "required": false,
+        "hidden_by_default": true
       }
     ]
   },
@@ -52,7 +54,24 @@
       "error_tag": 43296
     }
   ],
-  "view": "simple",
+  "header": {
+    "lead": [
+      {
+        "ref": "edge_type",
+        "kind": "field",
+        "field": "edge_type"
+      },
+      {
+        "text": " edge, change "
+      },
+      {
+        "ref": "threshold",
+        "kind": "pin",
+        "pin": 1,
+        "field": "change_by"
+      }
+    ]
+  },
   "state": {
     "struct": "vm_block_edge_data_t",
     "source_file": "components/VM/blocks/vm_block_edge.h",
@@ -65,7 +84,6 @@
         "offset": 0,
         "size": 1,
         "description": "vm_edge_type_e",
-        "extended_view_show": true,
         "enum_ref": "vm_edge_type_e",
         "source": "user"
       },
@@ -90,8 +108,8 @@
         "offset": 4,
         "size": 4,
         "description": "Threshold for change condition (0 = any change)",
-        "extended_view_show": true,
-        "source": "user"
+        "source": "user",
+        "overridden_by": 1
       },
       {
         "name": "prev_val",

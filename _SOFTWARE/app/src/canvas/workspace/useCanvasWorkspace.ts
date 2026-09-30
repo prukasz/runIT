@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { readStored, usePersistEffect, usePersistedFlag } from '../../hooks/useStorage'
-import { addBlock, addCanvas, DEFAULT_VIEWPORT, findBlock, GRID, moveBlock, moveCanvas, newBlockId, pasteBlock, removeBlock, removeCanvas, renameCanvas, screenToCanvas, setCanvasDisabled, snapPoint, updateBlock } from '../../domain/canvas'
+import { addBlock, addCanvas, DEFAULT_VIEWPORT, findBlock, GRID, moveBlock, moveCanvas, newBlockId, pasteBlocks, removeBlock, removeCanvas, renameCanvas, screenToCanvas, setCanvasDisabled, snapPoint, updateBlock } from '../../domain/canvas'
 import type { Point, Viewport } from '../../domain/canvas'
 import { runitVmCatalog } from '../../domain/descriptors'
 import { parseCanvases } from '../../domain/project'
@@ -14,7 +14,8 @@ import { blockShape } from '../blocks/blockView'
  * workspaces), which one is open, and per canvas where it is scrolled and
  * zoomed (view state: not saved, not undone). Snap to grid is a preference.
  * Blocks are placed from the palette, moved, set up in the details panel and
- * removed; one block is selected at a time.
+ * removed; one block is selected, or several (tap them in multiple-select
+ * mode, or with Shift / Ctrl, or draw a box) and then moved, copied and deleted together.
  */
 
 const STORAGE_KEY = 'runit.canvases'
@@ -55,7 +56,10 @@ export function useCanvasWorkspace(onSelectBlock?: () => void) {
   const [snap, setSnap] = usePersistedFlag(SNAP_KEY, true)
   const [detailed, setDetailed] = usePersistedFlag(DETAIL_KEY, false)
   const [error, setError] = useState('')
-  const [selectedBlockId, setSelectedBlockId] = useState<string>()
+  /** The selected blocks' IDs, in the order they were picked; the inspector shows one block, or a summary of several. */
+  const [selectedIds, setSelectedIds] = useState<readonly string[]>([])
+  /** Multiple-select mode (the toolbar button): a tap adds or removes a block, dragging the background draws a box. */
+  const [multiSelect, setMultiSelect] = useState(false)
   /** A block to bring to the middle of the view once its canvas is shown (the surface clears it). */
   const [focus, setFocus] = useState<{ canvasId: string; blockId: string }>()
   /** Size of the canvas on screen (set by the surface): where the middle of the view is. */
@@ -93,8 +97,20 @@ export function useCanvasWorkspace(onSelectBlock?: () => void) {
   }
 
   const selectBlock = (id: string | undefined) => {
-    setSelectedBlockId(id)
+    setSelectedIds(id ? [id] : [])
     if (id) onSelectBlock?.()
+  }
+
+  /** Add the block to the selection, or take it out when it is in. */
+  const toggleBlock = (id: string) => {
+    setSelectedIds((current) => (current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]))
+    onSelectBlock?.()
+  }
+
+  /** Select these blocks: in addition to the ones selected, or instead of them. */
+  const selectBlocks = (ids: readonly string[], add = false) => {
+    setSelectedIds((current) => (add ? [...current, ...ids.filter((id) => !current.includes(id))] : [...ids]))
+    if (ids.length) onSelectBlock?.()
   }
 
   /**
@@ -123,37 +139,45 @@ export function useCanvasWorkspace(onSelectBlock?: () => void) {
     if (edit((current) => addBlock(current, active.id, { id, type: typeKey, x: place.x, y: place.y }))) selectBlock(id)
   }
 
-  // Copy / paste: the copied block, and how many times it was pasted (each paste steps down-right).
-  const [clipboard, setClipboard] = useState<CanvasBlock>()
+  // Copy / paste: the copied blocks, and how many times they were pasted (each paste steps down-right).
+  const [clipboard, setClipboard] = useState<readonly CanvasBlock[]>([])
   const pasted = useRef(0)
   const copy = () => {
-    const found = selectedBlockId ? findBlock(canvases, selectedBlockId) : undefined
-    if (!found) return
-    setClipboard(found.block)
+    const found = selectedIds.flatMap((id) => findBlock(canvases, id)?.block ?? [])
+    if (!found.length) return
+    setClipboard(found)
     pasted.current = 0
   }
   const paste = () => {
-    if (!clipboard || !active) return
+    if (!clipboard.length || !active) return
     pasted.current += 1
-    const at = snapPoint({ x: clipboard.x + 2 * GRID * pasted.current, y: clipboard.y + 2 * GRID * pasted.current })
-    let id: string | undefined
+    const step = 2 * GRID * pasted.current
+    let ids: string[] = []
     if (edit((current) => {
-      const result = pasteBlock(current, active.id, clipboard, at)
-      id = result.id
+      const result = pasteBlocks(current, active.id, clipboard, { x: step, y: step })
+      ids = result.ids
       return result.canvases
-    }) && id) selectBlock(id)
+    }) && ids.length) selectBlocks(ids)
   }
 
-  const deleteBlock = (id: string) => {
-    if (edit((current) => removeBlock(current, id)) && selectedBlockId === id) setSelectedBlockId(undefined)
+  const deleteBlocks = (ids: readonly string[]) => {
+    if (edit((current) => ids.reduce((list, id) => (findBlock(list, id) ? removeBlock(list, id) : list), current))) setSelectedIds((now) => now.filter((id) => !ids.includes(id)))
   }
+  const deleteBlock = (id: string) => deleteBlocks([id])
+
+  /** Move blocks together by the same amount: one undo step. */
+  const moveBlocks = (ids: readonly string[], by: Point) =>
+    edit((current) => ids.reduce((list, id) => {
+      const block = findBlock(list, id)?.block
+      return block ? moveBlock(list, id, { x: block.x + by.x, y: block.y + by.y }) : list
+    }, current))
 
   /** Replace the canvases (project opened); undo goes back. */
   const load = (next: readonly ProjectCanvas[]) => {
     const normalized = splitSharedVariableLabels(next)
     history.replace([...normalized])
     setActiveId(normalized[0]?.id)
-    setSelectedBlockId(undefined)
+    setSelectedIds([])
     setViewports(new Map())
     setError('')
   }
@@ -161,7 +185,7 @@ export function useCanvasWorkspace(onSelectBlock?: () => void) {
   /** Open a block on its canvas: that canvas, the block selected and centered. */
   const reveal = (canvasId: string, blockId: string) => {
     setActiveId(canvasId)
-    setSelectedBlockId(blockId)
+    setSelectedIds([blockId])
     setFocus({ canvasId, blockId })
   }
 
@@ -173,7 +197,7 @@ export function useCanvasWorkspace(onSelectBlock?: () => void) {
     reveal,
     select: (id: string | undefined) => {
       setActiveId(id)
-      setSelectedBlockId(undefined)
+      setSelectedIds([])
     },
     create,
     rename: (id: string, name: string) => edit((current) => renameCanvas(current, id, name)),
@@ -192,19 +216,28 @@ export function useCanvasWorkspace(onSelectBlock?: () => void) {
     setDetailed,
     surfaceSize,
     paletteDrag,
-    /** The selected block (on any canvas: it may have been undone away). */
-    selectedBlock: selectedBlockId ? findBlock(canvases, selectedBlockId)?.block : undefined,
+    /** The selected block when exactly one is selected (on any canvas: it may have been undone away). */
+    selectedBlock: selectedIds.length === 1 ? findBlock(canvases, selectedIds[0]!)?.block : undefined,
+    /** Every selected block that still exists. */
+    selectedBlocks: selectedIds.flatMap((id) => findBlock(canvases, id)?.block ?? []),
+    selectedIds,
+    multiSelect,
+    setMultiSelect,
     selectBlock,
+    toggleBlock,
+    selectBlocks,
     placeBlock,
     moveBlock: (id: string, to: Point) => edit((current) => moveBlock(current, id, to)),
+    moveBlocks,
     updateBlock: (id: string, change: (block: CanvasBlock) => CanvasBlock) => edit((current) => updateBlock(current, id, change)),
     /** Edits the open canvas as a whole (its variable chips), one undo step. */
     updateActive: (change: (canvas: ProjectCanvas) => ProjectCanvas) => edit((current) => current.map((canvas) => (canvas.id === active?.id ? change(canvas) : canvas))),
     deleteBlock,
-    /** Copy the selected block; paste puts a copy on the open canvas (one undo step). */
+    deleteBlocks,
+    /** Copy the selected blocks; paste puts copies on the open canvas (one undo step). */
     copy,
     paste,
-    canPaste: !!clipboard && !!active,
+    canPaste: clipboard.length > 0 && !!active,
     error,
     clearError: () => setError(''),
     load,

@@ -27,7 +27,13 @@
     },
     "inputs": { "$ref": "#/$defs/pin_group" },
     "outputs": { "$ref": "#/$defs/pin_group" },
-    "view": { "const": "simple", "description": "The block's face shows everything its detailed view would: the app offers no detailed view for it." },
+    "header": {
+      "description": "The block face's line under the title (//@header): the words of the block, then the value it is set to, which the face draws apart. Absent: the face shows the title alone.",
+      "type": "object",
+      "required": ["lead"],
+      "additionalProperties": false,
+      "properties": { "lead": { "$ref": "#/$defs/template" }, "value": { "$ref": "#/$defs/template" } }
+    },
     "eno": {
       "description": "What this block's ENO is called (default: When done). PERIODIC: Tick, FOR: Loop body.",
       "type": "object",
@@ -78,9 +84,9 @@
               "device_field": {"type": "string"},
               "contract": {"type": "string"},
               "hidden_by_default": {"type": "boolean"},
-              "extended_view_show": {"type": "boolean"},
               "let_user_select_available": {"type": "string"},
               "dynamic_input": {"type": "integer", "minimum": 0},
+              "overridden_by": { "type": "integer", "minimum": 0, "description": "Index of the input pin that replaces this setting while it is wired (that pin's @overrides)." },
               "source": { "enum": ["user", "derived", "runtime", "padding"], "description": "user: the app sets it from the block's settings. derived: the app computes it from the program (see derived). runtime / padding: the app writes 0." },
               "derived": { "type": "string" }
             }
@@ -139,6 +145,25 @@
     "enums": { "type": "object", "description": "The published enums this block's state and encoding use." }
   },
   "$defs": {
+    "template": {
+      "description": "A line of text as parts: literal text, or a reference the app resolves: an input pin (its wired source, else the constant it overrides), an output pin, a state field, or the block title.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          { "type": "object", "required": ["text"], "additionalProperties": false, "properties": { "text": { "type": "string", "minLength": 1 } } },
+          {
+            "type": "object", "required": ["ref", "kind"], "additionalProperties": false,
+            "properties": {
+              "ref": { "type": "string" },
+              "kind": { "enum": ["title", "pin", "out", "field"] },
+              "pin": { "type": "integer", "minimum": 0 },
+              "field": { "type": "string" }
+            }
+          }
+        ]
+      }
+    },
     "pin_group": {
       "type": "object",
       "required": ["min", "max", "pins"],
@@ -161,11 +186,8 @@
               "value": { "enum": ["bool", "u8", "u32", "i32", "f32", "scalar", "gate", "object", "ptr-cell"] },
               "id_kind": {"enum": ["device", "pin"]},
               "device_field": {"type": "string"},
-              "contract": {"type": "string"},
-              "hidden_by_default": {"type": "boolean"},
-              "extended_view_show": {"type": "boolean"},
-              "let_user_select_available": {"type": "string"},
-              "dynamic_input": {"type": "integer", "minimum": 0},
+              "hidden_by_default": {"type": "boolean", "description": "Not drawn until it is wired or chosen. Implied by overrides."},
+              "overrides": { "type": "string", "description": "The state field used as a constant while this pin is unwired; the user enters that constant instead of wiring the pin." },
               "required": { "type": "boolean" }
             }
           }

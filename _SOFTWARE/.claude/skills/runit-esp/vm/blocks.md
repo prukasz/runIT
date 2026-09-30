@@ -59,17 +59,22 @@ Hardware blocks call `sys_io_*` with `SYS_IO_REF(device_id, pin)`. `allowed_mask
 6. **Palette entry + catalog**, at the end of the header:
 
    ```c
-   //#vm-block VM_BLK_FOO @title Foo @category data @state vm_foo_data_t
+   //#vm-block VM_BLK_FOO
+   //@title Foo
+   //@category data
+   //@activation triggered Runs when x is fresh.
+   //@data vm_foo_data_t
    //@block-description What it does, for the app.
-   //@in 0 x @title X @description ...
-   //@out 0 y @title Y
+   //@header Foo | {x} {unit}                        // the face; {ref}s name pins and settings
+   //@in 0 x @title X @description Overrides gain. @value f32 @overrides gain @macro VM_FOO_IN_X
+   //@out 0 y @title Y @value f32
    #define VM_BLOCK_TYPE_FOO \
      {.run = vm_blk_foo, .check = vm_verify_foo, .min_in = 1, .min_q = 1, .required_in = 0x1u, .state_len = VM_FOO_CUSTOM_LEN}
    ```
 
-   Enums the state uses get `//#ref-enum`; state fields get `@enum-ref`, `@runtime` (device-owned), plain text = description. Grammar: `data-structures/auto-annotations/vm/vm-annotations.md`.
+   Enums the state uses get `//#ref-enum`; state fields get `@enum-ref`, `@runtime` (device-owned), plain text = description. A pin that has a constant to fall back on (`VM_BLOCK_GET_PARAM(out, b, pin, state.field)`) says `@overrides <field>`: the app hides the pin and lets the user type the constant. The app renders the block from the generated JSON alone, so a new block needs no app code. Grammar: `data-structures/auto-annotations/vm/vm-annotations.md`.
 7. **Register**: `#define VM_BLK_FOO <next id>` in `vm_blocks.h`; include the header and add `[VM_BLK_FOO] = VM_BLOCK_TYPE_FOO,` to `vm_blocks_table.c`.
-8. **Generate + docs**: run `generate-enums.py` and `generate-vm-blocks.py` (it fails on a missing directive, a wrong struct size or an unknown enum); update VM.MD's palette table and block section, and this table.
+8. **Generate + docs**: run `python data-structures/auto-annotations/generate-all.py` (the block generator fails on a stray or unknown `//@` line, a wrong struct size or offset, a pin index that disagrees with its `@macro`, an unknown `{ref}` or an unknown enum) and `--check --test`; update VM.MD's palette table and block section, and this table.
 
 ### Activation patterns
 

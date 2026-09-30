@@ -1,8 +1,8 @@
 """Blink the TCA6424A status LEDs (device 1, pins 22 / 23) from a VM program and read them back.
 
 Usage: python led_blink_test.py [COM4] [log.txt]
-Reads app/src/domain/compiler/fixtures/program-samples-led.json (made by the app's
-programSamplesLed.test.ts). Resets the board (boot log kept), uploads, subscribes
+Reads app/tests/domain/compiler/fixtures/program-samples-led.json (made by the app's
+app/tests/domain/compiler/programSamplesLed.test.ts). Resets the board (boot log kept), uploads, subscribes
 to every object, runs, then for 5 s reads both pins from the expander every
 ~100 ms (packet_sys_io_get_level_t) and checks they blink, in turn. Stops the VM
 at the end (disabled_action FORCE_LOW: both LEDs go off) and reads them again.
@@ -18,7 +18,7 @@ from pathlib import Path
 from runit_link import Link
 from vm_tests import VM, st
 
-FIXTURE = Path(__file__).resolve().parents[4] / "app" / "src" / "domain" / "compiler" / "fixtures" / "program-samples-led.json"
+FIXTURE = Path(__file__).resolve().parents[4] / "app" / "tests" / "domain" / "compiler" / "fixtures" / "program-samples-led.json"
 fails = 0
 report: list[str] = []
 

@@ -200,12 +200,18 @@ export interface GeneratedVmBlockEditorMetadata {
   readonly device_field?: string
   readonly contract?: string
   readonly hidden_by_default?: boolean
-  readonly extended_view_show?: boolean
   readonly let_user_select_available?: string
   readonly dynamic_input?: number
 }
 
+/** A line of a block's face: literal text, or a reference the app resolves (`//@header`). */
+export type GeneratedVmTemplatePart =
+  | { readonly text: string }
+  | { readonly ref: string; readonly kind: 'title' | 'pin' | 'out' | 'field'; readonly pin?: number; readonly field?: string }
+
 export interface GeneratedVmBlockPin extends GeneratedVmBlockEditorMetadata {
+  /** The state field used as a constant while this pin is unwired (`@overrides`). */
+  readonly overrides?: string
   readonly index: number
   readonly name: string
   readonly title: string
@@ -223,6 +229,8 @@ export interface GeneratedVmBlockStateField extends GeneratedVmBlockEditorMetada
   /** user: set by the app; derived: computed by the compiler; runtime / padding: 0 on the wire. */
   readonly source: string
   readonly enum_ref?: string
+  /** Index of the input pin that replaces this setting while it is wired. */
+  readonly overridden_by?: number
   readonly derived?: string
   readonly flexible?: boolean
   readonly element_size?: number
@@ -252,8 +260,8 @@ export interface GeneratedVmBlockFile {
   readonly rules: readonly { readonly rule: string; readonly error: string }[]
   /** What the block's ENO is called, when "When done" is not right (`//@eno`). */
   readonly eno?: { readonly title: string; readonly description?: string }
-  /** `//@view simple`: the face shows it all, no detailed view. */
-  readonly view?: 'simple'
+  /** The face's line under the title: the block's words, then the value it is set to (`//@header`). */
+  readonly header?: { readonly lead: readonly GeneratedVmTemplatePart[]; readonly value?: readonly GeneratedVmTemplatePart[] }
   readonly state?: { readonly size: number; readonly fields: readonly GeneratedVmBlockStateField[] }
   readonly min_custom_len: number
   readonly enums?: Readonly<Record<string, { readonly alias?: string | null; readonly members: readonly { readonly name: string; readonly value: number; readonly alias?: string | null }[] }>>

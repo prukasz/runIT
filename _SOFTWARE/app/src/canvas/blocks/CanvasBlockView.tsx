@@ -5,7 +5,7 @@ import type { Point, WireSource, WireTarget } from '../../domain/canvas'
 import type { DeviceCatalog, VmBlockType } from '../../domain/descriptors'
 import { decompileExpression, expressionLanguage, tokenize } from '../../domain/expression'
 import type { CanvasBlock, ObjectPath, ProjectDevice } from '../../domain/project'
-import { blockDeviceLine, blockHeadline, blockHeadlineParts, blockSummary, pathText } from './blockView'
+import { blockDeviceLine, blockHeadline, blockHeadlineParts, blockSubtitleHeadline, pathText, settingText } from './blockView'
 import { DEFAULT_ENO } from '../../domain/descriptors'
 import type { BlockPinView, BlockShape } from './blockView'
 import { ValueKindBadge } from '../../components/TypeBadge/TypeBadge'
@@ -29,7 +29,14 @@ interface Props {
   readonly detailed: boolean
   readonly devices?: readonly ProjectDevice[]
   readonly deviceCatalog?: DeviceCatalog
-  readonly onSelect: () => void
+  /** `additive`: Shift / Ctrl held, so the block joins the selection instead of replacing it. */
+  readonly onSelect: (additive: boolean) => void
+  /** A press released without moving the block: a tap. */
+  readonly onTap?: () => void
+  /** Called while the block is dragged with how far it has moved (undefined when the drag ends), so a selected group follows. */
+  readonly onDrag?: (by: Point | undefined) => void
+  /** Where the block is drawn, off its place: a block of a selected group while another one is dragged. */
+  readonly offset?: Point
   readonly onMove: (to: Point) => void
   /** A press on an output, ENO or Body starts a wire from it. */
   readonly onWireStart?: (source: WireSource, event: React.PointerEvent) => void
@@ -47,7 +54,7 @@ interface Props {
   readonly isLinking?: boolean
 }
 
-export function CanvasBlockView({ block, type, shape, selected, errors, zoom, snap, detailed, devices, deviceCatalog, onSelect, onMove, onWireStart, chipOf, onChipPress, selectedChip, labelOf = pathText, onRename, isLinking }: Props) {
+export function CanvasBlockView({ block, type, shape, selected, errors, zoom, snap, detailed, devices, deviceCatalog, onSelect, onMove, onTap, onDrag, offset, onWireStart, chipOf, onChipPress, selectedChip, labelOf = pathText, onRename, isLinking }: Props) {
   const [drag, setDrag] = useState<{ start: Point; origin: Point; at: Point }>()
   const [renaming, setRenaming] = useState(false)
   const typeTitle = type?.title ?? `Unknown ${block.type}`
@@ -59,10 +66,9 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
     const name = text.trim()
     if (name !== (block.name ?? '')) onRename?.(name || undefined)
   }
-  const expanded = !type?.simpleOnly && (block.view ? block.view === 'detailed' : detailed)
-  const summary = blockSummary(type, block, devices, deviceCatalog)
+  const expanded = !!type?.hasDetail && (block.view ? block.view === 'detailed' : detailed)
   const enables = block.enables?.length ?? 0
-  const at = drag?.at ?? block
+  const at = drag?.at ?? (offset ? { x: block.x + offset.x, y: block.y + offset.y } : block)
   // Debug mode: what the board says about this block (strips, tint, values on the pins).
   const debug = useDebug()
   const live = debug.block(block.id)
@@ -193,6 +199,9 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
           }}
         ><span className="canvas-chip-text">{path!.root === '' ? '?' : chip.label}</span>{liveText !== undefined && <span className="canvas-live">{liveText}</span>}</span>
       )}
+      {!source && expanded && type && pin.overrides && (
+        <span className="canvas-chip is-docked is-in is-constant" title={`${pin.title}: ${settingText(type, block, pin.overrides, devices, deviceCatalog)} (a constant, used while nothing is wired to it)`}><span className="canvas-chip-text">{settingText(type, block, pin.overrides, devices, deviceCatalog)}</span></span>
+      )}
       {liveText !== undefined && !chip && <span className={`canvas-pin-live ${output ? 'is-out' : 'is-in'}`} title={`${pinTitle}: ${liveText}`}>{liveText}</span>}
       {!output ? (
         <div className="canvas-pin-slab is-in">
@@ -226,29 +235,33 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
         if (event.button !== 0 || (event.target as HTMLElement).closest('button')) return
         event.stopPropagation()
         if (isLinking) {
-          onSelect()
+          onSelect(false)
           return
         }
         event.currentTarget.setPointerCapture(event.pointerId)
-        onSelect()
+        onSelect(event.shiftKey || event.ctrlKey || event.metaKey)
         setDrag({ start: { x: event.clientX, y: event.clientY }, origin: { x: block.x, y: block.y }, at: { x: block.x, y: block.y } })
       }}
       onPointerMove={(event) => {
         if (!drag) return
         const raw = { x: drag.origin.x + (event.clientX - drag.start.x) / zoom, y: drag.origin.y + (event.clientY - drag.start.y) / zoom }
-        setDrag({ ...drag, at: snap ? snapPoint(raw) : raw })
+        const to = snap ? snapPoint(raw) : raw
+        setDrag({ ...drag, at: to })
+        onDrag?.({ x: to.x - drag.origin.x, y: to.y - drag.origin.y })
       }}
       onPointerUp={() => {
         if (drag && (drag.at.x !== drag.origin.x || drag.at.y !== drag.origin.y)) onMove(drag.at)
+        else if (drag) onTap?.()
         setDrag(undefined)
+        onDrag?.(undefined)
       }}
-      onPointerCancel={() => setDrag(undefined)}
+      onPointerCancel={() => { setDrag(undefined); onDrag?.(undefined) }}
       onDoubleClick={(event) => {
         // The block holds the pointer while pressed, so the double-click lands here: only the header renames.
         const rect = event.currentTarget.getBoundingClientRect()
         if (onRename && event.clientY - rect.top < 40 * zoom) setRenaming(true)
       }}
-      onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onSelect() } }}
+      onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onSelect(event.shiftKey || event.ctrlKey || event.metaKey) } }}
     >
       {(block.enables ?? []).map((path, index) => {
         const chip = chipOf?.(path, false, { block: block.id, kind: 'en', index })
@@ -287,13 +300,13 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
           ) : (
             <span className="canvas-block-title" title={onRename ? 'Double-click the header to name it' : undefined}>{block.name || (headlineParts ? <>{headlineParts.lead}{headlineParts.value && <> <span className="canvas-block-value">{headlineParts.value}</span></>}</> : headline)}</span>
           )}
-          {(block.name || expanded) && <span className="canvas-block-id" title={block.id}>{[block.name ? headline : '', expanded ? block.id : ''].filter(Boolean).join(' · ')}</span>}
+          {(block.name || expanded) && <span className="canvas-block-id" title={block.id}>{[block.name ? blockSubtitleHeadline(type, block, labelOf) ?? headline : '', expanded ? block.id : ''].filter(Boolean).join(' · ')}</span>}
         </span>
         {enoNamed && <span className="canvas-block-eno-tag" title={`${enoName.title}: ${enoName.description}`}>{enoName.title}</span>}
         {errors > 0 && <span className="canvas-block-errors" title={`${errors} problem(s): see the block's details`}>{errors}</span>}
       </div>
       <div className="canvas-block-pins">
-        {deviceLine && !expanded && <span className={`canvas-block-device ${shape.inputs.length ? 'is-right' : ''}`} title={deviceLine}>{deviceLine}</span>}
+        {deviceLine && <span className={`canvas-block-device ${shape.inputs.length ? 'is-right' : ''}`} title={deviceLine}>{deviceLine}</span>}
         <div className="canvas-block-side is-in">
           {shape.inputs.map((pin) => pinView(pin, pin.index, false))}
         </div>
@@ -301,15 +314,9 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
           {shape.outputs.map((pin, index) => pinView(pin, index, true))}
         </div>
       </div>
-      {expanded && (
-        <div className={`canvas-block-summary ${type?.encoding ? 'is-formula' : ''}`} title={formulaData?.text ?? summary.join('\n')}>
-          {formulaData ? (
-            formulaData.elements
-          ) : summary.length ? (
-            summary.map((line, index) => <div key={index}>{line}</div>)
-          ) : (
-            <div className="is-unwired">No settings</div>
-          )}
+      {expanded && formulaData && (
+        <div className="canvas-block-summary is-formula" title={formulaData.text}>
+          {formulaData.elements}
         </div>
       )}
     </div>

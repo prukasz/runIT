@@ -1129,25 +1129,25 @@
         {
           "name": "VM_FOR_OP_ADD",
           "value": 0,
-          "alias": null,
+          "alias": "+",
           "description": null
         },
         {
           "name": "VM_FOR_OP_SUB",
           "value": 1,
-          "alias": null,
+          "alias": "-",
           "description": null
         },
         {
           "name": "VM_FOR_OP_MUL",
           "value": 2,
-          "alias": null,
+          "alias": "*",
           "description": null
         },
         {
           "name": "VM_FOR_OP_DIV",
           "value": 3,
-          "alias": null,
+          "alias": "/",
           "description": null
         },
         {
@@ -1165,25 +1165,25 @@
         {
           "name": "VM_FOR_CMP_LT",
           "value": 0,
-          "alias": null,
+          "alias": "<",
           "description": null
         },
         {
           "name": "VM_FOR_CMP_LE",
           "value": 1,
-          "alias": null,
+          "alias": "<=",
           "description": null
         },
         {
           "name": "VM_FOR_CMP_GT",
           "value": 2,
-          "alias": null,
+          "alias": ">",
           "description": null
         },
         {
           "name": "VM_FOR_CMP_GE",
           "value": 3,
-          "alias": null,
+          "alias": ">=",
           "description": null
         },
         {
@@ -2507,25 +2507,25 @@
     "VM_FOR_OP_ADD": {
       "enum": "vm_for_op_e",
       "value": 0,
-      "alias": null,
+      "alias": "+",
       "description": null
     },
     "VM_FOR_OP_SUB": {
       "enum": "vm_for_op_e",
       "value": 1,
-      "alias": null,
+      "alias": "-",
       "description": null
     },
     "VM_FOR_OP_MUL": {
       "enum": "vm_for_op_e",
       "value": 2,
-      "alias": null,
+      "alias": "*",
       "description": null
     },
     "VM_FOR_OP_DIV": {
       "enum": "vm_for_op_e",
       "value": 3,
-      "alias": null,
+      "alias": "/",
       "description": null
     },
     "VM_FOR_OP_CNT": {
@@ -2537,25 +2537,25 @@
     "VM_FOR_CMP_LT": {
       "enum": "vm_for_cmp_e",
       "value": 0,
-      "alias": null,
+      "alias": "<",
       "description": null
     },
     "VM_FOR_CMP_LE": {
       "enum": "vm_for_cmp_e",
       "value": 1,
-      "alias": null,
+      "alias": "<=",
       "description": null
     },
     "VM_FOR_CMP_GT": {
       "enum": "vm_for_cmp_e",
       "value": 2,
-      "alias": null,
+      "alias": ">",
       "description": null
     },
     "VM_FOR_CMP_GE": {
       "enum": "vm_for_cmp_e",
       "value": 3,
-      "alias": null,
+      "alias": ">=",
       "description": null
     },
     "VM_FOR_CMP_CNT": {

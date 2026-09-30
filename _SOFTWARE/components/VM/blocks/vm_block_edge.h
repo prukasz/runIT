@@ -37,10 +37,10 @@ typedef union {
 } vm_edge_val_u;
 
 typedef struct __attribute__((aligned(4))) {
-  uint8_t       edge_type;  // vm_edge_type_e @enum-ref vm_edge_type_e @extended-view-show
+  uint8_t       edge_type;  // vm_edge_type_e @enum-ref vm_edge_type_e
   uint8_t       flags;      // VM_EDGE_F_* @runtime
   uint16_t      _pad1;
-  vm_edge_val_u change_by;  // Threshold for change condition (0 = any change) @extended-view-show
+  vm_edge_val_u change_by;  // Threshold for change condition (0 = any change)
   vm_edge_val_u prev_val;   // Stored previous value @runtime
 } vm_block_edge_data_t;
 
@@ -146,12 +146,16 @@ static inline void vm_blk_edge(vm_block_h b) {
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
-//#vm-block VM_BLK_EDGE @title Edge @category logic @state vm_block_edge_data_t @activation enabled Runs every pass while enabled.
+//#vm-block VM_BLK_EDGE
+//@title Edge
+//@category logic
+//@activation enabled Runs every pass while enabled.
+//@data vm_block_edge_data_t
 //@block-description Pulses for one pass when the input rises, falls or changes by at least the threshold.
-//@view simple
+//@header {edge_type} edge, change {threshold}
 //@rule edge_type is a vm_edge_type_e value. @error ERR_VM_BLK_BAD_SHAPE
-//@in 0 signal @title Signal @value scalar
-//@in 1 threshold @title Threshold @description Overrides change_by; same type as the signal. @value scalar
-//@out 0 pulse @title Pulse @value gate
+//@in 0 signal @title Signal @value scalar @macro VM_EDGE_IN_SIGNAL
+//@in 1 threshold @title Threshold @description Overrides change_by; same type as the signal. @value scalar @overrides change_by @macro VM_EDGE_IN_THRESHOLD
+//@out 0 pulse @title Pulse @value gate @macro VM_EDGE_Q
 #define VM_BLOCK_TYPE_EDGE \
   {.run = vm_blk_edge, .check = vm_verify_edge, .min_in = 1, .min_q = 0, .required_in = 0x1u, .state_len = VM_EDGE_CUSTOM_LEN}

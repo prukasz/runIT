@@ -38,7 +38,7 @@ typedef enum {
 #define VM_LATCH_F_WRITTEN (1u << 1)  // Q output published at least once
 
 typedef struct __attribute__((aligned(4))) {
-  uint8_t mode;   // Which input wins when both are true @enum-ref vm_latch_mode_e @extended-view-show
+  uint8_t mode;   // Which input wins when both are true @enum-ref vm_latch_mode_e
   uint8_t flags;  // VM_LATCH_F_* @runtime
   uint16_t _pad;
 } vm_block_latch_data_t;
@@ -96,13 +96,17 @@ static inline void vm_blk_latch(vm_block_h b) {
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
-//#vm-block VM_BLK_LATCH @title Latch @category logic @state vm_block_latch_data_t @activation enabled Runs every pass while enabled.
+//#vm-block VM_BLK_LATCH
+//@title Latch
+//@category logic
+//@activation enabled Runs every pass while enabled.
+//@data vm_block_latch_data_t
 //@block-description Set / reset bistable: turns a one-pass pulse into a held level. ENO follows Q.
-//@view simple
+//@header Latch {mode}
 //@rule At least one of set and reset is wired. @error ERR_VM_BLK_BAD_SHAPE
 //@rule mode is a vm_latch_mode_e value. @error ERR_VM_BLK_BAD_SHAPE
-//@in 0 set @title Set @value bool
-//@in 1 reset @title Reset @value bool
-//@out 0 q @title Q @value bool
+//@in 0 set @title Set @value bool @macro VM_LATCH_IN_SET
+//@in 1 reset @title Reset @value bool @macro VM_LATCH_IN_RESET
+//@out 0 q @title Q @value bool @macro VM_LATCH_Q
 #define VM_BLOCK_TYPE_LATCH \
   {.run = vm_blk_latch, .check = vm_verify_latch, .min_in = 0, .min_q = 0, .required_in = 0x0u, .state_len = VM_LATCH_CUSTOM_LEN}

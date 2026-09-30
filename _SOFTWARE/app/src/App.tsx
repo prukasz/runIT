@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePersistedChoice } from './hooks/useStorage'
 import { DetailsPanel, ExplorerPanel, MainScreen, WorkspaceShell } from './layout'
-import { ArrowLeft, ArrowLeftRight, Bug, Check, ChevronRight, ClipboardPaste, Code2, Copy, Cpu, FolderOpen, Gamepad2, Grid2X2, Info, ListTree, Magnet, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Radio, Redo2, ScrollText, Settings2, Sliders, Square, SquareTerminal, Sun, Undo2, Variable, X } from 'lucide-react'
+import { ArrowLeft, ArrowLeftRight, BoxSelect, Bug, Check, ChevronRight, ClipboardPaste, Code2, Copy, Cpu, FolderOpen, Gamepad2, Grid2X2, Info, ListTree, Magnet, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Radio, Redo2, ScrollText, Settings2, Sliders, Square, SquareTerminal, Sun, Undo2, Variable, X } from 'lucide-react'
 import { ObjectDetails, ObjectTreeEditor, ObjectTreePalette, useObjectTreeWorkspace } from './ObjectTreeWorkspace'
 import { LogSettingsEditor, useLogSettingsWorkspace } from './LogSettingsWorkspace'
 import { BleDetails, BleSettingsEditor, BleSettingsPalette, useBleSettingsWorkspace } from './BleSettingsWorkspace'
@@ -544,8 +544,9 @@ export default function App() {
           <div className="screen-actions" aria-label={`${view} specific actions`}>
             {isCanvas && <button aria-label="Detailed block view" title="Toggle detailed block view" aria-pressed={canvasWorkspace.detailed} className={canvasWorkspace.detailed ? 'selected' : ''} onClick={() => canvasWorkspace.setDetailed(!canvasWorkspace.detailed)}><ListTree aria-hidden="true" /></button>}
             {isCanvas && <button aria-label={showCanvasGrid ? 'Hide canvas grid' : 'Show canvas grid'} title={showCanvasGrid ? 'Hide canvas grid' : 'Show canvas grid'} aria-pressed={showCanvasGrid} className={showCanvasGrid ? 'selected' : ''} onClick={() => setShowCanvasGrid(!showCanvasGrid)}><Grid2X2 aria-hidden="true" /></button>}
-            {isCanvas && <button aria-label="Copy block" title="Copy the selected block (Ctrl+C)" disabled={!canvasWorkspace.selectedBlock} onClick={canvasWorkspace.copy}><Copy aria-hidden="true" /></button>}
-            {isCanvas && <button aria-label="Paste block" title="Paste the copied block (Ctrl+V)" disabled={!canvasWorkspace.canPaste} onClick={canvasWorkspace.paste}><ClipboardPaste aria-hidden="true" /></button>}
+            {isCanvas && <button aria-label="Select multiple blocks" title="Select multiple: tap blocks to add or remove them, drag the background to draw a box (Shift or Ctrl also add)" aria-pressed={canvasWorkspace.multiSelect} className={canvasWorkspace.multiSelect ? 'selected' : ''} onClick={() => canvasWorkspace.setMultiSelect(!canvasWorkspace.multiSelect)}><BoxSelect aria-hidden="true" /></button>}
+            {isCanvas && <button aria-label="Copy block" title="Copy the selected blocks (Ctrl+C)" disabled={canvasWorkspace.selectedIds.length === 0} onClick={canvasWorkspace.copy}><Copy aria-hidden="true" /></button>}
+            {isCanvas && <button aria-label="Paste block" title="Paste the copied blocks (Ctrl+V)" disabled={!canvasWorkspace.canPaste} onClick={canvasWorkspace.paste}><ClipboardPaste aria-hidden="true" /></button>}
             {isCanvas && (
               <button
                 aria-label="Empty variable: drag onto a block pin"

@@ -1,8 +1,8 @@
 """Accessors the app compiles (nested, by name, dynamic, nested dynamic), run on a board.
 
 Usage: python accessor_samples_test.py [COM4]
-Reads app/src/domain/compiler/fixtures/accessor-samples.json (made by the app's
-accessorSamples.test.ts): the objects and accessors of a program, as upload
+Reads app/tests/domain/compiler/fixtures/accessor-samples.json (made by the app's
+app/tests/domain/compiler/accessorSamples.test.ts): the objects and accessors of a program, as upload
 frames. Adds a PERIODIC block (output `tick`, 100 ms) and one EXPR block per
 sample (output = the value its path reads, triggered by `tick`; the app has no
 block compiler yet), runs the program, and checks the values the
@@ -20,7 +20,7 @@ from pathlib import Path
 from runit_link import Link
 from vm_tests import BLK_EXPR, BLK_PERIODIC, EXPR_END, EXPR_IN, NO_ID, VM, align4, st, values
 
-FIXTURE = Path(__file__).resolve().parents[4] / "app" / "src" / "domain" / "compiler" / "fixtures" / "accessor-samples.json"
+FIXTURE = Path(__file__).resolve().parents[4] / "app" / "tests" / "domain" / "compiler" / "fixtures" / "accessor-samples.json"
 EXEC_NORMAL = 5
 fails = 0
 

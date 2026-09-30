@@ -6,7 +6,7 @@ import { InlineRename } from '../../components/InlineRename'
 import { AlertCircle, AlertTriangle, Minus, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { arrangeProgram, disconnect, nameIds, parsePathText, pathLabel, PathTextError, sourceOf } from '../../domain/canvas'
 import type { Diagnostic } from '../../domain/compiler'
-import { enumAlias, enumMemberLabels, runitVmCatalog } from '../../domain/descriptors'
+import { blockPinAt, enumAlias, enumMemberLabels, runitVmCatalog } from '../../domain/descriptors'
 import type { VmBlockField, VmBlockType } from '../../domain/descriptors'
 import type { CanvasBlock, ObjectNode, ObjectPath, ProjectDevice, ProjectDocument } from '../../domain/project'
 import { findObject } from '../../domain/project'
@@ -312,6 +312,23 @@ export function BlockDetails({
     setActivePinText('')
   }, [block?.id])
 
+  if (!block && workspace.selectedBlocks.length > 1) {
+    const chosen = workspace.selectedBlocks
+    return (
+      <div className="program-panel block-details">
+        <PanelHeader title={`${chosen.length} blocks selected`} />
+        <ul className="block-gates" aria-label="Selected blocks">
+          {chosen.map((entry) => <li key={entry.id}><span>{entry.name || runitVmCatalog().block(entry.type)?.title || entry.type} <small>{entry.id}</small></span></li>)}
+        </ul>
+        <p className="block-muted">Drag one of them to move them all. Ctrl+C copies them together, Delete removes them (one undo step).</p>
+        <div className="block-fields">
+          <Button block onClick={workspace.copy}>Copy</Button>
+          <Button block onClick={() => workspace.selectBlock(undefined)}>Clear the selection</Button>
+        </div>
+        <Button variant="danger" block className="block-delete" onClick={() => workspace.deleteBlocks(workspace.selectedIds)}><Trash2 aria-hidden="true" />Delete {chosen.length} blocks</Button>
+      </div>
+    )
+  }
   if (!block) {
     return (
       <div className="program-panel block-details">
@@ -471,25 +488,31 @@ export function BlockDetails({
           <div className="block-fields">
             {fields.map((field) => {
               const raw = block.settings?.[field.name]
+              // A setting a pin can replace (`@overrides`) is that pin's constant: named after the pin, and idle while the pin is wired.
+              const pin = field.overriddenBy === undefined ? undefined : blockPinAt(type.inputs, field.overriddenBy)
+              const feeder = pin ? block.inputs?.[pin.index] : undefined
+              const fed = !!feeder && feeder.root !== ''
+              const label = pin ? pin.title : humanize(field.name)
+              const hint = pin ? (fed ? `Not used while ${pin.title} is wired to ${labelPath(feeder!)}` : `Used while the ${pin.title} pin is unwired${field.description ? `. ${field.description}` : ''}`) : field.description
               if (field.enumRef) {
                 const choices = enumChoices(type, field)
                 const current = typeof raw === 'number' ? choices.find((choice) => choice.value === raw) : choices.find((choice) => choice.label === raw) ?? (raw === undefined ? choices.find((choice) => choice.value === 0) : undefined)
                 return (
                   <label key={field.name} className="block-field">
-                    <span>{humanize(field.name)}</span>
+                    <span>{label}</span>
                     <SelectField value={current?.label ?? ''} onChange={(event) => setSetting(field.name, event.target.value)}>
                       {!current && <option value="">{String(raw)}?</option>}
                       {choices.map((choice) => <option key={choice.value} value={choice.label}>{enumAlias(choice.label)}</option>)}
                     </SelectField>
-                    {field.description && <em>{field.description}</em>}
+                    {hint && <em>{hint}</em>}
                   </label>
                 )
               }
               return (
                 <NumberField
                   key={field.name}
-                  label={humanize(field.name)}
-                  hint={field.description}
+                  label={label}
+                  hint={hint}
                   value={typeof raw === 'number' ? raw : undefined}
                   integer={isInteger(field)}
                   min={field.cType.startsWith('uint') ? 0 : undefined}
@@ -742,7 +765,7 @@ export function BlockDetails({
         <p className="block-muted">Drag from an output (right side), When done or Loop body onto another block to wire it; drag a variable from the Variables tab onto a block to use it.</p>
       </section>
 
-      {!type.simpleOnly && <section className="block-section">
+      {type.hasDetail && <section className="block-section">
         <h3>Appearance</h3>
         <label className="block-field">
           <span>Block view</span>

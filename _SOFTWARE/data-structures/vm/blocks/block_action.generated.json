@@ -22,7 +22,9 @@
         "title": "Action id",
         "value": "u32",
         "description": "Overrides action_id.",
-        "required": false
+        "overrides": "action_id",
+        "required": false,
+        "hidden_by_default": true
       }
     ]
   },
@@ -43,6 +45,22 @@
       "error_tag": 43296
     }
   ],
+  "header": {
+    "lead": [
+      {
+        "ref": "title",
+        "kind": "title"
+      }
+    ],
+    "value": [
+      {
+        "ref": "id",
+        "kind": "pin",
+        "pin": 0,
+        "field": "action_id"
+      }
+    ]
+  },
   "state": {
     "struct": "vm_block_action_data_t",
     "source_file": "components/VM/blocks/vm_block_action.h",
@@ -54,7 +72,6 @@
         "c_type": "uint8_t",
         "offset": 0,
         "size": 1,
-        "extended_view_show": true,
         "enum_ref": "vm_action_scope_e",
         "source": "user"
       },
@@ -64,8 +81,8 @@
         "offset": 1,
         "size": 1,
         "description": "1..255, used when input 0 is unwired",
-        "extended_view_show": true,
-        "source": "user"
+        "source": "user",
+        "overridden_by": 0
       },
       {
         "name": "flags",

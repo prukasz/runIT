@@ -520,25 +520,25 @@
         {
           "name": "VM_FOR_OP_ADD",
           "value": 0,
-          "alias": null,
+          "alias": "+",
           "description": null
         },
         {
           "name": "VM_FOR_OP_SUB",
           "value": 1,
-          "alias": null,
+          "alias": "-",
           "description": null
         },
         {
           "name": "VM_FOR_OP_MUL",
           "value": 2,
-          "alias": null,
+          "alias": "*",
           "description": null
         },
         {
           "name": "VM_FOR_OP_DIV",
           "value": 3,
-          "alias": null,
+          "alias": "/",
           "description": null
         },
         {
@@ -556,25 +556,25 @@
         {
           "name": "VM_FOR_CMP_LT",
           "value": 0,
-          "alias": null,
+          "alias": "<",
           "description": null
         },
         {
           "name": "VM_FOR_CMP_LE",
           "value": 1,
-          "alias": null,
+          "alias": "<=",
           "description": null
         },
         {
           "name": "VM_FOR_CMP_GT",
           "value": 2,
-          "alias": null,
+          "alias": ">",
           "description": null
         },
         {
           "name": "VM_FOR_CMP_GE",
           "value": 3,
-          "alias": null,
+          "alias": ">=",
           "description": null
         },
         {

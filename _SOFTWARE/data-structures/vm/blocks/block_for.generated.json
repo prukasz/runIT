@@ -21,21 +21,30 @@
         "name": "start",
         "title": "Start",
         "value": "f32",
-        "required": false
+        "description": "The iterator's first value.",
+        "overrides": "k_start",
+        "required": false,
+        "hidden_by_default": true
       },
       {
         "index": 1,
         "name": "end",
         "title": "End",
         "value": "f32",
-        "required": false
+        "description": "The value the iterator is compared with.",
+        "overrides": "k_end",
+        "required": false,
+        "hidden_by_default": true
       },
       {
         "index": 2,
         "name": "step",
         "title": "Step",
         "value": "f32",
-        "required": false
+        "description": "What the iterator advances by.",
+        "overrides": "k_step",
+        "required": false,
+        "hidden_by_default": true
       }
     ]
   },
@@ -68,6 +77,52 @@
     "title": "Loop body",
     "description": "Put a block on its Run when to make it (and what depends on it) part of the loop."
   },
+  "header": {
+    "lead": [
+      {
+        "text": "For"
+      }
+    ],
+    "value": [
+      {
+        "ref": "start",
+        "kind": "pin",
+        "pin": 0,
+        "field": "k_start"
+      },
+      {
+        "text": " to "
+      },
+      {
+        "ref": "end",
+        "kind": "pin",
+        "pin": 1,
+        "field": "k_end"
+      },
+      {
+        "text": " ("
+      },
+      {
+        "ref": "cmp",
+        "kind": "field",
+        "field": "cmp"
+      },
+      {
+        "text": ") step "
+      },
+      {
+        "ref": "op",
+        "kind": "field",
+        "field": "op"
+      },
+      {
+        "ref": "step",
+        "kind": "pin",
+        "pin": 2,
+        "field": "k_step"
+      }
+    ]
+  },
   "state": {
     "struct": "vm_for_code_t",
     "source_file": "components/VM/blocks/vm_block_for.h",
@@ -89,8 +144,8 @@
         "offset": 4,
         "size": 4,
         "description": "Start when input 0 is unwired",
-        "extended_view_show": true,
-        "source": "user"
+        "source": "user",
+        "overridden_by": 0
       },
       {
         "name": "k_end",
@@ -98,8 +153,8 @@
         "offset": 8,
         "size": 4,
         "description": "End when input 1 is unwired",
-        "extended_view_show": true,
-        "source": "user"
+        "source": "user",
+        "overridden_by": 1
       },
       {
         "name": "k_step",
@@ -107,8 +162,8 @@
         "offset": 12,
         "size": 4,
         "description": "Step when input 2 is unwired",
-        "extended_view_show": true,
-        "source": "user"
+        "source": "user",
+        "overridden_by": 2
       },
       {
         "name": "max_turns",
@@ -116,7 +171,6 @@
         "offset": 16,
         "size": 2,
         "description": "Turn budget per pass",
-        "extended_view_show": true,
         "source": "user"
       },
       {
@@ -125,7 +179,6 @@
         "offset": 18,
         "size": 1,
         "description": "How the iterator advances",
-        "extended_view_show": true,
         "enum_ref": "vm_for_op_e",
         "source": "user"
       },
@@ -135,7 +188,6 @@
         "offset": 19,
         "size": 1,
         "description": "Loop condition",
-        "extended_view_show": true,
         "enum_ref": "vm_for_cmp_e",
         "source": "user"
       },
@@ -166,25 +218,25 @@
         {
           "name": "VM_FOR_CMP_LT",
           "value": 0,
-          "alias": null,
+          "alias": "<",
           "description": null
         },
         {
           "name": "VM_FOR_CMP_LE",
           "value": 1,
-          "alias": null,
+          "alias": "<=",
           "description": null
         },
         {
           "name": "VM_FOR_CMP_GT",
           "value": 2,
-          "alias": null,
+          "alias": ">",
           "description": null
         },
         {
           "name": "VM_FOR_CMP_GE",
           "value": 3,
-          "alias": null,
+          "alias": ">=",
           "description": null
         },
         {
@@ -202,25 +254,25 @@
         {
           "name": "VM_FOR_OP_ADD",
           "value": 0,
-          "alias": null,
+          "alias": "+",
           "description": null
         },
         {
           "name": "VM_FOR_OP_SUB",
           "value": 1,
-          "alias": null,
+          "alias": "-",
           "description": null
         },
         {
           "name": "VM_FOR_OP_MUL",
           "value": 2,
-          "alias": null,
+          "alias": "*",
           "description": null
         },
         {
           "name": "VM_FOR_OP_DIV",
           "value": 3,
-          "alias": null,
+          "alias": "/",
           "description": null
         },
         {

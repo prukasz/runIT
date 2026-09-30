@@ -656,7 +656,7 @@ is removed again (`vm_store_undo()`), so a malformed program never reaches the
 scan and bodies never re-check their own shape on every pass.
 
 **The same entry feeds the app.** `generate-vm-blocks.py` reads each header's
-`//#vm-block` annotations and its `VM_BLOCK_TYPE_<NAME>` macro and writes one
+`//#vm-block` directive block (one `//@keyword` line per fact) and its `VM_BLOCK_TYPE_<NAME>` macro and writes one
 descriptor per block to `data-structures/vm/blocks/` (plus `index.generated.json`):
 id, title, category, when it runs (`@activation`), pins with their counts,
 required flags (from `required_in`) and what each carries (`@value`), the checks
@@ -696,7 +696,7 @@ rejects the block without them); every other input falls back to a constant in
 | 6 | `SET` | `vm_block_set.h` | ★ src, ★ dst | — | 0 | src fresh **and** enabled |
 | 7 | `CLONE` | `vm_block_clone.h` | ★ src, ★ dst pointer cell | — | 0 | src fresh **and** enabled |
 | 8 | `EDGE` | `vm_block_edge.h` | ★ signal, threshold | pulse | 12 | enabled |
-| 9 | `TIMER` | `vm_block_timer.h` | ★ IN, PT | Q, ET | 32 | enabled |
+| 9 | `TIMER` | `vm_block_timer.h` | ★ IN, PT | ET (Q is ENO) | 32 | enabled |
 | 10 | `IO_SET_LEVEL` | `vm_block_io_set_level.h` | ★ level, pin | — | 16 | enabled |
 | 11 | `IO_TOGGLE` | `vm_block_io_toggle.h` | pin | — | 16 | rising edge of enable |
 | 12 | `LATCH` | `vm_block_latch.h` | set, reset (≥1 wired) | Q | 4 | enabled |
@@ -944,8 +944,8 @@ Dynamic objects are heap-backed and isolated: nothing else in a running program 
 - **Modes**: `VM_TIMER_TON` (on-delay), `VM_TIMER_TOF` (off-delay), `VM_TIMER_TP` (pulse), plus inverted `TON_INV`, `TOF_INV`, `TP_INV`. `VM_TIMER_F_INVERTED` in `flags` inverts too; the two combine by XOR.
 - **Time base**: `time_base` selects the unit of `PT` and `ET` — ms, s, min or h (`vm_timer_unit_e`). Internally time is kept in ms (`u64 start_ms`).
 - **Inputs**: ★`in[0]` IN; `in[1]` PT (falls back to `custom_data.pt` when unwired).
-- **Outputs**: `out[0]` Q (bool), `out[1]` ET (elapsed, in `time_base` units, `u32`); ENO follows Q as a level.
-- **Disabled**: the timer resets, Q and ET clear quietly, ENO drops.
+- **Outputs**: `out[0]` ET (elapsed, in `time_base` units, `u32`). The timer's output Q is its **ENO**, held as a level: true after the on-delay, during a pulse, until the off-delay ends. Q is not a data pin: ENO's false is quiet, so an update-driven block does not see Q fall (gate on the level instead).
+- **Disabled**: the timer resets, ET clears quietly, ENO (Q) drops.
 - **Private state**: 32 bytes, 8-aligned: `u8 mode`, `u8 flags`, `u8 time_base`, pad, `u32 pt` @8, `u64 start_ms` @16, `u32 elapsed` @24 (offsets are `_Static_assert`ed). Runtime fields are zero on the wire.
 
 ### IO_SET_LEVEL and IO_TOGGLE

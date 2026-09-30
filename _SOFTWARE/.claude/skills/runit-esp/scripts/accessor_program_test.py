@@ -1,8 +1,8 @@
 """Accessors under real blocks (dynamic positions driven by blocks, nested dynamic, folder pick, SET through a dynamic destination, CLONE live cell, run-time out-of-range), run on a board.
 
 Usage: python accessor_program_test.py [COM4] [log.txt]
-Reads app/src/domain/compiler/fixtures/program-samples-accessors.json (made by the
-app's programSamplesAccessors.test.ts). Resets the board (boot log kept), uploads,
+Reads app/tests/domain/compiler/fixtures/program-samples-accessors.json (made by the
+app/tests/domain/compiler/programSamplesAccessors.test.ts). Resets the board (boot log kept), uploads,
 subscribes to every object, then runs four phases; a live write (fixture `writes`)
 starts each next one: 0 = 3 s, 1 = 1.5 s (sel = 2), 2 = 1.5 s (oob = 9, out of
 range: errors expected), 3 = 1.5 s (oob = 3, back inside). Prints and saves a
@@ -20,7 +20,7 @@ from pathlib import Path
 from runit_link import Link
 from vm_tests import VM, st
 
-FIXTURE = Path(__file__).resolve().parents[4] / "app" / "src" / "domain" / "compiler" / "fixtures" / "program-samples-accessors.json"
+FIXTURE = Path(__file__).resolve().parents[4] / "app" / "tests" / "domain" / "compiler" / "fixtures" / "program-samples-accessors.json"
 FORMATS = {"F": "<f", "U32": "<I", "I32": "<i", "U8": "<B", "B": "<B", "U16": "<H", "I16": "<h", "I8": "<b"}
 DURATIONS = [3.0, 1.5, 1.5, 1.5]
 fails = 0

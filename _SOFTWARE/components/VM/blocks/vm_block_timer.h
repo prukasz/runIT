@@ -5,12 +5,12 @@
 /*
  *           -------------
  *  ->EN     |   TIMER   | ->ENO
- *  ->IN     | (TON/TOF/ | ->Q
+ *  ->IN     | (TON/TOF/ |
  *  ->PT     |    TP)    | ->ET
  *           -------------
  *
  *  VM_BLK_TIMER -- IEC standard timer (TON, TOF, TP, plus inverted variants).
- *  Computes Q state and elapsed time ET from input trigger and preset duration PT.
+ *  Computes the output Q (published as ENO) and elapsed time ET from input trigger and preset duration PT.
  *  Time base is load-configurable: ms (0), s (1), min (2), hr (3).
  *
  *  custom_data layout:
@@ -72,12 +72,12 @@ static inline const char* vm_timer_unit_name(vm_timer_unit_e u) {
 #define VM_TIMER_F_INVERTED    (1u << 3)
 
 typedef struct __attribute__((aligned(8))) {
-  uint8_t  mode;        // vm_timer_mode_e @enum-ref vm_timer_mode_e @extended-view-show
+  uint8_t  mode;        // vm_timer_mode_e @enum-ref vm_timer_mode_e
   uint8_t  flags;       // VM_TIMER_F_*: only VM_TIMER_F_INVERTED (0x08) is set by the app
-  uint8_t  time_base;   // Unit of pt and ET @enum-ref vm_timer_unit_e @extended-view-show
+  uint8_t  time_base;   // Unit of pt and ET @enum-ref vm_timer_unit_e
   uint8_t  _pad1;
   uint32_t _pad2;
-  uint32_t pt;          // Preset time in configured unit (hardcoded fallback) @extended-view-show
+  uint32_t pt;          // Preset time in configured unit (hardcoded fallback)
   uint64_t start_ms;    // Timestamp when timing started @runtime
   uint32_t elapsed;     // Current elapsed time @runtime
 } vm_block_timer_data_t;
@@ -113,8 +113,7 @@ static inline void vm_block_timer_init_data_ex(void* buffer, vm_timer_mode_e mod
 
 #define VM_TIMER_IN_SIGNAL 0u
 #define VM_TIMER_IN_PT 1u
-#define VM_TIMER_Q 0u
-#define VM_TIMER_ET 1u
+#define VM_TIMER_ET 0u  // the only output pin: Q is the block's ENO
 
 static inline bool vm_timer_elapsed(vm_block_timer_data_t* d, uint32_t pt, uint64_t now) {
   const uint64_t scale = vm_timer_unit_scale_ms(d->time_base);
@@ -231,7 +230,7 @@ static inline bool vm_verify_timer(vm_block_h b) {
   return d.mode < VM_TIMER_MODE_CNT && d.time_base < VM_TIMER_UNIT_CNT;
 }
 
-/* Enable-driven. Disabled timers reset; Q/ET are value writes, ENO follows Q. */
+/* Enable-driven. Disabled timers reset and clear ET and ENO. Q is ENO, held as a level; ET is a value write. */
 static inline void vm_blk_timer(vm_block_h b) {
   vm_block_timer_data_t state;
   memcpy(&state, vm_block_get_custom_data(b), sizeof(state));
@@ -239,7 +238,6 @@ static inline void vm_blk_timer(vm_block_h b) {
     state.flags &= (uint8_t)~(VM_TIMER_F_RUNNING | VM_TIMER_F_INITIALIZED | VM_TIMER_F_PREV_IN);
     state.elapsed = 0;
     memcpy(vm_block_get_custom_data(b), &state, sizeof(state));
-    vm_block_drive_gate(b, VM_TIMER_Q, false);
     vm_block_drive_gate(b, VM_TIMER_ET, false);
     vm_block_set_eno(b, false);
     return;
@@ -257,10 +255,6 @@ static inline void vm_blk_timer(vm_block_h b) {
   const bool q = vm_timer_step(&state, signal, pt, now);
   memcpy(vm_block_get_custom_data(b), &state, sizeof(state));
   vm_block_set_eno(b, q);
-  if (b->cfg.q_cnt > VM_TIMER_Q) {
-    uint8_t value = q ? 1 : 0;
-    BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(value, vm_block_get_outputs(b)[VM_TIMER_Q], 0), b);
-  }
   if (b->cfg.q_cnt > VM_TIMER_ET) {
     BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(state.elapsed, vm_block_get_outputs(b)[VM_TIMER_ET], 0), b);
   }
@@ -268,13 +262,17 @@ static inline void vm_blk_timer(vm_block_h b) {
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
-//#vm-block VM_BLK_TIMER @title Timer @category time @state vm_block_timer_data_t @activation enabled Runs every pass while enabled.
-//@block-description IEC timer: on-delay, off-delay or pulse (plus inverted). Q follows the timer, ENO follows Q.
-//@view simple
+//#vm-block VM_BLK_TIMER
+//@title Timer
+//@category time
+//@activation enabled Runs every pass while enabled.
+//@data vm_block_timer_data_t
+//@block-description On-delay, off-delay or pulse timer (plus inverted). ENO is the timer's output Q, held as a level; Elapsed counts in time_base units.
+//@header Timer | {mode} {pt} {time_base}
+//@eno @title Q @description The timer's output level: true after the on-delay, during a pulse, or until the off-delay ends. Put it on another block's Run when to gate that block.
 //@rule mode is a vm_timer_mode_e value and time_base a vm_timer_unit_e value. @error ERR_VM_BLK_BAD_SHAPE
-//@in 0 in @title Input @value bool
-//@in 1 pt @title Preset @description Overrides pt, in time_base units. @value u32
-//@out 0 q @title Q @value bool
-//@out 1 et @title Elapsed @value u32
+//@in 0 in @title Start @description The signal the timer acts on; the block's enable gates the whole timer. @value bool @macro VM_TIMER_IN_SIGNAL
+//@in 1 pt @title Preset @description Overrides pt, in time_base units. @value u32 @overrides pt @macro VM_TIMER_IN_PT
+//@out 0 et @title Elapsed time @description Time elapsed, in time_base units. @value u32 @macro VM_TIMER_ET
 #define VM_BLOCK_TYPE_TIMER \
   {.run = vm_blk_timer, .check = vm_verify_timer, .min_in = 1, .min_q = 0, .required_in = 0x1u, .state_len = sizeof(vm_block_timer_data_t)}

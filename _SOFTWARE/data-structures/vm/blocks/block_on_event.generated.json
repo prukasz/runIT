@@ -50,7 +50,6 @@
         "offset": 0,
         "size": 1,
         "description": "Event domain, 255 = any",
-        "extended_view_show": true,
         "enum_ref": "sys_event_domain_e",
         "source": "user"
       },
@@ -60,7 +59,6 @@
         "offset": 1,
         "size": 1,
         "description": "Source device, 255 = any",
-        "extended_view_show": true,
         "source": "user"
       },
       {
@@ -69,7 +67,6 @@
         "offset": 2,
         "size": 1,
         "description": "Pin / channel, 255 = any",
-        "extended_view_show": true,
         "source": "user"
       },
       {
@@ -78,7 +75,6 @@
         "offset": 3,
         "size": 1,
         "description": "Domain event, 255 = any",
-        "extended_view_show": true,
         "source": "user"
       }
     ]

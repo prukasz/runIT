@@ -35,10 +35,10 @@
 #define VM_EVENT_ANY 0xFFu  // Same value as SYS_EVENT_ANY
 
 typedef struct __attribute__((aligned(4))) {
-  uint8_t domain;     // Event domain, 255 = any @enum-ref sys_event_domain_e @extended-view-show
-  uint8_t device_id;  // Source device, 255 = any @extended-view-show
-  uint8_t channel;    // Pin / channel, 255 = any @extended-view-show
-  uint8_t event;      // Domain event, 255 = any @extended-view-show
+  uint8_t domain;     // Event domain, 255 = any @enum-ref sys_event_domain_e
+  uint8_t device_id;  // Source device, 255 = any
+  uint8_t channel;    // Pin / channel, 255 = any
+  uint8_t event;      // Domain event, 255 = any
 } vm_block_on_event_data_t;
 
 _Static_assert(sizeof(vm_block_on_event_data_t) == 4, "vm_block_on_event_data_t must be 4 bytes");
@@ -94,7 +94,11 @@ static inline void vm_blk_on_event(vm_block_h b) {
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
-//#vm-block VM_BLK_ON_EVENT @title On Event @category system @state vm_block_on_event_data_t @activation enabled Runs every pass while enabled.
+//#vm-block VM_BLK_ON_EVENT
+//@title On Event
+//@category system
+//@activation enabled Runs every pass while enabled.
+//@data vm_block_on_event_data_t
 //@block-description Pulses ENO for one pass when a matching system event arrived (needs a subscription routed to the VM).
 //@out 0 value @title Value @description The event's value (last match of the pass). @value i32
 //@out 1 count @title Count @description Matches this pass. @value u32

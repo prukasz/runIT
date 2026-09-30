@@ -34,8 +34,8 @@ typedef enum {
 
 typedef struct __attribute__((aligned(8))) {
   uint64_t allowed_mask;       // Permitted pins for dynamic selection @hidden-by-default @let-user-select-available default_io_num @dynamic-input 1
-  uint8_t  device_id;          // Target device @id device @contract packet_sys_io_set_level_t @extended-view-show
-  uint8_t  default_io_num;     // Static pin when the Pin input is unwired @id pin @device-field device_id @extended-view-show
+  uint8_t  device_id;          // Target device @id device @contract packet_sys_io_set_level_t
+  uint8_t  default_io_num;     // Static pin when the Pin input is unwired @id pin @device-field device_id
   uint8_t  disabled_action;    // What disabled does @enum-ref vm_io_disabled_state_e
   uint8_t  flags;              // VM_IO_SET_F_*: only VM_IO_SET_F_ALWAYS (0x04) is set by the app
   uint8_t  last_pin;           // Cached last pin written @runtime
@@ -152,12 +152,16 @@ static inline void vm_blk_io_set_level(vm_block_h b) {
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
-//#vm-block VM_BLK_IO_SET_LEVEL @title Set Pin Level @category io @state vm_block_io_set_level_data_t @activation enabled Runs every pass while enabled.
+//#vm-block VM_BLK_IO_SET_LEVEL
+//@title Set Pin Level
+//@category io
+//@activation enabled Runs every pass while enabled.
+//@data vm_block_io_set_level_data_t
 //@block-description Drives a pin on an IO device (ESP GPIO, expander) to the input level; writes only on change unless ALWAYS.
-//@view simple
+//@header {title} | {pin}
 //@rule allowed_mask is not 0, and default_io_num is below 64 and in allowed_mask. @error ERR_VM_BLK_BAD_SHAPE
 //@rule disabled_action is a vm_io_disabled_state_e value. @error ERR_VM_BLK_BAD_SHAPE
-//@in 0 level @title Level @value bool
-//@in 1 pin @title Pin @description Overrides default_io_num; must be in allowed_mask. @value u32 @id pin @device-field device_id @hidden-by-default
+//@in 0 level @title Level @value bool @macro VM_IO_SET_IN_LEVEL
+//@in 1 pin @title Pin @description Overrides default_io_num; must be in allowed_mask. @value u32 @id pin @device-field device_id @overrides default_io_num @macro VM_IO_SET_IN_PIN
 #define VM_BLOCK_TYPE_IO_SET_LEVEL \
   {.run = vm_blk_io_set_level, .check = vm_verify_io_set_level, .min_in = 1, .min_q = 0, .required_in = 0x1u, .state_len = VM_IO_SET_LEVEL_CUSTOM_LEN}

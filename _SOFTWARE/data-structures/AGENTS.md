@@ -26,11 +26,12 @@ Generate web-app JSON descriptors from annotated C headers. C remains the source
 
 ## Files and commands
 
+- `auto-annotations/generate-all.py`: runs every generator below in dependency order and writes LF files. Use it after any annotated header, Kconfig, error map or ESP-IDF change. `--check` changes nothing and exits 1 naming the out-of-date files (CI / before a commit); `--test` also runs the generators' unit tests.
 - `auto-annotations/device/generate-devices.py`: parser and descriptor generator; tests `auto-annotations/device/test_generate_devices.py` (`python -m unittest data-structures/auto-annotations/device/test_generate_devices.py`).
 - `schema/device-definition.schema.json`: generated device JSON contract.
 - `auto-annotations/enums/generate-enums.py`: shared `//#ref-enum` scanner; device generation runs it live.
 - `auto-annotations/vm/generate-vm-model.py`: extracts marked VM C structs and VM enums.
-- `auto-annotations/vm/generate-vm-blocks.py`: one descriptor per VM block in `vm/blocks/` plus `index.generated.json` (`//#vm-block`: palette shape, pins, activation, load rules, state layouts, bytecode encoding); schemas `schema/vm-block.schema.json`, `schema/vm-blocks-index.schema.json`.
+- `auto-annotations/vm/generate-vm-blocks.py`: one descriptor per VM block in `vm/blocks/` plus `index.generated.json` (`//#vm-block`: palette shape, pins and their constants (`@overrides`), the block face (`//@header`), activation, load rules, state layouts, bytecode encoding; the app renders a block from this alone); schemas `schema/vm-block.schema.json`, `schema/vm-blocks-index.schema.json`.
 - `auto-annotations/vm/generate-vm-program.py`: the VM program wire format (`vm_wire.h` records, telemetry, widths, limits, arena formulas); schema `schema/vm-program.schema.json`.
 - `schema/vm-model.schema.json`: generated VM model contract.
 - `auto-annotations/contracts/generate-contracts.py`: extracts explicitly exposed packet contracts.
@@ -42,6 +43,7 @@ Generate web-app JSON descriptors from annotated C headers. C remains the source
 - `auto-annotations/streams/generate-streams.py`: board → app streams (connector name, stream byte, connector ID) from the `sys_data_connector_init()` table, plus the BLE service / characteristics each stream uses (`//@STATIC_SERVICE` / `//@STATIC_CHARACTERISTIC` in `runit_board_defs.h`, bindings in `runit_board_connector_bindings_init()`). Schema `schema/streams.schema.json`. Regenerate after changing a `CONFIG_TX_PACKET_CLASS_*`, a GATT UUID or a connector binding.
 
 ```powershell
+python data-structures/auto-annotations/generate-all.py   # all of the below, in order (add --check / --test)
 python data-structures/auto-annotations/device/generate-devices.py components/codecs/decoders data-structures/devices
 python data-structures/auto-annotations/enums/generate-enums.py <output-directory> <output-name>
 python data-structures/auto-annotations/vm/generate-vm-model.py

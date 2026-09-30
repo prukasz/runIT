@@ -594,7 +594,13 @@ static inline void vm_blk_expr_bit(vm_block_h b) {
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
-//#vm-block VM_BLK_EXPR @title Expression @category data @state vm_expr_code_t @state-tail consts u32[const_cnt], code u8[code_len] (opcodes vm_expr_op_e) @opcodes vm_expr_op_e @activation triggered Runs when an input it reads is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled.
+//#vm-block VM_BLK_EXPR
+//@title Expression
+//@category data
+//@activation triggered Runs when an input it reads is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled.
+//@data vm_expr_code_t
+//@data-tail consts u32[const_cnt], code u8[code_len] (opcodes vm_expr_op_e)
+//@opcodes vm_expr_op_e
 //@block-description Evaluates a numeric or logical formula over its inputs; the result goes to output 0.
 //@rule constants and code fit custom_len (4 + 4 x const_cnt + code_len bytes). @error ERR_VM_EXPR_BAD_CODE
 //@rule Every opcode is a known value; code after END is ignored. @error ERR_VM_EXPR_BAD_CODE
@@ -612,7 +618,13 @@ static inline void vm_blk_expr_bit(vm_block_h b) {
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
-//#vm-block VM_BLK_EXPR_BIT @title Bit Expression @category data @state vm_expr_code_t @state-tail consts u32[const_cnt], code u8[code_len] (opcodes vm_bit_op_e) @opcodes vm_bit_op_e @activation triggered Runs when an input it reads is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled.
+//#vm-block VM_BLK_EXPR_BIT
+//@title Bit Expression
+//@category data
+//@activation triggered Runs when an input it reads is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled.
+//@data vm_expr_code_t
+//@data-tail consts u32[const_cnt], code u8[code_len] (opcodes vm_bit_op_e)
+//@opcodes vm_bit_op_e
 //@block-description Evaluates a bitwise formula over its inputs, on whole numbers; the result goes to output 0.
 //@rule constants and code fit custom_len (4 + 4 x const_cnt + code_len bytes). @error ERR_VM_EXPR_BAD_CODE
 //@rule Every opcode is a known value; code after END is ignored. @error ERR_VM_EXPR_BAD_CODE

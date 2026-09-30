@@ -1,7 +1,7 @@
 """Provoke errors whose payloads carry named IDs, and save every raw frame the board sends.
 
 The saved file is a replay fixture for the app's decoder
-(app/src/domain/decoder/fixtures/, test boardCapture.test.ts): it checks the live
+(app/tests/domain/decoder/fixtures/; app/tests/domain/decoder/boardCapture.test.ts): it checks the live
 error schema ID against errors.generated.json and that every node, field name and
 message resolves. Each command is a read or one the board refuses, so the board's
 state doesn't change.

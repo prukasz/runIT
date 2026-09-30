@@ -35,8 +35,8 @@
 #define VM_PERIODIC_F_OVERRUN (1u << 1)  // Current overrun episode already reported
 
 typedef struct __attribute__((aligned(8))) {
-  uint32_t period;    // In time_base units @extended-view-show
-  uint8_t time_base;  // Unit of period @enum-ref vm_timer_unit_e @extended-view-show
+  uint32_t period;    // In time_base units
+  uint8_t time_base;  // Unit of period @enum-ref vm_timer_unit_e
   uint8_t flags;      // VM_PERIODIC_F_* @runtime
   uint16_t _pad;
   uint64_t next_ms;   // Next deadline @runtime
@@ -125,12 +125,16 @@ static inline void vm_blk_periodic(vm_block_h b) {
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
-//#vm-block VM_BLK_PERIODIC @title Every @category time @state vm_block_periodic_data_t @activation enabled Runs every pass while enabled.
+//#vm-block VM_BLK_PERIODIC
+//@title Every
+//@category time
+//@activation enabled Runs every pass while enabled.
+//@data vm_block_periodic_data_t
 //@block-description Pulses ENO (the tick) for one pass every period while enabled; never bursts after a slow pass.
-//@view simple
+//@header Every | {period} {time_base}
 //@rule time_base is a vm_timer_unit_e value. @error ERR_VM_BLK_BAD_SHAPE
 //@rule With the period input unwired, period is not 0. @error ERR_VM_BLK_BAD_SHAPE
-//@in 0 period @title Period @description Overrides period, in time_base units; 0 pauses. @value u32 @hidden-by-default
+//@in 0 period @title Period @description Overrides period, in time_base units; 0 pauses. @value u32 @overrides period @macro VM_PERIODIC_IN_PERIOD
 //@eno @title Tick @description One-pass pulse every period: put it on another block's Run when to run that block every period.
 #define VM_BLOCK_TYPE_PERIODIC \
   {.run = vm_blk_periodic, .check = vm_verify_periodic, .min_in = 0, .min_q = 0, .required_in = 0x0u, .state_len = VM_PERIODIC_CUSTOM_LEN}

@@ -1,10 +1,9 @@
 import { arrangeProgram } from '../../domain/canvas'
 import { compileProgram } from '../../domain/compiler'
 import type { Diagnostic } from '../../domain/compiler'
-import { blockPinAt, enumAlias, runitDeviceCatalog } from '../../domain/descriptors'
-import type { DeviceCatalog, VmBlockPins, VmBlockType, VmCatalog } from '../../domain/descriptors'
+import { blockPinAt, DEFAULT_ENO, enumAlias, runitDeviceCatalog } from '../../domain/descriptors'
+import type { DeviceCatalog, VmBlockPins, VmBlockType, VmCatalog, VmTemplate, VmTemplatePart } from '../../domain/descriptors'
 import { GRID } from '../../domain/canvas'
-import { decompileExpression, expressionLanguage } from '../../domain/expression'
 import { isDynamicInput } from '../../domain/project/blockPins'
 import { allDevices, pinsOf } from '../../domain/devices'
 import type { ObjectPath, ProgramBlock, ProjectCanvas, ProjectDevice, ProjectDocument } from '../../domain/project'
@@ -20,6 +19,8 @@ const ROW = GRID
 
 export interface BlockPinView {
   readonly index: number
+  /** The setting this input reads while unwired (`@overrides`): the detailed view draws it as a constant. */
+  readonly overrides?: string
   readonly title: string
   readonly value: string
   readonly required: boolean
@@ -34,43 +35,81 @@ export interface BlockShape {
   readonly row: number
 }
 
-/** Editor settings only; never present private runtime state as a live value. */
-export const blockSummary = (type: VmBlockType | undefined, block: ProgramBlock, devices: readonly ProjectDevice[] = [], deviceCatalog: DeviceCatalog = runitDeviceCatalog()): readonly string[] => {
-  if (!type) return []
-  if (type.encoding) {
-    if (!block.expression?.code.length) return ['Set a formula']
-    return [decompileExpression(block.expression.code, block.expression.constants ?? [], expressionLanguage(type.encoding)) ?? 'Invalid formula']
-  }
-  const summary = type.fields.filter((field) => field.source === 'user' && !field.flexible && field.extendedViewShow).map((field) => {
-    const value = block.settings?.[field.name] ?? 0
-    if (field.idKind === 'device') {
-      const device = allDevices(deviceCatalog, devices).find((entry) => entry.deviceId === value)
-      return `Device: ${device?.name ?? 'Unknown'} (#${value})`
-    }
-    if (field.idKind === 'pin') {
-      const deviceId = block.settings?.[field.deviceField!] ?? 0
-      const device = allDevices(deviceCatalog, devices).find((entry) => entry.deviceId === deviceId)
-      const pin = pinsOf(device?.type).find((entry) => entry.value === value)
-      const label = pin && pin.label !== String(value) ? `${pin.label} (${value})` : String(value)
-      const mask = type.fields.find((entry) => entry.letUserSelectAvailable === field.name)
-      return mask?.dynamicInput !== undefined && isDynamicInput(block, mask.dynamicInput) ? `Pin: Dynamic (default ${label})` : `Pin: ${label}`
-    }
-    const members = field.enumRef ? type.enums.get(field.enumRef) : undefined
-    const member = members?.find((entry) => entry.value === value || entry.name === value || entry.name.endsWith(`_${value}`))
-    const label = member ? enumAlias(member.name.replace(/^VM_[A-Z]+_(?:UNIT_)?/, '')) : String(value)
-    return `${field.name.replace(/^k_/, '').replace(/_/g, ' ')}: ${label}`
-  })
-  if (type.fields.some((field) => field.source === 'derived' && field.cType === 'vm_span_t')) summary.push(`body: ${block.body ?? 0} blocks`)
-  return summary
+/*
+ * A block's face is described by its generated descriptor (`//@header`,
+ * `//@body`, `@overrides` in the firmware header): lines of text with
+ * references the app resolves here. Nothing below knows a block type.
+ */
+
+/** A block as placed on a canvas: its output pins may carry names of their own. */
+type FaceBlock = ProgramBlock & { readonly outputAliases?: readonly (string | null)[]; readonly name?: string }
+
+interface FaceContext {
+  readonly type: VmBlockType
+  readonly block: FaceBlock
+  readonly labelOf: (path: ObjectPath) => string
+  readonly devices: readonly ProjectDevice[]
+  readonly deviceCatalog?: DeviceCatalog
 }
 
-/** A setting the way the block shows it: an enum member's short name, else the number. */
-const settingText = (type: VmBlockType, block: ProgramBlock, name: string): string => {
+const isWired = (path: ObjectPath | null | undefined): path is ObjectPath => !!path && path.root !== ''
+
+/** An enum member as a face words it: its `@alias` (`<`), else the name without its prefix (`SET_DOMINANT` -> `Set dominant`). */
+const enumText = (type: VmBlockType, enumName: string, value: number | string): string => {
+  const member = type.enums.get(enumName)?.find((entry) => entry.value === value || entry.name === value || entry.name.endsWith(`_${value}`))
+  return member ? member.alias ?? enumAlias(member.name.replace(/^VM_[A-Z]+_(?:UNIT_)?/, '')) : String(value)
+}
+
+/** A setting the way the face shows it. `long` adds what identifies it (`GPIO_ESP (#0)`, `GPIO4 (4)`); short is for the line under the title (`#4`). */
+const fieldText = (ctx: FaceContext, name: string, long: boolean): string => {
+  const { type, block } = ctx
   const field = type.fields.find((entry) => entry.name === name)
   const value = block.settings?.[name] ?? 0
-  const member = field?.enumRef ? type.enums.get(field.enumRef)?.find((entry) => entry.value === value || entry.name === value || entry.name.endsWith(`_${value}`)) : undefined
-  return member ? enumAlias(member.name.replace(/^VM_[A-Z]+_(?:UNIT_)?/, '')) : String(value)
+  if (!field) return String(value)
+  if (field.idKind === 'device') {
+    const device = allDevices(ctx.deviceCatalog ?? runitDeviceCatalog(), ctx.devices).find((entry) => entry.deviceId === value)
+    return long ? `${device?.name ?? 'Unknown'} (#${value})` : device?.name ?? `#${value}`
+  }
+  if (field.idKind === 'pin') {
+    const mask = type.fields.find((entry) => entry.letUserSelectAvailable === field.name)
+    const dynamic = mask?.dynamicInput !== undefined && isDynamicInput(block, mask.dynamicInput)
+    if (!long) return dynamic ? 'dynamic pin' : `#${value}`
+    const deviceId = block.settings?.[field.deviceField!] ?? 0
+    const device = allDevices(ctx.deviceCatalog ?? runitDeviceCatalog(), ctx.devices).find((entry) => entry.deviceId === deviceId)
+    const pin = pinsOf(device?.type).find((entry) => entry.value === value)
+    const label = pin && pin.label !== String(value) ? `${pin.label} (${value})` : String(value)
+    return dynamic ? `Dynamic (default ${label})` : label
+  }
+  return field.enumRef ? enumText(type, field.enumRef, value) : String(value)
 }
+
+/** One reference of a template: an input pin reads from what feeds it, else from the constant it overrides. */
+const refText = (ctx: FaceContext, part: Extract<VmTemplatePart, { ref: string }>, long: boolean): string => {
+  const { type, block } = ctx
+  switch (part.kind) {
+    case 'title': return type.title
+    case 'field': return fieldText(ctx, part.field!, long)
+    case 'out': {
+      const target = block.outputs?.[part.pin!]
+      return block.outputAliases?.[part.pin!] || (target ? ctx.labelOf({ root: target }) : part.ref)
+    }
+    case 'pin': {
+      // A wired pin names its source; one the user made dynamic says so; otherwise the constant it overrides.
+      const path = block.inputs?.[part.pin!]
+      if (isWired(path)) return ctx.labelOf(path)
+      if (block.dynamicInputs?.includes(part.pin!)) return type.fields.some((entry) => entry.idKind === 'pin' && entry.name === part.field) ? 'dynamic pin' : 'dynamic'
+      return part.field ? fieldText(ctx, part.field, long) : blockPinAt(type.inputs, part.pin!)?.title ?? part.ref
+    }
+    default: return part.ref
+  }
+}
+
+const templateText = (ctx: FaceContext, template: VmTemplate, long: boolean): string =>
+  template.map((part) => ('text' in part ? part.text : refText(ctx, part, long))).join('')
+
+/** A setting as the face words it, short: `+`, `#4`, `300`. */
+export const settingText = (type: VmBlockType, block: FaceBlock, name: string, devices: readonly ProjectDevice[] = [], deviceCatalog?: DeviceCatalog): string =>
+  fieldText({ type, block, labelOf: pathText, devices, deviceCatalog }, name, false)
 
 /** The block face's title in two parts: the block's words, then the value part it is set to (`Every` | `100 MS`, `Toggle Pin` | `#22`), which the face draws apart. */
 export interface BlockHeadline {
@@ -78,35 +117,16 @@ export interface BlockHeadline {
   readonly value?: string
 }
 
-/** The pin an IO block drives: `#22`, or `dynamic` while the Pin input picks it at run time. */
-const pinText = (type: VmBlockType, block: ProgramBlock): string => {
-  const mask = type.fields.find((entry) => entry.letUserSelectAvailable === 'default_io_num')
-  return mask?.dynamicInput !== undefined && isDynamicInput(block, mask.dynamicInput) ? 'dynamic pin' : `#${block.settings?.default_io_num ?? 0}`
-}
-
-/** The block's title with its main settings, for the block face: `Every 100 MS`. Nothing to add for a block without settings worth a glance. */
-export const blockHeadlineParts = (type: VmBlockType | undefined, block: ProgramBlock, labelOf: (path: ObjectPath) => string = pathText): BlockHeadline | undefined => {
-  if (!type) return undefined
-  const text = (name: string) => settingText(type, block, name)
-  // A setting whose input pin is wired reads from there: the face names what feeds it, not the unused constant.
-  const wired = (name: string, pin: number) => {
-    const path = block.inputs?.[pin]
-    return path && path.root !== '' ? labelOf(path) : text(name)
-  }
-  switch (type.key) {
-    case 'PERIODIC': return { lead: 'Every', value: `${wired('period', 0)} ${text('time_base')}` }
-    case 'TIMER': return { lead: 'Timer', value: `${text('mode')} ${wired('pt', 1)} ${text('time_base')}` }
-    case 'EDGE': return { lead: `${text('edge_type')} edge, change ${wired('change_by', 1)}` }
-    case 'LATCH': return { lead: `Latch ${text('mode')}` }
-    case 'FOR': return { lead: 'For', value: `${wired('k_start', 0)} to ${wired('k_end', 1)} step ${wired('k_step', 2)}` }
-    case 'IO_SET_LEVEL':
-    case 'IO_TOGGLE': return { lead: type.title, value: pinText(type, block) }
-    default: return undefined
-  }
+/** The block's `//@header` for this block: its words with the settings (or what feeds them) filled in, `Every 100 MS`. Nothing for a block without a header. */
+export const blockHeadlineParts = (type: VmBlockType | undefined, block: FaceBlock, labelOf: (path: ObjectPath) => string = pathText, devices: readonly ProjectDevice[] = [], deviceCatalog?: DeviceCatalog): BlockHeadline | undefined => {
+  if (!type?.header) return undefined
+  const ctx: FaceContext = { type, block, labelOf, devices, deviceCatalog }
+  const lead = templateText(ctx, type.header.lead, false)
+  return type.header.value ? { lead, value: templateText(ctx, type.header.value, false) } : { lead }
 }
 
 /** `blockHeadlineParts` as one line: `Every 100 MS`. */
-export const blockHeadline = (type: VmBlockType | undefined, block: ProgramBlock, labelOf?: (path: ObjectPath) => string): string | undefined => {
+export const blockHeadline = (type: VmBlockType | undefined, block: FaceBlock, labelOf?: (path: ObjectPath) => string): string | undefined => {
   const parts = blockHeadlineParts(type, block, labelOf)
   return parts && (parts.value ? `${parts.lead} ${parts.value}` : parts.lead)
 }
@@ -128,16 +148,51 @@ const pinViews = (pins: VmBlockPins, count: number): BlockPinView[] =>
     const pin = blockPinAt(pins, index)!
     // A repeating pin (EXPR's inputs, SWITCH's branches) is numbered.
     const repeated = index >= pins.pins.length - 1 && pins.max > pins.pins.length
-    return { index, title: repeated ? `${pin.title} ${index}` : pin.title, value: pin.value, required: pin.required }
+    return { index, title: repeated ? `${pin.title} ${index}` : pin.title, value: pin.value, required: pin.required, ...(pin.overrides ? { overrides: pin.overrides } : {}) }
   })
 
-export const blockShape = (type: VmBlockType | undefined, block: ProgramBlock & { readonly view?: 'simple' | 'detailed' }, detailed = false): BlockShape => {
-  const expanded = !type?.simpleOnly && (block.view ? block.view === 'detailed' : detailed)
-  const inputs = type ? pinViews(type.inputs, pinCount(type.inputs, block.inputs?.length ?? 0)).filter((pin) => !blockPinAt(type.inputs, pin.index)?.hiddenByDefault || block.dynamicInputs?.includes(pin.index) || block.inputs?.[pin.index]) : []
+/** The headline as the small line under the title says it: without the block's own title when the face already has it (`For 0 to 3` under the name `For` reads `0 to 3`). */
+export const blockSubtitleHeadline = (type: VmBlockType | undefined, block: FaceBlock, labelOf?: (path: ObjectPath) => string): string | undefined => {
+  const parts = blockHeadlineParts(type, block, labelOf)
+  return parts?.value !== undefined && parts.lead === type?.title ? parts.value : blockHeadline(type, block, labelOf)
+}
+
+let measuring: CanvasRenderingContext2D | null | undefined
+
+/** Width of `text` in `font`, measured in the browser; an estimate where there is no canvas (server rendering, tests). */
+const textWidth = (text: string, font: string, perChar: number): number => {
+  if (measuring === undefined) {
+    try {
+      measuring = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d')
+    } catch {
+      measuring = null
+    }
+  }
+  if (!measuring) return text.length * perChar
+  measuring.font = font
+  return measuring.measureText(text).width
+}
+
+const MONO = 'ui-monospace, SFMono-Regular, Consolas, monospace'
+
+/** Width the block's title lines need, in canvas units, so a long header is never cut off: the title, the small line under it and the named ENO tag beside them, measured, plus the header's padding. */
+const headerWidth = (type: VmBlockType | undefined, block: FaceBlock, expanded: boolean): number => {
+  if (!type) return 0
+  const family = typeof document === 'undefined' ? 'sans-serif' : getComputedStyle(document.body).fontFamily
+  const title = block.name || blockHeadline(type, block) || type.title
+  const subtitle = [block.name ? blockSubtitleHeadline(type, block) ?? '' : '', expanded ? block.id : ''].filter(Boolean).join(' · ')
+  const eno = type.eno.title !== DEFAULT_ENO.title ? textWidth(type.eno.title, `600 10px ${family}`, 6.2) + 6 : 0
+  return Math.max(textWidth(title, `600 12px ${family}`, 6.8), textWidth(subtitle, `10px ${MONO}`, 6)) + eno + 24 + 8
+}
+
+export const blockShape = (type: VmBlockType | undefined, block: FaceBlock & { readonly view?: 'simple' | 'detailed' }, detailed = false): BlockShape => {
+  const expanded = !!type?.hasDetail && (block.view ? block.view === 'detailed' : detailed)
+  const inputs = type ? pinViews(type.inputs, pinCount(type.inputs, block.inputs?.length ?? 0)).filter((pin) => !blockPinAt(type.inputs, pin.index)?.hiddenByDefault || block.dynamicInputs?.includes(pin.index) || block.inputs?.[pin.index] || (expanded && blockPinAt(type.inputs, pin.index)?.overrides)) : []
   const outputs = type ? pinViews(type.outputs, pinCount(type.outputs, block.outputs?.length ?? 0)) : []
   const rows = Math.max(1, inputs.length, outputs.length)
-  const summaryHeight = expanded ? (type?.encoding ? 2 * ROW + 16 : Math.max(1, blockSummary(type, block).length) * ROW + 16) : 0
-  return { width: BLOCK_WIDTH + (expanded ? 4 * GRID : 0), height: HEADER + rows * ROW + summaryHeight, inputs, outputs, row: ROW }
+  const summaryHeight = expanded && type?.encoding ? 2 * ROW + 16 : 0
+  const width = Math.max(BLOCK_WIDTH + (expanded && type?.encoding ? 4 * GRID : 0), Math.ceil(headerWidth(type, block, expanded) / GRID) * GRID)
+  return { width, height: HEADER + rows * ROW + summaryHeight, inputs, outputs, row: ROW }
 }
 
 /** Where a wire meets a block, in canvas units: input pins on the left edge, outputs on the right, EN / ENO at header height. */

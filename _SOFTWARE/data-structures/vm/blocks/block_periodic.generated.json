@@ -21,9 +21,10 @@
         "name": "period",
         "title": "Period",
         "value": "u32",
-        "hidden_by_default": true,
         "description": "Overrides period, in time_base units; 0 pauses.",
-        "required": false
+        "overrides": "period",
+        "required": false,
+        "hidden_by_default": true
       }
     ]
   },
@@ -48,7 +49,29 @@
     "title": "Tick",
     "description": "One-pass pulse every period: put it on another block's Run when to run that block every period."
   },
-  "view": "simple",
+  "header": {
+    "lead": [
+      {
+        "text": "Every"
+      }
+    ],
+    "value": [
+      {
+        "ref": "period",
+        "kind": "pin",
+        "pin": 0,
+        "field": "period"
+      },
+      {
+        "text": " "
+      },
+      {
+        "ref": "time_base",
+        "kind": "field",
+        "field": "time_base"
+      }
+    ]
+  },
   "state": {
     "struct": "vm_block_periodic_data_t",
     "source_file": "components/VM/blocks/vm_block_periodic.h",
@@ -61,8 +84,8 @@
         "offset": 0,
         "size": 4,
         "description": "In time_base units",
-        "extended_view_show": true,
-        "source": "user"
+        "source": "user",
+        "overridden_by": 0
       },
       {
         "name": "time_base",
@@ -70,7 +93,6 @@
         "offset": 4,
         "size": 1,
         "description": "Unit of period",
-        "extended_view_show": true,
         "enum_ref": "vm_timer_unit_e",
         "source": "user"
       },

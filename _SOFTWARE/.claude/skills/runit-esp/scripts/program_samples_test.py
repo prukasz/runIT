@@ -1,8 +1,8 @@
 """A whole VM program compiled by the app (objects, accessors, blocks), run on a board.
 
 Usage: python program_samples_test.py [COM4]
-Reads app/src/domain/compiler/fixtures/program-samples.json (made by the app's
-programSamples.test.ts): upload frames, subscribe / run / live-write frames and
+Reads app/tests/domain/compiler/fixtures/program-samples.json (made by the app's
+app/tests/domain/compiler/programSamples.test.ts): upload frames, subscribe / run / live-write frames and
 the values to expect. Uploads, runs 1.5 s and checks phase 0; writes sel = 0,
 runs 1 s and checks phase 1 (a value not resent keeps its last one). Resets the
 VM at the end.
@@ -18,7 +18,7 @@ from pathlib import Path
 from runit_link import Link
 from vm_tests import VM, st, values
 
-FIXTURE = Path(__file__).resolve().parents[4] / "app" / "src" / "domain" / "compiler" / "fixtures" / "program-samples.json"
+FIXTURE = Path(__file__).resolve().parents[4] / "app" / "tests" / "domain" / "compiler" / "fixtures" / "program-samples.json"
 FORMATS = {"F": "<f", "U32": "<I", "I32": "<i", "U8": "<B", "B": "<B"}
 fails = 0
 

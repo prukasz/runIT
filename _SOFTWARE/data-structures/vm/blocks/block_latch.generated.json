@@ -56,7 +56,18 @@
       "error_tag": 43296
     }
   ],
-  "view": "simple",
+  "header": {
+    "lead": [
+      {
+        "text": "Latch "
+      },
+      {
+        "ref": "mode",
+        "kind": "field",
+        "field": "mode"
+      }
+    ]
+  },
   "state": {
     "struct": "vm_block_latch_data_t",
     "source_file": "components/VM/blocks/vm_block_latch.h",
@@ -69,7 +80,6 @@
         "offset": 0,
         "size": 1,
         "description": "Which input wins when both are true",
-        "extended_view_show": true,
         "enum_ref": "vm_latch_mode_e",
         "source": "user"
       },

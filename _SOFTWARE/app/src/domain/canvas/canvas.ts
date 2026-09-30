@@ -1,4 +1,4 @@
-import type { CanvasBlock, ProgramBlock, ProjectCanvas } from '../project'
+import type { CanvasBlock, ObjectPath, ProgramBlock, ProjectCanvas } from '../project'
 import { arrangeProgram } from './arrange'
 
 /*
@@ -145,6 +145,39 @@ export const pasteBlock = (canvases: readonly ProjectCanvas[], canvasId: string,
   const { outputs: _outputs, ...rest } = copy
   const block: CanvasBlock = { ...rest, id, x: at.x, y: at.y, ...(outputs?.length ? { outputs } : {}) }
   return { canvases: addBlock(canvases, canvasId, block), id }
+}
+
+/**
+ * Copies of several blocks, each moved by `shift`. A copy that read what another
+ * copied block writes (its output, its ENO) reads that block's copy, so the
+ * group keeps its internal wiring; everything else is read as the originals did.
+ */
+export const pasteBlocks = (canvases: readonly ProjectCanvas[], canvasId: string, copies: readonly CanvasBlock[], shift: Point): { canvases: ProjectCanvas[]; ids: string[] } => {
+  let current: ProjectCanvas[] = [...canvases]
+  const renamed = new Map<string, string>()
+  const ids: string[] = []
+  for (const copy of copies) {
+    const result = pasteBlock(current, canvasId, copy, snapPoint({ x: copy.x + shift.x, y: copy.y + shift.y }))
+    current = result.canvases
+    renamed.set(copy.id, result.id)
+    ids.push(result.id)
+  }
+  const remap = (path: ObjectPath): ObjectPath => {
+    const colon = path.root.indexOf(':')
+    const owner = colon < 0 ? undefined : renamed.get(path.root.slice(0, colon))
+    const steps = path.steps?.map((step) => (step.kind === 'dynamic' ? { ...step, index: remap(step.index) } : step))
+    return { ...path, root: owner ? owner + path.root.slice(colon) : path.root, ...(steps ? { steps } : {}) }
+  }
+  if (copies.length > 1) {
+    for (const id of ids) {
+      current = updateBlock(current, id, (block) => ({
+        ...block,
+        ...(block.inputs ? { inputs: block.inputs.map((path) => (path ? remap(path) : path)) } : {}),
+        ...(block.enables ? { enables: block.enables.map(remap) } : {}),
+      }))
+    }
+  }
+  return { canvases: current, ids }
 }
 
 /** Change a block (settings, position …); its ID stays. */
