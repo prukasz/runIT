@@ -1,45 +1,54 @@
+// This file's DBG() calls fire on CONFIG_DBG_GLOBAL or this component's own
+// switch (components/utils/Kconfig) - see DBG()'s doc comment in utils.h.
+#define DBG_ENABLE CONFIG_DBG_ENABLE_SYS_INTERFACE
+
 #include "sys_interface.h"
-#include <esp_log.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
-#include <freertos/task.h>
-#include "dec_sys_contracts.h"
-#include "dec_vm_loader.h"
-#include "sys_ble.h"
 #include "sys_buffers.h"
-#include "sys_error.h"
+#include "sys_data_connector.h"
+#include <string.h>
 #include "utils.h"
+#include <sdkconfig.h>
 
 static const char* TAG = "sys_interface";
 
-#include <sdkconfig.h>
 
 R_TASK_DEFINE(s_interface_rx_task_handle, CONFIG_SYS_INTERFACE_RX_TASK_STACK_SIZE);
-
-// Owned by sys_interface (not any one transport) so any producer can share
-// it - see sys_interface_get_rx_wake_sem().
-R_BINARY_SEM_DEFINE(s_rx_wake_sem);
+static void sys_interface_receiver_task(void* arg);
 
 typedef struct {
-  uint8_t class_header;
-  sys_interface_handler_f handler;
+  uint8_t decoder_header;
+  sys_interface_handler_f decoder;
   const char* name;
-} sys_interface_class_t;
+} sys_interface_decoder_t;
 
-// Classes are only ever appended (0..s_class_count-1), never removed - setup-
-// only bookkeeping, so a plain count replaces the old in_use-flag + free-slot scan.
-static sys_interface_class_t s_classes[CONFIG_SYS_INTERFACE_MAX_CLASSES];
-static size_t s_class_count = 0;
+/**
+ * @brief Boot-time decoder registry.
+ *
+ * Decoders are appended to @c s_decoders[0..s_decoder_count-1] and are never
+ * removed, so no free-slot scan or per-entry in-use flag is needed.
+ */
+static sys_interface_decoder_t s_decoders[CONFIG_SYS_INTERFACE_MAX_CLASSES];
+static size_t s_decoder_count = 0;
 
-// Tap buffer: populated only by the receiver task (see sys_interface_receiver_task()),
-// drained by whoever polls sys_interface_tap_poll(). Never touched from inside
-// sys_interface_decode() itself, so a direct decode() call (e.g. sys_actions'
-// replay) is never tapped - see SYS_ACTIONS.MD.
+/**
+ * @brief Statically allocated frame-tap storage.
+ *
+ * The receiver task populates it while capture is enabled and
+ * sys_interface_tap_poll() drains it. Direct sys_interface_decode() calls are
+ * not tapped. The buffer never allocates or releases heap memory.
+ */
+_Static_assert(CONFIG_SYS_ACTIONS_TAP_BUFFER_SIZE >= SYS_BUFF_SIZE_FOR(CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX, 2),
+               "CONFIG_SYS_ACTIONS_TAP_BUFFER_SIZE can't take a CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX frame");
+R_RINGBUFFER_DEFINE(s_tap_ringbuffer, CONFIG_SYS_ACTIONS_TAP_BUFFER_SIZE, RINGBUF_TYPE_NOSPLIT);
 static sys_buff_t s_tap_buff;
-static bool s_tap_enabled = false;
+static volatile bool s_tap_capture = false;
 
-// Nesting-safe, same shape as sys_error.c's SE_suspend()/SE_resume() - a
-// best-effort signal to sys_interface_receiver_task(), not a hard barrier.
+/**
+ * @brief Nesting depth for best-effort RX suspension.
+ *
+ * This mirrors SE_suspend()/SE_resume() and is a signal to the receiver task,
+ * not a hard synchronization barrier.
+ */
 static volatile int8_t s_rx_suspend_depth = 0;
 
 void sys_interface_suspend_rx(void) {
@@ -47,119 +56,193 @@ void sys_interface_suspend_rx(void) {
 }
 
 void sys_interface_resume_rx(void) {
-  if (s_rx_suspend_depth > 0) s_rx_suspend_depth--;
+  if (s_rx_suspend_depth > 0 && --s_rx_suspend_depth == 0 && s_interface_rx_task_handle) {
+    /* Frames waited in their providers; wake the receiver to drain them now. */
+    xTaskNotifyGive(s_interface_rx_task_handle);
+  }
 }
 
 bool sys_interface_is_rx_suspended(void) {
   return s_rx_suspend_depth > 0;
 }
 
-typedef struct {
-  sys_interface_rx_dequeue_f dequeue_fn;
-  void* ctx;
-  uint8_t* frame;
-  size_t max_frame_len;
-  const char* name;
-} sys_interface_rx_source_t;
-
-// Sources are only ever appended (0..s_rx_source_count-1), never removed -
-// same plain-count shape as s_classes[] above, for the same reason (setup-time
-// bookkeeping, no need for a free-slot scan or unregister).
-static sys_interface_rx_source_t s_rx_sources[CONFIG_SYS_INTERFACE_MAX_RX_SOURCES];
-static size_t s_rx_source_count = 0;
-static uint8_t s_rx_frames[CONFIG_SYS_INTERFACE_MAX_RX_SOURCES][CONFIG_SYS_INTERFACE_RX_FRAME_CAP];
-
 #undef OWNER
 #define OWNER OWNER_SYS_INTERFACE_DECODE
 
 err_h convert_to_packet(const uint8_t* data, size_t len, void* packet, size_t packet_size) {
   if (len < packet_size) {
-    SE_RET_ERR(ERR_INTERFACE_SHORT_FRAME, .got = (uint32_t)len, .need = (uint32_t)packet_size);
+    SE_FAIL(ERR_INTERFACE_SHORT_FRAME, .got = (uint32_t)len, .need = (uint32_t)packet_size);
   }
   memcpy(packet, data, packet_size);
   return NULL;
 }
 
-err_h sys_interface_decode(const uint8_t* data, size_t len) {
+/* Response being built for the live frame the RX task is decoding.
+   s_response is task-local and set only by the RX task around one live frame,
+   so frames decoded elsewhere (sys_actions replay, other tasks) and frames
+   replayed from inside a live one never write into it. */
+/* Response header: [seq][class][packet][status], then the data. */
+#define RSP_SEQ 0
+#define RSP_CLASS 1
+#define RSP_PACKET 2
+#define RSP_STATUS 3
+#define RSP_HDR_LEN 4
+
+typedef struct {
+  uint8_t buf[RSP_HDR_LEN + CONFIG_SYS_INTERFACE_RESPONSE_MAX];
+  size_t len;
+} interface_response_t;
+
+static interface_response_t s_live_response; /* RX task only */
+static __thread interface_response_t* s_response;
+
+static SE_MUST_USE err_h decode_frame(const uint8_t* data, size_t len) {
   SE_CHECK_NOT_NULL(data);
   if (len == 0) {
-    SE_RET_ERR(ERR_INTERFACE_SHORT_FRAME, .got = 0, .need = 1);
+    SE_FAIL(ERR_INTERFACE_SHORT_FRAME, .got = 0, .need = 1);
   }
 
-  const uint8_t class_header = data[0];
-  for (size_t i = 0; i < s_class_count; i++) {
-    if (s_classes[i].class_header == class_header) {
-      ESP_LOGI(TAG, "routing frame [%u bytes] to class 0x%02X (%s)", (unsigned)len, class_header, s_classes[i].name ? s_classes[i].name : "unnamed");
-      return s_classes[i].handler(data + 1, len - 1);
+  const uint8_t decoder_header = data[0];
+  for (size_t i = 0; i < s_decoder_count; i++) {
+    if (s_decoders[i].decoder_header == decoder_header) {
+      DBG(ESP_LOGI(TAG, "routing frame [%u bytes] to decoder 0x%02X (%s)", (unsigned)len, decoder_header, s_decoders[i].name ? s_decoders[i].name : "unnamed"));
+      return s_decoders[i].decoder(data + 1, len - 1);
     }
   }
 
-  ESP_LOGW(TAG, "no handler registered for class 0x%02X", class_header);
-  SE_RET_ERR(ERR_INTERFACE_UNKNOWN_CLASS, .class_header = class_header);
+  DBG(ESP_LOGW(TAG, "no decoder registered for class 0x%02X", decoder_header));
+  SE_FAIL(ERR_INTERFACE_UNKNOWN_CLASS, .class_header = decoder_header);
+}
+
+err_h sys_interface_decode(const uint8_t* data, size_t len) {
+  interface_response_t* outer = s_response;
+  s_response = NULL;
+  err_h err = decode_frame(data, len);
+  s_response = outer;
+  return err;
+}
+
+#undef OWNER
+#define OWNER OWNER_SYS_INTERFACE_RESPOND
+err_h sys_interface_respond(const void* data, size_t len) {
+  SE_CHECK_NOT_NULL(data);
+  if (s_response == NULL) return NULL;
+  size_t data_len = s_response->len - RSP_HDR_LEN;
+  if (len > CONFIG_SYS_INTERFACE_RESPONSE_MAX - data_len) {
+    SE_FAIL(ERR_INTERFACE_RESPONSE_TOO_LONG, .got = (uint32_t)(data_len + len), .max = CONFIG_SYS_INTERFACE_RESPONSE_MAX);
+  }
+  memcpy(&s_response->buf[s_response->len], data, len);
+  s_response->len += len;
+  return NULL;
+}
+
+/* Turn the response into [seq][class][packet][ERROR][u16 tag][u16 owner] of err's root cause. */
+static void set_error_status(interface_response_t* rsp, err_h err) {
+  err_h root = SE_get_error_root(err);
+  uint16_t tag = root ? (uint16_t)root->tag : 0;
+  uint16_t owner = root ? (uint16_t)root->owner : 0;
+  rsp->buf[RSP_STATUS] = SYS_INTERFACE_STATUS_ERROR;
+  rsp->buf[RSP_HDR_LEN + 0] = (uint8_t)(tag & 0xFF);
+  rsp->buf[RSP_HDR_LEN + 1] = (uint8_t)(tag >> 8);
+  rsp->buf[RSP_HDR_LEN + 2] = (uint8_t)(owner & 0xFF);
+  rsp->buf[RSP_HDR_LEN + 3] = (uint8_t)(owner >> 8);
+  rsp->len = RSP_HDR_LEN + 4;
+}
+
+/* Decode one live frame (sequence byte already removed) and answer it:
+   [seq][class][packet][status][data], sent only to the transport (and peer)
+   the frame came from. The error chain (if any) is still handed to the error
+   handler afterwards. A frame that is only a sequence byte is answered with
+   ERR_INTERFACE_SHORT_FRAME (class and packet 0). */
+static void decode_live_frame(uint8_t seq, const uint8_t* data, size_t len, const sys_data_connector_origin_t* origin) {
+  interface_response_t* rsp = &s_live_response;
+  rsp->buf[RSP_SEQ] = seq;
+  rsp->buf[RSP_CLASS] = (len > 0) ? data[0] : 0x00;
+  rsp->buf[RSP_PACKET] = (len > 1) ? data[1] : 0x00;
+  rsp->buf[RSP_STATUS] = SYS_INTERFACE_STATUS_OK;
+  rsp->len = RSP_HDR_LEN;
+
+  s_response = rsp;
+  err_h err = decode_frame(data, len);
+  s_response = NULL;
+
+  if (err != NULL) set_error_status(rsp, err);
+
+  err_h send_err = sys_data_connector_send_to(SYS_DATA_CONNECTOR_INTERFACE, origin, rsp->buf, rsp->len);
+  /* An answer the origin's transport can't carry (a large getter response
+     over a small BLE MTU) is replaced by an error answer, so every command
+     still gets exactly one response and the client isn't left waiting on its seq. */
+  if (send_err != NULL && rsp->buf[RSP_STATUS] == SYS_INTERFACE_STATUS_OK) {
+    set_error_status(rsp, send_err);
+    SE_REPORT(sys_data_connector_send_to(SYS_DATA_CONNECTOR_INTERFACE, origin, rsp->buf, rsp->len));
+  }
+  SE_REPORT(send_err);
+  SE_REPORT(err);
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_INTERFACE_CLASS
-err_h sys_interface_register_class(uint8_t class_header, sys_interface_handler_f handler, const char* name) {
-  SE_CHECK_NOT_NULL(handler);
+err_h sys_interface_register_decoder(uint8_t decoder_header, sys_interface_handler_f decoder, const char* name) {
+  SE_CHECK_NOT_NULL(decoder);
 
-  for (size_t i = 0; i < s_class_count; i++) {
-    if (s_classes[i].class_header == class_header) {
-      SE_RET_ERR(ERR_INTERFACE_CLASS_TAKEN, .class_header = class_header);
+  for (size_t i = 0; i < s_decoder_count; i++) {
+    if (s_decoders[i].decoder_header == decoder_header) {
+      SE_FAIL(ERR_INTERFACE_CLASS_TAKEN, .class_header = decoder_header);
     }
   }
-  if (s_class_count >= CONFIG_SYS_INTERFACE_MAX_CLASSES) {
-    SE_RET_ERR(ERR_INTERFACE_NO_CLASS_SLOTS, .class_header = class_header);
+  if (s_decoder_count >= CONFIG_SYS_INTERFACE_MAX_CLASSES) {
+    SE_FAIL(ERR_INTERFACE_NO_CLASS_SLOTS, .class_header = decoder_header);
   }
 
-  s_classes[s_class_count] = (sys_interface_class_t){
-      .class_header = class_header,
-      .handler = handler,
+  s_decoders[s_decoder_count] = (sys_interface_decoder_t){
+      .decoder_header = decoder_header,
+      .decoder = decoder,
       .name = name,
   };
-  ESP_LOGI(TAG, "registered class 0x%02X (%s) in slot %u", class_header, name ? name : "unnamed", (unsigned)s_class_count);
-  s_class_count++;
+  ESP_LOGI(TAG, "registered decoder 0x%02X (%s) in slot %u", decoder_header, name ? name : "unnamed", (unsigned)s_decoder_count);
+  s_decoder_count++;
   return NULL;
 }
 
+#undef OWNER
+#define OWNER OWNER_SYS_INTERFACE_BASE
 err_h sys_interface_init(void) {
-  s_class_count = 0;
-  SE_RET_IF_ERR(sys_interface_register_class(SYS_CONTRACTS_CLASS_HEADER, dec_sys_contracts_decode, "sys_contracts"));
-  /* Registered here rather than self-registered from the VM (the sys_actions
-     pattern) because codecs already REQUIRES VM, so a VM -> codecs dependency
-     for the decoder header would be circular. Worth moving into a vm_init()
-     once the VM owns one, alongside the supervisor start. */
-  SE_RET_IF_ERR(sys_interface_register_class(VM_LOADER_CLASS_HEADER, dec_vm_loader_decode, "vm_loader"));
+  s_tap_buff = (sys_buff_t){
+      .buff = s_tap_ringbuffer,
+  };
+  if (!sys_data_connector_exists(SYS_DATA_CONNECTOR_INTERFACE)) {
+    SE_FAIL(ERR_BASE_NOT_FOUND, SYS_DATA_CONNECTOR_INTERFACE);
+  }
+
+  if (s_interface_rx_task_handle == NULL) {
+    R_TASK_START(s_interface_rx_task_handle, sys_interface_receiver_task, NULL, CONFIG_SYS_INTERFACE_RX_TASK_PRIO);
+    if (s_interface_rx_task_handle == NULL) {
+      SE_FAIL(ERR_BASE_NO_MEM, 0);
+    }
+  }
+
   return NULL;
 }
 #undef OWNER
 
 #define OWNER OWNER_SYS_INTERFACE_DECODE
-err_h sys_interface_tap_enable(size_t buf_size) {
-  if (s_tap_enabled) return NULL;
-  SE_RET_IF_ERR(sys_buff_init(&s_tap_buff, 0, buf_size));
-  s_tap_enabled = true;
-  return NULL;
+void sys_interface_tap_capture_start(void) {
+  s_tap_capture = true;
 }
 
-void sys_interface_tap_disable(void) {
-  if (!s_tap_enabled) return;
-  s_tap_enabled = false;
-  sys_buff_free(&s_tap_buff);
+void sys_interface_tap_capture_end(void) {
+  s_tap_capture = false;
 }
 
 err_h sys_interface_tap_poll(uint8_t* buf, size_t max_len, size_t* out_len) {
   SE_CHECK_NOT_NULL(buf);
   SE_CHECK_NOT_NULL(out_len);
-  if (!s_tap_enabled) {
-    *out_len = 0;
-    return NULL;
-  }
 
-  err_h pop_res = sys_buff_pop_raw(&s_tap_buff, buf, max_len, out_len);
+  err_h pop_res = sys_buff_pop(&s_tap_buff, buf, max_len, out_len);
   if (SE_IS_ERR(pop_res)) {
     if (pop_res->tag == ERR_BASE_NOT_FOUND) {
       *out_len = 0;
+      SE_release(pop_res);
       return NULL;
     }
     return pop_res;
@@ -170,96 +253,65 @@ err_h sys_interface_tap_poll(uint8_t* buf, size_t max_len, size_t* out_len) {
 
 #define OWNER OWNER_SYS_INTERFACE_SOURCE
 
-SemaphoreHandle_t sys_interface_get_rx_wake_sem(void) {
-  return s_rx_wake_sem;
+static uint8_t s_rx_frame[CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX];
+
+/* Decode every frame waiting on the interface connector, stopping early if a
+   frame suspended RX (a replayed action, or the fault hook). */
+static void drain_frames(void) {
+  while (!sys_interface_is_rx_suspended()) {
+    size_t len = 0;
+    sys_data_connector_origin_t origin;
+    err_h err = sys_data_connector_receive(SYS_DATA_CONNECTOR_INTERFACE, s_rx_frame, sizeof(s_rx_frame), &len, &origin);
+    if (SE_IS_ERR(err)) {
+      SE_REPORT(err);
+      return;
+    }
+    if (len == 0) return;
+
+    /* [seq][class][packet][payload]: the sequence byte belongs to this live
+       exchange only, so it is neither recorded (replays carry none) nor seen
+       by decoders. */
+    const uint8_t seq = s_rx_frame[0];
+    const uint8_t* frame = &s_rx_frame[1];
+    const size_t frame_len = len - 1;
+    if (s_tap_capture && frame_len > 0) {
+      SE_REPORT(sys_buff_push(&s_tap_buff, frame, frame_len, 0));
+    }
+    decode_live_frame(seq, frame, frame_len, &origin);
+  }
 }
 
-// Single receiver task, all sources processed by this task.
-// Task can be woken up by triggering shared semaphore, though pooled every 100ms for non semaphore sources
-// When woken up checks all buffs
+/**
+ * @brief Drain incoming frames from the interface data connector and dispatch them.
+ *
+ * Wakes when a provider queues a frame (or every CONFIG_SYS_INTERFACE_RX_WAIT_MS)
+ * and pulls frames via sys_data_connector_receive(). While RX is suspended it
+ * sleeps until sys_interface_resume_rx() notifies it.
+ *
+ * @param arg Unused FreeRTOS task argument.
+ */
 static void sys_interface_receiver_task(void* arg) {
   (void)arg;
   ESP_LOGI(TAG, "RX receiver started");
 
   while (1) {
-    BaseType_t got_signal = xSemaphoreTake(s_rx_wake_sem, pdMS_TO_TICKS(CONFIG_SYS_INTERFACE_RX_WAIT_MS));
-
     if (sys_interface_is_rx_suspended()) {
-      // give time for other users but still mark that packet not processes
-      if (got_signal) {
-        vTaskDelay(pdMS_TO_TICKS(1));
-        xSemaphoreGive(s_rx_wake_sem);
-      }
+      ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(CONFIG_SYS_INTERFACE_RX_WAIT_MS));
       continue;
     }
-
-    for (size_t i = 0; i < s_rx_source_count; i++) {
-      sys_interface_rx_source_t* src = &s_rx_sources[i];
-
-      // drain evertyhing empty
-      while (1) {
-        size_t len = 0;
-        err_h dq_err = src->dequeue_fn(src->ctx, src->frame, src->max_frame_len, &len);
-        if (SE_IS_ERR(dq_err)) {
-          SE_ORIGIN_CALL(dq_err);
-          break;
-        }
-        if (len == 0) break;
-
-        ESP_LOGI(TAG, "RX frame [%u bytes] from source %s", (unsigned)len, src->name ? src->name : "unnamed");
-
-        if (s_tap_enabled) {
-          err_h tap_err = sys_buff_push(&s_tap_buff, src->frame, len, 0);
-          if (SE_IS_ERR(tap_err)) {
-            ESP_LOGW(TAG, "tap buffer full - dropping tapped copy of %u byte frame from %s", (unsigned)len, src->name ? src->name : "unnamed");
-          }
-        }
-
-        SE_ORIGIN_CALL(sys_interface_decode(src->frame, len));
-      }
-    }
+    drain_frames();
+    (void)sys_data_connector_wait_rx(SYS_DATA_CONNECTOR_INTERFACE, CONFIG_SYS_INTERFACE_RX_WAIT_MS);
   }
 }
 
-err_h sys_interface_register_rx_source(sys_interface_rx_dequeue_f dequeue_fn, void* ctx, size_t max_frame_len, const char* name) {
-  SE_CHECK_NOT_NULL(dequeue_fn);
-  SE_CHECK_IN_RANGE(max_frame_len, 1, CONFIG_SYS_INTERFACE_RX_FRAME_CAP);
-  if (s_rx_source_count >= CONFIG_SYS_INTERFACE_MAX_RX_SOURCES) {
-    SE_RET_ERR(ERR_INTERFACE_NO_SOURCE_SLOTS, 0);
+#undef OWNER
+
+err_h sys_interface_handle_fault(err_h node, err_h chain) {
+  (void)chain;
+  if (!node || SE_get_tag_level(node->tag) != SE_LEVEL_CRITICAL) {
+    return NULL;
   }
-
-  sys_interface_rx_source_t* src = &s_rx_sources[s_rx_source_count];
-  src->dequeue_fn = dequeue_fn;
-  src->ctx = ctx;
-  src->frame = s_rx_frames[s_rx_source_count];
-  src->max_frame_len = max_frame_len;
-  src->name = name;
-
-  ESP_LOGI(TAG, "registered RX source: %s (slot %u)", name ? name : "unnamed", (unsigned)s_rx_source_count);
-  s_rx_source_count++;
-
-  if (s_interface_rx_task_handle == NULL) {
-    R_TASK_START(s_interface_rx_task_handle, sys_interface_receiver_task, NULL, CONFIG_SYS_INTERFACE_RX_TASK_PRIO);
-    if (s_interface_rx_task_handle == NULL) {
-      s_rx_source_count--;  // roll back - nothing will ever drain this slot otherwise
-      SE_RET_ERR(ERR_BASE_NO_MEM, 0);
-    }
-  }
-
+  // Severe interface fault: suspend RX to prevent corrupt frame flooding
+  sys_interface_suspend_rx();
   return NULL;
 }
-
-// char_uuid fits in a pointer-sized value, so it's carried as ctx directly
-// rather than through an extra per-source allocation.
-static err_h sys_ble_rx_dequeue_adapter(void* ctx, uint8_t* buf, size_t max_len, size_t* out_len) {
-  uint16_t char_uuid = (uint16_t)(uintptr_t)ctx;
-  return sys_ble_char_rx_dequeue(char_uuid, buf, max_len, out_len);
-}
-
-err_h sys_interface_bind_ble_rx(uint16_t char_uuid, size_t max_frame_len) {
-  // Verify that char can even receive before add
-  SE_RET_IF_ERR(sys_ble_char_check_rx_enabled(char_uuid));
-
-  return sys_interface_register_rx_source(sys_ble_rx_dequeue_adapter, (void*)(uintptr_t)char_uuid, max_frame_len, "ble_rx");
-}
-#undef OWNER

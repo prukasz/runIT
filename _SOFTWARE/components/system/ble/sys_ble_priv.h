@@ -18,29 +18,21 @@
 #include "sys_buffers.h"
 #include <sdkconfig.h>
 
-#define BLE_GAP_APPEARANCE_GENERIC_TAG 0x0200
-
-/* Internal-only: one TX slot's buffer. tx_buff.header doubles as the slot's
-   identifier (see sys_ble_char_send()/sys_ble_char_assign_tx_buffer()). */
-typedef struct {
-  bool is_indication;
-  sys_buff_t tx_buff;
-} sys_ble_tx_slot_t;
-
 typedef struct sys_ble_char_node {
   sys_ble_char_cfg_t cfg;
+  char* desc;
   uint16_t val_handle;
+  bool     is_subscribed;
 
-  // RX buffer (header unused - RX frames are dequeued via sys_buff_pop_raw())
-  sys_buff_t rx_buff;
-  SemaphoreHandle_t rx_notify_sem;  // caller-owned, given on each peer write if non-NULL (see sys_ble_char_create_t.rx_notify_sem)
-  own_func_t rx_handler;            // Optional: dispatched via SYS_CB_OWN() on each RX write, in addition to rx_buff/rx_notify_sem
+  sys_buff_t rx_buff; //size from config, no buff if 0
+  sys_buff_t tx_buff; //size from config, no buff if 0
 
-  // TX buffers
-  sys_ble_tx_slot_t tx_slots[CONFIG_SYS_BLE_MAX_TX_BUFFERS];
-  uint8_t tx_slot_count;
+  struct {
+    sys_ble_rx_wake_f wake;
+    void*             ctx;
+  } rx_wakes[CONFIG_SYS_BLE_MAX_LINKED_CONNECTORS];
+  uint8_t rx_wake_count;
 
-  // Dynamic (re)compile bookkeeping - see sys_ble_database_sync()
   bool pending_add;     // true from creation until the owning service is next successfully (re)compiled
   bool pending_remove;  // set by sys_ble_char_remove() instead of freeing, when the owning service is already live
 
@@ -51,70 +43,71 @@ typedef struct sys_ble_svc_node {
   sys_ble_svc_cfg_t cfg;
   sys_ble_char_node_t* chars;
   bool registered;
+  bool locked;                            // sys_ble_service_lock(): no characteristic changes, no removal
+  bool removing;                          // sys_ble_service_remove() on a live service: deleted by the next sync, invisible to lookups
   bool dirty;                             // true when a characteristic was added/removed while registered == true; tells sync() to recompile
   struct ble_gatt_svc_def* compiled_def;  // Heap allocated for this specific service
   struct sys_ble_svc_node* next;
 } sys_ble_svc_node_t;
 
 typedef struct {
-  sys_ble_tx_slot_t* slot;
-  sys_ble_char_node_t* chr;
-} sys_ble_active_slot_t;
-
-typedef struct {
   sys_ble_svc_node_t* services;
-  uint16_t route_masks[SYS_BLE_EVENT_MAX];
-  uint64_t action_masks[SYS_BLE_EVENT_MAX]; /* Bitmask of sys_actions ids to invoke per event: 0 means none */
-  bool initialized;
+
   bool driver_started;
   uint16_t conn_handle;
   bool is_connected;
   uint16_t mtu_size;
   uint32_t rx_overflow_count;
 
-  // Flat compiled active TX slots
-  sys_ble_active_slot_t tx_slots[CONFIG_SYS_BLE_MAX_TOTAL_TX_SLOTS];
-  uint8_t tx_slot_count;
-
   // Pointer to compiled GATT database definitions for initial cleanup
   struct ble_gatt_svc_def* compiled_db;
+
+  // sys_ble_database_apply() with a client connected: the BLE task syncs at apply_at.
+  bool apply_pending;
+  TickType_t apply_at;
 } sys_ble_ctx_t;
+
+/* How long an apply waits with a client connected: the command asking for it
+   is answered and its write acknowledged first. */
+#define SYS_BLE_APPLY_DELAY_MS 200u
+
+/* ATT notification / indication header (opcode + handle): payload = MTU - 3. */
+#define SYS_BLE_ATT_NOTIFY_HDR_LEN 3u
 
 extern sys_ble_ctx_t g_ble_ctx;
 extern SemaphoreHandle_t sys_ble_mutex;
 extern SemaphoreHandle_t sys_ble_tx_sem;
 
 /* Internal helpers exported between sys_ble.c and sys_ble_stack.c */
-sys_ble_char_node_t* sys_ble_find_char_by_uuid(uint16_t char_uuid);
-sys_ble_svc_node_t* sys_ble_find_svc_by_uuid(uint16_t svc_uuid);
-void sys_ble_rebuild_active_tx_slots(void);
-void sys_ble_free_char_node(sys_ble_char_node_t* c);
+/* Caller holds sys_ble_mutex; shared by peer writes and RX injection. */
+SE_MUST_USE err_h sys_ble_rx_enqueue(sys_ble_char_node_t* c, const uint8_t* data, size_t len);
 void sys_ble_free_compiled_gatt_db(struct ble_gatt_svc_def* svcs);
 
 /* Stack functions implemented in sys_ble_stack.c */
-err_h sys_ble_stack_init(struct ble_gatt_svc_def* svcs);
-err_h sys_ble_send_raw(uint16_t conn_handle, uint16_t chr_val_handle, const uint8_t* data, size_t len, bool indicate);
-err_h sys_ble_reconfigure_advertising(void);
-err_h sys_ble_advertising_init(void);
-err_h populate_svc_def(struct ble_gatt_svc_def* svc_def, const sys_ble_svc_node_t* s);
-err_h sys_ble_set_name(const char* name);
+SE_MUST_USE err_h sys_ble_stack_init(struct ble_gatt_svc_def* svcs);
+SE_MUST_USE err_h populate_svc_def(struct ble_gatt_svc_def* svc_def, const sys_ble_svc_node_t* s);
 
 #define CHECK_BLE_CALL(nimble_call)                                                               \
   do {                                                                                            \
     int __rc = (nimble_call);                                                                     \
     if (__rc != 0) {                                                                              \
       ESP_LOGE(__FILE_NAME__, "%s: NimBLE call failed '%s' -> %d", __func__, #nimble_call, __rc); \
-      SE_RET_ERR(ERR_BLE_STACK_FAILED, __rc);                                                     \
+      SE_FAIL(ERR_BLE_STACK_FAILED, __rc);                                                     \
     }                                                                                             \
   } while (0)
 
+/* Unlock before logging: a log line goes through the error sink to a data
+   connector and back into sys_ble_char_send(), which takes sys_ble_mutex
+   (not recursive) in this same task. */
 #define CHECK_BLE_CHAR_FIND(var, uuid, mutex_unlock)                                         \
   do {                                                                                       \
     (var) = sys_ble_find_char_by_uuid(uuid);                                                 \
     if ((var) == NULL) {                                                                     \
+      if (mutex_unlock) {                                                                    \
+        R_MUTEX_UNLOCK(sys_ble_mutex);                                                       \
+      }                                                                                      \
       ESP_LOGE(__FILE_NAME__, "%s: Characteristic UUID 0x%04X not found", __func__, (uuid)); \
-      if (mutex_unlock) R_MUTEX_UNLOCK(sys_ble_mutex);                                       \
-      SE_RET_ERR(ERR_BASE_NOT_FOUND, uuid);                                                  \
+      SE_FAIL(ERR_BASE_NOT_FOUND, uuid);                                                \
     }                                                                                        \
   } while (0)
 
@@ -122,8 +115,11 @@ err_h sys_ble_set_name(const char* name);
   do {                                                                                \
     (var) = sys_ble_find_svc_by_uuid(uuid);                                           \
     if ((var) == NULL) {                                                              \
-      ESP_LOGE(__FILE_NAME__, "%s: Service UUID 0x%04X not found", __func__, (uuid)); \
       if (mutex_unlock) R_MUTEX_UNLOCK(sys_ble_mutex);                                \
-      SE_RET_ERR(ERR_BASE_NOT_FOUND, uuid);                                           \
+      ESP_LOGE(__FILE_NAME__, "%s: Service UUID 0x%04X not found", __func__, (uuid)); \
+      SE_FAIL(ERR_BASE_NOT_FOUND, uuid);                                           \
     }                                                                                 \
   } while (0)
+
+
+

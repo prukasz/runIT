@@ -1,0 +1,693 @@
+{
+  "$schema": "data-structures/schema/settings.schema.json",
+  "schemaVersion": 1,
+  "kind": "settings",
+  "settings": [
+    {
+      "tag": "ble",
+      "title": "BLE settings",
+      "description": "Create and remove runtime BLE GATT services and characteristics.",
+      "source_file": "components/codecs/decoders/dec_settings_ble.h",
+      "class_name": "SETTINGS_BLE",
+      "class_header": "0x02",
+      "packets": [
+        {
+          "id": "packet_settings_ble_service_create_t",
+          "packet": "packet_settings_ble_service_create_t",
+          "packet_header": "0x01",
+          "field_order": [
+            "uuid",
+            "is_primary"
+          ],
+          "fields": {
+            "uuid": {
+              "type": "uint16_t",
+              "alias": "Service UUID",
+              "required": true
+            },
+            "is_primary": {
+              "type": "uint8_t",
+              "alias": "Primary Service",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_ble_service_remove_t",
+          "packet": "packet_settings_ble_service_remove_t",
+          "packet_header": "0x02",
+          "field_order": [
+            "uuid"
+          ],
+          "fields": {
+            "uuid": {
+              "type": "uint16_t",
+              "alias": "Service UUID",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_ble_char_create_t",
+          "packet": "packet_settings_ble_char_create_t",
+          "packet_header": "0x03",
+          "field_order": [
+            "service_uuid",
+            "uuid",
+            "is_write",
+            "is_indicate",
+            "is_notify",
+            "tx_buffer_size",
+            "rx_buffer_size",
+            "name"
+          ],
+          "fields": {
+            "service_uuid": {
+              "type": "uint16_t",
+              "alias": "Service UUID",
+              "required": true
+            },
+            "uuid": {
+              "type": "uint16_t",
+              "alias": "Characteristic UUID",
+              "required": true
+            },
+            "is_write": {
+              "type": "uint8_t",
+              "alias": "Writable",
+              "required": true
+            },
+            "is_indicate": {
+              "type": "uint8_t",
+              "alias": "Indicate",
+              "required": true
+            },
+            "is_notify": {
+              "type": "uint8_t",
+              "alias": "Notify",
+              "required": true
+            },
+            "tx_buffer_size": {
+              "type": "uint32_t",
+              "alias": "TX Buffer Size",
+              "required": true,
+              "unit": "bytes"
+            },
+            "rx_buffer_size": {
+              "type": "uint32_t",
+              "alias": "RX Buffer Size",
+              "required": true,
+              "unit": "bytes"
+            },
+            "name": {
+              "type": "char",
+              "flexible_array": true,
+              "alias": "Characteristic Name",
+              "required": true,
+              "encoding": "utf-8",
+              "terminator": "nul"
+            }
+          }
+        },
+        {
+          "id": "packet_settings_ble_char_remove_t",
+          "packet": "packet_settings_ble_char_remove_t",
+          "packet_header": "0x04",
+          "field_order": [
+            "service_uuid",
+            "uuid"
+          ],
+          "fields": {
+            "service_uuid": {
+              "type": "uint16_t",
+              "alias": "Service UUID",
+              "required": true
+            },
+            "uuid": {
+              "type": "uint16_t",
+              "alias": "Characteristic UUID",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_ble_apply_t",
+          "packet": "packet_settings_ble_apply_t",
+          "packet_header": "0x05",
+          "field_order": [],
+          "fields": {}
+        }
+      ]
+    },
+    {
+      "tag": "data-connector",
+      "title": "Data connector settings",
+      "description": "Create connectors and configure their runtime transport bindings.",
+      "source_file": "components/codecs/decoders/dec_settings_data_connector.h",
+      "class_name": "SETTINGS_DATA_CONNECTOR",
+      "class_header": "0x06",
+      "packets": [
+        {
+          "id": "packet_settings_data_connector_create_t",
+          "packet": "packet_settings_data_connector_create_t",
+          "packet_header": "0x01",
+          "field_order": [
+            "id",
+            "header",
+            "max_packet_len",
+            "name"
+          ],
+          "fields": {
+            "id": {
+              "type": "uint8_t",
+              "alias": "Connector ID",
+              "required": true,
+              "enum_ref": "sys_data_connector_id_e"
+            },
+            "header": {
+              "type": "uint8_t",
+              "alias": "Frame Header",
+              "required": true
+            },
+            "max_packet_len": {
+              "type": "uint16_t",
+              "alias": "Maximum Packet Length",
+              "required": true,
+              "unit": "bytes"
+            },
+            "name": {
+              "type": "char",
+              "flexible_array": true,
+              "alias": "Connector Name",
+              "required": true,
+              "encoding": "utf-8",
+              "terminator": "nul"
+            }
+          }
+        },
+        {
+          "id": "packet_settings_data_connector_remove_t",
+          "packet": "packet_settings_data_connector_remove_t",
+          "packet_header": "0x02",
+          "field_order": [
+            "id"
+          ],
+          "fields": {
+            "id": {
+              "type": "uint8_t",
+              "alias": "Connector ID",
+              "required": true,
+              "enum_ref": "sys_data_connector_id_e"
+            }
+          }
+        },
+        {
+          "id": "packet_settings_data_connector_rx_add_t",
+          "packet": "packet_settings_data_connector_rx_add_t",
+          "packet_header": "0x03",
+          "field_order": [
+            "connector_id",
+            "provider_id",
+            "provider_param"
+          ],
+          "fields": {
+            "connector_id": {
+              "type": "uint8_t",
+              "alias": "Connector ID",
+              "required": true,
+              "enum_ref": "sys_data_connector_id_e"
+            },
+            "provider_id": {
+              "type": "uint8_t",
+              "alias": "Provider ID",
+              "required": true,
+              "enum_ref": "runit_data_provider_e"
+            },
+            "provider_param": {
+              "type": "uint32_t",
+              "alias": "Provider Parameter",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_data_connector_rx_remove_t",
+          "packet": "packet_settings_data_connector_rx_remove_t",
+          "packet_header": "0x04",
+          "field_order": [
+            "connector_id",
+            "provider_id"
+          ],
+          "fields": {
+            "connector_id": {
+              "type": "uint8_t",
+              "alias": "Connector ID",
+              "required": true,
+              "enum_ref": "sys_data_connector_id_e"
+            },
+            "provider_id": {
+              "type": "uint8_t",
+              "alias": "Provider ID",
+              "required": true,
+              "enum_ref": "runit_data_provider_e"
+            }
+          }
+        },
+        {
+          "id": "packet_settings_data_connector_tx_add_t",
+          "packet": "packet_settings_data_connector_tx_add_t",
+          "packet_header": "0x05",
+          "field_order": [
+            "connector_id",
+            "provider_id",
+            "provider_param"
+          ],
+          "fields": {
+            "connector_id": {
+              "type": "uint8_t",
+              "alias": "Connector ID",
+              "required": true,
+              "enum_ref": "sys_data_connector_id_e"
+            },
+            "provider_id": {
+              "type": "uint8_t",
+              "alias": "Provider ID",
+              "required": true,
+              "enum_ref": "runit_data_provider_e"
+            },
+            "provider_param": {
+              "type": "uint32_t",
+              "alias": "Provider Parameter",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_data_connector_tx_remove_t",
+          "packet": "packet_settings_data_connector_tx_remove_t",
+          "packet_header": "0x06",
+          "field_order": [
+            "connector_id",
+            "provider_id"
+          ],
+          "fields": {
+            "connector_id": {
+              "type": "uint8_t",
+              "alias": "Connector ID",
+              "required": true,
+              "enum_ref": "sys_data_connector_id_e"
+            },
+            "provider_id": {
+              "type": "uint8_t",
+              "alias": "Provider ID",
+              "required": true,
+              "enum_ref": "runit_data_provider_e"
+            }
+          }
+        },
+        {
+          "id": "packet_settings_data_connector_suspend_t",
+          "packet": "packet_settings_data_connector_suspend_t",
+          "packet_header": "0x07",
+          "field_order": [
+            "id"
+          ],
+          "fields": {
+            "id": {
+              "type": "uint8_t",
+              "alias": "Connector ID",
+              "required": true,
+              "enum_ref": "sys_data_connector_id_e"
+            }
+          }
+        },
+        {
+          "id": "packet_settings_data_connector_resume_t",
+          "packet": "packet_settings_data_connector_resume_t",
+          "packet_header": "0x08",
+          "field_order": [
+            "id"
+          ],
+          "fields": {
+            "id": {
+              "type": "uint8_t",
+              "alias": "Connector ID",
+              "required": true,
+              "enum_ref": "sys_data_connector_id_e"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "tag": "logs",
+      "title": "Logging settings",
+      "description": "Configure runtime log verbosity, serial mirroring, and error-chain tracing.",
+      "source_file": "components/codecs/decoders/dec_settings_logs.h",
+      "class_name": "SETTINGS_LOGS",
+      "class_header": "0x07",
+      "packets": [
+        {
+          "id": "packet_settings_logs_set_t",
+          "packet": "packet_settings_logs_set_t",
+          "packet_header": "0x01",
+          "field_order": [
+            "level",
+            "mirror_serial",
+            "trace_errors"
+          ],
+          "fields": {
+            "level": {
+              "type": "uint8_t",
+              "alias": "Log Level",
+              "required": true
+            },
+            "mirror_serial": {
+              "type": "uint8_t",
+              "alias": "Mirror to Serial",
+              "required": true
+            },
+            "trace_errors": {
+              "type": "uint8_t",
+              "alias": "Trace Error Chains",
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "tag": "power",
+      "title": "Power settings",
+      "description": "Describe the external supply and the battery, so the power budget and battery charge are right. Stored on the board.",
+      "source_file": "components/codecs/decoders/dec_settings_power.h",
+      "class_name": "SETTINGS_POWER",
+      "class_header": "0x08",
+      "packets": [
+        {
+          "id": "packet_settings_power_set_psu_t",
+          "packet": "packet_settings_power_set_psu_t",
+          "packet_header": "0x01",
+          "field_order": [
+            "max_mV",
+            "max_mA"
+          ],
+          "fields": {
+            "max_mV": {
+              "type": "uint32_t",
+              "alias": "Supply Voltage",
+              "required": true,
+              "unit": "mV",
+              "note": "0 with 0 mA clears it"
+            },
+            "max_mA": {
+              "type": "uint32_t",
+              "alias": "Supply Current Limit",
+              "required": true,
+              "unit": "mA"
+            }
+          }
+        },
+        {
+          "id": "packet_settings_power_set_battery_t",
+          "packet": "packet_settings_power_set_battery_t",
+          "packet_header": "0x02",
+          "field_order": [
+            "chemistry",
+            "cells",
+            "low_pct",
+            "critical_pct"
+          ],
+          "fields": {
+            "chemistry": {
+              "type": "uint8_t",
+              "alias": "Chemistry",
+              "required": true,
+              "one_of": [
+                {
+                  "symbol": "SYS_POWER_BATTERY_NONE",
+                  "enum": "sys_power_battery_e",
+                  "value": 0,
+                  "alias": "None",
+                  "description": "No battery configured"
+                },
+                {
+                  "symbol": "SYS_POWER_BATTERY_LIPO",
+                  "enum": "sys_power_battery_e",
+                  "value": 1,
+                  "alias": "LiPo",
+                  "description": "Lithium polymer, 4.2 V per cell when full"
+                }
+              ],
+              "enum_ref": "sys_power_battery_e"
+            },
+            "cells": {
+              "type": "uint8_t",
+              "alias": "Cells in Series",
+              "required": true,
+              "min": 1
+            },
+            "low_pct": {
+              "type": "uint8_t",
+              "alias": "Low Threshold",
+              "required": true,
+              "min": 2,
+              "max": 100,
+              "unit": "%"
+            },
+            "critical_pct": {
+              "type": "uint8_t",
+              "alias": "Critical Threshold",
+              "required": true,
+              "min": 1,
+              "max": 99,
+              "unit": "%"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "tag": "project",
+      "title": "Stored code",
+      "description": "Store the code the board replays at boot, read it back, set its options and load it.",
+      "source_file": "components/codecs/decoders/dec_settings_project.h",
+      "class_name": "SETTINGS_PROJECT",
+      "class_header": "0x0A",
+      "packets": [
+        {
+          "id": "packet_settings_project_begin_t",
+          "packet": "packet_settings_project_begin_t",
+          "packet_header": "0x01",
+          "field_order": [
+            "length"
+          ],
+          "fields": {
+            "length": {
+              "type": "uint32_t",
+              "alias": "Length",
+              "required": true,
+              "unit": "bytes"
+            }
+          }
+        },
+        {
+          "id": "packet_settings_project_write_t",
+          "packet": "packet_settings_project_write_t",
+          "packet_header": "0x02",
+          "field_order": [
+            "offset",
+            "data"
+          ],
+          "fields": {
+            "offset": {
+              "type": "uint32_t",
+              "alias": "Offset",
+              "required": true,
+              "unit": "bytes"
+            },
+            "data": {
+              "type": "uint8_t",
+              "flexible_array": true,
+              "alias": "Data",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_project_commit_t",
+          "packet": "packet_settings_project_commit_t",
+          "packet_header": "0x03",
+          "field_order": [
+            "crc32",
+            "schema_id"
+          ],
+          "fields": {
+            "crc32": {
+              "type": "uint32_t",
+              "alias": "CRC-32",
+              "required": true
+            },
+            "schema_id": {
+              "type": "uint32_t",
+              "alias": "Schema ID",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_project_abort_t",
+          "packet": "packet_settings_project_abort_t",
+          "packet_header": "0x04",
+          "field_order": [],
+          "fields": {}
+        },
+        {
+          "id": "packet_settings_project_erase_t",
+          "packet": "packet_settings_project_erase_t",
+          "packet_header": "0x05",
+          "field_order": [],
+          "fields": {}
+        },
+        {
+          "id": "packet_settings_project_options_t",
+          "packet": "packet_settings_project_options_t",
+          "packet_header": "0x06",
+          "field_order": [
+            "autostart"
+          ],
+          "fields": {
+            "autostart": {
+              "type": "uint8_t",
+              "alias": "Autostart",
+              "required": true
+            }
+          }
+        },
+        {
+          "id": "packet_settings_project_info_t",
+          "packet": "packet_settings_project_info_t",
+          "packet_header": "0x07",
+          "field_order": [],
+          "fields": {},
+          "response": {
+            "struct": "packet_settings_project_info_response_t",
+            "field_order": [
+              "stored",
+              "autostart",
+              "length",
+              "frame_count",
+              "crc32",
+              "schema_id",
+              "firmware_schema_id",
+              "capacity",
+              "replay_state",
+              "replay_applied",
+              "replay_failed",
+              "replay_first_failed",
+              "replay_first_tag",
+              "replay_first_owner",
+              "replay_crc32"
+            ],
+            "fields": {
+              "stored": {
+                "type": "uint8_t",
+                "alias": "Code Stored"
+              },
+              "autostart": {
+                "type": "uint8_t",
+                "alias": "Autostart"
+              },
+              "length": {
+                "type": "uint32_t",
+                "alias": "Length",
+                "unit": "bytes"
+              },
+              "frame_count": {
+                "type": "uint16_t",
+                "alias": "Frames"
+              },
+              "crc32": {
+                "type": "uint32_t",
+                "alias": "CRC-32"
+              },
+              "schema_id": {
+                "type": "uint32_t",
+                "alias": "Stored Schema ID"
+              },
+              "firmware_schema_id": {
+                "type": "uint32_t",
+                "alias": "Firmware Schema ID"
+              },
+              "capacity": {
+                "type": "uint32_t",
+                "alias": "Capacity",
+                "unit": "bytes"
+              },
+              "replay_state": {
+                "type": "uint8_t",
+                "alias": "Last Replay",
+                "enum_ref": "sys_project_replay_e"
+              },
+              "replay_applied": {
+                "type": "uint16_t",
+                "alias": "Frames Applied"
+              },
+              "replay_failed": {
+                "type": "uint16_t",
+                "alias": "Frames Refused"
+              },
+              "replay_first_failed": {
+                "type": "uint16_t",
+                "alias": "First Refused Frame"
+              },
+              "replay_first_tag": {
+                "type": "uint16_t",
+                "alias": "First Refusal Tag"
+              },
+              "replay_first_owner": {
+                "type": "uint16_t",
+                "alias": "First Refusal Owner"
+              },
+              "replay_crc32": {
+                "type": "uint32_t",
+                "alias": "Replayed CRC-32"
+              }
+            }
+          }
+        },
+        {
+          "id": "packet_settings_project_read_t",
+          "packet": "packet_settings_project_read_t",
+          "packet_header": "0x08",
+          "field_order": [
+            "offset",
+            "length"
+          ],
+          "fields": {
+            "offset": {
+              "type": "uint32_t",
+              "alias": "Offset",
+              "required": true,
+              "unit": "bytes"
+            },
+            "length": {
+              "type": "uint16_t",
+              "alias": "Length",
+              "required": true,
+              "max": 128,
+              "unit": "bytes"
+            }
+          }
+        },
+        {
+          "id": "packet_settings_project_load_t",
+          "packet": "packet_settings_project_load_t",
+          "packet_header": "0x09",
+          "field_order": [],
+          "fields": {}
+        }
+      ]
+    }
+  ]
+}

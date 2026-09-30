@@ -1,0 +1,528 @@
+{
+  "$schema": "data-structures/schema/device-definition.schema.json",
+  "schemaVersion": 1,
+  "kind": "device-definition",
+  "id": "device_ads_7128",
+  "title": "ADS7128 ADC",
+  "description": "Eight-channel ADC with I2C control and an on-chip window comparator.",
+  "protocols": [
+    "i2c"
+  ],
+  "tags": [
+    "i2c",
+    "adc",
+    "io",
+    "voltage",
+    "ic"
+  ],
+  "datasheet": "https://www.ti.com/lit/ds/symlink/ads7128.pdf",
+  "source_file": "dec_device_ads7128.h",
+  "contractProvider": {
+    "symbol": "SYS_DEVICE_CONTRACT_IO",
+    "enum": "sys_device_contract_type_e",
+    "value": 0,
+    "alias": "Digital/Analog IO",
+    "description": "Basic pin control - read or drive a pin, or measure/generate a voltage on it"
+  },
+  "install": {
+    "packet": "packet_sys_device_install_ads7128_t",
+    "packet_definition": {
+      "source_file": "dec_device_ads7128.h",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x47",
+      "decoder": "decoder_packet_sys_device_install_ads7128_t()",
+      "field_order": [
+        "device_id",
+        "i2c_bus",
+        "i2c_addr",
+        "intr_pin_device_id",
+        "intr_pin_pin",
+        "intr_pin_mode",
+        "vref_mV"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "max": 127
+        },
+        "i2c_bus": {
+          "type": "uint8_t"
+        },
+        "i2c_addr": {
+          "type": "uint8_t",
+          "alias": "I2C Address",
+          "one_of": [
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "note": "The resistor on the ADDR pin selects the address at power-up."
+        },
+        "intr_pin_device_id": {
+          "type": "uint8_t",
+          "group": "intr_pin"
+        },
+        "intr_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "intr_pin"
+        },
+        "intr_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_INPUT",
+              "enum": "sys_io_mode_e",
+              "value": 0,
+              "alias": "Input",
+              "description": "Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal"
+            },
+            {
+              "symbol": "SYS_IO_MODE_INPUT_PULLUP",
+              "enum": "sys_io_mode_e",
+              "value": 1,
+              "alias": "Input with Pullup",
+              "description": "Same as Input, but reads \"on\" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed"
+            }
+          ],
+          "default": 1,
+          "enum_ref": "sys_io_mode_e",
+          "group": "intr_pin"
+        },
+        "vref_mV": {
+          "type": "uint32_t",
+          "alias": "ADC Reference Voltage",
+          "min": 1,
+          "unit": "mV",
+          "note": "The chip's AVDD supply, which is also the ADC reference."
+        }
+      },
+      "groups": {
+        "intr_pin": {
+          "fields": [
+            "intr_pin_device_id",
+            "intr_pin_pin",
+            "intr_pin_mode"
+          ],
+          "sentinel_field": "intr_pin_pin",
+          "alias": "ALERT",
+          "note": "Open-drain, active-low."
+        }
+      }
+    }
+  },
+  "contracts": [
+    {
+      "packet": "packet_sys_io_reset_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "alias": "ADC Channel"
+        }
+      ],
+      "alias": "Reset configuration",
+      "description": "Reset one ADC channel and clear its comparator configuration.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x20",
+        "decoder": "decoder_packet_sys_io_reset_t()",
+        "field_order": [
+          "device_id",
+          "pin"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_set_mode_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "alias": "ADC Channel"
+        },
+        {
+          "name": "mode",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_ADC",
+              "enum": "sys_io_mode_e",
+              "value": 7,
+              "alias": "ADC",
+              "description": "Measures the exact voltage on the pin instead of just on/off - use to read sensors that report a varying value, like a potentiometer or a temperature sensor"
+            }
+          ],
+          "enum_ref": "sys_io_mode_e",
+          "default": 7,
+          "alias": "Channel Mode"
+        }
+      ],
+      "alias": "Configure mode",
+      "description": "ADS7128 channels are ADC-only.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x21",
+        "decoder": "decoder_packet_sys_io_set_mode_t()",
+        "field_order": [
+          "device_id",
+          "pin",
+          "mode"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          },
+          "mode": {
+            "type": "uint8_t",
+            "alias": "Pin Mode",
+            "required": true,
+            "one_of": [
+              {
+                "symbol": "SYS_IO_MODE_INPUT",
+                "enum": "sys_io_mode_e",
+                "value": 0,
+                "alias": "Input",
+                "description": "Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal"
+              },
+              {
+                "symbol": "SYS_IO_MODE_INPUT_PULLUP",
+                "enum": "sys_io_mode_e",
+                "value": 1,
+                "alias": "Input with Pullup",
+                "description": "Same as Input, but reads \"on\" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed"
+              },
+              {
+                "symbol": "SYS_IO_MODE_INPUT_PULLDOWN",
+                "enum": "sys_io_mode_e",
+                "value": 2,
+                "alias": "Input with Pulldown",
+                "description": "Same as Input, but reads \"off\" by default when nothing is connected - use when your button/switch connects the pin to power when pressed"
+              },
+              {
+                "symbol": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+                "enum": "sys_io_mode_e",
+                "value": 3,
+                "alias": "Output Push-Pull",
+                "description": "Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays"
+              },
+              {
+                "symbol": "SYS_IO_MODE_OUTPUT_OPEN_DRAIN",
+                "enum": "sys_io_mode_e",
+                "value": 4,
+                "alias": "Output Open-Drain",
+                "description": "A weaker output that can only actively pull the signal to \"off\" - something else (an external resistor, or the Open-Drain-Pullup option) is needed to make it read \"on\". Mainly used when several devices need to share the same wire"
+              },
+              {
+                "symbol": "SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP",
+                "enum": "sys_io_mode_e",
+                "value": 5,
+                "alias": "Output Open-Drain-Pullup",
+                "description": "Same as Open-Drain, but with a built-in helper enabled so the pin reads \"on\" by itself instead of needing an extra part"
+              },
+              {
+                "symbol": "SYS_IO_MODE_PWM",
+                "enum": "sys_io_mode_e",
+                "value": 6,
+                "alias": "PWM",
+                "description": "Rapidly switches the pin on and off to fake an in-between level - use to dim an LED or control a motor's speed"
+              },
+              {
+                "symbol": "SYS_IO_MODE_ADC",
+                "enum": "sys_io_mode_e",
+                "value": 7,
+                "alias": "ADC",
+                "description": "Measures the exact voltage on the pin instead of just on/off - use to read sensors that report a varying value, like a potentiometer or a temperature sensor"
+              },
+              {
+                "symbol": "SYS_IO_MODE_DAC",
+                "enum": "sys_io_mode_e",
+                "value": 8,
+                "alias": "DAC",
+                "description": "Outputs an exact, steady voltage level instead of just on/off - the opposite of ADC"
+              }
+            ],
+            "enum_ref": "sys_io_mode_e"
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_get_voltage_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "alias": "ADC Channel"
+        }
+      ],
+      "alias": "Read voltage on pin",
+      "description": "Read the selected ADC channel using the installed AVDD reference voltage.",
+      "returns": "voltage_mV",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x25",
+        "decoder": "decoder_packet_sys_io_get_voltage_t()",
+        "field_order": [
+          "device_id",
+          "pin"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_configure_intr_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "alias": "ADC Channel"
+        },
+        {
+          "name": "mode",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_INTR_ADC_WINDOW_INSIDE",
+              "enum": "sys_io_intr_mode_e",
+              "value": 5,
+              "alias": "Inside set window",
+              "description": "Triggers when the measured value comes back into the range you set - use to catch when a value returns to normal"
+            },
+            {
+              "symbol": "SYS_IO_INTR_ADC_WINDOW_OUTSIDE",
+              "enum": "sys_io_intr_mode_e",
+              "value": 4,
+              "alias": "Outside set window",
+              "description": "Triggers when the measured value leaves the safe/expected range you set - use to catch a value going too high or too low"
+            }
+          ],
+          "enum_ref": "sys_io_intr_mode_e",
+          "alias": "Window Mode"
+        },
+        {
+          "name": "adc_thresh_up_mV",
+          "alias": "Upper Threshold"
+        },
+        {
+          "name": "adc_thresh_down_mV",
+          "alias": "Lower Threshold"
+        },
+        {
+          "name": "adc_thresh_hyst_mV",
+          "alias": "Hysteresis"
+        },
+        {
+          "name": "adc_counter_thresh",
+          "alias": "Event Count Threshold"
+        }
+      ],
+      "alias": "Configure alert",
+      "description": "Configure the on-chip ADC window comparator. The optional ALERT pin reports events to a board GPIO.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x29",
+        "decoder": "decoder_packet_sys_io_configure_intr_t()",
+        "field_order": [
+          "device_id",
+          "pin",
+          "mode",
+          "debounce",
+          "adc_thresh_up_mV",
+          "adc_thresh_down_mV",
+          "adc_thresh_hyst_mV",
+          "adc_counter_thresh"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          },
+          "mode": {
+            "type": "uint8_t",
+            "alias": "Interrupt Mode",
+            "required": true,
+            "one_of": [
+              {
+                "symbol": "SYS_IO_INTR_DISABLE",
+                "enum": "sys_io_intr_mode_e",
+                "value": 0,
+                "alias": "Disable",
+                "description": "Don't watch this pin for changes - nothing gets triggered"
+              },
+              {
+                "symbol": "SYS_IO_INTR_MODE_RISING_EDGE",
+                "enum": "sys_io_intr_mode_e",
+                "value": 1,
+                "alias": "Rising Edge",
+                "description": "Triggers the instant the pin switches from off to on"
+              },
+              {
+                "symbol": "SYS_IO_INTR_MODE_FALLING_EDGE",
+                "enum": "sys_io_intr_mode_e",
+                "value": 2,
+                "alias": "Falling Edge",
+                "description": "Triggers the instant the pin switches from on to off"
+              },
+              {
+                "symbol": "SYS_IO_INTR_MODE_BOTH_EDGES",
+                "enum": "sys_io_intr_mode_e",
+                "value": 3,
+                "alias": "Both Edges",
+                "description": "Triggers on any change - whether the pin switches from off to on, or on to off"
+              },
+              {
+                "symbol": "SYS_IO_INTR_ADC_WINDOW_OUTSIDE",
+                "enum": "sys_io_intr_mode_e",
+                "value": 4,
+                "alias": "Outside set window",
+                "description": "Triggers when the measured value leaves the safe/expected range you set - use to catch a value going too high or too low"
+              },
+              {
+                "symbol": "SYS_IO_INTR_ADC_WINDOW_INSIDE",
+                "enum": "sys_io_intr_mode_e",
+                "value": 5,
+                "alias": "Inside set window",
+                "description": "Triggers when the measured value comes back into the range you set - use to catch when a value returns to normal"
+              }
+            ],
+            "enum_ref": "sys_io_intr_mode_e"
+          },
+          "debounce": {
+            "type": "uint8_t",
+            "alias": "Debounce",
+            "required": false,
+            "note": "1 = ignore switch bounce"
+          },
+          "adc_thresh_up_mV": {
+            "type": "uint16_t",
+            "alias": "ADC Rising Threshold",
+            "required": false,
+            "unit": "mV"
+          },
+          "adc_thresh_down_mV": {
+            "type": "uint16_t",
+            "alias": "ADC Falling Threshold",
+            "required": false,
+            "unit": "mV"
+          },
+          "adc_thresh_hyst_mV": {
+            "type": "uint16_t",
+            "alias": "ADC Hysteresis",
+            "required": false,
+            "unit": "mV"
+          },
+          "adc_counter_thresh": {
+            "type": "uint16_t",
+            "alias": "ADC Event Counter Threshold",
+            "required": false
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,10 +1,6 @@
 #include "driver_tca6424a.h"
-#include <esp_log.h>
+#include <string.h>
 
-static const char* TAG = __FILE_NAME__;
-
-#undef OWNER
-#define OWNER OWNER_DRIVER_TCA6424A
 
 #define _PORT0_MASK 0x000000FF
 #define _PORT1_MASK 0x0000FF00
@@ -138,7 +134,6 @@ esp_err_t tca_restore_state(tca6424a_handle_t handle) {
 tca6424a_handle_t d_tca6424a_new(uint8_t i2c_address, bool i2c_bus_num) {
   tca6424a_handle_t handle = calloc(1, sizeof(tca_data_t));
   if (!handle) {
-    ESP_LOGE(TAG, "Failed to allocate memory for TCA6424A handle");
     return NULL;
   }
 
@@ -147,7 +142,9 @@ tca6424a_handle_t d_tca6424a_new(uint8_t i2c_address, bool i2c_bus_num) {
   handle->header.i2c_device_config.dev_addr_length = I2C_ADDR_BIT_LEN_7;
   handle->header.bus_num = i2c_bus_num;
 
-  tca_restore_state(handle);
+  // Chip power-on defaults: all pins inputs, output latches high, no inversion.
+  memset(handle->config, 0xFF, sizeof(handle->config));
+  memset(handle->output, 0xFF, sizeof(handle->output));
 
   return handle;
 }

@@ -1,0 +1,34 @@
+menu "Device: ESP32 native GPIO"
+
+    config DEVICE_GPIO_ESP_PWM_DEFAULT_FREQ_HZ
+        int "PWM frequency before one is set (Hz)"
+        range 5 5000000
+        default 1000
+        help
+            Frequency a PWM pin starts at when its duty is written before any
+            frequency. Pins share LEDC timers by frequency, so pins left at this
+            default use one timer between them.
+
+    config DEVICE_GPIO_ESP_PWM_TIMER_MASK
+        hex "LEDC timers PWM pins may use (bit per timer)"
+        range 0x1 0xF
+        default 0xF
+        help
+            Bit n set = LEDC timer n is available to PWM pins (ESP32-S3: timers
+            0-3). Clear the bits of timers another LEDC user needs (buzzer, LCD
+            backlight, camera clock...). Each available timer runs one PWM
+            frequency, so this is also the number of different frequencies at
+            once. Other LEDC users must use the APB clock too: on the ESP32-S3
+            every LEDC timer shares one clock source.
+
+    config DEVICE_GPIO_ESP_PWM_CHANNEL_MASK
+        hex "LEDC channels PWM pins may use (bit per channel)"
+        range 0x1 0xFF
+        default 0xFF
+        help
+            Bit n set = LEDC channel n is available to PWM pins (ESP32-S3:
+            channels 0-7). One channel per PWM pin, so this is also the number
+            of pins that can run PWM at once. Clear the bits of channels another
+            LEDC user needs.
+
+endmenu

@@ -1,0 +1,245 @@
+{
+  "$schema": "data-structures/schema/device-definition.schema.json",
+  "schemaVersion": 1,
+  "kind": "device-definition",
+  "id": "device_tps55289",
+  "title": "TPS55289 buck-boost regulator",
+  "description": "Adjustable I2C buck-boost voltage regulator - a programmable power output with a current limit and enable control.",
+  "protocols": [
+    "i2c"
+  ],
+  "tags": [
+    "i2c",
+    "power",
+    "voltage",
+    "current",
+    "regulator"
+  ],
+  "datasheet": "https://www.ti.com/lit/ds/symlink/tps55289.pdf",
+  "source_file": "dec_device_tps55289.h",
+  "contractProvider": {
+    "symbol": "SYS_DEVICE_CONTRACT_POWER_VREG",
+    "enum": "sys_device_contract_type_e",
+    "value": 1,
+    "alias": "Voltage Regulator",
+    "description": "An adjustable power output - turn it on/off and set its voltage and current limit"
+  },
+  "install": {
+    "packet": "packet_sys_device_install_tps55289_t",
+    "packet_definition": {
+      "source_file": "dec_device_tps55289.h",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x43",
+      "decoder": "decoder_packet_sys_device_install_tps55289_t()",
+      "field_order": [
+        "device_id",
+        "i2c_bus",
+        "i2c_addr",
+        "intr_pin_device_id",
+        "intr_pin_pin",
+        "intr_pin_mode",
+        "en_pin_device_id",
+        "en_pin_pin",
+        "en_pin_mode"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "max": 127
+        },
+        "i2c_bus": {
+          "type": "uint8_t"
+        },
+        "i2c_addr": {
+          "type": "uint8_t",
+          "alias": "I2C Address",
+          "one_of": [
+            116,
+            117
+          ],
+          "note": "The MODE pin selects one of two I2C addresses."
+        },
+        "intr_pin_device_id": {
+          "type": "uint8_t",
+          "group": "intr_pin"
+        },
+        "intr_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "intr_pin"
+        },
+        "intr_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_INPUT",
+              "enum": "sys_io_mode_e",
+              "value": 0,
+              "alias": "Input",
+              "description": "Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal"
+            },
+            {
+              "symbol": "SYS_IO_MODE_INPUT_PULLUP",
+              "enum": "sys_io_mode_e",
+              "value": 1,
+              "alias": "Input with Pullup",
+              "description": "Same as Input, but reads \"on\" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed"
+            }
+          ],
+          "enum_ref": "sys_io_mode_e",
+          "group": "intr_pin"
+        },
+        "en_pin_device_id": {
+          "type": "uint8_t",
+          "group": "en_pin"
+        },
+        "en_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "en_pin"
+        },
+        "en_pin_mode": {
+          "type": "uint8_t",
+          "enum_ref": "sys_io_mode_e",
+          "group": "en_pin"
+        }
+      },
+      "groups": {
+        "intr_pin": {
+          "fields": [
+            "intr_pin_device_id",
+            "intr_pin_pin",
+            "intr_pin_mode"
+          ],
+          "sentinel_field": "intr_pin_pin"
+        },
+        "en_pin": {
+          "fields": [
+            "en_pin_device_id",
+            "en_pin_pin",
+            "en_pin_mode"
+          ],
+          "sentinel_field": "en_pin_pin"
+        }
+      }
+    }
+  },
+  "contracts": [
+    {
+      "packet": "packet_sys_power_vreg_set_enable_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "state",
+          "alias": "Enabled",
+          "type": "bool"
+        }
+      ],
+      "alias": "Enable output",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x31",
+        "decoder": "decoder_packet_sys_power_vreg_set_enable_t()",
+        "field_order": [
+          "device_id",
+          "state"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "state": {
+            "type": "uint8_t",
+            "alias": "Enable State",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_power_vreg_set_voltage_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "voltage_mV"
+        }
+      ],
+      "alias": "Set output voltage",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x32",
+        "decoder": "decoder_packet_sys_power_vreg_set_voltage_t()",
+        "field_order": [
+          "device_id",
+          "voltage_mV"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "voltage_mV": {
+            "type": "uint32_t",
+            "alias": "Voltage",
+            "required": true,
+            "unit": "mV"
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_power_vreg_set_current_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "current_mA"
+        }
+      ],
+      "alias": "Set output current limit",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x33",
+        "decoder": "decoder_packet_sys_power_vreg_set_current_t()",
+        "field_order": [
+          "device_id",
+          "current_mA"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "current_mA": {
+            "type": "uint32_t",
+            "alias": "Current Limit",
+            "required": true,
+            "unit": "mA"
+          }
+        }
+      }
+    }
+  ]
+}

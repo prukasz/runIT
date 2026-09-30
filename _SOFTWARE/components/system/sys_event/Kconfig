@@ -1,0 +1,48 @@
+menu "Events (sys_event)"
+    config SYS_EVENT_MAX_SUBSCRIPTIONS
+        int "Subscription Table Size"
+        default 32
+        range 4 32
+        help
+          Listeners that can be registered at once: device IRQ chaining,
+          the power manager, features and packet subscriptions share it.
+          Each entry takes about 20 bytes.
+
+    config SYS_EVENT_MAX_HOPS
+        int "Maximum Republish Depth"
+        default 4
+        range 1 16
+        help
+          A listener that republishes passes the depth on (SYS_EVENT_CAUSED_BY).
+          An event at this depth is dropped with ERR_EVENT_LOOP, which stops
+          publish -> listener -> publish loops and bounds inline recursion.
+
+    config SYS_EVENT_QUEUE_LEN
+        int "Event Queue Length"
+        default 16
+        range 4 256
+        help
+          Events waiting for queued listeners (and ISR events waiting for
+          any listener).
+
+    config SYS_EVENT_TASK_STACK_SIZE
+        int "Event Task Stack Size (bytes)"
+        default 4096
+        range 1024 32768
+        help
+          Stack of the event task, which runs queued listeners, routes,
+          actions, and the inline listeners of ISR events.
+
+    config SYS_EVENT_TASK_PRIO
+        int "Event Task Priority"
+        default 5
+        range 1 24
+
+    config SYS_EVENT_ROUTE_COUNT
+        int "Route Slots"
+        default 8
+        range 1 8
+        help
+          Route table size. See components/utils/Kconfig "System-Wide
+          Identity Assignments" for the slot indices.
+endmenu

@@ -1,0 +1,1192 @@
+{
+  "$schema": "data-structures/schema/vm-model.schema.json",
+  "schemaVersion": 1,
+  "kind": "vm-model",
+  "enums": {
+    "vm_action_scope_e": {
+      "alias": "Action Scope",
+      "source_file": "components/VM/blocks/vm_block_action.h",
+      "members": [
+        {
+          "name": "VM_ACTION_SCOPE_STATIC",
+          "value": 0,
+          "alias": "Static",
+          "description": "A built-in action (freeze, safe state, device reset, ...)"
+        },
+        {
+          "name": "VM_ACTION_SCOPE_RECORDED",
+          "value": 1,
+          "alias": "Recorded",
+          "description": "A recorded packet sequence"
+        }
+      ]
+    },
+    "vm_edge_type_e": {
+      "alias": "Edge Type",
+      "source_file": "components/VM/blocks/vm_block_edge.h",
+      "members": [
+        {
+          "name": "VM_EDGE_RISING",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EDGE_FALLING",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EDGE_BOTH",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EDGE_TYPE_CNT",
+          "value": 3,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_expr_op_e": {
+      "alias": "Expression Opcode",
+      "source_file": "components/VM/blocks/vm_block_expr.h",
+      "members": [
+        {
+          "name": "VM_EXPR_END",
+          "value": 0,
+          "alias": "end",
+          "description": "Stop; the rest of the code is ignored."
+        },
+        {
+          "name": "VM_EXPR_IN",
+          "value": 1,
+          "alias": "in",
+          "description": "-> input[operand] (as float)"
+        },
+        {
+          "name": "VM_EXPR_K",
+          "value": 2,
+          "alias": "const",
+          "description": "-> constant[operand]"
+        },
+        {
+          "name": "VM_EXPR_DUP",
+          "value": 3,
+          "alias": "dup",
+          "description": "a -> a a"
+        },
+        {
+          "name": "VM_EXPR_DROP",
+          "value": 4,
+          "alias": "drop",
+          "description": "a ->"
+        },
+        {
+          "name": "VM_EXPR_SWAP",
+          "value": 5,
+          "alias": "swap",
+          "description": "a b -> b a"
+        },
+        {
+          "name": "VM_EXPR_ADD",
+          "value": 6,
+          "alias": "+",
+          "description": "a b -> a + b"
+        },
+        {
+          "name": "VM_EXPR_SUB",
+          "value": 7,
+          "alias": "-",
+          "description": "a b -> a - b"
+        },
+        {
+          "name": "VM_EXPR_MUL",
+          "value": 8,
+          "alias": "*",
+          "description": "a b -> a * b"
+        },
+        {
+          "name": "VM_EXPR_DIV",
+          "value": 9,
+          "alias": "/",
+          "description": "a b -> a / b (b = 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_MOD",
+          "value": 10,
+          "alias": "mod",
+          "description": "a b -> fmod(a, b) (b = 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_POW",
+          "value": 11,
+          "alias": "pow",
+          "description": "a b -> a to the power b (a < 0 with fractional b faults)"
+        },
+        {
+          "name": "VM_EXPR_ROOT",
+          "value": 12,
+          "alias": "root",
+          "description": "a b -> b-th root of a (b = 0 faults; a < 0 needs an odd integer b)"
+        },
+        {
+          "name": "VM_EXPR_MIN",
+          "value": 13,
+          "alias": "min",
+          "description": "a b -> the smaller"
+        },
+        {
+          "name": "VM_EXPR_MAX",
+          "value": 14,
+          "alias": "max",
+          "description": "a b -> the larger"
+        },
+        {
+          "name": "VM_EXPR_ATAN2",
+          "value": 15,
+          "alias": "atan2",
+          "description": "y x -> atan2(y, x), radians"
+        },
+        {
+          "name": "VM_EXPR_HYPOT",
+          "value": 16,
+          "alias": "hypot",
+          "description": "a b -> sqrt(a*a + b*b)"
+        },
+        {
+          "name": "VM_EXPR_NEG",
+          "value": 17,
+          "alias": "neg",
+          "description": "a -> -a"
+        },
+        {
+          "name": "VM_EXPR_ABS",
+          "value": 18,
+          "alias": "abs",
+          "description": "a -> |a|"
+        },
+        {
+          "name": "VM_EXPR_SQRT",
+          "value": 19,
+          "alias": "sqrt",
+          "description": "a -> square root (a < 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_SQUARE",
+          "value": 20,
+          "alias": "sq",
+          "description": "a -> a * a"
+        },
+        {
+          "name": "VM_EXPR_RECIP",
+          "value": 21,
+          "alias": "1/x",
+          "description": "a -> 1 / a (a = 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_FLOOR",
+          "value": 22,
+          "alias": "floor",
+          "description": "a -> round down"
+        },
+        {
+          "name": "VM_EXPR_CEIL",
+          "value": 23,
+          "alias": "ceil",
+          "description": "a -> round up"
+        },
+        {
+          "name": "VM_EXPR_ROUND",
+          "value": 24,
+          "alias": "round",
+          "description": "a -> round half away from zero"
+        },
+        {
+          "name": "VM_EXPR_TRUNC",
+          "value": 25,
+          "alias": "trunc",
+          "description": "a -> round toward zero"
+        },
+        {
+          "name": "VM_EXPR_SIGN",
+          "value": 26,
+          "alias": "sign",
+          "description": "a -> -1, 0 or 1"
+        },
+        {
+          "name": "VM_EXPR_SIN",
+          "value": 27,
+          "alias": "sin",
+          "description": "a -> sin(a), radians"
+        },
+        {
+          "name": "VM_EXPR_COS",
+          "value": 28,
+          "alias": "cos",
+          "description": "a -> cos(a), radians"
+        },
+        {
+          "name": "VM_EXPR_TAN",
+          "value": 29,
+          "alias": "tan",
+          "description": "a -> tan(a), radians"
+        },
+        {
+          "name": "VM_EXPR_ASIN",
+          "value": 30,
+          "alias": "asin",
+          "description": "a -> asin(a) (|a| > 1 faults)"
+        },
+        {
+          "name": "VM_EXPR_ACOS",
+          "value": 31,
+          "alias": "acos",
+          "description": "a -> acos(a) (|a| > 1 faults)"
+        },
+        {
+          "name": "VM_EXPR_ATAN",
+          "value": 32,
+          "alias": "atan",
+          "description": "a -> atan(a)"
+        },
+        {
+          "name": "VM_EXPR_EXP",
+          "value": 33,
+          "alias": "exp",
+          "description": "a -> e to the power a"
+        },
+        {
+          "name": "VM_EXPR_LOG",
+          "value": 34,
+          "alias": "ln",
+          "description": "a -> natural log (a <= 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_LOG10",
+          "value": 35,
+          "alias": "log10",
+          "description": "a -> base-10 log (a <= 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_LOG2",
+          "value": 36,
+          "alias": "log2",
+          "description": "a -> base-2 log (a <= 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_DEG",
+          "value": 37,
+          "alias": "deg",
+          "description": "a -> radians to degrees"
+        },
+        {
+          "name": "VM_EXPR_RAD",
+          "value": 38,
+          "alias": "rad",
+          "description": "a -> degrees to radians"
+        },
+        {
+          "name": "VM_EXPR_LT",
+          "value": 39,
+          "alias": "<",
+          "description": "a b -> a < b"
+        },
+        {
+          "name": "VM_EXPR_LE",
+          "value": 40,
+          "alias": "<=",
+          "description": "a b -> a <= b"
+        },
+        {
+          "name": "VM_EXPR_GT",
+          "value": 41,
+          "alias": ">",
+          "description": "a b -> a > b"
+        },
+        {
+          "name": "VM_EXPR_GE",
+          "value": 42,
+          "alias": ">=",
+          "description": "a b -> a >= b"
+        },
+        {
+          "name": "VM_EXPR_EQ",
+          "value": 43,
+          "alias": "==",
+          "description": "a b -> a == b (exact)"
+        },
+        {
+          "name": "VM_EXPR_NE",
+          "value": 44,
+          "alias": "!=",
+          "description": "a b -> a != b (exact)"
+        },
+        {
+          "name": "VM_EXPR_AND",
+          "value": 45,
+          "alias": "and",
+          "description": "a b -> a and b"
+        },
+        {
+          "name": "VM_EXPR_OR",
+          "value": 46,
+          "alias": "or",
+          "description": "a b -> a or b"
+        },
+        {
+          "name": "VM_EXPR_XOR",
+          "value": 47,
+          "alias": "xor",
+          "description": "a b -> exactly one of a, b"
+        },
+        {
+          "name": "VM_EXPR_NOT",
+          "value": 48,
+          "alias": "not",
+          "description": "a -> not a"
+        },
+        {
+          "name": "VM_EXPR_SEL",
+          "value": 49,
+          "alias": "select",
+          "description": "c t f -> t if c is non-zero, else f"
+        },
+        {
+          "name": "VM_EXPR_OP_CNT",
+          "value": 50,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_bit_op_e": {
+      "alias": "Bit Expression Opcode",
+      "source_file": "components/VM/blocks/vm_block_expr.h",
+      "members": [
+        {
+          "name": "VM_BIT_END",
+          "value": 0,
+          "alias": "end",
+          "description": "Stop; the rest of the code is ignored."
+        },
+        {
+          "name": "VM_BIT_IN",
+          "value": 1,
+          "alias": "in",
+          "description": "-> input[operand] (as u32)"
+        },
+        {
+          "name": "VM_BIT_K",
+          "value": 2,
+          "alias": "const",
+          "description": "-> constant[operand]"
+        },
+        {
+          "name": "VM_BIT_DUP",
+          "value": 3,
+          "alias": "dup",
+          "description": "a -> a a"
+        },
+        {
+          "name": "VM_BIT_DROP",
+          "value": 4,
+          "alias": "drop",
+          "description": "a ->"
+        },
+        {
+          "name": "VM_BIT_SWAP",
+          "value": 5,
+          "alias": "swap",
+          "description": "a b -> b a"
+        },
+        {
+          "name": "VM_BIT_AND",
+          "value": 6,
+          "alias": "&",
+          "description": "a b -> a AND b"
+        },
+        {
+          "name": "VM_BIT_OR",
+          "value": 7,
+          "alias": "|",
+          "description": "a b -> a OR b"
+        },
+        {
+          "name": "VM_BIT_XOR",
+          "value": 8,
+          "alias": "^",
+          "description": "a b -> a XOR b"
+        },
+        {
+          "name": "VM_BIT_SHL",
+          "value": 9,
+          "alias": "<<",
+          "description": "a n -> a shifted left by n (n >= 32 gives 0)"
+        },
+        {
+          "name": "VM_BIT_SHR",
+          "value": 10,
+          "alias": ">>",
+          "description": "a n -> a shifted right by n, zero fill (n >= 32 gives 0)"
+        },
+        {
+          "name": "VM_BIT_SAR",
+          "value": 11,
+          "alias": ">>>",
+          "description": "a n -> a shifted right by n, sign fill"
+        },
+        {
+          "name": "VM_BIT_ROL",
+          "value": 12,
+          "alias": "rol",
+          "description": "a n -> a rotated left by n mod 32"
+        },
+        {
+          "name": "VM_BIT_ROR",
+          "value": 13,
+          "alias": "ror",
+          "description": "a n -> a rotated right by n mod 32"
+        },
+        {
+          "name": "VM_BIT_GET",
+          "value": 14,
+          "alias": "bit",
+          "description": "a n -> bit n mod 32 of a (1 or 0)"
+        },
+        {
+          "name": "VM_BIT_SET",
+          "value": 15,
+          "alias": "set",
+          "description": "a n -> a with bit n mod 32 set"
+        },
+        {
+          "name": "VM_BIT_CLR",
+          "value": 16,
+          "alias": "clear",
+          "description": "a n -> a with bit n mod 32 cleared"
+        },
+        {
+          "name": "VM_BIT_TGL",
+          "value": 17,
+          "alias": "toggle",
+          "description": "a n -> a with bit n mod 32 flipped"
+        },
+        {
+          "name": "VM_BIT_NOT",
+          "value": 18,
+          "alias": "~",
+          "description": "a -> every bit flipped"
+        },
+        {
+          "name": "VM_BIT_POPCNT",
+          "value": 19,
+          "alias": "popcount",
+          "description": "a -> number of set bits"
+        },
+        {
+          "name": "VM_BIT_CLZ",
+          "value": 20,
+          "alias": "clz",
+          "description": "a -> leading zero bits (32 for 0)"
+        },
+        {
+          "name": "VM_BIT_CTZ",
+          "value": 21,
+          "alias": "ctz",
+          "description": "a -> trailing zero bits (32 for 0)"
+        },
+        {
+          "name": "VM_BIT_BSWAP",
+          "value": 22,
+          "alias": "bswap",
+          "description": "a -> byte order reversed"
+        },
+        {
+          "name": "VM_BIT_OP_CNT",
+          "value": 23,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_for_op_e": {
+      "alias": "Loop Step Operation",
+      "source_file": "components/VM/blocks/vm_block_for.h",
+      "members": [
+        {
+          "name": "VM_FOR_OP_ADD",
+          "value": 0,
+          "alias": "+",
+          "description": null
+        },
+        {
+          "name": "VM_FOR_OP_SUB",
+          "value": 1,
+          "alias": "-",
+          "description": null
+        },
+        {
+          "name": "VM_FOR_OP_MUL",
+          "value": 2,
+          "alias": "*",
+          "description": null
+        },
+        {
+          "name": "VM_FOR_OP_DIV",
+          "value": 3,
+          "alias": "/",
+          "description": null
+        },
+        {
+          "name": "VM_FOR_OP_CNT",
+          "value": 4,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_for_cmp_e": {
+      "alias": "Loop Condition",
+      "source_file": "components/VM/blocks/vm_block_for.h",
+      "members": [
+        {
+          "name": "VM_FOR_CMP_LT",
+          "value": 0,
+          "alias": "<",
+          "description": null
+        },
+        {
+          "name": "VM_FOR_CMP_LE",
+          "value": 1,
+          "alias": "<=",
+          "description": null
+        },
+        {
+          "name": "VM_FOR_CMP_GT",
+          "value": 2,
+          "alias": ">",
+          "description": null
+        },
+        {
+          "name": "VM_FOR_CMP_GE",
+          "value": 3,
+          "alias": ">=",
+          "description": null
+        },
+        {
+          "name": "VM_FOR_CMP_CNT",
+          "value": 4,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_io_disabled_state_e": {
+      "alias": "IO Disabled Action",
+      "source_file": "components/VM/blocks/vm_block_io_set_level.h",
+      "members": [
+        {
+          "name": "VM_IO_DISABLED_FORCE_LOW",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IO_DISABLED_FORCE_HIGH",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IO_DISABLED_HOLD",
+          "value": 2,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_io_level_e": {
+      "alias": "IO Static Level",
+      "source_file": "components/VM/blocks/vm_block_io_set_level.h",
+      "members": [
+        {
+          "name": "VM_IO_LEVEL_HIGH",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IO_LEVEL_LOW",
+          "value": 1,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_latch_mode_e": {
+      "alias": "Latch Mode",
+      "source_file": "components/VM/blocks/vm_block_latch.h",
+      "members": [
+        {
+          "name": "VM_LATCH_SET_DOMINANT",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_LATCH_RESET_DOMINANT",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_LATCH_MODE_CNT",
+          "value": 2,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_timer_mode_e": {
+      "alias": "Timer Mode",
+      "source_file": "components/VM/blocks/vm_block_timer.h",
+      "members": [
+        {
+          "name": "VM_TIMER_TON",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TOF",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TP",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TON_INV",
+          "value": 3,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TOF_INV",
+          "value": 4,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TP_INV",
+          "value": 5,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_MODE_CNT",
+          "value": 6,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_timer_unit_e": {
+      "alias": "Time Unit",
+      "source_file": "components/VM/blocks/vm_block_timer.h",
+      "members": [
+        {
+          "name": "VM_TIMER_UNIT_MS",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_SEC",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_MIN",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_HR",
+          "value": 3,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_CNT",
+          "value": 4,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_blk_en_mode_e": {
+      "alias": "Enable Mode",
+      "source_file": "components/VM/core/block/vm_block.h",
+      "members": [
+        {
+          "name": "VM_BLK_EN_ANY",
+          "value": 0,
+          "alias": "Any",
+          "description": "Runs when any enable is true (OR, a branch merge)."
+        },
+        {
+          "name": "VM_BLK_EN_ALL",
+          "value": 1,
+          "alias": "All",
+          "description": "Runs when every enable is true (AND)."
+        }
+      ]
+    },
+    "vm_blk_on_error_e": {
+      "alias": "On Error",
+      "source_file": "components/VM/core/block/vm_block.h",
+      "members": [
+        {
+          "name": "VM_BLK_ERR_STOP",
+          "value": 0,
+          "alias": "Stop",
+          "description": "Publish a false ENO; downstream blocks skip."
+        },
+        {
+          "name": "VM_BLK_ERR_CONTINUE",
+          "value": 1,
+          "alias": "Continue",
+          "description": "Report the failure and carry on."
+        }
+      ]
+    },
+    "vm_exec_command_e": {
+      "alias": "VM Exec Command",
+      "source_file": "components/VM/core/exec/vm_exec.h",
+      "members": [
+        {
+          "name": "VM_EXEC_SCAN_MODE",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_ONCE",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_BLOCK_MODE",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_NEXT",
+          "value": 3,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_RESET_TO_START",
+          "value": 4,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_NORMAL_MODE",
+          "value": 5,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_PAUSE",
+          "value": 6,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_RESUME",
+          "value": 7,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_RESET",
+          "value": 8,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_ACK_FAULT",
+          "value": 9,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_RETAIN_CLEAR",
+          "value": 10,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_obj_t_e": {
+      "alias": "VM Data Type",
+      "source_file": "components/VM/core/obj/vm_obj.h",
+      "members": [
+        {
+          "name": "VM_OBJ_NONE",
+          "value": 0,
+          "alias": "Empty",
+          "description": "No payload type."
+        },
+        {
+          "name": "VM_OBJ_PTR",
+          "value": 1,
+          "alias": "Object Reference",
+          "description": "A reference to another VM object."
+        },
+        {
+          "name": "VM_OBJ_U8",
+          "value": 2,
+          "alias": "Unsigned 8-bit Integer",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_U32",
+          "value": 3,
+          "alias": "Unsigned 32-bit Integer",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_I32",
+          "value": 4,
+          "alias": "Signed 32-bit Integer",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_F",
+          "value": 5,
+          "alias": "Float",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_B",
+          "value": 6,
+          "alias": "Boolean",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_STR",
+          "value": 7,
+          "alias": "Text",
+          "description": null
+        }
+      ]
+    },
+    "vm_index_kind_e": {
+      "alias": "VM Index Kind",
+      "source_file": "components/VM/core/obj/vm_obj_access.h",
+      "members": [
+        {
+          "name": "VM_IDX_LITERAL",
+          "value": 0,
+          "alias": "Literal Index",
+          "description": "A fixed array position."
+        },
+        {
+          "name": "VM_IDX_REF",
+          "value": 1,
+          "alias": "Accessor Reference",
+          "description": "Read another accessor to obtain the index."
+        },
+        {
+          "name": "VM_IDX_NAME",
+          "value": 2,
+          "alias": "Child Name",
+          "description": "Find a child object by its tag."
+        }
+      ]
+    }
+  },
+  "structures": [
+    {
+      "name": "vm_obj_head_t",
+      "source_file": "components/VM/core/obj/vm_obj.h",
+      "annotations": {
+        "alias": "VM Object Header",
+        "kind": "vm-object-header",
+        "wire_abi": "esp32-gcc-bitfield-v1",
+        "wire_size": "4"
+      },
+      "fields": [
+        {
+          "name": "payload_size",
+          "kind": "field",
+          "c_type": "uint16_t",
+          "annotations": {
+            "alias": "Payload Size",
+            "unit": "bytes",
+            "role": "payload-size",
+            "wire_offset": "0",
+            "wire_type": "u16-le"
+          }
+        },
+        {
+          "name": "d",
+          "kind": "struct",
+          "annotations": {
+            "group": "descriptor",
+            "wire_offset": "2"
+          },
+          "fields": [
+            {
+              "name": "obj_t",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "alias": "Data Type",
+                "role": "object-type",
+                "enum_ref": "vm_obj_t_e",
+                "one_of": [
+                  {
+                    "symbol": "VM_OBJ_NONE",
+                    "enum": "vm_obj_t_e",
+                    "value": 0,
+                    "alias": "Empty",
+                    "description": "No payload type."
+                  },
+                  {
+                    "symbol": "VM_OBJ_PTR",
+                    "enum": "vm_obj_t_e",
+                    "value": 1,
+                    "alias": "Object Reference",
+                    "description": "A reference to another VM object."
+                  },
+                  {
+                    "symbol": "VM_OBJ_U8",
+                    "enum": "vm_obj_t_e",
+                    "value": 2,
+                    "alias": "Unsigned 8-bit Integer",
+                    "description": null
+                  },
+                  {
+                    "symbol": "VM_OBJ_U32",
+                    "enum": "vm_obj_t_e",
+                    "value": 3,
+                    "alias": "Unsigned 32-bit Integer",
+                    "description": null
+                  },
+                  {
+                    "symbol": "VM_OBJ_I32",
+                    "enum": "vm_obj_t_e",
+                    "value": 4,
+                    "alias": "Signed 32-bit Integer",
+                    "description": null
+                  },
+                  {
+                    "symbol": "VM_OBJ_F",
+                    "enum": "vm_obj_t_e",
+                    "value": 5,
+                    "alias": "Float",
+                    "description": null
+                  },
+                  {
+                    "symbol": "VM_OBJ_B",
+                    "enum": "vm_obj_t_e",
+                    "value": 6,
+                    "alias": "Boolean",
+                    "description": null
+                  },
+                  {
+                    "symbol": "VM_OBJ_STR",
+                    "enum": "vm_obj_t_e",
+                    "value": 7,
+                    "alias": "Text",
+                    "description": null
+                  }
+                ],
+                "wire_offset": "2",
+                "wire_bit_offset": "0"
+              },
+              "bit_width": 4
+            },
+            {
+              "name": "name_size",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "alias": "Name Length",
+                "unit": "chars",
+                "role": "name-size",
+                "min": "0",
+                "max": "VM_OBJ_NAME_MAX",
+                "wire_offset": "2",
+                "wire_bit_offset": "4"
+              },
+              "bit_width": 4
+            }
+          ]
+        },
+        {
+          "name": "f",
+          "kind": "struct",
+          "annotations": {
+            "group": "flags",
+            "wire_offset": "3"
+          },
+          "fields": [
+            {
+              "name": "mutable",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "alias": "Mutable",
+                "role": "mutable",
+                "wire_offset": "3",
+                "wire_bit_offset": "0"
+              },
+              "bit_width": 1
+            },
+            {
+              "name": "upd",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "alias": "Updated",
+                "role": "updated",
+                "wire_offset": "3",
+                "wire_bit_offset": "1",
+                "device_sets": "0 at load"
+              },
+              "bit_width": 1
+            },
+            {
+              "name": "upd_resetable",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "alias": "Resettable Update Flag",
+                "role": "update-resettable",
+                "wire_offset": "3",
+                "wire_bit_offset": "2"
+              },
+              "bit_width": 1
+            },
+            {
+              "name": "tagged",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "alias": "Has Name",
+                "role": "has-name",
+                "wire_offset": "3",
+                "wire_bit_offset": "3",
+                "device_sets": "name_size != 0"
+              },
+              "bit_width": 1
+            },
+            {
+              "name": "retentive",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "alias": "Retentive",
+                "role": "retentive",
+                "note": "Not valid for pointer objects.",
+                "wire_offset": "3",
+                "wire_bit_offset": "4"
+              },
+              "bit_width": 1
+            },
+            {
+              "name": "dynamic",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "alias": "Dynamic",
+                "role": "dynamic",
+                "note": "Runtime heap allocation.",
+                "wire_offset": "3",
+                "wire_bit_offset": "5",
+                "device_sets": "0 at load; 1 on heap objects"
+              },
+              "bit_width": 1
+            },
+            {
+              "name": "usr_protected",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "alias": "User Protected",
+                "role": "user-protected",
+                "wire_offset": "3",
+                "wire_bit_offset": "6",
+                "device_sets": "0 at load; 1 on block outputs and ENO objects"
+              },
+              "bit_width": 1
+            },
+            {
+              "name": "_pad",
+              "kind": "field",
+              "c_type": "uint8_t",
+              "annotations": {
+                "internal": "",
+                "wire_offset": "3",
+                "wire_bit_offset": "7"
+              },
+              "bit_width": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "vm_obj_t",
+      "source_file": "components/VM/core/obj/vm_obj.h",
+      "annotations": {
+        "alias": "VM Object",
+        "kind": "vm-object",
+        "variable_size": ""
+      },
+      "fields": [
+        {
+          "name": "head",
+          "kind": "field",
+          "c_type": "vm_obj_head_t",
+          "annotations": {
+            "alias": "Header",
+            "role": "header"
+          }
+        },
+        {
+          "name": "payload",
+          "kind": "field",
+          "c_type": "uint8_t",
+          "annotations": {
+            "alias": "Payload",
+            "role": "payload",
+            "element_type_from": "d.obj_t",
+            "length_from": "payload_size"
+          },
+          "array": {
+            "flexible": true
+          }
+        }
+      ]
+    }
+  ]
+}

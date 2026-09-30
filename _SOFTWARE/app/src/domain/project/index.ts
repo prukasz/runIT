@@ -1,0 +1,38 @@
+export { boardDeviceRef, createProject, DEFAULT_BLE_GENERAL, PROJECT_FORMAT, PROJECT_FORMAT_VERSION, userSection } from './document'
+export type {
+  ActionStep,
+  DeviceAppearance,
+  DeviceRef,
+  PinAliases,
+  ProjectAction,
+  ProjectCanvas,
+  CanvasVariable,
+  CanvasVariableTarget,
+  ProjectDevice,
+  StepValues,
+  BleCharacteristicSettings,
+  BleGeneralSettings,
+  BleProfile,
+  BleServiceSettings,
+  BleValueFormat,
+  CanvasBlock,
+  ConnectorBindingSettings,
+  ConnectorSettings,
+  FolderNode,
+  ObjectNode,
+  ObjectOwner,
+  ObjectPath,
+  ObjectSection,
+  ObjectValue,
+  PathStep,
+  ProgramBlock,
+  ProjectDocument,
+  LogSettings,
+  ProjectSettings,
+  RawFrame,
+  ReferenceNode,
+  ValueNode,
+} from './document'
+export { addObject, findObject, moveObject, newObjectId, ObjectTreeError, removeObject, setFolderChildren, updateObject, walkObjects } from './objectTree'
+export type { FolderPatch, FoundObject, ReferencePatch, ValuePatch } from './objectTree'
+export { parseActions, parseCanvases, parseDeviceAliases, parsePinAliases, parseDevices, parseProject, parseSetup, parseSettings, ProjectFormatError, serializeProject } from './projectFile'

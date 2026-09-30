@@ -1,13 +1,11 @@
 // INA3221 device adapter implementation
 #include "device_ina3221.h"
 #include "driver_ina3221.h"
-#include "esp_log.h"
 #include "sys_device.h"
 #include "sys_i2c.h"
 #include "sys_io.h"
 #include "sys_power.h"
 
-static const char* TAG = __FILE_NAME__;
 #undef OWNER
 #define OWNER OWNER_DEVICE_INA3221
 
@@ -20,17 +18,18 @@ typedef struct {
   int32_t cached_voltage[3];
   int32_t cached_current[3];
 
-  uint16_t route_masks_crit[3];
-  uint16_t route_masks_warn[3];
-  uint64_t action_masks_crit[3];
-  uint64_t action_masks_warn[3];
+  uint8_t crit_sub; /* sys_event subscriptions on the alert pins */
+  uint8_t warn_sub;
+
+  /* Reversed-shunt channel armed on the critical [0] / warning [1] pin, -1 = none (set_inverted_alert). */
+  int8_t inverted_alert[2];
 } ina_adapter_ctx_t;
 
-enum { INA_STEP_I2C_ADDED = 0, INA_STEP_CRIT_READY = 1, INA_STEP_WARN_READY = 2 };
+enum { INA_STEP_I2C_ADDED = 0, INA_STEP_CRIT_READY = 1, INA_STEP_WARN_READY = 2, INA_STEP_CRIT_SUB = 3, INA_STEP_WARN_SUB = 4 };
 
-static err_h device_event_handler(void* handle, cb_event_t* event);
+static SE_MUST_USE err_h device_event_handler(const sys_event_t* event, void* handle);
 
-static err_h contract_monitor_ina3221_get_voltage(void* device_handle, uint8_t channel, int32_t* out_mV) {
+static SE_MUST_USE err_h contract_monitor_ina3221_get_voltage(void* device_handle, uint8_t channel, int32_t* out_mV) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, device_handle);
   SE_CHECK_HANDLE(out_mV);
   SE_CHECK_IN_RANGE(channel, 0, 2);
@@ -43,7 +42,16 @@ static err_h contract_monitor_ina3221_get_voltage(void* device_handle, uint8_t c
   return NULL;
 }
 
-static err_h contract_monitor_ina3221_get_current(void* device_handle, uint8_t channel, int32_t* out_mA) {
+#define INA_FEATURE_SET_ALERT 2 /* index in sys_power_monitor_feature_names */
+
+/* Current as the board sees it: flipped for a reversed shunt (cfg.inverted_mask). */
+static esp_err_t ina_read_current(const ina_adapter_ctx_t* ctx, ina3221_handle_t hw, uint8_t channel, int32_t* out_mA) {
+  esp_err_t rc = ina3221_read_shunt_current(hw, channel, out_mA);
+  if (rc == ESP_OK && (ctx->cfg.inverted_mask & (1u << channel))) *out_mA = -*out_mA;
+  return rc;
+}
+
+static SE_MUST_USE err_h contract_monitor_ina3221_get_current(void* device_handle, uint8_t channel, int32_t* out_mA) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, device_handle);
   SE_CHECK_HANDLE(out_mA);
   SE_CHECK_IN_RANGE(channel, 0, 2);
@@ -52,43 +60,81 @@ static err_h contract_monitor_ina3221_get_current(void* device_handle, uint8_t c
     *out_mA = ctx->cached_current[channel];
     return NULL;
   }
-  SYS_DEV_CHECK_DRIVER_CALL(ina3221_read_shunt_current(hw, channel, out_mA), ctx);
+  SYS_DEV_CHECK_DRIVER_CALL(ina_read_current(ctx, hw, channel, out_mA), ctx);
   return NULL;
 }
 
-static err_h contract_monitor_ina3221_add_callback(void* device_handle, uint8_t channel, int32_t trigger_value, sys_power_events_e on_event, uint16_t route_mask, uint64_t action_mask) {
+/* An alert pin's interrupt edge; the pin stays locked to this device. */
+static SE_MUST_USE err_h set_pin_edge(sys_io_pin_ref_t pin, sys_io_intr_mode_e mode) {
+  SE_TRY(sys_io_unlock_pin(pin));
+  sys_io_intr_config_t intr_cfg = {.mode = mode};
+  err_h err = sys_io_configure_intr(pin, &intr_cfg);
+  SYS_DEV_TEARDOWN_STEP(err, sys_io_lock_pin(pin));
+  return err;
+}
+
+/* A reversed shunt reads negative and the chip compares signed, so the limit
+   is -threshold: the alert is active while the current is below the threshold
+   and releases above it (checked on the PCB). It is transparent (not latched),
+   and its pin takes this one channel only - an active channel holds the shared
+   pin and would hide the others. The pin's release (rising edge) is the alert. */
+static SE_MUST_USE err_h set_inverted_alert(ina_adapter_ctx_t* ctx, ina3221_handle_t hw, uint8_t channel, bool critical, int32_t threshold_mA) {
+  SE_CHECK_IN_RANGE(threshold_mA, 1, INT32_MAX);
+  sys_io_pin_ref_t pin = critical ? ctx->cfg.crit_pin : ctx->cfg.warn_pin;
+  if (!sys_io_pin_is_valid(pin)) SE_FAIL(ERR_DEV_FEATURE_UNAVAILABLE, SYS_DEV_GET_ID(ctx), SYS_DEVICE_CONTRACT_POWER_MONITOR, INA_FEATURE_SET_ALERT);
+  int8_t* armed = &ctx->inverted_alert[critical ? 0 : 1];
+  if (*armed >= 0 && *armed != channel) SE_FAIL(ERR_IO_PIN_ALREADY_IN_USE, pin.device_id, pin.pin, pin.mode);
+  // Rising edge first: arming pulls the pin low (its normal state now), which must not count.
+  if (*armed < 0) SE_TRY(set_pin_edge(pin, SYS_IO_INTR_MODE_RISING_EDGE));
+  SYS_DEV_CHECK_DRIVER_CALL(ina3221_enable_latch_pin(hw, critical ? hw->mask.wen : false, critical ? false : hw->mask.cen), ctx);
+  SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_alert(hw, channel, -threshold_mA, critical), ctx);
+  *armed = (int8_t)channel;
+  return NULL;
+}
+
+/* After a chip reset (limits at their defaults): the armed reversed-shunt alerts are gone, their pins back to the falling edge. */
+static SE_MUST_USE err_h disarm_inverted_alerts(ina_adapter_ctx_t* ctx) {
+  err_h err = NULL;
+  const sys_io_pin_ref_t pins[2] = {ctx->cfg.crit_pin, ctx->cfg.warn_pin};
+  for (int i = 0; i < 2; i++) {
+    if (ctx->inverted_alert[i] < 0) continue;
+    ctx->inverted_alert[i] = -1;
+    SYS_DEV_TEARDOWN_STEP(err, set_pin_edge(pins[i], SYS_IO_INTR_MODE_FALLING_EDGE));
+  }
+  return err;
+}
+
+static SE_MUST_USE err_h contract_monitor_ina3221_set_alert(void* device_handle, uint8_t channel, sys_power_events_e alert, int32_t threshold_mA) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, device_handle);
   SE_CHECK_IN_RANGE(channel, 0, 2);
+  bool critical = alert == SYS_PWR_EVENT_OCP_CRITICAL;
+  if (!critical && alert != SYS_PWR_EVENT_OCP_WARNING) SE_FAIL(ERR_DEV_FEATURE_UNAVAILABLE, SYS_DEV_GET_ID(ctx), 0, alert);
+  if (ctx->cfg.inverted_mask & (1u << channel)) return set_inverted_alert(ctx, hw, channel, critical, threshold_mA);
 
-  if (on_event == SYS_PWR_EVENT_OCP_CRITICAL) {
-    ctx->route_masks_crit[channel] = route_mask;
-    ctx->action_masks_crit[channel] = action_mask;
-    SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_alert(hw, channel, trigger_value, true), ctx);
-  } else if (on_event == SYS_PWR_EVENT_OCP_WARNING) {
-    ctx->route_masks_warn[channel] = route_mask;
-    ctx->action_masks_warn[channel] = action_mask;
-    SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_alert(hw, channel, trigger_value, false), ctx);
-  } else {
-    SE_RET_ERR(ERR_DEV_FEATURE_UNAVAILABLE, SYS_DEV_GET_ID(ctx), 0, on_event);
-  }
-
+  SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_alert(hw, channel, threshold_mA, critical), ctx);
   return NULL;
 }
 
-static const sys_power_monitor_contract s_ina_monitor_contract = {.get_voltage = contract_monitor_ina3221_get_voltage, .get_current = contract_monitor_ina3221_get_current, .add_callback = contract_monitor_ina3221_add_callback};
+static const sys_power_monitor_contract_t s_ina3221_monitor_contract = {.get_voltage = contract_monitor_ina3221_get_voltage, .get_current = contract_monitor_ina3221_get_current, .set_alert = contract_monitor_ina3221_set_alert};
 
 // --- sys_device_t VTable Implementations ---
-static err_h device_uninstall(void* handle) {
+static SE_MUST_USE err_h device_uninstall(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
   err_h err = NULL;
 
+  IF_SYS_DEV_STEP_DONE(ctx, INA_STEP_CRIT_SUB) {
+    SYS_DEV_TEARDOWN_STEP(err, sys_event_unsubscribe(ctx->crit_sub, false));
+  }
+  IF_SYS_DEV_STEP_DONE(ctx, INA_STEP_WARN_SUB) {
+    SYS_DEV_TEARDOWN_STEP(err, sys_event_unsubscribe(ctx->warn_sub, false));
+  }
   IF_SYS_DEV_STEP_DONE(ctx, INA_STEP_CRIT_READY) {
-    SYS_IO_REF_UNLOCK(ctx->cfg.crit_pin);
-    SYS_DEV_TEARDOWN_STEP(err, SYS_IO_REF_RESET(ctx->cfg.crit_pin));
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_unlock_pin(ctx->cfg.crit_pin));
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_reset(ctx->cfg.crit_pin));
   }
   IF_SYS_DEV_STEP_DONE(ctx, INA_STEP_WARN_READY) {
-    SYS_IO_REF_UNLOCK(ctx->cfg.warn_pin);
-    SYS_DEV_TEARDOWN_STEP(err, SYS_IO_REF_RESET(ctx->cfg.warn_pin));
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_unlock_pin(ctx->cfg.warn_pin));
+    SYS_DEV_TEARDOWN_STEP(err, sys_io_reset(ctx->cfg.warn_pin));
   }
   if (ctx->base.hw_handle) {
     IF_SYS_DEV_STEP_DONE(ctx, INA_STEP_I2C_ADDED) {
@@ -100,40 +146,37 @@ static err_h device_uninstall(void* handle) {
   return err;
 }
 
-static err_h device_reset(void* handle) {
+static SE_MUST_USE err_h device_reset(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
 
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_reset(hw), ctx);
+  SE_TRY(disarm_inverted_alerts(ctx));
   // Enable latches & options (Warning & Critical alert latch)
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_enable_latch_pin(hw, true, true), ctx);
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_options(hw, true, true, true), ctx);
 
   for (uint8_t i = 0; i < 3; i++) {
-    ctx->route_masks_crit[i] = 0;
-    ctx->route_masks_warn[i] = 0;
-    ctx->action_masks_crit[i] = 0;
-    ctx->action_masks_warn[i] = 0;
     ctx->cached_current[i] = 0;
     ctx->cached_voltage[i] = 0;
   }
   return NULL;
 }
 
-static err_h device_suspend(void* handle) {
+static SE_MUST_USE err_h device_suspend(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
   // Put INA3221 into power-down mode (mode = 0 in config)
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_options(hw, false, false, false), ctx);
   return NULL;
 }
 
-static err_h device_resume(void* handle) {
+static SE_MUST_USE err_h device_resume(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
   // Put INA3221 back into continuous mode (mode = 1)
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_set_options(hw, true, true, true), ctx);
   return NULL;
 }
 
-static err_h device_freeze(void* handle) {
+static SE_MUST_USE err_h device_freeze(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
   IF_SYS_DEV_FROZEN(ctx) {
     return NULL;
@@ -141,72 +184,29 @@ static err_h device_freeze(void* handle) {
   SYS_DEV_CTX_FREEZE(ctx);
   for (int i = 0; i < 3; i++) {
     SYS_DEV_CHECK_DRIVER_CALL(ina3221_read_bus_voltage(hw, i, &ctx->cached_voltage[i]), ctx);
-    SYS_DEV_CHECK_DRIVER_CALL(ina3221_read_shunt_current(hw, i, &ctx->cached_current[i]), ctx);
+    SYS_DEV_CHECK_DRIVER_CALL(ina_read_current(ctx, hw, i, &ctx->cached_current[i]), ctx);
   }
   return NULL;
 }
 
-static err_h device_sync(void* handle) {
+static SE_MUST_USE err_h device_sync(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
   SYS_DEV_CTX_UNFREEZE(ctx);
   return NULL;
 }
 
-// Same shape as device_pca9685's explain_root_cause() (see that file for
-// the full rationale): identifies which node in the chain is the root
-// cause and adds this adapter's own interpretation for it, without
-// repeating SE_describe_payload() - sys_error_handler_task's own stack
-// trace already prints that same description for every node, including
-// the root. Every ERR_ESP_ERR reaching this adapter's error_handler
-// originates from an I2C driver call (SYS_DEV_CHECK_DRIVER_CALL wraps every
-// ina3221_*() call, all of which go over I2C).
-static void explain_root_cause(uint8_t device_id, err_h error) {
-  err_h root = error;
-  while (root && root->next_cause) root = root->next_cause;
-  if (!root) return;
-  ESP_LOGE(TAG, "INA3221 (device %u) error root cause: owner=%s (0x%04X), tag=%s (%d)", device_id, SE_get_owner_name(root->owner), (unsigned int)root->owner, SE_get_tag_name(root->tag), (int)root->tag);
-
-  if (root->tag == ERR_ESP_ERR) {
-    ESP_LOGE(TAG, "  -> communication with INA3221 (device %u) failed - check that it is connected, powered, and present at the configured I2C bus/address", device_id);
-  }
-}
-
-static err_h device_error_handler(void* handle, err_h error) {
-  ina_adapter_ctx_t* ctx = (ina_adapter_ctx_t*)handle;
-  SYS_DEV_CHECK_HANDLE(ctx, 0);
-  sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(ctx));
-  if (!dev) return NULL;
-
-  explain_root_cause(SYS_DEV_GET_ID(ctx), error);
-
-  if (dev->generate_error_callback) {
-    // TODO: report to the VM via the callback system. Payload should carry
-    // at least: device_id, and the root cause's tag/owner - walk
-    // error->next_cause to the end, since a wrapper like ERR_DEV_DEP_FAILED
-    // only carries dev_id, not the underlying failure's tag/owner. Always
-    // attach device_id explicitly (the root cause itself may not carry one).
-    return NULL;
-  }
-
-  if (dev->use_error_handler) {
-    // TODO: classify `error` into a sys_device_err_level_e (critical/
-    // warning/notice) and sys_actions_invoke(dev->actions[level]).
-  }
-  return NULL;
-}
-
-static err_h device_install(const void* cfg_blob, void** out_device_handle) {
+static SE_MUST_USE err_h device_install(const void* cfg_blob, void** out_device_handle) {
   const d_ina3221_cfg_t* cfg = (const d_ina3221_cfg_t*)cfg_blob;
-  SE_CHECK_NOT_NULL(cfg);
-  SE_CHECK_NOT_NULL(out_device_handle);
+  SE_CHECK_IN_RANGE(cfg->i2c_addr, INA3221_I2C_ADDR_GND, INA3221_I2C_ADDR_SCL);
 
   SYS_DEV_CTX_NEW(ina_adapter_ctx_t, ctx, cfg);
+  ctx->inverted_alert[0] = ctx->inverted_alert[1] = -1;
   err_h err = NULL;
 
   ctx->base.hw_handle = ina3221_new(ctx->cfg.i2c_addr, ctx->cfg.i2c_bus);
   if (!ctx->base.hw_handle) {
     free(ctx);
-    SE_RET_ERR(ERR_DEV_NO_HANDLE, cfg->device_id);
+    SE_FAIL(ERR_BASE_NO_MEM, 0);
   }
 
   ina3221_handle_t hw = (ina3221_handle_t)(ctx->base.hw_handle);
@@ -218,26 +218,24 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
   SYS_DEV_INSTALL_STEP(SE_CONVERT_ESP(ina3221_start(hw)), "start ina3221");
 
   // Configure critical alert interrupt pin
-  IF_PIN_REF(ctx->cfg.crit_pin) {
-    SYS_DEV_INSTALL_STEP(SYS_IO_REF_SET_MODE(ctx->cfg.crit_pin), "crit pin mode");
-    sys_io_intr_config_t intr_cfg = {
-        .mode = SYS_IO_INTR_MODE_FALLING_EDGE,
-        .own_func = {.own_func = device_event_handler, .device_handle = ctx},
-    };
-    SYS_DEV_INSTALL_STEP(sys_io_configure_intr(ctx->cfg.crit_pin.device_id, ctx->cfg.crit_pin.pin, &intr_cfg), "crit pin intr");
-    SYS_IO_REF_LOCK(ctx->cfg.crit_pin);
+  if (sys_io_pin_is_valid(ctx->cfg.crit_pin)) {
+    SYS_DEV_INSTALL_STEP(sys_io_set_mode(ctx->cfg.crit_pin), "crit pin mode");
+    SYS_DEV_INSTALL_STEP(sys_io_subscribe_pin(ctx->cfg.crit_pin, device_event_handler, ctx, &ctx->crit_sub), "crit pin subscribe");
+    SYS_DEV_STEP_DONE(ctx, INA_STEP_CRIT_SUB);
+    sys_io_intr_config_t intr_cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
+    SYS_DEV_INSTALL_STEP(sys_io_configure_intr(ctx->cfg.crit_pin, &intr_cfg), "crit pin intr");
+    SYS_DEV_INSTALL_STEP(sys_io_lock_pin(ctx->cfg.crit_pin), "crit pin lock");
     SYS_DEV_STEP_DONE(ctx, INA_STEP_CRIT_READY);
   }
 
   // Configure warning alert interrupt pin
-  IF_PIN_REF(ctx->cfg.warn_pin) {
-    SYS_DEV_INSTALL_STEP(SYS_IO_REF_SET_MODE(ctx->cfg.warn_pin), "warn pin mode");
-    sys_io_intr_config_t intr_cfg = {
-        .mode = SYS_IO_INTR_MODE_FALLING_EDGE,
-        .own_func = {.own_func = device_event_handler, .device_handle = ctx},
-    };
-    SYS_DEV_INSTALL_STEP(sys_io_configure_intr(ctx->cfg.warn_pin.device_id, ctx->cfg.warn_pin.pin, &intr_cfg), "warn pin intr");
-    SYS_IO_REF_LOCK(ctx->cfg.warn_pin);
+  if (sys_io_pin_is_valid(ctx->cfg.warn_pin)) {
+    SYS_DEV_INSTALL_STEP(sys_io_set_mode(ctx->cfg.warn_pin), "warn pin mode");
+    SYS_DEV_INSTALL_STEP(sys_io_subscribe_pin(ctx->cfg.warn_pin, device_event_handler, ctx, &ctx->warn_sub), "warn pin subscribe");
+    SYS_DEV_STEP_DONE(ctx, INA_STEP_WARN_SUB);
+    sys_io_intr_config_t intr_cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
+    SYS_DEV_INSTALL_STEP(sys_io_configure_intr(ctx->cfg.warn_pin, &intr_cfg), "warn pin intr");
+    SYS_DEV_INSTALL_STEP(sys_io_lock_pin(ctx->cfg.warn_pin), "warn pin lock");
     SYS_DEV_STEP_DONE(ctx, INA_STEP_WARN_READY);
   }
 
@@ -254,35 +252,55 @@ fail:
   return NULL;
 }
 
-static err_h device_event_handler(void* handle, cb_event_t* event) {
+/* Inline listener of both alert pins: publish every flagged channel. */
+static SE_MUST_USE err_h device_event_handler(const sys_event_t* event, void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(ina_adapter_ctx_t, ina3221_handle_t, ctx, hw, handle);
   // Read and clear alert flags from the mask/status register
   SYS_DEV_CHECK_DRIVER_CALL(ina3221_get_status(hw), ctx);
+
+  // A reversed-shunt alert's pin released: that channel went over its threshold.
+  bool on_crit = event->device_id == ctx->cfg.crit_pin.device_id && event->channel == ctx->cfg.crit_pin.pin;
+  bool on_warn = event->device_id == ctx->cfg.warn_pin.device_id && event->channel == ctx->cfg.warn_pin.pin;
+  int8_t inverted = on_crit ? ctx->inverted_alert[0] : on_warn ? ctx->inverted_alert[1] : -1;
+  if (inverted >= 0) {
+    int32_t ma_val = 0;
+    err_h alert_err = NULL;
+    SYS_DEV_TEARDOWN_DRIVER_STEP(alert_err, ina_read_current(ctx, hw, (uint8_t)inverted, &ma_val), ctx);
+    SYS_DEV_TEARDOWN_STEP(alert_err, sys_power_publish(SYS_DEV_GET_ID(ctx), (uint8_t)inverted, on_crit ? SYS_PWR_EVENT_OCP_CRITICAL : SYS_PWR_EVENT_OCP_WARNING, ma_val, SYS_EVENT_CAUSED_BY(event)));
+    return alert_err;
+  }
+
+  // Every flagged channel is published, even if a current read fails (the
+  // value is then 0); the first failure is returned.
+  err_h err = NULL;
   // Check critical alert flags
+  // A reversed-shunt channel's flag is set while it is under its threshold (its normal state): skipped.
   uint8_t cf = hw->mask.cf;
   for (uint8_t ch = 0; ch < 3; ch++) {
+    if (ctx->cfg.inverted_mask & (1u << ch)) continue;
     if (((cf >> (2 - ch)) & 1)) {
       int32_t ma_val = 0;
-      ina3221_read_shunt_current(hw, ch, &ma_val);
-      SYS_PWR_CB(ctx, ch, SYS_PWR_EVENT_OCP_CRITICAL, ma_val, ctx->route_masks_crit[ch], ctx->action_masks_crit[ch]);
+      SYS_DEV_TEARDOWN_DRIVER_STEP(err, ina_read_current(ctx, hw, ch, &ma_val), ctx);
+      SYS_DEV_TEARDOWN_STEP(err, sys_power_publish(SYS_DEV_GET_ID(ctx), ch, SYS_PWR_EVENT_OCP_CRITICAL, ma_val, SYS_EVENT_CAUSED_BY(event)));
     }
   }
   // Check warning alert flags
   uint8_t wf = hw->mask.wf;
   for (uint8_t ch = 0; ch < 3; ch++) {
+    if (ctx->cfg.inverted_mask & (1u << ch)) continue;
     if (((wf >> (2 - ch)) & 1)) {
       int32_t ma_val = 0;
-      ina3221_read_shunt_current(hw, ch, &ma_val);
-      SYS_PWR_CB(ctx, ch, SYS_PWR_EVENT_OCP_WARNING, ma_val, ctx->route_masks_warn[ch], ctx->action_masks_warn[ch]);
+      SYS_DEV_TEARDOWN_DRIVER_STEP(err, ina_read_current(ctx, hw, ch, &ma_val), ctx);
+      SYS_DEV_TEARDOWN_STEP(err, sys_power_publish(SYS_DEV_GET_ID(ctx), ch, SYS_PWR_EVENT_OCP_WARNING, ma_val, SYS_EVENT_CAUSED_BY(event)));
     }
   }
-  return NULL;
+  return err;
 }
 
 static const sys_device_class_t s_ina3221_class = {
     .name = "INA3221_PWR_MONITOR",
-    .contracts = {[SYS_DEVICE_CONTRACT_POWER_MONITOR] = (void*)&s_ina_monitor_contract},
-    .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume, .freeze = device_freeze, .sync = device_sync, .error_handler = device_error_handler},
+    .contracts = {[SYS_DEVICE_CONTRACT_POWER_MONITOR] = &s_ina3221_monitor_contract},
+    .ops = {.install = device_install, .uninstall = device_uninstall, .reset = device_reset, .suspend = device_suspend, .resume = device_resume, .freeze = device_freeze, .sync = device_sync},
 };
 
 // --- Exposed Initialization API ---

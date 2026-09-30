@@ -1,0 +1,302 @@
+{
+  "run": "2026-09-27 13:36:56",
+  "port": "COM4",
+  "groups": [
+    {
+      "name": "Default settings (pin modes first)",
+      "samples": [
+        {
+          "label": "setup GPIO_ESP: Configure pin mode (GPIO Pin 10, Pin Mode Output Push-Pull)",
+          "frame": "0121000a03",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        },
+        {
+          "label": "setup GPIO_ESP: Configure pin mode (GPIO Pin 11, Pin Mode Input with Pullup)",
+          "frame": "0121000b01",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        },
+        {
+          "label": "setup GPIO_ESP: Set pin level (GPIO Pin 10, Level on)",
+          "frame": "0122000a01",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        },
+        {
+          "label": "ESP GPIO: get level A",
+          "frame": "0123000a",
+          "expect": "ok",
+          "fields": {
+            "level": 1
+          },
+          "answer": "ok",
+          "answer_fields": {
+            "device_id": 0,
+            "pin": 10,
+            "level": 1
+          },
+          "pass": true
+        },
+        {
+          "label": "ESP GPIO: toggle A",
+          "frame": "0124000a",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        },
+        {
+          "label": "ESP GPIO: get level A",
+          "frame": "0123000a",
+          "expect": "ok",
+          "fields": {
+            "level": 0
+          },
+          "answer": "ok",
+          "answer_fields": {
+            "device_id": 0,
+            "pin": 10,
+            "level": 0
+          },
+          "pass": true
+        },
+        {
+          "label": "ESP GPIO: get level B (pull-up)",
+          "frame": "0123000b",
+          "expect": "ok",
+          "fields": {
+            "level": 1
+          },
+          "answer": "ok",
+          "answer_fields": {
+            "device_id": 0,
+            "pin": 11,
+            "level": 1
+          },
+          "pass": true
+        }
+      ]
+    },
+    {
+      "name": "Device quick commands",
+      "samples": [
+        {
+          "label": "TCA6424A: freeze",
+          "frame": "011601",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        },
+        {
+          "label": "TCA6424A: sync",
+          "frame": "011701",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        },
+        {
+          "label": "TCA6424A: resume",
+          "frame": "011301",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "name": "Action: record, run, remove",
+      "samples": [
+        {
+          "label": "action 200 record start",
+          "frame": "0302c8",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        },
+        {
+          "label": "GPIO_ESP: Set pin level (GPIO Pin 10, Level off)",
+          "frame": "0122000a00",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        },
+        {
+          "label": "GPIO_ESP: Set pin level (GPIO Pin 10, Level on)",
+          "frame": "0122000a01",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        },
+        {
+          "label": "action 200 record stop",
+          "frame": "0303",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        },
+        {
+          "label": "ESP GPIO: set level A low",
+          "frame": "0122000a00",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        },
+        {
+          "label": "action 200 run",
+          "frame": "0301c8",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        },
+        {
+          "label": "ESP GPIO: get level A (the action left it high)",
+          "frame": "0123000a",
+          "expect": "ok",
+          "fields": {
+            "level": 1
+          },
+          "answer": "ok",
+          "answer_fields": {
+            "device_id": 0,
+            "pin": 10,
+            "level": 1
+          },
+          "pass": true
+        }
+      ]
+    },
+    {
+      "name": "Error handling",
+      "samples": [
+        {
+          "label": "DAC53202: error handling importance 2, actions [8, 0, 4, 0, 200]",
+          "frame": "011a040208000400c8",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        },
+        {
+          "label": "DAC53202: error handling importance 4, actions [1, 255, 0, 0, 0]",
+          "frame": "011a040401ff000000",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        },
+        {
+          "label": "DAC53202: error handling importance 1, actions [0, 16, 0, 0, 0]",
+          "frame": "011a04010010000000",
+          "expect": "ERR_INVALID_VAL_UI32",
+          "answer": "ERR_INVALID_VAL_UI32",
+          "answer_data": "030010a1",
+          "pass": true
+        },
+        {
+          "label": "DAC53202: error handling importance 0, actions [0, 0, 0, 0, 0]",
+          "frame": "011a04000000000000",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        },
+        {
+          "label": "action 200 remove",
+          "frame": "0304c8",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "name": "User device installs (by ID = dependency order; the result depends on what is on the user I2C bus)",
+      "samples": [
+        {
+          "label": "device install user io (20)",
+          "frame": "014214012200ff0000ff00",
+          "expect": "ok|ERR_I2C_DEV_NOT_FOUND",
+          "answer": "ERR_I2C_DEV_NOT_FOUND",
+          "answer_data": "01a204a2",
+          "pass": true
+        },
+        {
+          "label": "device install user pwm (21)",
+          "frame": "0141150140140003",
+          "expect": "ok|ERR_I2C_DEV_NOT_FOUND",
+          "answer": "ERR_I2C_DEV_NOT_FOUND",
+          "answer_data": "01a204a2",
+          "pass": true
+        },
+        {
+          "label": "user pwm: uninstall",
+          "frame": "011015",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        },
+        {
+          "label": "user io: uninstall",
+          "frame": "011014",
+          "expect": "ok",
+          "answer": "ok",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "name": "Firmware guards (frames the app refuses to build, packed directly)",
+      "samples": [
+        {
+          "label": "device install user pwm (20) with its OE pin on device 21",
+          "frame": "0141140140150003",
+          "expect": "ERR_DEV_PIN_ORDER",
+          "answer": "ERR_DEV_PIN_ORDER",
+          "answer_data": "0ca112a6",
+          "pass": true
+        },
+        {
+          "label": "vm open of an empty program",
+          "frame": "044100000000000000000000",
+          "expect": "ERR_VM_LOAD_EMPTY",
+          "answer": "ERR_VM_LOAD_EMPTY",
+          "answer_data": "3ba901a9",
+          "pass": true
+        }
+      ]
+    }
+  ],
+  "storedCode": [
+    {
+      "label": "app CRC = zlib CRC",
+      "pass": true,
+      "detail": "0xB27F499A"
+    },
+    {
+      "label": "store",
+      "pass": true,
+      "detail": "OK"
+    },
+    {
+      "label": "every frame replayed",
+      "pass": true,
+      "detail": "{'stored': 1, 'autostart': 0, 'length': 21, 'frame_count': 3, 'crc32': 2994686362, 'schema_id': 4286704576, 'firmware_schema_id': 4286704576, 'capacity': 204800, 'replay_state': 1, 'replay_applied': 3, 'replay_failed': 0, 'replay_first_failed': 65535, 'replay_first_tag': 0, 'replay_first_owner': 0, 'replay_crc32': 2994686362}"
+    },
+    {
+      "label": "pin 10 high after boot (default settings replayed)",
+      "pass": true,
+      "detail": "seq=2 01/23 OK {'device_id': 0, 'pin': 10, 'level': 1}"
+    },
+    {
+      "label": "erase",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "label": "nothing stored after erase + restart",
+      "pass": true,
+      "detail": ""
+    }
+  ],
+  "fails": 0
+}

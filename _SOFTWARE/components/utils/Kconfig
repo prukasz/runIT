@@ -1,0 +1,359 @@
+menu "Debug (DBG) Logging"
+
+    config DBG_GLOBAL
+        bool "Enable DBG() calls globally"
+        default n
+        help
+            Master switch for the DBG() macro (components/utils/utils.h).
+            When enabled, every DBG(...) call in the firmware fires,
+            regardless of any component's own DBG_ENABLE_* switch below.
+            Leave both this and every DBG_ENABLE_* switch disabled in
+            production - the compiler removes DBG()'d code entirely.
+
+    config DBG_ENABLE_SYS_ERRORS
+        bool "Enable DBG() in sys_errors"
+        default n
+        help
+            Fires DBG() calls in components/sys_errors (sys_error.c,
+            sys_error_handler.c) independently of DBG_GLOBAL.
+
+    config DBG_ENABLE_SYS_INTERFACE
+        bool "Enable DBG() in sys_interface"
+        default n
+        help
+            Fires DBG() calls in components/system/sys_interface
+            independently of DBG_GLOBAL.
+
+    config DBG_ENABLE_SYS_ACTIONS
+        bool "Enable DBG() in sys_actions"
+        default n
+        help
+            Fires DBG() calls in components/system/sys_actions
+            independently of DBG_GLOBAL.
+
+    config DBG_ENABLE_VM
+        bool "Enable DBG() in VM"
+        default n
+        help
+            Fires DBG() calls in components/VM independently of DBG_GLOBAL.
+
+    config DBG_ENABLE_RUNIT
+        bool "Enable DBG() in runit"
+        default n
+        help
+            Fires DBG() calls in components/runit independently of
+            DBG_GLOBAL.
+
+endmenu
+
+menu "System-Wide Identity Assignments"
+
+    comment "Shared ID/slot registries coordinated across multiple components - not owned by a single module."
+
+    menu "Event Route Slots"
+        config SYS_EVENT_ROUTE_VM
+            int "VM Event Route Slot"
+            default 0
+            range 0 7
+            help
+              Route slot index for the VM's per-scan-cycle event buffer. It
+              doesn't handle the event: it parks it for one scan cycle so
+              blocks can query it, then drops it. See VM_EXEC.MD.
+    endmenu
+
+    menu "Static Action IDs"
+        config SYS_ACTION_ID_BOOT
+            int "Boot Static Action ID"
+            default 1
+            range 1 255
+            help
+              Default static action slot ID for the boot action.
+
+        config SYS_ACTION_ID_FREEZE
+            int "Freeze Static Action ID"
+            default 2
+            range 1 255
+            help
+              Default static action slot ID for the freeze action.
+
+        config SYS_ACTION_ID_RESUME
+            int "Resume Static Action ID"
+            default 3
+            range 1 255
+            help
+              Default static action slot ID for the resume action.
+
+        config SYS_ACTION_ID_SUSPEND
+            int "Suspend Static Action ID"
+            default 4
+            range 1 255
+            help
+              Default static action slot ID for the suspend action.
+
+        config SYS_ACTION_ID_RESET
+            int "Reset Static Action ID"
+            default 5
+            range 1 255
+            help
+              Default static action slot ID for the reset action.
+
+        config SYS_ACTION_ID_HARD_RESET
+            int "Hard Reset Static Action ID"
+            default 6
+            range 1 255
+            help
+              Default static action slot ID for the hard-reset action.
+    endmenu
+
+    menu "Data Connector Registry"
+        config SYS_DATA_CONN_ID_LOGS
+            int "Text Log Connector ID"
+            default 0
+            range 0 15
+            help
+              Connector registry slot for outbound text logs
+              (ESP_LOG / se_log_vprintf).
+
+        config SYS_DATA_CONN_ID_ERRORS
+            int "Error Telemetry Connector ID"
+            default 1
+            range 0 15
+            help
+              Connector registry slot for outbound binary encoded error
+              telemetry.
+
+        config SYS_DATA_CONN_ID_TELEMETRY
+            int "VM Telemetry Connector ID"
+            default 2
+            range 0 15
+            help
+              Connector registry slot for outbound VM object telemetry
+              streams.
+
+        config SYS_DATA_CONN_ID_INTERFACE
+            int "sys_interface Connector ID"
+            default 3
+            range 0 15
+            help
+              Connector registry slot for sys_interface's bi-directional
+              control frames.
+
+        config SYS_DATA_CONN_ID_APP_BASE
+            int "Custom Connector Base ID"
+            default 4
+            range 0 15
+            help
+              First free connector registry slot for dynamic/custom
+              application connectors.
+
+        config SYS_DATA_PROVIDER_ID_BLE
+            int "BLE Provider ID"
+            default 1
+            range 1 255
+            help
+              Transport provider ID of BLE (sys_ble_provider). Board wiring
+              and the data connector settings packets (class
+              RX_PACKET_CLASS_SETTINGS_DATA_CONNECTOR) bind connectors to
+              BLE with it; the endpoint is a characteristic UUID.
+
+        config SYS_DATA_PROVIDER_ID_UART
+            int "UART Console Provider ID"
+            default 2
+            range 1 255
+            help
+              Transport provider ID of the console UART (sys_uart_provider).
+              Frames travel as "#R:<hex>" lines next to the text log; the
+              only endpoint is 0.
+    endmenu
+
+    comment "Wire protocol: every frame leads with a PACKET_CLASS byte (what data/module it is). A PACKET_HEADER byte follows only when that class carries more than one packet type."
+
+    menu "RX Packet Classes (inbound, sys_interface_decode dispatch)"
+        config RX_PACKET_CLASS_SYS_CONTRACTS
+            hex "System Contracts wire class byte"
+            default 0x01
+            range 0x00 0xFF
+            help
+              Class byte identifying the "System Contracts" decoder table
+              (dec_sys_contracts.h, plus the device-install sub-table folded
+              into it) on the wire.
+
+        config RX_PACKET_CLASS_SETTINGS_BLE
+            hex "BLE runtime settings wire class byte"
+            default 0x02
+            range 0x00 0xFF
+            help
+              Class byte identifying the BLE runtime settings decoder table
+              (dec_settings_ble.h) on the wire.
+
+        config RX_PACKET_CLASS_SYS_ACTIONS
+            hex "System Actions wire class byte"
+            default 0x03
+            range 0x00 0xFF
+            help
+              Class byte identifying the "System Actions" decoder table
+              (dec_sys_actions.h) on the wire.
+
+        config RX_PACKET_CLASS_VM_LOADER
+            hex "VM loader wire class byte"
+            default 0x04
+            range 0x00 0xFF
+            help
+              Class byte identifying VM program upload and execution commands
+              (dec_vm_loader.h) on the wire. Mirrored outbound by
+              TX_PACKET_CLASS_VM_LOADER below, so a client parses VM telemetry
+              pushes with the same class-0x04 packet table as loader commands.
+
+        config RX_PACKET_CLASS_SYS_FEATURES
+            hex "Features wire class byte"
+            default 0x05
+            range 0x00 0xFF
+            help
+              Class byte identifying the "Features" decoder table
+              (dec_features.h) on the wire.
+
+        config RX_PACKET_CLASS_SETTINGS_DATA_CONNECTOR
+            hex "Data connector runtime settings wire class byte"
+            default 0x06
+            range 0x00 0xFF
+            help
+              Class byte identifying the data connector runtime settings
+              decoder table (dec_settings_data_connector.h) on the wire.
+
+        config RX_PACKET_CLASS_SETTINGS_LOGS
+            hex "Logging runtime settings wire class byte"
+            default 0x07
+            range 0x00 0xFF
+            help
+              Class byte identifying the logging runtime settings decoder
+              table (dec_settings_logs.h) on the wire.
+
+        config RX_PACKET_CLASS_SETTINGS_POWER
+            hex "Power settings wire class byte"
+            default 0x08
+            range 0x00 0xFF
+            help
+              Class byte identifying the persisted power settings decoder
+              table (dec_settings_power.h) on the wire.
+
+        config RX_PACKET_CLASS_SYS_EVENTS
+            hex "System Events wire class byte"
+            default 0x09
+            range 0x00 0xFF
+            help
+              Class byte identifying the event subscription decoder table
+              (dec_sys_events.h) on the wire.
+
+        config RX_PACKET_CLASS_SETTINGS_PROJECT
+            hex "Stored code (project store) wire class byte"
+            default 0x0A
+            range 0x00 0xFF
+            help
+              Class byte identifying the stored code decoder table
+              (dec_settings_project.h, SYS_PROJECT.MD) on the wire.
+
+    endmenu
+
+    menu "TX Packet Classes (outbound, sys_data_connector stream framing)"
+        config TX_PACKET_CLASS_STATUS
+            hex "Status stream class byte"
+            default 0x01
+            range 0x00 0xFF
+            help
+              Reserved for a future status stream. Not bound to any connector
+              today.
+
+        config TX_PACKET_CLASS_TELEMETRY
+            hex "VM telemetry stream class byte"
+            default 0x02
+            range 0x00 0xFF
+            help
+              Outer stream byte for outbound VM object telemetry (connector
+              slot SYS_DATA_CONN_ID_TELEMETRY). VM_SUB frames additionally
+              self-stamp TX_PACKET_CLASS_VM_LOADER as their own first
+              payload byte, since this stream byte alone can't distinguish
+              telemetry from SYS_DATA_CONN_ID_INTERFACE traffic sharing the
+              same characteristic.
+
+        config TX_PACKET_CLASS_LOGS
+            hex "Text log stream class byte"
+            default 0x03
+            range 0x00 0xFF
+            help
+              Outer stream byte for outbound text log lines (connector slot
+              SYS_DATA_CONN_ID_LOGS).
+
+        config TX_PACKET_CLASS_ERRORS
+            hex "Error telemetry stream class byte"
+            default 0x04
+            range 0x00 0xFF
+            help
+              Outer stream byte for outbound binary error telemetry
+              (connector slot SYS_DATA_CONN_ID_ERRORS).
+
+        config TX_PACKET_CLASS_INTERFACE
+            hex "sys_interface response stream class byte"
+            default 0x05
+            range 0x00 0xFF
+            help
+              Outer stream byte for sys_interface's outbound side (connector
+              slot SYS_DATA_CONN_ID_INTERFACE). Distinct from
+              TX_PACKET_CLASS_TELEMETRY on purpose: both connectors are
+              bound to the same physical BLE
+              characteristic (RUNIT_TX) and previously shared one stream
+              byte, which made command responses and telemetry
+              indistinguishable on the wire.
+
+        config TX_PACKET_CLASS_VM_LOADER
+            hex "VM telemetry frame class byte"
+            default 0x04
+            range 0x00 0xFF
+            help
+              Class byte VM telemetry frames stamp as their own first payload
+              byte (vm_sub.c), deliberately equal to RX_PACKET_CLASS_VM_LOADER
+              so loader commands and telemetry pushes share one client-side
+              parser. Kept as its own config (rather than reusing
+              RX_PACKET_CLASS_VM_LOADER directly) because vm_sub.c is core VM
+              logic and must not depend on the codecs/decoders layer. Equality
+              is checked at build time (dec_vm_loader.h).
+    endmenu
+
+    menu "RX Packet Headers (inbound, per-class packet dispatch)"
+        config RX_PACKET_HEADER_VM_SUBSCRIBE
+            hex "VM subscription packet header"
+            default 0x47
+            range 0x00 0xFF
+            help
+              Packet header byte for object subscription requests, under
+              class RX_PACKET_CLASS_VM_LOADER. Must match dec_vm_loader.h's
+              own HEADER_packet_vm_subscribe - vm_sub.c can't include that
+              decoder header (see TX_PACKET_CLASS_VM_LOADER); a build-time
+              check in dec_vm_loader.h fails if they differ.
+    endmenu
+
+    menu "TX Packet Headers (outbound, per-class packet dispatch)"
+        config TX_PACKET_HEADER_VM_SET_DATA
+            hex "VM telemetry set-data packet header"
+            default 0x43
+            range 0x00 0xFF
+            help
+              Packet header byte for outgoing object telemetry updates, under
+              class TX_PACKET_CLASS_VM_LOADER. Mirrors dec_vm_loader.h's
+              inbound HEADER_packet_vm_set_data (same value, same record
+              layout, checked at build time) so one client-side struct parses
+              both directions - see RX_PACKET_HEADER_VM_SUBSCRIBE's note on
+              why it's a separate constant instead of a shared #define.
+
+        config TX_PACKET_HEADER_VM_DESCRIBE
+            hex "VM telemetry describe packet header"
+            default 0x42
+            range 0x00 0xFF
+            help
+              Packet header byte for outgoing object descriptions (heap
+              objects the app did not upload), under class
+              TX_PACKET_CLASS_VM_LOADER. Mirrors dec_vm_loader.h's inbound
+              HEADER_packet_vm_add_objs (same value, same record layout;
+              checked at build time).
+    endmenu
+
+endmenu

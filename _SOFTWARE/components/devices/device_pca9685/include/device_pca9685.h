@@ -22,4 +22,4 @@ typedef struct d_pca9685_cfg_t {
  * @param cfg Device configuration; copied, so it may be a compound literal.
  * @return err_h Status of the registration
  */
-err_h d_pca9685_create(const d_pca9685_cfg_t* cfg);
+SE_MUST_USE err_h d_pca9685_create(const d_pca9685_cfg_t* cfg);

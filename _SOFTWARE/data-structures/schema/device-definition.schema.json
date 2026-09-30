@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "data-structures/schema/device-definition.schema.json",
+  "title": "runIT device definition",
+  "description": "Shape emitted by data-structures/auto-annotations/device/generate-devices.py for one dec_device_*.h. generate-devices.py validates every file it writes against this schema before writing it - see device-annotations.md.",
+  "type": "object",
+  "required": ["$schema", "schemaVersion", "kind", "id", "title", "description", "source_file", "install", "contracts"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "device-definition" },
+    "id": { "type": "string" },
+    "title": { "type": "string" },
+    "description": { "type": "string" },
+    "protocols": { "type": "array", "items": { "type": "string" } },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "datasheet": { "type": "string", "format": "uri", "description": "Manufacturer datasheet (PDF URL), from //@datasheet." },
+    "pwm_frequencies": { "type": "integer", "minimum": 1, "description": "Different PWM frequencies the device runs at once (per-pin frequencies on shared timers), from //@pwm-frequencies." },
+    "source_file": { "type": "string" },
+    "contractProvider": {
+      "oneOf": [{ "type": "null" }, { "type": "string" }, { "$ref": "#/$defs/symbolRef" }]
+    },
+    "install": {
+      "type": "object",
+      "required": ["packet", "packet_definition"],
+      "additionalProperties": false,
+      "properties": {
+        "packet": { "type": "string" },
+        "packet_definition": { "$ref": "#/$defs/packetDefinition" }
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/contractEntry" }
+    }
+  },
+  "$defs": {
+    "symbolRef": {
+      "type": "object",
+      "required": ["symbol", "enum", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "symbol": { "type": "string" },
+        "enum": { "type": "string" },
+        "value": { "type": "integer" },
+        "alias": { "type": ["string", "null"] },
+        "description": { "type": ["string", "null"] }
+      }
+    },
+    "oneOfValue": {
+      "oneOf": [{ "type": "integer" }, { "type": "string" }, { "$ref": "#/$defs/symbolRef" }]
+    },
+    "packetField": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+          "type": { "type": "string" },
+          "array_len": { "type": "integer" },
+          "flexible_array": { "const": true },
+        "alias": { "type": "string" },
+        "required": { "type": "boolean" },
+        "min": { "type": ["integer", "null"] },
+        "max": { "type": ["integer", "null"] },
+        "one_of": { "type": "array", "items": { "$ref": "#/$defs/oneOfValue" } },
+        "default": { "type": ["integer", "null"] },
+        "sentinel": { "type": ["integer", "null"] },
+        "unit": { "type": "string" },
+        "enum_ref": { "type": "string" },
+        "group": { "type": "string" },
+        "desc": { "type": "string" },
+          "note": { "type": "string" },
+          "encoding": { "type": "string" },
+          "terminator": { "type": "string" }
+      }
+    },
+    "packetDefinition": {
+      "type": "object",
+      "required": ["source_file", "packet_header", "decoder", "field_order", "fields"],
+      "additionalProperties": false,
+      "properties": {
+        "source_file": { "type": "string" },
+        "class_name": { "type": ["string", "null"] },
+        "class_header": { "type": ["string", "null"] },
+        "packet_header": { "type": "string" },
+        "decoder": { "type": "string" },
+        "field_order": { "type": "array", "items": { "type": "string" } },
+        "fields": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/packetField" }
+        },
+        "groups": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["fields", "sentinel_field"],
+            "additionalProperties": false,
+            "properties": {
+              "fields": { "type": "array", "items": { "type": "string" } },
+              "sentinel_field": { "type": ["string", "null"] },
+              "alias": { "type": "string", "description": "What the pin is for (pin_ref_wire_t @alias); the app falls back to a name from the field." },
+              "note": { "type": "string", "description": "Shown behind the field's info button (pin_ref_wire_t @note)." }
+            }
+          }
+        }
+      }
+    },
+    "contractParameter": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "alias": { "type": "string" },
+        "type": { "type": "string" },
+        "unit": { "type": "string" },
+        "one_of": { "type": "array", "items": { "$ref": "#/$defs/oneOfValue" } },
+        "min": { "type": ["integer", "string"] },
+        "max": { "type": ["integer", "string"] },
+        "default": { "type": ["integer", "string"] },
+        "enum_ref": { "type": "string" },
+        "note": { "type": "string", "description": "Shown behind the field's info button; from @param @note or the @arg property's @note." },
+        "instance": { "const": true },
+        "device_wide": { "const": true, "description": "The field selects nothing (//@param <field> @device-wide): the call applies to the whole device; the field is sent as 0." }
+      }
+    },
+    "contractEntry": {
+      "type": "object",
+      "required": ["packet", "parameters", "packet_definition"],
+      "additionalProperties": false,
+      "properties": {
+        "packet": { "type": "string" },
+        "alias": { "type": "string" },
+        "description": { "type": "string" },
+        "returns": { "type": "string", "description": "Name of the answer's value (the response packet gives its type and unit)." },
+        "parameters": { "type": "array", "items": { "$ref": "#/$defs/contractParameter" } },
+        "packet_definition": { "$ref": "#/$defs/packetDefinition" }
+      }
+    }
+  }
+}

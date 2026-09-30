@@ -1,78 +1,110 @@
 #include "runit.h"
 #include <esp_log.h>
-#include <string.h>
+#include <esp_system.h>
 #include "runit_board_cfg.h"
-#include "runit_board_defs.h"
-#include "runit_board_devices.h"
+#include "runit_decoders.h"
+#include "runit_error_policy.h"
 #include "sys_actions.h"
-#include "sys_callbacks.h"
+#include "sys_data_connector.h"
+#include "sys_device.h"
+#include "sys_error_log.h"
+#include "sys_event.h"
 #include "sys_interface.h"
-#include "vm_bench.h"
-#include "vm_selftest.h"
+#include "sys_project.h"
+#include "sys_settings.h"
+#include "vm_exec.h"
+#include "vm_retain.h"
+#include "vm_sub.h"
 
 static const char* TAG = "runit_app";
 
-#if RUNIT_SKIP_DEVICE_INIT
-/* Stands in for runit_at_boot so action 0 still resolves -- see the switch's
-   comment in runit_board_cfg.h for why it is bound rather than skipped. */
-static err_h runit_at_boot_disabled(void* arg) {
-  (void)arg;
-  ESP_LOGW(TAG, "device init SKIPPED (RUNIT_SKIP_DEVICE_INIT)");
+void runit_enter_safe_state(void) {
+  err_h stop = vm_exec_stop();
+  if (!stop) vm_retain_save_stopped();  // keep retained values: power may be about to go
+  SE_release(stop);
+  SE_release(sys_device_suspend_all());
+  ESP_LOGE(TAG, "System entered safe state (VM stopped, ready devices suspended)");
+}
+
+err_h runit_run_boot_steps(const runit_boot_step_entry_t* steps, size_t count) {
+  if (steps == NULL || count == 0) return NULL;
+  for (size_t i = 0; i < count; i++) {
+    const runit_boot_step_entry_t* step = &steps[i];
+    if (step->fn == NULL) continue;
+    err_h err = step->fn();
+    if (err != NULL) {
+      ESP_LOGE(TAG, "runIT boot aborted at step: %s", step->name ? step->name : "unnamed");
+      SE_release(SE_send(err));
+      runit_enter_safe_state();
+      return err;
+    }
+  }
   return NULL;
 }
-#endif
 
-static const sys_error_cfg_t s_runit_error_cfg = {
-    .global_level = ESP_LOG_INFO,
-    .logs =
-        {
-            .mirror_on_serial = true,
-            .ble_enable = true,
-            .char_uuid = SYS_BLE_CHR_RUNIT_LOGS,
-            .tx_header = PACKET_HEADER_LOGS,
-        },
-    .errors =
-        {
-            .serial_trace = true,
-            .ble_enable = true,
-            .char_uuid = SYS_BLE_CHR_RUNIT_LOGS,
-            .tx_header = PACKET_HEADER_ERRORS,
-            .packet_max = SE_ERR_PACKET_MAX,
-        },
-};
+static SE_MUST_USE err_h runit_step_error_configure(void) {
+  return SE_set_logging(ESP_LOG_INFO, true, true);
+}
 
-void runit_start(void) {
+/* Why the chip started. Needed on the native USB console: the ROM's own "rst:" line
+   is gone before the host reopens the re-enumerated port. */
+static const char* reset_reason_name(esp_reset_reason_t r) {
+  switch (r) {
+    case ESP_RST_POWERON: return "power-on";
+    case ESP_RST_EXT: return "external pin";
+    case ESP_RST_SW: return "software";
+    case ESP_RST_PANIC: return "panic";
+    case ESP_RST_INT_WDT: return "interrupt watchdog";
+    case ESP_RST_TASK_WDT: return "task watchdog";
+    case ESP_RST_WDT: return "other watchdog";
+    case ESP_RST_BROWNOUT: return "brownout";
+    case ESP_RST_USB: return "USB";
+    default: return "other";
+  }
+}
+
+err_h runit_start(void) {
   SE_init();
-  SE_ORIGIN_CALL(sys_start_i2c());
-  SE_ORIGIN_CALL(sys_power_static_config());
-  SE_ORIGIN_CALL(sys_ble_static_config());
-  SE_ORIGIN_CALL(SE_configure(&s_runit_error_cfg));
-  // Must come before sys_actions_init(): the boot action (id 0) installs
-  // devices that can arm interrupts (e.g. ads7128's ALERT pin) whose ISRs
-  // queue events via sys_callback_trigger() - sys_cb_task needs to already be
-  // running to drain that queue, or every queued event sits forever unread.
-  SE_ORIGIN_CALL(sys_callbacks_init());
-  SE_ORIGIN_CALL(sys_interface_init());
-  // Must come before sys_actions_init(): the boot action (id 0) needs its
-  // static function bound before init's unconditional invoke(0) runs.
-#if RUNIT_SKIP_DEVICE_INIT
-  SE_ORIGIN_CALL(sys_actions_bind_static(0, runit_at_boot_disabled, NULL));
-#else
-  SE_ORIGIN_CALL(sys_actions_bind_static(0, runit_at_boot, NULL));
-#endif
-  // Must come before sys_interface_bind_ble_rx(): class registration and the
-  // recording tap are boot-only, not safe against a running RX pump.
-  SE_ORIGIN_CALL(sys_actions_init());
-  SE_ORIGIN_CALL(sys_interface_bind_ble_rx(SYS_BLE_CHR_RUNIT_RX, RUNIT_BLE_RX_FRAME_MAX));
-  // runit_test_pca9685_start();
+  esp_reset_reason_t reason = esp_reset_reason();
+  ESP_LOGI(TAG, "reset reason: %s (%d)", reset_reason_name(reason), (int)reason);
+
+  static const runit_boot_step_entry_t s_boot_setup_steps[] = {
+      {"runit_error_wiring_init", runit_error_wiring_init},
+      {"runit_board_i2c_init", runit_board_i2c_init},
+      {"sys_settings_init", sys_settings_init},
+      {"sys_project_init", sys_project_init},
+      {"runit_board_ble_init", runit_board_ble_init},
+      {"sys_data_connector_init", sys_data_connector_init},
+      {"runit_board_connector_bindings_init", runit_board_connector_bindings_init},
+      {"runit_board_error_sink_init", runit_board_error_sink_init},
+      {"SE_set_logging", runit_step_error_configure},
+      {"sys_event_init", sys_event_init},
+      {"runit_board_power_init", runit_board_power_init},
+      {"runit_register_decoders", runit_register_decoders},
+      {"sys_interface_init", sys_interface_init},
+      {"runit_board_bind_boot_action", runit_board_bind_boot_action},
+      {"sys_actions_init", sys_actions_init},
+      {"runit_board_invoke_boot_action", runit_board_invoke_boot_action},
+      {"vm_sub_init", vm_sub_init},
+      {"vm_retain_init", vm_retain_init},
+  };
+
+  err_h err = runit_run_boot_steps(s_boot_setup_steps, sizeof(s_boot_setup_steps) / sizeof(s_boot_setup_steps[0]));
+  if (err != NULL) {
+    return err;
+  }
+
   ESP_LOGI(TAG, "runIT boot sequence complete");
-#if RUNIT_ENABLE_VM_SELFTEST
-  /* After sys_interface_init() so class 0x04 is registered -- the test
-     injects real frames through sys_interface_decode() rather than calling
-     the loader directly. */
-  vm_selftest_run();
-#endif
-#if RUNIT_ENABLE_VM_BENCH
-  vm_bench_run();
-#endif
+
+  static const runit_boot_step_entry_t s_boot_runtime_steps[] = {
+      {"vm_exec_start", vm_exec_start},
+      {"runit_project_boot", runit_project_boot},
+  };
+
+  err = runit_run_boot_steps(s_boot_runtime_steps, sizeof(s_boot_runtime_steps) / sizeof(s_boot_runtime_steps[0]));
+  if (err != NULL) {
+    return err;
+  }
+
+  return NULL;
 }

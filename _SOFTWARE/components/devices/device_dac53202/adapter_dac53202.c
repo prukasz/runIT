@@ -1,13 +1,11 @@
 #include <stdlib.h>
 #include "device_dac53202.h"
 #include "driver_dac53202.h"
-#include "esp_log.h"
 #include "sys_device.h"
 #include "sys_error.h"
 #include "sys_i2c.h"
 #include "sys_io.h"
 
-static const char* TAG = __FILE_NAME__;
 #undef OWNER
 #define OWNER OWNER_DEVICE_DAC53202
 
@@ -18,16 +16,17 @@ typedef struct dac_adapter_ctx_t {
   d_dac53202_cfg_t cfg;
 
   // Caching mechanism for freeze/sync
-  uint32_t cached_voltage_mv[2];
+  uint32_t cached_voltage_mV[2];
   bool cached_voltage_dirty[2];
   uint8_t cached_power_mask;
   bool cached_power_dirty;
+  uint8_t suspended_power_mask;
 } dac_adapter_ctx_t;
 
 enum { DAC53202_STEP_I2C_ADDED = 0 };
 
 // --- VTABLE Implementations (IO Contract) ---
-static err_h contract_io_dac53202_reset_pin(void* handle, sys_io_pin_num_t pin) {
+static SE_MUST_USE err_h contract_io_dac53202_reset_pin(void* handle, sys_io_pin_num_t pin) {
   SYS_DEV_GET_ADAPTER_CONTEXT(dac_adapter_ctx_t, dac53202_handle_t, ctx, hw, handle);
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, 0x03);
 
@@ -35,63 +34,60 @@ static err_h contract_io_dac53202_reset_pin(void* handle, sys_io_pin_num_t pin) 
     if (ctx->cached_power_dirty) {
       ctx->cached_power_mask &= ~(1 << pin);
     } else {
-      ctx->cached_power_mask = (hw->common_config & 0xFF) & ~(1 << pin);
+      ctx->cached_power_mask = hw->power_on_mask & ~(1 << pin);
       ctx->cached_power_dirty = true;
     }
     return NULL;
   }
 
-  uint8_t current_power_on = hw->common_config & 0xFF;
-  uint8_t next_power_on = current_power_on & ~(1 << pin);
-  SYS_DEV_CHECK_DRIVER_CALL(dac53202_preset_cfg(hw, 0x03, next_power_on), ctx);
+  SYS_DEV_CHECK_DRIVER_CALL(dac53202_set_power(hw, hw->power_on_mask & ~(1 << pin)), ctx);
   return NULL;
 }
 
-static err_h contract_io_dac53202_set_voltage(void* handle, sys_io_pin_num_t pin, uint32_t voltage_mV) {
+static SE_MUST_USE err_h contract_io_dac53202_set_voltage(void* handle, sys_io_pin_num_t pin, uint32_t voltage_mV) {
   SYS_DEV_GET_ADAPTER_CONTEXT(dac_adapter_ctx_t, dac53202_handle_t, ctx, hw, handle);
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, 0x03);
 
   IF_SYS_DEV_FROZEN(ctx) {
-    ctx->cached_voltage_mv[pin] = voltage_mV;
+    ctx->cached_voltage_mV[pin] = voltage_mV;
     ctx->cached_voltage_dirty[pin] = true;
     return NULL;
   }
 
-  SYS_DEV_CHECK_DRIVER_CALL(dac53202_set_voltage_mv(hw, 1 << pin, (uint16_t)voltage_mV), ctx);
+  SYS_DEV_CHECK_DRIVER_CALL(dac53202_set_voltage_mV(hw, 1 << pin, (uint16_t)voltage_mV), ctx);
   return NULL;
 }
 
-static err_h contract_io_dac53202_get_voltage(void* handle, sys_io_pin_num_t pin, uint32_t* out_mV) {
+static SE_MUST_USE err_h contract_io_dac53202_get_voltage(void* handle, sys_io_pin_num_t pin, int32_t* out_mV) {
   SYS_DEV_GET_ADAPTER_CONTEXT(dac_adapter_ctx_t, dac53202_handle_t, ctx, hw, handle);
   SE_CHECK_HANDLE(out_mV);
   VERIFY_PIN(SYS_DEV_GET_ID(ctx), pin, 0x03);
 
   if (ctx->base.is_frozen && ctx->cached_voltage_dirty[pin]) {
-    *out_mV = ctx->cached_voltage_mv[pin];
+    *out_mV = ctx->cached_voltage_mV[pin];
     return NULL;
   }
 
-  uint16_t v_mv = 0;
-  SYS_DEV_CHECK_DRIVER_CALL(dac53202_get_voltage_mv(hw, pin, &v_mv), ctx);
-  *out_mV = (uint32_t)v_mv;
+  uint16_t v_mV = 0;
+  SYS_DEV_CHECK_DRIVER_CALL(dac53202_get_voltage_mV(hw, pin, &v_mV), ctx);
+  *out_mV = (int32_t)v_mV;
   return NULL;
 }
 
 // Instantiate the static VTable
-static sys_io_vtable_t io_dac_vtable = {.io_reset = contract_io_dac53202_reset_pin,
-    .io_set_voltage = contract_io_dac53202_set_voltage,
-    .io_get_voltage = contract_io_dac53202_get_voltage,
-    .io_configure_intr = NULL,
-    .io_set_mode = NULL,
-    .io_set_level = NULL,
-    .io_get_level = NULL,
-    .io_toggle = NULL,
-    .io_set_pwm_frequency = NULL,
-    .io_set_pwm_duty = NULL,
-    .protected_pins = 0};
+static const sys_io_contract_t s_dac53202_io_contract = {.reset = contract_io_dac53202_reset_pin,
+    .set_voltage = contract_io_dac53202_set_voltage,
+    .get_voltage = contract_io_dac53202_get_voltage,
+    .configure_intr = NULL,
+    .set_mode = NULL,
+    .set_level = NULL,
+    .get_level = NULL,
+    .toggle = NULL,
+    .set_pwm_frequency = NULL,
+    .set_pwm_duty = NULL};
 
 // --- sys_device_t VTable Implementations ---
-static err_h device_uninstall(void* handle) {
+static SE_MUST_USE err_h device_uninstall(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(dac_adapter_ctx_t, dac53202_handle_t, ctx, hw, handle);
   err_h err = NULL;
 
@@ -106,26 +102,28 @@ static err_h device_uninstall(void* handle) {
   return err;
 }
 
-static err_h device_reset(void* handle) {
+static SE_MUST_USE err_h device_reset(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(dac_adapter_ctx_t, dac53202_handle_t, ctx, hw, handle);
-
-  SYS_DEV_CHECK_DRIVER_CALL(dac53202_preset_cfg(hw, 0x03, 0x00), ctx);
+  SYS_DEV_CHECK_DRIVER_CALL(dac53202_set_power(hw, 0x00), ctx);
   return NULL;
 }
 
-static err_h device_suspend(void* handle) {
+/* Suspend powers both outputs down (Hi-Z) and remembers which were on;
+   resume powers those back up with their last code. */
+static SE_MUST_USE err_h device_suspend(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(dac_adapter_ctx_t, dac53202_handle_t, ctx, hw, handle);
-  SYS_DEV_CHECK_DRIVER_CALL(dac53202_preset_cfg(hw, 0x03, 0x00), ctx);
+  ctx->suspended_power_mask = hw->power_on_mask;
+  SYS_DEV_CHECK_DRIVER_CALL(dac53202_set_power(hw, 0x00), ctx);
   return NULL;
 }
 
-static err_h device_resume(void* handle) {
+static SE_MUST_USE err_h device_resume(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(dac_adapter_ctx_t, dac53202_handle_t, ctx, hw, handle);
-  SYS_DEV_CHECK_DRIVER_CALL(dac53202_preset_cfg(hw, 0x03, 0x03), ctx);
+  SYS_DEV_CHECK_DRIVER_CALL(dac53202_set_power(hw, ctx->suspended_power_mask), ctx);
   return NULL;
 }
 
-static err_h device_freeze(void* handle) {
+static SE_MUST_USE err_h device_freeze(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(dac_adapter_ctx_t, dac53202_handle_t, ctx, hw, handle);
   IF_SYS_DEV_FROZEN(ctx) {
     return NULL;
@@ -137,18 +135,18 @@ static err_h device_freeze(void* handle) {
   return NULL;
 }
 
-static err_h device_sync(void* handle) {
+static SE_MUST_USE err_h device_sync(void* handle) {
   SYS_DEV_GET_ADAPTER_CONTEXT(dac_adapter_ctx_t, dac53202_handle_t, ctx, hw, handle);
   SYS_DEV_CTX_UNFREEZE(ctx);
 
   if (ctx->cached_power_dirty) {
-    SYS_DEV_CHECK_DRIVER_CALL(dac53202_preset_cfg(hw, 0x03, ctx->cached_power_mask), ctx);
+    SYS_DEV_CHECK_DRIVER_CALL(dac53202_set_power(hw, ctx->cached_power_mask), ctx);
     ctx->cached_power_dirty = false;
   }
 
   for (int i = 0; i < 2; i++) {
     if (ctx->cached_voltage_dirty[i]) {
-      SYS_DEV_CHECK_DRIVER_CALL(dac53202_set_voltage_mv(hw, 1 << i, (uint16_t)ctx->cached_voltage_mv[i]), ctx);
+      SYS_DEV_CHECK_DRIVER_CALL(dac53202_set_voltage_mV(hw, 1 << i, (uint16_t)ctx->cached_voltage_mV[i]), ctx);
       ctx->cached_voltage_dirty[i] = false;
     }
   }
@@ -156,53 +154,8 @@ static err_h device_sync(void* handle) {
   return NULL;
 }
 
-// Same shape as device_pca9685's explain_root_cause() (see that file for
-// the full rationale): identifies which node in the chain is the root
-// cause and adds this adapter's own interpretation for it, without
-// repeating SE_describe_payload() - sys_error_handler_task's own stack
-// trace already prints that same description for every node, including
-// the root. Every ERR_ESP_ERR reaching this adapter's error_handler
-// originates from an I2C driver call (SYS_DEV_CHECK_DRIVER_CALL wraps every
-// dac53202_*() call, all of which go over I2C).
-static void explain_root_cause(uint8_t device_id, err_h error) {
-  err_h root = error;
-  while (root && root->next_cause) root = root->next_cause;
-  if (!root) return;
-  ESP_LOGE(TAG, "DAC53202 (device %u) error root cause: owner=%s (0x%04X), tag=%s (%d)", device_id, SE_get_owner_name(root->owner), (unsigned int)root->owner, SE_get_tag_name(root->tag), (int)root->tag);
-
-  if (root->tag == ERR_ESP_ERR) {
-    ESP_LOGE(TAG, "  -> communication with DAC53202 (device %u) failed - check that it is connected, powered, and present at the configured I2C bus/address", device_id);
-  }
-}
-
-static err_h device_error_handler(void* handle, err_h error) {
-  dac_adapter_ctx_t* ctx = (dac_adapter_ctx_t*)handle;
-  SYS_DEV_CHECK_HANDLE(ctx, 0);
-  sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(ctx));
-  if (!dev) return NULL;
-
-  explain_root_cause(SYS_DEV_GET_ID(ctx), error);
-
-  if (dev->generate_error_callback) {
-    // TODO: report to the VM via the callback system. Payload should carry
-    // at least: device_id, and the root cause's tag/owner - walk
-    // error->next_cause to the end, since a wrapper like ERR_DEV_DEP_FAILED
-    // only carries dev_id, not the underlying failure's tag/owner. Always
-    // attach device_id explicitly (the root cause itself may not carry one).
-    return NULL;
-  }
-
-  if (dev->use_error_handler) {
-    // TODO: classify `error` into a sys_device_err_level_e (critical/
-    // warning/notice) and sys_actions_invoke(dev->actions[level]).
-  }
-  return NULL;
-}
-
-static err_h device_install(const void* cfg_blob, void** out_device_handle) {
+static SE_MUST_USE err_h device_install(const void* cfg_blob, void** out_device_handle) {
   const d_dac53202_cfg_t* cfg = (const d_dac53202_cfg_t*)cfg_blob;
-  SE_CHECK_NOT_NULL(cfg);
-  SE_CHECK_NOT_NULL(out_device_handle);
 
   SYS_DEV_CTX_NEW(dac_adapter_ctx_t, ctx, cfg);
   err_h err = NULL;
@@ -210,7 +163,7 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
   ctx->base.hw_handle = dac53202_new(ctx->cfg.i2c_addr, ctx->cfg.i2c_bus);
   if (!ctx->base.hw_handle) {
     free(ctx);
-    SE_RET_ERR(ERR_BASE_NO_MEM, 0);
+    SE_FAIL(ERR_BASE_NO_MEM, 0);
   }
 
   dac53202_handle_t hw = (dac53202_handle_t)(ctx->base.hw_handle);
@@ -220,7 +173,8 @@ static err_h device_install(const void* cfg_blob, void** out_device_handle) {
 
   SYS_DEV_INSTALL_STEP(sys_i2c_device_present(hw), "probe i2c device");
 
-  SYS_DEV_INSTALL_STEP(SE_CONVERT_ESP(dac53202_preset_cfg(hw, 0x03, 0x03)), "dac preset cfg");
+  // Outputs stay powered down (Hi-Z) until a voltage is set.
+  SYS_DEV_INSTALL_STEP(SE_CONVERT_ESP(dac53202_start(hw)), "reference and power-down");
 
   *out_device_handle = ctx;
   return NULL;
@@ -232,7 +186,7 @@ fail:
 
 static const sys_device_class_t s_dac53202_class = {
     .name = "DAC53202",
-    .contracts = {[SYS_DEVICE_CONTRACT_IO] = (void*)&io_dac_vtable},
+    .contracts = {[SYS_DEVICE_CONTRACT_IO] = &s_dac53202_io_contract},
     .ops = {
         .install = device_install,
         .uninstall = device_uninstall,
@@ -241,7 +195,6 @@ static const sys_device_class_t s_dac53202_class = {
         .resume = device_resume,
         .freeze = device_freeze,
         .sync = device_sync,
-        .error_handler = device_error_handler
     },
 };
 

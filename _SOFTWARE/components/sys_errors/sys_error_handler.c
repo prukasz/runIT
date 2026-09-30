@@ -1,116 +1,150 @@
 #include "sys_error.h"
-#include <esp_log.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
-#include <freertos/task.h>
-#include "enc_sys_errors.h"
-#include "sys_ble.h"
-#include "utils.h"
+#include "sys_error_hooks.h"
+#include "sys_error_log.h"
 
-// enc_sys_errors.h leaves OWNER set to OWNER_ENC_SYS_ERRORS; take it back so
-// this file's own SE_* macros (if any are added later) are tagged correctly.
-#undef OWNER
-#define OWNER OWNER_SYS_ERRORS_BASE
-
-static const char* TAG = __FILE_NAME__;
-
-#define ERR_QUEUE_LEN 32
-R_QUEUE_DEFINE(s_err_queue, ERR_QUEUE_LEN, sizeof(err_h));
-
-#define ERR_HANDLER_TASK_STACK_WORDS 4096
-R_TASK_DEFINE(s_err_handler_task_handle, ERR_HANDLER_TASK_STACK_WORDS);
-
-static se_device_error_hook_t s_device_error_hook = NULL;
-
-void SE_register_device_error_hook(se_device_error_hook_t hook) {
-  s_device_error_hook = hook;
+void SE_init(void) {
+  se_log_init();
 }
 
-// Basic detection: the first ERR_DEV_DEP_FAILED node whose owner is in the
-// device-provider range (devices_owners.h's PROVIDER_OWNER_MAP, 0xD0xx) is
-// treated as "the device that generated this chain" and dispatched once via
-// the registered hook - ERR_DEV_DEP_FAILED is the only device-raised tag
-// guaranteed to carry a dev_id payload (see RET_IF_DEV_ERR in sys_device.h).
-// Once found, the rest of the chain is skipped for this purpose; printing/
-// sending below is unaffected and still covers every node regardless.
-static void dispatch_device_owned_error(err_h err_chain) {
-  if (!s_device_error_hook) return;
-  for (err_h curr = err_chain; curr != NULL; curr = curr->next_cause) {
-    if (curr->tag == ERR_DEV_DEP_FAILED && (curr->owner & 0xFF00) == (OWNER_DEVICE_BASE & 0xFF00)) {
-      uint8_t dev_id = ((err_payload_ERR_DEV_DEP_FAILED_t*)curr->payload)->dev_id;
-      s_device_error_hook(dev_id, err_chain);
-      break;
-    }
+// Tag-based attribution is independent of the subsystem raising the error.
+static bool device_id_of(err_h node, uint8_t* id) {
+  switch (node->tag) {
+#define DEVICE_TAG(tag)                                    \
+  case tag:                                                \
+    *id = ((err_payload_##tag##_t*)node->payload)->dev_id; \
+    return true;
+    DEVICE_TAG(ERR_DEV_DEP_FAILED)
+    DEVICE_TAG(ERR_DEV_INSTALL_FAILED)
+    DEVICE_TAG(ERR_DEV_NO_HANDLE)
+    DEVICE_TAG(ERR_DEV_NOT_FOUND)
+    DEVICE_TAG(ERR_DEV_ALREADY_EXIST)
+    DEVICE_TAG(ERR_DEV_FEATURE_UNAVAILABLE)
+    DEVICE_TAG(ERR_DEV_SUSPENDED)
+    DEVICE_TAG(ERR_DEV_NOT_INSTALLED)
+    DEVICE_TAG(ERR_DEV_DRIVER_FAILED)
+    DEVICE_TAG(ERR_IO_PIN_UNCONFIGURED)
+    DEVICE_TAG(ERR_IO_PIN_UNAVAILABLE)
+    DEVICE_TAG(ERR_IO_PIN_ALREADY_IN_USE)
+    DEVICE_TAG(ERR_IO_PIN_FEATURE_UNSUPPORTED)
+    DEVICE_TAG(ERR_IO_PIN_LOCKED)
+    DEVICE_TAG(ERR_IO_PIN_MODE_UNSUPPORTED)
+    DEVICE_TAG(ERR_POWER_BUDGET_EXCEEDED)
+#undef DEVICE_TAG
+    default:
+      return false;
   }
 }
 
-static void sys_error_handler_task(void* arg) {
-  (void)arg;
-  err_h err_chain = NULL;
-  uint8_t packet[SE_ERR_PACKET_MAX];
-  sys_error_cfg_t cfg;
+typedef struct {
+  uint16_t domain;
+  se_fault_hook_f hook;
+} domain_hook_t;
 
-  while (1) {
-    if (!R_QUEUE_RECEIVE(s_err_queue, &err_chain, WAIT_FOREVER)) continue;
-    if (!err_chain) continue;
+static domain_hook_t s_domain_hooks[CONFIG_SYS_ERRORS_MAX_DOMAIN_HOOKS];
+static se_fault_hook_f s_system_hook;
+static se_device_report_f s_device_report;
+static se_device_ignored_f s_device_ignored;
 
-    SE_get_config(&cfg);
-    dispatch_device_owned_error(err_chain);
-
-    // Encode first: everything below can allocate from the same ring the chain
-    // lives in, and an allocation that wraps would overwrite nodes mid-walk.
-    size_t packet_len = 0;
-    bool encoded = false;
-    if (cfg.errors.ble_enable) {
-      encoded = SE_IS_OK(enc_sys_errors_encode_chain(err_chain, packet, cfg.errors.packet_max, &packet_len));
+#undef OWNER
+#define OWNER OWNER_SYS_ERRORS_CONFIG
+err_h SE_register_domain_hook(uint16_t domain, se_fault_hook_f hook) {
+  domain &= 0xFF00u;
+  for (size_t i = 0; i < CONFIG_SYS_ERRORS_MAX_DOMAIN_HOOKS; ++i) {
+    if (s_domain_hooks[i].hook == NULL || s_domain_hooks[i].domain == domain) {
+      s_domain_hooks[i] = (domain_hook_t){.domain = domain, .hook = hook};
+      return NULL;
     }
+  }
+  SE_FAIL(ERR_BASE_NO_MEM, 0);
+}
 
-    if (cfg.errors.serial_trace) {
-      ESP_LOGE(TAG, "========== ERROR STACK TRACE ==========");
-      int depth = 0;
-      for (err_h curr = err_chain; curr != NULL; curr = curr->next_cause) {
-        // Payload printed generically as hex whenever the tag has one - a
-        // per-tag pretty-printer lives closer to whoever cares about a
-        // specific tag (e.g. adapter_pca9685.c's explain_root_cause()),
-        // not here; this is just "show whatever bytes exist, if any".
-        char desc[96] = {0};
-        if (SE_describe_payload(curr->tag, curr->payload, desc, sizeof(desc))) {
-          ESP_LOGE(TAG, "  [%d] Owner: %s (0x%04X), Tag: %s (%d) -> %s", depth++, SE_get_owner_name(curr->owner), (unsigned int)curr->owner, SE_get_tag_name(curr->tag), (int)curr->tag, desc);
-        } else {
-          size_t psize = SE_get_payload_size(curr->tag);
-          if (psize > 0) {
-            char hex[3 * 16 + 1] = {0};
-            size_t show = psize > 16 ? 16 : psize;
-            for (size_t b = 0; b < show; b++) {
-              snprintf(&hex[b * 3], 4, "%02X ", curr->payload[b]);
+void SE_register_system_hook(se_fault_hook_f hook) {
+  s_system_hook = hook;
+}
+
+void SE_register_device_router(se_device_report_f report, se_device_ignored_f is_ignored) {
+  s_device_report = report;
+  s_device_ignored = is_ignored;
+}
+
+static SE_MUST_USE err_h dispatch_domain(err_h node, err_h chain) {
+  uint16_t domain = (uint16_t)(node->owner & 0xFF00u);
+  for (size_t i = 0; i < CONFIG_SYS_ERRORS_MAX_DOMAIN_HOOKS && s_domain_hooks[i].hook; ++i) {
+    if (s_domain_hooks[i].domain == domain) return s_domain_hooks[i].hook(node, chain);
+  }
+  return NULL;
+}
+
+static void send_response(err_h response) {
+  if (response) {
+    SE_log(response);
+  }
+}
+
+// A per-task guard suppresses policy re-entry without suppressing another task.
+static __thread bool in_handler;
+
+void SE_push_to_handler(err_h err) {
+  if (!err) return;
+  if (SE_is_suspended()) {
+    SE_release(err);
+    return;
+  }
+  err_h  nodes[SE_MAX_CHAIN_DEPTH];
+  bool   complete;
+  size_t count            = SE_collect_chain(err, nodes, &complete);
+  bool   diagnostics_only = in_handler || !complete;
+  for (size_t i = 0; i < count; ++i) {
+    if (nodes[i]->tag == ERR_DEV_FAULT_RESPONSE_FAILED) diagnostics_only = true;
+  }
+  bool previous = in_handler;
+  in_handler    = true;
+  if (!diagnostics_only) {
+    uint8_t devices[SE_MAX_CHAIN_DEPTH];
+    size_t  handled        = 0;
+    bool    system_handled = false;
+    bool    ignoring       = false;
+    for (size_t i = 0; i < count; ++i) {
+      err_h      node = nodes[i];
+      uint8_t    id;
+      bool       device = device_id_of(node, &id);
+      se_level_e level  = SE_get_tag_level(node->tag);
+      // An ignored (NONE) device suppresses this node and its causes, critical
+      // ones included (the user chose to ignore it), but not preceding responses.
+      if (device && s_device_ignored && s_device_ignored(id)) ignoring = true;
+      if (ignoring) continue;
+      if (device) {
+        size_t j = 0;
+        while (j < handled && devices[j] != id) ++j;
+        if (j == handled) {
+          devices[handled++] = id;
+          err_h device_fault = node;
+          // Use the highest local severity for repeated mentions of this device,
+          // without looking through an ignored-device boundary.
+          for (size_t k = i + 1; k < count; ++k) {
+            uint8_t other;
+            if (!device_id_of(nodes[k], &other)) continue;
+            if (s_device_ignored && s_device_ignored(other)) break;
+            se_level_e candidate = SE_get_tag_level(nodes[k]->tag);
+            if (other == id && candidate > level) {
+              level        = candidate;
+              device_fault = nodes[k];
             }
-            ESP_LOGE(TAG, "  [%d] Owner: %s (0x%04X), Tag: %s (%d), Payload[%u]: %s%s", depth++, SE_get_owner_name(curr->owner), (unsigned int)curr->owner, SE_get_tag_name(curr->tag), (int)curr->tag, (unsigned)psize, hex, psize > 16 ? "..." : "");
-          } else {
-            ESP_LOGE(TAG, "  [%d] Owner: %s (0x%04X), Tag: %s (%d)", depth++, SE_get_owner_name(curr->owner), (unsigned int)curr->owner, SE_get_tag_name(curr->tag), (int)curr->tag);
+          }
+          if (s_device_report) {
+            send_response(s_device_report(id, level, device_fault));
+            if (level == SE_LEVEL_CRITICAL) system_handled = true;
           }
         }
       }
-      ESP_LOGE(TAG, "=======================================");
+      send_response(dispatch_domain(node, err));
+      if (level == SE_LEVEL_CRITICAL && handled == 0 && !system_handled && s_system_hook) {
+        system_handled = true;
+        send_response(s_system_hook(node, err));
+      }
     }
-
-    if (encoded) {
-      (void)sys_ble_char_send(cfg.errors.char_uuid, cfg.errors.tx_header, packet, packet_len, true);
-    }
   }
+  SE_log(err);
+  in_handler = previous;
 }
 
-void SE_init(void) {
-  if (s_err_handler_task_handle == NULL) {
-    R_TASK_START(s_err_handler_task_handle, sys_error_handler_task, NULL, 5);
-  }
-}
-
-void SE_push_to_handler(err_h err) {
-  if (!err || SE_is_suspended()) return;
-
-  if (xPortInIsrContext()) {
-    R_QUEUE_SEND_ISR(s_err_queue, &err);
-  } else {
-    R_QUEUE_SEND(s_err_queue, &err, NO_WAIT);
-  }
-}

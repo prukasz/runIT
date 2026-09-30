@@ -1,230 +1,400 @@
-# System Error Handling (sys_errors)
+# System errors
 
-IMPORTANT: If you modify the source files in this component (sys_error.h, sys_error.c, sys_error_handler.c, or any of the codes/ mappings), you must update this documentation to reflect the changes.
+Update this document when changing the error core, dispatcher, or tag maps.
 
-## Overview
-The `sys_errors` component implements the unified error-reporting mechanism used throughout the runIT firmware. Errors are represented as linked-list chains of ring-buffer-allocated nodes (`err_h`), each tagged with an error code (`err_tag_e`), an owning module (`sys_owner_e`), and a small fixed-layout payload describing the failure context. Chains are built bottom-up as a low-level failure propagates back through call sites, then handed off to a background task for logging/telemetry at the point where the chain reaches its origin call.
+## Pipeline and ownership
 
-It also owns the firmware's **outbound diagnostics policy** (`SE_configure()`): the ESP log level, whether log lines are mirrored on serial and/or streamed over BLE, and whether error chains are encoded and transmitted for client-side reconstruction. See [Logging & Telemetry Configuration](#logging--telemetry-configuration) below.
+Errors are typed nodes linked through `next_cause`. `NULL` means success.
+`SE_ERR_NEW` creates an owned node; `SE_WRAP_ERR` transfers ownership of its cause
+into the new chain. Explicit-owner variants use the same allocator/constructors.
+Do not share a cause between two owned chains.
 
-The component is split into two `.c` files along a stable/expanding-surface line: `sys_error.c` holds the ring buffer allocator, name lookups, and diagnostics config/log hook — all narrow, unlikely to grow — while `sys_error_handler.c` owns the queue, the consumer task, and how a completed chain gets dispatched (currently: serial trace + BLE encode/send). Handler dispatch is the part expected to grow (more sinks, filtering, routing), so it's isolated in its own file rather than mixed into the allocator.
-
-### Directory Map
-```
-components/sys_errors/
-├── CMakeLists.txt
-├── SYS_ERRORS.MD           # This documentation
-├── sys_error.c             # Ring buffer allocator, name lookups, diagnostics config, log hook
-├── sys_error_handler.c      # Error queue, consumer task, SE_init(), SE_push_to_handler()
-├── include/
-│   └── sys_error.h         # Core types, SE_* macros, API declarations
-└── codes/
-    ├── sys_error_codes.h   # Aggregates all module error/owner maps into SYS_ERROR_MAP / SYS_OWNER_MAP
-    ├── devices_owners.h    # Owner IDs for device drivers/adapters (PROVIDER_OWNER_MAP)
-    └── base/
-        └── sys_error_base.h # Base/common error tags shared by all modules (SYS_ERROR_BASE_MAP)
+```text
+create -> wrap while returning -> SE_REPORT / SE_push_to_handler
+       -> validate -> outermost node through causes -> diagnostics -> release
 ```
 
-Each system submodule (`sys_device`, `sys_io`, `sys_i2c`, `sys_power`, `ble`, `sys_interface`, `sys_buffers`, `sys_actions`, `VM`) defines its own `sys_error_<module>.h` under its own `include/` directory, declaring a `SYS_ERROR_<MODULE>_MAP(X)` and `SYS_<MODULE>_OWNER_MAP(X)`. `sys_error_codes.h` includes each of these headers and folds them into the two global X-macros below, so this component's own INCLUDE_DIRS list every submodule's `include/` path to resolve them.
+`SE_push_to_handler` **consumes** its argument, including when reporting is
+suspended. Do not inspect, return, or release that handle afterwards.
 
-Two exceptions to "under its own `include/`": the VM's map lives at `components/VM/core/errors/sys_error_vm.h`, and the error *encoder* at `components/codecs/encoders/`. Both are reached by a raw include path in this component's CMakeLists rather than `REQUIRES VM` / `REQUIRES codecs`, because `VM` and `codecs` already require `sys_errors` — a component dependency back would be circular. The build emits a CMake warning about each of these include dirs "belonging to" another component; that is expected and is the tradeoff for breaking the cycle.
+- **Responses run synchronously** in the reporting task (device policy, domain hooks,
+  system fault), so a response happens before anything else can build on the
+  unhandled error.
+- **Logging and telemetry run later** in the error log task: `SE_log(chain)` queues
+  the chain (consumes it), and that task logs, encodes, sends and releases it. The
+  ~1.5 KB of format/encode buffers live on that task's stack, not on the stack of
+  every task that raises errors.
+- **Queue full:** a chain that finds the queue full (`CONFIG_SYS_ERRORS_LOG_QUEUE_LEN`,
+  default 4) is released and counted, and the count is logged.
+- **Waiting chains keep their pool nodes,** so keep the queue short.
 
----
-
-## Core Data Structures
-
-### sys_err_t / err_h
-An error node is a variable-length, ring-buffer-allocated struct with a flexible array member payload, chained to its cause via `next_cause`.
-```c
-typedef struct err_node {
-  err_tag_e tag;
-  uint32_t owner;
-  struct err_node* next_cause;
-  uint8_t payload[] __attribute__((aligned(8)));
-} sys_err_t;
-
-typedef sys_err_t* err_h;
-```
-`err_h == NULL` always means success; this is what `SE_IS_OK` / `SE_IS_ERR` check.
-
-### err_tag_e and payload structs (auto-generated)
-`SYS_ERROR_MAP(X)` is expanded once to generate the `err_tag_e` enum (one entry per error tag) and once more to generate one payload struct per tag (`err_payload_<TAG>_t`), so adding a new error tag only requires adding one line to a module's map macro.
-
-### sys_owner_e (auto-generated)
-`SYS_OWNER_MAP(X)` similarly generates the `sys_owner_e` enum of module/owner IDs (e.g. `OWNER_DEVICE_INA3221`, `OWNER_SYS_IO_BASE`), used to tag which module raised a given error node.
-
----
-
-## Ring Buffer Allocator (sys_error.c)
-
-Error nodes are allocated from a fixed-size (`ERR_BUF_SIZE`, 1024 bytes) lock-free ring buffer via atomic compare-exchange bump allocation (`SE_alloc_bytes`) — there is no free; slots are simply overwritten once the head wraps around, so error chains must be logged/consumed promptly. A `_Static_assert` per tag (`X_CHK` in sys_error.c) guarantees no single payload can exceed 1/4 of the ring, bounding how much of the buffer one allocation (or one chain) can occupy.
-
-## Error Queue & Handler Task (sys_error_handler.c)
-
-The error queue (`s_err_queue`, `ERR_QUEUE_LEN` = 32) is a static FreeRTOS queue defined via the `utils` component's `R_QUEUE_DEFINE` — it's live before `app_main()` runs (constructor-initialized), so nothing needs to guard its creation, including `SE_push_to_handler()` calls that happen to land before `SE_init()`. `SE_init()` starts the background consumer task (`sys_error_handler_task`), statically allocated via `R_TASK_DEFINE` / `R_TASK_START` (see [[runit]] skill), guarded so a repeat call doesn't start it twice.
-
-The task reads a fresh copy of the config via `SE_get_config()` each time it wakes (rather than reaching into `sys_error.c`'s internal `s_cfg`, keeping the two files decoupled to the public API) and, per that configuration, (a) encodes the chain into a wire packet, (b) logs each node (owner name, owner ID, tag name, tag ID, and a description — see below) via `ESP_LOGE`, and (c) pushes the encoded packet to a BLE TX slot — **in that order**, because both (b) and (c) can themselves allocate from the same ring the chain lives in.
-
-### Per-Tag Payload Descriptions (`SE_describe_payload`)
-
-Each printed node tries `SE_describe_payload(tag, payload, out, out_size)` (declared in `sys_error.h`) first: if `tag` has a registered logger, it writes a short human-readable line (e.g. `"device 3 dependency failed"`, `"ESP-IDF error ESP_ERR_TIMEOUT (0x107)"`) and the trace prints `Owner: ... Tag: ... -> <description>`. If `tag` has no logger, the trace falls back to a raw hex dump of up to 16 payload bytes, same as before.
-
-**Adding a description for a tag** is a two-step, per-module change — no edits to `sys_error.h`/`sys_error_handler.c` needed:
-1. In the tag's owning module's `sys_error_<module>.h` (next to its `SYS_ERROR_<MODULE>_MAP`), add the tag to a `SYS_ERROR_<MODULE>_LOGGER_MAP(X)` — just `X(TAG_NAME)`, no second argument.
-2. Define `#define LOG_BODY_<TAG_NAME>(p, out, out_size) snprintf((out), (out_size), "...", (p)->field, ...)` — `p` is `const err_payload_<TAG_NAME>_t*`.
-
-**Why the split into a macro-only map plus a separately-generated function** (rather than just writing `static inline void log_<tag>(...)` directly in the module header, the way the struct/enum generation works): `err_payload_<tag>_t` doesn't exist yet at the point `sys_error_<module>.h` is parsed — it's included (via `sys_error_codes.h`) *before* `sys_error.h` expands `SYS_ERROR_MAP(X_STRUCT)`. `LOG_BODY_<tag>` is pure text (a macro), so it has no such ordering constraint; `sys_error.h` stamps it into a real typed function (`log_<tag>`) itself, immediately after the payload structs are generated, then generates `SE_describe_payload()`'s `switch` over the same aggregated `SYS_ERROR_LOGGER_MAP` (built in `sys_error_codes.h`, one line per module, mirroring how `SYS_ERROR_MAP`/`SYS_OWNER_MAP` are aggregated there).
-
-This is opt-in and sparse by design — most tags don't have a logger yet; an un-described tag is not a bug, just a raw hex fallback until someone adds one. `adapter_pca9685.c`'s `explain_root_cause()` reuses this same `SE_describe_payload()` call for its root-cause line, rather than keeping its own translation table, so there's exactly one place per tag that knows how to describe it.
-
-`SE_push_to_handler(err)` enqueues a completed chain; it is ISR-safe (uses `xQueueSendFromISR` when called from ISR context) and is a no-op while suspended (`SE_suspend()` / `SE_resume()`, nesting-safe via a depth counter, implemented in sys_error.c). A push that happens before `SE_init()` has started the task simply waits in the queue rather than being dropped.
-
-This is the file to extend for new dispatch behavior (additional sinks, per-owner filtering, rate limiting, etc.) — see the note in the Overview above.
-
-### Device-Error Dispatch Hook
-
-Before the encode/log/send steps above, every dequeued chain is run through `dispatch_device_owned_error()`: a **basic** detection pass that walks the chain looking for the first node whose `tag == ERR_DEV_DEP_FAILED` *and* whose `owner` falls in the device-provider range (`devices_owners.h`'s `PROVIDER_OWNER_MAP`, `0xD0xx` — tested via `(owner & 0xFF00) == (OWNER_DEVICE_BASE & 0xFF00)`). `ERR_DEV_DEP_FAILED` is the only device-raised tag guaranteed to carry a `dev_id` payload (see `RET_IF_DEV_ERR` in [[SYS_DEVICE.MD]]), which is why detection keys off that specific tag rather than the owner range alone. On the first match, `dev_id` is extracted from that node's payload and handed to a registered hook — `err_h (*se_device_error_hook_t)(uint8_t device_id, err_h error)` — then the scan stops; **the rest of the chain is not scanned further, but encode/log/send below still run over the whole chain regardless**, unaffected by this pass.
-
-`SE_register_device_error_hook(hook)` stores the hook (a single slot, last registration wins). `sys_device` registers `sys_device_report_error()` here from a load-time `__attribute__((constructor))` function (matching the [[runit]] skill's static-construction convention), rather than `sys_errors` calling into `sys_device` directly — `sys_device` already `REQUIRES sys_errors`, so the reverse would be a circular component dependency. This is the same indirection pattern `sys_callbacks` uses for `sys_cb_register_route()` (see [[SYS_CALLBACKS.MD]]) to let a lower-level component be called into by a higher-level one without a compile-time dependency in that direction.
-
----
-
-## Logging & Telemetry Configuration
-
-### `sys_error_cfg_t`
-One struct decides where both outbound streams go. It carries **routing switches only** — no per-sink level fields. Level selection belongs to `esp_log` (`global_level`, plus any per-tag `esp_log_level_set()` calls the application makes), so a line that reaches the hook is a line every enabled sink wants. That keeps the struct flat and small enough to be applied remotely as a single packet payload, in the style of the decoder structs in [[CODECS.MD]].
+`SE_send`, the encoder, logging functions, and policy hooks **borrow** their input.
+They do not retain it. Their non-NULL return is a separate owned failure.
+Use `SE_release(error)` after inspecting/discarding an error yourself.
+`SE_IS_OK` / `SE_IS_ERR` only compare; they do not release an error.
 
 ```c
-typedef struct {
-  esp_log_level_t global_level;      // applied as esp_log_level_set("*", ...) - the only level filter
-  struct {
-    bool     mirror_on_serial;       // keep writing lines to the original sink (UART/stdout)
-    bool     ble_enable;             // also push each rendered line to a characteristic
-    uint16_t char_uuid;              // required when ble_enable
-    uint8_t  tx_header;              // TX slot header identifying the log stream
-  } logs;
-  struct {
-    bool     serial_trace;           // ESP_LOGE the decoded owner/tag stack trace
-    bool     ble_enable;             // encode chains and push them to a characteristic
-    uint16_t char_uuid;              // required when ble_enable
-    uint8_t  tx_header;              // TX slot header identifying the error stream
-    uint16_t packet_max;             // clamped to SE_ERR_PACKET_MAX (244)
-  } errors;
-} sys_error_cfg_t;
+err_h error = operation();
+if (error) {
+  SE_log(error);             // diagnostics only (queued, consumed); or return error to the caller
+}
+// At an origin with no further use of the error:
+SE_REPORT(operation());
 ```
 
-`SYS_ERROR_CFG_DEFAULT()` is the pre-`SE_configure()` state: serial only, nothing on BLE — a board that never configures behaves exactly as it did before telemetry existed.
+## Storage and validation
 
-### `err_h SE_configure(const sys_error_cfg_t* cfg)`
-Applies a configuration. Idempotent, callable any time after `SE_init()`, but must run **after** the BLE characteristics and TX slots it names exist. Returns `ERR_NULL_PTR`, or `ERR_INVALID_VAL_UI32` when a stream is enabled with `char_uuid == 0`. Re-points the `esp_log` `vprintf` hook to `se_log_vprintf` on every call (a no-op past the first, since it's always the same function); the previous hook is never captured, so serial output always ends up as plain `vprintf`. Clearing both `logs.mirror_on_serial` and `logs.ble_enable` silences logs entirely — the hook still runs and drops every line.
+The shared pool is 1,024 bytes: 32 blocks of 32 bytes, reserved with a 32-bit atomic
+bitmap. A node occupies consecutive blocks. A 32-byte start-length table validates
+node boundaries and complete tag-sized payloads. Tracking costs 36 bytes. There is
+no heap allocation and live nodes are never overwritten. Payloads and nodes remain
+8-byte aligned. Maximum concurrent capacity depends on payload sizes (up to 32
+small nodes); synchronous handling does not eliminate overlapping producer tasks.
 
-### `err_h SE_get_config(sys_error_cfg_t* out_cfg)`
-Reads back the configuration in force, after clamping.
+`SE_alloc_bytes` validates tag and exact payload size and returns NULL on exhaustion.
+Prefer the constructors: a failed new error returns an immutable
+`ERR_BASE_POOL_EXHAUSTED` node. It is LOW severity on purpose: a burst of errors
+must not trigger the safe state. Pool size: `SYS_ERRORS_BUF_SIZE / SYS_ERRORS_BLOCK_SIZE`
+must be at most 32 blocks (one `uint32_t` bitmap, checked at compile time); a failed wrap preserves its existing cause, omitting the new context. Never
+mutate the exhaustion node. Long-lived errors consume pool capacity until released.
+The pool can exhaust without corrupting another chain; it does not guarantee that
+all context can be retained during an error storm.
 
-### The log hook
-`se_log_vprintf()` replaces the default `vprintf` sink and does exactly two things: render the line into a `SE_LOG_LINE_MAX` (256 B) stack buffer and `sys_ble_char_send()` it when `logs.ble_enable`, then forward the **original** `va_list` to the previous sink when `logs.mirror_on_serial`. Serial therefore keeps full fidelity — only the BLE copy is truncated at `SE_LOG_LINE_MAX`.
+`SE_collect_chain` returns at most `SE_MAX_CHAIN_DEPTH` (16) unique validated nodes,
+outermost first, plus a completeness flag. Handler, logger, encoder and root lookup
+share this traversal. Cycles, invalid pointers and longer chains terminate safely.
+Malformed/incomplete chains are diagnostic-only. `SE_release` frees the complete
+pool-backed chain (also beyond the traversal limit) with bounded cycle detection.
+Raw pointers are not generation handles: using a handle after consumption/release
+remains invalid, even if its address is later allocated again.
 
-> **Depends on `CONFIG_LOG_VERSION_1`** (what this project builds with): log v1 delivers one whole line per `vprintf` call, so one call maps to one BLE notification with no line reassembly. Log **v2** splits a line across three calls (prefix / user format / newline+reset) and would emit three fragments per line — switching to v2 means reintroducing an accumulator that flushes on `'\n'`.
+## Dispatch policy
 
-A `__atomic_exchange_n` flag guards re-entrancy: `sys_ble_char_send()` logs on its own error paths, and that log comes straight back into the hook. A nested call finds the flag set and takes the serial-only path instead of recursing. Under contention another task's line is dropped from the BLE stream (never from serial).
+- Device attribution uses the tag payload, independently of the reporting owner.
+  Device tags, IO pin tags and power-budget tags identify device instances.
+  Contract boundaries wrap failures with the affected device ID.
+- Visit outermost node to root cause. For a repeated device, use the highest local
+  severity among its mentions before the first ignored-device boundary. Run that
+  device's policy once, at its first occurrence; pass the node supplying that level.
+  The leaf does not silently replace another node's severity.
+- Importance NONE stops all handling of that device and all deeper causes,
+  critical nodes included (the user's opt-out for a device under test). Earlier
+  responses remain in effect; the full chain still goes to diagnostics.
+- From LOW (a device's start value) up, importance filters which noncritical
+  severities reach the device policy: MEDIUM admits HIGH, HIGH admits MEDIUM and
+  HIGH, CRITICAL admits all. Critical always goes through. Tag severities stay
+  unchanged.
+- Domain hooks receive `(node, full_chain)` for each visited node in that domain.
+  Hooks are registered at boot (`SE_register_domain_hook(domain, fn)`, a table of
+  `CONFIG_SYS_ERRORS_MAX_DOMAIN_HOOKS`); a domain without one is skipped. The device
+  router (`SE_register_device_router`) and the system hook (`SE_register_system_hook`)
+  are registered the same way. runit does all of it in `runit_error_wiring_init()`,
+  the first boot step after `SE_init()`.
+- Unattributed critical errors (where no device in the chain was attributed,
+  `handled == 0`) use the registered system hook, never a lookup of device zero.
+  The application latches the triggering node and performs global stop/suspend
+  once per latch episode. Enabled devices still run their individual actions
+  after the global latch has been set. The dispatcher deduplicates devices
+  per incident, not across separate incidents.
+- Response failures are diagnostics-only and released after sending. A per-task
+  handler guard prevents callbacks/actions re-entering policy while handling an
+  incident. Hooks must return new owned failures, never the borrowed input chain.
 
-### Error telemetry
-When `errors.ble_enable` is set, the handler task encodes each chain with `enc_sys_errors_encode_chain()` (see [[CODECS.MD]]) and pushes the packet to `errors.char_uuid` / `errors.tx_header`. `err_h` values returned by `sys_ble_char_send()` on either stream are deliberately dropped — feeding a TX failure back into the error queue would log from inside the log path.
+`SE_suspend` / `SE_resume` are nested and task-local. Suppression in one task does
+not drop unrelated errors from another task. The synchronous dispatch/logging API
+is for task context; it can invoke actions, transport callbacks and VM barriers.
 
-### Usage
+## Logging and telemetry
 
-```c
-SE_init();
-CHECK_AND_LOG(sys_ble_static_config());   // creates the characteristics/TX slots first
-CHECK_AND_LOG(SE_configure(&(sys_error_cfg_t){
-    .global_level = ESP_LOG_INFO,
-    .logs   = {.mirror_on_serial = true, .ble_enable = true,
-               .char_uuid = SYS_BLE_CHR_RUNIT_LOGS, .tx_header = PACKET_HEADER_LOGS},
-    .errors = {.serial_trace = true, .ble_enable = true,
-               .char_uuid = SYS_BLE_CHR_RUNIT_LOGS, .tx_header = PACKET_HEADER_ERRORS,
-               .packet_max = SE_ERR_PACKET_MAX},
-}));
+`SE_set_logging(level, mirror_serial, trace_errors)` controls text logging and the
+ESP log interceptor. `sys_errors` knows no transport: output goes to a sink the
+application binds at boot with `SE_register_sink(&(sys_error_sink_t){send_log,
+send_packet, packet_max_len})`. runit (`runit_board_error_sink_init`) sends text
+lines to the logs connector and binary error packets to the errors connector.
+`packet_max_len` is a function asked before every packet, because the transport
+limit changes at runtime (runit returns `sys_data_connector_max_payload()` of the
+errors connector, which follows the BLE MTU); the encoder packs as many chain
+nodes as fit. Unbound outputs are dropped; serial mirroring
+still works. Binary errors go out independently of text tracing. The encoder is
+private to this component (`enc_sys_errors.h`). The disconnected `sys_error_config` API was removed.
+`SE_send` does not acknowledge delivery: the sink's send functions are void, and
+runit releases a failed connector send there (reporting it would recurse into the sink).
+Its returned error describes encoding failure. Log recursion guards are task-local.
 
-// Narrowing or widening a single module stays an esp_log concern:
-esp_log_level_set("sys_i2c", ESP_LOG_DEBUG);
+The binary format (no version field; formats aren't versioned before release):
+
+```text
+u8 node_count | u8 depth | u32 schema_id LE
+repeated: u8 payload_length | u16 tag LE | u16 owner LE | payload bytes
 ```
 
----
+- **Tag IDs are explicit and stable:** `X(tag, id, level, struct)`. The high byte is
+  the module's owner domain (`0xA3xx` IO, `0xA1xx` devices, and so on), and `0x00xx` holds
+  the shared base tags; 0 means "no tag".
+- **Adding a tag doesn't renumber the others,** so a client's tag table stays valid
+  for existing tags. Duplicate IDs fail the build (duplicate `case` in
+  `SE_get_tag_name`).
 
-## Core Macros (implicitly use `OWNER`)
+`depth > node_count` indicates packet-capacity truncation. Depth 255 means corrupt
+or over-depth input (the exact length is unknown). The schema ID is FNV-1a over
+the tags' NUL-terminated names, IDs and payload sizes in map order. It detects
+added tags and payload-size changes; with stable IDs a client can still decode
+the tags it knows when the schema differs. A same-size payload-layout
+change isn't detected by the schema ID; the client's tables must be regenerated with it. Payloads retain native C alignment
+and padding; scalar record headers are explicitly little endian.
 
-Every `.c` file using these macros must `#define OWNER OWNER_<MODULE_NAME>` near the top, per the [[runit]] skill's module owner tagging convention.
+Formatted logs still supply human-readable descriptions. Clients with a
+matching schema may decode typed payloads.
 
-* **`SE_IS_OK(call)`** / **`SE_IS_ERR(call)`**: NULL-checks on an `err_h`.
-* **`SE_ERR_NEW(tag_name, ...)`**: Allocates and fills a new leaf error node for `tag_name` with designated-initializer payload fields; `next_cause` is left NULL.
-* **`SE_WRAP_ERR(rc_err, tag_name, ...)`**: Creates a new node for `tag_name` and chains `rc_err` as its cause.
-* **`SE_WRAP_DEV_ERR(rc_err, dep_dev_id)`**: Shorthand for wrapping a dependency failure as `ERR_DEV_DEP_FAILED` with a `dev_id` payload.
-* **`SE_PASS_ON_ERR(call, tag_name, ...)`**: Evaluates `call`; if it returns a non-NULL `err_h`, wraps it under `tag_name` and returns the wrapped chain immediately.
-* **`SE_RET_IF_ERR(call)`**: `SE_PASS_ON_ERR` specialized to wrap under the generic `ERR_DEP_FAILED` tag — the default choice for propagating a nested call's error without adding origin-specific context.
-* **`SE_SET_ERR(out_err, tag_name, ...)`**: Assigns a freshly built error node to an out-parameter instead of returning it.
-* **`SE_EMIT_ERR(tag_name, ...)`**: Builds a node and immediately pushes it to the handler without returning it (fire-and-forget diagnostic).
-* **`SE_RET_ERR(tag_name, ...)`**: Builds a node and returns it directly (used at the true point of failure).
-* **`SE_ORIGIN_CALL(call)`**: Wraps a top-level entry point call; if it returns a non-NULL chain, pushes the whole chain to the handler. This is where a chain actually reaches the logging task, per the skill's `SE_ORIGIN_CALL` convention for entry points like `runit_start()`.
+**Client tables:** `data-structures/errors/errors.generated.json`
+(`generate-errors.py`, see `data-structures/AGENTS.md`) publishes every tag,
+owner, severity, payload layout (native offsets), `LOG_BODY` format and the
+schema ID computed the same way as `SE_schema_id()`. The app decodes error
+packets from it. Keep `LOG_BODY_*` to one `snprintf` over payload fields
+(helpers of the form `switch` → `return "text"` or `(r) == N ? "text" : …`
+are published as value tables); a body with conditionals gets no template and
+the app lists the raw fields instead.
 
----
+## Error maps and aggregation
 
-## Utility / Compatibility Macros
+Each module declares its own errors in one header, `sys_error_<module>.h`, kept in the module's **`errors/` folder**:
 
-* **`SE_CONVERT_ESP(esp_call)`**: Evaluates an `esp_err_t` expression; returns `NULL` on `ESP_OK`, otherwise a new `ERR_ESP_ERR` node carrying the raw `esp_code`.
-* **`SE_RET_IF_ESP_ERR(esp_call)`**: Same check as above, but returns the `ERR_ESP_ERR` node directly instead of yielding it as a value.
-* **`SE_CHECK_NOT_NULL(ptr)`**: Returns `ERR_NULL_PTR` if `ptr` is NULL.
-* **`SE_CHECK_IF_ALLOCATED(ptr)`**: Returns `ERR_BASE_NO_MEM` if `ptr` is NULL (post-allocation check).
-* **`SE_CHECK_HANDLE(handle)`**: Returns `ERR_NO_HANDLE` if `handle` is NULL.
-* **`SE_CHECK_IN_RANGE(val, min, max)`**: `_Generic`-dispatched bounds check (float/double, signed integer, or default-unsigned variants) that returns an `ERR_INVALID_VAL_*` node with `val`/`min`/`max` payload on violation. Bounds must share `val`'s signedness — the dispatch keys off `val`'s type only, so a negative bound paired with an unsigned `val` will route to the unsigned variant and silently wrap.
+- `SYS_ERROR_<MODULE>_MAP(X)`: tags as `X(tag, id, level, struct)`: stable ID in the module's domain (`0xDDnn`), default severity (`se_level_e`) and payload struct;
+- `SYS_<MODULE>_OWNER_MAP(X)`: owners, whose high byte (`owner & 0xFF00`) is the module's domain;
+- `SYS_ERROR_<MODULE>_LOGGER_MAP(X)` plus `LOG_BODY_*`: optional readable payload descriptions.
 
----
+`codes/sys_error_codes.h` includes every map and combines them into `SYS_ERROR_MAP` / `SYS_OWNER_MAP`, which generate the tag and owner enums, payload types, names and logger dispatch in `sys_error.h`.
 
-## Base Error Tags (SYS_ERROR_BASE_MAP)
-Common tags available to every module regardless of submodule-specific maps: `ERR_NO_HANDLE`, `ERR_NULL_PTR`, `ERR_INVALID_VAL_UI32`, `ERR_INVALID_VAL_I32`, `ERR_INVALID_VAL_F`, `ERR_DEV_DEP_FAILED`, `ERR_DEP_FAILED`, `ERR_ESP_ERR`, `ERR_BASE_NO_MEM`, `ERR_BASE_NOT_SUPPORTED`, `ERR_BASE_NOT_FOUND`, `ERR_BASE_INVALID_STATE`.
+| Module | Map | Domain |
+|---|---|---|
+| `sys_device` | `system/sys_device/errors/sys_error_dev.h` | `0xA1` |
+| `sys_i2c` | `system/sys_i2c/errors/sys_error_i2c.h` | `0xA2` |
+| `sys_io` | `system/sys_io/errors/sys_error_io.h` | `0xA3` |
+| `sys_power` | `system/sys_power/errors/sys_error_power.h` | `0xA4` |
+| `ble` | `system/ble/errors/sys_error_ble.h` | `0xA5` |
+| `sys_interface` + decoders | `system/sys_interface/errors/sys_error_interface.h` | `0xA6` |
+| `sys_buffers` | `system/sys_buffers/errors/sys_error_buffers.h` | `0xA7` |
+| `sys_errors` | `codes/sys_error_base.h` | `0xA8` |
+| `VM` | `VM/errors/sys_error_vm.h` | `0xA9` |
+| `sys_actions` | `system/sys_actions/errors/sys_error_actions.h` | `0xAA` |
+| `sys_event` | `system/sys_event/errors/sys_error_event.h` | `0xAB` |
+| `sys_hbridge` | `system/sys_hbridge/errors/sys_error_hbridge.h` | `0xAC` |
+| `sys_data_connector` | `system/sys_data_connector/errors/sys_error_data_connector.h` | `0xAD` |
+| `features` | `features/errors/sys_error_features.h` | `0xAE` |
+| `runit` | `runit/errors/sys_error_runit.h` | `0xAF` |
+| `sys_settings` | `system/sys_settings/errors/sys_error_settings.h` | `0xB0` |
+| devices | `devices/devices/errors/devices_owners.h` | `0xD0` |
 
-## Own Owners (SYS_ERRORS_OWNER_MAP)
-| Owner | ID |
-| :--- | :--- |
-| `OWNER_SYS_ERRORS_BASE` | `0xA800` |
-| `OWNER_SYS_ERRORS_CONFIG` | `0xA801` |
+**Why include dirs, not `REQUIRES`.** Every module `REQUIRES sys_errors`, so `sys_errors` can't require them back (component cycle). It lists each `errors/` folder as a plain include dir in its `CMakeLists.txt` instead. The maps are pure data (X-macros), not code dependencies, so this is safe.
 
----
+**Why a separate `errors/` folder.** The include dirs of `sys_errors` are public: every component that includes `sys_error.h` can also include whatever sits in them. If the maps lived in a module's `include/`, that module's whole API would leak to everyone. That once hid a real `ble` → `sys_data_connector` dependency. An `errors/` folder holds only error maps, so nothing else leaks.
 
-## API Summary
+**Rules for a map header:**
+- Only data: X-macro maps and `LOG_BODY_*` macros.
+- No includes beyond `<stdint.h>` / `<stdio.h>`: it's parsed early in the `sys_error.h` include chain, before `err_h` exists.
+- A description that needs another module's names forward-declares just those symbols as `extern` (see `sys_error_dev.h`).
+- **Name the IDs in a payload for the app.** Put an annotation right after the field's `;`. It must be a block comment, because the maps are one-line macros. For example: `struct { uint8_t dev_id; /*@id device*/ uint8_t mode; /*@enum-ref sys_io_mode_e*/ }`.
+  - `/*@enum-ref <enum>*/` names a `//#ref-enum` enum.
+  - `/*@id <kind>*/` names a value from another catalog. The kinds:
+    - `device`: board device ID;
+    - `error-tag`, `error-owner`, `error-level`;
+    - `rx-class`: command class byte;
+    - `rx-packet <class field>`: command packet byte; the class byte is in the named field;
+    - `contract-feature <contract field>`: device contract feature ID (`SYS_DEV_FEATURE_ID`); the contract type is in the named field. Its names come from the feature tables marked `//@contract-features $SYS_DEVICE_CONTRACT_<X>` (`sys_io.c`, `sys_power.c`, `sys_hbridge.c`); a new contract needs one;
+    - `vm-block-type`;
+    - `esp-err`: an `esp_err_t`.
+  - The app then prints `device 12 (INA3221)` instead of `device 12`. `generate-errors.py` rejects an unknown enum or kind. Keep the annotation when moving or reformatting the field (conventions §6).
 
-```c
-void SE_init(void);
-err_h SE_alloc_bytes(size_t payload_size, err_tag_e tag, uint32_t owner);
-void SE_push_to_handler(err_h err);
-void SE_register_device_error_hook(se_device_error_hook_t hook);
+**Adding a module's errors:**
+1. Create `<component>/errors/sys_error_<module>.h`.
+2. Pick an unused domain byte (table above).
+3. Include the header in `codes/sys_error_codes.h`, and add its maps to `SYS_ERROR_MAP` / `SYS_OWNER_MAP` / the logger map.
+4. Add the folder to `sys_errors/CMakeLists.txt`.
+5. Only if the domain gets a fault hook, add it to `dispatch_domain()` in `sys_error_handler.c`.
+6. Regenerate the app's tables: `python data-structures/auto-annotations/errors/generate-errors.py` (also after adding or changing any tag, owner or `LOG_BODY`).
 
-void SE_suspend(void);
-void SE_resume(void);
-bool SE_is_suspended(void);
+**Expected build warnings.** ESP-IDF's component check reports each of these folders once ("Include directory … belongs to component X but is being used by component sys_errors"): 16 warnings, one per `errors/` folder. They are expected. Any other project warning is new and must be fixed. Adding a tag changes the schema ID (see "Logging and telemetry"); adding an owner doesn't.
 
-const char* SE_get_owner_name(uint32_t owner);
-const char* SE_get_tag_name(err_tag_e tag);
-size_t SE_get_payload_size(err_tag_e tag);   // sizeof(err_payload_<tag>_t); 0 if unknown
-bool SE_describe_payload(err_tag_e tag, const void* payload, char* out, size_t out_size);  // true if tag has a registered description
+## Files and verification
 
-err_h SE_configure(const sys_error_cfg_t* cfg);
-err_h SE_get_config(sys_error_cfg_t* out_cfg);
+- `sys_error.c`: pool, release, bounded traversal, metadata.
+- `sys_error_handler.c`: synchronous policy dispatch.
+- `sys_error_log.c`: ESP logging hook, formatting, sink send.
+- `enc_sys_errors.h`: private binary chain encoder.
+- `include/sys_error.h`: constructors and ownership API.
+- `include/sys_error_hooks.h`: optional domain hooks.
+- `codes/sys_error_codes.h`: aggregate module tag/owner/logger maps (from each module's `errors/` folder, see above).
+
+There is no test target: the host test (`tools/tests/test_sys_errors.py`) and the
+firmware self-tests were removed in commit `47207d3`.
+
+## Error Lifecycle & Call Tree Architecture
+
+### 1. High-Level Flowchart
+
+```mermaid
+flowchart TD
+    A["Error Origin (Driver / Subsystem / VM)"] -->|"SE_FAIL / SE_WRAP_ERR"| B["SE_push_to_handler(err)"]
+
+    subgraph Phase1["Phase 1: Inspection & Chain Collection"]
+        B --> C["SE_collect_chain()"]
+        C --> D{"in_handler or corrupt?"}
+        D -->|Yes| E["Diagnostics Only (Skip Policies)"]
+    end
+
+    subgraph Phase2["Phase 2: Attribution & Policy Dispatch"]
+        D -->|No| F["Iterate Nodes in Error Chain"]
+        F --> G{"Node has Device ID?"}
+
+        %% Device Policy Path
+        G -->|Yes| H["sys_device_report_error_with_level()"]
+        H --> I{"importance NONE, or noncritical level below threshold?"}
+        I -->|Yes| J["Skip device response"]
+        I -->|No| K["Lookup action_id at original severity"]
+        K --> L["registered device error policy (runit_device_policy)"]
+        L --> M{"action_id != 0?"}
+        M -->|Yes| N["sys_actions_invoke(action_id)"]
+        L --> O{"level == CRITICAL?"}
+        O -->|Yes| P["runit_system_fault()"]
+        P --> P1["vm_exec_fault_latch()"]
+        P --> P2["vm_exec_stop()"]
+        P --> P3["sys_device_suspend_all()"]
+
+        %% Domain Fault Hook Path
+        F --> Q["dispatch_domain(node, err)"]
+        Q --> R["sys_<domain>_handle_fault(node, err)"]
+        R -->|VM| R1["sys_vm_handle_fault -> vm_exec_stop()"]
+        R -->|BLE| R2["sys_ble_handle_fault -> sys_ble_publish(FAILURE)"]
+        R -->|Actions| R3["sys_actions_handle_fault -> abort recording"]
+        R -->|Interface| R4["sys_interface_handle_fault -> suspend RX"]
+        R -->|Power/I2C/IO/Buffers| R5["Hardware containment / bus reset"]
+
+        %% Fallback System Hook
+        F --> S{"CRITICAL & Unhandled?"}
+        S -->|Yes| T["registered system hook (runit_system_hook)"]
+    end
+
+    subgraph Phase3["Phase 3: Baseline Transport & Logging"]
+        E --> U["SE_log(err) -> error log task -> SE_send(err)"]
+        Phase2 --> U
+        U --> V["se_log_error_chain()"]
+        V --> V1["sink.send_log() (runit: logs connector)"]
+        V --> V2["ESP_LOGE() (Serial Mirror)"]
+        U --> W["SE_send_error_raw()"]
+        W --> W1["enc_sys_errors_encode_chain()"]
+        W1 --> W2["sink.send_packet() (runit: errors connector)"]
+        W2 --> W3["ble_provider_send() -> sys_ble_char_send()"]
+    end
+
+    subgraph Phase4["Phase 4: Cleanup"]
+        U --> X["SE_release(err)"]
+    end
 ```
 
-`SE_get_payload_size()` exists because a node does not store its own payload length — it is a property of the tag. The encoder uses it both to know how many bytes after `sys_err_t` belong to the node and to put that length on the wire.
+### 2. Detailed Sequence & Call Tree Diagram
 
-Two `_Static_assert` blocks in `sys_error.c` keep `err_tag_e` and every owner ID inside the `uint16` fields of the error wire format.
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Caller as Caller Task (e.g. AP33772S Driver)
+    participant Core as sys_error.c
+    participant Handler as sys_error_handler.c
+    participant SysDev as sys_device.c
+    participant Policy as runit_error_policy.c
+    participant Actions as sys_actions.c
+    participant VM as vm_exec.c
+    participant Domain as sys_<domain>_handle_fault
+    participant Log as sys_error_log.c
+    participant Conn as sys_data_connector.c
+    participant BLE as sys_ble_stack.c
 
----
+    %% 1. Raising
+    Note over Caller, Core: Step 1: Error Generation & Chaining
+    Caller->>Core: SE_create(owner, tag, payload_size)
+    Caller->>Core: SE_wrap(outer_err, cause_err)
+    Caller->>Handler: SE_push_to_handler(err)
 
-## Adding New Error Codes & Owners
+    %% 2. Collection & Attribution
+    Note over Handler, SysDev: Step 2: Inspection & Device Attribution
+    Handler->>Core: SE_collect_chain(err, nodes[], &complete)
+    loop For each node in chain
+        Handler->>Handler: device_id_of(node, &dev_id)
+        alt Node is attributed to a device
+            Handler->>SysDev: sys_device_report_error_with_level(dev_id, level, node)
+            SysDev->>SysDev: sys_device_get_by_id(dev_id)
+            alt importance NONE, or noncritical level below threshold
+                SysDev-->>Handler: NULL (no device response)
+            else Admitted level
+                SysDev->>SysDev: action_id = dev->actions[level]
+                SysDev->>Policy: runit_device_policy(dev_id, level, action_id, node)
 
-1. **Declare the map** in the owning module's own `sys_error_<module>.h` (or `codes/devices_owners.h` for device drivers, `codes/base/sys_error_base.h` for cross-cutting base tags):
-   ```c
-   #define SYS_ERROR_MY_MODULE_MAP(X) \
-     X(ERR_MY_MODULE_THING, struct { uint32_t some_field; })
-   #define SYS_MY_MODULE_OWNER_MAP(X) \
-     X(OWNER_MY_MODULE_BASE, 0xE000, "OWNER_MY_MODULE_BASE")
-   ```
-2. **Register the map** in `components/sys_errors/codes/sys_error_codes.h` by including the header and adding both macros to `SYS_ERROR_MAP` / `SYS_OWNER_MAP`. This automatically extends `err_tag_e`, `sys_owner_e`, the generated payload structs, and the `SE_get_owner_name` / `SE_get_tag_name` lookup tables.
-3. **(Optional) Add a description**, in the same `sys_error_<module>.h`: add `ERR_MY_MODULE_THING` to a `SYS_ERROR_MY_MODULE_LOGGER_MAP(X)` (`X(ERR_MY_MODULE_THING)`) and define `LOG_BODY_ERR_MY_MODULE_THING(p, out, out_size)`, then add `SYS_ERROR_MY_MODULE_LOGGER_MAP(X)` as one more line in `sys_error_codes.h`'s `SYS_ERROR_LOGGER_MAP`. See [Per-Tag Payload Descriptions](#per-tag-payload-descriptions-se_describe_payload) above. Skippable — an undescribed tag just falls back to a hex payload dump.
+                opt action_id != 0
+                    Policy->>Actions: runit_invoke_action(action_id) -> sys_actions_invoke(scope, id)
+                end
+
+                opt level == SE_LEVEL_CRITICAL
+                    Policy->>Policy: runit_system_fault(dev_id, node)
+                    Policy->>VM: vm_exec_fault_latch(dev_id, owner, tag)
+                    Policy->>VM: vm_exec_stop()
+                    Policy->>SysDev: sys_device_suspend_all()
+                end
+                Policy-->>SysDev: policy_response
+                SysDev-->>Handler: response
+            end
+        end
+
+        %% 3. Domain Dispatch
+        Note over Handler, Domain: Step 3: Domain Specific Fault Handling
+        Handler->>Handler: dispatch_domain(node, err)
+        Handler->>Domain: sys_<domain>_handle_fault(node, err)
+        Domain-->>Handler: domain_response
+
+        opt level == CRITICAL and system not yet handled
+            Handler->>Policy: runit_system_hook(node, err)
+        end
+    end
+
+    %% 4. Baseline Logging & Telemetry
+    Note over Handler, BLE: Step 4: Baseline Invariant (All Error Chains)
+    Handler->>Log: SE_send(err)
+
+    rect rgb(240, 245, 255)
+        Note over Log, Conn: 4a. Text Expansion & Logging
+        Log->>Log: se_log_error_chain(err)
+        loop For each node
+            Log->>Core: SE_describe_payload(tag, payload, desc)
+            Log->>Conn: sink.send_log(line, len) (runit: logs connector)
+            opt mirror_on_serial == true
+                Log->>Log: ESP_LOGE(TAG, "%s", line)
+            end
+        end
+    end
+
+    rect rgb(240, 255, 245)
+        Note over Log, BLE: 4b. Wire Encoding & Raw Transport
+        Log->>Log: SE_send_error_raw(err)
+        Log->>Core: enc_sys_errors_encode_chain(err, packet, max_len)
+        Log->>Conn: sink.send_packet(packet, len) (runit: errors connector)
+        Conn->>BLE: ble_provider_send(arg, frame, len)
+        BLE->>BLE: sys_ble_char_send()
+    end
+
+    %% 5. Release
+    Note over Handler, Core: Step 5: Allocator Reclamation
+    Handler->>Core: SE_release(err)
+```
+
+### 3. Component Symbol & Call Reference Map
+
+| Component / Step | Source File | Key Symbols / Functions |
+| :--- | :--- | :--- |
+| **Error Allocation & Chaining** | `sys_error.c` | `SE_create()`, `SE_wrap()`, `SE_collect_chain()`, `SE_release()` |
+| **Handler & Central Dispatch** | `sys_error_handler.c` | `SE_push_to_handler()`, `device_id_of()`, `dispatch_domain()` |
+| **Device Error Routing** | `components/system/sys_device/sys_device.c` | `sys_device_report_error_with_level()`, `sys_device_report_error()`, `sys_device_suspend_all()` |
+| **App Coordinator Policy** | `components/runit/runit_error_policy.c` | `runit_error_wiring_init()`, `runit_device_policy()`, `runit_system_hook()`, `runit_system_fault()`, `runit_invoke_action()` |
+| **Action Execution** | `components/system/sys_actions/sys_actions.c` | `sys_actions_invoke()` |
+| **VM Fault Containment** | `components/VM/core/exec/vm_exec.c` | `vm_exec_fault_latch()`, `vm_exec_stop()`, `sys_vm_handle_fault()` |
+| **Logging & Wire Telemetry** | `sys_error_log.c` | `SE_log()` (queue), error log task, `SE_send()`, `se_log_error_chain()`, `SE_send_error_raw()` |
+| **Output Sink Binding** | `components/runit/runit_board_cfg.c` | `runit_board_error_sink_init()` → `SE_register_sink()` |
+| **Bus Switchboard** | `components/system/sys_data_connector/sys_data_connector.c` | `sys_data_connector_send()` |
+

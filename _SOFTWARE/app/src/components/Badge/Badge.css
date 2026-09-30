@@ -1,0 +1,31 @@
+.badge {
+  --badge-color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  min-height: 17px;
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, var(--badge-color) 25%, transparent);
+  border-radius: 4px;
+  color: var(--badge-color);
+  background: color-mix(in srgb, var(--badge-color) 10%, transparent);
+  font: 600 10px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.badge.is-pushed { margin-left: auto; }
+.badge.is-system { font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; }
+.badge.is-compact { min-height: 0; padding: 1px 3px; border: 0; border-radius: 3px; font-size: 8.5px; font-weight: 700; line-height: 1; }
+.badge.is-detail { padding: 3px 7px; font-family: inherit; font-size: 11px; }
+.badge.is-caps { padding: 2px 6px; font-family: inherit; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+.badge.is-filled { color: var(--on-accent); background: var(--badge-color); border-color: var(--badge-color); }
+.badge.is-count { --badge-color: var(--color-teal); }
+.badge.is-number { --badge-color: var(--type-number); }
+.badge.is-boolean { --badge-color: var(--type-boolean); }
+.badge.is-text { --badge-color: var(--type-text); }
+.badge.is-other { --badge-color: var(--type-other); }
+.badge.is-success { --badge-color: var(--color-green); }
+.badge.is-warning { --badge-color: var(--color-amber); }
+.badge.is-info { --badge-color: var(--color-blue); }
+.badge.is-accent { --badge-color: var(--accent); }

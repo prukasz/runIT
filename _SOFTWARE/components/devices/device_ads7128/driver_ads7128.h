@@ -2049,7 +2049,7 @@
 /* Region watched by the digital window comparator (EVENT_RGN bit of a channel) */
 typedef enum {
     ADS7128_ALERT_OUT_OF_BAND = 0,  // flag set below the low or above the high threshold
-    ADS7128_ALERT_IN_BAND = 1,      // flag set while the code sits between both thresholds
+    ADS7128_ALERT_IN_BAND = 1,      // flag set while high_th < code < low_th (bounds swap registers in-band; verified on the board)
 } ads7128_alert_region_e;
 
 /* Conversion mode the chip is running in.

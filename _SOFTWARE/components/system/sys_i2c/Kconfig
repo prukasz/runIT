@@ -1,0 +1,8 @@
+menu "System I2C Options"
+    config SYS_I2C_DEFAULT_TIMEOUT_MS
+        int "Default I2C Timeout (ms)"
+        default 50
+        range 5 5000
+        help
+          Default timeout in ms for I2C master transmit/receive operations.
+endmenu

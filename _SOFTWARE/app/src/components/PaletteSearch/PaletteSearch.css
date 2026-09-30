@@ -1,0 +1,7 @@
+.palette-search { display: flex; align-items: center; position: relative; margin: 6px 8px 2px; }
+.palette-search-icon { position: absolute; left: 8px; width: 14px; height: 14px; color: var(--muted); pointer-events: none; }
+.palette-search .form-field-control { height: 28px; padding: 0 28px; border-radius: 6px; background-color: color-mix(in srgb, var(--active) 4%, var(--panel)); font-size: 12px; }
+.palette-search .form-field-control::placeholder { color: var(--muted); }
+.shell .palette-search-clear { position: absolute; right: 4px; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; border: none; background: transparent; color: var(--muted); cursor: pointer; border-radius: 4px; }
+.shell .palette-search-clear:hover { color: var(--active); background: var(--hover); }
+.palette-search-clear svg { width: 12px; height: 12px; }

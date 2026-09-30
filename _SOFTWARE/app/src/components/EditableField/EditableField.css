@@ -1,0 +1,4 @@
+.editable-field-wrap { min-width: 65px; }
+.editable-field-input { min-width: 65px; padding-right: 28px; font-size: 13px; font-weight: 500; }
+.editable-field-wrap.is-blocked .editable-field-input:disabled { cursor: not-allowed; }
+.editable-field-wrap.is-blocked .editable-field-input[readonly] { cursor: text; }

@@ -1,0 +1,34 @@
+menu "System Project Store (stored code)"
+    config SYS_PROJECT_PARTITION_LABEL
+        string "NVS partition of the stored code"
+        default "project"
+        help
+          Label of the NVS data partition (partitions.csv) holding the stored
+          code. Kept apart from the default "nvs" partition so a large program
+          doesn't crowd settings, actions or BLE data.
+
+    config SYS_PROJECT_MAX_BYTES
+        int "Largest stored code (bytes)"
+        default 204800
+        range 4096 1048576
+        help
+          Most bytes one stored frame list may hold. Two generations (the
+          committed one and the one being stored) must fit the partition with
+          NVS overhead: keep this below about 40 % of the partition size.
+
+    config SYS_PROJECT_CHUNK_SIZE
+        int "Chunk size (bytes)"
+        default 4000
+        range 256 4000
+        help
+          The frame list is stored as NVS blobs of this size (one RAM buffer
+          each for writing and for reading). 4000 fills one NVS page's data area.
+
+    config SYS_PROJECT_LOAD_DELAY_MS
+        int "Restart delay after a load command (ms)"
+        default 300
+        range 50 5000
+        help
+          The load command restarts the board to replay the stored code; the
+          delay lets its response reach the app first.
+endmenu

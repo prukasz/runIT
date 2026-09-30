@@ -1,0 +1,8 @@
+menu "System Device Options"
+    config SYS_DEVICE_MAX_ID
+        int "Maximum Device ID"
+        default 127
+        range 15 255
+        help
+          Maximum allowable device ID in system registry.
+endmenu

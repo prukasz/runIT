@@ -1,6 +1,5 @@
 #pragma once
 
-#include <esp_log.h>
 #include <stdint.h>
 #include "sys_i2c.h"
 
@@ -98,8 +97,8 @@ esp_err_t ina3221_set_average(ina3221_handle_t handle, ina3221_avg_t avg);
 esp_err_t ina3221_set_bus_conversion_time(ina3221_handle_t handle, ina3221_ct_t ct);
 esp_err_t ina3221_set_shunt_conversion_time(ina3221_handle_t handle, ina3221_ct_t ct);
 esp_err_t ina3221_reset(ina3221_handle_t handle);
-esp_err_t ina3221_read_bus_voltage(ina3221_handle_t handle, uint8_t channel, int32_t* out_mv);
-esp_err_t ina3221_read_shunt_current(ina3221_handle_t handle, uint8_t channel, int32_t* out_ma);
-esp_err_t ina3221_read_sum_shunt_voltage(ina3221_handle_t handle, float* out_mv);
+esp_err_t ina3221_read_bus_voltage(ina3221_handle_t handle, uint8_t channel, int32_t* out_mV);
+esp_err_t ina3221_read_shunt_current(ina3221_handle_t handle, uint8_t channel, int32_t* out_mA);
+esp_err_t ina3221_read_sum_shunt_voltage(ina3221_handle_t handle, float* out_mV);
 esp_err_t ina3221_set_alert(ina3221_handle_t handle, ina3221_channel_t channel, int32_t current_mA, bool is_critical);
-esp_err_t ina3221_set_sum_warning_alert(ina3221_handle_t handle, uint32_t voltage_mv);
+esp_err_t ina3221_set_sum_warning_alert(ina3221_handle_t handle, uint32_t voltage_mV);

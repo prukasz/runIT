@@ -1,12 +1,7 @@
 #include "driver_ads7128.h"
-#include <esp_log.h>
 #include <stdlib.h>
 #include <string.h>
 
-static const char* TAG = __FILE_NAME__;
-
-#undef OWNER
-#define OWNER OWNER_DEVICE_ADS7128
 
 #define I2C_FREQ_HZ 100000
 
@@ -172,18 +167,12 @@ static esp_err_t _ads_manual_read(ads_handle_t handle, uint8_t channel, uint16_t
   for (uint8_t attempt = 0; attempt < ADS7128_MANUAL_READ_TRIES; attempt++) {
     RETURN_ON_ERROR(ADS_TRANSMIT_RECEIVE(handle, tx, sizeof(tx), rx, rx_len));
     chid = averaged ? (uint8_t)(rx[2] >> 4) : (uint8_t)(rx[1] & 0x0F);
-    // Diagnostic: which of "stuck on one stale value" (timing/clock-stretch
-    // race), "converges but too slowly" (needs more tries), or "random noise"
-    // (register/protocol mismatch) this is - see the failure log below for
-    // the theories this distinguishes between.
-    ESP_LOGW(TAG, "manual read ch%u attempt %u: got chid=%u rx=[%02X %02X %02X]", (unsigned)channel, (unsigned)attempt, (unsigned)chid, rx[0], rx[1], rx[2]);
     if (chid == channel) {
       *out_code = (uint16_t)(((((uint16_t)rx[0]) << 8) | rx[1]) >> 4);
       return ESP_OK;
     }
   }
 
-  ESP_LOGW(TAG, "manual read of channel %u kept returning channel %u", (unsigned)channel, (unsigned)chid);
   return ESP_ERR_INVALID_RESPONSE;
 }
 
@@ -237,7 +226,6 @@ esp_err_t ads_reset(ads_handle_t handle) {
 esp_err_t ads_start(ads_handle_t handle) {
   CHECK_DRV_HANDLE(handle);
   RETURN_ON_ERROR(ads_reset(handle));
-  ESP_LOGI(TAG, "ADS7128 at 0x%02X started", handle->header.i2c_device_config.device_address);
   return ESP_OK;
 }
 
@@ -364,7 +352,6 @@ esp_err_t ads_clear_event_flags(ads_handle_t handle, uint8_t high_mask, uint8_t 
 ads_handle_t ads_new(uint8_t i2c_address, bool i2c_bus_num) {
   ads_handle_t handle = calloc(1, sizeof(ads_data_t));
   if (!handle) {
-    ESP_LOGE(TAG, "Failed to allocate memory for ADS7128 handle");
     return NULL;
   }
 

@@ -33,7 +33,7 @@ static int ble_gap_configure_advertising(void) {
   adv_fields.name_is_complete = 1;
   adv_fields.tx_pwr_lvl = BLE_HS_ADV_TX_PWR_LVL_AUTO;
   adv_fields.tx_pwr_lvl_is_present = 1;
-  adv_fields.appearance = BLE_GAP_APPEARANCE_GENERIC_TAG;
+  adv_fields.appearance = CONFIG_SYS_BLE_GAP_APPEARANCE;
   adv_fields.appearance_is_present = 1;
 
   int rc = ble_gap_adv_set_fields(&adv_fields);
@@ -77,7 +77,7 @@ err_h sys_ble_reconfigure_advertising(void) {
   if (ble_gap_adv_active()) {
     int rc = ble_gap_adv_stop();
     if (rc != 0 && rc != BLE_HS_EALREADY) {
-      SE_RET_ERR(ERR_BLE_ADV_FAILED, rc);
+      SE_FAIL(ERR_BLE_ADV_FAILED, rc);
     }
   }
   return sys_ble_advertising_init();
@@ -97,6 +97,7 @@ static void sys_ble_on_subscribe(uint16_t conn_handle, uint16_t attr_handle, boo
     sys_ble_char_node_t* c;
     LL_FOREACH(s->chars, c) {
       if (c->val_handle == attr_handle) {
+        c->is_subscribed = (notify || indicate);
         target_char = c;
         break;
       }
@@ -108,6 +109,9 @@ static void sys_ble_on_subscribe(uint16_t conn_handle, uint16_t attr_handle, boo
   R_MUTEX_UNLOCK(sys_ble_mutex);
 
   ESP_LOGI(TAG, "Client subscription updated: uuid=0x%04X conn_handle=%d indicate=%d notify=%d", char_uuid, conn_handle, indicate, notify);
+  if (notify || indicate) {
+    xSemaphoreGive(sys_ble_tx_sem);
+  }
 }
 
 static int gap_event_handler(struct ble_gap_event* event, void* arg) {
@@ -120,14 +124,26 @@ static int gap_event_handler(struct ble_gap_event* event, void* arg) {
         R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
         g_ble_ctx.conn_handle = event->connect.conn_handle;
         g_ble_ctx.is_connected = true;
+        /* A client that starts the MTU exchange itself (Windows) can have it
+           finish before this event is delivered, so BLE_GAP_EVENT_MTU came
+           first: take the link's current MTU instead of assuming the default. */
+        uint16_t mtu = ble_att_mtu(event->connect.conn_handle);
+        g_ble_ctx.mtu_size = mtu ? mtu : BLE_ATT_MTU_DFLT;
         R_MUTEX_UNLOCK(sys_ble_mutex);
 
-        xSemaphoreGive(sys_ble_tx_sem);
-        SYS_BLE_CB(SYS_BLE_EVENT_CONNECT, event->connect.conn_handle, g_ble_ctx.route_masks[SYS_BLE_EVENT_CONNECT], g_ble_ctx.action_masks[SYS_BLE_EVENT_CONNECT]);
+        /* Don't wait for the client: request the preferred (largest) MTU now.
+           The result arrives as BLE_GAP_EVENT_MTU. A client that already
+           started the exchange gets BLE_HS_EALREADY here, which is fine. */
+        int mtu_rc = ble_gattc_exchange_mtu(event->connect.conn_handle, NULL, NULL);
+        if (mtu_rc != 0 && mtu_rc != BLE_HS_EALREADY) {
+          ESP_LOGW(TAG, "MTU exchange request failed: %d", mtu_rc);
+        }
+
+        SE_REPORT(sys_ble_publish(SYS_BLE_EVENT_CONNECT, event->connect.conn_handle));
       } else {
         ESP_LOGW(TAG, "Connection failed: err = %d", event->connect.status);
-        SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, ESP_FAIL, g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE], g_ble_ctx.action_masks[SYS_BLE_EVENT_FAILURE]);
-        sys_ble_advertising_init();
+        SE_REPORT(sys_ble_publish(SYS_BLE_EVENT_FAILURE, ESP_FAIL));
+        SE_REPORT(sys_ble_advertising_init());
       }
       return 0;
 
@@ -142,18 +158,28 @@ static int gap_event_handler(struct ble_gap_event* event, void* arg) {
       R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
       g_ble_ctx.conn_handle = 0;
       g_ble_ctx.is_connected = false;
+      sys_ble_svc_node_t* s;
+      LL_FOREACH(g_ble_ctx.services, s) {
+        sys_ble_char_node_t* c;
+        LL_FOREACH(s->chars, c) {
+          c->is_subscribed = false;
+          sys_buff_clear(&c->tx_buff);
+        }
+      }
       R_MUTEX_UNLOCK(sys_ble_mutex);
 
-      SYS_BLE_CB(SYS_BLE_EVENT_DISCONNECT, reason, g_ble_ctx.route_masks[SYS_BLE_EVENT_DISCONNECT], g_ble_ctx.action_masks[SYS_BLE_EVENT_DISCONNECT]);
-      sys_ble_reconfigure_advertising();
+      SE_REPORT(sys_ble_publish(SYS_BLE_EVENT_DISCONNECT, reason));
+      // Reported, not released: a failed restart leaves the board invisible.
+      SE_REPORT(sys_ble_reconfigure_advertising());
       break;
     }
 
     case BLE_GAP_EVENT_CONN_UPDATE:
-      return ble_gap_conn_find(event->conn_update.conn_handle, &desc);
+      ble_gap_conn_find(event->conn_update.conn_handle, &desc);
+      return 0;
 
     case BLE_GAP_EVENT_ADV_COMPLETE:
-      sys_ble_advertising_init();
+      SE_REPORT(sys_ble_advertising_init());
       return 0;
 
     case BLE_GAP_EVENT_NOTIFY_TX:
@@ -168,6 +194,20 @@ static int gap_event_handler(struct ble_gap_event* event, void* arg) {
       g_ble_ctx.mtu_size = event->mtu.value;
       R_MUTEX_UNLOCK(sys_ble_mutex);
       ESP_LOGI(TAG, "MTU updated: conn_handle=%d mtu=%d", event->mtu.conn_handle, event->mtu.value);
+      return 0;
+
+    case BLE_GAP_EVENT_REPEAT_PAIRING: {
+      int rc = ble_gap_conn_find(event->repeat_pairing.conn_handle, &desc);
+      if (rc == 0) {
+        ble_store_util_delete_peer(&desc.peer_id_addr);
+      }
+      return BLE_GAP_REPEAT_PAIRING_RETRY;
+    }
+
+    case BLE_GAP_EVENT_ENC_CHANGE:
+      return 0;
+
+    case BLE_GAP_EVENT_PASSKEY_ACTION:
       return 0;
   }
   return 0;
@@ -194,11 +234,9 @@ static void nimble_host_config_init(void) {
   ble_hs_cfg.store_status_cb = ble_store_util_status_rr;
 
   ble_hs_cfg.sm_io_cap = BLE_HS_IO_NO_INPUT_OUTPUT;
-  ble_hs_cfg.sm_bonding = 1;
+  ble_hs_cfg.sm_bonding = 0;
   ble_hs_cfg.sm_mitm = 0;
-  ble_hs_cfg.sm_sc = 1;
-  ble_hs_cfg.sm_our_key_dist = BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
-  ble_hs_cfg.sm_their_key_dist = BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
+  ble_hs_cfg.sm_sc = 0;
 
   ble_store_config_init();
 }
@@ -211,23 +249,23 @@ static void nimble_host_task(void* param) {
 }
 
 #define OWNER OWNER_SYS_BLE_STACK
-err_h sys_ble_set_name(const char* name) {
+static SE_MUST_USE err_h sys_ble_set_name(const char* name) {
   SE_CHECK_NOT_NULL(name);
   int res = ble_svc_gap_device_name_set(name);
   if (res == 0) {
     if (ble_hs_synced()) {
-      sys_ble_reconfigure_advertising();
+      SE_release(sys_ble_reconfigure_advertising());
     }
     ESP_LOGI(TAG, "Name set to %s", name);
     return NULL;
   }
   ESP_LOGE(TAG, "Failed to set BLE device name, res=%d", res);
-  SE_RET_ERR(ERR_BLE_STACK_FAILED, res);
+  SE_FAIL(ERR_BLE_STACK_FAILED, res);
 }
 
 err_h sys_ble_stack_init(struct ble_gatt_svc_def* svcs) {
-  SE_RET_IF_ESP_ERR(nvs_flash_init());
-  SE_RET_IF_ESP_ERR(nimble_port_init());
+  SE_TRY_ESP(nvs_flash_init());
+  SE_TRY_ESP(nimble_port_init());
 
   nimble_host_config_init();
 
@@ -239,7 +277,7 @@ err_h sys_ble_stack_init(struct ble_gatt_svc_def* svcs) {
   CHECK_BLE_CALL(ble_gatts_add_svcs(svcs));
 
   nimble_port_freertos_init(nimble_host_task);
-  sys_ble_set_name("runit");
+  SE_release(sys_ble_set_name("runit"));
 
   R_TASK_START_ON_CORE(m_ble_task, &sys_ble_task_func, &g_ble_ctx, CONFIG_SYS_BLE_MANAGER_TASK_PRIO, 0);
   return NULL;
@@ -247,21 +285,14 @@ err_h sys_ble_stack_init(struct ble_gatt_svc_def* svcs) {
 #undef OWNER
 
 #define OWNER OWNER_SYS_BLE_SEND
-err_h sys_ble_send_raw(uint16_t conn_handle, uint16_t chr_val_handle, const uint8_t* data, size_t len, bool indicate) {
-  SE_CHECK_NOT_NULL(data);
-  if (len == 0) return NULL;
-
+/* One notification / indication; returns the NimBLE code. BLE_HS_ENOMEM (no
+   mbuf, or the controller queue is full) is flow control, not a failure: the
+   TX task retries it without allocating an error, so congestion can't drain
+   the error pool - and the retry still works when the pool is empty. */
+static int sys_ble_send_raw(uint16_t conn_handle, uint16_t chr_val_handle, const uint8_t* data, size_t len, bool indicate) {
   struct os_mbuf* om = ble_hs_mbuf_from_flat(data, len);
-  SE_CHECK_IF_ALLOCATED(om);
-
-  int rc = indicate ? ble_gatts_indicate_custom(conn_handle, chr_val_handle, om) : ble_gatts_notify_custom(conn_handle, chr_val_handle, om);
-
-  if (rc != 0) {
-    if (rc == BLE_HS_ENOMEM) SE_RET_ERR(ERR_BASE_NO_MEM, rc);
-    if (rc == BLE_HS_ENOTCONN) SE_RET_ERR(ERR_BASE_INVALID_STATE, 0);
-    SE_RET_ERR(ERR_BLE_STACK_FAILED, rc);
-  }
-  return NULL;
+  if (om == NULL) return BLE_HS_ENOMEM;
+  return indicate ? ble_gatts_indicate_custom(conn_handle, chr_val_handle, om) : ble_gatts_notify_custom(conn_handle, chr_val_handle, om);
 }
 #undef OWNER
 
@@ -276,24 +307,19 @@ static int sys_ble_gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle, st
   if (ctxt->op == BLE_GATT_ACCESS_OP_WRITE_CHR) {
     size_t len = OS_MBUF_PKTLEN(ctxt->om);
     if (len > 0) {
-      if (!char_node->rx_buff.buff) return BLE_ATT_ERR_WRITE_NOT_PERMITTED;
-      uint8_t data_buffer[512];
+      uint8_t data_buffer[BLE_ATT_ATTR_MAX_LEN];
       size_t copy_len = len > sizeof(data_buffer) ? sizeof(data_buffer) : len;
       os_mbuf_copydata(ctxt->om, 0, copy_len, data_buffer);
 
-      err_h push_err = sys_buff_push(&char_node->rx_buff, data_buffer, copy_len, 0);
+      R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+      uint16_t char_uuid = char_node->cfg.uuid;
+      err_h push_err = sys_ble_rx_enqueue(char_node, data_buffer, copy_len);
+      R_MUTEX_UNLOCK(sys_ble_mutex);
       if (SE_IS_ERR(push_err)) {
-        ESP_LOGW(TAG, "RX buffer overflow on char uuid 0x%04X", char_node->cfg.uuid);
-        SE_ORIGIN_CALL(push_err);
-        R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
-        g_ble_ctx.rx_overflow_count++;
-        R_MUTEX_UNLOCK(sys_ble_mutex);
-        SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, ESP_FAIL, g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE], g_ble_ctx.action_masks[SYS_BLE_EVENT_FAILURE]);
-      } else {
-        if (char_node->rx_notify_sem) xSemaphoreGive(char_node->rx_notify_sem);
-        if (char_node->rx_handler.own_func) {
-          SYS_CB_OWN(char_node->rx_handler);
-        }
+        if (push_err->tag == ERR_BASE_INVALID_STATE) { SE_release(push_err); return BLE_ATT_ERR_WRITE_NOT_PERMITTED; }
+        ESP_LOGW(TAG, "RX buffer overflow on char uuid 0x%04X", char_uuid);
+        SE_REPORT(push_err);
+        SE_REPORT(sys_ble_publish(SYS_BLE_EVENT_FAILURE, ESP_FAIL));
       }
     }
     return 0;
@@ -338,7 +364,7 @@ static struct ble_gatt_chr_def* compile_chars(const sys_ble_char_node_t* chars_h
     chr_defs[idx].val_handle = (uint16_t*)&c->val_handle;
 
     uint16_t flags = 0;
-    if (c->cfg.is_write) flags |= BLE_GATT_CHR_F_WRITE;
+    if (c->cfg.is_write) flags |= BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP;
     if (c->cfg.is_indicate) flags |= BLE_GATT_CHR_F_INDICATE;
     if (c->cfg.is_notify) flags |= BLE_GATT_CHR_F_NOTIFY;
     chr_defs[idx].flags = flags;
@@ -369,7 +395,7 @@ err_h populate_svc_def(struct ble_gatt_svc_def* svc_def, const sys_ble_svc_node_
 
   bool ok = false;
   svc_def->characteristics = compile_chars(s->chars, &ok);
-  if (!ok) SE_RET_ERR(ERR_BASE_NO_MEM, s->cfg.uuid);
+  if (!ok) SE_FAIL(ERR_BASE_NO_MEM, s->cfg.uuid);
   return NULL;
 }
 #undef OWNER
@@ -378,17 +404,17 @@ void sys_ble_free_compiled_gatt_db(struct ble_gatt_svc_def* svcs) {
   if (!svcs) return;
 
   for (int i = 0; svcs[i].type != BLE_GATT_SVC_TYPE_END; i++) {
-    if (svcs[i].uuid) free((void*)svcs[i].uuid);
+    free((void*)svcs[i].uuid);
 
     if (svcs[i].characteristics) {
       struct ble_gatt_chr_def* chars = (struct ble_gatt_chr_def*)svcs[i].characteristics;
       for (int j = 0; chars[j].uuid != NULL; j++) {
-        if (chars[j].uuid) free((void*)chars[j].uuid);
+        free((void*)chars[j].uuid);
 
         if (chars[j].descriptors) {
           struct ble_gatt_dsc_def* dscs = (struct ble_gatt_dsc_def*)chars[j].descriptors;
           for (int k = 0; dscs[k].uuid != NULL; k++) {
-            if (dscs[k].uuid) free((void*)dscs[k].uuid);
+            free((void*)dscs[k].uuid);
           }
           free((void*)chars[j].descriptors);
         }
@@ -403,66 +429,87 @@ void sys_ble_free_compiled_gatt_db(struct ble_gatt_svc_def* svcs) {
 /* TX Task & Dequeue Worker                                                              */
 /*****************************************************************************************/
 
-static bool try_send_slot(sys_ble_tx_slot_t* slot, sys_ble_char_node_t* c, size_t max_payload, uint8_t* tx_data) {
-  size_t tx_len = 0;
-  err_h deq_res = sys_buff_pop_framed(&slot->tx_buff, tx_data, max_payload, &tx_len);
-  if ((deq_res != NULL) || tx_len == 0) return false;
-
-  uint16_t conn_handle;
-  uint16_t val_handle;
-
-  R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
-  conn_handle = g_ble_ctx.conn_handle;
-  val_handle = c->val_handle;
-  R_MUTEX_UNLOCK(sys_ble_mutex);
-
-  err_h send_sta;
-  do {
-    send_sta = sys_ble_send_raw(conn_handle, val_handle, tx_data, tx_len, slot->is_indication);
-    if (send_sta != NULL && send_sta->tag == ERR_BASE_NO_MEM) {
-      vTaskDelay(pdMS_TO_TICKS(10));
+/* Select and copy one packet while the registry is locked. No node pointer
+   escapes to the sender, so runtime removal cannot free an in-use TX buffer. */
+static size_t dequeue_tx(uint8_t* data, size_t capacity, uint16_t* val_handle, bool* indicate) {
+  size_t max_payload = (size_t)(g_ble_ctx.mtu_size - SYS_BLE_ATT_NOTIFY_HDR_LEN);
+  if (max_payload > capacity) max_payload = capacity;
+  sys_ble_svc_node_t* s;
+  LL_FOREACH(g_ble_ctx.services, s) {
+    if (!s->registered) continue;
+    sys_ble_char_node_t* c;
+    LL_FOREACH(s->chars, c) {
+      if (c->pending_remove || c->pending_add || !c->tx_buff.buff || !c->val_handle || !c->is_subscribed) continue;
+      size_t len = 0;
+      err_h error = sys_buff_pop(&c->tx_buff, data, max_payload, &len);
+      bool ok = error == NULL;
+      SE_release(error);
+      if (ok && len) {
+        *val_handle = c->val_handle;
+        *indicate = c->cfg.is_indicate;
+        return len;
+      }
     }
-  } while (send_sta != NULL && send_sta->tag == ERR_BASE_NO_MEM && g_ble_ctx.is_connected);
-
-  if (send_sta == NULL) {
-    return true;
-  } else if (send_sta->tag != ERR_BASE_NO_MEM) {
-    SYS_BLE_CB(SYS_BLE_EVENT_FAILURE, send_sta->tag, g_ble_ctx.route_masks[SYS_BLE_EVENT_FAILURE], g_ble_ctx.action_masks[SYS_BLE_EVENT_FAILURE]);
   }
-  return false;
+  return 0;
 }
 
 static void sys_ble_task_func(void* pvParameters) {
   (void)pvParameters;
-  uint8_t tx_data[527];
+  uint8_t tx_data[BLE_ATT_MTU_MAX - SYS_BLE_ATT_NOTIFY_HDR_LEN];
 
   while (1) {
-    xSemaphoreTake(sys_ble_tx_sem, portMAX_DELAY);
-    bool data_sent;
+    /* A pending apply bounds the wait: it runs once its delay is over. */
+    R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+    TickType_t wait = portMAX_DELAY;
+    if (g_ble_ctx.apply_pending) {
+      TickType_t left = g_ble_ctx.apply_at - xTaskGetTickCount();
+      wait = ((int32_t)left > 0) ? left : 0;
+    }
+    R_MUTEX_UNLOCK(sys_ble_mutex);
+    xSemaphoreTake(sys_ble_tx_sem, wait);
 
-    do {
-      data_sent = false;
+    R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+    bool apply_due = g_ble_ctx.apply_pending && (int32_t)(xTaskGetTickCount() - g_ble_ctx.apply_at) >= 0;
+    R_MUTEX_UNLOCK(sys_ble_mutex);
+    if (apply_due) SE_REPORT(sys_ble_database_sync());
 
+    while (1) {
+      uint16_t val_handle = 0;
+      bool indicate = false;
       R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
-      uint16_t current_mtu = g_ble_ctx.mtu_size;
-      bool connected = g_ble_ctx.is_connected;
-      int tx_slot_count = g_ble_ctx.tx_slot_count;
+      uint16_t conn_handle = g_ble_ctx.conn_handle;
+      size_t len = g_ble_ctx.is_connected ? dequeue_tx(tx_data, sizeof(tx_data), &val_handle, &indicate) : 0;
       R_MUTEX_UNLOCK(sys_ble_mutex);
+      if (!len) break;
 
-      size_t max_payload = (current_mtu > 3) ? (current_mtu - 3) : 20;
-      if (max_payload > sizeof(tx_data)) max_payload = sizeof(tx_data);
-      if (!connected) break;
-
-      for (int i = 0; i < tx_slot_count; i++) {
-        sys_ble_tx_slot_t* slot = g_ble_ctx.tx_slots[i].slot;
-        sys_ble_char_node_t* c = g_ble_ctx.tx_slots[i].chr;
-        if (!slot || !slot->tx_buff.buff || !c->val_handle) continue;
-
-        if (try_send_slot(slot, c, max_payload, tx_data)) {
-          data_sent = true;
-          break;
-        }
+      int rc;
+      while ((rc = sys_ble_send_raw(conn_handle, val_handle, tx_data, len, indicate)) == BLE_HS_ENOMEM) {
+        vTaskDelay(pdMS_TO_TICKS(10));
+        R_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER);
+        bool connected = g_ble_ctx.is_connected && g_ble_ctx.conn_handle == conn_handle;
+        R_MUTEX_UNLOCK(sys_ble_mutex);
+        if (!connected) break;
       }
-    } while (data_sent);
+
+      if (rc != 0) {
+        if (rc != BLE_HS_ENOMEM) {
+          err_tag_e tag = (rc == BLE_HS_ENOTCONN) ? ERR_BASE_INVALID_STATE : ERR_BLE_STACK_FAILED;
+          SE_REPORT(sys_ble_publish(SYS_BLE_EVENT_FAILURE, tag));
+        }
+        break;
+      }
+    }
   }
 }
+
+err_h sys_ble_handle_fault(err_h node, err_h chain) {
+  (void)chain;
+  if (!node || SE_get_tag_level(node->tag) != SE_LEVEL_CRITICAL) {
+    return NULL;
+  }
+  // Severe BLE fault: publish the failure event. Released, not reported: this runs inside error handling.
+  SE_release(sys_ble_publish(SYS_BLE_EVENT_FAILURE, node->tag));
+  return NULL;
+}
+

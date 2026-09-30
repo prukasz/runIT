@@ -1,8 +1,6 @@
 #include "driver_tps55289.h"
 #include <string.h>
-#include "esp_log.h"
 
-static const char * TAG = __FILE_NAME__;
 
 
 
@@ -64,7 +62,6 @@ esp_err_t tps55289_get_status(tps55289_handle_t handle)
 tps55289_handle_t tps55289_new(uint8_t i2c_address, bool i2c_bus_num)
 {
     if (i2c_address != TPS55289_I2C_ADDR_74 && i2c_address != TPS55289_I2C_ADDR_75) {
-        ESP_LOGE(TAG, "Invalid I2C address for TPS55289: 0x%02X", i2c_address);
         return NULL;
     }
 
@@ -97,53 +94,58 @@ void tps55289_set_shunt_resistor(tps55289_handle_t handle, uint16_t resistance_m
 }
 
 
+/* Read-modify-write helpers below return a failed read instead of writing a
+   register built from 0: a lost VOUT_FS read alone would turn a 10 V request
+   into ~21 V (wrong feedback ratio). */
 esp_err_t tps55289_set_output_enable(tps55289_handle_t handle, bool enable)
 {
     CHECK_DRV_HANDLE(handle);
     uint8_t mode = 0;
-    _tps55289_read(handle, TPS55289_REG_MODE, &mode, 1);
+    esp_err_t err = _tps55289_read(handle, TPS55289_REG_MODE, &mode, 1);
+    if (err != ESP_OK) return err;
     if (enable) mode |= 0x80;
     else mode &= ~0x80;
     return _tps55289_write(handle, TPS55289_REG_MODE, &mode, 1);
 }
 
-esp_err_t tps55289_set_current_limit(tps55289_handle_t handle, bool enable, uint16_t limit_ma)
+esp_err_t tps55289_set_current_limit(tps55289_handle_t handle, bool enable, uint16_t limit_mA)
 {
     CHECK_DRV_HANDLE(handle);
-    float target_v_ilim_mv = (limit_ma * handle->shunt_resistor_mohm) / 1000.0f;
-    if (target_v_ilim_mv > 63.5f) target_v_ilim_mv = 63.5f;
+    float target_v_ilim_mV = (limit_mA * handle->shunt_resistor_mohm) / 1000.0f;
+    if (target_v_ilim_mV > 63.5f) target_v_ilim_mV = 63.5f;
 
-    uint8_t reg_val = (uint8_t)(target_v_ilim_mv / 0.5f);
+    uint8_t reg_val = (uint8_t)(target_v_ilim_mV / 0.5f);
     if (reg_val > 127) reg_val = 127;
 
     uint8_t final_reg_data = (enable ? 0x80 : 0x00) | (reg_val & 0x7F);
     return _tps55289_write(handle, TPS55289_REG_IOUT_LIMIT, &final_reg_data, 1);
 }
 
-esp_err_t tps55289_set_voltage(tps55289_handle_t handle, uint16_t voltage_mv)
+esp_err_t tps55289_set_voltage(tps55289_handle_t handle, uint16_t voltage_mV)
 {
     CHECK_DRV_HANDLE(handle);
     uint8_t vout_fs = 0;
-    _tps55289_read(handle, TPS55289_REG_VOUT_FS, &vout_fs, 1);
-    bool is_external_fb = (vout_fs & 0x80) != 0;
+    esp_err_t err = _tps55289_read(handle, TPS55289_REG_VOUT_FS, &vout_fs, 1);
+    if (err != ESP_OK) return err;
 
     uint16_t ref_val = 0;
-    if (is_external_fb) {
-        if (voltage_mv < 800) voltage_mv = 800;
-        ref_val = (voltage_mv - 800) / 10;
+    if (vout_fs & 0x80) {
+        /* External feedback: VOUT depends on the board's divider, which the
+           driver doesn't know (datasheet 7.3.12). Only internal feedback is supported. */
+        return ESP_ERR_NOT_SUPPORTED;
     } else {
         uint8_t intfb = vout_fs & 0x03;
-        float step_mv = 10.0f;
-        uint16_t min_vout_mv = 800;
+        float step_mV = 10.0f;
+        uint16_t min_vout_mV = 800;
 
         switch (intfb) {
-            case 0x00: step_mv = 2.5f; min_vout_mv = 200; break;
-            case 0x01: step_mv = 5.0f; min_vout_mv = 400; break;
-            case 0x02: step_mv = 7.5f; min_vout_mv = 600; break;
-            case 0x03: step_mv = 10.0f; min_vout_mv = 800; break;
+            case 0x00: step_mV = 2.5f; min_vout_mV = 200; break;
+            case 0x01: step_mV = 5.0f; min_vout_mV = 400; break;
+            case 0x02: step_mV = 7.5f; min_vout_mV = 600; break;
+            case 0x03: step_mV = 10.0f; min_vout_mV = 800; break;
         }
-        if (voltage_mv < min_vout_mv) voltage_mv = min_vout_mv;
-        ref_val = (uint16_t)((voltage_mv - min_vout_mv) / step_mv);
+        if (voltage_mV < min_vout_mV) voltage_mV = min_vout_mV;
+        ref_val = (uint16_t)((voltage_mV - min_vout_mV) / step_mV);
     }
 
     if (ref_val > 0x07FF) ref_val = 0x07FF;
@@ -154,24 +156,38 @@ esp_err_t tps55289_set_voltage(tps55289_handle_t handle, uint16_t voltage_mv)
     return _tps55289_write(handle, TPS55289_REG_REF_LSB, buf, 2);
 }
 
+esp_err_t tps55289_set_slew_rate(tps55289_handle_t handle, tps55289_slew_rate_e rate)
+{
+    CHECK_DRV_HANDLE(handle);
+    uint8_t sr = 0;
+    esp_err_t err = _tps55289_read(handle, TPS55289_REG_VOUT_SR, &sr, 1);
+    if (err != ESP_OK) return err;
+    sr = (uint8_t)((sr & ~0x03u) | ((uint8_t)rate & 0x03u));  // OCP_DELAY [5:4] kept
+    return _tps55289_write(handle, TPS55289_REG_VOUT_SR, &sr, 1);
+}
+
 esp_err_t tps55289_set_mode(tps55289_handle_t handle, bool fpwm, bool hiccup)
 {
     CHECK_DRV_HANDLE(handle);
     uint8_t mode = 0;
-    _tps55289_read(handle, TPS55289_REG_MODE, &mode, 1);
+    esp_err_t err = _tps55289_read(handle, TPS55289_REG_MODE, &mode, 1);
+    if (err != ESP_OK) return err;
     if (fpwm) mode |= 0x02; else mode &= ~0x02;
     if (hiccup) mode |= 0x20; else mode &= ~0x20;
     return _tps55289_write(handle, TPS55289_REG_MODE, &mode, 1);
 }
 
-esp_err_t tps55289_set_fault_masks(tps55289_handle_t handle, bool mask_scp, bool mask_ocp, bool mask_ovp)
+/* CDC bits 7-5 (SC_MASK / OCP_MASK / OVP_MASK): 1 = the fault is indicated on
+   the FB/INT pin (reset default), 0 = not indicated (datasheet 7.6.5). */
+esp_err_t tps55289_set_fault_reporting(tps55289_handle_t handle, bool report_scp, bool report_ocp, bool report_ovp)
 {
     CHECK_DRV_HANDLE(handle);
     uint8_t cdc = 0;
-    _tps55289_read(handle, TPS55289_REG_CDC, &cdc, 1);
-    if (mask_scp) cdc |= 0x80; else cdc &= ~0x80;
-    if (mask_ocp) cdc |= 0x40; else cdc &= ~0x40;
-    if (mask_ovp) cdc |= 0x20; else cdc &= ~0x20;
+    esp_err_t err = _tps55289_read(handle, TPS55289_REG_CDC, &cdc, 1);
+    if (err != ESP_OK) return err;
+    if (report_scp) cdc |= 0x80; else cdc &= ~0x80;
+    if (report_ocp) cdc |= 0x40; else cdc &= ~0x40;
+    if (report_ovp) cdc |= 0x20; else cdc &= ~0x20;
     return _tps55289_write(handle, TPS55289_REG_CDC, &cdc, 1);
 }
 

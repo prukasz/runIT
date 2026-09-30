@@ -1,0 +1,41 @@
+menu "System Data Connector Options"
+    config SYS_DATA_CONNECTOR_MAX
+        int "Maximum Connectors in Registry"
+        default 8
+        range 1 32
+        help
+          Maximum number of data connectors in the system registry.
+
+    config SYS_DATA_PROVIDER_MAX
+        int "Maximum Providers in Registry"
+        default 8
+        range 1 32
+        help
+          Maximum number of transport providers in the registry.
+
+    config SYS_DATA_CONNECTOR_PROVIDERS_MAX
+        int "Maximum Providers per Connector (TX/RX)"
+        default 4
+        range 1 16
+        help
+          Maximum number of providers that can be attached to a single connector
+          for fan-out (TX) or fan-in (RX).
+
+    config SYS_DATA_CONNECTOR_NAME_MAX
+        int "Maximum Connector Name Length"
+        default 16
+        range 8 64
+        help
+          Maximum length of diagnostic name string per connector.
+
+    config SYS_DATA_CONNECTOR_FRAME_MAX
+        int "Maximum Frame Length (bytes)"
+        default 512
+        range 64 4096
+        help
+          Largest frame any connector carries in either direction, including
+          the outbound stream byte. Every frame buffer on the path (connector
+          send, sys_interface RX, recorded actions) is statically sized to it.
+          The limit used at runtime is smaller when a transport reports one
+          (BLE: the negotiated MTU - 3); see sys_data_connector_max_payload().
+endmenu

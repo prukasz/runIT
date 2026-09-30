@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "data-structures/schema/vm-program.schema.json",
+  "title": "VM program wire format",
+  "description": "How the app builds a program (class 0x04 records), sizes it (arena), respects the device limits, and reads VM telemetry. Generated from components/VM (vm_wire.h, vm_sub.c, //#vm-arena, Kconfig).",
+  "type": "object",
+  "required": ["$schema", "schemaVersion", "kind", "class_header", "request_prefix", "framing", "response", "types", "constants", "limits", "sizes", "arena", "packets", "unions", "telemetry"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "const": "data-structures/schema/vm-program.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "vm-program" },
+    "class_header": { "$ref": "#/$defs/hex" },
+    "request_prefix": { "type": "array", "items": { "type": "string" } },
+    "framing": { "type": "string" },
+    "response": { "type": "string" },
+    "types": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["symbol", "value", "memory_width", "wire_width", "wire_type"],
+        "additionalProperties": false,
+        "properties": {
+          "symbol": { "type": "string", "pattern": "^VM_OBJ_" },
+          "value": { "type": "integer" },
+          "alias": { "type": ["string", "null"] },
+          "memory_width": { "type": "integer", "minimum": 1, "description": "Bytes per element in memory: payload_size = memory_width x elements, and arena sizes use it." },
+          "wire_width": { "type": "integer", "minimum": 1, "description": "Bytes per element in 0x43 records." },
+          "wire_type": { "type": "string" },
+          "wire_note": { "type": "string" }
+        }
+      }
+    },
+    "constants": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["value", "description", "source_file"],
+        "additionalProperties": false,
+        "properties": { "value": { "type": "integer" }, "description": { "type": "string" }, "source_file": { "type": "string" } }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "propertyNames": { "pattern": "^CONFIG_VM_" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["value", "title"],
+        "additionalProperties": false,
+        "properties": { "value": { "type": "integer" }, "title": { "type": "string" }, "help": { "type": "string" } }
+      }
+    },
+    "sizes": {
+      "description": "sizeof() of the in-memory structs the arena formulas use, from their _Static_asserts.",
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "arena": {
+      "type": "object",
+      "required": ["alignment", "total_size", "allocations"],
+      "additionalProperties": false,
+      "properties": {
+        "alignment": { "type": "integer", "minimum": 1 },
+        "description": { "type": "string" },
+        "total_size": { "type": "string" },
+        "allocations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["item", "per", "size", "size_bytes"],
+            "additionalProperties": false,
+            "properties": {
+              "item": { "type": "string" },
+              "per": { "type": "string" },
+              "per_packet": { "$ref": "#/$defs/hex" },
+              "size": { "type": "string", "description": "C expression over record fields." },
+              "size_bytes": { "type": "string", "description": "The same with every sizeof() replaced by its value." },
+              "description": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "packets": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/packet" } },
+    "unions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["tag", "tag_type", "enum_ref", "cases"],
+        "additionalProperties": false,
+        "properties": {
+          "tag": { "type": "string" },
+          "tag_type": { "type": "string" },
+          "enum_ref": { "type": "string" },
+          "description": { "type": "string" },
+          "cases": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["symbol", "value", "record"],
+              "additionalProperties": false,
+              "properties": { "symbol": { "type": "string" }, "value": { "type": "integer" }, "record": { "$ref": "#/$defs/record" } }
+            }
+          }
+        }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "required": ["stream", "stream_symbol", "class_header", "description", "frames"],
+      "additionalProperties": false,
+      "properties": {
+        "stream": { "$ref": "#/$defs/hex" },
+        "stream_symbol": { "type": "string" },
+        "class_header": { "$ref": "#/$defs/hex" },
+        "description": { "type": "string" },
+        "frames": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["packet_header", "symbol", "title", "description", "batch", "record"],
+            "additionalProperties": false,
+            "properties": {
+              "packet_header": { "$ref": "#/$defs/hex" },
+              "symbol": { "type": "string" },
+              "title": { "type": "string" },
+              "description": { "type": "string" },
+              "batch": { "$ref": "#/$defs/batch" },
+              "record": { "$ref": "#/$defs/record" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "hex": { "type": "string", "pattern": "^0x[0-9A-F]{2}$" },
+    "batch": {
+      "description": "The body is a count of this type, then that many records.",
+      "type": "object",
+      "required": ["count_type", "max"],
+      "additionalProperties": false,
+      "properties": { "count_type": { "type": "string" }, "max": { "type": "integer" }, "max_symbol": { "type": "string" } }
+    },
+    "packet": {
+      "type": "object",
+      "required": ["packet_header", "symbol", "title", "description", "when", "record"],
+      "additionalProperties": false,
+      "properties": {
+        "packet_header": { "$ref": "#/$defs/hex" },
+        "symbol": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "when": { "type": "string", "description": "Execution state the packet is accepted in: any, or stopped." },
+        "batch": { "$ref": "#/$defs/batch" },
+        "record": { "$ref": "#/$defs/record" },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["rule", "error", "error_tag"],
+            "additionalProperties": false,
+            "properties": { "rule": { "type": "string" }, "error": { "type": "string", "pattern": "^ERR_" }, "error_tag": { "type": "integer" } }
+          }
+        }
+      }
+    },
+    "record": {
+      "description": "A packed little-endian struct (the fixed part), then its tails in order.",
+      "type": "object",
+      "required": ["name", "size", "field_order", "fields"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "size": { "type": "integer", "minimum": 0 },
+        "field_order": { "type": "array", "items": { "type": "string" } },
+        "fields": { "type": "object", "additionalProperties": { "$ref": "#/$defs/field" } },
+        "tails": { "type": "array", "items": { "$ref": "#/$defs/tail" } }
+      }
+    },
+    "field": {
+      "type": "object",
+      "required": ["type", "offset", "size"],
+      "properties": {
+        "type": { "type": "string" },
+        "offset": { "type": "integer", "minimum": 0 },
+        "size": { "type": "integer", "minimum": 0 },
+        "array_len": { "type": "integer" },
+        "alias": { "type": "string" },
+        "description": { "type": "string" },
+        "reference": { "enum": ["object", "accessor", "block", "block-type"] },
+        "struct_ref": { "type": "string" },
+        "enum_ref": { "type": "string" },
+        "one_of": { "type": "array" },
+        "none": { "type": "integer" },
+        "min": { "type": ["integer", "null"] },
+        "max": { "type": ["integer", "null"] },
+        "min_symbol": { "type": "string" },
+        "max_symbol": { "type": "string" },
+        "unit": { "type": "string" },
+        "required": { "type": "boolean" }
+      }
+    },
+    "tail": {
+      "description": "A variable array after the fixed part. length_from names the field (or head.d.name_size inside a struct_ref field) holding its element count; byte_length_from, when present, the field holding its byte length.",
+      "type": "object",
+      "required": ["name", "type", "length_from"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "length_from": { "type": "string" },
+        "byte_length_from": { "type": "string" },
+        "element_size": { "type": "integer" },
+        "element_union": { "type": "string" },
+        "alias": { "type": "string" },
+        "description": { "type": "string" },
+        "encoding": { "type": "string" },
+        "reference": { "enum": ["object", "accessor", "block", "block-type"] },
+        "none": { "type": "integer" }
+      }
+    }
+  }
+}

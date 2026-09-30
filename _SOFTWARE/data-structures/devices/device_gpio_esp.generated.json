@@ -1,0 +1,1083 @@
+{
+  "$schema": "data-structures/schema/device-definition.schema.json",
+  "schemaVersion": 1,
+  "kind": "device-definition",
+  "id": "device_gpio_esp",
+  "title": "ESP32 native GPIO",
+  "description": "ESP32-S3 GPIO. Some pins are reserved for internal use, the rest are free for yours.",
+  "protocols": [
+    "native"
+  ],
+  "tags": [
+    "gpio",
+    "io",
+    "adc",
+    "voltage",
+    "pwm"
+  ],
+  "datasheet": "https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf",
+  "pwm_frequencies": 4,
+  "source_file": "dec_device_gpio_esp.h",
+  "contractProvider": {
+    "symbol": "SYS_DEVICE_CONTRACT_IO",
+    "enum": "sys_device_contract_type_e",
+    "value": 0,
+    "alias": "Digital/Analog IO",
+    "description": "Basic pin control - read or drive a pin, or measure/generate a voltage on it"
+  },
+  "install": {
+    "packet": "packet_sys_device_install_gpio_esp_t",
+    "packet_definition": {
+      "source_file": "dec_device_gpio_esp.h",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x40",
+      "decoder": "decoder_packet_sys_device_install_gpio_esp_t()",
+      "field_order": [
+        "device_id"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "max": 127
+        }
+      }
+    }
+  },
+  "contracts": [
+    {
+      "packet": "packet_sys_io_reset_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48
+          ],
+          "alias": "GPIO Pin"
+        }
+      ],
+      "alias": "Reset pin",
+      "description": "Releases the pin back to its unconfigured state.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x20",
+        "decoder": "decoder_packet_sys_io_reset_t()",
+        "field_order": [
+          "device_id",
+          "pin"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_set_mode_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48
+          ],
+          "alias": "GPIO Pin"
+        },
+        {
+          "name": "mode",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_INPUT",
+              "enum": "sys_io_mode_e",
+              "value": 0,
+              "alias": "Input",
+              "description": "Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal"
+            },
+            {
+              "symbol": "SYS_IO_MODE_INPUT_PULLUP",
+              "enum": "sys_io_mode_e",
+              "value": 1,
+              "alias": "Input with Pullup",
+              "description": "Same as Input, but reads \"on\" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed"
+            },
+            {
+              "symbol": "SYS_IO_MODE_INPUT_PULLDOWN",
+              "enum": "sys_io_mode_e",
+              "value": 2,
+              "alias": "Input with Pulldown",
+              "description": "Same as Input, but reads \"off\" by default when nothing is connected - use when your button/switch connects the pin to power when pressed"
+            },
+            {
+              "symbol": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+              "enum": "sys_io_mode_e",
+              "value": 3,
+              "alias": "Output Push-Pull",
+              "description": "Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays"
+            },
+            {
+              "symbol": "SYS_IO_MODE_OUTPUT_OPEN_DRAIN",
+              "enum": "sys_io_mode_e",
+              "value": 4,
+              "alias": "Output Open-Drain",
+              "description": "A weaker output that can only actively pull the signal to \"off\" - something else (an external resistor, or the Open-Drain-Pullup option) is needed to make it read \"on\". Mainly used when several devices need to share the same wire"
+            },
+            {
+              "symbol": "SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP",
+              "enum": "sys_io_mode_e",
+              "value": 5,
+              "alias": "Output Open-Drain-Pullup",
+              "description": "Same as Open-Drain, but with a built-in helper enabled so the pin reads \"on\" by itself instead of needing an extra part"
+            },
+            {
+              "symbol": "SYS_IO_MODE_PWM",
+              "enum": "sys_io_mode_e",
+              "value": 6,
+              "alias": "PWM",
+              "description": "Rapidly switches the pin on and off to fake an in-between level - use to dim an LED or control a motor's speed"
+            },
+            {
+              "symbol": "SYS_IO_MODE_ADC",
+              "enum": "sys_io_mode_e",
+              "value": 7,
+              "alias": "ADC",
+              "description": "Measures the exact voltage on the pin instead of just on/off - use to read sensors that report a varying value, like a potentiometer or a temperature sensor"
+            }
+          ],
+          "enum_ref": "sys_io_mode_e"
+        }
+      ],
+      "alias": "Configure pin mode",
+      "description": "DAC mode isn't available on native GPIO - use a DAC53202 device. PWM takes one PWM channel per pin: up to 8 pins at once on the ESP32-S3, fewer if the firmware keeps channels for other drivers.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x21",
+        "decoder": "decoder_packet_sys_io_set_mode_t()",
+        "field_order": [
+          "device_id",
+          "pin",
+          "mode"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          },
+          "mode": {
+            "type": "uint8_t",
+            "alias": "Pin Mode",
+            "required": true,
+            "one_of": [
+              {
+                "symbol": "SYS_IO_MODE_INPUT",
+                "enum": "sys_io_mode_e",
+                "value": 0,
+                "alias": "Input",
+                "description": "Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal"
+              },
+              {
+                "symbol": "SYS_IO_MODE_INPUT_PULLUP",
+                "enum": "sys_io_mode_e",
+                "value": 1,
+                "alias": "Input with Pullup",
+                "description": "Same as Input, but reads \"on\" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed"
+              },
+              {
+                "symbol": "SYS_IO_MODE_INPUT_PULLDOWN",
+                "enum": "sys_io_mode_e",
+                "value": 2,
+                "alias": "Input with Pulldown",
+                "description": "Same as Input, but reads \"off\" by default when nothing is connected - use when your button/switch connects the pin to power when pressed"
+              },
+              {
+                "symbol": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+                "enum": "sys_io_mode_e",
+                "value": 3,
+                "alias": "Output Push-Pull",
+                "description": "Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays"
+              },
+              {
+                "symbol": "SYS_IO_MODE_OUTPUT_OPEN_DRAIN",
+                "enum": "sys_io_mode_e",
+                "value": 4,
+                "alias": "Output Open-Drain",
+                "description": "A weaker output that can only actively pull the signal to \"off\" - something else (an external resistor, or the Open-Drain-Pullup option) is needed to make it read \"on\". Mainly used when several devices need to share the same wire"
+              },
+              {
+                "symbol": "SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP",
+                "enum": "sys_io_mode_e",
+                "value": 5,
+                "alias": "Output Open-Drain-Pullup",
+                "description": "Same as Open-Drain, but with a built-in helper enabled so the pin reads \"on\" by itself instead of needing an extra part"
+              },
+              {
+                "symbol": "SYS_IO_MODE_PWM",
+                "enum": "sys_io_mode_e",
+                "value": 6,
+                "alias": "PWM",
+                "description": "Rapidly switches the pin on and off to fake an in-between level - use to dim an LED or control a motor's speed"
+              },
+              {
+                "symbol": "SYS_IO_MODE_ADC",
+                "enum": "sys_io_mode_e",
+                "value": 7,
+                "alias": "ADC",
+                "description": "Measures the exact voltage on the pin instead of just on/off - use to read sensors that report a varying value, like a potentiometer or a temperature sensor"
+              },
+              {
+                "symbol": "SYS_IO_MODE_DAC",
+                "enum": "sys_io_mode_e",
+                "value": 8,
+                "alias": "DAC",
+                "description": "Outputs an exact, steady voltage level instead of just on/off - the opposite of ADC"
+              }
+            ],
+            "enum_ref": "sys_io_mode_e"
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_configure_intr_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48
+          ],
+          "alias": "GPIO Pin"
+        },
+        {
+          "name": "mode",
+          "alias": "Trigger Mode"
+        }
+      ],
+      "alias": "Configure pin interrupt",
+      "description": "Digital edge-triggered interrupt (not the ADC window comparator, which native GPIO doesn't have). Link it to the program or an action with an event subscription.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x29",
+        "decoder": "decoder_packet_sys_io_configure_intr_t()",
+        "field_order": [
+          "device_id",
+          "pin",
+          "mode",
+          "debounce",
+          "adc_thresh_up_mV",
+          "adc_thresh_down_mV",
+          "adc_thresh_hyst_mV",
+          "adc_counter_thresh"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          },
+          "mode": {
+            "type": "uint8_t",
+            "alias": "Interrupt Mode",
+            "required": true,
+            "one_of": [
+              {
+                "symbol": "SYS_IO_INTR_DISABLE",
+                "enum": "sys_io_intr_mode_e",
+                "value": 0,
+                "alias": "Disable",
+                "description": "Don't watch this pin for changes - nothing gets triggered"
+              },
+              {
+                "symbol": "SYS_IO_INTR_MODE_RISING_EDGE",
+                "enum": "sys_io_intr_mode_e",
+                "value": 1,
+                "alias": "Rising Edge",
+                "description": "Triggers the instant the pin switches from off to on"
+              },
+              {
+                "symbol": "SYS_IO_INTR_MODE_FALLING_EDGE",
+                "enum": "sys_io_intr_mode_e",
+                "value": 2,
+                "alias": "Falling Edge",
+                "description": "Triggers the instant the pin switches from on to off"
+              },
+              {
+                "symbol": "SYS_IO_INTR_MODE_BOTH_EDGES",
+                "enum": "sys_io_intr_mode_e",
+                "value": 3,
+                "alias": "Both Edges",
+                "description": "Triggers on any change - whether the pin switches from off to on, or on to off"
+              },
+              {
+                "symbol": "SYS_IO_INTR_ADC_WINDOW_OUTSIDE",
+                "enum": "sys_io_intr_mode_e",
+                "value": 4,
+                "alias": "Outside set window",
+                "description": "Triggers when the measured value leaves the safe/expected range you set - use to catch a value going too high or too low"
+              },
+              {
+                "symbol": "SYS_IO_INTR_ADC_WINDOW_INSIDE",
+                "enum": "sys_io_intr_mode_e",
+                "value": 5,
+                "alias": "Inside set window",
+                "description": "Triggers when the measured value comes back into the range you set - use to catch when a value returns to normal"
+              }
+            ],
+            "enum_ref": "sys_io_intr_mode_e"
+          },
+          "debounce": {
+            "type": "uint8_t",
+            "alias": "Debounce",
+            "required": false,
+            "note": "1 = ignore switch bounce"
+          },
+          "adc_thresh_up_mV": {
+            "type": "uint16_t",
+            "alias": "ADC Rising Threshold",
+            "required": false,
+            "unit": "mV"
+          },
+          "adc_thresh_down_mV": {
+            "type": "uint16_t",
+            "alias": "ADC Falling Threshold",
+            "required": false,
+            "unit": "mV"
+          },
+          "adc_thresh_hyst_mV": {
+            "type": "uint16_t",
+            "alias": "ADC Hysteresis",
+            "required": false,
+            "unit": "mV"
+          },
+          "adc_counter_thresh": {
+            "type": "uint16_t",
+            "alias": "ADC Event Counter Threshold",
+            "required": false
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_set_level_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48
+          ],
+          "alias": "GPIO Pin"
+        },
+        {
+          "name": "level",
+          "type": "bool"
+        }
+      ],
+      "alias": "Set pin level",
+      "description": "Drive an output pin high or low.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x22",
+        "decoder": "decoder_packet_sys_io_set_level_t()",
+        "field_order": [
+          "device_id",
+          "pin",
+          "level"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          },
+          "level": {
+            "type": "uint8_t",
+            "alias": "Level",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_get_level_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48
+          ],
+          "alias": "GPIO Pin"
+        }
+      ],
+      "alias": "Read pin level",
+      "returns": "level",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x23",
+        "decoder": "decoder_packet_sys_io_get_level_t()",
+        "field_order": [
+          "device_id",
+          "pin"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_toggle_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48
+          ],
+          "alias": "GPIO Pin"
+        }
+      ],
+      "alias": "Toggle pin",
+      "description": "Flip an output pin's current level.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x24",
+        "decoder": "decoder_packet_sys_io_toggle_t()",
+        "field_order": [
+          "device_id",
+          "pin"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_get_voltage_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48
+          ],
+          "alias": "GPIO Pin"
+        }
+      ],
+      "alias": "Read pin voltage",
+      "description": "Pin must be configured in ADC mode first.",
+      "returns": "voltage_mV",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x25",
+        "decoder": "decoder_packet_sys_io_get_voltage_t()",
+        "field_order": [
+          "device_id",
+          "pin"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_set_pwm_frequency_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48
+          ],
+          "alias": "GPIO Pin"
+        },
+        {
+          "name": "frequency_Hz",
+          "min": 5,
+          "max": 5000000
+        }
+      ],
+      "alias": "Set PWM frequency",
+      "description": "Pin must be in PWM mode. Each pin has its own frequency, but pins share the PWM timers by frequency: one timer per different frequency, any number of pins on each - up to 4 frequencies at once on the ESP32-S3, fewer if the firmware keeps timers for other drivers. A frequency that needs a timer when none is free is refused and the pin keeps its old one. Above ~19.5 kHz the duty has fewer than 4096 real steps (steps = 80 MHz / frequency).",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x27",
+        "decoder": "decoder_packet_sys_io_set_pwm_frequency_t()",
+        "field_order": [
+          "device_id",
+          "pin",
+          "frequency_Hz"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          },
+          "frequency_Hz": {
+            "type": "uint32_t",
+            "alias": "PWM Frequency",
+            "required": true,
+            "unit": "Hz"
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_io_set_pwm_duty_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "pin",
+          "one_of": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48
+          ],
+          "alias": "GPIO Pin"
+        },
+        {
+          "name": "duty",
+          "min": 0,
+          "max": 4096,
+          "alias": "Duty",
+          "unit": "ticks",
+          "note": "4096 = always on."
+        }
+      ],
+      "alias": "Set PWM duty",
+      "description": "Pin must be in PWM mode. Before any frequency is set the pin runs at the default frequency (1 kHz), which takes a PWM timer like any other frequency.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x28",
+        "decoder": "decoder_packet_sys_io_set_pwm_duty_t()",
+        "field_order": [
+          "device_id",
+          "pin",
+          "duty"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "pin": {
+            "type": "uint8_t",
+            "alias": "Pin Number",
+            "required": true
+          },
+          "duty": {
+            "type": "uint32_t",
+            "alias": "Duty Cycle",
+            "required": true
+          }
+        }
+      }
+    }
+  ]
+}

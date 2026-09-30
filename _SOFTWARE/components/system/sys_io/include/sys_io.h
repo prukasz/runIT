@@ -1,52 +1,41 @@
 #pragma once
-#include "sys_callbacks.h"
+#include <string.h>
+#include "sys_event.h"
 #include "sys_error.h"
 
 #define SYS_GPIO_NONE 0xFF
-#define IF_PIN(pin_num) if (((pin_num)) != SYS_GPIO_NONE)
 
-#define SYS_IO_CB(_ctx, _pin, _event, _value, _route_mask, _action_mask) \
-  do {                                                                   \
-    cb_event_t __cb_evt;                                                \
-    memset(&__cb_evt, 0, sizeof(__cb_evt));                             \
-    __cb_evt.head.callback_type = CALLBACK_IO;                          \
-    __cb_evt.head.route_mask = (_route_mask);                           \
-    __cb_evt.head.action_id = (_action_mask);                           \
-    __cb_evt.event.io.device_id = (_ctx)->base.device_id;               \
-    __cb_evt.event.io.pin_id = (_pin);                                  \
-    __cb_evt.event.io.trigger_event = (_event);                         \
-    __cb_evt.event.io.trigger_value = (_value);                         \
-    sys_callback_trigger(&__cb_evt);                                    \
-  } while (0)
 
 #define VERIFY_PIN(dev_id, pin, pinmask)                   \
   do {                                                     \
     if (((pin) >= 64) || !((1ULL << (pin)) & (pinmask))) { \
-      SE_RET_ERR(ERR_IO_PIN_UNAVAILABLE, (dev_id), (pin)); \
+      SE_FAIL(ERR_IO_PIN_UNAVAILABLE, (dev_id), (pin)); \
     }                                                      \
   } while (0)
 
 /*Aviable modes to set IO to*/
+//#ref-enum @alias IO Mode
 typedef enum sys_io_mode_e {
-  SYS_IO_MODE_INPUT = 0,
-  SYS_IO_MODE_INPUT_PULLUP = 1,
-  SYS_IO_MODE_INPUT_PULLDOWN = 2,
-  SYS_IO_MODE_OUTPUT_PUSH_PULL = 3,
-  SYS_IO_MODE_OUTPUT_OPEN_DRAIN = 4,
-  SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP = 5,
-  SYS_IO_MODE_PWM = 6,
-  SYS_IO_MODE_ADC = 7,
-  SYS_IO_MODE_DAC = 8
+  SYS_IO_MODE_INPUT = 0, // @alias Input @description Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal
+  SYS_IO_MODE_INPUT_PULLUP = 1, // @alias Input with Pullup @description Same as Input, but reads "on" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed
+  SYS_IO_MODE_INPUT_PULLDOWN = 2,  // @alias Input with Pulldown @description Same as Input, but reads "off" by default when nothing is connected - use when your button/switch connects the pin to power when pressed
+  SYS_IO_MODE_OUTPUT_PUSH_PULL = 3, // @alias Output Push-Pull @description Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays
+  SYS_IO_MODE_OUTPUT_OPEN_DRAIN = 4, //@alias Output Open-Drain @description A weaker output that can only actively pull the signal to "off" - something else (an external resistor, or the Open-Drain-Pullup option) is needed to make it read "on". Mainly used when several devices need to share the same wire
+  SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP = 5, //@alias Output Open-Drain-Pullup @description Same as Open-Drain, but with a built-in helper enabled so the pin reads "on" by itself instead of needing an extra part
+  SYS_IO_MODE_PWM = 6, //@alias PWM @description Rapidly switches the pin on and off to fake an in-between level - use to dim an LED or control a motor's speed
+  SYS_IO_MODE_ADC = 7, //@alias ADC @description Measures the exact voltage on the pin instead of just on/off - use to read sensors that report a varying value, like a potentiometer or a temperature sensor
+  SYS_IO_MODE_DAC = 8  //@alias DAC @description Outputs an exact, steady voltage level instead of just on/off - the opposite of ADC
 } sys_io_mode_e;
 
 /*Aviable interrupt modes*/
+//#ref-enum @alias Interrupt Mode
 typedef enum sys_io_intr_mode_e {
-  SYS_IO_INTR_DISABLE = 0,
-  SYS_IO_INTR_MODE_RISING_EDGE = 1,
-  SYS_IO_INTR_MODE_FALLING_EDGE = 2,
-  SYS_IO_INTR_MODE_BOTH_EDGES = 3,
-  SYS_IO_INTR_ADC_WINDOW_OUTSIDE = 4,
-  SYS_IO_INTR_ADC_WINDOW_INSIDE = 5,
+  SYS_IO_INTR_DISABLE = 0, //@alias Disable @description Don't watch this pin for changes - nothing gets triggered
+  SYS_IO_INTR_MODE_RISING_EDGE = 1, //@alias Rising Edge @description Triggers the instant the pin switches from off to on
+  SYS_IO_INTR_MODE_FALLING_EDGE = 2, //@alias Falling Edge @description Triggers the instant the pin switches from on to off
+  SYS_IO_INTR_MODE_BOTH_EDGES = 3, //@alias Both Edges @description Triggers on any change - whether the pin switches from off to on, or on to off
+  SYS_IO_INTR_ADC_WINDOW_OUTSIDE = 4, //@alias Outside set window @description Triggers when the measured value leaves the safe/expected range you set - use to catch a value going too high or too low
+  SYS_IO_INTR_ADC_WINDOW_INSIDE = 5, //@alias Inside set window @description Triggers when the measured value comes back into the range you set - use to catch when a value returns to normal
 } sys_io_intr_mode_e;
 
 typedef uint8_t sys_io_pin_num_t;
@@ -71,6 +60,7 @@ typedef struct sys_io_pin_ref_t {
 /*Compound-literal forms, for automatic storage (inside function bodies)*/
 #define SYS_IO_PIN(dev_id, pin_num, pin_mode) ((sys_io_pin_ref_t){.device_id = (dev_id), .pin = (pin_num), .mode = (pin_mode)})
 #define SYS_IO_PIN_NONE ((sys_io_pin_ref_t){.pin = SYS_GPIO_NONE})
+#define SYS_IO_REF(dev_id, pin_num) ((sys_io_pin_ref_t){.device_id = (dev_id), .pin = (pin_num)})
 
 /*Brace-only forms, for file-scope/static initializers where a compound
   literal is not a constant expression*/
@@ -85,107 +75,91 @@ typedef struct {
   uint16_t adc_event_counter_threshold;
 } sys_io_adc_int_config_t;
 
-/*overall config for io interrupt*/
+/* Interrupt config of one pin. It only arms the source: events go to the
+   sys_event listeners of (SYS_EVENT_DOMAIN_IO, device, pin). */
 typedef struct sys_io_intr_config_t {
   sys_io_intr_mode_e mode;
-  uint16_t route_mask;
-  uint64_t action_mask; /* Bitmask of sys_actions ids to invoke: 0 means none */
-  own_funct_t own_func;
+  bool debounce; /* filter switch bounce where the device supports it; off for chip alert lines */
   union {
     sys_io_adc_int_config_t adc;
   };
 } sys_io_intr_config_t;
 
-typedef struct sys_io_vtable_t {
-  err_h (*io_reset)(void* handle, sys_io_pin_num_t pin);
+typedef struct sys_io_contract_t {
+  err_h (*reset)(void* handle, sys_io_pin_num_t pin);
 
-  err_h (*io_set_mode)(void* handle, sys_io_pin_num_t pin, sys_io_mode_e mode);
+  err_h (*set_mode)(void* handle, sys_io_pin_num_t pin, sys_io_mode_e mode);
 
-  err_h (*io_configure_intr)(void* handle, sys_io_pin_num_t pin, const sys_io_intr_config_t* config);
+  err_h (*configure_intr)(void* handle, sys_io_pin_num_t pin, const sys_io_intr_config_t* config);
 
-  err_h (*io_set_level)(void* handle, sys_io_pin_num_t pin, bool level);
-  err_h (*io_get_level)(void* handle, sys_io_pin_num_t pin, bool* level);
-  err_h (*io_toggle)(void* handle, sys_io_pin_num_t pin);
+  err_h (*set_level)(void* handle, sys_io_pin_num_t pin, bool level);
+  err_h (*get_level)(void* handle, sys_io_pin_num_t pin, bool* level);
+  err_h (*toggle)(void* handle, sys_io_pin_num_t pin);
 
-  err_h (*io_get_voltage)(void* handle, sys_io_pin_num_t pin, uint32_t* out_mV);
-  err_h (*io_set_voltage)(void* handle, sys_io_pin_num_t pin, uint32_t voltage_mV);
+  err_h (*get_voltage)(void* handle, sys_io_pin_num_t pin, int32_t* out_mV);
+  err_h (*set_voltage)(void* handle, sys_io_pin_num_t pin, uint32_t voltage_mV);
 
-  err_h (*io_set_pwm_frequency)(void* handle, sys_io_pin_num_t pin, uint32_t frequency_HZ);
-  err_h (*io_set_pwm_duty)(void* handle, sys_io_pin_num_t pin, uint32_t duty);
-
-  uint64_t protected_pins;
-} sys_io_vtable_t;
+  err_h (*set_pwm_frequency)(void* handle, sys_io_pin_num_t pin, uint32_t frequency_Hz);
+  err_h (*set_pwm_duty)(void* handle, sys_io_pin_num_t pin, uint32_t duty);
+} sys_io_contract_t;
 
 /**
- * @brief Identifies which sys_io_vtable_t slot a NULL-vtable-function
+ * @brief Identifies which sys_io_contract_t slot a NULL-vtable-function
  * dispatch failure was for - carried as ERR_DEV_FEATURE_UNAVAILABLE's
  * feature_id payload field (see SYS_IO_DISPATCH), so the failure says
  * *which* IO operation is unsupported instead of a bare "not supported".
  */
-typedef enum sys_io_feature_e {
-  SYS_IO_FEATURE_RESET = 0,
-  SYS_IO_FEATURE_SET_MODE,
-  SYS_IO_FEATURE_CONFIGURE_INTR,
-  SYS_IO_FEATURE_SET_LEVEL,
-  SYS_IO_FEATURE_GET_LEVEL,
-  SYS_IO_FEATURE_TOGGLE,
-  SYS_IO_FEATURE_GET_VOLTAGE,
-  SYS_IO_FEATURE_SET_VOLTAGE,
-  SYS_IO_FEATURE_SET_PWM_FREQUENCY,
-  SYS_IO_FEATURE_SET_PWM_DUTY,
-} sys_io_feature_e;
+/* Member names of sys_io_contract_t in order, NULL-terminated (feature id = index). */
+extern const char* const sys_io_feature_names[];
 
-extern const char* const sys_io_feature_e_to_string[];
+SE_MUST_USE err_h sys_io_reset(sys_io_pin_ref_t ref);
+SE_MUST_USE err_h sys_io_set_mode(sys_io_pin_ref_t ref);
+SE_MUST_USE err_h sys_io_configure_intr(sys_io_pin_ref_t ref, const sys_io_intr_config_t* config);
 
-typedef struct sys_io_device_t {
-  sys_io_vtable_t* dispatch_table;
-  void* handle;
-} sys_io_device_t;
+SE_MUST_USE err_h sys_io_set_level(sys_io_pin_ref_t ref, bool level);
+SE_MUST_USE err_h sys_io_get_level(sys_io_pin_ref_t ref, bool* level);
+SE_MUST_USE err_h sys_io_toggle(sys_io_pin_ref_t ref);
 
-// API Systemowe używa teraz wyłącznie uint8_t device_id i pinu
-err_h sys_io_reset(uint8_t device_id, sys_io_pin_num_t pin);
-err_h sys_io_set_mode(uint8_t device_id, sys_io_pin_num_t pin, sys_io_mode_e mode);
-err_h sys_io_configure_intr(uint8_t device_id, sys_io_pin_num_t pin, const sys_io_intr_config_t* config);
+SE_MUST_USE err_h sys_io_get_voltage(sys_io_pin_ref_t ref, int32_t* out_mV);
+SE_MUST_USE err_h sys_io_set_voltage(sys_io_pin_ref_t ref, uint32_t voltage_mV);
 
-err_h sys_io_set_level(uint8_t device_id, sys_io_pin_num_t pin, bool level);
-err_h sys_io_get_level(uint8_t device_id, sys_io_pin_num_t pin, bool* level);
-err_h sys_io_toggle(uint8_t device_id, sys_io_pin_num_t pin);
+SE_MUST_USE err_h sys_io_set_pwm_frequency(sys_io_pin_ref_t ref, uint32_t frequency_Hz);
+SE_MUST_USE err_h sys_io_set_pwm_duty(sys_io_pin_ref_t ref, uint32_t duty);
 
-err_h sys_io_get_voltage(uint8_t device_id, sys_io_pin_num_t pin, uint32_t* out_mV);
-err_h sys_io_set_voltage(uint8_t device_id, sys_io_pin_num_t pin, uint32_t voltage_mV);
+SE_MUST_USE err_h sys_io_lock_pin(sys_io_pin_ref_t ref);
+SE_MUST_USE err_h sys_io_unlock_pin(sys_io_pin_ref_t ref);
 
-err_h sys_io_set_pwm_frequency(uint8_t device_id, sys_io_pin_num_t pin, uint32_t frequency_HZ);
-err_h sys_io_set_pwm_duty(uint8_t device_id, sys_io_pin_num_t pin, uint32_t duty);
-#define SYS_IO_HIGH(device_id, pin_num) sys_io_set_level((device_id), (pin_num), true)
-#define SYS_IO_LOW(device_id, pin_num) sys_io_set_level((device_id), (pin_num), false)
+/**
+ * @brief Set the level of a pin the caller has locked (OE, RST, EN, ...).
+ *
+ * Unlocks the pin only if it was locked, sets the level, and restores the
+ * previous lock state on every path, including failure.
+ */
+SE_MUST_USE err_h sys_io_set_locked_level(sys_io_pin_ref_t ref, bool level);
 
-#define SYS_IO_UNLOCK_PIN(dev_id, pin)                                                                 \
-  do {                                                                                                 \
-    sys_device_t* __d = sys_device_get_by_id((dev_id));                                                \
-    sys_io_vtable_t* __v = __d ? (sys_io_vtable_t*)__d->cls->contracts[SYS_DEVICE_CONTRACT_IO] : NULL; \
-    if (__v) __v->protected_pins &= ~(1ULL << (pin));                                                  \
-  } while (0)
+/**
+ * @brief Publish a pin event from an IO device adapter (task or ISR).
+ * @param event The edge or window crossed: RISING / FALLING edge for a
+ *        digital pin, the armed mode for an analog one.
+ * @param value Level (0 / 1) or mV.
+ * @param hops SYS_EVENT_CAUSED_BY(cause) when raised from a listener, else 0.
+ */
+static inline SE_MUST_USE err_h sys_io_publish(uint8_t device_id, sys_io_pin_num_t pin, sys_io_intr_mode_e event, int32_t value, uint8_t hops) {
+  sys_event_t ev = {.domain = SYS_EVENT_DOMAIN_IO, .device_id = device_id, .channel = pin, .event = (uint8_t)event, .value = value, .hops = hops};
+  return sys_event_publish(&ev);
+}
 
-#define SYS_IO_LOCK_PIN(dev_id, pin)                                                                   \
-  do {                                                                                                 \
-    sys_device_t* __d = sys_device_get_by_id((dev_id));                                                \
-    sys_io_vtable_t* __v = __d ? (sys_io_vtable_t*)__d->cls->contracts[SYS_DEVICE_CONTRACT_IO] : NULL; \
-    if (__v) __v->protected_pins |= (1ULL << (pin));                                                   \
-  } while (0)
+/**
+ * @brief Chain a device to an alert pin: call handler inline on every event
+ * of that pin (the adapter then reads its chip and publishes its own events).
+ * System-owned; remove it with sys_event_unsubscribe(*out_id, false).
+ */
+SE_MUST_USE err_h sys_io_subscribe_pin(sys_io_pin_ref_t ref, sys_event_handler_f handler, void* ctx, uint8_t* out_id);
 
-#define WITH_PIN_UNLOCKED(dev_id, pin)                                                                                                         \
-  for (sys_io_vtable_t* __v = (sys_io_vtable_t*)SYS_DEV_GET_CONTRACT(sys_device_get_by_id((dev_id)), SYS_DEVICE_CONTRACT_IO); __v; __v = NULL) \
-    for (uint64_t __mask = (1ULL << (pin)), __prev = (__v->protected_pins & __mask ? (__v->protected_pins &= ~__mask, __mask) : 0); __mask; __mask = (__prev ? (__v->protected_pins |= __mask, 0) : 0))
-
-/*sys_io_pin_ref_t operations. Pass an lvalue only - (ref) is evaluated more than once.*/
-#define IF_PIN_REF(ref) IF_PIN((ref).pin)
-#define SYS_IO_REF_SET_MODE(ref) sys_io_set_mode((ref).device_id, (ref).pin, (ref).mode)
-#define SYS_IO_REF_HIGH(ref) sys_io_set_level((ref).device_id, (ref).pin, true)
-#define SYS_IO_REF_LOW(ref) sys_io_set_level((ref).device_id, (ref).pin, false)
-#define SYS_IO_REF_RESET(ref) sys_io_reset((ref).device_id, (ref).pin)
-#define SYS_IO_REF_LOCK(ref) SYS_IO_LOCK_PIN((ref).device_id, (ref).pin)
-#define SYS_IO_REF_UNLOCK(ref) SYS_IO_UNLOCK_PIN((ref).device_id, (ref).pin)
-#define WITH_REF_UNLOCKED(ref) WITH_PIN_UNLOCKED((ref).device_id, (ref).pin)
+/* Type-safe sys_io_pin_ref_t operations */
+static inline bool sys_io_pin_is_valid(sys_io_pin_ref_t ref) {
+  return ref.pin != SYS_GPIO_NONE;
+}
 
 extern const char* const sys_io_mode_e_to_string[];
 extern const char* const sys_io_intr_mode_e_to_string[];

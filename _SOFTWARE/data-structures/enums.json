@@ -1,0 +1,2862 @@
+{
+  "enums": {
+    "runit_data_provider_e": {
+      "alias": "Data Provider",
+      "source_file": "components/runit/runit_board_defs.h",
+      "members": [
+        {
+          "name": "RUNIT_DATA_PROVIDER_BLE",
+          "value": 1,
+          "alias": "Bluetooth LE",
+          "description": "The endpoint is a characteristic UUID."
+        },
+        {
+          "name": "RUNIT_DATA_PROVIDER_UART",
+          "value": 2,
+          "alias": "UART console",
+          "description": "Frames are \"#R:<hex>\" lines on the console UART, next to the text log. The only endpoint is 0."
+        }
+      ]
+    },
+    "sys_ble_events_e": {
+      "alias": "BLE Event",
+      "source_file": "components/system/ble/include/sys_ble.h",
+      "members": [
+        {
+          "name": "SYS_BLE_EVENT_CONNECT",
+          "value": 0,
+          "alias": "Connected",
+          "description": "The app connected (value = connection handle)"
+        },
+        {
+          "name": "SYS_BLE_EVENT_DISCONNECT",
+          "value": 1,
+          "alias": "Disconnected",
+          "description": "The app disconnected (value = reason code)"
+        },
+        {
+          "name": "SYS_BLE_EVENT_FAILURE",
+          "value": 2,
+          "alias": "Failure",
+          "description": "A connection, receive or send failure (value = error code)"
+        }
+      ]
+    },
+    "sys_action_static_e": {
+      "alias": "Static Action",
+      "source_file": "components/system/sys_actions/include/sys_actions.h",
+      "members": [
+        {
+          "name": "SYS_ACTION_STATIC_BOOT",
+          "value": 1,
+          "alias": "Boot setup",
+          "description": "Installs the board's own devices (bound by the application)."
+        },
+        {
+          "name": "SYS_ACTION_STATIC_FREEZE",
+          "value": 2,
+          "alias": "Freeze all devices",
+          "description": "Holds every device at its current state."
+        },
+        {
+          "name": "SYS_ACTION_STATIC_RESUME",
+          "value": 3,
+          "alias": "Resume all devices",
+          "description": "Resumes and syncs every device."
+        },
+        {
+          "name": "SYS_ACTION_STATIC_SUSPEND",
+          "value": 4,
+          "alias": "Suspend all devices",
+          "description": "Suspends every device."
+        },
+        {
+          "name": "SYS_ACTION_STATIC_RESET",
+          "value": 5,
+          "alias": "Reset",
+          "description": "Resets every device, rewinds the VM and runs the boot setup again."
+        },
+        {
+          "name": "SYS_ACTION_STATIC_HARD_RESET",
+          "value": 6,
+          "alias": "Hard reset",
+          "description": "Unloads the VM program, uninstalls every device and runs the boot setup again."
+        }
+      ]
+    },
+    "sys_data_connector_id_e": {
+      "alias": "Data Connector",
+      "source_file": "components/system/sys_data_connector/include/sys_data_connector.h",
+      "members": [
+        {
+          "name": "SYS_DATA_CONNECTOR_LOGS",
+          "value": 0,
+          "alias": "Logs",
+          "description": "Text log lines."
+        },
+        {
+          "name": "SYS_DATA_CONNECTOR_ERRORS",
+          "value": 1,
+          "alias": "Errors",
+          "description": "Binary error reports."
+        },
+        {
+          "name": "SYS_DATA_CONNECTOR_TELEMETRY",
+          "value": 2,
+          "alias": "Telemetry",
+          "description": "Program object values you subscribed to."
+        },
+        {
+          "name": "SYS_DATA_CONNECTOR_INTERFACE",
+          "value": 3,
+          "alias": "Commands",
+          "description": "Commands to the board and their responses."
+        },
+        {
+          "name": "SYS_DATA_CONNECTOR_APP_BASE",
+          "value": 4,
+          "alias": "First user connector",
+          "description": "Connectors you create use this ID or higher."
+        }
+      ]
+    },
+    "sys_device_contract_type_e": {
+      "alias": "Device Contract",
+      "source_file": "components/system/sys_device/include/sys_device.h",
+      "members": [
+        {
+          "name": "SYS_DEVICE_CONTRACT_IO",
+          "value": 0,
+          "alias": "Digital/Analog IO",
+          "description": "Basic pin control - read or drive a pin, or measure/generate a voltage on it"
+        },
+        {
+          "name": "SYS_DEVICE_CONTRACT_POWER_VREG",
+          "value": 1,
+          "alias": "Voltage Regulator",
+          "description": "An adjustable power output - turn it on/off and set its voltage and current limit"
+        },
+        {
+          "name": "SYS_DEVICE_CONTRACT_POWER_MONITOR",
+          "value": 2,
+          "alias": "Power Monitor",
+          "description": "Measures voltage and current on a power rail, with optional over-current alerts"
+        },
+        {
+          "name": "SYS_DEVICE_CONTRACT_POWER_USB_PD",
+          "value": 3,
+          "alias": "USB-C Power Delivery",
+          "description": "Negotiates power (voltage/current) from a USB-C charger"
+        },
+        {
+          "name": "SYS_DEVICE_CONTRACT_HBRIDGE",
+          "value": 4,
+          "alias": "Motor Driver (H-Bridge)",
+          "description": "Drives a DC motor forward, backward, or brakes it"
+        },
+        {
+          "name": "SYS_DEVICE_CONTRACT_MAX",
+          "value": 5,
+          "alias": "(internal)",
+          "description": "Not a real contract - marks the end of the list, used internally for bounds checking"
+        }
+      ]
+    },
+    "sys_device_importance_e": {
+      "alias": "Device Error Importance",
+      "source_file": "components/system/sys_device/include/sys_device.h",
+      "members": [
+        {
+          "name": "SYS_DEV_IMPORTANCE_NONE",
+          "value": 0,
+          "alias": "Disabled",
+          "description": "Ignores every error of the device, critical ones included: nothing stops the system when it fails. Only for a device under test."
+        },
+        {
+          "name": "SYS_DEV_IMPORTANCE_LOW",
+          "value": 1,
+          "alias": "Low",
+          "description": "Handles only critical device errors. Every device starts here."
+        },
+        {
+          "name": "SYS_DEV_IMPORTANCE_MEDIUM",
+          "value": 2,
+          "alias": "Medium",
+          "description": "Handles high and critical device errors."
+        },
+        {
+          "name": "SYS_DEV_IMPORTANCE_HIGH",
+          "value": 3,
+          "alias": "High",
+          "description": "Handles medium, high and critical device errors."
+        },
+        {
+          "name": "SYS_DEV_IMPORTANCE_CRITICAL",
+          "value": 4,
+          "alias": "Critical",
+          "description": "Handles every device error severity."
+        }
+      ]
+    },
+    "sys_event_domain_e": {
+      "alias": "Event Domain",
+      "source_file": "components/system/sys_event/include/sys_event.h",
+      "members": [
+        {
+          "name": "SYS_EVENT_DOMAIN_IO",
+          "value": 0,
+          "alias": "IO",
+          "description": "Pin interrupts and analog alerts. Channel = pin, event = the edge or window crossed, value = level or mV"
+        },
+        {
+          "name": "SYS_EVENT_DOMAIN_POWER",
+          "value": 1,
+          "alias": "Power",
+          "description": "Regulator, monitor and board power events. Event = power event; board events use device 255"
+        },
+        {
+          "name": "SYS_EVENT_DOMAIN_HBRIDGE",
+          "value": 2,
+          "alias": "H-Bridge",
+          "description": "Motor driver faults. Channel = bridge channel, event = fault reason, value = current in mA"
+        },
+        {
+          "name": "SYS_EVENT_DOMAIN_BLE",
+          "value": 3,
+          "alias": "Bluetooth",
+          "description": "Connection events. Event = BLE event"
+        },
+        {
+          "name": "SYS_EVENT_DOMAIN_FEATURE",
+          "value": 4,
+          "alias": "Feature",
+          "description": "Events raised by features. Device = feature ID"
+        }
+      ]
+    },
+    "sys_hbridge_mode_e": {
+      "alias": "H-Bridge Mode",
+      "source_file": "components/system/sys_hbridge/include/sys_hbridge.h",
+      "members": [
+        {
+          "name": "SYS_HBRIDGE_MODE_FULL",
+          "value": 0,
+          "alias": "Full Bridge",
+          "description": "Bidirectional drive from -1.0 to 1.0"
+        },
+        {
+          "name": "SYS_HBRIDGE_MODE_HALF_HIGH",
+          "value": 1,
+          "alias": "Half Bridge High",
+          "description": "High-side PWM drive from 0.0 to 1.0"
+        },
+        {
+          "name": "SYS_HBRIDGE_MODE_HALF_LOW",
+          "value": 2,
+          "alias": "Half Bridge Low",
+          "description": "Low-side PWM sink from 0.0 to 1.0"
+        }
+      ]
+    },
+    "sys_hbridge_fault_reason_e": {
+      "alias": "H-Bridge Fault",
+      "source_file": "components/system/sys_hbridge/include/sys_hbridge.h",
+      "members": [
+        {
+          "name": "SYS_HBRIDGE_FAULT_NONE",
+          "value": 0,
+          "alias": "None",
+          "description": "No fault"
+        },
+        {
+          "name": "SYS_HBRIDGE_FAULT_OVERCURRENT",
+          "value": 1,
+          "alias": "Overcurrent",
+          "description": "The channel drew more than its current limit"
+        },
+        {
+          "name": "SYS_HBRIDGE_FAULT_THERMAL_OR_UVLO",
+          "value": 2,
+          "alias": "Overheat or Low Supply",
+          "description": "The driver chip overheated or its supply dropped too low; every channel stops"
+        },
+        {
+          "name": "SYS_HBRIDGE_FAULT_EXTERNAL",
+          "value": 3,
+          "alias": "External",
+          "description": "An external fault input was triggered"
+        }
+      ]
+    },
+    "sys_interface_status_e": {
+      "alias": "Response Status",
+      "source_file": "components/system/sys_interface/include/sys_interface.h",
+      "members": [
+        {
+          "name": "SYS_INTERFACE_STATUS_OK",
+          "value": 0,
+          "alias": "OK",
+          "description": "The command succeeded. Any response data follows."
+        },
+        {
+          "name": "SYS_INTERFACE_STATUS_ERROR",
+          "value": 1,
+          "alias": "Error",
+          "description": "The command failed. The root cause's error tag and owner follow; the full error chain is sent on the errors stream."
+        }
+      ]
+    },
+    "sys_io_mode_e": {
+      "alias": "IO Mode",
+      "source_file": "components/system/sys_io/include/sys_io.h",
+      "members": [
+        {
+          "name": "SYS_IO_MODE_INPUT",
+          "value": 0,
+          "alias": "Input",
+          "description": "Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal"
+        },
+        {
+          "name": "SYS_IO_MODE_INPUT_PULLUP",
+          "value": 1,
+          "alias": "Input with Pullup",
+          "description": "Same as Input, but reads \"on\" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed"
+        },
+        {
+          "name": "SYS_IO_MODE_INPUT_PULLDOWN",
+          "value": 2,
+          "alias": "Input with Pulldown",
+          "description": "Same as Input, but reads \"off\" by default when nothing is connected - use when your button/switch connects the pin to power when pressed"
+        },
+        {
+          "name": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+          "value": 3,
+          "alias": "Output Push-Pull",
+          "description": "Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays"
+        },
+        {
+          "name": "SYS_IO_MODE_OUTPUT_OPEN_DRAIN",
+          "value": 4,
+          "alias": "Output Open-Drain",
+          "description": "A weaker output that can only actively pull the signal to \"off\" - something else (an external resistor, or the Open-Drain-Pullup option) is needed to make it read \"on\". Mainly used when several devices need to share the same wire"
+        },
+        {
+          "name": "SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP",
+          "value": 5,
+          "alias": "Output Open-Drain-Pullup",
+          "description": "Same as Open-Drain, but with a built-in helper enabled so the pin reads \"on\" by itself instead of needing an extra part"
+        },
+        {
+          "name": "SYS_IO_MODE_PWM",
+          "value": 6,
+          "alias": "PWM",
+          "description": "Rapidly switches the pin on and off to fake an in-between level - use to dim an LED or control a motor's speed"
+        },
+        {
+          "name": "SYS_IO_MODE_ADC",
+          "value": 7,
+          "alias": "ADC",
+          "description": "Measures the exact voltage on the pin instead of just on/off - use to read sensors that report a varying value, like a potentiometer or a temperature sensor"
+        },
+        {
+          "name": "SYS_IO_MODE_DAC",
+          "value": 8,
+          "alias": "DAC",
+          "description": "Outputs an exact, steady voltage level instead of just on/off - the opposite of ADC"
+        }
+      ]
+    },
+    "sys_io_intr_mode_e": {
+      "alias": "Interrupt Mode",
+      "source_file": "components/system/sys_io/include/sys_io.h",
+      "members": [
+        {
+          "name": "SYS_IO_INTR_DISABLE",
+          "value": 0,
+          "alias": "Disable",
+          "description": "Don't watch this pin for changes - nothing gets triggered"
+        },
+        {
+          "name": "SYS_IO_INTR_MODE_RISING_EDGE",
+          "value": 1,
+          "alias": "Rising Edge",
+          "description": "Triggers the instant the pin switches from off to on"
+        },
+        {
+          "name": "SYS_IO_INTR_MODE_FALLING_EDGE",
+          "value": 2,
+          "alias": "Falling Edge",
+          "description": "Triggers the instant the pin switches from on to off"
+        },
+        {
+          "name": "SYS_IO_INTR_MODE_BOTH_EDGES",
+          "value": 3,
+          "alias": "Both Edges",
+          "description": "Triggers on any change - whether the pin switches from off to on, or on to off"
+        },
+        {
+          "name": "SYS_IO_INTR_ADC_WINDOW_OUTSIDE",
+          "value": 4,
+          "alias": "Outside set window",
+          "description": "Triggers when the measured value leaves the safe/expected range you set - use to catch a value going too high or too low"
+        },
+        {
+          "name": "SYS_IO_INTR_ADC_WINDOW_INSIDE",
+          "value": 5,
+          "alias": "Inside set window",
+          "description": "Triggers when the measured value comes back into the range you set - use to catch when a value returns to normal"
+        }
+      ]
+    },
+    "sys_power_events_e": {
+      "alias": "Power Event",
+      "source_file": "components/system/sys_power/include/sys_power.h",
+      "members": [
+        {
+          "name": "SYS_PWR_EVENT_NONE",
+          "value": 0,
+          "alias": "None",
+          "description": "Nothing wrong - normal operation"
+        },
+        {
+          "name": "SYS_PWR_EVENT_OVP",
+          "value": 1,
+          "alias": "Over-Voltage",
+          "description": "The voltage went above the safe limit"
+        },
+        {
+          "name": "SYS_PWR_EVENT_UVP",
+          "value": 2,
+          "alias": "Under-Voltage",
+          "description": "The voltage dropped below the safe limit"
+        },
+        {
+          "name": "SYS_PWR_EVENT_SPC",
+          "value": 3,
+          "alias": "Short Circuit",
+          "description": "A short circuit was detected on the output"
+        },
+        {
+          "name": "SYS_PWR_EVENT_OCP_WARNING",
+          "value": 4,
+          "alias": "Over-Current Warning",
+          "description": "Current draw is approaching the limit - not cut off yet, just a heads-up"
+        },
+        {
+          "name": "SYS_PWR_EVENT_OCP_CRITICAL",
+          "value": 5,
+          "alias": "Over-Current Critical",
+          "description": "Current draw exceeded the limit - output is protected/shut down"
+        },
+        {
+          "name": "SYS_PWR_EVENT_OTP",
+          "value": 6,
+          "alias": "Over-Temperature",
+          "description": "The device got too hot and triggered thermal protection"
+        },
+        {
+          "name": "SYS_PWR_EVENT_BATTERY_LOW",
+          "value": 7,
+          "alias": "Battery Low",
+          "description": "The battery charge fell to the low threshold"
+        },
+        {
+          "name": "SYS_PWR_EVENT_BATTERY_CRITICAL",
+          "value": 8,
+          "alias": "Battery Critical",
+          "description": "The battery charge fell to the critical threshold"
+        },
+        {
+          "name": "SYS_PWR_EVENT_BUDGET_EXCEEDED",
+          "value": 9,
+          "alias": "Budget Exceeded",
+          "description": "The power source can no longer cover what the outputs are set to draw"
+        },
+        {
+          "name": "SYS_PWR_EVENT_SOURCE_CHANGED",
+          "value": 10,
+          "alias": "Source Changed",
+          "description": "The board switched to another power source (the value is the new source)"
+        }
+      ]
+    },
+    "sys_power_usb_pd_option_type_e": {
+      "alias": "USB-PD Option Type",
+      "source_file": "components/system/sys_power/include/sys_power.h",
+      "members": [
+        {
+          "name": "SYS_POWER_USB_PD_OPTION_FIXED",
+          "value": 0,
+          "alias": "Fixed",
+          "description": "A fixed voltage."
+        },
+        {
+          "name": "SYS_POWER_USB_PD_OPTION_PPS",
+          "value": 1,
+          "alias": "PPS",
+          "description": "Programmable voltage within a range (standard power range, up to 21 V)."
+        },
+        {
+          "name": "SYS_POWER_USB_PD_OPTION_AVS",
+          "value": 2,
+          "alias": "AVS",
+          "description": "Adjustable voltage within a range (extended power range, up to 28 V)."
+        }
+      ]
+    },
+    "sys_power_source_e": {
+      "alias": "Power Source",
+      "source_file": "components/system/sys_power/include/sys_power.h",
+      "members": [
+        {
+          "name": "SYS_POWER_SOURCE_UNKNOWN",
+          "value": 0,
+          "alias": "Unknown",
+          "description": "Not identified; the budget uses the measured input voltage and the board's assumed current"
+        },
+        {
+          "name": "SYS_POWER_SOURCE_USB_PD",
+          "value": 1,
+          "alias": "USB-C",
+          "description": "USB-C Power Delivery; the budget uses the input voltage and the source's current"
+        },
+        {
+          "name": "SYS_POWER_SOURCE_PSU",
+          "value": 2,
+          "alias": "Power Supply",
+          "description": "External supply; the budget uses the input voltage and the current entered by the user"
+        },
+        {
+          "name": "SYS_POWER_SOURCE_BATTERY",
+          "value": 3,
+          "alias": "Battery",
+          "description": "Battery; the budget uses the measured voltage, current limited only by the board"
+        }
+      ]
+    },
+    "sys_power_response_e": {
+      "alias": "Power Event Response",
+      "source_file": "components/system/sys_power/include/sys_power.h",
+      "members": [
+        {
+          "name": "SYS_POWER_RESPONSE_NOTIFY",
+          "value": 0,
+          "alias": "Notify",
+          "description": "Only raise the event"
+        },
+        {
+          "name": "SYS_POWER_RESPONSE_DISABLE",
+          "value": 1,
+          "alias": "Disable",
+          "description": "Suspend the affected output: that rail, or every rail for a board-level event"
+        },
+        {
+          "name": "SYS_POWER_RESPONSE_RESET",
+          "value": 2,
+          "alias": "Reset",
+          "description": "Reset the affected device: that rail, or every rail for a board-level event"
+        },
+        {
+          "name": "SYS_POWER_RESPONSE_SAFE_STATE",
+          "value": 3,
+          "alias": "Safe State",
+          "description": "Stop the program and suspend every device"
+        }
+      ]
+    },
+    "sys_power_battery_e": {
+      "alias": "Battery Chemistry",
+      "source_file": "components/system/sys_power/include/sys_power.h",
+      "members": [
+        {
+          "name": "SYS_POWER_BATTERY_NONE",
+          "value": 0,
+          "alias": "None",
+          "description": "No battery configured"
+        },
+        {
+          "name": "SYS_POWER_BATTERY_LIPO",
+          "value": 1,
+          "alias": "LiPo",
+          "description": "Lithium polymer, 4.2 V per cell when full"
+        }
+      ]
+    },
+    "sys_project_replay_e": {
+      "alias": "Replay State",
+      "source_file": "components/system/sys_project/include/sys_project.h",
+      "members": [
+        {
+          "name": "SYS_PROJECT_REPLAY_NONE",
+          "value": 0,
+          "alias": "Not run",
+          "description": "No stored code at boot, or the replay hasn't run yet."
+        },
+        {
+          "name": "SYS_PROJECT_REPLAY_DONE",
+          "value": 1,
+          "alias": "Replayed",
+          "description": "Every frame was decoded; `failed` counts the refused ones."
+        },
+        {
+          "name": "SYS_PROJECT_REPLAY_SKIPPED",
+          "value": 2,
+          "alias": "Skipped",
+          "description": "Built for another firmware (schema ID differs); nothing applied."
+        },
+        {
+          "name": "SYS_PROJECT_REPLAY_CORRUPT",
+          "value": 3,
+          "alias": "Corrupt",
+          "description": "The stored list failed its CRC or framing check; nothing applied."
+        }
+      ]
+    },
+    "vm_action_scope_e": {
+      "alias": "Action Scope",
+      "source_file": "components/VM/blocks/vm_block_action.h",
+      "members": [
+        {
+          "name": "VM_ACTION_SCOPE_STATIC",
+          "value": 0,
+          "alias": "Static",
+          "description": "A built-in action (freeze, safe state, device reset, ...)"
+        },
+        {
+          "name": "VM_ACTION_SCOPE_RECORDED",
+          "value": 1,
+          "alias": "Recorded",
+          "description": "A recorded packet sequence"
+        }
+      ]
+    },
+    "vm_edge_type_e": {
+      "alias": "Edge Type",
+      "source_file": "components/VM/blocks/vm_block_edge.h",
+      "members": [
+        {
+          "name": "VM_EDGE_RISING",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EDGE_FALLING",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EDGE_BOTH",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EDGE_TYPE_CNT",
+          "value": 3,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_expr_op_e": {
+      "alias": "Expression Opcode",
+      "source_file": "components/VM/blocks/vm_block_expr.h",
+      "members": [
+        {
+          "name": "VM_EXPR_END",
+          "value": 0,
+          "alias": "end",
+          "description": "Stop; the rest of the code is ignored."
+        },
+        {
+          "name": "VM_EXPR_IN",
+          "value": 1,
+          "alias": "in",
+          "description": "-> input[operand] (as float)"
+        },
+        {
+          "name": "VM_EXPR_K",
+          "value": 2,
+          "alias": "const",
+          "description": "-> constant[operand]"
+        },
+        {
+          "name": "VM_EXPR_DUP",
+          "value": 3,
+          "alias": "dup",
+          "description": "a -> a a"
+        },
+        {
+          "name": "VM_EXPR_DROP",
+          "value": 4,
+          "alias": "drop",
+          "description": "a ->"
+        },
+        {
+          "name": "VM_EXPR_SWAP",
+          "value": 5,
+          "alias": "swap",
+          "description": "a b -> b a"
+        },
+        {
+          "name": "VM_EXPR_ADD",
+          "value": 6,
+          "alias": "+",
+          "description": "a b -> a + b"
+        },
+        {
+          "name": "VM_EXPR_SUB",
+          "value": 7,
+          "alias": "-",
+          "description": "a b -> a - b"
+        },
+        {
+          "name": "VM_EXPR_MUL",
+          "value": 8,
+          "alias": "*",
+          "description": "a b -> a * b"
+        },
+        {
+          "name": "VM_EXPR_DIV",
+          "value": 9,
+          "alias": "/",
+          "description": "a b -> a / b (b = 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_MOD",
+          "value": 10,
+          "alias": "mod",
+          "description": "a b -> fmod(a, b) (b = 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_POW",
+          "value": 11,
+          "alias": "pow",
+          "description": "a b -> a to the power b (a < 0 with fractional b faults)"
+        },
+        {
+          "name": "VM_EXPR_ROOT",
+          "value": 12,
+          "alias": "root",
+          "description": "a b -> b-th root of a (b = 0 faults; a < 0 needs an odd integer b)"
+        },
+        {
+          "name": "VM_EXPR_MIN",
+          "value": 13,
+          "alias": "min",
+          "description": "a b -> the smaller"
+        },
+        {
+          "name": "VM_EXPR_MAX",
+          "value": 14,
+          "alias": "max",
+          "description": "a b -> the larger"
+        },
+        {
+          "name": "VM_EXPR_ATAN2",
+          "value": 15,
+          "alias": "atan2",
+          "description": "y x -> atan2(y, x), radians"
+        },
+        {
+          "name": "VM_EXPR_HYPOT",
+          "value": 16,
+          "alias": "hypot",
+          "description": "a b -> sqrt(a*a + b*b)"
+        },
+        {
+          "name": "VM_EXPR_NEG",
+          "value": 17,
+          "alias": "neg",
+          "description": "a -> -a"
+        },
+        {
+          "name": "VM_EXPR_ABS",
+          "value": 18,
+          "alias": "abs",
+          "description": "a -> |a|"
+        },
+        {
+          "name": "VM_EXPR_SQRT",
+          "value": 19,
+          "alias": "sqrt",
+          "description": "a -> square root (a < 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_SQUARE",
+          "value": 20,
+          "alias": "sq",
+          "description": "a -> a * a"
+        },
+        {
+          "name": "VM_EXPR_RECIP",
+          "value": 21,
+          "alias": "1/x",
+          "description": "a -> 1 / a (a = 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_FLOOR",
+          "value": 22,
+          "alias": "floor",
+          "description": "a -> round down"
+        },
+        {
+          "name": "VM_EXPR_CEIL",
+          "value": 23,
+          "alias": "ceil",
+          "description": "a -> round up"
+        },
+        {
+          "name": "VM_EXPR_ROUND",
+          "value": 24,
+          "alias": "round",
+          "description": "a -> round half away from zero"
+        },
+        {
+          "name": "VM_EXPR_TRUNC",
+          "value": 25,
+          "alias": "trunc",
+          "description": "a -> round toward zero"
+        },
+        {
+          "name": "VM_EXPR_SIGN",
+          "value": 26,
+          "alias": "sign",
+          "description": "a -> -1, 0 or 1"
+        },
+        {
+          "name": "VM_EXPR_SIN",
+          "value": 27,
+          "alias": "sin",
+          "description": "a -> sin(a), radians"
+        },
+        {
+          "name": "VM_EXPR_COS",
+          "value": 28,
+          "alias": "cos",
+          "description": "a -> cos(a), radians"
+        },
+        {
+          "name": "VM_EXPR_TAN",
+          "value": 29,
+          "alias": "tan",
+          "description": "a -> tan(a), radians"
+        },
+        {
+          "name": "VM_EXPR_ASIN",
+          "value": 30,
+          "alias": "asin",
+          "description": "a -> asin(a) (|a| > 1 faults)"
+        },
+        {
+          "name": "VM_EXPR_ACOS",
+          "value": 31,
+          "alias": "acos",
+          "description": "a -> acos(a) (|a| > 1 faults)"
+        },
+        {
+          "name": "VM_EXPR_ATAN",
+          "value": 32,
+          "alias": "atan",
+          "description": "a -> atan(a)"
+        },
+        {
+          "name": "VM_EXPR_EXP",
+          "value": 33,
+          "alias": "exp",
+          "description": "a -> e to the power a"
+        },
+        {
+          "name": "VM_EXPR_LOG",
+          "value": 34,
+          "alias": "ln",
+          "description": "a -> natural log (a <= 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_LOG10",
+          "value": 35,
+          "alias": "log10",
+          "description": "a -> base-10 log (a <= 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_LOG2",
+          "value": 36,
+          "alias": "log2",
+          "description": "a -> base-2 log (a <= 0 faults)"
+        },
+        {
+          "name": "VM_EXPR_DEG",
+          "value": 37,
+          "alias": "deg",
+          "description": "a -> radians to degrees"
+        },
+        {
+          "name": "VM_EXPR_RAD",
+          "value": 38,
+          "alias": "rad",
+          "description": "a -> degrees to radians"
+        },
+        {
+          "name": "VM_EXPR_LT",
+          "value": 39,
+          "alias": "<",
+          "description": "a b -> a < b"
+        },
+        {
+          "name": "VM_EXPR_LE",
+          "value": 40,
+          "alias": "<=",
+          "description": "a b -> a <= b"
+        },
+        {
+          "name": "VM_EXPR_GT",
+          "value": 41,
+          "alias": ">",
+          "description": "a b -> a > b"
+        },
+        {
+          "name": "VM_EXPR_GE",
+          "value": 42,
+          "alias": ">=",
+          "description": "a b -> a >= b"
+        },
+        {
+          "name": "VM_EXPR_EQ",
+          "value": 43,
+          "alias": "==",
+          "description": "a b -> a == b (exact)"
+        },
+        {
+          "name": "VM_EXPR_NE",
+          "value": 44,
+          "alias": "!=",
+          "description": "a b -> a != b (exact)"
+        },
+        {
+          "name": "VM_EXPR_AND",
+          "value": 45,
+          "alias": "and",
+          "description": "a b -> a and b"
+        },
+        {
+          "name": "VM_EXPR_OR",
+          "value": 46,
+          "alias": "or",
+          "description": "a b -> a or b"
+        },
+        {
+          "name": "VM_EXPR_XOR",
+          "value": 47,
+          "alias": "xor",
+          "description": "a b -> exactly one of a, b"
+        },
+        {
+          "name": "VM_EXPR_NOT",
+          "value": 48,
+          "alias": "not",
+          "description": "a -> not a"
+        },
+        {
+          "name": "VM_EXPR_SEL",
+          "value": 49,
+          "alias": "select",
+          "description": "c t f -> t if c is non-zero, else f"
+        },
+        {
+          "name": "VM_EXPR_OP_CNT",
+          "value": 50,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_bit_op_e": {
+      "alias": "Bit Expression Opcode",
+      "source_file": "components/VM/blocks/vm_block_expr.h",
+      "members": [
+        {
+          "name": "VM_BIT_END",
+          "value": 0,
+          "alias": "end",
+          "description": "Stop; the rest of the code is ignored."
+        },
+        {
+          "name": "VM_BIT_IN",
+          "value": 1,
+          "alias": "in",
+          "description": "-> input[operand] (as u32)"
+        },
+        {
+          "name": "VM_BIT_K",
+          "value": 2,
+          "alias": "const",
+          "description": "-> constant[operand]"
+        },
+        {
+          "name": "VM_BIT_DUP",
+          "value": 3,
+          "alias": "dup",
+          "description": "a -> a a"
+        },
+        {
+          "name": "VM_BIT_DROP",
+          "value": 4,
+          "alias": "drop",
+          "description": "a ->"
+        },
+        {
+          "name": "VM_BIT_SWAP",
+          "value": 5,
+          "alias": "swap",
+          "description": "a b -> b a"
+        },
+        {
+          "name": "VM_BIT_AND",
+          "value": 6,
+          "alias": "&",
+          "description": "a b -> a AND b"
+        },
+        {
+          "name": "VM_BIT_OR",
+          "value": 7,
+          "alias": "|",
+          "description": "a b -> a OR b"
+        },
+        {
+          "name": "VM_BIT_XOR",
+          "value": 8,
+          "alias": "^",
+          "description": "a b -> a XOR b"
+        },
+        {
+          "name": "VM_BIT_SHL",
+          "value": 9,
+          "alias": "<<",
+          "description": "a n -> a shifted left by n (n >= 32 gives 0)"
+        },
+        {
+          "name": "VM_BIT_SHR",
+          "value": 10,
+          "alias": ">>",
+          "description": "a n -> a shifted right by n, zero fill (n >= 32 gives 0)"
+        },
+        {
+          "name": "VM_BIT_SAR",
+          "value": 11,
+          "alias": ">>>",
+          "description": "a n -> a shifted right by n, sign fill"
+        },
+        {
+          "name": "VM_BIT_ROL",
+          "value": 12,
+          "alias": "rol",
+          "description": "a n -> a rotated left by n mod 32"
+        },
+        {
+          "name": "VM_BIT_ROR",
+          "value": 13,
+          "alias": "ror",
+          "description": "a n -> a rotated right by n mod 32"
+        },
+        {
+          "name": "VM_BIT_GET",
+          "value": 14,
+          "alias": "bit",
+          "description": "a n -> bit n mod 32 of a (1 or 0)"
+        },
+        {
+          "name": "VM_BIT_SET",
+          "value": 15,
+          "alias": "set",
+          "description": "a n -> a with bit n mod 32 set"
+        },
+        {
+          "name": "VM_BIT_CLR",
+          "value": 16,
+          "alias": "clear",
+          "description": "a n -> a with bit n mod 32 cleared"
+        },
+        {
+          "name": "VM_BIT_TGL",
+          "value": 17,
+          "alias": "toggle",
+          "description": "a n -> a with bit n mod 32 flipped"
+        },
+        {
+          "name": "VM_BIT_NOT",
+          "value": 18,
+          "alias": "~",
+          "description": "a -> every bit flipped"
+        },
+        {
+          "name": "VM_BIT_POPCNT",
+          "value": 19,
+          "alias": "popcount",
+          "description": "a -> number of set bits"
+        },
+        {
+          "name": "VM_BIT_CLZ",
+          "value": 20,
+          "alias": "clz",
+          "description": "a -> leading zero bits (32 for 0)"
+        },
+        {
+          "name": "VM_BIT_CTZ",
+          "value": 21,
+          "alias": "ctz",
+          "description": "a -> trailing zero bits (32 for 0)"
+        },
+        {
+          "name": "VM_BIT_BSWAP",
+          "value": 22,
+          "alias": "bswap",
+          "description": "a -> byte order reversed"
+        },
+        {
+          "name": "VM_BIT_OP_CNT",
+          "value": 23,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_for_op_e": {
+      "alias": "Loop Step Operation",
+      "source_file": "components/VM/blocks/vm_block_for.h",
+      "members": [
+        {
+          "name": "VM_FOR_OP_ADD",
+          "value": 0,
+          "alias": "+",
+          "description": null
+        },
+        {
+          "name": "VM_FOR_OP_SUB",
+          "value": 1,
+          "alias": "-",
+          "description": null
+        },
+        {
+          "name": "VM_FOR_OP_MUL",
+          "value": 2,
+          "alias": "*",
+          "description": null
+        },
+        {
+          "name": "VM_FOR_OP_DIV",
+          "value": 3,
+          "alias": "/",
+          "description": null
+        },
+        {
+          "name": "VM_FOR_OP_CNT",
+          "value": 4,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_for_cmp_e": {
+      "alias": "Loop Condition",
+      "source_file": "components/VM/blocks/vm_block_for.h",
+      "members": [
+        {
+          "name": "VM_FOR_CMP_LT",
+          "value": 0,
+          "alias": "<",
+          "description": null
+        },
+        {
+          "name": "VM_FOR_CMP_LE",
+          "value": 1,
+          "alias": "<=",
+          "description": null
+        },
+        {
+          "name": "VM_FOR_CMP_GT",
+          "value": 2,
+          "alias": ">",
+          "description": null
+        },
+        {
+          "name": "VM_FOR_CMP_GE",
+          "value": 3,
+          "alias": ">=",
+          "description": null
+        },
+        {
+          "name": "VM_FOR_CMP_CNT",
+          "value": 4,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_io_disabled_state_e": {
+      "alias": "IO Disabled Action",
+      "source_file": "components/VM/blocks/vm_block_io_set_level.h",
+      "members": [
+        {
+          "name": "VM_IO_DISABLED_FORCE_LOW",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IO_DISABLED_FORCE_HIGH",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IO_DISABLED_HOLD",
+          "value": 2,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_io_level_e": {
+      "alias": "IO Static Level",
+      "source_file": "components/VM/blocks/vm_block_io_set_level.h",
+      "members": [
+        {
+          "name": "VM_IO_LEVEL_HIGH",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IO_LEVEL_LOW",
+          "value": 1,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_latch_mode_e": {
+      "alias": "Latch Mode",
+      "source_file": "components/VM/blocks/vm_block_latch.h",
+      "members": [
+        {
+          "name": "VM_LATCH_SET_DOMINANT",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_LATCH_RESET_DOMINANT",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_LATCH_MODE_CNT",
+          "value": 2,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_timer_mode_e": {
+      "alias": "Timer Mode",
+      "source_file": "components/VM/blocks/vm_block_timer.h",
+      "members": [
+        {
+          "name": "VM_TIMER_TON",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TOF",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TP",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TON_INV",
+          "value": 3,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TOF_INV",
+          "value": 4,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_TP_INV",
+          "value": 5,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_MODE_CNT",
+          "value": 6,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_timer_unit_e": {
+      "alias": "Time Unit",
+      "source_file": "components/VM/blocks/vm_block_timer.h",
+      "members": [
+        {
+          "name": "VM_TIMER_UNIT_MS",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_SEC",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_MIN",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_HR",
+          "value": 3,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_TIMER_UNIT_CNT",
+          "value": 4,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_blk_en_mode_e": {
+      "alias": "Enable Mode",
+      "source_file": "components/VM/core/block/vm_block.h",
+      "members": [
+        {
+          "name": "VM_BLK_EN_ANY",
+          "value": 0,
+          "alias": "Any",
+          "description": "Runs when any enable is true (OR, a branch merge)."
+        },
+        {
+          "name": "VM_BLK_EN_ALL",
+          "value": 1,
+          "alias": "All",
+          "description": "Runs when every enable is true (AND)."
+        }
+      ]
+    },
+    "vm_blk_on_error_e": {
+      "alias": "On Error",
+      "source_file": "components/VM/core/block/vm_block.h",
+      "members": [
+        {
+          "name": "VM_BLK_ERR_STOP",
+          "value": 0,
+          "alias": "Stop",
+          "description": "Publish a false ENO; downstream blocks skip."
+        },
+        {
+          "name": "VM_BLK_ERR_CONTINUE",
+          "value": 1,
+          "alias": "Continue",
+          "description": "Report the failure and carry on."
+        }
+      ]
+    },
+    "vm_exec_command_e": {
+      "alias": "VM Exec Command",
+      "source_file": "components/VM/core/exec/vm_exec.h",
+      "members": [
+        {
+          "name": "VM_EXEC_SCAN_MODE",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_ONCE",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_BLOCK_MODE",
+          "value": 2,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_NEXT",
+          "value": 3,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_RESET_TO_START",
+          "value": 4,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_NORMAL_MODE",
+          "value": 5,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_PAUSE",
+          "value": 6,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_RESUME",
+          "value": 7,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_RESET",
+          "value": 8,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_ACK_FAULT",
+          "value": 9,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_EXEC_RETAIN_CLEAR",
+          "value": 10,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_obj_t_e": {
+      "alias": "VM Data Type",
+      "source_file": "components/VM/core/obj/vm_obj.h",
+      "members": [
+        {
+          "name": "VM_OBJ_NONE",
+          "value": 0,
+          "alias": "Empty",
+          "description": "No payload type."
+        },
+        {
+          "name": "VM_OBJ_PTR",
+          "value": 1,
+          "alias": "Object Reference",
+          "description": "A reference to another VM object."
+        },
+        {
+          "name": "VM_OBJ_U8",
+          "value": 2,
+          "alias": "Unsigned 8-bit Integer",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_U32",
+          "value": 3,
+          "alias": "Unsigned 32-bit Integer",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_I32",
+          "value": 4,
+          "alias": "Signed 32-bit Integer",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_F",
+          "value": 5,
+          "alias": "Float",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_B",
+          "value": 6,
+          "alias": "Boolean",
+          "description": null
+        },
+        {
+          "name": "VM_OBJ_STR",
+          "value": 7,
+          "alias": "Text",
+          "description": null
+        }
+      ]
+    },
+    "vm_index_kind_e": {
+      "alias": "VM Index Kind",
+      "source_file": "components/VM/core/obj/vm_obj_access.h",
+      "members": [
+        {
+          "name": "VM_IDX_LITERAL",
+          "value": 0,
+          "alias": "Literal Index",
+          "description": "A fixed array position."
+        },
+        {
+          "name": "VM_IDX_REF",
+          "value": 1,
+          "alias": "Accessor Reference",
+          "description": "Read another accessor to obtain the index."
+        },
+        {
+          "name": "VM_IDX_NAME",
+          "value": 2,
+          "alias": "Child Name",
+          "description": "Find a child object by its tag."
+        }
+      ]
+    }
+  },
+  "symbols": {
+    "RUNIT_DATA_PROVIDER_BLE": {
+      "enum": "runit_data_provider_e",
+      "value": 1,
+      "alias": "Bluetooth LE",
+      "description": "The endpoint is a characteristic UUID."
+    },
+    "RUNIT_DATA_PROVIDER_UART": {
+      "enum": "runit_data_provider_e",
+      "value": 2,
+      "alias": "UART console",
+      "description": "Frames are \"#R:<hex>\" lines on the console UART, next to the text log. The only endpoint is 0."
+    },
+    "SYS_BLE_EVENT_CONNECT": {
+      "enum": "sys_ble_events_e",
+      "value": 0,
+      "alias": "Connected",
+      "description": "The app connected (value = connection handle)"
+    },
+    "SYS_BLE_EVENT_DISCONNECT": {
+      "enum": "sys_ble_events_e",
+      "value": 1,
+      "alias": "Disconnected",
+      "description": "The app disconnected (value = reason code)"
+    },
+    "SYS_BLE_EVENT_FAILURE": {
+      "enum": "sys_ble_events_e",
+      "value": 2,
+      "alias": "Failure",
+      "description": "A connection, receive or send failure (value = error code)"
+    },
+    "SYS_ACTION_STATIC_BOOT": {
+      "enum": "sys_action_static_e",
+      "value": 1,
+      "alias": "Boot setup",
+      "description": "Installs the board's own devices (bound by the application)."
+    },
+    "SYS_ACTION_STATIC_FREEZE": {
+      "enum": "sys_action_static_e",
+      "value": 2,
+      "alias": "Freeze all devices",
+      "description": "Holds every device at its current state."
+    },
+    "SYS_ACTION_STATIC_RESUME": {
+      "enum": "sys_action_static_e",
+      "value": 3,
+      "alias": "Resume all devices",
+      "description": "Resumes and syncs every device."
+    },
+    "SYS_ACTION_STATIC_SUSPEND": {
+      "enum": "sys_action_static_e",
+      "value": 4,
+      "alias": "Suspend all devices",
+      "description": "Suspends every device."
+    },
+    "SYS_ACTION_STATIC_RESET": {
+      "enum": "sys_action_static_e",
+      "value": 5,
+      "alias": "Reset",
+      "description": "Resets every device, rewinds the VM and runs the boot setup again."
+    },
+    "SYS_ACTION_STATIC_HARD_RESET": {
+      "enum": "sys_action_static_e",
+      "value": 6,
+      "alias": "Hard reset",
+      "description": "Unloads the VM program, uninstalls every device and runs the boot setup again."
+    },
+    "SYS_DATA_CONNECTOR_LOGS": {
+      "enum": "sys_data_connector_id_e",
+      "value": 0,
+      "alias": "Logs",
+      "description": "Text log lines."
+    },
+    "SYS_DATA_CONNECTOR_ERRORS": {
+      "enum": "sys_data_connector_id_e",
+      "value": 1,
+      "alias": "Errors",
+      "description": "Binary error reports."
+    },
+    "SYS_DATA_CONNECTOR_TELEMETRY": {
+      "enum": "sys_data_connector_id_e",
+      "value": 2,
+      "alias": "Telemetry",
+      "description": "Program object values you subscribed to."
+    },
+    "SYS_DATA_CONNECTOR_INTERFACE": {
+      "enum": "sys_data_connector_id_e",
+      "value": 3,
+      "alias": "Commands",
+      "description": "Commands to the board and their responses."
+    },
+    "SYS_DATA_CONNECTOR_APP_BASE": {
+      "enum": "sys_data_connector_id_e",
+      "value": 4,
+      "alias": "First user connector",
+      "description": "Connectors you create use this ID or higher."
+    },
+    "SYS_DEVICE_CONTRACT_IO": {
+      "enum": "sys_device_contract_type_e",
+      "value": 0,
+      "alias": "Digital/Analog IO",
+      "description": "Basic pin control - read or drive a pin, or measure/generate a voltage on it"
+    },
+    "SYS_DEVICE_CONTRACT_POWER_VREG": {
+      "enum": "sys_device_contract_type_e",
+      "value": 1,
+      "alias": "Voltage Regulator",
+      "description": "An adjustable power output - turn it on/off and set its voltage and current limit"
+    },
+    "SYS_DEVICE_CONTRACT_POWER_MONITOR": {
+      "enum": "sys_device_contract_type_e",
+      "value": 2,
+      "alias": "Power Monitor",
+      "description": "Measures voltage and current on a power rail, with optional over-current alerts"
+    },
+    "SYS_DEVICE_CONTRACT_POWER_USB_PD": {
+      "enum": "sys_device_contract_type_e",
+      "value": 3,
+      "alias": "USB-C Power Delivery",
+      "description": "Negotiates power (voltage/current) from a USB-C charger"
+    },
+    "SYS_DEVICE_CONTRACT_HBRIDGE": {
+      "enum": "sys_device_contract_type_e",
+      "value": 4,
+      "alias": "Motor Driver (H-Bridge)",
+      "description": "Drives a DC motor forward, backward, or brakes it"
+    },
+    "SYS_DEVICE_CONTRACT_MAX": {
+      "enum": "sys_device_contract_type_e",
+      "value": 5,
+      "alias": "(internal)",
+      "description": "Not a real contract - marks the end of the list, used internally for bounds checking"
+    },
+    "SYS_DEV_IMPORTANCE_NONE": {
+      "enum": "sys_device_importance_e",
+      "value": 0,
+      "alias": "Disabled",
+      "description": "Ignores every error of the device, critical ones included: nothing stops the system when it fails. Only for a device under test."
+    },
+    "SYS_DEV_IMPORTANCE_LOW": {
+      "enum": "sys_device_importance_e",
+      "value": 1,
+      "alias": "Low",
+      "description": "Handles only critical device errors. Every device starts here."
+    },
+    "SYS_DEV_IMPORTANCE_MEDIUM": {
+      "enum": "sys_device_importance_e",
+      "value": 2,
+      "alias": "Medium",
+      "description": "Handles high and critical device errors."
+    },
+    "SYS_DEV_IMPORTANCE_HIGH": {
+      "enum": "sys_device_importance_e",
+      "value": 3,
+      "alias": "High",
+      "description": "Handles medium, high and critical device errors."
+    },
+    "SYS_DEV_IMPORTANCE_CRITICAL": {
+      "enum": "sys_device_importance_e",
+      "value": 4,
+      "alias": "Critical",
+      "description": "Handles every device error severity."
+    },
+    "SYS_EVENT_DOMAIN_IO": {
+      "enum": "sys_event_domain_e",
+      "value": 0,
+      "alias": "IO",
+      "description": "Pin interrupts and analog alerts. Channel = pin, event = the edge or window crossed, value = level or mV"
+    },
+    "SYS_EVENT_DOMAIN_POWER": {
+      "enum": "sys_event_domain_e",
+      "value": 1,
+      "alias": "Power",
+      "description": "Regulator, monitor and board power events. Event = power event; board events use device 255"
+    },
+    "SYS_EVENT_DOMAIN_HBRIDGE": {
+      "enum": "sys_event_domain_e",
+      "value": 2,
+      "alias": "H-Bridge",
+      "description": "Motor driver faults. Channel = bridge channel, event = fault reason, value = current in mA"
+    },
+    "SYS_EVENT_DOMAIN_BLE": {
+      "enum": "sys_event_domain_e",
+      "value": 3,
+      "alias": "Bluetooth",
+      "description": "Connection events. Event = BLE event"
+    },
+    "SYS_EVENT_DOMAIN_FEATURE": {
+      "enum": "sys_event_domain_e",
+      "value": 4,
+      "alias": "Feature",
+      "description": "Events raised by features. Device = feature ID"
+    },
+    "SYS_HBRIDGE_MODE_FULL": {
+      "enum": "sys_hbridge_mode_e",
+      "value": 0,
+      "alias": "Full Bridge",
+      "description": "Bidirectional drive from -1.0 to 1.0"
+    },
+    "SYS_HBRIDGE_MODE_HALF_HIGH": {
+      "enum": "sys_hbridge_mode_e",
+      "value": 1,
+      "alias": "Half Bridge High",
+      "description": "High-side PWM drive from 0.0 to 1.0"
+    },
+    "SYS_HBRIDGE_MODE_HALF_LOW": {
+      "enum": "sys_hbridge_mode_e",
+      "value": 2,
+      "alias": "Half Bridge Low",
+      "description": "Low-side PWM sink from 0.0 to 1.0"
+    },
+    "SYS_HBRIDGE_FAULT_NONE": {
+      "enum": "sys_hbridge_fault_reason_e",
+      "value": 0,
+      "alias": "None",
+      "description": "No fault"
+    },
+    "SYS_HBRIDGE_FAULT_OVERCURRENT": {
+      "enum": "sys_hbridge_fault_reason_e",
+      "value": 1,
+      "alias": "Overcurrent",
+      "description": "The channel drew more than its current limit"
+    },
+    "SYS_HBRIDGE_FAULT_THERMAL_OR_UVLO": {
+      "enum": "sys_hbridge_fault_reason_e",
+      "value": 2,
+      "alias": "Overheat or Low Supply",
+      "description": "The driver chip overheated or its supply dropped too low; every channel stops"
+    },
+    "SYS_HBRIDGE_FAULT_EXTERNAL": {
+      "enum": "sys_hbridge_fault_reason_e",
+      "value": 3,
+      "alias": "External",
+      "description": "An external fault input was triggered"
+    },
+    "SYS_INTERFACE_STATUS_OK": {
+      "enum": "sys_interface_status_e",
+      "value": 0,
+      "alias": "OK",
+      "description": "The command succeeded. Any response data follows."
+    },
+    "SYS_INTERFACE_STATUS_ERROR": {
+      "enum": "sys_interface_status_e",
+      "value": 1,
+      "alias": "Error",
+      "description": "The command failed. The root cause's error tag and owner follow; the full error chain is sent on the errors stream."
+    },
+    "SYS_IO_MODE_INPUT": {
+      "enum": "sys_io_mode_e",
+      "value": 0,
+      "alias": "Input",
+      "description": "Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal"
+    },
+    "SYS_IO_MODE_INPUT_PULLUP": {
+      "enum": "sys_io_mode_e",
+      "value": 1,
+      "alias": "Input with Pullup",
+      "description": "Same as Input, but reads \"on\" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed"
+    },
+    "SYS_IO_MODE_INPUT_PULLDOWN": {
+      "enum": "sys_io_mode_e",
+      "value": 2,
+      "alias": "Input with Pulldown",
+      "description": "Same as Input, but reads \"off\" by default when nothing is connected - use when your button/switch connects the pin to power when pressed"
+    },
+    "SYS_IO_MODE_OUTPUT_PUSH_PULL": {
+      "enum": "sys_io_mode_e",
+      "value": 3,
+      "alias": "Output Push-Pull",
+      "description": "Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays"
+    },
+    "SYS_IO_MODE_OUTPUT_OPEN_DRAIN": {
+      "enum": "sys_io_mode_e",
+      "value": 4,
+      "alias": "Output Open-Drain",
+      "description": "A weaker output that can only actively pull the signal to \"off\" - something else (an external resistor, or the Open-Drain-Pullup option) is needed to make it read \"on\". Mainly used when several devices need to share the same wire"
+    },
+    "SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP": {
+      "enum": "sys_io_mode_e",
+      "value": 5,
+      "alias": "Output Open-Drain-Pullup",
+      "description": "Same as Open-Drain, but with a built-in helper enabled so the pin reads \"on\" by itself instead of needing an extra part"
+    },
+    "SYS_IO_MODE_PWM": {
+      "enum": "sys_io_mode_e",
+      "value": 6,
+      "alias": "PWM",
+      "description": "Rapidly switches the pin on and off to fake an in-between level - use to dim an LED or control a motor's speed"
+    },
+    "SYS_IO_MODE_ADC": {
+      "enum": "sys_io_mode_e",
+      "value": 7,
+      "alias": "ADC",
+      "description": "Measures the exact voltage on the pin instead of just on/off - use to read sensors that report a varying value, like a potentiometer or a temperature sensor"
+    },
+    "SYS_IO_MODE_DAC": {
+      "enum": "sys_io_mode_e",
+      "value": 8,
+      "alias": "DAC",
+      "description": "Outputs an exact, steady voltage level instead of just on/off - the opposite of ADC"
+    },
+    "SYS_IO_INTR_DISABLE": {
+      "enum": "sys_io_intr_mode_e",
+      "value": 0,
+      "alias": "Disable",
+      "description": "Don't watch this pin for changes - nothing gets triggered"
+    },
+    "SYS_IO_INTR_MODE_RISING_EDGE": {
+      "enum": "sys_io_intr_mode_e",
+      "value": 1,
+      "alias": "Rising Edge",
+      "description": "Triggers the instant the pin switches from off to on"
+    },
+    "SYS_IO_INTR_MODE_FALLING_EDGE": {
+      "enum": "sys_io_intr_mode_e",
+      "value": 2,
+      "alias": "Falling Edge",
+      "description": "Triggers the instant the pin switches from on to off"
+    },
+    "SYS_IO_INTR_MODE_BOTH_EDGES": {
+      "enum": "sys_io_intr_mode_e",
+      "value": 3,
+      "alias": "Both Edges",
+      "description": "Triggers on any change - whether the pin switches from off to on, or on to off"
+    },
+    "SYS_IO_INTR_ADC_WINDOW_OUTSIDE": {
+      "enum": "sys_io_intr_mode_e",
+      "value": 4,
+      "alias": "Outside set window",
+      "description": "Triggers when the measured value leaves the safe/expected range you set - use to catch a value going too high or too low"
+    },
+    "SYS_IO_INTR_ADC_WINDOW_INSIDE": {
+      "enum": "sys_io_intr_mode_e",
+      "value": 5,
+      "alias": "Inside set window",
+      "description": "Triggers when the measured value comes back into the range you set - use to catch when a value returns to normal"
+    },
+    "SYS_PWR_EVENT_NONE": {
+      "enum": "sys_power_events_e",
+      "value": 0,
+      "alias": "None",
+      "description": "Nothing wrong - normal operation"
+    },
+    "SYS_PWR_EVENT_OVP": {
+      "enum": "sys_power_events_e",
+      "value": 1,
+      "alias": "Over-Voltage",
+      "description": "The voltage went above the safe limit"
+    },
+    "SYS_PWR_EVENT_UVP": {
+      "enum": "sys_power_events_e",
+      "value": 2,
+      "alias": "Under-Voltage",
+      "description": "The voltage dropped below the safe limit"
+    },
+    "SYS_PWR_EVENT_SPC": {
+      "enum": "sys_power_events_e",
+      "value": 3,
+      "alias": "Short Circuit",
+      "description": "A short circuit was detected on the output"
+    },
+    "SYS_PWR_EVENT_OCP_WARNING": {
+      "enum": "sys_power_events_e",
+      "value": 4,
+      "alias": "Over-Current Warning",
+      "description": "Current draw is approaching the limit - not cut off yet, just a heads-up"
+    },
+    "SYS_PWR_EVENT_OCP_CRITICAL": {
+      "enum": "sys_power_events_e",
+      "value": 5,
+      "alias": "Over-Current Critical",
+      "description": "Current draw exceeded the limit - output is protected/shut down"
+    },
+    "SYS_PWR_EVENT_OTP": {
+      "enum": "sys_power_events_e",
+      "value": 6,
+      "alias": "Over-Temperature",
+      "description": "The device got too hot and triggered thermal protection"
+    },
+    "SYS_PWR_EVENT_BATTERY_LOW": {
+      "enum": "sys_power_events_e",
+      "value": 7,
+      "alias": "Battery Low",
+      "description": "The battery charge fell to the low threshold"
+    },
+    "SYS_PWR_EVENT_BATTERY_CRITICAL": {
+      "enum": "sys_power_events_e",
+      "value": 8,
+      "alias": "Battery Critical",
+      "description": "The battery charge fell to the critical threshold"
+    },
+    "SYS_PWR_EVENT_BUDGET_EXCEEDED": {
+      "enum": "sys_power_events_e",
+      "value": 9,
+      "alias": "Budget Exceeded",
+      "description": "The power source can no longer cover what the outputs are set to draw"
+    },
+    "SYS_PWR_EVENT_SOURCE_CHANGED": {
+      "enum": "sys_power_events_e",
+      "value": 10,
+      "alias": "Source Changed",
+      "description": "The board switched to another power source (the value is the new source)"
+    },
+    "SYS_POWER_USB_PD_OPTION_FIXED": {
+      "enum": "sys_power_usb_pd_option_type_e",
+      "value": 0,
+      "alias": "Fixed",
+      "description": "A fixed voltage."
+    },
+    "SYS_POWER_USB_PD_OPTION_PPS": {
+      "enum": "sys_power_usb_pd_option_type_e",
+      "value": 1,
+      "alias": "PPS",
+      "description": "Programmable voltage within a range (standard power range, up to 21 V)."
+    },
+    "SYS_POWER_USB_PD_OPTION_AVS": {
+      "enum": "sys_power_usb_pd_option_type_e",
+      "value": 2,
+      "alias": "AVS",
+      "description": "Adjustable voltage within a range (extended power range, up to 28 V)."
+    },
+    "SYS_POWER_SOURCE_UNKNOWN": {
+      "enum": "sys_power_source_e",
+      "value": 0,
+      "alias": "Unknown",
+      "description": "Not identified; the budget uses the measured input voltage and the board's assumed current"
+    },
+    "SYS_POWER_SOURCE_USB_PD": {
+      "enum": "sys_power_source_e",
+      "value": 1,
+      "alias": "USB-C",
+      "description": "USB-C Power Delivery; the budget uses the input voltage and the source's current"
+    },
+    "SYS_POWER_SOURCE_PSU": {
+      "enum": "sys_power_source_e",
+      "value": 2,
+      "alias": "Power Supply",
+      "description": "External supply; the budget uses the input voltage and the current entered by the user"
+    },
+    "SYS_POWER_SOURCE_BATTERY": {
+      "enum": "sys_power_source_e",
+      "value": 3,
+      "alias": "Battery",
+      "description": "Battery; the budget uses the measured voltage, current limited only by the board"
+    },
+    "SYS_POWER_RESPONSE_NOTIFY": {
+      "enum": "sys_power_response_e",
+      "value": 0,
+      "alias": "Notify",
+      "description": "Only raise the event"
+    },
+    "SYS_POWER_RESPONSE_DISABLE": {
+      "enum": "sys_power_response_e",
+      "value": 1,
+      "alias": "Disable",
+      "description": "Suspend the affected output: that rail, or every rail for a board-level event"
+    },
+    "SYS_POWER_RESPONSE_RESET": {
+      "enum": "sys_power_response_e",
+      "value": 2,
+      "alias": "Reset",
+      "description": "Reset the affected device: that rail, or every rail for a board-level event"
+    },
+    "SYS_POWER_RESPONSE_SAFE_STATE": {
+      "enum": "sys_power_response_e",
+      "value": 3,
+      "alias": "Safe State",
+      "description": "Stop the program and suspend every device"
+    },
+    "SYS_POWER_BATTERY_NONE": {
+      "enum": "sys_power_battery_e",
+      "value": 0,
+      "alias": "None",
+      "description": "No battery configured"
+    },
+    "SYS_POWER_BATTERY_LIPO": {
+      "enum": "sys_power_battery_e",
+      "value": 1,
+      "alias": "LiPo",
+      "description": "Lithium polymer, 4.2 V per cell when full"
+    },
+    "SYS_PROJECT_REPLAY_NONE": {
+      "enum": "sys_project_replay_e",
+      "value": 0,
+      "alias": "Not run",
+      "description": "No stored code at boot, or the replay hasn't run yet."
+    },
+    "SYS_PROJECT_REPLAY_DONE": {
+      "enum": "sys_project_replay_e",
+      "value": 1,
+      "alias": "Replayed",
+      "description": "Every frame was decoded; `failed` counts the refused ones."
+    },
+    "SYS_PROJECT_REPLAY_SKIPPED": {
+      "enum": "sys_project_replay_e",
+      "value": 2,
+      "alias": "Skipped",
+      "description": "Built for another firmware (schema ID differs); nothing applied."
+    },
+    "SYS_PROJECT_REPLAY_CORRUPT": {
+      "enum": "sys_project_replay_e",
+      "value": 3,
+      "alias": "Corrupt",
+      "description": "The stored list failed its CRC or framing check; nothing applied."
+    },
+    "VM_ACTION_SCOPE_STATIC": {
+      "enum": "vm_action_scope_e",
+      "value": 0,
+      "alias": "Static",
+      "description": "A built-in action (freeze, safe state, device reset, ...)"
+    },
+    "VM_ACTION_SCOPE_RECORDED": {
+      "enum": "vm_action_scope_e",
+      "value": 1,
+      "alias": "Recorded",
+      "description": "A recorded packet sequence"
+    },
+    "VM_EDGE_RISING": {
+      "enum": "vm_edge_type_e",
+      "value": 0,
+      "alias": null,
+      "description": null
+    },
+    "VM_EDGE_FALLING": {
+      "enum": "vm_edge_type_e",
+      "value": 1,
+      "alias": null,
+      "description": null
+    },
+    "VM_EDGE_BOTH": {
+      "enum": "vm_edge_type_e",
+      "value": 2,
+      "alias": null,
+      "description": null
+    },
+    "VM_EDGE_TYPE_CNT": {
+      "enum": "vm_edge_type_e",
+      "value": 3,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXPR_END": {
+      "enum": "vm_expr_op_e",
+      "value": 0,
+      "alias": "end",
+      "description": "Stop; the rest of the code is ignored."
+    },
+    "VM_EXPR_IN": {
+      "enum": "vm_expr_op_e",
+      "value": 1,
+      "alias": "in",
+      "description": "-> input[operand] (as float)"
+    },
+    "VM_EXPR_K": {
+      "enum": "vm_expr_op_e",
+      "value": 2,
+      "alias": "const",
+      "description": "-> constant[operand]"
+    },
+    "VM_EXPR_DUP": {
+      "enum": "vm_expr_op_e",
+      "value": 3,
+      "alias": "dup",
+      "description": "a -> a a"
+    },
+    "VM_EXPR_DROP": {
+      "enum": "vm_expr_op_e",
+      "value": 4,
+      "alias": "drop",
+      "description": "a ->"
+    },
+    "VM_EXPR_SWAP": {
+      "enum": "vm_expr_op_e",
+      "value": 5,
+      "alias": "swap",
+      "description": "a b -> b a"
+    },
+    "VM_EXPR_ADD": {
+      "enum": "vm_expr_op_e",
+      "value": 6,
+      "alias": "+",
+      "description": "a b -> a + b"
+    },
+    "VM_EXPR_SUB": {
+      "enum": "vm_expr_op_e",
+      "value": 7,
+      "alias": "-",
+      "description": "a b -> a - b"
+    },
+    "VM_EXPR_MUL": {
+      "enum": "vm_expr_op_e",
+      "value": 8,
+      "alias": "*",
+      "description": "a b -> a * b"
+    },
+    "VM_EXPR_DIV": {
+      "enum": "vm_expr_op_e",
+      "value": 9,
+      "alias": "/",
+      "description": "a b -> a / b (b = 0 faults)"
+    },
+    "VM_EXPR_MOD": {
+      "enum": "vm_expr_op_e",
+      "value": 10,
+      "alias": "mod",
+      "description": "a b -> fmod(a, b) (b = 0 faults)"
+    },
+    "VM_EXPR_POW": {
+      "enum": "vm_expr_op_e",
+      "value": 11,
+      "alias": "pow",
+      "description": "a b -> a to the power b (a < 0 with fractional b faults)"
+    },
+    "VM_EXPR_ROOT": {
+      "enum": "vm_expr_op_e",
+      "value": 12,
+      "alias": "root",
+      "description": "a b -> b-th root of a (b = 0 faults; a < 0 needs an odd integer b)"
+    },
+    "VM_EXPR_MIN": {
+      "enum": "vm_expr_op_e",
+      "value": 13,
+      "alias": "min",
+      "description": "a b -> the smaller"
+    },
+    "VM_EXPR_MAX": {
+      "enum": "vm_expr_op_e",
+      "value": 14,
+      "alias": "max",
+      "description": "a b -> the larger"
+    },
+    "VM_EXPR_ATAN2": {
+      "enum": "vm_expr_op_e",
+      "value": 15,
+      "alias": "atan2",
+      "description": "y x -> atan2(y, x), radians"
+    },
+    "VM_EXPR_HYPOT": {
+      "enum": "vm_expr_op_e",
+      "value": 16,
+      "alias": "hypot",
+      "description": "a b -> sqrt(a*a + b*b)"
+    },
+    "VM_EXPR_NEG": {
+      "enum": "vm_expr_op_e",
+      "value": 17,
+      "alias": "neg",
+      "description": "a -> -a"
+    },
+    "VM_EXPR_ABS": {
+      "enum": "vm_expr_op_e",
+      "value": 18,
+      "alias": "abs",
+      "description": "a -> |a|"
+    },
+    "VM_EXPR_SQRT": {
+      "enum": "vm_expr_op_e",
+      "value": 19,
+      "alias": "sqrt",
+      "description": "a -> square root (a < 0 faults)"
+    },
+    "VM_EXPR_SQUARE": {
+      "enum": "vm_expr_op_e",
+      "value": 20,
+      "alias": "sq",
+      "description": "a -> a * a"
+    },
+    "VM_EXPR_RECIP": {
+      "enum": "vm_expr_op_e",
+      "value": 21,
+      "alias": "1/x",
+      "description": "a -> 1 / a (a = 0 faults)"
+    },
+    "VM_EXPR_FLOOR": {
+      "enum": "vm_expr_op_e",
+      "value": 22,
+      "alias": "floor",
+      "description": "a -> round down"
+    },
+    "VM_EXPR_CEIL": {
+      "enum": "vm_expr_op_e",
+      "value": 23,
+      "alias": "ceil",
+      "description": "a -> round up"
+    },
+    "VM_EXPR_ROUND": {
+      "enum": "vm_expr_op_e",
+      "value": 24,
+      "alias": "round",
+      "description": "a -> round half away from zero"
+    },
+    "VM_EXPR_TRUNC": {
+      "enum": "vm_expr_op_e",
+      "value": 25,
+      "alias": "trunc",
+      "description": "a -> round toward zero"
+    },
+    "VM_EXPR_SIGN": {
+      "enum": "vm_expr_op_e",
+      "value": 26,
+      "alias": "sign",
+      "description": "a -> -1, 0 or 1"
+    },
+    "VM_EXPR_SIN": {
+      "enum": "vm_expr_op_e",
+      "value": 27,
+      "alias": "sin",
+      "description": "a -> sin(a), radians"
+    },
+    "VM_EXPR_COS": {
+      "enum": "vm_expr_op_e",
+      "value": 28,
+      "alias": "cos",
+      "description": "a -> cos(a), radians"
+    },
+    "VM_EXPR_TAN": {
+      "enum": "vm_expr_op_e",
+      "value": 29,
+      "alias": "tan",
+      "description": "a -> tan(a), radians"
+    },
+    "VM_EXPR_ASIN": {
+      "enum": "vm_expr_op_e",
+      "value": 30,
+      "alias": "asin",
+      "description": "a -> asin(a) (|a| > 1 faults)"
+    },
+    "VM_EXPR_ACOS": {
+      "enum": "vm_expr_op_e",
+      "value": 31,
+      "alias": "acos",
+      "description": "a -> acos(a) (|a| > 1 faults)"
+    },
+    "VM_EXPR_ATAN": {
+      "enum": "vm_expr_op_e",
+      "value": 32,
+      "alias": "atan",
+      "description": "a -> atan(a)"
+    },
+    "VM_EXPR_EXP": {
+      "enum": "vm_expr_op_e",
+      "value": 33,
+      "alias": "exp",
+      "description": "a -> e to the power a"
+    },
+    "VM_EXPR_LOG": {
+      "enum": "vm_expr_op_e",
+      "value": 34,
+      "alias": "ln",
+      "description": "a -> natural log (a <= 0 faults)"
+    },
+    "VM_EXPR_LOG10": {
+      "enum": "vm_expr_op_e",
+      "value": 35,
+      "alias": "log10",
+      "description": "a -> base-10 log (a <= 0 faults)"
+    },
+    "VM_EXPR_LOG2": {
+      "enum": "vm_expr_op_e",
+      "value": 36,
+      "alias": "log2",
+      "description": "a -> base-2 log (a <= 0 faults)"
+    },
+    "VM_EXPR_DEG": {
+      "enum": "vm_expr_op_e",
+      "value": 37,
+      "alias": "deg",
+      "description": "a -> radians to degrees"
+    },
+    "VM_EXPR_RAD": {
+      "enum": "vm_expr_op_e",
+      "value": 38,
+      "alias": "rad",
+      "description": "a -> degrees to radians"
+    },
+    "VM_EXPR_LT": {
+      "enum": "vm_expr_op_e",
+      "value": 39,
+      "alias": "<",
+      "description": "a b -> a < b"
+    },
+    "VM_EXPR_LE": {
+      "enum": "vm_expr_op_e",
+      "value": 40,
+      "alias": "<=",
+      "description": "a b -> a <= b"
+    },
+    "VM_EXPR_GT": {
+      "enum": "vm_expr_op_e",
+      "value": 41,
+      "alias": ">",
+      "description": "a b -> a > b"
+    },
+    "VM_EXPR_GE": {
+      "enum": "vm_expr_op_e",
+      "value": 42,
+      "alias": ">=",
+      "description": "a b -> a >= b"
+    },
+    "VM_EXPR_EQ": {
+      "enum": "vm_expr_op_e",
+      "value": 43,
+      "alias": "==",
+      "description": "a b -> a == b (exact)"
+    },
+    "VM_EXPR_NE": {
+      "enum": "vm_expr_op_e",
+      "value": 44,
+      "alias": "!=",
+      "description": "a b -> a != b (exact)"
+    },
+    "VM_EXPR_AND": {
+      "enum": "vm_expr_op_e",
+      "value": 45,
+      "alias": "and",
+      "description": "a b -> a and b"
+    },
+    "VM_EXPR_OR": {
+      "enum": "vm_expr_op_e",
+      "value": 46,
+      "alias": "or",
+      "description": "a b -> a or b"
+    },
+    "VM_EXPR_XOR": {
+      "enum": "vm_expr_op_e",
+      "value": 47,
+      "alias": "xor",
+      "description": "a b -> exactly one of a, b"
+    },
+    "VM_EXPR_NOT": {
+      "enum": "vm_expr_op_e",
+      "value": 48,
+      "alias": "not",
+      "description": "a -> not a"
+    },
+    "VM_EXPR_SEL": {
+      "enum": "vm_expr_op_e",
+      "value": 49,
+      "alias": "select",
+      "description": "c t f -> t if c is non-zero, else f"
+    },
+    "VM_EXPR_OP_CNT": {
+      "enum": "vm_expr_op_e",
+      "value": 50,
+      "alias": null,
+      "description": null
+    },
+    "VM_BIT_END": {
+      "enum": "vm_bit_op_e",
+      "value": 0,
+      "alias": "end",
+      "description": "Stop; the rest of the code is ignored."
+    },
+    "VM_BIT_IN": {
+      "enum": "vm_bit_op_e",
+      "value": 1,
+      "alias": "in",
+      "description": "-> input[operand] (as u32)"
+    },
+    "VM_BIT_K": {
+      "enum": "vm_bit_op_e",
+      "value": 2,
+      "alias": "const",
+      "description": "-> constant[operand]"
+    },
+    "VM_BIT_DUP": {
+      "enum": "vm_bit_op_e",
+      "value": 3,
+      "alias": "dup",
+      "description": "a -> a a"
+    },
+    "VM_BIT_DROP": {
+      "enum": "vm_bit_op_e",
+      "value": 4,
+      "alias": "drop",
+      "description": "a ->"
+    },
+    "VM_BIT_SWAP": {
+      "enum": "vm_bit_op_e",
+      "value": 5,
+      "alias": "swap",
+      "description": "a b -> b a"
+    },
+    "VM_BIT_AND": {
+      "enum": "vm_bit_op_e",
+      "value": 6,
+      "alias": "&",
+      "description": "a b -> a AND b"
+    },
+    "VM_BIT_OR": {
+      "enum": "vm_bit_op_e",
+      "value": 7,
+      "alias": "|",
+      "description": "a b -> a OR b"
+    },
+    "VM_BIT_XOR": {
+      "enum": "vm_bit_op_e",
+      "value": 8,
+      "alias": "^",
+      "description": "a b -> a XOR b"
+    },
+    "VM_BIT_SHL": {
+      "enum": "vm_bit_op_e",
+      "value": 9,
+      "alias": "<<",
+      "description": "a n -> a shifted left by n (n >= 32 gives 0)"
+    },
+    "VM_BIT_SHR": {
+      "enum": "vm_bit_op_e",
+      "value": 10,
+      "alias": ">>",
+      "description": "a n -> a shifted right by n, zero fill (n >= 32 gives 0)"
+    },
+    "VM_BIT_SAR": {
+      "enum": "vm_bit_op_e",
+      "value": 11,
+      "alias": ">>>",
+      "description": "a n -> a shifted right by n, sign fill"
+    },
+    "VM_BIT_ROL": {
+      "enum": "vm_bit_op_e",
+      "value": 12,
+      "alias": "rol",
+      "description": "a n -> a rotated left by n mod 32"
+    },
+    "VM_BIT_ROR": {
+      "enum": "vm_bit_op_e",
+      "value": 13,
+      "alias": "ror",
+      "description": "a n -> a rotated right by n mod 32"
+    },
+    "VM_BIT_GET": {
+      "enum": "vm_bit_op_e",
+      "value": 14,
+      "alias": "bit",
+      "description": "a n -> bit n mod 32 of a (1 or 0)"
+    },
+    "VM_BIT_SET": {
+      "enum": "vm_bit_op_e",
+      "value": 15,
+      "alias": "set",
+      "description": "a n -> a with bit n mod 32 set"
+    },
+    "VM_BIT_CLR": {
+      "enum": "vm_bit_op_e",
+      "value": 16,
+      "alias": "clear",
+      "description": "a n -> a with bit n mod 32 cleared"
+    },
+    "VM_BIT_TGL": {
+      "enum": "vm_bit_op_e",
+      "value": 17,
+      "alias": "toggle",
+      "description": "a n -> a with bit n mod 32 flipped"
+    },
+    "VM_BIT_NOT": {
+      "enum": "vm_bit_op_e",
+      "value": 18,
+      "alias": "~",
+      "description": "a -> every bit flipped"
+    },
+    "VM_BIT_POPCNT": {
+      "enum": "vm_bit_op_e",
+      "value": 19,
+      "alias": "popcount",
+      "description": "a -> number of set bits"
+    },
+    "VM_BIT_CLZ": {
+      "enum": "vm_bit_op_e",
+      "value": 20,
+      "alias": "clz",
+      "description": "a -> leading zero bits (32 for 0)"
+    },
+    "VM_BIT_CTZ": {
+      "enum": "vm_bit_op_e",
+      "value": 21,
+      "alias": "ctz",
+      "description": "a -> trailing zero bits (32 for 0)"
+    },
+    "VM_BIT_BSWAP": {
+      "enum": "vm_bit_op_e",
+      "value": 22,
+      "alias": "bswap",
+      "description": "a -> byte order reversed"
+    },
+    "VM_BIT_OP_CNT": {
+      "enum": "vm_bit_op_e",
+      "value": 23,
+      "alias": null,
+      "description": null
+    },
+    "VM_FOR_OP_ADD": {
+      "enum": "vm_for_op_e",
+      "value": 0,
+      "alias": "+",
+      "description": null
+    },
+    "VM_FOR_OP_SUB": {
+      "enum": "vm_for_op_e",
+      "value": 1,
+      "alias": "-",
+      "description": null
+    },
+    "VM_FOR_OP_MUL": {
+      "enum": "vm_for_op_e",
+      "value": 2,
+      "alias": "*",
+      "description": null
+    },
+    "VM_FOR_OP_DIV": {
+      "enum": "vm_for_op_e",
+      "value": 3,
+      "alias": "/",
+      "description": null
+    },
+    "VM_FOR_OP_CNT": {
+      "enum": "vm_for_op_e",
+      "value": 4,
+      "alias": null,
+      "description": null
+    },
+    "VM_FOR_CMP_LT": {
+      "enum": "vm_for_cmp_e",
+      "value": 0,
+      "alias": "<",
+      "description": null
+    },
+    "VM_FOR_CMP_LE": {
+      "enum": "vm_for_cmp_e",
+      "value": 1,
+      "alias": "<=",
+      "description": null
+    },
+    "VM_FOR_CMP_GT": {
+      "enum": "vm_for_cmp_e",
+      "value": 2,
+      "alias": ">",
+      "description": null
+    },
+    "VM_FOR_CMP_GE": {
+      "enum": "vm_for_cmp_e",
+      "value": 3,
+      "alias": ">=",
+      "description": null
+    },
+    "VM_FOR_CMP_CNT": {
+      "enum": "vm_for_cmp_e",
+      "value": 4,
+      "alias": null,
+      "description": null
+    },
+    "VM_IO_DISABLED_FORCE_LOW": {
+      "enum": "vm_io_disabled_state_e",
+      "value": 0,
+      "alias": null,
+      "description": null
+    },
+    "VM_IO_DISABLED_FORCE_HIGH": {
+      "enum": "vm_io_disabled_state_e",
+      "value": 1,
+      "alias": null,
+      "description": null
+    },
+    "VM_IO_DISABLED_HOLD": {
+      "enum": "vm_io_disabled_state_e",
+      "value": 2,
+      "alias": null,
+      "description": null
+    },
+    "VM_IO_LEVEL_HIGH": {
+      "enum": "vm_io_level_e",
+      "value": 0,
+      "alias": null,
+      "description": null
+    },
+    "VM_IO_LEVEL_LOW": {
+      "enum": "vm_io_level_e",
+      "value": 1,
+      "alias": null,
+      "description": null
+    },
+    "VM_LATCH_SET_DOMINANT": {
+      "enum": "vm_latch_mode_e",
+      "value": 0,
+      "alias": null,
+      "description": null
+    },
+    "VM_LATCH_RESET_DOMINANT": {
+      "enum": "vm_latch_mode_e",
+      "value": 1,
+      "alias": null,
+      "description": null
+    },
+    "VM_LATCH_MODE_CNT": {
+      "enum": "vm_latch_mode_e",
+      "value": 2,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_TON": {
+      "enum": "vm_timer_mode_e",
+      "value": 0,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_TOF": {
+      "enum": "vm_timer_mode_e",
+      "value": 1,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_TP": {
+      "enum": "vm_timer_mode_e",
+      "value": 2,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_TON_INV": {
+      "enum": "vm_timer_mode_e",
+      "value": 3,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_TOF_INV": {
+      "enum": "vm_timer_mode_e",
+      "value": 4,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_TP_INV": {
+      "enum": "vm_timer_mode_e",
+      "value": 5,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_MODE_CNT": {
+      "enum": "vm_timer_mode_e",
+      "value": 6,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_UNIT_MS": {
+      "enum": "vm_timer_unit_e",
+      "value": 0,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_UNIT_SEC": {
+      "enum": "vm_timer_unit_e",
+      "value": 1,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_UNIT_MIN": {
+      "enum": "vm_timer_unit_e",
+      "value": 2,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_UNIT_HR": {
+      "enum": "vm_timer_unit_e",
+      "value": 3,
+      "alias": null,
+      "description": null
+    },
+    "VM_TIMER_UNIT_CNT": {
+      "enum": "vm_timer_unit_e",
+      "value": 4,
+      "alias": null,
+      "description": null
+    },
+    "VM_BLK_EN_ANY": {
+      "enum": "vm_blk_en_mode_e",
+      "value": 0,
+      "alias": "Any",
+      "description": "Runs when any enable is true (OR, a branch merge)."
+    },
+    "VM_BLK_EN_ALL": {
+      "enum": "vm_blk_en_mode_e",
+      "value": 1,
+      "alias": "All",
+      "description": "Runs when every enable is true (AND)."
+    },
+    "VM_BLK_ERR_STOP": {
+      "enum": "vm_blk_on_error_e",
+      "value": 0,
+      "alias": "Stop",
+      "description": "Publish a false ENO; downstream blocks skip."
+    },
+    "VM_BLK_ERR_CONTINUE": {
+      "enum": "vm_blk_on_error_e",
+      "value": 1,
+      "alias": "Continue",
+      "description": "Report the failure and carry on."
+    },
+    "VM_EXEC_SCAN_MODE": {
+      "enum": "vm_exec_command_e",
+      "value": 0,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_ONCE": {
+      "enum": "vm_exec_command_e",
+      "value": 1,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_BLOCK_MODE": {
+      "enum": "vm_exec_command_e",
+      "value": 2,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_NEXT": {
+      "enum": "vm_exec_command_e",
+      "value": 3,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_RESET_TO_START": {
+      "enum": "vm_exec_command_e",
+      "value": 4,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_NORMAL_MODE": {
+      "enum": "vm_exec_command_e",
+      "value": 5,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_PAUSE": {
+      "enum": "vm_exec_command_e",
+      "value": 6,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_RESUME": {
+      "enum": "vm_exec_command_e",
+      "value": 7,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_RESET": {
+      "enum": "vm_exec_command_e",
+      "value": 8,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_ACK_FAULT": {
+      "enum": "vm_exec_command_e",
+      "value": 9,
+      "alias": null,
+      "description": null
+    },
+    "VM_EXEC_RETAIN_CLEAR": {
+      "enum": "vm_exec_command_e",
+      "value": 10,
+      "alias": null,
+      "description": null
+    },
+    "VM_OBJ_NONE": {
+      "enum": "vm_obj_t_e",
+      "value": 0,
+      "alias": "Empty",
+      "description": "No payload type."
+    },
+    "VM_OBJ_PTR": {
+      "enum": "vm_obj_t_e",
+      "value": 1,
+      "alias": "Object Reference",
+      "description": "A reference to another VM object."
+    },
+    "VM_OBJ_U8": {
+      "enum": "vm_obj_t_e",
+      "value": 2,
+      "alias": "Unsigned 8-bit Integer",
+      "description": null
+    },
+    "VM_OBJ_U32": {
+      "enum": "vm_obj_t_e",
+      "value": 3,
+      "alias": "Unsigned 32-bit Integer",
+      "description": null
+    },
+    "VM_OBJ_I32": {
+      "enum": "vm_obj_t_e",
+      "value": 4,
+      "alias": "Signed 32-bit Integer",
+      "description": null
+    },
+    "VM_OBJ_F": {
+      "enum": "vm_obj_t_e",
+      "value": 5,
+      "alias": "Float",
+      "description": null
+    },
+    "VM_OBJ_B": {
+      "enum": "vm_obj_t_e",
+      "value": 6,
+      "alias": "Boolean",
+      "description": null
+    },
+    "VM_OBJ_STR": {
+      "enum": "vm_obj_t_e",
+      "value": 7,
+      "alias": "Text",
+      "description": null
+    },
+    "VM_IDX_LITERAL": {
+      "enum": "vm_index_kind_e",
+      "value": 0,
+      "alias": "Literal Index",
+      "description": "A fixed array position."
+    },
+    "VM_IDX_REF": {
+      "enum": "vm_index_kind_e",
+      "value": 1,
+      "alias": "Accessor Reference",
+      "description": "Read another accessor to obtain the index."
+    },
+    "VM_IDX_NAME": {
+      "enum": "vm_index_kind_e",
+      "value": 2,
+      "alias": "Child Name",
+      "description": "Find a child object by its tag."
+    }
+  }
+}

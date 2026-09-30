@@ -1,268 +1,361 @@
 #pragma once
-#include <stddef.h>
-#include <stdint.h>
+#include <sdkconfig.h>
 #include "vm_obj_access.h"
 
+/** @brief Sentinel for unwired pin or absent ENO. */
+#define VM_BLOCK_NO_ID 0xFFFFu  //@vm-constant @description Unwired input pin, or no ENO object.
 /*
-One block = one linear-allocator blob, sized once at creation:
-  [cfg][in_cnt * const vm_accessor_t*][q_cnt * vm_obj_h][en_cnt * const vm_accessor_t*][custom_data bytes]
+ * VM Block Execution Model & API
+ *
+ * Defines the execution block descriptor, memory layout, slice getters,
+ * enable evaluation, execution span takeover, and block error reporting.
+ *
+ * Linear block memory layout in VM store:
+ *   [cfg (16B)][in_cnt * const vm_accessor_t*][q_cnt * vm_obj_h][en_cnt * const vm_accessor_t*][custom_data bytes]
+ *
+ * Logic Flow:
+ *   1. Constants & Bitflags (Pin limits, Enable modes, Error policies, Runtime flags)
+ *   2. Types & Block Data Structure (vm_span_t, vm_block_data_t, vm_block_h, vm_block_fn)
+ *   3. Sizing & Registry Lookups (vm_block_get_by_id, vm_block_calc_size, vm_block_get_total_size, vm_block_get_custom_len)
+ *   4. Slice Accessors (vm_block_get_inputs, vm_block_get_outputs, vm_block_get_en_list, vm_block_get_custom_data)
+ *   5. Pin Access & Validation (vm_block_get_in, vm_block_get_out)
+ *   6. Runtime Evaluation, Spans & ENO (vm_block_is_enabled, vm_block_set_eno, vm_block_triggered, vm_block_input_fresh, vm_block_get_span, vm_block_claim_span)
+ *   7. Error Reporting & Execution Macros (vm_block_report_error, BLOCK_CALL, IF_BLOCK_*)
+ */
 
-No separate allocations for inputs/outputs/enables/custom_data, and nothing to
-keep in sync -- their positions are derived from in_cnt/q_cnt/en_cnt, not stored.
+// ===========================================================================
+// 1. Constants & Bitflags
+// ===========================================================================
 
-Inputs and outputs are deliberately different shapes. An input can be wired
-to anything -- any object, any element, possibly through a switch cell, with
-a possibly dynamic index -- so it needs the full accessor. An output is bound
-once at load time to an object this block owns, and never moves, so there is
-nothing to resolve: the slot holds the vm_obj_h itself. That is both smaller
-(no chain descriptor) and free at runtime (no walk at all).
+/** @brief Enable evaluation mode across en_cnt sources. */
+//#ref-enum @alias Enable Mode
+typedef enum vm_blk_en_mode_e {
+  VM_BLK_EN_ANY = 0,  //@alias Any @description Runs when any enable is true (OR, a branch merge).
+  VM_BLK_EN_ALL = 1,  //@alias All @description Runs when every enable is true (AND).
+} vm_blk_en_mode_e;
 
-An input slot may be **NULL**, meaning the pin exists but nothing is wired to
-it -- the block falls back to a constant it keeps in custom_data (a servo with
-a typed-in angle rather than a wired one). NULL is the only spelling for that:
-there is deliberately no parallel "connected" bitmask, because two encodings of
-the same fact can disagree, and `vm_block_get_in()` already reports
-ERR_VM_BLOCK_PIN_UNLINKED off the NULL.
-*/
+/** @brief Error policy on body failure. */
+//#ref-enum @alias On Error
+typedef enum vm_blk_on_error_e {
+  VM_BLK_ERR_STOP     = 0,  //@alias Stop @description Publish a false ENO; downstream blocks skip.
+  VM_BLK_ERR_CONTINUE = 1,  //@alias Continue @description Report the failure and carry on.
+} vm_blk_on_error_e;
 
-/* EN/ENO sit outside the numbered pins so the supervisor can gate every block
-   identically without knowing which pin index a given block type happens to
-   use. They are ordinary boolean objects otherwise.
+/** @brief Runtime status flags (latched per pass or sticky across load). */
+#define VM_BLK_RT_TRIGGERED (1u << 0u)  // Fresh data arrived on an input (latched by vm_block_triggered)
+#define VM_BLK_RT_SPAN      (1u << 1u)  // Block claimed an execution range (vm_block_claim_span)
+#define VM_BLK_RT_FAULT     (1u << 2u)  // This call failed (vm_block_report_error / vm_block_mark_failed); read by on_error
+#define VM_BLK_RT_SPAN_BAD  (1u << 7u)  // Sticky: malformed span reported once per load
 
-   EN is a *list*, because the flow graph is a DAG: a block reached by two
-   branches has two enable sources (see [[VM_EXEC.MD]]). The list lives in the
-   block's own trailing bytes like the pins do, so a block with the common
-   single enable pays one pointer for it and a root block pays nothing at all.
+#define VM_BLK_RT_PER_CALL (VM_BLK_RT_TRIGGERED | VM_BLK_RT_SPAN | VM_BLK_RT_FAULT)
 
-   There is deliberately no `section_idx` here. A block does not know which
-   section owns it, for the same reason an object does not know its own id: the
-   section's ordered list is the one place that fact lives, and the supervisor
-   is walking it, so a copy in the block could only ever disagree with it.
-   `block_idx` does stay, because BLOCK_CALL runs *inside* block bodies where
-   there is no supervisor frame to ask -- and an error path that depends on
-   ambient state being correctly maintained misattributes exactly when
-   something is already going wrong. */
+// ===========================================================================
+// 2. Types & Block Data Structure
+// ===========================================================================
 
-/** @brief How a block combines its enable sources. */
-#define VM_BLK_EN_ANY 0u  // enabled if *any* source is -- branches rejoining
-#define VM_BLK_EN_ALL 1u  // enabled only if *every* source is -- independent conditions
+/**
+ * @brief Execution order span [start, end) for loop and span owner blocks.
+ */
+typedef struct vm_span_t {
+  uint16_t start;
+  uint16_t end;
+} vm_span_t;
 
-/** @brief What a failing block body does to the flow below it. */
-#define VM_BLK_ERR_STOP 0u      // publish a false ENO -- everything downstream self-skips
-#define VM_BLK_ERR_CONTINUE 1u  // report and carry on; the flow below is unaffected
-
+/**
+ * @brief Block descriptor header (16 bytes) followed by flexible trailing arrays.
+ */
 typedef struct vm_block_data_t {
   struct {
-    uint16_t block_idx;
-    uint8_t block_type;
-    uint8_t in_cnt;
-    uint8_t q_cnt;
-    uint8_t en_cnt;    // 0 = root, always enabled (the IEC 61131-3 default)
-    uint8_t en_mode;   // VM_BLK_EN_ANY / _ALL; meaningless when en_cnt < 2
-    uint8_t on_error;  // VM_BLK_ERR_STOP / _CONTINUE
-    /* Length of custom_data. The four section *positions* are still derived
-       from in_cnt/q_cnt/en_cnt as above -- this is the one thing that cannot
-       be, because nothing downstream of the pins says where the block ends.
-       Without it the loader cannot check an uploaded custom_len against what
-       the block type expects (a mismatch writes into the next block), and
-       nothing generic -- telemetry, a debugger, a block walker -- can find
-       the next block in the arena. */
-    uint16_t custom_len;
-    /* Two bytes of padding sit here: `eno` needs 4-byte alignment and the
-       fields above stop at 10. Spend them before growing the header. */
-    vm_obj_h eno;  // NULL = block publishes no ENO
+    uint16_t block_idx;   // [0..1]   Visual block identifier
+    uint8_t  block_type;  // [2]      Palette type index
+    uint8_t  in_cnt;      // [3]      Input count
+    uint8_t  q_cnt;       // [4]      Output count
+    uint8_t  en_cnt;      // [5]      Enable count (0 = root, always enabled)
+    uint8_t  en_mode;     // [6]      VM_BLK_EN_ANY / _ALL
+    uint8_t  on_error;    // [7]      VM_BLK_ERR_STOP / _CONTINUE
+    uint16_t custom_len;  // [8..9]   Private custom_data byte length
+    uint8_t  rt;          // [10]     Runtime status bits (VM_BLK_RT_*)
+    vm_obj_h eno;         // [12..15] Output ENO object (NULL if none)
   } cfg;
   uint8_t data[];
 } vm_block_data_t;
 
-_Static_assert(sizeof(struct vm_block_data_t) == 16, "custom_len must stay inside the alignment padding before `eno`");
+_Static_assert(sizeof(struct vm_block_data_t) == 16, "custom_len and rt must stay inside alignment padding before eno");
 
 typedef vm_block_data_t* vm_block_h;
 
-/* Largest in_cnt a block can declare. Same staging argument as outputs below:
-   the decoder holds the ids on its stack while resolving them, and in_cnt's own
-   width would make that a 510-byte buffer inside a BLE callback. */
-#define VM_BLOCK_MAX_IN 16
+/**
+ * @brief Block execution handler signature (the run member of a vm_block_type_t palette entry).
+ */
+typedef void (*vm_block_fn)(vm_block_h);
 
-/* Outputs have no mask forcing a limit, but the decoder has to stage their ids
-   somewhere while it resolves them, and q_cnt's own width would make that a
-   510-byte stack buffer inside a BLE callback. 16 is well past any real block
-   shape and keeps the staging cost at 32 bytes. */
-#define VM_BLOCK_MAX_OUT 16
+/**
+ * @brief Extra load-time check of a block's private state (enum ranges,
+ * cross-field rules). The shape itself is checked from vm_block_type_t.
+ */
+typedef bool (*vm_block_verify_fn)(vm_block_h);
 
-/* Enable sources per block. Same staging argument as outputs, and well past
-   any real shape: a merge of more than 16 branches is a graph the editor
-   should have folded into an Expression block long before it got here. */
-#define VM_BLOCK_MAX_EN 16
+/**
+ * @brief One palette entry: everything the VM knows about a block type.
+ *
+ * Indexed by block_type in g_vm_block_types[] (blocks/vm_blocks_table.c). Each
+ * block header defines its entry as VM_BLOCK_TYPE_<NAME>, next to the body and
+ * the state layout it describes. vm_block_verify() checks a built block against
+ * it once at load, so bodies never re-check their own shape.
+ */
+typedef struct vm_block_type_t {
+  vm_block_fn run;           // Body, called every pass (NULL: type not in the palette)
+  vm_block_verify_fn check;  // Extra private-state check at load; NULL = none
+  uint8_t min_in;            // in_cnt >= min_in
+  uint8_t min_q;             // q_cnt >= min_q
+  uint16_t required_in;      // Bit n: input n must be wired
+  uint16_t state_len;        // custom_len >= state_len
+} vm_block_type_t;
 
-/** @brief id -> block, NULL past the end of the loaded program. Third of the
- *  three registries in vm_store.h; same rules as objects and accessors. */
-static inline vm_block_h vm_block_by_id(uint16_t id) {
+// ===========================================================================
+// 3. Sizing & Registry Lookups
+// ===========================================================================
+
+/**
+ * @brief Retrieve block handle from registry by ID (NULL if out of range).
+ */
+static inline vm_block_h vm_block_get_by_id(uint16_t id) {
   return (vm_block_h)vm_store_get(VM_REG_BLK, id);
 }
 
-static inline const vm_accessor_t** vm_block_inputs(vm_block_h b) {
-  return (const vm_accessor_t**)b->data;
-}
-
-static inline vm_obj_h* vm_block_outputs(vm_block_h b) {
-  return (vm_obj_h*)(vm_block_inputs(b) + b->cfg.in_cnt);
-}
-
-/** @brief This block's enable sources -- `en_cnt` entries, empty for a root. */
-static inline const vm_accessor_t** vm_block_en_list(vm_block_h b) {
-  return (const vm_accessor_t**)(vm_block_outputs(b) + b->cfg.q_cnt);
-}
-
-static inline void* vm_block_custom_data(vm_block_h b) {
-  return (void*)(vm_block_en_list(b) + b->cfg.en_cnt);
-}
-
-// total bytes required for one block of this shape -- what the loader uses
-// to size a single linear-allocator slot before writing into it
-static inline size_t vm_block_size(uint8_t in_cnt, uint8_t q_cnt, uint8_t en_cnt, uint16_t custom_len) {
+/**
+ * @brief Compute total allocation bytes required for one block of the given shape.
+ */
+static inline size_t vm_block_calc_size(uint8_t in_cnt, uint8_t q_cnt, uint8_t en_cnt, uint16_t custom_len) {
   return sizeof(vm_block_data_t) + (size_t)in_cnt * sizeof(const vm_accessor_t*) + (size_t)q_cnt * sizeof(vm_obj_h) + (size_t)en_cnt * sizeof(const vm_accessor_t*) + custom_len;
 }
 
-/** @brief Bytes of custom data this block owns. 0 when it keeps no state. */
-static inline uint16_t vm_block_custom_len(vm_block_h b) {
+/**
+ * @brief Return total allocated size of block in bytes.
+ */
+static inline size_t vm_block_get_total_size(vm_block_h b) {
+  return vm_block_calc_size(b->cfg.in_cnt, b->cfg.q_cnt, b->cfg.en_cnt, b->cfg.custom_len);
+}
+
+/**
+ * @brief Return custom data length in bytes.
+ */
+static inline uint16_t vm_block_get_custom_len(vm_block_h b) {
   return b->cfg.custom_len;
 }
 
+// ===========================================================================
+// 4. Slice Accessors
+// ===========================================================================
+
 /**
- * @brief Bytes this block instance actually occupies -- the runtime
- *        counterpart of vm_block_size(), which needs the shape up front.
- *
- * Lets anything generic step from one block to the next in the arena without
- * a separate table of offsets: a supervisor iterating the program, a
- * telemetry dump, a debugger listing.
+ * @brief Pointer to array of input accessors (in_cnt entries).
  */
-static inline size_t vm_block_total_size(vm_block_h b) {
-  return vm_block_size(b->cfg.in_cnt, b->cfg.q_cnt, b->cfg.en_cnt, b->cfg.custom_len);
+static inline const vm_accessor_t** vm_block_get_inputs(vm_block_h b) {
+  return (const vm_accessor_t**)b->data;
 }
 
 /**
- * @brief Fetch input pin `id`'s accessor.
- * @return err_h NULL on success, ERR_VM_BLOCK_PIN_MISSING if the block has no
- *         such pin, ERR_VM_BLOCK_PIN_UNLINKED if the pin exists but nothing
- *         is wired to it.
+ * @brief Pointer to array of output object handles (q_cnt entries).
  */
-static inline err_h vm_block_get_in(const vm_accessor_t** target, vm_block_h b, uint8_t id) {
-  if (id >= b->cfg.in_cnt) {
-    SE_RET_ERR_OWNED(OWNER_VM_BLOCK, ERR_VM_BLOCK_PIN_MISSING, .block_idx = b->cfg.block_idx, .pin_id = id, .is_out = 0);
-  }
-  const vm_accessor_t* acc = vm_block_inputs(b)[id];
-  if (!acc) {
-    SE_RET_ERR_OWNED(OWNER_VM_BLOCK, ERR_VM_BLOCK_PIN_UNLINKED, .block_idx = b->cfg.block_idx, .pin_id = id, .is_out = 0);
-  }
+static inline vm_obj_h* vm_block_get_outputs(vm_block_h b) {
+  return (vm_obj_h*)(vm_block_get_inputs(b) + b->cfg.in_cnt);
+}
+
+/**
+ * @brief Pointer to array of enable accessors (en_cnt entries).
+ */
+static inline const vm_accessor_t** vm_block_get_en_list(vm_block_h b) {
+  return (const vm_accessor_t**)(vm_block_get_outputs(b) + b->cfg.q_cnt);
+}
+
+/**
+ * @brief Pointer to private custom data buffer directly following en_list.
+ */
+static inline void* vm_block_get_custom_data(vm_block_h b) {
+  return (void*)(vm_block_get_en_list(b) + b->cfg.en_cnt);
+}
+
+// ===========================================================================
+// 5. Pin Access & Validation
+// Note: vm_block_get_in and vm_block_get_out perform runtime validation for
+// diagnostics and bring-up code. Production block handlers access resolved
+// pin arrays directly via vm_block_get_inputs / vm_block_get_outputs for speed.
+// ===========================================================================
+
+/**
+ * @brief Fetch input pin accessor with bounds and linkage validation.
+ * @param[out] target Receives accessor handle.
+ * @param[in]  b      Block handle.
+ * @param[in]  id     Input pin index (0 .. in_cnt-1).
+ * @return err_h NULL on success, ERR_VM_BLOCK_PIN_MISSING or ERR_VM_BLOCK_PIN_UNLINKED.
+ */
+static inline SE_MUST_USE err_h vm_block_get_in(const vm_accessor_t** target, vm_block_h b, uint8_t id) {
+  if (unlikely(id >= b->cfg.in_cnt)) return vm_block_err_pin_missing(b->cfg.block_idx, id, false);
+  const vm_accessor_t* acc = vm_block_get_inputs(b)[id];
+  if (unlikely(!acc)) return vm_block_err_pin_unlinked(b->cfg.block_idx, id, false);
   *target = acc;
   return NULL;
 }
 
-/** @brief Fetch output pin `id`'s object -- already bound, nothing to resolve.
- *  Same errors as vm_block_get_in(). */
-static inline err_h vm_block_get_out(vm_obj_h* target, vm_block_h b, uint8_t id) {
-  if (id >= b->cfg.q_cnt) {
-    SE_RET_ERR_OWNED(OWNER_VM_BLOCK, ERR_VM_BLOCK_PIN_MISSING, .block_idx = b->cfg.block_idx, .pin_id = id, .is_out = 1);
-  }
-  vm_obj_h obj = vm_block_outputs(b)[id];
-  if (!obj) {
-    SE_RET_ERR_OWNED(OWNER_VM_BLOCK, ERR_VM_BLOCK_PIN_UNLINKED, .block_idx = b->cfg.block_idx, .pin_id = id, .is_out = 1);
-  }
+/**
+ * @brief Fetch output pin object with bounds and linkage validation.
+ * @param[out] target Receives object handle.
+ * @param[in]  b      Block handle.
+ * @param[in]  id     Output pin index (0 .. q_cnt-1).
+ * @return err_h NULL on success, ERR_VM_BLOCK_PIN_MISSING or ERR_VM_BLOCK_PIN_UNLINKED.
+ */
+static inline SE_MUST_USE err_h vm_block_get_out(vm_obj_h* target, vm_block_h b, uint8_t id) {
+  if (unlikely(id >= b->cfg.q_cnt)) return vm_block_err_pin_missing(b->cfg.block_idx, id, true);
+  vm_obj_h obj = vm_block_get_outputs(b)[id];
+  if (unlikely(!obj)) return vm_block_err_pin_unlinked(b->cfg.block_idx, id, true);
   *target = obj;
   return NULL;
 }
 
-/*
-The supervisor calls every block in a section every time that section runs,
-and never interprets EN itself -- the block decides what being disabled means
-for it. That is deliberate on both counts: if the supervisor skipped disabled
-blocks, an actuator could never define a safe fallback ("hold whatever was
-last commanded" is usually the wrong failure mode), and a block whose *active*
-state is EN false -- an off-delay timer, a falling-edge detector -- could
-never run at all.
+// ===========================================================================
+// 6. Runtime Evaluation, Spans & ENO
+// ===========================================================================
 
-Scheduling granularity is therefore the section, not the block: an idle event
-section costs nothing, but every block inside a section that runs is called.
+/**
+ * @brief Mark this call of @p b as failed without reporting (the error was
+ * reported elsewhere, or is a latched standing condition).
+ *
+ * The fault is a per-call bit in the block's own cfg.rt, cleared before every
+ * call, so a span owner and the blocks in its body each keep their own.
+ */
+static inline void vm_block_mark_failed(vm_block_h b) {
+  b->cfg.rt |= VM_BLK_RT_FAULT;
+}
 
-  IF_BLOCK_ENABLED(block) {
-    ... normal work ...
-    vm_block_set_ENO(block, true);
-  } else {
-    servo_go_home(...);            // defined safe state, not "whatever was last"
-    vm_block_set_ENO(block, false);
-  }
+/** @brief True when this call of @p b has failed so far (cfg.on_error acts on it). */
+static inline bool vm_block_failed(vm_block_h b) {
+  return (b->cfg.rt & VM_BLK_RT_FAULT) != 0;
+}
 
-Enable combines the block's sources per `en_mode`: ANY for branches rejoining
-("either path reached me"), ALL for independent conditions that must all hold.
-No sources at all means a root, always enabled, so a block that never gates
-costs one compare.
+/** @brief Reports @p cause wrapped with the block's identity and marks this call failed. */
+void vm_block_report_error(err_h cause, vm_block_h b);
 
-Absence and unresolvability are opposites on purpose. An *absent* gate is
-"nothing is gating me" and reads as enabled; a gate that exists but cannot be
-evaluated reads as *disabled*, because running the body when the gate is broken
-is the more dangerous guess. A failing source is reported and then counts as
-false, which under ANY means one broken branch cannot mask a working one, and
-under ALL means a broken condition correctly stops the block.
-
-Deliberately stateless: it reports the level and nothing else. Edge detection
-and first-run initialisation are block-type concerns, so they live in that
-block's own custom_data struct, alongside whatever else it remembers between
-runs -- a block that wants an edge is stateful by definition and already has
-somewhere to put it.
-*/
+/**
+ * @brief Evaluates block enable status across en_cnt sources (0 = always enabled).
+ */
 static inline bool vm_block_is_enabled(vm_block_h b) {
+  // if no en inputs = active
   uint8_t n = b->cfg.en_cnt;
   if (n == 0) return true;
 
-  const vm_accessor_t** en = vm_block_en_list(b);
-  const bool all = (b->cfg.en_mode == VM_BLK_EN_ALL);
+  const vm_accessor_t** en  = vm_block_get_en_list(b);
+  const bool            all = (b->cfg.en_mode == VM_BLK_EN_ALL);
   for (uint8_t i = 0; i < n; i++) {
-    bool v = false;
-    err_h e = VM_OBJ_GET_VAL(v, en[i]);
-    if (e) {
-      SE_push_to_handler(SE_WRAP_ERR_OWNED(OWNER_VM_BLOCK, e, ERR_VM_BLOCK_FAILED, .block_idx = b->cfg.block_idx, .block_type = b->cfg.block_type));
-      v = false;  // fail closed, then let the mode decide what that means
+    bool  v = false;
+    err_h e = VM_OBJ_SCALAR_GET(v, en[i]);
+    if (unlikely(e)) {
+      vm_block_report_error(e, b);
+      v = false;  // fail closed
     }
+    // check if one required or all
     if (all) {
-      if (!v) return false;  // ALL: the first false settles it
+      if (!v) return false;
     } else if (v) {
-      return true;  // ANY: the first true settles it
+      return true;
     }
   }
-  /* Fell through: under ALL nothing was false, under ANY nothing was true. */
   return all;
 }
 
-#define IF_BLOCK_ENABLED(block) if (vm_block_is_enabled(block))
-
-/** @brief Publish this block's ENO. No-op when the block declares no ENO. */
-static inline void vm_block_set_ENO(vm_block_h b, bool state) {
+/**
+ * @brief Set block ENO: true marks updated (loud), false clears quietly without upd.
+ */
+static inline void vm_block_set_eno(vm_block_h b, bool state) {
   if (!b->cfg.eno) return;
-  uint8_t v = state ? 1 : 0;
-  err_h e = VM_OBJ_SET_VAL_AT(v, b->cfg.eno, 0);
-  if (e) {
-    SE_push_to_handler(SE_WRAP_ERR_OWNED(OWNER_VM_BLOCK, e, ERR_VM_BLOCK_FAILED, .block_idx = b->cfg.block_idx, .block_type = b->cfg.block_type));
+  *(uint8_t*)b->cfg.eno->payload = state ? 1 : 0;
+  if (state) {
+    b->cfg.eno->head.f.upd = 1;
   }
 }
 
-/**
- * @brief Run an err_h-returning call inside a block body, reporting failure
- * with this block's identity attached.
- *
- * Block execute() bodies are void -- there is nobody above them to return an
- * err_h to -- so this is where a chain gets reported rather than propagated,
- * the role SE_ORIGIN_CALL plays for top-level entry points. The wrap adds
- * block_idx/block_type, which the accessor-level error underneath cannot know.
- *
- * @code
- * BLOCK_CALL(VM_OBJ_GET_VAL(angle, in0), block);
- * @endcode
+/** @brief True if any input carries fresh data, or an enable fires (vm_block_en_triggered);
+ *  latches VM_BLK_RT_TRIGGERED.
  */
-#define BLOCK_CALL(call, block)                                                                                                                                       \
-  do {                                                                                                                                                                \
-    err_h __bc_e = (call);                                                                                                                                            \
-    if (__bc_e) {                                                                                                                                                     \
-      SE_push_to_handler(SE_WRAP_ERR_OWNED(OWNER_VM_BLOCK, __bc_e, ERR_VM_BLOCK_FAILED, .block_idx = (block)->cfg.block_idx, .block_type = (block)->cfg.block_type)); \
-    }                                                                                                                                                                 \
+bool vm_block_triggered(vm_block_h b);
+
+/** @brief True if an enable source is true and fresh this pass: a gate held open (written
+ *  loud every pass while true) or a tick. For a triggered block that counts as a trigger, so
+ *  "compute this while the branch is open" works on inputs that don't change (VM_EXEC.MD).
+ *  A level that is merely true (not written this pass) does not trigger.
+ */
+bool vm_block_en_triggered(vm_block_h b);
+
+/**
+ * @brief Freshness (`upd`) belongs to the owning object; unresolved pins fail closed silently.
+ */
+static inline bool vm_block_pin_fresh(const vm_accessor_t* acc) {
+  if (!acc) return false;
+
+  if (likely(acc->flags & VM_ACC_F_CACHED)) {
+    return acc->c_payload.owner && acc->c_payload.owner->head.f.upd;
+  }
+
+  vm_obj_payload_t r;
+  if (vm_acc_resolve_fast(acc, &r)) {
+    return r.owner && r.owner->head.f.upd;
+  }
+
+  vm_obj_h o = NULL;
+  err_h error = vm_obj_get_owner(&o, acc);
+  if (error) { SE_release(error); return false; }
+  if (!o) return false;
+  return o->head.f.upd != 0;
+}
+
+/**
+ * @brief True if specific input pin carries fresh data.
+ */
+static inline bool vm_block_input_fresh(vm_block_h b, uint8_t pin) {
+  if (unlikely(pin >= b->cfg.in_cnt)) return false;
+  return vm_block_pin_fresh(vm_block_get_inputs(b)[pin]);
+}
+
+/** @brief Trigger from one source pin (ignoring destination/parameter inputs) or a firing enable.
+ */
+static inline bool vm_block_triggered_by(vm_block_h b, uint8_t pin) {
+  if (!vm_block_input_fresh(b, pin) && !vm_block_en_triggered(b)) return false;
+  b->cfg.rt |= VM_BLK_RT_TRIGGERED;
+  return true;
+}
+
+/**
+ * @brief Block execution span from custom_data (NULL if custom_len < sizeof(vm_span_t)).
+ */
+static inline const vm_span_t* vm_block_get_span(vm_block_h b) {
+  if (b->cfg.custom_len < sizeof(vm_span_t)) return NULL;
+  return (const vm_span_t*)vm_block_get_custom_data(b);
+}
+
+/**
+ * @brief Takes over [start, end) range so outer execution walk jumps over it.
+ */
+void vm_block_claim_span(vm_block_h b, uint16_t start, uint16_t end);
+
+// ===========================================================================
+// 7. Error Reporting & Execution Macros
+// ===========================================================================
+
+/* Block activation macros. Nestable: IF_BLOCK_TRIGGERED(b) IF_BLOCK_ENABLED(b) { ... }
+ */
+#define IF_BLOCK_ENABLED(block)   if (vm_block_is_enabled(block))
+#define IF_BLOCK_TRIGGERED(block) if (vm_block_triggered(block))
+
+/** @brief Runs an err_h call, reporting failure with block context and marking the call failed.
+ */
+#define BLOCK_CALL(call, block)                                                       \
+  do {                                                                                \
+    err_h __bc_e = (call);                                                            \
+    if (__bc_e) {                                                                     \
+      vm_block_report_error(__bc_e, (block)); \
+    }                                                                                 \
   } while (0)
+
+#define VM_BLK_ERR_NEW(tag_name, ...) SE_ERR_NEW_OWNED(OWNER_VM_BLOCK, tag_name, __VA_ARGS__)
+
+#define VM_BLK_EMIT_ERR(tag_name, ...) SE_push_to_handler(VM_BLK_ERR_NEW(tag_name, __VA_ARGS__))

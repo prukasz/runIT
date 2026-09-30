@@ -1,0 +1,201 @@
+/*
+ * ============================================================================
+ *  runIT device header - TEMPLATE (every annotation there is)
+ * ============================================================================
+ *  1. Copy this file to components/codecs/decoders/device/dec_device_<chip>.h
+ *  2. Rename every example / EXAMPLE, fill the texts, delete what the chip
+ *     doesn't need (every tag below is optional unless marked "required").
+ *  3. Register SYS_CONTRACTS_DEVICE_<CHIP>_PACKET_LIST in dec_sys_device_install.h
+ *     (the other firmware steps: .claude/skills/runit-esp/devices.md).
+ *  4. python data-structures/auto-annotations/device/generate-devices.py components/codecs/decoders data-structures/devices
+ *
+ *  Grammar in full: data-structures/auto-annotations/device/device-annotations.md
+ *  This file is checked by test_generate_devices.py: it must keep generating.
+ *
+ * ----------------------------------------------------------------------------
+ *  HOW A RECORD IS WRITTEN
+ * ----------------------------------------------------------------------------
+ *  //#<kind> <name> [@tag ...]   starts a record
+ *  //  @tag value                continues it (comment + TWO or more spaces)
+ *  //               more text    a line without a tag continues the tag above
+ *  // plain comment              (ONE space) or any code ends the record
+ *
+ *  - Only the tags listed below exist; any other tag fails generation.
+ *  - Don't repeat the generic packet (dec_sys_contracts.h): its alias, unit,
+ *    note and optional flag already reach the app.
+ *  - @description and @note are read by the user: what it is for, how to use
+ *    it. Implementation remarks go in plain // comments.
+ *
+ *  VALUES
+ *    42   0x2A              numbers
+ *    [0, 2, 4..7]           lists; a..b = every integer from a to b
+ *    $SYS_IO_MODE_INPUT     member of a //#ref-enum enum (must resolve)
+ *    CONFIG_X / SOME_DEFINE for @min / @max / @default (must resolve)
+ *
+ * ----------------------------------------------------------------------------
+ *  TAG REFERENCE                                  the app uses it for
+ * ----------------------------------------------------------------------------
+ *  //#device <id>                    required     device type ID, output file name
+ *    @title <text>                   required     device name
+ *    @description <text>             required     device page and type list
+ *    @protocol <words>                            card label; "native" picks the tile icon
+ *    @tags <words>                                palette search, tag chips
+ *    @datasheet <url>                             Datasheet button
+ *    @contract-provider $<SYMBOL>                 provider label; IO providers can lend pins
+ *    @pwm-frequencies <n> [@count-bits]           PWM frequencies at once (per-pin devices);
+ *                                                 @count-bits counts the set bits of a mask
+ *
+ *  //#self-property <NAME>                        local value set for @arg
+ *    @one-of [..]                    required     the choices
+ *    @alias <text>                                label of every parameter using it
+ *    @note <text>                                 (i) note of every parameter using it
+ *
+ *  //#property <NAME>                             enum value set for @arg
+ *    @one-of [$A, $B]                required     the choices ($SYMBOLs of one enum)
+ *    @enum-ref <enum>                             the enum (inferred from the symbols)
+ *    @default $A                                  state the chip starts in by itself
+ *    @alias <text> / @note <text>                 as above
+ *
+ *  //#contract <packet_struct>                    one per operation the adapter supports
+ *    @alias <text>                                command name
+ *    @description <text>                          command hint
+ *    @returns <name>                              "Returns <name>" (type/unit: response packet)
+ *    @param <field> [tags]           see below    one line per field; a bare
+ *                                                 "@param <field>" for every @required
+ *                                                 generic field nothing else is said about
+ *
+ *  @param <field> tags
+ *    @arg <NAME>                                  choices, label, note, default of a value set
+ *    @alias <text>                                field label (only if not the generic one)
+ *    @one-of [..]                                 choices (inline, not shared)
+ *    @min <v> / @max <v>                          input limits
+ *    @default <v>                                 initial value in forms
+ *    @unit <text>                                 "(unit)" after the label
+ *    @type bool                                   on/off switch (the generic field is uint8_t)
+ *    @device-wide                                 field selects nothing: hidden, sent as 0
+ *    @note <text>                                 (i) note
+ *
+ *  Install struct field (after the ;)
+ *    @alias <text>                                form label
+ *    @one-of [..]                                 select choices (i2c_addr: required, shown in hex)
+ *    @enum-ref <enum>                             select choices = every member of the enum
+ *    @min <v> / @max <v>                          input limits (device_id @max: highest free ID)
+ *    @default <v>                                 value for a new device
+ *    @unit <text>                                 "(unit)" after the label
+ *    @optional                                    may be left out (sent as its sentinel or 0)
+ *    @note <text>                                 (i) note; a long one continues on a
+ *                                                 "//  " line right under the field
+ *    rare: @sentinel <v> (value that means "none"), @group <key> (bundle fields
+ *    by hand; use pin_ref_wire_t instead), @encoding / @terminator (char[] text)
+ *
+ *  pin_ref_wire_t field (a pin on another device: provider, pin, mode)
+ *    @alias <text>                                "<alias> pin"; without it the name comes
+ *                                                 from the field (intr_pin -> Interrupt)
+ *    @note <text>                                 (i) note on the pin block
+ *    @modes [$..]                                 allowed pin modes (default: all)
+ *    @default-mode $X                             mode of a new device, one of @modes
+ * ============================================================================
+ */
+
+#pragma once
+
+#include "dec_device_common.h"
+#include "../../../devices/device_example/include/device_example.h"
+
+// ── Device ────────────────────────────────────────────────────────────────────
+
+//#device device_example
+//  @title       Example sensor
+//  @description One sentence on what the chip is and what the user gets from it,
+//               continued on as many lines as it needs.
+//  @protocol    i2c
+//  @tags        i2c adc voltage example
+//  @datasheet   https://www.example.com/example-datasheet.pdf
+//  @pwm-frequencies 1
+//  @contract-provider $SYS_DEVICE_CONTRACT_IO
+
+// ── Value sets (write once, use with @arg) ───────────────────────────────────
+
+//#self-property PIN
+//  @one-of   [0..3]
+//  @alias    Channel
+//  @note     Channels 0-3 are the AIN0-AIN3 pins.
+
+//#property PIN-MODE
+//  @enum-ref sys_io_mode_e
+//  @one-of   [$SYS_IO_MODE_INPUT, $SYS_IO_MODE_OUTPUT_PUSH_PULL, $SYS_IO_MODE_ADC]
+//  @default  $SYS_IO_MODE_ADC
+//  @alias    Channel Mode
+//  @note     Every channel starts as ADC.
+
+// ── Contracts (one record per operation the adapter supports) ────────────────
+
+//#contract packet_sys_io_reset_t
+//  @alias       Reset channel
+//  @description Return the channel to its power-up state.
+//  @param pin   @arg PIN
+
+//#contract packet_sys_io_set_mode_t
+//  @alias       Configure mode
+//  @param pin   @arg PIN
+//  @param mode  @arg PIN-MODE
+
+//#contract packet_sys_io_configure_intr_t
+//  @alias       Configure alert
+//  @description What the alert watches and when it fires.
+//  @param pin                @arg PIN
+//  @param mode               @alias Alert Mode @one-of [$SYS_IO_INTR_ADC_WINDOW_INSIDE, $SYS_IO_INTR_ADC_WINDOW_OUTSIDE]
+//  @param adc_thresh_up_mV   @alias Upper Threshold @max 3300 @default 3000
+//  @param adc_counter_thresh @note Samples in a row outside the window before the alert fires.
+
+//#contract packet_sys_io_set_level_t
+//  @alias       Set output level
+//  @param pin   @arg PIN
+//  @param level @type bool
+
+//#contract packet_sys_io_get_voltage_t
+//  @alias       Read channel voltage
+//  @param pin   @arg PIN
+//  @returns     voltage_mV
+
+//#contract packet_sys_io_set_pwm_frequency_t
+//  @alias       Set PWM frequency (all channels)
+//  @description One frequency for the whole chip: setting it changes every channel.
+//  @param pin          @device-wide
+//  @param frequency_Hz @min 24 @max 1526 @default 50
+
+//#contract packet_sys_io_set_pwm_duty_t
+//  @alias       Set PWM duty
+//  @param pin   @arg PIN
+//  @param duty  @alias Duty @unit ticks @min 0 @max 4095 @note 4095 = always on.
+
+// ── Install packet ────────────────────────────────────────────────────────────
+
+// Next free header byte in class 0x01: .claude/skills/runit-esp/devices.md.
+#define HEADER_packet_sys_device_install_example_t 0x7F
+typedef struct __packed {
+  uint8_t device_id;       //@max CONFIG_SYS_DEVICE_MAX_ID
+  uint8_t i2c_bus;
+  uint8_t i2c_addr;        //@alias I2C Address @one-of [0x48..0x4B] @note The ADDR pin selects the address.
+  uint8_t alert_event;     //@alias Alert Event @enum-ref sys_power_events_e @one-of [$SYS_PWR_EVENT_OCP_WARNING, $SYS_PWR_EVENT_OCP_CRITICAL]
+                           //  @default $SYS_PWR_EVENT_OCP_WARNING
+  uint16_t sample_rate_Hz; //@alias Sample Rate @unit Hz @min 1 @max 3300 @default 100 @optional
+                           //  @note Higher rates react faster
+                           //  and use more power.
+  pin_ref_wire_t intr_pin; //@alias ALERT @modes [$SYS_IO_MODE_INPUT, $SYS_IO_MODE_INPUT_PULLUP] @default-mode $SYS_IO_MODE_INPUT_PULLUP
+                           //  @note Open-drain, active-low.
+  pin_ref_wire_t rst_pin;  //@note Active-low.
+} packet_sys_device_install_example_t;
+// Developer notes (limits the adapter checks, wire quirks) go here, in plain comments.
+
+static inline SE_MUST_USE err_h decoder_packet_sys_device_install_example_t(packet_sys_device_install_example_t* packet) {
+  ESP_LOGI(DEC_SYS_DEVICE_INSTALL_TAG, "installing example (dev %u, i2c bus %u addr 0x%02X)", packet->device_id, packet->i2c_bus, packet->i2c_addr);
+  d_example_cfg_t cfg = {.device_id = packet->device_id, .i2c_bus = packet->i2c_bus != 0, .i2c_addr = packet->i2c_addr,
+                         .intr_pin = pin_ref_from_wire(packet->intr_pin), .rst_pin = pin_ref_from_wire(packet->rst_pin)};
+  err_h err = PIN_REFS_BELOW(cfg.device_id, cfg.intr_pin, cfg.rst_pin);
+  if (err) return err;
+  return d_example_create(&cfg);
+}
+
+#define SYS_CONTRACTS_DEVICE_EXAMPLE_PACKET_LIST(X) \
+  X(HEADER_packet_sys_device_install_example_t, packet_sys_device_install_example_t, decoder_packet_sys_device_install_example_t)

@@ -5,116 +5,116 @@
 #include "sys_error.h"
 
 /**
- * @brief Class byte for sys_actions' own control packets (record/stop/remove).
+ * @brief Action scopes:
+ * - 0x00: Static action (compile-time function pointer table)
+ * - 0x01: Dynamic action (runtime/NVS recorded frame sequence, max 2 KB)
+ */
+#define SYS_ACTION_SCOPE_STATIC  0x00
+#define SYS_ACTION_SCOPE_DYNAMIC 0x01
+
+/** @brief Reserved sentinel; not a valid action ID in either scope. */
+#define SYS_ACTION_ID_NONE 0
+
+/** The built-in static actions (sys_actions_init binds them; IDs from Kconfig), published to the app. */
+//#ref-enum @alias Static Action
+typedef enum sys_action_static_e {
+  SYS_ACTION_STATIC_BOOT = CONFIG_SYS_ACTION_ID_BOOT,              //@alias Boot setup @description Installs the board's own devices (bound by the application).
+  SYS_ACTION_STATIC_FREEZE = CONFIG_SYS_ACTION_ID_FREEZE,          //@alias Freeze all devices @description Holds every device at its current state.
+  SYS_ACTION_STATIC_RESUME = CONFIG_SYS_ACTION_ID_RESUME,          //@alias Resume all devices @description Resumes and syncs every device.
+  SYS_ACTION_STATIC_SUSPEND = CONFIG_SYS_ACTION_ID_SUSPEND,        //@alias Suspend all devices @description Suspends every device.
+  SYS_ACTION_STATIC_RESET = CONFIG_SYS_ACTION_ID_RESET,            //@alias Reset @description Resets every device, rewinds the VM and runs the boot setup again.
+  SYS_ACTION_STATIC_HARD_RESET = CONFIG_SYS_ACTION_ID_HARD_RESET,  //@alias Hard reset @description Unloads the VM program, uninstalls every device and runs the boot setup again.
+} sys_action_static_e;
+
+/**
+ * @brief Hardcoded behavior a static action carries. Takes no arguments.
+ */
+typedef err_h (*action_static_func_t)(void);
+
+/**
+ * @brief Initialize sys_actions: opens NVS, starts the recording tap polling
+ * task, and registers the built-in static functions on action ids 2-6
+ * (freeze/resume/suspend/reset/hard_reset).
  *
- * Owned here (not by the codec header) because it is sys_actions' own
- * control-plane protocol, 1:1 with this component - see dec_sys_actions.h in
- * `codecs`, which just maps this class's packet bytes onto the calls below.
+ * Its control-packet class (`dec_sys_actions.h`) is registered with
+ * sys_interface by the application (runit), not here.
  */
-#define SYS_ACTIONS_CLASS_HEADER 0x03
-
-/** @brief Valid action_id range is 0..CONFIG_SYS_ACTIONS_ID_SPACE-1 - one unified space for every action. */
+SE_MUST_USE err_h sys_actions_init(void);
 
 /**
- * @brief Number of action ids (0..CONFIG_SYS_ACTIONS_STATIC_SLOTS-1) that may have a
- * hardcoded C function bound via sys_actions_bind_static(). The rest of the
- * CONFIG_SYS_ACTIONS_ID_SPACE range is blob-only, same as any other action.
- */
-
-/**
- * @brief Hardcoded behavior an action can carry in addition to (or instead
- * of) its recorded packet blob - what used to be a sys_states "base action".
- * @param arg Caller-supplied context, passed through from sys_actions_bind_static().
- */
-typedef err_h (*action_static_func_t)(void* arg);
-
-/**
- * @brief Initialize sys_actions: registers its control-packet class with
- * sys_interface, enables the recording tap and starts its polling task,
- * registers the built-in static functions on action ids 1-5 (freeze/resume/
- * suspend/reset/hard_reset, moved from the removed sys_states component), and
- * - if action id 0 has anything stored - invokes it as the "boot action" (see
- * the Overview in SYS_ACTIONS.MD).
+ * @brief Bind a hardcoded C function to a static action_id.
  *
- * Must be called after sys_interface_init() and before
- * sys_interface_bind_ble_rx() - class registration is boot-only, not
- * concurrency-safe against a running RX receiver (see SYS_INTERFACE.MD).
- */
-err_h sys_actions_init(void);
-
-/**
- * @brief Bind a hardcoded C function to action_id, run by sys_actions_invoke()
- * before that action's recorded blob (if any). Overwrites any function
- * already bound to action_id.
- *
- * @param action_id Must be < SYS_ACTIONS_STATIC_SLOTS.
+ * @param action_id Must be >= 1 and < CONFIG_SYS_ACTIONS_STATIC_SLOTS.
  * @param fn Function to run; passing NULL clears the binding.
- * @param arg Opaque context passed to fn on every invoke.
  * @return err_h NULL on success, ERR_INVALID_VAL_UI32 if action_id is out of range.
  */
-err_h sys_actions_bind_static(uint8_t action_id, action_static_func_t fn, void* arg);
-
-/** @brief Erase action_id's stored blob from NVS. No-op (returns NULL) if nothing is stored under it. */
-err_h sys_actions_remove(uint8_t action_id);
+SE_MUST_USE err_h sys_actions_bind_static(uint8_t action_id, action_static_func_t fn);
 
 /**
- * @brief Remove every action: erases every action blob in the "sys_actions"
- * NVS namespace. Does not affect a recording currently in progress (if any) -
- * see sys_actions_record_stop().
+ * @brief Invoke an action by scope and id.
+ *
+ * - SYS_ACTION_SCOPE_STATIC (0x00): invokes bound static function `id`.
+ *   Returns ERR_ACTION_NOT_FOUND if id is unbound or >= CONFIG_SYS_ACTIONS_STATIC_SLOTS.
+ * - SYS_ACTION_SCOPE_DYNAMIC (0x01): loads recorded blob `id` (1..255) from NVS,
+ *   suspends RX, replays frames through sys_interface_decode(), resumes RX.
+ *   Returns ERR_ACTION_NOT_FOUND if nothing is stored in NVS under `id`.
+ *
+ * @param scope Action scope (0x00 = static, 0x01 = dynamic).
+ * @param id Action ID.
+ * @return err_h NULL on success, or the error chain of the failure.
  */
-err_h sys_actions_remove_all(void);
+SE_MUST_USE err_h sys_actions_invoke(uint8_t scope, uint8_t id);
 
 /**
- * @brief Append one raw frame (class byte included, exactly as it would arrive
- * over the wire) to action_id's stored blob.
+ * @brief Queue an action to run on the actions task instead of the caller's.
  *
- * One atomic load-modify-save against NVS: reads whatever is currently under
- * action_id (starting from empty if nothing is stored yet), appends the
- * frame, and writes the result straight back - there is no separate persist
- * step, every call is durable the moment it returns.
+ * For callers that must not run an action themselves: the VM supervisor (an
+ * action may rewind or unload the VM, and a recorded replay outlasts the VM
+ * block watchdog). Returns once queued; the action's own errors are reported
+ * by the actions task.
  *
- * @return err_h NULL on success, ERR_INVALID_VAL_UI32 if action_id is out of
- *               range or len is 0 or exceeds UINT16_MAX, or ERR_ESP_ERR.
+ * @param scope Action scope (0x00 = static, 0x01 = dynamic).
+ * @param id Action ID (1..255).
+ * @return err_h NULL when queued, ERR_ACTION_QUEUE_FULL when
+ *         CONFIG_SYS_ACTIONS_REQUEST_QUEUE_LEN requests are already waiting,
+ *         ERR_INVALID_VAL_UI32 for a bad scope or id 0.
  */
-err_h sys_actions_append_packet(uint8_t action_id, const uint8_t* frame, size_t len);
+SE_MUST_USE err_h sys_actions_request(uint8_t scope, uint8_t id);
 
 /**
- * @brief Start recording: every subsequent frame observed by sys_interface (of
- * any class except SYS_ACTIONS_CLASS_HEADER itself) is appended to action_id's
- * blob, in RAM, until sys_actions_record_stop() persists it.
+ * @brief Erase a dynamic action's stored blob from NVS.
+ * No-op (returns NULL) if nothing is stored under it.
  *
- * Only one action may record at a time - starts from whatever's already
- * stored under action_id in NVS (empty if none).
- *
- * @return err_h NULL on success, ERR_INVALID_VAL_UI32 if action_id is out of
- *               range, ERR_ACTION_RECORDING_BUSY if a different action is
- *               already recording.
+ * @param id Action ID (1..255).
  */
-err_h sys_actions_record_start(uint8_t action_id);
+SE_MUST_USE err_h sys_action_remove(uint8_t id);
 
 /**
- * @brief Stop recording and persist the accumulated blob to NVS under action_id.
- *
- * No-op (returns NULL) if action_id isn't the action currently recording.
+ * @brief Remove every dynamic action: erases every action blob in the "sys_actions"
+ * NVS namespace. Does not affect a recording currently in progress in RAM.
  */
-err_h sys_actions_record_stop(uint8_t action_id);
+SE_MUST_USE err_h sys_action_remove_all(void);
 
 /**
- * @brief Run action_id's bound static function (if any) then replay every
- * packet stored under action_id in NVS (if any), in recorded order, through
- * sys_interface_decode() - each stored frame is fed back exactly as if it had
- * just arrived over the wire.
+ * @brief Start recording: subsequent frames observed by sys_interface (of
+ * any class except RX_PACKET_CLASS_SYS_ACTIONS itself) are appended to id's
+ * blob in RAM, until sys_action_record_stop() persists it.
  *
- * sys_interface's RX receiver is suspended for the duration of blob replay
- * (sys_interface_suspend_rx()/_resume_rx()) so live traffic cannot interleave
- * with it - see the caveat on that suspend being best-effort, not a hard
- * barrier, in sys_interface.h.
+ * Only one action may record at a time. The action ID is remembered internally.
  *
- * @return err_h NULL if the static function (if any) and every stored frame
- *               succeeded, ERR_INVALID_VAL_UI32 if action_id is out of range,
- *               ERR_ACTION_NOT_FOUND if action_id has neither a bound static
- *               function nor anything stored in NVS, or the first failure's
- *               error chain (stops at the first failure, static function or
- *               frame; the RX receiver is resumed regardless of outcome).
+ * @param id Dynamic action ID (1..255).
+ * @return err_h NULL on success, ERR_ACTION_RECORDING_BUSY if already recording.
  */
-err_h sys_actions_invoke(uint8_t action_id);
+SE_MUST_USE err_h sys_action_record_start(uint8_t id);
+
+/**
+ * @brief Stop capture, drain all queued frames into the active recording,
+ * and persist the accumulated blob under the remembered action ID.
+ * Action record_stop is not captured in the action.
+ *
+ * No-op (returns NULL) if no action is currently recording.
+ */
+SE_MUST_USE err_h sys_action_record_stop(void);
+
+/** @brief Containment for this module's CRITICAL errors (sys_errors domain hook, registered by the application). */
+SE_MUST_USE err_h sys_actions_handle_fault(err_h node, err_h chain);

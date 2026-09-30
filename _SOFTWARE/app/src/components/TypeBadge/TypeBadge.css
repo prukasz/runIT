@@ -1,0 +1,12 @@
+.type-badge-group { display: inline-flex; align-items: center; gap: 3px; vertical-align: middle; white-space: nowrap; }
+.object-type-icon { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 22px; flex: none; border-radius: 4px; }
+.object-type-icon svg { width: 15px; height: 15px; stroke-width: 2.2; }
+.object-number-glyph { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 9px; font-weight: 700; letter-spacing: -1.1px; white-space: nowrap; }
+.object-type-icon.number { --icon-color: var(--type-number); }
+.object-type-icon.text { --icon-color: var(--type-text); }
+.object-type-icon.bool { --icon-color: var(--type-boolean); }
+.object-type-icon:is(.number, .text, .bool) { color: var(--icon-color); background: color-mix(in srgb, var(--icon-color) 26%, transparent); }
+.object-bool-glyph { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 9.5px; font-weight: 700; letter-spacing: -0.5px; white-space: nowrap; }
+.object-text-glyph { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.object-type-icon.folder { color: var(--color-teal); background: color-mix(in srgb, var(--color-teal) 13%, transparent); }
+.object-type-icon.reference { color: var(--color-amber); background: color-mix(in srgb, var(--color-amber) 17%, transparent); }

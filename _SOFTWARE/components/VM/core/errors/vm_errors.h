@@ -1,0 +1,36 @@
+#pragma once
+#include "sys_error.h"
+#include "vm_obj.h"
+
+/* Cold-path error builders for accessor, object, and block layers.
+   Extracted as noinline to prevent stack frame inflation on hot paths. */
+
+/* ========================================================================= */
+/* Accessor Layer Errors                                                     */
+/* ========================================================================= */
+
+SE_MUST_USE err_h vm_err_depth(uint16_t id);
+SE_MUST_USE err_h vm_err_unknown_id(uint16_t id);
+SE_MUST_USE err_h vm_err_expected_ptr(uint16_t id, uint8_t pos, uint8_t actual, vm_obj_h obj);
+SE_MUST_USE err_h vm_err_chain_oob(uint16_t id, uint8_t pos, uint32_t index, vm_obj_h obj);
+SE_MUST_USE err_h vm_err_null_obj(uint16_t id, uint8_t pos, vm_obj_h parent);
+SE_MUST_USE err_h vm_err_chain_not_mutable(uint16_t id, uint8_t pos, vm_obj_h obj);
+SE_MUST_USE err_h vm_err_index_failed(err_h cause, uint16_t id, uint8_t pos);
+SE_MUST_USE err_h vm_err_name_not_found(uint16_t id, uint8_t pos, const char* name, size_t name_len);
+SE_MUST_USE err_h vm_obj_not_scalar_err(vm_obj_h owner, vm_obj_t_e actual, uint16_t id);
+
+/* ========================================================================= */
+/* Object Layer Errors                                                       */
+/* ========================================================================= */
+
+SE_MUST_USE err_h vm_obj_null_obj_err(void);
+SE_MUST_USE err_h vm_obj_not_mutable_err(vm_obj_h obj);
+SE_MUST_USE err_h vm_obj_oob_err(vm_obj_h obj, uint32_t index);
+SE_MUST_USE err_h vm_obj_not_ptr_err(vm_obj_h obj, uint8_t actual);
+
+/* ========================================================================= */
+/* Block Layer Errors                                                        */
+/* ========================================================================= */
+
+SE_MUST_USE err_h vm_block_err_pin_missing(uint16_t block_idx, uint8_t pin_id, bool is_out);
+SE_MUST_USE err_h vm_block_err_pin_unlinked(uint16_t block_idx, uint8_t pin_id, bool is_out);

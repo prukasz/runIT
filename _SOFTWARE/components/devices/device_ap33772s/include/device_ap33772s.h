@@ -20,5 +20,5 @@ typedef struct d_ap33772s_cfg_t {
  * @param cfg Pointer to device configuration struct
  * @return err_h Status of the registration
  */
-err_h d_ap33772s_create(const d_ap33772s_cfg_t* cfg);
+SE_MUST_USE err_h d_ap33772s_create(const d_ap33772s_cfg_t* cfg);
 
