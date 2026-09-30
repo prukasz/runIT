@@ -11,7 +11,6 @@ describe('where a variable is used', () => {
       ['counter', 'Reads Input 0'],
       ['counter', 'Writes Result'],
       ['above', 'Reads Input 0'],
-      ['rise', 'Reads Signal'],
     ])
   })
 

@@ -257,7 +257,7 @@ Firmware semantics this rests on: `components/VM/VM_EXEC.MD` §1 and `vm_block_i
 
 | Activation | Blocks | EN | Unconnected EN |
 |---|---|---|---|
-| every pass | IF, SWITCH, FOR, PERIODIC, TIMER, IO_SET_LEVEL, ON_EVENT | active while; disabled: gates false, TIMER resets, PERIODIC disarms, IO_SET_LEVEL does its `disabled_action` | runs every pass |
+| every pass | IF, SWITCH, FOR, PERIODIC, TIMER, IO_SET_LEVEL, ON_EVENT | active while; disabled: gates false, TIMER resets, PERIODIC disarms, IO_SET_LEVEL does its `when_not_active` | runs every pass |
 | EN edge | EDGE | samples the combined EN level every pass, including false; pulses ENO on the selected rising, falling or either edge | invalid: connect at least one EN source |
 | held flow | LATCH | samples EN as Set every pass; optional Reset is read independently, and ENO holds the state until Reset | invalid: connect at least one EN source |
 | triggered | EXPR, EXPR_BIT, SET, CLONE | extra condition: fresh input **and** enabled | runs on every fresh input |

@@ -34,10 +34,10 @@ const blocks: readonly ProgramBlock[] = [
   { id: 'copier', type: 'SET', inputs: [at('pick:q0'), at('copy')] },
   { id: 'above', type: 'EXPR', inputs: [at('count')], enables: [tick], expression: { constants: [3], code: ['in', 0, 'const', 0, '>'] } },
   { id: 'branch', type: 'IF', inputs: [at('above:q0')], eno: true },
-  { id: 'hold', type: 'LATCH', inputs: [at('branch:q0'), null], settings: { mode: 'SET_DOMINANT' } },
-  { id: 'delay', type: 'TIMER', inputs: [at('hold:q0')], settings: { mode: 'TON', time_base: 'MS', pt: 300 } },
-  { id: 'rise', type: 'EDGE', inputs: [at('count')], settings: { edge_type: 'RISING', change_by: 1 } },
-  { id: 'seen', type: 'LATCH', inputs: [at('rise:q0'), null] },
+  { id: 'hold', type: 'LATCH', enables: [at('branch:q0')], settings: { mode: 'SET_DOMINANT' } },
+  { id: 'delay', type: 'TIMER', inputs: [at('hold:eno')], settings: { mode: 'TON', time_base: 'MS', pt: 300 } },
+  { id: 'rise', type: 'EDGE', enables: [at('above:q0')], settings: { edge_type: 'RISING' } },
+  { id: 'seen', type: 'LATCH', enables: [at('rise:eno')] },
   { id: 'route', type: 'SWITCH', inputs: [at('sel')], outputs: [null, null, null] },
   { id: 'loop', type: 'FOR', body: 1, settings: { k_start: 0, k_end: 3, k_step: 1, max_turns: 10, op: 'ADD', cmp: 'LT' } },
   { id: 'sum', type: 'EXPR', inputs: [at('acc'), at('loop:q0')], outputs: ['acc'], expression: { constants: [1], code: ['in', 0, 'in', 1, '+', 'const', 0, '+'] } },
@@ -113,27 +113,27 @@ describe('stored code: more block shapes', () => {
   }
   const constant = (id: string): ProgramBlock => ({ id, type: 'EXPR', expression: { constants: [1], code: ['const', 0] } })
 
-  it('nested loops, several enables and a signed EDGE threshold', () => {
+  it('nested loops, several enables on an EDGE', () => {
     const recovered = roundTrip([
       { id: 'outer', type: 'FOR', body: 3, settings: { k_start: 0, k_end: 3, k_step: 1, max_turns: 10 } },
       { id: 'inner', type: 'FOR', body: 1, settings: { k_start: 0, k_end: 2, k_step: 1, max_turns: 10 } },
       constant('x'),
       constant('y'),
-      { id: 'edge', type: 'EDGE', inputs: [at('temp')], enables: [at('on'), at('go')], enableMode: 'all', onError: 'continue', settings: { edge_type: 'FALLING', change_by: -5 } },
-    ], [value('temp', 'I32'), value('on', 'B'), value('go', 'B')])
+      { id: 'edge', type: 'EDGE', enables: [at('on'), at('go')], enableMode: 'all', onError: 'continue', settings: { edge_type: 'FALLING' } },
+    ], [value('on', 'B'), value('go', 'B')])
     expect(recovered.blocks.map((block) => block.id)).toEqual(['for1', 'for2', 'expr1', 'expr2', 'edge1'])
     // The inner loop and the block after it are in the outer loop; the inner one's block is in the inner loop.
     expect(recovered.blocks[1]!.enables).toEqual([{ root: 'for1:eno' }])
     expect(recovered.blocks[2]!.enables).toEqual([{ root: 'for2:eno' }])
     expect(recovered.blocks[3]!.enables).toEqual([{ root: 'for1:eno' }])
-    expect(recovered.blocks[4]).toMatchObject({ enableMode: 'all', onError: 'continue', settings: { edge_type: 'FALLING', change_by: -5 } })
+    expect(recovered.blocks[4]).toMatchObject({ enableMode: 'all', onError: 'continue', settings: { edge_type: 'FALLING' } })
     expect(recovered.blocks[4]!.enables).toHaveLength(2)
   })
 
   it('a pin taken from the settings or from an input', () => {
     roundTrip([
-      { id: 'set', type: 'IO_SET_LEVEL', inputs: [at('level')], dynamicInputs: [1], settings: { device_id: 0, default_io_num: 4, flags: 4, allowed_mask: '0xff', disabled_action: 'HOLD' } },
-      { id: 'wired', type: 'IO_SET_LEVEL', inputs: [at('level'), at('pin')], settings: { device_id: 0, default_io_num: 4, flags: 4, allowed_mask: '0xff', disabled_action: 'HOLD' } },
+      { id: 'set', type: 'IO_SET_LEVEL', inputs: [at('level')], dynamicInputs: [1], settings: { device_id: 0, default_io_num: 4, allowed_mask: '0xff', when_not_active: 'HOLD' } },
+      { id: 'wired', type: 'IO_SET_LEVEL', inputs: [at('level'), at('pin')], settings: { device_id: 0, default_io_num: 4, allowed_mask: '0xff', when_not_active: 'HOLD' } },
     ], [value('level', 'B'), value('pin', 'U8')])
   })
 

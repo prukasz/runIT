@@ -42,7 +42,7 @@ describe('canvas renders', () => {
   it('blocks with their pins, and the compiler\'s error count', () => {
     const blocks: CanvasBlock[] = [{ id: 'periodic1', type: 'PERIODIC', x: 40, y: 60 }, { id: 'if1', type: 'IF', x: 240, y: 60 }]
     const html = renderToString(<Harness canvases={[{ id: 'a', name: 'Main', blocks }]} selected={blocks[1]} />)
-    expect(html).toContain('left:40px;top:60px;width:200px;height:60px')
+    expect(html).toContain('left:40px;top:60px;width:160px;height:60px')
     expect(html).toContain('periodic1')
     expect(html).toContain('aria-label="Run when connector periodic1"')
     expect(html).toContain('aria-label="Tick connector periodic1"')

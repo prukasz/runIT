@@ -6,14 +6,14 @@
   "name": "VM_BLK_IO_SET_LEVEL",
   "title": "Set Pin Level",
   "category": "io",
-  "description": "Drives a pin on an IO device (ESP GPIO, expander) to the input level; writes only on change unless ALWAYS.",
+  "description": "Drives a pin on an IO device (ESP GPIO, expander) to the input level; writes only on change.",
   "source_file": "components/VM/blocks/vm_block_io_set_level.h",
   "activation": {
     "kind": "enabled",
     "description": "Runs every pass while enabled."
   },
   "inputs": {
-    "min": 1,
+    "min": 0,
     "max": 2,
     "pins": [
       {
@@ -21,7 +21,10 @@
         "name": "level",
         "title": "Level",
         "value": "bool",
-        "required": true
+        "description": "Overrides default_level; the level the pin is driven to while active.",
+        "overrides": "default_level",
+        "required": false,
+        "hidden_by_default": true
       },
       {
         "index": 1,
@@ -49,7 +52,12 @@
       "error_tag": 43296
     },
     {
-      "rule": "disabled_action is a vm_io_disabled_state_e value.",
+      "rule": "when_not_active is a vm_io_disabled_state_e value.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    },
+    {
+      "rule": "default_level is a vm_io_level_e value.",
       "error": "ERR_VM_BLK_BAD_SHAPE",
       "error_tag": 43296
     }
@@ -70,6 +78,7 @@
       }
     ]
   },
+  "always_detailed": true,
   "state": {
     "struct": "vm_block_io_set_level_data_t",
     "source_file": "components/VM/blocks/vm_block_io_set_level.h",
@@ -109,11 +118,11 @@
         "overridden_by": 1
       },
       {
-        "name": "disabled_action",
+        "name": "when_not_active",
         "c_type": "uint8_t",
         "offset": 10,
         "size": 1,
-        "description": "What disabled does",
+        "description": "What the pin does when the block is not active",
         "enum_ref": "vm_io_disabled_state_e",
         "source": "user"
       },
@@ -122,8 +131,8 @@
         "c_type": "uint8_t",
         "offset": 11,
         "size": 1,
-        "description": "VM_IO_SET_F_*: only VM_IO_SET_F_ALWAYS (0x04) is set by the app",
-        "source": "user"
+        "description": "VM_IO_SET_F_* cache bits",
+        "source": "runtime"
       },
       {
         "name": "last_pin",
@@ -134,11 +143,21 @@
         "source": "runtime"
       },
       {
-        "name": "_pad",
+        "name": "default_level",
         "c_type": "uint8_t",
         "offset": 13,
-        "size": 3,
-        "array_len": 3,
+        "size": 1,
+        "description": "Select level when block active",
+        "enum_ref": "vm_io_level_e",
+        "source": "user",
+        "overridden_by": 0
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint8_t",
+        "offset": 14,
+        "size": 2,
+        "array_len": 2,
         "element_size": 1,
         "description": "Align to 16 bytes",
         "source": "padding"
@@ -152,20 +171,38 @@
       "source_file": "components/VM/blocks/vm_block_io_set_level.h",
       "members": [
         {
-          "name": "VM_IO_DISABLED_HOLD",
+          "name": "VM_IO_DISABLED_FORCE_LOW",
           "value": 0,
           "alias": null,
           "description": null
         },
         {
-          "name": "VM_IO_DISABLED_FORCE_LOW",
+          "name": "VM_IO_DISABLED_FORCE_HIGH",
           "value": 1,
           "alias": null,
           "description": null
         },
         {
-          "name": "VM_IO_DISABLED_FORCE_HIGH",
+          "name": "VM_IO_DISABLED_HOLD",
           "value": 2,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_io_level_e": {
+      "alias": "IO Static Level",
+      "source_file": "components/VM/blocks/vm_block_io_set_level.h",
+      "members": [
+        {
+          "name": "VM_IO_LEVEL_HIGH",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IO_LEVEL_LOW",
+          "value": 1,
           "alias": null,
           "description": null
         }

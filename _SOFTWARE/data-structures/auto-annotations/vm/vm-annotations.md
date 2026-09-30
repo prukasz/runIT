@@ -76,6 +76,7 @@ Every block header in `components/VM/blocks/` describes its block for the app in
 The descriptor carries what the block's face says; the app fills in the values.
 
 - **Face:** `//@header <lead> | <value>` is the line under the title (`Every | {period} {time_base}` → "Every 100 MS": the words, then the value, drawn apart; the `|` is optional). Without a header the face shows the title alone.
+- **Always detailed:** `//@always-detailed` (no text) draws the block in its detailed view on every canvas and hides the view choice; it needs an `@overrides` input or `@opcodes`, else the detailed view is empty. IO_SET_LEVEL uses it so its pin and level are always visible.
 - **Detailed view:** built automatically, nothing to annotate. A block has one when it has an input with a constant (`@overrides`), or a formula (`//@opcodes`). It makes the hard-coded inputs visible: each input that has a constant is drawn with that constant as a chip while it is unwired (`0  Start`, `300  Preset`), and a bytecode block shows its formula (`Result = a + b`). A block with neither is its face, and offers no detailed view. There is no text to write for it.
 - A `{ref}` in a header is resolved by the app, and the generator checks every one:
   - an **input pin name**: the wired source's name, else (when the pin has `@overrides`) the constant it overrides, else `dynamic` when the user made it a dynamic input;

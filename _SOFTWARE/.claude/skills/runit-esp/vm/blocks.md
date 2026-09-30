@@ -15,7 +15,7 @@ Type 0 is reserved (unset type must not run). The type byte indexes `g_vm_block_
 | 7 | `CLONE` | ★0 src (trigger), ★1 dst pointer cell | — | 0 | src fresh **and** enabled; heap only on schema change |
 | 8 | `EDGE` | ★0 signal, 1 threshold | 0: pulse (1 pass) | 12 | enabled (re-syncs on re-enable) |
 | 9 | `TIMER` (TON/TOF/TP + inverted) | ★0 IN, 1 PT | 0: Q, 1: ET | 32 (mode, flags, time base ms/s/min/h, pt, start, elapsed) | enabled (disabled = stand down, clear) |
-| 10 | `IO_SET_LEVEL` | ★0 level, 1 pin | — | 16 (`allowed_mask u64`, `device_id`, `default_io_num`, `disabled_action` HOLD/LOW/HIGH, flags, `last_pin`) | enabled; writes on change unless `F_ALWAYS` |
+| 10 | `IO_SET_LEVEL` | 0 level (optional, `default_level` while unwired), 1 pin | — | 16 (`allowed_mask u64`, `device_id`, `default_io_num`, `when_not_active` LOW/HIGH/HOLD, runtime `flags`, `last_pin`, `default_level` LOW/HIGH) | enabled; writes on change only |
 | 11 | `IO_TOGGLE` | 0 pin | — | 16 (`allowed_mask`, `device_id`, `default_io_num`, flags) | rising edge of enable |
 | 12 | `LATCH` (SR / RS) | 0 set, 1 reset (≥1 wired) | 0: Q (written on change) | 4 (mode, flags) | enabled; ENO = Q level; disabled holds Q |
 | 13 | `PERIODIC` | 0 period (fallback constant, `time_base` units; hidden until wired) | — (ENO = the tick) | 16 (period, time base, flags, next deadline) | enabled; one-pass tick per period, no burst, overrun reported once |
@@ -82,7 +82,7 @@ Hardware blocks call `sys_io_*` with `SYS_IO_REF(device_id, pin)`. `allowed_mask
 |---|---|---|
 | Function of its inputs | `IF_BLOCK_TRIGGERED(b) IF_BLOCK_ENABLED(b)` | EXPR |
 | Copy / event on one source pin only | `vm_block_triggered_by(b, SRC)` then enabled | SET, CLONE (a trigger over the dst pin would re-fire forever) |
-| Level / actuator | `IF_BLOCK_ENABLED(b)`; define what "disabled" does | IO_SET_LEVEL (`disabled_action`), TIMER |
+| Level / actuator | `IF_BLOCK_ENABLED(b)`; define what "disabled" does | IO_SET_LEVEL (`when_not_active`), TIMER |
 | Edge of enable | keep `prev_en` in state | IO_TOGGLE, ACTION |
 | Event | enabled, then scan `vm_event_count()` / `vm_event_at()` for a match | ON_EVENT |
 | Periodic tick | deadline in state, `vm_now_ms()` | PERIODIC |

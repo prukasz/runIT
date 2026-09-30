@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Badge } from '../../components/Badge'
 import { PaletteSearch } from '../../components/PaletteSearch'
 import { PaletteSectionHeader } from '../../components/PaletteSectionHeader'
 import { TreeSlab } from '../../components/TreeSlab'
@@ -60,7 +59,6 @@ export function BlockPalette({ workspace }: { workspace: CanvasWorkspace }) {
                   ariaLabel={type.title}
                   icon={<span className="block-palette-swatch" aria-hidden="true" />}
                   label={type.title}
-                  badges={<Badge>{type.key}</Badge>}
                   onDragStart={(event) => {
                     workspace.paletteDrag.current = type.key
                     event.dataTransfer.setData(BLOCK_DRAG_TYPE, type.key)

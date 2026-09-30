@@ -11,7 +11,7 @@ describe('block headline', () => {
     expect(headline('TIMER', { mode: 'TON', time_base: 'MS', pt: 300 })).toBe('Timer TON 300 MS')
     expect(headline('FOR', { k_start: 0, k_end: 3, k_step: 1, op: 'ADD', cmp: 'LT' })).toBe('For 0 to 3 (<) step +1')
     expect(headline('LATCH', { mode: 'SET_DOMINANT' })).toBe('Latch Set dominant')
-    expect(headline('EDGE', { edge_type: 'RISING', change_by: 1 })).toBe('RISING edge, change 1')
+    expect(headline('EDGE', { edge_type: 'RISING' })).toBe('RISING edge')
   })
 
   it('splits the words of the block from the value it is set to, so the face can draw the value apart', () => {
@@ -51,8 +51,8 @@ describe('block face from the descriptor', () => {
 
   it('has a detailed view only where there is a hard-coded input to show, or a formula', () => {
     const detailed = (key: string) => catalog.block(key)!.hasDetail
-    expect(['FOR', 'TIMER', 'PERIODIC', 'EDGE', 'ACTION', 'IO_SET_LEVEL', 'IO_TOGGLE', 'EXPR', 'EXPR_BIT'].filter((key) => !detailed(key))).toEqual([])
-    expect(['IF', 'SWITCH', 'SET', 'CLONE', 'LATCH', 'ON_EVENT'].filter(detailed)).toEqual([])
+    expect(['FOR', 'TIMER', 'PERIODIC', 'ACTION', 'IO_SET_LEVEL', 'IO_TOGGLE', 'EXPR', 'EXPR_BIT'].filter((key) => !detailed(key))).toEqual([])
+    expect(['IF', 'SWITCH', 'SET', 'CLONE', 'EDGE', 'LATCH', 'ON_EVENT'].filter(detailed)).toEqual([])
   })
 
   it('draws an input that has a constant only in the detailed view, with the constant', () => {

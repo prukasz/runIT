@@ -9,7 +9,7 @@ describe('block hardware settings', () => {
   const catalog = runitDeviceCatalog()
   const type = runitVmCatalog().block('IO_SET_LEVEL')!
   it('shows the pin of an IO block on its face and its device on the line below, from the descriptor', () => {
-    const block = { id: 'io', type: type.key, settings: { device_id: 0, default_io_num: 4, flags: 4, allowed_mask: '0xffff', disabled_action: 'HOLD' } }
+    const block = { id: 'io', type: type.key, settings: { device_id: 0, default_io_num: 4, allowed_mask: '0xffff', when_not_active: 'HOLD' } }
     expect(blockHeadline(type, block)).toBe('Set Pin Level #4')
     expect(blockDeviceLine(type, block)).toBe('GPIO_ESP (#0)')
     expect(blockDeviceLine(type, block, [], withDeviceAliases(catalog, { 'board:0': 'Front switches' }))).toBe('Front switches (#0)')
@@ -30,7 +30,7 @@ describe('block hardware settings', () => {
   })
   it('preserves hidden input indices, exposes selected or wired dynamic pins, and saves the selection', () => {
     const block = { id: 'io', type: type.key, x: 0, y: 0 }
-    expect(blockShape(type, block).inputs.map((pin) => pin.index)).toEqual([0])
+    expect(blockShape(type, block).inputs.map((pin) => pin.index)).toEqual([0, 1]) // always detailed: Level and Pin both drawn, with their constants
     const selected = { ...block, dynamicInputs: [1], settings: { allowed_mask: '0x8000000000000020' } }
     expect(blockShape(type, selected).inputs.map((pin) => pin.index)).toEqual([0, 1])
     expect(blockShape(type, { ...block, inputs: [null, { root: 'selector' }] }).inputs.map((pin) => pin.index)).toEqual([0, 1])

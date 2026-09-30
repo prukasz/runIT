@@ -120,11 +120,26 @@ describe('compileProgram: blocks', () => {
     expect(errors(compile([], [{ ...loop, body: 0 }, { id: 't', type: 'PERIODIC', settings: { period: 1 } }]))).toEqual([])
   })
 
-  it('stores the EDGE threshold in the type of the signal', () => {
-    const edge = (signal: ValueNode) => blockRecords(compile([signal], [{ id: 'e', type: 'EDGE', inputs: [at(signal.id)], settings: { edge_type: 'BOTH', change_by: 2 } }]))[0]!
-    // 1 input + 1 output: the state starts at 14 + 4, change_by 4 bytes into it
-    expect(hex(edge(value('f', 'F')).subarray(22, 26))).toBe('00000040')
-    expect(hex(edge(value('n', 'U32')).subarray(22, 26))).toBe('02000000')
+  it('takes EDGE signal on EN only, and refuses the old data pins and threshold', () => {
+    const signal = value('s', 'U8')
+    expect(compile([signal], [{ id: 'e', type: 'EDGE', enables: [at('s')], eno: true, settings: { edge_type: 'BOTH' } }]).diagnostics).toEqual([])
+    const old = compile([signal], [{ id: 'e', type: 'EDGE', inputs: [at('s')], settings: { edge_type: 'BOTH', change_by: 2 } }])
+    expect(errors(old)).toEqual(expect.arrayContaining([expect.objectContaining({ firmwareError: 'ERR_VM_BLK_BAD_SHAPE', message: expect.stringContaining('old Signal/Threshold/Pulse') })]))
+    const unwired = compile([], [{ id: 'e', type: 'EDGE', settings: { edge_type: 'BOTH' } }])
+    expect(errors(unwired)).toEqual([expect.objectContaining({ message: expect.stringContaining('connect a signal to EN') })])
+  })
+
+  it('drives IO_SET_LEVEL from its static level while Level is unwired, and sends it in the state', () => {
+    const settings = { allowed_mask: 2 ** 5, device_id: 0, default_io_num: 5, when_not_active: 'HOLD' }
+    const build = (level: string | undefined) => compile([], [{ id: 'io', type: 'IO_SET_LEVEL', settings: { ...settings, ...(level ? { default_level: level } : {}) } }])
+    expect(build('HIGH').diagnostics).toEqual([])
+    const record = (level: string | undefined) => hex(blockRecords(build(level))[0]!)
+    // default_level is a one-byte field of the 16-byte state: only that byte differs
+    const low = record('LOW'), high = record('HIGH')
+    expect(record(undefined)).toBe(high) // a fresh block is HIGH
+    expect(low).not.toBe(high)
+    expect([...low].filter((char, at) => char !== high[at])).toHaveLength(1)
+    expect(catalog.block('IO_SET_LEVEL')).toMatchObject({ alwaysDetailed: true, inputs: { pins: [expect.objectContaining({ name: 'level', overrides: 'default_level', required: false }), expect.anything()] } })
   })
 
   it.each([

@@ -952,7 +952,7 @@ Dynamic objects are heap-backed and isolated: nothing else in a running program 
 The hardware blocks drive a pin on any IO device through `sys_io` (`SYS_IO_REF(device_id, pin)`), so the same block works for an ESP GPIO or an expander pin.
 
 - **Pin**: a constant `default_io_num`, or a dynamic pin from an input. A dynamic pin must be in `allowed_mask` (64-bit). The mask is the program's own declaration of which pins it may select, not a protection boundary — protecting board pins is `sys_io`'s job (locked pins, onboard devices).
-- **IO_SET_LEVEL** (16 B state): ★`in[0]` level. Writes on change only (cached last level and pin) unless `VM_IO_SET_F_ALWAYS`, sparing the I2C bus. `disabled_action` decides what disabled means: HOLD, force LOW or force HIGH.
+- **IO_SET_LEVEL** (16 B state): optional `in[0]` level (`default_level` LOW/HIGH while unwired, like `default_io_num` for the pin); always drawn detailed in the app. Writes on change only (cached last level and pin), sparing the I2C bus. `when_not_active` decides what the pin does when the block is not active: force LOW (default), force HIGH or HOLD.
 - **IO_TOGGLE** (16 B state): toggles once per rising edge of its enable.
 - ENO pulses when the hardware write succeeded this pass.
 

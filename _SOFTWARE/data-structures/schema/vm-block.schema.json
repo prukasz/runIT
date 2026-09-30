@@ -34,6 +34,7 @@
       "additionalProperties": false,
       "properties": { "lead": { "$ref": "#/$defs/template" }, "value": { "$ref": "#/$defs/template" } }
     },
+    "always_detailed": { "type": "boolean", "description": "The block is always drawn in its detailed view (//@always-detailed): its constants are visible and the view choice is not offered." },
     "eno": {
       "description": "What this block's ENO is called (default: When done). PERIODIC: Tick, FOR: Loop body.",
       "type": "object",

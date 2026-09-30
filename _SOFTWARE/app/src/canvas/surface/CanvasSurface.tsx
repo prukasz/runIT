@@ -175,6 +175,31 @@ export function CanvasSurface({
     return () => window.removeEventListener('keydown', onKey)
   })
 
+  /** Removes the selected wire, docked chip or free chip; false when none is selected. */
+  const removeSelectedLink = (): boolean => {
+    if (selectedWire) workspace.updateBlock(selectedWire.to.block, (block) => disconnect(block, selectedWire.to, selectedWire.enableIndex))
+    else if (selectedPinChip) workspace.updateBlock(selectedPinChip.block, (block) => disconnect(block, selectedPinChip))
+    // A free chip goes back onto its pins (they keep reading the variable).
+    else if (selectedChip) workspace.updateActive((canvas) => ({ ...canvas, variables: (canvas.variables ?? []).filter((entry) => entry.id !== selectedChip) }))
+    else return false
+    setSelectedWire(undefined)
+    setSelectedChip(undefined)
+    setSelectedPinChip(undefined)
+    return true
+  }
+
+  // The toolbar's trash button acts as Delete on whatever is selected: a wire, a variable chip, or the selected blocks.
+  const deleteRef = useRef<() => void>(() => undefined)
+  deleteRef.current = () => {
+    if (!removeSelectedLink() && selectedIds.length) workspace.deleteBlocks(selectedIds)
+  }
+  const canDelete = !!selectedWire || !!selectedChip || !!selectedPinChip || selectedIds.length > 0
+  const { setDeleteSelection } = workspace
+  useEffect(() => {
+    setDeleteSelection(canDelete ? () => () => deleteRef.current() : undefined)
+    return () => setDeleteSelection(undefined)
+  }, [canDelete, setDeleteSelection])
+
   // Delete removes the selected wire; Escape drops it, or a connection in progress, or clears selected variable.
   useEffect(() => {
     if (!selectedWire && !draft && !selectedChip && !selectedPinChip && !selectedObjectId) return
@@ -187,16 +212,9 @@ export function CanvasSurface({
         setSelectedPinChip(undefined)
         onClearSelectedObject?.()
       } else if (event.key === 'Delete' || event.key === 'Backspace') {
-        if (selectedWire) workspace.updateBlock(selectedWire.to.block, (block) => disconnect(block, selectedWire.to, selectedWire.enableIndex))
-        else if (selectedPinChip) workspace.updateBlock(selectedPinChip.block, (block) => disconnect(block, selectedPinChip))
-        // A free chip goes back onto its pins (they keep reading the variable).
-        else if (selectedChip) workspace.updateActive((canvas) => ({ ...canvas, variables: (canvas.variables ?? []).filter((entry) => entry.id !== selectedChip) }))
-        else return
+        if (!removeSelectedLink()) return
         event.preventDefault()
         event.stopImmediatePropagation()
-        setSelectedWire(undefined)
-        setSelectedChip(undefined)
-        setSelectedPinChip(undefined)
       }
     }
     window.addEventListener('keydown', onKey, true)

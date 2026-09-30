@@ -175,21 +175,26 @@ const textWidth = (text: string, font: string, perChar: number): number => {
   return measuring.measureText(text).width
 }
 
-const MONO = 'ui-monospace, SFMono-Regular, Consolas, monospace'
+
+const BADGE = 24
 
 /** Width the block's title needs, including its value beside a custom name and any ID shown in detailed view. */
-const headerWidth = (type: VmBlockType | undefined, block: FaceBlock, expanded: boolean, devices: readonly ProjectDevice[], deviceCatalog?: DeviceCatalog): number => {
+const headerWidth = (type: VmBlockType | undefined, block: FaceBlock, devices: readonly ProjectDevice[], deviceCatalog?: DeviceCatalog): number => {
   if (!type) return 0
   const family = typeof document === 'undefined' ? 'sans-serif' : getComputedStyle(document.body).fontFamily
   const namedValue = block.name ? blockSubtitleHeadline(type, block, pathText, devices, deviceCatalog) : undefined
   const title = block.name ? [block.name, namedValue].filter(Boolean).join(' ') : blockHeadline(type, block, pathText, devices, deviceCatalog) || type.title
-  const subtitle = expanded ? block.id : ''
   const eno = type.eno.title !== DEFAULT_ENO.title ? textWidth(type.eno.title, `600 10px ${family}`, 6.2) + 6 : 0
-  return Math.max(textWidth(title, `600 12px ${family}`, 6.8), textWidth(subtitle, `10px ${MONO}`, 6)) + eno + 24 + 8
+  // The title keeps its room beside the ENO name and the problem-count badge, which shares the header.
+  return textWidth(title, `600 12px ${family}`, 6.8) + eno + BADGE + 24 + 8
 }
 
+/** Whether the block is drawn in its detailed view: the block's own choice, else the toolbar; some blocks are always detailed. */
+export const isDetailed = (type: VmBlockType | undefined, block: { readonly view?: 'simple' | 'detailed' }, toolbar: boolean): boolean =>
+  !!type?.hasDetail && (type.alwaysDetailed || (block.view ? block.view === 'detailed' : toolbar))
+
 export const blockShape = (type: VmBlockType | undefined, block: FaceBlock & { readonly view?: 'simple' | 'detailed' }, detailed = false, devices: readonly ProjectDevice[] = [], deviceCatalog?: DeviceCatalog): BlockShape => {
-  const expanded = !!type?.hasDetail && (block.view ? block.view === 'detailed' : detailed)
+  const expanded = isDetailed(type, block, detailed)
   const inputs = type ? pinViews(type.inputs, pinCount(type.inputs, block.inputs?.length ?? 0)).filter((pin) => !blockPinAt(type.inputs, pin.index)?.hiddenByDefault || block.dynamicInputs?.includes(pin.index) || block.inputs?.[pin.index] || (expanded && blockPinAt(type.inputs, pin.index)?.overrides)) : []
   const outputs = type ? pinViews(type.outputs, pinCount(type.outputs, block.outputs?.length ?? 0)) : []
   const rows = Math.max(1, inputs.length, outputs.length)
@@ -199,7 +204,7 @@ export const blockShape = (type: VmBlockType | undefined, block: FaceBlock & { r
   const deviceLine = blockDeviceLine(type, block, devices, deviceCatalog)
   const family = typeof document === 'undefined' ? 'sans-serif' : getComputedStyle(document.body).fontFamily
   const deviceWidth = deviceLine ? textWidth(deviceLine, `10.5px ${family}`, 5.8) + 24 : 0
-  const contentWidth = Math.max(headerWidth(type, block, expanded, devices, deviceCatalog), deviceWidth)
+  const contentWidth = Math.max(headerWidth(type, block, devices, deviceCatalog), deviceWidth)
   const width = Math.max(minimum + (expanded && type?.encoding ? 4 * GRID : 0), Math.ceil(contentWidth / GRID) * GRID)
   return { width, height: HEADER + rows * ROW + summaryHeight, inputs, outputs, row: ROW }
 }

@@ -72,7 +72,7 @@ IDENT_RE = re.compile(r"^[A-Za-z_]\w*$")
 # What each `//@keyword` line of a block takes: `one` once, `many` any number of times.
 DIRECTIVES = {
     "title": "one", "category": "one", "activation": "one", "block-description": "one",
-    "data": "one", "data-tail": "one", "opcodes": "one", "header": "one", "eno": "one",
+    "data": "one", "data-tail": "one", "opcodes": "one", "header": "one", "eno": "one", "always-detailed": "one",
     "rule": "many", "example": "many", "in": "many", "out": "many",
 }
 REQUIRED_DIRECTIVES = ("title", "category", "activation", "block-description")
@@ -809,6 +809,12 @@ def build_block(path, text, source, ids, catalog, errors, sdkconfig):
         block["eno"] = {"title": tags["title"], **({"description": tags["description"]} if tags.get("description") else {})}
     if header:
         block["header"] = header
+    if one(directives, "always-detailed"):
+        if one(directives, "always-detailed")["rest"].strip():
+            fail(f"{context}: //@always-detailed takes no text")
+        if not any(pin.get("overrides") for pin in inputs) and not opcodes_enum:
+            fail(f"{context}: //@always-detailed needs an @overrides input or @opcodes: nothing else is in the detailed view")
+        block["always_detailed"] = True
     if state:
         block["state"] = state
     block["min_custom_len"] = state["size"] if state else 0

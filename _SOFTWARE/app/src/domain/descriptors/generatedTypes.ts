@@ -261,6 +261,7 @@ export interface GeneratedVmBlockFile {
   /** What the block's ENO is called, when "When done" is not right (`//@eno`). */
   readonly eno?: { readonly title: string; readonly description?: string }
   /** The face's line under the title: the block's words, then the value it is set to (`//@header`). */
+  readonly always_detailed?: boolean
   readonly header?: { readonly lead: readonly GeneratedVmTemplatePart[]; readonly value?: readonly GeneratedVmTemplatePart[] }
   readonly state?: { readonly size: number; readonly fields: readonly GeneratedVmBlockStateField[] }
   readonly min_custom_len: number

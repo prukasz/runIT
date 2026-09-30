@@ -40,8 +40,8 @@ const blocks: readonly ProgramBlock[] = [
   { id: 'hi', type: 'IF', inputs: [at('high:q0')], eno: true },
   { id: 'off', type: 'TIMER', inputs: [at('hi:q0')], eno: true, settings: { mode: 'TOF', time_base: 'MS', pt: 200 } },
   { id: 'pulse', type: 'TIMER', inputs: [at('hi:q0')], eno: true, settings: { mode: 'TP', time_base: 'MS', pt: 150 } },
-  { id: 'fall', type: 'EDGE', inputs: [at('saw:q0')], settings: { edge_type: 'FALLING', change_by: 3 } },
-  { id: 'wrapped', type: 'LATCH', inputs: [at('fall:q0'), null], settings: { mode: 'RESET_DOMINANT' } },
+  { id: 'fall', eno: true, type: 'EDGE', enables: [at('high:q0')], settings: { edge_type: 'FALLING' } },
+  { id: 'wrapped', eno: true, type: 'LATCH', enables: [at('fall:eno')], settings: { mode: 'RESET_DOMINANT' } },
 ]
 
 /** Over every sample the board reports for `id`: eq / gt on the last, within [value, max], hits = some sample equals value. */
@@ -57,8 +57,8 @@ const checks: readonly { id: string; op: 'eq' | 'gt' | 'within' | 'hits'; value:
   { id: 'hi:q1', op: 'hits', value: 1, phase: 0, what: 'IF no while saw <= 3' },
   { id: 'off:eno', op: 'hits', value: 1, phase: 0, what: 'TOF output on (its Q is its ENO)' },
   { id: 'pulse:eno', op: 'hits', value: 1, phase: 0, what: 'TP fires (its Q is its ENO)' },
-  { id: 'fall:q0', op: 'hits', value: 1, phase: 0, what: 'EDGE FALLING sees the wrap (7 → 0)' },
-  { id: 'wrapped:q0', op: 'eq', value: 1, phase: 0, what: 'RS latch holds the wrap' },
+  { id: 'fall:eno', op: 'hits', value: 1, phase: 0, what: 'EDGE FALLING sees saw > 3 end at the wrap (7 → 0)' },
+  { id: 'wrapped:eno', op: 'eq', value: 1, phase: 0, what: 'RS latch holds the wrap' },
   { id: 'picked', op: 'eq', value: 4.5, phase: 1, what: 'the dynamic accessor follows k = 3' },
 ]
 

@@ -60,6 +60,8 @@ export function useCanvasWorkspace(onSelectBlock?: () => void) {
   const [selectedIds, setSelectedIds] = useState<readonly string[]>([])
   /** Multiple-select mode (the toolbar button): a tap adds or removes a block, dragging the background draws a box. */
   const [multiSelect, setMultiSelect] = useState(false)
+  /** What the toolbar's trash button does: the surface registers it while a wire, variable chip or block is selected (touch has no Delete key). */
+  const [deleteSelection, setDeleteSelection] = useState<(() => void) | undefined>()
   /** A block to bring to the middle of the view once its canvas is shown (the surface clears it). */
   const [focus, setFocus] = useState<{ canvasId: string; blockId: string }>()
   /** Size of the canvas on screen (set by the surface): where the middle of the view is. */
@@ -222,6 +224,8 @@ export function useCanvasWorkspace(onSelectBlock?: () => void) {
     selectedBlocks: selectedIds.flatMap((id) => findBlock(canvases, id)?.block ?? []),
     selectedIds,
     multiSelect,
+    deleteSelection,
+    setDeleteSelection,
     setMultiSelect,
     selectBlock,
     toggleBlock,

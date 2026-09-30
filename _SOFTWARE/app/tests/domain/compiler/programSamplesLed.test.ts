@@ -21,7 +21,7 @@ const TCA = 1
 const objects: readonly ObjectNode[] = [value('phase', 'F', [0])]
 
 const led = (id: string, pin: number, source: string): ProgramBlock => ({
-  id, type: 'IO_SET_LEVEL', inputs: [at(source)], settings: { allowed_mask: 2 ** pin, device_id: TCA, default_io_num: pin, disabled_action: 'FORCE_LOW' },
+  id, type: 'IO_SET_LEVEL', inputs: [at(source)], settings: { allowed_mask: 2 ** pin, device_id: TCA, default_io_num: pin, when_not_active: 'FORCE_LOW' },
 })
 
 const blocks: readonly ProgramBlock[] = [

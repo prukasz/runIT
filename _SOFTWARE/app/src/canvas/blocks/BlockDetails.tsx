@@ -472,7 +472,7 @@ export function BlockDetails({
       </section>
 
       <p className="block-description">{type.description}</p>
-      <p className="block-muted">{block.type === 'LATCH' ? 'Samples Set and Reset each cycle. ENO stays true after Set until Reset clears it.' : block.type === 'EDGE' ? 'Samples its EN signal each cycle, including when false. ENO pulses on the selected edge.' : `Runs: ${type.activation === 'triggered' ? 'when an input it reads is fresh' : type.activation === 'enable-rising' ? 'once each time its Run when turns on' : 'every cycle while its Run when is true'}`}</p>
+      {block.type !== 'IO_SET_LEVEL' && <p className="block-muted">{block.type === 'LATCH' ? 'Samples Set and Reset each cycle. ENO stays true after Set until Reset clears it.' : block.type === 'EDGE' ? 'Samples its EN signal each cycle, including when false. ENO pulses on the selected edge.' : `Runs: ${type.activation === 'triggered' ? 'when an input it reads is fresh' : type.activation === 'enable-rising' ? 'once each time its Run when turns on' : 'every cycle while its Run when is true'}`}</p>}
 
       {problems.length > 0 && (
         <ul className="block-problems">
@@ -497,7 +497,7 @@ export function BlockDetails({
               const feeder = pin ? block.inputs?.[pin.index] : undefined
               const fed = !!feeder && feeder.root !== ''
               const label = pin ? pin.title : humanize(field.name)
-              const hint = pin ? (fed ? `Not used while ${pin.title} is wired to ${labelPath(feeder!)}` : `Used while the ${pin.title} pin is unwired${field.description ? `. ${field.description}` : ''}`) : field.description
+              const hint = pin ? (fed ? `Not used while ${pin.title} is wired to ${labelPath(feeder!)}` : 'Used when no input is connected') : field.description
               if (field.enumRef) {
                 const choices = enumChoices(type, field)
                 const current = typeof raw === 'number' ? choices.find((choice) => choice.value === raw) : choices.find((choice) => choice.label === raw) ?? (raw === undefined ? choices.find((choice) => choice.value === 0) : undefined)
@@ -766,10 +766,9 @@ export function BlockDetails({
             }}
           />
         )}
-        <p className="block-muted">Drag from an output (right side), When done or Loop body onto another block to wire it; drag a variable from the Variables tab onto a block to use it.</p>
       </section>
 
-      {type.hasDetail && <section className="block-section">
+      {type.hasDetail && !type.alwaysDetailed && <section className="block-section">
         <h3>Appearance</h3>
         <label className="block-field">
           <span>Block view</span>

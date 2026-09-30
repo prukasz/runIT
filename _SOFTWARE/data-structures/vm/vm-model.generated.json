@@ -590,20 +590,38 @@
       "source_file": "components/VM/blocks/vm_block_io_set_level.h",
       "members": [
         {
-          "name": "VM_IO_DISABLED_HOLD",
+          "name": "VM_IO_DISABLED_FORCE_LOW",
           "value": 0,
           "alias": null,
           "description": null
         },
         {
-          "name": "VM_IO_DISABLED_FORCE_LOW",
+          "name": "VM_IO_DISABLED_FORCE_HIGH",
           "value": 1,
           "alias": null,
           "description": null
         },
         {
-          "name": "VM_IO_DISABLED_FORCE_HIGH",
+          "name": "VM_IO_DISABLED_HOLD",
           "value": 2,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_io_level_e": {
+      "alias": "IO Static Level",
+      "source_file": "components/VM/blocks/vm_block_io_set_level.h",
+      "members": [
+        {
+          "name": "VM_IO_LEVEL_HIGH",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IO_LEVEL_LOW",
+          "value": 1,
           "alias": null,
           "description": null
         }

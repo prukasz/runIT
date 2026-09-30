@@ -5,7 +5,7 @@ import type { Point, WireSource, WireTarget } from '../../domain/canvas'
 import type { DeviceCatalog, VmBlockType } from '../../domain/descriptors'
 import { decompileExpression, expressionLanguage, tokenize } from '../../domain/expression'
 import type { CanvasBlock, ObjectPath, ProjectDevice } from '../../domain/project'
-import { blockDeviceLine, blockHeadline, blockHeadlineParts, blockSubtitleHeadline, pathText, settingText } from './blockView'
+import { blockDeviceLine, blockHeadline, blockHeadlineParts, isDetailed, blockSubtitleHeadline, pathText, settingText } from './blockView'
 import { DEFAULT_ENO } from '../../domain/descriptors'
 import type { BlockPinView, BlockShape } from './blockView'
 import { ValueKindBadge } from '../../components/TypeBadge/TypeBadge'
@@ -67,7 +67,7 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
     const name = text.trim()
     if (name !== (block.name ?? '')) onRename?.(name || undefined)
   }
-  const expanded = !!type?.hasDetail && (block.view ? block.view === 'detailed' : detailed)
+  const expanded = isDetailed(type, block, detailed)
   const enables = block.enables?.length ?? 0
   const enLabel = block.type === 'LATCH' ? 'Set' : block.type === 'EDGE' ? 'Signal' : 'Run when'
   const at = drag?.at ?? (offset ? { x: block.x + offset.x, y: block.y + offset.y } : block)
@@ -303,7 +303,6 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
           ) : (
             <span className="canvas-block-title" title={onRename ? 'Double-click the header to name it' : undefined}>{block.name ? <>{block.name}{namedValue && <> <span className="canvas-block-value">{namedValue}</span></>}</> : headlineParts ? <>{headlineParts.lead}{headlineParts.value && <> <span className="canvas-block-value">{headlineParts.value}</span></>}</> : headline}</span>
           )}
-          {expanded && <span className="canvas-block-id" title={block.id}>{block.id}</span>}
         </span>
         {enoNamed && <span className="canvas-block-eno-tag" title={`${enoName.title}: ${enoName.description}`}>{enoName.title}</span>}
         {errors > 0 && <span className="canvas-block-errors" title={`${errors} problem(s): see the block's details`}>{errors}</span>}

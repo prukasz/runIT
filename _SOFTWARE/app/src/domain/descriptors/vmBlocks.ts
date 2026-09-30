@@ -104,6 +104,8 @@ export interface VmBlockType {
   readonly eno: VmBlockEno
   /** The block has a detailed view: it has inputs with a constant to show, or a formula. Other blocks are their face. */
   readonly hasDetail: boolean
+  /** The detailed view is the only one (`//@always-detailed`): the toolbar and the block's view choice do not apply. */
+  readonly alwaysDetailed: boolean
   /** The line under the title on the face (`//@header`); none: the title alone. */
   readonly header?: VmBlockHeader
   /** Private state: its fixed size and fields (empty for stateless blocks). */
@@ -197,6 +199,7 @@ export const buildVmBlockType = (file: GeneratedVmBlockFile): VmBlockType => {
     rules: file.rules,
     eno: { title: file.eno?.title ?? DEFAULT_ENO.title, description: file.eno?.description ?? DEFAULT_ENO.description },
     hasDetail: !!encoding || pins(file.inputs).pins.some((pin) => pin.overrides),
+    alwaysDetailed: file.always_detailed ?? false,
     ...(file.header ? { header: file.header } : {}),
     stateSize: file.state?.size ?? 0,
     fields,

@@ -5,7 +5,7 @@ Reads app/tests/domain/compiler/fixtures/program-samples-led.json (made by the a
 app/tests/domain/compiler/programSamplesLed.test.ts). Resets the board (boot log kept), uploads, subscribes
 to every object, runs, then for 5 s reads both pins from the expander every
 ~100 ms (packet_sys_io_get_level_t) and checks they blink, in turn. Stops the VM
-at the end (disabled_action FORCE_LOW: both LEDs go off) and reads them again.
+at the end (when_not_active FORCE_LOW: both LEDs go off) and reads them again.
 """
 from __future__ import annotations
 
