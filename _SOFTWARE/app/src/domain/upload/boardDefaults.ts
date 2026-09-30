@@ -1,5 +1,6 @@
 import { runitEnumValue, runitStreamCatalog } from '../descriptors'
 import type { StreamCatalog } from '../descriptors'
+import { DEFAULT_LOGS } from './settingsUpload'
 import type { BleCharSpec, BleServiceSpec, ConnectorBindingSpec, ConnectorSpec, SettingsState } from './settingsUpload'
 
 /*
@@ -74,5 +75,5 @@ export const boardDefaultSettings = (streams: StreamCatalog = runitStreamCatalog
     }
   })
 
-  return { services: [service], connectors }
+  return { services: [service], connectors, logs: DEFAULT_LOGS }
 }

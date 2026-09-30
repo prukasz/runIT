@@ -6,7 +6,7 @@ import { AlertCircle, AlertTriangle, Pause, Play, Upload } from 'lucide-react'
 import { packExec } from './domain/compiler'
 import type { ObjectLayout } from './domain/compiler'
 import { applyVmValues, decodeVmElements, decodeVmTelemetry } from './domain/decoder'
-import { runitStreamCatalog, runitVmCatalog } from './domain/descriptors'
+import { runitVmCatalog } from './domain/descriptors'
 import type { DeviceCatalog } from './domain/descriptors'
 import { serializeProject } from './domain/project'
 import { nameIds } from './domain/canvas'
@@ -15,18 +15,12 @@ import { planVmUpload } from './domain/upload'
 import { StoredCodeSection } from './StoredCodeSection'
 import type { BoardCodeState } from './useBoardCode'
 import { sendSteps } from './sendSteps'
+import { DEFAULT_MAX_FRAME_BYTES, MAX_FRAME_BYTES } from './frameLimits'
 import type { RunitBleSession } from './backend/runitBleSession'
 import type { BleDeviceConnection } from './useBleDeviceConnection'
 import type { ObjectWorkspace } from './ObjectTreeWorkspace'
 
 const catalog = runitVmCatalog()
-/** Longest command the board takes: its frame limit (CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX) less the seq byte. */
-const BOARD_MAX_FRAME_BYTES = runitStreamCatalog().board.limits.frameMax - 1
-/** Longest value one BLE write carries (ATT, Bluetooth Core spec), a link limit rather than the board's. */
-const ATT_MAX_VALUE = 512
-const MAX_FRAME_BYTES = Math.min(BOARD_MAX_FRAME_BYTES, ATT_MAX_VALUE)
-/** Web Bluetooth hides the negotiated MTU; 128 goes through as a long write on any link. */
-const DEFAULT_MAX_FRAME_BYTES = Math.min(128, MAX_FRAME_BYTES)
 
 interface Uploaded {
   /** The session it went to: a new connection knows nothing about it. */

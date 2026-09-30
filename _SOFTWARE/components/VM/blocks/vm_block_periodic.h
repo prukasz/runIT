@@ -6,10 +6,10 @@
 /*
  *            -------------
  *  ->EN      |           | ->ENO
- *  ->PERIOD  | PERIODIC  | ->TICK
+ *  ->PERIOD  | PERIODIC  |
  *            -------------
  *
- *  VM_BLK_PERIODIC -- "Every N": a one-pass pulse on ENO (and TICK) every PERIOD
+ *  VM_BLK_PERIODIC -- "Every N": a one-pass pulse on ENO (the tick) every PERIOD
  *  while enabled. The root of a timed chain.
  *
  *  - The first tick is on the pass the block becomes enabled, then every PERIOD.
@@ -48,7 +48,6 @@ _Static_assert(offsetof(vm_block_periodic_data_t, next_ms) == 8, "next_ms must b
 #define VM_PERIODIC_CUSTOM_LEN sizeof(vm_block_periodic_data_t)
 
 #define VM_PERIODIC_IN_PERIOD 0u
-#define VM_PERIODIC_TICK 0u
 
 static inline bool vm_verify_periodic(vm_block_h b) {
   vm_block_periodic_data_t d;
@@ -78,7 +77,7 @@ static inline bool vm_periodic_step(vm_block_periodic_data_t* d, uint64_t period
   return true;
 }
 
-/* Enable-driven. TICK and ENO pulse together: loud on a tick, quiet otherwise. */
+/* Enable-driven. ENO is the tick: loud for one pass on a tick, quiet otherwise. */
 static inline void vm_blk_periodic(vm_block_h b) {
   vm_block_periodic_data_t state;
   memcpy(&state, vm_block_get_custom_data(b), sizeof(state));
@@ -86,14 +85,12 @@ static inline void vm_blk_periodic(vm_block_h b) {
   if (!vm_block_is_enabled(b)) {
     state.flags &= (uint8_t)~(VM_PERIODIC_F_ARMED | VM_PERIODIC_F_OVERRUN);
     memcpy(vm_block_get_custom_data(b), &state, sizeof(state));
-    vm_block_drive_gate(b, VM_PERIODIC_TICK, false);
     vm_block_set_eno(b, false);
     return;
   }
 
   uint32_t period = state.period;
   if (!vm_block_check(b, VM_BLOCK_GET_PARAM(period, b, VM_PERIODIC_IN_PERIOD, state.period))) {
-    vm_block_drive_gate(b, VM_PERIODIC_TICK, false);
     vm_block_set_eno(b, false);
     return;
   }
@@ -101,7 +98,6 @@ static inline void vm_blk_periodic(vm_block_h b) {
   if (period_ms == 0) {  // paused from the pin
     state.flags &= (uint8_t)~VM_PERIODIC_F_ARMED;
     memcpy(vm_block_get_custom_data(b), &state, sizeof(state));
-    vm_block_drive_gate(b, VM_PERIODIC_TICK, false);
     vm_block_set_eno(b, false);
     return;
   }
@@ -124,17 +120,17 @@ static inline void vm_blk_periodic(vm_block_h b) {
   }
   memcpy(vm_block_get_custom_data(b), &state, sizeof(state));
 
-  vm_block_drive_gate(b, VM_PERIODIC_TICK, tick);
   vm_block_set_eno(b, tick);
 }
 
 /* Palette entry (vm_blocks_table.c): shape and state size are checked at load
    by vm_block_verify(), so the body never re-checks them. */
 //#vm-block VM_BLK_PERIODIC @title Every @category time @state vm_block_periodic_data_t @activation enabled Runs every pass while enabled.
-//@block-description Pulses ENO and TICK for one pass every period while enabled; never bursts after a slow pass.
+//@block-description Pulses ENO (the tick) for one pass every period while enabled; never bursts after a slow pass.
+//@view simple
 //@rule time_base is a vm_timer_unit_e value. @error ERR_VM_BLK_BAD_SHAPE
 //@rule With the period input unwired, period is not 0. @error ERR_VM_BLK_BAD_SHAPE
-//@in 0 period @title Period @description Overrides period, in time_base units; 0 pauses. @value u32
-//@out 0 tick @title Tick @value gate
+//@in 0 period @title Period @description Overrides period, in time_base units; 0 pauses. @value u32 @hidden-by-default
+//@eno @title Tick @description One-pass pulse every period: put it on another block's Run when to run that block every period.
 #define VM_BLOCK_TYPE_PERIODIC \
   {.run = vm_blk_periodic, .check = vm_verify_periodic, .min_in = 0, .min_q = 0, .required_in = 0x0u, .state_len = VM_PERIODIC_CUSTOM_LEN}

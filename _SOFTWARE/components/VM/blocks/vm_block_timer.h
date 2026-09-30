@@ -270,6 +270,7 @@ static inline void vm_blk_timer(vm_block_h b) {
    by vm_block_verify(), so the body never re-checks them. */
 //#vm-block VM_BLK_TIMER @title Timer @category time @state vm_block_timer_data_t @activation enabled Runs every pass while enabled.
 //@block-description IEC timer: on-delay, off-delay or pulse (plus inverted). Q follows the timer, ENO follows Q.
+//@view simple
 //@rule mode is a vm_timer_mode_e value and time_base a vm_timer_unit_e value. @error ERR_VM_BLK_BAD_SHAPE
 //@in 0 in @title Input @value bool
 //@in 1 pt @title Preset @description Overrides pt, in time_base units. @value u32

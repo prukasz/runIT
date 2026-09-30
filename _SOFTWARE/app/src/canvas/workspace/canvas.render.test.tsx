@@ -14,9 +14,9 @@ import type { CanvasWorkspace } from './useCanvasWorkspace'
 
 const catalog = runitVmCatalog()
 
-function Harness({ canvases, showGrid = true, part = 'editor', selected }: { canvases: readonly ProjectCanvas[]; showGrid?: boolean; part?: 'editor' | 'palette' | 'details'; selected?: CanvasBlock }) {
+function Harness({ canvases, showGrid = true, part = 'editor', selected, detailed = false }: { canvases: readonly ProjectCanvas[]; showGrid?: boolean; part?: 'editor' | 'palette' | 'details'; selected?: CanvasBlock; detailed?: boolean }) {
   const base = useCanvasWorkspace()
-  const w: CanvasWorkspace = { ...base, canvases, active: canvases[0], selectedBlock: selected }
+  const w: CanvasWorkspace = { ...base, canvases, active: canvases[0], selectedBlock: selected, ...(detailed ? { detailed: true } : {}) }
   const diagnostics = blockDiagnostics(createProject('t'), canvases, catalog, 240)
   if (part === 'palette') return <BlockPalette workspace={w} />
   if (part === 'details') return <BlockDetails workspace={w} diagnostics={diagnostics} />
@@ -45,11 +45,40 @@ describe('canvas renders', () => {
     expect(html).toContain('left:40px;top:60px;width:200px;height:60px')
     expect(html).toContain('periodic1')
     expect(html).toContain('aria-label="Run when connector periodic1"')
-    expect(html).toContain('aria-label="When done connector periodic1"')
+    expect(html).toContain('aria-label="Tick connector periodic1"')
     expect(html).not.toContain('canvas-block-expand')
     expect(html).not.toContain('canvas-block-summary')
     expect(html).toMatch(/canvas-block cat-flow selected has-errors/)
     expect(html).toContain('canvas-block-errors')
+  })
+
+  it('the face: a value part drawn apart, the pin number and device of an IO block, the tick named beside its strip', () => {
+    const blocks: CanvasBlock[] = [
+      { id: 'every', type: 'PERIODIC', x: 0, y: 0, settings: { period: 300, time_base: 'MS' } },
+      { id: 'led', type: 'IO_TOGGLE', x: 300, y: 0, settings: { device_id: 1, default_io_num: 22 } },
+      { id: 'when', type: 'IF', x: 600, y: 0 },
+    ]
+    const html = renderToString(<Harness canvases={[{ id: 'a', name: 'Main', blocks }]} />).replace(/<!-- -->/g, '')
+    expect(html).toContain('Every <span class="canvas-block-value">300 MS</span>')
+    expect(html).toContain('Toggle Pin <span class="canvas-block-value">#22</span>')
+    expect(html).toMatch(/<span class="canvas-block-device[^"]*" title="[^"]*\(#1\)">[^<]*\(#1\)<\/span>/)
+    // Only a block whose ENO has a name of its own carries the tag.
+    expect(html.match(/canvas-block-eno-tag/g)).toHaveLength(1)
+    expect(html).toMatch(/canvas-block-eno-tag" title="Tick: [^"]*">Tick</)
+  })
+
+  it('a block whose face says it all has no detailed view, whatever the toolbar or its own setting says', () => {
+    const every: CanvasBlock = { id: 'every', type: 'PERIODIC', x: 0, y: 0, view: 'detailed', settings: { period: 100, time_base: 'MS' } }
+    const expr: CanvasBlock = { id: 'expr1', type: 'EXPR', x: 300, y: 0, inputs: [null], expression: { constants: [2], code: ['in', 0, 'const', 0, '*'] } }
+    const canvases = [{ id: 'a', name: 'Main', blocks: [every, expr] }]
+    const html = renderToString(<Harness canvases={canvases} detailed />)
+    // Only the expression block expands; the Every block keeps its simple height.
+    expect(html.match(/canvas-block-summary/g)).toHaveLength(1)
+    expect(html).toContain('left:0;top:0;width:200px;height:60px')
+    expect(html).not.toMatch(/canvas-block cat-time[^"]* is-expanded/)
+    // Its details offer no choice of view, an ordinary block's do.
+    expect(renderToString(<Harness part="details" canvases={canvases} selected={every} />)).not.toContain('Block view')
+    expect(renderToString(<Harness part="details" canvases={canvases} selected={expr} />)).toContain('Block view')
   })
 
   it('a fixed detailed view shows content even with the toolbar preference off', () => {

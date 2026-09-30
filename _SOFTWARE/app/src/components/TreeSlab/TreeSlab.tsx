@@ -6,6 +6,8 @@ export interface TreeSlabProps {
   icon?: React.ReactNode
   /** The main text / label */
   label: React.ReactNode
+  /** An editor in place of the label (inline rename). The row's button becomes a plain box meanwhile: an input does not belong inside a button. */
+  labelEditor?: React.ReactNode
   /** Tooltip title for label or entire slab */
   title?: string
   /** Right-aligned badges / chips / icons: "n x icon (badge)" */
@@ -60,6 +62,7 @@ export interface TreeSlabProps {
 export const TreeSlab: React.FC<TreeSlabProps> = ({
   icon,
   label,
+  labelEditor,
   title,
   badges,
   disclosure,
@@ -136,16 +139,8 @@ export const TreeSlab: React.FC<TreeSlabProps> = ({
       }}
     >
       {disclosurePosition === 'left' && disclosure}
-      <button
-        type="button"
-        className={`tree-slab-item ${itemClassName}`.trim()}
-        aria-label={ariaLabel || computedTitle}
-        aria-current={selected ? 'true' : undefined}
-        disabled={disabled}
-        onClick={onClick}
-        onDoubleClick={onDoubleClick}
-      >
-        {children ? (
+      {(() => {
+        const inner = children ? (
           children
         ) : (
           <>
@@ -153,7 +148,7 @@ export const TreeSlab: React.FC<TreeSlabProps> = ({
             <div className="tree-slab-content">
               <div className="tree-slab-header">
                 <span className="tree-slab-label" title={computedTitle}>
-                  {label}
+                  {labelEditor ?? label}
                 </span>
                 {disclosurePosition === 'right' && disclosure && (
                   <span className="tree-slab-disclosure-slot">{disclosure}</span>
@@ -166,8 +161,23 @@ export const TreeSlab: React.FC<TreeSlabProps> = ({
               )}
             </div>
           </>
-        )}
-      </button>
+        )
+        return labelEditor ? (
+          <div className={`tree-slab-item is-editing ${itemClassName}`.trim()}>{inner}</div>
+        ) : (
+          <button
+            type="button"
+            className={`tree-slab-item ${itemClassName}`.trim()}
+            aria-label={ariaLabel || computedTitle}
+            aria-current={selected ? 'true' : undefined}
+            disabled={disabled}
+            onClick={onClick}
+            onDoubleClick={onDoubleClick}
+          >
+            {inner}
+          </button>
+        )
+      })()}
       {actions}
     </div>
   )

@@ -9,7 +9,8 @@ import { findObject } from '../../domain/project'
 import type { CanvasBlock, ObjectPath, ProjectDocument } from '../../domain/project'
 import type { Diagnostic } from '../../domain/compiler'
 import type { ProjectDevice } from '../../domain/project'
-import { runitVmCatalog } from '../../domain/descriptors'
+import { DEFAULT_ENO, runitVmCatalog } from '../../domain/descriptors'
+import { useDebug } from '../../debug/DebugContext'
 import { BLOCK_DRAG_TYPE } from '../workspace/BlockPalette'
 import { CanvasBlockView } from '../blocks/CanvasBlockView'
 import { CanvasGroups } from './CanvasGroups'
@@ -58,6 +59,7 @@ export function CanvasSurface({
   onClearSelectedObject?: () => void
 }) {
   const { active, snap, selectedBlock } = workspace
+  const debug = useDebug()
   const catalog = runitVmCatalog()
   const selectedObjectNode = selectedObjectId && project ? findObject(project, selectedObjectId)?.node : undefined
   const isLinking = Boolean(selectedObjectNode)
@@ -339,7 +341,7 @@ export function CanvasSurface({
   /** What a block can send on: its ENO first (a FOR's puts the other block in its loop), then its outputs. */
   const sourcesOf = (from: CanvasBlock): { choice: SourceChoice; pending: Pending }[] => [
     {
-      choice: { key: 'eno', label: from.type === 'FOR' ? 'Loop body' : 'When done', detail: from.type === 'FOR' ? 'puts a block in the loop' : 'runs the other block after this one', type: 'gate' },
+      choice: { key: 'eno', label: (catalog.block(from.type)?.eno ?? DEFAULT_ENO).title, detail: (catalog.block(from.type)?.eno ?? DEFAULT_ENO).description, type: 'gate' },
       pending: { kind: 'wire', from: { block: from.id, pin: 'eno' }, carries: 'bool', ...(from.type === 'FOR' ? { loop: true } : {}) } as Pending,
     },
     ...shapeOf(from).outputs.map((pin, index) => ({
@@ -669,6 +671,8 @@ export function CanvasSurface({
       )}
       {empty && !ghost && <div className="canvas-hint" aria-hidden="true">Drag blocks here from the palette · drag the background to move, scroll or pinch to zoom</div>}
       {workspace.error && <button type="button" className="canvas-error" onClick={workspace.clearError} title="Dismiss">{workspace.error}</button>}
+      {debug.error && <button type="button" className="canvas-error" style={workspace.error ? { top: 52 } : undefined} onClick={debug.clearError} title="Dismiss">Debug: {debug.error}</button>}
+      {debug.active && <div className="canvas-wire-hint">{debug.stale ? 'Debug: the program changed since the upload, use Upload again in the Debug panel' : 'Debug mode: strips and tint show what the board runs, values sit beside the pins'}</div>}
       <div className="canvas-status" aria-live="off">
         {snapped ? `x ${Math.round(snapped.x)}  y ${Math.round(snapped.y)}` : ''}
         {snap ? <span className="canvas-status-snap">snap {GRID}</span> : null}

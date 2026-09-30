@@ -41,6 +41,7 @@
       "error_tag": 43296
     }
   ],
+  "view": "simple",
   "state": {
     "struct": "vm_block_io_toggle_data_t",
     "source_file": "components/VM/blocks/vm_block_io_toggle.h",

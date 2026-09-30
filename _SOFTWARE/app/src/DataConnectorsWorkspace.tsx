@@ -13,6 +13,7 @@ import {
   Network,
   Plus,
   Radio,
+  RotateCcw,
   Shield,
   Trash2,
 } from 'lucide-react'
@@ -21,7 +22,7 @@ import type { BleProfile } from './BleSettingsWorkspace'
 import { runitEnumValue, runitStreamCatalog } from './domain/descriptors'
 import { parseSettings } from './domain/project'
 import type { ConnectorBindingSettings, ConnectorSettings } from './domain/project'
-import { boardConnectors, defaultProjectSettings, refreshSettings } from './domain/settings'
+import { boardConnectors, connectorModified, connectorsModified, defaultProjectSettings, refreshSettings, removedBindings, restoreBinding, restoreConnector, restoreSystemConnectors } from './domain/settings'
 import { uartEndpointText } from './domain/upload'
 
 // Editor state = the project's settings section (domain/project).
@@ -63,6 +64,14 @@ export interface DataConnectorsWorkspace {
   addBinding: (key: string, binding: Omit<DataConnectorBinding, 'id'>) => void
   removeBinding: (key: string, bindingId: string) => void
   toggleSuspend: (key: string) => void
+  /** A system stream back as the board defines it (transports, pause, name, size). */
+  restoreConnector: (key: string) => void
+  /** One removed transport of a system stream back; nothing else on it changes. */
+  restoreBinding: (key: string, bindingId: string) => void
+  /** Every system stream back as the board defines it; the user's own streams stay. */
+  restoreAll: () => void
+  /** Some system stream differs from the board's definition. */
+  modified: boolean
   /** Replace every connector (project opened or recovered). */
   load: (connectors: readonly DataConnectorItem[]) => void
 }
@@ -163,6 +172,12 @@ export function useDataConnectorsWorkspace(onSelect?: (key: string) => void): Da
     )
   }, [])
 
+  // Until settings are synced with the board, what was removed here can be put back from the board's own definition.
+  const restoreOne = useCallback((key: string) => setConnectors((prev) => restoreConnector(prev, key)), [])
+  const restoreOneBinding = useCallback((key: string, bindingId: string) => setConnectors((prev) => restoreBinding(prev, key, bindingId)), [])
+  const restoreAll = useCallback(() => setConnectors((prev) => restoreSystemConnectors(prev)), [])
+  const modified = useMemo(() => connectorsModified(connectors), [connectors])
+
   return {
     connectors,
     selectedKey,
@@ -174,6 +189,10 @@ export function useDataConnectorsWorkspace(onSelect?: (key: string) => void): Da
     addBinding,
     removeBinding,
     toggleSuspend,
+    restoreConnector: restoreOne,
+    restoreBinding: restoreOneBinding,
+    restoreAll,
+    modified,
     load,
   }
 }
@@ -185,7 +204,7 @@ export interface DataConnectorsPaletteProps {
 
 export function DataConnectorsPalette({ workspace, onBackToSettings }: DataConnectorsPaletteProps) {
   const [search, setSearch] = useState('')
-  const { connectors, selectedKey, select, addConnector } = workspace
+  const { connectors, selectedKey, select, addConnector, restoreAll, modified } = workspace
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -219,6 +238,14 @@ export function DataConnectorsPalette({ workspace, onBackToSettings }: DataConne
 
       <div className="object-tree-heading">
         <span className="ble-palette-title">Data Connectors</span>
+        <button
+          title={modified ? 'Restore the system streams as the board has them: transports, pauses, names and sizes (your own streams stay)' : 'The system streams match the board'}
+          aria-label="Restore the system connectors of the board"
+          disabled={!modified}
+          onClick={restoreAll}
+        >
+          <RotateCcw aria-hidden="true" />
+        </button>
         <button
           title="Add Custom Connector"
           aria-label="Add Custom Connector"
@@ -271,7 +298,7 @@ export interface DataConnectorsEditorProps {
 }
 
 export function DataConnectorsEditor({ workspace, bleProfile }: DataConnectorsEditorProps) {
-  const { selectedConnector, updateConnector, deleteConnector, addBinding, removeBinding, toggleSuspend } = workspace
+  const { selectedConnector, updateConnector, deleteConnector, addBinding, removeBinding, toggleSuspend, restoreConnector: restoreStream, restoreBinding: restoreTransport } = workspace
   const [newProvider, setNewProvider] = useState<'BLE' | 'UART'>('BLE')
   const [newEndpoint, setNewEndpoint] = useState(DEFAULT_BLE_ENDPOINT)
   const [newDirection, setNewDirection] = useState<'TX' | 'RX' | 'TX_RX'>('TX')
@@ -307,6 +334,17 @@ export function DataConnectorsEditor({ workspace, bleProfile }: DataConnectorsEd
             Stream ID: {selectedConnector.header}
           </span>
         </div>
+        {selectedConnector.system && connectorModified(selectedConnector) && (
+          <button
+            type="button"
+            className="conn-add-btn"
+            title="Put this stream back as the board has it: transports, pause, name and size"
+            onClick={() => restoreStream(selectedConnector.key)}
+          >
+            <RotateCcw aria-hidden="true" />
+            <span>Restore defaults</span>
+          </button>
+        )}
         {!selectedConnector.system && (
           <button
             type="button"
@@ -450,6 +488,28 @@ export function DataConnectorsEditor({ workspace, bleProfile }: DataConnectorsEd
             {!selectedConnector.bindings.length && (
               <p className="conn-bindings-empty">No transports currently connected to this stream.</p>
             )}
+            {/* What the board has by default and the editor lacks: settings are not synced yet, so it can be put back here. */}
+            {removedBindings(selectedConnector).map((b) => (
+              <div key={`removed-${b.id}`} className="conn-binding-row is-removed" title="The board has this transport by default; it was removed here">
+                <span className={`conn-prov-badge ${b.provider.toLowerCase()}`}>
+                  {b.provider === 'BLE' ? <Radio aria-hidden="true" /> : <Cable aria-hidden="true" />}
+                  {b.provider === 'BLE' ? 'Bluetooth' : 'Serial'}
+                </span>
+                <span className="conn-endpoint-val">{b.endpoint}</span>
+                <Badge tone="system" caps>removed</Badge>
+                <span>
+                  <button
+                    type="button"
+                    className="conn-binding-remove-btn"
+                    title="Put this transport back"
+                    aria-label={`Restore ${b.provider === 'BLE' ? 'Bluetooth' : 'Serial'} ${b.endpoint}`}
+                    onClick={() => restoreTransport(selectedConnector.key, b.id)}
+                  >
+                    <RotateCcw aria-hidden="true" />
+                  </button>
+                </span>
+              </div>
+            ))}
           </div>
 
           {/* Add Binding Bar */}

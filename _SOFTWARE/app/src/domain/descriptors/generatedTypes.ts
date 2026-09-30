@@ -250,6 +250,10 @@ export interface GeneratedVmBlockFile {
   readonly inputs: { readonly min: number; readonly max: number; readonly pins: readonly GeneratedVmBlockPin[] }
   readonly outputs: { readonly min: number; readonly max: number; readonly pins: readonly GeneratedVmBlockPin[] }
   readonly rules: readonly { readonly rule: string; readonly error: string }[]
+  /** What the block's ENO is called, when "When done" is not right (`//@eno`). */
+  readonly eno?: { readonly title: string; readonly description?: string }
+  /** `//@view simple`: the face shows it all, no detailed view. */
+  readonly view?: 'simple'
   readonly state?: { readonly size: number; readonly fields: readonly GeneratedVmBlockStateField[] }
   readonly min_custom_len: number
   readonly enums?: Readonly<Record<string, { readonly alias?: string | null; readonly members: readonly { readonly name: string; readonly value: number; readonly alias?: string | null }[] }>>

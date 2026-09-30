@@ -6,6 +6,8 @@ import type { UploadDiagnostic, UploadPlan, UploadStep } from './bundle'
  * BLE GATT and data connector settings → the commands that turn what the
  * board has (`from`) into what the editor shows (`to`).
  *
+ * Logging settings go first (they change what the rest of the upload logs).
+ *
  * The board keeps none of this across a restart and can't report it, so the
  * caller tracks `from`: the board defaults after connecting, then whatever
  * was last applied. Only differences are sent, in an order the firmware
@@ -61,9 +63,21 @@ export interface ConnectorSpec {
   readonly bindings: readonly ConnectorBindingSpec[]
 }
 
+/** Board logging (packet_settings_logs_set_t); `level` is an esp_log_level_t: 0 none .. 5 verbose. */
+export interface LogSpec {
+  readonly level: number
+  readonly mirrorSerial: boolean
+  readonly traceErrors: boolean
+}
+
+/** What the firmware starts with (sys_error_log.c: INFO, mirrored to serial, error chains traced). */
+export const DEFAULT_LOGS: LogSpec = { level: 3, mirrorSerial: true, traceErrors: true }
+export const LOG_LEVEL_MAX = 5
+
 export interface SettingsState {
   readonly services: readonly BleServiceSpec[]
   readonly connectors: readonly ConnectorSpec[]
+  readonly logs: LogSpec
 }
 
 export interface SettingsIds {
@@ -382,6 +396,15 @@ const planConnectors = (ctx: Context, from: readonly ConnectorSpec[], to: readon
   return { early, late }
 }
 
+const planLogs = (ctx: Context, from: LogSpec, to: LogSpec): UploadStep[] => {
+  if (!Number.isInteger(to.level) || to.level < 0 || to.level > LOG_LEVEL_MAX) {
+    ctx.diagnostics.push({ severity: 'error', message: `Log level ${to.level} is out of range: 0 (none) to ${LOG_LEVEL_MAX} (verbose).` })
+    return []
+  }
+  if (from.level === to.level && from.mirrorSerial === to.mirrorSerial && from.traceErrors === to.traceErrors) return []
+  return [step(ctx, 'packet_settings_logs_set_t', { level: to.level, mirror_serial: to.mirrorSerial ? 1 : 0, trace_errors: to.traceErrors ? 1 : 0 }, `logs level ${to.level}${to.mirrorSerial ? ', mirror serial' : ''}${to.traceErrors ? ', trace errors' : ''}`)]
+}
+
 /** Commands that turn `from` into `to` on the board. `ok` false: nothing may be sent. */
 export const planSettingsUpload = (catalog: CommandCatalog, layout: BleLayout, ids: SettingsIds, from: SettingsState, to: SettingsState): UploadPlan => {
   const ctx: Context = { catalog, layout, ids, diagnostics: [] }
@@ -392,7 +415,7 @@ export const planSettingsUpload = (catalog: CommandCatalog, layout: BleLayout, i
     const gattChanges = [...ble.removes, ...ble.creates]
     // The board stages GATT changes; `apply` puts them in the table (last: the client reconnects after it).
     const apply = gattChanges.length ? [step(ctx, 'packet_settings_ble_apply_t', {}, 'ble apply')] : []
-    steps = [...connectors.early, ...gattChanges, ...connectors.late, ...apply]
+    steps = [...planLogs(ctx, from.logs, to.logs), ...connectors.early, ...gattChanges, ...connectors.late, ...apply]
   } catch (error) {
     ctx.diagnostics.push({ severity: 'error', message: error instanceof Error ? error.message : String(error) })
   }

@@ -35,21 +35,21 @@ describe('compileProgram: blocks', () => {
   it('builds PERIODIC → EXPR counter → IO_TOGGLE like the firmware tests', () => {
     const compiled = compile([value('count', 'F')], [
       { id: 'every', type: 'PERIODIC', settings: { period: 500, time_base: 'MS' } },
-      { id: 'add', type: 'EXPR', inputs: [at('count'), at('every:q0')], outputs: ['count'], expression: { code: ['in', 0, 'in', 1, '+'] } },
-      { id: 'blink', type: 'IO_TOGGLE', enables: [at('every:q0')], settings: { allowed_mask: 1 << 5, device_id: 0, default_io_num: 5 } },
+      { id: 'add', type: 'EXPR', inputs: [at('count')], outputs: ['count'], enables: [at('every:eno')], expression: { constants: [1], code: ['in', 0, 'const', 0, '+'] } },
+      { id: 'blink', type: 'IO_TOGGLE', enables: [at('every:eno')], settings: { allowed_mask: 1 << 5, device_id: 0, default_io_num: 5 } },
     ])
     expect(compiled.diagnostics).toEqual([])
     expect(compiled.counts).toEqual({ objects: 2, accessors: 2, blocks: 3 })
-    // Objects: count 0 (user, driven), every:q0 1 (B). Accessors: count 0, tick 1.
+    // Objects: count 0 (user, driven), every:eno 1 (B, the tick). Accessors: count 0, tick 1.
     expect(compiled.blocks.blocks.map((block) => [block.type, block.inputs, block.outputs, block.enables])).toEqual([
-      ['PERIODIC', [], [1], []],
-      ['EXPR', [0, 1], [0], []],
+      ['PERIODIC', [], [], []],
+      ['EXPR', [0], [0], [1]],
       ['IO_TOGGLE', [], [], [1]],
     ])
     const [periodic, expr] = blockRecords(compiled)
-    // blk 0, label 0, type 13, 0 in, 1 out, 0 en, any, stop, 16 B state, no ENO | q 1 | period 500 ms
-    expect(hex(periodic!)).toBe('00000000' + '0d' + '000100' + '0000' + '1000' + 'ffff' + '0100' + 'f4010000' + '00' + '00'.repeat(11))
-    expect(hex(expr!.subarray(14))).toBe('0000' + '0100' + '0000' + '0000' + '0500' + '0100010106')
+    // blk 0, label 0, type 13, 0 in, 0 out, 0 en, any, stop, 16 B state, ENO = object 1 (the tick) | period 500 ms
+    expect(hex(periodic!)).toBe('00000000' + '0d' + '000000' + '0000' + '1000' + '0100' + 'f4010000' + '00' + '00'.repeat(11))
+    expect(hex(expr!.subarray(14))).toBe('0000' + '0000' + '0100' + '0100' + '0500' + '0000803f' + '0100020006')
     // The driven user object: mutable, fresh only in the pass that wrote it.
     const addObjects = compiled.frames.find((frame) => frame[1] === catalog.packets.addObjects)!
     expect(decodeVmObjectHead(catalog, addObjects.subarray(5, 9))).toMatchObject({ 'f.mutable': 1, 'f.upd_resetable': 1 })
@@ -155,7 +155,7 @@ describe('compileProgram: blocks', () => {
 
   it('adds the blocks to the arena', () => {
     const compiled = compile([], [{ id: 'p', type: 'PERIODIC', settings: { period: 1 } }])
-    // objects: registry 4 + tick (4 + 1 → 8); blocks: registry 4 + 16 + 1 pointer + 16 state
-    expect(compiled.arenaBytes).toBe(4 + 8 + 4 + 36)
+    // no objects (a PERIODIC has no output, and no ENO unless something reads it); blocks: registry 4 + 16 + 16 state
+    expect(compiled.arenaBytes).toBe(4 + 32)
   })
 })

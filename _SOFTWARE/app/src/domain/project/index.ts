@@ -26,6 +26,7 @@ export type {
   PathStep,
   ProgramBlock,
   ProjectDocument,
+  LogSettings,
   ProjectSettings,
   RawFrame,
   ReferenceNode,

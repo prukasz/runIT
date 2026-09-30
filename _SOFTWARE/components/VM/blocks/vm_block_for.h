@@ -164,5 +164,6 @@ static inline void vm_blk_for(vm_block_h b) {
 //@in 1 end @title End @value f32
 //@in 2 step @title Step @value f32
 //@out 0 index @title Index @description The iterator, published before each turn. @value f32
+//@eno @title Loop body @description Put a block on its Run when to make it (and what depends on it) part of the loop.
 #define VM_BLOCK_TYPE_FOR \
   {.run = vm_blk_for, .check = vm_verify_for, .min_in = 0, .min_q = 0, .required_in = 0x0u, .state_len = VM_FOR_CUSTOM_LEN}

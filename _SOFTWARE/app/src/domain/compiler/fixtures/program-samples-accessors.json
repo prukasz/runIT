@@ -1,0 +1,310 @@
+{
+  "frames": [
+    "04411a000e000b0028050000",
+    "04421a00000400150d6e01000100320973656c02000100320d6964780300010032096f6f620400030032096d61700500100055097461626c6506000c00350964737407000c00410962616e6b0800040011096109000400250961760a0004001109620b000400250962760c0004001109630d000400250963760e00080031096d73670f000400550d6d74656d701000040045096d68756d110004003109626f78120004004109636f70791300040055096374656d70140001000605150004000505160004000505170004000505180004000505190004000505",
+    "04431001000000010001030000000100020400000003000200010500000010000000c84200004843000096430000c843090000000400000030410b00000004000000a8410d00000004000000f8410f00000004000000803f1000000004000000204208000000020009000a00000002000b000c00000002000d0007000000060008000a000c000e00000004000f00100012000000020013001100000002001200",
+    "04440e00000000000001001400000002000200000003000400010301020004000500010301030005000100000006000700030d0105000000000000000000000007000600010301020008000e00000009001100010500000000000a0011000311000000000002056d74656d7000000000000b0011000310000000000002046d68756d00000000000c00030000000d0005000103010c00",
+    "0445000000000d00000000001000140064000000000000000000000000000000",
+    "0445010001000101010100000d00ffff000000000100010005000000803f0100020006",
+    "0445020002000101010100000d00ffff0000020001000100050000004040010002000a",
+    "0445030003000101010100000600ffff040015000100000002000100",
+    "0445040004000101010100000600ffff060016000100000002000100",
+    "0445050005000602000000000000ffff00000700",
+    "0445060006000101010100000600ffff00000f000100000002000100",
+    "0445070007000702000100000000ffff080009000100",
+    "0445080008000101010100000600ffff0a0017000100000002000100",
+    "0445090009000101010100000600ffff0b0018000100000002000100",
+    "04450a000a000101010100000600ffff0d0019000100000002000100"
+  ],
+  "counts": {
+    "objects": 26,
+    "accessors": 14,
+    "blocks": 11
+  },
+  "arenaBytes": 1320,
+  "subscribe": "044713000001000200030004000500060009000b000d000f0010001300140015001600170018001900",
+  "run": "044805",
+  "writes": [
+    {
+      "what": "bank[sel] moves to c",
+      "frames": [
+        "04430101000000010002"
+      ]
+    },
+    {
+      "what": "table[oob] leaves the array (length 4)",
+      "frames": [
+        "04430103000000010009"
+      ]
+    },
+    {
+      "what": "table[oob] is back inside",
+      "frames": [
+        "04430103000000010003"
+      ]
+    }
+  ],
+  "blocks": [
+    "0 every PERIODIC",
+    "1 cnt EXPR",
+    "2 mkidx EXPR",
+    "3 twice EXPR",
+    "4 pickbank EXPR",
+    "5 stamp SET",
+    "6 feed EXPR",
+    "7 clone CLONE",
+    "8 cloned EXPR",
+    "9 clonedhum EXPR",
+    "10 far EXPR"
+  ],
+  "objects": [
+    {
+      "id": "n",
+      "wire": 0,
+      "type": "F",
+      "length": 1
+    },
+    {
+      "id": "sel",
+      "wire": 1,
+      "type": "U8",
+      "length": 1
+    },
+    {
+      "id": "idx",
+      "wire": 2,
+      "type": "U8",
+      "length": 1
+    },
+    {
+      "id": "oob",
+      "wire": 3,
+      "type": "U8",
+      "length": 1
+    },
+    {
+      "id": "map",
+      "wire": 4,
+      "type": "U8",
+      "length": 3
+    },
+    {
+      "id": "table",
+      "wire": 5,
+      "type": "F",
+      "length": 4
+    },
+    {
+      "id": "dst",
+      "wire": 6,
+      "type": "F",
+      "length": 3
+    },
+    {
+      "id": "av",
+      "wire": 9,
+      "type": "F",
+      "length": 1
+    },
+    {
+      "id": "bv",
+      "wire": 11,
+      "type": "F",
+      "length": 1
+    },
+    {
+      "id": "cv",
+      "wire": 13,
+      "type": "F",
+      "length": 1
+    },
+    {
+      "id": "mtemp",
+      "wire": 15,
+      "type": "F",
+      "length": 1
+    },
+    {
+      "id": "mhum",
+      "wire": 16,
+      "type": "F",
+      "length": 1
+    },
+    {
+      "id": "ctemp",
+      "wire": 19,
+      "type": "F",
+      "length": 1
+    },
+    {
+      "id": "every:eno",
+      "wire": 20,
+      "type": "B",
+      "length": 1
+    },
+    {
+      "id": "twice:q0",
+      "wire": 21,
+      "type": "F",
+      "length": 1
+    },
+    {
+      "id": "pickbank:q0",
+      "wire": 22,
+      "type": "F",
+      "length": 1
+    },
+    {
+      "id": "cloned:q0",
+      "wire": 23,
+      "type": "F",
+      "length": 1
+    },
+    {
+      "id": "clonedhum:q0",
+      "wire": 24,
+      "type": "F",
+      "length": 1
+    },
+    {
+      "id": "far:q0",
+      "wire": 25,
+      "type": "F",
+      "length": 1
+    }
+  ],
+  "checks": [
+    {
+      "id": "idx",
+      "op": "within",
+      "value": 0,
+      "max": 2,
+      "phase": 0,
+      "what": "a block writes a U8 position (n mod 3)",
+      "wire": 2
+    },
+    {
+      "id": "idx",
+      "op": "hits",
+      "value": 0,
+      "phase": 0,
+      "what": "position reaches 0",
+      "wire": 2
+    },
+    {
+      "id": "idx",
+      "op": "hits",
+      "value": 1,
+      "phase": 0,
+      "what": "position reaches 1",
+      "wire": 2
+    },
+    {
+      "id": "idx",
+      "op": "hits",
+      "value": 2,
+      "phase": 0,
+      "what": "position reaches 2",
+      "wire": 2
+    },
+    {
+      "id": "twice:q0",
+      "op": "hits",
+      "value": 300,
+      "phase": 0,
+      "what": "table[map[idx]]: map[0] = 2",
+      "wire": 21
+    },
+    {
+      "id": "twice:q0",
+      "op": "hits",
+      "value": 100,
+      "phase": 0,
+      "what": "table[map[idx]]: map[1] = 0",
+      "wire": 21
+    },
+    {
+      "id": "twice:q0",
+      "op": "hits",
+      "value": 200,
+      "phase": 0,
+      "what": "table[map[idx]]: map[2] = 1",
+      "wire": 21
+    },
+    {
+      "id": "pickbank:q0",
+      "op": "eq",
+      "value": 21,
+      "phase": 0,
+      "what": "bank[sel = 1] reads folder b",
+      "wire": 22
+    },
+    {
+      "id": "pickbank:q0",
+      "op": "eq",
+      "value": 31,
+      "phase": 1,
+      "what": "live sel = 2 moves the folder pick to c",
+      "wire": 22
+    },
+    {
+      "id": "dst",
+      "elem": 0,
+      "op": "gt",
+      "value": 0,
+      "phase": 0,
+      "what": "SET reached dst[0] through a dynamic destination",
+      "wire": 6
+    },
+    {
+      "id": "dst",
+      "elem": 1,
+      "op": "gt",
+      "value": 0,
+      "phase": 0,
+      "what": "SET reached dst[1] through a dynamic destination",
+      "wire": 6
+    },
+    {
+      "id": "dst",
+      "elem": 2,
+      "op": "gt",
+      "value": 0,
+      "phase": 0,
+      "what": "SET reached dst[2] through a dynamic destination",
+      "wire": 6
+    },
+    {
+      "id": "cloned:q0",
+      "op": "gt",
+      "value": 5,
+      "phase": 0,
+      "what": "CLONE's copy of msg tracks the counter (box[0].mtemp by name)",
+      "wire": 23
+    },
+    {
+      "id": "clonedhum:q0",
+      "op": "eq",
+      "value": 40,
+      "phase": 0,
+      "what": "the clone carries the other field too (box[0].mhum)",
+      "wire": 24
+    },
+    {
+      "id": "far:q0",
+      "op": "eq",
+      "value": 300,
+      "phase": 0,
+      "what": "table[oob = 2]",
+      "wire": 25
+    },
+    {
+      "id": "far:q0",
+      "op": "eq",
+      "value": 400,
+      "phase": 3,
+      "what": "table[oob = 3] after coming back",
+      "wire": 25
+    }
+  ]
+}

@@ -163,6 +163,10 @@
   line-height: 1.25;
 }
 
+/* Inline rename (double-click): the editor takes the label's place. */
+.tree-slab-item.is-editing { cursor: text; }
+.tree-slab-rename { width: 100%; min-width: 0; height: 22px; padding: 0 6px; border: 1px solid var(--accent); border-radius: 4px; background: var(--background); color: var(--active); font-size: 12px; font-weight: 500; outline: none; }
+
 /* Disclosure slot in header */
 .tree-slab-disclosure-slot {
   display: inline-flex;

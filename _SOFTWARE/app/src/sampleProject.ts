@@ -11,7 +11,7 @@ import type { ObjectNode, ObjectPath, ProgramBlock, ProjectDocument, ValueNode }
 
 const value = (id: string, type: string, initial?: ValueNode['value'], length = 1, subscribed = false): ValueNode => ({ kind: 'value', id, name: id, type, length, ...(initial ? { value: initial } : {}), mutable: true, retentive: false, ...(subscribed ? { subscribed } : {}) })
 const at = (root: string): ObjectPath => ({ root })
-const tick = at('every:q0')
+const tick = at('every:eno')
 
 const objects: readonly ObjectNode[] = [
   value('count', 'F', undefined, 1, true),
@@ -23,10 +23,10 @@ const objects: readonly ObjectNode[] = [
 
 const blocks: readonly ProgramBlock[] = [
   { id: 'every', type: 'PERIODIC', settings: { period: 100, time_base: 'MS' } },
-  { id: 'counter', type: 'EXPR', inputs: [at('count'), tick], outputs: ['count'], expression: { code: ['in', 0, 'in', 1, '+'] } },
-  { id: 'pick', type: 'EXPR', inputs: [{ root: 'table', steps: [{ kind: 'dynamic', index: at('sel') }] }, tick], expression: { code: ['in', 0] } },
+  { id: 'counter', type: 'EXPR', inputs: [at('count')], outputs: ['count'], enables: [tick], expression: { constants: [1], code: ['in', 0, 'const', 0, '+'] } },
+  { id: 'pick', type: 'EXPR', inputs: [{ root: 'table', steps: [{ kind: 'dynamic', index: at('sel') }] }], enables: [tick], expression: { code: ['in', 0] } },
   { id: 'copier', type: 'SET', inputs: [at('pick:q0'), at('copy')], enables: [at('branch:q0')] },
-  { id: 'above', type: 'EXPR', inputs: [at('count'), tick], expression: { constants: [3], code: ['in', 0, 'const', 0, '>'] } },
+  { id: 'above', type: 'EXPR', inputs: [at('count')], enables: [tick], expression: { constants: [3], code: ['in', 0, 'const', 0, '>'] } },
   { id: 'branch', type: 'IF', inputs: [at('above:q0')], eno: true },
   { id: 'hold', type: 'LATCH', inputs: [at('branch:q0'), null], settings: { mode: 'SET_DOMINANT' } },
   { id: 'delay', type: 'TIMER', inputs: [at('hold:q0')], settings: { mode: 'TON', time_base: 'MS', pt: 300 } },

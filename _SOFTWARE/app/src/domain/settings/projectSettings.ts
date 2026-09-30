@@ -2,7 +2,7 @@ import { runitEnumValue, runitStreamCatalog } from '../descriptors'
 import type { StreamCatalog } from '../descriptors'
 import { DEFAULT_BLE_GENERAL } from '../project'
 import type { BleCharacteristicSettings, BleServiceSettings, ConnectorBindingSettings, ConnectorSettings, ProjectSettings } from '../project'
-import { boardDefaultSettings } from '../upload'
+import { DEFAULT_LOGS, boardDefaultSettings } from '../upload'
 import type { BleCharSpec, BleServiceSpec, ConnectorSpec, SettingsState } from '../upload'
 
 /*
@@ -79,6 +79,7 @@ export const boardConnectors = (streams: StreamCatalog = runitStreamCatalog()): 
 export const defaultProjectSettings = (streams: StreamCatalog = runitStreamCatalog()): ProjectSettings => ({
   ble: { name: 'runIT BLE GATT Profile', general: DEFAULT_BLE_GENERAL, services: [boardBleService(streams)] },
   connectors: boardConnectors(streams),
+  logs: DEFAULT_LOGS,
 })
 
 /** A system connector as the board defines it, with what the user may change on it (bindings, suspended). */
@@ -107,8 +108,60 @@ export const refreshSettings = (saved: ProjectSettings | undefined, streams: Str
   return {
     ble: { name: saved.ble.name || defaults.ble.name, general: saved.ble.general, services: [fresh, ...userServices] },
     connectors,
+    logs: saved.logs,
   }
 }
+
+const bindingKey = (binding: Pick<ConnectorBindingSettings, 'provider' | 'endpoint' | 'direction'>): string => `${binding.provider}|${binding.endpoint.trim().toLowerCase()}|${binding.direction}`
+
+/** The board's default bindings of a system connector that it lacks now (compared by transport, endpoint and direction, not by ID). */
+export const removedBindings = (connector: ConnectorSettings, streams: StreamCatalog = runitStreamCatalog()): ConnectorBindingSettings[] => {
+  const fresh = boardConnectors(streams).find((entry) => entry.id === connector.id)
+  if (!connector.system || !fresh) return []
+  const have = new Set(connector.bindings.map(bindingKey))
+  return fresh.bindings.filter((binding) => !have.has(bindingKey(binding)))
+}
+
+/** A system connector as the board defines it (bindings, suspension, name, size); other connectors are left as they are. */
+export const restoreConnector = (connectors: readonly ConnectorSettings[], key: string, streams: StreamCatalog = runitStreamCatalog()): ConnectorSettings[] => {
+  const fresh = boardConnectors(streams)
+  return connectors.map((connector) => {
+    const original = connector.system ? fresh.find((entry) => entry.id === connector.id) : undefined
+    return connector.key === key && original ? { ...original, bindings: original.bindings.map((binding) => ({ ...binding })) } : connector
+  })
+}
+
+/** Put one removed default binding of a system connector back; nothing else on it changes. */
+export const restoreBinding = (connectors: readonly ConnectorSettings[], key: string, bindingId: string, streams: StreamCatalog = runitStreamCatalog()): ConnectorSettings[] =>
+  connectors.map((connector) => {
+    const binding = connector.key === key ? removedBindings(connector, streams).find((entry) => entry.id === bindingId) : undefined
+    return binding ? { ...connector, bindings: [...connector.bindings, { ...binding }], direction: directionOf([...connector.bindings, binding]) } : connector
+  })
+
+/** Every system connector back as the board defines it, in the board's order, then the user's own connectors. */
+export const restoreSystemConnectors = (connectors: readonly ConnectorSettings[], streams: StreamCatalog = runitStreamCatalog()): ConnectorSettings[] => [
+  ...boardConnectors(streams),
+  ...connectors.filter((connector) => !connector.system),
+]
+
+/** One system connector differs from the board's definition of it (a transport removed, paused, renamed, resized). */
+export const connectorModified = (connector: ConnectorSettings, streams: StreamCatalog = runitStreamCatalog()): boolean => {
+  const original = connector.system ? boardConnectors(streams).find((entry) => entry.id === connector.id) : undefined
+  return !!original && JSON.stringify(connectorFingerprint(connector)) !== JSON.stringify(connectorFingerprint(original))
+}
+
+/** The system connectors differ from the board's definition (something removed, changed or paused). */
+export const connectorsModified = (connectors: readonly ConnectorSettings[], streams: StreamCatalog = runitStreamCatalog()): boolean =>
+  JSON.stringify(connectors.filter((connector) => connector.system).map(connectorFingerprint)) !== JSON.stringify(boardConnectors(streams).map(connectorFingerprint))
+
+/** What a restore would change: the fields of a system connector the user can edit. */
+const connectorFingerprint = (connector: ConnectorSettings) => ({
+  id: connector.id,
+  alias: connector.alias,
+  maxPacketLen: connector.maxPacketLen,
+  isSuspended: connector.isSuspended,
+  bindings: connector.bindings.map(bindingKey).sort(),
+})
 
 /**
  * Settings decoded from a stored code (board defaults + its frames) as editor
@@ -128,8 +181,8 @@ export const settingsFromState = (state: SettingsState, base: ProjectSettings = 
     const bindings = connector.bindings.map((binding) => ({ ...binding }))
     return { ...connector, bindings, alias: connector.name, description: '', direction: directionOf(bindings), cMacro: `SYS_DATA_CONNECTOR_APP_${connector.id}` }
   })
-  return { ble: { ...base.ble, services }, connectors }
+  return { ble: { ...base.ble, services }, connectors, logs: state.logs }
 }
 
 /** What the settings planner and the stored code builder compare. */
-export const settingsState = (settings: ProjectSettings): SettingsState => ({ services: settings.ble.services, connectors: settings.connectors })
+export const settingsState = (settings: ProjectSettings): SettingsState => ({ services: settings.ble.services, connectors: settings.connectors, logs: settings.logs })

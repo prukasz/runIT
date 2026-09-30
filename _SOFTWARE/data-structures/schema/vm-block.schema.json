@@ -27,6 +27,17 @@
     },
     "inputs": { "$ref": "#/$defs/pin_group" },
     "outputs": { "$ref": "#/$defs/pin_group" },
+    "view": { "const": "simple", "description": "The block's face shows everything its detailed view would: the app offers no detailed view for it." },
+    "eno": {
+      "description": "What this block's ENO is called (default: When done). PERIODIC: Tick, FOR: Loop body.",
+      "type": "object",
+      "required": ["title"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
     "rules": {
       "description": "What the device checks for this block type at load (besides the index's common_rules), and the error it answers with.",
       "type": "array",

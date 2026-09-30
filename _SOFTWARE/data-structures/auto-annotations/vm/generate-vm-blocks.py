@@ -10,6 +10,8 @@ entry macro:
   //@example <title> @in <values> [@consts <values>] @code <opcode symbols and operands> @result <value>
   //@in <index|*> <name> @title <text> [@description <text>] @value <kind>
   //@out <index|*> <name> @title <text> [@description <text>] @value <kind>
+  //@eno @title <text> [@description <text>]        (what the block's ENO is called, when "When done" is not right)
+  //@view simple                                    (the block's face says it all: the app offers no detailed view)
   #define VM_BLOCK_TYPE_<NAME> {.run = ..., .min_in = N, .min_q = N, .required_in = 0x..u, .state_len = ...}
 
 The block id comes from VM_BLK_<NAME> in vm_blocks.h and the shape (minimum
@@ -276,6 +278,28 @@ def parse_pins(lines, required_in, context):
     return inputs, outputs
 
 
+def parse_eno(lines, context):
+    """The optional `//@eno` name of a block's ENO: the app labels the strip and the wire source with it."""
+    for raw in lines:
+        if raw != "eno" and not raw.startswith("eno "):
+            continue
+        tags = parse_tags(raw[len("eno"):])
+        if "title" not in tags:
+            fail(f"{context}: //@eno needs @title")
+        return {"title": tags["title"], **({"description": tags["description"]} if tags.get("description") else {})}
+    return None
+
+
+def parse_view(lines, context):
+    """`//@view simple`: the block's face already shows everything its detailed view would."""
+    for raw in lines:
+        if raw == "view" or raw.startswith("view "):
+            if raw.split()[1:] != ["simple"]:
+                fail(f"{context}: //@view must be `simple`")
+            return "simple"
+    return None
+
+
 def pin_group(minimum, pins, limit_key, sdkconfig):
     """min / max counts of a pin direction: numbered pins cap it, a `*` pin lets it grow to the Kconfig limit."""
     limit = sdkconfig[limit_key]
@@ -457,6 +481,12 @@ def build():
                 "outputs": pin_group(shape["min_q"], outputs, "CONFIG_VM_BLOCK_MAX_OUT", sdkconfig),
                 "rules": parse_rules(lines, errors, context),
             }
+            eno = parse_eno(lines, context)
+            if eno:
+                block["eno"] = eno
+            view = parse_view(lines, context)
+            if view:
+                block["view"] = view
             if "state" in tags:
                 block["state"] = layout_state(tags["state"], enums, context)
                 if "state_tail" in tags:

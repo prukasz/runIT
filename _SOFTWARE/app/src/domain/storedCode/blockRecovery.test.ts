@@ -17,7 +17,7 @@ const defaults = boardDefaultSettings()
 const hex = (data: Uint8Array): string => [...data].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 const value = (id: string, type: string, initial?: ValueNode['value'], length = 1): ValueNode => ({ kind: 'value', id, name: id, type, length, ...(initial ? { value: initial } : {}), mutable: true, retentive: false })
 const at = (root: string): ObjectPath => ({ root })
-const tick = at('every:q0')
+const tick = at('every:eno')
 
 // The block samples that run on the board (compiler/programSamples.test.ts): twelve types, dynamic accessors, a loop, expressions.
 const objects: readonly ObjectNode[] = [
@@ -29,10 +29,10 @@ const objects: readonly ObjectNode[] = [
 ]
 const blocks: readonly ProgramBlock[] = [
   { id: 'every', type: 'PERIODIC', settings: { period: 100, time_base: 'MS' } },
-  { id: 'counter', type: 'EXPR', inputs: [at('count'), tick], outputs: ['count'], expression: { code: ['in', 0, 'in', 1, '+'] } },
-  { id: 'pick', type: 'EXPR', inputs: [{ root: 'table', steps: [{ kind: 'dynamic', index: at('sel') }] }, tick], expression: { code: ['in', 0] } },
+  { id: 'counter', type: 'EXPR', inputs: [at('count')], outputs: ['count'], enables: [tick], expression: { constants: [1], code: ['in', 0, 'const', 0, '+'] } },
+  { id: 'pick', type: 'EXPR', inputs: [{ root: 'table', steps: [{ kind: 'dynamic', index: at('sel') }] }], enables: [tick], expression: { code: ['in', 0] } },
   { id: 'copier', type: 'SET', inputs: [at('pick:q0'), at('copy')] },
-  { id: 'above', type: 'EXPR', inputs: [at('count'), tick], expression: { constants: [3], code: ['in', 0, 'const', 0, '>'] } },
+  { id: 'above', type: 'EXPR', inputs: [at('count')], enables: [tick], expression: { constants: [3], code: ['in', 0, 'const', 0, '>'] } },
   { id: 'branch', type: 'IF', inputs: [at('above:q0')], eno: true },
   { id: 'hold', type: 'LATCH', inputs: [at('branch:q0'), null], settings: { mode: 'SET_DOMINANT' } },
   { id: 'delay', type: 'TIMER', inputs: [at('hold:q0')], settings: { mode: 'TON', time_base: 'MS', pt: 300 } },
@@ -73,7 +73,7 @@ describe('stored code: blocks and accessors', () => {
   it('reads pins, enables, settings, formulas and the loop', () => {
     const byId = new Map(recovered.blocks.map((block) => [block.id, block]))
     const id = (name: string) => recovered.project.objects.find((node) => node.name === name)!.id
-    expect(byId.get('expr1')).toMatchObject({ inputs: [{ root: id('count') }, { root: 'periodic1:q0' }], outputs: [id('count')], expression: { code: ['in', 0, 'in', 1, '+'] } })
+    expect(byId.get('expr1')).toMatchObject({ inputs: [{ root: id('count') }], enables: [{ root: 'periodic1:eno' }], outputs: [id('count')], expression: { constants: [1], code: ['in', 0, 'const', 0, '+'] } })
     expect(byId.get('expr2')!.inputs![0]).toEqual({ root: id('table'), steps: [{ kind: 'dynamic', index: { root: id('sel') } }] })
     expect(byId.get('expr3')!.expression).toEqual({ constants: [3], code: ['in', 0, 'const', 0, '>'] })
     expect(byId.get('if1')).toMatchObject({ eno: true })

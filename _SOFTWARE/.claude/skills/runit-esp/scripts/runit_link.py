@@ -25,7 +25,10 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import serial
+try:
+    import serial
+except ImportError:  # BLE only (bleak) needs no pyserial; a serial Link then fails when opened
+    serial = None
 
 ROOT = Path(__file__).resolve().parents[4]  # _SOFTWARE
 DS = ROOT / "data-structures"
@@ -286,7 +289,7 @@ class Link:
                 continue
             try:
                 chunk = self.s.read(4096)
-            except serial.SerialException:
+            except (serial.SerialException, TypeError, AttributeError):  # Type / AttributeError: pyserial reads a handle closed under it
                 time.sleep(0.05)  # port re-enumerating after a reset
                 with self._port_lock:
                     try:

@@ -18,7 +18,7 @@ Type 0 is reserved (unset type must not run). The type byte indexes `g_vm_block_
 | 10 | `IO_SET_LEVEL` | ★0 level, 1 pin | — | 16 (`allowed_mask u64`, `device_id`, `default_io_num`, `disabled_action` HOLD/LOW/HIGH, flags, `last_pin`) | enabled; writes on change unless `F_ALWAYS` |
 | 11 | `IO_TOGGLE` | 0 pin | — | 16 (`allowed_mask`, `device_id`, `default_io_num`, flags) | rising edge of enable |
 | 12 | `LATCH` (SR / RS) | 0 set, 1 reset (≥1 wired) | 0: Q (written on change) | 4 (mode, flags) | enabled; ENO = Q level; disabled holds Q |
-| 13 | `PERIODIC` | 0 period (fallback constant, `time_base` units) | 0: tick | 16 (period, time base, flags, next deadline) | enabled; one-pass tick per period, no burst, overrun reported once |
+| 13 | `PERIODIC` | 0 period (fallback constant, `time_base` units; hidden until wired) | — (ENO = the tick) | 16 (period, time base, flags, next deadline) | enabled; one-pass tick per period, no burst, overrun reported once |
 | 14 | `ACTION` | 0 action id | — | 4 (scope, id, flags) | rising edge of enable; **queues** the action (`vm_exec_request_action`) |
 | 15 | `ON_EVENT` | — | 0: value, 1: count | 4 (domain, device, channel, event; 255 = any) | enabled **and** a matching event this pass (`vm_event_at`) |
 

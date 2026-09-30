@@ -6,7 +6,7 @@ import type { CommandDescriptor, VmObjectType } from '../descriptors'
 import { createProject } from '../project'
 import { boardDeviceRef } from '../project'
 import type { ActionStep, FolderNode, ObjectNode, ObjectSection, ProgramBlock, ProjectDevice, ProjectDocument, ValueNode } from '../project'
-import type { BleCharSpec, BleServiceSpec, ConnectorBindingSpec, ConnectorSpec, SettingsState, UploadDiagnostic } from '../upload'
+import type { BleCharSpec, BleServiceSpec, ConnectorBindingSpec, ConnectorSpec, LogSpec, SettingsState, UploadDiagnostic } from '../upload'
 import { arrangeProgram, placeBlocks } from '../canvas'
 import type { StoredCodeContext } from './build'
 import { recoverBlocks } from './decodeBlocks'
@@ -67,11 +67,13 @@ interface MutableConnector {
 class SettingsReplay {
   readonly services: { spec: BleServiceSpec; chars: BleCharSpec[] }[]
   readonly connectors: MutableConnector[]
+  private logs: LogSpec
   private readonly providerName: (id: number) => 'BLE' | 'UART' | undefined
   private readonly diagnostics: UploadDiagnostic[]
 
   constructor(defaults: SettingsState, ctx: StoredCodeContext, diagnostics: UploadDiagnostic[]) {
     this.diagnostics = diagnostics
+    this.logs = defaults.logs
     this.providerName = (id) => (id === ctx.ids.providers.BLE ? 'BLE' : id === ctx.ids.providers.UART ? 'UART' : undefined)
     this.services = defaults.services.map((service) => ({ spec: service, chars: [...service.characteristics] }))
     this.connectors = defaults.connectors.map((connector) => {
@@ -168,6 +170,9 @@ class SettingsReplay {
         if (connector) connector.spec = { ...connector.spec, isSuspended: command.id.endsWith('_suspend_t') }
         return
       }
+      case 'packet_settings_logs_set_t':
+        this.logs = { level: num(values, 'level'), mirrorSerial: num(values, 'mirror_serial') !== 0, traceErrors: num(values, 'trace_errors') !== 0 }
+        return
       default:
         this.warn(`${command.id} is not decoded; it isn't kept.`)
     }
@@ -181,6 +186,7 @@ class SettingsReplay {
     return {
       services: this.services.map((entry) => ({ ...entry.spec, characteristics: entry.chars })),
       connectors: this.connectors.map((entry) => ({ ...entry.spec, bindings: this.bindingRows(entry) })),
+      logs: this.logs,
     }
   }
 
@@ -495,7 +501,7 @@ export const decodeStoredCode = (frames: readonly Uint8Array[], boardDefaults: S
   const devices: ProjectDevice[] = []
   const setup: ActionStep[] = []
   const commands = new Map(ctx.commands.commands.map((command) => [(command.classHeader << 8) | command.packetHeader, command]))
-  const settingsClasses = new Set(ctx.commands.groups.filter((group) => group.id === 'ble' || group.id === 'data-connector').map((group) => group.classHeader))
+  const settingsClasses = new Set(ctx.commands.groups.filter((group) => group.id === 'ble' || group.id === 'data-connector' || group.id === 'logs').map((group) => group.classHeader))
 
   for (const [index, frame] of frames.entries()) {
     const cls = frame[0]!

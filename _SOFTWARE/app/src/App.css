@@ -262,6 +262,11 @@ input[type="range"] {
   flex: none;
   text-align: center;
 }
+.object-main-bottom .object-main-live { flex: none; }
+.object-main-live output { min-width: 56px; max-width: 220px; padding: 4px 8px; overflow: hidden; border-radius: 5px; background: color-mix(in srgb, var(--color-green-strong) 18%, var(--panel)); color: var(--active); font: 600 12px ui-monospace, SFMono-Regular, Consolas, monospace; font-variant-numeric: tabular-nums; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.object-main-bottom .object-live-watch { flex: none; }
+.shell .object-live-watch { width: auto; height: 26px; padding: 0 8px; border: 1px solid var(--divider); border-radius: 5px; color: var(--accent); font-size: 11px; }
+.object-main-live output.is-none { background: transparent; color: var(--muted); font-weight: 400; }
 .shell .object-main-bottom button { width: auto; height: 29px; padding: 0 8px; color: var(--active); font-size: 11px; }
 .shell .object-main-delete,
 .object-main-delete {
@@ -338,8 +343,6 @@ input[type="range"] {
 .object-main-entry.is-array-item { margin-bottom: 2px; }
 .object-main-array-row { min-height: 40px; padding: 4px 12px; gap: 8px; }
 .object-main-array-index { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; font-weight: 600; color: var(--accent); padding: 2px 7px; border-radius: 4px; background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
-.object-main-array-inline-value { flex: 1; padding: 4px 10px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; }
-.object-main-array-inline-value::placeholder { color: var(--muted); font-family: inherit; opacity: 0.6; }
 .object-main-array-row .object-main-type-picker { margin-left: 0; }
 .object-main-array-row .object-main-delete { margin-left: 2px; width: 32px; height: 32px; }
 .object-main-card.is-compact { border-color: color-mix(in srgb, var(--divider) 80%, transparent); }
@@ -1448,6 +1451,8 @@ input[type="range"] {
   font-size: 12px;
   transition: background 120ms ease;
 }
+.conn-binding-row.is-removed { opacity: 0.75; border-top-style: dashed; }
+.conn-binding-row.is-removed .conn-endpoint-val { text-decoration: line-through; }
 .conn-binding-row:last-child {
   border-bottom: none;
 }

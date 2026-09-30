@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePersistedChoice } from './hooks/useStorage'
 import { DetailsPanel, ExplorerPanel, MainScreen, WorkspaceShell } from './layout'
-import { ArrowLeft, ArrowLeftRight, Bug, Check, ChevronRight, ClipboardPaste, Code2, Copy, Cpu, FolderOpen, Gamepad2, Grid2X2, Info, ListTree, Magnet, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Radio, Redo2, Settings2, Sliders, Square, SquareTerminal, Sun, Undo2, Variable, X } from 'lucide-react'
+import { ArrowLeft, ArrowLeftRight, Bug, Check, ChevronRight, ClipboardPaste, Code2, Copy, Cpu, FolderOpen, Gamepad2, Grid2X2, Info, ListTree, Magnet, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Radio, Redo2, ScrollText, Settings2, Sliders, Square, SquareTerminal, Sun, Undo2, Variable, X } from 'lucide-react'
 import { ObjectDetails, ObjectTreeEditor, ObjectTreePalette, useObjectTreeWorkspace } from './ObjectTreeWorkspace'
+import { LogSettingsEditor, useLogSettingsWorkspace } from './LogSettingsWorkspace'
 import { BleDetails, BleSettingsEditor, BleSettingsPalette, useBleSettingsWorkspace } from './BleSettingsWorkspace'
 import { useBleDeviceConnection } from './useBleDeviceConnection'
 import { BleConnectPanel } from './BleConnectPanel'
@@ -13,6 +14,9 @@ import {
   useDataConnectorsWorkspace,
 } from './DataConnectorsWorkspace'
 import { ProgramPanel } from './ProgramPanel'
+import { DebugHost } from './debug/DebugHost'
+import { DebugPanel } from './debug/DebugPanel'
+import { DebugSettings } from './debug/DebugSettings'
 import { ProjectFilePage, ProjectFilePalette } from './ProjectFile'
 import { DeviceDetails, DevicesEditor, DevicesPalette, useDevicesWorkspace } from './devices'
 import { BlockDetails, blockDiagnostics, BlockPalette, CanvasEditor, recoveredCanvases, useCanvasWorkspace } from './canvas'
@@ -50,7 +54,7 @@ const details = [
   { name: 'Debug', icon: Bug },
 ]
 
-export type SettingsGroup = 'all' | 'BLE' | 'General' | 'Connectors'
+export type SettingsGroup = 'all' | 'BLE' | 'General' | 'Connectors' | 'Logging'
 const codePalettes = ['Blocks', 'Variables'] as const
 type CodePalette = typeof codePalettes[number]
 type CodeMode = 'manage' | 'canvas'
@@ -84,6 +88,7 @@ export default function App() {
     }
   })
   const connectorsWorkspace = useDataConnectorsWorkspace(() => { setRightOpen(true); setDetail('Info') })
+  const logWorkspace = useLogSettingsWorkspace()
   const devicesWorkspace = useDevicesWorkspace(() => { setRightOpen(true); setDetail('Info') })
   const canvasWorkspace = useCanvasWorkspace(() => { setRightOpen(true); setDetail('Info') })
   // User services must be named when the board is picked, or Web Bluetooth hides them.
@@ -92,7 +97,7 @@ export default function App() {
     [bleWorkspace.profile.services],
   )
   const bleConnection = useBleDeviceConnection(userServiceUuids)
-  const projectSettings = useMemo<ProjectSettings>(() => ({ ble: bleWorkspace.profile, connectors: connectorsWorkspace.connectors }), [bleWorkspace.profile, connectorsWorkspace.connectors])
+  const projectSettings = useMemo<ProjectSettings>(() => ({ ble: bleWorkspace.profile, connectors: connectorsWorkspace.connectors, logs: logWorkspace.logs }), [bleWorkspace.profile, connectorsWorkspace.connectors, logWorkspace.logs])
   const settingsTarget = useMemo(() => settingsState(projectSettings), [projectSettings])
   const boardCode = useBoardCode(bleConnection)
   const settingsSync = useSettingsSync(bleConnection, boardCode, settingsTarget)
@@ -113,10 +118,14 @@ export default function App() {
   // What the compiler says about each block, against the project's objects.
   const canvasDiagnostics = useMemo(() => blockDiagnostics(objectWorkspace.project, canvasWorkspace.canvases, runitVmCatalog(), 240), [objectWorkspace.project, canvasWorkspace.canvases])
 
+  // The project the debug build is made from: objects and the canvases' blocks.
+  const debugProject = useMemo(() => ({ ...objectWorkspace.project, canvases: canvasWorkspace.canvases }), [objectWorkspace.project, canvasWorkspace.canvases])
+
   // The project file: objects from the object workspace, settings from the BLE and connector workspaces.
   const loadSettings = (settings: ProjectSettings) => {
     bleWorkspace.load(settings.ble)
     connectorsWorkspace.load(settings.connectors)
+    logWorkspace.load(settings.logs)
   }
   /** Every workspace takes its part of a project document. */
   const applyProject = (project: ProjectDocument) => {
@@ -303,6 +312,7 @@ export default function App() {
   }
 
   return (
+    <DebugHost project={debugProject} sections={objectWorkspace.sections} session={bleConnection.session}>
     <WorkspaceShell className={`theme-${theme} ${resizing ? `is-resizing-${resizing}` : ''} ${linkingParentId !== undefined ? 'is-linking' : ''} ${view === 'Board' && devicesWorkspace.composing ? 'is-composing' : ''}`}>
       {linkingParentId !== undefined && <div className="object-link-backdrop" onClick={() => setLinkingParentId(undefined)} />}
       <ExplorerPanel open={leftOpen} width={leftWidth}>
@@ -365,6 +375,18 @@ export default function App() {
                   <button
                     type="button"
                     className="settings-category-btn"
+                    onClick={() => setSettingsGroup('Logging')}
+                  >
+                    <ScrollText className="settings-cat-icon" aria-hidden="true" />
+                    <div className="settings-cat-info">
+                      <span className="settings-cat-title">Logging</span>
+                      <span className="settings-cat-sub">Log level &amp; serial mirror</span>
+                    </div>
+                    <ChevronRight aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className="settings-category-btn"
                     onClick={() => setSettingsGroup('General')}
                   >
                     <Sliders className="settings-cat-icon" aria-hidden="true" />
@@ -387,6 +409,19 @@ export default function App() {
                   workspace={connectorsWorkspace}
                   onBackToSettings={() => setSettingsGroup('all')}
                 />
+              )}
+              {settingsGroup === 'Logging' && (
+                <div className="settings-general-sidebar">
+                  <div className="ble-palette-back-bar">
+                    <button type="button" className="settings-back-btn" onClick={() => setSettingsGroup('all')} title="Back to all settings">
+                      <ArrowLeft aria-hidden="true" />
+                      <span>All Settings</span>
+                    </button>
+                  </div>
+                  <div className="settings-overview-menu">
+                    <div className="settings-menu-heading">Logging</div>
+                  </div>
+                </div>
               )}
               {settingsGroup === 'General' && (
                 <div className="settings-general-sidebar">
@@ -579,6 +614,19 @@ export default function App() {
                 </div>
                 <div
                   className="settings-overview-card"
+                  onClick={() => setSettingsGroup('Logging')}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <ScrollText className="settings-overview-icon" aria-hidden="true" />
+                  <h2>Logging</h2>
+                  <p>Configure the board's log level, serial mirroring and error-chain tracing.</p>
+                  <span className="settings-card-action">
+                    Open Logging <ChevronRight aria-hidden="true" />
+                  </span>
+                </div>
+                <div
+                  className="settings-overview-card"
                   onClick={() => setSettingsGroup('General')}
                   role="button"
                   tabIndex={0}
@@ -599,6 +647,7 @@ export default function App() {
               bleProfile={bleWorkspace.profile}
             />
           )}
+          {view === 'Settings' && settingsGroup === 'Logging' && <LogSettingsEditor workspace={logWorkspace} />}
           {view === 'Settings' && settingsGroup === 'General' && (
             <div className="object-editor">
               <div className="ble-general-header">
@@ -606,6 +655,7 @@ export default function App() {
                 <h1>General Settings</h1>
               </div>
               <p>System identity, board configuration, and power defaults.</p>
+              <DebugSettings />
             </div>
           )}
       </MainScreen>
@@ -705,6 +755,7 @@ export default function App() {
                 applyReading={settingsSync.reading}
               />
             )}
+            {detail === 'Debug' && <DebugPanel project={debugProject} />}
             {detail === 'Run' && <ProgramPanel workspace={objectWorkspace} connection={bleConnection} board={boardCode} settings={projectSettings} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} setup={devicesWorkspace.setup} canvases={canvasWorkspace.canvases} />}
           </div>
         )}
@@ -729,5 +780,6 @@ export default function App() {
         )}
       </DetailsPanel>
     </WorkspaceShell>
+    </DebugHost>
   )
 }

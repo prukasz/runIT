@@ -64,6 +64,10 @@
       "error_tag": 43302
     }
   ],
+  "eno": {
+    "title": "Loop body",
+    "description": "Put a block on its Run when to make it (and what depends on it) part of the loop."
+  },
   "state": {
     "struct": "vm_for_code_t",
     "source_file": "components/VM/blocks/vm_block_for.h",

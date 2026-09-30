@@ -148,6 +148,7 @@ static inline void vm_blk_edge(vm_block_h b) {
    by vm_block_verify(), so the body never re-checks them. */
 //#vm-block VM_BLK_EDGE @title Edge @category logic @state vm_block_edge_data_t @activation enabled Runs every pass while enabled.
 //@block-description Pulses for one pass when the input rises, falls or changes by at least the threshold.
+//@view simple
 //@rule edge_type is a vm_edge_type_e value. @error ERR_VM_BLK_BAD_SHAPE
 //@in 0 signal @title Signal @value scalar
 //@in 1 threshold @title Threshold @description Overrides change_by; same type as the signal. @value scalar

@@ -17,6 +17,16 @@ import { BlockHardwareFields } from './BlockHardwareFields'
 import { BlockSwitch } from './BlockSwitch'
 import { TypeBadge } from '../../components/TypeBadge/TypeBadge'
 import { PinHelpersPanel } from './PinHelpers'
+import { useDebug } from '../../debug/DebugContext'
+
+/** Next to a pin value the board has not sent: subscribes to what the pin reads, live, when it is not subscribed yet. */
+function WatchPin({ path, shown }: { readonly path?: ObjectPath; readonly shown: boolean }) {
+  const debug = useDebug()
+  if (shown || !path || path.root === '' || debug.watchState(path.root) !== 'off') return null
+  return <button type="button" className="debug-watch-pin" title="Subscribe to it on the board now (no upload)" onClick={() => debug.watchPath(path)}>Watch</button>
+}
+
+const LIVE_EN = { open: 'open, running', closed: 'closed, not running', always: 'always runs (no Run when)', unknown: 'waiting for the board' } as const
 import { arrayDims, parseChain, resolveChain } from './accessorChain'
 import { resolveUniversalDrop, resolveUniversalNode } from './pinAccessors'
 import type { VariableCandidate } from './pinAccessors'
@@ -287,6 +297,8 @@ export function BlockDetails({
   onExpandDetails?: (expanded: boolean) => void
 }) {
   const block = workspace.selectedBlock
+  const debug = useDebug()
+  const live = block ? debug.block(block.id) : undefined
   const [activePinIndex, setActivePinIndex] = useState<number | undefined>(undefined)
   const [activePinText, setActivePinText] = useState<string>('')
 
@@ -513,6 +525,24 @@ export function BlockDetails({
         </section>
       )}
 
+      {debug.active && (
+        <section className="block-section block-live" aria-label="Live state">
+          <h3>Live</h3>
+          {!live ? (
+            <p className="block-muted">{debug.stale ? 'The program changed since the debug upload: use Upload again in the Debug panel.' : 'Waiting for the board…'}</p>
+          ) : (
+            <dl className="block-pins">
+              <div><dt>Run when (EN)</dt><dd className={`live-state is-${live.en}`}>{LIVE_EN[live.en]}</dd></div>
+              <div><dt>{type.eno.title} (ENO)</dt><dd className={`live-state ${live.eno === undefined ? '' : live.eno ? 'is-open' : 'is-closed'}`}>{live.eno === undefined ? 'no report yet' : live.eno ? 'true, the block acted' : 'false, it did not act'}</dd></div>
+              {debug.failed(block.id) && <div><dt>Error</dt><dd className="live-state is-closed">failed on its last run, see Errors &amp; logs</dd></div>}
+              {(block.enables ?? []).map((path, index) => <div key={`en${index}`}><dt>{labelPath(path)}<small>EN</small></dt><dd>{live.enables[index] ?? '–'}<WatchPin path={path} shown={live.enables[index] !== undefined} /></dd></div>)}
+              {shape.inputs.map((pin) => <div key={`in${pin.index}`}><dt>{pin.title}<small>in</small></dt><dd>{live.inputs[pin.index] ?? '–'}<WatchPin path={block.inputs?.[pin.index] ?? undefined} shown={live.inputs[pin.index] !== undefined} /></dd></div>)}
+              {shape.outputs.map((pin, index) => <div key={`out${index}`}><dt>{pin.title}<small>out</small></dt><dd>{live.outputs[index] ?? '–'}</dd></div>)}
+            </dl>
+          )}
+        </section>
+      )}
+
       <section className="block-section">
         <h3>Pins</h3>
         {inputsVary && (
@@ -712,7 +742,7 @@ export function BlockDetails({
         <p className="block-muted">Drag from an output (right side), When done or Loop body onto another block to wire it; drag a variable from the Variables tab onto a block to use it.</p>
       </section>
 
-      <section className="block-section">
+      {!type.simpleOnly && <section className="block-section">
         <h3>Appearance</h3>
         <label className="block-field">
           <span>Block view</span>
@@ -726,7 +756,7 @@ export function BlockDetails({
           </SelectField>
           <em>Fixed views are saved with the project.</em>
         </label>
-      </section>
+      </section>}
 
       <Button variant="danger" block className="block-delete" onClick={() => workspace.deleteBlock(block.id)}><Trash2 aria-hidden="true" />Delete block</Button>
     </div>

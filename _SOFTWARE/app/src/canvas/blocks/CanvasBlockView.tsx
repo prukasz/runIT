@@ -5,14 +5,18 @@ import type { Point, WireSource, WireTarget } from '../../domain/canvas'
 import type { DeviceCatalog, VmBlockType } from '../../domain/descriptors'
 import { decompileExpression, expressionLanguage, tokenize } from '../../domain/expression'
 import type { CanvasBlock, ObjectPath, ProjectDevice } from '../../domain/project'
-import { blockHeadline, blockSummary, pathText } from './blockView'
+import { blockDeviceLine, blockHeadline, blockHeadlineParts, blockSummary, pathText } from './blockView'
+import { DEFAULT_ENO } from '../../domain/descriptors'
 import type { BlockPinView, BlockShape } from './blockView'
 import { ValueKindBadge } from '../../components/TypeBadge/TypeBadge'
+import { useDebug } from '../../debug/DebugContext'
 
 /*
  * A function block with an optional expanded view. Presentation stays local;
  * moving still commits one undo step, and settings belong to the inspector.
  */
+
+const EN_NOW = { open: 'open, running', closed: 'closed, not running', always: 'always runs', unknown: 'waiting for the board' } as const
 
 interface Props {
   readonly block: CanvasBlock
@@ -39,28 +43,35 @@ interface Props {
   readonly labelOf?: (path: ObjectPath) => string
   /** The block's name changed (double-click on its title); empty = no name. */
   readonly onRename?: (name: string | undefined) => void
-  /** Runtime execution state: whether ENO is true this cycle (right strip green). */
-  readonly eno?: boolean
-  /** Runtime execution state: whether the block failed (whole block red tint). */
-  readonly failed?: boolean
   /** Whether a variable is selected for linking (clicking block opens pin picker without dragging). */
   readonly isLinking?: boolean
 }
 
-export function CanvasBlockView({ block, type, shape, selected, errors, zoom, snap, detailed, devices, deviceCatalog, onSelect, onMove, onWireStart, chipOf, onChipPress, selectedChip, labelOf = pathText, onRename, eno, failed, isLinking }: Props) {
+export function CanvasBlockView({ block, type, shape, selected, errors, zoom, snap, detailed, devices, deviceCatalog, onSelect, onMove, onWireStart, chipOf, onChipPress, selectedChip, labelOf = pathText, onRename, isLinking }: Props) {
   const [drag, setDrag] = useState<{ start: Point; origin: Point; at: Point }>()
   const [renaming, setRenaming] = useState(false)
   const typeTitle = type?.title ?? `Unknown ${block.type}`
-  const headline = blockHeadline(type, block) ?? typeTitle
+  const headline = blockHeadline(type, block, labelOf) ?? typeTitle
+  const headlineParts = blockHeadlineParts(type, block, labelOf)
+  const deviceLine = blockDeviceLine(type, block, devices, deviceCatalog)
   const commitName = (text: string) => {
     setRenaming(false)
     const name = text.trim()
     if (name !== (block.name ?? '')) onRename?.(name || undefined)
   }
-  const expanded = block.view ? block.view === 'detailed' : detailed
+  const expanded = !type?.simpleOnly && (block.view ? block.view === 'detailed' : detailed)
   const summary = blockSummary(type, block, devices, deviceCatalog)
   const enables = block.enables?.length ?? 0
   const at = drag?.at ?? block
+  // Debug mode: what the board says about this block (strips, tint, values on the pins).
+  const debug = useDebug()
+  const live = debug.block(block.id)
+  const eno = live?.eno
+  const enoName = type?.eno ?? DEFAULT_ENO
+  // A block whose ENO has a name of its own (Tick, Loop body) shows it in the header, beside the strip it labels.
+  const enoNamed = enoName.title !== DEFAULT_ENO.title
+  const failed = debug.failed(block.id)
+  const debugState = failed || !live ? undefined : live.en === 'closed' ? 'dbg-off' : eno === true ? 'dbg-working' : eno === false ? 'dbg-quiet' : undefined
 
   const formulaData = useMemo(() => {
     if (!type?.encoding) return undefined
@@ -90,6 +101,7 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
       </span>,
       <span key="eq" className="canvas-formula-op">=</span>,
     )
+    if (live?.outputs[0] !== undefined) elements.splice(1, 0, <span key="outlive" className="canvas-live is-formula" title="Live value of the output">{live.outputs[0]}</span>)
 
     for (const token of tokens) {
       if (token.start > atIdx) {
@@ -112,6 +124,8 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
             {inLabel}
           </span>,
         )
+        const inLive = live?.inputs[token.value!]
+        if (inLive !== undefined) elements.push(<span key={`live-${token.start}`} className="canvas-live is-formula" title={`Live value of IN${token.value}`}>{inLive}</span>)
         fullText += inLabel
       } else {
         elements.push(
@@ -133,13 +147,16 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
       text: fullText,
       elements: <div className="canvas-formula-line">{elements}</div>,
     }
-  }, [type, block, shape.outputs, labelOf, chipOf])
+  }, [type, block, shape.outputs, labelOf, chipOf, live])
   const isFailed = failed || errors > 0
   const classes = [
     'canvas-block',
     `cat-${type?.category ?? 'unknown'}`,
     selected && 'selected',
     isFailed && 'has-errors is-failed',
+    debug.active && 'is-debugging',
+    debug.nextBlock === block.id && 'is-next',
+    debugState,
     eno === true && 'has-eno',
     eno === false && 'eno-false',
     drag && 'is-dragging',
@@ -161,6 +178,7 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
     const path: ObjectPath | undefined = source ? (typeof source === 'string' ? { root: source } : source) : undefined
     const target: WireTarget = output ? { block: block.id, kind: 'out', index } : { block: block.id, kind: 'in', index: pin.index }
     const chip = path && chipOf?.(path, output, target)
+    const liveText = (output ? live?.outputs[index] : live?.inputs[pin.index]) ?? undefined
     return <div key={index} className={`canvas-block-pin ${chip ? 'has-docked-chip' : ''} ${pin.required ? 'is-required' : ''} ${connected ? 'is-connected' : ''} ${pin.value === 'gate' || pin.value === 'bool' ? 'is-gate' : ''}`} title={`${pinTitle} (${pin.value})${pin.required ? ', required' : ''} · ${text}`}>
       {chip && (
         <span
@@ -173,8 +191,9 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
             event.stopPropagation()
             onChipPress(target, path!, event)
           }}
-        ><span className="canvas-chip-text">{path!.root === '' ? '?' : chip.label}</span></span>
+        ><span className="canvas-chip-text">{path!.root === '' ? '?' : chip.label}</span>{liveText !== undefined && <span className="canvas-live">{liveText}</span>}</span>
       )}
+      {liveText !== undefined && !chip && <span className={`canvas-pin-live ${output ? 'is-out' : 'is-in'}`} title={`${pinTitle}: ${liveText}`}>{liveText}</span>}
       {!output ? (
         <div className="canvas-pin-slab is-in">
           <span className="canvas-block-input-type"><ValueKindBadge type={pin.value} /></span>
@@ -249,11 +268,11 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
               event.stopPropagation()
               onChipPress(target, path, event)
             }}
-          ><span className="canvas-chip-text">{path.root === '' ? '?' : chip.label}</span></span>
+          ><span className="canvas-chip-text">{path.root === '' ? '?' : chip.label}</span>{live?.enables[index] !== undefined && <span className="canvas-live">{live.enables[index]}</span>}</span>
         )
       })}
-      <span className="canvas-block-enable is-en" role="img" aria-label={`Run when connector ${block.id}`} data-pin="en" title={enables ? `Run when: ${block.enableMode === 'all' ? 'all' : 'any'} of ${enables} sources\n${block.enables!.map(pathText).join('\n')}` : 'Run when: nothing set, always runs'} />
-      <span className={`canvas-block-enable is-eno canvas-wire-start ${eno === true ? 'is-active' : eno === false ? 'is-false' : ''}`} role="img" aria-label={`When done connector ${block.id}`} data-pin="eno" title={type?.key === 'FOR' ? 'Loop body: drag onto a block\'s Run when to put it (and what depends on it) in the loop' : 'When done: true while the block acted. Drag onto another block\'s Run when to run it only then'} onPointerDown={wireFrom('eno')} />
+      <span className={`canvas-block-enable is-en ${live && live.en !== 'unknown' ? `is-${live.en}` : ''}`} role="img" aria-label={`Run when connector ${block.id}`} data-pin="en" title={`${enables ? `Run when: ${block.enableMode === 'all' ? 'all' : 'any'} of ${enables} sources\n${block.enables!.map(pathText).join('\n')}` : 'Run when: nothing set, always runs'}${live ? `\nNow: ${EN_NOW[live.en]}` : ''}`} />
+      <span className={`canvas-block-enable is-eno canvas-wire-start ${eno === true ? 'is-active' : eno === false ? 'is-false' : ''}`} role="img" aria-label={`${enoName.title} connector ${block.id}`} data-pin="eno" title={`${enoName.title}: ${enoName.description}${eno === undefined ? '' : `\nNow: ${eno ? 'true' : 'false'}`}`} onPointerDown={wireFrom('eno')} />
       <div className="canvas-block-header">
         <span className="canvas-block-heading">
           {renaming ? (
@@ -266,13 +285,15 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
               onCancel={() => setRenaming(false)}
             />
           ) : (
-            <span className="canvas-block-title" title={onRename ? 'Double-click the header to name it' : undefined}>{block.name || headline}</span>
+            <span className="canvas-block-title" title={onRename ? 'Double-click the header to name it' : undefined}>{block.name || (headlineParts ? <>{headlineParts.lead}{headlineParts.value && <> <span className="canvas-block-value">{headlineParts.value}</span></>}</> : headline)}</span>
           )}
           {(block.name || expanded) && <span className="canvas-block-id" title={block.id}>{[block.name ? headline : '', expanded ? block.id : ''].filter(Boolean).join(' · ')}</span>}
         </span>
+        {enoNamed && <span className="canvas-block-eno-tag" title={`${enoName.title}: ${enoName.description}`}>{enoName.title}</span>}
         {errors > 0 && <span className="canvas-block-errors" title={`${errors} problem(s): see the block's details`}>{errors}</span>}
       </div>
       <div className="canvas-block-pins">
+        {deviceLine && !expanded && <span className={`canvas-block-device ${shape.inputs.length ? 'is-right' : ''}`} title={deviceLine}>{deviceLine}</span>}
         <div className="canvas-block-side is-in">
           {shape.inputs.map((pin) => pinView(pin, pin.index, false))}
         </div>

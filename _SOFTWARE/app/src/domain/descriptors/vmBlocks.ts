@@ -68,6 +68,14 @@ export interface VmBlockEncoding {
   readonly examples: readonly { readonly title: string; readonly constants: readonly number[]; readonly code: readonly string[]; readonly customData: string }[]
 }
 
+/** What a block's ENO is called and does: the header's `//@eno`, else this. */
+export interface VmBlockEno {
+  readonly title: string
+  readonly description: string
+}
+
+export const DEFAULT_ENO: VmBlockEno = { title: 'When done', description: 'true while the block acted; drag it onto the Run when of another block to run that block only then' }
+
 export interface VmBlockType {
   readonly id: number
   /** The symbol without `VM_BLK_`: `EXPR`, `PERIODIC` … — the name project files use. */
@@ -80,6 +88,9 @@ export interface VmBlockType {
   readonly inputs: VmBlockPins
   readonly outputs: VmBlockPins
   readonly rules: readonly { readonly rule: string; readonly error: string }[]
+  readonly eno: VmBlockEno
+  /** The face already shows everything a detailed view would (`//@view simple`): the app offers none. */
+  readonly simpleOnly: boolean
   /** Private state: its fixed size and fields (empty for stateless blocks). */
   readonly stateSize: number
   readonly fields: readonly VmBlockField[]
@@ -168,6 +179,8 @@ export const buildVmBlockType = (file: GeneratedVmBlockFile): VmBlockType => {
     inputs: pins(file.inputs),
     outputs: pins(file.outputs),
     rules: file.rules,
+    eno: { title: file.eno?.title ?? DEFAULT_ENO.title, description: file.eno?.description ?? DEFAULT_ENO.description },
+    simpleOnly: file.view === 'simple',
     stateSize: file.state?.size ?? 0,
     fields,
     minCustomLen: file.min_custom_len,

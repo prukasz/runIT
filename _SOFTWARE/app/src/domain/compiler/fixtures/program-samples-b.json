@@ -1,0 +1,273 @@
+{
+  "frames": [
+    "0441140009000d0058040000",
+    "04421400000400150d6e01000400430d6269747302000400650d7363616c656403000400650d7069636b65640400010012096b0500040031096366670600100055096761696e730700010006050800040005050900040005050a00040005050b00010006050c00010006050d00010006050e00010006050f0004000305100001000605110004000305120001000605130001000605",
+    "044303040000000100010600000010000000c03f0000204000006040000090400500000002000600",
+    "044409000000000000010007000000020008000000030006000105000200000004000400000005000600010301040006000a00000007000b000000080012000000",
+    "0445000000000d00000000001000070032000000000000000000000000000000",
+    "0445010001000101010100000d00ffff000000000100010005000000803f0100020006",
+    "0445020002000101010100000d00ffff0000080001000100050000000041010002000a",
+    "0445030003000101010100000800ffff0200090001000000040001000308",
+    "0445040004000201010100001000ffff02000100010001000800010000000100020009020007",
+    "0445050005000102010100000900ffff0200030002000100000005000100010108",
+    "0445060006000101010100000600ffff050003000100000002000100",
+    "0445070007000101010100000d00ffff02000a00010001000500000040400100020029",
+    "04450800080003010200000000000d0006000b000c00",
+    "0445090009000901020000002000ffff07000e000f000100000000000000c80000000000000000000000000000000000000000000000",
+    "04450a000a000901020000002000ffff0700100011000200000000000000960000000000000000000000000000000000000000000000",
+    "04450b000b000801010000000c00ffff02001200010000000000404000000000",
+    "04450c000c000c02010000000400ffff0800ffff130001000000"
+  ],
+  "counts": {
+    "objects": 20,
+    "accessors": 9,
+    "blocks": 13
+  },
+  "arenaBytes": 1112,
+  "subscribe": "0447130000010002000300040006000700080009000a000b000c000d000e000f001000110012001300",
+  "run": "044805",
+  "write": [
+    "04430104000000010003"
+  ],
+  "blocks": [
+    "0 every PERIODIC",
+    "1 cnt EXPR",
+    "2 saw EXPR",
+    "3 sq EXPR",
+    "4 shift EXPR_BIT",
+    "5 gain EXPR",
+    "6 dyn EXPR",
+    "7 high EXPR",
+    "8 hi IF",
+    "9 off TIMER",
+    "10 pulse TIMER",
+    "11 fall EDGE",
+    "12 wrapped LATCH"
+  ],
+  "objects": [
+    {
+      "id": "n",
+      "wire": 0,
+      "type": "F"
+    },
+    {
+      "id": "bits",
+      "wire": 1,
+      "type": "U32"
+    },
+    {
+      "id": "scaled",
+      "wire": 2,
+      "type": "F"
+    },
+    {
+      "id": "picked",
+      "wire": 3,
+      "type": "F"
+    },
+    {
+      "id": "k",
+      "wire": 4,
+      "type": "U8"
+    },
+    {
+      "id": "gains",
+      "wire": 6,
+      "type": "F"
+    },
+    {
+      "id": "every:eno",
+      "wire": 7,
+      "type": "B"
+    },
+    {
+      "id": "saw:q0",
+      "wire": 8,
+      "type": "F"
+    },
+    {
+      "id": "sq:q0",
+      "wire": 9,
+      "type": "F"
+    },
+    {
+      "id": "high:q0",
+      "wire": 10,
+      "type": "F"
+    },
+    {
+      "id": "hi:q0",
+      "wire": 11,
+      "type": "B"
+    },
+    {
+      "id": "hi:q1",
+      "wire": 12,
+      "type": "B"
+    },
+    {
+      "id": "hi:eno",
+      "wire": 13,
+      "type": "B"
+    },
+    {
+      "id": "off:q0",
+      "wire": 14,
+      "type": "B"
+    },
+    {
+      "id": "off:q1",
+      "wire": 15,
+      "type": "U32"
+    },
+    {
+      "id": "pulse:q0",
+      "wire": 16,
+      "type": "B"
+    },
+    {
+      "id": "pulse:q1",
+      "wire": 17,
+      "type": "U32"
+    },
+    {
+      "id": "fall:q0",
+      "wire": 18,
+      "type": "B"
+    },
+    {
+      "id": "wrapped:q0",
+      "wire": 19,
+      "type": "B"
+    }
+  ],
+  "checks": [
+    {
+      "id": "n",
+      "op": "gt",
+      "value": 10,
+      "phase": 0,
+      "what": "PERIODIC 50 ms → EXPR counts ticks",
+      "wire": 0,
+      "type": "F"
+    },
+    {
+      "id": "saw:q0",
+      "op": "within",
+      "value": 0,
+      "max": 7,
+      "phase": 0,
+      "what": "n mod 8 stays in 0..7",
+      "wire": 8,
+      "type": "F"
+    },
+    {
+      "id": "saw:q0",
+      "op": "hits",
+      "value": 7,
+      "phase": 0,
+      "what": "saw reaches its top",
+      "wire": 8,
+      "type": "F"
+    },
+    {
+      "id": "sq:q0",
+      "op": "hits",
+      "value": 49,
+      "phase": 0,
+      "what": "dup * squares the top (7 → 49)",
+      "wire": 9,
+      "type": "F"
+    },
+    {
+      "id": "bits",
+      "op": "hits",
+      "value": 15,
+      "phase": 0,
+      "what": "EXPR_BIT (7 << 1) | 1 = 15",
+      "wire": 1,
+      "type": "U32"
+    },
+    {
+      "id": "scaled",
+      "op": "hits",
+      "value": 24.5,
+      "phase": 0,
+      "what": "saw 7 × cfg.gains[2] (3.5) via a name path",
+      "wire": 2,
+      "type": "F"
+    },
+    {
+      "id": "picked",
+      "op": "eq",
+      "value": 2.5,
+      "phase": 0,
+      "what": "cfg.gains[k] with k = 1 (dynamic accessor)",
+      "wire": 3,
+      "type": "F"
+    },
+    {
+      "id": "hi:q0",
+      "op": "hits",
+      "value": 1,
+      "phase": 0,
+      "what": "IF yes while saw > 3",
+      "wire": 11,
+      "type": "B"
+    },
+    {
+      "id": "hi:q1",
+      "op": "hits",
+      "value": 1,
+      "phase": 0,
+      "what": "IF no while saw <= 3",
+      "wire": 12,
+      "type": "B"
+    },
+    {
+      "id": "off:q0",
+      "op": "hits",
+      "value": 1,
+      "phase": 0,
+      "what": "TOF output on",
+      "wire": 14,
+      "type": "B"
+    },
+    {
+      "id": "pulse:q0",
+      "op": "hits",
+      "value": 1,
+      "phase": 0,
+      "what": "TP fires",
+      "wire": 16,
+      "type": "B"
+    },
+    {
+      "id": "fall:q0",
+      "op": "hits",
+      "value": 1,
+      "phase": 0,
+      "what": "EDGE FALLING sees the wrap (7 → 0)",
+      "wire": 18,
+      "type": "B"
+    },
+    {
+      "id": "wrapped:q0",
+      "op": "eq",
+      "value": 1,
+      "phase": 0,
+      "what": "RS latch holds the wrap",
+      "wire": 19,
+      "type": "B"
+    },
+    {
+      "id": "picked",
+      "op": "eq",
+      "value": 4.5,
+      "phase": 1,
+      "what": "the dynamic accessor follows k = 3",
+      "wire": 3,
+      "type": "F"
+    }
+  ]
+}

@@ -6,7 +6,7 @@
   "name": "VM_BLK_PERIODIC",
   "title": "Every",
   "category": "time",
-  "description": "Pulses ENO and TICK for one pass every period while enabled; never bursts after a slow pass.",
+  "description": "Pulses ENO (the tick) for one pass every period while enabled; never bursts after a slow pass.",
   "source_file": "components/VM/blocks/vm_block_periodic.h",
   "activation": {
     "kind": "enabled",
@@ -21,6 +21,7 @@
         "name": "period",
         "title": "Period",
         "value": "u32",
+        "hidden_by_default": true,
         "description": "Overrides period, in time_base units; 0 pauses.",
         "required": false
       }
@@ -28,15 +29,8 @@
   },
   "outputs": {
     "min": 0,
-    "max": 1,
-    "pins": [
-      {
-        "index": 0,
-        "name": "tick",
-        "title": "Tick",
-        "value": "gate"
-      }
-    ]
+    "max": 0,
+    "pins": []
   },
   "rules": [
     {
@@ -50,6 +44,11 @@
       "error_tag": 43296
     }
   ],
+  "eno": {
+    "title": "Tick",
+    "description": "One-pass pulse every period: put it on another block's Run when to run that block every period."
+  },
+  "view": "simple",
   "state": {
     "struct": "vm_block_periodic_data_t",
     "source_file": "components/VM/blocks/vm_block_periodic.h",

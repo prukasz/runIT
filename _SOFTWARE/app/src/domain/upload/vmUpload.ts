@@ -4,6 +4,8 @@ import type { CompiledProgram, Diagnostic } from '../compiler'
 import type { VmCatalog } from '../descriptors'
 import type { ObjectSection, ProgramBlock, ProjectDocument } from '../project'
 import type { UploadPlan, UploadStep } from './bundle'
+import { debugWatch } from './debugWatch'
+import type { DebugWatch } from './debugWatch'
 
 /*
  * Project (+ extra object sections) → the frames that load it: 0x41 open,
@@ -18,12 +20,19 @@ export interface VmUploadOptions {
   readonly sections?: readonly ObjectSection[]
   /** The program's blocks; default: the project's enabled canvases in order. */
   readonly blocks?: readonly ProgramBlock[]
+  /**
+   * The debug build: every block gets an ENO object and the subscription
+   * covers what the blocks read, write and are gated by (`debug` on the plan).
+   */
+  readonly debug?: boolean
 }
 
 export interface VmUploadPlan extends UploadPlan {
   readonly program: CompiledProgram
   /** Wire IDs in the subscribe packet. */
   readonly subscribed: readonly number[]
+  /** What the debug build watches per block; only with the `debug` option. */
+  readonly debug?: DebugWatch
 }
 
 const PACKET_LABELS = (catalog: VmCatalog): ReadonlyMap<number, string> => new Map([
@@ -51,7 +60,9 @@ const toUploadDiagnostic = (entry: Diagnostic) => ({ severity: entry.severity, m
 
 export const planVmUpload = (project: ProjectDocument, catalog: VmCatalog, options: VmUploadOptions): VmUploadPlan => {
   const arranged = options.blocks ? undefined : arrangeProgram(project.canvases ?? [])
-  const program = compileProgram(project, catalog, { ...options, blocks: options.blocks ?? arranged!.blocks })
+  const chosen = options.blocks ?? arranged!.blocks
+  const blocks = options.debug ? chosen.map((block) => ({ ...block, eno: true })) : chosen
+  const program = compileProgram(project, catalog, { ...options, blocks })
   const found = [...(arranged?.diagnostics ?? []), ...program.diagnostics]
   if (arranged?.diagnostics.some((entry) => entry.severity === 'error')) return { ok: false, steps: [], diagnostics: found.map(toUploadDiagnostic), program, subscribed: [] }
   const diagnostics = found.map(toUploadDiagnostic)
@@ -60,7 +71,10 @@ export const planVmUpload = (project: ProjectDocument, catalog: VmCatalog, optio
   if (!program.counts.objects && !program.counts.blocks) return { ok: true, steps: [], diagnostics, program, subscribed: [] }
 
   const everything = [...project.objects, ...(options.sections ?? []).flatMap((section) => section.objects)]
-  const subscribed = subscribedWireIds(everything, program.objects)
+  const marked = subscribedWireIds(everything, program.objects)
+  const debug = options.debug ? debugWatch(blocks, program, catalog, options.maxFrameBytes, marked) : undefined
+  if (debug?.dropped) diagnostics.push({ severity: 'warning', message: `The board takes fewer subscriptions than the blocks read: ${debug.dropped} pin value(s) will show no live value.` })
+  const subscribed = debug ? [...debug.wires] : marked
   const steps = labelFrames(catalog, program.frames)
   try {
     steps.push({ label: `vm subscribe (${subscribed.length})`, frame: packSubscribe(catalog, subscribed, options.maxFrameBytes) })
@@ -68,5 +82,5 @@ export const planVmUpload = (project: ProjectDocument, catalog: VmCatalog, optio
     diagnostics.push({ severity: 'error', message: error instanceof Error ? error.message : String(error) })
     return { ok: false, steps: [], diagnostics, program, subscribed }
   }
-  return { ok: true, steps, diagnostics, program, subscribed }
+  return { ok: true, steps, diagnostics, program, subscribed, ...(debug ? { debug } : {}) }
 }

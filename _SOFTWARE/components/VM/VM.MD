@@ -700,7 +700,7 @@ rejects the block without them); every other input falls back to a constant in
 | 10 | `IO_SET_LEVEL` | `vm_block_io_set_level.h` | ★ level, pin | — | 16 | enabled |
 | 11 | `IO_TOGGLE` | `vm_block_io_toggle.h` | pin | — | 16 | rising edge of enable |
 | 12 | `LATCH` | `vm_block_latch.h` | set, reset (≥1 wired) | Q | 4 | enabled |
-| 13 | `PERIODIC` | `vm_block_periodic.h` | period | tick | 16 | enabled |
+| 13 | `PERIODIC` | `vm_block_periodic.h` | period | — (ENO is the tick) | 16 | enabled |
 | 14 | `ACTION` | `vm_block_action.h` | action id | — | 4 | rising edge of enable |
 | 15 | `ON_EVENT` | `vm_block_on_event.h` | — | value, count | 4 | enabled **and** a matching event this pass |
 
@@ -968,7 +968,7 @@ The hardware blocks drive a pin on any IO device through `sys_io` (`SYS_IO_REF(d
 
 ### PERIODIC
 
-`VM_BLK_PERIODIC` is "Every N" from [[VM_EXEC.MD]]: a one-pass tick (ENO and the optional TICK output, loud) every period while enabled — the root of a timed chain.
+`VM_BLK_PERIODIC` is "Every N" from [[VM_EXEC.MD]]: a one-pass tick (ENO, loud; the block has no other output, the app names its ENO "Tick" from `//@eno`) every period while enabled — the root of a timed chain.
 
 - First tick on the pass the block becomes enabled, then every period. Disabling stops it; re-enabling restarts the phase.
 - The deadline advances by exactly the period, so the rate doesn't drift, and a late pass ticks at once.

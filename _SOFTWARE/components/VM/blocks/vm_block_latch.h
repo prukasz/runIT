@@ -98,6 +98,7 @@ static inline void vm_blk_latch(vm_block_h b) {
    by vm_block_verify(), so the body never re-checks them. */
 //#vm-block VM_BLK_LATCH @title Latch @category logic @state vm_block_latch_data_t @activation enabled Runs every pass while enabled.
 //@block-description Set / reset bistable: turns a one-pass pulse into a held level. ENO follows Q.
+//@view simple
 //@rule At least one of set and reset is wired. @error ERR_VM_BLK_BAD_SHAPE
 //@rule mode is a vm_latch_mode_e value. @error ERR_VM_BLK_BAD_SHAPE
 //@in 0 set @title Set @value bool

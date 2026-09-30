@@ -2,12 +2,13 @@ import { useRef } from 'react'
 import { TextField } from '../FormField'
 
 /** Uncontrolled while editing so a parent update cannot overwrite typed text. */
-export function InlineRename({ value, label, placeholder, className, selectOnFocus = false, onCommit, onCancel }: {
+export function InlineRename({ value, label, placeholder, className, selectOnFocus = false, maxLength, onCommit, onCancel }: {
   value: string
   label: string
   placeholder?: string
   className?: string
   selectOnFocus?: boolean
+  maxLength?: number
   onCommit: (value: string) => void
   onCancel: () => void
 }) {
@@ -23,7 +24,7 @@ export function InlineRename({ value, label, placeholder, className, selectOnFoc
     onCancel()
   }
 
-  return <TextField className={className} autoFocus defaultValue={value} placeholder={placeholder} aria-label={label}
+  return <TextField className={className} autoFocus defaultValue={value} placeholder={placeholder} maxLength={maxLength} aria-label={label}
     onFocus={(event) => { if (selectOnFocus) event.currentTarget.select() }}
     onPointerDown={(event) => event.stopPropagation()}
     onClick={(event) => event.stopPropagation()}

@@ -72,18 +72,52 @@ const settingText = (type: VmBlockType, block: ProgramBlock, name: string): stri
   return member ? enumAlias(member.name.replace(/^VM_[A-Z]+_(?:UNIT_)?/, '')) : String(value)
 }
 
+/** The block face's title in two parts: the block's words, then the value part it is set to (`Every` | `100 MS`, `Toggle Pin` | `#22`), which the face draws apart. */
+export interface BlockHeadline {
+  readonly lead: string
+  readonly value?: string
+}
+
+/** The pin an IO block drives: `#22`, or `dynamic` while the Pin input picks it at run time. */
+const pinText = (type: VmBlockType, block: ProgramBlock): string => {
+  const mask = type.fields.find((entry) => entry.letUserSelectAvailable === 'default_io_num')
+  return mask?.dynamicInput !== undefined && isDynamicInput(block, mask.dynamicInput) ? 'dynamic pin' : `#${block.settings?.default_io_num ?? 0}`
+}
+
 /** The block's title with its main settings, for the block face: `Every 100 MS`. Nothing to add for a block without settings worth a glance. */
-export const blockHeadline = (type: VmBlockType | undefined, block: ProgramBlock): string | undefined => {
+export const blockHeadlineParts = (type: VmBlockType | undefined, block: ProgramBlock, labelOf: (path: ObjectPath) => string = pathText): BlockHeadline | undefined => {
   if (!type) return undefined
   const text = (name: string) => settingText(type, block, name)
+  // A setting whose input pin is wired reads from there: the face names what feeds it, not the unused constant.
+  const wired = (name: string, pin: number) => {
+    const path = block.inputs?.[pin]
+    return path && path.root !== '' ? labelOf(path) : text(name)
+  }
   switch (type.key) {
-    case 'PERIODIC': return `Every ${text('period')} ${text('time_base')}`
-    case 'TIMER': return `Timer ${text('mode')} ${text('pt')} ${text('time_base')}`
-    case 'EDGE': return `${text('edge_type')} edge, change ${text('change_by')}`
-    case 'LATCH': return `Latch ${text('mode')}`
-    case 'FOR': return `For ${text('k_start')} to ${text('k_end')} step ${text('k_step')}`
+    case 'PERIODIC': return { lead: 'Every', value: `${wired('period', 0)} ${text('time_base')}` }
+    case 'TIMER': return { lead: 'Timer', value: `${text('mode')} ${wired('pt', 1)} ${text('time_base')}` }
+    case 'EDGE': return { lead: `${text('edge_type')} edge, change ${wired('change_by', 1)}` }
+    case 'LATCH': return { lead: `Latch ${text('mode')}` }
+    case 'FOR': return { lead: 'For', value: `${wired('k_start', 0)} to ${wired('k_end', 1)} step ${wired('k_step', 2)}` }
+    case 'IO_SET_LEVEL':
+    case 'IO_TOGGLE': return { lead: type.title, value: pinText(type, block) }
     default: return undefined
   }
+}
+
+/** `blockHeadlineParts` as one line: `Every 100 MS`. */
+export const blockHeadline = (type: VmBlockType | undefined, block: ProgramBlock, labelOf?: (path: ObjectPath) => string): string | undefined => {
+  const parts = blockHeadlineParts(type, block, labelOf)
+  return parts && (parts.value ? `${parts.lead} ${parts.value}` : parts.lead)
+}
+
+/** The device an IO block works on, for the face's second line: `GPIO_ESP (#0)`. Nothing for a block without a device. */
+export const blockDeviceLine = (type: VmBlockType | undefined, block: ProgramBlock, devices: readonly ProjectDevice[] = [], deviceCatalog: DeviceCatalog = runitDeviceCatalog()): string | undefined => {
+  const field = type?.fields.find((entry) => entry.source === 'user' && entry.idKind === 'device')
+  if (!field) return undefined
+  const id = block.settings?.[field.name] ?? 0
+  const device = allDevices(deviceCatalog, devices).find((entry) => entry.deviceId === id)
+  return `${device?.name ?? 'Unknown device'} (#${id})`
 }
 
 /** Pins the block has: as many as wired or chosen, at least the minimum and every listed pin, at most the maximum (like the compiler). */
@@ -98,7 +132,7 @@ const pinViews = (pins: VmBlockPins, count: number): BlockPinView[] =>
   })
 
 export const blockShape = (type: VmBlockType | undefined, block: ProgramBlock & { readonly view?: 'simple' | 'detailed' }, detailed = false): BlockShape => {
-  const expanded = block.view ? block.view === 'detailed' : detailed
+  const expanded = !type?.simpleOnly && (block.view ? block.view === 'detailed' : detailed)
   const inputs = type ? pinViews(type.inputs, pinCount(type.inputs, block.inputs?.length ?? 0)).filter((pin) => !blockPinAt(type.inputs, pin.index)?.hiddenByDefault || block.dynamicInputs?.includes(pin.index) || block.inputs?.[pin.index]) : []
   const outputs = type ? pinViews(type.outputs, pinCount(type.outputs, block.outputs?.length ?? 0)) : []
   const rows = Math.max(1, inputs.length, outputs.length)

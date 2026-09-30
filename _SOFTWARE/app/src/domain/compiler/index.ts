@@ -4,6 +4,8 @@ export { BLOCK_SECTION, enableKey, encodeBlocks, enoObjectId, inputKey, outputOb
 export type { BlockLayout, BlockPlan, CompiledBlocks, PlacedBlock } from './blocks'
 export { compileObjects, encodeObjectValue } from './objects'
 export type { CompiledObjects, Diagnostic, ObjectLayout, PlacedObject } from './objects'
+export { formatLiveValue, pathTargets, pathWires, readPath, truthy } from './liveRead'
+export type { LiveTarget, LiveValue, LiveValues } from './liveRead'
 export { compileProgram } from './program'
 export type { CompiledProgram, CompileOptions } from './program'
 export { packExec, packSubscribe, packValueWrite, subscribedWireIds } from './runtime'

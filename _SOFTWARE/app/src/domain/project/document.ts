@@ -190,9 +190,17 @@ export interface ConnectorSettings {
   bindings: ConnectorBindingSettings[]
 }
 
+/** Board logging: `level` is an esp_log_level_t (0 none .. 5 verbose). */
+export interface LogSettings {
+  readonly level: number
+  readonly mirrorSerial: boolean
+  readonly traceErrors: boolean
+}
+
 export interface ProjectSettings {
   readonly ble: BleProfile
   readonly connectors: readonly ConnectorSettings[]
+  readonly logs: LogSettings
 }
 
 export const DEFAULT_BLE_GENERAL: BleGeneralSettings = {

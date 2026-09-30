@@ -15,6 +15,34 @@
 
 static const char* TAG = "vm_exec";
 
+/* Bring-up switch: log how long a whole pass takes (events, every block, telemetry sample,
+   retention), in us, once per window of this many ms. 0 = off. The line goes out on the logs
+   stream, so the app's Errors & logs panel shows it. A pass held by pause / scan / block mode
+   counts the wait too. */
+#define VM_PASS_TIME_LOG_MS 5000
+
+/* With the pass time log on: also time each phase of a pass and each block (a FOR counts its body),
+   and log where the time went, with the slowest blocks. 0 = off. */
+#define VM_PASS_PROFILE 1
+#define VM_PROFILE_MAX_BLOCKS 64
+#define VM_PROFILE_TOP 4
+
+#if VM_PASS_TIME_LOG_MS && VM_PASS_PROFILE
+enum { PH_EVENTS, PH_BLOCKS, PH_SAMPLE, PH_RETAIN, PH_CLEAR, PH_COUNT };
+static uint32_t s_ph_sum[PH_COUNT], s_ph_max[PH_COUNT];
+static uint32_t s_blocks_min = UINT32_MAX;
+static uint32_t s_blk_sum[VM_PROFILE_MAX_BLOCKS], s_blk_max[VM_PROFILE_MAX_BLOCKS], s_blk_runs[VM_PROFILE_MAX_BLOCKS];
+static uint8_t s_blk_type[VM_PROFILE_MAX_BLOCKS];
+#define PROFILE_PHASE(ph, us)                       \
+  do {                                              \
+    const uint32_t us_ = (uint32_t)(us);            \
+    s_ph_sum[ph] += us_;                            \
+    if (us_ > s_ph_max[ph]) s_ph_max[ph] = us_;     \
+  } while (0)
+#else
+#define PROFILE_PHASE(ph, us) ((void)(us))
+#endif
+
 err_h vm_exec_check_block_type(uint16_t blk_id, uint8_t block_type) {
   if (!vm_block_fn_for(block_type)) {
     SE_FAIL(ERR_VM_BLK_UNKNOWN_TYPE, .blk_id = blk_id, .block_type = block_type);
@@ -246,7 +274,22 @@ static void run_block(vm_block_h b, vm_block_fn fn) {
   // per-call bits only; VM_BLK_RT_SPAN_BAD and anything sticky survives
   b->cfg.rt &= (uint8_t)~VM_BLK_RT_PER_CALL;
 
+#if VM_PASS_TIME_LOG_MS && VM_PASS_PROFILE
+  const uint64_t block_t0 = vm_clock_us();
+#endif
   fn(b);
+#if VM_PASS_TIME_LOG_MS && VM_PASS_PROFILE
+  {
+    const uint32_t us = (uint32_t)(vm_clock_us() - block_t0);
+    const uint16_t idx = b->cfg.block_idx;
+    if (idx < VM_PROFILE_MAX_BLOCKS) {
+      s_blk_sum[idx] += us;
+      if (us > s_blk_max[idx]) s_blk_max[idx] = us;
+      s_blk_runs[idx]++;
+      s_blk_type[idx] = b->cfg.block_type;
+    }
+  }
+#endif
 
   /* cfg.on_error, finally enforced -- and it is literally what the name says:
      STOP publishes a false ENO, so everything downstream self-skips. CONTINUE
@@ -369,17 +412,30 @@ void vm_exec_pass(void) {
   vm_override_drain();
 
   report_event_overflow();
+  const uint64_t t_events = vm_clock_us();
+  PROFILE_PHASE(PH_EVENTS, t_events - t0);
   vm_exec_run_range(0, g_vm_store.reg[VM_REG_BLK].count);
+  const uint64_t t_blocks = vm_clock_us();
+  PROFILE_PHASE(PH_BLOCKS, t_blocks - t_events);
+#if VM_PASS_TIME_LOG_MS && VM_PASS_PROFILE
+  if (t_blocks - t_events < s_blocks_min) s_blocks_min = (uint32_t)(t_blocks - t_events);
+#endif
 
   // Order within pass: execute blocks -> sample subscriptions -> clear upd
   bool completed = !vm_exec_cancelled();
   if (completed && s_sample_hook) s_sample_hook();
+  const uint64_t t_sample = vm_clock_us();
+  PROFILE_PHASE(PH_SAMPLE, t_sample - t_blocks);
   if (completed) vm_retain_on_pass(t0 / 1000u);
+  const uint64_t t_retain = vm_clock_us();
+  PROFILE_PHASE(PH_RETAIN, t_retain - t_sample);
   clear_upd();
+  PROFILE_PHASE(PH_CLEAR, vm_clock_us() - t_retain);
 
+  uint32_t dur = 0;
   portENTER_CRITICAL(&s_program_mux);
   if (completed) {
-    uint32_t dur = (uint32_t)(vm_clock_us() - t0);
+    dur = (uint32_t)(vm_clock_us() - t0);
     s_last_pass_us = dur;
     if (dur < s_pass_us_min) s_pass_us_min = dur;
     if (dur > s_pass_us_max) s_pass_us_max = dur;
@@ -404,6 +460,65 @@ void vm_exec_pass(void) {
     s_cancel = false;
   }
   portEXIT_CRITICAL(&s_program_mux);
+
+#if VM_PASS_TIME_LOG_MS
+  /* One pass runs at a time (s_pass_active), so the window needs no lock. Logged outside the
+     critical section. */
+  if (completed) {
+    static uint64_t window_start_us;
+    static uint32_t window_passes, window_min = UINT32_MAX, window_max;
+    static uint64_t window_sum;
+    if (window_start_us == 0) window_start_us = t0;
+    window_passes++;
+    window_sum += dur;
+    if (dur < window_min) window_min = dur;
+    if (dur > window_max) window_max = dur;
+    const uint64_t now_us = vm_clock_us();
+    if (now_us - window_start_us >= (uint64_t)VM_PASS_TIME_LOG_MS * 1000u) {
+#if VM_PASS_PROFILE
+      /* Two lines to read: the blocks alone, then the whole pass (events, blocks, telemetry sample, retention). */
+      ESP_LOGI(TAG, "blocks us: min %u max %u avg %u", (unsigned)s_blocks_min, (unsigned)s_ph_max[PH_BLOCKS],
+               (unsigned)(s_ph_sum[PH_BLOCKS] / window_passes));
+      ESP_LOGI(TAG, "pass us: max %u avg %u (telemetry max %u), %u passes, cycle %u", (unsigned)window_max,
+               (unsigned)(window_sum / window_passes), (unsigned)s_ph_max[PH_SAMPLE], (unsigned)window_passes, (unsigned)s_cycle_us_last);
+#else
+      ESP_LOGI(TAG, "pass us: min %u max %u avg %u, %u passes, cycle %u", (unsigned)window_min, (unsigned)window_max,
+               (unsigned)(window_sum / window_passes), (unsigned)window_passes, (unsigned)s_cycle_us_last);
+#endif
+#if VM_PASS_PROFILE
+      /* The slowest blocks by total time in the window, as "#index(type) avg/max us" (a FOR includes its body). */
+      char top[VM_PROFILE_TOP * 34 + 1];
+      size_t used = 0;
+      bool taken[VM_PROFILE_MAX_BLOCKS] = {0};
+      const uint16_t block_cnt = g_vm_store.reg[VM_REG_BLK].count < VM_PROFILE_MAX_BLOCKS ? g_vm_store.reg[VM_REG_BLK].count : VM_PROFILE_MAX_BLOCKS;
+      top[0] = '\0';
+      for (int rank = 0; rank < VM_PROFILE_TOP; rank++) {
+        int best = -1;
+        for (int i = 0; i < block_cnt; i++) {
+          if (!taken[i] && s_blk_runs[i] && (best < 0 || s_blk_sum[i] > s_blk_sum[best])) best = i;
+        }
+        if (best < 0) break;
+        taken[best] = true;
+        used += (size_t)snprintf(top + used, sizeof(top) - used, "%s#%d(t%u) %u/%u", rank ? ", " : "", best, (unsigned)s_blk_type[best],
+                                 (unsigned)(s_blk_sum[best] / s_blk_runs[best]), (unsigned)s_blk_max[best]);
+        if (used >= sizeof(top)) break;
+      }
+      ESP_LOGI(TAG, "slowest avg/max: %s", top);
+      memset(s_ph_sum, 0, sizeof(s_ph_sum));
+      memset(s_ph_max, 0, sizeof(s_ph_max));
+      s_blocks_min = UINT32_MAX;
+      memset(s_blk_sum, 0, sizeof(s_blk_sum));
+      memset(s_blk_max, 0, sizeof(s_blk_max));
+      memset(s_blk_runs, 0, sizeof(s_blk_runs));
+#endif
+      window_start_us = now_us;
+      window_passes = 0;
+      window_sum = 0;
+      window_min = UINT32_MAX;
+      window_max = 0;
+    }
+  }
+#endif
 }
 
 /* ==========================================================================

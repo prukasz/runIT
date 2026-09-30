@@ -104,9 +104,58 @@
   background: color-mix(in srgb, var(--color-red) 12%, var(--panel));
   border-color: color-mix(in srgb, var(--color-red) 30%, var(--divider));
 }
+/* Debug mode (the board's view of each block). Left strip = EN: green open, red closed, faded green = no gate, always runs.
+   Right strip = ENO (above). Tint: green = acted last run, amber = enabled but did not act, grey = gate closed, red = failed. */
+.canvas-block-enable.is-en.is-open { background: var(--color-green-strong); }
+.canvas-block-enable.is-en.is-closed { background: var(--color-red); }
+.canvas-block-enable.is-en.is-always { background: color-mix(in srgb, var(--color-green-strong) 45%, var(--panel)); }
+.canvas-block.is-debugging, .canvas-block.is-debugging .canvas-block-header { transition: background 150ms ease, border-color 150ms ease, opacity 150ms ease; }
+.canvas-block.dbg-working { border-color: color-mix(in srgb, var(--color-green-strong) 60%, var(--divider)); background: color-mix(in srgb, var(--color-green-strong) 9%, var(--panel)); }
+.canvas-block.dbg-working .canvas-block-header { background: color-mix(in srgb, var(--color-green-strong) 22%, var(--panel)); }
+.canvas-block.dbg-quiet { border-color: color-mix(in srgb, var(--color-amber) 55%, var(--divider)); background: color-mix(in srgb, var(--color-amber) 7%, var(--panel)); }
+.canvas-block.dbg-quiet .canvas-block-header { background: color-mix(in srgb, var(--color-amber) 16%, var(--panel)); }
+.canvas-block.dbg-off { opacity: 0.72; background: color-mix(in srgb, var(--active) 4%, var(--panel)); }
+.canvas-block.selected.dbg-working, .canvas-block.selected.dbg-quiet { border-color: var(--accent); }
+/* Values from the board: inside a variable chip, beside a pin that has none (left of an input, right of an output), or in the formula. */
+.canvas-live { flex: none; padding: 0 4px; border-radius: 3px; background: color-mix(in srgb, var(--color-green-strong) 22%, var(--panel)); color: var(--active); font: 600 10px/14px ui-monospace, SFMono-Regular, Consolas, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.canvas-live.is-formula { margin: 0 2px; }
+.canvas-pin-live { position: absolute; top: 50%; z-index: 4; box-sizing: border-box; max-width: 72px; height: 16px; padding: 0 5px; overflow: hidden; transform: translateY(-50%); border: 1px solid color-mix(in srgb, var(--color-green-strong) 45%, var(--divider)); border-radius: 3px; background: color-mix(in srgb, var(--color-green-strong) 14%, var(--panel)); color: var(--active); font: 600 10px/14px ui-monospace, SFMono-Regular, Consolas, monospace; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.canvas-pin-live.is-in { right: calc(100% + 7px); border-radius: 3px 0 0 3px; }
+.canvas-pin-live.is-out { left: calc(100% + 7px); border-radius: 0 3px 3px 0; }
+.shell .screen-actions button.is-stale { color: var(--color-amber); }
+/* The Debug tab: run controls and the watch list. In block mode the block that runs next is outlined on the canvas. */
+.canvas-block.is-next { outline: 2px dashed var(--accent); outline-offset: 3px; }
+.debug-run { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.debug-link { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
+.debug-watch-list { display: flex; flex-direction: column; gap: 2px; max-height: 360px; margin: 8px 0 0; padding: 0; overflow: auto; list-style: none; }
+.debug-watch-list li { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 2px 4px; border-radius: 4px; font-size: 12px; }
+.debug-watch-list li:hover { background: color-mix(in srgb, var(--active) 6%, transparent); }
+.debug-watch-list li.is-off { color: var(--muted); }
+.debug-watch-list li.is-empty { color: var(--muted); font-style: italic; }
+.debug-watch-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.debug-watch-list code { max-width: 45%; overflow: hidden; color: var(--active); font: 600 11px ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.debug-watch-list code.is-none { color: var(--muted); font-weight: 400; }
+.debug-watch-auto { flex: none; color: var(--muted); font-size: 10px; letter-spacing: 0.3px; text-transform: uppercase; }
+.shell .debug-watch-toggle { flex: none; width: 24px; height: 24px; color: var(--muted); }
+.shell .debug-watch-toggle.is-on { color: var(--color-green-strong); }
+.shell .debug-watch-toggle svg { width: 14px; height: 14px; }
+.shell .debug-watch-pin { flex: none; width: auto; height: 20px; margin-left: 6px; padding: 0 6px; border: 1px solid var(--divider); border-radius: 4px; color: var(--accent); font-size: 10px; }
+/* Details panels: live state and values */
+.block-live .live-state { font-family: inherit; font-weight: 600; }
+.block-live .live-state.is-open, .block-live .live-state.is-always { color: var(--color-green-strong); }
+.block-live .live-state.is-closed { color: var(--color-red); }
+.object-live-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 3px 0; font-size: 12px; }
+.object-live-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.object-live-row code { color: var(--active); font: 600 12px ui-monospace, SFMono-Regular, Consolas, monospace; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; text-align: right; }
+.object-live-row em { color: var(--muted); font-size: 11px; }
 .canvas-block-heading { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
 .canvas-block-rename { width: 100%; min-width: 0; height: 20px; padding: 0 4px; border: 1px solid var(--accent); border-radius: 4px; background: var(--background); color: var(--active); font-size: 12px; font-weight: 600; }
 .canvas-block-title { overflow: hidden; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-block-value { font-style: italic; font-weight: 500; letter-spacing: 0.2px; }
+.canvas-block-eno-tag { flex: none; margin-left: auto; color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: 0.3px; }
+.canvas-block-pins { position: relative; }
+.canvas-block-device { position: absolute; left: 12px; top: 0; bottom: 0; z-index: 1; display: flex; align-items: center; max-width: calc(100% - 24px); overflow: hidden; color: var(--muted); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.canvas-block-device.is-right { left: auto; right: 12px; max-width: 50%; }
 .canvas-block-id { overflow: hidden; color: var(--muted); font: 10px ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
 .block-name-field { display: block; width: 100%; max-width: 240px; margin-top: 5px; padding: 5px 7px; border: 1px solid var(--divider); border-radius: 5px; background: var(--background); color: var(--active); font-family: inherit; font-size: 12px; }
 .block-name-field:focus, .block-output-alias:focus { border-color: var(--accent); outline: none; }
@@ -117,7 +166,7 @@
 .block-alias-edit button:hover { color: var(--active); }
 .block-alias-edit svg { width: 13px; height: 13px; }
 .canvas-block-errors { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--color-red); color: var(--on-accent); font-size: 10px; font-weight: 600; }
-.canvas-block-pins { display: flex; flex: none; justify-content: space-between; min-height: 0; }
+.canvas-block-pins { display: flex; flex: none; justify-content: space-between; min-height: 20px; }
 .canvas-block-side { display: flex; flex-direction: column; min-width: 0; max-width: calc(50% + 6px); }
 .canvas-block-side.is-out { align-items: flex-end; }
 .canvas-block-pin { position: relative; display: flex; flex: none; align-items: center; width: 100%; height: 20px; font-size: 10px; white-space: nowrap; }

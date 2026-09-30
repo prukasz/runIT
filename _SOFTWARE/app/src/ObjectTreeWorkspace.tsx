@@ -6,10 +6,13 @@ import { SelectField, TextField } from './components/FormField'
 import { PaletteSearch } from './components/PaletteSearch'
 import { ArrowDown, ArrowUp, Box, Boxes, ChevronDown, ChevronRight, Eye, Folder, FolderPlus, Grid2X2, Link2, Plus, Trash2 } from 'lucide-react'
 import { TreeSlab } from './components/TreeSlab'
+import { InlineRename } from './components/InlineRename'
 import { TypeBadge, ValueKindBadge } from './components/TypeBadge/TypeBadge'
 import { useUndoHistory } from './hooks/useUndoHistory'
 import { OBJECT_DRAG_TYPE, objectKindDragType, variableKind } from './domain/canvas'
 import { compileObjects } from './domain/compiler/objects'
+import { formatLiveValue } from './domain/compiler'
+import { useDebug } from './debug/DebugContext'
 import { runitVmCatalog } from './domain/descriptors'
 import type { VmObjectType } from './domain/descriptors'
 import { addObject, createProject, findObject, moveObject, newObjectId, parseProject, removeObject, serializeProject, setFolderChildren, updateObject, walkObjects } from './domain/project'
@@ -468,6 +471,8 @@ export function ObjectTreePalette({ workspace: w }: { workspace: ObjectWorkspace
   const [draggedId, setDraggedId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<{ id: string; mode: 'into' | 'before' | 'after' } | null>(null)
   const [isRootDrop, setIsRootDrop] = useState(false)
+  // Double-click renames a row in place; a folder opens and closes with its chevron.
+  const [renamingId, setRenamingId] = useState<string | null>(null)
 
   const isNodeMatch = (node: ObjectNode): boolean => {
     if (!matchesSearch(node.name, searchQuery)) {
@@ -520,7 +525,7 @@ export function ObjectTreePalette({ workspace: w }: { workspace: ObjectWorkspace
           isDropInto={isDropInto}
           isDropBefore={isDropBefore}
           isDropAfter={isDropAfter}
-          draggable={w.linkingParentId === undefined}
+          draggable={w.linkingParentId === undefined && renamingId !== node.id}
           onDragStart={(event) => {
             event.stopPropagation()
             event.dataTransfer.setData('text/plain', node.id)
@@ -603,17 +608,28 @@ export function ObjectTreePalette({ workspace: w }: { workspace: ObjectWorkspace
             }
           }}
           onDoubleClick={() => {
-            if (node.kind === 'folder') {
-              w.setCollapsed((current) => {
-                const next = new Set(current)
-                if (next.has(node.id)) next.delete(node.id)
-                else next.add(node.id)
-                return next
-              })
-            }
+            // A reference shows its target's name: that one is renamed on the target.
+            if (node.kind !== 'reference' && w.linkingParentId === undefined) setRenamingId(node.id)
           }}
           icon={<ObjectDesignator node={node} />}
           label={node.kind === 'reference' ? findObject(w.project, node.targetId)?.node.name ?? node.name : node.name}
+          labelEditor={renamingId === node.id ? (
+            <InlineRename
+              className="tree-slab-rename"
+              value={node.name}
+              label={`Name of ${node.name || 'object'}`}
+              placeholder="Name"
+              maxLength={catalog.nameMax}
+              selectOnFocus
+              onCommit={(text) => {
+                setRenamingId(null)
+                // An empty name would leave a top-level object unnamed: keep the old one.
+                const name = text.trim()
+                if (name && name !== node.name) w.edit((current) => updateObject(current, node.id, { name }), { key: `${node.id}:name` })
+              }}
+              onCancel={() => setRenamingId(null)}
+            />
+          ) : undefined}
           badges={
             node.kind === 'value' ? (
               <TypeBadge type={node.type} count={node.length > 1 ? node.length : undefined} />
@@ -858,6 +874,7 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                       placeholder={node.type === 'STR' ? 'Text' : '0 or 1, 2, 3'}
                     />
                   </label>
+                  <LiveValueField id={node.id} />
                   <label className="object-main-length">
                     <span>{node.type === 'STR' ? 'Characters' : 'Items'}</span>
                     <TextField
@@ -885,12 +902,12 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                   <ChevronRight />
                 </button>
                 <span className="object-main-array-index">[{index}]</span>
+                {/* The name stays the main field on top when collapsed, as when expanded; the data only shows once expanded. */}
                 <TextField
-                  className="object-main-array-inline-value"
-                  aria-label={`Value of ${label}`}
-                  value={drafts[node.id]?.text ?? valueText(node.value)}
-                  onChange={(event) => changeValue(node, event.target.value)}
-                  placeholder={node.type === 'STR' ? 'Text value' : '0 or 1, 2, 3...'}
+                  aria-label={`Name of ${label}`}
+                  placeholder={`[${index}]`}
+                  value={node.name}
+                  onChange={(event) => patch(node.id, { name: event.target.value })}
                   onClick={(e) => e.stopPropagation()}
                 />
                 <div className="object-main-type-picker" title="Click to override type" onClick={(e) => e.stopPropagation()}>
@@ -1008,6 +1025,7 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                       placeholder={node.type === 'STR' ? 'Text' : '0 or 1, 2, 3'}
                     />
                   </label>
+                  <LiveValueField id={node.id} />
                   {!isArrayItem && (
                     <label className="object-main-length">
                       <span>{node.type === 'STR' ? 'Characters' : 'Items'}</span>
@@ -1083,7 +1101,40 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
   </div>
 }
 
+/**
+ * A variable's row while debug mode runs: what the board holds now. Nothing
+ * when debugging is off; a dash when no block reads or writes the variable
+ * (only those are subscribed) or the board has not reported it yet.
+ */
+export function LiveValueField({ id }: { readonly id: string }) {
+  const debug = useDebug()
+  if (!debug.active) return null
+  const text = formatLiveValue(debug.read(id), 12)
+  const state = debug.watchState(id)
+  return (
+    <>
+      <label className="object-main-live" title={text === undefined ? 'No block reads or writes it, or the board has not reported it yet' : 'What the board holds now (debug mode)'}>
+        <span>Live</span>
+        <output className={text === undefined ? 'is-none' : ''}>{text ?? '–'}</output>
+      </label>
+      {state === 'off' && <button type="button" className="object-live-watch" title="Subscribe to it on the board now (no upload)" onClick={() => debug.watch(id)}>Watch</button>}
+      {state === 'user' && <button type="button" className="object-live-watch" title="Stop subscribing to it" onClick={() => debug.unwatch(id)}>Unwatch</button>}
+    </>
+  )
+}
+
+/** One live value in the details: its name and what the board holds now (no value = not read by any block, or not reported yet). */
+function LiveRow({ label, text }: { readonly label: string; readonly text: string | undefined }) {
+  return (
+    <div className="object-live-row">
+      <span>{label}</span>
+      {text === undefined ? <em title="No block reads or writes it, or the board has not reported it yet">not watched</em> : <code>{text}</code>}
+    </div>
+  )
+}
+
 export function ObjectDetails({ workspace: w, onJump, canvases = [], onOpenBlock }: { workspace: ObjectWorkspace; onJump: (id: string) => void; canvases?: readonly ProjectCanvas[]; onOpenBlock?: (canvasId: string, blockId: string) => void }) {
+  const debug = useDebug()
   const selected = w.selected?.node
   if (!selected) return <div className="object-details"><p>Select an item to see its properties and relations.</p></div>
   const target = selected.kind === 'reference' ? findObject(w.project, selected.targetId)?.node : selected
@@ -1293,6 +1344,18 @@ export function ObjectDetails({ workspace: w, onJump, canvases = [], onOpenBlock
             />
           </label>
         </div>
+      </div>
+    )}
+
+    {debug.active && target && (
+      <div className="object-details-section object-live">
+        <h3>Live value</h3>
+        {target.kind === 'value' ? (
+          <LiveRow label={target.name || target.id} text={formatLiveValue(debug.read(target.id), 32)} />
+        ) : target.kind === 'folder' ? (
+          target.children.slice(0, 24).map((child) => <LiveRow key={child.id} label={child.name || child.id} text={child.kind === 'value' ? formatLiveValue(debug.read(child.id), 8) : undefined} />)
+        ) : null}
+        {debug.stale && <p className="program-muted">The program changed since the debug upload: use Upload again in the Debug panel to see current values.</p>}
       </div>
     )}
 

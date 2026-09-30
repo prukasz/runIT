@@ -20,6 +20,7 @@ import type {
   ProjectCanvas,
   ProjectDevice,
   ProjectDocument,
+  LogSettings,
   ProjectSettings,
   RawFrame,
   ReferenceNode,
@@ -224,6 +225,11 @@ const parseConnector = (value: Json, path: string): ConnectorSettings => {
   }
 }
 
+const parseLogs = (value: Json, path: string): LogSettings => {
+  const logs = record(value, path)
+  return { level: integer(logs.level, `${path}.level`), mirrorSerial: boolean(logs.mirrorSerial, `${path}.mirrorSerial`), traceErrors: boolean(logs.traceErrors, `${path}.traceErrors`) }
+}
+
 export const parseSettings = (value: Json, path: string): ProjectSettings => {
   const settings = record(value, path)
   const ble = record(settings.ble, `${path}.ble`)
@@ -232,7 +238,7 @@ export const parseSettings = (value: Json, path: string): ProjectSettings => {
     general: parseGeneral(ble.general, `${path}.ble.general`),
     services: array(ble.services, `${path}.ble.services`).map((service, index) => parseService(service, `${path}.ble.services[${index}]`)),
   }
-  return { ble: profile, connectors: array(settings.connectors, `${path}.connectors`).map((connector, index) => parseConnector(connector, `${path}.connectors[${index}]`)) }
+  return { ble: profile, connectors: array(settings.connectors, `${path}.connectors`).map((connector, index) => parseConnector(connector, `${path}.connectors[${index}]`)), logs: parseLogs(settings.logs, `${path}.logs`) }
 }
 
 const parseFrames = (value: Json, path: string): RawFrame[] =>

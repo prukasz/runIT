@@ -3,7 +3,7 @@ import { compileObjects, packSubscribe, packValueWrite } from '../compiler'
 import { runitCommandCatalog, runitStreamCatalog, runitVmCatalog } from '../descriptors'
 import { createProject, parseProject, serializeProject, setFolderChildren, updateObject } from '../project'
 import type { ObjectNode, ObjectSection, ProjectDocument, ValueNode } from '../project'
-import { planSettingsUpload, planVmUpload, runitSettingsIds } from '.'
+import { DEFAULT_LOGS, planSettingsUpload, planVmUpload, runitSettingsIds } from '.'
 import type { BleCharSpec, BleServiceSpec, ConnectorSpec, SettingsState } from '.'
 
 const hex = (data: Uint8Array): string => [...data].map((byte) => byte.toString(16).padStart(2, '0')).join(' ')
@@ -116,9 +116,16 @@ describe('settings upload plan', () => {
     id: ids.interfaceConnector, key: 'interface', name: 'interface', header: '0x05', system: true, maxPacketLen: 512, isSuspended: false,
     bindings: [{ id: 'tx', provider: 'BLE', endpoint: '0xFFE1', direction: 'TX' }, { id: 'rx', provider: 'BLE', endpoint: '0xFFE2', direction: 'RX' }],
   }
-  const base: SettingsState = { services: [system], connectors: [iface] }
+  const base: SettingsState = { services: [system], connectors: [iface], logs: DEFAULT_LOGS }
   const plan = (to: SettingsState, from = base) => planSettingsUpload(commands, layout, ids, from, to)
   const steps = (to: SettingsState, from = base) => plan(to, from).steps.map((step) => `${step.label}: ${hex(step.frame)}`)
+
+  it('sends the logging settings first, only when they changed', () => {
+    const verbose = { ...base, logs: { level: 5, mirrorSerial: false, traceErrors: true } }
+    expect(steps(verbose)).toEqual(['logs level 5, trace errors: 07 01 05 00 01'])
+    expect(plan({ ...verbose, connectors: [iface] }, verbose).steps).toEqual([])
+    expect(plan({ ...base, logs: { ...base.logs, level: 6 } })).toMatchObject({ ok: false, steps: [] })
+  })
 
   it('sends nothing when nothing changed', () => {
     expect(plan(base)).toEqual({ ok: true, steps: [], diagnostics: [] })
@@ -162,7 +169,7 @@ describe('settings upload plan', () => {
       id: ids.appConnectorBase, key: 'app', name: 'app', header: '0x10', system: false, maxPacketLen: 128, isSuspended: false,
       bindings: [{ id: 'b', provider: 'BLE', endpoint: '0xFF11', direction: 'TX' }],
     }
-    const added = { services: [system, svc], connectors: [iface, user] }
+    const added = { services: [system, svc], connectors: [iface, user], logs: DEFAULT_LOGS }
     expect(plan(added).steps.map((step) => step.label)).toEqual([
       'ble create service 0xFF10', 'ble create char 0xFF11', 'connector create app', 'connector app bind TX BLE 0xFF11', 'ble apply',
     ])
@@ -204,7 +211,7 @@ describe('limits from the firmware descriptors', () => {
       id: ids.interfaceConnector, key: 'interface', name: 'interface', header: '0x05', system: true, maxPacketLen: 512, isSuspended: false,
       bindings: [{ id: 'tx', provider: 'BLE', endpoint: '0xFFE1', direction: 'TX' }, { id: 'rx', provider: 'BLE', endpoint: '0xFFE2', direction: 'RX' }],
     }
-    const planFor = (connector: ConnectorSpec) => planSettingsUpload(runitCommandCatalog(), runitStreamCatalog().ble, ids, { services: [], connectors: [iface] }, { services: [], connectors: [iface, connector] })
+    const planFor = (connector: ConnectorSpec) => planSettingsUpload(runitCommandCatalog(), runitStreamCatalog().ble, ids, { services: [], connectors: [iface], logs: DEFAULT_LOGS }, { services: [], connectors: [iface, connector], logs: DEFAULT_LOGS })
     expect(planFor(user({ id: ids.limits.connectorsMax })).ok).toBe(false)
     expect(planFor(user({ maxPacketLen: ids.limits.frameMax + 1 })).ok).toBe(false)
     expect(planFor(user({})).ok).toBe(true)

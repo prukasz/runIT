@@ -5,7 +5,7 @@ import type { BleCharacteristicSettings, ConnectorSettings, ProjectDocument, Pro
 import { buildStoredCode, decodeStoredCode } from '../storedCode'
 import type { StoredCodeContext } from '../storedCode'
 import { boardDefaultSettings, planSettingsUpload, runitSettingsIds } from '../upload'
-import { defaultProjectSettings, isBoardCharacteristic, refreshSettings, settingsFromState, settingsState } from '.'
+import { connectorModified, connectorsModified, defaultProjectSettings, isBoardCharacteristic, refreshSettings, removedBindings, restoreBinding, restoreConnector, restoreSystemConnectors, settingsFromState, settingsState } from '.'
 
 const ctx: StoredCodeContext = { vm: runitVmCatalog(), commands: runitCommandCatalog(), layout: runitStreamCatalog().ble, ids: runitSettingsIds(), devices: runitDeviceCatalog() }
 const boardDefaults = boardDefaultSettings()
@@ -33,6 +33,7 @@ const edited = (): ProjectSettings => {
       ],
     },
     connectors: [...defaults.connectors.map((connector) => (connector === telemetry ? { ...connector, isSuspended: true } : connector)), user],
+    logs: { level: 4, mirrorSerial: false, traceErrors: true },
   }
 }
 
@@ -107,5 +108,48 @@ describe('settings refresh and recovery', () => {
   it('defaults need no stored settings frames', () => {
     const code = buildStoredCode({ project: createProject('x'), settings: settingsState(defaultProjectSettings()), boardDefaults }, ctx)
     expect(code.steps.filter((step) => step.frame[0] !== ctx.vm.classHeader)).toEqual([])
+  })
+})
+
+describe('restoring the connectors of the board', () => {
+  const defaults = defaultProjectSettings().connectors
+  const telemetry = defaults.find((connector) => connector.key === 'telemetry')!
+  const withoutUart = (connectors: readonly ConnectorSettings[]) =>
+    connectors.map((connector) => (connector.key === 'telemetry' ? { ...connector, bindings: connector.bindings.filter((binding) => binding.provider !== 'UART'), isSuspended: true } : connector))
+
+  it('sees nothing wrong with the defaults, and a removed or paused stream as a change', () => {
+    expect(connectorsModified(defaults)).toBe(false)
+    expect(connectorsModified(withoutUart(defaults))).toBe(true)
+    expect(connectorModified(telemetry)).toBe(false)
+    expect(connectorModified(withoutUart(defaults).find((connector) => connector.key === 'telemetry')!)).toBe(true)
+    expect(connectorModified({ ...telemetry, system: false })).toBe(false)
+    expect(removedBindings(telemetry)).toEqual([])
+  })
+
+  it('lists the default transports a system connector lost, and gives one back', () => {
+    const edited = withoutUart(defaults)
+    const lost = removedBindings(edited.find((connector) => connector.key === 'telemetry')!)
+    expect(lost.map((binding) => binding.provider)).toEqual(['UART'])
+    const restored = restoreBinding(edited, 'telemetry', lost[0]!.id)
+    expect(removedBindings(restored.find((connector) => connector.key === 'telemetry')!)).toEqual([])
+    // Only that transport came back: the pause stays as the user set it.
+    expect(restored.find((connector) => connector.key === 'telemetry')!.isSuspended).toBe(true)
+  })
+
+  it('does not count a transport the user re-added by hand as removed', () => {
+    const uart = telemetry.bindings.find((binding) => binding.provider === 'UART')!
+    const readded = defaults.map((connector) => (connector.key === 'telemetry' ? { ...connector, bindings: [...connector.bindings.filter((binding) => binding.provider !== 'UART'), { ...uart, id: 'b_mine', endpoint: uart.endpoint.toUpperCase() }] } : connector))
+    expect(removedBindings(readded.find((connector) => connector.key === 'telemetry')!)).toEqual([])
+  })
+
+  it('restores one stream, or every system stream, and keeps the connectors the user made', () => {
+    const user = { ...defaults[0]!, id: 40, key: 'mine', system: false, bindings: [] } as ConnectorSettings
+    const edited = [...withoutUart(defaults), user]
+    expect(restoreConnector(edited, 'telemetry').find((connector) => connector.key === 'telemetry')).toEqual(telemetry)
+    expect(restoreConnector(edited, 'mine').find((connector) => connector.key === 'mine')).toBe(user)
+    const all = restoreSystemConnectors(edited)
+    expect(connectorsModified(all)).toBe(false)
+    expect(all.at(-1)).toBe(user)
+    expect(all).toHaveLength(defaults.length + 1)
   })
 })

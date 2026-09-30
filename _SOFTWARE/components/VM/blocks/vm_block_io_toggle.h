@@ -98,6 +98,7 @@ static inline void vm_blk_io_toggle(vm_block_h b) {
    by vm_block_verify(), so the body never re-checks them. */
 //#vm-block VM_BLK_IO_TOGGLE @title Toggle Pin @category io @state vm_block_io_toggle_data_t @activation enable-rising Runs once each time its enable turns on.
 //@block-description Toggles a pin once per rising edge of its enable.
+//@view simple
 //@rule allowed_mask is not 0, and default_io_num is below 64 and in allowed_mask. @error ERR_VM_BLK_BAD_SHAPE
 //@in 0 pin @title Pin @description Overrides default_io_num; must be in allowed_mask. @value u32 @id pin @device-field device_id @hidden-by-default
 #define VM_BLOCK_TYPE_IO_TOGGLE \
