@@ -60,6 +60,7 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
   const typeTitle = type?.title ?? `Unknown ${block.type}`
   const headline = blockHeadline(type, block, labelOf, devices, deviceCatalog) ?? typeTitle
   const headlineParts = blockHeadlineParts(type, block, labelOf, devices, deviceCatalog)
+  const namedValue = block.name ? blockSubtitleHeadline(type, block, labelOf, devices, deviceCatalog) : undefined
   const deviceLine = blockDeviceLine(type, block, devices, deviceCatalog)
   const commitName = (text: string) => {
     setRenaming(false)
@@ -68,6 +69,7 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
   }
   const expanded = !!type?.hasDetail && (block.view ? block.view === 'detailed' : detailed)
   const enables = block.enables?.length ?? 0
+  const enLabel = block.type === 'LATCH' ? 'Set' : block.type === 'EDGE' ? 'Signal' : 'Run when'
   const at = drag?.at ?? (offset ? { x: block.x + offset.x, y: block.y + offset.y } : block)
   // Debug mode: what the board says about this block (strips, tint, values on the pins).
   const debug = useDebug()
@@ -77,7 +79,8 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
   // A block whose ENO has a name of its own (Tick, Loop body) shows it in the header, beside the strip it labels.
   const enoNamed = enoName.title !== DEFAULT_ENO.title
   const failed = debug.failed(block.id)
-  const debugState = failed || !live ? undefined : live.en === 'closed' ? 'dbg-off' : eno === true ? 'dbg-working' : eno === false ? 'dbg-quiet' : undefined
+  const debugState = failed || !live ? undefined : eno === true ? 'dbg-working' : live.en === 'closed' ? 'dbg-off' : eno === false ? 'dbg-quiet' : undefined
+  const enNow = live && ((block.type === 'LATCH' || block.type === 'EDGE') && live.en !== 'unknown' ? live.en === 'open' ? 'true' : 'false' : EN_NOW[live.en])
 
   const formulaData = useMemo(() => {
     if (!type?.encoding) return undefined
@@ -275,7 +278,7 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
             style={{ top: 20 + index * 22 }}
             role="button"
             tabIndex={-1}
-            title={`${chip.full}: the block runs only while this is true. Click to select (Delete removes it), drag to move it`}
+            title={`${chip.full}: ${block.type === 'LATCH' ? 'sets the held state when true' : block.type === 'EDGE' ? 'is sampled for edge detection' : 'the block runs only while this is true'}. Click to select (Delete removes it), drag to move it`}
             onPointerDown={(event) => {
               if (event.button !== 0 || !onChipPress) return
               event.stopPropagation()
@@ -284,7 +287,7 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
           ><span className="canvas-chip-text">{path.root === '' ? '?' : chip.label}</span>{live?.enables[index] !== undefined && <span className="canvas-live">{live.enables[index]}</span>}</span>
         )
       })}
-      <span className={`canvas-block-enable is-en ${live && live.en !== 'unknown' ? `is-${live.en}` : ''}`} role="img" aria-label={`Run when connector ${block.id}`} data-pin="en" title={`${enables ? `Run when: ${block.enableMode === 'all' ? 'all' : 'any'} of ${enables} sources\n${block.enables!.map(pathText).join('\n')}` : 'Run when: nothing set, always runs'}${live ? `\nNow: ${EN_NOW[live.en]}` : ''}`} />
+      <span className={`canvas-block-enable is-en ${live && live.en !== 'unknown' ? `is-${live.en}` : ''}`} role="img" aria-label={`${enLabel} connector ${block.id}`} data-pin="en" title={`${enLabel}: ${enables ? `${block.enableMode === 'all' ? 'all' : 'any'} of ${enables} sources\n${block.enables!.map(pathText).join('\n')}` : block.type === 'LATCH' || block.type === 'EDGE' ? 'connect a source to EN' : 'nothing set, always runs'}${live ? `\nNow: ${enNow}` : ''}`} />
       <span className={`canvas-block-enable is-eno canvas-wire-start ${eno === true ? 'is-active' : eno === false ? 'is-false' : ''}`} role="img" aria-label={`${enoName.title} connector ${block.id}`} data-pin="eno" title={`${enoName.title}: ${enoName.description}${eno === undefined ? '' : `\nNow: ${eno ? 'true' : 'false'}`}`} onPointerDown={wireFrom('eno')} />
       <div className="canvas-block-header">
         <span className="canvas-block-heading">
@@ -298,9 +301,9 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
               onCancel={() => setRenaming(false)}
             />
           ) : (
-            <span className="canvas-block-title" title={onRename ? 'Double-click the header to name it' : undefined}>{block.name || (headlineParts ? <>{headlineParts.lead}{headlineParts.value && <> <span className="canvas-block-value">{headlineParts.value}</span></>}</> : headline)}</span>
+            <span className="canvas-block-title" title={onRename ? 'Double-click the header to name it' : undefined}>{block.name ? <>{block.name}{namedValue && <> <span className="canvas-block-value">{namedValue}</span></>}</> : headlineParts ? <>{headlineParts.lead}{headlineParts.value && <> <span className="canvas-block-value">{headlineParts.value}</span></>}</> : headline}</span>
           )}
-          {(block.name || expanded) && <span className="canvas-block-id" title={block.id}>{[block.name ? blockSubtitleHeadline(type, block, labelOf, devices, deviceCatalog) ?? headline : '', expanded ? block.id : ''].filter(Boolean).join(' · ')}</span>}
+          {expanded && <span className="canvas-block-id" title={block.id}>{block.id}</span>}
         </span>
         {enoNamed && <span className="canvas-block-eno-tag" title={`${enoName.title}: ${enoName.description}`}>{enoName.title}</span>}
         {errors > 0 && <span className="canvas-block-errors" title={`${errors} problem(s): see the block's details`}>{errors}</span>}

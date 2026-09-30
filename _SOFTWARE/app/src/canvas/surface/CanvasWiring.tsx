@@ -182,8 +182,8 @@ export const pickerRows = (block: CanvasBlock, type: VmBlockType | undefined, sh
   const body = pending.kind === 'wire' && !!pending.loop
   const rows: PickerRow[] = [{
     key: 'en',
-    label: 'Run when',
-    detail: body ? 'put it in the loop' : block.enables?.length ? `another condition (${block.enables.length} set)` : 'runs only while this is true',
+    label: block.type === 'LATCH' ? 'Set (EN)' : block.type === 'EDGE' ? 'Signal (EN)' : 'Run when',
+    detail: body ? 'put it in the loop' : block.enables?.length ? `another condition (${block.enables.length} set)` : block.type === 'LATCH' ? 'sets the held flow level' : block.type === 'EDGE' ? 'detects changes in this signal' : 'runs only while this is true',
     type: 'gate',
     target: { block: block.id, kind: 'en' },
     ok: accepts('en', pending.carries, { fromBlock, body }),
@@ -312,7 +312,7 @@ export function WirePicker({ block, shape, rows, viewport, hovered, picking, onP
           className={`wire-picker-tab-en ${hovered === enRow.key ? 'is-hovered' : ''}`}
           onChoose={() => onPick(enRow)}
         >
-          <span className="wire-picker-en-pill">Run when</span>
+          <span className="wire-picker-en-pill">{enRow.label}</span>
           <span className="wire-picker-detail">
             {enRow.type && <TypeBadge type={enRow.type} />}
             <span className="wire-picker-text">{enRow.detail}</span>

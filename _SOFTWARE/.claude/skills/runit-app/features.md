@@ -257,13 +257,15 @@ Firmware semantics this rests on: `components/VM/VM_EXEC.MD` §1 and `vm_block_i
 
 | Activation | Blocks | EN | Unconnected EN |
 |---|---|---|---|
-| every pass | IF, SWITCH, FOR, PERIODIC, TIMER, EDGE, LATCH, IO_SET_LEVEL, ON_EVENT | active while; disabled: gates false, TIMER resets, PERIODIC disarms, EDGE forgets, LATCH holds, IO_SET_LEVEL does its `disabled_action` | runs every pass |
+| every pass | IF, SWITCH, FOR, PERIODIC, TIMER, IO_SET_LEVEL, ON_EVENT | active while; disabled: gates false, TIMER resets, PERIODIC disarms, IO_SET_LEVEL does its `disabled_action` | runs every pass |
+| EN edge | EDGE | samples the combined EN level every pass, including false; pulses ENO on the selected rising, falling or either edge | invalid: connect at least one EN source |
+| held flow | LATCH | samples EN as Set every pass; optional Reset is read independently, and ENO holds the state until Reset | invalid: connect at least one EN source |
 | triggered | EXPR, EXPR_BIT, SET, CLONE | extra condition: fresh input **and** enabled | runs on every fresh input |
 | enable-rising | ACTION, IO_TOGGLE | the trigger itself (label it "Do") | **fires once at program start** (warn) |
 
-- 0 sources = always enabled; a wired source that can't be read = off (fail closed).
+- 0 sources = always enabled, except EDGE and LATCH, which require an EN source; a wired source that can't be read = off (fail closed).
 - Mode **any** (default, branches rejoining) / **all** (independent conditions), one per block, shown as ∨ / ∧ on the EN pin from the second wire; nested logic goes through an EXPR / logic block into one EN.
-- ENO: true (loud) when the block acted, false (quiet) otherwise.
+- ENO: each block defines its flow signal. Ordinary action blocks publish true when they act; EDGE pulses for one pass; TIMER and LATCH publish held levels. True is loud, false clears quietly.
 
 **Execution order (proposal):** sorted from the wires per canvas (a block runs after what it reads), position left→right, top→bottom as the tie-break, the order shown on each block; a cycle reads the previous pass (the closing wire marked); FOR's body becomes a frame on the canvas instead of the `body` count. Canvases run in tab order.
 
@@ -276,10 +278,11 @@ Built: `domain/canvas/arrange.ts` (order, explicit gates, loop bodies), `wiring.
 **Explicit enables and order (owner update, 2026-09-28).** A block with no EN source is always enabled; only sources wired directly to EN control it. Data wires set execution order but do not pass gates from one block to another. Execution: per canvas, the trees (blocks joined by wires) top to bottom, inside a tree after what feeds it, then the next canvas.
 
 **Explicit gates only (owner update, 2026-09-28).**
-- A *gate* is an output of kind `gate` (IF yes/no, SWITCH branch, PERIODIC tick, EDGE pulse) or any bool output the user drops on a block's orange EN strip. A block is gated only by paths explicitly wired to its EN; inherited feeder gates and the Branch control are removed.
+- A *gate* is an output of kind `gate` (IF yes/no, SWITCH branch), a PERIODIC or EDGE ENO pulse, or any bool output the user drops on a block's orange EN strip. A block is gated only by paths explicitly wired to its EN; inherited feeder gates and the Branch control are removed.
 - Several explicit EN sources combine as any (∨) by default or all (∧) when selected on the block. Nested logic goes through an EXPR / logic block wired to EN.
 - A disabled IF drives its yes and no outputs false; a block that reads either output still needs its own EN wire if it should follow that branch.
-- ENO (green strip) is opt-in: dragged onto another block's EN it means "only if that block acted / succeeded". Nothing else is linked automatically.
+- ENO (green strip) is opt-in: dragged onto another block's EN it gates that block on the source's flow signal (action success, pulse, or held level, depending on the source block). Nothing else is linked automatically.
+- LATCH uses its EN as Set, its optional Reset data input to clear, and its ENO as the held flow level. It has no Set or Q data pin. A one-pass pulse on EN can keep a downstream chain enabled until Reset, even while LATCH's EN is false.
 - The canvas shows each explicitly gated branch as a rounded area with a plain transparent tint around the blocks carrying that gate; areas may overlap. An area holding another grows to wrap it and the inner one is drawn on top. The same for IF, SWITCH, PERIODIC … and FOR.
 - EN links are drawn as a faded ribbon, narrow at the source and as tall as the whole red EN strip where it arrives (gate red, ENO green, a FOR's loop link purple); data wires stay thin lines.
 

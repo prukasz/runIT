@@ -81,6 +81,7 @@ export default function App() {
   const [terminalOpen, setTerminalOpen] = useState(false)
   const [terminalHeight, setTerminalHeight] = useState(220)
   const [terminalTab, setTerminalTab] = useState<'Commands' | 'Errors & logs'>('Commands')
+  const [pinDestination, setPinDestination] = useState<{ ref: string; pin: number; request: number }>()
   const [resizing, setResizing] = useState<'left' | 'right' | 'bottom' | null>(null)
   const [theme, setTheme] = usePersistedChoice<'dark' | 'light'>('runit-shell-theme', ['dark', 'light'], 'dark')
   const objectWorkspace = useObjectTreeWorkspace(() => { setRightOpen(true); setDetail('Info') })
@@ -211,14 +212,28 @@ export default function App() {
   const isBoard = view === 'Board'
   const isCanvas = view === 'Code' && codeMode === 'canvas'
 
-  const openBlock = (id: string) => {
-    const canvas = canvasWorkspace.canvases.find((entry) => entry.blocks.some((block) => block.id === id))
-    if (!canvas) return
+  const openBlockAt = (canvasId: string, blockId: string) => {
     setView('Code')
     setCodeMode('canvas')
     setRightOpen(true)
     setDetail('Info')
-    canvasWorkspace.reveal(canvas.id, id)
+    canvasWorkspace.reveal(canvasId, blockId)
+  }
+  const openBlock = (id: string) => {
+    const canvas = canvasWorkspace.canvases.find((entry) => entry.blocks.some((block) => block.id === id))
+    if (canvas) openBlockAt(canvas.id, id)
+  }
+  const openDevice = (ref: string) => {
+    setPinDestination(undefined)
+    setView('Board')
+    setLeftOpen(true)
+    devicesWorkspace.select({ kind: 'device', ref })
+  }
+  const openDevicePin = (ref: string, pin: number) => {
+    setPinDestination((current) => ({ ref, pin, request: (current?.request ?? 0) + 1 }))
+    setView('Board')
+    setLeftOpen(true)
+    devicesWorkspace.select({ kind: 'device', ref })
   }
   const resolveConsoleReference: ResolveConsoleReference = (field, value, siblings) => {
     if (!Number.isSafeInteger(value) || value < 0) return undefined
@@ -229,16 +244,11 @@ export default function App() {
     const deviceId = [siblings.device_id, siblings.dev_id, siblings.device].find((entry) => typeof entry === 'number') as number | undefined
     if (['device_id', 'dev_id', 'device'].includes(name) || name === 'id' && rawName.includes('device')) {
       const device = devices.find((entry) => entry.deviceId === value)
-      return device && destination(device.name, () => { setView('Board'); setLeftOpen(true); devicesWorkspace.select({ kind: 'device', ref: device.ref }) })
+      return device && destination(device.name, () => openDevice(device.ref))
     }
     if (['pin', 'pin_num', 'io_num'].includes(name) && deviceId !== undefined) {
       const device = devices.find((entry) => entry.deviceId === deviceId)
-      return device && destination(`${device.name}: ${pinDisplayLabel(devicesWorkspace.catalog, device.ref, value)}`, () => {
-        setView('Board')
-        setLeftOpen(true)
-        devicesWorkspace.select({ kind: 'device', ref: device.ref })
-        setTimeout(() => { const input = [...document.querySelectorAll<HTMLInputElement>('input[aria-label^="Alias for pin "]')].find((entry) => entry.getAttribute('aria-label') === `Alias for pin ${value}`); input?.scrollIntoView({ block: 'center' }); input?.focus() }, 0)
-      })
+      return device && destination(`${device.name}: ${pinDisplayLabel(devicesWorkspace.catalog, device.ref, value)}`, () => openDevicePin(device.ref, value))
     }
     if (['object_id', 'obj_id', 'object_idx', 'obj_idx', 'object', 'variable_id', 'variable'].includes(name)) {
       const placed = compiledReferences?.objects.objects[value]
@@ -635,7 +645,7 @@ export default function App() {
           )}
           {view === 'Code' && codePalette === 'Variables' && codeMode === 'manage' && <ObjectTreeEditor workspace={objectWorkspace} />}
           {view === 'Home' && <ProjectFilePage workspace={objectWorkspace} settings={projectSettings} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} setup={devicesWorkspace.setup} canvases={canvasWorkspace.canvases} onRecover={recoverProject} />}
-          {view === 'Board' && <DevicesEditor workspace={devicesWorkspace} session={bleConnection.session} />}
+          {view === 'Board' && <DevicesEditor workspace={devicesWorkspace} session={bleConnection.session} canvases={canvasWorkspace.canvases} onOpenBlock={openBlockAt} pinDestination={pinDestination} onPinDestinationHandled={() => setPinDestination(undefined)} />}
           {view === 'Settings' && settingsGroup === 'BLE' && <BleSettingsEditor workspace={bleWorkspace} />}
           {view === 'Settings' && settingsGroup === 'all' && (
             <div className="object-editor settings-overview-editor">
@@ -749,7 +759,7 @@ export default function App() {
         </div>
         {rightOpen && (
           <div className="detail-content" aria-label={`${detail} content panel`}>
-            {view === 'Board' && detail === 'Info' && <DeviceDetails workspace={devicesWorkspace} session={bleConnection.session} />}
+            {view === 'Board' && detail === 'Info' && <DeviceDetails workspace={devicesWorkspace} session={bleConnection.session} canvases={canvasWorkspace.canvases} onOpenBlock={openBlockAt} />}
               {isCanvas && detail === 'Info' && (
               <BlockDetails
                 workspace={canvasWorkspace}
@@ -759,6 +769,8 @@ export default function App() {
                 project={objectWorkspace.project}
                 selectedObjectId={objectWorkspace.selectedId ?? undefined}
                 onClearSelectedObject={() => objectWorkspace.select(undefined)}
+                onOpenDevice={openDevice}
+                onOpenPin={openDevicePin}
                 onCreateVariable={(node) => {
                   objectWorkspace.edit((proj) => addObject(proj, null, node))
                   objectWorkspace.select(node.id)

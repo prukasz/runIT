@@ -2,7 +2,7 @@ import { blockPinAt } from '../descriptors'
 import type { VmBlockField, VmBlockType, VmCatalog } from '../descriptors'
 import type { ObjectPath, ObjectSection, ProgramBlock, ValueNode } from '../project'
 import { isDynamicInput, readPinMask } from '../project/blockPins'
-import type { AccessorLayout, AccessorRequest, PathReach } from './accessors'
+import type { AccessorLayout, AccessorRequest } from './accessors'
 import type { Diagnostic, ObjectLayout } from './objects'
 
 /*
@@ -78,6 +78,16 @@ export const planBlocks = (blocks: readonly ProgramBlock[], catalog: VmCatalog):
       continue
     }
 
+    if (type.key === 'EDGE' && ((block.inputs?.length ?? 0) > 0 || (block.outputs?.length ?? 0) > 0 || block.settings?.change_by !== undefined)) {
+      error('this Edge uses the old Signal/Threshold/Pulse pins. Move its signal to EN and Pulse connections to ENO; use a comparison block for a numeric threshold.', 'ERR_VM_BLK_BAD_SHAPE')
+    }
+    if (type.key === 'LATCH' && ((block.inputs?.length ?? 0) > 1 || (block.outputs?.length ?? 0) > 0)) {
+      error('this Latch uses the old Set/Reset/Q pins. Move Set to EN, Reset to input 0, and Q connections to ENO.', 'ERR_VM_BLK_BAD_SHAPE')
+    }
+    if (type.key === 'LATCH' && referenced.has(outputObjectId(block.id, 0))) {
+      error('Latch no longer has Q. Connect downstream blocks to its held ENO instead.', 'ERR_VM_BLK_BAD_SHAPE')
+    }
+
     const wired = block.inputs ?? []
     const inCount = Math.max(wired.length, type.inputs.min)
     if (inCount > Math.min(type.inputs.max, catalog.blockPinMax.in)) error(`${inCount} inputs, ${type.title} takes at most ${type.inputs.max}.`, 'ERR_VM_BLK_BAD_SHAPE')
@@ -117,6 +127,8 @@ export const planBlocks = (blocks: readonly ProgramBlock[], catalog: VmCatalog):
 
     const enableSources = block.enables ?? []
     if (enableSources.length > catalog.blockPinMax.en) error(`${enableSources.length} enables, at most ${catalog.blockPinMax.en}.`, 'ERR_VM_BLK_BAD_SHAPE')
+    if (type.key === 'EDGE' && enableSources.length === 0) error('connect a signal to EN so Edge can detect its transitions.', 'ERR_VM_BLK_BAD_SHAPE')
+    if (type.key === 'LATCH' && enableSources.length === 0) error('connect a Set signal to EN; Latch keeps ENO active until Reset.', 'ERR_VM_BLK_BAD_SHAPE')
     const enables = enableSources.map((path, index) => {
       const key = enableKey(block.id, index)
       requests.push({ key, path })
@@ -202,15 +214,6 @@ const settingValue = (type: VmBlockType, field: VmBlockField, raw: number | stri
   return member ? member.value : `${JSON.stringify(raw)} is not one of ${members.map((entry) => entry.name).join(', ')}`
 }
 
-/** A 4-byte union (EDGE's threshold) holds the type of what input 0 reads: float, signed or unsigned. */
-const unionFormat = (reach: PathReach | undefined, value: number): 'float' | 'int32' | 'uint32' => {
-  const key = reach?.object?.type.key
-  if (key === 'F') return 'float'
-  if (key === 'I32') return 'int32'
-  if (key && key !== 'PTR') return 'uint32'
-  return !Number.isInteger(value) ? 'float' : value < 0 ? 'int32' : 'uint32'
-}
-
 /**
  * Load rules of single block types (their descriptors' `rules`, which are
  * prose): a fallback setting the block needs while an input is unwired, and
@@ -219,7 +222,6 @@ const unionFormat = (reach: PathReach | undefined, value: number): 'float' | 'in
 const TYPE_RULES: Readonly<Record<string, (wired: (pin: number) => boolean, setting: (name: string) => number) => string | undefined>> = {
   PERIODIC: (wired, setting) => (!wired(0) && setting('period') === 0 ? 'with the period input unwired, set a period above 0.' : undefined),
   ACTION: (wired, setting) => (!wired(0) && setting('action_id') === 0 ? 'with the id input unwired, set an action_id above 0.' : undefined),
-  LATCH: (wired) => (!wired(0) && !wired(1) ? 'wire set, reset or both.' : undefined),
 }
 
 // ---------------------------------------------------------------------------
@@ -368,13 +370,6 @@ export const encodeBlocks = (plan: BlockPlan, objects: ObjectLayout, accessors: 
       if (field.cType === 'float') {
         if (!Number.isFinite(value)) error(`${field.name} = ${value} is not a number.`)
         view.setFloat32(field.offset, value, true)
-        continue
-      }
-      if (field.cType.endsWith('_u') && field.size === 4) {
-        const format = unionFormat(inputs[0] ? accessors.reachOf.get(inputs[0]) : undefined, value)
-        if (format === 'float') view.setFloat32(field.offset, value, true)
-        else if (format === 'int32') view.setInt32(field.offset, value, true)
-        else view.setUint32(field.offset, value, true)
         continue
       }
       const range = INTEGER_RANGES[field.cType]

@@ -177,12 +177,13 @@ const textWidth = (text: string, font: string, perChar: number): number => {
 
 const MONO = 'ui-monospace, SFMono-Regular, Consolas, monospace'
 
-/** Width the block's title lines need, in canvas units, so a long header is never cut off: the title, the small line under it and the named ENO tag beside them, measured, plus the header's padding. */
+/** Width the block's title needs, including its value beside a custom name and any ID shown in detailed view. */
 const headerWidth = (type: VmBlockType | undefined, block: FaceBlock, expanded: boolean, devices: readonly ProjectDevice[], deviceCatalog?: DeviceCatalog): number => {
   if (!type) return 0
   const family = typeof document === 'undefined' ? 'sans-serif' : getComputedStyle(document.body).fontFamily
-  const title = block.name || blockHeadline(type, block, pathText, devices, deviceCatalog) || type.title
-  const subtitle = [block.name ? blockSubtitleHeadline(type, block, pathText, devices, deviceCatalog) ?? '' : '', expanded ? block.id : ''].filter(Boolean).join(' · ')
+  const namedValue = block.name ? blockSubtitleHeadline(type, block, pathText, devices, deviceCatalog) : undefined
+  const title = block.name ? [block.name, namedValue].filter(Boolean).join(' ') : blockHeadline(type, block, pathText, devices, deviceCatalog) || type.title
+  const subtitle = expanded ? block.id : ''
   const eno = type.eno.title !== DEFAULT_ENO.title ? textWidth(type.eno.title, `600 10px ${family}`, 6.2) + 6 : 0
   return Math.max(textWidth(title, `600 12px ${family}`, 6.8), textWidth(subtitle, `10px ${MONO}`, 6)) + eno + 24 + 8
 }

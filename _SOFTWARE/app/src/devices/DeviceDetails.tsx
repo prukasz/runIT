@@ -7,13 +7,14 @@ import { decodeResponseData } from '../domain/descriptors'
 import type { DeviceContract } from '../domain/descriptors'
 import { contractFrame, contractsOf, describeStep, findContract, frequencyWarnings, installFrame, pinDisplayLabel, resolveDevice, SET_PWM_FREQUENCY } from '../domain/devices'
 import type { ResolvedDevice } from '../domain/devices'
-import type { StepValues } from '../domain/project'
+import type { ProjectCanvas, StepValues } from '../domain/project'
 import { toHex } from '../domain/upload'
 import { describeCommandError } from '../sendSteps'
 import type { RunitBleSession } from '../backend/runitBleSession'
 import { ContractFields, initialValues } from './ContractFields'
 import { DeviceTile } from './DeviceTile'
 import type { DevicesWorkspace } from './useDevicesWorkspace'
+import { DeviceLinkedBlocks } from './DeviceLinkedBlocks'
 
 type Result = { readonly ok: boolean; readonly text: string }
 
@@ -44,7 +45,7 @@ const QUICK = ['reset', 'suspend', 'resume', 'freeze', 'sync']
 const SET_MODE = 'packet_sys_io_set_mode_t'
 
 /** Right panel of the Board view: every command the selected device takes, grouped, sent live. */
-export function DeviceDetails({ workspace: w, session }: { workspace: DevicesWorkspace; session?: RunitBleSession }) {
+export function DeviceDetails({ workspace: w, session, canvases = [], onOpenBlock }: { workspace: DevicesWorkspace; session?: RunitBleSession; canvases?: readonly ProjectCanvas[]; onOpenBlock?: (canvasId: string, blockId: string) => void }) {
   const ref = w.selection?.kind === 'device' ? w.selection.ref : undefined
   const device = ref ? resolveDevice(w.catalog, w.devices, ref) : undefined
 
@@ -65,6 +66,7 @@ export function DeviceDetails({ workspace: w, session }: { workspace: DevicesWor
       {!session && <p className="devices-notice">Connect a board to send commands.</p>}
       {w.composing && <p className="devices-notice is-accent">Adding to <strong>{w.composing.name}</strong>: use "Add to action" on a command.</p>}
       <Commands key={device.ref} workspace={w} device={device} session={session} />
+      {onOpenBlock && <DeviceLinkedBlocks workspace={w} device={device} canvases={canvases} onOpenBlock={onOpenBlock} heading />}
     </div>
   )
 }

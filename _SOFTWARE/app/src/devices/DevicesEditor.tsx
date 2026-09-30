@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { Card, CardStack } from '../components/Card'
 import { FormGrid, FormRow, SelectField, TextField } from '../components/FormField'
 import { AlertCircle, AlertTriangle, ArrowDown, ArrowUp, BookOpen, FileText, ImagePlus, ListPlus, Play, Plus, Trash2, Upload, X } from 'lucide-react'
@@ -6,7 +6,7 @@ import type { DeviceType } from '../domain/descriptors'
 import { runitCommandCatalog, runitDeviceCatalog } from '../domain/descriptors'
 import { actionRecordSteps, actionRunStep, allDevices, buildAction, contractsOf, describeStep, deviceDisplayName, findContract, modesOf, pinDisplayLabel, pinKey, pinsOf, pinUsers, resolveDevice } from '../domain/devices'
 import type { ResolvedDevice } from '../domain/devices'
-import type { ActionStep, ProjectAction, ProjectDevice } from '../domain/project'
+import type { ActionStep, ProjectAction, ProjectCanvas, ProjectDevice } from '../domain/project'
 import { Button, ToggleChip, buttonClass } from '../components/Button'
 import { EditableField } from '../components/EditableField'
 import { FieldLabel } from '../components/FieldNote'
@@ -18,6 +18,7 @@ import { ErrorHandlingCard } from './ErrorHandling'
 import type { DevicesWorkspace } from './useDevicesWorkspace'
 import type { RunitBleSession } from '../backend/runitBleSession'
 import { sendSteps } from '../sendSteps'
+import { DeviceLinkedBlocks } from './DeviceLinkedBlocks'
 
 /** Device guides: app/docs/devices/<descriptor id>.md (optional, written by hand). */
 const GUIDES = Object.fromEntries(
@@ -27,12 +28,14 @@ const GUIDES = Object.fromEntries(
 const IMAGE_MAX_BYTES = 256 * 1024
 const hex2 = (value: number): string => `0x${value.toString(16).padStart(2, '0').toUpperCase()}`
 
-export function DevicesEditor({ workspace: w, session }: { workspace: DevicesWorkspace; session?: RunitBleSession }) {
+export type PinDestination = { ref: string; pin: number; request: number }
+
+export function DevicesEditor({ workspace: w, session, canvases = [], onOpenBlock, pinDestination, onPinDestinationHandled }: { workspace: DevicesWorkspace; session?: RunitBleSession; canvases?: readonly ProjectCanvas[]; onOpenBlock?: (canvasId: string, blockId: string) => void; pinDestination?: PinDestination; onPinDestinationHandled?: () => void }) {
   const selection = w.selection
   return (
     <>
       {selection?.kind === 'add' ? <DeviceTypeCatalog workspace={w} />
-        : selection?.kind === 'device' ? <DevicePage key={selection.ref} workspace={w} deviceRef={selection.ref} />
+        : selection?.kind === 'device' ? <DevicePage key={selection.ref} workspace={w} deviceRef={selection.ref} canvases={canvases} onOpenBlock={onOpenBlock} pinDestination={pinDestination} onPinDestinationHandled={onPinDestinationHandled} />
         : selection?.kind === 'action' ? <ActionSummary workspace={w} actionId={selection.id} />
         : <DevicesOverview workspace={w} />}
       {w.composing && <ActionComposer workspace={w} action={w.composing} session={session} />}
@@ -115,8 +118,22 @@ function DeviceTypeCatalog({ workspace: w }: { workspace: DevicesWorkspace }) {
 // Device page
 // ---------------------------------------------------------------------------
 
-function DevicePage({ workspace: w, deviceRef }: { workspace: DevicesWorkspace; deviceRef: string }) {
+function DevicePage({ workspace: w, deviceRef, canvases, onOpenBlock, pinDestination, onPinDestinationHandled }: { workspace: DevicesWorkspace; deviceRef: string; canvases: readonly ProjectCanvas[]; onOpenBlock?: (canvasId: string, blockId: string) => void; pinDestination?: PinDestination; onPinDestinationHandled?: () => void }) {
   const [page, setPage] = useState<'configuration' | 'guide'>('configuration')
+  useEffect(() => {
+    if (pinDestination?.ref === deviceRef) setPage('configuration')
+  }, [deviceRef, pinDestination])
+  useEffect(() => {
+    if (page !== 'configuration' || pinDestination?.ref !== deviceRef) return
+    const frame = requestAnimationFrame(() => {
+      const input = [...document.querySelectorAll<HTMLInputElement>('.devices-editor input[aria-label^="Alias for pin "]')]
+        .find((entry) => entry.getAttribute('aria-label') === `Alias for pin ${pinDestination.pin}`)
+      input?.scrollIntoView({ block: 'center' })
+      input?.focus()
+      onPinDestinationHandled?.()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [deviceRef, page, pinDestination, onPinDestinationHandled])
   const resolved = resolveDevice(w.catalog, w.devices, deviceRef)
   const device = w.devices.find((entry) => entry.id === deviceRef)
   if (!resolved) return <div className="object-editor devices-editor"><p className="devices-muted">This device is gone.</p></div>
@@ -161,6 +178,7 @@ function DevicePage({ workspace: w, deviceRef }: { workspace: DevicesWorkspace; 
         <CardStack>
           {problems.map((entry, index) => <p key={index} className="program-diag is-error"><AlertCircle aria-hidden="true" />{entry.message}</p>)}
           {device ? <UserDeviceConfig workspace={w} device={device} resolved={resolved} type={type} /> : <SystemDeviceInfo workspace={w} device={resolved} />}
+          {onOpenBlock && <Card title="Linked blocks"><DeviceLinkedBlocks workspace={w} device={resolved} canvases={canvases} onOpenBlock={onOpenBlock} /></Card>}
         </CardStack>
       )}
     </div>

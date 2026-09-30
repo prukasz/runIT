@@ -415,6 +415,8 @@ The palette answers it with the **`LATCH`** block (and `TIMER` in pulse mode,
 `TP` / `TP_INV`, for a pulse of fixed length), which the user places explicitly to convert a one-pass pulse into a held
 level. The same block solves actuators below an event, where `when inactive:` is
 otherwise the only thing keeping the output from snapping back on the next pass.
+Wire the event pulse to the latch's EN. Its ENO remains true after that pulse
+and can gate the downstream chain until the independent Reset input clears it.
 
 Nothing prevents the mistake — a `Wait` below an event simply never completes.
 The diagnosis route is **subscribing to the block's state**: the user watches the

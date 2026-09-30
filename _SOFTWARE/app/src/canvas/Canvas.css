@@ -240,6 +240,11 @@
 .shell .block-switch button[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 24%, var(--panel)); color: var(--active); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 65%, transparent); }
 .block-hardware { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
 .block-hardware-pin { display: flex; flex-direction: column; gap: 10px; }
+.block-hardware-link-row { display: flex; align-items: flex-end; gap: 6px; min-width: 0; }
+.block-hardware-link-row .block-field { flex: 1; }
+.shell .block-hardware-jump { flex: none; width: 30px; height: 30px; border: 1px solid var(--divider); border-radius: 6px; color: var(--accent); }
+.shell .block-hardware-jump:hover:not(:disabled) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
+.shell .block-hardware-jump svg { width: 15px; height: 15px; }
 .block-pin-mask { min-width: 0; margin: 0; padding: 8px; border: 1px solid var(--divider); border-radius: 6px; }
 .block-pin-mask legend { padding: 0 4px; color: var(--active); font-size: 11px; }
 .block-pin-mask > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }

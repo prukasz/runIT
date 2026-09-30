@@ -285,6 +285,8 @@ export function BlockDetails({
   onClearSelectedObject,
   onCreateVariable,
   onExpandDetails,
+  onOpenDevice,
+  onOpenPin,
 }: {
   workspace: CanvasWorkspace
   diagnostics: ReadonlyMap<string, readonly Diagnostic[]>
@@ -295,6 +297,8 @@ export function BlockDetails({
   onClearSelectedObject?: () => void
   onCreateVariable?: (node: ObjectNode) => void
   onExpandDetails?: (expanded: boolean) => void
+  onOpenDevice?: (ref: string) => void
+  onOpenPin?: (ref: string, pin: number) => void
 }) {
   const block = workspace.selectedBlock
   const debug = useDebug()
@@ -441,8 +445,8 @@ export function BlockDetails({
         </div>
       </div>
       <section className="block-section">
-        <h3>Running</h3>
-        <ul className="block-gates" aria-label="Runs when">
+        <h3>{block.type === 'LATCH' ? 'Set (EN)' : block.type === 'EDGE' ? 'Signal (EN)' : 'Running'}</h3>
+        <ul className="block-gates" aria-label={block.type === 'LATCH' ? 'Sets when' : block.type === 'EDGE' ? 'Signal sources' : 'Runs when'}>
           {(block.enables ?? []).map((path, index) => (
             <li key={`own${index}`}>
               <span className="block-gate-dot is-own" aria-hidden="true" />
@@ -459,7 +463,7 @@ export function BlockDetails({
           {(gates?.loops ?? []).filter((loop) => !(block.enables ?? []).some((path) => path.root === `${loop}:body` || path.root === `${loop}:eno`)).map((loop) => (
             <li key={`loop${loop}`} className="is-inherited"><span className="block-gate-dot is-loop" aria-hidden="true" /><span>In the loop of {loop} <small>from the chain</small></span></li>
           ))}
-          {!gates?.enables.length && !gates?.loops.length && <li className="is-empty">Always runs (no Run when set)</li>}
+          {!gates?.enables.length && !gates?.loops.length && <li className="is-empty">{block.type === 'LATCH' ? 'Connect a Set signal to EN' : block.type === 'EDGE' ? 'Connect a signal to EN' : 'Always runs (no Run when set)'}</li>}
         </ul>
         <div className="block-fields">
           {(block.enables?.length ?? 0) > 1 && <BlockSwitch label="Conditions combine" value={block.enableMode ?? 'any'} options={[["any", "Any (OR)"], ["all", "All (AND)"]]} onChange={(value) => update((current) => ({ ...current, enableMode: value as 'any' | 'all' }))} />}
@@ -468,7 +472,7 @@ export function BlockDetails({
       </section>
 
       <p className="block-description">{type.description}</p>
-      <p className="block-muted">Runs: {type.activation === 'triggered' ? 'when an input it reads is fresh' : type.activation === 'enable-rising' ? 'once each time its Run when turns on' : 'every cycle while its Run when is true'}</p>
+      <p className="block-muted">{block.type === 'LATCH' ? 'Samples Set and Reset each cycle. ENO stays true after Set until Reset clears it.' : block.type === 'EDGE' ? 'Samples its EN signal each cycle, including when false. ENO pulses on the selected edge.' : `Runs: ${type.activation === 'triggered' ? 'when an input it reads is fresh' : type.activation === 'enable-rising' ? 'once each time its Run when turns on' : 'every cycle while its Run when is true'}`}</p>
 
       {problems.length > 0 && (
         <ul className="block-problems">
@@ -484,7 +488,7 @@ export function BlockDetails({
       {(fields.length > 0 || hardware || type.encoding || isLoop) && (
         <section className="block-section">
           <h3>Settings</h3>
-          {hardware && <BlockHardwareFields block={block} type={type} devices={devices} deviceCatalog={deviceCatalog} onUpdate={update} />}
+          {hardware && <BlockHardwareFields block={block} type={type} devices={devices} deviceCatalog={deviceCatalog} onUpdate={update} onOpenDevice={onOpenDevice} onOpenPin={onOpenPin} />}
           <div className="block-fields">
             {fields.map((field) => {
               const raw = block.settings?.[field.name]
@@ -555,8 +559,8 @@ export function BlockDetails({
             <p className="block-muted">{debug.stale ? 'The program changed since the debug upload: use Upload again in the Debug panel.' : 'Waiting for the board…'}</p>
           ) : (
             <dl className="block-pins">
-              <div><dt>Run when (EN)</dt><dd className={`live-state is-${live.en}`}>{LIVE_EN[live.en]}</dd></div>
-              <div><dt>{type.eno.title} (ENO)</dt><dd className={`live-state ${live.eno === undefined ? '' : live.eno ? 'is-open' : 'is-closed'}`}>{live.eno === undefined ? 'no report yet' : live.eno ? 'true, the block acted' : 'false, it did not act'}</dd></div>
+              <div><dt>{block.type === 'LATCH' ? 'Set (EN)' : block.type === 'EDGE' ? 'Signal (EN)' : 'Run when (EN)'}</dt><dd className={`live-state is-${live.en}`}>{(block.type === 'LATCH' || block.type === 'EDGE') && live.en !== 'unknown' ? live.en === 'open' ? 'true' : 'false' : LIVE_EN[live.en]}</dd></div>
+              <div><dt>{type.eno.title} (ENO)</dt><dd className={`live-state ${live.eno === undefined ? '' : live.eno ? 'is-open' : 'is-closed'}`}>{live.eno === undefined ? 'no report yet' : live.eno ? 'true' : 'false'}</dd></div>
               {debug.failed(block.id) && <div><dt>Error</dt><dd className="live-state is-closed">failed on its last run, see Errors &amp; logs</dd></div>}
               {(block.enables ?? []).map((path, index) => <div key={`en${index}`}><dt>{labelPath(path)}<small>EN</small></dt><dd>{live.enables[index] ?? '–'}<WatchPin path={path} shown={live.enables[index] !== undefined} /></dd></div>)}
               {shape.inputs.map((pin) => <div key={`in${pin.index}`}><dt>{pin.title}<small>in</small></dt><dd>{live.inputs[pin.index] ?? '–'}<WatchPin path={block.inputs?.[pin.index] ?? undefined} shown={live.inputs[pin.index] !== undefined} /></dd></div>)}

@@ -4,22 +4,19 @@
 /*
  *           -------------
  *  ->EN     |           | ->ENO
- *  ->SET    |   LATCH   | ->Q
- *  ->RESET  |  (SR/RS)  |
+ *  ->RESET  |   LATCH   |
  *           -------------
  *
  *  VM_BLK_LATCH -- Bistable (IEC 61131-3 SR / RS). Turns a one-pass pulse (EDGE,
  *  PERIODIC, an event) into a held level, so anything time-based below it can
  *  accumulate: event -> latch -> wait -> act.
  *
- *    set dominant   (SR): Q = SET or (Q and not RESET)
- *    reset dominant (RS): Q = not RESET and (SET or Q)
+ *    set dominant   (SR): ENO = EN or (ENO and not RESET)
+ *    reset dominant (RS): ENO = not RESET and (EN or ENO)
  *
- *  SET and RESET are levels (non-zero = true); one pass is enough to switch.
- *  Either may be unwired (reads false), not both. Q lives in the block's own
- *  state, so it outlasts the pulse that set it. ENO follows Q as a level (like
- *  TIMER). The Q output is written only when it changes, loudly, so update-driven
- *  blocks below see the transition. Disabled: Q is held, ENO drops quietly.
+ *  EN sets the held state; RESET clears it even when EN is false. RESET may be
+ *  unwired (reads false), but EN must have at least one source. ENO reflects the
+ *  held state, so it remains true after a one-pass EN pulse until RESET wins.
  *
  *  custom_data layout (4 bytes):
  *    [0]    u8  mode    vm_latch_mode_e
@@ -34,11 +31,10 @@ typedef enum {
   VM_LATCH_MODE_CNT = 2,
 } vm_latch_mode_e;
 
-#define VM_LATCH_F_Q (1u << 0)        // Current state
-#define VM_LATCH_F_WRITTEN (1u << 1)  // Q output published at least once
+#define VM_LATCH_F_HELD (1u << 0)  // Current ENO state
 
 typedef struct __attribute__((aligned(4))) {
-  uint8_t mode;   // Which input wins when both are true @enum-ref vm_latch_mode_e
+  uint8_t mode;   // Which signal wins when EN and RESET are true @enum-ref vm_latch_mode_e
   uint8_t flags;  // VM_LATCH_F_* @runtime
   uint16_t _pad;
 } vm_block_latch_data_t;
@@ -46,51 +42,37 @@ typedef struct __attribute__((aligned(4))) {
 _Static_assert(sizeof(vm_block_latch_data_t) == 4, "vm_block_latch_data_t must be 4 bytes");
 #define VM_LATCH_CUSTOM_LEN sizeof(vm_block_latch_data_t)
 
-#define VM_LATCH_IN_SET 0u
-#define VM_LATCH_IN_RESET 1u
-#define VM_LATCH_Q 0u
+#define VM_LATCH_IN_RESET 0u
 
 static inline bool vm_verify_latch(vm_block_h b) {
-  // With neither input wired the latch could never change.
-  if (!vm_block_optional_in(b, VM_LATCH_IN_SET) && !vm_block_optional_in(b, VM_LATCH_IN_RESET)) return false;
+  if (b->cfg.en_cnt == 0 || b->cfg.in_cnt > 1 || b->cfg.q_cnt != 0) return false;
   vm_block_latch_data_t d;
   memcpy(&d, vm_block_get_custom_data(b), sizeof(d));
   return d.mode < VM_LATCH_MODE_CNT;
 }
 
 /* Pure state transition. */
-static inline bool vm_latch_step(uint8_t mode, bool q, bool set, bool reset) {
-  return (mode == VM_LATCH_RESET_DOMINANT) ? (!reset && (set || q)) : (set || (q && !reset));
+static inline bool vm_latch_step(uint8_t mode, bool held, bool set, bool reset) {
+  return (mode == VM_LATCH_RESET_DOMINANT) ? (!reset && (set || held)) : (set || (held && !reset));
 }
 
-/* Enable-driven. A failed input read leaves Q unchanged and drops ENO. */
+/* EN is Set, not an execution gate. Always read Reset so it works after EN
+ * falls. A failed read holds the state and drops ENO for this pass. */
 static inline void vm_blk_latch(vm_block_h b) {
   vm_block_latch_data_t state;
   memcpy(&state, vm_block_get_custom_data(b), sizeof(state));
-  const bool q = (state.flags & VM_LATCH_F_Q) != 0;
+  const bool held = (state.flags & VM_LATCH_F_HELD) != 0;
 
-  if (!vm_block_is_enabled(b)) {
-    vm_block_set_eno(b, false);
-    return;
-  }
-
-  bool set = false;
+  const bool set = vm_block_is_enabled(b);
   bool reset = false;
-  if (!vm_block_check(b, VM_BLOCK_GET_PARAM(set, b, VM_LATCH_IN_SET, false)) ||
-      !vm_block_check(b, VM_BLOCK_GET_PARAM(reset, b, VM_LATCH_IN_RESET, false))) {
+  if (!vm_block_check(b, VM_BLOCK_GET_PARAM(reset, b, VM_LATCH_IN_RESET, false)) || vm_block_failed(b)) {
     vm_block_set_eno(b, false);
     return;
   }
 
-  const bool next = vm_latch_step(state.mode, q, set, reset);
-  const bool publish = (next != q) || !(state.flags & VM_LATCH_F_WRITTEN);
-  state.flags = (uint8_t)((state.flags & ~VM_LATCH_F_Q) | (next ? VM_LATCH_F_Q : 0u) | VM_LATCH_F_WRITTEN);
+  const bool next = vm_latch_step(state.mode, held, set, reset);
+  state.flags = (uint8_t)((state.flags & ~VM_LATCH_F_HELD) | (next ? VM_LATCH_F_HELD : 0u));
   memcpy(vm_block_get_custom_data(b), &state, sizeof(state));
-
-  if (publish && b->cfg.q_cnt > VM_LATCH_Q) {
-    uint8_t value = next ? 1 : 0;
-    BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(value, vm_block_get_outputs(b)[VM_LATCH_Q], 0), b);
-  }
   vm_block_set_eno(b, next);
 }
 
@@ -99,14 +81,13 @@ static inline void vm_blk_latch(vm_block_h b) {
 //#vm-block VM_BLK_LATCH
 //@title Latch
 //@category logic
-//@activation enabled Runs every pass while enabled.
+//@activation enabled Samples EN and Reset every pass; EN sets the held state.
 //@data vm_block_latch_data_t
-//@block-description Set / reset bistable: turns a one-pass pulse into a held level. ENO follows Q.
+//@block-description EN sets a held flow level; Reset clears it. ENO stays active until reset.
 //@header Latch {mode}
-//@rule At least one of set and reset is wired. @error ERR_VM_BLK_BAD_SHAPE
+//@rule At least one EN source is connected; no data outputs. @error ERR_VM_BLK_BAD_SHAPE
 //@rule mode is a vm_latch_mode_e value. @error ERR_VM_BLK_BAD_SHAPE
-//@in 0 set @title Set @value bool @macro VM_LATCH_IN_SET
-//@in 1 reset @title Reset @value bool @macro VM_LATCH_IN_RESET
-//@out 0 q @title Q @value bool @macro VM_LATCH_Q
+//@in 0 reset @title Reset @value bool @macro VM_LATCH_IN_RESET
+//@eno @title Held @description Held flow level: true after EN sets it, until Reset clears it.
 #define VM_BLOCK_TYPE_LATCH \
   {.run = vm_blk_latch, .check = vm_verify_latch, .min_in = 0, .min_q = 0, .required_in = 0x0u, .state_len = VM_LATCH_CUSTOM_LEN}

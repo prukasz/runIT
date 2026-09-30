@@ -695,11 +695,11 @@ rejects the block without them); every other input falls back to a constant in
 | 5 | `FOR` | `vm_block_for.h` | start, end, step | iterator | 24 | enabled; claims its span always |
 | 6 | `SET` | `vm_block_set.h` | ★ src, ★ dst | — | 0 | src fresh **and** enabled |
 | 7 | `CLONE` | `vm_block_clone.h` | ★ src, ★ dst pointer cell | — | 0 | src fresh **and** enabled |
-| 8 | `EDGE` | `vm_block_edge.h` | ★ signal, threshold | pulse | 12 | enabled |
+| 8 | `EDGE` | `vm_block_edge.h` | EN (required) | — (ENO is the pulse) | 4 | every pass |
 | 9 | `TIMER` | `vm_block_timer.h` | ★ IN, PT | ET (Q is ENO) | 32 | enabled |
 | 10 | `IO_SET_LEVEL` | `vm_block_io_set_level.h` | ★ level, pin | — | 16 | enabled |
 | 11 | `IO_TOGGLE` | `vm_block_io_toggle.h` | pin | — | 16 | rising edge of enable |
-| 12 | `LATCH` | `vm_block_latch.h` | set, reset (≥1 wired) | Q | 4 | enabled |
+| 12 | `LATCH` | `vm_block_latch.h` | EN (required), Reset (optional) | — (ENO is the held level) | 4 | every pass |
 | 13 | `PERIODIC` | `vm_block_periodic.h` | period | — (ENO is the tick) | 16 | enabled |
 | 14 | `ACTION` | `vm_block_action.h` | action id | — | 4 | rising edge of enable |
 | 15 | `ON_EVENT` | `vm_block_on_event.h` | — | value, count | 4 | enabled **and** a matching event this pass |
@@ -930,12 +930,11 @@ Dynamic objects are heap-backed and isolated: nothing else in a running program 
 
 ### EDGE
 
-`VM_BLK_EDGE` detects transitions on `in[0]` (boolean, float, integer types).
+`VM_BLK_EDGE` detects transitions of the combined EN level, sampling it every pass, including false.
 
-- **Modes**: `VM_EDGE_RISING` (0 -> 1, or increase >= threshold), `VM_EDGE_FALLING` (1 -> 0, or decrease >= threshold), `VM_EDGE_BOTH` (any toggle, or |delta| >= threshold).
-- **Threshold / Hysteresis**: Optional dynamic threshold on `in[1]`. If unwired, falls back to `change_by` in `custom_data`.
-- **Outputs**: Optional `out[0]` pulse (driven to 1 for exactly 1 pass, then cleared); `ENO` flow pulse (true for 1 pass, then false).
-- **Private State**: 12 bytes (`vm_block_edge_data_t`): `edge_type` (1B), `flags` (1B), `change_by` (4B), `prev_val` (4B). Latching `VM_EDGE_F_INITIALIZED` prevents false pulses on the very first pass.
+- **Modes**: `VM_EDGE_RISING` (false -> true), `VM_EDGE_FALLING` (true -> false), `VM_EDGE_BOTH` (either transition).
+- **Output**: `ENO` pulses for one pass on the selected edge. A numeric threshold needs an upstream comparison feeding EN.
+- **Private State**: 4 bytes (`vm_block_edge_data_t`): `edge_type`, `flags`, `previous`, padding. The first sample establishes the initial level without a pulse.
 
 ### TIMER
 
@@ -961,10 +960,10 @@ The hardware blocks drive a pin on any IO device through `sys_io` (`SYS_IO_REF(d
 
 `VM_BLK_LATCH` is the IEC SR / RS bistable, and the answer to the model's sharpest edge: an event (or EDGE, or PERIODIC) enables for one pass, so a time gate below it resets the next pass and never completes. A latch turns the one-pass pulse into a held level: event → latch (set) → wait → act → latch (reset).
 
-- `mode`: set dominant (`Q = SET or (Q and not RESET)`) or reset dominant (`Q = not RESET and (SET or Q)`).
-- SET and RESET are levels; one pass is enough. Either may be unwired (reads false), not both (verify).
-- Q is held in the block's state (4 bytes), so it outlasts the pulse. The Q output is written only when it changes, loudly, so update-driven blocks below see the transition. ENO follows Q as a level, like TIMER.
-- Disabled: Q is held, ENO drops quietly.
+- EN is the Set level and must be connected. Reset is the optional data input; it is read even while EN is false.
+- `mode`: set dominant (`ENO = EN or (ENO and not RESET)`) or reset dominant (`ENO = not RESET and (EN or ENO)`). One pass of EN is enough to set the held state.
+- The held state lives in the block's 4-byte private state. ENO is its only output and remains true until Reset clears it, so downstream EN chains continue after the original Set pulse ends.
+- A failed EN or Reset read holds the private state and drops ENO for that pass.
 
 ### PERIODIC
 
