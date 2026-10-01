@@ -20,7 +20,7 @@ import type { RunitBleSession } from '../backend/runitBleSession'
 import { sendSteps } from '../sendSteps'
 import { DeviceLinkedBlocks } from './DeviceLinkedBlocks'
 
-/** Device guides: app/docs/devices/<descriptor id>.md (optional, written by hand). */
+/** Device guides: app/docs/devices/<descriptor id>.md (optional; copied from the device folder by generate-devices.py when it has the generator's mark, else written by hand). */
 const GUIDES = Object.fromEntries(
   Object.entries(import.meta.glob<string>('../../docs/devices/*.md', { query: '?raw', import: 'default', eager: true })).map(([path, text]) => [path.replace(/^.*\/(.*)\.md$/, '$1'), text]),
 )

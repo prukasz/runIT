@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include "device_pca9685.h"
+#include "device_pca9685_limits.generated.h"
 #include "esp_rom_sys.h"
 #include "sys_device.h"
 #include "sys_error.h"

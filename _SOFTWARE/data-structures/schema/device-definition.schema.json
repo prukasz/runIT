@@ -18,6 +18,42 @@
     "datasheet": { "type": "string", "format": "uri", "description": "Manufacturer datasheet (PDF URL), from //@datasheet." },
     "pwm_frequencies": { "type": "integer", "minimum": 1, "description": "Different PWM frequencies the device runs at once (per-pin frequencies on shared timers), from //@pwm-frequencies." },
     "source_file": { "type": "string" },
+    "symbol": {
+      "type": "object",
+      "description": "Generic IC symbol generated from the pins CSV: an SVG file next to the descriptor, one <g id=port.svg> per port.",
+      "required": ["file", "label", "package", "pins"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "type": "string" },
+        "label": { "type": "string" },
+        "package": { "type": "string" },
+        "pins": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "ports": {
+      "type": "array",
+      "description": "One port per package pin (pins CSV): what can be wired on the device canvas.",
+      "items": {
+        "type": "object",
+        "required": ["name", "pin", "kind", "dir", "svg"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "pin": { "type": "integer", "minimum": 1 },
+          "kind": { "enum": ["supply_in", "supply_out", "gnd", "io", "bus"] },
+          "dir": { "enum": ["in", "out", "inout"] },
+          "modes": { "type": "array", "items": { "enum": ["BINARY", "PWM", "ADC", "DAC"] } },
+          "default_mode": { "type": "string" },
+          "group": { "type": "string", "description": "Pins that belong together (i2c, address, led ...)." },
+          "mV_min": { "type": "integer" },
+          "mV_max": { "type": "integer" },
+          "bind_pin": { "type": "integer", "description": "The device's own pin number (sys_io) this port drives." },
+          "cfg_field": { "type": "string", "description": "Pin ref of the create frame that a connection to this port fills." },
+          "note": { "type": "string" },
+          "svg": { "type": "string", "description": "Id of the port's <g> in the symbol; its terminal is <svg>-t." }
+        }
+      }
+    },
     "contractProvider": {
       "oneOf": [{ "type": "null" }, { "type": "string" }, { "$ref": "#/$defs/symbolRef" }]
     },

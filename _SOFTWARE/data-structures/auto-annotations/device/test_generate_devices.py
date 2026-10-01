@@ -119,6 +119,79 @@ class DeviceRecords(unittest.TestCase):
         self.assertEqual(install["fields"]["sample_rate_Hz"], {"type": "uint16_t", "alias": "Sample Rate", "required": False, "min": 1, "max": 3300, "default": 100, "unit": "Hz", "note": "Higher rates react faster and use more power."})
         self.assertEqual(install["fields"]["alert_event"]["default"], install["fields"]["alert_event"]["one_of"][0]["value"])
 
+    def test_json_sidecar_carries_limits_and_notes(self):
+        pca = self.devices["device_pca9685"]
+        contracts = {c["packet"]: c for c in pca["contracts"]}
+        duty = next(p for p in contracts["packet_sys_io_set_pwm_duty_t"]["parameters"] if p["name"] == "duty")
+        self.assertEqual((duty["min"], duty["max"], duty["unit"]), (0, 4095, "ticks"))
+        frequency = next(p for p in contracts["packet_sys_io_set_pwm_frequency_t"]["parameters"] if p["name"] == "frequency_Hz")
+        self.assertEqual((frequency["min"], frequency["max"], frequency["default"]), (24, 1526, 50))
+        install = pca["install"]["packet_definition"]
+        self.assertEqual(install["fields"]["device_id"]["max"], 127)
+        self.assertEqual(install["groups"]["oe_pin"]["note"], "Active-low.")
+        header = generator.PROJECT_ROOT / "components" / "devices" / "device_pca9685" / "include" / "device_pca9685.h"
+        path, text = generator.limits_header(header, generator.read_sidecar(header))
+        self.assertEqual(path.name, "device_pca9685_limits.generated.h")
+        self.assertIn("#define PCA9685_MAX_FREQUENCY_HZ 1526", text)
+        self.assertEqual(path.read_text(encoding="utf-8").replace("\r\n", "\n"), text, "run generate-devices.py: the committed limits header is out of date")
+
+    def test_guide_is_copied_with_image_folder(self):
+        header = generator.PROJECT_ROOT / "components" / "devices" / "device_pca9685" / "include" / "device_pca9685.h"
+        outputs = dict(generator.guide_outputs(header, "device_pca9685"))
+        guide = outputs[generator.GUIDE_DIR / "device_pca9685.md"].decode("utf-8")
+        self.assertTrue(guide.startswith(generator.GUIDE_MARK))
+        self.assertIn("](images/device_pca9685/channels.svg", guide)
+        self.assertIn(generator.GUIDE_DIR / "images" / "device_pca9685" / "channels.svg", outputs)
+        for target, data in outputs.items():
+            self.assertEqual(target.read_bytes().replace(b"\r\n", b"\n"), data, f"run generate-devices.py: {target.name} is out of date")
+
+    def test_pins_csv_makes_ports_and_a_clickable_symbol(self):
+        pca = self.devices["device_pca9685"]
+        ports = {p["name"]: p for p in pca["ports"]}
+        self.assertEqual(len(ports), 28)
+        self.assertEqual((ports["VDD"]["pin"], ports["VDD"]["kind"], ports["VDD"]["mV_min"], ports["VDD"]["mV_max"]), (28, "supply_in", 2300, 5500))
+        self.assertEqual((ports["LED15"]["pin"], ports["LED15"]["bind_pin"], ports["LED15"]["default_mode"]), (22, 15, "PWM"))
+        self.assertEqual(ports["OE"]["cfg_field"], "oe_pin")
+        header = generator.PROJECT_ROOT / "components" / "devices" / "device_pca9685" / "include" / "device_pca9685.h"
+        symbol = generator.read_symbol(header, generator.read_sidecar(header))
+        self.assertEqual(symbol["svg"].count('class="port '), 28)
+        self.assertIn('<circle id="pin-SDA-t"', symbol["svg"])
+        committed = generator.PROJECT_ROOT / "data-structures" / "devices" / symbol["meta"]["file"]
+        self.assertEqual(committed.read_text(encoding="utf-8").replace("\r\n", "\n"), symbol["svg"], "run generate-devices.py: the symbol is out of date")
+
+    def test_ports_must_point_at_the_device(self):
+        install = {"groups": {"oe_pin": {}}}
+        contracts = [{"parameters": [{"name": "pin", "one_of": [0, 1]}]}]
+        generator.check_ports({"source_file": "t", "ports": [{"name": "A", "cfg_field": "oe_pin", "bind_pin": 1}]}, install, contracts)
+        for bad in ({"name": "A", "cfg_field": "nope"}, {"name": "A", "bind_pin": 9}):
+            with self.subTest(bad=bad), self.assertRaises(SystemExit):
+                generator.check_ports({"source_file": "t", "ports": [bad]}, install, contracts)
+
+    def test_pins_csv_is_checked(self):
+        header = "pin,name,kind,dir,modes,default_mode,group,mV_min,mV_max,bind_pin,cfg_field,note\n"
+        cases = {"gap in pin numbers": "1,A,io,in,BINARY,,,,,,,\n3,B,io,in,BINARY,,,,,,,\n",
+                 "duplicate name": "1,A,io,in,BINARY,,,,,,,\n2,A,io,in,BINARY,,,,,,,\n",
+                 "io without modes": "1,A,io,in,,,,,,,,\n",
+                 "unknown mode": "1,A,io,in,LASER,,,,,,,\n",
+                 "bad id": "1,1A,io,in,BINARY,,,,,,,\n"}
+        for name, rows in cases.items():
+            with self.subTest(name), tempfile.TemporaryDirectory() as folder:
+                path = Path(folder) / "t.pins.csv"
+                path.write_text(header + rows, encoding="utf-8")
+                with self.assertRaises(SystemExit):
+                    generator.device_symbol.read_ports(path)
+
+    def test_sidecar_refuses_what_it_cannot_match(self):
+        body = "uint8_t device_id; uint8_t i2c_addr;"
+        with self.assertRaises(SystemExit):  # annotation for a field the struct doesn't have
+            generator.parse_struct_fields(body, annotations={"i2c_adr": "@alias A"})
+        with self.assertRaises(SystemExit):  # the struct still carries its own // annotations
+            generator.parse_struct_fields("uint8_t device_id; //@max 5\n", annotations={"device_id": "@max 7"})
+        with self.assertRaises(SystemExit):  # limit that is not defined
+            generator.tags_from_json({"max": "limit:NOPE"}, {}, "t")
+        self.assertEqual(generator.tags_from_json({"one_of": [1, 2], "device_wide": True, "max": "limit:TOP"}, {"TOP": {"value": 9}}, "t"),
+                         {"one_of": "[1, 2]", "device_wide": "", "max": "9"})
+
     def test_pin_ref_rejects_unknown_tags(self):
         with self.assertRaises(SystemExit):
             generator.parse_struct_fields("sys_io_pin_ref_t intr_pin; //@role pin\n")

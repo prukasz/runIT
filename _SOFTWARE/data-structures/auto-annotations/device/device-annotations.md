@@ -13,7 +13,47 @@ The first argument is the decoders root to scan (the device headers are found ne
 
 **Only write what the app reads.** Every record kind accepts a fixed set of tags and generation fails on any other, so a typo or a tag nothing uses never lands silently. When a value is already on the generic packet (alias, unit, type, optional, note of `dec_sys_contracts.h`), don't repeat it on the device.
 
-## Layout
+## JSON form: `device_<chip>.json` (pilot: PCA9685)
+
+A device may describe itself in a JSON file next to its `.c` (`components/devices/device_<chip>/device_<chip>.json`) instead of header comments. The header then keeps only C: `<CHIP>_TYPE_ID`, the packed cfg struct (no `//` annotations) and the class. A header must not have both forms (the generator refuses). The output is the same `device_<id>.generated.json`.
+
+Keys of the file (any other key fails generation):
+
+| Key | Meaning |
+|---|---|
+| `id`, `title`, `description`, `protocols`, `tags`, `datasheet`, `type_id`, `contract_provider`, `pwm_frequencies`, `count_bits` | The `//#device` tags; `protocols` / `tags` are lists, `contract_provider` has no `$`, `type_id` is the `#define` name or a number |
+| `limits` | `NAME: {value, comment}` (or just a number). The generator writes `include/device_<chip>_limits.generated.h` with `#define <CHIP>_<NAME> <value>`; the device's `.c` includes it and range-checks with the same macros, so a limit is written once. `generate-all.py --check` covers this header too |
+| `properties` | `NAME: {one_of, alias, note, default, enum_ref}` - the `//#self-property` / `//#property` records |
+| `fields` | `<cfg field>: {tags}` - the tags that used to follow the field's `;` (`alias`, `note`, `one_of`, `min`, `max`, `default`, `modes` ...). A pin ref is one entry under its field name (`oe_pin`). A name that is no field of the cfg struct fails generation |
+| `contracts` | `[{packet, alias, description, returns, params: {<field>: {tags}}}]` - the `//#contract` records; `params` keep their order |
+
+In any tag value: a list becomes `[a, b]`, `true` is a flag (`"device_wide": true`), and `"limit:NAME"` is the number of that entry of `limits`. Text, notes and limits are the only thing that moves: type id, struct and class stay in C.
+
+Example: [device_pca9685.json](../../../components/devices/device_pca9685/device_pca9685.json).
+
+### Pins and the symbol: `device_<chip>.pins.csv`
+
+A chip's package pins, copied from the datasheet's pin table (one row per pin), make the device's **ports** and a generic IC symbol. Needs `"symbol": {"label", "package"}` in the JSON. The symbol is always the same dual-row package (pins 1..N/2 down the left, the rest up the right, pin 1 top left), so all chips look alike and only the pins differ. Each port is its own clickable, wire-able element on the device canvas.
+
+| Column | Meaning |
+|---|---|
+| `pin`, `name` | Package pin number (1..N, no gaps) and symbol; `name` becomes the SVG id `pin-<name>` |
+| `kind` | `supply_in`, `supply_out`, `gnd`, `io`, `bus` |
+| `dir` | `in`, `out`, `inout` |
+| `modes`, `default_mode` | `\|`-separated signal types the pin can be (`BINARY`, `PWM`, `ADC`, `DAC`); required for `io` |
+| `group` | Pins that belong together (`i2c`, `address`, `led`, `power` ...); a class on the symbol |
+| `mV_min`, `mV_max` | Allowed voltage on the pin (supply range, input tolerance) |
+| `bind_pin` | The device's own pin number (the `pin` of its contracts) that this port drives; checked against the contracts' `pin` choices |
+| `cfg_field` | Pin ref of the create frame that a wire to this port fills (`oe_pin`); checked against the cfg |
+| `note` | Shown as the pin's tooltip and as a hint |
+
+Output: `ports` and `symbol` in `device_<id>.generated.json`, and `device_<id>.symbol.generated.svg` beside it. In the SVG every port is `<g id="pin-NAME" class="port kind-… dir-… group-…" data-port data-pin data-kind data-dir data-modes>` with a terminal `<circle id="pin-NAME-t">` where a wire attaches; colours are CSS variables (`--sym-body`, `--sym-line`, `--sym-text`, `--sym-muted`, `--sym-hot`) so the app can theme it, and a `selected` class lights a terminal. Example: [device_pca9685.pins.csv](../../../components/devices/device_pca9685/device_pca9685.pins.csv).
+
+### User guide: `device_<chip>.md`
+
+An optional Markdown file next to the .c is the device's user guide (the app's *User guide* tab renders it as GitHub-flavoured Markdown). The generator copies it to `app/docs/devices/<device id>.md` with a "generated" mark on top, so the files in `app/docs/` are output only. Images go in `images/` next to the guide and are linked `images/<name>` (the generator copies them to `app/docs/devices/images/<device id>/` and fixes the link). The text is the author's own: it is a plain copy and nothing checks it against the C or the JSON (supply voltage, typical use, wiring tips). Devices without a guide in their folder keep a hand-written `app/docs/devices/<id>.md` (no mark). Example: [device_pca9685.md](../../../components/devices/device_pca9685/device_pca9685.md).
+
+## Layout (header comments)
 
 ```c
 //#device device_example                 <- a record starts: //#<kind> <name> [@tag ...]

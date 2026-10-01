@@ -417,7 +417,7 @@
         }
       ],
       "alias": "Set PWM duty",
-      "description": "Duty values above 4095 are clamped by the adapter.",
+      "description": "Duty values above the maximum are clamped by the device.",
       "packet_definition": {
         "source_file": "dec_sys_contracts.h",
         "class_name": "SYS_CONTRACTS",
@@ -499,6 +499,407 @@
           }
         }
       }
+    }
+  ],
+  "symbol": {
+    "file": "device_pca9685.symbol.generated.svg",
+    "label": "PCA9685",
+    "package": "TSSOP28",
+    "pins": 28
+  },
+  "ports": [
+    {
+      "name": "A0",
+      "pin": 1,
+      "kind": "io",
+      "dir": "in",
+      "modes": [
+        "BINARY"
+      ],
+      "default_mode": "BINARY",
+      "group": "address",
+      "note": "Address input 0: tie high or low",
+      "mV_max": 5500,
+      "svg": "pin-A0"
+    },
+    {
+      "name": "A1",
+      "pin": 2,
+      "kind": "io",
+      "dir": "in",
+      "modes": [
+        "BINARY"
+      ],
+      "default_mode": "BINARY",
+      "group": "address",
+      "note": "Address input 1",
+      "mV_max": 5500,
+      "svg": "pin-A1"
+    },
+    {
+      "name": "A2",
+      "pin": 3,
+      "kind": "io",
+      "dir": "in",
+      "modes": [
+        "BINARY"
+      ],
+      "default_mode": "BINARY",
+      "group": "address",
+      "note": "Address input 2",
+      "mV_max": 5500,
+      "svg": "pin-A2"
+    },
+    {
+      "name": "A3",
+      "pin": 4,
+      "kind": "io",
+      "dir": "in",
+      "modes": [
+        "BINARY"
+      ],
+      "default_mode": "BINARY",
+      "group": "address",
+      "note": "Address input 3",
+      "mV_max": 5500,
+      "svg": "pin-A3"
+    },
+    {
+      "name": "A4",
+      "pin": 5,
+      "kind": "io",
+      "dir": "in",
+      "modes": [
+        "BINARY"
+      ],
+      "default_mode": "BINARY",
+      "group": "address",
+      "note": "Address input 4",
+      "mV_max": 5500,
+      "svg": "pin-A4"
+    },
+    {
+      "name": "LED0",
+      "pin": 6,
+      "kind": "io",
+      "dir": "out",
+      "modes": [
+        "BINARY",
+        "PWM"
+      ],
+      "default_mode": "PWM",
+      "group": "led",
+      "note": "PWM output 0",
+      "bind_pin": 0,
+      "svg": "pin-LED0"
+    },
+    {
+      "name": "LED1",
+      "pin": 7,
+      "kind": "io",
+      "dir": "out",
+      "modes": [
+        "BINARY",
+        "PWM"
+      ],
+      "default_mode": "PWM",
+      "group": "led",
+      "note": "PWM output 1",
+      "bind_pin": 1,
+      "svg": "pin-LED1"
+    },
+    {
+      "name": "LED2",
+      "pin": 8,
+      "kind": "io",
+      "dir": "out",
+      "modes": [
+        "BINARY",
+        "PWM"
+      ],
+      "default_mode": "PWM",
+      "group": "led",
+      "note": "PWM output 2",
+      "bind_pin": 2,
+      "svg": "pin-LED2"
+    },
+    {
+      "name": "LED3",
+      "pin": 9,
+      "kind": "io",
+      "dir": "out",
+      "modes": [
+        "BINARY",
+        "PWM"
+      ],
+      "default_mode": "PWM",
+      "group": "led",
+      "note": "PWM output 3",
+      "bind_pin": 3,
+      "svg": "pin-LED3"
+    },
+    {
+      "name": "LED4",
+      "pin": 10,
+      "kind": "io",
+      "dir": "out",
+      "modes": [
+        "BINARY",
+        "PWM"
+      ],
+      "default_mode": "PWM",
+      "group": "led",
+      "note": "PWM output 4",
+      "bind_pin": 4,
+      "svg": "pin-LED4"
+    },
+    {
+      "name": "LED5",
+      "pin": 11,
+      "kind": "io",
+      "dir": "out",
+      "modes": [
+        "BINARY",
+        "PWM"
+      ],
+      "default_mode": "PWM",
+      "group": "led",
+      "note": "PWM output 5",
+      "bind_pin": 5,
+      "svg": "pin-LED5"
+    },
+    {
+      "name": "LED6",
+      "pin": 12,
+      "kind": "io",
+      "dir": "out",
+      "modes": [
+        "BINARY",
+        "PWM"
+      ],
+      "default_mode": "PWM",
+      "group": "led",
+      "note": "PWM output 6",
+      "bind_pin": 6,
+      "svg": "pin-LED6"
+    },
+    {
+      "name": "LED7",
+      "pin": 13,
+      "kind": "io",
+      "dir": "out",
+      "modes": [
+        "BINARY",
+        "PWM"
+      ],
+      "default_mode": "PWM",
+      "group": "led",
+      "note": "PWM output 7",
+      "bind_pin": 7,
+      "svg": "pin-LED7"
+    },
+    {
+      "name": "VSS",
+      "pin": 14,
+      "kind": "gnd",
+      "dir": "in",
+      "group": "power",
+      "note": "Ground",
+      "svg": "pin-VSS"
+    },
+    {
+      "name": "LED8",
+      "pin": 15,
+      "kind": "io",
+      "dir": "out",
+      "modes": [
+        "BINARY",
+        "PWM"
+      ],
+      "default_mode": "PWM",
+      "group": "led",
+      "note": "PWM output 8",
+      "bind_pin": 8,
+      "svg": "pin-LED8"
+    },
+    {
+      "name": "LED9",
+      "pin": 16,
+      "kind": "io",
+      "dir": "out",
+      "modes": [
+        "BINARY",
+        "PWM"
+      ],
+      "default_mode": "PWM",
+      "group": "led",
+      "note": "PWM output 9",
+      "bind_pin": 9,
+      "svg": "pin-LED9"
+    },
+    {
+      "name": "LED10",
+      "pin": 17,
+      "kind": "io",
+      "dir": "out",
+      "modes": [
+        "BINARY",
+        "PWM"
+      ],
+      "default_mode": "PWM",
+      "group": "led",
+      "note": "PWM output 10",
+      "bind_pin": 10,
+      "svg": "pin-LED10"
+    },
+    {
+      "name": "LED11",
+      "pin": 18,
+      "kind": "io",
+      "dir": "out",
+      "modes": [
+        "BINARY",
+        "PWM"
+      ],
+      "default_mode": "PWM",
+      "group": "led",
+      "note": "PWM output 11",
+      "bind_pin": 11,
+      "svg": "pin-LED11"
+    },
+    {
+      "name": "LED12",
+      "pin": 19,
+      "kind": "io",
+      "dir": "out",
+      "modes": [
+        "BINARY",
+        "PWM"
+      ],
+      "default_mode": "PWM",
+      "group": "led",
+      "note": "PWM output 12",
+      "bind_pin": 12,
+      "svg": "pin-LED12"
+    },
+    {
+      "name": "LED13",
+      "pin": 20,
+      "kind": "io",
+      "dir": "out",
+      "modes": [
+        "BINARY",
+        "PWM"
+      ],
+      "default_mode": "PWM",
+      "group": "led",
+      "note": "PWM output 13",
+      "bind_pin": 13,
+      "svg": "pin-LED13"
+    },
+    {
+      "name": "LED14",
+      "pin": 21,
+      "kind": "io",
+      "dir": "out",
+      "modes": [
+        "BINARY",
+        "PWM"
+      ],
+      "default_mode": "PWM",
+      "group": "led",
+      "note": "PWM output 14",
+      "bind_pin": 14,
+      "svg": "pin-LED14"
+    },
+    {
+      "name": "LED15",
+      "pin": 22,
+      "kind": "io",
+      "dir": "out",
+      "modes": [
+        "BINARY",
+        "PWM"
+      ],
+      "default_mode": "PWM",
+      "group": "led",
+      "note": "PWM output 15",
+      "bind_pin": 15,
+      "svg": "pin-LED15"
+    },
+    {
+      "name": "OE",
+      "pin": 23,
+      "kind": "io",
+      "dir": "in",
+      "modes": [
+        "BINARY"
+      ],
+      "default_mode": "BINARY",
+      "group": "control",
+      "cfg_field": "oe_pin",
+      "note": "Output enable: active low",
+      "mV_max": 5500,
+      "svg": "pin-OE"
+    },
+    {
+      "name": "A5",
+      "pin": 24,
+      "kind": "io",
+      "dir": "in",
+      "modes": [
+        "BINARY"
+      ],
+      "default_mode": "BINARY",
+      "group": "address",
+      "note": "Address input 5",
+      "mV_max": 5500,
+      "svg": "pin-A5"
+    },
+    {
+      "name": "EXTCLK",
+      "pin": 25,
+      "kind": "io",
+      "dir": "in",
+      "modes": [
+        "BINARY"
+      ],
+      "default_mode": "BINARY",
+      "group": "clock",
+      "note": "External clock input: ground it when unused",
+      "mV_max": 5500,
+      "svg": "pin-EXTCLK"
+    },
+    {
+      "name": "SCL",
+      "pin": 26,
+      "kind": "bus",
+      "dir": "in",
+      "group": "i2c",
+      "note": "I2C serial clock",
+      "mV_max": 5500,
+      "svg": "pin-SCL"
+    },
+    {
+      "name": "SDA",
+      "pin": 27,
+      "kind": "bus",
+      "dir": "inout",
+      "group": "i2c",
+      "note": "I2C serial data",
+      "mV_max": 5500,
+      "svg": "pin-SDA"
+    },
+    {
+      "name": "VDD",
+      "pin": 28,
+      "kind": "supply_in",
+      "dir": "in",
+      "group": "power",
+      "note": "Supply voltage",
+      "mV_min": 2300,
+      "mV_max": 5500,
+      "svg": "pin-VDD"
     }
   ]
 }
