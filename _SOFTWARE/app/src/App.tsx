@@ -18,7 +18,9 @@ import { DebugHost } from './debug/DebugHost'
 import { DebugPanel } from './debug/DebugPanel'
 import { DebugSettings } from './debug/DebugSettings'
 import { ProjectFilePage, ProjectFilePalette } from './ProjectFile'
+import { BoardCanvas } from './devices/BoardCanvas'
 import { DeviceDetails, DevicesEditor, DevicesPalette, useDevicesWorkspace } from './devices'
+import { BlockManager, BlockUses } from './canvas/blocks/BlockManager'
 import { BlockDetails, blockDiagnostics, BlockPalette, CanvasEditor, recoveredCanvases, useCanvasWorkspace } from './canvas'
 import { OBJECT_DRAG_TYPE, objectKindDragType } from './domain/canvas'
 import { programBlocks } from './domain/canvas'
@@ -70,7 +72,10 @@ export default function App() {
   // The Code view's palette and main view (canvas or the variables manager) are remembered.
   const [codePalette, setCodePalette] = usePersistedChoice<CodePalette>('runit.code.palette', ['Variables', 'Blocks'], 'Variables')
   const [codeMode, setCodeMode] = usePersistedChoice<CodeMode>('runit.code.mode', ['manage', 'canvas'], 'manage')
+  const [boardMode, setBoardMode] = usePersistedChoice<'manage' | 'canvas'>('runit.board.mode', ['manage', 'canvas'], 'manage')
   const [showCanvasGrid, setShowCanvasGrid] = useState(true)
+  // View / Manage with the Blocks palette: the block type whose description the main screen shows.
+  const [manageBlockKey, setManageBlockKey] = usePersistedChoice<string>('runit.code.manageBlock', runitVmCatalog().blocks.map((type) => type.key), runitVmCatalog().blocks[0]?.key ?? '')
   const [leftOpen, setLeftOpen] = useState(true)
   const [leftWidth, setLeftWidth] = useState(260)
   const [detail, setDetail] = useState('Info')
@@ -514,21 +519,19 @@ export default function App() {
           {view === 'Code' && <div className="code-palette">
             <div className="code-palette-tabs" role="tablist" aria-label="Code palettes">
               {codePalettes.map((palette) => <button key={palette} role="tab" aria-selected={codePalette === palette} className={codePalette === palette ? 'selected' : ''} onClick={() => {
-                // Blocks only make sense on the canvas; Variables keep whichever view is open (drag them onto blocks).
+                // Both palettes keep whichever view is open: on the canvas Blocks are placed and Variables dragged onto blocks; in View / Manage
+                // Blocks are tiles that open their description and Variables the variable editor.
                 setCodePalette(palette)
-                if (palette === 'Blocks') setCodeMode('canvas')
               }}>{palette}</button>)}
             </div>
-            <div className="code-palette-body" aria-label={`${codePalette} palette`}>{codePalette === 'Variables' && <ObjectTreePalette workspace={objectWorkspace} />}{codePalette === 'Blocks' && <BlockPalette workspace={canvasWorkspace} />}</div>
+            <div className="code-palette-body" aria-label={`${codePalette} palette`}>{codePalette === 'Variables' && <ObjectTreePalette workspace={objectWorkspace} />}{codePalette === 'Blocks' && <BlockPalette workspace={canvasWorkspace} tiles={codeMode === 'manage' ? { selectedKey: manageBlockKey, onSelect: (key: string) => { setManageBlockKey(key); setRightOpen(true); setDetail('Info') } } : undefined} />}</div>
             <div className="code-mode-footer">
               <button className="code-mode-toggle" onClick={() => {
-                const next = codeMode === 'manage' ? 'canvas' : 'manage'
-                setCodeMode(next)
-                if (next === 'manage') setCodePalette('Variables')
+                setCodeMode(codeMode === 'manage' ? 'canvas' : 'manage')
               }}><ArrowLeftRight aria-hidden="true" /><span>Switch to {codeMode === 'manage' ? 'Canvas' : 'View / Manage'}</span></button>
             </div>
           </div>}
-          {view === 'Board' && <DevicesPalette workspace={devicesWorkspace} />}
+          {view === 'Board' && <DevicesPalette workspace={devicesWorkspace} boardMode={boardMode} onToggleMode={() => setBoardMode(boardMode === 'manage' ? 'canvas' : 'manage')} />}
           {view === 'Remote' && <div className="remote-palette" aria-label="Gamepad controls palette">
             <div className="remote-palette-title">Controls</div>
             <div className="remote-palette-body" />
@@ -645,8 +648,10 @@ export default function App() {
             />
           )}
           {view === 'Code' && codePalette === 'Variables' && codeMode === 'manage' && <ObjectTreeEditor workspace={objectWorkspace} />}
+          {view === 'Code' && codePalette === 'Blocks' && codeMode === 'manage' && <BlockManager typeKey={manageBlockKey} />}
           {view === 'Home' && <ProjectFilePage workspace={objectWorkspace} settings={projectSettings} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} setup={devicesWorkspace.setup} canvases={canvasWorkspace.canvases} onRecover={recoverProject} />}
-          {view === 'Board' && <DevicesEditor workspace={devicesWorkspace} session={bleConnection.session} canvases={canvasWorkspace.canvases} onOpenBlock={openBlockAt} pinDestination={pinDestination} onPinDestinationHandled={() => setPinDestination(undefined)} />}
+          {view === 'Board' && boardMode === 'canvas' && <BoardCanvas />}
+          {view === 'Board' && boardMode === 'manage' && <DevicesEditor workspace={devicesWorkspace} session={bleConnection.session} canvases={canvasWorkspace.canvases} onOpenBlock={openBlockAt} pinDestination={pinDestination} onPinDestinationHandled={() => setPinDestination(undefined)} />}
           {view === 'Settings' && settingsGroup === 'BLE' && <BleSettingsEditor workspace={bleWorkspace} />}
           {view === 'Settings' && settingsGroup === 'all' && (
             <div className="object-editor settings-overview-editor">
@@ -760,7 +765,7 @@ export default function App() {
         </div>
         {rightOpen && (
           <div className="detail-content" aria-label={`${detail} content panel`}>
-            {view === 'Board' && detail === 'Info' && <DeviceDetails workspace={devicesWorkspace} session={bleConnection.session} canvases={canvasWorkspace.canvases} onOpenBlock={openBlockAt} />}
+            {view === 'Board' && boardMode === 'manage' && detail === 'Info' && <DeviceDetails workspace={devicesWorkspace} session={bleConnection.session} canvases={canvasWorkspace.canvases} onOpenBlock={openBlockAt} />}
               {isCanvas && detail === 'Info' && (
               <BlockDetails
                 workspace={canvasWorkspace}
@@ -791,6 +796,9 @@ export default function App() {
                   }
                 }}
               />
+            )}
+            {view === 'Code' && codePalette === 'Blocks' && !isCanvas && detail === 'Info' && (
+              <BlockUses typeKey={manageBlockKey} canvases={canvasWorkspace.canvases} onOpenBlock={openBlockAt} />
             )}
             {view === 'Code' && codePalette === 'Variables' && !isCanvas && detail === 'Info' && (
               <ObjectDetails workspace={objectWorkspace} onJump={(id) => { setLeftOpen(true); objectWorkspace.select(id) }} canvases={canvasWorkspace.canvases} onOpenBlock={(canvasId, blockId) => { setView('Code'); setCodeMode('canvas'); canvasWorkspace.reveal(canvasId, blockId) }} />

@@ -46,7 +46,7 @@ Status tags: **✅ decided** (survey 2026-09-24, §6) · **⚠ firmware gap** (�
 | ID | Feature | Firmware link |
 |---|---|---|
 | DEV-1 | Install / test / set up devices | ✅ 2026-09-26 Board view (`app/src/devices/`): add from the device types, configure install values and pin groups, live install / uninstall; the stored code installs user devices at boot. Install decoders (class `0x01` `0x40–0x47`), `device_*.generated.json` |
-| DEV-2 | Features (servo, H-bridge, …) with the devices they use | ⚠ F-GAP-2 features have no JSON descriptors yet |
+| DEV-2 | Features (servo, H-bridge, …) with the devices they use | ⚠ F-GAP-2 features have no JSON descriptors yet. Firmware 2026-10-01: servo (`device_servo`, type `0x48`) and the DRV8962 (type `0x49`) are devices with their own operations (`0x80`+) and JSON descriptors; the app doesn't send them yet |
 | DEV-3 | Linked contracts per device, callable for testing | ✅ 2026-09-26 right panel Contracts tab: device ID filled from the device, answers decoded. `contracts.generated.json` (`response`, `response_stream`) |
 | DEV-4 | **Board overview**: runIT board SVG mapping connected elements to physical terminals (STM32CubeMX-like) | Needs a board profile JSON (terminals ↔ device channels ↔ pins) ⚠ F-GAP-3 |
 | DEV-5 | Hardware presence (what's actually there vs configured) | device sync / status contracts |
@@ -71,7 +71,7 @@ Status tags: **✅ decided** (survey 2026-09-24, §6) · **⚠ firmware gap** (�
 ### CAN — Code: canvas
 | ID | Feature | Notes |
 |---|---|---|
-| CAN-1 | Block palette + object palette (tree) on the left, drag & drop onto canvas | blocks from `vm/blocks/*.generated.json`. ✅ blocks 2026-09-27 (drag or click); ✅ variables onto pins 2026-09-28 (§8.1 chips) |
+| CAN-1 | Block palette + object palette (tree) on the left, drag & drop onto canvas | blocks from `components/VM/blocks/*/*.display.json` + `*.content.json` (⏳ the loader still reads the old `vm/blocks/block_*.generated.json`, which no longer exist). ✅ blocks 2026-09-27 (drag or click); ✅ variables onto pins 2026-09-28 (§8.1 chips) |
 | CAN-2 | Feature list (created features) as a palette source | DEV-2 |
 | CAN-3 | Block settings in the inspector when a block is selected | pins, `custom` fields from descriptor `state` layout (source `user`). ✅ 2026-09-27 (`BlockDetails`, formula editor for EXPR / EXPR_BIT) |
 | CAN-4 | **Multiple canvases**, executed in order (canvas 1 first) | ✅ Node-RED-style flow tabs sharing the same objects; one program, tabs concatenated in tab order within a pass. A tab can be disabled: the compiler leaves it out (re-upload needed, no live toggle) |

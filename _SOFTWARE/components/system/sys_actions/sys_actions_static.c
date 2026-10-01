@@ -11,17 +11,9 @@
 #undef OWNER
 #define OWNER OWNER_SYS_ACTIONS_STATIC
 
-/** @brief Freeze all registered devices. */
-static SE_MUST_USE err_h static_fn_freeze(void) {
-  return sys_device_freeze_all();
-}
-
-/** @brief Resume and synchronize all registered devices. */
+/** @brief Resume all registered devices. */
 static SE_MUST_USE err_h static_fn_resume(void) {
-  /** Freeze and suspend are orthogonal and require separate clearing calls. */
-  SE_TRY(sys_device_resume_all());
-  SE_TRY(sys_device_sync_all());
-  return NULL;
+  return sys_device_resume_all();
 }
 
 /** @brief Suspend all registered devices. */
@@ -64,7 +56,6 @@ static SE_MUST_USE err_h static_fn_hard_reset(void) {
 }
 
 void sys_actions_register_static(void) {
-  SE_release(sys_actions_bind_static(CONFIG_SYS_ACTION_ID_FREEZE, static_fn_freeze));
   SE_release(sys_actions_bind_static(CONFIG_SYS_ACTION_ID_RESUME, static_fn_resume));
   SE_release(sys_actions_bind_static(CONFIG_SYS_ACTION_ID_SUSPEND, static_fn_suspend));
   SE_release(sys_actions_bind_static(CONFIG_SYS_ACTION_ID_RESET, static_fn_reset));

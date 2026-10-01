@@ -192,7 +192,7 @@ export interface GeneratedBoardFile {
 
 /** `data-structures/vm/blocks/index.generated.json` (the parts the app reads) */
 export interface GeneratedVmBlocksIndex {
-  readonly blocks: readonly { readonly id: number; readonly name: string; readonly title: string }[]
+  readonly blocks: readonly { readonly id: number; readonly name: string; readonly title: string; readonly display: string; readonly content: string }[]
 }
 
 export interface GeneratedVmBlockEditorMetadata {

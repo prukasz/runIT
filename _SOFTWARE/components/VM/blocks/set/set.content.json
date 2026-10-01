@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "kind": "vm-block-content",
+  "id": 6,
+  "name": "VM_BLK_SET",
+  "source_file": "components/VM/blocks/set/vm_block_set.h",
+  "activation": {
+    "kind": "triggered"
+  },
+  "inputs": {
+    "min": 2,
+    "max": 2,
+    "pins": [
+      {
+        "index": 0,
+        "name": "source",
+        "value": "object",
+        "required": true
+      },
+      {
+        "index": 1,
+        "name": "destination",
+        "value": "object",
+        "required": true
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 0,
+    "pins": []
+  },
+  "rules": [],
+  "min_custom_len": 0,
+  "enums": {
+    "vm_in_set_e": {
+      "alias": "Set Inputs",
+      "source_file": "components/VM/blocks/set/vm_block_set.h",
+      "members": [
+        {
+          "name": "VM_IN_SET_SOURCE",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IN_SET_DESTINATION",
+          "value": 1,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  },
+  "min_enables": 0
+}

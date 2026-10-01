@@ -10,6 +10,9 @@
 #include "sys_ble.h"
 #include "sys_event.h"
 #include "sys_device.h"
+#include "sys_hbridge.h"
+#include "sys_io.h"
+#include "sys_power.h"
 #include "sys_error_hooks.h"
 #include "sys_error_log.h"
 #include "sys_interface.h"
@@ -63,6 +66,12 @@ err_h runit_error_wiring_init(void) {
   SE_register_device_router(sys_device_report_error_with_level, sys_device_is_ignored);
   sys_device_register_error_policy(runit_device_policy);
   SE_register_system_hook(runit_system_hook);
+  // The contracts name their functions for the error log (ERR_DEV_FEATURE_UNAVAILABLE).
+  SE_TRY(sys_device_register_contract(SYS_DEVICE_CONTRACT_IO, "IO", sys_io_feature_names));
+  SE_TRY(sys_device_register_contract(SYS_DEVICE_CONTRACT_POWER_VREG, "POWER_VREG", sys_power_vreg_feature_names));
+  SE_TRY(sys_device_register_contract(SYS_DEVICE_CONTRACT_POWER_MONITOR, "POWER_MONITOR", sys_power_monitor_feature_names));
+  SE_TRY(sys_device_register_contract(SYS_DEVICE_CONTRACT_POWER_USB_PD, "POWER_USB_PD", sys_power_usb_pd_feature_names));
+  SE_TRY(sys_device_register_contract(SYS_DEVICE_CONTRACT_HBRIDGE, "HBRIDGE", sys_hbridge_feature_names));
   SE_TRY(SE_register_domain_hook(OWNER_SYS_BLE_BASE, sys_ble_handle_fault));
   SE_TRY(SE_register_domain_hook(OWNER_SYS_INTERFACE_BASE, sys_interface_handle_fault));
   SE_TRY(SE_register_domain_hook(OWNER_SYS_ACTIONS_BASE, sys_actions_handle_fault));

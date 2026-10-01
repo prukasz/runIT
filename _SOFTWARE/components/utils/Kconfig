@@ -69,13 +69,6 @@ menu "System-Wide Identity Assignments"
             help
               Default static action slot ID for the boot action.
 
-        config SYS_ACTION_ID_FREEZE
-            int "Freeze Static Action ID"
-            default 2
-            range 1 255
-            help
-              Default static action slot ID for the freeze action.
-
         config SYS_ACTION_ID_RESUME
             int "Resume Static Action ID"
             default 3
@@ -203,14 +196,6 @@ menu "System-Wide Identity Assignments"
               (dec_vm_loader.h) on the wire. Mirrored outbound by
               TX_PACKET_CLASS_VM_LOADER below, so a client parses VM telemetry
               pushes with the same class-0x04 packet table as loader commands.
-
-        config RX_PACKET_CLASS_SYS_FEATURES
-            hex "Features wire class byte"
-            default 0x05
-            range 0x00 0xFF
-            help
-              Class byte identifying the "Features" decoder table
-              (dec_features.h) on the wire.
 
         config RX_PACKET_CLASS_SETTINGS_DATA_CONNECTOR
             hex "Data connector runtime settings wire class byte"

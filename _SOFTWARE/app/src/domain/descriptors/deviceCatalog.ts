@@ -26,7 +26,7 @@ export interface GeneratedDeviceFile {
     readonly packet_definition: GeneratedLayout & {
       readonly class_header: string
       readonly packet_header: string
-      /** Keyed by the pin_ref_wire_t field (`intr_pin`), the name board.generated.json uses for the pins its devices take. */
+      /** Keyed by the sys_io_pin_ref_t field (`intr_pin`), the name board.generated.json uses for the pins its devices take. */
       readonly groups?: Readonly<Record<string, { readonly fields: readonly string[]; readonly sentinel_field?: string; readonly alias?: string; readonly note?: string } | undefined>>
     }
   }
@@ -96,7 +96,7 @@ export interface DeviceContract {
 
 /** Fields that describe one pin on another device: device ID + pin (+ mode); the sentinel field set to its sentinel means "none". */
 export interface InstallPinGroup {
-  /** The pin_ref_wire_t field, e.g. `intr_pin`. */
+  /** The sys_io_pin_ref_t field, e.g. `intr_pin`. */
   readonly key: string
   /** What the pin is for: the header's @alias, else a name from the field (`Interrupt`). */
   readonly use: string

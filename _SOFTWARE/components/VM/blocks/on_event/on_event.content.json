@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "kind": "vm-block-content",
+  "id": 15,
+  "name": "VM_BLK_ON_EVENT",
+  "source_file": "components/VM/blocks/on_event/vm_block_on_event.h",
+  "activation": {
+    "kind": "enabled"
+  },
+  "inputs": {
+    "min": 0,
+    "max": 0,
+    "pins": []
+  },
+  "outputs": {
+    "min": 0,
+    "max": 2,
+    "pins": [
+      {
+        "index": 0,
+        "name": "value",
+        "value": "i32"
+      },
+      {
+        "index": 1,
+        "name": "count",
+        "value": "u32"
+      }
+    ]
+  },
+  "rules": [],
+  "state": {
+    "struct": "vm_block_on_event_data_t",
+    "source_file": "components/VM/blocks/on_event/vm_block_on_event.h",
+    "size": 4,
+    "align": 4,
+    "fields": [
+      {
+        "name": "domain",
+        "c_type": "uint8_t",
+        "offset": 0,
+        "size": 1,
+        "description": "Event domain, 255 = any",
+        "enum_ref": "sys_event_domain_e",
+        "source": "user"
+      },
+      {
+        "name": "device_id",
+        "c_type": "uint8_t",
+        "offset": 1,
+        "size": 1,
+        "description": "Source device, 255 = any",
+        "source": "user"
+      },
+      {
+        "name": "channel",
+        "c_type": "uint8_t",
+        "offset": 2,
+        "size": 1,
+        "description": "Pin / channel, 255 = any",
+        "source": "user"
+      },
+      {
+        "name": "event",
+        "c_type": "uint8_t",
+        "offset": 3,
+        "size": 1,
+        "description": "Domain event, 255 = any",
+        "source": "user"
+      }
+    ]
+  },
+  "min_custom_len": 4,
+  "enums": {
+    "sys_event_domain_e": {
+      "alias": "Event Domain",
+      "source_file": "components/system/sys_event/include/sys_event.h",
+      "members": [
+        {
+          "name": "SYS_EVENT_DOMAIN_IO",
+          "value": 0,
+          "alias": "IO",
+          "description": "Pin interrupts and analog alerts. Channel = pin, event = the edge or window crossed, value = level or mV"
+        },
+        {
+          "name": "SYS_EVENT_DOMAIN_POWER",
+          "value": 1,
+          "alias": "Power",
+          "description": "Regulator, monitor and board power events. Event = power event; board events use device 255"
+        },
+        {
+          "name": "SYS_EVENT_DOMAIN_HBRIDGE",
+          "value": 2,
+          "alias": "H-Bridge",
+          "description": "Motor driver faults. Channel = bridge channel, event = fault reason, value = current in mA"
+        },
+        {
+          "name": "SYS_EVENT_DOMAIN_BLE",
+          "value": 3,
+          "alias": "Bluetooth",
+          "description": "Connection events. Event = BLE event"
+        }
+      ]
+    },
+    "vm_out_on_event_e": {
+      "alias": "On Event Outputs",
+      "source_file": "components/VM/blocks/on_event/vm_block_on_event.h",
+      "members": [
+        {
+          "name": "VM_OUT_ON_EVENT_VALUE",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_OUT_ON_EVENT_COUNT",
+          "value": 1,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  },
+  "min_enables": 0
+}

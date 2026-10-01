@@ -1,5 +1,5 @@
 #pragma once
-#include "vm_obj_access.h"
+#include "vm_obj_access_core.h"
 
 /* Shared object engines for the block permission boundary. Not consumer APIs. */
 SE_MUST_USE err_h vm_internal_obj_writable(vm_obj_h obj, bool user);
@@ -79,7 +79,7 @@ static __always_inline err_h vm_internal_get_scalar_slot(const vm_accessor_t* ac
   if (unlikely(!out->ptr || !out->count || !vm_type_is_scalar(out->type))) {
     return vm_internal_scalar_payload_check(*out, out->owner, acc ? acc->id : 0);
   }
-  if (unlikely(idx >= out->count)) return vm_err_chain_oob(acc ? acc->id : 0, 0, idx, out->owner);
+  if (unlikely(idx >= out->count)) return vm_err_chain_oob(acc ? acc->id : 0, 0, idx, vm_obj_get_id(out->owner));
   if (idx != 0) *out = vm_payload_get_at(*out, (uint16_t)idx);
   return NULL;
 }
@@ -106,9 +106,9 @@ static __always_inline err_h vm_internal_get_scalar_slot(const vm_accessor_t* ac
 SE_MUST_USE err_h vm_internal_store_converted(vm_obj_h owner, vm_obj_payload_t slot, vm_val_t v, vm_obj_t_e src_type, uint16_t err_id);
 
 static __always_inline err_h vm_internal_store_inline(vm_obj_h owner, vm_obj_payload_t slot, vm_val_t v, vm_obj_t_e src_type, uint16_t err_id) {
-  if (unlikely(!owner || !owner->head.f.mutable)) return vm_obj_not_mutable_err(owner);
-  if (unlikely(!slot.ptr || !slot.count)) return vm_obj_oob_err(owner, 0);
-  if (unlikely(!vm_type_is_scalar(src_type))) return vm_obj_not_scalar_err(owner, src_type, err_id);
+  if (unlikely(!owner || !owner->head.f.mutable)) return vm_obj_not_mutable_err(vm_obj_get_id(owner));
+  if (unlikely(!slot.ptr || !slot.count)) return vm_obj_oob_err(vm_obj_get_id(owner), 0);
+  if (unlikely(!vm_type_is_scalar(src_type))) return vm_obj_not_scalar_err(vm_obj_get_id(owner), src_type, err_id);
   if (likely(slot.type == src_type)) {
     switch (src_type) {
       case VM_OBJ_F:
@@ -124,7 +124,7 @@ static __always_inline err_h vm_internal_store_inline(vm_obj_h owner, vm_obj_pay
         *(uint32_t*)slot.ptr = v.u32;
         break;
       default:
-        return vm_obj_not_scalar_err(owner, slot.type, err_id);
+        return vm_obj_not_scalar_err(vm_obj_get_id(owner), slot.type, err_id);
     }
     owner->head.f.upd = 1;
     return NULL;
@@ -149,9 +149,9 @@ static __always_inline err_h vm_internal_store_inline(vm_obj_h owner, vm_obj_pay
 
 static __always_inline err_h vm_internal_set_scalar_direct(vm_obj_h obj, uint32_t index, vm_val_t v, vm_obj_t_e src_type) {
   if (unlikely(obj == NULL)) return vm_obj_null_obj_err();
-  if (unlikely(!obj->head.f.mutable)) return vm_obj_not_mutable_err(obj);
+  if (unlikely(!obj->head.f.mutable)) return vm_obj_not_mutable_err(vm_obj_get_id(obj));
   uint8_t* p = vm_obj_get_elem_ptr(obj, index);
-  if (unlikely(p == NULL)) return vm_obj_oob_err(obj, index);
+  if (unlikely(p == NULL)) return vm_obj_oob_err(vm_obj_get_id(obj), index);
   return vm_internal_store_inline(obj, (vm_obj_payload_t){.ptr = p, .count = 1, .type = (uint8_t)obj->head.d.obj_t, ._pad = 0}, v, src_type, VM_ID_NONE);
 }
 
@@ -159,7 +159,7 @@ static __always_inline err_h vm_internal_set_scalar_direct_usr(vm_obj_h obj, uin
   if (unlikely(obj == NULL)) return vm_obj_null_obj_err();
   if (unlikely(!obj->head.f.mutable || obj->head.f.usr_protected)) return vm_internal_obj_writable(obj, true);
   uint8_t* p = vm_obj_get_elem_ptr(obj, index);
-  if (unlikely(p == NULL)) return vm_obj_oob_err(obj, index);
+  if (unlikely(p == NULL)) return vm_obj_oob_err(vm_obj_get_id(obj), index);
   return vm_internal_store_inline(obj, (vm_obj_payload_t){.ptr = p, .count = 1, .type = (uint8_t)obj->head.d.obj_t, ._pad = 0}, v, src_type, VM_ID_NONE);
 }
 
@@ -167,7 +167,7 @@ static __always_inline err_h vm_internal_set_scalar_slot(const vm_accessor_t* ac
   vm_obj_payload_t p;
   if (likely(vm_acc_resolve_fast(acc, &p))) {
     if (idx != 0) {
-      if (unlikely(idx >= p.count)) return vm_err_chain_oob(acc ? acc->id : 0, 0, idx, p.owner);
+      if (unlikely(idx >= p.count)) return vm_err_chain_oob(acc ? acc->id : 0, 0, idx, vm_obj_get_id(p.owner));
       p = vm_payload_get_at(p, (uint16_t)idx);
     }
     return vm_internal_store_inline(p.owner, p, v, src_type, acc ? acc->id : 0);
@@ -180,7 +180,7 @@ static __always_inline err_h vm_internal_set_scalar_slot_usr(const vm_accessor_t
   if (likely(vm_acc_resolve_fast(acc, &p))) {
     if (unlikely(!p.owner || !p.owner->head.f.mutable || p.owner->head.f.usr_protected)) return vm_internal_obj_writable(p.owner, true);
     if (idx != 0) {
-      if (unlikely(idx >= p.count)) return vm_err_chain_oob(acc ? acc->id : 0, 0, idx, p.owner);
+      if (unlikely(idx >= p.count)) return vm_err_chain_oob(acc ? acc->id : 0, 0, idx, vm_obj_get_id(p.owner));
       p = vm_payload_get_at(p, (uint16_t)idx);
     }
     return vm_internal_store_inline(p.owner, p, v, src_type, acc ? acc->id : 0);

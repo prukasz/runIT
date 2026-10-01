@@ -1,5 +1,23 @@
 {
   "enums": {
+    "drv8962_topology_e": {
+      "alias": "DRV8962 Topology",
+      "source_file": "components/devices/device_drv8962/include/drv8962_types.h",
+      "members": [
+        {
+          "name": "DRV8962_TOPOLOGY_2_FULL_BRIDGES",
+          "value": 0,
+          "alias": "Two full bridges",
+          "description": "Channel 0 drives OUT1+OUT2 (motor A), channel 1 drives OUT3+OUT4 (motor B), both directions"
+        },
+        {
+          "name": "DRV8962_TOPOLOGY_4_HALF_BRIDGES",
+          "value": 1,
+          "alias": "Four half bridges",
+          "description": "Channels 0..3 drive OUT1..OUT4 one by one (solenoids, single-direction loads)"
+        }
+      ]
+    },
     "runit_data_provider_e": {
       "alias": "Data Provider",
       "source_file": "components/runit/runit_board_defs.h",
@@ -53,16 +71,10 @@
           "description": "Installs the board's own devices (bound by the application)."
         },
         {
-          "name": "SYS_ACTION_STATIC_FREEZE",
-          "value": 2,
-          "alias": "Freeze all devices",
-          "description": "Holds every device at its current state."
-        },
-        {
           "name": "SYS_ACTION_STATIC_RESUME",
           "value": 3,
           "alias": "Resume all devices",
-          "description": "Resumes and syncs every device."
+          "description": "Resumes every device."
         },
         {
           "name": "SYS_ACTION_STATIC_SUSPEND",
@@ -225,36 +237,6 @@
           "value": 3,
           "alias": "Bluetooth",
           "description": "Connection events. Event = BLE event"
-        },
-        {
-          "name": "SYS_EVENT_DOMAIN_FEATURE",
-          "value": 4,
-          "alias": "Feature",
-          "description": "Events raised by features. Device = feature ID"
-        }
-      ]
-    },
-    "sys_hbridge_mode_e": {
-      "alias": "H-Bridge Mode",
-      "source_file": "components/system/sys_hbridge/include/sys_hbridge.h",
-      "members": [
-        {
-          "name": "SYS_HBRIDGE_MODE_FULL",
-          "value": 0,
-          "alias": "Full Bridge",
-          "description": "Bidirectional drive from -1.0 to 1.0"
-        },
-        {
-          "name": "SYS_HBRIDGE_MODE_HALF_HIGH",
-          "value": 1,
-          "alias": "Half Bridge High",
-          "description": "High-side PWM drive from 0.0 to 1.0"
-        },
-        {
-          "name": "SYS_HBRIDGE_MODE_HALF_LOW",
-          "value": 2,
-          "alias": "Half Bridge Low",
-          "description": "Low-side PWM sink from 0.0 to 1.0"
         }
       ]
     },
@@ -614,7 +596,7 @@
     },
     "vm_action_scope_e": {
       "alias": "Action Scope",
-      "source_file": "components/VM/blocks/vm_block_action.h",
+      "source_file": "components/VM/blocks/action/vm_block_action.h",
       "members": [
         {
           "name": "VM_ACTION_SCOPE_STATIC",
@@ -630,39 +612,9 @@
         }
       ]
     },
-    "vm_edge_type_e": {
-      "alias": "Edge Type",
-      "source_file": "components/VM/blocks/vm_block_edge.h",
-      "members": [
-        {
-          "name": "VM_EDGE_RISING",
-          "value": 0,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_EDGE_FALLING",
-          "value": 1,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_EDGE_BOTH",
-          "value": 2,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_EDGE_TYPE_CNT",
-          "value": 3,
-          "alias": null,
-          "description": null
-        }
-      ]
-    },
     "vm_expr_op_e": {
       "alias": "Expression Opcode",
-      "source_file": "components/VM/blocks/vm_block_expr.h",
+      "source_file": "components/VM/blocks/expr_core/vm_expr_core.h",
       "members": [
         {
           "name": "VM_EXPR_END",
@@ -974,7 +926,7 @@
     },
     "vm_bit_op_e": {
       "alias": "Bit Expression Opcode",
-      "source_file": "components/VM/blocks/vm_block_expr.h",
+      "source_file": "components/VM/blocks/expr_core/vm_expr_core.h",
       "members": [
         {
           "name": "VM_BIT_END",
@@ -1122,195 +1074,9 @@
         }
       ]
     },
-    "vm_for_op_e": {
-      "alias": "Loop Step Operation",
-      "source_file": "components/VM/blocks/vm_block_for.h",
-      "members": [
-        {
-          "name": "VM_FOR_OP_ADD",
-          "value": 0,
-          "alias": "+",
-          "description": null
-        },
-        {
-          "name": "VM_FOR_OP_SUB",
-          "value": 1,
-          "alias": "-",
-          "description": null
-        },
-        {
-          "name": "VM_FOR_OP_MUL",
-          "value": 2,
-          "alias": "*",
-          "description": null
-        },
-        {
-          "name": "VM_FOR_OP_DIV",
-          "value": 3,
-          "alias": "/",
-          "description": null
-        },
-        {
-          "name": "VM_FOR_OP_CNT",
-          "value": 4,
-          "alias": null,
-          "description": null
-        }
-      ]
-    },
-    "vm_for_cmp_e": {
-      "alias": "Loop Condition",
-      "source_file": "components/VM/blocks/vm_block_for.h",
-      "members": [
-        {
-          "name": "VM_FOR_CMP_LT",
-          "value": 0,
-          "alias": "<",
-          "description": null
-        },
-        {
-          "name": "VM_FOR_CMP_LE",
-          "value": 1,
-          "alias": "<=",
-          "description": null
-        },
-        {
-          "name": "VM_FOR_CMP_GT",
-          "value": 2,
-          "alias": ">",
-          "description": null
-        },
-        {
-          "name": "VM_FOR_CMP_GE",
-          "value": 3,
-          "alias": ">=",
-          "description": null
-        },
-        {
-          "name": "VM_FOR_CMP_CNT",
-          "value": 4,
-          "alias": null,
-          "description": null
-        }
-      ]
-    },
-    "vm_io_disabled_state_e": {
-      "alias": "IO Disabled Action",
-      "source_file": "components/VM/blocks/vm_block_io_set_level.h",
-      "members": [
-        {
-          "name": "VM_IO_DISABLED_FORCE_LOW",
-          "value": 0,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_IO_DISABLED_FORCE_HIGH",
-          "value": 1,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_IO_DISABLED_HOLD",
-          "value": 2,
-          "alias": null,
-          "description": null
-        }
-      ]
-    },
-    "vm_io_level_e": {
-      "alias": "IO Static Level",
-      "source_file": "components/VM/blocks/vm_block_io_set_level.h",
-      "members": [
-        {
-          "name": "VM_IO_LEVEL_HIGH",
-          "value": 0,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_IO_LEVEL_LOW",
-          "value": 1,
-          "alias": null,
-          "description": null
-        }
-      ]
-    },
-    "vm_latch_mode_e": {
-      "alias": "Latch Mode",
-      "source_file": "components/VM/blocks/vm_block_latch.h",
-      "members": [
-        {
-          "name": "VM_LATCH_SET_DOMINANT",
-          "value": 0,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_LATCH_RESET_DOMINANT",
-          "value": 1,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_LATCH_MODE_CNT",
-          "value": 2,
-          "alias": null,
-          "description": null
-        }
-      ]
-    },
-    "vm_timer_mode_e": {
-      "alias": "Timer Mode",
-      "source_file": "components/VM/blocks/vm_block_timer.h",
-      "members": [
-        {
-          "name": "VM_TIMER_TON",
-          "value": 0,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_TIMER_TOF",
-          "value": 1,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_TIMER_TP",
-          "value": 2,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_TIMER_TON_INV",
-          "value": 3,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_TIMER_TOF_INV",
-          "value": 4,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_TIMER_TP_INV",
-          "value": 5,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_TIMER_MODE_CNT",
-          "value": 6,
-          "alias": null,
-          "description": null
-        }
-      ]
-    },
     "vm_timer_unit_e": {
       "alias": "Time Unit",
-      "source_file": "components/VM/blocks/vm_block_timer.h",
+      "source_file": "components/VM/blocks/timer/vm_block_timer.h",
       "members": [
         {
           "name": "VM_TIMER_UNIT_MS",
@@ -1508,7 +1274,7 @@
     },
     "vm_index_kind_e": {
       "alias": "VM Index Kind",
-      "source_file": "components/VM/core/obj/vm_obj_access.h",
+      "source_file": "components/VM/core/obj/vm_obj_access_core.h",
       "members": [
         {
           "name": "VM_IDX_LITERAL",
@@ -1532,6 +1298,18 @@
     }
   },
   "symbols": {
+    "DRV8962_TOPOLOGY_2_FULL_BRIDGES": {
+      "enum": "drv8962_topology_e",
+      "value": 0,
+      "alias": "Two full bridges",
+      "description": "Channel 0 drives OUT1+OUT2 (motor A), channel 1 drives OUT3+OUT4 (motor B), both directions"
+    },
+    "DRV8962_TOPOLOGY_4_HALF_BRIDGES": {
+      "enum": "drv8962_topology_e",
+      "value": 1,
+      "alias": "Four half bridges",
+      "description": "Channels 0..3 drive OUT1..OUT4 one by one (solenoids, single-direction loads)"
+    },
     "RUNIT_DATA_PROVIDER_BLE": {
       "enum": "runit_data_provider_e",
       "value": 1,
@@ -1568,17 +1346,11 @@
       "alias": "Boot setup",
       "description": "Installs the board's own devices (bound by the application)."
     },
-    "SYS_ACTION_STATIC_FREEZE": {
-      "enum": "sys_action_static_e",
-      "value": 2,
-      "alias": "Freeze all devices",
-      "description": "Holds every device at its current state."
-    },
     "SYS_ACTION_STATIC_RESUME": {
       "enum": "sys_action_static_e",
       "value": 3,
       "alias": "Resume all devices",
-      "description": "Resumes and syncs every device."
+      "description": "Resumes every device."
     },
     "SYS_ACTION_STATIC_SUSPEND": {
       "enum": "sys_action_static_e",
@@ -1717,30 +1489,6 @@
       "value": 3,
       "alias": "Bluetooth",
       "description": "Connection events. Event = BLE event"
-    },
-    "SYS_EVENT_DOMAIN_FEATURE": {
-      "enum": "sys_event_domain_e",
-      "value": 4,
-      "alias": "Feature",
-      "description": "Events raised by features. Device = feature ID"
-    },
-    "SYS_HBRIDGE_MODE_FULL": {
-      "enum": "sys_hbridge_mode_e",
-      "value": 0,
-      "alias": "Full Bridge",
-      "description": "Bidirectional drive from -1.0 to 1.0"
-    },
-    "SYS_HBRIDGE_MODE_HALF_HIGH": {
-      "enum": "sys_hbridge_mode_e",
-      "value": 1,
-      "alias": "Half Bridge High",
-      "description": "High-side PWM drive from 0.0 to 1.0"
-    },
-    "SYS_HBRIDGE_MODE_HALF_LOW": {
-      "enum": "sys_hbridge_mode_e",
-      "value": 2,
-      "alias": "Half Bridge Low",
-      "description": "Low-side PWM sink from 0.0 to 1.0"
     },
     "SYS_HBRIDGE_FAULT_NONE": {
       "enum": "sys_hbridge_fault_reason_e",
@@ -2047,30 +1795,6 @@
       "value": 1,
       "alias": "Recorded",
       "description": "A recorded packet sequence"
-    },
-    "VM_EDGE_RISING": {
-      "enum": "vm_edge_type_e",
-      "value": 0,
-      "alias": null,
-      "description": null
-    },
-    "VM_EDGE_FALLING": {
-      "enum": "vm_edge_type_e",
-      "value": 1,
-      "alias": null,
-      "description": null
-    },
-    "VM_EDGE_BOTH": {
-      "enum": "vm_edge_type_e",
-      "value": 2,
-      "alias": null,
-      "description": null
-    },
-    "VM_EDGE_TYPE_CNT": {
-      "enum": "vm_edge_type_e",
-      "value": 3,
-      "alias": null,
-      "description": null
     },
     "VM_EXPR_END": {
       "enum": "vm_expr_op_e",
@@ -2519,156 +2243,6 @@
     "VM_BIT_OP_CNT": {
       "enum": "vm_bit_op_e",
       "value": 23,
-      "alias": null,
-      "description": null
-    },
-    "VM_FOR_OP_ADD": {
-      "enum": "vm_for_op_e",
-      "value": 0,
-      "alias": "+",
-      "description": null
-    },
-    "VM_FOR_OP_SUB": {
-      "enum": "vm_for_op_e",
-      "value": 1,
-      "alias": "-",
-      "description": null
-    },
-    "VM_FOR_OP_MUL": {
-      "enum": "vm_for_op_e",
-      "value": 2,
-      "alias": "*",
-      "description": null
-    },
-    "VM_FOR_OP_DIV": {
-      "enum": "vm_for_op_e",
-      "value": 3,
-      "alias": "/",
-      "description": null
-    },
-    "VM_FOR_OP_CNT": {
-      "enum": "vm_for_op_e",
-      "value": 4,
-      "alias": null,
-      "description": null
-    },
-    "VM_FOR_CMP_LT": {
-      "enum": "vm_for_cmp_e",
-      "value": 0,
-      "alias": "<",
-      "description": null
-    },
-    "VM_FOR_CMP_LE": {
-      "enum": "vm_for_cmp_e",
-      "value": 1,
-      "alias": "<=",
-      "description": null
-    },
-    "VM_FOR_CMP_GT": {
-      "enum": "vm_for_cmp_e",
-      "value": 2,
-      "alias": ">",
-      "description": null
-    },
-    "VM_FOR_CMP_GE": {
-      "enum": "vm_for_cmp_e",
-      "value": 3,
-      "alias": ">=",
-      "description": null
-    },
-    "VM_FOR_CMP_CNT": {
-      "enum": "vm_for_cmp_e",
-      "value": 4,
-      "alias": null,
-      "description": null
-    },
-    "VM_IO_DISABLED_FORCE_LOW": {
-      "enum": "vm_io_disabled_state_e",
-      "value": 0,
-      "alias": null,
-      "description": null
-    },
-    "VM_IO_DISABLED_FORCE_HIGH": {
-      "enum": "vm_io_disabled_state_e",
-      "value": 1,
-      "alias": null,
-      "description": null
-    },
-    "VM_IO_DISABLED_HOLD": {
-      "enum": "vm_io_disabled_state_e",
-      "value": 2,
-      "alias": null,
-      "description": null
-    },
-    "VM_IO_LEVEL_HIGH": {
-      "enum": "vm_io_level_e",
-      "value": 0,
-      "alias": null,
-      "description": null
-    },
-    "VM_IO_LEVEL_LOW": {
-      "enum": "vm_io_level_e",
-      "value": 1,
-      "alias": null,
-      "description": null
-    },
-    "VM_LATCH_SET_DOMINANT": {
-      "enum": "vm_latch_mode_e",
-      "value": 0,
-      "alias": null,
-      "description": null
-    },
-    "VM_LATCH_RESET_DOMINANT": {
-      "enum": "vm_latch_mode_e",
-      "value": 1,
-      "alias": null,
-      "description": null
-    },
-    "VM_LATCH_MODE_CNT": {
-      "enum": "vm_latch_mode_e",
-      "value": 2,
-      "alias": null,
-      "description": null
-    },
-    "VM_TIMER_TON": {
-      "enum": "vm_timer_mode_e",
-      "value": 0,
-      "alias": null,
-      "description": null
-    },
-    "VM_TIMER_TOF": {
-      "enum": "vm_timer_mode_e",
-      "value": 1,
-      "alias": null,
-      "description": null
-    },
-    "VM_TIMER_TP": {
-      "enum": "vm_timer_mode_e",
-      "value": 2,
-      "alias": null,
-      "description": null
-    },
-    "VM_TIMER_TON_INV": {
-      "enum": "vm_timer_mode_e",
-      "value": 3,
-      "alias": null,
-      "description": null
-    },
-    "VM_TIMER_TOF_INV": {
-      "enum": "vm_timer_mode_e",
-      "value": 4,
-      "alias": null,
-      "description": null
-    },
-    "VM_TIMER_TP_INV": {
-      "enum": "vm_timer_mode_e",
-      "value": 5,
-      "alias": null,
-      "description": null
-    },
-    "VM_TIMER_MODE_CNT": {
-      "enum": "vm_timer_mode_e",
-      "value": 6,
       "alias": null,
       "description": null
     },

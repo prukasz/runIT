@@ -1,0 +1,76 @@
+{
+  "id": "device_pca9685",
+  "title": "PCA9685 PWM expander",
+  "description": "Sixteen-channel I2C PWM expander with optional active-low output enable.",
+  "protocols": ["i2c"],
+  "tags": ["i2c", "pwm", "gpio", "servo", "led", "ic"],
+  "datasheet": "https://www.nxp.com/docs/en/data-sheet/PCA9685.pdf",
+  "type_id": "PCA9685_TYPE_ID",
+  "contract_provider": "SYS_DEVICE_CONTRACT_IO",
+
+  "symbol": { "label": "PCA9685", "package": "TSSOP28" },
+
+  "limits": {
+    "MAX_PWM_VALUE": { "value": 4095, "comment": "12-bit duty" },
+    "MIN_FREQUENCY_HZ": { "value": 24, "comment": "prescaler 255 at the 25 MHz oscillator" },
+    "MAX_FREQUENCY_HZ": { "value": 1526, "comment": "prescaler 3" }
+  },
+
+  "properties": {
+    "PIN": { "one_of": "[0..15]", "alias": "PWM Channel" }
+  },
+
+  "fields": {
+    "device_id": { "max": "CONFIG_SYS_DEVICE_MAX_ID" },
+    "i2c_addr": {
+      "alias": "I2C Address",
+      "one_of": "[0x40..0x6F, 0x71..0x77]",
+      "note": "Address pins A0-A5 select the address; 0x70 is All Call and 0x78-0x7F are reserved."
+    },
+    "oe_pin": { "note": "Active-low." }
+  },
+
+  "contracts": [
+    {
+      "packet": "packet_sys_io_reset_t",
+      "alias": "Reset output",
+      "description": "Set one PWM output duty to zero.",
+      "params": { "pin": { "arg": "PIN" } }
+    },
+    {
+      "packet": "packet_sys_io_set_level_t",
+      "alias": "Set output level",
+      "description": "Map a logical level to off or full PWM duty.",
+      "params": { "pin": { "arg": "PIN" }, "level": { "alias": "Output Level", "type": "bool" } }
+    },
+    {
+      "packet": "packet_sys_io_get_level_t",
+      "alias": "Read output level",
+      "returns": "level",
+      "params": { "pin": { "arg": "PIN" } }
+    },
+    {
+      "packet": "packet_sys_io_toggle_t",
+      "alias": "Toggle output",
+      "params": { "pin": { "arg": "PIN" } }
+    },
+    {
+      "packet": "packet_sys_io_set_pwm_duty_t",
+      "alias": "Set PWM duty",
+      "description": "Duty values above the maximum are clamped by the device.",
+      "params": {
+        "pin": { "arg": "PIN" },
+        "duty": { "alias": "Duty", "unit": "ticks", "min": 0, "max": "limit:MAX_PWM_VALUE" }
+      }
+    },
+    {
+      "packet": "packet_sys_io_set_pwm_frequency_t",
+      "alias": "Set PWM frequency (all channels)",
+      "description": "The PCA9685 has one PWM frequency for all 16 channels: setting it changes every channel.",
+      "params": {
+        "pin": { "device_wide": true },
+        "frequency_Hz": { "min": "limit:MIN_FREQUENCY_HZ", "max": "limit:MAX_FREQUENCY_HZ", "default": 50 }
+      }
+    }
+  ]
+}

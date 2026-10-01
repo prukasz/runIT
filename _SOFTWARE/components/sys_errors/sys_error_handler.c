@@ -13,26 +13,27 @@ static bool device_id_of(err_h node, uint8_t* id) {
   case tag:                                                \
     *id = ((err_payload_##tag##_t*)node->payload)->dev_id; \
     return true;
-    DEVICE_TAG(ERR_DEV_DEP_FAILED)
-    DEVICE_TAG(ERR_DEV_INSTALL_FAILED)
-    DEVICE_TAG(ERR_DEV_NO_HANDLE)
-    DEVICE_TAG(ERR_DEV_NOT_FOUND)
-    DEVICE_TAG(ERR_DEV_ALREADY_EXIST)
-    DEVICE_TAG(ERR_DEV_FEATURE_UNAVAILABLE)
-    DEVICE_TAG(ERR_DEV_SUSPENDED)
-    DEVICE_TAG(ERR_DEV_NOT_INSTALLED)
-    DEVICE_TAG(ERR_DEV_DRIVER_FAILED)
-    DEVICE_TAG(ERR_IO_PIN_UNCONFIGURED)
-    DEVICE_TAG(ERR_IO_PIN_UNAVAILABLE)
-    DEVICE_TAG(ERR_IO_PIN_ALREADY_IN_USE)
-    DEVICE_TAG(ERR_IO_PIN_FEATURE_UNSUPPORTED)
-    DEVICE_TAG(ERR_IO_PIN_LOCKED)
-    DEVICE_TAG(ERR_IO_PIN_MODE_UNSUPPORTED)
-    DEVICE_TAG(ERR_POWER_BUDGET_EXCEEDED)
+    SYS_ERROR_DEVICE_TAGS(DEVICE_TAG)
 #undef DEVICE_TAG
     default:
       return false;
   }
+}
+
+// A dependency wrapper only says where a failure passed through (which device, which layer); it adds no
+// severity of its own. Without this a user's out-of-range argument, wrapped by the dispatcher as
+// ERR_DEV_DEP_FAILED (HIGH), would count as a HIGH fault of the device and run its action.
+static bool is_dependency_wrapper(uint16_t tag) {
+  return tag == ERR_DEV_DEP_FAILED || tag == ERR_DEP_FAILED;
+}
+
+// Severity of a device node: its own, unless it is a dependency wrapper; then the severity of the first node
+// below it that is not one (the real failure). A chain of wrappers only keeps the node's own severity.
+static se_level_e device_node_level(const err_h* nodes, size_t count, size_t i) {
+  for (size_t k = i; k < count; ++k) {
+    if (!is_dependency_wrapper(nodes[k]->tag)) return SE_get_tag_level(nodes[k]->tag);
+  }
+  return SE_get_tag_level(nodes[i]->tag);
 }
 
 typedef struct {
@@ -108,7 +109,7 @@ void SE_push_to_handler(err_h err) {
       err_h      node = nodes[i];
       uint8_t    id;
       bool       device = device_id_of(node, &id);
-      se_level_e level  = SE_get_tag_level(node->tag);
+      se_level_e level  = device ? device_node_level(nodes, count, i) : SE_get_tag_level(node->tag);
       // An ignored (NONE) device suppresses this node and its causes, critical
       // ones included (the user chose to ignore it), but not preceding responses.
       if (device && s_device_ignored && s_device_ignored(id)) ignoring = true;
@@ -125,7 +126,7 @@ void SE_push_to_handler(err_h err) {
             uint8_t other;
             if (!device_id_of(nodes[k], &other)) continue;
             if (s_device_ignored && s_device_ignored(other)) break;
-            se_level_e candidate = SE_get_tag_level(nodes[k]->tag);
+            se_level_e candidate = device_node_level(nodes, count, k);
             if (other == id && candidate > level) {
               level        = candidate;
               device_fault = nodes[k];

@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "kind": "vm-block-content",
+  "id": 7,
+  "name": "VM_BLK_CLONE",
+  "source_file": "components/VM/blocks/clone/vm_block_clone.h",
+  "activation": {
+    "kind": "triggered"
+  },
+  "inputs": {
+    "min": 2,
+    "max": 2,
+    "pins": [
+      {
+        "index": 0,
+        "name": "source",
+        "value": "object",
+        "required": true
+      },
+      {
+        "index": 1,
+        "name": "cell",
+        "value": "ptr-cell",
+        "required": true
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 0,
+    "pins": []
+  },
+  "rules": [],
+  "min_custom_len": 0,
+  "enums": {
+    "vm_in_clone_e": {
+      "alias": "Clone Inputs",
+      "source_file": "components/VM/blocks/clone/vm_block_clone.h",
+      "members": [
+        {
+          "name": "VM_IN_CLONE_SOURCE",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IN_CLONE_CELL",
+          "value": 1,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  },
+  "min_enables": 0
+}

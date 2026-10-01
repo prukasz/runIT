@@ -1,4 +1,4 @@
-#include "vm_obj_access_internal.h"
+#include "vm_obj_access.h"
 #include "vm_obj_dyn.h"
 
 #define OWNER OWNER_VM_ACCESSOR
@@ -21,7 +21,7 @@
 
 err_h vm_internal_obj_writable(vm_obj_h obj, bool user) {
   if (!obj) return vm_obj_null_obj_err();
-  if (!obj->head.f.mutable) return vm_obj_not_mutable_err(obj);
+  if (!obj->head.f.mutable) return vm_obj_not_mutable_err(vm_obj_get_id(obj));
   if (user && obj->head.f.usr_protected) {
     SE_FAIL(ERR_VM_OBJ_USR_PROTECTED, .obj_id = vm_obj_get_id(obj));
   }
@@ -134,7 +134,7 @@ bool vm_get_as_bool(vm_obj_t_e type, const void* src) {
 
 err_h vm_internal_scalar_payload_check(vm_obj_payload_t p, vm_obj_h owner, uint16_t id) {
   if (!p.ptr || !p.count) SE_FAIL(ERR_VM_OBJ_EMPTY, .type = p.type);
-  if (!vm_type_is_scalar(p.type)) return vm_obj_not_scalar_err(owner, (vm_obj_t_e)p.type, id);
+  if (!vm_type_is_scalar(p.type)) return vm_obj_not_scalar_err(vm_obj_get_id(owner), (vm_obj_t_e)p.type, id);
   return NULL;
 }
 
@@ -143,7 +143,7 @@ static SE_MUST_USE err_h payload_as_index(uint32_t* out, vm_obj_payload_t p, con
   /* Negative indices are invalid, not scalar values to clamp to element zero. */
   if ((p.type == VM_OBJ_I32 && *(const int32_t*)p.ptr < 0) ||
       (p.type == VM_OBJ_F && (!isfinite(*(const float*)p.ptr) || *(const float*)p.ptr < 0)))
-    return vm_err_chain_oob(acc->id, acc->count, UINT32_MAX, p.owner);
+    return vm_err_chain_oob(acc->id, acc->count, UINT32_MAX, vm_obj_get_id(p.owner));
   *out = vm_get_as_u32((vm_obj_t_e)p.type, p.ptr);
   return NULL;
 }
@@ -161,7 +161,7 @@ static SE_MUST_USE err_h payload_as_index(uint32_t* out, vm_obj_payload_t p, con
 err_h vm_internal_acc_resolve_deep(const vm_accessor_t* acc, uint8_t depth, vm_obj_payload_t* out) {
   SE_CHECK_NOT_NULL(acc);
   if (acc->flags & VM_ACC_F_CACHED) {
-    if (!acc->c_payload.owner) return vm_err_null_obj(acc->id, acc->count, NULL);
+    if (!acc->c_payload.owner) return vm_err_null_obj(acc->id, acc->count, VM_ID_NONE);
     if (!acc->c_payload.ptr || !acc->c_payload.count) SE_FAIL(ERR_VM_OBJ_EMPTY, .type = acc->c_payload.type);
     if (!vm_type_ok(acc->c_payload.type)) SE_FAIL(ERR_VM_OBJ_BAD_TYPE, .type = acc->c_payload.type);
   }
@@ -199,7 +199,7 @@ err_h vm_internal_acc_resolve_deep(const vm_accessor_t* acc, uint8_t depth, vm_o
         // describes the previous element, while `obj` is what's about to
         // be indexed, and only a PTR array has tagged children
         if (unlikely((vm_obj_t_e)obj->head.d.obj_t != VM_OBJ_PTR)) {
-          return vm_err_expected_ptr(acc->id, i, obj->head.d.obj_t, obj);
+          return vm_err_expected_ptr(acc->id, i, obj->head.d.obj_t, vm_obj_get_id(obj));
         }
         int32_t found = find_child_by_name(obj, idx->name, idx->name_len);
         if (unlikely(found < 0)) {
@@ -216,13 +216,13 @@ err_h vm_internal_acc_resolve_deep(const vm_accessor_t* acc, uint8_t depth, vm_o
     }
 
     p = obj_elem(obj, index);
-    if (unlikely(!p.ptr)) return vm_err_chain_oob(acc->id, i, index, obj);
+    if (unlikely(!p.ptr)) return vm_err_chain_oob(acc->id, i, index, vm_obj_get_id(obj));
 
     if (i + 1 < acc->count) {
-      if (unlikely(p.type != VM_OBJ_PTR)) return vm_err_expected_ptr(acc->id, i, (uint8_t)p.type, obj);
+      if (unlikely(p.type != VM_OBJ_PTR)) return vm_err_expected_ptr(acc->id, i, (uint8_t)p.type, vm_obj_get_id(obj));
       vm_obj_h child = *(vm_obj_h*)p.ptr;
       if (unlikely(!child)) {
-        return vm_err_null_obj(acc->id, i, obj);  // untrusted-input counterpart to TYPE_MISMATCH: a packet-sourced tree isn't guaranteed fully wired
+        return vm_err_null_obj(acc->id, i, vm_obj_get_id(obj));  // untrusted-input counterpart to TYPE_MISMATCH: a packet-sourced tree isn't guaranteed fully wired
       }
       obj = child;
     }
@@ -254,7 +254,7 @@ static const void* boxed_ptr(const vm_val_t* v, vm_obj_t_e type) {
 
 err_h vm_internal_store_converted(vm_obj_h owner, vm_obj_payload_t slot, vm_val_t v, vm_obj_t_e src_type, uint16_t err_id) {
   const void* src = boxed_ptr(&v, src_type);
-  if (!src) return vm_obj_not_scalar_err(owner, src_type, err_id);
+  if (!src) return vm_obj_not_scalar_err(vm_obj_get_id(owner), src_type, err_id);
   switch (slot.type) {
     case VM_OBJ_B: {
       bool value;
@@ -276,7 +276,7 @@ err_h vm_internal_store_converted(vm_obj_h owner, vm_obj_payload_t slot, vm_val_
       VM_INTERNAL_LOAD_SCALAR((float*)slot.ptr, src_type, src);
       break;
     default:
-      return vm_obj_not_scalar_err(owner, slot.type, err_id);
+      return vm_obj_not_scalar_err(vm_obj_get_id(owner), slot.type, err_id);
   }
   owner->head.f.upd = 1;
   return NULL;
@@ -368,10 +368,6 @@ static SE_MUST_USE err_h copy_tree(vm_obj_payload_t s, vm_obj_payload_t d, vm_ob
   return NULL;
 }
 
-/* Same walk as copy_tree, asking only whether the two structures agree.
-   payload_size carries the element count for a known type, so one compare
-   covers both. Unwired slots must line up too: a source child with no
-   destination child to receive it is a different shape, not a copy. */
 /* Same walk as copy_tree, asking only whether the two structures agree.
    payload_size carries the element count for a known type, so one compare
    covers both. Unwired slots must line up too: a source child with no
@@ -478,7 +474,7 @@ err_h vm_internal_obj_clone_into(const vm_accessor_t* source, const vm_accessor_
   SE_TRY(vm_internal_obj_resolve(target, &slot));
   SE_TRY(vm_internal_obj_writable(slot.owner, user));
   if (unlikely(slot.type != VM_OBJ_PTR || !slot.ptr)) {
-    return vm_err_expected_ptr(target->id, target->count, (uint8_t)slot.type, slot.owner);
+    return vm_err_expected_ptr(target->id, target->count, (uint8_t)slot.type, vm_obj_get_id(slot.owner));
   }
   vm_obj_h* cell = (vm_obj_h*)slot.ptr;
 
@@ -511,7 +507,7 @@ err_h vm_internal_obj_link(const vm_accessor_t* child, const vm_accessor_t* targ
   SE_TRY(vm_internal_obj_writable(slot.owner, user));
 
   if (unlikely(slot.type != VM_OBJ_PTR || !slot.ptr)) {
-    return vm_err_expected_ptr(target->id, target->count, (uint8_t)slot.type, slot.owner);
+    return vm_err_expected_ptr(target->id, target->count, (uint8_t)slot.type, vm_obj_get_id(slot.owner));
   }
 
   return slot_store(slot.owner, (vm_obj_h*)slot.ptr, c);
@@ -525,6 +521,6 @@ err_h vm_internal_obj_set_scalar_at(const vm_accessor_t* target, uint32_t index,
   vm_obj_payload_t p;
   SE_TRY(vm_internal_obj_resolve(target, &p));
   SE_TRY(vm_internal_obj_writable(p.owner, user));
-  if (index >= p.count) return vm_err_chain_oob(target->id, target->count, index, p.owner);
+  if (index >= p.count) return vm_err_chain_oob(target->id, target->count, index, vm_obj_get_id(p.owner));
   return vm_internal_store_inline(p.owner, vm_payload_get_at(p, (uint16_t)index), v, type, target->id);
 }

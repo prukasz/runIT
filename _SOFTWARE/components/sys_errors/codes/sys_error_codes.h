@@ -14,7 +14,6 @@
 #include "sys_error_event.h"
 #include "sys_error_hbridge.h"
 #include "sys_error_data_connector.h"
-#include "sys_error_features.h"
 #include "sys_error_runit.h"
 #include "sys_error_settings.h"
 #include "sys_error_uart.h"
@@ -54,12 +53,20 @@
     SYS_EVENT_OWNER_MAP(X) \
     SYS_HBRIDGE_OWNER_MAP(X) \
     SYS_DATA_CONNECTOR_OWNER_MAP(X) \
-    FEATURES_OWNER_MAP(X) \
     RUNIT_OWNER_MAP(X) \
     SYS_SETTINGS_OWNER_MAP(X) \
     SYS_UART_OWNER_MAP(X) \
     SYS_PROJECT_OWNER_MAP(X) \
     PROVIDER_OWNER_MAP(X)
+
+// Tags whose payload starts a device attribution: `dev_id` names the device the failure belongs to, and the
+// error handler routes the chain to that device's policy (sys_error_handler.c). A tag listed here must have a
+// `dev_id` member (the handler does not compile otherwise); a module lists its own next to its tag definitions.
+#define SYS_ERROR_DEVICE_TAGS(X) \
+    SYS_ERROR_BASE_DEVICE_TAGS(X) \
+    SYS_ERROR_DEV_DEVICE_TAGS(X) \
+    SYS_ERROR_IO_DEVICE_TAGS(X) \
+    SYS_ERROR_POWER_DEVICE_TAGS(X)
 
 // Combine every module's opt-in payload-description map (X(tag) only - see
 // sys_error_base.h's LOGGER_MAP comment for why the typed functions are

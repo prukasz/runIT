@@ -1,0 +1,18 @@
+{
+  "title": "Expression",
+  "category": "data",
+  "description": "Evaluates a numeric or logical formula over its inputs; the result goes to output 0.",
+  "activation": "Runs when an input it reads is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled.",
+  "inputs": {
+    "pin": {
+      "title": "Input",
+      "description": "Read by the IN opcode; any number, only the ones the code names are read."
+    }
+  },
+  "outputs": {
+    "result": {
+      "title": "Result",
+      "description": "The expression's value (float)."
+    }
+  }
+}

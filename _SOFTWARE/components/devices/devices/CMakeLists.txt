@@ -10,6 +10,7 @@ foreach(entry ${device_paths})
 endforeach()
 
 idf_component_register(
+    SRCS "devices.c"
     INCLUDE_DIRS "include"
-    REQUIRES ${device_components}
+    REQUIRES ${device_components} sys_device sys_errors
 )

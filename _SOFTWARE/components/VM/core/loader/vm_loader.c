@@ -56,11 +56,39 @@ err_h vm_loader_reset(void) {
   return NULL;
 }
 
+/* Fail closed: any failure while a program is being loaded throws the whole program away
+   (stopped, registries, arena, heap objects, subscriptions) instead of leaving a half-built
+   one behind. Nothing is rolled back piecemeal and nothing can be started from the remains:
+   the app has to upload the complete program again from open. */
+err_h vm_loader_abort(err_h cause, uint8_t packet) {
+  if (!cause) return NULL;
+  if (s_state == VM_LOAD_EMPTY) return cause;  // nothing loaded, nothing to discard: the cause says it all
+  SE_REPORT(vm_loader_reset());                // only fails from inside a pass (nothing was changed then)
+  return SE_WRAP_ERR(cause, ERR_VM_LOAD_ABORTED, .packet = packet);
+}
+
+/* The registries are dense: open declared how many of each, and the program runs only when
+   every slot was uploaded. */
+err_h vm_loader_verify_complete(void) {
+  if (s_state != VM_LOAD_OPEN) return NULL;
+  for (int r = 0; r < VM_REG_CNT; r++) {
+    const vm_registry_t* g = &g_vm_store.reg[r];
+    for (uint16_t i = 0; i < g->count; i++) {
+      if (!g->items[i]) SE_FAIL(ERR_VM_LOAD_INCOMPLETE, .kind = (uint8_t)r, .id = i);
+    }
+  }
+  return NULL;
+}
+
 err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint16_t blk_cnt, uint32_t total_size) {
   vm_run_mode_e previous;
   SE_TRY(vm_exec_program_lock(&previous));
   vm_retain_save_stopped();  // last values of the program being replaced
 
+  /* Fail closed: the previous program is gone from here on, whether or not the new one fits.
+     vm_store_open releases its pool before allocating the new one. */
+  vm_exec_reset();
+  vm_sub_reset();
   const uint16_t counts[VM_REG_CNT] = {
       [VM_REG_OBJ] = obj_cnt,
       [VM_REG_ACC] = acc_cnt,
@@ -68,12 +96,12 @@ err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint16_t blk_cnt, uint3
   };
   err_h e = vm_store_open(total_size, counts);
   if (e) {
-    vm_exec_program_unlock(previous);
-    return e;
+    vm_retain_on_reset();
+    s_state = VM_LOAD_EMPTY;
+    vm_exec_program_unlock(VM_RUN_STOPPED);
+    return SE_WRAP_ERR(e, ERR_VM_LOAD_ABORTED, .packet = 0x41);
   }
 
-  vm_exec_reset();
-  vm_sub_reset();
   vm_retain_on_open();
   s_state = VM_LOAD_OPEN;
   vm_exec_program_unlock(VM_RUN_STOPPED);

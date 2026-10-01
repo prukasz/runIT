@@ -1,0 +1,205 @@
+{
+  "schemaVersion": 1,
+  "kind": "vm-block-content",
+  "id": 10,
+  "name": "VM_BLK_IO_SET_LEVEL",
+  "source_file": "components/VM/blocks/io_set_level/vm_block_io_set_level.h",
+  "activation": {
+    "kind": "enabled"
+  },
+  "inputs": {
+    "min": 0,
+    "max": 2,
+    "pins": [
+      {
+        "index": 0,
+        "name": "level",
+        "value": "bool",
+        "overrides": "default_level",
+        "required": false,
+        "hidden_by_default": true
+      },
+      {
+        "index": 1,
+        "name": "pin",
+        "value": "u32",
+        "id_kind": "pin",
+        "device_field": "device_id",
+        "overrides": "default_io_num",
+        "required": false,
+        "hidden_by_default": true
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 0,
+    "pins": []
+  },
+  "rules": [
+    {
+      "rule": "allowed_mask is not 0, and default_io_num is below 64 and in allowed_mask.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    },
+    {
+      "rule": "when_not_active is a vm_io_disabled_state_e value.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    },
+    {
+      "rule": "default_level is a vm_io_level_e value.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    }
+  ],
+  "state": {
+    "struct": "vm_block_io_set_level_data_t",
+    "source_file": "components/VM/blocks/io_set_level/vm_block_io_set_level.h",
+    "size": 16,
+    "align": 8,
+    "fields": [
+      {
+        "name": "allowed_mask",
+        "c_type": "uint64_t",
+        "offset": 0,
+        "size": 8,
+        "description": "Permitted pins for dynamic selection",
+        "let_user_select_available": "default_io_num",
+        "hidden_by_default": true,
+        "dynamic_input": 1,
+        "source": "user"
+      },
+      {
+        "name": "device_id",
+        "c_type": "uint8_t",
+        "offset": 8,
+        "size": 1,
+        "description": "Target device",
+        "id_kind": "device",
+        "contract": "packet_sys_io_set_level_t",
+        "source": "user"
+      },
+      {
+        "name": "default_io_num",
+        "c_type": "uint8_t",
+        "offset": 9,
+        "size": 1,
+        "description": "Static pin when the Pin input is unwired",
+        "id_kind": "pin",
+        "device_field": "device_id",
+        "source": "user",
+        "overridden_by": 1
+      },
+      {
+        "name": "when_not_active",
+        "c_type": "uint8_t",
+        "offset": 10,
+        "size": 1,
+        "description": "What the pin does when the block is not active",
+        "enum_ref": "vm_io_disabled_state_e",
+        "source": "user"
+      },
+      {
+        "name": "flags",
+        "c_type": "uint8_t",
+        "offset": 11,
+        "size": 1,
+        "description": "VM_IO_SET_F_* cache bits",
+        "source": "runtime"
+      },
+      {
+        "name": "last_pin",
+        "c_type": "uint8_t",
+        "offset": 12,
+        "size": 1,
+        "description": "Cached last pin written",
+        "source": "runtime"
+      },
+      {
+        "name": "default_level",
+        "c_type": "uint8_t",
+        "offset": 13,
+        "size": 1,
+        "description": "Select level when block active",
+        "enum_ref": "vm_io_level_e",
+        "source": "user",
+        "overridden_by": 0
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint8_t",
+        "offset": 14,
+        "size": 2,
+        "array_len": 2,
+        "element_size": 1,
+        "description": "Align to 16 bytes",
+        "source": "padding"
+      }
+    ]
+  },
+  "min_custom_len": 16,
+  "enums": {
+    "vm_in_io_set_level_e": {
+      "alias": "Set Pin Level Inputs",
+      "source_file": "components/VM/blocks/io_set_level/vm_block_io_set_level.h",
+      "members": [
+        {
+          "name": "VM_IN_IO_SET_LEVEL_LEVEL",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IN_IO_SET_LEVEL_PIN",
+          "value": 1,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_io_disabled_state_e": {
+      "alias": "IO Disabled Action",
+      "source_file": "components/VM/blocks/io_set_level/vm_block_io_set_level.h",
+      "members": [
+        {
+          "name": "VM_IO_DISABLED_FORCE_LOW",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IO_DISABLED_FORCE_HIGH",
+          "value": 1,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IO_DISABLED_HOLD",
+          "value": 2,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_io_level_e": {
+      "alias": "IO Static Level",
+      "source_file": "components/VM/blocks/io_set_level/vm_block_io_set_level.h",
+      "members": [
+        {
+          "name": "VM_IO_LEVEL_HIGH",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IO_LEVEL_LOW",
+          "value": 1,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  },
+  "min_enables": 0
+}

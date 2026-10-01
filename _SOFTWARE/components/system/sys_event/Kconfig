@@ -5,7 +5,7 @@ menu "Events (sys_event)"
         range 4 32
         help
           Listeners that can be registered at once: device IRQ chaining,
-          the power manager, features and packet subscriptions share it.
+          the power manager and packet subscriptions share it.
           Each entry takes about 20 bytes.
 
     config SYS_EVENT_MAX_HOPS

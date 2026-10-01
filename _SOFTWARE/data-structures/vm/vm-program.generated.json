@@ -73,6 +73,11 @@
       "description": "Unwired input pin, or no ENO object.",
       "source_file": "components/VM/core/block/vm_block.h"
     },
+    "VM_CLOCK_SLOWDOWN_MAX": {
+      "value": 1000,
+      "description": "Largest slow-motion factor of the program (1 = normal speed).",
+      "source_file": "components/VM/core/exec/vm_clock.h"
+    },
     "VM_OBJ_NAME_MAX": {
       "value": 15,
       "description": "Longest object or accessor name, in bytes.",
@@ -325,7 +330,7 @@
           "error_tag": 43288
         },
         {
-          "rule": "total_size must cover every allocation (see arena) and fit CONFIG_VM_STORE_MAX_POOL; a failed open leaves the running program untouched.",
+          "rule": "total_size must cover every allocation (see arena) and fit CONFIG_VM_STORE_MAX_POOL; a failed open discards the loaded program too (any load failure does: the VM is left empty and stopped, upload again from open).",
           "error": "ERR_VM_LOAD_TOO_BIG",
           "error_tag": 43289
         }
@@ -773,7 +778,7 @@
           "error_tag": 43299
         },
         {
-          "rule": "Pin counts within limits, en_mode and on_error known values, and the block passes its type's check (pins, required inputs, state); a rejected block is removed again.",
+          "rule": "Pin counts within limits, en_mode and on_error known values, and the block passes its type's check (pins, required inputs, state); a rejected block aborts the load.",
           "error": "ERR_VM_BLK_BAD_SHAPE",
           "error_tag": 43296
         }
@@ -838,6 +843,41 @@
           }
         }
       }
+    },
+    {
+      "packet_header": "0x49",
+      "symbol": "HEADER_packet_vm_speed",
+      "title": "Slow motion",
+      "description": "Debugging aid: run the program this many times slower. The pause between passes grows by the factor and program time (TIMER, PERIODIC) runs that much slower, so the program behaves the same, just slowly. Takes effect at once, survives uploading another program, and is back to 1 at boot.",
+      "when": "any",
+      "record": {
+        "name": "vm_wire_speed_t",
+        "size": 2,
+        "field_order": [
+          "factor"
+        ],
+        "fields": {
+          "factor": {
+            "type": "uint16_t",
+            "alias": "Slowdown",
+            "required": true,
+            "min": 1,
+            "max": 1000,
+            "default": 1,
+            "offset": 0,
+            "size": 2,
+            "description": "1 = normal speed, 10 = ten times slower.",
+            "max_symbol": "VM_CLOCK_SLOWDOWN_MAX"
+          }
+        }
+      },
+      "rules": [
+        {
+          "rule": "The factor is within 1 to VM_CLOCK_SLOWDOWN_MAX.",
+          "error": "ERR_INVALID_VAL_UI32",
+          "error_tag": 3
+        }
+      ]
     }
   ],
   "unions": {

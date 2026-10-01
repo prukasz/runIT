@@ -342,7 +342,7 @@ All multi-byte fields little-endian. Design points:
 
 `vm_loader_reset()` first prevents new passes and waits for the current pass to return. It then clears execution state and subscriptions and resets both allocation domains. IDs resolve to NULL afterwards; raw handles and cached accessors have expired and must not be reused by callbacks.
 
-The class is registered by runit's `runit_register_decoders` boot step (`components/runit/runit_decoders.c`) — see [[SYS_INTERFACE.MD]].
+The class is registered by runit's `runit_register_decoders` boot step (`components/runit/runit.c`) — see [[SYS_INTERFACE.MD]].
 
 ---
 
@@ -370,7 +370,7 @@ vm_accessor_create / vm_accessor_cache_build
 vm_store_alloc()  →  pool malloc'd at 0x41 open components/VM/core/store/vm_store.c
 ```
 
-The class is bound once at boot by runit's `runit_register_decoders` boot step (`components/runit/runit_decoders.c`):
+The class is bound once at boot by runit's `runit_register_decoders` boot step (`components/runit/runit.c`):
 `sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_VM_LOADER, dec_vm_loader_decode, "vm_loader")`.
 
 ### The loader packets
@@ -426,7 +426,7 @@ Passing a wrong `payload_size` is therefore possible, and contained: `vm_obj_ele
 
 **0x45 — blocks, and why they are last.** A block names everything else: inputs and EN are accessor ids, outputs and ENO are object ids. Every one must already be bound, which is the same ordering rule a `VM_OBJ_PTR` parent has with its children, one level up. All of them are **resolved to pointers here, once** — the block stores no ids at all, so nothing downstream can hold one that stopped being valid, and no execution path ever pays a table lookup.
 
-The id is checked against the block table *before* anything is built, and every reference is resolved *before* anything is allocated. The check against the block's palette entry (`vm_block_verify()`: pin counts, required pins, `custom_data` size, then the type's own check of enum fields) needs the built block, so it runs after allocation — and a block it rejects is taken back out with `vm_store_undo()`: unbound, its arena space returned, its outputs' protection untouched. Either way a rejected block costs the arena nothing and never runs, so the retry still has the space it needs. `VM_BLOCK_NO_ID` (0xFFFF) now spells "absent" for **ENO only** — the block publishes nothing. An absent EN has no such spelling because it does not need one: it is simply `en_cnt == 0`, and a *listed* enable that fails to resolve is a malformed program, exactly like an unwired numbered pin.
+The id is checked against the block table *before* anything is built, and every reference is resolved *before* anything is allocated. The check against the block's palette entry (`vm_block_verify()`: pin counts, required pins, `custom_data` size, then the type's own check of enum fields) needs the built block, so it runs after allocation — and a block it rejects fails the load, which is aborted as a whole (see the loader's fail-closed rule): nothing is taken back out piecemeal, the program is discarded, and the outputs of a rejected block are never claimed. `VM_BLOCK_NO_ID` (0xFFFF) now spells "absent" for **ENO only** — the block publishes nothing. An absent EN has no such spelling because it does not need one: it is simply `en_cnt == 0`, and a *listed* enable that fails to resolve is a malformed program, exactly like an unwired numbered pin.
 
 Three shape limits, all enforced at load — `in_cnt`, `q_cnt` and `en_cnt` each ≤ 16 — for one reason: the decoder stages every id list on its stack while resolving, and a `uint8_t` count would make that a 510-byte buffer inside a BLE callback. Sixteen is well past any real block shape.
 
@@ -448,7 +448,7 @@ Three shape limits, all enforced at load — `in_cnt`, `q_cnt` and `en_cnt` each
 
 ### On failure
 
-Every stage returns an `err_h` chain up through the decoder to `sys_interface`. The loader stays `OPEN` with the arena partially consumed — nothing is rolled back, because nothing needs to be: an id that was never set still reads NULL, so a half-built program is never *incorrectly* resolvable, only incomplete. The next `0x40` or `0x41` clears it.
+Every stage returns an `err_h` chain up through the decoder to `sys_interface`. The load **fails closed**: the decoder hands every failure of `0x41`–`0x45` to `vm_loader_abort()`, which does what `0x40` does (execution stopped, registries, arena, heap objects and subscriptions cleared, loader `EMPTY`) and wraps the cause in `ERR_VM_LOAD_ABORTED { packet }`. Nothing is rolled back piecemeal and no half-built program survives; the app uploads the whole program again from `0x41`, and packets that follow the failed one get `ERR_VM_LOAD_BAD_STATE`. The first start (`0x48` scan / block / normal) calls `vm_loader_verify_complete()`: a slot that `0x41` declared and nobody uploaded aborts with `ERR_VM_LOAD_INCOMPLETE { kind, id }`. A packet only refused because the VM runs (`ERR_VM_LOAD_RUNNING`, or a runtime `0x43`) never touched the program and does not discard it; a failed `0x41` discards the previous program too.
 
 ### Program Ready State
 
@@ -630,40 +630,47 @@ registry, no registration call and no indirection:
 typedef struct vm_block_type_t {
   vm_block_fn run;           // body, called every pass
   vm_block_verify_fn check;  // extra private-state check at load (enum ranges), or NULL
-  uint8_t min_in, min_q;     // pins the block needs
+  uint8_t min_in, max_in;    // in_cnt bounds
+  uint8_t min_q, max_q;      // q_cnt bounds
+  uint8_t min_en;            // enable sources the block needs (1: at least one)
   uint16_t required_in;      // bit n: input n must be wired
   uint16_t state_len;        // custom_len it needs at least
 } vm_block_type_t;
 
 const vm_block_type_t g_vm_block_types[] = {
     /* [VM_BLK_NONE] stays empty: an unset block_type must not be runnable. */
-    [VM_BLK_EXPR] = VM_BLOCK_TYPE_EXPR,
-    ...
+    VM_BLOCK_TABLE_ENTRIES   // [VM_BLK_EXPR] = {.run = vm_blk_expr, .check = ..., .min_in = ...}, ...
 };
 ```
 
-Each entry is defined by its block's own header as `VM_BLOCK_TYPE_<NAME>`, next
-to the body, the state struct and the catalog annotations that describe it, so
-everything about a block type lives in one file. The table is the id → entry
-map; adding a block type is its header plus one line here (recipe:
-`.claude/skills/runit-esp/vm/blocks.md`).
+Each block is a folder (`blocks/<name>/`: `vm_block_<name>.h` with the state struct and
+the `//#vm-block` directives that describe it, `.c` with the body and check, and its
+guide), so everything about a block type lives together. The table is the id → entry
+map and it is **generated** from those directives (`vm_blocks_registry.generated.h`:
+the body and check by name, the pin shape from `@required` and the pin lists, `//@enables`,
+the state size from the `@data` struct); adding a block type touches nothing central
+(recipe: `.claude/skills/runit-esp/vm/blocks.md`).
 
 **Shape is checked once, at load, from data.** `vm_block_verify()` (run by
-`vm_block_create()`) checks a built block against its entry — pin counts,
-required pins, `custom_len` — then calls the type's `check` for what data can't
+`vm_block_create()`) checks a built block against its entry — pin counts
+(min and max), required pins, enable sources, `custom_len` — then calls the type's `check` for what data can't
 say (an enum field in range, at least one of two pins wired). A rejected block
-is removed again (`vm_store_undo()`), so a malformed program never reaches the
+fails the load (the whole program is discarded), so a malformed program never reaches the
 scan and bodies never re-check their own shape on every pass.
 
 **The same entry feeds the app.** `generate-vm-blocks.py` reads each header's
-`//#vm-block` directive block (one `//@keyword` line per fact) and its `VM_BLOCK_TYPE_<NAME>` macro and writes one
-descriptor per block to `data-structures/vm/blocks/` (plus `index.generated.json`):
-id, title, category, when it runs (`@activation`), pins with their counts,
-required flags (from `required_in`) and what each carries (`@value`), the checks
-the device makes at load (`//@rule`), and the private-state layout with byte
+`//#vm-block` line, the pin enums (`vm_in_<name>_e` / `vm_out_<name>_e`, one member per pin with its `//@in` / `//@out`) and the `//@` lines
+next to the struct, the verify and the body, and writes `<name>.content.json` into the block's own
+folder (plus `data-structures/vm/blocks/index.generated.json`, which lists the pairs):
+id, when it runs (`@activation`), pins with their counts,
+required flags (`@required`) and what each carries (`@value`), the checks
+the device makes at load (`//@rule`), the private-state layout with byte
 offsets, enum references and who writes each field (user, derived, runtime) —
-cross-checked against each struct's `_Static_assert`. EXPR / EXPR_BIT also carry
-their opcode table and golden vectors. What the app compiles against is what
+cross-checked against each struct's `_Static_assert` — and the block's own enums
+(`//#block-enum`). EXPR / EXPR_BIT also carry
+their opcode table and golden vectors. The face (title, category, description, pin
+titles, the header line) is `<name>.display.json`, written by hand; the app builds a
+block from the two files alone. What the app compiles against is what
 the device checks.
 
 C lets a later designated initialiser silently override an earlier one, so the
@@ -686,23 +693,23 @@ Fifteen blocks (`blocks/vm_blocks.h`). Pins marked ★ are required (verify
 rejects the block without them); every other input falls back to a constant in
 `custom_data` when unwired. ENO is optional on every block.
 
-| Id | Type | Header | Inputs | Outputs | `custom_len` | Acts when |
+| Id | Type | Folder | Inputs | Outputs | `custom_len` | Acts when |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 1 | `EXPR` | `vm_block_expr.h` | any, named by the code | ≥1: result (float) | 4 + 4·consts + code | an input is fresh **and** enabled |
-| 2 | `EXPR_BIT` | `vm_block_expr.h` | 〃 | ≥1: result (u32) | 〃 | 〃 |
-| 3 | `IF` | `vm_block_branch.h` | ★ condition | ≥2: yes, no (flow) | 0 | enabled |
-| 4 | `SWITCH` | `vm_block_branch.h` | ★ selector | 1..16 branches (flow) | 0 | enabled |
-| 5 | `FOR` | `vm_block_for.h` | start, end, step | iterator | 24 | enabled; claims its span always |
-| 6 | `SET` | `vm_block_set.h` | ★ src, ★ dst | — | 0 | src fresh **and** enabled |
-| 7 | `CLONE` | `vm_block_clone.h` | ★ src, ★ dst pointer cell | — | 0 | src fresh **and** enabled |
-| 8 | `EDGE` | `vm_block_edge.h` | EN (required) | — (ENO is the pulse) | 4 | every pass |
-| 9 | `TIMER` | `vm_block_timer.h` | ★ IN, PT | ET (Q is ENO) | 32 | enabled |
-| 10 | `IO_SET_LEVEL` | `vm_block_io_set_level.h` | ★ level, pin | — | 16 | enabled |
-| 11 | `IO_TOGGLE` | `vm_block_io_toggle.h` | pin | — | 16 | rising edge of enable |
-| 12 | `LATCH` | `vm_block_latch.h` | EN (required), Reset (optional) | — (ENO is the held level) | 4 | every pass |
-| 13 | `PERIODIC` | `vm_block_periodic.h` | period | — (ENO is the tick) | 16 | enabled |
-| 14 | `ACTION` | `vm_block_action.h` | action id | — | 4 | rising edge of enable |
-| 15 | `ON_EVENT` | `vm_block_on_event.h` | — | value, count | 4 | enabled **and** a matching event this pass |
+| 1 | `EXPR` | `expr/` (+ `expr_core/`) | any, named by the code | ≥1: result (float) | 4 + 4·consts + code | an input is fresh **and** enabled |
+| 2 | `EXPR_BIT` | `expr_bit/` (+ `expr_core/`) | 〃 | ≥1: result (u32) | 〃 | 〃 |
+| 3 | `IF` | `if/` (+ `branch_core/`) | ★ condition | ≥2: yes, no (flow) | 0 | enabled |
+| 4 | `SWITCH` | `switch/` (+ `branch_core/`) | ★ selector | 1..16 branches (flow) | 0 | enabled |
+| 5 | `FOR` | `for/` | start, end, step | iterator | 24 | enabled; claims its span always |
+| 6 | `SET` | `set/` | ★ src, ★ dst | — | 0 | src fresh **and** enabled |
+| 7 | `CLONE` | `clone/` | ★ src, ★ dst pointer cell | — | 0 | src fresh **and** enabled |
+| 8 | `EDGE` | `edge/` | EN (required) | — (ENO is the pulse) | 4 | every pass |
+| 9 | `TIMER` | `timer/` | ★ IN, PT | ET (Q is ENO) | 32 | enabled |
+| 10 | `IO_SET_LEVEL` | `io_set_level/` | ★ level, pin | — | 16 | enabled |
+| 11 | `IO_TOGGLE` | `io_toggle/` | pin | — | 16 | rising edge of enable |
+| 12 | `LATCH` | `latch/` | EN (required), Reset (optional) | — (ENO is the held level) | 4 | every pass |
+| 13 | `PERIODIC` | `periodic/` | period | — (ENO is the tick) | 16 | enabled |
+| 14 | `ACTION` | `action/` | action id | — | 4 | rising edge of enable |
+| 15 | `ON_EVENT` | `on_event/` | — | value, count | 4 | enabled **and** a matching event this pass |
 
 Each header opens with the block's pin diagram, behaviour and `custom_data`
 byte layout; that comment is the reference for the layout. The sections below
@@ -756,7 +763,7 @@ belongs to this pass's data: it is reported on entering a fault episode and
 re-armed by the next clean evaluation, so a divisor stuck at zero for a minute
 is one error rather than six thousand. Nothing is published then — the output
 stands and `cfg.on_error` decides the flow. The same table is published with
-the block (`block_expr.generated.json`), with golden vectors.
+the block (`expr.content.json`), with golden vectors.
 
 ### Flow routers
 
@@ -1212,7 +1219,7 @@ Code size is bounded by the app partition: 2 MB (`partitions.csv`, 16 MB flash);
 * **Palette:** see "What ships today" — 15 block types, published for the app as one descriptor per block in `data-structures/vm/blocks/`.
 * **Retained values** are kept by name ("Retained values"); the program is kept as part of the board's stored code ([[SYS_PROJECT.MD]]).
 * **Hardware Drivers Boundary:** Blocks in `blocks/` interact with runtime registries and accessors; hardware drivers (`sys_io`, `sys_power`) are invoked via standard system interfaces.
-* **Timing & Clocks:** `vm_now_ms()` latches the pass timestamp per scan cycle, driving time-aware blocks such as `TIMER`.
+* **Timing & Clocks:** `vm_clock.h` is the program clock: `vm_now_ms()` latches the pass timestamp of *program time* per scan cycle, driving time-aware blocks such as `TIMER` and `PERIODIC`. Program time doesn't advance while the VM is stopped, paused or stepping, and runs `factor` times slower under the slow-motion factor (packet `0x49`, `vm_clock_set_slowdown()`); retention keeps the real clock. Pass and cycle statistics and the bring-up profile live in `vm_stats.h`.
 * **Non-scalar Movement:** `SET` (`vm_block_set.h`) performs deep copy (`vm_obj_copy_content()`) across matching schemas with pairwise pointer array traversal.
 * **Subscription & Telemetry:** `vm_sub.h`/`.c` sends changed values (quiet writes included) and describes heap objects ("Subscriptions and telemetry").
 * **Unwired Pins:** Unwired input pins map to NULL accessor slots (`VM_BLOCK_NO_ID` on wire), falling back to block constants stored in `custom_data`.
@@ -1225,7 +1232,7 @@ Code size is bounded by the app partition: 2 MB (`partitions.csv`, 16 MB flash);
 
 **Dynamic objects** — `vm_obj_dyn_create()`, `vm_obj_dyn_retain()`, `vm_obj_dyn_release()`, `vm_obj_dyn_reset()`, `vm_obj_dyn_get_id()`, `vm_obj_dyn_get_by_id()`, `vm_obj_is_dynamic()`. Reference counts move in exactly one place — a pointer slot, via `slot_store()` in `vm_obj_access_internal.c` — and `vm_obj_dyn_get_id()` tests the `dynamic` bit before scanning, so an arena object costs one bit rather than `VM_DYN_MAX` pointer compares.
 **Header helpers** — `vm_obj_get_total_size()`, `vm_obj_get_payload_size()`, `vm_obj_get_type_size()`, `vm_type_width()`, `vm_obj_get_items_cnt()`, `vm_obj_get_tag()`, `vm_obj_get_payload_ptr()`
-**Store** — `vm_store_open()`, `vm_store_alloc()`, `vm_store_undo()`, `vm_store_get()`, `vm_store_reset()`, `vm_store_used()`, `vm_store_capacity()`
+**Store** — `vm_store_open()`, `vm_store_alloc()`, `vm_store_get()`, `vm_store_reset()`, `vm_store_used()`, `vm_store_capacity()`
 **Access** — `vm_obj_get_by_id()`, `vm_accessor_get_by_id()`, `vm_obj_get_payload()`, `vm_obj_get_obj()`, `vm_internal_set_scalar_slot()`, `vm_internal_set_scalar_direct()`, `vm_obj_copy_content()`, `vm_obj_copy_direct()`, `vm_obj_shape_matches()`, `vm_obj_schema_matches()`, `vm_obj_clone_shape()`, `vm_obj_clone_into()`, `vm_obj_link()`, `vm_obj_link_direct()`, `vm_obj_clear_quiet()`, `vm_payload_get_at()`, `vm_make_payload()`
 **User mutation** (require `mutable` and reject `usr_protected`) — `VM_OBJ_SET_SCALAR_USR()`, `VM_OBJ_SET_SCALAR_AT_IDX_USR()`, `vm_block_obj_copy_content()`, `vm_block_obj_copy_direct()`, `vm_block_obj_clone_into()`, `vm_block_obj_link()`, `vm_block_obj_mark_updated()`
 **Macros** — `VM_OBJ_SCALAR_GET()`, `VM_OBJ_SET_SCALAR()`, `VM_OBJ_SET_SCALAR_AT_IDX()`, `VM_OBJ_SET_SCALAR_USR()`, `VM_OBJ_SET_SCALAR_AT_IDX_USR()`, `VM_OBJ_COPY_CONTENT()`, `VM_PAYLOAD_GET_VAL()`, `VM_INTERNAL_LOAD_SCALAR()`
@@ -1241,9 +1248,9 @@ Code size is bounded by the app partition: 2 MB (`partitions.csv`, 16 MB flash);
 
 ## Error Ownership
 
-Owners `0xA900`–`0xA90A` (`SYS_VM_OWNER_MAP` in `errors/sys_error_vm.h`): `OWNER_VM_BASE`, `OWNER_VM_STORE`, `OWNER_VM_OBJ`, `OWNER_VM_ACCESSOR`, `OWNER_VM_BLOCK`, `OWNER_VM_CODE`, `OWNER_VM_LOADER`, `OWNER_DEC_VM_LOADER`, `OWNER_VM_EXEC`, `OWNER_VM_RETAIN`, `OWNER_VM_SUB`.
+Owners `0xA900`–`0xA90A` (`SYS_VM_OWNER_MAP` in `errors/sys_error_vm.h`): `OWNER_VM_BASE`, `OWNER_VM_STORE`, `OWNER_VM_OBJ`, `OWNER_VM_ACCESSOR`, `OWNER_VM_BLOCK`, `OWNER_VM_LOADER`, `OWNER_DEC_VM_LOADER`, `OWNER_VM_EXEC`, `OWNER_VM_RETAIN`, `OWNER_VM_SUB`.
 
-Tags (`SYS_ERROR_VM_MAP`) cover allocation (`ERR_VM_ALLOC_EXHAUSTED`), resolution (`ERR_VM_ACCESSOR_UNKNOWN_ID`, `_OOB`, `_TYPE_MISMATCH`, `_NULL_OBJ`, `_DEPTH_EXCEEDED`, `_INDEX_FAILED`, `_NAME_NOT_FOUND`, `_NOT_MUTABLE`), blocks (`ERR_VM_BLOCK_INPUT_UNRESOLVED`, `_PIN_MISSING`, `_PIN_UNLINKED`, `_FAILED`), construction (`ERR_VM_OBJ_BAD_TYPE`, `_EMPTY`, `_TOO_LARGE`, `_NAME_TOO_LONG`, `_RETENTIVE_PTR`, `_COPY_MISMATCH`), loading (`ERR_VM_LOAD_BAD_STATE`, `_TOO_BIG`, `_DATA_RANGE`, `_SHORT_RECORD`), accessors (`ERR_VM_ACC_INDEX_OOB`, `ERR_VM_ACC_BAD_KIND`), blocks (`ERR_VM_BLK_BAD_SHAPE`, `ERR_VM_BLK_BAD_REF`) and the registries (`ERR_VM_REG_OOB`, `ERR_VM_REG_DUP` — one pair for all three id spaces, with `kind` naming which).
+Tags (`SYS_ERROR_VM_MAP`) cover allocation (`ERR_VM_ALLOC_EXHAUSTED`), resolution (`ERR_VM_ACCESSOR_UNKNOWN_ID`, `_OOB`, `_TYPE_MISMATCH`, `_NULL_OBJ`, `_DEPTH_EXCEEDED`, `_INDEX_FAILED`, `_NAME_NOT_FOUND`, `_NOT_MUTABLE`), blocks (`ERR_VM_BLOCK_PIN_MISSING`, `_PIN_UNLINKED`, `_FAILED`), construction (`ERR_VM_OBJ_BAD_TYPE`, `_EMPTY`, `_TOO_LARGE`, `_NAME_TOO_LONG`, `_RETENTIVE_PTR`, `_COPY_MISMATCH`), loading (`ERR_VM_LOAD_BAD_STATE`, `_TOO_BIG`, `_DATA_RANGE`, `_SHORT_RECORD`), accessors (`ERR_VM_ACC_INDEX_OOB`, `ERR_VM_ACC_BAD_KIND`), blocks (`ERR_VM_BLK_BAD_SHAPE`, `ERR_VM_BLK_BAD_REF`) and the registries (`ERR_VM_REG_OOB`, `ERR_VM_REG_DUP` — one pair for all three id spaces, with `kind` naming which).
 
 Execution adds its own group: the palette (`ERR_VM_BLK_UNKNOWN_TYPE`), the
 supervisor (`ERR_VM_EXEC_BLOCK_HUNG`, `ERR_VM_EXEC_SPAN_DEPTH`,

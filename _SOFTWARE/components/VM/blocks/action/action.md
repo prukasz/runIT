@@ -1,0 +1,17 @@
+# Run action
+
+Requests a system action once each time its enable turns on. An action is something the device does on its own: a built-in one (safe state, device reset, and so on) or a recorded packet sequence.
+
+## Pins and settings
+
+| | Meaning |
+|---|---|
+| Action id (pin, optional) | Overrides the constant, in the range 1 to 255. |
+| Scope | *Static* (a built-in action) or *Recorded* (a recorded packet sequence). |
+| Action id | The constant used while the pin is unwired; it cannot be 0. |
+| ENO | One pass pulse on the pass the request was queued. |
+
+## Behaviour
+
+- It fires on the **rising edge** of its enable: a pulse from **Edge**, **Every** or **On event** fires it once per pulse. A block with no enable sources fires once, when the program starts.
+- The action does **not** run inside the pass. It is queued and executed by another task, because an action may stop, rewind or unload the program itself. Its own result is reported afterwards, not by this block.

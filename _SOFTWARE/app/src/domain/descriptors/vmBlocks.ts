@@ -98,6 +98,8 @@ export interface VmBlockType {
   readonly category: string
   readonly description: string
   readonly activation: string
+  /** When it runs, in words (the block's display.json). */
+  readonly activationText?: string
   readonly inputs: VmBlockPins
   readonly outputs: VmBlockPins
   readonly rules: readonly { readonly rule: string; readonly error: string }[]
@@ -194,6 +196,7 @@ export const buildVmBlockType = (file: GeneratedVmBlockFile): VmBlockType => {
     category: file.category,
     description: file.description,
     activation: file.activation.kind,
+    activationText: file.activation.description,
     inputs: pins(file.inputs),
     outputs: pins(file.outputs),
     rules: file.rules,

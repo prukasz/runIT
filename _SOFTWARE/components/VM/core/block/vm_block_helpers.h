@@ -11,8 +11,11 @@ static inline bool vm_block_check(vm_block_h b, err_h e) {
 }
 
 /* Load-time shape predicate used by vm_block_verify(); the builder reports. */
-static inline bool vm_block_shape_valid(vm_block_h b, uint8_t min_in, uint8_t min_q, uint16_t required_inputs) {
-  if (b->cfg.in_cnt < min_in || b->cfg.q_cnt < min_q) return false;
+static inline bool vm_block_shape_valid(vm_block_h b, const vm_block_type_t* type) {
+  if (b->cfg.in_cnt < type->min_in || b->cfg.in_cnt > type->max_in) return false;
+  if (b->cfg.q_cnt < type->min_q || b->cfg.q_cnt > type->max_q) return false;
+  if (b->cfg.en_cnt < type->min_en) return false;
+  const uint16_t required_inputs = type->required_in;
   for (uint8_t pin = 0; pin < CONFIG_VM_BLOCK_MAX_IN; ++pin) {
     if (!(required_inputs & (1u << pin))) continue;
     if (pin >= b->cfg.in_cnt || !vm_block_get_inputs(b)[pin]) return false;

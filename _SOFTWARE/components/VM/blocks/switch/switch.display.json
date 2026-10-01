@@ -1,0 +1,17 @@
+{
+  "title": "Switch",
+  "category": "flow",
+  "description": "N-way router: drives the output whose index equals the selector (rounded); out of range drives none.",
+  "activation": "Runs every pass while enabled.",
+  "inputs": {
+    "selector": {
+      "title": "Selector"
+    }
+  },
+  "outputs": {
+    "branch": {
+      "title": "Branch",
+      "description": "One per case, 0..15."
+    }
+  }
+}

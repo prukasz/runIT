@@ -454,6 +454,16 @@ static void manager_tick(void) {
     int32_t mV = 0, mA = 0;
     err_h err = sys_power_monitor_get_voltage(s_board->input.device_id, s_board->input.channel, &mV);
     if (SE_IS_OK(err)) err = sys_power_monitor_get_current(s_board->input.device_id, s_board->input.channel, &mA);
+    if (SE_IS_ERR(err)) {
+      err_h root = SE_get_error_root(err);
+      if (root && root->tag == ERR_DEV_SUSPENDED) {
+        /* The measuring chip is suspended (the fault safe state): the input isn't "gone", it just can't
+           be read. Keep the last status, report nothing and recompute no budget until it resumes. */
+        SE_release(err);
+        PWR_UNLOCK();
+        return;
+      }
+    }
     have_input = SE_IS_OK(err) && mV > 0;
     if (SE_IS_ERR(err) && !s_input_error_reported) {
       s_input_error_reported = true;

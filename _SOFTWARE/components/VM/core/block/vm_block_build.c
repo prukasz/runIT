@@ -21,9 +21,9 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
     SE_FAIL(ERR_VM_BLK_BAD_SHAPE, .blk_id = cfg->block_idx, .in_cnt = cfg->in_cnt, .q_cnt = cfg->q_cnt);
   }
 
-  /* Everything is resolved before anything is allocated. A block that names a
-     missing accessor should cost the arena nothing -- otherwise a rejected
-     program still shrinks the space the retry has to fit in. */
+  /* Everything is resolved before anything is allocated, so a block that names a missing
+     accessor never gets built. A failure here (or in the check below) is not rolled back: the loader
+     aborts the whole load (vm_loader_abort) and the program is discarded. */
   /* NO_ID on an input means the pin is deliberately unwired -- the block uses
      its own constant. Any other id must resolve. */
   for (uint8_t i = 0; i < cfg->in_cnt; i++) {
@@ -82,7 +82,6 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
   size_t total = vm_block_calc_size(cfg->in_cnt, cfg->q_cnt, cfg->en_cnt, cfg->custom_len);
   vm_block_h b = NULL;
   // allocates, zeroes and binds the id in one step -- see vm_store.h
-  const uint32_t mark = vm_store_used();
   SE_TRY(vm_store_alloc((void**)&b, VM_REG_BLK, id, (uint32_t)total));
 
   b->cfg.block_idx = cfg->block_idx;
@@ -113,11 +112,9 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
     memcpy(vm_block_get_custom_data(b), cfg->custom_data, cfg->custom_len);
   }
 
-  /* The type's own check needs the built block. A block it rejects is taken
-     back out completely -- unbound, its arena space returned -- so it never
-     runs, and the retry still has the room it needs. */
+  /* The type's own check needs the built block. A rejected block stays bound but its outputs are
+     not claimed below, and the load is aborted, so it never runs. */
   if (!vm_block_verify(b)) {
-    vm_store_undo(VM_REG_BLK, id, mark);
     SE_FAIL(ERR_VM_BLK_BAD_SHAPE, .blk_id = cfg->block_idx, .in_cnt = cfg->in_cnt, .q_cnt = cfg->q_cnt);
   }
 

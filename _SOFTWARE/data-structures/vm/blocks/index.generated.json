@@ -24,111 +24,130 @@
     "triggered": "Runs when an input it watches is fresh (marked updated this pass) and it is enabled.",
     "enable-rising": "Runs once each time its enables turn it on."
   },
+  "id_kinds": {
+    "device": "The id of a device created in the project. The field's `contract` says which devices fit (the ones that answer it).",
+    "pin": "An index of an IO resource of the device in the field named by `device_field` (a pin, a channel: the editor's title says which)."
+  },
   "blocks": [
     {
       "id": 1,
       "name": "VM_BLK_EXPR",
       "title": "Expression",
       "category": "data",
-      "file": "block_expr.generated.json"
+      "display": "components/VM/blocks/expr/expr.display.json",
+      "content": "components/VM/blocks/expr/expr.content.json"
     },
     {
       "id": 2,
       "name": "VM_BLK_EXPR_BIT",
       "title": "Bit Expression",
       "category": "data",
-      "file": "block_expr_bit.generated.json"
+      "display": "components/VM/blocks/expr_bit/expr_bit.display.json",
+      "content": "components/VM/blocks/expr_bit/expr_bit.content.json"
     },
     {
       "id": 3,
       "name": "VM_BLK_IF",
       "title": "If",
       "category": "flow",
-      "file": "block_if.generated.json"
+      "display": "components/VM/blocks/if/if.display.json",
+      "content": "components/VM/blocks/if/if.content.json"
     },
     {
       "id": 4,
       "name": "VM_BLK_SWITCH",
       "title": "Switch",
       "category": "flow",
-      "file": "block_switch.generated.json"
+      "display": "components/VM/blocks/switch/switch.display.json",
+      "content": "components/VM/blocks/switch/switch.content.json"
     },
     {
       "id": 5,
       "name": "VM_BLK_FOR",
       "title": "For",
       "category": "flow",
-      "file": "block_for.generated.json"
+      "display": "components/VM/blocks/for/for.display.json",
+      "content": "components/VM/blocks/for/for.content.json"
     },
     {
       "id": 6,
       "name": "VM_BLK_SET",
       "title": "Set",
       "category": "data",
-      "file": "block_set.generated.json"
+      "display": "components/VM/blocks/set/set.display.json",
+      "content": "components/VM/blocks/set/set.content.json"
     },
     {
       "id": 7,
       "name": "VM_BLK_CLONE",
       "title": "Clone",
       "category": "data",
-      "file": "block_clone.generated.json"
+      "display": "components/VM/blocks/clone/clone.display.json",
+      "content": "components/VM/blocks/clone/clone.content.json"
     },
     {
       "id": 8,
       "name": "VM_BLK_EDGE",
       "title": "Edge",
       "category": "logic",
-      "file": "block_edge.generated.json"
+      "display": "components/VM/blocks/edge/edge.display.json",
+      "content": "components/VM/blocks/edge/edge.content.json"
     },
     {
       "id": 9,
       "name": "VM_BLK_TIMER",
       "title": "Timer",
       "category": "time",
-      "file": "block_timer.generated.json"
+      "display": "components/VM/blocks/timer/timer.display.json",
+      "content": "components/VM/blocks/timer/timer.content.json"
     },
     {
       "id": 10,
       "name": "VM_BLK_IO_SET_LEVEL",
       "title": "Set Pin Level",
       "category": "io",
-      "file": "block_io_set_level.generated.json"
+      "display": "components/VM/blocks/io_set_level/io_set_level.display.json",
+      "content": "components/VM/blocks/io_set_level/io_set_level.content.json"
     },
     {
       "id": 11,
       "name": "VM_BLK_IO_TOGGLE",
       "title": "Toggle Pin",
       "category": "io",
-      "file": "block_io_toggle.generated.json"
+      "display": "components/VM/blocks/io_toggle/io_toggle.display.json",
+      "content": "components/VM/blocks/io_toggle/io_toggle.content.json"
     },
     {
       "id": 12,
       "name": "VM_BLK_LATCH",
       "title": "Latch",
       "category": "logic",
-      "file": "block_latch.generated.json"
+      "display": "components/VM/blocks/latch/latch.display.json",
+      "content": "components/VM/blocks/latch/latch.content.json"
     },
     {
       "id": 13,
       "name": "VM_BLK_PERIODIC",
       "title": "Every",
       "category": "time",
-      "file": "block_periodic.generated.json"
+      "display": "components/VM/blocks/periodic/periodic.display.json",
+      "content": "components/VM/blocks/periodic/periodic.content.json"
     },
     {
       "id": 14,
       "name": "VM_BLK_ACTION",
       "title": "Run Action",
       "category": "system",
-      "file": "block_action.generated.json"
+      "display": "components/VM/blocks/action/action.display.json",
+      "content": "components/VM/blocks/action/action.content.json"
     },
     {
       "id": 15,
       "name": "VM_BLK_ON_EVENT",
       "title": "On Event",
       "category": "system",
-      "file": "block_on_event.generated.json"
+      "display": "components/VM/blocks/on_event/on_event.display.json",
+      "content": "components/VM/blocks/on_event/on_event.content.json"
     }
   ]
 }

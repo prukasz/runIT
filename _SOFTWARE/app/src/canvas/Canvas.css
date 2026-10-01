@@ -1093,3 +1093,31 @@
 .wire-picker.is-source { border-color: var(--color-orange); }
 .shell .wire-picker-row.is-source-row.is-chosen { background: color-mix(in srgb, var(--color-orange) 16%, var(--panel)); box-shadow: inset 3px 0 0 var(--color-orange); }
 .shell .wire-picker-head .wire-picker-swap { width: 24px; height: 22px; font-size: 14px; }
+
+/* View / Manage with the Blocks palette: tiles on the left, the picked block's description on the main screen. */
+.block-tile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 6px 10px 4px; }
+.shell .block-tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; gap: 8px; width: auto; height: auto; min-height: 64px; padding: 10px; border: 1px solid var(--divider); border-radius: 8px; background: color-mix(in srgb, var(--cat) 7%, var(--panel)); color: var(--active); text-align: left; cursor: pointer; transition: border-color 140ms ease, transform 140ms ease; }
+.shell .block-tile:hover { border-color: color-mix(in srgb, var(--cat) 60%, var(--divider)); transform: translateY(-1px); }
+.shell .block-tile.selected { border-color: var(--cat); background: color-mix(in srgb, var(--cat) 16%, var(--panel)); }
+.block-tile strong { font-size: 12px; font-weight: 600; line-height: 1.25; }
+.block-tile-count { position: absolute; top: 6px; right: 6px; min-width: 18px; padding: 1px 5px; border-radius: 9px; background: color-mix(in srgb, var(--cat) 30%, var(--panel)); color: var(--active); font-size: 10px; text-align: center; }
+.block-manager { max-width: 820px; }
+.block-manager .panel-header { gap: 8px; }
+.block-manager-lead { margin: 14px 0 4px; color: var(--active); font-size: 14px; line-height: 1.5; }
+.block-manager-activation { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
+.block-manager-section { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--divider); }
+.block-manager-section h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; color: var(--active); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.block-manager-pins { display: flex; flex-direction: column; gap: 8px; margin: 0; }
+.block-manager-pins > div { display: grid; grid-template-columns: minmax(150px, 220px) 1fr; gap: 6px 14px; align-items: baseline; }
+.block-manager-pins dt { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.block-manager-pins dd { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.block-manager-pins dd small { display: block; margin-top: 2px; font-size: 11px; opacity: 0.85; }
+.block-manager-rules { margin: 0; padding-left: 18px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.block-manager-uses { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.shell .block-manager-uses button { display: inline-flex; align-items: center; gap: 8px; width: auto; height: auto; padding: 6px 10px; border: 1px solid var(--divider); border-radius: 8px; background: color-mix(in srgb, var(--cat) 8%, var(--panel)); color: var(--active); font-size: 12px; cursor: pointer; }
+.shell .block-manager-uses button:hover { border-color: var(--cat); }
+.block-manager-uses span { color: var(--muted); }
+.block-manager-empty { margin: 8px 0; color: var(--muted); font-size: 12px; }
+.block-uses { padding: 14px 16px; }
+.block-uses-canvas { margin-top: 14px; }
+.block-uses-canvas h2 { margin: 0 0 8px; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }

@@ -5,7 +5,6 @@
 #define SYS_IO_OWNER_MAP(X)                                                   \
   X(OWNER_SYS_IO_BASE, 0xA300, "OWNER_SYS_IO_BASE")                           \
   X(OWNER_SYS_IO_RESET, 0xA301, "OWNER_SYS_IO_RESET")                         \
-  X(OWNER_SYS_IO_DRIVER_RESET, 0xA302, "OWNER_SYS_IO_DRIVER_RESET")           \
   X(OWNER_SYS_IO_SET_MODE, 0xA303, "OWNER_SYS_IO_SET_MODE")                   \
   X(OWNER_SYS_IO_CONFIGURE_INTR, 0xA304, "OWNER_SYS_IO_CONFIGURE_INTR")       \
   X(OWNER_SYS_IO_SET_LEVEL, 0xA305, "OWNER_SYS_IO_SET_LEVEL")                 \
@@ -13,11 +12,9 @@
   X(OWNER_SYS_IO_TOGGLE, 0xA307, "OWNER_SYS_IO_TOGGLE")                       \
   X(OWNER_SYS_IO_GET_VOLTAGE, 0xA308, "OWNER_SYS_IO_GET_VOLTAGE")             \
   X(OWNER_SYS_IO_SET_VOLTAGE, 0xA309, "OWNER_SYS_IO_SET_VOLTAGE")             \
-  X(OWNER_SYS_IO_REGISTER_DRIVER, 0xA30A, "OWNER_SYS_IO_REGISTER_DRIVER")     \
-  X(OWNER_SYS_IO_DESTROY, 0xA30B, "OWNER_SYS_IO_DESTROY")                     \
   X(OWNER_SYS_IO_SET_PWM_FREQUENCY, 0xA30C, "OWNER_SYS_IO_SET_PWM_FREQUENCY") \
   X(OWNER_SYS_IO_SET_PWM_DUTY, 0xA30D, "OWNER_SYS_IO_SET_PWM_DUTY")           \
-  X(OWNER_SYS_IO_UNREGISTER_DRIVER, 0xA30E, "OWNER_SYS_IO_UNREGISTER_DRIVER")
+  X(OWNER_SYS_IO_PIN_REFS_BELOW, 0xA30F, "OWNER_SYS_IO_PIN_REFS_BELOW")
 
 #define SYS_ERROR_IO_MAP(X)                                                                                  \
   X(ERR_IO_PIN_UNCONFIGURED, 0xA301, SE_LEVEL_LOW, struct { uint8_t dev_id; /*@id device*/ uint8_t pin_num; })                  \
@@ -59,3 +56,12 @@
 #define LOG_BODY_ERR_IO_PWM_TIMERS_EXHAUSTED(p, out, out_size)                                                                        \
   snprintf((out), (out_size), "no PWM timer for %lu Hz on pin %u, device %u: all %u timers run other frequencies", (unsigned long)(p)->frequency_Hz, \
            (p)->pin_num, (p)->dev_id, (p)->timers)
+
+/** @brief Tags that attribute a failure to the device in `dev_id` (see SYS_ERROR_DEVICE_TAGS in sys_error_codes.h). */
+#define SYS_ERROR_IO_DEVICE_TAGS(X) \
+  X(ERR_IO_PIN_UNCONFIGURED)        \
+  X(ERR_IO_PIN_UNAVAILABLE)         \
+  X(ERR_IO_PIN_ALREADY_IN_USE)      \
+  X(ERR_IO_PIN_FEATURE_UNSUPPORTED) \
+  X(ERR_IO_PIN_LOCKED)              \
+  X(ERR_IO_PIN_MODE_UNSUPPORTED)

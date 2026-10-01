@@ -107,76 +107,78 @@
       "symbol": "DEVICE_ID_DRV8962_0",
       "name": "DRV8962_0",
       "driver": "drv8962",
+      "descriptor": "device_drv8962",
+      "title": "DRV8962 motor driver",
       "installed": false,
       "pins": [
         {
-          "use": "in_pins[0]",
+          "use": "in1_pin",
           "device": 0,
           "pin": 21,
           "mode": "SYS_IO_MODE_PWM"
         },
         {
-          "use": "in_pins[1]",
+          "use": "in2_pin",
           "device": 0,
           "pin": 47,
           "mode": "SYS_IO_MODE_PWM"
         },
         {
-          "use": "in_pins[2]",
+          "use": "in3_pin",
           "device": 0,
           "pin": 48,
           "mode": "SYS_IO_MODE_PWM"
         },
         {
-          "use": "in_pins[3]",
+          "use": "in4_pin",
           "device": 0,
           "pin": 45,
           "mode": "SYS_IO_MODE_PWM"
         },
         {
-          "use": "en_pins[0]",
+          "use": "en1_pin",
           "device": 0,
           "pin": 38,
           "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL"
         },
         {
-          "use": "en_pins[1]",
+          "use": "en2_pin",
           "device": 0,
           "pin": 39,
           "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL"
         },
         {
-          "use": "en_pins[2]",
+          "use": "en3_pin",
           "device": 0,
           "pin": 2,
           "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL"
         },
         {
-          "use": "en_pins[3]",
+          "use": "en4_pin",
           "device": 0,
           "pin": 1,
           "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL"
         },
         {
-          "use": "current_adc_pins[0]",
+          "use": "ipropi1_pin",
           "device": 0,
           "pin": 7,
           "mode": "SYS_IO_MODE_ADC"
         },
         {
-          "use": "current_adc_pins[1]",
+          "use": "ipropi2_pin",
           "device": 0,
           "pin": 6,
           "mode": "SYS_IO_MODE_ADC"
         },
         {
-          "use": "current_adc_pins[2]",
+          "use": "ipropi3_pin",
           "device": 0,
           "pin": 5,
           "mode": "SYS_IO_MODE_ADC"
         },
         {
-          "use": "current_adc_pins[3]",
+          "use": "ipropi4_pin",
           "device": 0,
           "pin": 4,
           "mode": "SYS_IO_MODE_ADC"
@@ -194,7 +196,7 @@
           "mode": "SYS_IO_MODE_INPUT"
         },
         {
-          "use": "vref_dac_pin",
+          "use": "vref_pin",
           "device": 4,
           "pin": 0,
           "mode": "SYS_IO_MODE_DAC"
@@ -206,52 +208,54 @@
       "symbol": "DEVICE_ID_DRV8962_1",
       "name": "DRV8962_1",
       "driver": "drv8962",
+      "descriptor": "device_drv8962",
+      "title": "DRV8962 motor driver",
       "installed": true,
       "pins": [
         {
-          "use": "in_pins[0]",
+          "use": "in1_pin",
           "device": 3,
           "pin": 8,
           "mode": "SYS_IO_MODE_PWM"
         },
         {
-          "use": "in_pins[1]",
+          "use": "in2_pin",
           "device": 3,
           "pin": 9,
           "mode": "SYS_IO_MODE_PWM"
         },
         {
-          "use": "in_pins[2]",
+          "use": "in3_pin",
           "device": 3,
           "pin": 10,
           "mode": "SYS_IO_MODE_PWM"
         },
         {
-          "use": "in_pins[3]",
+          "use": "in4_pin",
           "device": 3,
           "pin": 11,
           "mode": "SYS_IO_MODE_PWM"
         },
         {
-          "use": "en_pins[0]",
+          "use": "en1_pin",
           "device": 3,
           "pin": 12,
           "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL"
         },
         {
-          "use": "en_pins[1]",
+          "use": "en2_pin",
           "device": 3,
           "pin": 13,
           "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL"
         },
         {
-          "use": "en_pins[2]",
+          "use": "en3_pin",
           "device": 3,
           "pin": 14,
           "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL"
         },
         {
-          "use": "en_pins[3]",
+          "use": "en4_pin",
           "device": 3,
           "pin": 15,
           "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL"
@@ -269,7 +273,7 @@
           "mode": "SYS_IO_MODE_INPUT"
         },
         {
-          "use": "vref_dac_pin",
+          "use": "vref_pin",
           "device": 4,
           "pin": 1,
           "mode": "SYS_IO_MODE_DAC"

@@ -51,11 +51,12 @@ typedef uint8_t sys_io_pin_num_t;
  *          SYS_IO_MODE_INPUT} - device 0 is a real device and pin 0 is a real
  *          pin, so an omission silently means "drive pin 0", not "unused".
  */
-typedef struct sys_io_pin_ref_t {
+typedef struct __packed sys_io_pin_ref_t {
   uint8_t device_id;
   sys_io_pin_num_t pin; /* SYS_GPIO_NONE when unused */
-  sys_io_mode_e mode;
+  uint8_t mode;         /* sys_io_mode_e; one byte, so the struct is the 3 bytes a device cfg / create frame carries */
 } sys_io_pin_ref_t;
+_Static_assert(sizeof(sys_io_pin_ref_t) == 3, "sys_io_pin_ref_t is three bytes on the wire");
 
 /*Compound-literal forms, for automatic storage (inside function bodies)*/
 #define SYS_IO_PIN(dev_id, pin_num, pin_mode) ((sys_io_pin_ref_t){.device_id = (dev_id), .pin = (pin_num), .mode = (pin_mode)})
@@ -124,6 +125,15 @@ SE_MUST_USE err_h sys_io_get_voltage(sys_io_pin_ref_t ref, int32_t* out_mV);
 SE_MUST_USE err_h sys_io_set_voltage(sys_io_pin_ref_t ref, uint32_t voltage_mV);
 
 SE_MUST_USE err_h sys_io_set_pwm_frequency(sys_io_pin_ref_t ref, uint32_t frequency_Hz);
+/**
+ * PWM duty is on a 0..SYS_IO_PWM_DUTY_FULL scale whatever the chip's resolution; a value
+ * above what the chip can do is the chip's "full on" (it may clamp).
+ *
+ * Defaults, when a device's contract leaves the function out: set_level = set_pwm_duty
+ * (FULL / 0), toggle = get_level + set_level, reset = set_level(false). A device only
+ * spells them out when it does something else (release the pin, power a channel down).
+ */
+#define SYS_IO_PWM_DUTY_FULL 4096u
 SE_MUST_USE err_h sys_io_set_pwm_duty(sys_io_pin_ref_t ref, uint32_t duty);
 
 SE_MUST_USE err_h sys_io_lock_pin(sys_io_pin_ref_t ref);
@@ -138,7 +148,7 @@ SE_MUST_USE err_h sys_io_unlock_pin(sys_io_pin_ref_t ref);
 SE_MUST_USE err_h sys_io_set_locked_level(sys_io_pin_ref_t ref, bool level);
 
 /**
- * @brief Publish a pin event from an IO device adapter (task or ISR).
+ * @brief Publish a pin event from an IO device (task or ISR).
  * @param event The edge or window crossed: RISING / FALLING edge for a
  *        digital pin, the armed mode for an analog one.
  * @param value Level (0 / 1) or mV.
@@ -151,7 +161,7 @@ static inline SE_MUST_USE err_h sys_io_publish(uint8_t device_id, sys_io_pin_num
 
 /**
  * @brief Chain a device to an alert pin: call handler inline on every event
- * of that pin (the adapter then reads its chip and publishes its own events).
+ * of that pin (the device then reads its chip and publishes its own events).
  * System-owned; remove it with sys_event_unsubscribe(*out_id, false).
  */
 SE_MUST_USE err_h sys_io_subscribe_pin(sys_io_pin_ref_t ref, sys_event_handler_f handler, void* ctx, uint8_t* out_id);

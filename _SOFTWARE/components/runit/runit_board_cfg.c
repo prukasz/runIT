@@ -31,9 +31,9 @@
 #define RUNIT_BOARD_DEV_INA3221 1
 #define RUNIT_BOARD_DEV_AP33772S 1
 #define RUNIT_BOARD_DEV_DAC53202 1
-/* DRV8962 #1 (ESP GPIO): pins confirmed by the legacy firmware header, but
-   the ESP GPIO device has no PWM yet (set_pwm_* = NULL), so its install would
-   fail. Off until the ESP adapter drives PWM (LEDC). */
+/* DRV8962 #1 (ESP GPIO): pins confirmed by the legacy firmware header. The ESP GPIO
+   device drives PWM through LEDC now, so this can be switched on once the wiring
+   (IN on GPIO 21 / 47 / 48 / 45, EN, IPROPI on the ADC) is checked on the board. */
 #define RUNIT_BOARD_DEV_DRV8962_0 0
 #define RUNIT_BOARD_DEV_DRV8962_1 1
 
@@ -42,11 +42,6 @@
 #define RUNIT_BOARD_DRV8962_PCA_PWM_HZ 1000
 /* Chopping threshold at start (VREF from the DAC), per chip. */
 #define RUNIT_BOARD_DRV8962_LIMIT_MA 2000
-
-/* TEMP bring-up: budget for a source whose current limit is unknown (normally
-   RUNIT_BOARD_POWER_UNKNOWN_SOURCE_MA). Raised so the unloaded rails can go to
-   10 V on a plain 5 V USB feed. 0 = use the board default. */
-#define RUNIT_BOARD_TEST_UNKNOWN_SOURCE_MA 0
 
 err_h runit_board_bind_boot_action(void) {
   return sys_actions_bind_static(CONFIG_SYS_ACTION_ID_BOOT, runit_board_devices_init);
@@ -101,7 +96,7 @@ static const sys_power_board_t s_power_board = {
     .max_mV = RUNIT_BOARD_POWER_LIMIT_MV,
     .max_mA = RUNIT_BOARD_POWER_LIMIT_MA,
     .reserve_mW = RUNIT_BOARD_POWER_RESERVE_MW,
-    .unknown_source_mA = RUNIT_BOARD_TEST_UNKNOWN_SOURCE_MA ? RUNIT_BOARD_TEST_UNKNOWN_SOURCE_MA : RUNIT_BOARD_POWER_UNKNOWN_SOURCE_MA,
+    .unknown_source_mA = RUNIT_BOARD_POWER_UNKNOWN_SOURCE_MA,
     .vreg_efficiency_pct = RUNIT_BOARD_VREG_EFFICIENCY_PCT,
     .input = {.device_id = DEVICE_ID_INA3221, .channel = RUNIT_BOARD_INA_CH_INPUT},
     .usb_pd_id = DEVICE_ID_AP33772S,
@@ -205,24 +200,18 @@ err_h runit_board_error_sink_init(void) {
   return NULL;
 }
 
-/* Install one onboard device and mark it, so users can't uninstall it. */
-#define RUNIT_BOARD_DEVICE(device_id, create_call)    \
-  do {                                                \
-    SE_TRY(create_call);                       \
-    SE_TRY(sys_device_set_onboard(device_id)); \
-  } while (0)
-
 err_h runit_board_devices_init(void) {
-  RUNIT_BOARD_DEVICE(DEVICE_ID_GPIO_ESP, d_gpio_esp_create(&(d_gpio_esp_cfg_t){.device_id = DEVICE_ID_GPIO_ESP}));
+  SE_TRY(SYS_DEVICE_CREATE_ONBOARD(&g_gpio_esp_class, &(d_gpio_esp_cfg_t){.device_id = DEVICE_ID_GPIO_ESP}));
 #if RUNIT_BOARD_DEV_TCA6424A
-  RUNIT_BOARD_DEVICE(DEVICE_ID_TCA6424A, d_tca6424a_create(&(d_tca6424a_cfg_t){
+  SE_TRY(SYS_DEVICE_CREATE_ONBOARD(&g_tca6424a_class, &(d_tca6424a_cfg_t){
       .device_id = DEVICE_ID_TCA6424A, .i2c_bus = SYS_I2C_BUS_INTERNAL, .i2c_addr = 0x23,
       .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 9, SYS_IO_MODE_INPUT),
       .rst_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 8, SYS_IO_MODE_OUTPUT_PUSH_PULL),
   }));
-  /* Status LEDs (high = on). */
+  /* Status LEDs (high = on). 22 stays on after boot (the chip's output latch resets to high), 23 is off. */
   SE_TRY(sys_io_set_mode(SYS_IO_PIN(DEVICE_ID_TCA6424A, 22, SYS_IO_MODE_OUTPUT_PUSH_PULL)));
   SE_TRY(sys_io_set_mode(SYS_IO_PIN(DEVICE_ID_TCA6424A, 23, SYS_IO_MODE_OUTPUT_PUSH_PULL)));
+  SE_TRY(sys_io_set_level(SYS_IO_PIN(DEVICE_ID_TCA6424A, 23, SYS_IO_MODE_OUTPUT_PUSH_PULL), false));
   /* LM73100 H-bridge supply switches (high = on), all off at boot. Each
      DRV8962 has one VM node fed by two switches - turn on one at a time. */
   for (uint8_t pin = RUNIT_BOARD_TCA_DRV2_VM_RAIL_A; pin <= RUNIT_BOARD_TCA_DRV1_VM_RAIL_B; pin++) {
@@ -231,31 +220,31 @@ err_h runit_board_devices_init(void) {
   }
 #endif
 #if RUNIT_BOARD_DEV_ADS7128
-  RUNIT_BOARD_DEVICE(DEVICE_ID_ADS7128, d_ads7128_create(&(d_ads7128_cfg_t){
+  SE_TRY(SYS_DEVICE_CREATE_ONBOARD(&g_ads7128_class, &(d_ads7128_cfg_t){
       .device_id = DEVICE_ID_ADS7128, .i2c_bus = SYS_I2C_BUS_INTERNAL, .i2c_addr = 0x10,
       .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 42, SYS_IO_MODE_INPUT_PULLUP), .vref_mV = 20000,
   }));
 #endif
 #if RUNIT_BOARD_DEV_PCA9685
-  RUNIT_BOARD_DEVICE(DEVICE_ID_PCA9685, d_pca9685_create(&(d_pca9685_cfg_t){
+  SE_TRY(SYS_DEVICE_CREATE_ONBOARD(&g_pca9685_class, &(d_pca9685_cfg_t){
       .device_id = DEVICE_ID_PCA9685, .i2c_bus = SYS_I2C_BUS_INTERNAL, .i2c_addr = 0x60,
       .oe_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 0, SYS_IO_MODE_OUTPUT_PUSH_PULL),
   }));
 #endif
 #if RUNIT_BOARD_DEV_TPS55289
-  RUNIT_BOARD_DEVICE(DEVICE_ID_TPS55289_2, d_tps55289_create(&(d_tps55289_cfg_t){
+  SE_TRY(SYS_DEVICE_CREATE_ONBOARD(&g_tps55289_class, &(d_tps55289_cfg_t){
       .device_id = DEVICE_ID_TPS55289_2, .i2c_bus = SYS_I2C_BUS_INTERNAL, .i2c_addr = 0x74,
       .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 1, SYS_IO_MODE_INPUT),
       .en_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 17, SYS_IO_MODE_OUTPUT_PUSH_PULL),
   }));
-  RUNIT_BOARD_DEVICE(DEVICE_ID_TPS55289_1, d_tps55289_create(&(d_tps55289_cfg_t){
+  SE_TRY(SYS_DEVICE_CREATE_ONBOARD(&g_tps55289_class, &(d_tps55289_cfg_t){
       .device_id = DEVICE_ID_TPS55289_1, .i2c_bus = SYS_I2C_BUS_INTERNAL, .i2c_addr = 0x75,
       .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 2, SYS_IO_MODE_INPUT),
       .en_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 16, SYS_IO_MODE_OUTPUT_PUSH_PULL),
   }));
 #endif
 #if RUNIT_BOARD_DEV_INA3221
-  RUNIT_BOARD_DEVICE(DEVICE_ID_INA3221, d_ina3221_create(&(d_ina3221_cfg_t){
+  SE_TRY(SYS_DEVICE_CREATE_ONBOARD(&g_ina3221_class, &(d_ina3221_cfg_t){
       .device_id = DEVICE_ID_INA3221, .i2c_bus = SYS_I2C_BUS_INTERNAL, .i2c_addr = 0x40,
       // Critical on TCA 6, warning on TCA 5: measured on the PCB 2026-09-27 (arming each alert moves that pin).
       .crit_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 6, SYS_IO_MODE_INPUT),
@@ -264,31 +253,31 @@ err_h runit_board_devices_init(void) {
   }));
 #endif
 #if RUNIT_BOARD_DEV_AP33772S
-  RUNIT_BOARD_DEVICE(DEVICE_ID_AP33772S, d_ap33772s_create(&(d_ap33772s_cfg_t){
+  SE_TRY(SYS_DEVICE_CREATE_ONBOARD(&g_ap33772s_class, &(d_ap33772s_cfg_t){
       .device_id = DEVICE_ID_AP33772S, .i2c_bus = SYS_I2C_BUS_INTERNAL, .i2c_addr = 0x52,
       .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 21, SYS_IO_MODE_INPUT),
   }));
 #endif
 #if RUNIT_BOARD_DEV_DAC53202
   /* A0 to AGND (0x48, probed on the PCB 2026-09-24). OUT0 / OUT1 = VREF of DRV8962 #1 / #2. */
-  RUNIT_BOARD_DEVICE(DEVICE_ID_DAC53202, d_dac53202_create(&(d_dac53202_cfg_t){
+  SE_TRY(SYS_DEVICE_CREATE_ONBOARD(&g_dac53202_class, &(d_dac53202_cfg_t){
       .device_id = DEVICE_ID_DAC53202, .i2c_bus = SYS_I2C_BUS_INTERNAL, .i2c_addr = 0x48,
   }));
 #endif
 #if RUNIT_BOARD_DEV_DRV8962_0
   /* DRV8962 #1: IN / EN on ESP GPIO, IPROPI on ESP ADC, nSLEEP / nFAULT on the
      TCA6424A (9 / 11), VREF from DAC OUT0. VM: TCA 14 (VSUP) or 15 (rail B). */
-  RUNIT_BOARD_DEVICE(DEVICE_ID_DRV8962_0, d_drv8962_create(&(d_drv8962_cfg_t){
+  SE_TRY(SYS_DEVICE_CREATE_ONBOARD(&g_drv8962_class, &(d_drv8962_cfg_t){
       .device_id = DEVICE_ID_DRV8962_0, .topology = DRV8962_TOPOLOGY_2_FULL_BRIDGES,
-      .in_pins = {SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 21, SYS_IO_MODE_PWM), SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 47, SYS_IO_MODE_PWM),
-                  SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 48, SYS_IO_MODE_PWM), SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 45, SYS_IO_MODE_PWM)},
-      .en_pins = {SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 38, SYS_IO_MODE_OUTPUT_PUSH_PULL), SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 39, SYS_IO_MODE_OUTPUT_PUSH_PULL),
-                  SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 2, SYS_IO_MODE_OUTPUT_PUSH_PULL), SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 1, SYS_IO_MODE_OUTPUT_PUSH_PULL)},
-      .current_adc_pins = {SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 7, SYS_IO_MODE_ADC), SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 6, SYS_IO_MODE_ADC),
-                           SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 5, SYS_IO_MODE_ADC), SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 4, SYS_IO_MODE_ADC)},
+      .in1_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 21, SYS_IO_MODE_PWM), .in2_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 47, SYS_IO_MODE_PWM),
+      .in3_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 48, SYS_IO_MODE_PWM), .in4_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 45, SYS_IO_MODE_PWM),
+      .en1_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 38, SYS_IO_MODE_OUTPUT_PUSH_PULL), .en2_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 39, SYS_IO_MODE_OUTPUT_PUSH_PULL),
+      .en3_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 2, SYS_IO_MODE_OUTPUT_PUSH_PULL), .en4_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 1, SYS_IO_MODE_OUTPUT_PUSH_PULL),
+      .ipropi1_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 7, SYS_IO_MODE_ADC), .ipropi2_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 6, SYS_IO_MODE_ADC),
+      .ipropi3_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 5, SYS_IO_MODE_ADC), .ipropi4_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 4, SYS_IO_MODE_ADC),
       .nsleep_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 9, SYS_IO_MODE_OUTPUT_PUSH_PULL),
       .nfault_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 11, SYS_IO_MODE_INPUT),
-      .vref_dac_pin = SYS_IO_PIN_INIT(DEVICE_ID_DAC53202, 0, SYS_IO_MODE_DAC),
+      .vref_pin = SYS_IO_PIN_INIT(DEVICE_ID_DAC53202, 0, SYS_IO_MODE_DAC),
       .current_limit_mA = {RUNIT_BOARD_DRV8962_LIMIT_MA, RUNIT_BOARD_DRV8962_LIMIT_MA, RUNIT_BOARD_DRV8962_LIMIT_MA, RUNIT_BOARD_DRV8962_LIMIT_MA},
       .turn_off_at_ocp = true,
   }));
@@ -297,16 +286,16 @@ err_h runit_board_devices_init(void) {
   /* DRV8962 #2: IN1-4 = PCA9685 CH 8-11, EN1-4 = CH 12-15. IPROPI has
      resistors only (no ADC); nSLEEP / nFAULT on the TCA6424A (8 / 10), VREF
      from DAC OUT1. VM: TCA 12 (rail A) or 13 (VSUP). */
-  RUNIT_BOARD_DEVICE(DEVICE_ID_DRV8962_1, d_drv8962_create(&(d_drv8962_cfg_t){
+  SE_TRY(SYS_DEVICE_CREATE_ONBOARD(&g_drv8962_class, &(d_drv8962_cfg_t){
       .device_id = DEVICE_ID_DRV8962_1, .topology = DRV8962_TOPOLOGY_2_FULL_BRIDGES,
-      .in_pins = {SYS_IO_PIN_INIT(DEVICE_ID_PCA9685, 8, SYS_IO_MODE_PWM), SYS_IO_PIN_INIT(DEVICE_ID_PCA9685, 9, SYS_IO_MODE_PWM),
-                  SYS_IO_PIN_INIT(DEVICE_ID_PCA9685, 10, SYS_IO_MODE_PWM), SYS_IO_PIN_INIT(DEVICE_ID_PCA9685, 11, SYS_IO_MODE_PWM)},
-      .en_pins = {SYS_IO_PIN_INIT(DEVICE_ID_PCA9685, 12, SYS_IO_MODE_OUTPUT_PUSH_PULL), SYS_IO_PIN_INIT(DEVICE_ID_PCA9685, 13, SYS_IO_MODE_OUTPUT_PUSH_PULL),
-                  SYS_IO_PIN_INIT(DEVICE_ID_PCA9685, 14, SYS_IO_MODE_OUTPUT_PUSH_PULL), SYS_IO_PIN_INIT(DEVICE_ID_PCA9685, 15, SYS_IO_MODE_OUTPUT_PUSH_PULL)},
-      .current_adc_pins = {SYS_IO_PIN_NONE_INIT, SYS_IO_PIN_NONE_INIT, SYS_IO_PIN_NONE_INIT, SYS_IO_PIN_NONE_INIT},
+      .in1_pin = SYS_IO_PIN_INIT(DEVICE_ID_PCA9685, 8, SYS_IO_MODE_PWM), .in2_pin = SYS_IO_PIN_INIT(DEVICE_ID_PCA9685, 9, SYS_IO_MODE_PWM),
+      .in3_pin = SYS_IO_PIN_INIT(DEVICE_ID_PCA9685, 10, SYS_IO_MODE_PWM), .in4_pin = SYS_IO_PIN_INIT(DEVICE_ID_PCA9685, 11, SYS_IO_MODE_PWM),
+      .en1_pin = SYS_IO_PIN_INIT(DEVICE_ID_PCA9685, 12, SYS_IO_MODE_OUTPUT_PUSH_PULL), .en2_pin = SYS_IO_PIN_INIT(DEVICE_ID_PCA9685, 13, SYS_IO_MODE_OUTPUT_PUSH_PULL),
+      .en3_pin = SYS_IO_PIN_INIT(DEVICE_ID_PCA9685, 14, SYS_IO_MODE_OUTPUT_PUSH_PULL), .en4_pin = SYS_IO_PIN_INIT(DEVICE_ID_PCA9685, 15, SYS_IO_MODE_OUTPUT_PUSH_PULL),
+      .ipropi1_pin = SYS_IO_PIN_NONE_INIT, .ipropi2_pin = SYS_IO_PIN_NONE_INIT, .ipropi3_pin = SYS_IO_PIN_NONE_INIT, .ipropi4_pin = SYS_IO_PIN_NONE_INIT,
       .nsleep_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 8, SYS_IO_MODE_OUTPUT_PUSH_PULL),
       .nfault_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, 10, SYS_IO_MODE_INPUT),
-      .vref_dac_pin = SYS_IO_PIN_INIT(DEVICE_ID_DAC53202, 1, SYS_IO_MODE_DAC),
+      .vref_pin = SYS_IO_PIN_INIT(DEVICE_ID_DAC53202, 1, SYS_IO_MODE_DAC),
       .pwm_freq_Hz = RUNIT_BOARD_DRV8962_PCA_PWM_HZ,
       .current_limit_mA = {RUNIT_BOARD_DRV8962_LIMIT_MA, RUNIT_BOARD_DRV8962_LIMIT_MA, RUNIT_BOARD_DRV8962_LIMIT_MA, RUNIT_BOARD_DRV8962_LIMIT_MA},
       .turn_off_at_ocp = true,

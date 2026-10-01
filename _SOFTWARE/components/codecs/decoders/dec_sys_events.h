@@ -30,7 +30,7 @@
 
 #define HEADER_packet_sys_event_subscribe_t 0x01
 typedef struct __packed {
-  uint8_t domain;            //@required @alias Event Source @enum-ref sys_event_domain_e @one-of [$SYS_EVENT_DOMAIN_IO, $SYS_EVENT_DOMAIN_POWER, $SYS_EVENT_DOMAIN_HBRIDGE, $SYS_EVENT_DOMAIN_BLE, $SYS_EVENT_DOMAIN_FEATURE] @note 255 = any source
+  uint8_t domain;            //@required @alias Event Source @enum-ref sys_event_domain_e @one-of [$SYS_EVENT_DOMAIN_IO, $SYS_EVENT_DOMAIN_POWER, $SYS_EVENT_DOMAIN_HBRIDGE, $SYS_EVENT_DOMAIN_BLE] @note 255 = any source
   uint8_t device_id;         //@required @alias Device ID @note 255 = any device (also board power events)
   uint8_t channel;           //@required @alias Pin or Channel @note 255 = any
   uint8_t event;             //@required @alias Event @note per source: IO edge / window, power event, H-bridge fault, BLE event; 255 = any

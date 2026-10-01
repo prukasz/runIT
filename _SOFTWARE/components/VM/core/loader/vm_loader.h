@@ -24,7 +24,28 @@ static inline const char* vm_load_state_str(vm_load_state_e s) {
 SE_MUST_USE err_h vm_loader_reset(void);
 
 /**
+ * @brief Fail closed: after any failure while loading, discard the whole program.
+ *
+ * Does what vm_loader_reset() does (execution stopped, everything unloaded) and wraps
+ * @p cause in ERR_VM_LOAD_ABORTED, so the app sees what failed and that it must upload
+ * the complete program again from open. With nothing loaded (state EMPTY) @p cause is
+ * returned unchanged. A NULL @p cause returns NULL.
+ * @param cause  The failure (ownership passes to the returned chain).
+ * @param packet Header of the packet that failed.
+ */
+SE_MUST_USE err_h vm_loader_abort(err_h cause, uint8_t packet);
+
+/**
+ * @brief Whether every object, accessor and block slot declared in open was uploaded.
+ * @return NULL when complete or nothing is loaded, ERR_VM_LOAD_INCOMPLETE naming the first
+ *         missing slot otherwise. The caller aborts the load (vm_loader_abort).
+ */
+SE_MUST_USE err_h vm_loader_verify_complete(void);
+
+/**
  * @brief Reserve arena storage and initialize registries for a new program.
+ * Fails closed: the previous program is discarded first, so a failed open (bad sizes, no memory)
+ * leaves the loader empty and stopped and returns the cause wrapped in ERR_VM_LOAD_ABORTED.
  * @param obj_cnt Total object registry slots.
  * @param acc_cnt Total accessor registry slots.
  * @param blk_cnt Total block registry slots.

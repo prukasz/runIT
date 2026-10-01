@@ -10,7 +10,7 @@ Design notes:
   - Every record kind lists the tags it accepts; an unknown tag fails generation, so a typo
     or a tag nothing reads never lands silently. The old one-line //@id / //@contract
     directives fail with a pointer to the record form.
-  - A pin_ref_wire_t install field expands to its three wire fields (<name>_device_id,
+  - A sys_io_pin_ref_t install field expands to its three wire fields (<name>_device_id,
     <name>_pin, <name>_mode) and one pin group keyed by <name>, the same key the board
     descriptor uses for the pins its devices take.
   - This replaces the older generate-device-json.py, which used a plain
@@ -52,6 +52,8 @@ SCHEMA_PATH = Path(__file__).parents[2] / "schema" / "device-definition.schema.j
 SCHEMA_REL_PATH = SCHEMA_PATH.relative_to(PROJECT_ROOT).as_posix()  # single source of truth for the "$schema" value - see validate_document()
 sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[1] / "enums"))
+sys.path.insert(0, str(Path(__file__).parent))
+import device_symbol  # pins CSV -> ports + the generic IC symbol
 from packet_classes import scan_all_class_headers, scan_kconfig_class_headers, resolve_class  # reuse, don't duplicate
 
 import importlib.util as _ilu  # generate-enums.py has a hyphenated filename, so import it by path instead of by module name
@@ -63,6 +65,9 @@ SDKCONFIG_PATH = PROJECT_ROOT / "sdkconfig"
 
 PACKET_HEADER_RE = re.compile(r"#define\s+HEADER_(packet_\w+)\s+(0x[0-9A-Fa-f]+)")
 STRUCT_RE = re.compile(r"typedef\s+struct\s+(?:__packed\s*)?\{(.*?)\}\s*(packet_\w+_t)\s*;", re.DOTALL)
+# A device that takes its create frame as it is: the cfg struct in its own header IS the packet.
+DEVICE_CFG_RE = re.compile(r"typedef\s+struct\s+(?:__packed\s*)?\{(.*?)\}\s*(d_\w+_cfg_t)\s*;", re.DOTALL)
+CREATE_FRAME_CLASS = "SYS_CONTRACTS"  # create frames ([0x00][type_id][cfg]) travel in class 0x01
 FIELD_LINE_RE = re.compile(
     r"^\s*(?P<type>[A-Za-z_][\w ]*?)\s+(?P<name>\w+)\s*(?:\[\s*(?P<arr>\w*)\s*\])?\s*;\s*(?://\s*(?P<comment>.*))?\s*$"
 )
@@ -76,7 +81,7 @@ LEGACY_DIRECTIVE_RE = re.compile(r"^\s*//@(id|version|title|description|protocol
 
 # Tags each record accepts (normalized: `-` -> `_`).
 RECORD_TAGS = {
-    "device": {"title", "description", "protocol", "tags", "datasheet", "contract_provider", "pwm_frequencies", "count_bits"},
+    "device": {"title", "description", "protocol", "tags", "datasheet", "contract_provider", "pwm_frequencies", "count_bits", "type_id"},
     "self-property": {"one_of", "alias", "note"},
     "property": {"enum_ref", "one_of", "default", "alias", "note"},
     "contract": {"alias", "description", "returns"},
@@ -84,7 +89,7 @@ RECORD_TAGS = {
 PARAM_TAGS = {"arg", "alias", "type", "unit", "one_of", "min", "max", "default", "device_wide", "note"}
 
 # One pin on another device in an install packet (dec_device_common.h): three uint8_t on the wire.
-PIN_REF_TYPE = "pin_ref_wire_t"
+PIN_REF_TYPE = "sys_io_pin_ref_t"
 PIN_REF_TAGS = {"alias", "note", "modes", "default_mode"}
 MAX_RANGE = 4096
 
@@ -123,7 +128,7 @@ class Field:
 
 
 def pin_ref_fields(name: str, arr: Optional[str], tags: Dict[str, str]) -> List[Field]:
-    """`pin_ref_wire_t <name>; //@alias ... @note ... @modes [...] @default-mode $X` -> its three wire fields."""
+    """`sys_io_pin_ref_t <name>; //@alias ... @note ... @modes [...] @default-mode $X` -> its three wire fields."""
     if arr is not None:
         sys.exit(f"ERROR: field '{name}': arrays of {PIN_REF_TYPE} are not supported")
     unknown = sorted(set(tags) - PIN_REF_TAGS)
@@ -142,11 +147,13 @@ def pin_ref_fields(name: str, arr: Optional[str], tags: Dict[str, str]) -> List[
     ]
 
 
-def parse_struct_fields(body: str, defines: Optional[Dict[str, str]] = None, sdkconfig: Optional[Dict[str, int]] = None) -> List[Field]:
+def parse_struct_fields(body: str, defines: Optional[Dict[str, str]] = None, sdkconfig: Optional[Dict[str, int]] = None, annotations: Optional[Dict[str, str]] = None) -> List[Field]:
     """Array lengths may be a literal or a symbol (#define / CONFIG_*), resolved one hop.
     An unresolvable symbolic length is a hard error: silently dropping the field would
     shift every following wire offset. A comment-only line `//  ...` (two or more spaces)
-    right after a field continues that field's annotation."""
+    right after a field continues that field's annotation. `annotations` (field name ->
+    comment text, from a device's JSON) replaces the comments: the struct then carries none,
+    and a name that is no field of the struct is an error."""
     raw: List[List] = []  # [type, name, arr, comment]
     continuing = False
     for raw_line in body.splitlines():
@@ -161,6 +168,15 @@ def parse_struct_fields(body: str, defines: Optional[Dict[str, str]] = None, sdk
             raw[-1][3] += " " + c.group("text")
             continue
         continuing = False
+    if annotations is not None:
+        unknown = sorted(set(annotations) - {item[1] for item in raw})
+        if unknown:
+            sys.exit(f"ERROR: annotated field(s) {unknown} are not in the struct (fields: {[item[1] for item in raw]})")
+        inline = [item[1] for item in raw if item[3]]
+        if inline:
+            sys.exit(f"ERROR: field(s) {inline} carry // annotations and the device's JSON annotates fields too - keep one")
+        for item in raw:
+            item[3] = annotations.get(item[1], "")
     fields: List[Field] = []
     for type_, name, arr, comment in raw:
         tags = parse_tags(comment)
@@ -341,6 +357,229 @@ def parse_packet_file(path: Path, all_classes: Dict[str, str], defines, sdkconfi
     return out
 
 
+# A device may describe itself in a JSON file next to its .c instead of in header comments:
+# components/devices/device_<chip>/device_<chip>.json. The header then keeps only the C
+# (type id, cfg struct, class); titles, notes, limits and contracts live in the JSON.
+SIDECAR_KEYS = {"id", "title", "description", "protocols", "tags", "datasheet", "type_id", "contract_provider",
+                "pwm_frequencies", "count_bits", "limits", "properties", "fields", "contracts", "symbol"}
+SIDECAR_CONTRACT_KEYS = {"packet", "alias", "description", "returns", "params"}
+LIMIT_REF = "limit:"  # in a tag value: the number of an entry of the sidecar's "limits"
+
+
+def sidecar_path(header: Path) -> Path:
+    return header.parent.parent / f"{header.stem}.json"
+
+
+def read_sidecar(header: Path) -> Optional[dict]:
+    path = sidecar_path(header)
+    if not path.exists():
+        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    unknown = sorted(set(data) - SIDECAR_KEYS)
+    if unknown:
+        sys.exit(f"ERROR: {path.name}: unknown key(s) {unknown}; allowed: {sorted(SIDECAR_KEYS)}")
+    if read_records(header):
+        sys.exit(f"ERROR: {header.name} has //# records and {path.name} describes the same device - keep one")
+    for contract in data.get("contracts", []):
+        unknown = sorted(set(contract) - SIDECAR_CONTRACT_KEYS)
+        if unknown:
+            sys.exit(f"ERROR: {path.name}: contract {contract.get('packet')}: unknown key(s) {unknown}; allowed: {sorted(SIDECAR_CONTRACT_KEYS)}")
+    return data
+
+
+def limit_value(limits: dict, name: str, where: str) -> int:
+    if name not in limits:
+        sys.exit(f"ERROR: {where}: unknown limit '{name}' (limits: {sorted(limits)})")
+    entry = limits[name]
+    return entry["value"] if isinstance(entry, dict) else entry
+
+
+def tags_from_json(values: dict, limits: dict, where: str) -> Dict[str, str]:
+    """A JSON object of tags -> the tag strings the C grammar produces (`one_of` list -> `[a, b]`, `true` -> flag, `limit:NAME` -> its number)."""
+    tags: Dict[str, str] = {}
+    for key, value in values.items():
+        if isinstance(value, bool):
+            text = ""
+        elif isinstance(value, list):
+            text = "[" + ", ".join(str(item) for item in value) + "]"
+        elif isinstance(value, str) and value.startswith(LIMIT_REF):
+            text = str(limit_value(limits, value[len(LIMIT_REF):], where))
+        else:
+            text = str(value)
+        tags[normalize_tag(key)] = text
+    return tags
+
+
+def sidecar_device_tags(data: dict, where: str) -> Dict[str, str]:
+    """The //#device tags a sidecar stands for."""
+    tags = {key: data[key] for key in ("title", "description", "datasheet", "type_id", "pwm_frequencies") if data.get(key)}
+    if data.get("protocols"):
+        tags["protocol"] = " ".join(data["protocols"])
+    if data.get("tags"):
+        tags["tags"] = " ".join(data["tags"])
+    if data.get("contract_provider"):
+        tags["contract_provider"] = "$" + data["contract_provider"]
+    if data.get("count_bits"):
+        tags["count_bits"] = ""
+    return tags
+
+
+def sidecar_descriptor(path: Path, data: dict, symbols, defines, sdkconfig) -> dict:
+    where = sidecar_path(path).name
+    limits = data.get("limits", {})
+    missing = [key for key in ("id", "title", "description") if not data.get(key)]
+    if missing:
+        sys.exit(f"ERROR: {where}: missing {', '.join(missing)}")
+    metadata = sidecar_device_tags(data, where)
+    provider = metadata.get("contract_provider")
+    registry: Dict[str, dict] = {}
+    for name, values in data.get("properties", {}).items():
+        tags = tags_from_json(values, limits, where)
+        kind = "property" if "$" in tags.get("one_of", "") else "self-property"
+        registry[name] = parse_property(kind, name, tags, symbols, defines, sdkconfig, f"{where}: property {name}")
+    contracts: List[dict] = []
+    for contract in data.get("contracts", []):
+        ctx = f"{where}: {contract['packet']}"
+        params = []
+        for field, values in contract.get("params", {}).items():
+            param_tags = tags_from_json(values, limits, ctx)
+            unknown = sorted(set(param_tags) - PARAM_TAGS)
+            if unknown:
+                sys.exit(f"ERROR: {ctx}: param {field}: unsupported tag(s) {unknown}; allowed: {sorted(PARAM_TAGS)}")
+            params.append(parse_parameter({"name": field, "tags": param_tags}, registry, symbols, defines, sdkconfig, f"{ctx}: param {field}"))
+        entry: dict = {"packet": contract["packet"], "parameters": params}
+        for key in ("alias", "description", "returns"):
+            if contract.get(key):
+                entry[key] = contract[key]
+        contracts.append(entry)
+    symbol = read_symbol(path, data)
+    return {
+        "metadata": {"id": data["id"], **metadata},
+        "contract_provider": resolve_symbol(provider, symbols, where) if provider else provider,
+        "contracts": contracts,
+        "source_file": path.name,
+        **({"ports": symbol["ports"], "symbol": symbol["meta"]} if symbol else {}),
+    }
+
+
+def read_symbol(header: Path, data: dict) -> Optional[dict]:
+    """Ports and symbol of a device that has a pins CSV: {"ports", "meta", "svg"}; None without one."""
+    csv_path = device_symbol.pins_path(header)
+    if not csv_path.exists():
+        return None
+    info = data.get("symbol") or {}
+    if not info.get("label") or not info.get("package"):
+        sys.exit(f"ERROR: {csv_path.name} needs \"symbol\": {{\"label\", \"package\"}} in {sidecar_path(header).name}")
+    ports = device_symbol.read_ports(csv_path)
+    file = f"{data['id']}.symbol.generated.svg"
+    return {"ports": ports, "svg": device_symbol.render_svg(info["label"], info["package"], ports),
+            "meta": {"file": file, "label": info["label"], "package": info["package"], "pins": len(ports)}}
+
+
+def field_comment(values: dict, limits: dict, where: str) -> str:
+    """Field annotations of a sidecar as the `//` comment text parse_tags reads."""
+    return " ".join(f"@{key.replace('_', '-')} {text}".rstrip() for key, text in tags_from_json(values, limits, where).items())
+
+
+def limits_header(header: Path, data: dict) -> Optional[Tuple[Path, str]]:
+    """The C #defines of the sidecar's limits: (path, text) of include/<stem>_limits.generated.h."""
+    limits = data.get("limits")
+    if not limits:
+        return None
+    prefix = data["id"].removeprefix("device_").upper()
+    lines = [f"// Generated by data-structures/auto-annotations/device/generate-devices.py from {sidecar_path(header).name} - do not edit.",
+             "#pragma once", ""]
+    for name, entry in limits.items():
+        comment = f"  // {entry['comment']}" if isinstance(entry, dict) and entry.get("comment") else ""
+        lines.append(f"#define {prefix}_{name} {limit_value(limits, name, 'limits')}{comment}")
+    return header.with_name(f"{header.stem}_limits.generated.h"), "\n".join(lines) + "\n"
+
+
+def header_device_id(header: Path) -> str:
+    record = device_header_record(header)
+    return record[0] if record else header.stem
+
+
+GUIDE_DIR = PROJECT_ROOT / "app" / "docs" / "devices"  # where the app reads user guides (DevicesEditor.tsx)
+GUIDE_MARK = "<!-- Generated by data-structures/auto-annotations/device/generate-devices.py from"
+GUIDE_IMAGE_RE = re.compile(r"(\]\()images/")
+
+
+def guide_outputs(header: Path, device_id: str) -> List[Tuple[Path, bytes]]:
+    """The user guide of a device: `device_<chip>.md` next to the .c and its `images/` become
+    app/docs/devices/<id>.md and images/<id>/ (`images/` links get the device's folder). The text is
+    the author's own and is not checked against the C: a plain copy."""
+    source = header.parent.parent / f"{header.stem}.md"
+    if not source.exists():
+        return []
+    text = source.read_text(encoding="utf-8").replace("\r\n", "\n")
+    text = GUIDE_IMAGE_RE.sub(lambda m: f"{m.group(1)}images/{device_id}/", text)
+    outputs = [(GUIDE_DIR / f"{device_id}.md", f"{GUIDE_MARK} {source.relative_to(PROJECT_ROOT).as_posix()} - do not edit. -->\n\n{text}".encode("utf-8"))]
+    images = source.parent / "images"
+    if images.is_dir():
+        outputs.extend((GUIDE_DIR / "images" / device_id / image.name, image.read_bytes().replace(b"\r\n", b"\n")) for image in sorted(images.iterdir()) if image.is_file())
+    return outputs
+
+
+def device_header_record(path: Path) -> Optional[Tuple[str, Dict[str, str]]]:
+    """(device id, //#device tags) of a header that carries its own //#device record or has a sidecar, else None."""
+    sidecar = read_sidecar(path)
+    if sidecar is not None:
+        return sidecar["id"], sidecar_device_tags(sidecar, sidecar_path(path).name)
+    for record in read_records(path):
+        if record["kind"] == "device":
+            name, tags, _ = parse_record(record)
+            return name, tags
+    return None
+
+
+def check_class_pin_refs(path: Path, cfg_body: str, cfg_type: str) -> None:
+    """Every sys_io_pin_ref_t field of the cfg must be in the class's SYS_DEVICE_PINS table
+    (`offsetof(<cfg_type>, field)` in the device's .c files), and nothing else: sys_device_create
+    checks pin order only for the listed offsets, so a forgotten field would go unchecked."""
+    declared = set(re.findall(rf"\b{PIN_REF_TYPE}\s+(\w+)\s*;", cfg_body))
+    listed = set()
+    for source in sorted(path.parent.parent.glob("*.c")):
+        listed.update(re.findall(rf"offsetof\(\s*{cfg_type}\s*,\s*(\w+)\s*\)", source.read_text(encoding="utf-8", errors="ignore")))
+    if declared != listed:
+        sys.exit(f"ERROR: {path.name}: pin refs of {cfg_type} {sorted(declared)} differ from the class's SYS_DEVICE_PINS table {sorted(listed)}"
+                 f" (missing: {sorted(declared - listed)}, unknown: {sorted(listed - declared)})")
+
+
+def parse_device_header_packet(path: Path, all_classes: Dict[str, str], defines, sdkconfig, symbols) -> Dict[str, dict]:
+    """The create packet of a device that keeps everything in its own header: the packed
+    `d_<chip>_cfg_t` struct, the `@type-id` of its //#device record as the packet header byte,
+    class 0x01 (create frames). The packet is named packet_sys_device_install_<chip>_t, as
+    the decoder headers name theirs, so the descriptor side doesn't care where it came from."""
+    record = device_header_record(path)
+    if record is None:
+        return {}
+    device_id, tags = record
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    match = DEVICE_CFG_RE.search(text)
+    if not match:
+        sys.exit(f"ERROR: {path.name}: //#device {device_id} needs a `typedef struct __packed {{ ... }} d_<chip>_cfg_t;` (its create frame)")
+    if "type_id" not in tags:
+        sys.exit(f"ERROR: {path.name}: //#device {device_id} is missing @type-id (the byte after 0x00 in its create frame)")
+    type_id, shown = resolve_numeric(tags["type_id"], defines, sdkconfig)
+    if type_id is None:
+        sys.exit(f"ERROR: {path.name}: @type-id {shown}")
+    if CREATE_FRAME_CLASS not in all_classes:
+        sys.exit(f"ERROR: no packet class {CREATE_FRAME_CLASS} for the create frame")
+    check_class_pin_refs(path, match.group(1), match.group(2))
+    chip = device_id.removeprefix("device_")
+    packet = f"packet_sys_device_install_{chip}_t"
+    sidecar = read_sidecar(path)
+    annotations = None
+    if sidecar is not None:
+        where = sidecar_path(path).name
+        annotations = {name: field_comment(values, sidecar.get("limits", {}), f"{where}: field {name}") for name, values in sidecar.get("fields", {}).items()}
+    fields = parse_struct_fields(match.group(1), defines, sdkconfig, annotations)
+    entry = build_packet_entry(packet, f"0x{type_id:02X}", fields, path.name, CREATE_FRAME_CLASS, all_classes[CREATE_FRAME_CLASS], defines, sdkconfig, symbols)
+    entry["decoder"] = f"sys_device_create(&g_{path.stem.removeprefix('device_')}_class)"
+    return {packet: entry}
+
+
 def read_records(path: Path) -> List[dict]:
     """The //#<kind> records of one header, each with its continuation lines, in file order."""
     records: List[dict] = []
@@ -462,6 +701,9 @@ def parse_parameter(param: dict, registry: Dict[str, dict], symbols: Dict[str, d
 
 
 def parse_device_descriptor(path: Path, symbols: Dict[str, dict], defines: Dict[str, str], sdkconfig: Dict[str, int]) -> Optional[dict]:
+    sidecar = path.exists() and path.suffix == ".h" and read_sidecar(path)
+    if sidecar:
+        return sidecar_descriptor(path, sidecar, symbols, defines, sdkconfig)
     records = [(record, *parse_record(record)) for record in read_records(path)]
     if not records:
         return None
@@ -544,6 +786,7 @@ def build_device_document(device: dict, packets: Dict[str, dict], defines: Dict[
             )
         contract_documents.append({**contract, "parameters": parameters, "packet_definition": packet_def})
 
+    check_ports(device, packets[install_packets[0]], contract_documents)
     return {
         "$schema": SCHEMA_REL_PATH,
         "schemaVersion": 1,
@@ -559,7 +802,21 @@ def build_device_document(device: dict, packets: Dict[str, dict], defines: Dict[
         "contractProvider": device["contract_provider"],
         "install": {"packet": install_packets[0], "packet_definition": packets[install_packets[0]]},
         "contracts": contract_documents,
+        **({"symbol": device["symbol"], "ports": device["ports"]} if device.get("ports") else {}),
     }
+
+
+def check_ports(device: dict, install: dict, contracts: List[dict]) -> None:
+    """A port that configures the device must point at something that exists: `cfg_field` at a pin of the
+    create frame, `bind_pin` at a pin the contracts accept."""
+    source = device["source_file"]
+    groups = install.get("groups", {})
+    allowed = [set(p["one_of"]) for c in contracts for p in c["parameters"] if p["name"] == "pin" and p.get("one_of")]
+    for port in device.get("ports", []):
+        if port.get("cfg_field") and port["cfg_field"] not in groups:
+            sys.exit(f"ERROR: {source}: port {port['name']}: cfg_field '{port['cfg_field']}' is not a pin ref of the create frame {sorted(groups)}")
+        if "bind_pin" in port and any(port["bind_pin"] not in pins for pins in allowed):
+            sys.exit(f"ERROR: {source}: port {port['name']}: bind_pin {port['bind_pin']} is not a pin the device's contracts accept")
 
 
 def validate_document(device: dict) -> None:
@@ -589,14 +846,22 @@ def scan_context() -> Tuple[Dict[str, str], Dict[str, dict], Dict[str, str], Dic
     return all_classes, symbols, defines, sdkconfig
 
 
-def build_devices(header_files: List[Path], context: Tuple[Dict[str, str], Dict[str, dict], Dict[str, str], Dict[str, int]]) -> List[dict]:
-    """One device document per annotated header under a `device/` folder, packets from every header."""
+def find_device_headers(devices_root: Path) -> List[Path]:
+    """Headers of components/devices/device_*/include that describe their own device (//#device)."""
+    return sorted(p for p in devices_root.glob("device_*/include/device_*.h") if device_header_record(p) is not None)
+
+
+def build_devices(header_files: List[Path], context: Tuple[Dict[str, str], Dict[str, dict], Dict[str, str], Dict[str, int]], device_headers: List[Path] = ()) -> List[dict]:
+    """One device document per annotated header: the dec_device_*.h decoder headers under a `device/`
+    folder, and the device headers that carry their own //#device record. Packets from every header."""
     all_classes, symbols, defines, sdkconfig = context
     packets: Dict[str, dict] = {}
     for path in header_files:
         packets.update(parse_packet_file(path, all_classes, defines, sdkconfig, symbols))
+    for path in device_headers:
+        packets.update(parse_device_header_packet(path, all_classes, defines, sdkconfig, symbols))
     devices = []
-    for path in (p for p in header_files if p.parent.name == "device"):
+    for path in [*(p for p in header_files if p.parent.name == "device"), *device_headers]:
         descriptor = parse_device_descriptor(path, symbols, defines, sdkconfig)
         if descriptor:
             devices.append(build_device_document(descriptor, packets, defines, sdkconfig))
@@ -622,9 +887,24 @@ def main() -> int:
     print("Resolving classes, enums, defines, sdkconfig...")
     context = scan_context()
     symbols = context[1]
-    devices = build_devices(header_files, context)
+    own_headers = find_device_headers(decoders_dir.resolve().parents[1] / "devices")
+    devices = build_devices(header_files, context, own_headers)
 
     target_dir = Path(args.target_dir)
+    for header in own_headers:
+        sidecar = read_sidecar(header)
+        generated = limits_header(header, sidecar) if sidecar else None
+        files = [(generated[0], generated[1].encode("utf-8"))] if generated else []
+        symbol = read_symbol(header, sidecar) if sidecar else None
+        if symbol:
+            files.append((target_dir / symbol["meta"]["file"], symbol["svg"].encode("utf-8")))
+        files.extend(guide_outputs(header, header_device_id(header)))
+        for target, data in files:
+            if not target.exists() or target.read_bytes() != data:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
+                print(f"Wrote {target}")
+
     target_dir.mkdir(parents=True, exist_ok=True)
     for device in devices:
         validate_document(device)
@@ -632,7 +912,7 @@ def main() -> int:
         out_path.write_text(json.dumps(device, indent=2) + "\n", encoding="utf-8")
         print(f"Wrote {out_path}")
 
-    print(f"  Device headers scanned : {sum(p.parent.name == 'device' for p in header_files)}")
+    print(f"  Device headers scanned : {sum(p.parent.name == 'device' for p in header_files)} decoder + {len(find_device_headers(decoders_dir.resolve().parents[1] / 'devices'))} own")
     print(f"  Device descriptors     : {len(devices)}")
     print(f"  Symbols available      : {len(symbols)}")
     return 0

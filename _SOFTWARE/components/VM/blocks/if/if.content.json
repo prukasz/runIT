@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "kind": "vm-block-content",
+  "id": 3,
+  "name": "VM_BLK_IF",
+  "source_file": "components/VM/blocks/if/vm_block_if.h",
+  "activation": {
+    "kind": "enabled"
+  },
+  "inputs": {
+    "min": 1,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "condition",
+        "value": "bool",
+        "required": true
+      }
+    ]
+  },
+  "outputs": {
+    "min": 2,
+    "max": 2,
+    "pins": [
+      {
+        "index": 0,
+        "name": "yes",
+        "value": "gate"
+      },
+      {
+        "index": 1,
+        "name": "no",
+        "value": "gate"
+      }
+    ]
+  },
+  "rules": [],
+  "min_custom_len": 0,
+  "enums": {
+    "vm_in_if_e": {
+      "alias": "If Inputs",
+      "source_file": "components/VM/blocks/if/vm_block_if.h",
+      "members": [
+        {
+          "name": "VM_IN_IF_CONDITION",
+          "value": 0,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_out_if_e": {
+      "alias": "If Outputs",
+      "source_file": "components/VM/blocks/if/vm_block_if.h",
+      "members": [
+        {
+          "name": "VM_OUT_IF_YES",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_OUT_IF_NO",
+          "value": 1,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  },
+  "min_enables": 0
+}

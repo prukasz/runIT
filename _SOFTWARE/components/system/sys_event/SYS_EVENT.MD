@@ -24,7 +24,6 @@ typedef struct sys_event_t {
 | `POWER` | power adapters, power manager (`sys_power_publish`) | monitor channel (0 for a rail) | `sys_power_events_e` | mV / mA / % / source |
 | `HBRIDGE` | bridge drivers (`sys_hbridge_publish`) | bridge channel | `sys_hbridge_fault_reason_e` | current in mA |
 | `BLE` | BLE stack (`sys_ble_publish`) | 0 | `sys_ble_events_e` | handle / reason / error |
-| `FEATURE` | features | 0 | per feature (motor: `sys_hbridge_fault_reason_e`) | per feature |
 
 Board-level power events (battery, budget, source, input faults) come from the
 power manager with `device_id = SYS_POWER_NO_DEVICE` (255), so only a
@@ -51,7 +50,7 @@ SE_TRY(sys_event_subscribe(&(sys_event_subscription_t){
 - **User subscriptions** (`user = true`) are the ones made by packets. Packets
   can make only queued route / action listeners (no handler). The unsubscribe
   packet can remove only user subscriptions; `SYS_EVENT_SUB_ALL_USER` (255)
-  removes all of them. System subscriptions (devices, power manager, features)
+  removes all of them. System subscriptions (devices, power manager)
   are removed only by their owner's C code.
 - The table holds `CONFIG_SYS_EVENT_MAX_SUBSCRIPTIONS` (default 32, about 20 B
   each); the ID is the slot. `ERR_EVENT_TABLE_FULL` when full.

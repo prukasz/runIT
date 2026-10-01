@@ -1,0 +1,25 @@
+# For
+
+Repeats the blocks right after it, **within one pass**, like a C loop:
+
+`for (i = start; i <cmp> end; i = i <op> step)`
+
+The blocks it owns are the ones its span covers (the program editor places them directly below it). On every turn the current value of `i` is written to **Index** before the blocks run.
+
+## Pins
+
+| Pin | Meaning |
+|---|---|
+| Start, End, Step | Numbers read when the loop starts. Unwired pins use the constants set on the block. |
+| Index | The loop variable, published before each turn. |
+| ENO | Wire it to the enable of a block to make it (and everything that depends on it) part of the loop body. |
+
+## Settings
+
+- **Comparison** (`<`, `<=`, `>`, `>=`) and **operation** (`+`, `-`, `*`, `/`) of the loop.
+- **Max turns**: a hard budget that stops a loop that would not end (a step of 0, a wrong direction). Hitting it is reported and the loop stops.
+
+## Behaviour
+
+- The whole loop runs inside the pass. A long loop makes the pass long, which delays everything else in the program.
+- A start, end or step that is not a finite number is reported and the loop does not run.

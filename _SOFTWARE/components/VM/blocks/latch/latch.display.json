@@ -1,0 +1,16 @@
+{
+  "title": "Latch",
+  "category": "logic",
+  "description": "EN sets a held flow level; Reset clears it. ENO stays active until reset.",
+  "activation": "Samples EN and Reset every pass; EN sets the held state.",
+  "header": "Latch {mode}",
+  "inputs": {
+    "reset": {
+      "title": "Reset"
+    }
+  },
+  "eno": {
+    "title": "Held",
+    "description": "Held flow level: true after EN sets it, until Reset clears it."
+  }
+}

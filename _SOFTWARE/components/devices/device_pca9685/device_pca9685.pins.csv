@@ -1,0 +1,29 @@
+pin,name,kind,dir,modes,default_mode,group,mV_min,mV_max,bind_pin,cfg_field,note
+1,A0,io,in,BINARY,BINARY,address,,5500,,,Address input 0: tie high or low
+2,A1,io,in,BINARY,BINARY,address,,5500,,,Address input 1
+3,A2,io,in,BINARY,BINARY,address,,5500,,,Address input 2
+4,A3,io,in,BINARY,BINARY,address,,5500,,,Address input 3
+5,A4,io,in,BINARY,BINARY,address,,5500,,,Address input 4
+6,LED0,io,out,BINARY|PWM,PWM,led,,,0,,PWM output 0
+7,LED1,io,out,BINARY|PWM,PWM,led,,,1,,PWM output 1
+8,LED2,io,out,BINARY|PWM,PWM,led,,,2,,PWM output 2
+9,LED3,io,out,BINARY|PWM,PWM,led,,,3,,PWM output 3
+10,LED4,io,out,BINARY|PWM,PWM,led,,,4,,PWM output 4
+11,LED5,io,out,BINARY|PWM,PWM,led,,,5,,PWM output 5
+12,LED6,io,out,BINARY|PWM,PWM,led,,,6,,PWM output 6
+13,LED7,io,out,BINARY|PWM,PWM,led,,,7,,PWM output 7
+14,VSS,gnd,in,,,power,,,,,Ground
+15,LED8,io,out,BINARY|PWM,PWM,led,,,8,,PWM output 8
+16,LED9,io,out,BINARY|PWM,PWM,led,,,9,,PWM output 9
+17,LED10,io,out,BINARY|PWM,PWM,led,,,10,,PWM output 10
+18,LED11,io,out,BINARY|PWM,PWM,led,,,11,,PWM output 11
+19,LED12,io,out,BINARY|PWM,PWM,led,,,12,,PWM output 12
+20,LED13,io,out,BINARY|PWM,PWM,led,,,13,,PWM output 13
+21,LED14,io,out,BINARY|PWM,PWM,led,,,14,,PWM output 14
+22,LED15,io,out,BINARY|PWM,PWM,led,,,15,,PWM output 15
+23,OE,io,in,BINARY,BINARY,control,,5500,,oe_pin,Output enable: active low
+24,A5,io,in,BINARY,BINARY,address,,5500,,,Address input 5
+25,EXTCLK,io,in,BINARY,BINARY,clock,,5500,,,External clock input: ground it when unused
+26,SCL,bus,in,,,i2c,,5500,,,I2C serial clock
+27,SDA,bus,inout,,,i2c,,5500,,,I2C serial data
+28,VDD,supply_in,in,,,power,2300,5500,,,Supply voltage

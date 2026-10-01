@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "kind": "vm-block-content",
+  "id": 11,
+  "name": "VM_BLK_IO_TOGGLE",
+  "source_file": "components/VM/blocks/io_toggle/vm_block_io_toggle.h",
+  "activation": {
+    "kind": "enable-rising"
+  },
+  "inputs": {
+    "min": 0,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "pin",
+        "value": "u32",
+        "id_kind": "pin",
+        "device_field": "device_id",
+        "overrides": "default_io_num",
+        "required": false,
+        "hidden_by_default": true
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 0,
+    "pins": []
+  },
+  "rules": [
+    {
+      "rule": "allowed_mask is not 0, and default_io_num is below 64 and in allowed_mask.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    }
+  ],
+  "state": {
+    "struct": "vm_block_io_toggle_data_t",
+    "source_file": "components/VM/blocks/io_toggle/vm_block_io_toggle.h",
+    "size": 16,
+    "align": 8,
+    "fields": [
+      {
+        "name": "allowed_mask",
+        "c_type": "uint64_t",
+        "offset": 0,
+        "size": 8,
+        "description": "Permitted pins for dynamic selection",
+        "let_user_select_available": "default_io_num",
+        "hidden_by_default": true,
+        "dynamic_input": 0,
+        "source": "user"
+      },
+      {
+        "name": "device_id",
+        "c_type": "uint8_t",
+        "offset": 8,
+        "size": 1,
+        "description": "Target device",
+        "id_kind": "device",
+        "contract": "packet_sys_io_toggle_t",
+        "source": "user"
+      },
+      {
+        "name": "default_io_num",
+        "c_type": "uint8_t",
+        "offset": 9,
+        "size": 1,
+        "description": "Static pin when the Pin input is unwired",
+        "id_kind": "pin",
+        "device_field": "device_id",
+        "source": "user",
+        "overridden_by": 0
+      },
+      {
+        "name": "flags",
+        "c_type": "uint8_t",
+        "offset": 10,
+        "size": 1,
+        "description": "VM_IO_TOGGLE_F_*",
+        "source": "runtime"
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint8_t",
+        "offset": 11,
+        "size": 5,
+        "array_len": 5,
+        "element_size": 1,
+        "description": "Align to 16 bytes",
+        "source": "padding"
+      }
+    ]
+  },
+  "min_custom_len": 16,
+  "enums": {
+    "vm_in_io_toggle_e": {
+      "alias": "Toggle Pin Inputs",
+      "source_file": "components/VM/blocks/io_toggle/vm_block_io_toggle.h",
+      "members": [
+        {
+          "name": "VM_IN_IO_TOGGLE_PIN",
+          "value": 0,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  },
+  "min_enables": 0
+}

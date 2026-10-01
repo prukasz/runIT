@@ -143,10 +143,6 @@ static void process_adc_channel(int pin, int chan, uint32_t sum, uint16_t count,
 
   adc_cfg->adc_last_read_mV = (uint16_t)voltage_mV;
 
-  if (!gpio_esp_ctx.base.is_frozen) {
-    adc_cfg->adc_cached_mV = (uint16_t)voltage_mV;
-  }
-
   if (pin_obj->intr_config.mode == SYS_IO_INTR_DISABLE) return;
 
   bool condition_met = false;
@@ -172,7 +168,7 @@ static void process_adc_channel(int pin, int chan, uint32_t sum, uint16_t count,
 
   if (condition_met && !adc_cfg->alert_was_triggered) {
     adc_cfg->alert_was_triggered = true;
-    SE_REPORT(sys_io_publish(gpio_esp_ctx.base.device_id, pin_obj->io_num, (sys_io_intr_mode_e)wt, voltage_mV, 0));
+    SE_REPORT(sys_io_publish(gpio_esp_device_id, pin_obj->io_num, (sys_io_intr_mode_e)wt, voltage_mV, 0));
   } else if (reset_condition_met) {
     adc_cfg->alert_was_triggered = false;
   }
@@ -253,6 +249,6 @@ esp_err_t esp_adc_get_mV(uint8_t pin, int32_t* out_mV) {
   if (pin_obj == NULL || pin_obj->pin_mode != SYS_IO_MODE_ADC) {
     return ESP_ERR_INVALID_ARG;
   }
-  *out_mV = gpio_esp_ctx.base.is_frozen ? pin_obj->hw.adc_cfg.adc_cached_mV : pin_obj->hw.adc_cfg.adc_last_read_mV;
+  *out_mV = pin_obj->hw.adc_cfg.adc_last_read_mV;
   return ESP_OK;
 }

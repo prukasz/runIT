@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "kind": "vm-block-content",
+  "id": 4,
+  "name": "VM_BLK_SWITCH",
+  "source_file": "components/VM/blocks/switch/vm_block_switch.h",
+  "activation": {
+    "kind": "enabled"
+  },
+  "inputs": {
+    "min": 1,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "selector",
+        "value": "i32",
+        "required": true
+      }
+    ]
+  },
+  "outputs": {
+    "min": 1,
+    "max": 16,
+    "max_symbol": "CONFIG_VM_BLOCK_MAX_OUT",
+    "pins": [
+      {
+        "index": "*",
+        "name": "branch",
+        "value": "gate"
+      }
+    ]
+  },
+  "rules": [],
+  "min_custom_len": 0,
+  "enums": {
+    "vm_in_switch_e": {
+      "alias": "Switch Inputs",
+      "source_file": "components/VM/blocks/switch/vm_block_switch.h",
+      "members": [
+        {
+          "name": "VM_IN_SWITCH_SELECTOR",
+          "value": 0,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_out_switch_e": {
+      "alias": "Switch Outputs",
+      "source_file": "components/VM/blocks/switch/vm_block_switch.h",
+      "members": [
+        {
+          "name": "VM_OUT_SWITCH_BRANCH_ANY",
+          "value": 0,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  },
+  "min_enables": 0
+}

@@ -1,0 +1,808 @@
+{
+  "$schema": "data-structures/schema/device-definition.schema.json",
+  "schemaVersion": 1,
+  "kind": "device-definition",
+  "id": "device_drv8962",
+  "title": "DRV8962 motor driver",
+  "description": "Dual full-bridge (or four half-bridge) motor driver controlled through the PWM and GPIO pins of other devices, with current sensing and a fault input.",
+  "protocols": [
+    "pwm"
+  ],
+  "tags": [
+    "motor",
+    "driver",
+    "h-bridge",
+    "pwm"
+  ],
+  "datasheet": "https://www.ti.com/lit/ds/symlink/drv8962.pdf",
+  "source_file": "device_drv8962.h",
+  "contractProvider": {
+    "symbol": "SYS_DEVICE_CONTRACT_HBRIDGE",
+    "enum": "sys_device_contract_type_e",
+    "value": 4,
+    "alias": "Motor Driver (H-Bridge)",
+    "description": "Drives a DC motor forward, backward, or brakes it"
+  },
+  "install": {
+    "packet": "packet_sys_device_install_drv8962_t",
+    "packet_definition": {
+      "source_file": "device_drv8962.h",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x49",
+      "decoder": "sys_device_create(&g_drv8962_class)",
+      "field_order": [
+        "channel",
+        "channel",
+        "device_id",
+        "topology",
+        "in1_pin_device_id",
+        "in1_pin_pin",
+        "in1_pin_mode",
+        "in2_pin_device_id",
+        "in2_pin_pin",
+        "in2_pin_mode",
+        "in3_pin_device_id",
+        "in3_pin_pin",
+        "in3_pin_mode",
+        "in4_pin_device_id",
+        "in4_pin_pin",
+        "in4_pin_mode",
+        "en1_pin_device_id",
+        "en1_pin_pin",
+        "en1_pin_mode",
+        "en2_pin_device_id",
+        "en2_pin_pin",
+        "en2_pin_mode",
+        "en3_pin_device_id",
+        "en3_pin_pin",
+        "en3_pin_mode",
+        "en4_pin_device_id",
+        "en4_pin_pin",
+        "en4_pin_mode",
+        "ipropi1_pin_device_id",
+        "ipropi1_pin_pin",
+        "ipropi1_pin_mode",
+        "ipropi2_pin_device_id",
+        "ipropi2_pin_pin",
+        "ipropi2_pin_mode",
+        "ipropi3_pin_device_id",
+        "ipropi3_pin_pin",
+        "ipropi3_pin_mode",
+        "ipropi4_pin_device_id",
+        "ipropi4_pin_pin",
+        "ipropi4_pin_mode",
+        "nsleep_pin_device_id",
+        "nsleep_pin_pin",
+        "nsleep_pin_mode",
+        "nfault_pin_device_id",
+        "nfault_pin_pin",
+        "nfault_pin_mode",
+        "vref_pin_device_id",
+        "vref_pin_pin",
+        "vref_pin_mode",
+        "pwm_freq_Hz",
+        "ripropi_ohms",
+        "current_limit_mA",
+        "turn_off_at_ocp"
+      ],
+      "fields": {
+        "channel": {
+          "type": "uint8_t"
+        },
+        "device_id": {
+          "type": "uint8_t",
+          "max": 127
+        },
+        "topology": {
+          "type": "uint8_t",
+          "alias": "Topology",
+          "one_of": [
+            {
+              "symbol": "DRV8962_TOPOLOGY_2_FULL_BRIDGES",
+              "enum": "drv8962_topology_e",
+              "value": 0,
+              "alias": "Two full bridges",
+              "description": "Channel 0 drives OUT1+OUT2 (motor A), channel 1 drives OUT3+OUT4 (motor B), both directions"
+            },
+            {
+              "symbol": "DRV8962_TOPOLOGY_4_HALF_BRIDGES",
+              "enum": "drv8962_topology_e",
+              "value": 1,
+              "alias": "Four half bridges",
+              "description": "Channels 0..3 drive OUT1..OUT4 one by one (solenoids, single-direction loads)"
+            }
+          ],
+          "default": 0
+        },
+        "in1_pin_device_id": {
+          "type": "uint8_t",
+          "group": "in1_pin"
+        },
+        "in1_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "in1_pin"
+        },
+        "in1_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_PWM",
+              "enum": "sys_io_mode_e",
+              "value": 6,
+              "alias": "PWM",
+              "description": "Rapidly switches the pin on and off to fake an in-between level - use to dim an LED or control a motor's speed"
+            }
+          ],
+          "default": 6,
+          "enum_ref": "sys_io_mode_e",
+          "group": "in1_pin"
+        },
+        "in2_pin_device_id": {
+          "type": "uint8_t",
+          "group": "in2_pin"
+        },
+        "in2_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "in2_pin"
+        },
+        "in2_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_PWM",
+              "enum": "sys_io_mode_e",
+              "value": 6,
+              "alias": "PWM",
+              "description": "Rapidly switches the pin on and off to fake an in-between level - use to dim an LED or control a motor's speed"
+            }
+          ],
+          "default": 6,
+          "enum_ref": "sys_io_mode_e",
+          "group": "in2_pin"
+        },
+        "in3_pin_device_id": {
+          "type": "uint8_t",
+          "group": "in3_pin"
+        },
+        "in3_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "in3_pin"
+        },
+        "in3_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_PWM",
+              "enum": "sys_io_mode_e",
+              "value": 6,
+              "alias": "PWM",
+              "description": "Rapidly switches the pin on and off to fake an in-between level - use to dim an LED or control a motor's speed"
+            }
+          ],
+          "default": 6,
+          "enum_ref": "sys_io_mode_e",
+          "group": "in3_pin"
+        },
+        "in4_pin_device_id": {
+          "type": "uint8_t",
+          "group": "in4_pin"
+        },
+        "in4_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "in4_pin"
+        },
+        "in4_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_PWM",
+              "enum": "sys_io_mode_e",
+              "value": 6,
+              "alias": "PWM",
+              "description": "Rapidly switches the pin on and off to fake an in-between level - use to dim an LED or control a motor's speed"
+            }
+          ],
+          "default": 6,
+          "enum_ref": "sys_io_mode_e",
+          "group": "in4_pin"
+        },
+        "en1_pin_device_id": {
+          "type": "uint8_t",
+          "group": "en1_pin"
+        },
+        "en1_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "en1_pin"
+        },
+        "en1_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+              "enum": "sys_io_mode_e",
+              "value": 3,
+              "alias": "Output Push-Pull",
+              "description": "Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays"
+            }
+          ],
+          "default": 3,
+          "enum_ref": "sys_io_mode_e",
+          "group": "en1_pin"
+        },
+        "en2_pin_device_id": {
+          "type": "uint8_t",
+          "group": "en2_pin"
+        },
+        "en2_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "en2_pin"
+        },
+        "en2_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+              "enum": "sys_io_mode_e",
+              "value": 3,
+              "alias": "Output Push-Pull",
+              "description": "Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays"
+            }
+          ],
+          "default": 3,
+          "enum_ref": "sys_io_mode_e",
+          "group": "en2_pin"
+        },
+        "en3_pin_device_id": {
+          "type": "uint8_t",
+          "group": "en3_pin"
+        },
+        "en3_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "en3_pin"
+        },
+        "en3_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+              "enum": "sys_io_mode_e",
+              "value": 3,
+              "alias": "Output Push-Pull",
+              "description": "Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays"
+            }
+          ],
+          "default": 3,
+          "enum_ref": "sys_io_mode_e",
+          "group": "en3_pin"
+        },
+        "en4_pin_device_id": {
+          "type": "uint8_t",
+          "group": "en4_pin"
+        },
+        "en4_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "en4_pin"
+        },
+        "en4_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+              "enum": "sys_io_mode_e",
+              "value": 3,
+              "alias": "Output Push-Pull",
+              "description": "Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays"
+            }
+          ],
+          "default": 3,
+          "enum_ref": "sys_io_mode_e",
+          "group": "en4_pin"
+        },
+        "ipropi1_pin_device_id": {
+          "type": "uint8_t",
+          "group": "ipropi1_pin"
+        },
+        "ipropi1_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "ipropi1_pin"
+        },
+        "ipropi1_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_ADC",
+              "enum": "sys_io_mode_e",
+              "value": 7,
+              "alias": "ADC",
+              "description": "Measures the exact voltage on the pin instead of just on/off - use to read sensors that report a varying value, like a potentiometer or a temperature sensor"
+            }
+          ],
+          "default": 7,
+          "enum_ref": "sys_io_mode_e",
+          "group": "ipropi1_pin"
+        },
+        "ipropi2_pin_device_id": {
+          "type": "uint8_t",
+          "group": "ipropi2_pin"
+        },
+        "ipropi2_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "ipropi2_pin"
+        },
+        "ipropi2_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_ADC",
+              "enum": "sys_io_mode_e",
+              "value": 7,
+              "alias": "ADC",
+              "description": "Measures the exact voltage on the pin instead of just on/off - use to read sensors that report a varying value, like a potentiometer or a temperature sensor"
+            }
+          ],
+          "default": 7,
+          "enum_ref": "sys_io_mode_e",
+          "group": "ipropi2_pin"
+        },
+        "ipropi3_pin_device_id": {
+          "type": "uint8_t",
+          "group": "ipropi3_pin"
+        },
+        "ipropi3_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "ipropi3_pin"
+        },
+        "ipropi3_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_ADC",
+              "enum": "sys_io_mode_e",
+              "value": 7,
+              "alias": "ADC",
+              "description": "Measures the exact voltage on the pin instead of just on/off - use to read sensors that report a varying value, like a potentiometer or a temperature sensor"
+            }
+          ],
+          "default": 7,
+          "enum_ref": "sys_io_mode_e",
+          "group": "ipropi3_pin"
+        },
+        "ipropi4_pin_device_id": {
+          "type": "uint8_t",
+          "group": "ipropi4_pin"
+        },
+        "ipropi4_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "ipropi4_pin"
+        },
+        "ipropi4_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_ADC",
+              "enum": "sys_io_mode_e",
+              "value": 7,
+              "alias": "ADC",
+              "description": "Measures the exact voltage on the pin instead of just on/off - use to read sensors that report a varying value, like a potentiometer or a temperature sensor"
+            }
+          ],
+          "default": 7,
+          "enum_ref": "sys_io_mode_e",
+          "group": "ipropi4_pin"
+        },
+        "nsleep_pin_device_id": {
+          "type": "uint8_t",
+          "group": "nsleep_pin"
+        },
+        "nsleep_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "nsleep_pin"
+        },
+        "nsleep_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+              "enum": "sys_io_mode_e",
+              "value": 3,
+              "alias": "Output Push-Pull",
+              "description": "Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays"
+            }
+          ],
+          "default": 3,
+          "enum_ref": "sys_io_mode_e",
+          "group": "nsleep_pin"
+        },
+        "nfault_pin_device_id": {
+          "type": "uint8_t",
+          "group": "nfault_pin"
+        },
+        "nfault_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "nfault_pin"
+        },
+        "nfault_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_INPUT",
+              "enum": "sys_io_mode_e",
+              "value": 0,
+              "alias": "Input",
+              "description": "Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal"
+            },
+            {
+              "symbol": "SYS_IO_MODE_INPUT_PULLUP",
+              "enum": "sys_io_mode_e",
+              "value": 1,
+              "alias": "Input with Pullup",
+              "description": "Same as Input, but reads \"on\" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed"
+            }
+          ],
+          "default": 1,
+          "enum_ref": "sys_io_mode_e",
+          "group": "nfault_pin"
+        },
+        "vref_pin_device_id": {
+          "type": "uint8_t",
+          "group": "vref_pin"
+        },
+        "vref_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "vref_pin"
+        },
+        "vref_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_DAC",
+              "enum": "sys_io_mode_e",
+              "value": 8,
+              "alias": "DAC",
+              "description": "Outputs an exact, steady voltage level instead of just on/off - the opposite of ADC"
+            }
+          ],
+          "default": 8,
+          "enum_ref": "sys_io_mode_e",
+          "group": "vref_pin"
+        },
+        "pwm_freq_Hz": {
+          "type": "uint32_t",
+          "alias": "PWM Frequency",
+          "min": 0,
+          "max": 100000,
+          "default": 20000,
+          "unit": "Hz",
+          "note": "0 selects 20 kHz."
+        },
+        "ripropi_ohms": {
+          "type": "uint32_t",
+          "array_len": 4,
+          "alias": "IPROPI Resistor",
+          "min": 0,
+          "max": 100000,
+          "unit": "ohm",
+          "note": "0 selects 3090 ohm."
+        },
+        "current_limit_mA": {
+          "type": "uint32_t",
+          "array_len": 4,
+          "alias": "Current Limit",
+          "min": 0,
+          "max": 10000,
+          "unit": "mA",
+          "note": "0 disables the limit."
+        },
+        "turn_off_at_ocp": {
+          "type": "uint8_t",
+          "alias": "Brake on Overcurrent",
+          "min": 0,
+          "max": 1,
+          "default": 1
+        }
+      },
+      "groups": {
+        "in1_pin": {
+          "fields": [
+            "in1_pin_device_id",
+            "in1_pin_pin",
+            "in1_pin_mode"
+          ],
+          "sentinel_field": "in1_pin_pin",
+          "alias": "IN1"
+        },
+        "in2_pin": {
+          "fields": [
+            "in2_pin_device_id",
+            "in2_pin_pin",
+            "in2_pin_mode"
+          ],
+          "sentinel_field": "in2_pin_pin",
+          "alias": "IN2"
+        },
+        "in3_pin": {
+          "fields": [
+            "in3_pin_device_id",
+            "in3_pin_pin",
+            "in3_pin_mode"
+          ],
+          "sentinel_field": "in3_pin_pin",
+          "alias": "IN3"
+        },
+        "in4_pin": {
+          "fields": [
+            "in4_pin_device_id",
+            "in4_pin_pin",
+            "in4_pin_mode"
+          ],
+          "sentinel_field": "in4_pin_pin",
+          "alias": "IN4"
+        },
+        "en1_pin": {
+          "fields": [
+            "en1_pin_device_id",
+            "en1_pin_pin",
+            "en1_pin_mode"
+          ],
+          "sentinel_field": "en1_pin_pin",
+          "alias": "EN1"
+        },
+        "en2_pin": {
+          "fields": [
+            "en2_pin_device_id",
+            "en2_pin_pin",
+            "en2_pin_mode"
+          ],
+          "sentinel_field": "en2_pin_pin",
+          "alias": "EN2"
+        },
+        "en3_pin": {
+          "fields": [
+            "en3_pin_device_id",
+            "en3_pin_pin",
+            "en3_pin_mode"
+          ],
+          "sentinel_field": "en3_pin_pin",
+          "alias": "EN3"
+        },
+        "en4_pin": {
+          "fields": [
+            "en4_pin_device_id",
+            "en4_pin_pin",
+            "en4_pin_mode"
+          ],
+          "sentinel_field": "en4_pin_pin",
+          "alias": "EN4"
+        },
+        "ipropi1_pin": {
+          "fields": [
+            "ipropi1_pin_device_id",
+            "ipropi1_pin_pin",
+            "ipropi1_pin_mode"
+          ],
+          "sentinel_field": "ipropi1_pin_pin",
+          "alias": "IPROPI1"
+        },
+        "ipropi2_pin": {
+          "fields": [
+            "ipropi2_pin_device_id",
+            "ipropi2_pin_pin",
+            "ipropi2_pin_mode"
+          ],
+          "sentinel_field": "ipropi2_pin_pin",
+          "alias": "IPROPI2"
+        },
+        "ipropi3_pin": {
+          "fields": [
+            "ipropi3_pin_device_id",
+            "ipropi3_pin_pin",
+            "ipropi3_pin_mode"
+          ],
+          "sentinel_field": "ipropi3_pin_pin",
+          "alias": "IPROPI3"
+        },
+        "ipropi4_pin": {
+          "fields": [
+            "ipropi4_pin_device_id",
+            "ipropi4_pin_pin",
+            "ipropi4_pin_mode"
+          ],
+          "sentinel_field": "ipropi4_pin_pin",
+          "alias": "IPROPI4"
+        },
+        "nsleep_pin": {
+          "fields": [
+            "nsleep_pin_device_id",
+            "nsleep_pin_pin",
+            "nsleep_pin_mode"
+          ],
+          "sentinel_field": "nsleep_pin_pin",
+          "alias": "nSLEEP"
+        },
+        "nfault_pin": {
+          "fields": [
+            "nfault_pin_device_id",
+            "nfault_pin_pin",
+            "nfault_pin_mode"
+          ],
+          "sentinel_field": "nfault_pin_pin",
+          "alias": "nFAULT",
+          "note": "Open-drain, active-low."
+        },
+        "vref_pin": {
+          "fields": [
+            "vref_pin_device_id",
+            "vref_pin_pin",
+            "vref_pin_mode"
+          ],
+          "sentinel_field": "vref_pin_pin",
+          "alias": "VREF",
+          "note": "Sets the chopping current from the largest channel limit. Without it the chip regulates at full scale."
+        }
+      }
+    }
+  },
+  "contracts": [
+    {
+      "packet": "packet_sys_hbridge_set_drive_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "channel",
+          "one_of": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "alias": "Bridge Channel"
+        },
+        {
+          "name": "magnitude",
+          "alias": "Drive Magnitude"
+        }
+      ],
+      "alias": "Drive channel",
+      "description": "Full bridge: -1.0 (reverse) to 1.0 (forward), slow decay. Half bridges: 0.0 to 1.0. A magnitude below 0.5 % brakes.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x51",
+        "decoder": "decoder_packet_sys_hbridge_set_drive_t()",
+        "field_order": [
+          "device_id",
+          "channel",
+          "magnitude"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "channel": {
+            "type": "uint8_t",
+            "alias": "Channel",
+            "required": true
+          },
+          "magnitude": {
+            "type": "float",
+            "alias": "Drive Magnitude",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_hbridge_brake_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "channel",
+          "one_of": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "alias": "Bridge Channel"
+        }
+      ],
+      "alias": "Brake",
+      "description": "Short the motor terminals (outputs enabled, inputs low).",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x52",
+        "decoder": "decoder_packet_sys_hbridge_brake_t()",
+        "field_order": [
+          "device_id",
+          "channel"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "channel": {
+            "type": "uint8_t",
+            "alias": "Channel",
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_hbridge_coast_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "channel",
+          "one_of": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "alias": "Bridge Channel"
+        }
+      ],
+      "alias": "Coast",
+      "description": "Release the motor: outputs high-Z.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x53",
+        "decoder": "decoder_packet_sys_hbridge_coast_t()",
+        "field_order": [
+          "device_id",
+          "channel"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "channel": {
+            "type": "uint8_t",
+            "alias": "Channel",
+            "required": true
+          }
+        }
+      }
+    }
+  ]
+}

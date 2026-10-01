@@ -30,14 +30,13 @@ The decoder tables themselves live in the `codecs` component (`components/codecs
 | `0x02` | BLE settings | `dec_settings_ble_decode()` |
 | `0x03` | System actions (record/stop/remove) | `dec_sys_actions_decode()`, see [[SYS_ACTIONS.MD]] |
 | `0x04` | VM program upload (reset/open/add objects/set data) | `dec_vm_loader_decode()`, see [[VM.MD]] |
-| `0x05` | Features (servo, H-bridge) | `dec_features_decode()` |
 | `0x06` | Data connector settings | `dec_settings_data_connector_decode()` |
 | `0x07` | Log settings | `dec_settings_logs_decode()` |
 | `0x08` | Power settings (persisted) | `dec_settings_power_decode()`, see [[SYS_POWER.MD]] |
 | `0x09` | Event subscriptions | `dec_sys_events_decode()`, see [[SYS_EVENT.MD]] |
 | `0x0A`+ | Free | register your own |
 
-Class bytes are Kconfig options (`CONFIG_RX_PACKET_CLASS_*`). `sys_interface` registers no classes and doesn't depend on `codecs`: all of them are registered by runit's `runit_register_decoders` boot step (`components/runit/runit_decoders.c`), before `sys_interface_init()` starts the RX receiver.
+Class bytes are Kconfig options (`CONFIG_RX_PACKET_CLASS_*`). `sys_interface` registers no classes and doesn't depend on `codecs`: all of them are registered by runit's `runit_register_decoders` boot step (`components/runit/runit.c`), before `sys_interface_init()` starts the RX receiver.
 
 Up to `CONFIG_SYS_INTERFACE_MAX_CLASSES` (12) classes can be bound at once. The registry is a flat array with linear search — it is not mutex-protected, so register all classes during boot rather than from concurrent tasks.
 

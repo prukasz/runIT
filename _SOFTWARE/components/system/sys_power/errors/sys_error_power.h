@@ -34,3 +34,6 @@
   snprintf((out), (out_size), "power fault: event %u on device %u channel %u, value %ld, response %u", (p)->event, (p)->source_id, \
            (p)->channel, (long)(p)->value, (p)->response)
 #define LOG_BODY_ERR_POWER_SOURCE_BELOW_ALLOCATION(p, out, out_size) snprintf((out), (out_size), "power source budget %lu mW is below the %lu mW already allocated", (unsigned long)(p)->budget_mW, (unsigned long)(p)->allocated_mW)
+
+/** @brief Tags that attribute a failure to the device in `dev_id` (see SYS_ERROR_DEVICE_TAGS in sys_error_codes.h). */
+#define SYS_ERROR_POWER_DEVICE_TAGS(X) X(ERR_POWER_BUDGET_EXCEEDED)

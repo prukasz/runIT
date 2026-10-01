@@ -27,7 +27,7 @@ A FreeRTOS-based application providing three main things.
 ### 2.1 Unified hardware interface (contracts)
 
 - Hardware is abstracted through **contracts**. The concept of **devices** enforces one universal, device-agnostic API for hardware access (GPIO, ADC, PWM, power, …).
-- Every device driver must adopt this scheme by providing an **adapter** that binds it to the contracts.
+- Every device driver must adopt this scheme by providing a **device class** (one file) that declares its contracts, lifecycle and create frame.
 - This dramatically reduces end-user complexity: a device becomes just a **number and a unified label**, and devices can cooperate with each other through the enforced API.
 - The system enforces **unified error handling**: a nested error chain with full logging and configurable reactions to errors.
 

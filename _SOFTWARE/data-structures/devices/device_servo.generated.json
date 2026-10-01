@@ -1,0 +1,96 @@
+{
+  "$schema": "data-structures/schema/device-definition.schema.json",
+  "schemaVersion": 1,
+  "kind": "device-definition",
+  "id": "device_servo",
+  "title": "Servo",
+  "description": "Hobby servo on a PWM pin of another device. Go home, move to an angle, trim with an offset.",
+  "protocols": [
+    "pwm"
+  ],
+  "tags": [
+    "servo",
+    "pwm",
+    "motion"
+  ],
+  "source_file": "device_servo.h",
+  "contractProvider": null,
+  "install": {
+    "packet": "packet_sys_device_install_servo_t",
+    "packet_definition": {
+      "source_file": "device_servo.h",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x48",
+      "decoder": "sys_device_create(&g_servo_class)",
+      "field_order": [
+        "device_id",
+        "pwm_pin_device_id",
+        "pwm_pin_pin",
+        "pwm_pin_mode",
+        "home_us",
+        "min_us",
+        "max_us"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "max": 127
+        },
+        "pwm_pin_device_id": {
+          "type": "uint8_t",
+          "group": "pwm_pin"
+        },
+        "pwm_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "pwm_pin"
+        },
+        "pwm_pin_mode": {
+          "type": "uint8_t",
+          "enum_ref": "sys_io_mode_e",
+          "group": "pwm_pin"
+        },
+        "home_us": {
+          "type": "uint16_t",
+          "alias": "Home Pulse",
+          "min": 500,
+          "max": 2500,
+          "default": 1500,
+          "unit": "us"
+        },
+        "min_us": {
+          "type": "uint16_t",
+          "alias": "Pulse at 0 degrees",
+          "min": 500,
+          "max": 2500,
+          "default": 500,
+          "unit": "us",
+          "note": "Also the lowest pulse ever sent."
+        },
+        "max_us": {
+          "type": "uint16_t",
+          "alias": "Pulse at 180 degrees",
+          "min": 500,
+          "max": 2500,
+          "default": 2500,
+          "unit": "us",
+          "note": "Also the highest pulse ever sent."
+        }
+      },
+      "groups": {
+        "pwm_pin": {
+          "fields": [
+            "pwm_pin_device_id",
+            "pwm_pin_pin",
+            "pwm_pin_mode"
+          ],
+          "sentinel_field": "pwm_pin_pin",
+          "alias": "PWM Pin",
+          "note": "Any pin that can output PWM: a PCA9685 channel or an ESP GPIO. On a lower-ID device."
+        }
+      }
+    }
+  },
+  "contracts": []
+}

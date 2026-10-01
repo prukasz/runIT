@@ -10,7 +10,6 @@
   X(OWNER_VM_OBJ, 0xA902, "OWNER_VM_OBJ")           \
   X(OWNER_VM_ACCESSOR, 0xA903, "OWNER_VM_ACCESSOR") \
   X(OWNER_VM_BLOCK, 0xA904, "OWNER_VM_BLOCK")       \
-  X(OWNER_VM_CODE, 0xA905, "OWNER_VM_CODE")         \
   X(OWNER_VM_LOADER, 0xA906, "OWNER_VM_LOADER")     \
   X(OWNER_DEC_VM_LOADER, 0xA907, "OWNER_DEC_VM_LOADER") \
   X(OWNER_VM_EXEC, 0xA908, "OWNER_VM_EXEC")         \
@@ -29,7 +28,6 @@
   X(ERR_VM_ACCESSOR_INDEX_FAILED, 0xA907, SE_LEVEL_LOW, struct { uint16_t id; uint8_t chain_pos; })                                               \
   X(ERR_VM_ACCESSOR_NAME_NOT_FOUND, 0xA908, SE_LEVEL_LOW, struct { uint16_t id; uint8_t chain_pos; char name[16]; })                              \
   X(ERR_VM_ACCESSOR_NOT_MUTABLE, 0xA909, SE_LEVEL_LOW, struct { uint16_t id; uint8_t chain_pos; uint16_t obj_id; })                                \
-  X(ERR_VM_BLOCK_INPUT_UNRESOLVED, 0xA90A, SE_LEVEL_LOW, struct { uint16_t block_idx; uint8_t input_idx; })                                       \
   X(ERR_VM_BLOCK_PIN_MISSING, 0xA90B, SE_LEVEL_LOW, struct { uint16_t block_idx; uint8_t pin_id; uint8_t is_out; })                               \
   X(ERR_VM_BLOCK_PIN_UNLINKED, 0xA90C, SE_LEVEL_LOW, struct { uint16_t block_idx; uint8_t pin_id; uint8_t is_out; })                              \
   X(ERR_VM_BLOCK_FAILED, 0xA90D, SE_LEVEL_MEDIUM, struct { uint16_t block_idx; uint8_t block_type; /*@id vm-block-type*/ })                                                \
@@ -78,7 +76,9 @@
   X(ERR_VM_RETAIN_CORRUPT, 0xA938, SE_LEVEL_MEDIUM, struct { uint32_t offset; })                                       \
   X(ERR_VM_SUB_TRACK_FULL, 0xA939, SE_LEVEL_LOW, struct { uint16_t max; })                                           \
   X(ERR_VM_BLK_OUTPUT_TAKEN,0xA93A, SE_LEVEL_LOW, struct { uint16_t blk_id; uint16_t obj_id; uint8_t slot; uint8_t kind; }) \
-  X(ERR_VM_LOAD_EMPTY, 0xA93B, SE_LEVEL_LOW, struct { uint8_t unused; })
+  X(ERR_VM_LOAD_EMPTY, 0xA93B, SE_LEVEL_LOW, struct { uint8_t unused; })                                                                          \
+  X(ERR_VM_LOAD_ABORTED, 0xA93C, SE_LEVEL_MEDIUM, struct { uint8_t packet; })                                                                    \
+  X(ERR_VM_LOAD_INCOMPLETE, 0xA93D, SE_LEVEL_LOW, struct { uint8_t kind; uint16_t id; })
 
 /**
  * @brief Human-readable descriptions for the VM tags - see
@@ -96,7 +96,6 @@
   X(ERR_VM_ACCESSOR_INDEX_FAILED)  \
   X(ERR_VM_ACCESSOR_NAME_NOT_FOUND) \
   X(ERR_VM_ACCESSOR_NOT_MUTABLE)   \
-  X(ERR_VM_BLOCK_INPUT_UNRESOLVED) \
   X(ERR_VM_BLOCK_PIN_MISSING)      \
   X(ERR_VM_BLOCK_PIN_UNLINKED)     \
   X(ERR_VM_BLOCK_FAILED)           \
@@ -145,7 +144,9 @@
   X(ERR_VM_RETAIN_CORRUPT)        \
   X(ERR_VM_SUB_TRACK_FULL)        \
   X(ERR_VM_BLK_OUTPUT_TAKEN)      \
-  X(ERR_VM_LOAD_EMPTY)
+  X(ERR_VM_LOAD_EMPTY)            \
+  X(ERR_VM_LOAD_ABORTED)          \
+  X(ERR_VM_LOAD_INCOMPLETE)
 
 #define VM_OBJ_ID_NONE     0xFFFFu  //@vm-constant @description No object (an unlinked PTR element on the wire).
 #define VM_OBJ_ID_DYN_BIT  0x8000u  //@vm-constant @description Set in the ID of a heap object (CLONE's copies); program object IDs stay below it.
@@ -284,8 +285,6 @@ static inline const char* vm_copy_shape_name(uint8_t r) {
     vm_format_obj_id((p)->obj_id, _id, sizeof(_id)); \
     snprintf((out), (out_size), "accessor %u: write rejected at chain position %u, target is not mutable (obj_id=%s)", (p)->id, (p)->chain_pos, _id); \
   } while (0)
-#define LOG_BODY_ERR_VM_BLOCK_INPUT_UNRESOLVED(p, out, out_size) \
-  snprintf((out), (out_size), "block %u input %u failed to resolve", (p)->block_idx, (p)->input_idx)
 #define LOG_BODY_ERR_VM_BLOCK_PIN_MISSING(p, out, out_size) \
   snprintf((out), (out_size), "block %u has no %s pin %u", (p)->block_idx, (p)->is_out ? "output" : "input", (p)->pin_id)
 #define LOG_BODY_ERR_VM_BLOCK_PIN_UNLINKED(p, out, out_size) \
@@ -440,6 +439,11 @@ static inline const char* vm_copy_shape_name(uint8_t r) {
   snprintf((out), (out_size), "subscriptions reach more than %u objects; the rest are not sent (subscribe to fewer)", (p)->max)
 /* kind as in ERR_VM_BLK_BAD_REF: 1 = output (slot = pin), 3 = ENO */
 #define LOG_BODY_ERR_VM_LOAD_EMPTY(p, out, out_size) snprintf((out), (out_size), "the program is empty (0 bytes): nothing to load")
+#define LOG_BODY_ERR_VM_LOAD_ABORTED(p, out, out_size) \
+  snprintf((out), (out_size), "upload failed at packet 0x%02X: the whole program was discarded, upload it again from open (0x41)", (p)->packet)
+/* kind is the registry: 0 objects, 1 accessors, 2 blocks (vm_reg_e) */
+#define LOG_BODY_ERR_VM_LOAD_INCOMPLETE(p, out, out_size) \
+  snprintf((out), (out_size), "program incomplete: %s %u was declared in open but never uploaded", (p)->kind == 0 ? "object" : (p)->kind == 1 ? "accessor" : "block", (p)->id)
 #define LOG_BODY_ERR_VM_BLK_OUTPUT_TAKEN(p, out, out_size) \
   ((p)->kind == 3 ? snprintf((out), (out_size), "block %u ENO: object %u already has a writer (an output or ENO of a block)", (p)->blk_id, (p)->obj_id) \
                   : snprintf((out), (out_size), "block %u output %u: object %u already has a writer (an output or ENO of a block)", (p)->blk_id, (p)->slot, (p)->obj_id))

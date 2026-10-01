@@ -19,8 +19,7 @@
 //#ref-enum @alias Static Action
 typedef enum sys_action_static_e {
   SYS_ACTION_STATIC_BOOT = CONFIG_SYS_ACTION_ID_BOOT,              //@alias Boot setup @description Installs the board's own devices (bound by the application).
-  SYS_ACTION_STATIC_FREEZE = CONFIG_SYS_ACTION_ID_FREEZE,          //@alias Freeze all devices @description Holds every device at its current state.
-  SYS_ACTION_STATIC_RESUME = CONFIG_SYS_ACTION_ID_RESUME,          //@alias Resume all devices @description Resumes and syncs every device.
+  SYS_ACTION_STATIC_RESUME = CONFIG_SYS_ACTION_ID_RESUME,          //@alias Resume all devices @description Resumes every device.
   SYS_ACTION_STATIC_SUSPEND = CONFIG_SYS_ACTION_ID_SUSPEND,        //@alias Suspend all devices @description Suspends every device.
   SYS_ACTION_STATIC_RESET = CONFIG_SYS_ACTION_ID_RESET,            //@alias Reset @description Resets every device, rewinds the VM and runs the boot setup again.
   SYS_ACTION_STATIC_HARD_RESET = CONFIG_SYS_ACTION_ID_HARD_RESET,  //@alias Hard reset @description Unloads the VM program, uninstalls every device and runs the boot setup again.
@@ -33,8 +32,8 @@ typedef err_h (*action_static_func_t)(void);
 
 /**
  * @brief Initialize sys_actions: opens NVS, starts the recording tap polling
- * task, and registers the built-in static functions on action ids 2-6
- * (freeze/resume/suspend/reset/hard_reset).
+ * task, and registers the built-in static functions on action ids 3-6
+ * (resume/suspend/reset/hard_reset).
  *
  * Its control-packet class (`dec_sys_actions.h`) is registered with
  * sys_interface by the application (runit), not here.

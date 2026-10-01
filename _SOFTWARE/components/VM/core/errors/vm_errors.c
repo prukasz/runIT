@@ -1,5 +1,4 @@
 #include "vm_errors.h"
-#include "vm_obj_access.h"
 
 /* Cold-path error builders (explicit OWNER passed per subsystem). */
 
@@ -15,22 +14,22 @@ __attribute__((noinline)) err_h vm_err_unknown_id(uint16_t id) {
   SE_FAIL_OWNED(OWNER_VM_ACCESSOR, ERR_VM_ACCESSOR_UNKNOWN_ID, .id = id);
 }
 
-__attribute__((noinline)) err_h vm_err_expected_ptr(uint16_t id, uint8_t pos, uint8_t actual, vm_obj_h obj) {
-  SE_FAIL_OWNED(OWNER_VM_ACCESSOR, ERR_VM_ACCESSOR_TYPE_MISMATCH, .id = id, .chain_pos = pos, .expected = VM_OBJ_PTR, .actual = actual, .obj_id = vm_obj_get_id(obj));
+__attribute__((noinline)) err_h vm_err_expected_ptr(uint16_t id, uint8_t pos, uint8_t actual, uint16_t obj_id) {
+  SE_FAIL_OWNED(OWNER_VM_ACCESSOR, ERR_VM_ACCESSOR_TYPE_MISMATCH, .id = id, .chain_pos = pos, .expected = VM_OBJ_PTR, .actual = actual, .obj_id = obj_id);
 }
 
-__attribute__((noinline)) err_h vm_err_chain_oob(uint16_t id, uint8_t pos, uint32_t index, vm_obj_h obj) {
+__attribute__((noinline)) err_h vm_err_chain_oob(uint16_t id, uint8_t pos, uint32_t index, uint16_t obj_id) {
   // saturate the 16-bit payload field so a huge index still reads as
   // "past the end" rather than a wrapped small number
-  SE_FAIL_OWNED(OWNER_VM_ACCESSOR, ERR_VM_ACCESSOR_OOB, .id = id, .chain_pos = pos, .index = (uint16_t)(index > UINT16_MAX ? UINT16_MAX : index), .obj_id = vm_obj_get_id(obj));
+  SE_FAIL_OWNED(OWNER_VM_ACCESSOR, ERR_VM_ACCESSOR_OOB, .id = id, .chain_pos = pos, .index = (uint16_t)(index > UINT16_MAX ? UINT16_MAX : index), .obj_id = obj_id);
 }
 
-__attribute__((noinline)) err_h vm_err_null_obj(uint16_t id, uint8_t pos, vm_obj_h parent) {
-  SE_FAIL_OWNED(OWNER_VM_ACCESSOR, ERR_VM_ACCESSOR_NULL_OBJ, .id = id, .chain_pos = pos, .parent_id = vm_obj_get_id(parent));
+__attribute__((noinline)) err_h vm_err_null_obj(uint16_t id, uint8_t pos, uint16_t parent_id) {
+  SE_FAIL_OWNED(OWNER_VM_ACCESSOR, ERR_VM_ACCESSOR_NULL_OBJ, .id = id, .chain_pos = pos, .parent_id = parent_id);
 }
 
-__attribute__((noinline)) err_h vm_err_chain_not_mutable(uint16_t id, uint8_t pos, vm_obj_h obj) {
-  SE_FAIL_OWNED(OWNER_VM_ACCESSOR, ERR_VM_ACCESSOR_NOT_MUTABLE, .id = id, .chain_pos = pos, .obj_id = vm_obj_get_id(obj));
+__attribute__((noinline)) err_h vm_err_chain_not_mutable(uint16_t id, uint8_t pos, uint16_t obj_id) {
+  SE_FAIL_OWNED(OWNER_VM_ACCESSOR, ERR_VM_ACCESSOR_NOT_MUTABLE, .id = id, .chain_pos = pos, .obj_id = obj_id);
 }
 
 __attribute__((noinline)) err_h vm_err_index_failed(err_h cause, uint16_t id, uint8_t pos) {
@@ -50,8 +49,8 @@ __attribute__((noinline)) err_h vm_err_name_not_found(uint16_t id, uint8_t pos, 
   return e;
 }
 
-__attribute__((noinline)) err_h vm_obj_not_scalar_err(vm_obj_h owner, vm_obj_t_e actual, uint16_t id) {
-  SE_FAIL_OWNED(OWNER_VM_ACCESSOR, ERR_VM_ACCESSOR_TYPE_MISMATCH, .id = id, .chain_pos = 0, .expected = VM_OBJ_NONE, .actual = actual, .obj_id = vm_obj_get_id(owner));
+__attribute__((noinline)) err_h vm_obj_not_scalar_err(uint16_t owner_id, vm_obj_t_e actual, uint16_t id) {
+  SE_FAIL_OWNED(OWNER_VM_ACCESSOR, ERR_VM_ACCESSOR_TYPE_MISMATCH, .id = id, .chain_pos = 0, .expected = VM_OBJ_NONE, .actual = actual, .obj_id = owner_id);
 }
 
 /* ========================================================================= */
@@ -62,16 +61,16 @@ __attribute__((noinline)) err_h vm_obj_null_obj_err(void) {
   SE_FAIL_OWNED(OWNER_VM_OBJ, ERR_NULL_PTR, 0);
 }
 
-__attribute__((noinline)) err_h vm_obj_not_mutable_err(vm_obj_h obj) {
-  SE_FAIL_OWNED(OWNER_VM_OBJ, ERR_VM_OBJ_NOT_MUTABLE, .obj_id = vm_obj_get_id(obj));
+__attribute__((noinline)) err_h vm_obj_not_mutable_err(uint16_t obj_id) {
+  SE_FAIL_OWNED(OWNER_VM_OBJ, ERR_VM_OBJ_NOT_MUTABLE, .obj_id = obj_id);
 }
 
-__attribute__((noinline)) err_h vm_obj_oob_err(vm_obj_h obj, uint32_t index) {
-  SE_FAIL_OWNED(OWNER_VM_OBJ, ERR_VM_OBJ_OOB, .index = (uint16_t)(index > UINT16_MAX ? UINT16_MAX : index), .obj_id = vm_obj_get_id(obj));
+__attribute__((noinline)) err_h vm_obj_oob_err(uint16_t obj_id, uint32_t index) {
+  SE_FAIL_OWNED(OWNER_VM_OBJ, ERR_VM_OBJ_OOB, .index = (uint16_t)(index > UINT16_MAX ? UINT16_MAX : index), .obj_id = obj_id);
 }
 
-__attribute__((noinline)) err_h vm_obj_not_ptr_err(vm_obj_h obj, uint8_t actual) {
-  SE_FAIL_OWNED(OWNER_VM_OBJ, ERR_VM_OBJ_NOT_PTR, .actual = actual, .obj_id = vm_obj_get_id(obj));
+__attribute__((noinline)) err_h vm_obj_not_ptr_err(uint16_t obj_id, uint8_t actual) {
+  SE_FAIL_OWNED(OWNER_VM_OBJ, ERR_VM_OBJ_NOT_PTR, .actual = actual, .obj_id = obj_id);
 }
 
 /* ========================================================================= */

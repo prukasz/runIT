@@ -53,11 +53,11 @@ Rules that everything else follows:
 
 ```
 components/VM/
-  blocks/            palette: vm_blocks.h (type ids, lookups, vm_block_verify), vm_blocks_table.c (g_vm_block_types), one header per block (body, state, VM_BLOCK_TYPE_*, //#vm-block)
+  blocks/            palette: vm_blocks.h (lookups, vm_block_verify), vm_blocks_table.c (g_vm_block_types, from the generated vm_blocks_registry.generated.h; ids in vm_block_ids.generated.h), one folder per block (<name>/vm_block_<name>.h + .c + <name>.md, //#vm-block), shared code in expr_core/ and branch_core/
   core/store/        arena + three registries (vm_store_*)
   core/obj/          objects, accessors, dynamic objects, copy/clone/link
   core/block/        block layout and API (vm_block.h), build + verify (vm_block_build.c), helpers
-  core/exec/         supervisor (vm_exec.c), events, runtime overrides
+  core/exec/         supervisor (vm_exec.c), program clock (vm_clock.c: pause / slow-motion aware time), pass statistics + bring-up profile (vm_stats.c), events, runtime overrides
   core/loader/       load state machine + wire-facing validation
   core/sub/          telemetry subscriptions (vm_sub.c)
   core/retain/       retained values (vm_retain.c, retain task, sys_settings record vm_retain)
