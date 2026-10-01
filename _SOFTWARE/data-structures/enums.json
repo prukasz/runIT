@@ -594,6 +594,24 @@
         }
       ]
     },
+    "vm_action_scope_e": {
+      "alias": "Action Scope",
+      "source_file": "components/VM/blocks/action/vm_block_action.h",
+      "members": [
+        {
+          "name": "VM_ACTION_SCOPE_STATIC",
+          "value": 0,
+          "alias": "Static",
+          "description": "A built-in action (freeze, safe state, device reset, ...)"
+        },
+        {
+          "name": "VM_ACTION_SCOPE_RECORDED",
+          "value": 1,
+          "alias": "Recorded",
+          "description": "A recorded packet sequence"
+        }
+      ]
+    },
     "vm_expr_op_e": {
       "alias": "Expression Opcode",
       "source_file": "components/VM/blocks/expr_core/vm_expr_core.h",
@@ -1765,6 +1783,18 @@
       "value": 3,
       "alias": "Corrupt",
       "description": "The stored list failed its CRC or framing check; nothing applied."
+    },
+    "VM_ACTION_SCOPE_STATIC": {
+      "enum": "vm_action_scope_e",
+      "value": 0,
+      "alias": "Static",
+      "description": "A built-in action (freeze, safe state, device reset, ...)"
+    },
+    "VM_ACTION_SCOPE_RECORDED": {
+      "enum": "vm_action_scope_e",
+      "value": 1,
+      "alias": "Recorded",
+      "description": "A recorded packet sequence"
     },
     "VM_EXPR_END": {
       "enum": "vm_expr_op_e",

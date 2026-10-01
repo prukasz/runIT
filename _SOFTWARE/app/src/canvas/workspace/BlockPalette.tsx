@@ -23,12 +23,18 @@ const matches = (query: string, type: VmBlockType): boolean => {
   return !q || [type.title, type.key, type.category, type.description].some((text) => text.toLowerCase().includes(q))
 }
 
-export function BlockPalette({ workspace }: { workspace: CanvasWorkspace }) {
+export function BlockPalette({ workspace, tiles }: {
+  workspace: CanvasWorkspace
+  /** View / Manage: the types as tiles, picked to read about them (not placed); `used` counts what the program has. */
+  tiles?: { readonly selectedKey: string | undefined; readonly onSelect: (key: string) => void }
+}) {
   const catalog = runitVmCatalog()
   const [query, setQuery] = useState('')
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const categories = [...new Set(catalog.blocks.map((type) => type.category))].sort((a, b) => (CATEGORY_ORDER.indexOf(a) + 1 || 99) - (CATEGORY_ORDER.indexOf(b) + 1 || 99))
   const canPlace = !!workspace.active
+  const used = new Map<string, number>()
+  for (const canvas of workspace.canvases) for (const block of canvas.blocks) used.set(block.type, (used.get(block.type) ?? 0) + 1)
 
   const toggle = (category: string) => setCollapsed((current) => {
     const next = new Set(current)
@@ -48,7 +54,25 @@ export function BlockPalette({ workspace }: { workspace: CanvasWorkspace }) {
           return (
             <div key={category} className="block-palette-group">
               <PaletteSectionHeader label={CATEGORY_TITLES[category] ?? category} count={types.length} open={open} onToggle={() => toggle(category)} />
-              {open && types.map((type) => (
+              {open && tiles && (
+                <div className="block-tile-grid">
+                  {types.map((type) => (
+                    <button
+                      key={type.key}
+                      type="button"
+                      className={`block-tile cat-${type.category}${tiles.selectedKey === type.key ? ' selected' : ''}`}
+                      aria-pressed={tiles.selectedKey === type.key}
+                      title={type.description}
+                      onClick={() => tiles.onSelect(type.key)}
+                    >
+                      <span className="block-palette-swatch" aria-hidden="true" />
+                      <strong>{type.title}</strong>
+                      {!!used.get(type.key) && <span className="block-tile-count" title="Blocks of this type in the program">{used.get(type.key)}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {open && !tiles && types.map((type) => (
                 <TreeSlab
                   key={type.key}
                   role="listitem"

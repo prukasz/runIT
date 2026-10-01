@@ -8,6 +8,8 @@ import vmBlocks from '@data-structures/vm/blocks/index.generated.json'
 import vmModel from '@data-structures/vm/vm-model.generated.json'
 import vmProgram from '@data-structures/vm/vm-program.generated.json'
 import type { InterfaceProtocol } from '../../backend/protocol'
+import { composeVmBlockFile } from './blockFiles'
+import type { VmBlockContentFile, VmBlockDisplayFile } from './blockFiles'
 import { buildCommandCatalog, DescriptorError, parseByte } from './commandCatalog'
 import type { CommandCatalog } from './commandCatalog'
 import { buildDeviceCatalog } from './deviceCatalog'
@@ -102,11 +104,26 @@ export const runitValueNames = (): ValueNames => {
   return valueNames
 }
 
+const blockDisplays = import.meta.glob<VmBlockDisplayFile>('@vm-blocks/*/*.display.json', { eager: true, import: 'default' })
+const blockContents = import.meta.glob<VmBlockContentFile>('@vm-blocks/*/*.content.json', { eager: true, import: 'default' })
+
+/** Each block's two files (the index names them as `components/VM/blocks/<folder>/<file>`), joined into the block the palette reads. */
+const vmBlockFiles = (): GeneratedVmBlockFile[] => {
+  const tail = (path: string) => path.split('/').slice(-2).join('/')
+  const displays = new Map(Object.entries(blockDisplays).map(([path, file]) => [tail(path), file]))
+  const contents = new Map(Object.entries(blockContents).map(([path, file]) => [tail(path), file]))
+  return (vmBlocks as GeneratedVmBlocksIndex).blocks.map((entry) => {
+    const display = displays.get(tail(entry.display))
+    const content = contents.get(tail(entry.content))
+    if (!display || !content) throw new DescriptorError(`The VM block index lists ${entry.name} (${entry.display}, ${entry.content}), but the app found ${display ? '' : 'its display.json '}${content ? '' : 'its content.json'}.`)
+    return composeVmBlockFile(display, content)
+  })
+}
+
 /** VM program packets, object types and header layout, limits. */
 export const runitVmCatalog = (): VmCatalog => {
   if (!vmCatalog) {
-    const blockFiles = Object.values(import.meta.glob<GeneratedVmBlockFile>('@data-structures/vm/blocks/block_*.generated.json', { eager: true, import: 'default' }))
-    if (blockFiles.length !== vmBlocks.blocks.length) throw new DescriptorError(`The VM block index lists ${vmBlocks.blocks.length} blocks, ${blockFiles.length} block files were found.`)
+    const blockFiles = vmBlockFiles()
     const built = buildVmCatalog(vmProgram satisfies GeneratedVmProgramFile, vmModel satisfies GeneratedVmModelFile, blockFiles)
     const stream = runitStreamCatalog().require('telemetry')
     if (built.telemetry.stream !== stream.header) throw new DescriptorError(`VM telemetry names stream 0x${built.telemetry.stream.toString(16)}, the telemetry connector sends 0x${stream.header.toString(16)}.`)

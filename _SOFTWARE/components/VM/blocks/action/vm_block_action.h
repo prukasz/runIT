@@ -24,7 +24,7 @@
 
 /* Same values as sys_actions' SYS_ACTION_SCOPE_*; the VM doesn't include
    sys_actions (it sits a layer above). */
-//#block-enum @alias Action Scope
+//#ref-enum @alias Action Scope
 typedef enum {
   VM_ACTION_SCOPE_STATIC = 0,    //@alias Static @description A built-in action (freeze, safe state, device reset, ...)
   VM_ACTION_SCOPE_RECORDED = 1,  //@alias Recorded @description A recorded packet sequence
