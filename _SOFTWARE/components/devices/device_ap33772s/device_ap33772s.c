@@ -427,20 +427,22 @@ static SE_MUST_USE err_h device_uninstall(void* handle) {
   return err;
 }
 
+// The output is the board's own supply, so reset must not switch it off either (brownout).
 static SE_MUST_USE err_h device_reset(void* handle) {
-  SYS_DEV_CTX_FROM(ap_ctx_t, c, handle);
-  return chip_set_output(c, false);
+  (void)handle;
+  return NULL;
 }
 
-// Fault safe state: the output switch off
+// The output is the board's own supply (the sink input): switching it off in a fault would
+// cut power to the ESP (brownout, tested 2026-10-01), so suspend / resume leave it alone.
 static SE_MUST_USE err_h device_suspend(void* handle) {
-  SYS_DEV_CTX_FROM(ap_ctx_t, c, handle);
-  return chip_set_output(c, false);
+  (void)handle;
+  return NULL;
 }
 
 static SE_MUST_USE err_h device_resume(void* handle) {
-  SYS_DEV_CTX_FROM(ap_ctx_t, c, handle);
-  return chip_set_output(c, c->is_enabled);
+  (void)handle;
+  return NULL;
 }
 
 static SE_MUST_USE err_h device_install(const void* cfg_blob, void** out_device_handle) {

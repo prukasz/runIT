@@ -434,9 +434,14 @@ static SE_MUST_USE err_h device_uninstall(void* handle) {
   return err;
 }
 
+// A pin locked by another device (TCA6424A's RST) is left to its owner: the sweep goes low -> high id, so
+// the owner's own reset still needs the pin configured.
 static SE_MUST_USE err_h device_reset(void* handle) {
+  SYS_DEV_CTX_FROM(gpio_ctx_t, c, handle);
+  const sys_device_t* dev = sys_device_get_by_id(SYS_DEV_GET_ID(c));
+  const uint64_t locked = dev ? dev->io_locked_pins : 0;
   for (int i = 0; i < GPIO_NUM_MAX; i++) {
-    if (configured_pins & (1ULL << i)) {
+    if ((configured_pins & (1ULL << i)) && !(locked & (1ULL << i))) {
       SE_TRY(contract_io_gpio_esp_reset_pin(handle, i));
     }
   }

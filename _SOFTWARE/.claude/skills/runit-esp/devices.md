@@ -111,7 +111,7 @@ Cross-cutting:
   | PCA9685 | OE high + sleep |
   | TCA6424A | Held in reset |
   | TPS55289 | Output off + EN low (EN goes low even if the I2C disable fails) |
-  | AP33772S | Output off |
+  | AP33772S | Nothing: its output is the board's own supply, switching it off browns the ESP out (2026-10-01) |
   | DAC53202 | Powered down |
   | INA3221 | Powered down |
   | DRV8962 | All bridges coast |

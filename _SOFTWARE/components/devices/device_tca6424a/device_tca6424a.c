@@ -36,6 +36,7 @@ typedef struct tca_ctx_t {
   uint32_t cached_inputs;
   sys_io_intr_mode_e intr_modes[PINS_COUNT];
   uint8_t intr_sub;  // sys_event subscription on intr_pin
+  volatile bool in_reset;  // RST is low (or just released): the INT edge it causes isn't an input change
 } tca_ctx_t;
 
 // Install steps, recorded so teardown rolls back only what was actually built
@@ -124,7 +125,14 @@ static SE_MUST_USE err_h handle_inputs(const sys_event_t* event, tca_ctx_t* c) {
 /* Inline listener of intr_pin. No dispatcher wraps a listener's error, so it carries the device id here. */
 static SE_MUST_USE err_h device_event_handler(const sys_event_t* event, void* handle) {
   SYS_DEV_CTX_FROM(tca_ctx_t, c, handle);
+  if (c->in_reset) return NULL;  // the chip doesn't answer while RST is low
   err_h err = handle_inputs(event, c);
+  // The read can lose the race with a reset that started after the check above (datasheet 8.5.2: the chip
+  // is back to defaults and doesn't answer while RST is low): not an error.
+  if (err && c->in_reset) {
+    SE_release(err);
+    return NULL;
+  }
   return SYS_DEV_WRAP(err, SYS_DEV_GET_ID(c));
 }
 
@@ -227,10 +235,12 @@ static SE_MUST_USE err_h device_reset(void* handle) {
   SYS_DEV_CTX_FROM(tca_ctx_t, c, handle);
 
   if (sys_io_pin_is_valid(c->rst_pin)) {
+    c->in_reset = true;
     SYS_DEV_TRY(sys_io_set_locked_level(c->rst_pin, false), c);
     vTaskDelay(pdMS_TO_TICKS(10));
     SYS_DEV_TRY(sys_io_set_locked_level(c->rst_pin, true), c);
     vTaskDelay(pdMS_TO_TICKS(10));
+    c->in_reset = false;
   }
   c->cached_inputs = 0;
   for (uint8_t i = 0; i < PINS_COUNT; i++) {
@@ -242,6 +252,7 @@ static SE_MUST_USE err_h device_reset(void* handle) {
 static SE_MUST_USE err_h device_suspend(void* handle) {
   SYS_DEV_CTX_FROM(tca_ctx_t, c, handle);
   if (sys_io_pin_is_valid(c->rst_pin)) {
+    c->in_reset = true;
     SYS_DEV_TRY(sys_io_set_locked_level(c->rst_pin, false), c);
   }
   return NULL;
@@ -253,6 +264,7 @@ static SE_MUST_USE err_h device_resume(void* handle) {
     SYS_DEV_TRY(sys_io_set_locked_level(c->rst_pin, true), c);
     vTaskDelay(pdMS_TO_TICKS(10));
   }
+  c->in_reset = false;
   return chip_restore(c);
 }
 

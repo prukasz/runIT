@@ -208,9 +208,10 @@ err_h runit_board_devices_init(void) {
       .intr_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 9, SYS_IO_MODE_INPUT),
       .rst_pin = SYS_IO_PIN_INIT(DEVICE_ID_GPIO_ESP, 8, SYS_IO_MODE_OUTPUT_PUSH_PULL),
   }));
-  /* Status LEDs (high = on). */
+  /* Status LEDs (high = on). 22 stays on after boot (the chip's output latch resets to high), 23 is off. */
   SE_TRY(sys_io_set_mode(SYS_IO_PIN(DEVICE_ID_TCA6424A, 22, SYS_IO_MODE_OUTPUT_PUSH_PULL)));
   SE_TRY(sys_io_set_mode(SYS_IO_PIN(DEVICE_ID_TCA6424A, 23, SYS_IO_MODE_OUTPUT_PUSH_PULL)));
+  SE_TRY(sys_io_set_level(SYS_IO_PIN(DEVICE_ID_TCA6424A, 23, SYS_IO_MODE_OUTPUT_PUSH_PULL), false));
   /* LM73100 H-bridge supply switches (high = on), all off at boot. Each
      DRV8962 has one VM node fed by two switches - turn on one at a time. */
   for (uint8_t pin = RUNIT_BOARD_TCA_DRV2_VM_RAIL_A; pin <= RUNIT_BOARD_TCA_DRV1_VM_RAIL_B; pin++) {
