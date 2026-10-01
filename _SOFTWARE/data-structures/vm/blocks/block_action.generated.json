@@ -7,7 +7,7 @@
   "title": "Run Action",
   "category": "system",
   "description": "Requests a system action once per rising edge of its enable; the action runs outside the program pass.",
-  "source_file": "components/VM/blocks/vm_block_action.h",
+  "source_file": "components/VM/blocks/action/vm_block_action.h",
   "activation": {
     "kind": "enable-rising",
     "description": "Runs once each time its enable turns on."
@@ -63,7 +63,7 @@
   },
   "state": {
     "struct": "vm_block_action_data_t",
-    "source_file": "components/VM/blocks/vm_block_action.h",
+    "source_file": "components/VM/blocks/action/vm_block_action.h",
     "size": 4,
     "align": 4,
     "fields": [
@@ -105,7 +105,7 @@
   "enums": {
     "vm_action_scope_e": {
       "alias": "Action Scope",
-      "source_file": "components/VM/blocks/vm_block_action.h",
+      "source_file": "components/VM/blocks/action/vm_block_action.h",
       "members": [
         {
           "name": "VM_ACTION_SCOPE_STATIC",

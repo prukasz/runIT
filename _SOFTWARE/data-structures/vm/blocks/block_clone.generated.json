@@ -7,7 +7,7 @@
   "title": "Clone",
   "category": "data",
   "description": "Copies the source into a tree this block owns, hung off a pointer cell; rebuilds only when the source's shape changes.",
-  "source_file": "components/VM/blocks/vm_block_clone.h",
+  "source_file": "components/VM/blocks/clone/vm_block_clone.h",
   "activation": {
     "kind": "triggered",
     "description": "Runs when the source (input 0) is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled."

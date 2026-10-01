@@ -7,7 +7,7 @@
   "title": "Toggle Pin",
   "category": "io",
   "description": "Toggles a pin once per rising edge of its enable.",
-  "source_file": "components/VM/blocks/vm_block_io_toggle.h",
+  "source_file": "components/VM/blocks/io_toggle/vm_block_io_toggle.h",
   "activation": {
     "kind": "enable-rising",
     "description": "Runs once each time its enable turns on."
@@ -60,7 +60,7 @@
   },
   "state": {
     "struct": "vm_block_io_toggle_data_t",
-    "source_file": "components/VM/blocks/vm_block_io_toggle.h",
+    "source_file": "components/VM/blocks/io_toggle/vm_block_io_toggle.h",
     "size": 16,
     "align": 8,
     "fields": [

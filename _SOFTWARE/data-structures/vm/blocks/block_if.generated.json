@@ -7,7 +7,7 @@
   "title": "If",
   "category": "flow",
   "description": "Two-way router: output 0 when the condition is non-zero, else output 1. Outputs are flow (enable sources below), cleared when the block doesn't decide.",
-  "source_file": "components/VM/blocks/vm_block_branch.h",
+  "source_file": "components/VM/blocks/if/vm_block_if.h",
   "activation": {
     "kind": "enabled",
     "description": "Runs every pass while enabled."

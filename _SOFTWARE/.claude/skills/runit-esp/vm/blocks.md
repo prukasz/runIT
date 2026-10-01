@@ -2,7 +2,7 @@
 
 ## 1. Palette (`blocks/vm_blocks.h`, `vm_blocks_table.c`)
 
-Type 0 is reserved (unset type must not run). The type byte indexes `g_vm_block_types[]`: one `vm_block_type_t` per type (body, extra check, `min_in`, `min_q`, `required_in`, `state_len`), defined in the block's own header as `VM_BLOCK_TYPE_<NAME>`. The app reads the same data from `data-structures/vm/blocks/` (one descriptor per block).
+Type 0 is reserved (unset type must not run). The type byte indexes `g_vm_block_types[]`: one `vm_block_type_t` per type (body, extra check, `min_in` / `max_in`, `min_q` / `max_q`, `min_en`, `required_in`, `state_len`), **generated** from the block's `//#vm-block` directives into `blocks/vm_blocks_registry.generated.h`. The app reads the same data from `data-structures/vm/blocks/` (one descriptor per block).
 
 | Id | Type | Pins in (★ required) | Out | `custom_len` | Activates on |
 |---|---|---|---|---|---|
@@ -28,11 +28,11 @@ Hardware blocks call `sys_io_*` with `SYS_IO_REF(device_id, pin)`. `allowed_mask
 
 ## 2. Adding a block type
 
-1. **Header** `blocks/vm_block_<name>.h`, `#include "vm_block_helpers.h"` (plus the `sys_*` it drives). Top comment: ASCII pin diagram, one-paragraph behaviour, and the `custom_data` byte layout.
+1. **Folder** `blocks/<name>/` with `vm_block_<name>.h` (the public part: state struct, enums, constants, prototypes, `//#vm-block` directives; `#include "vm_block_helpers.h"` plus the `sys_*` it drives), `vm_block_<name>.c` (the body and the check) and `<name>.md` (the user guide, copied to `app/docs/blocks/`). Header comment: ASCII pin diagram and short developer notes; the `custom_data` layout is the struct (the generator checks it), the behaviour for users goes in the guide. One block per folder; code two blocks share goes in its own folder without a `//#vm-block` (`expr_core/`, `branch_core/`).
 2. **Private state**, if any: one struct, `__attribute__((aligned(4 or 8)))` (the block reads and writes it with `memcpy`, since `custom_data` is only 4-byte aligned), explicit `_pad`, `_Static_assert(sizeof(...) == N)` and `offsetof` asserts for fields the app writes; `#define VM_<NAME>_CUSTOM_LEN sizeof(...)`. Runtime-only bytes (flags, prev values, `rt`) are zero on the wire. A span owner puts `vm_span_t` first.
 3. **Pin constants**: `#define VM_<NAME>_IN_<ROLE> n`, outputs likewise.
-4. **Check** (optional) `static inline bool vm_verify_<name>(vm_block_h b)`: only what the table can't express — enum / range fields, at least one of two pins wired. Pin counts, required pins and state size are checked from the entry. Runs once at load; read the state with `memcpy`. No reporting: the builder returns `ERR_VM_BLK_BAD_SHAPE` and the load is aborted as a whole (the program is discarded), so a rejected block never runs.
-5. **Body** `static inline void vm_blk_<name>(vm_block_h b)`, template:
+4. **Check** (optional) `bool vm_verify_<name>(vm_block_h b)` (declared in the header, defined in the `.c`): only what the directives can't express — enum / range fields, a constant needed when a pin is unwired. Pin counts (min and max), required pins, enable sources and state size are checked from the table entry, which the directives generate: do not repeat them here. Runs once at load; read the state with `memcpy`. No reporting: the builder returns `ERR_VM_BLK_BAD_SHAPE` and the load is aborted as a whole (the program is discarded), so a rejected block never runs.
+5. **Body** `void vm_blk_<name>(vm_block_h b)` (declared in the header, defined in the `.c`), template:
 
    ```c
    static inline void vm_blk_foo(vm_block_h b) {
@@ -56,10 +56,10 @@ Hardware blocks call `sys_io_*` with `SYS_IO_REF(device_id, pin)`. `allowed_mask
    }
    ```
 
-6. **Palette entry + catalog**, at the end of the header:
+6. **Catalog and shape**, at the end of the header (no `VM_BLOCK_TYPE_*` macro any more: the table entry is generated from this block). `@required` on a pin marks one the block cannot run without, `//@enables required` asks for at least one enable source, the numbered pins set the maximum:
 
    ```c
-   //#vm-block VM_BLK_FOO
+   //#vm-block VM_BLK_FOO @id <next free id>
    //@title Foo
    //@category data
    //@activation triggered Runs when x is fresh.
@@ -67,14 +67,12 @@ Hardware blocks call `sys_io_*` with `SYS_IO_REF(device_id, pin)`. `allowed_mask
    //@block-description What it does, for the app.
    //@header Foo | {x} {unit}                        // the face; {ref}s name pins and settings
    //@in 0 x @title X @description Overrides gain. @value f32 @overrides gain @macro VM_FOO_IN_X
-   //@out 0 y @title Y @value f32
-   #define VM_BLOCK_TYPE_FOO \
-     {.run = vm_blk_foo, .check = vm_verify_foo, .min_in = 1, .min_q = 1, .required_in = 0x1u, .state_len = VM_FOO_CUSTOM_LEN}
+   //@out 0 y @title Y @value f32 @required
    ```
 
    Enums the state uses get `//#ref-enum`; state fields get `@enum-ref`, `@runtime` (device-owned), plain text = description. A pin that has a constant to fall back on (`VM_BLOCK_GET_PARAM(out, b, pin, state.field)`) says `@overrides <field>`: the app hides the pin and lets the user type the constant. The app renders the block from the generated JSON alone, so a new block needs no app code. Grammar: `data-structures/auto-annotations/vm/vm-annotations.md`.
-7. **Register**: `#define VM_BLK_FOO <next id>` in `vm_blocks.h`; include the header and add `[VM_BLK_FOO] = VM_BLOCK_TYPE_FOO,` to `vm_blocks_table.c`.
-8. **Generate + docs**: run `python data-structures/auto-annotations/generate-all.py` (the block generator fails on a stray or unknown `//@` line, a wrong struct size or offset, a pin index that disagrees with its `@macro`, an unknown `{ref}` or an unknown enum) and `--check --test`; update VM.MD's palette table and block section, and this table.
+7. **Register**: nothing to edit. The block's id is the `@id` of its `//#vm-block` line (1 to 255, unique, never reused for another block: it is the `block_type` on the wire); the generator writes `vm_block_ids.generated.h` (the `VM_BLK_FOO` number) and `vm_blocks_registry.generated.h` (the include and the table entry), both committed. Do not edit them or `vm_blocks.h` / `vm_blocks_table.c`.
+8. **Generate + docs**: run `idf.py reconfigure` (the block folders are globbed at configure time) and `python data-structures/auto-annotations/generate-all.py` (the block generator fails on a stray or unknown `//@` line, a wrong struct size or offset, a pin index that disagrees with its `@macro`, an unknown `{ref}` or an unknown enum) and `--check --test`; update VM.MD's palette table and block section, and this table.
 
 ### Activation patterns
 

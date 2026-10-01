@@ -3,6 +3,20 @@
 # "obj/vm_obj.h"). That is deliberate: the grouping is for people reading the
 # tree, and regrouping it again later should not touch a single #include line.
 # Each group therefore goes on the include path rather than into the paths.
+# Block types: one folder per block under blocks/ (vm_block_<name>.h / .c and its guide), plus shared code folders
+# (expr_core/, branch_core/). The folders and their sources are found here, so a new block needs no edit in this file; the
+# table that registers them is generated (blocks/vm_blocks_registry.generated.h, see generate-vm-blocks.py). The globs run at
+# configure time: after adding a block folder run `idf.py reconfigure`.
+file(GLOB BLOCK_SRCS "${CMAKE_CURRENT_LIST_DIR}/blocks/*/*.c")
+file(GLOB BLOCK_ENTRIES LIST_DIRECTORIES true "${CMAKE_CURRENT_LIST_DIR}/blocks/*")
+set(BLOCK_DIRS "blocks")
+foreach(entry ${BLOCK_ENTRIES})
+    if(IS_DIRECTORY ${entry})
+        get_filename_component(dir_name ${entry} NAME)
+        list(APPEND BLOCK_DIRS "blocks/${dir_name}")
+    endif()
+endforeach()
+
 idf_component_register(
     SRCS "core/errors/vm_errors.c"
          "core/store/vm_store.c"
@@ -13,7 +27,8 @@ idf_component_register(
          "core/sub/vm_sub.c"
          "core/retain/vm_retain.c"
          "blocks/vm_blocks_table.c"
-    INCLUDE_DIRS "core/errors" "core/store" "core/obj" "core/block" "core/exec" "core/loader" "core/sub" "core/retain" "blocks"
+         ${BLOCK_SRCS}
+    INCLUDE_DIRS "core/errors" "core/store" "core/obj" "core/block" "core/exec" "core/loader" "core/sub" "core/retain" ${BLOCK_DIRS}
     # exec/ is the first layer with anything outside the arena to talk to: the
     # supervisor is a FreeRTOS task pinned to core 1 (utils' R_TASK_* macros),
     # and every timing block plus the block watchdog reads esp_timer.

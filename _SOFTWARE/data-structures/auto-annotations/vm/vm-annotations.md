@@ -30,10 +30,10 @@ python data-structures/auto-annotations/vm/generate-vm-model.py
 
 ## Block catalog (`//#vm-block`)
 
-Every block header in `components/VM/blocks/` describes its block for the app in one directive block, right above its `#define VM_BLOCK_TYPE_<NAME>` macro. `generate-vm-blocks.py` writes one descriptor per block to `data-structures/vm/blocks/block_<name>.generated.json` and an `index.generated.json` (schemas `vm-block.schema.json`, `vm-blocks-index.schema.json`). The app builds the block's palette entry, pins, face, detailed view, inspector and program encoding from that JSON alone: a new block needs no app code.
+Every block header in `components/VM/blocks/<name>/` describes its block for the app in one directive block. `generate-vm-blocks.py` writes one descriptor per block to `data-structures/vm/blocks/block_<name>.generated.json` and an `index.generated.json` (schemas `vm-block.schema.json`, `vm-blocks-index.schema.json`). The app builds the block's palette entry, pins, face, detailed view, inspector and program encoding from that JSON alone: a new block needs no app code.
 
 ```c
-//#vm-block VM_BLK_TIMER
+//#vm-block VM_BLK_TIMER @id 9
 //@title Timer
 //@category time
 //@activation enabled Runs every pass while enabled.
@@ -42,14 +42,12 @@ Every block header in `components/VM/blocks/` describes its block for the app in
 //@header Timer | {mode} {pt} {time_base}
 //@eno @title Q @description The timer's output level.
 //@rule mode is a vm_timer_mode_e value and time_base a vm_timer_unit_e value. @error ERR_VM_BLK_BAD_SHAPE
-//@in 0 in @title Start @value bool @macro VM_TIMER_IN_SIGNAL
+//@in 0 in @title Start @value bool @required @macro VM_TIMER_IN_SIGNAL
 //@in 1 pt @title Preset @description Overrides pt, in time_base units. @value u32 @overrides pt @macro VM_TIMER_IN_PT
 //@out 0 et @title Elapsed time @value u32 @macro VM_TIMER_ET
-#define VM_BLOCK_TYPE_TIMER \
-  {.run = vm_blk_timer, .check = vm_verify_timer, .min_in = 1, .min_q = 0, .required_in = 0x1u, .state_len = sizeof(vm_block_timer_data_t)}
 ```
 
-**Shape of the block.** `//#vm-block VM_BLK_<NAME>` takes the symbol alone, and the id comes from `#define VM_BLK_<NAME> n` in `vm_blocks.h`. One fact per following `//@keyword` line; blank lines and plain `//` comments inside the block are fine, and the block must end directly above its macro. Everything else is an error: an unknown keyword or tag, a tag given twice, a `//@` line outside a block, a keyword that must be unique given twice. Nothing is dropped silently.
+**Shape of the block.** `//#vm-block VM_BLK_<NAME> @id <n>` takes the symbol and the block's id (1 to 255, unique: it is the `block_type` on the wire and the index into the palette table). One fact per following `//@keyword` line; blank lines and plain `//` comments inside the block are fine, and the block ends at the first line that is not blank, a plain comment or a `//@` line. Everything else is an error: an unknown keyword or tag, a tag given twice, a `//@` line outside a block, a keyword that must be unique given twice. Nothing is dropped silently.
 
 | Keyword | Meaning |
 | :--- | :--- |
@@ -63,9 +61,11 @@ Every block header in `components/VM/blocks/` describes its block for the app in
 | `//@opcodes <enum>` | a bytecode block: the opcode enum; the header holds a `//#vm-opcodes <enum>` line above the `[SYMBOL] = {pops, pushes, VM_EXPR_ARG_*}` table the load-time check uses. The generator publishes the table and fails if an opcode has no entry. |
 | `//@example <title> @in <values> [@consts <values>] @code <symbols and operands> @result <value>` | assembled into the computed state layout, checked against the opcode table and published as ready `custom_data` (golden vectors) |
 
-- **Shape is not annotated**: `min_in`, `min_q` and each input's `required` flag are read from the `VM_BLOCK_TYPE_<NAME>` macro the firmware checks at load (a field the macro omits is 0, as in C). Every required input, and every input below `min_in`, must have an `//@in` line; pin indexes run from 0 without gaps.
+- **The shape comes from the pin lines**, and the firmware enforces exactly that at load (`vm_block_verify()`, from the generated table): `@required` on a pin marks it as one the block cannot run without (a numbered input also goes into `required_in`; `min_in` / `min_q` reach the highest required pin; a required `*` pin asks for one more than the numbered ones), `max_in` / `max_q` are the numbered pins (or the Kconfig limit with a `*` pin), and `//@enables required` asks for at least one enable source (default `optional`). Pin indexes run from 0 without gaps.
+- **The body and check are found by name**: the header must declare `void vm_blk_<name>(vm_block_h b);` and may declare `bool vm_verify_<name>(vm_block_h b);` (state-field checks only; the shape is not hand-checked). The table entry also gets `sizeof` of the `@data` struct as the state size.
+- **The user guide**: `<name>.md` next to the header (and `images/`) is copied to `app/docs/blocks/<name>.md`, like a device's guide. It is the author's text, not checked against the C.
 - **State layout is computed** from the struct (natural C alignment; every state struct pads explicitly) and must equal its `_Static_assert(sizeof(...) == N)`, which is required, and every `_Static_assert(offsetof(...) == N)` the header states. Field comments: text before the first tag is the description; `@enum-ref <enum>` names a published `//#ref-enum`; `@runtime` marks device-owned bytes the app writes as 0; `@derived <rule>` marks bytes the app computes from the program (the FOR span); fields starting with `_` are padding. A new field type needs a size in the generator's `TYPES` table.
-- Every palette id (except 0) must have a `//#vm-block`; the generator fails otherwise.
+- Two blocks with the same `@id`, or an id outside 1 to 255, fail the generator. The firmware's palette is generated from the same directives: `components/VM/blocks/vm_block_ids.generated.h` (`#define VM_BLK_<NAME> n`) and `vm_blocks_registry.generated.h` (the block includes and `VM_BLOCK_TABLE_ENTRIES`, used by `vm_blocks_table.c`). Both are committed, like the JSON, and checked by `--check`.
 
 ### Constants: `@overrides`
 

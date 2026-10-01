@@ -7,7 +7,7 @@
   "title": "Latch",
   "category": "logic",
   "description": "EN sets a held flow level; Reset clears it. ENO stays active until reset.",
-  "source_file": "components/VM/blocks/vm_block_latch.h",
+  "source_file": "components/VM/blocks/latch/vm_block_latch.h",
   "activation": {
     "kind": "enabled",
     "description": "Samples EN and Reset every pass; EN sets the held state."
@@ -60,7 +60,7 @@
   },
   "state": {
     "struct": "vm_block_latch_data_t",
-    "source_file": "components/VM/blocks/vm_block_latch.h",
+    "source_file": "components/VM/blocks/latch/vm_block_latch.h",
     "size": 4,
     "align": 4,
     "fields": [
@@ -94,7 +94,7 @@
   "enums": {
     "vm_latch_mode_e": {
       "alias": "Latch Mode",
-      "source_file": "components/VM/blocks/vm_block_latch.h",
+      "source_file": "components/VM/blocks/latch/vm_block_latch.h",
       "members": [
         {
           "name": "VM_LATCH_SET_DOMINANT",

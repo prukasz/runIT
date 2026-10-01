@@ -13,12 +13,11 @@ spec = importlib.util.spec_from_file_location("vm_blocks", Path(__file__).with_n
 generator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(generator)
 
-SHAPE = {"min_in": 1, "min_q": 0, "required_in": 1}
 LIMITS = {"CONFIG_VM_BLOCK_MAX_IN": 8, "CONFIG_VM_BLOCK_MAX_OUT": 8}
 
 
-def header(*lines, macro="#define VM_BLOCK_TYPE_X \\\n  {.min_in = 1, .required_in = 0x1u}"):
-    return "\n".join(["//#vm-block VM_BLK_X", *lines, macro, ""])
+def header(*lines):
+    return "\n".join(["//#vm-block VM_BLK_X @id 1", *lines, ""])
 
 
 def directives(*lines):
@@ -90,7 +89,7 @@ class RealHeaders(unittest.TestCase):
     def test_the_detailed_view_is_the_hard_coded_inputs(self):
         # Inputs with a constant are the detailed view; nothing else needs annotating for it.
         with_constant = sorted(name for name, block in self.block.items() if any(p.get("overrides") for p in block["inputs"]["pins"]))
-        self.assertEqual(with_constant, ["ACTION", "EDGE", "FOR", "IO_SET_LEVEL", "IO_TOGGLE", "PERIODIC", "TIMER"])
+        self.assertEqual(with_constant, ["ACTION", "FOR", "IO_SET_LEVEL", "IO_TOGGLE", "PERIODIC", "TIMER"])
 
     def test_the_old_detailed_view_tags_are_refused(self):
         self.assertIn("unknown directive //@view", build_error("vm_block_timer.h", "//@header Timer |", "//@view simple\n//@header Timer |"))
@@ -109,7 +108,6 @@ class Scanning(unittest.TestCase):
         text = header("//@title X", "", "// a note", "//@category flow")
         [block] = generator.scan_blocks("h", text)
         self.assertEqual([d["keyword"] for d in block["directives"]], ["title", "category"])
-        self.assertEqual(block["macro"], {"min_in": 1, "min_q": 0, "required_in": 1})
 
     def test_a_directive_above_the_block_is_refused(self):
         with self.assertRaisesRegex(SystemExit, "not inside a //#vm-block"):
@@ -119,17 +117,46 @@ class Scanning(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "unknown directive //@titel"):
             generator.scan_blocks("h", header("//@titel X"))
         with self.assertRaisesRegex(SystemExit, "one fact per following"):
-            generator.scan_blocks("h", "//#vm-block VM_BLK_X @title X\n#define VM_BLOCK_TYPE_X {}\n")
+            generator.scan_blocks("h", "//#vm-block VM_BLK_X @id 1 @title X\n#define VM_BLOCK_TYPE_X {}\n")
 
-    def test_the_block_must_sit_right_above_its_macro(self):
-        with self.assertRaisesRegex(SystemExit, "must end right above"):
-            generator.scan_blocks("h", "//#vm-block VM_BLK_X\n//@title X\nint unrelated;\n#define VM_BLOCK_TYPE_X {}\n")
+    def test_the_id_is_part_of_the_directive_line(self):
+        with self.assertRaisesRegex(SystemExit, "symbol and its id"):
+            generator.scan_blocks("h", "//#vm-block VM_BLK_X\n//@title X\n#define VM_BLOCK_TYPE_X {}\n")
+        [block] = generator.scan_blocks("h", header("//@title X"))
+        self.assertEqual(block["id"], 1)
 
-    def test_macro_fields_default_to_zero_and_take_constant_expressions(self):
-        [block] = generator.scan_blocks("h", header("//@title X", macro="#define VM_BLOCK_TYPE_X {.run = f, .required_in = (1u << 0) | (1u << 2)}"))
-        self.assertEqual(block["macro"], {"min_in": 0, "min_q": 0, "required_in": 5})
-        with self.assertRaisesRegex(SystemExit, "cannot read"):
-            generator.scan_blocks("h", header("//@title X", macro="#define VM_BLOCK_TYPE_X {.min_in = sizeof(int)}"))
+    def test_ids_are_unique_and_fit_a_byte(self):
+        self.assertIn("both have @id", build_error("vm_block_edge.h", "VM_BLK_EDGE @id 8", "VM_BLK_EDGE @id 9"))
+        self.assertIn("must be 1 to 255", build_error("vm_block_edge.h", "VM_BLK_EDGE @id 8", "VM_BLK_EDGE @id 0"))
+        self.assertIn("must be 1 to 255", build_error("vm_block_edge.h", "VM_BLK_EDGE @id 8", "VM_BLK_EDGE @id 256"))
+
+    def test_the_c_registry_lists_every_block_by_id(self):
+        blocks, _ = generator.build()
+        registry = generator.render_registry(blocks).decode("utf-8")
+        ids = generator.render_ids(blocks).decode("utf-8")
+        for block in blocks:
+            self.assertIn(f"[{block['name']}] = {{.run = vm_blk_{block['name'][len('VM_BLK_'):].lower()}", registry)
+            self.assertIn(f"#define {block['name']} {block['id']} ", ids)
+        self.assertNotIn("[VM_BLK_NONE]", registry)
+
+    def test_the_registry_entries_carry_the_declared_shape(self):
+        blocks, _ = generator.build()
+        entry = {b["name"]: generator.c_entry(b) for b in blocks}
+        self.assertIn(".min_in = 1, .max_in = 2, .min_q = 0, .max_q = 1, .min_en = 0, .required_in = 0x1u, .state_len = sizeof(vm_block_timer_data_t)", entry["VM_BLK_TIMER"])
+        self.assertIn(".min_en = 1", entry["VM_BLK_EDGE"])          # //@enables required
+        self.assertIn(".min_en = 1", entry["VM_BLK_LATCH"])
+        self.assertIn(".max_q = CONFIG_VM_BLOCK_MAX_OUT", entry["VM_BLK_SWITCH"])  # a `*` output
+        self.assertIn(".min_q = 1", entry["VM_BLK_SWITCH"])                       # a required `*` pin
+        self.assertIn(".min_q = 2, .max_q = 2", entry["VM_BLK_IF"])
+        self.assertIn(".state_len = 0", entry["VM_BLK_IF"])
+        self.assertIn(".check = vm_verify_timer", entry["VM_BLK_TIMER"])
+        self.assertNotIn(".check", entry["VM_BLK_IF"])
+
+    def test_the_block_ends_at_the_first_line_of_code(self):
+        [block] = generator.scan_blocks("h", "//#vm-block VM_BLK_X @id 1\n//@title X\n\nint unrelated;\n")
+        self.assertEqual([d["keyword"] for d in block["directives"]], ["title"])
+        with self.assertRaisesRegex(SystemExit, "not inside a //#vm-block"):
+            generator.scan_blocks("h", "//#vm-block VM_BLK_X @id 1\n//@title X\nint unrelated;\n//@category flow\n")
 
 
 class Tags(unittest.TestCase):
@@ -147,12 +174,26 @@ class Tags(unittest.TestCase):
 
 
 class Pins(unittest.TestCase):
-    def parse(self, *lines, shape=SHAPE, text=""):
-        return generator.parse_pins(directives(*lines), shape, text, LIMITS, "t")
+    def parse(self, *lines, text=""):
+        return generator.parse_pins(directives(*lines), text, LIMITS, "t")
 
-    def test_shape_comes_from_the_macro(self):
-        inputs, _ = self.parse("//@in 0 a @title A @value bool")
+    def test_shape_comes_from_the_required_pins(self):
+        inputs, outputs, shape = self.parse("//@in 0 a @title A @value bool @required", "//@in 1 b @title B @value bool", "//@out 0 q @title Q @value bool @required")
         self.assertTrue(inputs[0]["required"])
+        self.assertFalse(inputs[1]["required"])
+        self.assertEqual(shape, {"min_in": 1, "max_in": 2, "min_q": 1, "max_q": 1, "required_in": 1})
+
+    def test_a_required_pin_raises_the_minimum_to_its_index(self):
+        _, _, shape = self.parse("//@in 0 a @title A @value bool", "//@in 1 b @title B @value bool @required", "//@in 2 c @title C @value bool @required")
+        self.assertEqual((shape["min_in"], shape["required_in"]), (3, 6))
+
+    def test_a_star_pin_lifts_the_maximum_to_the_limit_and_required_asks_for_one(self):
+        _, _, shape = self.parse("//@in * pin @title P @value f32", "//@out 0 a @title A @value bool", "//@out * b @title B @value gate @required")
+        self.assertEqual((shape["max_in"], shape["min_in"]), ("CONFIG_VM_BLOCK_MAX_IN", 0))
+        self.assertEqual((shape["min_q"], shape["max_q"]), (2, "CONFIG_VM_BLOCK_MAX_OUT"))
+
+    def test_the_enables_directive_is_checked(self):
+        self.assertIn("is `required`", build_error("vm_block_edge.h", "//@enables required", "//@enables sometimes"))
 
     def test_pin_lines_are_checked(self):
         cases = {
@@ -164,7 +205,6 @@ class Pins(unittest.TestCase):
             "no title": (("//@in 0 a @value bool",), "needs @title"),
             "bad value kind": (("//@in 0 a @title A @value float",), "needs @value"),
             "text before tags": (("//@in 0 a stray @title A @value bool",), "unexpected text"),
-            "required pin missing": (("//@out 0 q @title Q @value bool",), "the macro needs 1 inputs"),
         }
         for name, (lines, message) in cases.items():
             with self.subTest(name), self.assertRaisesRegex(SystemExit, message):
@@ -178,7 +218,7 @@ class Pins(unittest.TestCase):
             self.parse("//@in 0 a @title A @value bool @macro VM_X_IN_B", text=text)
 
     def test_overrides_ties_a_pin_to_a_setting_and_hides_it(self):
-        inputs, _ = self.parse("//@in 0 a @title A @value bool", "//@in 1 b @title B @value u32 @overrides limit", shape={"min_in": 1, "min_q": 0, "required_in": 1})
+        inputs, _, _ = self.parse("//@in 0 a @title A @value bool @required", "//@in 1 b @title B @value u32 @overrides limit")
         fields = [{"name": "limit", "c_type": "uint32_t", "source": "user"}]
         generator.link_overrides(inputs, fields, "t")
         self.assertTrue(inputs[1]["hidden_by_default"])
@@ -242,11 +282,11 @@ class Mistakes(unittest.TestCase):
         self.assertIn("must name a user state field", build_error("vm_block_timer.h", "@overrides pt", "@overrides nothing"))
 
     def test_annotation_above_the_directive(self):
-        self.assertIn("not inside a //#vm-block", build_error("vm_block_timer.h", "//#vm-block VM_BLK_TIMER", "//@in 2 stray @title S @value bool\n//#vm-block VM_BLK_TIMER"))
+        self.assertIn("not inside a //#vm-block", build_error("vm_block_timer.h", "//#vm-block VM_BLK_TIMER @id 9", "//@in 2 stray @title S @value bool\n//#vm-block VM_BLK_TIMER @id 9"))
 
     def test_a_dropped_pin_line_is_noticed(self):
-        message = build_error("vm_block_latch.h", "//@in 0 set @title Set @value bool @macro VM_LATCH_IN_SET\n", "")
-        self.assertRegex(message, "without gaps|below min_in")
+        message = build_error("vm_block_if.h", "//@in 0 condition", "//@in 3 condition")
+        self.assertRegex(message, "without gaps")
 
     def test_reference_to_a_missing_pin(self):
         self.assertIn("names no pin or setting", build_error("vm_block_timer.h", "//@header Timer | {mode} {pt} {time_base}", "//@header Timer | {mode} {preset}"))

@@ -7,7 +7,7 @@
   "title": "Edge",
   "category": "logic",
   "description": "Pulses ENO for one pass when the combined EN level rises, falls or changes in either direction.",
-  "source_file": "components/VM/blocks/vm_block_edge.h",
+  "source_file": "components/VM/blocks/edge/vm_block_edge.h",
   "activation": {
     "kind": "enabled",
     "description": "Samples EN every pass, including when EN is false."
@@ -52,7 +52,7 @@
   },
   "state": {
     "struct": "vm_block_edge_data_t",
-    "source_file": "components/VM/blocks/vm_block_edge.h",
+    "source_file": "components/VM/blocks/edge/vm_block_edge.h",
     "size": 4,
     "align": 4,
     "fields": [
@@ -94,7 +94,7 @@
   "enums": {
     "vm_edge_type_e": {
       "alias": "Edge Type",
-      "source_file": "components/VM/blocks/vm_block_edge.h",
+      "source_file": "components/VM/blocks/edge/vm_block_edge.h",
       "members": [
         {
           "name": "VM_EDGE_RISING",

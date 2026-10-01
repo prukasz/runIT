@@ -7,7 +7,7 @@
   "title": "Expression",
   "category": "data",
   "description": "Evaluates a numeric or logical formula over its inputs; the result goes to output 0.",
-  "source_file": "components/VM/blocks/vm_block_expr.h",
+  "source_file": "components/VM/blocks/expr/vm_block_expr.h",
   "activation": {
     "kind": "triggered",
     "description": "Runs when an input it reads is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled."
@@ -69,7 +69,7 @@
   ],
   "state": {
     "struct": "vm_expr_code_t",
-    "source_file": "components/VM/blocks/vm_block_expr.h",
+    "source_file": "components/VM/blocks/expr_core/vm_expr_core.h",
     "size": 4,
     "align": 4,
     "fields": [
@@ -661,7 +661,7 @@
   "enums": {
     "vm_expr_op_e": {
       "alias": "Expression Opcode",
-      "source_file": "components/VM/blocks/vm_block_expr.h",
+      "source_file": "components/VM/blocks/expr_core/vm_expr_core.h",
       "members": [
         {
           "name": "VM_EXPR_END",

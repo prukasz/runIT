@@ -98,16 +98,21 @@ typedef bool (*vm_block_verify_fn)(vm_block_h);
 /**
  * @brief One palette entry: everything the VM knows about a block type.
  *
- * Indexed by block_type in g_vm_block_types[] (blocks/vm_blocks_table.c). Each
- * block header defines its entry as VM_BLOCK_TYPE_<NAME>, next to the body and
- * the state layout it describes. vm_block_verify() checks a built block against
- * it once at load, so bodies never re-check their own shape.
+ * Indexed by block_type in g_vm_block_types[] (blocks/vm_blocks_table.c). The
+ * entries are generated from the `//#vm-block` directives of the block headers
+ * (blocks/vm_blocks_registry.generated.h): the body and check by name, the pin
+ * shape from the //@in / //@out / //@enables lines, the state size from the
+ * state struct. vm_block_verify() checks a built block against it once at load,
+ * so bodies never re-check their own shape.
  */
 typedef struct vm_block_type_t {
   vm_block_fn run;           // Body, called every pass (NULL: type not in the palette)
   vm_block_verify_fn check;  // Extra private-state check at load; NULL = none
   uint8_t min_in;            // in_cnt >= min_in
+  uint8_t max_in;            // in_cnt <= max_in
   uint8_t min_q;             // q_cnt >= min_q
+  uint8_t max_q;             // q_cnt <= max_q
+  uint8_t min_en;            // en_cnt >= min_en (1: at least one enable source)
   uint16_t required_in;      // Bit n: input n must be wired
   uint16_t state_len;        // custom_len >= state_len
 } vm_block_type_t;

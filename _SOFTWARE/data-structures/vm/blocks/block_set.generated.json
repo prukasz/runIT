@@ -7,7 +7,7 @@
   "title": "Set",
   "category": "data",
   "description": "Copies the source payload (whole trees included) into the destination when the source is fresh. Types and counts must match.",
-  "source_file": "components/VM/blocks/vm_block_set.h",
+  "source_file": "components/VM/blocks/set/vm_block_set.h",
   "activation": {
     "kind": "triggered",
     "description": "Runs when the source (input 0) is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled."

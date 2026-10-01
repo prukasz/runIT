@@ -1,0 +1,20 @@
+# Latch
+
+A bistable (set / reset) element: it turns a one-pass pulse into a **held level**. Use it to remember that something happened: event, then latch, then wait, then act.
+
+## Pins
+
+| Pin | Meaning |
+|---|---|
+| Enable (EN) | **Sets** the held state. At least one source is required. |
+| Reset | Clears the held state, even when EN is false. Optional; unwired reads as false. |
+| ENO | The held level: true after EN sets it, until Reset clears it. |
+
+## Settings
+
+- **Mode**: *set dominant* (SR: if both are true, the latch stays set) or *reset dominant* (RS: if both are true, it is cleared).
+
+## Behaviour
+
+- The latch keeps its state after EN falls, until Reset wins.
+- If Reset cannot be read, the state is kept and ENO is off for that pass.

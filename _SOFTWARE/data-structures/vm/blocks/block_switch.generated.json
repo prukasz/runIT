@@ -7,7 +7,7 @@
   "title": "Switch",
   "category": "flow",
   "description": "N-way router: drives the output whose index equals the selector (rounded); out of range drives none.",
-  "source_file": "components/VM/blocks/vm_block_branch.h",
+  "source_file": "components/VM/blocks/switch/vm_block_switch.h",
   "activation": {
     "kind": "enabled",
     "description": "Runs every pass while enabled."

@@ -2,7 +2,7 @@
 
     python vm_tests.py COM4
 
-Covers: the fail-closed loader (any load failure discards the program), the incomplete-upload check
+Covers: the fail-closed loader, block shape checks (max pins, required enable) (any load failure discards the program), the incomplete-upload check
 at start, a failed open freeing the old pool, pause / resume not reporting PERIODIC overruns, the
 slow-motion packet (0x49), and that suspend_all / resume_all leave the logs quiet.
 Exit code 1 when a check fails. Needs the board's firmware with the VM; resets the board first.
@@ -83,6 +83,20 @@ def main(port):
         r1, _ = pkt(link, 0x41, struct.pack("<HHHI", 1, 0, 1, 100000))
         r2, _ = pkt(link, 0x41, struct.pack("<HHHI", 1, 0, 1, 100000))
         check("two big opens in a row (the old pool is freed first)", r1 and r1.ok and r2 and r2.ok, f"{r1} / {r2}")
+        pkt(link, 0x48, bytes([8]))
+
+        print("block shape (declared by the //@in / //@out / //@enables directives, enforced at load)")
+        too_many_pins = struct.pack("<HHBBBBBBHH", 0, 0, 13, 2, 0, 0, 0, 1, 16, 0) + struct.pack("<HH", 0xFFFF, 0xFFFF) + PERIODIC_500MS[14:]
+        pkt(link, 0x41, OPEN_1_0_1)
+        pkt(link, 0x42, bytes([1]) + OBJ_B)
+        r, logs = pkt(link, 0x45, too_many_pins)
+        check("PERIODIC with 2 inputs (max 1) fails BAD_SHAPE", err_tag(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
+        check("... and discards the program (ABORTED)", has_tag(logs, "ERR_VM_LOAD_ABORTED"))
+        edge_without_enable = struct.pack("<HHBBBBBBHH", 0, 0, 8, 0, 0, 0, 0, 1, 4, 0) + bytes([0, 0, 0, 0])
+        pkt(link, 0x41, OPEN_1_0_1)
+        pkt(link, 0x42, bytes([1]) + OBJ_B)
+        r, logs = pkt(link, 0x45, edge_without_enable)
+        check("EDGE without an enable source fails BAD_SHAPE", err_tag(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
         pkt(link, 0x48, bytes([8]))
 
         print("running program")

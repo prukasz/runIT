@@ -7,7 +7,7 @@
   "title": "Every",
   "category": "time",
   "description": "Pulses ENO (the tick) for one pass every period while enabled; never bursts after a slow pass.",
-  "source_file": "components/VM/blocks/vm_block_periodic.h",
+  "source_file": "components/VM/blocks/periodic/vm_block_periodic.h",
   "activation": {
     "kind": "enabled",
     "description": "Runs every pass while enabled."
@@ -74,7 +74,7 @@
   },
   "state": {
     "struct": "vm_block_periodic_data_t",
-    "source_file": "components/VM/blocks/vm_block_periodic.h",
+    "source_file": "components/VM/blocks/periodic/vm_block_periodic.h",
     "size": 16,
     "align": 8,
     "fields": [
@@ -125,7 +125,7 @@
   "enums": {
     "vm_timer_unit_e": {
       "alias": "Time Unit",
-      "source_file": "components/VM/blocks/vm_block_timer.h",
+      "source_file": "components/VM/blocks/timer/vm_block_timer.h",
       "members": [
         {
           "name": "VM_TIMER_UNIT_MS",

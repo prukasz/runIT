@@ -7,7 +7,7 @@
   "title": "Timer",
   "category": "time",
   "description": "On-delay, off-delay or pulse timer (plus inverted). ENO is the timer's output Q, held as a level; Elapsed counts in time_base units.",
-  "source_file": "components/VM/blocks/vm_block_timer.h",
+  "source_file": "components/VM/blocks/timer/vm_block_timer.h",
   "activation": {
     "kind": "enabled",
     "description": "Runs every pass while enabled."
@@ -93,7 +93,7 @@
   },
   "state": {
     "struct": "vm_block_timer_data_t",
-    "source_file": "components/VM/blocks/vm_block_timer.h",
+    "source_file": "components/VM/blocks/timer/vm_block_timer.h",
     "size": 32,
     "align": 8,
     "fields": [
@@ -168,7 +168,7 @@
   "enums": {
     "vm_timer_mode_e": {
       "alias": "Timer Mode",
-      "source_file": "components/VM/blocks/vm_block_timer.h",
+      "source_file": "components/VM/blocks/timer/vm_block_timer.h",
       "members": [
         {
           "name": "VM_TIMER_TON",
@@ -216,7 +216,7 @@
     },
     "vm_timer_unit_e": {
       "alias": "Time Unit",
-      "source_file": "components/VM/blocks/vm_block_timer.h",
+      "source_file": "components/VM/blocks/timer/vm_block_timer.h",
       "members": [
         {
           "name": "VM_TIMER_UNIT_MS",

@@ -630,36 +630,39 @@ registry, no registration call and no indirection:
 typedef struct vm_block_type_t {
   vm_block_fn run;           // body, called every pass
   vm_block_verify_fn check;  // extra private-state check at load (enum ranges), or NULL
-  uint8_t min_in, min_q;     // pins the block needs
+  uint8_t min_in, max_in;    // in_cnt bounds
+  uint8_t min_q, max_q;      // q_cnt bounds
+  uint8_t min_en;            // enable sources the block needs (1: at least one)
   uint16_t required_in;      // bit n: input n must be wired
   uint16_t state_len;        // custom_len it needs at least
 } vm_block_type_t;
 
 const vm_block_type_t g_vm_block_types[] = {
     /* [VM_BLK_NONE] stays empty: an unset block_type must not be runnable. */
-    [VM_BLK_EXPR] = VM_BLOCK_TYPE_EXPR,
-    ...
+    VM_BLOCK_TABLE_ENTRIES   // [VM_BLK_EXPR] = {.run = vm_blk_expr, .check = ..., .min_in = ...}, ...
 };
 ```
 
-Each entry is defined by its block's own header as `VM_BLOCK_TYPE_<NAME>`, next
-to the body, the state struct and the catalog annotations that describe it, so
-everything about a block type lives in one file. The table is the id → entry
-map; adding a block type is its header plus one line here (recipe:
-`.claude/skills/runit-esp/vm/blocks.md`).
+Each block is a folder (`blocks/<name>/`: `vm_block_<name>.h` with the state struct and
+the `//#vm-block` directives that describe it, `.c` with the body and check, and its
+guide), so everything about a block type lives together. The table is the id → entry
+map and it is **generated** from those directives (`vm_blocks_registry.generated.h`:
+the body and check by name, the pin shape from `@required` and the pin lists, `//@enables`,
+the state size from the `@data` struct); adding a block type touches nothing central
+(recipe: `.claude/skills/runit-esp/vm/blocks.md`).
 
 **Shape is checked once, at load, from data.** `vm_block_verify()` (run by
-`vm_block_create()`) checks a built block against its entry — pin counts,
-required pins, `custom_len` — then calls the type's `check` for what data can't
+`vm_block_create()`) checks a built block against its entry — pin counts
+(min and max), required pins, enable sources, `custom_len` — then calls the type's `check` for what data can't
 say (an enum field in range, at least one of two pins wired). A rejected block
 fails the load (the whole program is discarded), so a malformed program never reaches the
 scan and bodies never re-check their own shape on every pass.
 
 **The same entry feeds the app.** `generate-vm-blocks.py` reads each header's
-`//#vm-block` directive block (one `//@keyword` line per fact) and its `VM_BLOCK_TYPE_<NAME>` macro and writes one
+`//#vm-block` directive block (one `//@keyword` line per fact) and writes one
 descriptor per block to `data-structures/vm/blocks/` (plus `index.generated.json`):
 id, title, category, when it runs (`@activation`), pins with their counts,
-required flags (from `required_in`) and what each carries (`@value`), the checks
+required flags (`@required`) and what each carries (`@value`), the checks
 the device makes at load (`//@rule`), and the private-state layout with byte
 offsets, enum references and who writes each field (user, derived, runtime) —
 cross-checked against each struct's `_Static_assert`. EXPR / EXPR_BIT also carry

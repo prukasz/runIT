@@ -7,7 +7,7 @@
   "title": "Set Pin Level",
   "category": "io",
   "description": "Drives a pin on an IO device (ESP GPIO, expander) to the input level; writes only on change.",
-  "source_file": "components/VM/blocks/vm_block_io_set_level.h",
+  "source_file": "components/VM/blocks/io_set_level/vm_block_io_set_level.h",
   "activation": {
     "kind": "enabled",
     "description": "Runs every pass while enabled."
@@ -81,7 +81,7 @@
   "always_detailed": true,
   "state": {
     "struct": "vm_block_io_set_level_data_t",
-    "source_file": "components/VM/blocks/vm_block_io_set_level.h",
+    "source_file": "components/VM/blocks/io_set_level/vm_block_io_set_level.h",
     "size": 16,
     "align": 8,
     "fields": [
@@ -168,7 +168,7 @@
   "enums": {
     "vm_io_disabled_state_e": {
       "alias": "IO Disabled Action",
-      "source_file": "components/VM/blocks/vm_block_io_set_level.h",
+      "source_file": "components/VM/blocks/io_set_level/vm_block_io_set_level.h",
       "members": [
         {
           "name": "VM_IO_DISABLED_FORCE_LOW",
@@ -192,7 +192,7 @@
     },
     "vm_io_level_e": {
       "alias": "IO Static Level",
-      "source_file": "components/VM/blocks/vm_block_io_set_level.h",
+      "source_file": "components/VM/blocks/io_set_level/vm_block_io_set_level.h",
       "members": [
         {
           "name": "VM_IO_LEVEL_HIGH",

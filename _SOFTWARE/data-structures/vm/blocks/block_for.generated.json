@@ -7,7 +7,7 @@
   "title": "For",
   "category": "flow",
   "description": "Runs the blocks in its span repeatedly within one pass: for (i = start; i <cmp> end; i = i <op> step), bounded by max_turns.",
-  "source_file": "components/VM/blocks/vm_block_for.h",
+  "source_file": "components/VM/blocks/for/vm_block_for.h",
   "activation": {
     "kind": "enabled",
     "description": "Runs every pass while enabled."
@@ -125,7 +125,7 @@
   },
   "state": {
     "struct": "vm_for_code_t",
-    "source_file": "components/VM/blocks/vm_block_for.h",
+    "source_file": "components/VM/blocks/for/vm_block_for.h",
     "size": 24,
     "align": 4,
     "fields": [
@@ -213,7 +213,7 @@
   "enums": {
     "vm_for_cmp_e": {
       "alias": "Loop Condition",
-      "source_file": "components/VM/blocks/vm_block_for.h",
+      "source_file": "components/VM/blocks/for/vm_block_for.h",
       "members": [
         {
           "name": "VM_FOR_CMP_LT",
@@ -249,7 +249,7 @@
     },
     "vm_for_op_e": {
       "alias": "Loop Step Operation",
-      "source_file": "components/VM/blocks/vm_block_for.h",
+      "source_file": "components/VM/blocks/for/vm_block_for.h",
       "members": [
         {
           "name": "VM_FOR_OP_ADD",

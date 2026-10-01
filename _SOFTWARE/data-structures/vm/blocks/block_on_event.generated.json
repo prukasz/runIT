@@ -7,7 +7,7 @@
   "title": "On Event",
   "category": "system",
   "description": "Pulses ENO for one pass when a matching system event arrived (needs a subscription routed to the VM).",
-  "source_file": "components/VM/blocks/vm_block_on_event.h",
+  "source_file": "components/VM/blocks/on_event/vm_block_on_event.h",
   "activation": {
     "kind": "enabled",
     "description": "Runs every pass while enabled."
@@ -40,7 +40,7 @@
   "rules": [],
   "state": {
     "struct": "vm_block_on_event_data_t",
-    "source_file": "components/VM/blocks/vm_block_on_event.h",
+    "source_file": "components/VM/blocks/on_event/vm_block_on_event.h",
     "size": 4,
     "align": 4,
     "fields": [
@@ -108,12 +108,6 @@
           "value": 3,
           "alias": "Bluetooth",
           "description": "Connection events. Event = BLE event"
-        },
-        {
-          "name": "SYS_EVENT_DOMAIN_FEATURE",
-          "value": 4,
-          "alias": "Feature",
-          "description": "Events raised by features. Device = feature ID"
         }
       ]
     }
