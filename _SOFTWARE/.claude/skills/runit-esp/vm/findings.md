@@ -14,7 +14,7 @@ From the review of `components/VM` on 2026-09-23. Fixed items are in PROGRESS.md
 ## 2. Closed decisions
 
 - G-1 (block catalog): done — one descriptor per block in `data-structures/vm/blocks/` from `//#vm-block` + the palette entry macros.
-- G-2 (app contract): done — `vm-program.generated.json` (records, telemetry, widths, limits, arena), per-block descriptors with pins, activation and load rules, EXPR / EXPR_BIT bytecode (opcode table, load-time check, golden vectors checked on the real evaluator), the FOR span as a derived field.
+- G-2 (app contract): done — `vm-program.generated.json` (records, telemetry, widths, limits, arena), per-block `content.json` (generated from the header: pins, activation, load rules, state layout, own enums) + hand-written `display.json` (face), EXPR / EXPR_BIT bytecode (opcode table, load-time check, golden vectors checked on the real evaluator), the FOR span as a derived field.
 - G-3 (event block): done — `ON_EVENT`.
 - G-4 (latch / periodic / action): done.
 - G-8 (program stored on the device) and G-9 (flash size, room for programs): done 2026-09-26 — the program is part of the board's stored code (`sys_project`, own 512 KB `project` NVS partition, 16 MB flash), replayed at boot, autostart from `prj_opts`.

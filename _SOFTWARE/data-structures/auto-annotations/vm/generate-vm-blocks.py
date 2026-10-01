@@ -1,48 +1,35 @@
-"""Generate one descriptor per VM block, plus an index, for the app's block palette, block face and program compiler.
+"""Generate the app's block descriptors, the palette index and the firmware's block registry from the block headers.
 
-Every block header in components/VM/blocks/<name>/ describes its block in one
-directive block: a `//#vm-block VM_BLK_<NAME>` line, then one `//@keyword ...`
-line per fact. The block ends at the first line that is not blank, a plain comment or a //@ line.
-Blank lines and plain `//` comments inside the block are fine. Anything that is
-not understood is an error, so a typo can never silently drop a fact. Grammar:
-vm-annotations.md.
+A block is a folder components/VM/blocks/<name>/ holding vm_block_<name>.h (and .c), <name>.display.json (what the editor shows,
+written by hand) and <name>.md (the user guide). The header is the single source of truth for everything else: the generator
+writes <name>.content.json next to it (what the block is: pins, payload layout, enums, rules). Adding a block needs no edit
+here and no edit anywhere central. Nothing in this file names a block.
 
-  //#vm-block VM_BLK_TIMER @id 9
-  //@title Timer
-  //@category time
-  //@activation enabled Runs every pass while enabled.
+The header's `//@` lines stand next to what they describe; one block per header, all attached to its `//#vm-block` line:
+
+  //#vm-block VM_BLK_<NAME> @id <1..255>        above the body prototype
+  //@activation <enabled|triggered|enable-rising>
   //@enables required|optional                  at least one enable source (default optional)
-  //@data vm_block_timer_data_t                   private state struct (custom_data)
-  //@data-tail <text>                             variable bytes after it (bytecode blocks)
-  //@opcodes <enum>                               bytecode blocks: the opcode enum
-  //@block-description <text>
-  //@in  <index|*> <name> @title <text> @value <kind> [@description <text>] [@overrides <field>] [@required] [@macro <C index macro>] ...
-  //@out <index|*> <name> @title <text> @value <kind> [@description <text>] [@required] [@macro <C index macro>]
-  //@eno @title <text> [@description <text>]      what the block's ENO is called
-  //@rule <text> @error <ERR_TAG>                 what the device checks at load
+  //@data <struct>                              above the private-state struct (custom_data)
+  //@data-tail <text>                           variable bytes after it (bytecode blocks)
+  //@opcodes <enum> @stack-max <C macro>        bytecode blocks: the opcode enum and the evaluator's stack depth
+  //@rule <text> @error <ERR_TAG>               above vm_verify_<name>: what the load-time check rejects
   //@example <title> @in <values> [@consts <values>] @code <opcodes and operands> @result <value>
-  //@header <lead words> | {ref} {ref}            the block face's line under the title
 
-The block id is the `@id` of its //#vm-block line (1 to 255, unique). The shape the
-firmware enforces at load comes from the same lines: `@required` marks a pin the block
-cannot run without (min_in / min_q reach the highest required pin, required_in is the
-bitmask of required inputs; a required `*` pin asks for one more than the numbered ones),
-the max counts are the numbered pins (or the Kconfig limit with a `*` pin), and
-`//@enables required` asks for at least one enable source. So a descriptor cannot disagree
-with what the device accepts. The generator also writes the firmware's registry:
-vm_block_ids.generated.h (the VM_BLK_<NAME> numbers) and vm_blocks_registry.generated.h
-(every block header and the palette table entries: `vm_blk_<name>` / `vm_verify_<name>`
-by name, that shape, and `sizeof` of the @data struct), used by blocks/vm_blocks_table.c,
-so adding a block needs no central edit. A `<name>.md` next to the header is the block's
-user guide: it is copied to app/docs/blocks/<name>.md (with its images/). The
-private-state struct is laid out here (natural C alignment) and cross-checked
-against its _Static_assert(sizeof) and every _Static_assert(offsetof) the
-header states.
+The pins are the members of the enums `vm_in_<name>_e` / `vm_out_<name>_e` (marked `//#block-enum`): `VM_IN_<NAME>_<PIN> = <index>,
+//@in @value <kind> [@required] [@overrides <field>] ...`; a repeating pin is the last member `..._<PIN>_ANY` with `@repeat`. The
+shape the firmware enforces at load comes from them: `@required` marks a pin the block cannot run without (min_in / min_q reach
+the highest required pin, required_in is the bitmask of required inputs), the max counts are the numbered pins (or the Kconfig
+limit with a repeating pin), and `//@enables required` asks for at least one enable source. Enums of one block are `//#block-enum`
+(they go into its content.json); an enum several blocks use stays `//#ref-enum`. A type a state struct uses that the generator
+cannot size is declared `//#vm-type <name> @size <n> @align <n>` (and asserted in C). The private-state struct is laid out here
+(natural C alignment) and cross-checked against its _Static_assert(sizeof) and every _Static_assert(offsetof).
 
-A pin with `@overrides <field>` reads a constant from that state field while it
-is unwired: the pin is hidden until it is wired, and the field is the constant
-the user enters. `{ref}` in a header names an input pin (its wired source, else
-the constant), an output pin, a state field or `title`.
+The generator also writes the firmware's registry: vm_block_ids.generated.h (the VM_BLK_<NAME> numbers) and
+vm_blocks_registry.generated.h (every block header and the palette table entries: `vm_blk_<name>` / `vm_verify_<name>` by name,
+that shape, and `sizeof` of the @data struct), used by blocks/vm_blocks_table.c. A `<name>.md` is copied to
+app/docs/blocks/<name>.md (with its images/). Anything not understood is an error, so a typo never silently drops a fact.
+Grammar: vm-annotations.md.
 
 Usage:
   python data-structures/auto-annotations/vm/generate-vm-blocks.py [--check] [--skip-schema]
@@ -73,6 +60,9 @@ INCLUDE_RE = re.compile(r'^#include\s+"([\w.]+)"', re.MULTILINE)
 GUIDE_DIR = PROJECT_ROOT / "app" / "docs" / "blocks"  # where the app reads block guides
 GUIDE_MARK = "<!-- Generated by data-structures/auto-annotations/vm/generate-vm-blocks.py from"
 GUIDE_IMAGE_RE = re.compile(r"(\]\()images/")
+DISPLAY_FILES = {}  # header path -> (display.json, content.json), project-relative
+DISPLAY_BLOCKS = {}  # block name -> the same, for the blocks the app reads from their folder
+ENUM_MODULE = {}
 C_INFO = {}  # block name -> what the firmware table entry needs (filled while the blocks are built)
 C_GENERATED_MARK = "// Generated by data-structures/auto-annotations/vm/generate-vm-blocks.py from the //#vm-block directives of the block headers - do not edit."
 START_RE = re.compile(r"^//#vm-block\b[ \t]*(?P<rest>.*)$")
@@ -82,34 +72,49 @@ PIN_RE = re.compile(r"^(?P<index>\*|\d+)\s+(?P<name>\w+)(?P<tags>(?:\s.*)?)$")
 REF_RE = re.compile(r"\{(\w+)\}")
 FIELD_RE = re.compile(r"^\s*(?P<type>[A-Za-z_][\w ]*?)\s+(?P<name>\w+)\s*(?:\[(?P<arr>\w*)\])?\s*;\s*(?://\s*(?P<comment>.*))?$")
 OPTABLE_RE = r"//#vm-opcodes\s+{enum}\s*\n[^{{]*\{{(?P<body>.*?)\n\}};"
-OPENTRY_RE = re.compile(r"\[(?P<sym>\w+)\]\s*=\s*\{\s*(?P<pops>\d+)\s*,\s*(?P<pushes>\d+)\s*,\s*VM_EXPR_ARG_(?P<arg>\w+)\s*\}")
+OPENTRY_RE = re.compile(r"\[(?P<sym>\w+)\]\s*=\s*\{\s*(?P<pops>\d+)\s*,\s*(?P<pushes>\d+)\s*,\s*VM_\w*?ARG_(?P<arg>NONE|INPUT|CONST)\s*\}")
 ERROR_TAG_RE = re.compile(r"X\(\s*(ERR_\w+)\s*,\s*(0x[0-9A-Fa-f]+)\s*,")
 IDENT_RE = re.compile(r"^[A-Za-z_]\w*$")
 
-# What each `//@keyword` line of a block takes: `one` once, `many` any number of times.
+# What each `//@keyword` line of a block header takes: `one` once, `many` any number of times.
 DIRECTIVES = {
-    "title": "one", "category": "one", "activation": "one", "block-description": "one",
-    "data": "one", "data-tail": "one", "opcodes": "one", "header": "one", "eno": "one", "always-detailed": "one", "enables": "one",
-    "rule": "many", "example": "many", "in": "many", "out": "many",
+    "activation": "one", "enables": "one", "data": "one", "data-tail": "one", "opcodes": "one",
+    "rule": "many", "example": "many",
 }
-REQUIRED_DIRECTIVES = ("title", "category", "activation", "block-description")
+FACE_DIRECTIVES = {"title", "category", "block-description", "header", "eno", "always-detailed", "in", "out"}  # not in a header: see FACE_HINT
+FACE_HINT = ("belong in the <name>.display.json (the face) or on the member of vm_in_<block>_e / vm_out_<block>_e (a pin: "
+             "`VM_IN_<BLOCK>_<PIN> = 0, //@in @value <kind> ...`), not as a //@ line")
+REQUIRED_DIRECTIVES = ("activation",)
 
 # Tags per line kind. A tag outside its set, or given twice, is an error.
-PIN_TAGS = {"title", "description", "value", "overrides", "macro", "hidden-by-default", "id", "device-field", "required"}
-FIELD_TAGS = {"enum-ref", "runtime", "derived", "id", "device-field", "contract", "hidden-by-default", "let-user-select-available", "dynamic-input"}
+PIN_TAGS = {"repeat", "title", "description", "value", "overrides", "hidden-by-default", "id", "device-field", "required"}
+FIELD_TAGS = {"description", "enum-ref", "runtime", "derived", "id", "device-field", "contract", "hidden-by-default", "let-user-select-available", "dynamic-input"}
 ENO_TAGS = {"title", "description"}
 RULE_TAGS = {"error"}
 EXAMPLE_TAGS = {"in", "consts", "code", "result"}
-FLAG_TAGS = {"hidden-by-default", "runtime", "required"}
+FLAG_TAGS = {"hidden-by-default", "runtime", "required", "repeat"}
 
-# (size, alignment) of every type a state struct may use.
+# (size, alignment) of the C types a state struct may use. Any other type is declared where it is defined, with
+# `//#vm-type <name> @size <n> @align <n>` (and a _Static_assert of the same in C), so no block's type is named here.
 TYPES = {
     "uint8_t": (1, 1), "int8_t": (1, 1), "bool": (1, 1), "char": (1, 1),
     "uint16_t": (2, 2), "int16_t": (2, 2),
     "uint32_t": (4, 4), "int32_t": (4, 4), "float": (4, 4),
     "uint64_t": (8, 8), "int64_t": (8, 8), "double": (8, 8),
-    "vm_span_t": (4, 2), "vm_edge_val_u": (4, 4), "vm_expr_k_t": (4, 4),
 }
+VM_TYPE_RE = re.compile(r"^//#vm-type\s+(\w+)\s+@size\s+(\d+)\s+@align\s+(\d+)\s*$", re.MULTILINE)
+DECLARED_TYPES = {}
+
+
+def state_types():
+    """TYPES plus every `//#vm-type` declared under components/VM."""
+    if not DECLARED_TYPES:
+        for header in sorted(VM_ROOT.rglob("*.h")):
+            for name, size, align in VM_TYPE_RE.findall(header.read_text(encoding="utf-8", errors="ignore")):
+                DECLARED_TYPES[name] = (int(size), int(align))
+        DECLARED_TYPES["_scanned"] = (0, 0)
+    return {**TYPES, **DECLARED_TYPES}
+
 
 # What a pin reads or writes. Scalar kinds accept an object of any scalar type
 # (B, U8, U32, I32, F, STR): the device converts on read and on write.
@@ -128,6 +133,11 @@ ACTIVATION_KINDS = {
     "enabled": "Runs every pass while its enables allow it (always, with no enables); resets or clears its outputs when disabled.",
     "triggered": "Runs when an input it watches is fresh (marked updated this pass) and it is enabled.",
     "enable-rising": "Runs once each time its enables turn it on.",
+}
+# What `@id <kind>` on a state field or a pin means (id_kind in the json).
+ID_KINDS = {
+    "device": "The id of a device created in the project. The field's `contract` says which devices fit (the ones that answer it).",
+    "pin": "An index of an IO resource of the device in the field named by `device_field` (a pin, a channel: the editor's title says which).",
 }
 ARG_KINDS = {"NONE": "none", "INPUT": "input", "CONST": "const"}
 
@@ -195,63 +205,113 @@ def split_top_level(text):
 # Finding the blocks in a header
 # ---------------------------------------------------------------------------
 
-def scan_blocks(label, text):
-    """Every `//#vm-block` directive block of a header: name, line, directives and the VM_BLOCK_TYPE macro below it."""
+def scan_block(label, text):
+    """The header's block: `{name, id, line, directives}` from its one `//#vm-block` line and every `//@` line of the file, or None
+    when it has no `//#vm-block` (a shared header). The `//@` lines stand next to the element they describe."""
     lines = text.replace("\r\n", "\n").split("\n")
-    claimed, blocks, i = set(), [], 0
-    while i < len(lines):
-        m = START_RE.match(lines[i])
-        if not m:
-            i += 1
-            continue
-        where = f"{label}:{i + 1}"
-        head = HEAD_RE.match(m.group("rest").strip())
-        if not head:
-            fail(f"{where}: `//#vm-block` takes the block symbol and its id (VM_BLK_<NAME> @id <n>), one fact per following //@ line; got `{m.group('rest').strip()}`")
-        block = {"name": head.group(1), "id": int(head.group(2)), "line": i + 1, "directives": []}
-        claimed.add(i)
-        j = i + 1
-        while j < len(lines):
-            stripped = lines[j].strip()
-            if not stripped or (stripped.startswith("//") and not stripped.startswith("//#") and not stripped.startswith("//@")):
-                j += 1
-                continue
-            if stripped.startswith("//@"):
-                d = DIRECTIVE_RE.match(stripped)
-                if not d:
-                    fail(f"{label}:{j + 1}: malformed directive `{stripped}`")
-                keyword = d.group("keyword")
-                if keyword not in DIRECTIVES:
-                    fail(f"{label}:{j + 1}: unknown directive //@{keyword} (known: {', '.join(sorted(DIRECTIVES))})")
-                block["directives"].append({"keyword": keyword, "rest": (d.group("rest") or "").strip(), "line": j + 1})
-                claimed.add(j)
-                j += 1
-                continue
-            break
-        blocks.append(block)  # the block ends at the first line that is not blank, a plain comment or a //@ line
-        i = j
+    heads = [(i, START_RE.match(line)) for i, line in enumerate(lines) if START_RE.match(line)]
+    if len(heads) > 1:
+        fail(f"{label}: {len(heads)} `//#vm-block` lines: one block per header (shared code goes in its own folder without one)")
+    directives = []
     for k, line in enumerate(lines):
-        if line.lstrip().startswith("//@") and k not in claimed:
-            fail(f"{label}:{k + 1}: `{line.strip()[:60]}` is not inside a //#vm-block directive block (put it below the //#vm-block line)")
-    return blocks
+        if not line.lstrip().startswith("//@"):
+            continue
+        d = DIRECTIVE_RE.match(line.strip())
+        if not d:
+            fail(f"{label}:{k + 1}: malformed directive `{line.strip()}`")
+        keyword = d.group("keyword")
+        if keyword in FACE_DIRECTIVES:
+            fail(f"{label}:{k + 1}: //@{keyword} {FACE_HINT}")
+        if keyword not in DIRECTIVES:
+            fail(f"{label}:{k + 1}: unknown directive //@{keyword} (known: {', '.join(sorted(DIRECTIVES))})")
+        directives.append({"keyword": keyword, "rest": (d.group("rest") or "").strip(), "line": k + 1})
+    if not heads:
+        if directives:
+            fail(f"{label}:{directives[0]['line']}: //@{directives[0]['keyword']} without a `//#vm-block VM_BLK_<NAME> @id <n>` line")
+        return None
+    i, m = heads[0]
+    head = HEAD_RE.match(m.group("rest").strip())
+    if not head:
+        fail(f"{label}:{i + 1}: `//#vm-block` takes the block symbol and its id (VM_BLK_<NAME> @id <n>); got `{m.group('rest').strip()}`")
+    return {"name": head.group(1), "id": int(head.group(2)), "line": i + 1, "directives": directives}
 
 
-def header_macro(text, macro, context):
+def define_value(text, macro, context):
+    """The integer a `#define <macro> <n>` of the header (or a header it includes) gives."""
     m = re.search(rf"^#define\s+{re.escape(macro)}\s+([^\n/]+)", text, re.MULTILINE)
     if not m:
-        fail(f"{context}: @macro {macro} is not defined in the header")
+        fail(f"{context}: {macro} is not defined in the header")
     return safe_int(m.group(1), f"{context}: {macro}")
 
 
-# ---------------------------------------------------------------------------
-# Environment
-# ---------------------------------------------------------------------------
+def enum_module():
+    """The shared enum scanner (parse_members / tags), loaded once."""
+    if "module" not in ENUM_MODULE:
+        path = PROJECT_ROOT / "data-structures" / "auto-annotations" / "enums" / "generate-enums.py"
+        spec = importlib.util.spec_from_file_location("generate_enums", path)
+        ENUM_MODULE["module"] = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ENUM_MODULE["module"])
+    return ENUM_MODULE["module"]
+
+
+BLOCK_ENUM_RE = re.compile(
+    r"//#block-enum(?P<marker_rest>[^\n]*)\n\s*typedef\s+enum(?:\s+\w+)?\s*\{(?P<body>.*?)\}\s*(?P<name>\w+)\s*;", re.DOTALL)
+
+
+def block_enums(own_text, source, context):
+    """The enums a block header marks `//#block-enum [@alias <title>]` above a typedef: they belong to the block (they go into its
+    content.json), not to the shared enums.json. Members follow the same rules as //#ref-enum."""
+    module = enum_module()
+    found = {}
+    for m in BLOCK_ENUM_RE.finditer(own_text):
+        members = module.parse_members(m.group("body"), module.load_sdkconfig(), f"{context}: {m.group('name')}")
+        found[m.group("name")] = {"alias": module.parse_tags(m.group("marker_rest") or "").get("alias"), "source_file": source, "members": members}
+    return found
+
+
+def pins_from_enums(own_text, block_name, enums, context):
+    """The pin entries of a block with a display.json: the members of its `vm_in_<block>_e` and `vm_out_<block>_e` enums (marked
+    `//#block-enum`). A member `VM_IN_<BLOCK>_<PIN>` is input pin `<pin>` at the member's value; its trailing `//@in <tags>` comment
+    (@value, @overrides, @required, ...) describes the pin. Outputs are the same with VM_OUT_ and //@out."""
+    entries = []
+    for side, prefix in (("in", "VM_IN_"), ("out", "VM_OUT_")):
+        enum_name = f"vm_{side}_{block_name.lower()}_e"
+        if enum_name not in enums:
+            continue
+        values = {m["name"]: m["value"] for m in enums[enum_name]["members"]}
+        body = next((m.group("body") for m in BLOCK_ENUM_RE.finditer(own_text) if m.group("name") == enum_name), "")
+        for line in body.splitlines():
+            m = re.match(rf"^\s*(?P<const>\w+)\s*(?:=[^,/]*)?,?\s*//@{side}(?:\s+(?P<tags>.*))?$", line)
+            if not m:
+                if line.strip() and not line.strip().startswith("//"):
+                    fail(f"{context}: {enum_name}: `{line.strip()}` needs a trailing `//@{side} @value <kind> ...` describing the pin")
+                continue
+            const = m.group("const")
+            if not const.startswith(f"{prefix}{block_name}_"):
+                fail(f"{context}: {enum_name}: {const} must be named {prefix}{block_name}_<PIN>")
+            where = f"{context}: {const} //@{side}"
+            lead, tags = parse_tags(m.group("tags") or "", PIN_TAGS, where)
+            if lead:
+                fail(f"{where}: unexpected text `{lead}` before the first tag")
+            name = const[len(prefix) + len(block_name) + 1:].lower()
+            index = str(values[const])
+            if "repeat" in tags:  # `@repeat`: the pin repeats (any number); named `<PIN>_ANY`, valued after the numbered pins
+                del tags["repeat"]
+                if not name.endswith("_any"):
+                    fail(f"{where}: a @repeat pin member is named {prefix}{block_name}_<PIN>_ANY")
+                name, index = name[:-len("_any")], "*"
+            entries.append({"side": side, "index": index, "name": name, "tags": tags, "where": where, "value": values[const]})
+    for side in ("in", "out"):
+        side_entries = [e for e in entries if e["side"] == side]
+        numbered = [e for e in side_entries if e["index"] != "*"]
+        for e in side_entries:
+            if e["index"] == "*" and e["value"] != len(numbered):
+                fail(f"{context}: the repeating pin `{e['name']}` is valued {e['value']}, after {len(numbered)} numbered pin(s) it must be {len(numbered)}")
+    return entries
+
 
 def load_enum_catalog():
-    path = PROJECT_ROOT / "data-structures" / "auto-annotations" / "enums" / "generate-enums.py"
-    spec = importlib.util.spec_from_file_location("generate_enums", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    module = enum_module()
     return module.scan(module.COMPONENTS_DIR)
 
 
@@ -296,21 +356,33 @@ def layout_state(name, enums, context):
     if static_size is None:
         fail(f"{context}: {name} needs `_Static_assert(sizeof({name}) == N, ...)` so its layout is checked against the compiler")
     fields, offset, max_align = [], 0, attr_align
+    declarations = []  # (field line, its comment): a comment-only `//` line below a field continues that field's comment
     for line in body.splitlines():
-        if not line.strip() or line.strip().startswith("//"):
+        if not line.strip():
             continue
+        if line.strip().startswith("//"):
+            if declarations:
+                declarations[-1][1].append(line.strip()[2:].strip())
+            continue
+        declarations.append((line, []))
+    for line, continuation in declarations:
         m = FIELD_RE.match(line)
         if not m:
             fail(f"{context}: cannot parse state field `{line.strip()}` in {name}")
         c_type = " ".join(m.group("type").split())
-        if c_type not in TYPES:
-            fail(f"{context}: state field type `{c_type}` has no known size (add it to TYPES)")
-        size, align = TYPES[c_type]
+        types = state_types()
+        if c_type not in types:
+            fail(f"{context}: state field type `{c_type}` has no known size (declare it `//#vm-type {c_type} @size <n> @align <n>` where it is defined)")
+        size, align = types[c_type]
         offset = (offset + align - 1) // align * align
         max_align = max(max_align, align)
         field_ctx = f"{context}.{m.group('name')}"
-        comment = m.group("comment") or ""
+        comment = " ".join([m.group("comment") or "", *continuation]).strip()
         description, tags = parse_tags(comment, FIELD_TAGS, field_ctx)
+        if "description" in tags:  # `@description <text>` or plain text before the first tag, not both
+            if description:
+                fail(f"{field_ctx}: text before the tags and @description: use one")
+            description = tags.pop("description")
         field = {"name": m.group("name"), "c_type": c_type, "offset": offset}
         arr = m.group("arr")
         if arr is None:
@@ -383,7 +455,7 @@ def field_metadata(tags, context):
 # Pins
 # ---------------------------------------------------------------------------
 
-def parse_pins(directives, text, sdkconfig, context):
+def parse_pins(entries, text, sdkconfig, context):
     """(inputs, outputs, shape) from the //@in and //@out lines, checked against the header's index macros.
 
     The shape the firmware enforces at load comes from here: `@required` marks a pin the block cannot run
@@ -391,22 +463,13 @@ def parse_pins(directives, text, sdkconfig, context):
     pin (a required `*` pin asks for one more than the numbered ones), max_in / max_q are the numbered
     pins, or the Kconfig limit when a `*` pin is listed."""
     pins = {"in": [], "out": []}
-    for d in directives:
-        if d["keyword"] not in pins:
-            continue
-        where = f"{context}: //@{d['keyword']} (line {d['line']})"
-        m = PIN_RE.match(d["rest"])
-        if not m:
-            fail(f"{where}: expected `<index|*> <name> @title <text> @value <kind>`, got `{d['rest']}`")
-        lead, tags = parse_tags(m.group("tags"), PIN_TAGS, where)
-        if lead:
-            fail(f"{where}: unexpected text `{lead}` before the first tag")
+    for entry in entries:
+        where, index, name, tags = entry["where"], entry["index"], entry["name"], entry["tags"]
         if "title" not in tags or not tags["title"]:
             fail(f"{where}: needs @title")
         if tags.get("value") not in VALUE_KINDS:
             fail(f"{where}: needs @value, one of {sorted(VALUE_KINDS)}")
-        index = m.group("index")
-        pin = {"index": "*" if index == "*" else int(index), "name": m.group("name"), "title": tags["title"], "value": tags["value"]}
+        pin = {"index": "*" if index == "*" else int(index), "name": name, "title": tags["title"], "value": tags["value"]}
         if "description" in tags:
             if not tags["description"]:
                 fail(f"{where}: @description is empty")
@@ -417,12 +480,8 @@ def parse_pins(directives, text, sdkconfig, context):
             if not IDENT_RE.match(tags["overrides"]):
                 fail(f"{where}: @overrides needs one state field name")
             pin["overrides"] = tags["overrides"]
-        if "macro" in tags:
-            expected = header_macro(text, tags["macro"], where)
-            if expected != pin["index"]:
-                fail(f"{where}: the header says {tags['macro']} is {expected}, the annotation says {pin['index']}")
         pin["_where"] = where
-        pins[d["keyword"]].append(pin)
+        pins[entry["side"]].append(pin)
 
     names = [p["name"] for side in pins.values() for p in side]
     for name in sorted({n for n in names if names.count(n) > 1}):
@@ -517,7 +576,7 @@ def pin_group(minimum, pins, limit_key, sdkconfig):
     group = {"min": minimum, "max": maximum}
     if star:
         group["max_symbol"] = limit_key
-    group["pins"] = [{k: v for k, v in pin.items() if not k.startswith("_") and k != "macro"} for pin in pins]
+    group["pins"] = [{k: v for k, v in pin.items() if not k.startswith("_")} for pin in pins]
     return group
 
 
@@ -575,15 +634,13 @@ def parse_template(text, scope, context):
     return parts
 
 
-def build_header(directives, inputs, outputs, fields, context):
-    """The block face's line under the title (`//@header <lead> | <value>`), or None."""
-    scope = {"inputs": {p["name"]: p for p in inputs}, "outputs": {p["name"]: p for p in outputs}, "fields": {f["name"]: f for f in fields}}
-    header_lines = [d for d in directives if d["keyword"] == "header"]
-    if not header_lines:
+def build_header(text, inputs, outputs, fields, context):
+    """The block face's line under the title (`<lead> | <value>`), or None."""
+    if not text:
         return None
-    d = header_lines[0]
-    where = f"{context}: //@header (line {d['line']})"
-    lead, _, value = d["rest"].partition("|")
+    scope = {"inputs": {p["name"]: p for p in inputs}, "outputs": {p["name"]: p for p in outputs}, "fields": {f["name"]: f for f in fields}}
+    where = f"{context}: header"
+    lead, _, value = text.partition("|")
     header = {"lead": parse_template(lead, scope, where)}
     if value.strip():
         header["value"] = parse_template(value, scope, where)
@@ -603,7 +660,7 @@ def opcode_table(text, enum_name, catalog, context):
         fail(f"{context}: {enum_name} is not a published //#ref-enum")
     ops = []
     for member in catalog["enums"][enum_name]["members"]:
-        if member["name"].endswith("_OP_CNT"):
+        if member["name"].endswith("_CNT"):  # the count sentinel
             continue
         e = entries.get(member["name"])
         if not e:
@@ -617,7 +674,7 @@ def opcode_table(text, enum_name, catalog, context):
 
 
 def check_code(code, ops, in_cnt, const_cnt, stack_max):
-    """The device's load-time check (vm_expr_check), for the examples."""
+    """The block's load-time bytecode check, for the examples."""
     by_value = {o["value"]: o for o in ops}
     sp, pc = 0, 0
     while pc < len(code):
@@ -701,12 +758,9 @@ def build_examples(directives, ops, const_type, stack_max, state, context):
     return out
 
 
-def bytecode_encoding(text, opcodes_enum, directives, inputs, state, catalog, context):
+def bytecode_encoding(text, opcodes_enum, stack_macro, directives, inputs, state, catalog, context):
     ops = opcode_table(text, opcodes_enum, catalog, context)
-    stack = re.search(r"#define\s+VM_EXPR_STACK_MAX\s+(\d+)", text)
-    if not stack:
-        fail(f"{context}: VM_EXPR_STACK_MAX not found")
-    stack_max = int(stack.group(1))
+    stack_max = define_value(text, stack_macro, context)
     star = next((p for p in inputs if p["index"] == "*"), None)
     const_type = star["value"] if star else "f32"
     if const_type not in ("f32", "u32"):
@@ -731,6 +785,75 @@ def one(directives, keyword):
     return found[0] if found else None
 
 
+DISPLAY_KEYS = {"title", "category", "description", "activation", "header", "always_detailed", "eno", "inputs", "outputs"}
+DISPLAY_PIN_KEYS = {"title", "description"}
+
+
+def read_display(path, context):
+    """`<name>.display.json` next to the header, written by hand: what the editor shows (title, category, description, the activation
+    text, the face line `header`, a title and description for each pin by pin name, `eno`, `always_detailed`). The block's
+    `<name>.content.json` is generated from the header."""
+    stem = path.parent / path.name[len("vm_block_"):-len(".h")]
+    source = Path(f"{stem}.display.json")
+    if not source.exists():
+        fail(f"{context}: needs {source.name} next to the header (the title, category, description and pin titles of the block)")
+    DISPLAY_FILES[path] = (source.relative_to(PROJECT_ROOT).as_posix(), Path(f"{stem}.content.json").relative_to(PROJECT_ROOT).as_posix())
+    doc = json.loads(source.read_text(encoding="utf-8"))
+    unknown = sorted(set(doc) - DISPLAY_KEYS)
+    if unknown:
+        fail(f"{source.name}: {context}: unknown key {unknown} (known: {sorted(DISPLAY_KEYS)})")
+    for side in ("inputs", "outputs"):
+        for pin, shown in doc.get(side, {}).items():
+            extra = sorted(set(shown) - DISPLAY_PIN_KEYS)
+            if extra:
+                fail(f"{source.name}: {context}: {side} `{pin}`: unknown key {extra} (known: {sorted(DISPLAY_PIN_KEYS)})")
+    for key in ("title", "category", "description"):
+        if not doc.get(key):
+            fail(f"{source.name}: {context}: needs `{key}`")
+    return doc
+
+
+def apply_display_to_pins(pins, display, context):
+    """Give each pin the title and description its display.json lists by pin name; a pin without a title, or a listed name with no pin, is an error."""
+    for pin in pins:
+        if {"title", "description"} & set(pin["tags"]):
+            fail(f"{pin['where']}: @title and @description belong in the display.json")
+        shown = display.get({"in": "inputs", "out": "outputs"}[pin["side"]], {}).get(pin["name"])
+        if not shown or not shown.get("title"):
+            fail(f"{pin['where']}: the display.json needs a title for pin `{pin['name']}`")
+        pin["tags"].update({k: v for k, v in shown.items() if v})
+    for side, key in (("in", "inputs"), ("out", "outputs")):
+        known = {p["name"] for p in pins if p["side"] == side}
+        for name in display.get(key, {}):
+            if name not in known:
+                fail(f"{context}: the display.json has {key} `{name}`, the header has no such pin")
+    return pins
+
+
+def spec_from_directives(directives, display, own_text, name, enums, context):
+    """The block's face and shape: the structure from the header's //@ lines and pin enums, the face from its display.json."""
+    for keyword, times in DIRECTIVES.items():
+        count = sum(1 for d in directives if d["keyword"] == keyword)
+        if times == "one" and count > 1:
+            fail(f"{context}: //@{keyword} given {count} times")
+    for keyword in REQUIRED_DIRECTIVES:
+        if not one(directives, keyword):
+            fail(f"{context}: needs //@{keyword}")
+    kind = one(directives, "activation")["rest"].strip()
+    enables, header = one(directives, "enables"), display.get("header")
+    rules = []
+    for d in directives:
+        if d["keyword"] == "rule":
+            rule_text, tags = parse_tags(d["rest"], RULE_TAGS, f"{context}: //@rule (line {d['line']})")
+            rules.append({"rule": rule_text, "error": tags.get("error")})
+    pins = apply_display_to_pins(pins_from_enums(own_text, name, enums, context), display, context)
+    return {"title": display["title"], "category": display["category"], "description": display["description"],
+            "activation_kind": kind, "activation_text": display.get("activation", ""), "header": header,
+            "enables": enables["rest"] if enables else None, "always_detailed": bool(display.get("always_detailed")),
+            "eno": display.get("eno"), "rules": rules, "pins": pins,
+            "data": one(directives, "data")["rest"] if one(directives, "data") else None}
+
+
 def build_block(path, text, source, catalog, errors, sdkconfig):
     enums = catalog["enums"]
     name = source["name"]
@@ -738,59 +861,54 @@ def build_block(path, text, source, catalog, errors, sdkconfig):
     if not 1 <= source["id"] <= 255:
         fail(f"{context}: @id {source['id']} must be 1 to 255 (block_type is one byte; 0 is reserved for 'not set')")
     directives = source["directives"]
-    for keyword, times in DIRECTIVES.items():
-        count = sum(1 for d in directives if d["keyword"] == keyword)
-        if times == "one" and count > 1:
-            fail(f"{context}: //@{keyword} given {count} times")
-    for required in REQUIRED_DIRECTIVES:
-        if not one(directives, required):
-            fail(f"{context}: needs //@{required}")
-
-    title = one(directives, "title")["rest"]
-    category = one(directives, "category")["rest"]
-    if not title or not re.fullmatch(r"[a-z][a-z0-9_-]*", category):
-        fail(f"{context}: //@title needs text and //@category one lowercase word")
-    kind, _, activation_text = one(directives, "activation")["rest"].partition(" ")
+    display = read_display(path, context)
+    own_text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+    own = block_enums(own_text, path.relative_to(PROJECT_ROOT).as_posix(), context)
+    enums = {**enums, **own}
+    spec = spec_from_directives(directives, display, own_text, name, enums, context)
+    DISPLAY_BLOCKS[name] = DISPLAY_FILES[path]
+    title, category, description, kind = spec["title"], spec["category"], spec["description"], spec["activation_kind"]
+    if not title or not category or not re.fullmatch(r"[a-z][a-z0-9_-]*", category):
+        fail(f"{context}: needs a title and a category of one lowercase word")
     if kind not in ACTIVATION_KINDS:
-        fail(f"{context}: //@activation must start with one of {sorted(ACTIVATION_KINDS)}")
-    description = one(directives, "block-description")["rest"]
+        fail(f"{context}: the activation must be one of {sorted(ACTIVATION_KINDS)}, got {kind}")
     if not description:
-        fail(f"{context}: //@block-description is empty")
-    if one(directives, "data-tail") and not one(directives, "data"):
+        fail(f"{context}: needs a description")
+    if one(directives, "data-tail") and not spec["data"]:
         fail(f"{context}: //@data-tail needs //@data")
-    opcodes_enum = one(directives, "opcodes")["rest"] if one(directives, "opcodes") else None
-    if opcodes_enum and not one(directives, "data"):
+    opcodes_enum = stack_macro = None
+    if one(directives, "opcodes"):
+        opcodes_enum, tags = parse_tags(one(directives, "opcodes")["rest"], {"stack-max"}, f"{context}: //@opcodes")
+        stack_macro = tags.get("stack-max")
+        if not IDENT_RE.match(opcodes_enum) or not stack_macro:
+            fail(f"{context}: //@opcodes <enum> @stack-max <C macro>: the opcode enum and the macro with the evaluator's stack depth")
+    if opcodes_enum and not spec["data"]:
         fail(f"{context}: //@opcodes needs //@data (the header struct)")
 
-    inputs, outputs, shape = parse_pins(directives, text, sdkconfig, context)
-    enables = one(directives, "enables")
-    if enables and enables["rest"] not in ("required", "optional"):
-        fail(f"{context}: //@enables is `required` (at least one enable source) or `optional`, got `{enables['rest']}`")
-    shape["min_en"] = 1 if enables and enables["rest"] == "required" else 0
+    inputs, outputs, shape = parse_pins(spec["pins"], text, sdkconfig, context)
+    enables = spec["enables"]
+    if enables not in (None, "required", "optional"):
+        fail(f"{context}: enables is `required` (at least one enable source) or `optional`, got `{enables}`")
+    shape["min_en"] = 1 if enables == "required" else 0
     lower = name.lower()
     if not re.search(rf"\bvm_blk_{lower}\s*\(", text):
         fail(f"{context}: the header must declare the body `void vm_blk_{lower}(vm_block_h b);`")
     C_INFO[name] = {"shape": shape, "has_check": bool(re.search(rf"\bvm_verify_{lower}\s*\(", text)), "struct": None}
     state = None
-    if one(directives, "data"):
-        state = layout_state(one(directives, "data")["rest"], enums, context)
-        C_INFO[name]["struct"] = one(directives, "data")["rest"]
+    if spec["data"]:
+        state = layout_state(spec["data"], enums, context)
+        C_INFO[name]["struct"] = spec["data"]
         if one(directives, "data-tail"):
             state["tail"] = one(directives, "data-tail")["rest"]
     fields = state["fields"] if state else []
     link_overrides(inputs, fields, context)
-    header = build_header(directives, inputs, outputs, fields, context)
+    header = build_header(spec["header"], inputs, outputs, fields, context)
 
     rules = []
-    for d in directives:
-        if d["keyword"] != "rule":
-            continue
-        where = f"{context}: //@rule (line {d['line']})"
-        rule_text, tags = parse_tags(d["rest"], RULE_TAGS, where)
-        err = tags.get("error")
-        if not rule_text or err not in errors:
-            fail(f"{where}: needs text and an existing @error (got {err})")
-        rules.append({"rule": rule_text, "error": err, "error_tag": errors[err]})
+    for rule in spec["rules"]:
+        if not rule.get("rule") or rule.get("error") not in errors:
+            fail(f"{context}: a rule needs text and an existing error (got {rule.get('error')})")
+        rules.append({"rule": rule["rule"], "error": rule["error"], "error_tag": errors[rule["error"]]})
 
     block = {
         "$schema": BLOCK_SCHEMA.relative_to(PROJECT_ROOT).as_posix(),
@@ -802,31 +920,27 @@ def build_block(path, text, source, catalog, errors, sdkconfig):
         "category": category,
         "description": description,
         "source_file": path.relative_to(PROJECT_ROOT).as_posix(),
-        "activation": {"kind": kind, "description": activation_text.strip() or ACTIVATION_KINDS[kind]},
+        "activation": {"kind": kind, "description": spec["activation_text"].strip() or ACTIVATION_KINDS[kind]},
         "inputs": pin_group(shape["min_in"], inputs, "CONFIG_VM_BLOCK_MAX_IN", sdkconfig),
         "outputs": pin_group(shape["min_q"], outputs, "CONFIG_VM_BLOCK_MAX_OUT", sdkconfig),
         "rules": rules,
     }
-    eno = one(directives, "eno")
-    if eno:
-        lead, tags = parse_tags(eno["rest"], ENO_TAGS, f"{context}: //@eno")
-        if lead or not tags.get("title"):
-            fail(f"{context}: //@eno needs @title (and no text before it)")
-        block["eno"] = {"title": tags["title"], **({"description": tags["description"]} if tags.get("description") else {})}
+    if spec["eno"]:
+        if not spec["eno"].get("title"):
+            fail(f"{context}: eno needs a title")
+        block["eno"] = spec["eno"]
     if header:
         block["header"] = header
-    if one(directives, "always-detailed"):
-        if one(directives, "always-detailed")["rest"].strip():
-            fail(f"{context}: //@always-detailed takes no text")
+    if spec["always_detailed"]:
         if not any(pin.get("overrides") for pin in inputs) and not opcodes_enum:
-            fail(f"{context}: //@always-detailed needs an @overrides input or @opcodes: nothing else is in the detailed view")
+            fail(f"{context}: always-detailed needs an @overrides input or @opcodes: nothing else is in the detailed view")
         block["always_detailed"] = True
     if state:
         block["state"] = state
     block["min_custom_len"] = state["size"] if state else 0
     if opcodes_enum:
-        block["encoding"] = bytecode_encoding(text, opcodes_enum, directives, inputs, state, catalog, context)
-    used = sorted({f["enum_ref"] for f in fields if "enum_ref" in f} | ({opcodes_enum} if opcodes_enum else set()))
+        block["encoding"] = bytecode_encoding(text, opcodes_enum, stack_macro, directives, inputs, state, catalog, context)
+    used = sorted({f["enum_ref"] for f in fields if "enum_ref" in f} | ({opcodes_enum} if opcodes_enum else set()) | set(own))
     block["enums"] = {e: enums[e] for e in used}
     validate_editor_links(block, context)
     return block
@@ -839,8 +953,10 @@ def build():
     blocks = []
     for path in sorted(BLOCKS_DIR.glob("*/vm_block_*.h")):
         own = path.read_text(encoding="utf-8").replace("\r\n", "\n")
-        for source in scan_blocks(path.name, own):
-            blocks.append(build_block(path, read_header(path, own), source, catalog, errors, sdkconfig))
+        source = scan_block(path.name, own)
+        if source is None:
+            fail(f"{path.relative_to(PROJECT_ROOT).as_posix()}: a vm_block_*.h needs its `//#vm-block VM_BLK_<NAME> @id <n>` line (shared code goes in a folder whose header is not named vm_block_*)")
+        blocks.append(build_block(path, read_header(path, own), source, catalog, errors, sdkconfig))
     seen = {}
     for block in blocks:
         if block["name"] in seen:
@@ -864,7 +980,8 @@ def build():
         "common_rules_error": "ERR_VM_BLK_BAD_SHAPE",
         "value_kinds": VALUE_KINDS,
         "activation_kinds": ACTIVATION_KINDS,
-        "blocks": [{"id": b["id"], "name": b["name"], "title": b["title"], "category": b["category"], "file": file_name(b)} for b in blocks],
+        "id_kinds": ID_KINDS,
+        "blocks": [{"id": b["id"], "name": b["name"], "title": b["title"], "category": b["category"], **block_files(b)} for b in blocks],
     }
     return blocks, index
 
@@ -877,8 +994,22 @@ def read_header(path, own):
     return own + "\n" + "\n".join(extra)
 
 
-def file_name(block):
-    return "block_" + block["name"][len("VM_BLK_"):].lower() + ".generated.json"
+def content_of(block):
+    """The block without what the display.json owns: the face, the pin titles and descriptions. The app builds the block from the
+    two files by pin and field name."""
+    content = {k: v for k, v in block.items() if k not in ("$schema", "title", "category", "description", "header", "eno", "always_detailed")}
+    content["kind"] = "vm-block-content"
+    content["activation"] = {"kind": block["activation"]["kind"]}
+    content["min_enables"] = C_INFO[block["name"][len("VM_BLK_"):]]["shape"]["min_en"]
+    for side in ("inputs", "outputs"):
+        content[side] = {**block[side], "pins": [{k: v for k, v in p.items() if k not in ("title", "description")} for p in block[side]["pins"]]}
+    return content
+
+
+def block_files(block):
+    """Where the app finds a block: the two files in its folder."""
+    display, content = DISPLAY_BLOCKS[block["name"][len("VM_BLK_"):]]
+    return {"display": display, "content": content}
 
 
 def validate(document, schema_path, label):
@@ -955,7 +1086,7 @@ def main(argv):
         for block in blocks:
             validate(block, BLOCK_SCHEMA, block["name"])
         validate(index, INDEX_SCHEMA, "index")
-    outputs = {OUT_DIR / file_name(b): render(b) for b in blocks}
+    outputs = {PROJECT_ROOT / DISPLAY_BLOCKS[b["name"][len("VM_BLK_"):]][1]: render(content_of(b)) for b in blocks}
     outputs[OUT_DIR / "index.generated.json"] = render(index)
     outputs[IDS_HEADER] = render_ids(blocks)
     outputs[REGISTRY_HEADER] = render_registry(blocks)

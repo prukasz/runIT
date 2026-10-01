@@ -20,7 +20,7 @@ void vm_blk_latch(vm_block_h b) {
 
   const bool set = vm_block_is_enabled(b);
   bool reset = false;
-  if (!vm_block_check(b, VM_BLOCK_GET_PARAM(reset, b, VM_LATCH_IN_RESET, false)) || vm_block_failed(b)) {
+  if (!vm_block_check(b, VM_BLOCK_GET_PARAM(reset, b, VM_IN_LATCH_RESET, false)) || vm_block_failed(b)) {
     vm_block_set_eno(b, false);
     return;
   }

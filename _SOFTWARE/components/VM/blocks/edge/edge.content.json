@@ -1,16 +1,11 @@
 {
-  "$schema": "data-structures/schema/vm-block.schema.json",
   "schemaVersion": 1,
-  "kind": "vm-block",
+  "kind": "vm-block-content",
   "id": 8,
   "name": "VM_BLK_EDGE",
-  "title": "Edge",
-  "category": "logic",
-  "description": "Pulses ENO for one pass when the combined EN level rises, falls or changes in either direction.",
   "source_file": "components/VM/blocks/edge/vm_block_edge.h",
   "activation": {
-    "kind": "enabled",
-    "description": "Samples EN every pass, including when EN is false."
+    "kind": "enabled"
   },
   "inputs": {
     "min": 0,
@@ -34,22 +29,6 @@
       "error_tag": 43296
     }
   ],
-  "eno": {
-    "title": "Pulse",
-    "description": "One-pass pulse when the selected EN edge occurs."
-  },
-  "header": {
-    "lead": [
-      {
-        "ref": "edge_type",
-        "kind": "field",
-        "field": "edge_type"
-      },
-      {
-        "text": " edge"
-      }
-    ]
-  },
   "state": {
     "struct": "vm_block_edge_data_t",
     "source_file": "components/VM/blocks/edge/vm_block_edge.h",
@@ -122,5 +101,6 @@
         }
       ]
     }
-  }
+  },
+  "min_enables": 1
 }

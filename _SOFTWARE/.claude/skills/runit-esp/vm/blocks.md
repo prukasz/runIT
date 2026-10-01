@@ -28,9 +28,9 @@ Hardware blocks call `sys_io_*` with `SYS_IO_REF(device_id, pin)`. `allowed_mask
 
 ## 2. Adding a block type
 
-1. **Folder** `blocks/<name>/` with `vm_block_<name>.h` (the public part: state struct, enums, constants, prototypes, `//#vm-block` directives; `#include "vm_block_helpers.h"` plus the `sys_*` it drives), `vm_block_<name>.c` (the body and the check) and `<name>.md` (the user guide, copied to `app/docs/blocks/`). Header comment: ASCII pin diagram and short developer notes; the `custom_data` layout is the struct (the generator checks it), the behaviour for users goes in the guide. One block per folder; code two blocks share goes in its own folder without a `//#vm-block` (`expr_core/`, `branch_core/`).
+1. **Folder** `blocks/<name>/` with `vm_block_<name>.h` (the public part: state struct, enums, pin enums, prototypes and the `//@` directives next to them; `#include "vm_block_helpers.h"` plus the `sys_*` it drives), `vm_block_<name>.c` (the body and the check), `<name>.display.json` (the face: title, category, description, pin titles, written by hand), `<name>.content.json` (generated from the header: never edited) and `<name>.md` (the user guide, copied to `app/docs/blocks/`). Header comment: ASCII pin diagram and short developer notes; the `custom_data` layout is the struct (the generator checks it), the behaviour for users goes in the guide. One block per folder; code two blocks share goes in its own folder without a `//#vm-block` (`expr_core/`, `branch_core/`).
 2. **Private state**, if any: one struct, `__attribute__((aligned(4 or 8)))` (the block reads and writes it with `memcpy`, since `custom_data` is only 4-byte aligned), explicit `_pad`, `_Static_assert(sizeof(...) == N)` and `offsetof` asserts for fields the app writes; `#define VM_<NAME>_CUSTOM_LEN sizeof(...)`. Runtime-only bytes (flags, prev values, `rt`) are zero on the wire. A span owner puts `vm_span_t` first.
-3. **Pin constants**: `#define VM_<NAME>_IN_<ROLE> n`, outputs likewise.
+3. **Pins**: enum `vm_in_<name>_e` (and `vm_out_<name>_e`) marked `//#block-enum`, one member `VM_IN_<NAME>_<PIN>` per pin, each with a trailing `//@in @value <kind> [@required] [@overrides <field>]` (outputs `VM_OUT_...` / `//@out`). A pin that repeats (any number) is the last member, `VM_IN_<NAME>_<PIN>_ANY` with `@repeat`. The C reads pins by these members.
 4. **Check** (optional) `bool vm_verify_<name>(vm_block_h b)` (declared in the header, defined in the `.c`): only what the directives can't express — enum / range fields, a constant needed when a pin is unwired. Pin counts (min and max), required pins, enable sources and state size are checked from the table entry, which the directives generate: do not repeat them here. Runs once at load; read the state with `memcpy`. No reporting: the builder returns `ERR_VM_BLK_BAD_SHAPE` and the load is aborted as a whole (the program is discarded), so a rejected block never runs.
 5. **Body** `void vm_blk_<name>(vm_block_h b)` (declared in the header, defined in the `.c`), template:
 
@@ -42,7 +42,7 @@ Hardware blocks call `sys_io_*` with `SYS_IO_REF(device_id, pin)`. `allowed_mask
 
      IF_BLOCK_TRIGGERED(b) IF_BLOCK_ENABLED(b) {        // pick the activation this block needs
        float x = 0;
-       if (!vm_block_check(b, VM_BLOCK_GET_PARAM(x, b, VM_FOO_IN_X, d->k_x))) {  // optional pin, constant fallback
+       if (!vm_block_check(b, VM_BLOCK_GET_PARAM(x, b, VM_IN_FOO_X, d->k_x))) {  // optional pin, constant fallback
          vm_block_set_eno(b, false);
          return;
        }
@@ -56,23 +56,27 @@ Hardware blocks call `sys_io_*` with `SYS_IO_REF(device_id, pin)`. `allowed_mask
    }
    ```
 
-6. **Catalog and shape**, at the end of the header (no `VM_BLOCK_TYPE_*` macro any more: the table entry is generated from this block). `@required` on a pin marks one the block cannot run without, `//@enables required` asks for at least one enable source, the numbered pins set the maximum:
+6. **Catalog and shape**: the directives stand next to what they describe (no `VM_BLOCK_TYPE_*` macro: the table entry is generated). `//@data <struct>` above the struct, `//@rule <text> @error <ERR>` above `vm_verify_<name>`, and above the body prototype `//#vm-block VM_BLK_<NAME> @id <next free id>` with `//@activation <kind>` (and `//@enables required` when it needs an enable source). `@required` on a pin member marks one the block cannot run without; the numbered pins set the maximum:
 
    ```c
+   //#block-enum @alias Foo Inputs
+   typedef enum vm_in_foo_e {
+     VM_IN_FOO_X = 0,  //@in @value f32 @overrides gain
+   } vm_in_foo_e;
+   //#block-enum @alias Foo Outputs
+   typedef enum vm_out_foo_e {
+     VM_OUT_FOO_Y = 0,  //@out @value f32 @required
+   } vm_out_foo_e;
+
+   bool vm_verify_foo(vm_block_h b);
    //#vm-block VM_BLK_FOO @id <next free id>
-   //@title Foo
-   //@category data
-   //@activation triggered Runs when x is fresh.
-   //@data vm_foo_data_t
-   //@block-description What it does, for the app.
-   //@header Foo | {x} {unit}                        // the face; {ref}s name pins and settings
-   //@in 0 x @title X @description Overrides gain. @value f32 @overrides gain @macro VM_FOO_IN_X
-   //@out 0 y @title Y @value f32 @required
+   //@activation triggered
+   void vm_blk_foo(vm_block_h b);
    ```
 
-   Enums the state uses get `//#ref-enum`; state fields get `@enum-ref`, `@runtime` (device-owned), plain text = description. A pin that has a constant to fall back on (`VM_BLOCK_GET_PARAM(out, b, pin, state.field)`) says `@overrides <field>`: the app hides the pin and lets the user type the constant. The app renders the block from the generated JSON alone, so a new block needs no app code. Grammar: `data-structures/auto-annotations/vm/vm-annotations.md`.
+   The face goes in `foo.display.json` (`title`, `category`, `description`, `activation` text, `header` such as `Foo | {x} {unit}` whose `{ref}`s name pins and settings, and a `title` / `description` per pin by pin name). Enums the state uses get `//#block-enum` (a block's own) or `//#ref-enum` (shared by two blocks); state fields get `@description`, `@enum-ref`, `@runtime` (device-owned). A pin with a constant to fall back on (`VM_BLOCK_GET_PARAM(out, b, pin, state.field)`) says `@overrides <field>`: the app hides the pin and lets the user type the constant. The app renders the block from `display.json` + `content.json` alone, so a new block needs no app code. Grammar: `data-structures/auto-annotations/vm/vm-annotations.md`.
 7. **Register**: nothing to edit. The block's id is the `@id` of its `//#vm-block` line (1 to 255, unique, never reused for another block: it is the `block_type` on the wire); the generator writes `vm_block_ids.generated.h` (the `VM_BLK_FOO` number) and `vm_blocks_registry.generated.h` (the include and the table entry), both committed. Do not edit them or `vm_blocks.h` / `vm_blocks_table.c`.
-8. **Generate + docs**: run `idf.py reconfigure` (the block folders are globbed at configure time) and `python data-structures/auto-annotations/generate-all.py` (the block generator fails on a stray or unknown `//@` line, a wrong struct size or offset, a pin index that disagrees with its `@macro`, an unknown `{ref}` or an unknown enum) and `--check --test`; update VM.MD's palette table and block section, and this table.
+8. **Generate + docs**: run `idf.py reconfigure` (the block folders are globbed at configure time) and `python data-structures/auto-annotations/generate-all.py` (the block generator fails on a stray or unknown `//@` line, a wrong struct size or offset, a pin member without its `//@in`, a pin enum value that leaves a gap, a face directive in the header, an unknown `{ref}` or an unknown enum) and `--check --test`; update VM.MD's palette table and block section, and this table.
 
 ### Activation patterns
 
@@ -103,4 +107,4 @@ Hardware blocks call `sys_io_*` with `SYS_IO_REF(device_id, pin)`. `allowed_mask
 
 Faults: a malformed configuration is rejected at load (the palette `.check`), EXPR bytecode included (`vm_expr_check`, reported as `ERR_VM_EXPR_BAD_CODE`); bodies never re-check it. A bad **value** (zero divisor, non-finite) is reported per fault episode and re-armed by the next clean run. Never report every pass: at 100 Hz that buries the log.
 
-Publishing: every block needs `@activation`, a `@value` on each pin and a `//@rule` per check its `.check` makes (vm-annotations.md "Block catalog"); regenerate with `generate-vm-blocks.py`.
+Publishing: every block needs `@activation`, a `@value` on each pin member and a `//@rule` per check its `.check` makes (vm-annotations.md "Block catalog"); regenerate with `generate-vm-blocks.py`.

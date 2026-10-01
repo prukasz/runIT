@@ -1,16 +1,11 @@
 {
-  "$schema": "data-structures/schema/vm-block.schema.json",
   "schemaVersion": 1,
-  "kind": "vm-block",
+  "kind": "vm-block-content",
   "id": 9,
   "name": "VM_BLK_TIMER",
-  "title": "Timer",
-  "category": "time",
-  "description": "On-delay, off-delay or pulse timer (plus inverted). ENO is the timer's output Q, held as a level; Elapsed counts in time_base units.",
   "source_file": "components/VM/blocks/timer/vm_block_timer.h",
   "activation": {
-    "kind": "enabled",
-    "description": "Runs every pass while enabled."
+    "kind": "enabled"
   },
   "inputs": {
     "min": 1,
@@ -19,17 +14,13 @@
       {
         "index": 0,
         "name": "in",
-        "title": "Start",
         "value": "bool",
-        "description": "The signal the timer acts on; the block's enable gates the whole timer.",
         "required": true
       },
       {
         "index": 1,
         "name": "pt",
-        "title": "Preset",
         "value": "u32",
-        "description": "Overrides pt, in time_base units.",
         "overrides": "pt",
         "required": false,
         "hidden_by_default": true
@@ -43,9 +34,7 @@
       {
         "index": 0,
         "name": "et",
-        "title": "Elapsed time",
-        "value": "u32",
-        "description": "Time elapsed, in time_base units."
+        "value": "u32"
       }
     ]
   },
@@ -56,41 +45,6 @@
       "error_tag": 43296
     }
   ],
-  "eno": {
-    "title": "Q",
-    "description": "The timer's output level: true after the on-delay, during a pulse, or until the off-delay ends. Put it on another block's Run when to gate that block."
-  },
-  "header": {
-    "lead": [
-      {
-        "text": "Timer"
-      }
-    ],
-    "value": [
-      {
-        "ref": "mode",
-        "kind": "field",
-        "field": "mode"
-      },
-      {
-        "text": " "
-      },
-      {
-        "ref": "pt",
-        "kind": "pin",
-        "pin": 1,
-        "field": "pt"
-      },
-      {
-        "text": " "
-      },
-      {
-        "ref": "time_base",
-        "kind": "field",
-        "field": "time_base"
-      }
-    ]
-  },
   "state": {
     "struct": "vm_block_timer_data_t",
     "source_file": "components/VM/blocks/timer/vm_block_timer.h",
@@ -166,6 +120,36 @@
   },
   "min_custom_len": 32,
   "enums": {
+    "vm_in_timer_e": {
+      "alias": "Timer Inputs",
+      "source_file": "components/VM/blocks/timer/vm_block_timer.h",
+      "members": [
+        {
+          "name": "VM_IN_TIMER_IN",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IN_TIMER_PT",
+          "value": 1,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_out_timer_e": {
+      "alias": "Timer Outputs",
+      "source_file": "components/VM/blocks/timer/vm_block_timer.h",
+      "members": [
+        {
+          "name": "VM_OUT_TIMER_ET",
+          "value": 0,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
     "vm_timer_mode_e": {
       "alias": "Timer Mode",
       "source_file": "components/VM/blocks/timer/vm_block_timer.h",
@@ -250,5 +234,6 @@
         }
       ]
     }
-  }
+  },
+  "min_enables": 0
 }

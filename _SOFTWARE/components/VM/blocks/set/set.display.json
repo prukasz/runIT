@@ -1,0 +1,14 @@
+{
+  "title": "Set",
+  "category": "data",
+  "description": "Copies the source payload (whole trees included) into the destination when the source is fresh. Types and counts must match.",
+  "activation": "Runs when the source (input 0) is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled.",
+  "inputs": {
+    "source": {
+      "title": "Source"
+    },
+    "destination": {
+      "title": "Destination"
+    }
+  }
+}

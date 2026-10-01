@@ -2,7 +2,7 @@
 #include "vm_branch_core.h"
 
 void vm_blk_if(vm_block_h b) {
-  const vm_accessor_t* in0 = vm_block_get_inputs(b)[VM_IF_IN_CONDITION];
+  const vm_accessor_t* in0 = vm_block_get_inputs(b)[VM_IN_IF_CONDITION];
   uint8_t taken = VM_BRANCH_NONE;
 
   IF_BLOCK_ENABLED(b) {

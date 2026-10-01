@@ -1,16 +1,11 @@
 {
-  "$schema": "data-structures/schema/vm-block.schema.json",
   "schemaVersion": 1,
-  "kind": "vm-block",
+  "kind": "vm-block-content",
   "id": 14,
   "name": "VM_BLK_ACTION",
-  "title": "Run Action",
-  "category": "system",
-  "description": "Requests a system action once per rising edge of its enable; the action runs outside the program pass.",
   "source_file": "components/VM/blocks/action/vm_block_action.h",
   "activation": {
-    "kind": "enable-rising",
-    "description": "Runs once each time its enable turns on."
+    "kind": "enable-rising"
   },
   "inputs": {
     "min": 0,
@@ -19,9 +14,7 @@
       {
         "index": 0,
         "name": "id",
-        "title": "Action id",
         "value": "u32",
-        "description": "Overrides action_id.",
         "overrides": "action_id",
         "required": false,
         "hidden_by_default": true
@@ -45,22 +38,6 @@
       "error_tag": 43296
     }
   ],
-  "header": {
-    "lead": [
-      {
-        "ref": "title",
-        "kind": "title"
-      }
-    ],
-    "value": [
-      {
-        "ref": "id",
-        "kind": "pin",
-        "pin": 0,
-        "field": "action_id"
-      }
-    ]
-  },
   "state": {
     "struct": "vm_block_action_data_t",
     "source_file": "components/VM/blocks/action/vm_block_action.h",
@@ -120,6 +97,19 @@
           "description": "A recorded packet sequence"
         }
       ]
+    },
+    "vm_in_action_e": {
+      "alias": "Run Action Inputs",
+      "source_file": "components/VM/blocks/action/vm_block_action.h",
+      "members": [
+        {
+          "name": "VM_IN_ACTION_ID",
+          "value": 0,
+          "alias": null,
+          "description": null
+        }
+      ]
     }
-  }
+  },
+  "min_enables": 0
 }

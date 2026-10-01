@@ -1,16 +1,11 @@
 {
-  "$schema": "data-structures/schema/vm-block.schema.json",
   "schemaVersion": 1,
-  "kind": "vm-block",
+  "kind": "vm-block-content",
   "id": 2,
   "name": "VM_BLK_EXPR_BIT",
-  "title": "Bit Expression",
-  "category": "data",
-  "description": "Evaluates a bitwise formula over its inputs, on whole numbers; the result goes to output 0.",
   "source_file": "components/VM/blocks/expr_bit/vm_block_expr_bit.h",
   "activation": {
-    "kind": "triggered",
-    "description": "Runs when an input it reads is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled."
+    "kind": "triggered"
   },
   "inputs": {
     "min": 0,
@@ -20,9 +15,7 @@
       {
         "index": "*",
         "name": "pin",
-        "title": "Input",
         "value": "u32",
-        "description": "Read by the IN opcode; any number, only the ones the code names are read.",
         "required": false
       }
     ]
@@ -34,9 +27,7 @@
       {
         "index": 0,
         "name": "result",
-        "title": "Result",
-        "value": "u32",
-        "description": "The expression's value (u32)."
+        "value": "u32"
       }
     ]
   },
@@ -535,6 +526,31 @@
           "description": null
         }
       ]
+    },
+    "vm_in_expr_bit_e": {
+      "alias": "Bit Expression Inputs",
+      "source_file": "components/VM/blocks/expr_bit/vm_block_expr_bit.h",
+      "members": [
+        {
+          "name": "VM_IN_EXPR_BIT_PIN_ANY",
+          "value": 0,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
+    "vm_out_expr_bit_e": {
+      "alias": "Bit Expression Outputs",
+      "source_file": "components/VM/blocks/expr_bit/vm_block_expr_bit.h",
+      "members": [
+        {
+          "name": "VM_OUT_EXPR_BIT_RESULT",
+          "value": 0,
+          "alias": null,
+          "description": null
+        }
+      ]
     }
-  }
+  },
+  "min_enables": 0
 }

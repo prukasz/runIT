@@ -1,16 +1,11 @@
 {
-  "$schema": "data-structures/schema/vm-block.schema.json",
   "schemaVersion": 1,
-  "kind": "vm-block",
+  "kind": "vm-block-content",
   "id": 7,
   "name": "VM_BLK_CLONE",
-  "title": "Clone",
-  "category": "data",
-  "description": "Copies the source into a tree this block owns, hung off a pointer cell; rebuilds only when the source's shape changes.",
   "source_file": "components/VM/blocks/clone/vm_block_clone.h",
   "activation": {
-    "kind": "triggered",
-    "description": "Runs when the source (input 0) is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled."
+    "kind": "triggered"
   },
   "inputs": {
     "min": 2,
@@ -19,14 +14,12 @@
       {
         "index": 0,
         "name": "source",
-        "title": "Source",
         "value": "object",
         "required": true
       },
       {
         "index": 1,
         "name": "cell",
-        "title": "Pointer cell",
         "value": "ptr-cell",
         "required": true
       }
@@ -39,5 +32,25 @@
   },
   "rules": [],
   "min_custom_len": 0,
-  "enums": {}
+  "enums": {
+    "vm_in_clone_e": {
+      "alias": "Clone Inputs",
+      "source_file": "components/VM/blocks/clone/vm_block_clone.h",
+      "members": [
+        {
+          "name": "VM_IN_CLONE_SOURCE",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IN_CLONE_CELL",
+          "value": 1,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  },
+  "min_enables": 0
 }

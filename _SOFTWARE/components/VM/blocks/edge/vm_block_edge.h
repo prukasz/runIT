@@ -12,7 +12,7 @@
  * passes when it is false. The first sample establishes the initial level.
  */
 
-//#ref-enum @alias Edge Type
+//#block-enum @alias Edge Type
 typedef enum {
   VM_EDGE_RISING = 0,   // EN changes from false to true
   VM_EDGE_FALLING = 1,  // EN changes from true to false
@@ -22,10 +22,11 @@ typedef enum {
 
 #define VM_EDGE_F_INITIALIZED (1u << 0)
 
+//@data vm_block_edge_data_t
 typedef struct __attribute__((aligned(4))) {
-  uint8_t edge_type;  // vm_edge_type_e @enum-ref vm_edge_type_e
-  uint8_t flags;      // VM_EDGE_F_INITIALIZED @runtime
-  uint8_t previous;   // Previous EN level @runtime
+  uint8_t edge_type;  // @description vm_edge_type_e @enum-ref vm_edge_type_e
+  uint8_t flags;      // @description VM_EDGE_F_INITIALIZED @runtime
+  uint8_t previous;   // @description Previous EN level @runtime
   uint8_t _pad;
 } vm_block_edge_data_t;
 
@@ -37,19 +38,13 @@ static inline void vm_edge_init(void* buffer, vm_edge_type_e type) {
   memcpy(buffer, &data, sizeof(data));
 }
 
-/* Load-time check of the block's state; the pin shape is checked from the //@in / //@out directives below. */
-bool vm_verify_edge(vm_block_h b);
-/* The body, called every pass. */
-void vm_blk_edge(vm_block_h b);
-
-//#vm-block VM_BLK_EDGE @id 8
-//@title Edge
-//@category logic
-//@activation enabled Samples EN every pass, including when EN is false.
-//@enables required
-//@data vm_block_edge_data_t
-//@block-description Pulses ENO for one pass when the combined EN level rises, falls or changes in either direction.
-//@header {edge_type} edge
+/* Load-time check of the block's state; the pin shape comes from the pin enums above. */
 //@rule At least one EN source is connected; no data inputs or outputs. @error ERR_VM_BLK_BAD_SHAPE
 //@rule edge_type is a vm_edge_type_e value. @error ERR_VM_BLK_BAD_SHAPE
-//@eno @title Pulse @description One-pass pulse when the selected EN edge occurs.
+bool vm_verify_edge(vm_block_h b);
+/* The body, called every pass.
+   Face, titles and descriptions: edge.display.json; the app's edge.content.json is generated from this header. */
+//#vm-block VM_BLK_EDGE @id 8
+//@activation enabled
+//@enables required
+void vm_blk_edge(vm_block_h b);

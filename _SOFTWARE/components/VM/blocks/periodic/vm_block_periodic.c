@@ -5,7 +5,7 @@ bool vm_verify_periodic(vm_block_h b) {
   memcpy(&d, vm_block_get_custom_data(b), sizeof(d));
   if (d.time_base >= VM_TIMER_UNIT_CNT) return false;
   // An unwired PERIOD pin needs a real constant.
-  if (!vm_block_optional_in(b, VM_PERIODIC_IN_PERIOD) && d.period == 0) return false;
+  if (!vm_block_optional_in(b, VM_IN_PERIODIC_PERIOD) && d.period == 0) return false;
   return true;
 }
 
@@ -41,7 +41,7 @@ void vm_blk_periodic(vm_block_h b) {
   }
 
   uint32_t period = state.period;
-  if (!vm_block_check(b, VM_BLOCK_GET_PARAM(period, b, VM_PERIODIC_IN_PERIOD, state.period))) {
+  if (!vm_block_check(b, VM_BLOCK_GET_PARAM(period, b, VM_IN_PERIODIC_PERIOD, state.period))) {
     vm_block_set_eno(b, false);
     return;
   }

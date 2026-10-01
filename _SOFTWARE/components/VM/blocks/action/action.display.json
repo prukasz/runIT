@@ -1,0 +1,13 @@
+{
+  "title": "Run Action",
+  "category": "system",
+  "description": "Requests a system action once per rising edge of its enable; the action runs outside the program pass.",
+  "activation": "Runs once each time its enable turns on.",
+  "header": "{title} | {id}",
+  "inputs": {
+    "id": {
+      "title": "Action id",
+      "description": "Overrides action_id."
+    }
+  }
+}

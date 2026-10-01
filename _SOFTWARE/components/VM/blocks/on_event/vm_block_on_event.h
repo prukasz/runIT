@@ -28,28 +28,28 @@
 
 #define VM_EVENT_ANY 0xFFu  // Same value as SYS_EVENT_ANY
 
+//@data vm_block_on_event_data_t
 typedef struct __attribute__((aligned(4))) {
-  uint8_t domain;     // Event domain, 255 = any @enum-ref sys_event_domain_e
-  uint8_t device_id;  // Source device, 255 = any
-  uint8_t channel;    // Pin / channel, 255 = any
-  uint8_t event;      // Domain event, 255 = any
+  uint8_t domain;     // @description Event domain, 255 = any @enum-ref sys_event_domain_e
+  uint8_t device_id;  // @description Source device, 255 = any
+  uint8_t channel;    // @description Pin / channel, 255 = any
+  uint8_t event;      // @description Domain event, 255 = any
 } vm_block_on_event_data_t;
 
 _Static_assert(sizeof(vm_block_on_event_data_t) == 4, "vm_block_on_event_data_t must be 4 bytes");
 _Static_assert(VM_EVENT_ANY == SYS_EVENT_ANY, "the wildcard must match sys_event's");
 #define VM_ON_EVENT_CUSTOM_LEN sizeof(vm_block_on_event_data_t)
 
-#define VM_ON_EVENT_VALUE 0u
-#define VM_ON_EVENT_COUNT 1u
+/* Pins, by index: VM_IN_<BLOCK>_<PIN> / VM_OUT_<BLOCK>_<PIN>. Each member's //@in / //@out says what the pin carries and
+   which state field it replaces while unwired; titles and descriptions are in on_event.display.json. */
+//#block-enum @alias On Event Outputs
+typedef enum vm_out_on_event_e {
+  VM_OUT_ON_EVENT_VALUE = 0,   //@out @value i32
+  VM_OUT_ON_EVENT_COUNT,       //@out @value u32
+} vm_out_on_event_e;
 
-/* The body, called every pass. */
-void vm_blk_on_event(vm_block_h b);
-
+/* The body, called every pass.
+   Face, titles and descriptions: on_event.display.json; the app's on_event.content.json is generated from this header. */
 //#vm-block VM_BLK_ON_EVENT @id 15
-//@title On Event
-//@category system
-//@activation enabled Runs every pass while enabled.
-//@data vm_block_on_event_data_t
-//@block-description Pulses ENO for one pass when a matching system event arrived (needs a subscription routed to the VM).
-//@out 0 value @title Value @description The event's value (last match of the pass). @value i32
-//@out 1 count @title Count @description Matches this pass. @value u32
+//@activation enabled
+void vm_blk_on_event(vm_block_h b);

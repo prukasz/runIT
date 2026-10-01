@@ -71,7 +71,7 @@ Status tags: **✅ decided** (survey 2026-09-24, §6) · **⚠ firmware gap** (�
 ### CAN — Code: canvas
 | ID | Feature | Notes |
 |---|---|---|
-| CAN-1 | Block palette + object palette (tree) on the left, drag & drop onto canvas | blocks from `vm/blocks/*.generated.json`. ✅ blocks 2026-09-27 (drag or click); ✅ variables onto pins 2026-09-28 (§8.1 chips) |
+| CAN-1 | Block palette + object palette (tree) on the left, drag & drop onto canvas | blocks from `components/VM/blocks/*/*.display.json` + `*.content.json` (⏳ the loader still reads the old `vm/blocks/block_*.generated.json`, which no longer exist). ✅ blocks 2026-09-27 (drag or click); ✅ variables onto pins 2026-09-28 (§8.1 chips) |
 | CAN-2 | Feature list (created features) as a palette source | DEV-2 |
 | CAN-3 | Block settings in the inspector when a block is selected | pins, `custom` fields from descriptor `state` layout (source `user`). ✅ 2026-09-27 (`BlockDetails`, formula editor for EXPR / EXPR_BIT) |
 | CAN-4 | **Multiple canvases**, executed in order (canvas 1 first) | ✅ Node-RED-style flow tabs sharing the same objects; one program, tabs concatenated in tab order within a pass. A tab can be disabled: the compiler leaves it out (re-upload needed, no live toggle) |

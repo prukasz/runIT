@@ -19,16 +19,18 @@
 
 #define VM_EXPR_STACK_MAX 16
 
+//#vm-type vm_expr_k_t @size 4 @align 4
 typedef union vm_expr_k_t {
   uint32_t u;
   float f;
 } vm_expr_k_t;
+_Static_assert(sizeof(vm_expr_k_t) == 4 && _Alignof(vm_expr_k_t) == 4, "//#vm-type vm_expr_k_t");
 
 typedef struct vm_expr_code_t {
-  uint8_t const_cnt;     // Number of u32 literals after the header
+  uint8_t const_cnt;     // @description Number of u32 literals after the header
   uint8_t rt;            // @runtime
-  uint16_t code_len;     // Bytecode length after the literals
-  vm_expr_k_t consts[];  // const_cnt literals (f32 for EXPR, u32 for EXPR_BIT), then code_len opcode bytes
+  uint16_t code_len;     // @description Bytecode length after the literals
+  vm_expr_k_t consts[];  // @description const_cnt literals (f32 for EXPR, u32 for EXPR_BIT), then code_len opcode bytes
 } vm_expr_code_t;
 
 _Static_assert(sizeof(vm_expr_code_t) == 4, "header must stay 4 bytes for literal alignment");

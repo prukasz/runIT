@@ -1,0 +1,10 @@
+{
+  "title": "Toggle Pin",
+  "category": "io",
+  "description": "Toggles a pin once per rising edge of its enable.",
+  "activation": "Runs once each time its enable turns on.",
+  "header": "{title} | {pin}",
+  "inputs": {
+    "pin": { "title": "Pin", "description": "Overrides default_io_num; must be in allowed_mask." }
+  }
+}

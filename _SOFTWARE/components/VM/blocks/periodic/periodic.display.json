@@ -1,0 +1,17 @@
+{
+  "title": "Every",
+  "category": "time",
+  "description": "Pulses ENO (the tick) for one pass every period while enabled; never bursts after a slow pass.",
+  "activation": "Runs every pass while enabled.",
+  "header": "Every | {period} {time_base}",
+  "inputs": {
+    "period": {
+      "title": "Period",
+      "description": "Overrides period, in time_base units; 0 pauses."
+    }
+  },
+  "eno": {
+    "title": "Tick",
+    "description": "One-pass pulse every period: put it on another block's Run when to run that block every period."
+  }
+}

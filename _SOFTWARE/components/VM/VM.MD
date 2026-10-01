@@ -659,14 +659,18 @@ fails the load (the whole program is discarded), so a malformed program never re
 scan and bodies never re-check their own shape on every pass.
 
 **The same entry feeds the app.** `generate-vm-blocks.py` reads each header's
-`//#vm-block` directive block (one `//@keyword` line per fact) and writes one
-descriptor per block to `data-structures/vm/blocks/` (plus `index.generated.json`):
-id, title, category, when it runs (`@activation`), pins with their counts,
+`//#vm-block` line, the pin enums (`vm_in_<name>_e` / `vm_out_<name>_e`, one member per pin with its `//@in` / `//@out`) and the `//@` lines
+next to the struct, the verify and the body, and writes `<name>.content.json` into the block's own
+folder (plus `data-structures/vm/blocks/index.generated.json`, which lists the pairs):
+id, when it runs (`@activation`), pins with their counts,
 required flags (`@required`) and what each carries (`@value`), the checks
-the device makes at load (`//@rule`), and the private-state layout with byte
+the device makes at load (`//@rule`), the private-state layout with byte
 offsets, enum references and who writes each field (user, derived, runtime) —
-cross-checked against each struct's `_Static_assert`. EXPR / EXPR_BIT also carry
-their opcode table and golden vectors. What the app compiles against is what
+cross-checked against each struct's `_Static_assert` — and the block's own enums
+(`//#block-enum`). EXPR / EXPR_BIT also carry
+their opcode table and golden vectors. The face (title, category, description, pin
+titles, the header line) is `<name>.display.json`, written by hand; the app builds a
+block from the two files alone. What the app compiles against is what
 the device checks.
 
 C lets a later designated initialiser silently override an earlier one, so the
@@ -689,23 +693,23 @@ Fifteen blocks (`blocks/vm_blocks.h`). Pins marked ★ are required (verify
 rejects the block without them); every other input falls back to a constant in
 `custom_data` when unwired. ENO is optional on every block.
 
-| Id | Type | Header | Inputs | Outputs | `custom_len` | Acts when |
+| Id | Type | Folder | Inputs | Outputs | `custom_len` | Acts when |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 1 | `EXPR` | `vm_block_expr.h` | any, named by the code | ≥1: result (float) | 4 + 4·consts + code | an input is fresh **and** enabled |
-| 2 | `EXPR_BIT` | `vm_block_expr.h` | 〃 | ≥1: result (u32) | 〃 | 〃 |
-| 3 | `IF` | `vm_block_branch.h` | ★ condition | ≥2: yes, no (flow) | 0 | enabled |
-| 4 | `SWITCH` | `vm_block_branch.h` | ★ selector | 1..16 branches (flow) | 0 | enabled |
-| 5 | `FOR` | `vm_block_for.h` | start, end, step | iterator | 24 | enabled; claims its span always |
-| 6 | `SET` | `vm_block_set.h` | ★ src, ★ dst | — | 0 | src fresh **and** enabled |
-| 7 | `CLONE` | `vm_block_clone.h` | ★ src, ★ dst pointer cell | — | 0 | src fresh **and** enabled |
-| 8 | `EDGE` | `vm_block_edge.h` | EN (required) | — (ENO is the pulse) | 4 | every pass |
-| 9 | `TIMER` | `vm_block_timer.h` | ★ IN, PT | ET (Q is ENO) | 32 | enabled |
-| 10 | `IO_SET_LEVEL` | `vm_block_io_set_level.h` | ★ level, pin | — | 16 | enabled |
-| 11 | `IO_TOGGLE` | `vm_block_io_toggle.h` | pin | — | 16 | rising edge of enable |
-| 12 | `LATCH` | `vm_block_latch.h` | EN (required), Reset (optional) | — (ENO is the held level) | 4 | every pass |
-| 13 | `PERIODIC` | `vm_block_periodic.h` | period | — (ENO is the tick) | 16 | enabled |
-| 14 | `ACTION` | `vm_block_action.h` | action id | — | 4 | rising edge of enable |
-| 15 | `ON_EVENT` | `vm_block_on_event.h` | — | value, count | 4 | enabled **and** a matching event this pass |
+| 1 | `EXPR` | `expr/` (+ `expr_core/`) | any, named by the code | ≥1: result (float) | 4 + 4·consts + code | an input is fresh **and** enabled |
+| 2 | `EXPR_BIT` | `expr_bit/` (+ `expr_core/`) | 〃 | ≥1: result (u32) | 〃 | 〃 |
+| 3 | `IF` | `if/` (+ `branch_core/`) | ★ condition | ≥2: yes, no (flow) | 0 | enabled |
+| 4 | `SWITCH` | `switch/` (+ `branch_core/`) | ★ selector | 1..16 branches (flow) | 0 | enabled |
+| 5 | `FOR` | `for/` | start, end, step | iterator | 24 | enabled; claims its span always |
+| 6 | `SET` | `set/` | ★ src, ★ dst | — | 0 | src fresh **and** enabled |
+| 7 | `CLONE` | `clone/` | ★ src, ★ dst pointer cell | — | 0 | src fresh **and** enabled |
+| 8 | `EDGE` | `edge/` | EN (required) | — (ENO is the pulse) | 4 | every pass |
+| 9 | `TIMER` | `timer/` | ★ IN, PT | ET (Q is ENO) | 32 | enabled |
+| 10 | `IO_SET_LEVEL` | `io_set_level/` | ★ level, pin | — | 16 | enabled |
+| 11 | `IO_TOGGLE` | `io_toggle/` | pin | — | 16 | rising edge of enable |
+| 12 | `LATCH` | `latch/` | EN (required), Reset (optional) | — (ENO is the held level) | 4 | every pass |
+| 13 | `PERIODIC` | `periodic/` | period | — (ENO is the tick) | 16 | enabled |
+| 14 | `ACTION` | `action/` | action id | — | 4 | rising edge of enable |
+| 15 | `ON_EVENT` | `on_event/` | — | value, count | 4 | enabled **and** a matching event this pass |
 
 Each header opens with the block's pin diagram, behaviour and `custom_data`
 byte layout; that comment is the reference for the layout. The sections below
@@ -759,7 +763,7 @@ belongs to this pass's data: it is reported on entering a fault episode and
 re-armed by the next clean evaluation, so a divisor stuck at zero for a minute
 is one error rather than six thousand. Nothing is published then — the output
 stands and `cfg.on_error` decides the flow. The same table is published with
-the block (`block_expr.generated.json`), with golden vectors.
+the block (`expr.content.json`), with golden vectors.
 
 ### Flow routers
 

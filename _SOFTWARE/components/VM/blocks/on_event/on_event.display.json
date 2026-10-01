@@ -1,0 +1,16 @@
+{
+  "title": "On Event",
+  "category": "system",
+  "description": "Pulses ENO for one pass when a matching system event arrived (needs a subscription routed to the VM).",
+  "activation": "Runs every pass while enabled.",
+  "outputs": {
+    "value": {
+      "title": "Value",
+      "description": "The event's value (last match of the pass)."
+    },
+    "count": {
+      "title": "Count",
+      "description": "Matches this pass."
+    }
+  }
+}

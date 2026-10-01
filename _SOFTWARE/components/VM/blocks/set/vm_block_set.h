@@ -16,16 +16,16 @@
 
 #define VM_SET_CUSTOM_LEN 0u
 
-#define VM_SET_IN_SRC 0u  // source -- the pin whose freshness fires the block
-#define VM_SET_IN_DST 1u  // target -- named, not read
+/* Pins, by index: VM_IN_<BLOCK>_<PIN> / VM_OUT_<BLOCK>_<PIN>. Each member's //@in / //@out says what the pin carries and
+   which state field it replaces while unwired; titles and descriptions are in set.display.json. */
+//#block-enum @alias Set Inputs
+typedef enum vm_in_set_e {
+  VM_IN_SET_SOURCE = 0,    //@in @value object @required
+  VM_IN_SET_DESTINATION,   //@in @value object @required
+} vm_in_set_e;
 
-/* The body, called every pass. */
-void vm_blk_set(vm_block_h b);
-
+/* The body, called every pass.
+   Face, titles and descriptions: set.display.json; the app's set.content.json is generated from this header. */
 //#vm-block VM_BLK_SET @id 6
-//@title Set
-//@category data
-//@activation triggered Runs when the source (input 0) is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled.
-//@block-description Copies the source payload (whole trees included) into the destination when the source is fresh. Types and counts must match.
-//@in 0 source @title Source @value object @macro VM_SET_IN_SRC @required
-//@in 1 destination @title Destination @value object @macro VM_SET_IN_DST @required
+//@activation triggered
+void vm_blk_set(vm_block_h b);

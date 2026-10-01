@@ -1,0 +1,12 @@
+{
+  "title": "Set Pin Level",
+  "category": "io",
+  "description": "Drives a pin on an IO device (ESP GPIO, expander) to the input level; writes only on change.",
+  "activation": "Runs every pass while enabled.",
+  "header": "{title} | {pin}",
+  "always_detailed": true,
+  "inputs": {
+    "level": { "title": "Level", "description": "Overrides default_level; the level the pin is driven to while active." },
+    "pin": { "title": "Pin", "description": "Overrides default_io_num; must be in allowed_mask." }
+  }
+}

@@ -4,7 +4,7 @@ bool vm_verify_action(vm_block_h b) {
   vm_block_action_data_t d;
   memcpy(&d, vm_block_get_custom_data(b), sizeof(d));
   if (d.scope > VM_ACTION_SCOPE_RECORDED) return false;
-  if (!vm_block_optional_in(b, VM_ACTION_IN_ID) && d.action_id == 0) return false;
+  if (!vm_block_optional_in(b, VM_IN_ACTION_ID) && d.action_id == 0) return false;
   return true;
 }
 
@@ -24,7 +24,7 @@ void vm_blk_action(vm_block_h b) {
   }
 
   uint32_t id = state.action_id;
-  if (!vm_block_check(b, VM_BLOCK_GET_PARAM(id, b, VM_ACTION_IN_ID, state.action_id))) {
+  if (!vm_block_check(b, VM_BLOCK_GET_PARAM(id, b, VM_IN_ACTION_ID, state.action_id))) {
     vm_block_set_eno(b, false);
     return;
   }

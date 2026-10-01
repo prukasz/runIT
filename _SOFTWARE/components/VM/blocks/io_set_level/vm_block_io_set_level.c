@@ -18,7 +18,7 @@ void vm_blk_io_set_level(vm_block_h b) {
   IF_BLOCK_ENABLED(b) {
     // 1. Read optional LEVEL input (defaults to d->default_level)
     bool level = false;
-    err_h err = VM_BLOCK_GET_PARAM(level, b, VM_IO_SET_IN_LEVEL, d->default_level == VM_IO_LEVEL_HIGH);
+    err_h err = VM_BLOCK_GET_PARAM(level, b, VM_IN_IO_SET_LEVEL_LEVEL, d->default_level == VM_IO_LEVEL_HIGH);
     if (unlikely(!vm_block_check(b, err))) {
       vm_block_set_eno(b, false);
       return;
@@ -26,7 +26,7 @@ void vm_blk_io_set_level(vm_block_h b) {
 
     // 2. Read optional IO_NUM input (defaults to d->default_io_num)
     uint32_t pin_val = d->default_io_num;
-    err = VM_BLOCK_GET_PARAM(pin_val, b, VM_IO_SET_IN_PIN, d->default_io_num);
+    err = VM_BLOCK_GET_PARAM(pin_val, b, VM_IN_IO_SET_LEVEL_PIN, d->default_io_num);
     if (unlikely(!vm_block_check(b, err))) {
       vm_block_set_eno(b, false);
       return;

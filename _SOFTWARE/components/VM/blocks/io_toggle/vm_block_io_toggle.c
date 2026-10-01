@@ -25,7 +25,7 @@ void vm_blk_io_toggle(vm_block_h b) {
 
   if (rising) {
     uint32_t pin_val = d->default_io_num;
-    err_h err = VM_BLOCK_GET_PARAM(pin_val, b, VM_IO_TOGGLE_IN_PIN, d->default_io_num);
+    err_h err = VM_BLOCK_GET_PARAM(pin_val, b, VM_IN_IO_TOGGLE_PIN, d->default_io_num);
     if (unlikely(!vm_block_check(b, err))) {
       vm_block_set_eno(b, false);
       return;

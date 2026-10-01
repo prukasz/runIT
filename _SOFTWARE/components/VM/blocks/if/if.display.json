@@ -1,0 +1,19 @@
+{
+  "title": "If",
+  "category": "flow",
+  "description": "Two-way router: output 0 when the condition is non-zero, else output 1. Outputs are flow (enable sources below), cleared when the block doesn't decide.",
+  "activation": "Runs every pass while enabled.",
+  "inputs": {
+    "condition": {
+      "title": "Condition"
+    }
+  },
+  "outputs": {
+    "yes": {
+      "title": "Yes"
+    },
+    "no": {
+      "title": "No"
+    }
+  }
+}

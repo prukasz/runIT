@@ -124,9 +124,9 @@ Places not yet following the rule:
 
 Integer types are clean: the only non-`stdint` uses are the accepted exceptions above plus the AP33772S bit-fields.
 
-## 6. Code annotations (`//@`, `//#ref-enum`, `//#vm-*`)
+## 6. Code annotations (`//@`, `//#ref-enum`, `//#block-enum`, `//#vm-*`)
 
-- Comments starting with `//@`, `//#ref-enum`, `//#vm-` or the device records `//#device` / `//#contract` / `//#property` (with their `//  @tag` continuation lines) (for example `//@STATIC_DEVICE`, `//#contract`, `//#vm-packet`, `//#vm-arena`, and `@alias` / `@arg` field metadata) are **machine-read** by the generators in `data-structures/auto-annotations/`. They produce the `*.generated.json` files the app uses.
+- Comments starting with `//@`, `//#ref-enum`, `//#block-enum`, `//#vm-` or the device records `//#device` / `//#contract` / `//#property` (with their `//  @tag` continuation lines) (for example `//@STATIC_DEVICE`, `//#contract`, `//#vm-packet`, `//#vm-arena`, and `@alias` / `@arg` field metadata) are **machine-read** by the generators in `data-structures/auto-annotations/`. They produce the `*.generated.json` files the app uses (and a VM block's `<name>.content.json`; its `<name>.display.json` is hand-written).
 - The VM wire records (`components/VM/core/loader/vm_wire.h`) are published layouts: change a record there and regenerate `vm-program.generated.json`, never parse a record by hand-computed offsets.
 - **Never remove, reword or reformat them**, including during cleanup. When moving or renaming the declaration they describe, move the annotation with it and keep it next to the declaration.
 - Grammar and rules: `data-structures/AGENTS.md` and the `*-annotations.md` files it links to. After changing annotated code, regenerate the JSON (commands in `data-structures/AGENTS.md`). Never edit `*.generated.json` by hand.

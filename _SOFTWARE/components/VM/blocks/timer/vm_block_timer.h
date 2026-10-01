@@ -14,7 +14,7 @@
  *  Time base is load-configurable: ms (0), s (1), min (2), hr (3).
  */
 
-//#ref-enum @alias Timer Mode
+//#block-enum @alias Timer Mode
 typedef enum {
   VM_TIMER_TON      = 0,  // On-Delay
   VM_TIMER_TOF      = 1,  // Off-Delay
@@ -49,15 +49,16 @@ static inline uint64_t vm_timer_unit_scale_ms(uint8_t unit) {
 #define VM_TIMER_F_PREV_IN     (1u << 2)
 #define VM_TIMER_F_INVERTED    (1u << 3)
 
+//@data vm_block_timer_data_t
 typedef struct __attribute__((aligned(8))) {
-  uint8_t  mode;        // vm_timer_mode_e @enum-ref vm_timer_mode_e
-  uint8_t  flags;       // VM_TIMER_F_*: only VM_TIMER_F_INVERTED (0x08) is set by the app
-  uint8_t  time_base;   // Unit of pt and ET @enum-ref vm_timer_unit_e
+  uint8_t  mode;        // @description vm_timer_mode_e @enum-ref vm_timer_mode_e
+  uint8_t  flags;       // @description VM_TIMER_F_*: only VM_TIMER_F_INVERTED (0x08) is set by the app
+  uint8_t  time_base;   // @description Unit of pt and ET @enum-ref vm_timer_unit_e
   uint8_t  _pad1;
   uint32_t _pad2;
-  uint32_t pt;          // Preset time in configured unit (hardcoded fallback)
-  uint64_t start_ms;    // Timestamp when timing started @runtime
-  uint32_t elapsed;     // Current elapsed time @runtime
+  uint32_t pt;          // @description Preset time in configured unit (hardcoded fallback)
+  uint64_t start_ms;    // @description Timestamp when timing started @runtime
+  uint32_t elapsed;     // @description Current elapsed time @runtime
 } vm_block_timer_data_t;
 
 _Static_assert(sizeof(vm_block_timer_data_t) == 32, "vm_block_timer_data_t must be 32 bytes");
@@ -89,24 +90,24 @@ static inline void vm_block_timer_init_data_ex(void* buffer, vm_timer_mode_e mod
   memcpy(buffer, &data, sizeof(data));
 }
 
-#define VM_TIMER_IN_SIGNAL 0u
-#define VM_TIMER_IN_PT 1u
-#define VM_TIMER_ET 0u  // the only output pin: Q is the block's ENO
+/* Pins, by index: VM_IN_<BLOCK>_<PIN> / VM_OUT_<BLOCK>_<PIN>. Each member's //@in / //@out says what the pin carries and
+   which state field it replaces while unwired; titles and descriptions are in timer.display.json. */
+//#block-enum @alias Timer Inputs
+typedef enum vm_in_timer_e {
+  VM_IN_TIMER_IN = 0,   //@in @value bool @required
+  VM_IN_TIMER_PT,       //@in @value u32 @overrides pt
+} vm_in_timer_e;
 
-/* Load-time check of the block's state; the pin shape is checked from the //@in / //@out directives below. */
-bool vm_verify_timer(vm_block_h b);
-/* The body, called every pass. */
-void vm_blk_timer(vm_block_h b);
+//#block-enum @alias Timer Outputs
+typedef enum vm_out_timer_e {
+  VM_OUT_TIMER_ET = 0,   //@out @value u32
+} vm_out_timer_e;
 
-//#vm-block VM_BLK_TIMER @id 9
-//@title Timer
-//@category time
-//@activation enabled Runs every pass while enabled.
-//@data vm_block_timer_data_t
-//@block-description On-delay, off-delay or pulse timer (plus inverted). ENO is the timer's output Q, held as a level; Elapsed counts in time_base units.
-//@header Timer | {mode} {pt} {time_base}
-//@eno @title Q @description The timer's output level: true after the on-delay, during a pulse, or until the off-delay ends. Put it on another block's Run when to gate that block.
+/* Load-time check of the block's state; the pin shape comes from the pin enums above. */
 //@rule mode is a vm_timer_mode_e value and time_base a vm_timer_unit_e value. @error ERR_VM_BLK_BAD_SHAPE
-//@in 0 in @title Start @description The signal the timer acts on; the block's enable gates the whole timer. @value bool @macro VM_TIMER_IN_SIGNAL @required
-//@in 1 pt @title Preset @description Overrides pt, in time_base units. @value u32 @overrides pt @macro VM_TIMER_IN_PT
-//@out 0 et @title Elapsed time @description Time elapsed, in time_base units. @value u32 @macro VM_TIMER_ET
+bool vm_verify_timer(vm_block_h b);
+/* The body, called every pass.
+   Face, titles and descriptions: timer.display.json; the app's timer.content.json is generated from this header. */
+//#vm-block VM_BLK_TIMER @id 9
+//@activation enabled
+void vm_blk_timer(vm_block_h b);

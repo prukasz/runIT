@@ -123,14 +123,14 @@ void vm_blk_timer(vm_block_h b) {
     state.flags &= (uint8_t)~(VM_TIMER_F_RUNNING | VM_TIMER_F_INITIALIZED | VM_TIMER_F_PREV_IN);
     state.elapsed = 0;
     memcpy(vm_block_get_custom_data(b), &state, sizeof(state));
-    vm_block_drive_gate(b, VM_TIMER_ET, false);
+    vm_block_drive_gate(b, VM_OUT_TIMER_ET, false);
     vm_block_set_eno(b, false);
     return;
   }
   bool signal = false;
   uint32_t pt = 0;
-  if (!vm_block_check(b, VM_OBJ_SCALAR_GET(signal, vm_block_get_inputs(b)[VM_TIMER_IN_SIGNAL])) ||
-      !vm_block_check(b, VM_BLOCK_GET_PARAM(pt, b, VM_TIMER_IN_PT, state.pt))) {
+  if (!vm_block_check(b, VM_OBJ_SCALAR_GET(signal, vm_block_get_inputs(b)[VM_IN_TIMER_IN])) ||
+      !vm_block_check(b, VM_BLOCK_GET_PARAM(pt, b, VM_IN_TIMER_PT, state.pt))) {
     // case when error or non activated
     vm_block_set_eno(b, false);
     return;
@@ -139,7 +139,7 @@ void vm_blk_timer(vm_block_h b) {
   const bool q = vm_timer_step(&state, signal, pt, now);
   memcpy(vm_block_get_custom_data(b), &state, sizeof(state));
   vm_block_set_eno(b, q);
-  if (b->cfg.q_cnt > VM_TIMER_ET) {
-    BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(state.elapsed, vm_block_get_outputs(b)[VM_TIMER_ET], 0), b);
+  if (b->cfg.q_cnt > VM_OUT_TIMER_ET) {
+    BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(state.elapsed, vm_block_get_outputs(b)[VM_OUT_TIMER_ET], 0), b);
   }
 }

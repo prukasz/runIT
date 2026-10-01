@@ -1,16 +1,11 @@
 {
-  "$schema": "data-structures/schema/vm-block.schema.json",
   "schemaVersion": 1,
-  "kind": "vm-block",
+  "kind": "vm-block-content",
   "id": 12,
   "name": "VM_BLK_LATCH",
-  "title": "Latch",
-  "category": "logic",
-  "description": "EN sets a held flow level; Reset clears it. ENO stays active until reset.",
   "source_file": "components/VM/blocks/latch/vm_block_latch.h",
   "activation": {
-    "kind": "enabled",
-    "description": "Samples EN and Reset every pass; EN sets the held state."
+    "kind": "enabled"
   },
   "inputs": {
     "min": 0,
@@ -19,7 +14,6 @@
       {
         "index": 0,
         "name": "reset",
-        "title": "Reset",
         "value": "bool",
         "required": false
       }
@@ -42,22 +36,6 @@
       "error_tag": 43296
     }
   ],
-  "eno": {
-    "title": "Held",
-    "description": "Held flow level: true after EN sets it, until Reset clears it."
-  },
-  "header": {
-    "lead": [
-      {
-        "text": "Latch "
-      },
-      {
-        "ref": "mode",
-        "kind": "field",
-        "field": "mode"
-      }
-    ]
-  },
   "state": {
     "struct": "vm_block_latch_data_t",
     "source_file": "components/VM/blocks/latch/vm_block_latch.h",
@@ -92,6 +70,18 @@
   },
   "min_custom_len": 4,
   "enums": {
+    "vm_in_latch_e": {
+      "alias": "Latch Inputs",
+      "source_file": "components/VM/blocks/latch/vm_block_latch.h",
+      "members": [
+        {
+          "name": "VM_IN_LATCH_RESET",
+          "value": 0,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
     "vm_latch_mode_e": {
       "alias": "Latch Mode",
       "source_file": "components/VM/blocks/latch/vm_block_latch.h",
@@ -116,5 +106,6 @@
         }
       ]
     }
-  }
+  },
+  "min_enables": 1
 }

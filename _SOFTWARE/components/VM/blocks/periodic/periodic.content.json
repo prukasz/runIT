@@ -1,16 +1,11 @@
 {
-  "$schema": "data-structures/schema/vm-block.schema.json",
   "schemaVersion": 1,
-  "kind": "vm-block",
+  "kind": "vm-block-content",
   "id": 13,
   "name": "VM_BLK_PERIODIC",
-  "title": "Every",
-  "category": "time",
-  "description": "Pulses ENO (the tick) for one pass every period while enabled; never bursts after a slow pass.",
   "source_file": "components/VM/blocks/periodic/vm_block_periodic.h",
   "activation": {
-    "kind": "enabled",
-    "description": "Runs every pass while enabled."
+    "kind": "enabled"
   },
   "inputs": {
     "min": 0,
@@ -19,9 +14,7 @@
       {
         "index": 0,
         "name": "period",
-        "title": "Period",
         "value": "u32",
-        "description": "Overrides period, in time_base units; 0 pauses.",
         "overrides": "period",
         "required": false,
         "hidden_by_default": true
@@ -45,33 +38,6 @@
       "error_tag": 43296
     }
   ],
-  "eno": {
-    "title": "Tick",
-    "description": "One-pass pulse every period: put it on another block's Run when to run that block every period."
-  },
-  "header": {
-    "lead": [
-      {
-        "text": "Every"
-      }
-    ],
-    "value": [
-      {
-        "ref": "period",
-        "kind": "pin",
-        "pin": 0,
-        "field": "period"
-      },
-      {
-        "text": " "
-      },
-      {
-        "ref": "time_base",
-        "kind": "field",
-        "field": "time_base"
-      }
-    ]
-  },
   "state": {
     "struct": "vm_block_periodic_data_t",
     "source_file": "components/VM/blocks/periodic/vm_block_periodic.h",
@@ -123,6 +89,18 @@
   },
   "min_custom_len": 16,
   "enums": {
+    "vm_in_periodic_e": {
+      "alias": "Every Inputs",
+      "source_file": "components/VM/blocks/periodic/vm_block_periodic.h",
+      "members": [
+        {
+          "name": "VM_IN_PERIODIC_PERIOD",
+          "value": 0,
+          "alias": null,
+          "description": null
+        }
+      ]
+    },
     "vm_timer_unit_e": {
       "alias": "Time Unit",
       "source_file": "components/VM/blocks/timer/vm_block_timer.h",
@@ -159,5 +137,6 @@
         }
       ]
     }
-  }
+  },
+  "min_enables": 0
 }

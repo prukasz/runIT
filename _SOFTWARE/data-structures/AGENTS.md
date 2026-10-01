@@ -14,7 +14,7 @@ Generate web-app JSON descriptors from annotated C headers. C remains the source
 - Read `auto-annotations/device/device-annotations.md` before changing annotation syntax, device headers, or the device generator.
 - Read `auto-annotations/vm/vm-annotations.md` before changing VM annotations or the VM generator.
 - Read `auto-annotations/settings/settings-annotations.md` before changing runtime settings annotations or the settings generator.
-- Do not edit `*.generated.json`; change C annotations, schema, or generator, then regenerate.
+- Do not edit `*.generated.json`, nor a VM block's `<name>.content.json` (generated from its header); change C annotations, schema, or generator, then regenerate. A block's `<name>.display.json` is hand-written (what the editor shows).
 - `//@...` is a header directive; `@...` is field or enum-member metadata. Device headers use records instead: `//#device`, `//#self-property`, `//#property`, `//#contract`, each continued by `//  @tag` lines (two or more spaces).
 - `//#ref-enum` explicitly publishes an enum. `$SYMBOL` must resolve uniquely to a member of one published enum; unresolved or ambiguous references are errors.
 - A published enum member may take its value from Kconfig (`MEMBER = CONFIG_X,`); the enum generator resolves it from `sdkconfig` (an unresolved `CONFIG_*` is an error). Used for IDs the app must match, e.g. `sys_data_connector_id_e`, `runit_data_provider_e`. Regenerate after changing such an option.
@@ -31,7 +31,7 @@ Generate web-app JSON descriptors from annotated C headers. C remains the source
 - `schema/device-definition.schema.json`: generated device JSON contract.
 - `auto-annotations/enums/generate-enums.py`: shared `//#ref-enum` scanner; device generation runs it live.
 - `auto-annotations/vm/generate-vm-model.py`: extracts marked VM C structs and VM enums.
-- `auto-annotations/vm/generate-vm-blocks.py`: one descriptor per VM block in `vm/blocks/` plus `index.generated.json` (`//#vm-block`: palette shape, pins and their constants (`@overrides`), the block face (`//@header`), activation, load rules, state layouts, bytecode encoding; the app renders a block from this alone); schemas `schema/vm-block.schema.json`, `schema/vm-blocks-index.schema.json`.
+- `auto-annotations/vm/generate-vm-blocks.py`: per VM block `<name>.content.json` next to its header (`//#vm-block` and the pin enums: palette shape, pins and their constants (`@overrides`), activation, load rules, state layouts, the block's own `//#block-enum` enums, bytecode encoding) plus `vm/blocks/index.generated.json`, the firmware registry and the user guides; the hand-written `<name>.display.json` holds the face (title, category, description, pin titles, header line) and the app renders a block from the two files alone; schemas `schema/vm-block.schema.json` (checked on the merged block), `schema/vm-blocks-index.schema.json`.
 - `auto-annotations/vm/generate-vm-program.py`: the VM program wire format (`vm_wire.h` records, telemetry, widths, limits, arena formulas); schema `schema/vm-program.schema.json`.
 - `schema/vm-model.schema.json`: generated VM model contract.
 - `auto-annotations/contracts/generate-contracts.py`: extracts explicitly exposed packet contracts.

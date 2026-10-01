@@ -1,0 +1,11 @@
+{
+  "title": "Edge",
+  "category": "logic",
+  "description": "Pulses ENO for one pass when the combined EN level rises, falls or changes in either direction.",
+  "activation": "Samples EN every pass, including when EN is false.",
+  "header": "{edge_type} edge",
+  "eno": {
+    "title": "Pulse",
+    "description": "One-pass pulse when the selected EN edge occurs."
+  }
+}

@@ -1,16 +1,11 @@
 {
-  "$schema": "data-structures/schema/vm-block.schema.json",
   "schemaVersion": 1,
-  "kind": "vm-block",
+  "kind": "vm-block-content",
   "id": 15,
   "name": "VM_BLK_ON_EVENT",
-  "title": "On Event",
-  "category": "system",
-  "description": "Pulses ENO for one pass when a matching system event arrived (needs a subscription routed to the VM).",
   "source_file": "components/VM/blocks/on_event/vm_block_on_event.h",
   "activation": {
-    "kind": "enabled",
-    "description": "Runs every pass while enabled."
+    "kind": "enabled"
   },
   "inputs": {
     "min": 0,
@@ -24,16 +19,12 @@
       {
         "index": 0,
         "name": "value",
-        "title": "Value",
-        "value": "i32",
-        "description": "The event's value (last match of the pass)."
+        "value": "i32"
       },
       {
         "index": 1,
         "name": "count",
-        "title": "Count",
-        "value": "u32",
-        "description": "Matches this pass."
+        "value": "u32"
       }
     ]
   },
@@ -110,6 +101,25 @@
           "description": "Connection events. Event = BLE event"
         }
       ]
+    },
+    "vm_out_on_event_e": {
+      "alias": "On Event Outputs",
+      "source_file": "components/VM/blocks/on_event/vm_block_on_event.h",
+      "members": [
+        {
+          "name": "VM_OUT_ON_EVENT_VALUE",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_OUT_ON_EVENT_COUNT",
+          "value": 1,
+          "alias": null,
+          "description": null
+        }
+      ]
     }
-  }
+  },
+  "min_enables": 0
 }

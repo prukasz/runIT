@@ -1,16 +1,11 @@
 {
-  "$schema": "data-structures/schema/vm-block.schema.json",
   "schemaVersion": 1,
-  "kind": "vm-block",
+  "kind": "vm-block-content",
   "id": 6,
   "name": "VM_BLK_SET",
-  "title": "Set",
-  "category": "data",
-  "description": "Copies the source payload (whole trees included) into the destination when the source is fresh. Types and counts must match.",
   "source_file": "components/VM/blocks/set/vm_block_set.h",
   "activation": {
-    "kind": "triggered",
-    "description": "Runs when the source (input 0) is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled."
+    "kind": "triggered"
   },
   "inputs": {
     "min": 2,
@@ -19,14 +14,12 @@
       {
         "index": 0,
         "name": "source",
-        "title": "Source",
         "value": "object",
         "required": true
       },
       {
         "index": 1,
         "name": "destination",
-        "title": "Destination",
         "value": "object",
         "required": true
       }
@@ -39,5 +32,25 @@
   },
   "rules": [],
   "min_custom_len": 0,
-  "enums": {}
+  "enums": {
+    "vm_in_set_e": {
+      "alias": "Set Inputs",
+      "source_file": "components/VM/blocks/set/vm_block_set.h",
+      "members": [
+        {
+          "name": "VM_IN_SET_SOURCE",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_IN_SET_DESTINATION",
+          "value": 1,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  },
+  "min_enables": 0
 }

@@ -20,8 +20,13 @@ def header(*lines):
     return "\n".join(["//#vm-block VM_BLK_X @id 1", *lines, ""])
 
 
-def directives(*lines):
-    return [{"keyword": line[3:].split()[0], "rest": line[3:].partition(" ")[2].strip(), "line": i + 1} for i, line in enumerate(lines)]
+def entries(*lines):
+    """Pin entries as pins_from_enums makes them, from `in 0 a @title A @value bool @required` lines."""
+    out = []
+    for line in lines:
+        side, index, name, rest = ((line[3:] if line.startswith("//@") else line).split(None, 3) + [""])[:4]
+        out.append({"side": side, "index": index, "name": name, "tags": generator.parse_tags(rest, generator.PIN_TAGS, "t")[1], "where": "t"})
+    return out
 
 
 @contextlib.contextmanager
@@ -89,11 +94,14 @@ class RealHeaders(unittest.TestCase):
     def test_the_detailed_view_is_the_hard_coded_inputs(self):
         # Inputs with a constant are the detailed view; nothing else needs annotating for it.
         with_constant = sorted(name for name, block in self.block.items() if any(p.get("overrides") for p in block["inputs"]["pins"]))
-        self.assertEqual(with_constant, ["ACTION", "FOR", "IO_SET_LEVEL", "IO_TOGGLE", "PERIODIC", "TIMER"])
+        for name, block in self.block.items():  # every one of them is hidden until wired, whichever block it is
+            for pin in block["inputs"]["pins"]:
+                self.assertEqual(bool(pin.get("overrides")), bool(pin.get("hidden_by_default")) and "overrides" in pin, (name, pin["name"]))
+        self.assertIn("TIMER", with_constant)
 
     def test_the_old_detailed_view_tags_are_refused(self):
-        self.assertIn("unknown directive //@view", build_error("vm_block_timer.h", "//@header Timer |", "//@view simple\n//@header Timer |"))
-        self.assertIn("unknown directive //@body", build_error("vm_block_timer.h", "//@header Timer |", "//@body text\n//@header Timer |"))
+        self.assertIn("unknown directive //@view", build_error("vm_block_timer.h", "//@activation enabled", "//@view simple\n//@activation enabled"))
+        self.assertIn("unknown directive //@body", build_error("vm_block_timer.h", "//@activation enabled", "//@body text\n//@activation enabled"))
         self.assertIn("unknown tag @extended-view-show", build_error("vm_block_timer.h", "@enum-ref vm_timer_mode_e", "@enum-ref vm_timer_mode_e @extended-view-show"))
 
     def test_examples_are_assembled_into_the_computed_state_layout(self):
@@ -104,26 +112,36 @@ class RealHeaders(unittest.TestCase):
 
 
 class Scanning(unittest.TestCase):
-    def test_blank_lines_and_plain_comments_inside_the_block_are_fine(self):
-        text = header("//@title X", "", "// a note", "//@category flow")
-        [block] = generator.scan_blocks("h", text)
-        self.assertEqual([d["keyword"] for d in block["directives"]], ["title", "category"])
+    def test_the_directives_stand_anywhere_in_the_header_and_belong_to_its_block(self):
+        text = "//@data s_t\ntypedef struct s_t {int a;} s_t;\n\n// a note\n//#vm-block VM_BLK_X @id 1\n//@activation enabled\nvoid f(void);\n//@rule r @error E\n"
+        block = generator.scan_block("h", text)
+        self.assertEqual((block["name"], block["id"]), ("X", 1))
+        self.assertEqual([d["keyword"] for d in block["directives"]], ["data", "activation", "rule"])
 
-    def test_a_directive_above_the_block_is_refused(self):
-        with self.assertRaisesRegex(SystemExit, "not inside a //#vm-block"):
-            generator.scan_blocks("h", "//@in 0 a @title A @value bool\n\n" + header("//@title X"))
+    def test_a_shared_header_has_no_block(self):
+        self.assertIsNone(generator.scan_block("h", "// shared code\ntypedef int t;\n"))
+        with self.assertRaisesRegex(SystemExit, "without a `//#vm-block"):
+            generator.scan_block("h", "//@activation enabled\n")
+
+    def test_one_block_per_header(self):
+        with self.assertRaisesRegex(SystemExit, "one block per header"):
+            generator.scan_block("h", header("//@activation enabled") + header("//@activation enabled"))
+
+    def test_face_directives_belong_in_the_display_json(self):
+        for keyword in ("title", "category", "block-description", "header", "eno", "always-detailed", "in", "out"):
+            with self.subTest(keyword), self.assertRaisesRegex(SystemExit, "belong in the <name>.display.json"):
+                generator.scan_block("h", header(f"//@{keyword} x"))
 
     def test_unknown_directive_and_old_one_line_form_are_refused(self):
-        with self.assertRaisesRegex(SystemExit, "unknown directive //@titel"):
-            generator.scan_blocks("h", header("//@titel X"))
-        with self.assertRaisesRegex(SystemExit, "one fact per following"):
-            generator.scan_blocks("h", "//#vm-block VM_BLK_X @id 1 @title X\n#define VM_BLOCK_TYPE_X {}\n")
+        with self.assertRaisesRegex(SystemExit, "unknown directive //@activaton"):
+            generator.scan_block("h", header("//@activaton x"))
+        with self.assertRaisesRegex(SystemExit, "takes the block symbol and its id"):
+            generator.scan_block("h", "//#vm-block VM_BLK_X @id 1 @title X\n")
 
     def test_the_id_is_part_of_the_directive_line(self):
         with self.assertRaisesRegex(SystemExit, "symbol and its id"):
-            generator.scan_blocks("h", "//#vm-block VM_BLK_X\n//@title X\n#define VM_BLOCK_TYPE_X {}\n")
-        [block] = generator.scan_blocks("h", header("//@title X"))
-        self.assertEqual(block["id"], 1)
+            generator.scan_block("h", "//#vm-block VM_BLK_X\n//@activation enabled\n")
+        self.assertEqual(generator.scan_block("h", header("//@activation enabled"))["id"], 1)
 
     def test_ids_are_unique_and_fit_a_byte(self):
         self.assertIn("both have @id", build_error("vm_block_edge.h", "VM_BLK_EDGE @id 8", "VM_BLK_EDGE @id 9"))
@@ -152,12 +170,6 @@ class Scanning(unittest.TestCase):
         self.assertIn(".check = vm_verify_timer", entry["VM_BLK_TIMER"])
         self.assertNotIn(".check", entry["VM_BLK_IF"])
 
-    def test_the_block_ends_at_the_first_line_of_code(self):
-        [block] = generator.scan_blocks("h", "//#vm-block VM_BLK_X @id 1\n//@title X\n\nint unrelated;\n")
-        self.assertEqual([d["keyword"] for d in block["directives"]], ["title"])
-        with self.assertRaisesRegex(SystemExit, "not inside a //#vm-block"):
-            generator.scan_blocks("h", "//#vm-block VM_BLK_X @id 1\n//@title X\nint unrelated;\n//@category flow\n")
-
 
 class Tags(unittest.TestCase):
     def test_unknown_repeated_and_valued_flag_tags_fail(self):
@@ -175,7 +187,7 @@ class Tags(unittest.TestCase):
 
 class Pins(unittest.TestCase):
     def parse(self, *lines, text=""):
-        return generator.parse_pins(directives(*lines), text, LIMITS, "t")
+        return generator.parse_pins(entries(*lines), text, LIMITS, "t")
 
     def test_shape_comes_from_the_required_pins(self):
         inputs, outputs, shape = self.parse("//@in 0 a @title A @value bool @required", "//@in 1 b @title B @value bool", "//@out 0 q @title Q @value bool @required")
@@ -204,18 +216,10 @@ class Pins(unittest.TestCase):
             "past the limit": (("//@in 0 a @title A @value bool", *[f"//@in {i} p{i} @title P @value bool" for i in range(1, 9)]), "past CONFIG_VM_BLOCK_MAX_IN"),
             "no title": (("//@in 0 a @value bool",), "needs @title"),
             "bad value kind": (("//@in 0 a @title A @value float",), "needs @value"),
-            "text before tags": (("//@in 0 a stray @title A @value bool",), "unexpected text"),
         }
         for name, (lines, message) in cases.items():
             with self.subTest(name), self.assertRaisesRegex(SystemExit, message):
                 self.parse(*lines)
-
-    def test_a_pin_index_must_match_the_c_macro(self):
-        text = "#define VM_X_IN_A 1u\n"
-        with self.assertRaisesRegex(SystemExit, "is 1, the annotation says 0"):
-            self.parse("//@in 0 a @title A @value bool @macro VM_X_IN_A", text=text)
-        with self.assertRaisesRegex(SystemExit, "is not defined"):
-            self.parse("//@in 0 a @title A @value bool @macro VM_X_IN_B", text=text)
 
     def test_overrides_ties_a_pin_to_a_setting_and_hides_it(self):
         inputs, _, _ = self.parse("//@in 0 a @title A @value bool @required", "//@in 1 b @title B @value u32 @overrides limit")
@@ -263,6 +267,83 @@ class Templates(unittest.TestCase):
                 self.parse(text)
 
 
+PROBE_HEADER = """#pragma once
+#include "vm_block_helpers.h"
+
+//#block-enum @alias Probe Mode
+typedef enum vm_probe_mode_e {
+  VM_PROBE_MODE_A = 0,  //@alias A
+  VM_PROBE_MODE_B,      //@alias B
+  VM_PROBE_MODE_CNT,
+} vm_probe_mode_e;
+
+//@data vm_probe_data_t
+typedef struct __attribute__((aligned(4))) {
+  uint8_t mode;     // @description Which one @enum-ref vm_probe_mode_e
+  uint8_t flags;    // @runtime
+  uint16_t gain;    // @description Gain when the Gain input is unwired
+} vm_probe_data_t;
+_Static_assert(sizeof(vm_probe_data_t) == 4, "vm_probe_data_t");
+
+//#block-enum @alias Probe Inputs
+typedef enum vm_in_probe_e {
+  VM_IN_PROBE_GAIN = 0,  //@in @value u32 @overrides gain
+  VM_IN_PROBE_ARG_ANY,   //@in @value f32 @repeat
+} vm_in_probe_e;
+
+//#block-enum @alias Probe Outputs
+typedef enum vm_out_probe_e {
+  VM_OUT_PROBE_RESULT = 0,  //@out @value f32 @required
+} vm_out_probe_e;
+
+//@rule mode is a vm_probe_mode_e value. @error ERR_VM_BLK_BAD_SHAPE
+bool vm_verify_probe(vm_block_h b);
+//#vm-block VM_BLK_PROBE @id 250
+//@activation triggered
+//@enables required
+void vm_blk_probe(vm_block_h b);
+"""
+PROBE_DISPLAY = """{
+  "title": "Probe", "category": "data", "description": "A block the generator has never seen.",
+  "header": "Probe | {mode}",
+  "inputs": {"gain": {"title": "Gain"}, "arg": {"title": "Argument", "description": "Any number."}},
+  "outputs": {"result": {"title": "Result"}}
+}
+"""
+
+
+class NewBlock(unittest.TestCase):
+    """A block the tool has never seen generates with no change to the tool: nothing in it names a block."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = generator.BLOCKS_DIR / "zz_probe"
+        cls.folder.mkdir(exist_ok=True)
+        (cls.folder / "vm_block_zz_probe.h").write_text(PROBE_HEADER.replace("probe", "zz_probe").replace("PROBE", "ZZ_PROBE"), encoding="utf-8", newline="\n")
+        (cls.folder / "zz_probe.display.json").write_text(PROBE_DISPLAY, encoding="utf-8", newline="\n")
+        generator.DISPLAY_BLOCKS.clear()
+        try:
+            cls.blocks, cls.index = generator.build()
+        finally:
+            for path in cls.folder.iterdir():
+                path.unlink()
+            cls.folder.rmdir()
+
+    def test_the_new_block_has_its_shape_pins_and_enums(self):
+        block = next(b for b in self.blocks if b["name"] == "VM_BLK_ZZ_PROBE")
+        self.assertEqual(block["id"], 250)
+        self.assertEqual([(p["index"], p["name"]) for p in block["inputs"]["pins"]], [(0, "gain"), ("*", "arg")])
+        self.assertEqual((block["inputs"]["max"], block["outputs"]["min"]), (generator.load_sdkconfig()["CONFIG_VM_BLOCK_MAX_IN"], 1))
+        self.assertEqual([f["source"] for f in block["state"]["fields"]], ["user", "runtime", "user"])
+        self.assertEqual(sorted(block["enums"]), ["vm_in_zz_probe_e", "vm_out_zz_probe_e", "vm_zz_probe_mode_e"])
+
+    def test_the_new_block_is_registered_without_a_central_edit(self):
+        block = next(b for b in self.blocks if b["name"] == "VM_BLK_ZZ_PROBE")
+        self.assertIn(".min_en = 1", generator.c_entry(block))
+        self.assertIn("vm_blk_zz_probe", generator.render_registry(self.blocks).decode("utf-8"))
+        self.assertIn("#define VM_BLK_ZZ_PROBE 250", generator.render_ids(self.blocks).decode("utf-8"))
+
+
 class Mistakes(unittest.TestCase):
     """The same headers, written wrongly, must not generate."""
 
@@ -272,8 +353,8 @@ class Mistakes(unittest.TestCase):
     def test_wrong_offset_assert(self):
         self.assertIn("computes to offset", build_error("vm_block_periodic.h", "offsetof(vm_block_periodic_data_t, time_base) == 4", "offsetof(vm_block_periodic_data_t, time_base) == 5"))
 
-    def test_annotation_and_c_macro_disagree(self):
-        self.assertIn("the annotation says 0", build_error("vm_block_timer.h", "#define VM_TIMER_ET 0u", "#define VM_TIMER_ET 1u"))
+    def test_pin_enum_values_are_the_pin_indexes(self):
+        self.assertRegex(build_error("vm_block_timer.h", "VM_IN_TIMER_IN = 0", "VM_IN_TIMER_IN = 1"), "without gaps")
 
     def test_typo_in_a_tag(self):
         self.assertIn("unknown tag @overides", build_error("vm_block_timer.h", "@overrides pt", "@overides pt"))
@@ -281,15 +362,27 @@ class Mistakes(unittest.TestCase):
     def test_overrides_names_no_setting(self):
         self.assertIn("must name a user state field", build_error("vm_block_timer.h", "@overrides pt", "@overrides nothing"))
 
-    def test_annotation_above_the_directive(self):
-        self.assertIn("not inside a //#vm-block", build_error("vm_block_timer.h", "//#vm-block VM_BLK_TIMER @id 9", "//@in 2 stray @title S @value bool\n//#vm-block VM_BLK_TIMER @id 9"))
+    def test_the_header_of_a_block_with_a_display_json_refuses_the_face(self):
+        self.assertIn("belong in the <name>.display.json", build_error("vm_block_timer.h", "//@activation enabled", "//@title Timer\n//@activation enabled"))
+
+    def test_a_pin_member_needs_its_tag(self):
+        self.assertIn("needs a trailing", build_error("vm_block_if.h", "//@in @value bool @required", ""))
+
+    def test_a_repeating_pin_is_valued_after_the_numbered_ones(self):
+        self.assertIn("after 0 numbered pin(s) it must be 0", build_error("vm_block_expr.h", "VM_IN_EXPR_PIN_ANY = 0", "VM_IN_EXPR_PIN_ANY = 2"))
+
+    def test_a_repeating_pin_member_is_named_any(self):
+        self.assertIn("_ANY", build_error("vm_block_expr.h", "VM_IN_EXPR_PIN_ANY", "VM_IN_EXPR_PIN_X"))
+
+    def test_the_display_json_keys_are_checked(self):
+        self.assertIn("unknown key", build_error("if.display.json", '"title": "Condition"', '"titl": "Condition"'))
 
     def test_a_dropped_pin_line_is_noticed(self):
-        message = build_error("vm_block_if.h", "//@in 0 condition", "//@in 3 condition")
+        message = build_error("vm_block_if.h", "VM_IN_IF_CONDITION = 0", "VM_IN_IF_CONDITION = 3")
         self.assertRegex(message, "without gaps")
 
     def test_reference_to_a_missing_pin(self):
-        self.assertIn("names no pin or setting", build_error("vm_block_timer.h", "//@header Timer | {mode} {pt} {time_base}", "//@header Timer | {mode} {preset}"))
+        self.assertIn("names no pin or setting", build_error("timer.display.json", "{mode} {pt} {time_base}", "{mode} {preset}"))
 
 
 if __name__ == "__main__":

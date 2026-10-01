@@ -35,11 +35,11 @@ void vm_blk_on_event(vm_block_h b) {
     return;
   }
 
-  if (b->cfg.q_cnt > VM_ON_EVENT_VALUE) {
-    BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(value, vm_block_get_outputs(b)[VM_ON_EVENT_VALUE], 0), b);
+  if (b->cfg.q_cnt > VM_OUT_ON_EVENT_VALUE) {
+    BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(value, vm_block_get_outputs(b)[VM_OUT_ON_EVENT_VALUE], 0), b);
   }
-  if (b->cfg.q_cnt > VM_ON_EVENT_COUNT) {
-    BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(matches, vm_block_get_outputs(b)[VM_ON_EVENT_COUNT], 0), b);
+  if (b->cfg.q_cnt > VM_OUT_ON_EVENT_COUNT) {
+    BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(matches, vm_block_get_outputs(b)[VM_OUT_ON_EVENT_COUNT], 0), b);
   }
   vm_block_set_eno(b, !vm_block_failed(b));
 }

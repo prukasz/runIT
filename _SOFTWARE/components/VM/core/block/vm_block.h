@@ -56,10 +56,12 @@ typedef enum vm_blk_on_error_e {
 /**
  * @brief Execution order span [start, end) for loop and span owner blocks.
  */
+//#vm-type vm_span_t @size 4 @align 2
 typedef struct vm_span_t {
   uint16_t start;
   uint16_t end;
 } vm_span_t;
+_Static_assert(sizeof(vm_span_t) == 4 && _Alignof(vm_span_t) == 2, "//#vm-type vm_span_t");
 
 /**
  * @brief Block descriptor header (16 bytes) followed by flexible trailing arrays.

@@ -34,9 +34,9 @@ void vm_blk_for(vm_block_h b) {
   float i = 0.0f, end = 0.0f, step = 0.0f;
   bool go = owned;
   IF_BLOCK_ENABLED(b) {
-    go = go && vm_block_check(b, VM_BLOCK_GET_PARAM(i, b, VM_FOR_IN_START, c->k_start));
-    go = go && vm_block_check(b, VM_BLOCK_GET_PARAM(end, b, VM_FOR_IN_END, c->k_end));
-    go = go && vm_block_check(b, VM_BLOCK_GET_PARAM(step, b, VM_FOR_IN_STEP, c->k_step));
+    go = go && vm_block_check(b, VM_BLOCK_GET_PARAM(i, b, VM_IN_FOR_START, c->k_start));
+    go = go && vm_block_check(b, VM_BLOCK_GET_PARAM(end, b, VM_IN_FOR_END, c->k_end));
+    go = go && vm_block_check(b, VM_BLOCK_GET_PARAM(step, b, VM_IN_FOR_STEP, c->k_step));
     go = go && isfinite(i) && isfinite(end) && isfinite(step);
   } else {
     go = false;

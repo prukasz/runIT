@@ -1,0 +1,16 @@
+{
+  "title": "For",
+  "category": "flow",
+  "description": "Runs the blocks in its span repeatedly within one pass: for (i = start; i <cmp> end; i = i <op> step), bounded by max_turns.",
+  "activation": "Runs every pass while enabled.",
+  "header": "For | {start} to {end} ({cmp}) step {op}{step}",
+  "inputs": {
+    "start": { "title": "Start", "description": "The iterator's first value." },
+    "end": { "title": "End", "description": "The value the iterator is compared with." },
+    "step": { "title": "Step", "description": "What the iterator advances by." }
+  },
+  "outputs": {
+    "index": { "title": "Index", "description": "The iterator, published before each turn." }
+  },
+  "eno": { "title": "Loop body", "description": "Put a block on its Run when to make it (and what depends on it) part of the loop." }
+}
