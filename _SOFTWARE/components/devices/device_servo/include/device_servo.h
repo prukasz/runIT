@@ -1,4 +1,5 @@
 #pragma once
+#include "sys_device.h"
 #include "sys_error.h"
 #include "sys_io.h"
 
@@ -22,7 +23,7 @@
  */
 typedef struct __packed {
   uint8_t device_id;      //@max CONFIG_SYS_DEVICE_MAX_ID
-  pin_ref_wire_t pwm_pin; //@alias PWM Pin @note Any pin that can output PWM: a PCA9685 channel or an ESP GPIO. On a lower-ID device.
+  sys_io_pin_ref_t pwm_pin; //@alias PWM Pin @note Any pin that can output PWM: a PCA9685 channel or an ESP GPIO. On a lower-ID device.
   uint16_t home_us;       //@alias Home Pulse @unit us @min 500 @max 2500 @default 1500
   uint16_t min_us;        //@alias Pulse at 0 degrees @unit us @min 500 @max 2500 @default 500 @note Also the lowest pulse ever sent.
   uint16_t max_us;        //@alias Pulse at 180 degrees @unit us @min 500 @max 2500 @default 2500 @note Also the highest pulse ever sent.
@@ -46,4 +47,5 @@ typedef struct __packed {
 typedef struct __packed {
 } servo_no_args_t;
 
-SE_MUST_USE err_h d_servo_create(const d_servo_cfg_t* cfg);
+/** The servo device class: register with sys_device_register_class(), create with SYS_DEVICE_CREATE(&g_servo_class, &cfg). */
+extern const sys_device_class_t g_servo_class;

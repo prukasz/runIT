@@ -26,7 +26,7 @@ Every manager call (`SYS_IO_DISPATCH` in sys_io.c) goes through the same pipelin
 
 ### Scoped Pin Protection (Locking)
 * Each installed device instance carries a 64-bit lock mask, `sys_device_t.io_locked_pins` (bit `n` = pin `n` locked). Locks are per instance, not per device type: the IO vtable itself is `static const` and holds no state.
-* The owning adapter drives its own locked pin with `sys_io_set_locked_level(ref, level)`: it unlocks only if the pin was actually locked, sets the level, and restores the previous lock state on every path, including failure.
+* The owning device drives its own locked pin with `sys_io_set_locked_level(ref, level)`: it unlocks only if the pin was actually locked, sets the level, and restores the previous lock state on every path, including failure.
 
 ---
 
@@ -84,11 +84,11 @@ listeners of `(SYS_EVENT_DOMAIN_IO, device, pin)`, see [[SYS_EVENT.MD]].
 ### Pin Reference (sys_io_pin_ref_t)
 Collapses the `(device_id, pin, mode)` triple device configs used to pass as three separate positional args, so callers name what they mean instead of counting.
 ```c
-typedef struct sys_io_pin_ref_t {
+typedef struct __packed sys_io_pin_ref_t {
   uint8_t device_id;
   sys_io_pin_num_t pin;  /* SYS_GPIO_NONE when unused */
-  sys_io_mode_e mode;
-} sys_io_pin_ref_t;
+  uint8_t mode;          /* sys_io_mode_e, one byte */
+} sys_io_pin_ref_t;  /* 3 bytes: also the field of a device cfg / create frame */
 ```
 **Warning**: an unused pin ref must be spelled `SYS_IO_PIN_NONE` / `SYS_IO_PIN_NONE_INIT`. Omitting a pin ref from a designated initializer zero-fills it to `{device 0, pin 0, SYS_IO_MODE_INPUT}` — device 0 and pin 0 are both real, so a silent omission means "drive pin 0", not "unused".
 * **`SYS_IO_PIN(dev_id, pin_num, pin_mode)`** / **`SYS_IO_PIN_NONE`**: Compound-literal forms, for automatic storage inside function bodies.
@@ -130,8 +130,8 @@ A feature id is the member's index in `sys_io_contract_t` (`SYS_DEV_FEATURE_ID`,
 * **`VERIFY_PIN(dev_id, pin, pinmask)`**: Returns `ERR_IO_PIN_UNAVAILABLE` if `pin >= 64` or the corresponding bit is unset in `pinmask` — the standard first check inside a driver's own functions, ahead of the manager's own dispatch checks.
 
 ### Pin Events
-* **`sys_io_publish(device_id, pin, event, value, hops)`**: Called by IO adapters when an armed pin triggers (task or ISR). `event` is the edge (`SYS_IO_INTR_MODE_RISING_EDGE` / `_FALLING_EDGE`) for a digital pin or the armed window mode for an analog one; `value` is the level or mV. `hops` is `SYS_EVENT_CAUSED_BY(cause)` inside a listener (an expander publishing its pins from its alert-pin listener), else 0.
-* **`sys_io_subscribe_pin(ref, handler, ctx, &id)`**: Chains a device to an alert pin: an inline, system-owned subscription to every event of that pin. The adapter keeps `id` and calls `sys_event_unsubscribe(id, false)` on uninstall. Chip alert pins are configured without debounce.
+* **`sys_io_publish(device_id, pin, event, value, hops)`**: Called by IO devices when an armed pin triggers (task or ISR). `event` is the edge (`SYS_IO_INTR_MODE_RISING_EDGE` / `_FALLING_EDGE`) for a digital pin or the armed window mode for an analog one; `value` is the level or mV. `hops` is `SYS_EVENT_CAUSED_BY(cause)` inside a listener (an expander publishing its pins from its alert-pin listener), else 0.
+* **`sys_io_subscribe_pin(ref, handler, ctx, &id)`**: Chains a device to an alert pin: an inline, system-owned subscription to every event of that pin. The device keeps `id` and calls `sys_event_unsubscribe(id, false)` on uninstall. Chip alert pins are configured without debounce.
 
 ### Pin Locking & Safety Scopes
 * **`sys_io_lock_pin(ref)`**: Sets the referenced pin's bit in the device's `io_locked_pins`.
@@ -170,4 +170,4 @@ All return `err_h` (`NULL` on success). Every dispatched call routes through `SY
 
 ## Error Ownership
 
-Every function in `sys_io.c` sets `#undef OWNER` / `#define OWNER OWNER_SYS_IO_<FUNCTION>` immediately before its body, per the owner tagging convention (runit-esp skill, errors.md). See `sys_error_io.h` for the full `SYS_IO_OWNER_MAP` and the `SYS_ERROR_IO_MAP` tags (`ERR_IO_PIN_UNCONFIGURED`, `ERR_IO_PIN_UNAVAILABLE`, `ERR_IO_PIN_ALREADY_IN_USE`, `ERR_IO_PIN_FEATURE_UNSUPPORTED`, `ERR_IO_PIN_LOCKED`, `ERR_IO_PIN_MODE_UNSUPPORTED`, `ERR_IO_PWM_CHANNELS_EXHAUSTED`, `ERR_IO_PWM_TIMERS_EXHAUSTED`). The two PWM tags are for adapters with pooled PWM hardware: no free channel for a pin being set to PWM, no timer for a new frequency.
+Every function in `sys_io.c` sets `#undef OWNER` / `#define OWNER OWNER_SYS_IO_<FUNCTION>` immediately before its body, per the owner tagging convention (runit-esp skill, errors.md). See `sys_error_io.h` for the full `SYS_IO_OWNER_MAP` and the `SYS_ERROR_IO_MAP` tags (`ERR_IO_PIN_UNCONFIGURED`, `ERR_IO_PIN_UNAVAILABLE`, `ERR_IO_PIN_ALREADY_IN_USE`, `ERR_IO_PIN_FEATURE_UNSUPPORTED`, `ERR_IO_PIN_LOCKED`, `ERR_IO_PIN_MODE_UNSUPPORTED`, `ERR_IO_PWM_CHANNELS_EXHAUSTED`, `ERR_IO_PWM_TIMERS_EXHAUSTED`). The two PWM tags are for devices with pooled PWM hardware: no free channel for a pin being set to PWM, no timer for a new frequency.

@@ -2,7 +2,7 @@
 
 `codecs` is a **header-only** component holding the packet tables that [[SYS_INTERFACE.MD]] routes to. It has no source files and produces no library — `idf_component_register()` only exports `decoders/` (inbound packet tables, one header per class byte).
 
-Every class is registered with `sys_interface` by runit's `runit_register_decoders` boot step (`components/runit/runit_decoders.c`), before `sys_interface_init()` starts the RX receiver. `sys_interface` itself doesn't depend on `codecs`.
+Every class is registered with `sys_interface` by runit's `runit_register_decoders` boot step (`components/runit/runit.c`), before `sys_interface_init()` starts the RX receiver. `sys_interface` itself doesn't depend on `codecs`.
 
 The error-chain encoder that used to live in `encoders/` is private to `sys_errors` now (`components/sys_errors/enc_sys_errors.h`); its wire format is in [[SYS_ERRORS.MD]] "Logging and telemetry".
 
@@ -50,39 +50,18 @@ Every decoder logs what it is about to do at `ESP_LOGI` under the tag `dec_sys_c
 | `0x1B`–`0x1F` | *(free)* | |
 | `0x20`–`0x2F` | IO | `sys_io_reset/set_mode/set_level/get_level/toggle/get_voltage/set_voltage/set_pwm_frequency/set_pwm_duty`, `0x29`: `sys_io_configure_intr` (mode, debounce, ADC window; arms the pin only, events are linked with class `0x09`) |
 | `0x31`–`0x3E` | Power | `sys_power_vreg_set_enable/voltage/current` (budgeted, current 0 = automatic), `sys_power_monitor_get_voltage/current`, `sys_power_usb_pd_set/list/get_limits`, `0x39`: `sys_power_monitor_set_alert` (current alert threshold), `0x3C`: `sys_power_get_status` (response), `0x3D`: `sys_power_set_response`. `0x30`, `0x3A`, `0x3B` and `0x3E` are free. Persisted PSU / battery settings are settings class `0x08` (`dec_settings_power.h`). |
-| `0x50`–`0x56` | H-bridge | `sys_hbridge_set_mode/set_drive/brake/coast/set_current_limit_mA`, `0x56`: `sys_hbridge_clear_fault`. `0x55` is free (faults are events, class `0x09`). |
-| `0x40`–`0x47` | Device installation | `d_gpio_esp_create`, `d_pca9685_create`, `d_tca6424a_create`, `d_tps55289_create`, `d_ina3221_create`, `d_ap33772s_create`, `d_dac53202_create`, `d_ads7128_create` |
+| `0x51`–`0x53` | H-bridge | `sys_hbridge_set_drive/brake/coast`. `0x50`, `0x54`–`0x56` are free: set_mode, set_current_limit and clear_fault were chip specifics and are operations of the DRV8962 now (`0x80`–`0x82`, [[SYS_DEVICE.MD]] Packet Router). Faults are events, class `0x09`. |
+| `0x00`, `0x80`–`0xFF` | Device router | create a device by type id; operations of a device ([[SYS_DEVICE.MD]], Packet Router) |
 
 Unmapped packet bytes raise `ERR_INTERFACE_UNKNOWN_PACKET` (owner `OWNER_DEC_SYS_CONTRACTS`) and log a warning.
 
 ---
 
-## `decoders/device/dec_device_*.h` — class `0x01`, packets `0x40`–`0x47`
+## Device creation — class `0x01`, header `0x00`
 
-One header per device type, included by `dec_sys_device_install.h`: each payload is that device's own `d_xxx_cfg_t` flattened directly onto the wire in field order. This is what lets a device be attached dynamically (at boot via a [[SYS_ACTIONS.MD]] boot action, or any time after) instead of only through the hardcoded `*_static_config()` calls in `runit.c`. The per-device header is also the source of generated API metadata, so its field annotations and documentation stay next to the implementation.
+Devices have no install packets (the old `0x40`–`0x47` decoders are gone). A device is created by the packet router: `[0x00][type_id][d_<chip>_cfg_t]`, where the cfg is the device's own `__packed` wire struct, device_id first. `sys_device_route()` finds the class by `type_id` and `sys_device_create()` checks the size and the pin order ([[SYS_DEVICE.MD]], Packet Router). The cfg struct and its annotations live in the device's own header (`components/devices/device_<chip>/include/device_<chip>.h`), which the device generator reads.
 
-Still the **same class byte** (`0x01`) and the **same dispatcher** (`dec_sys_contracts_decode()`) as `dec_sys_contracts.h` — `dec_sys_contracts.h` just `#include`s this file and folds its `SYS_CONTRACTS_INSTALL_PACKET_LIST(X)` into its own `SYS_CONTRACTS_PACKET_LIST(X)`, the same way `sys_error_codes.h` folds several modules' maps into one `SYS_ERROR_MAP(X)`. The split exists purely so `dec_sys_contracts.h` doesn't have to carry all 8 device headers' includes; it changes nothing about the wire format. Tagged `OWNER_DEC_SYS_DEVICE_INSTALL` (`0xA612`), logged under `dec_sys_device_install` — distinct from `dec_sys_contracts`'s own tag/owner, since it's a separate file.
-
-**No nested struct fields in any packet payload — scalars only.** `sys_io_pin_ref_t` (inter-device pin dependencies — e.g. a regulator's enable pin, wired through a GPIO expander) is not `__packed` (its `sys_io_mode_e` field is int-sized) and, even if it were, would still be a nested type inside the payload. Every pin reference is instead flattened to three plain fields, named `<name>_device_id`, `<name>_pin`, `<name>_mode`, reassembled into a real `sys_io_pin_ref_t` only in the decoder via `pin_ref_from_wire(device_id, pin, mode)`. This keeps every payload struct walkable as a flat list of `uint8_t`/`uint16_t`/`uint32_t`/`bool` fields — deliberately, so future tooling that generates encoders/decoders from these payloads never has to special-case a nested type.
-
-```c
-static inline sys_io_pin_ref_t pin_ref_from_wire(uint8_t device_id, uint8_t pin, uint8_t mode);
-```
-
-**An unused pin must be encoded as `pin == SYS_GPIO_NONE`** (`SYS_GPIO_NONE` = `0xFF`) — `device_id`/`mode` are ignored whenever that's true, exactly like `SYS_IO_PIN_NONE` on the C side. Sending all-zero fields means "device 0, pin 0" — a real pin, not "none".
-
-| Packet | Byte | Payload (after `device_id`, `i2c_bus`, `i2c_addr` where present) |
-| :--- | :--- | :--- |
-| Install `gpio_esp` | `0x40` | *(none — `device_id` only)* |
-| Install `pca9685` | `0x41` | `oe_pin_device_id, oe_pin_pin, oe_pin_mode` |
-| Install `tca6424a` | `0x42` | `intr_pin_{device_id,pin,mode}, rst_pin_{device_id,pin,mode}` |
-| Install `tps55289` | `0x43` | `intr_pin_{device_id,pin,mode}, en_pin_{device_id,pin,mode}` |
-| Install `ina3221` | `0x44` | `crit_pin_{device_id,pin,mode}, warn_pin_{device_id,pin,mode}` |
-| Install `ap33772s` | `0x45` | `intr_pin_{device_id,pin,mode}` |
-| Install `dac53202` | `0x46` | *(none)* |
-| Install `ads7128` | `0x47` | `intr_pin_{device_id,pin,mode}; uint32_t vref_mV` |
-
-`i2c_bus` is a single byte (`0` = `SYS_I2C_BUS0`/internal, `1` = `SYS_I2C_BUS1`/external). Example — install a PCA9685 as device 5 on the internal bus at I2C address `0x40`, no OE pin: `01 41 05 00 40 00 FF 00`.
+A pin on another device is a `sys_io_pin_ref_t` (`device_id, pin, mode`, three bytes). **An unused pin must be encoded as `pin == SYS_GPIO_NONE`** (`0xFF`); sending all-zero fields means "device 0, pin 0", a real pin. `i2c_bus` is a single byte (`0` = internal, any other value = external bus). Example: a PCA9685 as device 5 on the internal bus at I2C address `0x40`, no OE pin: `01 00 41 05 00 40 00 FF 00`.
 
 ---
 
@@ -160,13 +139,13 @@ Copy the shape of `dec_sys_contracts.h`:
 1. Create `decoders/dec_<name>.h` and add a `config RX_PACKET_CLASS_<NAME>` (`hex`, `default 0xXX`) to `components/utils/Kconfig`'s "RX Packet Classes" submenu, under "System-Wide Identity Assignments" — do not `#define` the class byte in the decoder file itself.
 2. Set `#undef OWNER` / `#define OWNER OWNER_<NAME>` near the top so `SE_*` macros tag errors correctly, and add that owner to the module's `sys_error_*.h` owner map.
 3. Expose one `static inline err_h dec_<name>_decode(const uint8_t* data, size_t len)` — `data[0]` is the packet byte.
-4. Register it in `runit_register_decoders()` (`components/runit/runit_decoders.c`): `sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_<NAME>, dec_<name>_decode, "<name>")`.
+4. Register it in `runit_register_decoders()` (`components/runit/runit.c`): `sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_<NAME>, dec_<name>_decode, "<name>")`.
 
 Per-packet header bytes (byte-1, `data[0]` inside the decoder) stay local `#define HEADER_packet_<struct>_t 0xYY` in the decoder file, as today — only the outer class byte (byte-0) moved to Kconfig, since it's the one value that must stay globally unique across every registered decoder.
 
-Note that a decoder header defines `OWNER` for the rest of the translation unit; any `.c` including it must re-`#define OWNER` afterwards. This is why the registrations live in their own file, `runit_decoders.c`.
+Note that a decoder header defines `OWNER` for the rest of the translation unit; any `.c` including it must re-`#define OWNER` afterwards. This is why the registrations live in their own file, `runit.c`.
 
-**Splitting a class across files.** If one class's packet table grows too large for one header, split it the way `dec_sys_device_install.h` splits off from `dec_sys_contracts.h`: give the split-out file its own `OWNER`/log tag and its own `SOME_NAME_PACKET_LIST(X)`, then have the original file `#include` it and fold that list into its own via `SOME_NAME_PACKET_LIST(X)` as one line inside its own `X`-macro definition (same technique `sys_error_codes.h` uses to combine multiple modules' `SYS_ERROR_*_MAP(X)`s into one `SYS_ERROR_MAP(X)`). The class byte, dispatcher function, and registration call stay in the original file — only packet declarations move.
+**Splitting a class across files.** If one class's packet table grows too large for one header, split it into a second header: give the split-out file its own `OWNER`/log tag and its own `SOME_NAME_PACKET_LIST(X)`, then have the original file `#include` it and fold that list into its own via `SOME_NAME_PACKET_LIST(X)` as one line inside its own `X`-macro definition (same technique `sys_error_codes.h` uses to combine multiple modules' `SYS_ERROR_*_MAP(X)`s into one `SYS_ERROR_MAP(X)`). The class byte, dispatcher function, and registration call stay in the original file — only packet declarations move.
 
 ### VM execution control
 

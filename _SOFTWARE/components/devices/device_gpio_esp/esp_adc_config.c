@@ -168,7 +168,7 @@ static void process_adc_channel(int pin, int chan, uint32_t sum, uint16_t count,
 
   if (condition_met && !adc_cfg->alert_was_triggered) {
     adc_cfg->alert_was_triggered = true;
-    SE_REPORT(sys_io_publish(gpio_esp_ctx.base.device_id, pin_obj->io_num, (sys_io_intr_mode_e)wt, voltage_mV, 0));
+    SE_REPORT(sys_io_publish(gpio_esp_device_id, pin_obj->io_num, (sys_io_intr_mode_e)wt, voltage_mV, 0));
   } else if (reset_condition_met) {
     adc_cfg->alert_was_triggered = false;
   }

@@ -71,12 +71,22 @@ remains invalid, even if its address is later allocated again.
 ## Dispatch policy
 
 - Device attribution uses the tag payload, independently of the reporting owner.
-  Device tags, IO pin tags and power-budget tags identify device instances.
+  Device tags, IO pin tags and power-budget tags identify device instances; each module
+  lists its own in `SYS_ERROR_<MODULE>_DEVICE_TAGS(X)` next to its tag definitions, and
+  `SYS_ERROR_DEVICE_TAGS(X)` (`sys_error_codes.h`) gathers them for the handler. A listed
+  tag without a `dev_id` member does not compile.
   Contract boundaries wrap failures with the affected device ID.
 - Visit outermost node to root cause. For a repeated device, use the highest local
   severity among its mentions before the first ignored-device boundary. Run that
   device's policy once, at its first occurrence; pass the node supplying that level.
   The leaf does not silently replace another node's severity.
+- A dependency wrapper (`ERR_DEV_DEP_FAILED`, `ERR_DEP_FAILED`) has no severity of its
+  own for a device: it takes the severity of the first node below it that is not a
+  wrapper. The dispatchers wrap every failure of a device call in `ERR_DEV_DEP_FAILED`
+  (HIGH), so without this rule a rejected argument (`ERR_INVALID_VAL_*`, LOW) would
+  count as a HIGH fault and run the device's action. A chain made only of wrappers
+  keeps the node's own severity. Non-device nodes (domain hooks, the system hook)
+  are classified by their own tag as before.
 - Importance NONE stops all handling of that device and all deeper causes,
   critical nodes included (the user's opt-out for a device under test). Earlier
   responses remain in effect; the full chain still goes to diagnostics.

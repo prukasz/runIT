@@ -26,8 +26,19 @@ class DeviceRecords(unittest.TestCase):
             _, symbols, defines, sdkconfig = self.context
             return generator.parse_device_descriptor(path, symbols, defines, sdkconfig)
 
+    def test_unlisted_pin_ref_is_refused(self):
+        with tempfile.TemporaryDirectory() as folder:
+            device = Path(folder) / "device_x"
+            (device / "include").mkdir(parents=True)
+            header = device / "include" / "device_x.h"
+            header.write_text("typedef struct __packed { uint8_t device_id; sys_io_pin_ref_t a_pin; sys_io_pin_ref_t b_pin; } d_x_cfg_t;", encoding="utf-8")
+            (device / "device_x.c").write_text("static const uint8_t s[] = {offsetof(d_x_cfg_t, a_pin)};", encoding="utf-8")
+            with self.assertRaises(SystemExit) as raised:
+                generator.check_class_pin_refs(header, generator.DEVICE_CFG_RE.search(header.read_text()).group(1), "d_x_cfg_t")
+            self.assertIn("b_pin", str(raised.exception))
+
     def test_every_header_generates_and_validates(self):
-        self.assertEqual(len(self.devices), 9)
+        self.assertEqual(len(self.devices), 10)
         for device in self.devices.values():
             generator.validate_document(device)
 
@@ -110,8 +121,8 @@ class DeviceRecords(unittest.TestCase):
 
     def test_pin_ref_rejects_unknown_tags(self):
         with self.assertRaises(SystemExit):
-            generator.parse_struct_fields("pin_ref_wire_t intr_pin; //@role pin\n")
-        fields = generator.parse_struct_fields("uint8_t a; //@alias A\n                //  @note Long\n                //  text.\npin_ref_wire_t p; //@note N\n")
+            generator.parse_struct_fields("sys_io_pin_ref_t intr_pin; //@role pin\n")
+        fields = generator.parse_struct_fields("uint8_t a; //@alias A\n                //  @note Long\n                //  text.\nsys_io_pin_ref_t p; //@note N\n")
         self.assertEqual(fields[0].tags, {"alias": "A", "note": "Long text."})
         self.assertEqual([f.name for f in fields], ["a", "p_device_id", "p_pin", "p_mode"])
 

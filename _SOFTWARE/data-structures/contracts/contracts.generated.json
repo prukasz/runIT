@@ -211,54 +211,6 @@
           "fields": {}
         },
         {
-          "id": "packet_sys_device_freeze_t",
-          "packet": "packet_sys_device_freeze_t",
-          "packet_header": "0x16",
-          "decoder": "decoder_packet_sys_device_freeze_t()",
-          "field_order": [
-            "device_id"
-          ],
-          "fields": {
-            "device_id": {
-              "type": "uint8_t",
-              "alias": "Device ID",
-              "required": true
-            }
-          }
-        },
-        {
-          "id": "packet_sys_device_sync_t",
-          "packet": "packet_sys_device_sync_t",
-          "packet_header": "0x17",
-          "decoder": "decoder_packet_sys_device_sync_t()",
-          "field_order": [
-            "device_id"
-          ],
-          "fields": {
-            "device_id": {
-              "type": "uint8_t",
-              "alias": "Device ID",
-              "required": true
-            }
-          }
-        },
-        {
-          "id": "packet_sys_device_freeze_all_t",
-          "packet": "packet_sys_device_freeze_all_t",
-          "packet_header": "0x18",
-          "decoder": "decoder_packet_sys_device_freeze_all_t()",
-          "field_order": [],
-          "fields": {}
-        },
-        {
-          "id": "packet_sys_device_sync_all_t",
-          "packet": "packet_sys_device_sync_all_t",
-          "packet_header": "0x19",
-          "decoder": "decoder_packet_sys_device_sync_all_t()",
-          "field_order": [],
-          "fields": {}
-        },
-        {
           "id": "packet_sys_device_set_error_handling_t",
           "packet": "packet_sys_device_set_error_handling_t",
           "packet_header": "0x1A",
@@ -1395,58 +1347,6 @@
           }
         },
         {
-          "id": "packet_sys_hbridge_set_mode_t",
-          "packet": "packet_sys_hbridge_set_mode_t",
-          "packet_header": "0x50",
-          "decoder": "decoder_packet_sys_hbridge_set_mode_t()",
-          "field_order": [
-            "device_id",
-            "channel",
-            "mode"
-          ],
-          "fields": {
-            "device_id": {
-              "type": "uint8_t",
-              "alias": "Device ID",
-              "required": true
-            },
-            "channel": {
-              "type": "uint8_t",
-              "alias": "Channel",
-              "required": true
-            },
-            "mode": {
-              "type": "uint8_t",
-              "alias": "H-Bridge Mode",
-              "required": true,
-              "one_of": [
-                {
-                  "symbol": "SYS_HBRIDGE_MODE_FULL",
-                  "enum": "sys_hbridge_mode_e",
-                  "value": 0,
-                  "alias": "Full Bridge",
-                  "description": "Bidirectional drive from -1.0 to 1.0"
-                },
-                {
-                  "symbol": "SYS_HBRIDGE_MODE_HALF_HIGH",
-                  "enum": "sys_hbridge_mode_e",
-                  "value": 1,
-                  "alias": "Half Bridge High",
-                  "description": "High-side PWM drive from 0.0 to 1.0"
-                },
-                {
-                  "symbol": "SYS_HBRIDGE_MODE_HALF_LOW",
-                  "enum": "sys_hbridge_mode_e",
-                  "value": 2,
-                  "alias": "Half Bridge Low",
-                  "description": "Low-side PWM sink from 0.0 to 1.0"
-                }
-              ],
-              "enum_ref": "sys_hbridge_mode_e"
-            }
-          }
-        },
-        {
           "id": "packet_sys_hbridge_set_drive_t",
           "packet": "packet_sys_hbridge_set_drive_t",
           "packet_header": "0x51",
@@ -1501,57 +1401,6 @@
           "packet": "packet_sys_hbridge_coast_t",
           "packet_header": "0x53",
           "decoder": "decoder_packet_sys_hbridge_coast_t()",
-          "field_order": [
-            "device_id",
-            "channel"
-          ],
-          "fields": {
-            "device_id": {
-              "type": "uint8_t",
-              "alias": "Device ID",
-              "required": true
-            },
-            "channel": {
-              "type": "uint8_t",
-              "alias": "Channel",
-              "required": true
-            }
-          }
-        },
-        {
-          "id": "packet_sys_hbridge_set_current_limit_t",
-          "packet": "packet_sys_hbridge_set_current_limit_t",
-          "packet_header": "0x54",
-          "decoder": "decoder_packet_sys_hbridge_set_current_limit_t()",
-          "field_order": [
-            "device_id",
-            "channel",
-            "limit_mA"
-          ],
-          "fields": {
-            "device_id": {
-              "type": "uint8_t",
-              "alias": "Device ID",
-              "required": true
-            },
-            "channel": {
-              "type": "uint8_t",
-              "alias": "Channel",
-              "required": true
-            },
-            "limit_mA": {
-              "type": "uint32_t",
-              "alias": "Current Limit",
-              "required": true,
-              "unit": "mA"
-            }
-          }
-        },
-        {
-          "id": "packet_sys_hbridge_clear_fault_t",
-          "packet": "packet_sys_hbridge_clear_fault_t",
-          "packet_header": "0x56",
-          "decoder": "decoder_packet_sys_hbridge_clear_fault_t()",
           "field_order": [
             "device_id",
             "channel"
@@ -1626,13 +1475,6 @@
                   "value": 3,
                   "alias": "Bluetooth",
                   "description": "Connection events. Event = BLE event"
-                },
-                {
-                  "symbol": "SYS_EVENT_DOMAIN_FEATURE",
-                  "enum": "sys_event_domain_e",
-                  "value": 4,
-                  "alias": "Feature",
-                  "description": "Events raised by features. Device = feature ID"
                 }
               ],
               "enum_ref": "sys_event_domain_e",

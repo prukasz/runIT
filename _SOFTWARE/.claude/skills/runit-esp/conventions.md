@@ -46,7 +46,7 @@ The macros work (the firmware boots on hardware). Fixes worth doing:
 
 Places not yet following the rule:
 - `vm_exec.c` → `R_TASK_DEFINE(vm_exec_task_h, 6144)` and `esp_adc_config.c` → `R_TASK_DEFINE(adc_processing_task, 4096)` hard-code their stack sizes. Move them to Kconfig.
-- `driver_ap33772s.c` creates its service task with `xTaskCreate(..., 3072, ..., 5, ...)`: dynamic, with a hard-coded stack and priority. Decide whether it is per-instance (dynamic is fine, but take the values from Kconfig) or a singleton (make it static).
+- `device_ap33772s.c` creates its AVS keep-alive task with `xTaskCreate` and the constants `AP33772S_TASK_STACK` (3072) / `AP33772S_TASK_PRIORITY` (5): per instance, but not from Kconfig yet.
 
 ## 2. Constants and configuration
 
@@ -90,7 +90,7 @@ Places not yet following the rule:
 
 - **Fixed-width integers from `<stdint.h>`** (`uint8_t`, `int32_t`, …) and `bool` from `<stdbool.h>`. Don't use `int`, `unsigned`, `long` or `short` for data. Accepted exceptions: `(unsigned long)` casts for `%lu` in printf, `_Generic` dispatch lists (`sys_error.h`), and API-mandated types (`esp_err_t`, `BaseType_t`, `size_t`).
 - **Units in real notation** at the end of identifiers: `voltage_mV`, `current_mA`, `budget_mW`, `frequency_Hz`, `delay_us`, `period_ms` (not `_mv`, `_ma`, `_HZ`). All-caps macros and Kconfig keep caps (`…_LIMIT_MV`); ESP-IDF fields keep IDF's spelling (`freq_hz`). Measured outputs are signed (`int32_t* out_mV`).
-- **Contracts:** `sys_<domain>[_<kind>]_contract_t`, members without a domain prefix, adapter instances `static const … s_<chip>_<kind>_contract`.
+- **Contracts:** `sys_<domain>[_<kind>]_contract_t`, members without a domain prefix, instances `static const … s_<chip>_<kind>_contract`.
 - **No leading underscore** on identifiers. Names starting with `_` at file scope are reserved in C; name private structs `<module>_data_t`, not `_<module>_data_t`.
 - **Hierarchical names for anything exposed** (public headers, Kconfig, error codes), from general to specific:
 
@@ -98,8 +98,8 @@ Places not yet following the rule:
   |---|---|---|
   | System module API | `sys_<module>[_<object>]_<action>` | `sys_io_set_mode`, `sys_power_set_limits` |
   | VM API | `vm_<part>_<action>` | `vm_obj_get_items_cnt`, `vm_exec_stop`, `vm_loader_add_accessor` |
-  | Device create (the only public device function) | `d_<chip>_create` + `d_<chip>_cfg_t` | `d_tps55289_create` |
-  | Driver (internal to the device) | `<chip>_<action>`, handle `<chip>_h` | `ina3221_start` |
+  | Device class (the only public device symbol) | `g_<chip>_class` + `d_<chip>_cfg_t` (the create frame) + `<CHIP>_TYPE_ID` | `g_tps55289_class` |
+  | Chip access (static, in the device file) | `chip_<action>(ctx, ...)` returning `err_h` | `chip_set_voltage` |
   | Feature | `feature_<name>_<action>` | `feature_servo_set_angle` |
   | Board / app | `runit_<area>_<action>` | `runit_board_devices_init` |
   | Codec | `dec_<class>_…` / `enc_<class>_…` | `enc_sys_errors_encode_chain` |
@@ -114,13 +114,8 @@ Places not yet following the rule:
 
 | Area | Deviation | Should be |
 |---|---|---|
-| All 8 device drivers | Handle types `ads_handle_t`, `ap33772s_handle_t`, `dac53202_handle_t`, `drv8962_handle_t`, `ina3221_handle_t`, `pca9685_handle_t`, `tca6424a_handle_t`, `tps55289_handle_t` | `<chip>_h` |
-| Drivers | Private structs with a leading `_`: `_ap33772s_data_t`, `_dac53202_data_t`, `_ina3221_data_t`, `_pca9685_data_t`, `_tps55289_data_t` | `<chip>_data_t` |
-| Driver prefixes | `ads_*` (ADS7128), `tca_*` / `tca_data_t` (TCA6424A), `esp_*` (gpio_esp) | `ads7128_*`, `tca6424a_*`, `gpio_esp_*` (`esp_*` also collides with the IDF namespace) |
-| `device_tca6424a` | Exports `d_tca6424a_new` / `d_tca6424a_delete` besides `_create` | only `d_tca6424a_create` |
-| `driver_ina3221.h` | Enums `ina3221_avg_t`, `ina3221_channel_t`, `ina3221_ct_t` | `_e` |
+| `device_gpio_esp` | `esp_pwm.c` / `esp_adc_config.c` use the `esp_*` prefix (collides with the IDF namespace) | `gpio_esp_*` |
 | `vm_block_edge.h` | Union `vm_edge_val_u` | `vm_block_edge_val_t` |
-| `driver_ap33772s.h` | `REQMSG_Fields` (capitals); bit-fields declared `unsigned int` | snake_case `_t`; `uint32_t` bit-fields (GCC supports them) |
 | `sys_actions` | `sys_actions_*` and `sys_action_*` mixed | `sys_actions_*` |
 | `sys_buffers` | `sys_buff_*` | `sys_buffers_*` |
 | `sys_errors` | Internal `se_log_*` next to `SE_*` | pick one case for the prefix |

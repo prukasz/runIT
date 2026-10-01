@@ -51,11 +51,12 @@ typedef uint8_t sys_io_pin_num_t;
  *          SYS_IO_MODE_INPUT} - device 0 is a real device and pin 0 is a real
  *          pin, so an omission silently means "drive pin 0", not "unused".
  */
-typedef struct sys_io_pin_ref_t {
+typedef struct __packed sys_io_pin_ref_t {
   uint8_t device_id;
   sys_io_pin_num_t pin; /* SYS_GPIO_NONE when unused */
-  sys_io_mode_e mode;
+  uint8_t mode;         /* sys_io_mode_e; one byte, so the struct is the 3 bytes a device cfg / create frame carries */
 } sys_io_pin_ref_t;
+_Static_assert(sizeof(sys_io_pin_ref_t) == 3, "sys_io_pin_ref_t is three bytes on the wire");
 
 /*Compound-literal forms, for automatic storage (inside function bodies)*/
 #define SYS_IO_PIN(dev_id, pin_num, pin_mode) ((sys_io_pin_ref_t){.device_id = (dev_id), .pin = (pin_num), .mode = (pin_mode)})
@@ -147,7 +148,7 @@ SE_MUST_USE err_h sys_io_unlock_pin(sys_io_pin_ref_t ref);
 SE_MUST_USE err_h sys_io_set_locked_level(sys_io_pin_ref_t ref, bool level);
 
 /**
- * @brief Publish a pin event from an IO device adapter (task or ISR).
+ * @brief Publish a pin event from an IO device (task or ISR).
  * @param event The edge or window crossed: RISING / FALLING edge for a
  *        digital pin, the armed mode for an analog one.
  * @param value Level (0 / 1) or mV.
@@ -160,7 +161,7 @@ static inline SE_MUST_USE err_h sys_io_publish(uint8_t device_id, sys_io_pin_num
 
 /**
  * @brief Chain a device to an alert pin: call handler inline on every event
- * of that pin (the adapter then reads its chip and publishes its own events).
+ * of that pin (the device then reads its chip and publishes its own events).
  * System-owned; remove it with sys_event_unsubscribe(*out_id, false).
  */
 SE_MUST_USE err_h sys_io_subscribe_pin(sys_io_pin_ref_t ref, sys_event_handler_f handler, void* ctx, uint8_t* out_id);
@@ -169,33 +170,6 @@ SE_MUST_USE err_h sys_io_subscribe_pin(sys_io_pin_ref_t ref, sys_event_handler_f
 static inline bool sys_io_pin_is_valid(sys_io_pin_ref_t ref) {
   return ref.pin != SYS_GPIO_NONE;
 }
-
-/**
- * A pin on another device as a device config / install packet carries it: the
- * provider's device ID, the pin (SYS_GPIO_NONE = not connected) and its
- * sys_io_mode_e. Same member names as sys_io_pin_ref_t, so SYS_IO_PIN_INIT(...)
- * and SYS_IO_PIN_NONE_INIT initialize it too. The device generator expands a field
- * of this type to <name>_device_id / _pin / _mode and one pin group.
- */
-typedef struct __packed {
-  uint8_t device_id;
-  uint8_t pin;
-  uint8_t mode;
-} pin_ref_wire_t;
-_Static_assert(sizeof(pin_ref_wire_t) == 3, "pin_ref_wire_t is three bytes on the wire");
-
-static inline sys_io_pin_ref_t pin_ref_from_wire(pin_ref_wire_t wire) {
-  return (sys_io_pin_ref_t){.device_id = wire.device_id, .pin = wire.pin, .mode = (sys_io_mode_e)wire.mode};
-}
-
-/**
- * A device's pins must be on a lower-ID device (SYS_DEVICE.MD, sweep
- * direction): the board resumes devices from the lowest ID and suspends /
- * removes them from the highest, so a dependent goes down before the device
- * its pins are on. Unused pins (SYS_GPIO_NONE) pass. ERR_DEV_PIN_ORDER otherwise.
- */
-SE_MUST_USE err_h pin_refs_below(uint8_t device_id, const sys_io_pin_ref_t* refs, size_t count);
-#define PIN_REFS_BELOW(device_id, ...)   pin_refs_below((device_id), (const sys_io_pin_ref_t[]){__VA_ARGS__}, sizeof((sys_io_pin_ref_t[]){__VA_ARGS__}) / sizeof(sys_io_pin_ref_t))
 
 extern const char* const sys_io_mode_e_to_string[];
 extern const char* const sys_io_intr_mode_e_to_string[];

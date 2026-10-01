@@ -4,7 +4,7 @@ Current hardware revision. Merged from two older product descriptions (texts are
 
 1. [components/runit/runit_board_defs.h](../../../components/runit/runit_board_defs.h) — device IDs, I2C buses, power limits, BLE UUIDs
 2. [components/runit/runit_board_cfg.c](../../../components/runit/runit_board_cfg.c) — how each onboard chip is created and wired
-3. `data-structures/devices/*.generated.json` — per-device install packet + contract ops (client-facing catalog)
+3. `data-structures/devices/*.generated.json` — per-device create frame + contract ops (client-facing catalog)
 
 If this file and those sources disagree, the sources win — update this file.
 
@@ -88,7 +88,7 @@ Also driven at boot: TCA pins 22 and 23 as push-pull outputs (roles not document
 - The servo header voltage follows the TPS55289 rail that feeds it — changing that rail's voltage changes the servo supply.
 - Rail names: `DEVICE_ID_TPS55289_2` = rail A (ID 10, 0x74), `DEVICE_ID_TPS55289_1` = rail B (ID 11, 0x75) (renamed from `_0` 2026-09-27; IDs unchanged).
 - The TPS55289 current limit can't go below 200 mA. On USB 5 V with the assumed 1 A, a rail above ~6 V doesn't fit the budget: the power manager answers `ERR_POWER_BUDGET_EXCEEDED` (consumer `min_mA`, SYS_POWER.MD).
-- INA3221 shunts are all wired reversed (`inverted_mask = 0x07`). Its alerts still work: the limit registers and the compare are signed, so the adapter writes −threshold and takes the pin's release as the alert (one channel per alert pin; measured 2026-09-27). The power manager arms both alerts on the input channel (critical at the source current, warning at 90 %), so on the board both alert pins belong to the input.
+- INA3221 shunts are all wired reversed (`inverted_mask = 0x07`). Its alerts still work: the limit registers and the compare are signed, so the device writes −threshold and takes the pin's release as the alert (one channel per alert pin; measured 2026-09-27). The power manager arms both alerts on the input channel (critical at the source current, warning at 90 %), so on the board both alert pins belong to the input.
 - ESP32-S3 strapping pins (0, 3, 45, 46) and USB D−/D+ (19, 20) are not reserved in firmware (`SYS_PIN_*` has only the I2C pins), so the app offers them in pin pickers. Open question: reserve them.
 - The board's input current has short peaks above 100 mA (likely BLE transmit) while the average is ~50 mA: a low critical (per-conversion) alert trips on them; the warning alert (averaged) suits low thresholds.
 
@@ -119,7 +119,7 @@ Also driven at boot: TCA pins 22 and 23 as push-pull outputs (roles not document
 | DAC53202 | Created (ID 4); used as DRV8962 VREF |
 | LM73100 ×4 (power-source selection) | No firmware device or API — needs a model for "which source feeds which H-bridge" |
 | TPS259474 eFuses ×2 | No firmware device |
-| ADS7128 digital mode | Hardware supports analog **and** digital inputs; adapter is ADC-only |
+| ADS7128 digital mode | Hardware supports analog **and** digital inputs; the device is ADC-only |
 | PCA9685 CH 8–15 | Reserved for DRV8962 #2 — must not be exposed to users as free PWM |
 | Wi-Fi | Not implemented |
 

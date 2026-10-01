@@ -5,6 +5,9 @@
 
 static const char* TAG = __FILE_NAME__;
 
+/* "Pin not connected" in a sys_io_pin_ref_t (sys_io.h SYS_GPIO_NONE; sys_io depends on this component, so no include). */
+#define PIN_REF_WIRE_NONE 0xFF
+
 /* Filled at boot (runit_error_wiring_init), read-only afterwards. */
 static struct {
   const char* name;
@@ -57,61 +60,57 @@ void sys_device_register_error_policy(sys_device_error_policy_f policy) {
 #define DEV_OP(d, f) ((d)->cls->ops.f)
 #define DEV_NAME(d) ((d)->cls->name)
 
-/* Every error leaving a device carries its device_id: wrap a lifecycle-op
- * result as ERR_DEV_DEP_FAILED(dev_id) so device policy can attribute it.
- * NULL (success) passes through untouched. */
-#define DEV_WRAP(err, dev_id)                                  \
-  ({                                                           \
-    err_h __wrap_err = (err);                                  \
-    __wrap_err ? SE_WRAP_DEV_ERR(__wrap_err, (dev_id)) : NULL; \
-  })
-
 /* Runs a device op, or reports ERR_BASE_NOT_SUPPORTED when the class lacks
  * it, and wraps the result with the device's id. */
 #define DEV_RUN_OP(dev, fn)                                                          \
-  DEV_WRAP((fn) ? (fn)((dev)->device_handle) : SE_ERR_NEW(ERR_BASE_NOT_SUPPORTED, 0), \
+  SYS_DEV_WRAP((fn) ? (fn)((dev)->device_handle) : SE_ERR_NEW(ERR_BASE_NOT_SUPPORTED, 0), \
            (dev)->device_id)
 
 /* Shared skeleton for a single-device op that requires the device to be
- * active (found + installed + not suspended, via SYS_DEV_REQUIRE_ACTIVE) and
+ * active (found + installed + not suspended, via SYS_DEV_REQUIRE) and
  * errors with ERR_BASE_NOT_SUPPORTED if op_field isn't implemented. Used by
  * reset, which doesn't change dev->state on success. */
 #define SYS_DEV_LIFECYCLE_OP(device_id, op_field, verb, log_level)                  \
   do {                                                                              \
     sys_device_t* __disp_dev = sys_device_get_by_id((device_id));                   \
-    SYS_DEV_REQUIRE_ACTIVE(__disp_dev, (device_id));                                \
+    SYS_DEV_REQUIRE(__disp_dev, (device_id), false);                                \
     err_h (*__disp_fn)(void*) = DEV_OP(__disp_dev, op_field);                       \
     ESP_LOG_LEVEL((log_level), TAG, "%s device: %s", (verb), DEV_NAME(__disp_dev)); \
     return DEV_RUN_OP(__disp_dev, __disp_fn);                                       \
   } while (0)
 
 /* Shared skeleton for suspend/resume: only found+installed is required (not
- * SYS_DEV_REQUIRE_ACTIVE - toggling suspend is exactly what these two do), an
+ * allow_suspended - toggling suspend is exactly what these two do), an
  * idempotent no-op if the device is already in the target state (skip_expr,
- * may reference __disp_dev), and dev->state is set to new_state on success. */
-#define SYS_DEV_LIFECYCLE_TOGGLE(device_id, op_field, verb, log_level, skip_expr, new_state) \
+ * may reference __disp_dev), and dev->state is set to new_state on success.
+ * On failure the state becomes fail_state (SYS_DEV_STATE_NONE = unchanged): a suspend
+ * that failed half way has still made part of the device safe, so the device stays
+ * suspended (and resume restores what was made safe) rather than half active. */
+#define SYS_DEV_LIFECYCLE_TOGGLE(device_id, op_field, verb, log_level, skip_expr, new_state, fail_state) \
   do {                                                                                       \
     sys_device_t* __disp_dev = sys_device_get_by_id((device_id));                            \
-    if (!__disp_dev) SE_FAIL(ERR_DEV_NOT_FOUND, (device_id));                             \
-    if (!SYS_DEV_IS_INSTALLED(__disp_dev)) SE_FAIL(ERR_DEV_NOT_INSTALLED, (device_id));   \
+    SYS_DEV_REQUIRE(__disp_dev, (device_id), true);                                          \
     if (skip_expr) return NULL;                                                              \
     err_h (*__disp_fn)(void*) = DEV_OP(__disp_dev, op_field);                                \
     ESP_LOG_LEVEL((log_level), TAG, "%s device: %s", (verb), DEV_NAME(__disp_dev));          \
     err_h __disp_ret = DEV_RUN_OP(__disp_dev, __disp_fn);                                    \
-    if (__disp_ret) return __disp_ret;                                                       \
+    if (__disp_ret) {                                                             \
+      if ((fail_state) != SYS_DEV_STATE_NONE) __disp_dev->state = (fail_state);              \
+      return __disp_ret;                                                        \
+    }                                                                         \
     __disp_dev->state = (new_state);                                                         \
     return NULL;                                                                             \
   } while (0)
 /* Shared skeleton for a MAX_DEVICE_ID sweep: silently skips devices that
  * aren't eligible (eligible_expr, may reference __disp_dev) or don't
  * implement op_field, and optionally updates dev->state on each success
- * (new_state, or SYS_DEV_STATE_NONE to leave it untouched). log_before
+ * (new_state) or failure (fail_state); SYS_DEV_STATE_NONE leaves it untouched. log_before
  * reproduces sys_device_reset_all()'s pre-call log line.
  *
  * Best effort: a failing device doesn't stop the sweep - suspend_all is the
  * fault safe-state path and must reach every device. The first failure is
  * returned; later ones go to diagnostics and are released. Every failure is
- * wrapped with its device_id (DEV_WRAP).
+ * wrapped with its device_id (SYS_DEV_WRAP).
  *
  * `reverse` picks sweep direction. Device ids are assigned in dependency
  * order - a device's sys_io_pin_ref_t (oe_pin/rst_pin/en_pin/...) always
@@ -124,7 +123,7 @@ void sys_device_register_error_policy(sys_device_error_policy_f policy) {
  * high id -> low id so dependents finish before their dependencies go down;
  * bring-up ops (resume) sweep low -> high so dependencies are already up
  * when a dependent resumes. */
-#define SYS_DEV_LIFECYCLE_OP_ALL(op_field, verb_gerund, verb_base, eligible_expr, log_before, new_state, reverse) \
+#define SYS_DEV_LIFECYCLE_OP_ALL(op_field, verb_gerund, verb_base, eligible_expr, log_before, new_state, fail_state, reverse) \
   do {                                                                                                            \
     err_h __first_err = NULL;                                                                                     \
     for (int __k = 0; __k <= CONFIG_SYS_DEVICE_MAX_ID; __k++) {                                                   \
@@ -138,6 +137,7 @@ void sys_device_register_error_policy(sys_device_error_policy_f policy) {
       if (__disp_ret) {                                                                                           \
         ESP_LOGE(TAG, "Failed to %s device: %s", (verb_base), DEV_NAME(__disp_dev));                              \
         sweep_keep_first(&__first_err, __disp_ret);                                                               \
+        if ((fail_state) != SYS_DEV_STATE_NONE) __disp_dev->state = (fail_state);                                 \
         continue;                                                                                                 \
       }                                                                                                           \
       if ((new_state) != SYS_DEV_STATE_NONE) __disp_dev->state = (new_state);                                     \
@@ -157,7 +157,8 @@ static void sweep_keep_first(err_h* first, err_h err) {
 
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_INSTALL
-err_h sys_device_install(const sys_device_class_t* cls, uint8_t device_id, const void* cfg) {
+/* Registers the instance and runs the class's install op. The cfg is valid for the call only. */
+static SE_MUST_USE err_h install_device(const sys_device_class_t* cls, uint8_t device_id, const void* cfg) {
   SE_CHECK_NOT_NULL(cls);
   SE_CHECK_NOT_NULL(cls->ops.install);
   SE_CHECK_IN_RANGE(device_id, 0, CONFIG_SYS_DEVICE_MAX_ID);
@@ -174,7 +175,7 @@ err_h sys_device_install(const sys_device_class_t* cls, uint8_t device_id, const
   /* NONE would ignore even critical errors: a device handles them until the user opts out. */
   new_dev->importance = SYS_DEV_IMPORTANCE_LOW;
 
-  /*cls is set before install: adapters (and their dependencies) may look this
+  /*cls is set before install: devices (and their dependencies) may look this
     device up mid-install and read dev->cls->contracts[]. The state stays
     INSTALLING until install succeeds, so SYS_DEV_DISPATCH still refuses it in
     the meantime.*/
@@ -194,6 +195,29 @@ err_h sys_device_install(const sys_device_class_t* cls, uint8_t device_id, const
 
   new_dev->state = SYS_DEV_STATE_INSTALLED;
 
+  return NULL;
+}
+
+#undef OWNER
+#define OWNER OWNER_SYS_DEVICE_CREATE_ONBOARD
+err_h sys_device_create_onboard(const sys_device_class_t* cls, const void* cfg, size_t cfg_size) {
+  SE_TRY(sys_device_create(cls, cfg, cfg_size));
+  s_device_registry[*(const uint8_t*)cfg]->onboard = true;
+  return NULL;
+}
+
+#undef OWNER
+#define OWNER OWNER_SYS_DEVICE_CHECK
+err_h sys_device_check(const sys_device_t* dev, uint8_t device_id, bool allow_suspended) {
+  if (dev == NULL) {
+    SE_FAIL(ERR_DEV_NOT_FOUND, device_id);
+  }
+  if (dev->state < SYS_DEV_STATE_INSTALLED) {
+    SE_FAIL(ERR_DEV_NOT_INSTALLED, device_id);
+  }
+  if (!allow_suspended && SYS_DEV_IS_SUSPENDED(dev)) {
+    SE_FAIL(ERR_DEV_SUSPENDED, device_id);
+  }
   return NULL;
 }
 
@@ -286,7 +310,7 @@ err_h sys_device_uninstall(uint8_t device_id) {
     s_device_registry[device_id] = NULL;  // Zwolnienie indeksu
 
     err_h (*fn)(void*) = DEV_OP(dev, uninstall);
-    err_h err = fn ? DEV_WRAP(fn(dev->device_handle), device_id) : NULL;
+    err_h err = fn ? SYS_DEV_WRAP(fn(dev->device_handle), device_id) : NULL;
     ESP_LOGW(TAG, "Deleted device: %s", DEV_NAME(dev));
     free(dev);
     return err;
@@ -297,20 +321,18 @@ err_h sys_device_uninstall(uint8_t device_id) {
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_RESET_ALL
 err_h sys_device_reset_all(void) {
-  SYS_DEV_LIFECYCLE_OP_ALL(reset, "Resetting", "reset", SYS_DEV_IS_READY(__disp_dev), true, SYS_DEV_STATE_NONE, false);
+  SYS_DEV_LIFECYCLE_OP_ALL(reset, "Resetting", "reset", SYS_DEV_IS_READY(__disp_dev), true, SYS_DEV_STATE_NONE, SYS_DEV_STATE_NONE, false);
 }
 
-#undef OWNER
-#define OWNER OWNER_SYS_DEVICE_UNINSTALL_ALL
-err_h sys_device_uninstall_all(void) {
-  // High id -> low id, same dependency-order reasoning as
-  // SYS_DEV_LIFECYCLE_OP_ALL's reverse sweep: device_uninstall() releases
-  // pin-ref locks on whatever lower-id device it depends on (e.g.
-  // tca6424a's rst_pin lives on gpio_esp), so a dependent must finish
-  // uninstalling before its dependency is torn down.
+/* High id -> low id, same dependency-order reasoning as SYS_DEV_LIFECYCLE_OP_ALL's reverse sweep: a device's
+   uninstall releases pin-ref locks on whatever lower-id device it depends on (e.g. tca6424a's rst_pin lives on
+   gpio_esp), so a dependent must finish uninstalling before its dependency is torn down. Best effort: the first
+   failure is returned. A user sweep skips onboard devices: user devices depend on onboard ones (pins on the
+   TCA6424A, PCA9685, ...), never the other way round, so skipping them leaves no dangling dependency. */
+static err_h uninstall_sweep(bool skip_onboard) {
   err_h first_err = NULL;
   for (int i = CONFIG_SYS_DEVICE_MAX_ID; i >= 0; i--) {
-    if (!s_device_registry[i]) continue;
+    if (!s_device_registry[i] || (skip_onboard && s_device_registry[i]->onboard)) continue;
     err_h err = sys_device_uninstall((uint8_t)i);
     if (err) sweep_keep_first(&first_err, err);
   }
@@ -318,12 +340,9 @@ err_h sys_device_uninstall_all(void) {
 }
 
 #undef OWNER
-#define OWNER OWNER_SYS_DEVICE_SET_ONBOARD
-err_h sys_device_set_onboard(uint8_t device_id) {
-  sys_device_t* dev = sys_device_get_by_id(device_id);
-  if (dev == NULL) SE_FAIL(ERR_DEV_NOT_FOUND, device_id);
-  dev->onboard = true;
-  return NULL;
+#define OWNER OWNER_SYS_DEVICE_UNINSTALL_ALL
+err_h sys_device_uninstall_all(void) {
+  return uninstall_sweep(false);
 }
 
 #undef OWNER
@@ -337,57 +356,42 @@ err_h sys_device_user_uninstall(uint8_t device_id) {
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_USER_UNINSTALL_ALL
 err_h sys_device_user_uninstall_all(void) {
-  // Same order as sys_device_uninstall_all(). User devices depend on onboard
-  // ones (pins on the TCA6424A, PCA9685, ...), never the other way round, so
-  // skipping onboard devices leaves no dangling dependency.
-  err_h first_err = NULL;
-  for (int i = CONFIG_SYS_DEVICE_MAX_ID; i >= 0; i--) {
-    if (!s_device_registry[i] || s_device_registry[i]->onboard) continue;
-    err_h err = sys_device_uninstall((uint8_t)i);
-    if (err) sweep_keep_first(&first_err, err);
-  }
-  return first_err;
+  return uninstall_sweep(true);
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_SUSPEND
 err_h sys_device_suspend(uint8_t device_id) {
-  SYS_DEV_LIFECYCLE_TOGGLE(device_id, suspend, "Suspending", ESP_LOG_INFO, SYS_DEV_IS_SUSPENDED(__disp_dev), SYS_DEV_STATE_SUSPENDED);
+  SYS_DEV_LIFECYCLE_TOGGLE(device_id, suspend, "Suspending", ESP_LOG_INFO, SYS_DEV_IS_SUSPENDED(__disp_dev), SYS_DEV_STATE_SUSPENDED, SYS_DEV_STATE_SUSPENDED);
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_RESUME
 err_h sys_device_resume(uint8_t device_id) {
-  SYS_DEV_LIFECYCLE_TOGGLE(device_id, resume, "Resuming", ESP_LOG_INFO, !SYS_DEV_IS_SUSPENDED(__disp_dev), SYS_DEV_STATE_INSTALLED);
+  SYS_DEV_LIFECYCLE_TOGGLE(device_id, resume, "Resuming", ESP_LOG_INFO, !SYS_DEV_IS_SUSPENDED(__disp_dev), SYS_DEV_STATE_INSTALLED, SYS_DEV_STATE_NONE);
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_SUSPEND_ALL
 err_h sys_device_suspend_all(void) {
-  SYS_DEV_LIFECYCLE_OP_ALL(suspend, "Suspending", "suspend", SYS_DEV_IS_READY(__disp_dev), false, SYS_DEV_STATE_SUSPENDED, true);
+  SYS_DEV_LIFECYCLE_OP_ALL(suspend, "Suspending", "suspend", SYS_DEV_IS_READY(__disp_dev), false, SYS_DEV_STATE_SUSPENDED, SYS_DEV_STATE_SUSPENDED, true);
 }
 
 #undef OWNER
 #define OWNER OWNER_SYS_DEVICE_RESUME_ALL
 err_h sys_device_resume_all(void) {
-  SYS_DEV_LIFECYCLE_OP_ALL(resume, "Resuming", "resume", SYS_DEV_IS_SUSPENDED(__disp_dev), false, SYS_DEV_STATE_INSTALLED, false);
+  SYS_DEV_LIFECYCLE_OP_ALL(resume, "Resuming", "resume", SYS_DEV_IS_SUSPENDED(__disp_dev), false, SYS_DEV_STATE_INSTALLED, SYS_DEV_STATE_NONE, false);
 }
 
 /* ---- Packet router ---------------------------------------------------- */
 
-typedef struct {
-  uint8_t type_id;
-  size_t cfg_size;
-  sys_device_create_f create;
-} device_type_t;
-
 /* Filled at boot (runit), read-only afterwards. */
-static device_type_t s_types[SYS_DEVICE_MAX_TYPES];
-static uint8_t s_type_count;
+static const sys_device_class_t* s_classes[SYS_DEVICE_MAX_CLASSES];
+static uint8_t s_class_count;
 
-static const device_type_t* find_type(uint8_t type_id) {
-  for (uint8_t i = 0; i < s_type_count; i++) {
-    if (s_types[i].type_id == type_id) return &s_types[i];
+static const sys_device_class_t* find_class(uint8_t type_id) {
+  for (uint8_t i = 0; i < s_class_count; i++) {
+    if (s_classes[i]->type_id == type_id) return s_classes[i];
   }
   return NULL;
 }
@@ -400,17 +404,36 @@ static const sys_device_op_t* find_op(const sys_device_class_t* cls, uint8_t op)
 }
 
 #undef OWNER
-#define OWNER OWNER_SYS_DEVICE_REGISTER_TYPE
-err_h sys_device_register_type(uint8_t type_id, size_t cfg_size, sys_device_create_f create) {
-  SE_CHECK_NOT_NULL(create);
-  if (find_type(type_id) != NULL) {
+#define OWNER OWNER_SYS_DEVICE_REGISTER_CLASS
+err_h sys_device_register_class(const sys_device_class_t* cls) {
+  SE_CHECK_NOT_NULL(cls);
+  if (find_class(cls->type_id) != NULL) {
     SE_FAIL(ERR_BASE_INVALID_STATE, 0);
   }
-  if (s_type_count >= SYS_DEVICE_MAX_TYPES) {
+  if (s_class_count >= SYS_DEVICE_MAX_CLASSES) {
     SE_FAIL(ERR_BASE_NO_MEM, 0);
   }
-  s_types[s_type_count++] = (device_type_t){.type_id = type_id, .cfg_size = cfg_size, .create = create};
+  s_classes[s_class_count++] = cls;
   return NULL;
+}
+
+#undef OWNER
+#define OWNER OWNER_SYS_DEVICE_CREATE
+err_h sys_device_create(const sys_device_class_t* cls, const void* cfg, size_t cfg_size) {
+  SE_CHECK_NOT_NULL(cls);
+  SE_CHECK_NOT_NULL(cfg);
+  if (cfg_size != cls->cfg_size) {
+    SE_FAIL(ERR_DEV_CREATE_SIZE, .type_id = cls->type_id, .got = (uint16_t)cfg_size, .need = (uint16_t)cls->cfg_size);
+  }
+  const uint8_t device_id = *(const uint8_t*)cfg;
+  /* A device's pins are on a lower-ID device (sweep direction, SYS_DEVICE.MD); an unused pin passes. */
+  for (uint8_t i = 0; i < cls->pin_ref_count; i++) {
+    const uint8_t* wire = (const uint8_t*)cfg + cls->pin_ref_offsets[i];  /* sys_io_pin_ref_t: {device_id, pin, mode} */
+    if (wire[1] != PIN_REF_WIRE_NONE && wire[0] >= device_id) {
+      SE_FAIL(ERR_DEV_PIN_ORDER, .dev_id = device_id, .pin_dev_id = wire[0], .pin = wire[1]);
+    }
+  }
+  return install_device(cls, device_id, cfg);
 }
 
 #undef OWNER
@@ -436,14 +459,11 @@ err_h sys_device_route(const uint8_t* frame, size_t len, sys_device_reply_t* rep
   const uint8_t op = frame[0];
 
   if (op == SYS_DEVICE_OP_CREATE) {
-    const device_type_t* type = find_type(frame[1]);
-    if (type == NULL) {
+    const sys_device_class_t* cls = find_class(frame[1]);
+    if (cls == NULL) {
       SE_FAIL(ERR_DEV_TYPE_UNKNOWN, frame[1]);
     }
-    if (len - 2 != type->cfg_size) {
-      SE_FAIL(ERR_DEV_CREATE_SIZE, .type_id = type->type_id, .got = (uint16_t)(len - 2), .need = (uint16_t)type->cfg_size);
-    }
-    return type->create(frame + 2);
+    return sys_device_create(cls, frame + 2, len - 2);
   }
 
   const uint8_t device_id = frame[1];
@@ -452,8 +472,7 @@ err_h sys_device_route(const uint8_t* frame, size_t len, sys_device_reply_t* rep
   }
 
   sys_device_t* dev = sys_device_get_by_id(device_id);
-  if (!dev) SE_FAIL(ERR_DEV_NOT_FOUND, device_id);
-  if (!SYS_DEV_IS_INSTALLED(dev)) SE_FAIL(ERR_DEV_NOT_INSTALLED, device_id);
+  SYS_DEV_REQUIRE(dev, device_id, true);
 
   const sys_device_op_t* entry = find_op(dev->cls, op);
   if (entry == NULL) {
@@ -464,5 +483,5 @@ err_h sys_device_route(const uint8_t* frame, size_t len, sys_device_reply_t* rep
   if (len - 2 != entry->size) {
     SE_FAIL(ERR_DEV_OP_SIZE, .dev_id = device_id, .op = op, .got = (uint16_t)(len - 2), .need = entry->size);
   }
-  return DEV_WRAP(entry->fn(dev->device_handle, frame + 2, len - 2, reply), device_id);
+  return SYS_DEV_WRAP(entry->fn(dev->device_handle, frame + 2, len - 2, reply), device_id);
 }

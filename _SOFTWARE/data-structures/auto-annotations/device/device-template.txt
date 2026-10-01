@@ -5,12 +5,12 @@
  *  1. The device describes itself in its own header, components/devices/device_<chip>/include/
  *     device_<chip>.h: this //#device record + the contract records + the packed cfg struct
  *     `d_<chip>_cfg_t` (its create frame, annotated like the packet below; the router hands
- *     the received bytes to d_<chip>_create() as they are, @type-id is its type byte).
+ *     the received bytes to sys_device_create(&g_<chip>_class, ...) as they are, @type-id is its type byte).
  *     Devices that still have a decoder keep the same records in
  *     components/codecs/decoders/device/dec_device_<chip>.h (packet_sys_device_install_<chip>_t).
  *  2. Rename every example / EXAMPLE, fill the texts, delete what the chip
  *     doesn't need (every tag below is optional unless marked "required").
- *  3. Register the type in runit_decoders.c (SYS_DEVICE_TYPE_FN + sys_device_register_type); a
+ *  3. Register the class in components/devices/devices/devices.c (devices_register_classes()); a
  *     device with a decoder registers SYS_CONTRACTS_DEVICE_<CHIP>_PACKET_LIST in dec_sys_device_install.h
  *     (the other firmware steps: .claude/skills/runit-esp/devices.md).
  *  4. python data-structures/auto-annotations/device/generate-devices.py components/codecs/decoders data-structures/devices
@@ -94,9 +94,9 @@
  *    @note <text>                                 (i) note; a long one continues on a
  *                                                 "//  " line right under the field
  *    rare: @sentinel <v> (value that means "none"), @group <key> (bundle fields
- *    by hand; use pin_ref_wire_t instead), @encoding / @terminator (char[] text)
+ *    by hand; use sys_io_pin_ref_t instead), @encoding / @terminator (char[] text)
  *
- *  pin_ref_wire_t field (a pin on another device: provider, pin, mode)
+ *  sys_io_pin_ref_t field (a pin on another device: provider, pin, mode)
  *    @alias <text>                                "<alias> pin"; without it the name comes
  *                                                 from the field (intr_pin -> Interrupt)
  *    @note <text>                                 (i) note on the pin block
@@ -191,16 +191,16 @@ typedef struct __packed {
   uint16_t sample_rate_Hz; //@alias Sample Rate @unit Hz @min 1 @max 3300 @default 100 @optional
                            //  @note Higher rates react faster
                            //  and use more power.
-  pin_ref_wire_t intr_pin; //@alias ALERT @modes [$SYS_IO_MODE_INPUT, $SYS_IO_MODE_INPUT_PULLUP] @default-mode $SYS_IO_MODE_INPUT_PULLUP
+  sys_io_pin_ref_t intr_pin; //@alias ALERT @modes [$SYS_IO_MODE_INPUT, $SYS_IO_MODE_INPUT_PULLUP] @default-mode $SYS_IO_MODE_INPUT_PULLUP
                            //  @note Open-drain, active-low.
-  pin_ref_wire_t rst_pin;  //@note Active-low.
+  sys_io_pin_ref_t rst_pin;  //@note Active-low.
 } packet_sys_device_install_example_t;
 // Developer notes (limits the adapter checks, wire quirks) go here, in plain comments.
 
 static inline SE_MUST_USE err_h decoder_packet_sys_device_install_example_t(packet_sys_device_install_example_t* packet) {
   ESP_LOGI(DEC_SYS_DEVICE_INSTALL_TAG, "installing example (dev %u, i2c bus %u addr 0x%02X)", packet->device_id, packet->i2c_bus, packet->i2c_addr);
   d_example_cfg_t cfg = {.device_id = packet->device_id, .i2c_bus = packet->i2c_bus != 0, .i2c_addr = packet->i2c_addr,
-                         .intr_pin = pin_ref_from_wire(packet->intr_pin), .rst_pin = pin_ref_from_wire(packet->rst_pin)};
+                         .intr_pin = packet->intr_pin, .rst_pin = packet->rst_pin};
   err_h err = PIN_REFS_BELOW(cfg.device_id, cfg.intr_pin, cfg.rst_pin);
   if (err) return err;
   return d_example_create(&cfg);

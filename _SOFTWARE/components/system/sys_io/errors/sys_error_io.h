@@ -56,3 +56,12 @@
 #define LOG_BODY_ERR_IO_PWM_TIMERS_EXHAUSTED(p, out, out_size)                                                                        \
   snprintf((out), (out_size), "no PWM timer for %lu Hz on pin %u, device %u: all %u timers run other frequencies", (unsigned long)(p)->frequency_Hz, \
            (p)->pin_num, (p)->dev_id, (p)->timers)
+
+/** @brief Tags that attribute a failure to the device in `dev_id` (see SYS_ERROR_DEVICE_TAGS in sys_error_codes.h). */
+#define SYS_ERROR_IO_DEVICE_TAGS(X) \
+  X(ERR_IO_PIN_UNCONFIGURED)        \
+  X(ERR_IO_PIN_UNAVAILABLE)         \
+  X(ERR_IO_PIN_ALREADY_IN_USE)      \
+  X(ERR_IO_PIN_FEATURE_UNSUPPORTED) \
+  X(ERR_IO_PIN_LOCKED)              \
+  X(ERR_IO_PIN_MODE_UNSUPPORTED)

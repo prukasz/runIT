@@ -342,7 +342,7 @@ All multi-byte fields little-endian. Design points:
 
 `vm_loader_reset()` first prevents new passes and waits for the current pass to return. It then clears execution state and subscriptions and resets both allocation domains. IDs resolve to NULL afterwards; raw handles and cached accessors have expired and must not be reused by callbacks.
 
-The class is registered by runit's `runit_register_decoders` boot step (`components/runit/runit_decoders.c`) — see [[SYS_INTERFACE.MD]].
+The class is registered by runit's `runit_register_decoders` boot step (`components/runit/runit.c`) — see [[SYS_INTERFACE.MD]].
 
 ---
 
@@ -370,7 +370,7 @@ vm_accessor_create / vm_accessor_cache_build
 vm_store_alloc()  →  pool malloc'd at 0x41 open components/VM/core/store/vm_store.c
 ```
 
-The class is bound once at boot by runit's `runit_register_decoders` boot step (`components/runit/runit_decoders.c`):
+The class is bound once at boot by runit's `runit_register_decoders` boot step (`components/runit/runit.c`):
 `sys_interface_register_decoder(CONFIG_RX_PACKET_CLASS_VM_LOADER, dec_vm_loader_decode, "vm_loader")`.
 
 ### The loader packets

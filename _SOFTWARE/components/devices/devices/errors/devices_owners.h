@@ -1,18 +1,8 @@
 #pragma once
 /*
-Add here device in style OWNER_DEVICE_<device_name>, keep id num prefix as 0xD0XX
-String in macro is for debug printfs
+One owner for all device files (`#define OWNER OWNER_DEVICE`). A device's errors say which device raised them
+through the device id the dispatcher adds (ERR_DEV_DEP_FAILED / ERR_DEV_INSTALL_FAILED {dev_id}); the type of
+that device is the class name registered under that id, so a per-type owner would only repeat it.
 */
 
-#define PROVIDER_OWNER_MAP(X)                               \
-  X(OWNER_DEVICE_BASE, 0xD000, "OWNER_DEVICE_BASE")         \
-  X(OWNER_DEVICE_GPIO_ESP, 0xD001, "OWNER_DEVICE_GPIO_ESP") \
-  X(OWNER_DEVICE_TPS55289, 0xD002, "OWNER_DEVICE_TPS55289") \
-  X(OWNER_DEVICE_TCA6424A, 0xD003, "OWNER_DEVICE_TCA6424A") \
-  X(OWNER_DEVICE_ADS7128, 0xD004, "OWNER_DEVICE_ADS7128")   \
-  X(OWNER_DEVICE_PCA9685, 0xD005, "OWNER_DEVICE_PCA9685")   \
-  X(OWNER_DEVICE_AP33772S, 0xD006, "OWNER_DEVICE_AP33772S") \
-  X(OWNER_DEVICE_DAC53202, 0xD007, "OWNER_DEVICE_DAC53202") \
-  X(OWNER_DEVICE_INA3221, 0xD008, "OWNER_DEVICE_INA3221")   \
-  X(OWNER_DEVICE_DRV8962, 0xD009, "OWNER_DEVICE_DRV8962")   \
-  X(OWNER_DEVICE_SERVO, 0xD00A, "OWNER_DEVICE_SERVO")
+#define PROVIDER_OWNER_MAP(X) X(OWNER_DEVICE, 0xD000, "OWNER_DEVICE")

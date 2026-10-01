@@ -2,7 +2,7 @@
   "$schema": "data-structures/schema/errors.schema.json",
   "schemaVersion": 1,
   "kind": "errors",
-  "schema_id": 4086259248,
+  "schema_id": 2647005231,
   "packet": {
     "stream": "0x04",
     "byte_order": "little",
@@ -141,11 +141,6 @@
       "source_file": "components/system/sys_device/errors/sys_error_dev.h"
     },
     {
-      "name": "OWNER_SYS_DEVICE_SET_ONBOARD",
-      "id": 41233,
-      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
-    },
-    {
       "name": "OWNER_SYS_DEVICE_USER_UNINSTALL",
       "id": 41234,
       "source_file": "components/system/sys_device/errors/sys_error_dev.h"
@@ -161,7 +156,7 @@
       "source_file": "components/system/sys_device/errors/sys_error_dev.h"
     },
     {
-      "name": "OWNER_SYS_DEVICE_REGISTER_TYPE",
+      "name": "OWNER_SYS_DEVICE_REGISTER_CLASS",
       "id": 41237,
       "source_file": "components/system/sys_device/errors/sys_error_dev.h"
     },
@@ -173,6 +168,21 @@
     {
       "name": "OWNER_SYS_DEVICE_REGISTER_CONTRACT",
       "id": 41239,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_CREATE",
+      "id": 41240,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_CHECK",
+      "id": 41241,
+      "source_file": "components/system/sys_device/errors/sys_error_dev.h"
+    },
+    {
+      "name": "OWNER_SYS_DEVICE_CREATE_ONBOARD",
+      "id": 41242,
       "source_file": "components/system/sys_device/errors/sys_error_dev.h"
     },
     {
@@ -243,21 +253,6 @@
     {
       "name": "OWNER_SYS_I2C_INIT",
       "id": 41473,
-      "source_file": "components/system/sys_i2c/errors/sys_error_i2c.h"
-    },
-    {
-      "name": "OWNER_SYS_I2C_ADD_DRIVER",
-      "id": 41474,
-      "source_file": "components/system/sys_i2c/errors/sys_error_i2c.h"
-    },
-    {
-      "name": "OWNER_SYS_I2C_REMOVE_DRIVER",
-      "id": 41475,
-      "source_file": "components/system/sys_i2c/errors/sys_error_i2c.h"
-    },
-    {
-      "name": "OWNER_SYS_I2C_DEVICE_PRESENT",
-      "id": 41476,
       "source_file": "components/system/sys_i2c/errors/sys_error_i2c.h"
     },
     {
@@ -461,11 +456,6 @@
       "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
     },
     {
-      "name": "OWNER_DEC_SYS_DEVICE_INSTALL",
-      "id": 42514,
-      "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
-    },
-    {
       "name": "OWNER_DEC_SETTINGS_BLE",
       "id": 42515,
       "source_file": "components/system/sys_interface/errors/sys_error_interface.h"
@@ -621,11 +611,6 @@
       "source_file": "components/system/sys_hbridge/errors/sys_error_hbridge.h"
     },
     {
-      "name": "OWNER_SYS_HBRIDGE_SET_MODE",
-      "id": 44033,
-      "source_file": "components/system/sys_hbridge/errors/sys_error_hbridge.h"
-    },
-    {
       "name": "OWNER_SYS_HBRIDGE_SET_DRIVE",
       "id": 44034,
       "source_file": "components/system/sys_hbridge/errors/sys_error_hbridge.h"
@@ -643,21 +628,6 @@
     {
       "name": "OWNER_SYS_HBRIDGE_GET_CURRENT",
       "id": 44037,
-      "source_file": "components/system/sys_hbridge/errors/sys_error_hbridge.h"
-    },
-    {
-      "name": "OWNER_SYS_HBRIDGE_SET_CURRENT_LIMIT",
-      "id": 44038,
-      "source_file": "components/system/sys_hbridge/errors/sys_error_hbridge.h"
-    },
-    {
-      "name": "OWNER_SYS_HBRIDGE_GET_FAULT",
-      "id": 44040,
-      "source_file": "components/system/sys_hbridge/errors/sys_error_hbridge.h"
-    },
-    {
-      "name": "OWNER_SYS_HBRIDGE_CLEAR_FAULT",
-      "id": 44041,
       "source_file": "components/system/sys_hbridge/errors/sys_error_hbridge.h"
     },
     {
@@ -811,58 +781,8 @@
       "source_file": "components/system/sys_project/errors/sys_error_project.h"
     },
     {
-      "name": "OWNER_DEVICE_BASE",
+      "name": "OWNER_DEVICE",
       "id": 53248,
-      "source_file": "components/devices/devices/errors/devices_owners.h"
-    },
-    {
-      "name": "OWNER_DEVICE_GPIO_ESP",
-      "id": 53249,
-      "source_file": "components/devices/devices/errors/devices_owners.h"
-    },
-    {
-      "name": "OWNER_DEVICE_TPS55289",
-      "id": 53250,
-      "source_file": "components/devices/devices/errors/devices_owners.h"
-    },
-    {
-      "name": "OWNER_DEVICE_TCA6424A",
-      "id": 53251,
-      "source_file": "components/devices/devices/errors/devices_owners.h"
-    },
-    {
-      "name": "OWNER_DEVICE_ADS7128",
-      "id": 53252,
-      "source_file": "components/devices/devices/errors/devices_owners.h"
-    },
-    {
-      "name": "OWNER_DEVICE_PCA9685",
-      "id": 53253,
-      "source_file": "components/devices/devices/errors/devices_owners.h"
-    },
-    {
-      "name": "OWNER_DEVICE_AP33772S",
-      "id": 53254,
-      "source_file": "components/devices/devices/errors/devices_owners.h"
-    },
-    {
-      "name": "OWNER_DEVICE_DAC53202",
-      "id": 53255,
-      "source_file": "components/devices/devices/errors/devices_owners.h"
-    },
-    {
-      "name": "OWNER_DEVICE_INA3221",
-      "id": 53256,
-      "source_file": "components/devices/devices/errors/devices_owners.h"
-    },
-    {
-      "name": "OWNER_DEVICE_DRV8962",
-      "id": 53257,
-      "source_file": "components/devices/devices/errors/devices_owners.h"
-    },
-    {
-      "name": "OWNER_DEVICE_SERVO",
-      "id": 53258,
       "source_file": "components/devices/devices/errors/devices_owners.h"
     }
   ],
@@ -1207,33 +1127,6 @@
       }
     },
     {
-      "name": "ERR_DEV_NO_HANDLE",
-      "id": 41217,
-      "level": 3,
-      "source_file": "components/system/sys_device/errors/sys_error_dev.h",
-      "payload": {
-        "size": 1,
-        "fields": [
-          {
-            "name": "dev_id",
-            "type": "uint8_t",
-            "offset": 0,
-            "id": {
-              "kind": "device"
-            }
-          }
-        ]
-      },
-      "message": {
-        "format": "device %u has no handle (installed but handle is NULL)",
-        "args": [
-          {
-            "field": "dev_id"
-          }
-        ]
-      }
-    },
-    {
       "name": "ERR_DEV_NOT_FOUND",
       "id": 41218,
       "level": 1,
@@ -1470,41 +1363,6 @@
       }
     },
     {
-      "name": "ERR_DEV_DRIVER_FAILED",
-      "id": 41225,
-      "level": 3,
-      "source_file": "components/system/sys_device/errors/sys_error_dev.h",
-      "payload": {
-        "size": 4,
-        "fields": [
-          {
-            "name": "dev_id",
-            "type": "uint8_t",
-            "offset": 0,
-            "id": {
-              "kind": "device"
-            }
-          },
-          {
-            "name": "line",
-            "type": "uint16_t",
-            "offset": 2
-          }
-        ]
-      },
-      "message": {
-        "format": "device %u driver call failed (adapter line %u)",
-        "args": [
-          {
-            "field": "dev_id"
-          },
-          {
-            "field": "line"
-          }
-        ]
-      }
-    },
-    {
       "name": "ERR_DEV_INSTALL_STEP_FAILED",
       "id": 41226,
       "level": 3,
@@ -1520,7 +1378,7 @@
         ]
       },
       "message": {
-        "format": "install step failed (adapter line %u)",
+        "format": "install step failed (line %u)",
         "args": [
           {
             "field": "line"
@@ -6461,14 +6319,10 @@
         "table": "sys_hbridge_feature_names",
         "source_file": "components/system/sys_hbridge/sys_hbridge.c",
         "features": [
-          "set_mode",
           "set_drive",
           "brake",
           "coast",
-          "get_current_mA",
-          "set_current_limit_mA",
-          "get_fault",
-          "clear_fault"
+          "get_current_mA"
         ]
       }
     }

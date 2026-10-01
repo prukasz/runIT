@@ -36,7 +36,7 @@ The decoder tables themselves live in the `codecs` component (`components/codecs
 | `0x09` | Event subscriptions | `dec_sys_events_decode()`, see [[SYS_EVENT.MD]] |
 | `0x0A`+ | Free | register your own |
 
-Class bytes are Kconfig options (`CONFIG_RX_PACKET_CLASS_*`). `sys_interface` registers no classes and doesn't depend on `codecs`: all of them are registered by runit's `runit_register_decoders` boot step (`components/runit/runit_decoders.c`), before `sys_interface_init()` starts the RX receiver.
+Class bytes are Kconfig options (`CONFIG_RX_PACKET_CLASS_*`). `sys_interface` registers no classes and doesn't depend on `codecs`: all of them are registered by runit's `runit_register_decoders` boot step (`components/runit/runit.c`), before `sys_interface_init()` starts the RX receiver.
 
 Up to `CONFIG_SYS_INTERFACE_MAX_CLASSES` (12) classes can be bound at once. The registry is a flat array with linear search — it is not mutex-protected, so register all classes during boot rather than from concurrent tasks.
 

@@ -1,4 +1,5 @@
 #pragma once
+#include "sys_device.h"
 #include "sys_error.h"
 #include "sys_io.h"
 
@@ -6,7 +7,7 @@
 #define PCA9685_MAX_PWM_VALUE 4095
 #define PCA9685_MIN_FREQUENCY_HZ 24    // prescaler 255 at the 25 MHz oscillator
 #define PCA9685_MAX_FREQUENCY_HZ 1526  // prescaler 3
-#define PCA9685_CHANNEL_ALL 16
+
 
 // The annotations below describe the device to the app (data-structures/devices/*.generated.json,
 // grammar: data-structures/auto-annotations/device/device-annotations.md).
@@ -46,7 +47,7 @@
 
 //#contract packet_sys_io_set_pwm_duty_t
 //  @alias       Set PWM duty
-//  @description Duty values above 4095 are clamped by the adapter.
+//  @description Duty values above 4095 are clamped by the device.
 //  @param pin   @arg PIN
 //  @param duty  @alias Duty @unit ticks @min 0 @max PCA9685_MAX_PWM_VALUE
 
@@ -59,7 +60,7 @@
 /**
  * @brief PCA9685 PWM expander configuration. This is also the wire struct of the
  * create frame (packed, device_id first): the router hands the received bytes to
- * d_pca9685_create() as they are, and the generator reads the field annotations from here.
+ * sys_device_create(&g_pca9685_class, ...) as they are, and the generator reads the field annotations from here.
  *
  * @warning A board without OE control MUST spell it `.oe_pin = SYS_IO_PIN_NONE_INIT`.
  *          Omitting the field zero-fills it to device 0 / pin 0, which is a real
@@ -70,13 +71,13 @@ typedef struct __packed {
   uint8_t i2c_bus;
   uint8_t i2c_addr;      //@alias I2C Address @one-of [0x40..0x6F, 0x71..0x77]
                          //  @note Address pins A0-A5 select the address; 0x70 is All Call and 0x78-0x7F are reserved.
-  pin_ref_wire_t oe_pin; //@note Active-low.
+  sys_io_pin_ref_t oe_pin; //@note Active-low.
 } d_pca9685_cfg_t;
 
 /**
- * @brief Initialize and register the PCA9685 PWM Expander device.
- *
- * @param cfg Device configuration; only read during the call, so it may be a compound literal.
- * @return err_h Status of the registration (ERR_DEV_PIN_ORDER if the OE pin isn't on a lower-ID device)
+ * @brief The PCA9685 device class: register it with sys_device_register_class(), create a
+ * device with SYS_DEVICE_CREATE(&g_pca9685_class, &(d_pca9685_cfg_t){...}). The cfg is only
+ * read during the call, so it may be a compound literal; ERR_DEV_PIN_ORDER if the OE pin
+ * isn't on a lower-ID device.
  */
-SE_MUST_USE err_h d_pca9685_create(const d_pca9685_cfg_t* cfg);
+extern const sys_device_class_t g_pca9685_class;

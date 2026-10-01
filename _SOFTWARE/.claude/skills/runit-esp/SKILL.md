@@ -1,6 +1,6 @@
 ---
 name: runit-esp
-description: Firmware skill for runIT-ESP32 (ESP-IDF v6.1, FreeRTOS, ESP32-S3) — contracts, device adapters, sys_* modules, error chain, BLE/data connector and VM. Load for any work under components/ or main/, and for building, configuring (Kconfig) or flashing the firmware.
+description: Firmware skill for runIT-ESP32 (ESP-IDF v6.1, FreeRTOS, ESP32-S3) — contracts, devices (class, create frame, operations), sys_* modules, error chain, BLE/data connector and VM. Load for any work under components/ or main/, and for building, configuring (Kconfig) or flashing the firmware.
 ---
 
 # runIT-ESP32 — Firmware Skill
@@ -17,14 +17,15 @@ Component `*.MD` files are the source of truth for each module's API. This skill
 | [errors.md](errors.md) | Raising, propagating or handling errors; owners; severity |
 | [architecture.md](architecture.md) | Layers and allowed dependencies, boot sequence, command/error/event flows, agreed design, open findings |
 | [conventions.md](conventions.md) | Writing or changing any firmware code: static RTOS objects (`utils.h`), constants vs Kconfig, no legacy leftovers, validate-once, naming, `//@` annotations, comments/docs |
-| [devices.md](devices.md) | Adding or changing a device: driver/adapter/decoder anatomy, checklist, rules, per-device state |
+| [devices.md](devices.md) | Adding or changing a device: one-file anatomy, class, create frame, operations, checklist, rules, per-device state |
 | [vm/README.md](vm/README.md) | Any VM work: model, code map, runit wiring; routes to [vm/blocks.md](vm/blocks.md) (palette, adding a block), [vm/wire.md](vm/wire.md) (class `0x04`, telemetry, app JSON), [vm/findings.md](vm/findings.md) (stale docs, bugs, gaps) |
 
 ## Module docs — read the one you touch
 
 | Doc | Covers |
 |---|---|
-| `components/system/sys_device/SYS_DEVICE.MD` | Device registry, lifecycle ops, dispatch macros, per-instance error handling |
+| `components/system/sys_device/SYS_DEVICE.MD` | Device registry, class, create router and operations, lifecycle ops, dispatch macros, per-instance error handling |
+| `components/system/sys_device/DEVICE_CLASS.MD` | Why the class carries the type id, cfg size and pin refs (design of the create path) |
 | `components/system/sys_io/SYS_IO.MD` | IO contract, pin refs, locks, interrupt config, pin events |
 | `components/system/sys_power/SYS_POWER.MD` | Power contracts, power manager (budget, sources, battery, response matrix) |
 | `components/system/sys_event/SYS_EVENT.MD` | Events: publish, subscriptions (inline / queued), routes, actions, class `0x09` |

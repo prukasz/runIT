@@ -10,7 +10,7 @@ Design notes:
   - Every record kind lists the tags it accepts; an unknown tag fails generation, so a typo
     or a tag nothing reads never lands silently. The old one-line //@id / //@contract
     directives fail with a pointer to the record form.
-  - A pin_ref_wire_t install field expands to its three wire fields (<name>_device_id,
+  - A sys_io_pin_ref_t install field expands to its three wire fields (<name>_device_id,
     <name>_pin, <name>_mode) and one pin group keyed by <name>, the same key the board
     descriptor uses for the pins its devices take.
   - This replaces the older generate-device-json.py, which used a plain
@@ -87,7 +87,7 @@ RECORD_TAGS = {
 PARAM_TAGS = {"arg", "alias", "type", "unit", "one_of", "min", "max", "default", "device_wide", "note"}
 
 # One pin on another device in an install packet (dec_device_common.h): three uint8_t on the wire.
-PIN_REF_TYPE = "pin_ref_wire_t"
+PIN_REF_TYPE = "sys_io_pin_ref_t"
 PIN_REF_TAGS = {"alias", "note", "modes", "default_mode"}
 MAX_RANGE = 4096
 
@@ -126,7 +126,7 @@ class Field:
 
 
 def pin_ref_fields(name: str, arr: Optional[str], tags: Dict[str, str]) -> List[Field]:
-    """`pin_ref_wire_t <name>; //@alias ... @note ... @modes [...] @default-mode $X` -> its three wire fields."""
+    """`sys_io_pin_ref_t <name>; //@alias ... @note ... @modes [...] @default-mode $X` -> its three wire fields."""
     if arr is not None:
         sys.exit(f"ERROR: field '{name}': arrays of {PIN_REF_TYPE} are not supported")
     unknown = sorted(set(tags) - PIN_REF_TAGS)
@@ -353,6 +353,19 @@ def device_header_record(path: Path) -> Optional[Tuple[str, Dict[str, str]]]:
     return None
 
 
+def check_class_pin_refs(path: Path, cfg_body: str, cfg_type: str) -> None:
+    """Every sys_io_pin_ref_t field of the cfg must be in the class's SYS_DEVICE_PINS table
+    (`offsetof(<cfg_type>, field)` in the device's .c files), and nothing else: sys_device_create
+    checks pin order only for the listed offsets, so a forgotten field would go unchecked."""
+    declared = set(re.findall(rf"\b{PIN_REF_TYPE}\s+(\w+)\s*;", cfg_body))
+    listed = set()
+    for source in sorted(path.parent.parent.glob("*.c")):
+        listed.update(re.findall(rf"offsetof\(\s*{cfg_type}\s*,\s*(\w+)\s*\)", source.read_text(encoding="utf-8", errors="ignore")))
+    if declared != listed:
+        sys.exit(f"ERROR: {path.name}: pin refs of {cfg_type} {sorted(declared)} differ from the class's SYS_DEVICE_PINS table {sorted(listed)}"
+                 f" (missing: {sorted(declared - listed)}, unknown: {sorted(listed - declared)})")
+
+
 def parse_device_header_packet(path: Path, all_classes: Dict[str, str], defines, sdkconfig, symbols) -> Dict[str, dict]:
     """The create packet of a device that keeps everything in its own header: the packed
     `d_<chip>_cfg_t` struct, the `@type-id` of its //#device record as the packet header byte,
@@ -373,11 +386,12 @@ def parse_device_header_packet(path: Path, all_classes: Dict[str, str], defines,
         sys.exit(f"ERROR: {path.name}: @type-id {shown}")
     if CREATE_FRAME_CLASS not in all_classes:
         sys.exit(f"ERROR: no packet class {CREATE_FRAME_CLASS} for the create frame")
+    check_class_pin_refs(path, match.group(1), match.group(2))
     chip = device_id.removeprefix("device_")
     packet = f"packet_sys_device_install_{chip}_t"
     fields = parse_struct_fields(match.group(1), defines, sdkconfig)
     entry = build_packet_entry(packet, f"0x{type_id:02X}", fields, path.name, CREATE_FRAME_CLASS, all_classes[CREATE_FRAME_CLASS], defines, sdkconfig, symbols)
-    entry["decoder"] = f"d_{chip}_create()"
+    entry["decoder"] = f"sys_device_create(&g_{path.stem.removeprefix('device_')}_class)"
     return {packet: entry}
 
 

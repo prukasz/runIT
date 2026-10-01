@@ -25,6 +25,7 @@ typedef struct {
   uint16_t duty;         /* applied */
   uint8_t channel;       /* LEDC channel, reserved by set_mode */
   uint8_t timer;         /* LEDC timer, ESP_PWM_TIMER_NONE until the first frequency or duty */
+  uint16_t saved_duty;   /* duty to bring back after a suspend */
 } pin_pwm_data_t;
 
 // 4. The Master Unified Pin Object
@@ -39,14 +40,16 @@ typedef struct {
     pin_pwm_data_t pwm_cfg;
   } hw;
   uint64_t last_isr_time;
+  bool suspended;    /* the output was made safe by device_suspend: PWM at 0, push-pull low, open-drain released */
+  bool saved_level;  /* output level to bring back after a suspend */
 } esp_pin_obj_t;
 
 #include "device_gpio_esp.h"
 
+// Instance state (the device is a hardware singleton: the pin pool below is the real state)
 typedef struct {
-  sys_device_adapter_base_t base;
-  d_gpio_esp_cfg_t cfg;
-} gpio_esp_ctx_t;
+  sys_device_base_t base;
+} gpio_ctx_t;
 
 // Static pin pool: one fixed-size slot per GPIO, indexed by pin number.
 // `configured_pins` is the source of truth for "is this slot live" - a slot's
@@ -60,5 +63,5 @@ static inline esp_pin_obj_t* pin_obj_get(sys_io_pin_num_t pin) {
   return (configured_pins & (1ULL << pin)) ? &pin_pool[pin] : NULL;
 }
 
-extern gpio_esp_ctx_t gpio_esp_ctx;
+extern uint8_t gpio_esp_device_id;  // device id for the ISR and the ADC task
 extern SemaphoreHandle_t gpio_mutex;

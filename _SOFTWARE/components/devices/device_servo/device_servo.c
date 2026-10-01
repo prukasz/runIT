@@ -3,8 +3,7 @@
 #include "sys_device.h"
 #include "sys_error.h"
 
-#undef OWNER
-#define OWNER OWNER_DEVICE_SERVO
+#define OWNER OWNER_DEVICE
 
 #define SERVO_FREQUENCY_HZ 50
 #define SERVO_PERIOD_US 20000
@@ -14,7 +13,7 @@
 enum { SERVO_STEP_PWM = 0 };
 
 typedef struct servo_ctx_t {
-  sys_device_adapter_base_t base;  // must be first
+  sys_device_base_t base;  // must be first
   d_servo_cfg_t cfg;
   sys_io_pin_ref_t pwm_pin;  // cfg.pwm_pin, converted once at install
   int16_t offset_us;
@@ -112,23 +111,34 @@ static SE_MUST_USE err_h device_resume(void* handle) {
 static SE_MUST_USE err_h device_install(const void* cfg_blob, void** out_device_handle) {
   const d_servo_cfg_t* cfg = (const d_servo_cfg_t*)cfg_blob;
 
-  SYS_DEV_CTX_NEW(servo_ctx_t, c, cfg);
+  SE_CHECK_IN_RANGE((uint32_t)cfg->max_us, 1, SERVO_PERIOD_US);
+  SE_CHECK_IN_RANGE((uint32_t)cfg->min_us, 0, cfg->max_us);
+  SE_CHECK_IN_RANGE((uint32_t)cfg->home_us, cfg->min_us, cfg->max_us);
+
+  servo_ctx_t* c = (servo_ctx_t*)calloc(1, sizeof(servo_ctx_t));
+  SE_CHECK_IF_ALLOCATED(c);
+  c->cfg = *cfg;
+  c->base.device_id = cfg->device_id;
   err_h err = NULL;
 
-  c->pwm_pin = pin_ref_from_wire(c->cfg.pwm_pin);
-  SYS_DEV_INSTALL_STEP(sys_io_set_pwm_frequency(c->pwm_pin, SERVO_FREQUENCY_HZ), "pwm frequency");
-  SYS_DEV_STEP_DONE(c, SERVO_STEP_PWM);
+  c->pwm_pin = c->cfg.pwm_pin;
+  SYS_DEV_INSTALL_STEP_BIT(c, SERVO_STEP_PWM, sys_io_set_pwm_frequency(c->pwm_pin, SERVO_FREQUENCY_HZ), "pwm frequency");
 
   *out_device_handle = c;
   return NULL;
 
 fail:
-  SYS_DEV_INSTALL_FAIL(err, cfg->device_id, out_device_handle, device_uninstall, c);
+  SYS_DEV_INSTALL_FAIL(err, out_device_handle, device_uninstall, c);
   return NULL;
 }
 
-// No contract, no freeze / sync: only the lifecycle and the operations above.
-static const sys_device_class_t s_servo_class = {
+static const uint8_t s_pin_refs[] = {offsetof(d_servo_cfg_t, pwm_pin)};
+
+// No contract: only the lifecycle and the operations above.
+const sys_device_class_t g_servo_class = {
+    .type_id = SERVO_TYPE_ID,
+    .cfg_size = sizeof(d_servo_cfg_t),
+    SYS_DEVICE_PINS(s_pin_refs),
     .name = "SERVO",
     .ops = {.install = device_install,
         .uninstall = device_uninstall,
@@ -137,12 +147,3 @@ static const sys_device_class_t s_servo_class = {
         .resume = device_resume},
     SYS_DEVICE_OPS(s_ops),
 };
-
-err_h d_servo_create(const d_servo_cfg_t* cfg) {
-  SE_CHECK_NOT_NULL(cfg);
-  SE_CHECK_IN_RANGE((uint32_t)cfg->max_us, 1, SERVO_PERIOD_US);
-  SE_CHECK_IN_RANGE((uint32_t)cfg->min_us, 0, cfg->max_us);
-  SE_CHECK_IN_RANGE((uint32_t)cfg->home_us, cfg->min_us, cfg->max_us);
-  SE_TRY(PIN_REFS_BELOW(cfg->device_id, pin_ref_from_wire(cfg->pwm_pin)));
-  return SYS_DEVICE_CREATE(&s_servo_class, cfg);
-}

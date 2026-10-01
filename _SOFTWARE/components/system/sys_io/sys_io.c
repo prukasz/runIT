@@ -189,14 +189,3 @@ err_h sys_io_subscribe_pin(sys_io_pin_ref_t ref, sys_event_handler_f handler, vo
   };
   return sys_event_subscribe(&sub, out_id);
 }
-
-#undef OWNER
-#define OWNER OWNER_SYS_IO_PIN_REFS_BELOW
-err_h pin_refs_below(uint8_t device_id, const sys_io_pin_ref_t* refs, size_t count) {
-  for (size_t i = 0; i < count; i++) {
-    if (sys_io_pin_is_valid(refs[i]) && refs[i].device_id >= device_id) {
-      SE_FAIL(ERR_DEV_PIN_ORDER, .dev_id = device_id, .pin_dev_id = refs[i].device_id, .pin = refs[i].pin);
-    }
-  }
-  return NULL;
-}

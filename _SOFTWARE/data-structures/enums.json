@@ -1,5 +1,23 @@
 {
   "enums": {
+    "drv8962_topology_e": {
+      "alias": "DRV8962 Topology",
+      "source_file": "components/devices/device_drv8962/include/drv8962_types.h",
+      "members": [
+        {
+          "name": "DRV8962_TOPOLOGY_2_FULL_BRIDGES",
+          "value": 0,
+          "alias": "Two full bridges",
+          "description": "Channel 0 drives OUT1+OUT2 (motor A), channel 1 drives OUT3+OUT4 (motor B), both directions"
+        },
+        {
+          "name": "DRV8962_TOPOLOGY_4_HALF_BRIDGES",
+          "value": 1,
+          "alias": "Four half bridges",
+          "description": "Channels 0..3 drive OUT1..OUT4 one by one (solenoids, single-direction loads)"
+        }
+      ]
+    },
     "runit_data_provider_e": {
       "alias": "Data Provider",
       "source_file": "components/runit/runit_board_defs.h",
@@ -53,16 +71,10 @@
           "description": "Installs the board's own devices (bound by the application)."
         },
         {
-          "name": "SYS_ACTION_STATIC_FREEZE",
-          "value": 2,
-          "alias": "Freeze all devices",
-          "description": "Holds every device at its current state."
-        },
-        {
           "name": "SYS_ACTION_STATIC_RESUME",
           "value": 3,
           "alias": "Resume all devices",
-          "description": "Resumes and syncs every device."
+          "description": "Resumes every device."
         },
         {
           "name": "SYS_ACTION_STATIC_SUSPEND",
@@ -225,36 +237,6 @@
           "value": 3,
           "alias": "Bluetooth",
           "description": "Connection events. Event = BLE event"
-        },
-        {
-          "name": "SYS_EVENT_DOMAIN_FEATURE",
-          "value": 4,
-          "alias": "Feature",
-          "description": "Events raised by features. Device = feature ID"
-        }
-      ]
-    },
-    "sys_hbridge_mode_e": {
-      "alias": "H-Bridge Mode",
-      "source_file": "components/system/sys_hbridge/include/sys_hbridge.h",
-      "members": [
-        {
-          "name": "SYS_HBRIDGE_MODE_FULL",
-          "value": 0,
-          "alias": "Full Bridge",
-          "description": "Bidirectional drive from -1.0 to 1.0"
-        },
-        {
-          "name": "SYS_HBRIDGE_MODE_HALF_HIGH",
-          "value": 1,
-          "alias": "Half Bridge High",
-          "description": "High-side PWM drive from 0.0 to 1.0"
-        },
-        {
-          "name": "SYS_HBRIDGE_MODE_HALF_LOW",
-          "value": 2,
-          "alias": "Half Bridge Low",
-          "description": "Low-side PWM sink from 0.0 to 1.0"
         }
       ]
     },
@@ -1532,6 +1514,18 @@
     }
   },
   "symbols": {
+    "DRV8962_TOPOLOGY_2_FULL_BRIDGES": {
+      "enum": "drv8962_topology_e",
+      "value": 0,
+      "alias": "Two full bridges",
+      "description": "Channel 0 drives OUT1+OUT2 (motor A), channel 1 drives OUT3+OUT4 (motor B), both directions"
+    },
+    "DRV8962_TOPOLOGY_4_HALF_BRIDGES": {
+      "enum": "drv8962_topology_e",
+      "value": 1,
+      "alias": "Four half bridges",
+      "description": "Channels 0..3 drive OUT1..OUT4 one by one (solenoids, single-direction loads)"
+    },
     "RUNIT_DATA_PROVIDER_BLE": {
       "enum": "runit_data_provider_e",
       "value": 1,
@@ -1568,17 +1562,11 @@
       "alias": "Boot setup",
       "description": "Installs the board's own devices (bound by the application)."
     },
-    "SYS_ACTION_STATIC_FREEZE": {
-      "enum": "sys_action_static_e",
-      "value": 2,
-      "alias": "Freeze all devices",
-      "description": "Holds every device at its current state."
-    },
     "SYS_ACTION_STATIC_RESUME": {
       "enum": "sys_action_static_e",
       "value": 3,
       "alias": "Resume all devices",
-      "description": "Resumes and syncs every device."
+      "description": "Resumes every device."
     },
     "SYS_ACTION_STATIC_SUSPEND": {
       "enum": "sys_action_static_e",
@@ -1717,30 +1705,6 @@
       "value": 3,
       "alias": "Bluetooth",
       "description": "Connection events. Event = BLE event"
-    },
-    "SYS_EVENT_DOMAIN_FEATURE": {
-      "enum": "sys_event_domain_e",
-      "value": 4,
-      "alias": "Feature",
-      "description": "Events raised by features. Device = feature ID"
-    },
-    "SYS_HBRIDGE_MODE_FULL": {
-      "enum": "sys_hbridge_mode_e",
-      "value": 0,
-      "alias": "Full Bridge",
-      "description": "Bidirectional drive from -1.0 to 1.0"
-    },
-    "SYS_HBRIDGE_MODE_HALF_HIGH": {
-      "enum": "sys_hbridge_mode_e",
-      "value": 1,
-      "alias": "Half Bridge High",
-      "description": "High-side PWM drive from 0.0 to 1.0"
-    },
-    "SYS_HBRIDGE_MODE_HALF_LOW": {
-      "enum": "sys_hbridge_mode_e",
-      "value": 2,
-      "alias": "Half Bridge Low",
-      "description": "Low-side PWM sink from 0.0 to 1.0"
     },
     "SYS_HBRIDGE_FAULT_NONE": {
       "enum": "sys_hbridge_fault_reason_e",

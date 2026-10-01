@@ -4,7 +4,7 @@ Source of truth:
 - components/runit/runit_board_defs.h: `#define DEVICE_ID_<NAME> <id>  //@STATIC_DEVICE`,
   the I2C buses (`SYS_I2C_BUS_INTERNAL` / `SYS_I2C_BUS_USER`) and named board
   pins (`#define RUNIT_BOARD_<...> <pin>  // <label>`)
-- components/runit/runit_board_cfg.c: `RUNIT_BOARD_DEVICE(DEVICE_ID_<NAME>, d_<driver>_create(...))`,
+- components/runit/runit_board_cfg.c: `SYS_DEVICE_CREATE_ONBOARD(&g_<driver>_class, &(d_<driver>_cfg_t){.device_id = DEVICE_ID_<NAME>, ...})`,
   which names the driver; when data-structures/devices/device_<driver>.generated.json
   exists, the device links to that descriptor and takes its title. From the
   create call's config: `.i2c_bus`, `.i2c_addr` and every
@@ -39,7 +39,7 @@ SCHEMA_PATH = PROJECT_ROOT / "data-structures" / "schema" / "board.schema.json"
 SCHEMA_REL_PATH = SCHEMA_PATH.relative_to(PROJECT_ROOT).as_posix()
 
 STATIC_DEVICE_RE = re.compile(r"^\s*#define\s+(?P<symbol>DEVICE_ID_(?P<name>\w+))\s+(?P<id>\d+)\s*//@STATIC_DEVICE\b", re.MULTILINE)
-CREATE_RE = re.compile(r"RUNIT_BOARD_DEVICE\(\s*(?P<symbol>DEVICE_ID_\w+)\s*,\s*d_(?P<driver>\w+?)_create\s*\(")
+CREATE_RE = re.compile(r"SYS_DEVICE_CREATE_ONBOARD\(\s*&g_(?P<driver>\w+?)_class\s*,\s*&\(d_\w+?_cfg_t\)\s*\{\s*\.device_id\s*=\s*(?P<symbol>DEVICE_ID_\w+)")
 SWITCH_RE = re.compile(r"^\s*#define\s+(?P<name>RUNIT_BOARD_DEV_\w+)\s+(?P<value>\d+)", re.MULTILINE)
 BUS_RE = re.compile(r"^\s*#define\s+(?P<name>SYS_I2C_BUS_(?P<kind>INTERNAL|USER))\s+(?P<value>\d+)", re.MULTILINE)
 BOARD_PIN_RE = re.compile(r"^\s*#define\s+(?P<name>RUNIT_BOARD_\w+)\s+(?P<value>\d+)\s*//\s*(?P<label>.*?)\s*$", re.MULTILINE)

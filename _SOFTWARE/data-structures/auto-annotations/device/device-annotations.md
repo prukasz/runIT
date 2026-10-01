@@ -40,7 +40,7 @@ The first argument is the decoders root to scan (the device headers are found ne
 | `//#contract <packet>` | `alias`, `description`, `returns`, and `@param` lines |
 | `@param <field>` (one per line, in a contract) | `arg`, `alias`, `type`, `unit`, `one-of`, `min`, `max`, `default`, `device-wide`, `note` |
 | Install struct field (`//` after the `;`) | `optional`, `alias`, `min`, `max`, `one-of`, `default`, `unit`, `enum-ref`, `note`; rare: `sentinel`, `group`, `encoding`, `terminator` |
-| `pin_ref_wire_t` install field | `alias`, `note`, `modes`, `default-mode` |
+| `sys_io_pin_ref_t` install field | `alias`, `note`, `modes`, `default-mode` |
 | Any value | `$SYMBOL` (a `//#ref-enum` member), `CONFIG_*` / `#define` for `min` / `max` / `default`, `a..b` ranges in lists |
 
 ## Device record
@@ -125,7 +125,7 @@ typedef struct __packed {
   uint8_t device_id;       //@max CONFIG_SYS_DEVICE_MAX_ID
   uint8_t i2c_bus;
   uint8_t i2c_addr;        //@alias I2C Address @one-of [0x10..0x17] @note The resistor on the ADDR pin selects the address at power-up.
-  pin_ref_wire_t intr_pin; //@alias ALERT @modes [$SYS_IO_MODE_INPUT, $SYS_IO_MODE_INPUT_PULLUP] @default-mode $SYS_IO_MODE_INPUT_PULLUP
+  sys_io_pin_ref_t intr_pin; //@alias ALERT @modes [$SYS_IO_MODE_INPUT, $SYS_IO_MODE_INPUT_PULLUP] @default-mode $SYS_IO_MODE_INPUT_PULLUP
                            //  @note Open-drain, active-low.
   uint32_t vref_mV;        //@alias ADC Reference Voltage @unit mV @min 1
 } packet_sys_device_install_ads7128_t;
@@ -136,9 +136,9 @@ typedef struct __packed {
 - An `i2c_addr` field must have a nonempty `@one-of` with the chip's strap-selectable 7-bit addresses; the app shows them in hex and flags loaded values outside the list.
 - `@default` may be a `$SYMBOL`; it must be one of the field's `@one-of` when both are given. The app uses it when creating a device.
 
-### Pins on other devices: `pin_ref_wire_t`
+### Pins on other devices: `sys_io_pin_ref_t`
 
-A pin the device uses on another device (interrupt, reset, enable) is one `pin_ref_wire_t <name>_pin` field (`sys_io.h`: provider device ID, pin, mode; three bytes). The decoder, or the device itself when its cfg is the packet, turns it into a `sys_io_pin_ref_t` with `pin_ref_from_wire(...)`.
+A pin the device uses on another device (interrupt, reset, enable) is one `sys_io_pin_ref_t <name>_pin` field (`sys_io.h`: provider device ID, pin, mode; three bytes). The device's cfg is the create frame, so the field is used as it is (the device copies it into its own state); there is no separate wire type.
 
 The generator expands it to the wire fields `<name>_pin_device_id`, `<name>_pin_pin` (sentinel `SYS_GPIO_NONE` = not connected) and `<name>_pin_mode` (`sys_io_mode_e`), and one pin group keyed `<name>_pin`. That key is also how `board.generated.json` names the pins the board's own devices take, so board devices show the same label.
 

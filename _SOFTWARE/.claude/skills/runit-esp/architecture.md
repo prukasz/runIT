@@ -10,7 +10,7 @@ Layers, data flows, boot sequence, agreed design and open findings. Module APIs 
 | 1 Services | `sys_i2c`, `sys_buffers`, `sys_event`, `ble`, `sys_data_connector`, `sys_settings` (persistent settings, NVS) | Layer 0 (`ble` → `sys_data_connector`: BLE implements the connector's provider interface; the connector knows no transport) |
 | 2 Device core | `sys_device` (registry, lifecycle, dispatch helpers) | 0–1 |
 | 3 Contracts | `sys_io`, `sys_power` (+ the power manager), `sys_hbridge` (contract types + domain dispatch) | 0–2 |
-| 4 Devices | `devices/device_<chip>` (driver + adapter), `devices/devices` (aggregator, glob) | 0–3 |
+| 4 Devices | `devices/device_<chip>` (one file: class, contracts, chip access, operations), `devices/devices` (aggregator: headers, class registration, glob) | 0–3 |
 | 5 Logic | `VM` | 0–3 (never a concrete device) |
 | 6 Command | `codecs` (header-only decoders), `sys_interface` (class router), `sys_actions` (static/recorded actions) | 0–5; `sys_interface` and `sys_actions` don't depend on `codecs` |
 | 7 App | `runit` (composition root: boot steps, board config, decoder registration, error sink, error policy), `main` | everything |
@@ -21,15 +21,15 @@ Rules:
 
 ## 2. Boot sequence (`runit_start()`)
 
-`SE_init` → `runit_error_wiring_init` → `runit_board_i2c_init` → `sys_settings_init` → `sys_project_init` (opens the `project` NVS partition) → `runit_board_ble_init` → `sys_data_connector_init` → `runit_board_connector_bindings_init` → `runit_board_error_sink_init` → `SE_set_logging` → `sys_event_init` → `runit_board_power_init` (safe state, `sys_power_init` with the board power layout) → `runit_register_decoders` → `sys_interface_init` (starts the RX task) → `runit_board_bind_boot_action` → `sys_actions_init` → `runit_board_invoke_boot_action` (static action `CONFIG_SYS_ACTION_ID_BOOT` = `runit_board_devices_init`) → `vm_sub_init` → `vm_retain_init` → `vm_exec_start` → `runit_project_boot` (replays the stored code, then starts the VM if `prj_opts.autostart` is set and every VM frame applied; never aborts the boot, [SYS_PROJECT.MD](../../../components/system/sys_project/SYS_PROJECT.MD)).
+`SE_init` → `runit_error_wiring_init` → `runit_board_i2c_init` → `sys_settings_init` → `sys_project_init` (opens the `project` NVS partition) → `runit_board_ble_init` → `sys_data_connector_init` → `runit_board_connector_bindings_init` → `runit_board_error_sink_init` → `SE_set_logging` → `sys_event_init` → `runit_board_power_init` (safe state, `sys_power_init` with the board power layout) → `devices_register_classes` → `runit_register_decoders` → `sys_interface_init` (starts the RX task) → `runit_board_bind_boot_action` → `sys_actions_init` → `runit_board_invoke_boot_action` (static action `CONFIG_SYS_ACTION_ID_BOOT` = `runit_board_devices_init`) → `vm_sub_init` → `vm_retain_init` → `vm_exec_start` → `runit_project_boot` (replays the stored code, then starts the VM if `prj_opts.autostart` is set and every VM frame applied; never aborts the boot, [SYS_PROJECT.MD](../../../components/system/sys_project/SYS_PROJECT.MD)).
 
 - A failing step logs its name, sends the error, enters the safe state (`vm_exec_stop` + `sys_device_suspend_all`) and aborts boot. `main` then idles.
-- Devices are installed by the boot **action**, not by a boot step, so the hard-reset static action re-runs the same install. Each onboard device is marked with `RUNIT_BOARD_DEVICE(id, d_<chip>_create(...))` (§4.5).
+- Devices are installed by the boot **action**, not by a boot step, so the hard-reset static action re-runs the same install. Each onboard device is created with `SYS_DEVICE_CREATE_ONBOARD(&g_<chip>_class, &cfg)`, which marks it onboard (§4.5).
 - Boot action 1 always installs the ESP GPIO device; each onboard I2C device has an in-file switch `RUNIT_BOARD_DEV_*` at the top of `runit_board_cfg.c` (not Kconfig, so toggling rebuilds one file). All 0 = bare devkit; staged bring-up turns them on one by one; the devices wired through the TCA6424A need it on.
 
 ## 3. Data flows
 
-- **Inbound command:** transport provider (queues one whole frame, de-framing a byte stream itself; BLE's wake callback calls `sys_data_connector_notify_rx()`) → `sys_data_connector` (`SYS_DATA_CONNECTOR_INTERFACE`, `receive()` also returns the frame's origin) → `sys_interface` RX task → class byte → codec decoder (`dec_*.h`, registered by runit) → `sys_*` / `sys_device_user_*` / `feature_*` / `vm_*` API → device adapter through `SYS_DEV_RESOLVE` / `SYS_DEV_DISPATCH` (§4.6).
+- **Inbound command:** transport provider (queues one whole frame, de-framing a byte stream itself; BLE's wake callback calls `sys_data_connector_notify_rx()`) → `sys_data_connector` (`SYS_DATA_CONNECTOR_INTERFACE`, `receive()` also returns the frame's origin) → `sys_interface` RX task → class byte → codec decoder (`dec_*.h`, registered by runit) → `sys_*` / `sys_device_user_*` / `feature_*` / `vm_*` API → device through `SYS_DEV_RESOLVE` / `SYS_DEV_DISPATCH` (§4.6).
 - **Outbound:**
   - Error chains: `SE_send` → `enc_sys_errors` (private to `sys_errors`) → sink `send_packet` → errors connector.
   - Log lines (ESP_LOG and expanded chains): sink `send_log` → logs connector.
@@ -39,16 +39,17 @@ Rules:
 - **Errors:** `SE_push_to_handler(chain)` → per node:
   - Device attribution (`device_id_of()` by tag) → per-device importance and level → registered device error policy (runit: critical → VM stop + `suspend_all`, then the configured action).
   - Non-device nodes go to the registered domain hook for `owner & 0xFF00` (ble, interface, actions, vm); others are skipped.
-- **Events:** source (adapter, power manager, BLE, feature) → `sys_event_publish()` → inline listeners now (publisher's task; from an ISR, deferred to the event task) → one queued copy → event task → each queued listener: C handler, routes (VM = slot 0), user action, system action (§4.11).
+- **Events:** source (device, power manager, BLE) → `sys_event_publish()` → inline listeners now (publisher's task; from an ISR, deferred to the event task) → one queued copy → event task → each queued listener: C handler, routes (VM = slot 0), user action, system action (§4.11).
 
 ## 4. Agreed design
 
 ### 4.1 Wiring: explicit registration from `runit`
-Every upward call goes through a `*_register_*()` function that `runit` (the composition root) calls in its boot steps, so the wiring and its order are visible in `runit.c` / `runit_board_cfg.c` / `runit_decoders.c` / `runit_error_policy.c`. No weak symbols and no registering constructors (only `utils.h` static RTOS objects use constructors).
+Every upward call goes through a `*_register_*()` function that `runit` (the composition root) calls in its boot steps, so the wiring and its order are visible in `runit.c` / `runit_board_cfg.c` / `runit.c` / `runit_error_policy.c`. No weak symbols and no registering constructors (only `utils.h` static RTOS objects use constructors).
 
 | Registration | Where | Target |
 |---|---|---|
-| Decoder classes (9) | `runit_register_decoders()`, before `sys_interface_init()` | `dec_*_decode` (separate file because decoder headers redefine `OWNER`) |
+| Device classes (10) | `devices_register_classes()` (`devices` component), a boot step before `sys_interface_init()` | `g_<chip>_class`, created by type id from the packet router (create frame `[0x01][0x00][type_id][cfg]`) |
+| Decoder classes (9) | `runit_register_decoders()` in `runit.c`, before `sys_interface_init()` | `dec_*_decode` (`runit.c` raises no errors with `OWNER`: the decoder headers redefine it) |
 | Error sink | `runit_board_error_sink_init()` | logs + errors connectors (§4.2) |
 | Transport providers | `runit_board_connector_bindings_init()` | `sys_ble_provider_register(RUNIT_DATA_PROVIDER_BLE)` (in `ble`), then the bindings of the 4 system connectors; the BLE core stays consumer-agnostic (`sys_ble_char_link_rx_wake`) |
 | `SE_register_device_router` | `runit_error_wiring_init()` (first step after `SE_init`) | `sys_device_report_error_with_level`, `sys_device_is_ignored` |
@@ -59,7 +60,7 @@ Every upward call goes through a `*_register_*()` function that `runit` (the com
 | `sys_event_register_action_executor` / `sys_event_register_route` | 〃 | `sys_actions_invoke`, `vm_event_route` (`CONFIG_SYS_EVENT_ROUTE_VM`) |
 | `sys_power_register_safe_state` | `runit_board_power_init()` | `runit_enter_safe_state` |
 | `sys_device_register_contract` (5) | `runit_error_wiring_init()` | each contract's `<contract>_feature_names[]`, for the error log |
-| `sys_device_register_type` | `register_device_types()` in `runit_decoders.c` | `d_<chip>_create` (create frame, SYS_DEVICE.MD Packet Router) |
+| `sys_device_register_class` | `devices_register_classes()` (`devices` component, boot step) | `g_<chip>_class` (create frame, SYS_DEVICE.MD Packet Router) |
 
 ### 4.2 `sys_errors` as a base layer: keep maps, inject the sink
 - **Sink:** `sys_errors` knows no transport. `SE_register_sink(&(sys_error_sink_t){send_log, send_packet, packet_max_len})`, bound by runit, looked up per send. Unbound output is dropped (serial mirroring still works).
@@ -68,19 +69,21 @@ Every upward call goes through a `*_register_*()` function that `runit` (the com
 
 ### 4.3 Discarded `err_h` is a compile error
 - Every function returning `err_h` is `SE_MUST_USE`; an intentional drop is `SE_release(call)`. Don't use an `err_h` call as a condition (the chain leaks).
-- Steps that must all run (teardown, suspend, per-channel sweeps, fault notification) accumulate with `SYS_DEV_TEARDOWN_STEP` / `SYS_DEV_TEARDOWN_DRIVER_STEP` and return the first error.
+- Steps that must all run (teardown, suspend, per-channel sweeps, fault notification) accumulate with `SYS_DEV_TEARDOWN_STEP` and return the first error.
 - A locked dependency pin is driven only through `sys_io_set_locked_level()`, which re-locks on every path.
+- **Device errors (2026-10-01):** every device file has one owner, `OWNER_DEVICE` (0xD000); the device is named by the `dev_id` that `SYS_DEV_WRAP` / the dispatchers add (`ERR_DEV_DEP_FAILED`), its type by the class registered under that id. A dependency wrapper (`ERR_DEV_DEP_FAILED`, `ERR_DEP_FAILED`) has no severity of its own for the device policy: it takes the one of the first real node below it, so a rejected argument (LOW) doesn't run a HIGH action. The tags that attribute to a device are listed next to their definitions (`SYS_ERROR_<MODULE>_DEVICE_TAGS`).
+- **Suspend wins over failure:** `suspend` / `suspend_all` set `SUSPENDED` even when the op fails (a half-safe device must not look active); a failing `resume` leaves the device suspended.
 - The compiler doesn't check `esp_err_t` results or `err_h` returned through function pointers (vtables, event handlers; the event dispatcher reports handler errors).
 
 ### 4.5 Onboard vs runtime devices
-- Users plug devices in and remove them at runtime (install/uninstall packets). Onboard ones are installed by the board config and flagged with `sys_device_set_onboard()`.
+- Users plug devices in and remove them at runtime (create frame `[0x01][0x00][type_id][cfg]`, uninstall packet). Onboard ones are installed by the board config and created with `SYS_DEVICE_CREATE_ONBOARD()`, which flags them onboard.
 - **Firmware rule:** a user can't uninstall (and so can't replace) an onboard device. User paths (packets, replayed recorded actions) call `sys_device_user_uninstall[_all]`: the single call returns `ERR_DEV_ONBOARD {dev_id}`, the `_all` sweep skips them. Everything else is app policy.
 - System paths (boot action, hard reset, fault handling) use the plain `sys_device_*` functions.
 - `ERR_DEV_ONBOARD` is a rejected command, not a device fault, so it's not in `device_id_of()`.
 
 ### 4.6 Contracts, dispatch and units
-- **Naming:** `sys_<domain>[_<kind>]_contract_t`, members without a domain prefix, adapter instances `static const … s_<chip>_<kind>_contract`. Dispatch APIs follow the component (`sys_power_vreg_*`, `sys_power_monitor_*`, `sys_power_usb_pd_*`).
-- **One dispatch path:** `SYS_DEV_RESOLVE` (device state + contract + function) → `SYS_DEV_DISPATCH`. `sys_io` adds pin range/lock checks, `sys_power` wraps its budget around resolve.
+- **Naming:** `sys_<domain>[_<kind>]_contract_t`, members without a domain prefix, instances `static const … s_<chip>_<kind>_contract`. Dispatch APIs follow the component (`sys_power_vreg_*`, `sys_power_monitor_*`, `sys_power_usb_pd_*`).
+- **One dispatch path:** `SYS_DEV_RESOLVE` (`sys_device_check()` + contract + function) → `SYS_DEV_DISPATCH` (wrapped with `SYS_DEV_WRAP`). `sys_io` adds pin range/lock checks, `sys_power` wraps its budget around resolve.
 - **Feature IDs** = member index (`SYS_DEV_FEATURE_ID`), named by each contract's NULL-terminated `<contract>_feature_names[]` (`_Static_assert`-checked). No feature enums.
 - **Units** in real notation (`_mV`, `_mA`, `_mW`, `_Hz`, `_us`, `_ms`); macros / Kconfig stay caps; ESP-IDF fields keep their names. Measured outputs are `int32_t`; where a value must be non-negative it's checked (`SE_CHECK_IN_RANGE_I32`).
 
@@ -99,7 +102,7 @@ Every module raises errors under its own owner domain (`owner & 0xFF00` selects 
 | `0xA8` | sys_errors | `0xD0` | devices |
 
 - System modules use per-function owners (`OWNER_<MODULE>_<FUNCTION>`); runit board / error-policy owners.
-- Drivers that return `esp_err_t` define no `OWNER` (the adapter owns the error); the DRV8962 driver (`err_h`) uses `OWNER_DEVICE_DRV8962`.
+- Device files share one owner, `OWNER_DEVICE` (0xD000): the device id the dispatcher adds to the chain names the device, and its class name names the type.
 
 ### 4.8 Command responses
 - A live command is `[seq][class][packet][payload]`; the RX task strips `seq` (decoders, recorded actions and replays never see it). Every live command is answered on the interface connector, only to its origin: `[0x05][seq][class][packet][status][data]`. `seq`/`class`/`packet` echo the request; the app matches by `seq` with a timeout (a lost response fails one command, not every later one). Only stream `0x05` carries `seq`; the other streams are unsolicited pushes. `status` (`sys_interface_status_e`): `0` OK + the getter's data, `1` error + `u16 tag, u16 owner` of the root cause (the full chain still goes to the errors stream).

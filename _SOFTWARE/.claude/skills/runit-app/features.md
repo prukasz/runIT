@@ -46,7 +46,7 @@ Status tags: **✅ decided** (survey 2026-09-24, §6) · **⚠ firmware gap** (�
 | ID | Feature | Firmware link |
 |---|---|---|
 | DEV-1 | Install / test / set up devices | ✅ 2026-09-26 Board view (`app/src/devices/`): add from the device types, configure install values and pin groups, live install / uninstall; the stored code installs user devices at boot. Install decoders (class `0x01` `0x40–0x47`), `device_*.generated.json` |
-| DEV-2 | Features (servo, H-bridge, …) with the devices they use | ⚠ F-GAP-2 features have no JSON descriptors yet |
+| DEV-2 | Features (servo, H-bridge, …) with the devices they use | ⚠ F-GAP-2 features have no JSON descriptors yet. Firmware 2026-10-01: servo (`device_servo`, type `0x48`) and the DRV8962 (type `0x49`) are devices with their own operations (`0x80`+) and JSON descriptors; the app doesn't send them yet |
 | DEV-3 | Linked contracts per device, callable for testing | ✅ 2026-09-26 right panel Contracts tab: device ID filled from the device, answers decoded. `contracts.generated.json` (`response`, `response_stream`) |
 | DEV-4 | **Board overview**: runIT board SVG mapping connected elements to physical terminals (STM32CubeMX-like) | Needs a board profile JSON (terminals ↔ device channels ↔ pins) ⚠ F-GAP-3 |
 | DEV-5 | Hardware presence (what's actually there vs configured) | device sync / status contracts |

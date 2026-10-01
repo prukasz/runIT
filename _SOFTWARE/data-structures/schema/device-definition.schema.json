@@ -99,8 +99,8 @@
             "properties": {
               "fields": { "type": "array", "items": { "type": "string" } },
               "sentinel_field": { "type": ["string", "null"] },
-              "alias": { "type": "string", "description": "What the pin is for (pin_ref_wire_t @alias); the app falls back to a name from the field." },
-              "note": { "type": "string", "description": "Shown behind the field's info button (pin_ref_wire_t @note)." }
+              "alias": { "type": "string", "description": "What the pin is for (sys_io_pin_ref_t @alias); the app falls back to a name from the field." },
+              "note": { "type": "string", "description": "Shown behind the field's info button (sys_io_pin_ref_t @note)." }
             }
           }
         }

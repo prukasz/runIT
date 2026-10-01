@@ -23,7 +23,7 @@ typedef enum sys_power_events_e {
 
 /**
  * @brief Publish a power event (SYS_EVENT_DOMAIN_POWER) from a power device
- * adapter or the manager.
+ * device or the manager.
  * @param hops SYS_EVENT_CAUSED_BY(cause) when raised from a listener, else 0.
  */
 static inline SE_MUST_USE err_h sys_power_publish(uint8_t device_id, uint8_t channel, sys_power_events_e event, int32_t value, uint8_t hops) {

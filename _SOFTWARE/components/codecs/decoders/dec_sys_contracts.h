@@ -20,7 +20,6 @@
 
 #include <sdkconfig.h>
 #include <stdint.h>
-#include "dec_sys_device_install.h"
 #include "sys_device.h"
 #include "sys_error.h"
 #include "sys_interface.h"
@@ -31,8 +30,6 @@
 //@contract-catalog system @title System contracts @description Device lifecycle, IO, power, and H-bridge operations exposed by the system-contracts interface class.
 //@contract-list SYS_CONTRACTS_PACKET_LIST
 
-// dec_sys_device_install.h leaves OWNER set to OWNER_DEC_SYS_DEVICE_INSTALL;
-// take it back so this file's own SE_* macros are tagged as dec_sys_contracts.
 #undef OWNER
 #define OWNER OWNER_DEC_SYS_CONTRACTS
 
@@ -493,19 +490,8 @@ static inline SE_MUST_USE err_h decoder_packet_sys_power_set_response_t(packet_s
 }
 
 // ===========================================================================
-// H-Bridge Control Packet decoders (0x50 - 0x56)
+// H-Bridge Control Packet decoders (0x51 - 0x53)
 // ===========================================================================
-
-#define HEADER_packet_sys_hbridge_set_mode_t 0x50
-typedef struct __packed {
-  uint8_t device_id; //@required @alias Device ID
-  uint8_t channel;   //@required @alias Channel
-  uint8_t mode;      //@required @alias H-Bridge Mode @enum-ref sys_hbridge_mode_e @one-of [$SYS_HBRIDGE_MODE_FULL, $SYS_HBRIDGE_MODE_HALF_HIGH, $SYS_HBRIDGE_MODE_HALF_LOW]
-} packet_sys_hbridge_set_mode_t;
-
-static inline SE_MUST_USE err_h decoder_packet_sys_hbridge_set_mode_t(packet_sys_hbridge_set_mode_t* packet) {
-  return sys_hbridge_set_mode(packet->device_id, packet->channel, (sys_hbridge_mode_e)packet->mode);
-}
 
 #define HEADER_packet_sys_hbridge_set_drive_t 0x51
 typedef struct __packed {
@@ -538,32 +524,10 @@ static inline SE_MUST_USE err_h decoder_packet_sys_hbridge_coast_t(packet_sys_hb
   return sys_hbridge_coast(packet->device_id, packet->channel);
 }
 
-#define HEADER_packet_sys_hbridge_set_current_limit_t 0x54
-typedef struct __packed {
-  uint8_t device_id;  //@required @alias Device ID
-  uint8_t channel;    //@required @alias Channel
-  uint32_t limit_mA;  //@required @alias Current Limit @unit mA
-} packet_sys_hbridge_set_current_limit_t;
-
-static inline SE_MUST_USE err_h decoder_packet_sys_hbridge_set_current_limit_t(packet_sys_hbridge_set_current_limit_t* packet) {
-  return sys_hbridge_set_current_limit_mA(packet->device_id, packet->channel, packet->limit_mA);
-}
-
-#define HEADER_packet_sys_hbridge_clear_fault_t 0x56
-typedef struct __packed {
-  uint8_t device_id; //@required @alias Device ID
-  uint8_t channel;   //@required @alias Channel
-} packet_sys_hbridge_clear_fault_t;
-
-static inline SE_MUST_USE err_h decoder_packet_sys_hbridge_clear_fault_t(packet_sys_hbridge_clear_fault_t* packet) {
-  return sys_hbridge_clear_fault(packet->device_id, packet->channel);
-}
-
 // ==========================================================================
 // Central packet list - X-macro expanded into the class dispatcher below
 // ==========================================================================
-// Device installation packets (0x40 - 0x47) live in dec_sys_device_install.h;
-// SYS_CONTRACTS_INSTALL_PACKET_LIST(X) is folded in below rather than repeated here.
+// Devices are created by the packet router (class 0x01, header 0x00: sys_device_route), not by packets here.
 
 #define SYS_CONTRACTS_PACKET_LIST(X)                                                                                                          \
   X(HEADER_packet_sys_device_uninstall_t, packet_sys_device_uninstall_t, decoder_packet_sys_device_uninstall_t)                               \
@@ -596,13 +560,9 @@ static inline SE_MUST_USE err_h decoder_packet_sys_hbridge_clear_fault_t(packet_
   X(HEADER_packet_sys_power_monitor_set_alert_t, packet_sys_power_monitor_set_alert_t, decoder_packet_sys_power_monitor_set_alert_t)          \
   X(HEADER_packet_sys_power_get_status_t, packet_sys_power_get_status_t, decoder_packet_sys_power_get_status_t)                      \
   X(HEADER_packet_sys_power_set_response_t, packet_sys_power_set_response_t, decoder_packet_sys_power_set_response_t)                \
-  X(HEADER_packet_sys_hbridge_set_mode_t, packet_sys_hbridge_set_mode_t, decoder_packet_sys_hbridge_set_mode_t)                               \
   X(HEADER_packet_sys_hbridge_set_drive_t, packet_sys_hbridge_set_drive_t, decoder_packet_sys_hbridge_set_drive_t)                            \
   X(HEADER_packet_sys_hbridge_brake_t, packet_sys_hbridge_brake_t, decoder_packet_sys_hbridge_brake_t)                                       \
-  X(HEADER_packet_sys_hbridge_coast_t, packet_sys_hbridge_coast_t, decoder_packet_sys_hbridge_coast_t)                                       \
-  X(HEADER_packet_sys_hbridge_set_current_limit_t, packet_sys_hbridge_set_current_limit_t, decoder_packet_sys_hbridge_set_current_limit_t)   \
-  X(HEADER_packet_sys_hbridge_clear_fault_t, packet_sys_hbridge_clear_fault_t, decoder_packet_sys_hbridge_clear_fault_t)                     \
-  SYS_CONTRACTS_INSTALL_PACKET_LIST(X)
+  X(HEADER_packet_sys_hbridge_coast_t, packet_sys_hbridge_coast_t, decoder_packet_sys_hbridge_coast_t)
 
 #define SYS_CONTRACTS_DECODE_CASE(header, packet_type, decoder_func)                    \
   case header: {                                                                        \

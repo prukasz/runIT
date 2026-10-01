@@ -140,7 +140,7 @@ PSU limits (`pwr_psu`) and the battery setup (`pwr_battery`) are stored with `sy
 | 9 | Budget exceeded |
 | 10 | Source changed |
 
-`SYS_PWR_EVENT_COUNT` (11) sizes the response matrix. Device adapters publish events with `sys_power_publish(device_id, channel, event, value, hops)`.
+`SYS_PWR_EVENT_COUNT` (11) sizes the response matrix. Devices publish events with `sys_power_publish(device_id, channel, event, value, hops)`.
 
 ---
 

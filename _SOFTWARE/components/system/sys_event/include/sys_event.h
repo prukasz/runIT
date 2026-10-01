@@ -7,7 +7,7 @@
 /*
  * Events: one publisher, any number of listeners (SYS_EVENT.MD).
  *
- * A source (device adapter, power manager, BLE) publishes what
+ * A source (device device, power manager, BLE) publishes what
  * happened; it doesn't know who listens. Listeners live in one static
  * subscription table and are matched by domain / device / channel / event,
  * each field exact or SYS_EVENT_ANY.

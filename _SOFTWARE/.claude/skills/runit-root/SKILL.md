@@ -23,7 +23,7 @@ description: Entry point for any new session in the runIT repo. Gives project vi
 
 ## 2. Project in one paragraph
 
-runIT is a plug-and-play framework for hobbyists spanning hardware, firmware and an app. **runIT-ESP32** (FreeRTOS/ESP-IDF, ESP32-S3) exposes all hardware through device-agnostic **contracts** implemented by per-chip **adapters**, streams interface-agnostic byte **packets** (BLE now, Wi-Fi/LoRa later), enforces a nested **error chain**, and runs a PLC/Node-RED-style **VM** (objects, accessors, blocks) uploaded live without reflashing, with a bidirectional **remote-control** mode. **Features** (servo, H-bridge, …) build higher-level functions on devices. The **runIT board** integrates PD/LiPo power, programmable regulators, H-bridges, 20 V ADC and a PWM expander. The **runIT app** is remote, debugger, configurator and block IDE — the end user never writes code.
+runIT is a plug-and-play framework for hobbyists spanning hardware, firmware and an app. **runIT-ESP32** (FreeRTOS/ESP-IDF, ESP32-S3) exposes all hardware through device-agnostic **contracts** implemented by per-chip **devices**, streams interface-agnostic byte **packets** (BLE now, Wi-Fi/LoRa later), enforces a nested **error chain**, and runs a PLC/Node-RED-style **VM** (objects, accessors, blocks) uploaded live without reflashing, with a bidirectional **remote-control** mode. **Features** (servo, H-bridge, …) build higher-level functions on devices. The **runIT board** integrates PD/LiPo power, programmable regulators, H-bridges, 20 V ADC and a PWM expander. The **runIT app** is remote, debugger, configurator and block IDE — the end user never writes code.
 
 ## 3. Repo map (`_SOFTWARE/`)
 
@@ -31,7 +31,7 @@ runIT is a plug-and-play framework for hobbyists spanning hardware, firmware and
 |---|---|
 | `main/` | ESP-IDF entry (`main.c`) |
 | `components/system/` | Core system modules: `sys_device`, `sys_io`, `sys_power`, `sys_i2c`, `ble`, `sys_interface`, `sys_data_connector`, `sys_actions`, `sys_buffers`, `sys_event`, `sys_hbridge`, `sys_settings` — each with a `*.MD` doc |
-| `components/devices/` | Chip drivers + adapters (`device_<chip>/driver_*.c`, `adapter_*.c`) |
+| `components/devices/` | One file per device (`device_<chip>/device_<chip>.c`) + a public header with the class and the create frame (`devices/` aggregates them) |
 | `components/VM/` | Flow-language VM (`core/`, `blocks/`, `VM.MD`, `VM_EXEC.MD`) |
 | `components/codecs/` | Packet decoders/encoders (`CODECS.MD`) |
 | `components/sys_errors/` | Error chain, codes, logging (`SYS_ERRORS.MD`) |

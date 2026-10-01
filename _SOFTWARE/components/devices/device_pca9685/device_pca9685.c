@@ -7,14 +7,14 @@
 #include "sys_i2c.h"
 #include "sys_io.h"
 
-#undef OWNER
-#define OWNER OWNER_DEVICE_PCA9685
+#define OWNER OWNER_DEVICE
 #define PINS_MASK 0xFFFF
 #define PCA9685_I2C_DEFAULT_FREQUENCY 100000
+#define PCA9685_CHANNEL_ALL 16
 
 // Instance state: the whole device in one struct (chip state; the create cfg is not kept).
 typedef struct pca_ctx_t {
-  sys_device_adapter_base_t base;  // must be first
+  sys_device_base_t base;  // must be first
   sys_io_pin_ref_t oe_pin;         // the OE pin of the create cfg, converted once at install
   sys_i2c_dev_t i2c;
   uint16_t duty[PCA9685_CHANNEL_ALL];  // last written duty (read-back for get_level)
@@ -164,10 +164,9 @@ static SE_MUST_USE err_h device_install(const void* cfg_blob, void** out_device_
   c->base.device_id = cfg->device_id;
   err_h err = NULL;
 
-  c->oe_pin = pin_ref_from_wire(cfg->oe_pin);
+  c->oe_pin = cfg->oe_pin;
   sys_i2c_dev_init(&c->i2c, cfg->i2c_bus != 0, cfg->i2c_addr, PCA9685_I2C_DEFAULT_FREQUENCY);
-  SYS_DEV_INSTALL_STEP(sys_i2c_dev_add(&c->i2c), "i2c add (probes the chip)");
-  SYS_DEV_STEP_DONE(c, PCA_STEP_I2C_ADDED);
+  SYS_DEV_INSTALL_STEP_BIT(c, PCA_STEP_I2C_ADDED, sys_i2c_dev_add(&c->i2c), "i2c add (probes the chip)");
 
   SYS_DEV_INSTALL_STEP(chip_sleep(c, false), "chip wake");
   SYS_DEV_INSTALL_STEP(chip_enable_auto_increment(c), "chip auto increment");
@@ -175,20 +174,23 @@ static SE_MUST_USE err_h device_install(const void* cfg_blob, void** out_device_
   if (sys_io_pin_is_valid(c->oe_pin)) {
     SYS_DEV_INSTALL_STEP(sys_io_set_mode(c->oe_pin), "OE pin mode");
     SYS_DEV_INSTALL_STEP(sys_io_set_level(c->oe_pin, false), "OE pin low");  // active low => outputs enabled
-    SYS_DEV_INSTALL_STEP(sys_io_lock_pin(c->oe_pin), "OE pin lock");
-    SYS_DEV_STEP_DONE(c, PCA_STEP_OE_READY);
+    SYS_DEV_INSTALL_STEP_BIT(c, PCA_STEP_OE_READY, sys_io_lock_pin(c->oe_pin), "OE pin lock");
   }
 
   *out_device_handle = c;
   return NULL;
 
 fail:
-  SYS_DEV_INSTALL_FAIL(err, cfg->device_id, out_device_handle, device_uninstall, c);
+  SYS_DEV_INSTALL_FAIL(err, out_device_handle, device_uninstall, c);
   return NULL;
 }
 
-// No freeze / sync: outputs are written straight to the chip.
-static const sys_device_class_t s_pca9685_class = {
+static const uint8_t s_pin_refs[] = {offsetof(d_pca9685_cfg_t, oe_pin)};
+
+const sys_device_class_t g_pca9685_class = {
+    .type_id = PCA9685_TYPE_ID,
+    .cfg_size = sizeof(d_pca9685_cfg_t),
+    SYS_DEVICE_PINS(s_pin_refs),
     .name = "PCA9685_PWM_EXPANDER",
     .contracts = {[SYS_DEVICE_CONTRACT_IO] = &s_pca9685_io_contract},
     .ops = {.install = device_install,
@@ -197,9 +199,3 @@ static const sys_device_class_t s_pca9685_class = {
         .suspend = device_suspend,
         .resume = device_resume},
 };
-
-err_h d_pca9685_create(const d_pca9685_cfg_t* cfg) {
-  SE_CHECK_NOT_NULL(cfg);
-  SE_TRY(PIN_REFS_BELOW(cfg->device_id, pin_ref_from_wire(cfg->oe_pin)));
-  return SYS_DEVICE_CREATE(&s_pca9685_class, cfg);
-}

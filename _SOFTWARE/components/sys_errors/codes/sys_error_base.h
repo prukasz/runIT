@@ -118,3 +118,6 @@ typedef enum se_level_e {
     (void)(p);                                                                                \
     snprintf((out), (out_size), "error pool exhausted: this error's details were not stored"); \
   } while (0)
+
+/** @brief Tags whose payload names a device (`dev_id`): see SYS_ERROR_DEVICE_TAGS in sys_error_codes.h. */
+#define SYS_ERROR_BASE_DEVICE_TAGS(X) X(ERR_DEV_DEP_FAILED)
