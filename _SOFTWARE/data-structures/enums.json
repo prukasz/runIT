@@ -1490,7 +1490,7 @@
     },
     "vm_index_kind_e": {
       "alias": "VM Index Kind",
-      "source_file": "components/VM/core/obj/vm_obj_access.h",
+      "source_file": "components/VM/core/obj/vm_obj_access_core.h",
       "members": [
         {
           "name": "VM_IDX_LITERAL",

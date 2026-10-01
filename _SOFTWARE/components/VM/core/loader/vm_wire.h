@@ -29,7 +29,7 @@ _Static_assert(sizeof(vm_wire_reset_t) == 0, "0x40 has no body");
 
 //#vm-packet HEADER_packet_vm_open @title Open program @when any @description Replace the loaded program with an empty one of this size. Stops a running program first (its retained values are saved). Nothing else can be loaded before it.
 //@rule Open comes first: objects, values, accessors and blocks need an open program. @error ERR_VM_LOAD_BAD_STATE
-//@rule total_size must cover every allocation (see arena) and fit CONFIG_VM_STORE_MAX_POOL; a failed open leaves the running program untouched. @error ERR_VM_LOAD_TOO_BIG
+//@rule total_size must cover every allocation (see arena) and fit CONFIG_VM_STORE_MAX_POOL; a failed open discards the loaded program too (any load failure does: the VM is left empty and stopped, upload again from open). @error ERR_VM_LOAD_TOO_BIG
 typedef struct __packed {
   uint16_t obj_cnt;     //@alias Objects @description Object IDs 0 to obj_cnt - 1.
   uint16_t acc_cnt;     //@alias Accessors @description Accessor IDs 0 to acc_cnt - 1.
@@ -133,7 +133,7 @@ _Static_assert(sizeof(vm_wire_idx_name_t) == 2, "name step");
 //@rule Every object and accessor the block names exists before it; the ENO object is a mutable B object. @error ERR_VM_BLK_BAD_REF
 //@rule One writer per object: no output or ENO object is already an output or ENO of another block, or named twice by this one. @error ERR_VM_BLK_OUTPUT_TAKEN
 //@rule The block type exists in the palette. @error ERR_VM_BLK_UNKNOWN_TYPE
-//@rule Pin counts within limits, en_mode and on_error known values, and the block passes its type's check (pins, required inputs, state); a rejected block is removed again. @error ERR_VM_BLK_BAD_SHAPE
+//@rule Pin counts within limits, en_mode and on_error known values, and the block passes its type's check (pins, required inputs, state); a rejected block aborts the load. @error ERR_VM_BLK_BAD_SHAPE
 typedef struct __packed {
   uint16_t blk_id;      //@alias Block ID @reference block @description Blocks run in ID order: 0 first.
   uint16_t block_idx;   //@alias Block Label @description The app's own number for the block; errors name the block by it.
@@ -164,3 +164,10 @@ typedef struct __packed {
   uint8_t command; //@required @alias Command @enum-ref vm_exec_command_e
 } vm_wire_exec_t;
 _Static_assert(sizeof(vm_wire_exec_t) == 1, "0x48 body");
+
+//#vm-packet HEADER_packet_vm_speed @title Slow motion @when any @description Debugging aid: run the program this many times slower. The pause between passes grows by the factor and program time (TIMER, PERIODIC) runs that much slower, so the program behaves the same, just slowly. Takes effect at once, survives uploading another program, and is back to 1 at boot.
+//@rule The factor is within 1 to VM_CLOCK_SLOWDOWN_MAX. @error ERR_INVALID_VAL_UI32
+typedef struct __packed {
+  uint16_t factor;  //@required @alias Slowdown @min 1 @max VM_CLOCK_SLOWDOWN_MAX @default 1 @description 1 = normal speed, 10 = ten times slower.
+} vm_wire_speed_t;
+_Static_assert(sizeof(vm_wire_speed_t) == 2, "0x49 body");

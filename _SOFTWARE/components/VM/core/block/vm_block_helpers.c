@@ -1,5 +1,5 @@
 #include "vm_block_helpers.h"
-#include "vm_obj_access_internal.h"
+#include "vm_obj_access.h"
 
 #define OWNER OWNER_VM_BLOCK
 

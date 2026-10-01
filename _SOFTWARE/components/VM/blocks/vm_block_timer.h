@@ -250,8 +250,7 @@ static inline void vm_blk_timer(vm_block_h b) {
     vm_block_set_eno(b, false);
     return;
   }
-  uint64_t now = vm_now_ms();
-  if (unlikely(now == 0)) now = vm_clock_us() / 1000;
+  const uint64_t now = vm_now_ms();  // program time, latched at the top of the pass; never 0 inside a pass
   const bool q = vm_timer_step(&state, signal, pt, now);
   memcpy(vm_block_get_custom_data(b), &state, sizeof(state));
   vm_block_set_eno(b, q);

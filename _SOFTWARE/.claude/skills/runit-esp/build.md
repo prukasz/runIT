@@ -110,6 +110,7 @@ The old test suites were deleted on 2026-10-01 (they predated the device class s
 | Script | Covers |
 |---|---|
 | [runit_link.py](scripts/runit_link.py) | Library + CLI: packs commands from `contracts` / `settings` JSON, matches responses by `seq`, decodes errors (names from the `errors/*.h` maps) and telemetry. `python runit_link.py COM3 --call packet_sys_io_get_level_t device_id=0 pin=4` |
+| [vm_tests.py](scripts/vm_tests.py) | VM black-box suite (`python vm_tests.py COM4`, resets the board): fail-closed loader, incomplete-upload check, failed open frees the old pool, pause / resume without PERIODIC overrun, slow-motion `0x49`, quiet `suspend_all` / `resume_all`. Exit 1 on a failed check |
 | [serial_capture.py](scripts/serial_capture.py) | Boot log / serial capture, see §2a |
 | [usb_capture.py](scripts/usb_capture.py) | Boot log over the native USB: resets, reopens the re-enumerated port, reads N s |
 

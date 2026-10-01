@@ -1,4 +1,4 @@
-#include "vm_obj_access_internal.h"
+#include "vm_obj_access.h"
 
 #define OWNER OWNER_VM_ACCESSOR
 
@@ -60,7 +60,7 @@ err_h vm_obj_get_child(vm_obj_h* target, const vm_accessor_t* parent, const char
   SE_CHECK_NOT_NULL(name);
   vm_obj_h obj;
   SE_TRY(vm_obj_get_obj(&obj, parent));
-  if (obj->head.d.obj_t != VM_OBJ_PTR) return vm_err_expected_ptr(parent->id, parent->count, obj->head.d.obj_t, obj);
+  if (obj->head.d.obj_t != VM_OBJ_PTR) return vm_err_expected_ptr(parent->id, parent->count, obj->head.d.obj_t, vm_obj_get_id(obj));
   int32_t index = name_len <= VM_OBJ_NAME_MAX ? find_child_by_name(obj, name, (uint8_t)name_len) : -1;
   if (index < 0) {
     char   tag[VM_OBJ_NAME_MAX + 1];
@@ -80,7 +80,7 @@ err_h vm_obj_get_child(vm_obj_h* target, const vm_accessor_t* parent, const char
 
 err_h vm_obj_clear_quiet(vm_obj_h obj) {
   SE_TRY(vm_internal_obj_writable(obj, false));
-  if (!vm_type_is_scalar(obj->head.d.obj_t)) return vm_obj_not_scalar_err(obj, (vm_obj_t_e)obj->head.d.obj_t, VM_ID_NONE);
+  if (!vm_type_is_scalar(obj->head.d.obj_t)) return vm_obj_not_scalar_err(vm_obj_get_id(obj), (vm_obj_t_e)obj->head.d.obj_t, VM_ID_NONE);
   if (obj->head.payload_size) memset(obj->payload, 0, obj->head.payload_size);
   return NULL;
 }
@@ -126,10 +126,10 @@ err_h vm_obj_link(const vm_accessor_t* child, const vm_accessor_t* target) {
 err_h vm_obj_link_direct(vm_obj_h cell, uint16_t index, vm_obj_h child) {
   SE_CHECK_NOT_NULL(cell);
   SE_CHECK_NOT_NULL(child);
-  if (!cell->head.f.mutable) return vm_obj_not_mutable_err(cell);
+  if (!cell->head.f.mutable) return vm_obj_not_mutable_err(vm_obj_get_id(cell));
   vm_obj_payload_t slot = obj_elem(cell, index);
-  if (!slot.ptr) return vm_obj_oob_err(cell, index);
-  if (slot.type != VM_OBJ_PTR) return vm_obj_not_ptr_err(cell, slot.type);
+  if (!slot.ptr) return vm_obj_oob_err(vm_obj_get_id(cell), index);
+  if (slot.type != VM_OBJ_PTR) return vm_obj_not_ptr_err(vm_obj_get_id(cell), slot.type);
   return slot_store(cell, (vm_obj_h*)slot.ptr, child);
 }
 

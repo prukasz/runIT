@@ -426,7 +426,7 @@ Passing a wrong `payload_size` is therefore possible, and contained: `vm_obj_ele
 
 **0x45 — blocks, and why they are last.** A block names everything else: inputs and EN are accessor ids, outputs and ENO are object ids. Every one must already be bound, which is the same ordering rule a `VM_OBJ_PTR` parent has with its children, one level up. All of them are **resolved to pointers here, once** — the block stores no ids at all, so nothing downstream can hold one that stopped being valid, and no execution path ever pays a table lookup.
 
-The id is checked against the block table *before* anything is built, and every reference is resolved *before* anything is allocated. The check against the block's palette entry (`vm_block_verify()`: pin counts, required pins, `custom_data` size, then the type's own check of enum fields) needs the built block, so it runs after allocation — and a block it rejects is taken back out with `vm_store_undo()`: unbound, its arena space returned, its outputs' protection untouched. Either way a rejected block costs the arena nothing and never runs, so the retry still has the space it needs. `VM_BLOCK_NO_ID` (0xFFFF) now spells "absent" for **ENO only** — the block publishes nothing. An absent EN has no such spelling because it does not need one: it is simply `en_cnt == 0`, and a *listed* enable that fails to resolve is a malformed program, exactly like an unwired numbered pin.
+The id is checked against the block table *before* anything is built, and every reference is resolved *before* anything is allocated. The check against the block's palette entry (`vm_block_verify()`: pin counts, required pins, `custom_data` size, then the type's own check of enum fields) needs the built block, so it runs after allocation — and a block it rejects fails the load, which is aborted as a whole (see the loader's fail-closed rule): nothing is taken back out piecemeal, the program is discarded, and the outputs of a rejected block are never claimed. `VM_BLOCK_NO_ID` (0xFFFF) now spells "absent" for **ENO only** — the block publishes nothing. An absent EN has no such spelling because it does not need one: it is simply `en_cnt == 0`, and a *listed* enable that fails to resolve is a malformed program, exactly like an unwired numbered pin.
 
 Three shape limits, all enforced at load — `in_cnt`, `q_cnt` and `en_cnt` each ≤ 16 — for one reason: the decoder stages every id list on its stack while resolving, and a `uint8_t` count would make that a 510-byte buffer inside a BLE callback. Sixteen is well past any real block shape.
 
@@ -448,7 +448,7 @@ Three shape limits, all enforced at load — `in_cnt`, `q_cnt` and `en_cnt` each
 
 ### On failure
 
-Every stage returns an `err_h` chain up through the decoder to `sys_interface`. The loader stays `OPEN` with the arena partially consumed — nothing is rolled back, because nothing needs to be: an id that was never set still reads NULL, so a half-built program is never *incorrectly* resolvable, only incomplete. The next `0x40` or `0x41` clears it.
+Every stage returns an `err_h` chain up through the decoder to `sys_interface`. The load **fails closed**: the decoder hands every failure of `0x41`–`0x45` to `vm_loader_abort()`, which does what `0x40` does (execution stopped, registries, arena, heap objects and subscriptions cleared, loader `EMPTY`) and wraps the cause in `ERR_VM_LOAD_ABORTED { packet }`. Nothing is rolled back piecemeal and no half-built program survives; the app uploads the whole program again from `0x41`, and packets that follow the failed one get `ERR_VM_LOAD_BAD_STATE`. The first start (`0x48` scan / block / normal) calls `vm_loader_verify_complete()`: a slot that `0x41` declared and nobody uploaded aborts with `ERR_VM_LOAD_INCOMPLETE { kind, id }`. A packet only refused because the VM runs (`ERR_VM_LOAD_RUNNING`, or a runtime `0x43`) never touched the program and does not discard it; a failed `0x41` discards the previous program too.
 
 ### Program Ready State
 
@@ -652,7 +652,7 @@ map; adding a block type is its header plus one line here (recipe:
 `vm_block_create()`) checks a built block against its entry — pin counts,
 required pins, `custom_len` — then calls the type's `check` for what data can't
 say (an enum field in range, at least one of two pins wired). A rejected block
-is removed again (`vm_store_undo()`), so a malformed program never reaches the
+fails the load (the whole program is discarded), so a malformed program never reaches the
 scan and bodies never re-check their own shape on every pass.
 
 **The same entry feeds the app.** `generate-vm-blocks.py` reads each header's
@@ -1212,7 +1212,7 @@ Code size is bounded by the app partition: 2 MB (`partitions.csv`, 16 MB flash);
 * **Palette:** see "What ships today" — 15 block types, published for the app as one descriptor per block in `data-structures/vm/blocks/`.
 * **Retained values** are kept by name ("Retained values"); the program is kept as part of the board's stored code ([[SYS_PROJECT.MD]]).
 * **Hardware Drivers Boundary:** Blocks in `blocks/` interact with runtime registries and accessors; hardware drivers (`sys_io`, `sys_power`) are invoked via standard system interfaces.
-* **Timing & Clocks:** `vm_now_ms()` latches the pass timestamp per scan cycle, driving time-aware blocks such as `TIMER`.
+* **Timing & Clocks:** `vm_clock.h` is the program clock: `vm_now_ms()` latches the pass timestamp of *program time* per scan cycle, driving time-aware blocks such as `TIMER` and `PERIODIC`. Program time doesn't advance while the VM is stopped, paused or stepping, and runs `factor` times slower under the slow-motion factor (packet `0x49`, `vm_clock_set_slowdown()`); retention keeps the real clock. Pass and cycle statistics and the bring-up profile live in `vm_stats.h`.
 * **Non-scalar Movement:** `SET` (`vm_block_set.h`) performs deep copy (`vm_obj_copy_content()`) across matching schemas with pairwise pointer array traversal.
 * **Subscription & Telemetry:** `vm_sub.h`/`.c` sends changed values (quiet writes included) and describes heap objects ("Subscriptions and telemetry").
 * **Unwired Pins:** Unwired input pins map to NULL accessor slots (`VM_BLOCK_NO_ID` on wire), falling back to block constants stored in `custom_data`.
@@ -1225,7 +1225,7 @@ Code size is bounded by the app partition: 2 MB (`partitions.csv`, 16 MB flash);
 
 **Dynamic objects** — `vm_obj_dyn_create()`, `vm_obj_dyn_retain()`, `vm_obj_dyn_release()`, `vm_obj_dyn_reset()`, `vm_obj_dyn_get_id()`, `vm_obj_dyn_get_by_id()`, `vm_obj_is_dynamic()`. Reference counts move in exactly one place — a pointer slot, via `slot_store()` in `vm_obj_access_internal.c` — and `vm_obj_dyn_get_id()` tests the `dynamic` bit before scanning, so an arena object costs one bit rather than `VM_DYN_MAX` pointer compares.
 **Header helpers** — `vm_obj_get_total_size()`, `vm_obj_get_payload_size()`, `vm_obj_get_type_size()`, `vm_type_width()`, `vm_obj_get_items_cnt()`, `vm_obj_get_tag()`, `vm_obj_get_payload_ptr()`
-**Store** — `vm_store_open()`, `vm_store_alloc()`, `vm_store_undo()`, `vm_store_get()`, `vm_store_reset()`, `vm_store_used()`, `vm_store_capacity()`
+**Store** — `vm_store_open()`, `vm_store_alloc()`, `vm_store_get()`, `vm_store_reset()`, `vm_store_used()`, `vm_store_capacity()`
 **Access** — `vm_obj_get_by_id()`, `vm_accessor_get_by_id()`, `vm_obj_get_payload()`, `vm_obj_get_obj()`, `vm_internal_set_scalar_slot()`, `vm_internal_set_scalar_direct()`, `vm_obj_copy_content()`, `vm_obj_copy_direct()`, `vm_obj_shape_matches()`, `vm_obj_schema_matches()`, `vm_obj_clone_shape()`, `vm_obj_clone_into()`, `vm_obj_link()`, `vm_obj_link_direct()`, `vm_obj_clear_quiet()`, `vm_payload_get_at()`, `vm_make_payload()`
 **User mutation** (require `mutable` and reject `usr_protected`) — `VM_OBJ_SET_SCALAR_USR()`, `VM_OBJ_SET_SCALAR_AT_IDX_USR()`, `vm_block_obj_copy_content()`, `vm_block_obj_copy_direct()`, `vm_block_obj_clone_into()`, `vm_block_obj_link()`, `vm_block_obj_mark_updated()`
 **Macros** — `VM_OBJ_SCALAR_GET()`, `VM_OBJ_SET_SCALAR()`, `VM_OBJ_SET_SCALAR_AT_IDX()`, `VM_OBJ_SET_SCALAR_USR()`, `VM_OBJ_SET_SCALAR_AT_IDX_USR()`, `VM_OBJ_COPY_CONTENT()`, `VM_PAYLOAD_GET_VAL()`, `VM_INTERNAL_LOAD_SCALAR()`

@@ -1,7 +1,8 @@
 #pragma once
-#include "esp_timer.h"
 #include "sys_error.h"
 #include "vm_block.h"
+#include "vm_clock.h"  // vm_now_ms(), vm_clock_us(): what the timing blocks read
+#include "vm_stats.h"
 
 
 /* ========================================================================= */
@@ -68,22 +69,6 @@ typedef struct vm_exec_fault_status_t {
 
 /** @brief Validate block_type against the palette at load time. */
 SE_MUST_USE err_h vm_exec_check_block_type(uint16_t blk_id, uint8_t block_type);
-
-/* ========================================================================= */
-/* Clocks & Timestamps                                                       */
-/* ========================================================================= */
-
-extern uint64_t g_vm_pass_ms;  // Latched pass timestamp in ms
-
-/** @brief Microseconds since boot, read live from timer. */
-static inline uint64_t vm_clock_us(void) {
-  return (uint64_t)esp_timer_get_time();
-}
-
-/** @brief Pass timestamp in ms, latched at top of current pass. Used by timing blocks. */
-static inline uint64_t vm_now_ms(void) {
-  return g_vm_pass_ms;
-}
 
 /* ========================================================================= */
 /* Supervisor Task & Lifecycle                                               */
@@ -193,26 +178,4 @@ void vm_exec_register_action_request(vm_action_request_f request);
  */
 SE_MUST_USE err_h vm_exec_request_action(uint8_t scope, uint8_t id);
 
-/** @brief Completed passes count since last stats reset. */
-uint32_t vm_exec_pass_count(void);
-
-/** @brief Wall duration of the last pass in microseconds. */
-uint32_t vm_exec_last_pass_us(void);
-
-typedef struct vm_exec_perf_t {
-  uint32_t pass_count;
-  uint32_t last_pass_us;
-  uint32_t min_pass_us;
-  uint32_t max_pass_us;
-  uint64_t total_pass_us;
-  uint32_t last_cycle_us;
-  uint32_t min_cycle_us;
-  uint32_t max_cycle_us;
-  uint64_t total_cycle_us;
-} vm_exec_perf_t;
-
-/** @brief Retrieve comprehensive scan cycle performance metrics. */
-vm_exec_perf_t vm_exec_get_perf(void);
-
-/** @brief Reset pass metrics. */
-void vm_exec_reset_stats(void);
+/* Pass and cycle statistics (vm_exec_get_perf, ...) are in vm_stats.h. */

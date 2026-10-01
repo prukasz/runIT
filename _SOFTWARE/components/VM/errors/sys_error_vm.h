@@ -76,7 +76,9 @@
   X(ERR_VM_RETAIN_CORRUPT, 0xA938, SE_LEVEL_MEDIUM, struct { uint32_t offset; })                                       \
   X(ERR_VM_SUB_TRACK_FULL, 0xA939, SE_LEVEL_LOW, struct { uint16_t max; })                                           \
   X(ERR_VM_BLK_OUTPUT_TAKEN,0xA93A, SE_LEVEL_LOW, struct { uint16_t blk_id; uint16_t obj_id; uint8_t slot; uint8_t kind; }) \
-  X(ERR_VM_LOAD_EMPTY, 0xA93B, SE_LEVEL_LOW, struct { uint8_t unused; })
+  X(ERR_VM_LOAD_EMPTY, 0xA93B, SE_LEVEL_LOW, struct { uint8_t unused; })                                                                          \
+  X(ERR_VM_LOAD_ABORTED, 0xA93C, SE_LEVEL_MEDIUM, struct { uint8_t packet; })                                                                    \
+  X(ERR_VM_LOAD_INCOMPLETE, 0xA93D, SE_LEVEL_LOW, struct { uint8_t kind; uint16_t id; })
 
 /**
  * @brief Human-readable descriptions for the VM tags - see
@@ -142,7 +144,9 @@
   X(ERR_VM_RETAIN_CORRUPT)        \
   X(ERR_VM_SUB_TRACK_FULL)        \
   X(ERR_VM_BLK_OUTPUT_TAKEN)      \
-  X(ERR_VM_LOAD_EMPTY)
+  X(ERR_VM_LOAD_EMPTY)            \
+  X(ERR_VM_LOAD_ABORTED)          \
+  X(ERR_VM_LOAD_INCOMPLETE)
 
 #define VM_OBJ_ID_NONE     0xFFFFu  //@vm-constant @description No object (an unlinked PTR element on the wire).
 #define VM_OBJ_ID_DYN_BIT  0x8000u  //@vm-constant @description Set in the ID of a heap object (CLONE's copies); program object IDs stay below it.
@@ -435,6 +439,11 @@ static inline const char* vm_copy_shape_name(uint8_t r) {
   snprintf((out), (out_size), "subscriptions reach more than %u objects; the rest are not sent (subscribe to fewer)", (p)->max)
 /* kind as in ERR_VM_BLK_BAD_REF: 1 = output (slot = pin), 3 = ENO */
 #define LOG_BODY_ERR_VM_LOAD_EMPTY(p, out, out_size) snprintf((out), (out_size), "the program is empty (0 bytes): nothing to load")
+#define LOG_BODY_ERR_VM_LOAD_ABORTED(p, out, out_size) \
+  snprintf((out), (out_size), "upload failed at packet 0x%02X: the whole program was discarded, upload it again from open (0x41)", (p)->packet)
+/* kind is the registry: 0 objects, 1 accessors, 2 blocks (vm_reg_e) */
+#define LOG_BODY_ERR_VM_LOAD_INCOMPLETE(p, out, out_size) \
+  snprintf((out), (out_size), "program incomplete: %s %u was declared in open but never uploaded", (p)->kind == 0 ? "object" : (p)->kind == 1 ? "accessor" : "block", (p)->id)
 #define LOG_BODY_ERR_VM_BLK_OUTPUT_TAKEN(p, out, out_size) \
   ((p)->kind == 3 ? snprintf((out), (out_size), "block %u ENO: object %u already has a writer (an output or ENO of a block)", (p)->blk_id, (p)->obj_id) \
                   : snprintf((out), (out_size), "block %u output %u: object %u already has a writer (an output or ENO of a block)", (p)->blk_id, (p)->slot, (p)->obj_id))

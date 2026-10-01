@@ -43,6 +43,7 @@
 #define HEADER_packet_vm_add_block 0x45
 #define HEADER_packet_vm_subscribe 0x47
 #define HEADER_packet_vm_exec      0x48
+#define HEADER_packet_vm_speed     0x49
 
 /* The VM core (vm_sub.c) can't include this decoder, so it has its own Kconfig
    copies of the bytes it shares with it. They must stay equal: telemetry frames
@@ -66,6 +67,14 @@ static inline SE_MUST_USE err_h dec_vm_need(uint8_t pkt, size_t off, size_t len,
     SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = pkt, .need = (uint16_t)need, .got = (uint16_t)(len > off ? len - off : 0));
   }
   return NULL;
+}
+
+/* Fail closed: a failing load packet discards the whole program (vm_loader_abort), whatever the
+   failure (a truncated record, a bad id, no memory, a rejected block). `armed` is false for a
+   packet that only got rejected without touching the program (it arrived while the VM runs). */
+static inline SE_MUST_USE err_h dec_vm_load_result(err_h err, uint8_t pkt, bool armed) {
+  if (likely(!err) || !armed) return err;
+  return vm_loader_abort(err, pkt);
 }
 
 /* ========================================================================= */
@@ -95,12 +104,17 @@ static inline SE_MUST_USE err_h decoder_packet_vm_reset(void) {
  *   - Validates memory availability against DRAM limits before modifying active state.
  *   - Tears down prior program and re-arms registries and arena at declared capacity.
  *   - Transitions loader state to `VM_LOAD_OPEN`.
+ * - **Failure**: like every load packet (0x41 to 0x45, and the first start), a failure discards
+ *   the whole program (`vm_loader_abort`: execution stopped, `VM_LOAD_EMPTY`) and reports
+ *   `ERR_VM_LOAD_ABORTED` around the cause; the upload restarts from open.
  */
 static inline SE_MUST_USE err_h decoder_packet_vm_open(const uint8_t* body, size_t len) {
   vm_wire_open_t rec;
   SE_TRY(dec_vm_need(HEADER_packet_vm_open, 0, len, sizeof(rec)));
   memcpy(&rec, body, sizeof(rec));
-  SE_TRY(vm_loader_open(rec.obj_cnt, rec.acc_cnt, rec.blk_cnt, rec.total_size));
+  /* Returned as is: a failed open already comes back wrapped in ERR_VM_LOAD_ABORTED (the store is empty). */
+  err_h opened = vm_loader_open(rec.obj_cnt, rec.acc_cnt, rec.blk_cnt, rec.total_size);
+  if (opened) return opened;
   DBG(ESP_LOGI(DEC_VM_LOADER_TAG, "open: %u objects, %u accessors, %u blocks, %lu bytes", rec.obj_cnt, rec.acc_cnt, rec.blk_cnt, (unsigned long)rec.total_size););
   return NULL;
 }
@@ -317,7 +331,28 @@ static inline SE_MUST_USE err_h decoder_packet_vm_exec(const uint8_t* body, size
     SE_TRY(vm_retain_clear());
     return NULL;
   }
+  /* A program starts only when every slot open declared was uploaded; otherwise it is discarded. */
+  if (cmd == VM_EXEC_NORMAL_MODE || cmd == VM_EXEC_SCAN_MODE || cmd == VM_EXEC_BLOCK_MODE) {
+    err_h incomplete = vm_loader_verify_complete();
+    if (incomplete) return vm_loader_abort(incomplete, HEADER_packet_vm_exec);
+  }
   return vm_exec_control((vm_exec_command_e)cmd);
+}
+
+/**
+ * @brief Packet 0x49: Slow Motion (debugging aid)
+ *
+ * - **Wire Layout**: `vm_wire_speed_t` (2 bytes): `u16 factor`, 1 = normal, up to VM_CLOCK_SLOWDOWN_MAX.
+ * - **Action**: `vm_clock_set_slowdown()`: the pause between passes and program time both scale by the factor.
+ */
+static inline SE_MUST_USE err_h decoder_packet_vm_speed(const uint8_t* body, size_t len) {
+  vm_wire_speed_t rec;
+  if (len != sizeof(rec)) {
+    SE_FAIL(ERR_VM_LOAD_SHORT_RECORD, .packet = HEADER_packet_vm_speed, .need = sizeof(rec), .got = (uint16_t)len);
+  }
+  memcpy(&rec, body, sizeof(rec));
+  SE_TRY(vm_clock_set_slowdown(rec.factor));
+  return NULL;
 }
 
 /* ========================================================================= */
@@ -340,23 +375,30 @@ static inline SE_MUST_USE err_h dec_vm_loader_decode(const uint8_t* data, size_t
   const uint8_t* body = data + 1;
   size_t         body_len = len - 1;
 
+  /* While the VM runs, 0x42 / 0x44 / 0x45 are refused by the loader and 0x43 is a runtime write:
+     none of them touches the loaded program, so a failure there doesn't discard it. Open is
+     the one packet that replaces a running program, so it always counts. */
+  const bool loading = vm_exec_mode() == VM_RUN_STOPPED;
+
   switch (data[0]) {
     case HEADER_packet_vm_reset:
       return decoder_packet_vm_reset();
     case HEADER_packet_vm_open:
-      return decoder_packet_vm_open(body, body_len);
+      return dec_vm_load_result(decoder_packet_vm_open(body, body_len), HEADER_packet_vm_open, true);
     case HEADER_packet_vm_add_objs:
-      return decoder_packet_vm_add_objs(body, body_len);
+      return dec_vm_load_result(decoder_packet_vm_add_objs(body, body_len), HEADER_packet_vm_add_objs, loading);
     case HEADER_packet_vm_set_data:
-      return decoder_packet_vm_set_data(body, body_len);
+      return dec_vm_load_result(decoder_packet_vm_set_data(body, body_len), HEADER_packet_vm_set_data, loading);
     case HEADER_packet_vm_add_acc:
-      return decoder_packet_vm_add_acc(body, body_len);
+      return dec_vm_load_result(decoder_packet_vm_add_acc(body, body_len), HEADER_packet_vm_add_acc, loading);
     case HEADER_packet_vm_add_block:
-      return decoder_packet_vm_add_block(body, body_len);
+      return dec_vm_load_result(decoder_packet_vm_add_block(body, body_len), HEADER_packet_vm_add_block, loading);
     case HEADER_packet_vm_subscribe:
       return decoder_packet_vm_subscribe(body, body_len);
     case HEADER_packet_vm_exec:
       return decoder_packet_vm_exec(body, body_len);
+    case HEADER_packet_vm_speed:
+      return decoder_packet_vm_speed(body, body_len);
     default:
       ESP_LOGW(DEC_VM_LOADER_TAG, "unknown packet header 0x%02X", data[0]);
       SE_FAIL(ERR_INTERFACE_UNKNOWN_PACKET, .class_header = CONFIG_RX_PACKET_CLASS_VM_LOADER, .packet_header = data[0]);

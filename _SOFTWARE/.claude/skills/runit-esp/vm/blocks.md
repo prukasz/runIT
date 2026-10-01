@@ -31,7 +31,7 @@ Hardware blocks call `sys_io_*` with `SYS_IO_REF(device_id, pin)`. `allowed_mask
 1. **Header** `blocks/vm_block_<name>.h`, `#include "vm_block_helpers.h"` (plus the `sys_*` it drives). Top comment: ASCII pin diagram, one-paragraph behaviour, and the `custom_data` byte layout.
 2. **Private state**, if any: one struct, `__attribute__((aligned(4 or 8)))` (the block reads and writes it with `memcpy`, since `custom_data` is only 4-byte aligned), explicit `_pad`, `_Static_assert(sizeof(...) == N)` and `offsetof` asserts for fields the app writes; `#define VM_<NAME>_CUSTOM_LEN sizeof(...)`. Runtime-only bytes (flags, prev values, `rt`) are zero on the wire. A span owner puts `vm_span_t` first.
 3. **Pin constants**: `#define VM_<NAME>_IN_<ROLE> n`, outputs likewise.
-4. **Check** (optional) `static inline bool vm_verify_<name>(vm_block_h b)`: only what the table can't express — enum / range fields, at least one of two pins wired. Pin counts, required pins and state size are checked from the entry. Runs once at load; read the state with `memcpy`. No reporting: the builder returns `ERR_VM_BLK_BAD_SHAPE` and removes the block again (`vm_store_undo`), so a rejected block never runs.
+4. **Check** (optional) `static inline bool vm_verify_<name>(vm_block_h b)`: only what the table can't express — enum / range fields, at least one of two pins wired. Pin counts, required pins and state size are checked from the entry. Runs once at load; read the state with `memcpy`. No reporting: the builder returns `ERR_VM_BLK_BAD_SHAPE` and the load is aborted as a whole (the program is discarded), so a rejected block never runs.
 5. **Body** `static inline void vm_blk_<name>(vm_block_h b)`, template:
 
    ```c

@@ -8,7 +8,7 @@ idf_component_register(
          "core/store/vm_store.c"
          "core/obj/vm_obj_build.c" "core/obj/vm_obj_access.c" "core/obj/vm_obj_access_internal.c" "core/obj/vm_obj_dyn.c"
          "core/block/vm_block_build.c" "core/block/vm_block_run.c" "core/block/vm_block_helpers.c"
-         "core/exec/vm_event.c" "core/exec/vm_exec.c" "core/exec/vm_override.c"
+         "core/exec/vm_event.c" "core/exec/vm_exec.c" "core/exec/vm_clock.c" "core/exec/vm_stats.c" "core/exec/vm_override.c"
          "core/loader/vm_loader.c"
          "core/sub/vm_sub.c"
          "core/retain/vm_retain.c"

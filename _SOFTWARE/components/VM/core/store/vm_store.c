@@ -48,6 +48,12 @@ void vm_store_reset(void) {
 err_h vm_store_open(uint32_t total_size, const uint16_t counts[VM_REG_CNT]) {
   SE_CHECK_NOT_NULL(counts);
 
+  /* The previous program goes first, whatever happens next: a failed open no longer leaves it
+     behind (the load fails closed, see vm_loader_abort), so there is no reason to hold its pool
+     while the new one is allocated -- doing so needed old + new at once and capped the program
+     size at about half the free DRAM. */
+  vm_store_reset();
+
   if (total_size == 0) SE_FAIL(ERR_VM_LOAD_EMPTY, 0);
   if (total_size > CONFIG_VM_STORE_MAX_POOL) {
     SE_FAIL(ERR_VM_LOAD_TOO_BIG, .requested = total_size, .available = CONFIG_VM_STORE_MAX_POOL);
@@ -59,8 +65,6 @@ err_h vm_store_open(uint32_t total_size, const uint16_t counts[VM_REG_CNT]) {
     SE_FAIL(ERR_VM_LOAD_TOO_BIG, .requested = registry_bytes, .available = total_size);
   }
 
-  // Allocate before tearing down the old pool, so a failed load leaves the
-  // running program intact.
   uint8_t* pool = (uint8_t*)heap_caps_malloc(total_size, VM_STORE_HEAP_CAPS);
   if (!pool) {
     // Largest *contiguous* block, not free total -- a fragmented heap can
@@ -68,7 +72,6 @@ err_h vm_store_open(uint32_t total_size, const uint16_t counts[VM_REG_CNT]) {
     SE_FAIL(ERR_VM_LOAD_TOO_BIG, .requested = total_size, .available = (uint32_t)heap_caps_get_largest_free_block(VM_STORE_HEAP_CAPS));
   }
 
-  vm_store_reset();  // frees the previous pool, now that the new one is secured
   s_pool = pool;
   arena_init(&g_vm_store.arena, pool, total_size);
 
@@ -118,13 +121,6 @@ err_h vm_store_alloc(void** out, vm_reg_e r, uint16_t id, uint32_t size) {
   if (g) g->items[id] = p;
   *out = p;
   return NULL;
-}
-
-void vm_store_undo(vm_reg_e r, uint16_t id, uint32_t mark) {
-  if (id != VM_ID_NONE && (unsigned)r < VM_REG_CNT && id < g_vm_store.reg[r].count) {
-    g_vm_store.reg[r].items[id] = NULL;
-  }
-  if (mark <= g_vm_store.arena.offset) g_vm_store.arena.offset = mark;
 }
 
 uint32_t vm_store_used(void) {

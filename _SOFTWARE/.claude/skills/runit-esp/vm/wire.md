@@ -7,7 +7,7 @@ Decoder: `components/codecs/decoders/dec_vm_loader.h` (framing and bounds only; 
 | Packet | Payload | Effect |
 |---|---|---|
 | `0x40` reset | — | `vm_loader_reset()`: stop and wait for the pass, clear exec/subscriptions/dynamic objects/registries/arena; leaves execution stopped |
-| `0x41` open | `u16 obj_cnt, u16 acc_cnt, u16 blk_cnt, u32 total_size` | Allocate a new pool of exactly `total_size` (checked against `CONFIG_VM_STORE_MAX_POOL` and the largest free DRAM block) **before** tearing the old program down; build the three registries |
+| `0x41` open | `u16 obj_cnt, u16 acc_cnt, u16 blk_cnt, u32 total_size` | Tear the old program down (fail closed: it is gone even if this fails), then allocate a new pool of exactly `total_size` (checked against `CONFIG_VM_STORE_MAX_POOL` and the largest free DRAM block) and build the three registries |
 | `0x42` add objects | `u8 n`, n × `{u16 id, vm_obj_head_t (4 B, raw ESP32-GCC bitfield ABI), char name[head.d.name_size]}` | Create + bind; name unterminated, ≤ 15 B |
 | `0x43` set data | `u8 n`, n × `{u16 id, u16 start_idx, u16 byte_len, u8 data[byte_len]}` | Stopped: write payload (for `PTR`: `data` = `u16` child ids, linked). **Running: queued as a runtime override**, applied at the next pass boundary; `PTR` targets refused (`ERR_VM_OVERRIDE_PTR_UNSUPPORTED`) |
 | `0x44` add accessors | `u8 n`, n × `{u16 acc_id, u16 root_obj_id, u8 idx_count, u8 idx_len, u8 idx_data[idx_len]}`; index = `u8 kind` + `LITERAL u32` / `REF u16 acc_id` / `NAME u8 len, bytes` | Create + bind + pre-resolve (cache) |
@@ -17,7 +17,7 @@ Decoder: `components/codecs/decoders/dec_vm_loader.h` (framing and bounds only; 
 
 **Upload order** (client-side, one-way):
 `0x40` → `0x41` → objects (`0x42`) → data and `PTR` links (`0x43`, children before parents) → accessors (`0x44`, `REF` targets first, roots existing) → blocks (`0x45`, one per frame, **in execution order**) → `0x48 05` (normal mode).
-`0x42`/`0x43`/`0x44` are batched and repeatable; batch size is bounded by the link (frame limit = BLE MTU − 3, see SYS_DATA_CONNECTOR.MD). Nothing rolls back on failure: the next `0x40`/`0x41` clears a half-built program.
+`0x42`/`0x43`/`0x44` are batched and repeatable; batch size is bounded by the link (frame limit = BLE MTU − 3, see SYS_DATA_CONNECTOR.MD). **Fail closed:** any failure of `0x41`–`0x45` (including a truncated record or a rejected block) discards the whole program: execution stopped, loader `EMPTY`, error `ERR_VM_LOAD_ABORTED { packet }` around the cause. The upload then restarts at `0x41`; packets that follow the failed one get `ERR_VM_LOAD_BAD_STATE` (loader empty). The first start (`0x48` 00 / 02 / 05) checks that every slot `0x41` declared (objects, accessors, blocks) was uploaded, else the same abort with `ERR_VM_LOAD_INCOMPLETE { kind, id }`. A packet that is only refused because the VM is running (`0x42`/`0x44`/`0x45`, or a runtime `0x43`) doesn't touch the program and doesn't discard it. A failed `0x41` discards the previous program too.
 
 Pin and list limits: `in_cnt`, `q_cnt`, `en_cnt` ≤ 16 (`CONFIG_VM_BLOCK_MAX_*`). Pool ceiling 128 kB (`CONFIG_VM_STORE_MAX_POOL`). Memory estimate for a program: VM.MD "Program RAM Budget".
 

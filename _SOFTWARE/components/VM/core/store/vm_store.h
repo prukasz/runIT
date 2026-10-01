@@ -44,7 +44,10 @@ static inline void* vm_store_get(vm_reg_e r, uint16_t id) {
 void vm_store_reset(void);
 
 /**
- * @brief Allocate arena pool and initialize object/accessor/block registries.
+ * @brief Discard the loaded program, then allocate a new arena pool and initialize the registries.
+ *
+ * The previous program is released first (vm_store_reset), so a failure -- bad sizes or no
+ * memory -- leaves the store empty. The caller (the loader) treats that as a failed load.
  * @param total_size Total arena bytes requested.
  * @param counts Item counts for each vm_reg_e registry.
  */
@@ -58,25 +61,6 @@ SE_MUST_USE err_h vm_store_open(uint32_t total_size, const uint16_t counts[VM_RE
  * @param size Allocation size in bytes.
  */
 SE_MUST_USE err_h vm_store_alloc(void** out, vm_reg_e r, uint16_t id, uint32_t size);
-
-/**
- * @brief Undo the most recent vm_store_alloc(): unbind @p id and rewind the arena.
- *
- * For a construction that allocates, then finds the result invalid, so a
- * rejected item costs neither its id nor arena space. Only valid while nothing
- * else was allocated since @p mark was taken.
- *
- * @code
- * uint32_t mark = vm_store_used();
- * SE_TRY(vm_store_alloc(&p, VM_REG_BLK, id, size));
- * if (!valid(p)) { vm_store_undo(VM_REG_BLK, id, mark); SE_FAIL(...); }
- * @endcode
- *
- * @param r Registry the id was bound in (ignored for VM_ID_NONE).
- * @param id Id passed to vm_store_alloc(), or VM_ID_NONE.
- * @param mark vm_store_used() taken just before that allocation.
- */
-void vm_store_undo(vm_reg_e r, uint16_t id, uint32_t mark);
 
 /** @brief Current bytes allocated from the arena. */
 uint32_t vm_store_used(void);

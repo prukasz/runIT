@@ -20,6 +20,8 @@
  *    dropped, not burst. Dropping is reported once per overrun episode
  *    (ERR_VM_PERIODIC_OVERRUN) and re-armed by the next on-time tick. The pass
  *    (10 ms floor) is the resolution: a shorter PERIOD overruns every pass.
+ *  - Time is program time (vm_now_ms): a pause, a stop or stepping doesn't count, so
+ *    resuming never reports the ticks that "passed" meanwhile as dropped.
  *  - PERIOD comes from the pin, or from custom_data when the pin is unwired, in
  *    `time_base` units. A PERIOD of 0 from the pin pauses ticking.
  *
@@ -102,8 +104,7 @@ static inline void vm_blk_periodic(vm_block_h b) {
     return;
   }
 
-  uint64_t now = vm_now_ms();
-  if (unlikely(now == 0)) now = vm_clock_us() / 1000;
+  const uint64_t now = vm_now_ms();  // program time, latched at the top of the pass; never 0 inside a pass
   uint32_t missed = 0;
   const bool tick = vm_periodic_step(&state, period_ms, now, &missed);
 

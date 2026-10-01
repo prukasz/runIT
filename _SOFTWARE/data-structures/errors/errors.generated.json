@@ -2,7 +2,7 @@
   "$schema": "data-structures/schema/errors.schema.json",
   "schemaVersion": 1,
   "kind": "errors",
-  "schema_id": 2647005231,
+  "schema_id": 2456398510,
   "packet": {
     "stream": "0x04",
     "byte_order": "little",
@@ -4622,6 +4622,53 @@
         "format": "the program is empty (0 bytes): nothing to load",
         "args": []
       }
+    },
+    {
+      "name": "ERR_VM_LOAD_ABORTED",
+      "id": 43324,
+      "level": 2,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "packet",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "upload failed at packet 0x%02X: the whole program was discarded, upload it again from open (0x41)",
+        "args": [
+          {
+            "field": "packet"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ERR_VM_LOAD_INCOMPLETE",
+      "id": 43325,
+      "level": 1,
+      "source_file": "components/VM/errors/sys_error_vm.h",
+      "payload": {
+        "size": 4,
+        "fields": [
+          {
+            "name": "kind",
+            "type": "uint8_t",
+            "offset": 0
+          },
+          {
+            "name": "id",
+            "type": "uint16_t",
+            "offset": 2
+          }
+        ]
+      },
+      "message": null,
+      "message_unavailable": "conditional formatting"
     },
     {
       "name": "ERR_EVENT_LOOP",

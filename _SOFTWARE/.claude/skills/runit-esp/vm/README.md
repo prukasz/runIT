@@ -57,7 +57,7 @@ components/VM/
   core/store/        arena + three registries (vm_store_*)
   core/obj/          objects, accessors, dynamic objects, copy/clone/link
   core/block/        block layout and API (vm_block.h), build + verify (vm_block_build.c), helpers
-  core/exec/         supervisor (vm_exec.c), events, runtime overrides
+  core/exec/         supervisor (vm_exec.c), program clock (vm_clock.c: pause / slow-motion aware time), pass statistics + bring-up profile (vm_stats.c), events, runtime overrides
   core/loader/       load state machine + wire-facing validation
   core/sub/          telemetry subscriptions (vm_sub.c)
   core/retain/       retained values (vm_retain.c, retain task, sys_settings record vm_retain)
