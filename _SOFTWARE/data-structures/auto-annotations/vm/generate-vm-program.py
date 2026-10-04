@@ -60,7 +60,7 @@ C_SIZES = {"uint8_t": 1, "int8_t": 1, "char": 1, "bool": 1, "uint16_t": 2, "int1
 REFERENCES = {"object", "accessor", "block", "block-type"}
 
 STRUCT_RE = re.compile(r"typedef\s+struct\s+__packed\s*\{(?P<body>.*?)\}\s*(?P<name>\w+)\s*;", re.DOTALL)
-ASSERT_RE = re.compile(r"_Static_assert\s*\(\s*sizeof\s*\(\s*(?:struct\s+)?(?P<name>[\w*\s]+?)\s*\)\s*==\s*(?P<expr>[^,]+),")
+ASSERT_RE = re.compile(r"_Static_assert\s*\(\s*sizeof\s*\(\s*(?:struct\s+)?(?P<name>[\w*\s]+?)\s*\)\s*==\s*(?P<expr>[^,&]+?)\s*(?:&&[^,]*)?,")
 DIRECTIVE_RE = re.compile(r"^\s*//(?P<kind>#vm-packet|#vm-wire-struct|@tail|@rule)\b(?P<rest>.*)$")
 UNION_RE = re.compile(r"^//#vm-wire-union\s+(?P<name>\w+)(?P<tags>[^\n]*)\n(?P<cases>(?://@case[^\n]*\n)+)", re.MULTILINE)
 CASE_RE = re.compile(r"//@case\s+\$(?P<symbol>\w+)\s+(?P<struct>\w+)")

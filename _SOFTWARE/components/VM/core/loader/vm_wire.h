@@ -68,7 +68,7 @@ _Static_assert(sizeof(vm_wire_obj_t) == 2 + VM_OBJ_HEAD_WIRE_SIZE, "0x42 record 
 //@rule Whole elements inside the object: byte_len is a multiple of the wire width and start_idx + elements <= the object's element count. @error ERR_VM_LOAD_DATA_RANGE
 //@rule While running, PTR objects can't be written (links change only while stopped). @error ERR_VM_OVERRIDE_PTR_UNSUPPORTED
 //@rule While running, only mutable objects can be written. @error ERR_VM_OBJ_NOT_MUTABLE
-//@rule While running, block outputs (user-protected) can't be written. @error ERR_VM_OBJ_USR_PROTECTED
+//@rule While running, user-protected objects (block-owned outputs and ENO) can't be written by SET, CLONE or an override. @error ERR_VM_OBJ_USR_PROTECTED
 typedef struct __packed {
   uint16_t id;         //@alias Object ID @reference object
   uint16_t start_idx;  //@alias First Element @description Index of the first element written: elements, not bytes.
@@ -127,11 +127,11 @@ _Static_assert(sizeof(vm_wire_idx_name_t) == 2, "name step");
 
 //#vm-packet HEADER_packet_vm_add_block @title Add block @when stopped @description One block per packet. Blocks run in block ID order, and a block's inputs must exist before it is added.
 //@tail in_acc_ids uint16_t[in_cnt] @alias Inputs @reference accessor @none VM_BLOCK_NO_ID @description One accessor per input pin; VM_BLOCK_NO_ID leaves the pin unwired (the block uses its state constant).
-//@tail out_obj_ids uint16_t[q_cnt] @alias Outputs @reference object @description One object per output pin, each with no other writer. The device marks them user-protected: runtime writes to them are refused.
+//@tail out_obj_ids uint16_t[q_cnt] @alias Outputs @reference object @description One object per output pin; several blocks may write the same object (the last in execution order wins). An output that is a block-owned object is user-protected (uploaded flag); a user variable stays writable. The ENO object is always user-protected.
 //@tail en_acc_ids uint16_t[en_cnt] @alias Enables @reference accessor @description Every one must exist; combined by en_mode.
 //@tail custom_data uint8_t[custom_len] @alias State @description Initial private state; its layout per block type is in data-structures/vm/blocks/.
 //@rule Every object and accessor the block names exists before it; the ENO object is a mutable B object. @error ERR_VM_BLK_BAD_REF
-//@rule One writer per object: no output or ENO object is already an output or ENO of another block, or named twice by this one. @error ERR_VM_BLK_OUTPUT_TAKEN
+//@rule An object is named once among the outputs and ENO of one block (other blocks may write it too). @error ERR_VM_BLK_OUTPUT_TAKEN
 //@rule The block type exists in the palette. @error ERR_VM_BLK_UNKNOWN_TYPE
 //@rule Pin counts within limits, en_mode and on_error known values, and the block passes its type's check (pins, required inputs, state); a rejected block aborts the load. @error ERR_VM_BLK_BAD_SHAPE
 typedef struct __packed {

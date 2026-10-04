@@ -37,7 +37,7 @@ Technical rules governing object lifetime, graph ownership, schema matching, and
 
 - **Mutability**: Internal scalar, copy, and link APIs require `mutable` on target objects.
 - **User Protection**: The `_usr` APIs reject targets with `usr_protected` set (enforced by `SET` and `CLONE` blocks).
-- **Output Protection**: Block construction automatically sets `usr_protected` on all output pins and ENO.
+- **Output Protection**: block-owned objects (outputs, ENO) carry `usr_protected` from the object upload, never a user variable a block drives; block construction always sets it on ENO. `upd` and `dynamic` are never taken from the wire.
 - **Two-Phase Copy**: Preflights destination types, counts, and write permissions before writing; validation failure leaves destination untouched.
 - **Atomic Clone**: Follows **Build → Fill → Validate Link → Publish → Release**; errors discard the replacement without altering the prior destination.
 

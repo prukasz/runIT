@@ -19,7 +19,18 @@ import { DebugPanel } from './debug/DebugPanel'
 import { DebugSettings } from './debug/DebugSettings'
 import { ProjectFilePage, ProjectFilePalette } from './ProjectFile'
 import { BoardCanvas } from './devices/BoardCanvas'
-import { DeviceDetails, DevicesEditor, DevicesPalette, useDevicesWorkspace } from './devices'
+import { BoardEditorDetails } from './devices/BoardEditorDetails'
+import { BoardEditorStage } from './devices/BoardEditorStage'
+import { BoardEditorToolbar } from './devices/BoardEditorToolbar'
+import { BoardPalette } from './devices/BoardPalette'
+import { BoardToolbar } from './devices/BoardToolbar'
+import { useBoardEditor } from './devices/useBoardEditor'
+import { useBoardWiring } from './devices/useBoardWiring'
+import { ComponentStage } from './devices/ComponentEditor'
+import { ComponentPins } from './devices/ComponentPins'
+import { ComponentToolbar } from './devices/ComponentToolbar'
+import { useComponentEditor } from './devices/useComponentEditor'
+import { BoardDeviceDetails, DeviceDetails, DevicesEditor, DevicesPalette, useDevicesWorkspace } from './devices'
 import { BlockManager, BlockUses } from './canvas/blocks/BlockManager'
 import { BlockDetails, blockDiagnostics, BlockPalette, CanvasEditor, recoveredCanvases, useCanvasWorkspace } from './canvas'
 import { OBJECT_DRAG_TYPE, objectKindDragType } from './domain/canvas'
@@ -72,7 +83,7 @@ export default function App() {
   // The Code view's palette and main view (canvas or the variables manager) are remembered.
   const [codePalette, setCodePalette] = usePersistedChoice<CodePalette>('runit.code.palette', ['Variables', 'Blocks'], 'Variables')
   const [codeMode, setCodeMode] = usePersistedChoice<CodeMode>('runit.code.mode', ['manage', 'canvas'], 'manage')
-  const [boardMode, setBoardMode] = usePersistedChoice<'manage' | 'canvas'>('runit.board.mode', ['manage', 'canvas'], 'manage')
+  const [boardMode, setBoardMode] = usePersistedChoice<'manage' | 'canvas' | 'component' | 'boardEditor'>('runit.board.mode', ['manage', 'canvas', 'component', 'boardEditor'], 'manage')
   const [showCanvasGrid, setShowCanvasGrid] = useState(true)
   // View / Manage with the Blocks palette: the block type whose description the main screen shows.
   const [manageBlockKey, setManageBlockKey] = usePersistedChoice<string>('runit.code.manageBlock', runitVmCatalog().blocks.map((type) => type.key), runitVmCatalog().blocks[0]?.key ?? '')
@@ -101,6 +112,16 @@ export default function App() {
   const connectorsWorkspace = useDataConnectorsWorkspace(() => { setRightOpen(true); setDetail('Info') })
   const logWorkspace = useLogSettingsWorkspace()
   const devicesWorkspace = useDevicesWorkspace(() => { setRightOpen(true); setDetail('Info') })
+  const boardWiring = useBoardWiring()
+  const componentEditor = useComponentEditor(devicesWorkspace.catalog, view === 'Board' && boardMode === 'component')
+  const boardEditor = useBoardEditor(devicesWorkspace, view === 'Board' && boardMode === 'boardEditor')
+  // The anchor editor's pins and the board creator's properties live in the right panel: open it whenever one is shown.
+  useEffect(() => {
+    if (view === 'Board' && (boardMode === 'component' || boardMode === 'boardEditor')) {
+      setRightOpen(true)
+      setDetail('Info')
+    }
+  }, [view, boardMode])
   const canvasWorkspace = useCanvasWorkspace(() => { setRightOpen(true); setDetail('Info') })
   const compiledReferences = useMemo(() => terminalOpen ? compileProgram(objectWorkspace.project, runitVmCatalog(), { maxFrameBytes: 240, sections: objectWorkspace.sections, blocks: programBlocks(canvasWorkspace.canvases) }) : undefined, [terminalOpen, objectWorkspace.project, objectWorkspace.sections, canvasWorkspace.canvases])
   // User services must be named when the board is picked, or Web Bluetooth hides them.
@@ -143,10 +164,10 @@ export default function App() {
   const applyProject = (project: ProjectDocument) => {
     objectWorkspace.load(project)
     loadSettings(refreshSettings(project.settings))
-    devicesWorkspace.load({ devices: project.devices ?? [], deviceAliases: project.deviceAliases, pinAliases: project.pinAliases, actions: project.actions ?? [], setup: project.setup ?? [] })
+    devicesWorkspace.load({ devices: project.devices ?? [], deviceAliases: project.deviceAliases, pinAliases: project.pinAliases, boardLayout: project.boardLayout, wires: project.wires, board: project.board, actions: project.actions ?? [], setup: project.setup ?? [] })
     canvasWorkspace.load(project.canvases ?? [])
   }
-  const currentProject = (): ProjectDocument => ({ ...objectWorkspace.project, settings: projectSettings, devices: devicesWorkspace.devices, deviceAliases: devicesWorkspace.deviceAliases, pinAliases: devicesWorkspace.pinAliases, actions: devicesWorkspace.actions, setup: devicesWorkspace.setup, canvases: canvasWorkspace.canvases })
+  const currentProject = (): ProjectDocument => ({ ...objectWorkspace.project, settings: projectSettings, devices: devicesWorkspace.devices, deviceAliases: devicesWorkspace.deviceAliases, pinAliases: devicesWorkspace.pinAliases, boardLayout: devicesWorkspace.boardLayout, wires: devicesWorkspace.wires, board: devicesWorkspace.board, actions: devicesWorkspace.actions, setup: devicesWorkspace.setup, canvases: canvasWorkspace.canvases })
   // Replacing the project never asks: what was there is kept in the browser and comes back with Restore previous.
   const [hasPrevious, setHasPrevious] = useState(() => { try { return !!localStorage.getItem(PREVIOUS_KEY) } catch { return false } })
   const keepPrevious = () => {
@@ -204,7 +225,7 @@ export default function App() {
     keepPrevious()
     objectWorkspace.load({ ...recovered.project, autostart, extraFrames: recovered.extraFrames }, recovered.sections)
     loadSettings(settingsFromState(recovered.settings, projectSettings))
-    devicesWorkspace.load({ devices: recovered.devices, deviceAliases: devicesWorkspace.deviceAliases, pinAliases: devicesWorkspace.pinAliases, actions: devicesWorkspace.actions, setup: recovered.setup })
+    devicesWorkspace.load({ devices: recovered.devices, deviceAliases: devicesWorkspace.deviceAliases, pinAliases: devicesWorkspace.pinAliases, boardLayout: devicesWorkspace.boardLayout, wires: devicesWorkspace.wires, board: devicesWorkspace.board, actions: devicesWorkspace.actions, setup: recovered.setup })
     // The recovered program is the code now: its blocks on a canvas of their own.
     canvasWorkspace.load(recoveredCanvases(recovered.blocks))
   }
@@ -531,7 +552,8 @@ export default function App() {
               }}><ArrowLeftRight aria-hidden="true" /><span>Switch to {codeMode === 'manage' ? 'Canvas' : 'View / Manage'}</span></button>
             </div>
           </div>}
-          {view === 'Board' && <DevicesPalette workspace={devicesWorkspace} boardMode={boardMode} onToggleMode={() => setBoardMode(boardMode === 'manage' ? 'canvas' : 'manage')} />}
+          {view === 'Board' && boardMode !== 'boardEditor' && <DevicesPalette workspace={devicesWorkspace} boardMode={boardMode} onToggleMode={() => setBoardMode(boardMode === 'manage' ? 'canvas' : 'manage')} onEditComponent={() => { setBoardMode('component'); setRightOpen(true); setDetail('Info') }} onEditBoard={() => { setBoardMode('boardEditor'); setRightOpen(true); setDetail('Info') }} />}
+          {view === 'Board' && boardMode === 'boardEditor' && <BoardPalette editor={boardEditor} onClose={() => setBoardMode('canvas')} />}
           {view === 'Remote' && <div className="remote-palette" aria-label="Gamepad controls palette">
             <div className="remote-palette-title">Controls</div>
             <div className="remote-palette-body" />
@@ -566,6 +588,9 @@ export default function App() {
             <button aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!activeCanUndo} onClick={activeUndo}><Undo2 aria-hidden="true" /></button>
             <button aria-label="Redo" title="Redo (Ctrl+Y)" disabled={!activeCanRedo} onClick={activeRedo}><Redo2 aria-hidden="true" /></button>
           </div>
+          {view === 'Board' && boardMode === 'canvas' && <BoardToolbar workspace={devicesWorkspace} wiring={boardWiring} />}
+          {view === 'Board' && boardMode === 'component' && <ComponentToolbar editor={componentEditor} />}
+          {view === 'Board' && boardMode === 'boardEditor' && <BoardEditorToolbar editor={boardEditor} hasCustomBoard={!!devicesWorkspace.board} />}
           {view === 'Settings' && (settingsGroup === 'BLE' || settingsGroup === 'General' || settingsGroup === 'Connectors') && (
             <>
               <button
@@ -650,7 +675,9 @@ export default function App() {
           {view === 'Code' && codePalette === 'Variables' && codeMode === 'manage' && <ObjectTreeEditor workspace={objectWorkspace} />}
           {view === 'Code' && codePalette === 'Blocks' && codeMode === 'manage' && <BlockManager typeKey={manageBlockKey} />}
           {view === 'Home' && <ProjectFilePage workspace={objectWorkspace} settings={projectSettings} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} setup={devicesWorkspace.setup} canvases={canvasWorkspace.canvases} onRecover={recoverProject} />}
-          {view === 'Board' && boardMode === 'canvas' && <BoardCanvas />}
+          {view === 'Board' && boardMode === 'canvas' && <BoardCanvas workspace={devicesWorkspace} wiring={boardWiring} />}
+          {view === 'Board' && boardMode === 'component' && <ComponentStage editor={componentEditor} />}
+          {view === 'Board' && boardMode === 'boardEditor' && <BoardEditorStage editor={boardEditor} catalog={devicesWorkspace.catalog} />}
           {view === 'Board' && boardMode === 'manage' && <DevicesEditor workspace={devicesWorkspace} session={bleConnection.session} canvases={canvasWorkspace.canvases} onOpenBlock={openBlockAt} pinDestination={pinDestination} onPinDestinationHandled={() => setPinDestination(undefined)} />}
           {view === 'Settings' && settingsGroup === 'BLE' && <BleSettingsEditor workspace={bleWorkspace} />}
           {view === 'Settings' && settingsGroup === 'all' && (
@@ -765,6 +792,9 @@ export default function App() {
         </div>
         {rightOpen && (
           <div className="detail-content" aria-label={`${detail} content panel`}>
+            {view === 'Board' && boardMode === 'canvas' && detail === 'Info' && <BoardDeviceDetails workspace={devicesWorkspace} wiring={boardWiring} />}
+            {view === 'Board' && boardMode === 'component' && detail === 'Info' && <ComponentPins editor={componentEditor} />}
+            {view === 'Board' && boardMode === 'boardEditor' && detail === 'Info' && <BoardEditorDetails editor={boardEditor} />}
             {view === 'Board' && boardMode === 'manage' && detail === 'Info' && <DeviceDetails workspace={devicesWorkspace} session={bleConnection.session} canvases={canvasWorkspace.canvases} onOpenBlock={openBlockAt} />}
               {isCanvas && detail === 'Info' && (
               <BlockDetails

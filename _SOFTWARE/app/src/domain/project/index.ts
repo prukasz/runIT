@@ -1,9 +1,12 @@
 export { boardDeviceRef, createProject, DEFAULT_BLE_GENERAL, PROJECT_FORMAT, PROJECT_FORMAT_VERSION, userSection } from './document'
 export type {
   ActionStep,
+  BoardLayout,
+  BoardPlacement,
   DeviceAppearance,
   DeviceRef,
   PinAliases,
+  PinLimit,
   ProjectAction,
   ProjectCanvas,
   CanvasVariable,
@@ -35,4 +38,4 @@ export type {
 } from './document'
 export { addObject, findObject, moveObject, newObjectId, ObjectTreeError, removeObject, setFolderChildren, updateObject, walkObjects } from './objectTree'
 export type { FolderPatch, FoundObject, ReferencePatch, ValuePatch } from './objectTree'
-export { parseActions, parseCanvases, parseDeviceAliases, parsePinAliases, parseDevices, parseProject, parseSetup, parseSettings, ProjectFormatError, serializeProject } from './projectFile'
+export { parseActions, parseBoardLayout, parseCanvases, parseDeviceAliases, parsePinAliases, parseDevices, parseProject, parseSetup, parseSettings, parseBoardTemplate, parseWires, ProjectFormatError, serializeBoardTemplate, serializeProject } from './projectFile'

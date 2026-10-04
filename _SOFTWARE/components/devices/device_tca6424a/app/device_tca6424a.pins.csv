@@ -1,0 +1,33 @@
+pin,name,kind,dir,modes,default_mode,group,mV_min,mV_max,bind_pin,cfg_field,note
+1,P00,io,inout,BINARY,BINARY,port0,,,0,,"Port 0 bit 0: push-pull I/O, input at power on"
+2,P01,io,inout,BINARY,BINARY,port0,,,1,,"Port 0 bit 1: push-pull I/O, input at power on"
+3,P02,io,inout,BINARY,BINARY,port0,,,2,,"Port 0 bit 2: push-pull I/O, input at power on"
+4,P03,io,inout,BINARY,BINARY,port0,,,3,,"Port 0 bit 3: push-pull I/O, input at power on"
+5,P04,io,inout,BINARY,BINARY,port0,,,4,,"Port 0 bit 4: push-pull I/O, input at power on"
+6,P05,io,inout,BINARY,BINARY,port0,,,5,,"Port 0 bit 5: push-pull I/O, input at power on"
+7,P06,io,inout,BINARY,BINARY,port0,,,6,,"Port 0 bit 6: push-pull I/O, input at power on"
+8,P07,io,inout,BINARY,BINARY,port0,,,7,,"Port 0 bit 7: push-pull I/O, input at power on"
+9,P10,io,inout,BINARY,BINARY,port1,,,8,,"Port 1 bit 0: push-pull I/O, input at power on"
+10,P11,io,inout,BINARY,BINARY,port1,,,9,,"Port 1 bit 1: push-pull I/O, input at power on"
+11,P12,io,inout,BINARY,BINARY,port1,,,10,,"Port 1 bit 2: push-pull I/O, input at power on"
+12,P13,io,inout,BINARY,BINARY,port1,,,11,,"Port 1 bit 3: push-pull I/O, input at power on"
+13,P14,io,inout,BINARY,BINARY,port1,,,12,,"Port 1 bit 4: push-pull I/O, input at power on"
+14,P15,io,inout,BINARY,BINARY,port1,,,13,,"Port 1 bit 5: push-pull I/O, input at power on"
+15,P16,io,inout,BINARY,BINARY,port1,,,14,,"Port 1 bit 6: push-pull I/O, input at power on"
+16,P17,io,inout,BINARY,BINARY,port1,,,15,,"Port 1 bit 7: push-pull I/O, input at power on"
+17,P20,io,inout,BINARY,BINARY,port2,,,16,,"Port 2 bit 0: push-pull I/O, input at power on"
+18,P21,io,inout,BINARY,BINARY,port2,,,17,,"Port 2 bit 1: push-pull I/O, input at power on"
+19,P22,io,inout,BINARY,BINARY,port2,,,18,,"Port 2 bit 2: push-pull I/O, input at power on"
+20,P23,io,inout,BINARY,BINARY,port2,,,19,,"Port 2 bit 3: push-pull I/O, input at power on"
+21,P24,io,inout,BINARY,BINARY,port2,,,20,,"Port 2 bit 4: push-pull I/O, input at power on"
+22,P25,io,inout,BINARY,BINARY,port2,,,21,,"Port 2 bit 5: push-pull I/O, input at power on"
+23,P26,io,inout,BINARY,BINARY,port2,,,22,,"Port 2 bit 6: push-pull I/O, input at power on"
+24,P27,io,inout,BINARY,BINARY,port2,,,23,,"Port 2 bit 7: push-pull I/O, input at power on"
+25,GND,gnd,in,,,power,,,,,Ground
+26,ADDR,io,in,BINARY,BINARY,address,,,,,I2C address: connect directly to VCCP or ground
+27,VCCP,supply_in,in,,,power,1650,5500,,,Supply of the P port (sets its logic level)
+28,RESET,io,in,BINARY,BINARY,control,,,,rst_pin,Active-low reset: pull up to VCCI when unused
+29,SCL,bus,in,,,i2c,,,,,I2C serial clock: pull up to VCCI
+30,SDA,bus,inout,,,i2c,,,,,I2C serial data: pull up to VCCI
+31,VCCI,supply_in,in,,,power,1650,5500,,,Supply of the I2C bus (level translation)
+32,INT,io,out,BINARY,BINARY,alert,,,,intr_pin,Interrupt output: pull up to VCCI

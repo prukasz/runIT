@@ -148,6 +148,14 @@
       "category": "system",
       "display": "components/VM/blocks/on_event/on_event.display.json",
       "content": "components/VM/blocks/on_event/on_event.content.json"
+    },
+    {
+      "id": 16,
+      "name": "VM_BLK_SERVO",
+      "title": "Servo",
+      "category": "io",
+      "display": "components/VM/blocks/servo/servo.display.json",
+      "content": "components/VM/blocks/servo/servo.content.json"
     }
   ]
 }

@@ -4,7 +4,7 @@
   "kind": "device-definition",
   "id": "device_servo",
   "title": "Servo",
-  "description": "Hobby servo on a PWM pin of another device. Go home, move to an angle, trim with an offset.",
+  "description": "Hobby servo on a PWM pin of another device: an angle servo moves to an angle, a continuous (360 degree) servo runs at a speed from -100 to 100. Pulse limits, trim, direction and the position it takes at start-up are set here.",
   "protocols": [
     "pwm"
   ],
@@ -28,9 +28,15 @@
         "pwm_pin_device_id",
         "pwm_pin_pin",
         "pwm_pin_mode",
-        "home_us",
+        "servo_type",
+        "byte_mode",
+        "invert",
+        "angle_min_deg",
+        "angle_max_deg",
+        "default_pos",
         "min_us",
-        "max_us"
+        "max_us",
+        "deadband_us"
       ],
       "fields": {
         "device_id": {
@@ -51,31 +57,100 @@
           "enum_ref": "sys_io_mode_e",
           "group": "pwm_pin"
         },
-        "home_us": {
-          "type": "uint16_t",
-          "alias": "Home Pulse",
-          "min": 500,
-          "max": 2500,
-          "default": 1500,
-          "unit": "us"
+        "servo_type": {
+          "type": "uint8_t",
+          "alias": "Servo Type",
+          "one_of": [
+            {
+              "symbol": "SERVO_TYPE_ANGLE",
+              "enum": "servo_type_e",
+              "value": 0,
+              "alias": "Angle servo",
+              "description": "Moves to an angle between the angle limits and holds it"
+            },
+            {
+              "symbol": "SERVO_TYPE_CONTINUOUS",
+              "enum": "servo_type_e",
+              "value": 1,
+              "alias": "Continuous (360) servo",
+              "description": "Turns at a speed from -100 to 100 (0 stops) instead of going to an angle"
+            }
+          ],
+          "default": 0,
+          "enum_ref": "servo_type_e"
+        },
+        "byte_mode": {
+          "type": "uint8_t",
+          "alias": "Byte Steering",
+          "one_of": [
+            0,
+            1
+          ],
+          "default": 0,
+          "note": "Steer with one byte (0..255 is the whole range) instead of degrees or percent."
+        },
+        "invert": {
+          "type": "uint8_t",
+          "alias": "Reverse Direction",
+          "one_of": [
+            0,
+            1
+          ],
+          "default": 0,
+          "note": "Mirrors the movement, for a servo mounted the other way round."
+        },
+        "angle_min_deg": {
+          "type": "int16_t",
+          "alias": "Angle at Min Pulse",
+          "min": -360,
+          "max": 360,
+          "default": 0,
+          "unit": "deg",
+          "note": "Angle servo only."
+        },
+        "angle_max_deg": {
+          "type": "int16_t",
+          "alias": "Angle at Max Pulse",
+          "min": -360,
+          "max": 360,
+          "default": 180,
+          "unit": "deg",
+          "note": "Angle servo only. Must be above the minimum angle."
+        },
+        "default_pos": {
+          "type": "int16_t",
+          "alias": "Default Position",
+          "min": -360,
+          "max": 360,
+          "default": 90,
+          "note": "Where the servo goes at start-up and on Home: degrees (angle servo) or speed in percent (continuous servo, 0 stops)."
         },
         "min_us": {
           "type": "uint16_t",
-          "alias": "Pulse at 0 degrees",
-          "min": 500,
-          "max": 2500,
+          "alias": "Min Pulse",
+          "min": 400,
+          "max": 2600,
           "default": 500,
           "unit": "us",
-          "note": "Also the lowest pulse ever sent."
+          "note": "The lowest pulse ever sent. Servos differ: 500 and 1000 are common."
         },
         "max_us": {
           "type": "uint16_t",
-          "alias": "Pulse at 180 degrees",
-          "min": 500,
-          "max": 2500,
+          "alias": "Max Pulse",
+          "min": 400,
+          "max": 2600,
           "default": 2500,
           "unit": "us",
-          "note": "Also the highest pulse ever sent."
+          "note": "The highest pulse ever sent. Servos differ: 2000 and 2500 are common."
+        },
+        "deadband_us": {
+          "type": "uint16_t",
+          "alias": "Deadband",
+          "min": 0,
+          "max": 200,
+          "default": 0,
+          "unit": "us",
+          "note": "Continuous servo: the pulse width around stop in which it does not move. Any speed other than 0 starts beyond it."
         }
       },
       "groups": {

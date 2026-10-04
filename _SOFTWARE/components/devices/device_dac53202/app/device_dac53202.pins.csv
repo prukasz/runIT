@@ -1,0 +1,12 @@
+pin,name,kind,dir,modes,default_mode,group,mV_min,mV_max,bind_pin,cfg_field,note
+1,FB0,io,in,ADC,ADC,ch0,,,,,"Channel 0 feedback: connect to OUT0 in voltage-output mode, leave open in current-output mode"
+2,OUT0,io,out,DAC,DAC,ch0,,,,,Channel 0 analog output (DAC)
+3,GPIO,io,inout,BINARY,BINARY,control,,5500,,,"General-purpose I/O: LDAC, power-down, protect, reset, status"
+4,SCL,bus,in,,,i2c,,5500,,,I2C serial clock (SPI chip select in SPI mode)
+5,A0,io,in,BINARY,BINARY,address,,5500,,,"I2C address: connect to VDD, AGND, SDA or SCL"
+6,SDA,bus,inout,,,i2c,,5500,,,I2C serial data (SPI clock in SPI mode)
+7,OUT1,io,out,DAC,DAC,ch1,,,,,Channel 1 analog output (DAC)
+8,FB1,io,in,ADC,ADC,ch1,,,,,"Channel 1 feedback: connect to OUT1 in voltage-output mode, leave open in current-output mode"
+9,AGND,gnd,in,,,power,,,,,Ground (the thermal pad connects to it)
+10,VDD,supply_in,in,,,power,1800,5500,,,Supply
+11,VREF,supply_in,in,,,power,,,,,External reference input: pull up to VDD when the internal reference is used

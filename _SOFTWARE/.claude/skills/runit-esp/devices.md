@@ -8,9 +8,10 @@ One device = one ESP-IDF component `components/devices/device_<chip>/`. It is pi
 
 ```
 components/devices/device_<chip>/
-├── CMakeLists.txt          SRCS device_<chip>.c; REQUIRES sys_errors sys_io sys_device (+ sys_i2c / sys_power / sys_hbridge as used)
-├── include/device_<chip>.h PUBLIC: <CHIP>_TYPE_ID, d_<chip>_cfg_t (the create frame), g_<chip>_class, annotations
-└── device_<chip>.c         PRIVATE, the whole device: chip access (err_h, over sys_i2c_*), contract functions, lifecycle ops, the class
+├── CMakeLists.txt             SRCS esp/device_<chip>.c, INCLUDE_DIRS esp; REQUIRES sys_errors sys_io sys_device (+ sys_i2c / sys_power / sys_hbridge as used)
+├── esp/device_<chip>.h        PUBLIC: <CHIP>_TYPE_ID, d_<chip>_cfg_t (the create frame), g_<chip>_class, annotations
+├── esp/device_<chip>.c        PRIVATE, the whole device: chip access (err_h, over sys_i2c_*), contract functions, lifecycle ops, the class
+└── app/                       what the app reads: device_<chip>.json, .pins.csv, .md (user guide), images/, canvas/<version>/ (layout.json + picture)
 ```
 
 Plus, outside the component:
@@ -42,7 +43,7 @@ sys_io_* / sys_power_* / sys_hbridge_* (by device_id) ──────┘ cont
 
 Reference: `device_pca9685/device_pca9685.c` (contract), `device_servo` (own operations), `device_tca6424a` (interrupt pins).
 
-1. **Public header** `include/device_<chip>.h`:
+1. **Public header** `esp/device_<chip>.h`:
    - `#define <CHIP>_TYPE_ID 0x..` (the byte after `0x00` in a create frame; next free one).
    - The `//#device` + `//#contract` annotation records (`@type-id <CHIP>_TYPE_ID`, `@contract-provider ...`), then `typedef struct __packed { ... } d_<chip>_cfg_t;` with **`uint8_t device_id` first**. It is the create frame: field annotations only where the app shows the field (`@alias`, `@one-of`, `@min` / `@max`, `@unit`, `@note`). A pin on another device is one `sys_io_pin_ref_t <name>_pin` field (`@alias`, `@note`, `@modes`, `@default-mode`); document that "unused" must be written `SYS_IO_PIN_NONE_INIT`, because a zero-filled field means device 0 / pin 0.
    - `extern const sys_device_class_t g_<chip>_class;` and nothing else. Grammar: `data-structures/auto-annotations/device/device-annotations.md`, template: `device-template.txt`.
@@ -93,7 +94,7 @@ Every device is in the class shape: one file `device_<chip>.c`, a public header 
 | ap33772s | `0x45` | VREG + USB_PD + MONITOR | Own AVS keep-alive task (3072 B / prio 5, started after the PDOs are read). The INT pin is claimed but no listener is subscribed |
 | dac53202 | `0x46` | IO | A voltage above 3300 mV is refused (it used to be clamped) |
 | ads7128 | `0x47` | IO | ADC-only; digital-input mode planned (PROGRESS). Sampling is fixed (no oversampling, low-power oscillator, open-drain active-low ALERT) |
-| servo | `0x48` | none | Operations only: `0x80` home, `0x81` set offset, `0x82` set angle, `0x83` get pulse (read-only); drives any PWM pin through the IO contract |
+| servo | `0x48` | none | Operations only: `0x80` home (default pos), `0x81` set trim (int, runtime), `0x82` set (value in tenths: degrees, percent, or byte x10 in byte mode), `0x83` get pulse (read-only), `0x84` release (limp). Cfg: type (angle / continuous 360), byte mode, invert, angle range, default pos (taken at install), min / max pulse, deadband. Continuous: stop = middle of the pulse range + trim, byte 127 and 128 both stop. Drives any PWM pin (50 Hz) through the IO contract. The VM block `SERVO` (id 16) steers it through `sys_device_route` |
 | drv8962 | `0x49` | HBRIDGE (set_drive, brake, coast, get_current) | Chip specifics are operations: `0x80` set_current_limit (VREF), `0x81` clear_fault (nSLEEP pulse), `0x82` get_fault (read-only). Topology (2 full / 4 half bridges) is in the cfg, so the contract has no `set_mode`. Pins are flat cfg fields (`in1_pin` .. `vref_pin`; no pin ref arrays). Rollback: coast, unsubscribe nFAULT, reset every dependency pin |
 
 Cross-cutting:

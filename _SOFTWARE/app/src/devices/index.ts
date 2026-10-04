@@ -1,5 +1,6 @@
 import './Devices.css'
 
+export { BoardDeviceDetails } from './BoardDeviceDetails'
 export { DeviceDetails } from './DeviceDetails'
 export { DevicesEditor } from './DevicesEditor'
 export { DevicesPalette } from './DevicesPalette'

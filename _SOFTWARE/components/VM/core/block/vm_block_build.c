@@ -60,18 +60,19 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
     }
   }
 
-  /* One writer per object. An output or ENO another block already claimed
-     (usr_protected), or one this block names twice, is refused: two writers
-     would otherwise race silently, the last in execution order winning. */
+  /* Several blocks may write one object (the last in execution order wins). usr_protected on an output comes from
+     the object upload (block-owned objects carry it, a user variable does not); the ENO object is always claimed
+     below. A block naming one object twice among its own outputs and ENO is refused: its two writes would be the
+     same pass's, ordered by nothing. */
   for (uint8_t i = 0; i < cfg->q_cnt; i++) {
-    bool taken = vm_obj_get_by_id(cfg->out_obj_ids[i])->head.f.usr_protected;
+    bool taken = false;
     for (uint8_t j = 0; j < i && !taken; j++) taken = cfg->out_obj_ids[j] == cfg->out_obj_ids[i];
     if (taken) {
       SE_FAIL(ERR_VM_BLK_OUTPUT_TAKEN, .blk_id = cfg->block_idx, .obj_id = cfg->out_obj_ids[i], .slot = i, .kind = REF_KIND_OUT);
     }
   }
   if (eno) {
-    bool taken = eno->head.f.usr_protected;
+    bool taken = false;
     for (uint8_t i = 0; i < cfg->q_cnt && !taken; i++) taken = cfg->out_obj_ids[i] == cfg->eno_obj_id;
     if (taken) {
       SE_FAIL(ERR_VM_BLK_OUTPUT_TAKEN, .blk_id = cfg->block_idx, .obj_id = cfg->eno_obj_id, .slot = 0, .kind = REF_KIND_ENO);
@@ -118,9 +119,8 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
     SE_FAIL(ERR_VM_BLK_BAD_SHAPE, .blk_id = cfg->block_idx, .in_cnt = cfg->in_cnt, .q_cnt = cfg->q_cnt);
   }
 
-  /* Only an accepted block claims its outputs: protection is changed once the
-     block is known to stay. */
-  for (uint8_t i = 0; i < cfg->q_cnt; i++) outs[i]->head.f.usr_protected = 1;
+  /* Only an accepted block claims its ENO: user writes (SET, CLONE) must not fake a block's result. Other outputs
+     keep the flag they were uploaded with. */
   if (eno) eno->head.f.usr_protected = 1;
 
   *out = b;

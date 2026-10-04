@@ -1,6 +1,9 @@
+import type { BoardConnector, BoardTemplate, ConnectorPin, MountHole, PinBinding, PinOverrides } from '../board'
+import type { Wire } from '../hardware'
 import { DEFAULT_BLE_GENERAL, PROJECT_FORMAT, PROJECT_FORMAT_VERSION } from './document'
 import type {
   BleCharacteristicSettings,
+  BoardLayout,
   BleGeneralSettings,
   BleProfile,
   BleServiceSettings,
@@ -308,6 +311,124 @@ export const parsePinAliases = (value: Json, path: string): PinAliases => {
   }))
 }
 
+export const parseBoardLayout = (value: Json, path: string): BoardLayout => {
+  if (value === undefined) return {}
+  return Object.fromEntries(Object.entries(record(value, path)).map(([ref, entry]) => {
+    if (!ref) throw new ProjectFormatError(path, 'device reference is empty')
+    const at = `${path}.${ref}`
+    const placement = record(entry, at)
+    const rotation = integer(placement.rotation, `${at}.rotation`)
+    if (rotation !== 0 && rotation !== 90 && rotation !== 180 && rotation !== 270) throw new ProjectFormatError(`${at}.rotation`, 'expected 0, 90, 180 or 270')
+    const limits = placement.pinLimits === undefined ? undefined : Object.fromEntries(Object.entries(record(placement.pinLimits, `${at}.pinLimits`)).map(([pin, limit]) => {
+      const limitAt = `${at}.pinLimits.${pin}`
+      const fields = record(limit, limitAt)
+      return [pin, { ...(fields.mV_min === undefined ? {} : { mV_min: integer(fields.mV_min, `${limitAt}.mV_min`) }), ...(fields.mV_max === undefined ? {} : { mV_max: integer(fields.mV_max, `${limitAt}.mV_max`) }) }]
+    }))
+    return [ref, { x: finite(placement.x, `${at}.x`), y: finite(placement.y, `${at}.y`), rotation, mirror: boolean(placement.mirror, `${at}.mirror`), ...(placement.variant === undefined ? {} : { variant: string(placement.variant, `${at}.variant`) }), ...(limits && Object.keys(limits).length ? { pinLimits: limits } : {}) }]
+  }))
+}
+
+const finiteIn = (value: Json, path: string, min: number, max: number): number => {
+  const number = finite(value, path)
+  if (number < min || number > max) throw new ProjectFormatError(path, `expected a number from ${min} to ${max}`)
+  return number
+}
+
+const parsePinBinding = (value: Json, path: string): PinBinding => {
+  const fields = record(value, path)
+  const type = oneOf(fields.type, `${path}.type`, ['none', 'net', 'signal', 'sys'] as const)
+  const sys = (entry: Json, at: string) => {
+    const ref = record(entry, at)
+    return { device: count(ref.device, `${at}.device`), pin: count(ref.pin, `${at}.pin`) }
+  }
+  if (type === 'none') return { type }
+  if (type === 'net') return { type, net: string(fields.net, `${path}.net`), ...optional('role', fields.role === undefined ? undefined : oneOf(fields.role, `${path}.role`, ['source', 'input'] as const)) }
+  if (type === 'signal') return { type, signal: string(fields.signal, `${path}.signal`), ...optional('sys', fields.sys === undefined ? undefined : sys(fields.sys, `${path}.sys`)) }
+  const overrides = fields.overrides === undefined ? undefined : record(fields.overrides, `${path}.overrides`)
+  const parsed: PinOverrides | undefined = overrides && {
+    ...optional('dir', overrides.dir === undefined ? undefined : oneOf(overrides.dir, `${path}.overrides.dir`, ['in', 'out', 'inout'] as const)),
+    ...optional('modes', overrides.modes === undefined ? undefined : array(overrides.modes, `${path}.overrides.modes`).map((mode, index) => string(mode, `${path}.overrides.modes[${index}]`))),
+    ...optional('mV_min', overrides.mV_min === undefined ? undefined : count(overrides.mV_min, `${path}.overrides.mV_min`)),
+    ...optional('mV_max', overrides.mV_max === undefined ? undefined : count(overrides.mV_max, `${path}.overrides.mV_max`)),
+  }
+  return { type, ...sys(fields, path), ...(parsed && Object.keys(parsed).length ? { overrides: parsed } : {}) }
+}
+
+/** A board template: structure and ranges only; whether a connector type exists or a pin is free is for `validateBoard`. */
+export const parseBoardTemplate = (value: Json, path: string): BoardTemplate => {
+  const fields = record(value, path)
+  const id = string(fields.id, `${path}.id`)
+  if (!id) throw new ProjectFormatError(`${path}.id`, 'is empty')
+  const ids = new Set<string>()
+  const holes: MountHole[] = array(fields.holes, `${path}.holes`).map((entry, index) => {
+    const hole = record(entry, `${path}.holes[${index}]`)
+    return { x: finite(hole.x, `${path}.holes[${index}].x`), y: finite(hole.y, `${path}.holes[${index}].y`) }
+  })
+  const connectors: BoardConnector[] = array(fields.connectors, `${path}.connectors`).map((entry, index) => {
+    const at = `${path}.connectors[${index}]`
+    const connector = record(entry, at)
+    const connectorId = string(connector.id, `${at}.id`)
+    if (!connectorId) throw new ProjectFormatError(`${at}.id`, 'is empty')
+    if (ids.has(connectorId)) throw new ProjectFormatError(`${at}.id`, `'${connectorId}' is used twice`)
+    ids.add(connectorId)
+    const rotation = integer(connector.rotation, `${at}.rotation`)
+    if (rotation !== 0 && rotation !== 90 && rotation !== 180 && rotation !== 270) throw new ProjectFormatError(`${at}.rotation`, 'expected 0, 90, 180 or 270')
+    const label = optionalString(connector.label, `${at}.label`)
+    return {
+      id: connectorId,
+      type: string(connector.type, `${at}.type`),
+      x: finite(connector.x, `${at}.x`),
+      y: finite(connector.y, `${at}.y`),
+      rotation,
+      mirror: boolean(connector.mirror, `${at}.mirror`),
+      ...(label ? { label } : {}),
+      pins: array(connector.pins, `${at}.pins`).map((pin, pinIndex): ConnectorPin => {
+        const pinAt = `${at}.pins[${pinIndex}]`
+        const fieldsOfPin = record(pin, pinAt)
+        const pinLabel = optionalString(fieldsOfPin.label, `${pinAt}.label`)
+        return { ...(pinLabel ? { label: pinLabel } : {}), bind: parsePinBinding(fieldsOfPin.bind, `${pinAt}.bind`) }
+      }),
+    }
+  })
+  return {
+    id,
+    name: string(fields.name, `${path}.name`),
+    width: finiteIn(fields.width, `${path}.width`, 10, 400),
+    height: finiteIn(fields.height, `${path}.height`, 10, 400),
+    radius: finiteIn(fields.radius, `${path}.radius`, 0, 50),
+    holeDiameter: finiteIn(fields.holeDiameter, `${path}.holeDiameter`, 0, 20),
+    holes,
+    connectors,
+  }
+}
+
+/** A template as file text (the library file): 2-space JSON in the parser's key order, trailing newline. */
+export const serializeBoardTemplate = (template: BoardTemplate): string => `${JSON.stringify(parseBoardTemplate(JSON.parse(JSON.stringify(template)), 'board'), null, 2)}
+`
+
+/** Wires: an ID and two ends (a device reference and a pin name); an ID or an end used twice is refused. */
+export const parseWires = (value: Json, path: string): Wire[] => {
+  if (value === undefined) return []
+  const ids = new Set<string>()
+  const end = (entry: Json, at: string): Wire['a'] => {
+    const fields = record(entry, at)
+    const device = string(fields.device, `${at}.device`)
+    const pin = string(fields.pin, `${at}.pin`)
+    if (!device) throw new ProjectFormatError(`${at}.device`, 'device reference is empty')
+    if (!pin) throw new ProjectFormatError(`${at}.pin`, 'pin is empty')
+    return { device, pin }
+  }
+  return array(value, path).map((entry, index) => {
+    const at = `${path}[${index}]`
+    const fields = record(entry, at)
+    const id = string(fields.id, `${at}.id`)
+    if (!id) throw new ProjectFormatError(`${at}.id`, 'wire ID is empty')
+    if (ids.has(id)) throw new ProjectFormatError(`${at}.id`, `'${id}' is used twice`)
+    ids.add(id)
+    return { id, a: end(fields.a, `${at}.a`), b: end(fields.b, `${at}.b`) }
+  })
+}
+
 export const parseDevices = (value: Json, path: string): ProjectDevice[] => {
   const ids = new Set<string>()
   const deviceIds = new Set<number>()
@@ -481,6 +602,9 @@ export const parseProject = (text: string): ProjectDocument => {
     ...optional('devices', doc.devices === undefined ? undefined : parseDevices(doc.devices, 'devices')),
     ...optional('deviceAliases', doc.deviceAliases === undefined ? undefined : parseDeviceAliases(doc.deviceAliases, 'deviceAliases')),
     ...optional('pinAliases', doc.pinAliases === undefined ? undefined : parsePinAliases(doc.pinAliases, 'pinAliases')),
+    ...optional('boardLayout', doc.boardLayout === undefined ? undefined : parseBoardLayout(doc.boardLayout, 'boardLayout')),
+    ...optional('wires', doc.wires === undefined ? undefined : parseWires(doc.wires, 'wires')),
+    ...optional('board', doc.board === undefined ? undefined : parseBoardTemplate(doc.board, 'board')),
     ...optional('actions', doc.actions === undefined ? undefined : parseActions(doc.actions, 'actions')),
     ...optional('setup', doc.setup === undefined ? undefined : parseSetup(doc.setup, 'setup')),
     ...optional('canvases', doc.canvases === undefined ? undefined : parseCanvases(doc.canvases, 'canvases')),
@@ -512,6 +636,9 @@ export const serializeProject = (project: ProjectDocument): string =>
       ...optional('devices', project.devices && parseDevices(JSON.parse(JSON.stringify(project.devices)), 'devices')),
       ...optional('deviceAliases', project.deviceAliases && parseDeviceAliases(project.deviceAliases, 'deviceAliases')),
       ...optional('pinAliases', project.pinAliases && parsePinAliases(project.pinAliases, 'pinAliases')),
+      ...optional('boardLayout', project.boardLayout && parseBoardLayout(project.boardLayout, 'boardLayout')),
+      ...optional('wires', project.wires?.length ? parseWires(JSON.parse(JSON.stringify(project.wires)), 'wires') : undefined),
+      ...optional('board', project.board && parseBoardTemplate(JSON.parse(JSON.stringify(project.board)), 'board')),
       ...optional('actions', project.actions && parseActions(JSON.parse(JSON.stringify(project.actions)), 'actions')),
       ...optional('setup', project.setup && parseSetup(JSON.parse(JSON.stringify(project.setup)), 'setup')),
       ...optional('canvases', project.canvases && parseCanvases(JSON.parse(JSON.stringify(project.canvases)), 'canvases')),

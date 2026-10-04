@@ -16,7 +16,7 @@ const errors = (compiled: ReturnType<typeof compile>) => compiled.diagnostics.fi
 
 describe('block palette', () => {
   it('reads every block type from the descriptors', () => {
-    expect(catalog.blocks.map((block) => block.key)).toEqual(['EXPR', 'EXPR_BIT', 'IF', 'SWITCH', 'FOR', 'SET', 'CLONE', 'EDGE', 'TIMER', 'IO_SET_LEVEL', 'IO_TOGGLE', 'LATCH', 'PERIODIC', 'ACTION', 'ON_EVENT'])
+    expect(catalog.blocks.map((block) => block.key)).toEqual(['EXPR', 'EXPR_BIT', 'IF', 'SWITCH', 'FOR', 'SET', 'CLONE', 'EDGE', 'TIMER', 'IO_SET_LEVEL', 'IO_TOGGLE', 'LATCH', 'PERIODIC', 'ACTION', 'ON_EVENT', 'SERVO'])
     expect(catalog.block('EXPR')?.encoding?.opcode('+')?.symbol).toBe('VM_EXPR_ADD')
     expect(catalog.blockPinMax).toEqual({ in: 16, out: 16, en: 16 })
   })
@@ -146,7 +146,7 @@ describe('compileProgram: blocks', () => {
     ['an unknown type', [{ id: 'b', type: 'NOPE' }], 'ERR_VM_BLK_UNKNOWN_TYPE'],
     ['an unwired required input', [{ id: 'b', type: 'IF' }], 'ERR_VM_BLK_BAD_SHAPE'],
     ['too many outputs', [{ id: 'b', type: 'IF', inputs: [at('n')], outputs: [null, null, null] }], 'ERR_VM_BLK_BAD_SHAPE'],
-    ['two writers of one object', [{ id: 'b', type: 'PERIODIC', settings: { period: 1 }, outputs: ['n'] }, { id: 'c', type: 'PERIODIC', settings: { period: 1 }, outputs: ['n'] }], 'ERR_VM_BLK_OUTPUT_TAKEN'],
+    ['one object named twice by a block', [{ id: 'b', type: 'IF', inputs: [at('n')], outputs: ['n', 'n'] }], 'ERR_VM_BLK_OUTPUT_TAKEN'],
     ['an enum value it lacks', [{ id: 'b', type: 'PERIODIC', settings: { period: 1, time_base: 'WEEK' } }], 'ERR_VM_BLK_BAD_SHAPE'],
     ['a setting out of range', [{ id: 'b', type: 'PERIODIC', settings: { period: -1 } }], 'ERR_VM_BLK_BAD_SHAPE'],
     ['PERIODIC without a period', [{ id: 'b', type: 'PERIODIC' }], 'ERR_VM_BLK_BAD_SHAPE'],
@@ -158,6 +158,26 @@ describe('compileProgram: blocks', () => {
     const compiled = compile([value('n', 'U32'), { kind: 'folder', id: 'f', name: 'f', children: [value('m', 'U8')] }], blocks as readonly ProgramBlock[])
     expect(compiled.ok).toBe(false)
     expect(errors(compiled)).toEqual(expect.arrayContaining([expect.objectContaining({ firmwareError })]))
+  })
+
+  it('lets several blocks write one object', () => {
+    const compiled = compile([value('n', 'U32'), value('o', 'F')], [{ id: 'b', type: 'EXPR', inputs: [at('n')], expression: { code: ['in', 0] }, outputs: ['o'] }, { id: 'c', type: 'EXPR', inputs: [at('n')], expression: { code: ['in', 0] }, outputs: ['o'] }])
+    expect(errors(compiled)).toEqual([])
+  })
+
+  it('protects block-owned objects and uploads the flag only on them', () => {
+    const tree = [value('n', 'U32')]
+    const own = compile(tree, [{ id: 'b', type: 'EXPR', inputs: [at('n')], expression: { code: ['in', 0] } }, { id: 's', type: 'SET', inputs: [at('n'), at('b:q0')] }] as readonly ProgramBlock[])
+    expect(errors(own)).toEqual(expect.arrayContaining([expect.objectContaining({ firmwareError: 'ERR_VM_OBJ_USR_PROTECTED' })]))
+  })
+
+  it('lets SET write a user variable a block drives but not an ENO', () => {
+    const tree = [value('n', 'U32'), value('o', 'F')]
+    const writer = { id: 'b', type: 'EXPR', inputs: [at('n')], expression: { code: ['in', 0] }, outputs: ['o'] }
+    const toOutput = compile(tree, [writer, { id: 's', type: 'SET', inputs: [at('n'), at('o')] }] as readonly ProgramBlock[])
+    expect(errors(toOutput)).toEqual([])
+    const toEno = compile(tree, [writer, { id: 's', type: 'SET', inputs: [at('n'), at('b:eno')] }] as readonly ProgramBlock[])
+    expect(errors(toEno)).toEqual(expect.arrayContaining([expect.objectContaining({ firmwareError: 'ERR_VM_OBJ_USR_PROTECTED' })]))
   })
 
   it('wants a folder entry for CLONE\'s cell', () => {

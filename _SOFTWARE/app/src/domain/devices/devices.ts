@@ -1,4 +1,4 @@
-import { packCommand } from '../descriptors'
+import { DEVICE_CREATE_HEADER, packCommand } from '../descriptors'
 import type { CommandCatalog, DeviceCatalog, DeviceChoice, DeviceContract, DeviceParameter, DeviceType } from '../descriptors'
 import { boardDeviceRef } from '../project'
 import type { ActionStep, DeviceRef, PinAliases, ProjectAction, ProjectDevice, StepValues } from '../project'
@@ -110,6 +110,20 @@ export const pinsOf = (type: DeviceType | undefined): readonly DeviceChoice[] =>
 export const modesOf = (type: DeviceType | undefined): readonly DeviceChoice[] =>
   type?.contracts.find((entry) => entry.id === 'packet_sys_io_set_mode_t')?.parameters.find((parameter) => parameter.name === 'mode')?.choices ?? []
 
+/** Modes a provider with no sys_io_set_mode has by construction: a PCA9685 channel is always a PWM output, whatever its pin ref says. */
+const IMPLIED_MODES: readonly (readonly [command: string, symbol: string])[] = [
+  ['sys_io_set_pwm_duty', 'SYS_IO_MODE_PWM'],
+  ['sys_io_set_level', 'SYS_IO_MODE_OUTPUT_PUSH_PULL'],
+  ['sys_io_get_level', 'SYS_IO_MODE_INPUT'],
+]
+
+/** Whether the provider can serve a pin ref of this mode: configurable through sys_io_set_mode, or fixed by what its IO contracts do. */
+export const providesMode = (type: DeviceType | undefined, mode: DeviceChoice): boolean => {
+  if (modesOf(type).some((supported) => supported.value === mode.value)) return true
+  if (!type || type.contracts.some((entry) => entry.command.name === 'sys_io_set_mode')) return false
+  return IMPLIED_MODES.some(([command, symbol]) => symbol === mode.symbol && type.contracts.some((entry) => entry.command.name === command))
+}
+
 /** Contracts that set something up (default settings): not reads, not the lifecycle commands. */
 export const isSetupContract = (contract: DeviceContract): boolean =>
   contract.kind === 'contract' && !contract.returns && !contract.command.response && !/_(get|list)(_|$)/.test(contract.command.name)
@@ -132,8 +146,11 @@ export const defaultInstall = (type: DeviceType, i2cBus?: number): Record<string
   return values
 }
 
-export const installFrame = (type: DeviceType, device: Pick<ProjectDevice, 'deviceId' | 'install'>): Uint8Array =>
-  packCommand(type.install, { ...device.install, device_id: device.deviceId })
+/** A create frame is `[class][0x00][type id][cfg]` (sys_device_route); the descriptor's packet header is the type id. */
+export const installFrame = (type: DeviceType, device: Pick<ProjectDevice, 'deviceId' | 'install'>): Uint8Array => {
+  const packed = packCommand(type.install, { ...device.install, device_id: device.deviceId })
+  return Uint8Array.of(packed[0]!, DEVICE_CREATE_HEADER, ...packed.subarray(1))
+}
 
 /** The value a parameter starts with: its default, first choice, minimum, or the field's fallback; a list of those for an array field. */
 export const initialParameterValue = (parameter: DeviceParameter): number | number[] => {
@@ -198,7 +215,8 @@ export const checkDevices = (catalog: DeviceCatalog, devices: readonly ProjectDe
       else if (target >= device.deviceId) error(`${group.label} is on ${owner.name} (ID ${target}): a device's pins must be on a device with a lower ID, so give ${owner.name} an ID below ${device.deviceId}.`)
       if (group.modeField && owner && device.install[group.modeField] !== undefined) {
         const mode = device.install[group.modeField]
-        if (!type.installChoices.get(group.modeField)?.some((choice) => choice.value === mode) || !modesOf(owner.type).some((choice) => choice.value === mode)) {
+        const choice = type.installChoices.get(group.modeField)?.find((entry) => entry.value === mode)
+        if (!choice || !providesMode(owner.type, choice)) {
           error(`${group.label}: mode ${mode} is not available on ${owner.name}.`)
         }
       }

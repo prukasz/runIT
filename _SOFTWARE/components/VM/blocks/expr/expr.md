@@ -8,7 +8,7 @@ Computes a number from its inputs with a formula. The formula is stored as a sho
 |---|---|
 | Inputs (any number) | Read by the formula by index. Only the ones the formula names are read. |
 | Result | The value of the formula (a float), written to output 0. |
-| ENO | On for the pass the result was written. |
+| ENO | On on every pass the block is enabled and nothing failed, whether or not the result was recomputed (a pass-through). Off when disabled or after an error. |
 
 ## What is available
 

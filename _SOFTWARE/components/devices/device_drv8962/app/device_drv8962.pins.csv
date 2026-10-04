@@ -1,0 +1,25 @@
+pin,name,kind,dir,modes,default_mode,group,mV_min,mV_max,bind_pin,cfg_field,note
+1,VM,supply_in,in,,,power,4500,60000,,,Motor supply
+2,GND,gnd,in,,,power,,,,,Power ground of all four half-bridges and device ground (one net)
+3,OUT1,supply_out,out,,,half_bridge1,,,,,Half-bridge 1 output to the load
+4,OUT2,supply_out,out,,,half_bridge2,,,,,Half-bridge 2 output to the load
+5,OUT4,supply_out,out,,,half_bridge4,,,,,Half-bridge 4 output to the load
+6,OUT3,supply_out,out,,,half_bridge3,,,,,Half-bridge 3 output to the load
+7,VCC,supply_in,in,,,power,0,5500,,,Logic supply: tie to DVDD when no separate supply is used
+8,NFAULT,io,out,BINARY,BINARY,fault,,5500,,nfault_pin,"Fault output: open-drain, active low"
+9,OCPM,io,in,BINARY,BINARY,control,,5500,,,Overcurrent protection mode select
+10,MODE,io,in,BINARY,BINARY,control,,5500,,,Control interface mode select
+11,IPROPI4,io,out,ADC,ADC,half_bridge4,,,,,Current sense output of half-bridge 4
+12,IPROPI3,io,out,ADC,ADC,half_bridge3,,,,,Current sense output of half-bridge 3
+13,IPROPI2,io,out,ADC,ADC,half_bridge2,,,,,Current sense output of half-bridge 2
+14,IPROPI1,io,out,ADC,ADC,half_bridge1,,,,,Current sense output of half-bridge 1
+15,VREF,io,in,DAC,DAC,control,,5500,,vref_pin,Reference voltage that sets the current regulation threshold
+16,EN4,io,in,BINARY,BINARY,half_bridge4,,5500,,en4_pin,Enable of half-bridge 4
+17,EN3,io,in,BINARY,BINARY,half_bridge3,,5500,,en3_pin,Enable of half-bridge 3
+18,EN2,io,in,BINARY,BINARY,half_bridge2,,5500,,en2_pin,Enable of half-bridge 2
+19,EN1,io,in,BINARY,BINARY,half_bridge1,,5500,,en1_pin,Enable of half-bridge 1
+20,IN4,io,in,PWM|BINARY,PWM,half_bridge4,,5500,,in4_pin,PWM input of half-bridge 4
+21,IN3,io,in,PWM|BINARY,PWM,half_bridge3,,5500,,in3_pin,PWM input of half-bridge 3
+22,IN2,io,in,PWM|BINARY,PWM,half_bridge2,,5500,,in2_pin,PWM input of half-bridge 2
+23,IN1,io,in,PWM|BINARY,PWM,half_bridge1,,5500,,in1_pin,PWM input of half-bridge 1
+24,NSLEEP,io,in,BINARY,BINARY,control,,5500,,nsleep_pin,Sleep input: low puts the driver to sleep

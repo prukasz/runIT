@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import './Badge.css'
 
-export type BadgeTone = 'neutral' | 'system' | 'count' | 'number' | 'boolean' | 'text' | 'other' | 'success' | 'warning' | 'info' | 'accent'
+export type BadgeTone = 'neutral' | 'system' | 'count' | 'number' | 'boolean' | 'text' | 'other' | 'success' | 'warning' | 'danger' | 'info' | 'accent'
 export type BadgeSize = 'compact' | 'default' | 'detail'
 
 export function Badge({ children, tone = 'neutral', size = 'default', title, className, push = false, caps = false, filled = false }: {

@@ -291,6 +291,8 @@ export const compileObjects = (project: ProjectDocument, catalog: VmCatalog, ext
       'f.retentive': retentive ? 1 : 0,
       // Constants and user variables never clear their update flag; block-owned objects are fresh only in the pass that wrote them (VM_EXEC.MD).
       'f.upd_resetable': ownerOf.get(entry.section) === 'block' || driven.has(entry.node.id) ? 1 : 0,
+      // Only block-owned objects are closed to user writes; a user variable a block drives stays editable.
+      'f.usr_protected': ownerOf.get(entry.section) === 'block' ? 1 : 0,
     })
     const record = new Uint8Array(2 + head.byteLength + Math.min(entry.name.byteLength, catalog.nameMax))
     new DataView(record.buffer).setUint16(0, entry.wireId, true)

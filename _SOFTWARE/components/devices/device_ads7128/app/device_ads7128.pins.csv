@@ -1,0 +1,16 @@
+pin,name,kind,dir,modes,default_mode,group,mV_min,mV_max,bind_pin,cfg_field,note
+1,AIN2,io,inout,ADC|BINARY,ADC,channel,,5500,2,,Channel 2: analog input (default) or GPIO
+2,AIN3,io,inout,ADC|BINARY,ADC,channel,,5500,3,,Channel 3: analog input (default) or GPIO
+3,AIN4,io,inout,ADC|BINARY,ADC,channel,,5500,4,,Channel 4: analog input (default) or GPIO
+4,AIN5,io,inout,ADC|BINARY,ADC,channel,,5500,5,,Channel 5: analog input (default) or GPIO
+5,AIN6,io,inout,ADC|BINARY,ADC,channel,,5500,6,,Channel 6: analog input (default) or GPIO
+6,AIN7,io,inout,ADC|BINARY,ADC,channel,,5500,7,,Channel 7: analog input (default) or GPIO
+7,AVDD,supply_in,in,,,power,2350,5500,,,"Analog supply, also the ADC reference"
+8,GND,gnd,in,,,power,,,,,Ground
+9,DVDD,supply_in,in,,,power,1650,5500,,,Digital I/O supply
+10,ADDR,io,in,ADC,ADC,address,,5500,,,I2C address select: resistor to DECAP or GND (eight addresses)
+11,ALERT,io,out,BINARY,BINARY,alert,,5500,,intr_pin,Digital comparator alert: open-drain (default) or push-pull
+12,SCL,bus,in,,,i2c,,5500,,,I2C serial clock
+13,SDA,bus,inout,,,i2c,,5500,,,I2C serial data
+14,AIN0,io,inout,ADC|BINARY,ADC,channel,,5500,0,,Channel 0: analog input (default) or GPIO
+15,AIN1,io,inout,ADC|BINARY,ADC,channel,,5500,1,,Channel 1: analog input (default) or GPIO

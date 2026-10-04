@@ -28,6 +28,7 @@ Generate web-app JSON descriptors from annotated C headers. C remains the source
 
 - `auto-annotations/generate-all.py`: runs every generator below in dependency order and writes LF files. Use it after any annotated header, Kconfig, error map or ESP-IDF change. `--check` changes nothing and exits 1 naming the out-of-date files (CI / before a commit); `--test` also runs the generators' unit tests.
 - `auto-annotations/device/generate-devices.py`: parser and descriptor generator; tests `auto-annotations/device/test_generate_devices.py` (`python -m unittest data-structures/auto-annotations/device/test_generate_devices.py`).
+- `board/board-terminals.json`: hand-written (not generated) electrical data of the boards: the named nets (and which can be fed from outside), the bus signals a connector pin can carry and their direction, what the pins of a provider device type tolerate, and the electrical table of the runIT board's wirable terminals, keyed by the ids of `app/src/devices/board/runit-board.svg`: kind, direction, modes, limits, bus signal, named net, and the sys_io pin behind it. Only facts the art or the firmware headers state; add a terminal here and in the art together (a test checks every key exists in the art).
 - `schema/device-definition.schema.json`: generated device JSON contract.
 - `auto-annotations/enums/generate-enums.py`: shared `//#ref-enum` scanner; device generation runs it live.
 - `auto-annotations/vm/generate-vm-model.py`: extracts marked VM C structs and VM enums.

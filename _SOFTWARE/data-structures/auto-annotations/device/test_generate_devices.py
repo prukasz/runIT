@@ -29,10 +29,10 @@ class DeviceRecords(unittest.TestCase):
     def test_unlisted_pin_ref_is_refused(self):
         with tempfile.TemporaryDirectory() as folder:
             device = Path(folder) / "device_x"
-            (device / "include").mkdir(parents=True)
-            header = device / "include" / "device_x.h"
+            (device / "esp").mkdir(parents=True)
+            header = device / "esp" / "device_x.h"
             header.write_text("typedef struct __packed { uint8_t device_id; sys_io_pin_ref_t a_pin; sys_io_pin_ref_t b_pin; } d_x_cfg_t;", encoding="utf-8")
-            (device / "device_x.c").write_text("static const uint8_t s[] = {offsetof(d_x_cfg_t, a_pin)};", encoding="utf-8")
+            (device / "esp" / "device_x.c").write_text("static const uint8_t s[] = {offsetof(d_x_cfg_t, a_pin)};", encoding="utf-8")
             with self.assertRaises(SystemExit) as raised:
                 generator.check_class_pin_refs(header, generator.DEVICE_CFG_RE.search(header.read_text()).group(1), "d_x_cfg_t")
             self.assertIn("b_pin", str(raised.exception))
@@ -129,14 +129,14 @@ class DeviceRecords(unittest.TestCase):
         install = pca["install"]["packet_definition"]
         self.assertEqual(install["fields"]["device_id"]["max"], 127)
         self.assertEqual(install["groups"]["oe_pin"]["note"], "Active-low.")
-        header = generator.PROJECT_ROOT / "components" / "devices" / "device_pca9685" / "include" / "device_pca9685.h"
+        header = generator.PROJECT_ROOT / "components" / "devices" / "device_pca9685" / "esp" / "device_pca9685.h"
         path, text = generator.limits_header(header, generator.read_sidecar(header))
         self.assertEqual(path.name, "device_pca9685_limits.generated.h")
         self.assertIn("#define PCA9685_MAX_FREQUENCY_HZ 1526", text)
         self.assertEqual(path.read_text(encoding="utf-8").replace("\r\n", "\n"), text, "run generate-devices.py: the committed limits header is out of date")
 
     def test_guide_is_copied_with_image_folder(self):
-        header = generator.PROJECT_ROOT / "components" / "devices" / "device_pca9685" / "include" / "device_pca9685.h"
+        header = generator.PROJECT_ROOT / "components" / "devices" / "device_pca9685" / "esp" / "device_pca9685.h"
         outputs = dict(generator.guide_outputs(header, "device_pca9685"))
         guide = outputs[generator.GUIDE_DIR / "device_pca9685.md"].decode("utf-8")
         self.assertTrue(guide.startswith(generator.GUIDE_MARK))
@@ -152,12 +152,37 @@ class DeviceRecords(unittest.TestCase):
         self.assertEqual((ports["VDD"]["pin"], ports["VDD"]["kind"], ports["VDD"]["mV_min"], ports["VDD"]["mV_max"]), (28, "supply_in", 2300, 5500))
         self.assertEqual((ports["LED15"]["pin"], ports["LED15"]["bind_pin"], ports["LED15"]["default_mode"]), (22, 15, "PWM"))
         self.assertEqual(ports["OE"]["cfg_field"], "oe_pin")
-        header = generator.PROJECT_ROOT / "components" / "devices" / "device_pca9685" / "include" / "device_pca9685.h"
+        header = generator.PROJECT_ROOT / "components" / "devices" / "device_pca9685" / "esp" / "device_pca9685.h"
         symbol = generator.read_symbol(header, generator.read_sidecar(header))
         self.assertEqual(symbol["svg"].count('class="port '), 28)
         self.assertIn('<circle id="pin-SDA-t"', symbol["svg"])
         committed = generator.PROJECT_ROOT / "data-structures" / "devices" / symbol["meta"]["file"]
         self.assertEqual(committed.read_text(encoding="utf-8").replace("\r\n", "\n"), symbol["svg"], "run generate-devices.py: the symbol is out of date")
+
+    def test_symbol_shape_follows_the_package(self):
+        ports = [{"name": f"P{i}", "pin": i, "kind": "io", "dir": "in", "svg": f"pin-P{i}"} for i in range(1, 33)]
+        qfn = generator.device_symbol.render_svg("X", "QFN32", ports)
+        self.assertEqual(qfn.count('class="port '), 32)
+        # QFN: 8 pins a side, pin 1 on the left side, pin 9 on the bottom, 17 on the right, 25 on the top
+        for pin, side in ((1, "left"), (9, "bottom"), (17, "right"), (25, "top")):
+            self.assertIn(f'data-pin="{pin}"', qfn, side)
+        self.assertNotIn("a6 6 0 0 0 12 0", qfn)  # no dual-row notch
+        self.assertIn("a6 6 0 0 0 12 0", generator.device_symbol.render_svg("X", "TSSOP32", ports))
+        with self.assertRaises(SystemExit):
+            generator.device_symbol.render_svg("X", "BGA32", ports)
+
+    def test_symbol_variants_grey_out_hidden_pins(self):
+        meta = self.devices["device_pca9685"]["symbol"]
+        self.assertEqual([v["id"] for v in meta["variants"]], ["chip", "breakout"])
+        self.assertEqual(meta["variants"][0]["file"], meta["file"])
+        self.assertEqual(meta["variants"][1]["hidden"], ["EXTCLK"])
+        header = generator.PROJECT_ROOT / "components" / "devices" / "device_pca9685" / "esp" / "device_pca9685.h"
+        svgs = generator.read_symbol(header, generator.read_sidecar(header))["svgs"]
+        chip, breakout = (svgs[v["file"]] for v in meta["variants"])
+        self.assertIn('<circle id="pin-EXTCLK-t"', chip)
+        self.assertNotIn('<circle id="pin-EXTCLK-t"', breakout)
+        self.assertIn('id="pin-EXTCLK" class="port is-hidden"', breakout)
+        self.assertEqual(breakout.count('class="port '), 28)  # the slot stays
 
     def test_ports_must_point_at_the_device(self):
         install = {"groups": {"oe_pin": {}}}

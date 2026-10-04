@@ -21,6 +21,7 @@ Type 0 is reserved (unset type must not run). The type byte indexes `g_vm_block_
 | 13 | `PERIODIC` | 0 period (fallback constant, `time_base` units; hidden until wired) | — (ENO = the tick) | 16 (period, time base, flags, next deadline) | enabled; one-pass tick per period, no burst, overrun reported once |
 | 14 | `ACTION` | 0 action id | — | 4 (scope, id, flags) | rising edge of enable; **queues** the action (`vm_exec_request_action`) |
 | 15 | `ON_EVENT` | — | 0: value, 1: count | 4 (domain, device, channel, event; 255 = any) | enabled **and** a matching event this pass (`vm_event_at`) |
+| 16 | `SERVO` | 0 value (f32, fallback `value`), 1 set (bool, unwired = on) | — | 12 (`value` f32, `device_id` (`@contract device_servo`: picker lists servos), `when_not_active` HOLD / DEFAULT / RELEASE, runtime `last`, `last_x10`) | enabled; sends on change only, calls the servo device's ops through `sys_device_route` (VM requires `device_servo`) |
 
 ENO is optional on every block (`VM_BLOCK_NO_ID` on the wire). Per-block layouts and semantics: the block's own header (diagram + `custom_data layout` comment) and VM.MD "What ships today" plus the per-block sections after it.
 

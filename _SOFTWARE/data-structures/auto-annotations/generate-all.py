@@ -44,7 +44,7 @@ def outputs():
         found[path] = path.read_bytes()
     for path in DATA.rglob("*.generated.svg"):  # device symbols
         found[path] = path.read_bytes()
-    for path in (ROOT / "components" / "devices").glob("device_*/include/*.generated.h"):  # limits the device generator writes for the C
+    for path in (ROOT / "components" / "devices").glob("device_*/esp/*.generated.h"):  # limits the device generator writes for the C
         found[path] = path.read_bytes()
     guides = ROOT / "app" / "docs" / "devices"  # user guides copied from the device folders (the ones that carry the generator's mark)
     for path in guides.glob("*.md"):

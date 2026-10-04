@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "device_servo.c"
-    INCLUDE_DIRS "include"
+    SRCS "esp/device_servo.c"
+    INCLUDE_DIRS "esp"
     REQUIRES sys_errors sys_io sys_device
 )

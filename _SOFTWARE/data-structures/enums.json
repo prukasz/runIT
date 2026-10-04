@@ -2,7 +2,7 @@
   "enums": {
     "drv8962_topology_e": {
       "alias": "DRV8962 Topology",
-      "source_file": "components/devices/device_drv8962/include/drv8962_types.h",
+      "source_file": "components/devices/device_drv8962/esp/drv8962_types.h",
       "members": [
         {
           "name": "DRV8962_TOPOLOGY_2_FULL_BRIDGES",
@@ -15,6 +15,24 @@
           "value": 1,
           "alias": "Four half bridges",
           "description": "Channels 0..3 drive OUT1..OUT4 one by one (solenoids, single-direction loads)"
+        }
+      ]
+    },
+    "servo_type_e": {
+      "alias": "Servo Type",
+      "source_file": "components/devices/device_servo/esp/servo_types.h",
+      "members": [
+        {
+          "name": "SERVO_TYPE_ANGLE",
+          "value": 0,
+          "alias": "Angle servo",
+          "description": "Moves to an angle between the angle limits and holds it"
+        },
+        {
+          "name": "SERVO_TYPE_CONTINUOUS",
+          "value": 1,
+          "alias": "Continuous (360) servo",
+          "description": "Turns at a speed from -100 to 100 (0 stops) instead of going to an angle"
         }
       ]
     },
@@ -1309,6 +1327,18 @@
       "value": 1,
       "alias": "Four half bridges",
       "description": "Channels 0..3 drive OUT1..OUT4 one by one (solenoids, single-direction loads)"
+    },
+    "SERVO_TYPE_ANGLE": {
+      "enum": "servo_type_e",
+      "value": 0,
+      "alias": "Angle servo",
+      "description": "Moves to an angle between the angle limits and holds it"
+    },
+    "SERVO_TYPE_CONTINUOUS": {
+      "enum": "servo_type_e",
+      "value": 1,
+      "alias": "Continuous (360) servo",
+      "description": "Turns at a speed from -100 to 100 (0 stops) instead of going to an angle"
     },
     "RUNIT_DATA_PROVIDER_BLE": {
       "enum": "runit_data_provider_e",

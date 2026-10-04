@@ -358,7 +358,7 @@ def parse_packet_file(path: Path, all_classes: Dict[str, str], defines, sdkconfi
 
 
 # A device may describe itself in a JSON file next to its .c instead of in header comments:
-# components/devices/device_<chip>/device_<chip>.json. The header then keeps only the C
+# components/devices/device_<chip>/app/device_<chip>.json. The header then keeps only the C
 # (type id, cfg struct, class); titles, notes, limits and contracts live in the JSON.
 SIDECAR_KEYS = {"id", "title", "description", "protocols", "tags", "datasheet", "type_id", "contract_provider",
                 "pwm_frequencies", "count_bits", "limits", "properties", "fields", "contracts", "symbol"}
@@ -367,7 +367,7 @@ LIMIT_REF = "limit:"  # in a tag value: the number of an entry of the sidecar's 
 
 
 def sidecar_path(header: Path) -> Path:
-    return header.parent.parent / f"{header.stem}.json"
+    return header.parent.parent / "app" / f"{header.stem}.json"
 
 
 def read_sidecar(header: Path) -> Optional[dict]:
@@ -468,12 +468,32 @@ def read_symbol(header: Path, data: dict) -> Optional[dict]:
     if not csv_path.exists():
         return None
     info = data.get("symbol") or {}
-    if not info.get("label") or not info.get("package"):
-        sys.exit(f"ERROR: {csv_path.name} needs \"symbol\": {{\"label\", \"package\"}} in {sidecar_path(header).name}")
+    if not info.get("label"):
+        sys.exit(f"ERROR: {csv_path.name} needs \"symbol\": {{\"label\"}} in {sidecar_path(header).name}")
     ports = device_symbol.read_ports(csv_path)
-    file = f"{data['id']}.symbol.generated.svg"
-    return {"ports": ports, "svg": device_symbol.render_svg(info["label"], info["package"], ports),
-            "meta": {"file": file, "label": info["label"], "package": info["package"], "pins": len(ports)}}
+    names = {port["name"] for port in ports}
+    declared = info.get("variants") or [{"id": "chip", "label": "Chip"}]
+    variants, svgs, seen = [], {}, set()
+    for index, variant in enumerate(declared):
+        where = f"{sidecar_path(header).name}: symbol variant #{index + 1}"
+        vid = variant.get("id")
+        if not vid or not re.fullmatch(r"[a-z][a-z0-9_]*", vid) or vid in seen:
+            sys.exit(f"ERROR: {where}: needs a unique lowercase id (letters, digits, _)")
+        seen.add(vid)
+        hidden = list(variant.get("hidden") or [])
+        unknown = sorted(set(hidden) - names)
+        if unknown:
+            sys.exit(f"ERROR: {where} ('{vid}'): hidden pins {unknown} are not in {csv_path.name}")
+        if len(hidden) >= len(ports):
+            sys.exit(f"ERROR: {where} ('{vid}'): every pin is hidden")
+        package = variant.get("package") or info.get("package") or ""
+        label = variant.get("label") or vid
+        file = f"{data['id']}.symbol.generated.svg" if index == 0 else f"{data['id']}.symbol.{vid}.generated.svg"
+        svgs[file] = device_symbol.render_svg(info["label"] if index == 0 else f"{info['label']} {label}", package, ports, hidden)
+        variants.append({"id": vid, "label": label, "file": file, "package": package, "hidden": hidden})
+    first = variants[0]
+    return {"ports": ports, "svg": svgs[first["file"]], "svgs": svgs,
+            "meta": {"file": first["file"], "label": info["label"], "package": info.get("package") or "", "pins": len(ports), "variants": variants}}
 
 
 def field_comment(values: dict, limits: dict, where: str) -> str:
@@ -482,7 +502,7 @@ def field_comment(values: dict, limits: dict, where: str) -> str:
 
 
 def limits_header(header: Path, data: dict) -> Optional[Tuple[Path, str]]:
-    """The C #defines of the sidecar's limits: (path, text) of include/<stem>_limits.generated.h."""
+    """The C #defines of the sidecar's limits: (path, text) of esp/<stem>_limits.generated.h."""
     limits = data.get("limits")
     if not limits:
         return None
@@ -506,10 +526,10 @@ GUIDE_IMAGE_RE = re.compile(r"(\]\()images/")
 
 
 def guide_outputs(header: Path, device_id: str) -> List[Tuple[Path, bytes]]:
-    """The user guide of a device: `device_<chip>.md` next to the .c and its `images/` become
+    """The user guide of a device: `app/device_<chip>.md` and its `app/images/` become
     app/docs/devices/<id>.md and images/<id>/ (`images/` links get the device's folder). The text is
     the author's own and is not checked against the C: a plain copy."""
-    source = header.parent.parent / f"{header.stem}.md"
+    source = header.parent.parent / "app" / f"{header.stem}.md"
     if not source.exists():
         return []
     text = source.read_text(encoding="utf-8").replace("\r\n", "\n")
@@ -539,7 +559,7 @@ def check_class_pin_refs(path: Path, cfg_body: str, cfg_type: str) -> None:
     checks pin order only for the listed offsets, so a forgotten field would go unchecked."""
     declared = set(re.findall(rf"\b{PIN_REF_TYPE}\s+(\w+)\s*;", cfg_body))
     listed = set()
-    for source in sorted(path.parent.parent.glob("*.c")):
+    for source in sorted(path.parent.glob("*.c")):
         listed.update(re.findall(rf"offsetof\(\s*{cfg_type}\s*,\s*(\w+)\s*\)", source.read_text(encoding="utf-8", errors="ignore")))
     if declared != listed:
         sys.exit(f"ERROR: {path.name}: pin refs of {cfg_type} {sorted(declared)} differ from the class's SYS_DEVICE_PINS table {sorted(listed)}"
@@ -847,8 +867,8 @@ def scan_context() -> Tuple[Dict[str, str], Dict[str, dict], Dict[str, str], Dic
 
 
 def find_device_headers(devices_root: Path) -> List[Path]:
-    """Headers of components/devices/device_*/include that describe their own device (//#device)."""
-    return sorted(p for p in devices_root.glob("device_*/include/device_*.h") if device_header_record(p) is not None)
+    """Headers of components/devices/device_*/esp that describe their own device (//#device)."""
+    return sorted(p for p in devices_root.glob("device_*/esp/device_*.h") if device_header_record(p) is not None)
 
 
 def build_devices(header_files: List[Path], context: Tuple[Dict[str, str], Dict[str, dict], Dict[str, str], Dict[str, int]], device_headers: List[Path] = ()) -> List[dict]:
@@ -897,7 +917,7 @@ def main() -> int:
         files = [(generated[0], generated[1].encode("utf-8"))] if generated else []
         symbol = read_symbol(header, sidecar) if sidecar else None
         if symbol:
-            files.append((target_dir / symbol["meta"]["file"], symbol["svg"].encode("utf-8")))
+            files.extend((target_dir / file, svg.encode("utf-8")) for file, svg in symbol["svgs"].items())
         files.extend(guide_outputs(header, header_device_id(header)))
         for target, data in files:
             if not target.exists() or target.read_bytes() != data:

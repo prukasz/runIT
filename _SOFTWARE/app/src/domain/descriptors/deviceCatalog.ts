@@ -20,6 +20,8 @@ export interface GeneratedDeviceFile {
   readonly tags?: readonly string[]
   readonly datasheet?: string
   readonly pwm_frequencies?: number
+  readonly ports?: readonly DevicePort[]
+  readonly symbol?: { readonly variants: readonly { readonly id: string; readonly label: string; readonly file: string; readonly package: string; readonly hidden: readonly string[] }[] }
   readonly contractProvider?: { readonly symbol: string; readonly value: number; readonly alias?: string; readonly description?: string }
   readonly install: {
     readonly packet: string
@@ -53,6 +55,9 @@ export interface GeneratedDeviceParameter {
   readonly default?: number | string
   readonly note?: string
 }
+
+/** The header byte of a device create frame, `[class][0x00][type id][cfg]` (SYS_DEVICE_OP_CREATE of the firmware's device router). */
+export const DEVICE_CREATE_HEADER = 0x00
 
 export interface DeviceChoice {
   readonly value: number
@@ -110,6 +115,34 @@ export interface InstallPinGroup {
   readonly sentinel: number
 }
 
+/** One pin of the package (the device's pins csv): what can be wired on the canvas. */
+export interface DevicePort {
+  readonly name: string
+  /** Package pin number. */
+  readonly pin: number
+  readonly kind: 'supply_in' | 'supply_out' | 'gnd' | 'io' | 'bus'
+  readonly dir: 'in' | 'out' | 'inout'
+  readonly modes?: readonly string[]
+  readonly default_mode?: string
+  readonly group?: string
+  readonly mV_min?: number
+  readonly mV_max?: number
+  readonly bind_pin?: number
+  readonly cfg_field?: string
+  readonly note?: string
+}
+
+export interface SymbolVariant {
+  readonly id: string
+  readonly label: string
+  /** The symbol SVG's file name stem, e.g. `device_pca9685.symbol.breakout`. */
+  readonly symbol: string
+  readonly package: string
+  readonly hidden: readonly string[]
+  /** Drawn from a picture and an anchor layout saved in the device folder, not from a generated symbol. */
+  readonly picture?: true
+}
+
 export interface DeviceType {
   /** Descriptor ID, e.g. `device_pca9685`. */
   readonly id: string
@@ -120,6 +153,10 @@ export interface DeviceType {
   readonly datasheet?: string
   /** Different PWM frequencies the device runs at once (per-pin frequencies on shared timers). */
   readonly pwmFrequencies?: number
+  /** Ways to draw and use the device on the board canvas (chip, breakout boards …); the first is the default. A hidden pin is one the variant does not bring out. */
+  readonly symbolVariants?: readonly SymbolVariant[]
+  /** The package pins from the device's pins csv; empty for a device without one. */
+  readonly ports: readonly DevicePort[]
   readonly provider?: { readonly value: number; readonly label: string; readonly description?: string }
   /** The install packet; its `device_id` field is filled from the device. */
   readonly install: CommandDescriptor
@@ -185,8 +222,8 @@ export interface DeviceCatalog {
   readonly lifecycle: readonly DeviceContract[]
   /** Highest device ID the firmware accepts (install packets' `device_id` max). */
   readonly maxDeviceId: number
-  /** The device type an install frame (class, packet) belongs to. */
-  typeByInstall(classHeader: number, packetHeader: number): DeviceType | undefined
+  /** The device type a create frame (class, type id after the create header) belongs to. */
+  typeByInstall(classHeader: number, typeId: number): DeviceType | undefined
 }
 
 const LIFECYCLE = ['uninstall', 'reset', 'suspend', 'resume', 'freeze', 'sync', 'set_error_handling']
@@ -308,6 +345,8 @@ export const buildDeviceCatalog = (files: readonly GeneratedDeviceFile[], board:
       protocols: file.protocols ?? [],
       ...(file.datasheet ? { datasheet: file.datasheet } : {}),
       ...(file.pwm_frequencies ? { pwmFrequencies: file.pwm_frequencies } : {}),
+      ports: file.ports ?? [],
+      ...(file.symbol ? { symbolVariants: file.symbol.variants.map((variant) => ({ id: variant.id, label: variant.label, symbol: variant.file.replace(/\.generated\.svg$/, ''), package: variant.package, hidden: variant.hidden })) } : {}),
       ...(file.contractProvider ? { provider: { value: file.contractProvider.value, label: file.contractProvider.alias ?? file.contractProvider.symbol, ...(file.contractProvider.description ? { description: file.contractProvider.description } : {}) } } : {}),
       install,
       installChoices,
@@ -355,6 +394,6 @@ export const buildDeviceCatalog = (files: readonly GeneratedDeviceFile[], board:
     reservedPins: board.reserved_pins.map((entry) => ({ deviceId: entry.device, pin: entry.pin, label: entry.label })),
     lifecycle,
     maxDeviceId,
-    typeByInstall: (classHeader, packetHeader) => byInstall.get((classHeader << 8) | packetHeader),
+    typeByInstall: (classHeader, typeId) => byInstall.get((classHeader << 8) | typeId),
   }
 }

@@ -27,5 +27,6 @@
 .badge.is-other { --badge-color: var(--type-other); }
 .badge.is-success { --badge-color: var(--color-green); }
 .badge.is-warning { --badge-color: var(--color-amber); }
+.badge.is-danger { --badge-color: var(--color-red); }
 .badge.is-info { --badge-color: var(--color-blue); }
 .badge.is-accent { --badge-color: var(--accent); }

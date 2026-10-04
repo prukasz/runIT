@@ -21,13 +21,30 @@
     "symbol": {
       "type": "object",
       "description": "Generic IC symbol generated from the pins CSV: an SVG file next to the descriptor, one <g id=port.svg> per port.",
-      "required": ["file", "label", "package", "pins"],
+      "required": ["file", "label", "package", "pins", "variants"],
       "additionalProperties": false,
       "properties": {
         "file": { "type": "string" },
         "label": { "type": "string" },
         "package": { "type": "string" },
-        "pins": { "type": "integer", "minimum": 1 }
+        "pins": { "type": "integer", "minimum": 1 },
+        "variants": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Ways to draw and use the device (the chip itself, breakout boards ...): the first is the default and is `file`. A hidden pin keeps its slot, greyed, with no terminal: the variant does not bring it out.",
+          "items": {
+            "type": "object",
+            "required": ["id", "label", "file", "package", "hidden"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+              "label": { "type": "string" },
+              "file": { "type": "string" },
+              "package": { "type": "string" },
+              "hidden": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
       }
     },
     "ports": {

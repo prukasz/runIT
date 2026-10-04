@@ -2,8 +2,11 @@ import { useMemo, useState } from 'react'
 import { readStored, usePersistEffect } from '../hooks/useStorage'
 import { runitDeviceCatalog } from '../domain/descriptors'
 import { checkDevices, checkPwm, checkSetup, defaultInstall, nextActionId, nextDeviceId, pinsOf, resolveDevice, withDeviceAliases } from '../domain/devices'
-import { parseActions, parseDeviceAliases, parsePinAliases, parseDevices, parseSetup } from '../domain/project'
-import type { ActionStep, DeviceRef, PinAliases, ProjectAction, ProjectDevice, StepValues } from '../domain/project'
+import { parseActions, parseBoardLayout, parseBoardTemplate, parseDeviceAliases, parsePinAliases, parseDevices, parseSetup, parseWires } from '../domain/project'
+import type { BoardTemplate } from '../domain/board'
+import { sameEndpoint, touches } from '../domain/hardware'
+import type { Endpoint, Wire } from '../domain/hardware'
+import type { ActionStep, BoardLayout, BoardPlacement, DeviceRef, PinAliases, ProjectAction, ProjectDevice, StepValues } from '../domain/project'
 import { useUndoHistory } from '../hooks/useUndoHistory'
 
 /*
@@ -14,11 +17,17 @@ import { useUndoHistory } from '../hooks/useUndoHistory'
  */
 
 const STORAGE_KEY = 'runit.devices'
+/** The contract a device's default pin mode is stored as (an action step of the project's `setup`). */
+export const SET_MODE_CONTRACT = 'packet_sys_io_set_mode_t'
 const baseCatalog = runitDeviceCatalog()
 
 export interface DevicesState {
   readonly deviceAliases?: Readonly<Record<DeviceRef, string>>
   readonly pinAliases?: PinAliases
+  readonly boardLayout?: BoardLayout
+  readonly wires?: readonly Wire[]
+  /** The project's own board; the built-in runIT board when absent. */
+  readonly board?: BoardTemplate
   readonly devices: readonly ProjectDevice[]
   readonly actions: readonly ProjectAction[]
   readonly setup: readonly ActionStep[]
@@ -44,8 +53,8 @@ const restoreDeviceNames = (state: DevicesState): DevicesState => {
 
 const loadState = (): DevicesState =>
   readStored(STORAGE_KEY, (raw) => {
-    const saved = JSON.parse(raw) as { devices: unknown; actions: unknown; setup: unknown; deviceAliases?: unknown; pinAliases?: unknown }
-    return restoreDeviceNames({ devices: parseDevices(saved.devices, 'devices'), actions: parseActions(saved.actions, 'actions'), setup: parseSetup(saved.setup, 'setup'), deviceAliases: parseDeviceAliases(saved.deviceAliases, 'deviceAliases'), pinAliases: parsePinAliases(saved.pinAliases, 'pinAliases') })
+    const saved = JSON.parse(raw) as { devices: unknown; actions: unknown; setup: unknown; deviceAliases?: unknown; pinAliases?: unknown; boardLayout?: unknown; wires?: unknown; board?: unknown }
+    return restoreDeviceNames({ devices: parseDevices(saved.devices, 'devices'), actions: parseActions(saved.actions, 'actions'), setup: parseSetup(saved.setup, 'setup'), deviceAliases: parseDeviceAliases(saved.deviceAliases, 'deviceAliases'), pinAliases: parsePinAliases(saved.pinAliases, 'pinAliases'), boardLayout: parseBoardLayout(saved.boardLayout, 'boardLayout'), wires: parseWires(saved.wires, 'wires'), ...(saved.board === undefined ? {} : { board: parseBoardTemplate(saved.board, 'board') }) })
   }, EMPTY)
 
 const newId = (prefix: string): string => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
@@ -62,7 +71,7 @@ export function useDevicesWorkspace(onSelect?: () => void) {
   /** Project ID of the action open in the composer. */
   const [composing, setComposing] = useState<string>()
   const [error, setError] = useState('')
-  const { devices, actions, setup, deviceAliases, pinAliases } = history.present
+  const { devices, actions, setup, deviceAliases, pinAliases, boardLayout, wires, board } = history.present
   const catalog = useMemo(() => withDeviceAliases(baseCatalog, deviceAliases, pinAliases), [deviceAliases, pinAliases])
 
   usePersistEffect(STORAGE_KEY, history.present)
@@ -109,7 +118,7 @@ export function useDevicesWorkspace(onSelect?: () => void) {
     edit((current) => ({ ...current, devices: current.devices.map((device) => (device.id === id ? { ...device, ...patch } : device)) }))
 
   const removeDevice = (id: string) => {
-    const removed = edit((current) => ({ ...current, devices: current.devices.filter((device) => device.id !== id), setup: current.setup.filter((step) => step.device !== id), deviceAliases: Object.fromEntries(Object.entries(current.deviceAliases ?? {}).filter(([ref]) => ref !== id)), pinAliases: Object.fromEntries(Object.entries(current.pinAliases ?? {}).filter(([ref]) => ref !== id)) }))
+    const removed = edit((current) => ({ ...current, devices: current.devices.filter((device) => device.id !== id), setup: current.setup.filter((step) => step.device !== id), deviceAliases: Object.fromEntries(Object.entries(current.deviceAliases ?? {}).filter(([ref]) => ref !== id)), pinAliases: Object.fromEntries(Object.entries(current.pinAliases ?? {}).filter(([ref]) => ref !== id)), boardLayout: Object.fromEntries(Object.entries(current.boardLayout ?? {}).filter(([ref]) => ref !== id)), wires: (current.wires ?? []).filter((wire) => wire.a.device !== id && wire.b.device !== id) }))
     if (removed && selection?.kind === 'device' && selection.ref === id) setSelection(undefined)
   }
 
@@ -137,9 +146,33 @@ export function useDevicesWorkspace(onSelect?: () => void) {
     return { ...current, pinAliases: aliases }
   })
 
+  /** Place a device on the board canvas (position, rotation, mirror). */
+  const setPlacement = (ref: DeviceRef, placement: BoardPlacement) => edit((current) => {
+    const now = current.boardLayout?.[ref]
+    if (now && now.x === placement.x && now.y === placement.y && now.rotation === placement.rotation && now.mirror === placement.mirror && now.variant === placement.variant && JSON.stringify(now.pinLimits) === JSON.stringify(placement.pinLimits)) return current
+    return { ...current, boardLayout: { ...current.boardLayout, [ref]: placement } }
+  })
+
+  /** Wire two pins. The same pair twice, or an end onto itself, is refused (the checks explain what else is wrong). */
+  const addWire = (a: Endpoint, b: Endpoint): string | undefined => {
+    if (sameEndpoint(a, b)) return undefined
+    if ((history.current().wires ?? []).some((wire) => (sameEndpoint(wire.a, a) && sameEndpoint(wire.b, b)) || (sameEndpoint(wire.a, b) && sameEndpoint(wire.b, a)))) return undefined
+    const id = newId('wire')
+    edit((current) => ({ ...current, wires: [...(current.wires ?? []), { id, a, b }] }))
+    return id
+  }
+
+  const removeWire = (id: string) => edit((current) => ({ ...current, wires: (current.wires ?? []).filter((wire) => wire.id !== id) }))
+
+  /** Remove every wire on a pin. */
+  const removeWiresOn = (endpoint: Endpoint) => edit((current) => ({ ...current, wires: (current.wires ?? []).filter((wire) => !touches(wire, endpoint)) }))
+
+  /** Use a board template for this project (a copy of every part), or the built-in runIT board with `undefined`. Wires stay: the checks flag the ones whose terminal is gone. */
+  const setBoard = (template: BoardTemplate | undefined) => edit((current) => ({ ...current, board: template }))
+
   // Default settings -------------------------------------------------------
 
-  const SET_MODE = 'packet_sys_io_set_mode_t'
+  const SET_MODE = SET_MODE_CONTRACT
   const SET_LEVEL = 'packet_sys_io_set_level_t'
   const pinStep = (steps: readonly ActionStep[], ref: DeviceRef, contract: string, pin: number) => steps.find((step) => step.device === ref && step.contract === contract && step.values.pin === pin)
 
@@ -212,7 +245,7 @@ export function useDevicesWorkspace(onSelect?: () => void) {
 
   /** Replace devices and actions (project opened or recovered); undo goes back. */
   const load = (next: DevicesState) => {
-    history.replace(restoreDeviceNames({ devices: [...next.devices], actions: [...next.actions], setup: [...next.setup], deviceAliases: next.deviceAliases, pinAliases: next.pinAliases }))
+    history.replace(restoreDeviceNames({ devices: [...next.devices], actions: [...next.actions], setup: [...next.setup], deviceAliases: next.deviceAliases, pinAliases: next.pinAliases, boardLayout: next.boardLayout, wires: next.wires, board: next.board }))
     setSelection(undefined)
     setComposing(undefined)
     setError('')
@@ -222,6 +255,14 @@ export function useDevicesWorkspace(onSelect?: () => void) {
     catalog,
     deviceAliases,
     pinAliases,
+    boardLayout,
+    wires: wires ?? [],
+    board,
+    setBoard,
+    addWire,
+    removeWire,
+    removeWiresOn,
+    setPlacement,
     setDeviceAlias,
     setPinAlias,
     devices,

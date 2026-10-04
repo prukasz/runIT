@@ -15,7 +15,9 @@
         "index": 0,
         "name": "source",
         "value": "object",
-        "required": true
+        "overrides": "value",
+        "required": false,
+        "hidden_by_default": true
       },
       {
         "index": 1,
@@ -30,8 +32,49 @@
     "max": 0,
     "pins": []
   },
-  "rules": [],
-  "min_custom_len": 0,
+  "rules": [
+    {
+      "rule": "value is a finite number.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    }
+  ],
+  "state": {
+    "struct": "vm_block_set_data_t",
+    "source_file": "components/VM/blocks/set/vm_block_set.h",
+    "size": 8,
+    "align": 4,
+    "fields": [
+      {
+        "name": "value",
+        "c_type": "float",
+        "offset": 0,
+        "size": 4,
+        "description": "Constant written to the destination while the Source input is unwired",
+        "source": "user",
+        "overridden_by": 0
+      },
+      {
+        "name": "flags",
+        "c_type": "uint8_t",
+        "offset": 4,
+        "size": 1,
+        "description": "VM_SET_F_* bits",
+        "source": "runtime"
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint8_t",
+        "offset": 5,
+        "size": 3,
+        "array_len": 3,
+        "element_size": 1,
+        "description": "Align to 8 bytes",
+        "source": "padding"
+      }
+    ]
+  },
+  "min_custom_len": 8,
   "enums": {
     "vm_in_set_e": {
       "alias": "Set Inputs",

@@ -12,7 +12,7 @@ import type { Diagnostic, ObjectLayout } from './objects'
  * - planBlocks: block-owned objects (outputs `<id>:q<n>`, ENO `<id>:eno`) as
  *   an object section, the user objects blocks drive, and one accessor
  *   request per wired input (`block:<id>:in<n>`) and enable
- *   (`block:<id>:en<n>`); pin counts and one writer per object.
+ *   (`block:<id>:en<n>`); pin counts, and an object named once per block (any number of blocks may write it).
  * - encodeBlocks: with wire IDs known, pin kinds against what each path
  *   reaches, the private state from the settings (enum members, ranges, the
  *   FOR span, the expression bytecode), the block type's own load rules, and
@@ -50,14 +50,17 @@ export interface BlockPlan {
   readonly blocks: readonly PlannedBlock[]
 }
 
+/** The input pin of a block that writes into a variable as the program's user; the device refuses a block-owned object (own output, ENO) there (ERR_VM_OBJ_USR_PROTECTED). */
+const USER_WRITE_PINS: Readonly<Record<string, number>> = { SET: 1, CLONE: 1 }
+
 export const planBlocks = (blocks: readonly ProgramBlock[], catalog: VmCatalog): BlockPlan => {
   const diagnostics: Diagnostic[] = []
   const owned: ValueNode[] = []
   const driven = new Set<string>()
-  const writerOf = new Map<string, string>()
   const requests: AccessorRequest[] = []
   const planned: PlannedBlock[] = []
   const ids = new Set<string>()
+  const userWrites: { readonly block: string; readonly root: string }[] = []
   // ENO is always a source in the editor; materialize only referenced outputs.
   const referenced = new Set<string>()
   const visitPath = (path: ObjectPath) => {
@@ -99,6 +102,7 @@ export const planBlocks = (blocks: readonly ProgramBlock[], catalog: VmCatalog):
         return null
       }
       const key = inputKey(block.id, pin)
+      if (USER_WRITE_PINS[type.key] === pin) userWrites.push({ block: block.id, root: path.root })
       requests.push({ key, path })
       return key
     })
@@ -107,10 +111,11 @@ export const planBlocks = (blocks: readonly ProgramBlock[], catalog: VmCatalog):
     // Every listed output pin gets an object (other blocks may read it); repeated ones (SWITCH) as many as listed.
     const outCount = Math.max(chosen.length, type.outputs.min, type.outputs.pins.length)
     if (outCount > Math.min(type.outputs.max, catalog.blockPinMax.out)) error(`${outCount} outputs, ${type.title} has at most ${type.outputs.max}.`, 'ERR_VM_BLK_BAD_SHAPE')
+    // Several blocks may write one object (the last in execution order wins); one block may not name it twice.
+    const named = new Set<string>()
     const claim = (objectId: string) => {
-      const other = writerOf.get(objectId)
-      if (other !== undefined) error(`'${objectId}' is already written by block '${other}': one writer per object.`, 'ERR_VM_BLK_OUTPUT_TAKEN')
-      else writerOf.set(objectId, block.id)
+      if (named.has(objectId)) error(`'${objectId}' is named by two outputs of this block.`, 'ERR_VM_BLK_OUTPUT_TAKEN')
+      else named.add(objectId)
     }
     const outputs = Array.from({ length: outCount }, (_, pin): string => {
       const target = chosen[pin]
@@ -141,6 +146,12 @@ export const planBlocks = (blocks: readonly ProgramBlock[], catalog: VmCatalog):
       owned.push({ kind: 'value', id: eno, name: '', type: 'B', length: 1, mutable: true, retentive: false })
     }
     planned.push({ block, type, inputs, outputs, enables, ...(eno ? { eno } : {}) })
+  }
+
+  // Block-owned objects (own outputs, ENO) are protected; a user variable linked as an output is not.
+  const ownedIds = new Set(owned.map((node) => node.id))
+  for (const write of userWrites) {
+    if (ownedIds.has(write.root)) diagnostics.push({ severity: 'error', blockId: write.block, message: `Block '${write.block}': '${write.root}' is owned by a block, which is protected and cannot be a destination here.`, firmwareError: 'ERR_VM_OBJ_USR_PROTECTED' })
   }
 
   return { section: { key: BLOCK_SECTION, owner: 'block', objects: owned }, driven, requests, diagnostics, blocks: planned }

@@ -1,0 +1,20 @@
+# Servo
+
+Moves a servo device to a position. The servo itself (pin, type, angle range, pulse limits, trim, default position) is set up in the device; the block only steers it.
+
+## Pins and settings
+
+| | Meaning |
+|---|---|
+| Value (float, optional) | The position, in the unit of the servo: degrees (angle servo), -100..100 (continuous servo) or 0..255 (a servo steered by byte). Overrides the **Value** setting. |
+| Set (bool, optional) | On: the servo follows the value. Off: it does what **When not active** says. Unwired counts as on. |
+| Device | The servo to steer. Only servo devices are listed. |
+| Value | The position used while the Value input is unwired. |
+| When not active | What the servo does while Set is off or the block is disabled: *hold* (stay where it is), *default* (go to the servo's default position) or *release* (stop the pulse, the servo goes limp). |
+| ENO | The servo follows the value this pass. |
+
+## Behaviour
+
+- The servo is only commanded when the value (or the action) **changes**.
+- A value outside the servo's range is an error and the servo does not move; it is never clamped.
+- The trim lives in the servo device and is applied to every move.

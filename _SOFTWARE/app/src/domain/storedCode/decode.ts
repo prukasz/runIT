@@ -1,7 +1,7 @@
 import { unpackStruct } from '../../backend/packetPack'
 import type { PacketStructValues } from '../../backend/packetPack'
 import { decodeVmElements } from '../decoder'
-import { decodeVmObjectHead } from '../descriptors'
+import { decodeVmObjectHead, DEVICE_CREATE_HEADER } from '../descriptors'
 import type { CommandDescriptor, VmObjectType } from '../descriptors'
 import { createProject } from '../project'
 import { boardDeviceRef } from '../project'
@@ -522,10 +522,10 @@ export const decodeStoredCode = (frames: readonly Uint8Array[], boardDefaults: S
       }
       continue
     }
-    const deviceType = ctx.devices.typeByInstall(cls, frame[1]!)
+    const deviceType = frame[1] === DEVICE_CREATE_HEADER ? ctx.devices.typeByInstall(cls, frame[2] ?? 0) : undefined
     if (deviceType) {
       try {
-        const { device_id: deviceId, ...install } = unpackStruct(deviceType.install.request.wire, frame.subarray(2)).values
+        const { device_id: deviceId, ...install } = unpackStruct(deviceType.install.request.wire, frame.subarray(3)).values
         const same = devices.filter((device) => device.type === deviceType.id).length
         devices.push({
           id: `device-${devices.length + 1}`,

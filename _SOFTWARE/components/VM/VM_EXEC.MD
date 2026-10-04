@@ -508,8 +508,9 @@ a corrupt declared size.
 Three enforcement points, all with the state already in place and the check
 missing.
 
-**`usr_protected` guards objects user logic must not write.** Block construction
-sets it on output objects and ENO. Internal APIs require `mutable`; SET and CLONE
+**`usr_protected` guards objects user logic must not write.** The object
+upload carries it (the app sets it on block-owned objects, never on a user variable
+a block drives); block construction always sets it on ENO. Internal APIs require `mutable`; SET and CLONE
 use the `_usr` mutation boundary, which also rejects protected destinations.
 Protection applies to each written object, with whole-copy validation before
 any writes. The reserved header bit preserves existing defined wire bits.
@@ -609,7 +610,7 @@ Key execution principles implemented in the VM:
 - **Execution Order**: Block-by-block in topological scan order; loops and conditional branches run nested blocks via spans (`vm_block_claim_span`).
 - **Composite Gating**: Blocks compose update-driven (`vm_block_input_fresh`) and enable-driven (`vm_block_is_enabled`) activation.
 - **Quiet Non-Activation**: Inactive blocks call `vm_block_set_eno(b, false)`, quietly withdrawing flow without wiping data or triggering downstream update sweeps.
-- **User Protection**: Block construction automatically sets `usr_protected` on output objects and ENO, preventing mutations from user scripts.
+- **User Protection**: Block-owned objects carry `usr_protected` from the upload and block construction always sets it on ENO, preventing mutations from user scripts; a user variable a block drives stays writable.
 - **Supervisor Task**: Core-1 FreeRTOS task running at 1 tick per pass (`vm_exec_pass`), orchestrating span jumps, error policies (`cfg.on_error`), and telemetry hooks.
 - **Watchdog & Timing**: Volatile sequence/block watchdog sampled via 20 ms `esp_timer`; scan timestamp latched per pass instant via `vm_now_ms()`.
 - **Three Registries**: Flat 10-byte open packet initializes Object, Accessor, and Block registries (`VM_REG_OBJ`, `VM_REG_ACC`, `VM_REG_BLK`).

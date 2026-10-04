@@ -1,0 +1,244 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 616 1000" width="616" height="1000" role="img" aria-label="Uproszczony widok płytki runIT z góry: złącza i ich przeznaczenie">
+<title>runIT – uproszczony widok płytki z góry</title>
+<style>
+  .board { fill: #4b4e52; stroke: #34373b; stroke-width: 2; }
+  .mount { fill: #7d8085; stroke: #5e6166; stroke-width: 1; }
+  .body { fill: #5b9bd5; stroke: #3a78ad; stroke-width: 1.2; }
+  .screw { fill: #d5d9df; stroke: #6d737d; stroke-width: 1.4; }
+  .hl { fill: #8dbbe6; }
+  .entry { fill: #2f6a9e; }
+  .well { fill: #3a7ab3; }
+  .screw-ring { fill: none; stroke: #9aa1ab; stroke-width: 0.8; }
+  .slot { stroke: #5a606b; stroke-width: 1.6; stroke-linecap: round; }
+  .gold { fill: #d9b300; stroke: #6f5a00; stroke-width: 0.8; }
+  .hole { fill: #2a2a2a; }
+  .gold-ring { fill: #d6b24a; stroke: #7a6320; stroke-width: 1; }
+  .esp { fill: #81858d; stroke: #9a9ea6; stroke-width: 3; stroke-dasharray: 2.2 1.6; }
+  .espt { fill: #2b2d31; font: 600 10px sans-serif; }
+  .btn { fill: #6e7176; stroke: #55585d; stroke-width: 1.2; }
+  .btn-in { fill: #8b8e93; stroke: #6e7176; }
+  .block { fill: #62666d; stroke: #4a4d53; stroke-width: 1.2; }
+  .usb { fill: #eef0f3; stroke: #9aa0a8; stroke-width: 1.2; }
+  .usb-in { fill: #4a4f57; }
+  .usb-tongue { fill: #9aa0a8; }
+  .usb-leg { fill: #b9bec6; stroke: #7d838c; stroke-width: 0.8; }
+  .usb-edge { stroke: #9aa0a8; stroke-width: 1; }
+  .xt60 { fill: #ef7a00; stroke: #9a4f0d; stroke-width: 1.2; }
+  .cap-red { fill: #5d6065; stroke: #44474b; stroke-width: 1; }
+  .cap-grey { fill: #74777c; stroke: #55585c; stroke-width: 1; }
+  .cap-stripe { fill: #4a4d51; }
+  .chip { fill: #36383c; stroke: #2a2c2f; stroke-width: 1; }
+  .housing { fill: #1c1c1c; }
+  .silk { fill: none; stroke: #ffffff; stroke-width: 1; opacity: 0.35; }
+  .xt-pin { fill: #f1deb0; stroke: #a5885a; stroke-width: 1.2; }
+  .xt-core { fill: #c9a974; stroke: #a5885a; stroke-width: 0.8; }
+  .xt-cross { fill: none; stroke: #a5885a; stroke-width: 1; }
+  .xt60-bevel { fill: none; stroke: #c25f00; stroke-width: 1.2; }
+  .xt60-tab { fill: #c25f00; }
+  .brace { fill: none; stroke: #bfe3c4; stroke-width: 1.2; }
+  .lbl { fill: #fff; font-family: sans-serif; }
+  .head { fill: #ffe9a8; font-family: sans-serif; font-weight: 600; }
+  .dim { fill: #a9adb3; font-family: sans-serif; }
+  .logo { fill: #ffffff; fill-opacity: 0.14; font-family: sans-serif; font-weight: 800; }
+</style>
+<path d="M 14 0 H 602 A 14 14 0 0 1 616 14 V 986 A 14 14 0 0 1 602 1000 H 14 A 14 14 0 0 1 0 986 V 14 A 14 14 0 0 1 14 0 Z M 25 38 a 10 10 0 1 0 20 0 a 10 10 0 1 0 -20 0 Z M 571 38 a 10 10 0 1 0 20 0 a 10 10 0 1 0 -20 0 Z M 25 962 a 10 10 0 1 0 20 0 a 10 10 0 1 0 -20 0 Z M 571 962 a 10 10 0 1 0 20 0 a 10 10 0 1 0 -20 0 Z " fill-rule="evenodd" class="board"/>
+<g id="mount1"><title>Otwór montażowy</title><path d="M 16.2 38 a 18.8 18.8 0 1 0 37.6 0 a 18.8 18.8 0 1 0 -37.6 0 Z M 25 38 a 10 10 0 1 0 20 0 a 10 10 0 1 0 -20 0 Z " fill-rule="evenodd" class="mount"/></g>
+<g id="mount2"><title>Otwór montażowy</title><path d="M 562.2 38 a 18.8 18.8 0 1 0 37.6 0 a 18.8 18.8 0 1 0 -37.6 0 Z M 571 38 a 10 10 0 1 0 20 0 a 10 10 0 1 0 -20 0 Z " fill-rule="evenodd" class="mount"/></g>
+<g id="mount3"><title>Otwór montażowy</title><path d="M 16.2 962 a 18.8 18.8 0 1 0 37.6 0 a 18.8 18.8 0 1 0 -37.6 0 Z M 25 962 a 10 10 0 1 0 20 0 a 10 10 0 1 0 -20 0 Z " fill-rule="evenodd" class="mount"/></g>
+<g id="mount4"><title>Otwór montażowy</title><path d="M 562.2 962 a 18.8 18.8 0 1 0 37.6 0 a 18.8 18.8 0 1 0 -37.6 0 Z M 571 962 a 10 10 0 1 0 20 0 a 10 10 0 1 0 -20 0 Z " fill-rule="evenodd" class="mount"/></g>
+<g><title>Kondensator</title><circle cx="480" cy="262" r="36" class="cap-red"/><rect x="475.0" y="235.0" width="10.1" height="54.0" class="cap-stripe"/></g>
+<g><title>Kondensator</title><circle cx="558" cy="262" r="36" class="cap-red"/><rect x="553.0" y="235.0" width="10.1" height="54.0" class="cap-stripe"/></g>
+<g><title>Kondensator</title><circle cx="480" cy="338" r="36" class="cap-red"/><rect x="475.0" y="311.0" width="10.1" height="54.0" class="cap-stripe"/></g>
+<g><title>Kondensator</title><circle cx="558" cy="338" r="36" class="cap-red"/><rect x="553.0" y="311.0" width="10.1" height="54.0" class="cap-stripe"/></g>
+<g><title>Kondensator</title><circle cx="47" cy="872" r="34" class="cap-red"/><rect x="42.2" y="846.5" width="9.5" height="51.0" class="cap-stripe"/></g>
+<g><title>Kondensator</title><circle cx="436" cy="882" r="34" class="cap-red"/><rect x="431.2" y="856.5" width="9.5" height="51.0" class="cap-stripe"/></g>
+<g><title>Kondensator</title><circle cx="232" cy="745" r="25" class="cap-grey"/><rect x="228.5" y="726.2" width="7.0" height="37.5" class="cap-stripe"/></g>
+<g><title>Kondensator</title><circle cx="290" cy="785" r="26" class="cap-grey"/><rect x="286.4" y="765.5" width="7.3" height="39.0" class="cap-stripe"/></g>
+<g><title>Kondensator</title><circle cx="342" cy="790" r="26" class="cap-grey"/><rect x="338.4" y="770.5" width="7.3" height="39.0" class="cap-stripe"/></g>
+<g><title>Kondensator</title><circle cx="400" cy="748" r="25" class="cap-grey"/><rect x="396.5" y="729.2" width="7.0" height="37.5" class="cap-stripe"/></g>
+<g><title>Kondensator</title><circle cx="440" cy="792" r="24" class="cap-grey"/><rect x="436.6" y="774.0" width="6.7" height="36.0" class="cap-stripe"/></g>
+<g><title>Kondensator</title><circle cx="490" cy="792" r="24" class="cap-grey"/><rect x="486.6" y="774.0" width="6.7" height="36.0" class="cap-stripe"/></g>
+<g><title>Sterownik mostków DRV 0</title><rect x="455" y="76" width="54" height="100" rx="2" class="chip"/></g>
+<g><title>Sterownik mostków DRV 1</title><rect x="455" y="428" width="54" height="100" rx="2" class="chip"/></g>
+<g><title>Układ scalony</title><rect x="255" y="495" width="54" height="52" rx="2" class="chip"/></g>
+<g><title>Układ scalony</title><rect x="232" y="312" width="30" height="30" rx="2" class="chip"/></g>
+<g><title>Układ scalony</title><rect x="282" y="218" width="24" height="24" rx="2" class="chip"/></g>
+<g><title>Układ scalony</title><rect x="162" y="138" width="22" height="22" rx="2" class="chip"/></g>
+<rect x="0" y="213" width="16" height="72" rx="1.5" class="housing"/>
+<rect x="54" y="213" width="16" height="72" rx="1.5" class="housing"/>
+<rect x="0" y="311" width="16" height="72" rx="1.5" class="housing"/>
+<rect x="186" y="395" width="16" height="126" rx="1.5" class="housing"/>
+<rect x="0" y="689" width="86" height="150" rx="1.5" class="housing"/>
+<rect x="1" y="207" width="100" height="82" rx="3" class="silk"/>
+<rect x="1" y="305" width="44" height="82" rx="3" class="silk"/>
+<rect x="1" y="683" width="112" height="162" rx="3" class="silk"/>
+<g id="reg2-block"><title>Przetwornica REG2</title><rect x="225" y="560" width="95" height="90" rx="4" class="block"/></g>
+<text x="272" y="608" text-anchor="middle" class="dim" font-size="9">przetwornica</text>
+<text x="272" y="620" text-anchor="middle" class="dim" font-size="10">REG2</text>
+<g id="reg1-block"><title>Przetwornica REG1</title><rect x="392" y="560" width="95" height="90" rx="4" class="block"/></g>
+<text x="440" y="608" text-anchor="middle" class="dim" font-size="9">przetwornica</text>
+<text x="440" y="620" text-anchor="middle" class="dim" font-size="10">REG1</text>
+<text x="330" y="300" text-anchor="middle" class="logo" font-size="40">runIT</text>
+<text x="330" y="322" text-anchor="middle" class="dim" font-size="11">YOU can run IT</text>
+<g id="ain0" transform="translate(100.75 0) rotate(0)"><title>Wejście analogowe AIN0 (0–20 V)</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="118" y="57" text-anchor="middle" class="lbl" font-size="8.5">AIN0</text>
+<g id="ain1" transform="translate(136.75 0) rotate(0)"><title>Wejście analogowe AIN1 (0–20 V)</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="154" y="57" text-anchor="middle" class="lbl" font-size="8.5">AIN1</text>
+<g id="ain2" transform="translate(172.75 0) rotate(0)"><title>Wejście analogowe AIN2 (0–20 V)</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="190" y="57" text-anchor="middle" class="lbl" font-size="8.5">AIN2</text>
+<g id="ain3" transform="translate(208.75 0) rotate(0)"><title>Wejście analogowe AIN3 (0–20 V)</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="226" y="57" text-anchor="middle" class="lbl" font-size="8.5">AIN3</text>
+<g id="ain4" transform="translate(244.75 0) rotate(0)"><title>Wejście analogowe AIN4 (0–20 V)</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="262" y="57" text-anchor="middle" class="lbl" font-size="8.5">AIN4</text>
+<g id="ain5" transform="translate(280.75 0) rotate(0)"><title>Wejście analogowe AIN5 (0–20 V)</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="298" y="57" text-anchor="middle" class="lbl" font-size="8.5">AIN5</text>
+<g id="ain6" transform="translate(316.75 0) rotate(0)"><title>Wejście analogowe AIN6 (0–20 V)</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="334" y="57" text-anchor="middle" class="lbl" font-size="8.5">AIN6</text>
+<g id="ain7" transform="translate(352.75 0) rotate(0)"><title>Wejście analogowe AIN7 (0–20 V)</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="370" y="57" text-anchor="middle" class="lbl" font-size="8.5">AIN7</text>
+<text x="248" y="84" text-anchor="middle" class="head" font-size="9">8 × wejście analogowe 0–20 V</text>
+<g id="t3v3-3v3" transform="translate(0 117.25) rotate(-90)"><title>3V3</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<g id="t3v3-gnd" transform="translate(0 153.25) rotate(-90)"><title>GND</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="72" y="103" text-anchor="start" class="lbl" font-size="9">3V3</text>
+<text x="72" y="139" text-anchor="start" class="lbl" font-size="9">GND</text>
+<text x="8" y="206" text-anchor="start" class="head" font-size="9">I2C / GPIO</text>
+<g id="i2c-3v3"><title>3V3</title><rect x="3" y="217" width="10" height="10" class="gold"/><circle cx="8" cy="222" r="2" class="hole"/></g>
+<text x="18" y="225" text-anchor="start" class="lbl" font-size="8.5">3V3</text>
+<g id="i2c-sda"><title>SDA</title><rect x="3" y="235" width="10" height="10" class="gold"/><circle cx="8" cy="240" r="2" class="hole"/></g>
+<text x="18" y="243" text-anchor="start" class="lbl" font-size="8.5">SDA</text>
+<g id="i2c-scl"><title>SCL</title><rect x="3" y="253" width="10" height="10" class="gold"/><circle cx="8" cy="258" r="2" class="hole"/></g>
+<text x="18" y="261" text-anchor="start" class="lbl" font-size="8.5">SCL</text>
+<g id="i2c-gnd"><title>GND</title><rect x="3" y="271" width="10" height="10" class="gold"/><circle cx="8" cy="276" r="2" class="hole"/></g>
+<text x="18" y="279" text-anchor="start" class="lbl" font-size="8.5">GND</text>
+<g id="gpio-io46"><title>IO46</title><rect x="57" y="217" width="10" height="10" class="gold"/><circle cx="62" cy="222" r="2" class="hole"/></g>
+<text x="72" y="225" text-anchor="start" class="lbl" font-size="8.5">IO46</text>
+<g id="gpio-io18"><title>IO18</title><rect x="57" y="235" width="10" height="10" class="gold"/><circle cx="62" cy="240" r="2" class="hole"/></g>
+<text x="72" y="243" text-anchor="start" class="lbl" font-size="8.5">IO18</text>
+<g id="gpio-io17"><title>IO17</title><rect x="57" y="253" width="10" height="10" class="gold"/><circle cx="62" cy="258" r="2" class="hole"/></g>
+<text x="72" y="261" text-anchor="start" class="lbl" font-size="8.5">IO17</text>
+<g id="gpio-io3"><title>IO3</title><rect x="57" y="271" width="10" height="10" class="gold"/><circle cx="62" cy="276" r="2" class="hole"/></g>
+<text x="72" y="279" text-anchor="start" class="lbl" font-size="8.5">IO3</text>
+<text x="8" y="304" text-anchor="start" class="head" font-size="9">UART</text>
+<g id="uart-3v3"><title>3V3</title><rect x="3" y="315" width="10" height="10" class="gold"/><circle cx="8" cy="320" r="2" class="hole"/></g>
+<text x="18" y="323" text-anchor="start" class="lbl" font-size="8.5">3V3</text>
+<g id="uart-rx"><title>RX</title><rect x="3" y="333" width="10" height="10" class="gold"/><circle cx="8" cy="338" r="2" class="hole"/></g>
+<text x="18" y="341" text-anchor="start" class="lbl" font-size="8.5">RX</text>
+<g id="uart-tx"><title>TX</title><rect x="3" y="351" width="10" height="10" class="gold"/><circle cx="8" cy="356" r="2" class="hole"/></g>
+<text x="18" y="359" text-anchor="start" class="lbl" font-size="8.5">TX</text>
+<g id="uart-gnd"><title>GND</title><rect x="3" y="369" width="10" height="10" class="gold"/><circle cx="8" cy="374" r="2" class="hole"/></g>
+<text x="18" y="377" text-anchor="start" class="lbl" font-size="8.5">GND</text>
+<text x="194" y="388" text-anchor="middle" class="head" font-size="9">SPI</text>
+<g id="spi-3v3"><title>3V3</title><rect x="189" y="399.0" width="10" height="10" class="gold"/><circle cx="194" cy="404.0" r="2" class="hole"/></g>
+<text x="204" y="407.0" text-anchor="start" class="lbl" font-size="8.5">3V3</text>
+<g id="spi-cs1"><title>CS1</title><rect x="189" y="416.5" width="10" height="10" class="gold"/><circle cx="194" cy="421.5" r="2" class="hole"/></g>
+<text x="184" y="424.5" text-anchor="end" class="lbl" font-size="8.5">CS1</text>
+<g id="spi-miso"><title>MISO</title><rect x="189" y="434.0" width="10" height="10" class="gold"/><circle cx="194" cy="439.0" r="2" class="hole"/></g>
+<text x="204" y="442.0" text-anchor="start" class="lbl" font-size="8.5">MISO</text>
+<g id="spi-sck"><title>SCK</title><rect x="189" y="451.5" width="10" height="10" class="gold"/><circle cx="194" cy="456.5" r="2" class="hole"/></g>
+<text x="184" y="459.5" text-anchor="end" class="lbl" font-size="8.5">SCK</text>
+<g id="spi-mosi"><title>MOSI</title><rect x="189" y="469.0" width="10" height="10" class="gold"/><circle cx="194" cy="474.0" r="2" class="hole"/></g>
+<text x="204" y="477.0" text-anchor="start" class="lbl" font-size="8.5">MOSI</text>
+<g id="spi-cs0"><title>CS0</title><rect x="189" y="486.5" width="10" height="10" class="gold"/><circle cx="194" cy="491.5" r="2" class="hole"/></g>
+<text x="184" y="494.5" text-anchor="end" class="lbl" font-size="8.5">CS0</text>
+<g id="spi-gnd"><title>GND</title><rect x="189" y="504.0" width="10" height="10" class="gold"/><circle cx="194" cy="509.0" r="2" class="hole"/></g>
+<text x="204" y="512.0" text-anchor="start" class="lbl" font-size="8.5">GND</text>
+<g id="esp32"><title>ESP32-S3</title><rect x="12" y="400" width="124" height="124" rx="3" class="esp"/></g>
+<text x="74" y="470" text-anchor="middle" class="espt" font-size="12">ESP32-S3</text>
+<g id="antenna"><title>Złącze anteny (u.FL)</title><circle cx="28" cy="418" r="8" class="gold-ring"/><circle cx="28" cy="418" r="3" class="hole"/></g>
+<text x="42" y="421" text-anchor="start" class="espt" font-size="8">antena</text>
+<g id="btn-en"><title>EN (reset)</title><circle cx="40" cy="584" r="14" class="btn"/><circle cx="40" cy="584" r="7" class="btn-in"/></g>
+<text x="62" y="587" text-anchor="start" class="lbl" font-size="9">EN</text>
+<g id="btn-boot"><title>BOOT</title><circle cx="40" cy="626" r="14" class="btn"/><circle cx="40" cy="626" r="7" class="btn-in"/></g>
+<text x="62" y="629" text-anchor="start" class="lbl" font-size="9">BOOT</text>
+<text x="8" y="664" text-anchor="start" class="head" font-size="9">Ekspander PWM</text>
+<text x="10" y="682" text-anchor="middle" class="lbl" font-size="8">GND</text>
+<text x="40" y="682" text-anchor="middle" class="lbl" font-size="8">REG2</text>
+<text x="70" y="682" text-anchor="middle" class="lbl" font-size="8">PWM</text>
+<g id="pwm7-gnd"><title>Kanał 7: GND</title><rect x="5" y="693" width="10" height="10" class="gold"/><circle cx="10" cy="698" r="2" class="hole"/></g>
+<g id="pwm7-reg2"><title>Kanał 7: REG2</title><rect x="35" y="693" width="10" height="10" class="gold"/><circle cx="40" cy="698" r="2" class="hole"/></g>
+<g id="pwm7-pwm"><title>Kanał 7: PWM</title><rect x="65" y="693" width="10" height="10" class="gold"/><circle cx="70" cy="698" r="2" class="hole"/></g>
+<text x="92" y="701" text-anchor="start" class="lbl" font-size="8.5">CH7</text>
+<g id="pwm6-gnd"><title>Kanał 6: GND</title><rect x="5" y="711" width="10" height="10" class="gold"/><circle cx="10" cy="716" r="2" class="hole"/></g>
+<g id="pwm6-reg2"><title>Kanał 6: REG2</title><rect x="35" y="711" width="10" height="10" class="gold"/><circle cx="40" cy="716" r="2" class="hole"/></g>
+<g id="pwm6-pwm"><title>Kanał 6: PWM</title><rect x="65" y="711" width="10" height="10" class="gold"/><circle cx="70" cy="716" r="2" class="hole"/></g>
+<text x="92" y="719" text-anchor="start" class="lbl" font-size="8.5">CH6</text>
+<g id="pwm5-gnd"><title>Kanał 5: GND</title><rect x="5" y="729" width="10" height="10" class="gold"/><circle cx="10" cy="734" r="2" class="hole"/></g>
+<g id="pwm5-reg2"><title>Kanał 5: REG2</title><rect x="35" y="729" width="10" height="10" class="gold"/><circle cx="40" cy="734" r="2" class="hole"/></g>
+<g id="pwm5-pwm"><title>Kanał 5: PWM</title><rect x="65" y="729" width="10" height="10" class="gold"/><circle cx="70" cy="734" r="2" class="hole"/></g>
+<text x="92" y="737" text-anchor="start" class="lbl" font-size="8.5">CH5</text>
+<g id="pwm4-gnd"><title>Kanał 4: GND</title><rect x="5" y="747" width="10" height="10" class="gold"/><circle cx="10" cy="752" r="2" class="hole"/></g>
+<g id="pwm4-reg2"><title>Kanał 4: REG2</title><rect x="35" y="747" width="10" height="10" class="gold"/><circle cx="40" cy="752" r="2" class="hole"/></g>
+<g id="pwm4-pwm"><title>Kanał 4: PWM</title><rect x="65" y="747" width="10" height="10" class="gold"/><circle cx="70" cy="752" r="2" class="hole"/></g>
+<text x="92" y="755" text-anchor="start" class="lbl" font-size="8.5">CH4</text>
+<g id="pwm3-gnd"><title>Kanał 3: GND</title><rect x="5" y="765" width="10" height="10" class="gold"/><circle cx="10" cy="770" r="2" class="hole"/></g>
+<g id="pwm3-reg2"><title>Kanał 3: REG2</title><rect x="35" y="765" width="10" height="10" class="gold"/><circle cx="40" cy="770" r="2" class="hole"/></g>
+<g id="pwm3-pwm"><title>Kanał 3: PWM</title><rect x="65" y="765" width="10" height="10" class="gold"/><circle cx="70" cy="770" r="2" class="hole"/></g>
+<text x="92" y="773" text-anchor="start" class="lbl" font-size="8.5">CH3</text>
+<g id="pwm2-gnd"><title>Kanał 2: GND</title><rect x="5" y="783" width="10" height="10" class="gold"/><circle cx="10" cy="788" r="2" class="hole"/></g>
+<g id="pwm2-reg2"><title>Kanał 2: REG2</title><rect x="35" y="783" width="10" height="10" class="gold"/><circle cx="40" cy="788" r="2" class="hole"/></g>
+<g id="pwm2-pwm"><title>Kanał 2: PWM</title><rect x="65" y="783" width="10" height="10" class="gold"/><circle cx="70" cy="788" r="2" class="hole"/></g>
+<text x="92" y="791" text-anchor="start" class="lbl" font-size="8.5">CH2</text>
+<g id="pwm1-gnd"><title>Kanał 1: GND</title><rect x="5" y="801" width="10" height="10" class="gold"/><circle cx="10" cy="806" r="2" class="hole"/></g>
+<g id="pwm1-reg2"><title>Kanał 1: REG2</title><rect x="35" y="801" width="10" height="10" class="gold"/><circle cx="40" cy="806" r="2" class="hole"/></g>
+<g id="pwm1-pwm"><title>Kanał 1: PWM</title><rect x="65" y="801" width="10" height="10" class="gold"/><circle cx="70" cy="806" r="2" class="hole"/></g>
+<text x="92" y="809" text-anchor="start" class="lbl" font-size="8.5">CH1</text>
+<g id="pwm0-gnd"><title>Kanał 0: GND</title><rect x="5" y="819" width="10" height="10" class="gold"/><circle cx="10" cy="824" r="2" class="hole"/></g>
+<g id="pwm0-reg2"><title>Kanał 0: REG2</title><rect x="35" y="819" width="10" height="10" class="gold"/><circle cx="40" cy="824" r="2" class="hole"/></g>
+<g id="pwm0-pwm"><title>Kanał 0: PWM</title><rect x="65" y="819" width="10" height="10" class="gold"/><circle cx="70" cy="824" r="2" class="hole"/></g>
+<text x="92" y="827" text-anchor="start" class="lbl" font-size="8.5">CH0</text>
+<text x="330" y="906" text-anchor="middle" class="head" font-size="9.5">Zasilanie 5–20 V – do wyboru:</text>
+<g id="usbc"><title>USB-C PD 100 W</title><rect x="83" y="950" width="5" height="14" rx="1.5" class="usb-leg"/><rect x="150" y="950" width="5" height="14" rx="1.5" class="usb-leg"/><rect x="88" y="944" width="62" height="56" rx="5" class="usb"/><rect x="99" y="949" width="14" height="4" rx="2" class="usb-in"/><rect x="125" y="949" width="14" height="4" rx="2" class="usb-in"/><rect x="92" y="992" width="54" height="3" rx="1.5" class="usb-in"/><line x1="92" y1="1000" x2="146" y2="1000" class="usb-edge"/></g>
+<text x="119" y="925" text-anchor="middle" class="lbl" font-size="9.5">USB-C PD</text>
+<text x="119" y="937" text-anchor="middle" class="lbl" font-size="9.5">100 W</text>
+<text x="162" y="972" text-anchor="start" class="dim" font-size="9">lub</text>
+<g id="pwr-screw-plus" transform="translate(231.25 1000) rotate(180)"><title>Złącze śrubowe: + (5–20 V)</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<g id="pwr-screw-gnd" transform="translate(267.25 1000) rotate(180)"><title>Złącze śrubowe: GND</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="214" y="930" text-anchor="middle" class="lbl" font-size="11">+</text>
+<text x="250" y="930" text-anchor="middle" class="lbl" font-size="8.5">GND</text>
+<text x="274" y="972" text-anchor="start" class="dim" font-size="9">lub</text>
+<g id="xt60"><title>XT60 5–20 V</title><polygon points="296,938 360,938 384,958 384,982 366,1000 296,1000" class="xt60"/><polygon points="301,943 358,943 378,960 378,980 363,995 301,995" class="xt60-bevel"/><rect x="336" y="988" width="7" height="9" class="xt60-tab"/></g>
+<g id="xt60-plus"><title>XT60: +</title><circle cx="317" cy="966" r="12" class="xt-pin"/><circle cx="317" cy="966" r="3.2" class="xt-core"/><path d="M 308 966 h 18 M 317 957 v 18" class="xt-cross"/></g>
+<g id="xt60-gnd"><title>XT60: GND</title><circle cx="358" cy="966" r="12" class="xt-pin"/><circle cx="358" cy="966" r="3.2" class="xt-core"/><path d="M 349 966 h 18 M 358 957 v 18" class="xt-cross"/></g>
+<text x="317" y="932" text-anchor="middle" class="lbl" font-size="11">+</text>
+<text x="358" y="932" text-anchor="middle" class="lbl" font-size="8.5">GND</text>
+<text x="339" y="984" text-anchor="middle" class="espt" font-size="8.5">XT60</text>
+<g id="pwrout1-gnd" transform="translate(616 608.75) rotate(90)"><title>Wyjście zasilania 1: GND</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="538" y="629" text-anchor="end" class="lbl" font-size="9">GND</text>
+<g id="pwrout2-reg2" transform="translate(616 644.75) rotate(90)"><title>Wyjście zasilania 2: REG2</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="538" y="665" text-anchor="end" class="lbl" font-size="9">REG2</text>
+<g id="pwrout3-gnd" transform="translate(616 680.75) rotate(90)"><title>Wyjście zasilania 3: GND</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="538" y="701" text-anchor="end" class="lbl" font-size="9">GND</text>
+<g id="pwrout4-reg1" transform="translate(616 716.75) rotate(90)"><title>Wyjście zasilania 4: REG1</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="538" y="737" text-anchor="end" class="lbl" font-size="9">REG1</text>
+<g id="pwrout5-gnd" transform="translate(616 752.75) rotate(90)"><title>Wyjście zasilania 5: GND</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="538" y="773" text-anchor="end" class="lbl" font-size="9">GND</text>
+<g id="pwrout6-vs" transform="translate(616 788.75) rotate(90)"><title>Wyjście zasilania 6: VS</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="538" y="809" text-anchor="end" class="lbl" font-size="9">VS</text>
+<text x="608" y="600" text-anchor="end" class="head" font-size="9">Zasilanie</text>
+<g id="drv0-m1a" transform="translate(616 80.75) rotate(90)"><title>DRV 0: mostek 1, wyjście A</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="538" y="101" text-anchor="end" class="lbl" font-size="9">M1 A</text>
+<g id="drv0-m1b" transform="translate(616 116.75) rotate(90)"><title>DRV 0: mostek 1, wyjście B</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="538" y="137" text-anchor="end" class="lbl" font-size="9">M1 B</text>
+<g id="drv0-m2a" transform="translate(616 152.75) rotate(90)"><title>DRV 0: mostek 2, wyjście A</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="538" y="173" text-anchor="end" class="lbl" font-size="9">M2 A</text>
+<g id="drv0-m2b" transform="translate(616 188.75) rotate(90)"><title>DRV 0: mostek 2, wyjście B</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="538" y="209" text-anchor="end" class="lbl" font-size="9">M2 B</text>
+<path d="M 508 92 h -4 v 48 h 4" class="brace"/>
+<path d="M 508 164 h -4 v 48 h 4" class="brace"/>
+<text x="500" y="116" text-anchor="end" class="dim" font-size="8">mostek 1</text>
+<text x="500" y="188" text-anchor="end" class="dim" font-size="8">mostek 2</text>
+<text x="608" y="72" text-anchor="end" class="head" font-size="9.5">DRV 0</text>
+<g id="drv1-m1a" transform="translate(616 386.75) rotate(90)"><title>DRV 1: mostek 1, wyjście A</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="538" y="407" text-anchor="end" class="lbl" font-size="9">M1 A</text>
+<g id="drv1-m1b" transform="translate(616 422.75) rotate(90)"><title>DRV 1: mostek 1, wyjście B</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="538" y="443" text-anchor="end" class="lbl" font-size="9">M1 B</text>
+<g id="drv1-m2a" transform="translate(616 458.75) rotate(90)"><title>DRV 1: mostek 2, wyjście A</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="538" y="479" text-anchor="end" class="lbl" font-size="9">M2 A</text>
+<g id="drv1-m2b" transform="translate(616 494.75) rotate(90)"><title>DRV 1: mostek 2, wyjście B</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<text x="538" y="515" text-anchor="end" class="lbl" font-size="9">M2 B</text>
+<path d="M 508 398 h -4 v 48 h 4" class="brace"/>
+<path d="M 508 470 h -4 v 48 h 4" class="brace"/>
+<text x="500" y="422" text-anchor="end" class="dim" font-size="8">mostek 1</text>
+<text x="500" y="494" text-anchor="end" class="dim" font-size="8">mostek 2</text>
+<text x="608" y="378" text-anchor="end" class="head" font-size="9.5">DRV 1</text>
+</svg>

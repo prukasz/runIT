@@ -20,3 +20,4 @@
 #define VM_BLK_PERIODIC 13  // Every -- vm_block_periodic.h
 #define VM_BLK_ACTION 14  // Run Action -- vm_block_action.h
 #define VM_BLK_ON_EVENT 15  // On Event -- vm_block_on_event.h
+#define VM_BLK_SERVO 16  // Servo -- vm_block_servo.h

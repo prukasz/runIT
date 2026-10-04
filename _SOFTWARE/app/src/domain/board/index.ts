@@ -1,0 +1,8 @@
+export { BOARD_ID, cornerHoles, MAX_BOARD_MM, MIN_BOARD_MM, newBoard, nextConnectorId, rotatedBy, terminalId } from './template'
+export type { BoardConnector, BoardTemplate, ConnectorPin, MountHole, PinBinding, PinOverrides, Rotation, SysPinRef } from './template'
+export { CONNECTOR_TYPES, connectorType } from './connectors'
+export type { ConnectorPinShape, ConnectorType } from './connectors'
+export { boardTerminals, bindingSpec, connectorBounds, freeSpot, connectorCorners, inConnector, onBoard, pinAt, pinLabel, pinPosition, pointInConnector, renderBoardSvg, UNITS_PER_MM } from './render'
+export type { Point, SignalSpec, SpecContext } from './render'
+export { validateBoard } from './validate'
+export type { BoardIssue } from './validate'

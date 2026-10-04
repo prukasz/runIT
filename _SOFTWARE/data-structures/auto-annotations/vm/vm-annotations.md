@@ -84,7 +84,7 @@ void vm_blk_for(vm_block_h b);
 
 ### Constants: `@overrides`
 
-`VM_IN_FOR_START ... //@in @value f32 @overrides k_start` says: while this pin is unwired the block uses the state field `k_start`. The generator then publishes the pin as hidden until it is wired (`hidden_by_default`) and marks the field `overridden_by` the pin. The app draws no pin for it, shows the field in the inspector under the pin's title, and once the pin is wired shows what feeds it instead. The field must be a user field the pin's value kind can replace (`f32` ↔ `float`, `u32` ↔ `uint32_t`/`uint16_t`/`uint8_t`, ...), each field has at most one pin, and a required pin cannot have one. A hidden pin must be an `@overrides` pin or the dynamic input of a pin mask (below); otherwise nothing could set it and the generator fails.
+`VM_IN_FOR_START ... //@in @value f32 @overrides k_start` says: while this pin is unwired the block uses the state field `k_start`. The generator then publishes the pin as hidden until it is wired (`hidden_by_default`) and marks the field `overridden_by` the pin. The app draws no pin for it, shows the field in the inspector under the pin's title, and once the pin is wired shows what feeds it instead. The field must be a user field the pin's value kind can replace (`f32` ↔ `float`, `u32` ↔ `uint32_t`/`uint16_t`/`uint8_t`, an `object` pin ↔ `float`: SET's source, ...), each field has at most one pin, and a required pin cannot have one. A hidden pin must be an `@overrides` pin or the dynamic input of a pin mask (below); otherwise nothing could set it and the generator fails.
 
 ### Face and detailed view
 
@@ -105,7 +105,7 @@ The display.json says what the block's face shows; the app fills in the values.
 
 These tags apply to state-field comments and (where listed) pin members. They change editor behaviour; they do not change C layout or firmware pin indices.
 
-- `@id device` marks a device ID; `@contract <packet_*_t>` on that field limits the device picker to installed board/project devices supporting that operation. `@id pin @device-field <state field>` (on a pin or a field) marks an index of an IO resource of the device in that field: a pin, or a channel (the title in the display.json says which). The app excludes board-reserved and device-owned pins. The index file's `id_kinds` describes both.
+- `@id device` marks a device ID; `@contract <packet_*_t>` on that field limits the device picker to installed board/project devices supporting that operation; `@contract <device id>` (e.g. `device_servo`) limits it to devices of that type, for a device that has operations of its own and no contract. `@id pin @device-field <state field>` (on a pin or a field) marks an index of an IO resource of the device in that field: a pin, or a channel (the title in the display.json says which). The app excludes board-reserved and device-owned pins. The index file's `id_kinds` describes both.
 - `@hidden-by-default` (pins; implied by `@overrides`) hides an optional input until it is wired or chosen. Required inputs cannot use this tag.
 - A `uint64_t` mask uses `@hidden-by-default @let-user-select-available <pin field> @dynamic-input <input index>`. Static mode derives one bit from the selected constant pin; Dynamic mode reveals that input and a checklist of available pins. The default pin must stay included. Masks are stored as hexadecimal strings in project settings to preserve all 64 bits.
 

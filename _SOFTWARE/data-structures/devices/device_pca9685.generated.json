@@ -504,8 +504,26 @@
   "symbol": {
     "file": "device_pca9685.symbol.generated.svg",
     "label": "PCA9685",
-    "package": "TSSOP28",
-    "pins": 28
+    "package": "",
+    "pins": 28,
+    "variants": [
+      {
+        "id": "chip",
+        "label": "Chip",
+        "file": "device_pca9685.symbol.generated.svg",
+        "package": "",
+        "hidden": []
+      },
+      {
+        "id": "breakout",
+        "label": "Breakout board",
+        "file": "device_pca9685.symbol.breakout.generated.svg",
+        "package": "",
+        "hidden": [
+          "EXTCLK"
+        ]
+      }
+    ]
   },
   "ports": [
     {

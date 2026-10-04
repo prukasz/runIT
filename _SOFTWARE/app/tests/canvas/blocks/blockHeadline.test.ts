@@ -51,8 +51,8 @@ describe('block face from the descriptor', () => {
 
   it('has a detailed view only where there is a hard-coded input to show, or a formula', () => {
     const detailed = (key: string) => catalog.block(key)!.hasDetail
-    expect(['FOR', 'TIMER', 'PERIODIC', 'ACTION', 'IO_SET_LEVEL', 'IO_TOGGLE', 'EXPR', 'EXPR_BIT'].filter((key) => !detailed(key))).toEqual([])
-    expect(['IF', 'SWITCH', 'SET', 'CLONE', 'EDGE', 'LATCH', 'ON_EVENT'].filter(detailed)).toEqual([])
+    expect(['FOR', 'TIMER', 'PERIODIC', 'ACTION', 'IO_SET_LEVEL', 'IO_TOGGLE', 'SET', 'SERVO', 'EXPR', 'EXPR_BIT'].filter((key) => !detailed(key))).toEqual([])
+    expect(['IF', 'SWITCH', 'CLONE', 'EDGE', 'LATCH', 'ON_EVENT'].filter(detailed)).toEqual([])
   })
 
   it('draws an input that has a constant only in the detailed view, with the constant', () => {

@@ -227,7 +227,7 @@ static inline SE_MUST_USE err_h decoder_packet_vm_add_acc(const uint8_t* body, s
  * - **Wire Layout**:
  *   - `vm_wire_block_t` (14 bytes), then:
  *     - `in_cnt  × u16` : Input accessor IDs (`VM_BLOCK_NO_ID` for unwired pins)
- *     - `q_cnt   × u16` : Output object IDs (automatically marked `usr_protected`)
+ *     - `q_cnt   × u16` : Output object IDs (`usr_protected` as uploaded with the object; ENO always protected)
  *     - `en_cnt  × u16` : Enable accessor IDs
  *     - `custom_len × u8`: Initial private configuration / bytecode / constant data
  * - **Action**:

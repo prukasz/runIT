@@ -143,7 +143,7 @@ describe('PWM frequency warnings', () => {
 describe('device frames', () => {
   it('packs install and contract frames with the device ID from the device', () => {
     const device = pca(20)
-    expect(hex(installFrame(catalog.type('device_pca9685')!, device))).toBe('01 41 14 01 41 00 ff 00')
+    expect(hex(installFrame(catalog.type('device_pca9685')!, device))).toBe('01 00 41 14 01 41 00 ff 00')
     const board = resolveDevice(catalog, [], boardDeviceRef(0))!
     const toggle = findContract(catalog, board, 'packet_sys_io_toggle_t')!
     expect(hex(contractFrame(toggle, board.deviceId, { pin: 4, device_id: 99 }))).toBe('01 24 00 04')

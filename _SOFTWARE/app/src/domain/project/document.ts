@@ -1,3 +1,5 @@
+import type { BoardTemplate } from '../board'
+import type { Wire } from '../hardware'
 /*
  * The project document: one JSON file holding everything the app builds a
  * program from (features.md §4.2). The file is the source of truth; the device
@@ -44,6 +46,12 @@ export interface ProjectDocument {
   readonly deviceAliases?: Readonly<Record<DeviceRef, string>>
   /** User-given pin names by stable device reference and numeric pin; editor only. */
   readonly pinAliases?: PinAliases
+  /** Where each device sits on the Board view's canvas (millimetres, one grid cell each), by stable device reference; editor only. */
+  readonly boardLayout?: BoardLayout
+  /** Wires between pins on the Board view's canvas: references to stable pin IDs, never coordinates. */
+  readonly wires?: readonly Wire[]
+  /** The board the devices are wired to when it is not the built-in runIT board: a template with its own copy of every part (board creator). */
+  readonly board?: BoardTemplate
   /** Contract sequences recorded on the board as dynamic actions (sys_actions). */
   readonly actions?: readonly ProjectAction[]
   /** Default settings: contract calls (pin modes, levels, frequencies …) the stored code runs after installing the devices. */
@@ -78,6 +86,23 @@ export interface ProjectDevice {
 
 /** A board device (`board:<device ID>`) or a user device (its project ID). */
 export type DeviceRef = string
+
+/** A device's place on the board canvas: position in millimetres (grid cells), a quarter-turn rotation, and a mirror (flip left-right, before the rotation). */
+export interface BoardPlacement {
+  readonly x: number
+  readonly y: number
+  readonly rotation: 0 | 90 | 180 | 270
+  readonly mirror: boolean
+  /** The symbol variant (chip, breakout board …) by its ID; the type's first when absent. */
+  readonly variant?: string
+  /** Voltage limits (mV) the user sets per pin name over the pins csv, e.g. a divider in front of an ADC input allows more than the chip does. */
+  readonly pinLimits?: Readonly<Record<string, PinLimit>>
+}
+export interface PinLimit {
+  readonly mV_min?: number
+  readonly mV_max?: number
+}
+export type BoardLayout = Readonly<Record<DeviceRef, BoardPlacement>>
 
 export type PinAliases = Readonly<Record<DeviceRef, Readonly<Record<string, string>>>>
 

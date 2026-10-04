@@ -2,7 +2,7 @@
  * ============================================================================
  *  runIT device header - TEMPLATE (every annotation there is)
  * ============================================================================
- *  1. The device describes itself in its own header, components/devices/device_<chip>/include/
+ *  1. The device describes itself in its own header, components/devices/device_<chip>/esp/
  *     device_<chip>.h: this //#device record + the contract records + the packed cfg struct
  *     `d_<chip>_cfg_t` (its create frame, annotated like the packet below; the router hands
  *     the received bytes to sys_device_create(&g_<chip>_class, ...) as they are, @type-id is its type byte).
@@ -108,7 +108,7 @@
 #pragma once
 
 #include "dec_device_common.h"
-#include "../../../devices/device_example/include/device_example.h"
+#include "../../../devices/device_example/esp/device_example.h"
 
 // ── Device ────────────────────────────────────────────────────────────────────
 

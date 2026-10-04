@@ -211,7 +211,7 @@ These stay here only (not in PROGRESS.md) until picked up — user decision 2026
 | Extras in scope | Gamepad in Remote; Polish + English |
 | Out of scope for now | Offline simulated board; several boards at once; docs page (info window only) |
 | Firmware gaps | Tracked in §5 only, not in PROGRESS.md |
-| Block outputs (OBJ-5, 2026-09-25) | (a) is the default. (b) is allowed: the object becomes block-driven. Compiler rules: one writer per object (the device also refuses a second one, `ERR_VM_BLK_OUTPUT_TAKEN`); `mutable` forced on; `upd_resetable` = 1 for driven objects, 0 for other user objects (derived at compile time, not stored). Editor: a driven object is read-only (no remote write widget, no second output, no write-target block), shows a lock and "driven by Block N" with a jump; the pin shows `→ folder/name`. Reading is unrestricted: wires from the pin compile to an accessor on the object either way |
+| Block outputs (OBJ-5, 2026-09-25) | (a) is the default. (b) is allowed: the object becomes block-driven. Compiler rules: several blocks may write one object (last in execution order wins; one block naming it twice is `ERR_VM_BLK_OUTPUT_TAKEN`); `mutable` forced on; `upd_resetable` = 1 for driven objects, 0 for other user objects (derived at compile time, not stored). Editor: a driven object is read-only (no remote write widget, no second output, no write-target block), shows a lock and "driven by Block N" with a jump; the pin shows `→ folder/name`. Reading is unrestricted: wires from the pin compile to an accessor on the object either way |
 
 New open questions go below this table.
 
@@ -246,7 +246,7 @@ Firmware semantics this rests on: `components/VM/VM_EXEC.MD` §1 and `vm_block_i
 **Storage: no format change.** A wire lives on the input side: `inputs[i]` is an `ObjectPath`.
 - output → input: `{ root: "<block>:q<n>" }` (fan-out free, one source per input);
 - variable → input: the variable's path (`count`, `motor.gains[2]`, `table[sel]`);
-- output → variable: `outputs[i] = "<object id>"` (one writer per object, `ERR_VM_BLK_OUTPUT_TAKEN`);
+- output → variable: `outputs[i] = "<object id>"` (several blocks may write one object, the last in execution order wins; one block naming it twice is `ERR_VM_BLK_OUTPUT_TAKEN`);
 - enable: `enables[]` paths; wiring from `<block>:eno` turns `eno` on for that block.
 
 **Three kinds of connection** (VM_EXEC.MD): data wire = order + value; EN wire = order + gating; variable label = neither (a global read).
@@ -295,6 +295,6 @@ Built: `domain/canvas/arrange.ts` (order, explicit gates, loop bodies), `wiring.
 - Dragged from the Objects tree (folders and variables) onto a block: while dragging over a block a zoomed view shows its pins and EN; a pin accepts it on drop or by click. Only compatible pins accept: number ⇄ bool cast; `object` / `ptr-cell` pins and strings only take their own kind.
 - An empty accessor from the toolbar drops on any pin; the compiler still checks the final path.
 - The chip snaps onto the pin (no wire); pulled away it keeps a wire; one detached chip may feed several pins.
-- On an **output** pin the chip means the block writes that variable (one writer per object).
+- On an **output** pin the chip means the block writes that variable (other blocks may write it too).
 
 **Strips:** EN orange, ENO green (as built).

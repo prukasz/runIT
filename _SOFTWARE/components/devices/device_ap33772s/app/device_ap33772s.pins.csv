@@ -1,0 +1,19 @@
+pin,name,kind,dir,modes,default_mode,group,mV_min,mV_max,bind_pin,cfg_field,note
+1,ISENP,io,in,ADC,ADC,sense,,,,,Current sense positive node: the supply side of the external sense resistor
+2,GND,gnd,in,,,power,,,,,Ground
+3,SDA,bus,inout,,,i2c,,5000,,,"I2C data, pulled up externally"
+4,SCL,bus,in,,,i2c,,5000,,,"I2C clock, pulled up externally"
+5,FLIP,io,out,BINARY,BINARY,typec,,5000,,,"Type-C flip: low = CC1 detected, high = CC2"
+6,GPIO,io,inout,BINARY,BINARY,control,,5000,,,General-purpose I/O (only on the AP33772SDKZ-13-FA02 part)
+7,LED,io,out,BINARY,BINARY,status,,5000,,,LED indicator output
+8,INT,io,out,BINARY,BINARY,alert,,5000,,intr_pin,"Interrupt to the MCU: low = normal, high = interrupt"
+9,VSEL,io,in,ADC,ADC,control,,5000,,,Voltage select: resistor to ground (only on the AP33772SDKZ-13-FA02 part)
+10,OTP,io,inout,ADC,ADC,sense,,5000,,,100 uA source for an NTC to ground: temperature measurement
+11,CC2,bus,inout,,,typec,,3300,,,Type-C configuration channel 2
+12,CC1,bus,inout,,,typec,,3300,,,Type-C configuration channel 1
+13,DN,bus,inout,,,typec,,3300,,,Type-C D-: leave open when moisture detection is not used
+14,DP,bus,inout,,,typec,,3300,,,Type-C D+: leave open when moisture detection is not used
+15,V5V,supply_in,in,,,power,,,,,Alternative 5 V supply path when VCC is off
+16,VOUT,supply_in,in,,,power,,,,,VOUT monitoring terminal (the sink output voltage)
+17,PWR_EN,io,out,BINARY,BINARY,control,,,,,Gate drive of the external NMOS switch that connects the load
+18,VCC,supply_in,in,,,power,3000,31000,,,Supply of the IC

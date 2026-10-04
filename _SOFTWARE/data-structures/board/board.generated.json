@@ -389,14 +389,15 @@
       "pin": 22,
       "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
       "installed": true,
-      "label": "Status LEDs (high = on)"
+      "label": "Status LEDs (high = on). 22 stays on after boot (the chip's output latch resets to high), 23 is off"
     },
     {
       "device": 1,
       "pin": 23,
       "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
       "installed": true,
-      "label": "Status LEDs (high = on)"
+      "label": "Status LEDs (high = on). 22 stays on after boot (the chip's output latch resets to high), 23 is off",
+      "level": false
     },
     {
       "device": 1,

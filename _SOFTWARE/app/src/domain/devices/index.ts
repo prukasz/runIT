@@ -26,6 +26,7 @@ export {
   initialParameterValue,
   installFrame,
   modesOf,
+  providesMode,
   isSetupContract,
   nextActionId,
   nextDeviceId,

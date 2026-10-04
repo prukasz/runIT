@@ -5,7 +5,7 @@
   "enums": {
     "vm_action_scope_e": {
       "alias": "Action Scope",
-      "source_file": "components/VM/blocks/vm_block_action.h",
+      "source_file": "components/VM/blocks/action/vm_block_action.h",
       "members": [
         {
           "name": "VM_ACTION_SCOPE_STATIC",
@@ -21,39 +21,9 @@
         }
       ]
     },
-    "vm_edge_type_e": {
-      "alias": "Edge Type",
-      "source_file": "components/VM/blocks/vm_block_edge.h",
-      "members": [
-        {
-          "name": "VM_EDGE_RISING",
-          "value": 0,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_EDGE_FALLING",
-          "value": 1,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_EDGE_BOTH",
-          "value": 2,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_EDGE_TYPE_CNT",
-          "value": 3,
-          "alias": null,
-          "description": null
-        }
-      ]
-    },
     "vm_expr_op_e": {
       "alias": "Expression Opcode",
-      "source_file": "components/VM/blocks/vm_block_expr.h",
+      "source_file": "components/VM/blocks/expr_core/vm_expr_core.h",
       "members": [
         {
           "name": "VM_EXPR_END",
@@ -365,7 +335,7 @@
     },
     "vm_bit_op_e": {
       "alias": "Bit Expression Opcode",
-      "source_file": "components/VM/blocks/vm_block_expr.h",
+      "source_file": "components/VM/blocks/expr_core/vm_expr_core.h",
       "members": [
         {
           "name": "VM_BIT_END",
@@ -513,195 +483,9 @@
         }
       ]
     },
-    "vm_for_op_e": {
-      "alias": "Loop Step Operation",
-      "source_file": "components/VM/blocks/vm_block_for.h",
-      "members": [
-        {
-          "name": "VM_FOR_OP_ADD",
-          "value": 0,
-          "alias": "+",
-          "description": null
-        },
-        {
-          "name": "VM_FOR_OP_SUB",
-          "value": 1,
-          "alias": "-",
-          "description": null
-        },
-        {
-          "name": "VM_FOR_OP_MUL",
-          "value": 2,
-          "alias": "*",
-          "description": null
-        },
-        {
-          "name": "VM_FOR_OP_DIV",
-          "value": 3,
-          "alias": "/",
-          "description": null
-        },
-        {
-          "name": "VM_FOR_OP_CNT",
-          "value": 4,
-          "alias": null,
-          "description": null
-        }
-      ]
-    },
-    "vm_for_cmp_e": {
-      "alias": "Loop Condition",
-      "source_file": "components/VM/blocks/vm_block_for.h",
-      "members": [
-        {
-          "name": "VM_FOR_CMP_LT",
-          "value": 0,
-          "alias": "<",
-          "description": null
-        },
-        {
-          "name": "VM_FOR_CMP_LE",
-          "value": 1,
-          "alias": "<=",
-          "description": null
-        },
-        {
-          "name": "VM_FOR_CMP_GT",
-          "value": 2,
-          "alias": ">",
-          "description": null
-        },
-        {
-          "name": "VM_FOR_CMP_GE",
-          "value": 3,
-          "alias": ">=",
-          "description": null
-        },
-        {
-          "name": "VM_FOR_CMP_CNT",
-          "value": 4,
-          "alias": null,
-          "description": null
-        }
-      ]
-    },
-    "vm_io_disabled_state_e": {
-      "alias": "IO Disabled Action",
-      "source_file": "components/VM/blocks/vm_block_io_set_level.h",
-      "members": [
-        {
-          "name": "VM_IO_DISABLED_FORCE_LOW",
-          "value": 0,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_IO_DISABLED_FORCE_HIGH",
-          "value": 1,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_IO_DISABLED_HOLD",
-          "value": 2,
-          "alias": null,
-          "description": null
-        }
-      ]
-    },
-    "vm_io_level_e": {
-      "alias": "IO Static Level",
-      "source_file": "components/VM/blocks/vm_block_io_set_level.h",
-      "members": [
-        {
-          "name": "VM_IO_LEVEL_HIGH",
-          "value": 0,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_IO_LEVEL_LOW",
-          "value": 1,
-          "alias": null,
-          "description": null
-        }
-      ]
-    },
-    "vm_latch_mode_e": {
-      "alias": "Latch Mode",
-      "source_file": "components/VM/blocks/vm_block_latch.h",
-      "members": [
-        {
-          "name": "VM_LATCH_SET_DOMINANT",
-          "value": 0,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_LATCH_RESET_DOMINANT",
-          "value": 1,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_LATCH_MODE_CNT",
-          "value": 2,
-          "alias": null,
-          "description": null
-        }
-      ]
-    },
-    "vm_timer_mode_e": {
-      "alias": "Timer Mode",
-      "source_file": "components/VM/blocks/vm_block_timer.h",
-      "members": [
-        {
-          "name": "VM_TIMER_TON",
-          "value": 0,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_TIMER_TOF",
-          "value": 1,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_TIMER_TP",
-          "value": 2,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_TIMER_TON_INV",
-          "value": 3,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_TIMER_TOF_INV",
-          "value": 4,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_TIMER_TP_INV",
-          "value": 5,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_TIMER_MODE_CNT",
-          "value": 6,
-          "alias": null,
-          "description": null
-        }
-      ]
-    },
     "vm_timer_unit_e": {
       "alias": "Time Unit",
-      "source_file": "components/VM/blocks/vm_block_timer.h",
+      "source_file": "components/VM/blocks/timer/vm_block_timer.h",
       "members": [
         {
           "name": "VM_TIMER_UNIT_MS",
@@ -1135,7 +919,7 @@
                 "role": "user-protected",
                 "wire_offset": "3",
                 "wire_bit_offset": "6",
-                "device_sets": "0 at load; 1 on block outputs and ENO objects"
+                "note": "Set on block-owned objects (outputs, ENO); leave clear on a user variable a block drives. The device always sets it on a block's ENO."
               },
               "bit_width": 1
             },

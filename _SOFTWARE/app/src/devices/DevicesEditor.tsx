@@ -4,7 +4,7 @@ import { FormGrid, FormRow, SelectField, TextField } from '../components/FormFie
 import { AlertCircle, AlertTriangle, ArrowDown, ArrowUp, BookOpen, FileText, ImagePlus, ListPlus, Play, Plus, Trash2, Upload, X } from 'lucide-react'
 import type { DeviceType } from '../domain/descriptors'
 import { runitCommandCatalog, runitDeviceCatalog } from '../domain/descriptors'
-import { actionRecordSteps, actionRunStep, allDevices, buildAction, contractsOf, describeStep, deviceDisplayName, findContract, modesOf, pinDisplayLabel, pinKey, pinsOf, pinUsers, resolveDevice } from '../domain/devices'
+import { actionRecordSteps, actionRunStep, allDevices, buildAction, contractsOf, describeStep, deviceDisplayName, findContract, pinDisplayLabel, pinKey, pinsOf, pinUsers, providesMode, resolveDevice } from '../domain/devices'
 import type { ResolvedDevice } from '../domain/devices'
 import type { ActionStep, ProjectAction, ProjectCanvas, ProjectDevice } from '../domain/project'
 import { Button, ToggleChip, buttonClass } from '../components/Button'
@@ -294,7 +294,7 @@ function InstallCard({ workspace: w, device, type }: { workspace: DevicesWorkspa
       {type.pinGroups.map((group) => {
         const none = group.sentinelField !== undefined && device.install[group.sentinelField] === group.sentinel
         const modes = type.installChoices.get(group.modeField ?? '') ?? []
-        const availableModes = (target: ResolvedDevice | undefined) => modes.filter((mode) => modesOf(target?.type).some((supported) => supported.value === mode.value))
+        const availableModes = (target: ResolvedDevice | undefined) => modes.filter((mode) => providesMode(target?.type, mode))
         const groupTargets = group.modeField ? targets.filter((target) => availableModes(target).length > 0) : targets
         const targetId = group.deviceField ? device.install[group.deviceField] ?? 0 : 0
         const currentTarget = groupTargets.find((entry) => entry.deviceId === targetId)

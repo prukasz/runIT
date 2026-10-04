@@ -145,6 +145,7 @@ ARG_KINDS = {"NONE": "none", "INPUT": "input", "CONST": "const"}
 OVERRIDE_TYPES = {
     "bool": {"uint8_t", "bool"}, "u8": {"uint8_t"}, "u32": {"uint32_t", "uint16_t", "uint8_t"},
     "i32": {"int32_t", "int16_t", "int8_t"}, "f32": {"float"}, "scalar": set(TYPES),
+    "object": {"float"},  # an object pin may fall back on a number (SET writes it to the destination's first scalar)
 }
 
 

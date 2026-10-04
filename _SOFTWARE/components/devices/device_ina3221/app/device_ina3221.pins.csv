@@ -1,0 +1,17 @@
+pin,name,kind,dir,modes,default_mode,group,mV_min,mV_max,bind_pin,cfg_field,note
+1,IN3_N,io,in,ADC,ADC,ch3,,26000,,,"Channel 3 load side of the shunt (bus voltage is measured here, to ground)"
+2,IN3_P,io,in,ADC,ADC,ch3,,26000,,,Channel 3 supply side of the shunt
+3,GND,gnd,in,,,power,,,,,Ground (the thermal pad is ground or left open)
+4,VS,supply_in,in,,,power,2700,5500,,,Power supply
+5,A0,io,in,BINARY,BINARY,address,,5500,,,"Address: connect to GND, SCL, SDA or VS"
+6,SCL,bus,in,,,i2c,,5500,,,I2C serial clock
+7,SDA,bus,inout,,,i2c,,5500,,,I2C serial data
+8,WARNING,io,out,BINARY,BINARY,alert,,26000,,warn_pin,"Averaged measurement warning alert: open-drain, active low"
+9,CRITICAL,io,out,BINARY,BINARY,alert,,26000,,crit_pin,"Conversion-triggered critical alert: open-drain, active low"
+10,PV,io,out,BINARY,BINARY,alert,,26000,,,Power valid alert: open-drain
+11,IN1_N,io,in,ADC,ADC,ch1,,26000,,,"Channel 1 load side of the shunt (bus voltage is measured here, to ground)"
+12,IN1_P,io,in,ADC,ADC,ch1,,26000,,,Channel 1 supply side of the shunt
+13,TC,io,inout,BINARY,BINARY,alert,,26000,,,Timing control alert: open-drain
+14,IN2_N,io,in,ADC,ADC,ch2,,26000,,,"Channel 2 load side of the shunt (bus voltage is measured here, to ground)"
+15,IN2_P,io,in,ADC,ADC,ch2,,26000,,,Channel 2 supply side of the shunt
+16,VPU,supply_in,in,,,power,,,,,Pull-up supply that biases the open-drain alert outputs

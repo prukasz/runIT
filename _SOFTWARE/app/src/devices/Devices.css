@@ -248,3 +248,220 @@
 .devices-importance.is-level-3 { --level: var(--color-orange); }
 .devices-importance.is-level-4 { --level: var(--color-red); }
 .devices-importance.is-level-0, .devices-importance.is-level-none { --level: var(--divider); background-color: var(--background) !important; }
+
+/* Board canvas: the board art's terminals light up under the pointer */
+.board-art-layer { position: absolute; left: 0; top: 0; }
+.shell .board-art-layer > svg { display: block; width: 100%; height: 100%; stroke-width: 1; } /* beats the shell's icon size */
+.board-art-layer g[id] { cursor: pointer; }
+.board-art-layer g[id]:hover { filter: drop-shadow(0 0 3px var(--accent)); }
+.board-device { position: absolute; left: 0; top: 0; transform-origin: 50% 50%; cursor: grab; }
+.board-device.is-moving { cursor: grabbing; opacity: 0.85; }
+.board-device.is-selected { outline: 1.5px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+.board-device-art { transform-origin: 0 0; }
+.shell .board-device-art > svg { display: block; width: 100%; height: 100%; stroke-width: 1; }
+
+/* Board canvas right bar: variants of the selected device */
+.board-variants h3 { margin: 0 0 8px; color: var(--active); font-size: 12px; font-weight: 600; }
+.board-variants ul { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.shell .board-variants button { display: flex; align-items: center; width: 100%; height: auto; min-height: 42px; padding: 7px 10px; border: 1px solid var(--divider); border-radius: 6px; color: var(--active); text-align: left; }
+.shell .board-variants button:hover { border-color: var(--accent); }
+.shell .board-variants button.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
+.board-variant-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.board-variant-text strong { font-size: 12px; font-weight: 600; }
+.board-variant-text small { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+
+/* Anchor editor (ComponentEditor) */
+.component-editor { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; padding: 12px; outline: none; }
+.component-editor-status { padding: 6px 10px; border: 1px solid var(--divider); border-radius: 6px; font-size: 13px; }
+.component-editor-status.is-error { border-color: var(--danger, #d44); color: var(--danger, #d44); }
+.component-editor-stage { flex: 1; min-width: 0; overflow: auto; padding: 12px; border: 1px solid var(--divider); border-radius: 8px; background: repeating-conic-gradient(color-mix(in srgb, var(--active) 4%, var(--panel)) 0 25%, var(--panel) 0 50%) 0 0 / 20px 20px; }
+.component-editor-empty { padding: 24px; }
+.component-editor-frame { position: relative; flex: none; background-size: 100% 100%; background-repeat: no-repeat; outline: 1px solid var(--divider); touch-action: none; }
+.component-editor-frame.is-placing { cursor: crosshair; }
+.shell .component-anchor { position: absolute; display: block; width: var(--anchor-size, 16px); height: var(--anchor-size, 16px); margin: calc(var(--anchor-size, 16px) / -2) 0 0 calc(var(--anchor-size, 16px) / -2); box-sizing: border-box; padding: 0; border: 2px solid #fff; border-radius: 50%; background: var(--anchor, #f5a623); box-shadow: 0 0 0 1.5px #000, 0 1px 4px rgba(0, 0, 0, 0.6); cursor: grab; touch-action: none; }
+.shell .component-anchor:hover { background: #fff; }
+.shell .component-anchor span { position: absolute; left: calc(var(--anchor-size, 16px) + 2px); top: 50%; transform: translateY(-50%); padding: 0 4px; border-radius: 4px; background: rgba(0, 0, 0, 0.75); color: #fff; font-size: var(--anchor-font, 11px); font-weight: 600; line-height: 1.5; white-space: nowrap; pointer-events: none; }
+.component-editor-frame.hide-labels .component-anchor span { display: none; }
+.component-editor-frame.hide-labels .component-anchor.is-selected span, .component-editor-frame.hide-labels .component-anchor:hover span { display: block; }
+.shell .component-anchor.is-selected { background: #fff; box-shadow: 0 0 0 1.5px #000, 0 0 0 5px color-mix(in srgb, var(--accent) 65%, transparent); z-index: 1; }
+.shell .component-anchor.kind-gnd { --anchor: #9aa0a6; }
+.shell .component-anchor.kind-supply_in, .shell .component-anchor.kind-supply_out { --anchor: #e5484d; }
+.shell .component-anchor.kind-bus { --anchor: #3b9cff; }
+.shell .component-anchor.kind-io { --anchor: #f5a623; }
+.component-pin-dot { width: 8px; height: 8px; border: 2px solid var(--accent); border-radius: 50%; }
+.component-pin-dot.kind-supply_in, .component-pin-dot.kind-supply_out { border-color: #d44; }
+.component-pin-dot.kind-bus { border-color: #39c; }
+.component-pin-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+
+
+/* Picture variants on the board canvas: anchors are faint until hovered. */
+.device-symbol .picture-anchor circle { transition: fill-opacity 120ms ease, stroke-opacity 120ms ease; }
+.device-symbol .picture-anchor:hover circle { fill-opacity: 0.95; stroke-opacity: 1; stroke-width: 2; }
+.device-symbol .picture-anchor-label { display: none; fill: #fff; stroke: #000; stroke-width: 1.2; paint-order: stroke; font-weight: 600; font-family: system-ui, sans-serif; pointer-events: none; }
+.board-surface.show-pin-labels .device-symbol .picture-anchor-label, .board-device.is-selected .device-symbol .picture-anchor-label, .device-symbol .picture-anchor:hover .picture-anchor-label { display: block; }
+
+/* Anchor editor: stage extras and the top toolbar */
+.component-editor-stage { position: relative; flex: 1; }
+.component-editor-size { position: sticky; top: 0; left: 0; z-index: 2; display: inline-block; margin: 0 0 8px; padding: 2px 8px; border-radius: 6px; background: rgba(0, 0, 0, 0.65); color: #fff; font-size: 12px; font-variant-numeric: tabular-nums; }
+.component-editor-grid { position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(to right, rgba(255, 255, 255, 0.18) 1px, transparent 1px), linear-gradient(to bottom, rgba(255, 255, 255, 0.18) 1px, transparent 1px); background-size: var(--grid-step) var(--grid-step); }
+.component-toolbar { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; overflow-x: auto; overflow-y: hidden; white-space: nowrap; scrollbar-width: thin; }
+.shell .main-action-bar .component-toolbar .ui-button { width: auto; height: 28px; padding: 0 10px; }
+.shell .main-action-bar .component-toolbar .ui-chip { width: auto; height: 26px; padding: 0 10px; }
+.component-toolbar-sep { flex: none; width: 1px; height: 22px; background: var(--divider); }
+.component-toolbar-range { width: 90px; flex: none; }
+.component-toolbar-size, .component-toolbar-width { display: inline-flex; flex: none; align-items: center; gap: 6px; font-size: 12px; }
+.component-toolbar-value { min-width: 38px; font-variant-numeric: tabular-nums; }
+.component-toolbar-save { flex: none; }
+.component-pins-hint { margin: 0 0 4px; font-size: 12px; }
+/* The editor's toolbar takes the whole bar (the empty screen-actions block would take half of it). */
+.main-action-bar:has(.component-toolbar) > .screen-actions:empty { display: none; }
+.component-toolbar { gap: 6px; }
+
+/* Anchor editor built on the shared controls */
+.component-toolbar { --field-height: 28px; --field-font-size: 12px; --field-padding: 0 8px; }
+.component-toolbar .listable-field-wrap { flex: none; }
+.component-toolbar-device { width: 170px; }
+.component-toolbar-variant { width: 150px; }
+.component-toolbar-trace { width: 118px; }
+.component-toolbar-zoom { width: 78px; }
+.component-toolbar-name { width: 140px; flex: none; }
+.component-toolbar-name[aria-invalid="true"], .component-toolbar-name:placeholder-shown { border-color: var(--accent); }
+.component-toolbar-size input[type="range"] { width: 100px; }
+.component-toolbar-width .form-field-control { width: 62px; }
+.component-pin-card { margin: 8px 0; }
+.component-pin-card .ui-card-subhead { margin-top: 0; }
+.component-pin-modes { display: flex; flex-wrap: wrap; gap: 6px; }
+.component-pins .component-pin-list { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.shell .component-anchor span { display: flex; align-items: center; top: 0; height: var(--anchor-size, 16px); transform: rotate(var(--label-angle, 0deg)); transform-origin: calc(var(--anchor-size, 16px) / -2 - 2px) 50%; }
+/* Compact toolbar: everything fits a 1250 px bar; the wheel scrolls it sideways when it still does not. */
+.component-toolbar-device { width: 150px; }
+.component-toolbar-variant { width: 130px; }
+.component-toolbar-trace { width: 148px; }
+.component-toolbar-zoom { width: 70px; }
+.component-toolbar-name { width: 120px; }
+.component-toolbar-size input[type="range"] { width: 90px; }
+.component-toolbar-value { min-width: 34px; }
+.component-toolbar-width .form-field-control { width: 54px; }
+/* Zoomable stage: the buttons float over it; touches are handled in script (pinch zoom, one-finger pan). */
+.component-editor-stagewrap { position: relative; display: flex; flex: 1; min-height: 0; }
+.component-editor-stagewrap > .component-editor-stage { touch-action: none; }
+.component-editor-frame { touch-action: none; }
+.component-editor-zoom { z-index: 3; }
+/* Margin around the picture (percentages are of the stage's width) so a zoom can keep the pointer's point in place. */
+.component-editor-world { width: max-content; padding: 35% 55%; }
+/* Snap: guide lines while a pin is lined up, a stronger grid when a grid snap is chosen. */
+.component-guide { position: absolute; pointer-events: none; background: #4cc3ff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35); z-index: 1; }
+.component-guide.is-vertical { top: 0; bottom: 0; width: 1px; margin-left: -0.5px; }
+.component-guide.is-horizontal { left: 0; right: 0; height: 1px; margin-top: -0.5px; }
+.component-editor-grid.is-snap { background-image: linear-gradient(to right, rgba(76, 195, 255, 0.4) 1px, transparent 1px), linear-gradient(to bottom, rgba(76, 195, 255, 0.4) 1px, transparent 1px); }
+.component-toolbar-snap { width: 138px; }
+/* The picture menu floats under its toolbar button. */
+.component-picture-menu-anchor { position: fixed; z-index: 60; }
+.component-picture-menu { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--divider); border-radius: 8px; background: var(--panel); box-shadow: 0 6px 20px var(--shadow); white-space: normal; }
+.component-picture-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.component-picture-label { font-size: 12px; color: var(--muted); }
+.component-picture-range { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.component-picture-range input { width: 100px; }
+.component-picture-trace { width: 160px; }
+.component-picture-zoom { width: 100px; }
+.shell .main-action-bar .component-picture-menu .ui-button { width: auto; height: 28px; padding: 0 10px; }
+.shell .main-action-bar .component-picture-menu .ui-chip { width: auto; height: 26px; padding: 0 10px; }
+.component-toolbar .component-toolbar-picture svg:last-child { width: 14px; height: 14px; }
+/* Variant name and label live in the right panel. */
+.component-variant-card { margin: 4px 0 10px; }
+.component-variant-card .form-row { margin-bottom: 10px; }
+/* Pin card in the narrow right panel: tighter padding, buttons wrap instead of being clipped. */
+.component-pin-card.ui-card, .component-variant-card.ui-card { padding: 14px 14px; }
+.component-pin-card .ui-card-subhead { margin-bottom: 12px; }
+.component-pin-actions .ui-button { flex: 0 1 auto; min-width: 0; }
+.shell .detail-content .component-pin-actions .ui-button { width: auto; height: 28px; }
+/* Wires over the board canvas */
+.board-wires { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 5; }
+.board-wire-line { fill: none; stroke: var(--wire, #4cc3ff); stroke-width: 3px; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.board-wire-halo { fill: none; stroke: rgba(0, 0, 0, 0.55); stroke-width: 6px; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.board-wire-end { fill: var(--wire, #4cc3ff); stroke: rgba(0, 0, 0, 0.6); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.board-wire.is-power { --wire: #ff6b6b; }
+.board-wire.is-ground { --wire: #9aa0a6; }
+.board-wire.is-bus { --wire: #4ade80; }
+.board-wire.is-signal { --wire: #4cc3ff; }
+.board-wire.is-selected .board-wire-halo { stroke: #fff; stroke-width: 9px; }
+.board-wire.has-error .board-wire-line { stroke: #ff3b3b; stroke-dasharray: 6 4; }
+.board-wire.has-warning .board-wire-line { stroke-dasharray: 2 4; }
+.board-wire.is-faded { opacity: 0.18; }
+.board-wire.is-pending .board-wire-line { stroke: #fff; stroke-dasharray: 5 4; }
+.board-wire.is-pending.is-refused .board-wire-line { stroke: #ff3b3b; }
+.board-wire-label { fill: #fff; stroke: #000; stroke-width: 3px; paint-order: stroke; font-weight: 600; font-family: system-ui, sans-serif; stroke-linejoin: round; }
+.board-wire-label.is-bad { fill: #ff8a8a; }
+.board-wire-fit { fill: rgba(76, 222, 128, 0.18); stroke: #4ade80; stroke-width: 2px; vector-effect: non-scaling-stroke; }
+.board-surface.is-wiring-available .board-art-layer, .board-surface.is-wiring-available .board-device-art { opacity: 0.45; transition: opacity 120ms ease; }
+.board-surface.is-wiring { cursor: crosshair; }
+/* Wiring options in the toolbar and wiring cards in the right panel */
+.board-wiring-options { display: flex; align-items: center; gap: 6px; padding-left: 8px; border-left: 1px solid var(--divider); }
+.shell .main-action-bar .board-wiring-options .ui-chip { width: auto; height: 26px; padding: 0 10px; display: inline-flex; align-items: center; gap: 4px; }
+.board-wire-ends { margin: 0 0 8px; font-size: 13px; line-height: 1.5; }
+.board-wire-facts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.board-issues { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
+.board-issue { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; line-height: 1.45; }
+.shell .board-issue-text { width: auto; height: auto; padding: 0; justify-content: flex-start; text-align: left; color: var(--active); font: inherit; background: transparent; border: 0; }
+span.board-issue-text { color: var(--active); }
+.board-connections, .board-install-links ul { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.board-connections li { display: flex; align-items: center; gap: 4px; border-radius: 6px; }
+.board-connections li.is-selected { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.shell .board-connection { display: flex; flex: 1; align-items: center; justify-content: flex-start; gap: 6px; width: auto; min-width: 0; height: auto; min-height: 30px; padding: 4px 8px; font-size: 12px; color: var(--active); text-align: left; }
+.board-connection-pin { font-weight: 600; }
+.board-connection-arrow { color: var(--muted); }
+.board-connection-far { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-install-links h4 { margin: 12px 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.board-install-links li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+.board-install-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.board-install-text small { color: var(--muted); }
+.board-wiring-checks, .board-device-wiring, .board-wire-card { margin: 10px 0; }
+/* Issue text wraps inside the narrow right panel instead of running off its edge. */
+.board-issue { min-width: 0; }
+.board-issue .badge { flex: none; margin-top: 1px; }
+.shell .board-issue-text, span.board-issue-text { flex: 1; min-width: 0; white-space: normal; overflow-wrap: anywhere; word-break: normal; }
+.board-wiring-checks, .board-device-wiring, .board-wire-card { min-width: 0; overflow: hidden; }
+.board-wire-arrow { fill: var(--wire, #4cc3ff); stroke: rgba(0, 0, 0, 0.6); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.board-wire-ends .badge { vertical-align: middle; }
+.board-issue { flex-wrap: wrap; }
+.shell .board-issue .board-issue-fix { margin-left: auto; width: auto; height: 26px; }
+/* A note with a fix: the text gets the row, the button sits under it. */
+.shell .board-issue .board-issue-text, .board-issue span.board-issue-text { flex: 1 1 180px; }
+.shell .board-issue .board-issue-fix { flex: 0 0 auto; margin: 2px 0 0 0; }
+/* Board creator */
+.board-editor-toolbar { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; overflow-x: auto; overflow-y: hidden; white-space: nowrap; scrollbar-width: thin; --field-height: 28px; --field-font-size: 12px; --field-padding: 0 8px; }
+.board-editor-toolbar .listable-field-wrap { flex: none; }
+.board-editor-library-select { width: 160px; }
+.board-editor-snap { width: 130px; }
+.board-editor-sep { flex: none; width: 1px; height: 22px; background: var(--divider); }
+.shell .main-action-bar .board-editor-toolbar .ui-button { width: auto; height: 28px; padding: 0 10px; }
+.shell .main-action-bar .board-editor-toolbar .history-actions { padding-right: 0; border-right: 0; }
+.board-editor-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; max-width: 520px; margin: 48px auto; padding: 0 20px; }
+.board-editor-empty h3 { margin: 0; }
+.board-editor-empty-actions, .board-editor-library { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.board-editor-library h4 { flex-basis: 100%; margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+.board-editor-overlay { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 5; }
+.board-editor-outline { fill: rgba(76, 195, 255, 0.12); stroke: #4cc3ff; stroke-width: 2px; vector-effect: non-scaling-stroke; }
+.board-editor-pin { fill: none; stroke: #f5a623; stroke-width: 1.5px; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; }
+.board-editor-pin.is-bound { stroke: #4ade80; stroke-dasharray: none; }
+.board-editor-pin.is-chosen { stroke: #fff; stroke-width: 2.5px; stroke-dasharray: none; fill: rgba(255, 255, 255, 0.18); }
+.board-editor-tag { fill: #4cc3ff; stroke: #000; stroke-width: 3px; paint-order: stroke; font-weight: 600; font-family: system-ui, sans-serif; }
+.board-palette-preview { display: inline-flex; width: 44px; height: 30px; align-items: center; justify-content: center; }
+.board-palette-preview svg { width: 100%; height: 100%; }
+.board-palette-hint { padding: 8px 14px; font-size: 12px; }
+.board-editor-card { margin: 8px 0; min-width: 0; padding: 14px; }
+.board-editor-card .form-row { margin-bottom: 10px; }
+.board-editor-holes { margin-top: 2px; }
+.board-connector-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 8px; }
+.board-pins-title { margin: 10px 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.board-pin-list { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.board-pin-row { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--divider); border-radius: 8px; }
+.board-pin-row.is-chosen { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.board-pin-head { display: flex; align-items: center; gap: 8px; }
+.board-pin-row .form-row { margin-bottom: 0; }
+.board-pin-taken { margin: 0; font-size: 11px; color: var(--color-amber); }
+.board-editor-hint, .board-editor-status { margin: 8px 0; font-size: 12px; }
+.board-editor-status.is-error { color: var(--color-red); }
+/* Connection rows in the narrow right panel wrap instead of cutting the far end off. */
+.shell .board-connection { flex-wrap: wrap; row-gap: 2px; }
+.board-connection-far { flex: 1 1 110px; white-space: normal; overflow: visible; text-overflow: clip; }
