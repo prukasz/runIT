@@ -2,22 +2,22 @@
 
 # Timer
 
-An IEC 61131-3 timer. It watches **Start** and produces **Q** (the block's ENO) and the elapsed time.
+An IEC 61131-3 timer. It is driven by its **enable** and produces **Q** (the block's ENO) and the elapsed time.
 
 ## Modes
 
 | Mode | Q |
 |---|---|
-| On-delay (TON) | Becomes true when Start has been true for the preset time. |
-| Off-delay (TOF) | Becomes false when Start has been false for the preset time. |
-| Pulse (TP) | A pulse of the preset length, started by Start rising. |
+| On-delay (TON) | Becomes true when the enable has been true for the preset time. |
+| Off-delay (TOF) | Becomes false when the enable has been false for the preset time. |
+| Pulse (TP) | A pulse of the preset length, started by the enable rising. |
 | Inverted variants | The same, with Q inverted. |
 
 ## Pins and settings
 
 | | Meaning |
 |---|---|
-| Start (required) | The signal the timer acts on. The block's enable gates the whole timer. |
+| Enable | The signal the timer acts on. A disabled timer is not skipped: it runs with a false signal, so an off-delay or a pulse finishes on its own and an on-delay resets. |
 | Preset (pin, optional) | Overrides the preset constant, in the chosen unit. |
 | Elapsed time | Output: the time that elapsed, in the chosen unit. |
 | Mode, Preset, Time base | Mode, a preset constant, and the unit (ms, s, min, h). |

@@ -74,12 +74,28 @@ describe('BoardDeviceDetails', () => {
       const base = useDevicesWorkspace()
       const w: DevicesWorkspace = { ...base, devices: [device], boardLayout: variant ? { d1: { x: 0, y: 0, rotation: 0, mirror: false, variant } } : undefined, selection: { kind: 'device', ref: 'd1' } }
       const wiring = useBoardWiring()
-      return <BoardDeviceDetails workspace={w} wiring={wiring} />
+      return <BoardDeviceDetails workspace={w} wiring={wiring} onEditComponent={() => {}} onEditBoard={() => {}} />
     }
     const html = renderToString(<Panel variant="breakout" />)
     expect(html).toContain('Breakout board')
     expect(html).toContain('not brought out: EXTCLK')
     expect(html).toMatch(/aria-checked="true"[^>]*class="is-selected"[^>]*>(?:(?!<\/button>).)*Breakout board/s)
     expect(renderToString(<Panel />)).toMatch(/aria-checked="true"[^>]*class="is-selected"[^>]*>(?:(?!<\/button>).)*Chip/s)
+  })
+
+  it('puts Edit component on the device page and Edit board on the board page', () => {
+    function Panel({ selection }: { selection: DevicesWorkspace['selection'] }) {
+      const base = useDevicesWorkspace()
+      const w: DevicesWorkspace = { ...base, devices: [device], selection }
+      const wiring = useBoardWiring()
+      return <BoardDeviceDetails workspace={w} wiring={wiring} onEditComponent={() => {}} onEditBoard={() => {}} />
+    }
+    const deviceHtml = renderToString(<Panel selection={{ kind: 'device', ref: 'd1' }} />)
+    expect(deviceHtml).toContain('Edit component')
+    expect(deviceHtml).not.toContain('Edit board')
+    const boardHtml = renderToString(<Panel selection={{ kind: 'board' }} />)
+    expect(boardHtml).toContain('Edit board')
+    expect(boardHtml).not.toContain('Edit component')
+    expect(renderToString(<Panel selection={undefined} />)).not.toContain('Edit board')
   })
 })

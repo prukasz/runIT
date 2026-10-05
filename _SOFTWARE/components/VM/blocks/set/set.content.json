@@ -23,6 +23,7 @@
         "index": 1,
         "name": "destination",
         "value": "object",
+        "user_write": true,
         "required": true
       }
     ]

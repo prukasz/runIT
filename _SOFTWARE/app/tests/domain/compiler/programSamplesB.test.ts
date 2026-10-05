@@ -38,8 +38,8 @@ const blocks: readonly ProgramBlock[] = [
   { id: 'dyn', type: 'EXPR', inputs: [at('cfg', { kind: 'name', name: 'gains' }, { kind: 'dynamic', index: at('k') })], outputs: ['picked'], enables: [tick], expression: { code: ['in', 0] } },
   { id: 'high', type: 'EXPR', inputs: [at('saw:q0')], enables: [tick], expression: { constants: [3], code: ['in', 0, 'const', 0, '>'] } },
   { id: 'hi', type: 'IF', inputs: [at('high:q0')], eno: true },
-  { id: 'off', type: 'TIMER', inputs: [at('hi:q0')], eno: true, settings: { mode: 'TOF', time_base: 'MS', pt: 200 } },
-  { id: 'pulse', type: 'TIMER', inputs: [at('hi:q0')], eno: true, settings: { mode: 'TP', time_base: 'MS', pt: 150 } },
+  { id: 'off', type: 'TIMER', enables: [at('hi:q0')], eno: true, settings: { mode: 'TOF', time_base: 'MS', pt: 200 } },
+  { id: 'pulse', type: 'TIMER', enables: [at('hi:q0')], eno: true, settings: { mode: 'TP', time_base: 'MS', pt: 150 } },
   { id: 'fall', eno: true, type: 'EDGE', enables: [at('high:q0')], settings: { edge_type: 'FALLING' } },
   { id: 'wrapped', eno: true, type: 'LATCH', enables: [at('fall:eno')], settings: { mode: 'RESET_DOMINANT' } },
 ]

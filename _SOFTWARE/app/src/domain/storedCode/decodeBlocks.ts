@@ -61,8 +61,6 @@ const BLOCK_PIN = /^(.+):(q\d+|eno|body)$/
 /** Every root a path reads: the path itself and the dynamic indices inside it. */
 const roots = (path: ObjectPath): string[] => [path.root, ...(path.steps ?? []).flatMap((step) => (step.kind === 'dynamic' ? roots(step.index) : []))]
 
-const EXPRESSION_COUNTS = new Set(['const_cnt', 'code_len'])
-
 const unsigned = (view: DataView, field: VmBlockField): number | bigint | undefined => {
   switch (field.cType) {
     case 'uint8_t': return view.getUint8(field.offset)
@@ -149,7 +147,7 @@ export const recoverBlocks = (source: Source): BlockRecovery => {
         continue
       }
       if (field.source !== 'user') continue
-      if (type.encoding && EXPRESSION_COUNTS.has(field.name)) {
+      if (field.name === type.encoding?.constCountField || field.name === type.encoding?.codeLengthField) {
         counts.set(field.name, Number(unsigned(view, field) ?? 0))
         continue
       }
@@ -171,15 +169,15 @@ export const recoverBlocks = (source: Source): BlockRecovery => {
       } else raw = unsigned(view, field)
       if (raw === undefined) continue
       const value: number | string = typeof raw === 'bigint' ? (raw <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(raw) : pinMaskText(raw)) : raw
-      // Plain zeros are the default; an enum keeps its member, so the editor shows the mode.
-      if (value === 0 && !field.enumRef) continue
+      // Plain zeros are the default; an enum keeps its member, so the editor shows the mode, and a device keeps its ID (no device is chosen until set).
+      if (field.anyValue !== undefined ? value === field.anyValue : value === 0 && !field.enumRef && field.idKind !== 'device') continue
       const member = field.enumRef && typeof value === 'number' ? enumMemberLabels(type.enums.get(field.enumRef) ?? []).find((entry) => entry.value === value) : undefined
       settings[field.name] = member ? member.label : value
     }
 
     if (type.encoding) {
-      const constCount = counts.get('const_cnt') ?? 0
-      const codeLength = counts.get('code_len') ?? 0
+      const constCount = counts.get(type.encoding.constCountField) ?? 0
+      const codeLength = counts.get(type.encoding.codeLengthField) ?? 0
       const start = Math.max(type.stateSize, type.minCustomLen)
       const constants: number[] = []
       for (let index = 0; index < constCount && start + index * 4 + 4 <= custom.byteLength; index++) {

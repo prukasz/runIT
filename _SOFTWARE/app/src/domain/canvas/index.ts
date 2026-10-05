@@ -1,6 +1,6 @@
 export { addBlock, addCanvas, canvasToScreen, DEFAULT_VIEWPORT, findBlock, GRID, moveBlock, moveCanvas, newBlockId, newCanvasName, pasteBlock, pasteBlocks, programBlocks, removeBlock, removeCanvas, renameCanvas, screenToCanvas, setCanvasDisabled, snap, snapPoint, updateBlock, ZOOM_MAX, ZOOM_MIN, zoomAt } from './canvas'
 export type { Point, Viewport } from './canvas'
-export { arrangeProgram, loopBodyGate } from './arrange'
+export { arrangeProgram, isLoopOwner, loopBodyGate } from './arrange'
 export { placeBlocks } from './layout'
 export type { BlockSize } from './layout'
 export type { Arrangement } from './arrange'

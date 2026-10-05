@@ -36,7 +36,7 @@ describe('block headline', () => {
     // An empty variable ({ root: '' }) or an unwired pin keeps the constant.
     expect(blockHeadline(catalog.block('PERIODIC'), { ...wiredPeriod, inputs: [{ root: '' }] })).toBe('Every 0 MS')
     expect(blockHeadline(catalog.block('PERIODIC'), { ...wiredPeriod, inputs: [null] })).toBe('Every 0 MS')
-    expect(blockHeadline(catalog.block('TIMER'), { id: 'b', type: 'TIMER', settings: { mode: 'TON', time_base: 'S', pt: 5 }, inputs: [null, { root: 'delay' }] })).toBe('Timer TON delay S')
+    expect(blockHeadline(catalog.block('TIMER'), { id: 'b', type: 'TIMER', settings: { mode: 'TON', time_base: 'S', pt: 5 }, inputs: [{ root: 'delay' }] })).toBe('Timer TON delay S')
     expect(blockHeadline(catalog.block('FOR'), { id: 'b', type: 'FOR', settings: { k_start: 0, k_end: 3, k_step: 1, op: 'ADD', cmp: 'LT' }, inputs: [null, { root: 'n' }] })).toBe('For 0 to n (<) step +1')
   })
 
@@ -58,9 +58,8 @@ describe('block face from the descriptor', () => {
   it('draws an input that has a constant only in the detailed view, with the constant', () => {
     const loopType = catalog.block('FOR')!
     expect(blockShape(loopType, { id: 'l', type: 'FOR' }).inputs).toEqual([])
-    const detailed = blockShape(loopType, { id: 'l', type: 'FOR', view: 'detailed' })
-    expect(blockShape(loopType, { id: 'l', type: 'FOR', view: 'simple' }, true).inputs).toEqual([])
-    expect(detailed.inputs.map((pin) => [pin.title, pin.overrides])).toEqual([['Start', 'k_start'], ['End', 'k_end'], ['Step', 'k_step']])
+    const detailed = blockShape(loopType, { id: 'l', type: 'FOR' }, true)
+        expect(detailed.inputs.map((pin) => [pin.title, pin.overrides])).toEqual([['Start', 'k_start'], ['End', 'k_end'], ['Step', 'k_step']])
     expect(settingText(loopType, loop, 'k_end')).toBe('3')
   })
 
@@ -69,8 +68,8 @@ describe('block face from the descriptor', () => {
     const pt = timer.inputs.pins.find((pin) => pin.name === 'pt')!
     expect(pt.overrides).toBe('pt')
     expect(timer.fields.find((field) => field.name === 'pt')?.overriddenBy).toBe(pt.index)
-    expect(blockShape(timer, { id: 't', type: 'TIMER' }).inputs.map((pin) => pin.index)).toEqual([0])
-    expect(blockShape(timer, { id: 't', type: 'TIMER', inputs: [null, { root: 'delay' }] }).inputs.map((pin) => pin.index)).toEqual([0, 1])
+    expect(blockShape(timer, { id: 't', type: 'TIMER' }).inputs.map((pin) => pin.index)).toEqual([])
+    expect(blockShape(timer, { id: 't', type: 'TIMER', inputs: [{ root: 'delay' }] }).inputs.map((pin) => pin.index)).toEqual([0])
     for (const pin of catalog.block('FOR')!.inputs.pins) expect(pin.hiddenByDefault).toBe(true)
     expect(blockShape(catalog.block('FOR'), { id: 'l', type: 'FOR' }).inputs).toEqual([])
   })
@@ -86,5 +85,26 @@ describe('block face from the descriptor', () => {
     const settings = { device_id: 0, default_io_num: 4 }
     expect(blockHeadline(io, { id: 'i', type: 'IO_TOGGLE', settings, inputs: [{ root: 'sel' }] })).toBe('Toggle Pin sel')
     expect(blockHeadline(io, { id: 'i', type: 'IO_TOGGLE', settings, dynamicInputs: [0] })).toBe('Toggle Pin dynamic pin')
+  })
+})
+
+describe('pins that drop their title once wired', () => {
+  const catalog = runitVmCatalog()
+  const expr = catalog.block('EXPR')!
+
+  it('keeps the title of an unwired input and drops it once a variable is wired, from the pin\'s own property', () => {
+    expect(expr.inputs.pins[0]?.hideWhenWired).toBe(true)
+    expect(blockShape(expr, { id: 'e', type: 'EXPR' }).inputs.map((pin) => pin.quiet)).toEqual([undefined])
+    expect(blockShape(expr, { id: 'e', type: 'EXPR', inputs: [{ root: 'angle' }] }).inputs.map((pin) => pin.quiet)).toEqual([true])
+    // An empty variable still shows what it is for.
+    expect(blockShape(expr, { id: 'e', type: 'EXPR', inputs: [{ root: '' }] }).inputs.map((pin) => pin.quiet)).toEqual([undefined])
+    // A named pin keeps its title however it is wired.
+    const servo = catalog.block('SERVO')!
+    expect(servo.inputs.pins.some((pin) => pin.hideWhenWired)).toBe(false)
+  })
+
+  it('makes a block narrower when its titles are dropped', () => {
+    const wide = blockShape(expr, { id: 'e', type: 'EXPR' }).width
+    expect(blockShape(expr, { id: 'e', type: 'EXPR', inputs: [{ root: 'a' }] }).width).toBeLessThanOrEqual(wide)
   })
 })

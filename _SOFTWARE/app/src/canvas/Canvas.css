@@ -156,7 +156,7 @@
 .canvas-block-eno-tag { flex: none; margin-left: auto; color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: 0.3px; }
 .canvas-block-pins { position: relative; }
 .canvas-block-device { position: absolute; left: 12px; top: 0; bottom: 0; z-index: 1; display: flex; align-items: center; max-width: calc(100% - 24px); overflow: hidden; color: var(--muted); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
-.canvas-block-device.is-right { left: auto; right: 12px; max-width: 50%; }
+.canvas-block-device.is-right { left: auto; right: 12px; max-width: calc(100% - 24px); }
 .block-name-field { display: block; width: 100%; max-width: 240px; margin-top: 5px; padding: 5px 7px; border: 1px solid var(--divider); border-radius: 5px; background: var(--background); color: var(--active); font-family: inherit; font-size: 12px; }
 .block-name-field:focus, .block-output-alias:focus { border-color: var(--accent); outline: none; }
 .block-output-alias { width: 100%; min-width: 70px; margin-top: 5px; padding: 4px 6px; border: 1px solid var(--divider); border-radius: 4px; background: var(--background); color: var(--active); font-family: inherit; font-size: 11px; }
@@ -169,6 +169,8 @@
 .canvas-block-pins { display: flex; flex: none; justify-content: space-between; min-height: 20px; }
 .canvas-block-side { display: flex; flex-direction: column; min-width: 0; max-width: calc(50% + 6px); }
 .canvas-block-side.is-out { align-items: flex-end; }
+/* A side with no pins opposite it can use the whole row instead of half. */
+.canvas-block-side.is-in:has(+ .canvas-block-side:empty), .canvas-block-side:empty + .canvas-block-side.is-out { max-width: 100%; }
 .canvas-block-pin { position: relative; display: flex; flex: none; align-items: center; width: 100%; height: 20px; font-size: 10px; white-space: nowrap; }
 .canvas-block-side.is-out .canvas-block-pin { justify-content: flex-end; }
 .canvas-pin-slab { position: relative; z-index: 2; display: inline-flex; align-items: center; gap: 6px; height: 17px; box-sizing: border-box; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--active) 6%, var(--panel)); border: 1px solid color-mix(in srgb, var(--active) 12%, var(--divider)); transition: background 120ms ease, border-color 120ms ease; user-select: none; }
@@ -183,6 +185,7 @@
 .canvas-pin-slab .object-type-icon { width: 35px; height: 17px; border-radius: 0; line-height: 17px; }
 .canvas-pin-slab .object-bool-glyph, .canvas-pin-slab .object-number-glyph, .canvas-pin-slab .object-text-glyph { font-size: 9.5px; }
 .canvas-block-pin-label { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.canvas-block-pin-hint { margin-left: 6px; color: var(--muted); font-size: 10px; font-weight: 400; white-space: nowrap; }
 .canvas-block-pin-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--active); font-size: 10.5px; font-weight: 600; letter-spacing: -0.1px; }
 .canvas-block-summary { flex: none; min-width: 0; padding: 8px 12px; border-top: 1px solid var(--divider); color: var(--muted); font: 10px/18px ui-monospace, SFMono-Regular, Consolas, monospace; }
 .canvas-chip.is-docked.is-constant { --chip: var(--muted); cursor: default; font-style: italic; }
@@ -208,13 +211,15 @@
 .block-palette-note { margin: 0; padding: 10px 14px; color: var(--muted); font-size: 12px; }
 
 /* Block details (right) */
-.block-details-header { align-items: flex-start; margin-bottom: 8px; }
-.block-details-header .block-details-swatch { width: 12px; height: 12px; margin-top: 6px; }
-.block-details-header h2 { font-size: 15px; }
-.block-details-header > div { flex: 1; min-width: 0; }
+.block-details-header { align-items: center; margin-bottom: 8px; }
+.block-details-header .block-details-swatch { width: 12px; height: 12px; }
 .block-details-header code { color: var(--muted); font-size: 11px; }
-.block-name-row { position: relative; width: 100%; max-width: 400px; margin-top: 4px; }
-.block-name-row .block-name-field { width: 100%; max-width: none; height: 38px; box-sizing: border-box; margin: 0; padding-right: 36px; }
+/* The block's name sits on the title line and reads as the heading: bordered only on hover / focus, the type's title as its placeholder. */
+.block-name-row { position: relative; flex: 1; min-width: 0; }
+.block-name-row .block-name-field { width: 100%; max-width: none; height: 30px; box-sizing: border-box; margin: 0; padding: 0 30px 0 6px; border-color: transparent; background: transparent; font-size: 15px; font-weight: 600; text-overflow: ellipsis; }
+.block-name-row .block-name-field::placeholder { color: var(--active); opacity: 1; }
+.block-name-row:hover .block-name-field { border-color: var(--divider); }
+.block-name-row .block-name-field:focus { border-color: var(--accent); background: var(--background); }
 .block-name-edit { position: absolute; top: 50%; right: 7px; display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; transform: translateY(-50%); color: var(--muted); opacity: .7; pointer-events: none; user-select: none; }
 .block-name-row:hover .block-name-edit { color: var(--active); opacity: 1; }
 .block-name-edit svg { width: 13px; height: 13px; }
@@ -343,10 +348,10 @@
 
 /* Wires (world layer, under the blocks) */
 .canvas-wires, .canvas-groups { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
-.canvas-wire-line { fill: none; stroke: var(--muted); stroke-width: 1.8; }
+.canvas-wire-line { fill: none; stroke: var(--active); stroke-opacity: 0.85; stroke-width: 3; }
 .canvas-wire.is-gate .canvas-wire-line { stroke: var(--color-red); stroke-dasharray: 6 4; }
 .canvas-wire.is-eno .canvas-wire-line { stroke: var(--color-green-strong); stroke-dasharray: 6 4; }
-.canvas-wire.is-selected .canvas-wire-line { stroke: var(--accent); stroke-width: 3; }
+.canvas-wire.is-selected .canvas-wire-line { stroke: var(--accent); stroke-opacity: 1; stroke-width: 4; }
 .canvas-wire-hit { fill: none; stroke: transparent; stroke-width: 12; pointer-events: stroke; cursor: pointer; }
 .canvas-wire-draft { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 4 3; }
 .canvas-wire-start { cursor: crosshair; }
@@ -381,6 +386,11 @@
 .block-gates li > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .block-gates li small { color: var(--muted); font-family: system-ui, sans-serif; font-size: 10px; }
 .block-gates li.is-inherited { border-style: dashed; color: var(--muted); }
+.block-gates-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.block-gates-head h3 { margin: 0; }
+.block-switch.is-inline { min-height: 26px; }
+.shell .block-switch.is-inline button { height: 22px; min-width: 44px; }
+.block-gates-always { color: var(--active); font-weight: 400; }
 .block-gates li.is-empty { border: 0; padding-left: 0; color: var(--muted); font-family: inherit; font-style: italic; }
 .block-gate-dot { flex: none; width: 8px; height: 8px; border-radius: 2px; background: color-mix(in srgb, var(--color-red) 50%, transparent); }
 .block-gate-dot.is-own { background: var(--color-red); }

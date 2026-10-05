@@ -31,7 +31,7 @@ bool vm_verify_expr(vm_block_h b);
 //@activation triggered
 //@data vm_expr_code_t
 //@data-tail consts u32[const_cnt], code u8[code_len] (opcodes vm_expr_op_e)
-//@opcodes vm_expr_op_e @stack-max VM_EXPR_STACK_MAX
+//@opcodes vm_expr_op_e @stack-max VM_EXPR_STACK_MAX @const-count const_cnt @code-length code_len
 //@example (a + 2) * b @in 3, 4 @consts 2 @code VM_EXPR_IN 0 VM_EXPR_K 0 VM_EXPR_ADD VM_EXPR_IN 1 VM_EXPR_MUL VM_EXPR_END @result 20
 //@example larger of a and b @in 5, 7 @code VM_EXPR_IN 0 VM_EXPR_IN 1 VM_EXPR_GT VM_EXPR_IN 0 VM_EXPR_IN 1 VM_EXPR_SEL @result 7
 //@example clamp a to 0..100 @in 150 @consts 0, 100 @code VM_EXPR_IN 0 VM_EXPR_K 0 VM_EXPR_MAX VM_EXPR_K 1 VM_EXPR_MIN @result 100

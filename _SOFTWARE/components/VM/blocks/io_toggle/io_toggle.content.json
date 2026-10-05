@@ -35,6 +35,7 @@
       "error_tag": 43296
     }
   ],
+  "loop_use": "once-per-turn",
   "state": {
     "struct": "vm_block_io_toggle_data_t",
     "source_file": "components/VM/blocks/io_toggle/vm_block_io_toggle.h",

@@ -236,25 +236,29 @@
           "name": "SYS_EVENT_DOMAIN_IO",
           "value": 0,
           "alias": "IO",
-          "description": "Pin interrupts and analog alerts. Channel = pin, event = the edge or window crossed, value = level or mV"
+          "description": "Pin interrupts and analog alerts. Channel = pin, event = the edge or window crossed, value = level or mV",
+          "events": "sys_io_intr_mode_e"
         },
         {
           "name": "SYS_EVENT_DOMAIN_POWER",
           "value": 1,
           "alias": "Power",
-          "description": "Regulator, monitor and board power events. Event = power event; board events use device 255"
+          "description": "Regulator, monitor and board power events. Event = power event; board events use device 255",
+          "events": "sys_power_events_e"
         },
         {
           "name": "SYS_EVENT_DOMAIN_HBRIDGE",
           "value": 2,
           "alias": "H-Bridge",
-          "description": "Motor driver faults. Channel = bridge channel, event = fault reason, value = current in mA"
+          "description": "Motor driver faults. Channel = bridge channel, event = fault reason, value = current in mA",
+          "events": "sys_hbridge_fault_reason_e"
         },
         {
           "name": "SYS_EVENT_DOMAIN_BLE",
           "value": 3,
           "alias": "Bluetooth",
-          "description": "Connection events. Event = BLE event"
+          "description": "Connection events. Event = BLE event",
+          "events": "sys_ble_events_e"
         }
       ]
     },

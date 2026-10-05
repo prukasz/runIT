@@ -1,14 +1,10 @@
 {
   "title": "Timer",
   "category": "time",
-  "description": "On-delay, off-delay or pulse timer (plus inverted). ENO is the timer's output Q, held as a level; Elapsed counts in time_base units.",
+  "description": "On-delay, off-delay or pulse timer (plus inverted), driven by the block's enable. ENO is the timer's output Q, held as a level; Elapsed counts in time_base units.",
   "activation": "Runs every pass while enabled.",
   "header": "Timer | {mode} {pt} {time_base}",
   "inputs": {
-    "in": {
-      "title": "Start",
-      "description": "The signal the timer acts on; the block's enable gates the whole timer."
-    },
     "pt": {
       "title": "Preset",
       "description": "Overrides pt, in time_base units."

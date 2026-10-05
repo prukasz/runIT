@@ -31,11 +31,11 @@
   [VM_BLK_SET] = {.run = vm_blk_set, .check = vm_verify_set, .min_in = 2, .max_in = 2, .min_q = 0, .max_q = 0, .min_en = 0, .required_in = 0x2u, .state_len = sizeof(vm_block_set_data_t)}, \
   [VM_BLK_CLONE] = {.run = vm_blk_clone, .min_in = 2, .max_in = 2, .min_q = 0, .max_q = 0, .min_en = 0, .required_in = 0x3u, .state_len = 0}, \
   [VM_BLK_EDGE] = {.run = vm_blk_edge, .check = vm_verify_edge, .min_in = 0, .max_in = 0, .min_q = 0, .max_q = 0, .min_en = 1, .required_in = 0x0u, .state_len = sizeof(vm_block_edge_data_t)}, \
-  [VM_BLK_TIMER] = {.run = vm_blk_timer, .check = vm_verify_timer, .min_in = 1, .max_in = 2, .min_q = 0, .max_q = 1, .min_en = 0, .required_in = 0x1u, .state_len = sizeof(vm_block_timer_data_t)}, \
+  [VM_BLK_TIMER] = {.run = vm_blk_timer, .check = vm_verify_timer, .min_in = 0, .max_in = 1, .min_q = 0, .max_q = 1, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_timer_data_t)}, \
   [VM_BLK_IO_SET_LEVEL] = {.run = vm_blk_io_set_level, .check = vm_verify_io_set_level, .min_in = 0, .max_in = 2, .min_q = 0, .max_q = 0, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_io_set_level_data_t)}, \
   [VM_BLK_IO_TOGGLE] = {.run = vm_blk_io_toggle, .check = vm_verify_io_toggle, .min_in = 0, .max_in = 1, .min_q = 0, .max_q = 0, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_io_toggle_data_t)}, \
   [VM_BLK_LATCH] = {.run = vm_blk_latch, .check = vm_verify_latch, .min_in = 0, .max_in = 1, .min_q = 0, .max_q = 0, .min_en = 1, .required_in = 0x0u, .state_len = sizeof(vm_block_latch_data_t)}, \
   [VM_BLK_PERIODIC] = {.run = vm_blk_periodic, .check = vm_verify_periodic, .min_in = 0, .max_in = 1, .min_q = 0, .max_q = 0, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_periodic_data_t)}, \
   [VM_BLK_ACTION] = {.run = vm_blk_action, .check = vm_verify_action, .min_in = 0, .max_in = 1, .min_q = 0, .max_q = 0, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_action_data_t)}, \
-  [VM_BLK_ON_EVENT] = {.run = vm_blk_on_event, .min_in = 0, .max_in = 0, .min_q = 0, .max_q = 2, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_on_event_data_t)}, \
-  [VM_BLK_SERVO] = {.run = vm_blk_servo, .check = vm_verify_servo, .min_in = 0, .max_in = 2, .min_q = 0, .max_q = 0, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_servo_data_t)},
+  [VM_BLK_ON_EVENT] = {.run = vm_blk_on_event, .min_in = 0, .max_in = 0, .min_q = 0, .max_q = 1, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_on_event_data_t)}, \
+  [VM_BLK_SERVO] = {.run = vm_blk_servo, .check = vm_verify_servo, .min_in = 0, .max_in = 1, .min_q = 0, .max_q = 0, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_servo_data_t)},

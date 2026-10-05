@@ -24,10 +24,10 @@
 
 //#ref-enum @alias Event Domain
 typedef enum sys_event_domain_e {
-  SYS_EVENT_DOMAIN_IO = 0,      //@alias IO @description Pin interrupts and analog alerts. Channel = pin, event = the edge or window crossed, value = level or mV
-  SYS_EVENT_DOMAIN_POWER = 1,   //@alias Power @description Regulator, monitor and board power events. Event = power event; board events use device 255
-  SYS_EVENT_DOMAIN_HBRIDGE = 2, //@alias H-Bridge @description Motor driver faults. Channel = bridge channel, event = fault reason, value = current in mA
-  SYS_EVENT_DOMAIN_BLE = 3,     //@alias Bluetooth @description Connection events. Event = BLE event
+  SYS_EVENT_DOMAIN_IO = 0,      //@alias IO @description Pin interrupts and analog alerts. Channel = pin, event = the edge or window crossed, value = level or mV @events sys_io_intr_mode_e
+  SYS_EVENT_DOMAIN_POWER = 1,   //@alias Power @description Regulator, monitor and board power events. Event = power event; board events use device 255 @events sys_power_events_e
+  SYS_EVENT_DOMAIN_HBRIDGE = 2, //@alias H-Bridge @description Motor driver faults. Channel = bridge channel, event = fault reason, value = current in mA @events sys_hbridge_fault_reason_e
+  SYS_EVENT_DOMAIN_BLE = 3,     //@alias Bluetooth @description Connection events. Event = BLE event @events sys_ble_events_e
 } sys_event_domain_e;
 
 /* One occurrence. Copied into the queue, so it holds no pointers. */

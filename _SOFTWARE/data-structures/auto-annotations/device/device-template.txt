@@ -64,6 +64,15 @@
  *    @default $A                                  state the chip starts in by itself
  *    @alias <text> / @note <text>                 as above
  *
+ *  //#value <NAME>                                one per variant of a number whose meaning follows install settings
+ *    @when <field>=<value> ..                     install fields that must hold (first matching record applies; none: always)
+ *    @title <text>                    required    what the number is called
+ *    @unit <text> / @range <min>..<max>           unit; range (numbers or install fields)
+ *
+ *  //#event $SYS_EVENT_DOMAIN_<X>                  one per event domain the device publishes in
+ *    @channel <NAME>                              a property above: the pins / channels its events carry (none: omit)
+ *    @events [$A, $B]                required     the events it raises ($SYMBOLs of one enum)
+ *
  *  //#contract <packet_struct>                    one per operation the adapter supports
  *    @alias <text>                                command name
  *    @description <text>                          command hint
@@ -136,6 +145,25 @@
 //  @default  $SYS_IO_MODE_ADC
 //  @alias    Channel Mode
 //  @note     Every channel starts as ADC.
+
+// ── Values (one record per variant of a number whose meaning follows install settings) ──
+
+//#value LEVEL
+//  @when  alert_event=$SYS_PWR_EVENT_OCP_CRITICAL
+//  @title Critical limit
+//  @unit  mA
+//  @range 0..sample_rate_Hz
+
+//#value LEVEL
+//  @title Warning limit
+//  @unit  mA
+//  @range 0..3300
+
+// ── Events (one record per event domain the device publishes in) ─────────────
+
+//#event $SYS_EVENT_DOMAIN_IO
+//  @channel PIN
+//  @events  [$SYS_IO_INTR_ADC_WINDOW_OUTSIDE, $SYS_IO_INTR_ADC_WINDOW_INSIDE]
 
 // ── Contracts (one record per operation the adapter supports) ────────────────
 

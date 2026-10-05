@@ -4,7 +4,7 @@ Combined enum JSON generator for every //#ref-enum-marked enum under components/
 Scans all *.h files for:
   //#ref-enum [@alias <Enum Title>]
   typedef enum [tag] {
-    MEMBER [= value], // [@alias <label>] [@description <text>]
+    MEMBER [= value], // [@alias <label>] [@description <text>] [@events <enum>]
     ...
   } enum_name;
 
@@ -90,7 +90,10 @@ def parse_members(body: str, sdkconfig: dict, context: str) -> list:
             if resolved is not None:
                 val = resolved
         tags = parse_tags(m.group("comment") or "")
-        members.append({"name": m.group("name"), "value": val, "alias": tags.get("alias"), "description": tags.get("description")})
+        member = {"name": m.group("name"), "value": val, "alias": tags.get("alias"), "description": tags.get("description")}
+        if "events" in tags:  # `@events <enum>` on an event domain: the enum its events come from
+            member["events"] = tags["events"]
+        members.append(member)
         val += 1
     return members
 

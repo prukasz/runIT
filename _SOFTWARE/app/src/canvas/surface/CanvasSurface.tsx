@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Crosshair, Minus, Plus } from 'lucide-react'
 import { Button } from '../../components/Button'
-import { canvasToScreen, chipLabel, connect, disconnect, GRID, kindOfDrag, OBJECT_DRAG_TYPE, pathLabel, screenToCanvas, snapPoint, sourceKind, sourceOf, sourcePath, variableKind, zoomAt } from '../../domain/canvas'
+import { canvasToScreen, chipLabel, connect, disconnect, GRID, isLoopOwner, kindOfDrag, OBJECT_DRAG_TYPE, pathLabel, screenToCanvas, snapPoint, sourceKind, sourceOf, sourcePath, variableKind, zoomAt } from '../../domain/canvas'
 import type { Point, Viewport, Wire, WireSource, WireTarget } from '../../domain/canvas'
 import { findObject } from '../../domain/project'
 import type { CanvasBlock, ObjectPath, ProjectDocument } from '../../domain/project'
@@ -390,7 +390,7 @@ export function CanvasSurface({
   const sourcesOf = (from: CanvasBlock): { choice: SourceChoice; pending: Pending }[] => [
     {
       choice: { key: 'eno', label: (catalog.block(from.type)?.eno ?? DEFAULT_ENO).title, detail: (catalog.block(from.type)?.eno ?? DEFAULT_ENO).description, type: 'gate' },
-      pending: { kind: 'wire', from: { block: from.id, pin: 'eno' }, carries: 'bool', ...(from.type === 'FOR' ? { loop: true } : {}) } as Pending,
+      pending: { kind: 'wire', from: { block: from.id, pin: 'eno' }, carries: 'bool', ...(isLoopOwner(from) ? { loop: true } : {}) } as Pending,
     },
     ...shapeOf(from).outputs.map((pin, index) => ({
       choice: { key: `q${index}`, label: pin.title, detail: 'value', type: pin.value },
@@ -528,7 +528,7 @@ export function CanvasSurface({
     surfaceRef.current?.setPointerCapture(event.pointerId)
     const output = from.pin.startsWith('q') ? shapeOf(block).outputs[Number(from.pin.slice(1))]?.value : undefined
     setSelectedWire(undefined)
-    track({ kind: 'wire', from, carries: sourceKind(from.pin, output), ...(from.pin === 'eno' && block.type === 'FOR' ? { loop: true } : {}) }, event.clientX, event.clientY)
+    track({ kind: 'wire', from, carries: sourceKind(from.pin, output), ...(from.pin === 'eno' && isLoopOwner(block) ? { loop: true } : {}) }, event.clientX, event.clientY)
   }
   const onBlockSelect = (block: CanvasBlock, additive = false) => {
     if (selectedObjectNode && project) {

@@ -3,7 +3,7 @@ import { Badge } from '../components/Badge'
 import { Button } from '../components/Button'
 import { PaletteSearch } from '../components/PaletteSearch'
 import { PaletteSectionHeader } from '../components/PaletteSectionHeader'
-import { ArrowLeftRight, CircuitBoard, ListChecks, PenTool, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeftRight, ListChecks, Plus, Trash2 } from 'lucide-react'
 import { TreeSlab } from '../components/TreeSlab'
 import { boardDeviceRef } from '../domain/project'
 import { DeviceTile } from './DeviceTile'
@@ -18,15 +18,11 @@ const matches = (query: string, ...texts: (string | undefined)[]): boolean => {
 }
 
 /** Left panel of the Board view: the board's devices, the user's devices and the actions. */
-export function DevicesPalette({ workspace: w, boardMode, onToggleMode, onEditComponent, onEditBoard }: {
+export function DevicesPalette({ workspace: w, boardMode, onToggleMode }: {
   workspace: DevicesWorkspace
   /** The Board view's main screen: View / Manage (the device pages) or the board canvas. */
   boardMode: 'manage' | 'canvas' | 'component' | 'boardEditor'
   onToggleMode: () => void
-  /** Opens the anchor editor for one component (pictures and pin layouts). */
-  onEditComponent: () => void
-  /** Opens the board creator (connectors on a board outline, pins bound to sys pins). */
-  onEditBoard: () => void
 }) {
   const [query, setQuery] = useState('')
   const [collapsed, setCollapsed] = useState<ReadonlySet<Folder>>(new Set())
@@ -110,8 +106,6 @@ export function DevicesPalette({ workspace: w, boardMode, onToggleMode, onEditCo
       </div>
       <div className="code-mode-footer">
         <button className="code-mode-toggle" onClick={onToggleMode}><ArrowLeftRight aria-hidden="true" /><span>Switch to {boardMode === 'manage' ? 'Board canvas' : 'View / Manage'}</span></button>
-        {boardMode !== 'component' && <button className="code-mode-toggle" onClick={onEditComponent}><PenTool aria-hidden="true" /><span>Edit component</span></button>}
-        <button className="code-mode-toggle" onClick={onEditBoard}><CircuitBoard aria-hidden="true" /><span>Edit board</span></button>
       </div>
     </div>
   )

@@ -1079,5 +1079,96 @@
         }
       }
     }
+  ],
+  "events": [
+    {
+      "domain": {
+        "symbol": "SYS_EVENT_DOMAIN_IO",
+        "enum": "sys_event_domain_e",
+        "value": 0,
+        "alias": "IO",
+        "description": "Pin interrupts and analog alerts. Channel = pin, event = the edge or window crossed, value = level or mV"
+      },
+      "events": [
+        {
+          "symbol": "SYS_IO_INTR_MODE_RISING_EDGE",
+          "enum": "sys_io_intr_mode_e",
+          "value": 1,
+          "alias": "Rising Edge",
+          "description": "Triggers the instant the pin switches from off to on"
+        },
+        {
+          "symbol": "SYS_IO_INTR_MODE_FALLING_EDGE",
+          "enum": "sys_io_intr_mode_e",
+          "value": 2,
+          "alias": "Falling Edge",
+          "description": "Triggers the instant the pin switches from on to off"
+        },
+        {
+          "symbol": "SYS_IO_INTR_ADC_WINDOW_OUTSIDE",
+          "enum": "sys_io_intr_mode_e",
+          "value": 4,
+          "alias": "Outside set window",
+          "description": "Triggers when the measured value leaves the safe/expected range you set - use to catch a value going too high or too low"
+        },
+        {
+          "symbol": "SYS_IO_INTR_ADC_WINDOW_INSIDE",
+          "enum": "sys_io_intr_mode_e",
+          "value": 5,
+          "alias": "Inside set window",
+          "description": "Triggers when the measured value comes back into the range you set - use to catch when a value returns to normal"
+        }
+      ],
+      "channel": {
+        "alias": "GPIO Pin",
+        "one_of": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48
+        ]
+      }
+    }
   ]
 }

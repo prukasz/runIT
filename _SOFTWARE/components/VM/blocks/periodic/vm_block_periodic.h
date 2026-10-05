@@ -31,7 +31,7 @@
 
 //@data vm_block_periodic_data_t
 typedef struct __attribute__((aligned(8))) {
-  uint32_t period;    // @description In time_base units
+  uint32_t period;    // @description In time_base units @min 1
   uint8_t time_base;  // @description Unit of period @enum-ref vm_timer_unit_e
   uint8_t flags;      // @description VM_PERIODIC_F_* @runtime
   uint16_t _pad;
@@ -57,5 +57,6 @@ bool vm_verify_periodic(vm_block_h b);
 /* The body, called every pass.
    Face, titles and descriptions: periodic.display.json; the app's periodic.content.json is generated from this header. */
 //#vm-block VM_BLK_PERIODIC @id 13
+//@loop refuse
 //@activation enabled
 void vm_blk_periodic(vm_block_h b);

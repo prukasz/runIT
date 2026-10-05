@@ -9,6 +9,12 @@
       "title": "Reset"
     }
   },
+  "enable": {
+    "title": "Set",
+    "description": "sets the held state when true",
+    "signal": true,
+    "connect": "Connect a Set signal to EN; Latch keeps ENO active until Reset."
+  },
   "eno": {
     "title": "Held",
     "description": "Held flow level: true after EN sets it, until Reset clears it."

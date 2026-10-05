@@ -12,7 +12,9 @@ The header's `//@` lines stand next to what they describe; one block per header,
   //@enables required|optional                  at least one enable source (default optional)
   //@data <struct>                              above the private-state struct (custom_data)
   //@data-tail <text>                           variable bytes after it (bytecode blocks)
-  //@opcodes <enum> @stack-max <C macro>        bytecode blocks: the opcode enum and the evaluator's stack depth
+  //@opcodes <enum> @stack-max <C macro> @const-count <field> @code-length <field>
+                                                bytecode blocks: the opcode enum, the evaluator's stack depth, and the state
+                                                fields holding the constant count and the code length
   //@rule <text> @error <ERR_TAG>               above vm_verify_<name>: what the load-time check rejects
   //@example <title> @in <values> [@consts <values>] @code <opcodes and operands> @result <value>
 
@@ -78,7 +80,7 @@ IDENT_RE = re.compile(r"^[A-Za-z_]\w*$")
 
 # What each `//@keyword` line of a block header takes: `one` once, `many` any number of times.
 DIRECTIVES = {
-    "activation": "one", "enables": "one", "data": "one", "data-tail": "one", "opcodes": "one",
+    "activation": "one", "enables": "one", "loop": "one", "data": "one", "data-tail": "one", "opcodes": "one",
     "rule": "many", "example": "many",
 }
 FACE_DIRECTIVES = {"title", "category", "block-description", "header", "eno", "always-detailed", "in", "out"}  # not in a header: see FACE_HINT
@@ -87,8 +89,8 @@ FACE_HINT = ("belong in the <name>.display.json (the face) or on the member of v
 REQUIRED_DIRECTIVES = ("activation",)
 
 # Tags per line kind. A tag outside its set, or given twice, is an error.
-PIN_TAGS = {"repeat", "title", "description", "value", "overrides", "hidden-by-default", "id", "device-field", "required"}
-FIELD_TAGS = {"description", "enum-ref", "runtime", "derived", "id", "device-field", "contract", "hidden-by-default", "let-user-select-available", "dynamic-input"}
+PIN_TAGS = {"repeat", "title", "description", "value", "overrides", "hidden-by-default", "id", "device-field", "required", "user-write", "spec"}
+FIELD_TAGS = {"description", "enum-ref", "runtime", "derived", "id", "device-field", "contract", "hidden-by-default", "let-user-select-available", "dynamic-input", "any", "source-field", "min"}
 ENO_TAGS = {"title", "description"}
 RULE_TAGS = {"error"}
 EXAMPLE_TAGS = {"in", "consts", "code", "result"}
@@ -138,6 +140,8 @@ ACTIVATION_KINDS = {
 ID_KINDS = {
     "device": "The id of a device created in the project. The field's `contract` says which devices fit (the ones that answer it).",
     "pin": "An index of an IO resource of the device in the field named by `device_field` (a pin, a channel: the editor's title says which).",
+    "channel": "The channel (pin or channel) an event carries, of the device in `device_field`, as that device declares it for the event domain in `source_field`.",
+    "event": "The event of the device in `device_field` in the event domain of `source_field`: the device's own events, or the domain's when no device is chosen.",
 }
 ARG_KINDS = {"NONE": "none", "INPUT": "input", "CONST": "const"}
 
@@ -435,14 +439,22 @@ def field_metadata(tags, context):
     """Editor metadata of a state field or a pin (`@id`, `@device-field`, ...), checked for shape."""
     metadata = {}
     if "id" in tags:
-        if tags["id"] not in ("device", "pin"):
-            fail(f"{context}: @id must be device or pin")
+        if tags["id"] not in ID_KINDS:
+            fail(f"{context}: @id must be one of {', '.join(ID_KINDS)}")
         metadata["id_kind"] = tags["id"]
-    for tag in ("device-field", "contract", "let-user-select-available"):
+    if "any" in tags:
+        if not re.fullmatch(r"\d+", tags["any"]) or int(tags["any"]) > 255:
+            fail(f"{context}: @any needs the wildcard value (0 to 255)")
+        metadata["any_value"] = int(tags["any"])
+    for tag in ("device-field", "contract", "let-user-select-available", "source-field"):
         if tag in tags:
             if not IDENT_RE.match(tags[tag]):
                 fail(f"{context}: @{tag} needs one identifier")
             metadata[tag.replace("-", "_")] = tags[tag]
+    if "min" in tags:
+        if not re.fullmatch(r"\d+", tags["min"]):
+            fail(f"{context}: @min needs a whole number")
+        metadata["min"] = int(tags["min"])
     if "hidden-by-default" in tags:
         metadata["hidden_by_default"] = True
     if "dynamic-input" in tags:
@@ -477,6 +489,14 @@ def parse_pins(entries, text, sdkconfig, context):
             pin["description"] = tags["description"]
         pin.update(field_metadata({k: v for k, v in tags.items() if k in ("id", "device-field", "hidden-by-default")}, where))
         pin["_required"] = "required" in tags
+        if "spec" in tags:
+            if not IDENT_RE.match(tags["spec"]) or entry["side"] != "in":
+                fail(f"{where}: @spec names one device value (`//#value NAME`) and belongs on an input pin")
+            pin["value_spec"] = tags["spec"]
+        if "user-write" in tags:
+            if entry["side"] != "in":
+                fail(f"{where}: @user-write belongs on an input pin")
+            pin["user_write"] = True
         if "overrides" in tags:
             if not IDENT_RE.match(tags["overrides"]):
                 fail(f"{where}: @overrides needs one state field name")
@@ -555,6 +575,15 @@ def validate_editor_links(block, context):
             fail(f"{context}.{entry['name']}: @device-field {device} must name a device ID field")
         if entry.get("id_kind") == "pin" and not device:
             fail(f"{context}.{entry['name']}: a pin ID needs @device-field")
+        source = entry.get("source_field")
+        if source and not fields.get(source, {}).get("enum_ref"):
+            fail(f"{context}.{entry['name']}: @source-field {source} must name an enum field (the event domain)")
+        if entry.get("id_kind") in ("channel", "event") and not (device and source):
+            fail(f"{context}.{entry['name']}: a {entry['id_kind']} ID needs @device-field and @source-field")
+        if entry.get("id_kind") in ("device", "channel", "event") and source and "any_value" not in entry:
+            fail(f"{context}.{entry['name']}: an ID chosen by @source-field needs @any (the wildcard)")
+        if entry.get("value_spec") and not device:
+            fail(f"{context}.{entry['name']}: @spec needs @device-field (the device whose settings choose the variant)")
         if entry.get("hidden_by_default") and entry.get("required"):
             fail(f"{context}.{entry['name']}: a required input cannot be hidden by default")
         selection = entry.get("let_user_select_available")
@@ -759,7 +788,12 @@ def build_examples(directives, ops, const_type, stack_max, state, context):
     return out
 
 
-def bytecode_encoding(text, opcodes_enum, stack_macro, directives, inputs, state, catalog, context):
+def bytecode_encoding(text, opcodes_enum, stack_macro, counts, directives, inputs, state, catalog, context):
+    const_field, code_field = counts
+    names = {f["name"] for f in state["fields"]}
+    for field in counts:
+        if field not in names:
+            fail(f"{context}: //@opcodes names the count field `{field}`, which the state has no such field")
     ops = opcode_table(text, opcodes_enum, catalog, context)
     stack_max = define_value(text, stack_macro, context)
     star = next((p for p in inputs if p["index"] == "*"), None)
@@ -768,7 +802,9 @@ def bytecode_encoding(text, opcodes_enum, stack_macro, directives, inputs, state
         fail(f"{context}: a bytecode block's repeating input must be f32 or u32 (its constants take that type), not {const_type}")
     return {
         "kind": "bytecode",
-        "layout": f"state header, then const_cnt constants of 4 bytes, then code_len code bytes; custom_len = {state['size']} + 4 x const_cnt + code_len",
+        "layout": f"state header, then {const_field} constants of 4 bytes, then {code_field} code bytes; custom_len = {state['size']} + 4 x {const_field} + {code_field}",
+        "const_count_field": const_field,
+        "code_length_field": code_field,
         "constant_type": const_type,
         "stack_max": stack_max,
         "opcode_enum": opcodes_enum,
@@ -786,8 +822,10 @@ def one(directives, keyword):
     return found[0] if found else None
 
 
-DISPLAY_KEYS = {"title", "category", "description", "activation", "header", "always_detailed", "eno", "inputs", "outputs"}
-DISPLAY_PIN_KEYS = {"title", "description"}
+DISPLAY_KEYS = {"title", "category", "description", "activation", "header", "always_detailed", "eno", "enable", "inputs", "outputs"}
+DISPLAY_PIN_KEYS = {"title", "description", "hide_when_wired"}
+DISPLAY_ENABLE_KEYS = {"title", "description", "signal", "connect"}
+LOOP_USES = {"refuse": "refused", "once": "once-per-turn"}
 
 
 def read_display(path, context):
@@ -808,6 +846,9 @@ def read_display(path, context):
             extra = sorted(set(shown) - DISPLAY_PIN_KEYS)
             if extra:
                 fail(f"{source.name}: {context}: {side} `{pin}`: unknown key {extra} (known: {sorted(DISPLAY_PIN_KEYS)})")
+    extra = sorted(set(doc.get("enable", {})) - DISPLAY_ENABLE_KEYS)
+    if extra:
+        fail(f"{source.name}: {context}: enable: unknown key {extra} (known: {sorted(DISPLAY_ENABLE_KEYS)})")
     for key in ("title", "category", "description"):
         if not doc.get(key):
             fail(f"{source.name}: {context}: needs `{key}`")
@@ -822,7 +863,7 @@ def apply_display_to_pins(pins, display, context):
         shown = display.get({"in": "inputs", "out": "outputs"}[pin["side"]], {}).get(pin["name"])
         if not shown or not shown.get("title"):
             fail(f"{pin['where']}: the display.json needs a title for pin `{pin['name']}`")
-        pin["tags"].update({k: v for k, v in shown.items() if v})
+        pin["tags"].update({k: v for k, v in shown.items() if v and k in ("title", "description")})
     for side, key in (("in", "inputs"), ("out", "outputs")):
         known = {p["name"] for p in pins if p["side"] == side}
         for name in display.get(key, {}):
@@ -848,7 +889,8 @@ def spec_from_directives(directives, display, own_text, name, enums, context):
             rule_text, tags = parse_tags(d["rest"], RULE_TAGS, f"{context}: //@rule (line {d['line']})")
             rules.append({"rule": rule_text, "error": tags.get("error")})
     pins = apply_display_to_pins(pins_from_enums(own_text, name, enums, context), display, context)
-    return {"title": display["title"], "category": display["category"], "description": display["description"],
+    loop = one(directives, "loop")
+    return {"loop": loop["rest"].strip() if loop else None, "enable": display.get("enable"), "title": display["title"], "category": display["category"], "description": display["description"],
             "activation_kind": kind, "activation_text": display.get("activation", ""), "header": header,
             "enables": enables["rest"] if enables else None, "always_detailed": bool(display.get("always_detailed")),
             "eno": display.get("eno"), "rules": rules, "pins": pins,
@@ -877,12 +919,13 @@ def build_block(path, text, source, catalog, errors, sdkconfig):
         fail(f"{context}: needs a description")
     if one(directives, "data-tail") and not spec["data"]:
         fail(f"{context}: //@data-tail needs //@data")
-    opcodes_enum = stack_macro = None
+    opcodes_enum = stack_macro = counts = None
     if one(directives, "opcodes"):
-        opcodes_enum, tags = parse_tags(one(directives, "opcodes")["rest"], {"stack-max"}, f"{context}: //@opcodes")
+        opcodes_enum, tags = parse_tags(one(directives, "opcodes")["rest"], {"stack-max", "const-count", "code-length"}, f"{context}: //@opcodes")
         stack_macro = tags.get("stack-max")
-        if not IDENT_RE.match(opcodes_enum) or not stack_macro:
-            fail(f"{context}: //@opcodes <enum> @stack-max <C macro>: the opcode enum and the macro with the evaluator's stack depth")
+        if not IDENT_RE.match(opcodes_enum) or not stack_macro or not tags.get("const-count") or not tags.get("code-length"):
+            fail(f"{context}: //@opcodes <enum> @stack-max <C macro> @const-count <field> @code-length <field>: the opcode enum, the macro with the evaluator's stack depth and the state fields holding the constant count and the code length")
+        counts = (tags["const-count"], tags["code-length"])
     if opcodes_enum and not spec["data"]:
         fail(f"{context}: //@opcodes needs //@data (the header struct)")
 
@@ -930,6 +973,12 @@ def build_block(path, text, source, catalog, errors, sdkconfig):
         if not spec["eno"].get("title"):
             fail(f"{context}: eno needs a title")
         block["eno"] = spec["eno"]
+    if spec["enable"]:
+        block["enable"] = spec["enable"]
+    if spec["loop"] is not None:
+        if spec["loop"] not in LOOP_USES:
+            fail(f"{context}: //@loop is `refuse` (it keeps one state, so it cannot sit in a loop body) or `once` (it acts once per turn), got `{spec['loop']}`")
+        block["loop_use"] = LOOP_USES[spec["loop"]]
     if header:
         block["header"] = header
     if spec["always_detailed"]:
@@ -940,7 +989,7 @@ def build_block(path, text, source, catalog, errors, sdkconfig):
         block["state"] = state
     block["min_custom_len"] = state["size"] if state else 0
     if opcodes_enum:
-        block["encoding"] = bytecode_encoding(text, opcodes_enum, stack_macro, directives, inputs, state, catalog, context)
+        block["encoding"] = bytecode_encoding(text, opcodes_enum, stack_macro, counts, directives, inputs, state, catalog, context)
     used = sorted({f["enum_ref"] for f in fields if "enum_ref" in f} | ({opcodes_enum} if opcodes_enum else set()) | set(own))
     block["enums"] = {e: enums[e] for e in used}
     validate_editor_links(block, context)
@@ -998,7 +1047,7 @@ def read_header(path, own):
 def content_of(block):
     """The block without what the display.json owns: the face, the pin titles and descriptions. The app builds the block from the
     two files by pin and field name."""
-    content = {k: v for k, v in block.items() if k not in ("$schema", "title", "category", "description", "header", "eno", "always_detailed")}
+    content = {k: v for k, v in block.items() if k not in ("$schema", "title", "category", "description", "header", "eno", "enable", "always_detailed")}
     content["kind"] = "vm-block-content"
     content["activation"] = {"kind": block["activation"]["kind"]}
     content["min_enables"] = C_INFO[block["name"][len("VM_BLK_"):]]["shape"]["min_en"]

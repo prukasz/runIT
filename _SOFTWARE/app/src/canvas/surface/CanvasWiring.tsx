@@ -1,6 +1,7 @@
 import { accepts, wiresOf } from '../../domain/canvas'
 import type { Point, Viewport, Wire, WireKind, WireSource, WireTarget } from '../../domain/canvas'
 import { canvasToScreen } from '../../domain/canvas'
+import { isLoopOwner } from '../../domain/canvas'
 import { blockPinAt } from '../../domain/descriptors'
 import type { VmBlockType } from '../../domain/descriptors'
 import type { CanvasBlock, CanvasVariable, CanvasVariableTarget, ObjectPath, ProjectCanvas } from '../../domain/project'
@@ -156,7 +157,7 @@ const curve = (a: Point, b: Point): string => {
 }
 
 const wireClass = (wire: Wire, blocks: ReadonlyMap<string, CanvasBlock>): string =>
-  wire.from.pin === 'eno' || wire.from.pin === 'body' ? (blocks.get(wire.from.block)?.type === 'FOR' ? 'is-loop' : 'is-eno') : wire.to.kind === 'en' ? 'is-gate' : 'is-data'
+  wire.from.pin === 'eno' || wire.from.pin === 'body' ? (isLoopOwner(blocks.get(wire.from.block)) ? 'is-loop' : 'is-eno') : wire.to.kind === 'en' ? 'is-gate' : 'is-data'
 
 /**
  * An EN link as a faded ribbon: narrow where it leaves its source, as tall as
@@ -168,12 +169,22 @@ interface RibbonSpan {
   readonly bottom: number
 }
 
-const ribbon = (from: RibbonSpan, to: RibbonSpan): string => {
+/** The arrowhead: how far before the target's edge it starts, its half height, and the half height of the band that narrows into it. */
+const ARROW_LENGTH = 12
+const ARROW_HALF = 8
+const BAND_HALF = 4
+
+/**
+ * The ribbon narrows like a funnel into a small arrowhead that points at the target's EN connector (`at`, the header row), so the
+ * whole block is not covered by a point. Running back it passes under both blocks first.
+ */
+const ribbon = (from: RibbonSpan, to: RibbonSpan, at: number): string => {
   const { dx, back } = reach(from.x, to.x)
-  if (!back) return `M ${from.x} ${from.top} C ${from.x + dx} ${from.top}, ${to.x - dx} ${to.top}, ${to.x} ${to.top} L ${to.x} ${to.bottom} C ${to.x - dx} ${to.bottom}, ${from.x + dx} ${from.bottom}, ${from.x} ${from.bottom} Z`
-  // Running back: under both blocks, the ribbon narrowing to a thin band on the way.
-  const low = Math.max(from.bottom, to.bottom) + 40
-  return `M ${from.x} ${from.top} C ${from.x + dx} ${low}, ${to.x - dx} ${low}, ${to.x} ${to.top} L ${to.x} ${to.bottom} C ${to.x - dx} ${low + 6}, ${from.x + dx} ${low + 6}, ${from.x} ${from.bottom} Z`
+  const end = to.x - ARROW_LENGTH
+  const head = `L ${end} ${at - ARROW_HALF} L ${to.x} ${at} L ${end} ${at + ARROW_HALF} L ${end} ${at + BAND_HALF}`
+  if (!back) return `M ${from.x} ${from.top} C ${from.x + dx} ${from.top}, ${end - dx} ${at - BAND_HALF}, ${end} ${at - BAND_HALF} ${head} C ${end - dx} ${at + BAND_HALF}, ${from.x + dx} ${from.bottom}, ${from.x} ${from.bottom} Z`
+  const low = Math.max(from.bottom, at + ARROW_HALF) + 40
+  return `M ${from.x} ${from.top} C ${from.x + dx} ${low}, ${end - dx} ${low}, ${end} ${at - BAND_HALF} ${head} C ${end - dx} ${low + 6}, ${from.x + dx} ${low + 6}, ${from.x} ${from.bottom} Z`
 }
 
 /** The rows a block offers for what is being dragged: EN first, then inputs, then (a variable) outputs. */
@@ -182,8 +193,8 @@ export const pickerRows = (block: CanvasBlock, type: VmBlockType | undefined, sh
   const body = pending.kind === 'wire' && !!pending.loop
   const rows: PickerRow[] = [{
     key: 'en',
-    label: block.type === 'LATCH' ? 'Set (EN)' : block.type === 'EDGE' ? 'Signal (EN)' : 'Run when',
-    detail: body ? 'put it in the loop' : block.enables?.length ? `another condition (${block.enables.length} set)` : block.type === 'LATCH' ? 'sets the held flow level' : block.type === 'EDGE' ? 'detects changes in this signal' : 'runs only while this is true',
+    label: type?.enable.signal ? `${type.enable.title} (EN)` : (type?.enable.title ?? 'Run when'),
+    detail: body ? 'put it in the loop' : block.enables?.length ? `another condition (${block.enables.length} set)` : (type?.enable.description ?? 'runs only while this is true'),
     type: 'gate',
     target: { block: block.id, kind: 'en' },
     ok: accepts('en', pending.carries, { fromBlock, body }),
@@ -234,6 +245,11 @@ export function CanvasWires({ canvas, shapeOf, selected, draft, onSelect }: {
   })() : draft.from)
   return (
     <svg className="canvas-wires" aria-hidden="true">
+      <defs>
+        <marker id="canvas-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto">
+          <path d="M 0 1 L 9 5 L 0 9 z" fill="context-stroke" />
+        </marker>
+      </defs>
       {wiresOf(canvas).map((wire) => {
         const source = blocks.get(wire.from.block)!
         const target = blocks.get(wire.to.block)!
@@ -246,7 +262,7 @@ export function CanvasWires({ canvas, shapeOf, selected, draft, onSelect }: {
             ? { x: source.x + sourceShape.width, top: source.y + 1, bottom: source.y + sourceShape.height - 1 }
             : { x: from.x, top: from.y - 2.5, bottom: from.y + 2.5 }
           const toSpan: RibbonSpan = { x: target.x, top: target.y + 1, bottom: target.y + targetShape.height - 1 }
-          const d = ribbon(fromSpan, toSpan)
+          const d = ribbon(fromSpan, toSpan, pinAnchor(target, targetShape, anchorOfTarget(wire.to)).y)
           return (
             <g key={key(wire)} className={`canvas-wire is-ribbon ${wireClass(wire, blocks)} ${selectedKey === key(wire) ? 'is-selected' : ''}`}>
               <path className="canvas-ribbon" d={d} onPointerDown={select} />
@@ -257,7 +273,7 @@ export function CanvasWires({ canvas, shapeOf, selected, draft, onSelect }: {
         return (
           <g key={key(wire)} className={`canvas-wire ${wireClass(wire, blocks)} ${selectedKey === key(wire) ? 'is-selected' : ''}`}>
             <path className="canvas-wire-hit" d={d} onPointerDown={select} />
-            <path className="canvas-wire-line" d={d} />
+            <path className="canvas-wire-line" d={d} markerEnd="url(#canvas-arrow)" />
           </g>
         )
       })}
@@ -267,7 +283,7 @@ export function CanvasWires({ canvas, shapeOf, selected, draft, onSelect }: {
         const key = `${variable.id}>${target.block}:${target.kind}${'index' in target ? target.index : ''}`
         const blockShape = shapeOf(block)
         return target.kind === 'en'
-          ? <path key={key} className="canvas-ribbon is-variable" d={ribbon({ x: from.x, top: from.y - 2.5, bottom: from.y + 2.5 }, { x: block.x, top: block.y + 1, bottom: block.y + blockShape.height - 1 })} />
+          ? <path key={key} className="canvas-ribbon is-variable" d={ribbon({ x: from.x, top: from.y - 2.5, bottom: from.y + 2.5 }, { x: block.x, top: block.y + 1, bottom: block.y + blockShape.height - 1 }, pinAnchor(block, blockShape, anchorOfTarget(target)).y)} />
           : <path key={key} className="canvas-wire-line is-variable" d={curve(from, pinAnchor(block, blockShape, anchorOfTarget(target)))} />
       }))}
       {draft && draftFrom && <path className="canvas-wire-draft" d={curve(draftFrom, draft.to)} />}

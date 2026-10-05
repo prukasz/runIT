@@ -4,17 +4,21 @@ Starts a chain of blocks when a matching **system event** arrives (for example a
 
 ## Settings
 
-Four filters that must all match; each can also be *any* (255):
+Four filters that must all match; each starts at *Any*:
 
-- **Domain**, **Device**, **Channel**, **Event**.
+- **Domain**: the kind of event (IO, power, H-bridge, Bluetooth).
+- **Device**: the devices that publish in that domain.
+- **Channel**: the pins or channels the chosen device's events carry.
+- **Event**: what the chosen device raises (its own events), or every event of the domain while the device is *Any*.
+
+Changing the domain or the device puts what it narrows back to *Any*.
 
 ## Pins
 
 | Pin | Meaning |
 |---|---|
 | ENO | A one-pass pulse on the pass in which a matching event arrived. |
-| Value | The value of the event (the last match of the pass). |
-| Count | The number of matching events this pass. |
+| Value | The value of the event (the last match of the pass). Several matches in one pass collapse into one pulse. |
 
 ## Behaviour
 

@@ -4,6 +4,12 @@
   "description": "Pulses ENO for one pass when the combined EN level rises, falls or changes in either direction.",
   "activation": "Samples EN every pass, including when EN is false.",
   "header": "{edge_type} edge",
+  "enable": {
+    "title": "Signal",
+    "description": "is sampled for edge detection",
+    "signal": true,
+    "connect": "Connect a signal to EN so Edge can detect its transitions."
+  },
   "eno": {
     "title": "Pulse",
     "description": "One-pass pulse when the selected EN edge occurs."

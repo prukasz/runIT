@@ -36,6 +36,7 @@
       "error_tag": 43296
     }
   ],
+  "loop_use": "once-per-turn",
   "state": {
     "struct": "vm_block_latch_data_t",
     "source_file": "components/VM/blocks/latch/vm_block_latch.h",

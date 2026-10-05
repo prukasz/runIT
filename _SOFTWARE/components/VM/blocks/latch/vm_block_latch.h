@@ -52,6 +52,7 @@ bool vm_verify_latch(vm_block_h b);
 /* The body, called every pass.
    Face, titles and descriptions: latch.display.json; the app's latch.content.json is generated from this header. */
 //#vm-block VM_BLK_LATCH @id 12
+//@loop once
 //@activation enabled
 //@enables required
 void vm_blk_latch(vm_block_h b);

@@ -21,6 +21,7 @@
         "index": 1,
         "name": "cell",
         "value": "ptr-cell",
+        "user_write": true,
         "required": true
       }
     ]

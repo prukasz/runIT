@@ -16,7 +16,7 @@ export function DeviceLinkedBlocks({ workspace: w, device, canvases, onOpenBlock
   const links = canvases.flatMap((canvas) => canvas.blocks.flatMap((block) => {
     const type = catalog.block(block.type)
     if (!type) return []
-    const fields = type.fields.filter((field) => field.idKind === 'device' && Number(block.settings?.[field.name] ?? 0) === device.deviceId)
+    const fields = type.fields.filter((field) => field.idKind === 'device' && block.settings?.[field.name] !== undefined && Number(block.settings[field.name]) === device.deviceId)
     if (!fields.length) return []
     const pins = [...new Set(fields.flatMap((field) => type.fields
       .filter((pinField) => pinField.idKind === 'pin' && pinField.deviceField === field.name)

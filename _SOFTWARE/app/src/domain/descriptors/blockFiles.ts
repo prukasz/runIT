@@ -17,17 +17,17 @@ export interface VmBlockDisplayFile {
   readonly header?: string
   readonly always_detailed?: boolean
   readonly eno?: { readonly title: string; readonly description?: string }
-  readonly inputs?: Readonly<Record<string, { readonly title: string; readonly description?: string }>>
-  readonly outputs?: Readonly<Record<string, { readonly title: string; readonly description?: string }>>
+  readonly enable?: { readonly title?: string; readonly description?: string; readonly signal?: boolean; readonly connect?: string }
+  readonly inputs?: Readonly<Record<string, { readonly title: string; readonly description?: string; readonly hide_when_wired?: boolean }>>
+  readonly outputs?: Readonly<Record<string, { readonly title: string; readonly description?: string; readonly hide_when_wired?: boolean }>>
 }
 
 type ContentPin = Omit<GeneratedVmBlockPin, 'title' | 'description'>
 
-export interface VmBlockContentFile extends Omit<GeneratedVmBlockFile, 'title' | 'category' | 'description' | 'eno' | 'always_detailed' | 'header' | 'inputs' | 'outputs' | 'activation'> {
+export interface VmBlockContentFile extends Omit<GeneratedVmBlockFile, 'title' | 'category' | 'description' | 'eno' | 'enable' | 'always_detailed' | 'header' | 'inputs' | 'outputs' | 'activation'> {
   readonly activation: { readonly kind: string }
   readonly inputs: { readonly min: number; readonly max: number; readonly pins: readonly ContentPin[] }
   readonly outputs: { readonly min: number; readonly max: number; readonly pins: readonly ContentPin[] }
-  readonly min_enables?: number
 }
 
 const REF = /\{(\w+)\}/g
@@ -77,7 +77,7 @@ const withTitles = (side: 'inputs' | 'outputs', content: VmBlockContentFile, dis
     pins: pins.map((pin) => {
       const entry = shown[pin.name]
       if (!entry?.title) throw new DescriptorError(`${name}.display.json needs a title for ${side} pin "${pin.name}".`)
-      return { ...pin, title: entry.title, ...(entry.description ? { description: entry.description } : {}) }
+      return { ...pin, title: entry.title, ...(entry.description ? { description: entry.description } : {}), ...(entry.hide_when_wired ? { hide_when_wired: true } : {}) }
     }),
   }
 }
@@ -102,6 +102,7 @@ export const composeVmBlockFile = (display: VmBlockDisplayFile, content: VmBlock
     inputs: withTitles('inputs', content, display, name),
     outputs: withTitles('outputs', content, display, name),
     ...(display.eno ? { eno: display.eno } : {}),
+    ...(display.enable ? { enable: display.enable } : {}),
     ...(display.always_detailed ? { always_detailed: true } : {}),
     ...(header ? { header } : {}),
   }

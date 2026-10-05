@@ -24,6 +24,9 @@
 //  @type-id     TPS55289_TYPE_ID
 //  @contract-provider $SYS_DEVICE_CONTRACT_POWER_VREG
 
+//#event $SYS_EVENT_DOMAIN_POWER
+//  @events  [$SYS_PWR_EVENT_OVP, $SYS_PWR_EVENT_OCP_CRITICAL, $SYS_PWR_EVENT_SPC]
+
 //#contract packet_sys_power_vreg_set_enable_t
 //  @alias       Enable output
 //  @param state @alias Enabled @type bool

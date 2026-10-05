@@ -83,6 +83,7 @@ An optional Markdown file in the device's `app/` folder is the device's user gui
 | `//#device <id>` | `title` (required), `description` (required), `protocol`, `tags`, `datasheet`, `contract-provider`, `pwm-frequencies` (+ `count-bits`) |
 | `//#self-property NAME` | `one-of`, `alias`, `note` |
 | `//#property NAME` | `enum-ref`, `one-of`, `default`, `alias`, `note` |
+| `//#event $SYS_EVENT_DOMAIN_<X>` | `channel` (a property of the file), `events` (required) |
 | `//#contract <packet>` | `alias`, `description`, `returns`, and `@param` lines |
 | `@param <field>` (one per line, in a contract) | `arg`, `alias`, `type`, `unit`, `one-of`, `min`, `max`, `default`, `device-wide`, `note` |
 | Install struct field (`//` after the `;`) | `optional`, `alias`, `min`, `max`, `one-of`, `default`, `unit`, `enum-ref`, `note`; rare: `sentinel`, `group`, `encoding`, `terminator` |
@@ -140,6 +141,28 @@ typedef enum sys_io_mode_e {
 - `//#ref-enum` goes on the line before the `typedef enum`; only marked enums are scanned.
 - The marker's `@alias` is the enum's display title; each member's `@alias` / `@description` is optional. Write `@description` for someone who doesn't know the electrical or firmware concept: what the option is for, with a use case.
 - An unresolved `$SYMBOL`, or a member name defined in two published enums, fails generation.
+
+## Values
+
+`//#value NAME` says that one number the device takes (a position, a level) means different things by its install settings; it is generated as `values.NAME`. Write one record per variant, in order: the first whose `@when` holds applies. `@when field=value ..` (install fields; the value is a number or a `$SYMBOL`; all pairs must hold; none: always), `@title` (required: what the number is called), `@unit`, `@range min..max` (numbers, or install fields such as `angle_min_deg`). A block pin names it with `@spec NAME @device-field <its device field>` ([vm-annotations.md](../vm/vm-annotations.md)).
+
+```c
+//#value POSITION
+//  @when  servo_type=$SERVO_TYPE_CONTINUOUS
+//  @title Speed
+//  @unit  %
+//  @range -100..100
+```
+
+## Events
+
+`//#event $SYS_EVENT_DOMAIN_<X>` says what the device publishes in one event domain; it is generated as the descriptor's `events`. `@events [..]` lists the events it raises (`$SYMBOL`s of one enum, required) and `@channel <NAME>` names the property of the file (`PIN`, `CHANNEL`) holding the pins or channels those events carry; leave it out when they carry none. One record per domain. A block that reacts to events (`@source-field` in [vm-annotations.md](../vm/vm-annotations.md)) offers only the devices, channels and events declared here; the events of a domain with no device come from the domain's own `@events <enum>` in `sys_event.h`.
+
+```c
+//#event $SYS_EVENT_DOMAIN_POWER
+//  @channel CHANNEL
+//  @events  [$SYS_PWR_EVENT_OCP_CRITICAL, $SYS_PWR_EVENT_OCP_WARNING]
+```
 
 ## Contracts
 

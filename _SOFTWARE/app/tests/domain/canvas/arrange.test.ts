@@ -116,7 +116,7 @@ describe('loop bodies', () => {
 
   it('refuses a body gate of something that is not a loop, and a block in two separate loops', () => {
     const notLoop = arrangeProgram([canvas('c', [expr('a', 0, 0, [at('x')]), expr('b', 0, 100, [at('x')], { enables: [at('a:body')] })])])
-    expect(notLoop.diagnostics).toEqual([expect.objectContaining({ blockId: 'b', message: expect.stringMatching(/only a FOR has a body/) })])
+    expect(notLoop.diagnostics).toEqual([expect.objectContaining({ blockId: 'b', message: expect.stringMatching(/only a loop block has a body/) })])
     // Another block's ENO on EN is an ordinary enable ("only if it acted").
     const eno = arrangeProgram([canvas('c', [expr('a', 0, 0, [at('x')]), expr('b', 0, 100, [at('x')], { enables: [at('a:eno')] })])])
     expect(eno.diagnostics).toEqual([])

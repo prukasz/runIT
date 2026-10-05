@@ -26,6 +26,10 @@
 //  @one-of   [$SYS_PWR_EVENT_OCP_CRITICAL, $SYS_PWR_EVENT_OCP_WARNING]
 //  @alias    Alert Severity
 
+//#event $SYS_EVENT_DOMAIN_POWER
+//  @channel CHANNEL
+//  @events  [$SYS_PWR_EVENT_OCP_CRITICAL, $SYS_PWR_EVENT_OCP_WARNING]
+
 //#contract packet_sys_power_monitor_get_voltage_t
 //  @alias         Read bus voltage
 //  @param channel @arg CHANNEL

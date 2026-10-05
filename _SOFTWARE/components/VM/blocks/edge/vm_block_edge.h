@@ -45,6 +45,7 @@ bool vm_verify_edge(vm_block_h b);
 /* The body, called every pass.
    Face, titles and descriptions: edge.display.json; the app's edge.content.json is generated from this header. */
 //#vm-block VM_BLK_EDGE @id 8
+//@loop once
 //@activation enabled
 //@enables required
 void vm_blk_edge(vm_block_h b);

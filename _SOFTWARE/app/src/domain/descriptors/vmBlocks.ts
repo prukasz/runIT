@@ -8,9 +8,21 @@ import type { GeneratedVmBlockEditorMetadata, GeneratedVmBlockFile, GeneratedVmB
  */
 
 export interface VmBlockEditorMetadata {
-  readonly idKind?: 'device' | 'pin'
+  readonly idKind?: 'device' | 'pin' | 'channel' | 'event'
   readonly deviceField?: string
   readonly contract?: string
+  /** The enum field (an event domain) whose catalog entry lists this ID's choices. */
+  readonly sourceField?: string
+  /** The wildcard the field may hold: the picker offers Any and starts there. */
+  readonly anyValue?: number
+  /** The least the setting may be while no input pin replaces it. */
+  readonly min?: number
+  /** The pin names a variable the block writes as the program's user. */
+  readonly userWrite?: boolean
+  /** The device value (`//#value NAME`) the pin carries: the chosen device's settings pick its title, unit and range. */
+  readonly valueSpec?: string
+  /** The face drops the pin's title while a variable is wired to it (its chip names it). */
+  readonly hideWhenWired?: boolean
   readonly hiddenByDefault?: boolean
   readonly letUserSelectAvailable?: string
   readonly dynamicInput?: number
@@ -75,6 +87,9 @@ export interface VmBlockEncoding {
   /** Type of the 4-byte constants: f32 (EXPR) or u32 (EXPR_BIT). */
   readonly constantType: string
   readonly stackMax: number
+  /** The state fields the compiler fills with the number of constants and code bytes. */
+  readonly constCountField: string
+  readonly codeLengthField: string
   readonly opcodes: readonly VmOpcode[]
   /** By alias (`+`, `in`), symbol (`VM_EXPR_ADD`) or symbol without its prefix (`ADD`). */
   readonly opcode: (token: string) => VmOpcode | undefined
@@ -86,6 +101,19 @@ export interface VmBlockEno {
   readonly title: string
   readonly description: string
 }
+
+/** How a block's EN is worded: its connector's title, what it does, whether it carries a signal (drawn true / false, not as a gate) and what to say while nothing is connected. */
+export interface VmBlockEnable {
+  readonly title: string
+  readonly description: string
+  readonly signal: boolean
+  /** The block cannot run without an enable source (`//@enables required`). */
+  readonly required: boolean
+  /** What to tell the user while no source is connected (a block that needs one). */
+  readonly connect?: string
+}
+
+export const DEFAULT_ENABLE: VmBlockEnable = { title: 'Run when', description: 'the block runs only while this is true', signal: false, required: false }
 
 export const DEFAULT_ENO: VmBlockEno = { title: 'When done', description: 'true while the block acted; drag it onto the Run when of another block to run that block only then' }
 
@@ -104,6 +132,11 @@ export interface VmBlockType {
   readonly outputs: VmBlockPins
   readonly rules: readonly { readonly rule: string; readonly error: string }[]
   readonly eno: VmBlockEno
+  readonly enable: VmBlockEnable
+  /** How the block sits in a loop body: refused (it keeps one state) or once-per-turn (it acts on every turn); none: no restriction. */
+  readonly loopUse?: 'refused' | 'once-per-turn'
+  /** The block runs the blocks after it in a loop (it owns a span). */
+  readonly loopOwner: boolean
   /** The block has a detailed view: it has inputs with a constant to show, or a formula. Other blocks are their face. */
   readonly hasDetail: boolean
   /** The detailed view is the only one (`//@always-detailed`): the toolbar and the block's view choice do not apply. */
@@ -153,7 +186,7 @@ const buildOpcodes = (opcodes: readonly GeneratedVmBlockOpcode[]) => {
 
 export const buildVmBlockType = (file: GeneratedVmBlockFile): VmBlockType => {
   const metadata = (entry: GeneratedVmBlockEditorMetadata): VmBlockEditorMetadata => ({
-    idKind: entry.id_kind, deviceField: entry.device_field, contract: entry.contract,
+    idKind: entry.id_kind, deviceField: entry.device_field, contract: entry.contract, sourceField: entry.source_field, anyValue: entry.any_value, min: entry.min, userWrite: entry.user_write, valueSpec: entry.value_spec, hideWhenWired: entry.hide_when_wired,
     hiddenByDefault: entry.hidden_by_default, letUserSelectAvailable: entry.let_user_select_available, dynamicInput: entry.dynamic_input,
   })
   const pins = (side: GeneratedVmBlockFile['inputs']): VmBlockPins => ({
@@ -183,6 +216,8 @@ export const buildVmBlockType = (file: GeneratedVmBlockFile): VmBlockType => {
     return {
       constantType: file.encoding.constant_type,
       stackMax: file.encoding.stack_max,
+      constCountField: file.encoding.const_count_field,
+      codeLengthField: file.encoding.code_length_field,
       opcodes: list,
       opcode,
       examples: (file.encoding.examples ?? []).map((example) => ({ title: example.title, constants: example.constants, code: example.code, customData: example.custom_data })),
@@ -201,6 +236,15 @@ export const buildVmBlockType = (file: GeneratedVmBlockFile): VmBlockType => {
     outputs: pins(file.outputs),
     rules: file.rules,
     eno: { title: file.eno?.title ?? DEFAULT_ENO.title, description: file.eno?.description ?? DEFAULT_ENO.description },
+    enable: {
+      title: file.enable?.title ?? DEFAULT_ENABLE.title,
+      description: file.enable?.description ?? DEFAULT_ENABLE.description,
+      signal: file.enable?.signal ?? DEFAULT_ENABLE.signal,
+      required: (file.min_enables ?? 0) > 0,
+      ...(file.enable?.connect ? { connect: file.enable.connect } : {}),
+    },
+    ...(file.loop_use ? { loopUse: file.loop_use } : {}),
+    loopOwner: fields.some((field) => field.source === 'derived' && field.cType === 'vm_span_t'),
     hasDetail: !!encoding || pins(file.inputs).pins.some((pin) => pin.overrides),
     alwaysDetailed: file.always_detailed ?? false,
     ...(file.header ? { header: file.header } : {}),

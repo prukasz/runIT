@@ -6,7 +6,8 @@
   "inputs": {
     "pin": {
       "title": "Input",
-      "description": "Read by the IN opcode; any number, only the ones the code names are read."
+      "description": "Read by the IN opcode; any number, only the ones the code names are read.",
+      "hide_when_wired": true
     }
   },
   "outputs": {

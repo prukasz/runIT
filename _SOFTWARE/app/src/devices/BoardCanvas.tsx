@@ -251,7 +251,9 @@ export function BoardCanvas({ workspace: w, wiring }: { workspace: DevicesWorksp
           } else {
             drag.current = { kind: 'pan', at, origin: viewport }
             setPanning(true)
-            w.select(undefined)
+            // The board's own art picks the board (its page has Edit board); the empty grid clears the selection.
+            const onBoard = event.target instanceof Node && !!boardRef.current?.contains(event.target)
+            w.select(onBoard ? { kind: 'board' } : undefined)
           }
         }}
         onPointerMove={onPointerMove}
@@ -260,7 +262,7 @@ export function BoardCanvas({ workspace: w, wiring }: { workspace: DevicesWorksp
         onPointerLeave={() => setHover(undefined)}
       >
         <div ref={worldRef} className="canvas-world" style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})` }}>
-          <div ref={boardRef} className={`${BOARD_SCOPE} board-art-layer`} style={{ width: board.width, height: board.height, transform: `scale(${ART_SCALE})`, transformOrigin: '0 0' }} dangerouslySetInnerHTML={{ __html: board.markup }} />
+          <div ref={boardRef} className={`${BOARD_SCOPE} board-art-layer${w.selection?.kind === 'board' ? ' is-selected' : ''}`} style={{ width: board.width, height: board.height, transform: `scale(${ART_SCALE})`, transformOrigin: '0 0' }} dangerouslySetInnerHTML={{ __html: board.markup }} />
           {w.devices.map((device) => {
             const art = symbols.get(device.id)!
             const placement = moving?.ref === device.id ? moving.placement : placed.get(device.id)!

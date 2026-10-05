@@ -89,7 +89,9 @@ export const canvasGroups = (canvas: ProjectCanvas, catalog: VmCatalog): CanvasG
       // outputs (IF, SWITCH, etc.) create a contour.
       if (pinDescriptor?.value !== 'gate') continue
       const title = source.outputAliases?.[Number(pin.slice(1))] || pinDescriptor.title || pin
-      labels.set(path.root, { label: `${source.name || source.id} · ${title}${source.type === 'SWITCH' && pin !== 'eno' ? ` ${pin.slice(1)}` : ''}`, loop: false })
+      // A repeating output (a router's branches) is numbered, like its pin on the face.
+      const repeated = Number(pin.slice(1)) >= pins.length - 1 && (catalog.block(source.type)?.outputs.max ?? 0) > pins.length
+      labels.set(path.root, { label: `${source.name || source.id} · ${title}${repeated ? ` ${pin.slice(1)}` : ''}`, loop: false })
       areas.add(path.root)
       for (const area of areasOf.get(source.id) ?? []) areas.add(area)
     }

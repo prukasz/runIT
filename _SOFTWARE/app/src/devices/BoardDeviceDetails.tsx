@@ -1,4 +1,7 @@
+import { CircuitBoard, PenTool } from 'lucide-react'
 import { Badge } from '../components/Badge'
+import { Button } from '../components/Button'
+import { Card } from '../components/Card'
 import { NumberField } from '../components/FormField'
 import type { PinLimit } from '../domain/project'
 import { PanelHeader } from '../components/PanelHeader/PanelHeader'
@@ -18,7 +21,14 @@ import './Devices.css'
  * (the chip itself, breakout boards …). A variant's hidden pins are ones it does not bring out; they show greyed
  * inside the symbol and cannot be wired.
  */
-export function BoardDeviceDetails({ workspace: w, wiring }: { workspace: DevicesWorkspace; wiring: BoardWiring }) {
+export function BoardDeviceDetails({ workspace: w, wiring, onEditComponent, onEditBoard }: {
+  workspace: DevicesWorkspace
+  wiring: BoardWiring
+  /** Opens the component editor (pictures and pin layouts) on one device type. */
+  onEditComponent: (typeId: string) => void
+  /** Opens the board creator. */
+  onEditBoard: () => void
+}) {
   const ref = w.selection?.kind === 'device' ? w.selection.ref : undefined
   const model = useBoardModel(w.board, w.catalog)
   const report = useWiringReport(w, model)
@@ -27,11 +37,20 @@ export function BoardDeviceDetails({ workspace: w, wiring }: { workspace: Device
   const project = w.devices.find((entry) => entry.id === ref)
 
   if (!device || !project) {
+    const boardPicked = !wire && w.selection?.kind === 'board'
     return (
       <div className="program-panel devices-details">
-        <PanelHeader title={wire ? 'Wire' : 'Board'} />
+        <PanelHeader title={wire ? 'Wire' : boardPicked ? model.name : 'Board'}>
+          {boardPicked && <Badge push>{model.builtin ? 'built in' : 'custom'}</Badge>}
+        </PanelHeader>
         {wire && <WireCard workspace={w} report={report} wiring={wiring} wire={wire} />}
-        {!wire && <p className="devices-muted">Select a device on the canvas to choose how it is drawn (the chip, or a breakout board) and to see its wiring. Press a board terminal or a device pin and drag to another to wire them.</p>}
+        {boardPicked && (
+          <Card title="Board" className="board-edit-card">
+            <p className="devices-muted">{model.widthMm} × {model.heightMm} mm, {model.terminals.size} pins you can wire.</p>
+            <Button size="sm" onClick={onEditBoard}><CircuitBoard aria-hidden="true" />Edit board</Button>
+          </Card>
+        )}
+        {!wire && !boardPicked && <p className="devices-muted">Select a device on the canvas to choose how it is drawn (the chip, or a breakout board) and to see its wiring, or the board to edit it. Press a board terminal or a device pin and drag to another to wire them.</p>}
         <WiringProblems workspace={w} report={report} wiring={wiring} />
       </div>
     )
@@ -55,7 +74,7 @@ export function BoardDeviceDetails({ workspace: w, wiring }: { workspace: Device
     const { pinLimits: _old, ...rest } = placed
     w.setPlacement(project.id, { ...rest, ...(Object.keys(next).length ? { pinLimits: next } : {}) })
   }
-  const limited = device.type.ports.filter((port) => port.kind === 'io' && port.mV_max !== undefined)
+  const limited = (device.type?.ports ?? []).filter((port) => port.kind === 'io' && port.mV_max !== undefined)
 
   return (
     <div className="program-panel devices-details">
@@ -66,6 +85,7 @@ export function BoardDeviceDetails({ workspace: w, wiring }: { workspace: Device
       <DeviceWiring workspace={w} report={report} wiring={wiring} deviceRef={project.id} />
       <div className="board-variants">
         <h3>Variants</h3>
+        {device.type && <Button size="sm" title="Add or change the pictures and pin positions of this device" onClick={() => onEditComponent(device.type!.id)}><PenTool aria-hidden="true" />Edit component</Button>}
         {variants.length ? (
           <ul role="radiogroup" aria-label="Variants">
             {variants.map((variant) => (

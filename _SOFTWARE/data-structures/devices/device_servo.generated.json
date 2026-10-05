@@ -167,5 +167,54 @@
       }
     }
   },
-  "contracts": []
+  "contracts": [],
+  "values": {
+    "POSITION": [
+      {
+        "when": [
+          {
+            "field": "byte_mode",
+            "value": 1
+          }
+        ],
+        "title": "Byte",
+        "range": {
+          "min": 0,
+          "max": 255
+        }
+      },
+      {
+        "when": [
+          {
+            "field": "servo_type",
+            "value": 1
+          }
+        ],
+        "title": "Speed",
+        "unit": "%",
+        "range": {
+          "min": -100,
+          "max": 100
+        }
+      },
+      {
+        "when": [
+          {
+            "field": "servo_type",
+            "value": 0
+          }
+        ],
+        "title": "Angle",
+        "unit": "deg",
+        "range": {
+          "min": {
+            "field": "angle_min_deg"
+          },
+          "max": {
+            "field": "angle_max_deg"
+          }
+        }
+      }
+    ]
+  }
 }

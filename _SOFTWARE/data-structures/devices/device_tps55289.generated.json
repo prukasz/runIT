@@ -241,5 +241,39 @@
         }
       }
     }
+  ],
+  "events": [
+    {
+      "domain": {
+        "symbol": "SYS_EVENT_DOMAIN_POWER",
+        "enum": "sys_event_domain_e",
+        "value": 1,
+        "alias": "Power",
+        "description": "Regulator, monitor and board power events. Event = power event; board events use device 255"
+      },
+      "events": [
+        {
+          "symbol": "SYS_PWR_EVENT_OVP",
+          "enum": "sys_power_events_e",
+          "value": 1,
+          "alias": "Over-Voltage",
+          "description": "The voltage went above the safe limit"
+        },
+        {
+          "symbol": "SYS_PWR_EVENT_OCP_CRITICAL",
+          "enum": "sys_power_events_e",
+          "value": 5,
+          "alias": "Over-Current Critical",
+          "description": "Current draw exceeded the limit - output is protected/shut down"
+        },
+        {
+          "symbol": "SYS_PWR_EVENT_SPC",
+          "enum": "sys_power_events_e",
+          "value": 3,
+          "alias": "Short Circuit",
+          "description": "A short circuit was detected on the output"
+        }
+      ]
+    }
   ]
 }

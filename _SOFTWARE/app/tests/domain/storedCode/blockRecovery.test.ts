@@ -35,7 +35,7 @@ const blocks: readonly ProgramBlock[] = [
   { id: 'above', type: 'EXPR', inputs: [at('count')], enables: [tick], expression: { constants: [3], code: ['in', 0, 'const', 0, '>'] } },
   { id: 'branch', type: 'IF', inputs: [at('above:q0')], eno: true },
   { id: 'hold', type: 'LATCH', enables: [at('branch:q0')], settings: { mode: 'SET_DOMINANT' } },
-  { id: 'delay', type: 'TIMER', inputs: [at('hold:eno')], settings: { mode: 'TON', time_base: 'MS', pt: 300 } },
+  { id: 'delay', type: 'TIMER', enables: [at('hold:eno')], settings: { mode: 'TON', time_base: 'MS', pt: 300 } },
   { id: 'rise', type: 'EDGE', enables: [at('above:q0')], settings: { edge_type: 'RISING' } },
   { id: 'seen', type: 'LATCH', enables: [at('rise:eno')] },
   { id: 'route', type: 'SWITCH', inputs: [at('sel')], outputs: [null, null, null] },

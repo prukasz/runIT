@@ -23,6 +23,19 @@ export interface GeneratedDeviceFile {
   readonly ports?: readonly DevicePort[]
   readonly symbol?: { readonly variants: readonly { readonly id: string; readonly label: string; readonly file: string; readonly package: string; readonly hidden: readonly string[] }[] }
   readonly contractProvider?: { readonly symbol: string; readonly value: number; readonly alias?: string; readonly description?: string }
+  /** Values whose meaning follows the install settings (`//#value`): per name, the variants in order. */
+  readonly values?: Readonly<Record<string, readonly {
+    readonly when: readonly { readonly field: string; readonly value: number }[]
+    readonly title: string
+    readonly unit?: string
+    readonly range?: { readonly min: number | { readonly field: string }; readonly max: number | { readonly field: string } }
+  }[]>>
+  /** What the device publishes, per event domain (`//#event`). */
+  readonly events?: readonly {
+    readonly domain: GeneratedChoice
+    readonly channel?: { readonly alias?: string; readonly one_of: readonly (number | GeneratedChoice)[] }
+    readonly events: readonly GeneratedChoice[]
+  }[]
   readonly install: {
     readonly packet: string
     readonly packet_definition: GeneratedLayout & {
@@ -163,6 +176,28 @@ export interface DeviceType {
   readonly installChoices: ReadonlyMap<string, readonly DeviceChoice[]>
   readonly pinGroups: readonly InstallPinGroup[]
   readonly contracts: readonly DeviceContract[]
+  /** The events the device publishes, per event domain. */
+  readonly eventSources: readonly DeviceEventSource[]
+  /** Values whose meaning follows the install settings, by name: the variants in order, the first whose `when` holds applies. */
+  readonly values: Readonly<Record<string, readonly DeviceValueVariant[]>>
+}
+
+/** One reading of a device value: what the number is called, its unit and range (a bound is a number or an install field). */
+export interface DeviceValueVariant {
+  readonly when: readonly { readonly field: string; readonly value: number }[]
+  readonly title: string
+  readonly unit?: string
+  readonly range?: { readonly min: number | { readonly field: string }; readonly max: number | { readonly field: string } }
+}
+
+/** What a device publishes in one event domain: the channels its events carry (none when they carry none) and the events it raises. */
+export interface DeviceEventSource {
+  /** The domain's enum (`sys_event_domain_e`) and the member's value. */
+  readonly domainEnum: string
+  readonly domain: number
+  readonly channelLabel?: string
+  readonly channels: readonly DeviceChoice[]
+  readonly events: readonly DeviceChoice[]
 }
 
 /** A pin one device takes on another (install pin reference). */
@@ -222,6 +257,8 @@ export interface DeviceCatalog {
   readonly lifecycle: readonly DeviceContract[]
   /** Highest device ID the firmware accepts (install packets' `device_id` max). */
   readonly maxDeviceId: number
+  /** The events of an event domain (the `@events` enum of a member of `domainEnum`): what a source that names no device can raise. */
+  domainEvents(domainEnum: string, domain: number): readonly DeviceChoice[]
   /** The device type a create frame (class, type id after the create header) belongs to. */
   typeByInstall(classHeader: number, typeId: number): DeviceType | undefined
 }
@@ -352,6 +389,14 @@ export const buildDeviceCatalog = (files: readonly GeneratedDeviceFile[], board:
       installChoices,
       pinGroups: pinGroupsOf(definition),
       contracts,
+      values: file.values ?? {},
+      eventSources: (file.events ?? []).map((source): DeviceEventSource => ({
+        domainEnum: source.domain.enum ?? '',
+        domain: source.domain.value,
+        ...(source.channel?.alias ? { channelLabel: source.channel.alias } : {}),
+        channels: choicesOf(source.channel?.one_of) ?? [],
+        events: choicesOf(source.events) ?? [],
+      })),
     }
   }).sort((a, b) => a.title.localeCompare(b.title))
 
@@ -394,6 +439,7 @@ export const buildDeviceCatalog = (files: readonly GeneratedDeviceFile[], board:
     reservedPins: board.reserved_pins.map((entry) => ({ deviceId: entry.device, pin: entry.pin, label: entry.label })),
     lifecycle,
     maxDeviceId,
+    domainEvents: (domainEnum, domain) => enumChoices(enums, enums.enums[domainEnum]?.members.find((member) => member.value === domain)?.events) ?? [],
     typeByInstall: (classHeader, typeId) => byInstall.get((classHeader << 8) | typeId),
   }
 }

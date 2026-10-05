@@ -85,6 +85,8 @@ RECORD_TAGS = {
     "self-property": {"one_of", "alias", "note"},
     "property": {"enum_ref", "one_of", "default", "alias", "note"},
     "contract": {"alias", "description", "returns"},
+    "event": {"channel", "events"},
+    "value": {"when", "title", "unit", "range"},
 }
 PARAM_TAGS = {"arg", "alias", "type", "unit", "one_of", "min", "max", "default", "device_wide", "note"}
 
@@ -688,6 +690,59 @@ def parse_property(kind: str, name: str, tags: Dict[str, str], symbols: Dict[str
     return prop
 
 
+def parse_event_source(name: str, tags: Dict[str, str], registry: Dict[str, dict], symbols: Dict[str, dict], ctx: str, seen: set) -> dict:
+    """`//#event $SYS_EVENT_DOMAIN_X @channel <PROPERTY> @events [..]`: what the device publishes in one domain.
+    The channel is a property of this file (the pins or channels the events carry); without it the events have none."""
+    if not name.startswith("$"):
+        sys.exit(f"ERROR: {ctx}: //#event takes the domain as $SYS_EVENT_DOMAIN_<X>")
+    domain = resolve_symbol(name, symbols, ctx)
+    if domain["enum"] != "sys_event_domain_e":
+        sys.exit(f"ERROR: {ctx}: //#event {name} is not a member of sys_event_domain_e")
+    if domain["symbol"] in seen:
+        sys.exit(f"ERROR: {ctx}: //#event {name} given twice")
+    if "events" not in tags:
+        sys.exit(f"ERROR: {ctx}: //#event {name} needs @events [..]")
+    events = parse_choice_list(tags["events"], symbols, ctx)
+    if not events or not all(isinstance(event, dict) for event in events):
+        sys.exit(f"ERROR: {ctx}: //#event {name}: @events lists $SYMBOLs of one enum")
+    source: dict = {"domain": domain, "events": events}
+    channel = tags.get("channel")
+    if channel:
+        if channel not in registry:
+            sys.exit(f"ERROR: {ctx}: @channel '{channel}' does not match any //#self-property or //#property in this file")
+        source["channel"] = {key: registry[channel][key] for key in ("alias", "one_of") if key in registry[channel]}
+    return source
+
+
+def parse_value_variant(name: str, tags: Dict[str, str], symbols: Dict[str, dict], defines: Dict[str, str], sdkconfig: Dict[str, int], ctx: str) -> dict:
+    """`//#value NAME @when field=value .. @title T @unit U @range a..b`: one variant of a value whose meaning follows the device's
+    install settings. Records of one NAME are tried in file order, the first whose `@when` holds applies (no `@when`: always).
+    A range bound is a number or an install field (`angle_min_deg`)."""
+    if not tags.get("title"):
+        sys.exit(f"ERROR: {ctx}: //#value {name} needs @title")
+    variant: dict = {"when": [], "title": tags["title"]}
+    for condition in tags.get("when", "").split():
+        field, equals, raw = condition.partition("=")
+        if not equals or not field or not raw:
+            sys.exit(f"ERROR: {ctx}: @when takes `field=value` pairs, got '{condition}'")
+        value = resolve_symbol(raw, symbols, ctx)["value"] if raw.startswith("$") else to_int(raw)
+        if value is None:
+            sys.exit(f"ERROR: {ctx}: @when {condition}: the value is a number or a $SYMBOL")
+        variant["when"].append({"field": field, "value": value})
+    if tags.get("unit"):
+        variant["unit"] = tags["unit"]
+    if "range" in tags:
+        low, dots, high = tags["range"].partition("..")
+        if not dots:
+            sys.exit(f"ERROR: {ctx}: @range is `min..max` (numbers or install fields)")
+        def bound(token: str):
+            token = token.strip()
+            number = to_int(token)
+            return number if number is not None else {"field": token}
+        variant["range"] = {"min": bound(low), "max": bound(high)}
+    return variant
+
+
 def parse_parameter(param: dict, registry: Dict[str, dict], symbols: Dict[str, dict], defines: Dict[str, str], sdkconfig: Dict[str, int], ctx: str) -> dict:
     tags = param["tags"]
     parameter: dict = {"name": param["name"]}
@@ -755,10 +810,22 @@ def parse_device_descriptor(path: Path, symbols: Dict[str, dict], defines: Dict[
                 contract[key] = tags[key]
         contracts.append(contract)
 
+    values: Dict[str, List[dict]] = {}
+    for record, name, tags, _ in records:
+        if record["kind"] == "value":
+            values.setdefault(name, []).append(parse_value_variant(name, tags, symbols, defines, sdkconfig, record["where"]))
+
+    events: List[dict] = []
+    for record, name, tags, _ in records:
+        if record["kind"] == "event":
+            events.append(parse_event_source(name, tags, registry, symbols, record["where"], {e["domain"]["symbol"] for e in events}))
+
     return {
         "metadata": {"id": device_id, **metadata},
         "contract_provider": contract_provider,
         "contracts": contracts,
+        "events": events,
+        "values": values,
         "source_file": path.name,
     }
 
@@ -822,8 +889,23 @@ def build_device_document(device: dict, packets: Dict[str, dict], defines: Dict[
         "contractProvider": device["contract_provider"],
         "install": {"packet": install_packets[0], "packet_definition": packets[install_packets[0]]},
         "contracts": contract_documents,
+        **({"events": device["events"]} if device.get("events") else {}),
+        **({"values": check_values(device["values"], packets[install_packets[0]], device["source_file"])} if device.get("values") else {}),
         **({"symbol": device["symbol"], "ports": device["ports"]} if device.get("ports") else {}),
     }
+
+
+def check_values(values: Dict[str, List[dict]], install: dict, source: str) -> Dict[str, List[dict]]:
+    """Every install field a `//#value` variant names (in `@when` or a `@range` bound) must be a field of the create frame."""
+    fields = set(install["fields"])
+    for name, variants in values.items():
+        for variant in variants:
+            named = [condition["field"] for condition in variant["when"]]
+            named += [bound["field"] for bound in variant.get("range", {}).values() if isinstance(bound, dict)]
+            for field in named:
+                if field not in fields:
+                    sys.exit(f"ERROR: {source}: //#value {name}: '{field}' is not a field of the install packet")
+    return values
 
 
 def check_ports(device: dict, install: dict, contracts: List[dict]) -> None:

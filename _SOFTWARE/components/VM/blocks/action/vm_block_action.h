@@ -35,7 +35,7 @@ typedef enum {
 //@data vm_block_action_data_t
 typedef struct __attribute__((aligned(4))) {
   uint8_t scope;      // @enum-ref vm_action_scope_e
-  uint8_t action_id;  // @description 1..255, used when input 0 is unwired
+  uint8_t action_id;  // @description 1..255, used when input 0 is unwired @min 1
   uint8_t flags;      // @description VM_ACTION_F_* @runtime
   uint8_t _pad;
 } vm_block_action_data_t;
@@ -57,5 +57,6 @@ bool vm_verify_action(vm_block_h b);
 /* The body, called every pass.
    Face, titles and descriptions: action.display.json; the app's action.content.json is generated from this header. */
 //#vm-block VM_BLK_ACTION @id 14
+//@loop once
 //@activation enable-rising
 void vm_blk_action(vm_block_h b);

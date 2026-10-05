@@ -160,7 +160,7 @@ class Scanning(unittest.TestCase):
     def test_the_registry_entries_carry_the_declared_shape(self):
         blocks, _ = generator.build()
         entry = {b["name"]: generator.c_entry(b) for b in blocks}
-        self.assertIn(".min_in = 1, .max_in = 2, .min_q = 0, .max_q = 1, .min_en = 0, .required_in = 0x1u, .state_len = sizeof(vm_block_timer_data_t)", entry["VM_BLK_TIMER"])
+        self.assertIn(".min_in = 0, .max_in = 1, .min_q = 0, .max_q = 1, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_timer_data_t)", entry["VM_BLK_TIMER"])
         self.assertIn(".min_en = 1", entry["VM_BLK_EDGE"])          # //@enables required
         self.assertIn(".min_en = 1", entry["VM_BLK_LATCH"])
         self.assertIn(".max_q = CONFIG_VM_BLOCK_MAX_OUT", entry["VM_BLK_SWITCH"])  # a `*` output
@@ -354,7 +354,25 @@ class Mistakes(unittest.TestCase):
         self.assertIn("computes to offset", build_error("vm_block_periodic.h", "offsetof(vm_block_periodic_data_t, time_base) == 4", "offsetof(vm_block_periodic_data_t, time_base) == 5"))
 
     def test_pin_enum_values_are_the_pin_indexes(self):
-        self.assertRegex(build_error("vm_block_timer.h", "VM_IN_TIMER_IN = 0", "VM_IN_TIMER_IN = 1"), "without gaps")
+        self.assertRegex(build_error("vm_block_io_set_level.h", "VM_IN_IO_SET_LEVEL_LEVEL = 0", "VM_IN_IO_SET_LEVEL_LEVEL = 1"), "without gaps")
+
+    def test_a_source_field_must_name_the_domain_enum(self):
+        self.assertIn("must name an enum field", build_error("vm_block_on_event.h", "@id device @any 255 @source-field domain", "@id device @any 255 @source-field channel"))
+
+    def test_an_event_id_needs_its_device_and_source(self):
+        self.assertIn("needs @device-field and @source-field", build_error("vm_block_on_event.h", "@id event @any 255 @device-field device_id @source-field domain", "@id event @any 255"))
+
+    def test_a_catalog_id_needs_its_wildcard(self):
+        self.assertIn("needs @any", build_error("vm_block_on_event.h", "@id device @any 255 @source-field domain", "@id device @source-field domain"))
+
+    def test_a_loop_directive_takes_refuse_or_once(self):
+        self.assertIn("//@loop is `refuse`", build_error("vm_block_timer.h", "//@loop refuse", "//@loop sometimes"))
+
+    def test_user_write_belongs_on_an_input(self):
+        self.assertIn("@user-write belongs on an input pin", build_error("vm_block_on_event.h", "VM_OUT_ON_EVENT_VALUE = 0,   //@out @value i32", "VM_OUT_ON_EVENT_VALUE = 0,   //@out @value i32 @user-write"))
+
+    def test_a_spec_needs_the_device_field(self):
+        self.assertIn("@spec needs @device-field", build_error("vm_block_servo.h", "@spec POSITION @device-field device_id", "@spec POSITION"))
 
     def test_typo_in_a_tag(self):
         self.assertIn("unknown tag @overides", build_error("vm_block_timer.h", "@overrides pt", "@overides pt"))

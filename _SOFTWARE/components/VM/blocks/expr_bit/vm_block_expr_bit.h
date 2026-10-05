@@ -31,7 +31,7 @@ bool vm_verify_expr_bit(vm_block_h b);
 //@activation triggered
 //@data vm_expr_code_t
 //@data-tail consts u32[const_cnt], code u8[code_len] (opcodes vm_bit_op_e)
-//@opcodes vm_bit_op_e @stack-max VM_EXPR_STACK_MAX
+//@opcodes vm_bit_op_e @stack-max VM_EXPR_STACK_MAX @const-count const_cnt @code-length code_len
 //@example bit 3 of a @in 8 @consts 3 @code VM_BIT_IN 0 VM_BIT_K 0 VM_BIT_GET VM_BIT_END @result 1
 //@example (a << 4) | b @in 10, 5 @consts 4 @code VM_BIT_IN 0 VM_BIT_K 0 VM_BIT_SHL VM_BIT_IN 1 VM_BIT_OR @result 165
 //@example set bits in a @in 0xF0F0 @code VM_BIT_IN 0 VM_BIT_POPCNT @result 8

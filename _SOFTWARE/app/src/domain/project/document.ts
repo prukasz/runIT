@@ -370,8 +370,6 @@ export interface ProgramBlock {
 export interface CanvasBlock extends ProgramBlock {
   readonly x: number
   readonly y: number
-  /** Omitted = follow the toolbar's view preference. */
-  readonly view?: 'simple' | 'detailed'
   /** The user's name for the block, shown on the canvas (its ID stays the reference). */
   readonly name?: string
   /** Optional names for block-owned output pins, by output index. */

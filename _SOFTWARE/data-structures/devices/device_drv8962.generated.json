@@ -804,5 +804,48 @@
         }
       }
     }
+  ],
+  "events": [
+    {
+      "domain": {
+        "symbol": "SYS_EVENT_DOMAIN_HBRIDGE",
+        "enum": "sys_event_domain_e",
+        "value": 2,
+        "alias": "H-Bridge",
+        "description": "Motor driver faults. Channel = bridge channel, event = fault reason, value = current in mA"
+      },
+      "events": [
+        {
+          "symbol": "SYS_HBRIDGE_FAULT_OVERCURRENT",
+          "enum": "sys_hbridge_fault_reason_e",
+          "value": 1,
+          "alias": "Overcurrent",
+          "description": "The channel drew more than its current limit"
+        },
+        {
+          "symbol": "SYS_HBRIDGE_FAULT_THERMAL_OR_UVLO",
+          "enum": "sys_hbridge_fault_reason_e",
+          "value": 2,
+          "alias": "Overheat or Low Supply",
+          "description": "The driver chip overheated or its supply dropped too low; every channel stops"
+        },
+        {
+          "symbol": "SYS_HBRIDGE_FAULT_EXTERNAL",
+          "enum": "sys_hbridge_fault_reason_e",
+          "value": 3,
+          "alias": "External",
+          "description": "An external fault input was triggered"
+        }
+      ],
+      "channel": {
+        "alias": "Bridge Channel",
+        "one_of": [
+          0,
+          1,
+          2,
+          3
+        ]
+      }
+    }
   ]
 }

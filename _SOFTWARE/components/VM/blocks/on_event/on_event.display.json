@@ -7,10 +7,6 @@
     "value": {
       "title": "Value",
       "description": "The event's value (last match of the pass)."
-    },
-    "count": {
-      "title": "Count",
-      "description": "Matches this pass."
     }
   }
 }

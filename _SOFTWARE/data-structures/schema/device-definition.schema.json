@@ -83,6 +83,53 @@
         "packet_definition": { "$ref": "#/$defs/packetDefinition" }
       }
     },
+    "values": {
+      "type": "object",
+      "description": "Values whose meaning follows the device's install settings (//#value): per name, the variants in order; the first whose `when` holds applies.",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["when", "title"],
+          "additionalProperties": false,
+          "properties": {
+            "when": { "type": "array", "items": { "type": "object", "required": ["field", "value"], "additionalProperties": false, "properties": { "field": { "type": "string" }, "value": { "type": "integer" } } } },
+            "title": { "type": "string" },
+            "unit": { "type": "string" },
+            "range": {
+              "type": "object",
+              "required": ["min", "max"],
+              "additionalProperties": false,
+              "properties": {
+                "min": { "oneOf": [{ "type": "number" }, { "type": "object", "required": ["field"], "additionalProperties": false, "properties": { "field": { "type": "string" } } }] },
+                "max": { "oneOf": [{ "type": "number" }, { "type": "object", "required": ["field"], "additionalProperties": false, "properties": { "field": { "type": "string" } } }] }
+              }
+            }
+          }
+        }
+      }
+    },
+    "events": {
+      "type": "array",
+      "description": "What the device publishes: per event domain, the channels (pins or channels) its events carry and the events it raises.",
+      "items": {
+        "type": "object",
+        "required": ["domain", "events"],
+        "additionalProperties": false,
+        "properties": {
+          "domain": { "$ref": "#/$defs/symbolRef" },
+          "channel": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "alias": { "type": "string" },
+              "one_of": { "type": "array", "items": { "$ref": "#/$defs/oneOfValue" } }
+            }
+          },
+          "events": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/symbolRef" } }
+        }
+      }
+    },
     "contracts": {
       "type": "array",
       "items": { "$ref": "#/$defs/contractEntry" }

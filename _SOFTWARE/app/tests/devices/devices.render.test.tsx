@@ -21,7 +21,7 @@ const action: ProjectAction = { id: 'a1', actionId: 3, name: 'pose', steps: [{ i
 function Harness({ selection, composing, part }: { selection?: DeviceSelection; composing?: boolean; part: 'editor' | 'details' | 'palette' }) {
   const base = useDevicesWorkspace()
   const w: DevicesWorkspace = { ...base, devices: [device], actions: [action], selection, composing: composing ? action : undefined }
-  if (part === 'palette') return <DevicesPalette workspace={w} />
+  if (part === 'palette') return <DevicesPalette workspace={w} boardMode="manage" onToggleMode={() => {}} />
   if (part === 'details') return <DeviceDetails workspace={w} />
   return <DevicesEditor workspace={w} />
 }

@@ -38,6 +38,9 @@ export {
   reachableErrorLevels,
   resolveDevice,
 } from './devices'
+export { resolveDeviceValue } from './deviceValues'
+export type { DeviceValue } from './deviceValues'
+export { eventSourceChannels, eventSourceDevices, eventSourceEvents } from './eventSources'
 export type { ActionBuild, ErrorAction, PinUser, ResolvedDevice } from './devices'
 export { checkPwm, frequencyWarnings, SET_PWM_FREQUENCY } from './pwm'
 export type { FrequencySetting } from './pwm'

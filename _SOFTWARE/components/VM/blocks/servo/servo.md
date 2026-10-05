@@ -6,11 +6,10 @@ Moves a servo device to a position. The servo itself (pin, type, angle range, pu
 
 | | Meaning |
 |---|---|
-| Value (float, optional) | The position, in the unit of the servo: degrees (angle servo), -100..100 (continuous servo) or 0..255 (a servo steered by byte). Overrides the **Value** setting. |
-| Set (bool, optional) | On: the servo follows the value. Off: it does what **When not active** says. Unwired counts as on. |
+| Position (float, optional) | The position, in the unit of the servo: degrees (angle servo), -100..100 (continuous servo) or 0..255 (a servo steered by byte). Overrides the **Position** setting. |
 | Device | The servo to steer. Only servo devices are listed. |
-| Value | The position used while the Value input is unwired. |
-| When not active | What the servo does while Set is off or the block is disabled: *hold* (stay where it is), *default* (go to the servo's default position) or *release* (stop the pulse, the servo goes limp). |
+| Position | The position used while the Position input is unwired. |
+| When not active | What the servo does while the block is not enabled: *hold* (stay where it is), *default* (go to the servo's default position) or *release* (stop the pulse, the servo goes limp). |
 | ENO | The servo follows the value this pass. |
 
 ## Behaviour

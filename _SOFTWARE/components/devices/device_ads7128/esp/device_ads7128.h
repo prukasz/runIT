@@ -32,6 +32,10 @@
 //  @one-of   [$SYS_IO_INTR_ADC_WINDOW_INSIDE, $SYS_IO_INTR_ADC_WINDOW_OUTSIDE]
 //  @alias    Window Mode
 
+//#event $SYS_EVENT_DOMAIN_IO
+//  @channel PIN
+//  @events  [$SYS_IO_INTR_ADC_WINDOW_OUTSIDE, $SYS_IO_INTR_ADC_WINDOW_INSIDE]
+
 //#contract packet_sys_io_reset_t
 //  @alias       Reset configuration
 //  @description Reset one ADC channel and clear its comparator configuration.

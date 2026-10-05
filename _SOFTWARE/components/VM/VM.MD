@@ -703,13 +703,13 @@ rejects the block without them); every other input falls back to a constant in
 | 6 | `SET` | `set/` | ★ src, ★ dst | — | 0 | src fresh **and** enabled |
 | 7 | `CLONE` | `clone/` | ★ src, ★ dst pointer cell | — | 0 | src fresh **and** enabled |
 | 8 | `EDGE` | `edge/` | EN (required) | — (ENO is the pulse) | 4 | every pass |
-| 9 | `TIMER` | `timer/` | ★ IN, PT | ET (Q is ENO) | 32 | enabled |
+| 9 | `TIMER` | `timer/` | PT | ET (Q is ENO) | 32 | enabled |
 | 10 | `IO_SET_LEVEL` | `io_set_level/` | ★ level, pin | — | 16 | enabled |
 | 11 | `IO_TOGGLE` | `io_toggle/` | pin | — | 16 | rising edge of enable |
 | 12 | `LATCH` | `latch/` | EN (required), Reset (optional) | — (ENO is the held level) | 4 | every pass |
 | 13 | `PERIODIC` | `periodic/` | period | — (ENO is the tick) | 16 | enabled |
 | 14 | `ACTION` | `action/` | action id | — | 4 | rising edge of enable |
-| 15 | `ON_EVENT` | `on_event/` | — | value, count | 4 | enabled **and** a matching event this pass |
+| 15 | `ON_EVENT` | `on_event/` | — | value | 4 | enabled **and** a matching event this pass |
 
 Each header opens with the block's pin diagram, behaviour and `custom_data`
 byte layout; that comment is the reference for the layout. The sections below
@@ -951,7 +951,7 @@ Dynamic objects are heap-backed and isolated: nothing else in a running program 
 - **Time base**: `time_base` selects the unit of `PT` and `ET` — ms, s, min or h (`vm_timer_unit_e`). Internally time is kept in ms (`u64 start_ms`).
 - **Inputs**: ★`in[0]` IN; `in[1]` PT (falls back to `custom_data.pt` when unwired).
 - **Outputs**: `out[0]` ET (elapsed, in `time_base` units, `u32`). The timer's output Q is its **ENO**, held as a level: true after the on-delay, during a pulse, until the off-delay ends. Q is not a data pin: ENO's false is quiet, so an update-driven block does not see Q fall (gate on the level instead).
-- **Disabled**: the timer resets, ET clears quietly, ENO (Q) drops.
+- **Input**: EN is the timer's signal (there is no IN pin). A disabled pass runs the step with a false signal: TON resets, TOF starts its off-delay, TP finishes its pulse; Q and ET follow.
 - **Private state**: 32 bytes, 8-aligned: `u8 mode`, `u8 flags`, `u8 time_base`, pad, `u32 pt` @8, `u64 start_ms` @16, `u32 elapsed` @24 (offsets are `_Static_assert`ed). Runtime fields are zero on the wire.
 
 ### IO_SET_LEVEL and IO_TOGGLE
@@ -997,7 +997,7 @@ The hardware blocks drive a pin on any IO device through `sys_io` (`SYS_IO_REF(d
 a chain when a matching system event arrived this pass.
 
 - It walks this pass's routed events (`vm_event_count()` / `vm_event_at()`), matching domain, device, channel and event — each exact or `VM_EVENT_ANY` (255, the same wildcard as `SYS_EVENT_ANY`).
-- On a match: ENO pulses for this pass (loud), VALUE gets the event's `value` (converted to the output's type), COUNT the number of matches this pass. Several matches in one pass: VALUE is the last one's.
+- On a match: ENO pulses for this pass (loud), VALUE gets the event's `value` (converted to the output's type). Several matches in one pass collapse into one pulse: VALUE is the last one's.
 - Nothing is consumed; every ON_EVENT block sees every event of the pass. An event lives one pass, so one arriving while the block is disabled is missed, like a physical edge.
 - Events reach the VM only through a subscription routed to it (class `0x09`, route `CONFIG_SYS_EVENT_ROUTE_VM`, [[SYS_EVENT.MD]]); the block doesn't subscribe. The app is expected to create that subscription when it uploads a program with ON_EVENT blocks.
 - The output is a one-pass pulse; event → wait → act puts a `LATCH` below it.

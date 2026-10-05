@@ -103,6 +103,8 @@
   "encoding": {
     "kind": "bytecode",
     "layout": "state header, then const_cnt constants of 4 bytes, then code_len code bytes; custom_len = 4 + 4 x const_cnt + code_len",
+    "const_count_field": "const_cnt",
+    "code_length_field": "code_len",
     "constant_type": "u32",
     "stack_max": 16,
     "opcode_enum": "vm_bit_op_e",

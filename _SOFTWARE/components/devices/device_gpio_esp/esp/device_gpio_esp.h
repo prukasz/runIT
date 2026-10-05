@@ -29,6 +29,10 @@
 //             $SYS_IO_MODE_OUTPUT_PUSH_PULL, $SYS_IO_MODE_OUTPUT_OPEN_DRAIN,
 //             $SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP, $SYS_IO_MODE_PWM, $SYS_IO_MODE_ADC]
 
+//#event $SYS_EVENT_DOMAIN_IO
+//  @channel PIN
+//  @events  [$SYS_IO_INTR_MODE_RISING_EDGE, $SYS_IO_INTR_MODE_FALLING_EDGE, $SYS_IO_INTR_ADC_WINDOW_OUTSIDE, $SYS_IO_INTR_ADC_WINDOW_INSIDE]
+
 //#contract packet_sys_io_reset_t
 //  @alias       Reset pin
 //  @description Releases the pin back to its unconfigured state.

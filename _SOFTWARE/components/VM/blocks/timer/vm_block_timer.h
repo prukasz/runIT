@@ -5,12 +5,12 @@
 /*
  *           -------------
  *  ->EN     |   TIMER   | ->ENO
- *  ->IN     | (TON/TOF/ |
- *  ->PT     |    TP)    | ->ET
+ *  ->PT     | (TON/TOF/ | ->ET
+ *           |    TP)    |
  *           -------------
  *
  *  VM_BLK_TIMER -- IEC standard timer (TON, TOF, TP, plus inverted variants).
- *  Computes the output Q (published as ENO) and elapsed time ET from input trigger and preset duration PT.
+ *  Computes the output Q (published as ENO) and elapsed time ET from the enable EN (the timer's input) and preset duration PT.
  *  Time base is load-configurable: ms (0), s (1), min (2), hr (3).
  */
 
@@ -94,8 +94,7 @@ static inline void vm_block_timer_init_data_ex(void* buffer, vm_timer_mode_e mod
    which state field it replaces while unwired; titles and descriptions are in timer.display.json. */
 //#block-enum @alias Timer Inputs
 typedef enum vm_in_timer_e {
-  VM_IN_TIMER_IN = 0,   //@in @value bool @required
-  VM_IN_TIMER_PT,       //@in @value u32 @overrides pt
+  VM_IN_TIMER_PT = 0,   //@in @value u32 @overrides pt
 } vm_in_timer_e;
 
 //#block-enum @alias Timer Outputs
@@ -109,5 +108,6 @@ bool vm_verify_timer(vm_block_h b);
 /* The body, called every pass.
    Face, titles and descriptions: timer.display.json; the app's timer.content.json is generated from this header. */
 //#vm-block VM_BLK_TIMER @id 9
+//@loop refuse
 //@activation enabled
 void vm_blk_timer(vm_block_h b);

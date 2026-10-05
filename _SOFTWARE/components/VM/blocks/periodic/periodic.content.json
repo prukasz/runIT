@@ -38,6 +38,7 @@
       "error_tag": 43296
     }
   ],
+  "loop_use": "refused",
   "state": {
     "struct": "vm_block_periodic_data_t",
     "source_file": "components/VM/blocks/periodic/vm_block_periodic.h",
@@ -50,6 +51,7 @@
         "offset": 0,
         "size": 4,
         "description": "In time_base units",
+        "min": 1,
         "source": "user",
         "overridden_by": 0
       },

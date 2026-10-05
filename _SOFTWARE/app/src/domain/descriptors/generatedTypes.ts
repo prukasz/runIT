@@ -80,7 +80,7 @@ export interface GeneratedSettingsFile {
 export interface GeneratedEnumsFile {
   readonly enums: Readonly<Record<string, {
     readonly alias?: string
-    readonly members: readonly { readonly name: string; readonly value: number; readonly alias?: string | null; readonly description?: string | null }[]
+    readonly members: readonly { readonly name: string; readonly value: number; readonly alias?: string | null; readonly description?: string | null; readonly events?: string }[]
   } | undefined>>
 }
 
@@ -196,9 +196,17 @@ export interface GeneratedVmBlocksIndex {
 }
 
 export interface GeneratedVmBlockEditorMetadata {
-  readonly id_kind?: 'device' | 'pin'
+  readonly id_kind?: 'device' | 'pin' | 'channel' | 'event'
   readonly device_field?: string
   readonly contract?: string
+  readonly source_field?: string
+  readonly any_value?: number
+  readonly min?: number
+  readonly user_write?: boolean
+  /** The device value (`//#value NAME`) the pin carries. */
+  readonly value_spec?: string
+  /** Display: drop the pin's title on the face while a variable is wired to it. */
+  readonly hide_when_wired?: boolean
   readonly hidden_by_default?: boolean
   readonly let_user_select_available?: string
   readonly dynamic_input?: number
@@ -258,6 +266,12 @@ export interface GeneratedVmBlockFile {
   readonly inputs: { readonly min: number; readonly max: number; readonly pins: readonly GeneratedVmBlockPin[] }
   readonly outputs: { readonly min: number; readonly max: number; readonly pins: readonly GeneratedVmBlockPin[] }
   readonly rules: readonly { readonly rule: string; readonly error: string }[]
+  /** How the block's EN is worded (display.json `enable`). */
+  readonly enable?: { readonly title?: string; readonly description?: string; readonly signal?: boolean; readonly connect?: string }
+  /** How the block sits in a loop body (`//@loop`). */
+  readonly loop_use?: 'refused' | 'once-per-turn'
+  /** Enable sources the block needs (`//@enables required`). */
+  readonly min_enables?: number
   /** What the block's ENO is called, when "When done" is not right (`//@eno`). */
   readonly eno?: { readonly title: string; readonly description?: string }
   /** The face's line under the title: the block's words, then the value it is set to (`//@header`). */
@@ -269,6 +283,9 @@ export interface GeneratedVmBlockFile {
   readonly encoding?: {
     readonly kind: string
     readonly constant_type: string
+    /** The state fields holding the constant count and the code length (`//@opcodes`). */
+    readonly const_count_field: string
+    readonly code_length_field: string
     readonly stack_max: number
     readonly opcodes: readonly GeneratedVmBlockOpcode[]
     readonly examples?: readonly { readonly title: string; readonly constants: readonly number[]; readonly code: readonly string[]; readonly custom_data: string }[]

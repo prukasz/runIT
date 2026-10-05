@@ -67,9 +67,25 @@ describe('canvas renders', () => {
     expect(html).toMatch(/canvas-block-eno-tag" title="Tick: [^"]*">Tick</)
   })
 
+  it('a gated block says "Running when" with an OR / AND switch, and nothing below its conditions', () => {
+    const gated: CanvasBlock = { id: 'p', type: 'PERIODIC', x: 0, y: 0, enables: [{ root: 'a' }, { root: 'b' }] }
+    const text = (block: CanvasBlock) => renderToString(<Harness part="details" canvases={[{ id: 'c', name: 'Main', blocks: [block] }]} selected={block} />).replace(/<!-- -->/g, '')
+    const any = text(gated)
+    expect(any).toContain('<h3>Running when</h3>')
+    expect(any).toMatch(/aria-label="Conditions combine"[^>]*><button[^>]*aria-pressed="true"[^>]*>OR<\/button><button[^>]*aria-pressed="false"[^>]*>AND/)
+    expect(text({ ...gated, enableMode: 'all' })).toMatch(/aria-label="Conditions combine"[^>]*><button[^>]*aria-pressed="false"[^>]*>OR<\/button><button[^>]*aria-pressed="true"[^>]*>AND/)
+    expect(text({ ...gated, enables: [{ root: 'a' }] })).not.toContain('Conditions combine')
+    expect(any).not.toContain('every cycle')
+    expect(any).not.toMatch(/>Runs/) // no sentence under the list (the list keeps its aria-label)
+    expect(any).not.toContain('Delete block')
+    // On error is a setting of the block: in Settings, above the pins.
+    expect(any.indexOf('aria-label="On error"')).toBeGreaterThan(any.indexOf('<h3>Settings</h3>'))
+    expect(any.indexOf('aria-label="On error"')).toBeLessThan(any.indexOf('<h3>Pins</h3>'))
+  })
+
   it('a block has a detailed view only when it has inputs with a constant to show, or a formula', () => {
-    const plain: CanvasBlock = { id: 'if1', type: 'IF', x: 0, y: 0, view: 'detailed' }
-    const every: CanvasBlock = { id: 'every', type: 'PERIODIC', x: 300, y: 0, view: 'detailed', settings: { period: 100, time_base: 'MS' } }
+    const plain: CanvasBlock = { id: 'if1', type: 'IF', x: 0, y: 0 }
+    const every: CanvasBlock = { id: 'every', type: 'PERIODIC', x: 300, y: 0, settings: { period: 100, time_base: 'MS' } }
     const expr: CanvasBlock = { id: 'expr1', type: 'EXPR', x: 600, y: 0, inputs: [null], expression: { constants: [2], code: ['in', 0, 'const', 0, '*'] } }
     const canvases = [{ id: 'a', name: 'Main', blocks: [plain, every, expr] }]
     const html = renderToString(<Harness canvases={canvases} detailed />)
@@ -79,19 +95,28 @@ describe('canvas renders', () => {
     // The hard-coded input of Every is shown, with its constant, only in the detailed view.
     expect(html.match(/is-constant/g)).toHaveLength(1)
     expect(html).toContain('canvas-chip-text">100<')
-    expect(renderToString(<Harness canvases={[{ id: 'a', name: 'Main', blocks: [{ ...every, view: 'simple' }] }]} />)).not.toContain('is-constant')
-    // Only blocks with something to show offer a choice of view.
-    expect(renderToString(<Harness part="details" canvases={canvases} selected={plain} />)).not.toContain('Block view')
-    expect(renderToString(<Harness part="details" canvases={canvases} selected={every} />)).toContain('Block view')
-    expect(renderToString(<Harness part="details" canvases={canvases} selected={expr} />)).toContain('Block view')
+    expect(renderToString(<Harness canvases={canvases} />)).not.toContain('is-constant')
+    // The view is the toolbar's alone: no block has a view setting of its own.
+    for (const selected of [plain, every, expr]) expect(renderToString(<Harness part="details" canvases={canvases} selected={selected} />)).not.toContain('Block view')
   })
 
-  it('a fixed detailed view shows content even with the toolbar preference off', () => {
-    const blocks: CanvasBlock[] = [{ id: 'expr1', type: 'EXPR', x: 0, y: 0, view: 'detailed', inputs: [null], expression: { constants: [2], code: ['in', 0, 'const', 0, '*'] } }]
-    const html = renderToString(<Harness canvases={[{ id: 'a', name: 'Main', blocks }]} />)
+  it('the toolbar switches a block between its simple and detailed face', () => {
+    const blocks: CanvasBlock[] = [{ id: 'expr1', type: 'EXPR', x: 0, y: 0, inputs: [null], expression: { constants: [2], code: ['in', 0, 'const', 0, '*'] } }]
+    const html = renderToString(<Harness canvases={[{ id: 'a', name: 'Main', blocks }]} detailed />)
     expect(html).toContain('canvas-block-summary is-formula')
     expect(html).toContain('IN0 * 2')
-    expect(html).toContain('width:280px')
+    // A block is as wide as its content needs, not a fixed width: a short formula stays narrow, a longer one is wider, up to a limit.
+    const widthOf = (blocks: CanvasBlock[]) => Number(/width:(\d+)px/.exec(renderToString(<Harness canvases={[{ id: 'a', name: 'Main', blocks }]} detailed />))![1])
+    const short = widthOf(blocks)
+    expect(short).toBeGreaterThanOrEqual(120)
+    expect(short).toBeLessThan(200)
+    const long: CanvasBlock[] = [{ ...blocks[0]!, expression: { constants: [1, 2, 3, 4, 5, 6, 7, 8], code: ['in', 0, 'const', 0, '*', 'const', 1, '+', 'const', 2, '+', 'const', 3, '+', 'const', 4, '+', 'const', 5, '+', 'const', 6, '+', 'const', 7, '+'] } }]
+    expect(widthOf(long)).toBeGreaterThan(short)
+    expect(widthOf(long)).toBeLessThanOrEqual(560)
+    // The summary under the pins is one line tall for a formula that fits: no empty second line.
+    const heightOf = (blocks: CanvasBlock[]) => Number(/height:(\d+)px/.exec(renderToString(<Harness canvases={[{ id: 'a', name: 'Main', blocks }]} detailed />))![1])
+    expect(heightOf(blocks)).toBe(40 + 20 + 20 + 16)
+    expect(renderToString(<Harness canvases={[{ id: 'a', name: 'Main', blocks }]} />)).not.toContain('canvas-block-summary is-formula')
   })
 
   it('several selected blocks: each drawn selected, and the details summarise them', () => {
@@ -106,13 +131,21 @@ describe('canvas renders', () => {
     expect(details).not.toContain('Block view')
   })
 
-  it('hardware details start with two-way running controls and show dynamic masks only when selected', () => {
+  it('hardware details end with two-way running controls and show dynamic masks only when selected', () => {
     const block: CanvasBlock = { id: 'io', type: 'IO_SET_LEVEL', x: 0, y: 0, settings: { device_id: 0, default_io_num: 4 } }
     const render = (selected: CanvasBlock) => renderToString(<Harness part="details" canvases={[{ id: 'a', name: 'Main', blocks: [selected] }]} selected={selected} />)
     const fixed = render(block)
-    expect(fixed.indexOf('<h3>Running</h3>')).toBeLessThan(fixed.indexOf('<h3>Settings</h3>'))
+    // A block that always runs says just "Runs: Always" (no Running heading, no second line); the On error switch is still there.
+    const plain = fixed.replace(/<!-- -->/g, '')
+    expect(plain).toContain('<h3>Runs: <span class="block-gates-always">Always</span></h3>')
+    expect(plain).not.toContain('<h3>Running')
+    expect(plain).not.toContain('Runs: every cycle')
+    // With its own gates the heading comes back, below the settings and pins.
+    const gated = render({ ...block, enables: [{ root: 'a' }] }).replace(/<!-- -->/g, '')
+    expect(gated.indexOf('<h3>Pins</h3>')).toBeLessThan(gated.indexOf('<h3>Running when</h3>'))
+    expect(gated.indexOf('<h3>Settings</h3>')).toBeLessThan(gated.indexOf('<h3>Running when</h3>'))
     expect(fixed).not.toContain('role="group" aria-label="Branch"')
-    expect(fixed).toContain('Always runs (no Run when set)')
+    expect(fixed).not.toContain('no Run when set')
     // Any / all only matters with two gates of its own.
     expect(fixed).not.toContain('aria-label="Conditions combine"')
     expect(render({ ...block, enables: [{ root: 'a' }, { root: 'b' }] })).toContain('role="group" aria-label="Conditions combine"')
@@ -122,6 +155,12 @@ describe('canvas renders', () => {
     expect(fixed).not.toContain('Allowed mask')
     expect(fixed).not.toContain('No enables: always enabled')
     expect(fixed).not.toContain('ENO output')
+    // A new block has no device until one is chosen: an empty selector, no pin choice yet, and the compiler says so.
+    const unset = render({ id: 'io', type: 'IO_SET_LEVEL', x: 0, y: 0 })
+    expect(unset).toContain('Select a device')
+    expect(unset).not.toContain('(unavailable)')
+    expect(unset).not.toContain('<span>Pin</span>')
+    expect(unset).toContain('choose a device for it')
     const dynamic = render({ ...block, dynamicInputs: [1], settings: { ...block.settings, allowed_mask: '0x10' } })
     expect(dynamic).toContain('<legend>Allowed pins</legend>')
     expect(dynamic).toContain('type="checkbox" disabled="" checked=""')
@@ -139,7 +178,13 @@ describe('canvas renders', () => {
     expect(timerHtml).toContain('Timer')
     expect(timerHtml).toMatch(/<option value="TOF" selected=""/)
     expect(timerHtml).toContain('value="300"')
-    expect(timerHtml).toContain('must be wired')
+    // The source pickers: Any first and selected, then a device, channel and event the chosen domain offers.
+    const event: CanvasBlock = { id: 'event1', type: 'ON_EVENT', x: 0, y: 0, settings: { domain: 'POWER', device_id: 12 } }
+    const eventHtml = renderToString(<Harness part="details" canvases={[{ id: 'a', name: 'Main', blocks: [event] }]} selected={event} />)
+    expect(eventHtml).toContain('<option value="any">Any</option>')
+    expect(eventHtml).toMatch(/<option value="12" selected="">INA3221 \(#12\)/)
+    expect(eventHtml).toContain('Monitor Channel')
+    expect(eventHtml).toContain('Over-Current Critical')
     const expr: CanvasBlock = { id: 'expr1', type: 'EXPR', x: 0, y: 0, inputs: [null, null], expression: { constants: [2], code: ['in', 0, 'const', 0, '*'] } }
     const exprHtml = renderToString(<Harness part="details" canvases={[{ id: 'a', name: 'Main', blocks: [expr] }]} selected={expr} />)
     // At rest the formula shows what each input is wired to (an unwired one as IN0 ?).

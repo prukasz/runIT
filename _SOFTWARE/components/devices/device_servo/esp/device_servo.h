@@ -13,6 +13,23 @@
 //  @tags        servo pwm motion
 //  @type-id     SERVO_TYPE_ID
 
+//#value POSITION
+//  @when  byte_mode=1
+//  @title Byte
+//  @range 0..255
+
+//#value POSITION
+//  @when  servo_type=$SERVO_TYPE_CONTINUOUS
+//  @title Speed
+//  @unit  %
+//  @range -100..100
+
+//#value POSITION
+//  @when  servo_type=$SERVO_TYPE_ANGLE
+//  @title Angle
+//  @unit  deg
+//  @range angle_min_deg..angle_max_deg
+
 /**
  * @brief Hobby servo on one PWM pin of another device (PCA9685 channel, ESP LEDC pin).
  *

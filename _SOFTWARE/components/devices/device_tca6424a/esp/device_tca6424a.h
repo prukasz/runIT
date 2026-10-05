@@ -31,6 +31,10 @@
 //             $SYS_IO_INTR_MODE_BOTH_EDGES]
 //  @alias    Trigger Mode
 
+//#event $SYS_EVENT_DOMAIN_IO
+//  @channel PIN
+//  @events  [$SYS_IO_INTR_MODE_RISING_EDGE, $SYS_IO_INTR_MODE_FALLING_EDGE]
+
 //#contract packet_sys_io_reset_t
 //  @alias       Reset pin
 //  @description Releases the pin back to its unconfigured state.

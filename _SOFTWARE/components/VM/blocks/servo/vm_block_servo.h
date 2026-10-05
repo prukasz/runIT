@@ -7,7 +7,6 @@
  *            ----------------
  *   ->EN     |              | ->ENO
  *  (->VALUE) |    SERVO     |
- *  (->SET)   |              |
  *            ----------------
  *
  *  VM_BLK_SERVO -- moves a servo device (device_servo) to a position.
@@ -17,8 +16,7 @@
  *
  *  Features:
  *  - Write-on-change: the servo is only commanded when the value (or the action) changes.
- *  - SET off or block not enabled: what the servo does is set by when_not_active (HOLD / DEFAULT / RELEASE).
- *  - SET unwired: always set.
+ *  - Block not enabled: what the servo does is set by when_not_active (HOLD / DEFAULT / RELEASE).
  *  - ENO is true while the servo follows the value this pass.
  *
  *  The wire ops are the device's (SERVO_OP_*); the block builds the router frame [op][device_id][args].
@@ -43,7 +41,7 @@ typedef enum {
 typedef struct __attribute__((aligned(4))) {
   float    value;            // @description Position when the Value input is unwired: degrees, percent, or 0..255 in byte mode
   uint8_t  device_id;        // @description Servo device @id device @contract device_servo
-  uint8_t  when_not_active;  // @description What the servo does while Set is off or the block is not enabled @enum-ref vm_servo_idle_e
+  uint8_t  when_not_active;  // @description What the servo does while the block is not enabled @enum-ref vm_servo_idle_e
   uint8_t  last;             // @description vm_servo_last_e, what was commanded last @runtime
   uint8_t  _pad;             // @description Align the next field
   int16_t  last_x10;         // @description Value last sent, in tenths @runtime
@@ -56,8 +54,7 @@ _Static_assert(sizeof(vm_block_servo_data_t) == 12, "vm_block_servo_data_t must 
 /* Pins, by index: VM_IN_<BLOCK>_<PIN>. Titles and descriptions are in servo.display.json. */
 //#block-enum @alias Servo Inputs
 typedef enum vm_in_servo_e {
-  VM_IN_SERVO_VALUE = 0,  //@in @value f32 @overrides value
-  VM_IN_SERVO_SET,        //@in @value bool
+  VM_IN_SERVO_VALUE = 0,  //@in @value f32 @overrides value @spec POSITION @device-field device_id
 } vm_in_servo_e;
 
 /* Load-time check of the block's state; the pin shape comes from the pin enum above. */

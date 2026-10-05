@@ -50,9 +50,6 @@ export interface BlockPlan {
   readonly blocks: readonly PlannedBlock[]
 }
 
-/** The input pin of a block that writes into a variable as the program's user; the device refuses a block-owned object (own output, ENO) there (ERR_VM_OBJ_USR_PROTECTED). */
-const USER_WRITE_PINS: Readonly<Record<string, number>> = { SET: 1, CLONE: 1 }
-
 export const planBlocks = (blocks: readonly ProgramBlock[], catalog: VmCatalog): BlockPlan => {
   const diagnostics: Diagnostic[] = []
   const owned: ValueNode[] = []
@@ -81,16 +78,6 @@ export const planBlocks = (blocks: readonly ProgramBlock[], catalog: VmCatalog):
       continue
     }
 
-    if (type.key === 'EDGE' && ((block.inputs?.length ?? 0) > 0 || (block.outputs?.length ?? 0) > 0 || block.settings?.change_by !== undefined)) {
-      error('this Edge uses the old Signal/Threshold/Pulse pins. Move its signal to EN and Pulse connections to ENO; use a comparison block for a numeric threshold.', 'ERR_VM_BLK_BAD_SHAPE')
-    }
-    if (type.key === 'LATCH' && ((block.inputs?.length ?? 0) > 1 || (block.outputs?.length ?? 0) > 0)) {
-      error('this Latch uses the old Set/Reset/Q pins. Move Set to EN, Reset to input 0, and Q connections to ENO.', 'ERR_VM_BLK_BAD_SHAPE')
-    }
-    if (type.key === 'LATCH' && referenced.has(outputObjectId(block.id, 0))) {
-      error('Latch no longer has Q. Connect downstream blocks to its held ENO instead.', 'ERR_VM_BLK_BAD_SHAPE')
-    }
-
     const wired = block.inputs ?? []
     const inCount = Math.max(wired.length, type.inputs.min)
     if (inCount > Math.min(type.inputs.max, catalog.blockPinMax.in)) error(`${inCount} inputs, ${type.title} takes at most ${type.inputs.max}.`, 'ERR_VM_BLK_BAD_SHAPE')
@@ -102,7 +89,8 @@ export const planBlocks = (blocks: readonly ProgramBlock[], catalog: VmCatalog):
         return null
       }
       const key = inputKey(block.id, pin)
-      if (USER_WRITE_PINS[type.key] === pin) userWrites.push({ block: block.id, root: path.root })
+      // A pin that names a variable the block writes as the program's user: the device refuses a block-owned object there (ERR_VM_OBJ_USR_PROTECTED).
+      if (descriptor?.userWrite) userWrites.push({ block: block.id, root: path.root })
       requests.push({ key, path })
       return key
     })
@@ -132,8 +120,7 @@ export const planBlocks = (blocks: readonly ProgramBlock[], catalog: VmCatalog):
 
     const enableSources = block.enables ?? []
     if (enableSources.length > catalog.blockPinMax.en) error(`${enableSources.length} enables, at most ${catalog.blockPinMax.en}.`, 'ERR_VM_BLK_BAD_SHAPE')
-    if (type.key === 'EDGE' && enableSources.length === 0) error('connect a signal to EN so Edge can detect its transitions.', 'ERR_VM_BLK_BAD_SHAPE')
-    if (type.key === 'LATCH' && enableSources.length === 0) error('connect a Set signal to EN; Latch keeps ENO active until Reset.', 'ERR_VM_BLK_BAD_SHAPE')
+    if (type.enable.required && enableSources.length === 0) error(`${type.enable.connect ?? `connect a source to EN (${type.enable.title}).`}`.replace(/^./, (c) => c.toLowerCase()), 'ERR_VM_BLK_BAD_SHAPE')
     const enables = enableSources.map((path, index) => {
       const key = enableKey(block.id, index)
       requests.push({ key, path })
@@ -168,9 +155,6 @@ const INTEGER_RANGES: Readonly<Record<string, readonly [number, number]>> = {
   int32_t: [-0x80000000, 0x7fffffff],
   uint64_t: [0, Number.MAX_SAFE_INTEGER],
 }
-
-/** The expression blocks' header fields, computed from the expression. */
-const EXPRESSION_COUNTS = new Set(['const_cnt', 'code_len'])
 
 /** EXPR / EXPR_BIT constants and code bytes, checked like the device's verify. */
 const encodeExpression = (type: VmBlockType, expression: ProgramBlock['expression'], inCount: number): { bytes?: Uint8Array; constCount: number; codeLength: number; problem?: string } => {
@@ -219,20 +203,11 @@ const encodeExpression = (type: VmBlockType, expression: ProgramBlock['expressio
 
 /** A setting as a number: an enum member by name (full or without its prefix) or a number. */
 const settingValue = (type: VmBlockType, field: VmBlockField, raw: number | string): number | string => {
+  if (field.anyValue !== undefined && raw === field.anyValue) return raw
   if (!field.enumRef) return typeof raw === 'number' ? raw : `'${raw}' is not a number`
   const members = type.enums.get(field.enumRef) ?? []
   const member = typeof raw === 'number' ? members.find((entry) => entry.value === raw) : members.find((entry) => entry.name === raw || entry.name.endsWith(`_${raw}`))
   return member ? member.value : `${JSON.stringify(raw)} is not one of ${members.map((entry) => entry.name).join(', ')}`
-}
-
-/**
- * Load rules of single block types (their descriptors' `rules`, which are
- * prose): a fallback setting the block needs while an input is unwired, and
- * the pin masks of the IO blocks.
- */
-const TYPE_RULES: Readonly<Record<string, (wired: (pin: number) => boolean, setting: (name: string) => number) => string | undefined>> = {
-  PERIODIC: (wired, setting) => (!wired(0) && setting('period') === 0 ? 'with the period input unwired, set a period above 0.' : undefined),
-  ACTION: (wired, setting) => (!wired(0) && setting('action_id') === 0 ? 'with the id input unwired, set an action_id above 0.' : undefined),
 }
 
 // ---------------------------------------------------------------------------
@@ -268,11 +243,6 @@ export interface CompiledBlocks {
   /** Arena bytes of the blocks and their registry. */
   readonly arenaBytes: number
 }
-
-/** Blocks that keep one state over time: a loop body runs N times in one pass, so they cannot serve each turn. */
-const NOT_IN_LOOP = new Set(['TIMER', 'PERIODIC'])
-/** Blocks that work in a loop but act once per turn, which is rarely what a first-time user expects. */
-const ONCE_PER_TURN = new Set(['EDGE', 'LATCH', 'IO_TOGGLE', 'ACTION', 'ON_EVENT'])
 
 const align = (size: number, to: number): number => Math.ceil(size / to) * to
 
@@ -312,10 +282,10 @@ export const encodeBlocks = (plan: BlockPlan, objects: ObjectLayout, accessors: 
 
     // Loop spans: a FOR runs the `body` blocks after it, inside any loop around it.
     while (loops.length && loops.at(-1)!.end <= wireId) loops.pop()
-    if (loops.length && NOT_IN_LOOP.has(type.key)) error(`it keeps one state, so it cannot run once per turn of loop '${loops.at(-1)!.id}'. Put it outside the loop.`)
-    else if (loops.length && ONCE_PER_TURN.has(type.key)) diagnostics.push({ severity: 'warning', blockId: block.id, message: `Block '${block.id}' (${type.title}): it acts on every turn of loop '${loops.at(-1)!.id}', not once per pass.` })
+    if (loops.length && type.loopUse === 'refused') error(`it keeps one state, so it cannot run once per turn of loop '${loops.at(-1)!.id}'. Put it outside the loop.`)
+    else if (loops.length && type.loopUse === 'once-per-turn') diagnostics.push({ severity: 'warning', blockId: block.id, message: `Block '${block.id}' (${type.title}): it acts on every turn of loop '${loops.at(-1)!.id}', not once per pass.` })
     let span: PlacedBlock['span']
-    if (type.fields.some((field) => field.source === 'derived' && field.cType === 'vm_span_t')) {
+    if (type.loopOwner) {
       const body = block.body ?? 0
       const end = wireId + 1 + body
       if (!Number.isInteger(body) || body < 0 || end > count) error(`a body of ${body} blocks runs past the end of the program.`)
@@ -333,13 +303,13 @@ export const encodeBlocks = (plan: BlockPlan, objects: ObjectLayout, accessors: 
       const encoded = encodeExpression(type, block.expression, inputs.length)
       if (encoded.problem) error(encoded.problem, 'ERR_VM_BLK_BAD_SHAPE')
       tail = encoded.bytes ?? tail
-      computed.set('const_cnt', encoded.constCount).set('code_len', encoded.codeLength)
+      computed.set(type.encoding.constCountField, encoded.constCount).set(type.encoding.codeLengthField, encoded.codeLength)
     } else if (block.expression) error('only an expression block has an expression.')
     const custom = new Uint8Array(fixed + tail.byteLength)
     const view = new DataView(custom.buffer)
     custom.set(tail, fixed)
 
-    const userFields = new Map(type.fields.filter((field) => field.source === 'user' && !field.flexible && !(type.encoding && EXPRESSION_COUNTS.has(field.name))).map((field) => [field.name, field]))
+    const userFields = new Map(type.fields.filter((field) => field.source === 'user' && !field.flexible && field.name !== type.encoding?.constCountField && field.name !== type.encoding?.codeLengthField).map((field) => [field.name, field]))
     for (const name of Object.keys(block.settings ?? {})) {
       if (!userFields.has(name)) error(`'${name}' is not a setting (${[...userFields.keys()].join(', ') || 'it has none'}).`)
     }
@@ -356,7 +326,11 @@ export const encodeBlocks = (plan: BlockPlan, objects: ObjectLayout, accessors: 
         continue
       }
       if (field.source !== 'user') continue // runtime / padding: 0 on the wire
-      const raw = computed.get(field.name) ?? block.settings?.[field.name] ?? 0
+      if (field.idKind === 'device' && field.anyValue === undefined && block.settings?.[field.name] === undefined) {
+        error('choose a device for it.', 'ERR_VM_BLK_BAD_SHAPE')
+        continue
+      }
+      const raw = computed.get(field.name) ?? block.settings?.[field.name] ?? field.anyValue ?? 0
       if (field.letUserSelectAvailable) {
         const pin = block.settings?.[field.letUserSelectAvailable] ?? 0
         const bits = field.size * 8
@@ -395,8 +369,11 @@ export const encodeBlocks = (plan: BlockPlan, objects: ObjectLayout, accessors: 
       else if (field.cType === 'int32_t') view.setInt32(field.offset, value, true)
       else view.setBigUint64(field.offset, BigInt(value), true)
     }
-    const rule = TYPE_RULES[type.key]?.((pin) => inputs[pin] != null, (name) => settings.get(name) ?? 0)
-    if (rule) error(rule, 'ERR_VM_BLK_BAD_SHAPE')
+    // A setting with a floor (`@min`) that an input pin replaces: while the pin is unwired, the constant is what runs, so it must be at least the floor.
+    for (const field of type.fields) {
+      if (field.min === undefined || field.overriddenBy === undefined || inputs[field.overriddenBy] != null || (settings.get(field.name) ?? 0) >= field.min) continue
+      error(`with the ${blockPinAt(type.inputs, field.overriddenBy)?.title ?? 'input'} input unwired, set ${field.name} to at least ${field.min}.`, 'ERR_VM_BLK_BAD_SHAPE')
+    }
     if (custom.byteLength > 0xffff) error(`its state takes ${custom.byteLength} bytes, at most 65535.`)
 
     const head = catalog.wire.addBlock.recordSize

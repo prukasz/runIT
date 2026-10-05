@@ -42,6 +42,17 @@ class DeviceRecords(unittest.TestCase):
         for device in self.devices.values():
             generator.validate_document(device)
 
+    def test_value_variants_keep_their_order_and_name_install_fields(self):
+        variants = self.devices["device_servo"]["values"]["POSITION"]
+        self.assertEqual([v["title"] for v in variants], ["Byte", "Speed", "Angle"])
+        self.assertEqual(variants[2]["range"], {"min": {"field": "angle_min_deg"}, "max": {"field": "angle_max_deg"}})
+        self.assertEqual(variants[1]["when"], [{"field": "servo_type", "value": 1}])
+
+    def test_a_value_variant_naming_an_unknown_install_field_is_refused(self):
+        with self.assertRaises(SystemExit) as raised:
+            generator.check_values({"POSITION": [{"when": [{"field": "nope", "value": 1}], "title": "X"}]}, {"fields": {"servo_type": {}}}, "device_x.h")
+        self.assertIn("nope", str(raised.exception))
+
     def test_pin_ref_expands_to_three_wire_fields_and_one_group(self):
         install = self.devices["device_ads_7128"]["install"]["packet_definition"]
         self.assertEqual(install["field_order"], ["device_id", "i2c_bus", "i2c_addr", "intr_pin_device_id", "intr_pin_pin", "intr_pin_mode", "vref_mV"])

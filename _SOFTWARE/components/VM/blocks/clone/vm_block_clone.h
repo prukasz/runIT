@@ -20,7 +20,7 @@
 //#block-enum @alias Clone Inputs
 typedef enum vm_in_clone_e {
   VM_IN_CLONE_SOURCE = 0,   //@in @value object @required
-  VM_IN_CLONE_CELL,         //@in @value ptr-cell @required
+  VM_IN_CLONE_CELL,         //@in @value ptr-cell @required @user-write
 } vm_in_clone_e;
 
 /* The body, called every pass.

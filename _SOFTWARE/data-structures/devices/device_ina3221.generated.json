@@ -343,5 +343,40 @@
         }
       }
     }
+  ],
+  "events": [
+    {
+      "domain": {
+        "symbol": "SYS_EVENT_DOMAIN_POWER",
+        "enum": "sys_event_domain_e",
+        "value": 1,
+        "alias": "Power",
+        "description": "Regulator, monitor and board power events. Event = power event; board events use device 255"
+      },
+      "events": [
+        {
+          "symbol": "SYS_PWR_EVENT_OCP_CRITICAL",
+          "enum": "sys_power_events_e",
+          "value": 5,
+          "alias": "Over-Current Critical",
+          "description": "Current draw exceeded the limit - output is protected/shut down"
+        },
+        {
+          "symbol": "SYS_PWR_EVENT_OCP_WARNING",
+          "enum": "sys_power_events_e",
+          "value": 4,
+          "alias": "Over-Current Warning",
+          "description": "Current draw is approaching the limit - not cut off yet, just a heads-up"
+        }
+      ],
+      "channel": {
+        "alias": "Monitor Channel",
+        "one_of": [
+          0,
+          1,
+          2
+        ]
+      }
+    }
   ]
 }

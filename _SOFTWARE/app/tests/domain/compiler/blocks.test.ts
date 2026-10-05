@@ -120,11 +120,9 @@ describe('compileProgram: blocks', () => {
     expect(errors(compile([], [{ ...loop, body: 0 }, { id: 't', type: 'PERIODIC', settings: { period: 1 } }]))).toEqual([])
   })
 
-  it('takes EDGE signal on EN only, and refuses the old data pins and threshold', () => {
+  it('takes EDGE signal on EN, and asks for one with the words its display gives', () => {
     const signal = value('s', 'U8')
     expect(compile([signal], [{ id: 'e', type: 'EDGE', enables: [at('s')], eno: true, settings: { edge_type: 'BOTH' } }]).diagnostics).toEqual([])
-    const old = compile([signal], [{ id: 'e', type: 'EDGE', inputs: [at('s')], settings: { edge_type: 'BOTH', change_by: 2 } }])
-    expect(errors(old)).toEqual(expect.arrayContaining([expect.objectContaining({ firmwareError: 'ERR_VM_BLK_BAD_SHAPE', message: expect.stringContaining('old Signal/Threshold/Pulse') })]))
     const unwired = compile([], [{ id: 'e', type: 'EDGE', settings: { edge_type: 'BOTH' } }])
     expect(errors(unwired)).toEqual([expect.objectContaining({ message: expect.stringContaining('connect a signal to EN') })])
   })
@@ -192,5 +190,23 @@ describe('compileProgram: blocks', () => {
     const compiled = compile([], [{ id: 'p', type: 'PERIODIC', settings: { period: 1 } }])
     // no objects (a PERIODIC has no output, and no ENO unless something reads it); blocks: registry 4 + 16 + 16 state
     expect(compiled.arenaBytes).toBe(4 + 32)
+  })
+})
+
+describe('block behaviour from the descriptors', () => {
+  it('reads how a block sits in a loop, what its EN is called and which pins write as the user from the block, not its name', () => {
+    expect(['TIMER', 'PERIODIC'].map((key) => catalog.block(key)?.loopUse)).toEqual(['refused', 'refused'])
+    expect(['EDGE', 'LATCH', 'IO_TOGGLE', 'ACTION', 'ON_EVENT'].map((key) => catalog.block(key)?.loopUse)).toEqual(Array(5).fill('once-per-turn'))
+    expect(catalog.blocks.filter((block) => block.loopOwner).map((block) => block.key)).toEqual(['FOR'])
+    expect(catalog.blocks.filter((block) => block.enable.required).map((block) => block.key)).toEqual(['EDGE', 'LATCH'])
+    expect(catalog.block('LATCH')?.enable).toMatchObject({ title: 'Set', signal: true })
+    expect(catalog.block('IF')?.enable).toMatchObject({ title: 'Run when', signal: false })
+    expect(catalog.blocks.flatMap((block) => block.inputs.pins.filter((pin) => pin.userWrite).map((pin) => `${block.key}.${pin.name}`))).toEqual(['SET.destination', 'CLONE.cell'])
+    expect(catalog.blocks.flatMap((block) => block.fields.filter((field) => field.min !== undefined).map((field) => `${block.key}.${field.name}`))).toEqual(['PERIODIC.period', 'ACTION.action_id'])
+  })
+
+  it('refuses a fallback below its floor only while the pin that replaces it is unwired', () => {
+    expect(errors(compile([], [{ id: 'p', type: 'PERIODIC', settings: { period: 0 } }]))).toEqual([expect.objectContaining({ message: expect.stringContaining('set period to at least 1') })])
+    expect(errors(compile([value('rate', 'U32')], [{ id: 'p', type: 'PERIODIC', inputs: [at('rate')], settings: { period: 0 } }]))).toEqual([])
   })
 })

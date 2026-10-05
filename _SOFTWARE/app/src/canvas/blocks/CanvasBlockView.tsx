@@ -6,7 +6,7 @@ import type { DeviceCatalog, VmBlockType } from '../../domain/descriptors'
 import { decompileExpression, expressionLanguage, tokenize } from '../../domain/expression'
 import type { CanvasBlock, ObjectPath, ProjectDevice } from '../../domain/project'
 import { blockDeviceLine, blockHeadline, blockHeadlineParts, isDetailed, blockSubtitleHeadline, pathText, settingText } from './blockView'
-import { DEFAULT_ENO } from '../../domain/descriptors'
+import { DEFAULT_ENABLE, DEFAULT_ENO } from '../../domain/descriptors'
 import type { BlockPinView, BlockShape } from './blockView'
 import { ValueKindBadge } from '../../components/TypeBadge/TypeBadge'
 import { useDebug } from '../../debug/DebugContext'
@@ -67,9 +67,10 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
     const name = text.trim()
     if (name !== (block.name ?? '')) onRename?.(name || undefined)
   }
-  const expanded = isDetailed(type, block, detailed)
+  const expanded = isDetailed(type, detailed)
   const enables = block.enables?.length ?? 0
-  const enLabel = block.type === 'LATCH' ? 'Set' : block.type === 'EDGE' ? 'Signal' : 'Run when'
+  const enable = type?.enable ?? DEFAULT_ENABLE
+  const enLabel = enable.title
   const at = drag?.at ?? (offset ? { x: block.x + offset.x, y: block.y + offset.y } : block)
   // Debug mode: what the board says about this block (strips, tint, values on the pins).
   const debug = useDebug()
@@ -80,7 +81,7 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
   const enoNamed = enoName.title !== DEFAULT_ENO.title
   const failed = debug.failed(block.id)
   const debugState = failed || !live ? undefined : eno === true ? 'dbg-working' : live.en === 'closed' ? 'dbg-off' : eno === false ? 'dbg-quiet' : undefined
-  const enNow = live && ((block.type === 'LATCH' || block.type === 'EDGE') && live.en !== 'unknown' ? live.en === 'open' ? 'true' : 'false' : EN_NOW[live.en])
+  const enNow = live && (enable.signal && live.en !== 'unknown' ? live.en === 'open' ? 'true' : 'false' : EN_NOW[live.en])
 
   const formulaData = useMemo(() => {
     if (!type?.encoding) return undefined
@@ -209,9 +210,10 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
       {!output ? (
         <div className="canvas-pin-slab is-in">
           <span className="canvas-block-input-type"><ValueKindBadge type={pin.value} /></span>
-          <span className="canvas-block-pin-label">
+          {!pin.quiet && <span className="canvas-block-pin-label">
             <span className="canvas-block-pin-name">{pinTitle}</span>
-          </span>
+            {pin.hint && <span className="canvas-block-pin-hint">{pin.hint}</span>}
+          </span>}
         </div>
       ) : (
         <div className="canvas-pin-slab is-out">
@@ -278,7 +280,7 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
             style={{ top: 20 + index * 22 }}
             role="button"
             tabIndex={-1}
-            title={`${chip.full}: ${block.type === 'LATCH' ? 'sets the held state when true' : block.type === 'EDGE' ? 'is sampled for edge detection' : 'the block runs only while this is true'}. Click to select (Delete removes it), drag to move it`}
+            title={`${chip.full}: ${enable.description}. Click to select (Delete removes it), drag to move it`}
             onPointerDown={(event) => {
               if (event.button !== 0 || !onChipPress) return
               event.stopPropagation()
@@ -287,7 +289,7 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
           ><span className="canvas-chip-text">{path.root === '' ? '?' : chip.label}</span>{live?.enables[index] !== undefined && <span className="canvas-live">{live.enables[index]}</span>}</span>
         )
       })}
-      <span className={`canvas-block-enable is-en ${live && live.en !== 'unknown' ? `is-${live.en}` : ''}`} role="img" aria-label={`${enLabel} connector ${block.id}`} data-pin="en" title={`${enLabel}: ${enables ? `${block.enableMode === 'all' ? 'all' : 'any'} of ${enables} sources\n${block.enables!.map(pathText).join('\n')}` : block.type === 'LATCH' || block.type === 'EDGE' ? 'connect a source to EN' : 'nothing set, always runs'}${live ? `\nNow: ${enNow}` : ''}`} />
+      <span className={`canvas-block-enable is-en ${live && live.en !== 'unknown' ? `is-${live.en}` : ''}`} role="img" aria-label={`${enLabel} connector ${block.id}`} data-pin="en" title={`${enLabel}: ${enables ? `${block.enableMode === 'all' ? 'all' : 'any'} of ${enables} sources\n${block.enables!.map(pathText).join('\n')}` : enable.required ? 'connect a source to EN' : 'nothing set, always runs'}${live ? `\nNow: ${enNow}` : ''}`} />
       <span className={`canvas-block-enable is-eno canvas-wire-start ${eno === true ? 'is-active' : eno === false ? 'is-false' : ''}`} role="img" aria-label={`${enoName.title} connector ${block.id}`} data-pin="eno" title={`${enoName.title}: ${enoName.description}${eno === undefined ? '' : `\nNow: ${eno ? 'true' : 'false'}`}`} onPointerDown={wireFrom('eno')} />
       <div className="canvas-block-header">
         <span className="canvas-block-heading">

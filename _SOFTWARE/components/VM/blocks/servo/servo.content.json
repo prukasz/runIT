@@ -9,21 +9,17 @@
   },
   "inputs": {
     "min": 0,
-    "max": 2,
+    "max": 1,
     "pins": [
       {
         "index": 0,
         "name": "value",
         "value": "f32",
+        "device_field": "device_id",
+        "value_spec": "POSITION",
         "overrides": "value",
         "required": false,
         "hidden_by_default": true
-      },
-      {
-        "index": 1,
-        "name": "set",
-        "value": "bool",
-        "required": false
       }
     ]
   },
@@ -74,7 +70,7 @@
         "c_type": "uint8_t",
         "offset": 5,
         "size": 1,
-        "description": "What the servo does while Set is off or the block is not enabled",
+        "description": "What the servo does while the block is not enabled",
         "enum_ref": "vm_servo_idle_e",
         "source": "user"
       },
@@ -123,12 +119,6 @@
         {
           "name": "VM_IN_SERVO_VALUE",
           "value": 0,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_IN_SERVO_SET",
-          "value": 1,
           "alias": null,
           "description": null
         }

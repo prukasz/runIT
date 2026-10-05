@@ -4,16 +4,18 @@ import { Button } from '../../components/Button'
 import { SelectField, TextField } from '../../components/FormField'
 import { InlineRename } from '../../components/InlineRename'
 import { AlertCircle, AlertTriangle, Minus, Pencil, Plus, Trash2, X } from 'lucide-react'
-import { arrangeProgram, disconnect, nameIds, parsePathText, pathLabel, PathTextError, sourceOf } from '../../domain/canvas'
+import { arrangeProgram, disconnect, isLoopOwner, nameIds, parsePathText, pathLabel, PathTextError, sourceOf } from '../../domain/canvas'
 import type { Diagnostic } from '../../domain/compiler'
 import { blockPinAt, enumAlias, enumMemberLabels, runitVmCatalog } from '../../domain/descriptors'
 import type { VmBlockField, VmBlockType } from '../../domain/descriptors'
 import type { CanvasBlock, ObjectNode, ObjectPath, ProjectDevice, ProjectDocument } from '../../domain/project'
 import { findObject } from '../../domain/project'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { blockShape } from './blockView'
+import { blockShape, pinValueOf } from './blockView'
 import { ExpressionEditor } from './ExpressionEditor'
 import { BlockHardwareFields } from './BlockHardwareFields'
+import { BlockSourceFields } from './BlockSourceFields'
+import { sourceDependents, withoutSettings } from './blockSources'
 import { BlockSwitch } from './BlockSwitch'
 import { TypeBadge } from '../../components/TypeBadge/TypeBadge'
 import { PinHelpersPanel } from './PinHelpers'
@@ -44,7 +46,6 @@ import '../Canvas.css'
  */
 
 /** The expression blocks' counts come from the expression, not a setting. */
-const EXPRESSION_COUNTS = new Set(['const_cnt', 'code_len'])
 
 const humanize = (name: string): string => {
   const text = name.replace(/^k_/, '').replace(/_/g, ' ')
@@ -406,73 +407,54 @@ export function BlockDetails({
   const gates = arranged.gates.get(block.id)
   const loopBody = isLoopType(type) ? arranged.blocks.find((entry) => entry.id === block.id)?.body : undefined
   const members = [...arranged.gates].filter(([, entry]) => entry.loops.includes(block.id)).length
-  const fields = type.fields.filter((field) => field.source === 'user' && !field.flexible && !field.idKind && !field.letUserSelectAvailable && !field.hiddenByDefault && !(type.encoding && EXPRESSION_COUNTS.has(field.name)))
-  const hardware = type.fields.some((field) => field.idKind === 'device')
+  const fields = type.fields.filter((field) => field.source === 'user' && !field.flexible && !field.idKind && !field.letUserSelectAvailable && !field.hiddenByDefault && field.name !== type.encoding?.constCountField && field.name !== type.encoding?.codeLengthField)
+  const hardware = type.fields.some((field) => field.idKind === 'device' && !field.sourceField)
+  const sourced = type.fields.some((field) => field.idKind === 'device' && field.sourceField)
   const inputsVary = type.inputs.max > Math.max(type.inputs.min, type.inputs.pins.length)
   const outputsVary = type.outputs.max > Math.max(type.outputs.min, type.outputs.pins.length)
   const isLoop = isLoopType(type)
+  /** No enable path and no loop: the block runs every time, shown as "Runs: Always" (LATCH and EDGE need their EN signal instead). */
+  const runsWhen = type.activation === 'triggered' ? 'when an input is fresh' : type.activation === 'enable-rising' ? 'once, when enabled' : 'every cycle'
+  /** An enable path as the conditions name it: a FOR's loop link reads "In the loop of …", any other source is its label. */
+  const gateLabel = (path: ObjectPath): string => {
+    const owner = path.root.slice(0, path.root.lastIndexOf(':'))
+    const loop = path.root.endsWith(':body') || (path.root.endsWith(':eno') && workspace.active?.blocks.some((entry) => entry.id === owner && isLoopOwner(entry)))
+    return loop ? `In the loop of ${workspace.active?.blocks.find((entry) => entry.id === owner)?.name || owner}` : labelPath(path)
+  }
+  const alwaysRuns = !type.enable.required && !(block.enables?.length) && !gates?.enables.length && !gates?.loops.length
   const expression = block.expression
 
   return (
     <div className="program-panel block-details">
       <div className="panel-header block-details-header">
         <span className={`block-details-swatch cat-${type.category}`} aria-hidden="true" />
-        <div>
-          <h2>{type.title}</h2>
-          <div className="block-name-row">
-            <TextField
-              className="block-name-field"
-              key={`${block.id}:${block.name ?? ''}`}
-              defaultValue={block.name ?? ''}
-              placeholder="Name this block"
-              aria-label="Block name"
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') event.currentTarget.blur()
-                if (event.key === 'Escape') { event.currentTarget.dataset.cancel = 'true'; event.currentTarget.blur() }
-              }}
-              onBlur={(event) => {
-                if (event.currentTarget.dataset.cancel === 'true') {
-                  event.currentTarget.value = block.name ?? ''
-                  delete event.currentTarget.dataset.cancel
-                  return
-                }
-                const name = event.currentTarget.value.trim()
-                if (name !== (block.name ?? '')) update((current) => ({ ...current, name: name || undefined }))
-              }}
-            />
-            <span className="block-name-edit" title="Editable block name" aria-hidden="true"><Pencil /></span>
-          </div>
+        {/* The name is the title: empty, it shows the type's title as the placeholder (and everywhere else falls back to it). */}
+        <div className="block-name-row">
+          <TextField
+            className="block-name-field"
+            key={`${block.id}:${block.name ?? ''}`}
+            defaultValue={block.name ?? ''}
+            placeholder={type.title}
+            title={`${type.title} block: click to rename`}
+            aria-label="Block name"
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur()
+              if (event.key === 'Escape') { event.currentTarget.dataset.cancel = 'true'; event.currentTarget.blur() }
+            }}
+            onBlur={(event) => {
+              if (event.currentTarget.dataset.cancel === 'true') {
+                event.currentTarget.value = block.name ?? ''
+                delete event.currentTarget.dataset.cancel
+                return
+              }
+              const name = event.currentTarget.value.trim()
+              if (name !== (block.name ?? '')) update((current) => ({ ...current, name: name || undefined }))
+            }}
+          />
+          <span className="block-name-edit" aria-hidden="true"><Pencil /></span>
         </div>
       </div>
-      <section className="block-section">
-        <h3>{block.type === 'LATCH' ? 'Set (EN)' : block.type === 'EDGE' ? 'Signal (EN)' : 'Running'}</h3>
-        <ul className="block-gates" aria-label={block.type === 'LATCH' ? 'Sets when' : block.type === 'EDGE' ? 'Signal sources' : 'Runs when'}>
-          {(block.enables ?? []).map((path, index) => (
-            <li key={`own${index}`}>
-              <span className="block-gate-dot is-own" aria-hidden="true" />
-              <BlockAlias path={path} blocks={workspace.active?.blocks ?? []} label={(() => {
-                const owner = path.root.slice(0, path.root.lastIndexOf(':'))
-                const loop = path.root.endsWith(':body') || (path.root.endsWith(':eno') && workspace.active?.blocks.some((entry) => entry.id === owner && entry.type === 'FOR'))
-                return loop ? `In the loop of ${workspace.active?.blocks.find((entry) => entry.id === owner)?.name || owner}` : labelPath(path)
-              })()} onRename={(blockId, name, outputIndex) => workspace.updateBlock(blockId, (current) => outputIndex === undefined
-                ? { ...current, name }
-                : { ...current, outputAliases: Array.from({ length: Math.max(current.outputAliases?.length ?? 0, outputIndex + 1) }, (_, at) => at === outputIndex ? name ?? null : current.outputAliases?.[at] ?? null) })} />
-              <button type="button" aria-label={`Remove condition ${labelPath(path)}`} title="Remove this condition" onClick={() => update((current) => disconnect(current, { block: current.id, kind: 'en' }, index))}><X aria-hidden="true" /></button>
-            </li>
-          ))}
-          {(gates?.loops ?? []).filter((loop) => !(block.enables ?? []).some((path) => path.root === `${loop}:body` || path.root === `${loop}:eno`)).map((loop) => (
-            <li key={`loop${loop}`} className="is-inherited"><span className="block-gate-dot is-loop" aria-hidden="true" /><span>In the loop of {loop} <small>from the chain</small></span></li>
-          ))}
-          {!gates?.enables.length && !gates?.loops.length && <li className="is-empty">{block.type === 'LATCH' ? 'Connect a Set signal to EN' : block.type === 'EDGE' ? 'Connect a signal to EN' : 'Always runs (no Run when set)'}</li>}
-        </ul>
-        <div className="block-fields">
-          {(block.enables?.length ?? 0) > 1 && <BlockSwitch label="Conditions combine" value={block.enableMode ?? 'any'} options={[["any", "Any (OR)"], ["all", "All (AND)"]]} onChange={(value) => update((current) => ({ ...current, enableMode: value as 'any' | 'all' }))} />}
-          <BlockSwitch label="On error" value={block.onError ?? 'stop'} options={[["stop", "Stop"], ["continue", "Continue"]]} onChange={(value) => update((current) => ({ ...current, onError: value as 'stop' | 'continue' }))} />
-        </div>
-      </section>
-
       <p className="block-description">{type.description}</p>
-      {block.type !== 'IO_SET_LEVEL' && <p className="block-muted">{block.type === 'LATCH' ? 'Samples Set and Reset each cycle. ENO stays true after Set until Reset clears it.' : block.type === 'EDGE' ? 'Samples its EN signal each cycle, including when false. ENO pulses on the selected edge.' : `Runs: ${type.activation === 'triggered' ? 'when an input it reads is fresh' : type.activation === 'enable-rising' ? 'once each time its Run when turns on' : 'every cycle while its Run when is true'}`}</p>}
 
       {problems.length > 0 && (
         <ul className="block-problems">
@@ -485,7 +467,7 @@ export function BlockDetails({
         </ul>
       )}
 
-      {(fields.length > 0 || hardware || type.encoding || isLoop) && (
+      {(
         <section className="block-section">
           <h3>Settings</h3>
           {hardware && <BlockHardwareFields block={block} type={type} devices={devices} deviceCatalog={deviceCatalog} onUpdate={update} onOpenDevice={onOpenDevice} onOpenPin={onOpenPin} />}
@@ -496,16 +478,26 @@ export function BlockDetails({
               const pin = field.overriddenBy === undefined ? undefined : blockPinAt(type.inputs, field.overriddenBy)
               const feeder = pin ? block.inputs?.[pin.index] : undefined
               const fed = !!feeder && feeder.root !== ''
-              const label = pin ? pin.title : humanize(field.name)
-              const hint = pin ? (fed ? `Not used while ${pin.title} is wired to ${labelPath(feeder!)}` : 'Used when no input is connected') : field.description
+              // What the chosen device's settings say the pin carries (`@spec`): its name, and the range the constant must stay in.
+              const carried = pinValueOf(block, pin, devices, deviceCatalog)
+              const label = carried?.title ?? (pin ? pin.title : humanize(field.name))
+              const outside = carried && typeof raw === 'number' && ((carried.min !== undefined && raw < carried.min) || (carried.max !== undefined && raw > carried.max))
+              const hint = pin ? `${fed ? `Not used while ${pin.title} is wired to ${labelPath(feeder!)}` : 'Used when no input is connected'}${carried?.hint ? ` · ${carried.hint}` : ''}${outside ? ' · outside the range: the device refuses it' : ''}` : field.description
               if (field.enumRef) {
                 const choices = enumChoices(type, field)
-                const current = typeof raw === 'number' ? choices.find((choice) => choice.value === raw) : choices.find((choice) => choice.label === raw) ?? (raw === undefined ? choices.find((choice) => choice.value === 0) : undefined)
+                // A setting with a wildcard (`@any`) starts at "Any", stored as no setting; changing it resets what it narrows.
+                const wildcard = field.anyValue !== undefined
+                const anyChosen = wildcard && (raw === undefined || raw === field.anyValue)
+                const current = typeof raw === 'number' ? choices.find((choice) => choice.value === raw) : choices.find((choice) => choice.label === raw) ?? (raw === undefined && !wildcard ? choices.find((choice) => choice.value === 0) : undefined)
                 return (
-                  <label key={field.name} className="block-field">
+                  <label key={field.name} className={`block-field${wildcard ? ' is-wide' : ''}`}>
                     <span>{label}</span>
-                    <SelectField value={current?.label ?? ''} onChange={(event) => setSetting(field.name, event.target.value)}>
-                      {!current && <option value="">{String(raw)}?</option>}
+                    <SelectField value={anyChosen ? '' : current?.label ?? ''} onChange={(event) => update((block) => {
+                      const next = { ...withoutSettings(block, [field.name, ...sourceDependents(type, field.name).map((entry) => entry.name)]) }
+                      return event.target.value === '' && wildcard ? next : { ...next, settings: { ...next.settings, [field.name]: event.target.value } }
+                    })}>
+                      {wildcard && <option value="">Any</option>}
+                      {!current && !anyChosen && <option value="">{String(raw)}?</option>}
                       {choices.map((choice) => <option key={choice.value} value={choice.label}>{enumAlias(choice.label)}</option>)}
                     </SelectField>
                     {hint && <em>{hint}</em>}
@@ -532,6 +524,7 @@ export function BlockDetails({
               })} />
             )}
           </div>
+          {sourced && <BlockSourceFields block={block} type={type} devices={devices} deviceCatalog={deviceCatalog} onUpdate={update} />}
           {type.encoding && (
             <ExpressionEditor
               key={`${block.id}:${JSON.stringify(expression ?? null)}`}
@@ -549,6 +542,9 @@ export function BlockDetails({
               }))}
             />
           )}
+          <div className="block-fields">
+            <BlockSwitch label="On error" value={block.onError ?? 'stop'} options={[["stop", "Stop"], ["continue", "Continue"]]} onChange={(value) => update((current) => ({ ...current, onError: value as 'stop' | 'continue' }))} />
+          </div>
         </section>
       )}
 
@@ -559,7 +555,7 @@ export function BlockDetails({
             <p className="block-muted">{debug.stale ? 'The program changed since the debug upload: use Upload again in the Debug panel.' : 'Waiting for the board…'}</p>
           ) : (
             <dl className="block-pins">
-              <div><dt>{block.type === 'LATCH' ? 'Set (EN)' : block.type === 'EDGE' ? 'Signal (EN)' : 'Run when (EN)'}</dt><dd className={`live-state is-${live.en}`}>{(block.type === 'LATCH' || block.type === 'EDGE') && live.en !== 'unknown' ? live.en === 'open' ? 'true' : 'false' : LIVE_EN[live.en]}</dd></div>
+              <div><dt>{type.enable.title} (EN)</dt><dd className={`live-state is-${live.en}`}>{type.enable.signal && live.en !== 'unknown' ? live.en === 'open' ? 'true' : 'false' : LIVE_EN[live.en]}</dd></div>
               <div><dt>{type.eno.title} (ENO)</dt><dd className={`live-state ${live.eno === undefined ? '' : live.eno ? 'is-open' : 'is-closed'}`}>{live.eno === undefined ? 'no report yet' : live.eno ? 'true' : 'false'}</dd></div>
               {debug.failed(block.id) && <div><dt>Error</dt><dd className="live-state is-closed">failed on its last run, see Errors &amp; logs</dd></div>}
               {(block.enables ?? []).map((path, index) => <div key={`en${index}`}><dt>{labelPath(path)}<small>EN</small></dt><dd>{live.enables[index] ?? '–'}<WatchPin path={path} shown={live.enables[index] !== undefined} /></dd></div>)}
@@ -768,23 +764,29 @@ export function BlockDetails({
         )}
       </section>
 
-      {type.hasDetail && !type.alwaysDetailed && <section className="block-section">
-        <h3>Appearance</h3>
-        <label className="block-field">
-          <span>Block view</span>
-          <SelectField value={block.view ?? 'default'} onChange={(event) => update((current) => {
-            const { view: _, ...rest } = current
-            return event.target.value === 'default' ? rest : { ...rest, view: event.target.value as 'simple' | 'detailed' }
-          })}>
-            <option value="default">Follow toolbar</option>
-            <option value="simple">Always simple</option>
-            <option value="detailed">Always detailed</option>
-          </SelectField>
-          <em>Fixed views are saved with the project.</em>
-        </label>
-      </section>}
-
-      <Button variant="danger" block className="block-delete" onClick={() => workspace.deleteBlock(block.id)}><Trash2 aria-hidden="true" />Delete block</Button>
+      <section className="block-section">
+        {alwaysRuns
+          ? <h3>Runs: <span className="block-gates-always">{type.activation === 'triggered' || type.activation === 'enable-rising' ? runsWhen : 'Always'}</span></h3>
+          : <div className="block-gates-head">
+            <h3>{type.enable.signal ? `${type.enable.title} (EN)` : 'Running when'}</h3>
+            {(block.enables?.length ?? 0) > 1 && <BlockSwitch inline label="Conditions combine" value={block.enableMode ?? 'any'} options={[["any", "OR"], ["all", "AND"]]} onChange={(value) => update((current) => ({ ...current, enableMode: value as 'any' | 'all' }))} />}
+          </div>}
+        {!alwaysRuns && <ul className="block-gates" aria-label={type.enable.signal ? `${type.enable.title} sources` : 'Runs when'}>
+          {(block.enables ?? []).map((path, index) => (
+            <li key={`own${index}`}>
+              <span className="block-gate-dot is-own" aria-hidden="true" />
+              <BlockAlias path={path} blocks={workspace.active?.blocks ?? []} label={gateLabel(path)} onRename={(blockId, name, outputIndex) => workspace.updateBlock(blockId, (current) => outputIndex === undefined
+                ? { ...current, name }
+                : { ...current, outputAliases: Array.from({ length: Math.max(current.outputAliases?.length ?? 0, outputIndex + 1) }, (_, at) => at === outputIndex ? name ?? null : current.outputAliases?.[at] ?? null) })} />
+              <button type="button" aria-label={`Remove condition ${labelPath(path)}`} title="Remove this condition" onClick={() => update((current) => disconnect(current, { block: current.id, kind: 'en' }, index))}><X aria-hidden="true" /></button>
+            </li>
+          ))}
+          {(gates?.loops ?? []).filter((loop) => !(block.enables ?? []).some((path) => path.root === `${loop}:body` || path.root === `${loop}:eno`)).map((loop) => (
+            <li key={`loop${loop}`} className="is-inherited"><span className="block-gate-dot is-loop" aria-hidden="true" /><span>In the loop of {loop} <small>from the chain</small></span></li>
+          ))}
+          {!gates?.enables.length && !gates?.loops.length && <li className="is-empty">{type.enable.required ? type.enable.connect ?? 'Connect a source to EN' : ''}</li>}
+        </ul>}
+      </section>
     </div>
   )
 }

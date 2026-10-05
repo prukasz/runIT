@@ -552,7 +552,7 @@ export default function App() {
               }}><ArrowLeftRight aria-hidden="true" /><span>Switch to {codeMode === 'manage' ? 'Canvas' : 'View / Manage'}</span></button>
             </div>
           </div>}
-          {view === 'Board' && boardMode !== 'boardEditor' && <DevicesPalette workspace={devicesWorkspace} boardMode={boardMode} onToggleMode={() => setBoardMode(boardMode === 'manage' ? 'canvas' : 'manage')} onEditComponent={() => { setBoardMode('component'); setRightOpen(true); setDetail('Info') }} onEditBoard={() => { setBoardMode('boardEditor'); setRightOpen(true); setDetail('Info') }} />}
+          {view === 'Board' && boardMode !== 'boardEditor' && <DevicesPalette workspace={devicesWorkspace} boardMode={boardMode} onToggleMode={() => setBoardMode(boardMode === 'manage' ? 'canvas' : 'manage')} />}
           {view === 'Board' && boardMode === 'boardEditor' && <BoardPalette editor={boardEditor} onClose={() => setBoardMode('canvas')} />}
           {view === 'Remote' && <div className="remote-palette" aria-label="Gamepad controls palette">
             <div className="remote-palette-title">Controls</div>
@@ -792,7 +792,7 @@ export default function App() {
         </div>
         {rightOpen && (
           <div className="detail-content" aria-label={`${detail} content panel`}>
-            {view === 'Board' && boardMode === 'canvas' && detail === 'Info' && <BoardDeviceDetails workspace={devicesWorkspace} wiring={boardWiring} />}
+            {view === 'Board' && boardMode === 'canvas' && detail === 'Info' && <BoardDeviceDetails workspace={devicesWorkspace} wiring={boardWiring} onEditComponent={(typeId) => { componentEditor.setDeviceId(typeId); setBoardMode('component') }} onEditBoard={() => setBoardMode('boardEditor')} />}
             {view === 'Board' && boardMode === 'component' && detail === 'Info' && <ComponentPins editor={componentEditor} />}
             {view === 'Board' && boardMode === 'boardEditor' && detail === 'Info' && <BoardEditorDetails editor={boardEditor} />}
             {view === 'Board' && boardMode === 'manage' && detail === 'Info' && <DeviceDetails workspace={devicesWorkspace} session={bleConnection.session} canvases={canvasWorkspace.canvases} onOpenBlock={openBlockAt} />}

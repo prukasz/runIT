@@ -38,6 +38,7 @@
       "error_tag": 43296
     }
   ],
+  "loop_use": "once-per-turn",
   "state": {
     "struct": "vm_block_action_data_t",
     "source_file": "components/VM/blocks/action/vm_block_action.h",
@@ -58,6 +59,7 @@
         "offset": 1,
         "size": 1,
         "description": "1..255, used when input 0 is unwired",
+        "min": 1,
         "source": "user",
         "overridden_by": 0
       },

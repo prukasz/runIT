@@ -37,6 +37,8 @@ export type DeviceSelection =
   | { readonly kind: 'device'; readonly ref: DeviceRef }
   | { readonly kind: 'add' }
   | { readonly kind: 'action'; readonly id: string }
+  /** The board itself, picked on the Board canvas. */
+  | { readonly kind: 'board' }
 
 const EMPTY: DevicesState = { devices: [], actions: [], setup: [] }
 

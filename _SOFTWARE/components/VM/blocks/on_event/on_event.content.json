@@ -14,21 +14,17 @@
   },
   "outputs": {
     "min": 0,
-    "max": 2,
+    "max": 1,
     "pins": [
       {
         "index": 0,
         "name": "value",
         "value": "i32"
-      },
-      {
-        "index": 1,
-        "name": "count",
-        "value": "u32"
       }
     ]
   },
   "rules": [],
+  "loop_use": "once-per-turn",
   "state": {
     "struct": "vm_block_on_event_data_t",
     "source_file": "components/VM/blocks/on_event/vm_block_on_event.h",
@@ -40,7 +36,8 @@
         "c_type": "uint8_t",
         "offset": 0,
         "size": 1,
-        "description": "Event domain, 255 = any",
+        "description": "The kind of event to react to",
+        "any_value": 255,
         "enum_ref": "sys_event_domain_e",
         "source": "user"
       },
@@ -49,7 +46,10 @@
         "c_type": "uint8_t",
         "offset": 1,
         "size": 1,
-        "description": "Source device, 255 = any",
+        "description": "The device that raised the event",
+        "id_kind": "device",
+        "any_value": 255,
+        "source_field": "domain",
         "source": "user"
       },
       {
@@ -57,7 +57,11 @@
         "c_type": "uint8_t",
         "offset": 2,
         "size": 1,
-        "description": "Pin / channel, 255 = any",
+        "description": "The pin or channel of that device the event came from",
+        "id_kind": "channel",
+        "any_value": 255,
+        "device_field": "device_id",
+        "source_field": "domain",
         "source": "user"
       },
       {
@@ -65,7 +69,11 @@
         "c_type": "uint8_t",
         "offset": 3,
         "size": 1,
-        "description": "Domain event, 255 = any",
+        "description": "What happened",
+        "id_kind": "event",
+        "any_value": 255,
+        "device_field": "device_id",
+        "source_field": "domain",
         "source": "user"
       }
     ]
@@ -80,25 +88,29 @@
           "name": "SYS_EVENT_DOMAIN_IO",
           "value": 0,
           "alias": "IO",
-          "description": "Pin interrupts and analog alerts. Channel = pin, event = the edge or window crossed, value = level or mV"
+          "description": "Pin interrupts and analog alerts. Channel = pin, event = the edge or window crossed, value = level or mV",
+          "events": "sys_io_intr_mode_e"
         },
         {
           "name": "SYS_EVENT_DOMAIN_POWER",
           "value": 1,
           "alias": "Power",
-          "description": "Regulator, monitor and board power events. Event = power event; board events use device 255"
+          "description": "Regulator, monitor and board power events. Event = power event; board events use device 255",
+          "events": "sys_power_events_e"
         },
         {
           "name": "SYS_EVENT_DOMAIN_HBRIDGE",
           "value": 2,
           "alias": "H-Bridge",
-          "description": "Motor driver faults. Channel = bridge channel, event = fault reason, value = current in mA"
+          "description": "Motor driver faults. Channel = bridge channel, event = fault reason, value = current in mA",
+          "events": "sys_hbridge_fault_reason_e"
         },
         {
           "name": "SYS_EVENT_DOMAIN_BLE",
           "value": 3,
           "alias": "Bluetooth",
-          "description": "Connection events. Event = BLE event"
+          "description": "Connection events. Event = BLE event",
+          "events": "sys_ble_events_e"
         }
       ]
     },
@@ -109,12 +121,6 @@
         {
           "name": "VM_OUT_ON_EVENT_VALUE",
           "value": 0,
-          "alias": null,
-          "description": null
-        },
-        {
-          "name": "VM_OUT_ON_EVENT_COUNT",
-          "value": 1,
           "alias": null,
           "description": null
         }

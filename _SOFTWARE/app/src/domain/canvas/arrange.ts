@@ -1,4 +1,5 @@
 import type { Diagnostic } from '../compiler/objects'
+import { runitVmCatalog } from '../descriptors'
 import type { CanvasBlock, ObjectPath, ProgramBlock, ProjectCanvas } from '../project'
 
 /*
@@ -37,7 +38,10 @@ export const loopBodyGate = (forId: string): ObjectPath => ({ root: `${forId}:en
 /** Every root a path reads: the path itself and the dynamic indices inside it. */
 const roots = (path: ObjectPath): string[] => [path.root, ...(path.steps ?? []).flatMap((step) => (step.kind === 'dynamic' ? roots(step.index) : []))]
 
-const strip = ({ x: _x, y: _y, view: _view, name: _name, outputAliases: _outputAliases, inheritGates: _inherit, ...block }: CanvasBlock): ProgramBlock => block
+const strip = ({ x: _x, y: _y, name: _name, outputAliases: _outputAliases, inheritGates: _inherit, ...block }: CanvasBlock): ProgramBlock => block
+
+/** A block that runs the blocks after it in a loop (its descriptor owns a span). */
+export const isLoopOwner = (block: { readonly type: string } | undefined): boolean => !!block && !!runitVmCatalog().block(block.type)?.loopOwner
 
 export const arrangeProgram = (canvases: readonly ProjectCanvas[], options: { includeDisabled?: boolean } = {}): Arrangement => {
   const diagnostics: Diagnostic[] = []
@@ -92,8 +96,8 @@ export const arrangeProgram = (canvases: readonly ProjectCanvas[], options: { in
       const loopOf = (path: ObjectPath): string | undefined => {
         const match = path.steps?.length ? null : /^(.+):(eno|body)$/.exec(path.root)
         if (!match) return undefined
-        if (byId.get(match[1]!)?.type === 'FOR') return match[1]
-        if (match[2] === 'body') error(`'${match[1]}' is not a loop on this canvas; only a FOR has a body.`)
+        if (isLoopOwner(byId.get(match[1]!))) return match[1]
+        if (match[2] === 'body') error(`'${match[1]}' is not a loop on this canvas; only a loop block has a body.`)
         return undefined
       }
       const explicit: ObjectPath[] = []
@@ -133,7 +137,7 @@ export const arrangeProgram = (canvases: readonly ProjectCanvas[], options: { in
         const { enables, mode } = gates.get(block.id)!
         const { enables: _own, enableMode: _ownMode, ...rest } = strip(block)
         const program: ProgramBlock = { ...rest, ...(enables.length ? { enables } : {}), ...(enables.length && mode ? { enableMode: mode } : {}) }
-        if (block.type === 'FOR') {
+        if (isLoopOwner(block)) {
           const members = list.filter((entry) => !done.has(entry.id) && loopsOf.get(entry.id)?.has(block.id))
           members.forEach((entry) => done.add(entry.id))
           const body = place(members)

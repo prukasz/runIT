@@ -29,6 +29,7 @@
       "error_tag": 43296
     }
   ],
+  "loop_use": "once-per-turn",
   "state": {
     "struct": "vm_block_edge_data_t",
     "source_file": "components/VM/blocks/edge/vm_block_edge.h",

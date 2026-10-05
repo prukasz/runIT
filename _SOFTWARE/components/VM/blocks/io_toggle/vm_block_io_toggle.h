@@ -55,5 +55,6 @@ bool vm_verify_io_toggle(vm_block_h b);
 /* The body, called every pass.
    Face, titles and descriptions: io_toggle.display.json; the app's io_toggle.content.json is generated from this header. */
 //#vm-block VM_BLK_IO_TOGGLE @id 11
+//@loop once
 //@activation enable-rising
 void vm_blk_io_toggle(vm_block_h b);

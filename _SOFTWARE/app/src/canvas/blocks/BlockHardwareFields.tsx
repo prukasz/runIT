@@ -11,15 +11,17 @@ import { ArrowUpRight } from 'lucide-react'
 
 export function BlockHardwareFields({ block, type, devices, deviceCatalog, onUpdate, onOpenDevice, onOpenPin }: { block: CanvasBlock; type: VmBlockType; devices: readonly ProjectDevice[]; deviceCatalog?: DeviceCatalog; onUpdate: (change: (block: CanvasBlock) => CanvasBlock) => void; onOpenDevice?: (ref: string) => void; onOpenPin?: (ref: string, pin: number) => void }) {
   const catalog = deviceCatalog ?? runitDeviceCatalog()
-  return <>{type.fields.filter((field) => field.idKind === 'device').map((deviceField) => {
-    const deviceId = Number(block.settings?.[deviceField.name] ?? 0)
+  return <>{type.fields.filter((field) => field.idKind === 'device' && !field.sourceField).map((deviceField) => {
+    // No device until one is chosen: the selector starts empty instead of standing for device 0.
+    const chosen = block.settings?.[deviceField.name]
+    const deviceId = chosen === undefined ? undefined : Number(chosen)
     const targets = blockDevices(catalog, devices, deviceField)
-    const targetRef = targets.find((device) => device.deviceId === deviceId)?.ref
+    const targetRef = deviceId === undefined ? undefined : targets.find((device) => device.deviceId === deviceId)?.ref
     const pinFields = type.fields.filter((field) => field.idKind === 'pin' && field.deviceField === deviceField.name)
-    const pins = blockDevicePins(catalog, devices, deviceId, deviceField.contract)
+    const pins = deviceId === undefined ? [] : blockDevicePins(catalog, devices, deviceId, deviceField.contract)
     const set = (name: string, value: number | string) => onUpdate((current) => ({ ...current, settings: { ...current.settings, [name]: value } }))
     return <div key={deviceField.name} className="block-hardware">
-      <div className="block-hardware-link-row"><label className="block-field"><span>Device</span><SelectField value={deviceId} onChange={(event) => {
+      <div className="block-hardware-link-row"><label className="block-field"><span>Device</span><SelectField value={deviceId ?? ''} onChange={(event) => {
         const next = Number(event.target.value)
         const firstPin = blockDevicePins(catalog, devices, next, deviceField.contract)[0]?.value
         onUpdate((current) => {
@@ -32,10 +34,11 @@ export function BlockHardwareFields({ block, type, devices, deviceCatalog, onUpd
           return { ...current, settings }
         })
       }}>
-        {!targets.some((device) => device.deviceId === deviceId) && <option value={deviceId}>Device {deviceId} (unavailable)</option>}
+        {deviceId === undefined && <option value="">Select a device</option>}
+        {deviceId !== undefined && !targets.some((device) => device.deviceId === deviceId) && <option value={deviceId}>Device {deviceId} (unavailable)</option>}
         {targets.map((device) => <option key={device.ref} value={device.deviceId}>{`${device.name} (#${device.deviceId})`}</option>)}
       </SelectField></label><button type="button" className="block-hardware-jump" disabled={!targetRef} onClick={() => targetRef && onOpenDevice?.(targetRef)} title="Go to device" aria-label="Go to selected device"><ArrowUpRight aria-hidden="true" /></button></div>
-      {pinFields.map((pinField) => {
+      {deviceId !== undefined && pinFields.map((pinField) => {
         const pin = Number(block.settings?.[pinField.name] ?? 0)
         const maskField = type.fields.find((field) => field.letUserSelectAvailable === pinField.name)
         const dynamic = maskField?.dynamicInput !== undefined && isDynamicInput(block, maskField.dynamicInput)

@@ -66,13 +66,6 @@ describe('canvas list', () => {
     expect(parseProject(serializeProject(project)).canvases).toEqual(canvases)
   })
 
-  it('saves a fixed block view with the project and keeps it out of the program', () => {
-    const canvases: ProjectCanvas[] = [canvas('a', 'Main', { blocks: [{ id: 'p', type: 'PERIODIC', x: 20, y: 40, view: 'detailed' }] })]
-    const restored = parseProject(serializeProject({ ...createProject('p'), canvases })).canvases!
-    expect(restored).toEqual(canvases)
-    expect(programBlocks(restored)).toEqual([{ id: 'p', type: 'PERIODIC' }])
-  })
-
   it('refuses a block ID used on two canvases', () => {
     const block = { id: 'x', type: 'IF', x: 0, y: 0 }
     const text = serializeProject({ ...createProject('p'), canvases: [canvas('a', 'A')] }).replace('"blocks": []', `"blocks": [${JSON.stringify(block)}]`)

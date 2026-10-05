@@ -35,6 +35,18 @@
       "properties": { "lead": { "$ref": "#/$defs/template" }, "value": { "$ref": "#/$defs/template" } }
     },
     "always_detailed": { "type": "boolean", "description": "The block is always drawn in its detailed view (//@always-detailed): its constants are visible and the view choice is not offered." },
+    "loop_use": { "enum": ["refused", "once-per-turn"], "description": "How the block sits in a loop body (//@loop): refused (it keeps one state, so the compiler refuses it) or once-per-turn (it acts on every turn; the compiler warns). Absent: no restriction." },
+    "enable": {
+      "description": "How the block's EN is worded (display.json `enable`): its connector's title, what it does, whether it carries a signal (shown as true / false) and what to tell the user when nothing is connected.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "signal": { "type": "boolean" },
+        "connect": { "type": "string" }
+      }
+    },
     "eno": {
       "description": "What this block's ENO is called (default: When done). PERIODIC: Tick, FOR: Loop body.",
       "type": "object",
@@ -81,9 +93,12 @@
               "flexible": { "const": true },
               "description": { "type": "string" },
               "enum_ref": { "type": "string" },
-              "id_kind": {"enum": ["device", "pin"]},
+              "id_kind": {"enum": ["device", "pin", "channel", "event"]},
               "device_field": {"type": "string"},
               "contract": {"type": "string"},
+              "source_field": {"type": "string", "description": "The enum field (an event domain) whose catalog entry lists this ID's choices."},
+              "min": {"type": "integer", "minimum": 0, "description": "The least this setting may be while no input pin replaces it (it is the pin's fallback constant)."},
+              "any_value": {"type": "integer", "minimum": 0, "maximum": 255, "description": "The wildcard this field may hold: the picker offers Any and starts there."},
               "hidden_by_default": {"type": "boolean"},
               "let_user_select_available": {"type": "string"},
               "dynamic_input": {"type": "integer", "minimum": 0},
@@ -98,11 +113,13 @@
     "min_custom_len": { "type": "integer", "minimum": 0, "description": "The state size; a bytecode block adds its constants and code (encoding.layout)." },
     "encoding": {
       "type": "object",
-      "required": ["kind", "layout", "constant_type", "stack_max", "opcode_enum", "opcodes", "examples"],
+      "required": ["kind", "layout", "const_count_field", "code_length_field", "constant_type", "stack_max", "opcode_enum", "opcodes", "examples"],
       "additionalProperties": false,
       "properties": {
         "kind": { "const": "bytecode" },
         "layout": { "type": "string" },
+        "const_count_field": { "type": "string", "description": "The state field holding the number of constants (//@opcodes @const-count)." },
+        "code_length_field": { "type": "string", "description": "The state field holding the number of code bytes (//@opcodes @code-length)." },
         "constant_type": { "enum": ["f32", "u32"] },
         "stack_max": { "type": "integer", "minimum": 1 },
         "opcode_enum": { "type": "string" },
@@ -188,6 +205,8 @@
               "id_kind": {"enum": ["device", "pin"]},
               "device_field": {"type": "string"},
               "hidden_by_default": {"type": "boolean", "description": "Not drawn until it is wired or chosen. Implied by overrides."},
+              "value_spec": {"type": "string", "description": "The device value (//#value NAME in the device's header) whose variant, chosen by the settings of the device in device_field, says what this pin carries: its title, unit and range."},
+              "user_write": {"const": true, "description": "The pin names a variable the block writes as the program's user (//@in @user-write): the device refuses a block-owned object there."},
               "overrides": { "type": "string", "description": "The state field used as a constant while this pin is unwired; the user enters that constant instead of wiring the pin." },
               "required": { "type": "boolean" }
             }

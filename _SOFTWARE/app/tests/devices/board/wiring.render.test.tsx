@@ -84,7 +84,7 @@ describe('BoardDeviceDetails wiring', () => {
     const base = useDevicesWorkspace()
     const wiring = useBoardWiring()
     const w: DevicesWorkspace = { ...base, ...state(wires), selection: select ? { kind: 'device', ref: 'd1' } : undefined }
-    return <BoardDeviceDetails workspace={w} wiring={wiring} />
+    return <BoardDeviceDetails workspace={w} wiring={wiring} onEditComponent={() => {}} onEditBoard={() => {}} />
   }
 
   it('lists the selected device’s connections, its install frame and the checks', () => {

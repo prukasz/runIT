@@ -36,7 +36,7 @@ _Static_assert(sizeof(vm_block_set_data_t) == 8, "vm_block_set_data_t must be 8 
 //#block-enum @alias Set Inputs
 typedef enum vm_in_set_e {
   VM_IN_SET_SOURCE = 0,    //@in @value object @overrides value
-  VM_IN_SET_DESTINATION,   //@in @value object @required
+  VM_IN_SET_DESTINATION,   //@in @value object @required @user-write
 } vm_in_set_e;
 
 /* Load-time check of the block's state; the pin shape comes from the pin enum above. */

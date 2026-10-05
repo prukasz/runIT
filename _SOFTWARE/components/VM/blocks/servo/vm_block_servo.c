@@ -32,20 +32,8 @@ void vm_blk_servo(vm_block_h b) {
   vm_block_servo_data_t* d = (vm_block_servo_data_t*)vm_block_get_custom_data(b);
 
   IF_BLOCK_ENABLED(b) {
-    bool set = true;
-    err_h err = VM_BLOCK_GET_PARAM(set, b, VM_IN_SERVO_SET, true);
-    if (unlikely(!vm_block_check(b, err))) {
-      vm_block_set_eno(b, false);
-      return;
-    }
-    if (!set) {
-      servo_idle(b, d);
-      vm_block_set_eno(b, false);
-      return;
-    }
-
     float value = 0;
-    err = VM_BLOCK_GET_PARAM(value, b, VM_IN_SERVO_VALUE, d->value);
+    err_h err = VM_BLOCK_GET_PARAM(value, b, VM_IN_SERVO_VALUE, d->value);
     if (unlikely(!vm_block_check(b, err))) {
       vm_block_set_eno(b, false);
       return;

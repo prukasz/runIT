@@ -252,6 +252,7 @@
 /* Board canvas: the board art's terminals light up under the pointer */
 .board-art-layer { position: absolute; left: 0; top: 0; }
 .shell .board-art-layer > svg { display: block; width: 100%; height: 100%; stroke-width: 1; } /* beats the shell's icon size */
+.board-art-layer.is-selected { outline: 1.5px solid var(--accent); outline-offset: 6px; border-radius: 4px; }
 .board-art-layer g[id] { cursor: pointer; }
 .board-art-layer g[id]:hover { filter: drop-shadow(0 0 3px var(--accent)); }
 .board-device { position: absolute; left: 0; top: 0; transform-origin: 50% 50%; cursor: grab; }

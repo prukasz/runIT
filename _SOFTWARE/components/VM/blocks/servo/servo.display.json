@@ -6,7 +6,6 @@
   "header": "{title}",
   "always_detailed": true,
   "inputs": {
-    "value": { "title": "Value", "description": "The position: degrees for an angle servo, -100..100 for a continuous one, 0..255 when the servo steers by byte. Overrides the Value setting." },
-    "set": { "title": "Set", "description": "On: the servo follows the value. Off: it does what When not active says. Unwired counts as on." }
+    "value": { "title": "Position", "description": "Where to move: degrees for an angle servo, speed -100..100 for a continuous one, 0..255 when the servo steers by byte. Overrides the Position setting." }
   }
 }

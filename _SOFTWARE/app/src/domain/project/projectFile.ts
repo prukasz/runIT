@@ -521,7 +521,6 @@ const parseCanvasBlock = (value: Json, path: string): CanvasBlock => {
     type: string(block.type, `${path}.type`),
     x: finite(block.x, `${path}.x`),
     y: finite(block.y, `${path}.y`),
-    ...optional('view', block.view === undefined ? undefined : oneOf(block.view, `${path}.view`, ['simple', 'detailed'] as const)),
     ...optional('name', block.name === undefined ? undefined : string(block.name, `${path}.name`)),
     ...optional('outputAliases', block.outputAliases === undefined ? undefined : array(block.outputAliases, `${path}.outputAliases`).map((entry, index) => entry === null ? null : string(entry, `${path}.outputAliases[${index}]`))),
     ...optional('dynamicInputs', block.dynamicInputs === undefined ? undefined : array(block.dynamicInputs, `${path}.dynamicInputs`).map((entry, index) => count(entry, `${path}.dynamicInputs[${index}]`))),

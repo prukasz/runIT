@@ -42,6 +42,10 @@ typedef struct __packed {
 //  @one-of   [0..3]
 //  @alias    Bridge Channel
 
+//#event $SYS_EVENT_DOMAIN_HBRIDGE
+//  @channel CHANNEL
+//  @events  [$SYS_HBRIDGE_FAULT_OVERCURRENT, $SYS_HBRIDGE_FAULT_THERMAL_OR_UVLO, $SYS_HBRIDGE_FAULT_EXTERNAL]
+
 //#contract packet_sys_hbridge_set_drive_t
 //  @alias       Drive channel
 //  @description Full bridge: -1.0 (reverse) to 1.0 (forward), slow decay. Half bridges: 0.0 to 1.0. A magnitude below 0.5 % brakes.
