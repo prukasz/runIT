@@ -1,5 +1,6 @@
 import type { DeviceCatalog } from '../../domain/descriptors'
-import { SelectField, TextField } from '../../components/FormField'
+import { ChoiceField } from '../../components/ChoiceField'
+import { TextField } from '../../components/FormField'
 import { runitDeviceCatalog } from '../../domain/descriptors'
 import type { VmBlockType } from '../../domain/descriptors'
 import type { CanvasBlock, ProjectDevice } from '../../domain/project'
@@ -21,23 +22,21 @@ export function BlockHardwareFields({ block, type, devices, deviceCatalog, onUpd
     const pins = deviceId === undefined ? [] : blockDevicePins(catalog, devices, deviceId, deviceField.contract)
     const set = (name: string, value: number | string) => onUpdate((current) => ({ ...current, settings: { ...current.settings, [name]: value } }))
     return <div key={deviceField.name} className="block-hardware">
-      <div className="block-hardware-link-row"><label className="block-field"><span>Device</span><SelectField value={deviceId ?? ''} onChange={(event) => {
-        const next = Number(event.target.value)
-        const firstPin = blockDevicePins(catalog, devices, next, deviceField.contract)[0]?.value
-        onUpdate((current) => {
-          const settings = { ...current.settings, [deviceField.name]: next }
-          for (const field of pinFields) {
-            if (firstPin === undefined) delete settings[field.name]
-            else settings[field.name] = firstPin
-            for (const mask of type.fields.filter((mask) => mask.letUserSelectAvailable === field.name)) settings[mask.name] = pinMaskText(firstPin === undefined ? 0n : 1n << BigInt(firstPin))
-          }
-          return { ...current, settings }
-        })
-      }}>
-        {deviceId === undefined && <option value="">Select a device</option>}
-        {deviceId !== undefined && !targets.some((device) => device.deviceId === deviceId) && <option value={deviceId}>Device {deviceId} (unavailable)</option>}
-        {targets.map((device) => <option key={device.ref} value={device.deviceId}>{`${device.name} (#${device.deviceId})`}</option>)}
-      </SelectField></label><button type="button" className="block-hardware-jump" disabled={!targetRef} onClick={() => targetRef && onOpenDevice?.(targetRef)} title="Go to device" aria-label="Go to selected device"><ArrowUpRight aria-hidden="true" /></button></div>
+      <div className="block-hardware-link-row"><label className="block-field"><span>Device</span><ChoiceField value={deviceId} placeholder="Select a device" unavailableLabel={(id) => `Device ${id} (unavailable)`}
+        choices={targets.map((device) => ({ value: device.deviceId, label: `${device.name} (#${device.deviceId})` }))}
+        onChange={(next) => {
+          if (next === undefined) return
+          const firstPin = blockDevicePins(catalog, devices, next, deviceField.contract)[0]?.value
+          onUpdate((current) => {
+            const settings = { ...current.settings, [deviceField.name]: next }
+            for (const field of pinFields) {
+              if (firstPin === undefined) delete settings[field.name]
+              else settings[field.name] = firstPin
+              for (const mask of type.fields.filter((mask) => mask.letUserSelectAvailable === field.name)) settings[mask.name] = pinMaskText(firstPin === undefined ? 0n : 1n << BigInt(firstPin))
+            }
+            return { ...current, settings }
+          })
+        }} /></label><button type="button" className="block-hardware-jump" disabled={!targetRef} onClick={() => targetRef && onOpenDevice?.(targetRef)} title="Go to device" aria-label="Go to selected device"><ArrowUpRight aria-hidden="true" /></button></div>
       {deviceId !== undefined && pinFields.map((pinField) => {
         const pin = Number(block.settings?.[pinField.name] ?? 0)
         const maskField = type.fields.find((field) => field.letUserSelectAvailable === pinField.name)
@@ -45,13 +44,12 @@ export function BlockHardwareFields({ block, type, devices, deviceCatalog, onUpd
         const mask = readPinMask(maskField ? block.settings?.[maskField.name] : undefined) ?? 0n
         const available = maskField ? pins.filter((pin) => pin.value < maskField.size * 8) : pins
         return <div key={pinField.name} className="block-hardware-pin">
-          <div className="block-hardware-link-row"><label className="block-field"><span>{dynamic ? 'Default pin' : 'Pin'}</span><SelectField value={pin} onChange={(event) => {
-            const next = Number(event.target.value)
-            onUpdate((current) => ({ ...current, settings: { ...current.settings, [pinField.name]: next, ...(maskField ? { [maskField.name]: pinMaskText(dynamic ? mask | (1n << BigInt(next)) : 1n << BigInt(next)) } : {}) } }))
-          }}>
-            {!available.some((entry) => entry.value === pin) && <option value={pin}>Pin {pin} (unavailable)</option>}
-            {available.map((entry) => <option key={entry.value} value={entry.value}>{pinDisplayLabel(catalog, targetRef, entry.value, entry.label)}</option>)}
-          </SelectField></label><button type="button" className="block-hardware-jump" disabled={!targetRef || !pins.some((entry) => entry.value === pin)} onClick={() => targetRef && onOpenPin?.(targetRef, pin)} title="Go to pin" aria-label={`Go to pin ${pin}`}><ArrowUpRight aria-hidden="true" /></button></div>
+          <div className="block-hardware-link-row"><label className="block-field"><span>{dynamic ? 'Default pin' : 'Pin'}</span><ChoiceField value={pin} unavailableLabel={(value) => `Pin ${value} (unavailable)`}
+            choices={available.map((entry) => ({ value: entry.value, label: pinDisplayLabel(catalog, targetRef, entry.value, entry.label) }))}
+            onChange={(next) => {
+              if (next === undefined) return
+              onUpdate((current) => ({ ...current, settings: { ...current.settings, [pinField.name]: next, ...(maskField ? { [maskField.name]: pinMaskText(dynamic ? mask | (1n << BigInt(next)) : 1n << BigInt(next)) } : {}) } }))
+            }} /></label><button type="button" className="block-hardware-jump" disabled={!targetRef || !pins.some((entry) => entry.value === pin)} onClick={() => targetRef && onOpenPin?.(targetRef, pin)} title="Go to pin" aria-label={`Go to pin ${pin}`}><ArrowUpRight aria-hidden="true" /></button></div>
           {maskField && <>
             <BlockSwitch label="Pin selection" value={dynamic ? 'dynamic' : 'static'} options={[["static", "Static"], ["dynamic", "Dynamic"]]} onChange={(value) => onUpdate((current) => {
               const index = maskField.dynamicInput!

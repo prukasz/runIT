@@ -8,7 +8,7 @@ import type { GeneratedVmBlockEditorMetadata, GeneratedVmBlockFile, GeneratedVmB
  */
 
 export interface VmBlockEditorMetadata {
-  readonly idKind?: 'device' | 'pin' | 'channel' | 'event'
+  readonly idKind?: 'device' | 'pin' | 'channel' | 'event' | 'action'
   readonly deviceField?: string
   readonly contract?: string
   /** The enum field (an event domain) whose catalog entry lists this ID's choices. */

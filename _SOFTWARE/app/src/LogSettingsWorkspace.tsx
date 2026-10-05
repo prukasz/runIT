@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { ScrollText } from 'lucide-react'
-import { FormGrid, FormRow, SelectField } from './components/FormField'
+import { ChoiceField } from './components/ChoiceField'
+import { FormGrid, FormRow } from './components/FormField'
 import { readStored, usePersistEffect } from './hooks/useStorage'
 import type { LogSettings } from './domain/project'
 import { DEFAULT_LOGS, LOG_LEVEL_MAX } from './domain/upload'
@@ -44,9 +45,7 @@ export function LogSettingsEditor({ workspace }: { readonly workspace: LogSettin
       <p>What the board logs while it runs. Sent to the board with the other settings (Apply) and kept in its stored code.</p>
       <FormGrid>
         <FormRow label="Log level">
-          <SelectField className="form-field-panel" value={logs.level} onChange={(event) => update({ level: Number(event.target.value) })}>
-            {LEVELS.map((name, level) => <option key={name} value={level}>{name}</option>)}
-          </SelectField>
+          <ChoiceField selectClassName="form-field-panel" value={logs.level} onChange={(next) => next !== undefined && update({ level: next })} choices={LEVELS.map((name, level) => ({ value: level, label: name }))} />
         </FormRow>
         <FormRow label="Mirror to serial">
           <input type="checkbox" checked={logs.mirrorSerial} onChange={(event) => update({ mirrorSerial: event.target.checked })} />

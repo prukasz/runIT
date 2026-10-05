@@ -1,5 +1,6 @@
 import { useId } from 'react'
-import { SelectField, TextField } from '../components/FormField'
+import { ChoiceField } from '../components/ChoiceField'
+import { TextField } from '../components/FormField'
 import { FieldLabel } from '../components/FieldNote'
 import type { DeviceContract } from '../domain/descriptors'
 import { initialParameterValue, parameterValue, SET_ERROR_HANDLING } from '../domain/devices'
@@ -64,9 +65,8 @@ export function ContractFields({ contract, values, onChange, actions = [], pinLa
                 <span>{value ? 'On / high' : 'Off / low'}</span>
               </label>
             ) : parameter.choices ? (
-              <SelectField id={id} value={value} onChange={(event) => set(parameter.name, Number(event.target.value))}>
-                {parameter.choices.map((choice) => <option key={choice.value} value={choice.value} title={choice.description}>{parameter.name === 'pin' && pinLabel ? pinLabel(choice.value, choice.label) : choice.label === String(choice.value) ? choice.label : `${choice.label} (${choice.value})`}</option>)}
-              </SelectField>
+              <ChoiceField id={id} value={value} onChange={(next) => next !== undefined && set(parameter.name, next)}
+                choices={parameter.choices.map((choice) => ({ value: choice.value, label: parameter.name === 'pin' && pinLabel ? pinLabel(choice.value, choice.label) : choice.label === String(choice.value) ? choice.label : `${choice.label} (${choice.value})`, description: choice.description }))} />
             ) : (
               <TextField
                 id={id}

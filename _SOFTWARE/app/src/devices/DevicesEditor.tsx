@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import { Card, CardStack } from '../components/Card'
-import { FormGrid, FormRow, SelectField, TextField } from '../components/FormField'
+import { ChoiceField } from '../components/ChoiceField'
+import { FormGrid, FormRow, TextField } from '../components/FormField'
 import { AlertCircle, AlertTriangle, ArrowDown, ArrowUp, BookOpen, FileText, ImagePlus, ListPlus, Play, Plus, Trash2, Upload, X } from 'lucide-react'
 import type { DeviceType } from '../domain/descriptors'
 import { runitCommandCatalog, runitDeviceCatalog } from '../domain/descriptors'
@@ -280,10 +281,8 @@ function InstallCard({ workspace: w, device, type }: { workspace: DevicesWorkspa
           return (
             <FormRow key={field.name} htmlFor={`${idBase}-${field.name}`} note={field.note} label={<>{field.label === field.name ? field.name.replaceAll('_', ' ') : field.label}{field.unit ? ` (${field.unit})` : ''}</>}>
               {choices ? (
-                <SelectField id={`${idBase}-${field.name}`} className="form-field-panel" value={value} onChange={(event) => set(field.name, Number(event.target.value))}>
-                  {!choices.some((choice) => choice.value === value) && <option value={value}>Invalid: {field.name === 'i2c_addr' ? hex2(value) : value}</option>}
-                  {choices.map((choice) => <option key={choice.value} value={choice.value}>{field.name === 'i2c_addr' ? hex2(choice.value) : choice.label}</option>)}
-                </SelectField>
+                <ChoiceField id={`${idBase}-${field.name}`} selectClassName="form-field-panel" value={value} unavailableLabel={(entry) => `Invalid: ${field.name === 'i2c_addr' ? hex2(entry) : entry}`}
+                  choices={choices.map((choice) => ({ value: choice.value, label: field.name === 'i2c_addr' ? hex2(choice.value) : choice.label }))} onChange={(next) => next !== undefined && set(field.name, next)} />
               ) : (
                 <TextField id={`${idBase}-${field.name}`} className="form-field-panel" type="number" min={field.min} max={field.max} value={value} onChange={(event) => set(field.name, Number(event.target.value))} />
               )}
@@ -313,16 +312,15 @@ function InstallCard({ workspace: w, device, type }: { workspace: DevicesWorkspa
               <FormGrid>
                 {group.deviceField && (
                   <FormRow label="On device">
-                    <SelectField className="form-field-panel" value={targetId} onChange={(event) => {
-                      const selected = Number(event.target.value)
-                      const supported = availableModes(groupTargets.find((target) => target.deviceId === selected))
-                      const preferred = type.install.request.fields.find((field) => field.name === group.modeField)?.defaultValue
-                      const mode = supported.some((choice) => choice.value === currentMode) ? currentMode : supported.find((choice) => choice.value === preferred)?.value ?? supported[0]?.value
-                      w.updateDevice(device.id, { install: { ...device.install, [group.deviceField!]: selected, ...(group.modeField && mode !== undefined ? { [group.modeField]: mode } : {}) } })
-                    }}>
-                      {!currentTarget && <option value={targetId}>Unavailable device #{targetId}</option>}
-                      {groupTargets.map((target) => <option key={target.ref} value={target.deviceId}>{target.name} (#{target.deviceId})</option>)}
-                    </SelectField>
+                    <ChoiceField selectClassName="form-field-panel" value={targetId} unavailableLabel={(id) => `Unavailable device #${id}`}
+                      choices={groupTargets.map((target) => ({ value: target.deviceId, label: `${target.name} (#${target.deviceId})` }))}
+                      onChange={(selected) => {
+                        if (selected === undefined) return
+                        const supported = availableModes(groupTargets.find((target) => target.deviceId === selected))
+                        const preferred = type.install.request.fields.find((field) => field.name === group.modeField)?.defaultValue
+                        const mode = supported.some((choice) => choice.value === currentMode) ? currentMode : supported.find((choice) => choice.value === preferred)?.value ?? supported[0]?.value
+                        w.updateDevice(device.id, { install: { ...device.install, [group.deviceField!]: selected, ...(group.modeField && mode !== undefined ? { [group.modeField]: mode } : {}) } })
+                      }} />
                   </FormRow>
                 )}
                 {group.pinField && (() => {
@@ -331,13 +329,11 @@ function InstallCard({ workspace: w, device, type }: { workspace: DevicesWorkspa
                   return (
                     <FormRow label="Pin">
                       {pins.length ? (
-                        <SelectField className="form-field-panel" value={value} onChange={(event) => set(group.pinField!, Number(event.target.value))}>
-                          {!pins.some((pin) => pin.value === value) && <option value={value}>Pin {value}</option>}
-                          {pins.map((pin) => {
+                        <ChoiceField selectClassName="form-field-panel" value={value} unavailableLabel={(pin) => `Pin ${pin}`} onChange={(next) => next !== undefined && set(group.pinField!, next)}
+                          choices={pins.map((pin) => {
                             const taken = (users.get(pinKey(targetId, pin.value)) ?? []).filter((user) => user.owner !== device.id)
-                            return <option key={pin.value} value={pin.value} disabled={taken.length > 0}>{`${pinDisplayLabel(w.catalog, currentTarget?.ref, pin.value, pin.label)}${taken.length ? ` — ${taken.map((user) => user.ownerName).join(', ')}` : ''}`}</option>
-                          })}
-                        </SelectField>
+                            return { value: pin.value, label: `${pinDisplayLabel(w.catalog, currentTarget?.ref, pin.value, pin.label)}${taken.length ? ` — ${taken.map((user) => user.ownerName).join(', ')}` : ''}`, disabled: taken.length > 0 }
+                          })} />
                       ) : (
                         <TextField className="form-field-panel" type="number" min={0} max={254} value={value} onChange={(event) => set(group.pinField!, Number(event.target.value))} />
                       )}
@@ -346,10 +342,8 @@ function InstallCard({ workspace: w, device, type }: { workspace: DevicesWorkspa
                 })()}
                 {group.modeField && (
                   <FormRow label="Mode">
-                    <SelectField className="form-field-panel" value={currentMode} onChange={(event) => set(group.modeField!, Number(event.target.value))}>
-                      {!choices.some((choice) => choice.value === currentMode) && <option value={currentMode}>Unavailable mode {currentMode}</option>}
-                      {choices.map((choice) => <option key={choice.value} value={choice.value} title={choice.description}>{choice.label}</option>)}
-                    </SelectField>
+                    <ChoiceField selectClassName="form-field-panel" value={currentMode} unavailableLabel={(mode) => `Unavailable mode ${mode}`} onChange={(next) => next !== undefined && set(group.modeField!, next)}
+                      choices={choices.map((choice) => ({ value: choice.value, label: choice.label, description: choice.description }))} />
                   </FormRow>
                 )}
               </FormGrid>
@@ -437,14 +431,10 @@ function StepEditor({ workspace: w, action, step, index }: { workspace: DevicesW
     <li className="devices-step">
       <div className="devices-step-head">
         <span className="devices-step-index">{index + 1}</span>
-        <SelectField value={step.device} onChange={(event) => chooseDevice(event.target.value)} aria-label="Device">
-          {!device && <option value={step.device}>{step.device} (gone)</option>}
-          {devices.map((entry) => <option key={entry.ref} value={entry.ref}>{entry.name} (#{entry.deviceId})</option>)}
-        </SelectField>
-        <SelectField value={step.contract} onChange={(event) => chooseContract(event.target.value)} aria-label="Contract">
-          {!contract && <option value={step.contract}>{step.contract}</option>}
-          {contracts.map((entry) => <option key={entry.id} value={entry.id}>{entry.kind === 'device' ? `Device: ${entry.label}` : entry.label}</option>)}
-        </SelectField>
+<ChoiceField<string> value={step.device} aria-label="Device" unavailableLabel={(ref) => `${ref} (gone)`} onChange={(next) => next !== undefined && chooseDevice(next)}
+          choices={devices.map((entry) => ({ value: entry.ref, label: `${entry.name} (#${entry.deviceId})` }))} />
+<ChoiceField<string> value={step.contract} aria-label="Contract" onChange={(next) => next !== undefined && chooseContract(next)}
+          choices={contracts.map((entry) => ({ value: entry.id, label: entry.kind === 'device' ? `Device: ${entry.label}` : entry.label }))} />
         <div className="devices-step-buttons">
           <button type="button" disabled={index === 0} onClick={() => move(-1)} title="Move up" aria-label="Move step up"><ArrowUp aria-hidden="true" /></button>
           <button type="button" disabled={index === action.steps.length - 1} onClick={() => move(1)} title="Move down" aria-label="Move step down"><ArrowDown aria-hidden="true" /></button>
@@ -492,9 +482,8 @@ function ActionComposer({ workspace: w, action, session }: { workspace: DevicesW
       <section className="devices-composer" role="dialog" aria-label="Action composer" aria-modal="true">
         <header className="devices-composer-header">
           <ListPlus aria-hidden="true" />
-          <SelectField value={action.id} onChange={(event) => w.compose(event.target.value)} aria-label="Action">
-            {w.actions.map((entry) => <option key={entry.id} value={entry.id}>{entry.name} (ID {entry.actionId})</option>)}
-          </SelectField>
+<ChoiceField<string> value={action.id} aria-label="Action" onChange={(next) => next !== undefined && w.compose(next)}
+            choices={w.actions.map((entry) => ({ value: entry.id, label: `${entry.name} (ID ${entry.actionId})` }))} />
           <Button onClick={() => w.compose()} title="New action"><Plus aria-hidden="true" />New</Button>
           <Button size="icon" onClick={w.closeComposer} aria-label="Close composer"><X aria-hidden="true" /></Button>
         </header>

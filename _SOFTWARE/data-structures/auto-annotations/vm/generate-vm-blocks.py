@@ -141,6 +141,7 @@ ID_KINDS = {
     "device": "The id of a device created in the project. The field's `contract` says which devices fit (the ones that answer it).",
     "pin": "An index of an IO resource of the device in the field named by `device_field` (a pin, a channel: the editor's title says which).",
     "channel": "The channel (pin or channel) an event carries, of the device in `device_field`, as that device declares it for the event domain in `source_field`.",
+    "action": "An action ID: a static action (a built-in) or a recorded one, as the enum field named by `source_field` (the scope) says.",
     "event": "The event of the device in `device_field` in the event domain of `source_field`: the device's own events, or the domain's when no device is chosen.",
 }
 ARG_KINDS = {"NONE": "none", "INPUT": "input", "CONST": "const"}
@@ -578,6 +579,8 @@ def validate_editor_links(block, context):
         source = entry.get("source_field")
         if source and not fields.get(source, {}).get("enum_ref"):
             fail(f"{context}.{entry['name']}: @source-field {source} must name an enum field (the event domain)")
+        if entry.get("id_kind") == "action" and not source:
+            fail(f"{context}.{entry['name']}: an action ID needs @source-field (the scope)")
         if entry.get("id_kind") in ("channel", "event") and not (device and source):
             fail(f"{context}.{entry['name']}: a {entry['id_kind']} ID needs @device-field and @source-field")
         if entry.get("id_kind") in ("device", "channel", "event") and source and "any_value" not in entry:

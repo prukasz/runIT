@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Card } from '../components/Card'
-import { SelectField, TextField } from '../components/FormField'
+import { ChoiceField } from '../components/ChoiceField'
+import { TextField } from '../components/FormField'
 import { ArrowRight, Lock, Plus, Trash2 } from 'lucide-react'
 import type { DeviceChoice } from '../domain/descriptors'
 import { contractsOf, findContract, isSetupContract, pinDisplayLabel, pinKey, pinsOf, pinUsers, resolveDevice, SET_ERROR_HANDLING } from '../domain/devices'
@@ -163,18 +164,13 @@ export function DefaultSettingsCard({ w, device }: { w: DevicesWorkspace; device
                     <span role="cell">
                       {defaultChoice && modes.length === 1 && !modeStep
                         ? <span className="devices-pin-default">{defaultChoice.label}<small>Device default</small></span>
-                        : <SelectField aria-label={`Pin ${pin.value} mode`} value={typeof modeStep?.values.mode === 'number' ? modeStep.values.mode : ''} onChange={(event) => w.setPinMode(device.ref, pin.value, event.target.value === '' ? undefined : Number(event.target.value))}>
-                          <option value="">{defaultChoice ? `${defaultChoice.label} (device default)` : '— not set —'}</option>
-                          {modes.map((choice) => <option key={choice.value} value={choice.value} title={choice.description}>{choice.label}</option>)}
-                        </SelectField>}
+                        : <ChoiceField aria-label={`Pin ${pin.value} mode`} value={typeof modeStep?.values.mode === 'number' ? modeStep.values.mode : undefined} emptyLabel={defaultChoice ? `${defaultChoice.label} (device default)` : '— not set —'}
+                          choices={modes.map((choice) => ({ value: choice.value, label: choice.label, description: choice.description }))} onChange={(next) => w.setPinMode(device.ref, pin.value, next)} />}
                     </span>
                     <span role="cell">
                       {setLevel && isOutput(mode) && (
-                        <SelectField aria-label={`Pin ${pin.value} level`} value={levelStep === undefined ? '' : String(levelStep.values.level ?? 0)} onChange={(event) => w.setPinLevel(device.ref, pin.value, event.target.value === '' ? undefined : event.target.value === '1')}>
-                          <option value="">—</option>
-                          <option value="0">Low</option>
-                          <option value="1">High</option>
-                        </SelectField>
+                        <ChoiceField aria-label={`Pin ${pin.value} level`} value={levelStep === undefined ? undefined : Number(levelStep.values.level ?? 0)} emptyLabel="—"
+                          choices={[{ value: 0, label: 'Low' }, { value: 1, label: 'High' }]} onChange={(next) => w.setPinLevel(device.ref, pin.value, next === undefined ? undefined : next === 1)} />
                       )}
                     </span>
                   </>
@@ -200,10 +196,8 @@ export function DefaultSettingsCard({ w, device }: { w: DevicesWorkspace; device
 
       {addable.length > 0 && (
         <div className="devices-default-add">
-          <SelectField value={adding} onChange={(event) => setAdding(event.target.value)} aria-label="Default to add">
-            <option value="">Add a default setting…</option>
-            {addable.map((contract) => <option key={contract.id} value={contract.id}>{contract.label}</option>)}
-          </SelectField>
+          <ChoiceField<string> value={adding || undefined} emptyLabel="Add a default setting…" aria-label="Default to add"
+            choices={addable.map((contract) => ({ value: contract.id, label: contract.label }))} onChange={(next) => setAdding(next ?? '')} />
           <button type="button" disabled={!adding} onClick={() => {
             const contract = addable.find((entry) => entry.id === adding)
             if (contract) w.addSetup(device.ref, contract.id, initialValues(contract))

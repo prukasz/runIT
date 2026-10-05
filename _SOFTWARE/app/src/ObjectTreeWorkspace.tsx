@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { readStored, usePersistEffect } from './hooks/useStorage'
 import { PanelHeader } from './components/PanelHeader'
 import { Badge } from './components/Badge'
-import { SelectField, TextField } from './components/FormField'
+import { ChoiceField } from './components/ChoiceField'
+import { TextField } from './components/FormField'
 import { PaletteSearch } from './components/PaletteSearch'
 import { ArrowDown, ArrowUp, Box, Boxes, ChevronDown, ChevronRight, Eye, Folder, FolderPlus, Grid2X2, Link2, Plus, Trash2 } from 'lucide-react'
 import { TreeSlab } from './components/TreeSlab'
@@ -774,6 +775,13 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
     })
   }
 
+  /** A type picked for an object: `auto` follows what it holds, anything else sets the type and clears the value. */
+  const retype = (node: ValueNode, type: string) => {
+    setDrafts((current) => { const next = { ...current }; delete next[node.id]; return next })
+    const resolvedType = type === 'auto' ? (typeof node.value === 'string' ? 'STR' : node.type === 'B' ? 'B' : 'F') : type
+    const length = resolvedType === 'STR' ? Math.max(node.length, DEFAULT_STR_LENGTH) : node.length
+    patch(node.id, type === 'auto' ? { typeMode: 'auto', type: resolvedType, length } : { typeMode: undefined, type, value: undefined, length })
+  }
   const patch = (id: string, fields: Parameters<typeof updateObject>[2], options?: { key?: string; discrete?: boolean }) =>
     w.edit((current) => updateObject(current, id, fields), options)
 
@@ -836,20 +844,8 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                   <div className="object-main-type-picker" title="Click to override type" onClick={(e) => e.stopPropagation()}>
                     {node.type !== 'STR' && node.length > 1 && <span className="object-main-shape">Table</span>}
                     <ObjectDesignator node={node} />
-                    <SelectField
-                      aria-label={`Type of ${label}`}
-                      value={node.typeMode === 'auto' ? 'auto' : node.type}
-                      onChange={(event) => {
-                        const type = event.target.value
-                        setDrafts((current) => { const next = { ...current }; delete next[node.id]; return next })
-                        const resolvedType = type === 'auto' ? (typeof node.value === 'string' ? 'STR' : node.type === 'B' ? 'B' : 'F') : type
-                        const length = resolvedType === 'STR' ? Math.max(node.length, DEFAULT_STR_LENGTH) : node.length
-                        patch(node.id, type === 'auto' ? { typeMode: 'auto', type: resolvedType, length } : { typeMode: undefined, type, value: undefined, length })
-                      }}
-                    >
-                      <option value="auto">Auto · {node.type === 'B' ? 'T/F' : node.type}</option>
-                      {valueTypes.map((type) => <option key={type.key} value={type.key}>{type.key === 'B' ? 'T/F' : type.key}</option>)}
-                    </SelectField>
+                    <ChoiceField<string> aria-label={`Type of ${label}`} value={node.typeMode === 'auto' ? 'auto' : node.type} onChange={(type) => type !== undefined && retype(node, type)}
+ choices={[{ value: 'auto', label: `Auto · ${node.type === 'B' ? 'T/F' : node.type}` }, ...valueTypes.map((type) => ({ value: type.key, label: type.key === 'B' ? 'T/F' : type.key }))]} />
                   </div>
                   <button
                     type="button"
@@ -913,20 +909,8 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                 <div className="object-main-type-picker" title="Click to override type" onClick={(e) => e.stopPropagation()}>
                   {node.type !== 'STR' && node.length > 1 && <span className="object-main-shape">Table</span>}
                   <ObjectDesignator node={node} />
-                  <SelectField
-                    aria-label={`Type of ${label}`}
-                    value={node.typeMode === 'auto' ? 'auto' : node.type}
-                    onChange={(event) => {
-                      const type = event.target.value
-                      setDrafts((current) => { const next = { ...current }; delete next[node.id]; return next })
-                      const resolvedType = type === 'auto' ? (typeof node.value === 'string' ? 'STR' : node.type === 'B' ? 'B' : 'F') : type
-                      const length = resolvedType === 'STR' ? Math.max(node.length, DEFAULT_STR_LENGTH) : node.length
-                      patch(node.id, type === 'auto' ? { typeMode: 'auto', type: resolvedType, length } : { typeMode: undefined, type, value: undefined, length })
-                    }}
-                  >
-                    <option value="auto">Auto · {node.type === 'B' ? 'T/F' : node.type}</option>
-                    {valueTypes.map((type) => <option key={type.key} value={type.key}>{type.key === 'B' ? 'T/F' : type.key}</option>)}
-                  </SelectField>
+                  <ChoiceField<string> aria-label={`Type of ${label}`} value={node.typeMode === 'auto' ? 'auto' : node.type} onChange={(type) => type !== undefined && retype(node, type)}
+ choices={[{ value: 'auto', label: `Auto · ${node.type === 'B' ? 'T/F' : node.type}` }, ...valueTypes.map((type) => ({ value: type.key, label: type.key === 'B' ? 'T/F' : type.key }))]} />
                 </div>
                 <button
                   type="button"
@@ -979,20 +963,8 @@ export function ObjectTreeEditor({ workspace: w }: { workspace: ObjectWorkspace 
                 <div className="object-main-type-picker" title="Click to override type">
                   {node.type !== 'STR' && node.length > 1 && <span className="object-main-shape">Table</span>}
                   <ObjectDesignator node={node} />
-                  <SelectField
-                    aria-label={`Type of ${node.name}`}
-                    value={node.typeMode === 'auto' ? 'auto' : node.type}
-                    onChange={(event) => {
-                      const type = event.target.value
-                      setDrafts((current) => { const next = { ...current }; delete next[node.id]; return next })
-                      const resolvedType = type === 'auto' ? (typeof node.value === 'string' ? 'STR' : node.type === 'B' ? 'B' : 'F') : type
-                      const length = resolvedType === 'STR' ? Math.max(node.length, DEFAULT_STR_LENGTH) : node.length
-                      patch(node.id, type === 'auto' ? { typeMode: 'auto', type: resolvedType, length } : { typeMode: undefined, type, value: undefined, length })
-                    }}
-                  >
-                    <option value="auto">Auto · {node.type === 'B' ? 'T/F' : node.type}</option>
-                    {valueTypes.map((type) => <option key={type.key} value={type.key}>{type.key === 'B' ? 'T/F' : type.key}</option>)}
-                  </SelectField>
+                  <ChoiceField<string> aria-label={`Type of ${node.name}`} value={node.typeMode === 'auto' ? 'auto' : node.type} onChange={(type) => type !== undefined && retype(node, type)}
+ choices={[{ value: 'auto', label: `Auto · ${node.type === 'B' ? 'T/F' : node.type}` }, ...valueTypes.map((type) => ({ value: type.key, label: type.key === 'B' ? 'T/F' : type.key }))]} />
                 </div>
               ) : (
                 <span className="object-main-kind">{is2DArray ? '2D Array' : is3DArray ? '3D Array' : node.kind === 'folder' ? 'Folder' : 'Reference'}</span>
@@ -1219,16 +1191,7 @@ export function ObjectDetails({ workspace: w, onJump, canvases = [], onOpenBlock
         </div>
         <label>
           Element Type
-          <SelectField
-            value={type2D}
-            onChange={(e) => w.resizeArray2D(selected.id, rows2D, cols2D, e.target.value)}
-          >
-            {valueTypes.map((type) => (
-              <option key={type.key} value={type.key}>
-                {type.key === 'B' ? 'T/F (Boolean)' : `${type.key} · ${type.alias}`}
-              </option>
-            ))}
-          </SelectField>
+          <ChoiceField<string> value={type2D} onChange={(next) => next !== undefined && w.resizeArray2D(selected.id, rows2D, cols2D, next)} choices={valueTypes.map((type) => ({ value: type.key, label: type.key === 'B' ? 'T/F (Boolean)' : `${type.key} · ${type.alias}` }))} />
         </label>
       </div>
     )}
@@ -1282,16 +1245,7 @@ export function ObjectDetails({ workspace: w, onJump, canvases = [], onOpenBlock
         </div>
         <label>
           Element Type
-          <SelectField
-            value={type3D}
-            onChange={(e) => w.resizeArray3D(selected.id, depth3D, rows3D, cols3D, e.target.value)}
-          >
-            {valueTypes.map((type) => (
-              <option key={type.key} value={type.key}>
-                {type.key === 'B' ? 'T/F (Boolean)' : `${type.key} · ${type.alias}`}
-              </option>
-            ))}
-          </SelectField>
+          <ChoiceField<string> value={type3D} onChange={(next) => next !== undefined && w.resizeArray3D(selected.id, depth3D, rows3D, cols3D, next)} choices={valueTypes.map((type) => ({ value: type.key, label: type.key === 'B' ? 'T/F (Boolean)' : `${type.key} · ${type.alias}` }))} />
         </label>
       </div>
     )}
@@ -1316,22 +1270,14 @@ export function ObjectDetails({ workspace: w, onJump, canvases = [], onOpenBlock
         <div className="object-details-grid">
           <label>
             Type
-            <SelectField
-              value={selected.typeMode === 'auto' ? 'auto' : selected.type}
-              onChange={(e) => {
-                const type = e.target.value
+            <ChoiceField<string> value={selected.typeMode === 'auto' ? 'auto' : selected.type}
+              onChange={(type) => {
+                if (type === undefined) return
                 const resolvedType = type === 'auto' ? (typeof selected.value === 'string' ? 'STR' : selected.type === 'B' ? 'B' : 'F') : type
                 const length = resolvedType === 'STR' ? Math.max(selected.length, DEFAULT_STR_LENGTH) : selected.length
                 w.edit((curr) => updateObject(curr, selected.id, type === 'auto' ? { typeMode: 'auto', type: resolvedType, length } : { typeMode: undefined, type, value: undefined, length }))
               }}
-            >
-              <option value="auto">Auto · {selected.type === 'B' ? 'T/F' : selected.type}</option>
-              {valueTypes.map((t) => (
-                <option key={t.key} value={t.key}>
-                  {t.key === 'B' ? 'T/F' : t.key}
-                </option>
-              ))}
-            </SelectField>
+              choices={[{ value: 'auto', label: `Auto · ${selected.type === 'B' ? 'T/F' : selected.type}` }, ...valueTypes.map((t) => ({ value: t.key, label: t.key === 'B' ? 'T/F' : t.key }))]} />
           </label>
           <label>
             {selected.type === 'STR' ? 'Characters' : 'Items'}
@@ -1361,7 +1307,7 @@ export function ObjectDetails({ workspace: w, onJump, canvases = [], onOpenBlock
 
     <div className="object-details-section">
       <h3>Properties</h3>
-      <label>Location<SelectField value={w.selected?.parent?.id ?? ''} onChange={(event) => w.edit((current) => moveObject(current, selected.id, event.target.value || null))}>{selected.kind !== 'reference' && <option value="">Top level</option>}{availableFolders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</SelectField></label>
+      <label>Location<ChoiceField<string> value={w.selected?.parent?.id ?? ''} onChange={(next) => next !== undefined && w.edit((current) => moveObject(current, selected.id, next || null))} choices={[...(selected.kind !== 'reference' ? [{ value: '', label: 'Top level' }] : []), ...availableFolders.map((folder) => ({ value: folder.id, label: folder.name }))]} /></label>
       <div className="object-details-move">
         <button disabled={w.selected?.index === 0} onClick={() => w.move(selected.id, -1)}>
           <ArrowUp />

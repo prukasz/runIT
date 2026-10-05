@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { SelectField, TextField } from './components/FormField'
+import { ChoiceField } from './components/ChoiceField'
+import { TextField } from './components/FormField'
 import type { PacketStructValues, PacketValue } from './backend/packetPack'
 import { CommandError } from './backend/protocol'
 import type { CommandEvent, CommandResponse } from './backend/protocol'
@@ -157,15 +158,8 @@ export default function CommandConsole({ session, resolveReference }: Props) {
       </p>
 
       <div className="console-toolbar">
-        <SelectField className="console-command-select" aria-label="Command" value={commandId} onChange={(event) => selectCommand(event.target.value)}>
-          {catalog.groups.map((group) => (
-            <optgroup key={`${group.source}-${group.id}`} label={`${group.title} (class 0x${group.classHeader.toString(16).padStart(2, '0')})`}>
-              {catalog.commands.filter((entry) => entry.group === group).map((entry) => (
-                <option key={entry.id} value={entry.id}>{`0x${entry.packetHeader.toString(16).padStart(2, '0')} ${entry.name}`}</option>
-              ))}
-            </optgroup>
-          ))}
-        </SelectField>
+        <ChoiceField<string> className="console-command-select" aria-label="Command" value={commandId} onChange={(next) => next !== undefined && selectCommand(next)}
+          choices={catalog.commands.map((entry) => ({ value: entry.id, label: `0x${entry.packetHeader.toString(16).padStart(2, '0')} ${entry.name}`, group: `${entry.group.title} (class 0x${entry.group.classHeader.toString(16).padStart(2, '0')})` }))} />
         <label className="console-timeout">
           Timeout ms
           <TextField type="number" min="1" value={timeoutMs} onChange={(event) => setTimeoutMs(event.target.value)} />
@@ -179,12 +173,8 @@ export default function CommandConsole({ session, resolveReference }: Props) {
               <span className="console-field-label">{field.label}{field.required ? ' *' : ''}</span>
               <span className="console-field-input">
                 {field.choices && field.kind === 'number' ? (
-                  <SelectField value={inputs[field.name] ?? ''} onChange={(event) => setInputs((values) => ({ ...values, [field.name]: event.target.value }))}>
-                    <option value="">{field.required ? '— choose —' : `default (${field.fallback})`}</option>
-                    {field.choices.map((choice) => (
-                      <option key={choice.symbol} value={String(choice.value)} title={choice.description}>{`${choice.value} · ${choice.alias ?? choice.symbol}`}</option>
-                    ))}
-                  </SelectField>
+                  <ChoiceField<string> value={inputs[field.name] || undefined} emptyLabel={field.required ? '— choose —' : `default (${field.fallback})`} onChange={(next) => setInputs((values) => ({ ...values, [field.name]: next ?? '' }))}
+                    choices={field.choices.map((choice) => ({ value: String(choice.value), label: `${choice.value} · ${choice.alias ?? choice.symbol}`, description: choice.description }))} />
                 ) : (
                   <TextField
                     value={inputs[field.name] ?? ''}

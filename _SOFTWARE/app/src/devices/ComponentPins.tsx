@@ -3,7 +3,8 @@ import { Crosshair, RotateCw, Trash2 } from 'lucide-react'
 import { Badge } from '../components/Badge'
 import { Button, ToggleChip } from '../components/Button'
 import { Card } from '../components/Card'
-import { FormGrid, FormRow, SelectField, TextField } from '../components/FormField'
+import { ChoiceField } from '../components/ChoiceField'
+import { FormGrid, FormRow, TextField } from '../components/FormField'
 import { PaletteSearch } from '../components/PaletteSearch'
 import { PanelHeader } from '../components/PanelHeader/PanelHeader'
 import { TreeSlab } from '../components/TreeSlab'
@@ -72,10 +73,8 @@ export function ComponentPins({ editor: e }: { editor: ComponentEditorApi }) {
                 </FormRow>
               </FormGrid>
               <FormRow label="Role" htmlFor="pin-dir" note="Producer drives the signal, consumer receives it, either can take the role the other end needs. A link needs a producer at one end and a consumer at the other. Stored as the csv direction (out, in, inout).">
-                <SelectField id="pin-dir" className="form-field-panel" value={selAnchor.dir ?? ''} onChange={(event) => e.update(sel.name, { dir: (event.target.value || undefined) as Anchor['dir'] })}>
-                  <option value="">{roleOf(sel.dir, sel.kind)} (from the csv)</option>
-                  {DIRS.filter((dir) => dir !== sel.dir).map((dir) => <option key={dir} value={dir}>{roleOf(dir, sel.kind)}</option>)}
-                </SelectField>
+                <ChoiceField<string> id="pin-dir" selectClassName="form-field-panel" value={selAnchor.dir ?? ''} onChange={(next) => next !== undefined && e.update(sel.name, { dir: (next || undefined) as Anchor['dir'] })}
+                  choices={[{ value: '', label: `${roleOf(sel.dir, sel.kind)} (from the csv)` }, ...DIRS.filter((dir) => dir !== sel.dir).map((dir) => ({ value: dir as string, label: roleOf(dir, sel.kind) }))]} />
               </FormRow>
               <FormRow label="Modes" hint={selAnchor.modes ? undefined : `From the csv: ${(sel.modes ?? []).join(', ') || 'none'}`}>
                 <div className="component-pin-modes">

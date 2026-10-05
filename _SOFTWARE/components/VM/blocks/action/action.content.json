@@ -59,6 +59,8 @@
         "offset": 1,
         "size": 1,
         "description": "1..255, used when input 0 is unwired",
+        "id_kind": "action",
+        "source_field": "scope",
         "min": 1,
         "source": "user",
         "overridden_by": 0

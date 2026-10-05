@@ -3,7 +3,7 @@ import { readStored, usePersistEffect } from './hooks/useStorage'
 import { PanelHeader } from './components/PanelHeader'
 import { Badge } from './components/Badge'
 import { Card, CardStack } from './components/Card'
-import { FormGrid, FormRow, SelectField, TextField } from './components/FormField'
+import { FormGrid, FormRow, TextField } from './components/FormField'
 import { PaletteSearch } from './components/PaletteSearch'
 import {
   ArrowLeft,
@@ -17,6 +17,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { EditableField } from './components/EditableField'
+import { ChoiceField } from './components/ChoiceField'
 import { ListableField } from './components/ListableField'
 import { TreeSlab } from './components/TreeSlab'
 import { TypeBadge } from './components/TypeBadge/TypeBadge'
@@ -710,15 +711,8 @@ export function BleSettingsEditor({ workspace: w }: { workspace: BleSettingsWork
           {/* Security & Passkey Management */}
           <Card title="Security &amp; PIN / Passkey Management">
             <FormRow label="Pairing Security Level">
-              <SelectField
-                className="form-field-panel"
-                value={gen.securityMode}
-                onChange={(e) => w.updateGeneral({ securityMode: e.target.value as BleGeneralSettings['securityMode'] })}
-              >
-                <option value="just_works">No Security (Just Works)</option>
-                <option value="passkey">Static 6-Digit PIN / Passkey</option>
-                <option value="mitm">Encrypted MITM (Man-In-The-Middle Protection)</option>
-              </SelectField>
+              <ChoiceField<BleGeneralSettings['securityMode']> selectClassName="form-field-panel" value={gen.securityMode} onChange={(next) => next && w.updateGeneral({ securityMode: next })}
+                choices={[{ value: 'just_works', label: 'No Security (Just Works)' }, { value: 'passkey', label: 'Static 6-Digit PIN / Passkey' }, { value: 'mitm', label: 'Encrypted MITM (Man-In-The-Middle Protection)' }]} />
             </FormRow>
 
             {gen.securityMode !== 'just_works' && (
@@ -1169,20 +1163,8 @@ export function BleDetails({
         <h3>Relations to connectors</h3>
         <label>
           Connector Stream Binding
-          <SelectField
-            value={boundStreamId ?? 'none'}
-            onChange={(e) => {
-              const val = e.target.value === 'none' ? undefined : e.target.value
-              w.updateCharacteristic(service.id, char.id, { connectorStream: val })
-            }}
-          >
-            <option value="none">None (Custom Characteristic)</option>
-            {CONNECTOR_STREAMS.map((st) => (
-              <option key={st.id} value={st.id}>
-                {st.alias} · {st.direction === 'in' ? 'IN' : st.direction === 'out' ? 'OUT' : 'IN/OUT'}
-              </option>
-            ))}
-          </SelectField>
+          <ChoiceField<string> value={boundStreamId} emptyLabel="None (Custom Characteristic)" onChange={(next) => w.updateCharacteristic(service.id, char.id, { connectorStream: next })}
+            choices={CONNECTOR_STREAMS.map((st) => ({ value: st.id, label: `${st.alias} · ${st.direction === 'in' ? 'IN' : st.direction === 'out' ? 'OUT' : 'IN/OUT'}` }))} />
         </label>
 
         {currentStream ? (

@@ -801,6 +801,7 @@ export default function App() {
                 workspace={canvasWorkspace}
                 diagnostics={canvasDiagnostics}
                 devices={devicesWorkspace.devices}
+                actions={devicesWorkspace.actions}
                 deviceCatalog={devicesWorkspace.catalog}
                 project={objectWorkspace.project}
                 selectedObjectId={objectWorkspace.selectedId ?? undefined}

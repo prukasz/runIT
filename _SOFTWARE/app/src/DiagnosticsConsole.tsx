@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { SelectField, TextField } from './components/FormField'
+import { ChoiceField } from './components/ChoiceField'
+import { TextField } from './components/FormField'
 import type { RunitBleSession } from './backend/runitBleSession'
 import { decodeBoardFrame, errorOwnerName, errorTagName } from './domain/decoder'
 import type { ErrorNodeReport, ErrorReport, LogEntry, LogLevel } from './domain/decoder'
@@ -184,9 +185,7 @@ export default function DiagnosticsConsole({ session, resolveReference }: Props)
           <button className="console-button" onClick={() => setLogs([])}>Clear</button>
           <label className="console-inline-label">
             Level
-            <SelectField value={minLevel} onChange={(event) => setMinLevel(event.target.value as LogLevel)}>
-              {LOG_LEVELS.map((level) => <option key={level} value={level}>{level} and above</option>)}
-            </SelectField>
+            <ChoiceField<LogLevel> value={minLevel} onChange={(next) => next && setMinLevel(next)} choices={LOG_LEVELS.map((level) => ({ value: level, label: `${level} and above` }))} />
           </label>
           <label className="console-inline-label">
             <TextField type="checkbox" checked={showChainLines} onChange={(event) => setShowChainLines(event.target.checked)} />

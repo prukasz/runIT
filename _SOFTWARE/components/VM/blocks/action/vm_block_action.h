@@ -35,7 +35,7 @@ typedef enum {
 //@data vm_block_action_data_t
 typedef struct __attribute__((aligned(4))) {
   uint8_t scope;      // @enum-ref vm_action_scope_e
-  uint8_t action_id;  // @description 1..255, used when input 0 is unwired @min 1
+  uint8_t action_id;  // @description 1..255, used when input 0 is unwired @min 1 @id action @source-field scope
   uint8_t flags;      // @description VM_ACTION_F_* @runtime
   uint8_t _pad;
 } vm_block_action_data_t;

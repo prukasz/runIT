@@ -28,6 +28,7 @@
     "device": "The id of a device created in the project. The field's `contract` says which devices fit (the ones that answer it).",
     "pin": "An index of an IO resource of the device in the field named by `device_field` (a pin, a channel: the editor's title says which).",
     "channel": "The channel (pin or channel) an event carries, of the device in `device_field`, as that device declares it for the event domain in `source_field`.",
+    "action": "An action ID: a static action (a built-in) or a recorded one, as the enum field named by `source_field` (the scope) says.",
     "event": "The event of the device in `device_field` in the event domain of `source_field`: the device's own events, or the domain's when no device is chosen."
   },
   "blocks": [

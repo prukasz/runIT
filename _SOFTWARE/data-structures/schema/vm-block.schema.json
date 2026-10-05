@@ -93,7 +93,7 @@
               "flexible": { "const": true },
               "description": { "type": "string" },
               "enum_ref": { "type": "string" },
-              "id_kind": {"enum": ["device", "pin", "channel", "event"]},
+              "id_kind": {"enum": ["device", "pin", "channel", "event", "action"]},
               "device_field": {"type": "string"},
               "contract": {"type": "string"},
               "source_field": {"type": "string", "description": "The enum field (an event domain) whose catalog entry lists this ID's choices."},

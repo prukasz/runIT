@@ -7,6 +7,10 @@ export interface ListableOptionObject {
   value: string
   label: string
   disabled?: boolean
+  /** Hover text: what the option means. */
+  title?: string
+  /** Options sharing a group are listed under its heading (the first option of a group places it). */
+  group?: string
 }
 
 export type ListableOption = string | ListableOptionObject
@@ -21,6 +25,28 @@ export interface ListableFieldProps extends Omit<React.SelectHTMLAttributes<HTML
   showIcon?: boolean
   className?: string
   selectClassName?: string
+  /** Size overrides (a number is px, a string any CSS length). Unset ones follow the surrounding `--field-*` variables. */
+  width?: number | string
+  minWidth?: number | string
+  height?: number | string
+  fontSize?: number | string
+  fontWeight?: number | string
+  padding?: number | string
+  radius?: number | string
+}
+
+const renderOption = (opt: ListableOption) => {
+  const object = typeof opt === 'string' ? { value: opt, label: opt } : opt
+  return <option key={object.value} value={object.value} disabled={Boolean(object.disabled)} title={object.title}>{object.label}</option>
+}
+
+/** Options in order; the ones of a group sit together under an `optgroup` where its first option was. */
+const renderOptions = (options: ListableOption[]) => {
+  const groups = [...new Set(options.map((opt) => (typeof opt === 'string' ? undefined : opt.group)))]
+  return groups.flatMap((group) => {
+    const members = options.filter((opt) => (typeof opt === 'string' ? undefined : opt.group) === group)
+    return group === undefined ? members.map(renderOption) : [<optgroup key={`group:${group}`} label={group}>{members.map(renderOption)}</optgroup>]
+  })
 }
 
 export const ListableField: React.FC<ListableFieldProps> = ({
@@ -33,6 +59,13 @@ export const ListableField: React.FC<ListableFieldProps> = ({
   showIcon = true,
   className = '',
   selectClassName = '',
+  width,
+  minWidth,
+  height,
+  fontSize,
+  fontWeight,
+  padding,
+  radius,
   title,
   onClick,
   ...rest
@@ -41,8 +74,19 @@ export const ListableField: React.FC<ListableFieldProps> = ({
   const statusClass = isBlocked ? 'is-blocked' : selected ? 'is-selected' : 'is-editable'
   const computedIconTitle = iconTitle || (isBlocked ? 'Locked dropdown' : 'Select option')
 
+  const length = (value: number | string | undefined) => (typeof value === 'number' ? `${value}px` : value)
+  const style = {
+    ...(width !== undefined ? { width: length(width), flex: 'none' } : {}),
+    ...(minWidth !== undefined ? { '--listable-min-width': length(minWidth) } : {}),
+    ...(height !== undefined ? { '--field-height': length(height) } : {}),
+    ...(fontSize !== undefined ? { '--field-font-size': length(fontSize) } : {}),
+    ...(fontWeight !== undefined ? { '--listable-font-weight': String(fontWeight) } : {}),
+    ...(padding !== undefined ? { '--field-padding': length(padding) } : {}),
+    ...(radius !== undefined ? { '--field-radius': length(radius) } : {}),
+  } as React.CSSProperties
+
   return (
-    <div className={`adorned-field-wrap listable-field-wrap ${statusClass} ${className}`.trim()}>
+    <div className={`adorned-field-wrap listable-field-wrap ${statusClass} ${className}`.trim()} style={style}>
       <SelectField
         className={`listable-field-select ${selectClassName}`.trim()}
         value={value}
@@ -52,17 +96,7 @@ export const ListableField: React.FC<ListableFieldProps> = ({
         onChange={(e) => onChange(e.target.value, e)}
         {...rest}
       >
-        {options.map((opt) => {
-          const optValue = typeof opt === 'string' ? opt : opt.value
-          const optLabel = typeof opt === 'string' ? opt : opt.label
-          const optDisabled = typeof opt === 'string' ? false : Boolean(opt.disabled)
-
-          return (
-            <option key={optValue} value={optValue} disabled={optDisabled}>
-              {optLabel}
-            </option>
-          )
-        })}
+        {renderOptions(options)}
       </SelectField>
       {showIcon && (
         <span className="field-adornment-slot" title={computedIconTitle}>

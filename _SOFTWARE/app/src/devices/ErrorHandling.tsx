@@ -1,7 +1,7 @@
 import { AlertTriangle, Check, Trash2 } from 'lucide-react'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
-import { SelectField } from '../components/FormField'
+import { ChoiceField } from '../components/ChoiceField'
 import { runitErrorCatalog } from '../domain/descriptors'
 import { clampErrorActions, decodeErrorActions, DISABLED_IMPORTANCE_WARNING, encodeErrorActions, ERROR_ACTION_LEVELS, findContract, initialParameterValue, reachableErrorLevels, SET_ERROR_HANDLING } from '../domain/devices'
 import type { ErrorAction, ResolvedDevice } from '../domain/devices'
@@ -33,22 +33,15 @@ export function ErrorActionsField({ value, actions, importance, onChange }: { va
         if (!reachable.includes(level)) return null
         const action = current[index]!
         const option = optionOf(action)
-        const known = !action.id || (action.scope === 'dynamic' ? actions.some((entry) => entry.actionId === action.id) : staticActions.some((entry) => entry.value === action.id))
         return (
           <label key={level} className="devices-error-action">
             <span>{levelName(level)}</span>
-            <SelectField value={option} onChange={(event) => set(index, event.target.value)}>
-              <option value="">No action</option>
-              {!known && <option value={option}>{action.scope === 'dynamic' ? 'Recorded' : 'Static'} action {action.id} (not in this project)</option>}
-              <optgroup label="Built-in">
-                {staticActions.map((entry) => <option key={entry.value} value={`s:${entry.value}`} title={entry.description}>{entry.label}</option>)}
-              </optgroup>
-              {actions.length > 0 && (
-                <optgroup label="Actions">
-                  {actions.map((entry) => <option key={entry.id} value={`d:${entry.actionId}`}>{entry.name} (ID {entry.actionId})</option>)}
-                </optgroup>
-              )}
-            </SelectField>
+            <ChoiceField<string> value={option || undefined} emptyLabel="No action" onChange={(next) => set(index, next ?? '')}
+              unavailableLabel={() => `${action.scope === 'dynamic' ? 'Recorded' : 'Static'} action ${action.id} (not in this project)`}
+              choices={[
+                ...staticActions.map((entry) => ({ value: `s:${entry.value}`, label: entry.label, description: entry.description, group: 'Built-in' })),
+                ...actions.map((entry) => ({ value: `d:${entry.actionId}`, label: `${entry.name} (ID ${entry.actionId})`, group: 'Actions' })),
+              ]} />
           </label>
         )
       })}
@@ -102,9 +95,8 @@ export function ErrorHandlingCard({ w, device }: { w: DevicesWorkspace; device: 
       <div className="devices-error-grid">
         <label className="devices-error-action">
           <span>Importance</span>
-          <SelectField className={`devices-importance is-level-${importance}`} value={importance} onChange={(event) => save({ importance: Number(event.target.value) })}>
-            {choices.map((choice) => <option key={choice.value} value={choice.value} title={choice.description}>{choice.label}{choice.value === start ? ' (default)' : ''}</option>)}
-          </SelectField>
+          <ChoiceField value={importance} selectClassName={`devices-importance is-level-${importance}`} onChange={(next) => next !== undefined && save({ importance: next })}
+            choices={choices.map((choice) => ({ value: choice.value, label: `${choice.label}${choice.value === start ? ' (default)' : ''}`, description: choice.description }))} />
         </label>
       </div>
       <h4 className="devices-subheading">When an error happens</h4>

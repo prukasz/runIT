@@ -1,18 +1,20 @@
 import type { DeviceCatalog } from '../../domain/descriptors'
 import { PanelHeader } from '../../components/PanelHeader'
 import { Button } from '../../components/Button'
-import { SelectField, TextField } from '../../components/FormField'
+import { TextField } from '../../components/FormField'
 import { InlineRename } from '../../components/InlineRename'
 import { AlertCircle, AlertTriangle, Minus, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { arrangeProgram, disconnect, isLoopOwner, nameIds, parsePathText, pathLabel, PathTextError, sourceOf } from '../../domain/canvas'
 import type { Diagnostic } from '../../domain/compiler'
 import { blockPinAt, enumAlias, enumMemberLabels, runitVmCatalog } from '../../domain/descriptors'
 import type { VmBlockField, VmBlockType } from '../../domain/descriptors'
-import type { CanvasBlock, ObjectNode, ObjectPath, ProjectDevice, ProjectDocument } from '../../domain/project'
+import type { CanvasBlock, ObjectNode, ObjectPath, ProjectAction, ProjectDevice, ProjectDocument } from '../../domain/project'
 import { findObject } from '../../domain/project'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { blockShape, pinValueOf } from './blockView'
 import { ExpressionEditor } from './ExpressionEditor'
+import { ChoiceField } from '../../components/ChoiceField'
+import { BlockActionFields } from './BlockActionFields'
 import { BlockHardwareFields } from './BlockHardwareFields'
 import { BlockSourceFields } from './BlockSourceFields'
 import { sourceDependents, withoutSettings } from './blockSources'
@@ -280,6 +282,7 @@ export function BlockDetails({
   workspace,
   diagnostics,
   devices = [],
+  actions = [],
   deviceCatalog,
   project,
   selectedObjectId,
@@ -292,6 +295,7 @@ export function BlockDetails({
   workspace: CanvasWorkspace
   diagnostics: ReadonlyMap<string, readonly Diagnostic[]>
   devices?: readonly ProjectDevice[]
+  actions?: readonly ProjectAction[]
   deviceCatalog?: DeviceCatalog
   project?: ProjectDocument
   selectedObjectId?: string
@@ -409,6 +413,9 @@ export function BlockDetails({
   const members = [...arranged.gates].filter(([, entry]) => entry.loops.includes(block.id)).length
   const fields = type.fields.filter((field) => field.source === 'user' && !field.flexible && !field.idKind && !field.letUserSelectAvailable && !field.hiddenByDefault && field.name !== type.encoding?.constCountField && field.name !== type.encoding?.codeLengthField)
   const hardware = type.fields.some((field) => field.idKind === 'device' && !field.sourceField)
+  const actionField = type.fields.find((field) => field.idKind === 'action')
+  const actionFeeder = actionField?.overriddenBy === undefined ? undefined : block.inputs?.[actionField.overriddenBy]
+  const actionPicker = actionField && <BlockActionFields block={block} type={type} actions={actions} deviceCatalog={deviceCatalog} wiredTo={actionFeeder && actionFeeder.root !== '' ? labelPath(actionFeeder) : undefined} onUpdate={update} />
   const sourced = type.fields.some((field) => field.idKind === 'device' && field.sourceField)
   const inputsVary = type.inputs.max > Math.max(type.inputs.min, type.inputs.pins.length)
   const outputsVary = type.outputs.max > Math.max(type.outputs.min, type.outputs.pins.length)
@@ -492,14 +499,12 @@ export function BlockDetails({
                 return (
                   <label key={field.name} className={`block-field${wildcard ? ' is-wide' : ''}`}>
                     <span>{label}</span>
-                    <SelectField value={anyChosen ? '' : current?.label ?? ''} onChange={(event) => update((block) => {
-                      const next = { ...withoutSettings(block, [field.name, ...sourceDependents(type, field.name).map((entry) => entry.name)]) }
-                      return event.target.value === '' && wildcard ? next : { ...next, settings: { ...next.settings, [field.name]: event.target.value } }
-                    })}>
-                      {wildcard && <option value="">Any</option>}
-                      {!current && !anyChosen && <option value="">{String(raw)}?</option>}
-                      {choices.map((choice) => <option key={choice.value} value={choice.label}>{enumAlias(choice.label)}</option>)}
-                    </SelectField>
+                    <ChoiceField<string> value={anyChosen ? undefined : current?.label ?? String(raw)} emptyLabel={wildcard ? 'Any' : undefined} unavailableLabel={(value) => `${value}?`}
+                      choices={choices.map((choice) => ({ value: choice.label, label: enumAlias(choice.label) }))}
+                      onChange={(next) => update((block) => {
+                        const cleared = { ...withoutSettings(block, [field.name, ...sourceDependents(type, field.name).map((entry) => entry.name)]) }
+                        return next === undefined ? cleared : { ...cleared, settings: { ...cleared.settings, [field.name]: next } }
+                      })} />
                     {hint && <em>{hint}</em>}
                   </label>
                 )
@@ -516,6 +521,7 @@ export function BlockDetails({
                 />
               )
             })}
+            {actionPicker}
             {isLoop && members > 0 && <p className="block-muted">Body: {loopBody} blocks, the ones on its Loop body (and what depends on them).</p>}
             {isLoop && members === 0 && (
               <NumberField label="Body" hint="Drag its green Loop body pin onto the Run when of the first block to repeat, or count the blocks after it here" value={block.body} integer min={0} onCommit={(value) => update((current) => {

@@ -1,11 +1,9 @@
-import { SelectField } from '../../components/FormField'
+import { ChoiceField } from '../../components/ChoiceField'
 import { runitDeviceCatalog } from '../../domain/descriptors'
 import type { DeviceCatalog, VmBlockField, VmBlockType } from '../../domain/descriptors'
 import { allDevices, eventSourceChannels, eventSourceDevices, eventSourceEvents, pinDisplayLabel } from '../../domain/devices'
 import type { CanvasBlock, ProjectDevice } from '../../domain/project'
 import { enumSettingValue, sourceDependents, withoutSettings } from './blockSources'
-
-const ANY = 'any'
 
 /** One picker: "Any" (the wildcard, stored as no setting) or one of the choices. A stored choice the catalog no longer offers stays, marked. */
 function SourceSelect({ label, type, field, block, choices, empty, onUpdate }: { label: string; type: VmBlockType; field: VmBlockField; block: CanvasBlock; choices: readonly { value: number; label: string }[]; empty?: string; onUpdate: (change: (block: CanvasBlock) => CanvasBlock) => void }) {
@@ -15,11 +13,7 @@ function SourceSelect({ label, type, field, block, choices, empty, onUpdate }: {
     const cleared = withoutSettings(current, [field.name, ...sourceDependents(type, field.name).map((entry) => entry.name)])
     return next === undefined ? cleared : { ...cleared, settings: { ...cleared.settings, [field.name]: next } }
   })
-  return <label className="block-field"><span>{label}</span><SelectField value={value ?? ANY} disabled={!choices.length && value === undefined} onChange={(event) => set(event.target.value === ANY ? undefined : Number(event.target.value))}>
-    <option value={ANY}>Any</option>
-    {value !== undefined && !choices.some((choice) => choice.value === value) && <option value={value}>{`${value} (unavailable)`}</option>}
-    {choices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
-  </SelectField>{!choices.length && empty && <em>{empty}</em>}</label>
+  return <label className="block-field"><span>{label}</span><ChoiceField value={value} emptyLabel="Any" disabled={!choices.length && value === undefined} choices={choices} onChange={set} unavailableLabel={(entry) => `${entry} (unavailable)`} />{!choices.length && empty && <em>{empty}</em>}</label>
 }
 
 /** The pickers of a device chosen from an event catalog: the device, then its channel and event, narrowed by the domain setting. */

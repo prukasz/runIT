@@ -3,7 +3,8 @@ import { readStored, usePersistEffect } from './hooks/useStorage'
 import { PanelHeader } from './components/PanelHeader'
 import { Badge } from './components/Badge'
 import { Card, CardStack } from './components/Card'
-import { FormGrid, FormRow, SelectField, TextField } from './components/FormField'
+import { ChoiceField } from './components/ChoiceField'
+import { FormGrid, FormRow, TextField } from './components/FormField'
 import { PaletteSearch } from './components/PaletteSearch'
 import {
   ArrowLeft,
@@ -516,38 +517,22 @@ export function DataConnectorsEditor({ workspace, bleProfile }: DataConnectorsEd
           <div className="conn-add-binding-bar">
             <h4>Connect Transport</h4>
             <div className="conn-add-binding-controls">
-              <SelectField
-                className="form-field-panel"
-                value={newProvider}
-                onChange={(e) => {
-                  const val = e.target.value as 'BLE' | 'UART'
+              <ChoiceField<'BLE' | 'UART'> selectClassName="form-field-panel" value={newProvider}
+                choices={[{ value: 'BLE', label: 'Bluetooth LE' }, { value: 'UART', label: 'Serial Console (UART)' }]}
+                onChange={(val) => {
+                  if (!val) return
                   setNewProvider(val)
                   setNewEndpoint(val === 'BLE' ? DEFAULT_BLE_ENDPOINT : DEFAULT_UART_ENDPOINT)
-                }}
-              >
-                <option value="BLE">Bluetooth LE</option>
-                <option value="UART">Serial Console (UART)</option>
-              </SelectField>
+                }} />
 
               {newProvider === 'BLE' ? (
-                <SelectField
-                  className="form-field-panel"
-                  value={newEndpoint}
-                  onChange={(e) => setNewEndpoint(e.target.value)}
-                >
-                  {board.characteristics.map((c) => (
-                    <option key={c.symbol} value={hex(c.uuid, 4)}>
-                      {hex(c.uuid, 4)} ({c.name})
-                    </option>
-                  ))}
-                  {bleProfile?.services.flatMap((s) => s.characteristics)
-                    .filter((c) => !board.characteristics.some((own) => hex(own.uuid, 4) === c.uuid.toUpperCase().replace(/^0X/, '0x')))
-                    .map((c) => (
-                      <option key={c.id} value={c.uuid}>
-                        {c.uuid} ({c.name})
-                      </option>
-                    ))}
-                </SelectField>
+                <ChoiceField<string> selectClassName="form-field-panel" value={newEndpoint} onChange={(next) => next !== undefined && setNewEndpoint(next)}
+                  choices={[
+                    ...board.characteristics.map((c) => ({ value: hex(c.uuid, 4), label: `${hex(c.uuid, 4)} (${c.name})` })),
+                    ...(bleProfile?.services.flatMap((s) => s.characteristics)
+                      .filter((c) => !board.characteristics.some((own) => hex(own.uuid, 4) === c.uuid.toUpperCase().replace(/^0X/, '0x')))
+                      .map((c) => ({ value: c.uuid, label: `${c.uuid} (${c.name})` })) ?? []),
+                  ]} />
               ) : (
                 <TextField
                   type="text"
@@ -558,15 +543,8 @@ export function DataConnectorsEditor({ workspace, bleProfile }: DataConnectorsEd
                 />
               )}
 
-              <SelectField
-                className="form-field-panel"
-                value={newDirection}
-                onChange={(e) => setNewDirection(e.target.value as 'TX' | 'RX' | 'TX_RX')}
-              >
-                <option value="TX">Outbound (Send)</option>
-                <option value="RX">Inbound (Receive)</option>
-                <option value="TX_RX">Bidirectional (In / Out)</option>
-              </SelectField>
+              <ChoiceField<'TX' | 'RX' | 'TX_RX'> selectClassName="form-field-panel" value={newDirection} onChange={(next) => next && setNewDirection(next)}
+                choices={[{ value: 'TX', label: 'Outbound (Send)' }, { value: 'RX', label: 'Inbound (Receive)' }, { value: 'TX_RX', label: 'Bidirectional (In / Out)' }]} />
 
               <button
                 type="button"

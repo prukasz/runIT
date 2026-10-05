@@ -1,6 +1,6 @@
 import type { CanvasBlock, FolderNode, ObjectNode, ObjectPath, PathStep, ProjectDocument } from '../project'
 import { walkObjects } from '../project'
-import { blockPinAt, runitVmCatalog } from '../descriptors'
+import { blockPinAt, DEFAULT_ENO, runitVmCatalog } from '../descriptors'
 
 /*
  * Variable paths as the user reads and types them: names from the tree,
@@ -26,8 +26,11 @@ export const pathLabel = (path: ObjectPath, project?: ProjectDocument, blocks?: 
   const outputIndex = pin?.[2].startsWith('q') ? Number(pin[2].slice(1)) : -1
   const outputAlias = outputIndex >= 0 ? block?.outputAliases?.[outputIndex] : undefined
   const outputTitle = outputIndex >= 0 && block ? blockPinAt(runitVmCatalog().block(block.type)?.outputs ?? { min: 0, max: 0, pins: [] }, outputIndex)?.title : undefined
+  // The ENO reads as what the block calls it (Tick, Loop body), else "Done".
+  const enoTitle = block && pin?.[2] === 'eno' ? runitVmCatalog().block(block.type)?.eno.title : undefined
+  const enoLabel = enoTitle && enoTitle !== DEFAULT_ENO.title ? enoTitle : 'Done'
   const root = block && pin
-    ? outputIndex >= 0 ? `${alias}.${outputAlias || outputTitle || pin[2]}` : `${alias}:${pin[2] === 'eno' ? 'ENO' : 'body'}`
+    ? outputIndex >= 0 ? `${alias}.${outputAlias || outputTitle || pin[2]}` : `${alias}:${pin[2] === 'eno' ? enoLabel : 'body'}`
     : (project && nameOf(project, path.root)) || path.root
   return root + (path.steps ?? []).map((step) => (step.kind === 'index' ? `[${step.index}]` : step.kind === 'name' ? `.${step.name}` : `[${pathLabel(step.index, project, blocks)}]`)).join('')
 }
@@ -76,7 +79,9 @@ export const parsePathText = (text: string, project: ProjectDocument): ObjectPat
     if (!head) throw new PathTextError(`A name is missing at position ${start + 1}.`)
     let root: string | undefined
     let rest: string[] = []
-    if (BLOCK_PIN.test(head)) root = head
+    // The label says Done, the stored pin is `eno`.
+    const pinHead = head.replace(/:(done|next|eno)$/i, ':eno')
+    if (BLOCK_PIN.test(pinHead)) root = pinHead
     else {
       const parts = head.split('.')
       for (let cut = parts.length; cut > 0 && !root; cut--) {

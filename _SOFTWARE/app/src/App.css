@@ -226,7 +226,8 @@ input[type="range"] {
 .object-main-top { border-bottom: 1px solid var(--divider); }
 .object-main-top > input { flex: 1; font-size: 14px; font-weight: 600; }
 .object-main-top > input::placeholder { color: var(--muted); font-weight: 400; opacity: 0.7; }
-.object-main-top > select { width: auto; max-width: 130px; padding: 5px 8px; font-size: 12px; }
+.object-main-top > select, .object-main-top .listable-field-wrap { width: auto; max-width: 130px; flex: none; }
+.object-main-top > select { padding: 5px 8px; font-size: 12px; }
 .object-main-shape { padding: 4px 6px; border-radius: 4px; background: color-mix(in srgb, var(--accent) 14%, var(--panel)); color: var(--accent); font-size: 11px; }
 .object-main-kind { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; flex-shrink: 0; }
 .object-main-name { flex: 1; min-width: 0; overflow: hidden; color: var(--active); font-size: 15px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }

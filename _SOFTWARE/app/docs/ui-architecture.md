@@ -22,6 +22,7 @@ The explorer and details panels share `side-panel`, `side-panel-header`, and `si
 | `components/FormField/SelectField` | Native dropdowns with the same field surface and focus behavior. Keep native select semantics for finite choices. |
 | `components/EditableField` | A text field with an edit or protected icon. Supports editable, read-only, and disabled values. |
 | `components/ListableField` | A dropdown with option data and a chevron or locked icon; built on `SelectField`. |
+| `components/ChoiceField` | The dropdown for picking a thing from a list (device, pin, channel, event, action, mode, enum): the caller supplies the `choices` (its source and filter), the field adds the empty option / placeholder, a stored value the list no longer offers kept visible, hover descriptions and groups. Built on `ListableField`; use it for every such picker instead of a bare `SelectField` + `<option>` list. |
 | `components/PaletteSearch` | Search input, icon, clear action, and Escape behavior for explorer palettes. Views supply their own filtering rules. |
 | `components/PaletteSectionHeader` | Collapsible palette heading with chevron, label, filtered count, and optional Add action. Views own expanded state and filtering. |
 | `components/InlineRename` | One commit or cancel path for canvas names, block names, and aliases; callers decide how to validate the final text. |

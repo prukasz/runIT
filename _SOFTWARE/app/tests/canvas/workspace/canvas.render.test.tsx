@@ -181,7 +181,7 @@ describe('canvas renders', () => {
     // The source pickers: Any first and selected, then a device, channel and event the chosen domain offers.
     const event: CanvasBlock = { id: 'event1', type: 'ON_EVENT', x: 0, y: 0, settings: { domain: 'POWER', device_id: 12 } }
     const eventHtml = renderToString(<Harness part="details" canvases={[{ id: 'a', name: 'Main', blocks: [event] }]} selected={event} />)
-    expect(eventHtml).toContain('<option value="any">Any</option>')
+    expect(eventHtml).toContain('<option value="">Any</option>')
     expect(eventHtml).toMatch(/<option value="12" selected="">INA3221 \(#12\)/)
     expect(eventHtml).toContain('Monitor Channel')
     expect(eventHtml).toContain('Over-Current Critical')

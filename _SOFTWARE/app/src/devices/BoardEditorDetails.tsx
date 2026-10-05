@@ -2,7 +2,8 @@ import { FlipHorizontal2, RotateCw, Trash2 } from 'lucide-react'
 import { Badge } from '../components/Badge'
 import { Button, ToggleChip } from '../components/Button'
 import { Card } from '../components/Card'
-import { FormGrid, FormRow, NumberField, SelectField, TextField } from '../components/FormField'
+import { ChoiceField } from '../components/ChoiceField'
+import { FormGrid, FormRow, NumberField, TextField } from '../components/FormField'
 import { ListableField } from '../components/ListableField'
 import { PanelHeader } from '../components/PanelHeader/PanelHeader'
 import { connectorType, pinLabel, terminalId } from '../domain/board'
@@ -102,22 +103,18 @@ function PinRow({ editor: e, connectorId, index, model }: { editor: BoardEditorA
         <TextField className="form-field-panel" aria-label={`Pin ${index + 1} label`} value={pin.label ?? ''} placeholder={type.pins[index].name} onChange={(event) => e.setPinLabel(connectorId, index, event.target.value)} />
         <FlowBadge spec={model.terminals.get(terminalId(connectorId, index + 1))} />
       </div>
-      <SelectField className="form-field-panel" aria-label={`Pin ${index + 1} binding`} value={bindingKey(bind)} onChange={(event) => change(event.target.value)}>
-        <option value="none">Not connected</option>
-        <optgroup label="Power net">
-          {nets.map(([name, spec]) => <option key={name} value={`net:${name}`}>{spec.label}{spec.kind === 'gnd' ? ' (GND)' : ''}</option>)}
-        </optgroup>
-        <optgroup label="Bus signal">
-          {model.signals.map((signal) => <option key={signal.id} value={`signal:${signal.id}`}>{signal.label}</option>)}
-        </optgroup>
-        <option value="sys">Installed sys pin</option>
-      </SelectField>
+      <ChoiceField<string> selectClassName="form-field-panel" aria-label={`Pin ${index + 1} binding`} value={bindingKey(bind)} onChange={(next) => next !== undefined && change(next)}
+        choices={[
+          { value: 'none', label: 'Not connected' },
+          ...nets.map(([name, spec]) => ({ value: `net:${name}`, label: `${spec.label}${spec.kind === 'gnd' ? ' (GND)' : ''}`, group: 'Power net' })),
+          ...model.signals.map((signal) => ({ value: `signal:${signal.id}`, label: signal.label, group: 'Bus signal' })),
+          { value: 'sys', label: 'Installed sys pin' },
+        ]} />
       {bind.type === 'net' && net?.input && (
         <FormRow label="Power" note="This net can be fed from outside: the pin either provides it (a power output) or takes it in (the board's input).">
-          <SelectField className="form-field-panel" aria-label={`Pin ${index + 1} power flow`} value={bind.role === 'input' ? 'input' : 'source'} onChange={(event) => e.setPinBinding(connectorId, index, { type: 'net', net: bind.net, ...(event.target.value === 'input' ? { role: 'input' as const } : {}) })}>
-            <option value="source">Provides power</option>
-            <option value="input">Takes power in</option>
-          </SelectField>
+          <ChoiceField<'source' | 'input'> selectClassName="form-field-panel" aria-label={`Pin ${index + 1} power flow`} value={bind.role === 'input' ? 'input' : 'source'}
+            choices={[{ value: 'source', label: 'Provides power' }, { value: 'input', label: 'Takes power in' }]}
+            onChange={(next) => next && e.setPinBinding(connectorId, index, { type: 'net', net: bind.net, ...(next === 'input' ? { role: 'input' as const } : {}) })} />
         </FormRow>
       )}
       {bind.type === 'sys' && (
@@ -125,9 +122,8 @@ function PinRow({ editor: e, connectorId, index, model }: { editor: BoardEditorA
           <SysPicker providers={e.providers} value={{ device: bind.device, pin: bind.pin }} onChange={(ref) => ref && e.setPinBinding(connectorId, index, { type: 'sys', ...ref, ...(bind.overrides ? { overrides: bind.overrides } : {}) })} />
           <FormGrid>
             <FormRow label="Role" note="Producer drives the signal, consumer receives it, either takes the role the other end needs. Left on the provider default, it comes from the firmware (the pins csv or what the device can do with a pin).">
-              <SelectField className="form-field-panel" aria-label={`Pin ${index + 1} role`} value={bind.overrides?.dir ?? ''} onChange={(event) => e.setPinBinding(connectorId, index, { ...bind, overrides: { ...bind.overrides, dir: (event.target.value || undefined) as 'in' | 'out' | 'inout' | undefined } })}>
-                {ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </SelectField>
+              <ChoiceField<string> selectClassName="form-field-panel" aria-label={`Pin ${index + 1} role`} value={bind.overrides?.dir ?? ''} choices={ROLE_OPTIONS}
+                onChange={(next) => next !== undefined && e.setPinBinding(connectorId, index, { ...bind, overrides: { ...bind.overrides, dir: (next || undefined) as 'in' | 'out' | 'inout' | undefined } })} />
             </FormRow>
             <FormRow label="Max mV" note="What this pin tolerates on this board (an analog input behind a divider takes more than the chip).">
               <TextField className="form-field-panel" inputMode="numeric" aria-label={`Pin ${index + 1} max millivolts`} value={bind.overrides?.mV_max ?? ''} placeholder="chip default" onChange={(event) => e.setPinBinding(connectorId, index, { ...bind, overrides: { ...bind.overrides, mV_max: numberOrUndefined(event.target.value) } })} />
