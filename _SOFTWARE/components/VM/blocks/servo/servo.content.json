@@ -18,8 +18,7 @@
         "device_field": "device_id",
         "value_spec": "POSITION",
         "overrides": "value",
-        "required": false,
-        "hidden_by_default": true
+        "required": false
       }
     ]
   },

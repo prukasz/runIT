@@ -26,7 +26,7 @@ right sidebar (collapsed - run stop and so on options ) and expanded with settin
 some more selected details: 
 dedicated docs page and info page or window for all components if help provided - like how to use and so on. 
 Auto adjusted and collapsing left and right bar size 
-2 wievs of blocks on canvas - basic and extended 
+one view of blocks on canvas; only expressions (user-typed content) have a "show more" arrow
 canvas with autosnap grid 
 marking of repeat loops 
 dark and light mode 

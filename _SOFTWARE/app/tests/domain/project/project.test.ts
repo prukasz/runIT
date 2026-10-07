@@ -72,4 +72,12 @@ describe('object tree edits', () => {
     expect(findObject(moved, 'r1')?.node).toMatchObject({ targetId: 'v2' })
     expect(findObject(removeObject(moved, 'v2'), 'r1')).toBeUndefined()
   })
+
+  it('unwires what the canvases had pointing at a removed object', () => {
+    const block = { id: 'b1', type: 'EXPR', x: 0, y: 0, inputs: [{ root: 'v1' }, { root: 'v2' }, null], outputs: ['v1', null], enables: [{ root: 'v1' }, { root: 'v2' }] }
+    const withCanvas = { ...tree, canvases: [{ id: 'c1', name: 'Main', blocks: [block], variables: [{ id: 'chip', path: { root: 'v1' }, x: 0, y: 0 }] }] }
+    const after = removeObject(withCanvas, 'v1').canvases![0]!
+    expect(after.blocks[0]).toMatchObject({ inputs: [null, { root: 'v2' }, null], outputs: [null, null], enables: [{ root: 'v2' }] })
+    expect(after.variables).toEqual([])
+  })
 })

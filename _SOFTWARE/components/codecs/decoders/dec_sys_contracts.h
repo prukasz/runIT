@@ -365,6 +365,35 @@ static inline SE_MUST_USE err_h decoder_packet_sys_power_monitor_get_current_t(p
   return sys_interface_respond(&rsp, sizeof(rsp));
 }
 
+#define HEADER_packet_sys_power_supply_select_t 0x3A
+typedef struct __packed {
+  uint8_t device_id; //@required @alias Device ID
+  uint8_t source;    //@required @alias Source @enum-ref sys_power_supply_source_e @one-of [$SYS_POWER_SUPPLY_OFF, $SYS_POWER_SUPPLY_A, $SYS_POWER_SUPPLY_B]
+} packet_sys_power_supply_select_t;
+
+static inline SE_MUST_USE err_h decoder_packet_sys_power_supply_select_t(packet_sys_power_supply_select_t* packet) {
+  ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "selecting supply source %u (dev %u)", packet->source, packet->device_id);
+  return sys_power_supply_select(packet->device_id, (sys_power_supply_source_e)packet->source);
+}
+
+#define HEADER_packet_sys_power_supply_get_source_t 0x3B
+typedef struct __packed {
+  uint8_t device_id; //@required @alias Device ID
+} packet_sys_power_supply_get_source_t;
+
+typedef struct __packed {
+  uint8_t device_id; //@alias Device ID
+  uint8_t source;    //@alias Source @enum-ref sys_power_supply_source_e
+} packet_sys_power_supply_get_source_response_t;
+
+static inline SE_MUST_USE err_h decoder_packet_sys_power_supply_get_source_t(packet_sys_power_supply_get_source_t* packet) {
+  ESP_LOGI(DEC_SYS_CONTRACTS_TAG, "reading supply source (dev %u)", packet->device_id);
+  sys_power_supply_source_e source = SYS_POWER_SUPPLY_OFF;
+  SE_TRY(sys_power_supply_get_source(packet->device_id, &source));
+  packet_sys_power_supply_get_source_response_t rsp = {.device_id = packet->device_id, .source = (uint8_t)source};
+  return sys_interface_respond(&rsp, sizeof(rsp));
+}
+
 #define HEADER_packet_sys_power_usb_pd_set_t 0x36
 typedef struct __packed {
   uint8_t device_id;   //@required @alias Device ID
@@ -554,6 +583,8 @@ static inline SE_MUST_USE err_h decoder_packet_sys_hbridge_coast_t(packet_sys_hb
   X(HEADER_packet_sys_power_vreg_set_current_t, packet_sys_power_vreg_set_current_t, decoder_packet_sys_power_vreg_set_current_t)                               \
   X(HEADER_packet_sys_power_monitor_get_voltage_t, packet_sys_power_monitor_get_voltage_t, decoder_packet_sys_power_monitor_get_voltage_t)    \
   X(HEADER_packet_sys_power_monitor_get_current_t, packet_sys_power_monitor_get_current_t, decoder_packet_sys_power_monitor_get_current_t)    \
+  X(HEADER_packet_sys_power_supply_select_t, packet_sys_power_supply_select_t, decoder_packet_sys_power_supply_select_t)                      \
+  X(HEADER_packet_sys_power_supply_get_source_t, packet_sys_power_supply_get_source_t, decoder_packet_sys_power_supply_get_source_t)          \
   X(HEADER_packet_sys_power_usb_pd_set_t, packet_sys_power_usb_pd_set_t, decoder_packet_sys_power_usb_pd_set_t)                               \
   X(HEADER_packet_sys_power_usb_pd_list_t, packet_sys_power_usb_pd_list_t, decoder_packet_sys_power_usb_pd_list_t)                            \
   X(HEADER_packet_sys_power_usb_pd_get_limits_t, packet_sys_power_usb_pd_get_limits_t, decoder_packet_sys_power_usb_pd_get_limits_t)            \

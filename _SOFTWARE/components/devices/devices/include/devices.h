@@ -15,6 +15,7 @@
 #include "device_tps55289.h"
 #include "device_drv8962.h"
 #include "device_servo.h"
+#include "device_power_mux.h"
 
 /**
  * @brief Register every device class with sys_device, so the packet router can create them by type id.

@@ -4,7 +4,7 @@ import { Button } from './components/Button'
 import { Card, CardStack } from './components/Card'
 import { TextField } from './components/FormField'
 import { PanelHeader } from './components/PanelHeader'
-import { readCode } from './boardCode'
+import { readCode, SLOT_NAMES, STORED_SLOT_KEYS } from './boardCode'
 import { recoveredCanvases } from './canvas'
 import { runitErrorCatalog } from './domain/descriptors'
 import type { DeviceCatalog } from './domain/descriptors'
@@ -61,7 +61,8 @@ export function ProjectFilePalette({ workspace, settings, devices, deviceCatalog
   const [busy, setBusy] = useState<string>()
   const [progress, setProgress] = useState<{ done: number; total: number }>()
   const [result, setResult] = useState<{ ok: boolean; text: string }>()
-  const { info } = board
+  const { infos } = board
+  const hasStored = !!infos && STORED_SLOT_KEYS.some((slot) => infos[slot].stored)
 
   const run = async (label: string, operation: () => Promise<string>) => {
     setBusy(label)
@@ -99,12 +100,21 @@ export function ProjectFilePalette({ workspace, settings, devices, deviceCatalog
     setTimeout(() => URL.revokeObjectURL(url), 0)
   }
   const recover = () => {
-    if (!info?.stored || !session) return
+    if (!infos || !session || !STORED_SLOT_KEYS.some((slot) => infos[slot].stored)) return
     void run('Recover', async () => {
-      const { bytes: stored } = await readCode(session, info, (done, total) => setProgress({ done, total }))
-      const recovered = decodeStoredCode(decodeFrameList(stored), BOARD_DEFAULT_SETTINGS, storedCodeContext(), project.name || 'Recovered')
-      onRecover(recovered, info.autostart)
-      return `Recovered from the board. ${summary(recovered, info.frameCount)}`
+      // Hardware config first, then the program: the order the board replays them.
+      const stored = STORED_SLOT_KEYS.filter((slot) => infos[slot].stored)
+      const total = stored.reduce((sum, slot) => sum + infos[slot].length, 0)
+      let before = 0
+      const frames: Uint8Array[] = []
+      for (const slot of stored) {
+        const { bytes } = await readCode(session, infos[slot], (done) => setProgress({ done: before + done, total }))
+        frames.push(...decodeFrameList(bytes))
+        before += infos[slot].length
+      }
+      const recovered = decodeStoredCode(frames, BOARD_DEFAULT_SETTINGS, storedCodeContext(), project.name || 'Recovered')
+      onRecover(recovered, infos.program.autostart)
+      return `Recovered from the board. ${summary(recovered, frames.length)}`
     })
   }
 
@@ -134,8 +144,8 @@ export function ProjectFilePalette({ workspace, settings, devices, deviceCatalog
       </div>
       <div className="file-group">
         <h3>Board</h3>
-        <p className="file-hint">{session ? (info?.stored ? `The board stores ${info.frameCount} frames.` : 'The board stores no code.') : 'Connect a board to read its code.'}</p>
-        <Button block disabled={!session || !!busy || !info?.stored} onClick={recover} title="Read the board's code back into this project">
+        <p className="file-hint">{session ? (hasStored ? `The board stores ${STORED_SLOT_KEYS.filter((slot) => infos?.[slot].stored).map((slot) => `${infos![slot].frameCount} ${SLOT_NAMES[slot].toLowerCase()} frames`).join(' and ')}.` : 'The board stores no code.') : 'Connect a board to read its code.'}</p>
+        <Button block disabled={!session || !!busy || !hasStored} onClick={recover} title="Read the board's code back into this project">
           <HardDriveDownload aria-hidden="true" /><span>{busy === 'Recover' && progress ? `Recovering ${Math.round((100 * progress.done) / Math.max(1, progress.total))}%` : 'Recover from board'}</span>
         </Button>
       </div>

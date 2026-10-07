@@ -206,16 +206,6 @@ export const pickerRows = (block: CanvasBlock, type: VmBlockType | undefined, sh
     rows.push({ key: `in${pin.index}`, label: pin.title, detail: '', type: pin.value, target: { block: block.id, kind: 'in', index: pin.index }, ok: accepts(pin.value, pending.carries, { fromBlock, body }) })
   }
   const count = type ? pinCount(type.inputs, block.inputs?.length ?? 0) : 0
-  // Pins the block has but hides until they are wired (or chosen) are offered under their own name.
-  if (type && !body) {
-    for (let index = 0; index < count; index++) {
-      const pin = blockPinAt(type.inputs, index)
-      const current = block.inputs?.[index]
-      const taken = Boolean(current && (typeof current === 'string' ? current !== '' : current.root !== ''))
-      if (!pin?.hiddenByDefault || taken || shape.inputs.some((entry) => entry.index === index)) continue
-      rows.push({ key: `in${index}`, label: pin.title, detail: 'optional pin, shown once wired', type: pin.value, target: { block: block.id, kind: 'in', index }, ok: accepts(pin.value, pending.carries, { fromBlock }) })
-    }
-  }
   // A block whose inputs repeat (EXPR, EXPR_BIT) takes one more.
   const nextPin = type && count < type.inputs.max ? blockPinAt(type.inputs, count) : undefined
   if (nextPin && !body) rows.push({ key: `in${count}`, label: 'New input', detail: 'adds input', type: nextPin.value, target: { block: block.id, kind: 'in', index: count }, ok: accepts(nextPin.value, pending.carries, { fromBlock }) })

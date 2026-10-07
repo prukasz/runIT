@@ -2,7 +2,7 @@
   "$schema": "data-structures/schema/errors.schema.json",
   "schemaVersion": 1,
   "kind": "errors",
-  "schema_id": 2456398510,
+  "schema_id": 1449635460,
   "packet": {
     "stream": "0x04",
     "byte_order": "little",
@@ -353,6 +353,16 @@
     {
       "name": "OWNER_SYS_POWER_SETTINGS",
       "id": 42004,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h"
+    },
+    {
+      "name": "OWNER_SYS_POWER_SUPPLY_SELECT",
+      "id": 42005,
+      "source_file": "components/system/sys_power/errors/sys_error_power.h"
+    },
+    {
+      "name": "OWNER_SYS_POWER_SUPPLY_GET",
+      "id": 42006,
       "source_file": "components/system/sys_power/errors/sys_error_power.h"
     },
     {
@@ -5420,6 +5430,30 @@
           }
         ]
       }
+    },
+    {
+      "name": "ERR_PROJECT_BAD_SLOT",
+      "id": 45579,
+      "level": 1,
+      "source_file": "components/system/sys_project/errors/sys_error_project.h",
+      "payload": {
+        "size": 1,
+        "fields": [
+          {
+            "name": "slot",
+            "type": "uint8_t",
+            "offset": 0
+          }
+        ]
+      },
+      "message": {
+        "format": "stored code slot %u doesn't exist (0 config, 1 program)",
+        "args": [
+          {
+            "field": "slot"
+          }
+        ]
+      }
     }
   ],
   "value_names": {
@@ -6370,6 +6404,15 @@
           "brake",
           "coast",
           "get_current_mA"
+        ]
+      },
+      "5": {
+        "symbol": "SYS_DEVICE_CONTRACT_POWER_SUPPLY",
+        "table": "sys_power_supply_feature_names",
+        "source_file": "components/system/sys_power/sys_power.c",
+        "features": [
+          "select",
+          "get_source"
         ]
       }
     }

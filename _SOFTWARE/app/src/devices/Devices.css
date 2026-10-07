@@ -397,6 +397,8 @@
 .board-surface.is-wiring-available .board-art-layer, .board-surface.is-wiring-available .board-device-art { opacity: 0.45; transition: opacity 120ms ease; }
 .board-surface.is-wiring { cursor: crosshair; }
 /* Wiring options in the toolbar and wiring cards in the right panel */
+.board-send-result { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; padding: 0 6px; align-self: center; }
+.board-send-result.is-error { color: var(--danger, #d33); }
 .board-wiring-options { display: flex; align-items: center; gap: 6px; padding-left: 8px; border-left: 1px solid var(--divider); }
 .shell .main-action-bar .board-wiring-options .ui-chip { width: auto; height: 26px; padding: 0 10px; display: inline-flex; align-items: center; gap: 4px; }
 .board-wire-ends { margin: 0 0 8px; font-size: 13px; line-height: 1.5; }

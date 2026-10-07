@@ -1,0 +1,183 @@
+{
+  "schemaVersion": 1,
+  "kind": "vm-block-content",
+  "id": 20,
+  "name": "VM_BLK_HBRIDGE",
+  "source_file": "components/VM/blocks/hbridge/vm_block_hbridge.h",
+  "activation": {
+    "kind": "enabled"
+  },
+  "inputs": {
+    "min": 0,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "drive",
+        "value": "f32",
+        "overrides": "drive",
+        "required": false
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 0,
+    "pins": []
+  },
+  "rules": [
+    {
+      "rule": "action is a vm_hbridge_action_e value and when_not_active a vm_hbridge_idle_e value.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    },
+    {
+      "rule": "drive is a finite number.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 43296
+    }
+  ],
+  "state": {
+    "struct": "vm_block_hbridge_data_t",
+    "source_file": "components/VM/blocks/hbridge/vm_block_hbridge.h",
+    "size": 12,
+    "align": 4,
+    "fields": [
+      {
+        "name": "drive",
+        "c_type": "float",
+        "offset": 0,
+        "size": 4,
+        "description": "Drive in percent (-100..100) when the Drive input is unwired",
+        "source": "user",
+        "overridden_by": 0
+      },
+      {
+        "name": "device_id",
+        "c_type": "uint8_t",
+        "offset": 4,
+        "size": 1,
+        "description": "H-bridge device",
+        "id_kind": "device",
+        "contract": "packet_sys_hbridge_set_drive_t",
+        "source": "user"
+      },
+      {
+        "name": "channel",
+        "c_type": "uint8_t",
+        "offset": 5,
+        "size": 1,
+        "description": "Channel of the device to drive",
+        "id_kind": "pin",
+        "device_field": "device_id",
+        "source": "user"
+      },
+      {
+        "name": "action",
+        "c_type": "uint8_t",
+        "offset": 6,
+        "size": 1,
+        "description": "What the block does while it is enabled",
+        "enum_ref": "vm_hbridge_action_e",
+        "source": "user"
+      },
+      {
+        "name": "when_not_active",
+        "c_type": "uint8_t",
+        "offset": 7,
+        "size": 1,
+        "description": "What the bridge does while the block is not enabled",
+        "enum_ref": "vm_hbridge_idle_e",
+        "source": "user"
+      },
+      {
+        "name": "last",
+        "c_type": "uint8_t",
+        "offset": 8,
+        "size": 1,
+        "description": "vm_hbridge_last_e, what was commanded last",
+        "source": "runtime"
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint8_t",
+        "offset": 9,
+        "size": 1,
+        "description": "Align the next field",
+        "source": "padding"
+      },
+      {
+        "name": "last_x10",
+        "c_type": "int16_t",
+        "offset": 10,
+        "size": 2,
+        "description": "Drive last sent, in tenths of a percent",
+        "source": "runtime"
+      }
+    ]
+  },
+  "min_custom_len": 12,
+  "enums": {
+    "vm_hbridge_action_e": {
+      "alias": "H-Bridge Action",
+      "source_file": "components/VM/blocks/hbridge/vm_block_hbridge.h",
+      "members": [
+        {
+          "name": "VM_HBRIDGE_ACTION_DRIVE",
+          "value": 0,
+          "alias": "Drive",
+          "description": "Follow the Drive input (the default: 0 is what a fresh block holds)"
+        },
+        {
+          "name": "VM_HBRIDGE_ACTION_BRAKE",
+          "value": 1,
+          "alias": "Brake",
+          "description": "Short the motor terminals"
+        },
+        {
+          "name": "VM_HBRIDGE_ACTION_COAST",
+          "value": 2,
+          "alias": "Coast",
+          "description": "Release the motor (outputs high-Z)"
+        }
+      ]
+    },
+    "vm_hbridge_idle_e": {
+      "alias": "H-Bridge Idle Action",
+      "source_file": "components/VM/blocks/hbridge/vm_block_hbridge.h",
+      "members": [
+        {
+          "name": "VM_HBRIDGE_IDLE_COAST",
+          "value": 0,
+          "alias": "Coast",
+          "description": "Release the motor (the default: 0 is what a fresh block holds)"
+        },
+        {
+          "name": "VM_HBRIDGE_IDLE_BRAKE",
+          "value": 1,
+          "alias": "Brake",
+          "description": "Short the motor terminals"
+        },
+        {
+          "name": "VM_HBRIDGE_IDLE_HOLD",
+          "value": 2,
+          "alias": "Hold",
+          "description": "Leave the bridge as it is"
+        }
+      ]
+    },
+    "vm_in_hbridge_e": {
+      "alias": "H-Bridge Inputs",
+      "source_file": "components/VM/blocks/hbridge/vm_block_hbridge.h",
+      "members": [
+        {
+          "name": "VM_IN_HBRIDGE_DRIVE",
+          "value": 0,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  },
+  "min_enables": 0
+}

@@ -39,7 +39,9 @@ export const pathLabel = (path: ObjectPath, project?: ProjectDocument, blocks?: 
 export const nameIds = (message: string, project?: ProjectDocument): string =>
   project ? message.replace(/'([^'\s]+)'/g, (whole, id: string) => {
     const name = nameOf(project, id)
-    return name && name !== id ? `'${name}'` : whole
+    if (name && name !== id) return `'${name}'`
+    // An ID that no longer names anything (its variable was deleted) is no use to read.
+    return id.startsWith('obj-') ? 'a variable that was deleted' : whole
   }) : message
 
 /** A label short enough for a chip: whole when it fits, else the end that names it (`…temperature`, `…gains[2]`). */

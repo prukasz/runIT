@@ -904,6 +904,86 @@
           }
         },
         {
+          "id": "packet_sys_power_supply_select_t",
+          "packet": "packet_sys_power_supply_select_t",
+          "packet_header": "0x3A",
+          "decoder": "decoder_packet_sys_power_supply_select_t()",
+          "field_order": [
+            "device_id",
+            "source"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            },
+            "source": {
+              "type": "uint8_t",
+              "alias": "Source",
+              "required": true,
+              "one_of": [
+                {
+                  "symbol": "SYS_POWER_SUPPLY_OFF",
+                  "enum": "sys_power_supply_source_e",
+                  "value": 0,
+                  "alias": "Off",
+                  "description": "The load is not fed"
+                },
+                {
+                  "symbol": "SYS_POWER_SUPPLY_A",
+                  "enum": "sys_power_supply_source_e",
+                  "value": 1,
+                  "alias": "Source A",
+                  "description": "The load is fed from source A of the power mux"
+                },
+                {
+                  "symbol": "SYS_POWER_SUPPLY_B",
+                  "enum": "sys_power_supply_source_e",
+                  "value": 2,
+                  "alias": "Source B",
+                  "description": "The load is fed from source B of the power mux"
+                }
+              ],
+              "enum_ref": "sys_power_supply_source_e"
+            }
+          }
+        },
+        {
+          "id": "packet_sys_power_supply_get_source_t",
+          "packet": "packet_sys_power_supply_get_source_t",
+          "packet_header": "0x3B",
+          "decoder": "decoder_packet_sys_power_supply_get_source_t()",
+          "field_order": [
+            "device_id"
+          ],
+          "fields": {
+            "device_id": {
+              "type": "uint8_t",
+              "alias": "Device ID",
+              "required": true
+            }
+          },
+          "response": {
+            "struct": "packet_sys_power_supply_get_source_response_t",
+            "field_order": [
+              "device_id",
+              "source"
+            ],
+            "fields": {
+              "device_id": {
+                "type": "uint8_t",
+                "alias": "Device ID"
+              },
+              "source": {
+                "type": "uint8_t",
+                "alias": "Source",
+                "enum_ref": "sys_power_supply_source_e"
+              }
+            }
+          }
+        },
+        {
           "id": "packet_sys_power_usb_pd_set_t",
           "packet": "packet_sys_power_usb_pd_set_t",
           "packet_header": "0x36",

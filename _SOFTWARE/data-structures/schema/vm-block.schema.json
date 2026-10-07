@@ -34,7 +34,6 @@
       "additionalProperties": false,
       "properties": { "lead": { "$ref": "#/$defs/template" }, "value": { "$ref": "#/$defs/template" } }
     },
-    "always_detailed": { "type": "boolean", "description": "The block is always drawn in its detailed view (//@always-detailed): its constants are visible and the view choice is not offered." },
     "loop_use": { "enum": ["refused", "once-per-turn"], "description": "How the block sits in a loop body (//@loop): refused (it keeps one state, so the compiler refuses it) or once-per-turn (it acts on every turn; the compiler warns). Absent: no restriction." },
     "enable": {
       "description": "How the block's EN is worded (display.json `enable`): its connector's title, what it does, whether it carries a signal (shown as true / false) and what to tell the user when nothing is connected.",
@@ -204,7 +203,6 @@
               "value": { "enum": ["bool", "u8", "u32", "i32", "f32", "scalar", "gate", "object", "ptr-cell"] },
               "id_kind": {"enum": ["device", "pin"]},
               "device_field": {"type": "string"},
-              "hidden_by_default": {"type": "boolean", "description": "Not drawn until it is wired or chosen. Implied by overrides."},
               "value_spec": {"type": "string", "description": "The device value (//#value NAME in the device's header) whose variant, chosen by the settings of the device in device_field, says what this pin carries: its title, unit and range."},
               "user_write": {"const": true, "description": "The pin names a variable the block writes as the program's user (//@in @user-write): the device refuses a block-owned object there."},
               "overrides": { "type": "string", "description": "The state field used as a constant while this pin is unwired; the user enters that constant instead of wiring the pin." },

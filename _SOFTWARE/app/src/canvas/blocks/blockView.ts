@@ -1,4 +1,5 @@
 import { arrangeProgram } from '../../domain/canvas'
+import { blockIndexKind } from './blockDevicePins'
 import { compileProgram } from '../../domain/compiler'
 import type { Diagnostic } from '../../domain/compiler'
 import { blockPinAt, DEFAULT_ENO, enumAlias, runitDeviceCatalog } from '../../domain/descriptors'
@@ -22,7 +23,7 @@ const ROW = GRID
 
 export interface BlockPinView {
   readonly index: number
-  /** The setting this input reads while unwired (`@overrides`): the detailed view draws it as a constant. */
+  /** The setting this input reads while unwired (`@overrides`): the pin is drawn with it as a constant. */
   readonly overrides?: string
   readonly title: string
   readonly value: string
@@ -85,6 +86,7 @@ const fieldText = (ctx: FaceContext, name: string, long: boolean): string => {
     const deviceId = block.settings?.[field.deviceField!]
     if (deviceId === undefined && block.settings?.[name] === undefined) return 'no pin'
     const catalog = ctx.deviceCatalog ?? runitDeviceCatalog()
+    if (deviceId !== undefined && blockIndexKind(catalog, ctx.devices, Number(deviceId), type.fields.find((entry) => entry.name === field.deviceField)?.contract) === 'channel') return long ? `Channel ${value}` : `ch ${value}`
     const device = allDevices(catalog, ctx.devices).find((entry) => entry.deviceId === deviceId)
     const alias = device && catalog.pinAliases?.[device.ref]?.[String(value)]
     if (!long) return dynamic ? 'dynamic pin' : alias ? `${alias} (#${value})` : `#${value}`
@@ -190,15 +192,15 @@ const textWidth = (text: string, font: string, perChar: number): number => {
 
 const BADGE = 24
 
-/** Width the block's title needs, including its value beside a custom name and any ID shown in detailed view. */
-const headerWidth = (type: VmBlockType | undefined, block: FaceBlock, devices: readonly ProjectDevice[], deviceCatalog?: DeviceCatalog): number => {
+/** Width the block's title needs, including its value beside a custom name, the ENO's name and, only while there are problems, the badge that counts them. */
+const headerWidth = (type: VmBlockType | undefined, block: FaceBlock, devices: readonly ProjectDevice[], deviceCatalog?: DeviceCatalog, problems = 0): number => {
   if (!type) return 0
   const family = typeof document === 'undefined' ? 'sans-serif' : getComputedStyle(document.body).fontFamily
   const namedValue = block.name ? blockSubtitleHeadline(type, block, pathText, devices, deviceCatalog) : undefined
   const title = block.name ? [block.name, namedValue].filter(Boolean).join(' ') : blockHeadline(type, block, pathText, devices, deviceCatalog) || type.title
   const eno = type.eno.title !== DEFAULT_ENO.title ? textWidth(type.eno.title, `600 10px ${family}`, 6.2) + 6 : 0
-  // The title keeps its room beside the ENO name and the problem-count badge, which shares the header.
-  return textWidth(title, `600 12px ${family}`, 6.8) + eno + BADGE + 24 + 8
+  // The title keeps its room beside the ENO name and, when there are problems, the count badge that shares the header.
+  return textWidth(title, `600 12px ${family}`, 6.8) + eno + (problems > 0 ? BADGE : 0) + 24 + 8
 }
 
 /** Width the pin rows need: per row the input's slab (type icon, name, padding) beside the output's, which overlap the block edge by 7 px each, and a gap between them. */
@@ -243,9 +245,9 @@ const formulaWidth = (type: VmBlockType, block: FaceBlock): number => {
   return summary(text) + chips * 12 + parts * 5
 }
 
-/** Whether the block is drawn in its detailed view: the toolbar's choice; some blocks are always detailed. */
-export const isDetailed = (type: VmBlockType | undefined, toolbar: boolean): boolean =>
-  !!type?.hasDetail && (type.alwaysDetailed || toolbar)
+/** Whether the block shows its formula: only a block with one (EXPR) has a "show more", and the user opened it. */
+export const isDetailed = (type: VmBlockType | undefined, opened: boolean): boolean =>
+  !!type?.hasDetail && opened
 
 /** What a pin carries on the device the block works on (`@spec`): the variant its settings pick, with title, unit and range. Undefined without a spec or a chosen device. */
 export const pinValueOf = (block: FaceBlock, pin: VmBlockPin | undefined, devices: readonly ProjectDevice[], deviceCatalog: DeviceCatalog = runitDeviceCatalog()): DeviceValue | undefined => {
@@ -256,19 +258,20 @@ export const pinValueOf = (block: FaceBlock, pin: VmBlockPin | undefined, device
   return type && device ? resolveDeviceValue(type, { ...defaultInstall(type), ...device.install }, pin.valueSpec) : undefined
 }
 
-export const blockShape = (type: VmBlockType | undefined, block: FaceBlock, detailed = false, devices: readonly ProjectDevice[] = [], deviceCatalog?: DeviceCatalog): BlockShape => {
+/** The block's size, the least that holds what it shows. `problems` is how many it has: their badge takes room in the header only then. */
+export const blockShape = (type: VmBlockType | undefined, block: FaceBlock, detailed = false, devices: readonly ProjectDevice[] = [], deviceCatalog?: DeviceCatalog, problems = 0): BlockShape => {
   const expanded = isDetailed(type, detailed)
   const inputs = type ? pinViews(type.inputs, pinCount(type.inputs, block.inputs?.length ?? 0)).map((pin) => blockPinAt(type.inputs, pin.index)?.hideWhenWired && block.inputs?.[pin.index]?.root ? { ...pin, quiet: true } : pin).map((pin) => {
     const value = pinValueOf(block, blockPinAt(type.inputs, pin.index), devices, deviceCatalog)
     return value ? { ...pin, title: value.title, ...(value.hint ? { hint: value.hint } : {}) } : pin
-  }).filter((pin) => !blockPinAt(type.inputs, pin.index)?.hiddenByDefault || block.dynamicInputs?.includes(pin.index) || block.inputs?.[pin.index] || (expanded && blockPinAt(type.inputs, pin.index)?.overrides)) : []
+  }) : []
   const outputs = type ? pinViews(type.outputs, pinCount(type.outputs, block.outputs?.length ?? 0)) : []
   const rows = Math.max(1, inputs.length, outputs.length)
   const deviceLine = blockDeviceLine(type, block, devices, deviceCatalog)
   const family = typeof document === 'undefined' ? 'sans-serif' : getComputedStyle(document.body).fontFamily
   const deviceText = deviceLine ? textWidth(deviceLine, `10.5px ${family}`, 5.8) : 0
   const deviceWidth = deviceLine ? deviceText + 24 : 0
-  const contentWidth = Math.max(headerWidth(type, block, devices, deviceCatalog), deviceWidth, pinsWidth(inputs, outputs, deviceText))
+  const contentWidth = Math.max(headerWidth(type, block, devices, deviceCatalog, problems), deviceWidth, pinsWidth(inputs, outputs, deviceText))
   // The block is as wide as its content needs (title, pin rows, device line, formula), on the grid: nothing is padded to a fixed width.
   const formulaNeeds = expanded && type?.encoding ? formulaWidth(type, block) : 0
   const formula = Math.min(MAX_FORMULA_WIDTH, formulaNeeds)

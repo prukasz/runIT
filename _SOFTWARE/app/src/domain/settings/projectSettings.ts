@@ -1,6 +1,6 @@
 import { runitEnumValue, runitStreamCatalog } from '../descriptors'
 import type { StreamCatalog } from '../descriptors'
-import { DEFAULT_BLE_GENERAL } from '../project'
+import { DEFAULT_BLE_GENERAL, DEFAULT_POWER } from '../project'
 import type { BleCharacteristicSettings, BleServiceSettings, ConnectorBindingSettings, ConnectorSettings, ProjectSettings } from '../project'
 import { DEFAULT_LOGS, boardDefaultSettings } from '../upload'
 import type { BleCharSpec, BleServiceSpec, ConnectorSpec, SettingsState } from '../upload'
@@ -80,6 +80,7 @@ export const defaultProjectSettings = (streams: StreamCatalog = runitStreamCatal
   ble: { name: 'runIT BLE GATT Profile', general: DEFAULT_BLE_GENERAL, services: [boardBleService(streams)] },
   connectors: boardConnectors(streams),
   logs: DEFAULT_LOGS,
+  power: DEFAULT_POWER,
 })
 
 /** A system connector as the board defines it, with what the user may change on it (bindings, suspended). */
@@ -109,6 +110,7 @@ export const refreshSettings = (saved: ProjectSettings | undefined, streams: Str
     ble: { name: saved.ble.name || defaults.ble.name, general: saved.ble.general, services: [fresh, ...userServices] },
     connectors,
     logs: saved.logs,
+    power: saved.power,
   }
 }
 
@@ -181,7 +183,7 @@ export const settingsFromState = (state: SettingsState, base: ProjectSettings = 
     const bindings = connector.bindings.map((binding) => ({ ...binding }))
     return { ...connector, bindings, alias: connector.name, description: '', direction: directionOf(bindings), cMacro: `SYS_DATA_CONNECTOR_APP_${connector.id}` }
   })
-  return { ble: { ...base.ble, services }, connectors, logs: state.logs }
+  return { ble: { ...base.ble, services }, connectors, logs: state.logs, power: base.power }
 }
 
 /** What the settings planner and the stored code builder compare. */

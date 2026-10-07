@@ -78,7 +78,8 @@ All onboard chips are **static devices** created at boot by `runit_board_devices
 | 11 | TPS55289 `TPS55289_1` | Voltage Regulator | 0x75 | INT → TCA 2, EN → TCA 16 | Adjustable rail B |
 | 12 | INA3221 | Power Monitor | 0x40 | CRIT → TCA 6, WARN → TCA 5 (measured 2026-09-27; the legacy header had them swapped) | V/I of rail A, rail B and whole-board input, with alerts |
 | 13 | AP33772S | USB-C Power Delivery | 0x52 | INT → TCA 21 | PD sink: request/read PDOs, negotiated V/I, protection events |
-| — | LM73100 ×4 | — (not modelled) | — | EN (high = on) → TCA 12 DRV2←rail A, 13 DRV2←VSUP, 14 DRV1←VSUP, 15 DRV1←rail B; all low at boot | H-bridge VM source (one VM node per DRV8962: one switch at a time) |
+| 7 | `SUPPLY_DRV8962_0` (power mux, type `0x4A`) | Power supply select | — | LM73100 pair of DRV8962 #1: A = TCA 14 (board input, VSUP), B = TCA 15 (rail B, TPS55289 0x75); high = on | Onboard, created at boot with both switches off; the source (off / A / B) is a default setting of the stored hardware config |
+| 8 | `SUPPLY_DRV8962_1` (power mux, type `0x4A`) | Power supply select | — | LM73100 pair of DRV8962 #2: A = TCA 13 (board input, VSUP), B = TCA 12 (rail A, TPS55289 0x74); high = on | Same; A is always the board input, B the regulator rail of that bridge |
 | — | TPS259474 ×2 | — (not modelled) | — | PG → TCA 3 (VUSB_OK), TCA 4 (VEXT_OK) | Input eFuses |
 
 Also driven at boot: TCA pins 22 and 23 as push-pull outputs (roles not documented in code).
@@ -117,7 +118,7 @@ Also driven at boot: TCA pins 22 and 23 as push-pull outputs (roles not document
 |---|---|
 | DRV8962 ×2 (H-bridges) | #2 created (ID 6); #1 (ID 5) written but off until its ESP pins are confirmed; no generated JSON descriptor |
 | DAC53202 | Created (ID 4); used as DRV8962 VREF |
-| LM73100 ×4 (power-source selection) | No firmware device or API — needs a model for "which source feeds which H-bridge" |
+| LM73100 ×4 (power-source selection) | Onboard power muxes 7 and 8 (2026-10-06, build only); the DRV8962 does not check its mux yet |
 | TPS259474 eFuses ×2 | No firmware device |
 | ADS7128 digital mode | Hardware supports analog **and** digital inputs; the device is ADC-only |
 | PCA9685 CH 8–15 | Reserved for DRV8962 #2 — must not be exposed to users as free PWM |

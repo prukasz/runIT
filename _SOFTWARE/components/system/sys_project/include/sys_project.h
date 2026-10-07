@@ -19,8 +19,16 @@
 #include <stdint.h>
 #include "sys_error.h"
 
-/** Decides whether a stored frame may be part of the code (commit refuses the list otherwise). */
-typedef bool (*sys_project_frame_filter_f)(const uint8_t* frame, size_t len);
+/** The two independent stored lists. Boot replays the config first: program frames refer to its devices. */
+//#ref-enum @alias Stored Slot
+typedef enum sys_project_slot_e {
+  SYS_PROJECT_SLOT_CONFIG = 0,   //@alias Hardware config @description BLE services, data connectors, installed devices and their default settings, other classes. Replayed first.
+  SYS_PROJECT_SLOT_PROGRAM = 1,  //@alias Code @description The VM program (loader frames only). Replayed after the config.
+} sys_project_slot_e;
+#define SYS_PROJECT_SLOT_COUNT 2
+
+/** Decides whether a stored frame may be part of a slot (commit refuses the list otherwise). */
+typedef bool (*sys_project_frame_filter_f)(sys_project_slot_e slot, const uint8_t* frame, size_t len);
 
 //#ref-enum @alias Replay State
 typedef enum sys_project_replay_e {
@@ -35,16 +43,17 @@ typedef struct sys_project_report_t {
   sys_project_replay_e state;
   uint16_t applied;
   uint16_t failed;
-  uint16_t first_failed;  // frame index, UINT16_MAX when none failed
+  uint16_t first_failed;  // frame index (in its slot), UINT16_MAX when none failed
+  sys_project_slot_e first_slot;  // slot of the first refused frame
   uint16_t first_tag;     // error tag of the first refused frame
   uint16_t first_owner;
   bool vm_failed;         // a VM frame was refused: autostart is skipped
-  uint32_t crc32;         // CRC-32 of the code this boot replayed (0: none); differs from the stored one after a store without restart
+  uint32_t crc32[SYS_PROJECT_SLOT_COUNT];  // per slot: CRC-32 of the list this boot replayed (0: none); differs from the stored one after a store without restart
 } sys_project_report_t;
 
 typedef struct sys_project_info_t {
   bool stored;
-  uint32_t length;       // bytes of the frame list
+  uint32_t length;       // bytes of the frame list of the slot
   uint16_t frame_count;
   uint32_t crc32;
   uint32_t schema_id;    // SE_schema_id() the code was built for
@@ -56,8 +65,8 @@ typedef struct sys_project_info_t {
 /** Open the `project` NVS partition (erased and re-created if unreadable). Boot step, after sys_settings_init(). */
 SE_MUST_USE err_h sys_project_init(void);
 
-/** Start storing a new list of `length` bytes into the inactive generation; drops a store in progress. */
-SE_MUST_USE err_h sys_project_begin(uint32_t length);
+/** Start storing a new list of `length` bytes into the inactive generation of a slot; drops a store in progress (of any slot). */
+SE_MUST_USE err_h sys_project_begin(sys_project_slot_e slot, uint32_t length);
 
 /** Append bytes at `offset`; chunks must arrive in order (offset = bytes received so far). */
 SE_MUST_USE err_h sys_project_write(uint32_t offset, const uint8_t* data, size_t len);
@@ -72,19 +81,19 @@ SE_MUST_USE err_h sys_project_commit(uint32_t crc32, uint32_t schema_id, sys_pro
 /** Drop a store in progress. */
 SE_MUST_USE err_h sys_project_abort(void);
 
-/** Remove the stored code: the next boot starts from the board defaults. */
-SE_MUST_USE err_h sys_project_erase(void);
+/** Remove a slot's stored list: the next boot starts that part from the board defaults. */
+SE_MUST_USE err_h sys_project_erase(sys_project_slot_e slot);
 
 /** Store the project options (sys_settings key `prj_opts`). */
 SE_MUST_USE err_h sys_project_set_options(bool autostart);
 
-SE_MUST_USE err_h sys_project_get_info(sys_project_info_t* out);
+SE_MUST_USE err_h sys_project_get_info(sys_project_slot_e slot, sys_project_info_t* out);
 
-/** Copy `len` bytes of the stored list from `offset` (recovery). */
-SE_MUST_USE err_h sys_project_read(uint32_t offset, uint8_t* out, size_t len);
+/** Copy `len` bytes of a slot's stored list from `offset` (recovery). */
+SE_MUST_USE err_h sys_project_read(sys_project_slot_e slot, uint32_t offset, uint8_t* out, size_t len);
 
 /**
- * Replay the stored code (boot): every frame through sys_interface_decode()
+ * Replay the stored code (boot), config slot then program slot: every frame through sys_interface_decode()
  * with RX suspended; a refused frame is reported and the replay continues.
  * `is_vm_frame` marks the frames whose refusal cancels autostart.
  */

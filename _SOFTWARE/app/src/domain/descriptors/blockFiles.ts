@@ -4,7 +4,7 @@ import type { GeneratedVmBlockFile, GeneratedVmBlockPin, GeneratedVmBlockStateFi
 /*
  * A VM block is two files in its firmware folder (components/VM/blocks/<name>/):
  *  - <name>.display.json: what the editor shows, written by hand (title, category, description, activation text, the `header`
- *    face line, `eno`, `always_detailed`, a title and description per pin by pin name);
+ *    face line, `eno`, a title and description per pin by pin name);
  *  - <name>.content.json: what the block is, generated from its header (pins, shape, payload layout, enums, rules).
  * `composeVmBlockFile` joins them by pin and field name into the one object the palette is built from. It knows no block.
  */
@@ -15,7 +15,6 @@ export interface VmBlockDisplayFile {
   readonly description: string
   readonly activation?: string
   readonly header?: string
-  readonly always_detailed?: boolean
   readonly eno?: { readonly title: string; readonly description?: string }
   readonly enable?: { readonly title?: string; readonly description?: string; readonly signal?: boolean; readonly connect?: string }
   readonly inputs?: Readonly<Record<string, { readonly title: string; readonly description?: string; readonly hide_when_wired?: boolean }>>
@@ -24,7 +23,7 @@ export interface VmBlockDisplayFile {
 
 type ContentPin = Omit<GeneratedVmBlockPin, 'title' | 'description'>
 
-export interface VmBlockContentFile extends Omit<GeneratedVmBlockFile, 'title' | 'category' | 'description' | 'eno' | 'enable' | 'always_detailed' | 'header' | 'inputs' | 'outputs' | 'activation'> {
+export interface VmBlockContentFile extends Omit<GeneratedVmBlockFile, 'title' | 'category' | 'description' | 'eno' | 'enable' | 'header' | 'inputs' | 'outputs' | 'activation'> {
   readonly activation: { readonly kind: string }
   readonly inputs: { readonly min: number; readonly max: number; readonly pins: readonly ContentPin[] }
   readonly outputs: { readonly min: number; readonly max: number; readonly pins: readonly ContentPin[] }
@@ -103,7 +102,6 @@ export const composeVmBlockFile = (display: VmBlockDisplayFile, content: VmBlock
     outputs: withTitles('outputs', content, display, name),
     ...(display.eno ? { eno: display.eno } : {}),
     ...(display.enable ? { enable: display.enable } : {}),
-    ...(display.always_detailed ? { always_detailed: true } : {}),
     ...(header ? { header } : {}),
   }
 }

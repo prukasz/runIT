@@ -129,7 +129,7 @@ export const compileAccessors = (requests: readonly AccessorRequest[], objects: 
       return undefined
     }
     const rootId = objects.wireIdOf.get(path.root)
-    if (rootId === undefined) return fail(`'${path.root}' is not an uploaded object.`)
+    if (rootId === undefined) return fail(`'${path.root}' is not an uploaded object (deleted, or an empty folder): wire the pin to another variable or unwire it.`)
 
     let root = rootId
     let steps: WireStep[] = []

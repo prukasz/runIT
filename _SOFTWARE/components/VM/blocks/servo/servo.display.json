@@ -4,7 +4,6 @@
   "description": "Moves a servo device to the input position: an angle, a speed (continuous servo) or a byte, as the servo is set up.",
   "activation": "Runs every pass while enabled; commands the servo only when the value changes.",
   "header": "{title}",
-  "always_detailed": true,
   "inputs": {
     "value": { "title": "Position", "description": "Where to move: degrees for an angle servo, speed -100..100 for a continuous one, 0..255 when the servo steers by byte. Overrides the Position setting." }
   }

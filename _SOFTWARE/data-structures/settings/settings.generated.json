@@ -464,13 +464,31 @@
               "unit": "%"
             }
           }
+        },
+        {
+          "id": "packet_settings_power_set_caps_t",
+          "packet": "packet_settings_power_set_caps_t",
+          "packet_header": "0x03",
+          "field_order": [
+            "disabled"
+          ],
+          "fields": {
+            "disabled": {
+              "type": "uint8_t",
+              "alias": "Disable Power Caps",
+              "required": true,
+              "min": 0,
+              "max": 1,
+              "note": "1 removes the power budget and current caps; only the board's voltage limit stays"
+            }
+          }
         }
       ]
     },
     {
       "tag": "project",
       "title": "Stored code",
-      "description": "Store the code the board replays at boot, read it back, set its options and load it.",
+      "description": "Store the two lists the board replays at boot (hardware config, then program), read them back, set the options and load them.",
       "source_file": "components/codecs/decoders/dec_settings_project.h",
       "class_name": "SETTINGS_PROJECT",
       "class_header": "0x0A",
@@ -480,9 +498,16 @@
           "packet": "packet_settings_project_begin_t",
           "packet_header": "0x01",
           "field_order": [
+            "slot",
             "length"
           ],
           "fields": {
+            "slot": {
+              "type": "uint8_t",
+              "alias": "Slot",
+              "required": true,
+              "enum_ref": "sys_project_slot_e"
+            },
             "length": {
               "type": "uint32_t",
               "alias": "Length",
@@ -546,8 +571,17 @@
           "id": "packet_settings_project_erase_t",
           "packet": "packet_settings_project_erase_t",
           "packet_header": "0x05",
-          "field_order": [],
-          "fields": {}
+          "field_order": [
+            "slot"
+          ],
+          "fields": {
+            "slot": {
+              "type": "uint8_t",
+              "alias": "Slot",
+              "required": true,
+              "enum_ref": "sys_project_slot_e"
+            }
+          }
         },
         {
           "id": "packet_settings_project_options_t",
@@ -568,8 +602,17 @@
           "id": "packet_settings_project_info_t",
           "packet": "packet_settings_project_info_t",
           "packet_header": "0x07",
-          "field_order": [],
-          "fields": {},
+          "field_order": [
+            "slot"
+          ],
+          "fields": {
+            "slot": {
+              "type": "uint8_t",
+              "alias": "Slot",
+              "required": true,
+              "enum_ref": "sys_project_slot_e"
+            }
+          },
           "response": {
             "struct": "packet_settings_project_info_response_t",
             "field_order": [
@@ -585,6 +628,7 @@
               "replay_applied",
               "replay_failed",
               "replay_first_failed",
+              "replay_first_slot",
               "replay_first_tag",
               "replay_first_owner",
               "replay_crc32"
@@ -641,6 +685,11 @@
                 "type": "uint16_t",
                 "alias": "First Refused Frame"
               },
+              "replay_first_slot": {
+                "type": "uint8_t",
+                "alias": "First Refusal Slot",
+                "enum_ref": "sys_project_slot_e"
+              },
               "replay_first_tag": {
                 "type": "uint16_t",
                 "alias": "First Refusal Tag"
@@ -661,10 +710,17 @@
           "packet": "packet_settings_project_read_t",
           "packet_header": "0x08",
           "field_order": [
+            "slot",
             "offset",
             "length"
           ],
           "fields": {
+            "slot": {
+              "type": "uint8_t",
+              "alias": "Slot",
+              "required": true,
+              "enum_ref": "sys_project_slot_e"
+            },
             "offset": {
               "type": "uint32_t",
               "alias": "Offset",

@@ -23,7 +23,7 @@ import type { CanvasWorkspace } from '../workspace/useCanvasWorkspace'
  * The open canvas: a grid that pans (drag the background, one finger) and
  * zooms (wheel, pinch, the buttons) around the pointer, and its blocks in
  * the world layer, which carries the viewport transform. Blocks dropped from
- * the palette show where they will land first; with snap on, the grid point
+ * the palette show where they will land first; the grid point
  * the pointer is nearest is marked. A click on the background clears the
  * selection; Delete removes the selected blocks. Several blocks are selected by
  * tapping them in multiple-select mode (or with Shift / Ctrl), or by drawing a box
@@ -60,7 +60,7 @@ export function CanvasSurface({
   selectedObjectId?: string
   onClearSelectedObject?: () => void
 }) {
-  const { active, snap, selectedBlock, selectedIds } = workspace
+  const { active, selectedBlock, selectedIds } = workspace
   const debug = useDebug()
   const catalog = runitVmCatalog()
   const selectedObjectNode = selectedObjectId && project ? findObject(project, selectedObjectId)?.node : undefined
@@ -360,12 +360,13 @@ export function CanvasSurface({
     : {}
 
   const pointed = cursor && screenToCanvas(viewport, cursor)
-  const snapped = pointed && (snap ? snapPoint(pointed) : pointed)
+  const snapped = pointed && snapPoint(pointed)
   const marker = snapped && canvasToScreen(viewport, snapped)
   const empty = active && active.blocks.length === 0
 
   // Connecting: the block under a canvas point (topmost), the picker row under the pointer.
-  const shapeOf = (block: CanvasBlock) => blockShape(catalog.block(block.type), block, workspace.detailed, devices, deviceCatalog)
+  const errorsOf = (block: CanvasBlock) => (diagnostics.get(block.id) ?? []).filter((entry) => entry.severity === 'error').length
+  const shapeOf = (block: CanvasBlock) => blockShape(catalog.block(block.type), block, workspace.expandedIds.has(block.id), devices, deviceCatalog, errorsOf(block))
   const blockAt = (point: Point, except?: string): CanvasBlock | undefined =>
     [...(active?.blocks ?? [])].reverse().find((block) => {
       if (block.id === except) return false
@@ -451,7 +452,7 @@ export function CanvasSurface({
     const press = chipPress!
     if (press.kind === 'free') {
       const raw = { x: press.origin.x + (clientX - press.start.x) / viewportRef.current.zoom, y: press.origin.y + (clientY - press.start.y) / viewportRef.current.zoom }
-      setChipPress({ ...press, at: snap ? snapPoint(raw) : raw })
+      setChipPress({ ...press, at: snapPoint(raw) })
       // Over a block: the picker opens, a pin there takes the chip back.
       const variable = active?.variables?.find((entry) => entry.id === press.id)
       const point = screenToCanvas(viewportRef.current, local(clientX, clientY))
@@ -490,7 +491,7 @@ export function CanvasSurface({
     if (draft.over || draft.hovered) return finish(clientX, clientY)
     // Dropped on the empty canvas: this label represents only the pin it came from.
     if (!draft.over && !draft.hovered && press.target.kind !== 'out') {
-      const at = snap ? snapPoint({ x: draft.at.x - CHIP_WIDTH / 2, y: draft.at.y - CHIP_HEIGHT / 2 }) : { x: draft.at.x - CHIP_WIDTH / 2, y: draft.at.y - CHIP_HEIGHT / 2 }
+      const at = snapPoint({ x: draft.at.x - CHIP_WIDTH / 2, y: draft.at.y - CHIP_HEIGHT / 2 })
       const target = press.target.kind === 'in'
         ? { block: press.target.block, kind: 'in' as const, index: press.target.index }
         : { block: press.target.block, kind: 'en' as const, ...('index' in press.target && press.target.index !== undefined ? { index: press.target.index } : {}) }
@@ -575,10 +576,10 @@ export function CanvasSurface({
   const dropPoint = (event: React.DragEvent): Point => {
     const under = screenToCanvas(viewport, local(event.clientX, event.clientY))
     const corner = { x: under.x - GRAB.x, y: under.y - GRAB.y }
-    return snap ? snapPoint(corner) : corner
+    return snapPoint(corner)
   }
   const fromPalette = (event: React.DragEvent) => !!active && event.dataTransfer.types.includes(BLOCK_DRAG_TYPE)
-  const ghostShape = ghost && blockShape(ghost.type ? catalog.block(ghost.type) : undefined, { id: '', type: ghost.type ?? '' }, workspace.detailed)
+  const ghostShape = ghost && blockShape(ghost.type ? catalog.block(ghost.type) : undefined, { id: '', type: ghost.type ?? '' })
 
   return (
     <div
@@ -642,13 +643,13 @@ export function CanvasSurface({
               key={block.id}
               block={block}
               type={type}
-              shape={blockShape(type, block, workspace.detailed, devices, deviceCatalog)}
-              detailed={workspace.detailed}
+              shape={shapeOf(block)}
+              detailed={workspace.expandedIds.has(block.id)}
+              onToggleDetail={() => workspace.toggleExpanded(block.id)}
               devices={devices} deviceCatalog={deviceCatalog}
               selected={selectedIds.includes(block.id)}
-              errors={(diagnostics.get(block.id) ?? []).filter((entry) => entry.severity === 'error').length}
+              errors={errorsOf(block)}
               zoom={viewport.zoom}
-              snap={snap}
               isLinking={isLinking}
               onSelect={(additive) => onBlockSelect(block, additive)}
               onTap={() => {
@@ -737,7 +738,7 @@ export function CanvasSurface({
           Choose a pin for &quot;{selectedObjectNode?.name ?? (draft.pending.kind === 'variable' && draft.pending.path ? pathLabel(draft.pending.path, project, active?.blocks) : 'variable')}&quot; · Esc to cancel
         </div>
       )}
-      {marker && snap && !panning && !ghost && <div className="canvas-snap-marker" aria-hidden="true" style={{ left: marker.x, top: marker.y }} />}
+      {marker && !panning && !ghost && <div className="canvas-snap-marker" aria-hidden="true" style={{ left: marker.x, top: marker.y }} />}
       {!active && (
         <div className="canvas-empty">
           <p>No canvas yet.</p>
@@ -748,10 +749,6 @@ export function CanvasSurface({
       {workspace.error && <button type="button" className="canvas-error" onClick={workspace.clearError} title="Dismiss">{workspace.error}</button>}
       {debug.error && <button type="button" className="canvas-error" style={workspace.error ? { top: 52 } : undefined} onClick={debug.clearError} title="Dismiss">Debug: {debug.error}</button>}
       {debug.active && <div className="canvas-wire-hint">{debug.stale ? 'Debug: the program changed since the upload, use Upload again in the Debug panel' : 'Debug mode: strips and tint show what the board runs, values sit beside the pins'}</div>}
-      <div className="canvas-status" aria-live="off">
-        {snapped ? `x ${Math.round(snapped.x)}  y ${Math.round(snapped.y)}` : ''}
-        {snap ? <span className="canvas-status-snap">snap {GRID}</span> : null}
-      </div>
       <div className="canvas-zoom" role="toolbar" aria-label="Zoom">
         <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => zoomButton(1 / BUTTON_ZOOM)}><Minus aria-hidden="true" /></button>
         <button type="button" className="canvas-zoom-value" title="Zoom" onClick={() => zoomButton(1 / viewport.zoom)}>{`${Math.round(viewport.zoom * 100)}%`}</button>

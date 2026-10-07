@@ -1,0 +1,10 @@
+{
+  "id": "my_board",
+  "name": "My board",
+  "width": 67,
+  "height": 30,
+  "radius": 0,
+  "holeDiameter": 0,
+  "holes": [],
+  "connectors": []
+}

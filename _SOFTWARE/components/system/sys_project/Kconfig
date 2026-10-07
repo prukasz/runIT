@@ -7,8 +7,18 @@ menu "System Project Store (stored code)"
           code. Kept apart from the default "nvs" partition so a large program
           doesn't crowd settings, actions or BLE data.
 
+    config SYS_PROJECT_CONFIG_MAX_BYTES
+        int "Largest stored hardware config (bytes)"
+        default 16384
+        range 1024 65536
+        help
+          Most bytes the hardware config slot may hold: BLE services and
+          characteristics, data connectors, installed devices and their default
+          settings. Two generations of it live in the project partition next to
+          the program slot.
+
     config SYS_PROJECT_MAX_BYTES
-        int "Largest stored code (bytes)"
+        int "Largest stored program (bytes)"
         default 204800
         range 4096 1048576
         help

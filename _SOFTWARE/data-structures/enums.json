@@ -185,8 +185,14 @@
           "description": "Drives a DC motor forward, backward, or brakes it"
         },
         {
-          "name": "SYS_DEVICE_CONTRACT_MAX",
+          "name": "SYS_DEVICE_CONTRACT_POWER_SUPPLY",
           "value": 5,
+          "alias": "Power Supply Select",
+          "description": "Chooses which of two sources feeds a load (a power mux): off, source A or source B, never both"
+        },
+        {
+          "name": "SYS_DEVICE_CONTRACT_MAX",
+          "value": 6,
           "alias": "(internal)",
           "description": "Not a real contract - marks the end of the list, used internally for bounds checking"
         }
@@ -484,6 +490,30 @@
         }
       ]
     },
+    "sys_power_supply_source_e": {
+      "alias": "Supply Source",
+      "source_file": "components/system/sys_power/include/sys_power.h",
+      "members": [
+        {
+          "name": "SYS_POWER_SUPPLY_OFF",
+          "value": 0,
+          "alias": "Off",
+          "description": "The load is not fed"
+        },
+        {
+          "name": "SYS_POWER_SUPPLY_A",
+          "value": 1,
+          "alias": "Source A",
+          "description": "The load is fed from source A of the power mux"
+        },
+        {
+          "name": "SYS_POWER_SUPPLY_B",
+          "value": 2,
+          "alias": "Source B",
+          "description": "The load is fed from source B of the power mux"
+        }
+      ]
+    },
     "sys_power_usb_pd_option_type_e": {
       "alias": "USB-PD Option Type",
       "source_file": "components/system/sys_power/include/sys_power.h",
@@ -583,6 +613,24 @@
           "value": 1,
           "alias": "LiPo",
           "description": "Lithium polymer, 4.2 V per cell when full"
+        }
+      ]
+    },
+    "sys_project_slot_e": {
+      "alias": "Stored Slot",
+      "source_file": "components/system/sys_project/include/sys_project.h",
+      "members": [
+        {
+          "name": "SYS_PROJECT_SLOT_CONFIG",
+          "value": 0,
+          "alias": "Hardware config",
+          "description": "BLE services, data connectors, installed devices and their default settings, other classes. Replayed first."
+        },
+        {
+          "name": "SYS_PROJECT_SLOT_PROGRAM",
+          "value": 1,
+          "alias": "Code",
+          "description": "The VM program (loader frames only). Replayed after the config."
         }
       ]
     },
@@ -1464,9 +1512,15 @@
       "alias": "Motor Driver (H-Bridge)",
       "description": "Drives a DC motor forward, backward, or brakes it"
     },
-    "SYS_DEVICE_CONTRACT_MAX": {
+    "SYS_DEVICE_CONTRACT_POWER_SUPPLY": {
       "enum": "sys_device_contract_type_e",
       "value": 5,
+      "alias": "Power Supply Select",
+      "description": "Chooses which of two sources feeds a load (a power mux): off, source A or source B, never both"
+    },
+    "SYS_DEVICE_CONTRACT_MAX": {
+      "enum": "sys_device_contract_type_e",
+      "value": 6,
       "alias": "(internal)",
       "description": "Not a real contract - marks the end of the list, used internally for bounds checking"
     },
@@ -1716,6 +1770,24 @@
       "alias": "Source Changed",
       "description": "The board switched to another power source (the value is the new source)"
     },
+    "SYS_POWER_SUPPLY_OFF": {
+      "enum": "sys_power_supply_source_e",
+      "value": 0,
+      "alias": "Off",
+      "description": "The load is not fed"
+    },
+    "SYS_POWER_SUPPLY_A": {
+      "enum": "sys_power_supply_source_e",
+      "value": 1,
+      "alias": "Source A",
+      "description": "The load is fed from source A of the power mux"
+    },
+    "SYS_POWER_SUPPLY_B": {
+      "enum": "sys_power_supply_source_e",
+      "value": 2,
+      "alias": "Source B",
+      "description": "The load is fed from source B of the power mux"
+    },
     "SYS_POWER_USB_PD_OPTION_FIXED": {
       "enum": "sys_power_usb_pd_option_type_e",
       "value": 0,
@@ -1793,6 +1865,18 @@
       "value": 1,
       "alias": "LiPo",
       "description": "Lithium polymer, 4.2 V per cell when full"
+    },
+    "SYS_PROJECT_SLOT_CONFIG": {
+      "enum": "sys_project_slot_e",
+      "value": 0,
+      "alias": "Hardware config",
+      "description": "BLE services, data connectors, installed devices and their default settings, other classes. Replayed first."
+    },
+    "SYS_PROJECT_SLOT_PROGRAM": {
+      "enum": "sys_project_slot_e",
+      "value": 1,
+      "alias": "Code",
+      "description": "The VM program (loader frames only). Replayed after the config."
     },
     "SYS_PROJECT_REPLAY_NONE": {
       "enum": "sys_project_replay_e",

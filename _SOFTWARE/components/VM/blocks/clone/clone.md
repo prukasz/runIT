@@ -1,6 +1,6 @@
 # Clone
 
-Like **Set**, but the destination is a tree this block builds for itself. It copies the **Source** into a new tree and hangs it on a **Pointer cell**; when the shape of the source changes (a different message layout), it builds a new tree to match.
+Like **Set**, but the destination is a tree this block builds for itself. It copies what is on **Copy from** into a new tree and hangs it on **Copy to** (a pointer cell); when the shape of the source changes (a different message layout), it builds a new tree to match.
 
 Use it to keep a snapshot of a structure that can change shape, for example a parsed message.
 
@@ -8,8 +8,8 @@ Use it to keep a snapshot of a structure that can change shape, for example a pa
 
 | Pin | Meaning |
 |---|---|
-| Source (required) | The object (or tree) to copy. The block runs when it is fresh. |
-| Pointer cell (required) | An element of a pointer object the clone is attached to. |
+| Copy from (required) | The object (or tree) to copy. The block runs when it is fresh. |
+| Copy to (required) | An element of a pointer object the clone is attached to. |
 | ENO | Active on the passes a copy happened. |
 
 ## Behaviour

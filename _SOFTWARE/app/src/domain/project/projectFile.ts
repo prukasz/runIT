@@ -1,3 +1,4 @@
+import { parseController } from '../controller'
 import type { BoardConnector, BoardTemplate, ConnectorPin, MountHole, PinBinding, PinOverrides } from '../board'
 import type { Wire } from '../hardware'
 import { DEFAULT_BLE_GENERAL, PROJECT_FORMAT, PROJECT_FORMAT_VERSION } from './document'
@@ -25,6 +26,7 @@ import type {
   ProjectDocument,
   PinAliases,
   LogSettings,
+  PowerSettings,
   ProjectSettings,
   RawFrame,
   ReferenceNode,
@@ -234,6 +236,11 @@ const parseLogs = (value: Json, path: string): LogSettings => {
   return { level: integer(logs.level, `${path}.level`), mirrorSerial: boolean(logs.mirrorSerial, `${path}.mirrorSerial`), traceErrors: boolean(logs.traceErrors, `${path}.traceErrors`) }
 }
 
+const parsePower = (value: Json, path: string): PowerSettings => {
+  const power = record(value, path)
+  return { capsDisabled: boolean(power.capsDisabled, `${path}.capsDisabled`) }
+}
+
 export const parseSettings = (value: Json, path: string): ProjectSettings => {
   const settings = record(value, path)
   const ble = record(settings.ble, `${path}.ble`)
@@ -242,7 +249,7 @@ export const parseSettings = (value: Json, path: string): ProjectSettings => {
     general: parseGeneral(ble.general, `${path}.ble.general`),
     services: array(ble.services, `${path}.ble.services`).map((service, index) => parseService(service, `${path}.ble.services[${index}]`)),
   }
-  return { ble: profile, connectors: array(settings.connectors, `${path}.connectors`).map((connector, index) => parseConnector(connector, `${path}.connectors[${index}]`)), logs: parseLogs(settings.logs, `${path}.logs`) }
+  return { ble: profile, connectors: array(settings.connectors, `${path}.connectors`).map((connector, index) => parseConnector(connector, `${path}.connectors[${index}]`)), logs: parseLogs(settings.logs, `${path}.logs`), power: parsePower(settings.power, `${path}.power`) }
 }
 
 const parseFrames = (value: Json, path: string): RawFrame[] =>
@@ -607,6 +614,7 @@ export const parseProject = (text: string): ProjectDocument => {
     ...optional('actions', doc.actions === undefined ? undefined : parseActions(doc.actions, 'actions')),
     ...optional('setup', doc.setup === undefined ? undefined : parseSetup(doc.setup, 'setup')),
     ...optional('canvases', doc.canvases === undefined ? undefined : parseCanvases(doc.canvases, 'canvases')),
+    ...optional('controller', doc.controller === undefined ? undefined : parseController(doc.controller)),
     ...optional('extraFrames', doc.extra_frames === undefined ? undefined : parseFrames(doc.extra_frames, 'extra_frames')),
   }
 }
@@ -641,6 +649,7 @@ export const serializeProject = (project: ProjectDocument): string =>
       ...optional('actions', project.actions && parseActions(JSON.parse(JSON.stringify(project.actions)), 'actions')),
       ...optional('setup', project.setup && parseSetup(JSON.parse(JSON.stringify(project.setup)), 'setup')),
       ...optional('canvases', project.canvases && parseCanvases(JSON.parse(JSON.stringify(project.canvases)), 'canvases')),
+      ...optional('controller', project.controller && (project.controller.widgets.length || project.controller.custom?.length) ? parseController(JSON.parse(JSON.stringify(project.controller))) : undefined),
       ...optional('extra_frames', project.extraFrames?.map((entry) => ({ label: entry.label, frame: frameHex(entry.frame) }))),
     },
     null,

@@ -1,5 +1,5 @@
-export { buildStoredCode, storedFrameMax } from './build'
-export type { StoredCode, StoredCodeContext, StoredCodeInput } from './build'
+export { buildHardwareConfig, buildStoredCode, storedFrameMax } from './build'
+export type { HardwareConfig, StoredCode, StoredCodeContext, StoredCodeInput } from './build'
 export { decodeStoredCode } from './decode'
 export type { RecoveredCode } from './decode'
 export { CODE_FORMAT, CODE_FORMAT_VERSION, crc32, decodeFrameList, encodeFrameList, FrameListError, parseStoredCode, serializeStoredCode } from './frameList'

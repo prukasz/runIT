@@ -16,7 +16,7 @@ const catalog = runitVmCatalog()
 
 function Harness({ canvases, showGrid = true, part = 'editor', selected, selection, detailed = false }: { canvases: readonly ProjectCanvas[]; showGrid?: boolean; part?: 'editor' | 'palette' | 'details'; selected?: CanvasBlock; selection?: readonly CanvasBlock[]; detailed?: boolean }) {
   const base = useCanvasWorkspace()
-  const w: CanvasWorkspace = { ...base, canvases, active: canvases[0], selectedBlock: selected, selectedBlocks: selection ?? (selected ? [selected] : []), selectedIds: (selection ?? (selected ? [selected] : [])).map((entry) => entry.id), ...(detailed ? { detailed: true } : {}) }
+  const w: CanvasWorkspace = { ...base, canvases, active: canvases[0], selectedBlock: selected, selectedBlocks: selection ?? (selected ? [selected] : []), selectedIds: (selection ?? (selected ? [selected] : [])).map((entry) => entry.id), ...(detailed ? { expandedIds: new Set(canvases.flatMap((canvas) => canvas.blocks.map((block) => block.id))) } : {}) }
   const diagnostics = blockDiagnostics(createProject('t'), canvases, catalog, 240)
   if (part === 'palette') return <BlockPalette workspace={w} />
   if (part === 'details') return <BlockDetails workspace={w} diagnostics={diagnostics} />
@@ -83,7 +83,7 @@ describe('canvas renders', () => {
     expect(any.indexOf('aria-label="On error"')).toBeLessThan(any.indexOf('<h3>Pins</h3>'))
   })
 
-  it('a block has a detailed view only when it has inputs with a constant to show, or a formula', () => {
+  it('only a block with a formula has a "show more"; every input is always drawn', () => {
     const plain: CanvasBlock = { id: 'if1', type: 'IF', x: 0, y: 0 }
     const every: CanvasBlock = { id: 'every', type: 'PERIODIC', x: 300, y: 0, settings: { period: 100, time_base: 'MS' } }
     const expr: CanvasBlock = { id: 'expr1', type: 'EXPR', x: 600, y: 0, inputs: [null], expression: { constants: [2], code: ['in', 0, 'const', 0, '*'] } }
@@ -92,15 +92,17 @@ describe('canvas renders', () => {
     // Only the expression block shows a formula; there are no text rows for any block.
     expect(html.match(/canvas-block-summary/g)).toHaveLength(1)
     expect(html).not.toMatch(/canvas-block cat-flow[^"]* is-expanded/)
-    // The hard-coded input of Every is shown, with its constant, only in the detailed view.
-    expect(html.match(/is-constant/g)).toHaveLength(1)
-    expect(html).toContain('canvas-chip-text">100<')
-    expect(renderToString(<Harness canvases={canvases} />)).not.toContain('is-constant')
-    // The view is the toolbar's alone: no block has a view setting of its own.
+    // The input of Every is drawn with its constant, opened or not; the arrow is only on the expression.
+    for (const shown of [html, renderToString(<Harness canvases={canvases} />)]) {
+      expect(shown.match(/is-constant/g)).toHaveLength(1)
+      expect(shown).toContain('canvas-chip-text">100<')
+      expect(shown.match(/canvas-block-more/g)).toHaveLength(1)
+    }
+    // No block has a view setting of its own in the inspector.
     for (const selected of [plain, every, expr]) expect(renderToString(<Harness part="details" canvases={canvases} selected={selected} />)).not.toContain('Block view')
   })
 
-  it('the toolbar switches a block between its simple and detailed face', () => {
+  it('opening an expression shows its formula', () => {
     const blocks: CanvasBlock[] = [{ id: 'expr1', type: 'EXPR', x: 0, y: 0, inputs: [null], expression: { constants: [2], code: ['in', 0, 'const', 0, '*'] } }]
     const html = renderToString(<Harness canvases={[{ id: 'a', name: 'Main', blocks }]} detailed />)
     expect(html).toContain('canvas-block-summary is-formula')

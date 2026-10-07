@@ -1,0 +1,235 @@
+{
+  "$schema": "data-structures/schema/device-definition.schema.json",
+  "schemaVersion": 1,
+  "kind": "device-definition",
+  "id": "device_power_mux",
+  "title": "Power mux (ideal diodes)",
+  "description": "Two switched supply sources into one load, for example the two LM73100 ideal diodes that feed an H-bridge. At most one source is on; changing source switches the old one off first. The choice is a default setting, so the stored hardware config applies it at boot.",
+  "protocols": [
+    "pwm"
+  ],
+  "tags": [
+    "power",
+    "mux",
+    "supply",
+    "ideal",
+    "diode",
+    "switch"
+  ],
+  "datasheet": "https://www.ti.com/lit/ds/symlink/lm73100.pdf",
+  "source_file": "device_power_mux.h",
+  "contractProvider": {
+    "symbol": "SYS_DEVICE_CONTRACT_POWER_SUPPLY",
+    "enum": "sys_device_contract_type_e",
+    "value": 5,
+    "alias": "Power Supply Select",
+    "description": "Chooses which of two sources feeds a load (a power mux): off, source A or source B, never both"
+  },
+  "install": {
+    "packet": "packet_sys_device_install_power_mux_t",
+    "packet_definition": {
+      "source_file": "device_power_mux.h",
+      "class_name": "SYS_CONTRACTS",
+      "class_header": "0x01",
+      "packet_header": "0x4A",
+      "decoder": "sys_device_create(&g_power_mux_class)",
+      "field_order": [
+        "device_id",
+        "en_a_pin_device_id",
+        "en_a_pin_pin",
+        "en_a_pin_mode",
+        "en_b_pin_device_id",
+        "en_b_pin_pin",
+        "en_b_pin_mode",
+        "active_level",
+        "switch_delay_ms"
+      ],
+      "fields": {
+        "device_id": {
+          "type": "uint8_t",
+          "max": 127
+        },
+        "en_a_pin_device_id": {
+          "type": "uint8_t",
+          "group": "en_a_pin"
+        },
+        "en_a_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "en_a_pin"
+        },
+        "en_a_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+              "enum": "sys_io_mode_e",
+              "value": 3,
+              "alias": "Output Push-Pull",
+              "description": "Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays"
+            }
+          ],
+          "default": 3,
+          "enum_ref": "sys_io_mode_e",
+          "group": "en_a_pin"
+        },
+        "en_b_pin_device_id": {
+          "type": "uint8_t",
+          "group": "en_b_pin"
+        },
+        "en_b_pin_pin": {
+          "type": "uint8_t",
+          "sentinel": 255,
+          "group": "en_b_pin"
+        },
+        "en_b_pin_mode": {
+          "type": "uint8_t",
+          "one_of": [
+            {
+              "symbol": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+              "enum": "sys_io_mode_e",
+              "value": 3,
+              "alias": "Output Push-Pull",
+              "description": "Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays"
+            }
+          ],
+          "default": 3,
+          "enum_ref": "sys_io_mode_e",
+          "group": "en_b_pin"
+        },
+        "active_level": {
+          "type": "uint8_t",
+          "alias": "Enable Level",
+          "min": 0,
+          "max": 1,
+          "default": 1,
+          "note": "1: a high pin switches the source on (LM73100)."
+        },
+        "switch_delay_ms": {
+          "type": "uint8_t",
+          "alias": "Switch Delay",
+          "min": 1,
+          "max": 100,
+          "default": 5,
+          "unit": "ms",
+          "note": "Pause between switching the old source off and the new one on."
+        }
+      },
+      "groups": {
+        "en_a_pin": {
+          "fields": [
+            "en_a_pin_device_id",
+            "en_a_pin_pin",
+            "en_a_pin_mode"
+          ],
+          "sentinel_field": "en_a_pin_pin",
+          "alias": "Enable source A",
+          "note": "Switches source A on when it is at the enable level."
+        },
+        "en_b_pin": {
+          "fields": [
+            "en_b_pin_device_id",
+            "en_b_pin_pin",
+            "en_b_pin_mode"
+          ],
+          "sentinel_field": "en_b_pin_pin",
+          "alias": "Enable source B",
+          "note": "Switches source B on when it is at the enable level."
+        }
+      }
+    }
+  },
+  "contracts": [
+    {
+      "packet": "packet_sys_power_supply_select_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        },
+        {
+          "name": "source"
+        }
+      ],
+      "alias": "Select source",
+      "description": "Feed the load from source A, source B, or from none. The source that is on is switched off first and the new one is switched on after the switch delay, so the two are never on together.",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x3A",
+        "decoder": "decoder_packet_sys_power_supply_select_t()",
+        "field_order": [
+          "device_id",
+          "source"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          },
+          "source": {
+            "type": "uint8_t",
+            "alias": "Source",
+            "required": true,
+            "one_of": [
+              {
+                "symbol": "SYS_POWER_SUPPLY_OFF",
+                "enum": "sys_power_supply_source_e",
+                "value": 0,
+                "alias": "Off",
+                "description": "The load is not fed"
+              },
+              {
+                "symbol": "SYS_POWER_SUPPLY_A",
+                "enum": "sys_power_supply_source_e",
+                "value": 1,
+                "alias": "Source A",
+                "description": "The load is fed from source A of the power mux"
+              },
+              {
+                "symbol": "SYS_POWER_SUPPLY_B",
+                "enum": "sys_power_supply_source_e",
+                "value": 2,
+                "alias": "Source B",
+                "description": "The load is fed from source B of the power mux"
+              }
+            ],
+            "enum_ref": "sys_power_supply_source_e"
+          }
+        }
+      }
+    },
+    {
+      "packet": "packet_sys_power_supply_get_source_t",
+      "parameters": [
+        {
+          "name": "device_id",
+          "alias": "Device ID",
+          "instance": true
+        }
+      ],
+      "alias": "Read source",
+      "returns": "source",
+      "packet_definition": {
+        "source_file": "dec_sys_contracts.h",
+        "class_name": "SYS_CONTRACTS",
+        "class_header": "0x01",
+        "packet_header": "0x3B",
+        "decoder": "decoder_packet_sys_power_supply_get_source_t()",
+        "field_order": [
+          "device_id"
+        ],
+        "fields": {
+          "device_id": {
+            "type": "uint8_t",
+            "alias": "Device ID",
+            "required": true
+          }
+        }
+      }
+    }
+  ]
+}

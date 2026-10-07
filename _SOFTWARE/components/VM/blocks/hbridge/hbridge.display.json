@@ -1,0 +1,10 @@
+{
+  "title": "H-Bridge",
+  "category": "io",
+  "description": "Drives one channel of an H-bridge (motor driver): follows an input in percent, or brakes or coasts the motor, as the action says.",
+  "activation": "Runs every pass while enabled; commands the bridge only when the value or the action changes.",
+  "header": "{title} | {action} {channel}",
+  "inputs": {
+    "drive": { "title": "Drive", "description": "Speed and direction in percent: -100 to 100 for a full bridge (the sign is the direction), 0 to 100 for a half bridge. Overrides the Drive setting. Used when the action is Drive." }
+  }
+}

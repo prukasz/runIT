@@ -33,6 +33,7 @@ const send = async (session: RunitBleSession, label: string, frame: Uint8Array, 
 const GROUPS: readonly [RegExp, string][] = [
   [/^sys_io_/, 'Pins'],
   [/^sys_power_vreg_/, 'Regulator'],
+  [/^sys_power_supply_/, 'Supply source'],
   [/^sys_power_monitor_/, 'Power monitor'],
   [/^sys_power_usb_pd_/, 'USB-C power delivery'],
   [/^sys_power_/, 'Power'],

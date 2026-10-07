@@ -3,7 +3,7 @@ import { compileObjects, packSubscribe, packValueWrite } from '../../../src/doma
 import { runitCommandCatalog, runitStreamCatalog, runitVmCatalog } from '../../../src/domain/descriptors'
 import { createProject, parseProject, serializeProject, setFolderChildren, updateObject } from '../../../src/domain/project'
 import type { ObjectNode, ObjectSection, ProjectDocument, ValueNode } from '../../../src/domain/project'
-import { DEFAULT_LOGS, planSettingsUpload, planVmUpload, runitSettingsIds } from '../../../src/domain/upload'
+import { DEFAULT_LOGS, planPowerUpload, planSettingsUpload, planVmUpload, runitSettingsIds } from '../../../src/domain/upload'
 import type { BleCharSpec, BleServiceSpec, ConnectorSpec, SettingsState } from '../../../src/domain/upload'
 
 const hex = (data: Uint8Array): string => [...data].map((byte) => byte.toString(16).padStart(2, '0')).join(' ')
@@ -215,5 +215,14 @@ describe('limits from the firmware descriptors', () => {
     expect(planFor(user({ id: ids.limits.connectorsMax })).ok).toBe(false)
     expect(planFor(user({ maxPacketLen: ids.limits.frameMax + 1 })).ok).toBe(false)
     expect(planFor(user({})).ok).toBe(true)
+  })
+})
+
+describe('power settings upload', () => {
+  it('sends the caps flag as settings packet 0x03 whatever the board holds', () => {
+    const on = planPowerUpload(runitCommandCatalog(), { capsDisabled: true })
+    expect(on.ok).toBe(true)
+    expect(on.steps.map((step) => `${step.label}: ${hex(step.frame)}`)).toEqual(['power caps disabled: 08 03 01'])
+    expect(planPowerUpload(runitCommandCatalog(), { capsDisabled: false }).steps.map((step) => hex(step.frame))).toEqual(['08 03 00'])
   })
 })

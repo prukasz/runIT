@@ -53,7 +53,7 @@ The manager task runs every `CONFIG_SYS_POWER_TASK_PERIOD_MS` (1 s), and immedia
 1. **Source** (`sys_power_source_e`):
    - If the board has indicator pins, the first pin reading its active level decides; no match means `UNKNOWN`.
    - Otherwise it's inferred: USB-C if the USB-PD sink offers power, else PSU if the user entered one, else battery if one is configured, else unknown.
-2. **Input** voltage and current are measured on `input`. A measurement failure is reported once, until it works again.
+2. **Input** voltage and current are measured on `input`. A measurement failure is reported once, until it works again. Before the first successful read, "input device not installed yet" (`ERR_DEV_NOT_FOUND`) isn't reported: the manager starts before the board's devices are installed, so it skips the tick and retries.
 3. **Budget** = measured input voltage × source current, both capped by `max_mV` / `max_mA`:
 
    | Source | Current used |
@@ -66,6 +66,15 @@ The manager task runs every `CONFIG_SYS_POWER_TASK_PERIOD_MS` (1 s), and immedia
 4. **Hardware trip on the input:** the input monitor's critical alert is set at the source current, and its warning at `CONFIG_SYS_POWER_INPUT_WARNING_PCT` of it.
 5. **Rebalance:** when the budget changes by at least `CONFIG_SYS_POWER_BUDGET_STEP_MW`, the automatic rail caps are recomputed.
 6. **Over budget:** if the reserve and the fixed rails no longer fit (or an automatic rail's share is 0), the manager reports `ERR_POWER_SOURCE_BELOW_ALLOCATION` and raises `BUDGET_EXCEEDED` (latched until it fits again).
+
+**Caps disabled** (`sys_power_set_caps_disabled`, persisted as `pwr_caps`): the budget and the source's current limit stop applying; the board's voltage limit stays.
+
+- The budget is `max_mV × max_mA` (the board's hardware caps, not the measured input), so it is never the limit.
+- Rail changes aren't refused for budget (`ERR_POWER_BUDGET_EXCEEDED`), and `BUDGET_EXCEEDED` / `ERR_POWER_SOURCE_BELOW_ALLOCATION` aren't raised.
+- Automatic rails get `max_mA` as their limit (the regulator still needs a number).
+- The input's critical alert sits at `max_mA`.
+- OVP above `max_mV` and the voltage range check on `set_voltage` stay.
+- Turning caps back on recomputes the budget on the next tick; rails already set above it raise `BUDGET_EXCEEDED` as usual.
 
 ### Rails
 
@@ -111,9 +120,11 @@ Every power event (`sys_power_events_e`) has a response (`sys_power_response_e`)
 
 | Event | Response |
 |---|---|
-| OVP, SPC, OCP critical, budget exceeded | DISABLE |
+| OVP, SPC, budget exceeded | DISABLE |
 | OTP, battery critical | SAFE_STATE |
-| UVP, OCP warning, battery low, source changed | NOTIFY |
+| UVP, OCP warning, OCP critical, battery low, source changed | NOTIFY |
+
+OCP critical is NOTIFY for now (temporary, for bring-up): a rail that hits its current limit keeps running in current limit, and only the event and error are raised.
 
 ### Status
 
@@ -121,7 +132,7 @@ Every power event (`sys_power_events_e`) has a response (`sys_power_response_e`)
 
 ### Settings
 
-PSU limits (`pwr_psu`) and the battery setup (`pwr_battery`) are stored with `sys_settings` (NVS) and loaded by `sys_power_init()`. Packets: settings class `0x08` (`dec_settings_power.h`): `0x01` set_psu, `0x02` set_battery.
+PSU limits (`pwr_psu`), the battery setup (`pwr_battery`) and the caps flag (`pwr_caps`) are stored with `sys_settings` (NVS) and loaded by `sys_power_init()`. The caps flag is stored too (`pwr_caps`). Packets: settings class `0x08` (`dec_settings_power.h`): `0x01` set_psu, `0x02` set_battery, `0x03` set_caps (`disabled` 0 / 1).
 
 ---
 
@@ -166,6 +177,10 @@ typedef struct sys_power_monitor_contract_t {
 ```
 A tripped alert is published as that event on that channel.
 
+### Power Supply Contract (sys_power_supply_contract_t)
+
+A power mux: two switched sources into one load (the LM73100 ideal diodes of an H-bridge VM node). `select(sys_power_supply_source_e)` (OFF / A / B) switches the source that is on off first, waits the device's switch delay, then switches the new one on, so the two are never on together; `get_source` reads what is on. API: `sys_power_supply_select`, `sys_power_supply_get_source`; packets `0x3A` select and `0x3B` get_source (class `0x01`). The provider is `device_power_mux` (type `0x4A`, two enable pins). The choice is a default setting of the app (stored hardware config), there is no VM block.
+
 ### USB Power Delivery Contract (sys_power_usb_pd_contract_t)
 ```c
 typedef struct sys_power_usb_pd_contract_t {
@@ -184,7 +199,7 @@ typedef struct sys_power_usb_pd_contract_t {
 |---|---|
 | `sys_power_init(board)` | Start the manager and subscribe it to power events (boot step, after `sys_settings_init` and `sys_event_init`) |
 | `sys_power_register_safe_state(fn)` | Safe state used by `SAFE_STATE` |
-| `sys_power_set_psu(mV, mA)` / `sys_power_set_battery(...)` | Persisted source settings |
+| `sys_power_set_psu(mV, mA)` / `sys_power_set_battery(...)` / `sys_power_set_caps_disabled(bool)` | Persisted settings |
 | `sys_power_set_response(event, response)` | Runtime response matrix |
 | `sys_power_get_status(out)` | Manager snapshot |
 | `sys_power_get_max_mV()` / `sys_power_get_max_mA()` | Board hardware caps |

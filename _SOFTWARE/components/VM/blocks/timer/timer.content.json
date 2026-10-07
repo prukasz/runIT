@@ -16,8 +16,7 @@
         "name": "pt",
         "value": "u32",
         "overrides": "pt",
-        "required": false,
-        "hidden_by_default": true
+        "required": false
       }
     ]
   },

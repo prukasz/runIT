@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { readStored, usePersistEffect, usePersistedFlag } from '../../hooks/useStorage'
+import { readStored, usePersistEffect } from '../../hooks/useStorage'
 import { addBlock, addCanvas, DEFAULT_VIEWPORT, findBlock, GRID, moveBlock, moveCanvas, newBlockId, pasteBlocks, removeBlock, removeCanvas, renameCanvas, screenToCanvas, setCanvasDisabled, snapPoint, updateBlock } from '../../domain/canvas'
 import type { Point, Viewport } from '../../domain/canvas'
 import { runitVmCatalog } from '../../domain/descriptors'
@@ -12,15 +12,13 @@ import { blockShape } from '../blocks/blockView'
  * The Code view's canvases: the list (saved in the project file and
  * auto-saved to browser storage, edits with undo / redo like the other
  * workspaces), which one is open, and per canvas where it is scrolled and
- * zoomed (view state: not saved, not undone). Snap to grid is a preference.
+ * zoomed (view state: not saved, not undone).
  * Blocks are placed from the palette, moved, set up in the details panel and
  * removed; one block is selected, or several (tap them in multiple-select
  * mode, or with Shift / Ctrl, or draw a box) and then moved, copied and deleted together.
  */
 
 const STORAGE_KEY = 'runit.canvases'
-const SNAP_KEY = 'runit.canvas.snap'
-const DETAIL_KEY = 'runit.canvas.detailed'
 
 const newId = (): string => `canvas-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 
@@ -53,8 +51,9 @@ export function useCanvasWorkspace(onSelectBlock?: () => void) {
   const history = useUndoHistory(loadCanvases)
   const [activeId, setActiveId] = useState<string | undefined>(() => history.present[0]?.id)
   const [viewports, setViewports] = useState<ReadonlyMap<string, Viewport>>(new Map())
-  const [snap, setSnap] = usePersistedFlag(SNAP_KEY, true)
-  const [detailed, setDetailed] = usePersistedFlag(DETAIL_KEY, false)
+  /** Blocks opened to their detailed face with the arrow on the block (view state: not saved, not undone). */
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(new Set())
+  const toggleExpanded = (id: string) => setExpandedIds((current) => { const next = new Set(current); if (!next.delete(id)) next.add(id); return next })
   const [error, setError] = useState('')
   /** The selected blocks' IDs, in the order they were picked; the inspector shows one block, or a summary of several. */
   const [selectedIds, setSelectedIds] = useState<readonly string[]>([])
@@ -126,8 +125,8 @@ export function useCanvasWorkspace(onSelectBlock?: () => void) {
     if (!spot) {
       const view = (active && viewports.get(active.id)) ?? DEFAULT_VIEWPORT
       const catalog = runitVmCatalog()
-      const size = blockShape(catalog.block(typeKey), { id: '', type: typeKey }, detailed)
-      const rects = active.blocks.map((block) => ({ ...blockShape(catalog.block(block.type), block, detailed), x: block.x, y: block.y }))
+      const size = blockShape(catalog.block(typeKey), { id: '', type: typeKey })
+      const rects = active.blocks.map((block) => ({ ...blockShape(catalog.block(block.type), block, expandedIds.has(block.id)), x: block.x, y: block.y }))
       spot = snapPoint(screenToCanvas(view, { x: surfaceSize.current.width / 2 - size.width / 2, y: surfaceSize.current.height / 3 }))
       for (let tries = 0; tries < 200; tries++) {
         const at: Point = spot
@@ -212,10 +211,8 @@ export function useCanvasWorkspace(onSelectBlock?: () => void) {
     setViewport: (viewport: Viewport) => {
       if (active) setViewports((current) => new Map(current).set(active.id, viewport))
     },
-    snap,
-    setSnap,
-    detailed,
-    setDetailed,
+    expandedIds,
+    toggleExpanded,
     surfaceSize,
     paletteDrag,
     /** The selected block when exactly one is selected (on any canvas: it may have been undone away). */

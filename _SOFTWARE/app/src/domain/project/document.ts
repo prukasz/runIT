@@ -1,4 +1,5 @@
 import type { BoardTemplate } from '../board'
+import type { Controller } from '../controller'
 import type { Wire } from '../hardware'
 /*
  * The project document: one JSON file holding everything the app builds a
@@ -58,6 +59,8 @@ export interface ProjectDocument {
   readonly setup?: readonly ActionStep[]
   /** The program's canvases, in execution order. */
   readonly canvases?: readonly ProjectCanvas[]
+  /** The Remote view's widgets. */
+  readonly controller?: Controller
 }
 
 // ---------------------------------------------------------------------------
@@ -226,10 +229,19 @@ export interface LogSettings {
   readonly traceErrors: boolean
 }
 
+/** Board power: the board keeps it in its own storage (not in the stored code); the app sends it on every connection. */
+export interface PowerSettings {
+  /** True removes the power budget and current caps; only the board's voltage limit stays. */
+  readonly capsDisabled: boolean
+}
+
+export const DEFAULT_POWER: PowerSettings = { capsDisabled: false }
+
 export interface ProjectSettings {
   readonly ble: BleProfile
   readonly connectors: readonly ConnectorSettings[]
   readonly logs: LogSettings
+  readonly power: PowerSettings
 }
 
 export const DEFAULT_BLE_GENERAL: BleGeneralSettings = {

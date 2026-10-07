@@ -75,7 +75,7 @@ Status tags: **✅ decided** (survey 2026-09-24, §6) · **⚠ firmware gap** (�
 | CAN-2 | Feature list (created features) as a palette source | DEV-2 |
 | CAN-3 | Block settings in the inspector when a block is selected | pins, `custom` fields from descriptor `state` layout (source `user`). ✅ 2026-09-27 (`BlockDetails`, formula editor for EXPR / EXPR_BIT) |
 | CAN-4 | **Multiple canvases**, executed in order (canvas 1 first) | ✅ Node-RED-style flow tabs sharing the same objects; one program, tabs concatenated in tab order within a pass. A tab can be disabled: the compiler leaves it out (re-upload needed, no live toggle) |
-| CAN-5 | Two block looks: basic and extended | ✅ 2026-09-27: toolbar toggle (saved preference), inspector can fix each block to simple/detailed (saved in project); basic = type name + input/output pins, extended = ID, formula or descriptor user settings, pin paths and activation. Red EN / green ENO side strips always visible; referenced ENO storage is allocated automatically; live values / runtime state await DBG |
+| CAN-5 | One block look, "show more" only on expressions | ✅ 2026-10-05: no simple / detailed views and no hidden inputs (every input is drawn, an unwired one with its constant); a block with a formula (EXPR, EXPR_BIT) has an arrow on it that opens its formula, per block, for the session. Red EN / green ENO side strips always visible; referenced ENO storage is allocated automatically; live values / runtime state await DBG |
 | CAN-6 | Snap-to-grid | ✅ 2026-09-27: 20-unit grid, toggle in the action bar; blocks will snap their top-left corner |
 | CAN-7 | Loops visibly marked (FOR span) | ✅ 2026-09-28: FOR body = the blocks its Body handle gates; tinted areas for loops and branches (§8.1) |
 | CAN-8 | Live values on blocks and wires while running | DBG |
@@ -102,9 +102,9 @@ Status tags: **✅ decided** (survey 2026-09-24, §6) · **⚠ firmware gap** (�
 ### REM — Remote control view
 | ID | Feature | Notes |
 |---|---|---|
-| REM-1 | Separate view: widget palette (sliders, switches, displays, …) left, configuration right | SH-1 / SH-2 |
-| REM-2 | Widgets linked to objects | write via `0x43` live patch (data-only objects while running) |
-| REM-3 | "Overridden after change" | ✅ The widget follows the live object value; when the user moves it, the app writes the object; the program may change it again afterwards (no forcing) |
+| REM-1 | Separate view: widget palette (sliders, switches, displays, …) left, configuration right | ✅ 2026-10-05: Remote tab: Widgets / Variables tabs left (like Code), the grid in the middle, the selected widget's settings right. Joystick, slider, switch, button, input field, keyboard (laptop only), value, chart, lamp, bar, label |
+| REM-2 | Widgets linked to objects | ✅ 2026-10-05: each widget slot links to a single-value variable (drop a variable on the widget, or the settings list); writes go as `0x43` through the debug session (`DebugView.write`, `packValueWrite`), throttled per variable (`controller/liveWrite.ts`). **Enable** = start the debug session (uploads the debug build and runs it), so the widgets see live values and the layout is locked; Disable stops it |
+| REM-3 | "Overridden after change" | ✅ The widget follows the live object value (slider, switch, input); when the user moves it, the app writes the object; the program may change it again afterwards (no forcing). Sticks / sliders can return to the middle on release |
 | REM-4 | Physical gamepad input | ✅ In scope: Gamepad API, bind sticks / buttons to widgets or objects |
 | REM-5 | Emergency stop always visible (legacy idea) | static action freeze / VM stop |
 
@@ -284,9 +284,9 @@ Built: `domain/canvas/arrange.ts` (order, explicit gates, loop bodies), `wiring.
 - ENO (green strip) is opt-in: dragged onto another block's EN it gates that block on the source's flow signal (action success, pulse, or held level, depending on the source block). Nothing else is linked automatically.
 - LATCH uses its EN as Set, its optional Reset data input to clear, and its ENO as the held flow level. It has no Set or Q data pin. A one-pass pulse on EN can keep a downstream chain enabled until Reset, even while LATCH's EN is false.
 - The canvas shows each explicitly gated branch as a rounded area with a plain transparent tint around the blocks carrying that gate; areas may overlap. An area holding another grows to wrap it and the inner one is drawn on top. The same for IF, SWITCH, PERIODIC … and FOR.
-- EN links are drawn as a faded ribbon, narrow at the source and as tall as the whole red EN strip where it arrives (gate red, ENO green, a FOR's loop link purple); data wires stay thin lines.
+- EN links are drawn as a faded ribbon, narrow at the source and as tall as the whole red EN strip where it arrives (gate red, ENO orange, a FOR's loop link purple); data wires stay thin lines.
 
-**FOR body = the FOR's ENO chain** (owner, 2026-09-28, replacing a Body output). A FOR's green ENO dropped on a block's EN puts that block in the loop, and with it every block whose chain depends on it (data wires, or gated by a member). The link is compiler-only, never a VM enable; the compiler places the body right after the FOR and sets the span. Older `<for>:body` links still load.
+**FOR body = the FOR's ENO chain** (owner, 2026-09-28, replacing a Body output). A FOR's ENO (orange strip) dropped on a block's EN puts that block in the loop, and with it every block whose chain depends on it (data wires, or gated by a member). The link is compiler-only, never a VM enable; the compiler places the body right after the FOR and sets the span. Older `<for>:body` links still load.
 
 **Firmware G-11: a fresh enable counts as a trigger.** Triggered blocks (EXPR, EXPR_BIT, SET, CLONE) also activate when an enable source is true and freshly written; gates and ticks are written loud while true.
 
@@ -297,4 +297,4 @@ Built: `domain/canvas/arrange.ts` (order, explicit gates, loop bodies), `wiring.
 - The chip snaps onto the pin (no wire); pulled away it keeps a wire; one detached chip may feed several pins.
 - On an **output** pin the chip means the block writes that variable (other blocks may write it too).
 
-**Strips:** EN orange, ENO green (as built).
+**Strips:** EN and ENO both stay orange while editing (the contour behind the blocks groups them); in debug mode the strips show state (green / red).

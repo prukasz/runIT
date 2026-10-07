@@ -62,23 +62,36 @@ typedef struct tps_ctx_t {
    settle time. Note: the limit is VISP - VISN in 0.5 mV steps over the sense
    resistor, specified only at 30 / 50 mV (datasheet 6.5), so limits below ~1 A
    (a few mV) are coarse: on the PCB 250 / 350 mA settings held ~150 / ~240 mA. */
-#define TPS_RAMP_SETTLE_MS 100
-/* Current limit while the output rises. The limit is VISP - VISN over the
-   10 mOhm sense resistor, so 200 mA is 2 mV - within the chip's offset: a rail
-   then flags OCP just charging its capacitors (seen on rail A). 500 mA = 5 mV. */
-#define TPS_SOFT_RISE_MA 500
+#define TPS_RAMP_SETTLE_MS 1000
+/* The output rises in whole-volt steps from TPS_RAMP_START_MV to the target, one step every
+   TPS_RAMP_STEP_MS, so the load's capacitors charge gradually. The chip itself slews 1.25 mV/us, so
+   without the steps a rail reaches 20 V in ~16 ms. The ramp counts toward the settle window below. */
+#define TPS_RAMP_START_MV 1000
+#define TPS_RAMP_STEP_MV 1000
+#define TPS_RAMP_STEP_MS 50
+/* The settle is also the startup window in which the chip's OCP flag is ignored (a load's inrush keeps
+   the chip in current limit while its capacitors charge). The calls that start a rise (enable, voltage
+   up) wait it out, so they take this long. The flag is cleared at its end; an overload that persists
+   sets it again and is reported. */
+/* Current limit while the output rises; 0 = no soft-rise limit, the output rises at the wanted
+   limit (the inrush then comes straight from the input and can pull a USB source down). With a
+   limit, keep it at or above TPS_LIMIT_FLOOR_MA: the limit is VISP - VISN over the 10 mOhm sense
+   resistor, so 200 mA is 2 mV - within the chip's offset, and a rail then flags OCP just charging
+   its capacitors (seen on rail A). 500 mA = 5 mV. */
+#define TPS_SOFT_RISE_MA 1000
 
 /* Lowest limit written to the chip. Below ~5 mV sense the offset dominates: on
    the PCB rail A's chip sat in current limit with no load at a 200 mA (2 mV)
    setting and flagged OCP right after enable. Lower requests are raised to it. */
-#define TPS_LIMIT_FLOOR_MA TPS_SOFT_RISE_MA
+#define TPS_LIMIT_FLOOR_MA 500
 
-/* TEMP bring-up (short test): cap every current limit written to the chip,
-   below the floor if needed. 0 = no cap. */
-#define TPS_TEST_CURRENT_CAP_MA 350
 static inline uint16_t tps_limit(uint16_t mA) {
-  if (mA < TPS_LIMIT_FLOOR_MA) mA = TPS_LIMIT_FLOOR_MA;
-  return (TPS_TEST_CURRENT_CAP_MA && mA > TPS_TEST_CURRENT_CAP_MA) ? TPS_TEST_CURRENT_CAP_MA : mA;
+  return mA < TPS_LIMIT_FLOOR_MA ? TPS_LIMIT_FLOOR_MA : mA;
+}
+
+/* Limit held while the output rises: the soft-rise limit, or the wanted one when there is none. */
+static inline uint16_t tps_rise_limit(uint16_t wanted_mA) {
+  return TPS_SOFT_RISE_MA ? TPS_SOFT_RISE_MA : wanted_mA;
 }
 
 // Install steps, recorded so teardown rolls back only what was actually built
@@ -152,10 +165,22 @@ static SE_MUST_USE err_h tps_set_en(tps_ctx_t* c, bool high) {
   return NULL;
 }
 
-/* The output is rising (enable, or a higher voltage): hold the soft-rise current
-   limit (TPS_SOFT_RISE_MA) while it settles, then apply the wanted one. */
-static SE_MUST_USE err_h tps_soft_rise(tps_ctx_t* c) {
-  vTaskDelay(pdMS_TO_TICKS(TPS_RAMP_SETTLE_MS));
+/* Raise the output from from_mV to the wanted voltage in TPS_RAMP_STEP_MV steps (the first step is
+   the next whole step above from_mV). Only called while the rail is powered and rising. */
+static SE_MUST_USE err_h tps_ramp(tps_ctx_t* c, uint16_t from_mV) {
+  for (uint32_t v = (from_mV / TPS_RAMP_STEP_MV + 1) * TPS_RAMP_STEP_MV; v < c->last_voltage_mV; v += TPS_RAMP_STEP_MV) {
+    SE_TRY(chip_set_voltage(c, (uint16_t)v));
+    vTaskDelay(pdMS_TO_TICKS(TPS_RAMP_STEP_MS));
+  }
+  return chip_set_voltage(c, c->last_voltage_mV);
+}
+
+/* The output is rising (enable, or a higher voltage), started at start_tick: wait out the rest of the
+   settle window, with the soft-rise current limit (TPS_SOFT_RISE_MA, if any) held meanwhile, then apply
+   the wanted one. */
+static SE_MUST_USE err_h tps_soft_rise(tps_ctx_t* c, TickType_t start_tick) {
+  TickType_t elapsed = xTaskGetTickCount() - start_tick;
+  if (elapsed < pdMS_TO_TICKS(TPS_RAMP_SETTLE_MS)) vTaskDelay(pdMS_TO_TICKS(TPS_RAMP_SETTLE_MS) - elapsed);
   SE_TRY(chip_set_current_limit(c, c->is_current_limit_enabled, tps_limit(c->last_current_limit_mA)));
   // Clear the OCP the rise may have latched; if the overload persists the
   // chip sets it again right away and the fault is reported normally.
@@ -173,12 +198,15 @@ static SE_MUST_USE err_h tps_apply_config(tps_ctx_t* c) {
   }
   // Slowest output slew: voltage changes charge the output capacitors gently.
   SE_TRY(chip_set_slew_rate(c, SLEW_1_25_MV_US));
-  uint16_t start_mA = c->last_enable_state ? TPS_SOFT_RISE_MA : c->last_current_limit_mA;
+  uint16_t start_mA = c->last_enable_state ? tps_rise_limit(c->last_current_limit_mA) : c->last_current_limit_mA;
   c->rising = c->last_enable_state;
   SE_TRY(chip_set_current_limit(c, c->is_current_limit_enabled, tps_limit(start_mA)));
-  SE_TRY(chip_set_voltage(c, c->last_voltage_mV));
+  TickType_t start_tick = xTaskGetTickCount();
+  bool ramp = c->last_enable_state && c->last_voltage_mV > TPS_RAMP_START_MV;
+  SE_TRY(chip_set_voltage(c, ramp ? TPS_RAMP_START_MV : c->last_voltage_mV));
   SE_TRY(chip_set_output_enable(c, c->last_enable_state));
-  if (c->last_enable_state) SE_TRY(tps_soft_rise(c));
+  if (ramp) SE_TRY(tps_ramp(c, TPS_RAMP_START_MV));
+  if (c->last_enable_state) SE_TRY(tps_soft_rise(c, start_tick));
   return NULL;
 }
 
@@ -233,15 +261,17 @@ static SE_MUST_USE err_h vreg_set_voltage(void* handle, uint32_t voltage_mV) {
   SYS_DEV_CTX_FROM(tps_ctx_t, c, handle);
   SE_CHECK_IN_RANGE(voltage_mV, DEVICE_TPS55289_MIN_VOLTAGE_MV, DEVICE_TPS55289_MAX_VOLTAGE_MV);
   bool rising = voltage_mV > c->last_voltage_mV;
+  uint16_t from_mV = c->last_voltage_mV;
   c->last_voltage_mV = voltage_mV;
   if (!tps_powered(c)) return NULL;  // applied by the next enable
+  TickType_t start_tick = xTaskGetTickCount();
   if (rising) {
     c->rising = true;
-    SE_TRY(chip_set_current_limit(c, c->is_current_limit_enabled, tps_limit(TPS_SOFT_RISE_MA)));
+    SE_TRY(chip_set_current_limit(c, c->is_current_limit_enabled, tps_limit(tps_rise_limit(c->last_current_limit_mA))));
+    SE_TRY(tps_ramp(c, from_mV));
+    return tps_soft_rise(c, start_tick);
   }
-  SE_TRY(chip_set_voltage(c, voltage_mV));
-  if (rising) SE_TRY(tps_soft_rise(c));
-  return NULL;
+  return chip_set_voltage(c, voltage_mV);
 }
 
 static SE_MUST_USE err_h vreg_set_current(void* handle, uint32_t current_mA) {

@@ -19,6 +19,10 @@ const char* const sys_power_vreg_feature_names[] = {"set_enable", "set_voltage",
 const char* const sys_power_monitor_feature_names[] = {"get_voltage", "get_current", "set_alert", NULL};
 //@contract-features $SYS_DEVICE_CONTRACT_POWER_USB_PD
 const char* const sys_power_usb_pd_feature_names[] = {"set_settings", "list_options", "get_limits", NULL};
+//@contract-features $SYS_DEVICE_CONTRACT_POWER_SUPPLY
+const char* const sys_power_supply_feature_names[] = {"select", "get_source", NULL};
+_Static_assert(sizeof(sys_power_supply_feature_names) / sizeof(sys_power_supply_feature_names[0]) - 1 == sizeof(sys_power_supply_contract_t) / sizeof(void (*)(void)),
+               "sys_power_supply_feature_names must list every sys_power_supply_contract_t member in order");
 _Static_assert(sizeof(sys_power_vreg_feature_names) / sizeof(sys_power_vreg_feature_names[0]) - 1 == sizeof(sys_power_vreg_contract_t) / sizeof(void (*)(void)),
                "sys_power_vreg_feature_names must list every sys_power_vreg_contract_t member in order");
 _Static_assert(sizeof(sys_power_monitor_feature_names) / sizeof(sys_power_monitor_feature_names[0]) - 1 == sizeof(sys_power_monitor_contract_t) / sizeof(void (*)(void)),
@@ -60,6 +64,24 @@ err_h sys_power_monitor_get_current(uint8_t device_id, uint8_t channel, int32_t*
 #define OWNER OWNER_SYS_POWER_MONITOR_SET_ALERT
 err_h sys_power_monitor_set_alert(uint8_t device_id, uint8_t channel, sys_power_events_e alert, int32_t threshold_mA) {
   SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_MONITOR, sys_power_monitor_contract_t, set_alert, channel, alert, threshold_mA);
+}
+
+/* ========================================================================== *
+ * SUPPLY SELECT API (power mux)
+ * ========================================================================== */
+
+#undef OWNER
+#define OWNER OWNER_SYS_POWER_SUPPLY_SELECT
+err_h sys_power_supply_select(uint8_t device_id, sys_power_supply_source_e source) {
+  SE_CHECK_IN_RANGE((uint32_t)source, SYS_POWER_SUPPLY_OFF, SYS_POWER_SUPPLY_B);
+  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_SUPPLY, sys_power_supply_contract_t, select, source);
+}
+
+#undef OWNER
+#define OWNER OWNER_SYS_POWER_SUPPLY_GET
+err_h sys_power_supply_get_source(uint8_t device_id, sys_power_supply_source_e* out_source) {
+  SE_CHECK_NOT_NULL(out_source);
+  SYS_DEV_DISPATCH(device_id, SYS_DEVICE_CONTRACT_POWER_SUPPLY, sys_power_supply_contract_t, get_source, out_source);
 }
 
 /* ========================================================================== *

@@ -1,0 +1,19 @@
+# Read Pin
+
+Reads the logic level of a pin on an IO device (the ESP's own GPIO or an expander) and writes it to a true / false variable: a button, a switch, a sensor output.
+
+## Pins and settings
+
+| | Meaning |
+|---|---|
+| Level (bool, output) | **True** while the pin reads high, **false** while it reads low. Required. |
+| Device | The IO device that owns the pin. Only devices that can read a level are listed. |
+| Pin | The pin to read. Pins the board reserves or another device uses are not offered. |
+| ENO (Read) | True when the pin was read and the Level written this pass. |
+
+## Behaviour
+
+- Runs every pass while enabled and reads the pin each time. To sample at a fixed rate, connect a **Periodic** block's tick to *Run when*.
+- Set the pin to an input in the device's **default settings** (with a pull-up or pull-down as the wiring needs); the block only reads.
+- A read the device refuses is an error of this block: ENO goes false and Level keeps its last value.
+- To react to a change instead of the level itself, connect Level to an **Edge** block.

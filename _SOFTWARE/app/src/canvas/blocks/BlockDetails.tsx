@@ -14,6 +14,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { blockShape, pinValueOf } from './blockView'
 import { ExpressionEditor } from './ExpressionEditor'
 import { ChoiceField } from '../../components/ChoiceField'
+import { ValueOrVariableField } from './ValueOrVariableField'
 import { BlockActionFields } from './BlockActionFields'
 import { BlockHardwareFields } from './BlockHardwareFields'
 import { BlockSourceFields } from './BlockSourceFields'
@@ -509,6 +510,35 @@ export function BlockDetails({
                   </label>
                 )
               }
+              if (pin) {
+                const unwired = (current: CanvasBlock): CanvasBlock => ({ ...current, inputs: current.inputs?.map((path, at) => (at === pin.index ? null : path)) })
+                return (
+                  <ValueOrVariableField
+                    key={field.name}
+                    label={label}
+                    hint={hint}
+                    constant={typeof raw === 'number' ? raw : undefined}
+                    variable={fed ? feeder : undefined}
+                    variableText={fed ? labelPath(feeder!) : undefined}
+                    integer={isInteger(field)}
+                    min={field.cType.startsWith('uint') ? 0 : undefined}
+                    parse={(text) => { if (!project) throw new Error('No project is open.'); return parsePathText(text, project) }}
+                    onConstant={(value) => update((current) => {
+                      const { [field.name]: _, ...rest } = current.settings ?? {}
+                      const { settings: _old, ...without } = unwired(current)
+                      const settings = value === undefined ? rest : { ...rest, [field.name]: value }
+                      return Object.keys(settings).length ? { ...without, settings } : without
+                    })}
+                    onVariable={(path) => handleApplyPath(pin.index, labelPath(path), path)}
+                    onDropVariable={(data) => {
+                      const dropped = resolveUniversalDrop(data, project)
+                      if (!dropped) return
+                      handleApplyPath(pin.index, dropped.pathText, dropped.path)
+                      setActivePinIndex(pin.index)
+                    }}
+                  />
+                )
+              }
               return (
                 <NumberField
                   key={field.name}
@@ -524,7 +554,7 @@ export function BlockDetails({
             {actionPicker}
             {isLoop && members > 0 && <p className="block-muted">Body: {loopBody} blocks, the ones on its Loop body (and what depends on them).</p>}
             {isLoop && members === 0 && (
-              <NumberField label="Body" hint="Drag its green Loop body pin onto the Run when of the first block to repeat, or count the blocks after it here" value={block.body} integer min={0} onCommit={(value) => update((current) => {
+              <NumberField label="Body" hint="Drag its Loop body pin (the strip on its right edge) onto the Run when of the first block to repeat, or count the blocks after it here" value={block.body} integer min={0} onCommit={(value) => update((current) => {
                 const { body: _, ...rest } = current
                 return value === undefined ? rest : { ...rest, body: value }
               })} />
@@ -788,7 +818,7 @@ export function BlockDetails({
             </li>
           ))}
           {(gates?.loops ?? []).filter((loop) => !(block.enables ?? []).some((path) => path.root === `${loop}:body` || path.root === `${loop}:eno`)).map((loop) => (
-            <li key={`loop${loop}`} className="is-inherited"><span className="block-gate-dot is-loop" aria-hidden="true" /><span>In the loop of {loop} <small>from the chain</small></span></li>
+            <li key={`loop${loop}`} className="is-inherited"><span className="block-gate-dot is-loop" aria-hidden="true" /><span>In the loop of {workspace.active?.blocks.find((entry) => entry.id === loop)?.name || loop}</span></li>
           ))}
           {!gates?.enables.length && !gates?.loops.length && <li className="is-empty">{type.enable.required ? type.enable.connect ?? 'Connect a source to EN' : ''}</li>}
         </ul>}

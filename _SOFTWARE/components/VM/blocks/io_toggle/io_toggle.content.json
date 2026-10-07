@@ -18,8 +18,7 @@
         "id_kind": "pin",
         "device_field": "device_id",
         "overrides": "default_io_num",
-        "required": false,
-        "hidden_by_default": true
+        "required": false
       }
     ]
   },

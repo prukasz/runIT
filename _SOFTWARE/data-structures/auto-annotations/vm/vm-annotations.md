@@ -30,11 +30,11 @@ python data-structures/auto-annotations/vm/generate-vm-model.py
 
 ## Block catalog (`//#vm-block`)
 
-A block lives in `components/VM/blocks/<name>/`. Two files describe it for the app, and the app builds the block's palette entry, pins, face, detailed view, inspector and program encoding from those two alone (no block-specific app code):
+A block lives in `components/VM/blocks/<name>/`. Two files describe it for the app, and the app builds the block's palette entry, pins, face, inspector and program encoding from those two alone (no block-specific app code):
 
 | File | Written by | Holds |
 | :--- | :--- | :--- |
-| `<name>.display.json` | the author | what the editor shows: `title`, `category`, `description`, `activation` (text), `header` (the face line), `always_detailed`, `eno`, and a `title` / `description` for each pin under `inputs` / `outputs`, keyed by pin name |
+| `<name>.display.json` | the author | what the editor shows: `title`, `category`, `description`, `activation` (text), `header` (the face line), `eno`, and a `title` / `description` for each pin under `inputs` / `outputs`, keyed by pin name |
 | `<name>.content.json` | **generated from the header** (`kind: vm-block-content`) | what the block is: `id`, `name`, activation kind, pins (`index`, `name`, `value`, `overrides`, `required`, ...), `min_enables`, `rules`, `state` (the payload layout with offsets), `min_custom_len`, `enums`, `encoding` for bytecode blocks |
 
 The header `vm_block_<name>.h` is the single source of truth for `content.json`; `generate-vm-blocks.py` also writes `data-structures/vm/blocks/index.generated.json` (palette index pointing at the two files, plus the shared vocabularies: value kinds, activation kinds, id kinds) and the firmware's `vm_block_ids.generated.h` / `vm_blocks_registry.generated.h`. Nothing generated is edited by hand.
@@ -84,15 +84,15 @@ void vm_blk_for(vm_block_h b);
 
 ### Constants: `@overrides`
 
-`VM_IN_FOR_START ... //@in @value f32 @overrides k_start` says: while this pin is unwired the block uses the state field `k_start`. The generator then publishes the pin as hidden until it is wired (`hidden_by_default`) and marks the field `overridden_by` the pin. The app draws no pin for it, shows the field in the inspector under the pin's title, and once the pin is wired shows what feeds it instead. The field must be a user field the pin's value kind can replace (`f32` ↔ `float`, `u32` ↔ `uint32_t`/`uint16_t`/`uint8_t`, an `object` pin ↔ `float`: SET's source, ...), each field has at most one pin, and a required pin cannot have one. A hidden pin must be an `@overrides` pin or the dynamic input of a pin mask (below); otherwise nothing could set it and the generator fails.
+`VM_IN_FOR_START ... //@in @value f32 @overrides k_start` says: while this pin is unwired the block uses the state field `k_start`. The generator marks the field `overridden_by` the pin. The pin is always drawn, with the constant on it while nothing is wired; the inspector shows the field under the pin's title, and once the pin is wired shows what feeds it instead. The field must be a user field the pin's value kind can replace (`f32` ↔ `float`, `u32` ↔ `uint32_t`/`uint16_t`/`uint8_t`, an `object` pin ↔ `float`: SET's source, ...), each field has at most one pin, and a required pin cannot have one.
 
-### Face and detailed view
+### Face
 
 The display.json says what the block's face shows; the app fills in the values.
 
 - **Face:** `header` is the line under the title (`Every | {period} {time_base}` → "Every 100 MS": the words, then the value, drawn apart; the `|` is optional). Without a header the face shows the title alone. The app resolves the `{ref}`s from the two files (below); the generator checks every one against the pins and fields.
-- **Always detailed:** `always_detailed: true` draws the block in its detailed view on every canvas and hides the view choice; it needs an `@overrides` input or `@opcodes`, else the detailed view is empty. IO_SET_LEVEL uses it so its pin and level are always visible.
-- **Detailed view:** built automatically, nothing to write. A block has one when it has an input with a constant (`@overrides`), or a formula (`//@opcodes`): each input that has a constant is drawn with that constant as a chip while it is unwired (`0  Start`, `300  Preset`), and a bytecode block shows its formula (`Result = a + b`). A block with neither is its face.
+- **Every input is drawn.** There is no simple / detailed view and no hidden pin: each input with a constant (`@overrides`) shows that constant as a chip while it is unwired (`0  Start`, `300  Preset`). Nothing to annotate for it.
+- **Show more:** only a block with a formula (`//@opcodes`) has an arrow on the block that opens its formula (`Result = a + b`) under the pins. Nothing to write for it either.
 - A `{ref}` in a header is:
   - an **input pin name**: the wired source's name, else (when the pin has `@overrides`) the constant it overrides, else `dynamic` when the user made it a dynamic input;
   - an **output pin name**: the variable it drives, else its name;
@@ -109,8 +109,7 @@ These tags apply to state-field comments and (where listed) pin members. They ch
 - `@id device @any <n> @source-field <domain field>` picks the device from an event catalog instead of by operation: the installed devices that declare events (`//#event`, [device-annotations.md](../device/device-annotations.md)) in the domain held by the enum field `<domain field>`. `@id channel` and `@id event` (each with `@device-field <device field> @source-field <domain field> @any <n>`) pick what that device's events carry and raise in that domain: its declared channels and events, or the domain's events (the `@events <enum>` on the domain's enum member) while no device is chosen. `@any <n>` on any field gives it a wildcard: the editor offers "Any", stores nothing for it, and the compiler writes `<n>`; it also works on the enum field that holds the domain. A change to the domain or the device resets what it narrows. The editor reads all of this from the block's json, with no block named in the app.
 - `@spec <NAME> @device-field <device field>` (an input pin) says the pin carries the device value `//#value NAME` ([device-annotations.md](../device/device-annotations.md)): the editor picks the variant whose `@when` holds for the settings of the chosen device and shows its title, unit and range on the pin and on the setting the pin overrides (`value_spec` in the json).
 - `@min <n>` (a state field overridden by a pin) is the least that constant may be while the pin is unwired; the compiler refuses a lower one. `@user-write` (an input pin) marks a variable the block writes as the program's user, which the device refuses to take as a block-owned object (`user_write` in the json). A block's `display.json` words its EN with `enable`: `title` (the connector, default "Run when"), `description` (what it does, in a tooltip), `signal` (EN carries a value, shown true / false, not as a gate) and `connect` (what to tell the user while a block that needs an enable source, `//@enables required`, has none). A pin entry of the display.json may add `hide_when_wired: true`: once a variable is wired the face drops the pin's title, because the chip already names it (a numbered input whose title says nothing). The app names no block: everything it does per block comes from these.
-- `@hidden-by-default` (pins; implied by `@overrides`) hides an optional input until it is wired or chosen. Required inputs cannot use this tag.
-- A `uint64_t` mask uses `@hidden-by-default @let-user-select-available <pin field> @dynamic-input <input index>`. Static mode derives one bit from the selected constant pin; Dynamic mode reveals that input and a checklist of available pins. The default pin must stay included. Masks are stored as hexadecimal strings in project settings to preserve all 64 bits.
+- A `uint64_t` mask uses `@hidden-by-default @let-user-select-available <pin field> @dynamic-input <input index>` (`@hidden-by-default` keeps the mask itself out of the inspector's list of settings; the pin pickers edit it). The input it names must be optional. Static mode derives one bit from the selected constant pin; Dynamic mode takes the pin from that input and shows a checklist of available pins. The default pin must stay included. Masks are stored as hexadecimal strings in project settings to preserve all 64 bits.
 
 Generate everything with `python data-structures/auto-annotations/generate-all.py` (`--check` in CI, `--test` for the unit tests). The block generator alone:
 

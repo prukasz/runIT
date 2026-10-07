@@ -159,6 +159,38 @@
       "category": "io",
       "display": "components/VM/blocks/servo/servo.display.json",
       "content": "components/VM/blocks/servo/servo.content.json"
+    },
+    {
+      "id": 17,
+      "name": "VM_BLK_POWER_MONITOR",
+      "title": "Power Monitor",
+      "category": "io",
+      "display": "components/VM/blocks/power_monitor/power_monitor.display.json",
+      "content": "components/VM/blocks/power_monitor/power_monitor.content.json"
+    },
+    {
+      "id": 18,
+      "name": "VM_BLK_IO_GET_LEVEL",
+      "title": "Read Pin",
+      "category": "io",
+      "display": "components/VM/blocks/io_get_level/io_get_level.display.json",
+      "content": "components/VM/blocks/io_get_level/io_get_level.content.json"
+    },
+    {
+      "id": 19,
+      "name": "VM_BLK_IO_GET_VOLTAGE",
+      "title": "Read Voltage",
+      "category": "io",
+      "display": "components/VM/blocks/io_get_voltage/io_get_voltage.display.json",
+      "content": "components/VM/blocks/io_get_voltage/io_get_voltage.content.json"
+    },
+    {
+      "id": 20,
+      "name": "VM_BLK_HBRIDGE",
+      "title": "H-Bridge",
+      "category": "io",
+      "display": "components/VM/blocks/hbridge/hbridge.display.json",
+      "content": "components/VM/blocks/hbridge/hbridge.content.json"
     }
   ]
 }

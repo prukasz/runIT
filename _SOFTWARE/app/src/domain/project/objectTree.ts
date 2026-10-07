@@ -1,4 +1,4 @@
-import type { FolderNode, ObjectNode, ProjectDocument, ReferenceNode, ValueNode } from './document'
+import type { CanvasBlock, FolderNode, ObjectNode, ObjectPath, ProjectCanvas, ProjectDocument, ReferenceNode, ValueNode } from './document'
 
 /*
  * Edits of the object tree. Every function returns a new document and leaves
@@ -109,8 +109,35 @@ export const removeObject = (project: ProjectDocument, id: string): ProjectDocum
     if (node.kind === 'reference' && removedIds.has(node.targetId)) return []
     return [node.kind === 'folder' ? { ...node, children: prune(node.children) } : node]
   })
-  return { ...detached, objects: prune(detached.objects) }
+  return unwireObjects({ ...detached, objects: prune(detached.objects) }, removedIds)
 }
+
+/** Does the path read one of these objects, as its root or in a dynamic step? */
+const readsAny = (path: ObjectPath, ids: ReadonlySet<string>): boolean =>
+  ids.has(path.root) || (path.steps ?? []).some((step) => step.kind === 'dynamic' && readsAny(step.index, ids))
+
+/**
+ * The canvases lose what pointed at the removed objects: inputs and output pins go unwired, enable sources and
+ * variable chips go. Left in, they would name an object that no longer exists and the program would not compile.
+ */
+const unwireObjects = (project: ProjectDocument, ids: ReadonlySet<string>): ProjectDocument => {
+  if (!project.canvases?.some((canvas) => canvas.blocks.some((block) => pointsAt(block, ids)) || canvas.variables?.some((chip) => readsAny(chip.path, ids)))) return project
+  const clean = (block: CanvasBlock): CanvasBlock => !pointsAt(block, ids) ? block : {
+    ...block,
+    ...(block.inputs ? { inputs: block.inputs.map((path) => (path && readsAny(path, ids) ? null : path)) } : {}),
+    ...(block.outputs ? { outputs: block.outputs.map((id) => (id !== null && ids.has(id) ? null : id)) } : {}),
+    ...(block.enables ? { enables: block.enables.filter((path) => !readsAny(path, ids)) } : {}),
+  }
+  const canvases = project.canvases.map((canvas): ProjectCanvas => ({
+    ...canvas,
+    blocks: canvas.blocks.map(clean),
+    ...(canvas.variables ? { variables: canvas.variables.filter((chip) => !readsAny(chip.path, ids)) } : {}),
+  }))
+  return { ...project, canvases }
+}
+
+const pointsAt = (block: CanvasBlock, ids: ReadonlySet<string>): boolean =>
+  !!block.inputs?.some((path) => path && readsAny(path, ids)) || !!block.outputs?.some((id) => id !== null && ids.has(id)) || !!block.enables?.some((path) => readsAny(path, ids))
 
 /** Move a node under `parentId` at `index` (counted after the node left its old place), or last. */
 export const moveObject = (project: ProjectDocument, id: string, parentId: string | null, index?: number): ProjectDocument => {

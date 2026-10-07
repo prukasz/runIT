@@ -1,6 +1,7 @@
+import { ChevronDown } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { InlineRename } from '../../components/InlineRename'
-import { snapPoint } from '../../domain/canvas'
+import { isLoopOwner, snapPoint } from '../../domain/canvas'
 import type { Point, WireSource, WireTarget } from '../../domain/canvas'
 import type { DeviceCatalog, VmBlockType } from '../../domain/descriptors'
 import { decompileExpression, expressionLanguage, tokenize } from '../../domain/expression'
@@ -12,7 +13,7 @@ import { ValueKindBadge } from '../../components/TypeBadge/TypeBadge'
 import { useDebug } from '../../debug/DebugContext'
 
 /*
- * A function block with an optional expanded view. Presentation stays local;
+ * A function block; those with more to show open to a detailed face with the arrow on the block. Presentation stays local;
  * moving still commits one undo step, and settings belong to the inspector.
  */
 
@@ -25,8 +26,9 @@ interface Props {
   readonly selected: boolean
   readonly errors: number
   readonly zoom: number
-  readonly snap: boolean
+  /** This block is opened to its detailed face (the arrow on the block). */
   readonly detailed: boolean
+  readonly onToggleDetail?: () => void
   readonly devices?: readonly ProjectDevice[]
   readonly deviceCatalog?: DeviceCatalog
   /** `additive`: Shift / Ctrl held, so the block joins the selection instead of replacing it. */
@@ -54,7 +56,7 @@ interface Props {
   readonly isLinking?: boolean
 }
 
-export function CanvasBlockView({ block, type, shape, selected, errors, zoom, snap, detailed, devices, deviceCatalog, onSelect, onMove, onTap, onDrag, offset, onWireStart, chipOf, onChipPress, selectedChip, labelOf = pathText, onRename, isLinking }: Props) {
+export function CanvasBlockView({ block, type, shape, selected, errors, zoom, detailed, onToggleDetail, devices, deviceCatalog, onSelect, onMove, onTap, onDrag, offset, onWireStart, chipOf, onChipPress, selectedChip, labelOf = pathText, onRename, isLinking }: Props) {
   const [drag, setDrag] = useState<{ start: Point; origin: Point; at: Point }>()
   const [renaming, setRenaming] = useState(false)
   const typeTitle = type?.title ?? `Unknown ${block.type}`
@@ -78,7 +80,8 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
   const eno = live?.eno
   const enoName = type?.eno ?? DEFAULT_ENO
   // A block whose ENO has a name of its own (Tick, Loop body) shows it in the header, beside the strip it labels.
-  const enoNamed = enoName.title !== DEFAULT_ENO.title
+  // A loop owner's strip is explained by the loop outline and the strip tooltip, so it needs no tag.
+  const enoNamed = enoName.title !== DEFAULT_ENO.title && !isLoopOwner(block)
   const failed = debug.failed(block.id)
   const debugState = failed || !live ? undefined : eno === true ? 'dbg-working' : live.en === 'closed' ? 'dbg-off' : eno === false ? 'dbg-quiet' : undefined
   const enNow = live && (enable.signal && live.en !== 'unknown' ? live.en === 'open' ? 'true' : 'false' : EN_NOW[live.en])
@@ -203,7 +206,7 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
           }}
         ><span className="canvas-chip-text">{path!.root === '' ? '?' : chip.label}</span>{liveText !== undefined && <span className="canvas-live">{liveText}</span>}</span>
       )}
-      {!source && expanded && type && pin.overrides && (
+      {!source && type && pin.overrides && !block.dynamicInputs?.includes(pin.index) && (
         <span className="canvas-chip is-docked is-in is-constant" title={`${pin.title}: ${settingText(type, block, pin.overrides, devices, deviceCatalog)} (a constant, used while nothing is wired to it)`}><span className="canvas-chip-text">{settingText(type, block, pin.overrides, devices, deviceCatalog)}</span></span>
       )}
       {liveText !== undefined && !chip && <span className={`canvas-pin-live ${output ? 'is-out' : 'is-in'}`} title={`${pinTitle}: ${liveText}`}>{liveText}</span>}
@@ -250,7 +253,7 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
       onPointerMove={(event) => {
         if (!drag) return
         const raw = { x: drag.origin.x + (event.clientX - drag.start.x) / zoom, y: drag.origin.y + (event.clientY - drag.start.y) / zoom }
-        const to = snap ? snapPoint(raw) : raw
+        const to = snapPoint(raw)
         setDrag({ ...drag, at: to })
         onDrag?.({ x: to.x - drag.origin.x, y: to.y - drag.origin.y })
       }}
@@ -307,6 +310,9 @@ export function CanvasBlockView({ block, type, shape, selected, errors, zoom, sn
           )}
         </span>
         {enoNamed && <span className="canvas-block-eno-tag" title={`${enoName.title}: ${enoName.description}`}>{enoName.title}</span>}
+        {type?.hasDetail && onToggleDetail && (
+          <button type="button" className="canvas-block-more" aria-expanded={expanded} aria-label={expanded ? 'Show less' : 'Show more'} title={expanded ? 'Show less' : 'Show more'} onClick={(event) => { event.stopPropagation(); onToggleDetail() }}><ChevronDown aria-hidden="true" /></button>
+        )}
         {errors > 0 && <span className="canvas-block-errors" title={`${errors} problem(s): see the block's details`}>{errors}</span>}
       </div>
       <div className="canvas-block-pins">

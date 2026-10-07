@@ -405,6 +405,22 @@ const planLogs = (ctx: Context, from: LogSpec, to: LogSpec): UploadStep[] => {
   return [step(ctx, 'packet_settings_logs_set_t', { level: to.level, mirror_serial: to.mirrorSerial ? 1 : 0, trace_errors: to.traceErrors ? 1 : 0 }, `logs level ${to.level}${to.mirrorSerial ? ', mirror serial' : ''}${to.traceErrors ? ', trace errors' : ''}`)]
 }
 
+/**
+ * The power settings as commands. The board keeps them in its own storage and can't report them, so
+ * there is no `from`: the app sends them on every connection (packet_settings_power_set_caps_t).
+ */
+export const planPowerUpload = (catalog: CommandCatalog, power: { readonly capsDisabled: boolean }): UploadPlan => {
+  const ctx: Context = { catalog, layout: undefined as never, ids: undefined as never, diagnostics: [] }
+  const steps: UploadStep[] = []
+  try {
+    steps.push(step(ctx, 'packet_settings_power_set_caps_t', { disabled: power.capsDisabled ? 1 : 0 }, `power caps ${power.capsDisabled ? 'disabled' : 'enabled'}`))
+  } catch (error) {
+    ctx.diagnostics.push({ severity: 'error', message: error instanceof Error ? error.message : String(error) })
+  }
+  const ok = !ctx.diagnostics.some((entry) => entry.severity === 'error')
+  return { ok, steps: ok ? steps : [], diagnostics: ctx.diagnostics }
+}
+
 /** Commands that turn `from` into `to` on the board. `ok` false: nothing may be sent. */
 export const planSettingsUpload = (catalog: CommandCatalog, layout: BleLayout, ids: SettingsIds, from: SettingsState, to: SettingsState): UploadPlan => {
   const ctx: Context = { catalog, layout, ids, diagnostics: [] }

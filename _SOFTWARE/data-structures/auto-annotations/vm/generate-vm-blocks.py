@@ -83,13 +83,13 @@ DIRECTIVES = {
     "activation": "one", "enables": "one", "loop": "one", "data": "one", "data-tail": "one", "opcodes": "one",
     "rule": "many", "example": "many",
 }
-FACE_DIRECTIVES = {"title", "category", "block-description", "header", "eno", "always-detailed", "in", "out"}  # not in a header: see FACE_HINT
+FACE_DIRECTIVES = {"title", "category", "block-description", "header", "eno", "in", "out"}  # not in a header: see FACE_HINT
 FACE_HINT = ("belong in the <name>.display.json (the face) or on the member of vm_in_<block>_e / vm_out_<block>_e (a pin: "
              "`VM_IN_<BLOCK>_<PIN> = 0, //@in @value <kind> ...`), not as a //@ line")
 REQUIRED_DIRECTIVES = ("activation",)
 
 # Tags per line kind. A tag outside its set, or given twice, is an error.
-PIN_TAGS = {"repeat", "title", "description", "value", "overrides", "hidden-by-default", "id", "device-field", "required", "user-write", "spec"}
+PIN_TAGS = {"repeat", "title", "description", "value", "overrides", "id", "device-field", "required", "user-write", "spec"}
 FIELD_TAGS = {"description", "enum-ref", "runtime", "derived", "id", "device-field", "contract", "hidden-by-default", "let-user-select-available", "dynamic-input", "any", "source-field", "min"}
 ENO_TAGS = {"title", "description"}
 RULE_TAGS = {"error"}
@@ -488,7 +488,7 @@ def parse_pins(entries, text, sdkconfig, context):
             if not tags["description"]:
                 fail(f"{where}: @description is empty")
             pin["description"] = tags["description"]
-        pin.update(field_metadata({k: v for k, v in tags.items() if k in ("id", "device-field", "hidden-by-default")}, where))
+        pin.update(field_metadata({k: v for k, v in tags.items() if k in ("id", "device-field")}, where))
         pin["_required"] = "required" in tags
         if "spec" in tags:
             if not IDENT_RE.match(tags["spec"]) or entry["side"] != "in":
@@ -544,7 +544,7 @@ def parse_pins(entries, text, sdkconfig, context):
 
 
 def link_overrides(inputs, fields, context):
-    """Tie each `@overrides` pin to its state field: the field is the constant used while the pin is unwired, so the pin starts hidden."""
+    """Tie each `@overrides` pin to its state field: the field is the constant used while the pin is unwired, every such pin stays drawn, with the constant on it."""
     by_name = {f["name"]: f for f in fields}
     for pin in inputs:
         target = pin.get("overrides")
@@ -563,13 +563,11 @@ def link_overrides(inputs, fields, context):
         if pin["required"]:
             fail(f"{where}: a required input cannot have a constant to fall back on")
         field["overridden_by"] = pin["index"]
-        pin["hidden_by_default"] = True
 
 
 def validate_editor_links(block, context):
     fields = {field["name"]: field for field in block.get("state", {}).get("fields", [])}
     pins = block["inputs"]["pins"]
-    dynamic_targets = {f["dynamic_input"] for f in fields.values() if "dynamic_input" in f}
     for entry in [*fields.values(), *pins, *block["outputs"]["pins"]]:
         device = entry.get("device_field")
         if device and fields.get(device, {}).get("id_kind") != "device":
@@ -587,17 +585,12 @@ def validate_editor_links(block, context):
             fail(f"{context}.{entry['name']}: an ID chosen by @source-field needs @any (the wildcard)")
         if entry.get("value_spec") and not device:
             fail(f"{context}.{entry['name']}: @spec needs @device-field (the device whose settings choose the variant)")
-        if entry.get("hidden_by_default") and entry.get("required"):
-            fail(f"{context}.{entry['name']}: a required input cannot be hidden by default")
         selection = entry.get("let_user_select_available")
         if selection:
             if fields.get(selection, {}).get("id_kind") != "pin" or entry.get("c_type") != "uint64_t":
                 fail(f"{context}.{entry['name']}: a selectable mask must be uint64_t and name a pin ID field")
-            if not any(pin["index"] == entry.get("dynamic_input") and pin.get("hidden_by_default") for pin in pins):
-                fail(f"{context}.{entry['name']}: @dynamic-input must name a hidden optional input")
-    for pin in pins:
-        if pin.get("hidden_by_default") and not pin.get("overrides") and pin["index"] not in dynamic_targets:
-            fail(f"{context}.{pin['name']}: a hidden input needs `@overrides <field>` (the constant to use) or a mask field with @dynamic-input {pin['index']}; otherwise nothing can set it")
+            if not any(pin["index"] == entry.get("dynamic_input") and not pin.get("required") for pin in pins):
+                fail(f"{context}.{entry['name']}: @dynamic-input must name an optional input")
 
 
 def pin_group(minimum, pins, limit_key, sdkconfig):
@@ -825,7 +818,7 @@ def one(directives, keyword):
     return found[0] if found else None
 
 
-DISPLAY_KEYS = {"title", "category", "description", "activation", "header", "always_detailed", "eno", "enable", "inputs", "outputs"}
+DISPLAY_KEYS = {"title", "category", "description", "activation", "header", "eno", "enable", "inputs", "outputs"}
 DISPLAY_PIN_KEYS = {"title", "description", "hide_when_wired"}
 DISPLAY_ENABLE_KEYS = {"title", "description", "signal", "connect"}
 LOOP_USES = {"refuse": "refused", "once": "once-per-turn"}
@@ -833,7 +826,7 @@ LOOP_USES = {"refuse": "refused", "once": "once-per-turn"}
 
 def read_display(path, context):
     """`<name>.display.json` next to the header, written by hand: what the editor shows (title, category, description, the activation
-    text, the face line `header`, a title and description for each pin by pin name, `eno`, `always_detailed`). The block's
+    text, the face line `header`, a title and description for each pin by pin name, `eno`). The block's
     `<name>.content.json` is generated from the header."""
     stem = path.parent / path.name[len("vm_block_"):-len(".h")]
     source = Path(f"{stem}.display.json")
@@ -895,7 +888,7 @@ def spec_from_directives(directives, display, own_text, name, enums, context):
     loop = one(directives, "loop")
     return {"loop": loop["rest"].strip() if loop else None, "enable": display.get("enable"), "title": display["title"], "category": display["category"], "description": display["description"],
             "activation_kind": kind, "activation_text": display.get("activation", ""), "header": header,
-            "enables": enables["rest"] if enables else None, "always_detailed": bool(display.get("always_detailed")),
+            "enables": enables["rest"] if enables else None,
             "eno": display.get("eno"), "rules": rules, "pins": pins,
             "data": one(directives, "data")["rest"] if one(directives, "data") else None}
 
@@ -984,10 +977,6 @@ def build_block(path, text, source, catalog, errors, sdkconfig):
         block["loop_use"] = LOOP_USES[spec["loop"]]
     if header:
         block["header"] = header
-    if spec["always_detailed"]:
-        if not any(pin.get("overrides") for pin in inputs) and not opcodes_enum:
-            fail(f"{context}: always-detailed needs an @overrides input or @opcodes: nothing else is in the detailed view")
-        block["always_detailed"] = True
     if state:
         block["state"] = state
     block["min_custom_len"] = state["size"] if state else 0
@@ -1050,7 +1039,7 @@ def read_header(path, own):
 def content_of(block):
     """The block without what the display.json owns: the face, the pin titles and descriptions. The app builds the block from the
     two files by pin and field name."""
-    content = {k: v for k, v in block.items() if k not in ("$schema", "title", "category", "description", "header", "eno", "enable", "always_detailed")}
+    content = {k: v for k, v in block.items() if k not in ("$schema", "title", "category", "description", "header", "eno", "enable")}
     content["kind"] = "vm-block-content"
     content["activation"] = {"kind": block["activation"]["kind"]}
     content["min_enables"] = C_INFO[block["name"][len("VM_BLK_"):]]["shape"]["min_en"]

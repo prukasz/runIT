@@ -16,24 +16,21 @@
         "name": "start",
         "value": "f32",
         "overrides": "k_start",
-        "required": false,
-        "hidden_by_default": true
+        "required": false
       },
       {
         "index": 1,
         "name": "end",
         "value": "f32",
         "overrides": "k_end",
-        "required": false,
-        "hidden_by_default": true
+        "required": false
       },
       {
         "index": 2,
         "name": "step",
         "value": "f32",
         "overrides": "k_step",
-        "required": false,
-        "hidden_by_default": true
+        "required": false
       }
     ]
   },

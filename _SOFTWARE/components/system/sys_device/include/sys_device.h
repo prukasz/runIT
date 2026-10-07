@@ -11,7 +11,8 @@ typedef enum {
   SYS_DEVICE_CONTRACT_POWER_MONITOR = 2, //@alias Power Monitor @description Measures voltage and current on a power rail, with optional over-current alerts
   SYS_DEVICE_CONTRACT_POWER_USB_PD = 3, //@alias USB-C Power Delivery @description Negotiates power (voltage/current) from a USB-C charger
   SYS_DEVICE_CONTRACT_HBRIDGE = 4, //@alias Motor Driver (H-Bridge) @description Drives a DC motor forward, backward, or brakes it
-  SYS_DEVICE_CONTRACT_MAX = 5 //@alias (internal) @description Not a real contract - marks the end of the list, used internally for bounds checking
+  SYS_DEVICE_CONTRACT_POWER_SUPPLY = 5, //@alias Power Supply Select @description Chooses which of two sources feeds a load (a power mux): off, source A or source B, never both
+  SYS_DEVICE_CONTRACT_MAX = 6 //@alias (internal) @description Not a real contract - marks the end of the list, used internally for bounds checking
 } sys_device_contract_type_e;
 
 /**

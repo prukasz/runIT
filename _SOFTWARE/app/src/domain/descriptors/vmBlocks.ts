@@ -23,6 +23,7 @@ export interface VmBlockEditorMetadata {
   readonly valueSpec?: string
   /** The face drops the pin's title while a variable is wired to it (its chip names it). */
   readonly hideWhenWired?: boolean
+  /** A setting left out of the inspector's list of settings (a mask the pin pickers edit instead). */
   readonly hiddenByDefault?: boolean
   readonly letUserSelectAvailable?: string
   readonly dynamicInput?: number
@@ -39,7 +40,7 @@ export interface VmBlockHeader {
 }
 
 export interface VmBlockPin extends VmBlockEditorMetadata {
-  /** The setting used as a constant while this pin is unwired: the pin is hidden until wired, and the user enters the constant instead. */
+  /** The setting used as a constant while this pin is unwired: the pin is drawn with the constant on it, and the user can enter the constant instead of wiring it. */
   readonly overrides?: string
   readonly index: number
   readonly name: string
@@ -137,10 +138,8 @@ export interface VmBlockType {
   readonly loopUse?: 'refused' | 'once-per-turn'
   /** The block runs the blocks after it in a loop (it owns a span). */
   readonly loopOwner: boolean
-  /** The block has a detailed view: it has inputs with a constant to show, or a formula. Other blocks are their face. */
+  /** The block has a formula (user-typed content) that its "show more" arrow opens. Other blocks are their face. */
   readonly hasDetail: boolean
-  /** The detailed view is the only one (`//@always-detailed`): the toolbar and the block's view choice do not apply. */
-  readonly alwaysDetailed: boolean
   /** The line under the title on the face (`//@header`); none: the title alone. */
   readonly header?: VmBlockHeader
   /** Private state: its fixed size and fields (empty for stateless blocks). */
@@ -245,8 +244,7 @@ export const buildVmBlockType = (file: GeneratedVmBlockFile): VmBlockType => {
     },
     ...(file.loop_use ? { loopUse: file.loop_use } : {}),
     loopOwner: fields.some((field) => field.source === 'derived' && field.cType === 'vm_span_t'),
-    hasDetail: !!encoding || pins(file.inputs).pins.some((pin) => pin.overrides),
-    alwaysDetailed: file.always_detailed ?? false,
+    hasDetail: !!encoding,
     ...(file.header ? { header: file.header } : {}),
     stateSize: file.state?.size ?? 0,
     fields,

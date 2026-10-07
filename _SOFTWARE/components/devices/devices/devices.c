@@ -15,5 +15,6 @@ err_h devices_register_classes(void) {
   SE_TRY(sys_device_register_class(&g_ads7128_class));
   SE_TRY(sys_device_register_class(&g_drv8962_class));
   SE_TRY(sys_device_register_class(&g_servo_class));
+  SE_TRY(sys_device_register_class(&g_power_mux_class));
   return NULL;
 }

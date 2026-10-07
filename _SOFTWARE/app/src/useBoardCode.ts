@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { readCode, readCodeInfo } from './boardCode'
-import type { BoardCodeInfo } from './boardCode'
+import { readCode, readCodeInfos } from './boardCode'
+import type { BoardCodeInfos } from './boardCode'
 import { runitCommandCatalog, runitDeviceCatalog, runitStreamCatalog, runitVmCatalog } from './domain/descriptors'
 import { decodeFrameList, decodeStoredCode } from './domain/storedCode'
 import type { StoredCodeContext } from './domain/storedCode'
@@ -14,7 +14,8 @@ import type { RunitBleSession } from './backend/runitBleSession'
  * runs since boot. After a restart the board runs its defaults plus the
  * stored code (the boot replay), so the settings part of that code is the
  * Apply baseline (app/docs/03_records_as_storage.md §6). Read once per
- * connection: the info, and the stored frames up to the first VM frame.
+ * connection: the info of both slots, and the hardware config's frames (the
+ * program slot holds no settings, so it is never read for this).
  */
 
 export const storedCodeContext = (): StoredCodeContext => ({ vm: runitVmCatalog(), commands: runitCommandCatalog(), layout: runitStreamCatalog().ble, ids: runitSettingsIds(), devices: runitDeviceCatalog() })
@@ -23,7 +24,8 @@ export const BOARD_DEFAULT_SETTINGS: SettingsState = boardDefaultSettings()
 
 export interface BoardCodeState {
   readonly session?: RunitBleSession
-  readonly info?: BoardCodeInfo
+  /** Both stored lists: hardware config and program. */
+  readonly infos?: BoardCodeInfos
   /** Settings the board runs since boot (defaults + replayed code); undefined while reading. */
   readonly baseline?: SettingsState
   /** Why the baseline may not match the board, or why it couldn't be read. */
@@ -33,28 +35,27 @@ export interface BoardCodeState {
   refresh(): void
 }
 
-const isVmFrame = (frame: Uint8Array): boolean => frame[0] === runitVmCatalog().classHeader
-
 /** `previous`: this connection's baseline so far; storing doesn't change what the board runs, so it stays when the stored code isn't the running one. */
-const readBaseline = async (session: RunitBleSession, previous?: SettingsState): Promise<{ info?: BoardCodeInfo; baseline: SettingsState; note?: string }> => {
-  let info: BoardCodeInfo
+const readBaseline = async (session: RunitBleSession, previous?: SettingsState): Promise<{ infos?: BoardCodeInfos; baseline: SettingsState; note?: string }> => {
+  let infos: BoardCodeInfos
   try {
-    info = await readCodeInfo(session)
+    infos = await readCodeInfos(session)
   } catch (error) {
     return { baseline: BOARD_DEFAULT_SETTINGS, note: `No stored code info (${error instanceof Error ? error.message : String(error)}); assuming board defaults.` }
   }
+  const info = infos.config
   const { replay } = info
-  if (replay.state !== 1) return { info, baseline: BOARD_DEFAULT_SETTINGS }
-  if (!info.stored) return { info, baseline: BOARD_DEFAULT_SETTINGS, note: 'The code this boot replayed was erased since; the board still runs it until it restarts. Assuming board defaults.' }
+  if (replay.state !== 1) return { infos, baseline: BOARD_DEFAULT_SETTINGS }
+  if (!info.stored) return { infos, baseline: BOARD_DEFAULT_SETTINGS, note: 'The hardware config this boot replayed was erased since; the board still runs it until it restarts. Assuming board defaults.' }
 
   const running = replay.crc32 === info.crc32
-  if (!running && previous) return { info, baseline: previous, note: 'The stored code is newer than the running one; Load restarts the board with it.' }
-  const { bytes } = await readCode(session, info, undefined, isVmFrame)
+  if (!running && previous) return { infos, baseline: previous, note: 'The stored hardware config is newer than the running one; Load restarts the board with it.' }
+  const { bytes } = await readCode(session, info)
   const decoded = decodeStoredCode(decodeFrameList(bytes), BOARD_DEFAULT_SETTINGS, storedCodeContext())
   const notes: string[] = []
-  if (!running) notes.push('The board runs code stored before the current one (stored without a restart); Load restarts it with the current code.')
+  if (!running) notes.push('The board runs a hardware config stored before the current one (stored without a restart); Load restarts it with the current one.')
   if (replay.failed > 0) notes.push(`The boot replay refused ${replay.failed} frame(s): the board may lack some of these settings.`)
-  return { info, baseline: decoded.settings, ...(notes.length ? { note: notes.join(' ') } : {}) }
+  return { infos, baseline: decoded.settings, ...(notes.length ? { note: notes.join(' ') } : {}) }
 }
 
 export function useBoardCode(connection: BleDeviceConnection): BoardCodeState {

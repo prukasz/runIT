@@ -16,8 +16,7 @@
         "name": "id",
         "value": "u32",
         "overrides": "action_id",
-        "required": false,
-        "hidden_by_default": true
+        "required": false
       }
     ]
   },

@@ -16,8 +16,7 @@
         "name": "period",
         "value": "u32",
         "overrides": "period",
-        "required": false,
-        "hidden_by_default": true
+        "required": false
       }
     ]
   },

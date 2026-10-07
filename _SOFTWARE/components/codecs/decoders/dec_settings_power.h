@@ -31,6 +31,11 @@ typedef struct __packed {
   uint8_t critical_pct; //@required @alias Critical Threshold @unit % @min 1 @max 99
 } packet_settings_power_set_battery_t;
 
+#define HEADER_packet_settings_power_set_caps_t 0x03
+typedef struct __packed {
+  uint8_t disabled; //@required @alias Disable Power Caps @min 0 @max 1 @note 1 removes the power budget and current caps; only the board's voltage limit stays
+} packet_settings_power_set_caps_t;
+
 static inline SE_MUST_USE err_h dec_settings_power_decode(const uint8_t* data, size_t len) {
   if (len == 0) {
     SE_FAIL(ERR_INTERFACE_SHORT_FRAME, .got = 0, .need = 1);
@@ -45,6 +50,12 @@ static inline SE_MUST_USE err_h dec_settings_power_decode(const uint8_t* data, s
       packet_settings_power_set_battery_t packet;
       SE_TRY(convert_to_packet(data + 1, len - 1, &packet, sizeof(packet)));
       return sys_power_set_battery((sys_power_battery_e)packet.chemistry, packet.cells, packet.low_pct, packet.critical_pct);
+    }
+    case HEADER_packet_settings_power_set_caps_t: {
+      packet_settings_power_set_caps_t packet;
+      SE_TRY(convert_to_packet(data + 1, len - 1, &packet, sizeof(packet)));
+      SE_CHECK_IN_RANGE(packet.disabled, 0, 1);
+      return sys_power_set_caps_disabled(packet.disabled != 0);
     }
     default:
       SE_FAIL(ERR_INTERFACE_UNKNOWN_PACKET, .class_header = CONFIG_RX_PACKET_CLASS_SETTINGS_POWER, .packet_header = data[0]);

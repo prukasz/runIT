@@ -11,12 +11,16 @@
 #include "vm_block_expr.h"
 #include "vm_block_expr_bit.h"
 #include "vm_block_for.h"
+#include "vm_block_hbridge.h"
 #include "vm_block_if.h"
+#include "vm_block_io_get_level.h"
+#include "vm_block_io_get_voltage.h"
 #include "vm_block_io_set_level.h"
 #include "vm_block_io_toggle.h"
 #include "vm_block_latch.h"
 #include "vm_block_on_event.h"
 #include "vm_block_periodic.h"
+#include "vm_block_power_monitor.h"
 #include "vm_block_servo.h"
 #include "vm_block_set.h"
 #include "vm_block_switch.h"
@@ -38,4 +42,8 @@
   [VM_BLK_PERIODIC] = {.run = vm_blk_periodic, .check = vm_verify_periodic, .min_in = 0, .max_in = 1, .min_q = 0, .max_q = 0, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_periodic_data_t)}, \
   [VM_BLK_ACTION] = {.run = vm_blk_action, .check = vm_verify_action, .min_in = 0, .max_in = 1, .min_q = 0, .max_q = 0, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_action_data_t)}, \
   [VM_BLK_ON_EVENT] = {.run = vm_blk_on_event, .min_in = 0, .max_in = 0, .min_q = 0, .max_q = 1, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_on_event_data_t)}, \
-  [VM_BLK_SERVO] = {.run = vm_blk_servo, .check = vm_verify_servo, .min_in = 0, .max_in = 1, .min_q = 0, .max_q = 0, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_servo_data_t)},
+  [VM_BLK_SERVO] = {.run = vm_blk_servo, .check = vm_verify_servo, .min_in = 0, .max_in = 1, .min_q = 0, .max_q = 0, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_servo_data_t)}, \
+  [VM_BLK_POWER_MONITOR] = {.run = vm_blk_power_monitor, .min_in = 0, .max_in = 0, .min_q = 0, .max_q = 2, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_power_monitor_data_t)}, \
+  [VM_BLK_IO_GET_LEVEL] = {.run = vm_blk_io_get_level, .min_in = 0, .max_in = 0, .min_q = 1, .max_q = 1, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_io_get_level_data_t)}, \
+  [VM_BLK_IO_GET_VOLTAGE] = {.run = vm_blk_io_get_voltage, .min_in = 0, .max_in = 0, .min_q = 1, .max_q = 1, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_io_get_voltage_data_t)}, \
+  [VM_BLK_HBRIDGE] = {.run = vm_blk_hbridge, .check = vm_verify_hbridge, .min_in = 0, .max_in = 1, .min_q = 0, .max_q = 0, .min_en = 0, .required_in = 0x0u, .state_len = sizeof(vm_block_hbridge_data_t)},

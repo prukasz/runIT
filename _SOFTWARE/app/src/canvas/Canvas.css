@@ -11,6 +11,7 @@
 .canvas-origin::after { left: 0; top: 5.5px; width: 12px; height: 1px; }
 
 .canvas-marquee { position: absolute; z-index: 6; border: 1px dashed var(--accent); border-radius: 2px; background: color-mix(in srgb, var(--accent) 12%, transparent); pointer-events: none; }
+.canvas-status { position: absolute; left: 10px; bottom: 8px; display: flex; gap: 10px; color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre; pointer-events: none; }
 .canvas-snap-marker { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border: 1.5px solid var(--accent); border-radius: 50%; pointer-events: none; transition: left 60ms ease-out, top 60ms ease-out; }
 
 .canvas-hint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 8px 14px; border: 1px dashed var(--divider); border-radius: 8px; background: color-mix(in srgb, var(--panel) 80%, transparent); color: var(--muted); font-size: 12px; white-space: nowrap; pointer-events: none; }
@@ -19,8 +20,6 @@
 
 .shell .canvas-error { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); width: auto; max-width: 80%; height: auto; padding: 7px 12px; border: 1px solid color-mix(in srgb, var(--color-red) 60%, var(--divider)); background: color-mix(in srgb, var(--color-red) 16%, var(--panel)); color: var(--active); font-size: 12px; }
 
-.canvas-status { position: absolute; left: 10px; bottom: 8px; display: flex; gap: 10px; color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre; pointer-events: none; }
-.canvas-status-snap { color: color-mix(in srgb, var(--accent) 80%, var(--muted)); }
 
 .canvas-zoom { position: absolute; right: 10px; bottom: 8px; display: flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--divider); border-radius: 7px; background: var(--panel); box-shadow: 0 2px 8px var(--shadow); cursor: default; }
 .shell .canvas-zoom button { width: 28px; height: 28px; }
@@ -124,6 +123,7 @@
 .canvas-pin-live.is-in { right: calc(100% + 7px); border-radius: 3px 0 0 3px; }
 .canvas-pin-live.is-out { left: calc(100% + 7px); border-radius: 0 3px 3px 0; }
 .shell .screen-actions button.is-stale { color: var(--color-amber); }
+.shell .screen-actions button.is-danger:not(:disabled) { color: var(--color-red); }
 /* The Debug tab: run controls and the watch list. In block mode the block that runs next is outlined on the canvas. */
 .canvas-block.is-next { outline: 2px dashed var(--accent); outline-offset: 3px; }
 .debug-run { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
@@ -153,6 +153,10 @@
 .canvas-block-rename { width: 100%; min-width: 0; height: 20px; padding: 0 4px; border: 1px solid var(--accent); border-radius: 4px; background: var(--background); color: var(--active); font-size: 12px; font-weight: 600; }
 .canvas-block-title { overflow: hidden; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .canvas-block-value { font-style: italic; font-weight: 500; letter-spacing: 0.2px; }
+.canvas-block-more { flex: none; display: grid; place-items: center; width: 20px; height: 20px; margin-left: auto; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; }
+.canvas-block-more:hover { background: color-mix(in srgb, var(--active) 14%, transparent); color: var(--active); }
+.canvas-block-more svg { width: 14px; height: 14px; transition: transform 150ms ease; }
+.canvas-block-more[aria-expanded="true"] svg { transform: rotate(180deg); }
 .canvas-block-eno-tag { flex: none; margin-left: auto; color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: 0.3px; }
 .canvas-block-pins { position: relative; }
 .canvas-block-device { position: absolute; left: 12px; top: 0; bottom: 0; z-index: 1; display: flex; align-items: center; max-width: calc(100% - 24px); overflow: hidden; color: var(--muted); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
@@ -239,6 +243,9 @@
 .block-field.is-wide { grid-column: 1 / -1; }
 .block-field.is-wide input { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 .block-field em { font-style: normal; font-size: 10px; line-height: 1.4; opacity: 0.85; }
+.block-field em.block-field-problem { color: var(--color-red); opacity: 1; }
+.block-field input.is-variable { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; color: var(--accent); }
+.block-field input[aria-invalid="true"] { border-color: var(--color-red); }
 .block-switch { display: flex; min-height: 32px; padding: 2px; border: 1px solid var(--divider); border-radius: 6px; background: var(--background); }
 .shell .block-switch button { flex: 1; width: auto; height: 28px; padding: 0 6px; color: var(--muted); font-size: 11px; white-space: nowrap; }
 .shell .block-switch button[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 24%, var(--panel)); color: var(--active); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 65%, transparent); }
@@ -1051,18 +1058,15 @@
 .block-pins dd:has(.block-unwired-label) { flex: 1; max-width: 62%; min-width: 0; overflow: visible; text-align: left; }
 .block-unwired-label { flex: 1; min-width: 0; box-sizing: border-box; display: inline-flex; align-items: center; height: 26px; padding: 0 8px; border: 1px dashed var(--divider); border-radius: 4px; background: var(--background); color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: border-color 120ms ease, color 120ms ease, background 120ms ease; }
 .block-unwired-label:hover { border-color: var(--accent); border-style: solid; color: var(--active); background: color-mix(in srgb, var(--accent) 8%, var(--background)); }
-.shell .canvas-empty-variable { cursor: grab; }
 
 /* Branch and loop areas behind the blocks: rounded, plain transparent tint, inner over outer */
 .canvas-group-area { fill: var(--tint); fill-opacity: 0.07; stroke: var(--tint); stroke-opacity: 0.45; stroke-width: 1; stroke-linejoin: round; }
 .canvas-group.is-loop .canvas-group-area { fill-opacity: 0.09; stroke-width: 1.4; }
 .canvas-group-label { fill: var(--tint); font: 600 10px system-ui, sans-serif; letter-spacing: .03em; }
 
-/* EN links: a faded ribbon widening into the whole EN strip (gate red, ENO yellowish-orange var(--color-orange), a loop purple) */
-.canvas-ribbon { --ribbon: var(--color-red); fill: var(--ribbon); fill-opacity: 0.16; stroke: var(--ribbon); stroke-opacity: 0.25; stroke-width: 0.8; pointer-events: fill; cursor: pointer; }
-.canvas-wire.is-eno .canvas-ribbon { --ribbon: var(--color-orange); fill-opacity: 0.22; stroke-opacity: 0.45; }
-.canvas-wire.is-loop .canvas-ribbon { --ribbon: var(--category-flow); }
-.canvas-ribbon.is-variable { --ribbon: var(--color-orange); fill-opacity: 0.22; stroke-opacity: 0.45; pointer-events: none; }
+/* EN links: a faded ribbon widening into the whole EN strip (always var(--color-orange): gate, ENO and loop alike) */
+.canvas-ribbon { --ribbon: var(--color-orange); fill: var(--ribbon); fill-opacity: 0.32; stroke: var(--ribbon); stroke-opacity: 0.7; stroke-width: 1; pointer-events: fill; cursor: pointer; }
+.canvas-ribbon.is-variable { pointer-events: none; }
 .canvas-wire.is-ribbon:hover .canvas-ribbon { fill-opacity: 0.26; }
 .canvas-wire.is-ribbon.is-selected .canvas-ribbon { fill-opacity: 0.34; stroke: var(--accent); stroke-opacity: 1; stroke-width: 1.5; }
 

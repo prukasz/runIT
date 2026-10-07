@@ -76,6 +76,33 @@ describe('stored code: build', () => {
     expect(code.steps.some((step) => step.frame[0] === ctx.vm.classHeader && step.frame[1] === ctx.vm.packets.exec)).toBe(false)
   })
 
+  it('splits into the hardware config and the program, replayed in that order', () => {
+    const code = build()
+    expect(code.configOk && code.programOk).toBe(true)
+    expect(code.steps).toEqual([...code.config, ...code.program])
+    expect(code.config.length).toBeGreaterThan(0)
+    expect(code.config.some((step) => step.frame[0] === ctx.vm.classHeader)).toBe(false)
+    expect(code.program.length).toBeGreaterThan(0)
+    expect(code.program.every((step) => step.frame[0] === ctx.vm.classHeader)).toBe(true)
+  })
+
+  it('keeps the config storable while the program has errors, and the other way round', () => {
+    const broken = project([{ kind: 'reference', id: 'r', name: 'gone', targetId: 'nowhere' }])
+    const code = buildStoredCode({ project: broken, settings: userSettings, boardDefaults: defaults }, ctx)
+    expect(code.programOk).toBe(false)
+    expect(code.program).toEqual([])
+    expect(code.configOk).toBe(true)
+    expect(code.config.length).toBeGreaterThan(0)
+    expect(code.ok).toBe(false)
+    expect(code.steps).toEqual([])
+  })
+
+  it('refuses a VM frame among the extra frames: the program slot holds those', () => {
+    const open = { label: 'open', frame: Uint8Array.from([ctx.vm.classHeader, ctx.vm.packets.exec + 1, 0]) }
+    const code = buildStoredCode({ project: sample, settings: userSettings, boardDefaults: defaults, extraFrames: [open] }, ctx)
+    expect(code.configOk).toBe(false)
+  })
+
   it('refuses an exec frame among the extra frames', () => {
     const exec = { label: 'run', frame: Uint8Array.from([ctx.vm.classHeader, ctx.vm.packets.exec, 5]) }
     expect(buildStoredCode({ project: sample, settings: userSettings, boardDefaults: defaults, extraFrames: [exec] }, ctx).ok).toBe(false)

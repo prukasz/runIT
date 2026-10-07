@@ -22,7 +22,8 @@
   X(ERR_PROJECT_FRAME_REFUSED, 0xB207, SE_LEVEL_LOW, struct { uint16_t index; uint8_t class_header; /*@id rx-class*/ uint8_t packet_header; /*@id rx-packet class_header*/ }) \
   X(ERR_PROJECT_SCHEMA, 0xB208, SE_LEVEL_MEDIUM, struct { uint32_t stored; uint32_t firmware; })                              \
   X(ERR_PROJECT_NOT_STORED, 0xB209, SE_LEVEL_LOW, struct { uint8_t unused; })                                                \
-  X(ERR_PROJECT_READ_RANGE, 0xB20A, SE_LEVEL_LOW, struct { uint32_t offset; uint32_t len; uint32_t length; })
+  X(ERR_PROJECT_READ_RANGE, 0xB20A, SE_LEVEL_LOW, struct { uint32_t offset; uint32_t len; uint32_t length; })                 \
+  X(ERR_PROJECT_BAD_SLOT, 0xB20B, SE_LEVEL_LOW, struct { uint8_t slot; })
 
 #define SYS_ERROR_PROJECT_LOGGER_MAP(X) \
   X(ERR_PROJECT_TOO_BIG)                \
@@ -34,7 +35,8 @@
   X(ERR_PROJECT_FRAME_REFUSED)          \
   X(ERR_PROJECT_SCHEMA)                 \
   X(ERR_PROJECT_NOT_STORED)             \
-  X(ERR_PROJECT_READ_RANGE)
+  X(ERR_PROJECT_READ_RANGE)             \
+  X(ERR_PROJECT_BAD_SLOT)
 
 #define LOG_BODY_ERR_PROJECT_TOO_BIG(p, out, out_size) snprintf((out), (out_size), "stored code of %lu bytes doesn't fit %lu", (unsigned long)(p)->length, (unsigned long)(p)->capacity)
 #define LOG_BODY_ERR_PROJECT_NOT_STORING(p, out, out_size) snprintf((out), (out_size), "no store in progress (begin first)")
@@ -46,3 +48,4 @@
 #define LOG_BODY_ERR_PROJECT_SCHEMA(p, out, out_size) snprintf((out), (out_size), "stored code is for schema 0x%08lX, firmware is 0x%08lX", (unsigned long)(p)->stored, (unsigned long)(p)->firmware)
 #define LOG_BODY_ERR_PROJECT_NOT_STORED(p, out, out_size) snprintf((out), (out_size), "no stored code")
 #define LOG_BODY_ERR_PROJECT_READ_RANGE(p, out, out_size) snprintf((out), (out_size), "read %lu bytes at %lu, stored code has %lu", (unsigned long)(p)->len, (unsigned long)(p)->offset, (unsigned long)(p)->length)
+#define LOG_BODY_ERR_PROJECT_BAD_SLOT(p, out, out_size) snprintf((out), (out_size), "stored code slot %u doesn't exist (0 config, 1 program)", (unsigned)(p)->slot)

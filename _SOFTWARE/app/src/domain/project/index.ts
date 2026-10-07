@@ -1,4 +1,4 @@
-export { boardDeviceRef, createProject, DEFAULT_BLE_GENERAL, PROJECT_FORMAT, PROJECT_FORMAT_VERSION, userSection } from './document'
+export { boardDeviceRef, createProject, DEFAULT_BLE_GENERAL, DEFAULT_POWER, PROJECT_FORMAT, PROJECT_FORMAT_VERSION, userSection } from './document'
 export type {
   ActionStep,
   BoardLayout,
@@ -22,6 +22,7 @@ export type {
   ConnectorBindingSettings,
   ConnectorSettings,
   FolderNode,
+  PowerSettings,
   ObjectNode,
   ObjectOwner,
   ObjectPath,

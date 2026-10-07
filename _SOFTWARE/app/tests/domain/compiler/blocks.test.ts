@@ -16,7 +16,7 @@ const errors = (compiled: ReturnType<typeof compile>) => compiled.diagnostics.fi
 
 describe('block palette', () => {
   it('reads every block type from the descriptors', () => {
-    expect(catalog.blocks.map((block) => block.key)).toEqual(['EXPR', 'EXPR_BIT', 'IF', 'SWITCH', 'FOR', 'SET', 'CLONE', 'EDGE', 'TIMER', 'IO_SET_LEVEL', 'IO_TOGGLE', 'LATCH', 'PERIODIC', 'ACTION', 'ON_EVENT', 'SERVO'])
+    expect(catalog.blocks.map((block) => block.key)).toEqual(['EXPR', 'EXPR_BIT', 'IF', 'SWITCH', 'FOR', 'SET', 'CLONE', 'EDGE', 'TIMER', 'IO_SET_LEVEL', 'IO_TOGGLE', 'LATCH', 'PERIODIC', 'ACTION', 'ON_EVENT', 'SERVO', 'POWER_MONITOR', 'IO_GET_LEVEL', 'IO_GET_VOLTAGE', 'HBRIDGE'])
     expect(catalog.block('EXPR')?.encoding?.opcode('+')?.symbol).toBe('VM_EXPR_ADD')
     expect(catalog.blockPinMax).toEqual({ in: 16, out: 16, en: 16 })
   })
@@ -30,6 +30,34 @@ describe('compileProgram: blocks', () => {
     expect(compiled.diagnostics).toEqual([])
     const record = blockRecords(compiled)[0]!
     expect(hex(record.subarray(14 + 2 * (3 + 1)))).toBe(example.customData)
+  })
+
+  it('builds POWER_MONITOR: device and channel in the state, a voltage and a current output', () => {
+    const compiled = compile([value('v', 'F'), value('i', 'F')], [{ id: 'pm', type: 'POWER_MONITOR', outputs: ['v', 'i'], settings: { device_id: 3, channel: 1 } }])
+    expect(compiled.diagnostics).toEqual([])
+    expect(hex(blockRecords(compiled)[0]!.subarray(-4))).toBe('03010000')
+  })
+
+  it('builds IO_GET_LEVEL (bool out) and IO_GET_VOLTAGE (float out) with device and pin in the state', () => {
+    const level = compile([value('pressed', 'B')], [{ id: 'rd', type: 'IO_GET_LEVEL', outputs: ['pressed'], settings: { device_id: 0, pin: 4 } }])
+    expect(level.diagnostics).toEqual([])
+    expect(hex(blockRecords(level)[0]!.subarray(-4))).toBe('00040000')
+    const volts = compile([value('v', 'F')], [{ id: 'rd', type: 'IO_GET_VOLTAGE', outputs: ['v'], settings: { device_id: 2, pin: 7 } }])
+    expect(volts.diagnostics).toEqual([])
+    expect(hex(blockRecords(volts)[0]!.subarray(-4))).toBe('02070000')
+    // Without a chosen variable the output is the block's own (<id>:q0), so the wire is always there.
+    const own = compile([], [{ id: 'rd', type: 'IO_GET_LEVEL', settings: { device_id: 0, pin: 4 } }])
+    expect(own.diagnostics).toEqual([])
+    expect(own.counts.objects).toBe(1)
+  })
+
+  it('builds HBRIDGE: device, channel, action and idle in the state, the drive pin optional', () => {
+    const settings = { device_id: 6, channel: 1, action: 'BRAKE', when_not_active: 'HOLD', drive: 25 }
+    const compiled = compile([value('speed', 'F')], [{ id: 'm', type: 'HBRIDGE', inputs: [at('speed')], settings }])
+    expect(compiled.diagnostics).toEqual([])
+    // drive 25.0f, device 6, channel 1, action BRAKE (1), idle HOLD (2), runtime bytes zero
+    expect(hex(blockRecords(compiled)[0]!.subarray(-12))).toBe('0000c841060101020000' + '0000')
+    expect(compile([], [{ id: 'm', type: 'HBRIDGE', settings: { device_id: 6, channel: 0 } }]).diagnostics).toEqual([])
   })
 
   it('builds PERIODIC → EXPR counter → IO_TOGGLE like the firmware tests', () => {
@@ -137,7 +165,7 @@ describe('compileProgram: blocks', () => {
     expect(record(undefined)).toBe(high) // a fresh block is HIGH
     expect(low).not.toBe(high)
     expect([...low].filter((char, at) => char !== high[at])).toHaveLength(1)
-    expect(catalog.block('IO_SET_LEVEL')).toMatchObject({ alwaysDetailed: true, inputs: { pins: [expect.objectContaining({ name: 'level', overrides: 'default_level', required: false }), expect.anything()] } })
+    expect(catalog.block('IO_SET_LEVEL')).toMatchObject({ inputs: { pins: [expect.objectContaining({ name: 'level', overrides: 'default_level', required: false }), expect.anything()] } })
   })
 
   it.each([

@@ -1,0 +1,14 @@
+{
+  "title": "Read Voltage",
+  "category": "io",
+  "description": "Reads the voltage on an analog input of an IO device (ADC) into a float variable, in volts.",
+  "activation": "Runs every pass while enabled; to sample at a fixed rate, put a Periodic block tick on Run when.",
+  "header": "{title} | {pin}",
+  "outputs": {
+    "voltage": { "title": "Voltage", "description": "Voltage on the pin, in volts." }
+  },
+  "eno": {
+    "title": "Read",
+    "description": "True when the pin was read and the Voltage written this pass."
+  }
+}

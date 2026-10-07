@@ -441,9 +441,6 @@ input[type="range"] {
 .code-mode-footer { flex: none; padding: 8px; border-top: 1px solid var(--divider); }
 .shell .code-mode-toggle { justify-content: flex-start; gap: 9px; width: 100%; height: 36px; padding: 0 10px; color: var(--active); font-size: 12px; white-space: nowrap; }
 .code-mode-toggle svg { width: 16px; height: 16px; }
-.remote-palette { display: flex; flex: 1; flex-direction: column; min-height: 0; }
-.remote-palette-title { display: flex; align-items: center; height: 48px; min-height: 48px; max-height: 48px; box-sizing: border-box; flex: none; padding: 0 17px; border-bottom: 1px solid var(--divider); color: var(--active); font-size: 12px; }
-.remote-palette-body { flex: 1; min-height: 0; }
 
 .center-column { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
 .main-panel { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; background: var(--background); }

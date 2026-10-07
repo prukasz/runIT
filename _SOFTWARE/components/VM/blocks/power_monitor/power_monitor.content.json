@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "kind": "vm-block-content",
+  "id": 17,
+  "name": "VM_BLK_POWER_MONITOR",
+  "source_file": "components/VM/blocks/power_monitor/vm_block_power_monitor.h",
+  "activation": {
+    "kind": "enabled"
+  },
+  "inputs": {
+    "min": 0,
+    "max": 0,
+    "pins": []
+  },
+  "outputs": {
+    "min": 0,
+    "max": 2,
+    "pins": [
+      {
+        "index": 0,
+        "name": "voltage",
+        "value": "f32"
+      },
+      {
+        "index": 1,
+        "name": "current",
+        "value": "f32"
+      }
+    ]
+  },
+  "rules": [],
+  "state": {
+    "struct": "vm_block_power_monitor_data_t",
+    "source_file": "components/VM/blocks/power_monitor/vm_block_power_monitor.h",
+    "size": 4,
+    "align": 4,
+    "fields": [
+      {
+        "name": "device_id",
+        "c_type": "uint8_t",
+        "offset": 0,
+        "size": 1,
+        "description": "Power monitor device",
+        "id_kind": "device",
+        "contract": "packet_sys_power_monitor_get_voltage_t",
+        "source": "user"
+      },
+      {
+        "name": "channel",
+        "c_type": "uint8_t",
+        "offset": 1,
+        "size": 1,
+        "description": "Channel of the device to read",
+        "id_kind": "pin",
+        "device_field": "device_id",
+        "source": "user"
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint8_t",
+        "offset": 2,
+        "size": 2,
+        "array_len": 2,
+        "element_size": 1,
+        "description": "Align to 4 bytes",
+        "source": "padding"
+      }
+    ]
+  },
+  "min_custom_len": 4,
+  "enums": {
+    "vm_out_power_monitor_e": {
+      "alias": "Power Monitor Outputs",
+      "source_file": "components/VM/blocks/power_monitor/vm_block_power_monitor.h",
+      "members": [
+        {
+          "name": "VM_OUT_POWER_MONITOR_VOLTAGE",
+          "value": 0,
+          "alias": null,
+          "description": null
+        },
+        {
+          "name": "VM_OUT_POWER_MONITOR_CURRENT",
+          "value": 1,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  },
+  "min_enables": 0
+}

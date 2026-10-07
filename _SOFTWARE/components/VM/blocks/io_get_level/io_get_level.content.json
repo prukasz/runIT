@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "kind": "vm-block-content",
+  "id": 18,
+  "name": "VM_BLK_IO_GET_LEVEL",
+  "source_file": "components/VM/blocks/io_get_level/vm_block_io_get_level.h",
+  "activation": {
+    "kind": "enabled"
+  },
+  "inputs": {
+    "min": 0,
+    "max": 0,
+    "pins": []
+  },
+  "outputs": {
+    "min": 1,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "level",
+        "value": "bool"
+      }
+    ]
+  },
+  "rules": [],
+  "state": {
+    "struct": "vm_block_io_get_level_data_t",
+    "source_file": "components/VM/blocks/io_get_level/vm_block_io_get_level.h",
+    "size": 4,
+    "align": 4,
+    "fields": [
+      {
+        "name": "device_id",
+        "c_type": "uint8_t",
+        "offset": 0,
+        "size": 1,
+        "description": "Device to read",
+        "id_kind": "device",
+        "contract": "packet_sys_io_get_level_t",
+        "source": "user"
+      },
+      {
+        "name": "pin",
+        "c_type": "uint8_t",
+        "offset": 1,
+        "size": 1,
+        "description": "Pin of the device to read",
+        "id_kind": "pin",
+        "device_field": "device_id",
+        "source": "user"
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint8_t",
+        "offset": 2,
+        "size": 2,
+        "array_len": 2,
+        "element_size": 1,
+        "description": "Align to 4 bytes",
+        "source": "padding"
+      }
+    ]
+  },
+  "min_custom_len": 4,
+  "enums": {
+    "vm_out_io_get_level_e": {
+      "alias": "IO Get Level Outputs",
+      "source_file": "components/VM/blocks/io_get_level/vm_block_io_get_level.h",
+      "members": [
+        {
+          "name": "VM_OUT_IO_GET_LEVEL_LEVEL",
+          "value": 0,
+          "alias": null,
+          "description": null
+        }
+      ]
+    }
+  },
+  "min_enables": 0
+}

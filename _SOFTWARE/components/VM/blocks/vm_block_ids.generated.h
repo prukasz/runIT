@@ -21,3 +21,7 @@
 #define VM_BLK_ACTION 14  // Run Action -- vm_block_action.h
 #define VM_BLK_ON_EVENT 15  // On Event -- vm_block_on_event.h
 #define VM_BLK_SERVO 16  // Servo -- vm_block_servo.h
+#define VM_BLK_POWER_MONITOR 17  // Power Monitor -- vm_block_power_monitor.h
+#define VM_BLK_IO_GET_LEVEL 18  // Read Pin -- vm_block_io_get_level.h
+#define VM_BLK_IO_GET_VOLTAGE 19  // Read Voltage -- vm_block_io_get_voltage.h
+#define VM_BLK_HBRIDGE 20  // H-Bridge -- vm_block_hbridge.h

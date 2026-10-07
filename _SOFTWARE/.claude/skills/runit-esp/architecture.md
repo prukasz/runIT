@@ -115,7 +115,7 @@ Design and API: SYS_POWER.MD.
 - Budget = measured input voltage × source current (USB-C offer / entered PSU / battery = board cap / unknown = 1 A), capped by the hardware trip (20 V / 5.5 A).
 - A user current limit makes a rail fixed (must fit); the other rails split what's left equally.
 - Response matrix per event (`NOTIFY / DISABLE / RESET / SAFE_STATE`): board defaults + runtime packet, not persisted. The manager is a queued system listener of every power event (§4.11).
-- PSU / battery setup is persisted through `sys_settings` (`pwr_psu`, `pwr_battery`).
+- PSU / battery setup is persisted through `sys_settings` (`pwr_psu`, `pwr_battery`, `pwr_caps`).
 
 ### 4.10 Error handling
 Rules: [errors.md](errors.md).

@@ -49,29 +49,28 @@ describe('block face from the descriptor', () => {
   const catalog = runitVmCatalog()
   const loop = { id: 'l', type: 'FOR', settings: { k_start: 0, k_end: 3, k_step: 1, max_turns: 10, op: 'ADD', cmp: 'LT' }, body: 2 }
 
-  it('has a detailed view only where there is a hard-coded input to show, or a formula', () => {
+  it('has a "show more" only where there is a formula', () => {
     const detailed = (key: string) => catalog.block(key)!.hasDetail
-    expect(['FOR', 'TIMER', 'PERIODIC', 'ACTION', 'IO_SET_LEVEL', 'IO_TOGGLE', 'SET', 'SERVO', 'EXPR', 'EXPR_BIT'].filter((key) => !detailed(key))).toEqual([])
-    expect(['IF', 'SWITCH', 'CLONE', 'EDGE', 'LATCH', 'ON_EVENT'].filter(detailed)).toEqual([])
+    expect(['EXPR', 'EXPR_BIT'].filter((key) => !detailed(key))).toEqual([])
+    expect(['FOR', 'TIMER', 'PERIODIC', 'ACTION', 'IO_SET_LEVEL', 'IO_TOGGLE', 'SET', 'IF', 'SWITCH', 'CLONE', 'EDGE', 'LATCH', 'ON_EVENT', 'SERVO'].filter(detailed)).toEqual([])
   })
 
-  it('draws an input that has a constant only in the detailed view, with the constant', () => {
+  it('draws an input that has a constant, with the constant', () => {
     const loopType = catalog.block('FOR')!
-    expect(blockShape(loopType, { id: 'l', type: 'FOR' }).inputs).toEqual([])
-    const detailed = blockShape(loopType, { id: 'l', type: 'FOR' }, true)
-        expect(detailed.inputs.map((pin) => [pin.title, pin.overrides])).toEqual([['Start', 'k_start'], ['End', 'k_end'], ['Step', 'k_step']])
+    const shape = blockShape(loopType, { id: 'l', type: 'FOR' })
+    expect(shape.inputs.map((pin) => [pin.title, pin.overrides])).toEqual([['Start', 'k_start'], ['End', 'k_end'], ['Step', 'k_step']])
     expect(settingText(loopType, loop, 'k_end')).toBe('3')
   })
 
-  it('hides an input that has a constant until it is wired, and ties the constant to its pin', () => {
+  it('draws an input that has a constant, wired or not, and ties the constant to its pin', () => {
     const timer = catalog.block('TIMER')!
     const pt = timer.inputs.pins.find((pin) => pin.name === 'pt')!
     expect(pt.overrides).toBe('pt')
     expect(timer.fields.find((field) => field.name === 'pt')?.overriddenBy).toBe(pt.index)
-    expect(blockShape(timer, { id: 't', type: 'TIMER' }).inputs.map((pin) => pin.index)).toEqual([])
+    expect(blockShape(timer, { id: 't', type: 'TIMER' }).inputs.map((pin) => pin.index)).toEqual([0])
     expect(blockShape(timer, { id: 't', type: 'TIMER', inputs: [{ root: 'delay' }] }).inputs.map((pin) => pin.index)).toEqual([0])
-    for (const pin of catalog.block('FOR')!.inputs.pins) expect(pin.hiddenByDefault).toBe(true)
-    expect(blockShape(catalog.block('FOR'), { id: 'l', type: 'FOR' }).inputs).toEqual([])
+    for (const pin of catalog.block('FOR')!.inputs.pins) expect(pin.hiddenByDefault).toBeUndefined()
+    expect(blockShape(catalog.block('FOR'), { id: 'l', type: 'FOR' }).inputs).toHaveLength(3)
   })
 
   it('gives the timer one output, elapsed time, and names its ENO Q', () => {

@@ -16,7 +16,7 @@
 #include "sys_interface.h"
 #include "sys_project.h"
 
-//@settings project @title Stored code @description Store the code the board replays at boot, read it back, set its options and load it.
+//@settings project @title Stored code @description Store the two lists the board replays at boot (hardware config, then program), read them back, set the options and load them.
 //@settings-class SETTINGS_PROJECT
 
 #undef OWNER
@@ -24,6 +24,7 @@
 
 #define HEADER_packet_settings_project_begin_t 0x01
 typedef struct __packed {
+  uint8_t slot;    //@required @alias Slot @enum-ref sys_project_slot_e @description Which list is stored: the hardware config or the program.
   uint32_t length; //@required @alias Length @unit bytes @description Bytes of the frame list that follows in write packets.
 } packet_settings_project_begin_t;
 
@@ -45,6 +46,7 @@ typedef struct __packed {
 
 #define HEADER_packet_settings_project_erase_t 0x05
 typedef struct __packed {
+  uint8_t slot; //@required @alias Slot @enum-ref sys_project_slot_e
 } packet_settings_project_erase_t;
 
 #define HEADER_packet_settings_project_options_t 0x06
@@ -54,6 +56,7 @@ typedef struct __packed {
 
 #define HEADER_packet_settings_project_info_t 0x07
 typedef struct __packed {
+  uint8_t slot; //@required @alias Slot @enum-ref sys_project_slot_e @description The list the stored-code fields describe; the replay report covers both.
 } packet_settings_project_info_t;
 
 typedef struct __packed {
@@ -68,15 +71,17 @@ typedef struct __packed {
   uint8_t replay_state;         //@alias Last Replay @enum-ref sys_project_replay_e
   uint16_t replay_applied;      //@alias Frames Applied
   uint16_t replay_failed;       //@alias Frames Refused
-  uint16_t replay_first_failed; //@alias First Refused Frame @description 65535 when none.
+  uint16_t replay_first_failed; //@alias First Refused Frame @description 65535 when none; counted in the slot below.
+  uint8_t replay_first_slot;    //@alias First Refusal Slot @enum-ref sys_project_slot_e
   uint16_t replay_first_tag;    //@alias First Refusal Tag
   uint16_t replay_first_owner;  //@alias First Refusal Owner
-  uint32_t replay_crc32;        //@alias Replayed CRC-32 @description CRC-32 of the code this boot replayed (0: none). Differs from crc32 after a store without restart.
+  uint32_t replay_crc32;        //@alias Replayed CRC-32 @description CRC-32 of this slot's list as this boot replayed it (0: none). Differs from crc32 after a store without restart.
 } packet_settings_project_info_response_t;
 
 /* The response is the requested bytes themselves (no struct): length ≤ CONFIG_SYS_INTERFACE_RESPONSE_MAX. */
 #define HEADER_packet_settings_project_read_t 0x08
 typedef struct __packed {
+  uint8_t slot;    //@required @alias Slot @enum-ref sys_project_slot_e
   uint32_t offset; //@required @alias Offset @unit bytes
   uint16_t length; //@required @alias Length @unit bytes @max CONFIG_SYS_INTERFACE_RESPONSE_MAX
 } packet_settings_project_read_t;
@@ -85,11 +90,13 @@ typedef struct __packed {
 typedef struct __packed {
 } packet_settings_project_load_t;
 
-/* What stored code may not contain: this class itself, action recording (a
-   recorded action is runtime state of its own) and VM exec (autostart is the
-   prj_opts setting). */
-static inline bool dec_settings_project_frame_allowed(const uint8_t* frame, size_t len) {
+/* What a slot may contain. The program holds VM loader frames only; the config holds everything
+   else except this class itself, action recording (a recorded action is runtime state of its own)
+   and VM exec (autostart is the prj_opts setting). */
+static inline bool dec_settings_project_frame_allowed(sys_project_slot_e slot, const uint8_t* frame, size_t len) {
   if (len < 2) return false;
+  if (slot == SYS_PROJECT_SLOT_PROGRAM) return frame[0] == CONFIG_RX_PACKET_CLASS_VM_LOADER && frame[1] != HEADER_packet_vm_exec;
+  if (frame[0] == CONFIG_RX_PACKET_CLASS_VM_LOADER) return false;
   if (frame[0] == CONFIG_RX_PACKET_CLASS_SETTINGS_PROJECT) return false;
   if (frame[0] == CONFIG_RX_PACKET_CLASS_SYS_ACTIONS &&
       (frame[1] == HEADER_packet_sys_action_record_start_t || frame[1] == HEADER_packet_sys_action_record_stop_t ||
@@ -105,9 +112,11 @@ static inline bool dec_settings_project_is_vm_frame(const uint8_t* frame, size_t
   return len >= 1 && frame[0] == CONFIG_RX_PACKET_CLASS_VM_LOADER;
 }
 
-static inline SE_MUST_USE err_h dec_settings_project_info(void) {
+static inline SE_MUST_USE err_h dec_settings_project_info(const uint8_t* body, size_t len) {
+  packet_settings_project_info_t packet;
+  SE_TRY(convert_to_packet(body, len, &packet, sizeof(packet)));
   sys_project_info_t info;
-  SE_TRY(sys_project_get_info(&info));
+  SE_TRY(sys_project_get_info((sys_project_slot_e)packet.slot, &info));
   const packet_settings_project_info_response_t rsp = {
       .stored = info.stored ? 1 : 0,
       .autostart = info.autostart ? 1 : 0,
@@ -121,9 +130,10 @@ static inline SE_MUST_USE err_h dec_settings_project_info(void) {
       .replay_applied = info.report.applied,
       .replay_failed = info.report.failed,
       .replay_first_failed = info.report.first_failed,
+      .replay_first_slot = (uint8_t)info.report.first_slot,
       .replay_first_tag = info.report.first_tag,
       .replay_first_owner = info.report.first_owner,
-      .replay_crc32 = info.report.crc32,
+      .replay_crc32 = info.report.crc32[packet.slot],
   };
   return sys_interface_respond(&rsp, sizeof(rsp));
 }
@@ -135,7 +145,7 @@ static inline SE_MUST_USE err_h dec_settings_project_read(const uint8_t* body, s
     SE_FAIL(ERR_INTERFACE_RESPONSE_TOO_LONG, .got = packet.length, .max = CONFIG_SYS_INTERFACE_RESPONSE_MAX);
   }
   uint8_t out[CONFIG_SYS_INTERFACE_RESPONSE_MAX];
-  SE_TRY(sys_project_read(packet.offset, out, packet.length));
+  SE_TRY(sys_project_read((sys_project_slot_e)packet.slot, packet.offset, out, packet.length));
   return sys_interface_respond(out, packet.length);
 }
 
@@ -150,7 +160,7 @@ static inline SE_MUST_USE err_h dec_settings_project_decode(const uint8_t* data,
     case HEADER_packet_settings_project_begin_t: {
       packet_settings_project_begin_t packet;
       SE_TRY(convert_to_packet(body, body_len, &packet, sizeof(packet)));
-      return sys_project_begin(packet.length);
+      return sys_project_begin((sys_project_slot_e)packet.slot, packet.length);
     }
     case HEADER_packet_settings_project_write_t: {
       if (body_len < offsetof(packet_settings_project_write_t, data)) {
@@ -168,15 +178,18 @@ static inline SE_MUST_USE err_h dec_settings_project_decode(const uint8_t* data,
     }
     case HEADER_packet_settings_project_abort_t:
       return sys_project_abort();
-    case HEADER_packet_settings_project_erase_t:
-      return sys_project_erase();
+    case HEADER_packet_settings_project_erase_t: {
+      packet_settings_project_erase_t packet;
+      SE_TRY(convert_to_packet(body, body_len, &packet, sizeof(packet)));
+      return sys_project_erase((sys_project_slot_e)packet.slot);
+    }
     case HEADER_packet_settings_project_options_t: {
       packet_settings_project_options_t packet;
       SE_TRY(convert_to_packet(body, body_len, &packet, sizeof(packet)));
       return sys_project_set_options(packet.autostart != 0);
     }
     case HEADER_packet_settings_project_info_t:
-      return dec_settings_project_info();
+      return dec_settings_project_info(body, body_len);
     case HEADER_packet_settings_project_read_t:
       return dec_settings_project_read(body, body_len);
     case HEADER_packet_settings_project_load_t:

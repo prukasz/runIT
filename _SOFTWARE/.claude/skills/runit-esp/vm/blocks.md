@@ -22,6 +22,10 @@ Type 0 is reserved (unset type must not run). The type byte indexes `g_vm_block_
 | 14 | `ACTION` | 0 action id | — | 4 (scope, id, flags) | rising edge of enable; **queues** the action (`vm_exec_request_action`) |
 | 15 | `ON_EVENT` | — | 0: value | 4 (domain, device, channel, event; 255 = any) | enabled **and** a matching event this pass (`vm_event_at`) |
 | 16 | `SERVO` | 0 value (f32, fallback `value`) | — | 12 (`value` f32, `device_id` (`@contract device_servo`: picker lists servos), `when_not_active` HOLD / DEFAULT / RELEASE, runtime `last`, `last_x10`) | enabled; sends on change only, calls the servo device's ops through `sys_device_route` (VM requires `device_servo`) |
+| 17 | `POWER_MONITOR` | — (EN only) | 0: voltage (V, f32), 1: current (A, f32), both optional | 4 (`device_id` (`@contract packet_sys_power_monitor_get_voltage_t`: picker lists power monitors), `channel` (`@id pin`; the app lists the contract's `channel` choices, not IO pins)) | enabled; reads `sys_power_monitor_get_voltage` / `_get_current` every pass (gate with a PERIODIC tick to set the rate); ENO true when every wired output was written |
+| 18 | `IO_GET_LEVEL` | — (EN only) | 0: level (bool, required) | 4 (`device_id` (`@contract packet_sys_io_get_level_t`), `pin`) | enabled; `sys_io_get_level` every pass; ENO true when the level was written |
+| 19 | `IO_GET_VOLTAGE` | — (EN only) | 0: voltage (V, f32, required) | 4 (`device_id` (`@contract packet_sys_io_get_voltage_t`), `pin`) | enabled; `sys_io_get_voltage` every pass; ENO true when the voltage was written |
+| 20 | `HBRIDGE` | 0 drive (f32 %, fallback `drive`) | — | 12 (`drive` f32, `device_id` (`@contract packet_sys_hbridge_set_drive_t`), `channel`, `action` DRIVE / BRAKE / COAST, `when_not_active` COAST / BRAKE / HOLD, runtime `last`, `last_x10`) | enabled; DRIVE sends `sys_hbridge_set_drive(value / 100)` on change only, BRAKE / COAST once; not enabled follows `when_not_active` |
 
 ENO is optional on every block (`VM_BLOCK_NO_ID` on the wire). Per-block layouts and semantics: the block's own header (diagram + `custom_data layout` comment) and VM.MD "What ships today" plus the per-block sections after it.
 

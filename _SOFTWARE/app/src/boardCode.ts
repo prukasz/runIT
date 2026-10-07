@@ -9,12 +9,22 @@ import { sendSteps } from './sendSteps'
  * The board's stored code over the command link (class 0x0A,
  * dec_settings_project.h, app/docs/03_records_as_storage.md): info, store
  * (begin, write chunks, commit), read back, options, erase, load (restart).
+ * Two independent lists (`sys_project_slot_e`): the hardware config (BLE,
+ * connectors, devices and their defaults) and the program (VM frames); the
+ * board replays the config first. Each is stored, read and erased on its own.
  */
+
+/** `sys_project_slot_e`. */
+export const STORED_SLOTS = { config: 0, program: 1 } as const
+export type StoredSlot = keyof typeof STORED_SLOTS
+export const SLOT_NAMES: Readonly<Record<StoredSlot, string>> = { config: 'Hardware config', program: 'Code' }
+export const STORED_SLOT_KEYS: readonly StoredSlot[] = ['config', 'program']
 
 /** `sys_project_replay_e`. */
 export const REPLAY_STATES = ['Not run', 'Replayed', 'Skipped (other firmware)', 'Corrupt'] as const
 
 export interface BoardCodeInfo {
+  readonly slot: StoredSlot
   readonly stored: boolean
   readonly autostart: boolean
   readonly length: number
@@ -29,11 +39,12 @@ export interface BoardCodeInfo {
     readonly state: number
     readonly applied: number
     readonly failed: number
-    /** Frame index of the first refusal, undefined when none. */
+    /** Frame index of the first refusal, undefined when none (counted in `firstSlot`). */
     readonly firstFailed?: number
+    readonly firstSlot: StoredSlot
     readonly firstTag: number
     readonly firstOwner: number
-    /** CRC of the code this boot replayed (0: none). */
+    /** CRC of this slot's list as this boot replayed it (0: none). */
     readonly crc32: number
   }
 }
@@ -53,14 +64,23 @@ export const READ_CHUNK_MAX = command('read').request.fields.find((field) => fie
 /** Bytes of a write command before its data: class, packet, u32 offset. */
 export const WRITE_HEADER_BYTES = 6
 
-export const readCodeInfo = async (session: RunitBleSession): Promise<BoardCodeInfo> => {
+/** Both slots' info; the replay report is the same in both, its CRC is per slot. */
+export type BoardCodeInfos = Readonly<Record<StoredSlot, BoardCodeInfo>>
+
+export const readCodeInfos = async (session: RunitBleSession): Promise<BoardCodeInfos> => ({
+  config: await readCodeInfo(session, 'config'),
+  program: await readCodeInfo(session, 'program'),
+})
+
+export const readCodeInfo = async (session: RunitBleSession, slot: StoredSlot): Promise<BoardCodeInfo> => {
   const info = command('info')
-  const response = await call(session, 'info')
+  const response = await call(session, 'info', { slot: STORED_SLOTS[slot] })
   const decoded = decodeResponseData(info, response.data)
   if (!decoded) throw new Error('The descriptors give no info response layout.')
   const v = (name: string): number => Number(decoded.values[name] ?? 0)
   const firstFailed = v('replay_first_failed')
   return {
+    slot,
     stored: v('stored') !== 0,
     autostart: v('autostart') !== 0,
     length: v('length'),
@@ -74,6 +94,7 @@ export const readCodeInfo = async (session: RunitBleSession): Promise<BoardCodeI
       applied: v('replay_applied'),
       failed: v('replay_failed'),
       ...(firstFailed === 0xffff ? {} : { firstFailed }),
+      firstSlot: v('replay_first_slot') === STORED_SLOTS.program ? 'program' : 'config',
       firstTag: v('replay_first_tag'),
       firstOwner: v('replay_first_owner'),
       crc32: v('replay_crc32') >>> 0,
@@ -88,11 +109,11 @@ export type Progress = (done: number, total: number) => void
  * then info to confirm. `frameBytes` is the longest command the link takes.
  * A refused or cut store leaves the board's old code in place.
  */
-export const storeCode = async (session: RunitBleSession, bytes: Uint8Array, schemaId: number, frameBytes: number, onProgress?: Progress): Promise<BoardCodeInfo> => {
+export const storeCode = async (session: RunitBleSession, slot: StoredSlot, bytes: Uint8Array, schemaId: number, frameBytes: number, onProgress?: Progress): Promise<BoardCodeInfo> => {
   const chunk = frameBytes - WRITE_HEADER_BYTES
   if (chunk < 1) throw new Error(`A ${frameBytes}-byte frame has no room for data.`)
   const write = command('write')
-  const steps = [{ label: 'code begin', frame: packCommand(command('begin'), { length: bytes.byteLength }) }]
+  const steps = [{ label: 'code begin', frame: packCommand(command('begin'), { slot: STORED_SLOTS[slot], length: bytes.byteLength }) }]
   for (let offset = 0; offset < bytes.byteLength; offset += chunk) {
     steps.push({ label: `code write @${offset}`, frame: packCommand(write, { offset, data: bytes.subarray(offset, offset + chunk) }) })
   }
@@ -103,8 +124,8 @@ export const storeCode = async (session: RunitBleSession, bytes: Uint8Array, sch
     await call(session, 'abort').catch(() => undefined)
     throw error
   }
-  const info = await readCodeInfo(session)
-  if (!info.stored || info.crc32 !== crc32(bytes) || info.length !== bytes.byteLength) throw new Error('The board reports other code than was stored.')
+  const info = await readCodeInfo(session, slot)
+  if (!info.stored || info.crc32 !== crc32(bytes) || info.length !== bytes.byteLength) throw new Error(`The board reports other ${SLOT_NAMES[slot].toLowerCase()} than was stored.`)
   return info
 }
 
@@ -114,14 +135,14 @@ export const storeCode = async (session: RunitBleSession, bytes: Uint8Array, sch
  * against the board's CRC.
  */
 export const readCode = async (session: RunitBleSession, info: BoardCodeInfo, onProgress?: Progress, until?: (frame: Uint8Array) => boolean): Promise<{ bytes: Uint8Array; complete: boolean }> => {
-  if (!info.stored) throw new Error('The board has no stored code.')
+  if (!info.stored) throw new Error(`The board has no stored ${SLOT_NAMES[info.slot].toLowerCase()}.`)
   const bytes = new Uint8Array(info.length)
   let offset = 0
   let parsed = 0
   while (offset < info.length) {
     onProgress?.(offset, info.length)
     const length = Math.min(READ_CHUNK_MAX, info.length - offset)
-    const response = await call(session, 'read', { offset, length })
+    const response = await call(session, 'read', { slot: STORED_SLOTS[info.slot], offset, length })
     if (response.data.byteLength !== length) throw new Error(`The board sent ${response.data.byteLength} bytes at ${offset}, ${length} asked.`)
     bytes.set(response.data, offset)
     offset += length
@@ -146,8 +167,8 @@ export const setCodeAutostart = async (session: RunitBleSession, autostart: bool
   await call(session, 'options', { autostart: autostart ? 1 : 0 })
 }
 
-export const eraseCode = async (session: RunitBleSession): Promise<void> => {
-  await call(session, 'erase')
+export const eraseCode = async (session: RunitBleSession, slot: StoredSlot): Promise<void> => {
+  await call(session, 'erase', { slot: STORED_SLOTS[slot] })
 }
 
 /** Restart the board, which replays the stored code; the link drops right after the answer. */

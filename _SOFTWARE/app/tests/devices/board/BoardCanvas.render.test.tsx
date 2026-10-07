@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { runitDeviceCatalog } from '../../../src/domain/descriptors'
 import { defaultInstall } from '../../../src/domain/devices'
 import type { ProjectDevice } from '../../../src/domain/project'
+import { defaultProjectSettings } from '../../../src/domain/settings'
 import { BoardCanvas } from '../../../src/devices/BoardCanvas'
 import { BoardDeviceDetails } from '../../../src/devices/BoardDeviceDetails'
 import { BoardToolbar } from '../../../src/devices/BoardToolbar'
@@ -49,17 +50,31 @@ describe('BoardToolbar', () => {
     const base = useDevicesWorkspace()
     const w: DevicesWorkspace = { ...base, devices: [device], selection: selected ? { kind: 'device', ref: 'd1' } : undefined }
     const wiring = useBoardWiring()
-    return <BoardToolbar workspace={w} wiring={wiring} />
+    return <BoardToolbar workspace={w} wiring={wiring} settings={defaultProjectSettings()} board={{ reading: false, refresh: () => {} }} />
   }
 
   it('rotate and mirror need a selected device, delete a selected wire', () => {
     // Rotate, mirror and delete wire are all disabled with nothing selected; a selected device enables the first two.
-    expect(renderToString(<Tools />).match(/disabled=""/g)).toHaveLength(3)
+    const disabled = (html: string, label: string) => new RegExp(`aria-label="${label.replace(/[()]/g, '[$&]')}"[^>]*disabled=""`).test(html)
+    const idle = renderToString(<Tools />)
+    for (const label of ['Rotate (R)', 'Mirror (M)', 'Delete wire']) expect(disabled(idle, label)).toBe(true)
     const enabled = renderToString(<Tools selected />)
-    expect(enabled.match(/disabled=""/g)).toHaveLength(1)
+    expect(disabled(enabled, 'Rotate (R)')).toBe(false)
+    expect(disabled(enabled, 'Mirror (M)')).toBe(false)
+    expect(disabled(enabled, 'Delete wire')).toBe(true)
     expect(enabled).toContain('Rotate 90° (R)')
     expect(enabled).toContain('Mirror (M)')
     expect(enabled).toContain('Click a wire to select it')
+  })
+
+  it('sends and saves the hardware config only with something to send', () => {
+    const html = renderToString(<Tools />)
+    expect(html).toContain('aria-label="Install all devices"')
+    expect(html).toContain('aria-label="Apply all default settings"')
+    expect(html).toContain('aria-label="Save hardware config to the board"')
+    // The project has a device but no default settings: nothing to apply.
+    expect(new RegExp('aria-label="Apply all default settings"[^>]*disabled=""').test(html)).toBe(true)
+    expect(new RegExp('aria-label="Install all devices"[^>]*disabled=""').test(html)).toBe(false)
   })
 
   it('offers the five wiring view options', () => {

@@ -65,15 +65,15 @@ class RealHeaders(unittest.TestCase):
     def test_generated_files_are_current(self):
         self.assertEqual(generator.main(["--check"]), 0, "run python data-structures/auto-annotations/generate-all.py")
 
-    def test_a_pin_with_a_constant_is_hidden_until_wired(self):
+    def test_a_pin_with_a_constant_stays_drawn(self):
         timer = self.block["TIMER"]
         pt = next(p for p in timer["inputs"]["pins"] if p["name"] == "pt")
         self.assertEqual(pt["overrides"], "pt")
-        self.assertTrue(pt["hidden_by_default"])
+        self.assertNotIn("hidden_by_default", pt)
         field = next(f for f in timer["state"]["fields"] if f["name"] == "pt")
         self.assertEqual(field["overridden_by"], pt["index"])
-        # The FOR block's three inputs all have constants, so none is drawn until it is wired.
-        self.assertTrue(all(p["hidden_by_default"] for p in self.block["FOR"]["inputs"]["pins"]))
+        # The FOR block's three inputs all have constants, and all three are drawn.
+        self.assertTrue(all("overrides" in p and "hidden_by_default" not in p for p in self.block["FOR"]["inputs"]["pins"]))
 
     def test_timer_has_no_q_pin(self):
         self.assertEqual([p["name"] for p in self.block["TIMER"]["outputs"]["pins"]], ["et"])
@@ -91,12 +91,12 @@ class RealHeaders(unittest.TestCase):
         for block in self.blocks:
             self.assertFalse({"body", "rows", "view"} & set(block), block["name"])
 
-    def test_the_detailed_view_is_the_hard_coded_inputs(self):
-        # Inputs with a constant are the detailed view; nothing else needs annotating for it.
+    def test_no_input_is_hidden(self):
+        # Every input is drawn, with its constant on it while unwired: a pin never starts hidden.
         with_constant = sorted(name for name, block in self.block.items() if any(p.get("overrides") for p in block["inputs"]["pins"]))
-        for name, block in self.block.items():  # every one of them is hidden until wired, whichever block it is
+        for name, block in self.block.items():
             for pin in block["inputs"]["pins"]:
-                self.assertEqual(bool(pin.get("overrides")), bool(pin.get("hidden_by_default")) and "overrides" in pin, (name, pin["name"]))
+                self.assertNotIn("hidden_by_default", pin, (name, pin["name"]))
         self.assertIn("TIMER", with_constant)
 
     def test_the_old_detailed_view_tags_are_refused(self):
@@ -128,7 +128,7 @@ class Scanning(unittest.TestCase):
             generator.scan_block("h", header("//@activation enabled") + header("//@activation enabled"))
 
     def test_face_directives_belong_in_the_display_json(self):
-        for keyword in ("title", "category", "block-description", "header", "eno", "always-detailed", "in", "out"):
+        for keyword in ("title", "category", "block-description", "header", "eno", "in", "out"):
             with self.subTest(keyword), self.assertRaisesRegex(SystemExit, "belong in the <name>.display.json"):
                 generator.scan_block("h", header(f"//@{keyword} x"))
 
@@ -178,7 +178,7 @@ class Tags(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "given twice"):
             generator.parse_tags("@title A @title B", generator.PIN_TAGS, "t")
         with self.assertRaisesRegex(SystemExit, "takes no value"):
-            generator.parse_tags("@hidden-by-default yes", generator.PIN_TAGS, "t")
+            generator.parse_tags("@required yes", generator.PIN_TAGS, "t")
 
     def test_an_at_sign_inside_a_word_is_text_not_a_tag(self):
         lead, tags = generator.parse_tags("mail a@b.c @title A", generator.PIN_TAGS, "t")
@@ -221,22 +221,17 @@ class Pins(unittest.TestCase):
             with self.subTest(name), self.assertRaisesRegex(SystemExit, message):
                 self.parse(*lines)
 
-    def test_overrides_ties_a_pin_to_a_setting_and_hides_it(self):
+    def test_overrides_ties_a_pin_to_a_setting_and_keeps_it_drawn(self):
         inputs, _, _ = self.parse("//@in 0 a @title A @value bool @required", "//@in 1 b @title B @value u32 @overrides limit")
         fields = [{"name": "limit", "c_type": "uint32_t", "source": "user"}]
         generator.link_overrides(inputs, fields, "t")
-        self.assertTrue(inputs[1]["hidden_by_default"])
+        self.assertNotIn("hidden_by_default", inputs[1])
         self.assertEqual(fields[0]["overridden_by"], 1)
         for bad_field, message in (({"name": "limit", "c_type": "float", "source": "user"}, "cannot replace"), ({"name": "limit", "c_type": "uint32_t", "source": "runtime"}, "user state field")):
             with self.subTest(message), self.assertRaisesRegex(SystemExit, message):
                 generator.link_overrides(self.parse("//@in 0 a @title A @value bool", "//@in 1 b @title B @value u32 @overrides limit")[0], [bad_field], "t")
         with self.assertRaisesRegex(SystemExit, "user state field"):
             generator.link_overrides(self.parse("//@in 0 a @title A @value bool", "//@in 1 b @title B @value u32 @overrides nothing")[0], fields, "t")
-
-    def test_a_hidden_pin_needs_a_way_to_set_it(self):
-        block = {"inputs": {"pins": [{"name": "p", "index": 0, "hidden_by_default": True}]}, "outputs": {"pins": []}}
-        with self.assertRaisesRegex(SystemExit, "hidden input needs"):
-            generator.validate_editor_links(block, "t")
 
     def test_editor_links_are_checked(self):
         block = {"inputs": {"pins": [{"name": "pin", "index": 0, "id_kind": "pin", "device_field": "missing"}]}, "outputs": {"pins": []}}

@@ -34,6 +34,8 @@ export interface DebugView {
   readonly failed: (blockId: string) => boolean
   /** What an object (project ID) holds now. */
   readonly read: (objectId: string) => LiveValue | undefined
+  /** Set a one-element variable on the board (the Remote view's widgets); rejects when it is not in the uploaded program or the value does not fit it. */
+  readonly write: (objectId: string, value: number) => Promise<void>
   /** Start debug mode (uploads the debug build and runs it), or stop it. */
   readonly toggle: () => void
   readonly clearError: () => void
@@ -64,6 +66,7 @@ export const INACTIVE_DEBUG: DebugView = {
   block: () => undefined,
   failed: () => false,
   read: () => undefined,
+  write: () => Promise.resolve(),
   run: () => undefined,
   watchState: () => undefined,
   watch: () => undefined,

@@ -48,6 +48,19 @@ typedef struct sys_power_monitor_contract_t {
   err_h (*set_alert)(void* device_handle, uint8_t channel, sys_power_events_e alert, int32_t threshold_mA);
 } sys_power_monitor_contract_t;
 
+//#ref-enum @alias Supply Source
+typedef enum sys_power_supply_source_e {
+  SYS_POWER_SUPPLY_OFF = 0, //@alias Off @description The load is not fed
+  SYS_POWER_SUPPLY_A = 1,   //@alias Source A @description The load is fed from source A of the power mux
+  SYS_POWER_SUPPLY_B = 2,   //@alias Source B @description The load is fed from source B of the power mux
+} sys_power_supply_source_e;
+
+/* Power mux: two switched sources into one load, at most one on at a time (the device enforces it). */
+typedef struct sys_power_supply_contract_t {
+  err_h (*select)(void* device_handle, sys_power_supply_source_e source);
+  err_h (*get_source)(void* device_handle, sys_power_supply_source_e* out_source);
+} sys_power_supply_contract_t;
+
 /* USB PD: a source offers at most 7 SPR + 6 EPR power data objects. */
 #define SYS_POWER_USB_PD_OPTIONS_MAX 13
 
@@ -77,6 +90,7 @@ typedef struct sys_power_usb_pd_contract_t {
 extern const char* const sys_power_vreg_feature_names[];
 extern const char* const sys_power_monitor_feature_names[];
 extern const char* const sys_power_usb_pd_feature_names[];
+extern const char* const sys_power_supply_feature_names[];
 
 /* ========================================================================== *
  * API SYSTEMOWE (APLIKACYJNE)
@@ -181,6 +195,13 @@ SE_MUST_USE err_h sys_power_set_psu(uint32_t max_mV, uint32_t max_mA);
  */
 SE_MUST_USE err_h sys_power_set_battery(sys_power_battery_e chemistry, uint8_t cells, uint8_t low_pct, uint8_t critical_pct);
 
+/**
+ * @brief Disable the power caps, persisted. While disabled there is no budget: rails aren't refused
+ * for exceeding it, automatic rails get the board's hardware current cap, and the input alert sits at
+ * that cap. Only the board's voltage limit (max_mV, OVP) stays.
+ */
+SE_MUST_USE err_h sys_power_set_caps_disabled(bool disabled);
+
 /** @brief Change the response to one event at runtime (not persisted). */
 SE_MUST_USE err_h sys_power_set_response(sys_power_events_e event, sys_power_response_e response);
 
@@ -200,6 +221,10 @@ SE_MUST_USE err_h sys_power_monitor_get_voltage(uint8_t device_id, uint8_t chann
 SE_MUST_USE err_h sys_power_monitor_get_current(uint8_t device_id, uint8_t channel, int32_t* out_mA);
 /** @brief Arm a hardware current alert; it is published as that event (SYS_EVENT_DOMAIN_POWER). */
 SE_MUST_USE err_h sys_power_monitor_set_alert(uint8_t device_id, uint8_t channel, sys_power_events_e alert, int32_t threshold_mA);
+
+// --- Supply select API (power mux) ---
+SE_MUST_USE err_h sys_power_supply_select(uint8_t device_id, sys_power_supply_source_e source);
+SE_MUST_USE err_h sys_power_supply_get_source(uint8_t device_id, sys_power_supply_source_e* out_source);
 
 // --- USB PD API ---
 SE_MUST_USE err_h sys_power_usb_pd_set(uint8_t device_id, uint32_t voltage_mV, uint32_t current_mA);

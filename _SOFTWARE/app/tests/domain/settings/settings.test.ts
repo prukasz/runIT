@@ -34,6 +34,7 @@ const edited = (): ProjectSettings => {
     },
     connectors: [...defaults.connectors.map((connector) => (connector === telemetry ? { ...connector, isSuspended: true } : connector)), user],
     logs: { level: 4, mirrorSerial: false, traceErrors: true },
+    power: { capsDisabled: true },
   }
 }
 

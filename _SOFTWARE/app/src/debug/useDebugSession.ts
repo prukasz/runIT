@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { packExec, packSubscribe, pathWires, readPath } from '../domain/compiler'
+import { packExec, packSubscribe, packValueWrite, pathWires, readPath } from '../domain/compiler'
 import type { LiveValues } from '../domain/compiler'
 import { applyVmValues, decodeBoardFrame, decodeVmTelemetry } from '../domain/decoder'
 import { runitErrorCatalog, runitStreamCatalog, runitValueNames, runitVmCatalog } from '../domain/descriptors'
@@ -215,6 +215,17 @@ export const useDebugSession = (project: ProjectDocument, sections: readonly Obj
       .finally(() => { commanding.current = false })
   }, [running, mode])
 
+  const write = useCallback(async (objectId: string, value: number) => {
+    if (!running) throw new Error('Enable the interface first.')
+    const layout = running.plan.program.objects
+    const wire = layout.wireIdOf.get(objectId)
+    const node = wire === undefined ? undefined : layout.objects[wire]?.node
+    if (!node || node.kind !== 'value') throw new Error('That variable is not in the uploaded program: enable the interface again.')
+    // The widget sends one number: a flag takes true / false, an integer is rounded, a float goes as it is.
+    const sent = node.type === 'B' ? [value !== 0] : node.type === 'F' || node.type === 'D' ? [value] : [Math.round(value)]
+    await sendSteps(running.session, packValueWrite(catalog, layout, node, sent, DEFAULT_MAX_FRAME_BYTES).map((frame) => ({ label: `write ${node.name}`, frame })))
+  }, [running])
+
   const baseWires = useMemo(() => new Set(running?.plan.subscribed ?? []), [running])
   const watchState = (objectId: string): WatchState | undefined => {
     const wire = running?.plan.program.objects.wireIdOf.get(objectId)
@@ -247,6 +258,7 @@ export const useDebugSession = (project: ProjectDocument, sections: readonly Obj
     ...(running ? { mode } : {}),
     ...(running && mode === 'block' && next !== undefined && running.plan.program.blocks.blocks[next] ? { nextBlock: running.plan.program.blocks.blocks[next]!.id } : {}),
     run,
+    write,
     watchState,
     watch: (objectId) => watchIds([objectId]),
     watchPath: (path: ObjectPath) => {

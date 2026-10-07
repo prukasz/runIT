@@ -16,8 +16,7 @@
         "name": "source",
         "value": "object",
         "overrides": "value",
-        "required": false,
-        "hidden_by_default": true
+        "required": false
       },
       {
         "index": 1,

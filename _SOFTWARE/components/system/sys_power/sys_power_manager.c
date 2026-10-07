@@ -15,6 +15,7 @@
 #define PWR_PCT_UNKNOWN 0xFF
 #define PWR_SETTINGS_PSU "pwr_psu"
 #define PWR_SETTINGS_BATTERY "pwr_battery"
+#define PWR_SETTINGS_CAPS "pwr_caps"
 #define PWR_LIPO_FULL_CELL_MV 4200
 
 typedef struct {
@@ -29,6 +30,10 @@ typedef struct {
   uint8_t critical_pct;
 } pwr_battery_settings_t;
 
+typedef struct {
+  uint8_t disabled; /* 1 = power caps off */
+} pwr_caps_settings_t;
+
 /* Budget state of one rail, as set through sys_power. */
 typedef struct {
   uint32_t set_mV;        /* 0 until a voltage is set through sys_power */
@@ -41,12 +46,14 @@ static const sys_power_board_t* s_board;
 static pwr_consumer_state_t s_consumers[CONFIG_SYS_POWER_MAX_CONSUMERS];
 static pwr_psu_settings_t s_psu;
 static pwr_battery_settings_t s_battery;
+static pwr_caps_settings_t s_caps;
 static uint8_t s_responses[SYS_PWR_EVENT_COUNT];
 static sys_power_safe_state_f s_safe_state;
 static sys_power_status_t s_status = {.battery_pct = PWR_PCT_UNKNOWN};
 static uint32_t s_programmed_input_mA;
 static bool s_pins_ready;
 static bool s_input_error_reported;
+static bool s_input_seen; /* the input monitor has been read at least once */
 static bool s_ovp_latched;
 static bool s_low_latched;
 static bool s_critical_latched;
@@ -191,7 +198,7 @@ static SE_MUST_USE err_h rebalance(bool* starved) {
     pwr_consumer_state_t* c = &s_consumers[i];
     if (!is_auto(c)) continue;
     uint32_t share_mW = pool / auto_count;
-    uint32_t cap_mA = (uint32_t)((uint64_t)share_mW * s_board->vreg_efficiency_pct / 100u * 1000u / c->set_mV);
+    uint32_t cap_mA = s_caps.disabled ? s_board->max_mA : (uint32_t)((uint64_t)share_mW * s_board->vreg_efficiency_pct / 100u * 1000u / c->set_mV);
     if (cap_mA > s_board->max_mA) cap_mA = s_board->max_mA;
     if (cap_mA == 0) {
       *starved = true;
@@ -227,7 +234,7 @@ static SE_MUST_USE err_h rebalance(bool* starved) {
 /* Reject a change that would put the reserve plus the fixed rails over the
    budget, or turn on an automatic rail when nothing is left to share. */
 static SE_MUST_USE err_h check_budget(uint8_t device_id, const pwr_consumer_state_t* next, const pwr_consumer_state_t* prev) {
-  if (!is_fixed(next) && !is_auto(next)) return NULL;
+  if (s_caps.disabled || (!is_fixed(next) && !is_auto(next))) return NULL;
   uint32_t others = fixed_mW() - (is_fixed(prev) ? rail_input_mW(prev->set_mV, prev->user_mA) : 0);
   uint32_t used = s_board->reserve_mW + others;
   uint32_t requested = is_fixed(next) ? rail_input_mW(next->set_mV, next->user_mA) : 1u;
@@ -464,6 +471,17 @@ static void manager_tick(void) {
         return;
       }
     }
+    if (SE_IS_ERR(err) && !s_input_seen) {
+      err_h root = SE_get_error_root(err);
+      if (root && root->tag == ERR_DEV_NOT_FOUND) {
+        /* Boot: the manager starts before the board's devices are installed. Not an error until the
+           monitor has been read once; retried next tick. */
+        SE_release(err);
+        PWR_UNLOCK();
+        return;
+      }
+    }
+    if (SE_IS_OK(err)) s_input_seen = true;
     have_input = SE_IS_OK(err) && mV > 0;
     if (SE_IS_ERR(err) && !s_input_error_reported) {
       s_input_error_reported = true;
@@ -494,8 +512,8 @@ static void manager_tick(void) {
 
   // Budget = measured input voltage x source current, both capped by the board.
   uint32_t mV = have_input ? (uint32_t)s_status.input_mV : 0;
-  if (mV > s_board->max_mV) mV = s_board->max_mV;
-  uint32_t mA = source_current_mA(source);
+  if (mV > s_board->max_mV || s_caps.disabled) mV = s_board->max_mV;
+  uint32_t mA = s_caps.disabled ? s_board->max_mA : source_current_mA(source);
   if (mA > s_board->max_mA) mA = s_board->max_mA;
   uint32_t budget = (uint32_t)((uint64_t)mV * mA / 1000u);
   s_status.source_mV = mV;
@@ -508,7 +526,7 @@ static void manager_tick(void) {
     bool starved = false;
     SE_REPORT(rebalance(&starved));
     uint32_t committed = s_board->reserve_mW + fixed_mW();
-    bool over = committed > budget || starved;
+    bool over = !s_caps.disabled && (committed > budget || starved);
     if (over && !s_over_budget_latched) {
       s_over_budget_latched = true;
       SE_REPORT(SE_ERR_NEW(ERR_POWER_SOURCE_BELOW_ALLOCATION, .allocated_mW = committed, .budget_mW = budget));
@@ -545,6 +563,8 @@ static void load_settings(void) {
   if (!found) memset(&s_psu, 0, sizeof(s_psu));
   SE_REPORT(sys_settings_load(PWR_SETTINGS_BATTERY, &s_battery, sizeof(s_battery), &found));
   if (!found) memset(&s_battery, 0, sizeof(s_battery));
+  SE_REPORT(sys_settings_load(PWR_SETTINGS_CAPS, &s_caps, sizeof(s_caps), &found));
+  if (!found) memset(&s_caps, 0, sizeof(s_caps));
 }
 
 err_h sys_power_set_psu(uint32_t max_mV, uint32_t max_mA) {
@@ -581,6 +601,22 @@ err_h sys_power_set_battery(sys_power_battery_e chemistry, uint8_t cells, uint8_
   s_battery = battery;
   s_low_latched = false;
   s_critical_latched = false;
+  PWR_UNLOCK();
+  wake_manager();
+  return NULL;
+}
+
+err_h sys_power_set_caps_disabled(bool disabled) {
+  if (s_board == NULL) SE_FAIL(ERR_BASE_INVALID_STATE, 0);
+  pwr_caps_settings_t caps = {.disabled = disabled};
+  if (disabled) {
+    SE_TRY(sys_settings_store(PWR_SETTINGS_CAPS, &caps, sizeof(caps)));
+  } else {
+    SE_TRY(sys_settings_erase(PWR_SETTINGS_CAPS));
+  }
+  PWR_LOCK();
+  s_caps = caps;
+  s_status.budget_mW = 0; /* forces the next tick to recompute the budget and rebalance the rails */
   PWR_UNLOCK();
   wake_manager();
   return NULL;

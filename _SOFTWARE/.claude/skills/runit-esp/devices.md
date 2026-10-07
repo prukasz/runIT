@@ -35,7 +35,7 @@ sys_device registry [device_id] ── cls->ops.install ──► device_<chip>.
 sys_io_* / sys_power_* / sys_hbridge_* (by device_id) ──────┘ contract vtable call
 ```
 
-- **Contracts** (`sys_device_contract_type_e`): `IO`, `POWER_VREG`, `POWER_MONITOR`, `POWER_USB_PD`, `HBRIDGE`. The vtable types are defined by `sys_io`, `sys_power` and `sys_hbridge`. A device may provide several contracts (AP33772S: VREG + USB_PD + MONITOR), or none (the servo has operations of its own).
+- **Contracts** (`sys_device_contract_type_e`): `IO`, `POWER_VREG`, `POWER_MONITOR`, `POWER_USB_PD`, `HBRIDGE`, `POWER_SUPPLY` (power mux: select off / A / B). The vtable types are defined by `sys_io`, `sys_power` and `sys_hbridge`. A device may provide several contracts (AP33772S: VREG + USB_PD + MONITOR), or none (the servo has operations of its own).
 - **Class vs instance:** each device declares one public `const sys_device_class_t g_<chip>_class` (type id, cfg size, pin refs, name, `contracts[]`, `ops`, own operations). `sys_device` owns the instance: the registry slot, state and error-handling settings. It keeps no copy of the cfg: `install` receives it for the call only and copies what it needs into the device's own state.
 - **Lifecycle ops:** `install`, `uninstall`, `reset`, `suspend`, `resume`. A missing op makes the manager return `ERR_BASE_NOT_SUPPORTED`. **`suspend` is the fault safe state** (critical faults call `sys_device_suspend_all()`), and `resume` brings the device back. Freeze / sync were removed (§5.2).
 

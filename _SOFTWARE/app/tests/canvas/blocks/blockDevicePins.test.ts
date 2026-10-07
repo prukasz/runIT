@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { runitDeviceCatalog, runitVmCatalog } from '../../../src/domain/descriptors'
 import { createProject, parseProject, serializeProject } from '../../../src/domain/project'
-import { blockDevices, blockDevicePins } from '../../../src/canvas/blocks/blockDevicePins'
+import { blockDevices, blockDevicePins, blockIndexKind } from '../../../src/canvas/blocks/blockDevicePins'
 import { blockDeviceLine, blockHeadline, blockShape } from '../../../src/canvas/blocks/blockView'
 import { withDeviceAliases } from '../../../src/domain/devices'
 
@@ -28,9 +28,43 @@ describe('block hardware settings', () => {
     for (const reserved of catalog.reservedPins.filter((pin) => pin.deviceId === gpio.deviceId)) expect(pins.some((pin) => pin.value === reserved.pin)).toBe(false)
     for (const board of catalog.board.filter((board) => board.installed)) for (const pin of board.pins.filter((pin) => pin.deviceId === gpio.deviceId)) expect(pins.some((entry) => entry.value === pin.pin)).toBe(false)
   })
-  it('preserves hidden input indices, exposes selected or wired dynamic pins, and saves the selection', () => {
+  it('lists the channels of a power monitor, not IO pins, for the Power Monitor block', () => {
+    const monitor = runitVmCatalog().block('POWER_MONITOR')!
+    const field = monitor.fields.find((entry) => entry.idKind === 'device')!
+    const targets = blockDevices(catalog, [], field)
+    expect(targets.length).toBeGreaterThan(0)
+    expect(targets.every((target) => target.type?.contracts.some((contract) => contract.id === field.contract))).toBe(true)
+    const ina = targets[0]!
+    expect(blockIndexKind(catalog, [], ina.deviceId, field.contract)).toBe('channel')
+    expect(blockDevicePins(catalog, [], ina.deviceId, field.contract).map((channel) => channel.value)).toEqual([0, 1, 2])
+    expect(blockIndexKind(catalog, [], 0, type.fields.find((entry) => entry.idKind === 'device')!.contract)).toBe('pin')
+    const block = { id: 'pm', type: monitor.key, settings: { device_id: ina.deviceId, channel: 2 } }
+    expect(blockHeadline(monitor, block)).toBe('Power Monitor ch 2')
+  })
+  it('offers the pins of devices that can read a level or a voltage for the read blocks', () => {
+    for (const key of ['IO_GET_LEVEL', 'IO_GET_VOLTAGE']) {
+      const read = runitVmCatalog().block(key)!
+      const field = read.fields.find((entry) => entry.idKind === 'device')!
+      const targets = blockDevices(catalog, [], field)
+      expect(targets.length).toBeGreaterThan(0)
+      expect(blockIndexKind(catalog, [], targets[0]!.deviceId, field.contract)).toBe('pin')
+      expect(blockDevicePins(catalog, [], targets[0]!.deviceId, field.contract).length).toBeGreaterThan(0)
+      expect(blockHeadline(read, { id: 'r', type: key, settings: { device_id: targets[0]!.deviceId, pin: 5 } })).toMatch(/#5$/)
+    }
+  })
+  it('offers H-bridge devices and their channels for the H-Bridge block', () => {
+    const bridge = runitVmCatalog().block('HBRIDGE')!
+    const field = bridge.fields.find((entry) => entry.idKind === 'device')!
+    const targets = blockDevices(catalog, [], field)
+    expect(targets.map((target) => target.type?.id)).toContain('device_drv8962')
+    const drv = targets.find((target) => target.type?.id === 'device_drv8962')!
+    expect(blockIndexKind(catalog, [], drv.deviceId, field.contract)).toBe('channel')
+    expect(blockDevicePins(catalog, [], drv.deviceId, field.contract).map((channel) => channel.value)).toEqual([0, 1, 2, 3])
+    expect(blockHeadline(bridge, { id: 'm', type: bridge.key, settings: { device_id: drv.deviceId, channel: 1, action: 'BRAKE' } })).toBe('H-Bridge Brake ch 1')
+  })
+  it('draws every input, keeps dynamic pins through a save', () => {
     const block = { id: 'io', type: type.key, x: 0, y: 0 }
-    expect(blockShape(type, block).inputs.map((pin) => pin.index)).toEqual([0, 1]) // always detailed: Level and Pin both drawn, with their constants
+    expect(blockShape(type, block).inputs.map((pin) => pin.index)).toEqual([0, 1]) // Level and Pin are both drawn, each with its constant
     const selected = { ...block, dynamicInputs: [1], settings: { allowed_mask: '0x8000000000000020' } }
     expect(blockShape(type, selected).inputs.map((pin) => pin.index)).toEqual([0, 1])
     expect(blockShape(type, { ...block, inputs: [null, { root: 'selector' }] }).inputs.map((pin) => pin.index)).toEqual([0, 1])

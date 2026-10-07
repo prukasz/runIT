@@ -315,7 +315,7 @@ export const encodeBlocks = (plan: BlockPlan, objects: ObjectLayout, accessors: 
     }
     const settings = new Map<string, number>()
     for (const index of block.dynamicInputs ?? []) {
-      if (!Number.isInteger(index) || index < 0 || index >= type.inputs.max || !blockPinAt(type.inputs, index)?.hiddenByDefault) error(`dynamic input ${index} is not an optional hidden input.`, 'ERR_VM_BLK_BAD_SHAPE')
+      if (!Number.isInteger(index) || index < 0 || index >= type.inputs.max || blockPinAt(type.inputs, index)?.required !== false) error(`dynamic input ${index} is not an optional input.`, 'ERR_VM_BLK_BAD_SHAPE')
     }
     for (const field of type.fields) {
       if (field.flexible) continue

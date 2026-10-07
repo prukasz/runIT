@@ -34,7 +34,7 @@
 /* DRV8962 #1 (ESP GPIO): pins confirmed by the legacy firmware header. The ESP GPIO
    device drives PWM through LEDC now, so this can be switched on once the wiring
    (IN on GPIO 21 / 47 / 48 / 45, EN, IPROPI on the ADC) is checked on the board. */
-#define RUNIT_BOARD_DEV_DRV8962_0 0
+#define RUNIT_BOARD_DEV_DRV8962_0 1
 #define RUNIT_BOARD_DEV_DRV8962_1 1
 
 /* H-bridge PWM on the PCA9685: its one frequency is shared with the user
@@ -84,7 +84,7 @@ static const uint8_t s_power_responses[SYS_PWR_EVENT_COUNT] = {
     [SYS_PWR_EVENT_UVP] = SYS_POWER_RESPONSE_NOTIFY,
     [SYS_PWR_EVENT_SPC] = SYS_POWER_RESPONSE_DISABLE,
     [SYS_PWR_EVENT_OCP_WARNING] = SYS_POWER_RESPONSE_NOTIFY,
-    [SYS_PWR_EVENT_OCP_CRITICAL] = SYS_POWER_RESPONSE_DISABLE,
+    [SYS_PWR_EVENT_OCP_CRITICAL] = SYS_POWER_RESPONSE_NOTIFY, /* TEMP: rails keep running in current limit */
     [SYS_PWR_EVENT_OTP] = SYS_POWER_RESPONSE_SAFE_STATE,
     [SYS_PWR_EVENT_BATTERY_LOW] = SYS_POWER_RESPONSE_NOTIFY,
     [SYS_PWR_EVENT_BATTERY_CRITICAL] = SYS_POWER_RESPONSE_SAFE_STATE,
@@ -212,12 +212,21 @@ err_h runit_board_devices_init(void) {
   SE_TRY(sys_io_set_mode(SYS_IO_PIN(DEVICE_ID_TCA6424A, 22, SYS_IO_MODE_OUTPUT_PUSH_PULL)));
   SE_TRY(sys_io_set_mode(SYS_IO_PIN(DEVICE_ID_TCA6424A, 23, SYS_IO_MODE_OUTPUT_PUSH_PULL)));
   SE_TRY(sys_io_set_level(SYS_IO_PIN(DEVICE_ID_TCA6424A, 23, SYS_IO_MODE_OUTPUT_PUSH_PULL), false));
-  /* LM73100 H-bridge supply switches (high = on), all off at boot. Each
-     DRV8962 has one VM node fed by two switches - turn on one at a time. */
-  for (uint8_t pin = RUNIT_BOARD_TCA_DRV2_VM_RAIL_A; pin <= RUNIT_BOARD_TCA_DRV1_VM_RAIL_B; pin++) {
-    SE_TRY(sys_io_set_mode(SYS_IO_PIN(DEVICE_ID_TCA6424A, pin, SYS_IO_MODE_OUTPUT_PUSH_PULL)));
-    SE_TRY(sys_io_set_level(SYS_IO_PIN(DEVICE_ID_TCA6424A, pin, SYS_IO_MODE_OUTPUT_PUSH_PULL), false));
-  }
+  /* LM73100 H-bridge supply switches (high = on). Each DRV8962 has one VM node fed by two switches, one at a time:
+     a power mux per bridge, A = board input (VSUP), B = the regulator rail of that bridge. Both switches are off
+     after install; the source is a default setting (stored hardware config). */
+  SE_TRY(SYS_DEVICE_CREATE_ONBOARD(&g_power_mux_class, &(d_power_mux_cfg_t){
+      .device_id = DEVICE_ID_SUPPLY_DRV8962_0,
+      .en_a_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, RUNIT_BOARD_TCA_DRV1_VM_VSUP, SYS_IO_MODE_OUTPUT_PUSH_PULL),
+      .en_b_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, RUNIT_BOARD_TCA_DRV1_VM_RAIL_B, SYS_IO_MODE_OUTPUT_PUSH_PULL),
+      .active_level = 1, .switch_delay_ms = 5,
+  }));
+  SE_TRY(SYS_DEVICE_CREATE_ONBOARD(&g_power_mux_class, &(d_power_mux_cfg_t){
+      .device_id = DEVICE_ID_SUPPLY_DRV8962_1,
+      .en_a_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, RUNIT_BOARD_TCA_DRV2_VM_VSUP, SYS_IO_MODE_OUTPUT_PUSH_PULL),
+      .en_b_pin = SYS_IO_PIN_INIT(DEVICE_ID_TCA6424A, RUNIT_BOARD_TCA_DRV2_VM_RAIL_A, SYS_IO_MODE_OUTPUT_PUSH_PULL),
+      .active_level = 1, .switch_delay_ms = 5,
+  }));
 #endif
 #if RUNIT_BOARD_DEV_ADS7128
   SE_TRY(SYS_DEVICE_CREATE_ONBOARD(&g_ads7128_class, &(d_ads7128_cfg_t){

@@ -24,6 +24,7 @@ Persistent settings for any module: named binary records in one NVS namespace (`
 |---|---|---|
 | `pwr_psu` | sys_power | External supply `{max_mV, max_mA}` |
 | `pwr_battery` | sys_power | `{chemistry, cells, low_pct, critical_pct}` |
+| `pwr_caps` | sys_power | `{disabled}`; stored only while the power caps are disabled |
 | `vm_retain` | VM (`vm_retain.c`) | Retained object values, variable length (VM.MD "Retained values") |
 
 `sys_actions` keeps its recorded actions in its own namespace (`sys_actions`).

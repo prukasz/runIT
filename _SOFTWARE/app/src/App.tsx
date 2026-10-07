@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePersistedChoice } from './hooks/useStorage'
 import { DetailsPanel, ExplorerPanel, MainScreen, WorkspaceShell } from './layout'
-import { ArrowLeft, ArrowLeftRight, BoxSelect, Bug, Check, ChevronRight, ClipboardPaste, Code2, Copy, Cpu, Gamepad2, Grid2X2, House, Info, ListTree, Magnet, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Radio, Redo2, ScrollText, Settings2, Sliders, Square, SquareTerminal, Sun, Trash2, Undo2, Variable, X } from 'lucide-react'
+import { ArrowLeft, ArrowLeftRight, BoxSelect, Bug, Check, ChevronRight, ClipboardPaste, Code2, Copy, Cpu, Gamepad2, Grid2X2, House, Info, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Radio, Redo2, ScrollText, Settings2, Sliders, Square, SquareTerminal, Sun, Trash2, Undo2, X, Zap } from 'lucide-react'
 import { ObjectDetails, ObjectTreeEditor, ObjectTreePalette, useObjectTreeWorkspace } from './ObjectTreeWorkspace'
 import { LogSettingsEditor, useLogSettingsWorkspace } from './LogSettingsWorkspace'
+import { PowerSettingsEditor, usePowerSettingsWorkspace } from './PowerSettingsWorkspace'
 import { BleDetails, BleSettingsEditor, BleSettingsPalette, useBleSettingsWorkspace } from './BleSettingsWorkspace'
 import { useBleDeviceConnection } from './useBleDeviceConnection'
 import { BleConnectPanel } from './BleConnectPanel'
@@ -15,6 +16,8 @@ import {
 } from './DataConnectorsWorkspace'
 import { ProgramPanel } from './ProgramPanel'
 import { DebugHost } from './debug/DebugHost'
+import { ControllerDetails, ControllerPalette, ControllerStage, ControllerToolbar, controllerPalettes, useControllerWorkspace } from './controller'
+import type { ControllerPaletteName } from './controller'
 import { DebugPanel } from './debug/DebugPanel'
 import { DebugSettings } from './debug/DebugSettings'
 import { ProjectFilePage, ProjectFilePalette } from './ProjectFile'
@@ -23,7 +26,7 @@ import { BoardEditorDetails } from './devices/BoardEditorDetails'
 import { BoardEditorStage } from './devices/BoardEditorStage'
 import { BoardEditorToolbar } from './devices/BoardEditorToolbar'
 import { BoardPalette } from './devices/BoardPalette'
-import { BoardToolbar } from './devices/BoardToolbar'
+import { BoardSendTools, BoardToolbar } from './devices/BoardToolbar'
 import { useBoardEditor } from './devices/useBoardEditor'
 import { useBoardWiring } from './devices/useBoardWiring'
 import { ComponentStage } from './devices/ComponentEditor'
@@ -33,7 +36,6 @@ import { useComponentEditor } from './devices/useComponentEditor'
 import { BoardDeviceDetails, DeviceDetails, DevicesEditor, DevicesPalette, useDevicesWorkspace } from './devices'
 import { BlockManager, BlockUses } from './canvas/blocks/BlockManager'
 import { BlockDetails, blockDiagnostics, BlockPalette, CanvasEditor, recoveredCanvases, useCanvasWorkspace } from './canvas'
-import { OBJECT_DRAG_TYPE, objectKindDragType } from './domain/canvas'
 import { programBlocks } from './domain/canvas'
 import { compileProgram } from './domain/compiler'
 import { runitVmCatalog } from './domain/descriptors'
@@ -42,6 +44,7 @@ import type { ResolveConsoleReference } from './ConsoleReference'
 import CommandConsole from './CommandConsole'
 import DiagnosticsConsole from './DiagnosticsConsole'
 import { sampleProject } from './sampleProject'
+import { usePowerSync } from './usePowerSync'
 import { useSettingsSync } from './useSettingsSync'
 import { useBoardCode } from './useBoardCode'
 import { addObject, createProject, parseProject, serializeProject } from './domain/project'
@@ -72,19 +75,21 @@ const details = [
   { name: 'Debug', icon: Bug },
 ]
 
-export type SettingsGroup = 'all' | 'BLE' | 'General' | 'Connectors' | 'Logging'
+export type SettingsGroup = 'all' | 'BLE' | 'General' | 'Connectors' | 'Logging' | 'Power'
 const codePalettes = ['Blocks', 'Variables'] as const
 type CodePalette = typeof codePalettes[number]
 type CodeMode = 'manage' | 'canvas'
 
 export default function App() {
   const [view, setView] = usePersistedChoice('runit.shell.view', views.map(({ name }) => name), 'Home')
-  const [settingsGroup, setSettingsGroup] = usePersistedChoice<SettingsGroup>('runit.settings.group', ['all', 'BLE', 'General', 'Connectors', 'Logging'], 'BLE')
+  const [settingsGroup, setSettingsGroup] = usePersistedChoice<SettingsGroup>('runit.settings.group', ['all', 'BLE', 'General', 'Connectors', 'Logging', 'Power'], 'BLE')
   // The Code view's palette and main view (canvas or the variables manager) are remembered.
   const [codePalette, setCodePalette] = usePersistedChoice<CodePalette>('runit.code.palette', ['Variables', 'Blocks'], 'Variables')
   const [codeMode, setCodeMode] = usePersistedChoice<CodeMode>('runit.code.mode', ['manage', 'canvas'], 'manage')
   const [boardMode, setBoardMode] = usePersistedChoice<'manage' | 'canvas' | 'component' | 'boardEditor'>('runit.board.mode', ['manage', 'canvas', 'component', 'boardEditor'], 'manage')
   const [showCanvasGrid, setShowCanvasGrid] = useState(true)
+  // The Remote view: Widgets or Variables on the left, the widgets themselves in the middle.
+  const [controllerPalette, setControllerPalette] = usePersistedChoice<ControllerPaletteName>('runit.remote.palette', controllerPalettes, 'Widgets')
   // View / Manage with the Blocks palette: the block type whose description the main screen shows.
   const [manageBlockKey, setManageBlockKey] = usePersistedChoice<string>('runit.code.manageBlock', runitVmCatalog().blocks.map((type) => type.key), runitVmCatalog().blocks[0]?.key ?? '')
   const [leftOpen, setLeftOpen] = useState(true)
@@ -101,6 +106,7 @@ export default function App() {
   const [resizing, setResizing] = useState<'left' | 'right' | 'bottom' | null>(null)
   const [theme, setTheme] = usePersistedChoice<'dark' | 'light'>('runit-shell-theme', ['dark', 'light'], 'dark')
   const objectWorkspace = useObjectTreeWorkspace(() => { setRightOpen(true); setDetail('Info') })
+  const controllerWorkspace = useControllerWorkspace()
   const bleWorkspace = useBleSettingsWorkspace((id) => {
     if (id === 'general') {
       setRightOpen(false)
@@ -111,6 +117,7 @@ export default function App() {
   })
   const connectorsWorkspace = useDataConnectorsWorkspace(() => { setRightOpen(true); setDetail('Info') })
   const logWorkspace = useLogSettingsWorkspace()
+  const powerWorkspace = usePowerSettingsWorkspace()
   const devicesWorkspace = useDevicesWorkspace(() => { setRightOpen(true); setDetail('Info') })
   const boardWiring = useBoardWiring()
   const componentEditor = useComponentEditor(devicesWorkspace.catalog, view === 'Board' && boardMode === 'component')
@@ -130,8 +137,9 @@ export default function App() {
     [bleWorkspace.profile.services],
   )
   const bleConnection = useBleDeviceConnection(userServiceUuids)
-  const projectSettings = useMemo<ProjectSettings>(() => ({ ble: bleWorkspace.profile, connectors: connectorsWorkspace.connectors, logs: logWorkspace.logs }), [bleWorkspace.profile, connectorsWorkspace.connectors, logWorkspace.logs])
+  const projectSettings = useMemo<ProjectSettings>(() => ({ ble: bleWorkspace.profile, connectors: connectorsWorkspace.connectors, logs: logWorkspace.logs, power: powerWorkspace.power }), [bleWorkspace.profile, connectorsWorkspace.connectors, logWorkspace.logs, powerWorkspace.power])
   const settingsTarget = useMemo(() => settingsState(projectSettings), [projectSettings])
+  usePowerSync(bleConnection, powerWorkspace.power)
   const boardCode = useBoardCode(bleConnection)
   const settingsSync = useSettingsSync(bleConnection, boardCode, settingsTarget)
   const settingsDirty = settingsSync.pending > 0 || !settingsSync.plan.ok
@@ -159,6 +167,7 @@ export default function App() {
     bleWorkspace.load(settings.ble)
     connectorsWorkspace.load(settings.connectors)
     logWorkspace.load(settings.logs)
+    powerWorkspace.load(settings.power)
   }
   /** Every workspace takes its part of a project document. */
   const applyProject = (project: ProjectDocument) => {
@@ -166,8 +175,9 @@ export default function App() {
     loadSettings(refreshSettings(project.settings))
     devicesWorkspace.load({ devices: project.devices ?? [], deviceAliases: project.deviceAliases, pinAliases: project.pinAliases, boardLayout: project.boardLayout, wires: project.wires, board: project.board, actions: project.actions ?? [], setup: project.setup ?? [] })
     canvasWorkspace.load(project.canvases ?? [])
+    controllerWorkspace.load(project.controller)
   }
-  const currentProject = (): ProjectDocument => ({ ...objectWorkspace.project, settings: projectSettings, devices: devicesWorkspace.devices, deviceAliases: devicesWorkspace.deviceAliases, pinAliases: devicesWorkspace.pinAliases, boardLayout: devicesWorkspace.boardLayout, wires: devicesWorkspace.wires, board: devicesWorkspace.board, actions: devicesWorkspace.actions, setup: devicesWorkspace.setup, canvases: canvasWorkspace.canvases })
+  const currentProject = (): ProjectDocument => ({ ...objectWorkspace.project, settings: projectSettings, devices: devicesWorkspace.devices, deviceAliases: devicesWorkspace.deviceAliases, pinAliases: devicesWorkspace.pinAliases, boardLayout: devicesWorkspace.boardLayout, wires: devicesWorkspace.wires, board: devicesWorkspace.board, actions: devicesWorkspace.actions, setup: devicesWorkspace.setup, canvases: canvasWorkspace.canvases, ...(controllerWorkspace.controller.widgets.length || controllerWorkspace.controller.custom?.length ? { controller: controllerWorkspace.controller } : {}) })
   // Replacing the project never asks: what was there is kept in the browser and comes back with Restore previous.
   const [hasPrevious, setHasPrevious] = useState(() => { try { return !!localStorage.getItem(PREVIOUS_KEY) } catch { return false } })
   const keepPrevious = () => {
@@ -229,6 +239,9 @@ export default function App() {
     // The recovered program is the code now: its blocks on a canvas of their own.
     canvasWorkspace.load(recoveredCanvases(recovered.blocks))
   }
+  useEffect(() => {
+    if (view === 'Remote' && controllerWorkspace.selectedId) { setRightOpen(true); setDetail('Info') }
+  }, [view, controllerWorkspace.selectedId])
   const resizeActive = useRef(false)
   const leftResizeActive = useRef(false)
   const bottomResizeActive = useRef(false)
@@ -237,6 +250,7 @@ export default function App() {
   const isSettingsBle = view === 'Settings' && settingsGroup === 'BLE'
   const isBoard = view === 'Board'
   const isCanvas = view === 'Code' && codeMode === 'canvas'
+  const isController = view === 'Remote'
 
   const openBlockAt = (canvasId: string, blockId: string) => {
     setView('Code')
@@ -301,14 +315,15 @@ export default function App() {
     return undefined
   }
 
-  const activeCanUndo = isCanvas ? canvasWorkspace.canUndo : isCodeVariables ? objectWorkspace.canUndo : isSettingsBle ? bleWorkspace.canUndo : isBoard ? devicesWorkspace.canUndo : false
-  const activeCanRedo = isCanvas ? canvasWorkspace.canRedo : isCodeVariables ? objectWorkspace.canRedo : isSettingsBle ? bleWorkspace.canRedo : isBoard ? devicesWorkspace.canRedo : false
+  const activeCanUndo = isCanvas ? canvasWorkspace.canUndo : isCodeVariables ? objectWorkspace.canUndo : isSettingsBle ? bleWorkspace.canUndo : isBoard ? devicesWorkspace.canUndo : isController ? controllerWorkspace.canUndo : false
+  const activeCanRedo = isCanvas ? canvasWorkspace.canRedo : isCodeVariables ? objectWorkspace.canRedo : isSettingsBle ? bleWorkspace.canRedo : isBoard ? devicesWorkspace.canRedo : isController ? controllerWorkspace.canRedo : false
 
   const activeUndo = () => {
     if (isCanvas) canvasWorkspace.undo()
     else if (isCodeVariables) objectWorkspace.undo()
     else if (isSettingsBle) bleWorkspace.undo()
     else if (isBoard) devicesWorkspace.undo()
+    else if (isController) controllerWorkspace.undo()
   }
 
   const activeRedo = () => {
@@ -316,6 +331,7 @@ export default function App() {
     else if (isCodeVariables) objectWorkspace.redo()
     else if (isSettingsBle) bleWorkspace.redo()
     else if (isBoard) devicesWorkspace.redo()
+    else if (isController) controllerWorkspace.redo()
   }
 
   useEffect(() => {
@@ -481,6 +497,18 @@ export default function App() {
                   <button
                     type="button"
                     className="settings-category-btn"
+                    onClick={() => setSettingsGroup('Power')}
+                  >
+                    <Zap className="settings-cat-icon" aria-hidden="true" />
+                    <div className="settings-cat-info">
+                      <span className="settings-cat-title">Power</span>
+                      <span className="settings-cat-sub">Power caps &amp; budget</span>
+                    </div>
+                    <ChevronRight aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className="settings-category-btn"
                     onClick={() => setSettingsGroup('General')}
                   >
                     <Sliders className="settings-cat-icon" aria-hidden="true" />
@@ -514,6 +542,19 @@ export default function App() {
                   </div>
                   <div className="settings-overview-menu">
                     <div className="settings-menu-heading">Logging</div>
+                  </div>
+                </div>
+              )}
+              {settingsGroup === 'Power' && (
+                <div className="settings-general-sidebar">
+                  <div className="ble-palette-back-bar">
+                    <button type="button" className="settings-back-btn" onClick={() => setSettingsGroup('all')} title="Back to all settings">
+                      <ArrowLeft aria-hidden="true" />
+                      <span>All Settings</span>
+                    </button>
+                  </div>
+                  <div className="settings-overview-menu">
+                    <div className="settings-menu-heading">Power</div>
                   </div>
                 </div>
               )}
@@ -554,10 +595,7 @@ export default function App() {
           </div>}
           {view === 'Board' && boardMode !== 'boardEditor' && <DevicesPalette workspace={devicesWorkspace} boardMode={boardMode} onToggleMode={() => setBoardMode(boardMode === 'manage' ? 'canvas' : 'manage')} />}
           {view === 'Board' && boardMode === 'boardEditor' && <BoardPalette editor={boardEditor} onClose={() => setBoardMode('canvas')} />}
-          {view === 'Remote' && <div className="remote-palette" aria-label="Gamepad controls palette">
-            <div className="remote-palette-title">Controls</div>
-            <div className="remote-palette-body" />
-          </div>}
+          {view === 'Remote' && <ControllerPalette workspace={controllerWorkspace} objects={objectWorkspace} palette={controllerPalette} onPalette={setControllerPalette} />}
         </div>}
         {!leftOpen && (
           <div className="side-panel-collapsed-icons left-collapsed-icons">
@@ -588,7 +626,9 @@ export default function App() {
             <button aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!activeCanUndo} onClick={activeUndo}><Undo2 aria-hidden="true" /></button>
             <button aria-label="Redo" title="Redo (Ctrl+Y)" disabled={!activeCanRedo} onClick={activeRedo}><Redo2 aria-hidden="true" /></button>
           </div>
-          {view === 'Board' && boardMode === 'canvas' && <BoardToolbar workspace={devicesWorkspace} wiring={boardWiring} />}
+          {view === 'Remote' && <ControllerToolbar workspace={controllerWorkspace} />}
+          {view === 'Board' && boardMode === 'canvas' && <BoardToolbar workspace={devicesWorkspace} wiring={boardWiring} session={bleConnection.session} settings={projectSettings} board={boardCode} />}
+          {view === 'Board' && boardMode === 'manage' && <BoardSendTools workspace={devicesWorkspace} session={bleConnection.session} settings={projectSettings} board={boardCode} />}
           {view === 'Board' && boardMode === 'component' && <ComponentToolbar editor={componentEditor} />}
           {view === 'Board' && boardMode === 'boardEditor' && <BoardEditorToolbar editor={boardEditor} hasCustomBoard={!!devicesWorkspace.board} />}
           {view === 'Settings' && (settingsGroup === 'BLE' || settingsGroup === 'General' || settingsGroup === 'Connectors') && (
@@ -637,26 +677,11 @@ export default function App() {
             </>
           )}
           <div className="screen-actions" aria-label={`${view} specific actions`}>
-            {isCanvas && <button aria-label="Detailed block view" title="Toggle detailed block view" aria-pressed={canvasWorkspace.detailed} className={canvasWorkspace.detailed ? 'selected' : ''} onClick={() => canvasWorkspace.setDetailed(!canvasWorkspace.detailed)}><ListTree aria-hidden="true" /></button>}
             {isCanvas && <button aria-label={showCanvasGrid ? 'Hide canvas grid' : 'Show canvas grid'} title={showCanvasGrid ? 'Hide canvas grid' : 'Show canvas grid'} aria-pressed={showCanvasGrid} className={showCanvasGrid ? 'selected' : ''} onClick={() => setShowCanvasGrid(!showCanvasGrid)}><Grid2X2 aria-hidden="true" /></button>}
             {isCanvas && <button aria-label="Select multiple blocks" title="Select multiple: tap blocks to add or remove them, drag the background to draw a box (Shift or Ctrl also add)" aria-pressed={canvasWorkspace.multiSelect} className={canvasWorkspace.multiSelect ? 'selected' : ''} onClick={() => canvasWorkspace.setMultiSelect(!canvasWorkspace.multiSelect)}><BoxSelect aria-hidden="true" /></button>}
-            {isCanvas && <button aria-label="Delete selection" title="Delete the selected wire, variable or blocks (same as Delete)" disabled={!canvasWorkspace.deleteSelection} onClick={() => canvasWorkspace.deleteSelection?.()}><Trash2 aria-hidden="true" /></button>}
+            {isCanvas && <button className="is-danger" aria-label="Delete selection" title="Delete the selected wire, variable or blocks (same as Delete)" disabled={!canvasWorkspace.deleteSelection} onClick={() => canvasWorkspace.deleteSelection?.()}><Trash2 aria-hidden="true" /></button>}
             {isCanvas && <button aria-label="Copy block" title="Copy the selected blocks (Ctrl+C)" disabled={canvasWorkspace.selectedIds.length === 0} onClick={canvasWorkspace.copy}><Copy aria-hidden="true" /></button>}
             {isCanvas && <button aria-label="Paste block" title="Paste the copied blocks (Ctrl+V)" disabled={!canvasWorkspace.canPaste} onClick={canvasWorkspace.paste}><ClipboardPaste aria-hidden="true" /></button>}
-            {isCanvas && (
-              <button
-                aria-label="Empty variable: drag onto a block pin"
-                title="Empty variable: drag onto a block pin, then choose it in the block details"
-                draggable
-                className="canvas-empty-variable"
-                onDragStart={(event) => {
-                  event.dataTransfer.setData(OBJECT_DRAG_TYPE, '')
-                  event.dataTransfer.setData(objectKindDragType('any'), '')
-                  event.dataTransfer.effectAllowed = 'all'
-                }}
-              ><Variable aria-hidden="true" /></button>
-            )}
-            {isCanvas && <button aria-label={canvasWorkspace.snap ? 'Turn snap to grid off' : 'Turn snap to grid on'} title={canvasWorkspace.snap ? 'Snap to grid: on' : 'Snap to grid: off'} aria-pressed={canvasWorkspace.snap} className={canvasWorkspace.snap ? 'selected' : ''} onClick={() => canvasWorkspace.setSnap(!canvasWorkspace.snap)}><Magnet aria-hidden="true" /></button>}
           </div>
           <button className="theme-toggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} onClick={toggleTheme}>{theme === 'dark' ? <Sun /> : <Moon />}</button>
       </>}>
@@ -675,6 +700,7 @@ export default function App() {
           {view === 'Code' && codePalette === 'Variables' && codeMode === 'manage' && <ObjectTreeEditor workspace={objectWorkspace} />}
           {view === 'Code' && codePalette === 'Blocks' && codeMode === 'manage' && <BlockManager typeKey={manageBlockKey} />}
           {view === 'Home' && <ProjectFilePage workspace={objectWorkspace} settings={projectSettings} devices={devicesWorkspace.devices} deviceCatalog={devicesWorkspace.catalog} setup={devicesWorkspace.setup} canvases={canvasWorkspace.canvases} onRecover={recoverProject} />}
+          {view === 'Remote' && <ControllerStage workspace={controllerWorkspace} project={objectWorkspace.project} />}
           {view === 'Board' && boardMode === 'canvas' && <BoardCanvas workspace={devicesWorkspace} wiring={boardWiring} />}
           {view === 'Board' && boardMode === 'component' && <ComponentStage editor={componentEditor} />}
           {view === 'Board' && boardMode === 'boardEditor' && <BoardEditorStage editor={boardEditor} catalog={devicesWorkspace.catalog} />}
@@ -728,6 +754,19 @@ export default function App() {
                 </div>
                 <div
                   className="settings-overview-card"
+                  onClick={() => setSettingsGroup('Power')}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <Zap className="settings-overview-icon" aria-hidden="true" />
+                  <h2>Power</h2>
+                  <p>Turn the board's power budget and current caps on or off. Sent to the board automatically.</p>
+                  <span className="settings-card-action">
+                    Open Power <ChevronRight aria-hidden="true" />
+                  </span>
+                </div>
+                <div
+                  className="settings-overview-card"
                   onClick={() => setSettingsGroup('General')}
                   role="button"
                   tabIndex={0}
@@ -749,6 +788,7 @@ export default function App() {
             />
           )}
           {view === 'Settings' && settingsGroup === 'Logging' && <LogSettingsEditor workspace={logWorkspace} />}
+          {view === 'Settings' && settingsGroup === 'Power' && <PowerSettingsEditor workspace={powerWorkspace} connected={bleConnection.isConnected} />}
           {view === 'Settings' && settingsGroup === 'General' && (
             <div className="object-editor">
               <div className="ble-general-header">
@@ -792,6 +832,7 @@ export default function App() {
         </div>
         {rightOpen && (
           <div className="detail-content" aria-label={`${detail} content panel`}>
+            {view === 'Remote' && detail === 'Info' && <ControllerDetails workspace={controllerWorkspace} project={objectWorkspace.project} selectedVariableId={objectWorkspace.selectedId} />}
             {view === 'Board' && boardMode === 'canvas' && detail === 'Info' && <BoardDeviceDetails workspace={devicesWorkspace} wiring={boardWiring} onEditComponent={(typeId) => { componentEditor.setDeviceId(typeId); setBoardMode('component') }} onEditBoard={() => setBoardMode('boardEditor')} />}
             {view === 'Board' && boardMode === 'component' && detail === 'Info' && <ComponentPins editor={componentEditor} />}
             {view === 'Board' && boardMode === 'boardEditor' && detail === 'Info' && <BoardEditorDetails editor={boardEditor} />}

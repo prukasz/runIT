@@ -1,5 +1,6 @@
 import { ArrowUpRight } from 'lucide-react'
 import { runitVmCatalog } from '../domain/descriptors'
+import { blockIndexKind } from '../canvas/blocks/blockDevicePins'
 import { pinDisplayLabel } from '../domain/devices'
 import type { ProjectCanvas } from '../domain/project'
 import type { ResolvedDevice } from '../domain/devices'
@@ -18,7 +19,7 @@ export function DeviceLinkedBlocks({ workspace: w, device, canvases, onOpenBlock
     if (!type) return []
     const fields = type.fields.filter((field) => field.idKind === 'device' && block.settings?.[field.name] !== undefined && Number(block.settings[field.name]) === device.deviceId)
     if (!fields.length) return []
-    const pins = [...new Set(fields.flatMap((field) => type.fields
+    const pins = [...new Set(fields.flatMap((field) => blockIndexKind(w.catalog, w.devices, device.deviceId, field.contract) === 'channel' ? [] : type.fields
       .filter((pinField) => pinField.idKind === 'pin' && pinField.deviceField === field.name)
       .map((pinField) => Number(block.settings?.[pinField.name] ?? 0))))]
     return [{ canvas, block, title: block.name || type.title || block.type, pins }]

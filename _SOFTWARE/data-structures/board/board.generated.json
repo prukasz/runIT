@@ -109,7 +109,7 @@
       "driver": "drv8962",
       "descriptor": "device_drv8962",
       "title": "DRV8962 motor driver",
-      "installed": false,
+      "installed": true,
       "pins": [
         {
           "use": "in1_pin",
@@ -281,6 +281,52 @@
       ]
     },
     {
+      "id": 7,
+      "symbol": "DEVICE_ID_SUPPLY_DRV8962_0",
+      "name": "SUPPLY_DRV8962_0",
+      "driver": "power_mux",
+      "descriptor": "device_power_mux",
+      "title": "Power mux (ideal diodes)",
+      "installed": true,
+      "pins": [
+        {
+          "use": "en_a_pin",
+          "device": 1,
+          "pin": 14,
+          "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL"
+        },
+        {
+          "use": "en_b_pin",
+          "device": 1,
+          "pin": 15,
+          "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "symbol": "DEVICE_ID_SUPPLY_DRV8962_1",
+      "name": "SUPPLY_DRV8962_1",
+      "driver": "power_mux",
+      "descriptor": "device_power_mux",
+      "title": "Power mux (ideal diodes)",
+      "installed": true,
+      "pins": [
+        {
+          "use": "en_a_pin",
+          "device": 1,
+          "pin": 13,
+          "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL"
+        },
+        {
+          "use": "en_b_pin",
+          "device": 1,
+          "pin": 12,
+          "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL"
+        }
+      ]
+    },
+    {
       "id": 10,
       "symbol": "DEVICE_ID_TPS55289_2",
       "name": "TPS55289_2",
@@ -397,38 +443,6 @@
       "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
       "installed": true,
       "label": "Status LEDs (high = on). 22 stays on after boot (the chip's output latch resets to high), 23 is off",
-      "level": false
-    },
-    {
-      "device": 1,
-      "pin": 12,
-      "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
-      "installed": true,
-      "label": "LM73100: DRV8962 #2 VM <- rail A (TPS55289 0x74)",
-      "level": false
-    },
-    {
-      "device": 1,
-      "pin": 13,
-      "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
-      "installed": true,
-      "label": "LM73100: DRV8962 #2 VM <- board input",
-      "level": false
-    },
-    {
-      "device": 1,
-      "pin": 14,
-      "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
-      "installed": true,
-      "label": "LM73100: DRV8962 #1 VM <- board input",
-      "level": false
-    },
-    {
-      "device": 1,
-      "pin": 15,
-      "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
-      "installed": true,
-      "label": "LM73100: DRV8962 #1 VM <- rail B (TPS55289 0x75)",
       "level": false
     }
   ],

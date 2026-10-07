@@ -52,6 +52,15 @@ Capturing live frames (like action recording) was considered and rejected:
 
 ## 4. Board side (`sys_project`)
 
+**Two slots (2026-10-06).** The stored code is two independent lists: the
+*hardware config* (BLE, connectors, devices, their default settings, other
+classes) and the *program* (VM loader frames). Each has its own generations,
+CRC and schema ID; begin / erase / info / read carry a `slot` byte, and the
+boot replays the config first because program frames refer to its devices.
+Saving devices or defaults no longer rewrites the program, and a new program
+no longer rewrites the config. The text below describes one list; it applies to
+each slot (keys of the config slot carry a `c` prefix).
+
 **Storage.** Its own NVS partition `project` (custom `partitions.csv`, e.g.
 512 KB, `CONFIG_SYS_PROJECT_PARTITION_SIZE`; the default `nvs` partition stays for settings, actions, BLE). NVS can't
 append to a blob and a whole program doesn't fit RAM, so the frames are stored

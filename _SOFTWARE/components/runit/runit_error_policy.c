@@ -71,6 +71,7 @@ err_h runit_error_wiring_init(void) {
   SE_TRY(sys_device_register_contract(SYS_DEVICE_CONTRACT_POWER_VREG, "POWER_VREG", sys_power_vreg_feature_names));
   SE_TRY(sys_device_register_contract(SYS_DEVICE_CONTRACT_POWER_MONITOR, "POWER_MONITOR", sys_power_monitor_feature_names));
   SE_TRY(sys_device_register_contract(SYS_DEVICE_CONTRACT_POWER_USB_PD, "POWER_USB_PD", sys_power_usb_pd_feature_names));
+  SE_TRY(sys_device_register_contract(SYS_DEVICE_CONTRACT_POWER_SUPPLY, "POWER_SUPPLY", sys_power_supply_feature_names));
   SE_TRY(sys_device_register_contract(SYS_DEVICE_CONTRACT_HBRIDGE, "HBRIDGE", sys_hbridge_feature_names));
   SE_TRY(SE_register_domain_hook(OWNER_SYS_BLE_BASE, sys_ble_handle_fault));
   SE_TRY(SE_register_domain_hook(OWNER_SYS_INTERFACE_BASE, sys_interface_handle_fault));
