@@ -55,6 +55,11 @@ static __thread uint8_t s_depth;   // RUN nesting, per router task
  * IDs, names, images, NVS
  * ------------------------------------------------------------------------- */
 
+static err_h check_id(uint8_t id) {
+  ERR_CHECK(id != SYS_ACTIONS_ID_NONE, ERR_ACTION_BAD_ID);
+  return NULL;
+}
+
 static err_h check_name(const char* name) {
   ERR_CHECK(name != NULL, ERR_ACTION_BAD_ARG);
   size_t n = strnlen(name, NAME_BYTES);
@@ -119,7 +124,7 @@ static err_h store(uint8_t id, const uint8_t* blob, uint32_t len) {
 /* Reads a stored blob (name + image) into a new buffer with `extra` bytes
  * after it (the caller frees it). ERR_ACTION_NOT_FOUND when there is none. */
 static err_h load(uint8_t id, uint32_t extra, uint8_t** out, size_t* len) {
-  ERR_CHECK(id != SYS_ACTIONS_ID_NONE, ERR_ACTION_BAD_ID);
+  ERR_TRY(check_id(id));
   char key[KEY_LEN];
   key_of(id, key);
   esp_err_t rc = nvs_get_blob(s_nvs, key, NULL, len);
@@ -195,7 +200,7 @@ err_h sys_actions_run(uint8_t id) {
 }
 
 err_h sys_actions_request(uint8_t id, bool urgent) {
-  ERR_CHECK(id != SYS_ACTIONS_ID_NONE, ERR_ACTION_BAD_ID);
+  ERR_TRY(check_id(id));
   const uint8_t req[] = {ROUTER_KEY_ACTIONS, SYS_ACTIONS_OP_RUN, id};
   return router_inject(req, sizeof(req), urgent);
 }
@@ -283,7 +288,7 @@ static err_h session_open(session_e kind, uint8_t id, const char* name) {
 }
 
 err_h sys_actions_record_start(uint8_t id, const char* name, bool execute, uint8_t link, uint32_t peer) {
-  ERR_CHECK(id != SYS_ACTIONS_ID_NONE, ERR_ACTION_BAD_ID);
+  ERR_TRY(check_id(id));
   ERR_TRY(check_name(name));
   LOCK();
   err_h err = session_open(SESSION_RECORD, id, name);
@@ -328,7 +333,7 @@ err_h sys_actions_record_stop(sys_actions_info_t* out) {
  * ------------------------------------------------------------------------- */
 
 err_h sys_actions_upload_begin(uint8_t id, const char* name, uint16_t len) {
-  ERR_CHECK(id != SYS_ACTIONS_ID_NONE, ERR_ACTION_BAD_ID);
+  ERR_TRY(check_id(id));
   ERR_TRY(check_name(name));
   ERR_CHECK(len > 0, ERR_ACTION_EMPTY);
   ERR_CHECK(len <= CONFIG_SYS_ACTIONS_MAX_BYTES, ERR_ACTION_TOO_BIG, .len = len, .max = CONFIG_SYS_ACTIONS_MAX_BYTES);
@@ -435,7 +440,7 @@ err_h sys_actions_rename(uint8_t id, const char* name) {
 }
 
 err_h sys_actions_remove(uint8_t id) {
-  ERR_CHECK(id != SYS_ACTIONS_ID_NONE, ERR_ACTION_BAD_ID);
+  ERR_TRY(check_id(id));
   char key[KEY_LEN];
   key_of(id, key);
   esp_err_t rc = nvs_erase_key(s_nvs, key);
