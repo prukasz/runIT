@@ -61,7 +61,8 @@ ROUTER_OP(op_svc_remove, svc_remove_t) {
 }
 
 ROUTER_OP_TAIL(op_char_create, char_create_t) {
-  ERR_CHECK(memchr(tail, '\0', tail_len) != NULL, ERR_CMD_BAD_ARG);  // name must be NUL-terminated
+  const char* desc;
+  ERR_TRY(cmd_name_arg(tail, tail_len, &desc));
   ERR_CHECK(a->is_write <= 1 && a->is_indicate <= 1 && a->is_notify <= 1 && a->is_framed <= 1, ERR_CMD_BAD_ARG);
   const sys_ble_char_cfg_t cfg = {
       .uuid = a->uuid,
@@ -71,7 +72,7 @@ ROUTER_OP_TAIL(op_char_create, char_create_t) {
       .is_framed = a->is_framed != 0,
       .tx_buffer_size = a->tx_buffer_size,
       .rx_buffer_size = a->rx_buffer_size,
-      .desc = (const char*)tail,
+      .desc = desc,
   };
   return sys_ble_char_create(a->svc_uuid, &cfg);
 }

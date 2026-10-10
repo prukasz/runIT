@@ -201,17 +201,6 @@ MUST_USE err_h router_args_tail(const uint8_t* in, uint32_t in_len, void* hdr, u
   }                                                                                                      \
   static err_h fn##_body(void* ctx, const hdr_t* a, const uint8_t* tail, uint32_t tail_len, CMD_OUT_PARAMS)
 
-// Op whose whole payload is variable (a name, data bytes), at least 1 byte.
-#define ROUTER_OP_DATA(fn)                                                                                        \
-  static err_h fn##_body(void* ctx, const uint8_t* tail, uint32_t tail_len, CMD_OUT_PARAMS);                  \
-  static err_h fn(CMD_F_PARAMS) {                                                                             \
-    const uint8_t* tail;                                                                                          \
-    uint32_t tail_len;                                                                                            \
-    ERR_TRY(router_args_tail(in, in_len, NULL, 0, &tail, &tail_len));                                             \
-    return fn##_body(ctx, tail, tail_len, out, out_cap, out_len);                                                 \
-  }                                                                                                               \
-  static err_h fn##_body(void* ctx, const uint8_t* tail, uint32_t tail_len, CMD_OUT_PARAMS)
-
 // Declares a module router (in its header): MUST_USE err_h fn(cmd_f parameters);
 #define ROUTER_MODULE_DECLARE(fn) MUST_USE err_h fn(CMD_F_PARAMS)
 
@@ -270,7 +259,7 @@ MUST_USE err_h router_submit(uint8_t link_id, uint32_t peer, const uint8_t* fram
  * @brief The link lost its client (e.g. BLE disconnect). Triggers the safe
  * state when the dead-man is enabled with `on_link_lost`.
  */
-void router_link_lost(uint8_t link_id);
+void router_link_lost(void);
 
 /* ----------------------------------------------------------------------------
  * Internal link, tap and origin

@@ -53,6 +53,21 @@ ERR_TAGS_DECLARE(ERR_CMD_MAP)
  */
 MUST_USE err_h cmd_reply(uint8_t* out, uint32_t out_cap, uint32_t* out_len, const void* data, uint32_t len);
 
+/**
+ * @brief Appends `len` bytes to `out` at `*pos` and advances `*pos`: for an answer built in pieces.
+ * @return ERR_CMD_OUT_FULL if they do not fit `cap`.
+ * @usage uint32_t pos = 0; ERR_TRY(cmd_append(out, out_cap, &pos, &head, sizeof(head))); *out_len = pos;
+ */
+MUST_USE err_h cmd_append(uint8_t* out, uint32_t cap, uint32_t* pos, const void* data, uint32_t len);
+
+/**
+ * @brief A name that is the whole tail of a command: NUL-terminated, nothing after the NUL.
+ * @param tail     The tail bytes, `tail_len` >= 1.
+ * @param name     Set to `tail`, as a C string.
+ * @return ERR_CMD_BAD_ARG if the last byte is not the only NUL.
+ */
+MUST_USE err_h cmd_name_arg(const uint8_t* tail, uint32_t tail_len, const char** name);
+
 #ifdef __cplusplus
 }
 #endif

@@ -4,8 +4,8 @@ Component `components/core/cmd/` (2026-10-10). The smallest thing both command l
 
 | File | Contents |
 |---|---|
-| `cmd.h` | `cmd_f`, `CMD_OUT_PARAMS` / `CMD_F_PARAMS`, `ERR_CMD_MAP`, `cmd_reply` |
-| `cmd.c` | The error module (`ERR_MOD_CMD` = 11) and `cmd_reply`. Linked as `WHOLE_ARCHIVE`: a handler raises `ERR_CMD_*` without calling `cmd_reply`, and the tag registration must not be dropped |
+| `cmd.h` | `cmd_f`, `CMD_OUT_PARAMS` / `CMD_F_PARAMS`, `ERR_CMD_MAP`, `cmd_reply`, `cmd_append`, `cmd_name_arg` |
+| `cmd.c` | The error module (`ERR_MOD_CMD` = 11) and the helpers. Linked as `WHOLE_ARCHIVE`: a handler raises `ERR_CMD_*` without calling `cmd_reply`, and the tag registration must not be dropped |
 
 ## Why it exists
 
@@ -30,7 +30,7 @@ The router still depends on `cmd`; each `sys_*` module with a remote interface s
 typedef err_h (*cmd_f)(void* ctx, const uint8_t* in, uint32_t in_len, uint8_t* out, uint32_t out_cap, uint32_t* out_len);
 ```
 
-`in` is what the caller defines: the router passes its own key first (`router_call` strips it), the device registry passes the args only (the contract handler macros parse exactly `sizeof(args)` bytes). `ctx` is the router's ctx (NULL from the root) or the device's struct. The answer goes to `out` with `cmd_reply`; untouched means an empty answer.
+`in` is what the caller defines: the router passes its own key first (`router_call` strips it), the device registry passes the args only (the contract handler macros parse exactly `sizeof(args)` bytes). `ctx` is the router's ctx (NULL from the root) or the device's struct. The answer goes to `out` with `cmd_reply` (one piece) or `cmd_append` (built in pieces, `*pos` advances; the connector and actions INFO answers); untouched means an empty answer. A command whose tail is a name checks it with `cmd_name_arg`: NUL-terminated with nothing after the NUL (`ERR_CMD_BAD_ARG` otherwise; the connector and BLE routers accepted trailing bytes before 2026-10-10).
 
 ## Errors (`ERR_MOD_CMD` = 11)
 

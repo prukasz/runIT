@@ -51,7 +51,7 @@ Component `components/sys/sys_connector/`. A **connector** is a logical outbound
 
 | Op | Request | Response |
 |---|---|---|
-| `0x01` CREATE | `u8 id, u8 stream`, name (NUL-terminated, cut to 15) | – |
+| `0x01` CREATE | `u8 id, u8 stream`, name (NUL-terminated, nothing after the NUL (`cmd_name_arg`), cut to 15) | – |
 | `0x02` REMOVE | `u8 id` | – |
 | `0x03` BIND | `u8 id, u8 provider, u32 endpoint` | – |
 | `0x04` UNBIND | `u8 id, u8 provider` | – |

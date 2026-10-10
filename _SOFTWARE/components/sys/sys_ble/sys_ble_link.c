@@ -60,7 +60,7 @@ static void on_conn(bool connected, int32_t reason) {
   (void)reason;
   if (!connected) {
     s_rx.active = false;
-    router_link_lost(TRANSPORT_BLE);
+    router_link_lost();
   }
 }
 

@@ -110,8 +110,7 @@ static void deadman_feed(void) {
   }
 }
 
-void router_link_lost(uint8_t link_id) {
-  (void)link_id;
+void router_link_lost(void) {
   if (s_deadman_ms > 0 && s_deadman_link_lost) {
     notify_urgent(BIT_LINK_LOST);
   }

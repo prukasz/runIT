@@ -3,13 +3,8 @@
 
 ERR_MODULE_DEFINE(ERR_MOD_ROUTER, "router", ERR_ROUTER_MAP)
 
-typedef struct {
-  uint8_t key;
-  cmd_f fn;
-} root_entry_t;
-
 // Filled at boot (router_register), read-only after router_init.
-static root_entry_t s_root[CONFIG_ROUTER_MAX_KEYS];
+static router_entry_t s_root[CONFIG_ROUTER_MAX_KEYS];
 static uint32_t s_root_count;
 
 err_h router_call(const router_entry_t* table, uint32_t count, void* ctx, const uint8_t* in, uint32_t in_len,
@@ -52,23 +47,15 @@ err_h router_register(uint8_t key, cmd_f fn) {
     ERR_CHECK(s_root[i].key != key, ERR_ROUTER_KEY_TAKEN, .key = key);
   }
   ERR_CHECK(s_root_count < CONFIG_ROUTER_MAX_KEYS, ERR_ROUTER_TABLE_FULL, .key = key);
-  s_root[s_root_count++] = (root_entry_t){.key = key, .fn = fn};
+  s_root[s_root_count++] = (router_entry_t){.key = key, .fn = fn};
   return NULL;
 }
 
 err_h router_route(const uint8_t* in, uint32_t in_len, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
   *out_len = 0;
-  ERR_CHECK(in_len > 0, ERR_ROUTER_NO_KEY);
-  uint8_t key = in[0];
-  for (uint32_t i = 0; i < s_root_count; i++) {
-    if (s_root[i].key == key) {
-      err_h err = s_root[i].fn(NULL, in, in_len, out, out_cap, out_len);
-      if (err != NULL) {
-        *out_len = 0;
-        return ERR_WRAP(err, ERR_ROUTER_KEY, .key = key);
-      }
-      return NULL;
-    }
+  err_h err = router_call(s_root, s_root_count, NULL, in, in_len, out, out_cap, out_len);
+  if (err != NULL) {
+    *out_len = 0;
   }
-  return ERR_NEW(ERR_ROUTER_UNKNOWN_KEY, .key = key);
+  return err;
 }

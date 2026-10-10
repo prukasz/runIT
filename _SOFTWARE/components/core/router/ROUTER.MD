@@ -68,7 +68,7 @@ UART      #R:0507010101000000000700030202000301000200000102010002000001021000010
   Bodies also see `ctx`, `out`, `out_cap`, `out_len` (answer with `cmd_reply`). The length check (`ERR_CMD_BAD_LEN`) is done before the body runs. Remote-only policy (e.g. `ERR_I2C_REMOTE_DENIED`) belongs in the body, not in the native API. Example: `sys_ble_router.c`.
 - Root: `router_register(key, fn)` at boot (before `router_init`), from the app layer (`main` now, the composition root later). Modules never register themselves; a module only exports its `cmd_f` (e.g. `sys_i2c_router` in `sys_i2c_router.h`).
 - `out_cap` is already limited to what the origin link carries right now; answers use `cmd_reply` (`ERR_CMD_OUT_FULL` when too big).
-  - `ROUTER_OP_DATA(fn) { … }`: the whole payload is variable (a name, data bytes), `tail_len` ≥ 1.
+  - A payload that is only a name or data bytes: `ROUTER_OP_TAIL` with a header of 0 bytes is not available; write `router_args_tail(in, in_len, NULL, 0, &tail, &tail_len)` in a plain `cmd_f` (`ROUTER_OP_DATA` was removed: no op used it).
 - `router_route(in, …)` is also the entry for replay of stored frames (actions; later project).
 - **Concurrency**: urgent and normal frames run at the same time on two tasks, so module routers must be thread-safe (guard their own state).
 
@@ -95,7 +95,7 @@ link RX task ── router_submit(link, peer, frame) ──► copy into ring bu
 
 - `router_set_safe_state(fn)`: the app's handler (VM stop, devices suspended — the app knows what "safe" is). Runs on the urgent task. Today `main` registers a log-only placeholder.
 - Triggers: sys `STOP` (in whichever task the client chose — send it urgent), dead-man timeout, link lost.
-- **Dead-man** (runtime, not stored, default `CONFIG_ROUTER_DEADMAN_DEFAULT_MS` = off): `router_deadman_set(timeout_ms, on_link_lost)`. Any frame from any link re-arms a one-shot timer; on expiry the safe state is entered once (until the next frame). With `on_link_lost`, `router_link_lost(link)` (BLE disconnect) triggers it at once. The timer callback only notifies the urgent task (the handler may block on I/O).
+- **Dead-man** (runtime, not stored, default `CONFIG_ROUTER_DEADMAN_DEFAULT_MS` = off): `router_deadman_set(timeout_ms, on_link_lost)`. Any frame from any link re-arms a one-shot timer; on expiry the safe state is entered once (until the next frame). With `on_link_lost`, `router_link_lost()` (BLE disconnect) triggers it at once. The timer callback only notifies the urgent task (the handler may block on I/O).
 
 ## sys router (`ROUTER_KEY_SYS` = 0x01)
 

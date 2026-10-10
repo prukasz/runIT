@@ -46,8 +46,9 @@ typedef struct __attribute__((packed)) {
 } unbind_t;
 
 ROUTER_OP_TAIL(op_create, create_t) {
-  ERR_CHECK(memchr(tail, '\0', tail_len) != NULL, ERR_CMD_BAD_ARG);  // name must be NUL-terminated
-  return sys_connector_create(a->id, a->stream, (const char*)tail);
+  const char* name;
+  ERR_TRY(cmd_name_arg(tail, tail_len, &name));
+  return sys_connector_create(a->id, a->stream, name);
 }
 
 ROUTER_OP(op_remove, id_t_) {
@@ -70,14 +71,6 @@ ROUTER_OP(op_resume, id_t_) {
   return sys_connector_resume(a->id);
 }
 
-// Appends `len` bytes to out at *pos; ERR_CMD_OUT_FULL when they don't fit.
-static err_h put(uint8_t* out, uint32_t cap, uint32_t* pos, const void* data, uint32_t len) {
-  ERR_CHECK(*pos + len <= cap, ERR_CMD_OUT_FULL, .need = (uint16_t)(*pos + len), .cap = (uint16_t)cap);
-  memcpy(out + *pos, data, len);
-  *pos += len;
-  return NULL;
-}
-
 ROUTER_OP_NOARGS(op_info) {
   uint32_t pos = 1;  // out[0] = count, written last
   ERR_CHECK(out_cap > 0, ERR_CMD_OUT_FULL, .need = 1, .cap = 0);
@@ -92,12 +85,12 @@ ROUTER_OP_NOARGS(op_info) {
     const uint8_t head[4] = {i.id, i.stream,
                              (uint8_t)((i.system ? INFO_SYSTEM : 0) | (i.suspended ? INFO_SUSPENDED : 0)),
                              i.binding_count};
-    ERR_TRY(put(out, out_cap, &pos, head, sizeof(head)));
+    ERR_TRY(cmd_append(out, out_cap, &pos, head, sizeof(head)));
     for (uint8_t b = 0; b < i.binding_count; b++) {
-      ERR_TRY(put(out, out_cap, &pos, &i.bindings[b].provider, 1));
-      ERR_TRY(put(out, out_cap, &pos, &i.bindings[b].endpoint, sizeof(uint32_t)));  // LE on the ESP32
+      ERR_TRY(cmd_append(out, out_cap, &pos, &i.bindings[b].provider, 1));
+      ERR_TRY(cmd_append(out, out_cap, &pos, &i.bindings[b].endpoint, sizeof(uint32_t)));  // LE on the ESP32
     }
-    ERR_TRY(put(out, out_cap, &pos, i.name, (uint32_t)strlen(i.name) + 1));
+    ERR_TRY(cmd_append(out, out_cap, &pos, i.name, (uint32_t)strlen(i.name) + 1));
     count++;
   }
   out[0] = count;

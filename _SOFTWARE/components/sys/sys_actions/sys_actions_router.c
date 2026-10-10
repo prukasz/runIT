@@ -54,26 +54,11 @@ typedef struct __attribute__((packed)) {
   uint32_t crc32;
 } info_head_t;
 
-// The name tail: NUL-ended with nothing after it (the C API checks the name itself).
-static err_h name_arg(const uint8_t* tail, uint32_t tail_len, const char** name) {
-  ERR_CHECK(tail[tail_len - 1] == '\0' && strlen((const char*)tail) == tail_len - 1, ERR_CMD_BAD_ARG);
-  *name = (const char*)tail;
-  return NULL;
-}
-
-// Appends `len` bytes to out at *pos; ERR_CMD_OUT_FULL when they don't fit.
-static err_h put(uint8_t* out, uint32_t cap, uint32_t* pos, const void* data, uint32_t len) {
-  ERR_CHECK(*pos + len <= cap, ERR_CMD_OUT_FULL, .need = (uint16_t)(*pos + len), .cap = (uint16_t)cap);
-  memcpy(out + *pos, data, len);
-  *pos += len;
-  return NULL;
-}
-
 static err_h reply_info(const sys_actions_info_t* i, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
   const info_head_t head = {.bytes = i->bytes, .count = i->count, .crc32 = i->crc32};
   uint32_t pos = 0;
-  ERR_TRY(put(out, out_cap, &pos, &head, sizeof(head)));
-  ERR_TRY(put(out, out_cap, &pos, i->name, (uint32_t)strlen(i->name) + 1));
+  ERR_TRY(cmd_append(out, out_cap, &pos, &head, sizeof(head)));
+  ERR_TRY(cmd_append(out, out_cap, &pos, i->name, (uint32_t)strlen(i->name) + 1));
   *out_len = pos;
   return NULL;
 }
@@ -84,7 +69,7 @@ ROUTER_OP(op_run, id_args_t) {
 
 ROUTER_OP_TAIL(op_record_start, record_start_t) {
   const char* name;
-  ERR_TRY(name_arg(tail, tail_len, &name));
+  ERR_TRY(cmd_name_arg(tail, tail_len, &name));
   const router_cmd_t* origin = router_origin();  // the client to record
   ERR_CHECK(origin != NULL, ERR_ACTION_WRONG_TASK);
   return sys_actions_record_start(a->id, name, a->execute != 0, origin->link, origin->peer);
@@ -98,7 +83,7 @@ ROUTER_OP_NOARGS(op_record_stop) {
 
 ROUTER_OP_TAIL(op_begin, begin_t) {
   const char* name;
-  ERR_TRY(name_arg(tail, tail_len, &name));
+  ERR_TRY(cmd_name_arg(tail, tail_len, &name));
   return sys_actions_upload_begin(a->id, name, a->len);
 }
 
@@ -164,7 +149,7 @@ ROUTER_OP_NOARGS(op_abort) {
 
 ROUTER_OP_TAIL(op_rename, id_args_t) {
   const char* name;
-  ERR_TRY(name_arg(tail, tail_len, &name));
+  ERR_TRY(cmd_name_arg(tail, tail_len, &name));
   return sys_actions_rename(a->id, name);
 }
 

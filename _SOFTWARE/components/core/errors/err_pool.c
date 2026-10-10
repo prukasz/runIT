@@ -18,8 +18,6 @@ static uint8_t s_pool[BLOCKS][BLOCK_SIZE] __attribute__((aligned(4)));
 static free_blk_t* s_free;  // blocks returned by err_pool_free
 static uint32_t s_next_new;  // blocks [s_next_new, BLOCKS) were never handed out
 static uint32_t s_used[(BLOCKS + 31) / 32];  // 1 bit per block, catches double free
-static uint32_t s_free_count = BLOCKS;
-static uint32_t s_min_free = BLOCKS;
 static U_SPINLOCK_DEFINE(s_lock);
 
 err_h err_pool_alloc(void) {
@@ -35,9 +33,6 @@ err_h err_pool_alloc(void) {
   if (blk != NULL) {
     uint32_t i = (uint32_t)(blk - &s_pool[0][0]) / BLOCK_SIZE;
     s_used[i / 32] |= 1u << (i % 32);
-    if (--s_free_count < s_min_free) {
-      s_min_free = s_free_count;
-    }
   }
   U_CRITICAL_EXIT_SAFE(s_lock);
 
@@ -68,17 +63,8 @@ void err_pool_free(err_h e) {
     free_blk_t* blk = (free_blk_t*)(void*)e;
     blk->next = s_free;
     s_free = blk;
-    s_free_count++;
   }
   U_CRITICAL_EXIT_SAFE(s_lock);
 
   assert(was_used && "error pool double free");
-}
-
-uint32_t err_pool_free_count(void) {
-  return s_free_count;
-}
-
-uint32_t err_pool_min_free(void) {
-  return s_min_free;
 }

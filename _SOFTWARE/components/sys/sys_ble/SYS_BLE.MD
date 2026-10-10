@@ -67,7 +67,7 @@ Same model as legacy: changes are **staged** and applied by `sys_ble_apply()` (r
 
 - On connect: MTU = the link's current MTU (a client may finish the exchange before the connect event), then the device starts the exchange itself, offering NimBLE's `CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU` (527 = NimBLE max in `sdkconfig`; lower it to test fragmentation from a PC, which negotiates 527).
 - On disconnect: TX buffers drained, subscriptions cleared, advertising restarted, listeners called.
-- `sys_ble_add_conn_listener(fn)` (boot, up to `CONFIG_SYS_BLE_MAX_CONN_LISTENERS`): `fn(connected, reason)` on the host task. The link uses it to reset reassembly and call `router_link_lost(TRANSPORT_BLE)` (dead-man with `on_link_lost`).
+- `sys_ble_add_conn_listener(fn)` (boot, up to `CONFIG_SYS_BLE_MAX_CONN_LISTENERS`): `fn(connected, reason)` on the host task. The link uses it to reset reassembly and call `router_link_lost()` (dead-man with `on_link_lost`).
 - `sys_ble_get_status`: connected, MTU, RX overflow count.
 
 ## Remote (`sys_ble_router`, root key `ROUTER_KEY_BLE` = 0x03)
@@ -76,7 +76,7 @@ Same model as legacy: changes are **staged** and applied by `sys_ble_apply()` (r
 |---|---|---|
 | `0x01` SVC_CREATE | `u16 uuid, u8 is_primary` | – |
 | `0x02` SVC_REMOVE | `u16 uuid` | – |
-| `0x03` CHAR_CREATE | `u16 svc_uuid, u16 uuid, u8 write, u8 indicate, u8 notify, u8 framed, u32 tx_buffer, u32 rx_buffer`, name (UTF-8, NUL-terminated → 0x2901 descriptor) | – |
+| `0x03` CHAR_CREATE | `u16 svc_uuid, u16 uuid, u8 write, u8 indicate, u8 notify, u8 framed, u32 tx_buffer, u32 rx_buffer`, name (UTF-8, NUL-terminated, nothing after the NUL (`cmd_name_arg`) → 0x2901 descriptor) | – |
 | `0x04` CHAR_REMOVE | `u16 svc_uuid, u16 uuid` | – |
 | `0x05` APPLY | – | – (applied ~200 ms later with a client) |
 | `0x06` STATUS | – | `u8 connected, u16 mtu, u32 rx_overflow` |

@@ -25,16 +25,6 @@ err_h err_pool_alloc(void);
  */
 void err_pool_free(err_h e);
 
-/**
- * @brief Blocks free right now.
- */
-uint32_t err_pool_free_count(void);
-
-/**
- * @brief Lowest free_count seen since boot - use to size ERRORS_POOL_BLOCKS.
- */
-uint32_t err_pool_min_free(void);
-
 #ifdef __cplusplus
 }
 #endif
