@@ -21,8 +21,6 @@ __attribute__((unused)) static void type_ids_unique(uint16_t t) {
 
 typedef struct {
   uint16_t id;
-  uint8_t dep_count;
-  uint16_t deps[CONFIG_SYS_DEVICE_MAX_DEPS];  // the devices this one uses (sys_device_use), each once
   const sys_device_type_t* type;
   sys_device_base_t* ctx;
 } dev_t_;
@@ -36,9 +34,7 @@ static uint32_t s_type_count;
 static dev_t_ s_devs[CONFIG_SYS_DEVICE_MAX];
 static uint32_t s_dev_count;
 
-// The device whose create() is running: sys_device_use() records into it. One at a time (the lock is held).
-static dev_t_ s_new;
-static bool s_creating;
+static bool s_creating;  // a create() is running: another CREATE from inside it would break the table's invariants
 
 /* One recursive lock for the registry and for every call into a device (sys_device.h "Locking"). */
 U_RECURSIVE_MUTEX_DEFINE(sys_device_mutex);
@@ -99,7 +95,7 @@ static uint32_t find_dev(uint16_t id) {
   return s_dev_count;
 }
 
-static bool uses(const dev_t_* d, uint16_t dep) {
+static bool uses(const sys_device_base_t* d, uint16_t dep) {
   for (uint32_t i = 0; i < d->dep_count; i++) {
     if (d->deps[i] == dep) {
       return true;
@@ -111,25 +107,23 @@ static bool uses(const dev_t_* d, uint16_t dep) {
 // Index of a device that uses `id`, or s_dev_count if none does.
 static uint32_t find_user(uint16_t id) {
   for (uint32_t i = 0; i < s_dev_count; i++) {
-    if (uses(&s_devs[i], id)) {
+    if (uses(s_devs[i].ctx, id)) {
       return i;
     }
   }
   return s_dev_count;
 }
 
-err_h sys_device_use(uint16_t id, uint16_t dep) {
+err_h sys_device_use(sys_device_base_t* dev, uint16_t dep) {
   err_h err = NULL;
   LOCK();  // recursive: create() runs under it
-  if (!s_creating || s_new.id != id) {
-    err = ERR_NEW(ERR_DEV_BAD_ARG);  // only from the device's own create()
-  } else if (dep == id || find_dev(dep) == s_dev_count) {
+  if (dep == dev->id || find_dev(dep) == s_dev_count) {
     err = ERR_NEW(ERR_DEV_NOT_FOUND, .id = dep);
-  } else if (!uses(&s_new, dep)) {
-    if (s_new.dep_count == CONFIG_SYS_DEVICE_MAX_DEPS) {
-      err = ERR_NEW(ERR_DEV_DEPS_FULL, .id = id);
+  } else if (!uses(dev, dep)) {
+    if (dev->dep_count == CONFIG_SYS_DEVICE_MAX_DEPS) {
+      err = ERR_NEW(ERR_DEV_DEPS_FULL, .id = dev->id);
     } else {
-      s_new.deps[s_new.dep_count++] = dep;
+      dev->deps[dev->dep_count++] = dep;
     }
   }
   UNLOCK();
@@ -150,7 +144,6 @@ static err_h create(uint16_t id, const uint8_t* args, uint32_t args_len) {
   sys_device_base_t* ctx = calloc(1, type->ctx_size);
   ERR_CHECK(ctx != NULL, ERR_DEV_NO_MEM, .id = id, .size = type->ctx_size);
   ctx->id = id;
-  s_new = (dev_t_){.id = id, .type = type, .ctx = ctx};
   s_creating = true;
   err_h err = type->create(ctx, args + 2);
   s_creating = false;
@@ -159,7 +152,7 @@ static err_h create(uint16_t id, const uint8_t* args, uint32_t args_len) {
     free(ctx);
     return ERR_WRAP(err, ERR_DEV_INSTALL, .id = id, .type = type_id);
   }
-  s_devs[s_dev_count++] = s_new;  // newest last
+  s_devs[s_dev_count++] = (dev_t_){.id = id, .type = type, .ctx = ctx};  // newest last
   return NULL;
 }
 

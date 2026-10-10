@@ -323,37 +323,31 @@ err_h sys_event_rule_remove(uint8_t id) {
   return NULL;
 }
 
-// Copies rule `id` out of the table.
-static bool rule_get(uint8_t id, sys_event_rule_t* out, uint8_t* total) {
-  bool found = false;
-  uint8_t n = 0;
+err_h sys_event_rule_list(uint8_t start, bool (*fn)(const sys_event_rule_t* rule, void* ctx), void* ctx,
+                          uint8_t* total) {
+  ERR_CHECK(fn != NULL, ERR_EVENT_BAD_ARG);
+  sys_event_rule_t rules[CONFIG_SYS_EVENT_MAX_RULES];
+  uint32_t n = 0;
   U_CRITICAL_ENTER(s_lock);
   for (uint32_t i = 0; i < CONFIG_SYS_EVENT_MAX_RULES; i++) {
-    if (!s_rules[i].used) {
-      continue;
-    }
-    n++;
-    if (s_rules[i].rule.id == id) {
-      *out = s_rules[i].rule;
-      found = true;
+    if (s_rules[i].used) {
+      rules[n++] = s_rules[i].rule;
     }
   }
   U_CRITICAL_EXIT(s_lock);
   if (total != NULL) {
-    *total = n;
+    *total = (uint8_t)n;
   }
-  return found;
-}
-
-err_h sys_event_rule_list(uint8_t start, bool (*fn)(const sys_event_rule_t* rule, void* ctx), void* ctx,
-                          uint8_t* total) {
-  ERR_CHECK(fn != NULL, ERR_EVENT_BAD_ARG);
-  sys_event_rule_t r;
-  if (total != NULL) {
-    (void)rule_get(0, &r, total);  // ID 0 is never used: only counts
+  for (uint32_t i = 1; i < n; i++) {  // by ascending ID (insertion sort: a handful of rules)
+    const sys_event_rule_t r = rules[i];
+    uint32_t j = i;
+    for (; j > 0 && rules[j - 1].id > r.id; j--) {
+      rules[j] = rules[j - 1];
+    }
+    rules[j] = r;
   }
-  for (uint32_t id = start > RULE_ID_MIN ? start : RULE_ID_MIN; id <= RULE_ID_MAX; id++) {
-    if (rule_get((uint8_t)id, &r, NULL) && !fn(&r, ctx)) {
+  for (uint32_t i = 0; i < n; i++) {
+    if (rules[i].id >= start && !fn(&rules[i], ctx)) {
       break;
     }
   }

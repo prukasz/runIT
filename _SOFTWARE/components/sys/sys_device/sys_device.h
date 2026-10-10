@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "cmd.h"
+#include "sdkconfig.h"
 #include "sys_device_types.h"
 
 #ifdef __cplusplus
@@ -11,47 +12,20 @@ extern "C" {
 #endif
 
 /**
- * @brief Device registry: the device types (each driver registers its own
- * with SYS_DEVICE_TYPE_DEFINE) and the instances (device ID, type, struct).
+ * @brief Device registry (SYS_DEVICE.MD): the device types (each driver registers its own with
+ * SYS_DEVICE_TYPE_DEFINE) and the instances (ID, type, struct). The registry does CREATE (size check, allocation,
+ * rollback), REMOVE, INFO and OPS for every device and runs any other op from the type's op table; the driver builds
+ * and releases its hardware, keeps its state and makes its outputs safe on SUSPEND. A failure is wrapped in
+ * ERR_DEV_ID{id} and ERR_DEV_OP{op}.
  *
- * Command: [ROUTER_KEY_DEVICE][device id u16 LE][op u16 LE][args].
- *   CREATE ([id][op 0x0000][type u16][create struct]): the registry checks the
- *          struct's size, allocates the type's struct (sys_device_base_t first,
- *          id filled), the driver's create() builds the hardware, and the
- *          registry adds the instance. A failed create() is rolled back with the
- *          driver's uninstall() and wrapped in ERR_DEV_INSTALL.
- *   REMOVE, INFO, OPS: answered here for every device (uninstall + free; type
- *          and suspended; the op list).
- *   Any other op: the entry of the type's op table (ERR_DEV_UNKNOWN_OP if none).
- * A failure is wrapped in ERR_DEV_ID{id} and ERR_DEV_OP{op}:
- * KEY 05 -> DEV_ID -> DEV_OP -> cause.
+ * Op = [contract u8][op u8]: 0x00xx the device (lifecycle, below), 0x01xx-0xFExx a contract (IDs below, the one place
+ * they are assigned), 0xFFxx the device's own (SYS_DEVICE_OWN_OP). A contract is ONE table X(NAME, n, args_t) that
+ * gives <PREFIX>_OP_<NAME>, <prefix>_args_<NAME>_t, <PREFIX>_HANDLER(NAME) and <PREFIX>_ENTRY(NAME), so an op number
+ * can't be paired with another op's struct (SYS_DEVICE_LIFECYCLE below is the pattern; sys_io.h, sys_pins.h contracts).
  *
- * The driver keeps its own state (suspended included), makes its outputs safe
- * on SUSPEND and refuses what it can't do.
- *
- * Locking: one recursive lock covers the registry and every call into a device
- * (router tasks, event task, ADC task, device-to-device calls). So an op must
- * not sleep or wait for anything but its own I/O (a long sequence runs as
- * steps from a timer, see TPS55289), and a driver must not hold a lock of its
- * own while it calls sys_device_call() or sys_event_publish().
- *
- * Op = [contract u8][op u8] (high byte = contract), a convention every device
- * follows. A device's class is the set of ops it answers (OPS lists it).
- *   0x00xx       device: CREATE and the lifecycle (SYS_DEVICE_LIFECYCLE below)
- *   0x01xx-0xFExx contracts: one meaning on every device that has them; the
- *               contract IDs below are the one place they are assigned
- *   0xFFxx       the device's own operations (SYS_DEVICE_OWN_OP); two types
- *               may use the same number for different things
- *
- * A contract is ONE table: X(NAME, op number, args struct). From it come the
- * op IDs (<PREFIX>_OP_<NAME>), an args typedef per op (<prefix>_args_<NAME>_t),
- * the handler macro (<PREFIX>_HANDLER(NAME)) and the table row
- * (<PREFIX>_ENTRY(NAME)). The handler's args type and the row's op ID both come
- * from NAME, so an op number can't be paired with another op's struct. See
- * SYS_DEVICE_LIFECYCLE below for the pattern, sys_io.h and sys_pins.h for contracts.
- *
- * From other components: sys_device_call() runs the same call without a
- * transport (the contract wrappers in sys_io.h are built on it).
+ * Locking: one recursive lock covers the registry and every call into a device. An op must not sleep or wait for
+ * anything but its own I/O, and a driver must not hold a lock of its own across sys_device_call() or
+ * sys_event_publish() (SYS_DEVICE.MD "Concurrency").
  */
 
 #define SYS_DEVICE_ID_NONE 0xFFFFu  // "no device" in pin references; never registered
@@ -67,11 +41,6 @@ extern "C" {
 #define SYS_DEVICE_CONTRACT_OWN 0xFFu     // the device's own ops
 
 #define SYS_DEVICE_OWN_OP(n) SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_OWN, n)
-
-// A u16 of the command (ID, op, type), little-endian.
-static inline uint16_t sys_device_u16(const uint8_t* b) {
-  return (uint16_t)(b[0] | (b[1] << 8));
-}
 
 /** @brief Args of an op without any. */
 typedef struct __attribute__((packed)) {
@@ -148,7 +117,9 @@ ERR_TAGS_DECLARE(ERR_SYS_DEVICE_MAP)
  */
 typedef struct {
   uint16_t id;
-  bool suspended;  // fault safe state: writes refused (sys_device_check_active) until RESUME
+  bool suspended;     // fault safe state: writes refused (sys_device_check_active) until RESUME
+  uint8_t dep_count;  // sys_device_use()
+  uint16_t deps[CONFIG_SYS_DEVICE_MAX_DEPS];  // the devices this one uses, each once
 } sys_device_base_t;
 
 /**
@@ -225,18 +196,17 @@ MUST_USE err_h sys_device_resume_all(void);  // oldest first: the used devices b
 MUST_USE err_h sys_device_remove_all(void);  // newest first
 
 /**
- * @brief Declares that device `id` uses device `dep` (one of its pins, a bus
+ * @brief Declares that device `dev` uses device `dep` (one of its pins, a bus
  * device...). Called by the driver's create() for every device it will call,
- * before using it. The registry then refuses to REMOVE `dep` while `id` exists
+ * before using it. The registry then refuses to REMOVE `dep` while `dev` exists
  * (ERR_DEV_IN_USE) and sweeps in an order where users come first. Any IDs:
  * the order is the creation order (a device can only use one that exists).
  * Declaring the same dep twice is fine.
- * @return ERR_DEV_NOT_FOUND{dep} unless it exists (and isn't `id`),
- *         ERR_DEV_DEPS_FULL past CONFIG_SYS_DEVICE_MAX_DEPS, ERR_DEV_BAD_ARG
- *         outside the device's own create().
- * @usage if (sys_io_pin_valid(c->oe)) { ERR_TRY(sys_device_use(c->base.id, c->oe.device)); }
+ * @return ERR_DEV_NOT_FOUND{dep} unless it exists (and isn't `dev`),
+ *         ERR_DEV_DEPS_FULL past CONFIG_SYS_DEVICE_MAX_DEPS.
+ * @usage if (sys_io_pin_valid(c->oe)) { ERR_TRY(sys_device_use(&c->base, c->oe.device)); }
  */
-MUST_USE err_h sys_device_use(uint16_t id, uint16_t dep);
+MUST_USE err_h sys_device_use(sys_device_base_t* dev, uint16_t dep);
 
 /**
  * @brief Keeps the first error of a sequence whose steps all run (teardown).

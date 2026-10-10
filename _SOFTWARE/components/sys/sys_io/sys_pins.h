@@ -79,6 +79,26 @@ MUST_USE err_h sys_pins_state_unlock(sys_pins_state_t* s, uint16_t dev_id, uint8
 /** @brief The answer of AVAILABLE / LOCKED. */
 MUST_USE err_h sys_pins_reply(uint8_t* out, uint32_t out_cap, uint32_t* out_len, uint64_t mask);
 
+/**
+ * @brief AVAILABLE, LOCKED, LOCK and UNLOCK of a device whose struct has the members `base` (sys_device_base_t) and
+ * `pins` (sys_pins_state_t): they only read or change that state, so they are the same on every such device.
+ * SYS_PINS_STATE_ENTRIES are their op table rows. SET_LOCKED_LEVEL writes the pin, so it stays the device's own.
+ * @usage SYS_PINS_STATE_HANDLERS(pca_t)
+ *        static const sys_device_op_t k_ops[] = {..., SYS_PINS_STATE_ENTRIES, PINS_ENTRY(SET_LOCKED_LEVEL)};
+ */
+#define SYS_PINS_STATE_HANDLERS(ctx_t)                                                                       \
+  PINS_HANDLER(AVAILABLE) { return sys_pins_reply(out, out_cap, out_len, ((const ctx_t*)ctx)->pins.available); } \
+  PINS_HANDLER(LOCKED) { return sys_pins_reply(out, out_cap, out_len, ((const ctx_t*)ctx)->pins.locked); }       \
+  PINS_HANDLER(LOCK) {                                                                                       \
+    ctx_t* c = ctx;                                                                                          \
+    return sys_pins_state_lock(&c->pins, c->base.id, a->pin);                                                \
+  }                                                                                                          \
+  PINS_HANDLER(UNLOCK) {                                                                                     \
+    ctx_t* c = ctx;                                                                                          \
+    return sys_pins_state_unlock(&c->pins, c->base.id, a->pin);                                              \
+  }
+#define SYS_PINS_STATE_ENTRIES PINS_ENTRY(AVAILABLE), PINS_ENTRY(LOCKED), PINS_ENTRY(LOCK), PINS_ENTRY(UNLOCK)
+
 /* ----------------------------------------------------------------------------
  * For everyone else: wrappers over sys_device_call
  * ------------------------------------------------------------------------- */

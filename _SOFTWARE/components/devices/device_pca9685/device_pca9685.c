@@ -114,25 +114,7 @@ IO_HANDLER(SET_PWM_FREQ) {
 
 /* ---- Pins contract ---- */
 
-PINS_HANDLER(AVAILABLE) {
-  const pca_t* c = ctx;
-  return sys_pins_reply(out, out_cap, out_len, c->pins.available);
-}
-
-PINS_HANDLER(LOCKED) {
-  const pca_t* c = ctx;
-  return sys_pins_reply(out, out_cap, out_len, c->pins.locked);
-}
-
-PINS_HANDLER(LOCK) {
-  pca_t* c = ctx;
-  return sys_pins_state_lock(&c->pins, c->base.id, a->pin);
-}
-
-PINS_HANDLER(UNLOCK) {
-  pca_t* c = ctx;
-  return sys_pins_state_unlock(&c->pins, c->base.id, a->pin);
-}
+SYS_PINS_STATE_HANDLERS(pca_t)
 
 // The owner of a locked channel (a bridge driver on CH 8-15) drives it here; the IO writes refuse it.
 PINS_HANDLER(SET_LOCKED_LEVEL) {
@@ -209,7 +191,7 @@ static err_h create(void* ctx, const void* cfg_in) {
             .max = SYS_I2C_BUS_COUNT - 1);
   c->oe = cfg->oe_pin;
   if (sys_io_pin_valid(c->oe)) {
-    ERR_TRY(sys_device_use(c->base.id, c->oe.device));
+    ERR_TRY(sys_device_use(&c->base, c->oe.device));
   }
   sys_pins_state_init(&c->pins, PCA9685_CHANNELS);
   sys_i2c_dev_init(&c->i2c, cfg->i2c_bus, cfg->i2c_addr, I2C_SPEED_HZ);
@@ -234,8 +216,7 @@ static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY(RESET),          DEVICE_ENTRY(SUSPEND),      DEVICE_ENTRY(RESUME),
     IO_ENTRY(SET_LEVEL),          IO_ENTRY(TOGGLE),           IO_ENTRY(GET_LEVEL),
     IO_ENTRY(SET_PWM_DUTY),       IO_ENTRY(SET_PWM_FREQ),
-    PINS_ENTRY(AVAILABLE),        PINS_ENTRY(LOCKED),         PINS_ENTRY(LOCK),
-    PINS_ENTRY(UNLOCK),           PINS_ENTRY(SET_LOCKED_LEVEL),
+    SYS_PINS_STATE_ENTRIES,           PINS_ENTRY(SET_LOCKED_LEVEL),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_PCA9685, .cfg_size = sizeof(pca9685_cfg_t), .ctx_size = sizeof(pca_t),

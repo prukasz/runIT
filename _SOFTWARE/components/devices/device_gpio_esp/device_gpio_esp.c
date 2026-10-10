@@ -61,6 +61,10 @@ static bool is_digital(sys_io_mode_e mode) {
   return mode <= SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP;
 }
 
+static bool is_pwm(sys_io_mode_e mode) {
+  return mode == SYS_IO_MODE_PWM;
+}
+
 static bool is_digital_output(sys_io_mode_e mode) {
   return mode == SYS_IO_MODE_OUTPUT_PUSH_PULL || mode == SYS_IO_MODE_OUTPUT_OPEN_DRAIN ||
          mode == SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP;
@@ -76,6 +80,13 @@ static err_h check_writable(const gpio_t* c, uint8_t pin) {
 static err_h pin_configured(const gpio_t* c, uint8_t pin, esp_pin_obj_t** obj) {
   *obj = pin_obj_get(pin);
   ERR_CHECK(*obj != NULL, ERR_IO_PIN_UNCONFIGURED, .id = c->base.id, .pin = pin);
+  return NULL;
+}
+
+// Like pin_configured, and the pin's mode must be one `mode_ok` accepts: else ERR_IO_WRONG_MODE (gpio_mutex held).
+static err_h pin_in_mode(const gpio_t* c, uint8_t pin, bool (*mode_ok)(sys_io_mode_e), esp_pin_obj_t** obj) {
+  ERR_TRY(pin_configured(c, pin, obj));
+  ERR_CHECK(mode_ok((*obj)->pin_mode), ERR_IO_WRONG_MODE, .id = c->base.id, .pin = pin, .mode = (*obj)->pin_mode);
   return NULL;
 }
 
@@ -214,16 +225,16 @@ IO_HANDLER(RESET) {
   return release_pin(a->pin);
 }
 
-// Drives a push-pull / open-drain pin. The caller has checked who may write it.
-static err_h write_level(const gpio_t* c, uint8_t pin, bool level) {
+#define LEVEL_TOGGLE (-1)
+
+// Drives a push-pull / open-drain pin to `level` (0, 1 or LEVEL_TOGGLE). The caller has checked who may write it.
+static err_h drive(const gpio_t* c, uint8_t pin, int level) {
   esp_pin_obj_t* pin_obj;
   LOCK();
-  err_h err = pin_configured(c, pin, &pin_obj);
-  if (err == NULL && !is_digital_output(pin_obj->pin_mode)) {
-    err = ERR_NEW(ERR_IO_WRONG_MODE, .id = c->base.id, .pin = pin, .mode = pin_obj->pin_mode);
-  }
+  err_h err = pin_in_mode(c, pin, is_digital_output, &pin_obj);
   if (err == NULL) {
-    err = ERR_ESP(gpio_set_level((gpio_num_t)pin, level));
+    const int to = level == LEVEL_TOGGLE ? gpio_get_level((gpio_num_t)pin) == 0 : level;
+    err = ERR_ESP(gpio_set_level((gpio_num_t)pin, (uint32_t)to));
   }
   UNLOCK();
   return err;
@@ -233,23 +244,13 @@ IO_HANDLER(SET_LEVEL) {
   gpio_t* c = ctx;
   ERR_CHECK(a->level <= 1, ERR_CMD_BAD_ARG);
   ERR_TRY(check_writable(c, a->pin));
-  return write_level(c, a->pin, a->level != 0);
+  return drive(c, a->pin, a->level);
 }
 
 IO_HANDLER(TOGGLE) {
   gpio_t* c = ctx;
   ERR_TRY(check_writable(c, a->pin));
-  esp_pin_obj_t* pin_obj;
-  LOCK();
-  err_h err = pin_configured(c, a->pin, &pin_obj);
-  if (err == NULL && !is_digital_output(pin_obj->pin_mode)) {
-    err = ERR_NEW(ERR_IO_WRONG_MODE, .id = c->base.id, .pin = a->pin, .mode = pin_obj->pin_mode);
-  }
-  if (err == NULL) {
-    err = ERR_ESP(gpio_set_level((gpio_num_t)a->pin, gpio_get_level((gpio_num_t)a->pin) == 0));
-  }
-  UNLOCK();
-  return err;
+  return drive(c, a->pin, LEVEL_TOGGLE);
 }
 
 // A read: allowed while suspended and on a locked pin.
@@ -258,10 +259,7 @@ IO_HANDLER(GET_LEVEL) {
   ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, a->pin));
   esp_pin_obj_t* pin_obj;
   LOCK();
-  err_h err = pin_configured(c, a->pin, &pin_obj);
-  if (err == NULL && (pin_obj->pin_mode == SYS_IO_MODE_ADC || pin_obj->pin_mode == SYS_IO_MODE_PWM)) {
-    err = ERR_NEW(ERR_IO_WRONG_MODE, .id = c->base.id, .pin = a->pin, .mode = pin_obj->pin_mode);
-  }
+  err_h err = pin_in_mode(c, a->pin, is_digital, &pin_obj);
   const uint8_t level = err == NULL ? (gpio_get_level((gpio_num_t)a->pin) != 0) : 0;
   UNLOCK();
   ERR_TRY(err);
@@ -372,10 +370,7 @@ IO_HANDLER(CONFIGURE_INTR) {
 // The pin's object if it is in PWM mode (gpio_mutex held), else sets *err.
 static esp_pin_obj_t* pwm_pin(const gpio_t* c, uint8_t pin, err_h* err) {
   esp_pin_obj_t* pin_obj;
-  *err = pin_configured(c, pin, &pin_obj);
-  if (*err == NULL && pin_obj->pin_mode != SYS_IO_MODE_PWM) {
-    *err = ERR_NEW(ERR_IO_WRONG_MODE, .id = c->base.id, .pin = pin, .mode = pin_obj->pin_mode);
-  }
+  *err = pin_in_mode(c, pin, is_pwm, &pin_obj);
   return *err == NULL ? pin_obj : NULL;
 }
 
@@ -420,25 +415,7 @@ IO_HANDLER(SET_PWM_DUTY) {
 
 /* ---- Pins contract ---- */
 
-PINS_HANDLER(AVAILABLE) {
-  const gpio_t* c = ctx;
-  return sys_pins_reply(out, out_cap, out_len, c->pins.available);
-}
-
-PINS_HANDLER(LOCKED) {
-  const gpio_t* c = ctx;
-  return sys_pins_reply(out, out_cap, out_len, c->pins.locked);
-}
-
-PINS_HANDLER(LOCK) {
-  gpio_t* c = ctx;
-  return sys_pins_state_lock(&c->pins, c->base.id, a->pin);
-}
-
-PINS_HANDLER(UNLOCK) {
-  gpio_t* c = ctx;
-  return sys_pins_state_unlock(&c->pins, c->base.id, a->pin);
-}
+SYS_PINS_STATE_HANDLERS(gpio_t)
 
 // The owner of a locked pin (PCA9685 OE, a chip RST) drives it here. SUSPEND leaves locked pins to their owner,
 // so this works while the device is suspended; on an unlocked pin it is a plain write.
@@ -449,7 +426,7 @@ PINS_HANDLER(SET_LOCKED_LEVEL) {
   if ((c->pins.locked & (1ULL << a->pin)) == 0) {
     ERR_TRY(check_writable(c, a->pin));
   }
-  return write_level(c, a->pin, a->level != 0);
+  return drive(c, a->pin, a->level);
 }
 
 /* ---- Lifecycle ---- */
@@ -565,8 +542,7 @@ static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY(RESET),     DEVICE_ENTRY(SUSPEND),     DEVICE_ENTRY(RESUME),
     IO_ENTRY(SET_LEVEL),     IO_ENTRY(TOGGLE),          IO_ENTRY(GET_LEVEL),        IO_ENTRY(SET_PWM_DUTY),
     IO_ENTRY(SET_PWM_FREQ),  IO_ENTRY(SET_MODE),        IO_ENTRY(RESET),            IO_ENTRY(GET_VOLTAGE),
-    IO_ENTRY(CONFIGURE_INTR), PINS_ENTRY(AVAILABLE),    PINS_ENTRY(LOCKED),         PINS_ENTRY(LOCK),
-    PINS_ENTRY(UNLOCK),      PINS_ENTRY(SET_LOCKED_LEVEL),
+    IO_ENTRY(CONFIGURE_INTR), SYS_PINS_STATE_ENTRIES,      PINS_ENTRY(SET_LOCKED_LEVEL),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_GPIO_ESP, .cfg_size = sizeof(gpio_esp_cfg_t), .ctx_size = sizeof(gpio_t),

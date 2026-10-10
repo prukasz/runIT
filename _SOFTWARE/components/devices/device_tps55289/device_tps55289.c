@@ -60,6 +60,7 @@
    resistor, so 200 mA is 2 mV - within the chip's offset, and a rail then flags OCP just charging
    its capacitors (seen on rail A). 500 mA = 5 mV. */
 #define TPS_SOFT_RISE_MA 1000
+/* (2026-10-10) A fixed value now: the "0 = no soft-rise limit" option and tps_rise_limit() were removed, nothing used them. */
 
 /* Lowest limit written to the chip. Below ~5 mV sense the offset dominates: on
    the PCB rail A's chip sat in current limit with no load at a 200 mA (2 mV)
@@ -106,11 +107,6 @@ static inline uint16_t tps_limit(uint16_t mA) {
   return mA < TPS_LIMIT_FLOOR_MA ? TPS_LIMIT_FLOOR_MA : mA;
 }
 
-/* Limit held while the output rises: the soft-rise limit, or the wanted one when there is none. */
-static inline uint16_t tps_rise_limit(uint16_t wanted_mA) {
-  return TPS_SOFT_RISE_MA ? TPS_SOFT_RISE_MA : wanted_mA;
-}
-
 /* ---- Chip access: the registry adds the context ---- */
 
 static err_h chip_set_output_enable(tps_t* c, bool enable) {
@@ -144,8 +140,7 @@ static err_h chip_set_voltage(tps_t* c, uint16_t voltage_mV) {
   ERR_CHECK(voltage_mV >= min_mV && voltage_mV <= max_mV, ERR_DEV_RANGE, .id = c->base.id, .value = voltage_mV,
             .min = (int32_t)min_mV, .max = (int32_t)max_mV);
   const uint16_t ref = (uint16_t)((voltage_mV - min_mV) * 10u / step);
-  const uint8_t data[2] = {(uint8_t)(ref & 0xFF), (uint8_t)(ref >> 8)};
-  ERR_TRY(sys_i2c_reg_write(&c->i2c, REG_REF_LSB, data, sizeof(data)));
+  ERR_TRY(sys_i2c_reg_write_u16(&c->i2c, REG_REF_LSB, ref, SYS_I2C_LE));
   c->out_mV = voltage_mV;
   return NULL;
 }
@@ -247,12 +242,23 @@ static err_h tps_apply_config(tps_t* c) {
   }
   // Slowest output slew: voltage changes charge the output capacitors gently.
   ERR_TRY(chip_set_slew_rate(c, SLEW_1_25_MV_US));
-  const uint16_t start_mA = c->last_enable_state ? tps_rise_limit(c->last_current_limit_mA) : c->last_current_limit_mA;
+  const uint16_t start_mA = c->last_enable_state ? TPS_SOFT_RISE_MA : c->last_current_limit_mA;
   ERR_TRY(chip_set_current_limit(c, tps_limit(start_mA)));
   const bool ramp = c->last_enable_state && c->last_voltage_mV > TPS_RAMP_START_MV;
   ERR_TRY(chip_set_voltage(c, ramp ? TPS_RAMP_START_MV : c->last_voltage_mV));
   ERR_TRY(chip_set_output_enable(c, c->last_enable_state));
   return c->last_enable_state ? tps_rise_run(c) : NULL;
+}
+
+// Rise stopped, output off, then EN low; every step runs (EN goes low even if the I2C disable fails).
+static err_h tps_rail_off(tps_t* c, bool chip_powered) {
+  err_h err = NULL;
+  tps_rise_cancel(c);
+  if (chip_powered) {
+    SYS_DEVICE_KEEP_FIRST(err, chip_set_output_enable(c, false));
+  }
+  SYS_DEVICE_KEEP_FIRST(err, tps_set_en(c, false));
+  return err;
 }
 
 /* On: EN high, then every setting again (EN low cleared them); an enabled rail stays as it is. Off:
@@ -262,29 +268,13 @@ static err_h tps_set_enable(tps_t* c, bool state) {
     return NULL;  // already on: re-applying would drop the output to the ramp start
   }
   const bool was_powered = tps_powered(c);
-  tps_rise_cancel(c);
   c->last_enable_state = state;
-  if (state) {
-    ERR_TRY(tps_set_en(c, true));
-    return tps_apply_config(c);
+  if (!state) {
+    return tps_rail_off(c, was_powered);
   }
-  err_h err = NULL;
-  if (was_powered) {
-    SYS_DEVICE_KEEP_FIRST(err, chip_set_output_enable(c, false));
-  }
-  SYS_DEVICE_KEEP_FIRST(err, tps_set_en(c, false));
-  return err;
-}
-
-// Output off, then EN low; every step runs (EN goes low even if the I2C disable fails).
-static err_h tps_rail_off(tps_t* c, bool chip_powered) {
-  err_h err = NULL;
   tps_rise_cancel(c);
-  if (chip_powered) {
-    SYS_DEVICE_KEEP_FIRST(err, chip_set_output_enable(c, false));
-  }
-  SYS_DEVICE_KEEP_FIRST(err, tps_set_en(c, false));
-  return err;
+  ERR_TRY(tps_set_en(c, true));
+  return tps_apply_config(c);
 }
 
 /* ---- POWER_VREG contract ---- */
@@ -322,7 +312,7 @@ VREG_HANDLER(SET_VOLTAGE) {
     c->rise_start_us = esp_timer_get_time();
     return tps_rise_schedule(c, TPS_RAMP_STEP_MS);
   }
-  ERR_TRY(chip_set_current_limit(c, tps_limit(tps_rise_limit(c->last_current_limit_mA))));
+  ERR_TRY(chip_set_current_limit(c, TPS_SOFT_RISE_MA));
   return tps_rise_run(c);
 }
 
@@ -477,10 +467,10 @@ static err_h create(void* ctx, const void* cfg_in) {
   c->intr = cfg->intr_pin;
   c->en = cfg->en_pin;
   if (sys_io_pin_valid(c->intr)) {
-    ERR_TRY(sys_device_use(id, c->intr.device));
+    ERR_TRY(sys_device_use(&c->base, c->intr.device));
   }
   if (sys_io_pin_valid(c->en)) {
-    ERR_TRY(sys_device_use(id, c->en.device));
+    ERR_TRY(sys_device_use(&c->base, c->en.device));
   }
   c->last_voltage_mV = TPS_DEFAULT_VOLTAGE_MV;
   c->last_current_limit_mA = TPS55289_MIN_CURRENT_MA;

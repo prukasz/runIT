@@ -51,7 +51,7 @@ Which pins a device has and which are locked. A pin another device depends on (P
 | `0x0203` UNLOCK | `sys_pins_unlock(p)` | `{u8 pin}` | – (an unlocked pin stays unlocked) |
 | `0x0204` SET_LOCKED_LEVEL | `sys_pins_set_locked_level(p, level)` | `{u8 pin, u8 level}` | – (while suspended: `ERR_DEV_SUSPENDED`) |
 
-- A device keeps one `sys_pins_state_t` (`sys_pins_state_init(&s, count)`), calls `sys_pins_state_check_free` before every write (`check` for reads) and answers the PINS ops with one line each (example in `sys_pins.h`).
+- A device keeps one `sys_pins_state_t` (`sys_pins_state_init(&s, count)`), calls `sys_pins_state_check_free` before every write (`check` for reads) and answers the PINS ops: AVAILABLE, LOCKED, LOCK and UNLOCK only read or change that state, so `SYS_PINS_STATE_HANDLERS(ctx_t)` writes them (struct with `base` and `pins` members) and `SYS_PINS_STATE_ENTRIES` lists their table rows; SET_LOCKED_LEVEL writes the pin and stays the device's own.
 - "Reserved" pins are locked pins. A device reports every pin the chip has in AVAILABLE and nothing is reserved by the driver; whoever uses a pin for something else (a bridge driver on PWM channels, a chip RST) locks it, and LOCKED says what is taken. Free pins = `AVAILABLE & ~LOCKED`. Which pins get locked is board configuration, not driver code.
 - A lock is bookkeeping, not an identity: whoever sends LOCK / UNLOCK is trusted to be the owner. An owner id in LOCK would close that; not needed yet.
 - Taking a pin: `sys_io_set_mode`, then `sys_pins_lock`, then `sys_pins_set_locked_level` (PCA9685 OE does this); release: drive safe, `sys_pins_unlock`.
