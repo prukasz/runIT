@@ -31,4 +31,13 @@ menu "Device: ESP32 native GPIO"
             of pins that can run PWM at once. Clear the bits of channels another
             LEDC user needs.
 
+    config DEVICE_GPIO_ESP_DEBOUNCE_MS
+        int "Debounce time of pin interrupts (ms)"
+        range 1 1000
+        default 50
+        help
+            A pin armed with CONFIGURE_INTR and debounce = 1 ignores edges that
+            come sooner than this after the last one it published. Pins armed
+            with debounce = 0 (chip alert lines) publish every edge.
+
 endmenu

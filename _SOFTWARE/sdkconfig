@@ -909,6 +909,13 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
+# runIT
+#
+# default:
+CONFIG_RUNIT_BLE_START=y
+# end of runIT
+
+#
 # Compiler options
 #
 CONFIG_COMPILER_OPTIMIZATION_DEBUG=y
@@ -1072,7 +1079,7 @@ CONFIG_BT_NIMBLE_USE_ESP_TIMER=y
 #
 # GATT / ATT
 #
-CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=256
+CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=527
 # default:
 CONFIG_BT_NIMBLE_ATT_MAX_PREP_ENTRIES=64
 CONFIG_BT_NIMBLE_GATT_MAX_PROCS=4
@@ -2548,7 +2555,7 @@ CONFIG_FATFS_DONT_TRUST_LAST_ALLOC=0
 # Kernel
 #
 # CONFIG_FREERTOS_UNICORE is not set
-CONFIG_FREERTOS_HZ=100
+CONFIG_FREERTOS_HZ=1000
 # CONFIG_FREERTOS_CHECK_STACKOVERFLOW_NONE is not set
 # CONFIG_FREERTOS_CHECK_STACKOVERFLOW_PTRVAL is not set
 CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY=y
@@ -3442,131 +3449,185 @@ CONFIG_WL_SECTOR_SIZE=4096
 # end of Wear Levelling
 
 #
-# BLE Manager Options
+# Errors
 #
-CONFIG_SYS_BLE_MANAGER_TASK_PRIO=5
-CONFIG_SYS_BLE_TASK_STACK_SIZE=4096
+# default:
+CONFIG_ERRORS_INFO_FILE=y
+# default:
+CONFIG_ERRORS_INFO_FUNC=y
+# default:
+CONFIG_ERRORS_INFO_LINE=y
+# default:
+CONFIG_ERRORS_INFO=y
+# default:
+CONFIG_ERRORS_POOL_BLOCKS=32
+# default:
+CONFIG_ERRORS_POOL_BLOCK_SIZE=32
+# default:
+CONFIG_ERRORS_LOG_LINE_LEN=256
+# default:
+CONFIG_ERRORS_MAX_MODULES=32
+# end of Errors
+
+#
+# router
+#
+# default:
+CONFIG_ROUTER_FRAME_MAX=512
+# default:
+CONFIG_ROUTER_RESPONSE_STREAM=0x05
+# default:
+CONFIG_ROUTER_MAX_KEYS=16
+# default:
+CONFIG_ROUTER_MAX_LINKS=4
+# default:
+CONFIG_ROUTER_WORK_QUEUE_SIZE=4096
+# default:
+CONFIG_ROUTER_URGENT_QUEUE_SIZE=1024
+# default:
+CONFIG_ROUTER_WORK_TASK_PRIO=5
+# default:
+CONFIG_ROUTER_WORK_TASK_STACK=6144
+# default:
+CONFIG_ROUTER_URGENT_TASK_PRIO=15
+# default:
+CONFIG_ROUTER_URGENT_TASK_STACK=6144
+# default:
+CONFIG_ROUTER_ERR_REQ_MAX=32
+# default:
+CONFIG_ROUTER_DEADMAN_DEFAULT_MS=0
+# end of router
+
+#
+# sys_actions
+#
+# default:
+CONFIG_SYS_ACTIONS_PARTITION="project"
+# default:
+CONFIG_SYS_ACTIONS_MAX_BYTES=4096
+# default:
+CONFIG_SYS_ACTIONS_MAX_DEPTH=3
+# end of sys_actions
+
+#
+# sys_ble
+#
+# default:
+CONFIG_SYS_BLE_DEVICE_NAME="runit"
 # default:
 CONFIG_SYS_BLE_GAP_APPEARANCE=0x0200
 # default:
-CONFIG_SYS_BLE_MAX_LINKED_CONNECTORS=2
-# end of BLE Manager Options
+CONFIG_SYS_BLE_TASK_PRIO=5
+# default:
+CONFIG_SYS_BLE_TASK_STACK=4096
+# default:
+CONFIG_SYS_BLE_TX_ITEM_MAX=512
+# default:
+CONFIG_SYS_BLE_APPLY_DELAY_MS=200
+# default:
+CONFIG_SYS_BLE_MAX_CONN_LISTENERS=4
+# end of sys_ble
 
 #
-# System Actions Options
+# sys_connector
 #
-CONFIG_SYS_ACTIONS_TAP_BUFFER_SIZE=2080
-CONFIG_SYS_ACTIONS_TAP_TASK_STACK=4096
-CONFIG_SYS_ACTIONS_TAP_TASK_PRIO=4
-CONFIG_SYS_ACTIONS_TAP_POLL_MS=20
 # default:
-CONFIG_SYS_ACTIONS_REQUEST_QUEUE_LEN=8
-CONFIG_SYS_ACTIONS_STATIC_SLOTS=16
+CONFIG_SYS_CONNECTOR_MAX=8
 # default:
-CONFIG_SYS_ACTIONS_MAX_BLOB_SIZE=2048
-# end of System Actions Options
+CONFIG_SYS_CONNECTOR_BINDINGS=3
+# default:
+CONFIG_SYS_CONNECTOR_PROVIDERS_MAX=4
+# default:
+CONFIG_SYS_CONNECTOR_FRAME_MAX=512
+# default:
+CONFIG_SYS_CONNECTOR_QUEUE_SIZE=4096
+# default:
+CONFIG_SYS_CONNECTOR_TASK_PRIO=4
+# default:
+CONFIG_SYS_CONNECTOR_TASK_STACK=4096
+# default:
+CONFIG_SYS_CONNECTOR_LOG_LINE_MAX=160
+# end of sys_connector
 
 #
-# System Data Connector Options
+# sys_device
 #
 # default:
-CONFIG_SYS_DATA_CONNECTOR_MAX=8
+CONFIG_SYS_DEVICE_MAX=64
 # default:
-CONFIG_SYS_DATA_PROVIDER_MAX=8
+CONFIG_SYS_DEVICE_TYPES=16
 # default:
-CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX=4
-# default:
-CONFIG_SYS_DATA_CONNECTOR_NAME_MAX=16
-# default:
-CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX=512
-# end of System Data Connector Options
+CONFIG_SYS_DEVICE_MAX_DEPS=4
+# end of sys_device
 
 #
-# System Device Options
-#
-CONFIG_SYS_DEVICE_MAX_ID=127
-# end of System Device Options
-
-#
-# Events (sys_event)
+# sys_event
 #
 # default:
-CONFIG_SYS_EVENT_MAX_SUBSCRIPTIONS=32
+CONFIG_SYS_EVENT_MAX_SUBS=32
 # default:
-CONFIG_SYS_EVENT_MAX_HOPS=4
+CONFIG_SYS_EVENT_MAX_RULES=16
 # default:
 CONFIG_SYS_EVENT_QUEUE_LEN=16
 # default:
-CONFIG_SYS_EVENT_TASK_STACK_SIZE=4096
+CONFIG_SYS_EVENT_MAX_HOPS=4
 # default:
-CONFIG_SYS_EVENT_TASK_PRIO=5
+CONFIG_SYS_EVENT_TASK_PRIO=6
 # default:
-CONFIG_SYS_EVENT_ROUTE_COUNT=8
-# end of Events (sys_event)
+CONFIG_SYS_EVENT_TASK_STACK=4096
+# end of sys_event
 
 #
-# System I2C Options
+# sys_i2c
 #
-CONFIG_SYS_I2C_DEFAULT_TIMEOUT_MS=50
-# end of System I2C Options
+# default:
+CONFIG_SYS_I2C_XFER_TIMEOUT_MS=50
+# default:
+CONFIG_SYS_I2C_PROBE_TIMEOUT_MS=50
+# default:
+CONFIG_SYS_I2C_GLITCH_IGNORE_CNT=7
+# default:
+CONFIG_SYS_I2C_REMOTE_BUS=1
+# default:
+CONFIG_SYS_I2C_REMOTE_RAW=y
 
 #
-# System Interface Options
+# Bus 0 (onboard chips)
 #
-CONFIG_SYS_INTERFACE_RX_TASK_STACK_SIZE=4096
-CONFIG_SYS_INTERFACE_RX_TASK_PRIO=5
-CONFIG_SYS_INTERFACE_RX_WAIT_MS=100
-CONFIG_SYS_INTERFACE_MAX_CLASSES=12
 # default:
-CONFIG_SYS_INTERFACE_RESPONSE_MAX=128
-# end of System Interface Options
+CONFIG_SYS_I2C_BUS0_ENABLE=y
+# default:
+CONFIG_SYS_I2C_BUS0_SDA=15
+# default:
+CONFIG_SYS_I2C_BUS0_SCL=16
+# default:
+CONFIG_SYS_I2C_BUS0_PULLUP=y
+# end of Bus 0 (onboard chips)
 
 #
-# System Power Management Options
+# Bus 1 (user connector)
 #
 # default:
-CONFIG_SYS_POWER_TASK_STACK_SIZE=4096
+CONFIG_SYS_I2C_BUS1_ENABLE=y
 # default:
-CONFIG_SYS_POWER_TASK_PRIO=4
+CONFIG_SYS_I2C_BUS1_SDA=40
 # default:
-CONFIG_SYS_POWER_TASK_PERIOD_MS=1000
+CONFIG_SYS_I2C_BUS1_SCL=41
 # default:
-CONFIG_SYS_POWER_MAX_CONSUMERS=4
-# default:
-CONFIG_SYS_POWER_BUDGET_STEP_MW=250
-# default:
-CONFIG_SYS_POWER_INPUT_WARNING_PCT=90
-# default:
-CONFIG_SYS_POWER_BATTERY_HYSTERESIS_PCT=3
-# end of System Power Management Options
+CONFIG_SYS_I2C_BUS1_PULLUP=y
+# end of Bus 1 (user connector)
+# end of sys_i2c
 
 #
-# System Project Store (stored code)
-#
-# default:
-CONFIG_SYS_PROJECT_PARTITION_LABEL="project"
-# default:
-CONFIG_SYS_PROJECT_CONFIG_MAX_BYTES=16384
-# default:
-CONFIG_SYS_PROJECT_MAX_BYTES=204800
-# default:
-CONFIG_SYS_PROJECT_CHUNK_SIZE=4000
-# default:
-CONFIG_SYS_PROJECT_LOAD_DELAY_MS=300
-# end of System Project Store (stored code)
-
-#
-# UART Console Link
+# sys_uart
 #
 # default:
 CONFIG_SYS_UART_TASK_PRIO=5
 # default:
-CONFIG_SYS_UART_TASK_STACK_SIZE=3072
+CONFIG_SYS_UART_TASK_STACK=3072
 # default:
 CONFIG_SYS_UART_DRIVER_RX_BUF=1024
-# default:
-CONFIG_SYS_UART_RX_QUEUE_SIZE=2048
-# end of UART Console Link
+# end of sys_uart
 
 #
 # Device: ESP32 native GPIO
@@ -3577,227 +3638,9 @@ CONFIG_DEVICE_GPIO_ESP_PWM_DEFAULT_FREQ_HZ=1000
 CONFIG_DEVICE_GPIO_ESP_PWM_TIMER_MASK=0xF
 # default:
 CONFIG_DEVICE_GPIO_ESP_PWM_CHANNEL_MASK=0xFF
+# default:
+CONFIG_DEVICE_GPIO_ESP_DEBOUNCE_MS=50
 # end of Device: ESP32 native GPIO
-
-#
-# runIT Board & Diagnostic Configuration
-#
-# default:
-CONFIG_RUNIT_UART_CONSOLE_LINK=y
-# end of runIT Board & Diagnostic Configuration
-
-#
-# Debug (DBG) Logging
-#
-# CONFIG_DBG_GLOBAL is not set
-# default:
-# CONFIG_DBG_ENABLE_SYS_ERRORS is not set
-# default:
-# CONFIG_DBG_ENABLE_SYS_INTERFACE is not set
-# default:
-# CONFIG_DBG_ENABLE_SYS_ACTIONS is not set
-# default:
-# CONFIG_DBG_ENABLE_VM is not set
-# default:
-# CONFIG_DBG_ENABLE_RUNIT is not set
-# end of Debug (DBG) Logging
-
-#
-# System-Wide Identity Assignments
-#
-
-#
-# Shared ID/slot registries coordinated across multiple components - not owned by a single module.
-#
-
-#
-# Event Route Slots
-#
-# default:
-CONFIG_SYS_EVENT_ROUTE_VM=0
-# end of Event Route Slots
-
-#
-# Static Action IDs
-#
-# default:
-CONFIG_SYS_ACTION_ID_BOOT=1
-# default:
-CONFIG_SYS_ACTION_ID_RESUME=3
-# default:
-CONFIG_SYS_ACTION_ID_SUSPEND=4
-# default:
-CONFIG_SYS_ACTION_ID_RESET=5
-# default:
-CONFIG_SYS_ACTION_ID_HARD_RESET=6
-# end of Static Action IDs
-
-#
-# Data Connector Registry
-#
-# default:
-CONFIG_SYS_DATA_CONN_ID_LOGS=0
-# default:
-CONFIG_SYS_DATA_CONN_ID_ERRORS=1
-# default:
-CONFIG_SYS_DATA_CONN_ID_TELEMETRY=2
-# default:
-CONFIG_SYS_DATA_CONN_ID_INTERFACE=3
-# default:
-CONFIG_SYS_DATA_CONN_ID_APP_BASE=4
-# default:
-CONFIG_SYS_DATA_PROVIDER_ID_BLE=1
-# default:
-CONFIG_SYS_DATA_PROVIDER_ID_UART=2
-# end of Data Connector Registry
-
-#
-# Wire protocol: every frame leads with a PACKET_CLASS byte (what data/module it is). A PACKET_HEADER byte follows only when that class carries more than one packet type.
-#
-
-#
-# RX Packet Classes (inbound, sys_interface_decode dispatch)
-#
-# default:
-CONFIG_RX_PACKET_CLASS_SYS_CONTRACTS=0x01
-# default:
-CONFIG_RX_PACKET_CLASS_SETTINGS_BLE=0x02
-# default:
-CONFIG_RX_PACKET_CLASS_SYS_ACTIONS=0x03
-# default:
-CONFIG_RX_PACKET_CLASS_VM_LOADER=0x04
-# default:
-CONFIG_RX_PACKET_CLASS_SETTINGS_DATA_CONNECTOR=0x06
-# default:
-CONFIG_RX_PACKET_CLASS_SETTINGS_LOGS=0x07
-# default:
-CONFIG_RX_PACKET_CLASS_SETTINGS_POWER=0x08
-# default:
-CONFIG_RX_PACKET_CLASS_SYS_EVENTS=0x09
-# default:
-CONFIG_RX_PACKET_CLASS_SETTINGS_PROJECT=0x0A
-# end of RX Packet Classes (inbound, sys_interface_decode dispatch)
-
-#
-# TX Packet Classes (outbound, sys_data_connector stream framing)
-#
-# default:
-CONFIG_TX_PACKET_CLASS_STATUS=0x01
-# default:
-CONFIG_TX_PACKET_CLASS_TELEMETRY=0x02
-# default:
-CONFIG_TX_PACKET_CLASS_LOGS=0x03
-# default:
-CONFIG_TX_PACKET_CLASS_ERRORS=0x04
-# default:
-CONFIG_TX_PACKET_CLASS_INTERFACE=0x05
-# default:
-CONFIG_TX_PACKET_CLASS_VM_LOADER=0x04
-# end of TX Packet Classes (outbound, sys_data_connector stream framing)
-
-#
-# RX Packet Headers (inbound, per-class packet dispatch)
-#
-# default:
-CONFIG_RX_PACKET_HEADER_VM_SUBSCRIBE=0x47
-# end of RX Packet Headers (inbound, per-class packet dispatch)
-
-#
-# TX Packet Headers (outbound, per-class packet dispatch)
-#
-# default:
-CONFIG_TX_PACKET_HEADER_VM_SET_DATA=0x43
-# default:
-CONFIG_TX_PACKET_HEADER_VM_DESCRIBE=0x42
-# end of TX Packet Headers (outbound, per-class packet dispatch)
-# end of System-Wide Identity Assignments
-
-#
-# System Errors Options
-#
-# default:
-CONFIG_SYS_ERRORS_BUF_SIZE=1024
-# default:
-CONFIG_SYS_ERRORS_BLOCK_SIZE=32
-# default:
-CONFIG_SYS_ERRORS_LOG_LINE_MAX=512
-# default:
-CONFIG_SYS_ERRORS_MAX_DOMAIN_HOOKS=8
-# default:
-CONFIG_SYS_ERRORS_LOG_QUEUE_LEN=4
-# default:
-CONFIG_SYS_ERRORS_REPEAT_WINDOW_MS=2000
-# default:
-CONFIG_SYS_ERRORS_REPEAT_SLOTS=4
-# default:
-CONFIG_SYS_ERRORS_LOG_TASK_STACK_SIZE=4096
-# default:
-CONFIG_SYS_ERRORS_LOG_TASK_PRIO=2
-# default:
-CONFIG_SYS_ERRORS_PACKET_MAX=512
-# end of System Errors Options
-
-#
-# VM Configuration
-#
-
-#
-# VM Execution & Scheduling
-#
-# default:
-CONFIG_VM_EXEC_TASK_PRIO=5
-# default:
-CONFIG_VM_EXEC_TASK_CORE=1
-# default:
-CONFIG_VM_EXEC_MAX_SPAN_DEPTH=4
-# default:
-CONFIG_VM_EXEC_BLOCK_WD_MS=20
-# default:
-CONFIG_VM_EVENT_DEPTH=16
-# default:
-CONFIG_VM_OVERRIDE_BUF_SIZE=1024
-# end of VM Execution & Scheduling
-
-#
-# VM Retained Values
-#
-# default:
-CONFIG_VM_RETAIN_PERIOD_S=60
-# default:
-CONFIG_VM_RETAIN_MAX_BYTES=1024
-# default:
-CONFIG_VM_RETAIN_TASK_STACK=3072
-# default:
-CONFIG_VM_RETAIN_TASK_PRIO=2
-# end of VM Retained Values
-
-#
-# VM Block & Memory Limits
-#
-# default:
-CONFIG_VM_BLOCK_MAX_IN=16
-# default:
-CONFIG_VM_BLOCK_MAX_OUT=16
-# default:
-CONFIG_VM_BLOCK_MAX_EN=16
-# default:
-CONFIG_VM_STORE_MAX_POOL=131072
-# default:
-CONFIG_VM_ACCESSOR_MAX_DEPTH=8
-# default:
-CONFIG_VM_OBJ_COPY_MAX_DEPTH=8
-# default:
-CONFIG_VM_DYN_MAX=128
-# default:
-CONFIG_VM_DYN_MAX_DEPTH=16
-# default:
-CONFIG_VM_SUB_MAX_SUBSCRIBERS=128
-# default:
-CONFIG_VM_SUB_MAX_FRAME_LEN=512
-# default:
-CONFIG_VM_SUB_MAX_TRACKED=256
-# end of VM Block & Memory Limits
-# end of VM Configuration
 # end of Component config
 
 # CONFIG_IDF_EXPERIMENTAL_FEATURES is not set
@@ -3859,7 +3702,7 @@ CONFIG_NIMBLE_MAX_CONNECTIONS=3
 CONFIG_NIMBLE_MAX_CCCDS=8
 # CONFIG_NIMBLE_CRYPTO_STACK_MBEDTLS is not set
 # CONFIG_NIMBLE_HS_FLOW_CTRL is not set
-CONFIG_NIMBLE_ATT_PREFERRED_MTU=256
+CONFIG_NIMBLE_ATT_PREFERRED_MTU=527
 CONFIG_NIMBLE_L2CAP_COC_MAX_NUM=0
 CONFIG_BT_NIMBLE_MSYS1_BLOCK_COUNT=12
 CONFIG_BT_NIMBLE_ACL_BUF_COUNT=24

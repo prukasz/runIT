@@ -66,7 +66,7 @@ Console: UART on GPIO 43/44 via the board's USB-UART bridge, 115200 baud.
 
 Project Kconfig files: `components/{runit,utils,VM,sys_errors}/Kconfig`, `components/system/{ble,sys_event,sys_actions,sys_data_connector,sys_device,sys_i2c,sys_interface,sys_power}/Kconfig`.
 
-**Editing a `Kconfig` file does not trigger reconfiguration on `idf.py build`.** Verified: after touching `components/utils/Kconfig`, the build was a 2 s no-op. So:
+**Editing a `Kconfig` file does not trigger reconfiguration on `idf.py build`.** Verified: after touching `components/core/utils/Kconfig`, the build was a 2 s no-op. So:
 
 | You changed | Run | Why |
 |---|---|---|
@@ -101,7 +101,39 @@ Without it, clangd parses headers for the host (MSVC) target instead of `xtensa-
 
 ## 6. Tests
 
-### Hardware tests over the console UART link
+### Router suite (new firmware) — QEMU first, then the board
+
+[scripts/router_link.py](scripts/router_link.py) is the host side of the router protocol (`#R:` lines, `[seq][flags][keys][payload]`, error records, streams; tag names parsed from the firmware's X-macro maps). [scripts/router_tests.py](scripts/router_tests.py) is the suite: sys (ping, urgent, dead-man, stop, restart), router errors (record, route nodes, frame length), errors stream, i2c, conn, ble, devices (GPIO ESP, PCA9685), actions (record with / without execute, upload, read, rename, list, nested run, depth, errors, survives restart), events (rules → action through the internal link, notify stream, IDs, table full). Results 2026-10-10 (QEMU, with the ADC workaround below): 142/143, the one failure is GPIO readback; after the registry refactor (generic CREATE / REMOVE / INFO / OPS, self-registered types) and GPIO interrupts: 147/148, same failure; after declared dependencies + `sys_event_post`: 150/151, same failure. **Board (COM11, native USB, only GPIO ESP, 2026-10-10, after the `cmd` split and the `core/` regroup): 167/167**, also right after a reset (see "Opening the port resets the board" below); `GET_LEVEL = 1` passes on hardware, and `test_gpio_intr` runs the real edges: the output's own falling edge → GPIO ISR → event → rule → action. `test_gpio_intr` skips the edge checks on `--target qemu` (no GPIO readback). Run with the IDF venv Python.
+
+**QEMU** (Espressif QEMU 9.2.2, `qemu-xtensa` tool, already installed under `C:\Espressif\tools\tools\qemu-xtensa`). QEMU has no BT controller (its init asserts), so it has its own build with `CONFIG_RUNIT_BLE_START=n` from `sdkconfig.qemu.defaults`:
+
+```powershell
+idf.py -B build_qemu -D SDKCONFIG=build_qemu/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig;sdkconfig.qemu.defaults" build
+cd build_qemu; python -m esptool --chip esp32s3 merge-bin --fill-flash-size 16MB -o qemu_flash.bin "@flash_args"
+# qemu_efuse.bin: 1024 B, the esp32s3 default from idf_py_actions/qemu_ext.py (chip rev 0.3)
+qemu-system-xtensa -M esp32s3 -m 32M -drive file=qemu_flash.bin,if=mtd,format=raw `
+  -drive file=qemu_efuse.bin,if=none,format=raw,id=efuse -global driver=nvram.esp32s3.efuse,property=drive,value=efuse `
+  -nographic -serial tcp::5555,server          # waits for the client, so the boot log is not lost
+python router_tests.py --port socket://localhost:5555 --target qemu
+```
+
+`--target qemu` skips BLE runtime changes. I2C bus 1 scan reports `ERR_I2C_BUS_STUCK` under QEMU (no devices / pull-ups) — expected. GPIO `GET_LEVEL = 1` fails under QEMU (no GPIO readback) — expected.
+
+**QEMU hangs at boot since `esp_adc` is linked** (device_gpio_esp's ADC): IDF's constructor `adc_hw_calibration` waits for SAR ADC hardware QEMU doesn't emulate; the log stops after the `eFuse: calibration efuse version` line. No Kconfig turns it off. Workaround: start QEMU with `-gdb tcp::1234 -S`, connect the suite first (the serial server waits for it), then keep [scripts/qemu_skip_adc_cal.gdb](scripts/qemu_skip_adc_cal.gdb) attached — it returns early from that constructor on every boot (so the RESTART test works too):
+
+```powershell
+xtensa-esp32s3-elf-gdb -batch -x qemu_skip_adc_cal.gdb ..\..\..\..\build_qemu\runIT.elf   # C:\Espressif\tools\xtensa-esp-elf-gdb\<ver>\xtensa-esp-elf-gdb\bin
+```
+
+`qemu-system-xtensa` is not on PATH after the IDF profile: call it as `C:\Espressif\tools\tools\qemu-xtensa\<ver>\qemu\bin\qemu-system-xtensa.exe`.
+
+**Opening the port resets a USB-Serial-JTAG board** (the PCB, COM4 / COM11: pyserial toggles DTR / RTS), so the first command of every run reaches a board that is booting. The boot log is dropped mid-line while nobody reads it, and the first answer then arrives glued to the fragment (`…size#R:0501…`). `router_link.py` takes the frame from the **last `#R:` in the line** and keeps the text before it as log (before 2026-10-10 it required the line to *start* with `#R:`, and a suite right after a reset lost its first PING: 165/167 twice; `sys_uart`'s own parser has the same strictness, but a host sending into a quiet line never hits it). After a flash or `esptool … hard-reset`, wait ~4 s before starting a suite.
+
+**Single packets by hand**: [scripts/router_send.py](scripts/router_send.py) — `python router_send.py --port COM10 "01 01" "u 01 01" "02 02 01" "raw 07"`. Each argument is keys + payload in hex (seq and flags are added; `u ` = urgent, `raw ` = bytes as-is). It prints the TX line, the decoded response, and the stream frames and log lines that arrived meanwhile (`--wait` seconds).
+
+**Board**: `idf.py -p COM10 flash`, then `python router_tests.py --port COM10`. Results 2026-10-09: QEMU 36/36, board 47/47 with BLE CHAR_REMOVE (BLE advertises as "runit"; not covered yet: a BLE client — fragmentation, LOGS stream over BLE).
+
+### Legacy hardware tests over the console UART link
 
 `CONFIG_RUNIT_UART_CONSOLE_LINK=y` makes the console UART a command link ([SYS_UART.MD](../../../components/system/sys_uart/SYS_UART.MD)): frames are `#R:<hex>` lines next to the log. Run the scripts with the IDF venv Python (`C:\Espressif	ools\python6.1env\Scripts\python.exe`); `--reset` reboots the board first.
 

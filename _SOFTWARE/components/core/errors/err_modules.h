@@ -1,0 +1,21 @@
+#pragma once
+
+/**
+ * @file err_modules.h
+ * @brief Error module IDs (high 16 bits of every tag) - the one place they are
+ * assigned, so they stay unique across the firmware. Add a new module at the
+ * end; never renumber. Included by errors.h.
+ */
+
+#define ERR_MOD_CORE 0u     // errors itself (errors.h)
+#define ERR_MOD_SYS_I2C 1u  // components/sys/sys_i2c
+#define ERR_MOD_ROUTER 2u   // components/core/router
+#define ERR_MOD_SYS_UART 3u // components/sys/sys_uart
+#define ERR_MOD_SYS_BLE 4u  // components/sys/sys_ble
+#define ERR_MOD_SYS_CONNECTOR 5u  // components/sys/sys_connector
+#define ERR_MOD_SYS_DEVICE 6u     // components/sys/sys_device (also the errors shared by all devices)
+#define ERR_MOD_SYS_IO 7u         // components/sys/sys_io (the IO contract: errors of devices with pins)
+#define ERR_MOD_SYS_ACTIONS 8u    // components/sys/sys_actions
+#define ERR_MOD_SYS_EVENT 9u      // components/sys/sys_event
+#define ERR_MOD_SYS_POWER 10u     // components/sys/sys_power (the power contracts: monitor, vreg)
+#define ERR_MOD_CMD 11u           // components/core/cmd (the errors every command handler raises: payload size, answer size, argument)

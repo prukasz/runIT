@@ -30,6 +30,23 @@ runIT is a plug-and-play framework for hobbyists spanning hardware, firmware and
 | Path | Contents |
 |---|---|
 | `main/` | ESP-IDF entry (`main.c`) |
+| `components/core/` | Foundation, no hardware: `utils` (RTOS macros, transport IDs), `errors` (error chain, pool, tags), `cmd` (command handler type, `cmd_reply`, `ERR_CMD_*`), `router` (links, dispatch, key tables) — each with a `*.MD` |
+| `components/sys/` | System modules and the contracts devices implement: `sys_device` (registry), `sys_io` (IO + PINS contracts), `sys_power` (power contracts), `sys_event`, `sys_actions`, `sys_connector`, `sys_i2c`, `sys_ble`, `sys_uart` — each with a `SYS_*.MD` |
+| `components/devices/` | One component per chip (`device_<chip>/`: create struct in the header, everything else in `device_<chip>.c`, `DEVICE_<CHIP>.MD`). Ported so far: GPIO ESP, PCA9685, TPS55289 |
+| `legacy/` | The previous implementation (firmware components and entry point, app), reference only (`legacy/README.md`). Not ported yet: VM, codecs, board config, `sys_hbridge`, `sys_settings`, `sys_project`, the other devices |
+| `data-structures/` |
+
+`runit-esp` is complete (VM docs in its `vm/` subfolder); `runit-app` is a stub. The old skills they replace are backed up outside the repo in `../_agents_backup_2026-09-22/` — not loaded automatically.
+
+## 2. Project in one paragraph
+
+runIT is a plug-and-play framework for hobbyists spanning hardware, firmware and an app. **runIT-ESP32** (FreeRTOS/ESP-IDF, ESP32-S3) exposes all hardware through device-agnostic **contracts** implemented by per-chip **devices**, streams interface-agnostic byte **packets** (BLE now, Wi-Fi/LoRa later), enforces a nested **error chain**, and runs a PLC/Node-RED-style **VM** (objects, accessors, blocks) uploaded live without reflashing, with a bidirectional **remote-control** mode. **Features** (servo, H-bridge, …) build higher-level functions on devices. The **runIT board** integrates PD/LiPo power, programmable regulators, H-bridges, 20 V ADC and a PWM expander. The **runIT app** is remote, debugger, configurator and block IDE — the end user never writes code.
+
+## 3. Repo map (`_SOFTWARE/`)
+
+| Path | Contents |
+|---|---|
+| `main/` | ESP-IDF entry (`main.c`) |
 | `components/system/` | Core system modules: `sys_device`, `sys_io`, `sys_power`, `sys_i2c`, `ble`, `sys_interface`, `sys_data_connector`, `sys_actions`, `sys_buffers`, `sys_event`, `sys_hbridge`, `sys_settings` — each with a `*.MD` doc |
 | `components/devices/` | One file per device (`device_<chip>/device_<chip>.c`) + a public header with the class and the create frame (`devices/` aggregates them) |
 | `components/VM/` | Flow-language VM (`core/`, `blocks/`, `VM.MD`, `VM_EXEC.MD`) |
@@ -38,7 +55,9 @@ runIT is a plug-and-play framework for hobbyists spanning hardware, firmware and
 | `components/runit/` | Board config/defs, startup |
 | `components/utils/` | Static-allocation `R_*` macros, Kconfig |
 | `data-structures/` | C-annotation → JSON generators (`auto-annotations/`), schemas, `*.generated.json` consumed by the app (see its `AGENTS.md`) |
-| `app/` | runIT app: Vite + React 19 + TypeScript + Tailwind; `src/backend/` (ble, packetPack, stream) |
+| `app/` | runIT app. Empty in this tree for now: the previous app (Vite + React 19 + TypeScript + Tailwind) is in `legacy/app/` |
+
+**Layers** (a group depends only on the ones before it): `core` → `sys` → `devices`; `main` composes them (router keys, boot order). Components are found through `EXTRA_COMPONENT_DIRS` in the root `CMakeLists.txt`: a new component goes into the group of its layer, and no path is listed anywhere else.
 
 ## 4. Commands
 

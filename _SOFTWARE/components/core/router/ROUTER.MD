@@ -1,0 +1,139 @@
+# router — remote command routing (for agents)
+
+Component `components/core/router/`. Every remote command (phone, test host, later other devices) arrives on a **link**, is queued by the **dispatcher**, and is routed through a tree of **routers**: a root table of keys, then each module's own router. Replaces legacy `sys_interface` + `codecs` (class/packet bytes, central decoders).
+
+## Files
+
+| File | Role |
+|---|---|
+| `router.h` | Wire format, error tags, routing helpers, links, safe state, dead-man. The handler type `cmd_f`, `cmd_reply` and `ERR_CMD_*` are in `components/core/cmd` (CMD.MD) |
+| `router_ids.h` | Root keys (`ROUTER_KEY_*`) — the one place they are assigned. Links are registered under an ID the app assigns, today the transport IDs (`transport_e` in `components/sys/sys_connector/sys_connector.h`); the router itself takes any ID in `1..CONFIG_ROUTER_MAX_LINKS` |
+| `router.c` | Root table, `router_route`, `router_call` / `router_args` / `router_args_tail` (op macros in `router.h`) |
+| `router_dispatch.c` | Links, `router_submit`, urgent + work tasks, responses, safe state, dead-man |
+| `router_err.c` | `router_err_record` — error record (request + chain) |
+| `router_sys.c` | `sys` router (`ROUTER_KEY_SYS`) |
+| `Kconfig` | Frame size, response stream byte, table sizes, queues, task prio/stack, dead-man default |
+
+## Wire format
+
+```
+request   [seq][flags][root key][key]...[payload]
+response  [0x05][seq][status][data]        (CONFIG_ROUTER_RESPONSE_STREAM)
+```
+
+- `seq`: client's counter, echoed; the client matches answers by it (answers may come out of order — urgent frames overtake).
+- `flags` bit 0 `ROUTER_FLAG_URGENT`: **the app decides** what is urgent; the firmware has no list.
+- `status` 0 OK: `data` = router output (may be empty). 1 error: `data` = the **error record** (below): the request and its error chain together, so a captured or stored error is self-contained.
+- Payloads are packed little-endian structs, size checked exactly (`router_args`).
+
+## Error record
+
+`router_err_record(cmd, err, buf, cap)` (`router_err.c`). Used for every error response and, through the error sink in `main`, for every record on the errors stream (SYS_CONNECTOR.MD).
+
+```
+[src u8]                                    0 internal (no request), 1 command
+src 1: [link u8][peer u32 LE][seq u8][flags u8]
+       [req_len u8]  bits 0-6 = request bytes that follow, bit 7 = request cut
+       [request]     keys + payload as received (no seq / flags)
+[chain]                                     err_encode(): [count|bit7 cut] then [tag u32][sev][len][payload] per node
+```
+
+- The request is cut to `CONFIG_ROUTER_ERR_REQ_MAX` (32) bytes, and further when the link's frame is small; the chain gets the rest (its own truncated bit).
+- The chain starts with the route (`ERR_ROUTER_KEY{key}` per level, NONE severity) and ends with the root cause, so it shows how far routing got; the request shows what was asked.
+- Command errors end in `err_report_ex(err, ctx_line, &cmd)`: the log gets a context line before the chain (`cmd uart seq 7 flags 00 req 02 02 00`) and the sink gets the command as origin, so the errors stream carries the same record as the response.
+- `src 0` (internal: device task, dead-man, boot) has no command part yet; later a device ID / task may follow.
+
+Example — scan of bus 0 (only bus 1 is open):
+
+```
+request   07 00 | 02 02 00                           seq 7, normal, i2c SCAN bus 0
+response  05 07 01                                   stream, seq, ERROR
+          01 | 01 | 00 00 00 00 | 07 | 00             command, UART, peer 0, seq 7, flags 0
+          03 | 02 02 00                               request: 3 B
+          03                                          chain: 3 nodes
+          01 00 02 00 00 01 02                        ERR_ROUTER_KEY        NONE  key 02 (i2c)
+          01 00 02 00 00 01 02                        ERR_ROUTER_KEY        NONE  key 02 (SCAN)
+          10 00 01 00 02 01 00                        ERR_I2C_REMOTE_DENIED MEDIUM bus 0
+UART      #R:05070101010000000007000302020003010002000001020100020000010210000100020100
+```
+
+## Routing
+
+- A module router is a `cmd_f` (CMD.MD): `in` starts at **this router's key**. A module router consumes its key and calls `router_call(table, n, ctx, in + 1, in_len - 1, …)`, which looks up the next key, calls that entry with the same `ctx`, and wraps a failure in `ERR_ROUTER_KEY{key}`. So every level shows in the error chain.
+- **Writing ops**: the native C API stays the source (typed, no packing on internal calls, callbacks and handles); an op only adapts it. Use the macros, not hand-written `cmd_f`s:
+  - `ROUTER_OP(fn, args_t) { … }`: fixed packed payload, the body gets `a` (`const args_t*`).
+  - `ROUTER_OP_NOARGS(fn) { … }`: no payload.
+  - `ROUTER_OP_TAIL(fn, hdr_t) { … }`: header plus a variable tail (`tail`, `tail_len` ≥ 1), e.g. a NUL-ended name or data bytes.
+  - `ROUTER_MODULE(fn, k_ops)`: writes the module's `cmd_f` (prefix `static` for a file-local one); `ROUTER_MODULE_DECLARE(fn);` declares it in the module's `*_router.h`.
+  Bodies also see `ctx`, `out`, `out_cap`, `out_len` (answer with `cmd_reply`). The length check (`ERR_CMD_BAD_LEN`) is done before the body runs. Remote-only policy (e.g. `ERR_I2C_REMOTE_DENIED`) belongs in the body, not in the native API. Example: `sys_ble_router.c`.
+- Root: `router_register(key, fn)` at boot (before `router_init`), from the app layer (`main` now, the composition root later). Modules never register themselves; a module only exports its `cmd_f` (e.g. `sys_i2c_router` in `sys_i2c_router.h`).
+- `out_cap` is already limited to what the origin link carries right now; answers use `cmd_reply` (`ERR_CMD_OUT_FULL` when too big).
+  - `ROUTER_OP_DATA(fn) { … }`: the whole payload is variable (a name, data bytes), `tail_len` ≥ 1.
+- `router_route(in, …)` is also the entry for replay of stored frames (actions; later project).
+- **Concurrency**: urgent and normal frames run at the same time on two tasks, so module routers must be thread-safe (guard their own state).
+
+## Dispatcher
+
+```
+link RX task ── router_submit(link, peer, frame) ──► copy into ring buffer
+                    ├─ flags & URGENT ─► urgent ring ─► urgent task (prio 15)
+                    └─ else ───────────► work ring ───► work task (prio 5)
+                                                         └─► router_route ─► answer ─► link->send(peer)
+```
+
+- Links: `router_link_register(id, &{name, send, max_frame})`, never removed. `peer` tells clients on one link apart (0 if one). `send` must be thread-safe (both tasks answer).
+- `router_submit` copies the frame (ring buffer, zero extra copy), never blocks. A frame that can't be queued (too short/long: `ERR_ROUTER_FRAME_LEN`, ring full: `ERR_ROUTER_QUEUE_FULL`) is answered with an error right away and reported with its command; `router_submit` then returns NULL (it returns only misuse: bad link / argument).
+- Each task has its own static response buffer. Errors of routed frames are answered (error record) and reported with their command (log + errors stream).
+
+### Internal link, tap, origin
+
+- **Link 0 (`ROUTER_LINK_INTERNAL`)** is the board itself. `router_inject(req, len, urgent)` queues keys + payload (seq from an internal counter, flags from `urgent`) on the same rings and tasks as link frames; answers are dropped, errors are still reported (link `internal`). Injected frames don't feed the dead-man. Task context, never blocks (`ERR_ROUTER_QUEUE_FULL`, `ERR_ROUTER_FRAME_LEN`). `router_submit` refuses link 0.
+- **Tap** `router_set_tap(&{take, seen})` (boot, by the app; one): `take(cmd)` runs before routing — true = answered OK with no data and not routed; `seen(cmd, result)` after routing a frame that wasn't taken. Both run on the routing task, for every link. Used by the actions recorder (SYS_ACTIONS.MD).
+- **Origin** `router_origin()`: the command the calling task is routing (link, peer, request), NULL outside the router tasks; inside a replay it is still the outer command. Lets an op know who sent it (RECORD_START records that client).
+
+## Safe state and dead-man
+
+- `router_set_safe_state(fn)`: the app's handler (VM stop, devices suspended — the app knows what "safe" is). Runs on the urgent task. Today `main` registers a log-only placeholder.
+- Triggers: sys `STOP` (in whichever task the client chose — send it urgent), dead-man timeout, link lost.
+- **Dead-man** (runtime, not stored, default `CONFIG_ROUTER_DEADMAN_DEFAULT_MS` = off): `router_deadman_set(timeout_ms, on_link_lost)`. Any frame from any link re-arms a one-shot timer; on expiry the safe state is entered once (until the next frame). With `on_link_lost`, `router_link_lost(link)` (BLE disconnect) triggers it at once. The timer callback only notifies the urgent task (the handler may block on I/O).
+
+## sys router (`ROUTER_KEY_SYS` = 0x01)
+
+| Op | Request | Response |
+|---|---|---|
+| `0x01` PING | – | `u32 uptime_ms` |
+| `0x02` STOP | – | – (safe state, reason STOP) |
+| `0x03` RESTART | – | – (restart ~100 ms after the answer) |
+| `0x04` DEADMAN_SET | `u32 timeout_ms, u8 on_link_lost` | – |
+| `0x05` DEADMAN_GET | – | same struct |
+
+Example over UART: `#R:07010101` = seq 7, flags 1 (urgent), sys, PING → `#R:050700<uptime LE>`.
+
+## Errors (`ERR_MOD_ROUTER` = 2)
+
+`ERR_ROUTER_KEY` (NONE, route context), `_NO_KEY`, `_UNKNOWN_KEY`, `_KEY_TAKEN`, `_TABLE_FULL`, `_BAD_LINK` (HIGH), `_QUEUE_FULL`, `_FRAME_LEN` (MEDIUM). Map in `router.h`. The payload errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG` (`ERR_MOD_CMD` = 11, CMD.MD) were tags 4, 5 and 11 of this module: they moved, and those numbers stay retired here.
+
+## Root keys and links
+
+| Key | Router | Doc |
+|---|---|---|
+| `0x01` sys | `router_sys.c` | above |
+| `0x02` i2c | `sys_i2c_router` | SYS_I2C.MD "Remote" |
+| `0x03` ble | `sys_ble_router` | SYS_BLE.MD "Remote" |
+| `0x04` conn | `sys_connector_router` | SYS_CONNECTOR.MD "Remote" |
+| `0x05` device | `sys_device_router` | SYS_DEVICE.MD: `[id u16][op u16][args]` (ops dispatched by `sys_device_dispatch`, not `router_call`) |
+| `0x06` actions | `sys_actions_router` | SYS_ACTIONS.MD |
+| `0x07` events | `sys_event_router` | SYS_EVENT.MD (rules, test publish) |
+
+| Link (transport ID) | Component |
+|---|---|
+| `0` internal | the router itself (`router_inject`) |
+| `1` UART | `sys/sys_uart` (SYS_UART.MD) — `#R:` hex lines |
+| `2` BLE | `sys/sys_ble` (SYS_BLE.MD) — RX 0xFFE2 / TX 0xFFE1, fragment header per packet |
+
+## Open
+
+- Links stay commands-only; each transport also registers a connector provider under the same ID for outbound streams (SYS_CONNECTOR.MD).
+- `err_encode` truncation drops the innermost nodes first, i.e. the root cause; on a small link (BLE before the MTU exchange) a deep chain may lose its cause. Consider keeping the last node when cutting.
+- Host test script `runit_link.py` still speaks the legacy format (`[seq][class][packet]`, response `[05][seq][class][packet][status]`).
+- `router_inject`: caller = event rules (`sys_actions_request`), tested through events PUBLISH → rule → action.

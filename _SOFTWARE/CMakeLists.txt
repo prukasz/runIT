@@ -6,15 +6,12 @@ endif()
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
-# Ignore the VM folder totally
+# Components are grouped by layer (each group depends only on the ones above it):
+#   components/core/<name>             foundation: utils, errors, cmd, router (no hardware, no modules)
+#   components/sys/<sys_module>        system modules and the contracts devices implement
+#   components/devices/device_<chip>   one driver per chip
+list(APPEND EXTRA_COMPONENT_DIRS "components/core")
+list(APPEND EXTRA_COMPONENT_DIRS "components/sys")
+list(APPEND EXTRA_COMPONENT_DIRS "components/devices")
 
-# Point directly to the folders in your project root
-list(APPEND EXTRA_COMPONENT_DIRS
-    "components/system"
-    "components/devices"
-    "components/runit"
-    "components/utils"
-    "components/sys_errors"
-    "components/codecs"
-)
 project(runIT)

@@ -1,0 +1,26 @@
+menu "sys_device"
+
+    config SYS_DEVICE_MAX
+        int "Registered devices"
+        default 32
+        range 1 1024
+        help
+          How many devices can be registered at once (any IDs 0..0xFFFE).
+          One entry is an ID, a type and its struct pointer (8 bytes).
+
+    config SYS_DEVICE_TYPES
+        int "Device types"
+        default 16
+        range 1 255
+        help
+          Device types that can be registered (one router each).
+
+    config SYS_DEVICE_MAX_DEPS
+        int "Devices one device may use"
+        default 4
+        range 1 16
+        help
+          Distinct devices one device declares with sys_device_use() (the
+          devices its pins are on, ...). Pins on the same device count once.
+
+endmenu

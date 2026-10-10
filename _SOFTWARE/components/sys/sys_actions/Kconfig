@@ -1,0 +1,27 @@
+menu "sys_actions"
+
+    config SYS_ACTIONS_PARTITION
+        string "NVS partition"
+        default "project"
+        help
+          NVS data partition (partitions.csv) whose "actions" namespace holds
+          the stored actions, one blob per action (name + image), key "a<id>".
+
+    config SYS_ACTIONS_MAX_BYTES
+        int "Largest action (bytes)"
+        default 4096
+        range 256 16384
+        help
+          Largest image (frames with their u16 length). Also the static buffer
+          a recording or upload is built in (+ 16 bytes for the name).
+
+    config SYS_ACTIONS_MAX_DEPTH
+        int "Nested runs"
+        default 3
+        range 1 8
+        help
+          How deep a RUN inside an action may nest. Each level holds its image
+          and a router frame of heap, and a few hundred bytes of the router
+          task's stack.
+
+endmenu

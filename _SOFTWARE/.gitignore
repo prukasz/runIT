@@ -1,10 +1,13 @@
 build/
+build_qemu/
+build_mtu/
 managed_components/
 dependencies.lock
 
 .vscode/
 .devcontainer/
 
+.venv/
 __pycache__/
 *.pyc
 

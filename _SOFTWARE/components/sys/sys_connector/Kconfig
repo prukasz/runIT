@@ -1,0 +1,59 @@
+menu "sys_connector"
+
+    config SYS_CONNECTOR_MAX
+        int "Connectors"
+        default 8
+        range 5 32
+        help
+          Registry slots: 4 system connectors (logs, errors, telemetry,
+          events) and user connectors from SYS_CONNECTOR_APP_BASE (4).
+
+    config SYS_CONNECTOR_BINDINGS
+        int "Bindings per connector"
+        default 3
+        range 1 8
+
+    config SYS_CONNECTOR_PROVIDERS_MAX
+        int "Highest provider ID"
+        default 4
+        range 2 16
+        help
+          Providers register under their transport ID 1..this.
+
+    config SYS_CONNECTOR_FRAME_MAX
+        int "Largest frame (bytes)"
+        default 512
+        range 64 4096
+        help
+          Largest frame (stream byte included) a connector sends. Static
+          buffer of this size in the connector task.
+
+    config SYS_CONNECTOR_QUEUE_SIZE
+        int "Queue (bytes)"
+        default 4096
+        range 1024 32768
+        help
+          Ring buffer of payloads waiting for the connector task; each takes
+          its length + ~12 bytes. A full queue drops sends. Multiple of 4.
+
+    config SYS_CONNECTOR_TASK_PRIO
+        int "Task priority"
+        default 4
+        range 1 24
+        help
+          Below the router tasks: streams wait, commands don't.
+
+    config SYS_CONNECTOR_TASK_STACK
+        int "Task stack (bytes)"
+        default 4096
+        range 2048 32768
+
+    config SYS_CONNECTOR_LOG_LINE_MAX
+        int "Captured log line (bytes)"
+        default 160
+        range 32 480
+        help
+          Log lines sent to the logs connector are cut to this. Formatted on
+          the stack of the task that logs.
+
+endmenu

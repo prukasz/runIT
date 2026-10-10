@@ -1,0 +1,4 @@
+# QEMU build overlay (applied after sdkconfig):
+#   idf.py -B build_qemu -D SDKCONFIG=build_qemu/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig;sdkconfig.qemu.defaults" build
+# QEMU has no Bluetooth controller.
+CONFIG_RUNIT_BLE_START=n

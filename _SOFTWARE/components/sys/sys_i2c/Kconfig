@@ -1,0 +1,99 @@
+menu "sys_i2c"
+
+    config SYS_I2C_XFER_TIMEOUT_MS
+        int "Transfer timeout (ms)"
+        default 50
+        range 5 5000
+        help
+          Timeout of one transfer (write, read, write-read), including the wait
+          for the bus lock when another task is using the bus.
+
+    config SYS_I2C_PROBE_TIMEOUT_MS
+        int "Probe timeout (ms)"
+        default 50
+        range 5 5000
+        help
+          Timeout of the address probe done by sys_i2c_dev_add() and
+          sys_i2c_probe().
+
+    config SYS_I2C_GLITCH_IGNORE_CNT
+        int "Glitch filter (I2C module clock cycles)"
+        default 7
+        range 0 7
+        help
+          Pulses on SDA/SCL shorter than this are ignored. Applies to both buses.
+
+    config SYS_I2C_REMOTE_BUS
+        int "Bus open to remote scan / reset / raw access"
+        default 1
+        range 0 1
+        help
+          The only bus the i2c router (ROUTER_KEY_I2C) scans, resets or gives
+          raw access to. INFO reports every bus. Keep it on the user bus: the
+          onboard bus has the regulators and the USB-PD controller.
+
+    config SYS_I2C_REMOTE_RAW
+        bool "Remote raw register read / write"
+        default y
+        help
+          Adds RAW_READ / RAW_WRITE to the i2c router: register access to a
+          chip on the remote bus at an address with no device added. For
+          bring-up of new chips; consider turning it off in release builds.
+
+    menu "Bus 0 (onboard chips)"
+
+        config SYS_I2C_BUS0_ENABLE
+            bool "Enable bus 0"
+            default y
+
+        config SYS_I2C_BUS0_SDA
+            int "SDA GPIO"
+            depends on SYS_I2C_BUS0_ENABLE
+            default 15
+            range 0 48
+
+        config SYS_I2C_BUS0_SCL
+            int "SCL GPIO"
+            depends on SYS_I2C_BUS0_ENABLE
+            default 16
+            range 0 48
+
+        config SYS_I2C_BUS0_PULLUP
+            bool "Internal pull-ups"
+            depends on SYS_I2C_BUS0_ENABLE
+            default y
+            help
+              ESP32 internal pull-ups. Weak - only enough next to external
+              resistors or at low speed.
+
+    endmenu
+
+    menu "Bus 1 (user connector)"
+
+        config SYS_I2C_BUS1_ENABLE
+            bool "Enable bus 1"
+            default y
+
+        config SYS_I2C_BUS1_SDA
+            int "SDA GPIO"
+            depends on SYS_I2C_BUS1_ENABLE
+            default 40
+            range 0 48
+
+        config SYS_I2C_BUS1_SCL
+            int "SCL GPIO"
+            depends on SYS_I2C_BUS1_ENABLE
+            default 41
+            range 0 48
+
+        config SYS_I2C_BUS1_PULLUP
+            bool "Internal pull-ups"
+            depends on SYS_I2C_BUS1_ENABLE
+            default y
+            help
+              ESP32 internal pull-ups. Weak - only enough next to external
+              resistors or at low speed.
+
+    endmenu
+
+endmenu

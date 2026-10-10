@@ -1,0 +1,63 @@
+menu "Errors"
+
+    config ERRORS_INFO_FILE
+        bool "Record file name in errors"
+        default y
+        help
+          Store the source file name (__FILE_NAME__, without the path) of the
+          place an error was created. Costs one string per source file in
+          flash.
+
+    config ERRORS_INFO_FUNC
+        bool "Record function name in errors"
+        default y
+        help
+          Store the name of the function (__func__) that created the error.
+          Costs one string per function that creates errors, in flash.
+
+    config ERRORS_INFO_LINE
+        bool "Record line number in errors"
+        default y
+        help
+          Store the source line (__LINE__) where the error was created.
+
+    config ERRORS_INFO
+        bool
+        default y if ERRORS_INFO_FILE || ERRORS_INFO_FUNC || ERRORS_INFO_LINE
+        help
+          Derived, not user-visible: on when any ERRORS_INFO_* option is on.
+          When off, error nodes have no `info` field at all.
+
+    config ERRORS_POOL_BLOCKS
+        int "Error pool: number of blocks"
+        default 32
+        range 4 255
+        help
+          How many error nodes can exist at once (one node = one block).
+          RAM used = ERRORS_POOL_BLOCKS * ERRORS_POOL_BLOCK_SIZE.
+
+    config ERRORS_POOL_BLOCK_SIZE
+        int "Error pool: block size (bytes)"
+        default 32
+        range 16 128
+        help
+          Size of one block = node header (13 B with info, 9 B without) +
+          largest payload. Must be a multiple of 4.
+
+    config ERRORS_LOG_LINE_LEN
+        int "Error log: line buffer size (bytes)"
+        default 256
+        range 64 512
+        help
+          Size of the stack buffer err_log() formats one chain node into.
+          Longer lines are cut.
+
+    config ERRORS_MAX_MODULES
+        int "Maximum error modules"
+        default 32
+        range 1 255
+        help
+          How many modules can register an error tag table
+          (ERR_MODULE_DEFINE). One pointer of RAM per slot.
+
+endmenu

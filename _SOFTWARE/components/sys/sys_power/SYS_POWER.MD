@@ -1,0 +1,69 @@
+# sys_power — the power contracts
+
+Not a module with state: two sets of device ops that mean the same on every device that has them, like the IO contract (SYS_IO.MD). A device lists the ops it can do in its op table (SYS_DEVICE.MD); an op it doesn't have answers `ERR_DEV_UNKNOWN_OP`. The wrappers in `sys_power.c` only build the `sys_device_call`, so an internal call and a remote command run the same code.
+
+| File | Contents |
+|---|---|
+| `sys_power.h` | Errors (`ERR_MOD_SYS_POWER` = 10), `sys_power_mW()` |
+| `sys_power_monitor.h` | POWER_MONITOR: `SYS_POWER_MONITOR_CONTRACT` table, events, `sys_power_alert_e` (`//#ref-enum`), wrappers |
+| `sys_power_vreg.h` | POWER_VREG: `SYS_POWER_VREG_CONTRACT` table, events, wrappers |
+| `sys_power.c` | The error module and the wrappers. Linked as `WHOLE_ARCHIVE`: a device can raise `ERR_POWER_*` without calling a wrapper, and the tag registration must not be dropped |
+
+## POWER_MONITOR (`0x04xx`)
+
+`[05][id u16][op u16][args]`; payloads are packed little-endian. Prefix `PMON_` (`PMON_OP_*`, `pmon_args_*_t`, `PMON_HANDLER`, `PMON_ENTRY`, `PMON_EV_*`).
+
+| Op | Wrapper | Args | Answer |
+|---|---|---|---|
+| `0x0400` GET_VOLTAGE | `sys_power_monitor_get_voltage(dev, ch, &mV)` | `{u8 channel}` | i32 mV |
+| `0x0401` GET_CURRENT | `sys_power_monitor_get_current(dev, ch, &mA)` | `{u8 channel}` | i32 mA |
+| `0x0402` SET_ALERT | `sys_power_monitor_set_alert(dev, ch, alert, mA)` | `{u8 channel, u8 alert, i32 threshold_mA}` | – |
+| `0x0403` GET_POWER | `sys_power_monitor_get_power(dev, ch, &mW)` | `{u8 channel}` | i32 mW |
+
+- Readings are signed (a reversed shunt reports a negative current) and allowed while suspended.
+- **GET_POWER** (new, not in legacy): a chip with a power register reads it; one without answers `sys_power_mW(mV, mA)` from its own two readings (`int64` product, so 20 V × 5.5 A doesn't overflow).
+- **Alerts** (`sys_power_alert_e`): `OCP_WARNING` 0, `OCP_CRITICAL` 1. An armed alert is published as the event with the same n. A device that can't do the alert on that channel answers `ERR_POWER_ALERT_UNSUPPORTED`.
+
+| Event | ID | Flags | Value |
+|---|---|---|---|
+| `OCP_WARNING` | `0x0400` | NOTIFY | mA |
+| `OCP_CRITICAL` | `0x0401` | NOTIFY | mA |
+
+Channel = the measured channel.
+
+## POWER_VREG (`0x05xx`)
+
+A regulator with one output. Prefix `VREG_`.
+
+| Op | Wrapper | Args | Answer |
+|---|---|---|---|
+| `0x0500` SET_ENABLE | `sys_power_vreg_set_enable(dev, on)` | `{u8 enable}` (0 / 1) | – |
+| `0x0501` SET_VOLTAGE | `sys_power_vreg_set_voltage(dev, mV)` | `{u32 voltage_mV}` | – |
+| `0x0502` SET_CURRENT | `sys_power_vreg_set_current(dev, mA)` | `{u32 current_mA}` | – |
+
+- Voltage and current are the wanted settings: kept while the output is off, applied when it is enabled.
+- Out of the chip's range: `ERR_DEV_RANGE {id, value, min, max}`, never clamped. Writes while suspended: `ERR_DEV_SUSPENDED`.
+
+| Event | ID | Flags | Value |
+|---|---|---|---|
+| `OVP` | `0x0500` | NOTIFY | wanted mV |
+| `OCP` | `0x0501` | NOTIFY | current limit mA |
+| `SCP` | `0x0502` | NOTIFY | 0 |
+| `READY` | `0x0503` | 0 (code flow) | mV: the output settled after SET_ENABLE / a higher SET_VOLTAGE, which return at once |
+
+Channel 0.
+
+## Errors (`ERR_MOD_SYS_POWER` = 10, `sys_power.h`)
+
+Besides the shared `ERR_DEV_*` (RANGE, SUSPENDED): `ERR_POWER_BAD_CHANNEL {id, channel}`, `ERR_POWER_ALERT_UNSUPPORTED {id, channel, alert}`, `ERR_POWER_EXT_FEEDBACK {id}` (a regulator strapped for an external divider: its output can't be set in mV; TPS55289).
+
+## Changes from legacy (`legacy/components/system/sys_power`)
+
+- Vtables (`sys_power_monitor_contract_t`, `sys_power_vreg_contract_t`) → contract tables; u8 device IDs → u16.
+- One power event enum (`sys_power_events_e`, domain POWER) → events per contract. A monitor's alert kind is its own enum (`sys_power_alert_e`) instead of an event value.
+- New: GET_POWER (mW).
+
+## Not yet
+
+- **Devices:** VREG = TPS55289 (DEVICE_TPS55289.MD). No monitor device is ported yet (INA3221, AP33772S).
+- **USB_PD and POWER_SUPPLY** (power mux) contracts, the **power manager** (budget, sources, battery, response matrix).

@@ -35,7 +35,7 @@ Full design: [components/sys_errors/SYS_ERRORS.MD](../../../components/sys_error
 - **Device errors carry the device ID**: wrapped by the contract dispatchers, by install, and by `sys_device` for lifecycle ops and sweeps ([devices.md](devices.md) §5.4). An event listener or task of a device has no dispatcher, so it wraps its own error: `return SYS_DEV_WRAP(err, SYS_DEV_GET_ID(c));`.
 - **Device owner:** device files define `OWNER OWNER_DEVICE` (one owner for all). Severity for the device policy comes from the real failure, not from the `ERR_DEV_DEP_FAILED` wrapper (SYS_ERRORS.MD, dispatch policy).
 - **Domain hooks:** add one only when a module has real containment, and register it from runit.
-- **Static allocation:** use the `R_*_DEFINE` / `R_TASK_START` macros from `components/utils/utils.h` instead of `xQueueCreate`, `xTaskCreate` etc. This removes the out-of-memory error path entirely.
+- **Static allocation:** use the `R_*_DEFINE` / `R_TASK_START` macros from `components/core/utils/utils.h` instead of `xQueueCreate`, `xTaskCreate` etc. This removes the out-of-memory error path entirely.
 
 ## 2. Open
 

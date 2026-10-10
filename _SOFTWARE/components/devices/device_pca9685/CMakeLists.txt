@@ -1,6 +1,8 @@
+# WHOLE_ARCHIVE: the type registers itself (SYS_DEVICE_TYPE_DEFINE) and nothing else references it.
 idf_component_register(
-    SRCS "esp/device_pca9685.c"
-    INCLUDE_DIRS "esp"
-    REQUIRES sys_errors sys_io sys_i2c sys_device
-    PRIV_REQUIRES esp_driver_i2c
+    SRCS "device_pca9685.c"
+    INCLUDE_DIRS "."
+    REQUIRES errors cmd sys_device sys_io sys_i2c
+    PRIV_REQUIRES esp_rom
+    WHOLE_ARCHIVE
 )

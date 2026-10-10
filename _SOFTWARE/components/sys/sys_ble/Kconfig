@@ -1,0 +1,52 @@
+menu "sys_ble"
+
+    config SYS_BLE_DEVICE_NAME
+        string "Device name"
+        default "runit"
+        help
+          GAP name the board advertises.
+
+    config SYS_BLE_GAP_APPEARANCE
+        hex "GAP appearance"
+        default 0x0200
+        range 0x0000 0xFFFF
+        help
+          Appearance value in the advertising data (0x0200 = Generic Tag).
+
+    config SYS_BLE_TASK_PRIO
+        int "BLE task priority"
+        default 5
+        range 1 24
+        help
+          Task that sends queued TX items (notifications / indications) and
+          applies staged GATT changes.
+
+    config SYS_BLE_TASK_STACK
+        int "BLE task stack (bytes)"
+        default 4096
+        range 2048 32768
+
+    config SYS_BLE_TX_ITEM_MAX
+        int "Largest TX item (bytes)"
+        default 512
+        range 64 4096
+        help
+          Largest item the BLE task sends (a framed characteristic splits it
+          into packets). Must hold a whole router frame (ROUTER_FRAME_MAX).
+          Static buffer of this size.
+
+    config SYS_BLE_APPLY_DELAY_MS
+        int "Apply delay with a client connected (ms)"
+        default 200
+        range 0 5000
+        help
+          sys_ble_apply() with a client connected waits this long, so the
+          command that asked for it is answered before the Service Changed
+          indication.
+
+    config SYS_BLE_MAX_CONN_LISTENERS
+        int "Connection listeners"
+        default 4
+        range 1 16
+
+endmenu

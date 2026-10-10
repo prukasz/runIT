@@ -2,7 +2,7 @@
 
 Rules for all code under `components/` and `main/`. Error handling has its own file: [errors.md](errors.md).
 
-## 1. RTOS objects — static allocation (`components/utils/utils.h`)
+## 1. RTOS objects — static allocation (`components/core/utils/utils.h`)
 
 **Rule:** if an RTOS object exists from boot to shutdown (system components: module mutexes, queues, ringbuffers, tasks), define it with the `R_*_DEFINE` macros. Don't create it at runtime.
 

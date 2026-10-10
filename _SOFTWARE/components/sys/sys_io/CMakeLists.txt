@@ -1,0 +1,5 @@
+idf_component_register(
+    SRCS "sys_io.c" "sys_pins.c"
+    INCLUDE_DIRS "."
+    REQUIRES errors cmd sys_device
+)
