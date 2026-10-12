@@ -3,6 +3,16 @@
 #include "sys_device.h"
 #include "sys_io.h"
 
+//#device
+//@alias PCA9685 PWM expander
+//@description Sixteen-channel I2C PWM expander with optional active-low output enable.
+//@protocol i2c
+//@tags i2c pwm gpio servo led ic
+//@datasheet https://www.nxp.com/docs/en/data-sheet/PCA9685.pdf
+//@pins IO @one-of [0..15] @alias PWM channel
+//@param IO_OP_SET_PWM_FREQ.pin @device-wide @note One frequency for all channels
+//@param IO_OP_SET_PWM_FREQ.frequency_Hz @min PCA9685_MIN_FREQUENCY_HZ @max PCA9685_MAX_FREQUENCY_HZ @default 50
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -20,9 +30,9 @@ extern "C" {
  * (sys_device_use: ERR_DEV_NOT_FOUND) and can't be removed while this one does.
  */
 typedef struct __attribute__((packed)) {
-  uint8_t i2c_bus;     // sys_i2c_bus_e
-  uint8_t i2c_addr;    // 7-bit
-  sys_io_pin_t oe_pin;  // output enable, active low; the device drives it through the IO contract
+  uint8_t i2c_bus;  //@alias I2C bus @description The I2C bus the chip is on @enum-ref sys_i2c_bus_e
+  uint8_t i2c_addr;  //@alias I2C address @description Address pins A0-A5 select the address; 0x70 is All Call and 0x78 to 0x7F are reserved @one-of [0x40..0x6F, 0x71..0x77]
+  sys_io_pin_t oe_pin;  //@alias Output enable @description Active-low; leave unwired when the board has no OE control @default-mode $SYS_IO_MODE_OUTPUT_PUSH_PULL
 } pca9685_cfg_t;
 
 #ifdef __cplusplus

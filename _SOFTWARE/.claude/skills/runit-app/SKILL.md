@@ -7,6 +7,12 @@ description: App skill for the runIT phone/PC app (Vite + React + TypeScript + T
 
 > Grows as the app is built. Legacy app design docs are discarded (2026-09-25); design from `features.md` (open design: §8 wiring and enables) and `app/docs/`.
 
+## State 2026-10-12
+
+`app/` is the old Vite + React 19 + Tailwind scaffold with a **new** `src/`: `src/ble/` (BLE link, fragment framing, board ping; `app/tests/ble/`), `App.tsx` = a BLE test page (`npm run dev`, http://localhost:5180). `src/backend/` = the board protocol without UI: `protocol/` (`RouterClient`: requests matched by seq, `CommandError` with the decoded error chain, stream routing for telemetry / logs / errors / events; `ErrorCatalog` reads `data-structures/errors/errors.generated.json`) and `vm/` (`Program` builds the load frames, `VmSession` loads / starts / steps / writes / subscribes, `TelemetryMirror` folds telemetry, `blocks.ts` encodes block state from the generated block descriptors). Tests: `app/tests/backend/` (frames equal the host suite's builder byte for byte: `fixtures/vm-golden.json` from `runit-esp/scripts/gen_vm_golden.py`), `app/tests/hardware/` on the board over UART (`$env:RUNIT_PORT='COM9'; npx vitest run tests/hardware`). Not ported yet: the expression compiler, project / canvas compiler, stored code, settings upload, device install frames. The old `src/` and `tests/` are in `legacy/app-old/` (reference, not built). The code map below describes the **old** `src/`; only `ble/` and `App.tsx` exist now.
+
+BLE link (`RunitBleLink`): `pick()` (chooser, needs a click), `restore()` (remembered board, no chooser), reconnects by itself after a drop (`watchAdvertisements`, else timed retry with backoff), `events` = why each state change happened; `PingMonitor` = does the board answer, round trip, uptime, rebooted. Board side checked with `runit-esp/scripts/ble_test.py` (bleak).
+
 ## Code map (app/src)
 
 | Path | What |

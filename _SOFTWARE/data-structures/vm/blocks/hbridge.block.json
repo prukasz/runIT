@@ -1,0 +1,299 @@
+{
+  "schemaVersion": 2,
+  "kind": "vm-block",
+  "id": 33,
+  "name": "VM_BLK_HBRIDGE",
+  "alias": "H-bridge",
+  "category": "device",
+  "description": "Drives a motor channel of a motor driver, brakes or coasts it, and reads its current.",
+  "source_file": "components/vm/vm_blocks/device-contract/hbridge/vm_block_hbridge.h",
+  "guide": "hbridge.md",
+  "activation": {
+    "kind": "enabled",
+    "text": "Runs every pass while enabled: a drive is sent when it changes, brake and coast once on each rising enable, a reading on every pass."
+  },
+  "min_enables": 0,
+  "face": {
+    "lead": [
+      {
+        "ref": "op",
+        "kind": "op"
+      },
+      {
+        "text": " "
+      },
+      {
+        "ref": "device_id",
+        "kind": "field",
+        "field": "device_id"
+      }
+    ]
+  },
+  "device": {
+    "contract": "HBRIDGE",
+    "contract_id": 9
+  },
+  "shape": {
+    "min_in": 0,
+    "max_in": 4,
+    "min_q": 0,
+    "max_q": 1,
+    "min_en": 0,
+    "required_in": 0,
+    "state_len": 56
+  },
+  "inputs": {
+    "min": 0,
+    "max": 4,
+    "pins": []
+  },
+  "outputs": {
+    "min": 0,
+    "max": 1,
+    "pins": []
+  },
+  "op_field": "op",
+  "idle_op_field": "idle_op",
+  "const_field": "k",
+  "idle_const_field": "idle_k",
+  "device_field": "device_id",
+  "ops": [
+    {
+      "symbol": "HBRIDGE_OP_SET_DRIVE",
+      "value": 2304,
+      "alias": "Drive",
+      "description": "Drives a channel: positive forward, negative reverse (a half bridge only forward).",
+      "kind": "change",
+      "idle_allowed": true,
+      "inputs": [
+        {
+          "index": 0,
+          "name": "channel",
+          "alias": "Channel",
+          "field_type": "u8",
+          "id_kind": "pin",
+          "device_field": "device_id"
+        },
+        {
+          "index": 1,
+          "name": "drive",
+          "alias": "Drive",
+          "field_type": "i16",
+          "scale": 40.95,
+          "min": -100,
+          "max": 100,
+          "unit": "%"
+        }
+      ],
+      "outputs": [],
+      "face": {
+        "lead": [
+          {
+            "ref": "channel",
+            "kind": "pin",
+            "pin": 0
+          },
+          {
+            "text": " at "
+          },
+          {
+            "ref": "drive",
+            "kind": "pin",
+            "pin": 1
+          }
+        ]
+      }
+    },
+    {
+      "symbol": "HBRIDGE_OP_BRAKE",
+      "value": 2305,
+      "alias": "Brake",
+      "description": "Shorts the motor terminals once on each rising enable.",
+      "kind": "edge",
+      "idle_allowed": true,
+      "inputs": [
+        {
+          "index": 0,
+          "name": "channel",
+          "alias": "Channel",
+          "field_type": "u8",
+          "id_kind": "pin",
+          "device_field": "device_id"
+        }
+      ],
+      "outputs": [],
+      "face": {
+        "lead": [
+          {
+            "text": "Brake "
+          },
+          {
+            "ref": "channel",
+            "kind": "pin",
+            "pin": 0
+          }
+        ]
+      }
+    },
+    {
+      "symbol": "HBRIDGE_OP_COAST",
+      "value": 2306,
+      "alias": "Coast",
+      "description": "Releases the motor (outputs off) once on each rising enable.",
+      "kind": "edge",
+      "idle_allowed": true,
+      "inputs": [
+        {
+          "index": 0,
+          "name": "channel",
+          "alias": "Channel",
+          "field_type": "u8",
+          "id_kind": "pin",
+          "device_field": "device_id"
+        }
+      ],
+      "outputs": [],
+      "face": {
+        "lead": [
+          {
+            "text": "Coast "
+          },
+          {
+            "ref": "channel",
+            "kind": "pin",
+            "pin": 0
+          }
+        ]
+      }
+    },
+    {
+      "symbol": "HBRIDGE_OP_GET_CURRENT",
+      "value": 2307,
+      "alias": "Read current",
+      "description": "Reads the current of a channel.",
+      "kind": "read",
+      "idle_allowed": false,
+      "inputs": [
+        {
+          "index": 0,
+          "name": "channel",
+          "alias": "Channel",
+          "field_type": "u8",
+          "id_kind": "pin",
+          "device_field": "device_id"
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "current",
+          "alias": "Current",
+          "value_type": "i32",
+          "unit": "mA"
+        }
+      ],
+      "face": {
+        "lead": [
+          {
+            "text": "Read "
+          },
+          {
+            "ref": "channel",
+            "kind": "pin",
+            "pin": 0
+          }
+        ]
+      }
+    }
+  ],
+  "state": {
+    "struct": "vm_block_device_data_t",
+    "source_file": "components/vm/vm_blocks/device-contract/vm_block_device.h",
+    "size": 56,
+    "align": 4,
+    "fields": [
+      {
+        "name": "device_id",
+        "c_type": "uint16_t",
+        "offset": 0,
+        "size": 2,
+        "description": "The device the block works on.",
+        "source": "user",
+        "alias": "Device",
+        "role": "device",
+        "id_kind": "device",
+        "contract": "HBRIDGE"
+      },
+      {
+        "name": "op",
+        "c_type": "uint16_t",
+        "offset": 2,
+        "size": 2,
+        "description": "What the block does with the device; it decides the block's inputs and outputs.",
+        "source": "user",
+        "alias": "Operation",
+        "role": "op"
+      },
+      {
+        "name": "idle_op",
+        "c_type": "uint16_t",
+        "offset": 4,
+        "size": 2,
+        "description": "What the block does once when its enable turns off (none: the device is left as it is).",
+        "source": "user",
+        "alias": "When not enabled",
+        "role": "idle-op"
+      },
+      {
+        "name": "flags",
+        "c_type": "uint8_t",
+        "offset": 6,
+        "size": 1,
+        "description": "VM_DEV_F_* bits",
+        "source": "runtime"
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint8_t",
+        "offset": 7,
+        "size": 1,
+        "source": "padding"
+      },
+      {
+        "name": "k",
+        "c_type": "int32_t",
+        "offset": 8,
+        "size": 16,
+        "array_len": 4,
+        "element_size": 4,
+        "description": "The value of each input of the operation while that input is not wired (the bits of a float for a scaled input).",
+        "source": "user",
+        "alias": "Input values",
+        "role": "const"
+      },
+      {
+        "name": "idle_k",
+        "c_type": "int32_t",
+        "offset": 24,
+        "size": 16,
+        "array_len": 4,
+        "element_size": 4,
+        "description": "The inputs of the idle operation after its address inputs (same encoding).",
+        "source": "user",
+        "alias": "Values when not enabled",
+        "role": "idle-const"
+      },
+      {
+        "name": "last",
+        "c_type": "int32_t",
+        "offset": 40,
+        "size": 16,
+        "array_len": 4,
+        "element_size": 4,
+        "description": "What was last sent to the device",
+        "source": "runtime"
+      }
+    ]
+  },
+  "min_custom_len": 56
+}

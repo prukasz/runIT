@@ -1,0 +1,75 @@
+#pragma once
+
+#include "cmd.h"
+#include "errors.h"
+#include "utils.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * @brief Log output control (SYS_LOG.MD): what ESP_LOG prints, where, and whether
+ * a reported error chain is also printed. Five options, applied at boot from the
+ * defaults and changed with SET. They are kept as a record (SYS_ACTIONS_ID_LOG, the SET frame, written by the app)
+ * that whoever starts the project runs; nothing replays by itself:
+ *   level          how much is printed: 0 blocks every ESP_LOG line, up to
+ *                  CONFIG_LOG_MAXIMUM_LEVEL (the compile-time ceiling);
+ *   mirror_serial  1: lines also go to the console (UART / USB-Serial-JTAG),
+ *                  0: only to the logs connector (BLE);
+ *   trace_errors   1: a reported error chain is also printed as log lines,
+ *                  0: only its error record is sent (the errors stream).
+ *   send_errors    1: a reported error chain is sent as a record on the errors stream,
+ *                  0: nothing is sent (the chain may still be printed, see trace_errors);
+ *   send_logs      1: every log line is also sent as text to the logs connector (BLE),
+ *                  0: log lines stay on the console.
+ * The command link ("#R:" lines) and the error records don't go through ESP_LOG,
+ * so no setting here can silence them.
+ */
+
+/** @brief Ops of ROUTER_KEY_LOG. The stored record SYS_ACTIONS_ID_LOG holds the SET frame: [ROUTER_KEY_LOG][SET][sys_log_cfg_t]. */
+#define SYS_LOG_OP_SET 0x01u
+#define SYS_LOG_OP_GET 0x02u
+
+/** @brief The settings record and the SET / GET payload (packed, the wire form). */
+typedef struct __attribute__((packed)) {
+  uint8_t level;  //@alias Level @description How much is logged @choices 0=None,1=Error,2=Warning,3=Info,4=Debug,5=Verbose
+  uint8_t mirror_serial;  //@alias Mirror to console @choices 0=No,1=Yes
+  uint8_t trace_errors;  //@alias Print error chains @choices 0=No,1=Yes
+  uint8_t send_errors;  //@alias Send error records @description On the errors stream @choices 0=No,1=Yes
+  uint8_t send_logs;  //@alias Send log lines @description On the logs stream @choices 0=No,1=Yes
+} sys_log_cfg_t;
+
+/* ----------------------------------------------------------------------------
+ * Errors (module ERR_MOD_SYS_LOG)
+ * ------------------------------------------------------------------------- */
+
+// clang-format off
+#define ERR_SYS_LOG_MAP(X)                                                                                    \
+  X(ERR_LOG_BAD_LEVEL, ERR_TAG(ERR_MOD_SYS_LOG, 1), ERR_SEV_HIGH, { uint8_t level; uint8_t max; }) /* above CONFIG_LOG_MAXIMUM_LEVEL */
+// clang-format on
+
+ERR_TAGS_DECLARE(ERR_SYS_LOG_MAP)
+
+/**
+ * @brief Takes over ESP_LOG: every line goes to the console (if mirror_serial) and, without ANSI colours and the line
+ * end, cut to CONFIG_SYS_LOG_LINE_MAX, to connector `connector_id`; then applies the defaults (INFO, mirror on, trace
+ * on, send errors on, send logs on). Boot step, after sys_connector_init().
+ */
+MUST_USE err_h sys_log_init(uint8_t connector_id);
+
+/**
+ * @brief Applies the options at once (not stored: the app saves the SET frame as a record). Any non-zero flag counts as 1.
+ * @return ERR_LOG_BAD_LEVEL{level, max} (nothing changes).
+ */
+MUST_USE err_h sys_log_set(const sys_log_cfg_t* cfg);
+
+/** @brief The options in force. */
+void sys_log_get(sys_log_cfg_t* out);
+
+/** @brief send_errors in force: the error sink asks before it sends a record. */
+bool sys_log_send_errors(void);
+
+#ifdef __cplusplus
+}
+#endif

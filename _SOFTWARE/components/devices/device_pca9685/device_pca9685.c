@@ -1,5 +1,5 @@
 #include "device_pca9685.h"
-#include <math.h>
+
 #include "esp_rom_sys.h"
 #include "sys_i2c.h"
 #include "sys_pins.h"

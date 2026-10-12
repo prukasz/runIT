@@ -1,0 +1,52 @@
+menu "sys_power_manager"
+
+    config SYS_POWER_MANAGER_TASK_STACK
+        int "Task stack (bytes)"
+        default 4096
+        range 2048 16384
+
+    config SYS_POWER_MANAGER_TASK_PRIO
+        int "Task priority"
+        default 4
+        range 1 24
+
+    config SYS_POWER_MANAGER_PERIOD_MS
+        int "Period (ms)"
+        default 1000
+        range 100 10000
+        help
+          How often the manager measures the input, detects the source and
+          updates the budget and the battery estimate. A settings change wakes
+          it at once.
+
+    config SYS_POWER_MANAGER_MAX_CONSUMERS
+        int "Budgeted rails"
+        default 4
+        range 1 16
+
+    config SYS_POWER_MANAGER_BUDGET_STEP_MW
+        int "Budget change threshold (mW)"
+        default 250
+        range 0 10000
+        help
+          The automatic rail caps are recomputed when the budget changes by at
+          least this much, so noise on the input voltage doesn't reprogram the
+          regulators every period.
+
+    config SYS_POWER_MANAGER_INPUT_WARNING_PCT
+        int "Input current warning (% of the limit)"
+        default 90
+        range 10 99
+        help
+          The input monitor's warning alert sits at this share of the limit's
+          current; the critical alert at the limit itself.
+
+    config SYS_POWER_MANAGER_BATTERY_HYSTERESIS_PCT
+        int "Battery threshold hysteresis (%)"
+        default 3
+        range 1 20
+        help
+          BATTERY_LOW / _CRITICAL are raised once and re-armed when the charge
+          rises this far above the threshold.
+
+endmenu

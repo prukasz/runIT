@@ -137,9 +137,15 @@
 #endif
 
 // err_new() itself is declared in errors.h; its signature depends on CONFIG_ERRORS_INFO.
+// Storage class in a compound literal is C2y: gcc accepts it in gnu23, clang (clangd) does not.
+#ifdef __clang__
+#define ERR__INFO_STORAGE
+#else
+#define ERR__INFO_STORAGE static
+#endif
 #if CONFIG_ERRORS_INFO
 #define ERR__NEW(tag, sev, data, len, cause)                                                                \
-  err_new(&(static const err_info_t){ERR__INFO_FILE ERR__INFO_FUNC ERR__INFO_LINE}, (tag), (sev), (data), \
+  err_new(&(ERR__INFO_STORAGE const err_info_t){ERR__INFO_FILE ERR__INFO_FUNC ERR__INFO_LINE}, (tag), (sev), (data), \
           (len), (cause))
 #else
 #define ERR__NEW(tag, sev, data, len, cause) err_new((tag), (sev), (data), (len), (cause))

@@ -1,5 +1,5 @@
-#include <assert.h>
-#include <stddef.h>
+
+
 #include "errors.h"
 
 // Filled by the ERR_MODULE_DEFINE constructors before app_main, read-only

@@ -1,7 +1,6 @@
 #include "sys_connector.h"
-#include <string.h>
+
 #include "sdkconfig.h"
-#include "sys_connector_priv.h"
 #include "utils.h"
 
 ERR_MODULE_DEFINE(ERR_MOD_SYS_CONNECTOR, "sys_connector", ERR_SYS_CONNECTOR_MAP)

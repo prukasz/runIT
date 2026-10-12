@@ -1,0 +1,41 @@
+menu "runIT"
+
+    config RUNIT_BLE_START
+        bool "Start BLE at boot"
+        default y
+        help
+          Off for QEMU: it emulates no Bluetooth controller (the controller
+          init asserts). The runIT GATT table, the BLE router link and the BLE
+          stream bindings are still set up; only NimBLE is not started.
+          sdkconfig.qemu.defaults turns it off for the QEMU build.
+
+    config RUNIT_ONBOARD_DEVICES
+        bool "Create the onboard devices at boot"
+        default y
+        help
+          The runIT PCB: the ESP GPIO, the TCA6424A expander (status LED lit)
+          and every other onboard chip (power muxes, ADS7128, PCA9685, both
+          TPS55289 rails, INA3221, AP33772S, DAC53202, both DRV8962). Off for a
+          devkit or QEMU (no chips; the test suites create devices themselves).
+
+    menu "Onboard action IDs"
+
+        config RUNIT_ACTION_ID_RESUME
+            int "Resume all devices"
+            default 3
+            range 1 255
+            help
+              ID of the onboard action that resumes every device. The firmware
+              writes it at every boot (replacing a stored action with this ID).
+
+        config RUNIT_ACTION_ID_SUSPEND
+            int "Suspend all devices"
+            default 4
+            range 1 255
+            help
+              ID of the onboard action that suspends every device. The firmware
+              writes it at every boot (replacing a stored action with this ID).
+
+    endmenu
+
+endmenu

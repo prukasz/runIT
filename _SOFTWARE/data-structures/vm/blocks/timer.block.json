@@ -1,0 +1,248 @@
+{
+  "schemaVersion": 2,
+  "kind": "vm-block",
+  "id": 9,
+  "name": "VM_BLK_TIMER",
+  "alias": "Timer",
+  "category": "time",
+  "description": "On-delay, off-delay or pulse timer (plus inverted), driven by the block's enable. ENO is the timer's output Q, held as a level; Elapsed counts in the chosen time unit.",
+  "source_file": "components/vm/vm_blocks/core/timer/vm_block_timer.h",
+  "guide": "timer.md",
+  "activation": {
+    "kind": "enabled",
+    "text": "Runs every pass while enabled."
+  },
+  "min_enables": 0,
+  "loop_use": "refused",
+  "eno": {
+    "alias": "Q",
+    "description": "The timer's output level: true after the on-delay, during a pulse, or until the off-delay ends. Put it on another block's Run when to gate that block."
+  },
+  "face": {
+    "lead": [
+      {
+        "text": "Timer"
+      }
+    ],
+    "value": [
+      {
+        "ref": "mode",
+        "kind": "field",
+        "field": "mode"
+      },
+      {
+        "text": " "
+      },
+      {
+        "ref": "pt",
+        "kind": "pin",
+        "pin": 0,
+        "field": "pt"
+      },
+      {
+        "text": " "
+      },
+      {
+        "ref": "time_base",
+        "kind": "field",
+        "field": "time_base"
+      }
+    ]
+  },
+  "shape": {
+    "min_in": 0,
+    "max_in": 1,
+    "min_q": 0,
+    "max_q": 1,
+    "min_en": 0,
+    "required_in": 0,
+    "state_len": 32
+  },
+  "inputs": {
+    "min": 0,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "pt",
+        "alias": "Preset",
+        "value": "u32",
+        "description": "The preset time, in the chosen time unit.",
+        "overrides": "pt",
+        "required": false
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "et",
+        "alias": "Elapsed time",
+        "value": "u32",
+        "description": "Time elapsed, in the chosen time unit.",
+        "required": false
+      }
+    ]
+  },
+  "rules": [
+    {
+      "rule": "mode is a vm_timer_mode_e value and time_base a vm_timer_unit_e value.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 983071
+    }
+  ],
+  "state": {
+    "struct": "vm_block_timer_data_t",
+    "source_file": "components/vm/vm_blocks/core/timer/vm_block_timer.h",
+    "size": 32,
+    "align": 8,
+    "fields": [
+      {
+        "name": "mode",
+        "c_type": "uint8_t",
+        "offset": 0,
+        "size": 1,
+        "description": "How the timer behaves: on-delay, off-delay or pulse, and their inverted versions",
+        "source": "user",
+        "alias": "Mode",
+        "enum_ref": "vm_timer_mode_e"
+      },
+      {
+        "name": "flags",
+        "c_type": "uint8_t",
+        "offset": 1,
+        "size": 1,
+        "description": "Option bits: only the inverted-output bit (VM_TIMER_F_INVERTED, 0x08) is set by the app",
+        "source": "user",
+        "alias": "Options"
+      },
+      {
+        "name": "time_base",
+        "c_type": "uint8_t",
+        "offset": 2,
+        "size": 1,
+        "description": "Unit of the preset and of the elapsed time",
+        "source": "user",
+        "alias": "Time unit",
+        "enum_ref": "vm_timer_unit_e"
+      },
+      {
+        "name": "_pad1",
+        "c_type": "uint8_t",
+        "offset": 3,
+        "size": 1,
+        "source": "padding"
+      },
+      {
+        "name": "_pad2",
+        "c_type": "uint32_t",
+        "offset": 4,
+        "size": 4,
+        "source": "padding"
+      },
+      {
+        "name": "pt",
+        "c_type": "uint32_t",
+        "offset": 8,
+        "size": 4,
+        "description": "The preset time, in the chosen time unit (used while the Preset input is unwired)",
+        "source": "user",
+        "overridden_by": 0
+      },
+      {
+        "name": "start_ms",
+        "c_type": "uint64_t",
+        "offset": 16,
+        "size": 8,
+        "description": "Timestamp when timing started",
+        "source": "runtime"
+      },
+      {
+        "name": "elapsed",
+        "c_type": "uint32_t",
+        "offset": 24,
+        "size": 4,
+        "description": "Current elapsed time",
+        "source": "runtime"
+      }
+    ]
+  },
+  "min_custom_len": 32,
+  "enums": {
+    "vm_timer_mode_e": {
+      "alias": "Timer Mode",
+      "source_file": "components/vm/vm_blocks/core/timer/vm_block_timer.h",
+      "members": [
+        {
+          "name": "VM_TIMER_TON",
+          "value": 0,
+          "alias": "On-delay",
+          "description": "The output turns on after the preset time"
+        },
+        {
+          "name": "VM_TIMER_TOF",
+          "value": 1,
+          "alias": "Off-delay",
+          "description": "The output turns off after the preset time"
+        },
+        {
+          "name": "VM_TIMER_TP",
+          "value": 2,
+          "alias": "Pulse",
+          "description": "The output is on for the preset time"
+        },
+        {
+          "name": "VM_TIMER_TON_INV",
+          "value": 3,
+          "alias": "Inverted on-delay",
+          "description": "On-delay with the output inverted"
+        },
+        {
+          "name": "VM_TIMER_TOF_INV",
+          "value": 4,
+          "alias": "Inverted off-delay",
+          "description": "Off-delay with the output inverted"
+        },
+        {
+          "name": "VM_TIMER_TP_INV",
+          "value": 5,
+          "alias": "Inverted pulse",
+          "description": "Pulse with the output inverted"
+        }
+      ]
+    },
+    "vm_timer_unit_e": {
+      "alias": "Time Unit",
+      "source_file": "components/vm/vm_blocks/core/timer/vm_block_timer.h",
+      "members": [
+        {
+          "name": "VM_TIMER_UNIT_MS",
+          "value": 0,
+          "alias": "Milliseconds",
+          "description": "1 ms"
+        },
+        {
+          "name": "VM_TIMER_UNIT_SEC",
+          "value": 1,
+          "alias": "Seconds",
+          "description": "1,000 ms"
+        },
+        {
+          "name": "VM_TIMER_UNIT_MIN",
+          "value": 2,
+          "alias": "Minutes",
+          "description": "60,000 ms"
+        },
+        {
+          "name": "VM_TIMER_UNIT_HR",
+          "value": 3,
+          "alias": "Hours",
+          "description": "3,600,000 ms"
+        }
+      ]
+    }
+  }
+}

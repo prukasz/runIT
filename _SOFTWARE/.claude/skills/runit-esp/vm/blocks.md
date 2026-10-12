@@ -1,5 +1,8 @@
 # VM blocks — palette and recipe
 
+> **2026-10-12: the block annotations and the generator changed** (new grammar, one source, `@alias` for every user-facing name, no `display.json`; blocks live in `components/vm/vm_blocks/{core,device-contract,device-custom-block}/`). Read `data-structures/auto-annotations/vm/vm-block-annotations.md` and `components/vm/vm_blocks/VM_BLOCKS.MD`; what follows still describes the legacy layout.
+
+
 ## 1. Palette (`blocks/vm_blocks.h`, `vm_blocks_table.c`)
 
 Type 0 is reserved (unset type must not run). The type byte indexes `g_vm_block_types[]`: one `vm_block_type_t` per type (body, extra check, `min_in` / `max_in`, `min_q` / `max_q`, `min_en`, `required_in`, `state_len`), **generated** from the block's `//#vm-block` directives into `blocks/vm_blocks_registry.generated.h`. The app reads the same data from `data-structures/vm/blocks/` (one descriptor per block).

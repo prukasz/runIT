@@ -1,0 +1,166 @@
+#pragma once
+/**
+ * @file vm_wire.h
+ * @brief Wire records of the VM router (ROUTER_KEY_VM, vm_router.h) and of VM telemetry.
+ *
+ * Every record the app sends to build, run and watch a program, as packed
+ * little-endian structs. The router (vm_router.c), the loader and vm_sub
+ * read and write records through these.
+ *
+ * A struct is the fixed part of a record; any variable arrays follow it, in order. A batch
+ * packet body is `u8 count` followed by that many records.
+ */
+
+#include "vm_obj.h"
+
+// ===========================================================================
+// 0x40 reset, 0x41 open
+// ===========================================================================
+
+typedef struct __packed {
+} vm_wire_reset_t;
+_Static_assert(sizeof(vm_wire_reset_t) == 0, "0x40 has no body");
+
+typedef struct __packed {
+  uint16_t obj_cnt;  //@alias Objects @description Object slots
+  uint16_t acc_cnt;  //@alias Accessors @description Accessor slots
+  uint16_t blk_cnt;  //@alias Blocks @description Block slots
+  uint32_t total_size;  //@alias Arena size @description Bytes reserved for the program @unit bytes
+} vm_wire_open_t;
+_Static_assert(sizeof(vm_wire_open_t) == 10, "0x41 body is 10 bytes");
+
+// ===========================================================================
+// 0x42 objects (also the telemetry describe record)
+// ===========================================================================
+
+/* The object head on the wire: four bytes, explicit layout, not the compiler's bitfield layout.
+ *   [0..1] u16 payload_size (LE)
+ *   [2]    bits 0..3 element type (vm_obj_t_e), bits 4..7 name length (0..15)
+ *   [3]    flags, VM_WIRE_HEAD_F_*
+ * Built and read only with vm_wire_head_pack / _unpack. */
+#define VM_WIRE_HEAD_TYPE_MASK 0x0Fu
+#define VM_WIRE_HEAD_NAME_SHIFT 4u
+
+//#ref-defines vm_wire_head_flag @alias Object Flags @prefix VM_WIRE_HEAD_F_
+#define VM_WIRE_HEAD_F_MUTABLE (1u << 0)  //@alias Writable @description The program and the app may write the object at run time
+#define VM_WIRE_HEAD_F_UPD_RESETABLE (1u << 2)  //@alias Fresh-tracked @description The object's freshness is cleared at the end of every pass; blocks that wait for a fresh value need it
+#define VM_WIRE_HEAD_F_TAGGED (1u << 3)  //@alias Named by the board @description Sent by the board (telemetry): the name follows; the loader derives it
+#define VM_WIRE_HEAD_F_RETENTIVE (1u << 4)  //@alias Retained @description The value is saved and restored after a restart
+#define VM_WIRE_HEAD_F_DYNAMIC (1u << 5)  //@alias Heap object @description Sent by the board only: a heap object; never taken from the wire
+#define VM_WIRE_HEAD_F_USR_PROTECTED (1u << 6)  //@alias User-protected @description The app's runtime writes are refused
+// bit 1 was the runtime `upd` pulse (never taken from the wire, no longer sent) and bit 7 is unused: both read as 0.
+
+typedef struct __packed {
+  uint16_t payload_size;
+  uint8_t  type_name;  // type | name length << 4
+  uint8_t  flags;
+} vm_wire_head_t;
+_Static_assert(sizeof(vm_wire_head_t) == VM_OBJ_HEAD_WIRE_SIZE, "the object head is 4 bytes on the wire");
+
+typedef struct __packed {
+  uint16_t       id;
+  vm_wire_head_t head;
+} vm_wire_obj_t;
+_Static_assert(sizeof(vm_wire_obj_t) == 2 + VM_OBJ_HEAD_WIRE_SIZE, "0x42 record head");
+
+/* Wire head -> object head. Only the shape and the flags the app may set come over: mutable, upd_resetable, retentive,
+ * usr_protected (tagged and dynamic are the board's, upd is runtime state). */
+static inline vm_obj_head_t vm_wire_head_unpack(const vm_wire_head_t* w) {
+  vm_obj_head_t h = {0};
+  h.payload_size = w->payload_size;
+  h.d.obj_t = w->type_name & VM_WIRE_HEAD_TYPE_MASK;
+  h.d.name_size = (uint8_t)(w->type_name >> VM_WIRE_HEAD_NAME_SHIFT);
+  h.f.mutable = (w->flags & VM_WIRE_HEAD_F_MUTABLE) != 0;
+  h.f.upd_resetable = (w->flags & VM_WIRE_HEAD_F_UPD_RESETABLE) != 0;
+  h.f.retentive = (w->flags & VM_WIRE_HEAD_F_RETENTIVE) != 0;
+  h.f.usr_protected = (w->flags & VM_WIRE_HEAD_F_USR_PROTECTED) != 0;
+  return h;
+}
+
+/* Object head -> wire head (telemetry), with the name length `name_len` the record carries. */
+static inline vm_wire_head_t vm_wire_head_pack(const vm_obj_head_t* h, uint8_t name_len) {
+  vm_wire_head_t w = {.payload_size = h->payload_size,
+                      .type_name = (uint8_t)((h->d.obj_t & VM_WIRE_HEAD_TYPE_MASK) | (name_len << VM_WIRE_HEAD_NAME_SHIFT))};
+  w.flags = (uint8_t)((h->f.mutable ? VM_WIRE_HEAD_F_MUTABLE : 0) | (h->f.upd_resetable ? VM_WIRE_HEAD_F_UPD_RESETABLE : 0) |
+                      (name_len ? VM_WIRE_HEAD_F_TAGGED : 0) | (h->f.retentive ? VM_WIRE_HEAD_F_RETENTIVE : 0) |
+                      (h->f.dynamic ? VM_WIRE_HEAD_F_DYNAMIC : 0) | (h->f.usr_protected ? VM_WIRE_HEAD_F_USR_PROTECTED : 0));
+  return w;
+}
+
+// ===========================================================================
+// 0x43 values (also the telemetry value record)
+// ===========================================================================
+
+typedef struct __packed {
+  uint16_t id;
+  uint16_t start_idx;
+  uint16_t byte_len;
+} vm_wire_data_t;
+_Static_assert(sizeof(vm_wire_data_t) == 6, "0x43 record head");
+
+// ===========================================================================
+// 0x44 accessors and their index steps
+// ===========================================================================
+
+typedef struct __packed {
+  uint16_t acc_id;
+  uint16_t root_obj_id;
+  uint8_t  idx_count;
+  uint8_t  idx_len;
+} vm_wire_acc_t;
+_Static_assert(sizeof(vm_wire_acc_t) == 6, "0x44 record head");
+
+typedef struct __packed {
+  uint8_t  kind;
+  uint32_t value;
+} vm_wire_idx_literal_t;
+_Static_assert(sizeof(vm_wire_idx_literal_t) == 5, "literal step");
+
+typedef struct __packed {
+  uint8_t  kind;
+  uint16_t acc_id;
+} vm_wire_idx_ref_t;
+_Static_assert(sizeof(vm_wire_idx_ref_t) == 3, "reference step");
+
+typedef struct __packed {
+  uint8_t kind;
+  uint8_t name_len;
+} vm_wire_idx_name_t;
+_Static_assert(sizeof(vm_wire_idx_name_t) == 2, "name step");
+
+// ===========================================================================
+// 0x45 block
+// ===========================================================================
+
+typedef struct __packed {
+  uint16_t blk_id;
+  uint16_t block_idx;
+  uint8_t  block_type;
+  uint8_t  in_cnt;
+  uint8_t  q_cnt;
+  uint8_t  en_cnt;
+  uint8_t  en_mode;
+  uint8_t  on_error;
+  uint16_t custom_len;
+  uint16_t eno_obj_id;
+} vm_wire_block_t;
+_Static_assert(sizeof(vm_wire_block_t) == 14, "0x45 fixed part");
+
+// ===========================================================================
+// 0x47 subscribe, 0x48 execution control
+// ===========================================================================
+
+typedef struct __packed {
+  uint16_t id;
+} vm_wire_sub_t;
+_Static_assert(sizeof(vm_wire_sub_t) == 2, "0x47 record");
+
+typedef struct __packed {
+  uint8_t command;  //@alias Command @enum-ref vm_exec_command_e
+} vm_wire_exec_t;
+_Static_assert(sizeof(vm_wire_exec_t) == 1, "0x48 body");
+
+typedef struct __packed {
+  uint16_t factor;  //@alias Slow-motion factor @description 1 is normal speed
+} vm_wire_speed_t;
+_Static_assert(sizeof(vm_wire_speed_t) == 2, "0x49 body");

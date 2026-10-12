@@ -1,6 +1,5 @@
 #pragma once
 
-#include <stdint.h>
 #include "sys_power.h"
 
 #ifdef __cplusplus
@@ -16,19 +15,19 @@ extern "C" {
  */
 
 /*Aviable current alerts of a monitor channel*/
-//#ref-enum @alias Power Alert
+//#ref-enum @alias Current Alert
 typedef enum sys_power_alert_e {
-  SYS_POWER_ALERT_OCP_WARNING = 0, //@alias Over-Current Warning @description Current draw is approaching the limit - not cut off yet, just a heads-up
-  SYS_POWER_ALERT_OCP_CRITICAL = 1, //@alias Over-Current Critical @description Current draw exceeded the limit - output is protected/shut down
+  SYS_POWER_ALERT_OCP_WARNING = 0,  //@alias Warning @description A first, lower current threshold
+  SYS_POWER_ALERT_OCP_CRITICAL = 1,  //@alias Critical @description A second, higher current threshold
 } sys_power_alert_e;
 
 /* Events of the monitor contract (sys_event.h "Events tables"), published by a
  * device for an armed alert; channel = the measured channel, value = mA. The n of
  * each event is the sys_power_alert_e that armed it. Both matter to the user: NOTIFY. */
 // clang-format off
-#define SYS_POWER_MONITOR_EVENTS(X)                                     \
-  X(OCP_WARNING,  0x00, SYS_EVENT_NOTIFY)  /* value = mA */             \
-  X(OCP_CRITICAL, 0x01, SYS_EVENT_NOTIFY)  /* value = mA */
+#define SYS_POWER_MONITOR_EVENTS(X) \
+  X(OCP_WARNING, 0x00, SYS_EVENT_NOTIFY)  /* @alias Over-current warning @description A channel's current crossed its warning threshold @value The current @unit mA */ \
+  X(OCP_CRITICAL, 0x01, SYS_EVENT_NOTIFY)  /* @alias Over-current critical @description A channel's current crossed its critical threshold @value The current @unit mA */
 // clang-format on
 
 #define SYS_POWER_MONITOR__EV(name, n, flags) \
@@ -37,13 +36,13 @@ typedef enum sys_power_alert_e {
 enum { SYS_POWER_MONITOR_EVENTS(SYS_POWER_MONITOR__EV) };
 
 typedef struct __attribute__((packed)) {
-  uint8_t channel;
+  uint8_t channel;  //@alias Channel @description The measured channel @id pin
 } pmon_channel_args_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t channel;
-  uint8_t alert;         // sys_power_alert_e
-  int32_t threshold_mA;  // published as PMON_EV_<alert> when the current crosses it
+  uint8_t channel;  //@alias Channel @description The measured channel @id pin
+  uint8_t alert;  //@alias Alert @description Which alert to arm @enum-ref sys_power_alert_e
+  int32_t threshold_mA;  //@alias Threshold @description The event is published when the current crosses it @unit mA
 } pmon_alert_args_t;
 
 /**
@@ -52,11 +51,11 @@ typedef struct __attribute__((packed)) {
  * (SYS_DEVICE.MD "Contract tables"). Numbers are never reused.
  */
 // clang-format off
-#define SYS_POWER_MONITOR_CONTRACT(X)                                                               \
-  X(GET_VOLTAGE, 0x00, pmon_channel_args_t)  /* -> i32 mV */                                      \
-  X(GET_CURRENT, 0x01, pmon_channel_args_t)  /* -> i32 mA */                                      \
-  X(SET_ALERT,   0x02, pmon_alert_args_t)    /* arms a hardware current alert (event PMON_EV_*) */ \
-  X(GET_POWER,   0x03, pmon_channel_args_t)  /* -> i32 mW */
+#define SYS_POWER_MONITOR_CONTRACT(X) \
+  X(GET_VOLTAGE, 0x00, pmon_channel_args_t)  /* @alias Read voltage @description Reads the voltage of a channel. @returns i32 @returns-alias Voltage @unit mV */ \
+  X(GET_CURRENT, 0x01, pmon_channel_args_t)  /* @alias Read current @description Reads the current of a channel (a reversed shunt reads negative). @returns i32 @returns-alias Current @unit mA */ \
+  X(SET_ALERT, 0x02, pmon_alert_args_t)  /* @alias Set current alert @description Arms a hardware alert that publishes an event when the current crosses a threshold. */ \
+  X(GET_POWER, 0x03, pmon_channel_args_t)  /* @alias Read power @description Reads the power of a channel. @returns i32 @returns-alias Power @unit mW */
 // clang-format on
 
 #define SYS_POWER_MONITOR__ID(name, n, args_t) PMON_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_MONITOR, n),

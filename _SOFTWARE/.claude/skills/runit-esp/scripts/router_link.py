@@ -144,11 +144,20 @@ class Response:
 
 class Link:
     def __init__(self, url: str, baud: int = 115200, echo: bool = False):
-        self.ser = serial.serial_for_url(url, baudrate=baud, timeout=0.05)
+        # Both reset lines low before the port opens, so opening does not pulse EN / IO0 through the auto-reset circuit
+        # (the board keeps running, with its outputs); close() releases them in the matching order.
+        self.ser = serial.serial_for_url(url, baudrate=baud, timeout=0.05, do_not_open=True)
+        try:
+            self.ser.rts = False
+            self.ser.dtr = False
+        except (AttributeError, ValueError, OSError):
+            pass  # a socket:// target (QEMU) has no modem lines
+        self.ser.open()
         self.echo = echo
         self.logs: list[tuple[float, str]] = []
         self.streams: list[tuple[float, int, bytes]] = []
         self.responses: dict[int, Response] = {}
+        self._parts: dict[int, list[Response]] = {}  # request_many: every answer of a seq, in order
         self._seq = 0
         self._lock = threading.Lock()
         self._stop = False
@@ -158,6 +167,11 @@ class Link:
     def close(self) -> None:
         self._stop = True
         self._thread.join(1)
+        try:
+            self.ser.rts = False  # RTS first: (DTR, RTS) = (1, 0) only pulls IO0; DTR first would pull EN (a reset)
+            self.ser.dtr = False
+        except (AttributeError, ValueError, OSError):
+            pass
         self.ser.close()
 
     def __enter__(self) -> "Link":
@@ -200,7 +214,10 @@ class Link:
                 return
             with self._lock:
                 if frame and frame[0] == STREAM_RESPONSE and len(frame) >= 3:
-                    self.responses[frame[1]] = Response(frame[1], frame[2], frame[3:], now)
+                    resp = Response(frame[1], frame[2], frame[3:], now)
+                    self.responses[frame[1]] = resp
+                    if frame[1] in self._parts:
+                        self._parts[frame[1]].append(resp)
                 elif frame:
                     self.streams.append((now, frame[0], frame[1:]))
             return
@@ -224,6 +241,23 @@ class Link:
             self.responses.pop(seq, None)
         self.send_frame(bytes([seq, FLAG_URGENT if urgent else 0]) + keys + payload)
         return self.wait_response(seq, timeout)
+
+    def request_many(self, keys: bytes, payload: bytes, count: int, timeout: float = 2.0) -> list[Response]:
+        """A command answered with `count` packets (actions READ): all of them in order, or what came (an error
+        answer ends it early)."""
+        seq = self.next_seq()
+        with self._lock:
+            self._parts[seq] = []
+        self.send_frame(bytes([seq, 0]) + keys + payload)
+        end = time.time() + timeout
+        while time.time() < end:
+            with self._lock:
+                got = self._parts[seq]
+                if len(got) >= count or any(not r.ok for r in got):
+                    break
+            time.sleep(0.01)
+        with self._lock:
+            return self._parts.pop(seq)
 
     def wait_response(self, seq: int, timeout: float = 2.0) -> Response | None:
         end = time.time() + timeout

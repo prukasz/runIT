@@ -1,10 +1,12 @@
-#include <stdarg.h>
-#include <stdio.h>
+
+
 #include "errors.h"
 #include "esp_log.h"
 
 #define TAG "errors"
 #define LOG_LINE_LEN CONFIG_ERRORS_LOG_LINE_LEN
+
+static volatile bool s_enabled = true;
 
 static const char* const k_sev_names[] = {"NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"};
 
@@ -73,8 +75,12 @@ void err_log(err_h chain) {
   err_log_ctx(chain, NULL);
 }
 
+void err_log_enable(bool on) {
+  s_enabled = on;
+}
+
 void err_log_ctx(err_h chain, const char* context) {
-  if (chain == NULL) {
+  if (chain == NULL || !s_enabled) {
     return;
   }
 

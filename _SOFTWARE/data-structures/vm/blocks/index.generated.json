@@ -1,13 +1,6 @@
 {
-  "$schema": "data-structures/schema/vm-blocks-index.schema.json",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "kind": "vm-blocks-index",
-  "common_rules": [
-    "in_cnt and q_cnt are at least the block's inputs.min / outputs.min, and at most its max.",
-    "Every required input is wired (not VM_BLOCK_NO_ID).",
-    "custom_len is at least the state size."
-  ],
-  "common_rules_error": "ERR_VM_BLK_BAD_SHAPE",
   "value_kinds": {
     "bool": "Read as true when non-zero / written 1 or 0. Any scalar object.",
     "u8": "Read or written as an unsigned 8-bit number. Any scalar object (converted).",
@@ -25,172 +18,214 @@
     "enable-rising": "Runs once each time its enables turn it on."
   },
   "id_kinds": {
-    "device": "The id of a device created in the project. The field's `contract` says which devices fit (the ones that answer it).",
-    "pin": "An index of an IO resource of the device in the field named by `device_field` (a pin, a channel: the editor's title says which).",
-    "channel": "The channel (pin or channel) an event carries, of the device in `device_field`, as that device declares it for the event domain in `source_field`.",
-    "action": "An action ID: a static action (a built-in) or a recorded one, as the enum field named by `source_field` (the scope) says.",
-    "event": "The event of the device in `device_field` in the event domain of `source_field`: the device's own events, or the domain's when no device is chosen."
+    "device": "The id (u16) of a device created in the project. `contract` names the contract the device must answer, `device_type` the device type that has operations of its own.",
+    "pin": "An index of an IO resource of the device in the field named by `device_field` (a pin, a channel: the alias says which).",
+    "channel": "The channel (pin or channel) an event carries, of the device in `device_field`, as that device declares it.",
+    "event": "The event of the device in `device_field`: the device's own events, or any event when no device is chosen.",
+    "action": "A record ID (u32) of the action store (SYS_ACTIONS.MD)."
   },
+  "op_kinds": {
+    "change": "A setting: sent on the first enabled pass and whenever an argument changed (write-on-change).",
+    "edge": "An action (toggle, brake, reset): sent once per rising edge of the enable.",
+    "read": "A reading: asked on every enabled pass, the values written to the outputs in order."
+  },
+  "field_roles": {
+    "device": "The device the block works on (an id field with a contract or device type).",
+    "op": "The operation the block performs: one of `ops`; it decides the pins.",
+    "idle-op": "The operation sent once when the block is not enabled (0 = none): one of `ops` that is not a reading.",
+    "const": "The constant of input `i` of the chosen operation, used while that input is unwired (`i` = the field's array index).",
+    "idle-const": "The constants of the idle operation's inputs after its address inputs."
+  },
+  "common_rules": [
+    {
+      "rule": "The pin counts, the required pins and the size of the private state match the block's palette entry.",
+      "error": "ERR_VM_BLK_BAD_SHAPE"
+    }
+  ],
   "blocks": [
     {
       "id": 1,
       "name": "VM_BLK_EXPR",
-      "title": "Expression",
+      "alias": "Expression",
       "category": "data",
-      "display": "components/VM/blocks/expr/expr.display.json",
-      "content": "components/VM/blocks/expr/expr.content.json"
+      "file": "expr.block.json",
+      "guide": "expr.md"
     },
     {
       "id": 2,
       "name": "VM_BLK_EXPR_BIT",
-      "title": "Bit Expression",
+      "alias": "Bit Expression",
       "category": "data",
-      "display": "components/VM/blocks/expr_bit/expr_bit.display.json",
-      "content": "components/VM/blocks/expr_bit/expr_bit.content.json"
+      "file": "expr_bit.block.json",
+      "guide": "expr_bit.md"
     },
     {
       "id": 3,
       "name": "VM_BLK_IF",
-      "title": "If",
+      "alias": "If",
       "category": "flow",
-      "display": "components/VM/blocks/if/if.display.json",
-      "content": "components/VM/blocks/if/if.content.json"
+      "file": "if.block.json",
+      "guide": "if.md"
     },
     {
       "id": 4,
       "name": "VM_BLK_SWITCH",
-      "title": "Switch",
+      "alias": "Switch",
       "category": "flow",
-      "display": "components/VM/blocks/switch/switch.display.json",
-      "content": "components/VM/blocks/switch/switch.content.json"
+      "file": "switch.block.json",
+      "guide": "switch.md"
     },
     {
       "id": 5,
       "name": "VM_BLK_FOR",
-      "title": "For",
+      "alias": "For",
       "category": "flow",
-      "display": "components/VM/blocks/for/for.display.json",
-      "content": "components/VM/blocks/for/for.content.json"
+      "file": "for.block.json",
+      "guide": "for.md"
     },
     {
       "id": 6,
       "name": "VM_BLK_SET",
-      "title": "Set",
+      "alias": "Set",
       "category": "data",
-      "display": "components/VM/blocks/set/set.display.json",
-      "content": "components/VM/blocks/set/set.content.json"
+      "file": "set.block.json",
+      "guide": "set.md"
     },
     {
       "id": 7,
       "name": "VM_BLK_CLONE",
-      "title": "Clone",
+      "alias": "Clone",
       "category": "data",
-      "display": "components/VM/blocks/clone/clone.display.json",
-      "content": "components/VM/blocks/clone/clone.content.json"
+      "file": "clone.block.json",
+      "guide": "clone.md"
     },
     {
       "id": 8,
       "name": "VM_BLK_EDGE",
-      "title": "Edge",
+      "alias": "Edge",
       "category": "logic",
-      "display": "components/VM/blocks/edge/edge.display.json",
-      "content": "components/VM/blocks/edge/edge.content.json"
+      "file": "edge.block.json",
+      "guide": "edge.md"
     },
     {
       "id": 9,
       "name": "VM_BLK_TIMER",
-      "title": "Timer",
+      "alias": "Timer",
       "category": "time",
-      "display": "components/VM/blocks/timer/timer.display.json",
-      "content": "components/VM/blocks/timer/timer.content.json"
-    },
-    {
-      "id": 10,
-      "name": "VM_BLK_IO_SET_LEVEL",
-      "title": "Set Pin Level",
-      "category": "io",
-      "display": "components/VM/blocks/io_set_level/io_set_level.display.json",
-      "content": "components/VM/blocks/io_set_level/io_set_level.content.json"
-    },
-    {
-      "id": 11,
-      "name": "VM_BLK_IO_TOGGLE",
-      "title": "Toggle Pin",
-      "category": "io",
-      "display": "components/VM/blocks/io_toggle/io_toggle.display.json",
-      "content": "components/VM/blocks/io_toggle/io_toggle.content.json"
+      "file": "timer.block.json",
+      "guide": "timer.md"
     },
     {
       "id": 12,
       "name": "VM_BLK_LATCH",
-      "title": "Latch",
+      "alias": "Latch",
       "category": "logic",
-      "display": "components/VM/blocks/latch/latch.display.json",
-      "content": "components/VM/blocks/latch/latch.content.json"
+      "file": "latch.block.json",
+      "guide": "latch.md"
     },
     {
       "id": 13,
       "name": "VM_BLK_PERIODIC",
-      "title": "Every",
+      "alias": "Every",
       "category": "time",
-      "display": "components/VM/blocks/periodic/periodic.display.json",
-      "content": "components/VM/blocks/periodic/periodic.content.json"
+      "file": "periodic.block.json",
+      "guide": "periodic.md"
     },
     {
       "id": 14,
       "name": "VM_BLK_ACTION",
-      "title": "Run Action",
+      "alias": "Run Action",
       "category": "system",
-      "display": "components/VM/blocks/action/action.display.json",
-      "content": "components/VM/blocks/action/action.content.json"
+      "file": "action.block.json",
+      "guide": "action.md"
     },
     {
       "id": 15,
       "name": "VM_BLK_ON_EVENT",
-      "title": "On Event",
+      "alias": "On Event",
       "category": "system",
-      "display": "components/VM/blocks/on_event/on_event.display.json",
-      "content": "components/VM/blocks/on_event/on_event.content.json"
+      "file": "on_event.block.json",
+      "guide": "on_event.md"
     },
     {
-      "id": 16,
-      "name": "VM_BLK_SERVO",
-      "title": "Servo",
-      "category": "io",
-      "display": "components/VM/blocks/servo/servo.display.json",
-      "content": "components/VM/blocks/servo/servo.content.json"
+      "id": 32,
+      "name": "VM_BLK_IO",
+      "alias": "IO pin",
+      "category": "device",
+      "file": "io.block.json",
+      "guide": "io.md"
     },
     {
-      "id": 17,
-      "name": "VM_BLK_POWER_MONITOR",
-      "title": "Power Monitor",
-      "category": "io",
-      "display": "components/VM/blocks/power_monitor/power_monitor.display.json",
-      "content": "components/VM/blocks/power_monitor/power_monitor.content.json"
-    },
-    {
-      "id": 18,
-      "name": "VM_BLK_IO_GET_LEVEL",
-      "title": "Read Pin",
-      "category": "io",
-      "display": "components/VM/blocks/io_get_level/io_get_level.display.json",
-      "content": "components/VM/blocks/io_get_level/io_get_level.content.json"
-    },
-    {
-      "id": 19,
-      "name": "VM_BLK_IO_GET_VOLTAGE",
-      "title": "Read Voltage",
-      "category": "io",
-      "display": "components/VM/blocks/io_get_voltage/io_get_voltage.display.json",
-      "content": "components/VM/blocks/io_get_voltage/io_get_voltage.content.json"
-    },
-    {
-      "id": 20,
+      "id": 33,
       "name": "VM_BLK_HBRIDGE",
-      "title": "H-Bridge",
-      "category": "io",
-      "display": "components/VM/blocks/hbridge/hbridge.display.json",
-      "content": "components/VM/blocks/hbridge/hbridge.content.json"
+      "alias": "H-bridge",
+      "category": "device",
+      "file": "hbridge.block.json",
+      "guide": "hbridge.md"
+    },
+    {
+      "id": 34,
+      "name": "VM_BLK_POWER_MONITOR",
+      "alias": "Power monitor",
+      "category": "device",
+      "file": "power_monitor.block.json",
+      "guide": "power_monitor.md"
+    },
+    {
+      "id": 35,
+      "name": "VM_BLK_POWER_VREG",
+      "alias": "Regulator",
+      "category": "device",
+      "file": "power_vreg.block.json",
+      "guide": "power_vreg.md"
+    },
+    {
+      "id": 36,
+      "name": "VM_BLK_POWER_SUPPLY",
+      "alias": "Power mux",
+      "category": "device",
+      "file": "power_supply.block.json",
+      "guide": "power_supply.md"
+    },
+    {
+      "id": 37,
+      "name": "VM_BLK_POWER_USB_PD",
+      "alias": "USB-PD sink",
+      "category": "device",
+      "file": "power_usb_pd.block.json",
+      "guide": "power_usb_pd.md"
+    },
+    {
+      "id": 38,
+      "name": "VM_BLK_LIFECYCLE",
+      "alias": "Device control",
+      "category": "device",
+      "file": "lifecycle.block.json",
+      "guide": "lifecycle.md"
+    },
+    {
+      "id": 39,
+      "name": "VM_BLK_SERVO",
+      "alias": "Servo",
+      "category": "device",
+      "file": "servo.block.json",
+      "guide": "servo.md"
+    },
+    {
+      "id": 40,
+      "name": "VM_BLK_DRV8962",
+      "alias": "DRV8962",
+      "category": "device",
+      "file": "drv8962.block.json",
+      "guide": "drv8962.md"
+    },
+    {
+      "id": 41,
+      "name": "VM_BLK_TPS55289",
+      "alias": "TPS55289",
+      "category": "device",
+      "file": "tps55289.block.json",
+      "guide": "tps55289.md"
     }
   ]
 }

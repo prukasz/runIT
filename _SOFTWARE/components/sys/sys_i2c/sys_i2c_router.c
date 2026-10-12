@@ -1,5 +1,5 @@
 #include "sys_i2c_router.h"
-#include <string.h>
+
 #include "sdkconfig.h"
 #include "sys_i2c.h"
 
@@ -25,27 +25,27 @@
 #define INFO_PULLUP (1u << 2)
 
 typedef struct __attribute__((packed)) {
-  uint8_t flags;  // INFO_*
-  uint8_t sda;
-  uint8_t scl;
-  uint32_t used[4];  // bit n = a device is added at address n
+  uint8_t flags;  //@alias Status @description Bit 0 enabled, bit 1 ready, bit 2 pull-ups on
+  uint8_t sda;  //@alias SDA pin
+  uint8_t scl;  //@alias SCL pin
+  uint32_t used[4];  //@alias Used addresses @description A bit per 7-bit address: a device is added there
 } info_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t bus;
+  uint8_t bus;  //@alias Bus @enum-ref sys_i2c_bus_e
 } bus_args_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t bus;
-  uint8_t addr;
-  uint8_t reg;
-  uint8_t len;
+  uint8_t bus;  //@alias Bus @enum-ref sys_i2c_bus_e
+  uint8_t addr;  //@alias Address @description 7-bit
+  uint8_t reg;  //@alias Register
+  uint8_t len;  //@alias Length @unit bytes
 } raw_read_args_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t bus;
-  uint8_t addr;
-  uint8_t reg;
+  uint8_t bus;  //@alias Bus @enum-ref sys_i2c_bus_e
+  uint8_t addr;  //@alias Address @description 7-bit
+  uint8_t reg;  //@alias Register
 } raw_write_hdr_t;
 
 static err_h check_remote_bus(uint8_t bus) {
@@ -127,11 +127,16 @@ ROUTER_OP_TAIL(op_raw_write, raw_write_hdr_t) {
 #endif
 
 static const router_entry_t k_ops[] = {
+    //@op OP_INFO @alias Bus info @description State of each I2C bus: enabled, ready, pins, used addresses @returns info_t[] @returns-alias Buses
     {OP_INFO, op_info},
+    //@op OP_SCAN @alias Scan bus @description Finds the devices that answer on a bus @returns u32[] @returns-alias Answering addresses @returns-description A bit per 7-bit address, in four 32-bit words
     {OP_SCAN, op_scan},
+    //@op OP_RESET @alias Reset bus @description Recovers a stuck bus
     {OP_RESET, op_reset},
 #if CONFIG_SYS_I2C_REMOTE_RAW
+    //@op OP_RAW_READ @alias Read registers @description Reads bytes from a device's registers (diagnostics) @returns bytes @returns-alias Data
     {OP_RAW_READ, op_raw_read},
+    //@op OP_RAW_WRITE @alias Write registers @description Writes bytes to a device's registers (diagnostics) @tail bytes @tail-alias Data
     {OP_RAW_WRITE, op_raw_write},
 #endif
 };

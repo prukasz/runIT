@@ -11,8 +11,8 @@ The type registers itself (`SYS_DEVICE_TYPE_DEFINE`, `SYS_DEVICE_TYPE_TPS55289`)
 1. A one-shot `esp_timer` for the rise steps.
 2. EN (if wired): output, locked on its device (PINS contract), driven high — the chip's I2C is down while EN is low, so this comes before the probe; 10 ms wake-up.
 3. I2C probe.
-4. FB/INT (if wired): input with pull-up, subscribed inline (`IO_EV_FALLING` of that pin → our ON_EVENT), armed with CONFIGURE_INTR falling edge, locked.
-5. Defaults written with the output off (5 V, 200 mA, slowest slew, every fault indicated on FB/INT), then EN low: the rail stays off until SET_ENABLE.
+4. FB/INT (if wired): input (`sys_io_prepare_input`: pull-up where the device has one), subscribed inline (`IO_EV_FALLING` of that pin → our ON_EVENT), armed with CONFIGURE_INTR falling edge, locked.
+5. Defaults written with the output off (5 V, 200 mA, slowest slew, the default protection below), then EN low: the rail stays off until SET_ENABLE.
 
 The registry allocates the struct and adds the instance; on a failure it calls `uninstall()` (everything built is released) and wraps the error in `ERR_DEV_INSTALL{id, 0x0043}`.
 
@@ -29,19 +29,32 @@ Both pins' devices must exist (`sys_device_use`: `ERR_DEV_NOT_FOUND`); they can'
 
 | Op | Args | Answer | Notes |
 |---|---|---|---|
-| `0x0001` RESET | – | – | 5 V / 200 mA wanted, rail off |
+| `0x0001` RESET | – | – | 5 V / 200 mA / default protection wanted, rail off |
 | `0x0002` SUSPEND | – | – | Output off, then EN low (EN goes low even if the I2C write fails); the wanted state is kept |
 | `0x0003` RESUME | – | – | An enabled rail: EN high and every setting again (a rise). A failing resume turns the rail off and stays suspended |
 | `0x0004` REMOVE | – | – | Generic (registry). `uninstall()`: timer stopped / deleted, output off, I2C released, FB/INT unsubscribed / unlocked / reset, EN low / unlocked / reset |
 | `0x0005` INFO | – | `{u16 0x0043, u8 suspended}` | Generic |
 | `0x0006` OPS | – | `u16[]` | Generic |
-| `0x0500` SET_ENABLE | `{u8 enable}` | – | On: EN high, all settings rewritten (the chip forgot them), a rise starts; **returns at once**, `VREG_EV_READY` when settled. Already on: nothing. Off: rise stopped, output off, EN low |
+| `0x0500` SET_ENABLE | `{u8 enable}` | – | On: EN high, all settings rewritten (the chip forgot them), a rise starts; **returns at once**, `VREG_EV_READY` when settled. Already on: nothing. Off: rise stopped, output off, EN low (with `discharge`: EN low 100 ms later, below) |
 | `0x0501` SET_VOLTAGE | `{u32 mV}` | – | 3000..20000. Higher on a running rail: a rise (returns at once, `VREG_EV_READY`); during a rise the ramp follows the new target. Lower or output off: written at once |
 | `0x0502` SET_CURRENT | `{u32 mA}` | – | 200..5500; written raised to the 500 mA floor. During a rise only stored: the end of the rise writes it |
-| `0x0300` ON_EVENT | `sys_event_t` | – | FB/INT fell: reads STATUS and publishes `VREG_EV_OVP` / `OCP` / `SCP` (SYS_POWER.MD), caused by the pin's event; OCP during a rise is the inrush and is not published |
-| `0xFF00` RISE_STEP | – | – | Own op, sent by the rise timer through `sys_device_call`. Without a rise in progress (or while suspended) it does nothing; a failing step ends the rise where it is (soft-rise limit kept) and the timer reports the error |
+| `0x0300` ON_EVENT | `sys_event_t` | – | FB/INT fell: reads STATUS and publishes `VREG_EV_OVP` / `OCP` / `SCP` (SYS_POWER.MD); OCP during a rise is the inrush and is not published |
+| `0xFF00` RISE_STEP | – | – | Own op, sent by the rise timer through `sys_device_call`. Without a rise or a discharge in progress (or while suspended) it does nothing; a failing step ends the rise where it is (soft-rise limit kept) and the timer reports the error |
+| `0xFF01` SET_PROTECTION | `tps55289_protection_t` (4 B) | – | Own op, below. Refused while suspended; out of range: `ERR_DEV_RANGE` / `ERR_CMD_BAD_ARG` |
+| `0xFF02` GET_PROTECTION | – | `tps55289_protection_t` | Allowed while suspended |
 
 Every write is refused while suspended (`ERR_DEV_SUSPENDED`). While the rail is off (EN low) SET_VOLTAGE / SET_CURRENT only store the wanted value.
+
+## Protection (own ops, 2026-10-11)
+
+How the chip protects itself, set per device (the system's response to its events is the power manager's, SYS_POWER_MANAGER.MD). `{u8 ocp_delay, u8 hiccup, u8 fault_mask, u8 discharge}`, kept by the device and written again each time EN goes high (EN low clears every register); while the chip is powered SET_PROTECTION writes it at once.
+
+| Field | Register | Range / default | Effect |
+|---|---|---|---|
+| `ocp_delay` | VOUT_SR[5:4] | 0..3 / 0 | How long the output may exceed the current limit before the chip holds it: 128 us, 3.072, 6.144, 12.288 ms (a motor's start) |
+| `hiccup` | MODE[5] | 0 / 1, default 1 | Short circuit (limit reached and output < 0.8 V): 76 ms off, then a soft start (1), or stay in the limit (0) |
+| `fault_mask` | CDC[7:5] | bits OVP 0x01, OCP 0x02, SCP 0x04 / 0x07 | Which faults pull FB/INT low, i.e. become `VREG_EV_*` events. OCP = "the output is in its current limit" (the chip regulates current, datasheet 7.6.7): mask it when that is normal for the load |
+| `discharge` | MODE[4] | 0 / 1, default 0 | SET_ENABLE off clears OE and keeps EN high `TPS_DISCHARGE_MS` (100 ms) while the chip sinks the output (40..170 mA), then the rise timer drives EN low (state FALL). SUSPEND doesn't wait: a fault drives EN low at once. Without an EN pin the sink runs for as long as the output is off. The 100 ms assume up to ~200 uF at 20 V: the board's output capacitance is not measured yet (finding 15: unloaded rails stayed at 19 V) |
 
 ## Behaviour kept from legacy
 

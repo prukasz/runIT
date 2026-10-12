@@ -1,13 +1,17 @@
 {
-  "$schema": "data-structures/schema/device-definition.schema.json",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "kind": "device-definition",
   "id": "device_ina3221",
-  "title": "INA3221 power monitor",
+  "alias": "INA3221 power monitor",
   "description": "Three-channel I2C bus-voltage and shunt-current monitor with warning and critical alerts.",
   "protocols": [
     "i2c"
   ],
+  "source_file": "components/devices/device_ina3221/device_ina3221.h",
+  "type": {
+    "symbol": "SYS_DEVICE_TYPE_INA3221",
+    "id": 68
+  },
   "tags": [
     "i2c",
     "power",
@@ -18,359 +22,292 @@
     "ic"
   ],
   "datasheet": "https://www.ti.com/lit/ds/symlink/ina3221.pdf",
-  "source_file": "device_ina3221.h",
-  "contractProvider": {
-    "symbol": "SYS_DEVICE_CONTRACT_POWER_MONITOR",
-    "enum": "sys_device_contract_type_e",
-    "value": 2,
-    "alias": "Power Monitor",
-    "description": "Measures voltage and current on a power rail, with optional over-current alerts"
-  },
-  "install": {
-    "packet": "packet_sys_device_install_ina3221_t",
-    "packet_definition": {
-      "source_file": "device_ina3221.h",
-      "class_name": "SYS_CONTRACTS",
-      "class_header": "0x01",
-      "packet_header": "0x44",
-      "decoder": "sys_device_create(&g_ina3221_class)",
-      "field_order": [
-        "device_id",
-        "i2c_bus",
-        "i2c_addr",
-        "crit_pin_device_id",
-        "crit_pin_pin",
-        "crit_pin_mode",
-        "warn_pin_device_id",
-        "warn_pin_pin",
-        "warn_pin_mode",
-        "inverted_mask"
-      ],
-      "fields": {
-        "device_id": {
-          "type": "uint8_t",
-          "max": 127
-        },
-        "i2c_bus": {
-          "type": "uint8_t"
-        },
-        "i2c_addr": {
-          "type": "uint8_t",
-          "alias": "I2C Address",
-          "one_of": [
-            64,
-            65,
-            66,
-            67
-          ],
-          "note": "The A0 pin strap (GND/Vs+/SDA/SCL) selects the address."
-        },
-        "crit_pin_device_id": {
-          "type": "uint8_t",
-          "group": "crit_pin"
-        },
-        "crit_pin_pin": {
-          "type": "uint8_t",
-          "sentinel": 255,
-          "group": "crit_pin"
-        },
-        "crit_pin_mode": {
-          "type": "uint8_t",
-          "one_of": [
-            {
-              "symbol": "SYS_IO_MODE_INPUT",
-              "enum": "sys_io_mode_e",
-              "value": 0,
-              "alias": "Input",
-              "description": "Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal"
-            },
-            {
-              "symbol": "SYS_IO_MODE_INPUT_PULLUP",
-              "enum": "sys_io_mode_e",
-              "value": 1,
-              "alias": "Input with Pullup",
-              "description": "Same as Input, but reads \"on\" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed"
-            }
-          ],
-          "enum_ref": "sys_io_mode_e",
-          "group": "crit_pin"
-        },
-        "warn_pin_device_id": {
-          "type": "uint8_t",
-          "group": "warn_pin"
-        },
-        "warn_pin_pin": {
-          "type": "uint8_t",
-          "sentinel": 255,
-          "group": "warn_pin"
-        },
-        "warn_pin_mode": {
-          "type": "uint8_t",
-          "one_of": [
-            {
-              "symbol": "SYS_IO_MODE_INPUT",
-              "enum": "sys_io_mode_e",
-              "value": 0,
-              "alias": "Input",
-              "description": "Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal"
-            },
-            {
-              "symbol": "SYS_IO_MODE_INPUT_PULLUP",
-              "enum": "sys_io_mode_e",
-              "value": 1,
-              "alias": "Input with Pullup",
-              "description": "Same as Input, but reads \"on\" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed"
-            }
-          ],
-          "enum_ref": "sys_io_mode_e",
-          "group": "warn_pin"
-        },
-        "inverted_mask": {
-          "type": "uint8_t",
-          "alias": "Reversed Shunts",
-          "min": 0,
-          "max": 7,
-          "default": 0,
-          "note": "Bit N set: channel N's shunt is wired reversed. Its current is reported with the sign flipped; its alerts are armed on the reversed (released) edge, one channel per alert pin."
-        }
+  "create": {
+    "frame": [
+      "key 0x05",
+      "device id (u16)",
+      "op 0x0000 (CREATE)",
+      "type (u16)",
+      "the fields below, in order"
+    ],
+    "struct": "ina3221_cfg_t",
+    "size": 9,
+    "source_file": "components/devices/device_ina3221/device_ina3221.h",
+    "fields": [
+      {
+        "name": "i2c_bus",
+        "offset": 0,
+        "type": "u8",
+        "size": 1,
+        "alias": "I2C bus",
+        "description": "The I2C bus the chip is on",
+        "enum_ref": "sys_i2c_bus_e"
       },
-      "groups": {
-        "crit_pin": {
-          "fields": [
-            "crit_pin_device_id",
-            "crit_pin_pin",
-            "crit_pin_mode"
-          ],
-          "sentinel_field": "crit_pin_pin",
-          "note": "Active-low."
-        },
-        "warn_pin": {
-          "fields": [
-            "warn_pin_device_id",
-            "warn_pin_pin",
-            "warn_pin_mode"
-          ],
-          "sentinel_field": "warn_pin_pin",
-          "note": "Active-low."
-        }
+      {
+        "name": "i2c_addr",
+        "offset": 1,
+        "type": "u8",
+        "size": 1,
+        "alias": "I2C address",
+        "description": "The A0 pin strap (GND, Vs+, SDA or SCL) selects one of four addresses",
+        "one_of": [
+          64,
+          65,
+          66,
+          67
+        ]
+      },
+      {
+        "name": "crit_pin",
+        "offset": 2,
+        "type": "struct",
+        "struct": "sys_io_pin_t",
+        "fields": [
+          {
+            "name": "device",
+            "offset": 0,
+            "type": "u16",
+            "size": 2,
+            "alias": "Device",
+            "description": "The device the pin is on",
+            "id_kind": "device",
+            "any_value": 65535
+          },
+          {
+            "name": "pin",
+            "offset": 2,
+            "type": "u8",
+            "size": 1,
+            "alias": "Pin",
+            "description": "The pin of that device",
+            "id_kind": "pin",
+            "device_field": "device"
+          }
+        ],
+        "size": 3,
+        "alias": "Critical alert",
+        "description": "Open-drain, active-low; needs CONFIGURE_INTR on its device",
+        "pin_ref": true,
+        "modes": [
+          {
+            "symbol": "SYS_IO_MODE_INPUT",
+            "enum": "sys_io_mode_e",
+            "value": 0,
+            "alias": "Input"
+          },
+          {
+            "symbol": "SYS_IO_MODE_INPUT_PULLUP",
+            "enum": "sys_io_mode_e",
+            "value": 1,
+            "alias": "Input with Pullup"
+          }
+        ],
+        "default_mode": 1
+      },
+      {
+        "name": "warn_pin",
+        "offset": 5,
+        "type": "struct",
+        "struct": "sys_io_pin_t",
+        "fields": [
+          {
+            "name": "device",
+            "offset": 0,
+            "type": "u16",
+            "size": 2,
+            "alias": "Device",
+            "description": "The device the pin is on",
+            "id_kind": "device",
+            "any_value": 65535
+          },
+          {
+            "name": "pin",
+            "offset": 2,
+            "type": "u8",
+            "size": 1,
+            "alias": "Pin",
+            "description": "The pin of that device",
+            "id_kind": "pin",
+            "device_field": "device"
+          }
+        ],
+        "size": 3,
+        "alias": "Warning alert",
+        "description": "Open-drain, active-low; needs CONFIGURE_INTR on its device",
+        "pin_ref": true,
+        "modes": [
+          {
+            "symbol": "SYS_IO_MODE_INPUT",
+            "enum": "sys_io_mode_e",
+            "value": 0,
+            "alias": "Input"
+          },
+          {
+            "symbol": "SYS_IO_MODE_INPUT_PULLUP",
+            "enum": "sys_io_mode_e",
+            "value": 1,
+            "alias": "Input with Pullup"
+          }
+        ],
+        "default_mode": 1
+      },
+      {
+        "name": "inverted_mask",
+        "offset": 8,
+        "type": "u8",
+        "size": 1,
+        "alias": "Reversed shunts",
+        "description": "Bit N set: channel N's shunt is wired reversed, its current reads negative",
+        "min": 0,
+        "max": 7,
+        "default": 0
       }
-    }
+    ]
   },
   "contracts": [
     {
-      "packet": "packet_sys_power_monitor_get_voltage_t",
-      "parameters": [
+      "contract": "DEVICE",
+      "id": 0,
+      "alias": "Device",
+      "ops": [
         {
-          "name": "device_id",
-          "alias": "Device ID",
-          "instance": true
+          "name": "RESET",
+          "symbol": "SYS_DEVICE_OP_RESET",
+          "id": 1,
+          "alias": "Reset",
+          "description": "Puts the device's outputs off and its settings back to defaults."
         },
         {
-          "name": "channel",
-          "one_of": [
-            0,
-            1,
-            2
-          ],
-          "alias": "Monitor Channel"
+          "name": "SUSPEND",
+          "symbol": "SYS_DEVICE_OP_SUSPEND",
+          "id": 2,
+          "alias": "Suspend",
+          "description": "Makes the outputs safe; the device refuses writes until it is resumed."
+        },
+        {
+          "name": "RESUME",
+          "symbol": "SYS_DEVICE_OP_RESUME",
+          "id": 3,
+          "alias": "Resume",
+          "description": "Lets a suspended device work again."
         }
-      ],
-      "alias": "Read bus voltage",
-      "returns": "voltage_mV",
-      "packet_definition": {
-        "source_file": "dec_sys_contracts.h",
-        "class_name": "SYS_CONTRACTS",
-        "class_header": "0x01",
-        "packet_header": "0x34",
-        "decoder": "decoder_packet_sys_power_monitor_get_voltage_t()",
-        "field_order": [
-          "device_id",
-          "channel"
-        ],
-        "fields": {
-          "device_id": {
-            "type": "uint8_t",
-            "alias": "Device ID",
-            "required": true
-          },
-          "channel": {
-            "type": "uint8_t",
-            "alias": "Channel",
-            "required": true
-          }
-        }
-      }
+      ]
     },
     {
-      "packet": "packet_sys_power_monitor_get_current_t",
-      "parameters": [
+      "contract": "POWER_MONITOR",
+      "id": 4,
+      "alias": "Power monitor",
+      "ops": [
         {
-          "name": "device_id",
-          "alias": "Device ID",
-          "instance": true
-        },
-        {
-          "name": "channel",
-          "one_of": [
-            0,
-            1,
-            2
-          ],
-          "alias": "Monitor Channel"
-        }
-      ],
-      "alias": "Read shunt current",
-      "returns": "current_mA",
-      "packet_definition": {
-        "source_file": "dec_sys_contracts.h",
-        "class_name": "SYS_CONTRACTS",
-        "class_header": "0x01",
-        "packet_header": "0x35",
-        "decoder": "decoder_packet_sys_power_monitor_get_current_t()",
-        "field_order": [
-          "device_id",
-          "channel"
-        ],
-        "fields": {
-          "device_id": {
-            "type": "uint8_t",
-            "alias": "Device ID",
-            "required": true
+          "name": "GET_VOLTAGE",
+          "symbol": "PMON_OP_GET_VOLTAGE",
+          "id": 1024,
+          "alias": "Read voltage",
+          "description": "Reads the voltage of a channel.",
+          "returns": {
+            "type": "i32",
+            "alias": "Voltage",
+            "unit": "mV"
           },
-          "channel": {
-            "type": "uint8_t",
-            "alias": "Channel",
-            "required": true
-          }
-        }
-      }
-    },
-    {
-      "packet": "packet_sys_power_monitor_set_alert_t",
-      "parameters": [
-        {
-          "name": "device_id",
-          "alias": "Device ID",
-          "instance": true
-        },
-        {
-          "name": "channel",
-          "one_of": [
-            0,
-            1,
-            2
-          ],
-          "alias": "Monitor Channel"
-        },
-        {
-          "name": "alert",
-          "one_of": [
+          "params": [
             {
-              "symbol": "SYS_PWR_EVENT_OCP_CRITICAL",
-              "enum": "sys_power_events_e",
-              "value": 5,
-              "alias": "Over-Current Critical",
-              "description": "Current draw exceeded the limit - output is protected/shut down"
-            },
-            {
-              "symbol": "SYS_PWR_EVENT_OCP_WARNING",
-              "enum": "sys_power_events_e",
-              "value": 4,
-              "alias": "Over-Current Warning",
-              "description": "Current draw is approaching the limit - not cut off yet, just a heads-up"
+              "field": "channel",
+              "one_of": [
+                0,
+                1,
+                2
+              ],
+              "alias": "Monitor channel"
             }
-          ],
-          "enum_ref": "sys_power_events_e",
-          "alias": "Alert Severity"
+          ]
         },
         {
-          "name": "threshold_mA"
-        }
-      ],
-      "alias": "Configure current alert",
-      "description": "Set the selected channel's critical or warning over-current alert. It is raised as a power event; link it with an event subscription. On a reversed shunt (the board's own INA3221) each alert watches one channel: the critical and the warning alert can each be set on one channel.",
-      "packet_definition": {
-        "source_file": "dec_sys_contracts.h",
-        "class_name": "SYS_CONTRACTS",
-        "class_header": "0x01",
-        "packet_header": "0x39",
-        "decoder": "decoder_packet_sys_power_monitor_set_alert_t()",
-        "field_order": [
-          "device_id",
-          "channel",
-          "alert",
-          "threshold_mA"
-        ],
-        "fields": {
-          "device_id": {
-            "type": "uint8_t",
-            "alias": "Device ID",
-            "required": true
-          },
-          "channel": {
-            "type": "uint8_t",
-            "alias": "Channel",
-            "required": true
-          },
-          "alert": {
-            "type": "uint8_t",
-            "alias": "Alert",
-            "required": true,
-            "one_of": [
-              {
-                "symbol": "SYS_PWR_EVENT_OCP_WARNING",
-                "enum": "sys_power_events_e",
-                "value": 4,
-                "alias": "Over-Current Warning",
-                "description": "Current draw is approaching the limit - not cut off yet, just a heads-up"
-              },
-              {
-                "symbol": "SYS_PWR_EVENT_OCP_CRITICAL",
-                "enum": "sys_power_events_e",
-                "value": 5,
-                "alias": "Over-Current Critical",
-                "description": "Current draw exceeded the limit - output is protected/shut down"
-              }
-            ],
-            "enum_ref": "sys_power_events_e"
-          },
-          "threshold_mA": {
-            "type": "int32_t",
-            "alias": "Current Threshold",
-            "required": true,
+          "name": "GET_CURRENT",
+          "symbol": "PMON_OP_GET_CURRENT",
+          "id": 1025,
+          "alias": "Read current",
+          "description": "Reads the current of a channel (a reversed shunt reads negative).",
+          "returns": {
+            "type": "i32",
+            "alias": "Current",
             "unit": "mA"
-          }
+          },
+          "params": [
+            {
+              "field": "channel",
+              "one_of": [
+                0,
+                1,
+                2
+              ],
+              "alias": "Monitor channel"
+            }
+          ]
+        },
+        {
+          "name": "GET_POWER",
+          "symbol": "PMON_OP_GET_POWER",
+          "id": 1027,
+          "alias": "Read power",
+          "description": "Reads the power of a channel.",
+          "returns": {
+            "type": "i32",
+            "alias": "Power",
+            "unit": "mW"
+          },
+          "params": [
+            {
+              "field": "channel",
+              "one_of": [
+                0,
+                1,
+                2
+              ],
+              "alias": "Monitor channel"
+            }
+          ]
+        },
+        {
+          "name": "SET_ALERT",
+          "symbol": "PMON_OP_SET_ALERT",
+          "id": 1026,
+          "alias": "Set current alert",
+          "description": "Arms a hardware alert that publishes an event when the current crosses a threshold.",
+          "params": [
+            {
+              "field": "channel",
+              "one_of": [
+                0,
+                1,
+                2
+              ],
+              "alias": "Monitor channel"
+            }
+          ]
         }
-      }
+      ]
     }
   ],
   "events": [
     {
-      "domain": {
-        "symbol": "SYS_EVENT_DOMAIN_POWER",
-        "enum": "sys_event_domain_e",
-        "value": 1,
-        "alias": "Power",
-        "description": "Regulator, monitor and board power events. Event = power event; board events use device 255"
-      },
       "events": [
         {
-          "symbol": "SYS_PWR_EVENT_OCP_CRITICAL",
-          "enum": "sys_power_events_e",
-          "value": 5,
-          "alias": "Over-Current Critical",
-          "description": "Current draw exceeded the limit - output is protected/shut down"
+          "symbol": "PMON_EV_OCP_CRITICAL",
+          "id": 1025,
+          "alias": "Over-current critical",
+          "description": "A channel's current crossed its critical threshold",
+          "contract": "POWER_MONITOR"
         },
         {
-          "symbol": "SYS_PWR_EVENT_OCP_WARNING",
-          "enum": "sys_power_events_e",
-          "value": 4,
-          "alias": "Over-Current Warning",
-          "description": "Current draw is approaching the limit - not cut off yet, just a heads-up"
+          "symbol": "PMON_EV_OCP_WARNING",
+          "id": 1024,
+          "alias": "Over-current warning",
+          "description": "A channel's current crossed its warning threshold",
+          "contract": "POWER_MONITOR"
         }
       ],
       "channel": {
-        "alias": "Monitor Channel",
+        "alias": "Monitor channel",
         "one_of": [
           0,
           1,
@@ -378,5 +315,6 @@
         ]
       }
     }
-  ]
+  ],
+  "guide": "device_ina3221.md"
 }

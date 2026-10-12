@@ -7,6 +7,40 @@ err_h sys_io_set_mode(sys_io_pin_t p, sys_io_mode_e mode) {
   return sys_device_call(p.device, IO_OP_SET_MODE, &a, sizeof(a), NULL, 0, NULL);
 }
 
+// The tag of the root cause (the deepest node) of a chain, 0 for none.
+static uint32_t root_tag(err_h err) {
+  while (err != NULL && err->next != NULL) {
+    err = err->next;
+  }
+  return err != NULL ? err->tag : 0;
+}
+
+// A device without the op (the pins have a fixed function) is fine; any other failure is returned.
+static err_h ignore_unknown_op(err_h err) {
+  if (root_tag(err) == ERR_DEV_UNKNOWN_OP) {
+    err_free(err);
+    return NULL;
+  }
+  return err;
+}
+
+err_h sys_io_prepare(sys_io_pin_t p, sys_io_mode_e mode) {
+  return ignore_unknown_op(sys_io_set_mode(p, mode));
+}
+
+err_h sys_io_prepare_input(sys_io_pin_t p) {
+  err_h err = sys_io_set_mode(p, SYS_IO_MODE_INPUT_PULLUP);
+  if (root_tag(err) == ERR_IO_MODE_UNSUPPORTED) {  // an expander without pull-ups: the board has an external one
+    err_free(err);
+    err = sys_io_set_mode(p, SYS_IO_MODE_INPUT);
+  }
+  return err;
+}
+
+err_h sys_io_release(sys_io_pin_t p) {
+  return ignore_unknown_op(sys_io_reset(p));
+}
+
 err_h sys_io_reset(sys_io_pin_t p) {
   const io_pin_args_t a = {.pin = p.pin};
   return sys_device_call(p.device, IO_OP_RESET, &a, sizeof(a), NULL, 0, NULL);

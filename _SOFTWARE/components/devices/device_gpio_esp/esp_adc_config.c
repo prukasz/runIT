@@ -1,6 +1,5 @@
 #include "esp_adc_config.h"
-#include <stdint.h>
-#include <stdlib.h>
+
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
 #include "esp_adc/adc_continuous.h"
@@ -257,11 +256,12 @@ static void adc_processing_task_function(void* pvParameters) {
           }
           U_MUTEX_UNLOCK(gpio_mutex);
         }
-        /* Posted, not published: SET_MODE / RESET wait for this task (esp_adc_update_active_channels) while
+        /* SYS_EVENT_DEFER: SET_MODE / RESET wait for this task (esp_adc_update_active_channels) while
            holding the device lock, so a listener run here that needs the lock would deadlock. Nobody to
-           return to: a failed post (queue full) is reported. */
+           return to: a failed publish (queue full) is reported. */
         for (uint8_t i = 0; i < due_count; i++) {
-          err_report(sys_event_post(&due[i]));
+          due[i].flags |= SYS_EVENT_DEFER;
+          err_report(sys_event_publish(&due[i]));
         }
       }
     }

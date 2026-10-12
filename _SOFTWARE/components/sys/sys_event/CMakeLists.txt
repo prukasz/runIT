@@ -1,6 +1,6 @@
 idf_component_register(
-    SRCS "sys_event.c" "sys_event_router.c"
+    SRCS "sys_event.c"
     INCLUDE_DIRS "."
     REQUIRES errors utils cmd sys_device
-    PRIV_REQUIRES router sys_connector esp_timer
+    PRIV_REQUIRES sys_connector router esp_timer
 )

@@ -43,7 +43,7 @@ single-packet frame: C0 <frame>
 
 ## Connector provider
 
-`sys_ble_link_init` also registers `TRANSPORT_BLE` as a connector provider (SYS_CONNECTOR.MD): **endpoint = characteristic UUID**, `send` = `sys_ble_char_send(uuid, frame, 20 ms)`, `max_frame` = `sys_ble_char_max_payload(uuid)`. Board bindings (in `main`): logs + errors → LOGS 0xFFE3, telemetry → TX 0xFFE1. A user connector can be bound to any user characteristic with TX — that is how a VM program will stream (temp → 0xEE01).
+`sys_ble_link_init` also registers `TRANSPORT_BLE` as a connector provider (SYS_CONNECTOR.MD): **endpoint = characteristic UUID**, `send` = `sys_ble_char_send(uuid, frame, 20 ms)`, `max_frame` = `sys_ble_char_max_payload(uuid)`. Board bindings (`runit_board_cfg.c`): logs + errors → LOGS 0xFFE3, telemetry → TX 0xFFE1. A user connector can be bound to any user characteristic with TX — that is how a VM program will stream (temp → 0xEE01).
 
 ## Data paths
 
@@ -99,7 +99,8 @@ Example — a user service with a temperature characteristic a VM program can st
 
 ## Open
 
-- App: add / strip the fragment header on 0xFFE1 / 0xFFE2 / 0xFFE3, and the new router frame format.
+- App: the fragment header and the link (connect, reconnect by itself) are in `app/src/ble/` (`RunitBleLink`, tests in `app/tests/ble/`); the new router frame format is not on the app side yet.
+- Advertising carries the runIT service (0xFFE0) next to the name, so a browser can filter by it and `watchAdvertisements` tells it when a known board is back. Built, not run on the air. No bonding (`sm_bonding = 0`): the OS never reconnects by itself, the app does.
 - LOGS (errors / logs stream) and telemetry on TX wait for the data connectors.
 - VM streaming over a user characteristic: the VM side (write `sys_ble_char_send` on a block) is not ported.
 - Not run on hardware yet.

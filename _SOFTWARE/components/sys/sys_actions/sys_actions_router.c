@@ -1,78 +1,69 @@
 #include "sys_actions_router.h"
-#include <string.h>
+
 #include "sys_actions.h"
 
 /*   key  op            request                              response
- *   0x01 RUN           { u8 id }                            -
- *   0x02 RECORD_START  { u8 id, u8 execute }, name          -
+ *   0x01 RUN           { u32 id }                           -
+ *   0x02 RECORD_START  { u32 id, u8 execute }               -
  *   0x03 RECORD_STOP   -                                    info
- *   0x04 BEGIN         { u8 id, u16 len }, name             -
+ *   0x04 BEGIN         { u32 id, u16 len }                  -
  *   0x05 WRITE         { u16 offset }, data                 -
  *   0x06 COMMIT        { u32 crc32 }                        -
- *   0x07 READ          { u8 id, u16 offset, u16 len }       the bytes
- *   0x08 INFO          { u8 id }                            info
- *   0x09 LIST          { u8 start }                         [u16 total] then { u8 id, name } by ascending ID from
- *                                                           `start`, as many as fit (ask again from the last ID + 1)
- *   0x0A REMOVE        { u8 id }                            -
+ *   0x07 READ          { u32 id }                           one answer per recorded frame, exactly as recorded
+ *   0x08 INFO          { u32 id }                           info
+ *   0x09 LIST          { u32 start }                        u16 total, then u32 IDs ascending from `start`, as many
+ *                                                           as fit (ask again from the last ID + 1)
+ *   0x0A REMOVE        { u32 id }                           -
  *   0x0B ABORT         -                                    -
- *   0x0C RENAME        { u8 id }, name                      -
+ *   (0x0C was RENAME: names are gone)
+ *   0x0D RUN_ALL       { u32 id }                           - like RUN but every frame runs; the first failure comes back
  *
- *   name = NUL-ended, nothing after the NUL ("\0" alone = no name);
- *   info = { u16 bytes, u16 count, u32 crc32 }, name */
+ *   info = { u16 bytes, u16 count, u32 crc32 } */
+
+#define LIST_MAX 48u  // IDs per answer, at most
 
 typedef struct __attribute__((packed)) {
-  uint8_t id;
+  uint32_t id;  //@alias Action @description The record's id @id action
 } id_args_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t id;
-  uint8_t execute;
+  uint32_t id;  //@alias Action @description The record's id @id action
+  uint8_t execute;  //@alias Run while recording @description Run the frames as they come (else only record them) @choices 0=No,1=Yes
 } record_start_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t id;
-  uint16_t len;
+  uint32_t id;  //@alias Action @description The record's id @id action
+  uint16_t len;  //@alias Length @description The size of the image @unit bytes
 } begin_t;
 
 typedef struct __attribute__((packed)) {
-  uint16_t offset;
+  uint16_t offset;  //@alias Offset @description Bytes sent so far @unit bytes
 } write_t;
 
 typedef struct __attribute__((packed)) {
-  uint32_t crc32;
+  uint32_t crc32;  //@alias CRC-32 @description Of the whole image
 } commit_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t id;
-  uint16_t offset;
-  uint16_t len;
-} read_t;
-
-typedef struct __attribute__((packed)) {
-  uint16_t bytes;
-  uint16_t count;
-  uint32_t crc32;
-} info_head_t;
+  uint32_t start;  //@alias From @description List the ids from this one up @id action
+} list_args_t;
 
 static err_h reply_info(const sys_actions_info_t* i, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
-  const info_head_t head = {.bytes = i->bytes, .count = i->count, .crc32 = i->crc32};
-  uint32_t pos = 0;
-  ERR_TRY(cmd_append(out, out_cap, &pos, &head, sizeof(head)));
-  ERR_TRY(cmd_append(out, out_cap, &pos, i->name, (uint32_t)strlen(i->name) + 1));
-  *out_len = pos;
-  return NULL;
+  return cmd_reply(out, out_cap, out_len, i, sizeof(*i));  // {bytes, count, crc32}, LE on the ESP32
 }
 
 ROUTER_OP(op_run, id_args_t) {
-  return sys_actions_run(a->id);
+  return sys_actions_run(a->id, false);
 }
 
-ROUTER_OP_TAIL(op_record_start, record_start_t) {
-  const char* name;
-  ERR_TRY(cmd_name_arg(tail, tail_len, &name));
+ROUTER_OP(op_run_all, id_args_t) {
+  return sys_actions_run(a->id, true);
+}
+
+ROUTER_OP(op_record_start, record_start_t) {
   const router_cmd_t* origin = router_origin();  // the client to record
   ERR_CHECK(origin != NULL, ERR_ACTION_WRONG_TASK);
-  return sys_actions_record_start(a->id, name, a->execute != 0, origin->link, origin->peer);
+  return sys_actions_record_start(a->id, a->execute != 0, origin->link, origin->peer);
 }
 
 ROUTER_OP_NOARGS(op_record_stop) {
@@ -81,10 +72,8 @@ ROUTER_OP_NOARGS(op_record_stop) {
   return reply_info(&i, out, out_cap, out_len);
 }
 
-ROUTER_OP_TAIL(op_begin, begin_t) {
-  const char* name;
-  ERR_TRY(cmd_name_arg(tail, tail_len, &name));
-  return sys_actions_upload_begin(a->id, name, a->len);
+ROUTER_OP(op_begin, begin_t) {
+  return sys_actions_upload_begin(a->id, a->len);
 }
 
 ROUTER_OP_TAIL(op_write, write_t) {
@@ -96,11 +85,27 @@ ROUTER_OP(op_commit, commit_t) {
   return sys_actions_upload_commit(a->crc32);
 }
 
-ROUTER_OP(op_read, read_t) {
-  ERR_CHECK(a->len <= out_cap, ERR_CMD_OUT_FULL, .need = a->len, .cap = (uint16_t)out_cap);
-  ERR_TRY(sys_actions_read(a->id, a->offset, out, a->len));
-  *out_len = a->len;
-  return NULL;
+typedef struct {
+  uint8_t* out;
+  uint32_t cap;
+  uint32_t* out_len;
+} dump_t;
+
+// One answer packet per frame, the frame as recorded; the last one is the op's own answer.
+static err_h dump_frame(const uint8_t* frame, uint16_t len, bool last, void* ctx) {
+  dump_t* d = ctx;
+  ERR_CHECK(len <= d->cap, ERR_CMD_OUT_FULL, .need = len, .cap = (uint16_t)d->cap);
+  memcpy(d->out, frame, len);
+  if (last) {
+    *d->out_len = len;
+    return NULL;
+  }
+  return router_answer_part(d->out, len);
+}
+
+ROUTER_OP(op_read, id_args_t) {
+  dump_t d = {.out = out, .cap = out_cap, .out_len = out_len};
+  return sys_actions_dump(a->id, dump_frame, &d);
 }
 
 ROUTER_OP(op_info, id_args_t) {
@@ -109,32 +114,16 @@ ROUTER_OP(op_info, id_args_t) {
   return reply_info(&i, out, out_cap, out_len);
 }
 
-typedef struct {
-  uint8_t* out;
-  uint32_t cap;
-  uint32_t pos;
-} list_page_t;
-
-// Adds { id, name } while it fits; the first entry that doesn't ends the page.
-static bool list_put(uint8_t id, const char* name, void* ctx) {
-  list_page_t* p = ctx;
-  uint32_t n = (uint32_t)strlen(name) + 1;
-  if (p->pos + 1 + n > p->cap) {
-    return false;
-  }
-  p->out[p->pos] = id;
-  memcpy(p->out + p->pos + 1, name, n);
-  p->pos += 1 + n;
-  return true;
-}
-
-ROUTER_OP(op_list, id_args_t) {
-  ERR_CHECK(out_cap >= sizeof(uint16_t), ERR_CMD_OUT_FULL, .need = sizeof(uint16_t), .cap = (uint16_t)out_cap);
-  list_page_t page = {.out = out, .cap = out_cap, .pos = sizeof(uint16_t)};
-  uint16_t total;
-  ERR_TRY(sys_actions_list(a->id, list_put, &page, &total));
+ROUTER_OP(op_list, list_args_t) {
+  ERR_CHECK(out_cap >= sizeof(uint16_t) + sizeof(uint32_t), ERR_CMD_OUT_FULL,
+            .need = sizeof(uint16_t) + sizeof(uint32_t), .cap = (uint16_t)out_cap);
+  uint32_t ids[LIST_MAX];
+  uint32_t fit = (out_cap - sizeof(uint16_t)) / sizeof(uint32_t);
+  uint16_t count, total;
+  ERR_TRY(sys_actions_list(a->start, ids, (uint16_t)(fit < LIST_MAX ? fit : LIST_MAX), &count, &total));
   memcpy(out, &total, sizeof(total));  // LE on the ESP32
-  *out_len = page.pos;
+  memcpy(out + sizeof(total), ids, count * sizeof(uint32_t));
+  *out_len = (uint32_t)(sizeof(total) + count * sizeof(uint32_t));
   return NULL;
 }
 
@@ -147,19 +136,31 @@ ROUTER_OP_NOARGS(op_abort) {
   return NULL;
 }
 
-ROUTER_OP_TAIL(op_rename, id_args_t) {
-  const char* name;
-  ERR_TRY(cmd_name_arg(tail, tail_len, &name));
-  return sys_actions_rename(a->id, name);
-}
-
 static const router_entry_t k_ops[] = {
-    {SYS_ACTIONS_OP_RUN, op_run},       {SYS_ACTIONS_OP_RECORD_START, op_record_start},
-    {SYS_ACTIONS_OP_RECORD_STOP, op_record_stop}, {SYS_ACTIONS_OP_BEGIN, op_begin},
-    {SYS_ACTIONS_OP_WRITE, op_write},   {SYS_ACTIONS_OP_COMMIT, op_commit},
-    {SYS_ACTIONS_OP_READ, op_read},     {SYS_ACTIONS_OP_INFO, op_info},
-    {SYS_ACTIONS_OP_LIST, op_list},     {SYS_ACTIONS_OP_REMOVE, op_remove},
-    {SYS_ACTIONS_OP_ABORT, op_abort},   {SYS_ACTIONS_OP_RENAME, op_rename},
+    //@op SYS_ACTIONS_OP_RUN @alias Run @description Runs a stored record, stopping at its first failing frame
+    {SYS_ACTIONS_OP_RUN, op_run},
+    //@op SYS_ACTIONS_OP_RECORD_START @alias Start recording @description Records this client's commands into a record
+    {SYS_ACTIONS_OP_RECORD_START, op_record_start},
+    //@op SYS_ACTIONS_OP_RECORD_STOP @alias Stop recording @description Stores the recording @returns sys_actions_info_t
+    {SYS_ACTIONS_OP_RECORD_STOP, op_record_stop},
+    //@op SYS_ACTIONS_OP_BEGIN @alias Begin upload @description Starts uploading a whole record image
+    {SYS_ACTIONS_OP_BEGIN, op_begin},
+    //@op SYS_ACTIONS_OP_WRITE @alias Write upload @description The next bytes of the image @tail bytes @tail-alias Data
+    {SYS_ACTIONS_OP_WRITE, op_write},
+    //@op SYS_ACTIONS_OP_COMMIT @alias Commit upload @description Checks the image and stores it
+    {SYS_ACTIONS_OP_COMMIT, op_commit},
+    //@op SYS_ACTIONS_OP_READ @alias Read record @description Reads a record back, one answer packet per frame @returns bytes @returns-alias Frame @returns-description Each answer is one frame exactly as recorded
+    {SYS_ACTIONS_OP_READ, op_read},
+    //@op SYS_ACTIONS_OP_INFO @alias Record info @description Size, frame count and CRC of a record @returns sys_actions_info_t
+    {SYS_ACTIONS_OP_INFO, op_info},
+    //@op SYS_ACTIONS_OP_LIST @alias List records @description The stored record ids from a given one up @returns u16 @returns-alias Stored records @returns-tail u32[] @returns-tail-alias Record ids
+    {SYS_ACTIONS_OP_LIST, op_list},
+    //@op SYS_ACTIONS_OP_REMOVE @alias Remove record @description Removes a record
+    {SYS_ACTIONS_OP_REMOVE, op_remove},
+    //@op SYS_ACTIONS_OP_ABORT @alias Abort @description Drops an open recording or upload
+    {SYS_ACTIONS_OP_ABORT, op_abort},
+    //@op SYS_ACTIONS_OP_RUN_ALL @alias Run all @description Runs a record to its end, reporting each failing frame
+    {SYS_ACTIONS_OP_RUN_ALL, op_run_all},
 };
 
 ROUTER_MODULE(sys_actions_router, k_ops)

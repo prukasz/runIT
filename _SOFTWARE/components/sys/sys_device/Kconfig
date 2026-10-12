@@ -23,4 +23,13 @@ menu "sys_device"
           Distinct devices one device declares with sys_device_use() (the
           devices its pins are on, ...). Pins on the same device count once.
 
+    config SYS_DEVICE_GUARDS
+        int "Contract guards"
+        default 2
+        range 1 8
+        help
+          Contracts that can have a guard (sys_device_set_guard): a module
+          that sees every call of the contract's ops before the device does
+          (the power manager guards POWER_VREG).
+
 endmenu

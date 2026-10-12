@@ -1,0 +1,23 @@
+#include "sys_log_router.h"
+#include "sys_log.h"
+
+// The options and where they go: stored, applied at once.
+ROUTER_OP(op_set, sys_log_cfg_t) {
+  ERR_CHECK(a->mirror_serial <= 1 && a->trace_errors <= 1 && a->send_errors <= 1 && a->send_logs <= 1, ERR_CMD_BAD_ARG);
+  return sys_log_set(a);
+}
+
+ROUTER_OP_NOARGS(op_get) {
+  sys_log_cfg_t cfg;
+  sys_log_get(&cfg);
+  return cmd_reply(out, out_cap, out_len, &cfg, sizeof(cfg));
+}
+
+static const router_entry_t k_ops[] = {
+    //@op SYS_LOG_OP_SET @alias Set log options @description Applies the log options (not stored: save the frame as a record)
+    {SYS_LOG_OP_SET, op_set},
+    //@op SYS_LOG_OP_GET @alias Read log options @description The log options in force @returns sys_log_cfg_t
+    {SYS_LOG_OP_GET, op_get},
+};
+
+ROUTER_MODULE(sys_log_router, k_ops)

@@ -115,7 +115,7 @@ Design and API: SYS_POWER.MD.
 - Budget = measured input voltage × source current (USB-C offer / entered PSU / battery = board cap / unknown = 1 A), capped by the hardware trip (20 V / 5.5 A).
 - A user current limit makes a rail fixed (must fit); the other rails split what's left equally.
 - Response matrix per event (`NOTIFY / DISABLE / RESET / SAFE_STATE`): board defaults + runtime packet, not persisted. The manager is a queued system listener of every power event (§4.11).
-- PSU / battery setup is persisted through `sys_settings` (`pwr_psu`, `pwr_battery`, `pwr_caps`).
+- PSU / battery setup is kept as sys_actions records of their SET frames (SYS_ACTIONS.MD: `0x01000003` psu, `0x01000004` battery), run by whoever starts the project.
 
 ### 4.10 Error handling
 Rules: [errors.md](errors.md).
@@ -129,7 +129,7 @@ Full design: SYS_EVENT.MD.
 - `sys_event_t {domain, device_id, channel, event, value, hops}`; domains IO / POWER / HBRIDGE / BLE / FEATURE. Sources publish (`sys_io_publish` / `sys_power_publish` / `sys_hbridge_publish` / `sys_ble_publish`) without knowing the listeners.
 - One subscription table (`CONFIG_SYS_EVENT_MAX_SUBSCRIPTIONS` 32), match per field exact or `SYS_EVENT_ANY`.
 - **Inline** = C only, in the publisher's task; may block on I/O, never on a delay or timeout. **Queued** = C handler and/or routes / actions, in the event task.
-- Loops: republish with `SYS_EVENT_CAUSED_BY(cause)`; dropped at `CONFIG_SYS_EVENT_MAX_HOPS` (4) with `ERR_EVENT_LOOP`.
+- Loops (legacy): republish with `SYS_EVENT_CAUSED_BY(cause)`, dropped at `CONFIG_SYS_EVENT_MAX_HOPS`. New tree: no hops, cycles impossible by construction (SYS_EVENT.MD).
 - Packets (class `0x09`) make only queued route / action subscriptions (`user`) and can't remove system ones.
 - Arming is device config, not subscription: `sys_io_configure_intr`, `sys_power_monitor_set_alert`. Regulator and bridge faults are always armed.
 - Chip alert pins chain with `sys_io_subscribe_pin` (inline, system).

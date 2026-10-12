@@ -8,29 +8,13 @@ menu "sys_event"
           Listeners made by C code (devices, VM, power manager), inline or
           queued.
 
-    config SYS_EVENT_MAX_RULES
-        int "Rules"
-        default 16
-        range 1 254
-        help
-          Remote "event -> action" listeners, a table of their own so rules
-          never take a device's slot.
-
     config SYS_EVENT_QUEUE_LEN
         int "Queue (events)"
         default 16
         range 4 128
         help
-          Events waiting for the event task (queued listeners, rules, events
-          from ISRs). A full queue drops the event.
-
-    config SYS_EVENT_MAX_HOPS
-        int "Republish depth"
-        default 4
-        range 1 16
-        help
-          An event published because of another (SYS_EVENT_CAUSED_BY) at this
-          depth is dropped with ERR_EVENT_LOOP.
+          Events waiting for the event task (queued listeners, events from
+          ISRs and SYS_EVENT_DEFER publishes). A full queue drops the event.
 
     config SYS_EVENT_TASK_PRIO
         int "Task priority"
@@ -44,6 +28,6 @@ menu "sys_event"
         default 4096
         range 3072 32768
         help
-          Runs queued listeners: device ON_EVENT ops (I2C), rules.
+          Runs queued listeners: device ON_EVENT ops (I2C), the power manager.
 
 endmenu

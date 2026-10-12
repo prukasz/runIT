@@ -1,8 +1,5 @@
 #pragma once
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
 #include "errors.h"
 
 #ifdef __cplusplus
@@ -24,12 +21,12 @@ extern "C" {
  * starts with SYS_BLE_FRAG_* header byte (sys_ble_link.c reassembles).
  */
 
-/* runIT service: same UUIDs as the legacy firmware and the app. */
-#define SYS_BLE_SVC_RUNIT 0xFFE0         //@STATIC_SERVICE
-#define SYS_BLE_CHR_RUNIT_TX 0xFFE1      //@STATIC_CHARACTERISTIC
-#define SYS_BLE_CHR_RUNIT_RX 0xFFE2      //@STATIC_CHARACTERISTIC
-#define SYS_BLE_CHR_RUNIT_LOGS 0xFFE3    //@STATIC_CHARACTERISTIC
-#define SYS_BLE_CHT_RUNIT_STATUS 0xFFE4  //@STATIC_CHARACTERISTIC
+/* runIT service: UUIDs shared with the app. */
+#define SYS_BLE_SVC_RUNIT 0xFFE0
+#define SYS_BLE_CHR_RUNIT_TX 0xFFE1
+#define SYS_BLE_CHR_RUNIT_RX 0xFFE2
+#define SYS_BLE_CHR_RUNIT_LOGS 0xFFE3
+#define SYS_BLE_CHT_RUNIT_STATUS 0xFFE4
 
 /* Fragment header of a framed characteristic (first byte of every packet).
  *   bit 7 last, bit 6 first, bits 0-5 packet counter (mod 64, 0 at first).

@@ -5,15 +5,25 @@ menu "sys_actions"
         default "project"
         help
           NVS data partition (partitions.csv) whose "actions" namespace holds
-          the stored actions, one blob per action (name + image), key "a<id>".
+          the stored records, one blob (the image) per record, key "a<id>" with
+          the 32-bit ID as 8 hex digits.
 
     config SYS_ACTIONS_MAX_BYTES
-        int "Largest action (bytes)"
+        int "Largest record (bytes)"
         default 4096
         range 256 16384
         help
           Largest image (frames with their u16 length). Also the static buffer
-          a recording or upload is built in (+ 16 bytes for the name).
+          a recording or upload is built in.
+
+    config SYS_ACTIONS_MAX_BYTES_DEVICE
+        int "Largest device record (bytes)"
+        default 512
+        range 64 16384
+        help
+          Largest image of a device-class record (ID 0x02......): the install
+          and default commands of one device. Every other class uses
+          SYS_ACTIONS_MAX_BYTES. Not above that one, which sizes the buffer.
 
     config SYS_ACTIONS_MAX_DEPTH
         int "Nested runs"

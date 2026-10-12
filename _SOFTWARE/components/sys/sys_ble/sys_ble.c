@@ -1,5 +1,5 @@
-#include <stdlib.h>
-#include <string.h>
+
+
 #include "host/ble_hs.h"
 #include "sys_ble_priv.h"
 

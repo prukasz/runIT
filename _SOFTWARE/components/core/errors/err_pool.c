@@ -1,6 +1,5 @@
 #include "err_pool.h"
-#include <assert.h>
-#include <stdbool.h>
+
 #include "utils.h"
 
 #define BLOCKS CONFIG_ERRORS_POOL_BLOCKS

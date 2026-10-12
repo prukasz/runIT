@@ -1,7 +1,5 @@
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
 #include "sys_io.h"
 
 #ifdef __cplusplus
@@ -23,21 +21,21 @@ extern "C" {
  */
 
 typedef struct __attribute__((packed)) {
-  uint8_t pin;
+  uint8_t pin;  //@alias Pin @description The pin of the device @id pin
 } pins_pin_args_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t pin;
-  uint8_t level;  // 0 / 1
+  uint8_t pin;  //@alias Pin @description The locked pin @id pin
+  uint8_t level;  //@alias Level @choices 0=Low,1=High
 } pins_level_args_t;
 
 // clang-format off
-#define SYS_PINS_CONTRACT(X)                                                                     \
-  X(AVAILABLE,        0x00, sys_device_none_t)  /* -> u64 mask: the pins the device has */        \
-  X(LOCKED,           0x01, sys_device_none_t)  /* -> u64 mask: the locked ones */                \
-  X(LOCK,             0x02, pins_pin_args_t)    /* ERR_DEV_PIN_LOCKED if it already is */         \
-  X(UNLOCK,           0x03, pins_pin_args_t)    /* an unlocked pin stays unlocked, no error */    \
-  X(SET_LOCKED_LEVEL, 0x04, pins_level_args_t)  /* the owner drives its locked pin */
+#define SYS_PINS_CONTRACT(X) \
+  X(AVAILABLE, 0x00, sys_device_none_t)  /* @alias Available pins @description The pins the device has. @returns u64 @returns-alias Pins @returns-description A bit per pin */ \
+  X(LOCKED, 0x01, sys_device_none_t)  /* @alias Locked pins @description The pins that are locked. @returns u64 @returns-alias Pins @returns-description A bit per pin */ \
+  X(LOCK, 0x02, pins_pin_args_t)  /* @alias Lock pin @description Claims a pin for another device (refused if it is locked). */ \
+  X(UNLOCK, 0x03, pins_pin_args_t)  /* @alias Unlock pin @description Releases a claimed pin. */ \
+  X(SET_LOCKED_LEVEL, 0x04, pins_level_args_t)  /* @alias Set locked level @description The owner of a locked pin drives it. */
 // clang-format on
 
 #define SYS_PINS__ID(name, n, args_t) PINS_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_PINS, n),

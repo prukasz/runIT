@@ -1,5 +1,4 @@
 #include "cmd.h"
-#include <string.h>
 
 ERR_MODULE_DEFINE(ERR_MOD_CMD, "cmd", ERR_CMD_MAP)
 

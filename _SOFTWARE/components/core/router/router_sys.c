@@ -21,8 +21,8 @@
 #define RESTART_DELAY_MS 100u  // lets the answer leave before the restart
 
 typedef struct __attribute__((packed)) {
-  uint32_t timeout_ms;   // 0 = off
-  uint8_t on_link_lost;  // 1 = also on router_link_lost
+  uint32_t timeout_ms;  //@alias Timeout @description Time without a command before the safe state; 0 is off @unit ms
+  uint8_t on_link_lost;  //@alias Also on link lost @choices 0=No,1=Yes
 } sys_deadman_t;
 
 static void restart_now(TimerHandle_t t) {
@@ -62,10 +62,15 @@ ROUTER_OP_NOARGS(op_deadman_get) {
 }
 
 static const router_entry_t k_ops[] = {
+    //@op OP_PING @alias Ping @description Checks the link and returns the board's uptime @returns u32 @returns-alias Uptime @unit ms
     {OP_PING, op_ping},
+    //@op OP_STOP @alias Stop @description Puts the board in its safe state: the program stops and the devices are suspended @urgent
     {OP_STOP, op_stop},
+    //@op OP_RESTART @alias Restart @description Restarts the board about 100 ms after the answer
     {OP_RESTART, op_restart},
+    //@op OP_DEADMAN_SET @alias Set dead-man @description Sets how long the board waits without a command before it enters the safe state
     {OP_DEADMAN_SET, op_deadman_set},
+    //@op OP_DEADMAN_GET @alias Read dead-man @description Reads the dead-man timeout @returns sys_deadman_t
     {OP_DEADMAN_GET, op_deadman_get},
 };
 

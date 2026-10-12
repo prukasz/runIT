@@ -32,8 +32,9 @@ runIT is a plug-and-play framework for hobbyists spanning hardware, firmware and
 | `main/` | ESP-IDF entry (`main.c`) |
 | `components/core/` | Foundation, no hardware: `utils` (RTOS macros, transport IDs), `errors` (error chain, pool, tags), `cmd` (command handler type, `cmd_reply`, `ERR_CMD_*`), `router` (links, dispatch, key tables) — each with a `*.MD` |
 | `components/sys/` | System modules and the contracts devices implement: `sys_device` (registry), `sys_io` (IO + PINS contracts), `sys_power` (power contracts), `sys_event`, `sys_actions`, `sys_connector`, `sys_i2c`, `sys_ble`, `sys_uart` — each with a `SYS_*.MD` |
-| `components/devices/` | One component per chip (`device_<chip>/`: create struct in the header, everything else in `device_<chip>.c`, `DEVICE_<CHIP>.MD`). Ported so far: GPIO ESP, PCA9685, TPS55289 |
-| `legacy/` | The previous implementation (firmware components and entry point, app), reference only (`legacy/README.md`). Not ported yet: VM, codecs, board config, `sys_hbridge`, `sys_settings`, `sys_project`, the other devices |
+| `components/devices/` | One component per chip (`device_<chip>/`: create struct in the header, everything else in `device_<chip>.c`, `DEVICE_<CHIP>.MD`). All eleven chips are ported |
+| `components/vm/` | The VM: `vm_core` (runtime, loader, telemetry; key `0x0B`) and `vm_blocks` (core, device-contract and device-custom blocks) |
+| `legacy/` | Reference only: the previous app (`legacy/app/`, not ported yet) and the old VM design docs (`legacy/components/VM/*.MD`). The firmware code was removed once ported |
 | `data-structures/` |
 
 `runit-esp` is complete (VM docs in its `vm/` subfolder); `runit-app` is a stub. The old skills they replace are backed up outside the repo in `../_agents_backup_2026-09-22/` — not loaded automatically.
@@ -47,13 +48,7 @@ runIT is a plug-and-play framework for hobbyists spanning hardware, firmware and
 | Path | Contents |
 |---|---|
 | `main/` | ESP-IDF entry (`main.c`) |
-| `components/system/` | Core system modules: `sys_device`, `sys_io`, `sys_power`, `sys_i2c`, `ble`, `sys_interface`, `sys_data_connector`, `sys_actions`, `sys_buffers`, `sys_event`, `sys_hbridge`, `sys_settings` — each with a `*.MD` doc |
-| `components/devices/` | One file per device (`device_<chip>/device_<chip>.c`) + a public header with the class and the create frame (`devices/` aggregates them) |
-| `components/VM/` | Flow-language VM (`core/`, `blocks/`, `VM.MD`, `VM_EXEC.MD`) |
-| `components/codecs/` | Packet decoders/encoders (`CODECS.MD`) |
-| `components/sys_errors/` | Error chain, codes, logging (`SYS_ERRORS.MD`) |
-| `components/runit/` | Board config/defs, startup |
-| `components/utils/` | Static-allocation `R_*` macros, Kconfig |
+| `components/core/`, `sys/`, `devices/`, `vm/`, `app/runit/` | `core` (utils, errors, cmd, router), `sys` (system modules and contracts), `devices` (one component per chip), `vm` (runtime and blocks), `app/runit` (boot, safe state, board routing); each module has its own `*.MD` |
 | `data-structures/` | C-annotation → JSON generators (`auto-annotations/`), schemas, `*.generated.json` consumed by the app (see its `AGENTS.md`) |
 | `app/` | runIT app. Empty in this tree for now: the previous app (Vite + React 19 + TypeScript + Tailwind) is in `legacy/app/` |
 

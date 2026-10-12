@@ -48,12 +48,4 @@ menu "sys_connector"
         default 4096
         range 2048 32768
 
-    config SYS_CONNECTOR_LOG_LINE_MAX
-        int "Captured log line (bytes)"
-        default 160
-        range 32 480
-        help
-          Log lines sent to the logs connector are cut to this. Formatted on
-          the stack of the task that logs.
-
 endmenu

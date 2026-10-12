@@ -14,6 +14,7 @@
 #define SYS_ACTIONS_OP_LIST 0x09u
 #define SYS_ACTIONS_OP_REMOVE 0x0Au
 #define SYS_ACTIONS_OP_ABORT 0x0Bu
-#define SYS_ACTIONS_OP_RENAME 0x0Cu
+// 0x0C was RENAME (names are gone); never reused.
+#define SYS_ACTIONS_OP_RUN_ALL 0x0Du  // RUN that keeps going after a failing frame
 
 ROUTER_MODULE_DECLARE(sys_actions_router);

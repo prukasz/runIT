@@ -1,7 +1,5 @@
 #include "sys_uart.h"
 
-#include <stdio.h>
-#include <string.h>
 #include "driver/uart.h"
 #include "driver/uart_vfs.h"
 #include "router.h"

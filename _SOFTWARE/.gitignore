@@ -1,6 +1,7 @@
 build/
 build_qemu/
 build_mtu/
+build_devkit/
 managed_components/
 dependencies.lock
 

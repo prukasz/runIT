@@ -1,0 +1,30 @@
+menu "sys_project"
+
+    config SYS_PROJECT_MAX_BYTES
+        int "Largest project stream (bytes)"
+        default 65536
+        range 1024 262144
+        help
+          Largest stream a project save accepts (all sections, with their u16
+          frame lengths). The stream is stored twice while a save runs (the
+          new bank next to the stored one), so keep twice this below the
+          project partition (partitions.csv, 512 KB shared with the actions).
+
+    config SYS_PROJECT_MAX_SECTIONS
+        int "Sections with their own ID"
+        default 40
+        range 1 255
+        help
+          Settings, device and user records one project may carry next to its
+          program (the log and power settings are 5, every device one).
+
+    config SYS_PROJECT_MAX_CHUNKS
+        int "Program chunks"
+        default 32
+        range 1 255
+        help
+          The program is cut into records of CONFIG_SYS_ACTIONS_MAX_BYTES at
+          the most (whole frames only); this many of them. Together with the
+          record size it bounds the program (32 x 4 KB = 128 KB).
+
+endmenu

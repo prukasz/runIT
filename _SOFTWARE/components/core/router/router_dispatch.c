@@ -1,5 +1,5 @@
-#include <stdio.h>
-#include <string.h>
+
+
 #include "esp_log.h"
 #include "router_internal.h"
 #include "sdkconfig.h"
@@ -41,6 +41,8 @@ static bool s_deadman_link_lost;
 
 static const router_tap_t* s_tap;
 static __thread const router_cmd_t* s_origin;  // per router task: the command being routed
+static __thread const router_link_t* s_origin_link;
+static __thread uint8_t* s_origin_resp;  // that task's response buffer (router_answer_part)
 static uint8_t s_inject_seq;                   // seq of injected frames (diagnostics only)
 
 // Link 0: frames from the board itself (router_inject). Answers go nowhere.
@@ -267,6 +269,15 @@ const router_cmd_t* router_origin(void) {
   return s_origin;
 }
 
+err_h router_answer_part(const uint8_t* out, uint32_t len) {
+  ERR_CHECK(s_origin != NULL, ERR_CMD_BAD_ARG);
+  if (s_origin_resp == NULL || out != s_origin_resp + RESP_HDR) {
+    return NULL;  // a replay (an action's nested route): its answers are dropped
+  }
+  answer(s_origin_link, s_origin, NULL, s_origin_resp, 0, len);
+  return NULL;
+}
+
 // Routes one queued item and answers it. Item length checked by router_submit.
 static void process(const uint8_t* item, size_t size, uint8_t* resp) {
   item_hdr_t hdr;
@@ -282,8 +293,11 @@ static void process(const uint8_t* item, size_t size, uint8_t* resp) {
   const router_tap_t* tap = s_tap;
   if (tap == NULL || tap->take == NULL || !tap->take(&cmd)) {
     s_origin = &cmd;
+    s_origin_link = link;
+    s_origin_resp = resp;
     err = router_route(cmd.req, cmd.req_len, resp + RESP_HDR, cap - RESP_HDR, &data_len);
     s_origin = NULL;
+    s_origin_resp = NULL;
     if (tap != NULL && tap->seen != NULL) {
       tap->seen(&cmd, err);
     }

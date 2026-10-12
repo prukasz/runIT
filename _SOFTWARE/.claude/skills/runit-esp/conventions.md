@@ -124,27 +124,20 @@ Places not yet following the rule:
 
 Integer types are clean: the only non-`stdint` uses are the accepted exceptions above plus the AP33772S bit-fields.
 
-## 6. Code annotations (`//@`, `//#ref-enum`, `//#block-enum`, `//#vm-*`)
-
-- Comments starting with `//@`, `//#ref-enum`, `//#block-enum`, `//#vm-` or the device records `//#device` / `//#contract` / `//#property` (with their `//  @tag` continuation lines) (for example `//@STATIC_DEVICE`, `//#contract`, `//#vm-packet`, `//#vm-arena`, and `@alias` / `@arg` field metadata) are **machine-read** by the generators in `data-structures/auto-annotations/`. They produce the `*.generated.json` files the app uses (and a VM block's `<name>.content.json`; its `<name>.display.json` is hand-written).
-- The VM wire records (`components/VM/core/loader/vm_wire.h`) are published layouts: change a record there and regenerate `vm-program.generated.json`, never parse a record by hand-computed offsets.
-- **Never remove, reword or reformat them**, including during cleanup. When moving or renaming the declaration they describe, move the annotation with it and keep it next to the declaration.
-- Grammar and rules: `data-structures/AGENTS.md` and the `*-annotations.md` files it links to. After changing annotated code, regenerate the JSON (commands in `data-structures/AGENTS.md`). Never edit `*.generated.json` by hand.
-
-## 7. Module setup
+## 6. Module setup
 
 - Every `.c` that raises errors defines `#define OWNER OWNER_<MODULE>` (see [errors.md](errors.md)). A file that logs defines `#define TAG "<module>"`. A file that uses `DBG()` aliases its component switch: `#define DBG_ENABLE CONFIG_DBG_ENABLE_<COMPONENT>`.
 - Debug-only code goes in `DBG(...)`. It compiles to nothing unless `CONFIG_DBG_GLOBAL` or the component's `CONFIG_DBG_ENABLE_*` is on.
 - File-private state is `static` and prefixed `s_`.
 
-## 8. Comments and documentation
+## 7. Comments and documentation
 
 - Comment headers and macros in Doxygen style (`@brief`, `@param`, `@return`), with a minimal usage example for new APIs.
 - **Never edit or rewrite a comment block the user wrote**, even if it looks stale after a code change. You may add your own comment, but keep it visually separate. Prefer one `/* ... */` block over many scattered `//` lines.
 - When a component's `.h`/`.c` changes, update its `*.MD` doc (`SYS_IO.MD`, `SYS_DEVICE.MD`, …) in the same change, without being asked.
 - If you find a component with no `.MD`, ask the user for its purpose, then write the doc.
 
-## 9. Working style
+## 8. Working style
 
 - Don't make large architectural assumptions. When requirements are ambiguous, present options and ask.
 - Don't guess the purpose of unknown registers, hardware logic or schemas. Ask, then record the answer (in HARDWARE.md, the component doc or this skill).

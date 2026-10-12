@@ -1,12 +1,14 @@
 # sys_power — the power contracts
 
-Not a module with state: two sets of device ops that mean the same on every device that has them, like the IO contract (SYS_IO.MD). A device lists the ops it can do in its op table (SYS_DEVICE.MD); an op it doesn't have answers `ERR_DEV_UNKNOWN_OP`. The wrappers in `sys_power.c` only build the `sys_device_call`, so an internal call and a remote command run the same code.
+Not a module with state: sets of device ops that mean the same on every device that has them, like the IO contract (SYS_IO.MD). A device lists the ops it can do in its op table (SYS_DEVICE.MD); an op it doesn't have answers `ERR_DEV_UNKNOWN_OP`. The wrappers in `sys_power.c` only build the `sys_device_call`, so an internal call and a remote command run the same code.
 
 | File | Contents |
 |---|---|
 | `sys_power.h` | Errors (`ERR_MOD_SYS_POWER` = 10), `sys_power_mW()` |
 | `sys_power_monitor.h` | POWER_MONITOR: `SYS_POWER_MONITOR_CONTRACT` table, events, `sys_power_alert_e` (`//#ref-enum`), wrappers |
 | `sys_power_vreg.h` | POWER_VREG: `SYS_POWER_VREG_CONTRACT` table, events, wrappers |
+| `sys_power_supply.h` | POWER_SUPPLY: `SYS_POWER_SUPPLY_CONTRACT` table, `sys_power_supply_source_e` (`//#ref-enum`), wrappers |
+| `sys_power_usb_pd.h` | POWER_USB_PD: `SYS_POWER_USB_PD_CONTRACT` table, option / limits structs, wrappers |
 | `sys_power.c` | The error module and the wrappers. Linked as `WHOLE_ARCHIVE`: a device can raise `ERR_POWER_*` without calling a wrapper, and the tag registration must not be dropped |
 
 ## POWER_MONITOR (`0x04xx`)
@@ -53,17 +55,42 @@ A regulator with one output. Prefix `VREG_`.
 
 Channel 0.
 
+## POWER_USB_PD (`0x07xx`)
+
+A USB Power Delivery sink. Prefix `PD_` (`PD_OP_*`, `PD_HANDLER`, `PD_ENTRY`).
+
+| Op | Wrapper | Args | Answer |
+|---|---|---|---|
+| `0x0700` SET_SETTINGS | `sys_power_usb_pd_set_settings(dev, mV, mA)` | `{u32 voltage_mV, u32 current_mA}` | – |
+| `0x0701` LIST_OPTIONS | `sys_power_usb_pd_list_options(dev, out, max, &count)` | – | `sys_power_usb_pd_option_t[]` (8 B each: slot, type, min / max mV, max mA), at most 13 |
+| `0x0702` GET_LIMITS | `sys_power_usb_pd_get_limits(dev, &mV, &mA)` | – | `{i32 mV, i32 mA}`: the highest-voltage offer |
+
+The charger may not grant exactly what SET_SETTINGS asks; the app reads the result back. Option types: fixed 0, PPS 1, AVS 2.
+
+## POWER_SUPPLY (`0x08xx`)
+
+A power mux: two switched sources into one load (the LM73100 ideal diodes of an H-bridge VM node). Prefix `SUPPLY_` (`SUPPLY_OP_*`, `SUPPLY_HANDLER`, `SUPPLY_ENTRY`).
+
+| Op | Wrapper | Args | Answer |
+|---|---|---|---|
+| `0x0800` SELECT | `sys_power_supply_select(dev, source)` | `{u8 source}`: 0 off, 1 A, 2 B (`sys_power_supply_source_e`) | – |
+| `0x0801` GET_SOURCE | `sys_power_supply_get_source(dev, &source)` | – | u8 source: what is switched on now |
+
+- The source that is on is switched off first, the device's switch delay passes, then the new one is switched on: the two are never on together. A failure leaves both off.
+- A source above 2: `ERR_DEV_RANGE`. SELECT while suspended: `ERR_DEV_SUSPENDED`; GET_SOURCE is allowed. No events.
+- The choice is a default setting of the app (the stored hardware config); there is no VM block. Provider: `device_power_mux` (DEVICE_POWER_MUX.MD).
+
 ## Errors (`ERR_MOD_SYS_POWER` = 10, `sys_power.h`)
 
-Besides the shared `ERR_DEV_*` (RANGE, SUSPENDED): `ERR_POWER_BAD_CHANNEL {id, channel}`, `ERR_POWER_ALERT_UNSUPPORTED {id, channel, alert}`, `ERR_POWER_EXT_FEEDBACK {id}` (a regulator strapped for an external divider: its output can't be set in mV; TPS55289).
+Besides the shared `ERR_DEV_*` (RANGE, SUSPENDED): `ERR_POWER_BAD_CHANNEL {id, channel}`, `ERR_POWER_ALERT_UNSUPPORTED {id, channel, alert}`, `ERR_POWER_EXT_FEEDBACK {id}` (a regulator strapped for an external divider: its output can't be set in mV; TPS55289), `ERR_POWER_NO_PROFILE {id, voltage_mV, lowest_mV}` (a USB-PD source offers no profile at or below the voltage).
 
 ## Changes from legacy (`legacy/components/system/sys_power`)
 
-- Vtables (`sys_power_monitor_contract_t`, `sys_power_vreg_contract_t`) → contract tables; u8 device IDs → u16.
+- Vtables (`sys_power_monitor_contract_t`, `sys_power_vreg_contract_t`, `sys_power_supply_contract_t`) → contract tables; u8 device IDs → u16.
 - One power event enum (`sys_power_events_e`, domain POWER) → events per contract. A monitor's alert kind is its own enum (`sys_power_alert_e`) instead of an event value.
 - New: GET_POWER (mW).
 
 ## Not yet
 
-- **Devices:** VREG = TPS55289 (DEVICE_TPS55289.MD). No monitor device is ported yet (INA3221, AP33772S).
-- **USB_PD and POWER_SUPPLY** (power mux) contracts, the **power manager** (budget, sources, battery, response matrix).
+- **Devices:** VREG = TPS55289 (DEVICE_TPS55289.MD), monitor = INA3221 (DEVICE_INA3221.MD), USB_PD + VREG + monitor = AP33772S (DEVICE_AP33772S.MD), SUPPLY = power mux (DEVICE_POWER_MUX.MD).
+- The power manager is its own component: SYS_POWER_MANAGER.MD.

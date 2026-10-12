@@ -3,6 +3,16 @@
 #include "sys_device.h"
 #include "sys_io.h"
 
+//#device
+//@alias ESP32 native GPIO
+//@description ESP32-S3 GPIO. Some pins are reserved for internal use, the rest are free for yours.
+//@protocol native
+//@tags gpio io adc voltage pwm
+//@datasheet https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf
+//@pins IO @one-of [0..21, 26..48] @alias GPIO pin
+//@event IO_EV_RISING IO_EV_FALLING IO_EV_ADC_OUTSIDE IO_EV_ADC_INSIDE @channel GPIO pin
+//@pwm-frequencies CONFIG_DEVICE_GPIO_ESP_PWM_TIMER_MASK @count-bits
+
 #ifdef __cplusplus
 extern "C" {
 #endif

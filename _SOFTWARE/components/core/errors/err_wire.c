@@ -1,4 +1,4 @@
-#include <string.h>
+
 #include "errors.h"
 
 #define WIRE_TRUNCATED 0x80u

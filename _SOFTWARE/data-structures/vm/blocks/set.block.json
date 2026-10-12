@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 2,
+  "kind": "vm-block",
+  "id": 6,
+  "name": "VM_BLK_SET",
+  "alias": "Set",
+  "category": "data",
+  "description": "Copies the source payload (whole trees included) into the destination when the source is fresh, or writes a constant when the source is unwired. Types and counts must match.",
+  "source_file": "components/vm/vm_blocks/core/set/vm_block_set.h",
+  "guide": "set.md",
+  "activation": {
+    "kind": "triggered",
+    "text": "Runs when the source (the first input) is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled. With no source it writes its constant when an enable fires (once at start without enables)."
+  },
+  "min_enables": 0,
+  "shape": {
+    "min_in": 2,
+    "max_in": 2,
+    "min_q": 0,
+    "max_q": 0,
+    "min_en": 0,
+    "required_in": 2,
+    "state_len": 8
+  },
+  "inputs": {
+    "min": 2,
+    "max": 2,
+    "pins": [
+      {
+        "index": 0,
+        "name": "source",
+        "alias": "Source",
+        "value": "object",
+        "description": "The object to copy. Leave it unwired to write the Value constant instead.",
+        "overrides": "value",
+        "required": false
+      },
+      {
+        "index": 1,
+        "name": "destination",
+        "alias": "Destination",
+        "value": "object",
+        "description": "The object to write.",
+        "user_write": true,
+        "required": true
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 0,
+    "pins": []
+  },
+  "rules": [
+    {
+      "rule": "value is a finite number.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 983071
+    }
+  ],
+  "state": {
+    "struct": "vm_block_set_data_t",
+    "source_file": "components/vm/vm_blocks/core/set/vm_block_set.h",
+    "size": 8,
+    "align": 4,
+    "fields": [
+      {
+        "name": "value",
+        "c_type": "float",
+        "offset": 0,
+        "size": 4,
+        "description": "Constant written to the destination while the Source input is unwired",
+        "source": "user",
+        "overridden_by": 0
+      },
+      {
+        "name": "flags",
+        "c_type": "uint8_t",
+        "offset": 4,
+        "size": 1,
+        "description": "VM_SET_F_* bits",
+        "source": "runtime"
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint8_t",
+        "offset": 5,
+        "size": 3,
+        "array_len": 3,
+        "element_size": 1,
+        "description": "Align to 8 bytes",
+        "source": "padding"
+      }
+    ]
+  },
+  "min_custom_len": 8
+}

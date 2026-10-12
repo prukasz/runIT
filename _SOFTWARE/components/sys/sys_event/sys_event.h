@@ -1,7 +1,5 @@
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
 #include "errors.h"
 #include "sys_device.h"
 
@@ -22,39 +20,51 @@ extern "C" {
  *
  * A listener's target is a device (its EVENT contract op ON_EVENT, through
  * sys_device_call: a removed device just answers NOT_FOUND) or a C function
- * (only for modules that live forever: the VM, the power manager). Rules,
- * made remotely, are queued listeners that run an action.
+ * (only for modules that live forever: the VM, the power manager).
  *
- * An event whose flags have SYS_EVENT_NOTIFY (events that matter to the user,
- * set in the contract's events table) also goes to the events connector at
- * publish time, before any listener runs: an action stopping the board
- * can't hide its cause.
+ * An event goes to the events connector (the app) at publish time, before any
+ * listener runs (an action stopping the board can't hide its cause), when its
+ * flags have SYS_EVENT_NOTIFY (events that matter to the user, set in the
+ * contract's events table). Nothing else reaches the app on its own: a program
+ * that wants another event there sends it (VM).
+ *
+ * There is no loop guard: a listener that republishes (a device on its INT pin)
+ * subscribes to one exact source and channel, and that pin's device exists
+ * before it (sys_device_use), so a chain of republishes can't close into a cycle.
  */
+
+/* ----------------------------------------------------------------------------
+ * The event
+ * ------------------------------------------------------------------------- */
 
 /* An event ID has the op layout: [contract u8][n u8] (SYS_DEVICE_CONTRACT_*). */
 #define SYS_EVENT_ID(contract, n) SYS_DEVICE_OP(contract, n)
 
-#define SYS_EVENT_ANY_SOURCE 0xFFFFu  // match: any source
-#define SYS_EVENT_ANY_EVENT 0xFFFFu   // match: any event
-#define SYS_EVENT_ANY_IN 0xFFu        // match: low byte of `event` = any event of that contract (n 0xFF is never used)
-#define SYS_EVENT_ANY_CHANNEL 0xFFu   // match: any channel
+/* Frame on the events stream: [ROUTER_KEY_EVENT 0x07][SYS_EVENT_OP_NOTIFY][sys_event_t]. The command shape (like the
+ * VM telemetry), so the app reads it with the decoder it has for commands. */
+#define SYS_EVENT_OP_NOTIFY 0x01u
 
-#define SYS_EVENT_NOTIFY 0x01u  // flags: also sent on the events connector
+/* Match values of a subscription. */
+#define SYS_EVENT_ANY_SOURCE 0xFFFFu  // any source
+#define SYS_EVENT_ANY_EVENT 0xFFFFu   // any event
+#define SYS_EVENT_ANY_IN 0xFFu        // low byte of `event`: any event of that contract (n 0xFF is never used)
+#define SYS_EVENT_ANY_CHANNEL 0xFFu   // any channel
 
-/* One occurrence. Copied into the queue and passed as the ON_EVENT args, so packed and without pointers. */
+/* flags */
+#define SYS_EVENT_NOTIFY 0x01u  // sent on the events connector (the only events the app gets)
+#define SYS_EVENT_DEFER 0x02u   // set by the publisher, not by a table: everything is delivered in the event task
+                                // (the task clears it first: a listener or the stream never sees it)
+
+/* One occurrence. Copied into the queue, passed as the ON_EVENT args and sent as the events stream record, so packed
+   and without pointers. */
 typedef struct __attribute__((packed)) {
   uint16_t source;  // device ID
   uint16_t event;   // SYS_EVENT_ID(contract, n)
   uint8_t channel;  // pin / channel on that device, 0 when it has none
-  uint8_t hops;     // republish depth (SYS_EVENT_CAUSED_BY)
-  uint8_t flags;    // SYS_EVENT_NOTIFY
+  uint8_t flags;    // SYS_EVENT_NOTIFY | SYS_EVENT_DEFER
   int32_t value;    // level, mV, mA, ... per event
   uint32_t t_ms;    // set by sys_event_publish
 } sys_event_t;
-
-/* `.hops` of an event published because of `cause` (NULL = first hand), so a
-   loop of republishes stops at CONFIG_SYS_EVENT_MAX_HOPS (ERR_EVENT_LOOP). */
-#define SYS_EVENT_CAUSED_BY(cause) ((uint8_t)((cause) != NULL ? (cause)->hops + 1u : 0u))
 
 /* ----------------------------------------------------------------------------
  * Events tables
@@ -71,45 +81,34 @@ typedef struct __attribute__((packed)) {
 
 /**
  * @brief Publishes event NAME of the table with prefix PFX (IO_EV_NAME, IO_EV_NAME_FLAGS).
- * @usage ERR_TRY(SYS_EVENT_PUBLISH(IO, FALLING, c->id, pin, level, cause));
+ * @usage ERR_TRY(SYS_EVENT_PUBLISH(IO, FALLING, c->id, pin, level));
  */
-#define SYS_EVENT_PUBLISH(PFX, NAME, src, ch, val, cause)                                             \
-  sys_event_publish(&(sys_event_t){.source = (src), .event = PFX##_EV_##NAME, .channel = (ch),         \
-                                   .hops = SYS_EVENT_CAUSED_BY(cause), .flags = PFX##_EV_##NAME##_FLAGS, \
-                                   .value = (val)})
+#define SYS_EVENT_PUBLISH(PFX, NAME, src, ch, val)                                             \
+  sys_event_publish(&(sys_event_t){.source = (src), .event = PFX##_EV_##NAME, .channel = (ch), \
+                                   .flags = PFX##_EV_##NAME##_FLAGS, .value = (val)})
 
 /* ----------------------------------------------------------------------------
  * The EVENT contract (0x03xx): a device that listens to events answers ON_EVENT
  * ------------------------------------------------------------------------- */
 
-// clang-format off
-#define SYS_EVENT_CONTRACT(X)                                                          \
-  X(ON_EVENT, 0x00, sys_event_t)  /* an event matched the device's subscription */
-// clang-format on
+// The contract's only op (no table: one op doesn't need the X-macro). Args = sys_event_t.
+#define EVENT_OP_ON_EVENT SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_EVENT, 0x00)
 
-#define SYS_EVENT__ID(name, n, args_t) EVENT_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_EVENT, n),
-#define SYS_EVENT__ARGS(name, n, args_t) typedef args_t event_args_##name##_t;
-
-enum { SYS_EVENT_CONTRACT(SYS_EVENT__ID) };
-SYS_EVENT_CONTRACT(SYS_EVENT__ARGS)
-
-#define EVENT_HANDLER(name) SYS_DEVICE_HANDLER(event_h_##name, event_args_##name##_t)
+#define EVENT_HANDLER(name) SYS_DEVICE_HANDLER(event_h_##name, sys_event_t)
 #define EVENT_ENTRY(name) {EVENT_OP_##name, event_h_##name}
 
 /* ----------------------------------------------------------------------------
- * Errors (module ERR_MOD_SYS_EVENT)
+ * Errors (module ERR_MOD_SYS_EVENT). Tags 1 (LOOP), 6 (BAD_ID) and 7 (NO_RUNNER)
+ * are retired: hops, remote watches and rules are gone (2026-10-11).
  * ------------------------------------------------------------------------- */
 
 // clang-format off
 #define ERR_SYS_EVENT_MAP(X)                                                                                     \
-  X(ERR_EVENT_LOOP,       ERR_TAG(ERR_MOD_SYS_EVENT, 1), ERR_SEV_MEDIUM, { uint16_t source; uint16_t event; uint8_t hops; }) \
   X(ERR_EVENT_QUEUE_FULL, ERR_TAG(ERR_MOD_SYS_EVENT, 2), ERR_SEV_LOW,    { uint16_t source; uint16_t event; uint32_t dropped; }) \
   X(ERR_EVENT_TABLE_FULL, ERR_TAG(ERR_MOD_SYS_EVENT, 3), ERR_SEV_MEDIUM, {})                                    \
-  X(ERR_EVENT_NOT_FOUND,  ERR_TAG(ERR_MOD_SYS_EVENT, 4), ERR_SEV_MEDIUM, { uint8_t id; }) /* subscription handle or rule ID */ \
+  X(ERR_EVENT_NOT_FOUND,  ERR_TAG(ERR_MOD_SYS_EVENT, 4), ERR_SEV_MEDIUM, { uint8_t id; }) /* subscription handle */ \
   X(ERR_EVENT_BAD_ARG,    ERR_TAG(ERR_MOD_SYS_EVENT, 5), ERR_SEV_HIGH,   {})                                    \
-  X(ERR_EVENT_BAD_ID,     ERR_TAG(ERR_MOD_SYS_EVENT, 6), ERR_SEV_HIGH,   { uint8_t id; }) /* rule ID 0 or 0xFF */ \
-  X(ERR_EVENT_NO_RUNNER,  ERR_TAG(ERR_MOD_SYS_EVENT, 7), ERR_SEV_MEDIUM, { uint8_t action; }) /* a rule fired, no action runner set */ \
-  X(ERR_EVENT_DELIVERY,   ERR_TAG(ERR_MOD_SYS_EVENT, 8), ERR_SEV_NONE,   { uint16_t source; uint16_t event; uint8_t channel; uint8_t rule; uint16_t device; }) /* context: a listener failed */
+  X(ERR_EVENT_DELIVERY,   ERR_TAG(ERR_MOD_SYS_EVENT, 8), ERR_SEV_NONE,   { uint16_t source; uint16_t event; uint8_t channel; uint16_t device; }) /* context: a listener failed */
 // clang-format on
 
 ERR_TAGS_DECLARE(ERR_SYS_EVENT_MAP)
@@ -117,6 +116,9 @@ ERR_TAGS_DECLARE(ERR_SYS_EVENT_MAP)
 /* ----------------------------------------------------------------------------
  * C API
  * ------------------------------------------------------------------------- */
+
+/** @brief Starts the event task. Boot, after sys_connector_init (notify needs the events connector). */
+MUST_USE err_h sys_event_init(void);
 
 /**
  * @brief Listener callback (target FN).
@@ -137,20 +139,11 @@ typedef struct {
   void* ctx;
 } sys_event_sub_t;
 
-/** @brief Runs an action (rules). The app sets it: sys_actions_request. */
-typedef err_h (*sys_event_action_f)(uint8_t action_id, bool urgent);
-
-/** @brief Starts the event task. Boot, after sys_connector_init (notify needs the events connector). */
-MUST_USE err_h sys_event_init(void);
-
-/** @brief Sets what runs a rule's action. Boot, by the app. */
-void sys_event_set_action_runner(sys_event_action_f fn);
-
 /**
  * @brief Adds a listener.
  * @param handle Its handle, for sys_event_unsubscribe().
  * @return ERR_EVENT_BAD_ARG with no target, ERR_EVENT_TABLE_FULL when all
- *         CONFIG_SYS_EVENT_MAX_SUBS are used (rules included).
+ *         CONFIG_SYS_EVENT_MAX_SUBS are used.
  */
 MUST_USE err_h sys_event_subscribe(const sys_event_sub_t* sub, uint8_t* handle);
 
@@ -158,54 +151,22 @@ MUST_USE err_h sys_event_subscribe(const sys_event_sub_t* sub, uint8_t* handle);
 MUST_USE err_h sys_event_unsubscribe(uint8_t handle);
 
 /**
- * @brief Publishes an event: sets t_ms, sends it to the events connector if
- * it has SYS_EVENT_NOTIFY, runs the inline listeners (table order), then
- * queues one copy if a queued listener matches. From an ISR everything is
- * deferred to the event task; an ISR drop is counted and reported by the task.
- * @return ERR_EVENT_LOOP when hops reached CONFIG_SYS_EVENT_MAX_HOPS,
- *         ERR_EVENT_QUEUE_FULL when the queued copy didn't fit. Listener
- *         failures are reported, not returned.
+ * @brief Publishes an event: sets t_ms, sends it to the events connector if it has SYS_EVENT_NOTIFY, runs the inline
+ * listeners (table order), then queues one copy if a queued listener matches.
+ *
+ * From an ISR, or with SYS_EVENT_DEFER in the flags, all of it is deferred to the event task. A task that an op may
+ * wait for must set DEFER: an inline listener run there could need the device lock that op holds (SYS_DEVICE.MD
+ * "Concurrency"). An ISR drop is counted and reported by the task.
+ * @return ERR_EVENT_QUEUE_FULL when the queued (or deferred) copy didn't fit. Listener failures are reported, not
+ *         returned.
  */
 MUST_USE err_h sys_event_publish(const sys_event_t* event);
 
 /**
- * @brief Publishes from a background task (a driver's sampling task, a timer):
- * like an ISR event, the whole delivery (notify, inline listeners, queued ones)
- * runs later in the event task, never in the caller's. Use it from any task
- * that an op may wait for: an inline listener there could need the device lock
- * that op holds (SYS_DEVICE.MD "Concurrency"). t_ms is the time of the call.
- * @return ERR_EVENT_LOOP, ERR_EVENT_QUEUE_FULL (the event is dropped).
+ * @brief The match rule of a subscription: @p source, @p event and @p channel against an event, each exact or
+ * SYS_EVENT_ANY_* / SYS_EVENT_ANY_IN. For code that filters events itself (the VM's ON_EVENT block).
  */
-MUST_USE err_h sys_event_post(const sys_event_t* event);
-
-/* ----------------------------------------------------------------------------
- * Rules: remote listeners "event -> action" (sys_event_router)
- * ------------------------------------------------------------------------- */
-
-#define SYS_EVENT_RULE_ALL 0xFFu      // unsubscribe: every rule
-#define SYS_EVENT_RULE_URGENT 0x01u   // rule flags: the action runs on the urgent task
-
-typedef struct {
-  uint8_t id;  // 1..254, chosen by the client
-  uint16_t source;
-  uint16_t event;
-  uint8_t channel;
-  uint8_t action;  // action ID (sys_actions)
-  uint8_t flags;   // SYS_EVENT_RULE_URGENT
-} sys_event_rule_t;
-
-/** @brief Adds rule `rule->id`, replacing a rule with that ID. Always queued. */
-MUST_USE err_h sys_event_rule_set(const sys_event_rule_t* rule);
-
-/** @brief Removes rule `id`; SYS_EVENT_RULE_ALL removes every rule (none = no error). */
-MUST_USE err_h sys_event_rule_remove(uint8_t id);
-
-/**
- * @brief Rules with ID >= `start`, by ascending ID: calls `fn` until it returns false.
- * @param total Number of rules; may be NULL.
- */
-MUST_USE err_h sys_event_rule_list(uint8_t start, bool (*fn)(const sys_event_rule_t* rule, void* ctx), void* ctx,
-                                   uint8_t* total);
+bool sys_event_matches(uint16_t source, uint16_t event, uint8_t channel, const sys_event_t* e);
 
 #ifdef __cplusplus
 }

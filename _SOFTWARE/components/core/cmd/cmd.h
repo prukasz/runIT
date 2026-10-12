@@ -1,7 +1,5 @@
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
 #include "errors.h"
 #include "utils.h"
 

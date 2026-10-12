@@ -1,6 +1,5 @@
 #include "errors.h"
-#include <assert.h>
-#include <string.h>
+
 #include "err_pool.h"
 
 ERR_MODULE_DEFINE(ERR_MOD_CORE, "core", ERR_CORE_MAP)

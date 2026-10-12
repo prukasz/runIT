@@ -63,7 +63,7 @@ Users connect standard RC parts (servos, ESCs, actuators), popular sensors and L
 
 ## 3. Onboard device catalog (firmware view)
 
-All onboard chips are **static devices** created at boot by `runit_board_devices_init()`. Each is reached by its device ID through a system contract — the app and VM never talk to the chip directly.
+All onboard chips are created at boot by `runit_board_devices_init()` (the new firmware since 2026-10-11; IDs, buses and pins below). Each is reached by its device ID through a system contract — the app and VM never talk to the chip directly.
 
 | ID | Chip | Contract | I2C (bus 0) | Board wiring | Role |
 |---|---|---|---|---|---|
@@ -72,17 +72,17 @@ All onboard chips are **static devices** created at boot by `runit_board_devices
 | 2 | ADS7128 | Digital/Analog IO | 0x10 | ALERT → ESP 42, Vref 20 V | 8 inputs up to 20 V, window comparator |
 | 3 | PCA9685 | Digital/Analog IO | 0x60 | OE → TCA 0 | CH 0–7 user PWM headers, CH 8–15 → DRV8962 #2 (12-bit duty, one shared frequency) |
 | 4 | DAC53202 | Digital/Analog IO | 0x48 (A0 = GND) | — | OUT0/OUT1 → VREF of DRV8962 #1/#2; VDD reference, gain 1x (full scale 3.3 V) |
-| 5 | DRV8962 #1 | H-bridge | — | IN1-4 → ESP 21/47/48/45, EN1-4 → ESP 38/39/2/1, IPROPI1-4 → ESP 7/6/5/4, nSLEEP → TCA 9, nFAULT → TCA 11, VM ← TCA 14 (VSUP) / 15 (rail B) | 2 full bridges; **off**: ESP GPIO has no PWM yet |
-| 6 | DRV8962 #2 | H-bridge | — | IN1-4 → PCA CH 8-11, EN1-4 → PCA CH 12-15, nSLEEP → TCA 8, nFAULT → TCA 10, VM ← TCA 12 (rail A) / 13 (VSUP), IPROPI resistors only | 2 full bridges, PWM at the PCA frequency (1 kHz) |
+| 5 | DRV8962 #1 | H-bridge | — | IN1-4 → ESP 21/47/48/45, EN1-4 → ESP 38/39/2/1, IPROPI1-4 → ESP 7/6/5/4, nSLEEP → TCA 9, nFAULT → TCA 11, VM ← TCA 14 (VSUP) / 15 (rail B) | 2 full bridges; PWM 20 kHz on ESP LEDC. Created and braked on the PCB with the new firmware 2026-10-11 (VM supplies off) |
+| 6 | DRV8962 #2 | H-bridge | — | IN1-4 → PCA CH 8-11, EN1-4 → PCA CH 12-15, nSLEEP → TCA 8, nFAULT → TCA 10, VM ← TCA 13 (rail A) / 12 (VSUP) (swapped from the legacy header, measured 2026-10-11), IPROPI resistors only | 2 full bridges, PWM at the PCA frequency (1 kHz) |
 | 10 | TPS55289 `TPS55289_2` | Voltage Regulator | 0x74 | INT → TCA 1, EN → TCA 17 | Adjustable rail A |
 | 11 | TPS55289 `TPS55289_1` | Voltage Regulator | 0x75 | INT → TCA 2, EN → TCA 16 | Adjustable rail B |
 | 12 | INA3221 | Power Monitor | 0x40 | CRIT → TCA 6, WARN → TCA 5 (measured 2026-09-27; the legacy header had them swapped) | V/I of rail A, rail B and whole-board input, with alerts |
 | 13 | AP33772S | USB-C Power Delivery | 0x52 | INT → TCA 21 | PD sink: request/read PDOs, negotiated V/I, protection events |
 | 7 | `SUPPLY_DRV8962_0` (power mux, type `0x4A`) | Power supply select | — | LM73100 pair of DRV8962 #1: A = TCA 14 (board input, VSUP), B = TCA 15 (rail B, TPS55289 0x75); high = on | Onboard, created at boot with both switches off; the source (off / A / B) is a default setting of the stored hardware config |
-| 8 | `SUPPLY_DRV8962_1` (power mux, type `0x4A`) | Power supply select | — | LM73100 pair of DRV8962 #2: A = TCA 13 (board input, VSUP), B = TCA 12 (rail A, TPS55289 0x74); high = on | Same; A is always the board input, B the regulator rail of that bridge |
+| 8 | `SUPPLY_DRV8962_1` (power mux, type `0x4A`) | Power supply select | — | LM73100 pair of DRV8962 #2: A = TCA 12 (board input, VSUP), B = TCA 13 (rail A, TPS55289 0x74); high = on | Same; A is always the board input, B the regulator rail of that bridge |
 | — | TPS259474 ×2 | — (not modelled) | — | PG → TCA 3 (VUSB_OK), TCA 4 (VEXT_OK) | Input eFuses |
 
-Also driven at boot: TCA pins 22 and 23 as push-pull outputs (roles not documented in code).
+Also driven at boot (`runit_board_devices_init`, 2026-10-11): TCA pins 22 and 23 as push-pull outputs, 23 high (the status LED), 22 low. Pin 22 **must** be an output: as a floating input it toggles at ~25 kHz and floods the TCA INT line. Before the port, 22 was high (the chip's latch reset value) and 23 low.
 
 **Design constraints worth remembering:**
 - The PCA9685 has one PWM frequency for all 16 channels, so the servo headers (CH 0–7) and DRV8962 #2 (CH 8–15) always share a frequency. Servos typically want ~50 Hz; motor drive usually runs much faster.
@@ -116,7 +116,7 @@ Also driven at boot: TCA pins 22 and 23 as push-pull outputs (roles not document
 
 | Hardware | Firmware status |
 |---|---|
-| DRV8962 ×2 (H-bridges) | #2 created (ID 6); #1 (ID 5) written but off until its ESP pins are confirmed; no generated JSON descriptor |
+| DRV8962 ×2 (H-bridges) | New firmware: both create on the PCB and brake (2026-10-11, `board_tests.py`, VM supplies never switched on); no real load, overcurrent or shutdown tested; no JSON descriptor yet |
 | DAC53202 | Created (ID 4); used as DRV8962 VREF |
 | LM73100 ×4 (power-source selection) | Onboard power muxes 7 and 8 (2026-10-06, build only); the DRV8962 does not check its mux yet |
 | TPS259474 eFuses ×2 | No firmware device |

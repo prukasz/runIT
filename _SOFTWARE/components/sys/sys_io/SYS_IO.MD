@@ -37,7 +37,7 @@ Not a module with state: a set of device ops (contract `SYS_DEVICE_CONTRACT_IO` 
 
 ## Errors (`ERR_MOD_SYS_IO` = 7, `sys_io.h`)
 
-What a device with pins reports besides the shared `ERR_DEV_*` (BAD_PIN, PIN_LOCKED, RANGE, SUSPENDED): `ERR_IO_PIN_IN_USE {id, pin, mode}` (SET_MODE of a configured pin), `PIN_UNCONFIGURED {id, pin}`, `WRONG_MODE {id, pin, mode}` (the op doesn't fit the pin's mode), `MODE_UNSUPPORTED {id, pin, mode}`, `FEATURE_UNSUPPORTED {id, pin}`, `PWM_CHANNELS_EXHAUSTED {id, pin, channels}`, `PWM_TIMERS_EXHAUSTED {id, pin, timers, frequency_Hz}`.
+What a device with pins reports besides the shared `ERR_DEV_*` (BAD_PIN, PIN_LOCKED, RANGE, SUSPENDED): `ERR_IO_PIN_IN_USE {id, pin, mode}` (SET_MODE of a configured pin), `PIN_UNCONFIGURED {id, pin}`, `WRONG_MODE {id, pin, mode}` (the op doesn't fit the pin's mode), `MODE_UNSUPPORTED {id, pin, mode}`, `FEATURE_UNSUPPORTED {id, pin}`, `PWM_CHANNELS_EXHAUSTED {id, pin, channels}`, `PWM_TIMERS_EXHAUSTED {id, pin, timers, frequency_Hz}`, `BAD_READING {id, pin}` (an ADC did not return the channel asked for).
 
 ## Pins contract (`0x02xx`, `sys_pins.h`)
 
@@ -55,7 +55,8 @@ Which pins a device has and which are locked. A pin another device depends on (P
 - "Reserved" pins are locked pins. A device reports every pin the chip has in AVAILABLE and nothing is reserved by the driver; whoever uses a pin for something else (a bridge driver on PWM channels, a chip RST) locks it, and LOCKED says what is taken. Free pins = `AVAILABLE & ~LOCKED`. Which pins get locked is board configuration, not driver code.
 - A lock is bookkeeping, not an identity: whoever sends LOCK / UNLOCK is trusted to be the owner. An owner id in LOCK would close that; not needed yet.
 - Taking a pin: `sys_io_set_mode`, then `sys_pins_lock`, then `sys_pins_set_locked_level` (PCA9685 OE does this); release: drive safe, `sys_pins_unlock`.
+- Pins of a device the caller does not know (a bridge driver's IN / EN / IPROPI / VREF pins can sit on the ESP, the PCA9685, the TCA6424A or the DAC53202): `sys_io_prepare(p, mode)` is SET_MODE that accepts a device without SET_MODE (fixed-function pins: PCA9685 PWM channels, DAC outputs); `sys_io_prepare_input(p)` makes an open-drain alert line an input with the pull-up where the device has one, else a plain input (the TCA6424A has no pull-ups: the board has external ones); `sys_io_release(p)` is RESET with the same tolerance. Any other failure is returned.
 
 ## Not yet
 
-- **Pin events:** the IO events table (`SYS_IO_EVENTS`: RISING / FALLING / ADC_OUTSIDE / ADC_INSIDE = `0x0100`–`0x0103`, flags 0, SYS_EVENT.MD) is published by GPIO ESP (CONFIGURE_INTR, DEVICE_GPIO_ESP.MD); the expanders with interrupt pins (TCA6424A, ADS7128) are not ported.
+- **Pin events:** the IO events table (`SYS_IO_EVENTS`: RISING / FALLING / ADC_OUTSIDE / ADC_INSIDE = `0x0100`–`0x0103`, flags 0, SYS_EVENT.MD) is published by GPIO ESP (CONFIGURE_INTR, DEVICE_GPIO_ESP.MD) and the TCA6424A (DEVICE_TCA6424A.MD, edges of its input port after its INT pin); ADS7128 (window alerts) is not ported.

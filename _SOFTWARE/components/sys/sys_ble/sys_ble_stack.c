@@ -1,5 +1,5 @@
-#include <stdlib.h>
-#include <string.h>
+
+
 #include "esp_log.h"
 #include "host/ble_hs.h"
 #include "host/ble_uuid.h"
@@ -13,8 +13,11 @@
 
 #define TAG "sys_ble"
 
-#define ADV_ITVL_MIN_MS 100u
-#define ADV_ITVL_MAX_MS 150u
+#define ADV_ITVL_MIN_MS 20u  // fastest advertising the spec allows: quick (re)connects
+#define ADV_ITVL_MAX_MS 30u
+#define CONN_ITVL_UNITS 6u     // 7.5 ms (1.25 ms units): the spec minimum, lowest link latency
+#define CONN_SLAVE_LATENCY 0u  // answer every connection event
+#define CONN_TIMEOUT_UNITS 200u  // 2 s supervision timeout (10 ms units)
 #define UUID_USER_DESC 0x2901u
 
 void ble_store_config_init(void);
@@ -32,7 +35,12 @@ static int gap_event(struct ble_gap_event* event, void* arg);
 
 static err_h adv_start(void) {
   const char* name = ble_svc_gap_device_name();
+  /* The runIT service in the advertisement: a browser filters by it, and reconnects to a known board on seeing it. */
+  static const ble_uuid16_t runit_svc = BLE_UUID16_INIT(SYS_BLE_SVC_RUNIT);
   struct ble_hs_adv_fields fields = {
+      .uuids16 = &runit_svc,
+      .num_uuids16 = 1,
+      .uuids16_is_complete = 1,
       .flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP,
       .name = (uint8_t*)name,
       .name_len = (uint8_t)strlen(name),
@@ -74,6 +82,16 @@ static int gap_event(struct ble_gap_event* event, void* arg) {
         if (rc != 0 && rc != BLE_HS_EALREADY) {
           ESP_LOGW(TAG, "MTU exchange request failed: %d", rc);
         }
+        struct ble_gap_upd_params upd = {
+            .itvl_min = CONN_ITVL_UNITS,
+            .itvl_max = CONN_ITVL_UNITS,
+            .latency = CONN_SLAVE_LATENCY,
+            .supervision_timeout = CONN_TIMEOUT_UNITS,
+        };
+        rc = ble_gap_update_params(event->connect.conn_handle, &upd);  // the central may still refuse or round up
+        if (rc != 0) {
+          ESP_LOGW(TAG, "connection parameter update failed: %d", rc);
+        }
         ESP_LOGI(TAG, "connected (handle %d, MTU %d)", event->connect.conn_handle, mtu);
       } else {
         ESP_LOGW(TAG, "connection failed: %d", event->connect.status);
@@ -94,6 +112,15 @@ static int gap_event(struct ble_gap_event* event, void* arg) {
     case BLE_GAP_EVENT_SUBSCRIBE:
       sys_ble_on_subscribe(event->subscribe.attr_handle, event->subscribe.cur_notify || event->subscribe.cur_indicate);
       return 0;
+
+    case BLE_GAP_EVENT_CONN_UPDATE: {
+      struct ble_gap_conn_desc desc;
+      if (event->conn_update.status == 0 && ble_gap_conn_find(event->conn_update.conn_handle, &desc) == 0) {
+        ESP_LOGI(TAG, "link params: interval %u.%02u ms, latency %u, timeout %u ms", desc.conn_itvl * 5 / 4,
+                 desc.conn_itvl * 125 % 100, desc.conn_latency, desc.supervision_timeout * 10);
+      }
+      return 0;
+    }
 
     case BLE_GAP_EVENT_MTU:
       sys_ble_on_mtu(event->mtu.value);

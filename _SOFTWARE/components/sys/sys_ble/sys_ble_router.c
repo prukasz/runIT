@@ -1,5 +1,5 @@
 #include "sys_ble_router.h"
-#include <string.h>
+
 #include "sys_ble.h"
 
 /* Changes are staged; APPLY puts them live (with a client connected ~200 ms
@@ -21,34 +21,34 @@
 #define OP_STATUS 0x06u
 
 typedef struct __attribute__((packed)) {
-  uint16_t uuid;
-  uint8_t is_primary;
+  uint16_t uuid;  //@alias UUID
+  uint8_t is_primary;  //@alias Kind @choices 0=Secondary,1=Primary
 } svc_create_t;
 
 typedef struct __attribute__((packed)) {
-  uint16_t uuid;
+  uint16_t uuid;  //@alias UUID
 } svc_remove_t;
 
 typedef struct __attribute__((packed)) {
-  uint16_t svc_uuid;
-  uint16_t uuid;
-  uint8_t is_write;
-  uint8_t is_indicate;
-  uint8_t is_notify;
-  uint8_t is_framed;
-  uint32_t tx_buffer_size;  // bytes, 0 = no TX
-  uint32_t rx_buffer_size;  // bytes, 0 = no RX buffer
+  uint16_t svc_uuid;  //@alias Service UUID
+  uint16_t uuid;  //@alias UUID
+  uint8_t is_write;  //@alias Write @description Clients may write it @choices 0=No,1=Yes
+  uint8_t is_indicate;  //@alias Indicate @choices 0=No,1=Yes
+  uint8_t is_notify;  //@alias Notify @choices 0=No,1=Yes
+  uint8_t is_framed;  //@alias Framed @description Items carry the fragment header @choices 0=No,1=Yes
+  uint32_t tx_buffer_size;  //@alias TX buffer @description 0: no TX @unit bytes
+  uint32_t rx_buffer_size;  //@alias RX buffer @description 0: no RX buffer @unit bytes
 } char_create_t;
 
 typedef struct __attribute__((packed)) {
-  uint16_t svc_uuid;
-  uint16_t uuid;
+  uint16_t svc_uuid;  //@alias Service UUID
+  uint16_t uuid;  //@alias UUID
 } char_remove_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t is_connected;
-  uint16_t mtu;
-  uint32_t rx_overflow_count;
+  uint8_t is_connected;  //@alias Connected @choices 0=No,1=Yes
+  uint16_t mtu;  //@alias MTU @unit bytes
+  uint32_t rx_overflow_count;  //@alias RX overflows @description Items dropped because the RX buffer was full
 } status_t;
 
 ROUTER_OP(op_svc_create, svc_create_t) {
@@ -93,8 +93,18 @@ ROUTER_OP_NOARGS(op_status) {
 }
 
 static const router_entry_t k_ops[] = {
-    {OP_SVC_CREATE, op_svc_create}, {OP_SVC_REMOVE, op_svc_remove}, {OP_CHAR_CREATE, op_char_create},
-    {OP_CHAR_REMOVE, op_char_remove}, {OP_APPLY, op_apply},          {OP_STATUS, op_status},
+    //@op OP_SVC_CREATE @alias Create service @description Stages a GATT service (applied by Apply)
+    {OP_SVC_CREATE, op_svc_create},
+    //@op OP_SVC_REMOVE @alias Remove service @description Stages the removal of a service
+    {OP_SVC_REMOVE, op_svc_remove},
+    //@op OP_CHAR_CREATE @alias Create characteristic @description Stages a characteristic of a service @tail string @tail-alias Name @tail-description Shown to clients as the characteristic's description
+    {OP_CHAR_CREATE, op_char_create},
+    //@op OP_CHAR_REMOVE @alias Remove characteristic @description Stages the removal of a characteristic
+    {OP_CHAR_REMOVE, op_char_remove},
+    //@op OP_APPLY @alias Apply changes @description Puts the staged GATT table live (a connected client is disconnected and reconnects)
+    {OP_APPLY, op_apply},
+    //@op OP_STATUS @alias Status @description The connection state @returns status_t
+    {OP_STATUS, op_status},
 };
 
 ROUTER_MODULE(sys_ble_router, k_ops)

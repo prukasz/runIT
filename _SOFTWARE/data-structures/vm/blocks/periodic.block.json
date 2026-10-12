@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 2,
+  "kind": "vm-block",
+  "id": 13,
+  "name": "VM_BLK_PERIODIC",
+  "alias": "Every",
+  "category": "time",
+  "description": "Pulses ENO (the tick) for one pass every period while enabled; never bursts after a slow pass.",
+  "source_file": "components/vm/vm_blocks/core/periodic/vm_block_periodic.h",
+  "guide": "periodic.md",
+  "activation": {
+    "kind": "enabled",
+    "text": "Runs every pass while enabled."
+  },
+  "min_enables": 0,
+  "loop_use": "refused",
+  "eno": {
+    "alias": "Tick",
+    "description": "One-pass pulse every period: put it on another block's Run when to run that block every period."
+  },
+  "face": {
+    "lead": [
+      {
+        "text": "Every"
+      }
+    ],
+    "value": [
+      {
+        "ref": "period",
+        "kind": "pin",
+        "pin": 0,
+        "field": "period"
+      },
+      {
+        "text": " "
+      },
+      {
+        "ref": "time_base",
+        "kind": "field",
+        "field": "time_base"
+      }
+    ]
+  },
+  "shape": {
+    "min_in": 0,
+    "max_in": 1,
+    "min_q": 0,
+    "max_q": 0,
+    "min_en": 0,
+    "required_in": 0,
+    "state_len": 16
+  },
+  "inputs": {
+    "min": 0,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "period",
+        "alias": "Period",
+        "value": "u32",
+        "description": "Time between pulses, in the chosen time unit; 0 pauses.",
+        "overrides": "period",
+        "required": false
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 0,
+    "pins": []
+  },
+  "rules": [
+    {
+      "rule": "time_base is a vm_timer_unit_e value.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 983071
+    },
+    {
+      "rule": "With the period input unwired, period is not 0.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 983071
+    }
+  ],
+  "state": {
+    "struct": "vm_block_periodic_data_t",
+    "source_file": "components/vm/vm_blocks/core/periodic/vm_block_periodic.h",
+    "size": 16,
+    "align": 8,
+    "fields": [
+      {
+        "name": "period",
+        "c_type": "uint32_t",
+        "offset": 0,
+        "size": 4,
+        "description": "Time between pulses, in the chosen time unit",
+        "source": "user",
+        "min": 1,
+        "overridden_by": 0
+      },
+      {
+        "name": "time_base",
+        "c_type": "uint8_t",
+        "offset": 4,
+        "size": 1,
+        "description": "Unit of the period",
+        "source": "user",
+        "alias": "Time unit",
+        "enum_ref": "vm_timer_unit_e"
+      },
+      {
+        "name": "flags",
+        "c_type": "uint8_t",
+        "offset": 5,
+        "size": 1,
+        "description": "VM_PERIODIC_F_*",
+        "source": "runtime"
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint16_t",
+        "offset": 6,
+        "size": 2,
+        "source": "padding"
+      },
+      {
+        "name": "next_ms",
+        "c_type": "uint64_t",
+        "offset": 8,
+        "size": 8,
+        "description": "Next deadline",
+        "source": "runtime"
+      }
+    ]
+  },
+  "min_custom_len": 16,
+  "enums": {
+    "vm_timer_unit_e": {
+      "alias": "Time Unit",
+      "source_file": "components/vm/vm_blocks/core/timer/vm_block_timer.h",
+      "members": [
+        {
+          "name": "VM_TIMER_UNIT_MS",
+          "value": 0,
+          "alias": "Milliseconds",
+          "description": "1 ms"
+        },
+        {
+          "name": "VM_TIMER_UNIT_SEC",
+          "value": 1,
+          "alias": "Seconds",
+          "description": "1,000 ms"
+        },
+        {
+          "name": "VM_TIMER_UNIT_MIN",
+          "value": 2,
+          "alias": "Minutes",
+          "description": "60,000 ms"
+        },
+        {
+          "name": "VM_TIMER_UNIT_HR",
+          "value": 3,
+          "alias": "Hours",
+          "description": "3,600,000 ms"
+        }
+      ]
+    }
+  }
+}

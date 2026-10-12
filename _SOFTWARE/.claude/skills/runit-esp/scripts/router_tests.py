@@ -339,8 +339,9 @@ INTR_DISABLE, INTR_RISING, INTR_FALLING, INTR_BOTH, INTR_OUTSIDE = 0, 1, 2, 3, 4
 
 
 def test_gpio_intr(link: Link, target: str) -> None:
-    """OUT_PIN is a push-pull output at level 0: the GPIO matrix sees its own edges, so ISR -> event -> rule -> action
-    runs without a wire. The rule's action creates connector EV_CONN."""
+    """OUT_PIN is a push-pull output at level 0: the GPIO matrix sees its own edges, so the ISR runs without a wire.
+    A pin edge is code flow (no NOTIFY): it never reaches the events stream, so only "armed edges cause no traffic and
+    no fault" is checked here; the delivery itself is seen once a VM program can send it."""
     r = dev(link, GPIO_ID, IO_CONFIGURE_INTR, bytes([PWM_PIN]) + intr_cfg(INTR_FALLING))
     check("CONFIGURE_INTR of an unconfigured pin -> ERR_IO_PIN_UNCONFIGURED", err_cause(r) == "ERR_IO_PIN_UNCONFIGURED", str(r))
     r = dev(link, GPIO_ID, IO_CONFIGURE_INTR, bytes([OUT_PIN]) + intr_cfg(9))
@@ -354,30 +355,140 @@ def test_gpio_intr(link: Link, target: str) -> None:
         check("CONFIGURE_INTR disable", r is not None and r.ok, str(r))
         return
 
-    ev(link, E_UNSUB, b"\xff")
-    link.request(bytes([KEY_CONN, 0x02]), payload=bytes([EV_CONN]))
-    r = upload(link, EV_ACTION, "mk conn", image(bytes([KEY_CONN, 0x01, EV_CONN, 0x11]) + b"evt\0"))
-    check("upload action 10 (creates connector 5)", r is not None and r.ok, str(r))
-    r = ev(link, E_SUB, rule(2, GPIO_ID, IO_FALLING, OUT_PIN, EV_ACTION))
-    check("rule: GPIO ESP falling edge on OUT_PIN -> action 10", r is not None and r.ok, str(r))
-
-    dev(link, GPIO_ID, IO_SET_LEVEL, bytes([OUT_PIN, 1]))
+    t = link.mark()
+    for level in (1, 0, 1, 0):
+        r = dev(link, GPIO_ID, IO_SET_LEVEL, bytes([OUT_PIN, level]))
     time.sleep(0.4)
-    check("rising edge: falling-edge rule silent", EV_CONN not in conn_ids(link))
-    dev(link, GPIO_ID, IO_SET_LEVEL, bytes([OUT_PIN, 0]))
-    time.sleep(0.4)
-    check("falling edge -> ISR event -> rule ran the action", EV_CONN in conn_ids(link))
-    link.request(bytes([KEY_CONN, 0x02]), payload=bytes([EV_CONN]))
+    check("armed edges: device still answers", r is not None and r.ok, str(r))
+    check("edge without NOTIFY: nothing on stream 0x06", event_records(link, t) == [], str(event_records(link, t)))
 
     r = dev(link, GPIO_ID, IO_CONFIGURE_INTR, bytes([OUT_PIN]) + intr_cfg(INTR_DISABLE))
     check("CONFIGURE_INTR disable", r is not None and r.ok, str(r))
-    dev(link, GPIO_ID, IO_SET_LEVEL, bytes([OUT_PIN, 1]))
-    dev(link, GPIO_ID, IO_SET_LEVEL, bytes([OUT_PIN, 0]))
-    time.sleep(0.4)
-    check("disarmed: no event", EV_CONN not in conn_ids(link))
 
-    ev(link, E_UNSUB, bytes([2]))
-    act(link, A_REMOVE, bytes([EV_ACTION]))
+
+MUX_TYPE = 0x004A
+MUX_ID = 7
+SUPPLY_SELECT, SUPPLY_GET_SOURCE = 0x0800, 0x0801
+MUX_A_PIN, MUX_B_PIN = 6, 7  # free on the devkit and the runIT board
+
+
+def test_power_mux(link: Link, target: str) -> None:
+    """The mux switches two GPIO ESP pins (own GPIO device, removed at the end). Levels are read back on a board only:
+    QEMU has no GPIO readback."""
+    r = dev(link, GPIO_ID, OP_CREATE, struct.pack("<H", GPIO_TYPE))
+    check("power mux: CREATE GPIO ESP for its pins", r is not None and r.ok, str(r))
+    if r is None or not r.ok:
+        return
+
+    def pin(n: int) -> bytes:
+        return struct.pack("<HB", GPIO_ID, n)
+
+    def create(a: bytes, b: bytes, level: int = 1, delay: int = 5) -> Response | None:
+        return dev(link, MUX_ID, OP_CREATE, struct.pack("<H", MUX_TYPE) + a + b + bytes([level, delay]))
+
+    def source() -> int | None:
+        r = dev(link, MUX_ID, SUPPLY_GET_SOURCE)
+        return r.data[0] if r is not None and r.ok and len(r.data) == 1 else None
+
+    def levels() -> tuple[int, int] | None:
+        a = dev(link, GPIO_ID, IO_GET_LEVEL, bytes([MUX_A_PIN]))
+        b = dev(link, GPIO_ID, IO_GET_LEVEL, bytes([MUX_B_PIN]))
+        if a is None or b is None or not a.ok or not b.ok:
+            return None
+        return a.data[0], b.data[0]
+
+    r = create(pin(MUX_A_PIN), pin(MUX_B_PIN), level=2)
+    check("power mux: CREATE enable level 2 -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
+    r = create(pin(MUX_A_PIN), pin(MUX_B_PIN), delay=0)
+    check("power mux: CREATE switch delay 0 -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
+    r = create(pin(MUX_A_PIN), pin(MUX_B_PIN), delay=101)
+    check("power mux: CREATE switch delay 101 -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
+    r = create(PIN_NONE, pin(MUX_B_PIN))
+    check("power mux: CREATE without pin A -> ERR_DEV_BAD_PIN", err_cause(r) == "ERR_DEV_BAD_PIN", str(r))
+    r = create(pin(MUX_A_PIN), pin(MUX_A_PIN))
+    check("power mux: CREATE one pin for both -> ERR_DEV_BAD_PIN", err_cause(r) == "ERR_DEV_BAD_PIN", str(r))
+    r = create(struct.pack("<HB", 5, 0), pin(MUX_B_PIN))
+    check("power mux: CREATE pin on a missing device -> ERR_DEV_NOT_FOUND", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
+    r = create(pin(MUX_A_PIN), pin(22))  # GPIO 22 doesn't exist: fails at the pin, after pin A was built
+    check("power mux: CREATE with a bad pin B fails inside ERR_DEV_INSTALL",
+          "ERR_DEV_INSTALL" in (r.record.names() if r and r.record else []), str(r))
+    r = dev(link, MUX_ID, OP_INFO)
+    check("power mux: a failed CREATE leaves no device", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
+    r = dev(link, GPIO_ID, IO_SET_MODE, bytes([MUX_A_PIN, 3]))
+    check("power mux: the failed CREATE released pin A (SET_MODE works again)", r is not None and r.ok, str(r))
+    r = dev(link, GPIO_ID, IO_RESET, bytes([MUX_A_PIN]))
+    check("power mux: IO RESET pin A", r is not None and r.ok, str(r))
+
+    r = create(pin(MUX_A_PIN), pin(MUX_B_PIN))
+    check(f"power mux: CREATE id {MUX_ID}", r is not None and r.ok, str(r))
+    if r is None or not r.ok:
+        dev(link, GPIO_ID, OP_REMOVE)
+        return
+    r = dev(link, MUX_ID, OP_INFO)
+    check("power mux: INFO type 0x004A", r is not None and r.ok and r.data == struct.pack("<HB", MUX_TYPE, 0), str(r))
+    r = dev(link, MUX_ID, OP_OPS)
+    ops = set(struct.unpack(f"<{len(r.data) // 2}H", r.data)) if r is not None and r.ok else set()
+    check("power mux: OPS = lifecycle + SELECT / GET_SOURCE, no IO",
+          {SUPPLY_SELECT, SUPPLY_GET_SOURCE, OP_SUSPEND, OP_RESUME} <= ops and IO_SET_LEVEL not in ops, str(sorted(ops)))
+    check("power mux: both sources off after CREATE", source() == 0)
+    if target != "qemu":
+        check("power mux: both enable pins low after CREATE", levels() == (0, 0), str(levels()))
+
+    r = dev(link, MUX_ID, SUPPLY_SELECT, bytes([3]))
+    check("power mux: SELECT 3 -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
+    r = dev(link, MUX_ID, SUPPLY_SELECT)
+    check("power mux: SELECT without args -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
+    r = dev(link, GPIO_ID, IO_SET_LEVEL, bytes([MUX_A_PIN, 1]))
+    check("power mux: its pin is locked on the GPIO device -> ERR_DEV_PIN_LOCKED", err_cause(r) == "ERR_DEV_PIN_LOCKED", str(r))
+    r = dev(link, GPIO_ID, OP_REMOVE)
+    check("power mux: REMOVE of the GPIO device while the mux uses it -> ERR_DEV_IN_USE", err_cause(r) == "ERR_DEV_IN_USE", str(r))
+
+    r = dev(link, MUX_ID, SUPPLY_SELECT, bytes([1]))
+    check("power mux: SELECT A", r is not None and r.ok, str(r))
+    check("power mux: source = A", source() == 1)
+    if target != "qemu":
+        check("power mux: A pin high, B pin low", levels() == (1, 0), str(levels()))
+    r = dev(link, MUX_ID, SUPPLY_SELECT, bytes([1]))
+    check("power mux: SELECT A again does nothing", r is not None and r.ok and source() == 1, str(r))
+    r = dev(link, MUX_ID, SUPPLY_SELECT, bytes([2]))
+    check("power mux: SELECT B (A off first)", r is not None and r.ok, str(r))
+    check("power mux: source = B", source() == 2)
+    if target != "qemu":
+        check("power mux: A pin low, B pin high", levels() == (0, 1), str(levels()))
+
+    r = dev(link, MUX_ID, OP_SUSPEND)
+    check("power mux: SUSPEND", r is not None and r.ok, str(r))
+    check("power mux: suspended = both off", source() == 0)
+    if target != "qemu":
+        check("power mux: suspended = both pins low", levels() == (0, 0), str(levels()))
+    r = dev(link, MUX_ID, SUPPLY_SELECT, bytes([1]))
+    check("power mux: SELECT while suspended -> ERR_DEV_SUSPENDED", err_cause(r) == "ERR_DEV_SUSPENDED", str(r))
+    r = dev(link, MUX_ID, OP_RESUME)
+    check("power mux: RESUME", r is not None and r.ok, str(r))
+    check("power mux: RESUME restores the wanted source (B)", source() == 2)
+
+    r = dev(link, MUX_ID, OP_RESET)
+    check("power mux: RESET", r is not None and r.ok, str(r))
+    check("power mux: RESET = both off", source() == 0)
+    r = dev(link, MUX_ID, OP_SUSPEND)
+    r = dev(link, MUX_ID, OP_RESUME)
+    check("power mux: after RESET nothing is wanted: RESUME stays off", source() == 0)
+
+    r = dev(link, MUX_ID, SUPPLY_SELECT, bytes([1]))
+    r = dev(link, MUX_ID, OP_REMOVE)
+    check("power mux: REMOVE", r is not None and r.ok, str(r))
+    if target != "qemu":
+        r = dev(link, GPIO_ID, IO_GET_LEVEL, bytes([MUX_A_PIN]))
+        check("power mux: REMOVE released pin A (unconfigured again)", err_cause(r) == "ERR_IO_PIN_UNCONFIGURED", str(r))
+    r = dev(link, MUX_ID, OP_INFO)
+    check("power mux: INFO after REMOVE -> ERR_DEV_NOT_FOUND", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
+    r = dev(link, GPIO_ID, OP_REMOVE)
+    check("power mux: REMOVE the GPIO device", r is not None and r.ok, str(r))
+
+
+INA_TYPE = 0x0044
+AP_TYPE = 0x0045
+TCA_TYPE = 0x0042
 
 
 def test_device(link: Link) -> None:
@@ -421,6 +532,60 @@ def test_device(link: Link) -> None:
     names = r.record.names() if r and r.record else []
     check("CREATE with no chip fails inside ERR_DEV_INSTALL", "ERR_DEV_INSTALL" in names, str(r))
     print(f"      chain: {' -> '.join(names)}")
+
+    # INA3221 (0x0044): cfg = bus, addr, crit pin (u16 device, u8 pin), warn pin, inverted mask
+    none = struct.pack("<HB", 0xFFFF, 0xFF)
+
+    def create_ina(bus: int, addr: int, mask: int = 0, crit: bytes = none, warn: bytes = none):
+        return dev(link, 4, OP_CREATE, struct.pack("<H", INA_TYPE) + bytes([bus, addr]) + crit + warn + bytes([mask]))
+
+    r = create_ina(7, 0x40)
+    check("INA3221 CREATE bad bus -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
+    r = create_ina(1, 0x50)
+    check("INA3221 CREATE address 0x50 -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
+    r = create_ina(1, 0x40, mask=8)
+    check("INA3221 CREATE inverted mask 8 -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
+    r = create_ina(1, 0x40, crit=struct.pack("<HB", 5, 0))
+    check("INA3221 CREATE alert pin on a missing device -> ERR_DEV_NOT_FOUND", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
+    r = create_ina(1, 0x40)  # nothing on bus 1
+    names = r.record.names() if r and r.record else []
+    check("INA3221 CREATE with no chip fails inside ERR_DEV_INSTALL", "ERR_DEV_INSTALL" in names, str(r))
+    r = dev(link, 4, OP_INFO)
+    check("failed INA3221 CREATE leaves no device", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
+
+    # AP33772S (0x0045): cfg = bus, addr, intr pin (u16 device, u8 pin)
+    def create_ap(bus: int, addr: int, intr: bytes = none):
+        return dev(link, 4, OP_CREATE, struct.pack("<H", AP_TYPE) + bytes([bus, addr]) + intr)
+
+    r = create_ap(7, 0x52)
+    check("AP33772S CREATE bad bus -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
+    r = create_ap(1, 0x40)
+    check("AP33772S CREATE address 0x40 -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
+    r = create_ap(1, 0x52, intr=struct.pack("<HB", 5, 0))
+    check("AP33772S CREATE intr pin on a missing device -> ERR_DEV_NOT_FOUND", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
+    r = create_ap(1, 0x52)  # nothing on bus 1
+    names = r.record.names() if r and r.record else []
+    check("AP33772S CREATE with no chip fails inside ERR_DEV_INSTALL", "ERR_DEV_INSTALL" in names, str(r))
+    r = dev(link, 4, OP_INFO)
+    check("failed AP33772S CREATE leaves no device", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
+
+    # TCA6424A (0x0042): cfg = bus, addr, intr pin (u16 device, u8 pin), rst pin
+    def create_tca(bus: int, addr: int, intr: bytes = none, rst: bytes = none):
+        return dev(link, 4, OP_CREATE, struct.pack("<H", TCA_TYPE) + bytes([bus, addr]) + intr + rst)
+
+    r = create_tca(7, 0x23)
+    check("TCA6424A CREATE bad bus -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
+    r = create_tca(1, 0x21)
+    check("TCA6424A CREATE address 0x21 -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
+    r = create_tca(1, 0x23, intr=struct.pack("<HB", 5, 0))
+    check("TCA6424A CREATE intr pin on a missing device -> ERR_DEV_NOT_FOUND", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
+    r = create_tca(1, 0x23, rst=struct.pack("<HB", 5, 0))
+    check("TCA6424A CREATE rst pin on a missing device -> ERR_DEV_NOT_FOUND", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
+    r = create_tca(1, 0x23)  # nothing on bus 1
+    names = r.record.names() if r and r.record else []
+    check("TCA6424A CREATE with no chip fails inside ERR_DEV_INSTALL", "ERR_DEV_INSTALL" in names, str(r))
+    r = dev(link, 4, OP_INFO)
+    check("failed TCA6424A CREATE leaves no device", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
     r = dev(link, 3, OP_INFO)
     check("failed CREATE registers nothing", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
 
@@ -522,9 +687,18 @@ def test_pca(link: Link) -> None:
 
 
 A_RUN, A_REC_START, A_REC_STOP, A_BEGIN, A_WRITE, A_COMMIT = 0x01, 0x02, 0x03, 0x04, 0x05, 0x06
-A_READ, A_INFO, A_LIST, A_REMOVE, A_ABORT, A_RENAME = 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C
+A_READ, A_INFO, A_LIST, A_REMOVE, A_ABORT, A_RUN_ALL = 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0D
 CONN_INFO = bytes([KEY_CONN, 0x07])  # succeeds on any target, not a sys frame (recordable)
-T1, T2, T3, LOOP, KEEP = 1, 2, 3, 200, 255
+# Record IDs are u32 = [class u8][index u24] (sys_actions.h): 0 user, 1 system, 2 device
+CLASS_USER, CLASS_SYSTEM, CLASS_DEVICE = 0, 1, 2
+T1, T2, LOOP, KEEP = 1, 2, 200, 255  # user class
+T3 = (CLASS_SYSTEM << 24) | 0xFF03  # any class takes any record (a system-class ID no module uses)
+T4 = (CLASS_DEVICE << 24) | 0x0063  # the record of device 99
+SPARE = 9
+
+
+def u32(n: int) -> bytes:
+    return struct.pack("<I", n)
 
 
 def act(link: Link, op: int, payload: bytes = b"") -> Response | None:
@@ -535,8 +709,8 @@ def image(*frames: bytes) -> bytes:
     return b"".join(struct.pack("<H", len(f)) + f for f in frames)
 
 
-def upload(link: Link, aid: int, name: str, img: bytes, chunk: int = 64, crc: int | None = None) -> Response | None:
-    r = act(link, A_BEGIN, struct.pack("<BH", aid, len(img)) + name.encode() + b"\0")
+def upload(link: Link, aid: int, img: bytes, chunk: int = 64, crc: int | None = None) -> Response | None:
+    r = act(link, A_BEGIN, struct.pack("<IH", aid, len(img)))
     if r is None or not r.ok:
         return r
     for off in range(0, len(img), chunk):
@@ -546,35 +720,35 @@ def upload(link: Link, aid: int, name: str, img: bytes, chunk: int = 64, crc: in
     return act(link, A_COMMIT, struct.pack("<I", zlib.crc32(img) if crc is None else crc))
 
 
-def info(link: Link, aid: int) -> tuple[int, int, int, str] | None:
-    r = act(link, A_INFO, bytes([aid]))
-    if r is None or not r.ok or len(r.data) < 9:
-        return None
-    b, c, crc = struct.unpack_from("<HHI", r.data)
-    return b, c, crc, r.data[8:-1].decode()
+def readback(link: Link, aid: int, count: int) -> list[Response]:
+    """READ: one answer packet per recorded frame, the frame exactly as recorded."""
+    return link.request_many(bytes([KEY_ACTIONS, A_READ]), u32(aid), count)
 
 
-def actions_list(link: Link, start: int = 0) -> tuple[int, list[tuple[int, str]]] | None:
-    r = act(link, A_LIST, bytes([start]))
-    if r is None or not r.ok:
+def info(link: Link, aid: int) -> tuple[int, int, int] | None:
+    r = act(link, A_INFO, u32(aid))
+    if r is None or not r.ok or len(r.data) != 8:
         return None
-    total, d, pos, out = struct.unpack_from("<H", r.data)[0], r.data, 2, []
-    while pos < len(d):
-        end = d.index(0, pos + 1)
-        out.append((d[pos], d[pos + 1 : end].decode()))
-        pos = end + 1
-    return total, out
+    return struct.unpack("<HHI", r.data)
+
+
+def actions_list(link: Link, start: int = 0) -> tuple[int, list[int]] | None:
+    r = act(link, A_LIST, u32(start))
+    if r is None or not r.ok or len(r.data) < 2 or (len(r.data) - 2) % 4:
+        return None
+    n = (len(r.data) - 2) // 4
+    return struct.unpack_from("<H", r.data)[0], list(struct.unpack_from(f"<{n}I", r.data, 2))
 
 
 def test_actions(link: Link) -> None:
     act(link, A_ABORT)
-    for aid in (T1, T2, T3, LOOP, KEEP):
-        act(link, A_REMOVE, bytes([aid]))
+    for aid in (T1, T2, T3, T4, LOOP, KEEP, SPARE):
+        act(link, A_REMOVE, u32(aid))
 
     # Record, executing: only the client's successful, non-sys frames are kept
-    r = act(link, A_REC_START, bytes([T1, 1]) + b"blink\0")
-    check("actions RECORD_START 1 'blink' (execute)", r is not None and r.ok, str(r))
-    r = act(link, A_REC_START, bytes([9, 1]) + b"\0")
+    r = act(link, A_REC_START, u32(T1) + bytes([1]))
+    check("actions RECORD_START 1 (execute)", r is not None and r.ok, str(r))
+    r = act(link, A_REC_START, u32(SPARE) + bytes([1]))
     check("second RECORD_START -> ERR_ACTION_BUSY", err_cause(r) == "ERR_ACTION_BUSY", str(r))
     r = link.request(CONN_INFO)
     check("recorded frame runs (conn INFO answers data)", r is not None and r.ok and len(r.data) > 1, str(r))
@@ -582,196 +756,542 @@ def test_actions(link: Link) -> None:
     ping(link)  # sys: not recorded
     r = act(link, A_REC_STOP)
     want = image(CONN_INFO)
-    ok = r is not None and r.ok and len(r.data) >= 9
+    ok = r is not None and r.ok and len(r.data) == 8
     check("RECORD_STOP", ok, str(r))
     if ok:
-        b, c, crc = struct.unpack_from("<HHI", r.data)
+        b, c, crc = struct.unpack("<HHI", r.data)
         check("recording kept 1 frame (failed + sys frames skipped)", (b, c) == (len(want), 1), f"{b} B, {c} frames")
-        check("RECORD_STOP crc = zlib crc32, name 'blink'", crc == zlib.crc32(want) and r.data[8:] == b"blink\0", str(r))
-    r = act(link, A_READ, struct.pack("<BHH", T1, 0, len(want)))
-    check("READ 1 = the full image (no name)", r is not None and r.ok and r.data == want, str(r))
-    r = act(link, A_READ, struct.pack("<BHH", T1, 1, len(want)))
-    check("READ past the end -> ERR_ACTION_READ_RANGE", err_cause(r) == "ERR_ACTION_READ_RANGE", str(r))
-    r = act(link, A_RUN, bytes([T1]))
+        check("RECORD_STOP crc = zlib crc32", crc == zlib.crc32(want), str(r))
+    got = readback(link, T1, 1)
+    check("READ 1 = 1 packet, the frame as recorded", [p.data for p in got] == [CONN_INFO] and got[0].ok, str(got))
+    two = [CONN_INFO, bytes([KEY_CONN, 0x07, 0x00])]
+    r = upload(link, T3, image(*two))
+    got = readback(link, T3, 2)
+    check("upload 2 frames to a system-class ID, READ = 2 packets in order, as uploaded", r is not None and r.ok and [p.data for p in got] == two, str(got))
+    r = act(link, A_READ, u32(KEEP))
+    check("READ of a missing record -> ERR_ACTION_NOT_FOUND", err_cause(r) == "ERR_ACTION_NOT_FOUND", str(r))
+    r = act(link, A_READ, bytes([KEEP]))
+    check("READ with a 1-byte ID -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
+    r = act(link, A_RUN, u32(T1))
     check("RUN 1", r is not None and r.ok, str(r))
 
-    # Record without executing: frames are taken (answered OK, not run); no name
-    r = act(link, A_REC_START, bytes([T2, 0]) + b"\0")
-    check("RECORD_START 2 (no execute, no name)", r is not None and r.ok, str(r))
+    # Record without executing: frames are taken (answered OK, not run)
+    r = act(link, A_REC_START, u32(T2) + bytes([0]))
+    check("RECORD_START 2 (no execute)", r is not None and r.ok, str(r))
     r = dev(link, 10, OP_INFO)  # no device 10: would fail if it ran
     check("frame taken without running (OK, no data)", r is not None and r.ok and r.data == b"", str(r))
     r = act(link, A_REC_STOP)
-    check("RECORD_STOP 2: 1 frame, empty name", r is not None and r.ok and struct.unpack_from("<HHI", r.data)[1] == 1 and r.data[8:] == b"\0", str(r))
-    r = act(link, A_RUN, bytes([T2]))
+    check("RECORD_STOP 2: 1 frame", r is not None and r.ok and len(r.data) == 8 and struct.unpack_from("<HHI", r.data)[1] == 1, str(r))
+    r = act(link, A_RUN, u32(T2))
     names = r.record.names() if r and r.record else []
     check("RUN 2 stops at the failing frame: STEP over its chain", "ERR_ACTION_STEP" in names and err_cause(r) == "ERR_DEV_NOT_FOUND", str(names))
     step = next((n for n in r.record.nodes if n.name == "ERR_ACTION_STEP"), None) if r and r.record else None
-    check("STEP payload: id 2, step 0", step is not None and step.data == bytes([T2, 0, 0]), str(step))
+    check("STEP payload: id 2 (u32), step 0", step is not None and step.data == u32(T2) + bytes([0, 0]), str(step))
 
-    r = act(link, A_REC_START, bytes([9, 1]) + b"\0")
+    r = act(link, A_REC_START, u32(SPARE) + bytes([1]))
     r = act(link, A_REC_STOP)
     check("empty recording -> ERR_ACTION_EMPTY", err_cause(r) == "ERR_ACTION_EMPTY", str(r))
 
     # Upload: full image, nested RUN
-    img = image(CONN_INFO, bytes([KEY_ACTIONS, A_RUN, T1]), CONN_INFO)
-    r = upload(link, T3, "nested", img, chunk=5)
-    check("upload 3 'nested' (3 frames, 5-byte chunks)", r is not None and r.ok, str(r))
-    i = info(link, T3)
-    check("INFO 3", i == (len(img), 3, zlib.crc32(img), "nested"), str(i))
-    r = act(link, A_RUN, bytes([T3]))
-    check("RUN 3 (runs 1 nested)", r is not None and r.ok, str(r))
-    r = act(link, A_RENAME, bytes([T3]) + b"renamed\0")
-    i = info(link, T3)
-    check("RENAME 3: name changes, frames stay", r is not None and r.ok and i == (len(img), 3, zlib.crc32(img), "renamed"), str(i))
-    r = upload(link, 9, "", img, crc=1)
+    img = image(CONN_INFO, bytes([KEY_ACTIONS, A_RUN]) + u32(T1), CONN_INFO)
+    r = upload(link, T4, img, chunk=5)
+    check("upload to a device-class ID (3 frames, 5-byte chunks)", r is not None and r.ok, str(r))
+    i = info(link, T4)
+    check("INFO of it", i == (len(img), 3, zlib.crc32(img)), str(i))
+    r = act(link, A_RUN, u32(T4))
+    check("RUN it (runs 1 nested)", r is not None and r.ok, str(r))
+    r = upload(link, SPARE, img, crc=1)
     check("upload with a wrong crc -> ERR_ACTION_CRC", err_cause(r) == "ERR_ACTION_CRC", str(r))
-    r = upload(link, 9, "", image(CONN_INFO)[:-1] + b"\x00\x05")
+    r = upload(link, SPARE, image(CONN_INFO)[:-1] + b"\x00\x05")
     check("upload with broken framing -> ERR_ACTION_BAD_FRAME", err_cause(r) == "ERR_ACTION_BAD_FRAME", str(r))
-    r = act(link, A_BEGIN, struct.pack("<BH", 9, 8) + b"\0")
+    r = act(link, A_BEGIN, struct.pack("<IH", SPARE, 8))
     r = act(link, A_WRITE, struct.pack("<H", 4) + b"xx")
     check("WRITE out of order -> ERR_ACTION_OFFSET", err_cause(r) == "ERR_ACTION_OFFSET", str(r))
     r = act(link, A_COMMIT, struct.pack("<I", 0))
     check("COMMIT before every byte -> ERR_ACTION_INCOMPLETE", err_cause(r) == "ERR_ACTION_INCOMPLETE", str(r))
-    r = act(link, A_INFO, bytes([9]))
+    r = act(link, A_INFO, u32(SPARE))
     check("failed uploads store nothing", err_cause(r) == "ERR_ACTION_NOT_FOUND", str(r))
-    r = act(link, A_BEGIN, struct.pack("<BH", 9, 20000) + b"\0")
+    r = act(link, A_BEGIN, struct.pack("<IH", SPARE, 20000))
     check("BEGIN over the limit -> ERR_ACTION_TOO_BIG", err_cause(r) == "ERR_ACTION_TOO_BIG", str(r))
+    r = act(link, A_BEGIN, struct.pack("<IH", T4, 513))
+    check("BEGIN of 513 B in the device class -> ERR_ACTION_TOO_BIG (limit 512)", err_cause(r) == "ERR_ACTION_TOO_BIG", str(r))
+    r = act(link, A_BEGIN, struct.pack("<IH", T4, 512))
+    check("BEGIN of 512 B in the device class is accepted", r is not None and r.ok, str(r))
+    act(link, A_ABORT)
+    r = act(link, A_BEGIN, struct.pack("<IH", SPARE, 513))
+    check("BEGIN of 513 B in the user class is accepted (limit 4096)", r is not None and r.ok, str(r))
+    act(link, A_ABORT)
 
-    r = upload(link, LOOP, "loop", image(bytes([KEY_ACTIONS, A_RUN, LOOP])))
+    r = upload(link, LOOP, image(bytes([KEY_ACTIONS, A_RUN]) + u32(LOOP)))
     check("upload 200 (runs itself)", r is not None and r.ok, str(r))
-    r = act(link, A_RUN, bytes([LOOP]))
+    r = act(link, A_RUN, u32(LOOP))
     names = r.record.names() if r and r.record else []
     check("self-RUN stops at ERR_ACTION_DEPTH", err_cause(r) == "ERR_ACTION_DEPTH" and names.count("ERR_ACTION_STEP") >= 2, str(names))
 
-    # IDs, names, listing
-    r = act(link, A_RUN, bytes([77]))
+    # RUN stops at a failing frame, RUN_ALL runs them all and returns the first failure
+    r = upload(link, SPARE, image(bytes([0x7E]), bytes([KEY_LOG, LOG_SET, 2, 1, 1, 1, 1])))
+    log_set(link, *LOG_DEFAULT)
+    r = act(link, A_RUN, u32(SPARE))
+    check("RUN stops at the failing frame: the next one did not run",
+          err_cause(r) == "ERR_ROUTER_UNKNOWN_KEY" and log_get(link) == LOG_DEFAULT, f"{r} {log_get(link)}")
+    r = act(link, A_RUN_ALL, u32(SPARE))
+    check("RUN_ALL runs the frame after the failing one and returns the first failure",
+          err_cause(r) == "ERR_ROUTER_UNKNOWN_KEY" and "ERR_ACTION_STEP" in (r.record.names() if r and r.record else []) and (log_get(link) or (0,))[0] == 2,
+          f"{r} {log_get(link)}")
+    log_set(link, *LOG_DEFAULT)
+    act(link, A_REMOVE, u32(SPARE))
+
+    # IDs and listing
+    r = act(link, A_RUN, u32(77))
     check("RUN unknown id -> ERR_ACTION_NOT_FOUND", err_cause(r) == "ERR_ACTION_NOT_FOUND", str(r))
-    r = act(link, A_RUN, bytes([0]))
+    r = act(link, A_RUN, u32(0))
     check("RUN id 0 -> ERR_ACTION_BAD_ID", err_cause(r) == "ERR_ACTION_BAD_ID", str(r))
-    r = act(link, A_RENAME, bytes([T1]) + b"0123456789abcdef\0")
-    check("16-char name -> ERR_ACTION_BAD_NAME", err_cause(r) == "ERR_ACTION_BAD_NAME", str(r))
-    r = act(link, A_RENAME, bytes([T1]) + b"x")
-    check("name without NUL -> ERR_CMD_BAD_ARG", err_cause(r) == "ERR_CMD_BAD_ARG", str(r))
     l = actions_list(link)
-    check("LIST: 1 blink, 2 '', 3 renamed, 200 loop (by ID)",
-          l == (4, [(T1, "blink"), (T2, ""), (T3, "renamed"), (LOOP, "loop")]), str(l))
+    ours = [T1, T2, LOOP, T3, T4]  # ascending: user 1, 2, 200, then system, then device class
+    got_ids = [x for x in (l[1] if l else []) if x in ours]
+    check("LIST: ascending by u32 ID across classes", got_ids == sorted(ours), str(l))
     l2 = actions_list(link, T3)
-    check("LIST from 3", l2 == (4, [(T3, "renamed"), (LOOP, "loop")]), str(l2))
+    check("LIST from the system-class ID: only IDs >= it", l2 is not None and T3 in l2[1] and T4 in l2[1] and T1 not in l2[1], str(l2))
+    check("LIST total counts every stored record", l is not None and l[0] >= len(ours), str(l))
 
-    for aid in (T1, T2, T3, LOOP):
-        r = act(link, A_REMOVE, bytes([aid]))
-        check(f"REMOVE {aid}", r is not None and r.ok, str(r))
-    r = act(link, A_REMOVE, bytes([T1]))
+    for aid in (T1, T2, T3, T4, LOOP):
+        r = act(link, A_REMOVE, u32(aid))
+        check(f"REMOVE {aid:#x}", r is not None and r.ok, str(r))
+    r = act(link, A_REMOVE, u32(T1))
     check("REMOVE again -> ERR_ACTION_NOT_FOUND", err_cause(r) == "ERR_ACTION_NOT_FOUND", str(r))
-    r = upload(link, KEEP, "keep", image(CONN_INFO))
-    check("upload 255 'keep' (checked after the restart)", r is not None and r.ok, str(r))
+    r = upload(link, KEEP, image(CONN_INFO))
+    check("upload 255 (checked after the restart)", r is not None and r.ok, str(r))
 
 
-KEY_EVENTS = 0x07
-E_SUB, E_UNSUB, E_LIST, E_PUB = 0x01, 0x02, 0x03, 0x04
-STREAM_EVENTS = 0x06
-EV_ACTION, EV_CONN = 10, 5
-IO_FALLING = 0x0101
+KEY_PROJECT = 0x0C
+P_BEGIN, P_WRITE, P_COMMIT, P_ABORT, P_INFO, P_RUN, P_ERASE, P_OPTIONS, P_SECTION = 1, 2, 3, 4, 5, 6, 7, 8, 0x10
+CLASS_PROJECT = 3
+PROJECT_RECORD = CLASS_PROJECT << 24
+SEC_PROGRAM = 0
+T5 = (CLASS_SYSTEM << 24) | 0xFF05  # a system-class ID no module uses: a project section's record
 
 
-def conn_ids(link: Link) -> set[int]:
-    r = link.request(bytes([KEY_CONN, 0x07]))
-    out, d, pos = set(), r.data if r and r.ok else b"\0", 1
-    for _ in range(d[0]):
-        out.add(d[pos])
-        pos += 4 + d[pos + 3] * 5
-        pos = d.index(0, pos) + 1
-    return out
+def prj(link: Link, op: int, payload: bytes = b"") -> Response | None:
+    return link.request(bytes([KEY_PROJECT, op]), payload=payload)
 
 
-def ev(link: Link, op: int, payload: bytes = b"") -> Response | None:
-    return link.request(bytes([KEY_EVENTS, op]), payload=payload)
+def section(sid: int, *frames: bytes) -> bytes:
+    return image(bytes([KEY_PROJECT, P_SECTION]) + u32(sid), *frames)
 
 
-def rule(rid: int, source: int, event: int, channel: int, action: int, flags: int = 0) -> bytes:
-    return struct.pack("<BHHBBB", rid, source, event, channel, action, flags)
-
-
-def publish(link: Link, source: int, event: int, channel: int, value: int, flags: int = 0) -> Response | None:
-    return ev(link, E_PUB, struct.pack("<HHBiB", source, event, channel, value, flags))
-
-
-def rules(link: Link) -> tuple[int, list[tuple]] | None:
-    r = ev(link, E_LIST, b"\x00")
+def prj_save(link: Link, stream: bytes, flags: int = 0, chunk: int = 400, crc: int | None = None) -> Response | None:
+    r = prj(link, P_BEGIN, struct.pack("<IB", len(stream), flags))
     if r is None or not r.ok:
+        return r
+    for off in range(0, len(stream), chunk):
+        r = prj(link, P_WRITE, struct.pack("<I", off) + stream[off : off + chunk])
+        if r is None or not r.ok:
+            return r
+    return prj(link, P_COMMIT, struct.pack("<I", zlib.crc32(stream) if crc is None else crc))
+
+
+def prj_info(link: Link) -> tuple[int, int, int, int, int] | None:
+    r = prj(link, P_INFO)
+    if r is None or not r.ok or len(r.data) != 11:
         return None
-    return r.data[0], [struct.unpack_from("<BHHBBB", r.data, p) for p in range(1, len(r.data), 8)]
+    return struct.unpack("<BBBII", r.data)  # stored, autostart, bank, crc32, bytes
 
 
-def test_events(link: Link) -> None:
-    ev(link, E_UNSUB, b"\xff")
-    act(link, A_REMOVE, bytes([EV_ACTION]))
-    link.request(bytes([KEY_CONN, 0x02]), payload=bytes([EV_CONN]))
-    check("events LIST empty", rules(link) == (0, []), str(rules(link)))
+def test_project(link: Link) -> None:
+    """The project pipeline (SYS_PROJECT.MD). Not run on a board yet."""
+    prj(link, P_ABORT)
+    prj(link, P_ERASE)
+    act(link, A_REMOVE, u32(T5))
+    i = prj_info(link)
+    check("project INFO with none stored", i is not None and i[0] == 0, str(i))
+    r = prj(link, P_RUN)
+    check("RUN with none -> ERR_PROJECT_NOT_STORED", err_cause(r) == "ERR_PROJECT_NOT_STORED", str(r))
 
-    # The action a rule runs: create connector 5 (visible in conn INFO)
-    r = upload(link, EV_ACTION, "mk conn", image(bytes([KEY_CONN, 0x01, EV_CONN, 0x11]) + b"evt\0"))
-    check("upload action 10 (creates connector 5)", r is not None and r.ok, str(r))
+    # frame before a section / program not last / bad CRC: nothing stored, nothing staged
+    r = prj_save(link, image(CONN_INFO))
+    check("frame before SECTION -> ERR_PROJECT_NO_SECTION", err_cause(r) == "ERR_PROJECT_NO_SECTION", str(r))
+    r = prj_save(link, section(SEC_PROGRAM, CONN_INFO) + section(T5, CONN_INFO))
+    check("section after the program -> ERR_PROJECT_ORDER", err_cause(r) == "ERR_PROJECT_ORDER", str(r))
+    stream = section(T5, CONN_INFO) + section(SEC_PROGRAM, *([CONN_INFO] * 1100))  # 2 chunks of 4 KB
+    r = prj_save(link, stream, crc=1)
+    check("bad CRC -> ERR_PROJECT_CRC", err_cause(r) == "ERR_PROJECT_CRC", str(r))
+    check("nothing stored after the failures", prj_info(link) is not None and prj_info(link)[0] == 0)
+    check("failed saves leave no staged record", info(link, T5) is None)
 
-    r = ev(link, E_SUB, rule(1, 0x0123, 0x01FF, 0xFF, EV_ACTION))
-    check("SUBSCRIBE rule 1: source 0x123, any IO event, any channel -> action 10", r is not None and r.ok, str(r))
-    r = publish(link, 0x0124, IO_FALLING, 4, 0)
-    time.sleep(0.4)
-    check("event from another source: rule silent", r is not None and r.ok and EV_CONN not in conn_ids(link), str(r))
-    r = publish(link, 0x0123, 0x0201, 4, 0)
-    time.sleep(0.4)
-    check("event of another contract: rule silent", r is not None and r.ok and EV_CONN not in conn_ids(link), str(r))
-    r = publish(link, 0x0123, IO_FALLING, 4, 0)
-    time.sleep(0.4)
-    check("matching event runs the action (connector 5 created)", r is not None and r.ok and EV_CONN in conn_ids(link), str(r))
-    link.request(bytes([KEY_CONN, 0x02]), payload=bytes([EV_CONN]))
+    # a good save, run at once
+    r = prj_save(link, stream, flags=1 | 2)
+    check("project save + run", r is not None and r.ok, str(r))
+    i = prj_info(link)
+    check("INFO: stored, autostart, crc and length of the stream",
+          i is not None and i[0] == 1 and i[1] == 1 and i[3] == zlib.crc32(stream) and i[4] == len(stream), str(i))
+    check("the section's record is stored under its ID", info(link, T5) == (4, 1, zlib.crc32(image(CONN_INFO))), str(info(link, T5)))
+    listing = actions_list(link, PROJECT_RECORD)
+    ids = [x for x in (listing[1] if listing else []) if x >> 24 == CLASS_PROJECT]
+    bank = prj_info(link)[2]
+    base = ((bank + 1) << 16) | (CLASS_PROJECT << 24)
+    want = [PROJECT_RECORD, base, base + 1, base + 2]  # the record, the list of chunks, 2 chunks (IDs one after another)
+    check("program records: list + 2 chunks in order", ids == want, f"{[hex(x) for x in ids]} want {[hex(x) for x in want]}")
+    r = prj(link, P_RUN)
+    check("project RUN", r is not None and r.ok, str(r))
 
-    r = ev(link, E_SUB, rule(1, 0x0123, IO_FALLING, 4, 99, 1))
-    l = rules(link)
-    check("SUBSCRIBE same ID replaces the rule", l == (1, [(1, 0x0123, IO_FALLING, 4, 99, 1)]), str(l))
-    t = link.mark()
-    publish(link, 0x0123, IO_FALLING, 4, 0)
-    time.sleep(0.5)
-    recs = [x for x in link.error_records_since(t) if "ERR_ACTION_NOT_FOUND" in x.names()]
-    check("rule -> missing action: error on the stream, internal link, RUN 99",
-          len(recs) == 1 and recs[0].link == 0 and recs[0].request == bytes([0x06, 0x01, 99]),
-          str(recs[0]) if recs else "no record")
+    # a second save goes to the other bank and the old bank's records go
+    r = prj_save(link, section(T5, CONN_INFO, CONN_INFO) + section(SEC_PROGRAM, CONN_INFO))
+    check("second save", r is not None and r.ok, str(r))
+    i2 = prj_info(link)
+    check("the other bank is the project's now", i2 is not None and i2[2] == 1 - bank, str(i2))
+    listing = actions_list(link, PROJECT_RECORD)
+    ids = [x for x in (listing[1] if listing else []) if x >> 24 == CLASS_PROJECT]
+    check("old bank cleared: record + list + 1 chunk", len(ids) == 3, str([hex(x) for x in ids]))
 
-    # Notify: the event itself on stream 0x06, rule or not
-    t = link.mark()
-    publish(link, 0x0042, 0x0201, 2, -1500, flags=1)
-    publish(link, 0x0042, 0x0202, 2, 77, flags=0)
-    time.sleep(0.4)
-    frames = link.stream_since(STREAM_EVENTS, t)
-    ok = len(frames) == 1 and len(frames[0]) == 13
-    check("NOTIFY event on stream 0x06 (13 B), the other one not", ok, str([f.hex(" ") for f in frames]))
-    if ok:
-        src, evt, ch, val, t_ms = struct.unpack("<HHBiI", frames[0])
-        check("notify record: source, event, channel, value, time", (src, evt, ch, val) == (0x42, 0x0201, 2, -1500) and t_ms > 0,
-              f"{src:#x} {evt:#x} {ch} {val} {t_ms}")
+    r = prj(link, P_ERASE)
+    check("ERASE", r is not None and r.ok and prj_info(link)[0] == 0, str(r))
+    listing = actions_list(link, PROJECT_RECORD)
+    check("ERASE leaves no project record", not [x for x in (listing[1] if listing else []) if x >> 24 == CLASS_PROJECT])
+    act(link, A_REMOVE, u32(T5))
 
-    r = ev(link, E_SUB, rule(0, 0xFFFF, 0xFFFF, 0xFF, 1))
-    check("rule ID 0 -> ERR_EVENT_BAD_ID", err_cause(r) == "ERR_EVENT_BAD_ID", str(r))
-    r = ev(link, E_SUB, rule(0xFF, 0xFFFF, 0xFFFF, 0xFF, 1))
-    check("rule ID 0xFF -> ERR_EVENT_BAD_ID", err_cause(r) == "ERR_EVENT_BAD_ID", str(r))
-    r = ev(link, E_UNSUB, b"\x05")
-    check("UNSUBSCRIBE unknown -> ERR_EVENT_NOT_FOUND", err_cause(r) == "ERR_EVENT_NOT_FOUND", str(r))
-    for rid in range(2, 17):
-        ev(link, E_SUB, rule(rid, 0x7000 + rid, 0xFFFF, 0xFF, 1))
-    r = ev(link, E_SUB, rule(17, 0x7000, 0xFFFF, 0xFF, 1))
-    check("17th rule -> ERR_EVENT_TABLE_FULL", err_cause(r) == "ERR_EVENT_TABLE_FULL", str(r))
-    l = rules(link)
-    check("LIST: 16 rules by ascending ID", l is not None and l[0] == 16 and [x[0] for x in l[1]] == list(range(1, 17)), str(l and l[0]))
-    r = ev(link, E_UNSUB, b"\xff")
-    check("UNSUBSCRIBE 0xFF removes every rule", r is not None and r.ok and rules(link) == (0, []), str(r))
-    act(link, A_REMOVE, bytes([EV_ACTION]))
+
+STREAM_EVENTS = 0x06
+
+
+def event_records(link: Link, t: float) -> list[tuple]:
+    """Records on the events stream since `t`: (source, event, channel, flags, value, t_ms)."""
+    return [struct.unpack("<HHBBiI", f[2:]) for f in link.stream_since(STREAM_EVENTS, t)
+            if len(f) == 16 and f[0] == 0x07 and f[1] == 0x01]
 
 
 def test_actions_after_restart(link: Link) -> None:
     i = info(link, KEEP)
-    check("action survives the restart (id 255, name 'keep')", i is not None and i[1] == 1 and i[3] == "keep", str(i))
-    r = act(link, A_REMOVE, bytes([KEEP]))
+    check("record survives the restart (id 255)", i is not None and i[1] == 1, str(i))
+    r = act(link, A_REMOVE, u32(KEEP))
     check("REMOVE 255", r is not None and r.ok, str(r))
+
+
+KEY_LOG = 0x08
+LOG_SET, LOG_GET = 0x01, 0x02
+LOG_DEFAULT = (3, 1, 1, 1, 1)  # (level, mirror, trace, send_errors, send_logs)
+# level INFO, mirror to the console, print error chains
+
+
+def log_get(link: Link) -> tuple | None:
+    r = link.request(bytes([KEY_LOG, LOG_GET]))
+    return tuple(r.data) if r is not None and r.ok and len(r.data) == 5 else None
+
+
+def log_set(link: Link, level: int, mirror: int, trace: int, errors: int = 1, logs: int = 1) -> Response | None:
+    return link.request(bytes([KEY_LOG, LOG_SET]), payload=bytes([level, mirror, trace, errors, logs]))
+
+
+def provoke_error(link: Link) -> tuple[float, list[str], list]:
+    """A command with an unknown root key: the router answers it and err_report logs the chain (if it may) and sends the
+    error record. Returns the mark, the console lines and the error records that came back."""
+    t = link.mark()
+    link.request(bytes([0x7E]))
+    time.sleep(0.5)
+    return t, link.logs_since(t), link.error_records_since(t)
+
+
+def printed(lines: list[str]) -> bool:
+    return any("ERR_ROUTER_UNKNOWN_KEY" in l for l in lines)
+
+
+def recorded(recs: list) -> bool:
+    return any("ERR_ROUTER_UNKNOWN_KEY" in x.names() for x in recs)
+
+
+def test_log(link: Link) -> None:
+    r = log_set(link, *LOG_DEFAULT)
+    check("log SET defaults", r is not None and r.ok, str(r))
+    check("log GET = defaults", log_get(link) == LOG_DEFAULT, str(log_get(link)))
+
+    r = log_set(link, 9, 1, 1)
+    check("log level above the ceiling -> ERR_LOG_BAD_LEVEL", err_cause(r) == "ERR_LOG_BAD_LEVEL", str(r))
+    r = log_set(link, 3, 2, 1)
+    check("log flag 2 -> ERR_CMD_BAD_ARG", err_cause(r) == "ERR_CMD_BAD_ARG", str(r))
+    r = link.request(bytes([KEY_LOG, LOG_SET]), payload=b"")
+    check("log SET with 2 bytes -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
+    check("a refused SET changes nothing", log_get(link) == LOG_DEFAULT, str(log_get(link)))
+
+    _, lines, recs = provoke_error(link)
+    check("defaults: the chain is printed on the console and the record is sent", printed(lines) and recorded(recs),
+          f"printed {printed(lines)}, record {recorded(recs)}")
+
+    log_set(link, 3, 1, 0)
+    _, lines, recs = provoke_error(link)
+    check("trace_errors off: no chain lines, the record is still sent", not printed(lines) and recorded(recs),
+          f"printed {printed(lines)}, record {recorded(recs)}")
+
+    log_set(link, 3, 0, 1)
+    _, lines, recs = provoke_error(link)
+    check("mirror_serial off: nothing on the console, the record is still sent", not lines and recorded(recs),
+          f"{len(lines)} line(s), record {recorded(recs)}")
+
+    log_set(link, 0, 1, 1)
+    _, lines, recs = provoke_error(link)
+    check("level 0 blocks every log line, the record is still sent", not lines and recorded(recs),
+          f"{len(lines)} line(s), record {recorded(recs)}")
+
+    log_set(link, 3, 1, 1, 0, 1)
+    _, lines, recs = provoke_error(link)
+    check("send_errors off: no record on the errors stream, the chain is still printed",
+          not recorded(recs) and printed(lines), f"printed {printed(lines)}, record {recorded(recs)}")
+    r = link.request(bytes([0x7E]))
+    check("send_errors off: the command still gets its error response", r is not None and not r.ok, str(r))
+
+    log_set(link, 3, 1, 1)
+    _, lines, _ = provoke_error(link)
+    check("back to defaults: the chain is printed again", printed(lines), str(lines))
+
+    # Not stored by the module: a live SET is gone after a restart (the app keeps it as a record, tested below).
+    log_set(link, 2, 0, 0, 0, 0)
+    link.request(bytes([KEY_SYS, 0x03]))
+    up = False
+    for _ in range(40):
+        time.sleep(0.5)
+        if ping(link) is not None:
+            up = True
+            break
+    check("board answers after RESTART (silent: level 2, mirror off)", up)
+    check("log options are the defaults after the restart (nothing is stored)", log_get(link) == LOG_DEFAULT,
+          str(log_get(link)))
+    r = log_set(link, *LOG_DEFAULT)
+    check("log SET defaults again", r is not None and r.ok and log_get(link) == LOG_DEFAULT, str(r))
+
+
+# System-class record IDs (sys_actions.h SYS_ACTIONS_ID_*)
+REC_LOG, REC_PW_CFG, REC_PW_PSU, REC_PW_BATTERY, REC_PW_RESP = [(CLASS_SYSTEM << 24) | n for n in range(1, 6)]
+
+
+def test_settings(link: Link) -> None:
+    """Settings are records: the app saves the SET frame under the module's ID; nothing replays by itself."""
+    frame = bytes([KEY_LOG, LOG_SET, 2, 1, 0, 0, 1])
+    act(link, A_REMOVE, u32(REC_LOG))
+    r = upload(link, REC_LOG, image(frame))
+    check("settings: the log SET frame saved as record 0x01000001", r is not None and r.ok, str(r))
+    got = readback(link, REC_LOG, 1)
+    check("settings: READ = the log SET frame exactly", [p.data for p in got] == [frame], str(got))
+    log_set(link, *LOG_DEFAULT)
+    r = act(link, A_RUN, u32(REC_LOG))
+    check("settings: RUN applies it (log level 2, errors off)", r is not None and r.ok and log_get(link) == (2, 1, 0, 0, 1), str(r))
+    log_set(link, *LOG_DEFAULT)
+    check("settings: the live SET did not change the record", [p.data for p in readback(link, REC_LOG, 1)] == [frame])
+    act(link, A_REMOVE, u32(REC_LOG))
+
+
+OP_SET_ERR_POLICY, OP_GET_ERR_POLICY = 0x0007, 0x0008
+IMP_NONE, IMP_LOW, IMP_MEDIUM, IMP_HIGH, IMP_CRITICAL = 0, 1, 2, 3, 4
+ACT_MED, ACT_HIGH = 201, 200  # actions run by the policy: each sets another log level, which GET shows
+
+
+def test_error_policy(link: Link) -> None:
+    r = dev(link, GPIO_ID, OP_CREATE, struct.pack("<H", GPIO_TYPE))
+    check("policy: GPIO ESP present", r is not None and (r.ok or err_cause(r) == "ERR_DEV_ID_TAKEN"), str(r))
+    for aid, level in ((ACT_HIGH, 2), (ACT_MED, 1)):
+        act(link, A_REMOVE, u32(aid))
+        r = upload(link, aid, image(bytes([KEY_LOG, LOG_SET, level, 1, 1, 1, 1])))
+        check(f"policy: action {aid} sets log level {level}", r is not None and r.ok, str(r))
+    log_set(link, *LOG_DEFAULT)
+
+    def policy(importance: int, actions=(0, ACT_MED, ACT_HIGH, 0)) -> Response | None:
+        return dev(link, GPIO_ID, OP_SET_ERR_POLICY, struct.pack("<B4I", importance, *actions))
+
+    def level_after(provoke) -> int | None:
+        log_set(link, *LOG_DEFAULT)
+        provoke()
+        time.sleep(0.5)  # the action is queued on the router
+        got = log_get(link)
+        return got[0] if got else None
+
+    high_error = lambda: dev(link, GPIO_ID, IO_SET_MODE, bytes([22, 3]))  # ERR_DEV_BAD_PIN, HIGH
+
+    def medium_error():  # ERR_DEV_SUSPENDED, MEDIUM
+        dev(link, GPIO_ID, OP_SUSPEND)
+        dev(link, GPIO_ID, IO_SET_MODE, bytes([OUT_PIN, 3]))
+        dev(link, GPIO_ID, OP_RESUME)
+
+    r = dev(link, GPIO_ID, OP_GET_ERR_POLICY)
+    check("policy GET default: LOW, no actions", r is not None and r.ok and r.data == struct.pack("<B4I", IMP_LOW, 0, 0, 0, 0), str(r))
+    r = dev(link, GPIO_ID, OP_OPS)
+    ops = set(struct.unpack(f"<{len(r.data) // 2}H", r.data)) if r is not None and r.ok else set()
+    check("OPS lists SET / GET_ERROR_POLICY", {OP_SET_ERR_POLICY, OP_GET_ERR_POLICY} <= ops, str(sorted(ops)))
+    r = policy(5)
+    check("policy importance 5 -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
+    r = dev(link, GPIO_ID, OP_SET_ERR_POLICY, bytes([IMP_HIGH, 0, 0, 0]))
+    check("policy SET with 4 bytes -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
+
+    policy(IMP_LOW)
+    check("LOW: a HIGH error runs nothing", level_after(high_error) == 3)
+    policy(IMP_MEDIUM)
+    check("MEDIUM: a HIGH error runs the HIGH action", level_after(high_error) == 2)
+    check("MEDIUM: a MEDIUM error runs nothing", level_after(medium_error) == 3)
+    policy(IMP_HIGH)
+    check("HIGH: a MEDIUM error runs the MEDIUM action", level_after(medium_error) == 1)
+    policy(IMP_CRITICAL, (0, 0, 0, 0))
+    check("CRITICAL without actions: nothing runs", level_after(high_error) == 3)
+    policy(IMP_NONE)
+    check("NONE: a HIGH error runs nothing", level_after(high_error) == 3)
+    r = dev(link, GPIO_ID, OP_GET_ERR_POLICY)
+    check("policy GET = what was set", r is not None and r.ok and r.data == struct.pack("<B4I", IMP_NONE, 0, ACT_MED, ACT_HIGH, 0), str(r))
+    r = dev(link, GPIO_ID, IO_SET_MODE, bytes([22, 3]))
+    check("NONE: the command still gets its error response", err_cause(r) == "ERR_DEV_BAD_PIN", str(r))
+
+    # A new instance starts at the defaults
+    dev(link, GPIO_ID, OP_REMOVE)
+    dev(link, GPIO_ID, OP_CREATE, struct.pack("<H", GPIO_TYPE))
+    r = dev(link, GPIO_ID, OP_GET_ERR_POLICY)
+    check("REMOVE + CREATE: policy back to LOW, no actions", r is not None and r.ok and r.data == struct.pack("<B4I", IMP_LOW, 0, 0, 0, 0), str(r))
+
+    for aid in (ACT_HIGH, ACT_MED):
+        act(link, A_REMOVE, u32(aid))
+    log_set(link, *LOG_DEFAULT)
+
+
+KEY_POWER = 0x0A
+PW_SET_CONFIG, PW_GET_CONFIG, PW_SET_PSU, PW_SET_BATTERY, PW_SET_RESPONSE, PW_GET_RESPONSES, PW_GET_STATUS = range(1, 8)
+SRC_UNKNOWN, SRC_USB, SRC_PSU, SRC_BATTERY = 0, 1, 2, 3
+PW_FLAG_ENABLED, PW_FLAG_STRICT, PW_FLAG_INPUT_SEEN = 0x01, 0x02, 0x08
+PW_RESPONSES_DEFAULT = bytes([0, 1, 0, 1, 0, 0, 3, 0, 3, 1, 0])  # by kind, index 0 unused
+SOURCE_PIN = 7
+TPS_RAIL_A = 10  # a budgeted rail on the board; not created on the devkit
+TPS_RAIL_B = 11
+PW_TARGET_BOARD = 0xFFFF  # response target: the board row
+
+
+def pw(link: Link, op: int, payload: bytes = b"") -> Response | None:
+    return link.request(bytes([KEY_POWER, op]), payload=payload)
+
+
+def pw_config(enabled=1, strict=1, margin=20, pin=(0xFFFF, 0xFF), battery_level=1, pd_max_auto=1) -> bytes:
+    return bytes([enabled, strict, margin]) + struct.pack("<HB", *pin) + bytes([battery_level, pd_max_auto])
+
+
+def pw_status(link: Link) -> dict | None:
+    r = pw(link, PW_GET_STATUS)
+    if r is None or not r.ok or len(r.data) != 31:
+        return None
+    f = struct.unpack("<BiiIIIIIBB", r.data)
+    keys = ("source", "input_mV", "input_mA", "source_mV", "source_mA", "budget_mW", "limit_mW", "allocated_mW",
+            "battery_pct", "flags")
+    return dict(zip(keys, f))
+
+
+def wait_source(link: Link, want: int, timeout: float = 3.0) -> dict | None:
+    end = time.time() + timeout
+    st = None
+    while time.time() < end:
+        st = pw_status(link)
+        if st and st["source"] == want:
+            return st
+        time.sleep(0.2)
+    return st
+
+
+def test_power(link: Link) -> None:
+    pw(link, PW_SET_PSU, struct.pack("<II", 0, 0))
+    pw(link, PW_SET_BATTERY, bytes([0, 0, 0, 0]))
+    r = pw(link, PW_SET_CONFIG, pw_config())
+    check("power SET_CONFIG defaults", r is not None and r.ok, str(r))
+    r = pw(link, PW_GET_CONFIG)
+    check("power GET_CONFIG = defaults (on, strict, 20 %, no pin, battery level 1)",
+          r is not None and r.ok and r.data == pw_config(), str(r))
+    for name, cfg in (("margin 101", pw_config(margin=101)), ("enabled 2", pw_config(enabled=2)),
+                      ("battery level 2", pw_config(battery_level=2))):
+        r = pw(link, PW_SET_CONFIG, cfg)
+        check(f"power config {name} -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
+    r = pw(link, PW_SET_CONFIG, pw_config()[:6])
+    check("power SET_CONFIG with 6 bytes -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
+
+    st = wait_source(link, SRC_UNKNOWN)
+    check("status: 31 bytes, source UNKNOWN, enabled + strict, no input monitor on the devkit",
+          st is not None and st["source"] == SRC_UNKNOWN and st["flags"] & 0x0B == PW_FLAG_ENABLED | PW_FLAG_STRICT, str(st))
+
+    # Source without a pin: an entered PSU, then a configured battery
+    r = pw(link, PW_SET_PSU, struct.pack("<II", 0, 500))
+    check("PSU 0 mV -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
+    r = pw(link, PW_SET_PSU, struct.pack("<II", 12000, 2000))
+    check("SET_PSU 12 V / 2 A", r is not None and r.ok, str(r))
+    st = wait_source(link, SRC_PSU)
+    check("source PSU", st is not None and st["source"] == SRC_PSU, str(st))
+    pw(link, PW_SET_PSU, struct.pack("<II", 0, 0))
+    r = pw(link, PW_SET_BATTERY, bytes([1, 0, 20, 10]))
+    check("battery 0 cells -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
+    r = pw(link, PW_SET_BATTERY, bytes([1, 2, 10, 10]))
+    check("battery critical >= low -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
+    r = pw(link, PW_SET_BATTERY, bytes([1, 2, 20, 10]))
+    check("SET_BATTERY LiPo 2S 20 / 10 %", r is not None and r.ok, str(r))
+    st = wait_source(link, SRC_BATTERY)
+    check("source BATTERY (PSU removed)", st is not None and st["source"] == SRC_BATTERY, str(st))
+    pw(link, PW_SET_BATTERY, bytes([0, 0, 0, 0]))
+    st = wait_source(link, SRC_UNKNOWN)
+    check("battery removed -> UNKNOWN", st is not None and st["source"] == SRC_UNKNOWN, str(st))
+
+    # Source pin: an output the manager reads as it is (level 1 = battery)
+    dev(link, GPIO_ID, IO_SET_MODE, bytes([SOURCE_PIN, 3]))
+    dev(link, GPIO_ID, IO_SET_LEVEL, bytes([SOURCE_PIN, 1]))
+    r = pw(link, PW_SET_CONFIG, pw_config(pin=(GPIO_ID, SOURCE_PIN), battery_level=1))
+    check(f"config source pin GPIO {SOURCE_PIN}, battery = 1", r is not None and r.ok, str(r))
+    st = wait_source(link, SRC_BATTERY)
+    check("pin 1 -> BATTERY", st is not None and st["source"] == SRC_BATTERY, str(st))
+    dev(link, GPIO_ID, IO_SET_LEVEL, bytes([SOURCE_PIN, 0]))
+    st = wait_source(link, SRC_USB)
+    check("pin 0 -> USB", st is not None and st["source"] == SRC_USB, str(st))
+    pw(link, PW_SET_CONFIG, pw_config(pin=(GPIO_ID, SOURCE_PIN), battery_level=0))
+    st = wait_source(link, SRC_BATTERY)
+    check("battery level 0: pin 0 -> BATTERY", st is not None and st["source"] == SRC_BATTERY, str(st))
+    pw(link, PW_SET_CONFIG, pw_config())
+    dev(link, GPIO_ID, IO_RESET, bytes([SOURCE_PIN]))
+
+    # Modes
+    r = pw(link, PW_SET_CONFIG, pw_config(enabled=1, strict=0, margin=30))
+    st = pw_status(link)
+    check("soft: flags enabled, not strict", st is not None and st["flags"] & 0x03 == PW_FLAG_ENABLED, str(st))
+    pw(link, PW_SET_CONFIG, pw_config(enabled=0))
+    time.sleep(0.3)
+    st = pw_status(link)
+    check("off: flags not enabled", st is not None and st["flags"] & PW_FLAG_ENABLED == 0, str(st))
+    pw(link, PW_SET_CONFIG, pw_config())
+
+    # Response matrix: the board row and one row per rail (target = rail device ID), stored ("pwr_resp")
+    def responses(target: int) -> Response | None:
+        return pw(link, PW_GET_RESPONSES, struct.pack("<H", target))
+
+    def set_response(target: int, kind: int, response: int) -> Response | None:
+        return pw(link, PW_SET_RESPONSE, struct.pack("<HBB", target, kind, response))
+
+    r = responses(PW_TARGET_BOARD)
+    check("GET_RESPONSES board = the board defaults", r is not None and r.ok and r.data == PW_RESPONSES_DEFAULT, str(r))
+    r = responses(TPS_RAIL_A)
+    check("GET_RESPONSES rail A = the board defaults (no own defaults)", r is not None and r.ok and r.data == PW_RESPONSES_DEFAULT, str(r))
+    r = set_response(TPS_RAIL_A, 5, 1)
+    ra, rb, bd = responses(TPS_RAIL_A), responses(TPS_RAIL_B), responses(PW_TARGET_BOARD)
+    check("SET_RESPONSE rail A OCP critical -> DISABLE: only rail A changes",
+          r is not None and r.ok and ra.data[5] == 1 and rb.data[5] == 0 and bd.data[5] == 0,
+          f"{r} A={ra} B={rb} board={bd}")
+    set_response(TPS_RAIL_A, 5, 0)
+    r = set_response(PW_TARGET_BOARD, 5, 1)
+    check("SET_RESPONSE board OCP critical -> DISABLE, rail A keeps its own",
+          r is not None and r.ok and responses(PW_TARGET_BOARD).data[5] == 1 and responses(TPS_RAIL_A).data[5] == 0, str(r))
+    set_response(PW_TARGET_BOARD, 5, 0)
+    r = set_response(99, 5, 1)
+    check("SET_RESPONSE target 99 (no such rail) -> ERR_PWRM_NOT_RAIL", err_cause(r) == "ERR_PWRM_NOT_RAIL", str(r))
+    r = responses(99)
+    check("GET_RESPONSES target 99 -> ERR_PWRM_NOT_RAIL", err_cause(r) == "ERR_PWRM_NOT_RAIL", str(r))
+    r = set_response(PW_TARGET_BOARD, 11, 0)
+    check("SET_RESPONSE kind 11 -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
+    r = set_response(PW_TARGET_BOARD, 5, 4)
+    check("SET_RESPONSE response 4 -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
+    r = pw(link, PW_GET_RESPONSES)
+    check("GET_RESPONSES without target -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
+    matrix = b"".join(bytes(responses(t).data) for t in (PW_TARGET_BOARD, TPS_RAIL_A, TPS_RAIL_B))
+    r = link.request(bytes([KEY_POWER, 0x09]), payload=matrix[:-1])
+    check("SET_RESPONSES with the wrong size -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
+    r = link.request(bytes([KEY_POWER, 0x09]), payload=matrix)
+    check("SET_RESPONSES with the whole matrix", r is not None and r.ok, str(r))
+    r = link.request(bytes([KEY_POWER, 0x09]), payload=bytes([4]) + matrix[1:])
+    check("SET_RESPONSES with a response 4 -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
+
+    # The VREG guard passes a budgeted rail that isn't created
+    r = dev(link, TPS_RAIL_A, 0x0501, struct.pack("<I", 9000))
+    check("VREG SET_VOLTAGE on rail A (not created) -> ERR_DEV_NOT_FOUND", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
 
 
 def test_restart(link: Link) -> None:
@@ -808,9 +1328,14 @@ def main() -> int:
         test_conn(link)
         test_ble(link, a.target)
         test_gpio(link, a.target)
+        test_power_mux(link, a.target)
         test_device(link)
         test_actions(link)
-        test_events(link)
+        test_project(link)
+        test_log(link)
+        test_settings(link)
+        test_error_policy(link)
+        test_power(link)
         test_restart(link)
         test_actions_after_restart(link)
 

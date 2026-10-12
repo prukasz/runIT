@@ -1,7 +1,6 @@
 #include "sys_device.h"
-#include <assert.h>
-#include <stdlib.h>
-#include <string.h>
+
+#include "freertos/FreeRTOS.h"
 #include "sdkconfig.h"
 #include "utils.h"
 
@@ -23,6 +22,8 @@ typedef struct {
   uint16_t id;
   const sys_device_type_t* type;
   sys_device_base_t* ctx;
+  sys_device_error_policy_t policy;  // SET_ERROR_POLICY; read by the error path under s_table_mux
+  bool system;                       // the board's own (sys_device_mark_system): sys_device_remove_all leaves it
 } dev_t_;
 
 static const sys_device_type_t* s_types[CONFIG_SYS_DEVICE_TYPES];  // filled by constructors, before any task
@@ -41,6 +42,12 @@ U_RECURSIVE_MUTEX_DEFINE(sys_device_mutex);
 
 #define LOCK() U_RECURSIVE_MUTEX_LOCK(sys_device_mutex, WAIT_FOREVER)
 #define UNLOCK() U_RECURSIVE_MUTEX_UNLOCK(sys_device_mutex)
+
+/* The error path reads a device's policy without the registry lock (an op holding it may wait for the reporting
+ * task). Changes of the table (add, remove) and of a policy take this one too, briefly. */
+static portMUX_TYPE s_table_mux = portMUX_INITIALIZER_UNLOCKED;
+
+static const sys_device_error_policy_t k_policy_default = {.importance = SYS_DEVICE_IMPORTANCE_LOW};
 
 static uint16_t u16_at(const uint8_t* b) {
   return (uint16_t)(b[0] | (b[1] << 8));
@@ -74,7 +81,8 @@ void sys_device_type_register(const sys_device_type_t* type) {
   assert(has_op(type, SYS_DEVICE_OP_SUSPEND) && has_op(type, SYS_DEVICE_OP_RESUME) &&
          "a device type must answer SUSPEND and RESUME");
   assert(!has_op(type, SYS_DEVICE_OP_REMOVE) && !has_op(type, SYS_DEVICE_OP_INFO) && !has_op(type, SYS_DEVICE_OP_OPS) &&
-         "REMOVE / INFO / OPS are answered by the registry");
+         !has_op(type, SYS_DEVICE_OP_SET_ERROR_POLICY) && !has_op(type, SYS_DEVICE_OP_GET_ERROR_POLICY) &&
+         "REMOVE / INFO / OPS / SET_ERROR_POLICY / GET_ERROR_POLICY are answered by the registry");
   assert(find_type(type->type) == NULL && "device type registered twice");
   if (s_type_count >= CONFIG_SYS_DEVICE_TYPES) {
     assert(!"more device types than SYS_DEVICE_TYPES");
@@ -152,7 +160,9 @@ static err_h create(uint16_t id, const uint8_t* args, uint32_t args_len) {
     free(ctx);
     return ERR_WRAP(err, ERR_DEV_INSTALL, .id = id, .type = type_id);
   }
-  s_devs[s_dev_count++] = (dev_t_){.id = id, .type = type, .ctx = ctx};  // newest last
+  taskENTER_CRITICAL(&s_table_mux);
+  s_devs[s_dev_count++] = (dev_t_){.id = id, .type = type, .ctx = ctx, .policy = k_policy_default};  // newest last
+  taskEXIT_CRITICAL(&s_table_mux);
   return NULL;
 }
 
@@ -163,9 +173,11 @@ static err_h remove_dev(uint16_t id) {
   ERR_CHECK(user == s_dev_count, ERR_DEV_IN_USE, .id = id, .user = s_devs[user].id);
   const dev_t_ d = s_devs[find_dev(id)];
   err_h err = d.type->uninstall(d.ctx);
+  taskENTER_CRITICAL(&s_table_mux);
   const uint32_t j = find_dev(id);  // re-found: uninstall called other devices
   memmove(&s_devs[j], &s_devs[j + 1], (s_dev_count - j - 1) * sizeof(s_devs[0]));  // keeps the creation order
   s_dev_count--;
+  taskEXIT_CRITICAL(&s_table_mux);
   free(d.ctx);
   return err;
 }
@@ -177,7 +189,8 @@ static err_h reply_info(const dev_t_* d, uint8_t* out, uint32_t out_cap, uint32_
 
 // OPS: the generic ops, then the type's table.
 static err_h reply_ops(const sys_device_type_t* t, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
-  static const uint16_t k_generic[] = {SYS_DEVICE_OP_REMOVE, SYS_DEVICE_OP_INFO, SYS_DEVICE_OP_OPS};
+  static const uint16_t k_generic[] = {SYS_DEVICE_OP_REMOVE, SYS_DEVICE_OP_INFO, SYS_DEVICE_OP_OPS,
+                                       SYS_DEVICE_OP_SET_ERROR_POLICY, SYS_DEVICE_OP_GET_ERROR_POLICY};
   const uint32_t count = ARRAY_LEN(k_generic) + t->op_count;
   ERR_CHECK(count * 2 <= out_cap, ERR_CMD_OUT_FULL, .need = (uint16_t)(count * 2), .cap = (uint16_t)out_cap);
   for (uint32_t i = 0; i < count; i++) {
@@ -189,10 +202,42 @@ static err_h reply_ops(const sys_device_type_t* t, uint8_t* out, uint32_t out_ca
   return NULL;
 }
 
+// SET_ERROR_POLICY: any action ID (0 = none; it may be recorded later), importance NONE..CRITICAL. Allowed while
+// suspended: it configures the registry, not the device.
+static err_h set_policy(uint32_t index, const uint8_t* args, uint32_t args_len) {
+  sys_device_error_policy_t p;
+  ERR_CHECK(args_len == sizeof(p), ERR_CMD_BAD_LEN, .got = (uint16_t)args_len, .need = sizeof(p));
+  memcpy(&p, args, sizeof(p));
+  ERR_CHECK(p.importance <= SYS_DEVICE_IMPORTANCE_CRITICAL, ERR_DEV_RANGE, .id = s_devs[index].id,
+            .value = p.importance, .min = SYS_DEVICE_IMPORTANCE_NONE, .max = SYS_DEVICE_IMPORTANCE_CRITICAL);
+  taskENTER_CRITICAL(&s_table_mux);
+  s_devs[index].policy = p;
+  taskEXIT_CRITICAL(&s_table_mux);
+  return NULL;
+}
+
+bool sys_device_error_policy_get(uint16_t id, sys_device_error_policy_t* out) {
+  taskENTER_CRITICAL(&s_table_mux);
+  const uint32_t i = find_dev(id);
+  const bool found = i != s_dev_count;
+  if (found) {
+    *out = s_devs[i].policy;
+  }
+  taskEXIT_CRITICAL(&s_table_mux);
+  return found;
+}
+
 // Any op but CREATE, on a registered device.
 static err_h run_op(uint32_t index, uint16_t op, const uint8_t* args, uint32_t args_len, uint8_t* out,
                     uint32_t out_cap, uint32_t* out_len) {
   const dev_t_ d = s_devs[index];
+  if (op == SYS_DEVICE_OP_SET_ERROR_POLICY) {
+    return set_policy(index, args, args_len);
+  }
+  if (op == SYS_DEVICE_OP_GET_ERROR_POLICY) {
+    ERR_CHECK(args_len == 0, ERR_CMD_BAD_LEN, .got = (uint16_t)args_len, .need = 0);
+    return cmd_reply(out, out_cap, out_len, &d.policy, sizeof(d.policy));
+  }
   if (op == SYS_DEVICE_OP_REMOVE || op == SYS_DEVICE_OP_INFO || op == SYS_DEVICE_OP_OPS) {
     ERR_CHECK(args_len == 0, ERR_CMD_BAD_LEN, .got = (uint16_t)args_len, .need = 0);
     if (op == SYS_DEVICE_OP_REMOVE) {
@@ -212,9 +257,17 @@ static err_h wrap_op(err_h err, uint16_t op) {
   return err != NULL ? ERR_WRAP(err, ERR_DEV_OP, .op = op) : NULL;
 }
 
+static err_h sweep(uint16_t op, bool newest_first, bool project_only);
+
 /* One call, the args in place (no copy, so no size limit besides the caller's). Errors are wrapped in ERR_DEV_ID. */
 static err_h call(uint16_t id, uint16_t op, const uint8_t* args, uint32_t args_len, uint8_t* out, uint32_t out_cap,
                   uint32_t* out_len) {
+  // SUSPEND / RESUME to "no device" = every device (the sweeps). Not wrapped in ERR_DEV_ID{NONE}: the sweep's own
+  // error already names the device that failed, and the error policy reads that ID.
+  if (id == SYS_DEVICE_ID_NONE && (op == SYS_DEVICE_OP_SUSPEND || op == SYS_DEVICE_OP_RESUME)) {
+    ERR_CHECK(args_len == 0, ERR_CMD_BAD_LEN, .got = (uint16_t)args_len, .need = 0);
+    return sweep(op, op == SYS_DEVICE_OP_SUSPEND, false);
+  }
   err_h err = NULL;
   LOCK();
   const uint32_t i = find_dev(id);
@@ -241,8 +294,37 @@ static err_h call(uint16_t id, uint16_t op, const uint8_t* args, uint32_t args_l
   return err != NULL ? ERR_WRAP(err, ERR_DEV_ID, .id = id) : NULL;
 }
 
-err_h sys_device_call(uint16_t id, uint16_t op, const void* args, uint32_t args_len, void* out, uint32_t out_cap,
-                      uint32_t* out_len) {
+/* ---- Guards ---- */
+
+typedef struct {
+  uint8_t contract;
+  sys_device_guard_f fn;
+} guard_t;
+
+static guard_t s_guards[CONFIG_SYS_DEVICE_GUARDS];  // set at boot, read without a lock afterwards
+static uint32_t s_guard_count;
+
+err_h sys_device_set_guard(uint8_t contract, sys_device_guard_f fn) {
+  ERR_CHECK(fn != NULL && contract != SYS_DEVICE_CONTRACT_DEVICE, ERR_DEV_BAD_ARG);
+  for (uint32_t i = 0; i < s_guard_count; i++) {
+    ERR_CHECK(s_guards[i].contract != contract, ERR_DEV_BAD_ARG);  // one guard per contract
+  }
+  ERR_CHECK(s_guard_count < CONFIG_SYS_DEVICE_GUARDS, ERR_DEV_BAD_ARG);
+  s_guards[s_guard_count++] = (guard_t){.contract = contract, .fn = fn};
+  return NULL;
+}
+
+static sys_device_guard_f find_guard(uint16_t op) {
+  for (uint32_t i = 0; i < s_guard_count; i++) {
+    if (s_guards[i].contract == (uint8_t)(op >> 8)) {
+      return s_guards[i].fn;
+    }
+  }
+  return NULL;
+}
+
+static err_h call_checked(bool guarded, uint16_t id, uint16_t op, const void* args, uint32_t args_len, void* out,
+                          uint32_t out_cap, uint32_t* out_len) {
   static const uint8_t k_no_args[1];  // handlers memcpy their args: never from NULL
   uint32_t dummy;
   ERR_CHECK(args != NULL || args_len == 0, ERR_DEV_BAD_ARG);
@@ -250,21 +332,49 @@ err_h sys_device_call(uint16_t id, uint16_t op, const void* args, uint32_t args_
     out_len = &dummy;
   }
   *out_len = 0;
-  return call(id, op, args != NULL ? args : k_no_args, args_len, out, out_cap, out_len);
+  args = args != NULL ? args : k_no_args;
+  /* The guard runs before the registry lock: it takes its own lock and then calls the device (sys_device_call_direct),
+   * the same order as its own task. Its own failures get the op and device context like the device's would. */
+  sys_device_guard_f guard = guarded ? find_guard(op) : NULL;
+  if (guard != NULL) {
+    bool handled = false;
+    err_h err = guard(id, op, args, args_len, &handled);
+    if (handled) {
+      if (err != NULL && err->tag != ERR_DEV_ID) {
+        err = ERR_WRAP(wrap_op(err, op), ERR_DEV_ID, .id = id);
+      }
+      return err;
+    }
+    err_free(err);  // a guard that passes the op on returns nothing
+  }
+  return call(id, op, args, args_len, out, out_cap, out_len);
+}
+
+err_h sys_device_call(uint16_t id, uint16_t op, const void* args, uint32_t args_len, void* out, uint32_t out_cap,
+                      uint32_t* out_len) {
+  return call_checked(true, id, op, args, args_len, out, out_cap, out_len);
+}
+
+err_h sys_device_call_direct(uint16_t id, uint16_t op, const void* args, uint32_t args_len, void* out,
+                             uint32_t out_cap, uint32_t* out_len) {
+  return call_checked(false, id, op, args, args_len, out, out_cap, out_len);
 }
 
 /* ----------------------------------------------------------------------------
  * Sweeps: best effort, the first error is returned, the rest reported
  * ------------------------------------------------------------------------- */
 
-static err_h sweep(uint16_t op, bool newest_first) {
+static err_h sweep(uint16_t op, bool newest_first, bool project_only) {
   err_h first = NULL;
   LOCK();
   // A snapshot of the IDs: REMOVE changes the list while we walk it.
   uint16_t ids[CONFIG_SYS_DEVICE_MAX];
-  const uint32_t n = s_dev_count;
-  for (uint32_t i = 0; i < n; i++) {
-    ids[i] = s_devs[newest_first ? n - 1 - i : i].id;
+  uint32_t n = 0;
+  for (uint32_t i = 0; i < s_dev_count; i++) {
+    const dev_t_* d = &s_devs[newest_first ? s_dev_count - 1 - i : i];
+    if (!(project_only && d->system)) {
+      ids[n++] = d->id;
+    }
   }
   for (uint32_t i = 0; i < n; i++) {
     err_h err = sys_device_call(ids[i], op, NULL, 0, NULL, 0, NULL);
@@ -283,14 +393,24 @@ static err_h sweep(uint16_t op, bool newest_first) {
 
 // Users before the devices they use.
 err_h sys_device_suspend_all(void) {
-  return sweep(SYS_DEVICE_OP_SUSPEND, true);
+  return sweep(SYS_DEVICE_OP_SUSPEND, true, false);
 }
 
 // The used devices before their users.
 err_h sys_device_resume_all(void) {
-  return sweep(SYS_DEVICE_OP_RESUME, false);
+  return sweep(SYS_DEVICE_OP_RESUME, false, false);
 }
 
 err_h sys_device_remove_all(void) {
-  return sweep(SYS_DEVICE_OP_REMOVE, true);
+  return sweep(SYS_DEVICE_OP_REMOVE, true, true);
+}
+
+void sys_device_mark_system(void) {
+  LOCK();
+  taskENTER_CRITICAL(&s_table_mux);
+  for (uint32_t i = 0; i < s_dev_count; i++) {
+    s_devs[i].system = true;
+  }
+  taskEXIT_CRITICAL(&s_table_mux);
+  UNLOCK();
 }

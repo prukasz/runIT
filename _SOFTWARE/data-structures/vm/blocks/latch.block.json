@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 2,
+  "kind": "vm-block",
+  "id": 12,
+  "name": "VM_BLK_LATCH",
+  "alias": "Latch",
+  "category": "logic",
+  "description": "EN sets a held flow level; Reset clears it. ENO stays active until reset.",
+  "source_file": "components/vm/vm_blocks/core/latch/vm_block_latch.h",
+  "guide": "latch.md",
+  "activation": {
+    "kind": "enabled",
+    "text": "Samples EN and Reset every pass; EN sets the held state."
+  },
+  "min_enables": 1,
+  "loop_use": "once-per-turn",
+  "en": {
+    "alias": "Set",
+    "description": "sets the held state when true",
+    "connect": "Connect a Set signal to EN; Latch keeps ENO active until Reset.",
+    "signal": true
+  },
+  "eno": {
+    "alias": "Held",
+    "description": "Held flow level: true after EN sets it, until Reset clears it."
+  },
+  "face": {
+    "lead": [
+      {
+        "text": "Latch "
+      },
+      {
+        "ref": "mode",
+        "kind": "field",
+        "field": "mode"
+      }
+    ]
+  },
+  "shape": {
+    "min_in": 0,
+    "max_in": 1,
+    "min_q": 0,
+    "max_q": 0,
+    "min_en": 1,
+    "required_in": 0,
+    "state_len": 4
+  },
+  "inputs": {
+    "min": 0,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "reset",
+        "alias": "Reset",
+        "value": "bool",
+        "required": false
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 0,
+    "pins": []
+  },
+  "rules": [
+    {
+      "rule": "At least one EN source is connected; no data outputs.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 983071
+    },
+    {
+      "rule": "mode is a vm_latch_mode_e value.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 983071
+    }
+  ],
+  "state": {
+    "struct": "vm_block_latch_data_t",
+    "source_file": "components/vm/vm_blocks/core/latch/vm_block_latch.h",
+    "size": 4,
+    "align": 4,
+    "fields": [
+      {
+        "name": "mode",
+        "c_type": "uint8_t",
+        "offset": 0,
+        "size": 1,
+        "description": "Which signal wins when EN and RESET are true",
+        "source": "user",
+        "alias": "Priority",
+        "enum_ref": "vm_latch_mode_e"
+      },
+      {
+        "name": "flags",
+        "c_type": "uint8_t",
+        "offset": 1,
+        "size": 1,
+        "description": "VM_LATCH_F_*",
+        "source": "runtime"
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint16_t",
+        "offset": 2,
+        "size": 2,
+        "source": "padding"
+      }
+    ]
+  },
+  "min_custom_len": 4,
+  "enums": {
+    "vm_latch_mode_e": {
+      "alias": "Latch Mode",
+      "source_file": "components/vm/vm_blocks/core/latch/vm_block_latch.h",
+      "members": [
+        {
+          "name": "VM_LATCH_SET_DOMINANT",
+          "value": 0,
+          "alias": "Set wins (SR)",
+          "description": "When EN and RESET are both true the output is set"
+        },
+        {
+          "name": "VM_LATCH_RESET_DOMINANT",
+          "value": 1,
+          "alias": "Reset wins (RS)",
+          "description": "When EN and RESET are both true the output is reset"
+        }
+      ]
+    }
+  }
+}

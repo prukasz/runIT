@@ -1,4 +1,4 @@
-#include <string.h>
+
 #include "router.h"
 #include "sdkconfig.h"
 

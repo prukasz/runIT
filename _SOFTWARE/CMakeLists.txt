@@ -10,8 +10,12 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 #   components/core/<name>             foundation: utils, errors, cmd, router (no hardware, no modules)
 #   components/sys/<sys_module>        system modules and the contracts devices implement
 #   components/devices/device_<chip>   one driver per chip
+#   components/vm/vm_*                 the program runtime (VM core, later the palette)
+#   components/app/runit               the application: boot sequence, safe state, error policy, board routing
 list(APPEND EXTRA_COMPONENT_DIRS "components/core")
 list(APPEND EXTRA_COMPONENT_DIRS "components/sys")
 list(APPEND EXTRA_COMPONENT_DIRS "components/devices")
+list(APPEND EXTRA_COMPONENT_DIRS "components/vm")
+list(APPEND EXTRA_COMPONENT_DIRS "components/app")
 
 project(runIT)

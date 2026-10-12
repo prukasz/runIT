@@ -1,7 +1,5 @@
 #pragma once
 
-#include <stddef.h>
-#include <stdint.h>
 #include "esp_err.h"
 #include "sdkconfig.h"
 #include "utils.h"
@@ -67,13 +65,14 @@ _Static_assert(offsetof(err_t, data) == ERR_HDR_LEN, "err_t header has padding -
  * line in the logger, but kills a device in its create). How a device reacts
  * is decided by policy later.
  */
+//#ref-enum @alias Error Severity
 typedef enum {
-  ERR_SEV_NONE = 0,
-  ERR_SEV_LOW = 1,
-  ERR_SEV_MEDIUM = 2,
-  ERR_SEV_HIGH = 3,
-  ERR_SEV_CRITICAL = 4,
-  ERR_SEV_DEFAULT = 0xFF,  // node only: use the tag's default severity
+  ERR_SEV_NONE = 0,  //@alias None @description No severity: context only (a route, a request)
+  ERR_SEV_LOW = 1,  //@alias Low @description Noteworthy; nothing needs to stop
+  ERR_SEV_MEDIUM = 2,  //@alias Medium @description Something failed and a feature may not work
+  ERR_SEV_HIGH = 3,  //@alias High @description A significant failure; the board may need attention
+  ERR_SEV_CRITICAL = 4,  //@alias Critical @description The board must be made safe
+  ERR_SEV_DEFAULT = 0xFF,  //@alias Tag default @description The severity the error's tag declares
 } err_sev_e;
 
 typedef struct {
@@ -168,6 +167,12 @@ void err_free(err_h chain);
  * only (uses ESP_LOG). NULL is ignored.
  */
 void err_log(err_h chain);
+
+/**
+ * @brief Switches the log lines of chains (err_log, err_log_ctx, so also err_report) on or off; on at boot. A chain
+ * still reaches the sink and is freed: only the text stops. The level of the lines is ESP_LOG's own.
+ */
+void err_log_enable(bool on);
 
 /**
  * @brief err_log with a context line first (e.g. the command that failed),

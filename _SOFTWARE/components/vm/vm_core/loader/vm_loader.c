@@ -1,0 +1,292 @@
+#include "vm_loader.h"
+#include "vm_err.h"
+#include "vm_exec.h"
+#include "vm_sub.h"
+#include "vm_wire.h"
+#include "vm_retain.h"
+
+
+static vm_load_state_e s_state = VM_LOAD_EMPTY;
+
+static MUST_USE err_h require_state(vm_load_state_e want) {
+  if (s_state != want) {
+    return ERR_NEW(ERR_VM_LOAD_BAD_STATE, .state = (uint8_t)s_state, .expected = (uint8_t)want);
+  }
+  if (vm_exec_mode() != VM_RUN_STOPPED) {
+    return ERR_NEW(ERR_VM_LOAD_RUNNING, .mode = (uint8_t)vm_exec_mode());
+  }
+  return NULL;
+}
+
+/* Every stopped-loader mutation takes the same exclusive barrier as reset and
+   open. The first check avoids stopping a running program for a packet that is
+   invalid in that mode; the check of `previous` closes the race with a control
+   command arriving between the first check and barrier acquisition. */
+static MUST_USE err_h begin_stopped_mutation(vm_load_state_e want) {
+  ERR_TRY(require_state(want));
+
+  vm_run_mode_e previous;
+  ERR_TRY(vm_exec_program_lock(&previous));
+  if (previous != VM_RUN_STOPPED) {
+    vm_exec_program_unlock(previous);
+    return ERR_NEW(ERR_VM_LOAD_RUNNING, .mode = (uint8_t)previous);
+  }
+  if (s_state != want) {
+    vm_load_state_e actual = s_state;
+    vm_exec_program_unlock(VM_RUN_STOPPED);
+    return ERR_NEW(ERR_VM_LOAD_BAD_STATE, .state = (uint8_t)actual, .expected = (uint8_t)want);
+  }
+  return NULL;
+}
+
+static void end_stopped_mutation(void) {
+  vm_exec_program_unlock(VM_RUN_STOPPED);
+}
+
+err_h vm_loader_reset(void) {
+  vm_run_mode_e previous;
+  ERR_TRY(vm_exec_program_lock(&previous));
+  vm_retain_save_stopped();  // last values of the program going away
+  vm_exec_reset();
+  vm_sub_reset();
+  vm_store_reset();
+  vm_retain_on_reset();
+  s_state = VM_LOAD_EMPTY;
+  vm_exec_program_unlock(VM_RUN_STOPPED);
+  return NULL;
+}
+
+/* Fail closed: any failure while a program is being loaded throws the whole program away
+   (stopped, registries, arena, heap objects, subscriptions) instead of leaving a half-built
+   one behind. Nothing is rolled back piecemeal and nothing can be started from the remains:
+   the app has to upload the complete program again from open. */
+err_h vm_loader_abort(err_h cause, uint8_t packet) {
+  if (!cause) return NULL;
+  if (s_state == VM_LOAD_EMPTY) return cause;  // nothing loaded, nothing to discard: the cause says it all
+  err_report(vm_loader_reset());                // only fails from inside a pass (nothing was changed then)
+  return ERR_WRAP(cause, ERR_VM_LOAD_ABORTED, .packet = packet);
+}
+
+/* The registries are dense: open declared how many of each, and the program runs only when
+   every slot was uploaded. */
+err_h vm_loader_verify_complete(void) {
+  if (s_state != VM_LOAD_OPEN) return NULL;
+  for (int r = 0; r < VM_REG_CNT; r++) {
+    const vm_registry_t* g = &g_vm_store.reg[r];
+    for (uint16_t i = 0; i < g->count; i++) {
+      if (!g->items[i]) return ERR_NEW(ERR_VM_LOAD_INCOMPLETE, .kind = (uint8_t)r, .id = i);
+    }
+  }
+  return NULL;
+}
+
+err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint16_t blk_cnt, uint32_t total_size) {
+  vm_run_mode_e previous;
+  ERR_TRY(vm_exec_program_lock(&previous));
+  vm_retain_save_stopped();  // last values of the program being replaced
+
+  /* Fail closed: the previous program is gone from here on, whether or not the new one fits.
+     vm_store_open releases its pool before allocating the new one. */
+  vm_exec_reset();
+  vm_sub_reset();
+  const uint16_t counts[VM_REG_CNT] = {
+      [VM_REG_OBJ] = obj_cnt,
+      [VM_REG_ACC] = acc_cnt,
+      [VM_REG_BLK] = blk_cnt,
+  };
+  err_h e = vm_store_open(total_size, counts);
+  if (e) {
+    vm_retain_on_reset();
+    s_state = VM_LOAD_EMPTY;
+    vm_exec_program_unlock(VM_RUN_STOPPED);
+    return ERR_WRAP(e, ERR_VM_LOAD_ABORTED, .packet = 0x41);
+  }
+
+  vm_retain_on_open();
+  s_state = VM_LOAD_OPEN;
+  vm_exec_program_unlock(VM_RUN_STOPPED);
+  return NULL;
+}
+
+/* An ID from the wire names a slot of a registry. VM_ID_NONE is not one: to the store it means "allocate without
+   binding", which would build an item nothing can find and the completeness check never sees. */
+static MUST_USE err_h wire_id_check(vm_reg_e kind, uint16_t id) {
+  if (id == VM_ID_NONE) {
+    return ERR_NEW(ERR_VM_REG_OOB, .kind = (uint8_t)kind, .id = id, .count = g_vm_store.reg[kind].count);
+  }
+  return NULL;
+}
+
+static MUST_USE err_h add_obj_unlocked(uint16_t id, const vm_obj_head_t* head, const char* name) {
+  ERR_CHECK(head != NULL, ERR_VM_BAD_ARG);
+  ERR_TRY(wire_id_check(VM_REG_OBJ, id));
+
+  // Validate type before indexing width table
+  if (!vm_type_ok(head->d.obj_t)) {
+    return ERR_NEW(ERR_VM_OBJ_BAD_TYPE, .type = head->d.obj_t);
+  }
+
+  ERR_TRY(vm_retain_reserve(id, head));  // retentive: named, and fits the stored record
+
+  vm_obj_h obj = NULL;
+  ERR_TRY(vm_obj_create(&obj, id, head, head->d.name_size ? name : NULL));
+  return NULL;
+}
+
+err_h vm_loader_add_obj(uint16_t id, const vm_obj_head_t* head, const char* name) {
+  ERR_TRY(begin_stopped_mutation(VM_LOAD_OPEN));
+  err_h err = add_obj_unlocked(id, head, name);
+  end_stopped_mutation();
+  return err;
+}
+
+static MUST_USE err_h set_data_unlocked(uint16_t id, uint16_t start_idx, const uint8_t* data, uint16_t len) {
+  ERR_CHECK(data != NULL, ERR_VM_BAD_ARG);
+
+  vm_obj_h obj = vm_obj_get_by_id(id);
+  if (!obj) {
+    return ERR_NEW(ERR_VM_ACCESSOR_UNKNOWN_ID, .id = id);
+  }
+
+  uint16_t items = vm_obj_get_items_cnt(obj);
+
+  if ((vm_obj_t_e)obj->head.d.obj_t == VM_OBJ_PTR) {
+    // Child IDs, VM_OBJ_PTR_WIRE_SIZE bytes each, little-endian
+    if ((len % VM_OBJ_PTR_WIRE_SIZE) != 0) {
+      return ERR_NEW(ERR_VM_LOAD_DATA_RANGE, .id = id, .start_idx = start_idx, .len = len, .items = items);
+    }
+    uint16_t n = len / VM_OBJ_PTR_WIRE_SIZE;
+    if ((uint32_t)start_idx + n > items) {
+      return ERR_NEW(ERR_VM_LOAD_DATA_RANGE, .id = id, .start_idx = start_idx, .len = n, .items = items);
+    }
+    for (uint16_t i = 0; i < n; i++) {
+      uint16_t child_id;
+      memcpy(&child_id, data + (size_t)i * VM_OBJ_PTR_WIRE_SIZE, sizeof(child_id));
+      vm_obj_h child = vm_obj_get_by_id(child_id);
+      if (!child) {
+        return ERR_NEW(ERR_VM_ACCESSOR_UNKNOWN_ID, .id = child_id);
+      }
+      ERR_TRY(vm_obj_link_direct(obj, (uint16_t)(start_idx + i), child));
+    }
+    return NULL;
+  }
+
+  uint8_t w = vm_obj_get_type_size(obj);
+  if (w == 0 || (len % w) != 0) {
+    return ERR_NEW(ERR_VM_LOAD_DATA_RANGE, .id = id, .start_idx = start_idx, .len = len, .items = items);
+  }
+  uint16_t n = (uint16_t)(len / w);
+  if ((uint32_t)start_idx + n > items) {
+    return ERR_NEW(ERR_VM_LOAD_DATA_RANGE, .id = id, .start_idx = start_idx, .len = n, .items = items);
+  }
+
+  memcpy(obj->payload + (size_t)start_idx * w, data, len);
+  return NULL;
+}
+
+err_h vm_loader_set_data(uint16_t id, uint16_t start_idx, const uint8_t* data, uint16_t len) {
+  ERR_TRY(begin_stopped_mutation(VM_LOAD_OPEN));
+  err_h err = set_data_unlocked(id, start_idx, data, len);
+  end_stopped_mutation();
+  return err;
+}
+
+static MUST_USE err_h add_accessor_unlocked(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_count,
+                                   const uint8_t* idx_data, uint16_t idx_len) {
+  ERR_TRY(wire_id_check(VM_REG_ACC, acc_id));
+  vm_accessor_t* acc = NULL;
+  ERR_TRY(vm_accessor_create(&acc, acc_id, root_obj_id, idx_count));
+
+  /* Index steps are vm_wire_idx_*_t records back to back; `need` bounds each
+     one before it is copied out. */
+  size_t off = 0;
+#define NEED(n)                                                                                           \
+  do {                                                                                                    \
+    if (off + (n) > idx_len) {                                                                            \
+      return ERR_NEW(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = (uint16_t)(n), .got = (uint16_t)(idx_len - off)); \
+    }                                                                                                     \
+  } while (0)
+  for (uint8_t i = 0; i < idx_count; i++) {
+    NEED(1);
+    switch (idx_data[off]) {
+      case VM_IDX_LITERAL: {
+        vm_wire_idx_literal_t step;
+        NEED(sizeof(step));
+        memcpy(&step, idx_data + off, sizeof(step));
+        off += sizeof(step);
+        ERR_TRY(vm_accessor_set_literal(acc, i, step.value));
+        break;
+      }
+      case VM_IDX_REF: {
+        vm_wire_idx_ref_t step;
+        NEED(sizeof(step));
+        memcpy(&step, idx_data + off, sizeof(step));
+        off += sizeof(step);
+        // Target accessor must already exist to prevent reference cycles. The accessor being built is bound already,
+        // so it is left out by hand: a reference to itself would be a cycle.
+        vm_accessor_t* ref = step.acc_id == acc_id ? NULL : vm_accessor_get_by_id(step.acc_id);
+        if (!ref) {
+          return ERR_NEW(ERR_VM_REG_OOB, .kind = VM_REG_ACC, .id = step.acc_id, .count = g_vm_store.reg[VM_REG_ACC].count);
+        }
+        ERR_TRY(vm_accessor_set_ref(acc, i, ref));
+        break;
+      }
+      case VM_IDX_NAME: {
+        vm_wire_idx_name_t step;
+        NEED(sizeof(step));
+        memcpy(&step, idx_data + off, sizeof(step));
+        off += sizeof(step);
+        NEED(step.name_len);
+        ERR_TRY(vm_accessor_set_name(acc, i, (const char*)(idx_data + off), step.name_len));
+        off += step.name_len;
+        break;
+      }
+      default:
+        return ERR_NEW(ERR_VM_ACC_BAD_KIND, .acc_id = acc_id, .pos = i, .kind = idx_data[off]);
+    }
+  }
+#undef NEED
+  if (off != idx_len) {
+    return ERR_NEW(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = (uint16_t)off, .got = idx_len);
+  }
+
+  // Pre-resolve cache if root object is available
+  (void)vm_accessor_cache_build(acc);
+  return NULL;
+}
+
+err_h vm_loader_add_accessor(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_count, const uint8_t* idx_data,
+                             uint16_t idx_len) {
+  ERR_TRY(begin_stopped_mutation(VM_LOAD_OPEN));
+  err_h err = add_accessor_unlocked(acc_id, root_obj_id, idx_count, idx_data, idx_len);
+  end_stopped_mutation();
+  return err;
+}
+
+static MUST_USE err_h add_block_unlocked(uint16_t blk_id, const vm_block_cfg_t* cfg) {
+  ERR_CHECK(cfg != NULL, ERR_VM_BAD_ARG);
+  ERR_TRY(wire_id_check(VM_REG_BLK, blk_id));
+
+  // Validate block_type against the palette before allocating arena memory
+  ERR_TRY(vm_exec_check_block_type(blk_id, cfg->block_type));
+
+  vm_block_h blk = NULL;
+  ERR_TRY(vm_block_create(&blk, blk_id, cfg));
+  return NULL;
+}
+
+err_h vm_loader_add_block(uint16_t blk_id, const vm_block_cfg_t* cfg) {
+  ERR_TRY(begin_stopped_mutation(VM_LOAD_OPEN));
+  err_h err = add_block_unlocked(blk_id, cfg);
+  end_stopped_mutation();
+  return err;
+}
+
+
+vm_load_state_e vm_loader_state(void) {
+  return s_state;
+}
+
+uint32_t vm_loader_used(void) {
+  return vm_store_used();
+}

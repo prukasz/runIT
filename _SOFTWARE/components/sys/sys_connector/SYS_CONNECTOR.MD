@@ -19,7 +19,6 @@ Component `components/sys/sys_connector/`. A **connector** is a logical outbound
 |---|---|
 | `sys_connector.h` | IDs (`//#ref-enum`), stream bytes, provider ops, API, error tags |
 | `sys_connector.c` | Registry, providers, bindings, queue + connector task |
-| `sys_connector_log.c` | Log capture (`esp_log_set_vprintf` hook) |
 | `sys_connector_router.c/.h` | `conn` router (`ROUTER_KEY_CONN` = 0x04) |
 | `Kconfig` | Slots, bindings, providers, frame max, queue, task, log line max |
 
@@ -45,7 +44,7 @@ Component `components/sys/sys_connector/`. A **connector** is a logical outbound
 
 ## Logs stream
 
-`sys_connector_capture_logs(SYS_CONNECTOR_LOGS)`: every ESP_LOG line still goes to the console, and also (ANSI colours and line end stripped, cut to `CONFIG_SYS_CONNECTOR_LOG_LINE_MAX` = 160) to the logs connector. Skipped: lines from ISRs, before the scheduler runs, and from the connector task itself. Formatted on the logging task's stack (line buffer + `vsnprintf`). Log version 1 (`CONFIG_LOG_VERSION_1`): one `vprintf` per line.
+Filled by `sys_log` (SYS_LOG.MD, `sys_log_init(SYS_CONNECTOR_LOGS)`), which owns the ESP_LOG hook (moved out of the connector 2026-10-10, with its options and the line buffer `CONFIG_SYS_LOG_LINE_MAX`). The connector only exports `sys_connector_is_task()` so the hook can skip the connector task's own lines.
 
 ## Remote (`sys_connector_router`, root key `ROUTER_KEY_CONN` = 0x04)
 
@@ -70,7 +69,7 @@ Example — VM temperature stream to a user BLE characteristic (created with the
 - Async send through one queue + task (legacy sent synchronously in the producer's task).
 - Provider IDs = transport IDs (`transport_e`), not Kconfig; connector IDs plain enum values (logs 0, errors 1, telemetry 2, events 3, user from 4; legacy had interface 3, user from 4).
 - No per-connector `max_frame`; one frame cap `CONFIG_SYS_CONNECTOR_FRAME_MAX`.
-- The error sink and log capture live here / in `main` instead of `runit_board_error_sink_init`.
+- The error sink and log capture live here / in `runit` (`runit_error_policy.c`) instead of `runit_board_error_sink_init`.
 - Settings class `0x06` → `conn` router.
 
 ## Open

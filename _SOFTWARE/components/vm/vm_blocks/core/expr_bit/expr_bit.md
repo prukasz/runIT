@@ -1,0 +1,21 @@
+# Bit expression
+
+Like **Expression**, but on whole numbers (unsigned 32-bit) and with bit operations.
+
+## What is available
+
+`and`, `or`, `xor`, `not`, shifts left and right (logical and arithmetic), rotate left and right, **get / set / clear / toggle bit n**, population count, count leading and trailing zeros and byte swap. Constants are stored with the block.
+
+## Pins
+
+| Pin | Meaning |
+|---|---|
+| Inputs (any number) | Read by the formula by index. |
+| Result | The value (an unsigned 32-bit number), written to output 0. |
+| ENO | On for the pass the result was written. |
+
+## Behaviour
+
+The formula is checked once at load, exactly as for **Expression**: an invalid formula rejects the whole program. It runs when one of its inputs is fresh, or on each pass an enable fires, and the block is enabled.
+
+Examples: *bit 3 of a*, *(a shifted left by 4) or b*, *number of bits set in a*.

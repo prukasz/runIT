@@ -1,24 +1,22 @@
 # sys_event — events (for agents)
 
-Component `components/sys/sys_event/`. One publisher, any number of listeners: a source (a device, later the power manager) publishes what happened and doesn't know who listens. Three ways out of `sys_event_publish`: the **events connector** (events that matter to the user), **C listeners** (inline or queued; target a device or a function) and **rules** (remote: event → action). Replaces legacy `sys_event` (domain enum, u8 device IDs, route slots, static / dynamic action IDs, class `0x09`).
+Component `components/sys/sys_event/`. One publisher, any number of listeners: a source (a device, later the power manager) publishes what happened and doesn't know who listens. Two ways out of `sys_event_publish`: the **events connector** (only the NOTIFY events: the ones that matter to the user) and **C listeners** (inline or queued; target a device or a function). What a user wants done on an event, or sent to the app, is the VM's job (`ON_EVENT` block): the remote rules (event → action) and watches (event → stream) were removed 2026-10-11. Replaces legacy `sys_event` (domain enum, u8 device IDs, route slots, static / dynamic action IDs, class `0x09`).
 
 ## Files
 
 | File | Role |
 |---|---|
-| `sys_event.h` | `sys_event_t`, event IDs and tables, `SYS_EVENT_PUBLISH`, the EVENT contract (`ON_EVENT`), C API, rules API, error tags |
-| `sys_event.c` | Table (subscriptions + rules), publish, notify, event task |
-| `sys_event_router.c/.h` | `events` router (`ROUTER_KEY_EVENTS` = 0x07): rules, test publish |
-| `Kconfig` | Subscriptions, rules, queue, hops, task |
+| `sys_event.h` | `sys_event_t`, event IDs and tables, `SYS_EVENT_PUBLISH`, the EVENT contract (`ON_EVENT`), C API, error tags |
+| `sys_event.c` | Subscription table, publish, notify, event task |
+| `Kconfig` | Subscriptions, queue, task |
 
 ## Event
 
 ```c
-typedef struct __attribute__((packed)) {  // 15 B
+typedef struct __attribute__((packed)) {  // 14 B
   uint16_t source;   // device ID
   uint16_t event;    // SYS_EVENT_ID(contract, n) = [contract u8][n u8], like ops
   uint8_t  channel;  // pin / channel, 0 when none
-  uint8_t  hops;     // republish depth
   uint8_t  flags;    // SYS_EVENT_NOTIFY
   int32_t  value;    // level, mV, mA ... per event
   uint32_t t_ms;     // set by sys_event_publish (esp_timer)
@@ -26,8 +24,8 @@ typedef struct __attribute__((packed)) {  // 15 B
 ```
 
 - **Event IDs belong to contracts**: a contract lists its events next to its ops, `X(NAME, n, flags)` (`SYS_IO_EVENTS` in `sys_io.h` → `IO_EV_FALLING` = `0x0101`, `IO_EV_FALLING_FLAGS`). A device's own events are `0xFFxx`. No central domain enum. n `0xFF` is never used (wildcard).
-- **`SYS_EVENT_NOTIFY`** in the table = an event that matters to the user (over-current, a fault), not one that only drives code (an edge, an alert pin). `SYS_EVENT_PUBLISH(PFX, NAME, src, ch, val, cause)` takes the flags from the table, so a publisher can't get them wrong.
-- **Hops**: a listener that publishes because of an event sets `.hops = SYS_EVENT_CAUSED_BY(cause)` (`SYS_EVENT_PUBLISH` does); at `CONFIG_SYS_EVENT_MAX_HOPS` (4) the event is dropped with `ERR_EVENT_LOOP`.
+- **`SYS_EVENT_NOTIFY`** in the table = an event that matters to the user (over-current, a fault), not one that only drives code (an edge, an alert pin). `SYS_EVENT_PUBLISH(PFX, NAME, src, ch, val)` takes the flags from the table, so a publisher can't get them wrong.
+- **No loop guard** (hops removed 2026-10-11): a listener that republishes (TCA6424A, TPS55289, INA3221 on their INT / alert pin) subscribes to one exact source and channel, and that pin's device exists before it (`sys_device_use`), so a chain of republishes is finite (pin of the ESP → TCA → TPS → power manager) and can't close into a cycle. Keep that rule for a new republisher. The VM (queued) guards itself against reacting to what it published.
 
 | Contract | Events | Flags |
 |---|---|---|
@@ -37,16 +35,16 @@ typedef struct __attribute__((packed)) {  // 15 B
 
 `sys_event_publish(&ev)`:
 
-1. `hops >= MAX_HOPS` → `ERR_EVENT_LOOP`. `t_ms` is set.
-2. **NOTIFY → events connector** (`SYS_CONNECTOR_EVENTS` = 3, stream `0x06`), first: whatever the listeners do next (an action stopping the board), the cause is already out. Record (13 B): `[source u16][event u16][channel u8][value i32][t_ms u32]`. A full connector queue drops it silently (like the errors stream).
+1. `t_ms` is set.
+2. **NOTIFY → events connector** (`SYS_CONNECTOR_EVENTS` = 3, stream `0x06`), first: whatever the listeners do next (an action stopping the board), the cause is already out. Frame in the command shape (like the VM telemetry, VM_CORE.MD): `[ROUTER_KEY_EVENT 0x07][SYS_EVENT_OP_NOTIFY 0x01]` and the event itself, `sys_event_t` (14 B, layout above: `[source u16][event u16][channel u8][flags u8][value i32][t_ms u32]`). Key 0x07 has no router: it only names the frame, so an app decoder reads it with its `[key][op][struct]` table. A full connector queue drops it silently (like the errors stream).
 3. Inline listeners, table order.
-4. One copy queued if a queued listener or a rule matches (`ERR_EVENT_QUEUE_FULL` otherwise).
+4. One copy queued if a queued listener matches (`ERR_EVENT_QUEUE_FULL` otherwise).
 
-**`sys_event_post(&ev)`** (2026-10-10) defers everything the same way from a task: for background tasks an op may wait for (GPIO ESP's ADC task), so no listener ever runs in them (SYS_DEVICE.MD "Concurrency"). Queue full → `ERR_EVENT_QUEUE_FULL` to the caller.
+**`SYS_EVENT_DEFER`** (flag 0x02, set by the publisher, 2026-10-11; replaces `sys_event_post`) defers everything the same way from a task: for background tasks an op may wait for (GPIO ESP's ADC task), so no listener ever runs in them (SYS_DEVICE.MD "Concurrency"). Queue full → `ERR_EVENT_QUEUE_FULL` to the caller.
 
 **From an ISR** everything is deferred: the event is queued and the task does notify, inline, then queued. An ISR never gets an error; a drop is counted and reported by the task (`ERR_EVENT_QUEUE_FULL {source 0xFFFF, dropped n}`).
 
-Listener errors are wrapped in `ERR_EVENT_DELIVERY {source, event, channel, rule, device}` and reported; the other listeners still run; nothing returns to the publisher.
+Listener errors are wrapped in `ERR_EVENT_DELIVERY {source, event, channel, device}` and reported; the other listeners still run; nothing returns to the publisher.
 
 ## C listeners
 
@@ -61,49 +59,37 @@ ERR_TRY(sys_event_subscribe(&(sys_event_sub_t){
 ```
 
 - **Match**: `source` exact or `SYS_EVENT_ANY_SOURCE` (0xFFFF); `event` exact, `SYS_EVENT_ANY_EVENT` (0xFFFF) or `(contract << 8) | SYS_EVENT_ANY_IN` (any event of a contract); `channel` exact or `SYS_EVENT_ANY_CHANNEL` (0xFF).
+- **Match function**: `sys_event_matches(source, event, channel, &event)` is the rule above as a function, for code that filters events itself (the VM's ON_EVENT block); the subscription table uses the same one.
 - **Inline** (`inline_call`): in the publisher's task before publish returns. May block on I/O (I2C), never on a delay or timeout. **Queued**: the event task (prio 6: above router work, below urgent).
-- **Target device** (`device` ≠ `SYS_DEVICE_ID_NONE`): `sys_device_call(device, EVENT_OP_ON_EVENT, &ev)` — the EVENT contract (`SYS_DEVICE_CONTRACT_EVENT` = 0x03, `EVENT_HANDLER(ON_EVENT)` / `EVENT_ENTRY(ON_EVENT)`, args = `sys_event_t`). A removed device answers `ERR_DEV_NOT_FOUND`: no dangling context, and the registry mutex keeps a delivery and REMOVE apart.
+- **Target device** (`device` ≠ `SYS_DEVICE_ID_NONE`): `sys_device_call(device, EVENT_OP_ON_EVENT, &ev)` — the EVENT contract (`SYS_DEVICE_CONTRACT_EVENT` = 0x03, one op `EVENT_OP_ON_EVENT` = 0x0300, no X-macro table; `EVENT_HANDLER(ON_EVENT)` / `EVENT_ENTRY(ON_EVENT)`, args = `sys_event_t`). A removed device answers `ERR_DEV_NOT_FOUND`: no dangling context, and the registry mutex keeps a delivery and REMOVE apart.
 - **Target fn** (`device` = `SYS_DEVICE_ID_NONE`): `fn(ev, ctx)`. Only for modules that live forever (VM, power manager): the table is copied out under a spinlock and called without it, so an unsubscribe doesn't wait for a delivery in progress.
 - `CONFIG_SYS_EVENT_MAX_SUBS` (32) slots; the handle is the slot; `ERR_EVENT_TABLE_FULL`.
 
-## Rules (remote)
+## The app
 
-A rule = "event → action", made by the app, always queued. Its own table (`CONFIG_SYS_EVENT_MAX_RULES` 16), so rules never take a device's slot and a remote command can't touch a C listener.
+The app gets exactly the NOTIFY events, nothing to configure: the contract's events table decides which events matter to the user (a fault, an over-current), not the app. An event without NOTIFY (a pin edge, an alert pin) reaches the app only if a program sends it (VM: `ON_EVENT` → a send block). Watches (a remote "send me these events" filter table) were tried and removed 2026-10-11: a second path to the app next to the program, for the same need.
 
-- ID 1..254 chosen by the client; SUBSCRIBE with an existing ID replaces that rule (the stored project replays to the same IDs).
-- Fired: `runner(action, urgent)` — the app sets the runner (`sys_event_set_action_runner(sys_actions_request)` in `main`), so `sys_event` doesn't know `sys_actions`. The action is injected as a RUN frame on the router's internal link: it runs on a router task, its errors go to the errors stream with link 0 and the request `06 01 <id>` (SYS_ACTIONS.MD). No runner → `ERR_EVENT_NO_RUNNER`.
-- The event's value doesn't reach the action (actions are fixed frames).
+## Remote
 
-## Remote (`sys_event_router`, root key `ROUTER_KEY_EVENTS` = 0x07)
-
-`rule` = `{u8 id, u16 source, u16 event, u8 channel, u8 action, u8 flags}` (8 B), flags bit 0 = the action runs urgent.
-
-| Op | Request | Response |
-|---|---|---|
-| `0x01` SUBSCRIBE | rule | – (same ID: replaced) |
-| `0x02` UNSUBSCRIBE | `u8 id` (0xFF = every rule) | – |
-| `0x03` LIST | `u8 start` | `u8 total`, then rules by ascending ID from `start`, as many as fit |
-| `0x04` PUBLISH | `u16 source, u16 event, u8 channel, i32 value, u8 flags` | – (a first-hand event: tests a rule or the notify stream without hardware) |
-
-Example — GPIO 4 of device 0 falls → action 1: `07 01 01 00 00 01 01 04 01 00`.
+None. The app gets the NOTIFY events on the events stream and nothing else; there is no router (the test PUBLISH op was removed 2026-10-11; key 0x07 only names the frame). The notify path is checked on the board with real faults.
 
 ## Errors (`ERR_MOD_SYS_EVENT` = 9)
 
-`ERR_EVENT_LOOP {source, event, hops}` MEDIUM, `_QUEUE_FULL {source, event, dropped}` LOW, `_TABLE_FULL` MEDIUM, `_NOT_FOUND {id}` MEDIUM, `_BAD_ARG` HIGH, `_BAD_ID {id}` HIGH (rule 0 / 0xFF), `_NO_RUNNER {action}` MEDIUM, `_DELIVERY {source, event, channel, rule, device}` NONE (context).
+`ERR_EVENT_QUEUE_FULL {source, event, dropped}` LOW, `_TABLE_FULL` MEDIUM, `_NOT_FOUND {id}` MEDIUM, `_BAD_ARG` HIGH, `_DELIVERY {source, event, channel, device}` NONE (context). Tags 1 (`LOOP`, hops), 6 (`BAD_ID`, watches) and 7 (`NO_RUNNER`, rules) are retired.
 
 ## Changes from legacy (`legacy/components/system/sys_event`)
 
 - Event IDs per contract (op layout) instead of `sys_event_domain_e` + per-domain enums; u16 source.
 - Device listeners by ID through the EVENT contract instead of raw `ctx` pointers.
-- Rules: one action ID per rule, run through the router (link 0) instead of static + dynamic action IDs run in the event task; rule IDs chosen by the client instead of returned; own table.
+- No remote actions: legacy subscriptions with static / dynamic action IDs (and the rules that briefly replaced them) are gone; the VM's `ON_EVENT` + `ACTION` blocks do that. No remote event config at all: the app gets the NOTIFY events.
 - No route slots: the VM subscribes its own fn listener.
 - Notify stream (new): `SYS_EVENT_NOTIFY` events on connector 3 / stream 0x06; user connectors moved to 4+.
-- Class `0x09` → `events` router.
+- Class `0x09` (rules, subscriptions) gone with no router in its place.
 
 ## Open
 
-- **VM listeners (decide before the VM port):** a fn listener called inline from a device op runs under the device lock. If the VM holds its own mutex while calling devices and its inline listener waits for that mutex, the two deadlock. Either the VM's listeners are always queued, or the VM never calls a device while holding its own lock.
+- **VM (decided 2026-10-11, done at the VM port):** one queued fn subscription (any / any / any) whose fn is a pre-filter: an event enters the VM's per-pass buffer only if it matches one of the loaded program's `ON_EVENT` filters, with the same `matches()` the block uses; the block keeps its own query. Queued, so the VM never runs inside a device op (the deadlock with the device lock can't happen). `ON_EVENT` filter = `source u16 / event u16 / channel` (legacy: domain / u8 device). The power manager decides the system response to power events (SYS_POWER_MANAGER.MD); the VM does the user's logic where that response is NOTIFY.
 
-- Publishers (2026-10-10, not run on the board): GPIO ESP CONFIGURE_INTR (pin edges from the ISR, ADC thresholds from the ADC task) and TPS55289 (an inline device-target listener on its FB/INT pin that republishes `VREG_EV_*`). Not yet: the other chips with alert pins, the power manager. Only PUBLISH → rules / notify has been run (QEMU).
-- A pin edge is code flow by default (flags 0); a user's button might deserve a notify — e.g. a notify bit in CONFIGURE_INTR, decided by whoever arms the pin.
+- Publishers (not run on the board): GPIO ESP CONFIGURE_INTR (pin edges from the ISR, ADC thresholds from the ADC task), TPS55289, INA3221 and TCA6424A (inline device-target listeners on their INT / alert pins that republish), the power manager. Only PUBLISH → rules / notify has been run (QEMU, before the rules were removed).
+- A pin edge is code flow (flags 0); an app that wants to see a button needs a program that sends it.
 - No repeat suppression on the notify stream (same open point as the errors stream).

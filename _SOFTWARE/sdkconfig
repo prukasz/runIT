@@ -909,13 +909,6 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
-# runIT
-#
-# default:
-CONFIG_RUNIT_BLE_START=y
-# end of runIT
-
-#
 # Compiler options
 #
 CONFIG_COMPILER_OPTIMIZATION_DEBUG=y
@@ -3506,6 +3499,8 @@ CONFIG_SYS_ACTIONS_PARTITION="project"
 # default:
 CONFIG_SYS_ACTIONS_MAX_BYTES=4096
 # default:
+CONFIG_SYS_ACTIONS_MAX_BYTES_DEVICE=512
+# default:
 CONFIG_SYS_ACTIONS_MAX_DEPTH=3
 # end of sys_actions
 
@@ -3545,8 +3540,6 @@ CONFIG_SYS_CONNECTOR_QUEUE_SIZE=4096
 CONFIG_SYS_CONNECTOR_TASK_PRIO=4
 # default:
 CONFIG_SYS_CONNECTOR_TASK_STACK=4096
-# default:
-CONFIG_SYS_CONNECTOR_LOG_LINE_MAX=160
 # end of sys_connector
 
 #
@@ -3558,6 +3551,8 @@ CONFIG_SYS_DEVICE_MAX=64
 CONFIG_SYS_DEVICE_TYPES=16
 # default:
 CONFIG_SYS_DEVICE_MAX_DEPS=4
+# default:
+CONFIG_SYS_DEVICE_GUARDS=2
 # end of sys_device
 
 #
@@ -3566,11 +3561,7 @@ CONFIG_SYS_DEVICE_MAX_DEPS=4
 # default:
 CONFIG_SYS_EVENT_MAX_SUBS=32
 # default:
-CONFIG_SYS_EVENT_MAX_RULES=16
-# default:
 CONFIG_SYS_EVENT_QUEUE_LEN=16
-# default:
-CONFIG_SYS_EVENT_MAX_HOPS=4
 # default:
 CONFIG_SYS_EVENT_TASK_PRIO=6
 # default:
@@ -3619,6 +3610,43 @@ CONFIG_SYS_I2C_BUS1_PULLUP=y
 # end of sys_i2c
 
 #
+# sys_log
+#
+# default:
+CONFIG_SYS_LOG_LINE_MAX=160
+# end of sys_log
+
+#
+# sys_power_manager
+#
+# default:
+CONFIG_SYS_POWER_MANAGER_TASK_STACK=4096
+# default:
+CONFIG_SYS_POWER_MANAGER_TASK_PRIO=4
+# default:
+CONFIG_SYS_POWER_MANAGER_PERIOD_MS=1000
+# default:
+CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS=4
+# default:
+CONFIG_SYS_POWER_MANAGER_BUDGET_STEP_MW=250
+# default:
+CONFIG_SYS_POWER_MANAGER_INPUT_WARNING_PCT=90
+# default:
+CONFIG_SYS_POWER_MANAGER_BATTERY_HYSTERESIS_PCT=3
+# end of sys_power_manager
+
+#
+# sys_project
+#
+# default:
+CONFIG_SYS_PROJECT_MAX_BYTES=65536
+# default:
+CONFIG_SYS_PROJECT_MAX_SECTIONS=40
+# default:
+CONFIG_SYS_PROJECT_MAX_CHUNKS=32
+# end of sys_project
+
+#
 # sys_uart
 #
 # default:
@@ -3641,6 +3669,86 @@ CONFIG_DEVICE_GPIO_ESP_PWM_CHANNEL_MASK=0xFF
 # default:
 CONFIG_DEVICE_GPIO_ESP_DEBOUNCE_MS=50
 # end of Device: ESP32 native GPIO
+
+#
+# VM Configuration
+#
+
+#
+# VM Execution & Scheduling
+#
+# default:
+CONFIG_VM_EXEC_TASK_PRIO=5
+# default:
+CONFIG_VM_EXEC_TASK_CORE=1
+# default:
+CONFIG_VM_EXEC_MAX_SPAN_DEPTH=4
+# default:
+CONFIG_VM_EXEC_BLOCK_WD_MS=20
+# default:
+CONFIG_VM_EVENT_DEPTH=16
+# default:
+CONFIG_VM_OVERRIDE_BUF_SIZE=1024
+# end of VM Execution & Scheduling
+
+#
+# VM Retained Values
+#
+# default:
+CONFIG_VM_RETAIN_PERIOD_S=60
+# default:
+CONFIG_VM_RETAIN_MAX_BYTES=1024
+# default:
+CONFIG_VM_RETAIN_TASK_STACK=3072
+# default:
+CONFIG_VM_RETAIN_TASK_PRIO=2
+# end of VM Retained Values
+
+#
+# VM Block & Memory Limits
+#
+# default:
+CONFIG_VM_BLOCK_MAX_IN=16
+# default:
+CONFIG_VM_BLOCK_MAX_OUT=16
+# default:
+CONFIG_VM_BLOCK_MAX_EN=16
+# default:
+CONFIG_VM_STORE_MAX_POOL=131072
+# default:
+CONFIG_VM_ACCESSOR_MAX_DEPTH=8
+# default:
+CONFIG_VM_OBJ_COPY_MAX_DEPTH=8
+# default:
+CONFIG_VM_DYN_MAX=128
+# default:
+CONFIG_VM_DYN_MAX_DEPTH=16
+# default:
+CONFIG_VM_SUB_MAX_SUBSCRIBERS=128
+# default:
+CONFIG_VM_SUB_MAX_FRAME_LEN=512
+# default:
+CONFIG_VM_SUB_MAX_TRACKED=256
+# end of VM Block & Memory Limits
+# end of VM Configuration
+
+#
+# runIT
+#
+# default:
+CONFIG_RUNIT_BLE_START=y
+# default:
+CONFIG_RUNIT_ONBOARD_DEVICES=y
+
+#
+# Onboard action IDs
+#
+# default:
+CONFIG_RUNIT_ACTION_ID_RESUME=3
+# default:
+CONFIG_RUNIT_ACTION_ID_SUSPEND=4
+# end of Onboard action IDs
+# end of runIT
 # end of Component config
 
 # CONFIG_IDF_EXPERIMENTAL_FEATURES is not set

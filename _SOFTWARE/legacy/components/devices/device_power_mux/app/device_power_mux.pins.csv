@@ -1,7 +1,0 @@
-pin,name,kind,dir,modes,default_mode,group,mV_min,mV_max,bind_pin,cfg_field,note
-1,GND,gnd,in,,,power,,,,,Ground
-2,VIN_A,supply_in,in,,,power,2700,23000,,,Input of source A (anode of its ideal diode)
-3,VIN_B,supply_in,in,,,power,2700,23000,,,Input of source B (anode of its ideal diode)
-4,VOUT,supply_out,out,,,power,2700,23000,,,Common output to the load (cathodes of both ideal diodes)
-5,EN_A,io,in,BINARY,BINARY,control,,,,en_a_pin,Switches source A on at the enable level
-6,EN_B,io,in,BINARY,BINARY,control,,,,en_b_pin,Switches source B on at the enable level

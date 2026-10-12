@@ -1,7 +1,5 @@
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
 #include "cmd.h"
 #include "errors.h"
 #include "router_ids.h"
@@ -41,11 +39,13 @@ extern "C" {
  *              its error chain together, so the error can be tracked alone
  * ------------------------------------------------------------------------- */
 
-#define ROUTER_FLAG_URGENT 0x01u  // run on the urgent task, next to (not behind) normal frames
+//#ref-defines router_flag @alias Request Flags @prefix ROUTER_FLAG_
+#define ROUTER_FLAG_URGENT 0x01u  //@alias Urgent @description Run on the urgent task, next to (not behind) normal frames
 
+//#ref-enum @alias Response Status
 typedef enum {
-  ROUTER_STATUS_OK = 0,
-  ROUTER_STATUS_ERROR = 1,
+  ROUTER_STATUS_OK = 0,  //@alias OK @description The command succeeded; the answer's data follows
+  ROUTER_STATUS_ERROR = 1,  //@alias Error @description The command failed; the answer's data is the error record
 } router_status_e;
 
 /* ----------------------------------------------------------------------------
@@ -84,12 +84,14 @@ ERR_TAGS_DECLARE(ERR_ROUTER_MAP)
  * buffer is small; the chain gets the rest (its own truncated bit).
  * ------------------------------------------------------------------------- */
 
+//#ref-enum @alias Error Record Source
 typedef enum {
-  ROUTER_ERR_SRC_INTERNAL = 0,  // no request (task, timer, boot); later a device ID / task may follow
-  ROUTER_ERR_SRC_COMMAND = 1,   // raised while running a command
+  ROUTER_ERR_SRC_INTERNAL = 0,  //@alias Internal @description no request (task, timer, boot); later a device ID / task may follow
+  ROUTER_ERR_SRC_COMMAND = 1,  //@alias Command @description raised while running a command
 } router_err_src_e;
 
-#define ROUTER_ERR_REQ_CUT 0x80u  // req_len bit 7
+//#ref-defines router_err_flag @alias Error Record Flags @prefix ROUTER_ERR_
+#define ROUTER_ERR_REQ_CUT 0x80u  //@alias Request cut @description Bit 7 of the request length: the request was cut to fit, more of it was sent
 
 /**
  * @brief The command an error belongs to.
@@ -307,6 +309,16 @@ void router_set_tap(const router_tap_t* tap);
  */
 const router_cmd_t* router_origin(void);
 
+/**
+ * @brief Sends the first `len` bytes of `out` — the buffer the calling op got — as an extra OK answer to the command
+ * being routed (same seq, same link and peer), before the op's own answer. For a command that answers with several
+ * packets (an action read back frame by frame): the op sends all but the last this way and returns the last as its
+ * answer. The client matches them by seq and knows the count itself. Inside a replay (an action running the op) `out`
+ * is not the dispatcher's buffer and nothing is sent, like any answer there. Router tasks only.
+ * @return ERR_CMD_BAD_ARG outside a router task. A link that fails to send is reported, not returned.
+ */
+MUST_USE err_h router_answer_part(const uint8_t* out, uint32_t len);
+
 /* ----------------------------------------------------------------------------
  * Safe state and dead-man
  *
@@ -314,10 +326,11 @@ const router_cmd_t* router_origin(void);
  * VM stop, devices suspended). It runs on the urgent task.
  * ------------------------------------------------------------------------- */
 
+//#ref-enum @alias Safe State Reason
 typedef enum {
-  ROUTER_SAFE_STOP = 1,       // sys STOP command
-  ROUTER_SAFE_DEADMAN = 2,    // no frame within the dead-man timeout
-  ROUTER_SAFE_LINK_LOST = 3,  // router_link_lost with on_link_lost set
+  ROUTER_SAFE_STOP = 1,  //@alias Stop @description sys STOP command
+  ROUTER_SAFE_DEADMAN = 2,  //@alias Deadman @description no frame within the dead-man timeout
+  ROUTER_SAFE_LINK_LOST = 3,  //@alias Link lost @description router_link_lost with on_link_lost set
 } router_safe_reason_e;
 
 typedef void (*router_safe_state_f)(router_safe_reason_e reason);

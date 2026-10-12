@@ -8,7 +8,7 @@ Decoder: `components/codecs/decoders/dec_vm_loader.h` (framing and bounds only; 
 |---|---|---|
 | `0x40` reset | — | `vm_loader_reset()`: stop and wait for the pass, clear exec/subscriptions/dynamic objects/registries/arena; leaves execution stopped |
 | `0x41` open | `u16 obj_cnt, u16 acc_cnt, u16 blk_cnt, u32 total_size` | Tear the old program down (fail closed: it is gone even if this fails), then allocate a new pool of exactly `total_size` (checked against `CONFIG_VM_STORE_MAX_POOL` and the largest free DRAM block) and build the three registries |
-| `0x42` add objects | `u8 n`, n × `{u16 id, vm_obj_head_t (4 B, raw ESP32-GCC bitfield ABI), char name[head.d.name_size]}` | Create + bind; name unterminated, ≤ 15 B |
+| `0x42` add objects | `u8 n`, n × `{u16 id, vm_wire_head_t (4 B, explicit layout: u16 payload_size, u8 type\|name_len<<4, u8 flags; vm_wire.h), char name[head.d.name_size]}` | Create + bind; name unterminated, ≤ 15 B |
 | `0x43` set data | `u8 n`, n × `{u16 id, u16 start_idx, u16 byte_len, u8 data[byte_len]}` | Stopped: write payload (for `PTR`: `data` = `u16` child ids, linked). **Running: queued as a runtime override**, applied at the next pass boundary; `PTR` targets refused (`ERR_VM_OVERRIDE_PTR_UNSUPPORTED`) |
 | `0x44` add accessors | `u8 n`, n × `{u16 acc_id, u16 root_obj_id, u8 idx_count, u8 idx_len, u8 idx_data[idx_len]}`; index = `u8 kind` + `LITERAL u32` / `REF u16 acc_id` / `NAME u8 len, bytes` | Create + bind + pre-resolve (cache) |
 | `0x45` add block | one block: `u16 blk_id, u16 block_idx, u8 type, u8 in_cnt, u8 q_cnt, u8 en_cnt, u8 en_mode, u8 on_error, u16 custom_len, u16 eno_obj_id` (14 B), then `in_cnt × u16` accessor ids (`0xFFFF` = unwired), `q_cnt × u16` object ids, `en_cnt × u16` accessor ids, `custom_len` bytes | Type must be in the palette; every reference must be bound; the type's verify runs, and a rejected block is removed again |
@@ -27,7 +27,7 @@ Pin and list limits: `in_cnt`, `q_cnt`, `en_cnt` ≤ 16 (`CONFIG_VM_BLOCK_MAX_*`
 
 ```
 [0x02 telemetry stream][0x04][0x43][u8 count] count × {u16 id, u16 start_idx, u16 byte_len, data}   values
-[0x02 telemetry stream][0x04][0x42][u8 count] count × {u16 id, vm_obj_head_t (4 B), name}            heap objects
+[0x02 telemetry stream][0x04][0x42][u8 count] count × {u16 id, vm_wire_head_t (4 B), name}            heap objects
 ```
 
 - The stream byte `0x02` is the telemetry connector's; the inner `0x04 0x43` / `0x04 0x42` let the app reuse its upload parsers.

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
 #include "driver/gpio.h"
 #include "esp_adc/adc_cali.h"
 #include "freertos/FreeRTOS.h"

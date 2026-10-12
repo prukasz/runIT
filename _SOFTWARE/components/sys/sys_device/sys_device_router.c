@@ -1,6 +1,7 @@
 #include "sys_device_router.h"
 #include "sys_device.h"
 
+//@dispatch device After the key: [device id u16][op u16][args]; the ops are the device_contracts of the catalog
 // After the root key: [id u16][op u16][args].
 #define IN_ID 0u
 #define IN_OP 2u

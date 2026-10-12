@@ -28,7 +28,7 @@ response  [0x05][seq][status][data]        (CONFIG_ROUTER_RESPONSE_STREAM)
 
 ## Error record
 
-`router_err_record(cmd, err, buf, cap)` (`router_err.c`). Used for every error response and, through the error sink in `main`, for every record on the errors stream (SYS_CONNECTOR.MD).
+`router_err_record(cmd, err, buf, cap)` (`router_err.c`). Used for every error response and, through the error sink in `runit` (RUNIT.MD), for every record on the errors stream (SYS_CONNECTOR.MD).
 
 ```
 [src u8]                                    0 internal (no request), 1 command
@@ -91,6 +91,8 @@ link RX task ── router_submit(link, peer, frame) ──► copy into ring bu
 - **Tap** `router_set_tap(&{take, seen})` (boot, by the app; one): `take(cmd)` runs before routing — true = answered OK with no data and not routed; `seen(cmd, result)` after routing a frame that wasn't taken. Both run on the routing task, for every link. Used by the actions recorder (SYS_ACTIONS.MD).
 - **Origin** `router_origin()`: the command the calling task is routing (link, peer, request), NULL outside the router tasks; inside a replay it is still the outer command. Lets an op know who sent it (RECORD_START records that client).
 
+- **More than one answer** `router_answer_part(out, len)`: sends the first `len` bytes of the op's own `out` buffer as an extra OK answer (same `seq`, link and peer) before the op returns. A command that answers with several packets sends all but the last this way and returns the last (actions READ: one packet per recorded frame). The client matches by `seq` and knows the count; an error answer ends the series. Inside a replay (an action running the op) nothing is sent: answers there are dropped. The count and meaning are the op's, the router only carries the packets.
+
 ## Safe state and dead-man
 
 - `router_set_safe_state(fn)`: the app's handler (VM stop, devices suspended — the app knows what "safe" is). Runs on the urgent task. Today `main` registers a log-only placeholder.
@@ -123,7 +125,12 @@ Example over UART: `#R:07010101` = seq 7, flags 1 (urgent), sys, PING → `#R:05
 | `0x04` conn | `sys_connector_router` | SYS_CONNECTOR.MD "Remote" |
 | `0x05` device | `sys_device_router` | SYS_DEVICE.MD: `[id u16][op u16][args]` (ops dispatched by `sys_device_dispatch`, not `router_call`) |
 | `0x06` actions | `sys_actions_router` | SYS_ACTIONS.MD |
-| `0x07` events | `sys_event_router` | SYS_EVENT.MD (rules, test publish) |
+| `0x08` log | `sys_log_router` | SYS_LOG.MD (log options SET / GET) |
+| `0x07` event | – (no router) | frame shape of the events stream: `[0x07][0x01 NOTIFY][sys_event_t]`, SYS_EVENT.MD |
+| `0x0C` project | `sys_project_router` | SYS_PROJECT.MD: save a whole project as one stream, run, info, erase |
+| `0x0B` vm | `vm_router` | VM_CORE.MD (build, run and watch a program; telemetry frames are these commands) |
+| `0x09` | – | was the settings router; settings are actions records now (SYS_ACTIONS.MD), the key stays unused |
+| `0x0A` power | `sys_power_manager_router` | SYS_POWER_MANAGER.MD |
 
 | Link (transport ID) | Component |
 |---|---|
@@ -136,4 +143,4 @@ Example over UART: `#R:07010101` = seq 7, flags 1 (urgent), sys, PING → `#R:05
 - Links stay commands-only; each transport also registers a connector provider under the same ID for outbound streams (SYS_CONNECTOR.MD).
 - `err_encode` truncation drops the innermost nodes first, i.e. the root cause; on a small link (BLE before the MTU exchange) a deep chain may lose its cause. Consider keeping the last node when cutting.
 - Host test script `runit_link.py` still speaks the legacy format (`[seq][class][packet]`, response `[05][seq][class][packet][status]`).
-- `router_inject`: caller = event rules (`sys_actions_request`), tested through events PUBLISH → rule → action.
+- `router_inject`: caller = `sys_actions_request` (the device error policy's actions; later the VM `ACTION` block). Event rules, its first caller, were removed 2026-10-11.

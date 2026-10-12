@@ -1,6 +1,5 @@
 #pragma once
 
-#include <stdint.h>
 #include "errors.h"
 #include "sdkconfig.h"
 

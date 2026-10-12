@@ -1,5 +1,5 @@
 #include "sys_i2c.h"
-#include <string.h>
+
 #include "sdkconfig.h"
 
 ERR_MODULE_DEFINE(ERR_MOD_SYS_I2C, "sys_i2c", ERR_SYS_I2C_MAP)

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
 #include "errors.h"
 
 #ifdef __cplusplus
@@ -30,24 +28,27 @@ extern "C" {
  */
 //#ref-enum @alias Transport
 typedef enum {
-  TRANSPORT_UART = 1,  //@alias UART @description Console UART / USB-Serial-JTAG, "#R:" hex lines next to the log.
-  TRANSPORT_BLE = 2,   //@alias BLE @description Bluetooth LE: runIT service 0xFFE0, endpoint = characteristic UUID.
+  TRANSPORT_UART = 1,  //@alias Serial @description The console UART
+  TRANSPORT_BLE = 2,  //@alias Bluetooth LE @description The BLE link
 } transport_e;
 
-//#ref-enum @alias Data Connector
+//#ref-enum @alias Data Stream
 typedef enum {
-  SYS_CONNECTOR_LOGS = 0,       //@alias Logs @description Text log lines.
-  SYS_CONNECTOR_ERRORS = 1,     //@alias Errors @description Error records: the request (if any) and the error chain.
-  SYS_CONNECTOR_TELEMETRY = 2,  //@alias Telemetry @description Program object values you subscribed to.
-  SYS_CONNECTOR_EVENTS = 3,     //@alias Events @description Events that matter to you (over-current, faults), sent as they happen.
-  SYS_CONNECTOR_APP_BASE = 4,   //@alias First user connector @description Connectors you create use this ID or higher.
+  SYS_CONNECTOR_LOGS = 0,  //@alias Logs @description The firmware's log lines
+  SYS_CONNECTOR_ERRORS = 1,  //@alias Errors @description Error records: every reported error chain
+  SYS_CONNECTOR_TELEMETRY = 2,  //@alias Telemetry @description Values the program's subscriptions send
+  SYS_CONNECTOR_EVENTS = 3,  //@alias Events @description Events that matter to the user (faults, alerts)
+  SYS_CONNECTOR_APP_BASE = 4,  //@alias First user stream @description User streams start here
 } sys_connector_id_e;
 
-/* Stream bytes of the system connectors (0x02-0x04 as legacy; 0x05 = router answers). */
-#define SYS_CONNECTOR_STREAM_TELEMETRY 0x02u
-#define SYS_CONNECTOR_STREAM_LOGS 0x03u
-#define SYS_CONNECTOR_STREAM_ERRORS 0x04u
-#define SYS_CONNECTOR_STREAM_EVENTS 0x06u
+/* First byte of every frame the board sends. RESPONSE is the router's answers (CONFIG_ROUTER_RESPONSE_STREAM), the rest are the
+   system connectors. */
+//#ref-defines stream_byte @alias Stream Bytes @prefix SYS_CONNECTOR_STREAM_
+#define SYS_CONNECTOR_STREAM_TELEMETRY 0x02u  //@alias Telemetry @description Values the program's subscriptions send
+#define SYS_CONNECTOR_STREAM_LOGS 0x03u  //@alias Logs @description Log lines, one per frame
+#define SYS_CONNECTOR_STREAM_ERRORS 0x04u  //@alias Errors @description Error records of every reported error chain
+#define SYS_CONNECTOR_STREAM_RESPONSE CONFIG_ROUTER_RESPONSE_STREAM  //@alias Response @description The router's answer to a command
+#define SYS_CONNECTOR_STREAM_EVENTS 0x06u  //@alias Events @description Events that matter to the user (faults, alerts)
 
 #define SYS_CONNECTOR_NAME_MAX 16u  // including the NUL
 
@@ -126,13 +127,8 @@ uint32_t sys_connector_max_payload(uint8_t id);
  */
 MUST_USE err_h sys_connector_send(uint8_t id, const void* data, uint32_t len);
 
-/**
- * @brief Sends every log line (ESP_LOG) also to connector `id`, without ANSI
- * colours and the line end, cut to CONFIG_SYS_CONNECTOR_LOG_LINE_MAX. The
- * console still gets every line. Lines logged by the connector task itself are
- * not sent (they would loop).
- */
-MUST_USE err_h sys_connector_capture_logs(uint8_t id);
+/** @brief True when the caller runs on the connector task (the log hook skips its lines: they would loop). */
+bool sys_connector_is_task(void);
 
 /* Snapshot for diagnostics (router INFO). */
 typedef struct {

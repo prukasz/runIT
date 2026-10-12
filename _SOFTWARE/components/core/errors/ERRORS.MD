@@ -67,11 +67,11 @@ Rules:
 - `err_chain_sev(chain)`: walks from the **outermost** node; unset nodes contribute their tag default (max wins); the **first node with an explicit severity contributes it and stops the walk** — that level's verdict on everything beneath, so it can raise *or lower* its causes. Outer unset nodes still count.
   - `ERR_WRAP_SEV(e, T, ERR_SEV_LOW, …)` over a HIGH cause → LOW.
   - `ERR_WRAP(e, T, …)` with T default HIGH over a LOW node → HIGH.
-- Severity only picks the log level (HIGH/CRITICAL → error, MEDIUM → warn, else info). **No policy/reaction layer exists yet** (device response, system hooks) — it is meant to be built on `err_chain_sev`.
+- Severity only picks the log level (HIGH/CRITICAL → error, MEDIUM → warn, else info). The response layer is the device error policy (SYS_DEVICE.MD "Error policy"), built on `err_chain_sev` and run by the app's sink.
 
 ## Logging
 
-`err_log_ctx(chain, context)` prints `context` first (e.g. the failing command), at the chain's level; `err_log(chain)` is the same without it. `err_log(chain)`: one line per node, outermost first: `[i] NAME (module.code) SEV [(default X)] data: xx… @ file:line func()`. `ERR_ESP_ERR` prints `esp_err_to_name`. The `(default X)` suffix marks an overridden severity. One log level for the whole chain (`err_chain_sev`). Task context only. Walks are bounded by `ERRORS_POOL_BLOCKS + 1` (cyclic chain guard).
+`err_log_ctx(chain, context)` prints `context` first (e.g. the failing command), at the chain's level; `err_log(chain)` is the same without it. `err_log(chain)`: one line per node, outermost first: `[i] NAME (module.code) SEV [(default X)] data: xx… @ file:line func()`. `ERR_ESP_ERR` prints `esp_err_to_name`. The `(default X)` suffix marks an overridden severity. One log level for the whole chain (`err_chain_sev`). `err_log_enable(false)` stops the text of every chain (`err_log`, `err_log_ctx`, so `err_report` too) without touching the sink: `sys_log` sets it from its `trace_errors` option. Task context only. Walks are bounded by `ERRORS_POOL_BLOCKS + 1` (cyclic chain guard).
 
 ## Reporting (end of a chain)
 
@@ -92,6 +92,6 @@ Rules:
 
 ## Not there yet
 
-- No repeat suppression on the errors stream, no repeat suppression, no device or owner attribution, no policy/hooks — the legacy `sys_errors` had these ([SYS_ERRORS.MD](../sys_errors/SYS_ERRORS.MD)); port only what is needed.
+- No repeat suppression on the errors stream, no repeat suppression, no owner attribution, no domain hooks (device attribution and the device policy: SYS_DEVICE.MD "Error policy") — the legacy `sys_errors` had these ([SYS_ERRORS.MD](../sys_errors/SYS_ERRORS.MD)); port only what is needed.
 - The `runit-esp` skill's `errors.md` still describes the legacy `SE_*` API.
 - `ERR_NO_MEM` and other shared tags do not exist yet (core has only `ERR_POOL_EMPTY`, `ERR_ESP_ERR`).

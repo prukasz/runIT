@@ -1,7 +1,7 @@
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
+#include "utils.h"
+
 #include "esp_err.h"
 
 esp_err_t esp_adc_start(void);

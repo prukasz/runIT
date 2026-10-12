@@ -1,4 +1,0 @@
-pin,name,kind,dir,modes,default_mode,group,mV_min,mV_max,bind_pin,cfg_field,note
-1,GND,gnd,in,,,power,,,,,Ground
-2,PWR,supply_in,in,,,power,3300,6000,,,Servo supply
-3,PWM,io,in,PWM,PWM,signal,,,,pwm_pin,PWM control signal

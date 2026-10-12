@@ -1,8 +1,5 @@
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <string.h>
 #include "cmd.h"
 #include "sdkconfig.h"
 #include "sys_device_types.h"
@@ -32,19 +29,45 @@ extern "C" {
 
 #define SYS_DEVICE_OP(contract, n) ((uint16_t)(((contract) << 8) | (n)))
 
-#define SYS_DEVICE_CONTRACT_DEVICE 0x00u  // CREATE and the lifecycle, below
-#define SYS_DEVICE_CONTRACT_IO 0x01u      // sys_io.h
-#define SYS_DEVICE_CONTRACT_PINS 0x02u    // sys_pins.h
-#define SYS_DEVICE_CONTRACT_EVENT 0x03u   // sys_event.h: ON_EVENT, a device listening to events
-#define SYS_DEVICE_CONTRACT_POWER_MONITOR 0x04u  // sys_power_monitor.h: voltage / current / power readings, current alerts
-#define SYS_DEVICE_CONTRACT_POWER_VREG 0x05u     // sys_power_vreg.h: an adjustable regulator (enable, voltage, current limit)
-#define SYS_DEVICE_CONTRACT_OWN 0xFFu     // the device's own ops
+//#ref-defines device_contract @alias Device Contract @prefix SYS_DEVICE_CONTRACT_
+#define SYS_DEVICE_CONTRACT_DEVICE 0x00u  //@alias Device @description Creating a device and the operations every device has: reset, suspend, resume
+#define SYS_DEVICE_CONTRACT_IO 0x01u  //@alias IO pins @description Pins that read or drive a level, a PWM duty or frequency, a voltage
+#define SYS_DEVICE_CONTRACT_PINS 0x02u  //@alias Pin locks @description Claiming a pin of a device for another device
+#define SYS_DEVICE_CONTRACT_EVENT 0x03u  //@alias Events @description A device that listens to events
+#define SYS_DEVICE_CONTRACT_POWER_MONITOR 0x04u  //@alias Power monitor @description Voltage, current and power readings and current alerts
+#define SYS_DEVICE_CONTRACT_POWER_VREG 0x05u  //@alias Regulator @description An adjustable regulator: enable, voltage, current limit
+#define SYS_DEVICE_CONTRACT_POWER_MANAGER 0x06u  //@alias Power manager events @description Events of the power manager (no device)
+#define SYS_DEVICE_CONTRACT_POWER_USB_PD 0x07u  //@alias USB-PD sink @description Requesting a profile from a USB-PD source and reading its offers
+#define SYS_DEVICE_CONTRACT_POWER_SUPPLY 0x08u  //@alias Power mux @description Selecting which of two sources feeds the load
+#define SYS_DEVICE_CONTRACT_HBRIDGE 0x09u  //@alias H-bridge @description A motor driver: drive, brake, coast, current and its faults
+#define SYS_DEVICE_CONTRACT_OWN 0xFFu  //@alias Device-specific @description The operations one device type has of its own
 
 #define SYS_DEVICE_OWN_OP(n) SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_OWN, n)
 
 /** @brief Args of an op without any. */
 typedef struct __attribute__((packed)) {
 } sys_device_none_t;
+
+/**
+ * @brief How much a device's errors matter (SYS_DEVICE.MD "Error policy"): which severities reach the policy.
+ * A device starts at LOW. Error severities themselves never change: this only filters the response.
+ */
+//#ref-enum @alias Device Error Importance
+typedef enum {
+  SYS_DEVICE_IMPORTANCE_NONE = 0,  //@alias None @description ignores every error of the device and its causes, critical included (a device under test)
+  SYS_DEVICE_IMPORTANCE_LOW = 1,  //@alias Low @description critical only (the start value)
+  SYS_DEVICE_IMPORTANCE_MEDIUM = 2,  //@alias Medium @description high and critical
+  SYS_DEVICE_IMPORTANCE_HIGH = 3,  //@alias High @description medium, high and critical
+  SYS_DEVICE_IMPORTANCE_CRITICAL = 4,  //@alias Critical @description every severity from low
+} sys_device_importance_e;
+
+#define SYS_DEVICE_ERR_LEVELS 4u  // one action per severity LOW, MEDIUM, HIGH, CRITICAL
+
+/** @brief SET_ERROR_POLICY args and GET_ERROR_POLICY answer. */
+typedef struct __attribute__((packed)) {
+  uint8_t importance;  //@alias Importance @description Which of the device's errors get a response @enum-ref sys_device_importance_e
+  uint32_t actions[SYS_DEVICE_ERR_LEVELS];  //@alias Actions @description The record run for an admitted error of severity low, medium, high, critical (0: none) @id action
+} sys_device_error_policy_t;
 
 /**
  * @brief Writes a contract op's cmd_f: parses the payload (exactly
@@ -60,7 +83,15 @@ typedef struct __attribute__((packed)) {
  * registry for every device: a driver's op table lists none of them.
  */
 // clang-format off
-#define SYS_DEVICE_LIFECYCLE(X)                  X(RESET,   0x01, sys_device_none_t)  /* outputs off, defaults */   X(SUSPEND, 0x02, sys_device_none_t)  /* required: outputs safe; then refuses writes until RESUME */   X(RESUME,  0x03, sys_device_none_t)  /* required */   X(REMOVE,  0x04, sys_device_none_t)  /* required: releases the hardware, sys_device_remove_me, frees the struct */   X(INFO,    0x05, sys_device_none_t)  /* -> sys_device_info_t */   X(OPS,     0x06, sys_device_none_t)  /* -> u16[] every op the device answers (generic: sys_device_dispatch) */
+#define SYS_DEVICE_LIFECYCLE(X) \
+  X(RESET, 0x01, sys_device_none_t)  /* @alias Reset @description Puts the device's outputs off and its settings back to defaults. */ \
+  X(SUSPEND, 0x02, sys_device_none_t)  /* @alias Suspend @description Makes the outputs safe; the device refuses writes until it is resumed. */ \
+  X(RESUME, 0x03, sys_device_none_t)  /* @alias Resume @description Lets a suspended device work again. */ \
+  X(REMOVE, 0x04, sys_device_none_t)  /* @alias Remove @description Releases the device's hardware and removes it (refused while another device uses it). */ \
+  X(INFO, 0x05, sys_device_none_t)  /* @alias Info @description What the device is: its type and whether it is suspended. @returns sys_device_info_t */ \
+  X(OPS, 0x06, sys_device_none_t)  /* @alias List operations @description Every operation the device answers. @returns u16[] @returns-alias Operations */ \
+  X(SET_ERROR_POLICY, 0x07, sys_device_error_policy_t)  /* @alias Set error policy @description Which of the device's errors get a response, and which record runs. */ \
+  X(GET_ERROR_POLICY, 0x08, sys_device_none_t)  /* @alias Read error policy @description The device's error policy. @returns sys_device_error_policy_t */
 // clang-format on
 
 #define SYS_DEVICE__ID(name, n, args_t) SYS_DEVICE_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, n),
@@ -74,8 +105,8 @@ SYS_DEVICE_LIFECYCLE(SYS_DEVICE__ARGS)
 
 /** @brief INFO answer. */
 typedef struct __attribute__((packed)) {
-  uint16_t type_id;
-  uint8_t suspended;
+  uint16_t type_id;  //@alias Device type
+  uint8_t suspended;  //@alias Suspended @choices 0=No,1=Yes
 } sys_device_info_t;
 
 /* ----------------------------------------------------------------------------
@@ -102,7 +133,8 @@ typedef struct __attribute__((packed)) {
   X(ERR_DEV_UNKNOWN_OP,     ERR_TAG(ERR_MOD_SYS_DEVICE, 18), ERR_SEV_HIGH,   { uint16_t op; }) /* an op (contract) the device doesn't have */ \
   X(ERR_DEV_PIN_LOCKED,     ERR_TAG(ERR_MOD_SYS_DEVICE, 19), ERR_SEV_HIGH,   { uint16_t id; uint8_t pin; }) /* a locked pin: only its owner drives it (sys_pins.h) */ \
   X(ERR_DEV_IN_USE,         ERR_TAG(ERR_MOD_SYS_DEVICE, 20), ERR_SEV_MEDIUM, { uint16_t id; uint16_t user; }) /* REMOVE of a device another one uses */ \
-  X(ERR_DEV_DEPS_FULL,      ERR_TAG(ERR_MOD_SYS_DEVICE, 21), ERR_SEV_HIGH,   { uint16_t id; }) /* CONFIG_SYS_DEVICE_MAX_DEPS */
+  X(ERR_DEV_DEPS_FULL,      ERR_TAG(ERR_MOD_SYS_DEVICE, 21), ERR_SEV_HIGH,   { uint16_t id; }) /* CONFIG_SYS_DEVICE_MAX_DEPS */ \
+  X(ERR_DEV_FAULT_RESPONSE, ERR_TAG(ERR_MOD_SYS_DEVICE, 22), ERR_SEV_HIGH,   { uint16_t id; uint8_t sev; uint8_t stage; uint32_t action; }) /* the policy's response to an error of device `id` failed (stage: sys_device_fault_stage_e); diagnostics only */
 // clang-format on
 
 ERR_TAGS_DECLARE(ERR_SYS_DEVICE_MAP)
@@ -187,13 +219,36 @@ MUST_USE err_h sys_device_call(uint16_t id, uint16_t op, const void* args, uint3
                                uint32_t out_cap, uint32_t* out_len);
 
 /**
+ * @brief A contract's guard (SYS_DEVICE.MD "Guards"): sees every sys_device_call of an op of its contract before the
+ * device does, remote commands included. It sets `*handled` and returns the result to take over the call (it runs
+ * the op itself with sys_device_call_direct, or refuses it), or leaves `*handled` false and returns NULL to pass the
+ * call on. Runs without the registry lock; it must not be reached from inside a device op (lock order: the guard's
+ * own lock, then the registry's).
+ */
+typedef err_h (*sys_device_guard_f)(uint16_t id, uint16_t op, const uint8_t* args, uint32_t args_len, bool* handled);
+
+/** @brief Sets the guard of `contract`. Boot only; one per contract, up to CONFIG_SYS_DEVICE_GUARDS. */
+MUST_USE err_h sys_device_set_guard(uint8_t contract, sys_device_guard_f fn);
+
+/** @brief sys_device_call without the guard: for the guard's owner, to run the op it decided on. */
+MUST_USE err_h sys_device_call_direct(uint16_t id, uint16_t op, const void* args, uint32_t args_len, void* out,
+                                      uint32_t out_cap, uint32_t* out_len);
+
+/**
  * @brief Fault safe state: SUSPEND to every instance, newest first (a device
  * before the devices it uses). Best effort: all are tried, the first error is
  * returned (wrapped in ERR_DEV_ID), the others go to err_report().
  */
 MUST_USE err_h sys_device_suspend_all(void);
 MUST_USE err_h sys_device_resume_all(void);  // oldest first: the used devices before their users
-MUST_USE err_h sys_device_remove_all(void);  // newest first
+MUST_USE err_h sys_device_remove_all(void);  // newest first; leaves the board's own devices (sys_device_mark_system)
+
+/**
+ * @brief Marks every device registered now as the board's own (created by the system at boot): sys_device_remove_all
+ * leaves them, so changing the project removes only the devices it created. An explicit REMOVE of one still works.
+ * Boot step, after the onboard devices are created.
+ */
+void sys_device_mark_system(void);
 
 /**
  * @brief Declares that device `dev` uses device `dep` (one of its pins, a bus
@@ -223,6 +278,58 @@ MUST_USE err_h sys_device_use(sys_device_base_t* dev, uint16_t dep);
       }                                   \
     }                                     \
   } while (0)
+
+/* ----------------------------------------------------------------------------
+ * Error policy (SYS_DEVICE.MD "Error policy"): per instance, importance and an
+ * action per severity, set with SET_ERROR_POLICY. The registry finds the
+ * devices of a reported chain, filters them and responds: CRITICAL suspends
+ * every device, then the device's action for that severity runs (through the
+ * runner the app sets, so sys_device doesn't know sys_actions).
+ * ------------------------------------------------------------------------- */
+
+/** @brief Stage of a response, in ERR_DEV_FAULT_RESPONSE. */
+//#ref-enum @alias Fault Response Stage
+typedef enum {
+  SYS_DEVICE_FAULT_STAGE_VM_STOP = 0,  //@alias Vm stop @description reserved: stop the VM
+  SYS_DEVICE_FAULT_STAGE_SUSPEND = 1,  //@alias Suspend @description suspend every device (critical)
+  SYS_DEVICE_FAULT_STAGE_ACTION = 2,  //@alias Action @description the device's action for that severity
+} sys_device_fault_stage_e;
+
+/**
+ * @brief Runs action `action` (a sys_actions ID, u32) as a response; `chain` is the reported chain (borrowed), so the runner can
+ * refuse an action whose own failure is in it. The app sets it (runit: sys_actions_request, queued on the router).
+ * @return A failure to start it, or NULL.
+ */
+typedef err_h (*sys_device_action_runner_f)(uint32_t action, err_h chain);
+
+/**
+ * @brief Stops the VM on a critical error (stage SYS_DEVICE_FAULT_STAGE_VM_STOP): runs before the devices are
+ * suspended, so the program stops writing to them. `device_id` is the failing device or SYS_DEVICE_ID_NONE. The app
+ * sets it (runit: vm_stop_on_fault); without one the VM is left to the safe state alone.
+ */
+typedef err_h (*sys_device_vm_stop_f)(uint16_t device_id);
+
+/** @brief Sets the VM stop. Boot only. */
+void sys_device_set_vm_stop(sys_device_vm_stop_f fn);
+
+/** @brief Sets the action runner. Boot only. Without one, actions are not run (CRITICAL still suspends). */
+void sys_device_set_action_runner(sys_device_action_runner_f fn);
+
+/**
+ * @brief Runs the policy on a reported chain (the app's error sink calls it). Walks from the outermost node: each
+ * device (ERR_DEV_ID) once, at its first mention, with the severity from there down; a device at importance NONE
+ * ends the walk (it and every deeper cause are ignored). Admitted: CRITICAL at any importance but NONE, else when
+ * severity + importance > CRITICAL. An admitted error: CRITICAL suspends every device, then the device's action for
+ * that severity runs (a device that no longer exists, a failed CREATE, gets the suspend only, for a critical error).
+ * A critical node before any device suspends every device too. A chain holding
+ * ERR_DEV_FAULT_RESPONSE, or one reported while a response runs on this task, is not handled (no loops).
+ * @return The first response failure (owned; the others are freed), or NULL. Does not free `chain`.
+ */
+MUST_USE err_h sys_device_handle_error(err_h chain);
+
+/** @brief The policy of device `id`, false if it isn't registered. Doesn't take the registry lock (a short critical
+ *  section), so the error path can't wait on an op in progress. */
+bool sys_device_error_policy_get(uint16_t id, sys_device_error_policy_t* out);
 
 #ifdef __cplusplus
 }

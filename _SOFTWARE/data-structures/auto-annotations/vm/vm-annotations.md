@@ -28,96 +28,9 @@ Generate the descriptor from the repository root:
 python data-structures/auto-annotations/vm/generate-vm-model.py
 ```
 
-## Block catalog (`//#vm-block`)
+## Block catalog
 
-A block lives in `components/VM/blocks/<name>/`. Two files describe it for the app, and the app builds the block's palette entry, pins, face, inspector and program encoding from those two alone (no block-specific app code):
-
-| File | Written by | Holds |
-| :--- | :--- | :--- |
-| `<name>.display.json` | the author | what the editor shows: `title`, `category`, `description`, `activation` (text), `header` (the face line), `eno`, and a `title` / `description` for each pin under `inputs` / `outputs`, keyed by pin name |
-| `<name>.content.json` | **generated from the header** (`kind: vm-block-content`) | what the block is: `id`, `name`, activation kind, pins (`index`, `name`, `value`, `overrides`, `required`, ...), `min_enables`, `rules`, `state` (the payload layout with offsets), `min_custom_len`, `enums`, `encoding` for bytecode blocks |
-
-The header `vm_block_<name>.h` is the single source of truth for `content.json`; `generate-vm-blocks.py` also writes `data-structures/vm/blocks/index.generated.json` (palette index pointing at the two files, plus the shared vocabularies: value kinds, activation kinds, id kinds) and the firmware's `vm_block_ids.generated.h` / `vm_blocks_registry.generated.h`. Nothing generated is edited by hand.
-
-Annotations stand next to the C element they describe:
-
-```c
-//#block-enum @alias Loop Condition             // a block's own enum: goes into content.json, not enums.json
-typedef enum vm_for_cmp_e {
-  VM_FOR_CMP_LT = 0,  //@alias <
-  ...
-} vm_for_cmp_e;
-
-//@data vm_for_code_t                           // the payload struct, fields described on their own lines
-typedef struct vm_for_code_t {
-  vm_span_t span;      // @description Block ids [start, end) this loop runs; start = own id + 1
-                       // @derived start = this block's ID + 1; ...      (a comment-only line continues the field's comment)
-  float k_start;       // @description Start when input 0 is unwired
-  uint8_t op;          // @description How the iterator advances @enum-ref vm_for_op_e
-  uint8_t rt;          // @runtime
-  uint8_t _pad[3];
-} vm_for_code_t;
-
-//#block-enum @alias For Inputs                 // the pins: one enum per side, one member per pin
-typedef enum vm_in_for_e {
-  VM_IN_FOR_START = 0,  //@in @value f32 @overrides k_start
-  VM_IN_FOR_END,        //@in @value f32 @overrides k_end
-} vm_in_for_e;
-
-//@rule op is a vm_for_op_e value and cmp a vm_for_cmp_e value. @error ERR_VM_BLK_BAD_SHAPE
-bool vm_verify_for(vm_block_h b);
-//#vm-block VM_BLK_FOR @id 5                    // the id (1 to 255, unique) is the block_type on the wire
-//@activation enabled
-void vm_blk_for(vm_block_h b);
-```
-
-- **Pins are the members of `vm_in_<block>_e` / `vm_out_<block>_e`** (marked `//#block-enum`). A member `VM_IN_<BLOCK>_<PIN>` is input pin `<pin>` at the member's value, and its trailing `//@in <tags>` / `//@out <tags>` describes the pin: `@value <kind>` (required: `bool`, `u8`, `u32`, `i32`, `f32` (any scalar object, converted), `scalar` (its own type matters), `gate` (1 while active, cleared quietly: for enables), `object` (whole tree, same shape), `ptr-cell` (a PTR element); the vocabulary is in the index file), `@required`, `@overrides <field>`, `@id`, `@device-field`, `@hidden-by-default`. The C reads a pin by the member (`VM_BLOCK_GET_PARAM(x, b, VM_IN_FOR_START, ...)`), so the name in the C and the pin cannot drift. A member without its tag, a wrong prefix or a gap in the indexes fails the generator.
-- **Any number of pins (`*`)**: the last member of the side, named `VM_IN_<BLOCK>_<PIN>_ANY` with `@repeat`, valued after the numbered pins (EXPR: `VM_IN_EXPR_PIN_ANY = 0`; the limit is `CONFIG_VM_BLOCK_MAX_IN` / `_OUT`). It becomes `index: "*"`.
-- **Titles and descriptions of pins are not in the header** (a pin without a title in the display.json, a display pin with no member, or a `@title` in the header is an error). The header also may not hold `//@title`, `//@category`, `//@block-description`, `//@header`, `//@eno`, `//@always-detailed`: they belong in the display.json.
-- **Directives in the header** (anywhere in it, next to the element; the file holds one block): `//#vm-block VM_BLK_<NAME> @id <n>`; `//@activation <kind>` (`enabled`: every pass while enabled; `triggered`: when a watched input is fresh; `enable-rising`: once each time the enables turn on); `//@enables required|optional`; `//@loop refuse|once` (how it sits in a loop body: `refuse`, it keeps one state so the compiler refuses it; `once`, it acts on every turn so the compiler warns; `loop_use` in the json; none: no restriction); `//@data <struct>` (above the struct, or beside `//#vm-block` when the struct is shared, as the expression core's); `//@data-tail <text>` (variable data after the struct); `//@rule <text> @error <ERR_TAG>` (a check the block's verify makes; the tag must exist; the checks every block gets are in the index file); `//@opcodes <enum> @stack-max <C macro>` (a bytecode block: the opcode enum and the macro with the evaluator's stack depth; a `//#vm-opcodes <enum>` table of `[OP] = {pops, pushes, VM_*ARG_NONE|INPUT|CONST}` entries is published and checked for a missing opcode); `//@example <title> @in <values> [@consts <values>] @code <symbols> @result <value>` (assembled into the layout, checked against the table and published as golden `custom_data`).
-- **Enums:** `//#block-enum` belongs to one block (it goes into its `content.json`); an enum two blocks use, or the app needs globally, stays `//#ref-enum` (`vm_timer_unit_e` is shared by TIMER and PERIODIC; the opcode enums sit in the shared core). Members take `//@alias` and `//@description` as for any enum.
-- **The shape comes from the pins**, and the firmware enforces exactly that at load (`vm_block_verify()`, from the generated table): `@required` marks a pin the block cannot run without (`min_in` / `min_q` reach the highest required pin; a required `_ANY` pin asks for one more than the numbered ones), `max_in` / `max_q` are the numbered pins (or the Kconfig limit with an `_ANY` pin), and `//@enables required` asks for at least one enable source (default `optional`).
-- **The body and check are found by name**: the header must declare `void vm_blk_<name>(vm_block_h b);` and may declare `bool vm_verify_<name>(vm_block_h b);` (state-field checks only; the shape is not hand-checked). The table entry also gets `sizeof` of the `@data` struct as the state size.
-- **The user guide**: `<name>.md` next to the header (and `images/`) is copied to `app/docs/blocks/<name>.md`, like a device's guide. It is the author's text, not checked against the C.
-- **State layout is computed** from the struct (natural C alignment; every state struct pads explicitly) and must equal its `_Static_assert(sizeof(...) == N)`, which is required, and every `_Static_assert(offsetof(...) == N)` the header states. Field comments: `@description <text>` (or plain text before the first tag); `@enum-ref <enum>` names a `//#block-enum` of the block or a published `//#ref-enum`; `@runtime` marks device-owned bytes the app writes as 0; `@derived <rule>` marks bytes the app computes from the program (the FOR span); fields starting with `_` are padding. A field type the generator cannot size (anything but the plain `uint8_t` ... `double`) is declared where it is defined: `//#vm-type <name> @size <n> @align <n>` above its typedef, with a `_Static_assert` of the same, so no block's type is named in the generator.
-- Two blocks with the same `@id`, or an id outside 1 to 255, fail the generator. The firmware's palette is generated from the same directives: `components/VM/blocks/vm_block_ids.generated.h` and `vm_blocks_registry.generated.h`. All generated files are committed and checked by `--check`.
-
-### Constants: `@overrides`
-
-`VM_IN_FOR_START ... //@in @value f32 @overrides k_start` says: while this pin is unwired the block uses the state field `k_start`. The generator marks the field `overridden_by` the pin. The pin is always drawn, with the constant on it while nothing is wired; the inspector shows the field under the pin's title, and once the pin is wired shows what feeds it instead. The field must be a user field the pin's value kind can replace (`f32` ↔ `float`, `u32` ↔ `uint32_t`/`uint16_t`/`uint8_t`, an `object` pin ↔ `float`: SET's source, ...), each field has at most one pin, and a required pin cannot have one.
-
-### Face
-
-The display.json says what the block's face shows; the app fills in the values.
-
-- **Face:** `header` is the line under the title (`Every | {period} {time_base}` → "Every 100 MS": the words, then the value, drawn apart; the `|` is optional). Without a header the face shows the title alone. The app resolves the `{ref}`s from the two files (below); the generator checks every one against the pins and fields.
-- **Every input is drawn.** There is no simple / detailed view and no hidden pin: each input with a constant (`@overrides`) shows that constant as a chip while it is unwired (`0  Start`, `300  Preset`). Nothing to annotate for it.
-- **Show more:** only a block with a formula (`//@opcodes`) has an arrow on the block that opens its formula (`Result = a + b`) under the pins. Nothing to write for it either.
-- A `{ref}` in a header is:
-  - an **input pin name**: the wired source's name, else (when the pin has `@overrides`) the constant it overrides, else `dynamic` when the user made it a dynamic input;
-  - an **output pin name**: the variable it drives, else its name;
-  - a **state field** (a user setting): an enum member's `//@alias` if it has one, else its name (`SET_DOMINANT` → `Set dominant`); a device ID field as the device's name; a pin ID as `#22`;
-  - `{title}`: the block title.
-- A name that is both a pin and a state field is refused unless the pin `@overrides` that field.
-- An enum member is worded with `//@alias` on the member: `VM_FOR_CMP_LT = 0, //@alias <`.
-
-### Block editor metadata
-
-These tags apply to state-field comments and (where listed) pin members. They change editor behaviour; they do not change C layout or firmware pin indices.
-
-- `@id device` marks a device ID; `@contract <packet_*_t>` on that field limits the device picker to installed board/project devices supporting that operation; `@contract <device id>` (e.g. `device_servo`) limits it to devices of that type, for a device that has operations of its own and no contract. `@id pin @device-field <state field>` (on a pin or a field) marks an index of an IO resource of the device in that field: a pin, or a channel (the title in the display.json says which). The app excludes board-reserved and device-owned pins. The index file's `id_kinds` describes both.
-- `@id device @any <n> @source-field <domain field>` picks the device from an event catalog instead of by operation: the installed devices that declare events (`//#event`, [device-annotations.md](../device/device-annotations.md)) in the domain held by the enum field `<domain field>`. `@id channel` and `@id event` (each with `@device-field <device field> @source-field <domain field> @any <n>`) pick what that device's events carry and raise in that domain: its declared channels and events, or the domain's events (the `@events <enum>` on the domain's enum member) while no device is chosen. `@any <n>` on any field gives it a wildcard: the editor offers "Any", stores nothing for it, and the compiler writes `<n>`; it also works on the enum field that holds the domain. A change to the domain or the device resets what it narrows. The editor reads all of this from the block's json, with no block named in the app.
-- `@spec <NAME> @device-field <device field>` (an input pin) says the pin carries the device value `//#value NAME` ([device-annotations.md](../device/device-annotations.md)): the editor picks the variant whose `@when` holds for the settings of the chosen device and shows its title, unit and range on the pin and on the setting the pin overrides (`value_spec` in the json).
-- `@min <n>` (a state field overridden by a pin) is the least that constant may be while the pin is unwired; the compiler refuses a lower one. `@user-write` (an input pin) marks a variable the block writes as the program's user, which the device refuses to take as a block-owned object (`user_write` in the json). A block's `display.json` words its EN with `enable`: `title` (the connector, default "Run when"), `description` (what it does, in a tooltip), `signal` (EN carries a value, shown true / false, not as a gate) and `connect` (what to tell the user while a block that needs an enable source, `//@enables required`, has none). A pin entry of the display.json may add `hide_when_wired: true`: once a variable is wired the face drops the pin's title, because the chip already names it (a numbered input whose title says nothing). The app names no block: everything it does per block comes from these.
-- A `uint64_t` mask uses `@hidden-by-default @let-user-select-available <pin field> @dynamic-input <input index>` (`@hidden-by-default` keeps the mask itself out of the inspector's list of settings; the pin pickers edit it). The input it names must be optional. Static mode derives one bit from the selected constant pin; Dynamic mode takes the pin from that input and shows a checklist of available pins. The default pin must stay included. Masks are stored as hexadecimal strings in project settings to preserve all 64 bits.
-
-Generate everything with `python data-structures/auto-annotations/generate-all.py` (`--check` in CI, `--test` for the unit tests). The block generator alone:
-
-```powershell
-python data-structures/auto-annotations/vm/generate-vm-blocks.py [--check]
-```
-
-Its tests (`python -m unittest data-structures/auto-annotations/vm/test_vm_block_editor.py`) generate the real headers, check the faces, and feed it deliberately wrong headers (a face directive in the header, a typo'd tag, a missing `_Static_assert`, a wrong pin enum value, an unknown `{ref}`) to make sure each is refused.
+The block descriptors have their own grammar and generator: [vm-block-annotations.md](vm-block-annotations.md) (`generate-vm-blocks.py`, tests `test_vm_blocks.py`). The legacy `//#vm-block` / `display.json` grammar that was described here is gone.
 
 ## Program wire format (`vm-program.generated.json`)
 

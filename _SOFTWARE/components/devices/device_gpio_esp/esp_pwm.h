@@ -1,6 +1,5 @@
 #pragma once
 
-#include <stdint.h>
 #include "esp_err.h"
 #include "sdkconfig.h"
 #include "gpio_esp_pin.h"
