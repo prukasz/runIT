@@ -202,10 +202,10 @@ static err_h configure_pin(const gpio_t* c, uint8_t pin, uint8_t mode, bool* adc
 
 IO_HANDLER(SET_MODE) {
   gpio_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
   bool adc_changed = false;
   LOCK();
-  err_h err = configure_pin(c, a->pin, a->mode, &adc_changed);
+  err_h err = configure_pin(c, args->pin, args->mode, &adc_changed);
   UNLOCK();
   if (err == NULL && adc_changed) {
     err = ERR_ESP(esp_adc_update_active_channels());
@@ -215,8 +215,8 @@ IO_HANDLER(SET_MODE) {
 
 IO_HANDLER(RESET) {
   gpio_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
-  return release_pin(a->pin);
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  return release_pin(args->pin);
 }
 
 #define LEVEL_TOGGLE (-1)
@@ -236,25 +236,25 @@ static err_h drive(const gpio_t* c, uint8_t pin, int level) {
 
 IO_HANDLER(SET_LEVEL) {
   gpio_t* c = ctx;
-  ERR_CHECK(a->level <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
-  return drive(c, a->pin, a->level);
+  ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  return drive(c, args->pin, args->level);
 }
 
 IO_HANDLER(TOGGLE) {
   gpio_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
-  return drive(c, a->pin, LEVEL_TOGGLE);
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  return drive(c, args->pin, LEVEL_TOGGLE);
 }
 
 // A read: allowed while suspended and on a locked pin.
 IO_HANDLER(GET_LEVEL) {
   const gpio_t* c = ctx;
-  ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, a->pin));
+  ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
   esp_pin_obj_t* pin_obj;
   LOCK();
-  err_h err = pin_in_mode(c, a->pin, is_digital, &pin_obj);
-  const uint8_t level = err == NULL ? (gpio_get_level((gpio_num_t)a->pin) != 0) : 0;
+  err_h err = pin_in_mode(c, args->pin, is_digital, &pin_obj);
+  const uint8_t level = err == NULL ? (gpio_get_level((gpio_num_t)args->pin) != 0) : 0;
   UNLOCK();
   ERR_TRY(err);
   return cmd_reply(out, out_cap, out_len, &level, sizeof(level));
@@ -263,9 +263,9 @@ IO_HANDLER(GET_LEVEL) {
 // esp_adc_get_mV() checks that the pin is configured in ADC mode.
 IO_HANDLER(GET_VOLTAGE) {
   const gpio_t* c = ctx;
-  ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, a->pin));
+  ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
   int32_t mV = 0;
-  ERR_CHECK(esp_adc_get_mV(a->pin, &mV) == ESP_OK, ERR_IO_FEATURE_UNSUPPORTED, .id = c->base.id, .pin = a->pin);
+  ERR_CHECK(esp_adc_get_mV(args->pin, &mV) == ESP_OK, ERR_IO_FEATURE_UNSUPPORTED, .id = c->base.id, .pin = args->pin);
   return cmd_reply(out, out_cap, out_len, &mV, sizeof(mV));
 }
 
@@ -329,7 +329,7 @@ static err_h arm_digital(const gpio_t* c, esp_pin_obj_t* pin_obj, const sys_io_i
 static err_h arm_adc(const gpio_t* c, esp_pin_obj_t* pin_obj, const sys_io_intr_cfg_t* cfg) {
   ERR_CHECK(cfg->mode != SYS_IO_INTR_MODE_BOTH_EDGES, ERR_IO_FEATURE_UNSUPPORTED, .id = c->base.id, .pin = pin_obj->io_num);
   if (cfg->mode == SYS_IO_INTR_ADC_WINDOW_OUTSIDE || cfg->mode == SYS_IO_INTR_ADC_WINDOW_INSIDE) {
-    DEV_CHECK_RANGE(c->base.id, cfg->adc.threshold_down_mV, 0, cfg->adc.threshold_up_mV);
+    SYS_DEV_CHECK_IN_RANGE(c->base.id, cfg->adc.threshold_down_mV, 0, cfg->adc.threshold_up_mV);
   }
   pin_obj->intr = *cfg;
   pin_obj->hw.adc_cfg.alert_active = false;
@@ -342,18 +342,18 @@ static err_h arm_adc(const gpio_t* c, esp_pin_obj_t* pin_obj, const sys_io_intr_
  * channel = pin. Re-arming replaces the old config. */
 IO_HANDLER(CONFIGURE_INTR) {
   gpio_t* c = ctx;
-  ERR_CHECK(a->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && a->cfg.debounce <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
+  ERR_CHECK(args->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && args->cfg.debounce <= 1, ERR_CMD_BAD_ARG);
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
   esp_pin_obj_t* pin_obj;
   LOCK();
-  err_h err = pin_configured(c, a->pin, &pin_obj);
+  err_h err = pin_configured(c, args->pin, &pin_obj);
   if (err == NULL) {
     if (pin_obj->pin_mode == SYS_IO_MODE_ADC) {
-      err = arm_adc(c, pin_obj, &a->cfg);
+      err = arm_adc(c, pin_obj, &args->cfg);
     } else if (is_digital(pin_obj->pin_mode)) {
-      err = arm_digital(c, pin_obj, &a->cfg);
+      err = arm_digital(c, pin_obj, &args->cfg);
     } else {
-      err = ERR_NEW(ERR_IO_WRONG_MODE, .id = c->base.id, .pin = a->pin, .mode = pin_obj->pin_mode);
+      err = ERR_NEW(ERR_IO_WRONG_MODE, .id = c->base.id, .pin = args->pin, .mode = pin_obj->pin_mode);
     }
   }
   UNLOCK();
@@ -378,13 +378,13 @@ static err_h pwm_result(const gpio_t* c, esp_err_t rc, uint8_t pin, uint32_t fre
 
 IO_HANDLER(SET_PWM_FREQ) {
   gpio_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
-  DEV_CHECK_RANGE(c->base.id, a->frequency_Hz, ESP_PWM_FREQ_MIN_HZ, ESP_PWM_FREQ_MAX_HZ);
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, args->frequency_Hz, ESP_PWM_FREQ_MIN_HZ, ESP_PWM_FREQ_MAX_HZ);
   err_h err;
   LOCK();
-  esp_pin_obj_t* pin_obj = pwm_pin(c, a->pin, &err);
+  esp_pin_obj_t* pin_obj = pwm_pin(c, args->pin, &err);
   if (pin_obj != NULL) {
-    err = pwm_result(c, esp_pwm_set_frequency(pin_obj, a->frequency_Hz), a->pin, a->frequency_Hz);
+    err = pwm_result(c, esp_pwm_set_frequency(pin_obj, args->frequency_Hz), args->pin, args->frequency_Hz);
   }
   UNLOCK();
   return err;
@@ -392,13 +392,13 @@ IO_HANDLER(SET_PWM_FREQ) {
 
 IO_HANDLER(SET_PWM_DUTY) {
   gpio_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
-  DEV_CHECK_RANGE(c->base.id, a->duty, 0, IO_PWM_DUTY_MAX);
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, args->duty, 0, IO_PWM_DUTY_MAX);
   err_h err;
   LOCK();
-  esp_pin_obj_t* pin_obj = pwm_pin(c, a->pin, &err);
+  esp_pin_obj_t* pin_obj = pwm_pin(c, args->pin, &err);
   if (pin_obj != NULL) {
-    err = pwm_result(c, esp_pwm_set_duty(pin_obj, a->duty), a->pin, CONFIG_DEVICE_GPIO_ESP_PWM_DEFAULT_FREQ_HZ);
+    err = pwm_result(c, esp_pwm_set_duty(pin_obj, args->duty), args->pin, CONFIG_DEVICE_GPIO_ESP_PWM_DEFAULT_FREQ_HZ);
   }
   UNLOCK();
   return err;
@@ -412,12 +412,12 @@ SYS_PINS_STATE_HANDLERS(gpio_t)
 // so this works while the device is suspended; on an unlocked pin it is a plain write.
 PINS_HANDLER(SET_LOCKED_LEVEL) {
   gpio_t* c = ctx;
-  ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, a->pin));
-  ERR_CHECK(a->level <= 1, ERR_CMD_BAD_ARG);
-  if ((c->pins.locked & (1ULL << a->pin)) == 0) {
-    ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
+  ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
+  ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
+  if ((c->pins.locked & (1ULL << args->pin)) == 0) {
+    ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
   }
-  return drive(c, a->pin, a->level);
+  return drive(c, args->pin, args->level);
 }
 
 /* ---- Lifecycle ---- */
@@ -444,10 +444,9 @@ DEVICE_HANDLER(RESET) {
  * released. Inputs and ADC pins have nothing to make safe. A pin locked by another device is left to that device
  * (it makes it safe in its own SUSPEND). The state is kept for RESUME; writes are refused (ERR_DEV_SUSPENDED)
  * while suspended, so it can't go stale. Every pin is reached even if one fails. */
-DEVICE_HANDLER(SUSPEND) {
+static err_h suspend_hook(void* ctx) {
   gpio_t* c = ctx;
   err_h err = NULL;
-  c->base.suspended = true;
   LOCK();
   for (uint8_t pin = 0; pin < GPIO_NUM_MAX; pin++) {
     esp_pin_obj_t* pin_obj = pin_obj_get(pin);
@@ -474,8 +473,8 @@ DEVICE_HANDLER(SUSPEND) {
 
 // Brings back what SUSPEND saved: PWM duties and output levels. A pin that fails stays marked, and the device
 // stays suspended, so RESUME can be repeated.
-DEVICE_HANDLER(RESUME) {
-  gpio_t* c = ctx;
+static err_h resume_hook(void* ctx) {
+  (void)ctx;
   err_h err = NULL;
   LOCK();
   for (uint8_t pin = 0; pin < GPIO_NUM_MAX; pin++) {
@@ -491,9 +490,6 @@ DEVICE_HANDLER(RESUME) {
     SYS_DEVICE_KEEP_FIRST(err, step);
   }
   UNLOCK();
-  if (err == NULL) {
-    c->base.suspended = false;
-  }
   return err;
 }
 
@@ -530,11 +526,12 @@ static err_h create(void* ctx, const void* cfg) {
 
 // No SET_VOLTAGE (a DAC does that). OPS lists this table.
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY(RESET),     DEVICE_ENTRY(SUSPEND),     DEVICE_ENTRY(RESUME),
+    DEVICE_ENTRY(RESET),
     IO_ENTRY(SET_LEVEL),     IO_ENTRY(TOGGLE),          IO_ENTRY(GET_LEVEL),        IO_ENTRY(SET_PWM_DUTY),
     IO_ENTRY(SET_PWM_FREQ),  IO_ENTRY(SET_MODE),        IO_ENTRY(RESET),            IO_ENTRY(GET_VOLTAGE),
     IO_ENTRY(CONFIGURE_INTR), SYS_PINS_STATE_ENTRIES,      PINS_ENTRY(SET_LOCKED_LEVEL),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_GPIO_ESP, .cfg_size = sizeof(gpio_esp_cfg_t), .ctx_size = sizeof(gpio_t),
-                       .create = create, .uninstall = uninstall, SYS_DEVICE_OPS(k_ops))
+                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
+                       SYS_DEVICE_OPS(k_ops))

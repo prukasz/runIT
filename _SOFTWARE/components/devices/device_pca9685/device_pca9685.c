@@ -67,38 +67,38 @@ static err_h chip_set_frequency(pca_t* c, uint16_t hz) {
 
 IO_HANDLER(SET_LEVEL) {
   pca_t* c = ctx;
-  ERR_CHECK(a->level <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
-  return chip_set_duty(c, a->pin, a->level ? IO_PWM_DUTY_MAX : 0);
+  ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  return chip_set_duty(c, args->pin, args->level ? IO_PWM_DUTY_MAX : 0);
 }
 
 IO_HANDLER(TOGGLE) {
   pca_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
-  return chip_set_duty(c, a->pin, c->duty[a->pin] >= IO_PWM_DUTY_MAX / 2 ? 0 : IO_PWM_DUTY_MAX);
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  return chip_set_duty(c, args->pin, c->duty[args->pin] >= IO_PWM_DUTY_MAX / 2 ? 0 : IO_PWM_DUTY_MAX);
 }
 
 // A read: allowed while suspended.
 IO_HANDLER(GET_LEVEL) {
   pca_t* c = ctx;
-  ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, a->pin));
-  const uint8_t level = c->duty[a->pin] >= IO_PWM_DUTY_MAX / 2;
+  ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
+  const uint8_t level = c->duty[args->pin] >= IO_PWM_DUTY_MAX / 2;
   return cmd_reply(out, out_cap, out_len, &level, sizeof(level));
 }
 
 IO_HANDLER(SET_PWM_DUTY) {
   pca_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
-  DEV_CHECK_RANGE(c->base.id, a->duty, 0, IO_PWM_DUTY_MAX);
-  return chip_set_duty(c, a->pin, (uint16_t)a->duty);
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, args->duty, 0, IO_PWM_DUTY_MAX);
+  return chip_set_duty(c, args->pin, (uint16_t)args->duty);
 }
 
 // One frequency for all 16 channels: `pin` is not used.
 IO_HANDLER(SET_PWM_FREQ) {
   pca_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  DEV_CHECK_RANGE(c->base.id, a->frequency_Hz, PCA9685_MIN_FREQUENCY_HZ, PCA9685_MAX_FREQUENCY_HZ);
-  return chip_set_frequency(c, (uint16_t)a->frequency_Hz);
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, args->frequency_Hz, PCA9685_MIN_FREQUENCY_HZ, PCA9685_MAX_FREQUENCY_HZ);
+  return chip_set_frequency(c, (uint16_t)args->frequency_Hz);
 }
 
 /* ---- Pins contract ---- */
@@ -109,9 +109,9 @@ SYS_PINS_STATE_HANDLERS(pca_t)
 PINS_HANDLER(SET_LOCKED_LEVEL) {
   pca_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, a->pin));
-  ERR_CHECK(a->level <= 1, ERR_CMD_BAD_ARG);
-  return chip_set_duty(c, a->pin, a->level ? IO_PWM_DUTY_MAX : 0);
+  ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
+  ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
+  return chip_set_duty(c, args->pin, args->level ? IO_PWM_DUTY_MAX : 0);
 }
 
 /* ---- Lifecycle ---- */
@@ -141,24 +141,19 @@ DEVICE_HANDLER(RESET) {
 /* Fault safe state: OE high and the chip asleep. Every step runs, and the
  * device counts as suspended even if one failed (a half-safe device must not
  * accept writes). */
-DEVICE_HANDLER(SUSPEND) {
+static err_h suspend_hook(void* ctx) {
   pca_t* c = ctx;
   err_h err = NULL;
-  c->base.suspended = true;
   SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_drive(&c->oe, true));
   SYS_DEVICE_KEEP_FIRST(err, chip_sleep(c, true));
   return err;
 }
 
 // A failing resume leaves the device suspended.
-DEVICE_HANDLER(RESUME) {
+static err_h resume_hook(void* ctx) {
   pca_t* c = ctx;
-  if (!c->base.suspended) {
-    return NULL;
-  }
   ERR_TRY(chip_sleep(c, false));
   ERR_TRY(sys_dev_pin_drive(&c->oe, false));
-  c->base.suspended = false;
   return NULL;
 }
 
@@ -167,7 +162,7 @@ DEVICE_HANDLER(RESUME) {
 static err_h create(void* ctx, const void* cfg_in) {
   pca_t* c = ctx;
   const pca9685_cfg_t* cfg = cfg_in;
-  DEV_CHECK_RANGE(c->base.id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
   sys_pins_state_init(&c->pins, PCA9685_CHANNELS);
   ERR_TRY(sys_i2c_dev_attach(&c->i2c, cfg->i2c_bus, cfg->i2c_addr, I2C_SPEED_HZ));  // probes the chip
   ERR_TRY(chip_sleep(c, false));
@@ -181,11 +176,12 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY(RESET),          DEVICE_ENTRY(SUSPEND),      DEVICE_ENTRY(RESUME),
+    DEVICE_ENTRY(RESET),
     IO_ENTRY(SET_LEVEL),          IO_ENTRY(TOGGLE),           IO_ENTRY(GET_LEVEL),
     IO_ENTRY(SET_PWM_DUTY),       IO_ENTRY(SET_PWM_FREQ),
     SYS_PINS_STATE_ENTRIES,           PINS_ENTRY(SET_LOCKED_LEVEL),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_PCA9685, .cfg_size = sizeof(pca9685_cfg_t), .ctx_size = sizeof(pca_t),
-                       .create = create, .uninstall = uninstall, SYS_DEVICE_OPS(k_ops))
+                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
+                       SYS_DEVICE_OPS(k_ops))

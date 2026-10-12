@@ -1,7 +1,5 @@
 #include "device_ap33772s.h"
 #include "esp_timer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "rom/ets_sys.h"
 #include "sys_i2c.h"
 #include "sys_pins.h"
@@ -106,7 +104,7 @@ static err_h read_pdos(ap_t* c) {
 
 static err_h set_fixed(ap_t* c, int slot, uint32_t current_mA) {
   const uint16_t pdo = c->pdo[slot - 1];
-  DEV_CHECK_RANGE(c->base.id, current_mA, 1, MAX_CURRENT_MA);
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, current_mA, 1, MAX_CURRENT_MA);
   const unsigned code = current_code(current_mA);
   ERR_CHECK(code <= pdo_imax_code(pdo), ERR_DEV_RANGE, .id = c->base.id, .value = (int32_t)current_mA, .min = 1,
             .max = pdo_max_mA(pdo_imax_code(pdo)));
@@ -120,7 +118,7 @@ static err_h set_pps(ap_t* c, int slot, uint32_t voltage_mV, uint32_t current_mA
   ERR_CHECK(current_mA <= MAX_CURRENT_MA && current_code(current_mA) <= pdo_imax_code(pdo), ERR_DEV_RANGE, .id = c->base.id,
             .value = (int32_t)current_mA, .min = 0, .max = pdo_max_mA(pdo_imax_code(pdo)));
   const uint32_t vmin = pdo_has_vmin(pdo) ? 3300u : 0u;
-  DEV_CHECK_RANGE(c->base.id, voltage_mV, vmin, pdo_vmax(pdo) * 100);
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, voltage_mV, vmin, pdo_vmax(pdo) * 100);
   keepalive_stop(c);  // a PPS profile ends any keep-alive
   return send_request(c, voltage_mV / 100u, current_code(current_mA), (unsigned)slot);
 }
@@ -131,7 +129,7 @@ static err_h set_avs(ap_t* c, int slot, uint32_t voltage_mV, uint32_t current_mA
   ERR_CHECK(current_mA <= MAX_CURRENT_MA && current_code(current_mA) <= pdo_imax_code(pdo), ERR_DEV_RANGE, .id = c->base.id,
             .value = (int32_t)current_mA, .min = 0, .max = pdo_max_mA(pdo_imax_code(pdo)));
   const uint32_t vmin = pdo_has_vmin(pdo) ? 15000u : 0u;
-  DEV_CHECK_RANGE(c->base.id, voltage_mV, vmin, pdo_vmax(pdo) * 200);
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, voltage_mV, vmin, pdo_vmax(pdo) * 200);
   const unsigned voltage_sel = voltage_mV / 200u;
   const unsigned code = current_code(current_mA);
   ERR_TRY(send_request(c, voltage_sel, code, (unsigned)slot));
@@ -145,7 +143,7 @@ static err_h set_avs(ap_t* c, int slot, uint32_t voltage_mV, uint32_t current_mA
 /* Asks the charger for the wanted voltage / current: PPS when it fits, else AVS, else the highest fixed profile at
  * or below the voltage. A refusal of one kind falls through to the next. */
 static err_h negotiate(ap_t* c, uint32_t voltage_mV, uint32_t current_mA) {
-  DEV_CHECK_RANGE(c->base.id, voltage_mV, 0, MAX_SOFTWARE_VOLTAGE_MV);
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, voltage_mV, 0, MAX_SOFTWARE_VOLTAGE_MV);
   if (c->index_pps != -1) {
     const uint16_t pdo = c->pdo[c->index_pps - 1];
     if (voltage_mV >= (pdo_has_vmin(pdo) ? 3300u : 0u) && voltage_mV <= pdo_vmax(pdo) * 100u) {
@@ -196,7 +194,7 @@ static void keepalive_cb(void* arg) {
 }
 
 SYS_DEVICE_HANDLER(keepalive_h, sys_device_none_t) {
-  (void)a, (void)out, (void)out_cap, (void)out_len;
+  (void)args, (void)out, (void)out_cap, (void)out_len;
   ap_t* c = ctx;
   if (!c->avs_active) {
     return NULL;
@@ -210,21 +208,21 @@ SYS_DEVICE_HANDLER(keepalive_h, sys_device_none_t) {
 VREG_HANDLER(SET_ENABLE) {
   ap_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  const uint8_t flag = a->enable ? OUTPUT_ON : OUTPUT_OFF;
+  const uint8_t flag = args->enable ? OUTPUT_ON : OUTPUT_OFF;
   return sys_i2c_reg_write(&c->i2c, CMD_SYSTEM, &flag, 1);
 }
 
 VREG_HANDLER(SET_VOLTAGE) {
   ap_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  c->last_voltage_mV = a->voltage_mV;
+  c->last_voltage_mV = args->voltage_mV;
   return negotiate(c, c->last_voltage_mV, c->last_current_mA);
 }
 
 VREG_HANDLER(SET_CURRENT) {
   ap_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  c->last_current_mA = a->current_mA;
+  c->last_current_mA = args->current_mA;
   return negotiate(c, c->last_voltage_mV, c->last_current_mA);
 }
 
@@ -233,9 +231,9 @@ VREG_HANDLER(SET_CURRENT) {
 PD_HANDLER(SET_SETTINGS) {
   ap_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  c->last_voltage_mV = a->voltage_mV;
-  c->last_current_mA = a->current_mA;
-  return negotiate(c, a->voltage_mV, a->current_mA);
+  c->last_voltage_mV = args->voltage_mV;
+  c->last_current_mA = args->current_mA;
+  return negotiate(c, args->voltage_mV, args->current_mA);
 }
 
 // Source PDO `slot` (1-based) as an option; false if the slot is empty.
@@ -264,7 +262,7 @@ static bool pdo_option(const ap_t* c, uint8_t slot, sys_power_usb_pd_option_t* o
 }
 
 PD_HANDLER(LIST_OPTIONS) {
-  (void)a;
+  (void)args;
   ap_t* c = ctx;
   sys_power_usb_pd_option_t options[PDO_COUNT];
   uint32_t count = 0;
@@ -278,7 +276,7 @@ PD_HANDLER(LIST_OPTIONS) {
 
 // The highest-voltage offer sets the limits.
 PD_HANDLER(GET_LIMITS) {
-  (void)a;
+  (void)args;
   ap_t* c = ctx;
   sys_power_usb_pd_limits_t limits = {0};
   uint32_t max_mV = 0;
@@ -315,7 +313,7 @@ static err_h read_current_mA(ap_t* c, int32_t* mA) {
 
 PMON_HANDLER(GET_VOLTAGE) {
   ap_t* c = ctx;
-  ERR_TRY(check_channel(c, a->channel));
+  ERR_TRY(check_channel(c, args->channel));
   int32_t mV;
   ERR_TRY(read_voltage_mV(c, &mV));
   return cmd_reply(out, out_cap, out_len, &mV, sizeof(mV));
@@ -323,7 +321,7 @@ PMON_HANDLER(GET_VOLTAGE) {
 
 PMON_HANDLER(GET_CURRENT) {
   ap_t* c = ctx;
-  ERR_TRY(check_channel(c, a->channel));
+  ERR_TRY(check_channel(c, args->channel));
   int32_t mA;
   ERR_TRY(read_current_mA(c, &mA));
   return cmd_reply(out, out_cap, out_len, &mA, sizeof(mA));
@@ -331,7 +329,7 @@ PMON_HANDLER(GET_CURRENT) {
 
 PMON_HANDLER(GET_POWER) {
   ap_t* c = ctx;
-  ERR_TRY(check_channel(c, a->channel));
+  ERR_TRY(check_channel(c, args->channel));
   int32_t mV, mA;
   ERR_TRY(read_voltage_mV(c, &mV));
   ERR_TRY(read_current_mA(c, &mA));
@@ -343,21 +341,17 @@ PMON_HANDLER(GET_POWER) {
  * switching it off in a fault would cut power to the ESP (brownout, tested 2026-10-01). ---- */
 
 DEVICE_HANDLER(RESET) {
-  (void)ctx, (void)a, (void)out, (void)out_cap, (void)out_len;
+  (void)ctx, (void)args, (void)out, (void)out_cap, (void)out_len;
   return NULL;
 }
 
-DEVICE_HANDLER(SUSPEND) {
-  ap_t* c = ctx;
-  (void)a, (void)out, (void)out_cap, (void)out_len;
-  c->base.suspended = true;  // writes are refused; the output and an AVS contract stay as they are
+static err_h suspend_hook(void* ctx) {
+  (void)ctx;
   return NULL;
 }
 
-DEVICE_HANDLER(RESUME) {
-  ap_t* c = ctx;
-  (void)a, (void)out, (void)out_cap, (void)out_len;
-  c->base.suspended = false;
+static err_h resume_hook(void* ctx) {
+  (void)ctx;
   return NULL;
 }
 
@@ -381,8 +375,8 @@ static err_h create(void* ctx, const void* cfg_in) {
   ap_t* c = ctx;
   const ap33772s_cfg_t* cfg = cfg_in;
   const uint16_t id = c->base.id;
-  DEV_CHECK_RANGE(id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
-  DEV_CHECK_RANGE(id, cfg->i2c_addr, AP33772S_I2C_ADDR, AP33772S_I2C_ADDR);
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->i2c_addr, AP33772S_I2C_ADDR, AP33772S_I2C_ADDR);
   c->index_pps = c->index_avs = -1;
   c->last_voltage_mV = DEFAULT_VOLTAGE_MV;
   c->last_current_mA = DEFAULT_CURRENT_MA;
@@ -399,7 +393,7 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY(RESET),        DEVICE_ENTRY(SUSPEND),     DEVICE_ENTRY(RESUME),       VREG_ENTRY(SET_ENABLE),
+    DEVICE_ENTRY(RESET),       VREG_ENTRY(SET_ENABLE),
     VREG_ENTRY(SET_VOLTAGE),    VREG_ENTRY(SET_CURRENT),   PD_ENTRY(SET_SETTINGS),     PD_ENTRY(LIST_OPTIONS),
     PD_ENTRY(GET_LIMITS),       PMON_ENTRY(GET_VOLTAGE),   PMON_ENTRY(GET_CURRENT),    PMON_ENTRY(GET_POWER),
     //@internal
@@ -407,4 +401,5 @@ static const sys_device_op_t k_ops[] = {
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_AP33772S, .cfg_size = sizeof(ap33772s_cfg_t), .ctx_size = sizeof(ap_t),
-                       .create = create, .uninstall = uninstall, SYS_DEVICE_OPS(k_ops))
+                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
+                       SYS_DEVICE_OPS(k_ops))

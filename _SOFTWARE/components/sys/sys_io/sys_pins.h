@@ -53,8 +53,8 @@ SYS_PINS_CONTRACT(SYS_PINS__ARGS)
  * answers the PINS ops with a line each:
  *   PINS_HANDLER(AVAILABLE)  { return sys_pins_reply(out, out_cap, out_len, ((my_t*)ctx)->pins.available); }
  *   PINS_HANDLER(LOCKED)     { return sys_pins_reply(out, out_cap, out_len, ((my_t*)ctx)->pins.locked); }
- *   PINS_HANDLER(LOCK)       { my_t* c = ctx; return sys_pins_state_lock(&c->pins, c->id, a->pin); }
- *   PINS_HANDLER(UNLOCK)     { my_t* c = ctx; return sys_pins_state_unlock(&c->pins, c->id, a->pin); }
+ *   PINS_HANDLER(LOCK)       { my_t* c = ctx; return sys_pins_state_lock(&c->pins, c->id, args->pin); }
+ *   PINS_HANDLER(UNLOCK)     { my_t* c = ctx; return sys_pins_state_unlock(&c->pins, c->id, args->pin); }
  * ------------------------------------------------------------------------- */
 
 typedef struct {
@@ -94,11 +94,11 @@ MUST_USE err_h sys_pins_reply(uint8_t* out, uint32_t out_cap, uint32_t* out_len,
   PINS_HANDLER(LOCKED) { return sys_pins_reply(out, out_cap, out_len, ((const ctx_t*)ctx)->pins.locked); }       \
   PINS_HANDLER(LOCK) {                                                                                       \
     ctx_t* c = ctx;                                                                                          \
-    return sys_pins_state_lock(&c->pins, c->base.id, a->pin);                                                \
+    return sys_pins_state_lock(&c->pins, c->base.id, args->pin);                                                \
   }                                                                                                          \
   PINS_HANDLER(UNLOCK) {                                                                                     \
     ctx_t* c = ctx;                                                                                          \
-    return sys_pins_state_unlock(&c->pins, c->base.id, a->pin);                                              \
+    return sys_pins_state_unlock(&c->pins, c->base.id, args->pin);                                              \
   }
 #define SYS_PINS_STATE_ENTRIES PINS_ENTRY(AVAILABLE), PINS_ENTRY(LOCKED), PINS_ENTRY(LOCK), PINS_ENTRY(UNLOCK)
 

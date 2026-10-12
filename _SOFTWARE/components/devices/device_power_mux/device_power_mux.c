@@ -1,6 +1,4 @@
 #include "device_power_mux.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "sys_pins.h"
 #include "utils.h"
 
@@ -49,13 +47,13 @@ static err_h mux_apply(mux_t* c, sys_power_supply_source_e target) {
 SUPPLY_HANDLER(SELECT) {
   mux_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  DEV_CHECK_RANGE(c->base.id, a->source, SYS_POWER_SUPPLY_OFF, SYS_POWER_SUPPLY_B);
-  c->wanted = (sys_power_supply_source_e)a->source;
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, args->source, SYS_POWER_SUPPLY_OFF, SYS_POWER_SUPPLY_B);
+  c->wanted = (sys_power_supply_source_e)args->source;
   return mux_apply(c, c->wanted);
 }
 
 SUPPLY_HANDLER(GET_SOURCE) {
-  (void)a;
+  (void)args;
   const uint8_t source = (uint8_t)((mux_t*)ctx)->source;
   return cmd_reply(out, out_cap, out_len, &source, sizeof(source));
 }
@@ -72,10 +70,9 @@ DEVICE_HANDLER(RESET) {
 
 /* Fault safe state: both sources off, whatever the state was. The wanted source is kept for RESUME. The device counts
    as suspended even if a step failed. */
-DEVICE_HANDLER(SUSPEND) {
+static err_h suspend_hook(void* ctx) {
   mux_t* c = ctx;
   err_h err = NULL;
-  c->base.suspended = true;
   for (uint8_t i = 0; i < 2; i++) {
     SYS_DEVICE_KEEP_FIRST(err, mux_set_switch(c, i, false));
   }
@@ -84,11 +81,8 @@ DEVICE_HANDLER(SUSPEND) {
 }
 
 /* Back to the wanted source. A failing resume leaves the device suspended with both sources off. */
-DEVICE_HANDLER(RESUME) {
+static err_h resume_hook(void* ctx) {
   mux_t* c = ctx;
-  if (!c->base.suspended) {
-    return NULL;
-  }
   err_h err = mux_apply(c, c->wanted);
   if (err != NULL) {
     for (uint8_t i = 0; i < 2; i++) {
@@ -97,7 +91,6 @@ DEVICE_HANDLER(RESUME) {
     c->source = SYS_POWER_SUPPLY_OFF;
     return err;
   }
-  c->base.suspended = false;
   return NULL;
 }
 
@@ -118,8 +111,8 @@ static err_h create(void* ctx, const void* cfg_in) {
   mux_t* c = ctx;
   const power_mux_cfg_t* cfg = cfg_in;
   const uint16_t id = c->base.id;
-  DEV_CHECK_RANGE(id, cfg->active_level, 0, 1);
-  DEV_CHECK_RANGE(id, cfg->switch_delay_ms, POWER_MUX_MIN_SWITCH_DELAY_MS, POWER_MUX_MAX_SWITCH_DELAY_MS);
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->active_level, 0, 1);
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->switch_delay_ms, POWER_MUX_MIN_SWITCH_DELAY_MS, POWER_MUX_MAX_SWITCH_DELAY_MS);
   // Both switches need their own enable pin; one pin for both could switch the two sources on together.
   ERR_CHECK(sys_io_pin_valid(cfg->en_a_pin), ERR_DEV_BAD_PIN, .id = id, .pin = cfg->en_a_pin.pin);
   ERR_CHECK(sys_io_pin_valid(cfg->en_b_pin), ERR_DEV_BAD_PIN, .id = id, .pin = cfg->en_b_pin.pin);
@@ -143,11 +136,10 @@ static err_h create(void* ctx, const void* cfg_in) {
 
 static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY(RESET),
-    DEVICE_ENTRY(SUSPEND),
-    DEVICE_ENTRY(RESUME),
     SUPPLY_ENTRY(SELECT),
     SUPPLY_ENTRY(GET_SOURCE),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_POWER_MUX, .cfg_size = sizeof(power_mux_cfg_t), .ctx_size = sizeof(mux_t),
-                       .create = create, .uninstall = uninstall, SYS_DEVICE_OPS(k_ops))
+                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
+                       SYS_DEVICE_OPS(k_ops))

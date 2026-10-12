@@ -48,8 +48,8 @@ ROUTER_OP_NOARGS(op_restart) {
 }
 
 ROUTER_OP(op_deadman_set, sys_deadman_t) {
-  ERR_CHECK(a->on_link_lost <= 1, ERR_CMD_BAD_ARG);
-  router_deadman_set(a->timeout_ms, a->on_link_lost != 0);
+  ERR_CHECK(args->on_link_lost <= 1, ERR_CMD_BAD_ARG);
+  router_deadman_set(args->timeout_ms, args->on_link_lost != 0);
   return NULL;
 }
 

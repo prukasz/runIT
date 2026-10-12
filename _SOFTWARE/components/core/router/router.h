@@ -173,13 +173,13 @@ MUST_USE err_h router_args_tail(const uint8_t* in, uint32_t in_len, void* hdr, u
 
 // Op with a fixed-size payload `args_t` (packed struct).
 #define ROUTER_OP(fn, args_t)                                           \
-  static err_h fn##_body(void* ctx, const args_t* a, CMD_OUT_PARAMS); \
+  static err_h fn##_body(void* ctx, const args_t* args, CMD_OUT_PARAMS); \
   static err_h fn(CMD_F_PARAMS) {                                   \
-    args_t a;                                                           \
-    ERR_TRY(router_args(in, in_len, &a, sizeof(a)));                    \
-    return fn##_body(ctx, &a, out, out_cap, out_len);                   \
+    args_t args;                                                           \
+    ERR_TRY(router_args(in, in_len, &args, sizeof(args)));                    \
+    return fn##_body(ctx, &args, out, out_cap, out_len);                   \
   }                                                                     \
-  static err_h fn##_body(void* ctx, const args_t* a, CMD_OUT_PARAMS)
+  static err_h fn##_body(void* ctx, const args_t* args, CMD_OUT_PARAMS)
 
 // Op without payload.
 #define ROUTER_OP_NOARGS(fn)                               \
@@ -190,18 +190,18 @@ MUST_USE err_h router_args_tail(const uint8_t* in, uint32_t in_len, void* hdr, u
   }                                                        \
   static err_h fn##_body(void* ctx, CMD_OUT_PARAMS)
 
-// Op with a fixed header `hdr_t` and a variable tail (name, data).
+// Op with args fixed header `hdr_t` and args variable tail (name, data).
 #define ROUTER_OP_TAIL(fn, hdr_t)                                                                        \
-  static err_h fn##_body(void* ctx, const hdr_t* a, const uint8_t* tail, uint32_t tail_len,              \
+  static err_h fn##_body(void* ctx, const hdr_t* args, const uint8_t* tail, uint32_t tail_len,              \
                          CMD_OUT_PARAMS);                                                            \
   static err_h fn(CMD_F_PARAMS) {                                                                    \
-    hdr_t a;                                                                                             \
+    hdr_t args;                                                                                             \
     const uint8_t* tail;                                                                                 \
     uint32_t tail_len;                                                                                   \
-    ERR_TRY(router_args_tail(in, in_len, &a, sizeof(a), &tail, &tail_len));                              \
-    return fn##_body(ctx, &a, tail, tail_len, out, out_cap, out_len);                                    \
+    ERR_TRY(router_args_tail(in, in_len, &args, sizeof(args), &tail, &tail_len));                              \
+    return fn##_body(ctx, &args, tail, tail_len, out, out_cap, out_len);                                    \
   }                                                                                                      \
-  static err_h fn##_body(void* ctx, const hdr_t* a, const uint8_t* tail, uint32_t tail_len, CMD_OUT_PARAMS)
+  static err_h fn##_body(void* ctx, const hdr_t* args, const uint8_t* tail, uint32_t tail_len, CMD_OUT_PARAMS)
 
 // Declares a module router (in its header): MUST_USE err_h fn(cmd_f parameters);
 #define ROUTER_MODULE_DECLARE(fn) MUST_USE err_h fn(CMD_F_PARAMS)

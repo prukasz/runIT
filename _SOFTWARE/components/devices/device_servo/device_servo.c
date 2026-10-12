@@ -69,7 +69,7 @@ static err_h servo_decode(const servo_t* c, int16_t value_x10, int32_t* pos_x10)
   const bool angle = cfg->servo_type == SERVO_TYPE_ANGLE;
   if (cfg->byte_mode) {
     const int32_t byte = ((int32_t)value_x10 + 5) / 10;
-    DEV_CHECK_RANGE(c->base.id, byte, 0, BYTE_MAX);
+    SYS_DEV_CHECK_IN_RANGE(c->base.id, byte, 0, BYTE_MAX);
     if (angle) {
       *pos_x10 = (int32_t)cfg->angle_min_deg * 10 +
                  byte * ((int32_t)cfg->angle_max_deg - cfg->angle_min_deg) * 10 / BYTE_MAX;
@@ -80,7 +80,7 @@ static err_h servo_decode(const servo_t* c, int16_t value_x10, int32_t* pos_x10)
   }
   const int32_t lo = angle ? (int32_t)cfg->angle_min_deg * 10 : -SPEED_MAX_X10;
   const int32_t hi = angle ? (int32_t)cfg->angle_max_deg * 10 : SPEED_MAX_X10;
-  DEV_CHECK_RANGE(c->base.id, value_x10, lo, hi);
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, value_x10, lo, hi);
   *pos_x10 = value_x10;
   return NULL;
 }
@@ -88,7 +88,7 @@ static err_h servo_decode(const servo_t* c, int16_t value_x10, int32_t* pos_x10)
 /* ---- Own ops ---- */
 
 SYS_DEVICE_HANDLER(home_h, sys_device_none_t) {
-  (void)a;
+  (void)args;
   (void)out;
   (void)out_cap;
   (void)out_len;
@@ -103,8 +103,8 @@ SYS_DEVICE_HANDLER(set_trim_h, servo_trim_t) {
   (void)out_cap;
   (void)out_len;
   servo_t* c = ctx;
-  DEV_CHECK_RANGE(c->base.id, a->trim, -SERVO_TRIM_MAX, SERVO_TRIM_MAX);
-  c->trim = a->trim;
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, args->trim, -SERVO_TRIM_MAX, SERVO_TRIM_MAX);
+  c->trim = args->trim;
   return NULL;
 }
 
@@ -115,20 +115,20 @@ SYS_DEVICE_HANDLER(set_h, servo_set_t) {
   servo_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   int32_t pos_x10;
-  ERR_TRY(servo_decode(c, a->value_x10, &pos_x10));
+  ERR_TRY(servo_decode(c, args->value_x10, &pos_x10));
   return servo_move(c, pos_x10);
 }
 
 // A read: allowed while suspended (0 then).
 SYS_DEVICE_HANDLER(get_pulse_h, sys_device_none_t) {
-  (void)a;
+  (void)args;
   const servo_t* c = ctx;
   const uint16_t pulse = c->base.suspended ? 0 : c->pulse_us;
   return cmd_reply(out, out_cap, out_len, &pulse, sizeof(pulse));
 }
 
 SYS_DEVICE_HANDLER(release_h, sys_device_none_t) {
-  (void)a;
+  (void)args;
   (void)out;
   (void)out_cap;
   (void)out_len;
@@ -162,25 +162,20 @@ DEVICE_HANDLER(RESET) {
 }
 
 // Fault safe state: no pulse, the servo goes limp. The last pulse is remembered for RESUME.
-DEVICE_HANDLER(SUSPEND) {
+static err_h suspend_hook(void* ctx) {
   servo_t* c = ctx;
   const uint16_t last = c->pulse_us;
-  c->base.suspended = true;
   ERR_TRY(servo_stop(c));
   c->pulse_us = last;
   return NULL;
 }
 
 // A servo that was driven gets its last pulse back. A failing resume leaves it suspended.
-DEVICE_HANDLER(RESUME) {
+static err_h resume_hook(void* ctx) {
   servo_t* c = ctx;
-  if (!c->base.suspended) {
-    return NULL;
-  }
   if (c->pulse_us != 0) {
     ERR_TRY(servo_send(c, c->pulse_us));
   }
-  c->base.suspended = false;
   return NULL;
 }
 
@@ -188,19 +183,19 @@ DEVICE_HANDLER(RESUME) {
 
 static err_h check_cfg(const servo_t* c, const servo_cfg_t* cfg) {
   const uint16_t id = c->base.id;
-  DEV_CHECK_RANGE(id, cfg->servo_type, 0, SERVO_TYPE_CONTINUOUS);
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->servo_type, 0, SERVO_TYPE_CONTINUOUS);
   ERR_CHECK(cfg->byte_mode <= 1 && cfg->invert <= 1, ERR_CMD_BAD_ARG);
-  DEV_CHECK_RANGE(id, cfg->max_us, 1, PERIOD_US);
-  DEV_CHECK_RANGE(id, cfg->min_us, 0, cfg->max_us - 1);
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->max_us, 1, PERIOD_US);
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->min_us, 0, cfg->max_us - 1);
   if (cfg->servo_type == SERVO_TYPE_ANGLE) {
-    DEV_CHECK_RANGE(id, cfg->angle_max_deg, -ANGLE_LIMIT_DEG, ANGLE_LIMIT_DEG);
-    DEV_CHECK_RANGE(id, cfg->angle_min_deg, -ANGLE_LIMIT_DEG, cfg->angle_max_deg - 1);
-    DEV_CHECK_RANGE(id, cfg->default_pos, cfg->angle_min_deg, cfg->angle_max_deg);
+    SYS_DEV_CHECK_IN_RANGE(id, cfg->angle_max_deg, -ANGLE_LIMIT_DEG, ANGLE_LIMIT_DEG);
+    SYS_DEV_CHECK_IN_RANGE(id, cfg->angle_min_deg, -ANGLE_LIMIT_DEG, cfg->angle_max_deg - 1);
+    SYS_DEV_CHECK_IN_RANGE(id, cfg->default_pos, cfg->angle_min_deg, cfg->angle_max_deg);
   } else {
-    DEV_CHECK_RANGE(id, cfg->default_pos, -SPEED_MAX_PCT, SPEED_MAX_PCT);
+    SYS_DEV_CHECK_IN_RANGE(id, cfg->default_pos, -SPEED_MAX_PCT, SPEED_MAX_PCT);
     const uint32_t half_us = (uint32_t)(cfg->max_us - cfg->min_us) / 2;
     const uint32_t deadband_max = half_us ? half_us - 1 : 0;
-    DEV_CHECK_RANGE(id, cfg->deadband_us, 0, deadband_max);
+    SYS_DEV_CHECK_IN_RANGE(id, cfg->deadband_us, 0, deadband_max);
   }
   return NULL;
 }
@@ -224,8 +219,6 @@ static err_h create(void* ctx, const void* cfg_in) {
 
 static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY(RESET),
-    DEVICE_ENTRY(SUSPEND),
-    DEVICE_ENTRY(RESUME),
     //@op SERVO_OP_HOME @alias Home @description Moves the servo to its default position (plus the trim)
     {SERVO_OP_HOME, home_h},
     //@op SERVO_OP_SET_TRIM @alias Set trim @description A correction added to every move
@@ -239,4 +232,5 @@ static const sys_device_op_t k_ops[] = {
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_SERVO, .cfg_size = sizeof(servo_cfg_t), .ctx_size = sizeof(servo_t),
-                       .create = create, .uninstall = uninstall, SYS_DEVICE_OPS(k_ops))
+                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
+                       SYS_DEVICE_OPS(k_ops))

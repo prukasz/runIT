@@ -1,8 +1,6 @@
 #include "device_drv8962.h"
 
 #include "esp_rom_sys.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "sys_event.h"
 #include "sys_pins.h"
 #include "utils.h"
@@ -220,7 +218,7 @@ static err_h publish_channel_fault(const drv_t* c, uint8_t channel) {
    currents decide: a channel at its limit, else the one channel that was driving, else a chip-wide shutdown (thermal
    or supply). The publish comes last: an inline listener may call back into this device. */
 EVENT_HANDLER(ON_EVENT) {
-  (void)a;
+  (void)args;
   drv_t* c = ctx;
   if (c->base.suspended) {
     return NULL;  // coasted already; the fault line may still be low
@@ -278,37 +276,37 @@ EVENT_HANDLER(ON_EVENT) {
 HBRIDGE_HANDLER(SET_DRIVE) {
   drv_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_TRY(check_channel(c, a->channel));
+  ERR_TRY(check_channel(c, args->channel));
   const int32_t min = c->topology == DRV8962_TOPOLOGY_2_FULL_BRIDGES ? -SYS_HBRIDGE_DRIVE_MAX : 0;
-  DEV_CHECK_RANGE(c->base.id, a->drive, min, SYS_HBRIDGE_DRIVE_MAX);
-  return chip_set_drive(c, a->channel, a->drive);
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, args->drive, min, SYS_HBRIDGE_DRIVE_MAX);
+  return chip_set_drive(c, args->channel, args->drive);
 }
 
 HBRIDGE_HANDLER(BRAKE) {
   drv_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_TRY(check_channel(c, a->channel));
-  return chip_brake(c, a->channel);
+  ERR_TRY(check_channel(c, args->channel));
+  return chip_brake(c, args->channel);
 }
 
 HBRIDGE_HANDLER(COAST) {
   drv_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_TRY(check_channel(c, a->channel));
-  return chip_coast(c, a->channel);
+  ERR_TRY(check_channel(c, args->channel));
+  return chip_coast(c, args->channel);
 }
 
 /* A read, allowed while suspended. A channel over its limit is latched and braked here too (the fault line is edge
    triggered: a reading may be the first to see it) and published. */
 HBRIDGE_HANDLER(GET_CURRENT) {
   drv_t* c = ctx;
-  ERR_TRY(check_channel(c, a->channel));
+  ERR_TRY(check_channel(c, args->channel));
   int32_t mA = 0;
-  ERR_TRY(read_channel_current_mA(c, a->channel, &mA));
-  const uint32_t limit = c->current_limit_mA[a->channel];
-  if (!c->base.suspended && !c->ch[a->channel].fault && limit > 0 && mA > 0 && (uint32_t)mA > limit) {
-    ERR_TRY(mark_channel_fault(c, a->channel, SYS_HBRIDGE_FAULT_OVERCURRENT));
-    ERR_TRY(publish_channel_fault(c, a->channel));
+  ERR_TRY(read_channel_current_mA(c, args->channel, &mA));
+  const uint32_t limit = c->current_limit_mA[args->channel];
+  if (!c->base.suspended && !c->ch[args->channel].fault && limit > 0 && mA > 0 && (uint32_t)mA > limit) {
+    ERR_TRY(mark_channel_fault(c, args->channel, SYS_HBRIDGE_FAULT_OVERCURRENT));
+    ERR_TRY(publish_channel_fault(c, args->channel));
   }
   return cmd_reply(out, out_cap, out_len, &mA, sizeof(mA));
 }
@@ -321,13 +319,13 @@ SYS_DEVICE_HANDLER(set_current_limit_h, drv8962_limit_t) {
   (void)out_len;
   drv_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_TRY(check_channel(c, a->channel));
-  DEV_CHECK_RANGE(c->base.id, a->limit_mA, 0, DRV8962_CURRENT_LIMIT_MAX_MA);
-  const uint32_t old = c->current_limit_mA[a->channel];
-  c->current_limit_mA[a->channel] = a->limit_mA;
+  ERR_TRY(check_channel(c, args->channel));
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, args->limit_mA, 0, DRV8962_CURRENT_LIMIT_MAX_MA);
+  const uint32_t old = c->current_limit_mA[args->channel];
+  c->current_limit_mA[args->channel] = args->limit_mA;
   err_h err = chip_apply_current_limit(c);
   if (err != NULL) {
-    c->current_limit_mA[a->channel] = old;  // not applied: not kept
+    c->current_limit_mA[args->channel] = old;  // not applied: not kept
   }
   return err;
 }
@@ -339,22 +337,22 @@ SYS_DEVICE_HANDLER(clear_fault_h, hbridge_channel_args_t) {
   (void)out_len;
   drv_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_TRY(check_channel(c, a->channel));
+  ERR_TRY(check_channel(c, args->channel));
   if (has_pin(c, DRV8962_PIN_NSLEEP)) {
     ERR_TRY(set_locked_pin(c, DRV8962_PIN_NSLEEP, false));
     esp_rom_delay_us(SLEEP_PULSE_US);
     ERR_TRY(set_locked_pin(c, DRV8962_PIN_NSLEEP, true));
     esp_rom_delay_us(SLEEP_WAKE_US);
   }
-  c->ch[a->channel].fault = false;
-  c->ch[a->channel].reason = SYS_HBRIDGE_FAULT_NONE;
-  return chip_brake(c, a->channel);
+  c->ch[args->channel].fault = false;
+  c->ch[args->channel].reason = SYS_HBRIDGE_FAULT_NONE;
+  return chip_brake(c, args->channel);
 }
 
 SYS_DEVICE_HANDLER(get_fault_h, hbridge_channel_args_t) {
   const drv_t* c = ctx;
-  ERR_TRY(check_channel(c, a->channel));
-  const drv8962_fault_t fault = {.fault = c->ch[a->channel].fault, .reason = c->ch[a->channel].reason};
+  ERR_TRY(check_channel(c, args->channel));
+  const drv8962_fault_t fault = {.fault = c->ch[args->channel].fault, .reason = c->ch[args->channel].reason};
   return cmd_reply(out, out_cap, out_len, &fault, sizeof(fault));
 }
 
@@ -399,10 +397,9 @@ DEVICE_HANDLER(RESET) {
 }
 
 // Fault safe state: every channel coasted, every one reached even if another fails.
-DEVICE_HANDLER(SUSPEND) {
+static err_h suspend_hook(void* ctx) {
   drv_t* c = ctx;
   err_h err = NULL;
-  c->base.suspended = true;
   for (uint8_t i = 0; i < channel_count(c); i++) {
     SYS_DEVICE_KEEP_FIRST(err, chip_coast(c, i));
   }
@@ -410,9 +407,8 @@ DEVICE_HANDLER(SUSPEND) {
 }
 
 // The channels stay coasted: the next drive command engages them.
-DEVICE_HANDLER(RESUME) {
-  drv_t* c = ctx;
-  c->base.suspended = false;
+static err_h resume_hook(void* ctx) {
+  (void)ctx;
   return NULL;
 }
 
@@ -433,10 +429,10 @@ static err_h lock_pin(drv_t* c, uint8_t idx) {
 
 static err_h check_cfg(const drv_t* c, const drv8962_cfg_t* cfg) {
   const uint16_t id = c->base.id;
-  DEV_CHECK_RANGE(id, cfg->topology, 0, DRV8962_TOPOLOGY_4_HALF_BRIDGES);
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->topology, 0, DRV8962_TOPOLOGY_4_HALF_BRIDGES);
   ERR_CHECK(cfg->turn_off_at_ocp <= 1, ERR_CMD_BAD_ARG);
   for (uint8_t i = 0; i < HALF_BRIDGES; i++) {
-    DEV_CHECK_RANGE(id, cfg->current_limit_mA[i], 0, DRV8962_CURRENT_LIMIT_MAX_MA);
+    SYS_DEV_CHECK_IN_RANGE(id, cfg->current_limit_mA[i], 0, DRV8962_CURRENT_LIMIT_MAX_MA);
   }
   return NULL;
 }
@@ -520,8 +516,6 @@ static err_h create(void* ctx, const void* cfg_in) {
 
 static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY(RESET),
-    DEVICE_ENTRY(SUSPEND),
-    DEVICE_ENTRY(RESUME),
     HBRIDGE_ENTRY(SET_DRIVE),
     HBRIDGE_ENTRY(BRAKE),
     HBRIDGE_ENTRY(COAST),
@@ -536,4 +530,5 @@ static const sys_device_op_t k_ops[] = {
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_DRV8962, .cfg_size = sizeof(drv8962_cfg_t), .ctx_size = sizeof(drv_t),
-                       .create = create, .uninstall = uninstall, SYS_DEVICE_OPS(k_ops))
+                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
+                       SYS_DEVICE_OPS(k_ops))

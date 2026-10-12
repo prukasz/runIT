@@ -81,26 +81,26 @@ static err_h check_channel(const dac_t* c, uint8_t pin) {
 IO_HANDLER(RESET) {
   dac_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_TRY(check_channel(c, a->pin));
-  ERR_TRY(chip_set_power(c, c->power_on_mask & ~(1u << a->pin)));
-  c->code[a->pin] = 0;
+  ERR_TRY(check_channel(c, args->pin));
+  ERR_TRY(chip_set_power(c, c->power_on_mask & ~(1u << args->pin)));
+  c->code[args->pin] = 0;
   return NULL;
 }
 
 IO_HANDLER(SET_VOLTAGE) {
   dac_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_TRY(check_channel(c, a->pin));
-  DEV_CHECK_RANGE(c->base.id, a->voltage_mV, 0, DAC53202_VREF_MV);
-  return chip_set_voltage_mV(c, a->pin, (uint32_t)a->voltage_mV);
+  ERR_TRY(check_channel(c, args->pin));
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, args->voltage_mV, 0, DAC53202_VREF_MV);
+  return chip_set_voltage_mV(c, args->pin, (uint32_t)args->voltage_mV);
 }
 
 // The last set voltage (from its code, so the 10-bit rounding shows), 0 for a channel that is off. A read: allowed
 // while suspended.
 IO_HANDLER(GET_VOLTAGE) {
   dac_t* c = ctx;
-  ERR_TRY(check_channel(c, a->pin));
-  const int32_t mV = (int32_t)(((uint32_t)c->code[a->pin] * DAC53202_VREF_MV + CODE_MAX / 2) / CODE_MAX);
+  ERR_TRY(check_channel(c, args->pin));
+  const int32_t mV = (int32_t)(((uint32_t)c->code[args->pin] * DAC53202_VREF_MV + CODE_MAX / 2) / CODE_MAX);
   return cmd_reply(out, out_cap, out_len, &mV, sizeof(mV));
 }
 
@@ -128,23 +128,18 @@ DEVICE_HANDLER(RESET) {
 
 /* Both outputs Hi-Z; the channels that were on are remembered for RESUME. The device counts as suspended even if the
    write failed (a half-safe device must not accept writes). */
-DEVICE_HANDLER(SUSPEND) {
+static err_h suspend_hook(void* ctx) {
   dac_t* c = ctx;
   if (!c->base.suspended) {
     c->resume_mask = c->power_on_mask;
   }
-  c->base.suspended = true;
   return chip_set_power(c, 0);
 }
 
 // The channels that were on come back with their last code. A failing resume leaves the device suspended.
-DEVICE_HANDLER(RESUME) {
+static err_h resume_hook(void* ctx) {
   dac_t* c = ctx;
-  if (!c->base.suspended) {
-    return NULL;
-  }
   ERR_TRY(chip_set_power(c, c->resume_mask));
-  c->base.suspended = false;
   return NULL;
 }
 
@@ -153,8 +148,8 @@ DEVICE_HANDLER(RESUME) {
 static err_h create(void* ctx, const void* cfg_in) {
   dac_t* c = ctx;
   const dac53202_cfg_t* cfg = cfg_in;
-  DEV_CHECK_RANGE(c->base.id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
-  DEV_CHECK_RANGE(c->base.id, cfg->i2c_addr, 0x48, 0x4B);
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, cfg->i2c_addr, 0x48, 0x4B);
   ERR_TRY(sys_i2c_dev_attach(&c->i2c, cfg->i2c_bus, cfg->i2c_addr, I2C_SPEED_HZ));  // probes the chip
   return chip_start(c);  // the outputs stay Hi-Z until a voltage is set
 }
@@ -162,9 +157,10 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY(RESET), DEVICE_ENTRY(SUSPEND), DEVICE_ENTRY(RESUME),
+    DEVICE_ENTRY(RESET),
     IO_ENTRY(RESET),     IO_ENTRY(SET_VOLTAGE), IO_ENTRY(GET_VOLTAGE),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_DAC53202, .cfg_size = sizeof(dac53202_cfg_t), .ctx_size = sizeof(dac_t),
-                       .create = create, .uninstall = uninstall, SYS_DEVICE_OPS(k_ops))
+                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
+                       SYS_DEVICE_OPS(k_ops))

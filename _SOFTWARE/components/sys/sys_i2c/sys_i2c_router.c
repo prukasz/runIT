@@ -69,10 +69,10 @@ ROUTER_OP_NOARGS(op_info) {
 }
 
 ROUTER_OP(op_scan, bus_args_t) {
-  ERR_TRY(check_remote_bus(a->bus));
+  ERR_TRY(check_remote_bus(args->bus));
   uint32_t found[4] = {0};
   for (uint8_t addr = SCAN_FIRST; addr <= SCAN_LAST; addr++) {
-    err_h err = sys_i2c_probe(a->bus, addr);
+    err_h err = sys_i2c_probe(args->bus, addr);
     if (err == NULL) {
       found[addr / 32] |= 1u << (addr % 32);
     } else if (err->tag == ERR_I2C_DEV_NOT_FOUND) {
@@ -85,8 +85,8 @@ ROUTER_OP(op_scan, bus_args_t) {
 }
 
 ROUTER_OP(op_reset, bus_args_t) {
-  ERR_TRY(check_remote_bus(a->bus));
-  return sys_i2c_bus_reset(a->bus);
+  ERR_TRY(check_remote_bus(args->bus));
+  return sys_i2c_bus_reset(args->bus);
 }
 
 #if CONFIG_SYS_I2C_REMOTE_RAW
@@ -103,26 +103,26 @@ static err_h raw_finish(sys_i2c_dev_t* dev, err_h err) {
 }
 
 ROUTER_OP(op_raw_read, raw_read_args_t) {
-  ERR_TRY(check_remote_bus(a->bus));
-  ERR_CHECK(a->len > 0 && a->len <= out_cap, ERR_CMD_OUT_FULL, .need = a->len, .cap = (uint16_t)out_cap);
+  ERR_TRY(check_remote_bus(args->bus));
+  ERR_CHECK(args->len > 0 && args->len <= out_cap, ERR_CMD_OUT_FULL, .need = args->len, .cap = (uint16_t)out_cap);
 
   sys_i2c_dev_t dev;
-  sys_i2c_dev_init(&dev, a->bus, a->addr, RAW_SPEED_HZ);
+  sys_i2c_dev_init(&dev, args->bus, args->addr, RAW_SPEED_HZ);
   ERR_TRY(sys_i2c_dev_add(&dev));
-  err_h err = raw_finish(&dev, sys_i2c_reg_read(&dev, a->reg, out, a->len));
+  err_h err = raw_finish(&dev, sys_i2c_reg_read(&dev, args->reg, out, args->len));
   if (err == NULL) {
-    *out_len = a->len;
+    *out_len = args->len;
   }
   return err;
 }
 
 ROUTER_OP_TAIL(op_raw_write, raw_write_hdr_t) {
-  ERR_TRY(check_remote_bus(a->bus));
+  ERR_TRY(check_remote_bus(args->bus));
 
   sys_i2c_dev_t dev;
-  sys_i2c_dev_init(&dev, a->bus, a->addr, RAW_SPEED_HZ);
+  sys_i2c_dev_init(&dev, args->bus, args->addr, RAW_SPEED_HZ);
   ERR_TRY(sys_i2c_dev_add(&dev));
-  return raw_finish(&dev, sys_i2c_reg_write(&dev, a->reg, tail, tail_len));
+  return raw_finish(&dev, sys_i2c_reg_write(&dev, args->reg, tail, tail_len));
 }
 #endif
 

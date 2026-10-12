@@ -12,7 +12,7 @@ typedef struct __attribute__((packed)) {
 } target_args_t;
 
 ROUTER_OP(op_set_config, sys_power_manager_cfg_t) {
-  return sys_power_manager_set_config(a);
+  return sys_power_manager_set_config(args);
 }
 
 ROUTER_OP_NOARGS(op_get_config) {
@@ -22,20 +22,20 @@ ROUTER_OP_NOARGS(op_get_config) {
 }
 
 ROUTER_OP(op_set_psu, sys_power_psu_t) {
-  return sys_power_manager_set_psu(a);
+  return sys_power_manager_set_psu(args);
 }
 
 ROUTER_OP(op_set_battery, sys_power_battery_t) {
-  return sys_power_manager_set_battery(a);
+  return sys_power_manager_set_battery(args);
 }
 
 ROUTER_OP(op_set_response, response_args_t) {
-  return sys_power_manager_set_response(a->target, a->kind, a->response);
+  return sys_power_manager_set_response(args->target, args->kind, args->response);
 }
 
 ROUTER_OP(op_get_responses, target_args_t) {
   uint8_t r[SYS_POWER_KIND_COUNT];
-  ERR_TRY(sys_power_manager_get_responses(a->target, r));
+  ERR_TRY(sys_power_manager_get_responses(args->target, r));
   return cmd_reply(out, out_cap, out_len, r, sizeof(r));
 }
 

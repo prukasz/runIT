@@ -48,27 +48,27 @@ typedef struct __attribute__((packed)) {
 ROUTER_OP_TAIL(op_create, create_t) {
   const char* name;
   ERR_TRY(cmd_name_arg(tail, tail_len, &name));
-  return sys_connector_create(a->id, a->stream, name);
+  return sys_connector_create(args->id, args->stream, name);
 }
 
 ROUTER_OP(op_remove, id_t_) {
-  return sys_connector_remove(a->id);
+  return sys_connector_remove(args->id);
 }
 
 ROUTER_OP(op_bind, bind_t) {
-  return sys_connector_bind(a->id, a->provider, a->endpoint);
+  return sys_connector_bind(args->id, args->provider, args->endpoint);
 }
 
 ROUTER_OP(op_unbind, unbind_t) {
-  return sys_connector_unbind(a->id, a->provider);
+  return sys_connector_unbind(args->id, args->provider);
 }
 
 ROUTER_OP(op_suspend, id_t_) {
-  return sys_connector_suspend(a->id);
+  return sys_connector_suspend(args->id);
 }
 
 ROUTER_OP(op_resume, id_t_) {
-  return sys_connector_resume(a->id);
+  return sys_connector_resume(args->id);
 }
 
 ROUTER_OP_NOARGS(op_info) {

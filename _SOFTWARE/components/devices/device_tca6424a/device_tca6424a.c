@@ -1,7 +1,5 @@
 #include "device_tca6424a.h"
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "sys_event.h"
 #include "sys_i2c.h"
 #include "sys_pins.h"
@@ -89,7 +87,7 @@ static err_h chip_release_all(tca_t* c) {
 /* Reads the inputs and publishes each armed pin's edge (value = the new level). The
    INT line is released by the read. While suspended the chip is in reset: its INT edge isn't an input change. */
 EVENT_HANDLER(ON_EVENT) {
-  (void)a;
+  (void)args;
   tca_t* c = ctx;
   if (c->base.suspended) {
     return NULL;
@@ -118,53 +116,53 @@ EVENT_HANDLER(ON_EVENT) {
 
 IO_HANDLER(SET_MODE) {
   tca_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
-  ERR_CHECK(a->mode == SYS_IO_MODE_INPUT || a->mode == SYS_IO_MODE_OUTPUT_PUSH_PULL, ERR_IO_MODE_UNSUPPORTED,
-            .id = c->base.id, .pin = a->pin, .mode = a->mode);
-  return chip_set_config(c, 1UL << a->pin, a->mode == SYS_IO_MODE_INPUT ? (1UL << a->pin) : 0);
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  ERR_CHECK(args->mode == SYS_IO_MODE_INPUT || args->mode == SYS_IO_MODE_OUTPUT_PUSH_PULL, ERR_IO_MODE_UNSUPPORTED,
+            .id = c->base.id, .pin = args->pin, .mode = args->mode);
+  return chip_set_config(c, 1UL << args->pin, args->mode == SYS_IO_MODE_INPUT ? (1UL << args->pin) : 0);
 }
 
 IO_HANDLER(SET_LEVEL) {
   tca_t* c = ctx;
-  ERR_CHECK(a->level <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
-  return chip_set_pins(c, 1UL << a->pin, a->level ? (1UL << a->pin) : 0);
+  ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  return chip_set_pins(c, 1UL << args->pin, args->level ? (1UL << args->pin) : 0);
 }
 
 IO_HANDLER(TOGGLE) {
   tca_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
-  return chip_set_pins(c, 1UL << a->pin, (chip_output(c) & (1UL << a->pin)) ? 0 : (1UL << a->pin));
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  return chip_set_pins(c, 1UL << args->pin, (chip_output(c) & (1UL << args->pin)) ? 0 : (1UL << args->pin));
 }
 
 // Reads the chip: refused while it is in reset.
 IO_HANDLER(GET_LEVEL) {
   tca_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, a->pin));
+  ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
   uint32_t levels;
   ERR_TRY(chip_get_pins(c, &levels));
   c->cached_inputs = levels;
-  const uint8_t level = (levels & (1UL << a->pin)) != 0;
+  const uint8_t level = (levels & (1UL << args->pin)) != 0;
   return cmd_reply(out, out_cap, out_len, &level, sizeof(level));
 }
 
 // The pin back to its power-on state: input, latch low, interrupt disarmed.
 IO_HANDLER(RESET) {
   tca_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
-  c->intr_mode[a->pin] = SYS_IO_INTR_DISABLE;
-  ERR_TRY(chip_set_pins(c, 1UL << a->pin, 0));
-  return chip_set_config(c, 1UL << a->pin, 1UL << a->pin);
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  c->intr_mode[args->pin] = SYS_IO_INTR_DISABLE;
+  ERR_TRY(chip_set_pins(c, 1UL << args->pin, 0));
+  return chip_set_config(c, 1UL << args->pin, 1UL << args->pin);
 }
 
 // Edges only: the INT line reports changes of the input port, there is no ADC and no filter (`debounce` is ignored).
 IO_HANDLER(CONFIGURE_INTR) {
   tca_t* c = ctx;
-  ERR_CHECK(a->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && a->cfg.debounce <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
-  ERR_CHECK(a->cfg.mode <= SYS_IO_INTR_MODE_BOTH_EDGES, ERR_IO_FEATURE_UNSUPPORTED, .id = c->base.id, .pin = a->pin);
-  c->intr_mode[a->pin] = a->cfg.mode;
+  ERR_CHECK(args->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && args->cfg.debounce <= 1, ERR_CMD_BAD_ARG);
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  ERR_CHECK(args->cfg.mode <= SYS_IO_INTR_MODE_BOTH_EDGES, ERR_IO_FEATURE_UNSUPPORTED, .id = c->base.id, .pin = args->pin);
+  c->intr_mode[args->pin] = args->cfg.mode;
   return NULL;
 }
 
@@ -175,10 +173,10 @@ SYS_PINS_STATE_HANDLERS(tca_t)
 // The owner of a locked pin (a rail's EN, a bridge's sleep, PCA9685 OE) drives it here; the IO writes refuse it.
 PINS_HANDLER(SET_LOCKED_LEVEL) {
   tca_t* c = ctx;
-  ERR_CHECK(a->level <= 1, ERR_CMD_BAD_ARG);
+  ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, a->pin));
-  return chip_set_pins(c, 1UL << a->pin, a->level ? (1UL << a->pin) : 0);
+  ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
+  return chip_set_pins(c, 1UL << args->pin, args->level ? (1UL << args->pin) : 0);
 }
 
 /* ---- Lifecycle ---- */
@@ -197,10 +195,9 @@ DEVICE_HANDLER(RESET) {
 
 /* Fault safe state: RST low (the chip resets, every pin is an input) or, without RST, every pin an input. Users of
    the pins are suspended before this device (newest first). The device counts as suspended even if a step failed. */
-DEVICE_HANDLER(SUSPEND) {
+static err_h suspend_hook(void* ctx) {
   tca_t* c = ctx;
   err_h err = NULL;
-  c->base.suspended = true;
   if (c->rst.locked) {
     SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_drive(&c->rst, false));
   } else {
@@ -210,18 +207,14 @@ DEVICE_HANDLER(SUSPEND) {
 }
 
 // RST released, the registers written back, the inputs read again. A failing resume leaves the device suspended.
-DEVICE_HANDLER(RESUME) {
+static err_h resume_hook(void* ctx) {
   tca_t* c = ctx;
-  if (!c->base.suspended) {
-    return NULL;
-  }
   if (c->rst.locked) {
     ERR_TRY(sys_dev_pin_drive(&c->rst, true));
     vTaskDelay(MSEC(RESET_PULSE_MS));
   }
   ERR_TRY(chip_restore(c));
   ERR_TRY(chip_get_pins(c, &c->cached_inputs));
-  c->base.suspended = false;
   return NULL;
 }
 
@@ -246,8 +239,8 @@ static err_h create(void* ctx, const void* cfg_in) {
   tca_t* c = ctx;
   const tca6424a_cfg_t* cfg = cfg_in;
   const uint16_t id = c->base.id;
-  DEV_CHECK_RANGE(id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
-  DEV_CHECK_RANGE(id, cfg->i2c_addr, TCA6424A_I2C_ADDR_LOW, TCA6424A_I2C_ADDR_HIGH);
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->i2c_addr, TCA6424A_I2C_ADDR_LOW, TCA6424A_I2C_ADDR_HIGH);
   sys_pins_state_init(&c->pins, TCA6424A_PINS);
   // Start state: every pin an input, latches low (a pin that becomes an output starts low, not at the chip's 1).
   memset(c->config, 0xFF, sizeof(c->config));
@@ -276,7 +269,7 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY(RESET),      DEVICE_ENTRY(SUSPEND),   DEVICE_ENTRY(RESUME),
+    DEVICE_ENTRY(RESET),
     IO_ENTRY(SET_MODE),       IO_ENTRY(SET_LEVEL),     IO_ENTRY(TOGGLE),
     IO_ENTRY(GET_LEVEL),      IO_ENTRY(RESET),         IO_ENTRY(CONFIGURE_INTR),
     SYS_PINS_STATE_ENTRIES,   PINS_ENTRY(SET_LOCKED_LEVEL),
@@ -284,4 +277,5 @@ static const sys_device_op_t k_ops[] = {
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_TCA6424A, .cfg_size = sizeof(tca6424a_cfg_t), .ctx_size = sizeof(tca_t),
-                       .create = create, .uninstall = uninstall, SYS_DEVICE_OPS(k_ops))
+                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
+                       SYS_DEVICE_OPS(k_ops))

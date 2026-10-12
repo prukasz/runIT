@@ -78,8 +78,9 @@ static bool has_op(const sys_device_type_t* t, uint16_t op) {
 void sys_device_type_register(const sys_device_type_t* type) {
   assert(type != NULL && type->create != NULL && type->uninstall != NULL);
   assert(type->ctx_size >= sizeof(sys_device_base_t) && "the device's struct starts with sys_device_base_t");
-  assert(has_op(type, SYS_DEVICE_OP_SUSPEND) && has_op(type, SYS_DEVICE_OP_RESUME) &&
-         "a device type must answer SUSPEND and RESUME");
+  assert(type->suspend != NULL && type->resume != NULL && "a device type must have a SUSPEND and a RESUME hook");
+  assert(!has_op(type, SYS_DEVICE_OP_SUSPEND) && !has_op(type, SYS_DEVICE_OP_RESUME) &&
+         "SUSPEND / RESUME are the type's hooks, not table rows");
   assert(!has_op(type, SYS_DEVICE_OP_REMOVE) && !has_op(type, SYS_DEVICE_OP_INFO) && !has_op(type, SYS_DEVICE_OP_OPS) &&
          !has_op(type, SYS_DEVICE_OP_SET_ERROR_POLICY) && !has_op(type, SYS_DEVICE_OP_GET_ERROR_POLICY) &&
          "REMOVE / INFO / OPS / SET_ERROR_POLICY / GET_ERROR_POLICY are answered by the registry");
@@ -189,8 +190,9 @@ static err_h reply_info(const dev_t_* d, uint8_t* out, uint32_t out_cap, uint32_
 
 // OPS: the generic ops, then the type's table.
 static err_h reply_ops(const sys_device_type_t* t, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
-  static const uint16_t k_generic[] = {SYS_DEVICE_OP_REMOVE, SYS_DEVICE_OP_INFO, SYS_DEVICE_OP_OPS,
-                                       SYS_DEVICE_OP_SET_ERROR_POLICY, SYS_DEVICE_OP_GET_ERROR_POLICY};
+  static const uint16_t k_generic[] = {SYS_DEVICE_OP_SUSPEND, SYS_DEVICE_OP_RESUME, SYS_DEVICE_OP_REMOVE,
+                                       SYS_DEVICE_OP_INFO, SYS_DEVICE_OP_OPS, SYS_DEVICE_OP_SET_ERROR_POLICY,
+                                       SYS_DEVICE_OP_GET_ERROR_POLICY};
   const uint32_t count = ARRAY_LEN(k_generic) + t->op_count;
   ERR_CHECK(count * 2 <= out_cap, ERR_CMD_OUT_FULL, .need = (uint16_t)(count * 2), .cap = (uint16_t)out_cap);
   for (uint32_t i = 0; i < count; i++) {
@@ -208,7 +210,7 @@ static err_h set_policy(uint32_t index, const uint8_t* args, uint32_t args_len) 
   sys_device_error_policy_t p;
   ERR_CHECK(args_len == sizeof(p), ERR_CMD_BAD_LEN, .got = (uint16_t)args_len, .need = sizeof(p));
   memcpy(&p, args, sizeof(p));
-  DEV_CHECK_RANGE(s_devs[index].id, p.importance, SYS_DEVICE_IMPORTANCE_NONE, SYS_DEVICE_IMPORTANCE_CRITICAL);
+  SYS_DEV_CHECK_IN_RANGE(s_devs[index].id, p.importance, SYS_DEVICE_IMPORTANCE_NONE, SYS_DEVICE_IMPORTANCE_CRITICAL);
   taskENTER_CRITICAL(&s_table_mux);
   s_devs[index].policy = p;
   taskEXIT_CRITICAL(&s_table_mux);
@@ -226,10 +228,32 @@ bool sys_device_error_policy_get(uint16_t id, sys_device_error_policy_t* out) {
   return found;
 }
 
+// SUSPEND and RESUME: the registry owns the flag, the driver's hook does the hardware (sys_device.h, the type).
+static err_h run_lifecycle(const dev_t_* d, uint16_t op, const uint8_t* args, uint32_t args_len) {
+  ERR_CHECK(args_len == 0, ERR_CMD_BAD_LEN, .got = (uint16_t)args_len, .need = 0);
+  sys_device_base_t* base = d->ctx;
+  if (op == SYS_DEVICE_OP_SUSPEND) {
+    const err_h err = d->type->suspend(d->ctx);
+    base->suspended = true;  // even when the hook failed: a half-safe device refuses writes
+    return err;
+  }
+  if (!base->suspended) {
+    return NULL;
+  }
+  const err_h err = d->type->resume(d->ctx);
+  if (err == NULL) {
+    base->suspended = false;  // a failing resume leaves the device suspended
+  }
+  return err;
+}
+
 // Any op but CREATE, on a registered device.
 static err_h run_op(uint32_t index, uint16_t op, const uint8_t* args, uint32_t args_len, uint8_t* out,
                     uint32_t out_cap, uint32_t* out_len) {
   const dev_t_ d = s_devs[index];
+  if (op == SYS_DEVICE_OP_SUSPEND || op == SYS_DEVICE_OP_RESUME) {
+    return run_lifecycle(&d, op, args, args_len);
+  }
   if (op == SYS_DEVICE_OP_SET_ERROR_POLICY) {
     return set_policy(index, args, args_len);
   }

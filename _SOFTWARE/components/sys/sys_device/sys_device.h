@@ -75,7 +75,7 @@ typedef struct __attribute__((packed)) {
  * The body sees ctx (the device's struct), a (const args_t*), out, out_cap,
  * out_len. `in` is the payload only: the registry strips the op.
  */
-#define SYS_DEVICE_HANDLER(fn, args_t)                                                            static err_h fn##_body(void* ctx, const args_t* a, uint8_t* out, uint32_t out_cap, uint32_t* out_len);   static err_h fn(void* ctx, const uint8_t* in, uint32_t in_len, uint8_t* out, uint32_t out_cap,                   uint32_t* out_len) {                                                              args_t a;                                                                                       ERR_CHECK(in_len == sizeof(a), ERR_CMD_BAD_LEN, .got = (uint16_t)in_len, .need = (uint16_t)sizeof(a));     memcpy(&a, in, sizeof(a));                                                                      return fn##_body(ctx, &a, out, out_cap, out_len);                                             }                                                                                               static err_h fn##_body(void* ctx, const args_t* a, uint8_t* out, uint32_t out_cap, uint32_t* out_len)
+#define SYS_DEVICE_HANDLER(fn, args_t)                                                            static err_h fn##_body(void* ctx, const args_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len);   static err_h fn(void* ctx, const uint8_t* in, uint32_t in_len, uint8_t* out, uint32_t out_cap,                   uint32_t* out_len) {                                                              args_t args;                                                                                       ERR_CHECK(in_len == sizeof(args), ERR_CMD_BAD_LEN, .got = (uint16_t)in_len, .need = (uint16_t)sizeof(args));     memcpy(&args, in, sizeof(args));                                                                      return fn##_body(ctx, &args, out, out_cap, out_len);                                             }                                                                                               static err_h fn##_body(void* ctx, const args_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len)
 
 /**
  * @brief Device contract (0x00xx): the lifecycle. CREATE (0x00) is not in the
@@ -148,9 +148,9 @@ static inline bool dev_in_range(int64_t v, int64_t lo, int64_t hi) {
  * @brief ERR_DEV_RANGE unless lo <= v <= hi. The bounds are written once: the check and the error's min / max come from
  * the same expressions. The value and the bounds are reported as int32_t (ERR_DEV_RANGE is signed).
  * The parameter is `dev`, not `id`: a parameter named `id` would also be replaced after the `.` of `.id =`.
- * @usage DEV_CHECK_RANGE(c->base.id, a->duty, 0, IO_PWM_DUTY_MAX);
+ * @usage SYS_DEV_CHECK_IN_RANGE(c->base.id, a->duty, 0, IO_PWM_DUTY_MAX);
  */
-#define DEV_CHECK_RANGE(dev, v, lo, hi) \
+#define SYS_DEV_CHECK_IN_RANGE(dev, v, lo, hi) \
   ERR_CHECK(dev_in_range((v), (lo), (hi)), ERR_DEV_RANGE, .id = (dev), .value = (int32_t)(v), .min = (int32_t)(lo), \
             .max = (int32_t)(hi))
 
@@ -191,7 +191,12 @@ typedef struct {
   /** Releases what create() built: REMOVE and the create rollback. Every step runs, guarded by what was
    *  built; the registry frees ctx afterwards. */
   err_h (*uninstall)(void* ctx);
-  const sys_device_op_t* ops;  // must answer SUSPEND and RESUME; never REMOVE / INFO / OPS
+  /** SUSPEND: the safe state (outputs, pins). Called with `suspended` as it was before; the registry sets the flag
+   *  afterwards, even when this fails (a half-safe device refuses writes). */
+  err_h (*suspend)(void* ctx);
+  /** RESUME: back to work. Called only while suspended; the registry clears the flag when it succeeds. */
+  err_h (*resume)(void* ctx);
+  const sys_device_op_t* ops;  // the type's own ops (RESET is one); never REMOVE / INFO / OPS / SUSPEND / RESUME
   uint16_t op_count;
 } sys_device_type_t;
 

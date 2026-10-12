@@ -1,7 +1,5 @@
 #include "device_ads7128.h"
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "sys_event.h"
 #include "sys_i2c.h"
 #include "sys_pins.h"
@@ -353,7 +351,7 @@ static err_h publish_crossing(ads_t* c, uint8_t pin, uint16_t code) {
    converting autonomously the whole time), a flag can be left set with no further edge ever able to fire and revisit
    it: ALERT would stay asserted forever. Looping until a poll comes back with nothing pending closes that gap. */
 EVENT_HANDLER(ON_EVENT) {
-  (void)a;
+  (void)args;
   ads_t* c = ctx;
   if (c->base.suspended) {
     return NULL;
@@ -400,9 +398,9 @@ EVENT_HANDLER(ON_EVENT) {
 IO_HANDLER(GET_VOLTAGE) {
   ads_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_TRY(check_channel(c, a->pin));
+  ERR_TRY(check_channel(c, args->pin));
   uint16_t code = 0;
-  ERR_TRY(chip_read_channel(c, a->pin, &code));
+  ERR_TRY(chip_read_channel(c, args->pin, &code));
   const int32_t mV = (int32_t)code_to_mV(c, code);
   return cmd_reply(out, out_cap, out_len, &mV, sizeof(mV));
 }
@@ -410,8 +408,8 @@ IO_HANDLER(GET_VOLTAGE) {
 // Channels are analog inputs out of reset and this device has nothing else, so the only mode that can be honoured is ADC.
 IO_HANDLER(SET_MODE) {
   ads_t* c = ctx;
-  ERR_TRY(check_channel(c, a->pin));
-  ERR_CHECK(a->mode == SYS_IO_MODE_ADC, ERR_IO_MODE_UNSUPPORTED, .id = c->base.id, .pin = a->pin, .mode = a->mode);
+  ERR_TRY(check_channel(c, args->pin));
+  ERR_CHECK(args->mode == SYS_IO_MODE_ADC, ERR_IO_MODE_UNSUPPORTED, .id = c->base.id, .pin = args->pin, .mode = args->mode);
   return NULL;
 }
 
@@ -420,25 +418,25 @@ IO_HANDLER(SET_MODE) {
 IO_HANDLER(CONFIGURE_INTR) {
   ads_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_TRY(check_channel(c, a->pin));
-  const sys_io_intr_cfg_t* cfg = &a->cfg;
+  ERR_TRY(check_channel(c, args->pin));
+  const sys_io_intr_cfg_t* cfg = &args->cfg;
   ERR_CHECK(cfg->mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE, ERR_CMD_BAD_ARG);
 
   if (cfg->mode == SYS_IO_INTR_DISABLE) {
-    c->intr_modes[a->pin] = SYS_IO_INTR_DISABLE;
-    c->alert_active_mask &= (uint8_t)~(1u << a->pin);
-    return chip_set_alert_cfg(c, a->pin, &k_alert_off);
+    c->intr_modes[args->pin] = SYS_IO_INTR_DISABLE;
+    c->alert_active_mask &= (uint8_t)~(1u << args->pin);
+    return chip_set_alert_cfg(c, args->pin, &k_alert_off);
   }
-  ERR_CHECK(cfg->mode >= SYS_IO_INTR_ADC_WINDOW_OUTSIDE, ERR_IO_FEATURE_UNSUPPORTED, .id = c->base.id, .pin = a->pin);
+  ERR_CHECK(cfg->mode >= SYS_IO_INTR_ADC_WINDOW_OUTSIDE, ERR_IO_FEATURE_UNSUPPORTED, .id = c->base.id, .pin = args->pin);
 
   const sys_io_adc_window_t* w = &cfg->adc;
-  DEV_CHECK_RANGE(c->base.id, w->threshold_up_mV, 0, c->full_scale_mV);
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, w->threshold_up_mV, 0, c->full_scale_mV);
   ERR_CHECK(w->threshold_down_mV <= c->full_scale_mV && (w->threshold_up_mV == 0 || w->threshold_down_mV <= w->threshold_up_mV),
             ERR_DEV_RANGE, .id = c->base.id, .value = w->threshold_down_mV, .min = 0,
             .max = w->threshold_up_mV ? w->threshold_up_mV : c->full_scale_mV);
   const uint32_t hysteresis_max_mV = code_to_mV(c, (uint16_t)(HYSTERESIS_FIELD_MAX * HYSTERESIS_STEP));
-  DEV_CHECK_RANGE(c->base.id, w->hysteresis_mV, 0, hysteresis_max_mV);
-  DEV_CHECK_RANGE(c->base.id, w->event_counter_threshold, 0, EVENT_COUNT_MAX);
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, w->hysteresis_mV, 0, hysteresis_max_mV);
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, w->event_counter_threshold, 0, EVENT_COUNT_MAX);
 
   const uint16_t upper = w->threshold_up_mV == 0 ? MAX_CODE : mv_to_code(c, w->threshold_up_mV);
   const uint16_t lower = mv_to_code(c, w->threshold_down_mV);
@@ -453,11 +451,11 @@ IO_HANDLER(CONFIGURE_INTR) {
       .event_count = event_count_field(w->event_counter_threshold),
       .region = inside ? ALERT_IN_BAND : ALERT_OUT_OF_BAND,
   };
-  ERR_TRY(chip_set_alert_cfg(c, a->pin, &alert));
-  c->intr_modes[a->pin] = (uint8_t)cfg->mode;
-  c->entry_alert_cfg[a->pin] = alert;
+  ERR_TRY(chip_set_alert_cfg(c, args->pin, &alert));
+  c->intr_modes[args->pin] = (uint8_t)cfg->mode;
+  c->entry_alert_cfg[args->pin] = alert;
   // A fresh config: no crossing reported yet, so the next real violation is dispatched.
-  c->alert_active_mask &= (uint8_t)~(1u << a->pin);
+  c->alert_active_mask &= (uint8_t)~(1u << args->pin);
   return NULL;
 }
 
@@ -465,10 +463,10 @@ IO_HANDLER(CONFIGURE_INTR) {
 IO_HANDLER(RESET) {
   ads_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_TRY(check_channel(c, a->pin));
-  c->intr_modes[a->pin] = SYS_IO_INTR_DISABLE;
-  c->alert_active_mask &= (uint8_t)~(1u << a->pin);
-  return chip_set_alert_cfg(c, a->pin, &k_alert_off);
+  ERR_TRY(check_channel(c, args->pin));
+  c->intr_modes[args->pin] = SYS_IO_INTR_DISABLE;
+  c->alert_active_mask &= (uint8_t)~(1u << args->pin);
+  return chip_set_alert_cfg(c, args->pin, &k_alert_off);
 }
 
 /* ---- Lifecycle ---- */
@@ -498,19 +496,15 @@ DEVICE_HANDLER(RESET) {
 
 /* Safe state: the sequencer stops (nothing converts and no alert is raised); the shadow is kept for RESUME. The
    device counts as suspended even if the write failed. */
-DEVICE_HANDLER(SUSPEND) {
+static err_h suspend_hook(void* ctx) {
   ads_t* c = ctx;
-  c->base.suspended = true;
   return chip_stop_sequence(c);
 }
 
 // Replays the configuration. A channel past its threshold when it stopped is armed on its entry config again. A
 // failing resume leaves the device suspended.
-DEVICE_HANDLER(RESUME) {
+static err_h resume_hook(void* ctx) {
   ads_t* c = ctx;
-  if (!c->base.suspended) {
-    return NULL;
-  }
   for (uint8_t ch = 0; ch < ADS7128_CHANNELS; ch++) {
     if (c->alert_active_mask & (1u << ch)) {
       c->alerts[ch] = c->entry_alert_cfg[ch];
@@ -518,7 +512,6 @@ DEVICE_HANDLER(RESUME) {
   }
   c->alert_active_mask = 0;
   ERR_TRY(chip_restore(c));
-  c->base.suspended = false;
   return NULL;
 }
 
@@ -528,8 +521,8 @@ static err_h create(void* ctx, const void* cfg_in) {
   ads_t* c = ctx;
   const ads7128_cfg_t* cfg = cfg_in;
   const uint16_t id = c->base.id;
-  DEV_CHECK_RANGE(id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
-  DEV_CHECK_RANGE(id, cfg->i2c_addr, 0x10, 0x17);
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->i2c_addr, 0x10, 0x17);
   // Every reading and every threshold is scaled by this.
   ERR_CHECK(cfg->full_scale_mV >= 1, ERR_DEV_RANGE, .id = id, .value = cfg->full_scale_mV, .min = 1, .max = UINT16_MAX);
   c->full_scale_mV = cfg->full_scale_mV;
@@ -546,10 +539,11 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY(RESET),   DEVICE_ENTRY(SUSPEND),       DEVICE_ENTRY(RESUME),
+    DEVICE_ENTRY(RESET),
     IO_ENTRY(GET_VOLTAGE), IO_ENTRY(SET_MODE),          IO_ENTRY(CONFIGURE_INTR),
     IO_ENTRY(RESET),       EVENT_ENTRY(ON_EVENT),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_ADS7128, .cfg_size = sizeof(ads7128_cfg_t), .ctx_size = sizeof(ads_t),
-                       .create = create, .uninstall = uninstall, SYS_DEVICE_OPS(k_ops))
+                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
+                       SYS_DEVICE_OPS(k_ops))

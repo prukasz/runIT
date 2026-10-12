@@ -53,17 +53,17 @@ static err_h reply_info(const sys_actions_info_t* i, uint8_t* out, uint32_t out_
 }
 
 ROUTER_OP(op_run, id_args_t) {
-  return sys_actions_run(a->id, false);
+  return sys_actions_run(args->id, false);
 }
 
 ROUTER_OP(op_run_all, id_args_t) {
-  return sys_actions_run(a->id, true);
+  return sys_actions_run(args->id, true);
 }
 
 ROUTER_OP(op_record_start, record_start_t) {
   const router_cmd_t* origin = router_origin();  // the client to record
   ERR_CHECK(origin != NULL, ERR_ACTION_WRONG_TASK);
-  return sys_actions_record_start(a->id, a->execute != 0, origin->link, origin->peer);
+  return sys_actions_record_start(args->id, args->execute != 0, origin->link, origin->peer);
 }
 
 ROUTER_OP_NOARGS(op_record_stop) {
@@ -73,16 +73,16 @@ ROUTER_OP_NOARGS(op_record_stop) {
 }
 
 ROUTER_OP(op_begin, begin_t) {
-  return sys_actions_upload_begin(a->id, a->len);
+  return sys_actions_upload_begin(args->id, args->len);
 }
 
 ROUTER_OP_TAIL(op_write, write_t) {
   ERR_CHECK(tail_len <= UINT16_MAX, ERR_CMD_BAD_ARG);
-  return sys_actions_upload_write(a->offset, tail, (uint16_t)tail_len);
+  return sys_actions_upload_write(args->offset, tail, (uint16_t)tail_len);
 }
 
 ROUTER_OP(op_commit, commit_t) {
-  return sys_actions_upload_commit(a->crc32);
+  return sys_actions_upload_commit(args->crc32);
 }
 
 typedef struct {
@@ -105,12 +105,12 @@ static err_h dump_frame(const uint8_t* frame, uint16_t len, bool last, void* ctx
 
 ROUTER_OP(op_read, id_args_t) {
   dump_t d = {.out = out, .cap = out_cap, .out_len = out_len};
-  return sys_actions_dump(a->id, dump_frame, &d);
+  return sys_actions_dump(args->id, dump_frame, &d);
 }
 
 ROUTER_OP(op_info, id_args_t) {
   sys_actions_info_t i;
-  ERR_TRY(sys_actions_info(a->id, &i));
+  ERR_TRY(sys_actions_info(args->id, &i));
   return reply_info(&i, out, out_cap, out_len);
 }
 
@@ -120,7 +120,7 @@ ROUTER_OP(op_list, list_args_t) {
   uint32_t ids[LIST_MAX];
   uint32_t fit = (out_cap - sizeof(uint16_t)) / sizeof(uint32_t);
   uint16_t count, total;
-  ERR_TRY(sys_actions_list(a->start, ids, (uint16_t)(fit < LIST_MAX ? fit : LIST_MAX), &count, &total));
+  ERR_TRY(sys_actions_list(args->start, ids, (uint16_t)(fit < LIST_MAX ? fit : LIST_MAX), &count, &total));
   memcpy(out, &total, sizeof(total));  // LE on the ESP32
   memcpy(out + sizeof(total), ids, count * sizeof(uint32_t));
   *out_len = (uint32_t)(sizeof(total) + count * sizeof(uint32_t));
@@ -128,7 +128,7 @@ ROUTER_OP(op_list, list_args_t) {
 }
 
 ROUTER_OP(op_remove, id_args_t) {
-  return sys_actions_remove(a->id);
+  return sys_actions_remove(args->id);
 }
 
 ROUTER_OP_NOARGS(op_abort) {

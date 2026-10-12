@@ -3,8 +3,8 @@
 
 // The options and where they go: stored, applied at once.
 ROUTER_OP(op_set, sys_log_cfg_t) {
-  ERR_CHECK(a->mirror_serial <= 1 && a->trace_errors <= 1 && a->send_errors <= 1 && a->send_logs <= 1, ERR_CMD_BAD_ARG);
-  return sys_log_set(a);
+  ERR_CHECK(args->mirror_serial <= 1 && args->trace_errors <= 1 && args->send_errors <= 1 && args->send_logs <= 1, ERR_CMD_BAD_ARG);
+  return sys_log_set(args);
 }
 
 ROUTER_OP_NOARGS(op_get) {

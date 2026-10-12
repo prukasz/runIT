@@ -52,33 +52,33 @@ typedef struct __attribute__((packed)) {
 } status_t;
 
 ROUTER_OP(op_svc_create, svc_create_t) {
-  ERR_CHECK(a->is_primary <= 1, ERR_CMD_BAD_ARG);
-  return sys_ble_service_create(&(sys_ble_svc_cfg_t){.uuid = a->uuid, .is_primary = a->is_primary != 0});
+  ERR_CHECK(args->is_primary <= 1, ERR_CMD_BAD_ARG);
+  return sys_ble_service_create(&(sys_ble_svc_cfg_t){.uuid = args->uuid, .is_primary = args->is_primary != 0});
 }
 
 ROUTER_OP(op_svc_remove, svc_remove_t) {
-  return sys_ble_service_remove(a->uuid);
+  return sys_ble_service_remove(args->uuid);
 }
 
 ROUTER_OP_TAIL(op_char_create, char_create_t) {
   const char* desc;
   ERR_TRY(cmd_name_arg(tail, tail_len, &desc));
-  ERR_CHECK(a->is_write <= 1 && a->is_indicate <= 1 && a->is_notify <= 1 && a->is_framed <= 1, ERR_CMD_BAD_ARG);
+  ERR_CHECK(args->is_write <= 1 && args->is_indicate <= 1 && args->is_notify <= 1 && args->is_framed <= 1, ERR_CMD_BAD_ARG);
   const sys_ble_char_cfg_t cfg = {
-      .uuid = a->uuid,
-      .is_write = a->is_write != 0,
-      .is_indicate = a->is_indicate != 0,
-      .is_notify = a->is_notify != 0,
-      .is_framed = a->is_framed != 0,
-      .tx_buffer_size = a->tx_buffer_size,
-      .rx_buffer_size = a->rx_buffer_size,
+      .uuid = args->uuid,
+      .is_write = args->is_write != 0,
+      .is_indicate = args->is_indicate != 0,
+      .is_notify = args->is_notify != 0,
+      .is_framed = args->is_framed != 0,
+      .tx_buffer_size = args->tx_buffer_size,
+      .rx_buffer_size = args->rx_buffer_size,
       .desc = desc,
   };
-  return sys_ble_char_create(a->svc_uuid, &cfg);
+  return sys_ble_char_create(args->svc_uuid, &cfg);
 }
 
 ROUTER_OP(op_char_remove, char_remove_t) {
-  return sys_ble_char_remove(a->svc_uuid, a->uuid);
+  return sys_ble_char_remove(args->svc_uuid, args->uuid);
 }
 
 ROUTER_OP_NOARGS(op_apply) {

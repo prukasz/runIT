@@ -35,15 +35,15 @@ typedef struct __attribute__((packed)) {
 } section_t;
 
 ROUTER_OP(op_begin, begin_t) {
-  return sys_project_begin(a->len, a->flags);
+  return sys_project_begin(args->len, args->flags);
 }
 
 ROUTER_OP_TAIL(op_write, write_t) {
-  return sys_project_write(a->offset, tail, tail_len);
+  return sys_project_write(args->offset, tail, tail_len);
 }
 
 ROUTER_OP(op_commit, commit_t) {
-  return sys_project_commit(a->crc32);
+  return sys_project_commit(args->crc32);
 }
 
 ROUTER_OP_NOARGS(op_abort) {
@@ -66,7 +66,7 @@ ROUTER_OP_NOARGS(op_erase) {
 }
 
 ROUTER_OP(op_options, options_t) {
-  return sys_project_set_autostart(a->autostart != 0);
+  return sys_project_set_autostart(args->autostart != 0);
 }
 
 ROUTER_OP(op_section, section_t) {

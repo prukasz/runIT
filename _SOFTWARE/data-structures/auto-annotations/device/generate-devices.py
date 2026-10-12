@@ -296,6 +296,13 @@ def build_device(path, text, tags):
             implemented.setdefault(contract["symbol"], []).append(op)
         else:
             own_ops.append(build_own_op(a, b, pending, c_text, [path, c_path], rel(c_path)))
+    # SUSPEND and RESUME are the registry's (the type's hooks, sys_device.h): every device has them, right after its RESET row.
+    lifecycle_contract, _ = by_op["SYS_DEVICE_OP_SUSPEND"]
+    dev_ops = implemented.setdefault(lifecycle_contract["symbol"], [])
+    at = next((i + 1 for i, op in enumerate(dev_ops) if op["symbol"] == "SYS_DEVICE_OP_RESET"), 0)
+    for name in ("SYS_DEVICE_OP_SUSPEND", "SYS_DEVICE_OP_RESUME"):
+        dev_ops.insert(at, by_op[name][1])
+        at += 1
     pins = parse_pins_tags(tags.get("pins", []), label)
     params = parse_params(tags.get("param", []), by_op, label)
     device["contracts"] = []

@@ -1,7 +1,5 @@
 #include "device_tps55289.h"
 #include "esp_timer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "sys_event.h"
 #include "sys_i2c.h"
 #include "sys_pins.h"
@@ -144,7 +142,7 @@ static err_h chip_set_voltage(tps_t* c, uint16_t voltage_mV) {
   const uint32_t step = k_intfb[vout_fs & VOUT_FS_INTFB].step_100uV;
   const uint32_t min_mV = k_intfb[vout_fs & VOUT_FS_INTFB].min_mV;
   const uint32_t max_mV = min_mV + REF_MAX * step / 10u;
-  DEV_CHECK_RANGE(c->base.id, voltage_mV, min_mV, max_mV);
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, voltage_mV, min_mV, max_mV);
   const uint16_t ref = (uint16_t)((voltage_mV - min_mV) * 10u / step);
   ERR_TRY(sys_i2c_reg_write_u16(&c->i2c, REG_REF_LSB, ref, SYS_I2C_LE));
   c->out_mV = voltage_mV;
@@ -304,8 +302,8 @@ static err_h tps_set_enable(tps_t* c, bool state) {
 VREG_HANDLER(SET_ENABLE) {
   tps_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_CHECK(a->enable <= 1, ERR_CMD_BAD_ARG);
-  return tps_set_enable(c, a->enable);
+  ERR_CHECK(args->enable <= 1, ERR_CMD_BAD_ARG);
+  return tps_set_enable(c, args->enable);
 }
 
 // Higher on a running rail: a rise (ramp at the soft-rise limit, settle, VREG_EV_READY). Lower, or the
@@ -313,8 +311,8 @@ VREG_HANDLER(SET_ENABLE) {
 VREG_HANDLER(SET_VOLTAGE) {
   tps_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  DEV_CHECK_RANGE(c->base.id, a->voltage_mV, TPS55289_MIN_VOLTAGE_MV, TPS55289_MAX_VOLTAGE_MV);
-  c->last_voltage_mV = (uint16_t)a->voltage_mV;
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, args->voltage_mV, TPS55289_MIN_VOLTAGE_MV, TPS55289_MAX_VOLTAGE_MV);
+  c->last_voltage_mV = (uint16_t)args->voltage_mV;
   if (!tps_powered(c)) {
     return NULL;  // applied by the next enable
   }
@@ -339,8 +337,8 @@ VREG_HANDLER(SET_VOLTAGE) {
 VREG_HANDLER(SET_CURRENT) {
   tps_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  DEV_CHECK_RANGE(c->base.id, a->current_mA, TPS55289_MIN_CURRENT_MA, TPS55289_MAX_CURRENT_MA);
-  c->last_current_limit_mA = (uint16_t)a->current_mA;
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, args->current_mA, TPS55289_MIN_CURRENT_MA, TPS55289_MAX_CURRENT_MA);
+  c->last_current_limit_mA = (uint16_t)args->current_mA;
   if (!tps_powered(c) || c->rise != RISE_IDLE) {
     return NULL;
   }
@@ -356,23 +354,22 @@ SYS_DEVICE_HANDLER(set_protection_h, tps55289_protection_t) {
   (void)out_len;
   tps_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  DEV_CHECK_RANGE(c->base.id, a->ocp_delay, 0, TPS55289_OCP_DELAY_MAX);
-  DEV_CHECK_RANGE(c->base.id, a->fault_mask, 0, TPS55289_FAULT_ALL);
-  ERR_CHECK(a->hiccup <= 1 && a->discharge <= 1, ERR_CMD_BAD_ARG);
-  c->prot = *a;
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, args->ocp_delay, 0, TPS55289_OCP_DELAY_MAX);
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, args->fault_mask, 0, TPS55289_FAULT_ALL);
+  ERR_CHECK(args->hiccup <= 1 && args->discharge <= 1, ERR_CMD_BAD_ARG);
+  c->prot = *args;
   return tps_powered(c) ? chip_set_protection(c) : NULL;
 }
 
 SYS_DEVICE_HANDLER(get_protection_h, sys_device_none_t) {
-  (void)a;
+  (void)args;
   const tps_t* c = ctx;
   return cmd_reply(out, out_cap, out_len, &c->prot, sizeof(c->prot));
 }
 
-
 // A failed step ends the rise where it is (soft-rise limit kept); the timer reports the error.
 SYS_DEVICE_HANDLER(rise_step_h, sys_device_none_t) {
-  (void)a;
+  (void)args;
   (void)out;
   (void)out_cap;
   (void)out_len;
@@ -391,7 +388,7 @@ SYS_DEVICE_HANDLER(rise_step_h, sys_device_none_t) {
 
 // Publishes each fault of the status register. OCP during a rise is the inrush.
 EVENT_HANDLER(ON_EVENT) {
-  (void)a;
+  (void)args;
   tps_t* c = ctx;
   if (!tps_powered(c)) {
     return NULL;  // EN low: nothing to read, no fault possible
@@ -427,20 +424,16 @@ DEVICE_HANDLER(RESET) {
 
 /* Fault safe state: the rail off. The wanted state (last_enable_state) is kept
  * for RESUME. The device counts as suspended even if a step failed. */
-DEVICE_HANDLER(SUSPEND) {
+static err_h suspend_hook(void* ctx) {
   tps_t* c = ctx;
   const bool was_powered = tps_powered(c);
-  c->base.suspended = true;
   return tps_rail_off(c, was_powered, false);
 }
 
 /* Back to the wanted state: an enabled rail gets EN high and every setting
  * again (a rise). A failing resume leaves the device suspended with the rail off. */
-DEVICE_HANDLER(RESUME) {
+static err_h resume_hook(void* ctx) {
   tps_t* c = ctx;
-  if (!c->base.suspended) {
-    return NULL;
-  }
   if (c->last_enable_state || !sys_io_pin_valid(c->en.pin)) {
     err_h err = tps_set_en(c, true);
     if (err == NULL) {
@@ -451,7 +444,6 @@ DEVICE_HANDLER(RESUME) {
       return err;
     }
   }
-  c->base.suspended = false;
   return NULL;
 }
 
@@ -482,8 +474,8 @@ static err_h create(void* ctx, const void* cfg_in) {
   tps_t* c = ctx;
   const tps55289_cfg_t* cfg = cfg_in;
   const uint16_t id = c->base.id;
-  DEV_CHECK_RANGE(id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
-  DEV_CHECK_RANGE(id, cfg->i2c_addr, TPS55289_I2C_ADDR_74, TPS55289_I2C_ADDR_75);
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->i2c_addr, TPS55289_I2C_ADDR_74, TPS55289_I2C_ADDR_75);
   c->last_voltage_mV = TPS_DEFAULT_VOLTAGE_MV;
   c->last_current_limit_mA = TPS55289_MIN_CURRENT_MA;
   c->prot = k_default_protection;
@@ -514,7 +506,7 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY(RESET),     DEVICE_ENTRY(SUSPEND),     DEVICE_ENTRY(RESUME),
+    DEVICE_ENTRY(RESET),
     VREG_ENTRY(SET_ENABLE),  VREG_ENTRY(SET_VOLTAGE),   VREG_ENTRY(SET_CURRENT),
     EVENT_ENTRY(ON_EVENT),
     //@internal
@@ -526,4 +518,5 @@ static const sys_device_op_t k_ops[] = {
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_TPS55289, .cfg_size = sizeof(tps55289_cfg_t), .ctx_size = sizeof(tps_t),
-                       .create = create, .uninstall = uninstall, SYS_DEVICE_OPS(k_ops))
+                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
+                       SYS_DEVICE_OPS(k_ops))

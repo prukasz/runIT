@@ -140,26 +140,26 @@ static err_h check_channel(const ina_t* c, uint8_t ch) {
 
 PMON_HANDLER(GET_VOLTAGE) {
   ina_t* c = ctx;
-  ERR_TRY(check_channel(c, a->channel));
+  ERR_TRY(check_channel(c, args->channel));
   int32_t mV;
-  ERR_TRY(chip_read_bus_mV(c, a->channel, &mV));
+  ERR_TRY(chip_read_bus_mV(c, args->channel, &mV));
   return cmd_reply(out, out_cap, out_len, &mV, sizeof(mV));
 }
 
 PMON_HANDLER(GET_CURRENT) {
   ina_t* c = ctx;
-  ERR_TRY(check_channel(c, a->channel));
+  ERR_TRY(check_channel(c, args->channel));
   int32_t mA;
-  ERR_TRY(chip_read_current_mA(c, a->channel, &mA));
+  ERR_TRY(chip_read_current_mA(c, args->channel, &mA));
   return cmd_reply(out, out_cap, out_len, &mA, sizeof(mA));
 }
 
 PMON_HANDLER(GET_POWER) {
   ina_t* c = ctx;
-  ERR_TRY(check_channel(c, a->channel));
+  ERR_TRY(check_channel(c, args->channel));
   int32_t mV, mA;
-  ERR_TRY(chip_read_bus_mV(c, a->channel, &mV));
-  ERR_TRY(chip_read_current_mA(c, a->channel, &mA));
+  ERR_TRY(chip_read_bus_mV(c, args->channel, &mV));
+  ERR_TRY(chip_read_current_mA(c, args->channel, &mA));
   const int32_t mW = sys_power_mW(mV, mA);
   return cmd_reply(out, out_cap, out_len, &mW, sizeof(mW));
 }
@@ -167,17 +167,17 @@ PMON_HANDLER(GET_POWER) {
 PMON_HANDLER(SET_ALERT) {
   ina_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_TRY(check_channel(c, a->channel));
-  ERR_CHECK(a->alert == SYS_POWER_ALERT_OCP_WARNING || a->alert == SYS_POWER_ALERT_OCP_CRITICAL,
-            ERR_POWER_ALERT_UNSUPPORTED, .id = c->base.id, .channel = a->channel, .alert = a->alert);
-  const bool critical = a->alert == SYS_POWER_ALERT_OCP_CRITICAL;
-  if (c->inverted_mask & (1u << a->channel)) {
-    return set_inverted_alert(c, a->channel, critical, a->threshold_mA);
+  ERR_TRY(check_channel(c, args->channel));
+  ERR_CHECK(args->alert == SYS_POWER_ALERT_OCP_WARNING || args->alert == SYS_POWER_ALERT_OCP_CRITICAL,
+            ERR_POWER_ALERT_UNSUPPORTED, .id = c->base.id, .channel = args->channel, .alert = args->alert);
+  const bool critical = args->alert == SYS_POWER_ALERT_OCP_CRITICAL;
+  if (c->inverted_mask & (1u << args->channel)) {
+    return set_inverted_alert(c, args->channel, critical, args->threshold_mA);
   }
   // 12-bit signed limit register, 40 uV per LSB over 10 mOhm = 4 mA per LSB.
   const int32_t max_mA = 4095 * 40 / SHUNT_MOHM;
-  DEV_CHECK_RANGE(c->base.id, a->threshold_mA, -max_mA, max_mA);
-  return chip_set_alert(c, a->channel, a->threshold_mA, critical);
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, args->threshold_mA, -max_mA, max_mA);
+  return chip_set_alert(c, args->channel, args->threshold_mA, critical);
 }
 
 /* ---- EVENT contract: an alert pin changed ---- */
@@ -225,13 +225,13 @@ static err_h on_flags(ina_t* c) {
 EVENT_HANDLER(ON_EVENT) {
   ina_t* c = ctx;
   for (int i = 0; i < 2; i++) {
-    if (!sys_io_pin_valid(c->pin[i].pin) || a->source != c->pin[i].pin.device || a->channel != c->pin[i].pin.pin) {
+    if (!sys_io_pin_valid(c->pin[i].pin) || args->source != c->pin[i].pin.device || args->channel != c->pin[i].pin.pin) {
       continue;
     }
     if (c->inverted_alert[i] >= 0) {
-      return a->event == IO_EV_RISING ? on_inverted_release(c, i) : NULL;
+      return args->event == IO_EV_RISING ? on_inverted_release(c, i) : NULL;
     }
-    return a->event == IO_EV_FALLING ? on_flags(c) : NULL;
+    return args->event == IO_EV_FALLING ? on_flags(c) : NULL;
   }
   return NULL;
 }
@@ -248,19 +248,14 @@ DEVICE_HANDLER(RESET) {
 }
 
 // Power-down. Readings stay allowed (they return the last conversion).
-DEVICE_HANDLER(SUSPEND) {
+static err_h suspend_hook(void* ctx) {
   ina_t* c = ctx;
-  c->base.suspended = true;
   return chip_set_measuring(c, false);
 }
 
-DEVICE_HANDLER(RESUME) {
+static err_h resume_hook(void* ctx) {
   ina_t* c = ctx;
-  if (!c->base.suspended) {
-    return NULL;
-  }
   ERR_TRY(chip_set_measuring(c, true));
-  c->base.suspended = false;
   return NULL;
 }
 
@@ -281,9 +276,9 @@ static err_h create(void* ctx, const void* cfg_in) {
   ina_t* c = ctx;
   const ina3221_cfg_t* cfg = cfg_in;
   const uint16_t id = c->base.id;
-  DEV_CHECK_RANGE(id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
-  DEV_CHECK_RANGE(id, cfg->i2c_addr, INA3221_I2C_ADDR_MIN, INA3221_I2C_ADDR_MAX);
-  DEV_CHECK_RANGE(id, cfg->inverted_mask, 0, 0x07);
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->i2c_addr, INA3221_I2C_ADDR_MIN, INA3221_I2C_ADDR_MAX);
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->inverted_mask, 0, 0x07);
   c->inverted_mask = cfg->inverted_mask;
   c->inverted_alert[0] = c->inverted_alert[1] = -1;
   c->config = CONFIG_DEFAULT;
@@ -306,9 +301,10 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY(RESET),     DEVICE_ENTRY(SUSPEND),   DEVICE_ENTRY(RESUME),   PMON_ENTRY(GET_VOLTAGE),
+    DEVICE_ENTRY(RESET),   PMON_ENTRY(GET_VOLTAGE),
     PMON_ENTRY(GET_CURRENT), PMON_ENTRY(GET_POWER),   PMON_ENTRY(SET_ALERT),  EVENT_ENTRY(ON_EVENT),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_INA3221, .cfg_size = sizeof(ina3221_cfg_t), .ctx_size = sizeof(ina_t),
-                       .create = create, .uninstall = uninstall, SYS_DEVICE_OPS(k_ops))
+                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
+                       SYS_DEVICE_OPS(k_ops))
