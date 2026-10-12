@@ -11,7 +11,7 @@
 #include "services/gatt/ble_svc_gatt.h"
 #include "sys_ble_priv.h"
 
-#define TAG "sys_ble"
+#define TAG __FILE_NAME__
 
 #define ADV_ITVL_MIN_MS 20u  // fastest advertising the spec allows: quick (re)connects
 #define ADV_ITVL_MAX_MS 30u

@@ -4,7 +4,7 @@
 #include "router_internal.h"
 #include "sdkconfig.h"
 
-#define TAG "router"
+#define TAG __FILE_NAME__
 
 #define RESP_HDR 3u            // [stream][seq][status]
 #define REQ_HDR 2u             // [seq][flags]

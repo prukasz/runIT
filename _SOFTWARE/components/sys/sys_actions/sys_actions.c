@@ -7,7 +7,7 @@
 #include "sys_actions_router.h"
 #include "utils.h"
 
-#define TAG "sys_actions"
+#define TAG __FILE_NAME__
 
 #define NAMESPACE "actions"
 #define KEY_LEN 10u                               // "a" + 8 hex digits + NUL

@@ -8,7 +8,7 @@
 #include "sys_project_router.h"
 #include "utils.h"
 
-#define TAG "sys_project"
+#define TAG __FILE_NAME__
 
 #define NAMESPACE "project"
 #define KEY_OPTS "opts"

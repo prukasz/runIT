@@ -20,15 +20,8 @@
 
 typedef struct {
   sys_device_base_t base;  // first: id, suspended (chip held in reset, every pin an input)
-  bool i2c_added;
-  bool rst_used;  // RST made an output on its device
-  bool rst_locked;
-  bool intr_used;  // INT made an input on its device
-  bool intr_subscribed;
-  bool intr_locked;
-  uint8_t intr_sub;  // sys_event handle: IO_EV_FALLING of intr -> our ON_EVENT
-  sys_io_pin_t intr;
-  sys_io_pin_t rst;
+  sys_dev_pin_t intr;  // INT: its falling edge runs our ON_EVENT
+  sys_dev_pin_t rst;   // RST: low holds the chip in reset
   sys_pins_state_t pins;
   sys_i2c_dev_t i2c;
 
@@ -123,15 +116,9 @@ EVENT_HANDLER(ON_EVENT) {
 
 /* ---- IO contract ---- */
 
-// For every op that changes a pin: not suspended, the pin exists and isn't locked by another device.
-static err_h check_writable(const tca_t* c, uint8_t pin) {
-  ERR_TRY(sys_device_check_active(&c->base));
-  return sys_pins_state_check_free(&c->pins, c->base.id, pin);
-}
-
 IO_HANDLER(SET_MODE) {
   tca_t* c = ctx;
-  ERR_TRY(check_writable(c, a->pin));
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
   ERR_CHECK(a->mode == SYS_IO_MODE_INPUT || a->mode == SYS_IO_MODE_OUTPUT_PUSH_PULL, ERR_IO_MODE_UNSUPPORTED,
             .id = c->base.id, .pin = a->pin, .mode = a->mode);
   return chip_set_config(c, 1UL << a->pin, a->mode == SYS_IO_MODE_INPUT ? (1UL << a->pin) : 0);
@@ -140,13 +127,13 @@ IO_HANDLER(SET_MODE) {
 IO_HANDLER(SET_LEVEL) {
   tca_t* c = ctx;
   ERR_CHECK(a->level <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(check_writable(c, a->pin));
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
   return chip_set_pins(c, 1UL << a->pin, a->level ? (1UL << a->pin) : 0);
 }
 
 IO_HANDLER(TOGGLE) {
   tca_t* c = ctx;
-  ERR_TRY(check_writable(c, a->pin));
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
   return chip_set_pins(c, 1UL << a->pin, (chip_output(c) & (1UL << a->pin)) ? 0 : (1UL << a->pin));
 }
 
@@ -165,7 +152,7 @@ IO_HANDLER(GET_LEVEL) {
 // The pin back to its power-on state: input, latch low, interrupt disarmed.
 IO_HANDLER(RESET) {
   tca_t* c = ctx;
-  ERR_TRY(check_writable(c, a->pin));
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
   c->intr_mode[a->pin] = SYS_IO_INTR_DISABLE;
   ERR_TRY(chip_set_pins(c, 1UL << a->pin, 0));
   return chip_set_config(c, 1UL << a->pin, 1UL << a->pin);
@@ -175,7 +162,7 @@ IO_HANDLER(RESET) {
 IO_HANDLER(CONFIGURE_INTR) {
   tca_t* c = ctx;
   ERR_CHECK(a->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && a->cfg.debounce <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(check_writable(c, a->pin));
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
   ERR_CHECK(a->cfg.mode <= SYS_IO_INTR_MODE_BOTH_EDGES, ERR_IO_FEATURE_UNSUPPORTED, .id = c->base.id, .pin = a->pin);
   c->intr_mode[a->pin] = a->cfg.mode;
   return NULL;
@@ -214,8 +201,8 @@ DEVICE_HANDLER(SUSPEND) {
   tca_t* c = ctx;
   err_h err = NULL;
   c->base.suspended = true;
-  if (c->rst_locked) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_pins_set_locked_level(c->rst, false));
+  if (c->rst.locked) {
+    SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_drive(&c->rst, false));
   } else {
     SYS_DEVICE_KEEP_FIRST(err, chip_release_all(c));
   }
@@ -228,8 +215,8 @@ DEVICE_HANDLER(RESUME) {
   if (!c->base.suspended) {
     return NULL;
   }
-  if (c->rst_locked) {
-    ERR_TRY(sys_pins_set_locked_level(c->rst, true));
+  if (c->rst.locked) {
+    ERR_TRY(sys_dev_pin_drive(&c->rst, true));
     vTaskDelay(MSEC(RESET_PULSE_MS));
   }
   ERR_TRY(chip_restore(c));
@@ -244,53 +231,23 @@ DEVICE_HANDLER(RESUME) {
 static err_h uninstall(void* ctx) {
   tca_t* c = ctx;
   err_h err = NULL;
-  if (c->i2c_added) {
+  if (sys_i2c_dev_added(&c->i2c)) {
     if (!c->base.suspended) {
       SYS_DEVICE_KEEP_FIRST(err, chip_release_all(c));  // nothing stays driven
     }
     SYS_DEVICE_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
-    c->i2c_added = false;
   }
-  if (c->intr_subscribed) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_event_unsubscribe(c->intr_sub));
-    c->intr_subscribed = false;
-  }
-  if (c->intr_locked) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_pins_unlock(c->intr));
-    c->intr_locked = false;
-  }
-  if (c->intr_used) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_io_reset(c->intr));
-    c->intr_used = false;
-  }
-  if (c->rst_locked) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_pins_unlock(c->rst));
-    c->rst_locked = false;
-  }
-  if (c->rst_used) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_io_reset(c->rst));
-    c->rst_used = false;
-  }
+  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_release(&c->intr));
+  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_release(&c->rst));
   return err;
 }
 
-// The registry allocated `ctx` (id set); on a failure it calls uninstall() and frees it.
 static err_h create(void* ctx, const void* cfg_in) {
   tca_t* c = ctx;
   const tca6424a_cfg_t* cfg = cfg_in;
   const uint16_t id = c->base.id;
-  ERR_CHECK(cfg->i2c_bus < SYS_I2C_BUS_COUNT, ERR_DEV_RANGE, .id = id, .value = cfg->i2c_bus, .min = 0,
-            .max = SYS_I2C_BUS_COUNT - 1);
-  ERR_CHECK(cfg->i2c_addr >= TCA6424A_I2C_ADDR_LOW && cfg->i2c_addr <= TCA6424A_I2C_ADDR_HIGH, ERR_DEV_RANGE, .id = id,
-            .value = cfg->i2c_addr, .min = TCA6424A_I2C_ADDR_LOW, .max = TCA6424A_I2C_ADDR_HIGH);
-  c->intr = cfg->intr_pin;
-  c->rst = cfg->rst_pin;
-  if (sys_io_pin_valid(c->intr)) {
-    ERR_TRY(sys_device_use(&c->base, c->intr.device));
-  }
-  if (sys_io_pin_valid(c->rst)) {
-    ERR_TRY(sys_device_use(&c->base, c->rst.device));
-  }
+  DEV_CHECK_RANGE(id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
+  DEV_CHECK_RANGE(id, cfg->i2c_addr, TCA6424A_I2C_ADDR_LOW, TCA6424A_I2C_ADDR_HIGH);
   sys_pins_state_init(&c->pins, TCA6424A_PINS);
   // Start state: every pin an input, latches low (a pin that becomes an output starts low, not at the chip's 1).
   memset(c->config, 0xFF, sizeof(c->config));
@@ -300,41 +257,24 @@ static err_h create(void* ctx, const void* cfg_in) {
 
   /* RST released before the probe: after a safe state (suspend holds the chip in reset) an ESP restart finds RST
      still low, and a chip in reset doesn't answer the probe. */
-  if (sys_io_pin_valid(c->rst)) {
-    ERR_TRY(sys_io_set_mode(c->rst, SYS_IO_MODE_OUTPUT_PUSH_PULL));
-    c->rst_used = true;
-    ERR_TRY(sys_io_set_level(c->rst, true));
-    ERR_TRY(sys_pins_lock(c->rst));
-    c->rst_locked = true;
+  if (sys_io_pin_valid(cfg->rst_pin)) {
+    ERR_TRY(sys_dev_pin_take_output(&c->base, &c->rst, cfg->rst_pin, true));
     vTaskDelay(MSEC(RESET_PULSE_MS));
   }
 
   ERR_TRY(sys_i2c_dev_add(&c->i2c));  // probes the chip
-  c->i2c_added = true;
 
   // The chip keeps its registers across an ESP reset when there is no RST pin: write the start state.
   ERR_TRY(chip_restore(c));
 
   // INT: its falling edge reaches our ON_EVENT (inline: an I2C read, no delay).
-  if (sys_io_pin_valid(c->intr)) {
-    ERR_TRY(sys_io_prepare_input(c->intr));
-    c->intr_used = true;
-    const sys_event_sub_t sub = {.source = c->intr.device, .event = IO_EV_FALLING, .channel = c->intr.pin,
-                                 .inline_call = true, .device = id};
-    ERR_TRY(sys_event_subscribe(&sub, &c->intr_sub));
-    c->intr_subscribed = true;
-    const sys_io_intr_cfg_t intr_cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
-    ERR_TRY(sys_io_configure_intr(c->intr, &intr_cfg));
-    ERR_TRY(sys_pins_lock(c->intr));
-    c->intr_locked = true;
-  }
+  ERR_TRY(sys_dev_pin_take_input(&c->base, &c->intr, cfg->intr_pin, IO_EV_FALLING, SYS_IO_INTR_MODE_FALLING_EDGE));
 
   return chip_get_pins(c, &c->cached_inputs);
 }
 
 /* ---- Type ---- */
 
-// An op not listed (a contract the TCA6424A doesn't have) answers ERR_DEV_UNKNOWN_OP; OPS lists this table.
 static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY(RESET),      DEVICE_ENTRY(SUSPEND),   DEVICE_ENTRY(RESUME),
     IO_ENTRY(SET_MODE),       IO_ENTRY(SET_LEVEL),     IO_ENTRY(TOGGLE),

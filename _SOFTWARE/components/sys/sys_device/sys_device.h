@@ -139,6 +139,21 @@ typedef struct __attribute__((packed)) {
 
 ERR_TAGS_DECLARE(ERR_SYS_DEVICE_MAP)
 
+/* Widened to int64 in a function: at the call the compiler would see a u8's range and warn (-Wtype-limits, u8 >= 0). */
+static inline bool dev_in_range(int64_t v, int64_t lo, int64_t hi) {
+  return v >= lo && v <= hi;
+}
+
+/**
+ * @brief ERR_DEV_RANGE unless lo <= v <= hi. The bounds are written once: the check and the error's min / max come from
+ * the same expressions. The value and the bounds are reported as int32_t (ERR_DEV_RANGE is signed).
+ * The parameter is `dev`, not `id`: a parameter named `id` would also be replaced after the `.` of `.id =`.
+ * @usage DEV_CHECK_RANGE(c->base.id, a->duty, 0, IO_PWM_DUTY_MAX);
+ */
+#define DEV_CHECK_RANGE(dev, v, lo, hi) \
+  ERR_CHECK(dev_in_range((v), (lo), (hi)), ERR_DEV_RANGE, .id = (dev), .value = (int32_t)(v), .min = (int32_t)(lo), \
+            .max = (int32_t)(hi))
+
 /* ----------------------------------------------------------------------------
  * Device types (drivers)
  * ------------------------------------------------------------------------- */

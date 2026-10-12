@@ -69,7 +69,7 @@ static err_h servo_decode(const servo_t* c, int16_t value_x10, int32_t* pos_x10)
   const bool angle = cfg->servo_type == SERVO_TYPE_ANGLE;
   if (cfg->byte_mode) {
     const int32_t byte = ((int32_t)value_x10 + 5) / 10;
-    ERR_CHECK(byte >= 0 && byte <= BYTE_MAX, ERR_DEV_RANGE, .id = c->base.id, .value = byte, .min = 0, .max = BYTE_MAX);
+    DEV_CHECK_RANGE(c->base.id, byte, 0, BYTE_MAX);
     if (angle) {
       *pos_x10 = (int32_t)cfg->angle_min_deg * 10 +
                  byte * ((int32_t)cfg->angle_max_deg - cfg->angle_min_deg) * 10 / BYTE_MAX;
@@ -80,7 +80,7 @@ static err_h servo_decode(const servo_t* c, int16_t value_x10, int32_t* pos_x10)
   }
   const int32_t lo = angle ? (int32_t)cfg->angle_min_deg * 10 : -SPEED_MAX_X10;
   const int32_t hi = angle ? (int32_t)cfg->angle_max_deg * 10 : SPEED_MAX_X10;
-  ERR_CHECK(value_x10 >= lo && value_x10 <= hi, ERR_DEV_RANGE, .id = c->base.id, .value = value_x10, .min = lo, .max = hi);
+  DEV_CHECK_RANGE(c->base.id, value_x10, lo, hi);
   *pos_x10 = value_x10;
   return NULL;
 }
@@ -103,8 +103,7 @@ SYS_DEVICE_HANDLER(set_trim_h, servo_trim_t) {
   (void)out_cap;
   (void)out_len;
   servo_t* c = ctx;
-  ERR_CHECK(a->trim >= -SERVO_TRIM_MAX && a->trim <= SERVO_TRIM_MAX, ERR_DEV_RANGE, .id = c->base.id, .value = a->trim,
-            .min = -SERVO_TRIM_MAX, .max = SERVO_TRIM_MAX);
+  DEV_CHECK_RANGE(c->base.id, a->trim, -SERVO_TRIM_MAX, SERVO_TRIM_MAX);
   c->trim = a->trim;
   return NULL;
 }
@@ -189,31 +188,23 @@ DEVICE_HANDLER(RESUME) {
 
 static err_h check_cfg(const servo_t* c, const servo_cfg_t* cfg) {
   const uint16_t id = c->base.id;
-  ERR_CHECK(cfg->servo_type <= SERVO_TYPE_CONTINUOUS, ERR_DEV_RANGE, .id = id, .value = cfg->servo_type, .min = 0,
-            .max = SERVO_TYPE_CONTINUOUS);
+  DEV_CHECK_RANGE(id, cfg->servo_type, 0, SERVO_TYPE_CONTINUOUS);
   ERR_CHECK(cfg->byte_mode <= 1 && cfg->invert <= 1, ERR_CMD_BAD_ARG);
-  ERR_CHECK(cfg->max_us >= 1 && cfg->max_us <= PERIOD_US, ERR_DEV_RANGE, .id = id, .value = cfg->max_us, .min = 1,
-            .max = PERIOD_US);
-  ERR_CHECK(cfg->min_us < cfg->max_us, ERR_DEV_RANGE, .id = id, .value = cfg->min_us, .min = 0, .max = cfg->max_us - 1);
+  DEV_CHECK_RANGE(id, cfg->max_us, 1, PERIOD_US);
+  DEV_CHECK_RANGE(id, cfg->min_us, 0, cfg->max_us - 1);
   if (cfg->servo_type == SERVO_TYPE_ANGLE) {
-    ERR_CHECK(cfg->angle_max_deg >= -ANGLE_LIMIT_DEG && cfg->angle_max_deg <= ANGLE_LIMIT_DEG, ERR_DEV_RANGE, .id = id,
-              .value = cfg->angle_max_deg, .min = -ANGLE_LIMIT_DEG, .max = ANGLE_LIMIT_DEG);
-    ERR_CHECK(cfg->angle_min_deg >= -ANGLE_LIMIT_DEG && cfg->angle_min_deg < cfg->angle_max_deg, ERR_DEV_RANGE, .id = id,
-              .value = cfg->angle_min_deg, .min = -ANGLE_LIMIT_DEG, .max = cfg->angle_max_deg - 1);
-    ERR_CHECK(cfg->default_pos >= cfg->angle_min_deg && cfg->default_pos <= cfg->angle_max_deg, ERR_DEV_RANGE, .id = id,
-              .value = cfg->default_pos, .min = cfg->angle_min_deg, .max = cfg->angle_max_deg);
+    DEV_CHECK_RANGE(id, cfg->angle_max_deg, -ANGLE_LIMIT_DEG, ANGLE_LIMIT_DEG);
+    DEV_CHECK_RANGE(id, cfg->angle_min_deg, -ANGLE_LIMIT_DEG, cfg->angle_max_deg - 1);
+    DEV_CHECK_RANGE(id, cfg->default_pos, cfg->angle_min_deg, cfg->angle_max_deg);
   } else {
-    ERR_CHECK(cfg->default_pos >= -SPEED_MAX_PCT && cfg->default_pos <= SPEED_MAX_PCT, ERR_DEV_RANGE, .id = id,
-              .value = cfg->default_pos, .min = -SPEED_MAX_PCT, .max = SPEED_MAX_PCT);
+    DEV_CHECK_RANGE(id, cfg->default_pos, -SPEED_MAX_PCT, SPEED_MAX_PCT);
     const uint32_t half_us = (uint32_t)(cfg->max_us - cfg->min_us) / 2;
     const uint32_t deadband_max = half_us ? half_us - 1 : 0;
-    ERR_CHECK(cfg->deadband_us <= deadband_max, ERR_DEV_RANGE, .id = id, .value = cfg->deadband_us, .min = 0,
-              .max = deadband_max);
+    DEV_CHECK_RANGE(id, cfg->deadband_us, 0, deadband_max);
   }
   return NULL;
 }
 
-// The registry allocated `ctx` (id set); on a failure it calls uninstall() and frees it.
 static err_h create(void* ctx, const void* cfg_in) {
   servo_t* c = ctx;
   const servo_cfg_t* cfg = cfg_in;
@@ -231,7 +222,6 @@ static err_h create(void* ctx, const void* cfg_in) {
 
 /* ---- Type ---- */
 
-// An op not listed (a contract the servo doesn't have) answers ERR_DEV_UNKNOWN_OP; OPS lists this table.
 static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY(RESET),
     DEVICE_ENTRY(SUSPEND),

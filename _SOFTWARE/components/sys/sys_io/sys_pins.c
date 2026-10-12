@@ -1,4 +1,5 @@
 #include "sys_pins.h"
+#include "sys_event.h"
 
 
 void sys_pins_state_init(sys_pins_state_t* s, uint8_t count) {
@@ -66,4 +67,71 @@ err_h sys_pins_unlock(sys_io_pin_t p) {
 err_h sys_pins_set_locked_level(sys_io_pin_t p, bool level) {
   const pins_args_SET_LOCKED_LEVEL_t a = {.pin = p.pin, .level = level};
   return sys_device_call(p.device, PINS_OP_SET_LOCKED_LEVEL, &a, sizeof(a), NULL, 0, NULL);
+}
+
+err_h sys_pins_check_writable(const sys_device_base_t* base, const sys_pins_state_t* pins, uint8_t pin) {
+  ERR_TRY(sys_device_check_active(base));
+  return sys_pins_state_check_free(pins, base->id, pin);
+}
+
+/* ----------------------------------------------------------------------------
+ * A device's own pins (sys_pins.h): the take / drive / release order every driver used by hand.
+ * ------------------------------------------------------------------------- */
+
+err_h sys_dev_pin_take_output(sys_device_base_t* dev, sys_dev_pin_t* p, sys_io_pin_t pin, bool level) {
+  p->pin = pin;  // SYS_IO_PIN_NONE stays NONE: the struct's pin is what the driver checks
+  if (!sys_io_pin_valid(pin)) {
+    return NULL;
+  }
+  ERR_TRY(sys_device_use(dev, pin.device));
+  ERR_TRY(sys_io_set_mode(pin, SYS_IO_MODE_OUTPUT_PUSH_PULL));
+  p->used = true;
+  ERR_TRY(sys_io_set_level(pin, level));
+  ERR_TRY(sys_pins_lock(pin));
+  p->locked = true;
+  return NULL;
+}
+
+err_h sys_dev_pin_take_input(sys_device_base_t* dev, sys_dev_pin_t* p, sys_io_pin_t pin, uint16_t event, uint8_t mode) {
+  p->pin = pin;
+  if (!sys_io_pin_valid(pin)) {
+    return NULL;
+  }
+  ERR_TRY(sys_device_use(dev, pin.device));
+  ERR_TRY(sys_io_prepare_input(pin));
+  p->used = true;
+  if (event != 0) {  // inline: the owner's ON_EVENT runs in the publisher's task (an I2C read, no delay)
+    const sys_event_sub_t sub = {.source = pin.device, .event = event, .channel = pin.pin, .inline_call = true,
+                                 .device = dev->id};
+    ERR_TRY(sys_event_subscribe(&sub, &p->sub));
+    p->subscribed = true;
+  }
+  const sys_io_intr_cfg_t cfg = {.mode = mode};
+  ERR_TRY(sys_io_configure_intr(pin, &cfg));
+  ERR_TRY(sys_pins_lock(pin));
+  p->locked = true;
+  return NULL;
+}
+
+err_h sys_dev_pin_drive(const sys_dev_pin_t* p, bool level) {
+  return p->locked ? sys_pins_set_locked_level(p->pin, level) : NULL;
+}
+
+err_h sys_dev_pin_release(sys_dev_pin_t* p) {
+  err_h err = NULL;
+  if (p->subscribed) {
+    SYS_DEVICE_KEEP_FIRST(err, sys_event_unsubscribe(p->sub));
+    p->subscribed = false;
+  }
+  if (p->locked) {
+    SYS_DEVICE_KEEP_FIRST(err, sys_pins_unlock(p->pin));
+    p->locked = false;
+  }
+  if (p->used) {
+    if (!p->keep) {
+      SYS_DEVICE_KEEP_FIRST(err, sys_io_reset(p->pin));
+    }
+    p->used = false;
+  }
+  return err;
 }

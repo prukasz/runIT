@@ -28,7 +28,7 @@
 #include "vm_router.h"
 #include "utils.h"
 
-#define TAG "runit_app"
+#define TAG __FILE_NAME__
 
 void runit_enter_safe_state(void) {
   ESP_LOGW(TAG, "safe state: stopping the VM, suspending devices");

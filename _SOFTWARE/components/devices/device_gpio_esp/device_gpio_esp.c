@@ -70,12 +70,6 @@ static bool is_digital_output(sys_io_mode_e mode) {
          mode == SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP;
 }
 
-// A write to an unlocked pin: not suspended, the pin exists and nobody has locked it.
-static err_h check_writable(const gpio_t* c, uint8_t pin) {
-  ERR_TRY(sys_device_check_active(&c->base));
-  return sys_pins_state_check_free(&c->pins, c->base.id, pin);
-}
-
 // The pin's object (gpio_mutex held), or ERR_IO_PIN_UNCONFIGURED.
 static err_h pin_configured(const gpio_t* c, uint8_t pin, esp_pin_obj_t** obj) {
   *obj = pin_obj_get(pin);
@@ -208,7 +202,7 @@ static err_h configure_pin(const gpio_t* c, uint8_t pin, uint8_t mode, bool* adc
 
 IO_HANDLER(SET_MODE) {
   gpio_t* c = ctx;
-  ERR_TRY(check_writable(c, a->pin));
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
   bool adc_changed = false;
   LOCK();
   err_h err = configure_pin(c, a->pin, a->mode, &adc_changed);
@@ -221,7 +215,7 @@ IO_HANDLER(SET_MODE) {
 
 IO_HANDLER(RESET) {
   gpio_t* c = ctx;
-  ERR_TRY(check_writable(c, a->pin));
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
   return release_pin(a->pin);
 }
 
@@ -243,13 +237,13 @@ static err_h drive(const gpio_t* c, uint8_t pin, int level) {
 IO_HANDLER(SET_LEVEL) {
   gpio_t* c = ctx;
   ERR_CHECK(a->level <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(check_writable(c, a->pin));
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
   return drive(c, a->pin, a->level);
 }
 
 IO_HANDLER(TOGGLE) {
   gpio_t* c = ctx;
-  ERR_TRY(check_writable(c, a->pin));
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
   return drive(c, a->pin, LEVEL_TOGGLE);
 }
 
@@ -335,8 +329,7 @@ static err_h arm_digital(const gpio_t* c, esp_pin_obj_t* pin_obj, const sys_io_i
 static err_h arm_adc(const gpio_t* c, esp_pin_obj_t* pin_obj, const sys_io_intr_cfg_t* cfg) {
   ERR_CHECK(cfg->mode != SYS_IO_INTR_MODE_BOTH_EDGES, ERR_IO_FEATURE_UNSUPPORTED, .id = c->base.id, .pin = pin_obj->io_num);
   if (cfg->mode == SYS_IO_INTR_ADC_WINDOW_OUTSIDE || cfg->mode == SYS_IO_INTR_ADC_WINDOW_INSIDE) {
-    ERR_CHECK(cfg->adc.threshold_down_mV <= cfg->adc.threshold_up_mV, ERR_DEV_RANGE, .id = c->base.id,
-              .value = cfg->adc.threshold_down_mV, .min = 0, .max = cfg->adc.threshold_up_mV);
+    DEV_CHECK_RANGE(c->base.id, cfg->adc.threshold_down_mV, 0, cfg->adc.threshold_up_mV);
   }
   pin_obj->intr = *cfg;
   pin_obj->hw.adc_cfg.alert_active = false;
@@ -350,7 +343,7 @@ static err_h arm_adc(const gpio_t* c, esp_pin_obj_t* pin_obj, const sys_io_intr_
 IO_HANDLER(CONFIGURE_INTR) {
   gpio_t* c = ctx;
   ERR_CHECK(a->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && a->cfg.debounce <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(check_writable(c, a->pin));
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
   esp_pin_obj_t* pin_obj;
   LOCK();
   err_h err = pin_configured(c, a->pin, &pin_obj);
@@ -385,9 +378,8 @@ static err_h pwm_result(const gpio_t* c, esp_err_t rc, uint8_t pin, uint32_t fre
 
 IO_HANDLER(SET_PWM_FREQ) {
   gpio_t* c = ctx;
-  ERR_TRY(check_writable(c, a->pin));
-  ERR_CHECK(a->frequency_Hz >= ESP_PWM_FREQ_MIN_HZ && a->frequency_Hz <= ESP_PWM_FREQ_MAX_HZ, ERR_DEV_RANGE,
-            .id = c->base.id, .value = a->frequency_Hz, .min = ESP_PWM_FREQ_MIN_HZ, .max = ESP_PWM_FREQ_MAX_HZ);
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
+  DEV_CHECK_RANGE(c->base.id, a->frequency_Hz, ESP_PWM_FREQ_MIN_HZ, ESP_PWM_FREQ_MAX_HZ);
   err_h err;
   LOCK();
   esp_pin_obj_t* pin_obj = pwm_pin(c, a->pin, &err);
@@ -400,9 +392,8 @@ IO_HANDLER(SET_PWM_FREQ) {
 
 IO_HANDLER(SET_PWM_DUTY) {
   gpio_t* c = ctx;
-  ERR_TRY(check_writable(c, a->pin));
-  ERR_CHECK(a->duty <= IO_PWM_DUTY_MAX, ERR_DEV_RANGE, .id = c->base.id, .value = a->duty, .min = 0,
-            .max = IO_PWM_DUTY_MAX);
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
+  DEV_CHECK_RANGE(c->base.id, a->duty, 0, IO_PWM_DUTY_MAX);
   err_h err;
   LOCK();
   esp_pin_obj_t* pin_obj = pwm_pin(c, a->pin, &err);
@@ -424,7 +415,7 @@ PINS_HANDLER(SET_LOCKED_LEVEL) {
   ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, a->pin));
   ERR_CHECK(a->level <= 1, ERR_CMD_BAD_ARG);
   if ((c->pins.locked & (1ULL << a->pin)) == 0) {
-    ERR_TRY(check_writable(c, a->pin));
+    ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
   }
   return drive(c, a->pin, a->level);
 }
@@ -518,7 +509,7 @@ static err_h uninstall(void* ctx) {
   return err;
 }
 
-// The registry allocated `ctx` (id set); on a failure it calls uninstall() and frees it. No create struct.
+// No create struct.
 static err_h create(void* ctx, const void* cfg) {
   (void)cfg;
   gpio_t* c = ctx;

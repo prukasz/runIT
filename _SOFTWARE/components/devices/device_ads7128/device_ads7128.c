@@ -79,12 +79,7 @@ typedef struct {
 
 typedef struct {
   sys_device_base_t base;  // first: id, suspended (sequencer stopped)
-  bool i2c_added;
-  bool intr_used;  // ALERT made an input on its device
-  bool intr_subscribed;
-  bool intr_locked;
-  uint8_t intr_sub;  // sys_event handle: IO_EV_FALLING of intr -> our ON_EVENT
-  sys_io_pin_t intr;
+  sys_dev_pin_t intr;  // ALERT: active low, its falling edge runs our ON_EVENT
   sys_i2c_dev_t i2c;
   uint16_t full_scale_mV;  // the input voltage of code 4095
 
@@ -437,16 +432,13 @@ IO_HANDLER(CONFIGURE_INTR) {
   ERR_CHECK(cfg->mode >= SYS_IO_INTR_ADC_WINDOW_OUTSIDE, ERR_IO_FEATURE_UNSUPPORTED, .id = c->base.id, .pin = a->pin);
 
   const sys_io_adc_window_t* w = &cfg->adc;
-  ERR_CHECK(w->threshold_up_mV <= c->full_scale_mV, ERR_DEV_RANGE, .id = c->base.id, .value = w->threshold_up_mV, .min = 0,
-            .max = c->full_scale_mV);
+  DEV_CHECK_RANGE(c->base.id, w->threshold_up_mV, 0, c->full_scale_mV);
   ERR_CHECK(w->threshold_down_mV <= c->full_scale_mV && (w->threshold_up_mV == 0 || w->threshold_down_mV <= w->threshold_up_mV),
             ERR_DEV_RANGE, .id = c->base.id, .value = w->threshold_down_mV, .min = 0,
             .max = w->threshold_up_mV ? w->threshold_up_mV : c->full_scale_mV);
   const uint32_t hysteresis_max_mV = code_to_mV(c, (uint16_t)(HYSTERESIS_FIELD_MAX * HYSTERESIS_STEP));
-  ERR_CHECK(w->hysteresis_mV <= hysteresis_max_mV, ERR_DEV_RANGE, .id = c->base.id, .value = w->hysteresis_mV, .min = 0,
-            .max = hysteresis_max_mV);
-  ERR_CHECK(w->event_counter_threshold <= EVENT_COUNT_MAX, ERR_DEV_RANGE, .id = c->base.id,
-            .value = w->event_counter_threshold, .min = 0, .max = EVENT_COUNT_MAX);
+  DEV_CHECK_RANGE(c->base.id, w->hysteresis_mV, 0, hysteresis_max_mV);
+  DEV_CHECK_RANGE(c->base.id, w->event_counter_threshold, 0, EVENT_COUNT_MAX);
 
   const uint16_t upper = w->threshold_up_mV == 0 ? MAX_CODE : mv_to_code(c, w->threshold_up_mV);
   const uint16_t lower = mv_to_code(c, w->threshold_down_mV);
@@ -485,24 +477,12 @@ IO_HANDLER(RESET) {
 static err_h uninstall(void* ctx) {
   ads_t* c = ctx;
   err_h err = NULL;
-  if (c->intr_subscribed) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_event_unsubscribe(c->intr_sub));
-    c->intr_subscribed = false;
-  }
-  if (c->i2c_added) {
+  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_release(&c->intr));  // ALERT first: no events while the chip stops
+  if (sys_i2c_dev_added(&c->i2c)) {
     if (!c->base.suspended) {
       SYS_DEVICE_KEEP_FIRST(err, chip_stop_sequence(c));  // nothing converts after the device is gone
     }
     SYS_DEVICE_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
-    c->i2c_added = false;
-  }
-  if (c->intr_locked) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_pins_unlock(c->intr));
-    c->intr_locked = false;
-  }
-  if (c->intr_used) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_io_reset(c->intr));
-    c->intr_used = false;
   }
   return err;
 }
@@ -544,49 +524,27 @@ DEVICE_HANDLER(RESUME) {
 
 /* ---- Create ---- */
 
-// The registry allocated `ctx` (id set); on a failure it calls uninstall() and frees it.
 static err_h create(void* ctx, const void* cfg_in) {
   ads_t* c = ctx;
   const ads7128_cfg_t* cfg = cfg_in;
   const uint16_t id = c->base.id;
-  ERR_CHECK(cfg->i2c_bus < SYS_I2C_BUS_COUNT, ERR_DEV_RANGE, .id = id, .value = cfg->i2c_bus, .min = 0,
-            .max = SYS_I2C_BUS_COUNT - 1);
-  ERR_CHECK(cfg->i2c_addr >= 0x10 && cfg->i2c_addr <= 0x17, ERR_DEV_RANGE, .id = id, .value = cfg->i2c_addr, .min = 0x10,
-            .max = 0x17);
+  DEV_CHECK_RANGE(id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
+  DEV_CHECK_RANGE(id, cfg->i2c_addr, 0x10, 0x17);
   // Every reading and every threshold is scaled by this.
   ERR_CHECK(cfg->full_scale_mV >= 1, ERR_DEV_RANGE, .id = id, .value = cfg->full_scale_mV, .min = 1, .max = UINT16_MAX);
   c->full_scale_mV = cfg->full_scale_mV;
-  c->intr = cfg->intr_pin;
-  if (sys_io_pin_valid(c->intr)) {
-    ERR_TRY(sys_device_use(&c->base, c->intr.device));
-  }
   load_defaults(c);
   memset(c->intr_modes, SYS_IO_INTR_DISABLE, sizeof(c->intr_modes));
-  sys_i2c_dev_init(&c->i2c, cfg->i2c_bus, cfg->i2c_addr, I2C_SPEED_HZ);
-
-  ERR_TRY(sys_i2c_dev_add(&c->i2c));  // probes the chip
-  c->i2c_added = true;
+  ERR_TRY(sys_i2c_dev_attach(&c->i2c, cfg->i2c_bus, cfg->i2c_addr, I2C_SPEED_HZ));  // probes the chip
   ERR_TRY(chip_reset(c));
 
   // ALERT: active low, so its falling edge reaches our ON_EVENT (inline: I2C reads, no delay).
-  if (sys_io_pin_valid(c->intr)) {
-    ERR_TRY(sys_io_prepare_input(c->intr));
-    c->intr_used = true;
-    const sys_event_sub_t sub = {.source = c->intr.device, .event = IO_EV_FALLING, .channel = c->intr.pin,
-                                 .inline_call = true, .device = id};
-    ERR_TRY(sys_event_subscribe(&sub, &c->intr_sub));
-    c->intr_subscribed = true;
-    const sys_io_intr_cfg_t intr_cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
-    ERR_TRY(sys_io_configure_intr(c->intr, &intr_cfg));
-    ERR_TRY(sys_pins_lock(c->intr));
-    c->intr_locked = true;
-  }
+  ERR_TRY(sys_dev_pin_take_input(&c->base, &c->intr, cfg->intr_pin, IO_EV_FALLING, SYS_IO_INTR_MODE_FALLING_EDGE));
   return NULL;
 }
 
 /* ---- Type ---- */
 
-// An op not listed (a contract the ADS7128 doesn't have) answers ERR_DEV_UNKNOWN_OP; OPS lists this table.
 static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY(RESET),   DEVICE_ENTRY(SUSPEND),       DEVICE_ENTRY(RESUME),
     IO_ENTRY(GET_VOLTAGE), IO_ENTRY(SET_MODE),          IO_ENTRY(CONFIGURE_INTR),

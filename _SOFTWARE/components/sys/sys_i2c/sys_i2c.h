@@ -139,6 +139,14 @@ static inline void sys_i2c_dev_init(sys_i2c_dev_t* dev, uint8_t bus, uint8_t add
  */
 MUST_USE err_h sys_i2c_dev_add(sys_i2c_dev_t* dev);
 
+/** @brief sys_i2c_dev_init() then sys_i2c_dev_add(): the create path of a chip that is attached at once. */
+MUST_USE err_h sys_i2c_dev_attach(sys_i2c_dev_t* dev, uint8_t bus, uint8_t addr, uint32_t speed_Hz);
+
+/** @brief True while the chip is attached (added, not removed): the owner's "was it built" check on teardown. */
+static inline bool sys_i2c_dev_added(const sys_i2c_dev_t* dev) {
+  return dev->handle != NULL;
+}
+
 /**
  * @brief Detaches the chip and frees its address. Safe on a device that was
  * never added; `handle` is NULL afterwards even when the driver fails.

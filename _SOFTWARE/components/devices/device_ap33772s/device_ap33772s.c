@@ -40,10 +40,7 @@ static inline bool pdo_augmented(uint16_t p) { return ((p >> 14) & 1u) != 0; }
 typedef struct {
   sys_device_base_t base;  // first: id, suspended
   sys_i2c_dev_t i2c;
-  bool i2c_added;
-  sys_io_pin_t intr;
-  bool intr_used;
-  bool intr_locked;
+  sys_dev_pin_t intr;
   esp_timer_handle_t keepalive_timer;  // periodic while an AVS contract is active
 
   uint16_t pdo[PDO_COUNT];  // slot - 1
@@ -109,8 +106,7 @@ static err_h read_pdos(ap_t* c) {
 
 static err_h set_fixed(ap_t* c, int slot, uint32_t current_mA) {
   const uint16_t pdo = c->pdo[slot - 1];
-  ERR_CHECK(current_mA >= 1 && current_mA <= MAX_CURRENT_MA, ERR_DEV_RANGE, .id = c->base.id, .value = (int32_t)current_mA,
-            .min = 1, .max = MAX_CURRENT_MA);
+  DEV_CHECK_RANGE(c->base.id, current_mA, 1, MAX_CURRENT_MA);
   const unsigned code = current_code(current_mA);
   ERR_CHECK(code <= pdo_imax_code(pdo), ERR_DEV_RANGE, .id = c->base.id, .value = (int32_t)current_mA, .min = 1,
             .max = pdo_max_mA(pdo_imax_code(pdo)));
@@ -124,8 +120,7 @@ static err_h set_pps(ap_t* c, int slot, uint32_t voltage_mV, uint32_t current_mA
   ERR_CHECK(current_mA <= MAX_CURRENT_MA && current_code(current_mA) <= pdo_imax_code(pdo), ERR_DEV_RANGE, .id = c->base.id,
             .value = (int32_t)current_mA, .min = 0, .max = pdo_max_mA(pdo_imax_code(pdo)));
   const uint32_t vmin = pdo_has_vmin(pdo) ? 3300u : 0u;
-  ERR_CHECK(voltage_mV >= vmin && voltage_mV <= pdo_vmax(pdo) * 100u, ERR_DEV_RANGE, .id = c->base.id,
-            .value = (int32_t)voltage_mV, .min = (int32_t)vmin, .max = pdo_vmax(pdo) * 100);
+  DEV_CHECK_RANGE(c->base.id, voltage_mV, vmin, pdo_vmax(pdo) * 100);
   keepalive_stop(c);  // a PPS profile ends any keep-alive
   return send_request(c, voltage_mV / 100u, current_code(current_mA), (unsigned)slot);
 }
@@ -136,8 +131,7 @@ static err_h set_avs(ap_t* c, int slot, uint32_t voltage_mV, uint32_t current_mA
   ERR_CHECK(current_mA <= MAX_CURRENT_MA && current_code(current_mA) <= pdo_imax_code(pdo), ERR_DEV_RANGE, .id = c->base.id,
             .value = (int32_t)current_mA, .min = 0, .max = pdo_max_mA(pdo_imax_code(pdo)));
   const uint32_t vmin = pdo_has_vmin(pdo) ? 15000u : 0u;
-  ERR_CHECK(voltage_mV >= vmin && voltage_mV <= pdo_vmax(pdo) * 200u, ERR_DEV_RANGE, .id = c->base.id,
-            .value = (int32_t)voltage_mV, .min = (int32_t)vmin, .max = pdo_vmax(pdo) * 200);
+  DEV_CHECK_RANGE(c->base.id, voltage_mV, vmin, pdo_vmax(pdo) * 200);
   const unsigned voltage_sel = voltage_mV / 200u;
   const unsigned code = current_code(current_mA);
   ERR_TRY(send_request(c, voltage_sel, code, (unsigned)slot));
@@ -151,8 +145,7 @@ static err_h set_avs(ap_t* c, int slot, uint32_t voltage_mV, uint32_t current_mA
 /* Asks the charger for the wanted voltage / current: PPS when it fits, else AVS, else the highest fixed profile at
  * or below the voltage. A refusal of one kind falls through to the next. */
 static err_h negotiate(ap_t* c, uint32_t voltage_mV, uint32_t current_mA) {
-  ERR_CHECK(voltage_mV <= MAX_SOFTWARE_VOLTAGE_MV, ERR_DEV_RANGE, .id = c->base.id, .value = (int32_t)voltage_mV,
-            .min = 0, .max = MAX_SOFTWARE_VOLTAGE_MV);
+  DEV_CHECK_RANGE(c->base.id, voltage_mV, 0, MAX_SOFTWARE_VOLTAGE_MV);
   if (c->index_pps != -1) {
     const uint16_t pdo = c->pdo[c->index_pps - 1];
     if (voltage_mV >= (pdo_has_vmin(pdo) ? 3300u : 0u) && voltage_mV <= pdo_vmax(pdo) * 100u) {
@@ -377,17 +370,9 @@ static err_h uninstall(void* ctx) {
     SYS_DEVICE_KEEP_FIRST(err, ERR_ESP(esp_timer_delete(c->keepalive_timer)));
     c->keepalive_timer = NULL;
   }
-  if (c->intr_locked) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_pins_unlock(c->intr));
-    c->intr_locked = false;
-  }
-  if (c->intr_used) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_io_reset(c->intr));
-    c->intr_used = false;
-  }
-  if (c->i2c_added) {
+  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_release(&c->intr));
+  if (sys_i2c_dev_added(&c->i2c)) {
     SYS_DEVICE_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
-    c->i2c_added = false;
   }
   return err;
 }
@@ -396,34 +381,18 @@ static err_h create(void* ctx, const void* cfg_in) {
   ap_t* c = ctx;
   const ap33772s_cfg_t* cfg = cfg_in;
   const uint16_t id = c->base.id;
-  ERR_CHECK(cfg->i2c_bus < SYS_I2C_BUS_COUNT, ERR_DEV_RANGE, .id = id, .value = cfg->i2c_bus, .min = 0,
-            .max = SYS_I2C_BUS_COUNT - 1);
-  ERR_CHECK(cfg->i2c_addr == AP33772S_I2C_ADDR, ERR_DEV_RANGE, .id = id, .value = cfg->i2c_addr,
-            .min = AP33772S_I2C_ADDR, .max = AP33772S_I2C_ADDR);
-  c->intr = cfg->intr_pin;
+  DEV_CHECK_RANGE(id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
+  DEV_CHECK_RANGE(id, cfg->i2c_addr, AP33772S_I2C_ADDR, AP33772S_I2C_ADDR);
   c->index_pps = c->index_avs = -1;
   c->last_voltage_mV = DEFAULT_VOLTAGE_MV;
   c->last_current_mA = DEFAULT_CURRENT_MA;
-  if (sys_io_pin_valid(c->intr)) {
-    ERR_TRY(sys_device_use(&c->base, c->intr.device));
-  }
-
   const esp_timer_create_args_t timer_args = {
       .callback = keepalive_cb, .arg = (void*)(uintptr_t)id, .name = "ap_keepalive"};
   ERR_TRY(ERR_ESP(esp_timer_create(&timer_args, &c->keepalive_timer)));
 
-  sys_i2c_dev_init(&c->i2c, cfg->i2c_bus, cfg->i2c_addr, I2C_SPEED_HZ);
-  ERR_TRY(sys_i2c_dev_add(&c->i2c));  // probes the chip
-  c->i2c_added = true;
+  ERR_TRY(sys_i2c_dev_attach(&c->i2c, cfg->i2c_bus, cfg->i2c_addr, I2C_SPEED_HZ));  // probes the chip
 
-  if (sys_io_pin_valid(c->intr)) {
-    ERR_TRY(sys_io_prepare_input(c->intr));
-    c->intr_used = true;
-    const sys_io_intr_cfg_t intr = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
-    ERR_TRY(sys_io_configure_intr(c->intr, &intr));
-    ERR_TRY(sys_pins_lock(c->intr));
-    c->intr_locked = true;
-  }
+  ERR_TRY(sys_dev_pin_take_input(&c->base, &c->intr, cfg->intr_pin, 0, SYS_IO_INTR_MODE_FALLING_EDGE));  // no events
   return read_pdos(c);
 }
 

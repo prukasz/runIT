@@ -223,6 +223,11 @@ err_h sys_i2c_dev_add(sys_i2c_dev_t* dev) {
   return err;
 }
 
+err_h sys_i2c_dev_attach(sys_i2c_dev_t* dev, uint8_t bus, uint8_t addr, uint32_t speed_Hz) {
+  sys_i2c_dev_init(dev, bus, addr, speed_Hz);
+  return sys_i2c_dev_add(dev);
+}
+
 err_h sys_i2c_dev_remove(sys_i2c_dev_t* dev) {
   ERR_CHECK(dev != NULL, ERR_I2C_BAD_ARG);
   if (dev->handle == NULL) {

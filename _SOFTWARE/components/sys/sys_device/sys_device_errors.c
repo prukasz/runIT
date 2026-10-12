@@ -4,7 +4,7 @@
 #include "sdkconfig.h"
 #include "sys_device.h"
 
-#define TAG "sys_device"
+#define TAG __FILE_NAME__
 
 #define WALK_MAX (CONFIG_ERRORS_POOL_BLOCKS + 1u)  // cycle guard, like err_log / err_encode
 #define HANDLED_MAX 16u                            // distinct devices handled per chain

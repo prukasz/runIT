@@ -21,9 +21,7 @@
 
 typedef struct {
   sys_device_base_t base;  // first: id, suspended
-  bool i2c_added;
-  bool oe_locked;  // OE is locked on its device and driven by us
-  sys_io_pin_t oe;
+  sys_dev_pin_t oe;  // output enable (active low): locked on its device, driven by us
   sys_pins_state_t pins;
   sys_i2c_dev_t i2c;
   uint16_t duty[PCA9685_CHANNELS];  // last written duty (get_level reads it back)
@@ -65,24 +63,18 @@ static err_h chip_set_frequency(pca_t* c, uint16_t hz) {
   return chip_sleep(c, false);
 }
 
-// For every op that changes an output: not suspended, the channel exists and isn't locked by another device.
-static err_h check_writable(const pca_t* c, uint8_t pin) {
-  ERR_TRY(sys_device_check_active(&c->base));
-  return sys_pins_state_check_free(&c->pins, c->base.id, pin);
-}
-
 /* ---- IO contract ---- */
 
 IO_HANDLER(SET_LEVEL) {
   pca_t* c = ctx;
   ERR_CHECK(a->level <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(check_writable(c, a->pin));
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
   return chip_set_duty(c, a->pin, a->level ? IO_PWM_DUTY_MAX : 0);
 }
 
 IO_HANDLER(TOGGLE) {
   pca_t* c = ctx;
-  ERR_TRY(check_writable(c, a->pin));
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
   return chip_set_duty(c, a->pin, c->duty[a->pin] >= IO_PWM_DUTY_MAX / 2 ? 0 : IO_PWM_DUTY_MAX);
 }
 
@@ -96,9 +88,8 @@ IO_HANDLER(GET_LEVEL) {
 
 IO_HANDLER(SET_PWM_DUTY) {
   pca_t* c = ctx;
-  ERR_TRY(check_writable(c, a->pin));
-  ERR_CHECK(a->duty <= IO_PWM_DUTY_MAX, ERR_DEV_RANGE, .id = c->base.id, .value = a->duty, .min = 0,
-            .max = IO_PWM_DUTY_MAX);
+  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, a->pin));
+  DEV_CHECK_RANGE(c->base.id, a->duty, 0, IO_PWM_DUTY_MAX);
   return chip_set_duty(c, a->pin, (uint16_t)a->duty);
 }
 
@@ -106,9 +97,7 @@ IO_HANDLER(SET_PWM_DUTY) {
 IO_HANDLER(SET_PWM_FREQ) {
   pca_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_CHECK(a->frequency_Hz >= PCA9685_MIN_FREQUENCY_HZ && a->frequency_Hz <= PCA9685_MAX_FREQUENCY_HZ, ERR_DEV_RANGE,
-            .id = c->base.id, .value = a->frequency_Hz, .min = PCA9685_MIN_FREQUENCY_HZ,
-            .max = PCA9685_MAX_FREQUENCY_HZ);
+  DEV_CHECK_RANGE(c->base.id, a->frequency_Hz, PCA9685_MIN_FREQUENCY_HZ, PCA9685_MAX_FREQUENCY_HZ);
   return chip_set_frequency(c, (uint16_t)a->frequency_Hz);
 }
 
@@ -131,16 +120,12 @@ PINS_HANDLER(SET_LOCKED_LEVEL) {
 static err_h uninstall(void* ctx) {
   pca_t* c = ctx;
   err_h err = NULL;
-  if (c->i2c_added) {
+  if (sys_i2c_dev_added(&c->i2c)) {
     SYS_DEVICE_KEEP_FIRST(err, chip_sleep(c, true));
     SYS_DEVICE_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
-    c->i2c_added = false;
   }
-  if (c->oe_locked) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_pins_set_locked_level(c->oe, true));  // outputs off
-    SYS_DEVICE_KEEP_FIRST(err, sys_pins_unlock(c->oe));
-    c->oe_locked = false;
-  }
+  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_drive(&c->oe, true));  // outputs off, then the pin is let go
+  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_release(&c->oe));
   return err;
 }
 
@@ -160,9 +145,7 @@ DEVICE_HANDLER(SUSPEND) {
   pca_t* c = ctx;
   err_h err = NULL;
   c->base.suspended = true;
-  if (c->oe_locked) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_pins_set_locked_level(c->oe, true));
-  }
+  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_drive(&c->oe, true));
   SYS_DEVICE_KEEP_FIRST(err, chip_sleep(c, true));
   return err;
 }
@@ -174,44 +157,29 @@ DEVICE_HANDLER(RESUME) {
     return NULL;
   }
   ERR_TRY(chip_sleep(c, false));
-  if (c->oe_locked) {
-    ERR_TRY(sys_pins_set_locked_level(c->oe, false));
-  }
+  ERR_TRY(sys_dev_pin_drive(&c->oe, false));
   c->base.suspended = false;
   return NULL;
 }
 
 /* ---- Create ---- */
 
-// The registry allocated `ctx` (id set); on a failure it calls uninstall() and frees it.
 static err_h create(void* ctx, const void* cfg_in) {
   pca_t* c = ctx;
   const pca9685_cfg_t* cfg = cfg_in;
-  ERR_CHECK(cfg->i2c_bus < SYS_I2C_BUS_COUNT, ERR_DEV_RANGE, .id = c->base.id, .value = cfg->i2c_bus, .min = 0,
-            .max = SYS_I2C_BUS_COUNT - 1);
-  c->oe = cfg->oe_pin;
-  if (sys_io_pin_valid(c->oe)) {
-    ERR_TRY(sys_device_use(&c->base, c->oe.device));
-  }
+  DEV_CHECK_RANGE(c->base.id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
   sys_pins_state_init(&c->pins, PCA9685_CHANNELS);
-  sys_i2c_dev_init(&c->i2c, cfg->i2c_bus, cfg->i2c_addr, I2C_SPEED_HZ);
-
-  ERR_TRY(sys_i2c_dev_add(&c->i2c));  // probes the chip
-  c->i2c_added = true;
+  ERR_TRY(sys_i2c_dev_attach(&c->i2c, cfg->i2c_bus, cfg->i2c_addr, I2C_SPEED_HZ));  // probes the chip
   ERR_TRY(chip_sleep(c, false));
   ERR_TRY(sys_i2c_reg_update(&c->i2c, REG_MODE1, MODE1_AI, MODE1_AI));
-  if (sys_io_pin_valid(c->oe)) {
-    ERR_TRY(sys_io_set_mode(c->oe, SYS_IO_MODE_OUTPUT_PUSH_PULL));
-    ERR_TRY(sys_pins_lock(c->oe));
-    c->oe_locked = true;
-    ERR_TRY(sys_pins_set_locked_level(c->oe, false));  // active low: outputs enabled
-  }
+  // Active low: the outputs are enabled. Left as an output on uninstall (its outputs-off level stays).
+  ERR_TRY(sys_dev_pin_take_output(&c->base, &c->oe, cfg->oe_pin, false));
+  c->oe.keep = true;
   return NULL;
 }
 
 /* ---- Type ---- */
 
-// An op not listed (a contract the PCA9685 doesn't have) answers ERR_DEV_UNKNOWN_OP; OPS lists this table.
 static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY(RESET),          DEVICE_ENTRY(SUSPEND),      DEVICE_ENTRY(RESUME),
     IO_ENTRY(SET_LEVEL),          IO_ENTRY(TOGGLE),           IO_ENTRY(GET_LEVEL),

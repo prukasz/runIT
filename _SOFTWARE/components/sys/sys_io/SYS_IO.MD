@@ -39,6 +39,17 @@ Not a module with state: a set of device ops (contract `SYS_DEVICE_CONTRACT_IO` 
 
 What a device with pins reports besides the shared `ERR_DEV_*` (BAD_PIN, PIN_LOCKED, RANGE, SUSPENDED): `ERR_IO_PIN_IN_USE {id, pin, mode}` (SET_MODE of a configured pin), `PIN_UNCONFIGURED {id, pin}`, `WRONG_MODE {id, pin, mode}` (the op doesn't fit the pin's mode), `MODE_UNSUPPORTED {id, pin, mode}`, `FEATURE_UNSUPPORTED {id, pin}`, `PWM_CHANNELS_EXHAUSTED {id, pin, channels}`, `PWM_TIMERS_EXHAUSTED {id, pin, timers, frequency_Hz}`, `BAD_READING {id, pin}` (an ADC did not return the channel asked for).
 
+## A device's own pins (`sys_pins.h`)
+
+A driver keeps one `sys_dev_pin_t` per pin it uses (zeroed = unused) and lets the shared functions do the take, drive and release:
+
+- `sys_dev_pin_take_output(dev, p, pin, level)`: use the pin's device, output mode, level, lock.
+- `sys_dev_pin_take_input(dev, p, pin, event, mode)`: use, input, subscribe `event` to the owner's ON_EVENT (inline; `0` = none), interrupt `mode`, lock.
+- `sys_dev_pin_drive(p, level)`: drive a pin the owner locked; a pin that is not locked is left alone, so teardown can call it without checking.
+- `sys_dev_pin_release(p)`: unsubscribe, unlock, reset the mode. Set `p->keep = true` after the take to leave an output as it is.
+
+An invalid pin (`SYS_IO_PIN_NONE`) is stored as NONE and does nothing, so an optional pin needs no check at the call site. Teardown: drive the level the chip needs, then release.
+
 ## Pins contract (`0x02xx`, `sys_pins.h`)
 
 Which pins a device has and which are locked. A pin another device depends on (PCA9685's OE, a chip RST) is locked by that device; a locked pin refuses the IO writes (`ERR_DEV_PIN_LOCKED`), reads stay allowed, and the owner drives it with SET_LOCKED_LEVEL. Masks are u64 LE, bit n = pin n (at most 64 pins).

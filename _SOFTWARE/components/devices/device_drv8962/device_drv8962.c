@@ -280,8 +280,7 @@ HBRIDGE_HANDLER(SET_DRIVE) {
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, a->channel));
   const int32_t min = c->topology == DRV8962_TOPOLOGY_2_FULL_BRIDGES ? -SYS_HBRIDGE_DRIVE_MAX : 0;
-  ERR_CHECK(a->drive >= min && a->drive <= SYS_HBRIDGE_DRIVE_MAX, ERR_DEV_RANGE, .id = c->base.id, .value = a->drive,
-            .min = min, .max = SYS_HBRIDGE_DRIVE_MAX);
+  DEV_CHECK_RANGE(c->base.id, a->drive, min, SYS_HBRIDGE_DRIVE_MAX);
   return chip_set_drive(c, a->channel, a->drive);
 }
 
@@ -323,8 +322,7 @@ SYS_DEVICE_HANDLER(set_current_limit_h, drv8962_limit_t) {
   drv_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, a->channel));
-  ERR_CHECK(a->limit_mA <= DRV8962_CURRENT_LIMIT_MAX_MA, ERR_DEV_RANGE, .id = c->base.id, .value = (int32_t)a->limit_mA,
-            .min = 0, .max = DRV8962_CURRENT_LIMIT_MAX_MA);
+  DEV_CHECK_RANGE(c->base.id, a->limit_mA, 0, DRV8962_CURRENT_LIMIT_MAX_MA);
   const uint32_t old = c->current_limit_mA[a->channel];
   c->current_limit_mA[a->channel] = a->limit_mA;
   err_h err = chip_apply_current_limit(c);
@@ -435,17 +433,14 @@ static err_h lock_pin(drv_t* c, uint8_t idx) {
 
 static err_h check_cfg(const drv_t* c, const drv8962_cfg_t* cfg) {
   const uint16_t id = c->base.id;
-  ERR_CHECK(cfg->topology <= DRV8962_TOPOLOGY_4_HALF_BRIDGES, ERR_DEV_RANGE, .id = id, .value = cfg->topology, .min = 0,
-            .max = DRV8962_TOPOLOGY_4_HALF_BRIDGES);
+  DEV_CHECK_RANGE(id, cfg->topology, 0, DRV8962_TOPOLOGY_4_HALF_BRIDGES);
   ERR_CHECK(cfg->turn_off_at_ocp <= 1, ERR_CMD_BAD_ARG);
   for (uint8_t i = 0; i < HALF_BRIDGES; i++) {
-    ERR_CHECK(cfg->current_limit_mA[i] <= DRV8962_CURRENT_LIMIT_MAX_MA, ERR_DEV_RANGE, .id = id,
-              .value = (int32_t)cfg->current_limit_mA[i], .min = 0, .max = DRV8962_CURRENT_LIMIT_MAX_MA);
+    DEV_CHECK_RANGE(id, cfg->current_limit_mA[i], 0, DRV8962_CURRENT_LIMIT_MAX_MA);
   }
   return NULL;
 }
 
-// The registry allocated `ctx` (id set); on a failure it calls uninstall() and frees it.
 static err_h create(void* ctx, const void* cfg_in) {
   drv_t* c = ctx;
   const drv8962_cfg_t* cfg = cfg_in;
@@ -523,7 +518,6 @@ static err_h create(void* ctx, const void* cfg_in) {
 
 /* ---- Type ---- */
 
-// An op not listed (a contract the DRV8962 doesn't have) answers ERR_DEV_UNKNOWN_OP; OPS lists this table.
 static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY(RESET),
     DEVICE_ENTRY(SUSPEND),

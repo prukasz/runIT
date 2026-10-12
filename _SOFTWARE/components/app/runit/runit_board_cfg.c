@@ -13,7 +13,7 @@
 #include "sys_uart.h"
 #include "utils.h"
 
-#define TAG "runit_board"
+#define TAG __FILE_NAME__
 
 /* Routing: logs and errors on BLE LOGS; telemetry and events on BLE TX; errors, telemetry and events on UART. */
 err_h runit_board_connector_bindings_init(void) {

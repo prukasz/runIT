@@ -3,7 +3,8 @@
 #include "errors.h"
 #include "esp_log.h"
 
-#define TAG "errors"
+#define TAG __FILE_NAME__
+
 #define LOG_LINE_LEN CONFIG_ERRORS_LOG_LINE_LEN
 
 static volatile bool s_enabled = true;

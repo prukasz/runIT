@@ -27,12 +27,7 @@
 typedef struct {
   sys_device_base_t base;  // first: id, suspended
   sys_i2c_dev_t i2c;
-  bool i2c_added;
-  sys_io_pin_t pin[2];  // [0] critical, [1] warning
-  bool pin_used[2];
-  bool pin_subscribed[2];
-  bool pin_locked[2];
-  uint8_t sub[2];
+  sys_dev_pin_t pin[2];  // [0] critical, [1] warning
   int8_t inverted_alert[2];  // reversed-shunt channel armed on that pin, -1 = none
   uint8_t inverted_mask;
   uint16_t config;  // as last written
@@ -95,10 +90,10 @@ static err_h chip_set_alert(ina_t* c, uint8_t ch, int32_t mA, bool critical) {
 
 // The edge of an alert pin; the pin stays locked to this device.
 static err_h set_pin_edge(ina_t* c, int i, sys_io_intr_mode_e mode) {
-  ERR_TRY(sys_pins_unlock(c->pin[i]));
+  ERR_TRY(sys_pins_unlock(c->pin[i].pin));
   const sys_io_intr_cfg_t cfg = {.mode = mode};
-  err_h err = sys_io_configure_intr(c->pin[i], &cfg);
-  SYS_DEVICE_KEEP_FIRST(err, sys_pins_lock(c->pin[i]));
+  err_h err = sys_io_configure_intr(c->pin[i].pin, &cfg);
+  SYS_DEVICE_KEEP_FIRST(err, sys_pins_lock(c->pin[i].pin));
   return err;
 }
 
@@ -111,7 +106,7 @@ static err_h set_inverted_alert(ina_t* c, uint8_t ch, bool critical, int32_t thr
   const uint8_t alert = critical ? SYS_POWER_ALERT_OCP_CRITICAL : SYS_POWER_ALERT_OCP_WARNING;
   ERR_CHECK(threshold_mA >= 1, ERR_DEV_RANGE, .id = c->base.id, .value = threshold_mA, .min = 1, .max = INT32_MAX);
   // No pin wired, or the pin already watches another channel (one reversed channel per alert pin).
-  ERR_CHECK(sys_io_pin_valid(c->pin[i]) && (c->inverted_alert[i] < 0 || c->inverted_alert[i] == (int8_t)ch),
+  ERR_CHECK(sys_io_pin_valid(c->pin[i].pin) && (c->inverted_alert[i] < 0 || c->inverted_alert[i] == (int8_t)ch),
             ERR_POWER_ALERT_UNSUPPORTED, .id = c->base.id, .channel = ch, .alert = alert);
   // Rising edge first: arming pulls the pin low (its normal state now), which must not count.
   if (c->inverted_alert[i] < 0) {
@@ -181,8 +176,7 @@ PMON_HANDLER(SET_ALERT) {
   }
   // 12-bit signed limit register, 40 uV per LSB over 10 mOhm = 4 mA per LSB.
   const int32_t max_mA = 4095 * 40 / SHUNT_MOHM;
-  ERR_CHECK(a->threshold_mA >= -max_mA && a->threshold_mA <= max_mA, ERR_DEV_RANGE, .id = c->base.id,
-            .value = a->threshold_mA, .min = -max_mA, .max = max_mA);
+  DEV_CHECK_RANGE(c->base.id, a->threshold_mA, -max_mA, max_mA);
   return chip_set_alert(c, a->channel, a->threshold_mA, critical);
 }
 
@@ -231,7 +225,7 @@ static err_h on_flags(ina_t* c) {
 EVENT_HANDLER(ON_EVENT) {
   ina_t* c = ctx;
   for (int i = 0; i < 2; i++) {
-    if (!sys_io_pin_valid(c->pin[i]) || a->source != c->pin[i].device || a->channel != c->pin[i].pin) {
+    if (!sys_io_pin_valid(c->pin[i].pin) || a->source != c->pin[i].pin.device || a->channel != c->pin[i].pin.pin) {
       continue;
     }
     if (c->inverted_alert[i] >= 0) {
@@ -275,22 +269,10 @@ static err_h uninstall(void* ctx) {
   ina_t* c = ctx;
   err_h err = NULL;
   for (int i = 0; i < 2; i++) {
-    if (c->pin_subscribed[i]) {
-      SYS_DEVICE_KEEP_FIRST(err, sys_event_unsubscribe(c->sub[i]));
-      c->pin_subscribed[i] = false;
-    }
-    if (c->pin_locked[i]) {
-      SYS_DEVICE_KEEP_FIRST(err, sys_pins_unlock(c->pin[i]));
-      c->pin_locked[i] = false;
-    }
-    if (c->pin_used[i]) {
-      SYS_DEVICE_KEEP_FIRST(err, sys_io_reset(c->pin[i]));
-      c->pin_used[i] = false;
-    }
+    SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_release(&c->pin[i]));
   }
-  if (c->i2c_added) {
+  if (sys_i2c_dev_added(&c->i2c)) {
     SYS_DEVICE_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
-    c->i2c_added = false;
   }
   return err;
 }
@@ -299,45 +281,20 @@ static err_h create(void* ctx, const void* cfg_in) {
   ina_t* c = ctx;
   const ina3221_cfg_t* cfg = cfg_in;
   const uint16_t id = c->base.id;
-  ERR_CHECK(cfg->i2c_bus < SYS_I2C_BUS_COUNT, ERR_DEV_RANGE, .id = id, .value = cfg->i2c_bus, .min = 0,
-            .max = SYS_I2C_BUS_COUNT - 1);
-  ERR_CHECK(cfg->i2c_addr >= INA3221_I2C_ADDR_MIN && cfg->i2c_addr <= INA3221_I2C_ADDR_MAX, ERR_DEV_RANGE, .id = id,
-            .value = cfg->i2c_addr, .min = INA3221_I2C_ADDR_MIN, .max = INA3221_I2C_ADDR_MAX);
-  ERR_CHECK(cfg->inverted_mask <= 0x07, ERR_DEV_RANGE, .id = id, .value = cfg->inverted_mask, .min = 0, .max = 7);
-  c->pin[0] = cfg->crit_pin;
-  c->pin[1] = cfg->warn_pin;
+  DEV_CHECK_RANGE(id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
+  DEV_CHECK_RANGE(id, cfg->i2c_addr, INA3221_I2C_ADDR_MIN, INA3221_I2C_ADDR_MAX);
+  DEV_CHECK_RANGE(id, cfg->inverted_mask, 0, 0x07);
   c->inverted_mask = cfg->inverted_mask;
   c->inverted_alert[0] = c->inverted_alert[1] = -1;
   c->config = CONFIG_DEFAULT;
   c->mask = MASK_DEFAULT;
-  for (int i = 0; i < 2; i++) {
-    if (sys_io_pin_valid(c->pin[i])) {
-      ERR_TRY(sys_device_use(&c->base, c->pin[i].device));
-    }
-  }
-
-  sys_i2c_dev_init(&c->i2c, cfg->i2c_bus, cfg->i2c_addr, I2C_SPEED_HZ);
-  ERR_TRY(sys_i2c_dev_add(&c->i2c));  // probes the chip
-  c->i2c_added = true;
+  ERR_TRY(sys_i2c_dev_attach(&c->i2c, cfg->i2c_bus, cfg->i2c_addr, I2C_SPEED_HZ));  // probes the chip
 
   // Alert pins: input with pull-up, listener on both edges (inline: an I2C read), falling edge armed, locked.
+  const sys_io_pin_t alert_pin[2] = {cfg->crit_pin, cfg->warn_pin};
   for (int i = 0; i < 2; i++) {
-    if (!sys_io_pin_valid(c->pin[i])) {
-      continue;
-    }
-    ERR_TRY(sys_io_prepare_input(c->pin[i]));
-    c->pin_used[i] = true;
-    const sys_event_sub_t sub = {.source = c->pin[i].device,
-                                 .event = (uint16_t)((IO_EV_RISING & 0xFF00u) | SYS_EVENT_ANY_IN),
-                                 .channel = c->pin[i].pin,
-                                 .inline_call = true,
-                                 .device = id};
-    ERR_TRY(sys_event_subscribe(&sub, &c->sub[i]));
-    c->pin_subscribed[i] = true;
-    const sys_io_intr_cfg_t intr = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
-    ERR_TRY(sys_io_configure_intr(c->pin[i], &intr));
-    ERR_TRY(sys_pins_lock(c->pin[i]));
-    c->pin_locked[i] = true;
+    ERR_TRY(sys_dev_pin_take_input(&c->base, &c->pin[i], alert_pin[i], (uint16_t)((IO_EV_RISING & 0xFF00u) | SYS_EVENT_ANY_IN),
+                                   SYS_IO_INTR_MODE_FALLING_EDGE));
   }
 
   // Chip defaults: reset, alert latches, continuous measurement.

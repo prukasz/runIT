@@ -92,15 +92,8 @@ typedef enum {
 
 typedef struct {
   sys_device_base_t base;  // first: id, suspended (output off + EN low, writes refused until RESUME)
-  bool i2c_added;
-  bool en_used;    // EN made an output on its device
-  bool en_locked;  // EN locked on its device and driven by us
-  bool intr_used;  // FB/INT made an input on its device
-  bool intr_locked;
-  bool intr_subscribed;
-  uint8_t intr_sub;  // sys_event handle: IO_EV_FALLING of intr -> our ON_EVENT
-  sys_io_pin_t intr;
-  sys_io_pin_t en;
+  sys_dev_pin_t intr;  // FB/INT: its falling edge runs our ON_EVENT
+  sys_dev_pin_t en;    // rail enable: locked, driven by tps_set_en
   sys_i2c_dev_t i2c;
   esp_timer_handle_t rise_timer;  // one-shot: the next rise step
 
@@ -151,8 +144,7 @@ static err_h chip_set_voltage(tps_t* c, uint16_t voltage_mV) {
   const uint32_t step = k_intfb[vout_fs & VOUT_FS_INTFB].step_100uV;
   const uint32_t min_mV = k_intfb[vout_fs & VOUT_FS_INTFB].min_mV;
   const uint32_t max_mV = min_mV + REF_MAX * step / 10u;
-  ERR_CHECK(voltage_mV >= min_mV && voltage_mV <= max_mV, ERR_DEV_RANGE, .id = c->base.id, .value = voltage_mV,
-            .min = (int32_t)min_mV, .max = (int32_t)max_mV);
+  DEV_CHECK_RANGE(c->base.id, voltage_mV, min_mV, max_mV);
   const uint16_t ref = (uint16_t)((voltage_mV - min_mV) * 10u / step);
   ERR_TRY(sys_i2c_reg_write_u16(&c->i2c, REG_REF_LSB, ref, SYS_I2C_LE));
   c->out_mV = voltage_mV;
@@ -183,16 +175,16 @@ static err_h chip_get_status(tps_t* c, uint8_t* status) {
 /* True while the chip is powered and answers I2C: always without an EN pin,
    else only while the rail is enabled (EN high) and not suspended (EN low). */
 static bool tps_powered(const tps_t* c) {
-  return !sys_io_pin_valid(c->en) || (c->last_enable_state && !c->base.suspended);
+  return !sys_io_pin_valid(c->en.pin) || (c->last_enable_state && !c->base.suspended);
 }
 
 /* Drive EN; without an EN pin only the MODE register's output-enable bit switches the rail.
    The 10 ms after EN rises is the one wait inside an op: the chip's own I2C start-up. */
 static err_h tps_set_en(tps_t* c, bool high) {
-  if (!sys_io_pin_valid(c->en)) {
+  if (!sys_io_pin_valid(c->en.pin)) {
     return NULL;
   }
-  ERR_TRY(sys_pins_set_locked_level(c->en, high));
+  ERR_TRY(sys_dev_pin_drive(&c->en, high));
   if (high) {
     vTaskDelay(MSEC(EN_WAKEUP_MS));
   }
@@ -278,7 +270,7 @@ static err_h tps_rail_off(tps_t* c, bool chip_powered, bool discharge) {
   if (chip_powered) {
     SYS_DEVICE_KEEP_FIRST(err, chip_set_output_enable(c, false));
   }
-  if (discharge && err == NULL && chip_powered && c->prot.discharge && sys_io_pin_valid(c->en)) {
+  if (discharge && err == NULL && chip_powered && c->prot.discharge && sys_io_pin_valid(c->en.pin)) {
     c->rise = RISE_FALL;
     err = tps_rise_schedule(c, TPS_DISCHARGE_MS);
     if (err == NULL) {
@@ -321,9 +313,7 @@ VREG_HANDLER(SET_ENABLE) {
 VREG_HANDLER(SET_VOLTAGE) {
   tps_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_CHECK(a->voltage_mV >= TPS55289_MIN_VOLTAGE_MV && a->voltage_mV <= TPS55289_MAX_VOLTAGE_MV, ERR_DEV_RANGE,
-            .id = c->base.id, .value = (int32_t)a->voltage_mV, .min = TPS55289_MIN_VOLTAGE_MV,
-            .max = TPS55289_MAX_VOLTAGE_MV);
+  DEV_CHECK_RANGE(c->base.id, a->voltage_mV, TPS55289_MIN_VOLTAGE_MV, TPS55289_MAX_VOLTAGE_MV);
   c->last_voltage_mV = (uint16_t)a->voltage_mV;
   if (!tps_powered(c)) {
     return NULL;  // applied by the next enable
@@ -349,9 +339,7 @@ VREG_HANDLER(SET_VOLTAGE) {
 VREG_HANDLER(SET_CURRENT) {
   tps_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_CHECK(a->current_mA >= TPS55289_MIN_CURRENT_MA && a->current_mA <= TPS55289_MAX_CURRENT_MA, ERR_DEV_RANGE,
-            .id = c->base.id, .value = (int32_t)a->current_mA, .min = TPS55289_MIN_CURRENT_MA,
-            .max = TPS55289_MAX_CURRENT_MA);
+  DEV_CHECK_RANGE(c->base.id, a->current_mA, TPS55289_MIN_CURRENT_MA, TPS55289_MAX_CURRENT_MA);
   c->last_current_limit_mA = (uint16_t)a->current_mA;
   if (!tps_powered(c) || c->rise != RISE_IDLE) {
     return NULL;
@@ -368,10 +356,8 @@ SYS_DEVICE_HANDLER(set_protection_h, tps55289_protection_t) {
   (void)out_len;
   tps_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_CHECK(a->ocp_delay <= TPS55289_OCP_DELAY_MAX, ERR_DEV_RANGE, .id = c->base.id, .value = a->ocp_delay, .min = 0,
-            .max = TPS55289_OCP_DELAY_MAX);
-  ERR_CHECK(a->fault_mask <= TPS55289_FAULT_ALL, ERR_DEV_RANGE, .id = c->base.id, .value = a->fault_mask, .min = 0,
-            .max = TPS55289_FAULT_ALL);
+  DEV_CHECK_RANGE(c->base.id, a->ocp_delay, 0, TPS55289_OCP_DELAY_MAX);
+  DEV_CHECK_RANGE(c->base.id, a->fault_mask, 0, TPS55289_FAULT_ALL);
   ERR_CHECK(a->hiccup <= 1 && a->discharge <= 1, ERR_CMD_BAD_ARG);
   c->prot = *a;
   return tps_powered(c) ? chip_set_protection(c) : NULL;
@@ -436,7 +422,7 @@ DEVICE_HANDLER(RESET) {
   c->last_current_limit_mA = TPS55289_MIN_CURRENT_MA;
   c->prot = k_default_protection;
   ERR_TRY(tps_set_enable(c, false));
-  return sys_io_pin_valid(c->en) ? NULL : chip_set_protection(c);
+  return sys_io_pin_valid(c->en.pin) ? NULL : chip_set_protection(c);
 }
 
 /* Fault safe state: the rail off. The wanted state (last_enable_state) is kept
@@ -455,7 +441,7 @@ DEVICE_HANDLER(RESUME) {
   if (!c->base.suspended) {
     return NULL;
   }
-  if (c->last_enable_state || !sys_io_pin_valid(c->en)) {
+  if (c->last_enable_state || !sys_io_pin_valid(c->en.pin)) {
     err_h err = tps_set_en(c, true);
     if (err == NULL) {
       err = tps_apply_config(c);
@@ -480,54 +466,24 @@ static err_h uninstall(void* ctx) {
     SYS_DEVICE_KEEP_FIRST(err, ERR_ESP(esp_timer_delete(c->rise_timer)));
     c->rise_timer = NULL;
   }
-  if (c->i2c_added) {
+  if (sys_i2c_dev_added(&c->i2c)) {
     if (tps_powered(c)) {
       SYS_DEVICE_KEEP_FIRST(err, chip_set_output_enable(c, false));
     }
     SYS_DEVICE_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
-    c->i2c_added = false;
   }
-  if (c->intr_subscribed) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_event_unsubscribe(c->intr_sub));
-    c->intr_subscribed = false;
-  }
-  if (c->intr_locked) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_pins_unlock(c->intr));
-    c->intr_locked = false;
-  }
-  if (c->intr_used) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_io_reset(c->intr));
-    c->intr_used = false;
-  }
-  if (c->en_locked) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_pins_set_locked_level(c->en, false));  // rail off
-    SYS_DEVICE_KEEP_FIRST(err, sys_pins_unlock(c->en));
-    c->en_locked = false;
-  }
-  if (c->en_used) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_io_reset(c->en));
-    c->en_used = false;
-  }
+  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_release(&c->intr));
+  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_drive(&c->en, false));  // rail off
+  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_release(&c->en));
   return err;
 }
 
-// The registry allocated `ctx` (id set); on a failure it calls uninstall() and frees it.
 static err_h create(void* ctx, const void* cfg_in) {
   tps_t* c = ctx;
   const tps55289_cfg_t* cfg = cfg_in;
   const uint16_t id = c->base.id;
-  ERR_CHECK(cfg->i2c_bus < SYS_I2C_BUS_COUNT, ERR_DEV_RANGE, .id = id, .value = cfg->i2c_bus, .min = 0,
-            .max = SYS_I2C_BUS_COUNT - 1);
-  ERR_CHECK(cfg->i2c_addr >= TPS55289_I2C_ADDR_74 && cfg->i2c_addr <= TPS55289_I2C_ADDR_75, ERR_DEV_RANGE, .id = id,
-            .value = cfg->i2c_addr, .min = TPS55289_I2C_ADDR_74, .max = TPS55289_I2C_ADDR_75);
-  c->intr = cfg->intr_pin;
-  c->en = cfg->en_pin;
-  if (sys_io_pin_valid(c->intr)) {
-    ERR_TRY(sys_device_use(&c->base, c->intr.device));
-  }
-  if (sys_io_pin_valid(c->en)) {
-    ERR_TRY(sys_device_use(&c->base, c->en.device));
-  }
+  DEV_CHECK_RANGE(id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
+  DEV_CHECK_RANGE(id, cfg->i2c_addr, TPS55289_I2C_ADDR_74, TPS55289_I2C_ADDR_75);
   c->last_voltage_mV = TPS_DEFAULT_VOLTAGE_MV;
   c->last_current_limit_mA = TPS55289_MIN_CURRENT_MA;
   c->prot = k_default_protection;
@@ -540,29 +496,14 @@ static err_h create(void* ctx, const void* cfg_in) {
   // EN must be driven high before the I2C probe below - the TPS55289's I2C
   // interface is unavailable while EN is low/floating, so probing first
   // would always fail with ERR_I2C_DEV_NOT_FOUND on a fresh boot.
-  if (sys_io_pin_valid(c->en)) {
-    ERR_TRY(sys_io_set_mode(c->en, SYS_IO_MODE_OUTPUT_PUSH_PULL));
-    c->en_used = true;
-    ERR_TRY(sys_pins_lock(c->en));
-    c->en_locked = true;
+  ERR_TRY(sys_dev_pin_take_output(&c->base, &c->en, cfg->en_pin, false));  // an invalid pin is no pin: nothing driven
+  if (sys_io_pin_valid(c->en.pin)) {
     ERR_TRY(tps_set_en(c, true));
   }
   ERR_TRY(sys_i2c_dev_add(&c->i2c));  // probes the chip
-  c->i2c_added = true;
 
   // FB/INT: its falling edge reaches our ON_EVENT (inline: an I2C read, no delay).
-  if (sys_io_pin_valid(c->intr)) {
-    ERR_TRY(sys_io_prepare_input(c->intr));
-    c->intr_used = true;
-    const sys_event_sub_t sub = {.source = c->intr.device, .event = IO_EV_FALLING, .channel = c->intr.pin,
-                                 .inline_call = true, .device = id};
-    ERR_TRY(sys_event_subscribe(&sub, &c->intr_sub));
-    c->intr_subscribed = true;
-    const sys_io_intr_cfg_t intr_cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
-    ERR_TRY(sys_io_configure_intr(c->intr, &intr_cfg));
-    ERR_TRY(sys_pins_lock(c->intr));
-    c->intr_locked = true;
-  }
+  ERR_TRY(sys_dev_pin_take_input(&c->base, &c->intr, cfg->intr_pin, IO_EV_FALLING, SYS_IO_INTR_MODE_FALLING_EDGE));
 
   // Probe with EN high (above), write the defaults with the output off, then
   // hand over to the hardware switch: the rail stays off (EN low) until enabled.
@@ -572,7 +513,6 @@ static err_h create(void* ctx, const void* cfg_in) {
 
 /* ---- Type ---- */
 
-// An op not listed (a contract the TPS55289 doesn't have) answers ERR_DEV_UNKNOWN_OP; OPS lists this table.
 static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY(RESET),     DEVICE_ENTRY(SUSPEND),     DEVICE_ENTRY(RESUME),
     VREG_ENTRY(SET_ENABLE),  VREG_ENTRY(SET_VOLTAGE),   VREG_ENTRY(SET_CURRENT),

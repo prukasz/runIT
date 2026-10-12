@@ -31,7 +31,6 @@
 
 typedef struct {
   sys_device_base_t base;  // first: id, suspended
-  bool i2c_added;
   sys_i2c_dev_t i2c;
   uint8_t power_on_mask;      // bit per channel: VOUT powered up
   uint8_t resume_mask;        // the channels that were on when SUSPEND turned them off
@@ -92,8 +91,7 @@ IO_HANDLER(SET_VOLTAGE) {
   dac_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, a->pin));
-  ERR_CHECK(a->voltage_mV >= 0 && a->voltage_mV <= DAC53202_VREF_MV, ERR_DEV_RANGE, .id = c->base.id,
-            .value = a->voltage_mV, .min = 0, .max = DAC53202_VREF_MV);
+  DEV_CHECK_RANGE(c->base.id, a->voltage_mV, 0, DAC53202_VREF_MV);
   return chip_set_voltage_mV(c, a->pin, (uint32_t)a->voltage_mV);
 }
 
@@ -112,10 +110,9 @@ IO_HANDLER(GET_VOLTAGE) {
 static err_h uninstall(void* ctx) {
   dac_t* c = ctx;
   err_h err = NULL;
-  if (c->i2c_added) {
+  if (sys_i2c_dev_added(&c->i2c)) {
     SYS_DEVICE_KEEP_FIRST(err, chip_set_power(c, 0));
     SYS_DEVICE_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
-    c->i2c_added = false;
   }
   return err;
 }
@@ -153,24 +150,17 @@ DEVICE_HANDLER(RESUME) {
 
 /* ---- Create ---- */
 
-// The registry allocated `ctx` (id set); on a failure it calls uninstall() and frees it.
 static err_h create(void* ctx, const void* cfg_in) {
   dac_t* c = ctx;
   const dac53202_cfg_t* cfg = cfg_in;
-  ERR_CHECK(cfg->i2c_bus < SYS_I2C_BUS_COUNT, ERR_DEV_RANGE, .id = c->base.id, .value = cfg->i2c_bus, .min = 0,
-            .max = SYS_I2C_BUS_COUNT - 1);
-  ERR_CHECK(cfg->i2c_addr >= 0x48 && cfg->i2c_addr <= 0x4B, ERR_DEV_RANGE, .id = c->base.id, .value = cfg->i2c_addr,
-            .min = 0x48, .max = 0x4B);
-  sys_i2c_dev_init(&c->i2c, cfg->i2c_bus, cfg->i2c_addr, I2C_SPEED_HZ);
-
-  ERR_TRY(sys_i2c_dev_add(&c->i2c));  // probes the chip
-  c->i2c_added = true;
+  DEV_CHECK_RANGE(c->base.id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
+  DEV_CHECK_RANGE(c->base.id, cfg->i2c_addr, 0x48, 0x4B);
+  ERR_TRY(sys_i2c_dev_attach(&c->i2c, cfg->i2c_bus, cfg->i2c_addr, I2C_SPEED_HZ));  // probes the chip
   return chip_start(c);  // the outputs stay Hi-Z until a voltage is set
 }
 
 /* ---- Type ---- */
 
-// An op not listed (a contract the DAC53202 doesn't have) answers ERR_DEV_UNKNOWN_OP; OPS lists this table.
 static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY(RESET), DEVICE_ENTRY(SUSPEND), DEVICE_ENTRY(RESUME),
     IO_ENTRY(RESET),     IO_ENTRY(SET_VOLTAGE), IO_ENTRY(GET_VOLTAGE),

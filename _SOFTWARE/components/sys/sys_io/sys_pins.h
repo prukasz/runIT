@@ -70,6 +70,11 @@ MUST_USE err_h sys_pins_state_check(const sys_pins_state_t* s, uint16_t dev_id, 
 
 /** @brief Before a write: ERR_DEV_BAD_PIN unless the pin exists, ERR_DEV_PIN_LOCKED if it is locked. */
 MUST_USE err_h sys_pins_state_check_free(const sys_pins_state_t* s, uint16_t dev_id, uint8_t pin);
+/**
+ * @brief Before a write to one of a device's pins: ERR_DEV_SUSPENDED while the device is suspended, then
+ * sys_pins_state_check_free() (the pin exists and no one locked it). Reads use the plain check.
+ */
+MUST_USE err_h sys_pins_check_writable(const sys_device_base_t* base, const sys_pins_state_t* pins, uint8_t pin);
 
 MUST_USE err_h sys_pins_state_lock(sys_pins_state_t* s, uint16_t dev_id, uint8_t pin);
 MUST_USE err_h sys_pins_state_unlock(sys_pins_state_t* s, uint16_t dev_id, uint8_t pin);
@@ -107,6 +112,33 @@ MUST_USE err_h sys_pins_lock(sys_io_pin_t p);
 MUST_USE err_h sys_pins_unlock(sys_io_pin_t p);
 /** @brief The owner drives its locked pin. */
 MUST_USE err_h sys_pins_set_locked_level(sys_io_pin_t p, bool level);
+
+/* ----------------------------------------------------------------------------
+ * A device's own pins: what it did to each one, so its teardown undoes exactly that. A zeroed struct is an unused pin
+ * (the registry allocates the device zeroed). The take functions do nothing for SYS_IO_PIN_NONE, so an optional pin needs
+ * no check at the call site. Take: use, mode, level or interrupt, lock. Release: unsubscribe, unlock, reset (SYS_DEVICE.MD
+ * "Pins").
+ * ------------------------------------------------------------------------- */
+typedef struct {
+  sys_io_pin_t pin;
+  uint8_t sub;      // sys_event handle, while subscribed
+  bool used;        // its mode is ours: release resets it
+  bool locked;      // locked on its device, driven by its owner (sys_dev_pin_drive)
+  bool subscribed;  // its edges reach the owner's ON_EVENT
+  bool keep;        // release leaves it as it is (an output the chip needs at a level): set after the take
+} sys_dev_pin_t;
+
+/** @brief An output at `level`, locked for its owner. */
+MUST_USE err_h sys_dev_pin_take_output(sys_device_base_t* dev, sys_dev_pin_t* p, sys_io_pin_t pin, bool level);
+
+/** @brief An input watched in `mode` (sys_io_intr_mode_e); its edges raise `event` to the owner (0 = no subscription). Locked. */
+MUST_USE err_h sys_dev_pin_take_input(sys_device_base_t* dev, sys_dev_pin_t* p, sys_io_pin_t pin, uint16_t event, uint8_t mode);
+
+/** @brief Drives a pin its owner locked to `level`; a pin that is not locked is left alone. */
+MUST_USE err_h sys_dev_pin_drive(const sys_dev_pin_t* p, bool level);
+
+/** @brief Undoes the take: unsubscribe, unlock, reset (not with `keep`). Safe on an unused pin. */
+MUST_USE err_h sys_dev_pin_release(sys_dev_pin_t* p);
 
 #ifdef __cplusplus
 }

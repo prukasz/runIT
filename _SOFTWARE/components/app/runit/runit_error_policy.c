@@ -12,7 +12,7 @@
 #include "sys_log.h"
 #include "vm_router.h"
 
-#define TAG "runit_policy"
+#define TAG __FILE_NAME__
 
 #define ERR_RECORD_MAX 192u  // one error record on the errors stream (built on the reporter's stack)
 

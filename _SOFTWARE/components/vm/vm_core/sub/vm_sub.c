@@ -12,7 +12,7 @@
 #include "vm_store.h"
 #include "vm_wire.h"
 
-#define TAG "vm_sub"
+#define TAG __FILE_NAME__
 
 /* Deepest PTR nesting walked below a subscribed object. */
 #define SUB_MAX_DEPTH 8u
@@ -79,7 +79,6 @@ typedef struct {
 static track_t s_track[SUB_SLOTS];
 static uint16_t s_track_count;
 static bool s_track_full_reported;
-
 
 /* ---------------------------------------------------------------------------
  * Frames

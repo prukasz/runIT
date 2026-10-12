@@ -208,8 +208,7 @@ static err_h set_policy(uint32_t index, const uint8_t* args, uint32_t args_len) 
   sys_device_error_policy_t p;
   ERR_CHECK(args_len == sizeof(p), ERR_CMD_BAD_LEN, .got = (uint16_t)args_len, .need = sizeof(p));
   memcpy(&p, args, sizeof(p));
-  ERR_CHECK(p.importance <= SYS_DEVICE_IMPORTANCE_CRITICAL, ERR_DEV_RANGE, .id = s_devs[index].id,
-            .value = p.importance, .min = SYS_DEVICE_IMPORTANCE_NONE, .max = SYS_DEVICE_IMPORTANCE_CRITICAL);
+  DEV_CHECK_RANGE(s_devs[index].id, p.importance, SYS_DEVICE_IMPORTANCE_NONE, SYS_DEVICE_IMPORTANCE_CRITICAL);
   taskENTER_CRITICAL(&s_table_mux);
   s_devs[index].policy = p;
   taskEXIT_CRITICAL(&s_table_mux);

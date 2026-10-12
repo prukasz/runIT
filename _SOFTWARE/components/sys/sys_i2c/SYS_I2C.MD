@@ -26,6 +26,8 @@ ERR_TRY(sys_i2c_reg_read(&c->i2c, REG_ID, &id, 1));
 ERR_TRY(sys_i2c_dev_remove(&c->i2c));                            // safe when never added
 ```
 
+When init and add come together, `ERR_TRY(sys_i2c_dev_attach(&c->i2c, bus, addr, speed))` does both. `sys_i2c_dev_added(&c->i2c)` tells the owner whether the chip was built (its teardown checks it instead of a flag of its own).
+
 - `dev_add` checks the bus and config (7-bit address, speed > 0), claims the address, probes, then attaches. Already added → no-op.
 - **One device per address per bus**: a 128-bit map per bus (spinlock) records added addresses; a second `dev_add` on a taken address returns `ERR_I2C_ADDR_TAKEN`. The address is claimed before the probe (two concurrent adds can't both pass) and released if the probe or attach fails.
 - `dev_remove` always clears `handle` and frees the address, even when the driver fails.
