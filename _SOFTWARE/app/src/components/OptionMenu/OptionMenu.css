@@ -1,0 +1,4 @@
+.option-menu { border: 1px solid var(--divider); border-radius: 8px; background: var(--panel); box-shadow: 0 6px 24px var(--shadow); }
+.shell .option-menu-option { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 30px; padding: 5px 8px; border: 0; border-radius: 4px; background: transparent; color: var(--active); text-align: left; cursor: pointer; }
+.shell .option-menu-option:hover:not(:disabled), .shell .option-menu-option:focus-visible, .shell .option-menu-option[aria-selected='true'] { background: color-mix(in srgb, var(--accent) 16%, var(--panel)); outline: none; }
+.shell .option-menu-option:disabled { color: var(--muted); opacity: .55; cursor: not-allowed; }

@@ -1,0 +1,23 @@
+# graphify scope: project source + docs only
+legacy/
+data-structures/
+auto-annotations/
+structures/
+Python/
+.claude/
+.vscode/
+build*/
+managed_components/
+graphify-out/
+
+# config / generated / assets
+*.json
+*.generated.*
+*.svg
+*.html
+*.css
+CMakeLists.txt
+sdkconfig*
+partitions.csv
+dependencies.lock
+app/vite.config.ts

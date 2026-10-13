@@ -1,0 +1,389 @@
+/* Universal TreeSlab Component */
+.tree-slab-row,
+.shell .tree-slab-row {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  height: auto !important;
+  margin: 3px 8px 3px 6px;
+  padding: 2px 4px;
+  border: 1px solid var(--divider);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--active) 5%, var(--panel));
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.tree-slab-row:hover,
+.shell .tree-slab-row:hover {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--divider));
+  background: var(--hover);
+}
+
+.tree-slab-row.selected,
+.shell .tree-slab-row.selected {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--divider));
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  box-shadow: inset 3px 0 var(--accent);
+}
+
+.tree-slab-row.folder,
+.shell .tree-slab-row.folder {
+  background: color-mix(in srgb, var(--panel) 75%, var(--background));
+}
+
+.tree-slab-row.folder.selected,
+.shell .tree-slab-row.folder.selected {
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+}
+
+.tree-slab-row.reference,
+.shell .tree-slab-row.reference {
+  border-color: color-mix(in srgb, var(--color-amber-soft) 35%, var(--divider));
+  background: color-mix(in srgb, var(--color-amber-soft) 14%, var(--panel));
+}
+
+.tree-slab-row.link-target,
+.tree-slab-row.is-search-match,
+.shell .tree-slab-row.link-target,
+.shell .tree-slab-row.is-search-match {
+  border-color: var(--color-amber);
+  background: color-mix(in srgb, var(--color-amber) 18%, var(--panel));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--color-amber) 45%, transparent);
+  animation: link-pulse 1.8s ease-in-out infinite alternate;
+}
+
+.tree-slab-row.link-target { cursor: pointer; }
+
+@keyframes link-pulse {
+  from { box-shadow: 0 0 6px color-mix(in srgb, var(--color-amber) 30%, transparent); }
+  to { box-shadow: 0 0 14px color-mix(in srgb, var(--color-amber) 65%, transparent); }
+}
+
+.tree-slab-row.link-target:hover,
+.tree-slab-row.is-search-match:hover,
+.shell .tree-slab-row.link-target:hover,
+.shell .tree-slab-row.is-search-match:hover {
+  border-color: var(--color-amber);
+  background: color-mix(in srgb, var(--color-amber) 30%, var(--panel));
+  box-shadow: 0 0 16px color-mix(in srgb, var(--color-amber) 70%, transparent);
+}
+
+.tree-slab-row.is-search-match.selected,
+.shell .tree-slab-row.is-search-match.selected {
+  border-color: var(--color-amber);
+  box-shadow: inset 3px 0 var(--color-amber), 0 0 12px color-mix(in srgb, var(--color-amber) 55%, transparent);
+}
+
+.tree-slab-row.link-disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.tree-slab-row.is-dragging {
+  opacity: 0.4;
+}
+
+.tree-slab-row.drop-into {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 24%, var(--panel));
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.tree-slab-row.drop-before {
+  box-shadow: inset 0 3px 0 0 var(--accent);
+}
+
+.tree-slab-row.drop-after {
+  box-shadow: inset 0 -3px 0 0 var(--accent);
+}
+
+.tree-slab-row.is-disabled { opacity: 0.5; cursor: not-allowed; }
+.shell .tree-slab-row.is-disabled .tree-slab-item { cursor: not-allowed; }
+
+/* Internal interactive button */
+.tree-slab-item,
+.shell .tree-slab-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  min-height: 30px;
+  height: auto !important;
+  padding: 0 3px;
+  color: var(--active);
+  font-size: 12px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+/* 1. Icon slot */
+.tree-slab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+/* Main content body */
+.tree-slab-content {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 8px;
+}
+
+/* Row 1: Header / Label */
+.tree-slab-header {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+
+.tree-slab-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--active);
+  line-height: 1.25;
+}
+
+/* Inline rename (double-click): the editor takes the label's place. */
+.tree-slab-item.is-editing { cursor: text; }
+.tree-slab-rename { width: 100%; min-width: 0; height: 22px; padding: 0 6px; border: 1px solid var(--accent); border-radius: 4px; background: var(--background); color: var(--active); font-size: 12px; font-weight: 500; outline: none; }
+
+/* Disclosure slot in header */
+.tree-slab-disclosure-slot {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  margin-left: 2px;
+}
+
+/* Badges container */
+.tree-slab-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Disclosure button (Chevron) */
+.tree-slab-disclosure {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color 120ms ease, background 120ms ease;
+  flex: none;
+}
+
+.tree-slab-disclosure:hover {
+  color: var(--active);
+  background: color-mix(in srgb, var(--active) 12%, transparent);
+}
+
+.tree-slab-disclosure svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Action button (e.g. Delete) */
+.tree-slab-row .tree-slab-action,
+.shell .tree-slab-row .tree-slab-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color 120ms ease, background 120ms ease, opacity 120ms ease;
+  opacity: 0.8;
+  flex: none;
+  margin-left: 2px;
+}
+
+.tree-slab-action:hover,
+.shell .tree-slab-row .tree-slab-action:hover {
+  opacity: 1;
+  color: var(--color-red-soft) !important;
+  background: color-mix(in srgb, var(--color-red-soft) 18%, transparent) !important;
+}
+
+.tree-slab-action svg,
+.shell .tree-slab-action svg {
+  width: 16px;
+  height: 16px;
+}
+
+@media (pointer: coarse) {
+  .tree-slab-row .tree-slab-action,
+  .shell .tree-slab-row .tree-slab-action { width: 40px; height: 40px; }
+}
+
+/* BLE property flags keep their compact group layout. */
+.tree-slab-badges .ble-prop-badges {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* =========================================================================
+   TWO-ROW NARROW LAYOUT:
+   Row 1: Icon (first badge) + Text
+   Row 2: Badges
+   ========================================================================= */
+@container (max-width: 290px) {
+  .tree-slab-row.has-badges.two-row-narrow,
+  .shell .tree-slab-row.has-badges.two-row-narrow {
+    min-height: 48px !important;
+    height: auto !important;
+    padding: 5px 6px !important;
+    align-items: flex-start !important;
+  }
+
+  .tree-slab-row.has-badges.two-row-narrow .tree-slab-item,
+  .shell .tree-slab-row.has-badges.two-row-narrow .tree-slab-item {
+    align-items: flex-start !important;
+    height: auto !important;
+    min-height: 38px !important;
+    gap: 8px;
+    padding: 0 2px;
+  }
+
+  .tree-slab-row.has-badges.two-row-narrow .tree-slab-icon {
+    margin-top: 1px !important;
+    flex-shrink: 0;
+  }
+
+  .tree-slab-row.has-badges.two-row-narrow .tree-slab-disclosure {
+    margin-top: 2px !important;
+    flex-shrink: 0;
+  }
+
+  .tree-slab-row.has-badges.two-row-narrow .tree-slab-action {
+    margin-top: 2px !important;
+    flex-shrink: 0;
+  }
+
+  .tree-slab-row.has-badges.two-row-narrow .tree-slab-content {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .tree-slab-row.has-badges.two-row-narrow .tree-slab-header {
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 18px !important;
+  }
+
+  .tree-slab-row.has-badges.two-row-narrow .tree-slab-badges {
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin-left: 0 !important;
+    margin-top: 1px !important;
+    gap: 4px !important;
+    flex-wrap: wrap !important;
+  }
+}
+
+/* Also support explicit .two-row class */
+.tree-slab-row.has-badges.two-row,
+.shell .tree-slab-row.has-badges.two-row {
+  min-height: 48px !important;
+  height: auto !important;
+  padding: 5px 6px !important;
+  align-items: flex-start !important;
+}
+
+.tree-slab-row.has-badges.two-row .tree-slab-item,
+.shell .tree-slab-row.has-badges.two-row .tree-slab-item {
+  align-items: flex-start !important;
+  height: auto !important;
+  min-height: 38px !important;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.tree-slab-row.has-badges.two-row .tree-slab-icon {
+  margin-top: 1px !important;
+  flex-shrink: 0;
+}
+
+.tree-slab-row.has-badges.two-row .tree-slab-disclosure {
+  margin-top: 2px !important;
+  flex-shrink: 0;
+}
+
+.tree-slab-row.has-badges.two-row .tree-slab-action {
+  margin-top: 2px !important;
+  flex-shrink: 0;
+}
+
+.tree-slab-row.has-badges.two-row .tree-slab-content {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.tree-slab-row.has-badges.two-row .tree-slab-header {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 18px !important;
+}
+
+.tree-slab-row.has-badges.two-row .tree-slab-badges {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin-left: 0 !important;
+  margin-top: 1px !important;
+  gap: 4px !important;
+  flex-wrap: wrap !important;
+}

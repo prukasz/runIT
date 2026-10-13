@@ -21,3 +21,7 @@ app/dist/
 .agents
 
 sdkconfig.old
+
+# graphify: keep only graph.json in git
+graphify-out/*
+!graphify-out/graph.json

@@ -1,0 +1,69 @@
+/* Shared text button and toggle chip. Beats `.shell button` (App.css) by class count. */
+
+.shell .ui-button, a.ui-button {
+  --btn-bg: var(--panel);
+  --btn-bg-hover: var(--hover);
+  --btn-fg: var(--active);
+  --btn-border: var(--divider);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: auto;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--btn-border);
+  border-radius: 6px;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+.shell .ui-button:hover, a.ui-button:hover { background: var(--btn-bg-hover); color: var(--btn-fg); }
+.shell .ui-button:disabled { opacity: .45; cursor: default; }
+.shell .ui-button:disabled:hover { background: var(--btn-bg); }
+.shell .ui-button svg, a.ui-button svg { flex: none; width: 15px; height: 15px; }
+
+.shell .ui-button.is-sm { height: 28px; padding: 0 10px; }
+.shell .ui-button.is-icon, .shell .ui-button.is-icon-sm { padding: 0; border-color: transparent; background: transparent; color: var(--icon); }
+.shell .ui-button.is-icon { width: 32px; height: 32px; }
+.shell .ui-button.is-icon-sm { width: 28px; height: 28px; }
+.shell .ui-button.is-icon:hover, .shell .ui-button.is-icon-sm:hover { background: var(--hover); color: var(--active); }
+.shell .ui-button.is-icon:disabled:hover, .shell .ui-button.is-icon-sm:disabled:hover { background: transparent; }
+.shell .ui-button.is-icon svg, .shell .ui-button.is-icon-sm svg { width: 16px; height: 16px; }
+.shell .ui-button.is-block { width: 100%; }
+
+.shell .ui-button.is-primary {
+  --btn-bg: var(--accent);
+  --btn-bg-hover: color-mix(in srgb, var(--accent) 85%, #000);
+  --btn-fg: var(--on-accent);
+  --btn-border: var(--accent);
+}
+.shell .ui-button.is-danger {
+  --btn-fg: var(--color-red);
+  --btn-border: color-mix(in srgb, var(--color-red) 50%, var(--divider));
+}
+.shell .ui-button.is-dashed {
+  --btn-bg: transparent;
+  --btn-fg: var(--muted);
+  border-style: dashed;
+}
+.shell .ui-button.is-dashed:hover { --btn-fg: var(--active); }
+
+/* Toggle chip */
+.shell .ui-chip {
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--divider);
+  border-radius: 13px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
+.shell .ui-chip.selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--panel)); color: var(--active); }

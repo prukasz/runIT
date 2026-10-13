@@ -9,10 +9,68 @@ export interface StateField {
   readonly size: number
   readonly source: 'user' | 'runtime' | 'padding' | 'derived'
   readonly enum_ref?: string
+  /** What the value names: `device`, `pin` ... */
+  readonly id_kind?: string
+  /** The name the user sees. */
+  readonly alias?: string
+  /** What the app does with it: `device`, `op`, `idle-op`, `const`, `idle-const`; none = a plain setting. */
+  readonly role?: string
   readonly array_len?: number
   readonly element_size?: number
   readonly description?: string
 }
+
+/** A pin of a block descriptor (`inputs.pins` / `outputs.pins`). */
+export interface BlockPin {
+  readonly index: number
+  readonly name: string
+  readonly alias: string
+  /** The value kind: `u32`, `f32`, `gate`, `bool`, `object` ... */
+  readonly value: string
+  readonly description?: string
+  /** The setting this input reads while unwired. */
+  readonly overrides?: string
+  readonly required?: boolean
+  readonly hide_when_wired?: boolean
+}
+
+export interface BlockPins {
+  readonly min: number
+  readonly max: number
+  readonly pins: readonly BlockPin[]
+}
+
+/** An input or output of one operation of a device block. */
+export interface OpPin {
+  readonly index: number
+  readonly name: string
+  readonly alias: string
+  /** The wire type of an argument (`u8`, `i16` ...); absent for a reading's output. */
+  readonly field_type?: string
+  /** A reading's value type. */
+  readonly value_type?: string
+  readonly unit?: string
+  readonly id_kind?: string
+  readonly device_field?: string
+  readonly choices?: readonly { readonly value: number; readonly alias: string }[]
+}
+
+/** What a device block can do with its device: a setting (`change`), an action (`edge`) or a reading (`read`). */
+export interface BlockOp {
+  readonly symbol: string
+  /** The value of the block's `op` field. */
+  readonly value: number
+  readonly alias: string
+  readonly description: string
+  readonly kind: 'change' | 'edge' | 'read'
+  readonly idle_allowed: boolean
+  readonly inputs: readonly OpPin[]
+  readonly outputs: readonly OpPin[]
+  readonly face?: { readonly lead: readonly FacePart[] }
+}
+
+/** One part of a block's face line: text, or a reference the app resolves (`kind`: title, pin, field, out). */
+export type FacePart = { readonly text: string } | { readonly ref: string; readonly kind: 'title' | 'pin' | 'field' | 'out' | 'op'; readonly pin?: number; readonly field?: string }
 
 export interface BlockDescriptor {
   readonly id: number
@@ -20,6 +78,14 @@ export interface BlockDescriptor {
   readonly alias: string
   readonly category: string
   readonly description: string
+  readonly inputs?: BlockPins
+  readonly outputs?: BlockPins
+  /** A device block: what it can do with the device, one entry per operation (the pins depend on the one chosen). */
+  readonly ops?: readonly BlockOp[]
+  readonly op_field?: string
+  readonly device_field?: string
+  /** The block's headline: the words, then the value part they are set to. */
+  readonly face?: { readonly lead: readonly FacePart[]; readonly value?: readonly FacePart[] }
   readonly shape: { readonly min_in: number; readonly max_in: number; readonly min_q: number; readonly max_q: number; readonly min_en: number; readonly required_in: number; readonly state_len: number }
   /** Absent for a block with no state (IF, SWITCH, CLONE). */
   readonly state?: { readonly struct: string; readonly size: number; readonly fields: readonly StateField[] }

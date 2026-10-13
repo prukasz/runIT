@@ -1,0 +1,71 @@
+:root { color-scheme: dark; }
+html, body { margin: 0; padding: 0; background: #272727; }
+#root { height: 100vh; }
+
+.shell { display: flex; width: 100%; height: 100vh; min-height: 320px; overflow: hidden; background: var(--background); color: var(--active); }
+.shell * { box-sizing: border-box; }
+
+.shell button { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex: none; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--icon); cursor: pointer; }
+.shell button:hover { background: var(--hover); color: var(--active); }
+.shell button.selected { background: var(--selected); color: var(--active); }
+.shell button:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
+.shell svg { width: 19px; height: 19px; stroke-width: 1.8; }
+
+/* Side panels: a narrow icon bar that opens into a panel */
+.side-panel { position: relative; display: flex; flex-direction: column; width: 54px; flex: none; overflow: hidden; background: var(--panel); transition: width 180ms ease; }
+.left-panel { border-right: 1px solid var(--divider); }
+.right-panel { border-left: 1px solid var(--divider); }
+.side-panel-header { display: flex; align-items: center; height: 60px; min-height: 60px; padding: 0 8px; border-bottom: 1px solid var(--divider); }
+.side-panel:not(.is-open) .side-panel-header { justify-content: center; padding: 0; }
+.left-panel.is-open .side-panel-header .panel-toggle { margin-left: auto; }
+.side-panel-icons { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; min-height: 0; padding: 8px 0; overflow-y: auto; }
+.side-panel-body { flex: 1; min-height: 0; overflow: auto; }
+
+/* Main screen: toolbar over the surface */
+.center-column { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+.main-panel { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; background: var(--background); }
+.main-action-bar { display: flex; align-items: center; gap: 10px; height: 60px; min-height: 60px; padding: 0 14px; border-bottom: 1px solid var(--divider); background: var(--background); }
+.main-surface { flex: 1; min-height: 0; background: var(--background); }
+
+/* Resize handles on the inner edge of a side panel */
+.panel-resize-handle { position: absolute; top: 0; bottom: 0; z-index: 10; width: 8px; touch-action: none; cursor: col-resize; background: transparent; }
+.panel-resize-handle::after { content: ''; position: absolute; top: 0; bottom: 0; width: 2px; background: transparent; transition: background 120ms ease; }
+.left-resize-handle { right: 0; }
+.left-resize-handle::after { right: 0; }
+.right-resize-handle { left: 0; }
+.right-resize-handle::after { left: 0; }
+.panel-resize-handle:hover::after, .panel-resize-handle:focus-visible::after, .shell.is-resizing .panel-resize-handle.active::after { background: var(--accent); }
+.panel-resize-handle:focus-visible { outline: none; }
+.shell.is-resizing, .shell.is-resizing * { cursor: col-resize !important; user-select: none; }
+.shell.is-resizing .side-panel { transition: none; }
+
+.toolbar-spacer { flex: 1; }
+
+.shell .main-action-bar button, .shell .side-panel-header button, .shell .side-panel-icons button { width: 44px; height: 44px; border-radius: 7px; }
+.shell .main-action-bar svg, .shell .side-panel-header svg, .shell .side-panel-icons svg { width: 24px; height: 24px; }
+
+/* Right panel header: panel toggle left, section icons at the right corner */
+.right-panel.is-open .right-header { gap: 4px; }
+.right-panel.is-open .right-header .header-icons { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+
+.ble-panel { display: flex; flex-direction: column; gap: 14px; padding: 18px; }
+.ble-panel p { margin: 0; font-size: 12px; color: var(--muted); }
+.ble-board { display: flex; align-items: baseline; gap: 10px; }
+.ble-board-label { font-size: 15px; font-weight: 600; }
+.ble-board .ble-device { min-width: 0; overflow: hidden; color: var(--muted); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.ble-panel .ble-error { color: var(--color-red-soft); }
+.ble-actions { display: flex; flex-direction: column; gap: 8px; }
+.shell .ble-actions .text-button { width: 100%; height: 46px; padding: 0 18px; border-radius: 7px; border: 1px solid var(--divider); color: var(--active); font-size: 15px; }
+.shell .ble-actions .text-button:disabled { opacity: .45; cursor: default; }
+.shell .ble-actions .text-button:disabled:hover { background: transparent; }
+
+/* BLE keeps the corner: last in the open header row (right), first in the collapsed column (top). */
+.side-panel-icons .ble-toggle { order: -1; }
+
+.side-panel-body { display: flex; flex-direction: column; }
+.main-surface { overflow: hidden; }
+.shell button:disabled { opacity: .45; cursor: default; }
+.shell button:disabled:hover { background: transparent; color: var(--icon); }
+
+.palette-switch { padding: 8px 8px 2px; zoom: 1.15; }
+.palette-empty { margin: 0; padding: 16px; color: var(--muted); font-size: 13px; }

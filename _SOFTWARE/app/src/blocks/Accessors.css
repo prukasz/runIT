@@ -1,0 +1,478 @@
+.block-path-field { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 3px; width: 100%; min-width: 0; }
+.block-path-field input { height: 26px; padding: 0 6px; border-radius: 4px; font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; text-align: left; }
+.block-path-field.is-editing input { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.block-path-field input[aria-invalid="true"] { border-color: var(--color-red); }
+.block-path-field em { color: var(--color-red); font: 10px system-ui, sans-serif; font-style: normal; white-space: normal; text-align: left; }
+.pin-helpers-card {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--divider));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: pinHelperFadeIn 150ms ease-out;
+}
+.pin-helpers-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 20%, var(--divider));
+}
+.pin-helpers-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.pin-helpers-heading strong {
+  font-size: 12px;
+  color: var(--active);
+  white-space: nowrap;
+}
+.shell .pin-helpers-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.shell .pin-helpers-close:hover {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--active);
+  border-color: var(--divider);
+}
+.shell .pin-helpers-close svg {
+  width: 14px;
+  height: 14px;
+}
+.pin-helpers-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pin-helpers-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--active);
+}
+.shell .pin-helpers-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--divider);
+  border-radius: 4px;
+  background: var(--background);
+  color: var(--active);
+  font: 11px ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.shell .pin-helpers-chip:hover {
+  background: color-mix(in srgb, var(--accent) 22%, var(--panel));
+  border-color: var(--accent);
+  color: var(--active);
+}
+.pin-helpers-array-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--divider));
+}
+.pin-helpers-elements-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 130px;
+  overflow-y: auto;
+  padding: 2px;
+}
+.shell .pin-helpers-elem-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto !important;
+  min-width: 32px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--divider);
+  border-radius: 4px;
+  background: var(--background);
+  color: var(--active);
+  font: 11px ui-monospace, SFMono-Regular, Consolas, monospace;
+  cursor: pointer;
+  transition: all 120ms ease;
+  flex: 0 0 auto !important;
+  box-sizing: border-box;
+}
+.shell .pin-helpers-elem-btn:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+.shell .pin-helpers-elem-btn.is-selected {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+  font-weight: 700;
+  box-shadow: 0 0 0 1px var(--on-accent) inset;
+}
+.shell .pin-helpers-chip.is-key-chip {
+  color: var(--color-orange);
+  border-color: color-mix(in srgb, var(--color-orange) 40%, var(--divider));
+  background: color-mix(in srgb, var(--color-orange) 8%, var(--background));
+}
+.shell .pin-helpers-chip.is-key-chip:hover {
+  background: var(--color-orange);
+  color: var(--on-accent);
+  border-color: var(--color-orange);
+}
+.pin-helpers-creator-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  margin: 6px 0;
+  background: color-mix(in srgb, var(--accent) 12%, var(--background));
+  border: 1px dashed var(--accent);
+  border-radius: 6px;
+}
+.pin-helpers-creator-msg {
+  font-size: 11px;
+  color: var(--active);
+}
+.shell .pin-helpers-create-btn,
+.shell .pin-helpers-new-var-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  width: auto !important;
+  flex: 0 0 auto !important;
+  padding: 0 9px;
+  border-radius: 4px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font: 600 11px system-ui, -apple-system, sans-serif;
+  cursor: pointer;
+  transition: all 120ms ease;
+  box-sizing: border-box;
+}
+.shell .pin-helpers-create-btn:hover,
+.shell .pin-helpers-new-var-btn:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+.pin-helpers-slot-chip.is-key {
+  border-color: color-mix(in srgb, var(--color-orange) 50%, var(--divider));
+  background: color-mix(in srgb, var(--color-orange) 14%, var(--background));
+}
+.pin-helpers-slot-chip.is-index {
+  border-color: color-mix(in srgb, var(--color-blue-bright) 40%, var(--divider));
+  background: color-mix(in srgb, var(--color-blue-bright) 12%, var(--background));
+}
+.pin-helpers-slot-key-tag {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--color-orange);
+  padding: 1px 4px;
+  background: color-mix(in srgb, var(--color-orange) 20%, transparent);
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+}
+.pin-helpers-slot-chip.is-index .pin-helpers-slot-key-tag {
+  color: var(--color-blue-bright);
+  background: color-mix(in srgb, var(--color-blue-bright) 20%, transparent);
+}
+.pin-helpers-more {
+  align-self: center;
+  font-size: 10px;
+  color: var(--muted);
+  font-style: italic;
+  padding: 0 4px;
+}
+.pin-helpers-var-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 130px;
+  overflow-y: auto;
+}
+.shell .pin-helpers-var-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--background);
+  color: var(--active);
+  text-align: left;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.shell .pin-helpers-var-row:hover {
+  background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.pin-helpers-var-name {
+  flex: 1;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pin-helpers-var-count {
+  font-size: 10px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--active) 8%, transparent);
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.pin-helpers-empty {
+  padding: 8px;
+  color: var(--muted);
+  font-style: italic;
+  font-size: 11px;
+  text-align: center;
+}
+.pin-helpers-tips {
+  padding-top: 8px;
+  border-top: 1px solid var(--divider);
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.45;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pin-helpers-tips code {
+  color: var(--active);
+  background: color-mix(in srgb, var(--active) 10%, transparent);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.pin-helpers-slots-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--divider));
+}
+.pin-helpers-slots-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--active);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.pin-helpers-slots-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pin-helpers-slot-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pin-helpers-slot-label {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.pin-helpers-slot-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--divider);
+  background: var(--background);
+  transition: all 120ms ease;
+  position: relative;
+}
+.pin-helpers-slot-box.is-empty {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--divider));
+}
+.pin-helpers-slot-box.is-drag-over {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 20%, var(--background));
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.pin-helpers-slot-box.can-click-to-assign {
+  border-color: var(--accent);
+  cursor: pointer;
+  background: color-mix(in srgb, var(--accent) 10%, var(--background));
+}
+.pin-helpers-slot-bracket {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  user-select: none;
+}
+.pin-helpers-slot-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 22%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--active);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+}
+.pin-helpers-slot-chip strong {
+  color: var(--active);
+}
+.shell .pin-helpers-slot-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.shell .pin-helpers-slot-clear:hover {
+  background: color-mix(in srgb, var(--color-red) 25%, transparent);
+  color: var(--color-red);
+}
+.pin-helpers-slot-input {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--active);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  outline: none;
+}
+.pin-helpers-slot-input::placeholder {
+  color: var(--muted);
+  font-family: system-ui, sans-serif;
+  font-size: 10px;
+}
+.pin-helpers-slot-hint {
+  font-size: 10px;
+  color: var(--accent);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.pin-helpers-slot-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 130px;
+  overflow-y: auto;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--panel);
+  box-shadow: 0 4px 14px var(--shadow);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  padding: 3px;
+}
+.shell .pin-helpers-slot-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--active);
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+}
+.pin-helpers-warning {
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-amber) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-amber) 45%, transparent);
+  color: var(--active);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pin-helpers-matrix-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 4px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.accessor { display: flex; flex-direction: column; gap: 10px; }
+.accessor-chain { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 36px; padding: 5px 8px; border: 1px solid var(--divider); border-radius: 6px; background: var(--background); }
+.accessor-root { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 4px; background: color-mix(in srgb, var(--accent) 14%, var(--panel)); font: 12px ui-monospace, SFMono-Regular, Consolas, monospace; color: var(--active); }
+.accessor-step { position: relative; display: inline-flex; align-items: center; gap: 3px; padding: 1px 4px; border-radius: 4px; border: 1px solid var(--divider); background: var(--panel); font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.accessor-step.is-key { border-color: color-mix(in srgb, var(--color-amber) 55%, var(--divider)); }
+.accessor-step.is-index { border-color: color-mix(in srgb, var(--type-number, var(--accent)) 55%, var(--divider)); }
+.accessor-step.is-slot { border-style: solid; }
+.accessor-step.is-slot.is-empty { border-style: dashed; border-color: color-mix(in srgb, var(--accent) 55%, var(--divider)); }
+.accessor-step.is-slot.is-empty.can-click-to-assign { cursor: pointer; background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+.accessor-step.is-over { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.accessor-punct { color: var(--muted); font-weight: 700; }
+.accessor-input { min-width: 2ch; padding: 0; border: 0; outline: none; background: transparent; color: var(--active); font: inherit; }
+.accessor-input:focus { text-decoration: underline; text-decoration-color: var(--accent); }
+.accessor-step .pin-helpers-slot-input { width: 14ch; flex: none; }
+.accessor-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.accessor-by { display: inline-flex; gap: 4px; }
+.accessor-cells { max-height: 180px; }
+.accessor-add { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.accessor-add-label { color: var(--muted); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+.pin-helpers-label { justify-content: space-between; }

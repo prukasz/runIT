@@ -1,0 +1,34 @@
+.cat-flow { --cat: var(--category-flow); }
+.cat-data { --cat: var(--category-data); }
+.cat-logic { --cat: var(--category-logic); }
+.cat-time { --cat: var(--category-time); }
+.cat-io { --cat: var(--category-io); }
+.cat-system { --cat: var(--category-system); }
+.cat-unknown { --cat: var(--category-unknown); }
+.cat-device { --cat: var(--category-io); }
+
+.block-palette { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-top: 6px; }
+.block-palette-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 0 12px; }
+.block-palette-group .palette-section-header { margin-top: 6px; }
+.shell .block-palette-item:hover:not(.is-disabled) { border-color: color-mix(in srgb, var(--cat) 60%, var(--divider)); }
+.shell .block-palette-item:focus-within { border-color: var(--accent); }
+.shell .block-palette-item .tree-slab-item { cursor: grab; }
+.shell .block-palette-item .tree-slab-item:active { cursor: grabbing; }
+.shell .block-palette-item.is-disabled .tree-slab-item { cursor: not-allowed; }
+.block-palette-swatch, .block-info-swatch { flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--cat); }
+.block-palette-note { margin: 0; padding: 10px 14px; color: var(--muted); font-size: 12px; }
+.block-palette { zoom: 1.15; }
+
+.block-info { max-width: 700px; padding: clamp(16px, 3vw, 40px); }
+.block-info-title { display: flex; align-items: center; gap: 12px; margin: 0 0 6px; font-size: 25px; font-weight: 550; }
+.block-info-swatch { width: 14px !important; height: 14px !important; }
+.block-info-kicker { margin: 0 0 18px; color: var(--muted); font-size: 12px; }
+.block-info p { margin: 0 0 14px; color: var(--active); font-size: 14px; line-height: 1.55; }
+.block-info dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; color: var(--muted); font-size: 13px; }
+.block-info dd { margin: 0; color: var(--active); }
+
+.block-palette-ops { margin: 0 0 4px 16px; padding: 2px 0 2px 6px; border-left: 1px solid color-mix(in srgb, var(--cat) 35%, var(--divider)); }
+.block-palette-op-kind { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.block-palette-op-kind.is-change { background: var(--color-blue); }
+.block-palette-op-kind.is-edge { background: var(--color-amber); }
+.block-palette-op-kind.is-read { background: var(--color-green); }

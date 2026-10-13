@@ -1,5 +1,4 @@
 #include "sys_connector.h"
-
 #include "sdkconfig.h"
 #include "utils.h"
 

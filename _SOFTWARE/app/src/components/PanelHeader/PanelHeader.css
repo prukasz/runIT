@@ -1,0 +1,2 @@
+.panel-header { display: flex; align-items: center; gap: 9px; margin-bottom: 20px; }
+.panel-header h2 { margin: 0; overflow-wrap: anywhere; color: var(--active); font-size: 17px; font-weight: 600; }

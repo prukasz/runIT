@@ -1,8 +1,5 @@
 #include "sys_event.h"
-
 #include "esp_timer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
 #include "router_ids.h"
 #include "sdkconfig.h"
 #include "sys_connector.h"

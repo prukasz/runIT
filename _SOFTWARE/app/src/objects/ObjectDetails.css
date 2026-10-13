@@ -1,0 +1,30 @@
+.object-details { height: 100%; overflow: auto; padding: 18px 15px; color: var(--muted); font-size: 12px; }
+.object-details-section { margin-bottom: 20px; }
+.object-details-section-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.object-details-section h3 { margin: 0 0 10px; color: var(--active); font-size: 12px; font-weight: 600; }
+.object-details-section-title h3 { margin: 0; }
+.object-details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+.object-details-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin: 8px 0; }
+.object-details-grid label, .object-details-grid-3 label { margin: 0 !important; }
+.object-details-section p { margin: 0; line-height: 1.5; }
+.object-details-section label:not(.pin-helpers-card *) { display: flex; flex-direction: column; gap: 5px; margin: 10px 0; }
+.object-details-section input:not([type=checkbox]):not(.pin-helpers-card *), .object-details-section select:not(.pin-helpers-card *), .object-details-section textarea:not(.pin-helpers-card *) { width: 100%; min-width: 0; padding: 6px 8px; border: 1px solid var(--divider); border-radius: 5px; background: var(--background); color: var(--active); font-size: 12px; }
+.object-details-section textarea { min-height: 55px; resize: vertical; }
+.object-details-move { display: flex; gap: 6px; }
+.shell .object-details-move button { flex: 1; justify-content: center; gap: 6px; width: auto; height: 32px; padding: 0 10px; }
+.object-details-move button svg { width: 14px; height: 14px; flex: none; }
+.object-details-move button svg:last-child { margin-left: 0; }
+.shell .object-details-section button:not(.pin-helpers-card *) { justify-content: flex-start; gap: 8px; width: 100%; height: 32px; padding: 0 7px; color: var(--active); font-size: 12px; }
+.object-details-section button:not(.pin-helpers-card *) svg { width: 15px; height: 15px; }
+.object-details-section button:not(.pin-helpers-card *) svg:last-child { margin-left: auto; }
+.object-details-grid button svg:last-child { margin-left: 0; }
+
+/* The switches stack as rows of the section, left aligned (the section's own label rule would center them in a column). */
+.object-details-section .object-details-toggles { display: flex; flex-direction: column; gap: 2px; margin: 12px 0 0; }
+.object-details-section label.switch { flex-direction: row; align-items: center; gap: 12px; margin: 0; padding: 7px 4px; color: var(--active); }
+
+/* The field says what it is: its unit sits inside it, no small caption above. */
+.suffix-field { position: relative; min-width: 0; }
+.suffix-field > span { position: absolute; top: 50%; right: 32px; z-index: 1; transform: translateY(-50%); color: var(--muted); font-size: 12px; pointer-events: none; }
+.suffix-field input { padding-right: 70px !important; }
+.object-details-section > * + * { margin-top: 8px; }

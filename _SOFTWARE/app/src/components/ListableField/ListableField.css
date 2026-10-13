@@ -1,0 +1,3 @@
+.listable-field-wrap { min-width: var(--listable-min-width, 60px); }
+.listable-field-select { min-width: var(--listable-min-width, 60px); font-size: var(--field-font-size, 12px); font-weight: var(--listable-font-weight, 600); }
+select.listable-field-select.form-select-control { background-image: none !important; padding-right: 24px !important; }

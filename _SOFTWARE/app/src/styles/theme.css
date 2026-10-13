@@ -1,0 +1,108 @@
+/* Shared surfaces and semantic colors. Keep theme values here so every view
+   responds to the same light/dark switch. */
+.shell {
+  color-scheme: dark;
+  --background: #272727;
+  --panel: #303030;
+  --divider: #444444;
+  --icon: #adadad;
+  --active: #f2f2f2;
+  --muted: #a3a3a3;
+  --hover: #3a3a3a;
+  --selected: #454545;
+  --grip: #888888;
+  --accent: #0e86d4;
+  --on-accent: #ffffff;
+  --shadow: #0006;
+  --canvas-dot: #444444;
+  --canvas-dot-major: #5c5c5c;
+
+  --color-blue: #4aa8ff;
+  --color-blue-bright: #4fc1ff;
+  --color-amber: #e9ad50;
+  --color-amber-soft: #dfa84f;
+  --color-orange: #e5933a;
+  --color-red: #e5484d;
+  --color-red-soft: #ef6565;
+  --color-green: #50d782;
+  --color-green-strong: #35b970;
+  --color-lime: #a4b83a;
+  --color-teal: #2dd4bf;
+  --color-purple: #bf91f3;
+
+  --syntax-number: #b5cea8;
+  --syntax-function: #dcdcaa;
+  --syntax-operator: #d4d4d4;
+
+  --type-number: var(--color-blue);
+  --type-boolean: var(--color-teal);
+  --type-text: var(--color-purple);
+  --type-other: var(--color-amber);
+
+  --category-flow: #c586c0;
+  --category-data: var(--color-blue-bright);
+  --category-logic: #dcdcaa;
+  --category-time: #4ec9b0;
+  --category-io: #ce9178;
+  --category-system: #f48771;
+  --category-unknown: #888888;
+
+  --group-tint-1: #b05fb0;
+  --group-tint-2: #2f9e8f;
+  --group-tint-3: #b8962a;
+  --group-tint-4: #2f86c9;
+  --group-tint-5: #c56a3a;
+  --group-tint-6: #5a78d6;
+  --group-tint-7: #6a9a3a;
+  --group-tint-8: #d9534f;
+}
+
+.shell.theme-light {
+  color-scheme: light;
+  --background: #f7f9fb;
+  --panel: #ffffff;
+  --divider: #d9dde4;
+  --icon: #5e6573;
+  --active: #1e2229;
+  --muted: #6c7382;
+  --hover: #eef1f6;
+  --selected: #e2e6ed;
+  --grip: #888888;
+  --accent: #0078d4;
+  --shadow: #0002;
+  --canvas-dot: #e2e5eb;
+  --canvas-dot-major: #c4c9d2;
+
+  --color-blue: #0a6fb0;
+  --color-blue-bright: #0a6fb0;
+  --color-amber: #a96b05;
+  --color-amber-soft: #96670f;
+  --color-orange: #b35a2b;
+  --color-red: #c23b2b;
+  --color-red-soft: #b62d35;
+  --color-green: #187a48;
+  --color-green-strong: #187a48;
+  --color-lime: #758315;
+  --color-teal: #087c71;
+  --color-purple: #824cb1;
+
+  --syntax-number: #098658;
+  --syntax-function: #795e26;
+  --syntax-operator: #444444;
+
+  --category-flow: #9b3d95;
+  --category-data: var(--color-blue-bright);
+  --category-logic: #8a7a00;
+  --category-time: #1a8a78;
+  --category-io: #b35a2b;
+  --category-system: #c23b2b;
+
+  --group-tint-1: #9b3d95;
+  --group-tint-2: #137f70;
+  --group-tint-3: #8a7a00;
+  --group-tint-4: #0a6fb0;
+  --group-tint-5: #b35a2b;
+  --group-tint-6: #435cb3;
+  --group-tint-7: #647a1d;
+  --group-tint-8: #c23b2b;
+}
