@@ -4,7 +4,7 @@ import { ValueKindBadge } from '../components/TypeBadge/TypeBadge'
 import { chipLabel, snapPoint } from '../domain/canvas'
 import type { CanvasBlock, ObjectPath, Point, WireSource, WireTarget } from '../domain/canvas'
 import type { BlockDescriptor } from '../backend/vm/blocks'
-import { headlineOf, pathText } from '../blocks/blockModel'
+import { formulaOf, formulaText, headlineOf, pathText } from '../blocks/blockModel'
 import type { BlockShape, PinView } from '../blocks/blockModel'
 
 /*
@@ -33,6 +33,8 @@ interface Props {
   readonly labelOf?: (path: ObjectPath) => string
   /** Whether a path is a variable of the tree (not another block's pin): those are drawn as a chip on the pin. */
   readonly isVariable?: (path: ObjectPath) => boolean
+  /** Whether a path is shown as a free chip on the canvas: its pins are wired to that chip instead of showing a docked one. */
+  readonly isFree?: (path: ObjectPath) => boolean
   /** A press on a docked variable chip: a click selects it (Delete takes it off the pin), a drag pulls it off to move it. */
   readonly onChipPress?: (target: WireTarget, path: ObjectPath, event: React.PointerEvent) => void
   /** The docked chip selected on this block. */
@@ -41,11 +43,14 @@ interface Props {
   readonly onRename?: (name: string | undefined) => void
 }
 
-export function CanvasBlockView({ block, descriptor, shape, selected, zoom, onSelect, onMove, onTap, onDrag, offset, onWireStart, labelOf = pathText, isVariable = () => false, onChipPress, selectedChip, onRename }: Props) {
+export function CanvasBlockView({ block, descriptor, shape, selected, zoom, onSelect, onMove, onTap, onDrag, offset, onWireStart, labelOf = pathText, isVariable = () => false, isFree = () => false, onChipPress, selectedChip, onRename }: Props) {
   const [drag, setDrag] = useState<{ start: Point; origin: Point; at: Point }>()
   const [renaming, setRenaming] = useState(false)
   const title = descriptor?.alias ?? `Unknown ${block.type}`
   const head = headlineOf(descriptor, block, labelOf)
+  // An expression block's formula, in its body under the pins (as in the legacy app): `Result = (speed + 2) * IN1`.
+  const formula = formulaOf(descriptor, block)
+  const outputLabel = block.outputs?.[0] ? labelOf({ root: block.outputs[0] }) : block.outputAliases?.[0] || shape.outputs[0]?.title || 'Result'
   const enables = block.enables?.length ?? 0
   const at = drag?.at ?? (offset ? { x: block.x + offset.x, y: block.y + offset.y } : block)
 
@@ -67,9 +72,9 @@ export function CanvasBlockView({ block, descriptor, shape, selected, zoom, onSe
     const text = source ? labelOf(typeof source === 'string' ? { root: source } : source) : output ? `${block.id}:q${index}` : 'Unwired'
     const pinTitle = output ? block.outputAliases?.[index] || pin.title : pin.title
     const path: ObjectPath | undefined = source ? (typeof source === 'string' ? { root: source } : source) : undefined
-    const chip = path && path.root !== '' && isVariable(path) ? { label: chipLabel(labelOf(path)), full: labelOf(path) } : undefined
+    const chip = path && path.root !== '' && isVariable(path) && !isFree(path) ? { label: chipLabel(labelOf(path)), full: labelOf(path) } : undefined
     return (
-      <div key={index} className={`canvas-block-pin ${chip ? 'has-docked-chip' : ''} ${pin.required ? 'is-required' : ''} ${connected ? 'is-connected' : ''} ${pin.value === 'gate' || pin.value === 'bool' ? 'is-gate' : ''}`} title={`${pinTitle} (${pin.value})${pin.required ? ', required' : ''} · ${text}`}>
+      <div key={index} data-block={block.id} data-pin-kind={output ? 'out' : 'in'} data-pin-index={pin.index} className={`canvas-block-pin ${chip ? 'has-docked-chip' : ''} ${pin.required ? 'is-required' : ''} ${connected ? 'is-connected' : ''} ${pin.value === 'gate' || pin.value === 'bool' ? 'is-gate' : ''}`} title={`${pinTitle} (${pin.value})${pin.required ? ', required' : ''} · ${text}`}>
         {chip && (
           <span
             className={`canvas-chip is-docked ${output ? 'is-out' : 'is-in'} ${selectedChip && selectedChip.kind === (output ? 'out' : 'in') && 'index' in selectedChip && selectedChip.index === index ? 'is-selected' : ''}`}
@@ -136,7 +141,7 @@ export function CanvasBlockView({ block, descriptor, shape, selected, zoom, onSe
       }}
       onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onSelect(event.shiftKey || event.ctrlKey || event.metaKey) } }}
     >
-      <span className="canvas-block-enable is-en" role="img" aria-label={`Run when connector ${block.id}`} data-pin="en" title={`Run when: ${enables ? `${block.enableMode === 'all' ? 'all' : 'any'} of ${enables} sources\n${block.enables!.map(pathText).join('\n')}` : 'nothing set, always runs'}`} />
+      <span className="canvas-block-enable is-en" role="img" aria-label={`Run when connector ${block.id}`} data-pin="en" data-block={block.id} data-pin-kind="en" title={`Run when: ${enables ? `${block.enableMode === 'all' ? 'all' : 'any'} of ${enables} sources\n${block.enables!.map(labelOf).join('\n')}` : 'nothing set, always runs'}`} />
       <span className="canvas-block-enable is-eno canvas-wire-start" role="img" aria-label={`When done connector ${block.id}`} data-pin="eno" title="When done: true while the block acted; drag it onto the Run when of another block to run that block only then" onPointerDown={wireFrom('eno')} />
       <div className="canvas-block-header">
         <span className="canvas-block-heading">
@@ -153,6 +158,25 @@ export function CanvasBlockView({ block, descriptor, shape, selected, zoom, onSe
         <div className="canvas-block-side is-in">{shape.inputs.map((pin) => pinView(pin, pin.index, false))}</div>
         <div className="canvas-block-side is-out">{shape.outputs.map((pin, index) => pinView(pin, index, true))}</div>
       </div>
+      {formula && (
+        <div className="canvas-block-summary is-formula" title={formulaText(descriptor, block, labelOf, outputLabel)}>
+          {formula.state !== 'ok' ? (
+            <span className="is-unwired">{formula.state === 'empty' ? 'Set a formula' : 'Invalid formula'}</span>
+          ) : (
+            <div className="canvas-formula-line">
+              {formula.parts.map((part, index) => {
+                if (part.kind === 'out') return <span key={index} className="expr-target is-output">{outputLabel}</span>
+                if (part.kind === 'in') {
+                  const path = block.inputs?.[part.pin]
+                  const wired = !!path && path.root !== ''
+                  return <span key={index} className={`expr-target ${wired ? '' : 'is-unwired'}`} title={`IN${part.pin}${wired ? `: ${labelOf(path!)}` : ': not wired'}`}>{wired ? labelOf(path!) : part.text}</span>
+                }
+                return part.text.trim() ? <span key={index} className="canvas-formula-tok">{part.text.trim()}</span> : null
+              }).flatMap((node, index) => (index === 1 ? [<span key="eq" className="canvas-formula-op">=</span>, node] : [node]))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

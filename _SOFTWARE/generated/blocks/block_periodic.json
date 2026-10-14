@@ -1,0 +1,74 @@
+{
+  "$schema": "../../templates/vm-block.schema.json",
+  "schemaVersion": 3,
+  "kind": "vm-block",
+  "id": "periodic",
+  "wire_id": 13,
+  "alias": "Every",
+  "description": "Pulses its output for one pass every period while enabled. Never bursts after a slow pass.",
+  "category": "time",
+  "order": 10,
+  "tags": [
+    "timer",
+    "interval",
+    "repeat",
+    "tick",
+    "clock",
+    "cycle"
+  ],
+  "integration": "core",
+  "activation": {
+    "kind": "enabled",
+    "text": "Runs every pass while enabled. The first tick is on the pass the block becomes enabled, then every period; disabling stops it and enabling again restarts the phase."
+  },
+  "eno": {
+    "alias": "Tick",
+    "description": "A one-pass pulse every period. Put it on another block's enable to run that block every period."
+  },
+  "header": {
+    "subtitle": "Every {period} {time_base}"
+  },
+  "body": [
+    "{period} {time_base}"
+  ],
+  "fields": [
+    {
+      "id": "period",
+      "alias": "Period",
+      "description": "Time between pulses, in the chosen time unit. A wired period wins over the one in the body; a period of 0 from the wire pauses the ticking.",
+      "type": "number",
+      "raw_type": "u32",
+      "offset": 0,
+      "size": 4,
+      "min": 1,
+      "required": true,
+      "input": "optional",
+      "accepts": [
+        "number",
+        "accessor"
+      ],
+      "hints": [
+        {
+          "text": "The pass (about 10 ms) is the resolution: a shorter period drops a tick on every pass",
+          "min": 10,
+          "unit": "ms",
+          "when": {
+            "field": "time_base",
+            "equals": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "time_base",
+      "alias": "Time unit",
+      "description": "The unit of the period.",
+      "type": "enum",
+      "enum": "vm_timer_unit_e",
+      "raw_type": "u8",
+      "offset": 4,
+      "size": 1,
+      "default": 0
+    }
+  ]
+}

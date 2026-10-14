@@ -1,0 +1,80 @@
+{
+  "$schema": "../../../../../templates/vm-block.schema.json",
+  "schemaVersion": 3,
+  "kind": "vm-block",
+  "id": "timer",
+  "wire_id": 9,
+  "alias": "Timer",
+  "description": "On-delay, off-delay or pulse timer (and their inverted versions), driven by the block's enable. The output is held as a level and the elapsed time counts in the chosen unit.",
+  "category": "time",
+  "order": 20,
+  "tags": ["delay", "ton", "tof", "tp", "pulse", "wait", "timeout", "iec"],
+  "integration": "core",
+  "activation": {
+    "kind": "enabled",
+    "text": "Runs every pass, also when its enable is off: a disabled timer sees a false signal, so an off-delay or a pulse finishes on its own and an on-delay resets."
+  },
+  "enable": {
+    "alias": "Signal",
+    "description": "The signal the timer acts on."
+  },
+  "eno": {
+    "alias": "Q",
+    "description": "The timer's output level: true after the on-delay, during a pulse, or until the off-delay ends. Put it on another block's enable to gate that block."
+  },
+  "header": { "subtitle": "{mode} {pt} {time_base}" },
+  "body": ["{mode}", "{pt} {time_base}"],
+  "outputs": [
+    {
+      "id": "elapsed",
+      "alias": "Elapsed time",
+      "description": "The time that has elapsed, in the chosen unit.",
+      "value": "int"
+    }
+  ],
+  "fields": [
+    {
+      "id": "mode",
+      "alias": "Mode",
+      "description": "How the timer behaves.",
+      "type": "enum",
+      "options": [
+        { "value": 0, "alias": "On-delay", "description": "The output turns on after the preset time." },
+        { "value": 1, "alias": "Off-delay", "description": "The output turns off after the preset time." },
+        { "value": 2, "alias": "Pulse", "description": "The output is on for the preset time." },
+        { "value": 3, "alias": "Inverted on-delay", "description": "On-delay with the output inverted." },
+        { "value": 4, "alias": "Inverted off-delay", "description": "Off-delay with the output inverted." },
+        { "value": 5, "alias": "Inverted pulse", "description": "Pulse with the output inverted." }
+      ],
+      "default": 0,
+      "raw_type": "u8",
+      "offset": 0,
+      "size": 1
+    },
+    {
+      "id": "time_base",
+      "alias": "Time unit",
+      "description": "The unit of the preset and of the elapsed time.",
+      "type": "enum",
+      "enum": "vm_timer_unit_e",
+      "raw_type": "u8",
+      "offset": 2,
+      "size": 1,
+      "default": 0
+    },
+    {
+      "id": "pt",
+      "alias": "Preset",
+      "description": "The preset time, in the chosen unit. A wired preset wins over the one in the body.",
+      "type": "number",
+      "raw_type": "u32",
+      "offset": 8,
+      "size": 4,
+      "min": 0,
+      "default": 0,
+      "required": true,
+      "input": "optional",
+      "accepts": ["number", "accessor"]
+    }
+  ]
+}

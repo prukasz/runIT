@@ -22,15 +22,6 @@
  *  the output off when the block is not enabled.
  */
 
-//#block VM_BLK_POWER_VREG
-//@alias Regulator
-//@category device
-//@description Switches an adjustable regulator on or off and sets its output voltage and current limit.
-//@activation enabled
-//@when Runs every pass while enabled; a setting is sent on the first pass and whenever it changes.
-//@face {op} {device_id}
-//@contract POWER_VREG
-//@data vm_block_device_data_t
 /* Load-time check of the block's state and shape; the body, called every pass. */
 bool vm_verify_power_vreg(vm_block_h b);
 void vm_blk_power_vreg(vm_block_h b);

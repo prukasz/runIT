@@ -407,18 +407,8 @@ export function useObjectTree(onSelect?: () => void) {
   }
 }
 
-export const matchesSearch = (name: string, query: string): boolean => {
-  const q = query.trim()
-  if (!q) return false
-  const qNorm = q.replace(/\s+/g, '').toLowerCase()
-  if (!qNorm) return false
-  const nNorm = name.replace(/\s+/g, '').toLowerCase()
-  if (nNorm.includes(qNorm)) return true
-  const qLoose = q.replace(/[\s_]+/g, '').toLowerCase()
-  const nLoose = name.replace(/[\s_]+/g, '').toLowerCase()
-  if (qLoose && nLoose.includes(qLoose)) return true
-  return false
-}
+/** The palettes' shared matching (components/PaletteSearch/search.ts). */
+export { matchesSearch } from '../components/PaletteSearch/search'
 
 export type ObjectWorkspace = ReturnType<typeof useObjectTree>
 

@@ -1,5 +1,7 @@
 #include "sys_ble_router.h"
 
+#include <string.h>
+
 #include "sys_ble.h"
 
 /* Changes are staged; APPLY puts them live (with a client connected ~200 ms
@@ -11,7 +13,11 @@
  *   0x03 CHAR_CREATE  char_create_t, then name (UTF-8, NUL-ended) -
  *   0x04 CHAR_REMOVE  { u16 svc_uuid, u16 uuid }                  -
  *   0x05 APPLY        -                                           -
- *   0x06 STATUS       -                                           status_t */
+ *   0x06 STATUS       -                                           status_t
+ *   0x07 LIST         -                                           [count u8] then per service:
+ *                                                                 { u16 uuid, u8 flags (bit0 primary, bit1 locked), u8 n,
+ *                                                                   n x { u16 uuid, u8 flags (bit0 write, bit1 indicate,
+ *                                                                   bit2 notify, bit3 framed), u32 tx, u32 rx, name (NUL-ended) } } */
 
 #define OP_SVC_CREATE 0x01u
 #define OP_SVC_REMOVE 0x02u
@@ -19,36 +25,44 @@
 #define OP_CHAR_REMOVE 0x04u
 #define OP_APPLY 0x05u
 #define OP_STATUS 0x06u
+#define OP_LIST 0x07u
+
+#define LIST_PRIMARY (1u << 0)
+#define LIST_LOCKED (1u << 1)
+#define LIST_WRITE (1u << 0)
+#define LIST_INDICATE (1u << 1)
+#define LIST_NOTIFY (1u << 2)
+#define LIST_FRAMED (1u << 3)
 
 typedef struct __attribute__((packed)) {
-  uint16_t uuid;  //@alias UUID
-  uint8_t is_primary;  //@alias Kind @choices 0=Secondary,1=Primary
+  uint16_t uuid;       /**< Service UUID */
+  uint8_t is_primary;  /**< 1 = primary service, 0 = secondary */
 } svc_create_t;
 
 typedef struct __attribute__((packed)) {
-  uint16_t uuid;  //@alias UUID
+  uint16_t uuid;  /**< Service UUID */
 } svc_remove_t;
 
 typedef struct __attribute__((packed)) {
-  uint16_t svc_uuid;  //@alias Service UUID
-  uint16_t uuid;  //@alias UUID
-  uint8_t is_write;  //@alias Write @description Clients may write it @choices 0=No,1=Yes
-  uint8_t is_indicate;  //@alias Indicate @choices 0=No,1=Yes
-  uint8_t is_notify;  //@alias Notify @choices 0=No,1=Yes
-  uint8_t is_framed;  //@alias Framed @description Items carry the fragment header @choices 0=No,1=Yes
-  uint32_t tx_buffer_size;  //@alias TX buffer @description 0: no TX @unit bytes
-  uint32_t rx_buffer_size;  //@alias RX buffer @description 0: no RX buffer @unit bytes
+  uint16_t svc_uuid;        /**< Parent service UUID */
+  uint16_t uuid;            /**< Characteristic UUID */
+  uint8_t is_write;         /**< 1 = writable, 0 = not writable */
+  uint8_t is_indicate;      /**< 1 = indications enabled, 0 = disabled */
+  uint8_t is_notify;        /**< 1 = notifications enabled, 0 = disabled */
+  uint8_t is_framed;        /**< 1 = framed transport, 0 = raw */
+  uint32_t tx_buffer_size;  /**< TX buffer size in bytes (0 = no TX) */
+  uint32_t rx_buffer_size;  /**< RX buffer size in bytes (0 = no RX) */
 } char_create_t;
 
 typedef struct __attribute__((packed)) {
-  uint16_t svc_uuid;  //@alias Service UUID
-  uint16_t uuid;  //@alias UUID
+  uint16_t svc_uuid;  /**< Parent service UUID */
+  uint16_t uuid;      /**< Characteristic UUID */
 } char_remove_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t is_connected;  //@alias Connected @choices 0=No,1=Yes
-  uint16_t mtu;  //@alias MTU @unit bytes
-  uint32_t rx_overflow_count;  //@alias RX overflows @description Items dropped because the RX buffer was full
+  uint8_t is_connected;        /**< 1 = connected, 0 = disconnected */
+  uint16_t mtu;                /**< Negotiated MTU size in bytes */
+  uint32_t rx_overflow_count;  /**< Count of dropped RX items due to full buffer */
 } status_t;
 
 ROUTER_OP(op_svc_create, svc_create_t) {
@@ -92,19 +106,54 @@ ROUTER_OP_NOARGS(op_status) {
   return cmd_reply(out, out_cap, out_len, &r, sizeof(r));
 }
 
+typedef struct {
+  uint8_t* out;
+  uint32_t cap;
+  uint32_t pos;
+  uint32_t count_at;  // the characteristic count of the service being listed
+  uint8_t services;
+} list_ctx_t;
+
+static err_h list_one(void* ctx_, const sys_ble_svc_cfg_t* svc, bool locked, const sys_ble_char_cfg_t* chr) {
+  list_ctx_t* ctx = ctx_;
+  if (chr == NULL) {
+    const uint8_t head[4] = {(uint8_t)(svc->uuid & 0xFFu), (uint8_t)(svc->uuid >> 8),
+                             (uint8_t)((svc->is_primary ? LIST_PRIMARY : 0u) | (locked ? LIST_LOCKED : 0u)), 0};
+    ctx->count_at = ctx->pos + 3;
+    ctx->services++;
+    return cmd_append(ctx->out, ctx->cap, &ctx->pos, head, sizeof(head));
+  }
+  const uint8_t head[3] = {(uint8_t)(chr->uuid & 0xFFu), (uint8_t)(chr->uuid >> 8),
+                           (uint8_t)((chr->is_write ? LIST_WRITE : 0u) | (chr->is_indicate ? LIST_INDICATE : 0u) |
+                                     (chr->is_notify ? LIST_NOTIFY : 0u) | (chr->is_framed ? LIST_FRAMED : 0u))};
+  const uint32_t tx = (uint32_t)chr->tx_buffer_size;
+  const uint32_t rx = (uint32_t)chr->rx_buffer_size;
+  const char* name = chr->desc != NULL ? chr->desc : "";
+  ERR_TRY(cmd_append(ctx->out, ctx->cap, &ctx->pos, head, sizeof(head)));
+  ERR_TRY(cmd_append(ctx->out, ctx->cap, &ctx->pos, &tx, sizeof(tx)));  // LE on the ESP32
+  ERR_TRY(cmd_append(ctx->out, ctx->cap, &ctx->pos, &rx, sizeof(rx)));
+  ERR_TRY(cmd_append(ctx->out, ctx->cap, &ctx->pos, name, (uint32_t)strlen(name) + 1));
+  ctx->out[ctx->count_at]++;
+  return NULL;
+}
+
+ROUTER_OP_NOARGS(op_list) {
+  ERR_CHECK(out_cap > 0, ERR_CMD_OUT_FULL, .need = 1, .cap = 0);
+  list_ctx_t list = {.out = out, .cap = out_cap, .pos = 1};  // out[0] = count, written last
+  ERR_TRY(sys_ble_table_visit(list_one, &list));
+  out[0] = list.services;
+  *out_len = list.pos;
+  return NULL;
+}
+
 static const router_entry_t k_ops[] = {
-    //@op OP_SVC_CREATE @alias Create service @description Stages a GATT service (applied by Apply)
     {OP_SVC_CREATE, op_svc_create},
-    //@op OP_SVC_REMOVE @alias Remove service @description Stages the removal of a service
     {OP_SVC_REMOVE, op_svc_remove},
-    //@op OP_CHAR_CREATE @alias Create characteristic @description Stages a characteristic of a service @tail string @tail-alias Name @tail-description Shown to clients as the characteristic's description
     {OP_CHAR_CREATE, op_char_create},
-    //@op OP_CHAR_REMOVE @alias Remove characteristic @description Stages the removal of a characteristic
     {OP_CHAR_REMOVE, op_char_remove},
-    //@op OP_APPLY @alias Apply changes @description Puts the staged GATT table live (a connected client is disconnected and reconnects)
     {OP_APPLY, op_apply},
-    //@op OP_STATUS @alias Status @description The connection state @returns status_t
     {OP_STATUS, op_status},
+    {OP_LIST, op_list},
 };
 
 ROUTER_MODULE(sys_ble_router, k_ops)

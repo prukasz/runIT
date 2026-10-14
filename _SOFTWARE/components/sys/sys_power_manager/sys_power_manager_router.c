@@ -2,13 +2,13 @@
 #include "sys_power_manager.h"
 
 typedef struct __attribute__((packed)) {
-  uint16_t target;  //@alias Target @description The board or one rail (a device id) @id device @any 65535
-  uint8_t kind;  //@alias Event @enum-ref sys_power_kind_e
-  uint8_t response;  //@alias Response @enum-ref sys_power_response_e
+  uint16_t target;   /**< Target board (SYS_POWER_TARGET_BOARD) or rail device ID */
+  uint8_t kind;      /**< sys_power_kind_e */
+  uint8_t response;  /**< sys_power_response_e */
 } response_args_t;
 
 typedef struct __attribute__((packed)) {
-  uint16_t target;  //@alias Target @description The board or one rail (a device id) @id device @any 65535
+  uint16_t target;   /**< Target board (SYS_POWER_TARGET_BOARD) or rail device ID */
 } target_args_t;
 
 ROUTER_OP(op_set_config, sys_power_manager_cfg_t) {
@@ -59,23 +59,14 @@ static err_h op_set_responses(CMD_F_PARAMS) {
 }
 
 static const router_entry_t k_ops[] = {
-    //@op SYS_PWRM_OP_SET_CONFIG @alias Set configuration @description Budget mode, source pin and negotiation
     {SYS_PWRM_OP_SET_CONFIG, op_set_config},
-    //@op SYS_PWRM_OP_GET_CONFIG @alias Read configuration @description The power manager's configuration @returns sys_power_manager_cfg_t
     {SYS_PWRM_OP_GET_CONFIG, op_get_config},
-    //@op SYS_PWRM_OP_SET_PSU @alias Set power supply @description The limits of a bench supply as the source
     {SYS_PWRM_OP_SET_PSU, op_set_psu},
-    //@op SYS_PWRM_OP_SET_BATTERY @alias Set battery @description The battery the board runs on
     {SYS_PWRM_OP_SET_BATTERY, op_set_battery},
-    //@op SYS_PWRM_OP_SET_RESPONSE @alias Set response @description What happens on one power event of the board or a rail
     {SYS_PWRM_OP_SET_RESPONSE, op_set_response},
-    //@op SYS_PWRM_OP_GET_RESPONSES @alias Read responses @description The response to every power event of the board or a rail @returns u8[] @returns-alias Responses @returns-description One response per power event, in the order of the power event list
     {SYS_PWRM_OP_GET_RESPONSES, op_get_responses},
-    //@op SYS_PWRM_OP_GET_STATUS @alias Status @description Source, input, budget, allocation and battery @returns sys_power_status_t
     {SYS_PWRM_OP_GET_STATUS, op_get_status},
-    //@op SYS_PWRM_OP_NEGOTIATE_MAX @alias Negotiate maximum @description Asks a USB-PD charger for its highest offer
     {SYS_PWRM_OP_NEGOTIATE_MAX, op_negotiate_max},
-    //@op SYS_PWRM_OP_SET_RESPONSES @alias Set all responses @description The whole response matrix at once @tail u8[] @tail-alias Responses @tail-description A row per target (the board, then each rail), each with one response per power event
     {SYS_PWRM_OP_SET_RESPONSES, op_set_responses},
 };
 

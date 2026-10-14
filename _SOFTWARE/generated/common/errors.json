@@ -1,0 +1,4085 @@
+{
+  "$schema": "../../templates/errors.schema.json",
+  "schemaVersion": 3,
+  "kind": "errors",
+  "severities": {
+    "ERR_SEV_NONE": 0,
+    "ERR_SEV_LOW": 1,
+    "ERR_SEV_MEDIUM": 2,
+    "ERR_SEV_HIGH": 3,
+    "ERR_SEV_CRITICAL": 4
+  },
+  "modules": [
+    {
+      "id": 0,
+      "name": "core",
+      "symbol": "ERR_MOD_CORE",
+      "source_file": "components/core/errors/errors.h",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 1,
+          "name": "ERR_POOL_EMPTY",
+          "severity": 1,
+          "size": 0,
+          "fields": [],
+          "description": "no block for a new error"
+        },
+        {
+          "code": 2,
+          "tag": 2,
+          "name": "ERR_ESP_ERR",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "code",
+              "type": "i32",
+              "offset": 0,
+              "size": 4,
+              "id_kind": "esp_err"
+            }
+          ],
+          "description": "ESP-IDF call failed"
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "sys_i2c",
+      "symbol": "ERR_MOD_SYS_I2C",
+      "source_file": "components/sys/sys_i2c/sys_i2c.h",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 65537,
+          "name": "ERR_I2C_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "NULL pointer or zero length"
+        },
+        {
+          "code": 2,
+          "tag": 65538,
+          "name": "ERR_I2C_BAD_BUS",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            }
+          ],
+          "description": "no such bus, or disabled / not initialized"
+        },
+        {
+          "code": 3,
+          "tag": 65539,
+          "name": "ERR_I2C_BAD_DEV_CFG",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "not a 7-bit address, or speed 0"
+        },
+        {
+          "code": 4,
+          "tag": 65540,
+          "name": "ERR_I2C_BUS_INIT",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "sda",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            },
+            {
+              "name": "scl",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            }
+          ],
+          "description": "over ERR_ESP_ERR"
+        },
+        {
+          "code": 5,
+          "tag": 65541,
+          "name": "ERR_I2C_BUS_STUCK",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "probe timed out: bus busy, SCL held low or no pull-ups"
+        },
+        {
+          "code": 6,
+          "tag": 65542,
+          "name": "ERR_I2C_BUS_RESET",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            }
+          ],
+          "description": "over ERR_ESP_ERR"
+        },
+        {
+          "code": 7,
+          "tag": 65543,
+          "name": "ERR_I2C_DEV_NOT_FOUND",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "nothing acked the address"
+        },
+        {
+          "code": 8,
+          "tag": 65544,
+          "name": "ERR_I2C_DEV_ADD",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "over ERR_ESP_ERR"
+        },
+        {
+          "code": 9,
+          "tag": 65545,
+          "name": "ERR_I2C_DEV_REMOVE",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "over ERR_ESP_ERR"
+        },
+        {
+          "code": 10,
+          "tag": 65546,
+          "name": "ERR_I2C_DEV_NOT_ADDED",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "transfer before sys_i2c_dev_add"
+        },
+        {
+          "code": 11,
+          "tag": 65547,
+          "name": "ERR_I2C_NO_ACK",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "NACK / aborted transfer"
+        },
+        {
+          "code": 12,
+          "tag": 65548,
+          "name": "ERR_I2C_BUS_BUSY",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "bus lock timed out"
+        },
+        {
+          "code": 13,
+          "tag": 65549,
+          "name": "ERR_I2C_XFER",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "other failure, over ERR_ESP_ERR"
+        },
+        {
+          "code": 14,
+          "tag": 65550,
+          "name": "ERR_I2C_REG",
+          "severity": 0,
+          "size": 2,
+          "fields": [
+            {
+              "name": "reg",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "write",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "context only: register access"
+        },
+        {
+          "code": 15,
+          "tag": 65551,
+          "name": "ERR_I2C_ADDR_TAKEN",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "another device is added at this address"
+        },
+        {
+          "code": 16,
+          "tag": 65552,
+          "name": "ERR_I2C_REMOTE_DENIED",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            }
+          ],
+          "description": "remote op on a bus other than CONFIG_SYS_I2C_REMOTE_BUS"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "router",
+      "symbol": "ERR_MOD_ROUTER",
+      "source_file": "components/core/router/router.h",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 131073,
+          "name": "ERR_ROUTER_KEY",
+          "severity": 0,
+          "size": 1,
+          "fields": [
+            {
+              "name": "key",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "context only: route step"
+        },
+        {
+          "code": 2,
+          "tag": 131074,
+          "name": "ERR_ROUTER_NO_KEY",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "input ended where a key was expected"
+        },
+        {
+          "code": 3,
+          "tag": 131075,
+          "name": "ERR_ROUTER_UNKNOWN_KEY",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "key",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 6,
+          "tag": 131078,
+          "name": "ERR_ROUTER_KEY_TAKEN",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "key",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 7,
+          "tag": 131079,
+          "name": "ERR_ROUTER_TABLE_FULL",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "key",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 8,
+          "tag": 131080,
+          "name": "ERR_ROUTER_BAD_LINK",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "link",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "unknown, unregistered or taken"
+        },
+        {
+          "code": 9,
+          "tag": 131081,
+          "name": "ERR_ROUTER_QUEUE_FULL",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "link",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "urgent",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "frame dropped"
+        },
+        {
+          "code": 10,
+          "tag": 131082,
+          "name": "ERR_ROUTER_FRAME_LEN",
+          "severity": 2,
+          "size": 5,
+          "fields": [
+            {
+              "name": "link",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            },
+            {
+              "name": "max",
+              "type": "u16",
+              "offset": 3,
+              "size": 2
+            }
+          ],
+          "description": "frame too short or too long"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "sys_uart",
+      "symbol": "ERR_MOD_SYS_UART",
+      "source_file": "components/sys/sys_uart/sys_uart.h",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 196609,
+          "name": "ERR_UART_LINE_BAD",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "\"#R:\" line: odd digits, non-hex or too long"
+        },
+        {
+          "code": 2,
+          "tag": 196610,
+          "name": "ERR_UART_BAD_ENDPOINT",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "endpoint",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "description": "connector binding to an endpoint other than 0"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "sys_ble",
+      "symbol": "ERR_MOD_SYS_BLE",
+      "source_file": "components/sys/sys_ble/sys_ble.h",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 262145,
+          "name": "ERR_BLE_STACK",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "rc",
+              "type": "i32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "description": "NimBLE init / host call failed"
+        },
+        {
+          "code": 2,
+          "tag": 262146,
+          "name": "ERR_BLE_ADV",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "rc",
+              "type": "i32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "description": "advertising failed"
+        },
+        {
+          "code": 3,
+          "tag": 262147,
+          "name": "ERR_BLE_GATT",
+          "severity": 2,
+          "size": 6,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "rc",
+              "type": "i32",
+              "offset": 2,
+              "size": 4
+            }
+          ],
+          "description": "add / delete service failed"
+        },
+        {
+          "code": 4,
+          "tag": 262148,
+          "name": "ERR_BLE_SVC_LOCKED",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 5,
+          "tag": 262149,
+          "name": "ERR_BLE_UUID_TAKEN",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 6,
+          "tag": 262150,
+          "name": "ERR_BLE_NOT_FOUND",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "no such service / characteristic"
+        },
+        {
+          "code": 7,
+          "tag": 262151,
+          "name": "ERR_BLE_NO_MEM",
+          "severity": 3,
+          "size": 6,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "size",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            }
+          ]
+        },
+        {
+          "code": 8,
+          "tag": 262152,
+          "name": "ERR_BLE_NO_TX",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "no TX buffer, or being removed"
+        },
+        {
+          "code": 9,
+          "tag": 262153,
+          "name": "ERR_BLE_NO_RX",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "not writable / no RX buffer"
+        },
+        {
+          "code": 10,
+          "tag": 262154,
+          "name": "ERR_BLE_TX_FULL",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "item dropped"
+        },
+        {
+          "code": 11,
+          "tag": 262155,
+          "name": "ERR_BLE_RX_FULL",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "peer write dropped"
+        },
+        {
+          "code": 12,
+          "tag": 262156,
+          "name": "ERR_BLE_TOO_LONG",
+          "severity": 2,
+          "size": 6,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "max",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 13,
+          "tag": 262157,
+          "name": "ERR_BLE_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": []
+        },
+        {
+          "code": 14,
+          "tag": 262158,
+          "name": "ERR_BLE_FRAG",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "hdr",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "expected",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ],
+          "description": "packet out of order: frame dropped"
+        },
+        {
+          "code": 15,
+          "tag": 262159,
+          "name": "ERR_BLE_RX_HANDLER",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "handler already set, or char has an RX buffer"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "sys_connector",
+      "symbol": "ERR_MOD_SYS_CONNECTOR",
+      "source_file": "components/sys/sys_connector/sys_connector.h",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 327681,
+          "name": "ERR_CONN_BAD_ID",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "outside 0..CONFIG_SYS_CONNECTOR_MAX-1"
+        },
+        {
+          "code": 2,
+          "tag": 327682,
+          "name": "ERR_CONN_NOT_FOUND",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 3,
+          "tag": 327683,
+          "name": "ERR_CONN_EXISTS",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 4,
+          "tag": 327684,
+          "name": "ERR_CONN_PROTECTED",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "system connector: no remove, keeps one binding"
+        },
+        {
+          "code": 5,
+          "tag": 327685,
+          "name": "ERR_CONN_NO_PROVIDER",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "provider",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "transport"
+            }
+          ]
+        },
+        {
+          "code": 6,
+          "tag": 327686,
+          "name": "ERR_CONN_BINDINGS_FULL",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 7,
+          "tag": 327687,
+          "name": "ERR_CONN_TOO_LONG",
+          "severity": 2,
+          "size": 6,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "provider",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "id_kind": "transport"
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "max",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ],
+          "description": "frame not sent there"
+        },
+        {
+          "code": 8,
+          "tag": 327688,
+          "name": "ERR_CONN_QUEUE_FULL",
+          "severity": 1,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            }
+          ],
+          "description": "payload dropped"
+        },
+        {
+          "code": 9,
+          "tag": 327689,
+          "name": "ERR_CONN_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": []
+        },
+        {
+          "code": 10,
+          "tag": 327690,
+          "name": "ERR_CONN_SEND",
+          "severity": 0,
+          "size": 6,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "provider",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "id_kind": "transport"
+            },
+            {
+              "name": "endpoint",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            }
+          ],
+          "description": "context: provider send failed"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "sys_device",
+      "symbol": "ERR_MOD_SYS_DEVICE",
+      "source_file": "components/sys/sys_device/sys_device.h",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 393217,
+          "name": "ERR_DEV_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": []
+        },
+        {
+          "code": 2,
+          "tag": 393218,
+          "name": "ERR_DEV_BAD_ID",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "SYS_DEVICE_ID_NONE"
+        },
+        {
+          "code": 3,
+          "tag": 393219,
+          "name": "ERR_DEV_NOT_FOUND",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ]
+        },
+        {
+          "code": 4,
+          "tag": 393220,
+          "name": "ERR_DEV_ID_TAKEN",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ]
+        },
+        {
+          "code": 5,
+          "tag": 393221,
+          "name": "ERR_DEV_TABLE_FULL",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "CONFIG_SYS_DEVICE_MAX"
+        },
+        {
+          "code": 6,
+          "tag": 393222,
+          "name": "ERR_DEV_TYPE_UNKNOWN",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "type",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 10,
+          "tag": 393226,
+          "name": "ERR_DEV_SUSPENDED",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ]
+        },
+        {
+          "code": 11,
+          "tag": 393227,
+          "name": "ERR_DEV_NO_MEM",
+          "severity": 4,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "size",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 12,
+          "tag": 393228,
+          "name": "ERR_DEV_INSTALL",
+          "severity": 0,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "type",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "context: create failed"
+        },
+        {
+          "code": 13,
+          "tag": 393229,
+          "name": "ERR_DEV_ID",
+          "severity": 0,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "context: route step / sweep"
+        },
+        {
+          "code": 15,
+          "tag": 393231,
+          "name": "ERR_DEV_BAD_PIN",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin"
+            }
+          ]
+        },
+        {
+          "code": 16,
+          "tag": 393232,
+          "name": "ERR_DEV_RANGE",
+          "severity": 3,
+          "size": 14,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "value",
+              "type": "i32",
+              "offset": 2,
+              "size": 4
+            },
+            {
+              "name": "min",
+              "type": "i32",
+              "offset": 6,
+              "size": 4
+            },
+            {
+              "name": "max",
+              "type": "i32",
+              "offset": 10,
+              "size": 4
+            }
+          ],
+          "description": "a value the chip would reject (signed: thresholds may be negative)"
+        },
+        {
+          "code": 17,
+          "tag": 393233,
+          "name": "ERR_DEV_OP",
+          "severity": 0,
+          "size": 2,
+          "fields": [
+            {
+              "name": "op",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "context: route step"
+        },
+        {
+          "code": 18,
+          "tag": 393234,
+          "name": "ERR_DEV_UNKNOWN_OP",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "op",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "an op (contract) the device doesn't have"
+        },
+        {
+          "code": 19,
+          "tag": 393235,
+          "name": "ERR_DEV_PIN_LOCKED",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin"
+            }
+          ],
+          "description": "a locked pin: only its owner drives it (sys_pins.h)"
+        },
+        {
+          "code": 20,
+          "tag": 393236,
+          "name": "ERR_DEV_IN_USE",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "user",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "REMOVE of a device another one uses"
+        },
+        {
+          "code": 21,
+          "tag": 393237,
+          "name": "ERR_DEV_DEPS_FULL",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "CONFIG_SYS_DEVICE_MAX_DEPS"
+        },
+        {
+          "code": 22,
+          "tag": 393238,
+          "name": "ERR_DEV_FAULT_RESPONSE",
+          "severity": 3,
+          "size": 8,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "sev",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "stage",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            },
+            {
+              "name": "action",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "description": "the policy's response to an error of device `id` failed (stage: sys_device_fault_stage_e); diagnostics only"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "sys_io",
+      "symbol": "ERR_MOD_SYS_IO",
+      "source_file": "components/sys/sys_io/sys_io.h",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 458753,
+          "name": "ERR_IO_PIN_IN_USE",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin"
+            },
+            {
+              "name": "mode",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ],
+          "description": "SET_MODE of a configured pin; mode = the current one"
+        },
+        {
+          "code": 2,
+          "tag": 458754,
+          "name": "ERR_IO_PIN_UNCONFIGURED",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin"
+            }
+          ],
+          "description": "the op needs SET_MODE first"
+        },
+        {
+          "code": 3,
+          "tag": 458755,
+          "name": "ERR_IO_WRONG_MODE",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin"
+            },
+            {
+              "name": "mode",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ],
+          "description": "the op doesn't fit the pin's current mode"
+        },
+        {
+          "code": 4,
+          "tag": 458756,
+          "name": "ERR_IO_MODE_UNSUPPORTED",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin"
+            },
+            {
+              "name": "mode",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ],
+          "description": "this pin / device can't do the mode"
+        },
+        {
+          "code": 5,
+          "tag": 458757,
+          "name": "ERR_IO_FEATURE_UNSUPPORTED",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin"
+            }
+          ],
+          "description": "e.g. ADC on a pin without ADC"
+        },
+        {
+          "code": 6,
+          "tag": 458758,
+          "name": "ERR_IO_PWM_CHANNELS_EXHAUSTED",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin"
+            },
+            {
+              "name": "channels",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 7,
+          "tag": 458759,
+          "name": "ERR_IO_PWM_TIMERS_EXHAUSTED",
+          "severity": 3,
+          "size": 8,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin"
+            },
+            {
+              "name": "timers",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            },
+            {
+              "name": "frequency_Hz",
+              "type": "u32",
+              "offset": 4,
+              "size": 4,
+              "unit": "Hz"
+            }
+          ],
+          "description": "a new frequency needs a timer and none is free"
+        },
+        {
+          "code": 8,
+          "tag": 458760,
+          "name": "ERR_IO_BAD_READING",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin"
+            }
+          ],
+          "description": "an ADC didn't return the channel asked for"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "actions",
+      "symbol": "ERR_MOD_SYS_ACTIONS",
+      "source_file": "components/sys/sys_actions/sys_actions.h",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 524289,
+          "name": "ERR_ACTION_NOT_FOUND",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ]
+        },
+        {
+          "code": 3,
+          "tag": 524291,
+          "name": "ERR_ACTION_BUSY",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "a recording or upload is open"
+        },
+        {
+          "code": 4,
+          "tag": 524292,
+          "name": "ERR_ACTION_NO_SESSION",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "no recording / upload of that kind open"
+        },
+        {
+          "code": 5,
+          "tag": 524293,
+          "name": "ERR_ACTION_TOO_BIG",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "max",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 6,
+          "tag": 524294,
+          "name": "ERR_ACTION_OFFSET",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "want",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "upload write out of order"
+        },
+        {
+          "code": 7,
+          "tag": 524295,
+          "name": "ERR_ACTION_INCOMPLETE",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "want",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "commit before every byte came"
+        },
+        {
+          "code": 8,
+          "tag": 524296,
+          "name": "ERR_ACTION_CRC",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "want",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ]
+        },
+        {
+          "code": 9,
+          "tag": 524297,
+          "name": "ERR_ACTION_BAD_FRAME",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "offset",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "image framing broken there"
+        },
+        {
+          "code": 10,
+          "tag": 524298,
+          "name": "ERR_ACTION_EMPTY",
+          "severity": 1,
+          "size": 0,
+          "fields": [],
+          "description": "recording stopped with no frame"
+        },
+        {
+          "code": 11,
+          "tag": 524299,
+          "name": "ERR_ACTION_DEPTH",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "depth",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "RUN nested deeper than CONFIG_SYS_ACTIONS_MAX_DEPTH"
+        },
+        {
+          "code": 12,
+          "tag": 524300,
+          "name": "ERR_ACTION_WRONG_TASK",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "sys_actions_run outside a router task"
+        },
+        {
+          "code": 14,
+          "tag": 524302,
+          "name": "ERR_ACTION_NO_MEM",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "size",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ]
+        },
+        {
+          "code": 15,
+          "tag": 524303,
+          "name": "ERR_ACTION_STEP",
+          "severity": 0,
+          "size": 6,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "step",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ],
+          "description": "context: frame `step` (from 0) failed"
+        },
+        {
+          "code": 16,
+          "tag": 524304,
+          "name": "ERR_ACTION_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": []
+        },
+        {
+          "code": 17,
+          "tag": 524305,
+          "name": "ERR_ACTION_BAD_ID",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "ID 0 (SYS_ACTIONS_ID_NONE)"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "event",
+      "symbol": "ERR_MOD_SYS_EVENT",
+      "source_file": "components/sys/sys_event/sys_event.h",
+      "tags": [
+        {
+          "code": 2,
+          "tag": 589826,
+          "name": "ERR_EVENT_QUEUE_FULL",
+          "severity": 1,
+          "size": 8,
+          "fields": [
+            {
+              "name": "source",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "event",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "dropped",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ]
+        },
+        {
+          "code": 3,
+          "tag": 589827,
+          "name": "ERR_EVENT_TABLE_FULL",
+          "severity": 2,
+          "size": 0,
+          "fields": []
+        },
+        {
+          "code": 4,
+          "tag": 589828,
+          "name": "ERR_EVENT_NOT_FOUND",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "subscription handle"
+        },
+        {
+          "code": 5,
+          "tag": 589829,
+          "name": "ERR_EVENT_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": []
+        },
+        {
+          "code": 8,
+          "tag": 589832,
+          "name": "ERR_EVENT_DELIVERY",
+          "severity": 0,
+          "size": 7,
+          "fields": [
+            {
+              "name": "source",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "event",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "channel",
+              "type": "u8",
+              "offset": 4,
+              "size": 1
+            },
+            {
+              "name": "device",
+              "type": "u16",
+              "offset": 5,
+              "size": 2
+            }
+          ],
+          "description": "context: a listener failed"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "sys_power",
+      "symbol": "ERR_MOD_SYS_POWER",
+      "source_file": "components/sys/sys_power/sys_power.h",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 655361,
+          "name": "ERR_POWER_BAD_CHANNEL",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "channel",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            }
+          ],
+          "description": "the device has no such channel"
+        },
+        {
+          "code": 2,
+          "tag": 655362,
+          "name": "ERR_POWER_ALERT_UNSUPPORTED",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "channel",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "alert",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ],
+          "description": "this channel / device can't do the alert (sys_power_alert_e)"
+        },
+        {
+          "code": 3,
+          "tag": 655363,
+          "name": "ERR_POWER_EXT_FEEDBACK",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "the regulator uses an external divider: its output can't be set in mV"
+        },
+        {
+          "code": 4,
+          "tag": 655364,
+          "name": "ERR_POWER_NO_PROFILE",
+          "severity": 3,
+          "size": 10,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "voltage_mV",
+              "type": "u32",
+              "offset": 2,
+              "size": 4,
+              "unit": "mV"
+            },
+            {
+              "name": "lowest_mV",
+              "type": "u32",
+              "offset": 6,
+              "size": 4,
+              "unit": "mV"
+            }
+          ],
+          "description": "the source offers no profile at or below the voltage (lowest_mV: the lowest fixed offer)"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "cmd",
+      "symbol": "ERR_MOD_CMD",
+      "source_file": "components/core/cmd/cmd.h",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 720897,
+          "name": "ERR_CMD_BAD_LEN",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "need",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "payload size"
+        },
+        {
+          "code": 2,
+          "tag": 720898,
+          "name": "ERR_CMD_OUT_FULL",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "need",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "cap",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "answer does not fit the link"
+        },
+        {
+          "code": 3,
+          "tag": 720899,
+          "name": "ERR_CMD_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "invalid argument value"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "log",
+      "symbol": "ERR_MOD_SYS_LOG",
+      "source_file": "components/sys/sys_log/sys_log.h",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 851969,
+          "name": "ERR_LOG_BAD_LEVEL",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "level",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "max",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "above CONFIG_LOG_MAXIMUM_LEVEL"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "power_manager",
+      "symbol": "ERR_MOD_SYS_POWER_MANAGER",
+      "source_file": "components/sys/sys_power_manager/sys_power_manager.h",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 917505,
+          "name": "ERR_PWRM_NOT_READY",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "before sys_power_manager_init"
+        },
+        {
+          "code": 2,
+          "tag": 917506,
+          "name": "ERR_PWRM_BUDGET_EXCEEDED",
+          "severity": 2,
+          "size": 10,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "requested_mW",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            },
+            {
+              "name": "available_mW",
+              "type": "u32",
+              "offset": 6,
+              "size": 4
+            }
+          ],
+          "description": "a rail change that doesn't fit"
+        },
+        {
+          "code": 3,
+          "tag": 917507,
+          "name": "ERR_PWRM_BELOW_ALLOCATION",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "allocated_mW",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "limit_mW",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "description": "the budget shrank under what's committed"
+        },
+        {
+          "code": 4,
+          "tag": 917508,
+          "name": "ERR_PWRM_FAULT",
+          "severity": 2,
+          "size": 9,
+          "fields": [
+            {
+              "name": "source",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "channel",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "kind",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            },
+            {
+              "name": "response",
+              "type": "u8",
+              "offset": 4,
+              "size": 1
+            },
+            {
+              "name": "value",
+              "type": "i32",
+              "offset": 5,
+              "size": 4
+            }
+          ],
+          "description": "a hardware fault and the response taken"
+        },
+        {
+          "code": 5,
+          "tag": 917509,
+          "name": "ERR_PWRM_BAD_ARG",
+          "severity": 3,
+          "size": 12,
+          "fields": [
+            {
+              "name": "value",
+              "type": "i32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "min",
+              "type": "i32",
+              "offset": 4,
+              "size": 4
+            },
+            {
+              "name": "max",
+              "type": "i32",
+              "offset": 8,
+              "size": 4
+            }
+          ],
+          "description": "a setting out of range"
+        },
+        {
+          "code": 6,
+          "tag": 917510,
+          "name": "ERR_PWRM_NOT_RAIL",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "a response target that is neither the board nor a rail of it"
+        },
+        {
+          "code": 7,
+          "tag": 917511,
+          "name": "ERR_PWRM_NO_OFFER",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "no USB-PD sink on the board, or the charger offers nothing"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "vm",
+      "symbol": "ERR_MOD_VM",
+      "source_file": "components/vm/vm_core/errors/vm_err.h",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 983041,
+          "name": "ERR_VM_ALLOC_EXHAUSTED",
+          "severity": 3,
+          "size": 8,
+          "fields": [
+            {
+              "name": "requested",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "remaining",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ]
+        },
+        {
+          "code": 2,
+          "tag": 983042,
+          "name": "ERR_VM_ACCESSOR_UNKNOWN_ID",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 3,
+          "tag": 983043,
+          "name": "ERR_VM_ACCESSOR_OOB",
+          "severity": 1,
+          "size": 7,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "chain_pos",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "index",
+              "type": "u16",
+              "offset": 3,
+              "size": 2
+            },
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 5,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 4,
+          "tag": 983044,
+          "name": "ERR_VM_ACCESSOR_TYPE_MISMATCH",
+          "severity": 1,
+          "size": 7,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "chain_pos",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "expected",
+              "type": "u8",
+              "offset": 3,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "actual",
+              "type": "u8",
+              "offset": 4,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 5,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 5,
+          "tag": 983045,
+          "name": "ERR_VM_ACCESSOR_NULL_OBJ",
+          "severity": 1,
+          "size": 5,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "chain_pos",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "parent_id",
+              "type": "u16",
+              "offset": 3,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 6,
+          "tag": 983046,
+          "name": "ERR_VM_ACCESSOR_DEPTH_EXCEEDED",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 7,
+          "tag": 983047,
+          "name": "ERR_VM_ACCESSOR_INDEX_FAILED",
+          "severity": 1,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "chain_pos",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 8,
+          "tag": 983048,
+          "name": "ERR_VM_ACCESSOR_NAME_NOT_FOUND",
+          "severity": 1,
+          "size": 19,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "chain_pos",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "name",
+              "type": "chars",
+              "offset": 3,
+              "size": 16
+            }
+          ]
+        },
+        {
+          "code": 9,
+          "tag": 983049,
+          "name": "ERR_VM_ACCESSOR_NOT_MUTABLE",
+          "severity": 1,
+          "size": 5,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "chain_pos",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 3,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 10,
+          "tag": 983050,
+          "name": "ERR_VM_BLOCK_PIN_MISSING",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "pin_id",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "is_out",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 11,
+          "tag": 983051,
+          "name": "ERR_VM_BLOCK_PIN_UNLINKED",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "pin_id",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "is_out",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 12,
+          "tag": 983052,
+          "name": "ERR_VM_BLOCK_FAILED",
+          "severity": 2,
+          "size": 3,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "block_type",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "vm_block_type"
+            }
+          ]
+        },
+        {
+          "code": 13,
+          "tag": 983053,
+          "name": "ERR_VM_OBJ_COPY_MISMATCH",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "src_type",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "dst_type",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "src_size",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "dst_size",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 14,
+          "tag": 983054,
+          "name": "ERR_VM_OBJ_COPY_SHAPE",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "index",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "depth",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "reason",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 15,
+          "tag": 983055,
+          "name": "ERR_VM_OBJ_NOT_MUTABLE",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 16,
+          "tag": 983056,
+          "name": "ERR_VM_OBJ_OOB",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "index",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 17,
+          "tag": 983057,
+          "name": "ERR_VM_OBJ_NOT_PTR",
+          "severity": 1,
+          "size": 3,
+          "fields": [
+            {
+              "name": "actual",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 18,
+          "tag": 983058,
+          "name": "ERR_VM_OBJ_BAD_TYPE",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "type",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            }
+          ]
+        },
+        {
+          "code": 19,
+          "tag": 983059,
+          "name": "ERR_VM_OBJ_EMPTY",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "type",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            }
+          ]
+        },
+        {
+          "code": 20,
+          "tag": 983060,
+          "name": "ERR_VM_OBJ_BAD_SIZE",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "type",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "payload_size",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            },
+            {
+              "name": "width",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 21,
+          "tag": 983061,
+          "name": "ERR_VM_OBJ_NAME_TOO_LONG",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "len",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 22,
+          "tag": 983062,
+          "name": "ERR_VM_OBJ_RETENTIVE_PTR",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "type",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            }
+          ]
+        },
+        {
+          "code": 23,
+          "tag": 983063,
+          "name": "ERR_VM_LOAD_BAD_STATE",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "state",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "expected",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 24,
+          "tag": 983064,
+          "name": "ERR_VM_LOAD_TOO_BIG",
+          "severity": 1,
+          "size": 8,
+          "fields": [
+            {
+              "name": "requested",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "available",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ]
+        },
+        {
+          "code": 25,
+          "tag": 983065,
+          "name": "ERR_VM_LOAD_DATA_RANGE",
+          "severity": 1,
+          "size": 8,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "start_idx",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            },
+            {
+              "name": "items",
+              "type": "u16",
+              "offset": 6,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 26,
+          "tag": 983066,
+          "name": "ERR_VM_LOAD_SHORT_RECORD",
+          "severity": 1,
+          "size": 5,
+          "fields": [
+            {
+              "name": "packet",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "error_tag"
+            },
+            {
+              "name": "need",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            },
+            {
+              "name": "got",
+              "type": "u16",
+              "offset": 3,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 27,
+          "tag": 983067,
+          "name": "ERR_VM_ACC_INDEX_OOB",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "acc_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "pos",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "count",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 28,
+          "tag": 983068,
+          "name": "ERR_VM_ACC_BAD_KIND",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "acc_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "pos",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "kind",
+              "type": "u8",
+              "offset": 3,
+              "size": 1,
+              "enum_ref": "vm_index_kind_e"
+            }
+          ]
+        },
+        {
+          "code": 29,
+          "tag": 983069,
+          "name": "ERR_VM_REG_OOB",
+          "severity": 1,
+          "size": 5,
+          "fields": [
+            {
+              "name": "kind",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            },
+            {
+              "name": "count",
+              "type": "u16",
+              "offset": 3,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 30,
+          "tag": 983070,
+          "name": "ERR_VM_REG_DUP",
+          "severity": 1,
+          "size": 3,
+          "fields": [
+            {
+              "name": "kind",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 31,
+          "tag": 983071,
+          "name": "ERR_VM_BLK_BAD_SHAPE",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "blk_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "in_cnt",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "q_cnt",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 32,
+          "tag": 983072,
+          "name": "ERR_VM_BLK_BAD_REF",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "blk_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "ref_id",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "slot",
+              "type": "u8",
+              "offset": 4,
+              "size": 1
+            },
+            {
+              "name": "kind",
+              "type": "u8",
+              "offset": 5,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 33,
+          "tag": 983073,
+          "name": "ERR_VM_DYN_FULL",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "limit",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 34,
+          "tag": 983074,
+          "name": "ERR_VM_BLK_UNKNOWN_TYPE",
+          "severity": 1,
+          "size": 3,
+          "fields": [
+            {
+              "name": "blk_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "block_type",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "vm_block_type"
+            }
+          ]
+        },
+        {
+          "code": 35,
+          "tag": 983075,
+          "name": "ERR_VM_EXEC_BLOCK_HUNG",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "ms",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 36,
+          "tag": 983076,
+          "name": "ERR_VM_EXEC_SPAN_DEPTH",
+          "severity": 1,
+          "size": 3,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "depth",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 37,
+          "tag": 983077,
+          "name": "ERR_VM_EXEC_BAD_SPAN",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "start",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "end",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 38,
+          "tag": 983078,
+          "name": "ERR_VM_EVENT_OVERFLOW",
+          "severity": 2,
+          "size": 6,
+          "fields": [
+            {
+              "name": "source",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "depth",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "dropped",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 39,
+          "tag": 983079,
+          "name": "ERR_VM_EXPR_BAD_CODE",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "pc",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "opcode",
+              "type": "u8",
+              "offset": 4,
+              "size": 1,
+              "enum_ref": "vm_expr_op_e"
+            },
+            {
+              "name": "reason",
+              "type": "u8",
+              "offset": 5,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 40,
+          "tag": 983080,
+          "name": "ERR_VM_EXPR_MATH",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "pc",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "opcode",
+              "type": "u8",
+              "offset": 4,
+              "size": 1,
+              "enum_ref": "vm_expr_op_e"
+            },
+            {
+              "name": "reason",
+              "type": "u8",
+              "offset": 5,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 41,
+          "tag": 983081,
+          "name": "ERR_VM_FOR_BAD_LOOP",
+          "severity": 1,
+          "size": 9,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "turns",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            },
+            {
+              "name": "cap",
+              "type": "u16",
+              "offset": 6,
+              "size": 2
+            },
+            {
+              "name": "reason",
+              "type": "u8",
+              "offset": 8,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 42,
+          "tag": 983082,
+          "name": "ERR_VM_OBJ_OWNERSHIP",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "reason",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "limit",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 43,
+          "tag": 983083,
+          "name": "ERR_VM_OBJ_USR_PROTECTED",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 44,
+          "tag": 983084,
+          "name": "ERR_VM_LOAD_RUNNING",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "mode",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 45,
+          "tag": 983085,
+          "name": "ERR_VM_EXEC_CONTROL",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "command",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_exec_command_e"
+            },
+            {
+              "name": "mode",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 46,
+          "tag": 983086,
+          "name": "ERR_VM_OVERRIDE_PTR_UNSUPPORTED",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 47,
+          "tag": 983087,
+          "name": "ERR_VM_OVERRIDE_BAD_RECORD",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "declared_len",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "item_size",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 48,
+          "tag": 983088,
+          "name": "ERR_VM_EXEC_SELF_BARRIER",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "operation",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 49,
+          "tag": 983089,
+          "name": "ERR_VM_EXEC_FAULT_LATCHED",
+          "severity": 4,
+          "size": 6,
+          "fields": [
+            {
+              "name": "device_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "root_tag",
+              "type": "u32",
+              "offset": 2,
+              "size": 4,
+              "id_kind": "error_tag"
+            }
+          ]
+        },
+        {
+          "code": 50,
+          "tag": 983090,
+          "name": "ERR_VM_PERIODIC_OVERRUN",
+          "severity": 1,
+          "size": 10,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "missed",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            },
+            {
+              "name": "period_ms",
+              "type": "u32",
+              "offset": 6,
+              "size": 4,
+              "unit": "ms"
+            }
+          ]
+        },
+        {
+          "code": 51,
+          "tag": 983091,
+          "name": "ERR_VM_RETAIN_UNNAMED",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 52,
+          "tag": 983092,
+          "name": "ERR_VM_RETAIN_TOO_BIG",
+          "severity": 1,
+          "size": 10,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "need",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            },
+            {
+              "name": "max",
+              "type": "u32",
+              "offset": 6,
+              "size": 4
+            }
+          ]
+        },
+        {
+          "code": 53,
+          "tag": 983093,
+          "name": "ERR_VM_RETAIN_MISMATCH",
+          "severity": 1,
+          "size": 5,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "type",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "size",
+              "type": "u16",
+              "offset": 3,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 54,
+          "tag": 983094,
+          "name": "ERR_VM_RETAIN_CORRUPT",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "offset",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ]
+        },
+        {
+          "code": 55,
+          "tag": 983095,
+          "name": "ERR_VM_SUB_TRACK_FULL",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "max",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 56,
+          "tag": 983096,
+          "name": "ERR_VM_BLK_OUTPUT_TAKEN",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "blk_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "slot",
+              "type": "u8",
+              "offset": 4,
+              "size": 1
+            },
+            {
+              "name": "kind",
+              "type": "u8",
+              "offset": 5,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 57,
+          "tag": 983097,
+          "name": "ERR_VM_LOAD_EMPTY",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "unused",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ]
+        },
+        {
+          "code": 58,
+          "tag": 983098,
+          "name": "ERR_VM_LOAD_ABORTED",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "packet",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "error_tag"
+            }
+          ]
+        },
+        {
+          "code": 59,
+          "tag": 983099,
+          "name": "ERR_VM_LOAD_INCOMPLETE",
+          "severity": 1,
+          "size": 3,
+          "fields": [
+            {
+              "name": "kind",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            }
+          ]
+        },
+        {
+          "code": 60,
+          "tag": 983100,
+          "name": "ERR_VM_NO_MEM",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "size",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ]
+        },
+        {
+          "code": 61,
+          "tag": 983101,
+          "name": "ERR_VM_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": []
+        },
+        {
+          "code": 62,
+          "tag": 983102,
+          "name": "ERR_VM_RANGE",
+          "severity": 1,
+          "size": 12,
+          "fields": [
+            {
+              "name": "val",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "min",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            },
+            {
+              "name": "max",
+              "type": "u32",
+              "offset": 8,
+              "size": 4
+            }
+          ],
+          "description": "a count or value outside its limits"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "name": "project",
+      "symbol": "ERR_MOD_SYS_PROJECT",
+      "source_file": "components/sys/sys_project/sys_project.h",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 1048577,
+          "name": "ERR_PROJECT_BUSY",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "a save is open"
+        },
+        {
+          "code": 2,
+          "tag": 1048578,
+          "name": "ERR_PROJECT_NO_SESSION",
+          "severity": 2,
+          "size": 0,
+          "fields": []
+        },
+        {
+          "code": 3,
+          "tag": 1048579,
+          "name": "ERR_PROJECT_TOO_BIG",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "len",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "max",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ]
+        },
+        {
+          "code": 4,
+          "tag": 1048580,
+          "name": "ERR_PROJECT_OFFSET",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "want",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ]
+        },
+        {
+          "code": 5,
+          "tag": 1048581,
+          "name": "ERR_PROJECT_INCOMPLETE",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "want",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ]
+        },
+        {
+          "code": 6,
+          "tag": 1048582,
+          "name": "ERR_PROJECT_CRC",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "want",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ]
+        },
+        {
+          "code": 7,
+          "tag": 1048583,
+          "name": "ERR_PROJECT_BAD_FRAME",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "offset",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "description": "length 0 or above a link frame"
+        },
+        {
+          "code": 8,
+          "tag": 1048584,
+          "name": "ERR_PROJECT_TRUNCATED",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "the stream ends inside a frame"
+        },
+        {
+          "code": 9,
+          "tag": 1048585,
+          "name": "ERR_PROJECT_NO_SECTION",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "a frame before the first SECTION"
+        },
+        {
+          "code": 10,
+          "tag": 1048586,
+          "name": "ERR_PROJECT_BAD_SECTION",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "description": "class not allowed, or a SECTION frame of the wrong size"
+        },
+        {
+          "code": 11,
+          "tag": 1048587,
+          "name": "ERR_PROJECT_SECTION_DUP",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ]
+        },
+        {
+          "code": 12,
+          "tag": 1048588,
+          "name": "ERR_PROJECT_SECTION_FULL",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "max",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ]
+        },
+        {
+          "code": 13,
+          "tag": 1048589,
+          "name": "ERR_PROJECT_SECTION_BIG",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "max",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ]
+        },
+        {
+          "code": 14,
+          "tag": 1048590,
+          "name": "ERR_PROJECT_SECTION_EMPTY",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ]
+        },
+        {
+          "code": 15,
+          "tag": 1048591,
+          "name": "ERR_PROJECT_ORDER",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "a second program, or a section after it"
+        },
+        {
+          "code": 16,
+          "tag": 1048592,
+          "name": "ERR_PROJECT_CHUNKS",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "max",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "description": "the program needs more chunks"
+        },
+        {
+          "code": 17,
+          "tag": 1048593,
+          "name": "ERR_PROJECT_EMPTY",
+          "severity": 1,
+          "size": 0,
+          "fields": [],
+          "description": "a stream with no section"
+        },
+        {
+          "code": 18,
+          "tag": 1048594,
+          "name": "ERR_PROJECT_NOT_STORED",
+          "severity": 1,
+          "size": 0,
+          "fields": []
+        },
+        {
+          "code": 19,
+          "tag": 1048595,
+          "name": "ERR_PROJECT_NOT_IN_STREAM",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "a SECTION frame sent as a command"
+        },
+        {
+          "code": 20,
+          "tag": 1048596,
+          "name": "ERR_PROJECT_RUN",
+          "severity": 0,
+          "size": 0,
+          "fields": [],
+          "description": "context: stored, but the run failed"
+        },
+        {
+          "code": 21,
+          "tag": 1048597,
+          "name": "ERR_PROJECT_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": []
+        }
+      ]
+    }
+  ]
+}

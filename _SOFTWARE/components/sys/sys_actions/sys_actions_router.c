@@ -23,29 +23,29 @@
 #define LIST_MAX 48u  // IDs per answer, at most
 
 typedef struct __attribute__((packed)) {
-  uint32_t id;  //@alias Action @description The record's id @id action
+  uint32_t id;  /**< Action record ID */
 } id_args_t;
 
 typedef struct __attribute__((packed)) {
-  uint32_t id;  //@alias Action @description The record's id @id action
-  uint8_t execute;  //@alias Run while recording @description Run the frames as they come (else only record them) @choices 0=No,1=Yes
+  uint32_t id;      /**< Action record ID */
+  uint8_t execute;  /**< 1 = run while recording, 0 = record only */
 } record_start_t;
 
 typedef struct __attribute__((packed)) {
-  uint32_t id;  //@alias Action @description The record's id @id action
-  uint16_t len;  //@alias Length @description The size of the image @unit bytes
+  uint32_t id;   /**< Action record ID */
+  uint16_t len;  /**< Length in bytes */
 } begin_t;
 
 typedef struct __attribute__((packed)) {
-  uint16_t offset;  //@alias Offset @description Bytes sent so far @unit bytes
+  uint16_t offset;  /**< Byte offset in upload */
 } write_t;
 
 typedef struct __attribute__((packed)) {
-  uint32_t crc32;  //@alias CRC-32 @description Of the whole image
+  uint32_t crc32;  /**< CRC-32 of image */
 } commit_t;
 
 typedef struct __attribute__((packed)) {
-  uint32_t start;  //@alias From @description List the ids from this one up @id action
+  uint32_t start;  /**< Action record ID to start listing from */
 } list_args_t;
 
 static err_h reply_info(const sys_actions_info_t* i, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
@@ -137,29 +137,17 @@ ROUTER_OP_NOARGS(op_abort) {
 }
 
 static const router_entry_t k_ops[] = {
-    //@op SYS_ACTIONS_OP_RUN @alias Run @description Runs a stored record, stopping at its first failing frame
     {SYS_ACTIONS_OP_RUN, op_run},
-    //@op SYS_ACTIONS_OP_RECORD_START @alias Start recording @description Records this client's commands into a record
     {SYS_ACTIONS_OP_RECORD_START, op_record_start},
-    //@op SYS_ACTIONS_OP_RECORD_STOP @alias Stop recording @description Stores the recording @returns sys_actions_info_t
     {SYS_ACTIONS_OP_RECORD_STOP, op_record_stop},
-    //@op SYS_ACTIONS_OP_BEGIN @alias Begin upload @description Starts uploading a whole record image
     {SYS_ACTIONS_OP_BEGIN, op_begin},
-    //@op SYS_ACTIONS_OP_WRITE @alias Write upload @description The next bytes of the image @tail bytes @tail-alias Data
     {SYS_ACTIONS_OP_WRITE, op_write},
-    //@op SYS_ACTIONS_OP_COMMIT @alias Commit upload @description Checks the image and stores it
     {SYS_ACTIONS_OP_COMMIT, op_commit},
-    //@op SYS_ACTIONS_OP_READ @alias Read record @description Reads a record back, one answer packet per frame @returns bytes @returns-alias Frame @returns-description Each answer is one frame exactly as recorded
     {SYS_ACTIONS_OP_READ, op_read},
-    //@op SYS_ACTIONS_OP_INFO @alias Record info @description Size, frame count and CRC of a record @returns sys_actions_info_t
     {SYS_ACTIONS_OP_INFO, op_info},
-    //@op SYS_ACTIONS_OP_LIST @alias List records @description The stored record ids from a given one up @returns u16 @returns-alias Stored records @returns-tail u32[] @returns-tail-alias Record ids
     {SYS_ACTIONS_OP_LIST, op_list},
-    //@op SYS_ACTIONS_OP_REMOVE @alias Remove record @description Removes a record
     {SYS_ACTIONS_OP_REMOVE, op_remove},
-    //@op SYS_ACTIONS_OP_ABORT @alias Abort @description Drops an open recording or upload
     {SYS_ACTIONS_OP_ABORT, op_abort},
-    //@op SYS_ACTIONS_OP_RUN_ALL @alias Run all @description Runs a record to its end, reporting each failing frame
     {SYS_ACTIONS_OP_RUN_ALL, op_run_all},
 };
 

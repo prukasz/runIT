@@ -27,10 +27,10 @@ typedef union vm_expr_k_t {
 _Static_assert(sizeof(vm_expr_k_t) == 4 && _Alignof(vm_expr_k_t) == 4, "vm_expr_k_t layout");
 
 typedef struct vm_expr_code_t {
-  uint8_t const_cnt;      //@description Number of 4-byte constants after the header @derived counted from the compiled formula
-  uint8_t rt;             //@description VM_EXPR_RT_* fault latch @runtime
-  uint16_t code_len;      //@description Length of the bytecode after the constants @derived counted from the compiled formula
-  vm_expr_k_t consts[];   //@description const_cnt constants (f32 for EXPR, u32 for EXPR_BIT), then code_len opcode bytes @derived the constants and code the editor compiles from the formula
+  uint8_t const_cnt;
+  uint8_t rt;
+  uint16_t code_len;
+  vm_expr_k_t consts[];
 } vm_expr_code_t;
 
 _Static_assert(sizeof(vm_expr_code_t) == 4, "header must stay 4 bytes for literal alignment");

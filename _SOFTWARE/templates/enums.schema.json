@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runit.local/schema/enums.schema.json",
+  "title": "runIT published enums and #define groups",
+  "description": "Output of templates/generate_enums.py: every //#ref-enum enum and //#ref-defines group of the firmware headers. Generated; do not edit.",
+  "type": "object",
+  "required": ["schemaVersion", "kind", "enums", "symbols"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "kind": { "type": "string", "const": "enums" },
+    "enums": {
+      "type": "object",
+      "description": "Published groups by C name (enum typedef name, or the group name of //#ref-defines).",
+      "additionalProperties": { "$ref": "#/$defs/group" }
+    },
+    "symbols": {
+      "type": "object",
+      "description": "Member name -> name of the one group that holds it.",
+      "additionalProperties": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "group": {
+      "type": "object",
+      "required": ["alias", "kind", "source_file", "members"],
+      "additionalProperties": false,
+      "properties": {
+        "alias": { "type": "string", "minLength": 1, "description": "The title a user sees (@alias of the marker)." },
+        "kind": { "type": "string", "enum": ["enum", "defines"] },
+        "prefix": { "type": "string", "description": "Only for kind 'defines': the prefix every #define of the group starts with." },
+        "source_file": { "type": "string", "description": "Header the group is declared in, relative to the repository root." },
+        "members": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/member" } }
+      }
+    },
+    "member": {
+      "type": "object",
+      "required": ["name", "value", "alias"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$", "description": "The C identifier." },
+        "value": { "type": "integer" },
+        "alias": { "type": "string", "minLength": 1, "description": "The name a user sees (@alias); never derived from the C identifier." },
+        "description": { "type": "string", "minLength": 1 },
+        "wire_size": { "type": "integer", "minimum": 0, "description": "Bytes of one element on the wire (@wire-size)." },
+        "mem_size": { "type": "integer", "minimum": 0, "description": "Bytes of one element in the board's memory (@mem-size)." }
+      }
+    }
+  }
+}

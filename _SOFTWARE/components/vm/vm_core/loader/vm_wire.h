@@ -22,10 +22,10 @@ typedef struct __packed {
 _Static_assert(sizeof(vm_wire_reset_t) == 0, "0x40 has no body");
 
 typedef struct __packed {
-  uint16_t obj_cnt;  //@alias Objects @description Object slots
-  uint16_t acc_cnt;  //@alias Accessors @description Accessor slots
-  uint16_t blk_cnt;  //@alias Blocks @description Block slots
-  uint32_t total_size;  //@alias Arena size @description Bytes reserved for the program @unit bytes
+  uint16_t obj_cnt;     /**< Object slots */
+  uint16_t acc_cnt;     /**< Accessor slots */
+  uint16_t blk_cnt;     /**< Block slots */
+  uint32_t total_size;  /**< Arena size in bytes reserved for the program */
 } vm_wire_open_t;
 _Static_assert(sizeof(vm_wire_open_t) == 10, "0x41 body is 10 bytes");
 
@@ -42,12 +42,12 @@ _Static_assert(sizeof(vm_wire_open_t) == 10, "0x41 body is 10 bytes");
 #define VM_WIRE_HEAD_NAME_SHIFT 4u
 
 //#ref-defines vm_wire_head_flag @alias Object Flags @prefix VM_WIRE_HEAD_F_
-#define VM_WIRE_HEAD_F_MUTABLE (1u << 0)  //@alias Writable @description The program and the app may write the object at run time
-#define VM_WIRE_HEAD_F_UPD_RESETABLE (1u << 2)  //@alias Fresh-tracked @description The object's freshness is cleared at the end of every pass; blocks that wait for a fresh value need it
-#define VM_WIRE_HEAD_F_TAGGED (1u << 3)  //@alias Named by the board @description Sent by the board (telemetry): the name follows; the loader derives it
-#define VM_WIRE_HEAD_F_RETENTIVE (1u << 4)  //@alias Retained @description The value is saved and restored after a restart
-#define VM_WIRE_HEAD_F_DYNAMIC (1u << 5)  //@alias Heap object @description Sent by the board only: a heap object; never taken from the wire
-#define VM_WIRE_HEAD_F_USR_PROTECTED (1u << 6)  //@alias User-protected @description The app's runtime writes are refused
+#define VM_WIRE_HEAD_F_MUTABLE (1u << 0)  //@alias Writable @description Writable at run time
+#define VM_WIRE_HEAD_F_UPD_RESETABLE (1u << 2)  //@alias Fresh-tracked @description Freshness cleared at end of pass
+#define VM_WIRE_HEAD_F_TAGGED (1u << 3)  //@alias Named by the board @description Named by the board
+#define VM_WIRE_HEAD_F_RETENTIVE (1u << 4)  //@alias Retained @description Retained after restart
+#define VM_WIRE_HEAD_F_DYNAMIC (1u << 5)  //@alias Heap object @description Heap object
+#define VM_WIRE_HEAD_F_USR_PROTECTED (1u << 6)  //@alias User-protected @description User runtime writes refused
 // bit 1 was the runtime `upd` pulse (never taken from the wire, no longer sent) and bit 7 is unused: both read as 0.
 
 typedef struct __packed {
@@ -156,11 +156,11 @@ typedef struct __packed {
 _Static_assert(sizeof(vm_wire_sub_t) == 2, "0x47 record");
 
 typedef struct __packed {
-  uint8_t command;  //@alias Command @enum-ref vm_exec_command_e
+  uint8_t command;  /**< vm_exec_command_e */
 } vm_wire_exec_t;
 _Static_assert(sizeof(vm_wire_exec_t) == 1, "0x48 body");
 
 typedef struct __packed {
-  uint16_t factor;  //@alias Slow-motion factor @description 1 is normal speed
+  uint16_t factor;  /**< Slow-motion factor (1 is normal speed) */
 } vm_wire_speed_t;
 _Static_assert(sizeof(vm_wire_speed_t) == 2, "0x49 body");

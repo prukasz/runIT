@@ -1,0 +1,485 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runit.local/schema/contract.schema.json",
+  "title": "runIT Contract and System Service Definition",
+  "description": "Czysty, deklaratywny schemat definicji kontraktu urządzenia lub usługi systemowej runIT (np. DEVICE, IO, PINS, CONNECTOR, BLE, PROJECT). Definiuje standardowe operacje (commands), ich parametry, zwracane wartości oraz zdarzenia (events).",
+  "type": "object",
+  "required": [
+    "id"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Ścieżka do schematu walidacji JSON."
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "default": 3,
+      "description": "Wersja schematu deskryptora kontraktu (3 dla czystego formatu deklaratywnego)."
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "contract-definition",
+        "class-definition",
+        "service-definition"
+      ],
+      "default": "contract-definition",
+      "description": "Typ dokumentu w systemie runIT: 'contract-definition', 'class-definition' lub 'service-definition'."
+    },
+    "scope": {
+      "type": "string",
+      "enum": [
+        "device",
+        "system"
+      ],
+      "default": "device",
+      "description": "Zasięg: 'device' (kontrakt implementowany przez urządzenia) lub 'system' (usługa systemowa / singleton płyty)."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
+      "description": "Identyfikator kontraktu / klasy interfejsowej / usługi systemowej (np. 'IO', 'DEVICE', 'CONNECTOR', 'BLE', 'PROJECT').",
+      "examples": ["IO", "DEVICE", "PINS", "POWER_MONITOR", "POWER_VREG", "HBRIDGE", "CONNECTOR", "BLE", "PROJECT"]
+    },
+    "contract_id": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Numeryczny identyfikator kontraktu w firmware / ramce binarnej (np. 0 dla DEVICE, 1 dla IO, 9 dla HBRIDGE)."
+    },
+    "router_key": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 255,
+      "description": "Numeryczny klucz routera systemowego w firmware (ROUTER_KEY_* w router_ids.h, np. 1 dla SYS, 2 dla I2C, 3 dla BLE, 4 dla CONN, 12 dla PROJECT)."
+    },
+    "alias": {
+      "type": "string",
+      "description": "Czytelna nazwa kontraktu wyświetlana w UI (np. 'Kontrakt wejść/wyjść (IO)').",
+      "examples": ["Kontrakt wejść/wyjść (IO)", "Podstawowe operacje urządzenia", "Regulator zasilania"]
+    },
+    "label": {
+      "type": "string",
+      "description": "Krótka etykieta kontraktu (zamienna z 'alias')."
+    },
+    "description": {
+      "type": "string",
+      "description": "Szczegółowy opis przeznaczenia kontraktu i zapewnianych funkcji."
+    },
+    "category": {
+      "type": "string",
+      "description": "Kategoria funkcjonalna kontraktu (np. 'gpio', 'power', 'motor', 'sensors', 'system')."
+    },
+    "tags": {
+      "type": "array",
+      "description": "Tagi ułatwiające filtrowanie kontraktów.",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "inherits": {
+      "description": "Opcjonalny kontrakt bazowy lub lista kontraktów, które ten kontrakt rozszerza (np. POWER_SUPPLY dziedziczy po POWER_VREG).",
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ]
+    },
+    "commands": {
+      "type": "array",
+      "description": "Standardowe polecenia i operacje wymagane lub oferowane przez kontrakt.",
+      "items": {
+        "$ref": "#/$defs/command"
+      }
+    },
+    "events": {
+      "type": "array",
+      "description": "Zdarzenia asynchroniczne emitowane przez urządzenia implementujące ten kontrakt (np. zbocza, błędy OVP/OCP, alarmy).",
+      "items": {
+        "$ref": "#/$defs/event"
+      }
+    },
+    "config": {
+      "type": "array",
+      "description": "Wymagane pola konfiguracyjne, które urządzenie musi zapewnić przy implementacji tego kontraktu.",
+      "items": {
+        "$ref": "#/$defs/field"
+      }
+    }
+  },
+  "additionalProperties": false,
+
+  "$defs": {
+    "command": {
+      "type": "object",
+      "required": ["id"],
+      "description": "Polecenie / operacja zdefiniowana w kontrakcie.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unikalny identyfikator operacji (np. 'SET_LEVEL', 'GET_LEVEL', 'SET_PWM_DUTY', 'GET_VOLTAGE')."
+        },
+        "op": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Numeryczny kod operacji w firmware (np. 1 dla SET_LEVEL). Opcjonalny, gdy indeksowany po kolei."
+        },
+        "urgent": {
+          "type": "boolean",
+          "default": false,
+          "description": "Czy polecenie ma priorytet natychmiastowy (omija kolejkę bufora i ustawia bit urgent w ramce)."
+        },
+        "alias": {
+          "type": "string",
+          "description": "Czytelna nazwa polecenia (np. 'Ustaw stan', 'Odczytaj stan')."
+        },
+        "label": {
+          "type": "string",
+          "description": "Etykieta polecenia (zamienna z 'alias')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Dokładny opis działania polecenia."
+        },
+        "symbol": {
+          "type": "string",
+          "description": "Opcjonalny stały symbol C w firmware (np. 'SYS_IO_OP_SET_LEVEL')."
+        },
+        "pin_scoped": {
+          "type": "boolean",
+          "default": false,
+          "description": "Czy operacja jest adresowana do konkretnego pinu / kanału urządzenia."
+        },
+        "args": {
+          "description": "Parametry wejściowe przekazywane do polecenia (prosta lista pól lub obiekt struktury C).",
+          "oneOf": [
+            {
+              "type": "array",
+              "description": "Prosta lista parametrów wejściowych.",
+              "items": {
+                "$ref": "#/$defs/field"
+              }
+            },
+            {
+              "type": "object",
+              "required": ["fields"],
+              "description": "Jawnie nazwana struktura argumentów w C.",
+              "properties": {
+                "struct": {
+                  "type": "string",
+                  "description": "Nazwa typu struktury C (np. 'sys_io_set_level_t')."
+                },
+                "fields": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/field"
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "returns": {
+          "$ref": "#/$defs/commandReturn"
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "commandReturn": {
+      "description": "Format wartości zwracanej przez operację kontraktu (skalar lub złożona struktura).",
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "Pojedyncza wartość skalarowa lub tablica wartości.",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["u8", "u16", "u32", "u64", "i8", "i16", "i32", "i64", "float", "double", "boolean", "string", "number", "bytes"],
+              "description": "Typ danych zwracanej wartości."
+            },
+            "array": {
+              "type": "boolean",
+              "description": "Czy zwracana jest tablica wartości tego typu."
+            },
+            "unit": {
+              "type": "string",
+              "description": "Jednostka fizyczna wartości (np. 'mV', 'mA', '%', 'us', 'deg', 'C')."
+            },
+            "label": {
+              "type": "string",
+              "description": "Etykieta zwracanego wyniku."
+            },
+            "alias": {
+              "type": "string",
+              "description": "Alternatywna etykieta wyniku."
+            },
+            "description": {
+              "type": "string",
+              "description": "Opis zwracanego wyniku."
+            },
+            "choices": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/choiceOption"
+              }
+            }
+          },
+          "required": ["type"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["fields"],
+          "description": "Złożona struktura odpowiedzi zawierająca wiele pól.",
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "struct": {
+              "type": "string",
+              "description": "Nazwa typu struktury C (np. 'power_telemetry_t')."
+            },
+            "size": {
+              "type": "integer"
+            },
+            "array": {
+              "type": "boolean"
+            },
+            "label": {
+              "type": "string",
+              "description": "Etykieta zbiorcza odpowiedzi."
+            },
+            "alias": {
+              "type": "string",
+              "description": "Alternatywna etykieta odpowiedzi."
+            },
+            "description": {
+              "type": "string",
+              "description": "Opis zwracanego rekordu."
+            },
+            "fields": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/field"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+
+    "event": {
+      "type": "object",
+      "required": ["id"],
+      "description": "Zdarzenie asynchroniczne emitowane przez urządzenia w ramach tego kontraktu.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identyfikator zdarzenia (np. 'RISING', 'FALLING', 'ALERT', 'FAULT', 'OVP', 'OCP')."
+        },
+        "code": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Numeryczny kod zdarzenia w firmware (np. 0x0100 dla pierwszego zdarzenia kontraktu)."
+        },
+        "event": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Indeks zdarzenia w ramach kontraktu (0, 1, 2...)."
+        },
+        "symbol": {
+          "type": "string",
+          "description": "Symbol stałej C w firmware (np. 'IO_EV_RISING')."
+        },
+        "notify": {
+          "type": "boolean",
+          "default": false,
+          "description": "Czy zdarzenie powoduje automatyczne wypchnięcie powiadomienia (push notify) z firmware."
+        },
+        "alias": {
+          "type": "string",
+          "description": "Czytelna nazwa zdarzenia (np. 'Zbocze narastające')."
+        },
+        "label": {
+          "type": "string",
+          "description": "Etykieta zdarzenia (zamienna z 'alias')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Opis warunków wystąpienia zdarzenia."
+        },
+        "pin_scoped": {
+          "type": "boolean",
+          "default": false,
+          "description": "Czy zdarzenie dotyczy konkretnego pinu/kanału."
+        },
+        "channel": {
+          "type": ["integer", "string"],
+          "description": "Domyślny lub referencyjny identyfikator kanału zdarzenia."
+        },
+        "value": {
+          "type": "object",
+          "description": "Opis wartości liczbowej przesyłanej w zdarzeniu.",
+          "properties": {
+            "description": { "type": "string" },
+            "unit": { "type": "string" },
+            "type": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "payload": {
+          "description": "Dane przesyłane wraz ze zdarzeniem.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/field"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "field": {
+      "type": "object",
+      "required": ["id", "type"],
+      "description": "Definicja pojedynczego parametru polecenia lub pola konfiguracyjnego.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identyfikator parametru (np. 'level', 'duty', 'voltage', 'pin')."
+        },
+        "label": {
+          "type": "string",
+          "description": "Czytelna etykieta wyświetlana użytkownikowi w formularzu UI."
+        },
+        "alias": {
+          "type": "string",
+          "description": "Alternatywna etykieta parametru (zamienna z 'label')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Pomocniczy opis pola / podpowiedź."
+        },
+        "type": {
+          "type": "string",
+          "description": "Typ parametru dla UI i walidacji formularzy.",
+          "enum": [
+            "number",
+            "integer",
+            "boolean",
+            "string",
+            "choice",
+            "enum",
+            "pin",
+            "device",
+            "bitmask"
+          ]
+        },
+        "enum": {
+          "type": "string",
+          "description": "Dla type='enum': nazwa grupy enumów z generated/common/enums.json (np. 'sys_io_mode_e'). Aliasy wartości bierze się stamtąd.",
+          "examples": ["sys_io_mode_e"]
+        },
+        "raw_type": {
+          "type": "string",
+          "description": "Niski binarny typ danych w strukturze C (np. 'u8', 'u16', 'float'). Kluczowy dla generatora nagłówków C i koderów binarnych.",
+          "enum": [
+            "u8",
+            "i8",
+            "u16",
+            "i16",
+            "u32",
+            "i32",
+            "u64",
+            "i64",
+            "float",
+            "double",
+            "bytes",
+            "string"
+          ]
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Rozmiar pola w bajtach w strukturze C (opcjonalny, wyliczany z raw_type)."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Offset bajtowy pola w strukturze C (opcjonalny, wyliczany sekwencyjnie)."
+        },
+        "pin_ref": {
+          "type": "boolean",
+          "default": false,
+          "description": "Czy pole jest referencją do pinu innego urządzenia (reprezentowane w C jako struktura sys_io_pin_t)."
+        },
+        "unit": {
+          "type": "string",
+          "description": "Jednostka fizyczna (np. '%', 'mV', 'mA', 'Hz', 'us', 'deg')."
+        },
+        "default": {
+          "description": "Domyślna wartość parametru."
+        },
+        "min": {
+          "type": "number",
+          "description": "Wartość minimalna (dla typów liczbowych)."
+        },
+        "max": {
+          "type": "number",
+          "description": "Wartość maksymalna (dla typów liczbowych)."
+        },
+        "step": {
+          "type": "number",
+          "description": "Krok zmiany suwaka lub pola liczbowego."
+        },
+        "options": {
+          "type": "array",
+          "description": "Dostępne opcje dla typu 'choice' lub 'enum'.",
+          "items": {
+            "$ref": "#/$defs/choiceOption"
+          }
+        },
+        "optional": {
+          "type": "boolean",
+          "default": false,
+          "description": "Czy parametr jest opcjonalny."
+        },
+        "requires": {
+          "type": "string",
+          "description": "Wymagany tryb pracy pinu, gdy pole jest typu 'pin' (np. 'output', 'pwm', 'adc', 'input')."
+        },
+        "requires_contract": {
+          "type": "string",
+          "description": "Wymagany kontrakt implementowany przez urządzenie, gdy pole jest typu 'device' (np. 'POWER_VREG')."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "choiceOption": {
+      "type": "object",
+      "required": ["label", "value"],
+      "description": "Pojedyncza opcja wyboru dla typu 'choice' lub 'enum'.",
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "Tekst wyświetlany w liście wyboru UI (np. 'Wysoki (High)', '50 Hz')."
+        },
+        "value": {
+          "description": "Wartość przekazywana do urządzenia (liczba, tekst lub boolean).",
+          "type": ["integer", "number", "string", "boolean"]
+        },
+        "description": {
+          "type": "string",
+          "description": "Dodatkowy opis opcji."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
+

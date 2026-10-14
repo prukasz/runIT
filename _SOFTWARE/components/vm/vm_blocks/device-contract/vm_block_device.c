@@ -222,7 +222,7 @@ void vm_device_run(vm_block_h b, const vm_dev_contract_t* c) {
 bool vm_device_check(vm_block_h b, const vm_dev_contract_t* c) {
   vm_block_device_data_t d;
   memcpy(&d, vm_block_get_custom_data(b), sizeof(d));
-  if (d.device_id == SYS_DEVICE_ID_NONE && !c->sweep) {
+  if (d.device_id == SYS_DEVICE_ID_NONE) {
     return false;
   }
   const vm_dev_op_t* op = op_find(c, d.op);

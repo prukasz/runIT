@@ -75,6 +75,8 @@ export class RunitBleLink {
   private stopWaiting?: AbortController
   /** The app wants the link up (set by pick / restore, cleared by disconnect). */
   private wanted = false
+  /** A refresh drops the link on purpose: its own drop event must not start the reconnect loop as well. */
+  private refreshing = false
   private chain: Promise<unknown> = Promise.resolve()
 
   constructor(options: LinkOptions = {}) {
@@ -228,10 +230,19 @@ export class RunitBleLink {
 
   /** After the board changed its GATT table (Windows drops every GATT object on Service Changed): re-open the link. */
   async refresh(): Promise<void> {
-    this.teardown()
-    this.device?.gatt?.disconnect()
-    await new Promise((resolve) => setTimeout(resolve, 50))
-    await this.open()
+    this.refreshing = true
+    try {
+      this.teardown()
+      this.device?.gatt?.disconnect()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      await this.open()
+    } catch (error) {
+      // the board is still applying its table or out of reach: wait for it like after any drop
+      if (this.wanted && this.options.autoReconnect) this.wait(`re-open after a GATT change failed (${message(error)})`)
+      throw error
+    } finally {
+      this.refreshing = false
+    }
   }
 
   private requireBluetooth(): WbBluetooth {
@@ -299,6 +310,7 @@ export class RunitBleLink {
   }
 
   private readonly onDrop = (): void => {
+    if (this.refreshing) return
     this.teardown()
     if (!this.wanted) this.set('idle', 'link closed')
     else if (this.options.autoReconnect) this.wait('link lost (the board went away or the radio dropped)')

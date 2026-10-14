@@ -2,5 +2,6 @@ export { addBlock, addCanvas, canvasToScreen, DEFAULT_VIEWPORT, findBlock, GRID,
 export type { Point, Viewport } from './canvas'
 export { connect, disconnect, sourceOf, sourcePath, wiresOf } from './wiring'
 export type { Wire, WireSource, WireTarget } from './wiring'
-export type { CanvasBlock, ObjectPath, PathStep, ProgramBlock, ProjectCanvas } from './types'
+export type { CanvasBlock, CanvasVariable, ObjectPath, PathStep, ProgramBlock, ProjectCanvas } from './types'
+export { addFreeChip, CHIP_HEIGHT, CHIP_WIDTH, dockFreeChip, freeChipFor, moveFreeChip, pinPath, removeFreeChip } from './freeChips'
 export { chipLabel, nameIds, nameOf, parsePathText, pathLabel, PathTextError } from './variablePath'

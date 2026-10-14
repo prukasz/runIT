@@ -22,15 +22,6 @@
  *  events of the HBRIDGE contract (NOTIFY): an ON_EVENT block reacts to them without asking.
  */
 
-//#block VM_BLK_DRV8962
-//@alias DRV8962
-//@category device
-//@description The motor driver's own settings: the current limit of a channel and its fault latch.
-//@activation enabled
-//@when Runs every pass while enabled: a limit is sent when it changes, clear once on each rising enable, a reading on every pass.
-//@face {op} {device_id}
-//@device-type device_drv8962
-//@data vm_block_device_data_t
 /* Load-time check of the block's state and shape; the body, called every pass. */
 bool vm_verify_drv8962(vm_block_h b);
 void vm_blk_drv8962(vm_block_h b);

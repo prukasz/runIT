@@ -14,24 +14,24 @@
  *   0x11 MARK      { u8 bank, u32 crc32, u32 bytes } first frame of the project record, does nothing when run */
 
 typedef struct __attribute__((packed)) {
-  uint32_t len;  //@alias Length @description The size of the stream @unit bytes
-  uint8_t flags;  //@alias Options @description Bit 0 autostart at every boot, bit 1 run after the commit
+  uint32_t len;   /**< Total stream length in bytes */
+  uint8_t flags;  /**< SYS_PROJECT_FLAG_* options */
 } begin_t;
 
 typedef struct __attribute__((packed)) {
-  uint32_t offset;  //@alias Offset @description Bytes sent so far @unit bytes
+  uint32_t offset;  /**< Byte offset */
 } write_t;
 
 typedef struct __attribute__((packed)) {
-  uint32_t crc32;  //@alias CRC-32 @description Of the whole stream
+  uint32_t crc32;  /**< CRC-32 of stream */
 } commit_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t autostart;  //@alias Autostart @description Run the project at every boot @choices 0=No,1=Yes
+  uint8_t autostart;  /**< 1 = autostart enabled, 0 = disabled */
 } options_t;
 
 typedef struct __attribute__((packed)) {
-  uint32_t id;  //@alias Record @description The record the following frames belong to (0: the program) @id action
+  uint32_t id;  /**< Target record ID (0 = program) */
 } section_t;
 
 ROUTER_OP(op_begin, begin_t) {
@@ -78,25 +78,15 @@ ROUTER_OP(op_mark, sys_project_mark_t) {
 }
 
 static const router_entry_t k_ops[] = {
-    //@op SYS_PROJECT_OP_BEGIN @alias Begin save @description Starts saving a project as one stream
     {SYS_PROJECT_OP_BEGIN, op_begin},
-    //@op SYS_PROJECT_OP_WRITE @alias Write stream @description The next bytes of the project stream @tail bytes @tail-alias Data
     {SYS_PROJECT_OP_WRITE, op_write},
-    //@op SYS_PROJECT_OP_COMMIT @alias Commit save @description Checks the stream, stores the project and optionally runs it
     {SYS_PROJECT_OP_COMMIT, op_commit},
-    //@op SYS_PROJECT_OP_ABORT @alias Abort save @description Drops an open save; the stored project stays
     {SYS_PROJECT_OP_ABORT, op_abort},
-    //@op SYS_PROJECT_OP_INFO @alias Project info @description Whether a project is stored, its stream CRC and length @returns sys_project_info_t
     {SYS_PROJECT_OP_INFO, op_info},
-    //@op SYS_PROJECT_OP_RUN @alias Run project @description Runs the stored project
     {SYS_PROJECT_OP_RUN, op_run},
-    //@op SYS_PROJECT_OP_ERASE @alias Erase project @description Removes the stored project and its program records
     {SYS_PROJECT_OP_ERASE, op_erase},
-    //@op SYS_PROJECT_OP_OPTIONS @alias Set options @description The autostart option
     {SYS_PROJECT_OP_OPTIONS, op_options},
-    //@op SYS_PROJECT_OP_SECTION @alias Section @description A frame of the save stream: opens a section (not a command)
     {SYS_PROJECT_OP_SECTION, op_section},
-    //@op SYS_PROJECT_OP_MARK @alias Mark @description First frame of the project record (does nothing when run)
     {SYS_PROJECT_OP_MARK, op_mark},
 };
 

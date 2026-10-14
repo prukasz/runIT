@@ -63,17 +63,17 @@ ERR_TAGS_DECLARE(ERR_SYS_PROJECT_MAP)
 
 /* First frame of the project record: [ROUTER_KEY_PROJECT][SYS_PROJECT_OP_MARK] and this. */
 typedef struct __attribute__((packed)) {
-  uint8_t bank;  //@alias Bank
-  uint32_t crc32;  //@alias Stream CRC-32
-  uint32_t bytes;  //@alias Stream length @unit bytes
+  uint8_t bank;    /**< Active project bank */
+  uint32_t crc32;  /**< Stream CRC-32 */
+  uint32_t bytes;  /**< Stream length in bytes */
 } sys_project_mark_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t stored;  //@alias Stored @choices 0=No,1=Yes
-  uint8_t autostart;  //@alias Autostart @choices 0=No,1=Yes
-  uint8_t bank;  //@alias Bank @description The bank holding the program records
-  uint32_t crc32;  //@alias Stream CRC-32 @description Of the stream it was saved from: compare it with the app's project
-  uint32_t bytes;  //@alias Stream length @unit bytes
+  uint8_t stored;     /**< 1 = project stored, 0 = no project */
+  uint8_t autostart;  /**< 1 = autostart enabled, 0 = disabled */
+  uint8_t bank;       /**< Bank holding program records */
+  uint32_t crc32;     /**< Stream CRC-32 */
+  uint32_t bytes;     /**< Stream length in bytes */
 } sys_project_info_t;
 
 /** @brief Opens the project's options in the actions partition. Boot, after sys_actions_init. */

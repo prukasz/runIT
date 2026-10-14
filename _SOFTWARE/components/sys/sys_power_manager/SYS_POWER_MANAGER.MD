@@ -19,7 +19,7 @@ SET applies a setting at once and stores nothing; the manager starts from the de
 
 | Record ID | Frame | Contents |
 |---|---|---|
-| `0x01000002` | SET_CONFIG `sys_power_manager_cfg_t`, 8 B | `enabled` (1), `strict` (1), `soft_margin_pct` (20, 0..100), `source_pin` (`sys_io_pin_t`, `SYS_IO_PIN_NONE`), `battery_level` (1), `pd_max_auto` (1, 0 / 1: on a USB source always negotiate the charger's highest offer, below) |
+| `0x01000002` | SET_CONFIG `sys_power_manager_cfg_t`, 9 B | `enabled` (1), `strict` (1), `soft_margin_pct` (20, 0..100), `source_pin` (`sys_io_pin_t`, `SYS_IO_PIN_NONE`), `battery_level` (1), `pd_max_auto` (1, 0 / 1: on a USB source always negotiate the charger's highest offer, below), `ext_input` (`sys_power_ext_input_e`: 0 bench supply, 1 battery; what feeds the external input) |
 | `0x01000003` | SET_PSU `sys_power_psu_t`, 8 B | `max_mV`, `max_mA` of an external supply; 0 / 0 removes it |
 | `0x01000004` | SET_BATTERY `sys_power_battery_t`, 4 B | `chemistry` (NONE / LIPO), `cells` (1 .. max_mV / 4200), `low_pct` (2..100), `critical_pct` (1..low − 1) |
 | `0x01000005` | SET_RESPONSES `u8[1 + rails][11]` | the whole response matrix (below): row 0 the board, row 1 + i rail i, by kind. The single-cell SET_RESPONSE changes one cell; save the matrix with SET_RESPONSES (another size, the board's rails changed, is `ERR_CMD_BAD_LEN`) |
@@ -39,7 +39,7 @@ The guard keeps tracking the rails while disabled, so turning it back on starts 
 ### Source
 
 - **`source_pin` set**: made an input on its device (if it is already configured, read as it is), read every tick: `battery_level` → **BATTERY**, the other level → **USB**. Unreadable (device not created yet): UNKNOWN, retried.
-- **The board's eFuse pins** (`source_pins` in the board description, 2026-10-11; runIT: VUSB_OK = TCA 3, VEXT_OK = TCA 4, read as plain inputs, high = live): the external input wins when live (the board's mux gives it priority) → **PSU**, or **BATTERY** if a battery is configured and no supply entered; else USB live → **USB**; neither (or the pins unreadable: the expander not created yet) → the next rule. Checked after `source_pin`, which stays a user override.
+- **The board's eFuse pins** (`source_pins` in the board description, 2026-10-11; runIT: VUSB_OK = TCA 3, VEXT_OK = TCA 4, read as plain inputs, high = live): the external input wins when live (the board's mux gives it priority) → **PSU**, or **BATTERY** when `ext_input` says a battery is on it (the eFuse only sees that the input is live, not what it is); else USB live → **USB**; neither (or the pins unreadable: the expander not created yet) → the next rule. Checked after `source_pin`, which stays a user override.
 - **No pin** (legacy inference without USB-PD): a PSU entered → PSU, else a battery configured → BATTERY, else UNKNOWN.
 
 Source current: PSU → its `max_mA` (not entered: the board's `max_mA`, 5.5 A: the eFuse limits an external supply; enter the real limit with `SET_PSU`); BATTERY → `max_mA` (the board limits, not the battery); USB → the highest offer of the board's USB-PD sink (`usb_pd` in the board description: `GET_LIMITS`), `unknown_source_mA` while it is not created or offers nothing; UNKNOWN → `unknown_source_mA`. A change publishes `SOURCE_CHANGED`.

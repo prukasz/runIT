@@ -1,0 +1,508 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runit.local/schema/vm-block.schema.json",
+  "title": "runIT VM block (draft)",
+  "description": "One block of the VM palette, as the app shows and encodes it. A block is a mother with optional variants (children). It comes in three kinds of integration: 'core' (the logic is in the app, e.g. an expression), 'contract' (its operations are the commands of a device contract) and 'custom' (it owns fields of a C struct). Everything a user reads is an alias: no C identifier, #define or enum symbol appears in a descriptor. The name shown for a value is the first that exists of: the block's own alias (a field's 'alias', or an 'args' override), then the alias of the enum member or contract argument it comes from, then the value's own id. The object and accessor model is not described here; the app owns it.",
+  "type": "object",
+  "required": ["schemaVersion", "kind", "id", "wire_id", "alias", "description", "category", "integration"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "type": "integer", "const": 3 },
+    "kind": { "type": "string", "const": "vm-block" },
+    "id": { "$ref": "#/$defs/identifier", "description": "Stable name of the block (io, if, expr, servo). Variants are addressed as <id>.<variant id>." },
+    "wire_id": { "type": "integer", "minimum": 0, "description": "The block type number on the wire. The only number of the block that is not an alias." },
+    "alias": { "type": "string", "minLength": 1, "description": "The default name of an instance; the user can rename each instance (the editable name in the header)." },
+    "description": { "type": "string", "minLength": 1, "description": "What the block does, for the palette tooltip." },
+    "category": { "$ref": "#/$defs/category" },
+    "order": { "type": "integer", "description": "Position inside the category in the palette; blocks without it sort by alias." },
+    "tags": { "type": "array", "items": { "type": "string" }, "uniqueItems": true, "description": "Extra words the palette search finds the block by." },
+    "integration": {
+      "type": "string",
+      "enum": ["core", "contract", "custom"],
+      "description": "core: the app interprets the block itself (see 'editor'). contract: variants run commands of the device contract in 'device.contract'. custom: the block owns its fields (and optionally a 'device.device_type')."
+    },
+    "editor": { "type": "string", "description": "For integration 'core': the name of the editor the app opens for the block's body (for example 'expression', 'switch-cases'). The app knows the names." },
+    "editor_values": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/identifier" },
+      "uniqueItems": true,
+      "description": "For a block with an 'editor': the ids of the values the editor supplies and the app shows (expr: 'expression', the formula as text). A header or body may use them as {id} like a field."
+    },
+    "device": {
+      "type": "object",
+      "description": "The block drives a device: the app adds a device selector (value name 'device') to the body. The list is filtered by the contract or the device type.",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "contract": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$", "description": "Id of a contract descriptor (IO, POWER_VREG). The variants' 'op' are commands of it." },
+        "device_type": { "$ref": "#/$defs/identifier", "description": "Id of a device descriptor (servo, drv8962), for blocks that need one kind of device." }
+      }
+    },
+    "activation": { "$ref": "#/$defs/activation" },
+    "enable": { "$ref": "#/$defs/enableSignal", "description": "Only for a block that reads its enable as data (edge): how the app names and asks for it. Other blocks use the enable as a gate and need no entry." },
+    "eno": { "$ref": "#/$defs/enoSignal", "description": "Only for a block whose enable-out carries a result (edge: the pulse): how the app names it. Without it the output is the plain 'block ran' signal." },
+    "span": {
+      "type": "object",
+      "required": ["offset"],
+      "additionalProperties": false,
+      "description": "Only for a block that owns a run of blocks, a loop body (for). The app derives the run from the program, not from the user: the blocks placed directly below it, up to the end of the loop. It writes the run as [start, end), two u16, at this offset of the block's data.",
+      "properties": { "offset": { "type": "integer", "minimum": 0 } }
+    },
+    "header": { "$ref": "#/$defs/header" },
+    "body": { "$ref": "#/$defs/body" },
+    "inputs": { "$ref": "#/$defs/pinList", "description": "Input pins that are not fields: a condition, the inputs of an expression. A field with 'input' adds its own pin, in field order, after these." },
+    "outputs": { "$ref": "#/$defs/pinList", "description": "Output pins. A contract command with a result adds its own." },
+    "fields": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/field" },
+      "description": "Fields shared by every variant. Each is a body value and, with 'input', also an input pin."
+    },
+    "variants": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/variant" },
+      "description": "The children of a mother block. In the palette they sit under it; on the canvas an instance is one variant."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "integration": { "const": "contract" } } },
+      "then": { "required": ["device", "variants"], "properties": { "device": { "required": ["contract"] } } }
+    },
+    {
+      "if": { "properties": { "integration": { "const": "core" } } },
+      "then": { "not": { "required": ["device"] } }
+    },
+    {
+      "if": { "properties": { "integration": { "const": "custom" } } },
+      "then": { "anyOf": [{ "required": ["fields"] }, { "required": ["variants"] }] }
+    }
+  ],
+  "$defs": {
+    "identifier": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "argId": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$", "description": "The id of a contract argument as the contract writes it (frequency_Hz, voltage_mV)." },
+    "template": {
+      "type": "string",
+      "minLength": 1,
+      "description": "A line of text with {name} placeholders: a field or argument id, an input pin id, 'device', or 'variant'. The app shows the field's value (the alias of an enum member, the label of a pin, the name of a device); when the value comes from a wired input it shows that pin's label instead."
+    },
+    "activation": {
+      "type": "object",
+      "required": ["kind", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "enum": ["enabled", "enable-rising", "triggered"], "description": "enabled: runs every pass while enabled. enable-rising: once on each rising enable. triggered: when an input it reads is fresh." },
+        "text": { "type": "string", "minLength": 1, "description": "The same in words for the user." }
+      }
+    },
+    "enableSignal": {
+      "type": "object",
+      "required": ["alias", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "alias": { "type": "string", "minLength": 1, "description": "The name of the enable (edge: Signal)." },
+        "description": { "type": "string", "minLength": 1, "description": "What the block does with it." },
+        "required": { "type": "boolean", "default": false, "description": "At least one enable source must be wired, or the block does nothing." }
+      }
+    },
+    "enoSignal": {
+      "type": "object",
+      "required": ["alias", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "alias": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 }
+      }
+    },
+    "header": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "subtitle": { "$ref": "#/$defs/template", "description": "The line under the editable name (for example 'Toggle {pin}'). A variant's subtitle replaces the block's." }
+      }
+    },
+    "body": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/template" },
+      "description": "Lines under the header (for example '{device}', 'Home {home}'). A variant's body replaces the block's."
+    },
+    "category": {
+      "description": "The type of a block, used to sort and group the palette.",
+      "oneOf": [
+        { "const": "flow", "title": "Flow", "description": "Routes execution: if, switch, for." },
+        { "const": "logic", "title": "Logic", "description": "Edges, latches and other boolean state." },
+        { "const": "data", "title": "Data", "description": "Computes or moves values: expression, set, clone." },
+        { "const": "time", "title": "Time", "description": "Timers and periodic triggers." },
+        { "const": "device", "title": "Device", "description": "Drives or reads a device." },
+        { "const": "system", "title": "System", "description": "Talks to the system: events, stored actions, lifecycle." }
+      ]
+    },
+    "valueKind": {
+      "type": "string",
+      "enum": ["bool", "int", "float", "any", "object", "cell", "flow"],
+      "description": "What a wire carries. 'flow' is an execution wire (enable / gate), not a value. 'object' is a reference to an object of the program (a whole tree, not one number); the app owns the model. 'cell' is an element of a pointer object, a place a block hangs a tree it builds on (clone: Copy to)."
+    },
+    "constantKind": {
+      "type": "string",
+      "enum": ["enum", "number", "boolean", "string", "pin", "device", "accessor", "action", "event"],
+      "description": "enum: one of 'enum' group members or 'options'. number: with min/max/step/unit. pin: a pin of the selected device. device: a device. accessor: a reference to an object of the program (the app owns the model). action: a stored action of the project (a record of the action store); the app lists them by name and the wire carries its numeric id. event: an event the contracts of a device can raise (see 'device_field')."
+    },
+    "inputMode": {
+      "type": "string",
+      "enum": ["none", "optional", "required"],
+      "default": "none",
+      "description": "none: the value is set in the body only. optional: an input pin exists; when it is wired, the wire wins over the body value. required: the value always comes from the wire."
+    },
+    "option": {
+      "type": "object",
+      "required": ["value", "alias"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": ["integer", "string", "boolean"] },
+        "alias": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 }
+      }
+    },
+    "hint": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Advice for the user next to a value, optionally only in one mode. Not a validation: a range here is a suggestion for the editor (slider ends, placeholder).",
+      "properties": {
+        "text": { "type": "string", "minLength": 1 },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "unit": { "type": "string" },
+        "when": { "$ref": "#/$defs/condition", "description": "The hint applies only while this holds; without it, always." }
+      },
+      "anyOf": [{ "required": ["text"] }, { "required": ["min"] }, { "required": ["max"] }]
+    },
+    "condition": {
+      "description": "A test the app evaluates on what it knows statically: the body values, the variant, the selected device's config and whether an input is wired. Never on a value that arrives at run time.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["field"],
+          "additionalProperties": false,
+          "description": "A value of this block or of the selected device.",
+          "properties": {
+            "field": { "type": "string", "description": "A field id of this block, or 'device.<config id>' for a config value of the selected device." },
+            "equals": { "$ref": "#/$defs/scalar", "description": "The option value (an enum member's value or an option's value) the field must have." },
+            "in": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/scalar" }, "description": "The field has one of these values." },
+            "not": { "$ref": "#/$defs/scalar", "description": "The field has any value but this one." }
+          },
+          "oneOf": [{ "required": ["equals"] }, { "required": ["in"] }, { "required": ["not"] }]
+        },
+        {
+          "type": "object",
+          "required": ["wired"],
+          "additionalProperties": false,
+          "description": "Whether the input pin of a field is wired.",
+          "properties": {
+            "wired": { "$ref": "#/$defs/identifier", "description": "A field id with an input." },
+            "equals": { "type": "boolean", "default": true }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["variant"],
+          "additionalProperties": false,
+          "description": "The instance is one of these variants (for a hint on the mother block).",
+          "properties": {
+            "variant": { "oneOf": [{ "$ref": "#/$defs/identifier" }, { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/identifier" } }] }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["all"],
+          "additionalProperties": false,
+          "properties": { "all": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/condition" }, "description": "Every one holds." } }
+        },
+        {
+          "type": "object",
+          "required": ["any"],
+          "additionalProperties": false,
+          "properties": { "any": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/condition" }, "description": "At least one holds." } }
+        }
+      ]
+    },
+    "scalar": { "type": ["integer", "string", "boolean"] },
+    "accepts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/constantKind" },
+      "uniqueItems": true,
+      "minItems": 1,
+      "description": "What an input pin of the field can deliver, so the app offers the right wires and pickers (for example a level takes a number or an accessor)."
+    },
+    "valueSettings": {
+      "properties": {
+        "required": { "type": "boolean", "default": false, "description": "The block is invalid until the value is given (in the body or by a wire)." },
+        "fixed": { "type": ["integer", "number", "string", "boolean"], "description": "The value is hardcoded by the variant; the body does not show it and, with input 'none', it cannot be changed." },
+        "input": { "$ref": "#/$defs/inputMode" },
+        "accepts": { "$ref": "#/$defs/accepts" },
+        "hidden": { "type": "boolean", "default": false, "description": "Not shown in the body (a value that is only set by 'fixed' or by a wire)." },
+        "hints": { "type": "array", "items": { "$ref": "#/$defs/hint" } }
+      }
+    },
+    "field": {
+      "description": "A value the block keeps (a field of its C struct, or a core value). Its name is always an alias.",
+      "type": "object",
+      "required": ["id", "alias", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "alias": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "type": { "$ref": "#/$defs/constantKind" },
+        "enum": { "$ref": "#/$defs/identifier", "description": "For type 'enum': a group of generated/common/enums.json. Aliases come from there." },
+        "options": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/option" }, "description": "For type 'enum' without a published group: the choices, each with an alias." },
+        "default": { "type": ["integer", "number", "string", "boolean"] },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "step": { "type": "number" },
+        "unit": { "type": "string" },
+        "raw_type": { "type": "string", "enum": ["u8", "i8", "u16", "i16", "u32", "i32", "float", "bytes"], "description": "Wire type in the block's custom data, for the encoder." },
+        "size": { "type": "integer", "minimum": 1 },
+        "offset": { "type": "integer", "minimum": 0 },
+        "scale": { "type": "number", "description": "The wire value is the shown value times scale (a position in tenths of a degree has scale 10)." },
+        "any": { "type": "integer", "description": "The wire value that means 'every one' (a filter). The app offers an 'Any' choice that sends it." },
+        "device_field": { "$ref": "#/$defs/identifier", "description": "For type 'event' or 'pin': the id of a field of type 'device' of this block. The choices are those of the device picked there; picking another device puts this field back to 'Any'." },
+        "required": { "$ref": "#/$defs/valueSettings/properties/required" },
+        "fixed": { "$ref": "#/$defs/valueSettings/properties/fixed" },
+        "input": { "$ref": "#/$defs/inputMode" },
+        "accepts": { "$ref": "#/$defs/accepts" },
+        "hidden": { "$ref": "#/$defs/valueSettings/properties/hidden" },
+        "hints": { "$ref": "#/$defs/valueSettings/properties/hints" }
+      },
+      "allOf": [
+        { "if": { "properties": { "type": { "const": "enum" } }, "required": ["type"] }, "then": { "anyOf": [{ "required": ["enum"] }, { "required": ["options"] }] } }
+      ]
+    },
+    "argOverride": {
+      "type": "object",
+      "description": "How one argument of a contract command behaves in this variant. The argument's alias and type come from the contract.",
+      "additionalProperties": false,
+      "properties": {
+        "alias": { "type": "string", "minLength": 1, "description": "Replaces the contract's alias in this variant. Without it the contract's alias is shown, and without that the argument's id." },
+        "unit": { "type": "string", "description": "The unit the block shows and takes, when it is not the contract's (a drive in percent where the contract has steps)." },
+        "scale": { "type": "number", "description": "The wire value is the shown value times scale (a drive in percent is sent as steps: scale 40.95). Without it the shown value is the wire value." },
+        "required": { "$ref": "#/$defs/valueSettings/properties/required" },
+        "fixed": { "$ref": "#/$defs/valueSettings/properties/fixed" },
+        "input": { "$ref": "#/$defs/inputMode" },
+        "accepts": { "$ref": "#/$defs/accepts" },
+        "hidden": { "$ref": "#/$defs/valueSettings/properties/hidden" },
+        "hints": { "$ref": "#/$defs/valueSettings/properties/hints" }
+      }
+    },
+    "pin": {
+      "type": "object",
+      "required": ["id", "alias", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "alias": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "value": { "$ref": "#/$defs/valueKind" },
+        "required": { "type": "boolean", "default": false },
+        "flow": { "$ref": "#/$defs/conditionalFlow" },
+        "overrides": { "$ref": "#/$defs/identifier", "description": "An input pin only: the id of a field of the block that supplies the value while this pin is not wired (set: the constant stands in for the source). The app shows that field's value for the pin." },
+        "writes": { "type": "boolean", "default": false, "description": "An input pin only: the block writes the object this pin names, so the app offers only objects the program may write." },
+        "hints": { "type": "array", "items": { "$ref": "#/$defs/hint" } }
+      }
+    },
+    "conditionalFlow": {
+      "type": "string",
+      "const": "conditional",
+      "description": "An output that only one of its siblings fires (if: yes / no, switch: each case). The app outlines the blocks reachable from such outputs as one conditional group on the canvas."
+    },
+    "pinGroup": {
+      "type": "object",
+      "required": ["alias", "value", "min", "max"],
+      "additionalProperties": false,
+      "description": "A run of pins the user adds and removes (the inputs of an expression). Their labels are hidden; they are told apart by position.",
+      "properties": {
+        "alias": { "type": "string", "minLength": 1, "description": "Used in tooltips and in the pin menu; not drawn next to the pins when 'label' is 'hidden'." },
+        "description": { "type": "string", "minLength": 1 },
+        "value": { "$ref": "#/$defs/valueKind" },
+        "min": { "type": "integer", "minimum": 0 },
+        "max": { "type": "integer", "minimum": 1 },
+        "label": { "type": "string", "enum": ["shown", "hidden"], "default": "hidden" },
+        "required": { "type": "boolean", "default": false },
+        "flow": { "$ref": "#/$defs/conditionalFlow", "description": "Every pin of the run is such an output (switch: one per case)." }
+      }
+    },
+    "pinList": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/pin" },
+          { "type": "object", "required": ["group"], "additionalProperties": false, "properties": { "group": { "$ref": "#/$defs/pinGroup" } } }
+        ]
+      }
+    },
+    "variant": {
+      "type": "object",
+      "required": ["id", "alias"],
+      "additionalProperties": false,
+      "description": "A child of the mother block. With 'op' it runs a command of the block's contract; with 'fields' it owns values (a custom operation of a device).",
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "alias": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "op": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$", "description": "Id of a command of the contract in 'device.contract' (HBRIDGE: SET_DRIVE), or of the device in 'device.device_type' (drv8962: set_current_limit). Its arguments become the variant's values and its results output pins." },
+        "args": { "type": "object", "propertyNames": { "$ref": "#/$defs/argId" }, "additionalProperties": { "$ref": "#/$defs/argOverride" }, "description": "Per argument of 'op' (by the argument's id in the contract): fixed value, input mode, hidden, hints. An argument not listed behaves as the contract says, with input 'optional'." },
+        "fields": { "type": "array", "items": { "$ref": "#/$defs/field" }, "description": "The variant's own values (for a custom operation)." },
+        "activation": { "$ref": "#/$defs/activation" },
+        "header": { "$ref": "#/$defs/header" },
+        "body": { "$ref": "#/$defs/body" },
+        "inputs": { "$ref": "#/$defs/pinList" },
+        "outputs": { "$ref": "#/$defs/pinList" }
+      }
+    }
+  },
+  "examples": [
+    {
+      "schemaVersion": 3,
+      "kind": "vm-block",
+      "id": "io",
+      "wire_id": 32,
+      "alias": "IO pin",
+      "description": "Drives or reads a pin of a device: a level, a PWM duty or frequency, a voltage.",
+      "category": "device",
+      "order": 10,
+      "tags": ["gpio", "pin", "led"],
+      "integration": "contract",
+      "device": { "contract": "IO" },
+      "activation": { "kind": "enabled", "text": "Runs every pass while enabled: a setting is sent when it changes, an action once on each rising enable, a reading on every pass." },
+      "header": { "subtitle": "{variant} {pin}" },
+      "body": ["{device}"],
+      "variants": [
+        {
+          "id": "toggle",
+          "alias": "Toggle",
+          "description": "Flips the level of a pin once on each rising enable.",
+          "op": "TOGGLE",
+          "activation": { "kind": "enable-rising", "text": "Flips the pin once each time the block is enabled." },
+          "header": { "subtitle": "Toggle {pin}" }
+        },
+        {
+          "id": "on",
+          "alias": "On",
+          "description": "Drives a pin high.",
+          "op": "SET_LEVEL",
+          "args": { "level": { "fixed": 1, "hidden": true } },
+          "header": { "subtitle": "{pin} on" }
+        },
+        {
+          "id": "off",
+          "alias": "Off",
+          "description": "Drives a pin low.",
+          "op": "SET_LEVEL",
+          "args": { "level": { "fixed": 0, "hidden": true } },
+          "header": { "subtitle": "{pin} off" }
+        },
+        {
+          "id": "set_level",
+          "alias": "Set level",
+          "description": "Drives a pin high or low; a wired level wins over the one in the body.",
+          "op": "SET_LEVEL",
+          "args": { "pin": { "required": true }, "level": { "input": "optional", "accepts": ["number", "accessor"] } },
+          "header": { "subtitle": "{pin} = {level}" }
+        },
+        {
+          "id": "read_level",
+          "alias": "Read level",
+          "description": "Reads the level of a pin.",
+          "op": "GET_LEVEL",
+          "activation": { "kind": "enabled", "text": "Reads on every pass while enabled." },
+          "header": { "subtitle": "Read {pin}" }
+        }
+      ]
+    },
+    {
+      "schemaVersion": 3,
+      "kind": "vm-block",
+      "id": "if",
+      "wire_id": 3,
+      "alias": "If",
+      "description": "Two-way router: the yes output fires when the condition is non-zero, else the no output.",
+      "category": "flow",
+      "integration": "core",
+      "activation": { "kind": "enabled", "text": "Decides on every pass while enabled." },
+      "header": { "subtitle": "if {condition}" },
+      "inputs": [{ "id": "condition", "alias": "Condition", "value": "bool", "required": true }],
+      "outputs": [
+        { "id": "yes", "alias": "Yes", "value": "flow", "flow": "conditional", "required": true },
+        { "id": "no", "alias": "No", "value": "flow", "flow": "conditional", "required": true }
+      ]
+    },
+    {
+      "schemaVersion": 3,
+      "kind": "vm-block",
+      "id": "expr",
+      "wire_id": 1,
+      "alias": "Expression",
+      "description": "Evaluates a numeric or logical formula over its inputs; the result goes to the output.",
+      "category": "data",
+      "integration": "core",
+      "editor": "expression",
+      "activation": { "kind": "triggered", "text": "Runs when an input it reads is fresh, or when an enable fires." },
+      "body": ["{expression}"],
+      "inputs": [{ "group": { "alias": "Input", "description": "Read by the formula by position; only the inputs it names are read.", "value": "float", "min": 0, "max": 16, "label": "hidden" } }],
+      "outputs": [{ "id": "result", "alias": "Result", "value": "float", "required": true }]
+    },
+    {
+      "schemaVersion": 3,
+      "kind": "vm-block",
+      "id": "servo",
+      "wire_id": 39,
+      "alias": "Servo",
+      "description": "Moves a servo to a position, sends it home or lets it go limp.",
+      "category": "device",
+      "integration": "custom",
+      "device": { "device_type": "servo" },
+      "header": { "subtitle": "{variant} {device}" },
+      "variants": [
+        {
+          "id": "position",
+          "alias": "Position",
+          "description": "Moves the servo to a position.",
+          "activation": { "kind": "enabled", "text": "Sends the position whenever it changes while enabled." },
+          "header": { "subtitle": "Move to {position}" },
+          "body": ["{device}"],
+          "fields": [
+            {
+              "id": "position",
+              "alias": "Position",
+              "type": "number",
+              "raw_type": "i16",
+              "scale": 10,
+              "input": "optional",
+              "accepts": ["number", "accessor"],
+              "required": true,
+              "hints": [
+                { "text": "Angle servo: degrees", "min": -90, "max": 90, "unit": "deg", "when": { "all": [{ "field": "device.servo_type", "equals": 0 }, { "wired": "position", "equals": false }] } },
+                { "text": "Continuous servo: speed", "min": -100, "max": 100, "unit": "%", "when": { "field": "device.servo_type", "equals": 1 } }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "home",
+          "alias": "Home",
+          "description": "Moves the servo to its default position once on each rising enable.",
+          "activation": { "kind": "enable-rising", "text": "Moves home once each time the block is enabled." },
+          "header": { "subtitle": "Home" },
+          "body": ["{device}"]
+        },
+        {
+          "id": "trim",
+          "alias": "Trim",
+          "description": "Sets a correction added to every move.",
+          "header": { "subtitle": "Trim {trim}" },
+          "fields": [{ "id": "trim", "alias": "Trim", "type": "number", "raw_type": "i16", "unit": "deg", "default": 0 }]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,832 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runit.local/schema/device.schema.json",
+  "title": "runIT Clean Device Definition",
+  "description": "Czysty, deklaratywny schemat definicji urządzenia runIT. Zaprojektowany jako pojedyncze źródło prawdy (SSOT) dla aplikacji, canvasu oraz sterowników.",
+  "type": "object",
+  "required": [
+    "id",
+    "alias",
+    "description",
+    "protocols"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Ścieżka do schematu walidacji JSON."
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "default": 3,
+      "description": "Wersja schematu deskryptora urządzenia (3 dla czystego formatu deklaratywnego)."
+    },
+    "kind": {
+      "type": "string",
+      "const": "device-definition",
+      "default": "device-definition",
+      "description": "Typ dokumentu w systemie runIT: 'device-definition'."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Unikalny identyfikator układu/sterownika (np. 'pca9685', 'drv8962', 'servo').",
+      "examples": ["pca9685", "drv8962", "servo", "ina3221", "ads7128"]
+    },
+    "alias": {
+      "type": "string",
+      "description": "Czytelna nazwa wyświetlana w UI aplikacji (np. 'PCA9685 PWM expander').",
+      "examples": ["PCA9685 PWM expander", "DRV8962 quad H-bridge", "Servo"]
+    },
+    "description": {
+      "type": "string",
+      "description": "Zwięzły opis możliwości układu i sposobu jego użycia."
+    },
+    "protocols": {
+      "type": "array",
+      "description": "Protokoły/magistrale komunikacyjne używane przez układ.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "i2c",
+          "spi",
+          "uart",
+          "native",
+          "gpio",
+          "pwm",
+          "adc",
+          "dac",
+          "can",
+          "1wire",
+          "usb"
+        ]
+      },
+      "uniqueItems": true,
+      "examples": [["i2c"], ["pwm"], ["native", "gpio"]]
+    },
+    "tags": {
+      "type": "array",
+      "description": "Kategorie i tagi do wyszukiwania w palecie urządzeń.",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "examples": [["i2c", "pwm", "servo", "led"], ["power", "monitor", "voltage"]]
+    },
+    "datasheet": {
+      "type": "string",
+      "format": "uri",
+      "description": "Link URL do noty katalogowej producenta (PDF lub strona dokumentacji).",
+      "examples": ["https://www.nxp.com/docs/en/data-sheet/PCA9685.pdf"]
+    },
+    "type_id": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Numeryczny identyfikator typu urządzenia w firmware (np. 65 dla SYS_DEVICE_TYPE_PCA9685).",
+      "examples": [65, 70]
+    },
+    "type": {
+      "description": "Symbol typu C w firmware lub obiekt ze stałą i identyfikatorem.",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Symbol typu C w firmware (np. SYS_DEVICE_TYPE_PCA9685). Opcjonalny – wyliczany z ID urządzenia.",
+          "examples": ["SYS_DEVICE_TYPE_PCA9685", "SYS_DEVICE_TYPE_SERVO"]
+        },
+        {
+          "type": "object",
+          "required": ["symbol", "id"],
+          "properties": {
+            "symbol": { "type": "string" },
+            "id": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+
+    "bus": {
+      "$ref": "#/$defs/busSpec"
+    },
+
+    "config": {
+      "description": "Pola formularza instalacji urządzenia w aplikacji oraz struktury CREATE w C.",
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "Prosta lista pól formularza instalacji urządzenia.",
+          "items": {
+            "$ref": "#/$defs/field"
+          }
+        },
+        {
+          "type": "object",
+          "required": ["fields"],
+          "description": "Jawnie zdefiniowana struktura konfiguracyjna C (CREATE) dla sterownika.",
+          "properties": {
+            "struct": {
+              "type": "string",
+              "description": "Nazwa typu struktury C (np. 'pca9685_cfg_t')."
+            },
+            "size": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Rozmiar struktury C w bajtach."
+            },
+            "fields": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/field"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+
+    "presets": {
+      "type": "array",
+      "description": "Gotowe profile i presety konfiguracyjne dla popularnych wariantów sprzętowych (np. SG90 dla serwa, profil 50Hz vs 1kHz dla PCA9685).",
+      "items": {
+        "$ref": "#/$defs/preset"
+      }
+    },
+
+    "provides": {
+      "type": "object",
+      "description": "Zasoby sprzętowe udostępniane przez to urządzenie innym elementom na Canvasie.",
+      "properties": {
+        "pins": {
+          "$ref": "#/$defs/providedPins"
+        },
+        "power": {
+          "$ref": "#/$defs/providedPower"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "electrical": {
+      "type": "object",
+      "description": "Parametry elektryczne i limity zasilania urządzenia (dla sprawdzania poprawności połączeń DRC i bilansu mocy).",
+      "properties": {
+        "supply_voltage_mV": {
+          "type": "object",
+          "description": "Dopuszczalny zakres napięcia zasilania układu w mV.",
+          "properties": {
+            "min": { "type": "number", "description": "Minimalne napięcie pracy w mV (np. 3000 dla 3.0V)." },
+            "max": { "type": "number", "description": "Maksymalne dopuszczalne napięcie w mV (np. 5500 dla 5.5V)." },
+            "nominal": { "type": "number", "description": "Napięcie znamionowe w mV (np. 3300 lub 5000)." }
+          }
+        },
+        "logic_voltage_mV": {
+          "type": "number",
+          "description": "Poziom napięcia logiki I/O w mV (np. 3300 dla 3.3V, 5000 dla 5V)."
+        },
+        "max_current_mA": {
+          "type": "number",
+          "description": "Maksymalny pobór prądu przez urządzenie w mA."
+        },
+        "quiescent_current_uA": {
+          "type": "number",
+          "description": "Prąd spoczynkowy w uA (w trybie czuwania/sleep)."
+        },
+        "max_power_mW": {
+          "type": "number",
+          "description": "Maksymalna moc rozpraszana przez układ w mW."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "power_pins": {
+      "type": "array",
+      "description": "Terminale zasilania i masy układu (VCC, GND, VM, VIN, VBAT) do wizualizacji na Canvasie i sprawdzania poprawności zasilenia.",
+      "items": {
+        "$ref": "#/$defs/powerPin"
+      }
+    },
+
+    "contracts": {
+      "type": "array",
+      "description": "Standardowe kontrakty systemowe implementowane przez układ. Standardowe operacje są dziedziczone automatycznie.",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z][A-Za-z0-9_]*$"
+      },
+      "uniqueItems": true,
+      "examples": [["DEVICE", "IO"], ["DEVICE", "IO", "PINS"], ["DEVICE", "POWER_VREG"]]
+    },
+
+    "commands": {
+      "type": "array",
+      "description": "Polecenia i operacje sterownika (Live Operations, bloczki Canvas, RPC).",
+      "items": {
+        "$ref": "#/$defs/command"
+      }
+    },
+    "actions": {
+      "type": "array",
+      "description": "Alias dla 'commands' (zgodność wsteczna).",
+      "items": {
+        "$ref": "#/$defs/command"
+      }
+    },
+
+    "diagnostics": {
+      "type": "array",
+      "description": "Flagi diagnostyczne i stan zdrowia układu (błędy termiczne, zwarcia, przeciążenia, podnapięcia).",
+      "items": {
+        "$ref": "#/$defs/diagnosticFlag"
+      }
+    },
+
+    "events": {
+      "type": "array",
+      "description": "Zdarzenia asynchroniczne emitowane przez urządzenie (np. alarmy, przerwania, błędy).",
+      "items": {
+        "$ref": "#/$defs/event"
+      }
+    },
+
+    "values": {
+      "type": "object",
+      "description": "Dynamiczne interpretacje wartości zależne od konfiguracji (np. kąt vs prędkość serwa w zależności od trybu).",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/dynamicValueVariant"
+        }
+      }
+    },
+
+    "guide": {
+      "type": "string",
+      "description": "Nazwa pliku z instrukcją Markdown (np. 'device_pca9685.md') lub bezpośredni tekst poradnika."
+    }
+  },
+
+  "$defs": {
+    "field": {
+      "type": "object",
+      "required": ["id", "type", "label"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unikalny identyfikator parametru (klucz w konfiguracji, np. 'i2c_bus', 'oe_pin')."
+        },
+        "label": {
+          "type": "string",
+          "description": "Czytelna etykieta wyświetlana użytkownikowi w formularzu UI."
+        },
+        "description": {
+          "type": "string",
+          "description": "Pomocniczy opis pola / podpowiedź."
+        },
+        "type": {
+          "type": "string",
+          "description": "Typ pola formularza. 'pin' tworzy selektor pinu innego urządzenia, 'device' tworzy selektor instancji innego urządzenia.",
+          "enum": [
+            "pin",
+            "device",
+            "enum",
+            "choice",
+            "number",
+            "boolean",
+            "string"
+          ]
+        },
+        "raw_type": {
+          "type": "string",
+          "description": "Niski binarny typ danych w strukturze C (np. 'u8', 'u16', 'float'). Kluczowy dla generatora struktur C i koderów binarnych.",
+          "enum": [
+            "u8",
+            "i8",
+            "u16",
+            "i16",
+            "u32",
+            "i32",
+            "u64",
+            "i64",
+            "float",
+            "double",
+            "bytes",
+            "string"
+          ]
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Rozmiar pola w bajtach w strukturze C (opcjonalny, wyliczany automatycznie z raw_type)."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Offset bajtowy pola w strukturze C."
+        },
+        "pin_ref": {
+          "type": "boolean",
+          "default": false,
+          "description": "Czy pole jest referencją do pinu innego urządzenia (w C struktura sys_io_pin_t)."
+        },
+
+        "requires": {
+          "type": "string",
+          "enum": ["input", "input_pullup", "input_pulldown", "output", "output_od", "pwm", "adc", "dac"],
+          "description": "Dla type='pin': tryb wymagany od pinu nadrzędnego urządzenia (używany do automatycznego filtrowania listy pinów w UI)."
+        },
+        "role": {
+          "type": "string",
+          "description": "Dla type='pin': funkcjonalna rola pinu w sterowniku (używana do autowiringu i etykietowania na Canvasie).",
+          "examples": ["enable", "direction", "pwm_in", "fault", "sleep", "current_sense", "interrupt", "reset", "chip_select"]
+        },
+        "requires_contract": {
+          "type": "string",
+          "description": "Dla type='device': kontrakt wymagany od wybieranego urządzenia (np. 'POWER_VREG', 'IO'). Filtruje listę urządzeń w UI.",
+          "examples": ["POWER_VREG", "POWER_MONITOR", "IO"]
+        },
+        "optional": {
+          "type": "boolean",
+          "default": false,
+          "description": "Dla type='pin' lub 'device': czy wybór jest opcjonalny (użytkownik może zostawić niepodłączone)."
+        },
+        "voltage_mV_max": {
+          "type": "number",
+          "description": "Dla type='pin': maksymalne dopuszczalne napięcie na wejściu w mV (np. 3300 dla wejścia ADC ESP32)."
+        },
+        "max_current_mA": {
+          "type": "number",
+          "description": "Dla type='pin': maksymalny spodziewany lub dopuszczalny prąd w mA."
+        },
+
+        "enum": {
+          "type": "string",
+          "description": "Dla type='enum': nazwa grupy enumów z data-structures/enums.json (np. 'sys_i2c_bus_e', 'servo_type_e').",
+          "examples": ["sys_i2c_bus_e", "board_device", "servo_type_e"]
+        },
+
+        "options": {
+          "type": "array",
+          "description": "Dla type='choice': lista dostępnych opcji do wyboru w UI.",
+          "items": {
+            "type": "object",
+            "required": ["label", "value"],
+            "properties": {
+              "label": { "type": "string", "description": "Tekst wyświetlany w liście" },
+              "value": { "type": "number", "description": "Wartość liczbowa przesyłana do sterownika" }
+            }
+          }
+        },
+
+        "min": {
+          "type": "number",
+          "description": "Dla type='number': minimalna dozwolona wartość."
+        },
+        "max": {
+          "type": "number",
+          "description": "Dla type='number': maksymalna dozwolona wartość."
+        },
+        "step": {
+          "type": "number",
+          "description": "Dla type='number': krok wartości."
+        },
+        "unit": {
+          "type": "string",
+          "description": "Jednostka fizyczna wartości (np. 'Hz', 'us', 'deg', 'mV', 'mA', '%', 'V').",
+          "examples": ["Hz", "us", "ms", "deg", "mV", "mA", "V", "A", "%"]
+        },
+
+        "default": {
+          "description": "Domyślna wartość pola."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "providedPins": {
+      "type": "object",
+      "required": ["count", "modes"],
+      "description": "Piny udostępniane przez układ dla innych urządzeń na Canvasie.",
+      "properties": {
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Liczba dostępnych pinów/kanałów (np. 16 dla PCA9685, 24 dla TCA6424A)."
+        },
+        "modes": {
+          "type": "array",
+          "description": "Wspierane tryby pracy pinów (np. ['pwm', 'output']).",
+          "items": {
+            "type": "string",
+            "enum": ["input", "input_pullup", "input_pulldown", "output", "output_od", "pwm", "adc", "dac", "interrupt"]
+          },
+          "uniqueItems": true
+        },
+        "labels": {
+          "type": "array",
+          "description": "Opcjonalne etykiety poszczególnych pinów (np. ['CH0', 'CH1', ...]).",
+          "items": { "type": "string" }
+        },
+        "shared_frequency": {
+          "type": "boolean",
+          "default": false,
+          "description": "Czy wszystkie piny PWM dzielą jedną wspólną częstotliwość (jak w PCA9685)."
+        },
+        "map": {
+          "type": "object",
+          "description": "Opcjonalna mapa przypisania trybów do konkretnych numerów pinów (np. {'adc': [1, 2, 3, 4], 'dac': [17, 18]}). Gdy brak, wszystkie piny wspierają tryby z 'modes'.",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "integer" }
+          }
+        },
+        "electrical": {
+          "type": "object",
+          "description": "Parametry i limity elektryczne wystawianych pinów.",
+          "properties": {
+            "voltage_mV_min": { "type": "number", "default": 0, "description": "Minimalne dopuszczalne napięcie na pinie w mV." },
+            "voltage_mV_max": { "type": "number", "description": "Maksymalne dopuszczalne napięcie na pinie w mV (np. 3300 dla 3.3V, 5000 dla 5V)." },
+            "max_current_mA": { "type": "number", "description": "Maksymalny prąd na pojedynczy pin w mA (source / sink)." },
+            "max_total_current_mA": { "type": "number", "description": "Maksymalny łączny prąd dla wszystkich pinów układu w mA." },
+            "five_volt_tolerant": { "type": "boolean", "default": false, "description": "Czy piny wejściowe tolerują 5V przy zasilaniu 3.3V." }
+          },
+          "additionalProperties": false
+        },
+        "roles": {
+          "type": "object",
+          "description": "Funkcjonalne role przypisane do poszczególnych pinów wyjściowych (np. {'0': 'motor_pos', '1': 'motor_neg'} dla mostka H lub {'0': 'out1', '1': 'out2'}).",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "powerPin": {
+      "type": "object",
+      "required": ["name", "kind"],
+      "description": "Terminal zasilania lub masy układu (meta-pin).",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Oznaczenie terminala (np. 'VCC', 'GND', 'VM', 'VDD', 'AGND')."
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["vcc", "gnd", "vin", "vbat", "vref", "nc"],
+          "description": "Typ zasilania: vcc (zasilanie logiki), gnd (masa), vin (zasilanie główne/silników), vbat (bateria), vref (napięcie odniesienia)."
+        },
+        "voltage_mV": {
+          "type": "object",
+          "description": "Wymagany zakres napięcia dla tego terminala w mV.",
+          "properties": {
+            "min": { "type": "number" },
+            "max": { "type": "number" },
+            "nominal": { "type": "number" }
+          }
+        },
+        "fixed_to": {
+          "type": "string",
+          "description": "Jeśli pin jest już na stałe połączony na płycie PCB z konkretną szyną (np. '3.3V', '5.0V', 'GND', 'Rail_A')."
+        },
+        "optional": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "providedPower": {
+      "type": "array",
+      "description": "Linie zasilania udostępniane przez układ (np. stabilizator, przetwornica, mux).",
+      "items": {
+        "type": "object",
+        "required": ["rail"],
+        "properties": {
+          "rail": {
+            "type": "string",
+            "description": "Nazwa linii zasilania (np. 'VOUT', 'Rail A')."
+          },
+          "voltage_mV": {
+            "type": "integer",
+            "description": "Napięcie nominalne w mV."
+          },
+          "max_current_mA": {
+            "type": "integer",
+            "description": "Maksymalny prąd wyjściowy w mA."
+          }
+        }
+      }
+    },
+
+    "command": {
+      "type": "object",
+      "required": ["id", "label"],
+      "description": "Polecenie / operacja sterownika urządzenia (RPC).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unikalny identyfikator polecenia (np. 'reset', 'set_level', 'home', 'set_trim')."
+        },
+        "op": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Numeryczny kod operacji specyficznej dla sterownika w firmware (np. 0, 1)."
+        },
+        "urgent": {
+          "type": "boolean",
+          "default": false,
+          "description": "Czy polecenie ma priorytet natychmiastowy."
+        },
+        "label": {
+          "type": "string",
+          "description": "Czytelna nazwa polecenia (np. 'Reset', 'Ustaw trymer', 'Odczytaj impuls')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Opis działania polecenia."
+        },
+        "symbol": {
+          "type": "string",
+          "description": "Opcjonalny symbol stałej C w firmware (np. 'SERVO_OP_HOME', 'SERVO_OP_SET_TRIM')."
+        },
+        "pin_scoped": {
+          "type": "boolean",
+          "default": false,
+          "description": "Czy polecenie dotyczy konkretnego pinu/kanału (np. ustawienie poziomu wybranego pinu)."
+        },
+        "args": {
+          "description": "Parametry wejściowe przekazywane do polecenia (prosta lista pól lub obiekt ze strukturą C).",
+          "oneOf": [
+            {
+              "type": "array",
+              "description": "Prosta lista parametrów wejściowych.",
+              "items": {
+                "$ref": "#/$defs/field"
+              }
+            },
+            {
+              "type": "object",
+              "required": ["fields"],
+              "description": "Jawnie nazwana struktura argumentów w C.",
+              "properties": {
+                "struct": {
+                  "type": "string",
+                  "description": "Nazwa typu struktury C (np. 'servo_trim_t', 'servo_set_t')."
+                },
+                "fields": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/field"
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "returns": {
+          "description": "Format wartości zwracanej z urządzenia (pojedyncza wartość lub struktura z polami).",
+          "oneOf": [
+            {
+              "type": "object",
+              "description": "Pojedyncza wartość skalarowa.",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["u8", "u16", "u32", "i8", "i16", "i32", "float", "boolean", "string", "number"],
+                  "description": "Typ danych zwracanej wartości."
+                },
+                "unit": {
+                  "type": "string",
+                  "description": "Jednostka fizyczna wartości (np. 'us', 'mV', 'mA', 'deg')."
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Etykieta zwracanej wartości."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Opis zwracanego wyniku."
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": ["fields"],
+              "description": "Złożona struktura odpowiedzi zawierająca wiele pól pomiarowych.",
+              "properties": {
+                "struct": {
+                  "type": "string",
+                  "description": "Nazwa typu struktury C (np. 'power_telemetry_t')."
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Etykieta zbiorcza odpowiedzi."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Opis zwracanego rekordu."
+                },
+                "fields": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/field"
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "event": {
+      "type": "object",
+      "required": ["id", "label"],
+      "description": "Zdarzenie asynchroniczne emitowane przez urządzenie.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identyfikator zdarzenia (np. 'alert', 'fault', 'ovp', 'ocp')."
+        },
+        "label": {
+          "type": "string",
+          "description": "Nazwa zdarzenia wyświetlana w logach i na wykresach."
+        },
+        "description": {
+          "type": "string",
+          "description": "Opis przyczyny zdarzenia."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "dynamicValueVariant": {
+      "type": "object",
+      "required": ["title", "when"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Nazwa wariantu wartości (np. 'Kąt', 'Prędkość', 'Bajt')."
+        },
+        "when": {
+          "type": "array",
+          "description": "Warunki aktywacji tego wariantu.",
+          "items": {
+            "type": "object",
+            "required": ["field", "value"],
+            "properties": {
+              "field": { "type": "string" },
+              "value": {}
+            }
+          }
+        },
+        "unit": { "type": "string" },
+        "min": { "type": "number" },
+        "max": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+
+    "busSpec": {
+      "type": "object",
+      "description": "Szczegółowa konfiguracja parametrów magistrali komunikacyjnej.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["i2c", "spi", "uart", "can", "1wire", "native"]
+        },
+        "i2c": {
+          "type": "object",
+          "description": "Parametry magistrali I2C.",
+          "properties": {
+            "default_addr": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 127,
+              "description": "Domyślny adres I2C 7-bitowy (np. 64 dla 0x40)."
+            },
+            "address_range": {
+              "type": "object",
+              "properties": {
+                "min": { "type": "integer" },
+                "max": { "type": "integer" }
+              }
+            },
+            "address_pins": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Nazwy pinów konfiguracji adresu na obudowie (np. ['A0', 'A1', 'A2'])."
+            },
+            "max_speed_khz": {
+              "type": "integer",
+              "enum": [100, 400, 1000, 3400],
+              "default": 400,
+              "description": "Maksymalna częstotliwość zegara I2C w kHz."
+            }
+          },
+          "additionalProperties": false
+        },
+        "spi": {
+          "type": "object",
+          "description": "Parametry magistrali SPI.",
+          "properties": {
+            "mode": {
+              "type": "integer",
+              "enum": [0, 1, 2, 3],
+              "default": 0,
+              "description": "Tryb SPI (CPOL/CPHA): 0, 1, 2 lub 3."
+            },
+            "max_speed_hz": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maksymalna częstotliwość zegara SCK w Hz (np. 10000000 dla 10 MHz)."
+            },
+            "bit_order": {
+              "type": "string",
+              "enum": ["msb_first", "lsb_first"],
+              "default": "msb_first"
+            }
+          },
+          "additionalProperties": false
+        },
+        "uart": {
+          "type": "object",
+          "description": "Parametry magistrali UART.",
+          "properties": {
+            "baudrate_default": { "type": "integer", "default": 115200 },
+            "baudrates_supported": {
+              "type": "array",
+              "items": { "type": "integer" }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "preset": {
+      "type": "object",
+      "required": ["id", "label", "values"],
+      "description": "Profil konfiguracyjny (preset).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identyfikator presetu (np. 'sg90', 'continuous_360', 'led_pwm')."
+        },
+        "label": {
+          "type": "string",
+          "description": "Nazwa wyświetlana w UI (np. 'Micro Servo (SG90)')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Opis wariantu sprzętowego."
+        },
+        "values": {
+          "type": "object",
+          "description": "Wstępnie skonfigurowane wartości pól z sekcji 'config'.",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "diagnosticFlag": {
+      "type": "object",
+      "required": ["id", "label"],
+      "description": "Flaga błędu lub stanu diagnostycznego urządzenia.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identyfikator flagi (np. 'otw', 'ots', 'ocp', 'uvlo', 'open_load')."
+        },
+        "label": {
+          "type": "string",
+          "description": "Czytelna nazwa błędu/stanu (np. 'Przegrzanie (OTW)', 'Zwarcie (OCP)')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Szczegółowy opis przyczyny i skutków."
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["info", "warning", "error", "critical"],
+          "default": "error",
+          "description": "Waga błędu dla wskaźników w UI."
+        },
+        "bit": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Numer bitu w rejestrze diagnostycznym."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

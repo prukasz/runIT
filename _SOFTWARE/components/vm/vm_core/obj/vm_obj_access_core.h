@@ -51,9 +51,9 @@ typedef struct vm_accessor_t vm_accessor_t;
 
 //#ref-enum @alias VM Index Kind
 typedef enum vm_index_kind_e {
-  VM_IDX_LITERAL = 0,  //@alias Literal Index @description A fixed array position.
-  VM_IDX_REF     = 1,  //@alias Accessor Reference @description Read another accessor to obtain the index.
-  VM_IDX_NAME    = 2,  //@alias Child Name @description Find a child object by its tag.
+  VM_IDX_LITERAL = 0,  //@alias Literal Index @description Literal index: a fixed array position
+  VM_IDX_REF     = 1,  //@alias Accessor Reference @description Accessor reference: read another accessor to obtain the index
+  VM_IDX_NAME    = 2,  //@alias Child Name @description Child name: find a child object by its tag
 } vm_index_kind_e;
 
 /** @brief String representation of accessor index kind for debugging. */

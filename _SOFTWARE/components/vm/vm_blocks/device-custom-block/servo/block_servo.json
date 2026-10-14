@@ -1,0 +1,110 @@
+{
+  "$schema": "../../../../../templates/vm-block.schema.json",
+  "schemaVersion": 3,
+  "kind": "vm-block",
+  "id": "servo",
+  "wire_id": 39,
+  "alias": "Servo",
+  "description": "Moves a servo to a position, sends it home or lets it go limp.",
+  "category": "device",
+  "order": 20,
+  "tags": ["servo", "motion", "pwm"],
+  "integration": "custom",
+  "device": { "device_type": "servo" },
+  "activation": {
+    "kind": "enabled",
+    "text": "Runs every pass while enabled: a position is sent when it changes, home and release once on each rising enable."
+  },
+  "header": { "subtitle": "{variant} {device}" },
+  "body": ["{device}", "Disabled: {idle}"],
+  "fields": [
+    {
+      "id": "idle",
+      "alias": "When disabled",
+      "description": "What the block does once when it stops being enabled.",
+      "type": "enum",
+      "options": [
+        { "value": 0, "alias": "Hold", "description": "Leave the servo where it is." },
+        { "value": 65280, "alias": "Go home", "description": "Move to the default position." },
+        { "value": 65284, "alias": "Release", "description": "Stop the pulse so the servo goes limp." }
+      ],
+      "default": 0
+    }
+  ],
+  "variants": [
+    {
+      "id": "position",
+      "alias": "Position",
+      "description": "Moves the servo to a position. The position is sent only when it changes.",
+      "header": { "subtitle": "Move to {position}" },
+      "fields": [
+        {
+          "id": "position",
+          "alias": "Position",
+          "description": "Where to move; a wired position wins over the one in the body. The device rejects a value out of its range.",
+          "type": "number",
+          "raw_type": "i16",
+          "scale": 10,
+          "required": true,
+          "input": "optional",
+          "accepts": ["number", "accessor"],
+          "hints": [
+            {
+              "text": "Angle servo: degrees within the servo's angle limits",
+              "unit": "deg",
+              "when": { "all": [{ "field": "device.servo_type", "equals": 0 }, { "field": "device.byte_mode", "equals": 0 }] }
+            },
+            {
+              "text": "Continuous servo: speed, negative is reverse",
+              "min": -100,
+              "max": 100,
+              "unit": "%",
+              "when": { "all": [{ "field": "device.servo_type", "equals": 1 }, { "field": "device.byte_mode", "equals": 0 }] }
+            },
+            {
+              "text": "Byte mode: the whole range as a byte",
+              "min": 0,
+              "max": 255,
+              "when": { "field": "device.byte_mode", "equals": 1 }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "home",
+      "alias": "Home",
+      "description": "Moves the servo to its default position (plus the trim) once on each rising enable.",
+      "activation": { "kind": "enable-rising", "text": "Moves home once each time the block is enabled." },
+      "header": { "subtitle": "Home {device}" }
+    },
+    {
+      "id": "release",
+      "alias": "Release",
+      "description": "Stops the pulse so the servo goes limp, once on each rising enable. The next position or home drives it again.",
+      "activation": { "kind": "enable-rising", "text": "Releases the servo once each time the block is enabled." },
+      "header": { "subtitle": "Release {device}" }
+    },
+    {
+      "id": "trim",
+      "alias": "Trim",
+      "description": "Sets a correction added to every move; it applies from the next move.",
+      "header": { "subtitle": "Trim {trim}" },
+      "fields": [
+        {
+          "id": "trim",
+          "alias": "Trim",
+          "type": "number",
+          "raw_type": "i16",
+          "input": "optional",
+          "accepts": ["number", "accessor"],
+          "default": 0,
+          "hints": [
+            { "text": "Angle servo: degrees", "unit": "deg", "when": { "field": "device.servo_type", "equals": 0 } },
+            { "text": "Continuous servo: pulse width", "unit": "us", "when": { "field": "device.servo_type", "equals": 1 } }
+          ]
+        }
+      ]
+    }
+  ]
+}

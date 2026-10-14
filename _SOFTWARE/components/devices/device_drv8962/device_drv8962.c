@@ -521,11 +521,9 @@ static const sys_device_op_t k_ops[] = {
     HBRIDGE_ENTRY(COAST),
     HBRIDGE_ENTRY(GET_CURRENT),
     EVENT_ENTRY(ON_EVENT),
-    //@op DRV8962_OP_SET_CURRENT_LIMIT @alias Set current limit @description The chopping current limit of a channel; VREF follows the largest
+    /* Device own ops */
     {DRV8962_OP_SET_CURRENT_LIMIT, set_current_limit_h},
-    //@op DRV8962_OP_CLEAR_FAULT @alias Clear fault @description Clears the chip's fault latches with an nSLEEP reset pulse; the channel brakes
     {DRV8962_OP_CLEAR_FAULT, clear_fault_h},
-    //@op DRV8962_OP_GET_FAULT @alias Read fault @description Whether a channel has a fault, and why @returns drv8962_fault_t
     {DRV8962_OP_GET_FAULT, get_fault_h},
 };
 

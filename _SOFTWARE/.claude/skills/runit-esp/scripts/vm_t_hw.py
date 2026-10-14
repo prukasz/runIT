@@ -73,7 +73,6 @@ SHAPES = [
     ("POWER_VREG", 10, [(0x0500, 1, 0), (0x0501, 1, 0), (0x0502, 1, 0)]),
     ("POWER_SUPPLY", 7, [(0x0800, 1, 0)]),
     ("POWER_USB_PD", 13, [(0x0700, 2, 0), (0x0702, 0, 2)]),
-    ("LIFECYCLE", 0xFFFF, [(0x0001, 0, 0), (0x0002, 0, 0), (0x0003, 0, 0)]),
     ("SERVO", 20, [(0xFF02, 1, 0), (0xFF00, 0, 0), (0xFF04, 0, 0), (0xFF01, 1, 0)]),
     ("DRV8962", 5, [(0xFF00, 2, 0), (0xFF01, 1, 0), (0xFF02, 1, 2)]),
     ("TPS55289", 10, [(0xFF01, 4, 0), (0xFF02, 0, 4)]),
@@ -106,15 +105,10 @@ def t_dev_shape(vm: Vm) -> None:
         check(f"{btype}: an operation that is not in its table -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
         r = one_block(vm, btype, dev_state(dev, ops[0][0]), ops[0][1], ops[0][2], ens=2)
         check(f"{btype}: enables are allowed", r is None, str(r))
-        if btype != "LIFECYCLE":
-            r = one_block(vm, btype, dev_state(0xFFFF, ops[0][0]), ops[0][1], ops[0][2])
-            check(f"{btype}: device 0xFFFF (every device) is for lifecycle blocks only -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
+        r = one_block(vm, btype, dev_state(0xFFFF, ops[0][0]), ops[0][1], ops[0][2])
+        check(f"{btype}: device 0xFFFF (no device) -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
         r = one_block(vm, btype, dev_state(dev, ops[0][0])[:50], ops[0][1], ops[0][2])
         check(f"{btype}: a state shorter than 56 bytes -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
-    r = one_block(vm, "LIFECYCLE", dev_state(0xFFFF, 0x0002), 0, 0)
-    check("LIFECYCLE on every device (0xFFFF) loads", r is None, str(r))
-    r = one_block(vm, "LIFECYCLE", dev_state(0xFFFF, 0x0002), 1, 0)
-    check("LIFECYCLE takes no input", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
 
     # the idle operation
     r = one_block(vm, "IO", dev_state(GPIO_ID, IO_SET_LEVEL, idle_op=IO_SET_LEVEL, idle_k=(1,)), 2, 0)

@@ -219,15 +219,11 @@ static err_h create(void* ctx, const void* cfg_in) {
 
 static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY(RESET),
-    //@op SERVO_OP_HOME @alias Home @description Moves the servo to its default position (plus the trim)
+    /* Device own ops */
     {SERVO_OP_HOME, home_h},
-    //@op SERVO_OP_SET_TRIM @alias Set trim @description A correction added to every move
     {SERVO_OP_SET_TRIM, set_trim_h},
-    //@op SERVO_OP_SET @alias Move @description Moves the servo to a position
     {SERVO_OP_SET, set_h},
-    //@op SERVO_OP_GET_PULSE @alias Read pulse @description The pulse last sent; 0 when the servo is not driven @returns u16 @returns-alias Pulse @unit us
     {SERVO_OP_GET_PULSE, get_pulse_h},
-    //@op SERVO_OP_RELEASE @alias Release @description Stops the pulse so the servo goes limp; the next move drives it again
     {SERVO_OP_RELEASE, release_h},
 };
 

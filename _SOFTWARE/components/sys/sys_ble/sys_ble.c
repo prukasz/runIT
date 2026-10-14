@@ -684,6 +684,33 @@ void sys_ble_on_subscribe(uint16_t attr_handle, bool subscribed) {
   }
 }
 
+err_h sys_ble_table_visit(sys_ble_visit_f fn, void* ctx) {
+  ERR_CHECK(fn != NULL, ERR_BLE_BAD_ARG);
+  err_h err = NULL;
+  BLE_LOCK();
+  sys_ble_svc_node_t* s;
+  LL_FOREACH(g_ble.services, s) {
+    if (s->removing) {
+      continue;
+    }
+    err = fn(ctx, &s->cfg, s->locked, NULL);
+    sys_ble_char_node_t* c;
+    LL_FOREACH(s->chars, c) {
+      if (err != NULL) {
+        break;
+      }
+      if (!c->pending_remove) {
+        err = fn(ctx, &s->cfg, s->locked, &c->cfg);
+      }
+    }
+    if (err != NULL) {
+      break;
+    }
+  }
+  BLE_UNLOCK();
+  return err;
+}
+
 err_h sys_ble_get_status(sys_ble_status_t* out) {
   ERR_CHECK(out != NULL, ERR_BLE_BAD_ARG);
   BLE_LOCK();

@@ -25,15 +25,6 @@
  *  (the device's record); the block is for a program that changes the protection while it runs.
  */
 
-//#block VM_BLK_TPS55289
-//@alias TPS55289
-//@category device
-//@description The regulator's own protection settings.
-//@activation enabled
-//@when Runs every pass while enabled: the protection is sent when it changes, a reading on every pass.
-//@face {op} {device_id}
-//@device-type device_tps55289
-//@data vm_block_device_data_t
 /* Load-time check of the block's state and shape; the body, called every pass. */
 bool vm_verify_tps55289(vm_block_h b);
 void vm_blk_tps55289(vm_block_h b);

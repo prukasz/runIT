@@ -1,0 +1,126 @@
+{
+  "$schema": "../../../templates/device.schema.json",
+  "schemaVersion": 3,
+  "kind": "device-definition",
+  "id": "ina3221",
+  "alias": "INA3221 power monitor",
+  "description": "Three-channel I2C bus-voltage and shunt-current monitor with warning and critical alerts.",
+  "type_id": 68,
+  "type": {
+    "symbol": "SYS_DEVICE_TYPE_INA3221",
+    "id": 68
+  },
+  "protocols": [
+    "i2c"
+  ],
+  "tags": [
+    "i2c",
+    "power",
+    "voltage",
+    "current",
+    "monitor",
+    "alert",
+    "ic"
+  ],
+  "datasheet": "https://www.ti.com/lit/ds/symlink/ina3221.pdf",
+  "config": {
+    "struct": "ina3221_cfg_t",
+    "size": 9,
+    "fields": [
+      {
+        "id": "i2c_bus",
+        "label": "I2C bus",
+        "description": "The I2C bus the chip is on",
+        "offset": 0,
+        "size": 1,
+        "type": "enum",
+        "enum": "sys_i2c_bus_e",
+        "raw_type": "u8"
+      },
+      {
+        "id": "i2c_addr",
+        "label": "I2C address",
+        "description": "The A0 pin strap (GND, Vs+, SDA or SCL) selects one of four addresses",
+        "offset": 1,
+        "size": 1,
+        "type": "number",
+        "raw_type": "u8"
+      },
+      {
+        "id": "crit_pin",
+        "label": "Critical alert",
+        "description": "Open-drain, active-low; needs CONFIGURE_INTR on its device",
+        "offset": 2,
+        "size": 3,
+        "type": "pin",
+        "raw_type": "bytes",
+        "pin_ref": true,
+        "requires": "output",
+        "optional": true
+      },
+      {
+        "id": "warn_pin",
+        "label": "Warning alert",
+        "description": "Open-drain, active-low; needs CONFIGURE_INTR on its device",
+        "offset": 5,
+        "size": 3,
+        "type": "pin",
+        "raw_type": "bytes",
+        "pin_ref": true,
+        "requires": "output",
+        "optional": true
+      },
+      {
+        "id": "inverted_mask",
+        "label": "Reversed shunts",
+        "description": "Bit N set: channel N's shunt is wired reversed, its current reads negative",
+        "offset": 8,
+        "size": 1,
+        "type": "number",
+        "raw_type": "u8",
+        "default": 0,
+        "min": 0,
+        "max": 7
+      }
+    ]
+  },
+  "contracts": [
+    "DEVICE",
+    "POWER_MONITOR"
+  ],
+  "bus": {
+    "type": "i2c",
+    "i2c": {
+      "default_addr": 64,
+      "address_range": {
+        "min": 64,
+        "max": 67
+      },
+      "max_speed_khz": 1000
+    }
+  },
+  "power_pins": [
+    {
+      "name": "VS",
+      "kind": "vcc",
+      "voltage_mV": {
+        "min": 2700,
+        "max": 5500,
+        "nominal": 3300
+      }
+    },
+    {
+      "name": "GND",
+      "kind": "gnd"
+    }
+  ],
+  "electrical": {
+    "supply_voltage_mV": {
+      "min": 2700,
+      "max": 5500,
+      "nominal": 3300
+    },
+    "logic_voltage_mV": 3300,
+    "max_current_mA": 1
+  }
+}

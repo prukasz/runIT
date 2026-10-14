@@ -23,15 +23,6 @@
  *  COAST (0 = hold what the bridge has) is sent once when the enable falls, for the channel last driven.
  */
 
-//#block VM_BLK_HBRIDGE
-//@alias H-bridge
-//@category device
-//@description Drives a motor channel of a motor driver, brakes or coasts it, and reads its current.
-//@activation enabled
-//@when Runs every pass while enabled: a drive is sent when it changes, brake and coast once on each rising enable, a reading on every pass.
-//@face {op} {device_id}
-//@contract HBRIDGE
-//@data vm_block_device_data_t
 /* Load-time check of the block's state and shape; the body, called every pass. */
 bool vm_verify_hbridge(vm_block_h b);
 void vm_blk_hbridge(vm_block_h b);

@@ -1,0 +1,134 @@
+{
+  "$schema": "../../../templates/device.schema.json",
+  "schemaVersion": 3,
+  "kind": "device-definition",
+  "id": "tca6424a",
+  "alias": "TCA6424A GPIO expander",
+  "description": "24-bit I2C GPIO expander: adds extra digital input/output pins over I2C.",
+  "type_id": 66,
+  "type": {
+    "symbol": "SYS_DEVICE_TYPE_TCA6424A",
+    "id": 66
+  },
+  "protocols": [
+    "i2c"
+  ],
+  "tags": [
+    "i2c",
+    "gpio",
+    "io",
+    "expander"
+  ],
+  "datasheet": "https://www.ti.com/lit/ds/symlink/tca6424a.pdf",
+  "config": {
+    "struct": "tca6424a_cfg_t",
+    "size": 8,
+    "fields": [
+      {
+        "id": "i2c_bus",
+        "label": "I2C bus",
+        "description": "The I2C bus the chip is on",
+        "offset": 0,
+        "size": 1,
+        "type": "enum",
+        "enum": "sys_i2c_bus_e",
+        "raw_type": "u8"
+      },
+      {
+        "id": "i2c_addr",
+        "label": "I2C address",
+        "description": "ADDR low selects 0x22, high 0x23",
+        "offset": 1,
+        "size": 1,
+        "type": "number",
+        "raw_type": "u8"
+      },
+      {
+        "id": "intr_pin",
+        "label": "INT",
+        "description": "Open-drain, active-low: an input changed; needs CONFIGURE_INTR on its device",
+        "offset": 2,
+        "size": 3,
+        "type": "pin",
+        "raw_type": "bytes",
+        "pin_ref": true,
+        "requires": "output",
+        "optional": true
+      },
+      {
+        "id": "rst_pin",
+        "label": "RESET",
+        "description": "Active-low; suspending the device holds the chip in reset",
+        "offset": 5,
+        "size": 3,
+        "type": "pin",
+        "raw_type": "bytes",
+        "pin_ref": true,
+        "requires": "output",
+        "optional": true
+      }
+    ]
+  },
+  "contracts": [
+    "DEVICE",
+    "IO",
+    "PINS"
+  ],
+  "bus": {
+    "type": "i2c",
+    "i2c": {
+      "default_addr": 34,
+      "address_range": {
+        "min": 34,
+        "max": 35
+      },
+      "address_pins": [
+        "ADDR"
+      ],
+      "max_speed_khz": 400
+    }
+  },
+  "provides": {
+    "pins": {
+      "count": 24,
+      "modes": [
+        "input",
+        "input_pullup",
+        "output"
+      ],
+      "labels": [
+        "P00", "P01", "P02", "P03", "P04", "P05", "P06", "P07",
+        "P10", "P11", "P12", "P13", "P14", "P15", "P16", "P17",
+        "P20", "P21", "P22", "P23", "P24", "P25", "P26", "P27"
+      ],
+      "electrical": {
+        "voltage_mV_min": 0,
+        "voltage_mV_max": 5500,
+        "max_current_mA": 25
+      }
+    }
+  },
+  "power_pins": [
+    {
+      "name": "VCC",
+      "kind": "vcc",
+      "voltage_mV": {
+        "min": 1650,
+        "max": 5500,
+        "nominal": 3300
+      }
+    },
+    {
+      "name": "GND",
+      "kind": "gnd"
+    }
+  ],
+  "electrical": {
+    "supply_voltage_mV": {
+      "min": 1650,
+      "max": 5500,
+      "nominal": 3300
+    },
+    "logic_voltage_mV": 3300
+  }
+}

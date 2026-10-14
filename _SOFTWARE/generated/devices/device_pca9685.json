@@ -1,0 +1,174 @@
+{
+  "$schema": "../../templates/device.schema.json",
+  "schemaVersion": 3,
+  "kind": "device-definition",
+  "id": "pca9685",
+  "alias": "PCA9685 PWM expander",
+  "description": "Sixteen-channel I2C PWM expander with optional active-low output enable.",
+  "type_id": 65,
+  "type": {
+    "symbol": "SYS_DEVICE_TYPE_PCA9685",
+    "id": 65
+  },
+  "protocols": [
+    "i2c"
+  ],
+  "tags": [
+    "i2c",
+    "pwm",
+    "gpio",
+    "servo",
+    "led",
+    "ic"
+  ],
+  "datasheet": "https://www.nxp.com/docs/en/data-sheet/PCA9685.pdf",
+  "bus": {
+    "type": "i2c",
+    "i2c": {
+      "default_addr": 64,
+      "address_range": {
+        "min": 64,
+        "max": 119
+      },
+      "address_pins": [
+        "A0",
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5"
+      ],
+      "max_speed_khz": 1000
+    }
+  },
+  "config": {
+    "struct": "pca9685_cfg_t",
+    "size": 5,
+    "fields": [
+      {
+        "id": "i2c_bus",
+        "label": "I2C bus",
+        "description": "The I2C bus the chip is on",
+        "type": "enum",
+        "enum": "sys_i2c_bus_e",
+        "raw_type": "u8",
+        "size": 1,
+        "offset": 0,
+        "default": 0
+      },
+      {
+        "id": "i2c_addr",
+        "label": "I2C address",
+        "description": "Address pins A0-A5 select the address (0x40 - 0x77); 0x70 is All Call and 0x78 to 0x7F are reserved",
+        "type": "number",
+        "raw_type": "u8",
+        "size": 1,
+        "offset": 1,
+        "default": 64,
+        "min": 64,
+        "max": 119
+      },
+      {
+        "id": "oe_pin",
+        "label": "Output enable",
+        "description": "Active-low; leave unwired when the board has no OE control",
+        "type": "pin",
+        "raw_type": "bytes",
+        "size": 3,
+        "offset": 2,
+        "pin_ref": true,
+        "requires": "output",
+        "optional": true
+      }
+    ]
+  },
+  "contracts": [
+    "DEVICE",
+    "IO",
+    "PINS"
+  ],
+  "provides": {
+    "pins": {
+      "count": 16,
+      "modes": [
+        "pwm",
+        "output"
+      ],
+      "labels": [
+        "CH0",
+        "CH1",
+        "CH2",
+        "CH3",
+        "CH4",
+        "CH5",
+        "CH6",
+        "CH7",
+        "CH8",
+        "CH9",
+        "CH10",
+        "CH11",
+        "CH12",
+        "CH13",
+        "CH14",
+        "CH15"
+      ],
+      "shared_frequency": true,
+      "electrical": {
+        "voltage_mV_min": 0,
+        "voltage_mV_max": 5500,
+        "max_current_mA": 25,
+        "five_volt_tolerant": true
+      }
+    }
+  },
+  "power_pins": [
+    {
+      "name": "VDD",
+      "kind": "vcc",
+      "voltage_mV": {
+        "min": 2300,
+        "max": 5500,
+        "nominal": 3300
+      }
+    },
+    {
+      "name": "GND",
+      "kind": "gnd"
+    }
+  ],
+  "electrical": {
+    "supply_voltage_mV": {
+      "min": 2300,
+      "max": 5500,
+      "nominal": 3300
+    },
+    "logic_voltage_mV": 3300,
+    "max_current_mA": 10
+  },
+  "presets": [
+    {
+      "id": "servo_50hz",
+      "label": "RC Servos (50 Hz)",
+      "description": "Standard 50 Hz PWM frequency for analogue and digital RC servos",
+      "values": {
+        "frequency_Hz": 50
+      }
+    },
+    {
+      "id": "led_1khz",
+      "label": "LED Dimming (1 kHz)",
+      "description": "Flicker-free 1 kHz PWM for LEDs and backlight",
+      "values": {
+        "frequency_Hz": 1000
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "id": "i2c_nack",
+      "label": "I2C Communication Failure",
+      "description": "Device did not acknowledge transaction on configured I2C address.",
+      "severity": "critical"
+    }
+  ]
+}

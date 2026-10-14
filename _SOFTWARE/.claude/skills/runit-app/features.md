@@ -271,7 +271,7 @@ Firmware semantics this rests on: `components/VM/VM_EXEC.MD` §1 and `vm_block_i
 
 **Decisions asked of the owner:** (1) variables as pin labels (recommended) or canvas nodes; (2) automatic order from wires (recommended) or manual; (3) EN + ENO on every block (recommended). **Firmware (G-11):** triggered blocks never run on an enable alone; proposed fix: a fresh enable source counts as a trigger.
 
-### 8.1 Decided 2026-09-28 (owner's notes `wire.md` + answers); built the same day
+### 8.1 Decided 2026-09-28 (owner's notes + answers); built the same day
 
 Built: `domain/canvas/arrange.ts` (order, explicit gates, loop bodies), `wiring.ts`, `variablePath.ts`; canvas wires, pin picker, chips, block details, areas (runit-app SKILL.md code map). Firmware G-11 fixed, not yet tested on a board.
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { PaletteSearch } from '../components/PaletteSearch'
+import { bestMatch, matchesSearch, PaletteSearch } from '../components/PaletteSearch'
 import { PaletteSectionHeader } from '../components/PaletteSectionHeader'
 import { TreeSlab } from '../components/TreeSlab'
 import { BLOCKS } from '../backend/vm/blocks'
@@ -22,10 +22,13 @@ const blocks: readonly BlockDescriptor[] = [...BLOCKS.values()].sort((a, b) => a
 
 const OP_KIND = { change: 'A setting: sent when it changes.', edge: 'An action: sent once each time the enable turns on.', read: 'A reading: asked every pass, the values go to the outputs.' } as const
 
-const matches = (query: string, block: BlockDescriptor): boolean => {
-  const q = query.trim().toLowerCase()
-  return !q || [block.alias, block.name, block.category, block.description].some((text) => text.toLowerCase().includes(q))
-}
+/** A block is listed when its name matches (the search of the variables palette) or, for a device block, one of its operations. */
+const blockMatches = (query: string, block: BlockDescriptor): boolean =>
+  !query.trim() || matchesSearch(block.alias, query) || matchesSearch(block.name, query) || !!block.ops?.some((op) => matchesSearch(op.alias, query))
+
+/** The operations of a device block listed under it: all when the block itself matches, else those that match. */
+const opsShown = (query: string, block: BlockDescriptor) =>
+  !query.trim() || matchesSearch(block.alias, query) || matchesSearch(block.name, query) ? block.ops ?? [] : (block.ops ?? []).filter((op) => matchesSearch(op.alias, query))
 
 export function BlockPalette({ selected, onSelect, onDragType }: {
   /** The picked entry, as `encodePlacement` words it (`EXPR`, `SERVO#65282`). */
@@ -53,12 +56,17 @@ export function BlockPalette({ selected, onSelect, onDragType }: {
     return next
   })
 
+  // Every entry a search can pick, in display order: the best one is highlighted and Enter picks it.
+  const entries = categories.flatMap((category) => blocks.filter((block) => block.category === category && blockMatches(query, block)).flatMap((block) =>
+    block.ops ? opsShown(query, block).map((op) => ({ placement: encodePlacement(typeKeyOf(block), op.value), names: [op.alias, block.alias] })) : [{ placement: encodePlacement(typeKeyOf(block)), names: [block.alias, block.name] }]))
+  const best = query.trim() ? bestMatch(entries, (entry) => entry.names, query)?.placement : undefined
+
   return (
     <div className="block-palette">
-      <PaletteSearch value={query} onChange={setQuery} placeholder="Search blocks..." label="Search blocks" />
+      <PaletteSearch value={query} onChange={setQuery} placeholder="Search blocks..." label="Search blocks" onEnter={() => best && onSelect(best)} />
       <div className="block-palette-scroll" role="list" aria-label="Blocks">
         {categories.map((category) => {
-          const found = blocks.filter((block) => block.category === category && matches(query, block))
+          const found = blocks.filter((block) => block.category === category && blockMatches(query, block))
           if (!found.length) return null
           const open = !collapsed.has(category) || !!query
           return (
@@ -73,6 +81,7 @@ export function BlockPalette({ selected, onSelect, onDragType }: {
                       role="listitem"
                       className={`block-palette-item cat-${block.category}`}
                       selected={selected === key}
+                      isMatch={best === encodePlacement(key)}
                       draggable
                       title={block.description}
                       ariaLabel={block.alias}
@@ -107,13 +116,14 @@ export function BlockPalette({ selected, onSelect, onDragType }: {
                     />
                     {folderOpen && (
                       <div className="block-palette-ops">
-                        {block.ops.map((op) => (
+                        {opsShown(query, block).map((op) => (
                           <TreeSlab
                             key={op.symbol}
                             role="listitem"
                             className={`block-palette-item block-palette-op cat-${block.category}`}
                             draggable
                             selected={selected === encodePlacement(key, op.value)}
+                            isMatch={best === encodePlacement(key, op.value)}
                             title={`${op.description}\n\n${OP_KIND[op.kind]}`}
                             ariaLabel={`${block.alias}: ${op.alias}`}
                             icon={<span className={`block-palette-op-kind is-${op.kind}`} aria-hidden="true" />}

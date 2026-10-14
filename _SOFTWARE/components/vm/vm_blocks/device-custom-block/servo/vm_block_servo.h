@@ -26,15 +26,6 @@
  *  where it is, sent once when the block is not enabled.
  */
 
-//#block VM_BLK_SERVO
-//@alias Servo
-//@category device
-//@description Moves a servo to a position, sends it home or lets it go limp.
-//@activation enabled
-//@when Runs every pass while enabled: a position is sent when it changes, home and release once on each rising enable.
-//@face {op} {device_id}
-//@device-type device_servo
-//@data vm_block_device_data_t
 /* Load-time check of the block's state and shape; the body, called every pass. */
 bool vm_verify_servo(vm_block_h b);
 void vm_blk_servo(vm_block_h b);

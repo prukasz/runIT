@@ -15,18 +15,10 @@
  *  source schema, then refills values without allocation on subsequent passes.
  */
 
-/* Pins, by index: VM_IN_<BLOCK>_<PIN> / VM_OUT_<BLOCK>_<PIN>. Each member's tags: @alias (the name a user sees), @value, ... (vm-block-annotations.md).
-   An unwired pin uses the state field it @overrides. */
 typedef enum vm_in_clone_e {
-  VM_IN_CLONE_SOURCE = 0,  //@alias Copy from @value object @required
-  VM_IN_CLONE_CELL,  //@alias Copy to @value ptr-cell @required @user-write
+  VM_IN_CLONE_SOURCE = 0,
+  VM_IN_CLONE_CELL,
 } vm_in_clone_e;
 
-//#block VM_BLK_CLONE
-//@alias Clone
-//@category data
-//@description Copies the source into a tree this block owns, hung off a pointer cell; rebuilds only when the source's shape changes.
-//@activation triggered
-//@when Runs when the source (the first input) is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled.
 /* The body, called every pass. */
 void vm_blk_clone(vm_block_h b);

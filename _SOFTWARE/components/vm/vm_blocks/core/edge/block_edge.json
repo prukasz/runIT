@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../../../templates/vm-block.schema.json",
+  "schemaVersion": 3,
+  "kind": "vm-block",
+  "id": "edge",
+  "wire_id": 8,
+  "alias": "Edge",
+  "description": "Pulses its output for one pass when the signal on its enable rises, falls or changes in either direction.",
+  "category": "logic",
+  "order": 10,
+  "tags": ["pulse", "rising", "falling", "trigger", "change", "detect"],
+  "integration": "core",
+  "activation": { "kind": "enabled", "text": "Samples the enable on every pass, including the passes when it is off. The first sample only sets the starting level." },
+  "enable": {
+    "alias": "Signal",
+    "description": "The signal watched for edges. Connect a signal to the enable so Edge can detect its changes.",
+    "required": true
+  },
+  "eno": {
+    "alias": "Pulse",
+    "description": "A one-pass pulse when the chosen edge occurs."
+  },
+  "header": { "subtitle": "{edge_type} edge" },
+  "body": ["{edge_type}"],
+  "fields": [
+    {
+      "id": "edge_type",
+      "alias": "Edge",
+      "description": "Which change of the signal makes the block pulse its output.",
+      "type": "enum",
+      "options": [
+        { "value": 0, "alias": "Rising", "description": "The signal changes from false to true." },
+        { "value": 1, "alias": "Falling", "description": "The signal changes from true to false." },
+        { "value": 2, "alias": "Both", "description": "The signal changes in either direction." }
+      ],
+      "default": 0,
+      "raw_type": "u8",
+      "offset": 0,
+      "size": 1
+    }
+  ]
+}

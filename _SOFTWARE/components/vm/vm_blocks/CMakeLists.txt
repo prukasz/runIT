@@ -15,7 +15,6 @@ idf_component_register(
          "device-contract/io/vm_block_io.c" "device-contract/hbridge/vm_block_hbridge.c"
          "device-contract/power_monitor/vm_block_power_monitor.c" "device-contract/power_vreg/vm_block_power_vreg.c"
          "device-contract/power_supply/vm_block_power_supply.c" "device-contract/power_usb_pd/vm_block_power_usb_pd.c"
-         "device-contract/lifecycle/vm_block_lifecycle.c"
          "device-custom-block/servo/vm_block_servo.c" "device-custom-block/drv8962/vm_block_drv8962.c"
          "device-custom-block/tps55289/vm_block_tps55289.c"
     INCLUDE_DIRS "core/expr_core" "core/branch_core"
@@ -23,7 +22,6 @@ idf_component_register(
                  "core/on_event" "core/edge" "core/timer" "core/latch" "core/periodic"
                  "device-contract" "device-contract/io" "device-contract/hbridge" "device-contract/power_monitor"
                  "device-contract/power_vreg" "device-contract/power_supply" "device-contract/power_usb_pd"
-                 "device-contract/lifecycle"
                  "device-custom-block/servo" "device-custom-block/drv8962" "device-custom-block/tps55289"
     REQUIRES vm_core errors utils sys_event sys_device sys_io sys_hbridge sys_power device_servo device_drv8962
              device_tps55289

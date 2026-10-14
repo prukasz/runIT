@@ -18,28 +18,28 @@ extern "C" {
 
 //#ref-enum @alias USB-PD Option Type
 typedef enum {
-  SYS_POWER_USB_PD_OPTION_FIXED = 0,  //@alias Fixed @description A fixed voltage.
-  SYS_POWER_USB_PD_OPTION_PPS = 1,  //@alias PPS @description Programmable voltage within a range (standard power range, up to 21 V).
-  SYS_POWER_USB_PD_OPTION_AVS = 2,  //@alias AVS @description Adjustable voltage within a range (extended power range, up to 28 V).
+  SYS_POWER_USB_PD_OPTION_FIXED = 0,  //@alias Fixed @description Fixed voltage supply PDO
+  SYS_POWER_USB_PD_OPTION_PPS = 1,  //@alias PPS @description Programmable Power Supply PDO
+  SYS_POWER_USB_PD_OPTION_AVS = 2,  //@alias AVS @description Adjustable Voltage Supply PDO
 } sys_power_usb_pd_option_type_e;
 
 /** @brief One power option the source offers: the LIST_OPTIONS answer is an array of these. */
 typedef struct __attribute__((packed)) {
-  uint8_t slot;  //@alias Slot @description The source's offer number, from 1
-  uint8_t type;  //@alias Type @enum-ref sys_power_usb_pd_option_type_e
-  uint16_t min_mV;  //@alias Lowest voltage @description Equal to the highest for a fixed offer @unit mV
-  uint16_t max_mV;  //@alias Highest voltage @unit mV
-  uint16_t max_mA;  //@alias Current limit @unit mA
+  uint8_t slot;       /**< 1-based offer index from source */
+  uint8_t type;       /**< sys_power_usb_pd_option_type_e */
+  uint16_t min_mV;    /**< Minimum output voltage in mV */
+  uint16_t max_mV;    /**< Maximum output voltage in mV */
+  uint16_t max_mA;    /**< Maximum current in mA */
 } sys_power_usb_pd_option_t;
 
 typedef struct __attribute__((packed)) {
-  uint32_t voltage_mV;  //@alias Voltage @description The voltage to ask the source for @unit mV
-  uint32_t current_mA;  //@alias Current @description The current to ask for @unit mA
+  uint32_t voltage_mV;  /**< Requested voltage in mV */
+  uint32_t current_mA;  /**< Requested current in mA */
 } pd_settings_args_t;
 
 typedef struct __attribute__((packed)) {
-  int32_t voltage_mV;  //@alias Voltage @description The highest-voltage offer @unit mV
-  int32_t current_mA;  //@alias Current @description Its current @unit mA
+  int32_t voltage_mV;  /**< Highest-voltage offer in mV */
+  int32_t current_mA;  /**< Offered current in mA */
 } sys_power_usb_pd_limits_t;
 
 /**
@@ -48,9 +48,9 @@ typedef struct __attribute__((packed)) {
  */
 // clang-format off
 #define SYS_POWER_USB_PD_CONTRACT(X) \
-  X(SET_SETTINGS, 0x00, pd_settings_args_t)  /* @alias Request @description Asks the source for a voltage and a current. */ \
-  X(LIST_OPTIONS, 0x01, sys_device_none_t)  /* @alias List offers @description Every offer of the source (empty slots left out). @returns sys_power_usb_pd_option_t[] @returns-alias Offers */ \
-  X(GET_LIMITS, 0x02, sys_device_none_t)  /* @alias Read offer @description The highest-voltage offer of the source. @returns sys_power_usb_pd_limits_t */
+  X(SET_SETTINGS, 0x00, pd_settings_args_t) \
+  X(LIST_OPTIONS, 0x01, sys_device_none_t) \
+  X(GET_LIMITS, 0x02, sys_device_none_t)
 // clang-format on
 
 #define SYS_POWER_USB_PD__ID(name, n, args_t) PD_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_USB_PD, n),

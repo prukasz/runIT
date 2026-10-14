@@ -25,30 +25,18 @@
 #define VM_ACTION_F_PREV_EN (1u << 0)
 
 typedef struct __attribute__((aligned(4))) {
-  uint32_t action_id;  //@alias Action @description The record to run, used when the Action id input is unwired. @min 1 @id action
-  uint8_t flags;  //@description VM_ACTION_F_* @runtime
+  uint32_t action_id;  // The record to run, used when the Action id input is unwired.
+  uint8_t flags;
   uint8_t _pad[3];
 } vm_block_action_data_t;
 
 _Static_assert(sizeof(vm_block_action_data_t) == 8, "vm_block_action_data_t must be 8 bytes");
 #define VM_ACTION_CUSTOM_LEN sizeof(vm_block_action_data_t)
 
-/* Pins, by index: VM_IN_<BLOCK>_<PIN> / VM_OUT_<BLOCK>_<PIN>. Each member's tags: @alias (the name a user sees), @value, ... (vm-block-annotations.md).
-   An unwired pin uses the state field it @overrides. */
 typedef enum vm_in_action_e {
-  VM_IN_ACTION_ID = 0,  //@alias Action id @description The record to run; overrides the Action setting. @value u32 @overrides action_id
+  VM_IN_ACTION_ID = 0,  // The record to run; overrides the Action setting.
 } vm_in_action_e;
 
-//#block VM_BLK_ACTION
-//@alias Run Action
-//@category system
-//@description Runs a stored action (a record of the action store) once per rising edge of its enable; the action runs outside the program pass.
-//@activation enable-rising
-//@when Runs once each time its enable turns on.
-//@face {title} | {action_id}
-//@loop once
-//@data vm_block_action_data_t
-//@rule With the id input unwired, action_id is not 0. @error ERR_VM_BLK_BAD_SHAPE
 /* Load-time check of the block's state; the pin shape comes from the pin enums above. */
 bool vm_verify_action(vm_block_h b);
 /* The body, called every pass. */

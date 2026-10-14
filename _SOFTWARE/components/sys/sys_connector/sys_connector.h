@@ -28,27 +28,27 @@ extern "C" {
  */
 //#ref-enum @alias Transport
 typedef enum {
-  TRANSPORT_UART = 1,  //@alias Serial @description The console UART
-  TRANSPORT_BLE = 2,  //@alias Bluetooth LE @description The BLE link
+  TRANSPORT_UART = 1,  //@alias Serial @description Serial console UART
+  TRANSPORT_BLE = 2,  //@alias Bluetooth LE @description Bluetooth Low Energy
 } transport_e;
 
 //#ref-enum @alias Data Stream
 typedef enum {
-  SYS_CONNECTOR_LOGS = 0,  //@alias Logs @description The firmware's log lines
-  SYS_CONNECTOR_ERRORS = 1,  //@alias Errors @description Error records: every reported error chain
-  SYS_CONNECTOR_TELEMETRY = 2,  //@alias Telemetry @description Values the program's subscriptions send
-  SYS_CONNECTOR_EVENTS = 3,  //@alias Events @description Events that matter to the user (faults, alerts)
-  SYS_CONNECTOR_APP_BASE = 4,  //@alias First user stream @description User streams start here
+  SYS_CONNECTOR_LOGS = 0,  //@alias Logs @description System log stream
+  SYS_CONNECTOR_ERRORS = 1,  //@alias Errors @description Error records stream
+  SYS_CONNECTOR_TELEMETRY = 2,  //@alias Telemetry @description Telemetry stream
+  SYS_CONNECTOR_EVENTS = 3,  //@alias Events @description Events stream
+  SYS_CONNECTOR_APP_BASE = 4,  //@alias First user stream @description First user stream ID
 } sys_connector_id_e;
 
 /* First byte of every frame the board sends. RESPONSE is the router's answers (CONFIG_ROUTER_RESPONSE_STREAM), the rest are the
    system connectors. */
 //#ref-defines stream_byte @alias Stream Bytes @prefix SYS_CONNECTOR_STREAM_
-#define SYS_CONNECTOR_STREAM_TELEMETRY 0x02u  //@alias Telemetry @description Values the program's subscriptions send
-#define SYS_CONNECTOR_STREAM_LOGS 0x03u  //@alias Logs @description Log lines, one per frame
-#define SYS_CONNECTOR_STREAM_ERRORS 0x04u  //@alias Errors @description Error records of every reported error chain
-#define SYS_CONNECTOR_STREAM_RESPONSE CONFIG_ROUTER_RESPONSE_STREAM  //@alias Response @description The router's answer to a command
-#define SYS_CONNECTOR_STREAM_EVENTS 0x06u  //@alias Events @description Events that matter to the user (faults, alerts)
+#define SYS_CONNECTOR_STREAM_TELEMETRY 0x02u  //@alias Telemetry @description Telemetry frame stream byte
+#define SYS_CONNECTOR_STREAM_LOGS 0x03u  //@alias Logs @description Log frame stream byte
+#define SYS_CONNECTOR_STREAM_ERRORS 0x04u  //@alias Errors @description Error record stream byte
+#define SYS_CONNECTOR_STREAM_RESPONSE CONFIG_ROUTER_RESPONSE_STREAM  //@alias Response @description Command response stream byte
+#define SYS_CONNECTOR_STREAM_EVENTS 0x06u  //@alias Events @description Event notification stream byte
 
 #define SYS_CONNECTOR_NAME_MAX 16u  // including the NUL
 

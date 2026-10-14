@@ -1,4 +1,4 @@
-import { wiresOf } from '../domain/canvas'
+import { CHIP_HEIGHT, CHIP_WIDTH, freeChipFor, wiresOf } from '../domain/canvas'
 import type { CanvasBlock, Point, ProjectCanvas, Wire, WireSource, WireTarget } from '../domain/canvas'
 import { pinAnchor } from '../blocks/blockModel'
 import type { BlockShape } from '../blocks/blockModel'
@@ -46,13 +46,49 @@ const wireClass = (wire: Wire): string => (wire.from.pin === 'eno' ? 'is-eno' : 
 
 export const wireKey = (wire: Wire): string => `${wire.from.block}:${wire.from.pin}>${wire.to.block}:${wire.to.kind}${'index' in wire.to ? wire.to.index : ''}:${wire.enableIndex ?? ''}`
 
-export function CanvasWires({ canvas, shapeOf, selected, draft, onSelect }: {
+/** The wires between free chips and the pins reading or writing their path: a chip feeds an input or EN, an output feeds a chip. */
+interface ChipWire {
+  readonly key: string
+  readonly target: WireTarget
+  readonly d: string
+  readonly gate: boolean
+}
+
+const chipWires = (canvas: ProjectCanvas, shapeOf: (block: CanvasBlock) => BlockShape): ChipWire[] =>
+  canvas.blocks.flatMap((block) => {
+    const shape = shapeOf(block)
+    const wires: ChipWire[] = []
+    const out = (chip: { x: number; y: number }): Point => ({ x: chip.x + CHIP_WIDTH, y: chip.y + CHIP_HEIGHT / 2 })
+    const into = (chip: { x: number; y: number }): Point => ({ x: chip.x, y: chip.y + CHIP_HEIGHT / 2 })
+    block.inputs?.forEach((path, index) => {
+      const chip = path && freeChipFor(canvas, path)
+      if (chip) wires.push({ key: `${block.id}:in${index}`, target: { block: block.id, kind: 'in', index }, d: curve(out(chip), pinAnchor(block, shape, { side: 'in', index })), gate: false })
+    })
+    block.enables?.forEach((path, index) => {
+      const chip = freeChipFor(canvas, path)
+      if (chip) wires.push({ key: `${block.id}:en${index}`, target: { block: block.id, kind: 'en', index }, d: curve(out(chip), pinAnchor(block, shape, 'en')), gate: true })
+    })
+    block.outputs?.forEach((root, index) => {
+      const chip = root ? freeChipFor(canvas, { root }) : undefined
+      if (chip) wires.push({ key: `${block.id}:out${index}`, target: { block: block.id, kind: 'out', index }, d: curve(pinAnchor(block, shape, { side: 'out', index }), into(chip)), gate: false })
+    })
+    return wires
+  })
+
+const sameTarget = (a: WireTarget | undefined, b: WireTarget): boolean => !!a && a.block === b.block && a.kind === b.kind && ('index' in a ? a.index : -1) === ('index' in b ? b.index : -1)
+
+export function CanvasWires({ canvas, shapeOf, selected, draft, chipDraft, selectedPin, onSelect, onSelectPin }: {
   canvas: ProjectCanvas
   shapeOf: (block: CanvasBlock) => BlockShape
   selected?: Wire
   /** A wire being dragged: from its source pin to the pointer. */
   draft?: { from: WireSource; to: Point }
+  /** A wire being dragged from a free chip. */
+  chipDraft?: { from: Point; to: Point }
+  /** The pin whose wire to a free chip is selected. */
+  selectedPin?: WireTarget
   onSelect: (wire: Wire) => void
+  onSelectPin: (target: WireTarget) => void
 }) {
   const blocks = new Map(canvas.blocks.map((block) => [block.id, block]))
   const selectedKey = selected && wireKey(selected)
@@ -94,6 +130,13 @@ export function CanvasWires({ canvas, shapeOf, selected, draft, onSelect }: {
           </g>
         )
       })}
+      {chipWires(canvas, shapeOf).map((wire) => (
+        <g key={wire.key} className={`canvas-wire ${wire.gate ? 'is-gate' : ''} ${sameTarget(selectedPin, wire.target) ? 'is-selected' : ''}`}>
+          <path className="canvas-wire-hit" d={wire.d} onPointerDown={(event) => { event.stopPropagation(); onSelectPin(wire.target) }} />
+          <path className="canvas-wire-line is-variable" d={wire.d} markerEnd="url(#canvas-arrow)" />
+        </g>
+      ))}
+      {chipDraft && <path className="canvas-wire-draft" d={curve(chipDraft.from, chipDraft.to)} />}
       {draft && draftFrom && <path className="canvas-wire-draft" d={curve(draftFrom, draft.to)} />}
     </svg>
   )

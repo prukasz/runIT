@@ -1,0 +1,290 @@
+{
+  "$schema": "../../../templates/device.schema.json",
+  "schemaVersion": 3,
+  "kind": "device-definition",
+  "id": "drv8962",
+  "alias": "DRV8962 motor driver",
+  "description": "Dual full-bridge (or four half-bridge) motor driver controlled through the PWM and GPIO pins of other devices, with current sensing and a fault input.",
+  "type_id": 73,
+  "type": {
+    "symbol": "SYS_DEVICE_TYPE_DRV8962",
+    "id": 73
+  },
+  "protocols": [
+    "pwm"
+  ],
+  "tags": [
+    "motor",
+    "driver",
+    "h-bridge",
+    "pwm"
+  ],
+  "datasheet": "https://www.ti.com/lit/ds/symlink/drv8962.pdf",
+  "config": {
+    "struct": "drv8962_cfg_t",
+    "size": 83,
+    "fields": [
+      {
+        "id": "topology",
+        "label": "Topology",
+        "description": "How the four half bridges are used",
+        "offset": 0,
+        "size": 1,
+        "type": "enum",
+        "enum": "drv8962_topology_e",
+        "raw_type": "u8",
+        "default": 0
+      },
+      {
+        "id": "pin",
+        "label": "Pins",
+        "description": "Every signal of the chip is a pin of another device",
+        "offset": 1,
+        "size": 45,
+        "type": "pin",
+        "raw_type": "bytes",
+        "pin_ref": true,
+        "requires": "output",
+        "optional": true
+      },
+      {
+        "id": "pwm_freq_Hz",
+        "label": "PWM frequency",
+        "description": "0 selects 20 kHz; a PCA9685 channel takes at most 1526 Hz",
+        "offset": 46,
+        "size": 4,
+        "type": "number",
+        "raw_type": "u32",
+        "default": 20000,
+        "unit": "Hz",
+        "min": 0,
+        "max": 100000
+      },
+      {
+        "id": "ripropi_ohms",
+        "label": "IPROPI resistor",
+        "description": "The current-sense resistor of each half bridge; 0 selects 3090",
+        "offset": 50,
+        "size": 16,
+        "type": "number",
+        "raw_type": "u32",
+        "unit": "ohm",
+        "min": 0,
+        "max": 100000
+      },
+      {
+        "id": "current_limit_mA",
+        "label": "Current limit",
+        "description": "Per channel; 0 means no limit",
+        "offset": 66,
+        "size": 16,
+        "type": "number",
+        "raw_type": "u32",
+        "unit": "mA",
+        "min": 0,
+        "max": 10000
+      },
+      {
+        "id": "turn_off_at_ocp",
+        "label": "Brake on over-current",
+        "description": "A channel over its limit is braked",
+        "offset": 82,
+        "size": 1,
+        "type": "choice",
+        "raw_type": "u8",
+        "options": [
+          {
+            "label": "No",
+            "value": 0
+          },
+          {
+            "label": "Yes",
+            "value": 1
+          }
+        ],
+        "default": 1
+      }
+    ]
+  },
+  "contracts": [
+    "DEVICE",
+    "HBRIDGE"
+  ],
+  "commands": [
+    {
+      "id": "set_current_limit",
+      "op": 0,
+      "symbol": "DRV8962_OP_SET_CURRENT_LIMIT",
+      "label": "Set current limit",
+      "description": "Sets the chopping current limit of a channel; VREF follows the largest",
+      "pin_scoped": true,
+      "args": {
+        "struct": "drv8962_limit_t",
+        "fields": [
+          {
+            "id": "channel",
+            "label": "Channel",
+            "description": "Motor channel index (0 to 3)",
+            "type": "number",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "min": 0,
+            "max": 3
+          },
+          {
+            "id": "limit_mA",
+            "label": "Current limit",
+            "description": "Chopping current limit in mA (0 = no limit)",
+            "type": "number",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 1,
+            "unit": "mA",
+            "min": 0,
+            "max": 10000
+          }
+        ]
+      }
+    },
+    {
+      "id": "clear_fault",
+      "op": 1,
+      "symbol": "DRV8962_OP_CLEAR_FAULT",
+      "label": "Clear fault",
+      "description": "Clears fault latches with an nSLEEP reset pulse; the channel brakes",
+      "pin_scoped": true,
+      "args": {
+        "struct": "hbridge_channel_args_t",
+        "fields": [
+          {
+            "id": "channel",
+            "label": "Channel",
+            "description": "Motor channel index (0 to 3)",
+            "type": "number",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "min": 0,
+            "max": 3
+          }
+        ]
+      }
+    },
+    {
+      "id": "get_fault",
+      "op": 2,
+      "symbol": "DRV8962_OP_GET_FAULT",
+      "label": "Get fault",
+      "description": "Reads whether a channel has a fault, and why",
+      "pin_scoped": true,
+      "args": {
+        "struct": "hbridge_channel_args_t",
+        "fields": [
+          {
+            "id": "channel",
+            "label": "Channel",
+            "description": "Motor channel index (0 to 3)",
+            "type": "number",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "min": 0,
+            "max": 3
+          }
+        ]
+      },
+      "returns": {
+        "struct": "drv8962_fault_t",
+        "label": "Fault info",
+        "description": "Channel fault status and reason",
+        "fields": [
+          {
+            "id": "fault",
+            "label": "Fault",
+            "description": "1 = fault present, 0 = no fault",
+            "type": "choice",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "options": [
+              {
+                "label": "No",
+                "value": 0
+              },
+              {
+                "label": "Yes",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "id": "reason",
+            "label": "Reason",
+            "description": "Fault reason (sys_hbridge_fault_reason_e)",
+            "type": "choice",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 1,
+            "options": [
+              {
+                "label": "None",
+                "value": 0
+              },
+              {
+                "label": "Overcurrent",
+                "value": 1
+              },
+              {
+                "label": "Thermal or UVLO",
+                "value": 2
+              },
+              {
+                "label": "External",
+                "value": 3
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "provides": {
+    "pins": {
+      "count": 4,
+      "modes": [
+        "output"
+      ],
+      "labels": [
+        "OUT1",
+        "OUT2",
+        "OUT3",
+        "OUT4"
+      ]
+    }
+  },
+  "power_pins": [
+    {
+      "name": "VM",
+      "kind": "vin",
+      "voltage_mV": {
+        "min": 4500,
+        "max": 65000,
+        "nominal": 12000
+      }
+    },
+    {
+      "name": "GND",
+      "kind": "gnd"
+    }
+  ],
+  "electrical": {
+    "supply_voltage_mV": {
+      "min": 4500,
+      "max": 65000,
+      "nominal": 12000
+    },
+    "logic_voltage_mV": 3300,
+    "max_current_mA": 10000
+  }
+}

@@ -26,15 +26,6 @@
  *  Not here: CONFIGURE_INTR (a setup struct) and the PINS contract (install time).
  */
 
-//#block VM_BLK_IO
-//@alias IO pin
-//@category device
-//@description Drives or reads a pin of a device: a level, a PWM duty or frequency, a voltage.
-//@activation enabled
-//@when Runs every pass while enabled: a setting is sent when it changes, an action once on each rising enable, a reading on every pass.
-//@face {op} {device_id}
-//@contract IO
-//@data vm_block_device_data_t
 /* Load-time check of the block's state and shape; the body, called every pass. */
 bool vm_verify_io(vm_block_h b);
 void vm_blk_io(vm_block_h b);

@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Pencil, Trash2, X } from 'lucide-react'
-import { enumMembers } from '../backend/catalog'
+import { Pencil, X } from 'lucide-react'
+import { blockEnumMembers } from '../backend/vm/blocks'
 import type { BlockDescriptor, StateField } from '../backend/vm/blocks'
-import { Button } from '../components/Button'
 import { ChoiceField } from '../components/ChoiceField'
 import { NumberField, TextField } from '../components/FormField'
 import { SegmentedSwitch } from '../components/SegmentedSwitch/SegmentedSwitch'
@@ -10,7 +9,9 @@ import { TypeBadge } from '../components/TypeBadge/TypeBadge'
 import { connect, disconnect, parsePathText, pathLabel } from '../domain/canvas'
 import type { CanvasBlock, ObjectPath } from '../domain/canvas'
 import type { ObjectNode, ProjectDocument } from '../domain/project'
+import { blockEncoding } from '../domain/expression'
 import { blockShape, descriptorOf, opOf } from './blockModel'
+import { ExpressionEditor } from './ExpressionEditor'
 import { resolveUniversalDrop, resolveUniversalNode } from './pinAccessors'
 import { PinHelpersPanel } from './PinHelpers'
 import './Accessors.css'
@@ -26,15 +27,10 @@ import './BlockDetails.css'
 const settingFields = (descriptor: BlockDescriptor): readonly StateField[] =>
   (descriptor.state?.fields ?? []).filter((field) => field.source === 'user' && !field.array_len && !field.id_kind && !['op', 'idle-op', 'device', 'const', 'idle-const'].includes(field.role ?? ''))
 
-const members = (enumName: string): readonly { value: number; label: string }[] => {
-  try {
-    return enumMembers(enumName).map((member) => ({ value: member.value, label: member.alias || member.name }))
-  } catch {
-    return []
-  }
-}
+const members = (descriptor: BlockDescriptor, enumName: string): readonly { value: number; label: string }[] =>
+  blockEnumMembers(descriptor, enumName).map((member) => ({ value: member.value, label: member.alias || member.name }))
 
-export function BlockDetails({ block, blocks, descriptor, project, selectedObjectId, onClearSelectedObject, onCreateVariable, onChange, onDelete }: {
+export function BlockDetails({ block, blocks, descriptor, project, selectedObjectId, onClearSelectedObject, onCreateVariable, onChange }: {
   block: CanvasBlock
   /** The blocks of the canvas, to name the pins that are wired to them. */
   blocks: readonly CanvasBlock[]
@@ -45,7 +41,6 @@ export function BlockDetails({ block, blocks, descriptor, project, selectedObjec
   onClearSelectedObject?: () => void
   onCreateVariable?: (node: ObjectNode) => void
   onChange: (change: (block: CanvasBlock) => CanvasBlock) => void
-  onDelete: () => void
 }) {
   // The pin being edited (its helper is open under the list) and the text typed for it.
   const [activePin, setActivePin] = useState<number>()
@@ -77,6 +72,11 @@ export function BlockDetails({ block, blocks, descriptor, project, selectedObjec
   const deviceField = descriptor?.device_field ?? 'device_id'
   const outputTitle = (other: CanvasBlock, index: number) => blockShape(descriptorOf(other.type), other).outputs.find((pin) => pin.index === index)?.title
   const labelOf = (path: ObjectPath) => pathLabel(path, project, blocks, outputTitle)
+
+  const encoding = useMemo(() => blockEncoding(descriptor), [descriptor])
+  /** At least `count` input pins (an expression that reads IN3 needs four). */
+  const withInputs = (current: CanvasBlock, count: number): CanvasBlock =>
+    (current.inputs?.length ?? 0) >= count ? current : { ...current, inputs: Array.from({ length: count }, (_, index) => current.inputs?.[index] ?? null) }
 
   const set = (name: string, value: number | string | undefined) => onChange((current) => {
     const { [name]: _removed, ...rest } = current.settings ?? {}
@@ -178,7 +178,7 @@ export function BlockDetails({ block, blocks, descriptor, project, selectedObjec
             )}
             {settingFields(descriptor).map((field) => {
               const label = field.alias ?? field.name
-              const choices = field.enum_ref ? members(field.enum_ref) : []
+              const choices = field.enum_ref ? members(descriptor, field.enum_ref) : []
               const value = block.settings?.[field.name]
               return choices.length > 0 ? (
                 <label className="block-field" key={field.name}>
@@ -195,6 +195,39 @@ export function BlockDetails({ block, blocks, descriptor, project, selectedObjec
               )
             })}
           </div>
+        </section>
+      )}
+
+      {encoding && (
+        <section className="block-section">
+          <ExpressionEditor
+            key={block.id}
+            block={block}
+            encoding={encoding}
+            maxInputs={descriptor?.inputs?.max ?? 16}
+            inputCount={shape.inputs.length}
+            labelOf={labelOf}
+            onApply={(expression, needed) => onChange((current) => ({ ...withInputs(current, needed), expression }))}
+            resolveDrop={(data) => {
+              const dropped = resolveUniversalDrop(data, project)
+              return dropped && { pathText: dropped.pathText }
+            }}
+            selected={selected && { name: selected.name, pathText: selected.pathText }}
+            onLink={(link) => {
+              if (!project) return
+              let path: ObjectPath
+              try {
+                path = parsePathText(link.pathText, project)
+              } catch {
+                return
+              }
+              onChange((current) => {
+                const grown = withInputs(link.expression ? { ...current, expression: link.expression } : current, Math.max(link.inputsNeeded, link.pin + 1))
+                return connect(grown, { block: block.id, kind: 'in', index: link.pin }, path)
+              })
+              if (link.fromSelection) onClearSelectedObject?.()
+            }}
+          />
         </section>
       )}
 
@@ -315,7 +348,6 @@ export function BlockDetails({ block, blocks, descriptor, project, selectedObjec
         )}
       </section>
 
-      <Button variant="danger" block className="block-delete" onClick={onDelete}><Trash2 aria-hidden="true" />Delete block</Button>
     </div>
   )
 }

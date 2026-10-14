@@ -247,23 +247,14 @@ err_h vm_stop_on_fault(uint16_t device_id) {
 }
 
 static const router_entry_t k_ops[] = {
-    //@op VM_OP_RESET @alias Reset @description Unloads the program and leaves the VM stopped
     {VM_OP_RESET, op_reset},
-    //@op VM_OP_OPEN @alias Open @description Replaces the program with an empty one of the given size @args vm_wire_open_t
     {VM_OP_OPEN, op_open_closed},
-    //@op VM_OP_ADD_OBJECTS @alias Add objects @description Creates and registers objects @payload u8 count, then count x (vm_wire_obj_t, name): see vm-program
     {VM_OP_ADD_OBJECTS, op_add_objects},
-    //@op VM_OP_SET_DATA @alias Set data @description Loads values (stopped) or writes them (running); also the telemetry frame @payload u8 count, then count x (vm_wire_data_t, data): see vm-program
     {VM_OP_SET_DATA, op_set_data},
-    //@op VM_OP_ADD_ACCESSORS @alias Add accessors @description Creates accessors (paths to values) @payload u8 count, then count x (vm_wire_acc_t, index steps): see vm-program
     {VM_OP_ADD_ACCESSORS, op_add_accessors},
-    //@op VM_OP_ADD_BLOCK @alias Add block @description Adds one block, in execution order @payload vm_wire_block_t, pins, state: see vm-program
     {VM_OP_ADD_BLOCK, op_add_block},
-    //@op VM_OP_SUBSCRIBE @alias Subscribe @description Chooses the objects sent as telemetry (none clears) @payload u8 count, then count x vm_wire_sub_t: see vm-program
     {VM_OP_SUBSCRIBE, op_subscribe},
-    //@op VM_OP_EXEC @alias Execute @description Starts, stops, steps or rewinds the program @args vm_wire_exec_t
     {VM_OP_EXEC, op_exec},
-    //@op VM_OP_SPEED @alias Slow motion @description Slows the program down for debugging @args vm_wire_speed_t
     {VM_OP_SPEED, op_speed},
 };
 

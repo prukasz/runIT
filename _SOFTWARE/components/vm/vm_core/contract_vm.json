@@ -1,0 +1,214 @@
+{
+  "$schema": "../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "service-definition",
+  "scope": "system",
+  "id": "VM",
+  "router_key": 11,
+  "alias": "Wirtualna maszyna (VM Core Supervisor)",
+  "description": "Zarządzanie programem wirtualnej maszyny runIT VM: wgrywanie obiektów i bloków, kontrola wykonania (start, pauza, krok) oraz subskrypcja telemetrii.",
+  "category": "system",
+  "commands": [
+    {
+      "id": "RESET",
+      "op": 1,
+      "symbol": "VM_OP_RESET",
+      "label": "Reset programu VM",
+      "description": "Usuwa załadowany program i pozostawia maszynę wirtualną w stanie zatrzymanym."
+    },
+    {
+      "id": "OPEN",
+      "op": 2,
+      "symbol": "VM_OP_OPEN",
+      "label": "Otwórz sesję ładowania programu",
+      "description": "Rezerwuje pamięć na obiekty, akcesory i bloki programu o zadanym rozmiarze areny.",
+      "args": {
+        "struct": "vm_wire_open_t",
+        "fields": [
+          {
+            "id": "obj_cnt",
+            "label": "Liczba obiektów",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 0,
+            "description": "Liczba slotów na obiekty danych"
+          },
+          {
+            "id": "acc_cnt",
+            "label": "Liczba akcesorów",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 2,
+            "description": "Liczba slotów na akcesory indeksujące"
+          },
+          {
+            "id": "blk_cnt",
+            "label": "Liczba bloków",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 4,
+            "description": "Liczba slotów na bloki funkcyjne"
+          },
+          {
+            "id": "total_size",
+            "label": "Rozmiar areny pamięci",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 6,
+            "unit": "B",
+            "description": "Łączna pamięć zarezerwowana na program"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ADD_OBJECTS",
+      "op": 3,
+      "symbol": "VM_OP_ADD_OBJECTS",
+      "label": "Dodaj obiekty danych",
+      "description": "Rejestruje definicje obiektów zmiennych i stałych programu.",
+      "args": {
+        "fields": [
+          {
+            "id": "data",
+            "label": "Dane obiektów",
+            "type": "string",
+            "raw_type": "bytes",
+            "description": "Sekwencja rekordów obiektów (ogon tail)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "SET_DATA",
+      "op": 4,
+      "symbol": "VM_OP_SET_DATA",
+      "label": "Ustaw wartości danych",
+      "description": "Wgrywa wartości początkowe obiektów (podczas ładowania) lub modyfikuje wartości w locie (w czasie pracy).",
+      "args": {
+        "fields": [
+          {
+            "id": "data",
+            "label": "Dane wartości",
+            "type": "string",
+            "raw_type": "bytes",
+            "description": "Sekwencja rekordów wartości (ogon tail)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ADD_ACCESSORS",
+      "op": 5,
+      "symbol": "VM_OP_ADD_ACCESSORS",
+      "label": "Dodaj akcesory",
+      "description": "Definiuje ścieżki dostępu i indeksowania do struktur i tablic w programie.",
+      "args": {
+        "fields": [
+          {
+            "id": "data",
+            "label": "Dane akcesorów",
+            "type": "string",
+            "raw_type": "bytes",
+            "description": "Sekwencja rekordów akcesorów (ogon tail)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ADD_BLOCK",
+      "op": 6,
+      "symbol": "VM_OP_ADD_BLOCK",
+      "label": "Dodaj blok logiczny",
+      "description": "Wgrywa pojedynczy blok logiczny w kolejności wykonywania pętli sterowania.",
+      "args": {
+        "fields": [
+          {
+            "id": "data",
+            "label": "Definicja bloku",
+            "type": "string",
+            "raw_type": "bytes",
+            "description": "Nagłówek bloku, piny i stan (ogon tail)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "SUBSCRIBE",
+      "op": 7,
+      "symbol": "VM_OP_SUBSCRIBE",
+      "label": "Subskrypcja telemetrii",
+      "description": "Wybiera obiekty, których wartości mają być cyklicznie strumieniowane jako telemetria do aplikacji (pusta lista czyści subskrypcję).",
+      "args": {
+        "fields": [
+          {
+            "id": "data",
+            "label": "Lista ID obiektów",
+            "type": "string",
+            "raw_type": "bytes",
+            "description": "Sekwencja rekordów subskrypcji (ogon tail)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "EXEC",
+      "op": 8,
+      "symbol": "VM_OP_EXEC",
+      "label": "Sterowanie wykonywaniem programu",
+      "description": "Uruchamia, pauzuje, wznawia, wykonuje pojedynczy krok lub resetuje program VM.",
+      "args": {
+        "struct": "vm_wire_exec_t",
+        "fields": [
+          {
+            "id": "command",
+            "label": "Polecenie nadzorcy",
+            "type": "choice",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "options": [
+              { "label": "Tryb skanowania (Scan mode)", "value": 0 },
+              { "label": "Jeden cykl (Once)", "value": 1 },
+              { "label": "Tryb blokowy (Block mode)", "value": 2 },
+              { "label": "Następny blok (Next)", "value": 3 },
+              { "label": "Powrót do początku (Reset to start)", "value": 4 },
+              { "label": "Tryb normalny ciągły (Normal mode)", "value": 5 },
+              { "label": "Pauza (Pause)", "value": 6 },
+              { "label": "Wznów (Resume)", "value": 7 },
+              { "label": "Reset", "value": 8 },
+              { "label": "Potwierdź błąd (Ack fault)", "value": 9 },
+              { "label": "Wyczyść wartości podtrzymane (Retain clear)", "value": 10 }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "SPEED",
+      "op": 9,
+      "symbol": "VM_OP_SPEED",
+      "label": "Zwolnione tempo (Slow motion)",
+      "description": "Zwalnia tempo wykonywania pętli programu VM celem debugowania na żywo.",
+      "args": {
+        "struct": "vm_wire_speed_t",
+        "fields": [
+          {
+            "id": "factor",
+            "label": "Współczynnik spowolnienia",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 0,
+            "description": "1 = normalna prędkość, >1 = zwolnione tempo"
+          }
+        ]
+      }
+    }
+  ]
+}
+

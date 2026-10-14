@@ -16,8 +16,8 @@ extern "C" {
 
 //#ref-enum @alias I2C Bus
 typedef enum {
-  SYS_I2C_BUS_0 = 0,  //@alias Bus 0 @description The first I2C bus
-  SYS_I2C_BUS_1 = 1,  //@alias Bus 1 @description The second I2C bus
+  SYS_I2C_BUS_0 = 0,  //@alias Bus 0 @description I2C Bus 0
+  SYS_I2C_BUS_1 = 1,  //@alias Bus 1 @description I2C Bus 1
   SYS_I2C_BUS_COUNT,
 } sys_i2c_bus_e;
 
@@ -26,8 +26,8 @@ typedef enum {
  */
 //#ref-enum @alias I2C Byte Order
 typedef enum {
-  SYS_I2C_BE = 0,  //@alias Be @description high byte first (INA3221, DAC53202, ADS7128)
-  SYS_I2C_LE = 1,  //@alias Le @description low byte first (AP33772S, TPS55289)
+  SYS_I2C_BE = 0,  //@alias Be @description Big-endian: high byte first (INA3221, DAC53202, ADS7128)
+  SYS_I2C_LE = 1,  //@alias Le @description Little-endian: low byte first (AP33772S, TPS55289)
 } sys_i2c_order_e;
 
 /**

@@ -1,0 +1,98 @@
+{
+  "$schema": "../../../templates/device.schema.json",
+  "schemaVersion": 3,
+  "kind": "device-definition",
+  "id": "dac53202",
+  "alias": "DAC53202 dual DAC",
+  "description": "Two-channel I2C digital-to-analog converter: outputs a steady voltage on each channel.",
+  "type_id": 70,
+  "type": {
+    "symbol": "SYS_DEVICE_TYPE_DAC53202",
+    "id": 70
+  },
+  "protocols": [
+    "i2c"
+  ],
+  "tags": [
+    "i2c",
+    "dac",
+    "voltage"
+  ],
+  "datasheet": "https://www.ti.com/lit/ds/symlink/dac53202.pdf",
+  "config": {
+    "struct": "dac53202_cfg_t",
+    "size": 2,
+    "fields": [
+      {
+        "id": "i2c_bus",
+        "label": "I2C bus",
+        "description": "The I2C bus the chip is on",
+        "offset": 0,
+        "size": 1,
+        "type": "enum",
+        "enum": "sys_i2c_bus_e",
+        "raw_type": "u8"
+      },
+      {
+        "id": "i2c_addr",
+        "label": "I2C address",
+        "description": "The A0 pin selects one of four addresses",
+        "offset": 1,
+        "size": 1,
+        "type": "number",
+        "raw_type": "u8"
+      }
+    ]
+  },
+  "contracts": [
+    "DEVICE",
+    "IO"
+  ],
+  "bus": {
+    "type": "i2c",
+    "i2c": {
+      "default_addr": 72,
+      "address_range": {
+        "min": 72,
+        "max": 75
+      },
+      "max_speed_khz": 1000
+    }
+  },
+  "provides": {
+    "pins": {
+      "count": 2,
+      "modes": [
+        "dac"
+      ],
+      "labels": [
+        "OUT0",
+        "OUT1"
+      ]
+    }
+  },
+  "power_pins": [
+    {
+      "name": "VDD",
+      "kind": "vcc",
+      "voltage_mV": {
+        "min": 1800,
+        "max": 5500,
+        "nominal": 3300
+      }
+    },
+    {
+      "name": "GND",
+      "kind": "gnd"
+    }
+  ],
+  "electrical": {
+    "supply_voltage_mV": {
+      "min": 1800,
+      "max": 5500,
+      "nominal": 3300
+    },
+    "logic_voltage_mV": 3300,
+    "max_current_mA": 5
+  }
+}

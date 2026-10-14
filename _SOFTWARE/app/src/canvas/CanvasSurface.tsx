@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Crosshair, Minus, Plus } from 'lucide-react'
 import { Button } from '../components/Button'
-import { canvasToScreen, chipLabel, connect, disconnect, GRID, pathLabel, screenToCanvas, snapPoint, sourcePath, zoomAt } from '../domain/canvas'
+import { canvasToScreen, CHIP_HEIGHT, CHIP_WIDTH, chipLabel, connect, disconnect, freeChipFor, GRID, pathLabel, screenToCanvas, snapPoint, sourcePath, zoomAt } from '../domain/canvas'
 import type { CanvasBlock, ObjectPath, Point, Viewport, Wire, WireSource, WireTarget } from '../domain/canvas'
 import { OBJECT_DRAG_TYPE } from '../domain/objects/drag'
 import { findObject } from '../domain/project'
@@ -11,6 +11,7 @@ import { BLOCK_DRAG_TYPE } from '../blocks/BlockPalette'
 import { blockShape, decodePlacement, descriptorOf } from '../blocks/blockModel'
 import { CanvasBlockView } from './CanvasBlockView'
 import { CanvasWires } from './CanvasWires'
+import { FreeChip } from './FreeChip'
 import { LinkWindows } from './LinkWindows'
 import type { PickerRow, SourceChoice } from './LinkWindows'
 import type { CanvasWorkspace } from './useCanvasWorkspace'
@@ -40,7 +41,7 @@ const fits = (target: string, sent: 'number' | 'bool' | 'object'): boolean => (t
 
 const isEditing = (target: EventTarget | null): boolean => target instanceof HTMLElement && (target.isContentEditable || !!target.closest('input, textarea, select, [contenteditable="true"]'))
 
-export function CanvasSurface({ workspace, showGrid, project }: { workspace: CanvasWorkspace; showGrid: boolean; project?: ProjectDocument }) {
+export function CanvasSurface({ workspace, showGrid, project, onBackgroundClick }: { workspace: CanvasWorkspace; showGrid: boolean; project?: ProjectDocument; onBackgroundClick?: () => void }) {
   const { active, selectedIds } = workspace
   const [ghost, setGhost] = useState<{ at: Point; type?: string }>()
   const pressAt = useRef<Point | undefined>(undefined)
@@ -64,6 +65,9 @@ export function CanvasSurface({ workspace, showGrid, project }: { workspace: Can
   const [chipPress, setChipPress] = useState<{ target: WireTarget; path: ObjectPath; start: Point; pulled: boolean }>()
   const [chipGhost, setChipGhost] = useState<{ at: Point; label: string }>()
   const [selectedChip, setSelectedChip] = useState<WireTarget>()
+  // A free chip (a variable pulled off its pin): the selected one, and a wire being dragged from one (the pointer in canvas units).
+  const [selectedFree, setSelectedFree] = useState<string>()
+  const [chipDraft, setChipDraft] = useState<{ id: string; at: Point }>()
   // Two blocks linked by clicking: the one selected first is the source, the one clicked next the target.
   const [link, setLink] = useState<{ from: string; to: string; source: number }>()
   // A box being drawn on the background (screen points), and how far the dragged block of a selected group has moved.
@@ -72,10 +76,10 @@ export function CanvasSurface({ workspace, showGrid, project }: { workspace: Can
   // A press on a selected block waits to see whether it becomes a drag (the group moves) or a tap.
   const tapAction = useRef<{ id: string; kind: 'toggle' | 'only' | 'link'; from?: string } | undefined>(undefined)
 
-  const shapeOf = (block: CanvasBlock) => blockShape(descriptorOf(block.type), block)
-  /** The name of a block's output pin, for `pathLabel`. */
-  const outputTitle = (block: CanvasBlock, index: number) => shapeOf(block).outputs.find((pin) => pin.index === index)?.title
+  /** The name of a block's output pin, for `pathLabel` (the pins do not depend on the labels). */
+  const outputTitle = (block: CanvasBlock, index: number) => blockShape(descriptorOf(block.type), block).outputs.find((pin) => pin.index === index)?.title
   const labelOf = (path: ObjectPath) => pathLabel(path, project, active?.blocks, outputTitle)
+  const shapeOf = (block: CanvasBlock) => blockShape(descriptorOf(block.type), block, labelOf)
   /** A variable of the tree, as opposed to another block's pin. */
   const isVariable = (path: ObjectPath) => !/^.+:(q\d+|eno|body)$/.test(path.root)
 
@@ -118,6 +122,11 @@ export function CanvasSurface({ workspace, showGrid, project }: { workspace: Can
   }, [])
 
   const removeSelectedWire = (): boolean => {
+    if (selectedFree) {
+      workspace.removeFreeChip(selectedFree)
+      setSelectedFree(undefined)
+      return true
+    }
     if (selectedChip) {
       workspace.updateBlock(selectedChip.block, (block) => disconnect(block, selectedChip))
       setSelectedChip(undefined)
@@ -139,6 +148,8 @@ export function CanvasSurface({ workspace, showGrid, project }: { workspace: Can
         setLink(undefined)
         setSelectedWire(undefined)
         setSelectedChip(undefined)
+        setSelectedFree(undefined)
+        setChipDraft(undefined)
         workspace.selectBlock(undefined)
       } else if (event.key === 'Delete' || event.key === 'Backspace') {
         if (event.ctrlKey || event.metaKey || event.altKey) return
@@ -188,6 +199,71 @@ export function CanvasSurface({ workspace, showGrid, project }: { workspace: Can
       return point.x >= block.x - 12 && point.x <= block.x + shape.width + 12 && point.y >= block.y && point.y <= block.y + shape.height
     })
 
+  /** The pin (an input, an output or the EN strip) under a screen point, found by the data attributes the block view puts on them. */
+  const pinAtPoint = (clientX: number, clientY: number, except?: string): { block: string; target: WireTarget } | undefined => {
+    for (const element of document.elementsFromPoint(clientX, clientY)) {
+      const pin = element instanceof HTMLElement ? element.closest<HTMLElement>('[data-pin-kind]') : null
+      const block = pin?.dataset.block
+      if (!pin || !block || block === except) continue
+      const kind = pin.dataset.pinKind
+      if (kind === 'en') return { block, target: { block, kind: 'en' } }
+      if (kind === 'in' || kind === 'out') return { block, target: { block, kind, index: Number(pin.dataset.pinIndex) } }
+    }
+    return undefined
+  }
+
+  /** What a variable sends: a bool or a number (they cast to each other), or a whole object. */
+  const variableKind = (path: ObjectPath): 'number' | 'bool' | 'object' => {
+    if (path.steps?.length) return 'number'
+    const node = project && findObject(project, path.root)?.node
+    if (!node) return 'number'
+    return node.kind === 'value' ? (node.type === 'B' ? 'bool' : 'number') : 'object'
+  }
+
+  /** Whether a variable can go on this pin: EN takes a bool or number, an input its value kind, an output a single value. */
+  const variableFits = (blockId: string, target: WireTarget, path: ObjectPath): boolean => {
+    const block = active?.blocks.find((entry) => entry.id === blockId)
+    if (!block) return false
+    const shape = shapeOf(block)
+    const sent = variableKind(path)
+    if (target.kind === 'en') return sent !== 'object'
+    if (target.kind === 'in') {
+      const pin = shape.inputs.find((entry) => entry.index === target.index)
+      return !!pin && (pin.value === 'ptr-cell' || fits(pin.value, sent))
+    }
+    return shape.outputs.some((entry) => entry.index === target.index) && sent !== 'object'
+  }
+
+  /**
+   * A variable let go at a screen point. On a pin that takes it, it connects there with no menu (a docked chip leaves its old pin,
+   * a free chip docks and goes); on a block but not on a pin, the pins are offered (unless `ask` is false); false = open canvas.
+   */
+  const dropVariable = (path: ObjectPath, clientX: number, clientY: number, options: { moveFrom?: WireTarget; fromFree?: string; ask?: boolean } = {}): boolean => {
+    if (!active) return false
+    const hit = pinAtPoint(clientX, clientY)
+    if (hit && variableFits(hit.block, hit.target, path)) {
+      const { moveFrom, fromFree } = options
+      if (fromFree) workspace.dockFreeChip(fromFree, hit.block, hit.target)
+      else {
+        const stays = moveFrom && moveFrom.block === hit.block && moveFrom.kind === hit.target.kind && ('index' in moveFrom ? moveFrom.index : -1) === ('index' in hit.target ? hit.target.index : -1)
+        if (moveFrom && !stays) workspace.updateBlock(moveFrom.block, (block) => disconnect(block, moveFrom))
+        workspace.updateBlock(hit.block, (block) => connect(block, hit.target, path))
+      }
+      return true
+    }
+    if (options.ask === false) return false
+    const over = blockAt(screenToCanvas(viewportRef.current, local(clientX, clientY)))
+    if (!over) return false
+    setPicker({ path, block: over.id, label: labelOf(path), kind: variableKind(path) === 'bool' ? 'bool' : 'other', ...(options.moveFrom ? { moveFrom: options.moveFrom } : {}) })
+    return true
+  }
+
+  /** Where a free chip lands when it is let go on the open canvas: the pointer holds its middle. */
+  const chipSpot = (clientX: number, clientY: number): Point => {
+    const at = screenToCanvas(viewportRef.current, local(clientX, clientY))
+    return snapPoint({ x: at.x - CHIP_WIDTH / 2, y: at.y - CHIP_HEIGHT / 2 })
+  }
+
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 && event.button !== 1) return
     // Blocks, the zoom buttons, the picker and messages handle their own presses.
@@ -197,6 +273,7 @@ export function CanvasSurface({ workspace, showGrid, project }: { workspace: Can
     setLink(undefined)
     setSelectedWire(undefined)
     setSelectedChip(undefined)
+    setSelectedFree(undefined)
     event.currentTarget.setPointerCapture(event.pointerId)
     const point = local(event.clientX, event.clientY)
     pointers.current.set(event.pointerId, point)
@@ -214,6 +291,10 @@ export function CanvasSurface({ workspace, showGrid, project }: { workspace: Can
         if (!chipPress.pulled) setChipPress({ ...chipPress, pulled: true })
         setChipGhost({ at: point, label: chipLabel(labelOf(chipPress.path)) })
       }
+      return
+    }
+    if (chipDraft) {
+      setChipDraft({ ...chipDraft, at: screenToCanvas(viewportRef.current, point) })
       return
     }
     if (draft) {
@@ -269,16 +350,31 @@ export function CanvasSurface({ workspace, showGrid, project }: { workspace: Can
         setSelectedWire(undefined)
         return
       }
-      // Pulled onto a block: its pins are offered, and the chip leaves the one it came from once one is chosen.
-      const over = blockAt(screenToCanvas(viewportRef.current, local(event.clientX, event.clientY)))
-      if (over) {
-        const node = project && findObject(project, press.path.root)?.node
-        setPicker({ path: press.path, block: over.id, label: labelOf(press.path), kind: node?.kind === 'value' && node.type === 'B' ? 'bool' : 'other', moveFrom: press.target })
-      }
+      // Pulled onto a pin: it moves there. On a block: its pins are offered. On the open canvas: it comes off the pin as a free chip,
+      // still wired to it.
+      if (!dropVariable(press.path, event.clientX, event.clientY, { moveFrom: press.target })) workspace.addFreeChip(press.path, chipSpot(event.clientX, event.clientY))
+      return
+    }
+    if (chipDraft) {
+      const chip = active?.variables?.find((entry) => entry.id === chipDraft.id)
+      setChipDraft(undefined)
+      if (chip) dropVariable(chip.path, event.clientX, event.clientY)
       return
     }
     if (draft) {
       // The wire is let go: on a block it asks which pin, anywhere else it is dropped.
+      const hit = pinAtPoint(event.clientX, event.clientY, draft.from.block)
+      const sourceBlock = active?.blocks.find((entry) => entry.id === draft.from.block)
+      const sentPin = sourceBlock && shapeOf(sourceBlock).outputs.find((entry) => 'q' + entry.index === draft.from.pin)
+      const sent = draft.from.pin === 'eno' || !sentPin ? 'bool' : kindOfPin(sentPin.value)
+      const hitBlock = hit && active?.blocks.find((entry) => entry.id === hit.block)
+      const hitPin = hit && hitBlock && hit.target.kind === 'in' ? shapeOf(hitBlock).inputs.find((entry) => entry.index === (hit.target as { index: number }).index) : undefined
+      const accepts = !!hit && (hit.target.kind === 'en' ? fits('en', sent) : !!hitPin && fits(hitPin.value, sent))
+      if (hit && accepts) {
+        workspace.updateBlock(hit.block, (block) => connect(block, hit.target, sourcePath(draft.from)))
+        setDraft(undefined)
+        return
+      }
       const over = blockAt(screenToCanvas(viewportRef.current, local(event.clientX, event.clientY)), draft.from.block)
       if (over) setPicker({ path: sourcePath(draft.from), block: over.id, label: pathLabel(sourcePath(draft.from), project, active?.blocks, outputTitle), kind: draft.from.pin === 'eno' ? 'bool' : undefined })
       setDraft(undefined)
@@ -287,7 +383,10 @@ export function CanvasSurface({ workspace, showGrid, project }: { workspace: Can
     const press = pressAt.current
     if (press && pointers.current.size === 1 && pointers.current.has(event.pointerId)) {
       const end = local(event.clientX, event.clientY)
-      if (Math.hypot(end.x - press.x, end.y - press.y) < CLICK_SLOP) workspace.selectBlock(undefined)
+      if (Math.hypot(end.x - press.x, end.y - press.y) < CLICK_SLOP) {
+        workspace.selectBlock(undefined)
+        onBackgroundClick?.()
+      }
       else if (marquee) selectInside(marquee.from, end)
     }
     pressAt.current = undefined
@@ -429,16 +528,12 @@ export function CanvasSurface({ workspace, showGrid, project }: { workspace: Can
       }}
       onDrop={(event) => {
         setGhost(undefined)
-        // A variable of the tree dropped on a block: the pin it goes to is chosen next.
+        // A variable of the tree: dropped on a pin it connects there; on a block the pins are offered; on the open canvas it stays
+        // there as a free chip.
         if (event.dataTransfer.types.includes(OBJECT_DRAG_TYPE) && active) {
           event.preventDefault()
           const id = event.dataTransfer.getData(OBJECT_DRAG_TYPE)
-          const node = project && findObject(project, id)?.node
-          const over = blockAt(screenToCanvas(viewportRef.current, local(event.clientX, event.clientY)))
-          if (id && over) {
-            const target = node?.kind === 'value' ? node : undefined
-            setPicker({ path: { root: id }, block: over.id, label: pathLabel({ root: id }, project, active.blocks, outputTitle), kind: target?.type === 'B' ? 'bool' : 'other' })
-          }
+          if (id && !dropVariable({ root: id }, event.clientX, event.clientY)) workspace.addFreeChip({ root: id }, chipSpot(event.clientX, event.clientY))
           return
         }
         if (!fromPalette(event)) return
@@ -449,7 +544,21 @@ export function CanvasSurface({ workspace, showGrid, project }: { workspace: Can
     >
       <div className="canvas-world" style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})` }}>
         <div className="canvas-origin" aria-hidden="true" />
-        {active && <CanvasWires canvas={active} shapeOf={shapeOf} selected={selectedWire} draft={draft && { from: draft.from, to: draft.at }} onSelect={(wire) => { setSelectedWire(wire); setSelectedChip(undefined); workspace.selectBlock(undefined) }} />}
+        {active && (
+          <CanvasWires
+            canvas={active}
+            shapeOf={shapeOf}
+            selected={selectedWire}
+            selectedPin={selectedChip}
+            draft={draft && { from: draft.from, to: draft.at }}
+            chipDraft={chipDraft && (() => {
+              const chip = active.variables?.find((entry) => entry.id === chipDraft.id)
+              return chip && { from: { x: chip.x + CHIP_WIDTH, y: chip.y + CHIP_HEIGHT / 2 }, to: chipDraft.at }
+            })()}
+            onSelect={(wire) => { setSelectedWire(wire); setSelectedChip(undefined); setSelectedFree(undefined); workspace.selectBlock(undefined) }}
+            onSelectPin={(target) => { setSelectedChip(target); setSelectedWire(undefined); setSelectedFree(undefined); workspace.selectBlock(undefined) }}
+          />
+        )}
         {active?.blocks.map((block) => (
           <CanvasBlockView
             key={block.id}
@@ -481,11 +590,30 @@ export function CanvasSurface({ workspace, showGrid, project }: { workspace: Can
             onWireStart={startWire}
             labelOf={labelOf}
             isVariable={isVariable}
+            isFree={(path) => !!freeChipFor(active!, path)}
             selectedChip={selectedChip?.block === block.id ? selectedChip : undefined}
             onChipPress={(target, path, event) => {
               surfaceRef.current?.setPointerCapture(event.pointerId)
               setPicker(undefined)
               setChipPress({ target, path, start: { x: event.clientX, y: event.clientY }, pulled: false })
+            }}
+          />
+        ))}
+        {active?.variables?.map((variable) => (
+          <FreeChip
+            key={variable.id}
+            variable={variable}
+            label={chipLabel(labelOf(variable.path))}
+            full={labelOf(variable.path)}
+            selected={selectedFree === variable.id}
+            zoom={viewport.zoom}
+            onSelect={() => { setSelectedFree(variable.id); setSelectedChip(undefined); setSelectedWire(undefined); workspace.selectBlock(undefined) }}
+            onMove={(to) => workspace.moveFreeChip(variable.id, to)}
+            onDropAt={(x, y) => dropVariable(variable.path, x, y, { fromFree: variable.id, ask: false })}
+            onWireStart={(event) => {
+              surfaceRef.current?.setPointerCapture(event.pointerId)
+              setPicker(undefined)
+              setChipDraft({ id: variable.id, at: screenToCanvas(viewportRef.current, local(event.clientX, event.clientY)) })
             }}
           />
         ))}

@@ -19,10 +19,10 @@ extern "C" {
  * its rail after SET_ENABLE / a higher SET_VOLTAGE, which return at once). */
 // clang-format off
 #define SYS_POWER_VREG_EVENTS(X) \
-  X(OVP, 0x00, SYS_EVENT_NOTIFY)  /* @alias Over-voltage @description The output went above its limit @value The wanted voltage @unit mV */ \
-  X(OCP, 0x01, SYS_EVENT_NOTIFY)  /* @alias Over-current @description The output passed its current limit @value The current limit @unit mA */ \
-  X(SCP, 0x02, SYS_EVENT_NOTIFY)  /* @alias Short circuit @description The output is shorted */ \
-  X(READY, 0x03, 0)  /* @alias Output ready @description The output settled at the wanted voltage @value The voltage @unit mV */
+  X(OVP, 0x00, SYS_EVENT_NOTIFY) \
+  X(OCP, 0x01, SYS_EVENT_NOTIFY) \
+  X(SCP, 0x02, SYS_EVENT_NOTIFY) \
+  X(READY, 0x03, 0)
 // clang-format on
 
 #define SYS_POWER_VREG__EV(name, n, flags) \
@@ -31,15 +31,15 @@ extern "C" {
 enum { SYS_POWER_VREG_EVENTS(SYS_POWER_VREG__EV) };
 
 typedef struct __attribute__((packed)) {
-  uint8_t enable;  //@alias Output @choices 0=Off,1=On
+  uint8_t enable;       /**< 1 = Output enabled, 0 = Output disabled */
 } vreg_enable_args_t;
 
 typedef struct __attribute__((packed)) {
-  uint32_t voltage_mV;  //@alias Voltage @description The wanted output voltage @unit mV
+  uint32_t voltage_mV;  /**< Output voltage in mV */
 } vreg_voltage_args_t;
 
 typedef struct __attribute__((packed)) {
-  uint32_t current_mA;  //@alias Current limit @description The wanted output current limit @unit mA
+  uint32_t current_mA;  /**< Output current limit in mA */
 } vreg_current_args_t;
 
 /**
@@ -49,9 +49,9 @@ typedef struct __attribute__((packed)) {
  */
 // clang-format off
 #define SYS_POWER_VREG_CONTRACT(X) \
-  X(SET_ENABLE, 0x00, vreg_enable_args_t)  /* @alias Output @description Switches the regulator output on or off. */ \
-  X(SET_VOLTAGE, 0x01, vreg_voltage_args_t)  /* @alias Voltage @description Sets the wanted output voltage; the output follows when it is enabled. */ \
-  X(SET_CURRENT, 0x02, vreg_current_args_t)  /* @alias Current limit @description Sets the wanted output current limit. */
+  X(SET_ENABLE, 0x00, vreg_enable_args_t) \
+  X(SET_VOLTAGE, 0x01, vreg_voltage_args_t) \
+  X(SET_CURRENT, 0x02, vreg_current_args_t)
 // clang-format on
 
 #define SYS_POWER_VREG__ID(name, n, args_t) VREG_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_VREG, n),

@@ -2,25 +2,28 @@
 
 /* The runIT board, rev 1. */
 
-/* Device IDs of the onboard chips (the board config doesn't create them yet: they are created by CREATE). */
-#define DEVICE_ID_GPIO_ESP 0u
-#define DEVICE_ID_TCA6424A 1u
-#define DEVICE_ID_ADS7128 2u
-#define DEVICE_ID_PCA9685 3u
-#define DEVICE_ID_DAC53202 4u         // OUT0 / OUT1 = VREF of DRV8962 #1 / #2
-#define DEVICE_ID_DRV8962_0 5u        // #1: IN / EN / IPROPI on the ESP
-#define DEVICE_ID_DRV8962_1 6u        // #2: IN / EN on PCA9685 CH 8..15
-#define DEVICE_ID_SUPPLY_DRV8962_0 7u  // power mux of #1: A = board input, B = rail B
-#define DEVICE_ID_SUPPLY_DRV8962_1 8u  // power mux of #2: A = board input, B = rail A
+/* Device IDs of the onboard chips, created at boot by runit_board_devices_init (runit_board_cfg.c). Published for the app
+ * (board/generate-board.py): the name each one is shown by, and its type from the create call. */
+//#ref-defines board_device @alias Board devices @prefix DEVICE_ID_
+#define DEVICE_ID_GPIO_ESP 0u  //@alias ESP32 GPIO @description the ESP32-S3's own pins
+#define DEVICE_ID_TCA6424A 1u  //@alias GPIO expander @description TCA6424A, 24 pins (LEDs, interrupts, enables)
+#define DEVICE_ID_ADS7128 2u  //@alias ADC @description ADS7128, 8 inputs scaled to 20 V
+#define DEVICE_ID_PCA9685 3u  //@alias PWM expander @description PCA9685 (servo headers CH 0..7, DRV8962 #2 on CH 8..15)
+#define DEVICE_ID_DAC53202 4u  //@alias DAC @description DAC53202 (OUT0 / OUT1 = VREF of DRV8962 #1 / #2)
+#define DEVICE_ID_DRV8962_0 5u  //@alias Motor driver 1 @description DRV8962 #1 (IN / EN / IPROPI on ESP)
+#define DEVICE_ID_DRV8962_1 6u  //@alias Motor driver 2 @description DRV8962 #2 (IN / EN on PCA9685 CH 8..15)
+#define DEVICE_ID_SUPPLY_DRV8962_0 7u  //@alias Motor 1 supply @description Power mux of driver 1 (A = board input, B = rail B)
+#define DEVICE_ID_SUPPLY_DRV8962_1 8u  //@alias Motor 2 supply @description Power mux of driver 2 (A = board input, B = rail A)
+#define DEVICE_ID_TPS55289_2 10u  //@alias Rail A @description TPS55289 buck-boost regulator at 0x74
+#define DEVICE_ID_TPS55289_1 11u  //@alias Rail B @description TPS55289 buck-boost regulator at 0x75
+#define DEVICE_ID_INA3221 12u  //@alias Power monitor @description INA3221 (the board input and both rails)
+#define DEVICE_ID_AP33772S 13u  //@alias USB-C PD @description AP33772S USB-C power delivery sink
+
 #define RUNIT_BOARD_TCA_ADDR 0x23u  // ADDR high; INT -> ESP 9, RST -> ESP 8
 #define RUNIT_BOARD_TCA_INT_ESP_PIN 9u
 #define RUNIT_BOARD_TCA_RST_ESP_PIN 8u
 #define RUNIT_BOARD_TCA_LED_STATUS 23u  // status LED on the expander (high = on), lit once the boot has created the expander
 #define RUNIT_BOARD_TCA_LED_SPARE 22u   // the other LED: an output too, else its floating input toggles at ~25 kHz and floods the INT line
-#define DEVICE_ID_TPS55289_2 10u  // rail A, 0x74
-#define DEVICE_ID_TPS55289_1 11u  // rail B, 0x75
-#define DEVICE_ID_INA3221 12u
-#define DEVICE_ID_AP33772S 13u
 
 /* Power (described to sys_power_manager in runit_board_cfg.c) */
 /* TCA6424A pins (HARDWARE.md section 3) */

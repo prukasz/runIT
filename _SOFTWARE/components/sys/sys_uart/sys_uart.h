@@ -18,7 +18,7 @@ extern "C" {
  */
 
 /** The only connector endpoint of the UART provider (TRANSPORT_UART). */
-#define SYS_UART_ENDPOINT 0u
+#define SYS_UART_ENDPOINT 0u  /**< Console endpoint */
 
 // clang-format off
 #define ERR_SYS_UART_MAP(X)                                                                                         \

@@ -14,13 +14,13 @@ extern "C" {
 
 //#ref-enum @alias Supply Source
 typedef enum {
-  SYS_POWER_SUPPLY_OFF = 0,  //@alias Off @description The load is not fed
-  SYS_POWER_SUPPLY_A = 1,  //@alias Source A @description The load is fed from source A of the power mux
-  SYS_POWER_SUPPLY_B = 2,  //@alias Source B @description The load is fed from source B of the power mux
+  SYS_POWER_SUPPLY_OFF = 0,  //@alias Off @description Output unpowered
+  SYS_POWER_SUPPLY_A = 1,  //@alias Source A @description Output fed from source A
+  SYS_POWER_SUPPLY_B = 2,  //@alias Source B @description Output fed from source B
 } sys_power_supply_source_e;
 
 typedef struct __attribute__((packed)) {
-  uint8_t source;  //@alias Source @description What feeds the load @enum-ref sys_power_supply_source_e
+  uint8_t source;  /**< sys_power_supply_source_e */
 } supply_select_args_t;
 
 /**
@@ -30,8 +30,8 @@ typedef struct __attribute__((packed)) {
  */
 // clang-format off
 #define SYS_POWER_SUPPLY_CONTRACT(X) \
-  X(SELECT, 0x00, supply_select_args_t)  /* @alias Select source @description Feeds the load from nothing, source A or source B. */ \
-  X(GET_SOURCE, 0x01, sys_device_none_t)  /* @alias Read source @description Reads which source is on. @returns u8 @returns-alias Source @choices 0=Off,1=Source_A,2=Source_B */
+  X(SELECT, 0x00, supply_select_args_t) \
+  X(GET_SOURCE, 0x01, sys_device_none_t)
 // clang-format on
 
 #define SYS_POWER_SUPPLY__ID(name, n, args_t) SUPPLY_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_SUPPLY, n),

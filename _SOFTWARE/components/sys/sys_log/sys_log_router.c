@@ -14,9 +14,7 @@ ROUTER_OP_NOARGS(op_get) {
 }
 
 static const router_entry_t k_ops[] = {
-    //@op SYS_LOG_OP_SET @alias Set log options @description Applies the log options (not stored: save the frame as a record)
     {SYS_LOG_OP_SET, op_set},
-    //@op SYS_LOG_OP_GET @alias Read log options @description The log options in force @returns sys_log_cfg_t
     {SYS_LOG_OP_GET, op_get},
 };
 

@@ -33,11 +33,11 @@ extern "C" {
 
 /** @brief The settings record and the SET / GET payload (packed, the wire form). */
 typedef struct __attribute__((packed)) {
-  uint8_t level;  //@alias Level @description How much is logged @choices 0=None,1=Error,2=Warning,3=Info,4=Debug,5=Verbose
-  uint8_t mirror_serial;  //@alias Mirror to console @choices 0=No,1=Yes
-  uint8_t trace_errors;  //@alias Print error chains @choices 0=No,1=Yes
-  uint8_t send_errors;  //@alias Send error records @description On the errors stream @choices 0=No,1=Yes
-  uint8_t send_logs;  //@alias Send log lines @description On the logs stream @choices 0=No,1=Yes
+  uint8_t level;          /**< Log level (0=None, 1=Error, 2=Warn, 3=Info, 4=Debug, 5=Verbose) */
+  uint8_t mirror_serial;  /**< 1 = mirror to console UART, 0 = disabled */
+  uint8_t trace_errors;   /**< 1 = print error chains as log lines, 0 = disabled */
+  uint8_t send_errors;    /**< 1 = send error records on errors stream, 0 = disabled */
+  uint8_t send_logs;      /**< 1 = send log lines on logs stream, 0 = disabled */
 } sys_log_cfg_t;
 
 /* ----------------------------------------------------------------------------

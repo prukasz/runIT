@@ -396,7 +396,7 @@ static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY(RESET),       VREG_ENTRY(SET_ENABLE),
     VREG_ENTRY(SET_VOLTAGE),    VREG_ENTRY(SET_CURRENT),   PD_ENTRY(SET_SETTINGS),     PD_ENTRY(LIST_OPTIONS),
     PD_ENTRY(GET_LIMITS),       PMON_ENTRY(GET_VOLTAGE),   PMON_ENTRY(GET_CURRENT),    PMON_ENTRY(GET_POWER),
-    //@internal
+    /* Internal keepalive timer op */
     {AP_OP_KEEPALIVE, keepalive_h},
 };
 

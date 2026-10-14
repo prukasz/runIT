@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../../../templates/vm-block.schema.json",
+  "schemaVersion": 3,
+  "kind": "vm-block",
+  "id": "if",
+  "wire_id": 3,
+  "alias": "If",
+  "description": "Two-way router: the Yes output fires when the condition is non-zero, else the No output. The branch that is not taken is switched off.",
+  "category": "flow",
+  "order": 10,
+  "tags": ["condition", "branch", "route", "else", "decision"],
+  "integration": "core",
+  "activation": { "kind": "enabled", "text": "Decides on every pass while enabled." },
+  "header": { "subtitle": "if {condition}" },
+  "inputs": [
+    {
+      "id": "condition",
+      "alias": "Condition",
+      "description": "Any number or boolean. Non-zero means yes.",
+      "value": "bool",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "id": "yes",
+      "alias": "Yes",
+      "description": "Flow output: active while the condition is non-zero.",
+      "value": "flow",
+      "flow": "conditional",
+      "required": true
+    },
+    {
+      "id": "no",
+      "alias": "No",
+      "description": "Flow output: active while the condition is zero.",
+      "value": "flow",
+      "flow": "conditional",
+      "required": true
+    }
+  ]
+}

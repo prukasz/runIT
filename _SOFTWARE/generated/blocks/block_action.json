@@ -1,0 +1,51 @@
+{
+  "$schema": "../../templates/vm-block.schema.json",
+  "schemaVersion": 3,
+  "kind": "vm-block",
+  "id": "action",
+  "wire_id": 14,
+  "alias": "Run action",
+  "description": "Runs a stored action once each time its enable turns on: a user action, a system setting or a device's defaults. The action runs outside the program pass.",
+  "category": "system",
+  "order": 10,
+  "tags": [
+    "action",
+    "record",
+    "run",
+    "call",
+    "stored",
+    "settings"
+  ],
+  "integration": "core",
+  "activation": {
+    "kind": "enable-rising",
+    "text": "Runs once each time its enable turns on. A pulse from Edge, Every or On event fires it once per pulse; a block with no enable sources fires once, when the program starts."
+  },
+  "eno": {
+    "alias": "Queued",
+    "description": "A one-pass pulse on the pass the request was queued. The action's own result is reported afterwards, not by this block."
+  },
+  "header": {
+    "subtitle": "Run {action_id}"
+  },
+  "body": [
+    "{action_id}"
+  ],
+  "fields": [
+    {
+      "id": "action_id",
+      "alias": "Action",
+      "description": "The action to run. A wired action wins over the one in the body. It cannot be empty.",
+      "type": "action",
+      "raw_type": "u32",
+      "offset": 0,
+      "size": 4,
+      "required": true,
+      "input": "optional",
+      "accepts": [
+        "action",
+        "number"
+      ]
+    }
+  ]
+}

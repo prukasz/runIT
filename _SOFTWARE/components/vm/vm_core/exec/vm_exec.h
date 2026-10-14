@@ -28,16 +28,16 @@ static inline const char* vm_run_mode_str(vm_run_mode_e m) {
 
 //#ref-enum @alias VM Exec Command
 typedef enum vm_exec_command_e {
-  VM_EXEC_SCAN_MODE      = 0,  //@alias Scan mode
-  VM_EXEC_ONCE           = 1,  //@alias Once
-  VM_EXEC_BLOCK_MODE     = 2,  //@alias Block mode
-  VM_EXEC_NEXT           = 3,  //@alias Next
-  VM_EXEC_RESET_TO_START = 4,  //@alias Reset to start
-  VM_EXEC_NORMAL_MODE    = 5,  //@alias Normal mode
-  VM_EXEC_PAUSE          = 6,  //@alias Pause
-  VM_EXEC_RESUME         = 7,  //@alias Resume
-  VM_EXEC_RESET          = 8,  //@alias Reset
-  VM_EXEC_ACK_FAULT      = 9,  //@alias Ack fault
+  VM_EXEC_SCAN_MODE      = 0,  //@alias Scan mode @description Scan mode
+  VM_EXEC_ONCE           = 1,  //@alias Once @description Once
+  VM_EXEC_BLOCK_MODE     = 2,  //@alias Block mode @description Block mode
+  VM_EXEC_NEXT           = 3,  //@alias Next @description Next
+  VM_EXEC_RESET_TO_START = 4,  //@alias Reset to start @description Reset to start
+  VM_EXEC_NORMAL_MODE    = 5,  //@alias Normal mode @description Normal mode
+  VM_EXEC_PAUSE          = 6,  //@alias Pause @description Pause
+  VM_EXEC_RESUME         = 7,  //@alias Resume @description Resume
+  VM_EXEC_RESET          = 8,  //@alias Reset @description Reset
+  VM_EXEC_ACK_FAULT      = 9,  //@alias Ack fault @description Ack fault
   VM_EXEC_RETAIN_CLEAR   = 10,  //@alias Retain clear @description Forget retained values (vm_retain_clear)
 } vm_exec_command_e;
 

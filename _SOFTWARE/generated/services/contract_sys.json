@@ -1,0 +1,111 @@
+{
+  "$schema": "../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "service-definition",
+  "scope": "system",
+  "id": "SYS",
+  "router_key": 1,
+  "alias": "Polecenia systemowe płyty (System Control)",
+  "description": "Podstawowe operacje kontrolne płyty: sprawdzanie łączności (ping), bezpieczne zatrzymanie systemu, restart oraz watchdog komunikacyjny (dead-man).",
+  "category": "system",
+  "commands": [
+    {
+      "id": "PING",
+      "op": 1,
+      "symbol": "OP_PING",
+      "label": "Ping",
+      "description": "Sprawdza dostępność urządzenia i zwraca czas pracy płyty w milisekundach.",
+      "returns": {
+        "struct": "sys_ping_response_t",
+        "description": "Czas pracy od uruchomienia",
+        "fields": [
+          {
+            "id": "uptime_ms",
+            "label": "Czas pracy (uptime)",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 0,
+            "unit": "ms"
+          }
+        ]
+      }
+    },
+    {
+      "id": "STOP",
+      "op": 2,
+      "symbol": "OP_STOP",
+      "label": "Zatrzymaj system (Stop)",
+      "description": "Wprowadza płytkę w stan bezpieczny (safe state) – wyłącza wyjścia urządzeń i zatrzymuje maszynę VM.",
+      "urgent": true
+    },
+    {
+      "id": "RESTART",
+      "op": 3,
+      "symbol": "OP_RESTART",
+      "label": "Restart płytki",
+      "description": "Restartuje procesor ESP32 po odesłaniu potwierdzenia (opóźnienie ok. 100 ms)."
+    },
+    {
+      "id": "DEADMAN_SET",
+      "op": 4,
+      "symbol": "OP_DEADMAN_SET",
+      "label": "Ustaw watchdog komunikacji (Dead-man)",
+      "description": "Konfiguruje czas oczekiwania na komendy od klienta, po którym system automatycznie wchodzi w stan bezpieczny.",
+      "args": {
+        "struct": "sys_deadman_t",
+        "fields": [
+          {
+            "id": "timeout_ms",
+            "label": "Limit czasu (Timeout)",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 0,
+            "unit": "ms",
+            "description": "Czas braku komend przed wejściem w stan bezpieczny (0 = wyłączony)"
+          },
+          {
+            "id": "on_link_lost",
+            "label": "Reaguj na rozłączenie łącza",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 4,
+            "description": "1 = wejdź w stan bezpieczny natychmiast po zerwaniu połączenia BLE"
+          }
+        ]
+      }
+    },
+    {
+      "id": "DEADMAN_GET",
+      "op": 5,
+      "symbol": "OP_DEADMAN_GET",
+      "label": "Odczytaj konfigurację watchdoga",
+      "description": "Zwraca aktualny timeout oraz stan flagi rozłączenia łącza.",
+      "returns": {
+        "struct": "sys_deadman_t",
+        "description": "Konfiguracja watchdoga komunikacji",
+        "fields": [
+          {
+            "id": "timeout_ms",
+            "label": "Limit czasu (Timeout)",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 0,
+            "unit": "ms"
+          },
+          {
+            "id": "on_link_lost",
+            "label": "Reakcja na rozłączenie",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 4
+          }
+        ]
+      }
+    }
+  ]
+}

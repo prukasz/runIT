@@ -21,15 +21,6 @@
  *  A reading is asked on every enabled pass: gate it with PERIODIC to ask less often.
  */
 
-//#block VM_BLK_POWER_MONITOR
-//@alias Power monitor
-//@category device
-//@description Reads the voltage, current or power of a measured channel and arms its current alerts.
-//@activation enabled
-//@when Runs every pass while enabled: a reading on every pass (gate it with Every to read less often), an alert setting when it changes.
-//@face {op} {device_id}
-//@contract POWER_MONITOR
-//@data vm_block_device_data_t
 /* Load-time check of the block's state and shape; the body, called every pass. */
 bool vm_verify_power_monitor(vm_block_h b);
 void vm_blk_power_monitor(vm_block_h b);

@@ -55,7 +55,7 @@ export const wiresOf = (canvas: ProjectCanvas): Wire[] => {
   ])
 }
 
-const same = (a: ObjectPath, b: ObjectPath): boolean => JSON.stringify(a) === JSON.stringify(b)
+export const same = (a: ObjectPath, b: ObjectPath): boolean => JSON.stringify(a) === JSON.stringify(b)
 
 /** A path (a wire or a variable) onto a target. An input is replaced, EN gets one more source (once), an output drives the object. */
 export const connect = (block: CanvasBlock, target: WireTarget, path: ObjectPath): CanvasBlock => {

@@ -21,8 +21,7 @@ extern "C" {
  * starts with SYS_BLE_FRAG_* header byte (sys_ble_link.c reassembles).
  */
 
-/* runIT service: UUIDs shared with the app. */
-#define SYS_BLE_SVC_RUNIT 0xFFE0
+#define SYS_BLE_SVC_RUNIT 0xFFE0  /**< runIT GATT service UUID */
 #define SYS_BLE_CHR_RUNIT_TX 0xFFE1
 #define SYS_BLE_CHR_RUNIT_RX 0xFFE2
 #define SYS_BLE_CHR_RUNIT_LOGS 0xFFE3
@@ -179,6 +178,14 @@ typedef void (*sys_ble_conn_f)(bool connected, int32_t reason);
 MUST_USE err_h sys_ble_add_conn_listener(sys_ble_conn_f fn);
 
 MUST_USE err_h sys_ble_get_status(sys_ble_status_t* out);
+
+/**
+ * @brief Walks the GATT table as it will be after the next apply: each service (`chr` NULL), then each of its
+ * characteristics, in table order. A service or characteristic removed but not applied yet is left out. Runs under
+ * the registry lock: `fn` must not block or call sys_ble. An error from `fn` stops the walk and is returned.
+ */
+typedef err_h (*sys_ble_visit_f)(void* ctx, const sys_ble_svc_cfg_t* svc, bool locked, const sys_ble_char_cfg_t* chr);
+MUST_USE err_h sys_ble_table_visit(sys_ble_visit_f fn, void* ctx);
 
 #ifdef __cplusplus
 }

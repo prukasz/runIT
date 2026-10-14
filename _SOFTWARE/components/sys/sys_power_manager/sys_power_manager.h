@@ -23,10 +23,10 @@ extern "C" {
 
 //#ref-enum @alias Power Source
 typedef enum {
-  SYS_POWER_SOURCE_UNKNOWN = 0,  //@alias Unknown @description Not identified; the budget uses the measured input voltage and the board's assumed current
-  SYS_POWER_SOURCE_USB = 1,  //@alias Usb
-  SYS_POWER_SOURCE_PSU = 2,  //@alias Power Supply @description External supply; the budget uses the input voltage and the current entered by the user
-  SYS_POWER_SOURCE_BATTERY = 3,  //@alias Battery @description Battery; the budget uses the measured voltage, current limited only by the board
+  SYS_POWER_SOURCE_UNKNOWN = 0,  //@alias Unknown @description Source unknown
+  SYS_POWER_SOURCE_USB = 1,  //@alias Usb @description USB source
+  SYS_POWER_SOURCE_PSU = 2,  //@alias Power Supply @description External power supply
+  SYS_POWER_SOURCE_BATTERY = 3,  //@alias Battery @description Battery source
 } sys_power_source_e;
 
 /* What a power event is, for the response matrix: the wire event numbers (one entry each). A device event maps to
@@ -35,32 +35,39 @@ typedef enum {
 //#ref-enum @alias Power Event
 typedef enum {
   SYS_POWER_KIND_NONE = 0,  //@alias None @description No event
-  SYS_POWER_KIND_OVP = 1,  //@alias Over-voltage @description A rail's voltage went above its limit
-  SYS_POWER_KIND_UVP = 2,  //@alias Under-voltage @description A rail's voltage fell below its limit
-  SYS_POWER_KIND_SPC = 3,  //@alias Short circuit @description A rail is shorted
-  SYS_POWER_KIND_OCP_WARNING = 4,  //@alias Over-current warning @description A rail's current passed the warning threshold
-  SYS_POWER_KIND_OCP_CRITICAL = 5,  //@alias Over-current critical @description A rail's current passed the critical threshold
-  SYS_POWER_KIND_OTP = 6,  //@alias Over-temperature @description A rail's regulator is too hot
-  SYS_POWER_KIND_BATTERY_LOW = 7,  //@alias Battery low @description The battery is low
-  SYS_POWER_KIND_BATTERY_CRITICAL = 8,  //@alias Battery critical @description The battery is nearly empty
-  SYS_POWER_KIND_BUDGET_EXCEEDED = 9,  //@alias Power budget exceeded @description The rails ask for more power than the source gives
-  SYS_POWER_KIND_SOURCE_CHANGED = 10,  //@alias Power source changed @description The board is now fed from another source
+  SYS_POWER_KIND_OVP = 1,  //@alias Over-voltage @description Overvoltage event
+  SYS_POWER_KIND_UVP = 2,  //@alias Under-voltage @description Undervoltage event
+  SYS_POWER_KIND_SPC = 3,  //@alias Short circuit @description Short circuit event
+  SYS_POWER_KIND_OCP_WARNING = 4,  //@alias Over-current warning @description Overcurrent warning
+  SYS_POWER_KIND_OCP_CRITICAL = 5,  //@alias Over-current critical @description Overcurrent critical
+  SYS_POWER_KIND_OTP = 6,  //@alias Over-temperature @description Overtemperature event
+  SYS_POWER_KIND_BATTERY_LOW = 7,  //@alias Battery low @description Battery low
+  SYS_POWER_KIND_BATTERY_CRITICAL = 8,  //@alias Battery critical @description Battery critical
+  SYS_POWER_KIND_BUDGET_EXCEEDED = 9,  //@alias Power budget exceeded @description Power budget exceeded
+  SYS_POWER_KIND_SOURCE_CHANGED = 10,  //@alias Power source changed @description Power source changed
   SYS_POWER_KIND_COUNT,
 } sys_power_kind_e;
 
 //#ref-enum @alias Power Event Response
 typedef enum {
-  SYS_POWER_RESPONSE_NOTIFY = 0,  //@alias Notify @description Only raise the event
-  SYS_POWER_RESPONSE_DISABLE = 1,  //@alias Disable @description Suspend the affected output: that rail, or every rail for a board-level event
-  SYS_POWER_RESPONSE_RESET = 2,  //@alias Reset @description Reset the affected device: that rail, or every rail for a board-level event
-  SYS_POWER_RESPONSE_SAFE_STATE = 3,  //@alias Safe State @description Stop the program and suspend every device
+  SYS_POWER_RESPONSE_NOTIFY = 0,  //@alias Notify @description Raise event only
+  SYS_POWER_RESPONSE_DISABLE = 1,  //@alias Disable @description Suspend affected output
+  SYS_POWER_RESPONSE_RESET = 2,  //@alias Reset @description Reset affected device
+  SYS_POWER_RESPONSE_SAFE_STATE = 3,  //@alias Safe State @description Stop program and enter safe state
 } sys_power_response_e;
 
 //#ref-enum @alias Battery Chemistry
 typedef enum {
   SYS_POWER_BATTERY_NONE = 0,  //@alias None @description No battery configured
-  SYS_POWER_BATTERY_LIPO = 1,  //@alias LiPo @description Lithium polymer, 4.2 V per cell when full
+  SYS_POWER_BATTERY_LIPO = 1,  //@alias LiPo @description Lithium polymer, 4.2V/cell
 } sys_power_battery_e;
+
+/* What feeds the external input. The board's eFuse only says the input is live, not what is on it, so the user says. */
+//#ref-enum @alias External input source
+typedef enum {
+  SYS_POWER_EXT_BENCH = 0,    //@alias Bench supply @description Bench power supply
+  SYS_POWER_EXT_BATTERY = 1,  //@alias Battery pack @description Battery pack
+} sys_power_ext_input_e;
 
 /* ----------------------------------------------------------------------------
  * Events of the manager itself (sys_event.h "Events tables"): contract 0x06, source SYS_DEVICE_ID_NONE, channel 0.
@@ -69,11 +76,11 @@ typedef enum {
 
 // clang-format off
 #define SYS_POWER_MANAGER_EVENTS(X) \
-  X(SOURCE_CHANGED, 0x00, SYS_EVENT_NOTIFY)  /* @alias Source changed @description The board is now fed from another source @value The new source (power source list) */ \
-  X(BATTERY_LOW, 0x01, SYS_EVENT_NOTIFY)  /* @alias Battery low @description The battery charge passed the low threshold @value The charge @unit % */ \
-  X(BATTERY_CRITICAL, 0x02, SYS_EVENT_NOTIFY)  /* @alias Battery critical @description The battery charge passed the critical threshold @value The charge @unit % */ \
-  X(BUDGET_EXCEEDED, 0x03, SYS_EVENT_NOTIFY)  /* @alias Budget exceeded @description The rails ask for more than the budget @value The budget with the margin @unit mW */ \
-  X(INPUT_OVP, 0x04, SYS_EVENT_NOTIFY)  /* @alias Input over-voltage @description The input is above the board's maximum @value The input voltage @unit mV */
+  X(SOURCE_CHANGED, 0x00, SYS_EVENT_NOTIFY) \
+  X(BATTERY_LOW, 0x01, SYS_EVENT_NOTIFY) \
+  X(BATTERY_CRITICAL, 0x02, SYS_EVENT_NOTIFY) \
+  X(BUDGET_EXCEEDED, 0x03, SYS_EVENT_NOTIFY) \
+  X(INPUT_OVP, 0x04, SYS_EVENT_NOTIFY)
 // clang-format on
 
 #define SYS_POWER_MANAGER__EV(name, n, flags) \
@@ -130,40 +137,41 @@ typedef struct {
 
 /** @brief "pwr_cfg": how the manager works. */
 typedef struct __attribute__((packed)) {
-  uint8_t enabled;  //@alias Enabled @description Off: measure only (status, source and battery events); no budget, no responses @choices 0=No,1=Yes
-  uint8_t strict;  //@alias Strict budget @description Strict: the budget is the limit; soft: the budget plus the margin @choices 0=Soft,1=Strict
-  uint8_t soft_margin_pct;  //@alias Soft margin @description How far over the budget the rails may go when soft @unit % @min 0 @max 100
-  sys_io_pin_t source_pin;  //@alias Source pin @description Tells the battery from USB; none: inferred
-  uint8_t battery_level;  //@alias Battery level @description The pin level that means battery @choices 0=Low,1=High
-  uint8_t pd_max_auto;  //@alias Negotiate maximum @description On a USB source always ask the charger's highest offer @choices 0=Only_on_request,1=Always
+  uint8_t enabled;          /**< 1 = enabled, 0 = measure only */
+  uint8_t strict;           /**< 1 = strict budget, 0 = soft margin */
+  uint8_t soft_margin_pct;  /**< Soft margin above budget (0..100%) */
+  sys_io_pin_t source_pin;  /**< Pin to distinguish battery from USB */
+  uint8_t battery_level;    /**< Pin level corresponding to battery */
+  uint8_t pd_max_auto;      /**< 1 = auto negotiate max USB-PD offer */
+  uint8_t ext_input;        /**< sys_power_ext_input_e */
 } sys_power_manager_cfg_t;
 
 /** @brief "pwr_psu": an external supply's limits (0 / 0 = none). */
 typedef struct __attribute__((packed)) {
-  uint32_t max_mV;  //@alias Maximum voltage @description The supply's limit @unit mV
-  uint32_t max_mA;  //@alias Maximum current @description The supply's limit @unit mA
+  uint32_t max_mV;  /**< Maximum voltage in mV */
+  uint32_t max_mA;  /**< Maximum current in mA */
 } sys_power_psu_t;
 
 /** @brief "pwr_battery". */
 typedef struct __attribute__((packed)) {
-  uint8_t chemistry;  //@alias Chemistry @enum-ref sys_power_battery_e
-  uint8_t cells;  //@alias Cells @description In series
-  uint8_t low_pct;  //@alias Low at @description Charge that raises the low event @unit % @min 2 @max 100
-  uint8_t critical_pct;  //@alias Critical at @description Charge that raises the critical event @unit % @min 1
+  uint8_t chemistry;     /**< sys_power_battery_e */
+  uint8_t cells;         /**< Number of cells in series */
+  uint8_t low_pct;       /**< Battery low threshold % */
+  uint8_t critical_pct;  /**< Battery critical threshold % */
 } sys_power_battery_t;
 
 /** @brief GET_STATUS answer. */
 typedef struct __attribute__((packed)) {
-  uint8_t source;  //@alias Source @enum-ref sys_power_source_e
-  int32_t input_mV;  //@alias Input voltage @unit mV
-  int32_t input_mA;  //@alias Input current @unit mA
-  uint32_t source_mV;  //@alias Source voltage limit @description The limit the budget used, after the board's caps @unit mV
-  uint32_t source_mA;  //@alias Source current limit @unit mA
-  uint32_t budget_mW;  //@alias Budget @description Without the soft margin @unit mW
-  uint32_t limit_mW;  //@alias Limit @description What the rails are held to: the budget, or budget plus margin when soft @unit mW
-  uint32_t allocated_mW;  //@alias Allocated @description Reserve and rails @unit mW
-  uint8_t battery_pct;  //@alias Battery charge @description 0xFF: unknown @unit %
-  uint8_t flags;  //@alias Flags @description SYS_POWER_FLAG_* bits
+  uint8_t source;         /**< sys_power_source_e */
+  int32_t input_mV;       /**< Input voltage in mV */
+  int32_t input_mA;       /**< Input current in mA */
+  uint32_t source_mV;     /**< Source voltage limit in mV */
+  uint32_t source_mA;     /**< Source current limit in mA */
+  uint32_t budget_mW;     /**< Budget in mW without soft margin */
+  uint32_t limit_mW;      /**< Rail limit in mW including soft margin */
+  uint32_t allocated_mW;  /**< Allocated power in mW */
+  uint8_t battery_pct;    /**< Battery charge % (0xFF = unknown) */
+  uint8_t flags;          /**< SYS_POWER_FLAG_* bitmask */
 } sys_power_status_t;
 
 #define SYS_POWER_FLAG_ENABLED 0x01u

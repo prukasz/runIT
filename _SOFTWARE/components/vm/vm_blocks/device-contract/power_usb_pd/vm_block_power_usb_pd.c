@@ -6,13 +6,7 @@ _Static_assert(sizeof(pd_args_SET_SETTINGS_t) == 8 && sizeof(sys_power_usb_pd_li
                "a POWER_USB_PD struct changed: update the table of the POWER_USB_PD block");
 
 static const vm_dev_op_t k_ops[] = {
-    //@op PD_OP_SET_SETTINGS @alias Request @description Asks the source for a voltage and a current. @face Ask {voltage} {current}
-    //@op-in voltage @alias Voltage @unit mV
-    //@op-in current @alias Current @unit mA
     VM_DEV_OP(PD_OP_SET_SETTINGS, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 2, VM_DEV_F_U32, VM_DEV_F_U32),
-    //@op PD_OP_GET_LIMITS @alias Read offer @description Reads the highest-voltage offer of the source. @face Read offer
-    //@op-out voltage @alias Voltage @unit mV
-    //@op-out current @alias Current @unit mA
     {.op = PD_OP_GET_LIMITS, .act = VM_DEV_ACT_READ, .result = VM_DEV_R_I32X2, .nfield = 0},
 };
 static const vm_dev_contract_t k_contract = {.ops = k_ops, .count = ARRAY_LEN(k_ops), .naddr = 0};

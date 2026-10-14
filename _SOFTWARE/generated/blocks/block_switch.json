@@ -1,0 +1,49 @@
+{
+  "$schema": "../../templates/vm-block.schema.json",
+  "schemaVersion": 3,
+  "kind": "vm-block",
+  "id": "switch",
+  "wire_id": 4,
+  "alias": "Switch",
+  "description": "N-way router: drives the output whose index equals the selector (rounded); out of range drives none.",
+  "category": "flow",
+  "order": 20,
+  "tags": [
+    "case",
+    "route",
+    "select",
+    "branch"
+  ],
+  "integration": "core",
+  "editor": "switch-cases",
+  "activation": {
+    "kind": "enabled",
+    "text": "Runs every pass while enabled."
+  },
+  "header": {
+    "subtitle": "switch {selector}"
+  },
+  "inputs": [
+    {
+      "id": "selector",
+      "alias": "Selector",
+      "description": "The index of the case to drive, counted from 0.",
+      "value": "int",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "group": {
+        "alias": "Case",
+        "description": "One output per case, numbered from 0. Only the one the selector names fires.",
+        "value": "flow",
+        "flow": "conditional",
+        "min": 1,
+        "max": 16,
+        "label": "shown",
+        "required": true
+      }
+    }
+  ]
+}

@@ -12,20 +12,19 @@
  * passes when it is false. The first sample establishes the initial level.
  */
 
-//#block-enum @alias Edge Type
 typedef enum {
-  VM_EDGE_RISING = 0,  //@alias Rising @description The enable changes from false to true
-  VM_EDGE_FALLING = 1,  //@alias Falling @description The enable changes from true to false
-  VM_EDGE_BOTH = 2,  //@alias Both @description The enable changes in either direction
+  VM_EDGE_RISING = 0,  // The enable changes from false to true
+  VM_EDGE_FALLING = 1,  // The enable changes from true to false
+  VM_EDGE_BOTH = 2,  // The enable changes in either direction
   VM_EDGE_TYPE_CNT = 3,
 } vm_edge_type_e;
 
 #define VM_EDGE_F_INITIALIZED (1u << 0)
 
 typedef struct __attribute__((aligned(4))) {
-  uint8_t edge_type;  //@alias Edge @description Which change of the enable makes the block pulse its output @enum-ref vm_edge_type_e
-  uint8_t flags;  //@description VM_EDGE_F_INITIALIZED @runtime
-  uint8_t previous;  //@description Previous EN level @runtime
+  uint8_t edge_type;  // Which change of the enable makes the block pulse its output
+  uint8_t flags;
+  uint8_t previous;
   uint8_t _pad;
 } vm_block_edge_data_t;
 
@@ -37,24 +36,6 @@ static inline void vm_edge_init(void* buffer, vm_edge_type_e type) {
   memcpy(buffer, &data, sizeof(data));
 }
 
-//#block VM_BLK_EDGE
-//@alias Edge
-//@category logic
-//@description Pulses ENO for one pass when the combined EN level rises, falls or changes in either direction.
-//@activation enabled
-//@when Samples EN every pass, including when EN is false.
-//@face {edge_type} edge
-//@enables required
-//@loop once
-//@en-alias Signal
-//@en-description is sampled for edge detection
-//@en-connect Connect a signal to EN so Edge can detect its transitions.
-//@en-signal true
-//@eno-alias Pulse
-//@eno-description One-pass pulse when the selected EN edge occurs.
-//@data vm_block_edge_data_t
-//@rule At least one EN source is connected; no data inputs or outputs. @error ERR_VM_BLK_BAD_SHAPE
-//@rule edge_type is a vm_edge_type_e value. @error ERR_VM_BLK_BAD_SHAPE
 /* Load-time check of the block's state; the pin shape comes from the pin enums above. */
 bool vm_verify_edge(vm_block_h b);
 /* The body, called every pass. */

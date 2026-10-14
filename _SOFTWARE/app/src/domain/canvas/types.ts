@@ -32,6 +32,8 @@ export interface ProgramBlock {
   readonly enableMode?: 'any' | 'all'
   /** Its state fields by name: a number, or an enum member name. */
   readonly settings?: Readonly<Record<string, number | string>>
+  /** An expression block's formula as the bytecode takes it (EXPR, EXPR_BIT): opcode aliases with their operands, and the constants. */
+  readonly expression?: { readonly constants: readonly number[]; readonly code: readonly (string | number)[] }
 }
 
 /** A block on a canvas, and where its top-left corner sits (canvas units, px at 100 % zoom). */
@@ -44,10 +46,23 @@ export interface CanvasBlock extends ProgramBlock {
   readonly outputAliases?: readonly (string | null)[]
 }
 
+/**
+ * A variable pulled off its pin onto the canvas: a label with a position. It stores no wires: every pin that reads (or, for an
+ * output, writes) its path is drawn wired to it, and the path stays on the pin, so the program does not change.
+ */
+export interface CanvasVariable {
+  readonly id: string
+  readonly path: ObjectPath
+  readonly x: number
+  readonly y: number
+}
+
 /** One canvas (a flow tab). A project is one program; every enabled canvas's blocks run in list order. */
 export interface ProjectCanvas {
   readonly id: string
   readonly name: string
   readonly disabled?: boolean
   readonly blocks: readonly CanvasBlock[]
+  /** Variables shown as their own element instead of a chip docked on a pin. */
+  readonly variables?: readonly CanvasVariable[]
 }

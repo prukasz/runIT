@@ -1,0 +1,387 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "templates/board.schema.json",
+  "title": "runIT Board Catalog & Hardware Map Schema",
+  "description": "Declarative hardware definition for runIT boards: onboard chips, internal wiring, power architecture, boot pin setups, and external canvas terminals.",
+  "type": "object",
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "kind",
+    "name",
+    "revision",
+    "source_files",
+    "i2c_buses",
+    "power",
+    "devices",
+    "pin_setup",
+    "reserved_pins",
+    "terminals"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 3 },
+    "kind": { "const": "board" },
+    "name": { "type": "string", "description": "Human-readable board name, e.g. runIT" },
+    "revision": { "type": "integer", "minimum": 1, "description": "Hardware revision number" },
+    "description": { "type": "string" },
+    "source_files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Firmware and schematic source files defining this board"
+    },
+    "i2c_buses": {
+      "type": "array",
+      "description": "I2C buses on the board",
+      "items": {
+        "type": "object",
+        "required": ["bus", "name", "sda_pin", "scl_pin", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "bus": { "type": "integer", "minimum": 0, "maximum": 7 },
+          "name": { "type": "string" },
+          "sda_pin": {
+            "$ref": "#/$defs/pinRef"
+          },
+          "scl_pin": {
+            "$ref": "#/$defs/pinRef"
+          },
+          "frequency_hz": { "type": "integer" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "power": {
+      "type": "object",
+      "description": "Board power topology, limits, rails and manager configuration",
+      "required": [
+        "limits",
+        "sources",
+        "rails",
+        "input_monitor",
+        "muxes",
+        "responses"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "limits": {
+          "type": "object",
+          "required": [
+            "max_mV",
+            "max_mA",
+            "reserve_mW",
+            "unknown_source_mA",
+            "vreg_efficiency_pct"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "max_mV": { "type": "integer", "description": "Hardware trip limit: maximum board input voltage" },
+            "max_mA": { "type": "integer", "description": "Hardware trip limit: maximum board input current" },
+            "reserve_mW": { "type": "integer", "description": "Power reserved for onboard logic (MCU, expanders)" },
+            "unknown_source_mA": { "type": "integer", "description": "Default assumed current limit when source is unidentified" },
+            "vreg_efficiency_pct": { "type": "integer", "minimum": 1, "maximum": 100 }
+          }
+        },
+        "sources": {
+          "type": "object",
+          "required": ["usb_pd", "external"],
+          "additionalProperties": false,
+          "properties": {
+            "usb_pd": {
+              "type": "object",
+              "required": ["device", "descriptor", "ok_pin"],
+              "additionalProperties": false,
+              "properties": {
+                "device": { "type": "integer" },
+                "descriptor": { "type": "string" },
+                "ok_pin": { "$ref": "#/$defs/pinRef" },
+                "description": { "type": "string" }
+              }
+            },
+            "external": {
+              "type": "object",
+              "required": ["ok_pin"],
+              "additionalProperties": false,
+              "properties": {
+                "ok_pin": { "$ref": "#/$defs/pinRef" },
+                "description": { "type": "string" }
+              }
+            }
+          }
+        },
+        "rails": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "vreg_device", "monitor", "min_mA", "mV_min", "mV_max"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "vreg_device": { "type": "integer" },
+              "monitor": {
+                "type": "object",
+                "required": ["device", "channel"],
+                "additionalProperties": false,
+                "properties": {
+                  "device": { "type": "integer" },
+                  "channel": { "type": "integer" }
+                }
+              },
+              "min_mA": { "type": "integer" },
+              "mV_min": { "type": "integer" },
+              "mV_max": { "type": "integer" },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "input_monitor": {
+          "type": "object",
+          "required": ["device", "channel"],
+          "additionalProperties": false,
+          "properties": {
+            "device": { "type": "integer" },
+            "channel": { "type": "integer" },
+            "description": { "type": "string" }
+          }
+        },
+        "muxes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "device", "symbol", "target_device", "source_a", "source_b", "en_a_pin", "en_b_pin"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "device": { "type": "integer" },
+              "symbol": { "type": "string" },
+              "target_device": { "type": "integer" },
+              "source_a": { "type": "string" },
+              "source_b": { "type": "string" },
+              "en_a_pin": { "$ref": "#/$defs/pinRef" },
+              "en_b_pin": { "$ref": "#/$defs/pinRef" },
+              "active_level": { "type": "integer" },
+              "switch_delay_ms": { "type": "integer" },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "responses": {
+          "type": "object",
+          "required": [
+            "ovp",
+            "uvp",
+            "spc",
+            "ocp_warning",
+            "ocp_critical",
+            "otp",
+            "battery_low",
+            "battery_critical",
+            "budget_exceeded",
+            "source_changed"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "ovp": { "type": "string", "enum": ["ignore", "notify", "disable", "safe_state"] },
+            "uvp": { "type": "string", "enum": ["ignore", "notify", "disable", "safe_state"] },
+            "spc": { "type": "string", "enum": ["ignore", "notify", "disable", "safe_state"] },
+            "ocp_warning": { "type": "string", "enum": ["ignore", "notify", "disable", "safe_state"] },
+            "ocp_critical": { "type": "string", "enum": ["ignore", "notify", "disable", "safe_state"] },
+            "otp": { "type": "string", "enum": ["ignore", "notify", "disable", "safe_state"] },
+            "battery_low": { "type": "string", "enum": ["ignore", "notify", "disable", "safe_state"] },
+            "battery_critical": { "type": "string", "enum": ["ignore", "notify", "disable", "safe_state"] },
+            "budget_exceeded": { "type": "string", "enum": ["ignore", "notify", "disable", "safe_state"] },
+            "source_changed": { "type": "string", "enum": ["ignore", "notify", "disable", "safe_state"] }
+          }
+        }
+      }
+    },
+    "devices": {
+      "type": "array",
+      "description": "Onboard hardware chips created at boot",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "symbol",
+          "name",
+          "alias",
+          "type",
+          "descriptor",
+          "description"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "integer", "minimum": 0, "maximum": 255 },
+          "symbol": { "type": "string", "pattern": "^DEVICE_ID_[A-Z0-9_]+$" },
+          "name": { "type": "string" },
+          "alias": { "type": "string" },
+          "type": { "type": "string", "pattern": "^SYS_DEVICE_TYPE_[A-Z0-9_]+$" },
+          "descriptor": { "type": "string" },
+          "description": { "type": "string" },
+          "role": { "type": "string" },
+          "i2c": {
+            "type": "object",
+            "required": ["bus", "address"],
+            "additionalProperties": false,
+            "properties": {
+              "bus": { "type": "integer" },
+              "address": { "type": "integer" },
+              "address_hex": { "type": "string", "pattern": "^0x[0-9a-fA-F]+$" }
+            }
+          },
+          "pins": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["use", "device", "pin"],
+              "additionalProperties": false,
+              "properties": {
+                "use": { "type": "string" },
+                "device": { "type": "integer" },
+                "pin": { "type": "integer" },
+                "mode": { "type": "string" },
+                "description": { "type": "string" }
+              }
+            }
+          },
+          "analog_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["use", "device", "channel"],
+              "additionalProperties": false,
+              "properties": {
+                "use": { "type": "string" },
+                "device": { "type": "integer" },
+                "channel": { "type": "integer" },
+                "description": { "type": "string" }
+              }
+            }
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Chip-specific hardware parameters (e.g. inverted_mask, pwm_freq_Hz)"
+          }
+        }
+      }
+    },
+    "pin_setup": {
+      "type": "array",
+      "description": "Pin states initialized during boot sequence",
+      "items": {
+        "type": "object",
+        "required": ["device", "pin", "mode", "label"],
+        "additionalProperties": false,
+        "properties": {
+          "device": { "type": "integer" },
+          "pin": { "type": "integer" },
+          "mode": { "type": "string" },
+          "level": { "type": "boolean" },
+          "label": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "reserved_pins": {
+      "type": "array",
+      "description": "Pins permanently occupied by internal functions (I2C, strapping, alerts)",
+      "items": {
+        "type": "object",
+        "required": ["device", "pin", "label", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "device": { "type": "integer" },
+          "pin": { "type": "integer" },
+          "symbol": { "type": "string" },
+          "label": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "terminals": {
+      "type": "array",
+      "description": "Physical connectors and screw terminals exposed on the board perimeter for Canvas wiring",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "type", "group", "pins"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": [
+              "screw_terminal",
+              "servo_header",
+              "goldpin_header",
+              "usb_c",
+              "xt60",
+              "barrel_jack"
+            ]
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "analog_inputs",
+              "servos",
+              "motors",
+              "user_bus",
+              "power_inputs",
+              "power_rails",
+              "gpio"
+            ]
+          },
+          "svg_element": { "type": "string", "description": "Element ID in board-simple.svg" },
+          "description": { "type": "string" },
+          "pins": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "kind"],
+              "additionalProperties": false,
+              "properties": {
+                "name": { "type": "string" },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "io",
+                    "analog_in",
+                    "pwm_out",
+                    "hbridge_out",
+                    "bus",
+                    "power_out",
+                    "power_in",
+                    "gnd"
+                  ]
+                },
+                "device": { "type": "integer" },
+                "pin": { "type": "integer" },
+                "channel": { "type": "integer" },
+                "rail": { "type": "string" },
+                "mV_min": { "type": "integer" },
+                "mV_max": { "type": "integer" },
+                "mA_max": { "type": "integer" },
+                "description": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "pinRef": {
+      "type": "object",
+      "required": ["device", "pin"],
+      "additionalProperties": false,
+      "properties": {
+        "device": { "type": "integer", "minimum": 0, "maximum": 255 },
+        "pin": { "type": "integer", "minimum": 0, "maximum": 255 },
+        "description": { "type": "string" }
+      }
+    }
+  }
+}

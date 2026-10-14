@@ -29,14 +29,14 @@
 
 //#ref-enum @alias VM Data Type
 typedef enum vm_obj_t_e {
-  VM_OBJ_NONE = 0,  //@alias Empty @description No payload type.
-  VM_OBJ_PTR  = 1,  //@alias Object Reference @description A reference to another VM object. @wire-size 2 @mem-size 4
-  VM_OBJ_U8   = 2,  //@alias Unsigned 8-bit Integer @wire-size 1 @mem-size 1
-  VM_OBJ_U32  = 3,  //@alias Unsigned 32-bit Integer @wire-size 4 @mem-size 4
-  VM_OBJ_I32  = 4,  //@alias Signed 32-bit Integer @wire-size 4 @mem-size 4
-  VM_OBJ_F    = 5,  //@alias Float @wire-size 4 @mem-size 4
-  VM_OBJ_B    = 6,  //@alias Boolean @wire-size 1 @mem-size 1
-  VM_OBJ_STR  = 7,  //@alias Text @wire-size 1 @mem-size 1
+  VM_OBJ_NONE = 0,  //@alias Empty @description Empty: no payload type
+  VM_OBJ_PTR  = 1,  //@alias Object Reference @description Object reference: reference to another VM object (wire: 2B, mem: 4B)
+  VM_OBJ_U8   = 2,  //@alias Unsigned 8-bit Integer @description Unsigned 8-bit integer (wire: 1B, mem: 1B)
+  VM_OBJ_U32  = 3,  //@alias Unsigned 32-bit Integer @description Unsigned 32-bit integer (wire: 4B, mem: 4B)
+  VM_OBJ_I32  = 4,  //@alias Signed 32-bit Integer @description Signed 32-bit integer (wire: 4B, mem: 4B)
+  VM_OBJ_F    = 5,  //@alias Float @description 32-bit float (wire: 4B, mem: 4B)
+  VM_OBJ_B    = 6,  //@alias Boolean @description Boolean (wire: 1B, mem: 1B)
+  VM_OBJ_STR  = 7,  //@alias Text @description Text string (wire: 1B, mem: 1B)
 } vm_obj_t_e;
 
 /**

@@ -1,0 +1,62 @@
+{
+  "$schema": "../../../templates/device.schema.json",
+  "schemaVersion": 3,
+  "kind": "device-definition",
+  "id": "gpio_esp",
+  "alias": "ESP32 native GPIO",
+  "description": "ESP32-S3 GPIO. Some pins are reserved for internal use, the rest are free for yours.",
+  "type_id": 64,
+  "type": {
+    "symbol": "SYS_DEVICE_TYPE_GPIO_ESP",
+    "id": 64
+  },
+  "protocols": [
+    "native"
+  ],
+  "tags": [
+    "gpio",
+    "io",
+    "adc",
+    "voltage",
+    "pwm"
+  ],
+  "datasheet": "https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf",
+  "config": {
+    "struct": "gpio_esp_cfg_t",
+    "size": 0,
+    "fields": []
+  },
+  "contracts": [
+    "DEVICE",
+    "IO",
+    "PINS"
+  ],
+  "provides": {
+    "pins": {
+      "count": 45,
+      "modes": [
+        "input",
+        "input_pullup",
+        "input_pulldown",
+        "output",
+        "output_od",
+        "pwm",
+        "adc",
+        "interrupt"
+      ],
+      "electrical": {
+        "voltage_mV_min": 0,
+        "voltage_mV_max": 3300,
+        "max_current_mA": 40
+      }
+    }
+  },
+  "electrical": {
+    "supply_voltage_mV": {
+      "min": 3000,
+      "max": 3600,
+      "nominal": 3300
+    },
+    "logic_voltage_mV": 3300
+  }
+}

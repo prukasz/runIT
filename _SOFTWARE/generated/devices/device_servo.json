@@ -1,0 +1,328 @@
+{
+  "$schema": "../../templates/device.schema.json",
+  "schemaVersion": 3,
+  "kind": "device-definition",
+  "id": "servo",
+  "alias": "Servo",
+  "description": "Hobby servo on a PWM pin of another device: an angle servo moves to an angle, a continuous (360 degree) servo runs at a speed from -100 to 100. Pulse limits, trim, direction and the position it takes at start-up are set here.",
+  "type_id": 72,
+  "type": {
+    "symbol": "SYS_DEVICE_TYPE_SERVO",
+    "id": 72
+  },
+  "protocols": [
+    "pwm"
+  ],
+  "tags": [
+    "servo",
+    "pwm",
+    "motion"
+  ],
+  "datasheet": "https://runit.local",
+  "config": {
+    "struct": "servo_cfg_t",
+    "size": 18,
+    "fields": [
+      {
+        "id": "pwm_pin",
+        "label": "PWM pin",
+        "description": "Any pin that can output PWM; the servo is driven through the IO contract",
+        "offset": 0,
+        "size": 3,
+        "type": "pin",
+        "raw_type": "bytes",
+        "pin_ref": true,
+        "requires": "output",
+        "optional": false
+      },
+      {
+        "id": "servo_type",
+        "label": "Servo type",
+        "description": "An angle servo moves to a position, a continuous one turns at a speed",
+        "offset": 3,
+        "size": 1,
+        "type": "enum",
+        "enum": "servo_type_e",
+        "raw_type": "u8",
+        "default": 0
+      },
+      {
+        "id": "byte_mode",
+        "label": "Byte steering",
+        "description": "Steer with one byte: 0 to 255 is the whole range",
+        "offset": 4,
+        "size": 1,
+        "type": "choice",
+        "raw_type": "u8",
+        "options": [
+          {
+            "label": "Off",
+            "value": 0
+          },
+          {
+            "label": "On",
+            "value": 1
+          }
+        ],
+        "default": 0
+      },
+      {
+        "id": "invert",
+        "label": "Reverse direction",
+        "description": "Mirrors the movement, for a servo mounted the other way round",
+        "offset": 5,
+        "size": 1,
+        "type": "choice",
+        "raw_type": "u8",
+        "options": [
+          {
+            "label": "Off",
+            "value": 0
+          },
+          {
+            "label": "On",
+            "value": 1
+          }
+        ],
+        "default": 0
+      },
+      {
+        "id": "angle_min_deg",
+        "label": "Angle at min pulse",
+        "description": "Angle servo only",
+        "offset": 6,
+        "size": 2,
+        "type": "number",
+        "raw_type": "i16",
+        "default": 0,
+        "unit": "deg",
+        "min": -360,
+        "max": 360
+      },
+      {
+        "id": "angle_max_deg",
+        "label": "Angle at max pulse",
+        "description": "Angle servo only; above the minimum",
+        "offset": 8,
+        "size": 2,
+        "type": "number",
+        "raw_type": "i16",
+        "default": 180,
+        "unit": "deg",
+        "min": -360,
+        "max": 360
+      },
+      {
+        "id": "default_pos",
+        "label": "Default position",
+        "description": "Where the servo goes at create and on Home: degrees (angle) or percent (continuous)",
+        "offset": 10,
+        "size": 2,
+        "type": "number",
+        "raw_type": "i16",
+        "default": 90,
+        "min": -360,
+        "max": 360
+      },
+      {
+        "id": "min_us",
+        "label": "Min pulse",
+        "description": "The lowest pulse ever sent (500 and 1000 are common)",
+        "offset": 12,
+        "size": 2,
+        "type": "number",
+        "raw_type": "u16",
+        "default": 500,
+        "unit": "us",
+        "min": 400,
+        "max": 2600
+      },
+      {
+        "id": "max_us",
+        "label": "Max pulse",
+        "description": "The highest pulse ever sent (2000 and 2500 are common)",
+        "offset": 14,
+        "size": 2,
+        "type": "number",
+        "raw_type": "u16",
+        "default": 2500,
+        "unit": "us",
+        "min": 400,
+        "max": 2600
+      },
+      {
+        "id": "deadband_us",
+        "label": "Deadband",
+        "description": "Continuous servo: the pulse width around stop in which it does not move",
+        "offset": 16,
+        "size": 2,
+        "type": "number",
+        "raw_type": "u16",
+        "default": 0,
+        "unit": "us",
+        "min": 0,
+        "max": 200
+      }
+    ]
+  },
+  "contracts": [
+    "DEVICE"
+  ],
+  "power_pins": [
+    {
+      "name": "VCC",
+      "kind": "vin",
+      "voltage_mV": {
+        "min": 4500,
+        "max": 6500,
+        "nominal": 5000
+      }
+    },
+    {
+      "name": "GND",
+      "kind": "gnd"
+    }
+  ],
+  "electrical": {
+    "supply_voltage_mV": {
+      "min": 4500,
+      "max": 6500,
+      "nominal": 5000
+    },
+    "logic_voltage_mV": 3300,
+    "max_current_mA": 1000
+  },
+  "presets": [
+    {
+      "id": "sg90",
+      "label": "Micro Servo (SG90)",
+      "description": "Standard 9g 180-degree analog micro servo",
+      "values": {
+        "min_us": 500,
+        "max_us": 2400,
+        "angle_min_deg": 0,
+        "angle_max_deg": 180,
+        "default_pos": 90
+      }
+    },
+    {
+      "id": "continuous_360",
+      "label": "Continuous Rotation 360",
+      "description": "Continuous speed control (-100% to 100%)",
+      "values": {
+        "servo_type": 1,
+        "min_us": 1000,
+        "max_us": 2000,
+        "deadband_us": 20,
+        "default_pos": 0
+      }
+    }
+  ],
+  "commands": [
+    {
+      "id": "home",
+      "op": 0,
+      "symbol": "SERVO_OP_HOME",
+      "label": "Home",
+      "description": "Moves servo to its configured default start position"
+    },
+    {
+      "id": "set_trim",
+      "op": 1,
+      "symbol": "SERVO_OP_SET_TRIM",
+      "label": "Set Trim",
+      "description": "Applies pulse offset/trim",
+      "args": {
+        "struct": "servo_trim_t",
+        "fields": [
+          {
+            "id": "trim",
+            "type": "number",
+            "raw_type": "i16",
+            "size": 2,
+            "label": "Trim offset",
+            "unit": "deg"
+          }
+        ]
+      }
+    },
+    {
+      "id": "set",
+      "op": 2,
+      "symbol": "SERVO_OP_SET",
+      "label": "Set Position",
+      "description": "Sets servo angle or continuous speed",
+      "args": {
+        "struct": "servo_set_t",
+        "fields": [
+          {
+            "id": "value_x10",
+            "type": "number",
+            "raw_type": "i16",
+            "size": 2,
+            "label": "Position (x10)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "get_pulse",
+      "op": 3,
+      "symbol": "SERVO_OP_GET_PULSE",
+      "label": "Get Pulse Width",
+      "description": "Reads current pulse in microseconds",
+      "returns": {
+        "type": "u16",
+        "unit": "us",
+        "label": "Pulse width"
+      }
+    },
+    {
+      "id": "release",
+      "op": 4,
+      "symbol": "SERVO_OP_RELEASE",
+      "label": "Release (Limp)",
+      "description": "Stops driving PWM pulses, allowing the servo horn to move freely"
+    }
+  ],
+  "values": {
+    "position": [
+      {
+        "title": "Byte",
+        "when": [
+          {
+            "field": "byte_mode",
+            "value": 1
+          }
+        ],
+        "unit": "",
+        "min": 0,
+        "max": 255
+      },
+      {
+        "title": "Speed",
+        "when": [
+          {
+            "field": "servo_type",
+            "value": 1
+          }
+        ],
+        "unit": "%",
+        "min": -100,
+        "max": 100
+      },
+      {
+        "title": "Angle",
+        "when": [
+          {
+            "field": "servo_type",
+            "value": 0
+          }
+        ],
+        "unit": "deg",
+        "min": 0,
+        "max": 180
+      }
+    ]
+  }
+}

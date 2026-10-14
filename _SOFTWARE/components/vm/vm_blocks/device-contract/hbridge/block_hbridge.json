@@ -1,0 +1,88 @@
+{
+  "$schema": "../../../../../templates/vm-block.schema.json",
+  "schemaVersion": 3,
+  "kind": "vm-block",
+  "id": "hbridge",
+  "wire_id": 33,
+  "alias": "Motor",
+  "description": "Drives a motor channel of an H-bridge: a speed in percent, brake, coast, or a reading of its current.",
+  "category": "device",
+  "order": 30,
+  "tags": ["motor", "h-bridge", "drive", "brake", "coast", "current", "drv8962"],
+  "integration": "contract",
+  "device": { "contract": "HBRIDGE" },
+  "activation": {
+    "kind": "enabled",
+    "text": "Runs every pass while enabled: a drive is sent when it changes, brake and coast once on each rising enable, a reading on every pass."
+  },
+  "header": { "subtitle": "{variant} {channel}" },
+  "body": ["{device}", "When disabled: {idle}"],
+  "fields": [
+    {
+      "id": "idle",
+      "alias": "When disabled",
+      "description": "What the block does once when it stops being enabled, for the channel it drove last.",
+      "type": "enum",
+      "raw_type": "u16",
+      "offset": 4,
+      "size": 2,
+      "options": [
+        { "value": 0, "alias": "Hold", "description": "Leave the bridge as it is." },
+        { "value": 2305, "alias": "Brake", "description": "Short the motor terminals." },
+        { "value": 2306, "alias": "Coast", "description": "Release the motor: the outputs are off." }
+      ],
+      "default": 0
+    }
+  ],
+  "variants": [
+    {
+      "id": "set_drive",
+      "alias": "Drive",
+      "description": "Drives a motor channel at a speed in percent: negative is reverse, a half bridge takes 0 to 100. A wired drive wins over the one in the body; a value out of range is an error, never clamped.",
+      "op": "SET_DRIVE",
+      "args": {
+        "channel": { "required": true },
+        "drive": {
+          "alias": "Drive",
+          "unit": "%",
+          "scale": 40.95,
+          "required": true,
+          "input": "optional",
+          "accepts": ["number", "accessor"],
+          "hints": [
+            { "text": "Full reverse to full forward", "min": -100, "max": 100, "unit": "%" },
+            { "text": "A half bridge drives one way only", "min": 0, "max": 100, "unit": "%" }
+          ]
+        }
+      },
+      "header": { "subtitle": "{channel} at {drive}" }
+    },
+    {
+      "id": "brake",
+      "alias": "Brake",
+      "description": "Shorts the motor terminals once on each rising enable.",
+      "op": "BRAKE",
+      "args": { "channel": { "required": true } },
+      "activation": { "kind": "enable-rising", "text": "Brakes once each time the block is enabled." },
+      "header": { "subtitle": "Brake {channel}" }
+    },
+    {
+      "id": "coast",
+      "alias": "Coast",
+      "description": "Releases the motor once on each rising enable: the outputs are off.",
+      "op": "COAST",
+      "args": { "channel": { "required": true } },
+      "activation": { "kind": "enable-rising", "text": "Releases the motor once each time the block is enabled." },
+      "header": { "subtitle": "Coast {channel}" }
+    },
+    {
+      "id": "get_current",
+      "alias": "Read current",
+      "description": "Reads the current of a channel, in milliamps.",
+      "op": "GET_CURRENT",
+      "args": { "channel": { "required": true } },
+      "activation": { "kind": "enabled", "text": "Reads on every pass while enabled." },
+      "header": { "subtitle": "Read current of {channel}" }
+    }
+  ]
+}

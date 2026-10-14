@@ -89,6 +89,23 @@ export interface BlockDescriptor {
   readonly shape: { readonly min_in: number; readonly max_in: number; readonly min_q: number; readonly max_q: number; readonly min_en: number; readonly required_in: number; readonly state_len: number }
   /** Absent for a block with no state (IF, SWITCH, CLONE). */
   readonly state?: { readonly struct: string; readonly size: number; readonly fields: readonly StateField[] }
+  /** The block's own enums (`//#block-enum` in its header): a field's `enum_ref` names one of these or a published one. */
+  readonly enums?: Readonly<Record<string, { readonly alias: string; readonly members: readonly BlockEnumMember[] }>>
+}
+
+export interface BlockEnumMember {
+  readonly name: string
+  readonly value: number
+  readonly alias: string
+  readonly description?: string
+}
+
+/** The members of the enum a field of `block` names: the block's own (`//#block-enum`), else the published one; none if neither. */
+export const blockEnumMembers = (block: BlockDescriptor | undefined, enumName: string): readonly BlockEnumMember[] => {
+  const own = block?.enums?.[enumName]
+  if (own) return own.members
+  const published = (enumsJson as unknown as { enums: Record<string, { members: readonly BlockEnumMember[] }> }).enums[enumName]
+  return published?.members ?? []
 }
 
 const files = import.meta.glob('@data-structures/vm/blocks/*.block.json', { eager: true, import: 'default' }) as Record<string, BlockDescriptor>

@@ -32,18 +32,22 @@ extern "C" {
 
 #define SYS_ACTIONS_ID_NONE 0u
 
-#define SYS_ACTIONS_CLASS_USER 0x00u    // the app's own actions
-#define SYS_ACTIONS_CLASS_SYSTEM 0x01u  // settings of the system modules
-#define SYS_ACTIONS_CLASS_DEVICE 0x02u  // per device: its install and default commands
-#define SYS_ACTIONS_CLASS_PROJECT 0x03u  // the stored project (sys_project): its run list and the staged sections
+//#ref-defines action_class @alias Action classes @prefix SYS_ACTIONS_CLASS_
+#define SYS_ACTIONS_CLASS_USER 0x00u  //@alias Action @description the app's own actions
+#define SYS_ACTIONS_CLASS_SYSTEM 0x01u  //@alias Settings @description settings of the system modules
+#define SYS_ACTIONS_CLASS_DEVICE 0x02u  //@alias Device @description install and default commands
+#define SYS_ACTIONS_CLASS_PROJECT 0x03u  //@alias Project @description stored project run list and sections
 
 #define SYS_ACTIONS_ID(class, n) ((((uint32_t)(class)) << 24) | ((uint32_t)(n) & 0xFFFFFFu))
 
-#define SYS_ACTIONS_ID_LOG SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 1)              // log options: the SET frame
-#define SYS_ACTIONS_ID_POWER_CFG SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 2)        // power manager: SET_CONFIG
-#define SYS_ACTIONS_ID_POWER_PSU SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 3)        // SET_PSU
-#define SYS_ACTIONS_ID_POWER_BATTERY SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 4)    // SET_BATTERY
-#define SYS_ACTIONS_ID_POWER_RESPONSES SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 5)  // SET_RESPONSES (the whole matrix)
+//#ref-defines settings_record @alias Settings records @prefix SYS_ACTIONS_ID_
+#define SYS_ACTIONS_ID_LOG SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 1)  //@alias Log @description Log options SET frame
+#define SYS_ACTIONS_ID_POWER_CFG SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 2)  //@alias Power configuration @description Power configuration SET_CONFIG
+#define SYS_ACTIONS_ID_POWER_PSU SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 3)  //@alias Power supply @description Power supply SET_PSU
+#define SYS_ACTIONS_ID_POWER_BATTERY SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 4)  //@alias Battery @description Battery SET_BATTERY
+#define SYS_ACTIONS_ID_POWER_RESPONSES SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 5)  //@alias Power responses @description Power responses SET_RESPONSES
+#define SYS_ACTIONS_ID_BLE SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 6)  //@alias Bluetooth @description Bluetooth GATT services and APPLY
+#define SYS_ACTIONS_ID_CONN SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 7)  //@alias Data streams @description Data streams and bindings
 
 /** @brief The project record: the list of RUN frames sys_project replays (SYS_PROJECT.MD). The other IDs of this class are sys_project's. */
 #define SYS_ACTIONS_ID_PROJECT SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_PROJECT, 0)
@@ -74,9 +78,9 @@ extern "C" {
 ERR_TAGS_DECLARE(ERR_SYS_ACTIONS_MAP)
 
 typedef struct {
-  uint16_t bytes;  //@alias Size @description The image @unit bytes
-  uint16_t count;  //@alias Frames
-  uint32_t crc32;  //@alias CRC-32 @description Of the image
+  uint16_t bytes;  /**< Image size in bytes */
+  uint16_t count;  /**< Frame count */
+  uint32_t crc32;  /**< CRC-32 of image */
 } sys_actions_info_t;
 
 /**

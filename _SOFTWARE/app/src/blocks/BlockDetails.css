@@ -44,7 +44,6 @@
 .block-output-dd.is-wired .block-output-arrow { color: var(--color-orange); }
 .block-output-dd.is-unwired { cursor: pointer; }
 .block-output-dd.is-unwired:hover .block-output-flow { border-color: var(--color-orange); color: var(--active); }
-.shell .block-delete { margin-top: 20px; }
 .block-gates { display: flex; flex-direction: column; gap: 4px; margin: 0 0 10px; padding: 0; list-style: none; font-size: 12px; }
 .block-gates li { display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 2px 4px 2px 8px; border: 1px solid var(--divider); border-radius: 5px; color: var(--active); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 .block-gates li > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

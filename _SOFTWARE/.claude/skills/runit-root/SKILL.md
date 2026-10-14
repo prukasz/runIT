@@ -17,7 +17,7 @@ description: Entry point for any new session in the runIT repo. Gives project vi
 |---|---|---|
 | Firmware (C, ESP-IDF, FreeRTOS, devices, VM, BLE, errors) | `runit-esp` | `components/`, `main/` |
 | App (React/TS, BLE client, canvas, remote, configurator) | `runit-app` | `app/` |
-| Wire format / JSON descriptors shared by both | `data-structures/AGENTS.md` | `data-structures/` |
+| Wire format / JSON descriptors shared by both | `templates/AGENTS.md` | `templates/` |
 
 `runit-esp` is complete (VM docs in its `vm/` subfolder); `runit-app` is a stub. The old skills they replace are backed up outside the repo in `../_agents_backup_2026-09-22/` — not loaded automatically.
 
@@ -61,7 +61,7 @@ runIT is a plug-and-play framework for hobbyists spanning hardware, firmware and
 . C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1 | Out-Null; idf.py -C C:\Users\lukasz\Documents\runIT\_SOFTWARE build
 # App
 cd app; npm run dev      # / npm run build, npm run lint
-# Regenerate JSON descriptors — see data-structures/AGENTS.md
+# Regenerate JSON descriptors — see templates/AGENTS.md
 ```
 
 Only ESP-IDF v6.1 is installed (`C:\esp\v6.1\esp-idf`, matching the root `CMakeLists.txt` default). Its `export.ps1` does not work with the EIM install. Use the profile script above.

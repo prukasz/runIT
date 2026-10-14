@@ -1160,8 +1160,8 @@ def pw(link: Link, op: int, payload: bytes = b"") -> Response | None:
     return link.request(bytes([KEY_POWER, op]), payload=payload)
 
 
-def pw_config(enabled=1, strict=1, margin=20, pin=(0xFFFF, 0xFF), battery_level=1, pd_max_auto=1) -> bytes:
-    return bytes([enabled, strict, margin]) + struct.pack("<HB", *pin) + bytes([battery_level, pd_max_auto])
+def pw_config(enabled=1, strict=1, margin=20, pin=(0xFFFF, 0xFF), battery_level=1, pd_max_auto=1, ext_input=0) -> bytes:
+    return bytes([enabled, strict, margin]) + struct.pack("<HB", *pin) + bytes([battery_level, pd_max_auto, ext_input])
 
 
 def pw_status(link: Link) -> dict | None:

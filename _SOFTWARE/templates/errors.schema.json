@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runit.local/schema/errors.schema.json",
+  "title": "runIT Error Catalog Definition",
+  "description": "Deklaratywny schemat katalogu błędów systemu runIT. Odzwierciedla tablice makr ERR_*_MAP z firmware C i pozwala aplikacji na odkodowywanie ramek błędów (router_err_record) oraz tworzenie referencji do urządzeń, pinów i magistral.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "severities",
+    "modules"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Ścieżka do schematu walidacji JSON."
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "default": 3,
+      "description": "Wersja schematu deskryptora błędów."
+    },
+    "kind": {
+      "type": "string",
+      "const": "errors",
+      "default": "errors",
+      "description": "Typ dokumentu w systemie runIT: 'errors'."
+    },
+    "severities": {
+      "type": "object",
+      "description": "Słownik wag błędów (severities) zdefiniowanych w errors.h.",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 255
+      }
+    },
+    "modules": {
+      "type": "array",
+      "description": "Lista modułów systemowych zgłaszających błędy.",
+      "items": {
+        "$ref": "#/$defs/module"
+      }
+    }
+  },
+  "additionalProperties": false,
+
+  "$defs": {
+    "module": {
+      "type": "object",
+      "required": ["id", "name", "symbol", "tags"],
+      "description": "Definicja modułu błędów (ERR_MOD_* w err_modules.h).",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "Numeryczny identyfikator modułu w firmware (starsze 16 bitów tagu błędu)."
+        },
+        "name": {
+          "type": "string",
+          "description": "Czytelna nazwa modułu (np. 'sys_device', 'sys_io', 'router')."
+        },
+        "symbol": {
+          "type": "string",
+          "pattern": "^ERR_MOD_[A-Z0-9_]+$",
+          "description": "Symbol stałej C modułu w firmware (np. 'ERR_MOD_SYS_DEVICE')."
+        },
+        "source_file": {
+          "type": "string",
+          "description": "Względna ścieżka do pliku nagłówkowego C z definicją mapy błędów."
+        },
+        "tags": {
+          "type": "array",
+          "description": "Lista kodów błędów zarejestrowanych w tym module.",
+          "items": {
+            "$ref": "#/$defs/tag"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "tag": {
+      "type": "object",
+      "required": ["code", "tag", "name", "severity", "size", "fields"],
+      "description": "Pojedynczy kod błędu w module.",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Lokalny kod błędu w module (młodsze 16 bitów tagu błędu)."
+        },
+        "tag": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Pełny 32-bitowy tag błędu na magistrali: (module.id << 16) | code."
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^ERR_[A-Z0-9_]+$",
+          "description": "Nazwa symboliczna błędu w C (np. 'ERR_DEV_NOT_FOUND', 'ERR_IO_PIN_IN_USE')."
+        },
+        "severity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4,
+          "description": "Waga błędu: 0=NONE (kontekst trasy), 1=LOW, 2=MEDIUM, 3=HIGH, 4=CRITICAL."
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Całkowity rozmiar w bajtach upakowanej struktury danych dołączonej do błędu."
+        },
+        "description": {
+          "type": "string",
+          "description": "Opis przyczyny błędu zaczerpnięty z komentarza w kodzie C."
+        },
+        "fields": {
+          "type": "array",
+          "description": "Pola danych diagnostycznych przesyłanych wraz z tym błędem.",
+          "items": {
+            "$ref": "#/$defs/field"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "field": {
+      "type": "object",
+      "required": ["name", "type", "offset", "size"],
+      "description": "Pole binarne w strukturze błędu.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Nazwa pola w strukturze C (np. 'id', 'pin', 'bus', 'len', 'code')."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["u8", "i8", "u16", "i16", "u32", "i32", "f32", "chars"],
+          "description": "Niski binarny typ danych."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Offset bajtowy pola od początku bufora payloadu błędu."
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Rozmiar pola w bajtach."
+        },
+        "enum_ref": {
+          "type": "string",
+          "description": "Opcjonalna nazwa powiązanego typu wyliczeniowego w firmware."
+        },
+        "id_kind": {
+          "type": "string",
+          "enum": [
+            "device",
+            "pin",
+            "i2c_bus",
+            "transport",
+            "stream",
+            "contract",
+            "error_tag",
+            "esp_err",
+            "vm_block_type"
+          ],
+          "description": "Semantyczny rodzaj identyfikatora – kluczowy dla UI, aby podlinkować błąd do urządzenia na Canvasie, podświetlić pin lub zidentyfikować magistralę."
+        },
+        "unit": {
+          "type": "string",
+          "description": "Opcjonalna jednostka fizyczna wartości (np. 'Hz', 'mV', 'mA', 'B')."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

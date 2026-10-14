@@ -509,11 +509,10 @@ static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY(RESET),
     VREG_ENTRY(SET_ENABLE),  VREG_ENTRY(SET_VOLTAGE),   VREG_ENTRY(SET_CURRENT),
     EVENT_ENTRY(ON_EVENT),
-    //@internal
+    /* Internal rise timer op */
     {TPS_OP_RISE_STEP, rise_step_h},
-    //@op TPS55289_OP_SET_PROTECTION @alias Set protection @description How the chip protects itself
+    /* Device own ops */
     {TPS55289_OP_SET_PROTECTION, set_protection_h},
-    //@op TPS55289_OP_GET_PROTECTION @alias Read protection @description The protection settings @returns tps55289_protection_t
     {TPS55289_OP_GET_PROTECTION, get_protection_h},
 };
 

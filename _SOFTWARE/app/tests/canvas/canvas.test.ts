@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { BLOCKS } from '../../src/backend/vm/blocks'
-import { blockShape, decodePlacement, descriptorOf, encodePlacement, headlineOf, pinAnchor, typeKeyOf } from '../../src/blocks/blockModel'
+import { blockEnumMembers, BLOCKS } from '../../src/backend/vm/blocks'
+import { blockShape, decodePlacement, descriptorOf, encodePlacement, formulaText, headlineOf, pinAnchor, typeKeyOf } from '../../src/blocks/blockModel'
 import { addBlock, addCanvas, connect, disconnect, findBlock, moveBlock, newBlockId, removeBlock, sourcePath, wiresOf } from '../../src/domain/canvas'
 
 describe('block shapes', () => {
@@ -73,12 +73,36 @@ describe('device blocks', () => {
   it('say what they do and with which device', () => {
     expect(headlineOf(servo, { id: 's', type: key })).toEqual({ lead: 'Servo', value: 'no device' })
     const position = servo.ops!.find((op) => op.alias === 'Position')!
-    expect(headlineOf(servo, { id: 's', type: key, settings: { op: position.value, device_id: 3 } })).toEqual({ lead: 'Move to Position', value: '3' })
+    expect(headlineOf(servo, { id: 's', type: key, settings: { op: position.value, device_id: 3 } })).toEqual({ lead: 'Move to Position', value: 'PWM expander' })
+    // a device the board description does not list (one the user installs) keeps its number
+    expect(headlineOf(servo, { id: 's', type: key, settings: { op: position.value, device_id: 200 } }).value).toBe('200')
   })
 
   it('are placed with their operation from a palette drag', () => {
     const op = servo.ops![0]!
     expect(decodePlacement(encodePlacement(key, op.value))).toEqual({ typeKey: key, settings: { op: op.value } })
     expect(decodePlacement(encodePlacement('EXPR'))).toEqual({ typeKey: 'EXPR' })
+  })
+})
+
+describe('block headlines', () => {
+  it('a field of an enum shows the member alias, also a block-own enum', () => {
+    expect(headlineOf(descriptorOf('PERIODIC'), { id: 'p', type: 'PERIODIC', settings: { period: 100, time_base: 0 } })).toEqual({ lead: 'Every', value: '100 Milliseconds' })
+    // EDGE's mode is an enum of its own header (`//#block-enum`), not of enums.json
+    expect(blockEnumMembers(descriptorOf('EDGE'), 'vm_edge_type_e').map((member) => member.alias)).toEqual(['Rising', 'Falling', 'Both'])
+  })
+
+  it('an expression block keeps its title, the formula is a line of its body with inputs named by what feeds them', () => {
+    const block = { id: 'x', type: 'EXPR', inputs: [{ root: 'speed' }, null], expression: { constants: [2], code: ['in', 0, 'const', 0, '+', 'in', 1, '*'] } }
+    expect(headlineOf(descriptorOf('EXPR'), block, (path) => path.root)).toEqual({ lead: 'Expression' })
+    expect(formulaText(descriptorOf('EXPR'), block, (path) => path.root, 'Result')).toBe('Result = (speed + 2) * IN1')
+    expect(formulaText(descriptorOf('EXPR'), { id: 'y', type: 'EXPR' })).toBe('Set a formula')
+    expect(formulaText(descriptorOf('PERIODIC'), { id: 'p', type: 'PERIODIC' })).toBeUndefined()
+    // the body line makes the block taller than the same block without one
+    expect(blockShape(descriptorOf('EXPR'), block).height).toBeGreaterThan(blockShape(descriptorOf('IF'), { id: 'i', type: 'IF' }).height - 1)
+  })
+
+  it('a device and an event are named, not numbered', () => {
+    expect(headlineOf(descriptorOf('ON_EVENT'), { id: 'o', type: 'ON_EVENT', settings: { event: 256, source: 0 } }).lead).toBe('On Rising edge ESP32 GPIO')
   })
 })

@@ -30,17 +30,17 @@ extern "C" {
 #define SYS_DEVICE_OP(contract, n) ((uint16_t)(((contract) << 8) | (n)))
 
 //#ref-defines device_contract @alias Device Contract @prefix SYS_DEVICE_CONTRACT_
-#define SYS_DEVICE_CONTRACT_DEVICE 0x00u  //@alias Device @description Creating a device and the operations every device has: reset, suspend, resume
-#define SYS_DEVICE_CONTRACT_IO 0x01u  //@alias IO pins @description Pins that read or drive a level, a PWM duty or frequency, a voltage
-#define SYS_DEVICE_CONTRACT_PINS 0x02u  //@alias Pin locks @description Claiming a pin of a device for another device
-#define SYS_DEVICE_CONTRACT_EVENT 0x03u  //@alias Events @description A device that listens to events
-#define SYS_DEVICE_CONTRACT_POWER_MONITOR 0x04u  //@alias Power monitor @description Voltage, current and power readings and current alerts
-#define SYS_DEVICE_CONTRACT_POWER_VREG 0x05u  //@alias Regulator @description An adjustable regulator: enable, voltage, current limit
-#define SYS_DEVICE_CONTRACT_POWER_MANAGER 0x06u  //@alias Power manager events @description Events of the power manager (no device)
-#define SYS_DEVICE_CONTRACT_POWER_USB_PD 0x07u  //@alias USB-PD sink @description Requesting a profile from a USB-PD source and reading its offers
-#define SYS_DEVICE_CONTRACT_POWER_SUPPLY 0x08u  //@alias Power mux @description Selecting which of two sources feeds the load
-#define SYS_DEVICE_CONTRACT_HBRIDGE 0x09u  //@alias H-bridge @description A motor driver: drive, brake, coast, current and its faults
-#define SYS_DEVICE_CONTRACT_OWN 0xFFu  //@alias Device-specific @description The operations one device type has of its own
+#define SYS_DEVICE_CONTRACT_DEVICE 0x00u  //@alias Device @description Device lifecycle operations
+#define SYS_DEVICE_CONTRACT_IO 0x01u  //@alias IO pins @description IO pins operations
+#define SYS_DEVICE_CONTRACT_PINS 0x02u  //@alias Pin locks @description Pin locks operations
+#define SYS_DEVICE_CONTRACT_EVENT 0x03u  //@alias Events @description Events operations
+#define SYS_DEVICE_CONTRACT_POWER_MONITOR 0x04u  //@alias Power monitor @description Power monitor operations
+#define SYS_DEVICE_CONTRACT_POWER_VREG 0x05u  //@alias Regulator @description Voltage regulator operations
+#define SYS_DEVICE_CONTRACT_POWER_MANAGER 0x06u  //@alias Power manager events @description Power manager operations
+#define SYS_DEVICE_CONTRACT_POWER_USB_PD 0x07u  //@alias USB-PD sink @description USB-PD sink operations
+#define SYS_DEVICE_CONTRACT_POWER_SUPPLY 0x08u  //@alias Power mux @description Power supply/mux operations
+#define SYS_DEVICE_CONTRACT_HBRIDGE 0x09u  //@alias H-bridge @description H-bridge motor driver operations
+#define SYS_DEVICE_CONTRACT_OWN 0xFFu  //@alias Device-specific @description Device-specific own operations
 
 #define SYS_DEVICE_OWN_OP(n) SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_OWN, n)
 
@@ -54,19 +54,19 @@ typedef struct __attribute__((packed)) {
  */
 //#ref-enum @alias Device Error Importance
 typedef enum {
-  SYS_DEVICE_IMPORTANCE_NONE = 0,  //@alias None @description ignores every error of the device and its causes, critical included (a device under test)
-  SYS_DEVICE_IMPORTANCE_LOW = 1,  //@alias Low @description critical only (the start value)
-  SYS_DEVICE_IMPORTANCE_MEDIUM = 2,  //@alias Medium @description high and critical
-  SYS_DEVICE_IMPORTANCE_HIGH = 3,  //@alias High @description medium, high and critical
-  SYS_DEVICE_IMPORTANCE_CRITICAL = 4,  //@alias Critical @description every severity from low
+  SYS_DEVICE_IMPORTANCE_NONE = 0,  //@alias None @description Ignores all errors
+  SYS_DEVICE_IMPORTANCE_LOW = 1,  //@alias Low @description Critical only (default)
+  SYS_DEVICE_IMPORTANCE_MEDIUM = 2,  //@alias Medium @description High and critical
+  SYS_DEVICE_IMPORTANCE_HIGH = 3,  //@alias High @description Medium, high and critical
+  SYS_DEVICE_IMPORTANCE_CRITICAL = 4,  //@alias Critical @description Low, medium, high and critical
 } sys_device_importance_e;
 
 #define SYS_DEVICE_ERR_LEVELS 4u  // one action per severity LOW, MEDIUM, HIGH, CRITICAL
 
 /** @brief SET_ERROR_POLICY args and GET_ERROR_POLICY answer. */
 typedef struct __attribute__((packed)) {
-  uint8_t importance;  //@alias Importance @description Which of the device's errors get a response @enum-ref sys_device_importance_e
-  uint32_t actions[SYS_DEVICE_ERR_LEVELS];  //@alias Actions @description The record run for an admitted error of severity low, medium, high, critical (0: none) @id action
+  uint8_t importance;                       /**< sys_device_importance_e */
+  uint32_t actions[SYS_DEVICE_ERR_LEVELS];  /**< Record run for low, medium, high, critical (0: none) */
 } sys_device_error_policy_t;
 
 /**
@@ -84,14 +84,14 @@ typedef struct __attribute__((packed)) {
  */
 // clang-format off
 #define SYS_DEVICE_LIFECYCLE(X) \
-  X(RESET, 0x01, sys_device_none_t)  /* @alias Reset @description Puts the device's outputs off and its settings back to defaults. */ \
-  X(SUSPEND, 0x02, sys_device_none_t)  /* @alias Suspend @description Makes the outputs safe; the device refuses writes until it is resumed. */ \
-  X(RESUME, 0x03, sys_device_none_t)  /* @alias Resume @description Lets a suspended device work again. */ \
-  X(REMOVE, 0x04, sys_device_none_t)  /* @alias Remove @description Releases the device's hardware and removes it (refused while another device uses it). */ \
-  X(INFO, 0x05, sys_device_none_t)  /* @alias Info @description What the device is: its type and whether it is suspended. @returns sys_device_info_t */ \
-  X(OPS, 0x06, sys_device_none_t)  /* @alias List operations @description Every operation the device answers. @returns u16[] @returns-alias Operations */ \
-  X(SET_ERROR_POLICY, 0x07, sys_device_error_policy_t)  /* @alias Set error policy @description Which of the device's errors get a response, and which record runs. */ \
-  X(GET_ERROR_POLICY, 0x08, sys_device_none_t)  /* @alias Read error policy @description The device's error policy. @returns sys_device_error_policy_t */
+  X(RESET, 0x01, sys_device_none_t) \
+  X(SUSPEND, 0x02, sys_device_none_t) \
+  X(RESUME, 0x03, sys_device_none_t) \
+  X(REMOVE, 0x04, sys_device_none_t) \
+  X(INFO, 0x05, sys_device_none_t) \
+  X(OPS, 0x06, sys_device_none_t) \
+  X(SET_ERROR_POLICY, 0x07, sys_device_error_policy_t) \
+  X(GET_ERROR_POLICY, 0x08, sys_device_none_t)
 // clang-format on
 
 #define SYS_DEVICE__ID(name, n, args_t) SYS_DEVICE_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, n),
@@ -105,8 +105,8 @@ SYS_DEVICE_LIFECYCLE(SYS_DEVICE__ARGS)
 
 /** @brief INFO answer. */
 typedef struct __attribute__((packed)) {
-  uint16_t type_id;  //@alias Device type
-  uint8_t suspended;  //@alias Suspended @choices 0=No,1=Yes
+  uint16_t type_id;   /**< Device type ID */
+  uint8_t suspended;  /**< 1 if suspended, 0 otherwise */
 } sys_device_info_t;
 
 /* ----------------------------------------------------------------------------
@@ -310,9 +310,9 @@ MUST_USE err_h sys_device_use(sys_device_base_t* dev, uint16_t dep);
 /** @brief Stage of a response, in ERR_DEV_FAULT_RESPONSE. */
 //#ref-enum @alias Fault Response Stage
 typedef enum {
-  SYS_DEVICE_FAULT_STAGE_VM_STOP = 0,  //@alias Vm stop @description reserved: stop the VM
-  SYS_DEVICE_FAULT_STAGE_SUSPEND = 1,  //@alias Suspend @description suspend every device (critical)
-  SYS_DEVICE_FAULT_STAGE_ACTION = 2,  //@alias Action @description the device's action for that severity
+  SYS_DEVICE_FAULT_STAGE_VM_STOP = 0,  //@alias Vm stop @description Stop the VM
+  SYS_DEVICE_FAULT_STAGE_SUSPEND = 1,  //@alias Suspend @description Suspend all devices
+  SYS_DEVICE_FAULT_STAGE_ACTION = 2,  //@alias Action @description Run configured action
 } sys_device_fault_stage_e;
 
 /**

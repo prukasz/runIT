@@ -1,6 +1,8 @@
-import { BLOCKS } from '../backend/vm/blocks'
+import { blockEnumMembers, BLOCKS } from '../backend/vm/blocks'
 import type { BlockDescriptor, BlockOp, BlockPin, BlockPins, FacePart, OpPin } from '../backend/vm/blocks'
 import { GRID } from '../domain/canvas'
+import { blockEncoding, decompileExpression, expressionLanguage, tokenize } from '../domain/expression'
+import { idName } from './idNames'
 import type { ObjectPath, ProgramBlock } from '../domain/canvas'
 
 /*
@@ -28,7 +30,7 @@ const opPinViews = (pins: readonly OpPin[]): PinView[] =>
 
 const MIN_WIDTH = 6 * GRID
 export const HEADER = 2 * GRID
-const ROW = GRID
+const ROW = 25
 
 export interface PinView {
   readonly index: number
@@ -95,8 +97,26 @@ const isWired = (path: ObjectPath | null | undefined): path is ObjectPath => !!p
 /** A setting as the face words it: its value, or what says it is not set yet. */
 const fieldText = (descriptor: BlockDescriptor, block: ProgramBlock, name: string): string => {
   const value = block.settings?.[name]
-  if (value !== undefined) return String(value)
-  return descriptor.state?.fields.find((field) => field.name === name)?.id_kind === 'device' ? 'no device' : '…'
+  const field = descriptor.state?.fields.find((entry) => entry.name === name)
+  if (value !== undefined) {
+    // A field of a published enum shows the member's alias (`Milliseconds`), whether the value is its number or its C name.
+    if (field?.enum_ref) {
+      const member = blockEnumMembers(descriptor, field.enum_ref).find((entry) => entry.value === value || entry.name === value)
+      if (member) return member.alias
+    }
+    // An id the descriptors can name: a board device by its alias, an event by its alias.
+    if (typeof value === 'number') {
+      const named = idName(field?.id_kind, value)
+      if (named) return named
+    }
+    return String(value)
+  }
+  if (field?.enum_ref) {
+    // Not set: the block starts with the first member (0).
+    const first = blockEnumMembers(descriptor, field.enum_ref).find((entry) => entry.value === 0)
+    if (first) return first.alias
+  }
+  return field?.id_kind === 'device' ? 'no device' : '…'
 }
 
 const partText = (descriptor: BlockDescriptor, block: ProgramBlock, labelOf: (path: ObjectPath) => string, part: FacePart): string => {
@@ -105,7 +125,10 @@ const partText = (descriptor: BlockDescriptor, block: ProgramBlock, labelOf: (pa
     case 'title': return descriptor.alias
     case 'field': return fieldText(descriptor, block, part.field!)
     // The operation of a device block (it decides the pins): its name once chosen, else the block's own.
-    case 'op': return block.settings?.op === undefined ? descriptor.alias : String(block.settings.op)
+    case 'op': {
+      const op = block.settings?.op === undefined ? undefined : opOf(descriptor, block)
+      return op?.alias ?? (block.settings?.op === undefined ? descriptor.alias : String(block.settings.op))
+    }
     case 'out': {
       const target = block.outputs?.[part.pin!]
       return target ? labelOf({ root: target }) : part.ref
@@ -147,6 +170,53 @@ export const headlineOf = (descriptor: BlockDescriptor | undefined, block: Progr
 }
 
 // ---------------------------------------------------------------------------
+// The formula (expression blocks)
+// ---------------------------------------------------------------------------
+
+/** One piece of the formula line in a block's body: an input (`pin`), the output, or the formula's own text. */
+export type FormulaPart = { readonly kind: 'out' } | { readonly kind: 'in'; readonly pin: number; readonly text: string } | { readonly kind: 'text'; readonly text: string }
+
+/**
+ * The body line of an expression block, as the legacy block showed it: `Result = (speed + 2) * IN1`. Undefined for a block without
+ * bytecode; `state` says when there is no formula yet, or the stored code is not one formula.
+ */
+export const formulaOf = (descriptor: BlockDescriptor | undefined, block: ProgramBlock): { readonly state: 'ok' | 'empty' | 'invalid'; readonly parts: readonly FormulaPart[] } | undefined => {
+  const encoding = blockEncoding(descriptor)
+  if (!encoding) return undefined
+  if (!block.expression?.code.length) return { state: 'empty', parts: [] }
+  const language = expressionLanguage(encoding)
+  const raw = decompileExpression(block.expression.code, block.expression.constants, language)
+  if (!raw) return { state: 'invalid', parts: [] }
+  const parts: FormulaPart[] = [{ kind: 'out' }]
+  let at = 0
+  for (const token of tokenize(raw, language.flavor).tokens) {
+    if (token.start > at) parts.push({ kind: 'text', text: raw.slice(at, token.start) })
+    parts.push(token.kind === 'input' ? { kind: 'in', pin: token.value!, text: token.text } : { kind: 'text', text: token.text })
+    at = token.end
+  }
+  if (at < raw.length) parts.push({ kind: 'text', text: raw.slice(at) })
+  return { state: 'ok', parts }
+}
+
+/** The formula line as text, inputs and the output written by `labelOf` (what the body shows, also for sizing it). */
+export const formulaText = (descriptor: BlockDescriptor | undefined, block: ProgramBlock, labelOf: (path: ObjectPath) => string = pathText, outputTitle = 'Result'): string | undefined => {
+  const formula = formulaOf(descriptor, block)
+  if (!formula) return undefined
+  if (formula.state !== 'ok') return formula.state === 'empty' ? 'Set a formula' : 'Invalid formula'
+  return formula.parts.map((part) => {
+    if (part.kind === 'out') return `${block.outputs?.[0] ? labelOf({ root: block.outputs[0] }) : outputTitle} = `
+    if (part.kind === 'in') {
+      const path = block.inputs?.[part.pin]
+      return isWired(path) ? labelOf(path) : part.text
+    }
+    return part.text
+  }).join('')
+}
+
+/** Height of the formula line under the pins. */
+export const FORMULA_ROW = 30
+
+// ---------------------------------------------------------------------------
 // The size
 // ---------------------------------------------------------------------------
 
@@ -171,24 +241,29 @@ const family = (): string => (typeof document === 'undefined' ? 'sans-serif' : g
 /** Width the pin rows need: per row the input's slab (type icon, name, padding) beside the output's, and a gap between them. */
 const pinsWidth = (inputs: readonly PinView[], outputs: readonly PinView[]): number => {
   const font = family()
-  const slab = (pin: PinView | undefined): number => (pin ? 35 + (pin.quiet ? 0 : 6 + textWidth(pin.title, `600 10.5px ${font}`, 6)) + 7 + 2 - 7 : 0)
+  const slab = (pin: PinView | undefined): number => (pin ? 40 + (pin.quiet ? 0 : 7 + textWidth(pin.title, `600 11.5px ${font}`, 6.8)) + 7 + 2 - 7 : 0)
   let widest = 0
-  for (let row = 0; row < Math.max(inputs.length, outputs.length); row++) widest = Math.max(widest, slab(inputs[row]) + slab(outputs[row]))
+  // Each side may take half the block plus 6 px (the CSS limit), so a long name on one side widens the block for both.
+  for (let row = 0; row < Math.max(inputs.length, outputs.length); row++) widest = Math.max(widest, slab(inputs[row]) + slab(outputs[row]), inputs.length && outputs.length ? 2 * Math.max(slab(inputs[row]), slab(outputs[row])) - 12 : 0)
   return widest + (inputs.length && outputs.length ? 12 : 0)
 }
 
 /** The block's size, the least that holds what it shows, on the grid. */
-export const blockShape = (descriptor: BlockDescriptor | undefined, block: ProgramBlock & { readonly name?: string }): BlockShape => {
+/** `labelOf` names what the pins are wired to, as the face shows it (the size follows the names, not the IDs). */
+export const blockShape = (descriptor: BlockDescriptor | undefined, block: ProgramBlock & { readonly name?: string }, labelOf: (path: ObjectPath) => string = pathText): BlockShape => {
   // A device block's pins come from its operation; until one is chosen it has none.
   const op = opOf(descriptor, block)
   const inputs = descriptor?.ops ? (op ? opPinViews(op.inputs) : []) : pinViews(descriptor?.inputs, block.inputs?.length ?? 0, false, (index) => isWired(block.inputs?.[index]))
   const outputs = descriptor?.ops ? (op ? opPinViews(op.outputs) : []) : pinViews(descriptor?.outputs, block.outputs?.length ?? 0, true, () => false)
   const rows = Math.max(1, inputs.length, outputs.length)
-  const head = headlineOf(descriptor, block)
+  const head = headlineOf(descriptor, block, labelOf)
   const title = block.name ?? [head.lead, head.value].filter(Boolean).join(' ')
   const header = textWidth(title, `600 12px ${family()}`, 6.8) + 24 + 8
-  const width = Math.max(MIN_WIDTH, Math.ceil(Math.max(header, pinsWidth(inputs, outputs)) / GRID) * GRID)
-  return { width, height: HEADER + rows * ROW, inputs, outputs, row: ROW }
+  // An expression block shows its formula under the pins (at most 3 widths of the smallest block; longer is cut with an ellipsis).
+  const formula = formulaText(descriptor, block, labelOf, outputs[0]?.title)
+  const formulaWidth = formula === undefined ? 0 : Math.min(3 * MIN_WIDTH, textWidth(formula, `500 11px ${family()}`, 7) + 24 + formula.split(' ').length * 4)
+  const width = Math.max(MIN_WIDTH, Math.ceil(Math.max(header, pinsWidth(inputs, outputs), formulaWidth) / GRID) * GRID)
+  return { width, height: HEADER + rows * ROW + (formula === undefined ? 0 : FORMULA_ROW), inputs, outputs, row: ROW }
 }
 
 /** Where a wire meets a block, in canvas units: input pins on the left edge, outputs on the right, EN / ENO at header height. */

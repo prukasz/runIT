@@ -29,7 +29,7 @@ typedef struct {
 
 static const sys_power_manager_cfg_t k_cfg_default = {
     .enabled = 1, .strict = 1, .soft_margin_pct = 20, .source_pin = SYS_IO_PIN_NONE, .battery_level = 1,
-    .pd_max_auto = 1};
+    .pd_max_auto = 1, .ext_input = SYS_POWER_EXT_BENCH};
 
 static const sys_power_board_t* s_board;
 static sys_power_safe_state_f s_safe_state;
@@ -370,8 +370,8 @@ static sys_power_source_e detect_source(void) {
     err = sys_io_get_level(s_board->source_pins->usb_ok, &usb);
     err_free(err);
     if (ext) {
-      // An external input is a supply (the current entered, else assumed) unless a battery is configured and no supply entered.
-      return s_psu.max_mA == 0 && s_battery.chemistry != SYS_POWER_BATTERY_NONE ? SYS_POWER_SOURCE_BATTERY : SYS_POWER_SOURCE_PSU;
+      // The eFuse cannot tell a battery from a bench supply: the configuration says which is on the external input.
+      return s_cfg.ext_input == SYS_POWER_EXT_BATTERY ? SYS_POWER_SOURCE_BATTERY : SYS_POWER_SOURCE_PSU;
     }
     if (usb) {
       return SYS_POWER_SOURCE_USB;
@@ -440,7 +440,7 @@ static uint32_t source_current_mA(sys_power_source_e source) {
   }
 }
 
-// LiPo resting voltage per cell -> charge %.
+// LiPo resting voltage per cell -> charge % (linear interpolation between points, 100% above 4200mV, 0% below 3270mV).
 static const struct {
   uint16_t mV;
   uint8_t pct;
@@ -652,6 +652,7 @@ err_h sys_power_manager_set_config(const sys_power_manager_cfg_t* cfg) {
   ERR_TRY(check_range(cfg->soft_margin_pct, 0, 100));
   ERR_TRY(check_range(cfg->battery_level, 0, 1));
   ERR_TRY(check_range(cfg->pd_max_auto, 0, 1));
+  ERR_TRY(check_range(cfg->ext_input, SYS_POWER_EXT_BENCH, SYS_POWER_EXT_BATTERY));
   LOCK();
   const bool pin_changed = memcmp(&cfg->source_pin, &s_cfg.source_pin, sizeof(cfg->source_pin)) != 0;
   s_cfg = *cfg;

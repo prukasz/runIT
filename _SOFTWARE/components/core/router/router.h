@@ -86,12 +86,12 @@ ERR_TAGS_DECLARE(ERR_ROUTER_MAP)
 
 //#ref-enum @alias Error Record Source
 typedef enum {
-  ROUTER_ERR_SRC_INTERNAL = 0,  //@alias Internal @description no request (task, timer, boot); later a device ID / task may follow
-  ROUTER_ERR_SRC_COMMAND = 1,  //@alias Command @description raised while running a command
+  ROUTER_ERR_SRC_INTERNAL = 0,  //@alias Internal @description No request (task, timer, boot); later device ID/task may follow
+  ROUTER_ERR_SRC_COMMAND = 1,  //@alias Command @description Raised while running a command
 } router_err_src_e;
 
 //#ref-defines router_err_flag @alias Error Record Flags @prefix ROUTER_ERR_
-#define ROUTER_ERR_REQ_CUT 0x80u  //@alias Request cut @description Bit 7 of the request length: the request was cut to fit, more of it was sent
+#define ROUTER_ERR_REQ_CUT 0x80u  //@alias Request cut @description Bit 7 of request length: request was cut to fit, more was sent
 
 /**
  * @brief The command an error belongs to.
@@ -329,7 +329,7 @@ MUST_USE err_h router_answer_part(const uint8_t* out, uint32_t len);
 //#ref-enum @alias Safe State Reason
 typedef enum {
   ROUTER_SAFE_STOP = 1,  //@alias Stop @description sys STOP command
-  ROUTER_SAFE_DEADMAN = 2,  //@alias Deadman @description no frame within the dead-man timeout
+  ROUTER_SAFE_DEADMAN = 2,  //@alias Deadman @description No frame within the dead-man timeout
   ROUTER_SAFE_LINK_LOST = 3,  //@alias Link lost @description router_link_lost with on_link_lost set
 } router_safe_reason_e;
 

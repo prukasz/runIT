@@ -1,0 +1,255 @@
+{
+  "$schema": "../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "service-definition",
+  "scope": "system",
+  "id": "BLE",
+  "router_key": 3,
+  "alias": "Bluetooth Low Energy (GATT & Status)",
+  "description": "Zarządzanie dynamiczną tablicą GATT (tworzenie i usuwanie usług oraz cech BLE w czasie pracy), zatwierdzanie zmian oraz odczyt statusu połączenia i parametrów transmisji.",
+  "category": "system",
+  "commands": [
+    {
+      "id": "SVC_CREATE",
+      "op": 1,
+      "symbol": "OP_SVC_CREATE",
+      "label": "Utwórz usługę GATT",
+      "description": "Rejestruje nową usługę GATT o zadanym 16-bitowym UUID.",
+      "args": {
+        "struct": "svc_create_t",
+        "fields": [
+          {
+            "id": "uuid",
+            "label": "UUID usługi",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 0,
+            "description": "16-bitowy identyfikator UUID usługi GATT"
+          },
+          {
+            "id": "is_primary",
+            "label": "Usługa główna (Primary)",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 2,
+            "description": "1 = usługa główna (primary), 0 = pomocnicza (secondary)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "SVC_REMOVE",
+      "op": 2,
+      "symbol": "OP_SVC_REMOVE",
+      "label": "Usuń usługę GATT",
+      "description": "Usuwa usługę GATT o zadanym UUID (o ile nie jest zablokowana przez system).",
+      "args": {
+        "struct": "svc_remove_t",
+        "fields": [
+          {
+            "id": "uuid",
+            "label": "UUID usługi",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 0,
+            "description": "16-bitowy UUID usługi do usunięcia"
+          }
+        ]
+      }
+    },
+    {
+      "id": "CHAR_CREATE",
+      "op": 3,
+      "symbol": "OP_CHAR_CREATE",
+      "label": "Utwórz cechę GATT",
+      "description": "Tworzy cechę w usłudze GATT wraz z uprawnieniami, buforami i opisem tekstowym.",
+      "args": {
+        "struct": "char_create_t",
+        "fields": [
+          {
+            "id": "svc_uuid",
+            "label": "UUID nadrzędnej usługi",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 0,
+            "description": "16-bitowy UUID usługi nadrzędnej"
+          },
+          {
+            "id": "uuid",
+            "label": "UUID cechy",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 2,
+            "description": "16-bitowy UUID cechy GATT"
+          },
+          {
+            "id": "is_write",
+            "label": "Zapis (Write)",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 4,
+            "description": "1 = dozwolony zapis przez klienta"
+          },
+          {
+            "id": "is_indicate",
+            "label": "Indykacja (Indicate)",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 5,
+            "description": "1 = nadawanie z potwierdzeniem (indykacja)"
+          },
+          {
+            "id": "is_notify",
+            "label": "Notyfikacja (Notify)",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 6,
+            "description": "1 = nadawanie bez potwierdzenia (notyfikacja)"
+          },
+          {
+            "id": "is_framed",
+            "label": "Ramkowanie (Framed)",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 7,
+            "description": "1 = ramkowanie pakietów nagłówkiem fragmentacji (dla ramek dłuższych niż MTU)"
+          },
+          {
+            "id": "tx_buffer_size",
+            "label": "Rozmiar bufora TX",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 8,
+            "unit": "B",
+            "description": "Rozmiar bufora nadawczego w bajtach (0 = brak TX)"
+          },
+          {
+            "id": "rx_buffer_size",
+            "label": "Rozmiar bufora RX",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 12,
+            "unit": "B",
+            "description": "Rozmiar bufora odbiorczego w bajtach (0 = brak bufora RX)"
+          },
+          {
+            "id": "desc",
+            "label": "Opis cechy",
+            "type": "string",
+            "raw_type": "string",
+            "description": "Opcjonalny deskryptor tekstowy cechy (ogon NUL-terminated tail)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "CHAR_REMOVE",
+      "op": 4,
+      "symbol": "OP_CHAR_REMOVE",
+      "label": "Usuń cechę GATT",
+      "description": "Usuwa wskazaną cechę z nadrzędnej usługi GATT.",
+      "args": {
+        "struct": "char_remove_t",
+        "fields": [
+          {
+            "id": "svc_uuid",
+            "label": "UUID nadrzędnej usługi",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 0
+          },
+          {
+            "id": "uuid",
+            "label": "UUID cechy",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 2
+          }
+        ]
+      }
+    },
+    {
+      "id": "APPLY",
+      "op": 5,
+      "symbol": "OP_APPLY",
+      "label": "Zastosuj zmiany GATT",
+      "description": "Zatwierdza przygotowaną konfigurację GATT i wprowadza ją na żywo do stosu BLE (klient zostaje rozłączony na ok. 200 ms celem renegocjacji)."
+    },
+    {
+      "id": "STATUS",
+      "op": 6,
+      "symbol": "OP_STATUS",
+      "label": "Odczytaj status BLE",
+      "description": "Zwraca aktualny stan połączenia BLE, wynegocjowane MTU oraz liczbę przepełnień bufora odbiorczego.",
+      "returns": {
+        "struct": "status_t",
+        "description": "Bieżący stan BLE",
+        "fields": [
+          {
+            "id": "is_connected",
+            "label": "Połączony",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "1 = klient podłączony, 0 = rozłączony"
+          },
+          {
+            "id": "mtu",
+            "label": "Negocjowane MTU",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 1,
+            "unit": "B",
+            "description": "Wielkość wynegocjowanego MTU"
+          },
+          {
+            "id": "rx_overflow_count",
+            "label": "Odrzucone pakiety RX",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 3,
+            "description": "Liczba odrzuconych bajtów/ramek z powodu pełnego bufora RX"
+          }
+        ]
+      }
+    },
+    {
+      "id": "LIST",
+      "op": 7,
+      "symbol": "OP_LIST",
+      "label": "Pobierz tablicę GATT",
+      "description": "Zwraca pełną strukturę usług i cech zarejestrowanych w tablicy GATT wraz z ich flagami, licznikami TX/RX i nazwami.",
+      "returns": {
+        "struct": "sys_ble_list_t",
+        "description": "Zrzut tablicy usług i cech GATT",
+        "fields": [
+          {
+            "id": "services",
+            "label": "Liczba usług",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0
+          }
+        ]
+      }
+    }
+  ]
+}
+

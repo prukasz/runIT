@@ -4,12 +4,13 @@ import { Badge } from '../components/Badge'
 import { InlineRename } from '../components/InlineRename'
 import { PaletteSearch } from '../components/PaletteSearch'
 import { TreeSlab } from '../components/TreeSlab'
-import { TypeBadge, ValueKindBadge } from '../components/TypeBadge/TypeBadge'
+import { ValueKindBadge } from '../components/TypeBadge/TypeBadge'
 import { NAME_MAX } from '../domain/objects/catalog'
 import { OBJECT_DRAG_TYPE, objectKindDragType, variableKind } from '../domain/objects/drag'
 import { findObject, updateObject } from '../domain/project'
 import type { ObjectNode } from '../domain/project'
-import { isViableLinkTarget, matchesSearch } from './useObjectTree'
+import { matchesSearch } from '../components/PaletteSearch'
+import { isViableLinkTarget } from './useObjectTree'
 import type { ObjectWorkspace } from './useObjectTree'
 import './Objects.css'
 
@@ -187,9 +188,7 @@ export function ObjectTreePalette({ workspace: w }: { workspace: ObjectWorkspace
             />
           ) : undefined}
           badges={
-            node.kind === 'value' ? (
-              <TypeBadge type={node.type} count={node.length > 1 ? node.length : undefined} />
-            ) : node.kind === 'folder' && node.children.length > 0 ? (
+            node.kind === 'folder' && node.children.length > 0 ? (
               <Badge tone="count" title={`${node.children.length} items`}>
                 {node.children.length}
               </Badge>

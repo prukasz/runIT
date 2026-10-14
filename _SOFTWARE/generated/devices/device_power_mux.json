@@ -1,0 +1,135 @@
+{
+  "$schema": "../../templates/device.schema.json",
+  "schemaVersion": 3,
+  "kind": "device-definition",
+  "id": "power_mux",
+  "alias": "Power mux (ideal diodes)",
+  "description": "Two switched supply sources into one load, for example the two LM73100 ideal diodes that feed an H-bridge. At most one source is on; changing source switches the old one off first.",
+  "type_id": 74,
+  "type": {
+    "symbol": "SYS_DEVICE_TYPE_POWER_MUX",
+    "id": 74
+  },
+  "protocols": [
+    "pwm"
+  ],
+  "tags": [
+    "power",
+    "mux",
+    "supply",
+    "ideal",
+    "diode",
+    "switch"
+  ],
+  "datasheet": "https://www.ti.com/lit/ds/symlink/lm73100.pdf",
+  "config": {
+    "struct": "power_mux_cfg_t",
+    "size": 8,
+    "fields": [
+      {
+        "id": "en_a_pin",
+        "label": "Enable source A",
+        "description": "Switches source A on when it is at the enable level",
+        "offset": 0,
+        "size": 3,
+        "type": "pin",
+        "raw_type": "bytes",
+        "pin_ref": true,
+        "requires": "output",
+        "optional": false
+      },
+      {
+        "id": "en_b_pin",
+        "label": "Enable source B",
+        "description": "Switches source B on when it is at the enable level",
+        "offset": 3,
+        "size": 3,
+        "type": "pin",
+        "raw_type": "bytes",
+        "pin_ref": true,
+        "requires": "output",
+        "optional": false
+      },
+      {
+        "id": "active_level",
+        "label": "Enable level",
+        "description": "1: a high pin switches the source on (the LM73100)",
+        "offset": 6,
+        "size": 1,
+        "type": "choice",
+        "raw_type": "u8",
+        "options": [
+          {
+            "label": "Low",
+            "value": 0
+          },
+          {
+            "label": "High",
+            "value": 1
+          }
+        ],
+        "default": 1,
+        "min": 0,
+        "max": 1
+      },
+      {
+        "id": "switch_delay_ms",
+        "label": "Switch delay",
+        "description": "Pause between the old source off and the new one on",
+        "offset": 7,
+        "size": 1,
+        "type": "number",
+        "raw_type": "u8",
+        "default": 5,
+        "unit": "ms",
+        "min": 1,
+        "max": 100
+      }
+    ]
+  },
+  "contracts": [
+    "DEVICE",
+    "POWER_SUPPLY"
+  ],
+  "power_pins": [
+    {
+      "name": "VIN_A",
+      "kind": "vin",
+      "voltage_mV": {
+        "min": 2700,
+        "max": 28000,
+        "nominal": 12000
+      }
+    },
+    {
+      "name": "VIN_B",
+      "kind": "vin",
+      "voltage_mV": {
+        "min": 2700,
+        "max": 28000,
+        "nominal": 12000
+      }
+    },
+    {
+      "name": "GND",
+      "kind": "gnd"
+    }
+  ],
+  "provides": {
+    "power": [
+      {
+        "rail": "VOUT",
+        "voltage_mV": 12000,
+        "max_current_mA": 10000
+      }
+    ]
+  },
+  "electrical": {
+    "supply_voltage_mV": {
+      "min": 2700,
+      "max": 28000,
+      "nominal": 12000
+    },
+    "max_current_mA": 10000
+  }
+}

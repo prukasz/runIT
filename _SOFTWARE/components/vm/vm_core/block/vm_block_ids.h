@@ -28,7 +28,7 @@ with VM_BLOCK_TYPE_DEFINE (vm_blocks.h); this header only holds the list so the 
 #define VM_BLK_POWER_VREG 35     // POWER_VREG contract: an adjustable regulator
 #define VM_BLK_POWER_SUPPLY 36   // POWER_SUPPLY contract: a power mux
 #define VM_BLK_POWER_USB_PD 37   // POWER_USB_PD contract: a USB-PD sink
-#define VM_BLK_LIFECYCLE 38      // device lifecycle: reset, suspend, resume (also all devices)
+/* 38 was the lifecycle block (reset, suspend, resume); removed, the number is not reused. */
 #define VM_BLK_SERVO 39          // the servo device's own ops: position, home, release
 #define VM_BLK_DRV8962 40        // the DRV8962's own ops: current limit, fault
 #define VM_BLK_TPS55289 41       // the TPS55289's own ops: protection

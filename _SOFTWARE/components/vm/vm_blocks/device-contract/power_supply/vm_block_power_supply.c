@@ -5,11 +5,7 @@
 _Static_assert(sizeof(supply_args_SELECT_t) == 1, "the POWER_SUPPLY SELECT argument struct changed: update the table");
 
 static const vm_dev_op_t k_ops[] = {
-    //@op SUPPLY_OP_SELECT @alias Select source @description Feeds the load from nothing, source A or source B. @face Source {source}
-    //@op-in source @alias Source @choices 0=Off,1=A,2=B
     VM_DEV_OP(SUPPLY_OP_SELECT, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 1, VM_DEV_F_U8),
-    //@op SUPPLY_OP_GET_SOURCE @alias Read source @description Reads which source is on. @face Read source
-    //@op-out source @alias Source @choices 0=Off,1=A,2=B
     {.op = SUPPLY_OP_GET_SOURCE, .act = VM_DEV_ACT_READ, .result = VM_DEV_R_U8, .nfield = 0},
 };
 static const vm_dev_contract_t k_contract = {.ops = k_ops, .count = ARRAY_LEN(k_ops), .naddr = 0};

@@ -26,23 +26,23 @@
 #define INFO_SUSPENDED (1u << 1)
 
 typedef struct __attribute__((packed)) {
-  uint8_t id;  //@alias Stream @description The id of the new stream
-  uint8_t stream;  //@alias Stream byte @description The first byte of every frame of this stream
+  uint8_t id;      /**< Connector stream ID */
+  uint8_t stream;  /**< Stream byte */
 } create_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t id;  //@alias Stream
+  uint8_t id;  /**< Connector stream ID */
 } id_t_;
 
 typedef struct __attribute__((packed)) {
-  uint8_t id;  //@alias Stream
-  uint8_t provider;  //@alias Transport @enum-ref transport_e
-  uint32_t endpoint;  //@alias Endpoint @description Where on the transport (a BLE characteristic UUID)
+  uint8_t id;        /**< Connector stream ID */
+  uint8_t provider;  /**< transport_e */
+  uint32_t endpoint; /**< Transport endpoint */
 } bind_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t id;  //@alias Stream
-  uint8_t provider;  //@alias Transport @enum-ref transport_e
+  uint8_t id;        /**< Connector stream ID */
+  uint8_t provider;  /**< transport_e */
 } unbind_t;
 
 ROUTER_OP_TAIL(op_create, create_t) {
@@ -99,19 +99,12 @@ ROUTER_OP_NOARGS(op_info) {
 }
 
 static const router_entry_t k_ops[] = {
-    //@op OP_CREATE @alias Create stream @description Creates a user data stream @tail string @tail-alias Name
     {OP_CREATE, op_create},
-    //@op OP_REMOVE @alias Remove stream @description Removes a user stream
     {OP_REMOVE, op_remove},
-    //@op OP_BIND @alias Bind stream @description Sends a stream to a transport endpoint
     {OP_BIND, op_bind},
-    //@op OP_UNBIND @alias Unbind stream @description Stops sending a stream to a transport
     {OP_UNBIND, op_unbind},
-    //@op OP_SUSPEND @alias Suspend stream @description Stops a stream without removing it
     {OP_SUSPEND, op_suspend},
-    //@op OP_RESUME @alias Resume stream @description Lets a suspended stream send again
     {OP_RESUME, op_resume},
-    //@op OP_INFO @alias List streams @description Every stream with its bindings @returns bytes @returns-alias Streams @returns-description A count, then per stream its id, stream byte, flags, bindings and name
     {OP_INFO, op_info},
 };
 

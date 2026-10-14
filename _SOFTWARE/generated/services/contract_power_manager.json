@@ -1,0 +1,438 @@
+{
+  "$schema": "../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "contract-definition",
+  "scope": "system",
+  "id": "POWER_MANAGER",
+  "contract_id": 6,
+  "router_key": 10,
+  "alias": "Zarządzanie zasilaniem (Power Manager)",
+  "description": "Zarządzanie budżetem mocy, źródłami zasilania (USB-PD, zasilacz laboratoryjny, akumulator), matrycą reakcji na awarie zasilania oraz zdarzeniami.",
+  "category": "power",
+  "commands": [
+    {
+      "id": "SET_CONFIG",
+      "op": 1,
+      "symbol": "SYS_PWRM_OP_SET_CONFIG",
+      "label": "Konfiguracja menedżera zasilania",
+      "description": "Ustawia tryb pracy menedżera zasilania (ścisły budżet, margines, auto-negocjacja USB-PD).",
+      "args": {
+        "struct": "sys_power_manager_cfg_t",
+        "fields": [
+          {
+            "id": "enabled",
+            "label": "Aktywny",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "1 = kontrola budżetu aktywna, 0 = tylko pomiar"
+          },
+          {
+            "id": "strict",
+            "label": "Tryb ścisły (Strict)",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 1,
+            "description": "1 = bezwzględne odrzucanie przekroczeń, 0 = miękki margines"
+          },
+          {
+            "id": "soft_margin_pct",
+            "label": "Margines miękki",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 2,
+            "unit": "%",
+            "description": "Dopuszczalny margines przeciążenia budżetu w procentach"
+          },
+          {
+            "id": "source_pin",
+            "label": "Pin źródła",
+            "type": "pin",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 3,
+            "description": "Pin do rozróżniania akumulatora od wejścia USB"
+          },
+          {
+            "id": "battery_level",
+            "label": "Poziom pinu akumulatora",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 5
+          },
+          {
+            "id": "pd_max_auto",
+            "label": "Auto-negocjacja USB-PD",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 6,
+            "description": "1 = automatycznie negocjuj profil o najwyższej mocy"
+          },
+          {
+            "id": "ext_input",
+            "label": "Typ wejścia zewnętrznego",
+            "type": "choice",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 7,
+            "options": [
+              {
+                "label": "Zasilacz laboratoryjny (Bench)",
+                "value": 0
+              },
+              {
+                "label": "Pakiet akumulatorów (Battery)",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "GET_CONFIG",
+      "op": 2,
+      "symbol": "SYS_PWRM_OP_GET_CONFIG",
+      "label": "Pobierz konfigurację menedżera",
+      "description": "Zwraca bieżącą konfigurację pracy menedżera zasilania.",
+      "returns": {
+        "struct": "sys_power_manager_cfg_t",
+        "description": "Bieżąca konfiguracja menedżera zasilania",
+        "fields": [
+          {
+            "id": "enabled",
+            "label": "Aktywny",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "SET_PSU",
+      "op": 3,
+      "symbol": "SYS_PWRM_OP_SET_PSU",
+      "label": "Ustaw limity zasilacza zewnętrznego",
+      "description": "Definiuje maksymalne dopuszczalne napięcie oraz limit prądowy zewnętrznego zasilacza.",
+      "args": {
+        "struct": "sys_power_psu_t",
+        "fields": [
+          {
+            "id": "max_mV",
+            "label": "Maksymalne napięcie",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 0,
+            "unit": "mV"
+          },
+          {
+            "id": "max_mA",
+            "label": "Maksymalny prąd",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 4,
+            "unit": "mA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "SET_BATTERY",
+      "op": 4,
+      "symbol": "SYS_PWRM_OP_SET_BATTERY",
+      "label": "Ustaw parametry akumulatora",
+      "description": "Definiuje chemię ogniw, liczbę cel w szeregu oraz progi alarmowe rozładowania.",
+      "args": {
+        "struct": "sys_power_battery_t",
+        "fields": [
+          {
+            "id": "chemistry",
+            "label": "Chemia ogniw",
+            "type": "choice",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "options": [
+              {
+                "label": "Brak (None)",
+                "value": 0
+              },
+              {
+                "label": "LiPo (4.2V/cell)",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "id": "cells",
+            "label": "Liczba cel",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 1
+          },
+          {
+            "id": "low_pct",
+            "label": "Próg niski (Low)",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 2,
+            "unit": "%"
+          },
+          {
+            "id": "critical_pct",
+            "label": "Próg krytyczny (Critical)",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 3,
+            "unit": "%"
+          }
+        ]
+      }
+    },
+    {
+      "id": "SET_RESPONSE",
+      "op": 5,
+      "symbol": "SYS_PWRM_OP_SET_RESPONSE",
+      "label": "Ustaw reakcję na zdarzenie zasilania",
+      "description": "Konfiguruje reakcję (powiadomienie, odłączenie, reset, safe state) dla konkretnej linii zasilania lub całej płyty.",
+      "args": {
+        "struct": "response_args_t",
+        "fields": [
+          {
+            "id": "target",
+            "label": "Cel (Board lub ID szyny)",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 0,
+            "description": "0xFFFF dla płyty głównej lub device ID regulatora"
+          },
+          {
+            "id": "kind",
+            "label": "Typ zdarzenia zasilania",
+            "type": "choice",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 2,
+            "options": [
+              {
+                "label": "OVP",
+                "value": 1
+              },
+              {
+                "label": "UVP",
+                "value": 2
+              },
+              {
+                "label": "SPC",
+                "value": 3
+              },
+              {
+                "label": "OCP Warning",
+                "value": 4
+              },
+              {
+                "label": "OCP Critical",
+                "value": 5
+              },
+              {
+                "label": "OTP",
+                "value": 6
+              },
+              {
+                "label": "Battery Low",
+                "value": 7
+              },
+              {
+                "label": "Battery Critical",
+                "value": 8
+              },
+              {
+                "label": "Budget Exceeded",
+                "value": 9
+              },
+              {
+                "label": "Source Changed",
+                "value": 10
+              }
+            ]
+          },
+          {
+            "id": "response",
+            "label": "Wymagana reakcja",
+            "type": "choice",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 3,
+            "options": [
+              {
+                "label": "Tylko powiadomienie (Notify)",
+                "value": 0
+              },
+              {
+                "label": "Wyłącz wyjście (Disable)",
+                "value": 1
+              },
+              {
+                "label": "Zresetuj urządzenie (Reset)",
+                "value": 2
+              },
+              {
+                "label": "Zatrzymaj system (Safe state)",
+                "value": 3
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "GET_RESPONSES",
+      "op": 6,
+      "symbol": "SYS_PWRM_OP_GET_RESPONSES",
+      "label": "Pobierz reakcje linii zasilania",
+      "description": "Zwraca wektor reakcji na wszystkie typy zdarzeń dla wskazanego celu.",
+      "args": {
+        "struct": "target_args_t",
+        "fields": [
+          {
+            "id": "target",
+            "label": "Cel",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 0
+          }
+        ]
+      },
+      "returns": {
+        "type": "bytes",
+        "description": "Tablica kodów reakcji"
+      }
+    },
+    {
+      "id": "GET_STATUS",
+      "op": 7,
+      "symbol": "SYS_PWRM_OP_GET_STATUS",
+      "label": "Pobierz status zasilania",
+      "description": "Zwraca aktualne źródło zasilania, stan budżetu mocy, odczyty napięcia wejściowego i stan baterii.",
+      "returns": {
+        "struct": "sys_power_status_t",
+        "description": "Stan zasilania płyty",
+        "fields": [
+          {
+            "id": "source",
+            "label": "Aktywne źródło",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "NEGOTIATE_MAX",
+      "op": 8,
+      "symbol": "SYS_PWRM_OP_NEGOTIATE_MAX",
+      "label": "Negocjuj maksymalną moc USB-PD",
+      "description": "Wymusza renegocjację kontraktu zasilania USB-PD w poszukiwaniu najwyższej dostępnej mocy."
+    },
+    {
+      "id": "SET_RESPONSES",
+      "op": 9,
+      "symbol": "SYS_PWRM_OP_SET_RESPONSES",
+      "label": "Ustaw pełną matrycę reakcji",
+      "description": "Zapisuje kompletną matrycę reakcji dla płyty głównej i wszystkich szyn regulatorów.",
+      "args": {
+        "fields": [
+          {
+            "id": "matrix",
+            "label": "Macierz reakcji",
+            "type": "string",
+            "raw_type": "bytes",
+            "description": "Wszystkie wiersze odpowiedzi (ogon tail)"
+          }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "SOURCE_CHANGED",
+      "event": 0,
+      "code": 1536,
+      "label": "Source changed",
+      "description": "The board is now fed from another source",
+      "notify": true,
+      "symbol": "PWRM_EV_SOURCE_CHANGED",
+      "value": {
+        "description": "The new source (power source list)"
+      }
+    },
+    {
+      "id": "BATTERY_LOW",
+      "event": 1,
+      "code": 1537,
+      "label": "Battery low",
+      "description": "The battery charge passed the low threshold",
+      "notify": true,
+      "symbol": "PWRM_EV_BATTERY_LOW",
+      "value": {
+        "description": "The charge",
+        "unit": "%"
+      }
+    },
+    {
+      "id": "BATTERY_CRITICAL",
+      "event": 2,
+      "code": 1538,
+      "label": "Battery critical",
+      "description": "The battery charge passed the critical threshold",
+      "notify": true,
+      "symbol": "PWRM_EV_BATTERY_CRITICAL",
+      "value": {
+        "description": "The charge",
+        "unit": "%"
+      }
+    },
+    {
+      "id": "BUDGET_EXCEEDED",
+      "event": 3,
+      "code": 1539,
+      "label": "Budget exceeded",
+      "description": "The rails ask for more than the budget",
+      "notify": true,
+      "symbol": "PWRM_EV_BUDGET_EXCEEDED",
+      "value": {
+        "description": "The budget with the margin",
+        "unit": "mW"
+      }
+    },
+    {
+      "id": "INPUT_OVP",
+      "event": 4,
+      "code": 1540,
+      "label": "Input over-voltage",
+      "description": "The input is above the board's maximum",
+      "notify": true,
+      "symbol": "PWRM_EV_INPUT_OVP",
+      "value": {
+        "description": "The input voltage",
+        "unit": "mV"
+      }
+    }
+  ]
+}

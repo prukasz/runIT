@@ -1,0 +1,205 @@
+{
+  "$schema": "../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "service-definition",
+  "scope": "system",
+  "id": "I2C",
+  "router_key": 2,
+  "alias": "Diagnostyka magistrali I2C (I2C Bus Diagnostics)",
+  "description": "Skanowanie adresów na magistralach I2C, reset magistrali oraz bezpośredni dostęp do rejestrów układów (raw read/write).",
+  "category": "system",
+  "commands": [
+    {
+      "id": "INFO",
+      "op": 1,
+      "symbol": "OP_INFO",
+      "label": "Informacje o magistralach I2C",
+      "description": "Zwraca status włączenia, piny SDA/SCL oraz maskę zajętych adresów dla wszystkich magistral I2C na płytce.",
+      "returns": {
+        "struct": "sys_i2c_bus_info_list_t",
+        "description": "Stan magistral I2C",
+        "fields": [
+          {
+            "id": "count",
+            "label": "Liczba magistral",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "SCAN",
+      "op": 2,
+      "symbol": "OP_SCAN",
+      "label": "Skanuj magistralę I2C",
+      "description": "Wykonuje skanowanie adresów 0x08..0x77 na wybranej magistrali i zwraca 128-bitową maskę adresów, które odpowiedziały ACK.",
+      "args": {
+        "struct": "bus_args_t",
+        "fields": [
+          {
+            "id": "bus",
+            "label": "Indeks magistrali I2C",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "Numer magistrali I2C (0 lub 1)"
+          }
+        ]
+      },
+      "returns": {
+        "struct": "scan_response_t",
+        "description": "Maska znalezionych adresów",
+        "fields": [
+          {
+            "id": "found_0",
+            "label": "Adresy 0x00..0x1F",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 0
+          },
+          {
+            "id": "found_1",
+            "label": "Adresy 0x20..0x3F",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 4
+          },
+          {
+            "id": "found_2",
+            "label": "Adresy 0x40..0x5F",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 8
+          },
+          {
+            "id": "found_3",
+            "label": "Adresy 0x60..0x7F",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 12
+          }
+        ]
+      }
+    },
+    {
+      "id": "RESET",
+      "op": 3,
+      "symbol": "OP_RESET",
+      "label": "Reset magistrali I2C",
+      "description": "Wykonuje sekwencję 9 impulsów zegara SCL w celu odblokowania zawieszonej linii SDA na magistrali.",
+      "args": {
+        "struct": "bus_args_t",
+        "fields": [
+          {
+            "id": "bus",
+            "label": "Indeks magistrali I2C",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "RAW_READ",
+      "op": 4,
+      "symbol": "OP_RAW_READ",
+      "label": "Niskopoziomowy odczyt rejestru I2C",
+      "description": "Odczytuje określoną liczbę bajtów z rejestru urządzenia pod zadanym 7-bitowym adresem I2C.",
+      "args": {
+        "struct": "raw_read_args_t",
+        "fields": [
+          {
+            "id": "bus",
+            "label": "Magistrala I2C",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0
+          },
+          {
+            "id": "addr",
+            "label": "Adres 7-bit",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 1
+          },
+          {
+            "id": "reg",
+            "label": "Adres rejestru",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 2
+          },
+          {
+            "id": "len",
+            "label": "Liczba bajtów",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 3
+          }
+        ]
+      },
+      "returns": {
+        "type": "bytes",
+        "description": "Odczytane bajty rejestru"
+      }
+    },
+    {
+      "id": "RAW_WRITE",
+      "op": 5,
+      "symbol": "OP_RAW_WRITE",
+      "label": "Niskopoziomowy zapis rejestru I2C",
+      "description": "Zapisuje dane do wskazanego rejestru urządzenia pod 7-bitowym adresem I2C.",
+      "args": {
+        "struct": "raw_write_hdr_t",
+        "fields": [
+          {
+            "id": "bus",
+            "label": "Magistrala I2C",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0
+          },
+          {
+            "id": "addr",
+            "label": "Adres 7-bit",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 1
+          },
+          {
+            "id": "reg",
+            "label": "Adres rejestru",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 2
+          },
+          {
+            "id": "data",
+            "label": "Dane do zapisu",
+            "type": "string",
+            "raw_type": "bytes",
+            "description": "Bajty do zapisu (ogon tail)"
+          }
+        ]
+      }
+    }
+  ]
+}
+

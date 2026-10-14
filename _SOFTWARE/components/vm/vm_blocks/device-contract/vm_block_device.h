@@ -73,7 +73,6 @@ typedef struct vm_dev_op_t {
 typedef struct vm_dev_contract_t {
   const vm_dev_op_t* ops;
   uint8_t count;
-  bool sweep;     // the device ID 0xFFFF (every device) is allowed: the lifecycle ops sweep
   uint8_t naddr;  // leading argument fields that address a thing (a pin, a channel): 1 for IO / HBRIDGE / POWER_MONITOR, 0 for a device with one thing
 } vm_dev_contract_t;
 
@@ -82,14 +81,14 @@ typedef struct vm_dev_contract_t {
 #define VM_DEV_F_IDLE (1u << 2)     // the idle operation was sent since the enable fell
 
 typedef struct __attribute__((aligned(4))) {
-  uint16_t device_id;  //@alias Device @description The device the block works on. @id device @role device
-  uint16_t op;         //@alias Operation @description What the block does with the device; it decides the block's inputs and outputs. @role op
-  uint16_t idle_op;    //@alias When not enabled @description What the block does once when its enable turns off (none: the device is left as it is). @role idle-op
-  uint8_t flags;       //@description VM_DEV_F_* bits @runtime
+  uint16_t device_id;  // The device the block works on.
+  uint16_t op;  // What the block does with the device; it decides the block's inputs and outputs.
+  uint16_t idle_op;  // What the block does once when its enable turns off (none: the device is left as it is).
+  uint8_t flags;
   uint8_t _pad;
-  int32_t k[VM_DEV_FIELDS_MAX];       //@alias Input values @description The value of each input of the operation while that input is not wired (the bits of a float for a scaled input). @role const
-  int32_t idle_k[VM_DEV_FIELDS_MAX];  //@alias Values when not enabled @description The inputs of the idle operation after its address inputs (same encoding). @role idle-const
-  int32_t last[VM_DEV_FIELDS_MAX];    //@description What was last sent to the device @runtime
+  int32_t k[VM_DEV_FIELDS_MAX];  // The value of each input of the operation while that input is not wired (the bits of a float for a scaled input).
+  int32_t idle_k[VM_DEV_FIELDS_MAX];  // The inputs of the idle operation after its address inputs (same encoding).
+  int32_t last[VM_DEV_FIELDS_MAX];
 } vm_block_device_data_t;
 
 _Static_assert(sizeof(vm_block_device_data_t) == 56, "vm_block_device_data_t must be 56 bytes");

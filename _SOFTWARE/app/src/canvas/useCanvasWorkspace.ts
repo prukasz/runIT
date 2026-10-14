@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
 import { readStored, usePersistEffect } from '../hooks/useStorage'
 import { useUndoHistory } from '../hooks/useUndoHistory'
-import { addBlock, addCanvas, DEFAULT_VIEWPORT, findBlock, GRID, moveBlock, moveCanvas, newBlockId, pasteBlocks, removeBlock, removeCanvas, renameCanvas, screenToCanvas, setCanvasDisabled, snapPoint, updateBlock } from '../domain/canvas'
-import type { CanvasBlock, Point, ProjectCanvas, Viewport } from '../domain/canvas'
+import { addBlock, addCanvas, addFreeChip, DEFAULT_VIEWPORT, dockFreeChip, findBlock, GRID, moveBlock, moveCanvas, moveFreeChip, newBlockId, pasteBlocks, removeBlock, removeCanvas, removeFreeChip, renameCanvas, screenToCanvas, setCanvasDisabled, snapPoint, updateBlock } from '../domain/canvas'
+import type { CanvasBlock, ObjectPath, Point, ProjectCanvas, Viewport, WireTarget } from '../domain/canvas'
 import { blockShape, descriptorOf } from '../blocks/blockModel'
 
 /*
@@ -127,7 +127,24 @@ export function useCanvasWorkspace() {
       return block ? moveBlock(list, id, { x: block.x + by.x, y: block.y + by.y }) : list
     }, current))
 
+  /** Change the open canvas itself (its free chips): one undo step. */
+  const editActive = (change: (canvas: ProjectCanvas) => ProjectCanvas): boolean => {
+    if (!active) return false
+    return edit((current) => current.map((canvas) => (canvas.id === active.id ? change(canvas) : canvas)))
+  }
+
+  /** Replace every canvas (a project opened); an empty list gets one canvas. Undo goes back to the canvases before. */
+  const load = (list: readonly ProjectCanvas[]) => {
+    const next = list.length ? list : addCanvas([], newId())
+    history.replace(next)
+    setActiveId(next[0]?.id)
+    setSelectedIds([])
+    setViewports(new Map())
+    setError('')
+  }
+
   return {
+    load,
     canvases,
     active,
     select: (id: string | undefined) => {
@@ -156,6 +173,11 @@ export function useCanvasWorkspace() {
     moveBlocks,
     updateBlock: (id: string, change: (block: CanvasBlock) => CanvasBlock) => edit((current) => updateBlock(current, id, change)),
     deleteBlocks,
+    /** Free chips: a variable pulled off its pin (or dropped from the Variables tab) onto the canvas. */
+    addFreeChip: (path: ObjectPath, at: Point) => editActive((canvas) => addFreeChip(canvas, path, at)),
+    moveFreeChip: (id: string, at: Point) => editActive((canvas) => moveFreeChip(canvas, id, at)),
+    removeFreeChip: (id: string) => editActive((canvas) => removeFreeChip(canvas, id)),
+    dockFreeChip: (id: string, blockId: string, target: WireTarget) => editActive((canvas) => dockFreeChip(canvas, id, blockId, target)),
     copy,
     paste,
     canPaste: clipboard.length > 0 && !!active,

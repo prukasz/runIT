@@ -1,0 +1,150 @@
+{
+  "$schema": "../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "service-definition",
+  "scope": "system",
+  "id": "LOG",
+  "router_key": 8,
+  "alias": "Konfiguracja logowania (Log Control)",
+  "description": "Konfiguracja poziomu logów systemowych ESP_LOG, przekierowywania na konsolę UART oraz wysyłania łańcuchów błędów i linii logów na strumienie danych.",
+  "category": "system",
+  "commands": [
+    {
+      "id": "SET",
+      "op": 1,
+      "symbol": "SYS_LOG_OP_SET",
+      "label": "Ustaw opcje logowania",
+      "description": "Zapisuje i stosuje w locie konfigurację poziomu logów oraz filtrów przesyłania.",
+      "args": {
+        "struct": "sys_log_cfg_t",
+        "fields": [
+          {
+            "id": "level",
+            "label": "Poziom logowania",
+            "type": "choice",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "Maksymalny poziom rejestrowanych komunikatów",
+            "options": [
+              {
+                "label": "Brak (None)",
+                "value": 0
+              },
+              {
+                "label": "Błędy (Error)",
+                "value": 1
+              },
+              {
+                "label": "Ostrzeżenia (Warn)",
+                "value": 2
+              },
+              {
+                "label": "Informacje (Info)",
+                "value": 3
+              },
+              {
+                "label": "Debug",
+                "value": 4
+              },
+              {
+                "label": "Szczegółowy (Verbose)",
+                "value": 5
+              }
+            ]
+          },
+          {
+            "id": "mirror_serial",
+            "label": "Konsola szeregowa (UART)",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 1,
+            "description": "1 = wypisuj linie logów na konsolę szeregową UART"
+          },
+          {
+            "id": "trace_errors",
+            "label": "Ślad błędów w logach",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 2,
+            "description": "1 = drukuj pełny łańcuch błędu w tekście logu"
+          },
+          {
+            "id": "send_errors",
+            "label": "Strumień błędów",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 3,
+            "description": "1 = wysyłaj rekordy błędów na dedykowany strumień ERRORS"
+          },
+          {
+            "id": "send_logs",
+            "label": "Strumień logów",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 4,
+            "description": "1 = wysyłaj linie logów na dedykowany strumień LOGS (np. BLE)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "GET",
+      "op": 2,
+      "symbol": "SYS_LOG_OP_GET",
+      "label": "Odczytaj opcje logowania",
+      "description": "Zwraca bieżącą konfigurację poziomów logowania i strumieni.",
+      "returns": {
+        "struct": "sys_log_cfg_t",
+        "description": "Bieżąca konfiguracja logowania",
+        "fields": [
+          {
+            "id": "level",
+            "label": "Poziom logowania",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0
+          },
+          {
+            "id": "mirror_serial",
+            "label": "Konsola szeregowa",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 1
+          },
+          {
+            "id": "trace_errors",
+            "label": "Ślad błędów",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 2
+          },
+          {
+            "id": "send_errors",
+            "label": "Strumień błędów",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 3
+          },
+          {
+            "id": "send_logs",
+            "label": "Strumień logów",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 4
+          }
+        ]
+      }
+    }
+  ]
+}
+

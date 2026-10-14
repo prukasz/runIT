@@ -20,20 +20,20 @@ extern "C" {
 //#ref-enum @alias H-Bridge Fault
 typedef enum sys_hbridge_fault_reason_e {
   SYS_HBRIDGE_FAULT_NONE = 0,  //@alias None @description No fault
-  SYS_HBRIDGE_FAULT_OVERCURRENT = 1,  //@alias Overcurrent @description The channel drew more than its current limit
-  SYS_HBRIDGE_FAULT_THERMAL_OR_UVLO = 2,  //@alias Overheat or Low Supply @description The driver chip overheated or its supply dropped too low; every channel stops
-  SYS_HBRIDGE_FAULT_EXTERNAL = 3,  //@alias External @description An external fault input was triggered
+  SYS_HBRIDGE_FAULT_OVERCURRENT = 1,  //@alias Overcurrent @description Overcurrent condition on channel
+  SYS_HBRIDGE_FAULT_THERMAL_OR_UVLO = 2,  //@alias Overheat or Low Supply @description Thermal shutdown or undervoltage lockout
+  SYS_HBRIDGE_FAULT_EXTERNAL = 3,  //@alias External @description External fault input tripped
 } sys_hbridge_fault_reason_e;
 
 #define SYS_HBRIDGE_DRIVE_MAX 4095  // = IO_PWM_DUTY_MAX: 12 bits
 
 typedef struct __attribute__((packed)) {
-  uint8_t channel;  //@alias Channel @description The motor channel @id pin
+  uint8_t channel;  /**< Motor channel index */
 } hbridge_channel_args_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t channel;  //@alias Channel @description The motor channel @id pin
-  int16_t drive;  //@alias Drive @description PWM steps: -4095 full reverse to 4095 full forward (a half bridge 0 to 4095) @min -4095 @max 4095
+  uint8_t channel;  /**< Motor channel index */
+  int16_t drive;    /**< PWM drive: -4095 (reverse) to +4095 (forward) */
 } hbridge_drive_args_t;
 
 /**
@@ -43,10 +43,10 @@ typedef struct __attribute__((packed)) {
  */
 // clang-format off
 #define SYS_HBRIDGE_CONTRACT(X) \
-  X(SET_DRIVE, 0x00, hbridge_drive_args_t)  /* @alias Drive @description Drives a motor channel; out of range is an error. */ \
-  X(BRAKE, 0x01, hbridge_channel_args_t)  /* @alias Brake @description Shorts the motor terminals. */ \
-  X(COAST, 0x02, hbridge_channel_args_t)  /* @alias Coast @description Releases the motor: the outputs are off. */ \
-  X(GET_CURRENT, 0x03, hbridge_channel_args_t)  /* @alias Read current @description Reads the current of a channel. @returns i32 @returns-alias Current @unit mA */
+  X(SET_DRIVE, 0x00, hbridge_drive_args_t) \
+  X(BRAKE, 0x01, hbridge_channel_args_t) \
+  X(COAST, 0x02, hbridge_channel_args_t) \
+  X(GET_CURRENT, 0x03, hbridge_channel_args_t)
 // clang-format on
 
 #define SYS_HBRIDGE__ID(name, n, args_t) HBRIDGE_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_HBRIDGE, n),
@@ -62,9 +62,9 @@ SYS_HBRIDGE_CONTRACT(SYS_HBRIDGE__ARGS)
  * channel, value = its current in mA. A fault is something the user must see: NOTIFY. */
 // clang-format off
 #define SYS_HBRIDGE_EVENTS(X) \
-  X(OVERCURRENT, 0x00, SYS_EVENT_NOTIFY)  /* @alias Over-current @description The channel drew more than its current limit */ \
-  X(THERMAL_OR_UVLO, 0x01, SYS_EVENT_NOTIFY)  /* @alias Overheat or low supply @description The chip overheated or its supply dropped: every channel stopped */ \
-  X(EXTERNAL, 0x02, SYS_EVENT_NOTIFY)  /* @alias External fault @description An external fault input fired */
+  X(OVERCURRENT, 0x00, SYS_EVENT_NOTIFY) \
+  X(THERMAL_OR_UVLO, 0x01, SYS_EVENT_NOTIFY) \
+  X(EXTERNAL, 0x02, SYS_EVENT_NOTIFY)
 // clang-format on
 
 #define SYS_HBRIDGE__EV(name, n, flags) \

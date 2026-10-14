@@ -1,0 +1,107 @@
+{
+  "$schema": "../../templates/device.schema.json",
+  "schemaVersion": 3,
+  "kind": "device-definition",
+  "id": "ap33772s",
+  "alias": "AP33772S USB-C PD sink",
+  "description": "USB-C Power Delivery sink controller that negotiates voltage and current from a charger and can also act as a regulated, monitored output.",
+  "type_id": 69,
+  "type": {
+    "symbol": "SYS_DEVICE_TYPE_AP33772S",
+    "id": 69
+  },
+  "protocols": [
+    "i2c"
+  ],
+  "tags": [
+    "i2c",
+    "usb-c",
+    "power-delivery",
+    "power",
+    "voltage",
+    "current"
+  ],
+  "datasheet": "https://www.diodes.com/assets/Datasheets/AP33772S.pdf",
+  "config": {
+    "struct": "ap33772s_cfg_t",
+    "size": 5,
+    "fields": [
+      {
+        "id": "i2c_bus",
+        "label": "I2C bus",
+        "description": "The I2C bus the chip is on",
+        "offset": 0,
+        "size": 1,
+        "type": "enum",
+        "enum": "sys_i2c_bus_e",
+        "raw_type": "u8"
+      },
+      {
+        "id": "i2c_addr",
+        "label": "I2C address",
+        "description": "The chip's fixed address",
+        "offset": 1,
+        "size": 1,
+        "type": "number",
+        "raw_type": "u8"
+      },
+      {
+        "id": "intr_pin",
+        "label": "INT",
+        "description": "Active-low interrupt; needs CONFIGURE_INTR on its device. Leave unwired when not connected.",
+        "offset": 2,
+        "size": 3,
+        "type": "pin",
+        "raw_type": "bytes",
+        "pin_ref": true,
+        "requires": "output",
+        "optional": true
+      }
+    ]
+  },
+  "contracts": [
+    "DEVICE",
+    "POWER_VREG",
+    "POWER_USB_PD",
+    "POWER_MONITOR"
+  ],
+  "bus": {
+    "type": "i2c",
+    "i2c": {
+      "default_addr": 82,
+      "max_speed_khz": 400
+    }
+  },
+  "power_pins": [
+    {
+      "name": "VBUS",
+      "kind": "vin",
+      "voltage_mV": {
+        "min": 5000,
+        "max": 20000,
+        "nominal": 5000
+      }
+    },
+    {
+      "name": "GND",
+      "kind": "gnd"
+    }
+  ],
+  "provides": {
+    "power": [
+      {
+        "rail": "VBUS_OUT",
+        "voltage_mV": 20000,
+        "max_current_mA": 5000
+      }
+    ]
+  },
+  "electrical": {
+    "supply_voltage_mV": {
+      "min": 3000,
+      "max": 5500,
+      "nominal": 3300
+    },
+    "logic_voltage_mV": 3300
+  }
+}
