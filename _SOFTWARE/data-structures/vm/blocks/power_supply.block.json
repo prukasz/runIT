@@ -1,0 +1,233 @@
+{
+  "schemaVersion": 2,
+  "kind": "vm-block",
+  "id": 36,
+  "name": "VM_BLK_POWER_SUPPLY",
+  "alias": "Power mux",
+  "category": "device",
+  "description": "Selects which of two sources feeds the load and reads which one is on.",
+  "source_file": "components/vm/vm_blocks/device-contract/power_supply/vm_block_power_supply.h",
+  "guide": "power_supply.md",
+  "activation": {
+    "kind": "enabled",
+    "text": "Runs every pass while enabled; a selection is sent on the first pass and whenever it changes."
+  },
+  "min_enables": 0,
+  "face": {
+    "lead": [
+      {
+        "ref": "op",
+        "kind": "op"
+      },
+      {
+        "text": " "
+      },
+      {
+        "ref": "device_id",
+        "kind": "field",
+        "field": "device_id"
+      }
+    ]
+  },
+  "device": {
+    "contract": "POWER_SUPPLY",
+    "contract_id": 8
+  },
+  "shape": {
+    "min_in": 0,
+    "max_in": 4,
+    "min_q": 0,
+    "max_q": 1,
+    "min_en": 0,
+    "required_in": 0,
+    "state_len": 56
+  },
+  "inputs": {
+    "min": 0,
+    "max": 4,
+    "pins": []
+  },
+  "outputs": {
+    "min": 0,
+    "max": 1,
+    "pins": []
+  },
+  "op_field": "op",
+  "idle_op_field": "idle_op",
+  "const_field": "k",
+  "idle_const_field": "idle_k",
+  "device_field": "device_id",
+  "ops": [
+    {
+      "symbol": "SUPPLY_OP_SELECT",
+      "value": 2048,
+      "alias": "Select source",
+      "description": "Feeds the load from nothing, source A or source B.",
+      "kind": "change",
+      "idle_allowed": true,
+      "inputs": [
+        {
+          "index": 0,
+          "name": "source",
+          "alias": "Source",
+          "field_type": "u8",
+          "choices": [
+            {
+              "value": 0,
+              "alias": "Off"
+            },
+            {
+              "value": 1,
+              "alias": "A"
+            },
+            {
+              "value": 2,
+              "alias": "B"
+            }
+          ]
+        }
+      ],
+      "outputs": [],
+      "face": {
+        "lead": [
+          {
+            "text": "Source "
+          },
+          {
+            "ref": "source",
+            "kind": "pin",
+            "pin": 0
+          }
+        ]
+      }
+    },
+    {
+      "symbol": "SUPPLY_OP_GET_SOURCE",
+      "value": 2049,
+      "alias": "Read source",
+      "description": "Reads which source is on.",
+      "kind": "read",
+      "idle_allowed": false,
+      "inputs": [],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "source",
+          "alias": "Source",
+          "value_type": "u8",
+          "choices": [
+            {
+              "value": 0,
+              "alias": "Off"
+            },
+            {
+              "value": 1,
+              "alias": "A"
+            },
+            {
+              "value": 2,
+              "alias": "B"
+            }
+          ]
+        }
+      ],
+      "face": {
+        "lead": [
+          {
+            "text": "Read source"
+          }
+        ]
+      }
+    }
+  ],
+  "state": {
+    "struct": "vm_block_device_data_t",
+    "source_file": "components/vm/vm_blocks/device-contract/vm_block_device.h",
+    "size": 56,
+    "align": 4,
+    "fields": [
+      {
+        "name": "device_id",
+        "c_type": "uint16_t",
+        "offset": 0,
+        "size": 2,
+        "description": "The device the block works on.",
+        "source": "user",
+        "alias": "Device",
+        "role": "device",
+        "id_kind": "device",
+        "contract": "POWER_SUPPLY"
+      },
+      {
+        "name": "op",
+        "c_type": "uint16_t",
+        "offset": 2,
+        "size": 2,
+        "description": "What the block does with the device; it decides the block's inputs and outputs.",
+        "source": "user",
+        "alias": "Operation",
+        "role": "op"
+      },
+      {
+        "name": "idle_op",
+        "c_type": "uint16_t",
+        "offset": 4,
+        "size": 2,
+        "description": "What the block does once when its enable turns off (none: the device is left as it is).",
+        "source": "user",
+        "alias": "When not enabled",
+        "role": "idle-op"
+      },
+      {
+        "name": "flags",
+        "c_type": "uint8_t",
+        "offset": 6,
+        "size": 1,
+        "description": "VM_DEV_F_* bits",
+        "source": "runtime"
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint8_t",
+        "offset": 7,
+        "size": 1,
+        "source": "padding"
+      },
+      {
+        "name": "k",
+        "c_type": "int32_t",
+        "offset": 8,
+        "size": 16,
+        "array_len": 4,
+        "element_size": 4,
+        "description": "The value of each input of the operation while that input is not wired (the bits of a float for a scaled input).",
+        "source": "user",
+        "alias": "Input values",
+        "role": "const"
+      },
+      {
+        "name": "idle_k",
+        "c_type": "int32_t",
+        "offset": 24,
+        "size": 16,
+        "array_len": 4,
+        "element_size": 4,
+        "description": "The inputs of the idle operation after its address inputs (same encoding).",
+        "source": "user",
+        "alias": "Values when not enabled",
+        "role": "idle-const"
+      },
+      {
+        "name": "last",
+        "c_type": "int32_t",
+        "offset": 40,
+        "size": 16,
+        "array_len": 4,
+        "element_size": 4,
+        "description": "What was last sent to the device",
+        "source": "runtime"
+      }
+    ]
+  },
+  "min_custom_len": 56
+}

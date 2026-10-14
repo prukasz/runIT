@@ -1,0 +1,16 @@
+# Edge
+
+Turns a **change** of the combined enable level into a one-pass pulse on ENO.
+
+## Settings
+
+- **Edge**: *rising* (false to true), *falling* (true to false) or *both*.
+
+## Behaviour
+
+- The block needs at least one enable source. It samples the combined enable level on **every** pass, including the passes when it is false.
+- The first sample only records the starting level; it never produces a pulse.
+- ENO is on for exactly one pass per detected edge.
+- If the enable cannot be read, no pulse is made and the last sample is kept.
+
+A common use: put an **Edge** on a button, wire its ENO to a **Latch**, **Toggle pin** or **Run action**.

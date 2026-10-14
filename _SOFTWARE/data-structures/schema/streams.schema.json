@@ -1,0 +1,268 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "data-structures/schema/streams.schema.json",
+  "title": "runIT board-to-app streams",
+  "description": "System data connectors, the header byte that starts every frame each one sends (sys_data_connector_init() in sys_data_connector.c), and what the board sets up at start: its BLE GATT profile, connector bindings and registry limits (runit_board_cfg.c, sdkconfig).",
+  "type": "object",
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "kind",
+    "source_file",
+    "limits",
+    "ble",
+    "streams",
+    "bindings"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "const": "data-structures/schema/streams.schema.json"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "kind": {
+      "const": "streams"
+    },
+    "source_file": {
+      "type": "string"
+    },
+    "limits": {
+      "type": "object",
+      "description": "Connector registry limits (Kconfig, 'System Data Connector Options').",
+      "required": [
+        "connectors_max",
+        "providers_per_connector_max",
+        "name_max",
+        "frame_max"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "connectors_max": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "CONFIG_SYS_DATA_CONNECTOR_MAX: connector IDs 0..connectors_max-1."
+        },
+        "providers_per_connector_max": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "CONFIG_SYS_DATA_CONNECTOR_PROVIDERS_MAX: bindings per connector and direction."
+        },
+        "name_max": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "CONFIG_SYS_DATA_CONNECTOR_NAME_MAX: name buffer incl. NUL."
+        },
+        "frame_max": {
+          "type": "integer",
+          "minimum": 2,
+          "description": "CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX: largest frame incl. the stream byte."
+        }
+      }
+    },
+    "ble": {
+      "type": "object",
+      "required": [
+        "service",
+        "service_symbol",
+        "is_primary",
+        "characteristics",
+        "source_files"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "service": {
+          "$ref": "#/$defs/uuid16"
+        },
+        "source_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "service_symbol": {
+          "type": "string"
+        },
+        "is_primary": {
+          "type": "boolean"
+        },
+        "characteristics": {
+          "type": "array",
+          "description": "Characteristics runit_board_ble_init() creates in the service, as a restarted board has them.",
+          "items": {
+            "type": "object",
+            "required": [
+              "symbol",
+              "uuid",
+              "name",
+              "write",
+              "notify",
+              "indicate",
+              "tx_buffer_size",
+              "rx_buffer_size"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "symbol": {
+                "type": "string"
+              },
+              "uuid": {
+                "$ref": "#/$defs/uuid16"
+              },
+              "name": {
+                "type": "string",
+                "description": "User description (0x2901)."
+              },
+              "write": {
+                "type": "boolean"
+              },
+              "notify": {
+                "type": "boolean"
+              },
+              "indicate": {
+                "type": "boolean"
+              },
+              "tx_buffer_size": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Bytes; SYS_BUFF_SIZE_FOR evaluated."
+              },
+              "rx_buffer_size": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    "streams": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "header",
+          "config",
+          "connector",
+          "connector_enum",
+          "connector_id",
+          "alias",
+          "description",
+          "max_frame"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z_]+$",
+            "description": "Connector name; the app looks streams up by it (logs, errors, telemetry, interface)."
+          },
+          "header": {
+            "type": "string",
+            "pattern": "^0x[0-9A-F]{2}$",
+            "description": "First byte of every frame on this stream."
+          },
+          "config": {
+            "type": "string",
+            "pattern": "^CONFIG_\\w+$"
+          },
+          "connector": {
+            "type": "string"
+          },
+          "connector_enum": {
+            "type": "string"
+          },
+          "connector_id": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "alias": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "ble": {
+            "type": "object",
+            "description": "Characteristics this stream uses on the BLE provider: notify = board to app, write = app to board.",
+            "additionalProperties": false,
+            "minProperties": 1,
+            "properties": {
+              "notify": {
+                "$ref": "#/$defs/uuid16"
+              },
+              "write": {
+                "$ref": "#/$defs/uuid16"
+              }
+            }
+          },
+          "max_frame": {
+            "type": "integer",
+            "minimum": 2,
+            "description": "Frame cap of the connector incl. the stream byte (0 in the table = frame_max)."
+          }
+        }
+      }
+    },
+    "bindings": {
+      "type": "array",
+      "description": "Every sys_data_connector_bind_tx / _rx in runit_board_connector_bindings_init() active with this sdkconfig.",
+      "items": {
+        "type": "object",
+        "required": [
+          "connector",
+          "connector_id",
+          "direction",
+          "provider",
+          "provider_id",
+          "endpoint",
+          "endpoint_symbol"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "connector": {
+            "type": "string"
+          },
+          "connector_id": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "direction": {
+            "enum": [
+              "tx",
+              "rx"
+            ]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "provider_id": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "endpoint": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "BLE: characteristic UUID; UART: port."
+          },
+          "endpoint_symbol": {
+            "type": "string"
+          },
+          "when": {
+            "type": "string",
+            "description": "The #if condition the binding sits under (true for this sdkconfig)."
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "uuid16": {
+      "type": "string",
+      "pattern": "^0x[0-9A-F]{4}$"
+    }
+  }
+}

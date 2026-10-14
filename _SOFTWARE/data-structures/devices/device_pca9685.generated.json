@@ -1,0 +1,412 @@
+{
+  "schemaVersion": 2,
+  "kind": "device-definition",
+  "id": "device_pca9685",
+  "alias": "PCA9685 PWM expander",
+  "description": "Sixteen-channel I2C PWM expander with optional active-low output enable.",
+  "protocols": [
+    "i2c"
+  ],
+  "source_file": "components/devices/device_pca9685/device_pca9685.h",
+  "type": {
+    "symbol": "SYS_DEVICE_TYPE_PCA9685",
+    "id": 65
+  },
+  "tags": [
+    "i2c",
+    "pwm",
+    "gpio",
+    "servo",
+    "led",
+    "ic"
+  ],
+  "datasheet": "https://www.nxp.com/docs/en/data-sheet/PCA9685.pdf",
+  "create": {
+    "frame": [
+      "key 0x05",
+      "device id (u16)",
+      "op 0x0000 (CREATE)",
+      "type (u16)",
+      "the fields below, in order"
+    ],
+    "struct": "pca9685_cfg_t",
+    "size": 5,
+    "source_file": "components/devices/device_pca9685/device_pca9685.h",
+    "fields": [
+      {
+        "name": "i2c_bus",
+        "offset": 0,
+        "type": "u8",
+        "size": 1,
+        "alias": "I2C bus",
+        "description": "The I2C bus the chip is on",
+        "enum_ref": "sys_i2c_bus_e"
+      },
+      {
+        "name": "i2c_addr",
+        "offset": 1,
+        "type": "u8",
+        "size": 1,
+        "alias": "I2C address",
+        "description": "Address pins A0-A5 select the address; 0x70 is All Call and 0x78 to 0x7F are reserved",
+        "one_of": [
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85,
+          86,
+          87,
+          88,
+          89,
+          90,
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109,
+          110,
+          111,
+          113,
+          114,
+          115,
+          116,
+          117,
+          118,
+          119
+        ]
+      },
+      {
+        "name": "oe_pin",
+        "offset": 2,
+        "type": "struct",
+        "struct": "sys_io_pin_t",
+        "fields": [
+          {
+            "name": "device",
+            "offset": 0,
+            "type": "u16",
+            "size": 2,
+            "alias": "Device",
+            "description": "The device the pin is on",
+            "id_kind": "device",
+            "any_value": 65535
+          },
+          {
+            "name": "pin",
+            "offset": 2,
+            "type": "u8",
+            "size": 1,
+            "alias": "Pin",
+            "description": "The pin of that device",
+            "id_kind": "pin",
+            "device_field": "device"
+          }
+        ],
+        "size": 3,
+        "alias": "Output enable",
+        "description": "Active-low; leave unwired when the board has no OE control",
+        "pin_ref": true,
+        "default_mode": 3
+      }
+    ]
+  },
+  "contracts": [
+    {
+      "contract": "DEVICE",
+      "id": 0,
+      "alias": "Device",
+      "ops": [
+        {
+          "name": "RESET",
+          "symbol": "SYS_DEVICE_OP_RESET",
+          "id": 1,
+          "alias": "Reset",
+          "description": "Puts the device's outputs off and its settings back to defaults."
+        },
+        {
+          "name": "SUSPEND",
+          "symbol": "SYS_DEVICE_OP_SUSPEND",
+          "id": 2,
+          "alias": "Suspend",
+          "description": "Makes the outputs safe; the device refuses writes until it is resumed."
+        },
+        {
+          "name": "RESUME",
+          "symbol": "SYS_DEVICE_OP_RESUME",
+          "id": 3,
+          "alias": "Resume",
+          "description": "Lets a suspended device work again."
+        }
+      ]
+    },
+    {
+      "contract": "IO",
+      "id": 1,
+      "alias": "IO pins",
+      "ops": [
+        {
+          "name": "SET_LEVEL",
+          "symbol": "IO_OP_SET_LEVEL",
+          "id": 256,
+          "alias": "Set level",
+          "description": "Drives a pin high or low.",
+          "params": [
+            {
+              "field": "pin",
+              "one_of": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "alias": "PWM channel"
+            }
+          ]
+        },
+        {
+          "name": "TOGGLE",
+          "symbol": "IO_OP_TOGGLE",
+          "id": 257,
+          "alias": "Toggle",
+          "description": "Flips the level of a pin.",
+          "params": [
+            {
+              "field": "pin",
+              "one_of": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "alias": "PWM channel"
+            }
+          ]
+        },
+        {
+          "name": "GET_LEVEL",
+          "symbol": "IO_OP_GET_LEVEL",
+          "id": 258,
+          "alias": "Read level",
+          "description": "Reads the level of a pin.",
+          "returns": {
+            "type": "u8",
+            "alias": "Level",
+            "choices": [
+              {
+                "value": 0,
+                "alias": "Low"
+              },
+              {
+                "value": 1,
+                "alias": "High"
+              }
+            ]
+          },
+          "params": [
+            {
+              "field": "pin",
+              "one_of": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "alias": "PWM channel"
+            }
+          ]
+        },
+        {
+          "name": "SET_PWM_DUTY",
+          "symbol": "IO_OP_SET_PWM_DUTY",
+          "id": 259,
+          "alias": "Set PWM duty",
+          "description": "Sets the PWM duty of a pin.",
+          "params": [
+            {
+              "field": "pin",
+              "one_of": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "alias": "PWM channel"
+            }
+          ]
+        },
+        {
+          "name": "SET_PWM_FREQ",
+          "symbol": "IO_OP_SET_PWM_FREQ",
+          "id": 260,
+          "alias": "Set PWM frequency",
+          "description": "Sets the PWM frequency of a pin; a device with one frequency for all its pins ignores the pin.",
+          "params": [
+            {
+              "field": "pin",
+              "one_of": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "alias": "PWM channel",
+              "note": "One frequency for all channels",
+              "device_wide": true
+            },
+            {
+              "field": "frequency_Hz",
+              "min": 24,
+              "max": 1526,
+              "default": 50
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "contract": "PINS",
+      "id": 2,
+      "alias": "Pin locks",
+      "ops": [
+        {
+          "name": "AVAILABLE",
+          "symbol": "PINS_OP_AVAILABLE",
+          "id": 512,
+          "alias": "Available pins",
+          "description": "The pins the device has.",
+          "returns": {
+            "type": "u64",
+            "alias": "Pins",
+            "description": "A bit per pin"
+          }
+        },
+        {
+          "name": "LOCKED",
+          "symbol": "PINS_OP_LOCKED",
+          "id": 513,
+          "alias": "Locked pins",
+          "description": "The pins that are locked.",
+          "returns": {
+            "type": "u64",
+            "alias": "Pins",
+            "description": "A bit per pin"
+          }
+        },
+        {
+          "name": "LOCK",
+          "symbol": "PINS_OP_LOCK",
+          "id": 514,
+          "alias": "Lock pin",
+          "description": "Claims a pin for another device (refused if it is locked)."
+        },
+        {
+          "name": "UNLOCK",
+          "symbol": "PINS_OP_UNLOCK",
+          "id": 515,
+          "alias": "Unlock pin",
+          "description": "Releases a claimed pin."
+        },
+        {
+          "name": "SET_LOCKED_LEVEL",
+          "symbol": "PINS_OP_SET_LOCKED_LEVEL",
+          "id": 516,
+          "alias": "Set locked level",
+          "description": "The owner of a locked pin drives it."
+        }
+      ]
+    }
+  ],
+  "guide": "device_pca9685.md"
+}

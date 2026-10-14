@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 2,
+  "kind": "vm-block",
+  "id": 14,
+  "name": "VM_BLK_ACTION",
+  "alias": "Run Action",
+  "category": "system",
+  "description": "Runs a stored action (a record of the action store) once per rising edge of its enable; the action runs outside the program pass.",
+  "source_file": "components/vm/vm_blocks/core/action/vm_block_action.h",
+  "guide": "action.md",
+  "activation": {
+    "kind": "enable-rising",
+    "text": "Runs once each time its enable turns on."
+  },
+  "min_enables": 0,
+  "loop_use": "once-per-turn",
+  "face": {
+    "lead": [
+      {
+        "ref": "title",
+        "kind": "title"
+      }
+    ],
+    "value": [
+      {
+        "ref": "action_id",
+        "kind": "field",
+        "field": "action_id"
+      }
+    ]
+  },
+  "shape": {
+    "min_in": 0,
+    "max_in": 1,
+    "min_q": 0,
+    "max_q": 0,
+    "min_en": 0,
+    "required_in": 0,
+    "state_len": 8
+  },
+  "inputs": {
+    "min": 0,
+    "max": 1,
+    "pins": [
+      {
+        "index": 0,
+        "name": "id",
+        "alias": "Action id",
+        "value": "u32",
+        "description": "The record to run; overrides the Action setting.",
+        "overrides": "action_id",
+        "required": false
+      }
+    ]
+  },
+  "outputs": {
+    "min": 0,
+    "max": 0,
+    "pins": []
+  },
+  "rules": [
+    {
+      "rule": "With the id input unwired, action_id is not 0.",
+      "error": "ERR_VM_BLK_BAD_SHAPE",
+      "error_tag": 983071
+    }
+  ],
+  "state": {
+    "struct": "vm_block_action_data_t",
+    "source_file": "components/vm/vm_blocks/core/action/vm_block_action.h",
+    "size": 8,
+    "align": 4,
+    "fields": [
+      {
+        "name": "action_id",
+        "c_type": "uint32_t",
+        "offset": 0,
+        "size": 4,
+        "description": "The record to run, used when the Action id input is unwired.",
+        "source": "user",
+        "alias": "Action",
+        "id_kind": "action",
+        "min": 1,
+        "overridden_by": 0
+      },
+      {
+        "name": "flags",
+        "c_type": "uint8_t",
+        "offset": 4,
+        "size": 1,
+        "description": "VM_ACTION_F_*",
+        "source": "runtime"
+      },
+      {
+        "name": "_pad",
+        "c_type": "uint8_t",
+        "offset": 5,
+        "size": 3,
+        "array_len": 3,
+        "element_size": 1,
+        "source": "padding"
+      }
+    ]
+  },
+  "min_custom_len": 8
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "data-structures/schema/vm-blocks-index.schema.json",
+  "title": "VM block palette index",
+  "description": "Lists every block descriptor in data-structures/vm/blocks/, with the vocabulary they share.",
+  "type": "object",
+  "required": ["$schema", "schemaVersion", "kind", "common_rules", "common_rules_error", "value_kinds", "activation_kinds", "id_kinds", "blocks"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "const": "data-structures/schema/vm-blocks-index.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "vm-blocks-index" },
+    "common_rules": { "type": "array", "items": { "type": "string" } },
+    "common_rules_error": { "type": "string", "pattern": "^ERR_" },
+    "value_kinds": { "type": "object", "additionalProperties": { "type": "string" } },
+    "activation_kinds": { "type": "object", "additionalProperties": { "type": "string" } },
+    "id_kinds": { "type": "object", "additionalProperties": { "type": "string" }, "description": "What each id_kind of a state field or a pin refers to." },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "title", "category", "display", "content"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string" },
+          "title": { "type": "string" },
+          "category": { "type": "string" },
+          "display": { "type": "string", "description": "The block's display.json (what the editor shows), in its folder under components/VM/blocks/." },
+          "content": { "type": "string", "description": "The block's generated content.json (what the block is), in the same folder." }
+        }
+      }
+    }
+  }
+}

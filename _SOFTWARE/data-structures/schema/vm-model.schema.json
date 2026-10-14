@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "data-structures/schema/vm-model.schema.json",
+  "title": "VM model descriptor",
+  "type": "object",
+  "required": ["$schema", "schemaVersion", "kind", "enums", "structures"],
+  "properties": {
+    "$schema": { "const": "data-structures/schema/vm-model.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "vm-model" },
+    "enums": { "type": "object" },
+    "structures": { "type": "array" }
+  },
+  "additionalProperties": false
+}

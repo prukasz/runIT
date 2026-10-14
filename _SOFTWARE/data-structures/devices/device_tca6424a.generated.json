@@ -1,0 +1,524 @@
+{
+  "schemaVersion": 2,
+  "kind": "device-definition",
+  "id": "device_tca6424a",
+  "alias": "TCA6424A GPIO expander",
+  "description": "24-bit I2C GPIO expander: adds extra digital input/output pins over I2C.",
+  "protocols": [
+    "i2c"
+  ],
+  "source_file": "components/devices/device_tca6424a/device_tca6424a.h",
+  "type": {
+    "symbol": "SYS_DEVICE_TYPE_TCA6424A",
+    "id": 66
+  },
+  "tags": [
+    "i2c",
+    "gpio",
+    "io",
+    "expander"
+  ],
+  "datasheet": "https://www.ti.com/lit/ds/symlink/tca6424a.pdf",
+  "create": {
+    "frame": [
+      "key 0x05",
+      "device id (u16)",
+      "op 0x0000 (CREATE)",
+      "type (u16)",
+      "the fields below, in order"
+    ],
+    "struct": "tca6424a_cfg_t",
+    "size": 8,
+    "source_file": "components/devices/device_tca6424a/device_tca6424a.h",
+    "fields": [
+      {
+        "name": "i2c_bus",
+        "offset": 0,
+        "type": "u8",
+        "size": 1,
+        "alias": "I2C bus",
+        "description": "The I2C bus the chip is on",
+        "enum_ref": "sys_i2c_bus_e"
+      },
+      {
+        "name": "i2c_addr",
+        "offset": 1,
+        "type": "u8",
+        "size": 1,
+        "alias": "I2C address",
+        "description": "ADDR low selects 0x22, high 0x23",
+        "one_of": [
+          34,
+          35
+        ]
+      },
+      {
+        "name": "intr_pin",
+        "offset": 2,
+        "type": "struct",
+        "struct": "sys_io_pin_t",
+        "fields": [
+          {
+            "name": "device",
+            "offset": 0,
+            "type": "u16",
+            "size": 2,
+            "alias": "Device",
+            "description": "The device the pin is on",
+            "id_kind": "device",
+            "any_value": 65535
+          },
+          {
+            "name": "pin",
+            "offset": 2,
+            "type": "u8",
+            "size": 1,
+            "alias": "Pin",
+            "description": "The pin of that device",
+            "id_kind": "pin",
+            "device_field": "device"
+          }
+        ],
+        "size": 3,
+        "alias": "INT",
+        "description": "Open-drain, active-low: an input changed; needs CONFIGURE_INTR on its device",
+        "pin_ref": true,
+        "modes": [
+          {
+            "symbol": "SYS_IO_MODE_INPUT",
+            "enum": "sys_io_mode_e",
+            "value": 0,
+            "alias": "Input"
+          },
+          {
+            "symbol": "SYS_IO_MODE_INPUT_PULLUP",
+            "enum": "sys_io_mode_e",
+            "value": 1,
+            "alias": "Input with Pullup"
+          }
+        ],
+        "default_mode": 1
+      },
+      {
+        "name": "rst_pin",
+        "offset": 5,
+        "type": "struct",
+        "struct": "sys_io_pin_t",
+        "fields": [
+          {
+            "name": "device",
+            "offset": 0,
+            "type": "u16",
+            "size": 2,
+            "alias": "Device",
+            "description": "The device the pin is on",
+            "id_kind": "device",
+            "any_value": 65535
+          },
+          {
+            "name": "pin",
+            "offset": 2,
+            "type": "u8",
+            "size": 1,
+            "alias": "Pin",
+            "description": "The pin of that device",
+            "id_kind": "pin",
+            "device_field": "device"
+          }
+        ],
+        "size": 3,
+        "alias": "RESET",
+        "description": "Active-low; suspending the device holds the chip in reset",
+        "pin_ref": true,
+        "default_mode": 3
+      }
+    ]
+  },
+  "contracts": [
+    {
+      "contract": "DEVICE",
+      "id": 0,
+      "alias": "Device",
+      "ops": [
+        {
+          "name": "RESET",
+          "symbol": "SYS_DEVICE_OP_RESET",
+          "id": 1,
+          "alias": "Reset",
+          "description": "Puts the device's outputs off and its settings back to defaults."
+        },
+        {
+          "name": "SUSPEND",
+          "symbol": "SYS_DEVICE_OP_SUSPEND",
+          "id": 2,
+          "alias": "Suspend",
+          "description": "Makes the outputs safe; the device refuses writes until it is resumed."
+        },
+        {
+          "name": "RESUME",
+          "symbol": "SYS_DEVICE_OP_RESUME",
+          "id": 3,
+          "alias": "Resume",
+          "description": "Lets a suspended device work again."
+        }
+      ]
+    },
+    {
+      "contract": "IO",
+      "id": 1,
+      "alias": "IO pins",
+      "ops": [
+        {
+          "name": "SET_MODE",
+          "symbol": "IO_OP_SET_MODE",
+          "id": 261,
+          "alias": "Set mode",
+          "description": "Configures what a pin does.",
+          "params": [
+            {
+              "field": "pin",
+              "one_of": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23
+              ],
+              "alias": "Expander pin"
+            }
+          ]
+        },
+        {
+          "name": "SET_LEVEL",
+          "symbol": "IO_OP_SET_LEVEL",
+          "id": 256,
+          "alias": "Set level",
+          "description": "Drives a pin high or low.",
+          "params": [
+            {
+              "field": "pin",
+              "one_of": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23
+              ],
+              "alias": "Expander pin"
+            }
+          ]
+        },
+        {
+          "name": "TOGGLE",
+          "symbol": "IO_OP_TOGGLE",
+          "id": 257,
+          "alias": "Toggle",
+          "description": "Flips the level of a pin.",
+          "params": [
+            {
+              "field": "pin",
+              "one_of": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23
+              ],
+              "alias": "Expander pin"
+            }
+          ]
+        },
+        {
+          "name": "GET_LEVEL",
+          "symbol": "IO_OP_GET_LEVEL",
+          "id": 258,
+          "alias": "Read level",
+          "description": "Reads the level of a pin.",
+          "returns": {
+            "type": "u8",
+            "alias": "Level",
+            "choices": [
+              {
+                "value": 0,
+                "alias": "Low"
+              },
+              {
+                "value": 1,
+                "alias": "High"
+              }
+            ]
+          },
+          "params": [
+            {
+              "field": "pin",
+              "one_of": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23
+              ],
+              "alias": "Expander pin"
+            }
+          ]
+        },
+        {
+          "name": "RESET",
+          "symbol": "IO_OP_RESET",
+          "id": 262,
+          "alias": "Reset pin",
+          "description": "Puts a pin back in its power-on state.",
+          "params": [
+            {
+              "field": "pin",
+              "one_of": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23
+              ],
+              "alias": "Expander pin"
+            }
+          ]
+        },
+        {
+          "name": "CONFIGURE_INTR",
+          "symbol": "IO_OP_CONFIGURE_INTR",
+          "id": 263,
+          "alias": "Configure interrupt",
+          "description": "Arms a pin to raise events on an edge or when an analog value leaves a window.",
+          "params": [
+            {
+              "field": "pin",
+              "one_of": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23
+              ],
+              "alias": "Expander pin"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "contract": "PINS",
+      "id": 2,
+      "alias": "Pin locks",
+      "ops": [
+        {
+          "name": "AVAILABLE",
+          "symbol": "PINS_OP_AVAILABLE",
+          "id": 512,
+          "alias": "Available pins",
+          "description": "The pins the device has.",
+          "returns": {
+            "type": "u64",
+            "alias": "Pins",
+            "description": "A bit per pin"
+          }
+        },
+        {
+          "name": "LOCKED",
+          "symbol": "PINS_OP_LOCKED",
+          "id": 513,
+          "alias": "Locked pins",
+          "description": "The pins that are locked.",
+          "returns": {
+            "type": "u64",
+            "alias": "Pins",
+            "description": "A bit per pin"
+          }
+        },
+        {
+          "name": "LOCK",
+          "symbol": "PINS_OP_LOCK",
+          "id": 514,
+          "alias": "Lock pin",
+          "description": "Claims a pin for another device (refused if it is locked)."
+        },
+        {
+          "name": "UNLOCK",
+          "symbol": "PINS_OP_UNLOCK",
+          "id": 515,
+          "alias": "Unlock pin",
+          "description": "Releases a claimed pin."
+        },
+        {
+          "name": "SET_LOCKED_LEVEL",
+          "symbol": "PINS_OP_SET_LOCKED_LEVEL",
+          "id": 516,
+          "alias": "Set locked level",
+          "description": "The owner of a locked pin drives it."
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "events": [
+        {
+          "symbol": "IO_EV_RISING",
+          "id": 256,
+          "alias": "Rising edge",
+          "description": "A watched pin went from low to high",
+          "contract": "IO"
+        },
+        {
+          "symbol": "IO_EV_FALLING",
+          "id": 257,
+          "alias": "Falling edge",
+          "description": "A watched pin went from high to low",
+          "contract": "IO"
+        }
+      ],
+      "channel": {
+        "alias": "Expander pin",
+        "one_of": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23
+        ]
+      }
+    }
+  ],
+  "guide": "device_tca6424a.md"
+}

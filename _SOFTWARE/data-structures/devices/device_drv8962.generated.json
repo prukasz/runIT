@@ -1,0 +1,548 @@
+{
+  "schemaVersion": 2,
+  "kind": "device-definition",
+  "id": "device_drv8962",
+  "alias": "DRV8962 motor driver",
+  "description": "Dual full-bridge (or four half-bridge) motor driver controlled through the PWM and GPIO pins of other devices, with current sensing and a fault input.",
+  "protocols": [
+    "pwm"
+  ],
+  "source_file": "components/devices/device_drv8962/device_drv8962.h",
+  "type": {
+    "symbol": "SYS_DEVICE_TYPE_DRV8962",
+    "id": 73
+  },
+  "tags": [
+    "motor",
+    "driver",
+    "h-bridge",
+    "pwm"
+  ],
+  "datasheet": "https://www.ti.com/lit/ds/symlink/drv8962.pdf",
+  "create": {
+    "frame": [
+      "key 0x05",
+      "device id (u16)",
+      "op 0x0000 (CREATE)",
+      "type (u16)",
+      "the fields below, in order"
+    ],
+    "struct": "drv8962_cfg_t",
+    "size": 83,
+    "source_file": "components/devices/device_drv8962/device_drv8962.h",
+    "fields": [
+      {
+        "name": "topology",
+        "offset": 0,
+        "type": "u8",
+        "size": 1,
+        "alias": "Topology",
+        "description": "How the four half bridges are used",
+        "default": {
+          "symbol": "DRV8962_TOPOLOGY_2_FULL_BRIDGES",
+          "enum": "drv8962_topology_e",
+          "value": 0,
+          "alias": "Two full bridges"
+        },
+        "enum_ref": "drv8962_topology_e"
+      },
+      {
+        "name": "pin",
+        "offset": 1,
+        "type": "struct",
+        "struct": "sys_io_pin_t",
+        "fields": [
+          {
+            "name": "device",
+            "offset": 0,
+            "type": "u16",
+            "size": 2,
+            "alias": "Device",
+            "description": "The device the pin is on",
+            "id_kind": "device",
+            "any_value": 65535
+          },
+          {
+            "name": "pin",
+            "offset": 2,
+            "type": "u8",
+            "size": 1,
+            "alias": "Pin",
+            "description": "The pin of that device",
+            "id_kind": "pin",
+            "device_field": "device"
+          }
+        ],
+        "size": 45,
+        "array_len": 15,
+        "alias": "Pins",
+        "description": "Every signal of the chip is a pin of another device",
+        "pin_ref": true,
+        "aliases": [
+          "IN1",
+          "IN2",
+          "IN3",
+          "IN4",
+          "EN1",
+          "EN2",
+          "EN3",
+          "EN4",
+          "IPROPI1",
+          "IPROPI2",
+          "IPROPI3",
+          "IPROPI4",
+          "nSLEEP",
+          "nFAULT",
+          "VREF"
+        ],
+        "modes": [
+          [
+            {
+              "symbol": "SYS_IO_MODE_PWM",
+              "enum": "sys_io_mode_e",
+              "value": 6,
+              "alias": "PWM"
+            }
+          ],
+          [
+            {
+              "symbol": "SYS_IO_MODE_PWM",
+              "enum": "sys_io_mode_e",
+              "value": 6,
+              "alias": "PWM"
+            }
+          ],
+          [
+            {
+              "symbol": "SYS_IO_MODE_PWM",
+              "enum": "sys_io_mode_e",
+              "value": 6,
+              "alias": "PWM"
+            }
+          ],
+          [
+            {
+              "symbol": "SYS_IO_MODE_PWM",
+              "enum": "sys_io_mode_e",
+              "value": 6,
+              "alias": "PWM"
+            }
+          ],
+          [
+            {
+              "symbol": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+              "enum": "sys_io_mode_e",
+              "value": 3,
+              "alias": "Output Push-Pull"
+            }
+          ],
+          [
+            {
+              "symbol": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+              "enum": "sys_io_mode_e",
+              "value": 3,
+              "alias": "Output Push-Pull"
+            }
+          ],
+          [
+            {
+              "symbol": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+              "enum": "sys_io_mode_e",
+              "value": 3,
+              "alias": "Output Push-Pull"
+            }
+          ],
+          [
+            {
+              "symbol": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+              "enum": "sys_io_mode_e",
+              "value": 3,
+              "alias": "Output Push-Pull"
+            }
+          ],
+          [
+            {
+              "symbol": "SYS_IO_MODE_ADC",
+              "enum": "sys_io_mode_e",
+              "value": 7,
+              "alias": "ADC"
+            }
+          ],
+          [
+            {
+              "symbol": "SYS_IO_MODE_ADC",
+              "enum": "sys_io_mode_e",
+              "value": 7,
+              "alias": "ADC"
+            }
+          ],
+          [
+            {
+              "symbol": "SYS_IO_MODE_ADC",
+              "enum": "sys_io_mode_e",
+              "value": 7,
+              "alias": "ADC"
+            }
+          ],
+          [
+            {
+              "symbol": "SYS_IO_MODE_ADC",
+              "enum": "sys_io_mode_e",
+              "value": 7,
+              "alias": "ADC"
+            }
+          ],
+          [
+            {
+              "symbol": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
+              "enum": "sys_io_mode_e",
+              "value": 3,
+              "alias": "Output Push-Pull"
+            }
+          ],
+          [
+            {
+              "symbol": "SYS_IO_MODE_INPUT",
+              "enum": "sys_io_mode_e",
+              "value": 0,
+              "alias": "Input"
+            },
+            {
+              "symbol": "SYS_IO_MODE_INPUT_PULLUP",
+              "enum": "sys_io_mode_e",
+              "value": 1,
+              "alias": "Input with Pullup"
+            }
+          ],
+          [
+            {
+              "symbol": "SYS_IO_MODE_DAC",
+              "enum": "sys_io_mode_e",
+              "value": 8,
+              "alias": "DAC"
+            }
+          ]
+        ]
+      },
+      {
+        "name": "pwm_freq_Hz",
+        "offset": 46,
+        "type": "u32",
+        "size": 4,
+        "alias": "PWM frequency",
+        "description": "0 selects 20 kHz; a PCA9685 channel takes at most 1526 Hz",
+        "min": 0,
+        "max": 100000,
+        "default": 20000,
+        "unit": "Hz"
+      },
+      {
+        "name": "ripropi_ohms",
+        "offset": 50,
+        "type": "u32",
+        "size": 16,
+        "array_len": 4,
+        "alias": "IPROPI resistor",
+        "description": "The current-sense resistor of each half bridge; 0 selects 3090",
+        "min": 0,
+        "max": 100000,
+        "unit": "ohm"
+      },
+      {
+        "name": "current_limit_mA",
+        "offset": 66,
+        "type": "u32",
+        "size": 16,
+        "array_len": 4,
+        "alias": "Current limit",
+        "description": "Per channel; 0 means no limit",
+        "min": 0,
+        "max": 10000,
+        "unit": "mA"
+      },
+      {
+        "name": "turn_off_at_ocp",
+        "offset": 82,
+        "type": "u8",
+        "size": 1,
+        "alias": "Brake on over-current",
+        "description": "A channel over its limit is braked",
+        "default": 1,
+        "choices": [
+          {
+            "value": 0,
+            "alias": "No"
+          },
+          {
+            "value": 1,
+            "alias": "Yes"
+          }
+        ]
+      }
+    ]
+  },
+  "contracts": [
+    {
+      "contract": "DEVICE",
+      "id": 0,
+      "alias": "Device",
+      "ops": [
+        {
+          "name": "RESET",
+          "symbol": "SYS_DEVICE_OP_RESET",
+          "id": 1,
+          "alias": "Reset",
+          "description": "Puts the device's outputs off and its settings back to defaults."
+        },
+        {
+          "name": "SUSPEND",
+          "symbol": "SYS_DEVICE_OP_SUSPEND",
+          "id": 2,
+          "alias": "Suspend",
+          "description": "Makes the outputs safe; the device refuses writes until it is resumed."
+        },
+        {
+          "name": "RESUME",
+          "symbol": "SYS_DEVICE_OP_RESUME",
+          "id": 3,
+          "alias": "Resume",
+          "description": "Lets a suspended device work again."
+        }
+      ]
+    },
+    {
+      "contract": "HBRIDGE",
+      "id": 9,
+      "alias": "H-bridge",
+      "ops": [
+        {
+          "name": "SET_DRIVE",
+          "symbol": "HBRIDGE_OP_SET_DRIVE",
+          "id": 2304,
+          "alias": "Drive",
+          "description": "Drives a motor channel; out of range is an error.",
+          "params": [
+            {
+              "field": "channel",
+              "one_of": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "alias": "Bridge channel"
+            }
+          ]
+        },
+        {
+          "name": "BRAKE",
+          "symbol": "HBRIDGE_OP_BRAKE",
+          "id": 2305,
+          "alias": "Brake",
+          "description": "Shorts the motor terminals.",
+          "params": [
+            {
+              "field": "channel",
+              "one_of": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "alias": "Bridge channel"
+            }
+          ]
+        },
+        {
+          "name": "COAST",
+          "symbol": "HBRIDGE_OP_COAST",
+          "id": 2306,
+          "alias": "Coast",
+          "description": "Releases the motor: the outputs are off.",
+          "params": [
+            {
+              "field": "channel",
+              "one_of": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "alias": "Bridge channel"
+            }
+          ]
+        },
+        {
+          "name": "GET_CURRENT",
+          "symbol": "HBRIDGE_OP_GET_CURRENT",
+          "id": 2307,
+          "alias": "Read current",
+          "description": "Reads the current of a channel.",
+          "returns": {
+            "type": "i32",
+            "alias": "Current",
+            "unit": "mA"
+          },
+          "params": [
+            {
+              "field": "channel",
+              "one_of": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "alias": "Bridge channel"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "own_ops": [
+    {
+      "symbol": "DRV8962_OP_SET_CURRENT_LIMIT",
+      "id": 65280,
+      "alias": "Set current limit",
+      "description": "The chopping current limit of a channel; VREF follows the largest",
+      "args": {
+        "struct": "drv8962_limit_t",
+        "source_file": "components/devices/device_drv8962/device_drv8962.h",
+        "size": 5,
+        "fields": [
+          {
+            "name": "channel",
+            "offset": 0,
+            "type": "u8",
+            "size": 1,
+            "alias": "Channel",
+            "description": "The motor channel",
+            "id_kind": "pin"
+          },
+          {
+            "name": "limit_mA",
+            "offset": 1,
+            "type": "u32",
+            "size": 4,
+            "alias": "Limit",
+            "description": "0 means no limit",
+            "unit": "mA"
+          }
+        ]
+      }
+    },
+    {
+      "symbol": "DRV8962_OP_CLEAR_FAULT",
+      "id": 65281,
+      "alias": "Clear fault",
+      "description": "Clears the chip's fault latches with an nSLEEP reset pulse; the channel brakes",
+      "args": {
+        "struct": "hbridge_channel_args_t",
+        "source_file": "components/sys/sys_hbridge/sys_hbridge.h",
+        "size": 1,
+        "fields": [
+          {
+            "name": "channel",
+            "offset": 0,
+            "type": "u8",
+            "size": 1,
+            "alias": "Channel",
+            "description": "The motor channel",
+            "id_kind": "pin"
+          }
+        ]
+      }
+    },
+    {
+      "symbol": "DRV8962_OP_GET_FAULT",
+      "id": 65282,
+      "alias": "Read fault",
+      "description": "Whether a channel has a fault, and why",
+      "args": {
+        "struct": "hbridge_channel_args_t",
+        "source_file": "components/sys/sys_hbridge/sys_hbridge.h",
+        "size": 1,
+        "fields": [
+          {
+            "name": "channel",
+            "offset": 0,
+            "type": "u8",
+            "size": 1,
+            "alias": "Channel",
+            "description": "The motor channel",
+            "id_kind": "pin"
+          }
+        ]
+      },
+      "returns": {
+        "type": "struct",
+        "struct": "drv8962_fault_t",
+        "size": 2,
+        "fields": [
+          {
+            "name": "fault",
+            "offset": 0,
+            "type": "u8",
+            "size": 1,
+            "alias": "Fault",
+            "choices": [
+              {
+                "value": 0,
+                "alias": "No"
+              },
+              {
+                "value": 1,
+                "alias": "Yes"
+              }
+            ]
+          },
+          {
+            "name": "reason",
+            "offset": 1,
+            "type": "u8",
+            "size": 1,
+            "alias": "Reason",
+            "enum_ref": "sys_hbridge_fault_reason_e"
+          }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "events": [
+        {
+          "symbol": "HBRIDGE_EV_OVERCURRENT",
+          "id": 2304,
+          "alias": "Over-current",
+          "description": "The channel drew more than its current limit",
+          "contract": "HBRIDGE"
+        },
+        {
+          "symbol": "HBRIDGE_EV_THERMAL_OR_UVLO",
+          "id": 2305,
+          "alias": "Overheat or low supply",
+          "description": "The chip overheated or its supply dropped: every channel stopped",
+          "contract": "HBRIDGE"
+        },
+        {
+          "symbol": "HBRIDGE_EV_EXTERNAL",
+          "id": 2306,
+          "alias": "External fault",
+          "description": "An external fault input fired",
+          "contract": "HBRIDGE"
+        }
+      ],
+      "channel": {
+        "alias": "Bridge channel",
+        "one_of": [
+          0,
+          1,
+          2,
+          3
+        ]
+      }
+    }
+  ],
+  "guide": "device_drv8962.md"
+}
