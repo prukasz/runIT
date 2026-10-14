@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runit.local/schema/limits.schema.json",
+  "title": "runIT firmware limits",
+  "description": "Output of templates/generate_limits.py: every Kconfig option marked `#@limit`, with the value the firmware is built with. These are the numbers a program or a frame can run into (pins per block, the program arena, the largest frame); an app checks against them before it uploads. Generated; do not edit.",
+  "type": "object",
+  "required": ["schemaVersion", "kind", "limits"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "kind": { "type": "string", "const": "limits" },
+    "limits": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "Published limits by Kconfig name without the CONFIG_ prefix (VM_BLOCK_MAX_IN).",
+      "propertyNames": { "pattern": "^[A-Z][A-Z0-9_]*$" },
+      "additionalProperties": { "$ref": "#/$defs/limit" }
+    }
+  },
+  "$defs": {
+    "limit": {
+      "type": "object",
+      "required": ["config", "value", "alias", "source_file"],
+      "additionalProperties": false,
+      "properties": {
+        "config": { "type": "string", "pattern": "^CONFIG_[A-Z][A-Z0-9_]*$", "description": "The option as sdkconfig and the C code name it." },
+        "value": { "type": "integer", "description": "The value the firmware is built with (sdkconfig). A board built with another configuration publishes its own." },
+        "alias": { "type": "string", "minLength": 1, "description": "The title a user sees (@alias of the marker)." },
+        "description": { "type": "string", "minLength": 1, "description": "The first paragraph of the option's help." },
+        "unit": { "type": "string", "description": "What the value counts (bytes, pins, levels, objects)." },
+        "source_file": { "type": "string", "description": "The Kconfig file, relative to the repository root." }
+      }
+    }
+  }
+}

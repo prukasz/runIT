@@ -65,7 +65,7 @@ export function decodeDeviceResponse(data: Uint8Array, cmd?: DeviceCommand): str
         if (f.size === 1) val = f.type.startsWith('i') ? view.getInt8(f.offset) : view.getUint8(f.offset)
         else if (f.size === 2) val = f.type.startsWith('i') ? view.getInt16(f.offset, true) : view.getUint16(f.offset, true)
         else if (f.size === 4) val = f.type.startsWith('i') ? view.getInt32(f.offset, true) : view.getUint32(f.offset, true)
-        const choice = f.choices?.find((c) => c.value === val)
+        const choice = f.choices?.find((c: { value: number; alias: string }) => c.value === val)
         parts.push(`${f.alias}: ${choice ? choice.alias : val}${f.unit ? ` ${f.unit}` : ''}`)
       }
       if (parts.length > 0) return parts.join(' · ')
@@ -423,7 +423,7 @@ export function CommandFields({
                 value={value}
                 min={field.min}
                 max={field.max}
-                integer={!field.type?.includes('float') && !field.type?.includes('double')}
+                integer={true}
                 onCommit={set}
               />
             )}

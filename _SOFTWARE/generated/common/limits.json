@@ -1,0 +1,111 @@
+{
+  "$schema": "../../templates/limits.schema.json",
+  "schemaVersion": 1,
+  "kind": "limits",
+  "limits": {
+    "ROUTER_FRAME_MAX": {
+      "config": "CONFIG_ROUTER_FRAME_MAX",
+      "value": 512,
+      "alias": "Largest frame",
+      "description": "Largest request frame accepted from a link, and the largest response frame built (stream byte included). A link may report a smaller limit at runtime (BLE MTU).",
+      "unit": "bytes",
+      "source_file": "components/core/router/Kconfig"
+    },
+    "VM_EXEC_MAX_SPAN_DEPTH": {
+      "config": "CONFIG_VM_EXEC_MAX_SPAN_DEPTH",
+      "value": 4,
+      "alias": "Nested span depth",
+      "description": "Maximum nested loop/span depth allowed during block execution.",
+      "unit": "levels",
+      "source_file": "components/vm/vm_core/Kconfig"
+    },
+    "VM_RETAIN_MAX_BYTES": {
+      "config": "CONFIG_VM_RETAIN_MAX_BYTES",
+      "value": 1024,
+      "alias": "Retained values record",
+      "description": "Size of the stored record (2 + per object: 4 + name + value). A program retaining more is refused at load (ERR_VM_RETAIN_TOO_BIG). Costs twice this in RAM.",
+      "unit": "bytes",
+      "source_file": "components/vm/vm_core/Kconfig"
+    },
+    "VM_BLOCK_MAX_IN": {
+      "config": "CONFIG_VM_BLOCK_MAX_IN",
+      "value": 16,
+      "alias": "Inputs per block",
+      "description": "Maximum number of input accessors allowed for a single VM execution block.",
+      "unit": "pins",
+      "source_file": "components/vm/vm_core/Kconfig"
+    },
+    "VM_BLOCK_MAX_OUT": {
+      "config": "CONFIG_VM_BLOCK_MAX_OUT",
+      "value": 16,
+      "alias": "Outputs per block",
+      "description": "Maximum number of output objects allowed for a single VM execution block.",
+      "unit": "pins",
+      "source_file": "components/vm/vm_core/Kconfig"
+    },
+    "VM_BLOCK_MAX_EN": {
+      "config": "CONFIG_VM_BLOCK_MAX_EN",
+      "value": 16,
+      "alias": "Enables per block",
+      "description": "Maximum number of enable accessors allowed for a single VM execution block.",
+      "unit": "pins",
+      "source_file": "components/vm/vm_core/Kconfig"
+    },
+    "VM_STORE_MAX_POOL": {
+      "config": "CONFIG_VM_STORE_MAX_POOL",
+      "value": 131072,
+      "alias": "Program arena",
+      "description": "Hard ceiling in bytes for the bump-allocated program storage arena.",
+      "unit": "bytes",
+      "source_file": "components/vm/vm_core/Kconfig"
+    },
+    "VM_ACCESSOR_MAX_DEPTH": {
+      "config": "CONFIG_VM_ACCESSOR_MAX_DEPTH",
+      "value": 8,
+      "alias": "Accessor depth",
+      "description": "Maximum chain depth when resolving nested accessor paths.",
+      "unit": "levels",
+      "source_file": "components/vm/vm_core/Kconfig"
+    },
+    "VM_OBJ_COPY_MAX_DEPTH": {
+      "config": "CONFIG_VM_OBJ_COPY_MAX_DEPTH",
+      "value": 8,
+      "alias": "Object copy depth",
+      "description": "Maximum tree recursion depth allowed when copying objects.",
+      "unit": "levels",
+      "source_file": "components/vm/vm_core/Kconfig"
+    },
+    "VM_DYN_MAX": {
+      "config": "CONFIG_VM_DYN_MAX",
+      "value": 128,
+      "alias": "Dynamic objects",
+      "description": "Upper ceiling of live dynamically registered objects on the heap.",
+      "unit": "objects",
+      "source_file": "components/vm/vm_core/Kconfig"
+    },
+    "VM_SUB_MAX_SUBSCRIBERS": {
+      "config": "CONFIG_VM_SUB_MAX_SUBSCRIBERS",
+      "value": 128,
+      "alias": "Subscribed objects",
+      "description": "Maximum count of object IDs that can be subscribed to simultaneously. A subscribe packet with more IDs is refused.",
+      "unit": "objects",
+      "source_file": "components/vm/vm_core/Kconfig"
+    },
+    "VM_SUB_MAX_FRAME_LEN": {
+      "config": "CONFIG_VM_SUB_MAX_FRAME_LEN",
+      "value": 512,
+      "alias": "Telemetry frame",
+      "description": "Maximum byte size of a generated telemetry output packet.",
+      "unit": "bytes",
+      "source_file": "components/vm/vm_core/Kconfig"
+    },
+    "VM_SUB_MAX_TRACKED": {
+      "config": "CONFIG_VM_SUB_MAX_TRACKED",
+      "value": 256,
+      "alias": "Tracked objects",
+      "description": "Objects telemetry keeps track of: every subscribed object plus everything reachable through its PTR children. Each costs 24 bytes of RAM (16 per entry, table sized 1.5x). Objects past the limit are not sent (ERR_VM_SUB_TRACK_FULL).",
+      "unit": "objects",
+      "source_file": "components/vm/vm_core/Kconfig"
+    }
+  }
+}

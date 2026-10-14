@@ -102,7 +102,7 @@ describe('pin discovery, modes, and usage tracking', () => {
   })
 
   it('filters devices and pins by supported capabilities and modes', async () => {
-    const { deviceProvidedModes, deviceProvidesAnyMode, entryRequiredModes, getDevicePins } = await import('../../../src/domain/devices')
+    const { deviceProvidesAnyMode, entryRequiredModes, getDevicePins } = await import('../../../src/domain/devices')
 
     const esp = deviceType('device_gpio_esp')
     const pca = deviceType('device_pca9685')

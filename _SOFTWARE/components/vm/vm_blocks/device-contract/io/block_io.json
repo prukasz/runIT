@@ -10,6 +10,7 @@
   "order": 10,
   "tags": ["gpio", "pin", "led", "pwm", "adc", "dac", "voltage", "level"],
   "integration": "contract",
+  "state_len": 56,
   "device": { "contract": "IO" },
   "activation": {
     "kind": "enabled",

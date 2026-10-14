@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>runIT UI kit (temporary preview)</title>
+<!-- The app's real CSS, so what you tune here is what ships. Open this file directly in a browser. -->
+<link rel="stylesheet" href="../src/styles/theme.css">
+<link rel="stylesheet" href="../src/components/FormField/FormField.css">
+<link rel="stylesheet" href="../src/components/Badge/Badge.css">
+<link rel="stylesheet" href="../src/components/TypeBadge/TypeBadge.css">
+<link rel="stylesheet" href="../src/components/EditableField/EditableField.css">
+<link rel="stylesheet" href="../src/components/ListableField/ListableField.css">
+<link rel="stylesheet" href="../src/components/OptionMenu/OptionMenu.css">
+<link rel="stylesheet" href="../src/components/TreeSlab/TreeSlab.css">
+<link rel="stylesheet" href="../src/styles/status.css">
+<link rel="stylesheet" href="../src/components/Switch/Switch.css">
+<!-- New / still-feature-local parts -->
+<link rel="stylesheet" href="ui-kit.css">
+</head>
+<body>
+
+<!-- lucide icon sprite (same icons the app uses) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+  <symbol id="i-toggle" viewBox="0 0 24 24"><rect width="20" height="12" x="2" y="6" rx="6"/><circle cx="16" cy="12" r="2"/></symbol>
+  <symbol id="i-toggle-on" viewBox="0 0 24 24"><rect width="20" height="12" x="2" y="6" rx="6"/><circle cx="16" cy="12" r="2"/></symbol>
+  <symbol id="i-toggle-off" viewBox="0 0 24 24"><rect width="20" height="12" x="2" y="6" rx="6"/><circle cx="8" cy="12" r="2"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></symbol>
+  <symbol id="i-pencil-off" viewBox="0 0 24 24"><path d="m10 10-6.157 6.162a2 2 0 0 0-.5.833l-1.322 4.36a.5.5 0 0 0 .622.624l4.358-1.323a2 2 0 0 0 .83-.5L14 13.982"/><path d="m12.829 7.172 4.359-4.346a1 1 0 1 1 3.986 3.986l-4.353 4.353"/><path d="m2 2 20 20"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+</svg>
+
+<div class="shell stage" id="stage">
+  <h1>runIT UI kit <span style="font-weight:400;color:var(--muted)">· temporary preview</span></h1>
+  <p class="note">Static mock. Real app CSS is linked from <code>../src/</code>; only <code>ui-kit.css</code> is new. Edit either file and refresh.</p>
+
+  <div class="toolbar">
+    <button id="theme">Switch to light theme</button>
+    <span style="color:var(--muted);font-size:12px">States: red = error, orange = search match / link target, blue stripe = selected</span>
+  </div>
+
+  <!-- ====================================================================== -->
+  <h2>1 · Item tile: anatomy</h2>
+  <p class="note">One row = <b>lead badge</b> · <b>name</b> (text or editable field) · <b>badge × n</b> · <b>reference field</b> · <b>trash</b> (optional). Built on the existing <code>TreeSlab</code>.</p>
+  <div class="anatomy"><span>① lead badge → .tree-slab-icon</span><span>② name / field → .tree-slab-label</span><span>③ badges × n → .tree-slab-badges</span><span>④ reference → .tree-slab-ref (new)</span><span>⑤ trash → .tree-slab-action</span></div>
+  <div class="panel" id="anatomy"></div>
+
+  <!-- ====================================================================== -->
+  <h2>2 · Badges</h2>
+  <div class="grid">
+    <div class="cell"><span class="cap">Tones (default size)</span>
+      <div class="row">
+        <span class="badge is-neutral is-default">neutral</span><span class="badge is-system is-default">SYS</span><span class="badge is-count is-default">3</span>
+        <span class="badge is-number is-default">number</span><span class="badge is-boolean is-default">bool</span><span class="badge is-text is-default">text</span><span class="badge is-other is-default">other</span>
+        <span class="badge is-success is-default">ok</span><span class="badge is-warning is-default">warn</span><span class="badge is-danger is-default">error</span><span class="badge is-info is-default">info</span><span class="badge is-accent is-default">#2</span>
+      </div></div>
+    <div class="cell"><span class="cap">Sizes: compact · default · detail · caps · filled</span>
+      <div class="row">
+        <span class="badge is-info is-compact">R</span><span class="badge is-info is-default">default</span><span class="badge is-info is-detail">detail</span><span class="badge is-info is-caps">caps</span><span class="badge is-accent is-filled">filled</span><span class="badge is-danger is-filled">error</span>
+      </div></div>
+    <div class="cell"><span class="cap">Type badges (lead slot)</span>
+      <div class="row">
+        <span class="object-type-icon number"><span class="object-number-glyph">123</span></span>
+        <span class="object-type-icon bool" title="boolean (type only)"><svg class="i"><use href="#i-toggle"/></svg></span>
+        <span class="object-type-icon bool is-true" title="boolean = true"><svg class="i"><use href="#i-toggle-on"/></svg></span>
+        <span class="object-type-icon bool is-false" title="boolean = false"><svg class="i"><use href="#i-toggle-off"/></svg></span>
+        <span class="object-type-icon text"><span class="object-text-glyph">abc</span></span>
+        <span class="object-type-icon folder"><svg class="i"><use href="#i-folder"/></svg></span>
+        <span class="object-type-icon reference"><svg class="i"><use href="#i-link"/></svg></span>
+        <span class="device-tile is-medium"><svg class="i"><use href="#i-plug"/></svg></span>
+        <span class="device-tile is-medium"><svg class="i"><use href="#i-cpu"/></svg></span>
+      </div></div>
+  </div>
+
+  <!-- ====================================================================== -->
+  <h2>3 · Fields</h2>
+  <div class="grid">
+    <div class="cell"><span class="cap">Editable field</span>
+      <div class="adorned-field-wrap editable-field-wrap is-editable"><input class="form-field-control editable-field-input" value="current-limit"><span class="field-adornment-slot"><svg class="i field-adornment-icon is-editable"><use href="#i-pencil"/></svg></span></div></div>
+    <div class="cell"><span class="cap">Editable · selected (focus ring)</span>
+      <div class="adorned-field-wrap editable-field-wrap is-selected"><input class="form-field-control editable-field-input" value="current-limit"><span class="field-adornment-slot"><svg class="i field-adornment-icon is-editable"><use href="#i-pencil"/></svg></span></div></div>
+    <div class="cell"><span class="cap">Editable · locked</span>
+      <div class="adorned-field-wrap editable-field-wrap is-blocked"><input class="form-field-control editable-field-input" value="board-name" disabled><span class="field-adornment-slot"><svg class="i field-adornment-icon is-blocked"><use href="#i-pencil-off"/></svg></span></div></div>
+    <div class="cell"><span class="cap">Editable · error</span>
+      <div class="adorned-field-wrap editable-field-wrap is-editable is-error"><input class="form-field-control editable-field-input" value="drive speed!" aria-invalid="true"><span class="field-adornment-slot"><svg class="i field-adornment-icon is-editable"><use href="#i-pencil"/></svg></span></div>
+      <span class="field-error"><svg class="i"><use href="#i-alert"/></svg>Names use letters, digits and “-” only.</span></div>
+
+    <!-- Listable field = themed dropdown (replaces the native <select> popup, which the browser draws light and cannot be styled). Built by JS from data-options; open one to see the list. -->
+    <div class="cell"><span class="cap">Listable field (click to open)</span>
+      <div class="dd" data-value="0" data-options='[{"value":"0","label":"ADC channel 0"},{"value":"1","label":"ADC channel 1"},{"value":"2","label":"ADC channel 2"},{"value":"3","label":"ADC channel 3"},{"value":"4","label":"ADC channel 4"},{"value":"5","label":"ADC channel 5"},{"value":"6","label":"ADC channel 6"},{"value":"7","label":"ADC channel 7"}]'></div></div>
+    <div class="cell"><span class="cap">Listable · rich rows: groups, hints, taken, disabled</span>
+      <div class="dd" data-value="42" data-options='[{"value":"4","label":"GPIO 4","group":"ESP32 GPIO","hint":"input pull-up"},{"value":"5","label":"GPIO 5","group":"ESP32 GPIO"},{"value":"42","label":"GPIO 42 (42)","group":"ESP32 GPIO","badge":"in use"},{"value":"43","label":"GPIO 43","group":"ESP32 GPIO","disabled":true,"hint":"reserved"},{"value":"a0","label":"Channel 0","group":"ADC","hint":"12 bit"},{"value":"a1","label":"Channel 1","group":"ADC","hint":"12 bit"}]'></div></div>
+    <div class="cell"><span class="cap">Listable · locked</span>
+      <div class="dd" data-state="locked" data-value="0x48" data-options='[{"value":"0x48","label":"I2C address 0x48"}]'></div></div>
+    <div class="cell"><span class="cap">Listable · error</span>
+      <div class="dd" data-state="error" data-value="" data-placeholder="— choose a pin —" data-options='[{"value":"4","label":"GPIO 4"},{"value":"5","label":"GPIO 5"}]'></div>
+      <span class="field-error"><svg class="i"><use href="#i-alert"/></svg>GPIO 42 is taken by ESP32 GPIO.</span></div>
+  </div>
+
+  <!-- ====================================================================== -->
+  <h2>3b · Switch (true / false selector)</h2>
+  <p class="note">The app's real <code>Switch</code>. <b>tone="on"</b>: grey when off, green when on. <b>tone="truefalse"</b>: red when false, green when true. The boolean badge follows the same colours.</p>
+  <div class="grid">
+    <div class="cell"><span class="cap">tone = on · off (grey)</span><label class="switch"><input type="checkbox"><span class="switch-track" aria-hidden="true"></span><span class="switch-label">Enabled</span></label></div>
+    <div class="cell"><span class="cap">tone = on · on (green)</span><label class="switch"><input type="checkbox" checked><span class="switch-track" aria-hidden="true"></span><span class="switch-label">Enabled</span></label></div>
+    <div class="cell"><span class="cap">tone = on · disabled</span><label class="switch is-disabled"><input type="checkbox" disabled><span class="switch-track" aria-hidden="true"></span><span class="switch-label">Locked</span></label></div>
+    <div class="cell"><span class="cap">tone = truefalse · false (red)</span><label class="switch is-truefalse"><input type="checkbox"><span class="switch-track" aria-hidden="true"></span><span class="switch-label">false</span></label></div>
+    <div class="cell"><span class="cap">tone = truefalse · true (green)</span><label class="switch is-truefalse"><input type="checkbox" checked><span class="switch-track" aria-hidden="true"></span><span class="switch-label">true</span></label></div>
+    <div class="cell"><span class="cap">truefalse switch + matching boolean badge (click either)</span>
+      <div class="row"><span class="object-type-icon bool is-false" id="boolbadge"><svg class="i"><use href="#i-toggle-off"/></svg></span>
+      <label class="switch is-truefalse"><input type="checkbox" id="boolswitch"><span class="switch-track" aria-hidden="true"></span><span class="switch-label" id="boollabel">false</span></label></div></div>
+  </div>
+
+  <!-- ====================================================================== -->
+  <h2>4 · Reference field</h2>
+  <p class="note">Names another object; the detail (blue) is the pin / member. <b>Click = jump to that object.</b> Disabled when the target is not in the project; red when it is missing.</p>
+  <div class="grid">
+    <div class="cell"><span class="cap">Filled (device + pin)</span>
+      <button class="ref-pill" data-jump="demo"><span class="device-tile is-small"><svg class="i"><use href="#i-cpu"/></svg></span><span class="ref-pill-name">ESP32 GPIO</span><span class="ref-pill-detail">GPIO 42 (42)</span></button></div>
+    <div class="cell"><span class="cap">Filled + mode chip</span>
+      <div class="row"><button class="ref-pill" data-jump="demo"><span class="device-tile is-small"><svg class="i"><use href="#i-cpu"/></svg></span><span class="ref-pill-name">ESP32 GPIO</span><span class="ref-pill-detail">GPIO 4</span></button><span class="badge is-info is-default">input pull-up</span></div></div>
+    <div class="cell"><span class="cap">Variable reference</span>
+      <button class="ref-pill" data-jump="speed"><span class="object-type-icon number" style="width:22px;height:22px"><span class="object-number-glyph" style="font-size:9px">123</span></span><span class="ref-pill-name">drive-speed</span></button></div>
+    <div class="cell"><span class="cap">Compact (inside a tile)</span>
+      <button class="ref-pill is-compact" data-jump="demo"><span class="device-tile is-small"><svg class="i"><use href="#i-cpu"/></svg></span><span class="ref-pill-name">ESP32 GPIO</span><span class="ref-pill-detail">GPIO 42</span></button></div>
+    <div class="cell"><span class="cap">Empty (not chosen yet)</span>
+      <button class="ref-pill is-empty"><span class="device-tile is-small"><svg class="i"><use href="#i-link"/></svg></span><span class="ref-pill-name">Choose…</span></button></div>
+    <div class="cell"><span class="cap">Unavailable (disabled)</span>
+      <button class="ref-pill" disabled><span class="device-tile is-small"><svg class="i"><use href="#i-cpu"/></svg></span><span class="ref-pill-name">Device 7</span><span class="ref-pill-detail">pin 3</span></button></div>
+    <div class="cell"><span class="cap">Broken (target removed)</span>
+      <button class="ref-pill is-broken"><span class="device-tile is-small"><svg class="i"><use href="#i-alert"/></svg></span><span class="ref-pill-name">Missing</span><span class="ref-pill-detail">was GPIO 12</span></button></div>
+  </div>
+
+  <!-- ====================================================================== -->
+  <h2>5 · Item tile: variants and states</h2>
+  <div class="grid">
+    <div class="cell"><span class="cap">Variable · type badge, name, trash</span><div class="panel" data-tiles="variants"></div></div>
+    <div class="cell"><span class="cap">States (top to bottom): default · selected · search match · error · disabled · dragging</span><div class="panel" data-tiles="states"></div></div>
+    <div class="cell"><span class="cap">Drag and drop: drop into · before · after</span><div class="panel" data-tiles="drops"></div></div>
+  </div>
+
+  <!-- ====================================================================== -->
+  <h2>6 · Element tree (interactive)</h2>
+  <p class="note">Search highlights matches in orange and opens their folders. Click a reference pill to jump to its target. The trash deletes (demo only). The last reference points at a removed variable, so it shows red.</p>
+  <div class="toolbar">
+    <label><svg class="i"><use href="#i-search"/></svg><input type="search" id="q" placeholder="Search variables…"></label>
+    <button id="expand">Expand all</button><button id="collapse">Collapse all</button><button id="reset">Reset</button>
+    <label><input type="checkbox" id="errsel"> mark selected as error</label>
+  </div>
+  <div class="panel" id="tree" style="margin-top:10px"></div>
+</div>
+
+<script>
+/* ---------- tile builder: the TreeSlab markup, with the new lead / ref slots ---------- */
+const I = (id, cls = '') => `<svg class="i ${cls}"><use href="#i-${id}"/></svg>`
+const LEAD = {
+  number: '<span class="object-type-icon number"><span class="object-number-glyph">123</span></span>',
+  bool: `<span class="object-type-icon bool">${I('toggle')}</span>`,
+  'bool-true': `<span class="object-type-icon bool is-true" title="true">${I('toggle-on')}</span>`,
+  'bool-false': `<span class="object-type-icon bool is-false" title="false">${I('toggle-off')}</span>`,
+  text: '<span class="object-type-icon text"><span class="object-text-glyph">abc</span></span>',
+  folder: `<span class="object-type-icon folder">${I('folder')}</span>`,
+  reference: `<span class="object-type-icon reference">${I('link')}</span>`,
+  device: `<span class="device-tile is-medium">${I('plug')}</span>`,
+}
+const pill = ({ name, detail = '', jump = '', broken = false, tile = 'cpu' }) =>
+  `<button class="ref-pill is-compact${broken ? ' is-broken' : ''}" ${jump ? `data-jump="${jump}"` : 'disabled'} title="${jump ? 'Open ' + name : 'Missing target'}">` +
+  `<span class="device-tile is-small">${I(broken ? 'alert' : tile)}</span><span class="ref-pill-name">${name}</span>${detail ? `<span class="ref-pill-detail">${detail}</span>` : ''}</button>`
+
+function tile(o) {
+  const states = ['selected', 'is-search-match', 'is-error', 'is-disabled', 'is-dragging', 'drop-into', 'drop-before', 'drop-after', 'folder', 'reference']
+    .filter((s) => o[s]).join(' ')
+  const label = o.field
+    ? `<div class="adorned-field-wrap editable-field-wrap is-editable"><input class="form-field-control editable-field-input" value="${o.name}"><span class="field-adornment-slot">${I('pencil', 'field-adornment-icon is-editable')}</span></div>`
+    : o.name
+  const disclosure = o.disclosure ? `<span class="tree-slab-disclosure-slot"><button class="tree-slab-disclosure" aria-expanded="${o.open !== false}" data-toggle="${o.id || ''}" title="Expand / collapse">${I('chevron')}</button></span>` : ''
+  const badges = (o.badges || []).length ? `<div class="tree-slab-badges">${o.badges.join('')}</div>` : ''
+  const ref = o.ref ? `<span class="tree-slab-ref">${o.ref}</span>` : ''
+  const trash = o.trash === false ? '' : `<button class="tree-slab-action" data-trash="${o.id || ''}" title="Delete">${I('trash')}</button>`
+  return `<div class="tree-slab-row has-badges ${states}" data-id="${o.id || ''}"><div class="tree-slab-item" role="button" tabindex="0">` +
+    `<span class="tree-slab-icon">${o.lead.startsWith('bool-') && o.id ? LEAD[o.lead].replace('<span ', `<span data-bool="${o.id}" `) : LEAD[o.lead]}</span><div class="tree-slab-content"><div class="tree-slab-header"><span class="tree-slab-label">${label}</span>${disclosure}</div>${badges}${ref}</div></div>${trash}</div>`
+}
+const badge = (t, tone = 'neutral', extra = '') => `<span class="badge is-${tone} is-default ${extra}">${t}</span>`
+
+/* ---------- static galleries ---------- */
+document.getElementById('anatomy').innerHTML =
+  tile({ lead: 'device', name: 'ADC', badges: [badge('SYS', 'system'), badge('#2', 'accent')], ref: pill({ name: 'ESP32 GPIO', detail: 'GPIO 42', jump: 'demo' }) })
+
+const galleries = {
+  variants: [
+    { lead: 'bool', name: 'Run' },
+    { lead: 'number', name: 'drive-speed' },
+    { lead: 'number', name: 'current-limit', field: true },
+    { lead: 'text', name: 'label', badges: [badge('10 chars', 'text')], trash: false },
+    { lead: 'folder', name: 'angles', folder: true, disclosure: true, badges: [badge('3', 'count')] },
+    { lead: 'device', name: 'ADC', badges: [badge('SYS', 'system'), badge('#2', 'accent')], selected: true, trash: false },
+    { lead: 'reference', name: 'speed-alias', reference: true, ref: pill({ name: 'drive-speed', tile: 'link', jump: 'speed' }) },
+  ],
+  states: [
+    { lead: 'number', name: 'default' },
+    { lead: 'number', name: 'selected', selected: true },
+    { lead: 'number', name: 'search match', 'is-search-match': true },
+    { lead: 'number', name: 'error', 'is-error': true, badges: [badge('!', 'danger')] },
+    { lead: 'number', name: 'disabled', 'is-disabled': true },
+    { lead: 'number', name: 'dragging', 'is-dragging': true },
+    { lead: 'number', name: 'error + match', 'is-error': true, 'is-search-match': true },
+  ],
+  drops: [
+    { lead: 'folder', name: 'drop into', folder: true, 'drop-into': true, trash: false },
+    { lead: 'number', name: 'drop before', 'drop-before': true, trash: false },
+    { lead: 'number', name: 'drop after', 'drop-after': true, trash: false },
+  ],
+}
+document.querySelectorAll('[data-tiles]').forEach((el) => { el.innerHTML = galleries[el.dataset.tiles].map(tile).join('') })
+
+/* ---------- themed dropdown (listable field) ---------- */
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+function initDropdown(root) {
+  const options = JSON.parse(root.dataset.options), state = root.dataset.state || 'editable'
+  let value = root.dataset.value ?? '', menu = null
+  const locked = state === 'locked'
+  const current = () => options.find((o) => o.value === value)
+  root.className = `adorned-field-wrap listable-field-wrap dd ${locked ? 'is-blocked' : 'is-editable'}${state === 'error' ? ' is-error' : ''}`
+  root.innerHTML =
+    `<button type="button" class="form-field-control form-select-control listable-field-select dd-trigger" aria-haspopup="listbox" aria-expanded="false"${locked ? ' disabled' : ''}${state === 'error' ? ' aria-invalid="true"' : ''}></button>` +
+    `<span class="field-adornment-slot">${I(locked ? 'lock' : 'chevron', `field-adornment-icon ${locked ? 'is-blocked' : 'is-editable'}`)}</span>`
+  const trigger = root.querySelector('.dd-trigger')
+  const paint = () => { const c = current(); trigger.innerHTML = c ? esc(c.label) : `<span class="dd-placeholder">${esc(root.dataset.placeholder || 'Choose…')}</span>` }
+  const close = (focus = true) => { if (!menu) return; menu.remove(); menu = null; root.classList.remove('is-selected', 'is-open'); trigger.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', outside, true); if (focus) trigger.focus() }
+  const outside = (e) => { if (!root.contains(e.target)) close(false) }
+  const choose = (v) => { value = v; paint(); close() }
+  const rows = () => {
+    let html = '', group
+    options.forEach((o) => {
+      if (o.group !== undefined && o.group !== group) { group = o.group; html += `<div class="dd-group">${esc(group)}</div>` }
+      const sel = o.value === value
+      html += `<button type="button" role="option" class="option-menu-option dd-option" aria-selected="${sel}" data-value="${esc(o.value)}"${o.disabled ? ' disabled' : ''}>` +
+        `<span class="dd-check">${sel ? I('check') : ''}</span><span class="dd-label">${esc(o.label)}</span>` +
+        `${o.hint ? `<span class="dd-hint">${esc(o.hint)}</span>` : ''}${o.badge ? `<span class="badge is-warning is-default">${esc(o.badge)}</span>` : ''}</button>`
+    })
+    return html
+  }
+  const open = () => {
+    if (menu || locked) return
+    menu = document.createElement('div'); menu.className = 'option-menu dd-menu'; menu.setAttribute('role', 'listbox'); menu.innerHTML = rows()
+    root.appendChild(menu); root.classList.add('is-selected', 'is-open'); trigger.setAttribute('aria-expanded', 'true')
+    const r = root.getBoundingClientRect(); if (window.innerHeight - r.bottom < menu.offsetHeight + 12 && r.top > menu.offsetHeight) menu.classList.add('is-up')
+    ;(menu.querySelector('[aria-selected="true"]:not(:disabled)') || menu.querySelector('.dd-option:not(:disabled)'))?.focus()
+    menu.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })
+    document.addEventListener('mousedown', outside, true)
+  }
+  trigger.addEventListener('click', () => (menu ? close() : open()))
+  trigger.addEventListener('keydown', (e) => { if (['ArrowDown', 'ArrowUp'].includes(e.key)) { e.preventDefault(); open() } })
+  root.addEventListener('click', (e) => { const b = e.target.closest('.dd-option'); if (b && !b.disabled) choose(b.dataset.value) })
+  root.addEventListener('keydown', (e) => {
+    if (!menu) return
+    const items = [...menu.querySelectorAll('.dd-option:not(:disabled)')], i = items.indexOf(document.activeElement)
+    if (e.key === 'Escape') { e.preventDefault(); close() }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length]?.focus() }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus() }
+    else if (e.key === 'Home') { e.preventDefault(); items[0]?.focus() }
+    else if (e.key === 'End') { e.preventDefault(); items[items.length - 1]?.focus() }
+    else if (e.key === 'Tab') close(false)
+  })
+  paint()
+}
+document.querySelectorAll('.dd').forEach(initDropdown)
+
+/* ---------- interactive tree ---------- */
+const seed = () => [
+  { id: 'run', name: 'Run', lead: 'bool', value: true },
+  { id: 'speed', name: 'drive-speed', lead: 'number' },
+  { id: 'limit', name: 'current-limit', lead: 'number' },
+  { id: 'angles', name: 'angles', lead: 'folder', folder: true, children: [
+    { id: 'arm1', name: 'arm1', lead: 'number' }, { id: 'arm2', name: 'arm2', lead: 'number' }, { id: 'arm3', name: 'arm3', lead: 'number' } ] },
+  { id: 'estop', name: 'Emergency-stop', lead: 'bool', value: false },
+  { id: 'alias', name: 'speed-alias', lead: 'reference', reference: true, to: 'speed' },
+  { id: 'lost', name: 'lost-ref', lead: 'reference', reference: true, to: 'gone' },
+]
+let data = seed(), selected = 'limit', query = '', open = new Set(['angles']), forceErr = false, arrived = null
+
+const walk = (nodes, fn, parents = []) => nodes.forEach((n) => { fn(n, parents); if (n.children) walk(n.children, fn, [...parents, n]) })
+const find = (id) => { let hit; walk(data, (n, p) => { if (n.id === id) hit = { n, p } }); return hit }
+const nameOf = (id) => find(id)?.n.name
+const matches = (n) => query && n.name.toLowerCase().includes(query.toLowerCase())
+const subtreeMatches = (n) => matches(n) || (n.children || []).some(subtreeMatches)
+
+function render() {
+  const out = []
+  const emit = (nodes) => nodes.forEach((n) => {
+    if (query && !subtreeMatches(n)) return
+    const isOpen = n.children && (open.has(n.id) || (query && subtreeMatches(n)))
+    const target = n.to ? find(n.to) : null
+    const o = {
+      ...n, lead: n.lead === 'bool' ? (n.value ? 'bool-true' : 'bool-false') : n.lead, selected: n.id === selected, 'is-search-match': matches(n) || arrived === n.id,
+      'is-error': (n.id === selected && forceErr) || (n.to && !target),
+      disclosure: !!n.children, open: isOpen, badges: n.children ? [badge(n.children.length, 'count')] : [],
+      ref: n.to ? pill({ name: target ? target.n.name : 'Missing', jump: target ? n.to : '', broken: !target, tile: 'link' }) : '',
+    }
+    out.push(tile(o))
+    if (n.children) { out.push(`<div class="tree-children"${isOpen ? '' : ' hidden'}>`); if (isOpen) emit(n.children); out.push('</div>') }
+  })
+  emit(data)
+  const el = document.getElementById('tree')
+  el.innerHTML = out.join('') || '<p class="note" style="padding:8px 12px">No match.</p>'
+  if (arrived) el.querySelector(`[data-id="${arrived}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+}
+
+function jumpTo(id) {
+  const hit = find(id); if (!hit) return
+  query = ''; document.getElementById('q').value = ''
+  hit.p.forEach((p) => open.add(p.id)); selected = id; arrived = id; render()
+  document.getElementById('tree').scrollIntoView({ block: 'center', behavior: 'smooth' })
+  setTimeout(() => { arrived = null; render() }, 1800)
+}
+
+document.addEventListener('click', (e) => {
+  const jump = e.target.closest('[data-jump]')
+  if (jump) { e.stopPropagation(); if (jump.dataset.jump === 'demo') { jump.classList.remove('is-arrived'); void jump.offsetWidth; jump.classList.add('is-arrived') } else jumpTo(jump.dataset.jump); return }
+  const flip = e.target.closest('[data-bool]')
+  if (flip && flip.dataset.bool) { e.stopPropagation(); const hit = find(flip.dataset.bool); if (hit) { hit.n.value = !hit.n.value; render() } return }
+  const toggle = e.target.closest('[data-toggle]')
+  if (toggle && toggle.dataset.toggle) { e.stopPropagation(); const id = toggle.dataset.toggle; open.has(id) ? open.delete(id) : open.add(id); render(); return }
+  const trash = e.target.closest('[data-trash]')
+  if (trash && trash.dataset.trash) { const rm = (nodes) => { const i = nodes.findIndex((n) => n.id === trash.dataset.trash); if (i >= 0) nodes.splice(i, 1); else nodes.forEach((n) => n.children && rm(n.children)) }; rm(data); render(); return }
+  const row = e.target.closest('#tree .tree-slab-row')
+  if (row && row.dataset.id) { selected = row.dataset.id; render() }
+})
+document.getElementById('q').addEventListener('input', (e) => { query = e.target.value.trim(); render() })
+document.getElementById('expand').onclick = () => { walk(data, (n) => n.children && open.add(n.id)); render() }
+document.getElementById('collapse').onclick = () => { open.clear(); render() }
+document.getElementById('reset').onclick = () => { data = seed(); selected = 'limit'; open = new Set(['angles']); query = ''; document.getElementById('q').value = ''; render() }
+/* standalone switch <-> boolean badge demo */
+const syncBool = (on) => {
+  document.getElementById('boolswitch').checked = on
+  document.getElementById('boollabel').textContent = on ? 'true' : 'false'
+  const b = document.getElementById('boolbadge')
+  b.classList.toggle('is-true', on); b.classList.toggle('is-false', !on)
+  b.innerHTML = I(on ? 'toggle-on' : 'toggle-off')
+}
+document.getElementById('boolswitch').onchange = (e) => syncBool(e.target.checked)
+document.getElementById('boolbadge').onclick = () => syncBool(!document.getElementById('boolswitch').checked)
+document.getElementById('errsel').onchange = (e) => { forceErr = e.target.checked; render() }
+document.getElementById('theme').onclick = (e) => {
+  const light = document.getElementById('stage').classList.toggle('theme-light')
+  e.target.textContent = light ? 'Switch to dark theme' : 'Switch to light theme'
+}
+render()
+</script>
+</body>
+</html>

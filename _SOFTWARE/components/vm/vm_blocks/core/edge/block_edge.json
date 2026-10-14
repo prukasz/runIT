@@ -10,6 +10,7 @@
   "order": 10,
   "tags": ["pulse", "rising", "falling", "trigger", "change", "detect"],
   "integration": "core",
+  "state_len": 4,
   "activation": { "kind": "enabled", "text": "Samples the enable on every pass, including the passes when it is off. The first sample only sets the starting level." },
   "enable": {
     "alias": "Signal",

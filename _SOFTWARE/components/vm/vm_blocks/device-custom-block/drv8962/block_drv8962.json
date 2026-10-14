@@ -10,6 +10,7 @@
   "order": 35,
   "tags": ["motor", "drv8962", "current limit", "fault", "driver"],
   "integration": "custom",
+  "state_len": 56,
   "device": { "device_type": "drv8962" },
   "activation": {
     "kind": "enabled",

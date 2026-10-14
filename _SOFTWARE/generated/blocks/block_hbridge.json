@@ -18,6 +18,7 @@
     "drv8962"
   ],
   "integration": "contract",
+  "state_len": 56,
   "device": {
     "contract": "HBRIDGE"
   },

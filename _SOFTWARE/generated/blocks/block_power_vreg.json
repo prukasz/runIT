@@ -18,6 +18,7 @@
     "tps55289"
   ],
   "integration": "contract",
+  "state_len": 56,
   "device": {
     "contract": "POWER_VREG"
   },

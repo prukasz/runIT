@@ -10,6 +10,7 @@
   "order": 40,
   "tags": ["power", "voltage", "current", "watt", "ina3221", "measure", "shunt", "alert"],
   "integration": "contract",
+  "state_len": 56,
   "device": { "contract": "POWER_MONITOR" },
   "activation": {
     "kind": "enabled",

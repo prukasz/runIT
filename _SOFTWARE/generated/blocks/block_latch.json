@@ -19,6 +19,7 @@
     "bistable"
   ],
   "integration": "core",
+  "state_len": 4,
   "activation": {
     "kind": "enabled",
     "text": "Samples the enable and Reset on every pass; the enable sets the held state, Reset clears it even when the enable is off."

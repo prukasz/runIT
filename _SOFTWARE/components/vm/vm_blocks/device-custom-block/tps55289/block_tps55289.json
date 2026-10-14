@@ -10,6 +10,7 @@
   "order": 55,
   "tags": ["power", "regulator", "tps55289", "protection", "overcurrent", "hiccup", "discharge"],
   "integration": "custom",
+  "state_len": 56,
   "device": { "device_type": "tps55289" },
   "activation": {
     "kind": "enabled",

@@ -18,6 +18,7 @@
     "ap33772s"
   ],
   "integration": "contract",
+  "state_len": 56,
   "device": {
     "contract": "POWER_USB_PD"
   },

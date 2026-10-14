@@ -17,6 +17,7 @@
     "while"
   ],
   "integration": "core",
+  "state_len": 24,
   "activation": {
     "kind": "enabled",
     "text": "Runs every pass while enabled. The whole loop runs inside the pass: a long loop makes the pass long and delays everything else in the program."

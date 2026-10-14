@@ -17,6 +17,7 @@
     "cycle"
   ],
   "integration": "core",
+  "state_len": 16,
   "activation": {
     "kind": "enabled",
     "text": "Runs every pass while enabled. The first tick is on the pass the block becomes enabled, then every period; disabling stops it and enabling again restarts the phase."

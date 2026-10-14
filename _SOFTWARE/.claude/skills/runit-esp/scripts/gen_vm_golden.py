@@ -1,6 +1,6 @@
-"""Writes app/tests/backend/fixtures/vm-golden.json: the load frames the host suite's builder (vm_lib.Prog) makes for a sample
-program, which app/tests/backend/vm.test.ts compares byte for byte with the app's `Program`. The suite is tested against the
-board, so this ties the app's encoder to what the board accepts.
+"""Writes vm-golden.json for both apps: the load frames the host suite's builder (vm_lib.Prog) makes for a sample program.
+app/tests/backend/vm.test.ts and runit-app/tests/engine/wire/frames.test.ts compare them byte for byte with the frames each
+app builds. The suite is tested against the board, so this ties the apps' encoders to what the board accepts.
 
   C:\\Espressif\\tools\\python\\v6.1\\venv\\Scripts\\python.exe gen_vm_golden.py
 """
@@ -9,7 +9,8 @@ from pathlib import Path
 
 import vm_lib as v
 
-OUT = Path(__file__).resolve().parents[4] / "app" / "tests" / "backend" / "fixtures" / "vm-golden.json"
+ROOT = Path(__file__).resolve().parents[4]
+OUTS = [ROOT / "app" / "tests" / "backend" / "fixtures" / "vm-golden.json", ROOT / "runit-app" / "tests" / "engine" / "fixtures" / "vm-golden.json"]
 
 p = v.Prog(size=20000)
 a = p.f(1.5, name="a")
@@ -31,6 +32,8 @@ for i in range(30):  # enough small objects that the object records need a secon
     p.u8(i, name=f"o{i}")
 
 frames = [{"op": op, "payload": payload.hex()} for op, payload in p.frames()]
-OUT.parent.mkdir(parents=True, exist_ok=True)
-OUT.write_text(json.dumps({"blocks": {"EXPR": v.BLK["EXPR"], "IF": v.BLK["IF"]}, "frames": frames}, indent=1) + "\n", encoding="utf-8", newline="\n")
-print(f"wrote {OUT}: {len(frames)} frames")
+text = json.dumps({"blocks": {"EXPR": v.BLK["EXPR"], "IF": v.BLK["IF"]}, "frames": frames}, indent=1) + "\n"
+for out in OUTS:
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8", newline="\n")
+    print(f"wrote {out}: {len(frames)} frames")

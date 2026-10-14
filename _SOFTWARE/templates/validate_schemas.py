@@ -6,6 +6,7 @@
   errors.schema.json    components/core/errors/errors.json
   board.schema.json     components/app/runit/board.json
   enums.schema.json     generated/common/enums.json
+  limits.schema.json    generated/common/limits.json
 
 An `"enum": "<name>"` of a field (type `enum`) and an `enum_ref` of an error field must name a group of enums.json.
 
@@ -22,6 +23,7 @@ except ImportError:
 
 TEMPLATES = ROOT / "templates"
 ENUMS = GENERATED / "common" / "enums.json"
+LIMITS = GENERATED / "common" / "limits.json"
 
 
 def descriptors(prefix):
@@ -35,6 +37,7 @@ CHECKS = (
     ("errors.schema.json", [COMPONENTS_DIR / "core" / "errors" / "errors.json"]),
     ("board.schema.json", [COMPONENTS_DIR / "app" / "runit" / "board.json"]),
     ("enums.schema.json", [ENUMS]),
+    ("limits.schema.json", [LIMITS]),
 )
 
 

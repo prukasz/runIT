@@ -16,6 +16,7 @@
     "decision"
   ],
   "integration": "core",
+  "state_len": 0,
   "activation": {
     "kind": "enabled",
     "text": "Decides on every pass while enabled."

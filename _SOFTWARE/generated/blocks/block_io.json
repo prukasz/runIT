@@ -19,6 +19,7 @@
     "level"
   ],
   "integration": "contract",
+  "state_len": 56,
   "device": {
     "contract": "IO"
   },

@@ -10,6 +10,7 @@
   "order": 70,
   "tags": ["power", "usb", "usb-c", "pd", "charger", "voltage", "ap33772s"],
   "integration": "contract",
+  "state_len": 56,
   "device": { "contract": "POWER_USB_PD" },
   "activation": {
     "kind": "enabled",

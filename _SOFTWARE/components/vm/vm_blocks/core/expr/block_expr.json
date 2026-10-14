@@ -10,6 +10,8 @@
   "order": 10,
   "tags": ["formula", "math", "calculate", "compute", "function", "equation", "logic", "compare", "select"],
   "integration": "core",
+  "state_len": 4,
+  "state_variable": true,
   "editor": "expression",
   "editor_values": ["expression"],
   "activation": {

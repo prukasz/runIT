@@ -62,7 +62,7 @@ One block type per device contract, one engine (`device-contract/vm_block_device
 2. A number in `vm_block_ids.h`.
 3. At the end of the `.c`: `VM_BLOCK_TYPE_DEFINE(VM_BLK_<NAME>, .run = …, .check = …, .min_in = …, .max_in = …, .min_q = …, .max_q = …, .min_en = …, .required_in = …, .state_len = sizeof(…))`. Unset fields are 0. It registers the type before `app_main` (a bad, zero or repeated id, or no body, aborts the boot with the id in the log).
 4. The file in `CMakeLists.txt` (`SRCS`, `INCLUDE_DIRS`). The component is `WHOLE_ARCHIVE`, so nothing else references the block.
-5. `block_<name>.json` next to the header (schema `templates/vm-block.schema.json`), then `sh templates/sync.sh`: it validates the descriptor, checks its references (contract, device, `wire_id` against `vm_block_ids.h`) and copies it to `generated/blocks/`.
+5. `block_<name>.json` next to the header (schema `templates/vm-block.schema.json`), then `sh templates/sync.sh`: it validates the descriptor, checks its references (contract, device, `wire_id` against `vm_block_ids.h`, `state_len` against the `.state_len` of the block's `VM_BLOCK_TYPE_DEFINE`) and copies it to `generated/blocks/`. `state_len` is required: the size of the state struct (a `sizeof` pinned by a `_Static_assert`), 0 for a block with none; a block whose data grows with what the user wrote (a formula, the cases) also says `state_variable`. A device block's variant names its command in `op`.
 
 `vm_block_verify` enforces the pin shape and the state size at load (`ERR_VM_BLK_BAD_SHAPE`), then calls `.check`; bodies never re-check their shape.
 

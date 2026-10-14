@@ -10,6 +10,7 @@
   "order": 30,
   "tags": ["motor", "h-bridge", "drive", "brake", "coast", "current", "drv8962"],
   "integration": "contract",
+  "state_len": 56,
   "device": { "contract": "HBRIDGE" },
   "activation": {
     "kind": "enabled",

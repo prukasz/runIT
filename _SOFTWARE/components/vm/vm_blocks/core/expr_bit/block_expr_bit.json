@@ -10,6 +10,8 @@
   "order": 20,
   "tags": ["bit", "bitwise", "mask", "shift", "flags", "binary", "formula", "integer"],
   "integration": "core",
+  "state_len": 4,
+  "state_variable": true,
   "editor": "bit-expression",
   "editor_values": ["expression"],
   "activation": {

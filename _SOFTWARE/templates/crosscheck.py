@@ -2,8 +2,10 @@
 
   device     "contracts" name existing contracts
   vm-block   wire_id is unique, below VM_BLOCK_TYPES_MAX and equals VM_BLK_<ID> of vm_block_ids.h
+             state_len equals the `.state_len` of the block's VM_BLOCK_TYPE_DEFINE (a sizeof resolved from a _Static_assert; 0 when absent)
              device.contract / device.device_type name an existing contract / device
              variant "op" is a command of that contract; "args" keys are arguments of that command
+             the "idle" options of a device block are 0 or an op code: (contract_id << 8) | op, or 0xFF00 | op for a device's own command
              "fixed" / "default" / condition values fit the enum group, the options or the contract choice they refer to
              "{name}" in a header or body is a field, an argument, a pin, "device" or "variant"
              conditions name a field of the block, "device.<config id>" of the device, or a variant of the block
@@ -20,6 +22,10 @@ from _common import COMPONENTS_DIR, GENERATED, fail, read, rel, sources
 BLOCK_IDS = COMPONENTS_DIR / "vm" / "vm_core" / "block" / "vm_block_ids.h"
 ENUMS = GENERATED / "common" / "enums.json"
 PLACEHOLDER = re.compile(r"\{([^{}]+)\}")
+ASSERT_RE = re.compile(r"_Static_assert\s*\((.*?),\s*\"", re.DOTALL)
+SIZEOF_RE = re.compile(r"sizeof\s*\(\s*(\w+)\s*\)\s*==\s*(\d+)")
+BLOCK_TYPE_RE = re.compile(r"VM_BLOCK_TYPE_DEFINE\s*\(\s*(VM_BLK_\w+)\s*,(.*?)\);", re.DOTALL)
+STATE_LEN_RE = re.compile(r"\.state_len\s*=\s*(?:sizeof\s*\(\s*(\w+)\s*\)|(\d+))")
 
 
 def load(prefix):
@@ -38,6 +44,32 @@ def block_numbers():
     numbers = {name: int(value) for name, value in re.findall(r"#define\s+(VM_BLK_\w+)\s+(\d+)", text)}
     limit = re.search(r"#define\s+VM_BLOCK_TYPES_MAX\s+(\d+)", text)
     return numbers, int(limit.group(1)) if limit else 64
+
+
+def struct_sizes():
+    """{type name: bytes} of every `sizeof(T) == N` a _Static_assert under components/ pins down."""
+    sizes = {}
+    for path in sources(".c", ".h"):
+        for condition in ASSERT_RE.findall(read(path)):
+            sizes.update({name: int(size) for name, size in SIZEOF_RE.findall(condition)})
+    return sizes
+
+
+def state_lengths():
+    """({VM_BLK_<ID>: bytes}, problems): the `.state_len` of every VM_BLOCK_TYPE_DEFINE, 0 when it names none."""
+    sizes, lengths, problems = struct_sizes(), {}, []
+    for path in sources(".c"):
+        for macro, body in BLOCK_TYPE_RE.findall(read(path)):
+            found = STATE_LEN_RE.search(body)
+            if found is None:
+                lengths[macro] = 0
+            elif found.group(2):
+                lengths[macro] = int(found.group(2))
+            elif found.group(1) in sizes:
+                lengths[macro] = sizes[found.group(1)]
+            else:
+                problems.append(f"{rel(path)}: {macro}: .state_len is sizeof({found.group(1)}), which no _Static_assert pins to a number")
+    return lengths, problems
 
 
 def pin_ids(pins):
@@ -74,6 +106,8 @@ class Checker:
     def blocks(self):
         """Checks every block descriptor; returns (how many, block types without one)."""
         numbers, limit = block_numbers()
+        lengths, problems = state_lengths()
+        self.problems.extend(problems)
         blocks = load("block_")
         seen = {}
         for block_id, (path, block) in blocks.items():
@@ -87,6 +121,10 @@ class Checker:
             if wire in seen:
                 self.error(path, "wire_id", f"{wire} is also the wire_id of '{seen[wire]}'")
             seen[wire] = block_id
+            if macro not in lengths:
+                self.error(path, "state_len", f"{macro} has no VM_BLOCK_TYPE_DEFINE under components/")
+            elif lengths[macro] != block["state_len"]:
+                self.error(path, "state_len", f"{block['state_len']} but the .state_len of {macro} is {lengths[macro]} in C")
             self.block(path, block)
         described = {f"VM_BLK_{b.upper()}" for b in blocks}
         missing = sorted(n.removeprefix("VM_BLK_").lower() for n in numbers if n not in described and n != "VM_BLK_NONE")
@@ -113,6 +151,16 @@ class Checker:
                 for option in field.get("options", []) if field["id"] == "idle" else []:
                     if option["value"] not in codes:
                         self.error(path, f"fields/idle/options/{option['alias']}", f"{option['value']} is not 0 or an op code of contract {contract['id']} ((contract_id << 8) | op)")
+        if device is not None and contract is None:  # a device's own command is (SYS_DEVICE_CONTRACT_OWN << 8) | op
+            own = next((m["value"] for m in self.enums.get("device_contract", {}).get("members", []) if m["name"] == "SYS_DEVICE_CONTRACT_OWN"), None)
+            if own is None:
+                self.error(path, "device.device_type", "SYS_DEVICE_CONTRACT_OWN is not published in enums.json (device_contract)")
+            else:
+                codes = {0} | {(own << 8) | c["op"] for c in device.get("commands", [])}
+                for field in block.get("fields", []):
+                    for option in field.get("options", []) if field["id"] == "idle" else []:
+                        if option["value"] not in codes:
+                            self.error(path, f"fields/idle/options/{option['alias']}", f"{option['value']} is not 0 or an op code of a command of device {device['id']} ((0xFF << 8) | op)")
         configs = {f["id"]: f for f in (device or {}).get("config", {}).get("fields", [])}
         variant_ids = {v["id"] for v in block.get("variants", [])}
 

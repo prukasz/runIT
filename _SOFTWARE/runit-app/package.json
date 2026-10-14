@@ -1,0 +1,18 @@
+{
+  "name": "runit-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "runIT app, written from scratch. src/engine = the VM engine (objects, accessors, blocks, compiler); no UI dependencies.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.2"
+  }
+}

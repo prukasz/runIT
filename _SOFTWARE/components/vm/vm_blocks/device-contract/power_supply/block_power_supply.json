@@ -10,6 +10,7 @@
   "order": 60,
   "tags": ["power", "supply", "mux", "source", "switch", "battery", "usb"],
   "integration": "contract",
+  "state_len": 56,
   "device": { "contract": "POWER_SUPPLY" },
   "activation": {
     "kind": "enabled",

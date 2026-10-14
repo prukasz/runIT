@@ -10,6 +10,7 @@
   "order": 20,
   "tags": ["event", "interrupt", "alert", "fault", "trigger", "notify", "edge", "pin"],
   "integration": "core",
+  "state_len": 8,
   "activation": { "kind": "enabled", "text": "Runs every pass while enabled. An event lives exactly one pass: one that arrives while the block is disabled is missed." },
   "eno": {
     "alias": "Event",

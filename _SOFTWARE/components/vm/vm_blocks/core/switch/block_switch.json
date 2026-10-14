@@ -10,6 +10,8 @@
   "order": 20,
   "tags": ["case", "route", "select", "branch"],
   "integration": "core",
+  "state_len": 0,
+  "state_variable": true,
   "editor": "switch-cases",
   "activation": { "kind": "enabled", "text": "Runs every pass while enabled." },
   "header": { "subtitle": "switch {selector}" },

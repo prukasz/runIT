@@ -20,6 +20,8 @@
     "select"
   ],
   "integration": "core",
+  "state_len": 4,
+  "state_variable": true,
   "editor": "expression",
   "editor_values": [
     "expression"

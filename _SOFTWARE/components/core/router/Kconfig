@@ -1,5 +1,6 @@
 menu "router"
 
+    #@limit @alias Largest frame @unit bytes
     config ROUTER_FRAME_MAX
         int "Largest frame (bytes)"
         default 512

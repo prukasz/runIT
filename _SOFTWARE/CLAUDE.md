@@ -11,6 +11,7 @@ Load the `runit-root` skill first. It holds the vision, repo map and current pro
 | Firmware (C, devices, VM, BLE, errors, build/flash) | `runit-esp` | `components/`, `main/` |
 | App (React/TS, BLE client, canvas) | `runit-app` | `app/` |
 | Wire format shared by both | `templates/AGENTS.md` | `templates/` |
+| New app and VM engine (written from scratch; `app/` and `legacy/` are reference only) | `runit-app/AGENTS.md`, `runit-app/src/engine/ENGINE.md` | `runit-app/` |
 
 Durable notes and gotchas: `.claude/memory.md`.
 

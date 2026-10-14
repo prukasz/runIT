@@ -1,56 +1,69 @@
 {
   "$schema": "data-structures/schema/streams.schema.json",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "kind": "streams",
   "source_file": "components/system/sys_data_connector/sys_data_connector.c",
   "limits": {
     "connectors_max": 8,
-    "providers_per_connector_max": 4,
+    "bindings_per_connector": 4,
     "name_max": 16,
-    "frame_max": 512
+    "frame_max": 512,
+    "app_base": 4
   },
   "ble": {
-    "service": "0xFFE0",
-    "service_symbol": "SYS_BLE_SVC_RUNIT",
-    "is_primary": true,
+    "service": {
+      "symbol": "SYS_BLE_SVC_RUNIT",
+      "uuid": "0xFFE0",
+      "alias": "runit",
+      "primary": true,
+      "locked": false
+    },
     "characteristics": [
       {
         "symbol": "SYS_BLE_CHR_RUNIT_RX",
         "uuid": "0xFFE2",
+        "alias": "runit RX",
         "name": "runit RX",
         "write": true,
         "notify": false,
         "indicate": false,
+        "framed": false,
         "tx_buffer_size": 0,
         "rx_buffer_size": 1040
       },
       {
         "symbol": "SYS_BLE_CHR_RUNIT_TX",
         "uuid": "0xFFE1",
+        "alias": "runit TX",
         "name": "runit TX",
         "write": false,
         "notify": true,
         "indicate": false,
+        "framed": false,
         "tx_buffer_size": 2080,
         "rx_buffer_size": 0
       },
       {
         "symbol": "SYS_BLE_CHT_RUNIT_STATUS",
         "uuid": "0xFFE4",
+        "alias": "runit Status",
         "name": "runit Status",
         "write": false,
         "notify": true,
         "indicate": false,
+        "framed": false,
         "tx_buffer_size": 512,
         "rx_buffer_size": 0
       },
       {
         "symbol": "SYS_BLE_CHR_RUNIT_LOGS",
         "uuid": "0xFFE3",
+        "alias": "runit LOGS",
         "name": "runit LOGS",
         "write": false,
         "notify": true,
         "indicate": false,
+        "framed": false,
         "tx_buffer_size": 2080,
         "rx_buffer_size": 0
       }
@@ -60,6 +73,57 @@
       "components/runit/runit_board_cfg.c"
     ]
   },
+  "uart": {
+    "symbol": "SYS_UART_ENDPOINT_CONSOLE",
+    "endpoint": 0,
+    "alias": "Console"
+  },
+  "transports": [
+    {
+      "symbol": "TRANSPORT_BLE",
+      "value": 1,
+      "alias": "BLE"
+    },
+    {
+      "symbol": "TRANSPORT_UART",
+      "value": 2,
+      "alias": "UART"
+    }
+  ],
+  "connectors": [
+    {
+      "symbol": "SYS_DATA_CONNECTOR_LOGS",
+      "name": "logs",
+      "id": 0,
+      "alias": "Logs",
+      "description": "Text log lines.",
+      "stream": 3
+    },
+    {
+      "symbol": "SYS_DATA_CONNECTOR_ERRORS",
+      "name": "errors",
+      "id": 1,
+      "alias": "Errors",
+      "description": "Binary error reports.",
+      "stream": 4
+    },
+    {
+      "symbol": "SYS_DATA_CONNECTOR_TELEMETRY",
+      "name": "telemetry",
+      "id": 2,
+      "alias": "Telemetry",
+      "description": "Program object values you subscribed to.",
+      "stream": 2
+    },
+    {
+      "symbol": "SYS_DATA_CONNECTOR_INTERFACE",
+      "name": "interface",
+      "id": 3,
+      "alias": "Commands",
+      "description": "Commands to the board and their responses.",
+      "stream": 5
+    }
+  ],
   "streams": [
     {
       "name": "logs",
@@ -122,88 +186,51 @@
   "bindings": [
     {
       "connector": "SYS_DATA_CONNECTOR_LOGS",
-      "connector_id": 0,
-      "direction": "tx",
-      "provider": "RUNIT_DATA_PROVIDER_BLE",
-      "provider_id": 1,
+      "transport": "TRANSPORT_BLE",
       "endpoint": 65507,
       "endpoint_symbol": "SYS_BLE_CHR_RUNIT_LOGS"
     },
     {
       "connector": "SYS_DATA_CONNECTOR_ERRORS",
-      "connector_id": 1,
-      "direction": "tx",
-      "provider": "RUNIT_DATA_PROVIDER_BLE",
-      "provider_id": 1,
+      "transport": "TRANSPORT_BLE",
       "endpoint": 65507,
       "endpoint_symbol": "SYS_BLE_CHR_RUNIT_LOGS"
     },
     {
       "connector": "SYS_DATA_CONNECTOR_TELEMETRY",
-      "connector_id": 2,
-      "direction": "tx",
-      "provider": "RUNIT_DATA_PROVIDER_BLE",
-      "provider_id": 1,
+      "transport": "TRANSPORT_BLE",
       "endpoint": 65505,
       "endpoint_symbol": "SYS_BLE_CHR_RUNIT_TX"
     },
     {
       "connector": "SYS_DATA_CONNECTOR_INTERFACE",
-      "connector_id": 3,
-      "direction": "tx",
-      "provider": "RUNIT_DATA_PROVIDER_BLE",
-      "provider_id": 1,
+      "transport": "TRANSPORT_BLE",
       "endpoint": 65505,
       "endpoint_symbol": "SYS_BLE_CHR_RUNIT_TX"
     },
     {
       "connector": "SYS_DATA_CONNECTOR_INTERFACE",
-      "connector_id": 3,
-      "direction": "rx",
-      "provider": "RUNIT_DATA_PROVIDER_BLE",
-      "provider_id": 1,
+      "transport": "TRANSPORT_BLE",
       "endpoint": 65506,
       "endpoint_symbol": "SYS_BLE_CHR_RUNIT_RX"
     },
     {
       "connector": "SYS_DATA_CONNECTOR_ERRORS",
-      "connector_id": 1,
-      "direction": "tx",
-      "provider": "RUNIT_DATA_PROVIDER_UART",
-      "provider_id": 2,
+      "transport": "TRANSPORT_UART",
       "endpoint": 0,
-      "endpoint_symbol": "SYS_UART_ENDPOINT_CONSOLE",
-      "when": "CONFIG_RUNIT_UART_CONSOLE_LINK"
+      "endpoint_symbol": "SYS_UART_ENDPOINT_CONSOLE"
     },
     {
       "connector": "SYS_DATA_CONNECTOR_TELEMETRY",
-      "connector_id": 2,
-      "direction": "tx",
-      "provider": "RUNIT_DATA_PROVIDER_UART",
-      "provider_id": 2,
+      "transport": "TRANSPORT_UART",
       "endpoint": 0,
-      "endpoint_symbol": "SYS_UART_ENDPOINT_CONSOLE",
-      "when": "CONFIG_RUNIT_UART_CONSOLE_LINK"
+      "endpoint_symbol": "SYS_UART_ENDPOINT_CONSOLE"
     },
     {
       "connector": "SYS_DATA_CONNECTOR_INTERFACE",
-      "connector_id": 3,
-      "direction": "tx",
-      "provider": "RUNIT_DATA_PROVIDER_UART",
-      "provider_id": 2,
+      "transport": "TRANSPORT_UART",
       "endpoint": 0,
-      "endpoint_symbol": "SYS_UART_ENDPOINT_CONSOLE",
-      "when": "CONFIG_RUNIT_UART_CONSOLE_LINK"
-    },
-    {
-      "connector": "SYS_DATA_CONNECTOR_INTERFACE",
-      "connector_id": 3,
-      "direction": "rx",
-      "provider": "RUNIT_DATA_PROVIDER_UART",
-      "provider_id": 2,
-      "endpoint": 0,
-      "endpoint_symbol": "SYS_UART_ENDPOINT_CONSOLE",
-      "when": "CONFIG_RUNIT_UART_CONSOLE_LINK"
+      "endpoint_symbol": "SYS_UART_ENDPOINT_CONSOLE"
     }
   ]
 }

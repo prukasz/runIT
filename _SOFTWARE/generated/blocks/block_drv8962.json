@@ -16,6 +16,7 @@
     "driver"
   ],
   "integration": "custom",
+  "state_len": 56,
   "device": {
     "device_type": "drv8962"
   },

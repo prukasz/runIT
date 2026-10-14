@@ -1,7 +1,126 @@
 {
-  "schemaVersion": 2,
+  "$schema": "../../templates/enums.schema.json",
+  "schemaVersion": 1,
   "kind": "enums",
   "enums": {
+    "action_class": {
+      "alias": "Action classes",
+      "kind": "defines",
+      "prefix": "SYS_ACTIONS_CLASS_",
+      "source_file": "components/sys/sys_actions/sys_actions.h",
+      "members": [
+        {
+          "name": "SYS_ACTIONS_CLASS_USER",
+          "value": 0,
+          "alias": "Action",
+          "description": "the app's own actions"
+        },
+        {
+          "name": "SYS_ACTIONS_CLASS_SYSTEM",
+          "value": 1,
+          "alias": "Settings",
+          "description": "settings of the system modules"
+        },
+        {
+          "name": "SYS_ACTIONS_CLASS_DEVICE",
+          "value": 2,
+          "alias": "Device",
+          "description": "install and default commands"
+        },
+        {
+          "name": "SYS_ACTIONS_CLASS_PROJECT",
+          "value": 3,
+          "alias": "Project",
+          "description": "stored project run list and sections"
+        }
+      ]
+    },
+    "board_device": {
+      "alias": "Board devices",
+      "kind": "defines",
+      "prefix": "DEVICE_ID_",
+      "source_file": "components/app/runit/runit_board_defs.h",
+      "members": [
+        {
+          "name": "DEVICE_ID_GPIO_ESP",
+          "value": 0,
+          "alias": "ESP32 GPIO",
+          "description": "the ESP32-S3's own pins"
+        },
+        {
+          "name": "DEVICE_ID_TCA6424A",
+          "value": 1,
+          "alias": "GPIO expander",
+          "description": "TCA6424A, 24 pins (LEDs, interrupts, enables)"
+        },
+        {
+          "name": "DEVICE_ID_ADS7128",
+          "value": 2,
+          "alias": "ADC",
+          "description": "ADS7128, 8 inputs scaled to 20 V"
+        },
+        {
+          "name": "DEVICE_ID_PCA9685",
+          "value": 3,
+          "alias": "PWM expander",
+          "description": "PCA9685 (servo headers CH 0..7, DRV8962 #2 on CH 8..15)"
+        },
+        {
+          "name": "DEVICE_ID_DAC53202",
+          "value": 4,
+          "alias": "DAC",
+          "description": "DAC53202 (OUT0 / OUT1 = VREF of DRV8962 #1 / #2)"
+        },
+        {
+          "name": "DEVICE_ID_DRV8962_0",
+          "value": 5,
+          "alias": "Motor driver 1",
+          "description": "DRV8962 #1 (IN / EN / IPROPI on ESP)"
+        },
+        {
+          "name": "DEVICE_ID_DRV8962_1",
+          "value": 6,
+          "alias": "Motor driver 2",
+          "description": "DRV8962 #2 (IN / EN on PCA9685 CH 8..15)"
+        },
+        {
+          "name": "DEVICE_ID_SUPPLY_DRV8962_0",
+          "value": 7,
+          "alias": "Motor 1 supply",
+          "description": "Power mux of driver 1 (A = board input, B = rail B)"
+        },
+        {
+          "name": "DEVICE_ID_SUPPLY_DRV8962_1",
+          "value": 8,
+          "alias": "Motor 2 supply",
+          "description": "Power mux of driver 2 (A = board input, B = rail A)"
+        },
+        {
+          "name": "DEVICE_ID_TPS55289_2",
+          "value": 10,
+          "alias": "Rail A",
+          "description": "TPS55289 buck-boost regulator at 0x74"
+        },
+        {
+          "name": "DEVICE_ID_TPS55289_1",
+          "value": 11,
+          "alias": "Rail B",
+          "description": "TPS55289 buck-boost regulator at 0x75"
+        },
+        {
+          "name": "DEVICE_ID_INA3221",
+          "value": 12,
+          "alias": "Power monitor",
+          "description": "INA3221 (the board input and both rails)"
+        },
+        {
+          "name": "DEVICE_ID_AP33772S",
+          "value": 13,
+          "alias": "USB-C PD",
+          "description": "AP33772S USB-C power delivery sink"
+        }
+      ]
+    },
     "device_contract": {
       "alias": "Device Contract",
       "kind": "defines",
@@ -12,67 +131,67 @@
           "name": "SYS_DEVICE_CONTRACT_DEVICE",
           "value": 0,
           "alias": "Device",
-          "description": "Creating a device and the operations every device has: reset, suspend, resume"
+          "description": "Device lifecycle operations"
         },
         {
           "name": "SYS_DEVICE_CONTRACT_IO",
           "value": 1,
           "alias": "IO pins",
-          "description": "Pins that read or drive a level, a PWM duty or frequency, a voltage"
+          "description": "IO pins operations"
         },
         {
           "name": "SYS_DEVICE_CONTRACT_PINS",
           "value": 2,
           "alias": "Pin locks",
-          "description": "Claiming a pin of a device for another device"
+          "description": "Pin locks operations"
         },
         {
           "name": "SYS_DEVICE_CONTRACT_EVENT",
           "value": 3,
           "alias": "Events",
-          "description": "A device that listens to events"
+          "description": "Events operations"
         },
         {
           "name": "SYS_DEVICE_CONTRACT_POWER_MONITOR",
           "value": 4,
           "alias": "Power monitor",
-          "description": "Voltage, current and power readings and current alerts"
+          "description": "Power monitor operations"
         },
         {
           "name": "SYS_DEVICE_CONTRACT_POWER_VREG",
           "value": 5,
           "alias": "Regulator",
-          "description": "An adjustable regulator: enable, voltage, current limit"
+          "description": "Voltage regulator operations"
         },
         {
           "name": "SYS_DEVICE_CONTRACT_POWER_MANAGER",
           "value": 6,
           "alias": "Power manager events",
-          "description": "Events of the power manager (no device)"
+          "description": "Power manager operations"
         },
         {
           "name": "SYS_DEVICE_CONTRACT_POWER_USB_PD",
           "value": 7,
           "alias": "USB-PD sink",
-          "description": "Requesting a profile from a USB-PD source and reading its offers"
+          "description": "USB-PD sink operations"
         },
         {
           "name": "SYS_DEVICE_CONTRACT_POWER_SUPPLY",
           "value": 8,
           "alias": "Power mux",
-          "description": "Selecting which of two sources feeds the load"
+          "description": "Power supply/mux operations"
         },
         {
           "name": "SYS_DEVICE_CONTRACT_HBRIDGE",
           "value": 9,
           "alias": "H-bridge",
-          "description": "A motor driver: drive, brake, coast, current and its faults"
+          "description": "H-bridge motor driver operations"
         },
         {
           "name": "SYS_DEVICE_CONTRACT_OWN",
           "value": 255,
           "alias": "Device-specific",
-          "description": "The operations one device type has of its own"
+          "description": "Device-specific own operations"
         }
       ]
     },
@@ -85,13 +204,13 @@
           "name": "DRV8962_TOPOLOGY_2_FULL_BRIDGES",
           "value": 0,
           "alias": "Two full bridges",
-          "description": "Channel 0 drives OUT1+OUT2 (motor A), channel 1 drives OUT3+OUT4 (motor B), both directions"
+          "description": "Two full bridges: ch0 (OUT1+OUT2), ch1 (OUT3+OUT4)"
         },
         {
           "name": "DRV8962_TOPOLOGY_4_HALF_BRIDGES",
           "value": 1,
           "alias": "Four half bridges",
-          "description": "Channels 0..3 drive OUT1..OUT4 one by one (solenoids, single-direction loads)"
+          "description": "Four half bridges: ch0..ch3 (OUT1..OUT4)"
         }
       ]
     },
@@ -148,7 +267,7 @@
           "name": "ROUTER_ERR_REQ_CUT",
           "value": 128,
           "alias": "Request cut",
-          "description": "Bit 7 of the request length: the request was cut to fit, more of it was sent"
+          "description": "Bit 7 of request length: request was cut to fit, more was sent"
         }
       ]
     },
@@ -161,13 +280,13 @@
           "name": "ROUTER_ERR_SRC_INTERNAL",
           "value": 0,
           "alias": "Internal",
-          "description": "no request (task, timer, boot); later a device ID / task may follow"
+          "description": "No request (task, timer, boot); later device ID/task may follow"
         },
         {
           "name": "ROUTER_ERR_SRC_COMMAND",
           "value": 1,
           "alias": "Command",
-          "description": "raised while running a command"
+          "description": "Raised while running a command"
         }
       ]
     },
@@ -195,67 +314,67 @@
           "name": "ROUTER_KEY_SYS",
           "value": 1,
           "alias": "System",
-          "description": "The board itself: ping, stop, restart, dead-man"
+          "description": "System: ping, stop, restart, dead-man"
         },
         {
           "name": "ROUTER_KEY_I2C",
           "value": 2,
           "alias": "I2C",
-          "description": "I2C bus diagnostics: scan, probe"
+          "description": "I2C: bus diagnostics (scan, probe)"
         },
         {
           "name": "ROUTER_KEY_BLE",
           "value": 3,
           "alias": "Bluetooth",
-          "description": "The runtime GATT table and the BLE status"
+          "description": "Bluetooth: runtime GATT table and BLE status"
         },
         {
           "name": "ROUTER_KEY_CONN",
           "value": 4,
           "alias": "Data streams",
-          "description": "Create, bind, suspend and list the outbound data streams"
+          "description": "Data streams: create, bind, suspend and list outbound streams"
         },
         {
           "name": "ROUTER_KEY_DEVICE",
           "value": 5,
           "alias": "Devices",
-          "description": "Create, remove and use devices: [id u16][op u16][args]"
+          "description": "Devices: create, remove and use devices"
         },
         {
           "name": "ROUTER_KEY_ACTIONS",
           "value": 6,
           "alias": "Actions",
-          "description": "Stored command lists: run, record, upload, read back"
+          "description": "Actions: stored command lists (run, record, upload, read back)"
         },
         {
           "name": "ROUTER_KEY_EVENT",
           "value": 7,
           "alias": "Events",
-          "description": "The frame shape of the events stream (no commands)"
+          "description": "Events: frame shape of the events stream (no commands)"
         },
         {
           "name": "ROUTER_KEY_LOG",
           "value": 8,
           "alias": "Log",
-          "description": "Log output options"
+          "description": "Log: log output options"
         },
         {
           "name": "ROUTER_KEY_POWER",
           "value": 10,
           "alias": "Power manager",
-          "description": "Power budget, supply, battery and event responses"
+          "description": "Power manager: power budget, supply, battery and event responses"
         },
         {
           "name": "ROUTER_KEY_VM",
           "value": 11,
           "alias": "Program",
-          "description": "Build, run and watch the VM program; telemetry frames are these commands"
+          "description": "Program: build, run and watch the VM program"
         },
         {
           "name": "ROUTER_KEY_PROJECT",
           "value": 12,
           "alias": "Project",
-          "description": "Save a whole project as one stream, run it, read its state"
+          "description": "Project: save a whole project as one stream, run it, read state"
         }
       ]
     },
@@ -274,7 +393,7 @@
           "name": "ROUTER_SAFE_DEADMAN",
           "value": 2,
           "alias": "Deadman",
-          "description": "no frame within the dead-man timeout"
+          "description": "No frame within the dead-man timeout"
         },
         {
           "name": "ROUTER_SAFE_LINK_LOST",
@@ -312,13 +431,63 @@
           "name": "SERVO_TYPE_ANGLE",
           "value": 0,
           "alias": "Angle servo",
-          "description": "Moves to an angle between the angle limits and holds it"
+          "description": "Angle servo: moves to angle between limits"
         },
         {
           "name": "SERVO_TYPE_CONTINUOUS",
           "value": 1,
           "alias": "Continuous (360) servo",
-          "description": "Turns at a speed from -100 to 100 (0 stops) instead of going to an angle"
+          "description": "Continuous rotation (360) servo: speed -100..100"
+        }
+      ]
+    },
+    "settings_record": {
+      "alias": "Settings records",
+      "kind": "defines",
+      "prefix": "SYS_ACTIONS_ID_",
+      "source_file": "components/sys/sys_actions/sys_actions.h",
+      "members": [
+        {
+          "name": "SYS_ACTIONS_ID_LOG",
+          "value": 16777217,
+          "alias": "Log",
+          "description": "Log options SET frame"
+        },
+        {
+          "name": "SYS_ACTIONS_ID_POWER_CFG",
+          "value": 16777218,
+          "alias": "Power configuration",
+          "description": "Power configuration SET_CONFIG"
+        },
+        {
+          "name": "SYS_ACTIONS_ID_POWER_PSU",
+          "value": 16777219,
+          "alias": "Power supply",
+          "description": "Power supply SET_PSU"
+        },
+        {
+          "name": "SYS_ACTIONS_ID_POWER_BATTERY",
+          "value": 16777220,
+          "alias": "Battery",
+          "description": "Battery SET_BATTERY"
+        },
+        {
+          "name": "SYS_ACTIONS_ID_POWER_RESPONSES",
+          "value": 16777221,
+          "alias": "Power responses",
+          "description": "Power responses SET_RESPONSES"
+        },
+        {
+          "name": "SYS_ACTIONS_ID_BLE",
+          "value": 16777222,
+          "alias": "Bluetooth",
+          "description": "Bluetooth GATT services and APPLY"
+        },
+        {
+          "name": "SYS_ACTIONS_ID_CONN",
+          "value": 16777223,
+          "alias": "Data streams",
+          "description": "Data streams and bindings"
         }
       ]
     },
@@ -332,31 +501,31 @@
           "name": "SYS_CONNECTOR_STREAM_TELEMETRY",
           "value": 2,
           "alias": "Telemetry",
-          "description": "Values the program's subscriptions send"
+          "description": "Telemetry frame stream byte"
         },
         {
           "name": "SYS_CONNECTOR_STREAM_LOGS",
           "value": 3,
           "alias": "Logs",
-          "description": "Log lines, one per frame"
+          "description": "Log frame stream byte"
         },
         {
           "name": "SYS_CONNECTOR_STREAM_ERRORS",
           "value": 4,
           "alias": "Errors",
-          "description": "Error records of every reported error chain"
+          "description": "Error record stream byte"
         },
         {
           "name": "SYS_CONNECTOR_STREAM_RESPONSE",
           "value": 5,
           "alias": "Response",
-          "description": "The router's answer to a command"
+          "description": "Command response stream byte"
         },
         {
           "name": "SYS_CONNECTOR_STREAM_EVENTS",
           "value": 6,
           "alias": "Events",
-          "description": "Events that matter to the user (faults, alerts)"
+          "description": "Event notification stream byte"
         }
       ]
     },
@@ -369,31 +538,31 @@
           "name": "SYS_CONNECTOR_LOGS",
           "value": 0,
           "alias": "Logs",
-          "description": "The firmware's log lines"
+          "description": "System log stream"
         },
         {
           "name": "SYS_CONNECTOR_ERRORS",
           "value": 1,
           "alias": "Errors",
-          "description": "Error records: every reported error chain"
+          "description": "Error records stream"
         },
         {
           "name": "SYS_CONNECTOR_TELEMETRY",
           "value": 2,
           "alias": "Telemetry",
-          "description": "Values the program's subscriptions send"
+          "description": "Telemetry stream"
         },
         {
           "name": "SYS_CONNECTOR_EVENTS",
           "value": 3,
           "alias": "Events",
-          "description": "Events that matter to the user (faults, alerts)"
+          "description": "Events stream"
         },
         {
           "name": "SYS_CONNECTOR_APP_BASE",
           "value": 4,
           "alias": "First user stream",
-          "description": "User streams start here"
+          "description": "First user stream ID"
         }
       ]
     },
@@ -406,19 +575,19 @@
           "name": "SYS_DEVICE_FAULT_STAGE_VM_STOP",
           "value": 0,
           "alias": "Vm stop",
-          "description": "reserved: stop the VM"
+          "description": "Stop the VM"
         },
         {
           "name": "SYS_DEVICE_FAULT_STAGE_SUSPEND",
           "value": 1,
           "alias": "Suspend",
-          "description": "suspend every device (critical)"
+          "description": "Suspend all devices"
         },
         {
           "name": "SYS_DEVICE_FAULT_STAGE_ACTION",
           "value": 2,
           "alias": "Action",
-          "description": "the device's action for that severity"
+          "description": "Run configured action"
         }
       ]
     },
@@ -431,31 +600,31 @@
           "name": "SYS_DEVICE_IMPORTANCE_NONE",
           "value": 0,
           "alias": "None",
-          "description": "ignores every error of the device and its causes, critical included (a device under test)"
+          "description": "Ignores all errors"
         },
         {
           "name": "SYS_DEVICE_IMPORTANCE_LOW",
           "value": 1,
           "alias": "Low",
-          "description": "critical only (the start value)"
+          "description": "Critical only (default)"
         },
         {
           "name": "SYS_DEVICE_IMPORTANCE_MEDIUM",
           "value": 2,
           "alias": "Medium",
-          "description": "high and critical"
+          "description": "High and critical"
         },
         {
           "name": "SYS_DEVICE_IMPORTANCE_HIGH",
           "value": 3,
           "alias": "High",
-          "description": "medium, high and critical"
+          "description": "Medium, high and critical"
         },
         {
           "name": "SYS_DEVICE_IMPORTANCE_CRITICAL",
           "value": 4,
           "alias": "Critical",
-          "description": "every severity from low"
+          "description": "Low, medium, high and critical"
         }
       ]
     },
@@ -474,19 +643,19 @@
           "name": "SYS_HBRIDGE_FAULT_OVERCURRENT",
           "value": 1,
           "alias": "Overcurrent",
-          "description": "The channel drew more than its current limit"
+          "description": "Overcurrent condition on channel"
         },
         {
           "name": "SYS_HBRIDGE_FAULT_THERMAL_OR_UVLO",
           "value": 2,
           "alias": "Overheat or Low Supply",
-          "description": "The driver chip overheated or its supply dropped too low; every channel stops"
+          "description": "Thermal shutdown or undervoltage lockout"
         },
         {
           "name": "SYS_HBRIDGE_FAULT_EXTERNAL",
           "value": 3,
           "alias": "External",
-          "description": "An external fault input was triggered"
+          "description": "External fault input tripped"
         }
       ]
     },
@@ -499,13 +668,13 @@
           "name": "SYS_I2C_BUS_0",
           "value": 0,
           "alias": "Bus 0",
-          "description": "The first I2C bus"
+          "description": "I2C Bus 0"
         },
         {
           "name": "SYS_I2C_BUS_1",
           "value": 1,
           "alias": "Bus 1",
-          "description": "The second I2C bus"
+          "description": "I2C Bus 1"
         }
       ]
     },
@@ -518,13 +687,13 @@
           "name": "SYS_I2C_BE",
           "value": 0,
           "alias": "Be",
-          "description": "high byte first (INA3221, DAC53202, ADS7128)"
+          "description": "Big-endian: high byte first (INA3221, DAC53202, ADS7128)"
         },
         {
           "name": "SYS_I2C_LE",
           "value": 1,
           "alias": "Le",
-          "description": "low byte first (AP33772S, TPS55289)"
+          "description": "Little-endian: low byte first (AP33772S, TPS55289)"
         }
       ]
     },
@@ -537,37 +706,37 @@
           "name": "SYS_IO_INTR_DISABLE",
           "value": 0,
           "alias": "Disable",
-          "description": "Don't watch this pin for changes - nothing gets triggered"
+          "description": "Interrupt disabled"
         },
         {
           "name": "SYS_IO_INTR_MODE_RISING_EDGE",
           "value": 1,
           "alias": "Rising Edge",
-          "description": "Triggers the instant the pin switches from off to on"
+          "description": "Trigger on rising edge"
         },
         {
           "name": "SYS_IO_INTR_MODE_FALLING_EDGE",
           "value": 2,
           "alias": "Falling Edge",
-          "description": "Triggers the instant the pin switches from on to off"
+          "description": "Trigger on falling edge"
         },
         {
           "name": "SYS_IO_INTR_MODE_BOTH_EDGES",
           "value": 3,
           "alias": "Both Edges",
-          "description": "Triggers on any change - whether the pin switches from off to on, or on to off"
+          "description": "Trigger on both rising and falling edges"
         },
         {
           "name": "SYS_IO_INTR_ADC_WINDOW_OUTSIDE",
           "value": 4,
           "alias": "Outside set window",
-          "description": "Triggers when the measured value leaves the safe/expected range you set - use to catch a value going too high or too low"
+          "description": "Trigger when ADC leaves window"
         },
         {
           "name": "SYS_IO_INTR_ADC_WINDOW_INSIDE",
           "value": 5,
           "alias": "Inside set window",
-          "description": "Triggers when the measured value comes back into the range you set - use to catch when a value returns to normal"
+          "description": "Trigger when ADC enters window"
         }
       ]
     },
@@ -580,55 +749,55 @@
           "name": "SYS_IO_MODE_INPUT",
           "value": 0,
           "alias": "Input",
-          "description": "Reads whether the pin is on or off - use for buttons, switches, and sensors that output a simple on/off signal"
+          "description": "Digital input"
         },
         {
           "name": "SYS_IO_MODE_INPUT_PULLUP",
           "value": 1,
           "alias": "Input with Pullup",
-          "description": "Same as Input, but reads \"on\" by default when nothing is connected - use when your button/switch connects the pin to ground when pressed"
+          "description": "Digital input with pull-up resistor"
         },
         {
           "name": "SYS_IO_MODE_INPUT_PULLDOWN",
           "value": 2,
           "alias": "Input with Pulldown",
-          "description": "Same as Input, but reads \"off\" by default when nothing is connected - use when your button/switch connects the pin to power when pressed"
+          "description": "Digital input with pull-down resistor"
         },
         {
           "name": "SYS_IO_MODE_OUTPUT_PUSH_PULL",
           "value": 3,
           "alias": "Output Push-Pull",
-          "description": "Standard output - the pin can actively switch between on and off. Use this for most outputs like LEDs and relays"
+          "description": "Digital output push-pull"
         },
         {
           "name": "SYS_IO_MODE_OUTPUT_OPEN_DRAIN",
           "value": 4,
           "alias": "Output Open-Drain",
-          "description": "A weaker output that can only actively pull the signal to \"off\" - something else (an external resistor, or the Open-Drain-Pullup option) is needed to make it read \"on\". Mainly used when several devices need to share the same wire"
+          "description": "Digital output open-drain"
         },
         {
           "name": "SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP",
           "value": 5,
           "alias": "Output Open-Drain-Pullup",
-          "description": "Same as Open-Drain, but with a built-in helper enabled so the pin reads \"on\" by itself instead of needing an extra part"
+          "description": "Digital output open-drain with pull-up"
         },
         {
           "name": "SYS_IO_MODE_PWM",
           "value": 6,
           "alias": "PWM",
-          "description": "Rapidly switches the pin on and off to fake an in-between level - use to dim an LED or control a motor's speed"
+          "description": "PWM output"
         },
         {
           "name": "SYS_IO_MODE_ADC",
           "value": 7,
           "alias": "ADC",
-          "description": "Measures the exact voltage on the pin instead of just on/off - use to read sensors that report a varying value, like a potentiometer or a temperature sensor"
+          "description": "Analog ADC input"
         },
         {
           "name": "SYS_IO_MODE_DAC",
           "value": 8,
           "alias": "DAC",
-          "description": "Outputs an exact, steady voltage level instead of just on/off - the opposite of ADC"
+          "description": "Analog DAC output"
         }
       ]
     },
@@ -641,13 +810,13 @@
           "name": "SYS_POWER_ALERT_OCP_WARNING",
           "value": 0,
           "alias": "Warning",
-          "description": "A first, lower current threshold"
+          "description": "OCP warning threshold"
         },
         {
           "name": "SYS_POWER_ALERT_OCP_CRITICAL",
           "value": 1,
           "alias": "Critical",
-          "description": "A second, higher current threshold"
+          "description": "OCP critical threshold"
         }
       ]
     },
@@ -666,7 +835,26 @@
           "name": "SYS_POWER_BATTERY_LIPO",
           "value": 1,
           "alias": "LiPo",
-          "description": "Lithium polymer, 4.2 V per cell when full"
+          "description": "Lithium polymer, 4.2V/cell"
+        }
+      ]
+    },
+    "sys_power_ext_input_e": {
+      "alias": "External input source",
+      "kind": "enum",
+      "source_file": "components/sys/sys_power_manager/sys_power_manager.h",
+      "members": [
+        {
+          "name": "SYS_POWER_EXT_BENCH",
+          "value": 0,
+          "alias": "Bench supply",
+          "description": "Bench power supply"
+        },
+        {
+          "name": "SYS_POWER_EXT_BATTERY",
+          "value": 1,
+          "alias": "Battery pack",
+          "description": "Battery pack"
         }
       ]
     },
@@ -685,61 +873,61 @@
           "name": "SYS_POWER_KIND_OVP",
           "value": 1,
           "alias": "Over-voltage",
-          "description": "A rail's voltage went above its limit"
+          "description": "Overvoltage event"
         },
         {
           "name": "SYS_POWER_KIND_UVP",
           "value": 2,
           "alias": "Under-voltage",
-          "description": "A rail's voltage fell below its limit"
+          "description": "Undervoltage event"
         },
         {
           "name": "SYS_POWER_KIND_SPC",
           "value": 3,
           "alias": "Short circuit",
-          "description": "A rail is shorted"
+          "description": "Short circuit event"
         },
         {
           "name": "SYS_POWER_KIND_OCP_WARNING",
           "value": 4,
           "alias": "Over-current warning",
-          "description": "A rail's current passed the warning threshold"
+          "description": "Overcurrent warning"
         },
         {
           "name": "SYS_POWER_KIND_OCP_CRITICAL",
           "value": 5,
           "alias": "Over-current critical",
-          "description": "A rail's current passed the critical threshold"
+          "description": "Overcurrent critical"
         },
         {
           "name": "SYS_POWER_KIND_OTP",
           "value": 6,
           "alias": "Over-temperature",
-          "description": "A rail's regulator is too hot"
+          "description": "Overtemperature event"
         },
         {
           "name": "SYS_POWER_KIND_BATTERY_LOW",
           "value": 7,
           "alias": "Battery low",
-          "description": "The battery is low"
+          "description": "Battery low"
         },
         {
           "name": "SYS_POWER_KIND_BATTERY_CRITICAL",
           "value": 8,
           "alias": "Battery critical",
-          "description": "The battery is nearly empty"
+          "description": "Battery critical"
         },
         {
           "name": "SYS_POWER_KIND_BUDGET_EXCEEDED",
           "value": 9,
           "alias": "Power budget exceeded",
-          "description": "The rails ask for more power than the source gives"
+          "description": "Power budget exceeded"
         },
         {
           "name": "SYS_POWER_KIND_SOURCE_CHANGED",
           "value": 10,
           "alias": "Power source changed",
-          "description": "The board is now fed from another source"
+          "description": "Power source changed"
         }
       ]
     },
@@ -752,25 +940,25 @@
           "name": "SYS_POWER_RESPONSE_NOTIFY",
           "value": 0,
           "alias": "Notify",
-          "description": "Only raise the event"
+          "description": "Raise event only"
         },
         {
           "name": "SYS_POWER_RESPONSE_DISABLE",
           "value": 1,
           "alias": "Disable",
-          "description": "Suspend the affected output: that rail, or every rail for a board-level event"
+          "description": "Suspend affected output"
         },
         {
           "name": "SYS_POWER_RESPONSE_RESET",
           "value": 2,
           "alias": "Reset",
-          "description": "Reset the affected device: that rail, or every rail for a board-level event"
+          "description": "Reset affected device"
         },
         {
           "name": "SYS_POWER_RESPONSE_SAFE_STATE",
           "value": 3,
           "alias": "Safe State",
-          "description": "Stop the program and suspend every device"
+          "description": "Stop program and enter safe state"
         }
       ]
     },
@@ -783,24 +971,25 @@
           "name": "SYS_POWER_SOURCE_UNKNOWN",
           "value": 0,
           "alias": "Unknown",
-          "description": "Not identified; the budget uses the measured input voltage and the board's assumed current"
+          "description": "Source unknown"
         },
         {
           "name": "SYS_POWER_SOURCE_USB",
           "value": 1,
-          "alias": "Usb"
+          "alias": "Usb",
+          "description": "USB source"
         },
         {
           "name": "SYS_POWER_SOURCE_PSU",
           "value": 2,
           "alias": "Power Supply",
-          "description": "External supply; the budget uses the input voltage and the current entered by the user"
+          "description": "External power supply"
         },
         {
           "name": "SYS_POWER_SOURCE_BATTERY",
           "value": 3,
           "alias": "Battery",
-          "description": "Battery; the budget uses the measured voltage, current limited only by the board"
+          "description": "Battery source"
         }
       ]
     },
@@ -813,19 +1002,19 @@
           "name": "SYS_POWER_SUPPLY_OFF",
           "value": 0,
           "alias": "Off",
-          "description": "The load is not fed"
+          "description": "Output unpowered"
         },
         {
           "name": "SYS_POWER_SUPPLY_A",
           "value": 1,
           "alias": "Source A",
-          "description": "The load is fed from source A of the power mux"
+          "description": "Output fed from source A"
         },
         {
           "name": "SYS_POWER_SUPPLY_B",
           "value": 2,
           "alias": "Source B",
-          "description": "The load is fed from source B of the power mux"
+          "description": "Output fed from source B"
         }
       ]
     },
@@ -838,19 +1027,19 @@
           "name": "SYS_POWER_USB_PD_OPTION_FIXED",
           "value": 0,
           "alias": "Fixed",
-          "description": "A fixed voltage."
+          "description": "Fixed voltage supply PDO"
         },
         {
           "name": "SYS_POWER_USB_PD_OPTION_PPS",
           "value": 1,
           "alias": "PPS",
-          "description": "Programmable voltage within a range (standard power range, up to 21 V)."
+          "description": "Programmable Power Supply PDO"
         },
         {
           "name": "SYS_POWER_USB_PD_OPTION_AVS",
           "value": 2,
           "alias": "AVS",
-          "description": "Adjustable voltage within a range (extended power range, up to 28 V)."
+          "description": "Adjustable Voltage Supply PDO"
         }
       ]
     },
@@ -863,13 +1052,13 @@
           "name": "TRANSPORT_UART",
           "value": 1,
           "alias": "Serial",
-          "description": "The console UART"
+          "description": "Serial console UART"
         },
         {
           "name": "TRANSPORT_BLE",
           "value": 2,
           "alias": "Bluetooth LE",
-          "description": "The BLE link"
+          "description": "Bluetooth Low Energy"
         }
       ]
     },
@@ -1064,52 +1253,62 @@
         {
           "name": "VM_EXEC_SCAN_MODE",
           "value": 0,
-          "alias": "Scan mode"
+          "alias": "Scan mode",
+          "description": "Scan mode"
         },
         {
           "name": "VM_EXEC_ONCE",
           "value": 1,
-          "alias": "Once"
+          "alias": "Once",
+          "description": "Once"
         },
         {
           "name": "VM_EXEC_BLOCK_MODE",
           "value": 2,
-          "alias": "Block mode"
+          "alias": "Block mode",
+          "description": "Block mode"
         },
         {
           "name": "VM_EXEC_NEXT",
           "value": 3,
-          "alias": "Next"
+          "alias": "Next",
+          "description": "Next"
         },
         {
           "name": "VM_EXEC_RESET_TO_START",
           "value": 4,
-          "alias": "Reset to start"
+          "alias": "Reset to start",
+          "description": "Reset to start"
         },
         {
           "name": "VM_EXEC_NORMAL_MODE",
           "value": 5,
-          "alias": "Normal mode"
+          "alias": "Normal mode",
+          "description": "Normal mode"
         },
         {
           "name": "VM_EXEC_PAUSE",
           "value": 6,
-          "alias": "Pause"
+          "alias": "Pause",
+          "description": "Pause"
         },
         {
           "name": "VM_EXEC_RESUME",
           "value": 7,
-          "alias": "Resume"
+          "alias": "Resume",
+          "description": "Resume"
         },
         {
           "name": "VM_EXEC_RESET",
           "value": 8,
-          "alias": "Reset"
+          "alias": "Reset",
+          "description": "Reset"
         },
         {
           "name": "VM_EXEC_ACK_FAULT",
           "value": 9,
-          "alias": "Ack fault"
+          "alias": "Ack fault",
+          "description": "Ack fault"
         },
         {
           "name": "VM_EXEC_RETAIN_CLEAR",
@@ -1435,19 +1634,19 @@
           "name": "VM_IDX_LITERAL",
           "value": 0,
           "alias": "Literal Index",
-          "description": "A fixed array position."
+          "description": "Literal index: a fixed array position"
         },
         {
           "name": "VM_IDX_REF",
           "value": 1,
           "alias": "Accessor Reference",
-          "description": "Read another accessor to obtain the index."
+          "description": "Accessor reference: read another accessor to obtain the index"
         },
         {
           "name": "VM_IDX_NAME",
           "value": 2,
           "alias": "Child Name",
-          "description": "Find a child object by its tag."
+          "description": "Child name: find a child object by its tag"
         }
       ]
     },
@@ -1479,13 +1678,13 @@
           "name": "VM_OBJ_NONE",
           "value": 0,
           "alias": "Empty",
-          "description": "No payload type."
+          "description": "Empty: no payload type"
         },
         {
           "name": "VM_OBJ_PTR",
           "value": 1,
           "alias": "Object Reference",
-          "description": "A reference to another VM object.",
+          "description": "Object reference: reference to another VM object (wire: 2B, mem: 4B)",
           "wire_size": 2,
           "mem_size": 4
         },
@@ -1493,6 +1692,7 @@
           "name": "VM_OBJ_U8",
           "value": 2,
           "alias": "Unsigned 8-bit Integer",
+          "description": "Unsigned 8-bit integer (wire: 1B, mem: 1B)",
           "wire_size": 1,
           "mem_size": 1
         },
@@ -1500,6 +1700,7 @@
           "name": "VM_OBJ_U32",
           "value": 3,
           "alias": "Unsigned 32-bit Integer",
+          "description": "Unsigned 32-bit integer (wire: 4B, mem: 4B)",
           "wire_size": 4,
           "mem_size": 4
         },
@@ -1507,6 +1708,7 @@
           "name": "VM_OBJ_I32",
           "value": 4,
           "alias": "Signed 32-bit Integer",
+          "description": "Signed 32-bit integer (wire: 4B, mem: 4B)",
           "wire_size": 4,
           "mem_size": 4
         },
@@ -1514,6 +1716,7 @@
           "name": "VM_OBJ_F",
           "value": 5,
           "alias": "Float",
+          "description": "32-bit float (wire: 4B, mem: 4B)",
           "wire_size": 4,
           "mem_size": 4
         },
@@ -1521,6 +1724,7 @@
           "name": "VM_OBJ_B",
           "value": 6,
           "alias": "Boolean",
+          "description": "Boolean (wire: 1B, mem: 1B)",
           "wire_size": 1,
           "mem_size": 1
         },
@@ -1528,6 +1732,7 @@
           "name": "VM_OBJ_STR",
           "value": 7,
           "alias": "Text",
+          "description": "Text string (wire: 1B, mem: 1B)",
           "wire_size": 1,
           "mem_size": 1
         }
@@ -1623,42 +1828,55 @@
           "name": "VM_WIRE_HEAD_F_MUTABLE",
           "value": 1,
           "alias": "Writable",
-          "description": "The program and the app may write the object at run time"
+          "description": "Writable at run time"
         },
         {
           "name": "VM_WIRE_HEAD_F_UPD_RESETABLE",
           "value": 4,
           "alias": "Fresh-tracked",
-          "description": "The object's freshness is cleared at the end of every pass; blocks that wait for a fresh value need it"
+          "description": "Freshness cleared at end of pass"
         },
         {
           "name": "VM_WIRE_HEAD_F_TAGGED",
           "value": 8,
           "alias": "Named by the board",
-          "description": "Sent by the board (telemetry): the name follows; the loader derives it"
+          "description": "Named by the board"
         },
         {
           "name": "VM_WIRE_HEAD_F_RETENTIVE",
           "value": 16,
           "alias": "Retained",
-          "description": "The value is saved and restored after a restart"
+          "description": "Retained after restart"
         },
         {
           "name": "VM_WIRE_HEAD_F_DYNAMIC",
           "value": 32,
           "alias": "Heap object",
-          "description": "Sent by the board only: a heap object; never taken from the wire"
+          "description": "Heap object"
         },
         {
           "name": "VM_WIRE_HEAD_F_USR_PROTECTED",
           "value": 64,
           "alias": "User-protected",
-          "description": "The app's runtime writes are refused"
+          "description": "User runtime writes refused"
         }
       ]
     }
   },
   "symbols": {
+    "DEVICE_ID_ADS7128": "board_device",
+    "DEVICE_ID_AP33772S": "board_device",
+    "DEVICE_ID_DAC53202": "board_device",
+    "DEVICE_ID_DRV8962_0": "board_device",
+    "DEVICE_ID_DRV8962_1": "board_device",
+    "DEVICE_ID_GPIO_ESP": "board_device",
+    "DEVICE_ID_INA3221": "board_device",
+    "DEVICE_ID_PCA9685": "board_device",
+    "DEVICE_ID_SUPPLY_DRV8962_0": "board_device",
+    "DEVICE_ID_SUPPLY_DRV8962_1": "board_device",
+    "DEVICE_ID_TCA6424A": "board_device",
+    "DEVICE_ID_TPS55289_1": "board_device",
+    "DEVICE_ID_TPS55289_2": "board_device",
     "DRV8962_TOPOLOGY_2_FULL_BRIDGES": "drv8962_topology_e",
     "DRV8962_TOPOLOGY_4_HALF_BRIDGES": "drv8962_topology_e",
     "ERR_SEV_CRITICAL": "err_sev_e",
@@ -1689,6 +1907,17 @@
     "ROUTER_STATUS_OK": "router_status_e",
     "SERVO_TYPE_ANGLE": "servo_type_e",
     "SERVO_TYPE_CONTINUOUS": "servo_type_e",
+    "SYS_ACTIONS_CLASS_DEVICE": "action_class",
+    "SYS_ACTIONS_CLASS_PROJECT": "action_class",
+    "SYS_ACTIONS_CLASS_SYSTEM": "action_class",
+    "SYS_ACTIONS_CLASS_USER": "action_class",
+    "SYS_ACTIONS_ID_BLE": "settings_record",
+    "SYS_ACTIONS_ID_CONN": "settings_record",
+    "SYS_ACTIONS_ID_LOG": "settings_record",
+    "SYS_ACTIONS_ID_POWER_BATTERY": "settings_record",
+    "SYS_ACTIONS_ID_POWER_CFG": "settings_record",
+    "SYS_ACTIONS_ID_POWER_PSU": "settings_record",
+    "SYS_ACTIONS_ID_POWER_RESPONSES": "settings_record",
     "SYS_CONNECTOR_APP_BASE": "sys_connector_id_e",
     "SYS_CONNECTOR_ERRORS": "sys_connector_id_e",
     "SYS_CONNECTOR_EVENTS": "sys_connector_id_e",
@@ -1745,6 +1974,8 @@
     "SYS_POWER_ALERT_OCP_WARNING": "sys_power_alert_e",
     "SYS_POWER_BATTERY_LIPO": "sys_power_battery_e",
     "SYS_POWER_BATTERY_NONE": "sys_power_battery_e",
+    "SYS_POWER_EXT_BATTERY": "sys_power_ext_input_e",
+    "SYS_POWER_EXT_BENCH": "sys_power_ext_input_e",
     "SYS_POWER_KIND_BATTERY_CRITICAL": "sys_power_kind_e",
     "SYS_POWER_KIND_BATTERY_LOW": "sys_power_kind_e",
     "SYS_POWER_KIND_BUDGET_EXCEEDED": "sys_power_kind_e",

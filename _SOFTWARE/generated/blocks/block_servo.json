@@ -14,6 +14,7 @@
     "pwm"
   ],
   "integration": "custom",
+  "state_len": 56,
   "device": {
     "device_type": "servo"
   },
@@ -59,16 +60,13 @@
       "id": "position",
       "alias": "Position",
       "description": "Moves the servo to a position. The position is sent only when it changes.",
+      "op": "set",
       "header": {
-        "subtitle": "Move to {position}"
+        "subtitle": "Move to {value_x10}"
       },
-      "fields": [
-        {
-          "id": "position",
+      "args": {
+        "value_x10": {
           "alias": "Position",
-          "description": "Where to move; a wired position wins over the one in the body. The device rejects a value out of its range.",
-          "type": "number",
-          "raw_type": "i16",
           "scale": 10,
           "required": true,
           "input": "optional",
@@ -122,11 +120,12 @@
             }
           ]
         }
-      ]
+      }
     },
     {
       "id": "home",
       "alias": "Home",
+      "op": "home",
       "description": "Moves the servo to its default position (plus the trim) once on each rising enable.",
       "activation": {
         "kind": "enable-rising",
@@ -139,6 +138,7 @@
     {
       "id": "release",
       "alias": "Release",
+      "op": "release",
       "description": "Stops the pulse so the servo goes limp, once on each rising enable. The next position or home drives it again.",
       "activation": {
         "kind": "enable-rising",
@@ -152,21 +152,18 @@
       "id": "trim",
       "alias": "Trim",
       "description": "Sets a correction added to every move; it applies from the next move.",
+      "op": "set_trim",
       "header": {
         "subtitle": "Trim {trim}"
       },
-      "fields": [
-        {
-          "id": "trim",
+      "args": {
+        "trim": {
           "alias": "Trim",
-          "type": "number",
-          "raw_type": "i16",
           "input": "optional",
           "accepts": [
             "number",
             "accessor"
           ],
-          "default": 0,
           "hints": [
             {
               "text": "Angle servo: degrees",
@@ -186,7 +183,7 @@
             }
           ]
         }
-      ]
+      }
     }
   ]
 }

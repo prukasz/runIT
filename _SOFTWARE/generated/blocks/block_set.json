@@ -15,6 +15,7 @@
     "store"
   ],
   "integration": "core",
+  "state_len": 8,
   "activation": {
     "kind": "triggered",
     "text": "Runs when the source is fresh, or on each pass an enable fires (an open gate, a tick). With no source it writes the constant when an enable fires, once at start when none is wired."

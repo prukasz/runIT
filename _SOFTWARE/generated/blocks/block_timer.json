@@ -19,6 +19,7 @@
     "iec"
   ],
   "integration": "core",
+  "state_len": 32,
   "activation": {
     "kind": "enabled",
     "text": "Runs every pass, also when its enable is off: a disabled timer sees a false signal, so an off-delay or a pulse finishes on its own and an on-delay resets."

@@ -10,6 +10,7 @@
   "order": 10,
   "tags": ["condition", "branch", "route", "else", "decision"],
   "integration": "core",
+  "state_len": 0,
   "activation": { "kind": "enabled", "text": "Decides on every pass while enabled." },
   "header": { "subtitle": "if {condition}" },
   "inputs": [

@@ -18,6 +18,7 @@
     "discharge"
   ],
   "integration": "custom",
+  "state_len": 56,
   "device": {
     "device_type": "tps55289"
   },

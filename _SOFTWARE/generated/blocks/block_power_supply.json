@@ -18,6 +18,7 @@
     "usb"
   ],
   "integration": "contract",
+  "state_len": 56,
   "device": {
     "contract": "POWER_SUPPLY"
   },

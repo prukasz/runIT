@@ -14,6 +14,7 @@ menu "VM Configuration"
             help
                 Core affinity for VM supervisor task (default 1 to keep core 0 free for BLE).
 
+        #@limit @alias Nested span depth @unit levels
         config VM_EXEC_MAX_SPAN_DEPTH
             int "Maximum nested execution span depth"
             default 4
@@ -51,6 +52,7 @@ menu "VM Configuration"
                 if any changed. Also saved on program teardown and on the safe
                 state; an unplanned power loss loses at most one period.
 
+        #@limit @alias Retained values record @unit bytes
         config VM_RETAIN_MAX_BYTES
             int "Maximum retained bytes"
             default 1024
@@ -79,42 +81,49 @@ menu "VM Configuration"
 
     menu "VM Block & Memory Limits"
 
+        #@limit @alias Inputs per block @unit pins
         config VM_BLOCK_MAX_IN
             int "Maximum input accessors per block"
             default 16
             help
                 Maximum number of input accessors allowed for a single VM execution block.
 
+        #@limit @alias Outputs per block @unit pins
         config VM_BLOCK_MAX_OUT
             int "Maximum output objects per block"
             default 16
             help
                 Maximum number of output objects allowed for a single VM execution block.
 
+        #@limit @alias Enables per block @unit pins
         config VM_BLOCK_MAX_EN
             int "Maximum enable accessors per block"
             default 16
             help
                 Maximum number of enable accessors allowed for a single VM execution block.
 
+        #@limit @alias Program arena @unit bytes
         config VM_STORE_MAX_POOL
             int "Maximum program arena pool size (bytes)"
             default 131072
             help
                 Hard ceiling in bytes for the bump-allocated program storage arena.
 
+        #@limit @alias Accessor depth @unit levels
         config VM_ACCESSOR_MAX_DEPTH
             int "Maximum accessor path resolution depth"
             default 8
             help
                 Maximum chain depth when resolving nested accessor paths.
 
+        #@limit @alias Object copy depth @unit levels
         config VM_OBJ_COPY_MAX_DEPTH
             int "Maximum object copy recursion depth"
             default 8
             help
                 Maximum tree recursion depth allowed when copying objects.
 
+        #@limit @alias Dynamic objects @unit objects
         config VM_DYN_MAX
             int "Maximum concurrent dynamic objects"
             default 128
@@ -127,6 +136,7 @@ menu "VM Configuration"
             help
                 Maximum allowed ownership path depth in dynamic object graph.
 
+        #@limit @alias Subscribed objects @unit objects
         config VM_SUB_MAX_SUBSCRIBERS
             int "Maximum subscribed object IDs"
             default 128
@@ -134,12 +144,14 @@ menu "VM Configuration"
                 Maximum count of object IDs that can be subscribed to simultaneously.
                 A subscribe packet with more IDs is refused.
 
+        #@limit @alias Telemetry frame @unit bytes
         config VM_SUB_MAX_FRAME_LEN
             int "Maximum telemetry frame length (bytes)"
             default 512
             help
                 Maximum byte size of a generated telemetry output packet.
 
+        #@limit @alias Tracked objects @unit objects
         config VM_SUB_MAX_TRACKED
             int "Maximum objects reachable from subscriptions"
             default 256

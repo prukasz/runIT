@@ -10,6 +10,7 @@
   "order": 50,
   "tags": ["power", "regulator", "voltage", "current limit", "supply", "rail", "tps55289"],
   "integration": "contract",
+  "state_len": 56,
   "device": { "contract": "POWER_VREG" },
   "activation": {
     "kind": "enabled",

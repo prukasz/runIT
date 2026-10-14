@@ -17,6 +17,7 @@
     "settings"
   ],
   "integration": "core",
+  "state_len": 8,
   "activation": {
     "kind": "enable-rising",
     "text": "Runs once each time its enable turns on. A pulse from Edge, Every or On event fires it once per pulse; a block with no enable sources fires once, when the program starts."
