@@ -4,12 +4,15 @@ import limitsJson from '@generated/common/limits.json'
 import actionsContract from '@generated/services/contract_actions.json'
 import projectContract from '@generated/services/contract_project.json'
 import type { EnumTables } from '@engine/generated/wire'
+import { ServiceCatalog } from './catalog/services'
+import type { DescriptorFile } from './catalog/services'
 
 /*
- * The numbers of the link, read from what the firmware publishes (generated/common): the router's keys, flags, status and
- * the stream bytes (`enums.json`), the runIT GATT UUIDs and the fragment header bits of `sys_ble` (`enums.json`, groups
- * `ble_runit_uuid` and `ble_frag`), the largest frame (`limits.json`) and the error tags (`errors.json`). Nothing here is a
- * number typed in by hand; a symbol the firmware stops publishing stops the load with a message that names it.
+ * The one file of the backend that reads generated/. The numbers of the link (generated/common): the router's keys, flags,
+ * status and the stream bytes (`enums.json`), the runIT GATT UUIDs and the fragment header bits of `sys_ble` (`enums.json`,
+ * groups `ble_runit_uuid` and `ble_frag`), the largest frame (`limits.json`) and the error tags (`errors.json`); and every
+ * command of every router (the service, contract and device descriptors, `bundledServiceCatalog`). Nothing here is a number
+ * typed in by hand; a symbol the firmware stops publishing stops the load with a message that names it.
  */
 
 export interface LinkDefinitions {
@@ -89,6 +92,29 @@ export const bundledLinkDefinitions = (): LinkDefinitions => {
   if (!limit) throw new Error("generated/common/limits.json has no limit 'ROUTER_FRAME_MAX'.")
   return linkDefinitions((enumsJson as unknown as { enums: EnumTables }).enums, limit.value)
 }
+
+/* ---- every command ---- */
+
+/*
+ * The descriptors of the bundle: every system service, device contract and device type. Vite resolves the globs at build time, so
+ * a new `contract_*.json` / `device_*.json` in generated/ is picked up with nothing to edit (the rule of
+ * templates/generate_bundle.py).
+ */
+const descriptorFiles = (modules: Record<string, unknown>): DescriptorFile[] =>
+  Object.keys(modules)
+    .sort()
+    .map((path) => ({ source: path.replace(/^.*\/generated\//, 'generated/'), json: modules[path] }))
+
+/** The catalog of every command the bundled firmware descriptors describe. */
+export const bundledServiceCatalog = (): ServiceCatalog =>
+  new ServiceCatalog(
+    [
+      ...descriptorFiles(import.meta.glob('@generated/services/contract_*.json', { eager: true, import: 'default' })),
+      ...descriptorFiles(import.meta.glob('@generated/contracts/contract_*.json', { eager: true, import: 'default' })),
+      ...descriptorFiles(import.meta.glob('@generated/devices/device_*.json', { eager: true, import: 'default' })),
+    ],
+    (enumsJson as unknown as { enums: EnumTables }).enums,
+  )
 
 /* ---- error tags ---- */
 

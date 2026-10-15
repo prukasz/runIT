@@ -1,6 +1,6 @@
 # The backend: the link to a board (for agents)
 
-`runit-app/src/backend/`: commands, streams and a connection that keeps itself up, over BLE. No UI, no DOM beyond the Web Bluetooth platform. Written from the firmware (`components/sys/sys_ble/`, `components/core/router/`) and `generated/common/`.
+`runit-app/src/backend/`: commands, streams and a connection that keeps itself up, over BLE. No UI, no DOM beyond the Web Bluetooth platform. Written from the firmware (`components/sys/sys_ble/`, `components/core/router/`) and `generated/`.
 
 ```ts
 const link = new RunitLink(new WebBluetoothPlatform(bundledLinkDefinitions()))
@@ -15,10 +15,36 @@ await sendProgram(link, engine.compile(project).frames, { onProgress: (done, tot
 
 | Module | What it is |
 |---|---|
-| `definitions.ts` | The only file that reads `generated/common/`: router keys, flags, status, stream bytes, the runIT GATT UUIDs and the fragment bits (`ble_runit_uuid`, `ble_frag` in `enums.json`), `ROUTER_FRAME_MAX` (`limits.json`), the error tags (`errors.json`). A symbol the firmware stops publishing stops the load with a message that names it. |
-| `protocol/` | `frames.ts`: request `[seq][flags][keys…][payload]`, response `[stream][seq][status][data]` (ROUTER.MD). `errors.ts`: the error record (source, command, chain of tags with their fields, named from `errors.json`). |
+| `definitions.ts` | The only file that reads `generated/`: router keys, flags, status, stream bytes, the runIT GATT UUIDs and the fragment bits (`ble_runit_uuid`, `ble_frag` in `enums.json`), `ROUTER_FRAME_MAX` (`limits.json`), the error tags (`errors.json`); and every service, contract and device descriptor (`bundledServiceCatalog`, a glob: a new file is picked up). A symbol the firmware stops publishing stops the load with a message that names it. |
+| `catalog/` | `services.ts`: `ServiceCatalog`, every command of every router as the descriptors describe it, and what does not hold together in them (`problems`). `codec.ts`: a payload from field values and back, by the descriptor's layout. |
+| `protocol/` | `frames.ts`: request `[seq][flags][keys…][payload]`, response `[stream][seq][status][data]` (ROUTER.MD). `errors.ts`: the error record (source, command, chain of tags with their fields, named from `errors.json`). `services.ts`: the request of any catalog command and its answer decoded. |
 | `transport/` | `types.ts`: what a BLE platform provides (`requestDevice`, `knownDevices`, `open` → a channel to write packets to, packets and a loss notice back). `framing.ts`: a frame to packets and back, as the firmware does it (SYS_BLE.MD "Framing"). `webBluetooth.ts`: the Web Bluetooth platform. |
-| `session/` | `commands.ts`: sequence bytes, answers by seq, timeouts, pipelining, answers in parts. `link.ts`: `RunitLink`, the connection. `send.ts`: `sendInOrder` / `sendProgram`, a list of requests sent in order. `project.ts`: stored records, the project stream, reading a project back. |
+| `session/` | `commands.ts`: sequence bytes, answers by seq, timeouts, pipelining, answers in parts. `link.ts`: `RunitLink`, the connection. `send.ts`: `sendInOrder` / `sendProgram`, a list of requests sent in order. `services.ts`: `Services`, the catalog's commands over the link. `project.ts`: stored records, the project stream, reading a project back. |
+
+## Every command, from the descriptors
+
+The backend names no service, contract, command or field: it reads them from the descriptors the firmware publishes (`templates/contract.schema.json`, `device.schema.json`). How an entry is addressed follows from what its descriptor has:
+
+| Entry | Has | Request |
+|---|---|---|
+| service | `router_key` (`generated/services`) | `[router key][op][args]` |
+| device contract | `contract_id`, no router key (`generated/contracts`) | `[device key][device id u16][(contract id << 8) \| op u16][args]` (SYS_DEVICE.MD "Ops") |
+| device type | `type_id` (`generated/devices`) | its own ops in contract `SYS_DEVICE_CONTRACT_OWN`; CREATE (device contract `SYS_DEVICE_CONTRACT_DEVICE`) carries `[type u16][config]` |
+
+```ts
+const services = new Services(link)                                              // the bundled catalog by default
+const { value } = await services.call('SYS', 'PING')                             // { uptime_ms: 1234 }
+await services.call('SYS', 'DEADMAN_SET', { timeout_ms: 500, on_link_lost: true })
+await services.device(3, 'IO', 'SET_LEVEL', { pin: 22, level: 'High' })         // a choice by its label, an enum by its member name
+await services.device(9, 'servo', 'set', { value_x10: 900 })                     // a device type's own op
+await services.create(20, 'servo', { … })                                         // the fields of device_servo.json's config
+storeRecord(link, 10, [requestFrame(deviceCall(defs, catalog, 3, 'IO', 'TOGGLE', { pin: 22 }).request)])   // the same request in a record
+```
+
+- **Layout**: a field sits at its `offset` (or after the one before), is `size` bytes (or its `raw_type`'s width); a number field of several widths is an array (`u32` of 16 B is a list of 4); a `bytes` / `string` field without a size runs to the end and is last; a `string` ends in one NUL (`cmd_name_arg`). Little endian.
+- **Values** are given by field id. A missing field takes its `default`, an optional one zero; else the call throws `PayloadError`, as it does for a field id that is not there, a value outside the raw type or the descriptor's `min` / `max`, and an unknown choice label or enum member. A command marked `urgent` is sent urgent.
+- **Answers** are decoded by `returns`: a struct by field id (booleans as booleans), a value, or a list of either. A value that only leads the answer (a count, the rest described in words: `CONNECTOR INFO`, `BLE LIST`) is read from the front; `Answer.data` keeps the bytes.
+- **Problems**: overlapping fields, a field that does not fit its raw type, a router key or contract id the firmware does not publish (`router_key`, `device_contract` in `enums.json`), an op twice, a device naming a contract nobody describes. They go to `catalog.problems`; the rest of the catalog stays usable. `services.test.ts` holds the bundle at none, and holds every layout of a packed C struct against the struct in `components/**/*.h` (its size, each field inside the member of its name).
 
 ## The connection
 
@@ -74,6 +100,7 @@ const recovered = engine.recover(stored.program.flatMap((f) => programFrameOf(de
 | Frame limit | `limits.json` (`ROUTER_FRAME_MAX`) | `protocol.test.ts` reads the router Kconfig |
 | Error record | `ROUTER.MD`, `errors.json` | `protocol.test.ts` decodes the example of ROUTER.MD |
 | Ops of the `actions` and `project` routers | `generated/services/contract_actions.json`, `contract_project.json` | `project.test.ts`: the requests carry the ops and payload layouts the board accepted |
+| Every other command, its arguments and answer | `generated/services`, `generated/contracts`, `generated/devices`; `device_contract` in `enums.json` | `services.test.ts`: no problems in the bundle; every packed struct's layout against its C typedef; a device request equals the frame of the stored-project fixture |
 | The stored project's records, the stream | `SYS_PROJECT.MD`, `SYS_ACTIONS.MD` | `fixtures/stored-project.json`: the stream, its CRC and every record read back from a board |
 
 ## Tests
@@ -102,3 +129,4 @@ const recovered = engine.recover(stored.program.flatMap((f) => programFrameOf(de
 - No heartbeat: a silent link is found by the write and stall rules or by the OS supervision timeout (2 s on the firmware side). The dead-man (`sys` DEADMAN_SET) is the firmware's own check of the app.
 - Web Bluetooth cannot read the MTU, the RSSI or the connection parameters; a native platform can implement `BlePlatform` and give them.
 - Only BLE. A UART or Wi-Fi platform would implement the same channel; `RunitLink` fragments for BLE only.
+- `Services` has run against a fake platform only. Answers whose layout a descriptor gives only in words (`CONNECTOR INFO`, `BLE LIST`, the logs and events streams) are not decoded past their leading value. A pin reference field (`pin_ref`, a `sys_io_pin_t`) is given as its 3 bytes. `inherits` of a contract is not followed.
