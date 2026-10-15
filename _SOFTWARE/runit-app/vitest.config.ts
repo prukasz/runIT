@@ -8,6 +8,7 @@ export default defineConfig({
     alias: {
       '@generated': at('../generated'),
       '@engine': at('./src/engine'),
+      '@backend': at('./src/backend'),
     },
   },
   test: {

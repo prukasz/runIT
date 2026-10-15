@@ -1,6 +1,6 @@
 ---
 name: runit-root
-description: Entry point for any new session in the runIT repo. Gives project vision, hardware, repo map, which sub-skill to load (runit-esp for firmware, runit-templates for descriptors; the app is not written yet) and the rule that every change updates the docs. Load first when starting work, when asked "where are we / what's next", or when a task spans firmware and app.
+description: Entry point for any new session in the runIT repo. Gives project vision, hardware, repo map, which sub-skill to load (runit-esp for firmware, runit-templates for descriptors; the app in `runit-app/` has its own docs) and the rule that every change updates the docs. Load first when starting work, when asked "where are we / what's next", or when a task spans firmware and app.
 ---
 
 # runIT — Root Skill (session entry point)
@@ -17,7 +17,7 @@ description: Entry point for any new session in the runIT repo. Gives project vi
 | Firmware (C, ESP-IDF, FreeRTOS, devices, VM, BLE, errors) | `runit-esp` | `components/`, `main/` |
 | JSON descriptors, schemas and their generators | `runit-templates` | `templates/` |
 
-`runit-esp` maps the firmware: every component has its own `*.MD` (API, wire format) and `AGENTS.md` (rules for changing it), and the skill links them. There is no app yet: the firmware publishes what an app needs as descriptors in `generated/`.
+`runit-esp` maps the firmware: every component has its own `*.MD` (API, wire format) and `AGENTS.md` (rules for changing it), and the skill links them. The app is written in `runit-app/` (VM engine and BLE link so far; start at its `AGENTS.md`); it reads what the firmware publishes as descriptors in `generated/`.
 
 ## 2. Project in one paragraph
 
@@ -33,6 +33,7 @@ runIT is a plug-and-play framework for hobbyists spanning hardware, firmware and
 | `components/devices/` | One component per chip (`device_<chip>/`: create struct and own ops in the header, the driver in `device_<chip>.c`, descriptor `device_<chip>.json`) |
 | `components/vm/` | The VM: `vm_core` (runtime, loader, telemetry; key `0x0B`) and `vm_blocks` (the block palette) |
 | `components/app/runit/` | The application: boot steps, safe state, error policy wiring, board config and stream routing |
+| `runit-app/` | The app, so far without UI: `src/engine` (VM engine: variables, accessors, blocks, formulas, compiler) and `src/backend` (the BLE link: commands, streams, reconnecting) |
 | `templates/`, `generated/` | Descriptor schemas, the generators and `sync.sh`; the published descriptors (`templates/AGENTS.md`) |
 
 **Layers** (a group depends only on the ones before it): `core` → `sys` → `devices` → `vm`; `app/runit` composes them (router keys, boot order). Components are found through `EXTRA_COMPONENT_DIRS` in the root `CMakeLists.txt`: a new component goes into the group of its layer, and no path is listed anywhere else.

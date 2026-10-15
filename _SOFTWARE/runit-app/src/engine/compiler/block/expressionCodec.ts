@@ -1,6 +1,6 @@
-import type { Catalog } from '../catalog/catalog'
-import { expressionLanguage } from '../expression'
-import type { EnumTables } from '../generated/wire'
+import type { Catalog } from '../../catalog/catalog'
+import { expressionLanguage } from '../../expression'
+import type { EnumTables } from '../../generated/wire'
 import type { BlockCodec } from './codecs'
 
 /**

@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { createEngine, DEFAULT_LIMITS } from '@engine'
 import { limitsFromGenerated, loadLimits } from '@engine/generated'
-import { dataChunk, FRAME_OVERHEAD, frameCapacity, frameFill, LIMIT_SYMBOLS } from '@engine/wire/limits'
+import { dataChunk, FRAME_OVERHEAD, frameCapacity, frameFill, LIMIT_SYMBOLS } from '@engine/wire/load/limits'
 import { blk, build, engine, flag, num, project, read } from '../helpers'
 
 /*

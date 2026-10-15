@@ -1,6 +1,6 @@
 # runIT — _SOFTWARE
 
-Plug-and-play framework for hobbyists: ESP32-S3 firmware (ESP-IDF, FreeRTOS), a PLC-style VM uploaded over BLE, and an app (remote, debugger, configurator, block IDE; not written yet: the firmware publishes its descriptors to `generated/` for it).
+Plug-and-play framework for hobbyists: ESP32-S3 firmware (ESP-IDF, FreeRTOS), a PLC-style VM uploaded over BLE, and an app (remote, debugger, configurator, block IDE). The app is being written in `runit-app/` (so far the VM engine and the BLE link, read its `AGENTS.md`); it reads what the firmware publishes in `generated/`.
 
 ## Start of session
 
@@ -10,6 +10,7 @@ Load the `runit-root` skill first. It holds the vision, hardware and repo map. T
 |---|---|---|
 | Firmware (C, devices, VM, BLE, errors, build/flash) | `runit-esp` | `components/`, `main/` |
 | Descriptors, schemas and their generators | `runit-templates` | `templates/` |
+| The app (VM engine, BLE link) | none yet: `runit-app/AGENTS.md`, `runit-app/src/engine/ENGINE.md`, `runit-app/src/backend/BACKEND.md` | `runit-app/` |
 
 Durable notes and gotchas: `.claude/memory.md`.
 

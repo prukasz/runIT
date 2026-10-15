@@ -1,5 +1,5 @@
-import { WIRE_SYMBOLS } from '../wire/definitions'
-import type { WireDefinitions } from '../wire/definitions'
+import { WIRE_SYMBOLS } from '../wire/format/definitions'
+import type { WireDefinitions } from '../wire/format/definitions'
 
 /** The shapes of the generated files this adapter reads (generated/common/enums.json, generated/services/contract_vm.json). */
 export interface EnumMember {

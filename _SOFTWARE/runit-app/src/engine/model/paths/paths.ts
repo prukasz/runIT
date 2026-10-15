@@ -1,6 +1,6 @@
-import type { ObjType } from '../wire/types'
-import { findVariable } from './variables'
-import type { Variable } from './variables'
+import type { ObjType } from '../../wire/format/types'
+import { findVariable } from '../variables/variables'
+import type { Variable } from '../variables/variables'
 
 /*
  * Accessors, as the user sees them: a path that starts at a variable and walks into it. On the board an accessor is a root
@@ -53,7 +53,7 @@ const typeOf = (v: Variable): ObjType => (v.kind === 'value' ? v.type : 'ptr')
 const countOf = (v: Variable): number => (v.kind === 'value' ? v.count : v.kind === 'folder' ? v.children.length : 1)
 
 /** The children a step can pick from: a folder's own, or a reference's one (the variable it points to, as the board's pointer cell holds it). */
-const childrenOf = (tree: readonly Variable[], v: Variable): readonly Variable[] => {
+export const childrenOf = (tree: readonly Variable[], v: Variable): readonly Variable[] => {
   if (v.kind === 'folder') return v.children
   if (v.kind === 'reference') {
     const target = v.target === null ? undefined : findVariable(tree, v.target)
@@ -149,6 +149,22 @@ export const formatPath = (tree: readonly Variable[], path: ObjectPath): string 
   return text
 }
 
+/** A name at `pos`: a plain one (letters, digits, `_`, `-`) or a quoted one (`["front left"]`), and where it ends. */
+export const scanName = (text: string, pos: number): { readonly name: string; readonly end: number } | undefined => {
+  if (text[pos] === '[' && text[pos + 1] === '"') {
+    let at = pos + 2
+    let name = ''
+    while (at < text.length && text[at] !== '"') {
+      if (text[at] === '\\' && at + 1 < text.length) at++
+      name += text[at]
+      at++
+    }
+    return text[at] === '"' && text[at + 1] === ']' ? { name, end: at + 2 } : undefined
+  }
+  const match = /^[\p{L}_][\p{L}\p{N}_-]*/u.exec(text.slice(pos))
+  return match ? { name: match[0], end: pos + match[0].length } : undefined
+}
+
 export type ParsedPath = { readonly ok: true; readonly path: ObjectPath } | { readonly ok: false; readonly message: string; /** Character offset of the problem. */ readonly at: number }
 
 /** Parses the text form (see the grammar above) against the top-level variables of `tree`. */
@@ -157,26 +173,10 @@ export const parsePath = (tree: readonly Variable[], text: string): ParsedPath =
   const error = (message: string, at = pos): ParsedPath => ({ ok: false, message, at })
 
   const readName = (): string | undefined => {
-    const start = pos
-    if (text[pos] === '[' && text[pos + 1] === '"') {
-      pos += 2
-      let out = ''
-      while (pos < text.length && text[pos] !== '"') {
-        if (text[pos] === '\\' && pos + 1 < text.length) pos++
-        out += text[pos]
-        pos++
-      }
-      if (text[pos] !== '"' || text[pos + 1] !== ']') {
-        pos = start
-        return undefined
-      }
-      pos += 2
-      return out
-    }
-    const match = /^[\p{L}_][\p{L}\p{N}_-]*/u.exec(text.slice(pos))
-    if (!match) return undefined
-    pos += match[0].length
-    return match[0]
+    const scanned = scanName(text, pos)
+    if (!scanned) return undefined
+    pos = scanned.end
+    return scanned.name
   }
 
   const readPath = (): ParsedPath => {

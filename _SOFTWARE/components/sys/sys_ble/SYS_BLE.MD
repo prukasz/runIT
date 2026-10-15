@@ -30,7 +30,7 @@ Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-b
 | `0xFFE3` | runit LOGS | notify | TX 4 frames | yes | logs and errors connectors |
 | `0xFFE4` | runit Status | notify | TX 512 B | no | created; nothing sends on it yet |
 
-"4 frames" is `SYS_BLE_BUFF_SIZE_FOR(CONFIG_ROUTER_FRAME_MAX, 4)`. The UUID defines carry `//@STATIC_SERVICE` / `//@STATIC_CHARACTERISTIC` annotations. The device name is `CONFIG_SYS_BLE_DEVICE_NAME` (default `runit`).
+"4 frames" is `SYS_BLE_BUFF_SIZE_FOR(CONFIG_ROUTER_FRAME_MAX, 4)`. The UUIDs and the fragment header bits are published to the app: the groups `ble_runit_uuid` and `ble_frag` in `generated/common/enums.json` (markers in `sys_ble.h`). The device name is `CONFIG_SYS_BLE_DEVICE_NAME` (default `runit`).
 
 ## Framing
 
@@ -122,4 +122,4 @@ Errors raised on the host or BLE task have no caller to return to. They go throu
 
 - No bonding: the link reconnects by itself, with no stored keys.
 - The runIT service is locked: its TX, RX, LOGS and Status characteristics cannot be changed at runtime.
-- The runtime GATT changes, the framing at the full MTU and the advertising have not been verified on hardware.
+- Verified on hardware from Windows (the app's protocol driven through `bleak`): the MTU of 527, the framing at the full MTU (requests in packets of 20 to 512 B, long answers), advertising and reconnecting, a board restart, and a runtime service added with `APPLY` while a client was connected (the client's OS reports no disconnect and invalidates its handles: the app reconnects). Unverified: a central that negotiates a smaller MTU, Android, and the removal of a characteristic of a live service.

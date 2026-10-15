@@ -1,5 +1,5 @@
-import { NAME_MAX } from '../wire/types'
-import type { Scalar } from '../wire/types'
+import { NAME_MAX } from '../../wire/format/types'
+import type { Scalar } from '../../wire/format/types'
 
 /*
  * The user's variables: the tree the program reads and writes. A variable is an object on the board: a value (one element

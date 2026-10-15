@@ -1,4 +1,4 @@
-import type { ProgramIR } from './program'
+import type { ProgramIR } from '../format/program'
 import {
   ACCESSOR_HEADER_SIZE,
   BLOCK_HEADER_SIZE,
@@ -6,7 +6,7 @@ import {
   OBJ_HEAD_SIZE,
   OBJ_WIDTH,
   POINTER_SIZE,
-} from './types'
+} from '../format/types'
 
 const utf8Length = (text: string): number => new TextEncoder().encode(text).length
 

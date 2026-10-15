@@ -1,10 +1,10 @@
-import type { VariableLayout } from '../model/layout'
-import { findVariable } from '../model/variables'
-import type { Variable } from '../model/variables'
-import { resolvePath } from '../model/paths'
-import type { ObjectPath, Target } from '../model/paths'
-import type { AccessorDef } from '../wire/program'
-import type { IndexStep } from '../wire/types'
+import type { VariableLayout } from '../model/variables/layout'
+import { findVariable } from '../model/variables/variables'
+import type { Variable } from '../model/variables/variables'
+import { resolvePath } from '../model/paths/paths'
+import type { ObjectPath, Target } from '../model/paths/paths'
+import type { AccessorDef } from '../wire/format/program'
+import type { IndexStep } from '../wire/format/types'
 
 /*
  * Paths to accessors. An accessor on the board is a root object and index steps; one with no steps, or one literal step on

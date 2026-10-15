@@ -14,13 +14,13 @@ A `Project` is `{ variables, blocks }`, plain data. The engine holds neither a p
 
 | Module | What it is |
 |---|---|
-| `wire/` | The wire format: object / accessor / block records (`records.ts`), batching into frames (`frames.ts`), the arena the board will use (`arena.ts`), what the board refuses at load (`check.ts`), limits and the frame arithmetic (`limits.ts`). Numbers firmware publishes arrive as a `WireDefinitions`. |
+| `wire/` | `format/`: the wire format: object / accessor / block records (`records.ts`), the program (`program.ts`), value encoding (`codec.ts`, `bytes.ts`), types and the numbers firmware publishes (`types.ts`, `definitions.ts`). `load/`: how the board takes it: batching into frames (`frames.ts`), the arena the board will use (`arena.ts`), what it refuses at load (`check.ts`), limits and the frame arithmetic (`limits.ts`). |
 | `generated/` | The one place that reads `generated/`: the wire numbers (`wire.ts`), the board's limits (`limits.ts`) and the descriptor files (`index.ts`, Vite globs). Everything else takes parsed data as arguments. |
 | `catalog/` | The block palette. `fromGenerated.ts` is the only file that knows the descriptor format (`vm-block` v3): it resolves enums, and a device variant's contract / device command into the variant's fields (the arguments), pins and outputs. `shape.ts` gives the pin shape the board checks (`shapeOf`). `layouts.ts`: where the values sit in a device block's state (the descriptor does not describe the struct). |
-| `model/` | The project: `variables.ts` (tree of values, folders, references; edits return a new tree), `paths.ts` (accessors as the user sees them; parse, format, resolve), `layout.ts` (variables as objects: ids, flags, initial data), `program.ts` (`BlockInstance`, `Source`), `pins.ts` (groups expanded), `diagnostics.ts`. |
+| `model/` | The project, one folder per subject. `variables/`: `variables.ts` (tree of values, folders, references; edits return a new tree) and `layout.ts` (variables as objects: ids, flags, initial data). `paths/`: `paths.ts` (accessors as the user sees them; parse, format, resolve) and `pathBuilder.ts` (the accessor builder, below). `program/`: `program.ts` (`BlockInstance`, `Source`), `pins.ts` (groups expanded), `diagnostics.ts`. |
 | `graph/` | `arrange.ts`: execution order (wiring, then the user's order), gates, feedback, loop bodies made contiguous with their spans. |
 | `expression/` | The formula component of the expression blocks (below). Depends on `catalog` types and the generated enums only; `compiler/` uses it. |
-| `compiler/` | `compile.ts` (the pipeline), `accessors.ts` (paths to accessors), `state.ts` + `values.ts` (a block's state bytes), `codecs.ts` (extension point), `expressionCodec.ts` (the codecs of the formula editors). |
+| `compiler/` | `compile.ts` (the pipeline), `accessors.ts` (paths to accessors); `block/`: a block's state bytes (`state.ts`, `values.ts`) and the codecs (`codecs.ts`: the extension point, `expressionCodec.ts`: the formula editors). |
 
 ## Expressions
 
@@ -37,6 +37,23 @@ f.decompile(state)                             // { ok, text } | { ok: false, re
 
 The text is infix with C-like precedence (float: `+ - * / mod % ^ == != < <= > >= and && or || xor not ! ?:`, `true`, `false`, `pi`, `e`; bit: `| ^ & << >> >>> ~`, hex and binary numbers) and `inN` for input N; every opcode that takes stack operands is also a function by its alias or opcode name (`min(a, b)`, `rol(a, 8)`). It compiles to RPN: operands first, `IN` / `K` with one operand byte, constants deduplicated, the stack depth checked against the board's 16. `decompile` prints with the fewest brackets and reads back as the same bytes. In a project the formula is `BlockInstance.editor = { text }`; the codec reports `expression-empty` / `expression-error` (with the character range) as diagnostics.
 
+## The accessor builder
+
+No UI and no engine of its own: it sits on `resolvePath`, so an editor sees exactly what the compiler and the board will. A path is edited as a `PathDraft` (the root variable and a chain of steps; a position read at run time may still be an empty slot).
+
+```ts
+const { draft, problem } = parseDraft(tree, 'table[se')   // tolerant: reads what it can of half-typed text, problem = { message, at }
+inspectDraft(tree, draft)       // { resolution (what it names or why not), empty slots, complete }
+nextSteps(tree, draft)          // children of the folder reached (by name and by position, dimensions), or the positions of an array
+rootOptions(tree)               // top-level variables with their shape and one `[]` per dimension
+positionOptions(tree, 'se')     // single numbers anywhere in the tree whose path matches: what a slot can read
+appendStep / replaceStep / cutSteps / setRoot / draftForVariable    // edits return a new draft
+formatDraft(tree, draft)        // text with names; an empty slot is `[]`
+toPath(draft)                   // the `ObjectPath` the compiler takes; undefined while a slot is empty
+```
+
+An empty slot stands for the first entry while the draft is inspected, so what follows it can still be offered. `dimensionsOf` / `shapeText` read arrays of one to three dimensions (a value array, a folder of equal rows, of such matrices).
+
 ## How a project becomes frames
 
 1. Variables are checked and laid out as objects (ids `0..n-1`, depth-first). A folder is a pointer object over its children, a reference one over its target; an empty folder has no object.
@@ -44,7 +61,7 @@ The text is infix with C-like precedence (float: `+ - * / mod % ^ == != < <= > >
 3. Each block gets the objects it writes: the variable the user named for an output, else an object of its own (bool for flow, i32 for int, f32 for float; `usr_protected`), and one for its enable-out when something reads it.
 4. Every reading pin becomes an accessor. A path is **folded into its root** where the walk is the same every time (`motors[1][2]` is root = the object of `motors[1]`, step `[2]`: the board's fast path), but not through a folder a `cell` pin names (clone re-links it) nor past a run-time position. Identical accessors are made once; an accessor a path reads is made before it (the board needs it loaded).
 5. State is encoded (its length is the descriptor's `state_len`): a core block's fields at their offsets, a loop's span, a formula by its codec; a device block as `vm_block_device_data_t` (56 bytes): device id, op, idle op, `k[]` constants (the bits of a float for a scaled argument). `op` is the u16 the firmware builds: `(contract_id << 8) | n` for a contract command, `0xFF00 | n` for a device's own command, never the bare `op` of the descriptor.
-6. The program is held against `wire/check.ts` (the loader's rules), then framed to fit the board's frame (`wire/limits.ts`); a record that cannot fit one is an error (`ERR_ROUTER_FRAME_LEN`). **A mistake in a project is a diagnostic, never a thrown error**; a program with any error has no frames.
+6. The program is held against `wire/load/check.ts` (the loader's rules), then framed to fit the board's frame (`wire/load/limits.ts`); a record that cannot fit one is an error (`ERR_ROUTER_FRAME_LEN`). **A mistake in a project is a diagnostic, never a thrown error**; a program with any error has no frames.
 
 ## Where each fact comes from
 
@@ -70,7 +87,7 @@ The text is infix with C-like precedence (float: `+ - * / mod % ^ == != < <= > >
 
 Three things were once held in the engine and are now published and checked at the source: `state_len` of every block (descriptor field, compared with the C), the `op` of every device variant (the servo's too), and the limits (`generated/common/limits.json`). The engine reads them; the tests hold the published values against the C and `sdkconfig`.
 
-`tests/engine/fixtures/vm-golden.json` is the load frames of the firmware host suite's builder (`vm_lib.Prog`, run against the board) for a sample program, written by `.claude/skills/runit-esp/scripts/gen_vm_golden.py` (run it with the ESP-IDF Python; it also writes the old app's copy). `wire/frames.test.ts` compares byte for byte. It pins the packing policy of that builder (400 bytes a frame, a value cut at 192), which is why `frameBudget` and `dataChunk` default to those: the board takes any frame up to `frameMax`.
+`tests/engine/fixtures/vm-golden.json` is the load frames of the firmware host suite's builder (`vm_lib.Prog`, run against the board) for a sample program, taken from the firmware host suite's builder. `wire/frames.test.ts` compares byte for byte. It pins the packing policy of that builder (400 bytes a frame, a value cut at 192), which is why `frameBudget` and `dataChunk` default to those: the board takes any frame up to `frameMax`.
 
 ## Known gaps
 

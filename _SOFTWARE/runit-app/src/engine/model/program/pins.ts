@@ -1,6 +1,6 @@
-import { shapeOf } from '../catalog/shape'
-import type { BlockShape } from '../catalog/shape'
-import type { BlockType, Pin, PinGroup, PinSpec } from '../catalog/types'
+import { shapeOf } from '../../catalog/shape'
+import type { BlockShape } from '../../catalog/shape'
+import type { BlockType, Pin, PinGroup, PinSpec } from '../../catalog/types'
 import type { BlockInstance } from './program'
 
 /*

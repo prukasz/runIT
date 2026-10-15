@@ -4,7 +4,7 @@ Spec: `SYS_BLE.MD` (this folder).
 
 - Every change in this folder is followed by an edit of this file, if it is needed.
 - Do not add references to `legacy docs` unless the user asks for them.
-- The runIT UUIDs (0xFFE0 to 0xFFE4), the router ops (1 SVC_CREATE to 7 LIST), the layouts of their packed structs, the framing header bits (LAST 0x80, FIRST 0x40, counter mask 0x3F), the router link ID and the error tags are wire format. The app and the descriptor depend on them: do not renumber or re-layout them. New ones go at the end.
+- The runIT UUIDs (0xFFE0 to 0xFFE4), the router ops (1 SVC_CREATE to 7 LIST), the layouts of their packed structs, the framing header bits (LAST 0x80, FIRST 0x40, counter mask 0x3F), the router link ID and the error tags are wire format, published as the enum groups `ble_runit_uuid` and `ble_frag` (markers in `sys_ble.h`; `sh templates/sync.sh` after a change). The app and the descriptor depend on them: do not renumber or re-layout them. New ones go at the end.
 - Changing a router op, a struct, an error or a descriptor requires `sh templates/sync.sh` (regenerates `errors.json`, refreshes `generated/`, validates). Commit with `--check` green. `contract_ble.json` and the LIST description in SYS_BLE.MD follow the code: update them with it.
 - The runIT service is created and locked in `sys_ble_link.c` only. Nothing else adds a characteristic to it or removes it.
 - `CONFIG_SYS_BLE_TX_ITEM_MAX` holds a whole router frame (`_Static_assert` in `sys_ble_link.c`). A change to `CONFIG_ROUTER_FRAME_MAX` must keep it.

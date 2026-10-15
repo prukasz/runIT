@@ -21,18 +21,20 @@ extern "C" {
  * starts with SYS_BLE_FRAG_* header byte (sys_ble_link.c reassembles).
  */
 
-#define SYS_BLE_SVC_RUNIT 0xFFE0  /**< runIT GATT service UUID */
-#define SYS_BLE_CHR_RUNIT_TX 0xFFE1
-#define SYS_BLE_CHR_RUNIT_RX 0xFFE2
-#define SYS_BLE_CHR_RUNIT_LOGS 0xFFE3
-#define SYS_BLE_CHT_RUNIT_STATUS 0xFFE4
+//#ref-defines ble_runit_uuid @alias runIT GATT UUIDs @prefix SYS_BLE_
+#define SYS_BLE_SVC_RUNIT 0xFFE0  //@alias runIT service @description The primary service that carries the router link and the streams
+#define SYS_BLE_CHR_RUNIT_TX 0xFFE1  //@alias Answers and telemetry @description Notify, framed: router answers, the telemetry and events streams
+#define SYS_BLE_CHR_RUNIT_RX 0xFFE2  //@alias Requests @description Write, framed: router requests
+#define SYS_BLE_CHR_RUNIT_LOGS 0xFFE3  //@alias Logs and errors @description Notify, framed: the logs and errors streams
+#define SYS_BLE_CHT_RUNIT_STATUS 0xFFE4  //@alias Status @description Notify, unframed: created, nothing sends on it yet
 
 /* Fragment header of a framed characteristic (first byte of every packet).
  *   bit 7 last, bit 6 first, bits 0-5 packet counter (mod 64, 0 at first).
  * A frame that fits one packet has 0xC0. */
-#define SYS_BLE_FRAG_LAST 0x80u
-#define SYS_BLE_FRAG_FIRST 0x40u
-#define SYS_BLE_FRAG_COUNT_MASK 0x3Fu
+//#ref-defines ble_frag @alias Fragment header @prefix SYS_BLE_FRAG_
+#define SYS_BLE_FRAG_LAST 0x80u  //@alias Last packet @description Bit 7: the last packet of a frame
+#define SYS_BLE_FRAG_FIRST 0x40u  //@alias First packet @description Bit 6: the first packet of a frame; the counter restarts at 0
+#define SYS_BLE_FRAG_COUNT_MASK 0x3Fu  //@alias Packet counter mask @description Bits 0-5: the packet counter, modulo 64
 
 /* ATT notification header (opcode + handle): payload = MTU - 3. */
 #define SYS_BLE_ATT_HDR_LEN 3u

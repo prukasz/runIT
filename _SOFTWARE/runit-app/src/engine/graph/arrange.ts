@@ -1,10 +1,10 @@
 import type { Catalog } from '../catalog/catalog'
-import type { Diagnostic } from '../model/diagnostics'
-import type { ObjectPath } from '../model/paths'
-import { concretePins } from '../model/pins'
-import type { BlockInstance, Project, Source } from '../model/program'
-import { DEFAULT_LIMITS } from '../wire/limits'
-import type { VmLimits } from '../wire/limits'
+import type { Diagnostic } from '../model/program/diagnostics'
+import type { ObjectPath } from '../model/paths/paths'
+import { concretePins } from '../model/program/pins'
+import type { BlockInstance, Project, Source } from '../model/program/program'
+import { DEFAULT_LIMITS } from '../wire/load/limits'
+import type { VmLimits } from '../wire/load/limits'
 
 /*
  * Execution order. The board runs the blocks in the order they are loaded, once per pass, and a block sees what an earlier

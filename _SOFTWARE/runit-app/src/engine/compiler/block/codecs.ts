@@ -1,7 +1,7 @@
-import type { BlockType } from '../catalog/types'
-import type { Diagnostic } from '../model/diagnostics'
-import type { ConcretePins } from '../model/pins'
-import type { BlockInstance } from '../model/program'
+import type { BlockType } from '../../catalog/types'
+import type { Diagnostic } from '../../model/program/diagnostics'
+import type { ConcretePins } from '../../model/program/pins'
+import type { BlockInstance } from '../../model/program/program'
 
 /*
  * Codecs: what turns the part of a block that is not a plain field into the bytes of its state. A core block names its

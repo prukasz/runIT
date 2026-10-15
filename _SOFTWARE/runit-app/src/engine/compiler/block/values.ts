@@ -1,4 +1,4 @@
-import type { Field, RawType, FieldScalar } from '../catalog/types'
+import type { Field, RawType, FieldScalar } from '../../catalog/types'
 
 /*
  * A field's value as the bytes of the block's state: the descriptor says where (`offset`), how wide and of what kind

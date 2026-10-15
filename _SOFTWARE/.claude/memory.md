@@ -17,7 +17,7 @@ Index of knowledge that is not obvious from the code. Detail lives in the linked
 - **CMake warnings:** only IDF's own (`esp_wifi` / `wpa_supplicant` private include dirs). Any project warning is new and must be fixed.
 - **Layering:** `core` → `sys` → `devices` → `vm`; `components/app/runit` composes them. Components are found via `EXTRA_COMPONENT_DIRS` in the root `CMakeLists.txt`.
 - **App UI** shows names, never `obj-…` IDs.
-- **Descriptors:** `templates/sync.sh` publishes them to `generated/` (the bundle `templates/generate_bundle.py` copies from `components/`); there is no app yet. The firmware C in `components/` outranks any descriptor. Block descriptors publish `state_len` (compared with the C by `crosscheck.py`), every device variant names its `op`, and the Kconfig limits are in `generated/common/limits.json` (`#@limit` markers, `generate_limits.py`). A device block's `op` on the wire is the full u16 `(contract_id << 8) | op` (`0xFF00 | op` for a device's own command), not the descriptor's bare `op`.
+- **Descriptors:** `templates/sync.sh` publishes them to `generated/` (the bundle `templates/generate_bundle.py` copies from `components/`); the app (`runit-app/`) reads them. The firmware C in `components/` outranks any descriptor. Block descriptors publish `state_len` (compared with the C by `crosscheck.py`), every device variant names its `op`, and the Kconfig limits are in `generated/common/limits.json` (`#@limit` markers, `generate_limits.py`). A device block's `op` on the wire is the full u16 `(contract_id << 8) | op` (`0xFF00 | op` for a device's own command), not the descriptor's bare `op`.
 
 ## Decisions
 

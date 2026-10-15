@@ -1,6 +1,6 @@
-import { encodeValue } from '../wire/codec'
-import type { DataDef, ObjectDef } from '../wire/program'
-import type { Scalar } from '../wire/types'
+import { encodeValue } from '../../wire/format/codec'
+import type { DataDef, ObjectDef } from '../../wire/format/program'
+import type { Scalar } from '../../wire/format/types'
 import type { FolderVariable, ValueVariable, Variable } from './variables'
 
 /*

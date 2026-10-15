@@ -1,8 +1,8 @@
 import { arenaUsage } from './arena'
 import { DEFAULT_LIMITS } from './limits'
 import type { VmLimits } from './limits'
-import type { ProgramIR } from './program'
-import { ID_NONE, NAME_MAX, OBJ_WIDTH } from './types'
+import type { ProgramIR } from '../format/program'
+import { ID_NONE, NAME_MAX, OBJ_WIDTH } from '../format/types'
 
 /**
  * A reason the board would refuse a program at load. `code` is the firmware's error tag where one exists (see

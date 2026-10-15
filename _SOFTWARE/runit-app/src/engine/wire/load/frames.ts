@@ -1,12 +1,12 @@
 import { arenaUsage } from './arena'
-import { ByteWriter } from './bytes'
-import type { WireDefinitions } from './definitions'
+import { ByteWriter } from '../format/bytes'
+import type { WireDefinitions } from '../format/definitions'
 import { DEFAULT_LIMITS, dataChunk, frameFill } from './limits'
 import type { VmLimits } from './limits'
-import type { ProgramIR } from './program'
-import { accessorRecord, blockRecord, dataRecord, objectRecord, openRecord, subscribeRecord } from './records'
-import { OBJ_WIDTH } from './types'
-import type { ExecCommand } from './types'
+import type { ProgramIR } from '../format/program'
+import { accessorRecord, blockRecord, dataRecord, objectRecord, openRecord, subscribeRecord } from '../format/records'
+import { OBJ_WIDTH } from '../format/types'
+import type { ExecCommand } from '../format/types'
 
 /** One command of the VM router: the op and its payload (the router adds `[seq][flags][ROUTER_KEY_VM][op]`). */
 export interface LoadFrame {

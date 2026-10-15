@@ -1,5 +1,5 @@
-import { LIMIT_SYMBOLS } from '../wire/limits'
-import type { VmLimits } from '../wire/limits'
+import { LIMIT_SYMBOLS } from '../wire/load/limits'
+import type { VmLimits } from '../wire/load/limits'
 
 /** The shape of generated/common/limits.json that this adapter reads. */
 export interface GeneratedLimits {

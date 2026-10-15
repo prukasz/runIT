@@ -1,6 +1,6 @@
-import type { FieldScalar } from '../catalog/types'
-import type { ObjectPath } from './paths'
-import type { Variable } from './variables'
+import type { FieldScalar } from '../../catalog/types'
+import type { ObjectPath } from '../paths/paths'
+import type { Variable } from '../variables/variables'
 
 /*
  * The program the user builds: variables and blocks. Plain, serializable data; the compiler (compiler/) turns it into the

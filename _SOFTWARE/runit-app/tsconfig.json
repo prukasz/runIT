@@ -16,6 +16,8 @@
     "paths": {
       "@generated/*": ["../generated/*"],
       "@engine": ["./src/engine/index.ts"],
+      "@backend": ["./src/backend/index.ts"],
+      "@backend/*": ["./src/backend/*"],
       "@engine/*": ["./src/engine/*"]
     }
   },

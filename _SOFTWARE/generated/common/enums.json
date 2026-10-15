@@ -35,6 +35,70 @@
         }
       ]
     },
+    "ble_frag": {
+      "alias": "Fragment header",
+      "kind": "defines",
+      "prefix": "SYS_BLE_FRAG_",
+      "source_file": "components/sys/sys_ble/sys_ble.h",
+      "members": [
+        {
+          "name": "SYS_BLE_FRAG_LAST",
+          "value": 128,
+          "alias": "Last packet",
+          "description": "Bit 7: the last packet of a frame"
+        },
+        {
+          "name": "SYS_BLE_FRAG_FIRST",
+          "value": 64,
+          "alias": "First packet",
+          "description": "Bit 6: the first packet of a frame; the counter restarts at 0"
+        },
+        {
+          "name": "SYS_BLE_FRAG_COUNT_MASK",
+          "value": 63,
+          "alias": "Packet counter mask",
+          "description": "Bits 0-5: the packet counter, modulo 64"
+        }
+      ]
+    },
+    "ble_runit_uuid": {
+      "alias": "runIT GATT UUIDs",
+      "kind": "defines",
+      "prefix": "SYS_BLE_",
+      "source_file": "components/sys/sys_ble/sys_ble.h",
+      "members": [
+        {
+          "name": "SYS_BLE_SVC_RUNIT",
+          "value": 65504,
+          "alias": "runIT service",
+          "description": "The primary service that carries the router link and the streams"
+        },
+        {
+          "name": "SYS_BLE_CHR_RUNIT_TX",
+          "value": 65505,
+          "alias": "Answers and telemetry",
+          "description": "Notify, framed: router answers, the telemetry and events streams"
+        },
+        {
+          "name": "SYS_BLE_CHR_RUNIT_RX",
+          "value": 65506,
+          "alias": "Requests",
+          "description": "Write, framed: router requests"
+        },
+        {
+          "name": "SYS_BLE_CHR_RUNIT_LOGS",
+          "value": 65507,
+          "alias": "Logs and errors",
+          "description": "Notify, framed: the logs and errors streams"
+        },
+        {
+          "name": "SYS_BLE_CHT_RUNIT_STATUS",
+          "value": 65508,
+          "alias": "Status",
+          "description": "Notify, unframed: created, nothing sends on it yet"
+        }
+      ]
+    },
     "board_device": {
       "alias": "Board devices",
       "kind": "defines",
@@ -1904,6 +1968,14 @@
     "SYS_ACTIONS_ID_POWER_CFG": "settings_record",
     "SYS_ACTIONS_ID_POWER_PSU": "settings_record",
     "SYS_ACTIONS_ID_POWER_RESPONSES": "settings_record",
+    "SYS_BLE_CHR_RUNIT_LOGS": "ble_runit_uuid",
+    "SYS_BLE_CHR_RUNIT_RX": "ble_runit_uuid",
+    "SYS_BLE_CHR_RUNIT_TX": "ble_runit_uuid",
+    "SYS_BLE_CHT_RUNIT_STATUS": "ble_runit_uuid",
+    "SYS_BLE_FRAG_COUNT_MASK": "ble_frag",
+    "SYS_BLE_FRAG_FIRST": "ble_frag",
+    "SYS_BLE_FRAG_LAST": "ble_frag",
+    "SYS_BLE_SVC_RUNIT": "ble_runit_uuid",
     "SYS_CONNECTOR_APP_BASE": "sys_connector_id_e",
     "SYS_CONNECTOR_ERRORS": "sys_connector_id_e",
     "SYS_CONNECTOR_EVENTS": "sys_connector_id_e",
