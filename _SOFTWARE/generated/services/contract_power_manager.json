@@ -62,7 +62,7 @@
             "type": "pin",
             "raw_type": "u8",
             "size": 1,
-            "offset": 6,
+            "offset": 5,
             "description": "Pin number on that device"
           },
           {
@@ -71,7 +71,7 @@
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
-            "offset": 7
+            "offset": 6
           },
           {
             "id": "pd_max_auto",
@@ -79,7 +79,7 @@
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
-            "offset": 8,
+            "offset": 7,
             "description": "1 = automatically request the offer with the highest power"
           },
           {
@@ -88,7 +88,7 @@
             "type": "choice",
             "raw_type": "u8",
             "size": 1,
-            "offset": 7,
+            "offset": 8,
             "options": [
               {
                 "label": "Bench supply",
@@ -156,7 +156,7 @@
             "type": "pin",
             "raw_type": "u8",
             "size": 1,
-            "offset": 6,
+            "offset": 5,
             "description": "Pin number on that device"
           },
           {
@@ -165,7 +165,7 @@
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
-            "offset": 7
+            "offset": 6
           },
           {
             "id": "pd_max_auto",
@@ -173,7 +173,7 @@
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
-            "offset": 8,
+            "offset": 7,
             "description": "1 = automatically request the offer with the highest power"
           },
           {
@@ -182,7 +182,7 @@
             "type": "choice",
             "raw_type": "u8",
             "size": 1,
-            "offset": 7,
+            "offset": 8,
             "options": [
               {
                 "label": "Bench supply",
