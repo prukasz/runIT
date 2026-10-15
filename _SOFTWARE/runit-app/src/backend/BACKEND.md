@@ -73,10 +73,12 @@ const recovered = engine.recover(stored.program.flatMap((f) => programFrameOf(de
 | GATT UUIDs, fragment bits | `enums.json` (`ble_runit_uuid`, `ble_frag`, marked in `sys_ble.h`) | `protocol.test.ts` reads `sys_ble.h`; the framing tests use the examples of SYS_BLE.MD |
 | Frame limit | `limits.json` (`ROUTER_FRAME_MAX`) | `protocol.test.ts` reads the router Kconfig |
 | Error record | `ROUTER.MD`, `errors.json` | `protocol.test.ts` decodes the example of ROUTER.MD |
+| Ops of the `actions` and `project` routers | `generated/services/contract_actions.json`, `contract_project.json` | `project.test.ts`: the requests carry the ops and payload layouts the board accepted |
+| The stored project's records, the stream | `SYS_PROJECT.MD`, `SYS_ACTIONS.MD` | `fixtures/stored-project.json`: the stream, its CRC and every record read back from a board |
 
 ## Tests
 
-`npm test` from `runit-app/`. On a board: `.claude/skills/runit-esp/scripts/ble_suite.py` (build.md §6) drives the same protocol from a PC; its `load` scenario sends frames the engine compiled (a JSON of `{op, payload}`) to a real board, `capture` also applies runtime writes and records every stream raw. `tests/backend/fakes.ts` is a board behind a fake platform (reassembles what is written, answers on notify, drops the link, fails or hangs an open). `link.test.ts` covers requests, order, parts, errors, timeouts, streams, reconnecting, the stall and the late open.
+`npm test` from `runit-app/`. Fixtures captured from a board: `tests/backend/fixtures/board-streams.json` (telemetry and log frames), `stored-project.json` (a saved project and its records). On a board: `.claude/skills/runit-esp/scripts/ble_suite.py` (build.md §6) drives the same protocol from a PC; its `load` scenario sends frames the engine compiled (a JSON of `{op, payload}`) to a real board, `capture` also applies runtime writes and records every stream raw. `tests/backend/fakes.ts` is a board behind a fake platform (reassembles what is written, answers on notify, drops the link, fails or hangs an open). `link.test.ts` covers requests, order, parts, errors, timeouts, streams, reconnecting, the stall and the late open.
 
 ## Measured on a board (Windows 11, Intel BT, `bleak` driving the same framing and router)
 
@@ -95,7 +97,7 @@ const recovered = engine.recover(stored.program.flatMap((f) => programFrameOf(de
 
 ## Not verified / not done
 
-- The TypeScript link itself has run against a fake platform only (`tests/backend/`); the numbers above are the board's behaviour as seen through the same protocol. Web Bluetooth in a browser, and Android, are untried.
+- The TypeScript link itself, including `saveProject` / `readProject`, has run against a fake platform only (`tests/backend/`); the stream it builds was sent to a board by a script and every record read back; the numbers above are the board's behaviour as seen through the same protocol. Web Bluetooth in a browser, and Android, are untried.
 - An abrupt loss of the radio (not a disconnect, not a restart) is untried.
 - No heartbeat: a silent link is found by the write and stall rules or by the OS supervision timeout (2 s on the firmware side). The dead-man (`sys` DEADMAN_SET) is the firmware's own check of the app.
 - Web Bluetooth cannot read the MTU, the RSSI or the connection parameters; a native platform can implement `BlePlatform` and give them.

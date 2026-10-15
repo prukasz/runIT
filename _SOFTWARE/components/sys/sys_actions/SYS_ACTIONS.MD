@@ -40,7 +40,7 @@ System IDs (class `0x01`):
 | `0x01000006` `SYS_ACTIONS_ID_BLE` | Bluetooth GATT services and APPLY | BLE |
 | `0x01000007` `SYS_ACTIONS_ID_CONN` | data streams and bindings | connector |
 
-Any client may write any class and RUN any class.
+Any client may write any class and RUN any class. User IDs 3 to 6 are the firmware's own actions (RUNIT.MD "Onboard actions"): they are rewritten at every boot, so an app uses other IDs.
 
 **Settings are records.** A settings record is the module's own SET frame (`[root key][op][args]`) saved by the app, e.g. the log options as `[0x08][0x01][level, mirror, trace, errors, logs]`. The module's SET applies the value live and stores nothing. Persistence is the app uploading (or recording) the record. A matrix of values has an op that takes it whole (`SET_RESPONSES`) next to the single-cell one.
 

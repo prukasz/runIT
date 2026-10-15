@@ -14,13 +14,14 @@ A `Project` is `{ variables, blocks }`, plain data. The engine holds neither a p
 
 | Module | What it is |
 |---|---|
-| `wire/` | `format/`: the wire format: object / accessor / block records (`records.ts`), the program (`program.ts`), value encoding (`codec.ts`, `bytes.ts`), types and the numbers firmware publishes (`types.ts`, `definitions.ts`). `load/`: how the board takes it: batching into frames (`frames.ts`), the arena the board will use (`arena.ts`), what it refuses at load (`check.ts`), limits and the frame arithmetic (`limits.ts`). |
+| `wire/` | `format/`: the wire format: object / accessor / block records (`records.ts`) and their inverse (`parse.ts`: load frames back into a program), the program (`program.ts`), value encoding (`codec.ts`, `bytes.ts`), types and the numbers firmware publishes (`types.ts`, `definitions.ts`). `load/`: how the board takes it: batching into frames (`frames.ts`), run-time writes and the telemetry reader (`runtime.ts`), the arena the board will use (`arena.ts`), what it refuses at load (`check.ts`), limits and the frame arithmetic (`limits.ts`). |
 | `generated/` | The one place that reads `generated/`: the wire numbers (`wire.ts`), the board's limits (`limits.ts`) and the descriptor files (`index.ts`, Vite globs). Everything else takes parsed data as arguments. |
 | `catalog/` | The block palette. `fromGenerated.ts` is the only file that knows the descriptor format (`vm-block` v3): it resolves enums, and a device variant's contract / device command into the variant's fields (the arguments), pins and outputs. `shape.ts` gives the pin shape the board checks (`shapeOf`). `layouts.ts`: where the values sit in a device block's state (the descriptor does not describe the struct). |
 | `model/` | The project, one folder per subject. `variables/`: `variables.ts` (tree of values, folders, references; edits return a new tree) and `layout.ts` (variables as objects: ids, flags, initial data). `paths/`: `paths.ts` (accessors as the user sees them; parse, format, resolve) and `pathBuilder.ts` (the accessor builder, below). `program/`: `program.ts` (`BlockInstance`, `Source`), `pins.ts` (groups expanded), `diagnostics.ts`. |
 | `graph/` | `arrange.ts`: execution order (wiring, then the user's order), gates, feedback, loop bodies made contiguous with their spans. |
 | `expression/` | The formula component of the expression blocks (below). Depends on `catalog` types and the generated enums only; `compiler/` uses it. |
-| `compiler/` | `compile.ts` (the pipeline), `accessors.ts` (paths to accessors); `block/`: a block's state bytes (`state.ts`, `values.ts`) and the codecs (`codecs.ts`: the extension point, `expressionCodec.ts`: the formula editors). |
+| `compiler/` | `compile.ts` (the pipeline), `accessors.ts` (paths to accessors); `block/`: a block's state bytes (`state.ts`, `values.ts`) and the codecs (`codecs.ts`: the extension point, `expressionCodec.ts`: the formula editors); `runtime.ts`: writing and reading variables of a compiled program. |
+| `recover/` | `project.ts`: a stored program back into a project (below). Depends on everything above it; nothing depends on it. |
 
 ## Expressions
 
@@ -84,6 +85,8 @@ What the program never held does not come back: descriptions, the names of block
 | State sizes | `state_len` of `generated/blocks/block_*.json` | `templates/crosscheck.py` and `catalog.test.ts` compare it with the `.state_len` of each `VM_BLOCK_TYPE_DEFINE` (a `sizeof` pinned by a `_Static_assert`) |
 | Device state layout | `catalog/layouts.ts` | `catalog.test.ts` lays out `vm_block_device_data_t` from `vm_block_device.h` |
 | Expression opcodes and stack effects | enums + `vm_expr_ops` / `vm_bit_ops` in `vm_expr_core.h` | `expression.test.ts` compares the table to the header and runs formulas on a reference stack machine; `language.test.ts` covers the per-block language, tokens and the decompile round trip |
+| Telemetry and run-time writes | `VM_CORE.MD` "Telemetry is the same command" (`vm_wire.h` records) | `tests/backend/telemetry.test.ts` decodes frames captured from a board and the write frame the board accepted |
+| Recovering a project | the records of `vm_wire.h`, `layoutVariables` and the compiler read backwards | `recover.test.ts`: every block and variant of the palette compiles, is recovered and compiles to the same bytes (`exact`) |
 | Limits | `generated/common/limits.json`: the options marked `#@limit` in the Kconfig of `vm_core` and `router`, with the values the firmware is built with (`templates/generate_limits.py`) | `limits.test.ts`: the file equals `sdkconfig`, `DEFAULT_LIMITS` equals the file |
 | Frame size | `CONFIG_ROUTER_FRAME_MAX` (a limit) less `[seq][flags]` and the two keys of a VM command | `limits.test.ts` reads `REQ_HDR` from `router_dispatch.c`; a link that carries less passes `limits: { frameMax }` |
 
