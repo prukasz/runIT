@@ -4,7 +4,7 @@
  *   definitions   the link's numbers and the error tags, read from generated/common
  *   protocol      the router's request / response frames and the error record
  *   transport     BLE: the platform interface, framing, Web Bluetooth
- *   session       the commands and the link that keeps itself connected
+ *   session       the commands, the link that keeps itself connected, sending a list in order
  */
 export { bundledLinkDefinitions, errorCatalog, linkDefinitions } from './definitions'
 export type { ErrorField, ErrorInfo, LinkDefinitions } from './definitions'
@@ -20,3 +20,5 @@ export { CommandClient, CommandError } from './session/commands'
 export type { CommandClientOptions, CommandErrorCode, CommandEvent, CommandOptions } from './session/commands'
 export { ATT_VALUE_MAX, DEFAULT_RECONNECT, RunitLink, STREAM_NAMES } from './session/link'
 export type { LinkDiagnostic, LinkOptions, LinkState, LinkStatus, ReconnectPolicy, StreamFrame, StreamName } from './session/link'
+export { sendInOrder, sendProgram } from './session/send'
+export type { ProgramFrame, SendOptions } from './session/send'

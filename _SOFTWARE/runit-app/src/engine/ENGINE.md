@@ -5,7 +5,7 @@
 ```ts
 const engine = createEngine()                       // bundled descriptors; new Engine({definitions, limits, codecs}) for your own
 const result = engine.compile(project)              // { ok, diagnostics, frames, ir, arena, ids, order }
-if (result.ok) for (const f of result.frames) send(f.op, f.payload)   // OPEN, objects, values, accessors, blocks
+if (result.ok) await sendProgram(link, result.frames)                  // OPEN, objects, values, accessors, blocks (src/backend/BACKEND.md)
 ```
 
 A `Project` is `{ variables, blocks }`, plain data. The engine holds neither a project nor a connection: data in, data out.

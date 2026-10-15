@@ -8,7 +8,7 @@ await link.connect(await platform.requestDevice())            // a user gesture;
 link.onStatus((s) => …)                                       // { state, reason?, attempt? }
 link.onStream((f) => …)                                       // telemetry / logs / errors / events: { stream, name, data }
 const out = await link.request({ keys: [defs.keys.sys, 0x01] }) // PING; keys = root key, then the op
-for (const f of engine.compile(project).frames) await link.request({ keys: [defs.keys.vm, f.op], payload: f.payload })
+await sendProgram(link, engine.compile(project).frames, { onProgress: (done, total) => … })   // in order, each answered
 ```
 
 ## Layout (dependencies point down)
@@ -18,7 +18,7 @@ for (const f of engine.compile(project).frames) await link.request({ keys: [defs
 | `definitions.ts` | The only file that reads `generated/common/`: router keys, flags, status, stream bytes, the runIT GATT UUIDs and the fragment bits (`ble_runit_uuid`, `ble_frag` in `enums.json`), `ROUTER_FRAME_MAX` (`limits.json`), the error tags (`errors.json`). A symbol the firmware stops publishing stops the load with a message that names it. |
 | `protocol/` | `frames.ts`: request `[seq][flags][keys…][payload]`, response `[stream][seq][status][data]` (ROUTER.MD). `errors.ts`: the error record (source, command, chain of tags with their fields, named from `errors.json`). |
 | `transport/` | `types.ts`: what a BLE platform provides (`requestDevice`, `knownDevices`, `open` → a channel to write packets to, packets and a loss notice back). `framing.ts`: a frame to packets and back, as the firmware does it (SYS_BLE.MD "Framing"). `webBluetooth.ts`: the Web Bluetooth platform. |
-| `session/` | `commands.ts`: sequence bytes, answers by seq, timeouts, pipelining, answers in parts. `link.ts`: `RunitLink`, the connection. |
+| `session/` | `commands.ts`: sequence bytes, answers by seq, timeouts, pipelining, answers in parts. `link.ts`: `RunitLink`, the connection. `send.ts`: `sendInOrder` / `sendProgram`, a list of requests sent in order. |
 
 ## The connection
 
@@ -31,6 +31,10 @@ for (const f of engine.compile(project).frames) await link.request({ keys: [defs
 - **Pipelining**: `maxInFlight` (4) commands at once. The board runs normal commands in order, so this saves a round trip per command and reorders nothing; an urgent request (`urgent: true`) overtakes.
 - **Streams**: every frame that is not an answer goes to `onStream` by its stream byte (without it). A packet out of order drops the rest of its frame up to the next FIRST, as the firmware does; `onDiagnostic` says so.
 
+## Sending a list in order
+
+`sendProgram(link, frames)` takes the frames the engine compiles (`{ op, payload }`, commands of the VM router) and `sendInOrder(link, requests)` any list of requests. Up to `window` (4) are on the wire at once, every answer is awaited and returned in the order of the requests, `onProgress(done, total)` follows each. The first request that fails stops the sending (nothing after it is sent: a block would not load without its objects), the ones already on the wire are awaited, and the link's own `CommandError` is thrown as it is. Retrying and cleaning up after a failure (a reset of the half-loaded program) are not done yet.
+
 ## Where each fact comes from
 
 | Fact | Source | Held against it by |
@@ -42,7 +46,7 @@ for (const f of engine.compile(project).frames) await link.request({ keys: [defs
 
 ## Tests
 
-`npm test` from `runit-app/`. `tests/backend/fakes.ts` is a board behind a fake platform (reassembles what is written, answers on notify, drops the link, fails or hangs an open). `link.test.ts` covers requests, order, parts, errors, timeouts, streams, reconnecting, the stall and the late open.
+`npm test` from `runit-app/`. On a board: `.claude/skills/runit-esp/scripts/ble_suite.py` (build.md §6) drives the same protocol from a PC; its `load` scenario sends frames the engine compiled (a JSON of `{op, payload}`) to a real board. `tests/backend/fakes.ts` is a board behind a fake platform (reassembles what is written, answers on notify, drops the link, fails or hangs an open). `link.test.ts` covers requests, order, parts, errors, timeouts, streams, reconnecting, the stall and the late open.
 
 ## Measured on a board (Windows 11, Intel BT, `bleak` driving the same framing and router)
 
