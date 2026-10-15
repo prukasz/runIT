@@ -245,6 +245,7 @@ static err_h feed(const uint8_t* p, uint32_t n, uint32_t offset) {
     offset += take;
     if (s_save.fgot == s_save.flen) {
       s_save.hdr_got = 0;
+      s_save.fgot = 0;  // a frame is complete: only a cut inside one leaves hdr_got / fgot set at COMMIT
       ERR_TRY(frame_done());
     }
   }

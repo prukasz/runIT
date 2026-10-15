@@ -22,3 +22,9 @@ export { ATT_VALUE_MAX, DEFAULT_RECONNECT, RunitLink, STREAM_NAMES } from './ses
 export type { LinkDiagnostic, LinkOptions, LinkState, LinkStatus, ReconnectPolicy, StreamFrame, StreamName } from './session/link'
 export { sendInOrder, sendProgram } from './session/send'
 export type { ProgramFrame, SendOptions } from './session/send'
+export {
+  crc32, deviceFrame, deviceRecordId, frameImage, listRecords, parseImage, programFrameOf, PROJECT_RECORD_ID, projectFrames, projectInfo,
+  projectStream, readProject, readRecord, recordInfo, removeRecord, runProject, runRecord, saveProject, SECTION_PROGRAM, setAutostart, storeRecord,
+  eraseProject, vmFrame,
+} from './session/project'
+export type { ProjectContent, ProjectInfo, RecordInfo, SaveOptions, Section, StoredProject } from './session/project'

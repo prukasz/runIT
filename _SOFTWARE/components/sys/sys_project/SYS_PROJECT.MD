@@ -51,6 +51,8 @@ A failed or aborted save (`ABORT`, a write error, a bad CRC, the next `BEGIN` af
 
 **The VM start is the program's own last frame** (`[0x0B][0x08 EXEC]` normal): the firmware does not know the VM here. A program without it is loaded and stays stopped.
 
+**Every section runs at every start.** The project record runs each section in order, whatever its class: an action stored as a section (a user ID) is run at the start like the settings and devices around it. A user action that must wait for a call (a button, the VM's ACTION block, an error policy) is stored with the actions router (BEGIN / WRITE / COMMIT, SYS_ACTIONS.MD), not as a section. IDs 3 to 6 are the firmware's own actions (RUNIT.MD "Onboard actions") and are not for the app.
+
 **Boot.** Last boot step `project autostart` (`sys_project_boot`): with a stored project and autostart on, it queues `[0x0C][0x06 RUN]` with `router_inject` (the run happens on a router task, after the devices are created). Without autostart nothing replays by itself, as everywhere else.
 
 ## Remote (`sys_project_router`, `ROUTER_KEY_PROJECT` = 0x0C)
@@ -68,7 +70,7 @@ A failed or aborted save (`ABORT`, a write error, a bad CRC, the next `BEGIN` af
 | `0x10` SECTION | `u32 id` | only a frame of the stream: sent as a command it is `ERR_PROJECT_NOT_IN_STREAM` |
 | `0x11` MARK | `u8 bank, u32 crc32, u32 bytes` | first frame of the project record; does nothing when run |
 
-One save at a time (`ERR_PROJECT_BUSY`). Reading a project back is the actions router's READ (the project record, the list, the chunks); the app's own project is the source for recovery.
+One save at a time (`ERR_PROJECT_BUSY`). Reading a project back is the actions router's READ: the project record (`MARK`, then one `RUN_ALL <section id>` per section and `RUN <list>` for the program), each section's record, the list, and the chunks it names; the program's frames come out exactly as they went in, so the CRC of the stream rebuilt from them equals the `INFO` one. The app reads them in `runit-app/src/backend/session/project.ts` (`readProject`) and decompiles the program into a project (`Engine.recover`).
 
 ## Errors (`ERR_MOD_SYS_PROJECT` = 16)
 
@@ -106,7 +108,7 @@ One save at a time (`ERR_PROJECT_BUSY`). Reading a project back is the actions r
 
 ## Tests
 
-`router_tests.py`, `test_project` (in `.claude/skills/runit-esp/scripts/`) covers:
+`ble_suite.py project` and `actions` (over BLE, on a board: a device section that lights the LEDs, autostart, INFO, every record read back, the restart, erase) and `router_tests.py`, `test_project` (in `.claude/skills/runit-esp/scripts/`) covers:
 - INFO when empty, RUN when empty (`ERR_PROJECT_NOT_STORED`).
 - Input validation: frame before SECTION (`ERR_PROJECT_NO_SECTION`), section after program (`ERR_PROJECT_ORDER`), bad CRC (`ERR_PROJECT_CRC`).
 - Verification that aborted or failed saves leave no staged records in flash.

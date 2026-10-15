@@ -18,7 +18,7 @@ await sendProgram(link, engine.compile(project).frames, { onProgress: (done, tot
 | `definitions.ts` | The only file that reads `generated/common/`: router keys, flags, status, stream bytes, the runIT GATT UUIDs and the fragment bits (`ble_runit_uuid`, `ble_frag` in `enums.json`), `ROUTER_FRAME_MAX` (`limits.json`), the error tags (`errors.json`). A symbol the firmware stops publishing stops the load with a message that names it. |
 | `protocol/` | `frames.ts`: request `[seq][flags][keys…][payload]`, response `[stream][seq][status][data]` (ROUTER.MD). `errors.ts`: the error record (source, command, chain of tags with their fields, named from `errors.json`). |
 | `transport/` | `types.ts`: what a BLE platform provides (`requestDevice`, `knownDevices`, `open` → a channel to write packets to, packets and a loss notice back). `framing.ts`: a frame to packets and back, as the firmware does it (SYS_BLE.MD "Framing"). `webBluetooth.ts`: the Web Bluetooth platform. |
-| `session/` | `commands.ts`: sequence bytes, answers by seq, timeouts, pipelining, answers in parts. `link.ts`: `RunitLink`, the connection. `send.ts`: `sendInOrder` / `sendProgram`, a list of requests sent in order. |
+| `session/` | `commands.ts`: sequence bytes, answers by seq, timeouts, pipelining, answers in parts. `link.ts`: `RunitLink`, the connection. `send.ts`: `sendInOrder` / `sendProgram`, a list of requests sent in order. `project.ts`: stored records, the project stream, reading a project back. |
 
 ## The connection
 
@@ -29,7 +29,37 @@ await sendProgram(link, engine.compile(project).frames, { onProgress: (done, tot
 - **`reopen()`** drops and opens again, to pick up a changed GATT table (the new service is visible after it).
 - **Writes**: one request is written as packets back to back under one chain, so frames never interleave (the firmware reassembles with one buffer). Each write is acknowledged (flow control; nothing is dropped). A packet is `packetBytes` long, header included: 512 by default, the longest value ATT allows (513 B is refused with `Invalid Attribute Value Length`), so a frame of up to 511 B is one write and the 512 B maximum two. Web Bluetooth does not show the MTU; the board offers 527 and a central that takes it (Windows does) needs no splitting.
 - **Pipelining**: `maxInFlight` (4) commands at once. The board runs normal commands in order, so this saves a round trip per command and reorders nothing; an urgent request (`urgent: true`) overtakes.
-- **Streams**: every frame that is not an answer goes to `onStream` by its stream byte (without it). A packet out of order drops the rest of its frame up to the next FIRST, as the firmware does; `onDiagnostic` says so.
+- **Streams**: every frame that is not an answer goes to `onStream` by its stream byte (without it), raw, with the time it arrived (`at`): `link.onStream((f) => f.name /* telemetry | logs | errors | events, undefined for an unpublished byte */, f.data, f.at)`; `link.on('errors', (data) => …)` for one stream. Nothing is interpreted: the errors and logs are bytes (decode an error record with `decodeErrorRecord`, `protocol/errors.ts`). The link listens to `0xFFE1` (answers, telemetry, events) and `0xFFE3` (logs, errors) as the board binds its connectors. A packet out of order drops the rest of its frame up to the next FIRST, as the firmware does; `onDiagnostic` says so.
+
+## Telemetry and the remote control (with the engine)
+
+Telemetry is the write command in the other direction (VM_CORE.MD "Telemetry is the same command"), so the engine decodes it and writes with the same records. The backend only carries the frames:
+
+```ts
+const reader = engine.telemetry(result)                               // result = engine.compile(project): ids and types of its variables
+link.on('telemetry', (data) => { for (const v of reader.read(data)?.values ?? []) show(v.variable, v.value) })
+await sendProgram(link, [engine.subscribe(ids)])                      // the board sends everything once, then what changed
+await sendProgram(link, engine.write(result, [{ variable: 'x', value: 5 }]))   // a runtime write, applied at the next pass
+```
+
+Checked on a board: after SUBSCRIBE `x=0, y=3, z=0`; a write of `x=5` came back as `x=5, z=13` (an expression block `z = x * 2 + y`) about 17 ms later, a write of `7.5` as `z=18`. The captured frames are `tests/backend/fixtures/board-streams.json`.
+
+## Records and the project
+
+The board keeps commands in NVS as records (SYS_ACTIONS.MD) and a whole project as one stream of sections plus the compiled program (SYS_PROJECT.MD). `session/project.ts`:
+
+```ts
+await storeRecord(link, 10, [deviceFrame(defs, 1, IO_SET_LEVEL, Uint8Array.of(22, 0))])   // a user action, run later with runRecord(link, 10)
+await saveProject(link, {                                                                  // settings, devices, then the program (last)
+  sections: [{ id: deviceRecordId(1), frames: [...] }],
+  program: [...result.frames, engine.exec('normal')].map((f) => vmFrame(defs, f.op, f.payload)),
+}, { autostart: true, onProgress })
+const info = await projectInfo(link)                       // { stored, autostart, crc, bytes }: the CRC and length of the stream saved
+const stored = await readProject(link)                     // { info, sections, program, verified } read back from NVS
+const recovered = engine.recover(stored.program.flatMap((f) => programFrameOf(defs, f) ?? []))   // the project, decompiled
+```
+
+`projectStream(defs, content)` builds the stream (`[u16 len][frame]` frames, a SECTION frame before each section, the program as section 0 last) and `crc32` is zlib's. Checked on a board: the stream built here (297 B, one device section, one user action and a program) was accepted and `INFO` returned its length and CRC; reading every record back gave the frames that went in, so `verified` is true. The records of that run are `tests/backend/fixtures/stored-project.json`. **Every section is run at each start**, user actions included: an action that must wait for a call is stored with `storeRecord`, not as a section (SYS_PROJECT.MD). IDs 3 to 6 are the firmware's.
 
 ## Sending a list in order
 
@@ -46,7 +76,7 @@ await sendProgram(link, engine.compile(project).frames, { onProgress: (done, tot
 
 ## Tests
 
-`npm test` from `runit-app/`. On a board: `.claude/skills/runit-esp/scripts/ble_suite.py` (build.md §6) drives the same protocol from a PC; its `load` scenario sends frames the engine compiled (a JSON of `{op, payload}`) to a real board. `tests/backend/fakes.ts` is a board behind a fake platform (reassembles what is written, answers on notify, drops the link, fails or hangs an open). `link.test.ts` covers requests, order, parts, errors, timeouts, streams, reconnecting, the stall and the late open.
+`npm test` from `runit-app/`. On a board: `.claude/skills/runit-esp/scripts/ble_suite.py` (build.md §6) drives the same protocol from a PC; its `load` scenario sends frames the engine compiled (a JSON of `{op, payload}`) to a real board, `capture` also applies runtime writes and records every stream raw. `tests/backend/fakes.ts` is a board behind a fake platform (reassembles what is written, answers on notify, drops the link, fails or hangs an open). `link.test.ts` covers requests, order, parts, errors, timeouts, streams, reconnecting, the stall and the late open.
 
 ## Measured on a board (Windows 11, Intel BT, `bleak` driving the same framing and router)
 

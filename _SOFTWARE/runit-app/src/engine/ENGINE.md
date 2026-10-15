@@ -54,6 +54,16 @@ toPath(draft)                   // the `ObjectPath` the compiler takes; undefine
 
 An empty slot stands for the first entry while the draft is inspected, so what follows it can still be offered. `dimensionsOf` / `shapeText` read arrays of one to three dimensions (a value array, a folder of equal rows, of such matrices).
 
+## Run time: writing and reading variables
+
+`engine.write(result, [{ variable, value, element? }])` gives the frames of a runtime write (`SET_DATA` on a running program, applied at the next pass; refused for a `usr_protected` object); a long value is cut between elements to fit the frame. `engine.telemetry(result)` gives a `TelemetryReader`: `read(frame)` takes a telemetry frame without its stream byte (`[ROUTER_KEY_VM][SET_DATA][count]…`, the same records a write is made of) and returns `{ values, objects }`; a value has its object id, first element, bytes, type, decoded `value` and the user's `variable`. A heap object the board creates is announced (`ADD_OBJECTS`) before its values and the reader remembers its type. Checked against frames captured from a board.
+
+## Recovering a project from the program on the board
+
+`engine.recover(frames)` takes the program's load frames (`{ op, payload }`, as `readProject` gives them, without the router keys) and returns `{ project, diagnostics, parsed, exact, compileDiagnostics }`. `parseProgram` (`wire/format/parse.ts`) reads the records back into a program; `recoverProject` (`recover/project.ts`) rebuilds the project: the named objects become variables (a pointer is a folder when its children are the objects that follow it, depth first, else a reference), an accessor becomes the path of its root plus its steps, the objects without a name become the outputs of the block that writes them, and each block record becomes an instance: type, the operation and device of a device block, pins, enables, the fields read out of the state at their offsets, a formula decompiled to its text. `exact` says compiling the recovered project gives the very same program; the test does it for every block and variant of the palette.
+
+What the program never held does not come back: descriptions, the names of blocks and of a switch's cases, ids (they are `v<object>` / `b<block>`), positions on a canvas. Two programs the board cannot tell apart come back as one: a reference to the very next object reads as a folder of one, and a block that reads another block's output which that block also writes into a variable reads that variable.
+
 ## How a project becomes frames
 
 1. Variables are checked and laid out as objects (ids `0..n-1`, depth-first). A folder is a pointer object over its children, a reference one over its target; an empty folder has no object.
@@ -97,7 +107,7 @@ Three things were once held in the engine and are now published and checked at t
 
 ## Not done yet
 
-Recovering a project from the program stored on the board (the formulas of its blocks already decompile), telemetry parsing and run-time reads (a watch list), a debug build, the settings / BLE side. The wire layer has `subscribeFrame`, `execFrame`, `speedFrame`, `resetFrame`.
+A watch list (which variables to subscribe to, from the board's limit), a debug build, the settings / BLE side. The wire layer has `subscribeFrame`, `execFrame`, `speedFrame`, `resetFrame`.
 
 ## Tests
 

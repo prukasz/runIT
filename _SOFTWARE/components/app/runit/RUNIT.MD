@@ -31,7 +31,7 @@ In order; a failing step is logged and the boot goes on (one missing piece, such
 | ble | `sys_ble_start` (if `RUNIT_BLE_START`) |
 | project | `sys_project_init` (after `actions`: the options namespace) and, as the last step, `sys_project_boot`: the stored project runs on a router task when its autostart is on (SYS_PROJECT.MD) |
 
-The project step is not run on a board yet.
+Checked on a board: a stored project with a device section and autostart runs after the boot (the section's commands are applied once the devices exist).
 
 ## Onboard actions
 

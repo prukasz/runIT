@@ -1,0 +1,25 @@
+{
+ "source": "a runIT board over BLE (ble_suite.py style capture): program x, y=3, z = x*2+y (expr block, output z); SUBSCRIBE x y z; then the runtime writes x=5 and x=7.5. Stream bytes: 2 telemetry, 3 logs. Frames without the stream byte.",
+ "frames": [
+  {
+   "stream": 3,
+   "hex": "49202838333637323429207379735f626c655f737461636b2e633a20636f6e6e6563746564202868616e646c6520312c204d545520323329"
+  },
+  {
+   "stream": 3,
+   "hex": "49202838333637333129207379735f626c655f737461636b2e633a204d545520353237"
+  },
+  {
+   "stream": 2,
+   "hex": "0b0403000000000400000000000100000004000000404002000000040000000000"
+  },
+  {
+   "stream": 2,
+   "hex": "0b04020000000004000000a04002000000040000005041"
+  },
+  {
+   "stream": 2,
+   "hex": "0b04020000000004000000f04002000000040000009041"
+  }
+ ]
+}

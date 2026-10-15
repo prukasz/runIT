@@ -1,6 +1,8 @@
 import enumsJson from '@generated/common/enums.json'
 import errorsJson from '@generated/common/errors.json'
 import limitsJson from '@generated/common/limits.json'
+import actionsContract from '@generated/services/contract_actions.json'
+import projectContract from '@generated/services/contract_project.json'
 import type { EnumTables } from '@engine/generated/wire'
 
 /*
@@ -21,6 +23,8 @@ export interface LinkDefinitions {
   readonly frag: { readonly last: number; readonly first: number; readonly countMask: number }
   /** The error record's header (ROUTER.MD "Error record"). */
   readonly errorRecord: { readonly srcInternal: number; readonly srcCommand: number; readonly requestCut: number }
+  /** The ops of the `actions` and `project` routers by command id (`RUN`, `BEGIN`, ...): `generated/services/contract_*.json`. */
+  readonly ops: { readonly actions: Readonly<Record<string, number>>; readonly project: Readonly<Record<string, number>> }
   /** `CONFIG_ROUTER_FRAME_MAX`: the largest request (and response) frame. A link may carry less. */
   readonly frameMax: number
 }
@@ -33,7 +37,17 @@ const value = (enums: EnumTables, group: string, symbol: string): number => {
   return member.value
 }
 
-export const linkDefinitions = (enums: EnumTables, frameMax: number): LinkDefinitions => {
+interface ContractFile {
+  readonly commands: readonly { readonly id: string; readonly op: number }[]
+}
+
+const opsOf = (contract: ContractFile): Record<string, number> => Object.fromEntries(contract.commands.map((c) => [c.id, c.op]))
+
+export const linkDefinitions = (
+  enums: EnumTables,
+  frameMax: number,
+  contracts: { readonly actions: ContractFile; readonly project: ContractFile } = { actions: actionsContract as ContractFile, project: projectContract as ContractFile },
+): LinkDefinitions => {
   const keys = enums.router_key
   if (!keys) throw new Error("generated/common/enums.json has no group 'router_key'.")
   return {
@@ -64,6 +78,7 @@ export const linkDefinitions = (enums: EnumTables, frameMax: number): LinkDefini
       srcCommand: value(enums, 'router_err_src_e', 'ROUTER_ERR_SRC_COMMAND'),
       requestCut: value(enums, 'router_err_flag', 'ROUTER_ERR_REQ_CUT'),
     },
+    ops: { actions: opsOf(contracts.actions), project: opsOf(contracts.project) },
     frameMax,
   }
 }

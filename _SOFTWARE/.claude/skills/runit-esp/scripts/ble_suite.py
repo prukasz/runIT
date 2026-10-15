@@ -15,7 +15,14 @@ Scenarios (default: basic frames streams latency cycles):
   gatt      a runtime GATT change with APPLY while connected, then a reopen sees it (adds and removes a test service)
   load      --frames FILE: sends VM frames ([{"op": n, "payload": "hex"}, ...] as the app's engine makes them) to the VM router in order, each
             answered OK. The program stays loaded: end the file with a reset frame to leave the VM empty
-  deadman   dead-man on link lost, read from the console (needs --uart; leaves the dead-man off)
+  actions   stored records: a user action (--action-id, default 10; 3 to 6 belong to the firmware) that switches the two LEDs
+            (--device 1, --pins 22,23) off is stored, listed, read back frame for frame, run, and removed
+  project   a project with a device section that lights the two LEDs and autostart: stored, INFO matches, every record read back,
+            the board restarted and the LEDs are on after the boot; then erased (reboots the board)
+  capture   --plan FILE: {"load": [frames], "writes": [[frames], ...]} (the engine's frames: a program, then runtime writes): loads the
+            program, applies each write 0.7 s apart and records every stream frame raw (--out FILE); checks that telemetry came after
+            each write. Ends with a VM reset
+  deadman   dead-man on link lost, read from the console (needs --uart); the safe state suspends every device, so the scenario resumes them and leaves the dead-man off
   soak      --minutes of random cycles, with --uart also watching the console for panics and reboots
 
 --uart (a console port) lets the suite see the board's log: the dead-man check and the panic / unexpected-reboot watch.
@@ -32,10 +39,11 @@ import statistics
 import struct
 import sys
 import time
+import zlib
 from pathlib import Path
 
 from ble_link import (
-    ATT_VALUE_MAX, BLE_OPS, FRAG_FIRST, FRAG_LAST, FRAME_MAX, GENERATED, KEYS, LOGS, RX, STREAM_ERRORS, STREAM_LOGS, SVC, TX,
+    ATT_VALUE_MAX, BLE_OPS, KEY_DEVICE, action_info, action_list, action_read, action_run, action_store, device_frame, image, project_info, project_save, section, FRAG_FIRST, FRAG_LAST, FRAME_MAX, GENERATED, KEYS, LOGS, RX, STREAM_ERRORS, STREAM_LOGS, STREAM_TELEMETRY, SVC, TX,
     BleLink, find_board, fragment, offered_mtu,
 )
 from router_link import Link, decode_record
@@ -275,11 +283,14 @@ async def restart(ctx: Ctx) -> None:
         await asyncio.wait_for(ctx.link.lost.wait(), 6)
         info(f"the loss was noticed after {(time.perf_counter() - t0) * 1000:.0f} ms")
     except asyncio.TimeoutError:
-        check("the loss is noticed", False, "no disconnect event within 6 s")
-        return
+        # the OS may report a dead link late or never (see the gatt scenario): carry on and reconnect, as the app's link does
+        info("no disconnect event within 6 s; reconnecting anyway")
     for attempt in range(40):
         try:
-            await ctx.close()
+            try:
+                await asyncio.wait_for(ctx.close(), 3)
+            except Exception:  # noqa: BLE001 - a link the OS has not yet declared dead may refuse to close
+                pass
             link = await ctx.open(retries=1)
             r = await link.request(PING, timeout=1.0)
             if r is not None and r.ok:
@@ -330,6 +341,97 @@ async def load(ctx: Ctx) -> None:
     info(f"{(time.perf_counter() - t) * 1000:.0f} ms")
 
 
+def _pin_frames(args, level: int) -> list[bytes]:
+    pins = [int(p) for p in args.pins.split(",")]
+    return [device_frame(args.device, 0x0100, bytes([pin, level])) for pin in pins]  # IO contract (1) SET_LEVEL (0)
+
+
+async def _levels(ctx: Ctx) -> list:
+    out = []
+    for pin in (int(p) for p in ctx.args.pins.split(",")):
+        r = await ctx.link.request(bytes([KEY_DEVICE]), struct.pack("<HHB", ctx.args.device, 0x0102, pin))  # IO GET_LEVEL
+        out.append(r.data[0] if r is not None and r.ok and r.data else None)
+    return out
+
+
+async def actions(ctx: Ctx) -> None:
+    link, aid = ctx.link, ctx.args.action_id
+    if aid in (3, 4, 5, 6):
+        check(f"action {aid} is free", False, "3 to 6 are the firmware's own (resume, suspend, reset, hard reset)")
+        return
+    off = _pin_frames(ctx.args, 0)
+    r = await action_store(link, aid, off)
+    check(f"action {aid} stored", r is not None and r.ok, str(r))
+    info = await action_info(link, aid)
+    check("INFO: bytes, frames and the CRC of the image", info is not None and info[1] == len(off) and info[2] == zlib.crc32(image(off)), str(info))
+    check("LIST names it", aid in await action_list(link))
+    check("READ gives the frames back as stored", await action_read(link, aid) == off)
+    for frame in _pin_frames(ctx.args, 1):
+        await link.request(frame[:1], frame[1:])
+    check("the LEDs are on before the run", await _levels(ctx) == [1] * len(off))
+    r = await action_run(link, aid)
+    check(f"RUN {aid}", r is not None and r.ok, str(r))
+    check("both LEDs are off after it", await _levels(ctx) == [0] * len(off), str(await _levels(ctx)))
+    r = await link.request(bytes([KEYS["actions"], 0x0A]), struct.pack("<I", aid))  # REMOVE
+    check("REMOVE", r is not None and r.ok and aid not in await action_list(link), str(r))
+
+
+async def project(ctx: Ctx) -> None:
+    link = ctx.link
+    device_id = 0x02000000 | ctx.args.device
+    before = await project_info(link)
+    check("no project is stored to start with", before is not None and not before["stored"], f"{before}: ERASE it first, this scenario replaces it")
+    on = _pin_frames(ctx.args, 1)
+    r = await project_save(link, {device_id: on}, autostart=True)
+    check("the project is stored", r is not None and r.ok, str(r))
+    stream = image([section(device_id), *on])
+    info = await project_info(link)
+    check("INFO: stored, autostart, the length and CRC of the stream", info is not None and info["stored"] and info["autostart"] and info["bytes"] == len(stream) and info["crc"] == zlib.crc32(stream), str(info))
+    check("the device section is a record of its own, as sent", await action_read(link, device_id) == on)
+    record = await action_read(link, 0x03000000)
+    check("the project record runs the section", record is not None and any(f[:2] == bytes([KEYS["actions"], 0x0D]) and struct.unpack_from("<I", f, 2)[0] == device_id for f in record), str(record))
+    for frame in _pin_frames(ctx.args, 0):
+        await link.request(frame[:1], frame[1:])
+    check("the LEDs are off before the restart", await _levels(ctx) == [0] * len(on))
+    await restart(ctx)
+    await asyncio.sleep(1.0)
+    levels = await _levels(ctx)
+    check("after the boot the project lit the LEDs", levels == [1] * len(on), str(levels))
+    r = await ctx.link.request(bytes([KEYS["project"], 0x07]))  # ERASE
+    r2 = await ctx.link.request(bytes([KEYS["actions"], 0x0A]), struct.pack("<I", device_id))  # REMOVE the device record
+    after = await project_info(ctx.link)
+    check("erased, and the device record removed", r is not None and r.ok and r2 is not None and r2.ok and after is not None and not after["stored"], f"{r} {r2} {after}")
+
+
+async def capture(ctx: Ctx) -> None:
+    if not ctx.args.plan:
+        check("capture needs --plan FILE", False)
+        return
+    plan = json.loads(Path(ctx.args.plan).read_text(encoding="utf8"))
+    link, t0 = ctx.link, time.time()
+
+    async def send(frames) -> bool:
+        for f in frames:
+            r = await link.request(bytes([KEYS["vm"], f["op"]]), bytes.fromhex(f.get("payload", "")), timeout=5.0)
+            if r is None or not r.ok:
+                return False
+        return True
+
+    check("the program loads", await send(plan["load"]))
+    await asyncio.sleep(0.7)
+    for i, writes in enumerate(plan.get("writes", [])):
+        before = len(link.streams_since(0, STREAM_TELEMETRY))
+        ok = await send(writes)
+        await asyncio.sleep(0.7)
+        check(f"runtime write {i} accepted, and telemetry followed", ok and len(link.streams_since(0, STREAM_TELEMETRY)) > before)
+    await link.request(bytes([KEYS["vm"], 1]))  # RESET: leave the VM empty
+    frames = [{"t": round(t - t0, 3), "stream": s, "hex": p.hex()} for (t, s, p, _n) in link.streams]
+    info(f"{len(frames)} stream frames, {sum(f['stream'] == STREAM_TELEMETRY for f in frames)} of them telemetry")
+    if ctx.args.out:
+        Path(ctx.args.out).write_text(json.dumps(frames), encoding="utf8")
+        info(f"written to {ctx.args.out}")
+
+
 async def deadman(ctx: Ctx) -> None:
     if ctx.uart is None:
         check("dead-man on link lost", False, "needs --uart (the log shows the safe state)")
@@ -341,7 +443,10 @@ async def deadman(ctx: Ctx) -> None:
     check("disconnect -> safe state LINK_LOST (console log)", ctx.uart.wait_log("safe state (reason 3)", 6.0, since=mark))
     r = ctx.uart.request(bytes([KEY_SYS, OP_DEADMAN_SET]), payload=struct.pack("<IB", 0, 0))
     check("dead-man off again (console)", r is not None and r.ok, str(r))
-    await ctx.open()
+    link = await ctx.open()
+    # the safe state suspended every device and stopped the VM: give the board back as it was found
+    r = await link.request(bytes([KEYS["device"]]), struct.pack("<HH", 0xFFFF, 0x0003))
+    check("devices resumed after the safe state", r is not None and r.ok, str(r))
 
 
 async def soak(ctx: Ctx) -> None:
@@ -386,7 +491,7 @@ async def soak(ctx: Ctx) -> None:
 
 
 SCENARIOS = {"basic": basic, "frames": frames, "streams": streams, "latency": latency, "cycles": cycles, "idle": idle,
-             "stress": stress, "restart": restart, "gatt": gatt, "load": load, "deadman": deadman, "soak": soak}
+             "stress": stress, "restart": restart, "gatt": gatt, "load": load, "actions": actions, "project": project, "capture": capture, "deadman": deadman, "soak": soak}
 DEFAULT = ["basic", "frames", "streams", "latency", "cycles"]
 
 
@@ -427,6 +532,11 @@ def main() -> None:
     ap.add_argument("--cycles", type=int, default=10, help="disconnect + connect cycles (default 10)")
     ap.add_argument("--requests", type=int, default=300, help="requests of the stress scenario (default 300)")
     ap.add_argument("--frames", help="JSON file of VM frames for the load scenario")
+    ap.add_argument("--action-id", type=int, default=10, help="user action the actions scenario stores (default 10)")
+    ap.add_argument("--device", type=int, default=1, help="device id of the LEDs' expander (default 1, the TCA6424A)")
+    ap.add_argument("--pins", default="22,23", help="LED pins of that device (default 22,23)")
+    ap.add_argument("--plan", help="JSON plan for the capture scenario")
+    ap.add_argument("--out", help="file the capture scenario writes the raw stream frames to")
     ap.add_argument("--idle-s", type=float, default=45.0)
     ap.add_argument("--minutes", type=float, default=5.0, help="soak length")
     ap.add_argument("--scan-s", type=float, default=10.0)

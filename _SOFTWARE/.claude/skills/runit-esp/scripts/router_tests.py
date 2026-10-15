@@ -929,7 +929,9 @@ def test_project(link: Link) -> None:
     ids = [x for x in (listing[1] if listing else []) if x >> 24 == CLASS_PROJECT]
     bank = prj_info(link)[2]
     base = ((bank + 1) << 16) | (CLASS_PROJECT << 24)
-    want = [PROJECT_RECORD, base, base + 1, base + 2]  # the record, the list of chunks, 2 chunks (IDs one after another)
+    # the record, the list of chunks, 2 chunks: IDs are given one after another in the order they are needed, and the staged
+    # section (n = 1) is needed first, so the chunks are n = 2 and 3 (SYS_PROJECT.MD "IDs one after another")
+    want = [PROJECT_RECORD, base, base + 2, base + 3]
     check("program records: list + 2 chunks in order", ids == want, f"{[hex(x) for x in ids]} want {[hex(x) for x in want]}")
     r = prj(link, P_RUN)
     check("project RUN", r is not None and r.ok, str(r))

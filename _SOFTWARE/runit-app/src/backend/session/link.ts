@@ -73,6 +73,8 @@ export interface StreamFrame {
   readonly name?: StreamName
   /** The frame without its stream byte. */
   readonly data: Uint8Array
+  /** When it arrived (ms since the epoch). */
+  readonly at: number
 }
 
 export type LinkDiagnostic = { readonly kind: 'dropped'; readonly characteristic: number; readonly reason: string } | { readonly kind: 'unknown-stream'; readonly stream: number }
@@ -203,6 +205,13 @@ export class RunitLink {
   onStream(handler: (frame: StreamFrame) => void): () => void {
     this.streamHandlers.add(handler)
     return () => this.streamHandlers.delete(handler)
+  }
+
+  /** The frames of one stream (`telemetry`, `logs`, `errors`, `events`), raw. */
+  on(name: StreamName, handler: (data: Uint8Array, frame: StreamFrame) => void): () => void {
+    return this.onStream((frame) => {
+      if (frame.name === name) handler(frame.data, frame)
+    })
   }
 
   onDiagnostic(handler: (diagnostic: LinkDiagnostic) => void): () => void {
@@ -341,7 +350,7 @@ export class RunitLink {
     }
     const name = this.streamNames.get(stream)
     if (!name) this.diagnosticHandlers.forEach((h) => h({ kind: 'unknown-stream', stream }))
-    const frame: StreamFrame = { stream, ...(name ? { name } : {}), data: result.frame.subarray(1) }
+    const frame: StreamFrame = { stream, ...(name ? { name } : {}), data: result.frame.subarray(1), at: Date.now() }
     this.streamHandlers.forEach((h) => h(frame))
   }
 

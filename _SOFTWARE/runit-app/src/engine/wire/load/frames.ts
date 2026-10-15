@@ -22,7 +22,7 @@ export const batchBody = (records: readonly Uint8Array[]): Uint8Array => {
 }
 
 /** Records into batch frames: a frame is closed when the next record would pass what a frame is filled to (`frameFill`), or at 255 records (`u8 count`). */
-const pack = (op: number, records: readonly Uint8Array[], limits: VmLimits): LoadFrame[] => {
+export const pack = (op: number, records: readonly Uint8Array[], limits: VmLimits): LoadFrame[] => {
   const frames: LoadFrame[] = []
   const fill = frameFill(limits)
   let current: Uint8Array[] = []
