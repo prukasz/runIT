@@ -35,7 +35,7 @@ static int gap_event(struct ble_gap_event* event, void* arg);
 
 static err_h adv_start(void) {
   const char* name = ble_svc_gap_device_name();
-  /* The runIT service in the advertisement: a browser filters by it, and reconnects to a known board on seeing it. */
+  /* The runIT service in the advertisement: a client filters by it, and reconnects to a known board on seeing it. */
   static const ble_uuid16_t runit_svc = BLE_UUID16_INIT(SYS_BLE_SVC_RUNIT);
   struct ble_hs_adv_fields fields = {
       .uuids16 = &runit_svc,

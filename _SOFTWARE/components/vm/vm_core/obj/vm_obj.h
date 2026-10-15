@@ -52,7 +52,7 @@ typedef enum vm_obj_t_e {
 #define VM_OBJ_HEAD_WIRE_SIZE 4u
 
 /* A PTR element is a 4-byte pointer in memory and its child's u16 object ID
- * on the wire (0x43 records, both directions). */
+ * on the wire (SET_DATA records, both directions). */
 #define VM_OBJ_PTR_WIRE_SIZE 2u
 
 /**

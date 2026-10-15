@@ -98,8 +98,7 @@ typedef struct __attribute__((packed)) {
 #define EVENT_ENTRY(name) {EVENT_OP_##name, event_h_##name}
 
 /* ----------------------------------------------------------------------------
- * Errors (module ERR_MOD_SYS_EVENT). Tags 1 (LOOP), 6 (BAD_ID) and 7 (NO_RUNNER)
- * are retired: hops, remote watches and rules are gone (2026-10-11).
+ * Errors (module ERR_MOD_SYS_EVENT).
  * ------------------------------------------------------------------------- */
 
 // clang-format off

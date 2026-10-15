@@ -21,3 +21,10 @@ sdkconfig*
 partitions.csv
 dependencies.lock
 app/vite.config.ts
+
+# no app yet / not part of firmware graph
+app/
+runit-app/
+tools/
+generated/
+templates/

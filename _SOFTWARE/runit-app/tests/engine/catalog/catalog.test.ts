@@ -245,3 +245,12 @@ describe('blocks as the UI and the compiler read them', () => {
     expect(drive?.kind === 'pin' && drive.value).toBe('float')
   })
 })
+
+describe('formula blocks', () => {
+  it('name the published enum of their opcodes and the type of their constants', () => {
+    const catalog = Catalog.fromGenerated(loadGeneratedInput())
+    expect(catalog.require('expr').opcodes).toEqual({ enum: 'vm_expr_op_e', constant: 'f32' })
+    expect(catalog.require('expr_bit').opcodes).toEqual({ enum: 'vm_bit_op_e', constant: 'u32' })
+    expect(catalog.require('if').opcodes).toBeUndefined()
+  })
+})

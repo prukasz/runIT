@@ -72,7 +72,7 @@ Layout format (positions are fractions 0..1 of the picture's width / height, so 
 
 Keys are pins.csv names. Anchors in the layout that are no longer in the csv are dropped on load and flagged; new csv pins show up as unplaced.
 
-**Board.** The runIT board uses the same path: `board-simple.svg` as background, `data-structures/board/` JSON for each terminal's pins, voltage and limits, plus a layout over the picture.
+**Board.** The runIT board uses the same path: `board-simple.svg` as background, the board descriptor (`components/app/runit/board.json`) for each terminal's pins, voltage and limits, plus a layout over the picture.
 
 ## 5. Wires and electrical model
 
@@ -136,7 +136,7 @@ Resolved after the first round:
 
 Wires, nets, the dependency checks and the view options of §5 and §6 are implemented in the Board canvas.
 
-**Data.** A wire is `{id, a, b}` with an end `{device, pin}`: `device` is `board` or a user device's project ID, `pin` is a board terminal's art ID or a device pin's csv name. Stored in the project as `wires` (references only, never coordinates), next to `boardLayout`, undoable with the devices. Removing a device removes its wires. The board's terminals are described in the hand-written `data-structures/board/board-terminals.json`: kind, direction, modes, limits, bus signal, the named net (GND, 3V3, REG1, REG2, VS: all terminals of one net are joined on the PCB) and, where known, the sys_io pin behind it.
+**Data.** A wire is `{id, a, b}` with an end `{device, pin}`: `device` is `board` or a user device's project ID, `pin` is a board terminal's art ID or a device pin's csv name. Stored in the project as `wires` (references only, never coordinates), next to `boardLayout`, undoable with the devices. Removing a device removes its wires. The board's terminals are described in the board descriptor (`components/app/runit/board.json`): kind, direction, modes, limits, bus signal, the named net (GND, 3V3, REG1, REG2, VS: all terminals of one net are joined on the PCB) and, where known, the sys_io pin behind it.
 
 **Producer / consumer flags.** Every pin has a role, derived from its direction (the csv `dir`, overridable per variant in the anchor editor): `out` = **producer** (drives the signal), `in` = **consumer** (receives it), `inout` = **both** (takes the role the other end needs, like a GPIO). A supply output produces, a supply input consumes, ground is neutral. The role is shown as a flag on the pin lists, in the pin tooltips (`IO3 · both`, `AIN0 · consumer`), in the wire card, and as an arrow along each wire from producer to consumer.
 

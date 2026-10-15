@@ -479,6 +479,25 @@ err_h sys_actions_remove(uint32_t id) {
   return ERR_ESP(nvs_commit(s_nvs));
 }
 
+err_h sys_actions_remove_all(void) {
+  LOCK();
+  err_h err = s_session.kind == SESSION_NONE ? NULL : ERR_NEW(ERR_ACTION_BUSY);
+  uint32_t ids[8];
+  // Erasing invalidates the NVS iterator, so each pass lists afresh from the lowest ID.
+  while (err == NULL) {
+    uint16_t count = 0;
+    err = sys_actions_list(0, ids, ARRAY_LEN(ids), &count, NULL);
+    if (err != NULL || count == 0) {
+      break;
+    }
+    for (uint16_t i = 0; i < count && err == NULL; i++) {
+      err = sys_actions_remove(ids[i]);
+    }
+  }
+  UNLOCK();
+  return err;
+}
+
 // Keeps the `cap` smallest IDs seen so far, ascending.
 static void keep_smallest(uint32_t* ids, uint16_t cap, uint16_t* count, uint32_t id) {
   uint16_t at;

@@ -3747,6 +3747,10 @@ CONFIG_RUNIT_ONBOARD_DEVICES=y
 CONFIG_RUNIT_ACTION_ID_RESUME=3
 # default:
 CONFIG_RUNIT_ACTION_ID_SUSPEND=4
+# default:
+CONFIG_RUNIT_ACTION_ID_RESET=5
+# default:
+CONFIG_RUNIT_ACTION_ID_HARD_RESET=6
 # end of Onboard action IDs
 # end of runIT
 # end of Component config

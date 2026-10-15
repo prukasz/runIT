@@ -8,5 +8,26 @@
       "Bash(npx vitest run)",
       "Bash(npm test)"
     ]
+  },
+  "env": {
+    "ECC_GATEGUARD": "off"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Grep|Glob",
+        "hooks": [
+          { "type": "command", "command": "sh tools/graphify_hint.sh" }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|clear",
+        "hooks": [
+          { "type": "command", "command": "cat .claude/skills/runit-root/SKILL.md" }
+        ]
+      }
+    ]
   }
 }

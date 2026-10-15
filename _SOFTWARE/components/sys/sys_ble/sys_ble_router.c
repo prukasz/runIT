@@ -4,8 +4,8 @@
 
 #include "sys_ble.h"
 
-/* Changes are staged; APPLY puts them live (with a client connected ~200 ms
- * after its answer, and the client reconnects).
+/* Changes are staged; APPLY puts them live (with a client connected,
+ * CONFIG_SYS_BLE_APPLY_DELAY_MS after its answer; the client reconnects).
  *
  *   key  op           request                                     response
  *   0x01 SVC_CREATE   svc_create_t                                -
@@ -49,7 +49,7 @@ typedef struct __attribute__((packed)) {
   uint8_t is_write;         /**< 1 = writable, 0 = not writable */
   uint8_t is_indicate;      /**< 1 = indications enabled, 0 = disabled */
   uint8_t is_notify;        /**< 1 = notifications enabled, 0 = disabled */
-  uint8_t is_framed;        /**< 1 = framed transport, 0 = raw */
+  uint8_t is_framed;        /**< 1 = framed (fragment header on every packet), 0 = unframed */
   uint32_t tx_buffer_size;  /**< TX buffer size in bytes (0 = no TX) */
   uint32_t rx_buffer_size;  /**< RX buffer size in bytes (0 = no RX) */
 } char_create_t;

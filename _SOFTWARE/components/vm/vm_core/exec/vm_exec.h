@@ -117,7 +117,7 @@ void vm_exec_set_mode(vm_run_mode_e mode);
 /** @brief Get current run mode. */
 vm_run_mode_e vm_exec_mode(void);
 
-/** @brief Execute interactive execution command (0x48 packet). */
+/** @brief Execute interactive execution command (VM_OP_EXEC). */
 MUST_USE err_h vm_exec_control(vm_exec_command_e command);
 
 /** @brief Query current supervisor execution state and debug status. */

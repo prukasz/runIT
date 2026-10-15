@@ -22,3 +22,6 @@
 #define ROUTER_KEY_POWER 0x0Au  //@alias Power manager @description Power manager: power budget, supply, battery and event responses
 #define ROUTER_KEY_VM 0x0Bu  //@alias Program @description Program: build, run and watch the VM program
 #define ROUTER_KEY_PROJECT 0x0Cu  //@alias Project @description Project: save a whole project as one stream, run it, read state
+
+/* Sys router ops under ROUTER_KEY_SYS (router_sys.c). Never renumber. */
+#define ROUTER_SYS_OP_RESTART 0x03u  // restarts the board ~100 ms after the answer (the hard reset)

@@ -33,7 +33,7 @@ MUST_USE err_h vm_loader_reset(void);
  * the complete program again from open. With nothing loaded (state EMPTY) @p cause is
  * returned unchanged. A NULL @p cause returns NULL.
  * @param cause  The failure (ownership passes to the returned chain).
- * @param packet Header of the packet that failed.
+ * @param packet The op that failed (VM_OP_*).
  */
 MUST_USE err_h vm_loader_abort(err_h cause, uint8_t packet);
 

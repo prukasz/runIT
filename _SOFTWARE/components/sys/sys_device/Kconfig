@@ -6,14 +6,14 @@ menu "sys_device"
         range 1 1024
         help
           How many devices can be registered at once (any IDs 0..0xFFFE).
-          One entry is an ID, a type and its struct pointer (8 bytes).
+          One entry is an ID, a type, its struct pointer and its error policy.
 
     config SYS_DEVICE_TYPES
         int "Device types"
         default 16
         range 1 255
         help
-          Device types that can be registered (one router each).
+          Device types that can be registered.
 
     config SYS_DEVICE_MAX_DEPS
         int "Devices one device may use"

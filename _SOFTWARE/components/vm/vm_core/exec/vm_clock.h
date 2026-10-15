@@ -12,7 +12,7 @@
  * report dropped ticks when it resumes, and a program slowed down x times keeps its timers x
  * times slower.
  *
- * Written only by the supervisor (vm_exec.c) and, for the factor, the 0x49 decoder; blocks only read.
+ * Written only by the supervisor (vm_exec.c) and, for the factor, the SPEED op; blocks only read.
  */
 
 /** @brief Largest slow-motion factor (vm_clock_set_slowdown). */

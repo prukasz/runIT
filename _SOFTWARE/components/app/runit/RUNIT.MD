@@ -1,14 +1,14 @@
 # runit — the application
 
-Component `components/app/runit/` (2026-10-11). What the legacy `runit` component did, on the new tree: the boot sequence, the safe state, the error policy wiring (action runner, error sink) and the board's stream routing. `main/main.c` only calls `runit_start()` (same shape as the legacy `main.c`).
+Component `components/app/runit/`. The application: the boot sequence, the safe state, the error policy wiring (action runner, error sink) and the board's stream routing. `main/main.c` only calls `runit_start()`.
 
 | File | Contents |
 |---|---|
 | `runit.h` / `runit.c` | `runit_start()` (boot steps), `runit_run_boot_steps()`, `runit_enter_safe_state()`, router registration, the router's safe-state handler |
 | `runit_error_policy.h/.c` | `runit_error_wiring_init()`: the action runner of the device error policy (the policy is `sys_device`'s, SYS_DEVICE.MD "Error policy") and the error sink |
 | `runit_board_cfg.h/.c` | `runit_board_connector_bindings_init()`: which stream goes to which transport; `runit_board_power_init()`: the power layout |
-| `runit_board_defs.h` | Onboard device IDs and power limits of rev 1 (from legacy) |
-| `Kconfig` | `RUNIT_BLE_START` (was `main/Kconfig.projbuild`): off for QEMU |
+| `runit_board_defs.h` | Onboard device IDs and power limits of board rev 1 |
+| `Kconfig` | `RUNIT_BLE_START`: off for QEMU |
 
 ## Boot
 
@@ -31,7 +31,7 @@ In order; a failing step is logged and the boot goes on (one missing piece, such
 | ble | `sys_ble_start` (if `RUNIT_BLE_START`) |
 | project | `sys_project_init` (after `actions`: the options namespace) and, as the last step, `sys_project_boot`: the stored project runs on a router task when its autostart is on (SYS_PROJECT.MD) |
 
-Legacy differences (boot): legacy aborted the boot at the first failing step and entered the safe state; no reset-reason line, no board devices, no boot action, the VM and project steps are new (the project one is not run on a board).
+The project step is not run on a board yet.
 
 ## Onboard actions
 
@@ -41,12 +41,14 @@ Legacy differences (boot): legacy aborted the boot at the first failing step and
 |---|---|---|
 | 3 `RUNIT_ACTION_ID_RESUME` (user class, `0x00000003`) | resume all | `05 FF FF 03 00` (every device, oldest first) |
 | 4 `RUNIT_ACTION_ID_SUSPEND` (`0x00000004`) | suspend all | `05 FF FF 02 00` (every device, newest first) |
+| 5 `RUNIT_ACTION_ID_RESET` (`0x00000005`) | reset all devices | `05 FF FF 01 00` (every device, newest first; the drivers' RESET) |
+| 6 `RUNIT_ACTION_ID_HARD_RESET` (`0x00000006`) | hard reset: restart the board | `02 00 01 03` (sys router RESTART, ~100 ms after the answer) |
 
-Run with `06 01 <id u32>`, or name the ID in a device's error policy. Not ported from legacy: reset (5), hard reset (6), boot (1).
+Run with `06 01 <id u32>`, or name the ID in a device's error policy. Hard reset is a board restart, so the VM, the devices and the BLE link are all rebuilt by the boot (and the project's autostart, if set). Reset all does not rewind the VM and does not re-apply a boot configuration. Boot is not a record: boot configuration is a device setting.
 
 ## Safe state
 
-`runit_enter_safe_state()`: the VM stopped (`vm_exec_stop`, retained values saved), then every device suspended (`sys_device_suspend_all`). The router calls it on STOP, dead-man and link lost. The VM stop (and its retained values) joins once the VM is ported.
+`runit_enter_safe_state()`: the VM stopped (`vm_exec_stop`, retained values saved), then every device suspended (`sys_device_suspend_all`). The router calls it on STOP, dead-man and link lost.
 
 ## Error policy wiring
 

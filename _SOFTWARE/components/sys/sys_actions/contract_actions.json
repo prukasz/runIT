@@ -266,18 +266,9 @@
         ]
       },
       "returns": {
-        "struct": "sys_actions_list_t",
-        "description": "Lista ID rekordów",
-        "fields": [
-          {
-            "id": "total",
-            "label": "Łączna liczba rekordów",
-            "type": "integer",
-            "raw_type": "u16",
-            "size": 2,
-            "offset": 0
-          }
-        ]
+        "type": "u16",
+        "label": "Łączna liczba rekordów",
+        "description": "Potem u32 ID rekordów rosnąco od podanego startu, do 48 i tyle, ile się mieści."
       }
     },
     {
@@ -326,6 +317,13 @@
           }
         ]
       }
+    },
+    {
+      "id": "REMOVE_ALL",
+      "op": 14,
+      "symbol": "SYS_ACTIONS_OP_REMOVE_ALL",
+      "label": "Usuń wszystkie rekordy akcji",
+      "description": "Usuwa wszystkie zapisane rekordy (ustawienia, urządzenia, projekt i akcje użytkownika). Odmawia, gdy nagrywanie lub wgrywanie jest otwarte."
     }
   ]
 }

@@ -7,19 +7,19 @@
  * @file vm_sub.h
  * @brief VM object subscription and telemetry mechanism.
  *
- * A client subscribes to a list of object IDs (inbound packet 0x47). After
+ * A client subscribes to a list of object IDs (VM_OP_SUBSCRIBE). After
  * every completed pass, vm_sub_scan() walks each subscribed object and its PTR
  * children (8 levels) and sends, on the telemetry connector, every object whose
  * value differs from what was last sent -- whether or not the block that wrote
  * it marked it fresh (a quiet write is a change too):
  *
- *   - 0x43 value records (layout of decoder_packet_vm_set_data):
+ *   - value records (VM_OP_SET_DATA, vm_wire_data_t):
  *     [u16 id][u16 start_idx][u16 byte_len][data]; a PTR's data is its child
  *     IDs (u16 each); an object larger than a frame is split, start_idx counts
  *     elements.
- *   - 0x42 describe records (layout of decoder_packet_vm_add_objs) for heap
+ *   - describe records (VM_OP_ADD_OBJECTS, vm_wire_obj_t) for heap
  *     objects (ID has VM_OBJ_ID_DYN_BIT), which the app never uploaded:
- *     [u16 id][vm_obj_head_t][name]. Sent before any value that may reference
+ *     [u16 id][vm_wire_head_t][name]. Sent before any value that may reference
  *     them, when first seen and whenever type, size or name change.
  *
  * A new subscription starts with a full snapshot: at the end of the next pass,
@@ -47,21 +47,21 @@ MUST_USE err_h vm_sub_init(void);
 MUST_USE err_h vm_sub_subscribe(const uint16_t* ids, uint16_t count);
 
 /**
- * @brief Process an inbound subscription packet payload (body after packet header 0x47).
+ * @brief Process the payload of VM_OP_SUBSCRIBE (after the root key and the op).
  *
  * Wire format:
  *   [0]     u8 count
  *   [1..]   count * u16 obj_id (little-endian)
  *
- * @param body Pointer to packet body.
- * @param len Length of body in bytes.
+ * @param body Pointer to the payload.
+ * @param len Length of the payload in bytes.
  * @return err_h NULL on success, or error code.
  */
 MUST_USE err_h vm_sub_handle_packet(const uint8_t* body, size_t len);
 
 /**
  * @brief Take over a new subscription list, then send what changed since the
- *        last sample (0x42 / 0x43 frames). Called by vm_exec's sample hook at
+ *        last sample (ADD_OBJECTS / SET_DATA frames). Called by vm_exec's sample hook at
  *        the end of every completed pass; must not run concurrently with a pass.
  */
 void vm_sub_scan(void);

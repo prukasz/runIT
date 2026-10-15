@@ -14,12 +14,12 @@
 #include "vm_obj.h"
 
 // ===========================================================================
-// 0x40 reset, 0x41 open
+// RESET, OPEN
 // ===========================================================================
 
 typedef struct __packed {
 } vm_wire_reset_t;
-_Static_assert(sizeof(vm_wire_reset_t) == 0, "0x40 has no body");
+_Static_assert(sizeof(vm_wire_reset_t) == 0, "RESET has no body");
 
 typedef struct __packed {
   uint16_t obj_cnt;     /**< Object slots */
@@ -27,10 +27,10 @@ typedef struct __packed {
   uint16_t blk_cnt;     /**< Block slots */
   uint32_t total_size;  /**< Arena size in bytes reserved for the program */
 } vm_wire_open_t;
-_Static_assert(sizeof(vm_wire_open_t) == 10, "0x41 body is 10 bytes");
+_Static_assert(sizeof(vm_wire_open_t) == 10, "OPEN body is 10 bytes");
 
 // ===========================================================================
-// 0x42 objects (also the telemetry describe record)
+// ADD_OBJECTS (also the telemetry describe record)
 // ===========================================================================
 
 /* The object head on the wire: four bytes, explicit layout, not the compiler's bitfield layout.
@@ -48,7 +48,7 @@ _Static_assert(sizeof(vm_wire_open_t) == 10, "0x41 body is 10 bytes");
 #define VM_WIRE_HEAD_F_RETENTIVE (1u << 4)  //@alias Retained @description Retained after restart
 #define VM_WIRE_HEAD_F_DYNAMIC (1u << 5)  //@alias Heap object @description Heap object
 #define VM_WIRE_HEAD_F_USR_PROTECTED (1u << 6)  //@alias User-protected @description User runtime writes refused
-// bit 1 was the runtime `upd` pulse (never taken from the wire, no longer sent) and bit 7 is unused: both read as 0.
+// Bits 1 and 7 are not used: they are sent as 0 and ignored when read (`upd` is runtime state, never on the wire).
 
 typedef struct __packed {
   uint16_t payload_size;
@@ -61,7 +61,7 @@ typedef struct __packed {
   uint16_t       id;
   vm_wire_head_t head;
 } vm_wire_obj_t;
-_Static_assert(sizeof(vm_wire_obj_t) == 2 + VM_OBJ_HEAD_WIRE_SIZE, "0x42 record head");
+_Static_assert(sizeof(vm_wire_obj_t) == 2 + VM_OBJ_HEAD_WIRE_SIZE, "ADD_OBJECTS record head");
 
 /* Wire head -> object head. Only the shape and the flags the app may set come over: mutable, upd_resetable, retentive,
  * usr_protected (tagged and dynamic are the board's, upd is runtime state). */
@@ -88,7 +88,7 @@ static inline vm_wire_head_t vm_wire_head_pack(const vm_obj_head_t* h, uint8_t n
 }
 
 // ===========================================================================
-// 0x43 values (also the telemetry value record)
+// SET_DATA (also the telemetry value record)
 // ===========================================================================
 
 typedef struct __packed {
@@ -96,10 +96,10 @@ typedef struct __packed {
   uint16_t start_idx;
   uint16_t byte_len;
 } vm_wire_data_t;
-_Static_assert(sizeof(vm_wire_data_t) == 6, "0x43 record head");
+_Static_assert(sizeof(vm_wire_data_t) == 6, "SET_DATA record head");
 
 // ===========================================================================
-// 0x44 accessors and their index steps
+// ADD_ACCESSORS and their index steps
 // ===========================================================================
 
 typedef struct __packed {
@@ -108,7 +108,7 @@ typedef struct __packed {
   uint8_t  idx_count;
   uint8_t  idx_len;
 } vm_wire_acc_t;
-_Static_assert(sizeof(vm_wire_acc_t) == 6, "0x44 record head");
+_Static_assert(sizeof(vm_wire_acc_t) == 6, "ADD_ACCESSORS record head");
 
 typedef struct __packed {
   uint8_t  kind;
@@ -129,7 +129,7 @@ typedef struct __packed {
 _Static_assert(sizeof(vm_wire_idx_name_t) == 2, "name step");
 
 // ===========================================================================
-// 0x45 block
+// ADD_BLOCK
 // ===========================================================================
 
 typedef struct __packed {
@@ -144,23 +144,23 @@ typedef struct __packed {
   uint16_t custom_len;
   uint16_t eno_obj_id;
 } vm_wire_block_t;
-_Static_assert(sizeof(vm_wire_block_t) == 14, "0x45 fixed part");
+_Static_assert(sizeof(vm_wire_block_t) == 14, "ADD_BLOCK fixed part");
 
 // ===========================================================================
-// 0x47 subscribe, 0x48 execution control
+// SUBSCRIBE, EXEC, SPEED
 // ===========================================================================
 
 typedef struct __packed {
   uint16_t id;
 } vm_wire_sub_t;
-_Static_assert(sizeof(vm_wire_sub_t) == 2, "0x47 record");
+_Static_assert(sizeof(vm_wire_sub_t) == 2, "SUBSCRIBE record");
 
 typedef struct __packed {
   uint8_t command;  /**< vm_exec_command_e */
 } vm_wire_exec_t;
-_Static_assert(sizeof(vm_wire_exec_t) == 1, "0x48 body");
+_Static_assert(sizeof(vm_wire_exec_t) == 1, "EXEC body");
 
 typedef struct __packed {
   uint16_t factor;  /**< Slow-motion factor (1 is normal speed) */
 } vm_wire_speed_t;
-_Static_assert(sizeof(vm_wire_speed_t) == 2, "0x49 body");
+_Static_assert(sizeof(vm_wire_speed_t) == 2, "SPEED body");

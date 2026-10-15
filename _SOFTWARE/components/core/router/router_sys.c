@@ -14,7 +14,7 @@
 
 #define OP_PING 0x01u
 #define OP_STOP 0x02u
-#define OP_RESTART 0x03u
+#define OP_RESTART ROUTER_SYS_OP_RESTART
 #define OP_DEADMAN_SET 0x04u
 #define OP_DEADMAN_GET 0x05u
 

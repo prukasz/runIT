@@ -38,8 +38,8 @@ typedef enum vm_blk_en_mode_e {
 /** @brief Error policy on body failure. */
 //#ref-enum @alias On Error
 typedef enum vm_blk_on_error_e {
-  VM_BLK_ERR_STOP     = 0,  //@alias Stop @description A failing call stops the program
-  VM_BLK_ERR_CONTINUE = 1,  //@alias Continue @description A failing call is reported and the program goes on
+  VM_BLK_ERR_STOP     = 0,  //@alias Stop @description A failing call drops ENO, so the blocks that depend on it skip
+  VM_BLK_ERR_CONTINUE = 1,  //@alias Continue @description A failing call is reported and ENO is left as the block set it
 } vm_blk_on_error_e;
 
 /** @brief Runtime status flags (latched per pass or sticky across load). */
@@ -57,7 +57,6 @@ typedef enum vm_blk_on_error_e {
 /**
  * @brief Execution order span [start, end) for loop and span owner blocks.
  */
-//#vm-type vm_span_t @size 4 @align 2
 typedef struct vm_span_t {
   uint16_t start;
   uint16_t end;
@@ -104,8 +103,7 @@ typedef bool (*vm_block_verify_fn)(vm_block_h);
  *
  * Indexed by block_type in g_vm_block_types[]; each block file defines its own
  * entry with VM_BLOCK_TYPE_DEFINE (vm_blocks.h): the body and check, the pin
- * shape (what the
- * the size of its state struct. vm_block_verify() checks a built block against
+ * shape (min / max counts, required inputs) and the size of its state struct. vm_block_verify() checks a built block against
  * it once at load, so bodies never re-check their own shape.
  */
 typedef struct vm_block_type_t {

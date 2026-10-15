@@ -16,8 +16,8 @@
  *   consistent snapshot). If anything changed since the last save, the retain
  *   task writes the whole set as one record (NVS blob "vm/retain") —
  *   flash is never written on the VM task. A program is also saved right before
- *   it is torn down (0x40, 0x41) and when runit enters the safe state.
- * - **Restore:** on the first start after a load (a 0x48 run command), before the
+ *   it is torn down (RESET, OPEN) and when runit enters the safe state.
+ * - **Restore:** on the first start after a load (an EXEC run command), before the
  *   first pass: each stored value goes into the retentive object with the same
  *   name, type and size; a mismatch keeps the uploaded value and is reported.
  *   Restored values are not marked fresh, exactly like uploaded initial values.
@@ -69,6 +69,6 @@ void vm_retain_save_stopped(void);
 
 /**
  * @brief Reset all: erase the stored values and stop saving until the next
- * program start (0x48 command VM_EXEC_RETAIN_CLEAR).
+ * program start (EXEC command VM_EXEC_RETAIN_CLEAR).
  */
 MUST_USE err_h vm_retain_clear(void);

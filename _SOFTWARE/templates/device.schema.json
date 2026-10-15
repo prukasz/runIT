@@ -360,7 +360,7 @@
 
         "enum": {
           "type": "string",
-          "description": "Dla type='enum': nazwa grupy enumów z data-structures/enums.json (np. 'sys_i2c_bus_e', 'servo_type_e').",
+          "description": "Dla type='enum': nazwa grupy enumów z generated/common/enums.json (np. 'sys_i2c_bus_e', 'servo_type_e').",
           "examples": ["sys_i2c_bus_e", "board_device", "servo_type_e"]
         },
 

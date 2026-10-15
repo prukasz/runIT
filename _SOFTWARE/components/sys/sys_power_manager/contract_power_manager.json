@@ -6,87 +6,96 @@
   "id": "POWER_MANAGER",
   "contract_id": 6,
   "router_key": 10,
-  "alias": "Zarządzanie zasilaniem (Power Manager)",
-  "description": "Zarządzanie budżetem mocy, źródłami zasilania (USB-PD, zasilacz laboratoryjny, akumulator), matrycą reakcji na awarie zasilania oraz zdarzeniami.",
+  "alias": "Power manager",
+  "description": "Manages the power budget, the power sources (USB-PD, bench supply, battery), the response matrix for power faults, and the power events.",
   "category": "power",
   "commands": [
     {
       "id": "SET_CONFIG",
       "op": 1,
       "symbol": "SYS_PWRM_OP_SET_CONFIG",
-      "label": "Konfiguracja menedżera zasilania",
-      "description": "Ustawia tryb pracy menedżera zasilania (ścisły budżet, margines, auto-negocjacja USB-PD).",
+      "label": "Power manager configuration",
+      "description": "Sets the operating mode of the power manager (strict budget, margin, USB-PD auto-negotiation).",
       "args": {
         "struct": "sys_power_manager_cfg_t",
         "fields": [
           {
             "id": "enabled",
-            "label": "Aktywny",
+            "label": "Enabled",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "1 = kontrola budżetu aktywna, 0 = tylko pomiar"
+            "description": "1 = budget control active, 0 = measure only"
           },
           {
             "id": "strict",
-            "label": "Tryb ścisły (Strict)",
+            "label": "Strict",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
             "offset": 1,
-            "description": "1 = bezwzględne odrzucanie przekroczeń, 0 = miękki margines"
+            "description": "1 = reject overruns outright, 0 = soft margin"
           },
           {
             "id": "soft_margin_pct",
-            "label": "Margines miękki",
+            "label": "Soft margin",
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
             "offset": 2,
             "unit": "%",
-            "description": "Dopuszczalny margines przeciążenia budżetu w procentach"
+            "description": "Allowed budget overrun, in percent"
           },
           {
-            "id": "source_pin",
-            "label": "Pin źródła",
-            "type": "pin",
+            "id": "source_device",
+            "label": "Source pin device",
+            "type": "device",
             "raw_type": "u16",
             "size": 2,
             "offset": 3,
-            "description": "Pin do rozróżniania akumulatora od wejścia USB"
+            "description": "Device of the pin that tells a battery from a USB input"
           },
           {
-            "id": "battery_level",
-            "label": "Poziom pinu akumulatora",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 5
-          },
-          {
-            "id": "pd_max_auto",
-            "label": "Auto-negocjacja USB-PD",
-            "type": "boolean",
+            "id": "source_pin",
+            "label": "Source pin",
+            "type": "pin",
             "raw_type": "u8",
             "size": 1,
             "offset": 6,
-            "description": "1 = automatycznie negocjuj profil o najwyższej mocy"
+            "description": "Pin number on that device"
+          },
+          {
+            "id": "battery_level",
+            "label": "Battery pin level",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 7
+          },
+          {
+            "id": "pd_max_auto",
+            "label": "USB-PD auto-negotiation",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 8,
+            "description": "1 = automatically request the offer with the highest power"
           },
           {
             "id": "ext_input",
-            "label": "Typ wejścia zewnętrznego",
+            "label": "External input type",
             "type": "choice",
             "raw_type": "u8",
             "size": 1,
             "offset": 7,
             "options": [
               {
-                "label": "Zasilacz laboratoryjny (Bench)",
+                "label": "Bench supply",
                 "value": 0
               },
               {
-                "label": "Pakiet akumulatorów (Battery)",
+                "label": "Battery pack",
                 "value": 1
               }
             ]
@@ -98,19 +107,92 @@
       "id": "GET_CONFIG",
       "op": 2,
       "symbol": "SYS_PWRM_OP_GET_CONFIG",
-      "label": "Pobierz konfigurację menedżera",
-      "description": "Zwraca bieżącą konfigurację pracy menedżera zasilania.",
+      "label": "Read power manager configuration",
+      "description": "Returns the operating mode of the power manager.",
       "returns": {
         "struct": "sys_power_manager_cfg_t",
-        "description": "Bieżąca konfiguracja menedżera zasilania",
+        "description": "Current power manager configuration",
         "fields": [
           {
             "id": "enabled",
-            "label": "Aktywny",
+            "label": "Enabled",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
-            "offset": 0
+            "offset": 0,
+            "description": "1 = budget control active, 0 = measure only"
+          },
+          {
+            "id": "strict",
+            "label": "Strict",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 1,
+            "description": "1 = reject overruns outright, 0 = soft margin"
+          },
+          {
+            "id": "soft_margin_pct",
+            "label": "Soft margin",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 2,
+            "unit": "%",
+            "description": "Allowed budget overrun, in percent"
+          },
+          {
+            "id": "source_device",
+            "label": "Source pin device",
+            "type": "device",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 3,
+            "description": "Device of the pin that tells a battery from a USB input"
+          },
+          {
+            "id": "source_pin",
+            "label": "Source pin",
+            "type": "pin",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 6,
+            "description": "Pin number on that device"
+          },
+          {
+            "id": "battery_level",
+            "label": "Battery pin level",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 7
+          },
+          {
+            "id": "pd_max_auto",
+            "label": "USB-PD auto-negotiation",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 8,
+            "description": "1 = automatically request the offer with the highest power"
+          },
+          {
+            "id": "ext_input",
+            "label": "External input type",
+            "type": "choice",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 7,
+            "options": [
+              {
+                "label": "Bench supply",
+                "value": 0
+              },
+              {
+                "label": "Battery pack",
+                "value": 1
+              }
+            ]
           }
         ]
       }
@@ -119,14 +201,14 @@
       "id": "SET_PSU",
       "op": 3,
       "symbol": "SYS_PWRM_OP_SET_PSU",
-      "label": "Ustaw limity zasilacza zewnętrznego",
-      "description": "Definiuje maksymalne dopuszczalne napięcie oraz limit prądowy zewnętrznego zasilacza.",
+      "label": "Set external supply limits",
+      "description": "Sets the maximum voltage and current of an external power supply.",
       "args": {
         "struct": "sys_power_psu_t",
         "fields": [
           {
             "id": "max_mV",
-            "label": "Maksymalne napięcie",
+            "label": "Maximum voltage",
             "type": "integer",
             "raw_type": "u32",
             "size": 4,
@@ -135,7 +217,7 @@
           },
           {
             "id": "max_mA",
-            "label": "Maksymalny prąd",
+            "label": "Maximum current",
             "type": "integer",
             "raw_type": "u32",
             "size": 4,
@@ -149,32 +231,32 @@
       "id": "SET_BATTERY",
       "op": 4,
       "symbol": "SYS_PWRM_OP_SET_BATTERY",
-      "label": "Ustaw parametry akumulatora",
-      "description": "Definiuje chemię ogniw, liczbę cel w szeregu oraz progi alarmowe rozładowania.",
+      "label": "Set battery parameters",
+      "description": "Sets the cell chemistry, the number of cells in series and the low and critical charge thresholds.",
       "args": {
         "struct": "sys_power_battery_t",
         "fields": [
           {
             "id": "chemistry",
-            "label": "Chemia ogniw",
+            "label": "Cell chemistry",
             "type": "choice",
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
             "options": [
               {
-                "label": "Brak (None)",
+                "label": "None",
                 "value": 0
               },
               {
-                "label": "LiPo (4.2V/cell)",
+                "label": "LiPo (4.2 V per cell)",
                 "value": 1
               }
             ]
           },
           {
             "id": "cells",
-            "label": "Liczba cel",
+            "label": "Number of cells",
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
@@ -182,7 +264,7 @@
           },
           {
             "id": "low_pct",
-            "label": "Próg niski (Low)",
+            "label": "Low threshold",
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
@@ -191,7 +273,7 @@
           },
           {
             "id": "critical_pct",
-            "label": "Próg krytyczny (Critical)",
+            "label": "Critical threshold",
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
@@ -205,52 +287,94 @@
       "id": "SET_RESPONSE",
       "op": 5,
       "symbol": "SYS_PWRM_OP_SET_RESPONSE",
-      "label": "Ustaw reakcję na zdarzenie zasilania",
-      "description": "Konfiguruje reakcję (powiadomienie, odłączenie, reset, safe state) dla konkretnej linii zasilania lub całej płyty.",
+      "label": "Set power event response",
+      "description": "Sets the response (notify, disable, reset, safe state) to a power event, for one rail or for the whole board.",
       "args": {
         "struct": "response_args_t",
         "fields": [
           {
             "id": "target",
-            "label": "Cel (Board lub ID szyny)",
+            "label": "Target (board or rail ID)",
             "type": "integer",
             "raw_type": "u16",
             "size": 2,
             "offset": 0,
-            "description": "0xFFFF dla płyty głównej lub device ID regulatora"
+            "description": "0xFFFF for the board, or the device ID of a regulator"
           },
           {
             "id": "kind",
-            "label": "Typ zdarzenia zasilania",
+            "label": "Power event type",
             "type": "choice",
             "raw_type": "u8",
             "size": 1,
             "offset": 2,
             "options": [
-              { "label": "OVP", "value": 1 },
-              { "label": "UVP", "value": 2 },
-              { "label": "SPC", "value": 3 },
-              { "label": "OCP Warning", "value": 4 },
-              { "label": "OCP Critical", "value": 5 },
-              { "label": "OTP", "value": 6 },
-              { "label": "Battery Low", "value": 7 },
-              { "label": "Battery Critical", "value": 8 },
-              { "label": "Budget Exceeded", "value": 9 },
-              { "label": "Source Changed", "value": 10 }
+              {
+                "label": "OVP",
+                "value": 1
+              },
+              {
+                "label": "UVP",
+                "value": 2
+              },
+              {
+                "label": "SPC",
+                "value": 3
+              },
+              {
+                "label": "OCP warning",
+                "value": 4
+              },
+              {
+                "label": "OCP critical",
+                "value": 5
+              },
+              {
+                "label": "OTP",
+                "value": 6
+              },
+              {
+                "label": "Battery low",
+                "value": 7
+              },
+              {
+                "label": "Battery critical",
+                "value": 8
+              },
+              {
+                "label": "Budget exceeded",
+                "value": 9
+              },
+              {
+                "label": "Source changed",
+                "value": 10
+              }
             ]
           },
           {
             "id": "response",
-            "label": "Wymagana reakcja",
+            "label": "Required response",
             "type": "choice",
             "raw_type": "u8",
             "size": 1,
             "offset": 3,
             "options": [
-              { "label": "Tylko powiadomienie (Notify)", "value": 0 },
-              { "label": "Wyłącz wyjście (Disable)", "value": 1 },
-              { "label": "Zresetuj urządzenie (Reset)", "value": 2 },
-              { "label": "Zatrzymaj system (Safe state)", "value": 3 }
+              {
+                "label": "Notify only",
+                "value": 0
+              },
+              {
+                "label": "Disable output",
+                "value": 1
+              },
+              {
+                "label": "Reset device",
+                "value": 2
+              },
+              {
+                "label": "Safe state",
+                "value": 3
+              }
             ]
           }
         ]
@@ -260,14 +384,14 @@
       "id": "GET_RESPONSES",
       "op": 6,
       "symbol": "SYS_PWRM_OP_GET_RESPONSES",
-      "label": "Pobierz reakcje linii zasilania",
-      "description": "Zwraca wektor reakcji na wszystkie typy zdarzeń dla wskazanego celu.",
+      "label": "Read power event responses of a target",
+      "description": "Returns the response to every event type for the given target.",
       "args": {
         "struct": "target_args_t",
         "fields": [
           {
             "id": "target",
-            "label": "Cel",
+            "label": "Target",
             "type": "integer",
             "raw_type": "u16",
             "size": 2,
@@ -277,26 +401,111 @@
       },
       "returns": {
         "type": "bytes",
-        "description": "Tablica kodów reakcji"
+        "description": "Array of response codes"
       }
     },
     {
       "id": "GET_STATUS",
       "op": 7,
       "symbol": "SYS_PWRM_OP_GET_STATUS",
-      "label": "Pobierz status zasilania",
-      "description": "Zwraca aktualne źródło zasilania, stan budżetu mocy, odczyty napięcia wejściowego i stan baterii.",
+      "label": "Read power status",
+      "description": "Returns the active source, the power budget state, the input voltage readings and the battery state.",
       "returns": {
         "struct": "sys_power_status_t",
-        "description": "Stan zasilania płyty",
+        "description": "Board power status",
         "fields": [
           {
             "id": "source",
-            "label": "Aktywne źródło",
+            "label": "Active source",
+            "type": "choice",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "0 unknown, 1 USB, 2 PSU, 3 battery"
+          },
+          {
+            "id": "input_mV",
+            "label": "Input voltage",
+            "type": "integer",
+            "raw_type": "i32",
+            "size": 4,
+            "offset": 1,
+            "unit": "mV"
+          },
+          {
+            "id": "input_mA",
+            "label": "Input current",
+            "type": "integer",
+            "raw_type": "i32",
+            "size": 4,
+            "offset": 5,
+            "unit": "mA"
+          },
+          {
+            "id": "source_mV",
+            "label": "Source voltage limit",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 9,
+            "unit": "mV"
+          },
+          {
+            "id": "source_mA",
+            "label": "Source current limit",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 13,
+            "unit": "mA"
+          },
+          {
+            "id": "budget_mW",
+            "label": "Budget",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 17,
+            "unit": "mW",
+            "description": "Without the soft margin"
+          },
+          {
+            "id": "limit_mW",
+            "label": "Limit",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 21,
+            "unit": "mW",
+            "description": "With the soft margin"
+          },
+          {
+            "id": "allocated_mW",
+            "label": "Allocated",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 25,
+            "unit": "mW"
+          },
+          {
+            "id": "battery_pct",
+            "label": "Battery charge",
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
-            "offset": 0
+            "offset": 29,
+            "unit": "%",
+            "description": "0xFF = unknown"
+          },
+          {
+            "id": "flags",
+            "label": "Flags",
+            "type": "bitmask",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 30,
+            "description": "1 enabled, 2 strict, 4 over budget, 8 input seen"
           }
         ]
       }
@@ -305,23 +514,23 @@
       "id": "NEGOTIATE_MAX",
       "op": 8,
       "symbol": "SYS_PWRM_OP_NEGOTIATE_MAX",
-      "label": "Negocjuj maksymalną moc USB-PD",
-      "description": "Wymusza renegocjację kontraktu zasilania USB-PD w poszukiwaniu najwyższej dostępnej mocy."
+      "label": "Negotiate maximum USB-PD power",
+      "description": "Asks the USB-PD charger for its highest-power offer."
     },
     {
       "id": "SET_RESPONSES",
       "op": 9,
       "symbol": "SYS_PWRM_OP_SET_RESPONSES",
-      "label": "Ustaw pełną matrycę reakcji",
-      "description": "Zapisuje kompletną matrycę reakcji dla płyty głównej i wszystkich szyn regulatorów.",
+      "label": "Set the full response matrix",
+      "description": "Saves the whole response matrix for the board and every regulator rail.",
       "args": {
         "fields": [
           {
             "id": "matrix",
-            "label": "Macierz reakcji",
+            "label": "Response matrix",
             "type": "string",
             "raw_type": "bytes",
-            "description": "Wszystkie wiersze odpowiedzi (ogon tail)"
+            "description": "All response rows (the rest of the frame)"
           }
         ]
       }

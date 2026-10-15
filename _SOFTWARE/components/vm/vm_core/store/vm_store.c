@@ -47,7 +47,7 @@ void vm_store_reset(void) {
 err_h vm_store_open(uint32_t total_size, const uint16_t counts[VM_REG_CNT]) {
   ERR_CHECK(counts != NULL, ERR_VM_BAD_ARG);
 
-  /* The previous program goes first, whatever happens next: a failed open no longer leaves it
+  /* The previous program goes first, whatever happens next: a failed open does not leave it
      behind (the load fails closed, see vm_loader_abort), so there is no reason to hold its pool
      while the new one is allocated -- doing so needed old + new at once and capped the program
      size at about half the free DRAM. */

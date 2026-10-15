@@ -236,13 +236,62 @@
             "description": "The pin of the device"
           },
           {
-            "id": "cfg",
-            "label": "Interrupt",
-            "type": "string",
+            "id": "mode",
+            "label": "Interrupt mode",
+            "type": "enum",
+            "enum": "sys_io_intr_mode_e",
             "raw_type": "u8",
-            "size": 10,
+            "size": 1,
             "offset": 1,
             "description": "What to watch the pin for"
+          },
+          {
+            "id": "debounce",
+            "label": "Debounce",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 2,
+            "description": "1 = debounce enabled"
+          },
+          {
+            "id": "threshold_up_mV",
+            "label": "Upper threshold",
+            "type": "number",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 3,
+            "unit": "mV",
+            "description": "ADC window modes only: the upper edge of the window"
+          },
+          {
+            "id": "threshold_down_mV",
+            "label": "Lower threshold",
+            "type": "number",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 5,
+            "unit": "mV",
+            "description": "ADC window modes only: the lower edge of the window"
+          },
+          {
+            "id": "hysteresis_mV",
+            "label": "Hysteresis",
+            "type": "number",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 7,
+            "unit": "mV",
+            "description": "ADC window modes only"
+          },
+          {
+            "id": "event_counter_threshold",
+            "label": "Event counter threshold",
+            "type": "number",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 9,
+            "description": "ADC window modes only: samples past the threshold before an event"
           }
         ],
         "struct": "io_intr_args_t"

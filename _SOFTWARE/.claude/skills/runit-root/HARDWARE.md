@@ -1,10 +1,10 @@
 # runIT Board — Hardware Capabilities
 
-Current hardware revision. Merged from two older product descriptions (texts are dated, hardware is current) and the firmware device catalog. Sources of truth, in order:
+Current hardware revision. Sources of truth, in order:
 
-1. [components/runit/runit_board_defs.h](../../../components/runit/runit_board_defs.h) — device IDs, I2C buses, power limits, BLE UUIDs
-2. [components/runit/runit_board_cfg.c](../../../components/runit/runit_board_cfg.c) — how each onboard chip is created and wired
-3. `data-structures/devices/*.generated.json` — per-device create frame + contract ops (client-facing catalog)
+1. [components/app/runit/runit_board_defs.h](../../../components/app/runit/runit_board_defs.h) — device IDs, TCA pins, power limits
+2. [components/app/runit/runit_board_cfg.c](../../../components/app/runit/runit_board_cfg.c), [RUNIT.MD](../../../components/app/runit/RUNIT.MD) "Boot" — how each onboard chip is created and wired; `board.json` — the board descriptor
+3. `components/devices/device_<chip>/device_<chip>.json` — per-device create frame and ops (published to `generated/devices/`)
 
 If this file and those sources disagree, the sources win — update this file.
 
@@ -73,10 +73,10 @@ All onboard chips are created at boot by `runit_board_devices_init()` (the new f
 | 3 | PCA9685 | Digital/Analog IO | 0x60 | OE → TCA 0 | CH 0–7 user PWM headers, CH 8–15 → DRV8962 #2 (12-bit duty, one shared frequency) |
 | 4 | DAC53202 | Digital/Analog IO | 0x48 (A0 = GND) | — | OUT0/OUT1 → VREF of DRV8962 #1/#2; VDD reference, gain 1x (full scale 3.3 V) |
 | 5 | DRV8962 #1 | H-bridge | — | IN1-4 → ESP 21/47/48/45, EN1-4 → ESP 38/39/2/1, IPROPI1-4 → ESP 7/6/5/4, nSLEEP → TCA 9, nFAULT → TCA 11, VM ← TCA 14 (VSUP) / 15 (rail B) | 2 full bridges; PWM 20 kHz on ESP LEDC. Created and braked on the PCB with the new firmware 2026-10-11 (VM supplies off) |
-| 6 | DRV8962 #2 | H-bridge | — | IN1-4 → PCA CH 8-11, EN1-4 → PCA CH 12-15, nSLEEP → TCA 8, nFAULT → TCA 10, VM ← TCA 13 (rail A) / 12 (VSUP) (swapped from the legacy header, measured 2026-10-11), IPROPI resistors only | 2 full bridges, PWM at the PCA frequency (1 kHz) |
+| 6 | DRV8962 #2 | H-bridge | — | IN1-4 → PCA CH 8-11, EN1-4 → PCA CH 12-15, nSLEEP → TCA 8, nFAULT → TCA 10, VM ← TCA 13 (rail A) / 12 (VSUP) (measured 2026-10-11), IPROPI resistors only | 2 full bridges, PWM at the PCA frequency (1 kHz) |
 | 10 | TPS55289 `TPS55289_2` | Voltage Regulator | 0x74 | INT → TCA 1, EN → TCA 17 | Adjustable rail A |
 | 11 | TPS55289 `TPS55289_1` | Voltage Regulator | 0x75 | INT → TCA 2, EN → TCA 16 | Adjustable rail B |
-| 12 | INA3221 | Power Monitor | 0x40 | CRIT → TCA 6, WARN → TCA 5 (measured 2026-09-27; the legacy header had them swapped) | V/I of rail A, rail B and whole-board input, with alerts |
+| 12 | INA3221 | Power Monitor | 0x40 | CRIT → TCA 6, WARN → TCA 5 (measured 2026-09-27) | V/I of rail A, rail B and whole-board input, with alerts |
 | 13 | AP33772S | USB-C Power Delivery | 0x52 | INT → TCA 21 | PD sink: request/read PDOs, negotiated V/I, protection events |
 | 7 | `SUPPLY_DRV8962_0` (power mux, type `0x4A`) | Power supply select | — | LM73100 pair of DRV8962 #1: A = TCA 14 (board input, VSUP), B = TCA 15 (rail B, TPS55289 0x75); high = on | Onboard, created at boot with both switches off; the source (off / A / B) is a default setting of the stored hardware config |
 | 8 | `SUPPLY_DRV8962_1` (power mux, type `0x4A`) | Power supply select | — | LM73100 pair of DRV8962 #2: A = TCA 12 (board input, VSUP), B = TCA 13 (rail A, TPS55289 0x74); high = on | Same; A is always the board input, B the regulator rail of that bridge |
@@ -132,10 +132,10 @@ Also driven at boot (`runit_board_devices_init`, 2026-10-11): TCA pins 22 and 23
 - DAC53202 sets DRV8962 VREF — separate channel per DRV8962.
 - PWM header supply comes from one of the two TPS55289 rails.
 - H-bridge rating: 100 W.
+- TCA 7 = DRV8962 OCPM (both chips).
+- INA3221 channels (measured): ch0 = rail B (TPS55289 0x75), ch1 = board input (shunt reversed by design), ch2 = rail A (0x74).
 
 ## 7. Deferred questions (not needed for now)
 
-- ~~TCA6424A pins for LM73100 / eFuses~~ — from the legacy firmware header (2026-09-24), see §3. TCA 7 = DRV8962 OCPM (both chips).
-- ~~INA3221 channel order~~ — measured 2026-09-24: ch0 = rail B (TPS55289 0x75), ch1 = board input (shunt reversed by design), ch2 = rail A (0x74).
 - DRV8962 IPROPI resistor value (3.09 kΩ assumed).
 - Which of the two TPS55289 rails feeds the PWM headers.

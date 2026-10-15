@@ -5,36 +5,36 @@
   "scope": "system",
   "id": "BLE",
   "router_key": 3,
-  "alias": "Bluetooth Low Energy (GATT & Status)",
-  "description": "Zarządzanie dynamiczną tablicą GATT (tworzenie i usuwanie usług oraz cech BLE w czasie pracy), zatwierdzanie zmian oraz odczyt statusu połączenia i parametrów transmisji.",
+  "alias": "Bluetooth Low Energy (GATT and status)",
+  "description": "Manages the dynamic GATT table (creates and removes services and characteristics at runtime), applies the changes, and reads the connection status and transfer parameters.",
   "category": "system",
   "commands": [
     {
       "id": "SVC_CREATE",
       "op": 1,
       "symbol": "OP_SVC_CREATE",
-      "label": "Utwórz usługę GATT",
-      "description": "Rejestruje nową usługę GATT o zadanym 16-bitowym UUID.",
+      "label": "Create GATT service",
+      "description": "Registers a new GATT service with the given 16-bit UUID.",
       "args": {
         "struct": "svc_create_t",
         "fields": [
           {
             "id": "uuid",
-            "label": "UUID usługi",
+            "label": "Service UUID",
             "type": "integer",
             "raw_type": "u16",
             "size": 2,
             "offset": 0,
-            "description": "16-bitowy identyfikator UUID usługi GATT"
+            "description": "16-bit GATT service UUID"
           },
           {
             "id": "is_primary",
-            "label": "Usługa główna (Primary)",
+            "label": "Primary service",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
             "offset": 2,
-            "description": "1 = usługa główna (primary), 0 = pomocnicza (secondary)"
+            "description": "1 = primary service, 0 = secondary"
           }
         ]
       }
@@ -43,19 +43,19 @@
       "id": "SVC_REMOVE",
       "op": 2,
       "symbol": "OP_SVC_REMOVE",
-      "label": "Usuń usługę GATT",
-      "description": "Usuwa usługę GATT o zadanym UUID (o ile nie jest zablokowana przez system).",
+      "label": "Remove GATT service",
+      "description": "Removes the GATT service with the given UUID, unless it is locked.",
       "args": {
         "struct": "svc_remove_t",
         "fields": [
           {
             "id": "uuid",
-            "label": "UUID usługi",
+            "label": "Service UUID",
             "type": "integer",
             "raw_type": "u16",
             "size": 2,
             "offset": 0,
-            "description": "16-bitowy UUID usługi do usunięcia"
+            "description": "16-bit UUID of the service to remove"
           }
         ]
       }
@@ -64,91 +64,91 @@
       "id": "CHAR_CREATE",
       "op": 3,
       "symbol": "OP_CHAR_CREATE",
-      "label": "Utwórz cechę GATT",
-      "description": "Tworzy cechę w usłudze GATT wraz z uprawnieniami, buforami i opisem tekstowym.",
+      "label": "Create GATT characteristic",
+      "description": "Adds a characteristic to a GATT service, with its permissions, buffers and text description.",
       "args": {
         "struct": "char_create_t",
         "fields": [
           {
             "id": "svc_uuid",
-            "label": "UUID nadrzędnej usługi",
+            "label": "Parent service UUID",
             "type": "integer",
             "raw_type": "u16",
             "size": 2,
             "offset": 0,
-            "description": "16-bitowy UUID usługi nadrzędnej"
+            "description": "16-bit UUID of the parent service"
           },
           {
             "id": "uuid",
-            "label": "UUID cechy",
+            "label": "Characteristic UUID",
             "type": "integer",
             "raw_type": "u16",
             "size": 2,
             "offset": 2,
-            "description": "16-bitowy UUID cechy GATT"
+            "description": "16-bit GATT characteristic UUID"
           },
           {
             "id": "is_write",
-            "label": "Zapis (Write)",
+            "label": "Write",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
             "offset": 4,
-            "description": "1 = dozwolony zapis przez klienta"
+            "description": "1 = the client may write"
           },
           {
             "id": "is_indicate",
-            "label": "Indykacja (Indicate)",
+            "label": "Indicate",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
             "offset": 5,
-            "description": "1 = nadawanie z potwierdzeniem (indykacja)"
+            "description": "1 = send with acknowledgement (indication)"
           },
           {
             "id": "is_notify",
-            "label": "Notyfikacja (Notify)",
+            "label": "Notify",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
             "offset": 6,
-            "description": "1 = nadawanie bez potwierdzenia (notyfikacja)"
+            "description": "1 = send without acknowledgement (notification)"
           },
           {
             "id": "is_framed",
-            "label": "Ramkowanie (Framed)",
+            "label": "Framed",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
             "offset": 7,
-            "description": "1 = ramkowanie pakietów nagłówkiem fragmentacji (dla ramek dłuższych niż MTU)"
+            "description": "1 = every packet starts with a fragment header (for frames longer than the MTU)"
           },
           {
             "id": "tx_buffer_size",
-            "label": "Rozmiar bufora TX",
+            "label": "TX buffer size",
             "type": "integer",
             "raw_type": "u32",
             "size": 4,
             "offset": 8,
             "unit": "B",
-            "description": "Rozmiar bufora nadawczego w bajtach (0 = brak TX)"
+            "description": "TX buffer size in bytes (0 = no TX)"
           },
           {
             "id": "rx_buffer_size",
-            "label": "Rozmiar bufora RX",
+            "label": "RX buffer size",
             "type": "integer",
             "raw_type": "u32",
             "size": 4,
             "offset": 12,
             "unit": "B",
-            "description": "Rozmiar bufora odbiorczego w bajtach (0 = brak bufora RX)"
+            "description": "RX buffer size in bytes (0 = no RX buffer)"
           },
           {
             "id": "desc",
-            "label": "Opis cechy",
+            "label": "Characteristic description",
             "type": "string",
             "raw_type": "string",
-            "description": "Opcjonalny deskryptor tekstowy cechy (ogon NUL-terminated tail)"
+            "description": "Optional text description (0x2901), NUL-terminated, the last field"
           }
         ]
       }
@@ -157,14 +157,14 @@
       "id": "CHAR_REMOVE",
       "op": 4,
       "symbol": "OP_CHAR_REMOVE",
-      "label": "Usuń cechę GATT",
-      "description": "Usuwa wskazaną cechę z nadrzędnej usługi GATT.",
+      "label": "Remove GATT characteristic",
+      "description": "Removes the given characteristic from its GATT service.",
       "args": {
         "struct": "char_remove_t",
         "fields": [
           {
             "id": "svc_uuid",
-            "label": "UUID nadrzędnej usługi",
+            "label": "Parent service UUID",
             "type": "integer",
             "raw_type": "u16",
             "size": 2,
@@ -172,7 +172,7 @@
           },
           {
             "id": "uuid",
-            "label": "UUID cechy",
+            "label": "Characteristic UUID",
             "type": "integer",
             "raw_type": "u16",
             "size": 2,
@@ -185,46 +185,46 @@
       "id": "APPLY",
       "op": 5,
       "symbol": "OP_APPLY",
-      "label": "Zastosuj zmiany GATT",
-      "description": "Zatwierdza przygotowaną konfigurację GATT i wprowadza ją na żywo do stosu BLE (klient zostaje rozłączony na ok. 200 ms celem renegocjacji)."
+      "label": "Apply GATT changes",
+      "description": "Applies the staged GATT configuration to the BLE stack. With a client connected, it runs about 200 ms later, so this command is answered first; the client may reconnect."
     },
     {
       "id": "STATUS",
       "op": 6,
       "symbol": "OP_STATUS",
-      "label": "Odczytaj status BLE",
-      "description": "Zwraca aktualny stan połączenia BLE, wynegocjowane MTU oraz liczbę przepełnień bufora odbiorczego.",
+      "label": "Read BLE status",
+      "description": "Returns the connection state, the negotiated MTU and the number of RX items dropped on a full buffer.",
       "returns": {
         "struct": "status_t",
-        "description": "Bieżący stan BLE",
+        "description": "Current BLE state",
         "fields": [
           {
             "id": "is_connected",
-            "label": "Połączony",
+            "label": "Connected",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "1 = klient podłączony, 0 = rozłączony"
+            "description": "1 = a client is connected, 0 = not connected"
           },
           {
             "id": "mtu",
-            "label": "Negocjowane MTU",
+            "label": "Negotiated MTU",
             "type": "integer",
             "raw_type": "u16",
             "size": 2,
             "offset": 1,
             "unit": "B",
-            "description": "Wielkość wynegocjowanego MTU"
+            "description": "The negotiated MTU in bytes"
           },
           {
             "id": "rx_overflow_count",
-            "label": "Odrzucone pakiety RX",
+            "label": "Dropped RX items",
             "type": "integer",
             "raw_type": "u32",
             "size": 4,
             "offset": 3,
-            "description": "Liczba odrzuconych bajtów/ramek z powodu pełnego bufora RX"
+            "description": "Number of peer writes dropped because an RX buffer was full"
           }
         ]
       }
@@ -233,21 +233,12 @@
       "id": "LIST",
       "op": 7,
       "symbol": "OP_LIST",
-      "label": "Pobierz tablicę GATT",
-      "description": "Zwraca pełną strukturę usług i cech zarejestrowanych w tablicy GATT wraz z ich flagami, licznikami TX/RX i nazwami.",
+      "label": "Read GATT table",
+      "description": "Returns every service and characteristic in the GATT table, with their flags, TX and RX sizes and names.",
       "returns": {
-        "struct": "sys_ble_list_t",
-        "description": "Zrzut tablicy usług i cech GATT",
-        "fields": [
-          {
-            "id": "services",
-            "label": "Liczba usług",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0
-          }
-        ]
+        "type": "bytes",
+        "label": "Table",
+        "description": "u8 service count; per service: u16 UUID, u8 flags, u8 characteristic count; per characteristic: u16 UUID, u8 flags, u32 tx, u32 rx, name (NUL-terminated). The layout is described in SYS_BLE.MD."
       }
     }
   ]

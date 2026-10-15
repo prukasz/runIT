@@ -85,8 +85,16 @@ err_h sys_connector_init(void) {
   return NULL;
 }
 
+// The stream bytes of the system connectors and the router's answers: a user connector can't take one.
+static bool stream_reserved(uint8_t stream) {
+  return stream == SYS_CONNECTOR_STREAM_TELEMETRY || stream == SYS_CONNECTOR_STREAM_LOGS ||
+         stream == SYS_CONNECTOR_STREAM_ERRORS || stream == SYS_CONNECTOR_STREAM_RESPONSE ||
+         stream == SYS_CONNECTOR_STREAM_EVENTS;
+}
+
 err_h sys_connector_create(uint8_t id, uint8_t stream, const char* name) {
   ERR_CHECK(id >= SYS_CONNECTOR_APP_BASE, ERR_CONN_PROTECTED, .id = id);
+  ERR_CHECK(!stream_reserved(stream), ERR_CONN_BAD_ARG);
   return create(id, stream, name, false);
 }
 

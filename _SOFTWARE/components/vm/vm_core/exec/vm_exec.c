@@ -232,7 +232,7 @@ static void run_block(vm_block_h b, vm_block_fn fn) {
   vm_stats_block(b->cfg.block_idx, b->cfg.block_type, (uint32_t)(vm_clock_us() - block_t0));
 #endif
 
-  /* cfg.on_error, finally enforced -- and it is literally what the name says:
+  /* cfg.on_error:
      STOP publishes a false ENO, so everything downstream self-skips. CONTINUE
      leaves the flow below untouched, and the error is already on its way to
      the handler either way.

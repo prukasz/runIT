@@ -4,7 +4,7 @@
 #include "sys_i2c.h"
 
 /*   key  op          request                          response
- *   0x01 INFO        -                                info_t[SYS_I2C_BUS_COUNT]
+ *   0x01 INFO        -                                sys_i2c_info_t[SYS_I2C_BUS_COUNT]
  *   0x02 SCAN        { u8 bus }                       { u32 found[4] } bit n = address n acked
  *   0x03 RESET       { u8 bus }                       -
  *   0x04 RAW_READ    { u8 bus, addr, reg, len }       len bytes          (CONFIG_SYS_I2C_REMOTE_RAW)
@@ -24,41 +24,17 @@
 #define INFO_READY (1u << 1)
 #define INFO_PULLUP (1u << 2)
 
-typedef struct __attribute__((packed)) {
-  uint8_t flags;     /**< Bit 0 enabled, bit 1 ready, bit 2 pull-ups on */
-  uint8_t sda;       /**< SDA pin */
-  uint8_t scl;       /**< SCL pin */
-  uint32_t used[4];  /**< Bit per 7-bit address: 1 = device added */
-} info_t;
-
-typedef struct __attribute__((packed)) {
-  uint8_t bus;  /**< sys_i2c_bus_e */
-} bus_args_t;
-
-typedef struct __attribute__((packed)) {
-  uint8_t bus;   /**< sys_i2c_bus_e */
-  uint8_t addr;  /**< 7-bit address */
-  uint8_t reg;   /**< Register address */
-  uint8_t len;   /**< Length in bytes */
-} raw_read_args_t;
-
-typedef struct __attribute__((packed)) {
-  uint8_t bus;   /**< sys_i2c_bus_e */
-  uint8_t addr;  /**< 7-bit address */
-  uint8_t reg;   /**< Register address */
-} raw_write_hdr_t;
-
 static err_h check_remote_bus(uint8_t bus) {
   ERR_CHECK(bus == CONFIG_SYS_I2C_REMOTE_BUS, ERR_I2C_REMOTE_DENIED, .bus = bus);
   return NULL;
 }
 
 ROUTER_OP_NOARGS(op_info) {
-  info_t r[SYS_I2C_BUS_COUNT];
+  sys_i2c_info_t r[SYS_I2C_BUS_COUNT];
   for (uint8_t b = 0; b < SYS_I2C_BUS_COUNT; b++) {
     sys_i2c_bus_info_t i;
     ERR_TRY(sys_i2c_bus_info(b, &i));
-    r[b] = (info_t){
+    r[b] = (sys_i2c_info_t){
         .flags = (uint8_t)((i.enabled ? INFO_ENABLED : 0) | (i.ready ? INFO_READY : 0) | (i.pullup ? INFO_PULLUP : 0)),
         .sda = i.sda,
         .scl = i.scl,
@@ -68,23 +44,23 @@ ROUTER_OP_NOARGS(op_info) {
   return cmd_reply(out, out_cap, out_len, r, sizeof(r));
 }
 
-ROUTER_OP(op_scan, bus_args_t) {
+ROUTER_OP(op_scan, sys_i2c_bus_args_t) {
   ERR_TRY(check_remote_bus(args->bus));
-  uint32_t found[4] = {0};
+  sys_i2c_scan_t res = {{0}};
   for (uint8_t addr = SCAN_FIRST; addr <= SCAN_LAST; addr++) {
     err_h err = sys_i2c_probe(args->bus, addr);
     if (err == NULL) {
-      found[addr / 32] |= 1u << (addr % 32);
+      res.found[addr / 32] |= 1u << (addr % 32);
     } else if (err->tag == ERR_I2C_DEV_NOT_FOUND) {
       err_free(err);
     } else {
       return err;  // stuck bus or driver failure: the rest of the scan would fail too
     }
   }
-  return cmd_reply(out, out_cap, out_len, found, sizeof(found));
+  return cmd_reply(out, out_cap, out_len, &res, sizeof(res));
 }
 
-ROUTER_OP(op_reset, bus_args_t) {
+ROUTER_OP(op_reset, sys_i2c_bus_args_t) {
   ERR_TRY(check_remote_bus(args->bus));
   return sys_i2c_bus_reset(args->bus);
 }
@@ -102,7 +78,7 @@ static err_h raw_finish(sys_i2c_dev_t* dev, err_h err) {
   return err;
 }
 
-ROUTER_OP(op_raw_read, raw_read_args_t) {
+ROUTER_OP(op_raw_read, sys_i2c_raw_read_args_t) {
   ERR_TRY(check_remote_bus(args->bus));
   ERR_CHECK(args->len > 0 && args->len <= out_cap, ERR_CMD_OUT_FULL, .need = args->len, .cap = (uint16_t)out_cap);
 
@@ -116,7 +92,7 @@ ROUTER_OP(op_raw_read, raw_read_args_t) {
   return err;
 }
 
-ROUTER_OP_TAIL(op_raw_write, raw_write_hdr_t) {
+ROUTER_OP_TAIL(op_raw_write, sys_i2c_raw_write_args_t) {
   ERR_TRY(check_remote_bus(args->bus));
 
   sys_i2c_dev_t dev;

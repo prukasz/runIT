@@ -10,7 +10,7 @@
 
 /* Bring-up switch: log how long a whole pass takes (events, every block, telemetry sample,
    retention), in us, once per window of this many ms. 0 = off. The line goes out on the logs
-   stream, so the app's Errors & logs panel shows it. A pass held by pause / scan / block mode
+   stream. A pass held by pause / scan / block mode
    counts the wait too. */
 #define VM_PASS_TIME_LOG_MS 5000
 

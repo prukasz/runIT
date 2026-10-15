@@ -1,6 +1,6 @@
 # runIT — Project Vision
 
-> Structured, typo-corrected version of the original project prompt (backed up at `../_agents_backup_2026-09-22/.agents/skills/runit-app-design/prompt.md`), plus software points from the older product description (2026-09-22). Hardware details live in [HARDWARE.md](HARDWARE.md).
+> The project concept. Hardware details live in [HARDWARE.md](HARDWARE.md); how the firmware realizes it, in the `runit-esp` skill.
 
 ## 1. What runIT is
 

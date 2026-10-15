@@ -60,7 +60,7 @@ typedef enum sys_io_intr_mode_e {
 
 /* Events of the IO contract (sys_event.h "Events tables"), published by a
  * device for a pin armed with CONFIGURE_INTR; channel = pin. Flags 0: an edge
- * is code flow (an alert pin, a rule, the VM), not something to show by itself. */
+ * is code flow (an alert pin, the VM), not something to show by itself. */
 // clang-format off
 #define SYS_IO_EVENTS(X) \
   X(RISING, 0x00, 0) \

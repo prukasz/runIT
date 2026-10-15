@@ -6,6 +6,7 @@
  *   catalog    the block palette, read from generated/blocks
  *   model      the project: variables, paths, block instances, pins
  *   graph      execution order, gates and loops
+ *   expression formulas of the expression blocks: text <-> RPN opcodes, per block
  *   compiler   project -> program, accessors, block state, codecs
  *   generated  the one place that reads generated/ (wire numbers, descriptors)
  *
@@ -17,6 +18,7 @@ export type { EngineDefinitions, EngineOptions } from './engine'
 
 export * from './catalog'
 export * from './compiler'
+export * from './expression'
 export * from './graph'
 export * from './model'
 export * from './wire'

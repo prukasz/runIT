@@ -1,6 +1,6 @@
 # sys_project — the stored project (for agents)
 
-Component `components/sys/sys_project/`. The pipeline that saves a whole **project** and runs it: the system settings, the devices' install and default commands, the user's actions and the **program** (VM loader frames, of any size). It sits on `sys_actions` (SYS_ACTIONS.MD): everything it stores is a record; it only decides which records, under which IDs, and in which order they run. Replaces legacy `sys_project` (two NVS slots, replayed at boot; `legacy/components/system/sys_project`).
+Component `components/sys/sys_project/`. The pipeline that saves a whole **project** and runs it: the system settings, the devices' install and default commands, the user's actions and the **program** (VM loader frames, of any size). It sits on `sys_actions` (SYS_ACTIONS.MD): everything it stores is a record; it only decides which records, under which IDs, and in which order they run.
 
 ## Files
 
@@ -9,7 +9,9 @@ Component `components/sys/sys_project/`. The pipeline that saves a whole **proje
 | `sys_project.h` | API, ID macro `SYS_PROJECT_ID`, flags, error tags, the info and mark structs |
 | `sys_project.c` | The stream parser, staging, commit, run, info, erase, boot |
 | `sys_project_router.c/.h` | `project` router (`ROUTER_KEY_PROJECT` = 0x0C), op IDs `SYS_PROJECT_OP_*` |
+| `contract_project.json` | Service contract definition (RPC commands and schemas) |
 | `Kconfig` | Largest stream, sections, program chunks |
+| `AGENTS.md` | Rules for changing this folder |
 
 ## The save: one stream
 
@@ -70,11 +72,45 @@ One save at a time (`ERR_PROJECT_BUSY`). Reading a project back is the actions r
 
 ## Errors (`ERR_MOD_SYS_PROJECT` = 16)
 
-`ERR_PROJECT_BUSY`, `_NO_SESSION`, `_TOO_BIG {len, max}` (also a stream longer than announced), `_OFFSET {got, want}`, `_INCOMPLETE {got, want}`, `_CRC {got, want}`, `_BAD_FRAME {offset}`, `_TRUNCATED`, `_NO_SECTION` (a frame before the first SECTION), `_BAD_SECTION {id}` (class above DEVICE, or a SECTION frame of the wrong size), `_SECTION_DUP {id}`, `_SECTION_FULL {max}`, `_SECTION_BIG {id, max}`, `_SECTION_EMPTY {id}`, `_ORDER` (a second program, or a section after it), `_CHUNKS {max}`, `_EMPTY`, `_NOT_STORED`, `_NOT_IN_STREAM`, `_RUN` (context NONE), `_BAD_ARG`. Map in `sys_project.h`.
+| Error | Severity | Context / Fields | Description |
+|---|---|---|---|
+| `ERR_PROJECT_BUSY` | MEDIUM | – | A save session is already open |
+| `ERR_PROJECT_NO_SESSION` | MEDIUM | – | Write or commit without an active save session |
+| `ERR_PROJECT_TOO_BIG` | MEDIUM | `u32 len, u32 max` | Stream length exceeds limit or announced size |
+| `ERR_PROJECT_OFFSET` | MEDIUM | `u32 got, u32 want` | Offset mismatch (save continues; client resends) |
+| `ERR_PROJECT_INCOMPLETE` | MEDIUM | `u32 got, u32 want` | Commit called before receiving all bytes |
+| `ERR_PROJECT_CRC` | MEDIUM | `u32 got, u32 want` | CRC-32 mismatch |
+| `ERR_PROJECT_BAD_FRAME` | MEDIUM | `u32 offset` | Frame length 0 or above frame limit |
+| `ERR_PROJECT_TRUNCATED` | MEDIUM | – | Stream ends inside a frame |
+| `ERR_PROJECT_NO_SECTION` | MEDIUM | – | Frame received before the first SECTION |
+| `ERR_PROJECT_BAD_SECTION` | MEDIUM | `u32 id` | Class above DEVICE, or invalid SECTION frame size |
+| `ERR_PROJECT_SECTION_DUP` | MEDIUM | `u32 id` | Duplicate section ID in stream |
+| `ERR_PROJECT_SECTION_FULL` | MEDIUM | `u32 max` | Section count exceeds `CONFIG_SYS_PROJECT_MAX_SECTIONS` |
+| `ERR_PROJECT_SECTION_BIG` | MEDIUM | `u32 id, u32 max` | Section exceeds class limit |
+| `ERR_PROJECT_SECTION_EMPTY` | LOW | `u32 id` | Section contains no frames |
+| `ERR_PROJECT_ORDER` | MEDIUM | – | Duplicate program section or section after program |
+| `ERR_PROJECT_CHUNKS` | MEDIUM | `u32 max` | Program exceeds `CONFIG_SYS_PROJECT_MAX_CHUNKS` |
+| `ERR_PROJECT_EMPTY` | LOW | – | Stream contains no sections |
+| `ERR_PROJECT_NOT_STORED` | LOW | – | Run called when no project is stored |
+| `ERR_PROJECT_NOT_IN_STREAM` | MEDIUM | – | SECTION op sent directly as a command |
+| `ERR_PROJECT_RUN` | NONE | – | Context wrapper: project stored, but execution failed |
+| `ERR_PROJECT_BAD_ARG` | HIGH | – | Null pointer or invalid argument |
 
-## Open
+## Limits
 
-- **Not run on a board.** It builds; `router_tests.py` has `test_project` (save, the IDs of the chunks, bad CRC / order, second save to the other bank, ERASE) and has not been run.
-- Records a project no longer lists (a device record from an older project) stay stored; ERASE and a new save don't remove settings or device records.
-- `CONFIG_SYS_PROJECT_MAX_BYTES` (64 KB) and the chunk count (32) bound the program; the 512 KB partition holds two banks plus the actions.
-- The app side: the stream builder (sections in order, program last) and INFO's crc to skip an upload of the same project.
+- `CONFIG_SYS_PROJECT_MAX_BYTES` (default 64 KB, up to 256 KB) bounds the total stream size.
+- `CONFIG_SYS_PROJECT_MAX_SECTIONS` (default 40): maximum distinct settings, device and user sections in one project.
+- `CONFIG_SYS_PROJECT_MAX_CHUNKS` (default 32): maximum program chunk records (`32 * CONFIG_SYS_ACTIONS_MAX_BYTES` = 128 KB max program size).
+- Stored records that a new project omits (e.g. an older device configuration) remain in flash; ERASE and a new save do not remove existing settings or device records.
+- One save session at a time (`ERR_PROJECT_BUSY`).
+
+## Tests
+
+`router_tests.py`, `test_project` (in `.claude/skills/runit-esp/scripts/`) covers:
+- INFO when empty, RUN when empty (`ERR_PROJECT_NOT_STORED`).
+- Input validation: frame before SECTION (`ERR_PROJECT_NO_SECTION`), section after program (`ERR_PROJECT_ORDER`), bad CRC (`ERR_PROJECT_CRC`).
+- Verification that aborted or failed saves leave no staged records in flash.
+- Complete project save with autostart and immediate run flags.
+- Storing of sections under their IDs and chunked program records in sequence.
+- Bank switching: second save alternating to the other bank and clearing old bank records.
+- ERASE: removing the project record and both bank records.

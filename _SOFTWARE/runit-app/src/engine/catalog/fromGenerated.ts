@@ -73,6 +73,12 @@ const list = (v: unknown): readonly unknown[] => (Array.isArray(v) ? v : [])
 const scalar = (v: unknown): FieldScalar | undefined => (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean' ? v : undefined)
 
 /** Only keys with a value: the types are `readonly x?: T`, and an `undefined` is not the same as absent. */
+const opcodes = (v: unknown): BlockType['opcodes'] => {
+  const o = obj(v)
+  const name = str(o?.enum)
+  return name && (o?.constant === 'f32' || o?.constant === 'u32') ? { enum: name, constant: o.constant } : undefined
+}
+
 const defined = <T extends object>(value: T): T => Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as T
 
 const RAW_TYPES: readonly string[] = ['u8', 'i8', 'u16', 'i16', 'u32', 'i32', 'float', 'bytes']
@@ -384,6 +390,7 @@ const blockType = (raw: GeneratedBlock, input: GeneratedInput, warnings: string[
     header: defined({ subtitle: str(header?.subtitle) }),
     body: list(raw.body).flatMap((b) => (typeof b === 'string' ? [b] : [])),
     editor: str(raw.editor),
+    opcodes: opcodes(raw.opcodes),
     enable: signal(raw.enable),
     eno: signal(raw.eno),
     span: obj(raw.span) ? { offset: num(obj(raw.span)?.offset) ?? 0 } : undefined,

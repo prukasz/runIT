@@ -6,7 +6,7 @@ import type { Flavor, FormulaContext } from '@engine'
 import { generatedEnums } from '@engine/generated'
 import { blk, engine, num, project, read } from '../helpers'
 
-const context = (flavor: Flavor): FormulaContext => formulaContext(flavor, generatedEnums)
+const context = (flavor: Flavor): FormulaContext => formulaContext(flavor, generatedEnums, flavor === 'float' ? 'vm_expr_op_e' : 'vm_bit_op_e')
 
 /* A stack machine written here, from the descriptions in vm_expr_core.h, to run what the compiler produced. */
 const run = (flavor: Flavor, text: string, inputs: number[]): number => {

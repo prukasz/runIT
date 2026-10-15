@@ -20,7 +20,7 @@
 /* Frame header (root key, op, record count): a telemetry frame is a command of the VM router. */
 #define SUB_FRAME_HDR_LEN 3u
 /* Value record head (vm_wire_data_t) and describe record without its name
-   (vm_wire_obj_t): the 0x43 / 0x42 upload layouts. */
+   (vm_wire_obj_t): the SET_DATA / ADD_OBJECTS layouts. */
 #define SUB_VALUE_HDR_LEN sizeof(vm_wire_data_t)
 #define SUB_DESC_HDR_LEN sizeof(vm_wire_obj_t)
 
@@ -83,8 +83,8 @@ static bool s_track_full_reported;
 /* ---------------------------------------------------------------------------
  * Frames
  *
- * Two frames are filled side by side: describe records (0x42 layout, heap
- * objects) and value records (0x43 layout). A value frame goes out only after
+ * Two frames are filled side by side: describe records (ADD_OBJECTS layout, heap
+ * objects) and value records (SET_DATA layout). A value frame goes out only after
  * every describe queued before it. Once the transport refuses a frame, the
  * rest of the sample is held back: the pending values (they may reference a
  * lost describe) and everything not yet queued are marked lost and resent next
@@ -305,7 +305,7 @@ static void track_sweep(void) {
  * Records
  * ------------------------------------------------------------------------- */
 
-/* Describe record: vm_wire_obj_t, then the name. Same layout as a 0x42 upload
+/* Describe record: vm_wire_obj_t, then the name. Same layout as an ADD_OBJECTS
    record, so the app parses both with one decoder. */
 static void emit_describe(track_t* t, vm_obj_h o) {
   uint16_t id = t->id;

@@ -18,7 +18,6 @@
 #define ERR_MOD_SYS_ACTIONS 8u    // components/sys/sys_actions
 #define ERR_MOD_SYS_EVENT 9u      // components/sys/sys_event
 #define ERR_MOD_SYS_POWER 10u     // components/sys/sys_power (the power contracts: monitor, vreg)
-// 12 was ERR_MOD_SYS_SETTINGS (components/sys/sys_settings, removed: its records are sys_actions records now); never reused
 #define ERR_MOD_SYS_LOG 13u       // components/sys/sys_log (log output options)
 #define ERR_MOD_SYS_POWER_MANAGER 14u  // components/sys/sys_power_manager (budget, source, battery, responses)
 #define ERR_MOD_VM 15u            // components/vm/vm_core (the program runtime: store, objects, accessors, blocks, loader, exec)

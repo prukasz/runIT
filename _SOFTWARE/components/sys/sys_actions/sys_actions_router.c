@@ -15,8 +15,8 @@
  *                                                           as fit (ask again from the last ID + 1)
  *   0x0A REMOVE        { u32 id }                           -
  *   0x0B ABORT         -                                    -
- *   (0x0C was RENAME: names are gone)
  *   0x0D RUN_ALL       { u32 id }                           - like RUN but every frame runs; the first failure comes back
+ *   0x0E REMOVE_ALL    -                                   - every stored record; ERR_ACTION_BUSY while a session is open
  *
  *   info = { u16 bytes, u16 count, u32 crc32 } */
 
@@ -136,6 +136,10 @@ ROUTER_OP_NOARGS(op_abort) {
   return NULL;
 }
 
+ROUTER_OP_NOARGS(op_remove_all) {
+  return sys_actions_remove_all();
+}
+
 static const router_entry_t k_ops[] = {
     {SYS_ACTIONS_OP_RUN, op_run},
     {SYS_ACTIONS_OP_RECORD_START, op_record_start},
@@ -149,6 +153,7 @@ static const router_entry_t k_ops[] = {
     {SYS_ACTIONS_OP_REMOVE, op_remove},
     {SYS_ACTIONS_OP_ABORT, op_abort},
     {SYS_ACTIONS_OP_RUN_ALL, op_run_all},
+    {SYS_ACTIONS_OP_REMOVE_ALL, op_remove_all},
 };
 
 ROUTER_MODULE(sys_actions_router, k_ops)

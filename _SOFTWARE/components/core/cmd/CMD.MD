@@ -1,13 +1,17 @@
 # cmd — what a command handler is
 
-Component `components/core/cmd/` (2026-10-10). The smallest thing both command layers need: the **handler type**, the **answer helper** and the **errors a handler raises for a bad payload**. No transport, no keys, no registry.
+Component `components/core/cmd/`. The smallest common layer for command handling: the **handler type**, the **answer helpers** and the **errors a handler raises for a bad payload**. No transport, no keys, no registry.
 
-| File | Contents |
+## Files
+
+| File | Role |
 |---|---|
 | `cmd.h` | `cmd_f`, `CMD_OUT_PARAMS` / `CMD_F_PARAMS`, `ERR_CMD_MAP`, `cmd_reply`, `cmd_append`, `cmd_name_arg` |
-| `cmd.c` | The error module (`ERR_MOD_CMD` = 11) and the helpers. Linked as `WHOLE_ARCHIVE`: a handler raises `ERR_CMD_*` without calling `cmd_reply`, and the tag registration must not be dropped |
+| `cmd.c` | Error module (`ERR_MOD_CMD` = 11) and helpers. Linked `WHOLE_ARCHIVE`: constructor registers error tags |
+| `CMakeLists.txt` | Component registration (`WHOLE_ARCHIVE`, requires `errors` `utils`) |
+| `AGENTS.md` | Rules for changing this folder |
 
-## Why it exists
+## Architecture
 
 Two layers handle commands and each looks them up its own way:
 
@@ -16,13 +20,13 @@ router      (key tables: link frames, root key, nested module keys)   ─┐
 sys_device  (op tables per device type: [id u16][op u16][args])        ├─►  cmd   (cmd_f, cmd_reply, ERR_CMD_*)
 ```
 
-Both end in the same function type. Before, that type, `router_reply` and the payload errors lived in the router, so the device registry, the contracts (`sys_io`, `sys_pins`, `sys_power`, `sys_event.h`) and every device had to include the router and its links, dispatcher, safe state and dead-man to write a handler. Now the router and the registry depend on `cmd`, **not on each other**, and:
+Both end in the same function signature `cmd_f`. The router and the device registry depend on `cmd`, **not on each other**:
 
-- a device, a contract or `sys_power` compiles **without the router include path** (checked in `compile_commands.json`);
-- an error for a bad payload of a device op is `ERR_CMD_BAD_LEN`, not a router error;
-- code that handles commands can be built without the transport layer (the base for host tests, later).
+- A device driver or a contract compiles **without the router include path**.
+- An error for a bad payload in a device op is `ERR_CMD_BAD_LEN`, not a router error.
+- Code that handles commands can be built and tested independently of the transport layer.
 
-The router still depends on `cmd`; each `sys_*` module with a remote interface still has its own `*_router.c` and depends on the router **privately** (`PRIV_REQUIRES router`): its public header carries no router. `sys_device` and `sys_event` are built that way, so only `main` (which registers the routers) sees both.
+The router depends on `cmd`. Each `sys_*` module with a remote interface has its own `*_router.c` and depends on the router **privately** (`PRIV_REQUIRES router`); its public header carries no router headers.
 
 ## The handler
 
@@ -30,18 +34,21 @@ The router still depends on `cmd`; each `sys_*` module with a remote interface s
 typedef err_h (*cmd_f)(void* ctx, const uint8_t* in, uint32_t in_len, uint8_t* out, uint32_t out_cap, uint32_t* out_len);
 ```
 
-`in` is what the caller defines: the router passes its own key first (`router_call` strips it), the device registry passes the args only (the contract handler macros parse exactly `sizeof(args)` bytes). `ctx` is the router's ctx (NULL from the root) or the device's struct. The answer goes to `out` with `cmd_reply` (one piece) or `cmd_append` (built in pieces, `*pos` advances; the connector and actions INFO answers); untouched means an empty answer. A command whose tail is a name checks it with `cmd_name_arg`: NUL-terminated with nothing after the NUL (`ERR_CMD_BAD_ARG` otherwise; the connector and BLE routers accepted trailing bytes before 2026-10-10).
+- `in`: input buffer. The router passes its key first (`router_call` strips it); the device registry passes the args only (contract handler macros parse `sizeof(args)` bytes).
+- `ctx`: context pointer. NULL from the router root, or the device's struct from the device registry.
+- `out` / `out_cap` / `out_len`: response buffer. Untouched `out_len` means an empty response.
+- `cmd_reply`: writes a single contiguous response and verifies buffer capacity (`ERR_CMD_OUT_FULL`).
+- `cmd_append`: appends pieces to `out` advancing `*pos` (`ERR_CMD_OUT_FULL`).
+- `cmd_name_arg`: verifies that a trailing name argument is strictly NUL-terminated with no bytes following the NUL (`ERR_CMD_BAD_ARG`).
 
 ## Errors (`ERR_MOD_CMD` = 11)
 
-| Tag | Data | Meaning |
-|---|---|---|
-| `ERR_CMD_BAD_LEN` | `{u16 got, u16 need}` | Payload size (the op macros and `SYS_DEVICE_HANDLER` check it before the body runs) |
-| `ERR_CMD_OUT_FULL` | `{u16 need, u16 cap}` | The answer doesn't fit what the link carries now |
-| `ERR_CMD_BAD_ARG` | – | An argument value the handler refuses (a level above 1, an unknown mode) |
-
-All HIGH. They were `ERR_ROUTER_BAD_LEN` (4), `ERR_ROUTER_OUT_FULL` (5) and `ERR_ROUTER_BAD_ARG` (11): **the tags moved to another module, so their wire IDs changed** (module 2 → 11; the numbers 4, 5 and 11 stay retired in `ERR_MOD_ROUTER`). A client that maps error tags by ID (the app) must take the new table: `ERR_TAG(11, 1..3)`. A device command too short for `[id][op]` now answers `ERR_CMD_BAD_LEN` instead of `ERR_ROUTER_NO_KEY` (which stays the router's: input ended where a key was expected).
+| Error | Severity | Context / Fields | Description |
+|---|---|---|---|
+| `ERR_CMD_BAD_LEN` | HIGH | `u16 got, u16 need` | Payload size does not match expected arguments size |
+| `ERR_CMD_OUT_FULL` | HIGH | `u16 need, u16 cap` | Response exceeds output buffer capacity |
+| `ERR_CMD_BAD_ARG` | HIGH | – | Invalid argument value (out of range, invalid format) |
 
 ## What stays in the router
 
-`router_call` / `router_args` / `router_args_tail` and the `ROUTER_OP*` macros: they are about **keys** (the payload starts after the key byte), so they belong to the router. They use `cmd_f`, `cmd_reply` and the `ERR_CMD_*` tags.
+`router_call`, `router_args`, `router_args_tail` and the `ROUTER_OP*` macros: they handle **keys** (the payload starts after the key byte) and frame dispatching, so they belong to the router. They use `cmd_f`, `cmd_reply` and `ERR_CMD_*` tags.

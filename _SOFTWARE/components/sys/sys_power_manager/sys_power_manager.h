@@ -135,7 +135,7 @@ typedef struct {
  * Settings (applied with SET, kept as records SYS_ACTIONS_ID_POWER_*; also the SET / GET payloads)
  * ------------------------------------------------------------------------- */
 
-/** @brief "pwr_cfg": how the manager works. */
+/** @brief How the manager works (SET_CONFIG / GET_CONFIG). */
 typedef struct __attribute__((packed)) {
   uint8_t enabled;          /**< 1 = enabled, 0 = measure only */
   uint8_t strict;           /**< 1 = strict budget, 0 = soft margin */
@@ -146,13 +146,13 @@ typedef struct __attribute__((packed)) {
   uint8_t ext_input;        /**< sys_power_ext_input_e */
 } sys_power_manager_cfg_t;
 
-/** @brief "pwr_psu": an external supply's limits (0 / 0 = none). */
+/** @brief An external supply's limits (SET_PSU); 0 / 0 = none. */
 typedef struct __attribute__((packed)) {
   uint32_t max_mV;  /**< Maximum voltage in mV */
   uint32_t max_mA;  /**< Maximum current in mA */
 } sys_power_psu_t;
 
-/** @brief "pwr_battery". */
+/** @brief The battery configuration (SET_BATTERY). */
 typedef struct __attribute__((packed)) {
   uint8_t chemistry;     /**< sys_power_battery_e */
   uint8_t cells;         /**< Number of cells in series */
@@ -242,7 +242,7 @@ MUST_USE err_h sys_power_manager_get_status(sys_power_status_t* out);
 /**
  * @brief Asks the charger for its highest offer, once: its highest voltage and the current offered at it, both capped
  * by the board's max_mV / max_mA. The same the `pd_max_auto` setting does by itself on every USB source.
- * @return ERR_PWRM_NO_OFFER with no USB-PD sink or nothing offered (a plain 5 V USB), the sink's own error otherwise.
+ * @return ERR_PWRM_NO_OFFER when there is no USB-PD sink, the sink cannot be read, or it offers nothing (a plain 5 V USB).
  */
 MUST_USE err_h sys_power_manager_negotiate_max(void);
 

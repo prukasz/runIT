@@ -4,6 +4,7 @@
 #include "vm_sub.h"
 #include "vm_wire.h"
 #include "vm_retain.h"
+#include "vm_router.h"
 
 
 static vm_load_state_e s_state = VM_LOAD_EMPTY;
@@ -99,7 +100,7 @@ err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint16_t blk_cnt, uint3
     vm_retain_on_reset();
     s_state = VM_LOAD_EMPTY;
     vm_exec_program_unlock(VM_RUN_STOPPED);
-    return ERR_WRAP(e, ERR_VM_LOAD_ABORTED, .packet = 0x41);
+    return ERR_WRAP(e, ERR_VM_LOAD_ABORTED, .packet = VM_OP_OPEN);
   }
 
   vm_retain_on_open();
@@ -203,7 +204,7 @@ static MUST_USE err_h add_accessor_unlocked(uint16_t acc_id, uint16_t root_obj_i
 #define NEED(n)                                                                                           \
   do {                                                                                                    \
     if (off + (n) > idx_len) {                                                                            \
-      return ERR_NEW(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = (uint16_t)(n), .got = (uint16_t)(idx_len - off)); \
+      return ERR_NEW(ERR_VM_LOAD_SHORT_RECORD, .packet = VM_OP_ADD_ACCESSORS, .need = (uint16_t)(n), .got = (uint16_t)(idx_len - off)); \
     }                                                                                                     \
   } while (0)
   for (uint8_t i = 0; i < idx_count; i++) {
@@ -247,7 +248,7 @@ static MUST_USE err_h add_accessor_unlocked(uint16_t acc_id, uint16_t root_obj_i
   }
 #undef NEED
   if (off != idx_len) {
-    return ERR_NEW(ERR_VM_LOAD_SHORT_RECORD, .packet = 0x44, .need = (uint16_t)off, .got = idx_len);
+    return ERR_NEW(ERR_VM_LOAD_SHORT_RECORD, .packet = VM_OP_ADD_ACCESSORS, .need = (uint16_t)off, .got = idx_len);
   }
 
   // Pre-resolve cache if root object is available

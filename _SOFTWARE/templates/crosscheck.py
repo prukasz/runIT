@@ -161,6 +161,12 @@ class Checker:
                     for option in field.get("options", []) if field["id"] == "idle" else []:
                         if option["value"] not in codes:
                             self.error(path, f"fields/idle/options/{option['alias']}", f"{option['value']} is not 0 or an op code of a command of device {device['id']} ((0xFF << 8) | op)")
+        if "opcodes" in block:
+            opcodes = block["opcodes"]
+            if "editor" not in block:
+                self.error(path, "opcodes", "'opcodes' needs an 'editor'")
+            if opcodes["enum"] not in self.enums:
+                self.error(path, "opcodes/enum", f"'{opcodes['enum']}' is not published in {rel(ENUMS)}")
         configs = {f["id"]: f for f in (device or {}).get("config", {}).get("fields", [])}
         variant_ids = {v["id"] for v in block.get("variants", [])}
 

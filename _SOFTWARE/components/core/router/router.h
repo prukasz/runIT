@@ -53,7 +53,7 @@ typedef enum {
  * ------------------------------------------------------------------------- */
 
 // clang-format off
-/* Tags 4, 5 and 11 (BAD_LEN, OUT_FULL, BAD_ARG) moved to ERR_MOD_CMD (cmd.h); their numbers stay retired. */
+/* Tags 4, 5 and 11 (BAD_LEN, OUT_FULL, BAD_ARG) moved to ERR_MOD_CMD (cmd.h). */
 #define ERR_ROUTER_MAP(X)                                                                                    \
   X(ERR_ROUTER_KEY,         ERR_TAG(ERR_MOD_ROUTER, 1),  ERR_SEV_NONE,   { uint8_t key; }) /* context only: route step */ \
   X(ERR_ROUTER_NO_KEY,      ERR_TAG(ERR_MOD_ROUTER, 2),  ERR_SEV_HIGH,   {}) /* input ended where a key was expected */ \

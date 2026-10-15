@@ -73,7 +73,7 @@ typedef struct {
   };
 } vm_index_t;
 
-_Static_assert(sizeof(vm_index_t) == 8, "index step size feeds the arena size (0x41 total_size)");
+_Static_assert(sizeof(vm_index_t) == 8, "index step size feeds the arena size (OPEN's total_size)");
 
 #define VM_IDX_BY_NAME(str) {.kind = VM_IDX_NAME, .name_len = (uint8_t)(sizeof(str) - 1), .name = (str)}
 

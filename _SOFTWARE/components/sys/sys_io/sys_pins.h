@@ -116,8 +116,8 @@ MUST_USE err_h sys_pins_set_locked_level(sys_io_pin_t p, bool level);
 /* ----------------------------------------------------------------------------
  * A device's own pins: what it did to each one, so its teardown undoes exactly that. A zeroed struct is an unused pin
  * (the registry allocates the device zeroed). The take functions do nothing for SYS_IO_PIN_NONE, so an optional pin needs
- * no check at the call site. Take: use, mode, level or interrupt, lock. Release: unsubscribe, unlock, reset (SYS_DEVICE.MD
- * "Pins").
+ * no check at the call site. Take: use, mode, level or interrupt, lock. Release: unsubscribe, unlock, reset (SYS_IO.MD
+ * "A device's own pins").
  * ------------------------------------------------------------------------- */
 typedef struct {
   sys_io_pin_t pin;

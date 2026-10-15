@@ -16,16 +16,43 @@
       "label": "Informacje o magistralach I2C",
       "description": "Zwraca status włączenia, piny SDA/SCL oraz maskę zajętych adresów dla wszystkich magistral I2C na płytce.",
       "returns": {
-        "struct": "sys_i2c_bus_info_list_t",
-        "description": "Stan magistral I2C",
+        "struct": "sys_i2c_info_t",
+        "array": true,
+        "description": "Stan magistral I2C: jeden wpis na magistralę, w kolejności indeksów",
         "fields": [
           {
-            "id": "count",
-            "label": "Liczba magistral",
+            "id": "flags",
+            "label": "Flagi",
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
-            "offset": 0
+            "offset": 0,
+            "description": "Bit 0 włączona, bit 1 gotowa, bit 2 podciągnięcia włączone"
+          },
+          {
+            "id": "sda",
+            "label": "Pin SDA",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 1
+          },
+          {
+            "id": "scl",
+            "label": "Pin SCL",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 2
+          },
+          {
+            "id": "used",
+            "label": "Zajęte adresy",
+            "type": "bitmask",
+            "raw_type": "u32",
+            "size": 16,
+            "offset": 3,
+            "description": "Bit n = urządzenie dodane pod adresem n (4 słowa u32)"
           }
         ]
       }
@@ -37,7 +64,7 @@
       "label": "Skanuj magistralę I2C",
       "description": "Wykonuje skanowanie adresów 0x08..0x77 na wybranej magistrali i zwraca 128-bitową maskę adresów, które odpowiedziały ACK.",
       "args": {
-        "struct": "bus_args_t",
+        "struct": "sys_i2c_bus_args_t",
         "fields": [
           {
             "id": "bus",
@@ -51,7 +78,7 @@
         ]
       },
       "returns": {
-        "struct": "scan_response_t",
+        "struct": "sys_i2c_scan_t",
         "description": "Maska znalezionych adresów",
         "fields": [
           {
@@ -94,9 +121,9 @@
       "op": 3,
       "symbol": "OP_RESET",
       "label": "Reset magistrali I2C",
-      "description": "Wykonuje sekwencję 9 impulsów zegara SCL w celu odblokowania zawieszonej linii SDA na magistrali.",
+      "description": "Resetuje magistralę (impulsy zegara SCL), by odblokować układ trzymający linię SDA.",
       "args": {
-        "struct": "bus_args_t",
+        "struct": "sys_i2c_bus_args_t",
         "fields": [
           {
             "id": "bus",
@@ -116,7 +143,7 @@
       "label": "Niskopoziomowy odczyt rejestru I2C",
       "description": "Odczytuje określoną liczbę bajtów z rejestru urządzenia pod zadanym 7-bitowym adresem I2C.",
       "args": {
-        "struct": "raw_read_args_t",
+        "struct": "sys_i2c_raw_read_args_t",
         "fields": [
           {
             "id": "bus",
@@ -164,7 +191,7 @@
       "label": "Niskopoziomowy zapis rejestru I2C",
       "description": "Zapisuje dane do wskazanego rejestru urządzenia pod 7-bitowym adresem I2C.",
       "args": {
-        "struct": "raw_write_hdr_t",
+        "struct": "sys_i2c_raw_write_args_t",
         "fields": [
           {
             "id": "bus",

@@ -73,7 +73,6 @@ extern "C" {
   X(ERR_ACTION_BAD_ARG,    ERR_TAG(ERR_MOD_SYS_ACTIONS, 16), ERR_SEV_HIGH,   {}) \
   X(ERR_ACTION_BAD_ID,     ERR_TAG(ERR_MOD_SYS_ACTIONS, 17), ERR_SEV_HIGH,   {}) /* ID 0 (SYS_ACTIONS_ID_NONE) */
 // clang-format on
-// Tags 2 (BAD_NAME, names are gone) and 13 (READ_RANGE, the chunked read is gone) are retired and never reused.
 
 ERR_TAGS_DECLARE(ERR_SYS_ACTIONS_MAP)
 
@@ -164,6 +163,13 @@ typedef err_h (*sys_actions_frame_f)(const uint8_t* frame, uint16_t len, bool la
 MUST_USE err_h sys_actions_dump(uint32_t id, sys_actions_frame_f fn, void* ctx);
 
 MUST_USE err_h sys_actions_remove(uint32_t id);
+
+/**
+ * @brief Removes every stored record, of every class (settings, devices, project, user). ERR_ACTION_BUSY while a
+ * recording or upload is open. Stops at the first failing removal and returns its error; the records after it
+ * stay.
+ */
+MUST_USE err_h sys_actions_remove_all(void);
 
 /**
  * @brief The stored IDs from `start` up, ascending, at most `cap` of them.

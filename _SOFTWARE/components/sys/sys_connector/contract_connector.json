@@ -205,18 +205,9 @@
       "label": "Pobierz listę strumieni",
       "description": "Zwraca listę wszystkich aktywnych konektorów, ich stan (systemowy, zawieszony) oraz powiązania transportowe.",
       "returns": {
-        "struct": "sys_connector_info_list_t",
-        "description": "Lista konektorów i ich powiązań",
-        "fields": [
-          {
-            "id": "count",
-            "label": "Liczba konektorów",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0
-          }
-        ]
+        "type": "u8",
+        "label": "Liczba konektorów",
+        "description": "Potem, dla każdego konektora: id, stream, flagi (bit0 systemowy, bit1 zawieszony), liczba powiązań i powiązania (provider, endpoint), nazwa zakończona NUL."
       }
     }
   ]

@@ -33,6 +33,16 @@
       "description": "The data is longer than 'state_len' and its size depends on what the user wrote (the bytecode of an expression, the cases of a switch): 'state_len' is then the header the board checks and the app's encoder for the block's 'editor' appends the rest."
     },
     "editor": { "type": "string", "description": "For integration 'core': the name of the editor the app opens for the block's body (for example 'expression', 'switch-cases'). The app knows the names." },
+    "opcodes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enum", "constant"],
+      "description": "For an 'editor' that writes a program for a stack machine in the block's state (the expression blocks): the opcodes the block can use. 'enum' names the published group (enums.json) holding them: each member's value is the opcode byte, its '@alias' the name a formula calls it by, its '@description' what it does. 'constant' is the type of the constants the program carries. The app builds the block's formula language from this, so an opcode added in C is usable at once. `crosscheck.py` checks the group is published.",
+      "properties": {
+        "enum": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "description": "Id of a published enum group (`vm_expr_op_e`)." },
+        "constant": { "enum": ["f32", "u32"], "description": "Type of the program's constants: f32 (floats) or u32 (whole numbers, with bit operations)." }
+      }
+    },
     "editor_values": {
       "type": "array",
       "items": { "$ref": "#/$defs/identifier" },

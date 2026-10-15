@@ -180,7 +180,7 @@ err_h sys_ble_char_create(uint16_t svc_uuid, const sys_ble_char_cfg_t* cfg) {
     err = ERR_NEW(ERR_BLE_NOT_FOUND, .uuid = svc_uuid);
   } else if (s->locked) {
     err = ERR_NEW(ERR_BLE_SVC_LOCKED, .uuid = svc_uuid);
-  } else if (find_char(cfg->uuid) != NULL || find_svc(cfg->uuid) != NULL) {
+  } else if (find_char(cfg->uuid) != NULL) {
     err = ERR_NEW(ERR_BLE_UUID_TAKEN, .uuid = cfg->uuid);
   } else {
     sys_ble_char_node_t* c = new_char(cfg);

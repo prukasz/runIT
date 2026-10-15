@@ -687,13 +687,13 @@
           "name": "SYS_I2C_BE",
           "value": 0,
           "alias": "Be",
-          "description": "Big-endian: high byte first (INA3221, DAC53202, ADS7128)"
+          "description": "Big-endian: high byte first (INA3221)"
         },
         {
           "name": "SYS_I2C_LE",
           "value": 1,
           "alias": "Le",
-          "description": "Little-endian: low byte first (AP33772S, TPS55289)"
+          "description": "Little-endian: low byte first (TPS55289)"
         }
       ]
     },
@@ -1235,13 +1235,13 @@
           "name": "VM_BLK_ERR_STOP",
           "value": 0,
           "alias": "Stop",
-          "description": "A failing call stops the program"
+          "description": "A failing call drops ENO, so the blocks that depend on it skip"
         },
         {
           "name": "VM_BLK_ERR_CONTINUE",
           "value": 1,
           "alias": "Continue",
-          "description": "A failing call is reported and the program goes on"
+          "description": "A failing call is reported and ENO is left as the block set it"
         }
       ]
     },

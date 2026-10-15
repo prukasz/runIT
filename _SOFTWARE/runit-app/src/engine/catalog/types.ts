@@ -157,6 +157,8 @@ export interface BlockType {
   readonly body: readonly string[]
   /** For a core block: the editor that owns its formula or cases (`expression`, `switch-cases`). The engine's codec of that name encodes it. */
   readonly editor?: string
+  /** For a formula editor: the generated enum that holds the opcodes of the block's stack machine, and the type of its constants (`opcodes` of the descriptor). */
+  readonly opcodes?: { readonly enum: string; readonly constant: 'f32' | 'u32' }
   /** The block's enable, when it has a say in it (edge: Signal, latch: Set). */
   readonly enable?: Signal
   /** What the block's enable-out means, when more than "ran". */

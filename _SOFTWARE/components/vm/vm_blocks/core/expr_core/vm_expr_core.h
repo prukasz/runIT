@@ -19,7 +19,6 @@
 
 #define VM_EXPR_STACK_MAX 16
 
-//#vm-type vm_expr_k_t @size 4 @align 4
 typedef union vm_expr_k_t {
   uint32_t u;
   float f;

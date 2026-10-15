@@ -16,7 +16,7 @@ extern "C" {
  *   level          how much is printed: 0 blocks every ESP_LOG line, up to
  *                  CONFIG_LOG_MAXIMUM_LEVEL (the compile-time ceiling);
  *   mirror_serial  1: lines also go to the console (UART / USB-Serial-JTAG),
- *                  0: only to the logs connector (BLE);
+ *                  0: not to the console (a line still reaches the logs connector when send_logs is 1);
  *   trace_errors   1: a reported error chain is also printed as log lines,
  *                  0: only its error record is sent (the errors stream).
  *   send_errors    1: a reported error chain is sent as a record on the errors stream,

@@ -285,11 +285,11 @@ static err_h sweep(uint16_t op, bool newest_first, bool project_only);
 /* One call, the args in place (no copy, so no size limit besides the caller's). Errors are wrapped in ERR_DEV_ID. */
 static err_h call(uint16_t id, uint16_t op, const uint8_t* args, uint32_t args_len, uint8_t* out, uint32_t out_cap,
                   uint32_t* out_len) {
-  // SUSPEND / RESUME to "no device" = every device (the sweeps). Not wrapped in ERR_DEV_ID{NONE}: the sweep's own
-  // error already names the device that failed, and the error policy reads that ID.
-  if (id == SYS_DEVICE_ID_NONE && (op == SYS_DEVICE_OP_SUSPEND || op == SYS_DEVICE_OP_RESUME)) {
+  // SUSPEND / RESUME / RESET to "no device" = every device (the sweeps). Not wrapped in ERR_DEV_ID{NONE}: the sweep's
+  // own error already names the device that failed, and the error policy reads that ID.
+  if (id == SYS_DEVICE_ID_NONE && (op == SYS_DEVICE_OP_SUSPEND || op == SYS_DEVICE_OP_RESUME || op == SYS_DEVICE_OP_RESET)) {
     ERR_CHECK(args_len == 0, ERR_CMD_BAD_LEN, .got = (uint16_t)args_len, .need = 0);
-    return sweep(op, op == SYS_DEVICE_OP_SUSPEND, false);
+    return sweep(op, op != SYS_DEVICE_OP_RESUME, false);  // newest first, except RESUME
   }
   err_h err = NULL;
   LOCK();
@@ -422,6 +422,11 @@ err_h sys_device_suspend_all(void) {
 // The used devices before their users.
 err_h sys_device_resume_all(void) {
   return sweep(SYS_DEVICE_OP_RESUME, false, false);
+}
+
+// Users before the devices they use, as suspend: a driver resets its outputs before the pins it drives go idle.
+err_h sys_device_reset_all(void) {
+  return sweep(SYS_DEVICE_OP_RESET, true, false);
 }
 
 err_h sys_device_remove_all(void) {

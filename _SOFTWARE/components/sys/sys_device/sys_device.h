@@ -261,6 +261,7 @@ MUST_USE err_h sys_device_call_direct(uint16_t id, uint16_t op, const void* args
  */
 MUST_USE err_h sys_device_suspend_all(void);
 MUST_USE err_h sys_device_resume_all(void);  // oldest first: the used devices before their users
+MUST_USE err_h sys_device_reset_all(void);   // RESET of every instance, newest first (as suspend); the driver's own reset
 MUST_USE err_h sys_device_remove_all(void);  // newest first; leaves the board's own devices (sys_device_mark_system)
 
 /**

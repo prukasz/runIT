@@ -5,42 +5,47 @@ description: Firmware skill for runIT-ESP32 (ESP-IDF v6.1, FreeRTOS, ESP32-S3) �
 
 # runIT-ESP32 — Firmware Skill
 
-Session context, hardware and progress: `runit-root` skill ([SKILL.md](../runit-root/SKILL.md), [HARDWARE.md](../runit-root/HARDWARE.md), [PROGRESS.md](../runit-root/PROGRESS.md)).
+Session context and hardware: `runit-root` skill ([SKILL.md](../runit-root/SKILL.md), [HARDWARE.md](../runit-root/HARDWARE.md)).
 
-Component `*.MD` files are the source of truth for each module's API. This skill only holds routing, rules that apply across modules, and recipes.
+**The component docs are the source of truth.** Every component has a `<NAME>.MD` (its API, wire format, behaviour) and an `AGENTS.md` (the rules for changing it) next to its code. Read both for the component you touch. This skill only holds the map, the rules that span components, and the recipes (build, tests).
 
-## Files — read on demand
+**Every change updates the docs it makes stale, in the same change, without being asked:** the component's `*.MD` and `AGENTS.md`, this skill (the component table, architecture.md, conventions.md, errors.md, build.md), `runit-root` (repo map, HARDWARE.md), `templates/AGENTS.md` for wire / descriptor changes, `CLAUDE.md` and `.claude/memory.md`. A new component adds its row here; a removed one removes it. Docs describe the current state only: no history, no dates of changes, no legacy references.
+
+## Skill files — read on demand
 
 | File | Read when |
 |---|---|
-| [build.md](build.md) | Building, Kconfig changes (reconfigure / refresh-config), flashing, serial capture, clangd, **hardware test scripts** (§6: UART command link, devkit / VM / persistence / BLE suites) |
-| [errors.md](errors.md) | Raising, propagating or handling errors; owners; severity |
-| [architecture.md](architecture.md) | Layers and allowed dependencies, boot sequence, command/error/event flows, agreed design, open findings |
-| [conventions.md](conventions.md) | Writing or changing any firmware code: static RTOS objects (`utils.h`), constants vs Kconfig, no legacy leftovers, validate-once, naming, comments/docs |
-| [devices.md](devices.md) | Legacy device shape (class, `g_<chip>_class`): rules and per-device notes still useful for porting. **New tree:** `components/sys/sys_device/SYS_DEVICE.MD` "Writing a device" (type ID in `sys_device_types.h`, `SYS_DEVICE_TYPE_DEFINE`, `WHOLE_ARCHIVE`, no router) |
-| [vm/README.md](vm/README.md) | Any VM work: model, code map, runit wiring; routes to [vm/blocks.md](vm/blocks.md) (palette, adding a block), [vm/wire.md](vm/wire.md) (class `0x04`, telemetry, app JSON), [vm/findings.md](vm/findings.md) (stale docs, bugs, gaps) |
+| [architecture.md](architecture.md) | How the components fit together: layers, boot, the command / stream / error / event flows, where each piece is wired |
+| [conventions.md](conventions.md) | Writing or changing any firmware code: static RTOS objects (`utils.h`), constants vs Kconfig, no leftovers, validate once, naming, comments and docs |
+| [errors.md](errors.md) | Raising, propagating, reporting errors; severities; adding tags |
+| [build.md](build.md) | Building, Kconfig changes (reconfigure / refresh-config), flashing, serial capture, clangd, **test suites** (§6: router, VM, board, BLE) |
 
-## Module docs — read the one you touch
+## Component docs
 
-| Doc | Covers |
-|---|---|
-| `components/sys/sys_device/SYS_DEVICE.MD`, `DEVICE_CLASS.MD` | Device registry, class, create and operations, lifecycle ops, dispatch macros, per-instance error handling; why the class carries type id, cfg size and pin refs |
-| `components/sys/sys_io/SYS_IO.MD`, `sys_power/SYS_POWER.MD`, `sys_hbridge/SYS_HBRIDGE.MD` | The IO, power and H-bridge contracts as u16 device ops |
-| `components/sys/sys_connector/SYS_CONNECTOR.MD`, `sys_ble/SYS_BLE.MD`, `sys_uart/SYS_UART.MD` | Outbound streams and connectors, BLE (GATT, MTU), the console UART link |
-| `components/core/router/ROUTER.MD`, `core/errors/ERRORS.MD`, `core/cmd/CMD.MD` | Inbound frame router and root keys, the error chain and tag maps, the command handler type |
-| `components/vm/vm_core/VM_CORE.MD`, `vm/vm_blocks/VM_BLOCKS.MD` | The program runtime (store, loader, supervisor, telemetry, retained values) and the block palette |
-| `components/sys/sys_event/SYS_EVENT.MD` | Events (ported): IDs per contract, publish, notify stream, C listeners (inline / queued, device ON_EVENT or fn); no router |
-| `components/sys/sys_actions/SYS_ACTIONS.MD` | Records: u32 IDs with classes (user actions, system settings, per-device install and defaults), record / upload / frame-by-frame readback, run; nothing replays by itself |
-| `components/sys/sys_project/SYS_PROJECT.MD` | The stored project (new tree): one stream of sections saved, staged and committed as records, program cut into chunks with sequential IDs, run (RUN_ALL), autostart; key `0x0C` |
-| `templates/AGENTS.md` + `templates/*.schema.json` | Descriptor schemas (device, contract, errors, board); descriptors live next to the code in `components/` |
+Paths are under `components/`. Each `core`, `sys` and `vm` folder also holds its `AGENTS.md`.
 
-Ported to the new tree (`components/sys/<module>`, found via `EXTRA_COMPONENT_DIRS`): `components/core/cmd/CMD.MD` (the command handler type, `cmd_reply`, `ERR_CMD_*`: what the router and the device registry both build on, so a device compiles without the router), `sys_device` → `components/sys/sys_device/SYS_DEVICE.MD`, `sys_io` → `components/sys/sys_io/SYS_IO.MD` (the IO contract as u16 device ops), `sys_i2c` → `components/sys/sys_i2c/SYS_I2C.MD`, `sys_uart` → `components/sys/sys_uart/SYS_UART.MD`, `sys_ble` → `components/sys/sys_ble/SYS_BLE.MD` (replaces legacy `ble` + `sys_buffers`), `sys_connector` → `components/sys/sys_connector/SYS_CONNECTOR.MD` (outbound streams; replaces `sys_data_connector`), `sys_power` → `components/sys/sys_power/SYS_POWER.MD` (the POWER_MONITOR `0x04` and POWER_VREG `0x05` contracts), `sys_power_manager` → `components/sys/sys_power_manager/SYS_POWER_MANAGER.MD` (budget strict / soft / off, source pin, battery, response matrix, VREG guard, key `0x0A`), `sys_log` → `components/sys/sys_log/SYS_LOG.MD` (ESP_LOG hook, the log options level / mirror to serial / trace errors, stored in the settings, remote SET / GET), `sys_actions` → `components/sys/sys_actions/SYS_ACTIONS.MD` (records under u32 IDs with classes: the user's actions, the system modules' settings, per-device install and defaults; record via the router tap, upload, frame-by-frame readback, run on a router task; nothing replays by itself; replaces the short-lived `sys_settings`). Transport IDs: `transport_e` in `components/sys/sys_connector/sys_connector.h`. Ported devices: `components/devices/device_<chip>/DEVICE_<CHIP>.MD` (GPIO ESP, PCA9685, TCA6424A, TPS55289, INA3221, AP33772S, POWER_MUX, DAC53202, ADS7128, SERVO, DRV8962). Remote commands: `components/core/router/ROUTER.MD` (replaces `sys_interface` + `codecs`; root keys and link IDs in `router_ids.h`). Application (boot, safe state, error policy responses, board routing): `components/app/runit/RUNIT.MD`; `main.c` only calls `runit_start()`. New error component: `components/core/errors/ERRORS.MD` (replaces `sys_errors`; module IDs in `err_modules.h`).
+| Layer | Component | Doc | Covers |
+|---|---|---|---|
+| core | `core/utils` | `utils.h` | static RTOS objects (`U_*_DEFINE`), `MUST_USE`, `MSEC`, lists |
+| core | `core/errors` | `ERRORS.MD` | the error chain, tags and modules (`err_modules.h`), severity, reporting, wire format |
+| core | `core/cmd` | `CMD.MD` | the command handler type, `cmd_reply`, `ERR_CMD_*`; what the router and the device registry both build on |
+| core | `core/router` | `ROUTER.MD` | inbound frames, links, root keys (`router_ids.h`), dispatcher tasks, op macros, tap, dead-man, sys ops |
+| sys | `sys/sys_connector` | `SYS_CONNECTOR.MD` | outbound streams, transport providers (`transport_e`), bindings |
+| sys | `sys/sys_uart`, `sys/sys_ble` | `SYS_UART.MD`, `SYS_BLE.MD` | the console command link; BLE (GATT, MTU, fragment framing) |
+| sys | `sys/sys_log` | `SYS_LOG.MD` | ESP_LOG hook, log options (key `0x08`) |
+| sys | `sys/sys_i2c` | `SYS_I2C.MD` | buses, diagnostics (key `0x02`) |
+| sys | `sys/sys_event` | `SYS_EVENT.MD` | events per contract, publish, NOTIFY stream, C listeners |
+| sys | `sys/sys_device` | `SYS_DEVICE.MD`, `SYS_DEVICE_NEW.md` | device registry, create / remove, ops, sweeps, dependencies, error policy (key `0x05`); writing a driver |
+| sys | `sys/sys_io`, `sys/sys_power`, `sys/sys_hbridge` | `SYS_IO.MD`, `SYS_POWER.MD`, `SYS_HBRIDGE.MD` | the contracts as u16 device ops (IO, POWER_MONITOR / VREG / SUPPLY / USB_PD, HBRIDGE) |
+| sys | `sys/sys_power_manager` | `SYS_POWER_MANAGER.MD` | budget, sources, battery, response matrix, VREG guard (key `0x0A`) |
+| sys | `sys/sys_actions` | `SYS_ACTIONS.MD` | records under u32 IDs with classes, record / upload / readback / run (key `0x06`) |
+| sys | `sys/sys_project` | `SYS_PROJECT.MD` | the stored project: sections, chunks, commit, run, autostart (key `0x0C`) |
+| devices | `devices/device_<chip>` | `device_<chip>.json`, the header | one driver each (GPIO ESP, PCA9685, TCA6424A, TPS55289, INA3221, AP33772S, POWER_MUX, DAC53202, ADS7128, SERVO, DRV8962): the descriptor and the header comments are its doc; how to write one is `SYS_DEVICE_NEW.md` (reference driver `device_pca9685`) |
+| vm | `vm/vm_core` | `VM_CORE.MD` | the program runtime: model, store, loader, supervisor, telemetry, retained values (key `0x0B`) |
+| vm | `vm/vm_blocks` | `VM_BLOCKS.MD`, `<block>/<name>.md` | the block palette, device blocks, adding a block; one user guide per block |
+| app | `app/runit` | `RUNIT.MD` | boot steps, safe state, error policy wiring, onboard actions, board config and stream routing |
 
-`sys_hbridge` → `components/sys/sys_hbridge/SYS_HBRIDGE.MD` (the HBRIDGE contract `0x09xx`: drive in thousandths, brake, coast, current; faults are NOTIFY events). Hardware tests on the runIT PCB: [scripts/board_tests.py](scripts/board_tests.py) (`python board_tests.py --port COM9`; add `--energise` to switch the muxes and rails on with nothing connected; run with the IDF python env: `C:\Espressif	ools\python6.1env\Scripts\python.exe`).
-
-`vm_core` → `components/vm/vm_core/VM_CORE.MD` (the program runtime core, ROUTER_KEY_VM = 0x0B: store, objects, accessors, block layer, supervisor, loader, telemetry, retained values; telemetry frames are the same commands as the uploads). The palette is in `components/vm/vm_blocks/VM_BLOCKS.MD`. The old VM design docs (`legacy/components/VM/*.MD`) stay as the design reference; all other legacy firmware code was removed once ported.
-
-Remaining source material: the legacy firmware skill, backed up at `../_agents_backup_2026-09-22/runit-legacy-skill/SKILL.md` (relative to `_SOFTWARE`).
+Descriptors (`device_*.json`, `contract_*.json`, `block_*.json`, `errors.json`, `board.json`) live next to the code and follow `templates/*.schema.json`: [templates/AGENTS.md](../../../templates/AGENTS.md). `sh templates/sync.sh` regenerates and validates them into `generated/`.
 
 ## Quick build
 

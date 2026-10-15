@@ -4,7 +4,9 @@ import { codecRegistry } from './compiler/codecs'
 import type { BlockCodec, CodecRegistry } from './compiler/codecs'
 import { compile } from './compiler/compile'
 import type { CompileOptions, CompileResult } from './compiler/compile'
-import { expressionCodecs } from './compiler/expression'
+import { expressionCodecs } from './compiler/expressionCodec'
+import { expressionLanguage } from './expression'
+import type { ExpressionLanguage } from './expression'
 import { arrange } from './graph/arrange'
 import type { Arrangement } from './graph/arrange'
 import { concretePins } from './model/pins'
@@ -45,18 +47,32 @@ export class Engine {
   readonly wire: WireDefinitions
   readonly limits: VmLimits
   readonly codecs: CodecRegistry
+  private readonly enums: GeneratedInput['enums']
+  private readonly languages = new Map<string, ExpressionLanguage | undefined>()
 
   constructor(options: EngineOptions) {
     this.wire = options.definitions.wire
+    this.enums = options.definitions.input.enums
     this.catalog = Catalog.fromGenerated(options.definitions.input)
     this.limits = { ...DEFAULT_LIMITS, ...options.limits }
     // the formula codecs come from the firmware's opcode enums; a codec given for the same editor replaces them
-    this.codecs = codecRegistry(...expressionCodecs(options.definitions.input.enums), ...(options.codecs ?? []))
+    this.codecs = codecRegistry(...expressionCodecs(this.catalog, options.definitions.input.enums), ...(options.codecs ?? []))
   }
 
   /** The project as the frames that load it, with every problem found. */
   compile(project: Project, options?: CompileOptions): CompileResult {
     return compile({ catalog: this.catalog, wire: this.wire, codecs: this.codecs, limits: this.limits }, project, options)
+  }
+
+  /**
+   * The formula language of a block type (`expr`, `expr_bit`): its operators and functions, the text <-> RPN conversion, all on
+   * the opcodes of that block's machine. Undefined for a block that is not a formula block.
+   */
+  expression(blockType: string): ExpressionLanguage | undefined {
+    const type = this.catalog.get(blockType)
+    if (!type) return undefined
+    if (!this.languages.has(type.id)) this.languages.set(type.id, expressionLanguage(this.enums, type))
+    return this.languages.get(type.id)
   }
 
   /** The order the project's blocks run in, and the span of each loop. */

@@ -40,7 +40,7 @@ static sys_power_battery_t s_battery;
 /* The response matrix: row 0 the board, row 1 + i rail i. Stored as rows 0 .. consumer_count. */
 static uint8_t s_responses[1 + CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS][SYS_POWER_KIND_COUNT];
 static sys_power_status_t s_status = {.battery_pct = SYS_POWER_PCT_UNKNOWN};
-static uint32_t s_alert_mA;  // input alert as programmed, 0 = not yet
+static uint32_t s_alert_mA;  // input alert as programmed, 0 = none programmed
 static bool s_recompute;     // a setting changed: recompute the budget on the next tick
 static bool s_pin_ready;
 static uint32_t s_pd_req_mV, s_pd_req_mA;  // what the manager last asked the charger for (0 = nothing yet)

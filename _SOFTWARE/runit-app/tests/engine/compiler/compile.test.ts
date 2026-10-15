@@ -155,9 +155,9 @@ describe('what the compiler refuses, and says', () => {
   })
 
   it('a block whose editor has no codec, and a codec added from outside that serves it', () => {
-    // the same palette with the expression block naming an editor nobody provides
+    // the same palette with the expression block naming an editor nobody provides (and no opcodes, so no formula codec either)
     const input = loadGeneratedInput()
-    const definitions = { wire: loadWireDefinitions(), input: { ...input, blocks: input.blocks.map((b) => (b.id === 'expr' ? { ...b, editor: 'mystery' } : b)) } }
+    const definitions = { wire: loadWireDefinitions(), input: { ...input, blocks: input.blocks.map((b) => (b.id === 'expr' ? { ...b, editor: 'mystery', opcodes: undefined } : b)) } }
     const p = project([num('a')], [blk('e', 'expr', { groups: { inputs: 1 }, inputs: [read('a')] })])
 
     const without = new Engine({ definitions }).compile(p)

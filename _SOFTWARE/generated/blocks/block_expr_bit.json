@@ -22,6 +22,10 @@
   "state_len": 4,
   "state_variable": true,
   "editor": "bit-expression",
+  "opcodes": {
+    "enum": "vm_bit_op_e",
+    "constant": "u32"
+  },
   "editor_values": [
     "expression"
   ],

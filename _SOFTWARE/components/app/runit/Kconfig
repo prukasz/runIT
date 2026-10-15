@@ -36,6 +36,22 @@ menu "runIT"
               ID of the onboard action that suspends every device. The firmware
               writes it at every boot (replacing a stored action with this ID).
 
+        config RUNIT_ACTION_ID_RESET
+            int "Reset all devices"
+            default 5
+            range 1 255
+            help
+              ID of the onboard action that resets every device (RESET sweep,
+              newest first). The firmware writes it at every boot.
+
+        config RUNIT_ACTION_ID_HARD_RESET
+            int "Hard reset (restart the board)"
+            default 6
+            range 1 255
+            help
+              ID of the onboard action that restarts the board (sys RESTART).
+              The firmware writes it at every boot.
+
     endmenu
 
 endmenu

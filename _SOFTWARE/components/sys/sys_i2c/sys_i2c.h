@@ -26,8 +26,8 @@ typedef enum {
  */
 //#ref-enum @alias I2C Byte Order
 typedef enum {
-  SYS_I2C_BE = 0,  //@alias Be @description Big-endian: high byte first (INA3221, DAC53202, ADS7128)
-  SYS_I2C_LE = 1,  //@alias Le @description Little-endian: low byte first (AP33772S, TPS55289)
+  SYS_I2C_BE = 0,  //@alias Be @description Big-endian: high byte first (INA3221)
+  SYS_I2C_LE = 1,  //@alias Le @description Little-endian: low byte first (TPS55289)
 } sys_i2c_order_e;
 
 /**

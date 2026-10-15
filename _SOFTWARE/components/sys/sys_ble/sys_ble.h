@@ -96,7 +96,7 @@ typedef struct {
  * GATT table (staged; sys_ble_start / sys_ble_apply put it live)
  * ------------------------------------------------------------------------- */
 
-/** @brief Adds a service. ERR_BLE_UUID_TAKEN if it exists. */
+/** @brief Adds a service. ERR_BLE_UUID_TAKEN if a service has this UUID. */
 MUST_USE err_h sys_ble_service_create(const sys_ble_svc_cfg_t* cfg);
 
 /** @brief Removes a service (live: at the next apply). Locked: ERR_BLE_SVC_LOCKED. */
@@ -109,7 +109,7 @@ MUST_USE err_h sys_ble_service_remove(uint16_t svc_uuid);
  */
 MUST_USE err_h sys_ble_service_lock(uint16_t svc_uuid);
 
-/** @brief Adds a characteristic to a service. UUIDs are unique in the table. */
+/** @brief Adds a characteristic to a service. Characteristic UUIDs are unique in the table; a service may share one. */
 MUST_USE err_h sys_ble_char_create(uint16_t svc_uuid, const sys_ble_char_cfg_t* cfg);
 
 /** @brief Removes a characteristic (live service: at the next apply). */

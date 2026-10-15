@@ -4,7 +4,7 @@
 
 /*
 Block construction staging descriptor:
-Resolves numeric wiring IDs from packet to direct RAM pointers before arena allocation.
+Resolves the numeric wiring IDs of an ADD_BLOCK record to direct RAM pointers before arena allocation.
 */
 
 typedef struct vm_block_cfg_t {

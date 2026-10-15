@@ -1,8 +1,6 @@
 # vm_core — the program runtime (for agents)
 
-Component `components/vm/vm_core/` (ported 2026-10-12 from `legacy/components/VM/core`). The VM runs a program that the app compiles off-device and uploads: objects (typed data), accessors (paths to values), blocks (behaviour), executed as scan passes. This component is the **core** only: store, objects, accessors, the block layer, the supervisor, the loader, telemetry and retained values. The block types (the palette) are the separate component `vm_blocks` (VM_BLOCKS.MD): each block registers itself, and the core runs whatever is registered.
-
-The design documents of the legacy VM still describe the model and are the source for what is unchanged: `legacy/components/VM/VM.MD` (object model, accessors, arena, loader, execution), `VM_EXEC.MD` (execution model and why), `VM_PERF.MD` (hot-path measurements, history), `core/obj/VM_OBJ_ACCESS.MD` and `VM_OBJ_CONTRACTS.md`. This file lists only what differs in the new tree.
+Component `components/vm/vm_core/`. The VM runs a program that the app compiles off-device and uploads: objects (typed data), accessors (paths to values), blocks (behaviour), executed as scan passes. This component is the **core** only: store, objects, accessors, the block layer, the supervisor, the loader, telemetry and retained values. The block types (the palette) are the separate component `vm_blocks` (VM_BLOCKS.MD): each block registers itself, and the core runs whatever is registered.
 
 ## Layout
 
@@ -22,9 +20,31 @@ vm_core/
 
 Includes are by bare filename; every folder is on the include path (`CMakeLists.txt`). The component builds at `-O2` (hot path) and is linked `WHOLE_ARCHIVE` (tag registration).
 
+## The model
+
+A program lives in three ID spaces over one arena per program (`vm_store`; size and slot counts come with OPEN, `CONFIG_VM_STORE_MAX_POOL` caps it):
+
+- **Objects** (`vm_obj.h`): a 4-byte head, a payload of one value or an array, an optional tag (name, up to 15 chars). Types `PTR U8 U32 I32 F B STR`. There is no struct type: a tree is a `PTR` array of child objects. Flags: mutable, upd_resetable (freshness cleared at the end of a pass), retentive, usr_protected; the board's own: tagged, dynamic, and the runtime `upd` (fresh).
+- **Accessors** (`vm_obj_access*.h`): a root object plus a chain of index steps: `LITERAL` (fixed position), `REF` (index read live from another accessor), `NAME` (child by tag). Every input pin and enable source is an accessor; resolved once at load where the path is fixed.
+- **Blocks** (`vm_block.h`): `[cfg 16 B][inputs: accessor*][outputs: object][enables: accessor*][state]`. `block_type` indexes the palette (`g_vm_block_types[]`), which gives the body, the optional load check, the pin shape and the state size.
+- **Dynamic objects** (`vm_obj_dyn`): heap objects (ID has `VM_OBJ_ID_DYN_BIT`), refcounted, made by CLONE only; at most `CONFIG_VM_DYN_MAX`. Nothing else allocates after the load.
+
+**A pass** (the supervisor task, `vm_exec.c`, `CONFIG_VM_EXEC_TASK_CORE`): latch the program clock, take the events of this pass, apply the runtime writes (overrides), run blocks `0..n-1` in upload order (a span owner, FOR, runs its range and the walk jumps past it), sample telemetry, clear `upd` on resettable objects. One tick yield between passes (times the slow-motion factor).
+
+Rules everything else follows:
+
+- **The client sorts, the board never does.** Block ID = execution order.
+- **Every block is called every pass.** The supervisor gates nothing; a block decides whether it acts (`vm_block_is_enabled`, `vm_block_triggered`).
+- **Not acting = outputs kept, ENO dropped quietly.** ENO true sets `upd`, false does not. The routers (IF, SWITCH) also clear their outputs, quietly: their outputs are flow.
+- **Freshness is cleared by the supervisor** at the end of the pass, never by a consumer (fan-out).
+- **`cfg.on_error`**: `STOP` drops ENO after a failed call (everything below it skips), `CONTINUE` leaves the flow; both report the error. Outputs are never retracted. A failure is the block's per-call bit `VM_BLK_RT_FAULT`; errors go out through `BLOCK_CALL` / `vm_block_report_error`, tagged with the block.
+- **Everything from the wire is untrusted**: IDs, counts and lengths are checked before anything is stored. An ID that was never bound reads NULL; ID `0xFFFF` is refused (`ERR_VM_REG_OOB`), and an accessor cannot take a reference step to itself.
+- **Block watchdog**: a block that runs longer than `CONFIG_VM_EXEC_BLOCK_WD_MS` is reported once.
+- **Run modes** (`vm_run_mode_e`, set by `EXEC`): normal (passes back to back), scan (one pass per `ONCE`), block (one block per `NEXT`), pause / resume, reset to start. Time spent not running passes does not count for the program clock (`vm_clock.h`).
+
 ## Remote (`ROUTER_KEY_VM` = 0x0B, `vm_router.h`)
 
-Replaces the class-`0x04` decoder (`dec_vm_loader.h`). Same records, now router ops; ops never renumber.
+Ops never renumber.
 
 | Op | Payload | Effect |
 |---|---|---|
@@ -38,31 +58,38 @@ Replaces the class-`0x04` decoder (`dec_vm_loader.h`). Same records, now router 
 | `0x08` EXEC | `vm_wire_exec_t` | `vm_exec_command_e` (scan, once, block, next, rewind, normal, pause, resume, reset, ack fault, forget retained) |
 | `0x09` SPEED | `vm_wire_speed_t` | Slow motion (debugging aid) |
 
-Behaviour (load order, fail-closed abort, what a running VM refuses, runtime writes through overrides) is the legacy `wire.md`, unchanged; only the packet bytes `0x40..0x49` became these op numbers and the `[seq][class][packet]` header became `[seq][flags][0x0B][op]`.
+**Load order**: RESET or OPEN, ADD_OBJECTS, SET_DATA (initial values, PTR links), ADD_ACCESSORS, ADD_BLOCK one by one, then EXEC. The first start checks the program is complete (`vm_loader_verify_complete`).
+
+**Fail closed**: any failing load op (OPEN to ADD_BLOCK, and the first start) discards the whole program (`vm_loader_abort`): the cause comes back wrapped in `ERR_VM_LOAD_ABORTED {packet = the op}` and the upload restarts at OPEN. Nothing is rolled back piecemeal.
+
+**While running**: ADD_OBJECTS, ADD_ACCESSORS and ADD_BLOCK are refused and leave the program as it is; SET_DATA is a runtime write (`vm_override`, a ring of `CONFIG_VM_OVERRIDE_BUF_SIZE` bytes) applied at the next pass start, refused for a `usr_protected` object; OPEN replaces the running program.
+
+The object head on the wire is an explicit 4-byte layout (`vm_wire_head_t`, `vm_wire_head_pack` / `_unpack`): u16 payload size, type | name length << 4, flags (mutable 0, upd_resetable 2, tagged 3, retentive 4, dynamic 5, usr_protected 6; bits 1 and 7 read as 0). Only mutable, upd_resetable, retentive and usr_protected are taken from the wire; tagged and dynamic are the board's.
 
 ### Telemetry is the same command
 
-A telemetry frame sent by `vm_sub.c` on the telemetry connector is exactly a command of this router, without `seq` / `flags`:
+A telemetry frame sent by `vm_sub.c` on the telemetry connector (`SYS_CONNECTOR_TELEMETRY`) is exactly a command of this router, without `seq` / `flags`:
 
 ```
 values        [0x0B][0x04 SET_DATA][u8 count] count × (vm_wire_data_t, data)
 heap objects  [0x0B][0x03 ADD_OBJECTS][u8 count] count × (vm_wire_obj_t, name)
 ```
 
-So the board writes values out in the format the app writes them in: a telemetry frame can be sent back as a command (it sets the same values), recorded into a record (SYS_ACTIONS.MD), and the app parses both directions with one decoder. The record structs are shared (`vm_wire.h`), the key and ops are the same constants (`ROUTER_KEY_VM`, `VM_OP_*`). Sending behaviour is unchanged: only objects whose value changed since last sent (value hash), everything once after a subscribe, large objects split by `start_idx`, a heap object described before any value that refers to it.
+So the board writes values out in the format the app writes them in: a telemetry frame can be sent back as a command (it sets the same values), recorded into a record (SYS_ACTIONS.MD), and the app parses both directions with one decoder. The record structs are shared (`vm_wire.h`), the key and ops are the same constants (`ROUTER_KEY_VM`, `VM_OP_*`).
 
-## Changes from legacy
+Sending: only objects whose value changed since last sent (value hash), everything once after a subscribe; an object larger than a frame is split by `start_idx`, and one larger than the connector queue continues where the last sample stopped (`resume`; it starts over if the value changed meanwhile). A heap object is described before any value that refers to it. Limits: `CONFIG_VM_SUB_MAX_SUBSCRIBERS`, `CONFIG_VM_SUB_MAX_TRACKED` (subscribed objects plus everything reachable through their PTR children; past it `ERR_VM_SUB_TRACK_FULL`), `CONFIG_VM_SUB_MAX_FRAME_LEN`.
 
-| Part | Change |
+## Integration
+
+| Part | How |
 |---|---|
-| Errors | New module `ERR_MOD_VM` (15): one `ERR_VM_MAP` in `errors/vm_err.h`, tag numbers new, severities kept. No owners, no `*_OWNED` macros. Added `ERR_VM_NO_MEM`, `ERR_VM_BAD_ARG`, `ERR_VM_RANGE`; the shared legacy tags (`ERR_BASE_NO_MEM`, `ERR_NULL_PTR`, `ERR_INVALID_VAL_UI32`) map to those. `ERR_VM_NO_ACTION_EXECUTOR` is gone. `VM_RAISE(tag, …)` = `err_report(ERR_NEW(…))` for an error that ends where it is raised |
-| Fault latch | `vm_exec_fault_latch(u16 device, u32 root_tag)`; the owner hook `sys_vm_handle_fault` is gone. A critical device error reaches the VM through `sys_device_set_vm_stop` (SYS_DEVICE.MD): the app registers `vm_stop_on_fault`, which latches and stops the VM before the devices are suspended |
-| Actions | `vm_exec_request_action(u32 id)` calls `sys_actions_request` directly (no scope, no registered function); the VM sits above sys_actions |
-| Events | One wildcard `sys_event` subscription (`vm_event_init`, queued) fills the per-pass queue. `ON_EVENT` matches the per-pass snapshot by source, event and channel with `sys_event_matches` |
+| Errors | Module `ERR_MOD_VM` (15): one `ERR_VM_MAP` in `errors/vm_err.h`. `VM_RAISE(tag, …)` = `err_report(ERR_NEW(…))` for an error that ends where it is raised |
+| Fault latch | `vm_exec_fault_latch(u16 device, u32 root_tag)`. A critical device error reaches the VM through `sys_device_set_vm_stop` (SYS_DEVICE.MD): `runit` registers `vm_stop_on_fault`, which latches and stops the VM before the devices are suspended; `EXEC` ACK_FAULT clears the latch |
+| Actions | `vm_exec_request_action(u32 id)` calls `sys_actions_request` (queued, run on a router task, never inside a pass); the VM sits above sys_actions |
+| Events | One wildcard `sys_event` subscription (`vm_event_init`, queued, `CONFIG_VM_EVENT_DEPTH`) fills the per-pass queue. An event lives exactly one pass; `ON_EVENT` matches the snapshot by source, event and channel with `sys_event_matches` |
 | Telemetry | `sys_connector_send(SYS_CONNECTOR_TELEMETRY)`; frame header `[ROUTER_KEY_VM][op][count]` (above) |
-| Retained values | One NVS blob `vm/retain` in the default partition (own helpers in `vm_retain.c`); `sys_settings` is gone. Same rules: kept by name, saved every `CONFIG_VM_RETAIN_PERIOD_S` off the VM task, restored on the first start after a load, `EXEC` forget clears it |
-| Debug output | `DBG(...)` calls became `ESP_LOGD` |
-| Palette | A registry of pointers, `g_vm_block_types[VM_BLOCK_TYPES_MAX]`, filled before `app_main` by `VM_BLOCK_TYPE_DEFINE` in each block file (like `SYS_DEVICE_TYPE_DEFINE`); no generated id header or table. The numbers are in `block/vm_block_ids.h`. The blocks are in `vm_blocks` |
+| Retained values | One NVS blob `vm/retain` in the default partition (`vm_retain.c`). Kept by name (a retentive object must be named), type and size; saved every `CONFIG_VM_RETAIN_PERIOD_S` off the VM task, on teardown (RESET, OPEN) and in the safe state; restored on the first start after a load; `EXEC` RETAIN_CLEAR forgets them. A program retaining more than `CONFIG_VM_RETAIN_MAX_BYTES` is refused at load |
+| Palette | A registry of pointers, `g_vm_block_types[VM_BLOCK_TYPES_MAX]`, filled before `app_main` by `VM_BLOCK_TYPE_DEFINE` in each block file (like `SYS_DEVICE_TYPE_DEFINE`). The numbers are in `block/vm_block_ids.h`. The blocks are in `vm_blocks` |
 
 ## Boot and safe state (RUNIT.MD)
 
@@ -70,12 +97,12 @@ Boot step `vm` (`vm_init`: event subscription, telemetry, retained values, the s
 
 ## Open
 
-- **Palette:** the logic blocks are ported (VM_BLOCKS.MD). Device blocks (u16 `device_id`) are one per contract now (VM_BLOCKS.MD "Device blocks"; not run on a board), every contract with signal-like ops has one (also POWER_VREG, POWER_SUPPLY, POWER_USB_PD); the devices with own ops that a program needs have a block (servo, DRV8962, TPS55289: `device-custom-block/`), make "run once at start" an explicit option (legacy G-12). 
-- **Descriptors:** Legacy regex-scraping Python generators (`data-structures/auto-annotations/vm/`) have been removed; descriptors are now maintained directly via schemas.
-- **Program storage: done in `sys_project` (SYS_PROJECT.MD)**, the plan below is what it implements (chunks under class PROJECT, a list record of `RUN` frames); not run on a board. Original note:  a program can be far larger than a record (legacy allowed 200 KB). Plan: a program is a series of records of at most 4 KB under a `PROGRAM` class, run by a container record of `RUN` frames (SYS_ACTIONS.MD). Not implemented; nothing stores a program yet.
-- **Retained values as a record:** a snapshot as `SET_DATA` frames in a record would make readback symmetric with the rest; not done (a plain NVS blob for now).
-- **`vm_object` header on the wire** is an explicit 4-byte layout now (`vm_wire_head_t`, `vm_wire_head_pack` / `_unpack` in `vm_wire.h`): u16 payload size, type | name length << 4, flags (mutable 0, upd_resetable 2, tagged 3, retentive 4, dynamic 5, usr_protected 6; bit 1 and 7 read as 0). The bytes are the ones the GCC bitfield gave, so nothing the app already sends changes; only the board's own flags (tagged, dynamic) are no longer taken from the wire, and the runtime `upd` is no longer sent.
-- **Tests:** `.claude/skills/runit-esp/scripts/vm_suite.py` (`--port COM9`, runs on the PCB; `--only`, `--list`, `--skip-hw`), written 2026-10-12 against this code: the wire (every op truncated and malformed, fail closed, ids), objects, accessors, supervisor modes (scan / ONCE, block / NEXT, pause, restart, speed), runtime writes and the override ring, telemetry (limits, split objects, trees, a frame as a command), retained values, loads and limits, and every block (VM_BLOCKS.MD). 945/945 on the PCB (2026-10-12, ~4.5 min). `vm_core_tests.py` is the older, smaller suite. Not covered: a latched device fault (`vm_stop_on_fault`), the heap-object limit (`CONFIG_VM_DYN_MAX`), BLE as the telemetry transport.
-- **Found by the suite and fixed (2026-10-12):** (1) Object, accessor and block id `0xFFFF` from the wire was accepted: it is the "allocate without binding" value of `vm_store_alloc`, so the item was built but never registered. The loader now answers `ERR_VM_REG_OOB`. (2) An accessor could take a reference step to itself (it is bound before its steps are read); refused now. (3) A telemetry object larger than the connector queue (`CONFIG_SYS_CONNECTOR_QUEUE_SIZE` 4096) never arrived whole: the queue dropped what did not fit and every sample started again at the first byte. A tracked object now keeps `resume` (the first element not delivered) and the next sample continues there; if the value changed meanwhile it starts over (`track_t` is 16 bytes now, 24 per tracked object with the table's slack). (4) FOR with a NaN or infinite start / end / step now reports `ERR_VM_FOR_BAD_LOOP` (reason not finite), once until a loop has run to its end again.
-- **Still open:** (5) Initial values uploaded with the program are not fresh, so a block triggered by its inputs (EXPR, SET, ...) does nothing until an input is written at run time; documented behaviour, but the app must write the inputs (or a gate) once after the start. (6) A request now and then gets no answer on the USB-Serial-JTAG link (twice in ~1500 requests, not repeatable); no cause found.
-- **Start with no program:** `EXEC` normal on an empty VM succeeds (`vm_loader_verify_complete` checks only an open program), as in legacy; it runs zero blocks. Decide whether the app should see an error instead.
+- **Palette:** blocks for the own operations of the other devices (VM_BLOCKS.MD "Not yet written"); "run once at start" as an explicit block option.
+- **Retained values as a record:** a snapshot as `SET_DATA` frames in a record would make readback symmetric with the rest; for now a plain NVS blob.
+- **Initial values are not fresh:** values uploaded with the program don't trigger anything, so a block triggered by its inputs (EXPR, SET, ...) does nothing until an input is written at run time. The app writes the inputs (or a gate) once after the start.
+- **Start with no program:** `EXEC` normal on an empty VM succeeds (`vm_loader_verify_complete` checks only an open program) and runs zero blocks. Undecided whether this should be an error.
+- **Lost answers:** a request now and then gets no answer on the USB-Serial-JTAG link (about twice in 1500 requests, not repeatable); no cause found.
+
+## Tests
+
+`.claude/skills/runit-esp/scripts/vm_suite.py` (`--port COM9`, runs on the PCB; `--only`, `--list`, `--skip-hw`): the wire (every op truncated and malformed, fail closed, IDs), objects, accessors, supervisor modes (scan / ONCE, block / NEXT, pause, restart, speed), runtime writes and the override ring, telemetry (limits, split objects, trees, a frame as a command), retained values, loads and limits, and every block (VM_BLOCKS.MD "Tests"). `vm_core_tests.py` is a smaller suite. Not covered: a latched device fault (`vm_stop_on_fault`), the heap-object limit (`CONFIG_VM_DYN_MAX`), BLE as the telemetry transport.

@@ -54,7 +54,7 @@
    the chip in current limit while its capacitors charge). The calls that start a rise (enable, voltage
    up) wait it out, so they take this long. The flag is cleared at its end; an overload that persists
    sets it again and is reported. */
-/* (2026-10-10) The rise now runs as steps from a timer (tps_rise_step): the calls that start it return
+/* The rise runs as steps from a timer (tps_rise_step): the calls that start it return
    at once, each step is a short op under the registry lock, and VREG_EV_READY marks the end. */
 /* Current limit while the output rises; 0 = no soft-rise limit, the output rises at the wanted
    limit (the inrush then comes straight from the input and can pull a USB source down). With a
@@ -62,7 +62,6 @@
    resistor, so 200 mA is 2 mV - within the chip's offset, and a rail then flags OCP just charging
    its capacitors (seen on rail A). 500 mA = 5 mV. */
 #define TPS_SOFT_RISE_MA 1000
-/* (2026-10-10) A fixed value now: the "0 = no soft-rise limit" option and tps_rise_limit() were removed, nothing used them. */
 
 /* Lowest limit written to the chip. Below ~5 mV sense the offset dominates: on
    the PCB rail A's chip sat in current limit with no load at a 200 mA (2 mV)

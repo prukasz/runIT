@@ -19,7 +19,23 @@ A `Project` is `{ variables, blocks }`, plain data. The engine holds neither a p
 | `catalog/` | The block palette. `fromGenerated.ts` is the only file that knows the descriptor format (`vm-block` v3): it resolves enums, and a device variant's contract / device command into the variant's fields (the arguments), pins and outputs. `shape.ts` gives the pin shape the board checks (`shapeOf`). `layouts.ts`: where the values sit in a device block's state (the descriptor does not describe the struct). |
 | `model/` | The project: `variables.ts` (tree of values, folders, references; edits return a new tree), `paths.ts` (accessors as the user sees them; parse, format, resolve), `layout.ts` (variables as objects: ids, flags, initial data), `program.ts` (`BlockInstance`, `Source`), `pins.ts` (groups expanded), `diagnostics.ts`. |
 | `graph/` | `arrange.ts`: execution order (wiring, then the user's order), gates, feedback, loop bodies made contiguous with their spans. |
-| `compiler/` | `compile.ts` (the pipeline), `accessors.ts` (paths to accessors), `state.ts` + `values.ts` (a block's state bytes), `codecs.ts` (extension point), `expression.ts` (formulas: parser, RPN, the two expression codecs). |
+| `expression/` | The formula component of the expression blocks (below). Depends on `catalog` types and the generated enums only; `compiler/` uses it. |
+| `compiler/` | `compile.ts` (the pipeline), `accessors.ts` (paths to accessors), `state.ts` + `values.ts` (a block's state bytes), `codecs.ts` (extension point), `expressionCodec.ts` (the codecs of the formula editors). |
+
+## Expressions
+
+A built-in component, no UI. `engine.expression('expr')` is the formula language of that block (`undefined` for a block that is not a formula block). Which opcodes a block speaks is in its descriptor: `opcodes: { enum, constant }` names the published enum (`vm_expr_op_e` / `f32` for `expr`, `vm_bit_op_e` / `u32` for `expr_bit`); the opcode numbers, aliases and descriptions are read from that enum of `generated/common/enums.json`, so an opcode added in C reaches the block's language with no descriptor or engine change (the stack effect and the operator syntax of a new one are added in `expression/syntax.ts`). A block with `opcodes` gets the codec of its `editor` automatically.
+
+```ts
+const f = engine.expression('expr')!
+f.operators; f.functions; f.constants         // what an editor lists: symbol / name, opcode, arity, precedence, the firmware's description
+f.tokenize('min(in0, 2) > 1')                  // { tokens: [{kind, text, from, to}], error? } for colouring
+const r = f.compile('in0 * 2 + in1', 2, (pin) => wired[pin])   // { ok, formula: {constants, code, depth, inputs} } | { ok: false, error: {message, from, to} }
+f.state(r.formula)                             // the block's state bytes
+f.decompile(state)                             // { ok, text } | { ok: false, reason }: RPN back to text
+```
+
+The text is infix with C-like precedence (float: `+ - * / mod % ^ == != < <= > >= and && or || xor not ! ?:`, `true`, `false`, `pi`, `e`; bit: `| ^ & << >> >>> ~`, hex and binary numbers) and `inN` for input N; every opcode that takes stack operands is also a function by its alias or opcode name (`min(a, b)`, `rol(a, 8)`). It compiles to RPN: operands first, `IN` / `K` with one operand byte, constants deduplicated, the stack depth checked against the board's 16. `decompile` prints with the fewest brackets and reads back as the same bytes. In a project the formula is `BlockInstance.editor = { text }`; the codec reports `expression-empty` / `expression-error` (with the character range) as diagnostics.
 
 ## How a project becomes frames
 
@@ -40,7 +56,7 @@ A `Project` is `{ variables, blocks }`, plain data. The engine holds neither a p
 | Device block ops and arguments | `generated/contracts/*.json`, `generated/devices/*.json` | `catalog.test.ts` (every variant resolves; the op code equals `SYS_DEVICE_OP` / the device header's `SYS_DEVICE_OWN_OP`), `palette.test.ts` (every variant compiles) |
 | State sizes | `state_len` of `generated/blocks/block_*.json` | `templates/crosscheck.py` and `catalog.test.ts` compare it with the `.state_len` of each `VM_BLOCK_TYPE_DEFINE` (a `sizeof` pinned by a `_Static_assert`) |
 | Device state layout | `catalog/layouts.ts` | `catalog.test.ts` lays out `vm_block_device_data_t` from `vm_block_device.h` |
-| Expression opcodes and stack effects | enums + `vm_expr_ops` / `vm_bit_ops` in `vm_expr_core.h` | `expression.test.ts` compares the table to the header; formulas run on a reference stack machine |
+| Expression opcodes and stack effects | enums + `vm_expr_ops` / `vm_bit_ops` in `vm_expr_core.h` | `expression.test.ts` compares the table to the header and runs formulas on a reference stack machine; `language.test.ts` covers the per-block language, tokens and the decompile round trip |
 | Limits | `generated/common/limits.json`: the options marked `#@limit` in the Kconfig of `vm_core` and `router`, with the values the firmware is built with (`templates/generate_limits.py`) | `limits.test.ts`: the file equals `sdkconfig`, `DEFAULT_LIMITS` equals the file |
 | Frame size | `CONFIG_ROUTER_FRAME_MAX` (a limit) less `[seq][flags]` and the two keys of a VM command | `limits.test.ts` reads `REQ_HDR` from `router_dispatch.c`; a link that carries less passes `limits: { frameMax }` |
 
@@ -64,8 +80,8 @@ Three things were once held in the engine and are now published and checked at t
 
 ## Not done yet
 
-Recovering a project from the program stored on the board, decompiling a formula back to text, telemetry parsing and run-time reads (a watch list), a debug build, the settings / BLE side. The wire layer has `subscribeFrame`, `execFrame`, `speedFrame`, `resetFrame`.
+Recovering a project from the program stored on the board (the formulas of its blocks already decompile), telemetry parsing and run-time reads (a watch list), a debug build, the settings / BLE side. The wire layer has `subscribeFrame`, `execFrame`, `speedFrame`, `resetFrame`.
 
 ## Tests
 
-`npm test` (vitest), `npm run typecheck`, from `runit-app/`. Tests mirror the modules under `tests/engine/`; `palette.test.ts` compiles every block and variant, `expression.test.ts` and `catalog.test.ts` read the firmware C source to catch drift.
+`npm test` (vitest), `npm run typecheck`, from `runit-app/`. Tests mirror the modules under `tests/engine/`; `palette.test.ts` compiles every block and variant, `expression/expression.test.ts` and `catalog.test.ts` read the firmware C source to catch drift.
