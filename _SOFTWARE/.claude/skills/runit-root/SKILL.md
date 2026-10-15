@@ -33,7 +33,7 @@ runIT is a plug-and-play framework for hobbyists spanning hardware, firmware and
 | `components/devices/` | One component per chip (`device_<chip>/`: create struct and own ops in the header, the driver in `device_<chip>.c`, descriptor `device_<chip>.json`) |
 | `components/vm/` | The VM: `vm_core` (runtime, loader, telemetry; key `0x0B`) and `vm_blocks` (the block palette) |
 | `components/app/runit/` | The application: boot steps, safe state, error policy wiring, board config and stream routing |
-| `runit-app/` | The app, so far without UI: `src/engine` (VM engine: variables, accessors, blocks, formulas, compiler, run-time writes and telemetry, recovering a project from the stored program) and `src/backend` (the BLE link: commands, streams, reconnecting, every router's commands from the descriptors, stored records and the project) |
+| `runit-app/` | The app, so far without UI: `src/engine` (VM engine: variables, accessors, blocks, formulas, compiler, run-time writes and telemetry, recovering a project from the stored program) and `src/backend` (the BLE link: commands, streams, reconnecting, every router's commands from the descriptors, the dead-man, stored records and the project) |
 | `templates/`, `generated/` | Descriptor schemas, the generators and `sync.sh`; the published descriptors (`templates/AGENTS.md`) |
 
 **Layers** (a group depends only on the ones before it): `core` → `sys` → `devices` → `vm`; `app/runit` composes them (router keys, boot order). Components are found through `EXTRA_COMPONENT_DIRS` in the root `CMakeLists.txt`: a new component goes into the group of its layer, and no path is listed anywhere else.

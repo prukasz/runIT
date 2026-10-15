@@ -17,6 +17,8 @@ export { createDeviceCall, decodeAnswer, decodeReturns, deviceCall, deviceOp, re
 export type { Decoded, ServiceCall } from './protocol/services'
 export { Services } from './session/services'
 export type { Answer } from './session/services'
+export { DEADMAN_COMMANDS, DeadMan } from './session/deadman'
+export type { DeadManEvent, DeadManOptions } from './session/deadman'
 export { decodeErrorRecord } from './protocol/errors'
 export type { ErrorNode, ErrorRecord } from './protocol/errors'
 export { decodeResponse, encodeRequest } from './protocol/frames'

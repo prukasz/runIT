@@ -19,7 +19,7 @@ await sendProgram(link, engine.compile(project).frames, { onProgress: (done, tot
 | `catalog/` | `services.ts`: `ServiceCatalog`, every command of every router as the descriptors describe it, and what does not hold together in them (`problems`). `codec.ts`: a payload from field values and back, by the descriptor's layout. |
 | `protocol/` | `frames.ts`: request `[seq][flags][keys…][payload]`, response `[stream][seq][status][data]` (ROUTER.MD). `errors.ts`: the error record (source, command, chain of tags with their fields, named from `errors.json`). `services.ts`: the request of any catalog command and its answer decoded. |
 | `transport/` | `types.ts`: what a BLE platform provides (`requestDevice`, `knownDevices`, `open` → a channel to write packets to, packets and a loss notice back). `framing.ts`: a frame to packets and back, as the firmware does it (SYS_BLE.MD "Framing"). `webBluetooth.ts`: the Web Bluetooth platform. |
-| `session/` | `commands.ts`: sequence bytes, answers by seq, timeouts, pipelining, answers in parts. `link.ts`: `RunitLink`, the connection. `send.ts`: `sendInOrder` / `sendProgram`, a list of requests sent in order. `services.ts`: `Services`, the catalog's commands over the link. `project.ts`: stored records, the project stream, reading a project back. |
+| `session/` | `commands.ts`: sequence bytes, answers by seq, timeouts, pipelining, answers in parts. `link.ts`: `RunitLink`, the connection. `send.ts`: `sendInOrder` / `sendProgram`, a list of requests sent in order. `services.ts`: `Services`, the catalog's commands over the link. `deadman.ts`: `DeadMan`, the board's dead-man armed and fed. `project.ts`: stored records, the project stream, reading a project back. |
 
 ## Every command, from the descriptors
 
@@ -54,8 +54,25 @@ storeRecord(link, 10, [requestFrame(deviceCall(defs, catalog, 3, 'IO', 'TOGGLE',
 - **A link that is down though nothing said so**: a write that fails recycles the link at once, and `stallAfter` (3) timeouts in a row do too. After the board applies a GATT change (SYS_BLE.MD "Runtime changes") Windows invalidates the handles and reports no disconnect: every write fails with `The object has been closed`. The old link is closed before the new one opens (a platform that still finds the board connected would reuse it, and the late close would drop the new link). A command that fails `send-failed` did not run (a frame runs only when its last packet arrives) and can be repeated.
 - **`reopen()`** drops and opens again, to pick up a changed GATT table (the new service is visible after it).
 - **Writes**: one request is written as packets back to back under one chain, so frames never interleave (the firmware reassembles with one buffer). Each write is acknowledged (flow control; nothing is dropped). A packet is `packetBytes` long, header included: 512 by default, the longest value ATT allows (513 B is refused with `Invalid Attribute Value Length`), so a frame of up to 511 B is one write and the 512 B maximum two. Web Bluetooth does not show the MTU; the board offers 527 and a central that takes it (Windows does) needs no splitting.
-- **Pipelining**: `maxInFlight` (4) commands at once. The board runs normal commands in order, so this saves a round trip per command and reorders nothing; an urgent request (`urgent: true`) overtakes.
+- **Pipelining**: `maxInFlight` (4) commands at once. The board runs normal commands in order, so this saves a round trip per command and reorders nothing. An urgent request (`urgent: true`) goes before every normal one still queued and is written even when the window is full (STOP and the dead-man's heartbeat never wait behind commands the board is slow to answer); on the board it runs on the urgent task.
 - **Streams**: every frame that is not an answer goes to `onStream` by its stream byte (without it), raw, with the time it arrived (`at`): `link.onStream((f) => f.name /* telemetry | logs | errors | events, undefined for an unpublished byte */, f.data, f.at)`; `link.on('errors', (data) => …)` for one stream. Nothing is interpreted: the errors and logs are bytes (decode an error record with `decodeErrorRecord`, `protocol/errors.ts`). The link listens to `0xFFE1` (answers, telemetry, events) and `0xFFE3` (logs, errors) as the board binds its connectors. A packet out of order drops the rest of its frame up to the next FIRST, as the firmware does; `onDiagnostic` says so.
+
+## The dead-man
+
+The board enters its safe state (VM stopped, devices suspended: RUNIT.MD) when no frame came for the dead-man's timeout, and at once when the link drops if `on_link_lost` is set (ROUTER.MD "Safe state and dead-man"). Any frame feeds it. `session/deadman.ts` keeps it:
+
+```ts
+const deadman = new DeadMan(link, { timeoutMs: 1500 })        // onLinkLost: true, heartbeatMs: a third of the timeout
+deadman.onEvent((e) => …)   // armed | restarted { uptimeMs } | lapsed { reason: 'link-lost' | 'silence', silentMs } | failed { step, error }
+await deadman.start()        // DEADMAN_SET now (or when the link opens), then fed until stop()
+await deadman.stop()         // DEADMAN_SET 0; stop({ disarm: false }) leaves it to time out
+```
+
+- **Armed** with DEADMAN_SET (sent urgent) when the link opens and after every reconnect: the setting lives in the board's RAM and a restart forgets it.
+- **Fed** by a PING (urgent) only when nothing was written for `heartbeatMs`; the check runs every half heartbeat, so a heartbeat of 1/1.5 of the timeout or more is refused.
+- **After a reconnect**, PING's uptime says whether the board restarted (`restarted`: its program, the devices a project made and the dead-man are as at boot). If not, `lapsed` says the board has most likely entered its safe state: `link-lost` with `on_link_lost`, `silence` when the last write before the drop is a timeout old. A silence of a whole timeout while connected (a timer held back) is `lapsed` too. The board sends nothing when it enters its safe state: this is the app's inference.
+- Commands and fields are the descriptor's (`contract_sys.json`), named once in `DEADMAN_COMMANDS`; `deadman.test.ts` holds them against the catalog.
+- A browser throttles timers of a background tab (to once a second, and to once a minute after a while in Chrome): a timeout of a few seconds survives the first, not the second.
 
 ## Telemetry and the remote control (with the engine)
 
@@ -126,7 +143,7 @@ const recovered = engine.recover(stored.program.flatMap((f) => programFrameOf(de
 
 - The TypeScript link itself, including `saveProject` / `readProject`, has run against a fake platform only (`tests/backend/`); the stream it builds was sent to a board by a script and every record read back; the numbers above are the board's behaviour as seen through the same protocol. Web Bluetooth in a browser, and Android, are untried.
 - An abrupt loss of the radio (not a disconnect, not a restart) is untried.
-- No heartbeat: a silent link is found by the write and stall rules or by the OS supervision timeout (2 s on the firmware side). The dead-man (`sys` DEADMAN_SET) is the firmware's own check of the app.
+- The link has no heartbeat of its own: a silent link is found by the write and stall rules or by the OS supervision timeout (2 s on the firmware side); `DeadMan`'s PING only runs while it is started. `DeadMan` has run against a fake platform only; the board does not report entering its safe state, so `lapsed` is inferred, and leaving the safe state (resuming devices, running the program again) is the caller's.
 - Web Bluetooth cannot read the MTU, the RSSI or the connection parameters; a native platform can implement `BlePlatform` and give them.
 - Only BLE. A UART or Wi-Fi platform would implement the same channel; `RunitLink` fragments for BLE only.
 - `Services` has run against a fake platform only. Answers whose layout a descriptor gives only in words (`CONNECTOR INFO`, `BLE LIST`, the logs and events streams) are not decoded past their leading value. A pin reference field (`pin_ref`, a `sys_io_pin_t`) is given as its 3 bytes. `inherits` of a contract is not followed.

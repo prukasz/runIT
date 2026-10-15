@@ -108,6 +108,18 @@ describe('commands', () => {
     await link.close()
   })
 
+  it('an urgent request goes before the queued ones and past a full window', async () => {
+    const board = new FakeBoard()
+    const link = await linkTo(board, { maxInFlight: 2, timeoutMs: 1000 })
+    const normal = [1, 2, 3, 4].map((n) => link.request({ ...PING, payload: Uint8Array.of(n) }).catch(() => undefined)) // never answered
+    await until(() => board.requests.length === 2) // the window is full, two wait
+    void link.request({ ...PING, urgent: true }).catch(() => undefined)
+    await until(() => board.requests.length === 3)
+    expect(board.requests[2]![1]).toBe(defs.flags.urgent)
+    await link.close()
+    await Promise.all(normal)
+  })
+
   it('urgent requests set the flag the firmware published', async () => {
     const board = new FakeBoard()
     echo(board)

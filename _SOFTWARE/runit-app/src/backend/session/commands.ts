@@ -8,7 +8,9 @@ import type { Request } from '../protocol/frames'
  * Commands over any link: a request gets a sequence byte, the answer is matched by it (answers may come out of order: urgent
  * frames overtake), a command that gets no answer times out. Several commands can be on the wire at once (`maxInFlight`): the
  * board runs normal commands in the order they arrived, so pipelining saves one round trip per command without reordering
- * anything. The sequence counts on instead of reusing the lowest free byte, so a late answer cannot match a newer command.
+ * anything. An urgent command goes before every normal one still queued and is written even when the window is full: STOP and
+ * the dead-man's heartbeat must not wait behind commands the board is slow to answer. The sequence counts on instead of reusing
+ * the lowest free byte, so a late answer cannot match a newer command.
  */
 
 export type CommandErrorCode =
@@ -124,7 +126,11 @@ export class CommandClient {
     const length = 2 + request.keys.length + (request.payload?.length ?? 0)
     if (length > this.defs.frameMax) return Promise.reject(new CommandError(`A request of ${length} bytes is over the ${this.defs.frameMax} the board takes.`, 'too-long'))
     return new Promise((resolve, reject) => {
-      this.queue.push({ request, options, remaining: Math.max(1, count), parts: [], resolve, reject })
+      const entry: Pending = { request, options, remaining: Math.max(1, count), parts: [], resolve, reject }
+      if (request.urgent) {
+        const firstNormal = this.queue.findIndex((e) => !e.request.urgent)
+        this.queue.splice(firstNormal < 0 ? this.queue.length : firstNormal, 0, entry)
+      } else this.queue.push(entry)
       this.pump()
     })
   }
@@ -185,7 +191,8 @@ export class CommandClient {
   }
 
   private pump(): void {
-    while (!this.closed && this.queue.length > 0 && this.inFlight.size < this.maxInFlight) {
+    // an urgent command passes a full window, never the 256 sequence bytes
+    while (!this.closed && this.queue.length > 0 && (this.inFlight.size < this.maxInFlight || (this.queue[0]!.request.urgent && this.inFlight.size < 0x100))) {
       const entry = this.queue.shift()!
       entry.seq = this.nextSeq()
       this.inFlight.set(entry.seq, entry)
