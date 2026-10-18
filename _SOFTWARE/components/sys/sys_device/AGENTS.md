@@ -3,7 +3,6 @@
 Spec: `SYS_DEVICE.MD` (this folder). Writing a driver: `SYS_DEVICE_NEW.md`.
 
 - Every change in this folder is followed by an edit of this file, if it is needed.
-- Do not add references to `legacy docs` unless the user asks for them.
 - Op numbers, contract IDs (`SYS_DEVICE_CONTRACT_*`), device type IDs (`sys_device_types.h`) and error tags are wire format or stored IDs: do not renumber them. Add new ones at the end.
 - Changing `SYS_DEVICE_LIFECYCLE`, a contract ID, the error map or `contract_device.json` requires an update in `templates/`: run `sh templates/sync.sh` (regenerates `enums.json` / `errors.json`, refreshes `generated/`, validates). Commit with `--check` green.
 - SUSPEND and RESUME are a type's `suspend` / `resume` hooks; REMOVE, INFO, OPS and the error-policy ops are the registry's. A type's op table lists none of them (asserted at boot).

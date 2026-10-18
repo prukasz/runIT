@@ -1,6 +1,6 @@
 # The VM engine (for agents)
 
-`runit-app/src/engine/`: everything an app needs to build on the runIT VM, with no UI, no DOM and no connection: the block palette, the user's variables and paths (accessors), block wiring, execution order, and the compiler that turns a project into the frames the board loads. Written from the firmware (`components/vm/`) and `generated/`; the old app (`legacy/`) was only read for ideas.
+`runit-app/src/engine/`: everything an app needs to build on the runIT VM, with no UI, no DOM and no connection: the block palette, the user's variables and paths (accessors), block wiring, execution order, and the compiler that turns a project into the frames the board loads. Written from the firmware (`components/vm/`) and `generated/`.
 
 ```ts
 const engine = createEngine()                       // bundled descriptors; new Engine({definitions, limits, codecs}) for your own

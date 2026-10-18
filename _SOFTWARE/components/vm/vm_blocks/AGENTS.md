@@ -3,7 +3,6 @@
 Spec: `VM_BLOCKS.MD` (this folder). The runtime: `../vm_core/VM_CORE.MD`. One user guide per block: `<name>.md` next to its code.
 
 - Every change in this folder is followed by an edit of this file, if it is needed.
-- Do not add references to `legacy docs` unless the user asks for them.
 - The block type numbers (`vm_core/block/vm_block_ids.h`), the state structs (sizes pinned by `_Static_assert`, `vm_block_device_data_t` 56 B), the pin order and the option bits are program format: an uploaded program holds them. Do not renumber or re-layout them; new fields go at the end and change `state_len`.
 - Every block has a `block_<name>.json` (schema `templates/vm-block.schema.json`) and a `<name>.md`. Changing a block's pins, state, options or behaviour changes both: update the descriptor and the guide with the code, then run `sh templates/sync.sh` (validates, checks `wire_id` and `state_len` against the code, refreshes `generated/blocks/`). Commit with `--check` green.
 - The `<name>.md` guides are for the user of the block: what it does, its pins and settings, its behaviour. No C names, no wire details.

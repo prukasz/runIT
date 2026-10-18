@@ -16,8 +16,6 @@ __pycache__/
 node_modules/
 dist/
 runit-app/release/
-app/node_modules/
-app/dist/
 .local/
 .agents
 

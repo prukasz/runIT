@@ -1,1 +1,0 @@
-export { PaletteSearch } from './PaletteSearch'

@@ -3,7 +3,6 @@
 Spec: `ERRORS.MD` (this folder).
 
 - Every change in this folder is followed by an edit of this file, if it is needed.
-- Do not add references to `legacy docs` unless the user asks for them.
 - Module IDs (`ERR_MOD_*`) are assigned only in `err_modules.h`. They must be unique firmware-wide and never renumbered. `ERR_MOD_CORE` is 0.
 - Error tags: `ERR_TAG(module, code)` packs module (bits 16..31) and code (bits 0..15). Tag 0 represents success / no error. Error codes are wire format; do not renumber them.
 - Tag maps and registration:

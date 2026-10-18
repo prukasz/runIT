@@ -3,7 +3,6 @@
 Spec: `VM_CORE.MD` (this folder). The palette: `../vm_blocks/VM_BLOCKS.MD`.
 
 - Every change in this folder is followed by an edit of this file, if it is needed.
-- Do not add references to `legacy docs` unless the user asks for them.
 - `ROUTER_KEY_VM` (0x0B), the op numbers (`VM_OP_*`, 0x01 RESET to 0x0A STATUS), the records in `vm_wire.h` (layouts pinned by `_Static_assert`), the wire object head (`vm_wire_head_t`, flag bits), `vm_exec_command_e`, the block type numbers in `block/vm_block_ids.h` and the error tags in `ERR_VM_MAP` (`ERR_MOD_VM` = 15) are wire format: do not renumber or re-layout them. New ones go at the end; a removed block number stays unused.
 - Changing an error tag, a `#ref-*` enum (`//@alias` comments) or a `#@limit` Kconfig option requires an update in `templates/`: run `sh templates/sync.sh` (regenerates `enums.json` / `errors.json` / limits, refreshes `generated/`, validates). Commit with `--check` green.
 - The core knows no block: never include a `vm_blocks` header here. A block type is only what `g_vm_block_types[]` holds.

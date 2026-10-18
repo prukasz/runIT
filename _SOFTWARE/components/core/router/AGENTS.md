@@ -3,7 +3,6 @@
 Spec: `ROUTER.MD` (this folder).
 
 - Every change in this folder is followed by an edit of this file, if it is needed.
-- Do not add references to `legacy docs` unless the user asks for them.
 - Root keys in `router_ids.h` (`ROUTER_KEY_*`), response stream byte `CONFIG_ROUTER_RESPONSE_STREAM` (0x05), response status codes (`ROUTER_STATUS_OK` = 0, `ROUTER_STATUS_ERROR` = 1), and `router_cmd_t` framing are wire format. Do not renumber root keys or alter response framing.
 - Error tags in `ERR_ROUTER_MAP` (`ERR_MOD_ROUTER` = 2) are wire format: do not renumber them. Changing them requires `sh templates/sync.sh` (regenerates `errors.json`, refreshes `generated/`, validates). Commit with `--check` green. Payload errors (`ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG`) belong to `cmd` (`ERR_MOD_CMD` = 11).
 - Modifying `contract_sys.json` (commands: PING, STOP, RESTART, DEADMAN_SET, DEADMAN_GET) requires running `sh templates/sync.sh` to update `generated/services/contract_sys.json` and validate schemas. Commit with `--check` green.

@@ -1,9 +1,4 @@
 # graphify scope: project source + docs only
-legacy/
-data-structures/
-auto-annotations/
-structures/
-Python/
 .claude/
 .vscode/
 build*/
@@ -20,10 +15,8 @@ CMakeLists.txt
 sdkconfig*
 partitions.csv
 dependencies.lock
-app/vite.config.ts
 
-# no app yet / not part of firmware graph
-app/
+# the app / not part of firmware graph
 runit-app/
 tools/
 generated/

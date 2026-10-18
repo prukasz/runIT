@@ -8,7 +8,7 @@ from typing import NoReturn
 ROOT = Path(__file__).resolve().parents[1]
 COMPONENTS_DIR = ROOT / "components"
 GENERATED = ROOT / "generated"
-SKIP_DIRS = {"build", "legacy", ".git"}
+SKIP_DIRS = {"build", ".git"}
 
 
 def fail(message) -> NoReturn:

@@ -1,1 +1,0 @@
-export { InlineRename } from './InlineRename'

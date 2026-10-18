@@ -3,7 +3,6 @@
 `templates/` holds the JSON Schemas of every descriptor the firmware and the app share, and the generators that publish what the C code owns.
 
 - Every change in this folder is followed by an edit of this file, if it is needed.
-- Do not add references to `legacy docs` unless the user asks for them.
 
 ## Descriptors written by hand (next to the code)
 

@@ -3,7 +3,6 @@
 Spec: `SYS_CONNECTOR.MD` (this folder).
 
 - Every change in this folder is followed by an edit of this file, if it is needed.
-- Do not add references to `legacy docs` unless the user asks for them.
 - Transport IDs (`transport_e`), connector IDs (`sys_connector_id_e`) and stream bytes (`SYS_CONNECTOR_STREAM_*`) are wire format: never renumber them. Error tags are wire format too.
 - Changing `transport_e`, `sys_connector_id_e`, the stream bytes, the error map or `contract_connector.json` requires an update in `templates/`: run `sh templates/sync.sh` (regenerates `enums.json` / `errors.json`, refreshes `generated/`, validates). Commit with `--check` green.
 - Commands and their answers never go through connectors. They use router links (ROUTER.MD).
