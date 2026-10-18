@@ -1,6 +1,6 @@
-import { Bluetooth, BluetoothConnected, BluetoothOff, CircleHelp, Code2, Cpu, FolderOpen, HardDriveDownload, HardDriveUpload, Moon, OctagonX, PanelLeft, PanelRight, Play, Redo2, ScrollText, SlidersHorizontal, Square, Sun, Trash2, Undo2, Workflow } from 'lucide-react'
+import { Bluetooth, BluetoothConnected, BluetoothOff, CircleHelp, Code2, Cpu, FolderOpen, HardDriveDownload, HardDriveUpload, Moon, OctagonX, PanelLeft, PanelRight, Pencil, Play, Redo2, ScrollText, SlidersHorizontal, Square, Sun, Trash2, Undo2, Workflow } from 'lucide-react'
 import type { LinkState } from '@backend'
-import { Badge, HelpOverlay, PanelHeader } from '@ui/components'
+import { Badge, HelpOverlay, PanelHeader, SegmentedSwitch } from '@ui/components'
 import { usePersistedChoice, usePersistedFlag } from '@ui/hooks/useStorage'
 import { DetailsPanel, ExplorerPanel, MainScreen, ResizeHandle, WorkspaceShell } from '@ui/layout/WorkspaceLayout'
 import { usePanels } from '@ui/layout/usePanels'
@@ -22,11 +22,17 @@ import { CONSOLE_SHOWS, ConsoleExplorer, ConsoleScreen } from './console/Console
 import type { ConsoleShow } from './console/ConsoleScreen'
 import { ConsoleContext, useConsole } from './console/useConsole'
 import type { ConsoleJumps } from './console/useConsole'
-import { findVariable } from '@engine'
+import { draftForVariable, findVariable, toPath } from '@engine'
 import { useCode } from './code/useCode'
 import { pathOf } from './code/variables'
 import { VariableDetails, VariablesEditor } from './code/VariableScreen'
 import { VariablesExplorer } from './code/VariablesExplorer'
+import { useBlocks } from './code/useBlocks'
+import { BlockPalette } from './code/BlockPalette'
+import { BlockDetails } from './code/BlockDetails'
+import { BlocksList } from './code/BlocksList'
+import { CanvasSurface } from './code/canvas/CanvasSurface'
+import type { CodeState } from './code/useCode'
 
 /** The screens, as tabs along the top of the left panel (the Console's on the right). */
 const VIEWS = [
@@ -39,7 +45,7 @@ type ViewName = (typeof VIEWS)[number]['name']
 
 /**
  * Code and Devices each have two screens, switched by the first button of the action bar: the details (lists and forms) and the
- * canvas (a drawing). The details of Code (the variables) and of Devices are written; the canvases say what they will hold.
+ * canvas (a drawing). Both screens of Code and the details of Devices are written; the canvas of Devices says what it will hold.
  */
 const SCREEN_MODES = ['details', 'canvas'] as const
 type ScreenMode = (typeof SCREEN_MODES)[number]
@@ -47,6 +53,10 @@ const SCREENS: Partial<Record<ViewName, Record<ScreenMode, string>>> = {
   Code: { details: 'The variables and the blocks.', canvas: 'The blocks and the flow between them.' },
   Devices: { details: 'The devices, their pins and commands.', canvas: 'The board and what is connected to it.' },
 }
+
+/** What the left panel of the Code view lists: the variables, or the block palette. */
+const CODE_PALETTES = [['variables', 'Variables'], ['blocks', 'Blocks']] as const
+type CodePalette = (typeof CODE_PALETTES)[number][0]
 
 /** The left panel's tabs. The Console is not among them: its tab is on the right of the frame (`ViewButton`), with its red dot. */
 const LEFT_VIEWS = VIEWS.filter((v) => v.name !== 'Console')
@@ -105,6 +115,13 @@ export function App() {
   const [help, setHelp] = useState(false)
   const [autoSync, setAutoSync] = usePersistedFlag('runit.autoSync', true)
   const devices = useDevices(link, state, project, autoSync)
+  const blocks = useBlocks(project, code.engine, devices)
+  const [codePalette, setCodePalette] = usePersistedChoice<CodePalette>('runit.code.palette', CODE_PALETTES.map(([key]) => key), 'variables')
+  // A variable picked in the centre (its entry) is what the right panel shows; one picked in the tree feeds the selected block's pins.
+  const pickVariable: CodeState = { ...code, select: (id) => { blocks.select(undefined); code.select(id) } }
+  // The variable picked in the tree, as a path: on the canvas a tap on a block offers its pins for it.
+  const pickedDraft = code.selected ? draftForVariable(code.tree, code.selected.variable.id) : undefined
+  const pickedPath = pickedDraft && toPath(pickedDraft)
   // The board's settings, read as soon as the link is up (the Project screen shows them).
   const boardSettings = useBoardSettings(link, state === 'connected', project)
   const settingTabs = tabSections(boardSettings.sections, link.defs.keys.project)
@@ -120,7 +137,13 @@ export function App() {
       const found = board.interpreter.target(ref) as { kind?: string; variable?: string } | undefined
       if (found?.kind === 'variable' && found.variable !== undefined && findVariable(code.tree, found.variable)) {
         const id = found.variable
-        return { kind: 'other', name: pathOf(code.tree, id) ?? id, open: () => { setView('Code'); code.select(id) } }
+        return { kind: 'other', name: pathOf(code.tree, id) ?? id, open: () => { setView('Code'); pickVariable.select(id) } }
+      }
+      // A block of the program: the Code view, with it selected.
+      const block = found as { kind?: string; block?: string } | undefined
+      if (block?.kind === 'block' && block.block !== undefined && blocks.program.blocks.some((b) => b.id === block.block)) {
+        const id = block.block
+        return { kind: 'other', name: blocks.nameOf(id), open: () => { setView('Code'); blocks.select(id) } }
       }
       const device = (id: number) => devices.devices.find((d) => d.id === id)
       if (ref.kind === 'device') {
@@ -149,14 +172,24 @@ export function App() {
   // The Devices view's test panel: the selected device's operations, in the details panel while the connection is not open there.
   const testDevice = view === 'Devices' ? devices.selectedDevice : undefined
   const testId = testDevice?.id
-  // The Code view's details panel: the selected variable.
-  const codeVariable = view === 'Code' ? code.selected?.variable.id : undefined
-  const detailsKey = testId !== undefined ? `device:${testId}` : codeVariable !== undefined ? `variable:${codeVariable}` : undefined
+  // The Code view's details panel: the selected block, else the selected variable.
+  const codeBlock = view === 'Code' ? blocks.selected?.id : undefined
+  const codeVariable = view === 'Code' && codeBlock === undefined ? code.selected?.variable.id : undefined
+  const detailsKey = testId !== undefined ? `device:${testId}` : codeBlock !== undefined ? `block:${codeBlock}` : codeVariable !== undefined ? `variable:${codeVariable}` : undefined
   // The details panel is open while it has something to show: a device or a variable chosen opens its panel (in place of the
   // connection panel), nothing left to show closes it.
   const showsNothing = !connectionOpen && detailsKey === undefined
+  // On the canvas of Code a selection opens nothing (the panel would cover the blocks being linked): the panel follows the
+  // selection while it is open, and a double-click on a block or the toolbar's pencil opens it, or hides it when it already shows
+  // that block (`toggleDetails`).
+  const onCodeCanvas = view === 'Code' && codeMode === 'canvas'
+  const toggleDetails = (block?: string) => {
+    const showing = panels.rightOpen && !connectionOpen && detailsKey !== undefined && (block === undefined || codeBlock === block)
+    setConnectionOpen(false)
+    panels.setRightOpen(!showing)
+  }
   useEffect(() => {
-    if (detailsKey === undefined) return
+    if (detailsKey === undefined || onCodeCanvas) return
     setConnectionOpen(false)
     panels.setRightOpen(true)
   }, [detailsKey])
@@ -230,7 +263,12 @@ export function App() {
                   </>
                 )
                 : view === 'Code'
-                ? <VariablesExplorer code={code} />
+                ? (
+                  <>
+                    <div className="code-palette-switch"><SegmentedSwitch label="The left panel lists" value={codePalette} options={CODE_PALETTES} onChange={setCodePalette} /></div>
+                    {codePalette === 'blocks' ? <BlockPalette blocks={blocks} /> : <VariablesExplorer code={code} />}
+                  </>
+                )
                 : view === 'Devices'
                 ? <DevicesExplorer state={devices} />
                 : view === 'Console'
@@ -276,6 +314,18 @@ export function App() {
                   )}
                 </>
               )}
+              {view === 'Code' && (
+                <button aria-label="Edit the selected block" data-help="Opens the details of the selected block (or variable) in the right panel, or hides them; a double-click on a block does the same." title="Edit: show or hide the details of the selection (double-click a block)"
+                  className={panels.rightOpen && !connectionOpen && detailsKey !== undefined ? 'selected' : undefined} aria-pressed={panels.rightOpen && !connectionOpen && detailsKey !== undefined} disabled={detailsKey === undefined} onClick={() => toggleDetails()}>
+                  <Pencil aria-hidden="true" />
+                </button>
+              )}
+              {view === 'Code' && (
+                <button className="toolbar-danger" aria-label="Remove the selected blocks" data-help="Removes the selected blocks from the program (Delete on the canvas does the same)." title="Remove the selected blocks (Delete)"
+                  disabled={blocks.selectedIds.length === 0} onClick={() => blocks.remove(blocks.selectedIds)}>
+                  <Trash2 aria-hidden="true" />
+                </button>
+              )}
               <span className="toolbar-spacer" />
               {(view === 'Devices' || view === 'Project') && devices.busy && <span className="bar-note" role="status">{devices.busy.step}… {devices.busy.done}/{devices.busy.total}</span>}
               {(view === 'Devices' || view === 'Project') && !devices.busy && devices.note && <span className={`bar-note ${devices.note.tone === 'error' ? 'is-error' : ''}`} role="status" title={devices.note.text} onClick={devices.clearNote}>{devices.note.text}</span>}
@@ -294,7 +344,9 @@ export function App() {
             : view === 'Devices' && mode === 'details'
             ? <DevicesScreen state={devices} />
             : view === 'Code' && mode === 'details'
-            ? <VariablesEditor code={code} />
+            ? (codePalette === 'blocks' ? <BlocksList blocks={blocks} /> : <VariablesEditor code={pickVariable} />)
+            : view === 'Code'
+            ? <CanvasSurface blocks={blocks} picked={pickedPath} onPickedUsed={() => code.select(undefined)} onToggleDetails={toggleDetails} />
             : screens
             ? <div className={`view-placeholder ${mode === 'canvas' ? 'canvas-empty' : ''}`}><h2>{current.title} · {mode === 'canvas' ? 'Canvas' : 'Details'}</h2><p>{screens[mode]}</p></div>
             : view === 'Project'
@@ -328,6 +380,7 @@ export function App() {
               {!connectionOpen && testDevice && (devices.pinSelection?.device === testDevice.id
                 ? <PinPanel key={`${testDevice.id}/${devices.pinSelection.pin}`} device={testDevice} pin={devices.pinSelection.pin} state={devices} />
                 : <DeviceTestPanel key={testDevice.id} device={testDevice} state={devices} />)}
+              {!connectionOpen && codeBlock !== undefined && <BlockDetails key={codeBlock} blocks={blocks} code={code} />}
               {!connectionOpen && codeVariable !== undefined && <VariableDetails code={code} />}
               {connectionOpen && <ConnectionPanel state={state} device={device} reason={reason} available={available} scan={scan} onChoose={choose} onCancelScan={cancelScan} auto={auto} onAuto={setAuto} sync={autoSync} onSync={setAutoSync} onConnect={() => void connect()} onDisconnect={() => void disconnect()} onForget={() => void forget()} />}
             </div>

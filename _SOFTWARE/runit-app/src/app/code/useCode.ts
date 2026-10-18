@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { addVariable, checkVariables, createEngine, flattenVariables, locate, moveVariable, removeVariable, updateVariable } from '@engine'
-import type { Variable } from '@engine'
+import type { ValueType, Variable } from '@engine'
 import type { ProjectFile } from '../project/projectFile'
 import type { useProject } from '../project/useProject'
-import { newVariable } from './variables'
+import { newVariable, newVariableId, STR_LENGTH } from './variables'
 import type { NewKind } from './variables'
 
 type Patch = Parameters<typeof updateVariable>[2]
@@ -51,6 +51,13 @@ export function useCode(project: ReturnType<typeof useProject>) {
     if (gone && selectedId !== undefined && flattenVariables([gone.variable]).some((v) => v.id === selectedId)) setSelectedId(undefined)
   }
 
+  /** A new top-level variable with this name and type (a pin asked for it); returns its id. */
+  const create = (name: string, type: ValueType): string => {
+    const variable: Variable = { kind: 'value', id: newVariableId(tree), name, type, count: type === 'str' ? STR_LENGTH : 1 }
+    setTree((t) => addVariable(t, null, variable))
+    return variable.id
+  }
+
   const update = (id: string, patch: Patch, key?: string) => setTree((t) => updateVariable(t, id, patch), key)
 
   /** Into a folder (null: the top) at `index`; a folder never into itself. */
@@ -67,7 +74,7 @@ export function useCode(project: ReturnType<typeof useProject>) {
     return next
   })
 
-  return { program, tree, blockLabel, selected, select, problems, closed, toggle, add, remove, update, move }
+  return { engine, program, tree, blockLabel, selected, select, problems, closed, toggle, add, create, remove, update, move }
 }
 
 export type CodeState = ReturnType<typeof useCode>

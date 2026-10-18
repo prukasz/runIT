@@ -1,11 +1,14 @@
 import { checkVariables, flattenVariables } from '@engine'
 import type { Project } from '@engine'
 import type { FieldValues } from '@backend'
+import { EMPTY_LAYOUT, readLayout } from '../code/canvas/layout'
+import type { CanvasLayout } from '../code/canvas/layout'
 
 /*
  * The project as the user keeps it: a name, the program (the engine's variables and blocks), the devices the project makes
  * on the board with the commands each gets at start, the start commands of the board's own devices, the user's actions, the
- * user's names of pins and the board's settings the project keeps (settings/settings.ts). Plain data, saved as one JSON file. Reading a file never throws: a file that is not a project is an error
+ * user's names of pins, the board's settings the project keeps (settings/settings.ts) and where the blocks sit on the canvas (the
+ * app's own: the board never gets it, code/canvas/layout.ts). Plain data, saved as one JSON file. Reading a file never throws: a file that is not a project is an error
  * message, a project with mistakes in it opens and lists them (a mistake in a project is a diagnostic, AGENTS.md).
  */
 
@@ -121,9 +124,11 @@ export interface ProjectFile {
   readonly actions: readonly ProjectAction[]
   readonly pinAliases: readonly PinAlias[]
   readonly settings: ProjectSettings
+  /** Where the blocks and the free chips sit on the canvas. */
+  readonly canvas: CanvasLayout
 }
 
-export const emptyProject = (name = 'Untitled'): ProjectFile => ({ name, program: { variables: [], blocks: [] }, devices: [], boardDefaults: [], actions: [], pinAliases: [], settings: emptySettings() })
+export const emptyProject = (name = 'Untitled'): ProjectFile => ({ name, program: { variables: [], blocks: [] }, devices: [], boardDefaults: [], actions: [], pinAliases: [], settings: emptySettings(), canvas: EMPTY_LAYOUT })
 
 export const serializeProject = (project: ProjectFile): string =>
   JSON.stringify({ format: PROJECT_FORMAT, version: PROJECT_VERSION, ...project }, null, 2)
@@ -178,6 +183,7 @@ export const parseProject = (text: string): ParseResult => {
     actions: actions as unknown as ProjectAction[],
     pinAliases: pinAliases as unknown as PinAlias[],
     settings: { values: {}, tables: {}, ...(settings as unknown as Partial<ProjectSettings>) },
+    canvas: readLayout(data.canvas),
   }
   return { ok: true, project, problems: checkVariables(project.program.variables).map((problem) => problem.message) }
 }

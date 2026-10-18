@@ -5,6 +5,7 @@ import type { CatalogEntry, LinkState, RunitLink } from '@backend'
 import type { useProject } from '../project/useProject'
 import { parseProject, serializeProject } from '../project/projectFile'
 import type { ProjectAction, ProjectDevice, Step } from '../project/projectFile'
+import { EMPTY_LAYOUT } from '../code/canvas/layout'
 import { readFromBoard, writeToBoard } from './boardSync'
 import type { SyncProgress } from './boardSync'
 import { baseConfig, DEVICE_COMMANDS, DEVICE_EVENTS, deviceList, lifecycleOf, nextActionId, nextDeviceId, pinNamer, renumberDevice, SINGLE_TYPES } from './devices'
@@ -64,7 +65,8 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
   const pinName = useMemo(() => pinNamer(devices), [devices])
 
   // What the board holds, as the project was at the last write or read: a difference is something to write (the toolbar's Write).
-  const snapshot = useMemo(() => serializeProject(project.project), [project.project])
+  // The canvas is the app's own: moving a block is nothing to write.
+  const snapshot = useMemo(() => serializeProject({ ...project.project, canvas: EMPTY_LAYOUT }), [project.project])
   const [synced, setSynced] = useState<string | undefined>()
   useEffect(() => { setSynced((s) => s ?? snapshot) }, [snapshot])
   const pending = synced !== undefined && synced !== snapshot

@@ -1,0 +1,85 @@
+/* The Code view's blocks: the palette (left, Blocks), the list (centre, details) and the selected block (right). */
+.cat-flow { --cat: var(--category-flow); }
+.cat-data { --cat: var(--category-data); }
+.cat-logic { --cat: var(--category-logic); }
+.cat-time { --cat: var(--category-time); }
+.cat-device { --cat: var(--category-io); }
+.cat-system { --cat: var(--category-system); }
+.cat-unknown { --cat: var(--category-unknown); }
+
+/* The left panel's switch between the variables and the palette. */
+.code-palette-switch { padding: 10px 10px 0; }
+.code-palette-switch .segmented-switch { width: 100%; }
+
+/* Palette */
+.block-palette { display: flex; flex-direction: column; gap: 6px; height: 100%; min-height: 0; padding: 10px 10px 0; }
+.block-palette-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 0 12px; }
+.block-palette-group .palette-section-header { margin-top: 6px; }
+.block-palette-item:hover { border-color: color-mix(in srgb, var(--cat) 60%, var(--divider)); }
+.block-palette-item .tree-slab-item { cursor: grab; }
+.block-palette-item .tree-slab-item:active { cursor: grabbing; }
+.block-palette-swatch, .block-details-swatch { flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--cat); }
+.block-palette-ops { margin: 0 0 4px 16px; padding: 2px 0 2px 6px; border-left: 1px solid color-mix(in srgb, var(--cat) 35%, var(--divider)); }
+.block-palette-op-kind { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.block-palette-op-kind.is-change { background: var(--color-blue); }
+.block-palette-op-kind.is-edge { background: var(--color-amber); }
+.block-palette-op-kind.is-read { background: var(--color-green); }
+
+/* Centre: one entry per block, in the project's order (the order they run in where the wiring leaves it open) */
+.block-list { display: flex; flex-direction: column; gap: 6px; height: 100%; overflow: auto; padding: 16px 20px 32px; }
+.block-entry { display: flex; flex-direction: column; gap: 4px; max-width: 860px; padding: 8px 10px; border: 1px solid var(--divider); border-left: 4px solid var(--cat); border-radius: 10px; background: var(--panel); cursor: pointer; }
+.block-entry:hover { border-color: color-mix(in srgb, var(--active) 22%, var(--divider)); border-left-color: var(--cat); }
+.block-entry.is-selected { border-color: var(--accent); border-left-color: var(--cat); box-shadow: 0 0 0 1px var(--accent); }
+.block-entry.is-error { border-color: var(--error); border-left-color: var(--error); background: var(--error-bg); }
+.block-entry-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.block-entry-order { flex: none; min-width: 22px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.block-entry-title { flex: 1; min-width: 0; overflow: hidden; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.block-entry-title em { font-weight: 500; }
+.block-entry-type { flex: none; color: var(--muted); font-size: 11px; }
+.block-entry-pins { display: flex; flex-wrap: wrap; gap: 4px 12px; padding-left: 30px; color: var(--muted); font-size: 11px; }
+.block-entry-pins b { color: var(--active); font-weight: 500; }
+.block-entry .field-error { padding-left: 30px; }
+.block-list-placing { display: flex; align-items: center; gap: 8px; max-width: 860px; padding: 8px 10px; border: 1px solid var(--accent); border-radius: 10px; background: color-mix(in srgb, var(--accent) 10%, var(--panel)); font-size: 12px; }
+.block-list-placing > span { flex: 1; min-width: 0; }
+.block-list-empty { color: var(--muted); font-size: 12px; }
+
+/* Right: the selected block */
+.block-details { display: flex; flex-direction: column; gap: 10px; padding: 14px 14px 24px; }
+.block-details .panel-header h2 { flex: 1; min-width: 0; }
+.block-details-swatch { width: 12px; height: 12px; }
+.block-details .block-name-field { width: 100%; height: 30px; border-color: transparent; background: transparent; font-size: 15px; font-weight: 600; }
+.block-details .block-name-field::placeholder { color: var(--active); opacity: 1; }
+.block-details .block-name-field:hover { border-color: var(--divider); }
+.block-details .block-name-field:focus { border-color: var(--accent); background: var(--background); }
+.block-description { margin: 0; color: var(--active); font-size: 12px; line-height: 1.5; }
+.block-muted { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.block-fields { display: flex; flex-direction: column; gap: 10px; }
+.block-number { display: flex; align-items: center; gap: 6px; }
+.block-number > .number-field { flex: 1; min-width: 0; }
+.block-unit { flex: none; color: var(--muted); font-size: 11px; }
+.block-group-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.block-group { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 11px; }
+.block-pins { display: flex; flex-direction: column; gap: 6px; }
+.block-pin { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; align-items: center; gap: 4px 8px; }
+.block-pin > .field-error, .block-pin > .path-editor { grid-column: 1 / -1; }
+.block-pin.is-editing { padding: 4px; border-radius: 6px; background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.block-pin-name { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; color: var(--active); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.block-pin-name .object-type-icon { width: 26px; height: 18px; }
+.block-pin-name .object-type-icon svg { width: 13px; height: 13px; }
+.block-pin-source, .block-pin-target { display: flex; align-items: center; gap: 6px; min-width: 0; height: 26px; padding: 0 8px; overflow: hidden; border: 1px dashed var(--divider); border-radius: 4px; background: var(--background); color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; transition: border-color 120ms ease, color 120ms ease; }
+.block-pin-source:hover, .block-pin-target:hover { border-color: var(--accent); border-style: solid; color: var(--active); }
+.block-pin-source.is-missing { border-color: var(--error); color: var(--error); background: var(--error-bg); }
+.block-pin-source.is-missing:hover { border-color: var(--error); color: var(--error); }
+.block-pin-source.is-wired { border-style: solid; border-color: color-mix(in srgb, var(--color-blue-bright) 45%, var(--divider)); color: var(--active); }
+.block-pin-target.is-wired { border-style: solid; border-color: color-mix(in srgb, var(--color-orange) 45%, var(--divider)); background: color-mix(in srgb, var(--color-orange) 10%, var(--background)); color: var(--active); }
+.block-pin-target em { font-style: italic; }
+.block-pin-arrow { flex: none; font-weight: 700; }
+.block-pin-target.is-wired .block-pin-arrow { color: var(--color-orange); }
+.block-pin-clear { width: 24px; height: 24px; }
+.block-pin-clear svg { width: 13px; height: 13px; }
+.block-gates { display: flex; flex-direction: column; gap: 4px; margin: 0 0 8px; padding: 0; list-style: none; font-size: 12px; }
+.block-gates li { display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 2px 4px 2px 8px; border: 1px solid var(--divider); border-radius: 5px; color: var(--active); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.block-gates li > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.block-gates button { width: 22px; height: 22px; }
+.block-gates svg { width: 13px; height: 13px; }
+.block-gate-dot { flex: none; width: 8px; height: 8px; border-radius: 2px; background: var(--color-red); }

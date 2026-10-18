@@ -7,7 +7,6 @@ Index of knowledge that is not obvious from the code. Detail lives in the linked
 - Vision, hardware, repo map: `.claude/skills/runit-root/` (`VISION.md`, `HARDWARE.md`)
 - Firmware map (links every component's `*.MD` / `AGENTS.md`), architecture, conventions, errors, build and tests: `.claude/skills/runit-esp/`
 - The app (`runit-app/`): `AGENTS.md` (the frame, the shared UI parts, the project, the desktop app), `src/engine/ENGINE.md` (VM engine), `src/backend/BACKEND.md` (the BLE link, the stored project)
-- Device descriptor format: `devices-format.md`
 - Block canvas concept: `board-canvas-concept.md`
 - Descriptors, schemas and generators: `templates/AGENTS.md`
 - Per-module design notes: the `*.MD` next to each component

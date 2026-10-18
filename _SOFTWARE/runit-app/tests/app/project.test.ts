@@ -17,12 +17,21 @@ const sample: ProjectFile = {
   pinAliases: [{ device: 1, pin: 22, name: 'LED blue' }],
   actions: [{ id: 10, name: 'Wave', steps: [{ kind: 'device', device: 4, contract: 'servo', command: 'home' }] }],
   settings: { values: { 'LOG.SET': { level: 2, mirror_serial: true } }, tables: {}, gatt: [{ uuid: 0xee00, primary: true, characteristics: [] }] },
+  canvas: { blocks: { b1: { x: 40, y: 80 } }, chips: [{ id: 'chip1', path: { root: 'speed', steps: [] }, x: -120, y: 80 }] },
 } as unknown as ProjectFile
 
 describe('the project file', () => {
   it('a saved project reads back as it was', () => {
     const read = parseProject(serializeProject(sample))
     expect(read).toEqual({ ok: true, project: sample, problems: [] })
+  })
+
+  it('a canvas that is not readable opens empty; what is readable of it stays', () => {
+    const text = (canvas: unknown) => JSON.stringify({ ...JSON.parse(serializeProject(sample)), canvas })
+    const none = parseProject(text(undefined))
+    expect(none.ok && none.project.canvas).toEqual({ blocks: {}, chips: [] })
+    const mixed = parseProject(text({ blocks: { b1: { x: 1, y: 2 }, b2: { x: 'a' } }, chips: [{ id: 'c', x: 0, y: 0 }, { id: 'd', path: { root: 'speed', steps: [] }, x: 0, y: 0 }] }))
+    expect(mixed.ok && mixed.project.canvas).toEqual({ blocks: { b1: { x: 1, y: 2 } }, chips: [{ id: 'd', path: { root: 'speed', steps: [] }, x: 0, y: 0 }] })
   })
 
   it('names what it holds: values (not folders), blocks, devices', () => {

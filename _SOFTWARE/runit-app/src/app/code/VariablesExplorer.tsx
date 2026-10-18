@@ -11,6 +11,9 @@ import './Code.css'
 
 type DropMode = 'into' | 'before' | 'after'
 
+/** Data type of a variable dragged from the tree onto a pin, a formula or the canvas: its id. */
+export const VARIABLE_DRAG_TYPE = 'application/x-runit-variable'
+
 /** Where over a row the pointer is: a folder takes a drop into its middle half, any row before its top and after its bottom. */
 const modeAt = (event: DragEvent<HTMLDivElement>, folder: boolean): DropMode => {
   const rect = event.currentTarget.getBoundingClientRect()
@@ -76,8 +79,9 @@ export function VariablesExplorer({ code }: { code: CodeState }) {
           draggable={renaming !== v.id}
           onDragStart={(event) => {
             event.stopPropagation()
-            event.dataTransfer.setData('text/plain', v.id)
-            event.dataTransfer.effectAllowed = 'move'
+            event.dataTransfer.setData('text/plain', v.name)
+            event.dataTransfer.setData(VARIABLE_DRAG_TYPE, v.id)
+            event.dataTransfer.effectAllowed = 'copyMove'
             setDragged(v.id)
           }}
           onDragEnd={endDrag}

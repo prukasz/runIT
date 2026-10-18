@@ -7,21 +7,23 @@ import './NumberField.css'
 /**
  * A number field you can type in freely. The text is the field's own while it has focus: a value is committed to the
  * owner as soon as it is a number inside `min` / `max`, and a half-typed one ("1" on the way to "60", an empty box, a
- * lone "-") is left alone instead of being clamped under your fingers. On blur the box shows the committed value again.
+ * lone "-") is left alone instead of being clamped under your fingers. On blur the box shows the committed value again. An
+ * undefined value is a field not set yet: the box is empty (its placeholder shows).
  */
 export function NumberField({ value, onCommit, min, max, integer, ...rest }: Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type' | 'min' | 'max'> & {
-  value: number
+  value: number | undefined
   onCommit: (value: number) => void
   min?: number
   max?: number
   /** Only whole numbers are committed ("1.5" waits until it is a whole number). */
   integer?: boolean
 }) {
-  const [text, setText] = useState(String(value))
+  const shown = value === undefined ? '' : String(value)
+  const [text, setText] = useState(shown)
   const [editing, setEditing] = useState(false)
   useEffect(() => {
-    if (!editing) setText(String(value))
-  }, [value, editing])
+    if (!editing) setText(shown)
+  }, [shown, editing])
 
   const valid = (candidate: string): boolean => {
     const number = Number(candidate)
@@ -29,7 +31,7 @@ export function NumberField({ value, onCommit, min, max, integer, ...rest }: Omi
   }
 
   const step = (direction: 1 | -1) => {
-    const base = valid(text) ? Number(text) : value
+    const base = valid(text) ? Number(text) : value ?? (min ?? 0) - direction
     const next = Math.min(max ?? Infinity, Math.max(min ?? -Infinity, base + direction))
     setText(String(next))
     onCommit(next)
@@ -53,7 +55,7 @@ export function NumberField({ value, onCommit, min, max, integer, ...rest }: Omi
         }}
         onBlur={(event) => {
           setEditing(false)
-          setText(String(value))
+          setText(shown)
           rest.onBlur?.(event)
         }}
       />

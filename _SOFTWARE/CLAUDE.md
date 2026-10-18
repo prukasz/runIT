@@ -1,6 +1,6 @@
 # runIT — _SOFTWARE
 
-Plug-and-play framework for hobbyists: ESP32-S3 firmware (ESP-IDF, FreeRTOS), a PLC-style VM uploaded over BLE, and an app (remote, debugger, configurator, block IDE). The app is being written in `runit-app/` (so far the VM engine, the BLE link, the UI kit, the app's frame, the Project screen, the Devices view and the variables of the Code view, in a browser or as the Electron desktop app; read its `AGENTS.md`); it reads what the firmware publishes in `generated/`.
+Plug-and-play framework for hobbyists: ESP32-S3 firmware (ESP-IDF, FreeRTOS), a PLC-style VM uploaded over BLE, and an app (remote, debugger, configurator, block IDE). The app is being written in `runit-app/` (so far the VM engine, the BLE link, the UI kit, the app's frame, the Project screen, the Devices view and the Code view (variables, blocks, the canvas), in a browser or as the Electron desktop app; read its `AGENTS.md`); it reads what the firmware publishes in `generated/`.
 
 ## Start of session
 
