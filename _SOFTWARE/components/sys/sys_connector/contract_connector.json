@@ -5,16 +5,17 @@
   "scope": "system",
   "id": "CONNECTOR",
   "router_key": 4,
-  "alias": "Konektor strumieni danych (Data Connectors)",
-  "description": "Zarządzanie logicznymi strumieniami danych wychodzących (telemetria, logi, błędy, zdarzenia, strumienie użytkownika) oraz ich powiązaniami z transportami (UART, BLE).",
+  "alias": "Data stream connectors (Data Connectors)",
+  "description": "Managing the outgoing data streams (telemetry, logs, errors, events, user streams) and their bindings to transports (UART, BLE).",
   "category": "system",
+  "record": "SYS_ACTIONS_ID_CONN",
   "commands": [
     {
       "id": "CREATE",
       "op": 1,
       "symbol": "OP_CREATE",
-      "label": "Utwórz strumień",
-      "description": "Tworzy logiczny strumień użytkownika o zadanym ID i bajcie strumienia.",
+      "label": "Create a stream",
+      "description": "Creates a user stream with the given ID and stream byte.",
       "args": {
         "struct": "create_t",
         "fields": [
@@ -25,7 +26,7 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "Identyfikator konektora (>= 4 dla strumieni aplikacji)"
+            "description": "Connector ID (4 or more for the app's streams)"
           },
           {
             "id": "stream",
@@ -34,14 +35,14 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 1,
-            "description": "Bajt identyfikujący strumień w ramce"
+            "description": "Byte that identifies the stream in a frame"
           },
           {
             "id": "name",
-            "label": "Nazwa strumienia",
+            "label": "Stream name",
             "type": "string",
             "raw_type": "string",
-            "description": "Tekstowa nazwa diagnostyczna (ogon NUL-terminated tail)"
+            "description": "Name for diagnostics (text, NUL-terminated, runs to the end of the frame)"
           }
         ]
       }
@@ -50,8 +51,8 @@
       "id": "REMOVE",
       "op": 2,
       "symbol": "OP_REMOVE",
-      "label": "Usuń strumień",
-      "description": "Usuwa strumień użytkownika i jego powiązania z transportami.",
+      "label": "Remove a stream",
+      "description": "Removes a user stream and its bindings to transports.",
       "args": {
         "struct": "id_t_",
         "fields": [
@@ -62,7 +63,7 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "Identyfikator usuwanego konektora"
+            "description": "ID of the connector to remove"
           }
         ]
       }
@@ -71,8 +72,8 @@
       "id": "BIND",
       "op": 3,
       "symbol": "OP_BIND",
-      "label": "Powiąż z transportem",
-      "description": "Przypisuje strumień do transportu (UART, BLE) pod wskazanym punktem końcowym (endpoint).",
+      "label": "Bind to a transport",
+      "description": "Binds a stream to a transport (UART, BLE) at the given endpoint.",
       "args": {
         "struct": "bind_t",
         "fields": [
@@ -83,26 +84,17 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "Identyfikator konektora"
+            "description": "Connector ID"
           },
           {
             "id": "provider",
             "label": "Transport",
-            "type": "choice",
+            "type": "enum",
+            "enum": "transport_e",
             "raw_type": "u8",
             "size": 1,
             "offset": 1,
-            "description": "Identyfikator transportu",
-            "options": [
-              {
-                "label": "UART",
-                "value": 1
-              },
-              {
-                "label": "BLE",
-                "value": 2
-              }
-            ]
+            "description": "Transport ID"
           },
           {
             "id": "endpoint",
@@ -111,7 +103,7 @@
             "raw_type": "u32",
             "size": 4,
             "offset": 2,
-            "description": "Punkt końcowy transportu (dla BLE 16-bit UUID cechy, dla UART 0)"
+            "description": "Endpoint of the transport (for BLE the 16-bit UUID of the characteristic, for UART 0)"
           }
         ]
       }
@@ -120,8 +112,8 @@
       "id": "UNBIND",
       "op": 4,
       "symbol": "OP_UNBIND",
-      "label": "Usuń powiązanie",
-      "description": "Usuwa powiązanie strumienia z wybranym transportem.",
+      "label": "Remove a binding",
+      "description": "Removes the binding of a stream to the given transport.",
       "args": {
         "struct": "unbind_t",
         "fields": [
@@ -132,26 +124,17 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "Identyfikator konektora"
+            "description": "Connector ID"
           },
           {
             "id": "provider",
             "label": "Transport",
-            "type": "choice",
+            "type": "enum",
+            "enum": "transport_e",
             "raw_type": "u8",
             "size": 1,
             "offset": 1,
-            "description": "Identyfikator transportu",
-            "options": [
-              {
-                "label": "UART",
-                "value": 1
-              },
-              {
-                "label": "BLE",
-                "value": 2
-              }
-            ]
+            "description": "Transport ID"
           }
         ]
       }
@@ -160,8 +143,8 @@
       "id": "SUSPEND",
       "op": 5,
       "symbol": "OP_SUSPEND",
-      "label": "Zawieś strumień",
-      "description": "Zawiesza wysyłanie ramek na strumieniu (pakiety są ignorowane bez blokowania nadawcy).",
+      "label": "Suspend a stream",
+      "description": "Stops sending frames on a stream (they are dropped without blocking the sender).",
       "args": {
         "struct": "id_t_",
         "fields": [
@@ -172,7 +155,7 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "Identyfikator zawieszanego konektora"
+            "description": "ID of the connector to suspend"
           }
         ]
       }
@@ -181,8 +164,8 @@
       "id": "RESUME",
       "op": 6,
       "symbol": "OP_RESUME",
-      "label": "Wznów strumień",
-      "description": "Wznawia normalne nadawanie zawieszonego strumienia.",
+      "label": "Resume a stream",
+      "description": "Resumes normal sending on a suspended stream.",
       "args": {
         "struct": "id_t_",
         "fields": [
@@ -193,7 +176,7 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "Identyfikator wznawianego konektora"
+            "description": "ID of the connector to resume"
           }
         ]
       }
@@ -202,12 +185,12 @@
       "id": "INFO",
       "op": 7,
       "symbol": "OP_INFO",
-      "label": "Pobierz listę strumieni",
-      "description": "Zwraca listę wszystkich aktywnych konektorów, ich stan (systemowy, zawieszony) oraz powiązania transportowe.",
+      "label": "List the streams",
+      "description": "Returns every active connector, its state (system, suspended) and its transport bindings.",
       "returns": {
         "type": "u8",
-        "label": "Liczba konektorów",
-        "description": "Potem, dla każdego konektora: id, stream, flagi (bit0 systemowy, bit1 zawieszony), liczba powiązań i powiązania (provider, endpoint), nazwa zakończona NUL."
+        "label": "Number of connectors",
+        "description": "Then, for each connector: id, stream, flags (bit 0 system, bit 1 suspended), number of bindings and the bindings (provider, endpoint), a NUL-terminated name."
       }
     }
   ]

@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runit.local/schema/error-texts.schema.json",
+  "title": "runIT error texts of one module",
+  "description": "errors_<moduł>.json obok nagłówka z mapą ERR_*_MAP: szablon komunikatu dla użytkownika dla każdego błędu modułu i znaczenie pól, którego nie widać z nazwy pola. generate_errors.py łączy go z mapą w errors.json.",
+  "type": "object",
+  "required": [
+    "module",
+    "errors"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "module": {
+      "type": "string",
+      "pattern": "^ERR_MOD_[A-Z0-9_]+$",
+      "description": "Symbol modułu, którego mapę opisuje plik."
+    },
+    "errors": {
+      "type": "object",
+      "description": "Wg nazwy błędu (ERR_...): każdy błąd modułu ma wpis.",
+      "propertyNames": {
+        "pattern": "^ERR_[A-Z0-9_]+$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Szablon komunikatu: {pole} wstawia wartość pola błędu."
+          },
+          "hint": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Co użytkownik może zrobić (po angielsku, zdanie lub dwa): pokazywane przez aplikację pod komunikatem. {pole} jak w message."
+          },
+          "fields": {
+            "type": "object",
+            "description": "Znaczenie pól, którego nie daje ich nazwa (nadpisuje to, co generator wnioskuje).",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "id_kind": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/idKind"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Rodzaj identyfikatora; null: pole nie jest identyfikatorem."
+                },
+                "of": {
+                  "type": "string",
+                  "description": "Pole z instancją, w której obrębie liczy się ten identyfikator."
+                },
+                "enum_ref": {
+                  "type": "string",
+                  "description": "Grupa w enums.json, z której pochodzą wartości pola."
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "id_kind_by": {
+                  "type": "object",
+                  "required": [
+                    "field",
+                    "kinds"
+                  ],
+                  "description": "Rodzaj wg członka grupy (enum_ref) innego pola: { field, kinds: { NAZWA_CZŁONKA: rodzaj } }.",
+                  "properties": {
+                    "field": {
+                      "type": "string"
+                    },
+                    "kinds": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "$ref": "#/$defs/idKind"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "idKind": {
+      "type": "string",
+      "enum": [
+        "device",
+        "device_type",
+        "device_op",
+        "pin",
+        "channel",
+        "i2c_bus",
+        "i2c_address",
+        "vm_object",
+        "vm_accessor",
+        "vm_block",
+        "vm_block_input",
+        "vm_block_output",
+        "vm_block_enable",
+        "vm_block_type",
+        "vm_op",
+        "action",
+        "project_section",
+        "router_key",
+        "link",
+        "connector",
+        "transport",
+        "ble_uuid",
+        "stream",
+        "contract",
+        "error_tag",
+        "esp_err"
+      ],
+      "description": "Rodzaj identyfikatora (id_kinds)."
+    }
+  }
+}

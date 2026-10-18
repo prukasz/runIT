@@ -1,0 +1,14 @@
+/* Help mode: outlines over the marked elements; a click on one shows its text beside it. */
+.help-overlay { position: fixed; inset: 0; z-index: 1000; }
+.help-catch { position: fixed; inset: 0; }
+.help-overlay .help-box {
+  position: fixed; padding: 0; margin: 0; border: 2px solid var(--active); border-radius: 4px; cursor: pointer;
+  background: color-mix(in srgb, var(--active) 8%, transparent);
+}
+.help-overlay .help-box:hover, .help-overlay .help-box.is-open { background: color-mix(in srgb, var(--active) 20%, transparent); }
+.help-card {
+  position: fixed; width: min(300px, calc(100vw - 16px)); padding: 10px 12px; border: 1px solid var(--divider); border-radius: 8px;
+  background: var(--panel); box-shadow: var(--shadow); font-size: 12px; line-height: 1.45; color: var(--active);
+}
+/* The Help button stays above the outlines, so help mode can be turned off. */
+.shell .help-toggle { position: relative; z-index: 1001; }

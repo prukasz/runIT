@@ -1,0 +1,75 @@
+:root { color-scheme: dark; }
+html, body { margin: 0; padding: 0; background: #1b1b1b; }
+html { font-family: system-ui, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; -webkit-text-size-adjust: 100%; }
+#root { height: 100vh; }
+
+/* One size for every bar of the frame (the action bar, the panel headers, the collapsed icon columns): set here, nowhere else. */
+.shell { --bar-button: 44px; --bar-icon: 22px; --bar-stroke: 1.75; }
+/* The frame: the three columns are rounded cards on the frame colour, a gap apart (FRAME_GAP in panelWidth.ts is the same number). */
+.shell { --frame-gap: 6px; --card-radius: 16px; --bar-inset: 8px; }
+/* Corners are concentric: a button in a card's corner sits --bar-inset from the card's inner edge, so its radius is the card's
+   (less the 1px border) less that inset. --bar-radius follows from the three. */
+.shell { --bar-radius: calc(var(--card-radius) - 1px - var(--bar-inset)); }
+
+.shell { display: flex; gap: var(--frame-gap); width: 100%; height: 100vh; min-height: 320px; padding: var(--frame-gap); overflow: hidden; box-sizing: border-box; background: var(--frame); color: var(--active); }
+.shell * { box-sizing: border-box; }
+.shell button, .shell input, .shell select { font: inherit; }
+
+/* Icon buttons: the plain button of the shell. Inside :where() these rules weigh nothing, so any class of a component in
+   src/ui/components (a text button, a reference pill, a dropdown, a row's action) keeps the look the UI kit page shows. */
+:where(.shell button) { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex: none; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--icon); cursor: pointer; }
+:where(.shell button:hover) { background: var(--hover); color: var(--active); }
+:where(.shell button.selected) { background: var(--selected); color: var(--active); }
+:where(.shell button:focus-visible) { outline: 1px solid var(--accent); outline-offset: -2px; }
+:where(.shell button:disabled) { opacity: .45; cursor: default; }
+:where(.shell button:disabled:hover) { background: transparent; color: var(--icon); }
+:where(.shell svg) { width: 19px; height: 19px; stroke-width: 1.8; }
+
+/* Side panels: a narrow icon bar that opens into a panel */
+.side-panel { position: relative; display: flex; flex-direction: column; width: 62px; flex: none; overflow: hidden; border: 1px solid var(--divider); border-radius: var(--card-radius); background: var(--panel); transition: width 180ms ease; }
+.side-panel-header { display: flex; align-items: center; height: 60px; min-height: 60px; padding: 0 var(--bar-inset); border-bottom: 1px solid var(--divider); }
+.side-panel:not(.is-open) .side-panel-header { justify-content: center; padding: 0; }
+.left-panel.is-open .side-panel-header .panel-toggle { margin-left: auto; }
+.side-panel-icons { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; min-height: 0; padding: var(--bar-inset) 0; overflow-y: auto; }
+.side-panel-body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: auto; }
+
+/* The screens as tabs along the top of the left panel (a column of icons when the panel is collapsed) */
+.view-menu { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.side-panel-icons .view-menu { flex-direction: column; gap: 6px; padding-top: 8px; }
+.shell .view-menu button.selected { color: var(--active); background: color-mix(in srgb, var(--active) 12%, transparent); }
+
+/* Right panel header: the panel toggle on the left, the section icons in the right corner */
+.right-panel.is-open .right-header { gap: 4px; }
+.right-panel.is-open .right-header .header-icons { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+/* The connection keeps the corner: last in the open header row (right), first in the collapsed column (top). */
+
+/* Main screen: the toolbar over the surface */
+.center-column { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+.main-panel { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid var(--divider); border-radius: var(--card-radius); background: var(--background); }
+.main-action-bar { display: flex; align-items: center; gap: 10px; height: 60px; min-height: 60px; padding: 0 var(--bar-inset); border-bottom: 1px solid var(--divider); background: var(--background); }
+.main-surface { flex: 1; min-height: 0; overflow: hidden; background: var(--background); }
+.toolbar-spacer { flex: 1; }
+
+.shell :is(.main-action-bar, .side-panel-header, .side-panel-icons) button { width: var(--bar-button); height: var(--bar-button); border-radius: var(--bar-radius); }
+.shell :is(.main-action-bar, .side-panel-header, .side-panel-icons) svg { width: var(--bar-icon); height: var(--bar-icon); stroke-width: var(--bar-stroke); }
+
+/* The resize handle: a zero-width item of the flex row at the panel's edge, its hit area reaching over the whole gap, three dots in
+   the middle of the gap. It sits beside the cards, not inside them, so their rounded clip does not cut it. */
+.panel-resize-handle { position: relative; z-index: 10; flex: none; align-self: stretch; width: 0; margin-left: calc(-1 * var(--frame-gap)); touch-action: none; cursor: col-resize; }
+.panel-resize-handle::before { content: ''; position: absolute; top: 0; bottom: 0; left: -3px; width: calc(var(--frame-gap) + 6px); }
+.panel-resize-handle::after { content: ''; position: absolute; top: 50%; left: calc(var(--frame-gap) / 2 - 1.5px); width: 3px; height: 3px; border-radius: 50%; background: var(--grip); opacity: .55; box-shadow: 0 8px 0 var(--grip), 0 -8px 0 var(--grip); transform: translateY(-50%); transition: opacity 120ms ease, background 120ms ease, box-shadow 120ms ease; }
+.panel-resize-handle:hover::after, .panel-resize-handle:focus-visible::after { opacity: 1; background: var(--active); box-shadow: 0 8px 0 var(--active), 0 -8px 0 var(--active); }
+.shell.is-resizing .panel-resize-handle.active::after { opacity: 1; background: var(--accent); box-shadow: 0 8px 0 var(--accent), 0 -8px 0 var(--accent); }
+.panel-resize-handle:focus-visible { outline: none; }
+.shell.is-resizing, .shell.is-resizing * { cursor: col-resize !important; user-select: none; }
+.shell.is-resizing .side-panel { transition: none; }
+
+/* What a screen shows until it exists */
+.view-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; height: 100%; padding: 16px; color: var(--muted); text-align: center; }
+.view-placeholder h2 { margin: 0; color: var(--active); font-size: 18px; }
+.view-placeholder p { margin: 0; font-size: 12px; }
+/* a view with something to see (the console's unread errors): a red dot in the icon's corner, blinking until the errors are read */
+.view-tab { position: relative; }
+.view-tab .view-mark { position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--error, var(--color-red)); box-shadow: 0 0 0 2px var(--panel); animation: view-mark-blink 1s ease-in-out infinite; }
+@keyframes view-mark-blink { 50% { opacity: .15; } }
+@media (prefers-reduced-motion: reduce) { .view-tab .view-mark { animation: none; } }

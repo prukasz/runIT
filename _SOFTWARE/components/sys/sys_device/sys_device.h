@@ -25,7 +25,8 @@ extern "C" {
  * sys_event_publish() (SYS_DEVICE.MD "Concurrency").
  */
 
-#define SYS_DEVICE_ID_NONE 0xFFFFu  // "no device" in pin references; never registered
+//#ref-defines device_id @alias Device ID @prefix SYS_DEVICE_ID_
+#define SYS_DEVICE_ID_NONE 0xFFFFu  //@alias No device @description Never registered: no device in a pin reference; SUSPEND, RESUME and RESET sent to it run on every device
 
 #define SYS_DEVICE_OP(contract, n) ((uint16_t)(((contract) << 8) | (n)))
 
@@ -54,7 +55,7 @@ typedef struct __attribute__((packed)) {
  */
 //#ref-enum @alias Device Error Importance
 typedef enum {
-  SYS_DEVICE_IMPORTANCE_NONE = 0,  //@alias None @description Ignores all errors
+  SYS_DEVICE_IMPORTANCE_NONE = 0,  //@alias Ignore errors @description Ignores all errors
   SYS_DEVICE_IMPORTANCE_LOW = 1,  //@alias Low @description Critical only (default)
   SYS_DEVICE_IMPORTANCE_MEDIUM = 2,  //@alias Medium @description High and critical
   SYS_DEVICE_IMPORTANCE_HIGH = 3,  //@alias High @description Medium, high and critical
@@ -99,6 +100,16 @@ typedef struct __attribute__((packed)) {
 
 enum { SYS_DEVICE_OP_CREATE = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, 0x00), SYS_DEVICE_LIFECYCLE(SYS_DEVICE__ID) };  // CREATE: [type u16][create struct]
 SYS_DEVICE_LIFECYCLE(SYS_DEVICE__ARGS)
+
+/* Events of the device contract (sys_event.h "Events tables"): a device's `suspended` flag changed. Source = the device,
+ * or SYS_DEVICE_ID_NONE for a sweep (SUSPEND / RESUME of every device: one event, not one per device). NOTIFY: the app
+ * learns of a safe state or a fault response without asking. The IDs are made in sys_event.h (DEVICE_EV_*), which has the
+ * flag values; this layer only reports the change (sys_device_set_state_listener). */
+// clang-format off
+#define SYS_DEVICE_EVENTS(X) \
+  X(SUSPENDED, 0x00, SYS_EVENT_NOTIFY) \
+  X(RESUMED, 0x01, SYS_EVENT_NOTIFY)
+// clang-format on
 
 #define DEVICE_HANDLER(name) SYS_DEVICE_HANDLER(sys_device_h_##name, sys_device_args_##name##_t)
 #define DEVICE_ENTRY(name) {SYS_DEVICE_OP_##name, sys_device_h_##name}
@@ -329,6 +340,16 @@ typedef err_h (*sys_device_action_runner_f)(uint32_t action, err_h chain);
  * sets it (runit: vm_stop_on_fault); without one the VM is left to the safe state alone.
  */
 typedef err_h (*sys_device_vm_stop_f)(uint16_t device_id);
+
+/**
+ * @brief Told when a device's `suspended` flag changes (SUSPEND, RESUME, and the safe state): `id` is the device, or
+ * SYS_DEVICE_ID_NONE after a sweep that changed any device (one call for the whole sweep). Called under the registry lock,
+ * in the task of the op: it must not wait. The app sets it (runit: the DEVICE events of sys_event).
+ */
+typedef void (*sys_device_state_f)(uint16_t id, bool suspended);
+
+/** @brief Sets the state listener. Boot only. */
+void sys_device_set_state_listener(sys_device_state_f fn);
 
 /** @brief Sets the VM stop. Boot only. */
 void sys_device_set_vm_stop(sys_device_vm_stop_f fn);

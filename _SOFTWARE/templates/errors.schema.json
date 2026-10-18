@@ -2,12 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runit.local/schema/errors.schema.json",
   "title": "runIT Error Catalog Definition",
-  "description": "Deklaratywny schemat katalogu błędów systemu runIT. Odzwierciedla tablice makr ERR_*_MAP z firmware C i pozwala aplikacji na odkodowywanie ramek błędów (router_err_record) oraz tworzenie referencji do urządzeń, pinów i magistral.",
+  "description": "Katalog błędów systemu runIT, generowany z map ERR_*_MAP firmware (generate_errors.py) i z plików errors_<moduł>.json (szablony komunikatów, znaczenie pól). Pozwala aplikacji odkodować rekord błędu (router_err_record), złożyć komunikat dla użytkownika i przypisać błąd do urządzeń, pinów, kanałów, zmiennych, akcesorów i bloków.",
   "type": "object",
   "required": [
     "schemaVersion",
     "kind",
     "severities",
+    "id_kinds",
     "modules"
   ],
   "properties": {
@@ -17,7 +18,7 @@
     },
     "schemaVersion": {
       "type": "integer",
-      "default": 3,
+      "default": 4,
       "description": "Wersja schematu deskryptora błędów."
     },
     "kind": {
@@ -35,6 +36,40 @@
         "maximum": 255
       }
     },
+    "id_kinds": {
+      "type": "object",
+      "description": "Rodzaje identyfikatorów (id_kind pól): co znaczy liczba w polu. Rodzaj ze `scope` jest numerowany w obrębie instancji innego rodzaju (pin urządzenia).",
+      "propertyNames": {
+        "$ref": "#/$defs/idKind"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "alias"
+        ],
+        "properties": {
+          "alias": {
+            "type": "string",
+            "description": "Nazwa rodzaju dla użytkownika."
+          },
+          "description": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/$defs/idKind",
+            "description": "Rodzaj instancji, w której obrębie numerowany jest ten identyfikator."
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "hex"
+            ],
+            "description": "Jak pokazać liczbę, gdy nie ma nazwy instancji: hex = szesnastkowo."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
     "modules": {
       "type": "array",
       "description": "Lista modułów systemowych zgłaszających błędy.",
@@ -44,11 +79,15 @@
     }
   },
   "additionalProperties": false,
-
   "$defs": {
     "module": {
       "type": "object",
-      "required": ["id", "name", "symbol", "tags"],
+      "required": [
+        "id",
+        "name",
+        "symbol",
+        "tags"
+      ],
       "description": "Definicja modułu błędów (ERR_MOD_* w err_modules.h).",
       "properties": {
         "id": {
@@ -76,14 +115,25 @@
           "items": {
             "$ref": "#/$defs/tag"
           }
+        },
+        "texts_file": {
+          "type": "string",
+          "description": "Względna ścieżka do errors_<moduł>.json: szablony komunikatów i znaczenie pól."
         }
       },
       "additionalProperties": false
     },
-
     "tag": {
       "type": "object",
-      "required": ["code", "tag", "name", "severity", "size", "fields"],
+      "required": [
+        "code",
+        "tag",
+        "name",
+        "severity",
+        "size",
+        "fields",
+        "message"
+      ],
       "description": "Pojedynczy kod błędu w module.",
       "properties": {
         "code": {
@@ -123,14 +173,33 @@
           "items": {
             "$ref": "#/$defs/field"
           }
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Szablon komunikatu dla użytkownika (errors_<moduł>.json). {pole} wstawia wartość pola: nazwę instancji dla pola z id_kind, alias członka dla pola z enum_ref, liczbę z jednostką dla reszty."
+        },
+        "hint": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Co użytkownik może zrobić (errors_<moduł>.json), z {pole} jak w message."
+        },
+        "context": {
+          "type": "boolean",
+          "const": true,
+          "description": "Węzeł kontekstu (waga NONE): mówi, gdzie w łańcuchu jest błąd (krok trasy, urządzenie, akcja), nie co poszło źle."
         }
       },
       "additionalProperties": false
     },
-
     "field": {
       "type": "object",
-      "required": ["name", "type", "offset", "size"],
+      "required": [
+        "name",
+        "type",
+        "offset",
+        "size"
+      ],
       "description": "Pole binarne w strukturze błędu.",
       "properties": {
         "name": {
@@ -139,7 +208,16 @@
         },
         "type": {
           "type": "string",
-          "enum": ["u8", "i8", "u16", "i16", "u32", "i32", "f32", "chars"],
+          "enum": [
+            "u8",
+            "i8",
+            "u16",
+            "i16",
+            "u32",
+            "i32",
+            "f32",
+            "chars"
+          ],
           "description": "Niski binarny typ danych."
         },
         "offset": {
@@ -157,26 +235,74 @@
           "description": "Opcjonalna nazwa powiązanego typu wyliczeniowego w firmware."
         },
         "id_kind": {
-          "type": "string",
-          "enum": [
-            "device",
-            "pin",
-            "i2c_bus",
-            "transport",
-            "stream",
-            "contract",
-            "error_tag",
-            "esp_err",
-            "vm_block_type"
-          ],
-          "description": "Semantyczny rodzaj identyfikatora – kluczowy dla UI, aby podlinkować błąd do urządzenia na Canvasie, podświetlić pin lub zidentyfikować magistralę."
+          "$ref": "#/$defs/idKind",
+          "description": "Co znaczy liczba w polu: kluczowe dla UI, aby przypisać błąd do urządzenia, pinu, zmiennej, bloku."
         },
         "unit": {
           "type": "string",
           "description": "Opcjonalna jednostka fizyczna wartości (np. 'Hz', 'mV', 'mA', 'B')."
+        },
+        "of": {
+          "type": "string",
+          "description": "Dla rodzaju ze `scope`: pole tego błędu z instancją, w której obrębie liczy się ten identyfikator (pin `pin` urządzenia `id`)."
+        },
+        "id_kind_by": {
+          "type": "object",
+          "description": "Rodzaj identyfikatora zależny od wartości innego pola (z enum_ref): `kinds` wg wartości tego pola.",
+          "required": [
+            "field",
+            "kinds"
+          ],
+          "properties": {
+            "field": {
+              "type": "string"
+            },
+            "kinds": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[0-9]+$"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/idKind"
+              }
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
+    },
+    "idKind": {
+      "type": "string",
+      "enum": [
+        "device",
+        "device_type",
+        "device_op",
+        "pin",
+        "channel",
+        "i2c_bus",
+        "i2c_address",
+        "vm_object",
+        "vm_accessor",
+        "vm_block",
+        "vm_block_input",
+        "vm_block_output",
+        "vm_block_enable",
+        "vm_block_type",
+        "vm_op",
+        "action",
+        "project_section",
+        "router_key",
+        "link",
+        "connector",
+        "transport",
+        "ble_uuid",
+        "stream",
+        "contract",
+        "error_tag",
+        "esp_err"
+      ],
+      "description": "Rodzaj identyfikatora (id_kinds)."
     }
   }
 }

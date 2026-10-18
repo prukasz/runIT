@@ -42,7 +42,8 @@ extern "C" {
 
 /* Frame on the events stream: [ROUTER_KEY_EVENT 0x07][SYS_EVENT_OP_NOTIFY][sys_event_t]. The command shape (like the
  * VM telemetry), so the app reads it with the decoder it has for commands. */
-#define SYS_EVENT_OP_NOTIFY 0x01u
+//#ref-defines event_op @alias Event frames @prefix SYS_EVENT_OP_
+#define SYS_EVENT_OP_NOTIFY 0x01u  //@alias Notify @description an event on the events stream: [ROUTER_KEY_EVENT][NOTIFY][sys_event_t]
 
 /* Match values of a subscription. */
 #define SYS_EVENT_ANY_SOURCE 0xFFFFu  // any source
@@ -78,6 +79,12 @@ typedef struct __attribute__((packed)) {
  * a fault), 0 for the ones that only drive code (an edge, an alert pin).
  * Publishing with SYS_EVENT_PUBLISH takes the flags from the table.
  * ------------------------------------------------------------------------- */
+
+/* The device contract's events (SYS_DEVICE_EVENTS, sys_device.h): its table sits with its ops, its IDs here, where the flag
+ * values are (sys_device is below sys_event). */
+#define SYS_DEVICE__EV(name, n, flags) \
+  DEVICE_EV_##name = SYS_EVENT_ID(SYS_DEVICE_CONTRACT_DEVICE, n), DEVICE_EV_##name##_FLAGS = (flags),
+enum { SYS_DEVICE_EVENTS(SYS_DEVICE__EV) };
 
 /**
  * @brief Publishes event NAME of the table with prefix PFX (IO_EV_NAME, IO_EV_NAME_FLAGS).

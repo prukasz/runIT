@@ -53,10 +53,11 @@ describe('requests and responses (ROUTER.MD examples)', () => {
   })
 
   it('decodes the error record of the ROUTER.MD example, naming the tags from errors.json', () => {
-    const frame = bytes('05 07 01 01 01 00 00 00 00 07 00 03 02 02 00 03 01 00 02 00 00 01 02 01 00 02 00 00 01 02 10 00 01 00 02 01 00')
+    const frame = bytes('05 07 01 01 40 8d 1b 5e 9b 01 00 00 01 00 00 00 00 07 00 03 02 02 00 03 01 00 02 00 00 01 02 01 00 02 00 00 01 02 10 00 01 00 02 01 00')
     const response = decodeResponse(defs, frame)!
     const record = decodeErrorRecord(defs, response.data, errorCatalog())!
     expect(record.source).toBe('command')
+    expect(record.time).toBe(0x19b5e1b8d40) // the board's clock, UTC ms
     expect(record.command).toMatchObject({ link: 1, peer: 0, seq: 7, flags: 0, requestCut: false })
     expect(hex(record.command!.request)).toBe('02 02 00')
     expect(record.chain.map((n) => n.info?.name)).toEqual(['ERR_ROUTER_KEY', 'ERR_ROUTER_KEY', 'ERR_I2C_REMOTE_DENIED'])
@@ -67,12 +68,12 @@ describe('requests and responses (ROUTER.MD examples)', () => {
   })
 
   it('keeps the raw payload of a tag it does not know, and refuses a record that is cut short', () => {
-    const data = bytes('00 01 78 56 34 12 02 01 aa')
+    const data = bytes('00 00 00 00 00 00 00 00 00 01 78 56 34 12 02 01 aa')
     const record = decodeErrorRecord(defs, data, errorCatalog())!
     expect(record.source).toBe('internal')
     expect(record.cause).toMatchObject({ tag: 0x12345678, severity: 2 })
     expect(record.cause?.info).toBeUndefined()
-    expect(decodeErrorRecord(defs, data.subarray(0, 8), errorCatalog())).toBeUndefined()
+    expect(decodeErrorRecord(defs, data.subarray(0, 16), errorCatalog())).toBeUndefined()
     expect(decodeErrorRecord(defs, new Uint8Array(0))).toBeUndefined()
   })
 })

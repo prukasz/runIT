@@ -160,6 +160,12 @@ typedef struct __attribute__((packed)) {
   uint8_t critical_pct;  /**< Battery critical threshold % */
 } sys_power_battery_t;
 
+/** @brief One row of the response matrix with its target (GET_MATRIX): the board (SYS_POWER_TARGET_BOARD) or a rail. */
+typedef struct __attribute__((packed)) {
+  uint16_t target;                            /**< SYS_POWER_TARGET_BOARD or the rail's device ID */
+  uint8_t responses[SYS_POWER_KIND_COUNT];    /**< sys_power_response_e per sys_power_kind_e */
+} sys_power_response_row_t;
+
 /** @brief GET_STATUS answer. */
 typedef struct __attribute__((packed)) {
   uint8_t source;         /**< sys_power_source_e */
@@ -220,6 +226,10 @@ void sys_power_manager_get_config(sys_power_manager_cfg_t* out);
 MUST_USE err_h sys_power_manager_set_psu(const sys_power_psu_t* psu);
 /** @brief Stored. chemistry NONE removes it. */
 MUST_USE err_h sys_power_manager_set_battery(const sys_power_battery_t* battery);
+/** @brief The external supply as set (0 / 0 = none). */
+void sys_power_manager_get_psu(sys_power_psu_t* out);
+/** @brief The battery as set (chemistry NONE = none). */
+void sys_power_manager_get_battery(sys_power_battery_t* out);
 
 /**
  * @brief One response of one target (SYS_POWER_TARGET_BOARD or a rail's device ID). Applied (the app saves the
@@ -236,6 +246,13 @@ MUST_USE err_h sys_power_manager_set_response(uint16_t target, uint8_t kind, uin
  */
 MUST_USE err_h sys_power_manager_set_responses(const uint8_t* matrix, size_t len);
 MUST_USE err_h sys_power_manager_get_responses(uint16_t target, uint8_t out[SYS_POWER_KIND_COUNT]);
+
+/**
+ * @brief The whole matrix, each row with its target: the board first, then the rails in the board config's order (the
+ * order SET_RESPONSES takes, without the targets). `cap` rows at most; `*count` gets the number written.
+ * @return ERR_PWRM_NOT_READY before init, ERR_CMD_BAD_LEN when `cap` is too small.
+ */
+MUST_USE err_h sys_power_manager_get_matrix(sys_power_response_row_t* rows, uint8_t cap, uint8_t* count);
 
 MUST_USE err_h sys_power_manager_get_status(sys_power_status_t* out);
 

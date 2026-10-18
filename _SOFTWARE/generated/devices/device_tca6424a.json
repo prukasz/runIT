@@ -40,8 +40,19 @@
         "description": "ADDR low selects 0x22, high 0x23",
         "offset": 1,
         "size": 1,
-        "type": "number",
-        "raw_type": "u8"
+        "type": "choice",
+        "raw_type": "u8",
+        "default": 34,
+        "options": [
+          {
+            "label": "0x22 (ADDR low)",
+            "value": 34
+          },
+          {
+            "label": "0x23 (ADDR high)",
+            "value": 35
+          }
+        ]
       },
       {
         "id": "intr_pin",
@@ -91,6 +102,7 @@
   "provides": {
     "pins": {
       "count": 24,
+      "default_mode": "input",
       "modes": [
         "input",
         "input_pullup",

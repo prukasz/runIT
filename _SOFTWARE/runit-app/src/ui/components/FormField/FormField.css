@@ -1,0 +1,25 @@
+.form-field-control { box-sizing: border-box; min-width: 0; width: 100%; height: var(--field-height, 32px); padding: var(--field-padding, 4px 8px); border: 1px solid var(--divider); border-radius: var(--field-radius, 5px); background-color: var(--field-background, var(--input-bg, var(--background))); color: var(--active); font: inherit; font-size: var(--field-font-size, inherit); outline: none; transition: border-color 120ms ease, box-shadow 120ms ease; }
+.form-field-control::placeholder { color: var(--muted); opacity: .6; }
+.form-field-control.form-field-panel { height: 32px; padding: 0 10px; border-radius: 6px; background-color: var(--panel); font-size: 13px; }
+.form-field-control.form-field-panel:disabled { background-color: color-mix(in srgb, var(--active) 5%, var(--panel)); color: var(--muted); }
+.form-field-control:hover:not(:disabled):not([readonly]) { border-color: color-mix(in srgb, var(--accent) 40%, var(--divider)); }
+.form-field-control:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.form-field-control:disabled { opacity: .65; cursor: not-allowed; }
+.form-field-control[readonly] { background-color: color-mix(in srgb, var(--panel) 55%, var(--background)); cursor: text; }
+.form-field-control[aria-invalid='true'] { border-color: var(--color-red); }
+.adorned-field-wrap { position: relative; display: inline-flex; align-items: center; flex: 1; width: 100%; box-sizing: border-box; }
+.adorned-field-wrap.is-selected .form-field-control { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.field-adornment-slot { position: absolute; right: 7px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; pointer-events: none; user-select: none; }
+.field-adornment-icon { width: 13px; height: 13px; flex: none; transition: opacity 120ms ease, color 120ms ease; }
+.field-adornment-icon.is-editable { color: var(--muted); opacity: .8; }
+.adorned-field-wrap:hover .field-adornment-icon.is-editable { color: var(--active); opacity: 1; }
+.field-adornment-icon.is-blocked { color: var(--muted); opacity: .5; }
+.form-select-control { padding-right: 28px; appearance: none; cursor: pointer; }
+select.form-select-control { padding-right: 28px !important; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%) !important; background-repeat: no-repeat !important; background-size: 5px 5px !important; background-position: calc(100% - 13px) calc(50% - 2px), calc(100% - 8px) calc(50% - 2px) !important; }
+.form-select-control option { background: var(--panel); color: var(--active); }
+
+/* Form row and grid */
+.form-row { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+.form-hint { font-size: 11px; color: var(--muted); line-height: 1.35; margin-top: 3px; }

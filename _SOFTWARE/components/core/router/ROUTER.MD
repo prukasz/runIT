@@ -12,7 +12,7 @@ Component `components/core/router/`. Every remote command (phone, test host, int
 | `router_dispatch.c` | Links, `router_submit`, urgent + work tasks, responses, safe state, dead-man |
 | `router_err.c` | `router_err_record` — error record (request + chain) |
 | `router_sys.c` | `sys` router (`ROUTER_KEY_SYS`) |
-| `contract_sys.json` | Sys service contract definition (PING, STOP, RESTART, DEADMAN_SET, DEADMAN_GET) |
+| `contract_sys.json` | Sys service contract definition (PING, STOP, RESTART, DEADMAN_SET, DEADMAN_GET, BYE, TIME_SET, TIME_GET) |
 | `Kconfig` | Frame size, response stream byte, table sizes, queues, task prio/stack, dead-man default |
 | `AGENTS.md` | Rules for changing this folder |
 
@@ -34,7 +34,8 @@ response  [0x05][seq][status][data]        (CONFIG_ROUTER_RESPONSE_STREAM)
 
 ```
 [src u8]                                    0 internal (no request), 1 command
-src 1: [link u8][peer u32 LE][seq u8][flags u8]
+[unix_ms u64 LE]                            the board's clock when it was reported (ROUTER_ERR_STAMP_BYTES); before 2020: not a date, a time since the start
+src 1: [link u8][peer u32 LE][seq u8][flags u8]   (after the stamp)
        [req_len u8]  bits 0-6 = request bytes that follow, bit 7 = request cut
        [request]     keys + payload as received (no seq / flags)
 [chain]                                     err_encode(): [count|bit7 cut] then [tag u32][sev][len][payload] per node
@@ -50,13 +51,14 @@ Example — scan of bus 0 (only bus 1 is open):
 ```
 request   07 00 | 02 02 00                           seq 7, normal, i2c SCAN bus 0
 response  05 07 01                                   stream, seq, ERROR
-          01 | 01 | 00 00 00 00 | 07 | 00             command, UART, peer 0, seq 7, flags 0
+          01 | 00 00 00 00 00 00 00 00                   command; clock not set (time since the start, here 0)
+          01 | 00 00 00 00 | 07 | 00                     UART, peer 0, seq 7, flags 0
           03 | 02 02 00                               request: 3 B
           03                                          chain: 3 nodes
           01 00 02 00 00 01 02                        ERR_ROUTER_KEY        NONE  key 02 (i2c)
           01 00 02 00 00 01 02                        ERR_ROUTER_KEY        NONE  key 02 (SCAN)
           10 00 01 00 02 01 00                        ERR_I2C_REMOTE_DENIED MEDIUM bus 0
-UART      #R:05070101010000000007000302020003010002000001020100020000010210000100020100
+UART      #R:050701010000000000000000010000000007000302020003010002000001020100020000010210000100020100
 ```
 
 ## Routing
@@ -108,6 +110,9 @@ link RX task ── router_submit(link, peer, frame) ──► copy into ring bu
 | `0x03` RESTART | – | – (restart ~100 ms after the answer) |
 | `0x04` DEADMAN_SET | `u32 timeout_ms, u8 on_link_lost` | – |
 | `0x05` DEADMAN_GET | – | same struct |
+| `0x06` BYE | – | – (the client leaves on purpose: the dead-man is disarmed, the board goes on) |
+| `0x07` TIME_SET | `u64 unix_ms` (UTC) | – (the system clock: `settimeofday`; no battery clock, lost at a restart) |
+| `0x08` TIME_GET | – | `u64 unix_ms, u8 synced, u32 uptime_ms` (`synced`: the clock is past 2020; `uptime_ms`: the base of the log lines) |
 
 Example over UART: `#R:07010101` = seq 7, flags 1 (urgent), sys, PING → `#R:050700<uptime LE>`.
 
@@ -161,7 +166,7 @@ Payload errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG` belong to `ERR_MOD_CMD
 ## Tests
 
 Host test script `router_tests.py` (in `.claude/skills/runit-esp/scripts/`) covers:
-- Core routing: PING (uptime), STOP (safe state), DEADMAN_SET / GET, RESTART.
+- Core routing: PING (uptime), STOP (safe state), DEADMAN_SET / GET, BYE, TIME_SET / GET, RESTART.
 - Key dispatching, nested router calls, error chain recording with route keys.
 - Urgent task preemption over work queue.
 - Frame sizing, queue saturation, and error records.

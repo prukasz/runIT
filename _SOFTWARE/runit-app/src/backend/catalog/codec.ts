@@ -3,7 +3,8 @@
  * has a `raw_type`, an `offset` (or follows the one before) and a `size` (or the width of its raw type). A `bytes` or `string`
  * field without a size runs to the end of the payload and is the last one; a `string` is NUL-terminated with nothing after the
  * NUL (`cmd_name_arg`, CMD.MD). A number field whose size is a multiple of its raw type's width is an array (`u32` of 16 bytes:
- * `u32[4]`). Integers are little endian, as the firmware's packed structs.
+ * `u32[4]`). Integers are little endian, as the firmware's packed structs. A `pin_ref` field is a `sys_io_pin_t` (or a list of
+ * them): `{ device, pin }`, and `null` for an unused pin (`SYS_IO_PIN_NONE`, whose values the catalog takes from `enums.json`).
  *
  * Nothing here knows a command: the layouts come from the catalog (`services.ts`).
  */
@@ -23,6 +24,15 @@ export interface Choice {
   readonly description?: string
 }
 
+/** A pin of a device (`sys_io_pin_t`, SYS_IO.MD); `null` where a pin is unused. */
+export interface PinRef {
+  readonly device: number
+  readonly pin: number
+}
+
+/** `sizeof(sys_io_pin_t)`: u16 device, u8 pin (packed). */
+export const PIN_REF_SIZE = 3
+
 export interface WireField {
   readonly id: string
   readonly label: string
@@ -41,10 +51,18 @@ export interface WireField {
   readonly optional: boolean
   /** The values of a `choice` field, or of an `enum` field from its group in `enums.json`. */
   readonly choices?: readonly Choice[]
+  /** The named bits of a `bitmask` field: the only ones the form offers. */
+  readonly bits?: readonly { readonly bit: number; readonly label: string }[]
   readonly enum?: string
+  /** An array field whose element i stands for the member of value i of this enum group (`index_enum`): its column names. */
+  readonly indexEnum?: string
   readonly requiresContract?: string
   readonly requires?: string
+  /** A `pin` field of a device command: the states the pin must be in for the command (`pin_state`: unconfigured, configured, input, output, pwm, adc, dac; any of them). */
+  readonly pinState?: readonly string[]
   readonly pinRef: boolean
+  /** The values of an unused pin, for a `pinRef` field. */
+  readonly pinNone?: PinRef
 }
 
 export interface Layout {
@@ -57,8 +75,11 @@ export interface Layout {
   readonly variable: boolean
 }
 
-export type FieldValue = number | bigint | boolean | string | Uint8Array | readonly (number | bigint | boolean)[]
-/** What a caller gives for a field: a number, a boolean, a choice's label or an enum member's name, bytes, a string, a list for an array field. */
+export type FieldValue = number | bigint | boolean | string | Uint8Array | PinRef | null | readonly (number | bigint | boolean)[] | readonly (PinRef | null)[]
+/**
+ * What a caller gives for a field: a number, a boolean, a choice's label or an enum member's name, bytes, a string, a list for an
+ * array field, a `{ device, pin }` (or `null`, no pin) for a pin reference.
+ */
 export type FieldInput = FieldValue | readonly number[]
 export type FieldValues = Readonly<Record<string, FieldInput>>
 export type FieldRecord = Readonly<Record<string, FieldValue>>
@@ -145,9 +166,38 @@ const textOf = (field: WireField, input: FieldInput): Uint8Array => {
   return out
 }
 
-/** The value a field gets when the caller leaves it out: its default, zero for an optional field; else an error. */
+const isPinRef = (input: unknown): input is PinRef =>
+  typeof input === 'object' && input !== null && !(input instanceof Uint8Array) && !Array.isArray(input) && 'device' in input && 'pin' in input
+
+/** The bytes of a pin reference field: one `sys_io_pin_t`, or a list of them when its size holds several. */
+const pinBytes = (field: WireField, input: FieldInput): Uint8Array => {
+  const count = field.size! / PIN_REF_SIZE
+  const items: unknown = count === 1 && !Array.isArray(input) ? [input] : input
+  if (!Array.isArray(items) || items.length !== count) throw new PayloadError(`${field.id} takes ${count} pins.`)
+  const out = new Uint8Array(field.size!)
+  const view = new DataView(out.buffer)
+  items.forEach((item: unknown, i: number) => {
+    let pin: PinRef
+    if (item === null) {
+      if (!field.pinNone) throw new PayloadError(`${field.id}: the unused pin is not published (io_pin_none in enums.json).`)
+      pin = field.pinNone
+    } else if (isPinRef(item)) pin = item
+    else throw new PayloadError(`${field.id} takes { device, pin }, or null for no pin.`)
+    if (!Number.isInteger(pin.device) || pin.device < 0 || pin.device > 0xffff) throw new PayloadError(`${field.id}: device ${pin.device} is not a u16.`)
+    if (!Number.isInteger(pin.pin) || pin.pin < 0 || pin.pin > 0xff) throw new PayloadError(`${field.id}: pin ${pin.pin} is not a u8.`)
+    view.setUint16(i * PIN_REF_SIZE, pin.device, true)
+    view.setUint8(i * PIN_REF_SIZE + 2, pin.pin)
+  })
+  return out
+}
+
+/** The value a field gets when the caller leaves it out: its default, zero for an optional field (no pin for a pin reference); else an error. */
 const missing = (field: WireField): FieldInput => {
   if (field.default !== undefined && field.default !== null) return field.default as FieldInput
+  if (field.optional && field.pinRef) {
+    const count = (field.size ?? PIN_REF_SIZE) / PIN_REF_SIZE
+    return count === 1 ? null : new Array<null>(count).fill(null)
+  }
   if (field.optional) return field.rawType === 'string' ? '' : field.rawType === 'bytes' ? new Uint8Array(field.size ?? 0) : 0
   throw new PayloadError(`${field.id} is missing.`)
 }
@@ -161,7 +211,12 @@ export const encodeFields = (layout: Layout, values: FieldValues = {}): Uint8Arr
   const fixed = new Uint8Array(layout.fixed)
   const view = new DataView(fixed.buffer)
   for (const field of layout.fields) {
-    const input = values[field.id] ?? missing(field)
+    const input = values[field.id] === undefined ? missing(field) : values[field.id]!
+    if (field.pinRef) {
+      fixed.set(pinBytes(field, input), field.offset)
+      continue
+    }
+    if (input === null) throw new PayloadError(`${field.id} takes a value, not null.`)
     if (field.rawType === 'bytes' || field.rawType === 'string') {
       const bytes = field.rawType === 'bytes' ? bytesOf(field, input) : textOf(field, input)
       if (field.size === undefined) {
@@ -228,8 +283,20 @@ export const readValue = (data: Uint8Array, at: number, raw: RawType, size: numb
   return count === 1 ? one(at) : Array.from({ length: count }, (_, i) => one(at + i * width))
 }
 
+/** A pin reference field: `{ device, pin }`, `null` for an unused pin, a list when its size holds several. */
+const readPins = (data: Uint8Array, field: WireField): FieldValue => {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
+  const count = field.size! / PIN_REF_SIZE
+  const pins = Array.from({ length: count }, (_, i): PinRef | null => {
+    const at = field.offset + i * PIN_REF_SIZE
+    const device = view.getUint16(at, true)
+    return field.pinNone && device === field.pinNone.device ? null : { device, pin: view.getUint8(at + 2) }
+  })
+  return count === 1 ? pins[0]! : pins
+}
+
 /** The fields of a payload by id. */
 export const decodeFields = (layout: Layout, data: Uint8Array): FieldRecord => {
   if (data.length < layout.fixed) throw new PayloadError(`The answer is ${data.length} bytes; its layout needs ${layout.fixed}.`)
-  return Object.fromEntries(layout.fields.map((f) => [f.id, readValue(data, f.offset, f.rawType, f.size, f.type === 'boolean')]))
+  return Object.fromEntries(layout.fields.map((f) => [f.id, f.pinRef ? readPins(data, f) : readValue(data, f.offset, f.rawType, f.size, f.type === 'boolean')]))
 }

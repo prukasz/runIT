@@ -1,0 +1,10 @@
+.log-line { display: flex; gap: 8px; padding: 1px 4px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; line-height: 1.45; color: var(--active); }
+.log-line .log-time { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+.log-line .log-level { flex: none; width: 1ch; font-weight: 700; }
+.log-line .log-source { flex: none; color: var(--color-blue-bright); }
+.log-line .log-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.log-line.is-e { color: var(--color-red); }
+.log-line.is-w { color: var(--color-orange); }
+.log-line.is-i .log-level { color: var(--color-green); }
+.log-line.is-d, .log-line.is-v { color: var(--muted); }
+.log-line.is-app { color: var(--muted); font-style: italic; }

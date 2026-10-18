@@ -5,7 +5,7 @@ Component `components/app/runit/`. The application: the boot sequence, the safe 
 | File | Contents |
 |---|---|
 | `runit.h` / `runit.c` | `runit_start()` (boot steps), `runit_run_boot_steps()`, `runit_enter_safe_state()`, router registration, the router's safe-state handler |
-| `runit_error_policy.h/.c` | `runit_error_wiring_init()`: the action runner of the device error policy (the policy is `sys_device`'s, SYS_DEVICE.MD "Error policy") and the error sink |
+| `runit_error_policy.h/.c` | `runit_error_wiring_init()`: the action runner of the device error policy (the policy is `sys_device`'s, SYS_DEVICE.MD "Error policy"), the error sink, and the registry's state listener, which publishes the DEVICE events `SUSPENDED` / `RESUMED` (SYS_DEVICE.MD "Suspended and resumed") |
 | `runit_board_cfg.h/.c` | `runit_board_connector_bindings_init()`: which stream goes to which transport; `runit_board_power_init()`: the power layout |
 | `runit_board_defs.h` | Onboard device IDs and power limits of board rev 1 |
 | `Kconfig` | `RUNIT_BLE_START`: off for QEMU |
@@ -26,7 +26,7 @@ In order; a failing step is logged and the boot goes on (one missing piece, such
 | uart, ble link | the two command links / stream providers |
 | stream bindings | `runit_board_connector_bindings_init` |
 | i2c | `sys_i2c_init` |
-| devices | `runit_board_devices_init` (only with `CONFIG_RUNIT_ONBOARD_DEVICES`, default on; off in `sdkconfig.qemu.defaults`): CREATE of the ESP GPIO (ID 0) and the TCA6424A (ID 1, 0x23, INT ESP 9, RST ESP 8), then TCA pins 22 and 23 as push-pull outputs and **pin 23 high: the status LED is lit once the boot got this far**. Pin 22 must be an output too (left low): as an input it floats and toggles at ~25 kHz, every toggle is an INT edge and the event queue overflows (measured on the PCB 2026-10-11). Then every other onboard chip in dependency order (`runit_board_defs.h` has the IDs and TCA pins): the two power muxes (7, 8; both switches off), ADS7128 (2, ALERT ESP 42, full scale 20000 mV), PCA9685 (3, OE TCA 0), TPS55289 rails A / B (10 / 11), INA3221 (12, all shunts reversed), AP33772S (13), DAC53202 (4), DRV8962 #1 (5, ESP pins, 20 kHz) and #2 (6, PCA9685 CH 8..15, 1 kHz); every channel braked with a 2 A limit (`RUNIT_BOARD_DRV8962_LIMIT_MA`, an assumption: the legacy value is not recorded). A chip that fails is logged (`onboard device <name> failed`) and the rest are still created; only the GPIO or the expander failing stops the step. The power manager is initialised earlier and picks the rails and the INA3221 up when they appear |
+| devices | `runit_board_devices_init` (only with `CONFIG_RUNIT_ONBOARD_DEVICES`, default on; off in `sdkconfig.qemu.defaults`): CREATE of the ESP GPIO (ID 0) and the TCA6424A (ID 1, 0x23, INT ESP 9, RST ESP 8), then TCA pins 22 and 23 as push-pull outputs and **pin 23 high: the status LED is lit once the boot got this far**. Pin 22 must be an output too (left low): as an input it floats and toggles at ~25 kHz, every toggle is an INT edge and the event queue overflows (measured on the PCB 2026-10-11). Then every other onboard chip in dependency order (`runit_board_defs.h` has the IDs and TCA pins): the two power muxes (7, 8; both switches off), ADS7128 (2, ALERT ESP 42, full scale 20000 mV), PCA9685 (3, OE TCA 0), TPS55289 rails A / B (10 / 11), INA3221 (12, all shunts reversed, 10 mOhm shunts), AP33772S (13), DAC53202 (4), DRV8962 #1 (5, ESP pins, 20 kHz) and #2 (6, PCA9685 CH 8..15, 1 kHz); every channel braked with a 2 A limit (`RUNIT_BOARD_DRV8962_LIMIT_MA`, an assumption: the legacy value is not recorded). A chip that fails is logged (`onboard device <name> failed`) and the rest are still created; only the GPIO or the expander failing stops the step. The power manager is initialised earlier and picks the rails and the INA3221 up when they appear |
 | system devices | `sys_device_mark_system`: whatever the "devices" step created is the board's own; `sys_device_remove_all` leaves it |
 | ble | `sys_ble_start` (if `RUNIT_BLE_START`) |
 | project | `sys_project_init` (after `actions`: the options namespace) and, as the last step, `sys_project_boot`: the stored project runs on a router task when its autostart is on (SYS_PROJECT.MD) |
@@ -35,7 +35,7 @@ Checked on a board: a stored project with a device section and autostart runs af
 
 ## Onboard actions
 
-`runit_onboard_actions.c`: the firmware's own actions, stored at every boot with `sys_actions_set` (only written when they differ, so a client's edit of these IDs is replaced). Each is one device-router frame to device `0xFFFF` (SYS_DEVICE.MD "Sweeps over the router"):
+`runit_onboard_actions.c`: the firmware's own actions, stored at every boot with `sys_actions_set` (only written when they differ, so a client's edit of these IDs is replaced). The IDs are published in `generated/common/limits.json` (`RUNIT_ACTION_ID_*`, `#@limit` in `Kconfig`), so the app keeps its own actions off them. Each is one device-router frame to device `0xFFFF` (SYS_DEVICE.MD "Sweeps over the router"):
 
 | ID (Kconfig) | Does | Frame |
 |---|---|---|

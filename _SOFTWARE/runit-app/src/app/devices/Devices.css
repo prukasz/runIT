@@ -1,0 +1,73 @@
+/* The Devices view: the explorer (left), the device and action screens (centre), the test panel (right). */
+.devices-explorer { display: flex; flex-direction: column; gap: 6px; padding: 10px 10px 16px; }
+.devices-explorer > .segmented-switch { margin-bottom: 6px; }
+.devices-hint { margin: 4px 0; color: var(--muted); font-size: 12px; }
+.devices-screen { height: 100%; overflow: auto; padding: 20px 24px 32px; }
+.devices-screen > .ui-card-stack, .devices-screen > .panel-header { max-width: 860px; }
+.devices-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.devices-actions > .listable-field-wrap { min-width: 160px; flex: 1 1 160px; }
+.devices-steps { display: flex; flex-direction: column; gap: 4px; }
+.devices-step-args { color: var(--muted); font-size: 12px; }
+.devices-refs { display: flex; flex-wrap: wrap; gap: 6px; }
+/* One pin per row, in columns: #n, the user's name of it (or the device that uses it), what board.json says of it. */
+.devices-pins { display: flex; flex-direction: column; }
+.devices-pin { display: grid; grid-template-columns: 44px minmax(180px, 280px) 1fr; align-items: center; gap: 10px; min-height: 36px; padding: 4px 0; border-bottom: 1px solid var(--divider); }
+.devices-pin-name { font-weight: 600; font-size: 13px; color: var(--active); font-variant-numeric: tabular-nums; }
+.devices-pin-uses, .devices-pin-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.devices-test { display: flex; flex-direction: column; gap: 8px; padding: 14px 14px 24px; }
+.devices-group { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; }
+.devices-group h4 { margin: 4px 0; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.devices-command { display: flex; flex-direction: column; gap: 8px; padding: 6px 4px 10px; }
+.devices-answer { margin: 0; padding: 6px 8px; border-left: 3px solid var(--status-ok); font-size: 12px; white-space: pre-wrap; color: var(--active); }
+.fields-array { display: flex; flex-wrap: wrap; gap: 6px; }
+.fields-array > .number-field { width: 110px; }
+/* A long type name (POWER MUX (IDEAL DIODES)) is cut, never wider than the panel. */
+.devices-explorer .tree-slab-content, .devices-explorer .tree-slab-badges { min-width: 0; max-width: 100%; }
+.devices-explorer .tree-slab-badges .badge { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A pin's row: its number, the user's name of it (an editable field), its board.json note, who uses it. */
+.devices-pin .devices-pin-alias { min-width: 0; --field-height: 28px; --field-font-size: 12px; }
+/* The types to add: a tile each, its icon, its name, what it is. */
+.devices-types { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.devices-types .devices-type { display: grid; grid-template-columns: auto 1fr; grid-template-areas: "tile label" "tile note"; align-items: start; align-content: start; justify-items: start; row-gap: 2px; column-gap: 10px; height: auto; min-height: 56px; padding: 8px 10px; text-align: left; white-space: normal; }
+.devices-type .device-tile { grid-area: tile; align-self: start; }
+.devices-type-label { grid-area: label; font-weight: 600; }
+.devices-type-note { grid-area: note; color: var(--muted); font-size: 12px; }
+/* The name in the header: wide enough for a type's name. */
+.devices-screen .panel-header .devices-title { flex: 1 1 320px; min-width: 240px; max-width: 600px; }
+/* A pin reference: the device, and beside it its pin (greyed until a device is chosen). */
+.form-grid > .form-row.is-wide { grid-column: 1 / -1; }
+.fields-pinref { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; width: 100%; }
+/* A device row: its name sits level with the middle of its icon tile; with no badge (not on the board) no empty second line. */
+.shell .devices-explorer .tree-slab-row.two-row .tree-slab-item { align-items: center !important; }
+.shell .devices-explorer .tree-slab-row.two-row .tree-slab-icon { margin-top: 0 !important; }
+.shell .devices-explorer .tree-slab-row.two-row .tree-slab-badges:empty { display: none !important; }
+/* The whole row of a pin is the way to its settings. */
+.devices-pin { cursor: pointer; }
+.devices-pin:hover { background: var(--hover); }
+/* A bitmask's named bits: one chip each, on or off. */
+.fields-bits { display: flex; flex-wrap: wrap; gap: 6px; }
+/* A device's page: the manual's text, its pictures, its code (read only). */
+.devices-manual { display: flex; flex-direction: column; gap: 8px; max-width: 760px; font-size: 13px; line-height: 1.55; color: var(--active); }
+.devices-manual p, .devices-manual li { margin: 0; color: var(--active); }
+.devices-manual ul, .devices-manual ol { margin: 0; padding-left: 20px; }
+.devices-manual .devices-manual-h1 { font-size: 18px; font-weight: 600; margin-top: 6px; }
+.devices-manual .devices-manual-h2 { font-size: 15px; font-weight: 600; margin-top: 10px; }
+.devices-manual .devices-manual-h3, .devices-manual .devices-manual-h4 { font-size: 13px; font-weight: 600; margin-top: 6px; }
+.devices-manual code { padding: 0 4px; border-radius: 4px; background: var(--background); font-size: 12px; }
+.devices-picture { display: block; max-width: 100%; max-height: 360px; width: auto; object-fit: contain; border-radius: 6px; border: 1px solid var(--divider); }
+.devices-code { margin: 0; max-height: 480px; overflow: auto; padding: 10px; border: 1px solid var(--divider); border-radius: 6px; background: var(--background); font-size: 12px; line-height: 1.45; white-space: pre; color: var(--active); }
+.devices-code-name { margin: 12px 0 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.devices-manual-table { border-collapse: collapse; font-size: 12px; }
+.devices-manual-table th, .devices-manual-table td { padding: 4px 10px; border: 1px solid var(--divider); text-align: left; vertical-align: top; }
+.devices-manual-table th { color: var(--muted); font-weight: 600; background: var(--background); }
+/* Syntax colours of the Source tab: keywords, types, strings, comments, numbers, preprocessor lines. */
+.devices-code .tok-kw { color: #c586c0; }
+.devices-code .tok-type { color: #4ec9b0; }
+.devices-code .tok-str { color: #ce9178; }
+.devices-code .tok-com { color: #6a9955; font-style: italic; }
+.devices-code .tok-num { color: #b5cea8; }
+.devices-code .tok-pre { color: #9cdcfe; }
+
+/* A pin the board reported an error about (not read yet): the red edge of an error. */
+.devices-pin.has-error { box-shadow: inset 3px 0 var(--error); background: var(--error-bg); }
+.devices-pin.has-error .devices-pin-name { color: var(--error); }

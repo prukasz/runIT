@@ -3614,6 +3614,8 @@ CONFIG_SYS_I2C_BUS1_PULLUP=y
 #
 # default:
 CONFIG_SYS_LOG_LINE_MAX=160
+# default:
+CONFIG_SYS_LOG_ERRORS_KEPT=16
 # end of sys_log
 
 #

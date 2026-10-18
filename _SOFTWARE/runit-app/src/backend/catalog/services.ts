@@ -1,6 +1,6 @@
 import type { EnumTables } from '@engine/generated/wire'
-import { RAW_TYPES, rawWidth } from './codec'
-import type { Choice, Layout, RawType, WireField } from './codec'
+import { PIN_REF_SIZE, RAW_TYPES, rawWidth } from './codec'
+import type { Choice, Layout, PinRef, RawType, WireField } from './codec'
 
 /*
  * Every command the board takes, read from the descriptors the firmware publishes (`templates/contract.schema.json`,
@@ -30,6 +30,12 @@ export interface CommandDef {
   readonly description?: string
   readonly urgent: boolean
   readonly pinScoped: boolean
+  /** It changes the pin, channel or device it is given (a write, not a read): `invasive` in the descriptor. */
+  readonly invasive: boolean
+  /** A board setting: the command of the same entry that reads it back (`read_by` in the descriptor). */
+  readonly readBy?: string
+  /** The settings record its frame is kept in (`record`: a member of `settings_record` in enums.json), as its u32 ID. */
+  readonly recordId?: number
   readonly args?: Layout
   readonly returns?: Returns
 }
@@ -40,6 +46,23 @@ export interface EventDef {
   readonly label: string
   readonly description?: string
   readonly payload?: Layout
+}
+
+/** The pins a device type has (`provides.pins` of its descriptor): how many, their names (`P26`, `CH3`) and the modes they take. */
+export interface DevicePins {
+  readonly count: number
+  readonly labels?: readonly string[]
+  readonly modes: readonly string[]
+  /** The mode its pins are in after a reset, with no SET_MODE (`default_mode`); none: a pin has no mode until SET_MODE gives it one. */
+  readonly defaultMode?: string
+}
+
+/** A named set of config values of a device type (`presets` of its descriptor: a common part, a mode). */
+export interface DevicePreset {
+  readonly id: string
+  readonly label: string
+  readonly description?: string
+  readonly values: Readonly<Record<string, number | string | boolean>>
 }
 
 export interface CatalogEntry {
@@ -58,8 +81,14 @@ export interface CatalogEntry {
   readonly typeId?: number
   readonly contracts: readonly string[]
   readonly config?: Layout
+  /** A device type's pins. */
+  readonly pins?: DevicePins
+  /** A device type's presets of its config. */
+  readonly presets?: readonly DevicePreset[]
   readonly commands: ReadonlyMap<string, CommandDef>
   readonly events: readonly EventDef[]
+  /** A service whose settings are one record (`record` in the descriptor: BLE's GATT table, the data streams), as its u32 ID. */
+  readonly recordId?: number
   /** The descriptor's file, for messages. */
   readonly source: string
 }
@@ -93,6 +122,10 @@ export class ServiceCatalog {
   readonly ownContractId: number | undefined
   /** The contract id of the lifecycle ops every device answers (`SYS_DEVICE_CONTRACT_DEVICE`: CREATE, INFO, OPS, ...). */
   readonly lifecycleContractId: number | undefined
+  /** The values of an unused pin (`io_pin_none`: `SYS_IO_PIN_NONE`). */
+  readonly pinNone: PinRef | undefined
+  /** The device ID that addresses every device (`SYS_DEVICE_ID_NONE`): SUSPEND, RESUME and RESET sent to it are sweeps (SYS_DEVICE.MD). */
+  readonly allDevices: number | undefined
 
   constructor(
     files: readonly DescriptorFile[],
@@ -102,6 +135,12 @@ export class ServiceCatalog {
     this.ownContractId = own?.value
     if (own === undefined) this.problems.push("generated/common/enums.json: group 'device_contract' has no SYS_DEVICE_CONTRACT_OWN: no device's own ops can be addressed.")
     this.lifecycleContractId = enums.device_contract?.members.find((m) => m.name === 'SYS_DEVICE_CONTRACT_DEVICE')?.value
+    const none = (name: string) => enums.io_pin_none?.members.find((m) => m.name === name)?.value
+    const [device, pin] = [none('SYS_IO_PIN_NONE_DEVICE'), none('SYS_IO_PIN_NONE_INDEX')]
+    this.pinNone = device !== undefined && pin !== undefined ? { device, pin } : undefined
+    if (!this.pinNone) this.problems.push("generated/common/enums.json: group 'io_pin_none' has no SYS_IO_PIN_NONE_DEVICE / _INDEX: an unused pin cannot be sent.")
+    this.allDevices = enums.device_id?.members.find((m) => m.name === 'SYS_DEVICE_ID_NONE')?.value
+    if (this.allDevices === undefined) this.problems.push("generated/common/enums.json: group 'device_id' has no SYS_DEVICE_ID_NONE: no sweep over every device can be addressed.")
     for (const file of files) this.add(file)
     for (const device of this.devices.values()) {
       for (const contract of device.contracts) if (!this.contracts.has(contract)) this.problems.push(`${device.source}: contract ${contract} is not described.`)
@@ -159,7 +198,11 @@ export class ServiceCatalog {
       commands.set(command.id, command)
       ops.set(command.op, command.id)
     }
+    const pinsJson = obj(obj(json.provides)?.pins)
+    const pinCount = num(pinsJson?.count)
+    const pinLabels = arr(pinsJson?.labels).filter((l): l is string => typeof l === 'string')
     const configJson = obj(json.config) ?? (Array.isArray(json.config) ? { fields: json.config } : undefined)
+    const serviceRecord = this.recordOf(json.record, problem)
     const entry: CatalogEntry = {
       kind,
       id,
@@ -172,8 +215,21 @@ export class ServiceCatalog {
       ...(typeId !== undefined ? { typeId } : {}),
       contracts: arr(json.contracts).filter((c): c is string => typeof c === 'string'),
       ...(kind === 'device' && configJson ? { config: this.layout(configJson, `config`, problem, num(configJson.size)) } : {}),
+      ...(kind === 'device' && pinCount !== undefined
+        ? { pins: { count: pinCount, ...(pinLabels.length > 0 ? { labels: pinLabels } : {}), modes: arr(pinsJson?.modes).filter((m): m is string => typeof m === 'string'), ...(typeof pinsJson?.default_mode === 'string' ? { defaultMode: pinsJson.default_mode } : {}) } }
+        : {}),
+      ...(kind === 'device' && arr(json.presets).length > 0
+        ? {
+            presets: arr(json.presets).flatMap((p) => {
+              const preset = obj(p)
+              const id = str(preset?.id)
+              return preset && id ? [{ id, label: str(preset.label) ?? id, ...(str(preset.description) ? { description: str(preset.description) } : {}), values: (obj(preset.values) ?? {}) as DevicePreset['values'] }] : []
+            }),
+          }
+        : {}),
       commands,
       events: arr(json.events).flatMap((e) => this.event(e, problem)),
+      ...(serviceRecord !== undefined ? { recordId: serviceRecord } : {}),
       source: file.source,
     }
 
@@ -186,6 +242,15 @@ export class ServiceCatalog {
     if (taken) return problem(`${kind} ${id} (${number}) is already ${taken.source}.`)
     map.set(id, entry)
     index.set(number, entry)
+  }
+
+  /** The u32 ID of a settings record by its name in `settings_record` (enums.json); undefined for none. */
+  private recordOf(name: unknown, problem: (text: string) => void): number | undefined {
+    const record = str(name)
+    if (!record) return undefined
+    const value = this.enums.settings_record?.members.find((m) => m.name === record)?.value
+    if (value === undefined) problem(`record ${record} is not one the firmware publishes (settings_record).`)
+    return value
   }
 
   private enumHas(group: string, value: number): boolean {
@@ -202,6 +267,7 @@ export class ServiceCatalog {
     const argsJson = Array.isArray(json.args) ? { fields: json.args } : obj(json.args)
     const args = argsJson ? this.layout(argsJson, `${where} args`, problem) : undefined
     const returns = obj(json.returns) ? this.returns(obj(json.returns)!, `${where} returns`, problem) : undefined
+    const recordId = this.recordOf(json.record, problem)
     return {
       id,
       op,
@@ -209,6 +275,9 @@ export class ServiceCatalog {
       ...(str(json.description) ? { description: str(json.description) } : {}),
       urgent: json.urgent === true,
       pinScoped: json.pin_scoped === true,
+      invasive: json.invasive === true,
+      ...(str(json.read_by) ? { readBy: str(json.read_by) } : {}),
+      ...(recordId !== undefined ? { recordId } : {}),
       ...(args ? { args } : {}),
       ...(returns ? { returns } : {}),
     }
@@ -284,7 +353,13 @@ export class ServiceCatalog {
       if (overlap) problem(`${where}: field ${id} (${offset}..${offset + size! - 1}) overlaps ${overlap.id} (${overlap.offset}..${overlap.offset + overlap.size! - 1}).`)
       const enumGroup = str(f.enum)
       if (enumGroup && !this.enums[enumGroup]) problem(`${where}: field ${id} names enum ${enumGroup}, which enums.json does not have.`)
+      const indexEnum = str(f.index_enum)
+      if (indexEnum && !this.enums[indexEnum]) problem(`${where}: field ${id} is indexed by enum ${indexEnum}, which enums.json does not have.`)
       const choices = this.choices(f.options, f.type === 'enum' ? enumGroup : undefined)
+      const bits = arr(f.bits).flatMap((b) => {
+        const json = obj(b)
+        return json && num(json.bit) !== undefined && str(json.label) ? [{ bit: num(json.bit)!, label: str(json.label)! }] : []
+      })
       fields.push({
         id,
         label: str(f.label) ?? str(f.alias) ?? id,
@@ -300,11 +375,16 @@ export class ServiceCatalog {
         ...(f.default !== undefined ? { default: f.default } : {}),
         optional: f.optional === true,
         ...(choices ? { choices } : {}),
+        ...(bits.length > 0 ? { bits } : {}),
         ...(enumGroup ? { enum: enumGroup } : {}),
+        ...(indexEnum ? { indexEnum } : {}),
         ...(str(f.requires_contract) ? { requiresContract: str(f.requires_contract) } : {}),
         ...(str(f.requires) ? { requires: str(f.requires) } : {}),
+        ...(Array.isArray(f.pin_state) ? { pinState: f.pin_state.filter((x): x is string => typeof x === 'string') } : {}),
         pinRef: f.pin_ref === true,
+        ...(f.pin_ref === true && this.pinNone ? { pinNone: this.pinNone } : {}),
       })
+      if (f.pin_ref === true && (rawType !== 'bytes' || size === undefined || size % PIN_REF_SIZE !== 0)) problem(`${where}: field ${id} is a pin reference but not bytes of a multiple of ${PIN_REF_SIZE} (sys_io_pin_t).`)
       if (size === undefined) variable = true
       else {
         cursor = offset + size

@@ -5,7 +5,6 @@
 #include "utils.h"
 
 #define I2C_SPEED_HZ 400000u
-#define SHUNT_MOHM 10  // all three shunts on the board
 
 #define REG_CONFIG 0x00u
 #define REG_SHUNT_1 0x01u  // + 2 per channel
@@ -30,6 +29,7 @@ typedef struct {
   sys_dev_pin_t pin[2];  // [0] critical, [1] warning
   int8_t inverted_alert[2];  // reversed-shunt channel armed on that pin, -1 = none
   uint8_t inverted_mask;
+  uint16_t shunt_mohm;  // every channel's shunt, mOhm
   uint16_t config;  // as last written
   uint16_t mask;    // as last written (latch bits)
 } ina_t;
@@ -73,7 +73,7 @@ static err_h chip_read_current_mA(ina_t* c, uint8_t ch, int32_t* mA) {
   uint16_t raw;
   ERR_TRY(chip_read(c, (uint8_t)(REG_SHUNT_1 + ch * 2u), &raw));
   const int32_t uV = ((int16_t)raw >> 3) * 40;  // 40 uV per LSB
-  *mA = uV / SHUNT_MOHM;                         // uV / mOhm = mA
+  *mA = uV / c->shunt_mohm;                      // uV / mOhm = mA
   if (c->inverted_mask & (1u << ch)) {
     *mA = -*mA;
   }
@@ -81,7 +81,7 @@ static err_h chip_read_current_mA(ina_t* c, uint8_t ch, int32_t* mA) {
 }
 
 static err_h chip_set_alert(ina_t* c, uint8_t ch, int32_t mA, bool critical) {
-  const int32_t raw = (mA * SHUNT_MOHM) / 40;  // mA * mOhm = uV; 40 uV per LSB
+  const int32_t raw = (mA * c->shunt_mohm) / 40;  // mA * mOhm = uV; 40 uV per LSB
   return chip_write(c, (uint8_t)((critical ? REG_CRITICAL_1 : REG_WARNING_1) + ch * 2u),
                     (uint16_t)((int16_t)raw << 3));
 }
@@ -174,8 +174,8 @@ PMON_HANDLER(SET_ALERT) {
   if (c->inverted_mask & (1u << args->channel)) {
     return set_inverted_alert(c, args->channel, critical, args->threshold_mA);
   }
-  // 12-bit signed limit register, 40 uV per LSB over 10 mOhm = 4 mA per LSB.
-  const int32_t max_mA = 4095 * 40 / SHUNT_MOHM;
+  // 12-bit signed limit register, 40 uV per LSB over the shunt: 4095 steps of it, so the limit's full scale in mA.
+  const int32_t max_mA = 4095 * 40 / c->shunt_mohm;
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->threshold_mA, -max_mA, max_mA);
   return chip_set_alert(c, args->channel, args->threshold_mA, critical);
 }
@@ -279,7 +279,9 @@ static err_h create(void* ctx, const void* cfg_in) {
   SYS_DEV_CHECK_IN_RANGE(id, cfg->i2c_bus, 0, SYS_I2C_BUS_COUNT - 1);
   SYS_DEV_CHECK_IN_RANGE(id, cfg->i2c_addr, INA3221_I2C_ADDR_MIN, INA3221_I2C_ADDR_MAX);
   SYS_DEV_CHECK_IN_RANGE(id, cfg->inverted_mask, 0, 0x07);
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->shunt_mohm, 1, UINT16_MAX);
   c->inverted_mask = cfg->inverted_mask;
+  c->shunt_mohm = cfg->shunt_mohm;
   c->inverted_alert[0] = c->inverted_alert[1] = -1;
   c->config = CONFIG_DEFAULT;
   c->mask = MASK_DEFAULT;

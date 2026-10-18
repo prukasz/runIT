@@ -17,6 +17,9 @@ extern "C" {
 #define SYS_PWRM_OP_GET_STATUS 0x07u
 #define SYS_PWRM_OP_NEGOTIATE_MAX 0x08u
 #define SYS_PWRM_OP_SET_RESPONSES 0x09u  // the whole matrix: (1 + rails) rows of SYS_POWER_KIND_COUNT responses
+#define SYS_PWRM_OP_GET_PSU 0x0Au
+#define SYS_PWRM_OP_GET_BATTERY 0x0Bu
+#define SYS_PWRM_OP_GET_MATRIX 0x0Cu  // the whole matrix, each row as sys_power_response_row_t (its target first)
 
 /** @brief Router of ROUTER_KEY_POWER (SYS_POWER_MANAGER.MD "Remote"). */
 ROUTER_MODULE_DECLARE(sys_power_manager_router);

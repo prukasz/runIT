@@ -1,0 +1,6 @@
+/* ---------- 4. device tile (copied from devices/Devices.css) ---------- */
+.device-tile { display: inline-flex; align-items: center; justify-content: center; flex: none; overflow: hidden; border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--divider)); border-radius: 8px; background: color-mix(in srgb, var(--accent) 10%, var(--panel)); color: color-mix(in srgb, var(--accent) 70%, var(--active)); }
+.device-tile.is-small { width: 22px; height: 22px; border-radius: 5px; }
+.device-tile.is-small svg { width: 14px; height: 14px; }
+.device-tile.is-medium { width: 30px; height: 30px; border-radius: 6px; }
+.device-tile.is-medium svg { width: 18px; height: 18px; }

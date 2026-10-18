@@ -42,6 +42,10 @@ interface Device extends Emitter {
   readonly id: string
   readonly name?: string
   readonly gatt?: GattServer
+  /** Not in every browser: it makes the browser scan for this device, which fires `advertisementreceived`. */
+  watchAdvertisements?(options: { signal: AbortSignal }): Promise<void>
+  /** Not in every browser: revokes the page's permission for this device. */
+  forget?(): Promise<void>
 }
 export interface WebBluetooth {
   requestDevice(options: { filters: { services: number[] }[]; optionalServices: number[] }): Promise<Device>
@@ -54,6 +58,41 @@ const BASE_UUID = /^0000([0-9a-f]{4})-0000-1000-8000-00805f9b34fb$/i
 export const shortUuid = (uuid: string): number => {
   const match = BASE_UUID.exec(uuid)
   return match ? Number.parseInt(match[1]!, 16) : Number.NaN
+}
+
+/** How long a board known from an earlier visit is waited for to advertise before the connection is given up. */
+const ADVERTISEMENT_WAIT_MS = 10_000
+
+/*
+ * A board the browser knows from an earlier visit (`getDevices()`, after a reload) can only be connected once the browser has seen it
+ * advertise: before that `connect()` fails with "Bluetooth Device is no longer in range". So the first failure is answered by listening
+ * for one advertisement (`watchAdvertisements`, where the browser has it) and connecting again.
+ */
+const connectSeen = async (device: Device, gatt: GattServer): Promise<GattServer> => {
+  try {
+    return await gatt.connect()
+  } catch (error) {
+    if (typeof device.watchAdvertisements !== 'function') {
+      throw new Error(`${error instanceof Error ? error.message : String(error)}. This browser cannot listen for the board's advertisement (watchAdvertisements, "Experimental Web Platform features"): choose it in the chooser.`)
+    }
+    const watch = new AbortController()
+    let onAdvertisement: Listener = () => undefined
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const seen = new Promise<void>((resolve, reject) => {
+      onAdvertisement = () => resolve()
+      timer = setTimeout(() => reject(error), ADVERTISEMENT_WAIT_MS)
+    })
+    device.addEventListener('advertisementreceived', onAdvertisement)
+    try {
+      await device.watchAdvertisements({ signal: watch.signal }).catch(() => undefined)
+      await seen
+    } finally {
+      clearTimeout(timer)
+      device.removeEventListener('advertisementreceived', onAdvertisement)
+      watch.abort()
+    }
+    return gatt.connect()
+  }
 }
 
 const browserBluetooth = (): WebBluetooth | undefined => (globalThis as { navigator?: { bluetooth?: WebBluetooth } }).navigator?.bluetooth
@@ -70,6 +109,11 @@ export class WebBluetoothPlatform implements BlePlatform {
     return this.bluetooth !== undefined
   }
 
+  /** The browser lists the boards it allowed before (`getDevices()`), so a reloaded page can open one with no chooser. */
+  get remembersBoards(): boolean {
+    return typeof this.bluetooth?.getDevices === 'function'
+  }
+
   async requestDevice(): Promise<BleDeviceRef> {
     const device = await this.require().requestDevice({ filters: [{ services: [this.defs.gatt.service] }], optionalServices: [this.defs.gatt.service] })
     this.devices.set(device.id, device)
@@ -82,6 +126,13 @@ export class WebBluetoothPlatform implements BlePlatform {
     const devices = await bluetooth.getDevices()
     for (const device of devices) this.devices.set(device.id, device)
     return devices.map((device) => ({ id: device.id, name: device.name }))
+  }
+
+  async forget(ref: BleDeviceRef): Promise<void> {
+    const device = this.devices.get(ref.id)
+    this.devices.delete(ref.id)
+    device?.gatt?.disconnect()
+    await device?.forget?.()
   }
 
   async open(ref: BleDeviceRef, handlers: OpenHandlers): Promise<BleChannel> {
@@ -115,7 +166,7 @@ export class WebBluetoothPlatform implements BlePlatform {
 
     let rx: Characteristic
     try {
-      const server = gatt.connected ? gatt : await gatt.connect()
+      const server = gatt.connected ? gatt : await connectSeen(device, gatt)
       const service = await server.getPrimaryService(this.defs.gatt.service)
       const characteristics = await service.getCharacteristics()
       const found = characteristics.find((c) => shortUuid(c.uuid) === this.defs.gatt.rx)

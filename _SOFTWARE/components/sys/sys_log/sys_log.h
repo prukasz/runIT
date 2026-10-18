@@ -30,6 +30,7 @@ extern "C" {
 /** @brief Ops of ROUTER_KEY_LOG. The stored record SYS_ACTIONS_ID_LOG holds the SET frame: [ROUTER_KEY_LOG][SET][sys_log_cfg_t]. */
 #define SYS_LOG_OP_SET 0x01u
 #define SYS_LOG_OP_GET 0x02u
+#define SYS_LOG_OP_ERRORS 0x03u  // [index u8] -> [total u8][record], the error history (oldest is index 0)
 
 /** @brief The settings record and the SET / GET payload (packed, the wire form). */
 typedef struct __attribute__((packed)) {
@@ -69,6 +70,18 @@ void sys_log_get(sys_log_cfg_t* out);
 
 /** @brief send_errors in force: the error sink asks before it sends a record. */
 bool sys_log_send_errors(void);
+
+/** @brief The largest error record kept (and sent on the errors stream): longer ones are cut by router_err_record to this. */
+#define SYS_LOG_RECORD_MAX 192u
+
+/**
+ * @brief Keeps an error record (what the errors stream carries) in the history the app reads with ERRORS: the latest
+ * CONFIG_SYS_LOG_ERRORS_KEPT, the oldest dropped. Any task; never reports (the sink calls it for every error).
+ */
+void sys_log_error_keep(const uint8_t* record, uint32_t len);
+
+/** @brief The kept record at `index` (0 = the oldest) copied to `out` (capacity SYS_LOG_RECORD_MAX); its length, 0 past the end. `total` is how many are kept. */
+uint32_t sys_log_error_get(uint32_t index, uint8_t* out, uint32_t* total);
 
 #ifdef __cplusplus
 }

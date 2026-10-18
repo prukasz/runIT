@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
-  bundledServiceCatalog, createDeviceCall, decodeAnswer, deviceCall, deviceFrame, encodeFields, PayloadError, rawWidth, requestFrame, RunitLink,
+  bundledServiceCatalog, createDeviceCall, decodeAnswer, decodeFields, deviceCall, deviceFrame, encodeFields, PayloadError, PIN_REF_SIZE, rawWidth, requestFrame, RunitLink,
   ServiceCatalog, serviceCall, Services,
 } from '@backend'
 import type { FieldValues, Layout } from '@backend'
@@ -75,6 +75,7 @@ const zeros = (layout: Layout): FieldValues =>
   Object.fromEntries(
     layout.fields.map((f) => {
       if (f.default !== undefined) return [f.id, f.default as never]
+      if (f.pinRef) return [f.id, f.size === PIN_REF_SIZE ? null : Array.from({ length: f.size! / PIN_REF_SIZE }, () => null)]
       if (f.rawType === 'bytes') return [f.id, new Uint8Array(f.size ?? 0)]
       if (f.rawType === 'string') return [f.id, '']
       const value = f.min !== undefined && f.min > 0 ? f.min : 0
@@ -161,6 +162,39 @@ describe('requests', () => {
     expect(call.request.payload!.length).toBe(6 + pca.config!.fixed)
   })
 
+  it('a pin reference is a sys_io_pin_t: { device, pin }, null for an unused pin (SYS_IO_PIN_NONE), a list for several', () => {
+    const c = packedStructs().get('sys_io_pin_t')!
+    expect(c.size).toBe(PIN_REF_SIZE)
+    expect([...c.members.entries()]).toEqual([['device', { offset: 0, size: 2 }], ['pin', { offset: 2, size: 1 }]])
+    expect(catalog.pinNone).toEqual({ device: 0xffff, pin: 0xff }) // SYS_IO_PIN_NONE, sys_io.h
+
+    const servo = catalog.device('servo').config!
+    const pwm = servo.fields.find((f) => f.id === 'pwm_pin')!
+    const values = { ...zeros(servo), pwm_pin: { device: 0x0102, pin: 7 } }
+    const payload = encodeFields(servo, values)
+    expect(hex(payload.subarray(pwm.offset, pwm.offset + 3))).toBe('020107') // u16 little endian, then the pin
+    expect(decodeFields(servo, payload).pwm_pin).toEqual({ device: 0x0102, pin: 7 })
+    expect(() => encodeFields(servo, { ...values, pwm_pin: Uint8Array.of(2, 1, 7) })).toThrow(PayloadError)
+    expect(() => encodeFields(servo, { ...values, pwm_pin: { device: 0x10000, pin: 0 } })).toThrow(/not a u16/)
+
+    // an optional pin left out is no pin, not device 0 / pin 0 (a real pin)
+    const tps = catalog.device('tps55289').config!
+    const en = tps.fields.find((f) => f.id === 'en_pin')!
+    expect(en.optional).toBe(true)
+    const { en_pin: _, ...rest } = zeros(tps)
+    const none = encodeFields(tps, rest)
+    expect(hex(none.subarray(en.offset, en.offset + 3))).toBe('ffffff')
+    expect(decodeFields(tps, none).en_pin).toBeNull()
+
+    // drv8962: 15 pins in one field
+    const drv = catalog.device('drv8962').config!
+    const pins = drv.fields.find((f) => f.pinRef && f.size! > PIN_REF_SIZE)!
+    const list = Array.from({ length: pins.size! / PIN_REF_SIZE }, (_, i) => (i === 1 ? { device: 4, pin: 9 } : null))
+    const decoded = decodeFields(drv, encodeFields(drv, { ...zeros(drv), [pins.id]: list }))[pins.id]
+    expect(decoded).toEqual(list)
+    expect(() => encodeFields(drv, { ...zeros(drv), [pins.id]: [null] })).toThrow(/takes 15 pins/)
+  })
+
   it('every command of every descriptor encodes from its defaults and zeros', () => {
     for (const entry of catalog.entries) {
       for (const c of entry.commands.values()) if (c.args) expect(() => encodeFields(c.args!, zeros(c.args!)), `${entry.id} ${c.id}`).not.toThrow()
@@ -189,6 +223,14 @@ describe('answers', () => {
   it('a struct by field id, booleans as booleans', () => {
     expect(decodeAnswer(serviceCall(catalog, 'SYS', 'PING'), Uint8Array.of(0xd2, 0x04, 0, 0))).toEqual({ uptime_ms: 1234 })
     expect(decodeAnswer(serviceCall(catalog, 'SYS', 'DEADMAN_GET'), Uint8Array.of(0xf4, 1, 0, 0, 1))).toEqual({ timeout_ms: 500, on_link_lost: true })
+  })
+
+  it('VM STATUS: the run of the program, from the bytes the board answers (vm_wire_status_t, 24 bytes)', () => {
+    // running, loaded, ready, no fault, slow-down 1, 1096 passes, last pass 19 us, 12 B of arena (captured on a board)
+    const bytes = Uint8Array.of(1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0x48, 0x04, 0, 0, 19, 0, 0, 0, 12, 0, 0, 0)
+    const value = decodeAnswer(serviceCall(catalog, 'VM', 'STATUS'), bytes) as Record<string, unknown>
+    expect(value).toMatchObject({ load_state: 1, ready: true, fault_latched: false, slowdown: 1, pass_count: 1096, last_pass_us: 19, arena_used: 12 })
+    expect(value.mode).toBe(1)
   })
 
   it('an array field (u32 of 16 bytes) is a list both ways', () => {

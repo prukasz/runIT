@@ -13,7 +13,7 @@ Not a module with state: a set of device ops (contract `SYS_DEVICE_CONTRACT_IO` 
 
 ## Pins
 
-`sys_io_pin_t {u16 device, u8 pin}` (3 bytes, also the field of a create struct). An unused pin is `SYS_IO_PIN_NONE` (device `0xFFFF`): a zero-filled field is device 0 / pin 0, a real pin. `sys_io_pin_valid(p)`.
+`sys_io_pin_t {u16 device, u8 pin}` (3 bytes, also the field of a create struct). An unused pin is `SYS_IO_PIN_NONE` (device `SYS_IO_PIN_NONE_DEVICE` = `0xFFFF`, pin `SYS_IO_PIN_NONE_INDEX` = `0xFF`, published as `io_pin_none`): a zero-filled field is device 0 / pin 0, a real pin. `sys_io_pin_valid(p)`.
 
 ## Ops
 

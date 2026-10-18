@@ -1,0 +1,23 @@
+/* Link status shades, defined once. Built on the theme's --color-* hues, so both themes follow. */
+.shell {
+  --status-ok: var(--color-green-strong);
+  --status-warn: var(--color-orange);
+  --status-lost: var(--color-red);
+  --status-on: #ffffff;
+}
+
+.shell button.status-ok,
+.shell button.status-warn,
+.shell button.status-lost { color: var(--status-on); }
+.shell button.status-ok { background: var(--status-ok); }
+.shell button.status-warn { background: var(--status-warn); }
+.shell button.status-lost { background: var(--status-lost); }
+.shell button.status-ok:hover { background: color-mix(in srgb, var(--status-ok) 82%, white); color: var(--status-on); }
+.shell button.status-warn:hover { background: color-mix(in srgb, var(--status-warn) 82%, white); color: var(--status-on); }
+.shell button.status-lost:hover { background: color-mix(in srgb, var(--status-lost) 82%, white); color: var(--status-on); }
+
+/* A selected status button keeps its color and shows the selection as a ring drawn inside it, so it takes no room and a bar's
+   spacing never depends on which button is selected. */
+.shell button.status-ok.selected,
+.shell button.status-warn.selected,
+.shell button.status-lost.selected { box-shadow: inset 0 0 0 2px var(--active); }

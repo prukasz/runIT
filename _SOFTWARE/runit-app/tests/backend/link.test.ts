@@ -63,7 +63,7 @@ describe('commands', () => {
 
   it('an ERROR answer rejects with the decoded record', async () => {
     const board = new FakeBoard()
-    board.respond = (frame, send) => send(answer(frame[0]!, [0x00, 0x01, 0x01, 0x00, 0x02, 0x00, 0x00, 0x01, 0x05], false)) // internal; ERR_ROUTER_KEY key 5
+    board.respond = (frame, send) => send(answer(frame[0]!, [0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x01, 0x00, 0x02, 0x00, 0x00, 0x01, 0x05], false)) // internal, clock 0; ERR_ROUTER_KEY key 5
     const link = await linkTo(board)
     const error = await link.request(PING).catch((e: unknown) => e)
     expect(error).toBeInstanceOf(CommandError)

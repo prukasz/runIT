@@ -38,6 +38,26 @@ def check(name: str, ok: bool, detail: str = "") -> bool:
     return ok
 
 
+#: set by main(): the board has its onboard devices (the runIT PCB), not a bare devkit. Checks that need the devkit's empty
+#: device table or its missing input monitor are skipped there (board_tests.py covers the PCB).
+ONBOARD = False
+MISSING_ID = 77  # a device id nobody creates (10 is the PCB's TPS55289 rail A)
+SKIPPED: list[str] = []
+
+
+def skip(name: str, why: str) -> None:
+    SKIPPED.append(name)
+    print(f"SKIP  {name}  -- {why}")
+
+
+def devkit_check(name: str, ok: bool, detail: str = "") -> bool:
+    """A check that only holds on a bare devkit: on the PCB it is skipped, not failed."""
+    if ONBOARD:
+        skip(name, "bare devkit only")
+        return True
+    return check(name, ok, detail)
+
+
 def err_cause(r: Response | None) -> str:
     return r.record.cause.name if r and r.record and r.record.cause else ""
 
@@ -70,6 +90,14 @@ def test_sys(link: Link) -> None:
     if ok:
         ms, on_lost = struct.unpack("<IB", r.data)
         check("dead-man off at boot", ms == 0 and on_lost == 0, f"{ms} {on_lost}")
+
+    # BYE: the client leaves on purpose, the dead-man it armed is off.
+    r = link.request(bytes([KEY_SYS, 0x04]), payload=struct.pack("<IB", 60000, 0))
+    check("DEADMAN_SET 60 s", r is not None and r.ok, str(r))
+    r = link.request(bytes([KEY_SYS, 0x06]))
+    check("BYE", r is not None and r.ok, str(r))
+    r = link.request(bytes([KEY_SYS, 0x05]))
+    check("BYE disarmed the dead-man", r is not None and r.ok and struct.unpack("<IB", r.data)[0] == 0, str(r))
 
 
 def test_router_errors(link: Link) -> None:
@@ -492,7 +520,7 @@ TCA_TYPE = 0x0042
 
 
 def test_device(link: Link) -> None:
-    r = dev(link, 10, OP_INFO)
+    r = dev(link, MISSING_ID, OP_INFO)
     check("device INFO of an unregistered id -> ERR_DEV_NOT_FOUND", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
     names = r.record.names() if r and r.record else []
     check("route: KEY 05 -> ERR_DEV_ID -> cause", names[:2] == ["ERR_ROUTER_KEY", "ERR_DEV_ID"], str(names))
@@ -778,7 +806,7 @@ def test_actions(link: Link) -> None:
     # Record without executing: frames are taken (answered OK, not run)
     r = act(link, A_REC_START, u32(T2) + bytes([0]))
     check("RECORD_START 2 (no execute)", r is not None and r.ok, str(r))
-    r = dev(link, 10, OP_INFO)  # no device 10: would fail if it ran
+    r = dev(link, MISSING_ID, OP_INFO)  # no such device: would fail if it ran
     check("frame taken without running (OK, no data)", r is not None and r.ok and r.data == b"", str(r))
     r = act(link, A_REC_STOP)
     check("RECORD_STOP 2: 1 frame", r is not None and r.ok and len(r.data) == 8 and struct.unpack_from("<HHI", r.data)[1] == 1, str(r))
@@ -1137,10 +1165,13 @@ def test_error_policy(link: Link) -> None:
     check("NONE: the command still gets its error response", err_cause(r) == "ERR_DEV_BAD_PIN", str(r))
 
     # A new instance starts at the defaults
-    dev(link, GPIO_ID, OP_REMOVE)
-    dev(link, GPIO_ID, OP_CREATE, struct.pack("<H", GPIO_TYPE))
-    r = dev(link, GPIO_ID, OP_GET_ERR_POLICY)
-    check("REMOVE + CREATE: policy back to LOW, no actions", r is not None and r.ok and r.data == struct.pack("<B4I", IMP_LOW, 0, 0, 0, 0), str(r))
+    if ONBOARD:
+        skip("REMOVE + CREATE: policy back to LOW, no actions", "the PCB's expander depends on the GPIO: it cannot be removed")
+    else:
+        dev(link, GPIO_ID, OP_REMOVE)
+        dev(link, GPIO_ID, OP_CREATE, struct.pack("<H", GPIO_TYPE))
+        r = dev(link, GPIO_ID, OP_GET_ERR_POLICY)
+        check("REMOVE + CREATE: policy back to LOW, no actions", r is not None and r.ok and r.data == struct.pack("<B4I", IMP_LOW, 0, 0, 0, 0), str(r))
 
     for aid in (ACT_HIGH, ACT_MED):
         act(link, A_REMOVE, u32(aid))
@@ -1203,7 +1234,7 @@ def test_power(link: Link) -> None:
     check("power SET_CONFIG with 6 bytes -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
 
     st = wait_source(link, SRC_UNKNOWN)
-    check("status: 31 bytes, source UNKNOWN, enabled + strict, no input monitor on the devkit",
+    devkit_check("status: 31 bytes, source UNKNOWN, enabled + strict, no input monitor on the devkit",
           st is not None and st["source"] == SRC_UNKNOWN and st["flags"] & 0x0B == PW_FLAG_ENABLED | PW_FLAG_STRICT, str(st))
 
     # Source without a pin: an entered PSU, then a configured battery
@@ -1212,7 +1243,7 @@ def test_power(link: Link) -> None:
     r = pw(link, PW_SET_PSU, struct.pack("<II", 12000, 2000))
     check("SET_PSU 12 V / 2 A", r is not None and r.ok, str(r))
     st = wait_source(link, SRC_PSU)
-    check("source PSU", st is not None and st["source"] == SRC_PSU, str(st))
+    devkit_check("source PSU", st is not None and st["source"] == SRC_PSU, str(st))
     pw(link, PW_SET_PSU, struct.pack("<II", 0, 0))
     r = pw(link, PW_SET_BATTERY, bytes([1, 0, 20, 10]))
     check("battery 0 cells -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
@@ -1221,10 +1252,10 @@ def test_power(link: Link) -> None:
     r = pw(link, PW_SET_BATTERY, bytes([1, 2, 20, 10]))
     check("SET_BATTERY LiPo 2S 20 / 10 %", r is not None and r.ok, str(r))
     st = wait_source(link, SRC_BATTERY)
-    check("source BATTERY (PSU removed)", st is not None and st["source"] == SRC_BATTERY, str(st))
+    devkit_check("source BATTERY (PSU removed)", st is not None and st["source"] == SRC_BATTERY, str(st))
     pw(link, PW_SET_BATTERY, bytes([0, 0, 0, 0]))
     st = wait_source(link, SRC_UNKNOWN)
-    check("battery removed -> UNKNOWN", st is not None and st["source"] == SRC_UNKNOWN, str(st))
+    devkit_check("battery removed -> UNKNOWN", st is not None and st["source"] == SRC_UNKNOWN, str(st))
 
     # Source pin: an output the manager reads as it is (level 1 = battery)
     dev(link, GPIO_ID, IO_SET_MODE, bytes([SOURCE_PIN, 3]))
@@ -1232,13 +1263,13 @@ def test_power(link: Link) -> None:
     r = pw(link, PW_SET_CONFIG, pw_config(pin=(GPIO_ID, SOURCE_PIN), battery_level=1))
     check(f"config source pin GPIO {SOURCE_PIN}, battery = 1", r is not None and r.ok, str(r))
     st = wait_source(link, SRC_BATTERY)
-    check("pin 1 -> BATTERY", st is not None and st["source"] == SRC_BATTERY, str(st))
+    devkit_check("pin 1 -> BATTERY", st is not None and st["source"] == SRC_BATTERY, str(st))
     dev(link, GPIO_ID, IO_SET_LEVEL, bytes([SOURCE_PIN, 0]))
     st = wait_source(link, SRC_USB)
-    check("pin 0 -> USB", st is not None and st["source"] == SRC_USB, str(st))
+    devkit_check("pin 0 -> USB", st is not None and st["source"] == SRC_USB, str(st))
     pw(link, PW_SET_CONFIG, pw_config(pin=(GPIO_ID, SOURCE_PIN), battery_level=0))
     st = wait_source(link, SRC_BATTERY)
-    check("battery level 0: pin 0 -> BATTERY", st is not None and st["source"] == SRC_BATTERY, str(st))
+    devkit_check("battery level 0: pin 0 -> BATTERY", st is not None and st["source"] == SRC_BATTERY, str(st))
     pw(link, PW_SET_CONFIG, pw_config())
     dev(link, GPIO_ID, IO_RESET, bytes([SOURCE_PIN]))
 
@@ -1293,7 +1324,7 @@ def test_power(link: Link) -> None:
 
     # The VREG guard passes a budgeted rail that isn't created
     r = dev(link, TPS_RAIL_A, 0x0501, struct.pack("<I", 9000))
-    check("VREG SET_VOLTAGE on rail A (not created) -> ERR_DEV_NOT_FOUND", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
+    devkit_check("VREG SET_VOLTAGE on rail A (not created) -> ERR_DEV_NOT_FOUND", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
 
 
 def test_restart(link: Link) -> None:
@@ -1307,7 +1338,7 @@ def test_restart(link: Link) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", required=True, help="COM5 or socket://localhost:5555")
-    ap.add_argument("--target", choices=["qemu", "board"], default="board")
+    ap.add_argument("--target", choices=["qemu", "board"], default="board", help="board: a devkit or the PCB (told apart by device 0)")
     ap.add_argument("--boot-wait", type=float, default=15.0)
     ap.add_argument("--echo", action="store_true", help="print the device log")
     a = ap.parse_args()
@@ -1321,6 +1352,12 @@ def main() -> int:
         for l in failed_steps:
             print("      boot:", l)
 
+        global ONBOARD
+        info = dev(link, GPIO_ID, OP_INFO)
+        ONBOARD = info is not None and info.ok
+        if ONBOARD:
+            print("note: device 0 exists (the runIT PCB): the sections that create devices from an empty table are skipped")
+
         test_sys(link)
         test_router_errors(link)
         test_errors_stream(link)
@@ -1329,9 +1366,13 @@ def main() -> int:
         test_i2c(link, a.target)
         test_conn(link)
         test_ble(link, a.target)
-        test_gpio(link, a.target)
-        test_power_mux(link, a.target)
-        test_device(link)
+        if ONBOARD:
+            for section in ("gpio", "power mux", "device create / remove"):
+                skip(section, "needs a bare devkit (no onboard devices); board_tests.py covers the PCB")
+        else:
+            test_gpio(link, a.target)
+            test_power_mux(link, a.target)
+            test_device(link)
         test_actions(link)
         test_project(link)
         test_log(link)
@@ -1342,7 +1383,7 @@ def main() -> int:
         test_actions_after_restart(link)
 
     failed = [r for r in RESULTS if not r[1]]
-    print(f"\n{len(RESULTS) - len(failed)}/{len(RESULTS)} passed")
+    print(f"\n{len(RESULTS) - len(failed)}/{len(RESULTS)} passed" + (f", {len(SKIPPED)} skipped" if SKIPPED else ""))
     return 1 if failed else 0
 
 

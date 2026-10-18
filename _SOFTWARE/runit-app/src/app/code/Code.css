@@ -1,0 +1,45 @@
+/* The Code view: the variables' tree (left), every variable to edit (centre), the selected one's details (right). */
+.code-explorer { display: flex; flex-direction: column; gap: 8px; min-height: 100%; padding: 10px 10px 16px; }
+/* The search and the three adds (a value, a folder, a reference) in one row. */
+.code-explorer-bar { display: flex; align-items: center; gap: 4px; }
+.code-explorer-bar > .palette-search { flex: 1; min-width: 0; }
+/* The tree takes the rest of the panel: a drop on its empty space moves the variable to the top level. */
+.code-tree { display: flex; flex: 1; flex-direction: column; gap: 2px; min-height: 80px; }
+.code-hint { margin: 4px 0; color: var(--muted); font-size: 12px; }
+.code-explorer .tree-slab-content { min-width: 0; max-width: 100%; }
+
+/* Centre: one entry per variable, a folder's entries inside it under a guide line. */
+.code-editor { display: flex; flex-direction: column; gap: 6px; height: 100%; overflow: auto; padding: 16px 20px 32px; }
+.code-editor > .code-entry-wrap { max-width: 860px; }
+.code-entry { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--divider); border-radius: 10px; background: var(--panel); cursor: pointer; }
+.code-entry:hover { border-color: color-mix(in srgb, var(--active) 22%, var(--divider)); }
+.code-entry.is-selected { border-color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
+.code-entry.is-error { border-color: var(--error); box-shadow: inset 3px 0 var(--error); background: var(--error-bg); }
+/* Two columns line up: the name over the initial value, the type over the elements; the delete keeps the right edge. */
+.code-entry { --code-side: 120px; --code-delete: 36px; }
+/* The elements' icon sits in the delete's column, under the trash. */
+.code-entry-icon { display: flex; flex: 0 0 var(--code-delete); align-items: center; justify-content: center; height: var(--field-height, 32px); color: var(--muted); }
+.code-entry-icon svg { width: 18px; height: 18px; }
+.code-entry-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.code-entry-row.is-value { padding-left: 38px; align-items: flex-start; }
+.code-entry .code-entry-name { flex: 1 1 140px; min-width: 100px; }
+.code-entry-type, .code-entry-count { flex: 0 0 var(--code-side); }
+.code-entry-target { flex: 1 1 140px; min-width: 140px; }
+.code-entry-initial { display: flex; flex: 1 1 200px; flex-direction: column; gap: 4px; min-width: 0; }
+/* A single bool's initial value: the switch fills the column, its box as high as a field. */
+.code-entry-initial.is-switch > .switch { box-sizing: border-box; width: 100%; height: var(--field-height, 32px); }
+.code-entry-count { display: flex; align-items: center; gap: 6px; }
+.code-entry-count > .number-field { flex: 1; min-width: 0; }
+.code-entry-delete { display: flex; flex: 0 0 var(--code-delete); justify-content: center; margin-left: auto; }
+.shell .code-entry-delete button { color: var(--color-red); }
+.shell .code-entry-delete button:hover { background: color-mix(in srgb, var(--color-red) 14%, transparent); color: var(--color-red); }
+.code-entry .field-error { padding-left: 38px; }
+.code-entry-children { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 0 14px; padding-left: 12px; border-left: 1px solid var(--divider); }
+
+/* Right: the selected variable. */
+.code-details { display: flex; flex-direction: column; gap: 10px; padding: 14px 14px 24px; }
+.code-switches { display: flex; flex-direction: column; gap: 10px; }
+.code-place { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.code-place > .listable-field-wrap { flex: 1 1 auto; min-width: 0; }
+.code-refs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.code-details .form-row .code-refs { margin-top: 0; }

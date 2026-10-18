@@ -5,14 +5,35 @@
   "type": "module",
   "description": "runIT app, written from scratch. src/engine = the VM engine (objects, accessors, blocks, compiler); no UI dependencies.",
   "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:hw": "vitest run --config vitest.hardware.config.ts",
+    "test:browser": "node tests/browser/run.mjs",
+    "kit": "node design/build-kit.mjs",
+    "app": "node electron/start.mjs",
+    "app:start": "vite build && node electron/start.mjs --built",
+    "app:dist": "vite build && electron-builder",
+    "check:ui": "node tools/check-ui.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^44.8.0",
+    "electron-builder": "^26.15.3",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
     "vitest": "^5.0.2"
-  }
+  },
+  "dependencies": {
+    "lucide-react": "^1.58.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "main": "electron/main.mjs"
 }

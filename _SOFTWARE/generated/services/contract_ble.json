@@ -8,6 +8,7 @@
   "alias": "Bluetooth Low Energy (GATT and status)",
   "description": "Manages the dynamic GATT table (creates and removes services and characteristics at runtime), applies the changes, and reads the connection status and transfer parameters.",
   "category": "system",
+  "record": "SYS_ACTIONS_ID_BLE",
   "commands": [
     {
       "id": "SVC_CREATE",
@@ -131,7 +132,10 @@
             "size": 4,
             "offset": 8,
             "unit": "B",
-            "description": "TX buffer size in bytes (0 = no TX)"
+            "min": 0,
+            "max": 4096,
+            "step": 16,
+            "description": "TX buffer size in bytes (0 = no TX); only for a characteristic that notifies or indicates"
           },
           {
             "id": "rx_buffer_size",
@@ -141,7 +145,10 @@
             "size": 4,
             "offset": 12,
             "unit": "B",
-            "description": "RX buffer size in bytes (0 = no RX buffer)"
+            "min": 0,
+            "max": 4096,
+            "step": 16,
+            "description": "RX buffer size in bytes (0 = no RX buffer); only for a characteristic the client writes"
           },
           {
             "id": "desc",

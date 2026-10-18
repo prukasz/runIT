@@ -1,0 +1,16 @@
+# The desktop installer: `npm run app:dist` → release/. The page is bundled by Vite into dist/; the app needs no node_modules.
+appId: org.runit.app
+productName: runIT
+directories:
+  output: release
+files:
+  - dist/**
+  - electron/main.mjs
+  - electron/preload.cjs
+  - package.json
+  - "!node_modules/**"
+win:
+  target: [nsis]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

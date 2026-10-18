@@ -169,5 +169,31 @@
         "size": 17
       }
     }
+  ],
+  "events": [
+    {
+      "id": "SUSPENDED",
+      "event": 0,
+      "code": 0,
+      "label": "Suspended",
+      "description": "The device was suspended: its outputs are safe and it refuses writes until it is resumed. Source 0xFFFF: a sweep (the safe state, a critical fault, SUSPEND of every device) suspended devices.",
+      "notify": true,
+      "symbol": "DEVICE_EV_SUSPENDED",
+      "value": {
+        "description": "Always 0"
+      }
+    },
+    {
+      "id": "RESUMED",
+      "event": 1,
+      "code": 1,
+      "label": "Resumed",
+      "description": "The device works again. Source 0xFFFF: a sweep (RESUME of every device, leaving the safe state) resumed devices.",
+      "notify": true,
+      "symbol": "DEVICE_EV_RESUMED",
+      "value": {
+        "description": "Always 0"
+      }
+    }
   ]
 }

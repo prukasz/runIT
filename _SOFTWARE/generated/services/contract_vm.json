@@ -5,62 +5,62 @@
   "scope": "system",
   "id": "VM",
   "router_key": 11,
-  "alias": "Wirtualna maszyna (VM Core Supervisor)",
-  "description": "Zarządzanie programem wirtualnej maszyny runIT VM: wgrywanie obiektów i bloków, kontrola wykonania (start, pauza, krok) oraz subskrypcja telemetrii.",
+  "alias": "Virtual machine (VM Core Supervisor)",
+  "description": "Managing the program of the runIT VM: loading objects and blocks, controlling the run (start, pause, step) and subscribing to telemetry.",
   "category": "system",
   "commands": [
     {
       "id": "RESET",
       "op": 1,
       "symbol": "VM_OP_RESET",
-      "label": "Reset programu VM",
-      "description": "Usuwa załadowany program i pozostawia maszynę wirtualną w stanie zatrzymanym."
+      "label": "Reset the VM program",
+      "description": "Removes the loaded program and leaves the VM stopped."
     },
     {
       "id": "OPEN",
       "op": 2,
       "symbol": "VM_OP_OPEN",
-      "label": "Otwórz sesję ładowania programu",
-      "description": "Rezerwuje pamięć na obiekty, akcesory i bloki programu o zadanym rozmiarze areny.",
+      "label": "Open a program load session",
+      "description": "Reserves memory for the objects, accessors and blocks of a program, of the given arena size.",
       "args": {
         "struct": "vm_wire_open_t",
         "fields": [
           {
             "id": "obj_cnt",
-            "label": "Liczba obiektów",
+            "label": "Number of objects",
             "type": "integer",
             "raw_type": "u16",
             "size": 2,
             "offset": 0,
-            "description": "Liczba slotów na obiekty danych"
+            "description": "Number of slots for data objects"
           },
           {
             "id": "acc_cnt",
-            "label": "Liczba akcesorów",
+            "label": "Number of accessors",
             "type": "integer",
             "raw_type": "u16",
             "size": 2,
             "offset": 2,
-            "description": "Liczba slotów na akcesory indeksujące"
+            "description": "Number of slots for indexing accessors"
           },
           {
             "id": "blk_cnt",
-            "label": "Liczba bloków",
+            "label": "Number of blocks",
             "type": "integer",
             "raw_type": "u16",
             "size": 2,
             "offset": 4,
-            "description": "Liczba slotów na bloki funkcyjne"
+            "description": "Number of slots for function blocks"
           },
           {
             "id": "total_size",
-            "label": "Rozmiar areny pamięci",
+            "label": "Memory arena size",
             "type": "integer",
             "raw_type": "u32",
             "size": 4,
             "offset": 6,
             "unit": "B",
-            "description": "Łączna pamięć zarezerwowana na program"
+            "description": "Total memory reserved for the program"
           }
         ]
       }
@@ -69,16 +69,16 @@
       "id": "ADD_OBJECTS",
       "op": 3,
       "symbol": "VM_OP_ADD_OBJECTS",
-      "label": "Dodaj obiekty danych",
-      "description": "Rejestruje definicje obiektów zmiennych i stałych programu.",
+      "label": "Add data objects",
+      "description": "Registers the definitions of the program's variable and constant objects.",
       "args": {
         "fields": [
           {
             "id": "data",
-            "label": "Dane obiektów",
+            "label": "Object data",
             "type": "string",
             "raw_type": "bytes",
-            "description": "Sekwencja rekordów obiektów (ogon tail)"
+            "description": "Sequence of object records (runs to the end of the frame)"
           }
         ]
       }
@@ -87,16 +87,16 @@
       "id": "SET_DATA",
       "op": 4,
       "symbol": "VM_OP_SET_DATA",
-      "label": "Ustaw wartości danych",
-      "description": "Wgrywa wartości początkowe obiektów (podczas ładowania) lub modyfikuje wartości w locie (w czasie pracy).",
+      "label": "Set data values",
+      "description": "Loads the initial values of objects (while loading) or changes values at run time.",
       "args": {
         "fields": [
           {
             "id": "data",
-            "label": "Dane wartości",
+            "label": "Value data",
             "type": "string",
             "raw_type": "bytes",
-            "description": "Sekwencja rekordów wartości (ogon tail)"
+            "description": "Sequence of value records (runs to the end of the frame)"
           }
         ]
       }
@@ -105,16 +105,16 @@
       "id": "ADD_ACCESSORS",
       "op": 5,
       "symbol": "VM_OP_ADD_ACCESSORS",
-      "label": "Dodaj akcesory",
-      "description": "Definiuje ścieżki dostępu i indeksowania do struktur i tablic w programie.",
+      "label": "Add accessors",
+      "description": "Defines the access and indexing paths into the structures and arrays of the program.",
       "args": {
         "fields": [
           {
             "id": "data",
-            "label": "Dane akcesorów",
+            "label": "Accessor data",
             "type": "string",
             "raw_type": "bytes",
-            "description": "Sekwencja rekordów akcesorów (ogon tail)"
+            "description": "Sequence of accessor records (runs to the end of the frame)"
           }
         ]
       }
@@ -123,16 +123,16 @@
       "id": "ADD_BLOCK",
       "op": 6,
       "symbol": "VM_OP_ADD_BLOCK",
-      "label": "Dodaj blok logiczny",
-      "description": "Wgrywa pojedynczy blok logiczny w kolejności wykonywania pętli sterowania.",
+      "label": "Add a block",
+      "description": "Loads one block, in the order the control loop runs them.",
       "args": {
         "fields": [
           {
             "id": "data",
-            "label": "Definicja bloku",
+            "label": "Block definition",
             "type": "string",
             "raw_type": "bytes",
-            "description": "Nagłówek bloku, piny i stan (ogon tail)"
+            "description": "Block header, pins and state (runs to the end of the frame)"
           }
         ]
       }
@@ -141,16 +141,16 @@
       "id": "SUBSCRIBE",
       "op": 7,
       "symbol": "VM_OP_SUBSCRIBE",
-      "label": "Subskrypcja telemetrii",
-      "description": "Wybiera obiekty, których wartości mają być cyklicznie strumieniowane jako telemetria do aplikacji (pusta lista czyści subskrypcję).",
+      "label": "Telemetry subscription",
+      "description": "Chooses the objects whose values are streamed to the app as telemetry (an empty list clears the subscription).",
       "args": {
         "fields": [
           {
             "id": "data",
-            "label": "Lista ID obiektów",
+            "label": "List of object IDs",
             "type": "string",
             "raw_type": "bytes",
-            "description": "Sekwencja rekordów subskrypcji (ogon tail)"
+            "description": "Sequence of subscription records (runs to the end of the frame)"
           }
         ]
       }
@@ -159,49 +159,49 @@
       "id": "EXEC",
       "op": 8,
       "symbol": "VM_OP_EXEC",
-      "label": "Sterowanie wykonywaniem programu",
-      "description": "Uruchamia, pauzuje, wznawia, wykonuje pojedynczy krok lub resetuje program VM.",
+      "label": "Control the run of the program",
+      "description": "Starts, pauses, resumes, steps or resets the VM program.",
       "args": {
         "struct": "vm_wire_exec_t",
         "fields": [
           {
             "id": "command",
-            "label": "Polecenie nadzorcy",
+            "label": "Supervisor command",
             "type": "choice",
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
             "options": [
               {
-                "label": "Tryb skanowania (Scan mode)",
+                "label": "Scan mode",
                 "value": 0
               },
               {
-                "label": "Jeden cykl (Once)",
+                "label": "One pass (Once)",
                 "value": 1
               },
               {
-                "label": "Tryb blokowy (Block mode)",
+                "label": "Block mode",
                 "value": 2
               },
               {
-                "label": "Następny blok (Next)",
+                "label": "Next block",
                 "value": 3
               },
               {
-                "label": "Powrót do początku (Reset to start)",
+                "label": "Back to the start (Rewind)",
                 "value": 4
               },
               {
-                "label": "Tryb normalny ciągły (Normal mode)",
+                "label": "Normal mode (continuous)",
                 "value": 5
               },
               {
-                "label": "Pauza (Pause)",
+                "label": "Pause",
                 "value": 6
               },
               {
-                "label": "Wznów (Resume)",
+                "label": "Resume",
                 "value": 7
               },
               {
@@ -209,11 +209,11 @@
                 "value": 8
               },
               {
-                "label": "Potwierdź błąd (Ack fault)",
+                "label": "Acknowledge the fault",
                 "value": 9
               },
               {
-                "label": "Wyczyść wartości podtrzymane (Retain clear)",
+                "label": "Clear the retained values",
                 "value": 10
               }
             ]
@@ -225,19 +225,123 @@
       "id": "SPEED",
       "op": 9,
       "symbol": "VM_OP_SPEED",
-      "label": "Zwolnione tempo (Slow motion)",
-      "description": "Zwalnia tempo wykonywania pętli programu VM celem debugowania na żywo.",
+      "label": "Slow motion",
+      "description": "Slows down the passes of the VM program for debugging live.",
       "args": {
         "struct": "vm_wire_speed_t",
         "fields": [
           {
             "id": "factor",
-            "label": "Współczynnik spowolnienia",
+            "label": "Slow-down factor",
             "type": "integer",
             "raw_type": "u16",
             "size": 2,
             "offset": 0,
-            "description": "1 = normalna prędkość, >1 = zwolnione tempo"
+            "description": "1 = normal speed, more than 1 = slow motion"
+          }
+        ]
+      }
+    },
+    {
+      "id": "STATUS",
+      "op": 10,
+      "symbol": "VM_OP_STATUS",
+      "label": "Read the state of the VM",
+      "description": "Returns whether the program runs (the run mode), whether one is loaded and complete, the latched device fault and the pass statistics.",
+      "returns": {
+        "struct": "vm_wire_status_t",
+        "description": "What the VM is doing and what it holds",
+        "fields": [
+          {
+            "id": "mode",
+            "label": "Run mode",
+            "type": "enum",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "enum": "vm_run_mode_e",
+            "description": "Stopped, running, paused (frozen), or a debugging mode"
+          },
+          {
+            "id": "load_state",
+            "label": "Program storage",
+            "type": "enum",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 1,
+            "enum": "vm_load_state_e"
+          },
+          {
+            "id": "ready",
+            "label": "Program ready",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 2,
+            "description": "A program is loaded and complete: EXEC can start it"
+          },
+          {
+            "id": "fault_latched",
+            "label": "Fault latched",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 3,
+            "description": "A critical device fault stops the VM until EXEC Ack fault"
+          },
+          {
+            "id": "fault_device",
+            "label": "Device of the fault",
+            "type": "device",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 4,
+            "description": "Meaningful only while a fault is latched"
+          },
+          {
+            "id": "slowdown",
+            "label": "Slow-down factor",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 6,
+            "description": "1 = normal speed"
+          },
+          {
+            "id": "fault_root_tag",
+            "label": "Root cause of the fault",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 8,
+            "description": "The error tag at the root of the latched fault (0 if not known); meaningful only while a fault is latched"
+          },
+          {
+            "id": "pass_count",
+            "label": "Passes",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 12,
+            "description": "Passes completed since the statistics were reset"
+          },
+          {
+            "id": "last_pass_us",
+            "label": "Last pass",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 16,
+            "unit": "us"
+          },
+          {
+            "id": "arena_used",
+            "label": "Program memory used",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 20,
+            "unit": "B"
           }
         ]
       }

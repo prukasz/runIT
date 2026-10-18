@@ -57,6 +57,7 @@ Ops never renumber.
 | `0x07` SUBSCRIBE | `u8 n`, n × `vm_wire_sub_t` | Telemetry for those objects; 0 clears |
 | `0x08` EXEC | `vm_wire_exec_t` | `vm_exec_command_e` (scan, once, block, next, rewind, normal, pause, resume, reset, ack fault, forget retained) |
 | `0x09` SPEED | `vm_wire_speed_t` | Slow motion (debugging aid) |
+| `0x0A` STATUS | – | Answers `vm_wire_status_t`: run mode (`vm_run_mode_e`), load state, `ready` (loaded and complete: EXEC can start it), the latched fault (device and root tag, meaningful only while latched), slow-down, pass count, last pass time, arena bytes used. Reads only, at any time |
 
 **Load order**: RESET or OPEN, ADD_OBJECTS, SET_DATA (initial values, PTR links), ADD_ACCESSORS, ADD_BLOCK one by one, then EXEC. The first start checks the program is complete (`vm_loader_verify_complete`).
 
@@ -105,4 +106,4 @@ Boot step `vm` (`vm_init`: event subscription, telemetry, retained values, the s
 
 ## Tests
 
-`.claude/skills/runit-esp/scripts/vm_suite.py` (`--port COM9`, runs on the PCB; `--only`, `--list`, `--skip-hw`): the wire (every op truncated and malformed, fail closed, IDs), objects, accessors, supervisor modes (scan / ONCE, block / NEXT, pause, restart, speed), runtime writes and the override ring, telemetry (limits, split objects, trees, a frame as a command), retained values, loads and limits, and every block (VM_BLOCKS.MD "Tests"). `vm_core_tests.py` is a smaller suite. Not covered: a latched device fault (`vm_stop_on_fault`), the heap-object limit (`CONFIG_VM_DYN_MAX`), BLE as the telemetry transport.
+`.claude/skills/runit-esp/scripts/vm_suite.py` (`--port COM9`, runs on the PCB; `--only`, `--list`, `--skip-hw`): the wire (every op truncated and malformed, fail closed, IDs), objects, accessors, supervisor modes (scan / ONCE, block / NEXT, pause, restart, speed) and what STATUS reads of them, runtime writes and the override ring, telemetry (limits, split objects, trees, a frame as a command), retained values, loads and limits, and every block (VM_BLOCKS.MD "Tests"). `vm_core_tests.py` is a smaller suite. Not covered: a latched device fault (`vm_stop_on_fault`), the heap-object limit (`CONFIG_VM_DYN_MAX`), BLE as the telemetry transport.

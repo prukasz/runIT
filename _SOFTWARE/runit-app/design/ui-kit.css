@@ -1,0 +1,91 @@
+/* ---------- 1. page chrome ---------- */
+* { box-sizing: border-box; }
+body { margin: 0; font: 13px/1.4 system-ui, 'Segoe UI', sans-serif; }
+.stage { min-height: 100vh; background: var(--background); color: var(--active); padding: 20px 24px 60px; }
+.stage h1 { margin: 0 0 4px; font-size: 18px; }
+.stage h2 { margin: 28px 0 6px; padding-bottom: 6px; border-bottom: 1px solid var(--divider); font-size: 13px; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
+.stage p.note { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin: 10px 0 0; padding: 8px 10px; border: 1px solid var(--divider); border-radius: 8px; background: var(--panel); }
+.toolbar label { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer; }
+.toolbar button, .toolbar input[type=search] { height: 28px; padding: 0 10px; border: 1px solid var(--divider); border-radius: 5px; background: var(--background); color: var(--active); font: inherit; font-size: 12px; cursor: pointer; }
+.toolbar input[type=search] { cursor: text; width: 200px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px 22px; align-items: start; }
+.cell { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cell > .cap { font-size: 11px; color: var(--muted); }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.panel { width: 360px; max-width: 100%; padding: 8px 0; border: 1px solid var(--divider); border-radius: 8px; background: var(--panel); }
+.anatomy { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 12px; font-size: 11px; color: var(--muted); }
+.anatomy span { padding: 2px 7px; border: 1px dashed var(--divider); border-radius: 4px; }
+svg.i { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* the page's icon helper must not override the sizes the app's own components set */
+svg.i.field-adornment-icon { width: 13px; height: 13px; }
+.tree-slab-disclosure svg.i { width: 13px; height: 13px; }
+.shell .tree-slab-action svg.i { width: 16px; height: 16px; }
+.object-type-icon svg.i { width: 15px; height: 15px; stroke-width: 2.2; }
+.device-tile.is-medium svg.i { width: 18px; height: 18px; }
+.device-tile.is-small svg.i { width: 14px; height: 14px; }
+.ref-pill.is-compact .device-tile.is-small svg.i { width: 11px; height: 11px; }
+
+.object-type-icon.bool[data-bool], #boolbadge { cursor: pointer; }
+.object-type-icon.bool svg.i { width: 18px; height: 18px; }
+
+/* ---------- new in this kit: what the backend has and the first mock had not ---------- */
+/* link bar: the state of RunitLink, the dead-man and the safe state */
+.linkbar { position: sticky; top: 0; z-index: 30; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: -20px -24px 14px; padding: 8px 24px; border-bottom: 1px solid var(--divider); background: var(--panel); }
+.linkbar .grow { flex: 1; }
+.link-chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border: 1px solid var(--divider); border-radius: 12px; font-size: 12px; background: var(--background); }
+.link-chip::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.link-chip.is-connected::before { background: var(--status-ok); }
+.link-chip.is-connecting::before, .link-chip.is-reconnecting::before { background: var(--color-amber); animation: pulse 1s ease-in-out infinite; }
+.link-chip.is-closed::before, .link-chip.is-idle::before { background: var(--status-lost); }
+@keyframes pulse { 50% { opacity: .3; } }
+.safe-banner { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; padding: 8px 12px; border: 1px solid var(--error); border-radius: 8px; background: var(--error-bg); }
+.safe-banner[hidden] { display: none; }
+.safe-banner b { color: var(--error); }
+.safe-banner svg.i { width: 18px; height: 18px; color: var(--error); }
+.btn { height: 28px; padding: 0 10px; border: 1px solid var(--divider); border-radius: 5px; background: var(--background); color: var(--active); font: inherit; font-size: 12px; cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.is-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* two columns of panels */
+.cols { display: flex; flex-wrap: wrap; gap: 18px 24px; align-items: flex-start; }
+.cols > .col { min-width: 0; }
+.panel.wide { width: 440px; }
+.tile-note { padding: 2px 12px 6px 52px; }
+
+/* variable value editors */
+.value-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
+.value-row .form-field-control { width: 100px; }
+.bytes { font-size: 11px; color: var(--muted); }
+.bytes.is-over { color: var(--error); }
+
+/* pins of a device */
+.pins { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 12px 10px 52px; }
+.pin-chip { height: 22px; padding: 0 8px; border: 1px solid var(--divider); border-radius: 6px; background: var(--background); color: var(--active); font: inherit; font-size: 11px; cursor: pointer; }
+.pin-chip.is-error { border-color: var(--error); background: var(--error-bg); color: var(--error); }
+.pin-chip.is-locked { color: var(--muted); border-style: dashed; }
+
+/* a block on the canvas list: pins are the things errors point at */
+.block-tile { margin: 4px 8px; border: 1px solid var(--divider); border-radius: 8px; background: var(--background); }
+.block-tile.is-error { border-color: var(--error); background: var(--error-bg); box-shadow: inset 3px 0 var(--error); }
+.block-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-weight: 600; }
+.block-pins { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 8px 8px; }
+.block-pin { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border: 1px solid var(--divider); border-radius: 11px; font-size: 11px; background: var(--panel); }
+.block-pin.is-input { border-color: color-mix(in srgb, var(--color-teal) 45%, var(--divider)); }
+.block-pin.is-output { border-color: color-mix(in srgb, var(--color-amber) 45%, var(--divider)); }
+.block-pin.is-enable { border-color: color-mix(in srgb, var(--color-blue, var(--accent)) 45%, var(--divider)); }
+.block-pin.is-error { border-color: var(--error); background: var(--error-bg); color: var(--error); font-weight: 600; }
+
+/* the error log: the entries are ErrorEntry's (src/ui/components/ErrorEntry); the kit's own title line */
+.panel .err-entry { margin: 6px 8px; cursor: pointer; }
+.err-title { font-size: 10px; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
+
+/* catalog palette and the add-device form */
+.catalog-row { cursor: pointer; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; padding: 10px 12px; }
+.form-grid label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--muted); }
+.form-grid .span2 { grid-column: 1 / -1; }
+.form-grid .form-field-control { width: 100%; }
+.mini-note { font-size: 11px; color: var(--muted); padding: 0 12px 8px; }
+

@@ -17,7 +17,10 @@
       {
         "matcher": "Grep|Glob",
         "hooks": [
-          { "type": "command", "command": "sh tools/graphify_hint.sh" }
+          {
+            "type": "command",
+            "command": "sh tools/graphify_hint.sh"
+          }
         ]
       }
     ],
@@ -25,7 +28,21 @@
       {
         "matcher": "startup|clear",
         "hooks": [
-          { "type": "command", "command": "cat .claude/skills/runit-root/SKILL.md" }
+          {
+            "type": "command",
+            "command": "cat .claude/skills/runit-root/SKILL.md"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node runit-app/tools/check-ui.mjs --hook"
+          }
         ]
       }
     ]

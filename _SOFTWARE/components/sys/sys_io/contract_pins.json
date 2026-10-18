@@ -33,6 +33,7 @@
     {
       "id": "LOCK",
       "op": 2,
+      "invasive": true,
       "label": "Lock pin",
       "description": "Claims a pin for another device (refused if it is locked).",
       "symbol": "PINS_OP_LOCK",
@@ -54,6 +55,7 @@
     {
       "id": "UNLOCK",
       "op": 3,
+      "invasive": true,
       "label": "Unlock pin",
       "description": "Releases a claimed pin.",
       "symbol": "PINS_OP_UNLOCK",
@@ -75,6 +77,7 @@
     {
       "id": "SET_LOCKED_LEVEL",
       "op": 4,
+      "invasive": true,
       "label": "Set locked level",
       "description": "The owner of a locked pin drives it.",
       "symbol": "PINS_OP_SET_LOCKED_LEVEL",

@@ -5,15 +5,21 @@
   generated/services/   contract_*.json with scope "system"
   generated/blocks/     block_*.json                           (components/vm/vm_blocks/**/)
   generated/common/     errors.json, board.json                (enums.json is written there by generate_enums.py)
+  generated/manuals/<id>/  manual.md and its pictures            (components/devices/device_*/manual/)
+  generated/sources/<id>/  the device's own .c and .h            (components/devices/device_*/)
 
 A copy is the same JSON with its `$schema` pointing at templates/ from the new place. Copies of descriptors that no longer
-exist are deleted from the four folders. Nothing in generated/ is edited by hand.
+exist are deleted from the four folders. The manual and the source copies are byte-for-byte, keyed by the device's `id`; the
+pictures are the manual folder's image files. Nothing in generated/ is edited by hand.
 
 Usage: python templates/generate_bundle.py [--check]
 """
 import json
+import re
 
 from _common import CHECK, COMPONENTS_DIR, GENERATED, fail, read, render, rel, sources, sync_file
+
+IMAGES = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp")
 
 ERRORS = COMPONENTS_DIR / "core" / "errors" / "errors.json"
 BOARD = COMPONENTS_DIR / "app" / "runit" / "board.json"
@@ -51,17 +57,54 @@ def copy_of(source, schema, target):
     return {"$schema": "../" * depth + f"templates/{schema}", **document}
 
 
+def docs_plan():
+    """{path under generated/: source file} of every device's manual and of its code copy (generated/manuals/<id>/, generated/sources/<id>/)."""
+    files = {}
+    for descriptor in sources(".json"):
+        if not descriptor.name.startswith("device_"):
+            continue
+        ident = json.loads(read(descriptor))["id"]
+        folder = descriptor.parent
+        for code in sorted(folder.glob("device_*.[ch]")):
+            files[f"sources/{ident}/{code.name}"] = code
+        manual = folder / "manual"
+        # manual.md is English; manual.<lang>.md (manual.pl.md) is the same page in another language.
+        for text in sorted(manual.glob("manual*.md")) if manual.is_dir() else []:
+            if re.fullmatch(r"manual(\.[a-z]{2})?\.md", text.name):
+                files[f"manuals/{ident}/{text.name}"] = text
+        for picture in sorted(p for p in manual.glob("*") if p.suffix.lower() in IMAGES) if manual.is_dir() else []:
+            files[f"manuals/{ident}/{picture.name}"] = picture
+    return files
+
+
+def sync_bytes(out, data):
+    """Makes `out` hold `data`; with --check nothing is written. True when `out` was not up to date."""
+    if out.exists() and out.read_bytes() == data:
+        return False
+    if not CHECK:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(data)
+    return True
+
+
 def main():
     files = plan()
+    docs = docs_plan()
+    stale_docs = [p for root in ("manuals", "sources") for p in sorted((GENERATED / root).rglob("*")) if p.is_file() and p.relative_to(GENERATED).as_posix() not in docs]
     stale = [p for folder in MANAGED for p in sorted((GENERATED / folder).glob("*.json")) if f"{folder}/{p.name}" not in files]
     changed = [target for target, (source, schema) in sorted(files.items()) if sync_file(GENERATED / target, render(copy_of(source, schema, target)))]
+    changed += [target for target, source in sorted(docs.items()) if (sync_bytes(GENERATED / target, source.read_bytes()) if source.suffix.lower() in IMAGES else sync_file(GENERATED / target, read(source)))]
+    for path in stale_docs:
+        changed.append(f"{rel(path)} (stale)")
+        if not CHECK:
+            path.unlink()
     for path in stale:
         changed.append(f"{rel(path)} (stale)")
         if not CHECK:
             path.unlink()
     if CHECK and changed:
         fail(f"generated/ is out of date ({len(changed)}: {', '.join(changed[:5])}{' ...' if len(changed) > 5 else ''}): run python templates/generate_bundle.py")
-    print(f"generated/ is up to date ({len(files)} copies)" if CHECK else f"generated/: {len(files)} copies, {len(changed)} changed, {len(stale)} stale removed")
+    print(f"generated/ is up to date ({len(files) + len(docs)} copies)" if CHECK else f"generated/: {len(files) + len(docs)} copies, {len(changed)} changed, {len(stale) + len(stale_docs)} stale removed")
 
 
 if __name__ == "__main__":

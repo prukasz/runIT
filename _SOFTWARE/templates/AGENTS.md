@@ -16,17 +16,42 @@
 
 Each descriptor names its schema in `$schema`. A descriptor is found by its file name pattern (`device_*.json`, `contract_*.json`), so a new device or contract needs no registration.
 
+A field of type `bitmask` names its bits in `bits` (`{bit, label}`): the app offers only those, as chips. A bit the descriptor does not name is not a choice.
+
+A pin field (`type: pin`) says the mode its pin must have in `requires` (`output`, `pwm`, `adc`, ...): the app lists only the pins of devices with that mode. An output that wants a PWM pin names `pwm`, not `output`.
+
+**Every text a user reads is English**: the `alias`, `label`, `description` and `title` of a descriptor, the `@alias` / `@description` of a marker and the `message` of an error. The schemas' own `description` fields document the format for developers.
+
 ## Descriptors generated from C
 
 | Generator | Output | Schema |
 |---|---|---|
 | `generate_enums.py` | `generated/common/enums.json` | `enums.schema.json` |
 | `generate_limits.py` | `generated/common/limits.json` | `limits.schema.json` |
-| `generate_errors.py` | `components/core/errors/errors.json` | `errors.schema.json` |
+| `generate_errors.py` | `components/core/errors/errors.json` | `errors.schema.json`; its input `errors_<module>.json`: `error-texts.schema.json` |
 
 Generators are named `generate_<what>.py`, take `--check` and share their helpers in `_common.py`. Generated files are not edited by hand. Re-run them after changing a marked enum or define group (`generate_enums.py`), a `#@limit` Kconfig option or its value in `sdkconfig` (`generate_limits.py`) or an `ERR_MODULE_DEFINE` / `ERR_*_MAP` (`generate_errors.py`), or just run the synchronization below.
 
 `generate_errors.py` reads `ERR_MOD_*` from `components/core/errors/err_modules.h`, and the `ERR_MODULE_DEFINE` and `ERR_*_MAP` macros from the headers under `components/`.
+
+### Errors: what a user reads, what an error is about
+
+Each error module has `errors_<module name>.json` next to the header of its map (`components/sys/sys_i2c/errors_sys_i2c.json`, schema `error-texts.schema.json`), written by hand:
+
+```json
+{ "module": "ERR_MOD_SYS_IO", "errors": {
+  "ERR_IO_PIN_IN_USE": { "message": "{pin} of {id} is already set up as {mode}", "fields": { "mode": { "enum_ref": "sys_io_mode_e" } } } } }
+```
+
+- **Every error has a `message`**: the template the app shows. `{field}` is a field of the error's payload; the app fills in the instance's name for an id field, the member's alias for an `enum_ref` field, the number with its unit otherwise. A message for a context error (severity NONE, `"context": true` in errors.json) says where (`In {id}`), not what went wrong.
+- **A `hint`** (optional) says what the user can do about it, in a sentence or two (`"Set the pin's mode first (Devices: the pin's Mode, or Set mode), then use it."`), with `{field}`s as the message; the app shows it under the message. An error a user cannot act on (a broken frame of the app, a call of the firmware) has none. The C comment in the map is the error's `description`, for developers, and is not shown as the message's explanation.
+- **What a field refers to** (`id_kind`, one of `id_kinds` in errors.json: `device`, `pin`, `channel`, `vm_object`, `vm_accessor`, `vm_block`, `vm_block_input`, `action`, ...) is what lets the app attach an error to an instance. The generator takes it from the field's name per module (`MODULE_ID_KINDS`), from a `/* @id kind */` note in the map, and from `fields` here, which wins (`"id_kind": null`: not an id). `id_kind_by` picks the kind by another field's enum member (`{ "field": "kind", "kinds": { "VM_REF_KIND_IN": "vm_accessor", ... } }`, or by number when that field has no `enum_ref`); `enum_ref` names a group of `enums.json`.
+- **Scoped kinds** (`scope` in `id_kinds`: a pin or a channel is numbered within a device, a block pin within a block): the generator sets `of` to the one field of the scope's kind in the same error; with two such fields `of` must be given here.
+- The generator fails on an error without a message, a `{name}` of the message or the hint that is not a field, an unknown kind, an `of` that is not a field of the scope's kind, a member that is not in the enum group, and an `errors_*.json` that matches no module. A new error tag needs its entry here in the same change.
+
+### Command pins: `pin_state`
+
+A command of a device contract whose field is of type `pin` (the device's own pin) says in which state the pin must be, `"pin_state": ["output"]` (any of the listed): `unconfigured` (no mode yet: SET_MODE), `configured` (any mode: RESET), `input` / `output` (digital modes), `pwm`, `adc`, `dac`. The app lists only the pins in such a state (`contract.schema.json`; `requires` on a config's pin reference is another thing: the mode the referenced pin must be able to take). A device whose pins are in a mode right after reset says it in `provides.pins.default_mode` (`input` for the TCA6424A, `adc` for the ADS7128); without it a pin has no mode until SET_MODE gives one (the ESP GPIO). A command that takes a pin and has no `pin_state` is offered every pin that is not reserved or managed by another device. A new IO-style command needs it in the same change.
 
 ## The `generated/` bundle (what the app reads)
 
@@ -38,9 +63,11 @@ Generators are named `generate_<what>.py`, take `--check` and share their helper
 | `generated/contracts/` | `contract_*.json` with `scope` `device` (or none) | `components/sys/*/` and others |
 | `generated/services/` | `contract_*.json` with `scope` `system` | the same places |
 | `generated/blocks/` | `block_*.json` | `components/vm/vm_blocks/**/` |
-| `generated/common/` | `enums.json` (written by `generate_enums.py`), `limits.json` (written by `generate_limits.py`), `errors.json`, `board.json` | generated / `components/core/errors/`, `components/app/runit/` |
+| `generated/manuals/<id>/` | `manual.md` and the pictures beside it (`.png`, `.jpg`, `.gif`, `.svg`, `.webp`), keyed by the device's `id` | `components/devices/*/manual/` |
+| `generated/sources/<id>/` | the device's own `device_*.c` and `device_*.h`, a copy for the app's device page (read only) | `components/devices/*/` |
+| `generated/common/` | `enums.json` (written by `generate_enums.py`), `limits.json` (written by `generate_limits.py`), `errors.json` (with every module's messages), `board.json` | generated / `components/core/errors/`, `components/app/runit/` |
 
-A copy is the source with `$schema` rewritten to point at `templates/` from its folder. The script also deletes copies whose source is gone. A new device or contract appears in the bundle by its file name; there is no list to edit. The source stays in `components/`; edit it there, never in `generated/`.
+A device's manual is written by hand in `components/devices/device_<chip>/manual/manual.md` (English). Another language is `manual.<lang>.md` beside it (`manual.pl.md` is Polish); the app shows the reader's language and falls back to English. Pictures sit in the same folder, named in the markdown as `![alt](name.png)`. The manual describes the chip; a picture is an example board. The manual and the code copy are read by the app's device page; a device without a manual folder shows "No manual yet". A copy is the source with `$schema` rewritten to point at `templates/` from its folder. The script also deletes copies whose source is gone. A new device or contract appears in the bundle by its file name; there is no list to edit. The source stays in `components/`; edit it there, never in `generated/`.
 
 ### What is published: only what is marked
 
@@ -83,6 +110,12 @@ config VM_BLOCK_MAX_IN
 
 The interpretation of a contract (what an operation does) lives in code and is core. Everything the app shows, validates or encodes comes from these descriptors, so a new device, contract, enum member or error needs a descriptor, not a code change in the app.
 
+A service command that writes a board setting names the command that reads it back: `"read_by": "GET"` (`contract.schema.json`). The read takes no arguments and answers a struct with every field the write takes (it may answer more: `PROJECT OPTIONS` is read by `INFO`). The app's Project screen shows exactly these writes as settings, read when the board connects; a write without the mark is never offered there, and nothing else is ever sent as a read. The dead-man (`SYS DEADMAN_SET`, read by `DEADMAN_GET`) is marked and has no `record` on purpose: the board keeps it in RAM only and starts as built (off), so a board that restarts runs its program offline; the app writes it at once (Apply now) and never stores it in the project.
+
+Where the setting is kept: a write with `"record": "SYS_ACTIONS_ID_…"` (a member of `settings_record`, published from `sys_actions.h`) is the **project's**: the app writes its frame as that settings record, a section of the stored project, so it is applied at every start. Without `record` the board keeps the setting itself (`PROJECT OPTIONS`): the app writes it at once. A write may also take a whole table as bytes (`SET_RESPONSES`): its read then answers an array of rows (`"array": true`), the row's target first and an array field whose element *i* is the member of value *i* of the enum `index_enum` names (`sys_power_kind_e`): the columns. A service whose settings are one record (`"record"` on the service: BLE's GATT table, the data streams) has an editor in the app (`runit-app/src/app/settings/`), which still takes the commands and their fields from the descriptor.
+
+A command that changes the pin, channel or device it is given (a write: set a level, drive, lock, configure an alert) carries `"invasive": true` (`contract.schema.json`, `device.schema.json`); a read does not. The app offers a pin another device manages to reads only, so a new write without the flag would let a user take over a pin its owner drives.
+
 ## Synchronization
 
 ```sh
@@ -90,4 +123,4 @@ sh templates/sync.sh            # regenerate enums.json and errors.json, refresh
 sh templates/sync.sh --check    # CI: fail when a generated file or a copy in generated/ is out of date, then validate
 ```
 
-Run it after any change to a descriptor, a schema, a marked enum or define group, or an error map; the commit should leave it green. `sync.sh` runs `generate_enums.py`, `generate_limits.py`, `generate_errors.py`, `generate_bundle.py`, `validate_schemas.py` and `crosscheck.py`. `crosscheck.py` checks what no single schema can: a device's `contracts` name existing contracts; a VM block's `wire_id` is unique, below `VM_BLOCK_TYPES_MAX` and equals `VM_BLK_<ID>` of `components/vm/vm_core/block/vm_block_ids.h`, and its `state_len` equals the `.state_len` of its `VM_BLOCK_TYPE_DEFINE` (a `sizeof` that a `_Static_assert` pins to a number; 0 when the definition names none), and the `idle` options of a device block are 0 or an op code (`(contract_id << 8) | op`, or `0xFF00 | op` for a device's own command); `device.contract` / `device.device_type` exist; a block's `opcodes.enum` (the opcode group of an expression block, with the type of its constants) is published in `enums.json` and the block has an `editor`; a variant's `op` is a command of that contract and its `args` keys are arguments of that command; `fixed` / `default` / condition values are members of the enum group, options or contract choice they refer to; `{name}` in a header or body is a field, argument, pin, `device` or `variant`; a condition names a field of the block, `device.<config id>` of the block's `device_type` (a contract block has no device config to name) or a variant. Block types without a descriptor are listed, not failed. The validator checks every descriptor (devices, contracts, VM blocks, errors, board, enums, limits) against its schema (JSON Schema 2020-12) and that each enum a descriptor names (`"enum"` of a field, `enum_ref` of an error field) is published in `enums.json`. `sync.sh` uses the Python of the repository's `.venv` (agents run it that way too), falling back to `python`; `PYTHON=<interpreter>` overrides it. The validator needs `jsonschema` in that Python (`.venv/Scripts/python.exe -m pip install jsonschema`).
+Run it after any change to a descriptor, a schema, a marked enum or define group, or an error map; the commit should leave it green. `sync.sh` runs `generate_enums.py`, `generate_limits.py`, `generate_errors.py`, `generate_bundle.py`, `validate_schemas.py` and `crosscheck.py`. `crosscheck.py` checks what no single schema can: a device's `contracts` name existing contracts; a VM block's `wire_id` is unique, below `VM_BLOCK_TYPES_MAX` and equals `VM_BLK_<ID>` of `components/vm/vm_core/block/vm_block_ids.h`, and its `state_len` equals the `.state_len` of its `VM_BLOCK_TYPE_DEFINE` (a `sizeof` that a `_Static_assert` pins to a number; 0 when the definition names none), and the `idle` options of a device block are 0 or an op code (`(contract_id << 8) | op`, or `0xFF00 | op` for a device's own command); `device.contract` / `device.device_type` exist; a block's `opcodes.enum` (the opcode group of an expression block, with the type of its constants) is published in `enums.json` and the block has an `editor`; a variant's `op` is a command of that contract and its `args` keys are arguments of that command; `fixed` / `default` / condition values are members of the enum group, options or contract choice they refer to; `{name}` in a header or body is a field, argument, pin, `device` or `variant`; a condition names a field of the block, `device.<config id>` of the block's `device_type` (a contract block has no device config to name) or a variant. Block types without a descriptor are listed, not failed. The validator checks every descriptor (devices, contracts, VM blocks, errors and the `errors_<module>.json` texts, board, enums, limits) against its schema (JSON Schema 2020-12) and that each enum a descriptor names (`"enum"` of a field, `enum_ref` of an error field) is published in `enums.json`. `sync.sh` uses the Python of the repository's `.venv` (agents run it that way too), falling back to `python`; `PYTHON=<interpreter>` overrides it. The validator needs `jsonschema` in that Python (`.venv/Scripts/python.exe -m pip install jsonschema`).

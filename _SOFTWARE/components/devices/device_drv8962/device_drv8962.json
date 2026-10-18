@@ -114,6 +114,7 @@
     {
       "id": "set_current_limit",
       "op": 0,
+      "invasive": true,
       "symbol": "DRV8962_OP_SET_CURRENT_LIMIT",
       "label": "Set current limit",
       "description": "Sets the chopping current limit of a channel; VREF follows the largest",
@@ -150,6 +151,7 @@
     {
       "id": "clear_fault",
       "op": 1,
+      "invasive": true,
       "symbol": "DRV8962_OP_CLEAR_FAULT",
       "label": "Clear fault",
       "description": "Clears fault latches with an nSLEEP reset pulse; the channel brakes",

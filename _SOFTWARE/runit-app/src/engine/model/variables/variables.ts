@@ -18,6 +18,8 @@ interface VariableBase {
   /** What the user calls it and what a path can name it by: 1..NAME_MAX bytes of UTF-8, unique among its siblings. */
   readonly name: string
   readonly description?: string
+  /** The app watches it live (a SUBSCRIBE of its object while the program runs). Not part of the program: the compiler ignores it. */
+  readonly subscribed?: boolean
 }
 
 export interface ValueVariable extends VariableBase {
@@ -129,7 +131,7 @@ export const removeVariable = (tree: readonly Variable[], id: string): Variable[
 export const updateVariable = (
   tree: readonly Variable[],
   id: string,
-  patch: Partial<Omit<ValueVariable, 'kind' | 'id'>> | Partial<Omit<ReferenceVariable, 'kind' | 'id'>> | Partial<Pick<FolderVariable, 'name' | 'description'>>,
+  patch: Partial<Omit<ValueVariable, 'kind' | 'id'>> | Partial<Omit<ReferenceVariable, 'kind' | 'id'>> | Partial<Pick<FolderVariable, 'name' | 'description' | 'subscribed'>>,
 ): Variable[] => mapTree(tree, (v) => (v.id === id ? ({ ...v, ...patch } as Variable) : v))
 
 export const renameVariable = (tree: readonly Variable[], id: string, name: string): Variable[] => updateVariable(tree, id, { name })

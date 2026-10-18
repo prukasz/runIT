@@ -1,0 +1,60 @@
+{
+  "$schema": "../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_BLE",
+  "errors": {
+    "ERR_BLE_STACK": {
+      "message": "Bluetooth failed (code {rc})"
+    },
+    "ERR_BLE_ADV": {
+      "message": "The board could not start advertising (code {rc})"
+    },
+    "ERR_BLE_GATT": {
+      "message": "Bluetooth service {uuid} could not be changed (code {rc})"
+    },
+    "ERR_BLE_SVC_LOCKED": {
+      "message": "Bluetooth service {uuid} cannot be changed",
+      "hint": "This service belongs to the board: add a service of your own instead."
+    },
+    "ERR_BLE_UUID_TAKEN": {
+      "message": "Bluetooth {uuid} is already in use",
+      "hint": "Choose another UUID."
+    },
+    "ERR_BLE_NOT_FOUND": {
+      "message": "Bluetooth {uuid} does not exist",
+      "hint": "Check the UUID, or apply the Bluetooth settings first."
+    },
+    "ERR_BLE_NO_MEM": {
+      "message": "No memory for Bluetooth {uuid} ({size} bytes)",
+      "hint": "Make the buffers smaller, or remove a characteristic you do not need."
+    },
+    "ERR_BLE_NO_TX": {
+      "message": "Bluetooth {uuid} cannot send",
+      "hint": "Give the characteristic a send buffer with notify or indicate."
+    },
+    "ERR_BLE_NO_RX": {
+      "message": "Bluetooth {uuid} cannot receive",
+      "hint": "Give the characteristic a receive buffer and allow write."
+    },
+    "ERR_BLE_TX_FULL": {
+      "message": "Bluetooth {uuid} is full: {len} bytes were not sent",
+      "hint": "Send less often, or make the send buffer larger."
+    },
+    "ERR_BLE_RX_FULL": {
+      "message": "Bluetooth {uuid} is full: {len} bytes received were dropped",
+      "hint": "Write less often, or make the receive buffer larger."
+    },
+    "ERR_BLE_TOO_LONG": {
+      "message": "{len} bytes are too long for Bluetooth {uuid} (at most {max})",
+      "hint": "Send less at once, or make the buffer larger."
+    },
+    "ERR_BLE_BAD_ARG": {
+      "message": "A Bluetooth setting is not valid"
+    },
+    "ERR_BLE_FRAG": {
+      "message": "Bluetooth {uuid}: a packet came out of order and its frame was dropped"
+    },
+    "ERR_BLE_RX_HANDLER": {
+      "message": "Bluetooth {uuid} already has a receiver"
+    }
+  }
+}

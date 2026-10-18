@@ -9,6 +9,12 @@
  * VM_OBJ_ID_DYN_BIT | dyn_id, or VM_OBJ_ID_NONE) for vm_obj_lookup_by_id(). */
 
 // clang-format off
+//#ref-defines vm_ref_kind @alias Block wiring point @prefix VM_REF_KIND_
+#define VM_REF_KIND_IN 0   //@alias Input @description An input pin: an accessor
+#define VM_REF_KIND_OUT 1  //@alias Output @description An output pin: an object
+#define VM_REF_KIND_EN 2   //@alias Enable @description An enable source: an accessor
+#define VM_REF_KIND_ENO 3  //@alias ENO @description The enable output: an object
+
 #define ERR_VM_MAP(X) \
   X(ERR_VM_ALLOC_EXHAUSTED, ERR_TAG(ERR_MOD_VM, 1), ERR_SEV_HIGH, { uint32_t requested; uint32_t remaining; }) \
   X(ERR_VM_ACCESSOR_UNKNOWN_ID, ERR_TAG(ERR_MOD_VM, 2), ERR_SEV_LOW, { uint16_t id; }) \

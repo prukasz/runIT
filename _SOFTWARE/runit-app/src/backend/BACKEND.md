@@ -8,18 +8,19 @@ await link.connect(await platform.requestDevice())            // a user gesture;
 link.onStatus((s) => …)                                       // { state, reason?, attempt? }
 link.onStream((f) => …)                                       // telemetry / logs / errors / events: { stream, name, data }
 const out = await link.request({ keys: [defs.keys.sys, 0x01] }) // PING; keys = root key, then the op
-await sendProgram(link, engine.compile(project).frames, { onProgress: (done, total) => … })   // in order, each answered
+await loadProgram(link, engine.compile(project).frames, { onProgress: (done, total) => … })   // in order, each answered; again from OPEN if the link fails
 ```
 
 ## Layout (dependencies point down)
 
 | Module | What it is |
 |---|---|
-| `definitions.ts` | The only file that reads `generated/`: router keys, flags, status, stream bytes, the runIT GATT UUIDs and the fragment bits (`ble_runit_uuid`, `ble_frag` in `enums.json`), `ROUTER_FRAME_MAX` (`limits.json`), the error tags (`errors.json`); and every service, contract and device descriptor (`bundledServiceCatalog`, a glob: a new file is picked up). A symbol the firmware stops publishing stops the load with a message that names it. |
-| `catalog/` | `services.ts`: `ServiceCatalog`, every command of every router as the descriptors describe it, and what does not hold together in them (`problems`). `codec.ts`: a payload from field values and back, by the descriptor's layout. |
-| `protocol/` | `frames.ts`: request `[seq][flags][keys…][payload]`, response `[stream][seq][status][data]` (ROUTER.MD). `errors.ts`: the error record (source, command, chain of tags with their fields, named from `errors.json`). `services.ts`: the request of any catalog command and its answer decoded. |
-| `transport/` | `types.ts`: what a BLE platform provides (`requestDevice`, `knownDevices`, `open` → a channel to write packets to, packets and a loss notice back). `framing.ts`: a frame to packets and back, as the firmware does it (SYS_BLE.MD "Framing"). `webBluetooth.ts`: the Web Bluetooth platform. |
-| `session/` | `commands.ts`: sequence bytes, answers by seq, timeouts, pipelining, answers in parts. `link.ts`: `RunitLink`, the connection. `send.ts`: `sendInOrder` / `sendProgram`, a list of requests sent in order. `services.ts`: `Services`, the catalog's commands over the link. `deadman.ts`: `DeadMan`, the board's dead-man armed and fed. `project.ts`: stored records, the project stream, reading a project back. |
+| `definitions.ts` | The only file that reads `generated/` (the firmware's own actions: `onboardActions`, `RUNIT_ACTION_ID_*`): router keys, flags, status, stream bytes, the runIT GATT UUIDs and the fragment bits (`ble_runit_uuid`, `ble_frag` in `enums.json`), `ROUTER_FRAME_MAX` (`limits.json`), the error tags (`errors.json`); every service, contract and device descriptor (`bundledServiceCatalog`, a glob: a new file is picked up); the board (`bundledBoard`, `board.json`: its devices, the pins each uses, I2C buses, the pins set up at boot and the reserved ones) and the firmware's onboard action IDs (`onboardActionIds`, the `RUNIT_ACTION_ID_*` limits). A symbol the firmware stops publishing stops the load with a message that names it. |
+| `catalog/` | `services.ts`: `ServiceCatalog`, every command of every router as the descriptors describe it (a device type also its pins, `provides.pins`, and its config presets), and what does not hold together in them (`problems`). `codec.ts`: a payload from field values and back, by the descriptor's layout. |
+| `protocol/` | `frames.ts`: request `[seq][flags][keys…][payload]`, response `[stream][seq][status][data]` (ROUTER.MD). `errors.ts`: the error record (source, command, chain of tags with their fields, named from `errors.json`). `events.ts`: `decodeEvent`, a frame of the events stream (`[event key][NOTIFY][sys_event_t]`, SYS_EVENT.MD) with its contract and its row of that contract's `events` table (`SUSPENDED` of a device, an over-current). `services.ts`: the request of any catalog command and its answer decoded; `readDeviceFrame`, a device frame of a record back into its command and arguments (a CREATE into the type and its config). |
+| `errors/` | `interpret.ts`: `ErrorInterpreter`, an error record read for a user (messages, the instances it is about as `Ref`s). `program.ts`: `programRefs` / `deviceRefs`, the app's names for those instances. |
+| `transport/` | `types.ts`: what a BLE platform provides (`requestDevice`, `knownDevices`, `forget` (drops the permission for a board: only the chooser offers it again), `open` → a channel to write packets to, packets and a loss notice back). `framing.ts`: a frame to packets and back, as the firmware does it (SYS_BLE.MD "Framing"). `webBluetooth.ts`: the Web Bluetooth platform. |
+| `session/` | `commands.ts`: sequence bytes, answers by seq, timeouts, pipelining, answers in parts. `link.ts`: `RunitLink`, the connection. `send.ts`: `sendInOrder` / `sendProgram`, a list of requests sent in order; `loadProgram`, a program loaded with retries and a RESET when it gives up. `services.ts`: `Services`, the catalog's commands over the link. `deadman.ts`: `DeadMan`, the board's dead-man armed and fed. `safestate.ts`: `leaveSafeState`, every device resumed and the program started again. `errorlog.ts`: `ErrorLog`, the board's errors kept for a user. `project.ts`: stored records, the project stream, reading a project back. |
 
 ## Every command, from the descriptors
 
@@ -37,25 +38,28 @@ const { value } = await services.call('SYS', 'PING')                            
 await services.call('SYS', 'DEADMAN_SET', { timeout_ms: 500, on_link_lost: true })
 await services.device(3, 'IO', 'SET_LEVEL', { pin: 22, level: 'High' })         // a choice by its label, an enum by its member name
 await services.device(9, 'servo', 'set', { value_x10: 900 })                     // a device type's own op
-await services.create(20, 'servo', { … })                                         // the fields of device_servo.json's config
+await services.create(20, 'servo', { pwm_pin: { device: 3, pin: 0 }, … })        // the fields of device_servo.json's config; a pin is { device, pin }
 storeRecord(link, 10, [requestFrame(deviceCall(defs, catalog, 3, 'IO', 'TOGGLE', { pin: 22 }).request)])   // the same request in a record
+readDeviceFrame(defs, catalog, frame, (id) => typeOfDevice(id))                  // a frame read back: { device, entry, command, args } or { …, create: { type, config } }
 ```
 
 - **Layout**: a field sits at its `offset` (or after the one before), is `size` bytes (or its `raw_type`'s width); a number field of several widths is an array (`u32` of 16 B is a list of 4); a `bytes` / `string` field without a size runs to the end and is last; a `string` ends in one NUL (`cmd_name_arg`). Little endian.
-- **Values** are given by field id. A missing field takes its `default`, an optional one zero; else the call throws `PayloadError`, as it does for a field id that is not there, a value outside the raw type or the descriptor's `min` / `max`, and an unknown choice label or enum member. A command marked `urgent` is sent urgent.
-- **Answers** are decoded by `returns`: a struct by field id (booleans as booleans), a value, or a list of either. A value that only leads the answer (a count, the rest described in words: `CONNECTOR INFO`, `BLE LIST`) is read from the front; `Answer.data` keeps the bytes.
-- **Problems**: overlapping fields, a field that does not fit its raw type, a router key or contract id the firmware does not publish (`router_key`, `device_contract` in `enums.json`), an op twice, a device naming a contract nobody describes. They go to `catalog.problems`; the rest of the catalog stays usable. `services.test.ts` holds the bundle at none, and holds every layout of a packed C struct against the struct in `components/**/*.h` (its size, each field inside the member of its name).
+- **A bitmask** field (`type: bitmask`, the descriptor's `bits` name the ones offered) takes its number: the bits set, as an integer; the form offers each named bit as a chip.
+- **Values** are given by field id. A missing field takes its `default`, an optional one zero; else the call throws `PayloadError`, as it does for a field id that is not there, a value outside the raw type or the descriptor's `min` / `max`, and an unknown choice label or enum member. A pin reference (`pin_ref`, a `sys_io_pin_t`, or a list of them) is `{ device, pin }`, `null` for an unused pin (`SYS_IO_PIN_NONE`, `io_pin_none` in `enums.json`); an optional pin left out is unused, never device 0 / pin 0. A command marked `urgent` is sent urgent. One marked `invasive` changes the pin, channel or device it is given (a write): `CommandDef.invasive`, for a UI that must not offer a pin another device manages. One with `read_by` is a board setting: `CommandDef.readBy` names the command that reads it back, `CommandDef.recordId` the settings record it is kept in (`record`, resolved through `settings_record` in enums.json; also `CatalogEntry.recordId` for a service kept as one record). `WireField.indexEnum` names the enum whose members are an array field's elements.
+- **Answers** are decoded by `returns`: a struct by field id (booleans as booleans, pins as `{ device, pin }` or `null`), a value, or a list of either. A value that only leads the answer (a count, the rest described in words: `CONNECTOR INFO`, `BLE LIST`) is read from the front; `Answer.data` keeps the bytes.
+- **Problems**: overlapping fields, a field that does not fit its raw type, a router key or contract id the firmware does not publish (`router_key`, `device_contract` in `enums.json`), an op twice, a device naming a contract nobody describes, a pin reference that is not bytes of a multiple of 3, an unpublished `io_pin_none` or `device_id`. They go to `catalog.problems`; the rest of the catalog stays usable. `services.test.ts` holds the bundle at none, and holds every layout of a packed C struct against the struct in `components/**/*.h` (its size, each field inside the member of its name).
 
 ## The connection
 
 - **Opening is one platform call**: connect, the runIT service alone (no walk over every service), its characteristics in one call, and a subscription to the two notify characteristics the link uses (answers and telemetry `0xFFE1`, logs and errors `0xFFE3`). Nothing is probed or waited for. The browser runs one GATT operation at a time: they go through one chain.
+- **A board known from an earlier visit** (`knownDevices()`, after a reload of the tab) is connectable only once the browser has seen it advertise: before that `connect()` fails with "Bluetooth Device is no longer in range". `WebBluetoothPlatform` answers that first failure by listening for one advertisement (`watchAdvertisements`, in a browser that has it; up to 10 s) and connecting again, so a reloaded page opens the board with no chooser. A browser without `watchAdvertisements` gives the first failure back with that said; one without `getDevices()` lists no boards (`remembersBoards` is false). In Chrome and Edge both are behind flags: "Use the new permissions backend for Web Bluetooth" and "Experimental Web Platform features". A reload drops the link with no goodbye: the board hears of it after about 3 s (Windows keeps the closed client's session), enters its safe state when the dead-man was armed with `on_link_lost`, and otherwise carries on.
 - **A drop is reopened at once**: the first attempt has no delay (the board advertises again as soon as it drops), then 0, 100, 250, 500, 1000, 2000 ms, the last repeating, until `disconnect()` (`reconnect: { delaysMs, maxAttempts, openTimeoutMs }`; `reconnect: false` turns it off). An attempt that neither works nor fails is dropped after `openTimeoutMs`; one that finishes late is closed.
 - **Commands and the drop**: a command on the wire fails `link-lost` (it may have run: only the caller knows if it can be repeated); one given while the link is coming back waits for it (`waitForLinkMs`, default 5 s); with no link to wait for it fails `not-connected`.
 - **A link that is down though nothing said so**: a write that fails recycles the link at once, and `stallAfter` (3) timeouts in a row do too. After the board applies a GATT change (SYS_BLE.MD "Runtime changes") Windows invalidates the handles and reports no disconnect: every write fails with `The object has been closed`. The old link is closed before the new one opens (a platform that still finds the board connected would reuse it, and the late close would drop the new link). A command that fails `send-failed` did not run (a frame runs only when its last packet arrives) and can be repeated.
 - **`reopen()`** drops and opens again, to pick up a changed GATT table (the new service is visible after it).
 - **Writes**: one request is written as packets back to back under one chain, so frames never interleave (the firmware reassembles with one buffer). Each write is acknowledged (flow control; nothing is dropped). A packet is `packetBytes` long, header included: 512 by default, the longest value ATT allows (513 B is refused with `Invalid Attribute Value Length`), so a frame of up to 511 B is one write and the 512 B maximum two. Web Bluetooth does not show the MTU; the board offers 527 and a central that takes it (Windows does) needs no splitting.
 - **Pipelining**: `maxInFlight` (4) commands at once. The board runs normal commands in order, so this saves a round trip per command and reorders nothing. An urgent request (`urgent: true`) goes before every normal one still queued and is written even when the window is full (STOP and the dead-man's heartbeat never wait behind commands the board is slow to answer); on the board it runs on the urgent task.
-- **Streams**: every frame that is not an answer goes to `onStream` by its stream byte (without it), raw, with the time it arrived (`at`): `link.onStream((f) => f.name /* telemetry | logs | errors | events, undefined for an unpublished byte */, f.data, f.at)`; `link.on('errors', (data) => …)` for one stream. Nothing is interpreted: the errors and logs are bytes (decode an error record with `decodeErrorRecord`, `protocol/errors.ts`). The link listens to `0xFFE1` (answers, telemetry, events) and `0xFFE3` (logs, errors) as the board binds its connectors. A packet out of order drops the rest of its frame up to the next FIRST, as the firmware does; `onDiagnostic` says so.
+- **Streams**: every frame that is not an answer goes to `onStream` by its stream byte (without it), raw, with the time it arrived (`at`): `link.onStream((f) => f.name /* telemetry | logs | errors | events, undefined for an unpublished byte */, f.data, f.at)`; `link.on('errors', (data) => …)` for one stream. Nothing is interpreted: the errors and logs are bytes (decode an error record with `decodeErrorRecord`, `protocol/errors.ts`, an event with `decodeEvent`, `protocol/events.ts`). The link listens to `0xFFE1` (answers, telemetry, events) and `0xFFE3` (logs, errors) as the board binds its connectors. A packet out of order drops the rest of its frame up to the next FIRST, as the firmware does; `onDiagnostic` says so.
 
 ## The dead-man
 
@@ -72,7 +76,14 @@ await deadman.stop()         // DEADMAN_SET 0; stop({ disarm: false }) leaves it
 - **Fed** by a PING (urgent) only when nothing was written for `heartbeatMs`; the check runs every half heartbeat, so a heartbeat of 1/1.5 of the timeout or more is refused.
 - **After a reconnect**, PING's uptime says whether the board restarted (`restarted`: its program, the devices a project made and the dead-man are as at boot). If not, `lapsed` says the board has most likely entered its safe state: `link-lost` with `on_link_lost`, `silence` when the last write before the drop is a timeout old. A silence of a whole timeout while connected (a timer held back) is `lapsed` too. The board sends nothing when it enters its safe state: this is the app's inference.
 - Commands and fields are the descriptor's (`contract_sys.json`), named once in `DEADMAN_COMMANDS`; `deadman.test.ts` holds them against the catalog.
-- A browser throttles timers of a background tab (to once a second, and to once a minute after a while in Chrome): a timeout of a few seconds survives the first, not the second.
+- **Leaving the safe state** is the caller's choice, never automatic (motors move again):
+
+```ts
+await leaveSafeState(link, { start: engine.exec('normal') })   // RESUME to every device ([05][FF FF][03 00]), then the EXEC given
+```
+
+  The program stays loaded through the safe state; after `restarted` it is gone: `runProject(link)` (the stored project) or `loadProgram` instead. A failed RESUME is thrown and the VM is not started. A critical device fault latched by the VM refuses every start (`ERR_VM_EXEC_FAULT_LATCHED`) until the caller, who shows it, sends `engine.exec('ackFault')`. The commands are the descriptors' (`contract_device.json`, `contract_vm.json`), named once in `SAFE_STATE_COMMANDS`; the device ID of the sweep is `SYS_DEVICE_ID_NONE` (`device_id` in `enums.json`).
+- A browser throttles timers of a background tab (to once a second, and to once a minute after a while in Chrome): a timeout of a few seconds survives the first, not the second. The desktop app turns throttling off for its window (AGENTS.md "The desktop app").
 
 ## Telemetry and the remote control (with the engine)
 
@@ -104,9 +115,59 @@ const recovered = engine.recover(stored.program.flatMap((f) => programFrameOf(de
 
 `projectStream(defs, content)` builds the stream (`[u16 len][frame]` frames, a SECTION frame before each section, the program as section 0 last) and `crc32` is zlib's. Checked on a board: the stream built here (297 B, one device section, one user action and a program) was accepted and `INFO` returned its length and CRC; reading every record back gave the frames that went in, so `verified` is true. The records of that run are `tests/backend/fixtures/stored-project.json`. **Every section is run at each start**, user actions included: an action that must wait for a call is stored with `storeRecord`, not as a section (SYS_PROJECT.MD). IDs 3 to 6 are the firmware's.
 
-## Sending a list in order
+## Errors for a user
 
-`sendProgram(link, frames)` takes the frames the engine compiles (`{ op, payload }`, commands of the VM router) and `sendInOrder(link, requests)` any list of requests. Up to `window` (4) are on the wire at once, every answer is awaited and returned in the order of the requests, `onProgress(done, total)` follows each. The first request that fails stops the sending (nothing after it is sent: a block would not load without its objects), the ones already on the wire are awaited, and the link's own `CommandError` is thrown as it is. Retrying and cleaning up after a failure (a reset of the half-loaded program) are not done yet.
+An error record (ROUTER.MD "Error record": the board's clock when it was reported (`ErrorRecord.time`: UTC ms; before 2020 the clock was never set and it is a time since the start), the command, then the chain from the route to the root cause) is read with what `errors.json` says about each tag: its message template, its fields, what an id field refers to (`id_kind`, `id_kind_by`), which kinds are numbered within another (`scope`, `of`), which nodes are context (severity NONE). How errors.json gets them: templates/AGENTS.md "Errors".
+
+```ts
+const interpreter = new ErrorInterpreter({
+  resolve: combineResolvers(programRefs(project, result), deviceRefs(new Map([[3, 'Left motor']]))),   // the app's names
+})
+const report = interpreter.read(data)              // or interpret(commandError.record)
+report.message      // 'Pin 22 of Left motor is already set up as Input with Pullup'   (the root cause)
+report.where        // ['In Devices', 'In Left motor', 'In IO pins: <command>']   (the context nodes, outermost first)
+report.command      // { label: 'IO pins: <command> (Left motor)', refs }   (the request, when the record has it)
+report.refs         // [{ kind: 'device', id: 3 }, { kind: 'pin', id: 22, scope: { kind: 'device', id: 3 } }, …]
+report.chain        // every node: name, severity, context, message, fields ({ name, value, text, ref }), refs
+interpreter.target(ref)   // { kind: 'pin', device: 3, pin: 22 } / { kind: 'block', block: 'e', pin: { kind: 'input', index: 1 } } / { kind: 'variable', variable: 'x' }
+```
+
+- **References** (`Ref = { kind, id, scope? }`, `refKey`: `device:3/pin:22`) are what an error is about, so the app can show it on the device, the pin, the variable or the block. A scoped kind (a pin, a channel, a block pin, a device command) takes its instance from its `of` field, else from the one field of that kind in the same node, else from the nearest one before it in the chain or the request (`ERR_DEV_UNKNOWN_OP` under `ERR_DEV_ID` is a command of that device).
+- **Hints**: a node whose tag has a `hint` in errors.json (what the user can do about it, `errors_<module>.json`) carries it filled in like the message (`NodeReport.hint`); the app shows the root cause's under the message. The C comment of the map stays the node's `description`, for developers.
+- **Names**: the app's resolver first (`programRefs`: objects to variables or to the block output that owns them, accessors to the block input or enable that reads through them, blocks and their pins to block instances; `deviceRefs`: the project's devices), then the descriptors (device types, device commands, router keys, VM commands, contracts, block types, error tags), then the kind's alias and the number (`Pin 22`, `I2C address 0x3C` for a kind with `format: hex`). An enum field shows its member's alias; a field with a unit shows it.
+- A tag errors.json does not have keeps its number (`known: false`).
+
+`ErrorLog` keeps them for the user (an entry is dated by its record's clock: `setClock(unixMs, uptimeMs)` tells it the board's clock so a time since the start becomes UTC; a record read again, as the board's history is each time the link comes up, is not counted twice):
+
+```ts
+const log = new ErrorLog(interpreter, { capacity: 200 })
+log.attach(link)                                  // the errors stream; log.addCommandError(e) for a failed command
+log.entries({ read: false, ref: 'device:3' })     // newest first; a device takes its pins' and channels' errors
+log.markRead({ ref: 'device:3' }); log.clearRead() // or log.clear({ ref }) when the user fixed it
+log.onChange((entries) => …)
+```
+
+- The board sends a command's error twice (the answer and the errors stream) and never suppresses repeats: the same record (link, peer, seq and chain) within `duplicateMs` (2 s) is one; the same chain again is the same entry, its `count` and `last` go up and it is unread again. Past `capacity` the oldest read entries go first.
+- What the backend knows by itself: the record's layout (from `enums.json`), which descriptors name which kinds (`device_type`, `device_op`, `router_key`, `vm_op`, `contract`, `vm_block_type`, `error_tag` in `ErrorInterpreter`) and how the program's kinds map to the project (`vm_object`, `vm_accessor`, `vm_block` and its pins, `device`, `pin`, `channel` in `errors/program.ts`). Messages, kinds, scopes and field meanings are errors.json's.
+
+## Sending a list in order, loading a program
+
+`sendProgram(link, frames)` takes the frames the engine compiles (`{ op, payload }`, commands of the VM router) and `sendInOrder(link, requests)` any list of requests. Up to `window` (4) are on the wire at once, every answer is awaited and returned in the order of the requests, `onProgress(done, total)` follows each. The first request that fails stops the sending (nothing after it is sent: a block would not load without its objects), the ones already on the wire are awaited, and the link's own `CommandError` is thrown as it is. It neither retries nor cleans up: runtime writes, SUBSCRIBE and EXEC go this way.
+
+`loadProgram(link, frames)` loads a program: a list that starts with OPEN (EXEC may follow). The board fails closed (VM_CORE.MD "Fail closed": a refused load op discards the whole program, the upload restarts at OPEN), so:
+
+```ts
+await loadProgram(link, [...result.frames, engine.exec('normal')], {
+  retries: 2,                                    // default
+  onRetry: (attempt, error) => …,                // before attempt 2, 3, …
+})                                               // the answers of the attempt that worked; or throws LoadError
+// LoadError: { cause, attempts, answered (frames answered in the last attempt), reset: 'done' | 'failed' | 'skipped', resetError? }
+```
+
+- **A retry is the whole load, from OPEN** (OPEN replaces what the board holds), never the frame that failed: one that timed out or was on the wire when the link dropped may have run, and its objects would be added twice. `onProgress` starts again from 0.
+- **Only a failure of the link is retried**: `timeout`, `link-lost`, `send-failed`. The board's refusal (`device-error`) and the rest would come again.
+- **When it gives up, RESET** (`reset: false` leaves the board as it is): a load cut off by the link stays half-loaded on the board; a refused one is already discarded, and RESET leaves it so. `reset: 'failed'` (no link) means the board may still hold a half-loaded program, which its first start refuses (`vm_loader_verify_complete`).
+- The commands are the descriptor's (`contract_vm.json`), named once in `LOAD_COMMANDS`; `send.test.ts` holds them against the catalog and checks that the engine's load starts with OPEN.
 
 ## Where each fact comes from
 
@@ -116,13 +177,34 @@ const recovered = engine.recover(stored.program.flatMap((f) => programFrameOf(de
 | GATT UUIDs, fragment bits | `enums.json` (`ble_runit_uuid`, `ble_frag`, marked in `sys_ble.h`) | `protocol.test.ts` reads `sys_ble.h`; the framing tests use the examples of SYS_BLE.MD |
 | Frame limit | `limits.json` (`ROUTER_FRAME_MAX`) | `protocol.test.ts` reads the router Kconfig |
 | Error record | `ROUTER.MD`, `errors.json` | `protocol.test.ts` decodes the example of ROUTER.MD |
+| OPEN and RESET of the VM router (`loadProgram`) | `generated/services/contract_vm.json` | `send.test.ts`: the catalog has them, the engine's load starts with that OPEN |
 | Ops of the `actions` and `project` routers | `generated/services/contract_actions.json`, `contract_project.json` | `project.test.ts`: the requests carry the ops and payload layouts the board accepted |
-| Every other command, its arguments and answer | `generated/services`, `generated/contracts`, `generated/devices`; `device_contract` in `enums.json` | `services.test.ts`: no problems in the bundle; every packed struct's layout against its C typedef; a device request equals the frame of the stored-project fixture |
+| The board's devices, their pins and I2C places; the onboard action IDs | `generated/common/board.json`; `limits.json` (`RUNIT_ACTION_ID_*`, marked in `components/app/runit/Kconfig`) | `tests/app/devices.test.ts`: every board device has a descriptor, the pins it uses; onboard IDs never taken by an action |
+| Every other command, its arguments and answer | `generated/services`, `generated/contracts`, `generated/devices`; `device_contract`, `device_id`, `io_pin_none` in `enums.json` | `services.test.ts`: no problems in the bundle; every packed struct's layout against its C typedef; a device request equals the frame of the stored-project fixture; `sys_io_pin_t` is the 3 B of a pin reference |
+| The events stream: the NOTIFY op, `sys_event_t`, the device contract's events | `enums.json` (`event_op`), `contract_event.json`, `contract_device.json` | `events.test.ts`: `sys_event_t` is 14 B, an event read with its contract and name, the DEVICE events equal `SYS_DEVICE_EVENTS` of `sys_device.h` |
+| Error messages, what an error field refers to | `errors.json` (`message`, `id_kind`, `id_kind_by`, `of`, `context`, `id_kinds`), from the maps and `errors_<module>.json` | `errors.test.ts`: every placeholder is a field, every kind is described; records built from errors.json read back with names |
+| The way out of the safe state | `SYS_DEVICE.MD` "Sweeps over the router", `RUNIT.MD` "Safe state", VM_CORE.MD | `safestate.test.ts`: the RESUME sweep is the frame of SYS_DEVICE.MD |
 | The stored project's records, the stream | `SYS_PROJECT.MD`, `SYS_ACTIONS.MD` | `fixtures/stored-project.json`: the stream, its CRC and every record read back from a board |
 
 ## Tests
 
 `npm test` from `runit-app/`. Fixtures captured from a board: `tests/backend/fixtures/board-streams.json` (telemetry and log frames), `stored-project.json` (a saved project and its records). On a board: `.claude/skills/runit-esp/scripts/ble_suite.py` (build.md §6) drives the same protocol from a PC; its `load` scenario sends frames the engine compiled (a JSON of `{op, payload}`) to a real board, `capture` also applies runtime writes and records every stream raw. `tests/backend/fakes.ts` is a board behind a fake platform (reassembles what is written, answers on notify, drops the link, fails or hangs an open). `link.test.ts` covers requests, order, parts, errors, timeouts, streams, reconnecting, the stall and the late open.
+
+**The backend on a board:** `npm run test:hw` (`vitest.hardware.config.ts`, `tests/hardware/*.hw.test.ts`) runs this TypeScript backend itself, the real `RunitLink`, `Services`, `DeadMan`, `ErrorLog`, `loadProgram` and `saveProject`, against a board over the PC's Bluetooth. Node has no BLE, so `tests/hardware/bleakPlatform.ts` is a `BlePlatform` that moves packets through `bleak_bridge.py` (bleak, JSON lines on stdio); framing, commands and the connection logic stay the backend's. `uart_tap.py` reads the board's console beside it (`Console` in `uart.ts`): what the firmware logs is the independent witness for what the app infers (the safe state, a panic). Environment: `HW_UART` (console port, default `COM9`), `HW_NAME` (advertised name, default `runit`), `HW_ADDRESS`, `HW_PYTHON` (default `../.venv`, which has bleak and pyserial). One file at a time, in order:
+
+| Suite | Covers |
+|---|---|
+| `a-link` | connect, MTU, 50 PINGs and 40 pipelined, an error answer and its copy on the errors stream, a long answer, 11 drops from the host (each reconnected), `reopen()`, a board restart |
+| `b-services` | no catalog problems; every read-only command of every service decoded; the 13 onboard devices by type; IO on the status LED; a pin or device that is not there; SUSPEND / RESUME; CREATE with an id in use |
+| `c-errors` | records captured from the board read for a user (the app's device names, the pin, the command); `ErrorLog`: answer and stream copy are one entry, repeats count up, read / clear by device, a burst of 20 |
+| `d-deadman` | `DeadMan` armed, fed past its timeout and disarmed; the safe state after silence, from STOP and on a lost link (held against the console); `leaveSafeState`; `lapsed` and `restarted` inferred after a drop and a restart |
+| `e-program` | the engine's program loaded with `loadProgram`, run, SUBSCRIBE, runtime writes as telemetry (latency), pause / resume, a program the board refuses (`LoadError`, RESET, a readable error), a good load after it |
+| `g-refs` | errors tied back to the user's names: a program refused at load ("input 2 of Compute does not exist", "output 1 of Constant refers to Result, which does not exist", marked on that block pin), a block failing while it runs ("Expander has no Pin 99", marked on the block, the device and the pin; "Device 77 does not exist"), a command to a device (pin, DAC channel, unknown op), a write beyond a variable (marked on the variable); never an `obj-…` id; `ErrorLog` by device and pin |
+| `f-project` | a stored record (store, list, read back, run, replace, remove); `saveProject` with INFO's length and CRC, `readProject` verified, the engine recovering the project, `runProject`, autostart across a restart, `eraseProject` |
+
+The suites change the board and put it back: the status LED and expander pin 22 are toggled, devices are suspended and resumed, the VM program is replaced, record 90 and a project are stored and erased, the dead-man is left disarmed, and the board restarts three times. No other BLE client may hold the board, and nothing else may hold the console port.
+
+**In a browser:** `npm run test:browser` runs `WebBluetoothPlatform` itself, the platform the app ships, in Chrome or Edge (`tests/browser/`: `main.ts` is the suite in the page, `run.mjs` the runner). Vite serves the page; the runner drives the browser over the DevTools protocol with Node's own WebSocket and answers the Web Bluetooth chooser through the `DeviceAccess` domain (it takes the board named `HW_NAME`, default `runit`, once the scan shows it: nobody clicks). `CHROME` picks the browser (default Chrome, else Edge; `CDP_PORT` if 9333 is taken). It covers connect, the catalog, 90 PINGs, the errors stream, IO, a program with telemetry, the dead-man, a stored project, the way out of the safe state, `reopen()` and a board restart with the link coming back by itself; then reloading the tab: with the dead-man armed (the new page connects with no chooser, the uptime goes on, the board is in its safe state, `leaveSafeState` restarts the loaded program), with nothing armed (no safe state), and three reloads in a row. The runner starts the browser with `--enable-features=WebBluetoothNewPermissionsBackend` and `--enable-experimental-web-platform-features` (`getDevices()` and `watchAdvertisements`). A failed run can leave the board armed or in its safe state: the suite disarms and resumes it first. Needs no other BLE client on the board; the board restarts once.
 
 ## Measured on a board (Windows 11, Intel BT, `bleak` driving the same framing and router)
 
@@ -141,9 +223,10 @@ const recovered = engine.recover(stored.program.flatMap((f) => programFrameOf(de
 
 ## Not verified / not done
 
-- The TypeScript link itself, including `saveProject` / `readProject`, has run against a fake platform only (`tests/backend/`); the stream it builds was sent to a board by a script and every record read back; the numbers above are the board's behaviour as seen through the same protocol. Web Bluetooth in a browser, and Android, are untried.
+- The TypeScript link, `Services`, `saveProject` / `readProject`, `loadProgram`, `DeadMan`, `leaveSafeState`, `ErrorInterpreter` and `ErrorLog` have run against a board (`npm run test:hw`) through bleak on Windows. `WebBluetoothPlatform` has run in Chrome and Edge on Windows (`npm run test:browser`); Android is untried.
 - An abrupt loss of the radio (not a disconnect, not a restart) is untried.
-- The link has no heartbeat of its own: a silent link is found by the write and stall rules or by the OS supervision timeout (2 s on the firmware side); `DeadMan`'s PING only runs while it is started. `DeadMan` has run against a fake platform only; the board does not report entering its safe state, so `lapsed` is inferred, and leaving the safe state (resuming devices, running the program again) is the caller's.
+- The link has no heartbeat of its own: a silent link is found by the write and stall rules or by the OS supervision timeout (2 s on the firmware side); `DeadMan`'s PING only runs while it is started. The board does not report entering its safe state, so `lapsed` is inferred (`VM STATUS`, VM_CORE.MD, reads the VM's run mode and whether a program is loaded, but not whether the devices are suspended); the hardware suite holds it against the console. With `on_link_lost` the board logs the safe state about 3 s after a client closed the link: Windows keeps the GATT session of a closed client until its supervision timeout, so the board hears of the loss late.
 - Web Bluetooth cannot read the MTU, the RSSI or the connection parameters; a native platform can implement `BlePlatform` and give them.
 - Only BLE. A UART or Wi-Fi platform would implement the same channel; `RunitLink` fragments for BLE only.
-- `Services` has run against a fake platform only. Answers whose layout a descriptor gives only in words (`CONNECTOR INFO`, `BLE LIST`, the logs and events streams) are not decoded past their leading value. A pin reference field (`pin_ref`, a `sys_io_pin_t`) is given as its 3 bytes. `inherits` of a contract is not followed.
+- The messages of `ErrorInterpreter` are English. The records of the PCB's blocks and devices read right (`g-refs`); the refs of a block that is a span owner (FOR) and of a heap object are not exercised on a board.
+- Answers whose layout a descriptor gives only in words (`CONNECTOR INFO`, `BLE LIST`, the logs stream) are not decoded past their leading value.

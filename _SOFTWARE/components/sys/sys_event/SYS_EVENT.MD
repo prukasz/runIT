@@ -33,6 +33,8 @@ typedef struct __attribute__((packed)) {  // 14 B
 
 | Contract | Event | ID | Flags | Value |
 |---|---|---|---|---|
+| DEVICE (`0x00`) | `SUSPENDED` | `0x0000` | NOTIFY | 0; source `0xFFFF`: a sweep (every device) |
+| | `RESUMED` | `0x0001` | NOTIFY | 0; source `0xFFFF`: a sweep |
 | IO (`0x01`) | `RISING` | `0x0100` | 0 (code flow) | level |
 | | `FALLING` | `0x0101` | 0 | |
 | | `ADC_OUTSIDE` | `0x0102` | 0 | mV |
@@ -48,14 +50,14 @@ typedef struct __attribute__((packed)) {  // 14 B
 | | `THERMAL_OR_UVLO` | `0x0901` | NOTIFY | mA |
 | | `EXTERNAL` | `0x0902` | NOTIFY | mA |
 
-Publishers: GPIO ESP (IO edges from its ISR, ADC events from its ADC task), TCA6424A (IO edges of its input port), ADS7128 (ADC window events), TPS55289 (VREG), INA3221 (PMON), DRV8962 (HBRIDGE), and the power manager (POWER_MANAGER).
+Publishers: GPIO ESP (IO edges from its ISR, ADC events from its ADC task), TCA6424A (IO edges of its input port), ADS7128 (ADC window events), TPS55289 (VREG), INA3221 (PMON), DRV8962 (HBRIDGE), the power manager (POWER_MANAGER) and runit for the registry (DEVICE: the state listener of SYS_DEVICE.MD "Suspended and resumed"; the table is `SYS_DEVICE_EVENTS` in `sys_device.h`, its IDs `DEVICE_EV_*` are made here, where the flag values are).
 
 ## Publishing
 
 `sys_event_publish(&ev)`:
 
 1. `t_ms` is set.
-2. **NOTIFY → events connector** (`SYS_CONNECTOR_EVENTS` = 3, stream `0x06`), first: whatever the listeners do next (an action stopping the board), the cause is already out. Frame in the command shape (like the VM telemetry, VM_CORE.MD): `[ROUTER_KEY_EVENT 0x07][SYS_EVENT_OP_NOTIFY 0x01]` and the event itself, `sys_event_t` (14 B: `[source u16][event u16][channel u8][flags u8][value i32][t_ms u32]`). Key 0x07 has no router: it only names the frame, so an app decoder reads it with its `[key][op][struct]` table. A full connector queue drops it silently (like the errors stream).
+2. **NOTIFY → events connector** (`SYS_CONNECTOR_EVENTS` = 3, stream `0x06`), first: whatever the listeners do next (an action stopping the board), the cause is already out. Frame in the command shape (like the VM telemetry, VM_CORE.MD): `[ROUTER_KEY_EVENT 0x07][SYS_EVENT_OP_NOTIFY 0x01]` and the event itself, `sys_event_t` (14 B: `[source u16][event u16][channel u8][flags u8][value i32][t_ms u32]`). Key 0x07 has no router: it only names the frame, so an app decoder reads it with its `[key][op][struct]` table. The op is published (`event_op` in `enums.json`) and the struct is the EVENT contract's (`contract_event.json`, the arguments of ON_EVENT); the app decodes it in `runit-app/src/backend/protocol/events.ts`. A full connector queue drops it silently (like the errors stream).
 3. Inline listeners, table order.
 4. One copy queued if a queued listener matches (`ERR_EVENT_QUEUE_FULL` otherwise).
 

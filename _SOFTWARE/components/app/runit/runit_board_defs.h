@@ -60,6 +60,7 @@
 #define RUNIT_BOARD_VREG_EFFICIENCY_PCT 90        // TPS55289 rails
 /* INA3221 channels, measured on the PCB 2026-09-24: rail A on 2, the board input on 1, rail B on 0. All three shunts
  * are wired reversed (INA3221 inverted_mask = 0x07). */
+#define RUNIT_BOARD_INA_SHUNT_MOHM 10  // the PCB's three shunts (mOhm)
 #define RUNIT_BOARD_INA_CH_RAIL_B 0u
 #define RUNIT_BOARD_INA_CH_INPUT 1u
 #define RUNIT_BOARD_INA_CH_RAIL_A 2u

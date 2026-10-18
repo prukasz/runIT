@@ -5,37 +5,37 @@
   "scope": "system",
   "id": "PROJECT",
   "router_key": 12,
-  "alias": "Zarządzanie projektem (Stored Project)",
-  "description": "Zapis kompletnego projektu płytki jako pojedynczego strumienia podzielonego na sekcje (ustawienia, instalacja urządzeń, program VM), weryfikacja CRC-32, uruchamianie oraz kasowanie.",
+  "alias": "Project management (Stored Project)",
+  "description": "Storing a whole board project as one stream split into sections (settings, device setup, VM program), verifying its CRC-32, running it and erasing it.",
   "category": "system",
   "commands": [
     {
       "id": "BEGIN",
       "op": 1,
       "symbol": "SYS_PROJECT_OP_BEGIN",
-      "label": "Rozpocznij zapis projektu",
-      "description": "Rozpoczyna sesję wgrywania projektu o określonej długości bajtowej i flagach (autostart, natychmiastowe uruchomienie).",
+      "label": "Start storing a project",
+      "description": "Opens an upload session for a project of the given length in bytes, with its flags (autostart, run at once).",
       "args": {
         "struct": "begin_t",
         "fields": [
           {
             "id": "len",
-            "label": "Długość strumienia",
+            "label": "Stream length",
             "type": "integer",
             "raw_type": "u32",
             "size": 4,
             "offset": 0,
             "unit": "B",
-            "description": "Całkowity rozmiar wgrywanego strumienia w bajtach"
+            "description": "Total size of the stream being uploaded, in bytes"
           },
           {
             "id": "flags",
-            "label": "Flagi opcji",
+            "label": "Option flags",
             "type": "bitmask",
             "raw_type": "u8",
             "size": 1,
             "offset": 4,
-            "description": "Bit 0 (0x01): Autostart po restarcie; Bit 1 (0x02): Natychmiastowe uruchomienie po commicie"
+            "description": "Bit 0 (0x01): autostart after a restart; bit 1 (0x02): run at once after the commit"
           }
         ]
       }
@@ -44,27 +44,27 @@
       "id": "WRITE",
       "op": 2,
       "symbol": "SYS_PROJECT_OP_WRITE",
-      "label": "Zapisz fragment projektu",
-      "description": "Wgrywa kolejną porcję danych strumienia projektu pod wskazanym offsetem bajtowym.",
+      "label": "Write a chunk of the project",
+      "description": "Uploads the next piece of the project stream at the given byte offset.",
       "args": {
         "struct": "write_t",
         "fields": [
           {
             "id": "offset",
-            "label": "Offset bajtowy",
+            "label": "Byte offset",
             "type": "integer",
             "raw_type": "u32",
             "size": 4,
             "offset": 0,
             "unit": "B",
-            "description": "Offset w strumieniu danych"
+            "description": "Offset in the data stream"
           },
           {
             "id": "data",
-            "label": "Dane fragmentu",
+            "label": "Chunk data",
             "type": "string",
             "raw_type": "bytes",
-            "description": "Surowe bajty fragmentu strumienia (ogon tail)"
+            "description": "Raw bytes of the stream chunk (runs to the end of the frame)"
           }
         ]
       }
@@ -73,19 +73,19 @@
       "id": "COMMIT",
       "op": 3,
       "symbol": "SYS_PROJECT_OP_COMMIT",
-      "label": "Zatwierdź projekt",
-      "description": "Weryfikuje sumę kontrolną CRC-32 oraz spójność wszystkich sekcji, utrwala projekt w pamięci Flash i opcjonalnie uruchamia go.",
+      "label": "Commit the project",
+      "description": "Verifies the CRC-32 and that all the sections fit together, stores the project in Flash and optionally runs it.",
       "args": {
         "struct": "commit_t",
         "fields": [
           {
             "id": "crc32",
-            "label": "Suma CRC-32",
+            "label": "CRC-32 checksum",
             "type": "integer",
             "raw_type": "u32",
             "size": 4,
             "offset": 0,
-            "description": "Suma kontrolna CRC-32 całego strumienia"
+            "description": "CRC-32 checksum of the whole stream"
           }
         ]
       }
@@ -94,27 +94,27 @@
       "id": "ABORT",
       "op": 4,
       "symbol": "SYS_PROJECT_OP_ABORT",
-      "label": "Anuluj wgrywanie projektu",
-      "description": "Przerywa otwartą sesję wgrywania projektu i czyści bufor roboczy, pozostawiając poprzedni zapisany projekt nienaruszony."
+      "label": "Cancel the project upload",
+      "description": "Aborts the open upload session and clears the working buffer, leaving the project stored before untouched."
     },
     {
       "id": "INFO",
       "op": 5,
       "symbol": "SYS_PROJECT_OP_INFO",
-      "label": "Odczytaj stan projektu",
-      "description": "Zwraca informacje o zapisanym projekcie: obecność w pamięci, autostart, aktywny bank pamięci, CRC-32 oraz rozmiar.",
+      "label": "Read the project state",
+      "description": "Returns what is known about the stored project: whether there is one, autostart, the active memory bank, the CRC-32 and the size.",
       "returns": {
         "struct": "sys_project_info_t",
-        "description": "Informacje o zapisanym projekcie",
+        "description": "Information about the stored project",
         "fields": [
           {
             "id": "stored",
-            "label": "Projekt zapisany",
+            "label": "Project stored",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "1 = projekt obecny w pamięci Flash, 0 = brak projektu"
+            "description": "1 = a project is stored in Flash, 0 = none"
           },
           {
             "id": "autostart",
@@ -123,35 +123,35 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 1,
-            "description": "1 = automatyczne uruchomienie przy starcie płytki włączone"
+            "description": "1 = the project runs by itself when the board starts"
           },
           {
             "id": "bank",
-            "label": "Aktywny bank",
+            "label": "Active bank",
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
             "offset": 2,
-            "description": "Indeks aktywnego banku pamięci Flash (0 lub 1)"
+            "description": "Index of the active Flash bank (0 or 1)"
           },
           {
             "id": "crc32",
-            "label": "Suma CRC-32",
+            "label": "CRC-32 checksum",
             "type": "integer",
             "raw_type": "u32",
             "size": 4,
             "offset": 3,
-            "description": "Suma kontrolna zapisanego strumienia"
+            "description": "Checksum of the stored stream"
           },
           {
             "id": "bytes",
-            "label": "Rozmiar projektu",
+            "label": "Project size",
             "type": "integer",
             "raw_type": "u32",
             "size": 4,
             "offset": 7,
             "unit": "B",
-            "description": "Całkowity rozmiar zapisanego projektu w bajtach"
+            "description": "Total size of the stored project, in bytes"
           }
         ]
       }
@@ -160,22 +160,23 @@
       "id": "RUN",
       "op": 6,
       "symbol": "SYS_PROJECT_OP_RUN",
-      "label": "Uruchom zapisany projekt",
-      "description": "Odtwarza wszystkie sekcje i polecenia zapisanego projektu (RUN_ALL dla rekordu projektu)."
+      "label": "Run the stored project",
+      "description": "Replays every section and command of the stored project (RUN_ALL of the project record)."
     },
     {
       "id": "ERASE",
       "op": 7,
       "symbol": "SYS_PROJECT_OP_ERASE",
-      "label": "Skasuj zapisany projekt",
-      "description": "Usuwa zapisany projekt i jego rekordy programu z pamięci Flash."
+      "label": "Erase the stored project",
+      "description": "Removes the stored project and its program records from Flash."
     },
     {
       "id": "OPTIONS",
+      "read_by": "INFO",
       "op": 8,
       "symbol": "SYS_PROJECT_OP_OPTIONS",
-      "label": "Ustaw opcje projektu",
-      "description": "Konfiguruje opcje projektu, np. flagę autostartu po restarcie płytki.",
+      "label": "Set the project options",
+      "description": "Sets the project options, e.g. the autostart flag.",
       "args": {
         "struct": "options_t",
         "fields": [
@@ -186,7 +187,7 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "1 = autostart włączony, 0 = wyłączony"
+            "description": "1 = autostart on, 0 = off"
           }
         ]
       }
@@ -195,8 +196,8 @@
       "id": "SECTION",
       "op": 16,
       "symbol": "SYS_PROJECT_OP_SECTION",
-      "label": "Nagłówek sekcji strumienia",
-      "description": "Otwiera sekcję wewnątrz strumienia projektu (odrzucane jako bezpośrednia komenda RPC).",
+      "label": "Header of a stream section",
+      "description": "Opens a section inside the project stream (refused as a command of its own).",
       "args": {
         "struct": "section_t",
         "fields": [
@@ -207,7 +208,7 @@
             "raw_type": "u32",
             "size": 4,
             "offset": 0,
-            "description": "Docelowy identyfikator rekordu (0 = program)"
+            "description": "ID of the record the section goes to (0 = the program)"
           }
         ]
       }
@@ -216,8 +217,8 @@
       "id": "MARK",
       "op": 17,
       "symbol": "SYS_PROJECT_OP_MARK",
-      "label": "Znacznik rekordu projektu",
-      "description": "Pierwsza ramka rekordu projektu opisująca bank, sumę CRC-32 oraz długość (no-op przy odtwarzaniu).",
+      "label": "Project record marker",
+      "description": "First frame of the project record: the bank, the CRC-32 and the length (does nothing when replayed).",
       "args": {
         "struct": "sys_project_mark_t",
         "fields": [

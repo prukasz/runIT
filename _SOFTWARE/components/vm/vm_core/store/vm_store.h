@@ -5,10 +5,11 @@
 
 #define VM_ID_NONE        0xFFFFu       // Allocate without binding to registry
 
+//#ref-enum @alias VM registry
 typedef enum vm_reg_e {
-  VM_REG_OBJ = 0,
-  VM_REG_ACC = 1,
-  VM_REG_BLK = 2,
+  VM_REG_OBJ = 0,  //@alias Objects @description The program's variables and their elements
+  VM_REG_ACC = 1,  //@alias Accessors @description The paths blocks read and write through
+  VM_REG_BLK = 2,  //@alias Blocks @description The program's blocks
   VM_REG_CNT = 3,
 } vm_reg_e;
 

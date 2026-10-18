@@ -290,6 +290,7 @@
             "device",
             "enum",
             "choice",
+            "bitmask",
             "number",
             "boolean",
             "string"
@@ -322,6 +323,19 @@
           "type": "integer",
           "minimum": 0,
           "description": "Offset bajtowy pola w strukturze C."
+        },
+        "bits": {
+          "type": "array",
+          "description": "Dla type='bitmask': bity, które pole pokazuje (klikalne, nazwane). Bit spoza listy nie jest dostępny w UI.",
+          "items": {
+            "type": "object",
+            "required": ["bit", "label"],
+            "properties": {
+              "bit": { "type": "integer", "minimum": 0, "maximum": 63, "description": "Numer bitu (0 = najmniej znaczący)." },
+              "label": { "type": "string", "description": "Nazwa bitu w UI (np. 'Channel 1')." }
+            },
+            "additionalProperties": false
+          }
         },
         "pin_ref": {
           "type": "boolean",
@@ -420,6 +434,11 @@
             "enum": ["input", "input_pullup", "input_pulldown", "output", "output_od", "pwm", "adc", "dac", "interrupt"]
           },
           "uniqueItems": true
+        },
+        "default_mode": {
+          "type": "string",
+          "enum": ["input", "input_pullup", "input_pulldown", "output", "output_od", "pwm", "adc", "dac"],
+          "description": "Tryb, w którym piny są zaraz po resecie układu, bez SET_MODE (TCA6424A: input, ADS7128: adc). Bez tego pola pin nie ma trybu, dopóki SET_MODE go nie ustawi (GPIO ESP). Aplikacja z tego wie, w jakim stanie jest pin i które polecenia dla niego oferować."
         },
         "labels": {
           "type": "array",
@@ -555,6 +574,11 @@
           "type": "boolean",
           "default": false,
           "description": "Czy polecenie dotyczy konkretnego pinu/kanału (np. ustawienie poziomu wybranego pinu)."
+        },
+        "invasive": {
+          "type": "boolean",
+          "default": false,
+          "description": "Czy polecenie zmienia stan pinu / kanału / urządzenia, któremu jest dane (zapis, a nie odczyt). Pin, którym zarządza inne urządzenie, nie jest dla takiego polecenia oferowany w aplikacji."
         },
         "args": {
           "description": "Parametry wejściowe przekazywane do polecenia (prosta lista pól lub obiekt ze strukturą C).",

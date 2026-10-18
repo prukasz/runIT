@@ -30,6 +30,8 @@ export interface BlePlatform {
   requestDevice(): Promise<BleDeviceRef>
   /** Boards this app was allowed to use before: they can be opened again with no chooser. */
   knownDevices(): Promise<readonly BleDeviceRef[]>
+  /** Drops the permission for this board: it leaves `knownDevices()` and only the chooser offers it again. */
+  forget(device: BleDeviceRef): Promise<void>
   /**
    * Connects, finds the runIT service, subscribes to every notify characteristic in it and returns the channel. All of it
    * or none: a failure leaves nothing open.

@@ -41,8 +41,19 @@
         "description": "The MODE pin selects one of two addresses",
         "offset": 1,
         "size": 1,
-        "type": "number",
-        "raw_type": "u8"
+        "type": "choice",
+        "raw_type": "u8",
+        "default": 116,
+        "options": [
+          {
+            "label": "0x74 (MODE pin low)",
+            "value": 116
+          },
+          {
+            "label": "0x75 (MODE pin high)",
+            "value": 117
+          }
+        ]
       },
       {
         "id": "intr_pin",

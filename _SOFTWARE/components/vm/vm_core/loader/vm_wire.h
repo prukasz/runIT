@@ -147,7 +147,7 @@ typedef struct __packed {
 _Static_assert(sizeof(vm_wire_block_t) == 14, "ADD_BLOCK fixed part");
 
 // ===========================================================================
-// SUBSCRIBE, EXEC, SPEED
+// SUBSCRIBE, EXEC, SPEED, STATUS
 // ===========================================================================
 
 typedef struct __packed {
@@ -164,3 +164,18 @@ typedef struct __packed {
   uint16_t factor;  /**< Slow-motion factor (1 is normal speed) */
 } vm_wire_speed_t;
 _Static_assert(sizeof(vm_wire_speed_t) == 2, "SPEED body");
+
+/* The answer of STATUS: what the VM is doing and what it holds. */
+typedef struct __packed {
+  uint8_t mode;             /**< vm_run_mode_e */
+  uint8_t load_state;       /**< vm_load_state_e */
+  uint8_t ready;            /**< 1: a program is loaded and every slot OPEN declared was uploaded (EXEC can start it) */
+  uint8_t fault_latched;    /**< 1: a critical device fault latched; every start is refused until EXEC ACK_FAULT */
+  uint16_t fault_device;    /**< the device of the latched fault; meaningful only while fault_latched */
+  uint16_t slowdown;        /**< slow-motion factor (1 is normal speed) */
+  uint32_t fault_root_tag;  /**< the root cause of the latched fault (an ERR_TAG value, 0 if not known); only while latched */
+  uint32_t pass_count;      /**< passes completed since the statistics were last reset */
+  uint32_t last_pass_us;    /**< duration of the last pass */
+  uint32_t arena_used;      /**< bytes of the program arena in use */
+} vm_wire_status_t;
+_Static_assert(sizeof(vm_wire_status_t) == 24, "STATUS answer");

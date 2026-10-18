@@ -11,6 +11,7 @@
     {
       "id": "SET_DRIVE",
       "op": 0,
+      "invasive": true,
       "label": "Drive",
       "description": "Drives a motor channel; out of range is an error.",
       "symbol": "HBRIDGE_OP_SET_DRIVE",
@@ -43,6 +44,7 @@
     {
       "id": "BRAKE",
       "op": 1,
+      "invasive": true,
       "label": "Brake",
       "description": "Shorts the motor terminals.",
       "symbol": "HBRIDGE_OP_BRAKE",
@@ -64,6 +66,7 @@
     {
       "id": "COAST",
       "op": 2,
+      "invasive": true,
       "label": "Coast",
       "description": "Releases the motor: the outputs are off.",
       "symbol": "HBRIDGE_OP_COAST",

@@ -25,7 +25,7 @@
   "datasheet": "https://www.ti.com/lit/ds/symlink/ina3221.pdf",
   "config": {
     "struct": "ina3221_cfg_t",
-    "size": 9,
+    "size": 11,
     "fields": [
       {
         "id": "i2c_bus",
@@ -43,8 +43,27 @@
         "description": "The A0 pin strap (GND, Vs+, SDA or SCL) selects one of four addresses",
         "offset": 1,
         "size": 1,
-        "type": "number",
-        "raw_type": "u8"
+        "type": "choice",
+        "raw_type": "u8",
+        "default": 64,
+        "options": [
+          {
+            "label": "0x40 (A0 to GND)",
+            "value": 64
+          },
+          {
+            "label": "0x41 (A0 to Vs+)",
+            "value": 65
+          },
+          {
+            "label": "0x42 (A0 to SDA)",
+            "value": 66
+          },
+          {
+            "label": "0x43 (A0 to SCL)",
+            "value": 67
+          }
+        ]
       },
       {
         "id": "crit_pin",
@@ -76,11 +95,35 @@
         "description": "Bit N set: channel N's shunt is wired reversed, its current reads negative",
         "offset": 8,
         "size": 1,
-        "type": "number",
+        "type": "bitmask",
         "raw_type": "u8",
         "default": 0,
-        "min": 0,
-        "max": 7
+        "bits": [
+          {
+            "bit": 0,
+            "label": "Channel 1"
+          },
+          {
+            "bit": 1,
+            "label": "Channel 2"
+          },
+          {
+            "bit": 2,
+            "label": "Channel 3"
+          }
+        ]
+      },
+      {
+        "id": "shunt_mohm",
+        "label": "Shunt resistance",
+        "description": "The resistance of each channel's shunt, in milliohms: 10 for the runIT board, 100 for a 0.1 ohm shunt (marked R100). The current is the shunt voltage divided by it",
+        "offset": 9,
+        "size": 2,
+        "type": "number",
+        "raw_type": "u16",
+        "default": 10,
+        "unit": "mΩ",
+        "min": 1
       }
     ]
   },

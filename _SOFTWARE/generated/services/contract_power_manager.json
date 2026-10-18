@@ -12,6 +12,8 @@
   "commands": [
     {
       "id": "SET_CONFIG",
+      "read_by": "GET_CONFIG",
+      "record": "SYS_ACTIONS_ID_POWER_CFG",
       "op": 1,
       "symbol": "SYS_PWRM_OP_SET_CONFIG",
       "label": "Power manager configuration",
@@ -199,6 +201,8 @@
     },
     {
       "id": "SET_PSU",
+      "read_by": "GET_PSU",
+      "record": "SYS_ACTIONS_ID_POWER_PSU",
       "op": 3,
       "symbol": "SYS_PWRM_OP_SET_PSU",
       "label": "Set external supply limits",
@@ -229,6 +233,8 @@
     },
     {
       "id": "SET_BATTERY",
+      "read_by": "GET_BATTERY",
+      "record": "SYS_ACTIONS_ID_POWER_BATTERY",
       "op": 4,
       "symbol": "SYS_PWRM_OP_SET_BATTERY",
       "label": "Set battery parameters",
@@ -519,6 +525,8 @@
     },
     {
       "id": "SET_RESPONSES",
+      "read_by": "GET_MATRIX",
+      "record": "SYS_ACTIONS_ID_POWER_RESPONSES",
       "op": 9,
       "symbol": "SYS_PWRM_OP_SET_RESPONSES",
       "label": "Set the full response matrix",
@@ -531,6 +539,128 @@
             "type": "string",
             "raw_type": "bytes",
             "description": "All response rows (the rest of the frame)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "GET_PSU",
+      "op": 10,
+      "symbol": "SYS_PWRM_OP_GET_PSU",
+      "label": "Read external supply limits",
+      "description": "Returns the external supply limits as set (0 / 0: no supply entered).",
+      "returns": {
+        "struct": "sys_power_psu_t",
+        "description": "External supply limits",
+        "fields": [
+          {
+            "id": "max_mV",
+            "label": "Maximum voltage",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 0,
+            "unit": "mV"
+          },
+          {
+            "id": "max_mA",
+            "label": "Maximum current",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 4,
+            "unit": "mA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "GET_BATTERY",
+      "op": 11,
+      "symbol": "SYS_PWRM_OP_GET_BATTERY",
+      "label": "Read battery parameters",
+      "description": "Returns the battery as set (chemistry None: no battery entered).",
+      "returns": {
+        "struct": "sys_power_battery_t",
+        "description": "Battery parameters",
+        "fields": [
+          {
+            "id": "chemistry",
+            "label": "Cell chemistry",
+            "type": "choice",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "options": [
+              {
+                "label": "None",
+                "value": 0
+              },
+              {
+                "label": "LiPo (4.2 V per cell)",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "id": "cells",
+            "label": "Number of cells",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 1
+          },
+          {
+            "id": "low_pct",
+            "label": "Low threshold",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 2,
+            "unit": "%"
+          },
+          {
+            "id": "critical_pct",
+            "label": "Critical threshold",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 3,
+            "unit": "%"
+          }
+        ]
+      }
+    },
+    {
+      "id": "GET_MATRIX",
+      "op": 12,
+      "symbol": "SYS_PWRM_OP_GET_MATRIX",
+      "label": "Read the full response matrix",
+      "description": "Returns every row of the response matrix with its target: the board first, then the regulator rails in the order SET_RESPONSES takes them.",
+      "returns": {
+        "struct": "sys_power_response_row_t",
+        "array": true,
+        "description": "One row per target",
+        "fields": [
+          {
+            "id": "target",
+            "label": "Target",
+            "type": "device",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 0,
+            "description": "0xFFFF for the board, or the device ID of a regulator rail"
+          },
+          {
+            "id": "responses",
+            "label": "Responses",
+            "type": "enum",
+            "enum": "sys_power_response_e",
+            "index_enum": "sys_power_kind_e",
+            "raw_type": "u8",
+            "size": 11,
+            "offset": 2,
+            "description": "The response to each power event kind (sys_power_kind_e order)"
           }
         ]
       }

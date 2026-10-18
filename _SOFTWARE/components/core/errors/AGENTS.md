@@ -9,7 +9,7 @@ Spec: `ERRORS.MD` (this folder).
 - Tag maps and registration:
   - Each module declares its tags via `ERR_TAGS_DECLARE(MAP)` in its header.
   - The module registers the table once via `ERR_MODULE_DEFINE(mod_id, name, MAP)` in a `.c` file that is guaranteed to be linked.
-  - Changing an error map or adding a tag requires updating `templates/`: run `sh templates/sync.sh` (runs `generate_errors.py`, refreshes `generated/`, validates). Commit with `--check` green.
+  - Every tag has its user message (and, when the user can act on it, a `hint`: what to do) in `errors_<module>.json` next to the header of its map (templates/AGENTS.md "Errors"); a new module has a new file. Changing an error map or adding a tag requires updating it and `templates/`: run `sh templates/sync.sh` (runs `generate_errors.py`, refreshes `generated/`, validates). Commit with `--check` green.
 - Node lifecycle and chain ownership:
   - An error is a linked chain of nodes (`err_h` = pointer to outermost node). `NULL` strictly indicates success. Never return `NULL` for a failure.
   - Nodes are allocated from a static fixed block pool (`err_pool_alloc` / `err_pool_free`), task- and ISR-safe under a spinlock critical section.

@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_CORE",
+  "errors": {
+    "ERR_POOL_EMPTY": {
+      "message": "The board ran out of room to record error details"
+    },
+    "ERR_ESP_ERR": {
+      "message": "A system call failed ({code})"
+    }
+  }
+}

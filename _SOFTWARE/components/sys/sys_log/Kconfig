@@ -8,4 +8,12 @@ menu "sys_log"
           Log lines sent to the logs connector are cut to this. Formatted on
           the stack of the task that logs.
 
+    config SYS_LOG_ERRORS_KEPT
+        int "Error records kept for the app"
+        default 16
+        range 1 64
+        help
+          The latest error records (each up to SYS_LOG_RECORD_MAX bytes) are kept in RAM so the app can read what happened before
+          it connected. A restart empties them.
+
 endmenu

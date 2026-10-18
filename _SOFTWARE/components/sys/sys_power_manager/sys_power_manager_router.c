@@ -29,6 +29,25 @@ ROUTER_OP(op_set_battery, sys_power_battery_t) {
   return sys_power_manager_set_battery(args);
 }
 
+ROUTER_OP_NOARGS(op_get_psu) {
+  sys_power_psu_t psu;
+  sys_power_manager_get_psu(&psu);
+  return cmd_reply(out, out_cap, out_len, &psu, sizeof(psu));
+}
+
+ROUTER_OP_NOARGS(op_get_battery) {
+  sys_power_battery_t battery;
+  sys_power_manager_get_battery(&battery);
+  return cmd_reply(out, out_cap, out_len, &battery, sizeof(battery));
+}
+
+ROUTER_OP_NOARGS(op_get_matrix) {
+  sys_power_response_row_t rows[1 + CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS];
+  uint8_t count = 0;
+  ERR_TRY(sys_power_manager_get_matrix(rows, (uint8_t)(sizeof(rows) / sizeof(rows[0])), &count));
+  return cmd_reply(out, out_cap, out_len, rows, (size_t)count * sizeof(rows[0]));
+}
+
 ROUTER_OP(op_set_response, response_args_t) {
   return sys_power_manager_set_response(args->target, args->kind, args->response);
 }
@@ -68,6 +87,9 @@ static const router_entry_t k_ops[] = {
     {SYS_PWRM_OP_GET_STATUS, op_get_status},
     {SYS_PWRM_OP_NEGOTIATE_MAX, op_negotiate_max},
     {SYS_PWRM_OP_SET_RESPONSES, op_set_responses},
+    {SYS_PWRM_OP_GET_PSU, op_get_psu},
+    {SYS_PWRM_OP_GET_BATTERY, op_get_battery},
+    {SYS_PWRM_OP_GET_MATRIX, op_get_matrix},
 };
 
 ROUTER_MODULE(sys_power_manager_router, k_ops)

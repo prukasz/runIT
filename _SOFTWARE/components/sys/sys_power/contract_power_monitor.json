@@ -63,6 +63,7 @@
     {
       "id": "SET_ALERT",
       "op": 2,
+      "invasive": true,
       "label": "Set current alert",
       "description": "Arms a hardware alert that publishes an event when the current crosses a threshold.",
       "symbol": "PMON_OP_SET_ALERT",

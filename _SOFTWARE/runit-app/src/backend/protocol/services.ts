@@ -88,6 +88,45 @@ export const createDeviceCall = (defs: LinkDefinitions, catalog: ServiceCatalog,
   return { request: deviceRequest(defs, device, deviceOp(catalog, lifecycle, create), concat(head, body), false), entry: lifecycle, command: create, label: `device ${device} ${lifecycle.id} ${CREATE} ${deviceType.id}` }
 }
 
+/** A device frame read back: the device, the command and its arguments; a CREATE also gives the type and its config. */
+export interface DeviceFrame {
+  readonly device: number
+  readonly entry: CatalogEntry
+  readonly command: CommandDef
+  readonly args?: FieldRecord
+  readonly create?: { readonly type: CatalogEntry; readonly config?: FieldRecord }
+}
+
+/**
+ * A frame of a record (`[device key][id u16][op u16][args]`, no seq or flags) back into the command it is, by the catalog: the
+ * mirror of `deviceCall` / `createDeviceCall`. A device type's own op is read with the type `typeOf` gives for the device (the
+ * op alone does not say whose it is). Undefined for a frame that is not a device command the catalog describes, or whose
+ * arguments do not fit its layout.
+ */
+export const readDeviceFrame = (defs: LinkDefinitions, catalog: ServiceCatalog, frame: Uint8Array, typeOf: (device: number) => CatalogEntry | undefined = () => undefined): DeviceFrame | undefined => {
+  if (frame.length < 5 || frame[0] !== defs.keys.device) return undefined
+  const device = frame[1]! | (frame[2]! << 8)
+  const op = frame[3]! | (frame[4]! << 8)
+  const contract = op >> 8
+  const payload = frame.subarray(5)
+  const entry = contract === catalog.ownContractId ? typeOf(device) : catalog.byContractId.get(contract)
+  const command = entry && [...entry.commands.values()].find((c) => c.op === (op & 0xff))
+  if (!entry || !command) return undefined
+  try {
+    if (contract === catalog.lifecycleContractId && command.id === CREATE && command.args) {
+      const head = decodeFields(command.args, payload)
+      const type = catalog.byTypeId.get(Number(head[command.args.fields[0]!.id]))
+      if (!type) return undefined
+      const body = payload.subarray(command.args.fixed)
+      return { device, entry, command, create: { type, ...(type.config ? { config: decodeFields(type.config, body) } : {}) } }
+    }
+    return { device, entry, command, ...(command.args ? { args: decodeFields(command.args, payload) } : {}) }
+  } catch (error) {
+    if (error instanceof PayloadError) return undefined
+    throw error
+  }
+}
+
 /** A request as the router takes it from a record: `[keys…][payload]`, no seq or flags (SYS_ACTIONS.MD). */
 export const requestFrame = (request: Request): Uint8Array => concat(Uint8Array.from(request.keys), request.payload ?? new Uint8Array(0))
 

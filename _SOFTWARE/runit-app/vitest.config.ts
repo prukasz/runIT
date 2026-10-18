@@ -9,10 +9,12 @@ export default defineConfig({
       '@generated': at('../generated'),
       '@engine': at('./src/engine'),
       '@backend': at('./src/backend'),
+      '@ui': at('./src/ui'),
     },
   },
   test: {
     include: ['tests/**/*.test.ts'],
+    exclude: ['tests/hardware/**', 'node_modules/**'], // the board's own: npm run test:hw
     environment: 'node',
   },
 })

@@ -72,6 +72,7 @@ class Record:
     """router_err_record(): request (if any) + error chain."""
 
     src: int
+    time_ms: int = 0  # the board's clock when it reported (UTC; before 2020: since the start)
     link: int = 0
     peer: int = 0
     seq: int = 0
@@ -113,14 +114,15 @@ def decode_chain(b: bytes) -> tuple[list[Node], bool]:
 
 def decode_record(b: bytes) -> Record:
     src = b[0]
+    (time_ms,) = struct.unpack_from("<Q", b, 1)
     if src == 0:
-        nodes, cut = decode_chain(b[1:])
-        return Record(src=0, nodes=nodes, chain_cut=cut)
-    link, peer, seq, flags, rl = struct.unpack_from("<BIBBB", b, 1)
+        nodes, cut = decode_chain(b[9:])
+        return Record(src=0, time_ms=time_ms, nodes=nodes, chain_cut=cut)
+    link, peer, seq, flags, rl = struct.unpack_from("<BIBBB", b, 9)
     n = rl & 0x7F
-    req = b[9 : 9 + n]
-    nodes, cut = decode_chain(b[9 + n :])
-    return Record(1, link, peer, seq, flags, req, bool(rl & 0x80), nodes, cut)
+    req = b[17 : 17 + n]
+    nodes, cut = decode_chain(b[17 + n :])
+    return Record(1, time_ms, link, peer, seq, flags, req, bool(rl & 0x80), nodes, cut)
 
 
 @dataclass

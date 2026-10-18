@@ -5,29 +5,29 @@
   "scope": "system",
   "id": "I2C",
   "router_key": 2,
-  "alias": "Diagnostyka magistrali I2C (I2C Bus Diagnostics)",
-  "description": "Skanowanie adresów na magistralach I2C, reset magistrali oraz bezpośredni dostęp do rejestrów układów (raw read/write).",
+  "alias": "I2C bus diagnostics (I2C Bus Diagnostics)",
+  "description": "Scanning addresses on the I2C buses, resetting a bus, and direct access to the registers of chips (raw read / write).",
   "category": "system",
   "commands": [
     {
       "id": "INFO",
       "op": 1,
       "symbol": "OP_INFO",
-      "label": "Informacje o magistralach I2C",
-      "description": "Zwraca status włączenia, piny SDA/SCL oraz maskę zajętych adresów dla wszystkich magistral I2C na płytce.",
+      "label": "Information about the I2C buses",
+      "description": "Returns whether each I2C bus is enabled, its SDA / SCL pins and the mask of addresses in use, for every I2C bus on the board.",
       "returns": {
         "struct": "sys_i2c_info_t",
         "array": true,
-        "description": "Stan magistral I2C: jeden wpis na magistralę, w kolejności indeksów",
+        "description": "State of the I2C buses: one entry per bus, in index order",
         "fields": [
           {
             "id": "flags",
-            "label": "Flagi",
+            "label": "Flags",
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "Bit 0 włączona, bit 1 gotowa, bit 2 podciągnięcia włączone"
+            "description": "Bit 0 enabled, bit 1 ready, bit 2 pull-ups on"
           },
           {
             "id": "sda",
@@ -47,12 +47,12 @@
           },
           {
             "id": "used",
-            "label": "Zajęte adresy",
+            "label": "Addresses in use",
             "type": "bitmask",
             "raw_type": "u32",
             "size": 16,
             "offset": 3,
-            "description": "Bit n = urządzenie dodane pod adresem n (4 słowa u32)"
+            "description": "Bit n = a device was added at address n (4 u32 words)"
           }
         ]
       }
@@ -61,29 +61,29 @@
       "id": "SCAN",
       "op": 2,
       "symbol": "OP_SCAN",
-      "label": "Skanuj magistralę I2C",
-      "description": "Wykonuje skanowanie adresów 0x08..0x77 na wybranej magistrali i zwraca 128-bitową maskę adresów, które odpowiedziały ACK.",
+      "label": "Scan an I2C bus",
+      "description": "Scans the addresses 0x08..0x77 on the given bus and returns a 128-bit mask of the addresses that answered ACK.",
       "args": {
         "struct": "sys_i2c_bus_args_t",
         "fields": [
           {
             "id": "bus",
-            "label": "Indeks magistrali I2C",
+            "label": "I2C bus index",
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "Numer magistrali I2C (0 lub 1)"
+            "description": "Number of the I2C bus (0 or 1)"
           }
         ]
       },
       "returns": {
         "struct": "sys_i2c_scan_t",
-        "description": "Maska znalezionych adresów",
+        "description": "Mask of the addresses found",
         "fields": [
           {
             "id": "found_0",
-            "label": "Adresy 0x00..0x1F",
+            "label": "Addresses 0x00..0x1F",
             "type": "integer",
             "raw_type": "u32",
             "size": 4,
@@ -91,7 +91,7 @@
           },
           {
             "id": "found_1",
-            "label": "Adresy 0x20..0x3F",
+            "label": "Addresses 0x20..0x3F",
             "type": "integer",
             "raw_type": "u32",
             "size": 4,
@@ -99,7 +99,7 @@
           },
           {
             "id": "found_2",
-            "label": "Adresy 0x40..0x5F",
+            "label": "Addresses 0x40..0x5F",
             "type": "integer",
             "raw_type": "u32",
             "size": 4,
@@ -107,7 +107,7 @@
           },
           {
             "id": "found_3",
-            "label": "Adresy 0x60..0x7F",
+            "label": "Addresses 0x60..0x7F",
             "type": "integer",
             "raw_type": "u32",
             "size": 4,
@@ -120,14 +120,14 @@
       "id": "RESET",
       "op": 3,
       "symbol": "OP_RESET",
-      "label": "Reset magistrali I2C",
-      "description": "Resetuje magistralę (impulsy zegara SCL), by odblokować układ trzymający linię SDA.",
+      "label": "Reset an I2C bus",
+      "description": "Resets the bus (SCL clock pulses) to free a chip that holds the SDA line.",
       "args": {
         "struct": "sys_i2c_bus_args_t",
         "fields": [
           {
             "id": "bus",
-            "label": "Indeks magistrali I2C",
+            "label": "I2C bus index",
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
@@ -140,14 +140,14 @@
       "id": "RAW_READ",
       "op": 4,
       "symbol": "OP_RAW_READ",
-      "label": "Niskopoziomowy odczyt rejestru I2C",
-      "description": "Odczytuje określoną liczbę bajtów z rejestru urządzenia pod zadanym 7-bitowym adresem I2C.",
+      "label": "Raw read of an I2C register",
+      "description": "Reads a number of bytes from a register of the device at the given 7-bit I2C address.",
       "args": {
         "struct": "sys_i2c_raw_read_args_t",
         "fields": [
           {
             "id": "bus",
-            "label": "Magistrala I2C",
+            "label": "I2C bus",
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
@@ -155,7 +155,7 @@
           },
           {
             "id": "addr",
-            "label": "Adres 7-bit",
+            "label": "7-bit address",
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
@@ -163,7 +163,7 @@
           },
           {
             "id": "reg",
-            "label": "Adres rejestru",
+            "label": "Register address",
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
@@ -171,7 +171,7 @@
           },
           {
             "id": "len",
-            "label": "Liczba bajtów",
+            "label": "Number of bytes",
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
@@ -181,21 +181,21 @@
       },
       "returns": {
         "type": "bytes",
-        "description": "Odczytane bajty rejestru"
+        "description": "Bytes read from the register"
       }
     },
     {
       "id": "RAW_WRITE",
       "op": 5,
       "symbol": "OP_RAW_WRITE",
-      "label": "Niskopoziomowy zapis rejestru I2C",
-      "description": "Zapisuje dane do wskazanego rejestru urządzenia pod 7-bitowym adresem I2C.",
+      "label": "Raw write of an I2C register",
+      "description": "Writes data to the given register of the device at a 7-bit I2C address.",
       "args": {
         "struct": "sys_i2c_raw_write_args_t",
         "fields": [
           {
             "id": "bus",
-            "label": "Magistrala I2C",
+            "label": "I2C bus",
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
@@ -203,7 +203,7 @@
           },
           {
             "id": "addr",
-            "label": "Adres 7-bit",
+            "label": "7-bit address",
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
@@ -211,7 +211,7 @@
           },
           {
             "id": "reg",
-            "label": "Adres rejestru",
+            "label": "Register address",
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
@@ -219,10 +219,10 @@
           },
           {
             "id": "data",
-            "label": "Dane do zapisu",
+            "label": "Data to write",
             "type": "string",
             "raw_type": "bytes",
-            "description": "Bajty do zapisu (ogon tail)"
+            "description": "Bytes to write (runs to the end of the frame)"
           }
         ]
       }

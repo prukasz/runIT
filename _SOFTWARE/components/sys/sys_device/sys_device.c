@@ -35,6 +35,10 @@ static uint32_t s_type_count;
 static dev_t_ s_devs[CONFIG_SYS_DEVICE_MAX];
 static uint32_t s_dev_count;
 
+static sys_device_state_f s_state_listener;
+// A sweep in progress (per registry lock, so one task): its devices' changes make one call at the end, not one each.
+static uint32_t s_sweep_depth;
+static bool s_sweep_changed;
 static bool s_creating;  // a create() is running: another CREATE from inside it would break the table's invariants
 
 /* One recursive lock for the registry and for every call into a device (sys_device.h "Locking"). */
@@ -228,13 +232,30 @@ bool sys_device_error_policy_get(uint16_t id, sys_device_error_policy_t* out) {
   return found;
 }
 
+void sys_device_set_state_listener(sys_device_state_f fn) {
+  s_state_listener = fn;
+}
+
+// The flag of device `id` changed: told now, or once at the end of the sweep in progress.
+static void state_changed(uint16_t id, bool suspended) {
+  if (s_sweep_depth > 0) {
+    s_sweep_changed = true;
+  } else if (s_state_listener != NULL) {
+    s_state_listener(id, suspended);
+  }
+}
+
 // SUSPEND and RESUME: the registry owns the flag, the driver's hook does the hardware (sys_device.h, the type).
 static err_h run_lifecycle(const dev_t_* d, uint16_t op, const uint8_t* args, uint32_t args_len) {
   ERR_CHECK(args_len == 0, ERR_CMD_BAD_LEN, .got = (uint16_t)args_len, .need = 0);
   sys_device_base_t* base = d->ctx;
   if (op == SYS_DEVICE_OP_SUSPEND) {
+    const bool was = base->suspended;
     const err_h err = d->type->suspend(d->ctx);
     base->suspended = true;  // even when the hook failed: a half-safe device refuses writes
+    if (!was) {
+      state_changed(d->id, true);
+    }
     return err;
   }
   if (!base->suspended) {
@@ -243,6 +264,7 @@ static err_h run_lifecycle(const dev_t_* d, uint16_t op, const uint8_t* args, ui
   const err_h err = d->type->resume(d->ctx);
   if (err == NULL) {
     base->suspended = false;  // a failing resume leaves the device suspended
+    state_changed(d->id, false);
   }
   return err;
 }
@@ -399,6 +421,10 @@ static err_h sweep(uint16_t op, bool newest_first, bool project_only) {
       ids[n++] = d->id;
     }
   }
+  const bool outer = s_sweep_depth++ == 0;
+  if (outer) {
+    s_sweep_changed = false;
+  }
   for (uint32_t i = 0; i < n; i++) {
     err_h err = sys_device_call(ids[i], op, NULL, 0, NULL, 0, NULL);
     if (err == NULL) {
@@ -409,6 +435,10 @@ static err_h sweep(uint16_t op, bool newest_first, bool project_only) {
     } else {
       err_report(err);
     }
+  }
+  s_sweep_depth--;
+  if (outer && s_sweep_changed && s_state_listener != NULL) {
+    s_state_listener(SYS_DEVICE_ID_NONE, op == SYS_DEVICE_OP_SUSPEND);
   }
   UNLOCK();
   return first;

@@ -15,6 +15,7 @@ __pycache__/
 # Node / React App ignores
 node_modules/
 dist/
+runit-app/release/
 app/node_modules/
 app/dist/
 .local/

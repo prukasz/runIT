@@ -5,7 +5,7 @@
 ```ts
 const engine = createEngine()                       // bundled descriptors; new Engine({definitions, limits, codecs}) for your own
 const result = engine.compile(project)              // { ok, diagnostics, frames, ir, arena, ids, order }
-if (result.ok) await sendProgram(link, result.frames)                  // OPEN, objects, values, accessors, blocks (src/backend/BACKEND.md)
+if (result.ok) await loadProgram(link, result.frames)                  // OPEN, objects, values, accessors, blocks (src/backend/BACKEND.md)
 ```
 
 A `Project` is `{ variables, blocks }`, plain data. The engine holds neither a project nor a connection: data in, data out.
@@ -110,7 +110,7 @@ Three things were once held in the engine and are now published and checked at t
 
 ## Not done yet
 
-A watch list (which variables to subscribe to, from the board's limit), a debug build, the settings / BLE side. The wire layer has `subscribeFrame`, `execFrame`, `speedFrame`, `resetFrame`.
+A watch list (the variables marked `subscribed`, which the compiler ignores, turned into a SUBSCRIBE within the board's limit), a debug build, the settings / BLE side. The wire layer has `subscribeFrame`, `execFrame`, `speedFrame`, `resetFrame`.
 
 ## Tests
 

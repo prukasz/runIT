@@ -11,6 +11,7 @@
     {
       "id": "SET_LEVEL",
       "op": 0,
+      "invasive": true,
       "label": "Set level",
       "description": "Drives a pin high or low.",
       "symbol": "IO_OP_SET_LEVEL",
@@ -23,7 +24,10 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "The pin of the device"
+            "description": "The pin of the device",
+            "pin_state": [
+              "output"
+            ]
           },
           {
             "id": "level",
@@ -50,6 +54,7 @@
     {
       "id": "TOGGLE",
       "op": 1,
+      "invasive": true,
       "label": "Toggle",
       "description": "Flips the level of a pin.",
       "symbol": "IO_OP_TOGGLE",
@@ -62,7 +67,10 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "The pin of the device"
+            "description": "The pin of the device",
+            "pin_state": [
+              "output"
+            ]
           }
         ],
         "struct": "io_pin_args_t"
@@ -83,7 +91,11 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "The pin of the device"
+            "description": "The pin of the device",
+            "pin_state": [
+              "input",
+              "output"
+            ]
           }
         ],
         "struct": "io_pin_args_t"
@@ -106,6 +118,7 @@
     {
       "id": "SET_PWM_DUTY",
       "op": 3,
+      "invasive": true,
       "label": "Set PWM duty",
       "description": "Sets the PWM duty of a pin.",
       "symbol": "IO_OP_SET_PWM_DUTY",
@@ -118,7 +131,10 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "The pin of the device"
+            "description": "The pin of the device",
+            "pin_state": [
+              "pwm"
+            ]
           },
           {
             "id": "duty",
@@ -138,6 +154,7 @@
     {
       "id": "SET_PWM_FREQ",
       "op": 4,
+      "invasive": true,
       "label": "Set PWM frequency",
       "description": "Sets the PWM frequency of a pin; a device with one frequency for all its pins ignores the pin.",
       "symbol": "IO_OP_SET_PWM_FREQ",
@@ -150,7 +167,10 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "The pin of the device"
+            "description": "The pin of the device",
+            "pin_state": [
+              "pwm"
+            ]
           },
           {
             "id": "frequency_Hz",
@@ -169,6 +189,7 @@
     {
       "id": "SET_MODE",
       "op": 5,
+      "invasive": true,
       "label": "Set mode",
       "description": "Configures what a pin does.",
       "symbol": "IO_OP_SET_MODE",
@@ -181,7 +202,10 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "The pin of the device"
+            "description": "The pin of the device",
+            "pin_state": [
+              "unconfigured"
+            ]
           },
           {
             "id": "mode",
@@ -200,6 +224,7 @@
     {
       "id": "RESET",
       "op": 6,
+      "invasive": true,
       "label": "Reset pin",
       "description": "Puts a pin back in its power-on state.",
       "symbol": "IO_OP_RESET",
@@ -212,7 +237,10 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "The pin of the device"
+            "description": "The pin of the device",
+            "pin_state": [
+              "configured"
+            ]
           }
         ],
         "struct": "io_pin_args_t"
@@ -221,6 +249,7 @@
     {
       "id": "CONFIGURE_INTR",
       "op": 7,
+      "invasive": true,
       "label": "Configure interrupt",
       "description": "Arms a pin to raise events on an edge or when an analog value leaves a window.",
       "symbol": "IO_OP_CONFIGURE_INTR",
@@ -233,7 +262,11 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "The pin of the device"
+            "description": "The pin of the device",
+            "pin_state": [
+              "input",
+              "adc"
+            ]
           },
           {
             "id": "mode",
@@ -312,7 +345,10 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "The pin of the device"
+            "description": "The pin of the device",
+            "pin_state": [
+              "adc"
+            ]
           }
         ],
         "struct": "io_pin_args_t"
@@ -326,6 +362,7 @@
     {
       "id": "SET_VOLTAGE",
       "op": 9,
+      "invasive": true,
       "label": "Set voltage",
       "description": "Drives an analog output pin to a voltage.",
       "symbol": "IO_OP_SET_VOLTAGE",
@@ -338,7 +375,10 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "The pin of the device"
+            "description": "The pin of the device",
+            "pin_state": [
+              "dac"
+            ]
           },
           {
             "id": "voltage_mV",

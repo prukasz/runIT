@@ -7,6 +7,7 @@
 #include "vm_loader.h"
 #include "vm_override.h"
 #include "vm_retain.h"
+#include "vm_stats.h"
 #include "vm_sub.h"
 #include "vm_wire.h"
 
@@ -224,6 +225,31 @@ VM_OP_FN(op_speed) {
   return vm_clock_set_slowdown(rec.factor);
 }
 
+// Reads only: never changes the program or the run, so it is safe at any time (also while a pass runs).
+static err_h op_status(CMD_F_PARAMS) {
+  (void)ctx;
+  (void)in;
+  (void)in_len;
+  const vm_exec_status_t run = vm_exec_status();
+  const vm_exec_fault_status_t fault = vm_exec_fault_status();
+  err_h incomplete = vm_loader_verify_complete();
+  const bool loaded = vm_loader_state() == VM_LOAD_OPEN;
+  const vm_wire_status_t r = {
+      .mode = (uint8_t)run.mode,
+      .load_state = (uint8_t)vm_loader_state(),
+      .ready = loaded && incomplete == NULL,
+      .fault_latched = fault.latched,
+      .fault_device = fault.device_id,
+      .slowdown = vm_clock_slowdown(),
+      .fault_root_tag = fault.root_tag,
+      .pass_count = vm_exec_pass_count(),
+      .last_pass_us = vm_exec_last_pass_us(),
+      .arena_used = vm_loader_used(),
+  };
+  if (incomplete) err_free(incomplete);
+  return cmd_reply(out, out_cap, out_len, &r, sizeof(r));
+}
+
 // OPEN replaces a running program, so it always counts for the fail-closed rule.
 static err_h op_open_closed(CMD_F_PARAMS) {
   return load_result(op_open(ctx, in, in_len, out, out_cap, out_len), VM_OP_OPEN, true);
@@ -256,6 +282,7 @@ static const router_entry_t k_ops[] = {
     {VM_OP_SUBSCRIBE, op_subscribe},
     {VM_OP_EXEC, op_exec},
     {VM_OP_SPEED, op_speed},
+    {VM_OP_STATUS, op_status},
 };
 
 ROUTER_MODULE(vm_router, k_ops)

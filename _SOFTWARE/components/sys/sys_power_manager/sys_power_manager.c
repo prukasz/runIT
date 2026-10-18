@@ -720,6 +720,18 @@ err_h sys_power_manager_set_battery(const sys_power_battery_t* battery) {
   return NULL;
 }
 
+void sys_power_manager_get_psu(sys_power_psu_t* out) {
+  LOCK();
+  *out = s_psu;
+  UNLOCK();
+}
+
+void sys_power_manager_get_battery(sys_power_battery_t* out) {
+  LOCK();
+  *out = s_battery;
+  UNLOCK();
+}
+
 // The matrix row of a target: 0 for the board, 1 + i for rail i.
 static err_h row_of(uint16_t target, uint8_t* row) {
   ERR_CHECK(s_board != NULL, ERR_PWRM_NOT_READY);
@@ -766,6 +778,20 @@ err_h sys_power_manager_get_responses(uint16_t target, uint8_t out[SYS_POWER_KIN
   LOCK();
   memcpy(out, s_responses[row], SYS_POWER_KIND_COUNT);
   UNLOCK();
+  return NULL;
+}
+
+err_h sys_power_manager_get_matrix(sys_power_response_row_t* rows, uint8_t cap, uint8_t* count) {
+  ERR_CHECK(s_board != NULL, ERR_PWRM_NOT_READY);
+  const uint8_t n = (uint8_t)(1 + s_board->consumer_count);
+  ERR_CHECK(cap >= n, ERR_CMD_BAD_LEN, .got = cap, .need = n);
+  LOCK();
+  for (uint8_t i = 0; i < n; i++) {
+    rows[i].target = i == 0 ? SYS_POWER_TARGET_BOARD : s_board->consumers[i - 1].vreg;
+    memcpy(rows[i].responses, s_responses[i], SYS_POWER_KIND_COUNT);
+  }
+  UNLOCK();
+  *count = n;
   return NULL;
 }
 

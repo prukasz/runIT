@@ -532,7 +532,6 @@
       "alias": "Power monitor",
       "type": "SYS_DEVICE_TYPE_INA3221",
       "descriptor": "device_ina3221",
-      "description": "INA3221: the board input and both rails",
       "role": "power_monitor",
       "i2c": {
         "bus": 0,
@@ -552,7 +551,8 @@
         }
       ],
       "config": {
-        "inverted_mask": 7
+        "inverted_mask": 7,
+        "shunt_mohm": 10
       }
     },
     {

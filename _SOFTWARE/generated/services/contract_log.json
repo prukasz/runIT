@@ -5,42 +5,44 @@
   "scope": "system",
   "id": "LOG",
   "router_key": 8,
-  "alias": "Konfiguracja logowania (Log Control)",
-  "description": "Konfiguracja poziomu logów systemowych ESP_LOG, przekierowywania na konsolę UART oraz wysyłania łańcuchów błędów i linii logów na strumienie danych.",
+  "alias": "Logging settings (Log Control)",
+  "description": "Settings for the ESP_LOG level, for printing to the UART console, and for sending the error chains and the log lines on the data streams.",
   "category": "system",
   "commands": [
     {
       "id": "SET",
+      "read_by": "GET",
+      "record": "SYS_ACTIONS_ID_LOG",
       "op": 1,
       "symbol": "SYS_LOG_OP_SET",
-      "label": "Ustaw opcje logowania",
-      "description": "Zapisuje i stosuje w locie konfigurację poziomu logów oraz filtrów przesyłania.",
+      "label": "Set the logging options",
+      "description": "Stores the log level and the forwarding options and applies them at once.",
       "args": {
         "struct": "sys_log_cfg_t",
         "fields": [
           {
             "id": "level",
-            "label": "Poziom logowania",
+            "label": "Log level",
             "type": "choice",
             "raw_type": "u8",
             "size": 1,
             "offset": 0,
-            "description": "Maksymalny poziom rejestrowanych komunikatów",
+            "description": "Highest level of the messages that are logged",
             "options": [
               {
-                "label": "Brak (None)",
+                "label": "None",
                 "value": 0
               },
               {
-                "label": "Błędy (Error)",
+                "label": "Errors",
                 "value": 1
               },
               {
-                "label": "Ostrzeżenia (Warn)",
+                "label": "Warnings",
                 "value": 2
               },
               {
-                "label": "Informacje (Info)",
+                "label": "Info",
                 "value": 3
               },
               {
@@ -48,46 +50,46 @@
                 "value": 4
               },
               {
-                "label": "Szczegółowy (Verbose)",
+                "label": "Verbose",
                 "value": 5
               }
             ]
           },
           {
             "id": "mirror_serial",
-            "label": "Konsola szeregowa (UART)",
+            "label": "Serial console (UART)",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
             "offset": 1,
-            "description": "1 = wypisuj linie logów na konsolę szeregową UART"
+            "description": "1 = print the log lines on the UART serial console"
           },
           {
             "id": "trace_errors",
-            "label": "Ślad błędów w logach",
+            "label": "Error trace in the log",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
             "offset": 2,
-            "description": "1 = drukuj pełny łańcuch błędu w tekście logu"
+            "description": "1 = print the whole error chain in the log text"
           },
           {
             "id": "send_errors",
-            "label": "Strumień błędów",
+            "label": "Errors stream",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
             "offset": 3,
-            "description": "1 = wysyłaj rekordy błędów na dedykowany strumień ERRORS"
+            "description": "1 = send the error records on the ERRORS stream"
           },
           {
             "id": "send_logs",
-            "label": "Strumień logów",
+            "label": "Logs stream",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
             "offset": 4,
-            "description": "1 = wysyłaj linie logów na dedykowany strumień LOGS (np. BLE)"
+            "description": "1 = send the log lines on the LOGS stream (e.g. over BLE)"
           }
         ]
       }
@@ -96,15 +98,15 @@
       "id": "GET",
       "op": 2,
       "symbol": "SYS_LOG_OP_GET",
-      "label": "Odczytaj opcje logowania",
-      "description": "Zwraca bieżącą konfigurację poziomów logowania i strumieni.",
+      "label": "Read the logging options",
+      "description": "Returns the current log level and stream settings.",
       "returns": {
         "struct": "sys_log_cfg_t",
-        "description": "Bieżąca konfiguracja logowania",
+        "description": "Current logging settings",
         "fields": [
           {
             "id": "level",
-            "label": "Poziom logowania",
+            "label": "Log level",
             "type": "integer",
             "raw_type": "u8",
             "size": 1,
@@ -112,7 +114,7 @@
           },
           {
             "id": "mirror_serial",
-            "label": "Konsola szeregowa",
+            "label": "Serial console",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
@@ -120,7 +122,7 @@
           },
           {
             "id": "trace_errors",
-            "label": "Ślad błędów",
+            "label": "Error trace",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
@@ -128,7 +130,7 @@
           },
           {
             "id": "send_errors",
-            "label": "Strumień błędów",
+            "label": "Errors stream",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
@@ -136,13 +138,40 @@
           },
           {
             "id": "send_logs",
-            "label": "Strumień logów",
+            "label": "Logs stream",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
             "offset": 4
           }
         ]
+      }
+    },
+    {
+      "id": "ERRORS",
+      "op": 3,
+      "symbol": "SYS_LOG_OP_ERRORS",
+      "label": "Read a kept error",
+      "description": "The board keeps the latest error records (the ones the errors stream carries) in RAM, so the app can read what happened before it connected. This returns the one at the index, the oldest first, with how many there are. A restart empties them.",
+      "args": {
+        "struct": "sys_log_errors_args_t",
+        "fields": [
+          {
+            "id": "index",
+            "label": "Index",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "min": 0,
+            "description": "0 = the oldest kept record"
+          }
+        ]
+      },
+      "returns": {
+        "type": "bytes",
+        "label": "Record",
+        "description": "u8 total kept, then the error record (ROUTER.MD \"Error record\"); only the total for an index past the end."
       }
     }
   ]

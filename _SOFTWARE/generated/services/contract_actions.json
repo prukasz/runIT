@@ -5,16 +5,16 @@
   "scope": "system",
   "id": "ACTIONS",
   "router_key": 6,
-  "alias": "Zarządzanie akcjami (Actions & Macros)",
-  "description": "Zapisywanie, odtwarzanie, pobieranie oraz zarządzanie listami i makrami poleceń w pamięci Flash.",
+  "alias": "Action management (Actions & Macros)",
+  "description": "Storing, replaying and reading back command lists (macros) in Flash, and managing them.",
   "category": "system",
   "commands": [
     {
       "id": "RUN",
       "op": 1,
       "symbol": "SYS_ACTIONS_OP_RUN",
-      "label": "Uruchom akcję",
-      "description": "Odtwarza nagraną listę poleceń o zadanym ID rekordu (zatrzymuje się na pierwszym błędzie).",
+      "label": "Run an action",
+      "description": "Replays the recorded command list of the given record ID (stops at the first error).",
       "args": {
         "struct": "id_args_t",
         "fields": [
@@ -25,7 +25,7 @@
             "raw_type": "u32",
             "size": 4,
             "offset": 0,
-            "description": "Identyfikator rekordu akcji"
+            "description": "ID of the action record"
           }
         ]
       }
@@ -34,8 +34,8 @@
       "id": "RECORD_START",
       "op": 2,
       "symbol": "SYS_ACTIONS_OP_RECORD_START",
-      "label": "Rozpocznij nagrywanie",
-      "description": "Przechwytuje kolejne polecenia nadsyłane przez klienta i zapisuje je do rekordu akcji pod wskazanym ID.",
+      "label": "Start recording",
+      "description": "Captures the commands the client sends next and stores them in the action record with the given ID.",
       "args": {
         "struct": "record_start_t",
         "fields": [
@@ -46,16 +46,16 @@
             "raw_type": "u32",
             "size": 4,
             "offset": 0,
-            "description": "Identyfikator rekordu akcji"
+            "description": "ID of the action record"
           },
           {
             "id": "execute",
-            "label": "Wykonuj podczas nagrywania",
+            "label": "Run while recording",
             "type": "boolean",
             "raw_type": "u8",
             "size": 1,
             "offset": 4,
-            "description": "1 = wykonuj nagrywane polecenia w locie, 0 = tylko nagrywaj"
+            "description": "1 = run the recorded commands as they arrive, 0 = only record them"
           }
         ]
       }
@@ -64,15 +64,15 @@
       "id": "RECORD_STOP",
       "op": 3,
       "symbol": "SYS_ACTIONS_OP_RECORD_STOP",
-      "label": "Zakończ nagrywanie",
-      "description": "Zatrzymuje aktywne nagrywanie, zamyka rekord akcji i zwraca informacje o zapisanych danych.",
+      "label": "Stop recording",
+      "description": "Stops the recording in progress, closes the action record and returns what was stored.",
       "returns": {
         "struct": "sys_actions_info_t",
-        "description": "Metadane zapisanego rekordu akcji",
+        "description": "Metadata of the stored action record",
         "fields": [
           {
             "id": "bytes",
-            "label": "Rozmiar",
+            "label": "Size",
             "type": "integer",
             "raw_type": "u16",
             "size": 2,
@@ -81,7 +81,7 @@
           },
           {
             "id": "count",
-            "label": "Liczba ramek",
+            "label": "Number of frames",
             "type": "integer",
             "raw_type": "u16",
             "size": 2,
@@ -102,8 +102,8 @@
       "id": "BEGIN",
       "op": 4,
       "symbol": "SYS_ACTIONS_OP_BEGIN",
-      "label": "Rozpocznij wgrywanie",
-      "description": "Otwiera sesję wgrywania gotowego obrazu rekordu akcji o określonej długości bajtowej.",
+      "label": "Start uploading",
+      "description": "Opens an upload session for a ready-made action record image of the given length in bytes.",
       "args": {
         "struct": "begin_t",
         "fields": [
@@ -117,7 +117,7 @@
           },
           {
             "id": "len",
-            "label": "Długość",
+            "label": "Length",
             "type": "integer",
             "raw_type": "u16",
             "size": 2,
@@ -131,8 +131,8 @@
       "id": "WRITE",
       "op": 5,
       "symbol": "SYS_ACTIONS_OP_WRITE",
-      "label": "Zapisz fragment",
-      "description": "Wgrywa fragment danych wgrywanego rekordu pod zadanym offsetem.",
+      "label": "Write a chunk",
+      "description": "Uploads a chunk of the record being uploaded at the given offset.",
       "args": {
         "struct": "write_t",
         "fields": [
@@ -147,10 +147,10 @@
           },
           {
             "id": "data",
-            "label": "Dane fragmentu",
+            "label": "Chunk data",
             "type": "string",
             "raw_type": "bytes",
-            "description": "Bajty fragmentu obrazu rekordu (ogon tail)"
+            "description": "Bytes of the record image chunk (runs to the end of the frame)"
           }
         ]
       }
@@ -159,8 +159,8 @@
       "id": "COMMIT",
       "op": 6,
       "symbol": "SYS_ACTIONS_OP_COMMIT",
-      "label": "Zatwierdź wgrywanie",
-      "description": "Sprawdza sumę CRC-32 i utrwala wgrany rekord akcji w pamięci Flash.",
+      "label": "Commit the upload",
+      "description": "Checks the CRC-32 and stores the uploaded action record in Flash.",
       "args": {
         "struct": "commit_t",
         "fields": [
@@ -179,8 +179,8 @@
       "id": "READ",
       "op": 7,
       "symbol": "SYS_ACTIONS_OP_READ",
-      "label": "Odczytaj ramki akcji",
-      "description": "Odsyła zarejestrowane ramki akcji (jedna ramka odpowiedzi na jedno nagrane polecenie).",
+      "label": "Read the action's frames",
+      "description": "Sends back the stored frames of the action (one answer frame per recorded command).",
       "args": {
         "struct": "id_args_t",
         "fields": [
@@ -199,8 +199,8 @@
       "id": "INFO",
       "op": 8,
       "symbol": "SYS_ACTIONS_OP_INFO",
-      "label": "Odczytaj metadane akcji",
-      "description": "Zwraca rozmiar, liczbę zarejestrowanych ramek oraz sumę CRC-32 wskazanego rekordu.",
+      "label": "Read the action's metadata",
+      "description": "Returns the size, the number of stored frames and the CRC-32 of the given record.",
       "args": {
         "struct": "id_args_t",
         "fields": [
@@ -216,11 +216,11 @@
       },
       "returns": {
         "struct": "sys_actions_info_t",
-        "description": "Informacje o rekordzie akcji",
+        "description": "Information about the action record",
         "fields": [
           {
             "id": "bytes",
-            "label": "Rozmiar",
+            "label": "Size",
             "type": "integer",
             "raw_type": "u16",
             "size": 2,
@@ -229,7 +229,7 @@
           },
           {
             "id": "count",
-            "label": "Liczba ramek",
+            "label": "Number of frames",
             "type": "integer",
             "raw_type": "u16",
             "size": 2,
@@ -250,14 +250,14 @@
       "id": "LIST",
       "op": 9,
       "symbol": "SYS_ACTIONS_OP_LIST",
-      "label": "Lista rekordów akcji",
-      "description": "Pobiera listę identyfikatorów rekordów akcji zapisanych we Flashu począwszy od zadanego ID.",
+      "label": "List of action records",
+      "description": "Returns the IDs of the action records stored in Flash, starting from the given ID.",
       "args": {
         "struct": "list_args_t",
         "fields": [
           {
             "id": "start",
-            "label": "Początkowy Record ID",
+            "label": "First record ID",
             "type": "integer",
             "raw_type": "u32",
             "size": 4,
@@ -267,16 +267,16 @@
       },
       "returns": {
         "type": "u16",
-        "label": "Łączna liczba rekordów",
-        "description": "Potem u32 ID rekordów rosnąco od podanego startu, do 48 i tyle, ile się mieści."
+        "label": "Total number of records",
+        "description": "Then the u32 record IDs in ascending order from the given start: up to 48, as many as fit."
       }
     },
     {
       "id": "REMOVE",
       "op": 10,
       "symbol": "SYS_ACTIONS_OP_REMOVE",
-      "label": "Usuń rekord akcji",
-      "description": "Usuwa wskazany rekord akcji z pamięci Flash.",
+      "label": "Remove an action record",
+      "description": "Removes the given action record from Flash.",
       "args": {
         "struct": "id_args_t",
         "fields": [
@@ -295,15 +295,15 @@
       "id": "ABORT",
       "op": 11,
       "symbol": "SYS_ACTIONS_OP_ABORT",
-      "label": "Przerwij wgrywanie lub nagrywanie",
-      "description": "Anuluje otwartą sesję wgrywania lub nagrywania i porzuca niezapisane dane."
+      "label": "Abort the upload or recording",
+      "description": "Cancels the open upload or recording session and drops the data not stored yet."
     },
     {
       "id": "RUN_ALL",
       "op": 13,
       "symbol": "SYS_ACTIONS_OP_RUN_ALL",
-      "label": "Uruchom wszystkie ramki akcji",
-      "description": "Odtwarza wszystkie ramki z rekordu akcji bez zatrzymywania na ewentualnym błędzie (zwraca pierwszy napotkany błąd).",
+      "label": "Run every frame of an action",
+      "description": "Replays every frame of the action record without stopping at an error (the first error is returned).",
       "args": {
         "struct": "id_args_t",
         "fields": [
@@ -322,8 +322,8 @@
       "id": "REMOVE_ALL",
       "op": 14,
       "symbol": "SYS_ACTIONS_OP_REMOVE_ALL",
-      "label": "Usuń wszystkie rekordy akcji",
-      "description": "Usuwa wszystkie zapisane rekordy (ustawienia, urządzenia, projekt i akcje użytkownika). Odmawia, gdy nagrywanie lub wgrywanie jest otwarte."
+      "label": "Remove all action records",
+      "description": "Removes every stored record (settings, devices, the project and the user's actions). Refused while a recording or an upload is open."
     }
   ]
 }

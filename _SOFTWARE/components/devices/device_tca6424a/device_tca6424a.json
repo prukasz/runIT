@@ -40,8 +40,19 @@
         "description": "ADDR low selects 0x22, high 0x23",
         "offset": 1,
         "size": 1,
-        "type": "number",
-        "raw_type": "u8"
+        "type": "choice",
+        "raw_type": "u8",
+        "default": 34,
+        "options": [
+          {
+            "label": "0x22 (ADDR low)",
+            "value": 34
+          },
+          {
+            "label": "0x23 (ADDR high)",
+            "value": 35
+          }
+        ]
       },
       {
         "id": "intr_pin",
@@ -91,15 +102,37 @@
   "provides": {
     "pins": {
       "count": 24,
+      "default_mode": "input",
       "modes": [
         "input",
         "input_pullup",
         "output"
       ],
       "labels": [
-        "P00", "P01", "P02", "P03", "P04", "P05", "P06", "P07",
-        "P10", "P11", "P12", "P13", "P14", "P15", "P16", "P17",
-        "P20", "P21", "P22", "P23", "P24", "P25", "P26", "P27"
+        "P00",
+        "P01",
+        "P02",
+        "P03",
+        "P04",
+        "P05",
+        "P06",
+        "P07",
+        "P10",
+        "P11",
+        "P12",
+        "P13",
+        "P14",
+        "P15",
+        "P16",
+        "P17",
+        "P20",
+        "P21",
+        "P22",
+        "P23",
+        "P24",
+        "P25",
+        "P26",
+        "P27"
       ],
       "electrical": {
         "voltage_mV_min": 0,

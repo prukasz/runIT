@@ -259,6 +259,20 @@
         }
       ]
     },
+    "device_id": {
+      "alias": "Device ID",
+      "kind": "defines",
+      "prefix": "SYS_DEVICE_ID_",
+      "source_file": "components/sys/sys_device/sys_device.h",
+      "members": [
+        {
+          "name": "SYS_DEVICE_ID_NONE",
+          "value": 65535,
+          "alias": "No device",
+          "description": "Never registered: no device in a pin reference; SUSPEND, RESUME and RESET sent to it run on every device"
+        }
+      ]
+    },
     "drv8962_topology_e": {
       "alias": "DRV8962 Topology",
       "kind": "enum",
@@ -321,6 +335,40 @@
         }
       ]
     },
+    "event_op": {
+      "alias": "Event frames",
+      "kind": "defines",
+      "prefix": "SYS_EVENT_OP_",
+      "source_file": "components/sys/sys_event/sys_event.h",
+      "members": [
+        {
+          "name": "SYS_EVENT_OP_NOTIFY",
+          "value": 1,
+          "alias": "Notify",
+          "description": "an event on the events stream: [ROUTER_KEY_EVENT][NOTIFY][sys_event_t]"
+        }
+      ]
+    },
+    "io_pin_none": {
+      "alias": "Unused pin",
+      "kind": "defines",
+      "prefix": "SYS_IO_PIN_NONE_",
+      "source_file": "components/sys/sys_io/sys_io.h",
+      "members": [
+        {
+          "name": "SYS_IO_PIN_NONE_DEVICE",
+          "value": 65535,
+          "alias": "Device",
+          "description": "The device of an unused pin: no pin is used when the device is this"
+        },
+        {
+          "name": "SYS_IO_PIN_NONE_INDEX",
+          "value": 255,
+          "alias": "Pin",
+          "description": "The pin index of an unused pin"
+        }
+      ]
+    },
     "router_err_flag": {
       "alias": "Error Record Flags",
       "kind": "defines",
@@ -332,6 +380,12 @@
           "value": 128,
           "alias": "Request cut",
           "description": "Bit 7 of request length: request was cut to fit, more was sent"
+        },
+        {
+          "name": "ROUTER_ERR_STAMP_BYTES",
+          "value": 8,
+          "alias": "Time stamp bytes",
+          "description": "The u64 LE UTC time in ms (the board's clock) right after the source byte; counts from the start while no client has set the clock (before 2020: not a date)"
         }
       ]
     },
@@ -663,7 +717,7 @@
         {
           "name": "SYS_DEVICE_IMPORTANCE_NONE",
           "value": 0,
-          "alias": "None",
+          "alias": "Ignore errors",
           "description": "Ignores all errors"
         },
         {
@@ -1788,6 +1842,63 @@
         }
       ]
     },
+    "vm_ref_kind": {
+      "alias": "Block wiring point",
+      "kind": "defines",
+      "prefix": "VM_REF_KIND_",
+      "source_file": "components/vm/vm_core/errors/vm_err.h",
+      "members": [
+        {
+          "name": "VM_REF_KIND_IN",
+          "value": 0,
+          "alias": "Input",
+          "description": "An input pin: an accessor"
+        },
+        {
+          "name": "VM_REF_KIND_OUT",
+          "value": 1,
+          "alias": "Output",
+          "description": "An output pin: an object"
+        },
+        {
+          "name": "VM_REF_KIND_EN",
+          "value": 2,
+          "alias": "Enable",
+          "description": "An enable source: an accessor"
+        },
+        {
+          "name": "VM_REF_KIND_ENO",
+          "value": 3,
+          "alias": "ENO",
+          "description": "The enable output: an object"
+        }
+      ]
+    },
+    "vm_reg_e": {
+      "alias": "VM registry",
+      "kind": "enum",
+      "source_file": "components/vm/vm_core/store/vm_store.h",
+      "members": [
+        {
+          "name": "VM_REG_OBJ",
+          "value": 0,
+          "alias": "Objects",
+          "description": "The program's variables and their elements"
+        },
+        {
+          "name": "VM_REG_ACC",
+          "value": 1,
+          "alias": "Accessors",
+          "description": "The paths blocks read and write through"
+        },
+        {
+          "name": "VM_REG_BLK",
+          "value": 2,
+          "alias": "Blocks",
+          "description": "The program's blocks"
+        }
+      ]
+    },
     "vm_run_mode_e": {
       "alias": "Program Run Mode",
       "kind": "enum",
@@ -1938,6 +2049,7 @@
     "ROUTER_ERR_REQ_CUT": "router_err_flag",
     "ROUTER_ERR_SRC_COMMAND": "router_err_src_e",
     "ROUTER_ERR_SRC_INTERNAL": "router_err_src_e",
+    "ROUTER_ERR_STAMP_BYTES": "router_err_flag",
     "ROUTER_FLAG_URGENT": "router_flag",
     "ROUTER_KEY_ACTIONS": "router_key",
     "ROUTER_KEY_BLE": "router_key",
@@ -2000,11 +2112,13 @@
     "SYS_DEVICE_FAULT_STAGE_ACTION": "sys_device_fault_stage_e",
     "SYS_DEVICE_FAULT_STAGE_SUSPEND": "sys_device_fault_stage_e",
     "SYS_DEVICE_FAULT_STAGE_VM_STOP": "sys_device_fault_stage_e",
+    "SYS_DEVICE_ID_NONE": "device_id",
     "SYS_DEVICE_IMPORTANCE_CRITICAL": "sys_device_importance_e",
     "SYS_DEVICE_IMPORTANCE_HIGH": "sys_device_importance_e",
     "SYS_DEVICE_IMPORTANCE_LOW": "sys_device_importance_e",
     "SYS_DEVICE_IMPORTANCE_MEDIUM": "sys_device_importance_e",
     "SYS_DEVICE_IMPORTANCE_NONE": "sys_device_importance_e",
+    "SYS_EVENT_OP_NOTIFY": "event_op",
     "SYS_HBRIDGE_FAULT_EXTERNAL": "sys_hbridge_fault_reason_e",
     "SYS_HBRIDGE_FAULT_NONE": "sys_hbridge_fault_reason_e",
     "SYS_HBRIDGE_FAULT_OVERCURRENT": "sys_hbridge_fault_reason_e",
@@ -2028,6 +2142,8 @@
     "SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP": "sys_io_mode_e",
     "SYS_IO_MODE_OUTPUT_PUSH_PULL": "sys_io_mode_e",
     "SYS_IO_MODE_PWM": "sys_io_mode_e",
+    "SYS_IO_PIN_NONE_DEVICE": "io_pin_none",
+    "SYS_IO_PIN_NONE_INDEX": "io_pin_none",
     "SYS_POWER_ALERT_OCP_CRITICAL": "sys_power_alert_e",
     "SYS_POWER_ALERT_OCP_WARNING": "sys_power_alert_e",
     "SYS_POWER_BATTERY_LIPO": "sys_power_battery_e",
@@ -2162,6 +2278,13 @@
     "VM_OBJ_STR": "vm_obj_t_e",
     "VM_OBJ_U32": "vm_obj_t_e",
     "VM_OBJ_U8": "vm_obj_t_e",
+    "VM_REF_KIND_EN": "vm_ref_kind",
+    "VM_REF_KIND_ENO": "vm_ref_kind",
+    "VM_REF_KIND_IN": "vm_ref_kind",
+    "VM_REF_KIND_OUT": "vm_ref_kind",
+    "VM_REG_ACC": "vm_reg_e",
+    "VM_REG_BLK": "vm_reg_e",
+    "VM_REG_OBJ": "vm_reg_e",
     "VM_RUN_BLOCK": "vm_run_mode_e",
     "VM_RUN_BLOCK_STEP": "vm_run_mode_e",
     "VM_RUN_FROZEN": "vm_run_mode_e",

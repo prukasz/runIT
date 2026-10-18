@@ -36,6 +36,8 @@ export class FakeBoard implements BlePlatform {
     return [this.device]
   }
 
+  async forget(): Promise<void> {}
+
   open(_device: BleDeviceRef, handlers: OpenHandlers): Promise<BleChannel> {
     this.opens++
     if (this.hangOpens > 0) {

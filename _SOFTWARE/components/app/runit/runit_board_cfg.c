@@ -166,7 +166,7 @@ err_h runit_board_devices_init(void) {
   const ina3221_cfg_t ina = {.i2c_bus = SYS_I2C_BUS_0, .i2c_addr = INA3221_I2C_ADDR_MIN,
                              .crit_pin = BOARD_PIN(DEVICE_ID_TCA6424A, RUNIT_BOARD_TCA_INA_CRIT),
                              .warn_pin = BOARD_PIN(DEVICE_ID_TCA6424A, RUNIT_BOARD_TCA_INA_WARN),
-                             .inverted_mask = 0x07};
+                             .inverted_mask = 0x07, .shunt_mohm = RUNIT_BOARD_INA_SHUNT_MOHM};
   CREATE_CHIP(&first, "INA3221", DEVICE_ID_INA3221, SYS_DEVICE_TYPE_INA3221, ina);
 
   const ap33772s_cfg_t ap = {.i2c_bus = SYS_I2C_BUS_0, .i2c_addr = AP33772S_I2C_ADDR,

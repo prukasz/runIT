@@ -1,0 +1,57 @@
+{
+  "$schema": "../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_ACTIONS",
+  "errors": {
+    "ERR_ACTION_NOT_FOUND": {
+      "message": "{id} does not exist",
+      "hint": "Write the project to the board (toolbar), or check which action is called."
+    },
+    "ERR_ACTION_BUSY": {
+      "message": "A recording or upload is already open"
+    },
+    "ERR_ACTION_NO_SESSION": {
+      "message": "No recording or upload is open"
+    },
+    "ERR_ACTION_TOO_BIG": {
+      "message": "The action is {len} bytes; at most {max} fit",
+      "hint": "Split the action into smaller ones."
+    },
+    "ERR_ACTION_OFFSET": {
+      "message": "The upload is out of order (at {got}, expected {want})"
+    },
+    "ERR_ACTION_INCOMPLETE": {
+      "message": "The upload is incomplete ({got} of {want} bytes)",
+      "hint": "Write it again."
+    },
+    "ERR_ACTION_CRC": {
+      "message": "The upload is damaged (checksum {got}, expected {want})",
+      "hint": "Write it again."
+    },
+    "ERR_ACTION_BAD_FRAME": {
+      "message": "The action is broken at byte {offset}"
+    },
+    "ERR_ACTION_EMPTY": {
+      "message": "The recording has no command",
+      "hint": "Add a command to the action."
+    },
+    "ERR_ACTION_DEPTH": {
+      "message": "Actions run each other {depth} levels deep: too deep",
+      "hint": "Make the actions call each other less deep."
+    },
+    "ERR_ACTION_WRONG_TASK": {
+      "message": "An action was started from the wrong place"
+    },
+    "ERR_ACTION_NO_MEM": {
+      "message": "No memory for the action ({size} bytes)"
+    },
+    "ERR_ACTION_STEP": {
+      "message": "In step {step} of {id}"
+    },
+    "ERR_ACTION_BAD_ARG": {
+      "message": "An action request is not valid"
+    },
+    "ERR_ACTION_BAD_ID": {
+      "message": "Action ID 0 is not valid"
+    }
+  }
+}

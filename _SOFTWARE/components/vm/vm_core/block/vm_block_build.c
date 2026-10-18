@@ -2,13 +2,6 @@
 #include "vm_err.h"
 #include "vm_blocks.h"
 
-
-// which wiring point an ERR_VM_BLK_BAD_REF refers to
-#define REF_KIND_IN 0
-#define REF_KIND_OUT 1
-#define REF_KIND_EN 2
-#define REF_KIND_ENO 3
-
 err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
   ERR_CHECK(out != NULL, ERR_VM_BAD_ARG);
   ERR_CHECK(cfg != NULL, ERR_VM_BAD_ARG);
@@ -29,12 +22,12 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
   for (uint8_t i = 0; i < cfg->in_cnt; i++) {
     if (cfg->in_acc_ids[i] == VM_BLOCK_NO_ID) continue;
     if (!vm_accessor_get_by_id(cfg->in_acc_ids[i])) {
-      return ERR_NEW(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->in_acc_ids[i], .slot = i, .kind = REF_KIND_IN);
+      return ERR_NEW(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->in_acc_ids[i], .slot = i, .kind = VM_REF_KIND_IN);
     }
   }
   for (uint8_t i = 0; i < cfg->q_cnt; i++) {
     if (!vm_obj_get_by_id(cfg->out_obj_ids[i])) {
-      return ERR_NEW(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->out_obj_ids[i], .slot = i, .kind = REF_KIND_OUT);
+      return ERR_NEW(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->out_obj_ids[i], .slot = i, .kind = VM_REF_KIND_OUT);
     }
   }
 
@@ -43,7 +36,7 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
      program, exactly like an unwired numbered pin. */
   for (uint8_t i = 0; i < cfg->en_cnt; i++) {
     if (!vm_accessor_get_by_id(cfg->en_acc_ids[i])) {
-      return ERR_NEW(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->en_acc_ids[i], .slot = i, .kind = REF_KIND_EN);
+      return ERR_NEW(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->en_acc_ids[i], .slot = i, .kind = VM_REF_KIND_EN);
     }
   }
 
@@ -56,7 +49,7 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
   if (cfg->eno_obj_id != VM_BLOCK_NO_ID) {
     eno = vm_obj_get_by_id(cfg->eno_obj_id);
     if (!eno || !eno->head.f.mutable || (vm_obj_t_e)eno->head.d.obj_t != VM_OBJ_B || eno->head.payload_size < 1) {
-      return ERR_NEW(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->eno_obj_id, .slot = 0, .kind = REF_KIND_ENO);
+      return ERR_NEW(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->eno_obj_id, .slot = 0, .kind = VM_REF_KIND_ENO);
     }
   }
 
@@ -68,14 +61,14 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
     bool taken = false;
     for (uint8_t j = 0; j < i && !taken; j++) taken = cfg->out_obj_ids[j] == cfg->out_obj_ids[i];
     if (taken) {
-      return ERR_NEW(ERR_VM_BLK_OUTPUT_TAKEN, .blk_id = cfg->block_idx, .obj_id = cfg->out_obj_ids[i], .slot = i, .kind = REF_KIND_OUT);
+      return ERR_NEW(ERR_VM_BLK_OUTPUT_TAKEN, .blk_id = cfg->block_idx, .obj_id = cfg->out_obj_ids[i], .slot = i, .kind = VM_REF_KIND_OUT);
     }
   }
   if (eno) {
     bool taken = false;
     for (uint8_t i = 0; i < cfg->q_cnt && !taken; i++) taken = cfg->out_obj_ids[i] == cfg->eno_obj_id;
     if (taken) {
-      return ERR_NEW(ERR_VM_BLK_OUTPUT_TAKEN, .blk_id = cfg->block_idx, .obj_id = cfg->eno_obj_id, .slot = 0, .kind = REF_KIND_ENO);
+      return ERR_NEW(ERR_VM_BLK_OUTPUT_TAKEN, .blk_id = cfg->block_idx, .obj_id = cfg->eno_obj_id, .slot = 0, .kind = VM_REF_KIND_ENO);
     }
   }
 

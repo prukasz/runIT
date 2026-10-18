@@ -208,8 +208,7 @@
           "name",
           "alias",
           "type",
-          "descriptor",
-          "description"
+          "descriptor"
         ],
         "additionalProperties": false,
         "properties": {

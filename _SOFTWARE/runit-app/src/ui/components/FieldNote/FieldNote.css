@@ -1,0 +1,3 @@
+/* A field's label; the help text of a row is shown by help mode (HelpOverlay), not here */
+.field-label { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.field-label > label, .field-label > span { min-width: 0; }

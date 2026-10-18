@@ -1,6 +1,6 @@
 ---
 name: runit-templates
-description: Skill for runIT's descriptors and generators in templates/ - the JSON Schemas (device, contract, board, VM block, errors, enums, limits), the generate_*.py scripts, the generated/ bundle and sync.sh. Load for any change to a device_*.json, contract_*.json, board.json, block_*.json or errors.json, to a schema, to a marked enum or define group, to a #@limit Kconfig option, or when generated/ is out of date.
+description: Skill for runIT's descriptors and generators in templates/ - the JSON Schemas (device, contract, board, VM block, errors, enums, limits), the generate_*.py scripts, the generated/ bundle and sync.sh. Load for any change to a device_*.json, contract_*.json, board.json, block_*.json, errors.json or an errors_<module>.json (error messages), to a schema, to a marked enum or define group, to a #@limit Kconfig option, or when generated/ is out of date.
 ---
 
 # runIT — Templates Skill (descriptors and generators)

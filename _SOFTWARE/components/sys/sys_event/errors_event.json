@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_EVENT",
+  "errors": {
+    "ERR_EVENT_QUEUE_FULL": {
+      "message": "Too many events: {dropped} from {source} were dropped",
+      "hint": "The source sends events faster than they are taken: slow it down."
+    },
+    "ERR_EVENT_TABLE_FULL": {
+      "message": "No room for another event subscription"
+    },
+    "ERR_EVENT_NOT_FOUND": {
+      "message": "Event subscription {id} does not exist"
+    },
+    "ERR_EVENT_BAD_ARG": {
+      "message": "An event request is not valid"
+    },
+    "ERR_EVENT_DELIVERY": {
+      "message": "While {device} handled event {event} of {source} ({channel})",
+      "fields": {
+        "channel": {
+          "of": "source"
+        }
+      }
+    }
+  }
+}

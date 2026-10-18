@@ -1,0 +1,26 @@
+.listable-field-wrap { min-width: var(--listable-min-width, 60px); }
+.listable-field-select { min-width: var(--listable-min-width, 60px); font-size: var(--field-font-size, 12px); font-weight: var(--listable-font-weight, 600); }
+select.listable-field-select.form-select-control { background-image: none !important; padding-right: 24px !important; }
+
+/* The themed dropdown: ListableField without the native popup. */
+/* The browser draws a <select> popup itself (light, unstyleable). The trigger keeps the field look; the list is the app's OptionMenu. */
+.dd { position: relative; }
+.dd .dd-trigger { display: flex; align-items: center; justify-content: flex-start; text-align: left; cursor: pointer; font-size: var(--field-font-size, 12px); font-weight: var(--listable-font-weight, 600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 28px; appearance: none; }
+.dd .dd-trigger:disabled { cursor: not-allowed; }
+.dd-placeholder { color: var(--muted); font-weight: 500; }
+.dd-menu { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; min-width: 100%; max-height: 280px; overflow-y: auto; padding: 4px; }
+.dd-menu.is-up { top: auto; bottom: calc(100% + 4px); }
+.dd-option { font: inherit; font-size: 12px; }
+.shell .dd-option { min-height: 28px; }
+.dd-option[aria-selected='true'] .dd-label { font-weight: 600; }
+.dd-option[aria-selected='true'] { box-shadow: inset 2px 0 var(--accent); }
+.dd-check { display: inline-flex; width: 14px; flex: none; color: var(--accent); }
+.dd-check svg { width: 13px; height: 13px; stroke-width: 2.4; }
+.dd-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-hint { margin-left: auto; padding-left: 12px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.dd-label + .dd-hint + .badge, .dd-label + .badge { margin-left: 8px; }
+.dd-group { padding: 8px 8px 3px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
+.dd-group:first-child { padding-top: 4px; }
+.dd.is-open .dd-trigger { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.dd.is-open .field-adornment-icon { transform: rotate(180deg); }
+.dd.is-error .dd-trigger { border-color: var(--error); box-shadow: 0 0 0 1px var(--error); }

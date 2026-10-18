@@ -92,6 +92,7 @@ typedef enum {
 
 //#ref-defines router_err_flag @alias Error Record Flags @prefix ROUTER_ERR_
 #define ROUTER_ERR_REQ_CUT 0x80u  //@alias Request cut @description Bit 7 of request length: request was cut to fit, more was sent
+#define ROUTER_ERR_STAMP_BYTES 8u  //@alias Time stamp bytes @description The u64 LE UTC time in ms (the board's clock) right after the source byte; counts from the start while no client has set the clock (before 2020: not a date)
 
 /**
  * @brief The command an error belongs to.

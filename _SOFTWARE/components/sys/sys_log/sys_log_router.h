@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-/** @brief Router of ROUTER_KEY_LOG: 0x01 SET {sys_log_cfg_t}, 0x02 GET -> sys_log_cfg_t, 5 bytes (SYS_LOG.MD). */
+/** @brief Router of ROUTER_KEY_LOG: 0x01 SET {sys_log_cfg_t}, 0x02 GET -> sys_log_cfg_t, 5 bytes, 0x03 ERRORS {index u8} -> [total u8][error record] (SYS_LOG.MD). */
 ROUTER_MODULE_DECLARE(sys_log_router);
 
 #ifdef __cplusplus

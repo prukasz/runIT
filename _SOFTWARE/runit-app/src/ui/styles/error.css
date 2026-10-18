@@ -1,0 +1,20 @@
+/* ---------- 2. shared error state ---------- */
+/* theme.css gets: --error / --error-bg next to the other semantic colors (red already exists as --color-red in both themes) */
+.shell { --error: var(--color-red); --error-bg: color-mix(in srgb, var(--color-red) 14%, var(--panel)); }
+
+.tree-slab-row.is-error,
+.shell .tree-slab-row.is-error {
+  border-color: var(--error);
+  background: var(--error-bg);
+  box-shadow: inset 3px 0 var(--error);
+}
+.tree-slab-row.is-error:hover,
+.shell .tree-slab-row.is-error:hover { border-color: var(--error); background: color-mix(in srgb, var(--color-red) 22%, var(--panel)); }
+/* error + search match: the match glow stays, the red edge stays */
+.tree-slab-row.is-error.is-search-match,
+.shell .tree-slab-row.is-error.is-search-match { box-shadow: inset 3px 0 var(--error), 0 0 12px color-mix(in srgb, var(--color-amber) 55%, transparent); }
+
+.adorned-field-wrap.is-error .form-field-control { border-color: var(--error); box-shadow: 0 0 0 1px var(--error); }
+.adorned-field-wrap.is-error .field-adornment-icon { color: var(--error); opacity: 1; }
+.field-error { display: flex; align-items: center; gap: 5px; margin-top: 2px; font-size: 11px; color: var(--error); }
+.field-error svg { width: 12px; height: 12px; }

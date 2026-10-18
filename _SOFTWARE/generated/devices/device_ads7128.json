@@ -41,8 +41,43 @@
         "description": "The resistor on the ADDR pin selects the address at power-up",
         "offset": 1,
         "size": 1,
-        "type": "number",
-        "raw_type": "u8"
+        "type": "choice",
+        "raw_type": "u8",
+        "default": 16,
+        "options": [
+          {
+            "label": "0x10 (resistor on ADDR)",
+            "value": 16
+          },
+          {
+            "label": "0x11 (resistor on ADDR)",
+            "value": 17
+          },
+          {
+            "label": "0x12 (resistor on ADDR)",
+            "value": 18
+          },
+          {
+            "label": "0x13 (resistor on ADDR)",
+            "value": 19
+          },
+          {
+            "label": "0x14 (resistor on ADDR)",
+            "value": 20
+          },
+          {
+            "label": "0x15 (resistor on ADDR)",
+            "value": 21
+          },
+          {
+            "label": "0x16 (resistor on ADDR)",
+            "value": 22
+          },
+          {
+            "label": "0x17 (resistor on ADDR)",
+            "value": 23
+          }
+        ]
       },
       {
         "id": "intr_pin",
@@ -88,6 +123,7 @@
   "provides": {
     "pins": {
       "count": 8,
+      "default_mode": "adc",
       "modes": [
         "adc"
       ],

@@ -39,8 +39,27 @@
         "description": "The A0 pin selects one of four addresses",
         "offset": 1,
         "size": 1,
-        "type": "number",
-        "raw_type": "u8"
+        "type": "choice",
+        "raw_type": "u8",
+        "default": 72,
+        "options": [
+          {
+            "label": "0x48 (A0 to GND)",
+            "value": 72
+          },
+          {
+            "label": "0x49 (A0 to VDD)",
+            "value": 73
+          },
+          {
+            "label": "0x4A (A0 to SDA)",
+            "value": 74
+          },
+          {
+            "label": "0x4B (A0 to SCL)",
+            "value": 75
+          }
+        ]
       }
     ]
   },

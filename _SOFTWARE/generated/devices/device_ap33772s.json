@@ -42,8 +42,15 @@
         "description": "The chip's fixed address",
         "offset": 1,
         "size": 1,
-        "type": "number",
-        "raw_type": "u8"
+        "type": "choice",
+        "raw_type": "u8",
+        "default": 82,
+        "options": [
+          {
+            "label": "0x52 (fixed)",
+            "value": 82
+          }
+        ]
       },
       {
         "id": "intr_pin",

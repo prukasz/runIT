@@ -76,12 +76,9 @@
       "items": { "type": "string" },
       "uniqueItems": true
     },
-    "inherits": {
-      "description": "Opcjonalny kontrakt bazowy lub lista kontraktów, które ten kontrakt rozszerza (np. POWER_SUPPLY dziedziczy po POWER_VREG).",
-      "oneOf": [
-        { "type": "string" },
-        { "type": "array", "items": { "type": "string" } }
-      ]
+    "record": {
+      "type": "string",
+      "description": "Ustawienia całej usługi trzymane jako jeden rekord (członek grupy 'settings_record' w enums.json, np. 'SYS_ACTIONS_ID_BLE'): aplikacja zapisuje w nim ramki tej usługi (np. tworzenie i powiązania) jako sekcję projektu, odtwarzaną przy każdym starcie projektu."
     },
     "commands": {
       "type": "array",
@@ -147,6 +144,19 @@
           "type": "boolean",
           "default": false,
           "description": "Czy operacja jest adresowana do konkretnego pinu / kanału urządzenia."
+        },
+        "record": {
+          "type": "string",
+          "description": "Rekord ustawienia (członek grupy 'settings_record' w enums.json, np. 'SYS_ACTIONS_ID_LOG'): aplikacja zapisuje ramkę tego polecenia jako sekcję projektu o tym ID, więc ustawienie wraca przy każdym starcie projektu. Bez niego ustawienie płytka trzyma sama (zapis działa od razu)."
+        },
+        "read_by": {
+          "type": "string",
+          "description": "Ustawienie płytki: id polecenia tego samego kontraktu, które je odczytuje (bez argumentów, zwraca strukturę z każdym polem argumentów tego polecenia). Aplikacja pokazuje takie polecenie jako ustawienie: odczytuje je po połączeniu i zapisuje tym poleceniem."
+        },
+        "invasive": {
+          "type": "boolean",
+          "default": false,
+          "description": "Czy polecenie zmienia stan pinu / kanału / urządzenia, któremu jest dane (zapis, a nie odczyt). Pin, którym zarządza inne urządzenie, nie jest dla takiego polecenia oferowany w aplikacji."
         },
         "args": {
           "description": "Parametry wejściowe przekazywane do polecenia (prosta lista pól lub obiekt struktury C).",
@@ -379,6 +389,10 @@
             "bitmask"
           ]
         },
+        "index_enum": {
+          "type": "string",
+          "description": "Pole-tablica, którego element i odpowiada członkowi o wartości i tej grupy enumów (np. 'sys_power_kind_e'): aplikacja podpisuje nim kolumny."
+        },
         "enum": {
           "type": "string",
           "description": "Dla type='enum': nazwa grupy enumów z generated/common/enums.json (np. 'sys_io_mode_e'). Aliasy wartości bierze się stamtąd.",
@@ -411,6 +425,19 @@
           "type": "integer",
           "minimum": 0,
           "description": "Offset bajtowy pola w strukturze C (opcjonalny, wyliczany sekwencyjnie)."
+        },
+        "bits": {
+          "type": "array",
+          "description": "Dla type='bitmask': bity, które pole pokazuje (klikalne, nazwane). Bit spoza listy nie jest dostępny w UI.",
+          "items": {
+            "type": "object",
+            "required": ["bit", "label"],
+            "properties": {
+              "bit": { "type": "integer", "minimum": 0, "maximum": 63, "description": "Numer bitu (0 = najmniej znaczący)." },
+              "label": { "type": "string", "description": "Nazwa bitu w UI (np. 'Channel 1')." }
+            },
+            "additionalProperties": false
+          }
         },
         "pin_ref": {
           "type": "boolean",
@@ -451,6 +478,13 @@
         "requires": {
           "type": "string",
           "description": "Wymagany tryb pracy pinu, gdy pole jest typu 'pin' (np. 'output', 'pwm', 'adc', 'input')."
+        },
+        "pin_state": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["unconfigured", "configured", "input", "output", "pwm", "adc", "dac"] },
+          "description": "Dla pola 'pin' polecenia pinu urządzenia: w jakim stanie musi być pin w chwili polecenia (każdy z wymienionych wystarcza). unconfigured: jeszcze bez trybu; configured: ma jakiś tryb; input / output / pwm / adc / dac: jest w trybie tego rodzaju (input: wejścia cyfrowe, output: wyjścia cyfrowe). Aplikacja oferuje tylko takie piny, żeby polecenie nie kończyło się błędem."
         },
         "requires_contract": {
           "type": "string",

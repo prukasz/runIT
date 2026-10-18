@@ -4,6 +4,7 @@
   contract.schema.json  components/**/contract_*.json
   vm-block.schema.json  components/vm/vm_blocks/**/block_*.json
   errors.schema.json    components/core/errors/errors.json
+  error-texts.schema.json  components/**/errors_<module>.json (the message templates of a module's errors)
   board.schema.json     components/app/runit/board.json
   enums.schema.json     generated/common/enums.json
   limits.schema.json    generated/common/limits.json
@@ -35,6 +36,7 @@ CHECKS = (
     ("contract.schema.json", descriptors("contract_")),
     ("vm-block.schema.json", descriptors("block_")),
     ("errors.schema.json", [COMPONENTS_DIR / "core" / "errors" / "errors.json"]),
+    ("error-texts.schema.json", descriptors("errors_")),
     ("board.schema.json", [COMPONENTS_DIR / "app" / "runit" / "board.json"]),
     ("enums.schema.json", [ENUMS]),
     ("limits.schema.json", [LIMITS]),

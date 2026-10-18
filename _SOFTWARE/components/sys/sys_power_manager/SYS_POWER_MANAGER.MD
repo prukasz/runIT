@@ -145,6 +145,11 @@ Defaults (the board config, both rails the same): OVP, SPC and budget exceeded �
 | `0x07` GET_STATUS | – | `sys_power_status_t` (31 B): `u8 source, i32 input_mV, i32 input_mA, u32 source_mV, u32 source_mA, u32 budget_mW, u32 limit_mW, u32 allocated_mW, u8 battery_pct` (0xFF = unknown), `u8 flags` (1 enabled, 2 strict, 4 over budget, 8 input seen) |
 | `0x08` NEGOTIATE_MAX | – | – (`ERR_PWRM_NO_OFFER` when nothing is offered) |
 | `0x09` SET_RESPONSES | `u8[1 + rails][11]`, no header: the whole matrix | – (another size: `ERR_CMD_BAD_LEN`; nothing changes) |
+| `0x0A` GET_PSU | – | `sys_power_psu_t` (8 B), as set |
+| `0x0B` GET_BATTERY | – | `sys_power_battery_t` (4 B), as set |
+| `0x0C` GET_MATRIX | – | `sys_power_response_row_t[1 + rails]`: per row `u16 target` (0xFFFF the board, else the rail's device ID), `u8[11]` by kind; the rows in SET_RESPONSES's order |
+
+Every SET has its read (`read_by` in the descriptor: GET_CONFIG, GET_PSU, GET_BATTERY, GET_MATRIX), so the app reads the settings when it connects and shows the board's values.
 
 ## Errors (`ERR_MOD_SYS_POWER_MANAGER` = 14)
 

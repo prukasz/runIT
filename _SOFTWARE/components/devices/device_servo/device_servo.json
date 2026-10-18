@@ -32,7 +32,7 @@
         "type": "pin",
         "raw_type": "bytes",
         "pin_ref": true,
-        "requires": "output",
+        "requires": "pwm",
         "optional": false
       },
       {

@@ -130,6 +130,45 @@ def t_modes(vm: Vm) -> None:
     vm.reset()
 
 
+@test("exec/STATUS reads the run")
+def t_status(vm: Vm) -> None:
+    """VM STATUS (0x0A) answers vm_wire_status_t: mode, load state, ready, the fault latch, slow-down, passes, arena."""
+    def status(what: str):
+        r = vm.op(OP_STATUS)
+        if not (ok(r) and len(r.data) == 24):
+            check(f"STATUS answers 24 bytes ({what})", False, str(r))
+            return None
+        return struct.unpack("<BBBBHHIIII", r.data)
+
+    vm.reset()
+    s = status("empty")
+    if s is None:
+        return
+    check("empty: stopped, nothing loaded, not ready", s[:3] == (0, 0, 0), str(s[:3]))
+    p, (c,) = counter_prog()
+    r = vm.load(p)  # None: every step answered OK
+    check("load", r is None, str(r))
+    s = status("loaded")
+    check("loaded and complete, not started: stopped, open, ready", s is not None and s[:3] == (0, 1, 1), str(s and s[:3]))
+    vm.exec(X_NORMAL)
+    time.sleep(0.4)
+    a = status("running")
+    time.sleep(0.4)
+    b = status("running later")
+    check("running: mode RUNNING and the pass count grows", a is not None and b is not None and a[0] == 1 and b[7] > a[7], f"{a and a[7]} -> {b and b[7]}")
+    check("the arena in use is reported", a is not None and a[9] > 0, str(a and a[9]))
+    vm.exec(X_PAUSE)
+    time.sleep(0.2)
+    s = status("paused")
+    check("PAUSE: mode FROZEN", s is not None and s[0] == 2, str(s and s[0]))
+    r = vm.link.request(bytes([KEY_SYS, 0x02]))  # sys STOP: the safe state
+    time.sleep(0.3)
+    s = status("safe state")
+    check("sys STOP: stopped, the program kept (open, ready)", ok(r) and s is not None and s[:3] == (0, 1, 1), str(s and s[:3]))
+    vm.link.request(bytes([0x05, 0xFF, 0xFF, 0x03, 0x00]))  # DEVICE RESUME to every device: out of the safe state
+    vm.reset()
+
+
 @test("exec/scan and block mode")
 def t_stepping(vm: Vm) -> None:
     p, (c,) = counter_prog()

@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>runIT UI kit</title>
+<!-- The UI parts the app will ship (src/ui). The data below is the backend's: `npm run kit` writes kit-data.js from the engine, the
+     device catalog and error records captured from a board. Open this file directly in a browser. -->
+<link rel="stylesheet" href="../src/ui/styles/theme.css">
+<link rel="stylesheet" href="../src/ui/styles/status.css">
+<link rel="stylesheet" href="../src/ui/styles/error.css">
+<link rel="stylesheet" href="../src/ui/components/FormField/FormField.css">
+<link rel="stylesheet" href="../src/ui/components/HelpOverlay/HelpOverlay.css">
+<link rel="stylesheet" href="../src/ui/components/Badge/Badge.css">
+<link rel="stylesheet" href="../src/ui/components/TypeBadge/TypeBadge.css">
+<link rel="stylesheet" href="../src/ui/components/EditableField/EditableField.css">
+<link rel="stylesheet" href="../src/ui/components/ListableField/ListableField.css">
+<link rel="stylesheet" href="../src/ui/components/OptionMenu/OptionMenu.css">
+<link rel="stylesheet" href="../src/ui/components/TreeSlab/TreeSlab.css">
+<link rel="stylesheet" href="../src/ui/components/Switch/Switch.css">
+<link rel="stylesheet" href="../src/ui/components/ReferenceField/ReferenceField.css">
+<link rel="stylesheet" href="../src/ui/components/DeviceTile/DeviceTile.css">
+<link rel="stylesheet" href="../src/ui/components/ErrorEntry/ErrorEntry.css">
+<link rel="stylesheet" href="../src/ui/components/LogLine/LogLine.css">
+<link rel="stylesheet" href="ui-kit.css">
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+  <symbol id="i-toggle" viewBox="0 0 24 24"><rect width="20" height="12" x="2" y="6" rx="6"/><circle cx="16" cy="12" r="2"/></symbol>
+  <symbol id="i-toggle-on" viewBox="0 0 24 24"><rect width="20" height="12" x="2" y="6" rx="6"/><circle cx="16" cy="12" r="2"/></symbol>
+  <symbol id="i-toggle-off" viewBox="0 0 24 24"><rect width="20" height="12" x="2" y="6" rx="6"/><circle cx="8" cy="12" r="2"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></symbol>
+  <symbol id="i-pencil-off" viewBox="0 0 24 24"><path d="m10 10-6.157 6.162a2 2 0 0 0-.5.833l-1.322 4.36a.5.5 0 0 0 .622.624l4.358-1.323a2 2 0 0 0 .83-.5L14 13.982"/><path d="m12.829 7.172 4.359-4.346a1 1 0 1 1 3.986 3.986l-4.353 4.353"/><path d="m2 2 20 20"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></symbol>
+  <symbol id="i-bluetooth" viewBox="0 0 24 24"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
+</svg>
+
+<div class="shell stage" id="stage">
+  <!-- ====================================================================== -->
+  <div class="linkbar" id="linkbar"></div>
+  <div class="safe-banner" id="safe" hidden>
+    <svg class="i"><use href="#i-shield"/></svg>
+    <div class="grow"><b>The board is in its safe state.</b> The program is stopped and the devices are suspended. Nothing moves until you resume them.</div>
+    <button class="btn is-primary" id="resume">Resume devices and start</button>
+  </div>
+
+  <h1>runIT UI kit <span style="font-weight:400;color:var(--muted)">· backend model</span></h1>
+  <p class="note">Built from the backend: variables are the engine's <code>Variable</code> (value / folder / reference, six element types, flags), devices are the board's descriptor catalog and the project's own, errors are records a board sent, read by <code>ErrorInterpreter</code>. Names show, never <code>obj-…</code> ids. Regenerate with <code>npm run kit</code>.</p>
+
+  <div class="toolbar">
+    <button id="theme">Switch to light theme</button>
+    <span style="color:var(--muted);font-size:12px">States: red = error, orange = search match / link target, blue stripe = selected</span>
+  </div>
+
+  <!-- ====================================================================== -->
+  <h2>1 · Item tile: anatomy</h2>
+  <p class="note">One row = <b>lead badge</b> · <b>name</b> · <b>badge × n</b> · <b>reference</b> · <b>trash</b> (optional). Built on <code>TreeSlab</code>. A variable shows its exact element type, a device its type and id.</p>
+  <div class="anatomy"><span>① lead badge → .tree-slab-icon</span><span>② name / field → .tree-slab-label</span><span>③ badges × n → .tree-slab-badges</span><span>④ reference → .tree-slab-ref</span><span>⑤ trash → .tree-slab-action</span></div>
+  <div class="cols">
+    <div class="col"><span class="cap note">variable</span><div class="panel" id="anatomy-var"></div></div>
+    <div class="col"><span class="cap note">device</span><div class="panel" id="anatomy-dev"></div></div>
+  </div>
+
+  <!-- ====================================================================== -->
+  <h2>2 · Badges</h2>
+  <div class="grid">
+    <div class="cell"><span class="cap">Element types of a variable (the engine's six)</span><div class="row" id="type-badges"></div></div>
+    <div class="cell"><span class="cap">Variable flags: array · retained · protected · constant</span><div class="row" id="flag-badges"></div></div>
+    <div class="cell"><span class="cap">Device markers: system · id · suspended · errors</span><div class="row" id="device-badges"></div></div>
+    <div class="cell"><span class="cap">Tones</span>
+      <div class="row">
+        <span class="badge is-neutral is-default">neutral</span><span class="badge is-system is-default">SYS</span><span class="badge is-count is-default">3</span>
+        <span class="badge is-number is-default">number</span><span class="badge is-boolean is-default">bool</span><span class="badge is-text is-default">text</span><span class="badge is-other is-default">other</span>
+        <span class="badge is-success is-default">ok</span><span class="badge is-warning is-default">warn</span><span class="badge is-danger is-default">error</span><span class="badge is-info is-default">info</span><span class="badge is-accent is-default">#2</span>
+      </div></div>
+    <div class="cell"><span class="cap">Lead slot: number · bool (value) · text · folder · reference · device</span>
+      <div class="row" id="leads"></div></div>
+  </div>
+
+  <!-- ====================================================================== -->
+  <h2>3 · Fields</h2>
+  <p class="note">A variable name is 1 to <b id="namemax"></b> bytes of UTF-8 and unique among its siblings (<code>nameProblem</code>, <code>checkVariables</code>). Values follow the element type.</p>
+  <div class="grid">
+    <div class="cell"><span class="cap">Name (type to see the engine's rule)</span>
+      <div class="adorned-field-wrap editable-field-wrap is-editable" id="name-wrap"><input class="form-field-control editable-field-input" id="name-input" value="current-limit"><span class="field-adornment-slot"><svg class="i field-adornment-icon is-editable"><use href="#i-pencil"/></svg></span></div>
+      <span class="field-error" id="name-error" hidden></span><span class="bytes" id="name-bytes"></span></div>
+    <div class="cell"><span class="cap">Name · locked (a system device's)</span>
+      <div class="adorned-field-wrap editable-field-wrap is-blocked"><input class="form-field-control editable-field-input" value="ESP32 GPIO" disabled><span class="field-adornment-slot"><svg class="i field-adornment-icon is-blocked"><use href="#i-pencil-off"/></svg></span></div></div>
+    <div class="cell"><span class="cap">Number · f32 / i32 / u32 / u8</span><div class="value-row" id="numbers"></div></div>
+    <div class="cell"><span class="cap">Text · str of 16 bytes</span>
+      <div class="value-row"><input class="form-field-control" id="str-input" value="runIT" style="width:190px"><span class="bytes" id="str-bytes"></span></div></div>
+    <div class="cell"><span class="cap">Pin of a device (the project's devices, their descriptor's pin labels)</span><div class="dd" id="pin-dd"></div></div>
+    <div class="cell"><span class="cap">Pin · rich rows: group per device, mode hint, taken, locked</span><div class="dd" id="pin-dd-rich"></div></div>
+    <div class="cell"><span class="cap">Pin · error (what the engine says when it is empty)</span><div class="dd" id="pin-dd-error"></div><span class="field-error"><svg class="i"><use href="#i-alert"/></svg>Choose the pin this block drives.</span></div>
+  </div>
+
+  <h2>3b · Switch (true / false selector)</h2>
+  <div class="grid">
+    <div class="cell"><span class="cap">tone = on · off / on / disabled</span><div class="row">
+      <label class="switch"><input type="checkbox"><span class="switch-track" aria-hidden="true"></span><span class="switch-label">Retained</span></label>
+      <label class="switch"><input type="checkbox" checked><span class="switch-track" aria-hidden="true"></span><span class="switch-label">Writable</span></label>
+      <label class="switch is-disabled"><input type="checkbox" disabled><span class="switch-track" aria-hidden="true"></span><span class="switch-label">Locked</span></label></div></div>
+    <div class="cell"><span class="cap">truefalse · a bool variable's value, with its badge (click either)</span>
+      <div class="row"><span class="object-type-icon bool is-false" id="boolbadge"><svg class="i"><use href="#i-toggle-off"/></svg></span>
+      <label class="switch is-truefalse"><input type="checkbox" id="boolswitch"><span class="switch-track" aria-hidden="true"></span><span class="switch-label" id="boollabel">false</span></label></div></div>
+  </div>
+
+  <!-- ====================================================================== -->
+  <h2>4 · Reference field</h2>
+  <p class="note">Names another thing; the detail (blue) is the pin or block pin. <b>Click = jump to it.</b> What the board's errors point at is the same pill (<code>target</code> of a ref).</p>
+  <div class="grid" id="refs"></div>
+
+  <!-- ====================================================================== -->
+  <h2>5 · Item tile: variants and states</h2>
+  <div class="grid">
+    <div class="cell"><span class="cap">Variables: one of each kind the engine has</span><div class="panel" id="var-variants"></div></div>
+    <div class="cell"><span class="cap">States: default · selected · search match · error · disabled · dragging</span><div class="panel" id="states"></div></div>
+    <div class="cell"><span class="cap">Drag and drop: drop into · before · after</span><div class="panel" id="drops"></div></div>
+  </div>
+
+  <!-- ====================================================================== -->
+  <h2>6 · Variables (interactive)</h2>
+  <p class="note">The engine's tree. Search opens folders. A reference shows the variable it points to, or <i>Choose…</i> while unset. <b>The tree the engine refuses</b> shows what <code>checkVariables</code> returns, under the tiles it is about.</p>
+  <div class="toolbar">
+    <label><svg class="i"><use href="#i-search"/></svg><input type="search" id="q" placeholder="Search variables…"></label>
+    <button id="expand">Expand all</button><button id="collapse">Collapse all</button>
+    <button id="tree-ok" class="is-on">Project's variables</button><button id="tree-bad">A tree the engine refuses</button>
+  </div>
+  <div class="panel wide" id="tree" style="margin-top:10px"></div>
+
+  <!-- ====================================================================== -->
+  <h2>7 · Devices</h2>
+  <p class="note">The project's devices (left) and the board's catalog (right), both from the descriptors. A device has an id and a name; a system device is the board's own. Pins are named by the descriptor (<code>CH0</code>, <code>AIN3</code>, <code>Pin 22</code>).</p>
+  <div class="cols">
+    <div class="col"><span class="cap note">The project's devices</span><div class="panel wide" id="devices"></div></div>
+    <div class="col"><span class="cap note">Catalog: add a device</span>
+      <div class="toolbar" style="margin:0 0 8px"><label><svg class="i"><use href="#i-search"/></svg><input type="search" id="cq" placeholder="Search device types…"></label></div>
+      <div class="panel wide" id="catalog"></div>
+      <div class="panel wide" id="add" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <!-- ====================================================================== -->
+  <h2>8 · Blocks</h2>
+  <p class="note">A block's pins are what a load or run error points at (<code>programRefs</code>). Enable pins read <b>Run when</b>, the enable output <b>When done</b>.</p>
+  <div class="panel wide" id="blocks"></div>
+
+  <!-- ====================================================================== -->
+  <h2>9 · Error log</h2>
+  <p class="note">Records a board sent, read by <code>ErrorInterpreter</code>. <b>Click an entry</b> to mark what it points at in the lists above: the device, the pin, the block pin, the variable.</p>
+  <div class="panel wide" id="errors"></div>
+
+  <!-- ====================================================================== -->
+  <h2>10 · Help mode</h2>
+  <p class="note">The toolbar's <b>Help</b> button outlines each element that has help: a form row from its note, a button from its title. A click on an outline shows its text beside it; a click elsewhere or Escape hides it.</p>
+  <div class="panel wide help-overlay" style="position:relative; inset:auto; z-index:auto; height:130px">
+    <button type="button" class="help-box is-open" style="position:absolute; top:34px; left:24px; width:170px; height:36px" aria-label="Writes the project to the board"></button>
+    <div class="help-card" style="position:absolute; top:80px; left:24px">Writes the project to the board: its devices, their start commands, the program and the actions.</div>
+    <button type="button" class="help-box" style="position:absolute; top:34px; left:230px; width:44px; height:36px" aria-label="Undoes the last change"></button>
+  </div>
+</div>
+
+<script src="kit-data.js"></script>
+<script>
+const K = window.KIT
+/* ---------- helpers: the TreeSlab markup, the badge, the pill ---------- */
+const I = (id, cls = '') => `<svg class="i ${cls}"><use href="#i-${id}"/></svg>`
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const badge = (t, tone = 'neutral', extra = '', title = '') => `<span class="badge is-${tone} is-default ${extra}"${title ? ` title="${esc(title)}"` : ''}>${t}</span>`
+const TONE = { bool: 'boolean', str: 'text' }
+const LEAD = {
+  number: '<span class="object-type-icon number"><span class="object-number-glyph">123</span></span>',
+  bool: `<span class="object-type-icon bool">${I('toggle')}</span>`,
+  'bool-true': `<span class="object-type-icon bool is-true" title="true">${I('toggle-on')}</span>`,
+  'bool-false': `<span class="object-type-icon bool is-false" title="false">${I('toggle-off')}</span>`,
+  text: '<span class="object-type-icon text"><span class="object-text-glyph">abc</span></span>',
+  folder: `<span class="object-type-icon folder">${I('folder')}</span>`,
+  reference: `<span class="object-type-icon reference">${I('link')}</span>`,
+  device: `<span class="device-tile is-medium">${I('cpu')}</span>`,
+  block: `<span class="device-tile is-medium">${I('box')}</span>`,
+}
+const leadOf = (v) => v.kind === 'folder' ? 'folder' : v.kind === 'reference' ? 'reference' : v.type === 'bool' ? (v.initial ? 'bool-true' : 'bool-false') : v.type === 'str' ? 'text' : 'number'
+const pill = ({ name, detail = '', jump = '', broken = false, empty = false, tile = 'cpu', key = '' }) =>
+  `<button class="ref-pill is-compact${broken ? ' is-broken' : ''}${empty ? ' is-empty' : ''}" ${jump ? `data-jump="${jump}"` : empty ? '' : 'disabled'}${key ? ` data-key="${key}"` : ''} title="${jump ? 'Open ' + esc(name) : empty ? 'Choose' : 'Missing'}">` +
+  `<span class="device-tile is-small">${I(broken ? 'alert' : tile)}</span><span class="ref-pill-name">${esc(name)}</span>${detail ? `<span class="ref-pill-detail">${esc(detail)}</span>` : ''}</button>`
+
+function tile(o) {
+  const states = ['selected', 'is-search-match', 'is-error', 'is-disabled', 'is-dragging', 'drop-into', 'drop-before', 'drop-after', 'folder', 'reference'].filter((s) => o[s]).join(' ')
+  const lead = o.lead.startsWith('bool-') && o.id ? LEAD[o.lead].replace('<span ', `<span data-bool="${o.id}" `) : LEAD[o.lead]
+  const disclosure = o.disclosure ? `<span class="tree-slab-disclosure-slot"><button class="tree-slab-disclosure" aria-expanded="${o.open !== false}" data-toggle="${o.id || ''}" title="Expand / collapse">${I('chevron')}</button></span>` : ''
+  const badges = (o.badges || []).length ? `<div class="tree-slab-badges">${o.badges.join('')}</div>` : ''
+  const ref = o.ref ? `<span class="tree-slab-ref">${o.ref}</span>` : ''
+  const trash = o.trash === false ? '' : `<button class="tree-slab-action" data-trash="${o.id || ''}" title="Delete">${I('trash')}</button>`
+  return `<div class="tree-slab-row has-badges ${states}" data-id="${o.id || ''}" ${o.key ? `data-key="${o.key}"` : ''}><div class="tree-slab-item" role="button" tabindex="0">` +
+    `<span class="tree-slab-icon">${lead}</span><div class="tree-slab-content"><div class="tree-slab-header"><span class="tree-slab-label">${o.name}</span>${disclosure}</div>${badges}${ref}</div></div>${trash}</div>`
+}
+
+/* ---------- what the backend gives: variables ---------- */
+const flat = (nodes, out = []) => { nodes.forEach((n) => { out.push(n); if (n.children) flat(n.children, out) }); return out }
+const byId = (tree, id) => flat(tree).find((n) => n.id === id)
+const pathOf = (tree, id, nodes = tree, prefix = '') => { for (const n of nodes) { const p = prefix ? `${prefix}.${n.name}` : n.name; if (n.id === id) return p; if (n.children) { const r = pathOf(tree, id, n.children, p); if (r) return r } } }
+const varBadges = (v) => {
+  if (v.kind === 'folder') return [badge(v.children.length, 'count')]
+  if (v.kind === 'reference') return []
+  const out = [badge(v.type, TONE[v.type] || 'number', 'is-mono', v.type === 'str' ? `${v.count} bytes` : `${v.type} element`)]
+  if (v.count > 1 && v.type !== 'str') out.push(badge(`×${v.count}`, 'count', '', `${v.count} elements`))
+  if (v.type === 'str') out.push(badge(`${v.count} B`, 'count', '', 'bytes the text holds'))
+  if (v.retained) out.push(badge('R', 'info', 'is-compact', 'The board keeps the value across restarts'))
+  if (v.protected) out.push(badge(I('lock'), 'warning', 'is-compact', 'Run-time writes are refused'))
+  if (v.writable === false) out.push(badge('const', 'neutral', 'is-compact', 'Not writable at run time'))
+  return out
+}
+
+/* ---------- 1 anatomy, 2 badges, leads ---------- */
+const sampleVar = byId(K.variables.tree, 'limit')
+document.getElementById('anatomy-var').innerHTML = tile({ lead: leadOf(sampleVar), name: sampleVar.name, badges: varBadges(sampleVar), id: 'a1', key: 'x' })
+const dev0 = K.devices.project[1]
+const devBadges = (d) => [...(d.system ? [badge('SYS', 'system')] : []), badge(`#${d.id}`, 'accent'), ...(d.suspended ? [badge('suspended', 'warning')] : [])]
+document.getElementById('anatomy-dev').innerHTML = tile({ lead: 'device', name: dev0.name, badges: [...devBadges(dev0), badge(dev0.typeLabel, 'neutral')], id: 'a2' })
+document.getElementById('type-badges').innerHTML = K.variables.types.map((t) => badge(t, TONE[t] || 'number', 'is-mono')).join('')
+document.getElementById('flag-badges').innerHTML = [badge('f32', 'number', 'is-mono'), badge('×8', 'count'), badge('R', 'info', 'is-compact'), badge(I('lock'), 'warning', 'is-compact'), badge('const', 'neutral', 'is-compact')].join('')
+document.getElementById('device-badges').innerHTML = [badge('SYS', 'system'), badge('#4', 'accent'), badge('suspended', 'warning'), badge('2', 'danger', '', 'errors')].join('')
+document.getElementById('leads').innerHTML = ['number', 'bool-true', 'bool-false', 'text', 'folder', 'reference', 'device', 'block'].map((k) => LEAD[k]).join('')
+document.getElementById('namemax').textContent = K.variables.nameMax
+
+/* ---------- 3 fields ---------- */
+const bytesOf = (s) => new TextEncoder().encode(s).length
+const nameInput = document.getElementById('name-input')
+const siblings = new Set(flat(K.variables.tree).map((v) => v.name).filter((n) => n !== 'current-limit'))
+function checkName() {
+  const s = nameInput.value, b = bytesOf(s), err = document.getElementById('name-error')
+  const problem = !s ? 'The name is empty.' : b > K.variables.nameMax ? `The name is ${b} bytes; the limit is ${K.variables.nameMax}.` : siblings.has(s) ? `Another variable here is also called '${s}'.` : ''
+  document.getElementById('name-wrap').classList.toggle('is-error', !!problem)
+  err.hidden = !problem; err.innerHTML = problem ? `${I('alert')}${esc(problem)}` : ''
+  document.getElementById('name-bytes').textContent = `${b} / ${K.variables.nameMax} bytes`
+  document.getElementById('name-bytes').classList.toggle('is-over', b > K.variables.nameMax)
+}
+nameInput.oninput = checkName; checkName()
+const RANGE = { f32: ['', '', 'any'], i32: [-2147483648, 2147483647, 'i32'], u32: [0, 4294967295, 'u32'], u8: [0, 255, 'u8'] }
+document.getElementById('numbers').innerHTML = Object.entries(RANGE).map(([t, [min, max]]) =>
+  `<div><input class="form-field-control" type="number" ${t === 'f32' ? 'step="any"' : `min="${min}" max="${max}" step="1"`} value="${t === 'u8' ? 1 : t === 'f32' ? 7.5 : 0}" title="${t}"><div class="bytes">${t}${t === 'f32' ? '' : ` ${min}…${max}`}</div></div>`).join('')
+const strInput = document.getElementById('str-input')
+strInput.oninput = () => { const b = bytesOf(strInput.value); const el = document.getElementById('str-bytes'); el.textContent = `${b} / 16 bytes`; el.classList.toggle('is-over', b > 16) }
+strInput.oninput()
+
+/* ---------- themed dropdown (listable field) ---------- */
+function dropdown(root, options, { value = '', placeholder = 'Choose…', state = 'editable' } = {}) {
+  let menu = null; const locked = state === 'locked'
+  const current = () => options.find((o) => o.value === value)
+  root.className = `adorned-field-wrap listable-field-wrap dd ${locked ? 'is-blocked' : 'is-editable'}${state === 'error' ? ' is-error' : ''}`
+  root.innerHTML = `<button type="button" class="form-field-control form-select-control listable-field-select dd-trigger" aria-haspopup="listbox" aria-expanded="false"${locked ? ' disabled' : ''}></button><span class="field-adornment-slot">${I(locked ? 'lock' : 'chevron', `field-adornment-icon ${locked ? 'is-blocked' : 'is-editable'}`)}</span>`
+  const trigger = root.querySelector('.dd-trigger')
+  const paint = () => { const c = current(); trigger.innerHTML = c ? `${esc(c.group ? c.group + ' · ' : '')}${esc(c.label)}` : `<span class="dd-placeholder">${esc(placeholder)}</span>` }
+  const close = (focus = true) => { if (!menu) return; menu.remove(); menu = null; root.classList.remove('is-selected', 'is-open'); document.removeEventListener('mousedown', outside, true); if (focus) trigger.focus() }
+  const outside = (e) => { if (!root.contains(e.target)) close(false) }
+  const rows = () => { let html = '', group; options.forEach((o) => { if (o.group !== undefined && o.group !== group) { group = o.group; html += `<div class="dd-group">${esc(group)}</div>` } const sel = o.value === value; html += `<button type="button" role="option" class="option-menu-option dd-option" aria-selected="${sel}" data-value="${esc(o.value)}"${o.disabled ? ' disabled' : ''}><span class="dd-check">${sel ? I('check') : ''}</span><span class="dd-label">${esc(o.label)}</span>${o.hint ? `<span class="dd-hint">${esc(o.hint)}</span>` : ''}${o.badge ? `<span class="badge is-warning is-default">${esc(o.badge)}</span>` : ''}</button>` }); return html }
+  const open = () => { if (menu || locked) return; menu = document.createElement('div'); menu.className = 'option-menu dd-menu'; menu.setAttribute('role', 'listbox'); menu.innerHTML = rows(); root.appendChild(menu); root.classList.add('is-selected', 'is-open'); const r = root.getBoundingClientRect(); if (innerHeight - r.bottom < menu.offsetHeight + 12 && r.top > menu.offsetHeight) menu.classList.add('is-up'); (menu.querySelector('[aria-selected="true"]:not(:disabled)') || menu.querySelector('.dd-option:not(:disabled)'))?.focus(); document.addEventListener('mousedown', outside, true) }
+  trigger.addEventListener('click', () => (menu ? close() : open()))
+  root.addEventListener('click', (e) => { const b = e.target.closest('.dd-option'); if (b && !b.disabled) { value = b.dataset.value; paint(); close() } })
+  root.addEventListener('keydown', (e) => { if (!menu) return; const items = [...menu.querySelectorAll('.dd-option:not(:disabled)')], i = items.indexOf(document.activeElement); if (e.key === 'Escape') { e.preventDefault(); close() } else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length]?.focus() } else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus() } })
+  paint()
+}
+const pins = K.devices.pinOptions
+dropdown(document.getElementById('pin-dd'), pins, { value: '1:22' })
+const richPins = pins.filter((p) => ['1', '4'].includes(p.value.split(':')[0])).map((p, i) => i === 3 ? { ...p, badge: 'in use' } : i === 5 ? { ...p, disabled: true, hint: 'locked by the board' } : p)
+dropdown(document.getElementById('pin-dd-rich'), richPins, { value: richPins[1].value })
+dropdown(document.getElementById('pin-dd-error'), pins.slice(0, 4), { state: 'error', placeholder: '— choose a pin —' })
+
+/* ---------- targets: what an error's ref is, and the key a tile carries ---------- */
+const devName = (id) => K.devices.project.find((d) => d.id === id)?.name ?? `Device ${id}`
+const keyOf = (t) => t.kind === 'device' ? `device:${t.device}` : t.kind === 'pin' ? `device:${t.device}/pin:${t.pin}` : t.kind === 'channel' ? `device:${t.device}/channel:${t.channel}` : t.kind === 'variable' ? `variable:${t.variable}` : t.pin ? `block:${t.block}/${t.pin.kind}:${t.pin.index}` : `block:${t.block}`
+const blockOf = (id) => K.blocks.find((b) => b.id === id)
+/* a pin is named by its descriptor (`P26`, `CH3`); one the device does not have only has its number, as the board's error says */
+const pinText = (device, pin) => {
+  const d = K.devices.project.find((x) => x.id === device)
+  return K.devices.types.find((t) => t.id === d?.type)?.pins?.labels?.[pin] ?? `Pin ${pin}`
+}
+const PIN_WORD = { input: 'input', output: 'output', enable: 'Run when', eno: 'When done' }
+const pinWord = (p) => (p.kind === 'eno' ? PIN_WORD.eno : `${PIN_WORD[p.kind]} ${p.index + 1}`)
+const pillOf = (t) => {
+  const key = keyOf(t)
+  if (t.kind === 'device') return pill({ name: devName(t.device), jump: key, key })
+  if (t.kind === 'pin' || t.kind === 'channel') return pill({ name: devName(t.device), detail: pinText(t.device, t.pin ?? t.channel), jump: key, key })
+  if (t.kind === 'variable') return pill({ name: pathOf(K.variables.tree, t.variable) ?? t.variable, tile: 'link', jump: key, key })
+  return pill({ name: blockOf(t.block)?.name ?? t.block, detail: t.pin ? pinWord(t.pin) : '', tile: 'box', jump: key, key })
+}
+
+/* ---------- 4 reference field ---------- */
+const refs = [
+  ['Device + pin', pillOf({ kind: 'pin', device: 1, pin: 22 })],
+  ['Device', pillOf({ kind: 'device', device: 4 })],
+  ['Variable (by its path)', pillOf({ kind: 'variable', variable: 'arm2' })],
+  ['Block pin', pillOf({ kind: 'block', block: 'e', pin: { kind: 'input', index: 1 } })],
+  ['Empty (a reference variable not set yet)', pill({ name: 'Choose…', empty: true, tile: 'link' })],
+  ['Unavailable (disabled)', pill({ name: 'Device 7', detail: 'Pin 3' })],
+  ['Broken (what an error says does not exist)', pill({ name: 'Device 9', detail: 'was Pin 2', broken: true })],
+]
+document.getElementById('refs').innerHTML = refs.map(([cap, html]) => `<div class="cell"><span class="cap">${cap}</span>${html.replace(' is-compact', '')}</div>`).join('')
+
+/* ---------- 5 tile galleries ---------- */
+const kinds = ['limit', 'run', 'label', 'samples', 'angles', 'alias', 'unset', 'estop', 'version'].map((id) => byId(K.variables.tree, id))
+const varTile = (v, extra = {}) => tile({ id: v.id, key: `variable:${v.id}`, lead: leadOf(v), name: esc(v.name), badges: varBadges(v), disclosure: v.kind === 'folder', folder: v.kind === 'folder', reference: v.kind === 'reference',
+  ref: v.kind === 'reference' ? (v.target ? pill({ name: pathOf(K.variables.tree, v.target) ?? v.target, tile: 'link', jump: `variable:${v.target}` }) : pill({ name: 'Choose…', empty: true, tile: 'link' })) : '', ...extra })
+document.getElementById('var-variants').innerHTML = kinds.map((v) => varTile(v)).join('')
+const st = (name, o = {}) => tile({ lead: 'number', name, badges: [badge('f32', 'number', 'is-mono')], ...o })
+document.getElementById('states').innerHTML = [st('default'), st('selected', { selected: true }), st('search match', { 'is-search-match': true }), st('error', { 'is-error': true }), st('disabled', { 'is-disabled': true }), st('dragging', { 'is-dragging': true })].join('')
+document.getElementById('drops').innerHTML = [tile({ lead: 'folder', name: 'drop into', folder: true, 'drop-into': true, trash: false }), st('drop before', { 'drop-before': true, trash: false }), st('drop after', { 'drop-after': true, trash: false })].join('')
+
+/* ---------- state shared by the lists: what an error marked ---------- */
+let marked = new Set(), activeError = null, treeMode = 'ok', query = '', selected = 'limit'
+let open = new Set(['angles']), arrived = null
+const isMarked = (key) => marked.has(key)
+
+/* ---------- 6 variables ---------- */
+let data = JSON.parse(JSON.stringify(K.variables.tree))
+const problems = () => (treeMode === 'bad' ? K.variables.problemsOfBroken : [])
+const matches = (n) => query && n.name.toLowerCase().includes(query.toLowerCase())
+const subtree = (n) => matches(n) || (n.children || []).some(subtree)
+function renderTree() {
+  const out = [], tree = treeMode === 'bad' ? K.variables.broken : data
+  const emit = (nodes) => nodes.forEach((n) => {
+    if (query && !subtree(n)) return
+    const isOpen = n.children && (open.has(n.id) || (query && subtree(n)))
+    const mine = problems().filter((p) => p.id === n.id)
+    const broken = n.kind === 'reference' && n.target && !flat(tree).some((x) => x.id === n.target)
+    out.push(varTile(n, { selected: n.id === selected, 'is-search-match': matches(n) || arrived === n.id, 'is-error': mine.length > 0 || isMarked(`variable:${n.id}`), open: isOpen,
+      ...(broken ? { ref: pill({ name: 'Missing', detail: `'${n.target}'`, broken: true }) } : {}) }))
+    mine.forEach((p) => out.push(`<div class="tile-note"><span class="field-error">${I('alert')}${esc(p.message)}</span></div>`))
+    if (n.children) { out.push(`<div class="tree-children"${isOpen ? '' : ' hidden'}>`); if (isOpen) emit(n.children); out.push('</div>') }
+  })
+  emit(tree)
+  document.getElementById('tree').innerHTML = out.join('') || '<p class="note" style="padding:8px 12px">No match.</p>'
+}
+document.getElementById('q').oninput = (e) => { query = e.target.value.trim(); renderTree() }
+document.getElementById('expand').onclick = () => { flat(data).forEach((n) => n.children && open.add(n.id)); renderTree() }
+document.getElementById('collapse').onclick = () => { open.clear(); renderTree() }
+const setMode = (m) => { treeMode = m; document.getElementById('tree-ok').classList.toggle('is-on', m === 'ok'); document.getElementById('tree-bad').classList.toggle('is-on', m === 'bad'); renderTree() }
+document.getElementById('tree-ok').onclick = () => setMode('ok')
+document.getElementById('tree-bad').onclick = () => setMode('bad')
+
+/* ---------- 7 devices ---------- */
+let selectedDevice = 1, selectedType = null
+const typeIcon = (t) => (t.tags.includes('power') ? 'plug' : 'cpu')
+function renderDevices() {
+  const out = []
+  K.devices.project.forEach((d) => {
+    const errCount = [...marked].filter((k) => k === `device:${d.id}` || k.startsWith(`device:${d.id}/`)).length
+    out.push(tile({ id: `d${d.id}`, key: `device:${d.id}`, lead: 'device', name: esc(d.name), badges: [...devBadges(d), badge(esc(d.typeLabel), 'neutral'), ...(errCount ? [badge(errCount, 'danger', '', 'marked by the selected error')] : [])],
+      selected: d.id === selectedDevice, 'is-error': marked.has(`device:${d.id}`), trash: !d.system }))
+    if (d.id === selectedDevice) {
+      const type = K.devices.types.find((t) => t.id === d.type)
+      const shown = type.pins ? Array.from({ length: Math.min(type.pins.count, 24) }, (_, i) => i) : []
+      const extra = [...marked].filter((k) => k.startsWith(`device:${d.id}/pin:`)).map((k) => Number(k.split(':').pop())).filter((p) => !shown.includes(p))
+      out.push(`<div class="pins">${shown.map((p) => `<button class="pin-chip${marked.has(`device:${d.id}/pin:${p}`) ? ' is-error' : ''}" data-key="device:${d.id}/pin:${p}">${esc(type.pins.labels?.[p] ?? `Pin ${p}`)}</button>`).join('')}${extra.map((p) => `<button class="pin-chip is-error" data-key="device:${d.id}/pin:${p}" title="The device has no such pin">Pin ${p} ✕</button>`).join('')}${type.pins ? '' : '<span class="note">No pins.</span>'}</div>`)
+    }
+  })
+  document.getElementById('devices').innerHTML = out.join('')
+}
+function renderCatalog() {
+  const q = document.getElementById('cq').value.trim().toLowerCase()
+  document.getElementById('catalog').innerHTML = K.devices.types.filter((t) => !q || `${t.label} ${t.tags.join(' ')}`.toLowerCase().includes(q)).map((t) =>
+    tile({ id: `t-${t.id}`, lead: 'device', name: esc(t.label), badges: [...t.tags.slice(0, 2).map((x) => badge(x, 'neutral')), ...(t.pins ? [badge(`${t.pins.count} pins`, 'count')] : [])], selected: selectedType === t.id, trash: false })
+      .replace('tree-slab-row', 'tree-slab-row catalog-row')).join('') || '<p class="note" style="padding:8px 12px">No match.</p>'
+  const t = K.devices.types.find((x) => x.id === selectedType)
+  const add = document.getElementById('add')
+  if (!t) { add.innerHTML = '<p class="mini-note" style="padding-top:8px">Choose a type to see the fields of its config (from its descriptor).</p>'; return }
+  add.innerHTML = `<div class="form-grid"><label>Name<input class="form-field-control" value="${esc(t.label.split(' ')[0])}"></label><label>Id<input class="form-field-control" type="number" min="0" value="14"></label>` +
+    t.config.map((f, i) => f.pin ? `<label class="span2">${esc(f.label)}<div class="dd" data-cfg="${i}"></div></label>` : `<label>${esc(f.label)}<input class="form-field-control" type="number" placeholder="${f.rawType}"></label>`).join('') +
+    `</div><p class="mini-note">${t.contracts.join(' · ')} · type ${t.typeId}</p>`
+  add.querySelectorAll('[data-cfg]').forEach((el) => dropdown(el, [{ value: '', label: 'Not used' }, ...pins], { value: '', placeholder: 'Not used' }))
+}
+document.getElementById('cq').oninput = renderCatalog
+
+/* ---------- 8 blocks ---------- */
+function renderBlocks() {
+  document.getElementById('blocks').innerHTML = K.blocks.map((b) => {
+    const pinsOf = (kind, n) => Array.from({ length: n }, (_, i) => ({ kind, index: i }))
+    const all = [...pinsOf('input', b.pins.input), ...pinsOf('enable', b.pins.enable), ...pinsOf('output', b.pins.output)]
+    const err = marked.has(`block:${b.id}`) || all.some((p) => marked.has(`block:${b.id}/${p.kind}:${p.index}`))
+    return `<div class="block-tile${err ? ' is-error' : ''}" data-key="block:${b.id}"><div class="block-head">${LEAD.block}${esc(b.name)}${badge(esc(b.type), 'neutral')}</div><div class="block-pins">` +
+      (all.map((p) => `<span class="block-pin is-${p.kind}${marked.has(`block:${b.id}/${p.kind}:${p.index}`) ? ' is-error' : ''}" data-key="block:${b.id}/${p.kind}:${p.index}">${pinWord(p)}</span>`).join('') || '<span class="note">No wired pins.</span>') + '</div></div>'
+  }).join('')
+}
+
+/* ---------- 9 error log ---------- */
+function renderErrors() {
+  document.getElementById('errors').innerHTML = K.errors.map((e) =>
+    `<div class="err-entry${activeError === e.id ? ' is-active' : ''}" data-error="${e.id}"><div class="err-title">${esc(e.title)}</div><div class="err-message">${badge('!', 'danger', 'is-compact')} ${esc(e.message)}</div>` +
+    `<div class="err-where">${e.where.map((w) => badge(esc(w.replace(/^In /, '')), 'neutral', 'is-compact')).join('')}</div><div class="err-refs">${e.refs.map((r) => pillOf(r.target).replace('data-jump=', 'data-nojump=')).join('')}</div>` +
+    `<details class="err-chain"><summary>${e.chain.length} steps${e.command ? ` · ${esc(e.command)}` : ''}</summary>${e.chain.map((n) => `<div class="${n.context ? 'is-context' : ''}">${esc(n.name)} — ${esc(n.message)}</div>`).join('')}</details></div>`).join('')
+}
+function mark(id) {
+  activeError = activeError === id ? null : id
+  marked = new Set(activeError ? K.errors.find((e) => e.id === activeError).refs.map((r) => keyOf(r.target)) : [])
+  renderAll()
+  const first = document.querySelector(activeError ? '.is-error[data-key], .pin-chip.is-error, .block-pin.is-error' : 'body')
+  first?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+}
+const renderAll = () => { renderTree(); renderDevices(); renderCatalog(); renderBlocks(); renderErrors() }
+
+/* ---------- 0 link bar ---------- */
+let link = 'connected', safe = false
+function renderLink() {
+  document.getElementById('linkbar').innerHTML = `${I('bluetooth')}<b>runit</b>` + K.link.states.map((s) => `<button class="btn${s === link ? ' is-primary' : ''}" data-link="${s}">${s}</button>`).join('') +
+    `<span class="link-chip is-${link}">${link}</span><span class="grow"></span>${badge('Dead-man 1500 ms · safe state on link lost', 'info')}<button class="btn" data-safe>${safe ? 'Leave safe state' : 'Enter safe state'}</button>`
+  document.getElementById('safe').hidden = !safe
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', (e) => {
+  const L = e.target.closest('[data-link]'); if (L) { link = L.dataset.link; safe = link === 'reconnecting' ? false : safe; renderLink(); return }
+  if (e.target.closest('[data-safe]') || e.target.closest('#resume')) { safe = !safe; renderLink(); renderDevices(); return }
+  const err = e.target.closest('[data-error]'); if (err && !e.target.closest('[data-nojump]')) { mark(err.dataset.error); return }
+  const jump = e.target.closest('[data-jump]')
+  if (jump) { e.stopPropagation(); const key = jump.dataset.jump; if (key.startsWith('variable:')) { const id = key.slice(9); const p = []; const walkTo = (nodes, trail) => nodes.forEach((n) => { if (n.id === id) p.push(...trail); if (n.children) walkTo(n.children, [...trail, n]) }); walkTo(data, []); query = ''; document.getElementById('q').value = ''; p.forEach((n) => open.add(n.id)); selected = id; arrived = id; setMode('ok'); document.getElementById('tree').scrollIntoView({ block: 'center', behavior: 'smooth' }); setTimeout(() => { arrived = null; renderTree() }, 1800) } else if (key.startsWith('device:')) { selectedDevice = Number(key.split(/[:/]/)[1]); renderDevices(); document.getElementById('devices').scrollIntoView({ block: 'center', behavior: 'smooth' }) } else document.getElementById('blocks').scrollIntoView({ block: 'center', behavior: 'smooth' }); return }
+  const flip = e.target.closest('[data-bool]'); if (flip?.dataset.bool) { e.stopPropagation(); const n = byId(data, flip.dataset.bool); if (n) { n.initial = !n.initial; renderTree() } return }
+  const toggle = e.target.closest('[data-toggle]'); if (toggle?.dataset.toggle) { e.stopPropagation(); const id = toggle.dataset.toggle; open.has(id) ? open.delete(id) : open.add(id); renderTree(); return }
+  const row = e.target.closest('#tree .tree-slab-row'); if (row?.dataset.id) { selected = row.dataset.id; renderTree(); return }
+  const drow = e.target.closest('#devices .tree-slab-row'); if (drow?.dataset.id) { selectedDevice = Number(drow.dataset.id.slice(1)); renderDevices(); return }
+  const crow = e.target.closest('#catalog .tree-slab-row'); if (crow?.dataset.id) { selectedType = crow.dataset.id.slice(2); renderCatalog(); return }
+})
+document.getElementById('boolswitch').onchange = (e) => syncBool(e.target.checked)
+document.getElementById('boolbadge').onclick = () => syncBool(!document.getElementById('boolswitch').checked)
+function syncBool(on) { document.getElementById('boolswitch').checked = on; document.getElementById('boollabel').textContent = on ? 'true' : 'false'; const b = document.getElementById('boolbadge'); b.classList.toggle('is-true', on); b.classList.toggle('is-false', !on); b.innerHTML = I(on ? 'toggle-on' : 'toggle-off') }
+document.getElementById('theme').onclick = (e) => { const light = document.getElementById('stage').classList.toggle('theme-light'); e.target.textContent = light ? 'Switch to dark theme' : 'Switch to light theme' }
+renderLink(); renderAll()
+</script>
+</body>
+</html>

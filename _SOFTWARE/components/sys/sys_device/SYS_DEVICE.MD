@@ -21,7 +21,7 @@ The driver keeps its state (suspended included), builds and releases its hardwar
 
 ## Commands
 
-`[0x05][device id u16 LE][op u16 LE][args]`. A failure is wrapped in `ERR_DEV_ID{id}` and `ERR_DEV_OP{op}`, so the chain reads `KEY 05` → `ERR_DEV_ID` → `ERR_DEV_OP` → cause (`ERR_DEV_NOT_FOUND` comes without the op node: nothing ran). IDs are `0..0xFFFE`; `0xFFFF` (`SYS_DEVICE_ID_NONE`) is "no device" in pin references and in the sweeps below. There is no list op: an app probes IDs with INFO and reads what each answers with OPS.
+`[0x05][device id u16 LE][op u16 LE][args]`. A failure is wrapped in `ERR_DEV_ID{id}` and `ERR_DEV_OP{op}`, so the chain reads `KEY 05` → `ERR_DEV_ID` → `ERR_DEV_OP` → cause (`ERR_DEV_NOT_FOUND` comes without the op node: nothing ran). IDs are `0..0xFFFE`; `0xFFFF` (`SYS_DEVICE_ID_NONE`, published as `device_id`) is "no device" in pin references and in the sweeps below. There is no list op: an app probes IDs with INFO and reads what each answers with OPS.
 
 ```
 boot:    SYS_DEVICE_TYPE_DEFINE in device_pca9685.c registers type 0x0041 (a constructor)
@@ -73,6 +73,12 @@ Internal callers use `sys_device_call(id, op, args, len, out, cap, &out_len)`: t
 - **Order = creation order.** A device can only use devices that exist when it is created and a used device can't be removed, so the instance list (kept in creation order) is a dependency order. IDs are free: a pin may be on a higher ID, as long as that device was created first.
 - **The board's own devices.** After the onboard devices are created the app calls `sys_device_mark_system()` (boot step "system devices"): everything registered then is the board's, and `sys_device_remove_all` leaves it, so changing the project removes only the devices the project created. An explicit REMOVE of one still works, and the registry doesn't protect them from it; the suspend, resume and reset sweeps cover all.
 - `sys_device_suspend_all`, `reset_all` and `remove_all` go newest first (users before what they use); `resume_all` oldest first. Best effort: every device is tried, the first error is returned and the others go to `err_report`. The app's safe state (`runit_enter_safe_state`, RUNIT.MD) calls `suspend_all`.
+
+## Suspended and resumed: the DEVICE events
+
+The registry owns each device's `suspended` flag, so it is the one that sees it change: on SUSPEND of a device that was not suspended, and on a RESUME that worked. It tells the **state listener** the app sets (`sys_device_set_state_listener(fn)`, boot only; `fn(id, suspended)`), like the VM stop and the action runner, so `sys_device` doesn't depend on `sys_event`. A sweep (`suspend_all`, `resume_all`: the router's `0xFFFF` sweeps, the safe state, a critical fault's response) makes **one** call at its end with `SYS_DEVICE_ID_NONE` when any device changed, not one per device (the event queue is 16 deep and a safe state runs on the urgent task). The call is made under the registry lock, in the op's task: the listener must not wait.
+
+runit's listener publishes the device contract's events, `SYS_DEVICE_EVENTS` in `sys_device.h` (`SUSPENDED` `0x0000`, `RESUMED` `0x0001`, both NOTIFY; the IDs `DEVICE_EV_*` are made in `sys_event.h`, which has the flag values). The app gets them on the events stream (SYS_EVENT.MD) and follows a device's state without asking INFO; source `0xFFFF` means "every device".
 
 ## Guards
 

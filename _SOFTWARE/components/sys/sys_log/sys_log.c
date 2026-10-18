@@ -23,6 +23,16 @@ static vprintf_like_t s_console;       // what ESP_LOG wrote to before the hook
 static uint8_t s_conn;
 static bool s_hooked;
 
+/* The error history: a ring of the latest records, written by whoever reports (any task) and read by the router. A critical
+ * section keeps a record whole; it holds a copy of at most SYS_LOG_RECORD_MAX bytes, never an error report. */
+static struct {
+  uint8_t bytes[SYS_LOG_RECORD_MAX];
+  uint8_t len;
+} s_history[CONFIG_SYS_LOG_ERRORS_KEPT];
+static uint32_t s_history_next;   // where the next one goes
+static uint32_t s_history_count;  // kept
+static portMUX_TYPE s_history_lock = portMUX_INITIALIZER_UNLOCKED;
+
 // Removes ANSI colour sequences (ESC [ ... letter) and the line end, in place.
 static size_t clean_line(char* s, size_t len) {
   size_t out = 0;
@@ -107,4 +117,32 @@ void sys_log_get(sys_log_cfg_t* out) {
 
 bool sys_log_send_errors(void) {
   return s_send_errors;
+}
+
+void sys_log_error_keep(const uint8_t* record, uint32_t len) {
+  if (record == NULL || len == 0 || len > SYS_LOG_RECORD_MAX) {
+    return;
+  }
+  portENTER_CRITICAL(&s_history_lock);
+  memcpy(s_history[s_history_next].bytes, record, len);
+  s_history[s_history_next].len = (uint8_t)len;
+  s_history_next = (s_history_next + 1) % CONFIG_SYS_LOG_ERRORS_KEPT;
+  if (s_history_count < CONFIG_SYS_LOG_ERRORS_KEPT) {
+    s_history_count++;
+  }
+  portEXIT_CRITICAL(&s_history_lock);
+}
+
+uint32_t sys_log_error_get(uint32_t index, uint8_t* out, uint32_t* total) {
+  uint32_t len = 0;
+  portENTER_CRITICAL(&s_history_lock);
+  *total = s_history_count;
+  if (index < s_history_count) {
+    const uint32_t oldest = (s_history_next + CONFIG_SYS_LOG_ERRORS_KEPT - s_history_count) % CONFIG_SYS_LOG_ERRORS_KEPT;
+    const uint32_t at = (oldest + index) % CONFIG_SYS_LOG_ERRORS_KEPT;
+    len = s_history[at].len;
+    memcpy(out, s_history[at].bytes, len);
+  }
+  portEXIT_CRITICAL(&s_history_lock);
+  return len;
 }

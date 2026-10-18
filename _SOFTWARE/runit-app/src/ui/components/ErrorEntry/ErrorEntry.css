@@ -1,0 +1,18 @@
+/* the error log: one entry = what happened, where, and what it points at */
+.err-entry { padding: 8px 10px; border: 1px solid var(--divider); border-radius: 8px; background: var(--background); }
+.err-entry.is-clickable { cursor: pointer; }
+.err-entry.is-clickable:hover, .err-entry.is-active { border-color: var(--error); }
+.err-entry.is-unread { box-shadow: inset 3px 0 var(--error); }
+.err-entry.is-active { background: var(--error-bg); }
+.err-head { display: flex; align-items: center; gap: 6px; min-height: 22px; }
+.err-time { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.err-actions { display: flex; gap: 4px; margin-left: auto; }
+.err-message { margin: 4px 0 2px; font-weight: 600; overflow-wrap: anywhere; }
+.err-hint { margin-bottom: 4px; font-size: 12px; color: var(--active); opacity: .85; }
+.err-where { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 6px; }
+.err-refs { display: flex; flex-wrap: wrap; gap: 6px; }
+.err-chain { margin-top: 6px; font-size: 11px; color: var(--muted); }
+.err-chain summary { cursor: pointer; }
+.err-chain div { padding: 1px 0 1px 10px; overflow-wrap: anywhere; }
+.err-chain .is-context { opacity: .65; }
+.err-step-name { font-family: ui-monospace, Consolas, monospace; }

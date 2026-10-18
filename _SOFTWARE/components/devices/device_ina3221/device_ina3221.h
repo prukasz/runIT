@@ -23,6 +23,7 @@ typedef struct __attribute__((packed)) {
   sys_io_pin_t crit_pin;  /**< Critical alert active-low open-drain pin */
   sys_io_pin_t warn_pin;  /**< Warning alert active-low open-drain pin */
   uint8_t inverted_mask;  /**< Bitmask of channels with inverted shunt wiring (0..7) */
+  uint16_t shunt_mohm;    /**< Resistance of each channel's shunt in mOhm (the current is the shunt voltage over it) */
 } ina3221_cfg_t;
 
 #ifdef __cplusplus
