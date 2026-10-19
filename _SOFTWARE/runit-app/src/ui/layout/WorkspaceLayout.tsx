@@ -21,8 +21,8 @@ export function MainScreen({ label, toolbar, children }: { label: string; toolba
   )
 }
 
-export function DetailsPanel({ open, style, children }: { open: boolean; style?: CSSProperties; children: ReactNode }) {
-  return <aside className={`side-panel right-panel ${open ? 'is-open' : ''}`} style={style} aria-label="Details panel">{children}</aside>
+export function DetailsPanel({ open, style, className, children }: { open: boolean; style?: CSSProperties; className?: string; children: ReactNode }) {
+  return <aside className={`side-panel right-panel ${open ? 'is-open' : ''} ${className ?? ''}`.trim()} style={style} aria-label="Details panel">{children}</aside>
 }
 
 /** The grip in the gap beside a side panel (a sibling of the panels, so the cards' rounded clip does not cut it): dragged with the pointer, moved with the arrow keys. */

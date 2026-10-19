@@ -12,7 +12,7 @@ Component `components/core/router/`. Every remote command (phone, test host, int
 | `router_dispatch.c` | Links, `router_submit`, urgent + work tasks, responses, safe state, dead-man |
 | `router_err.c` | `router_err_record` — error record (request + chain) |
 | `router_sys.c` | `sys` router (`ROUTER_KEY_SYS`) |
-| `contract_sys.json` | Sys service contract definition (PING, STOP, RESTART, DEADMAN_SET, DEADMAN_GET, BYE, TIME_SET, TIME_GET) |
+| `contract_sys.json` | Sys service contract definition (PING, STOP, RESTART, DEADMAN_SET, DEADMAN_GET, BYE, TIME_SET, TIME_GET, SAFE_GET, SAFE_LEAVE) |
 | `Kconfig` | Frame size, response stream byte, table sizes, queues, task prio/stack, dead-man default |
 | `AGENTS.md` | Rules for changing this folder |
 
@@ -97,8 +97,9 @@ link RX task ── router_submit(link, peer, frame) ──► copy into ring bu
 
 ## Safe state and dead-man
 
-- `router_set_safe_state(fn)`: the app's handler (VM stop, devices suspended). Runs on the urgent task.
-- Triggers: sys `STOP` (urgent or normal), dead-man timeout, link lost.
+- `router_set_safe_state(fn)`: the app's handler (VM stop, devices suspended). Runs on the caller's task (the urgent task for STOP, the dead-man and a lost link).
+- `router_enter_safe_state(reason)` (public): runs the handler and notes the reason (`router_safe_reason_e`) and the tick, which `SAFE_GET` answers until `SAFE_LEAVE`. Triggers: sys `STOP` (urgent or normal), dead-man timeout, link lost; and a module of a later layer through the application (`ROUTER_SAFE_POWER`: the power manager's response, RUNIT.MD).
+- `router_set_safe_leave(fn)`: the app's way out (every device resumed), run by `SAFE_LEAVE`; the note is cleared only when it succeeds. The program is started again by the client (VM EXEC).
 - **Dead-man** (runtime, not stored, default `CONFIG_ROUTER_DEADMAN_DEFAULT_MS` = off): `router_deadman_set(timeout_ms, on_link_lost)`. Any frame from any link re-arms a one-shot timer; on expiry the safe state is entered once (until the next frame). With `on_link_lost`, `router_link_lost()` (BLE disconnect) triggers it at once. The timer callback notifies the urgent task.
 
 ## sys router (`ROUTER_KEY_SYS` = 0x01)
@@ -113,6 +114,8 @@ link RX task ── router_submit(link, peer, frame) ──► copy into ring bu
 | `0x06` BYE | – | – (the client leaves on purpose: the dead-man is disarmed, the board goes on) |
 | `0x07` TIME_SET | `u64 unix_ms` (UTC) | – (the system clock: `settimeofday`; no battery clock, lost at a restart) |
 | `0x08` TIME_GET | – | `u64 unix_ms, u8 synced, u32 uptime_ms` (`synced`: the clock is past 2020; `uptime_ms`: the base of the log lines) |
+| `0x09` SAFE_GET | – | `u8 reason, u32 for_ms` (`router_safe_reason_e` of the last entry, 0 = not in the safe state; the time since) |
+| `0x0A` SAFE_LEAVE | – | – (the app's leave: every device resumed; then the note cleared. A device that refuses to resume fails it and the note stays) |
 
 Example over UART: `#R:07010101` = seq 7, flags 1 (urgent), sys, PING → `#R:050700<uptime LE>`.
 
@@ -166,7 +169,7 @@ Payload errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG` belong to `ERR_MOD_CMD
 ## Tests
 
 Host test script `router_tests.py` (in `.claude/skills/runit-esp/scripts/`) covers:
-- Core routing: PING (uptime), STOP (safe state), DEADMAN_SET / GET, BYE, TIME_SET / GET, RESTART.
+- Core routing: PING (uptime), STOP (safe state), DEADMAN_SET / GET, BYE, TIME_SET / GET, RESTART, SAFE_GET / SAFE_LEAVE.
 - Key dispatching, nested router calls, error chain recording with route keys.
 - Urgent task preemption over work queue.
 - Frame sizing, queue saturation, and error records.

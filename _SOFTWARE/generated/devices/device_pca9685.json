@@ -314,6 +314,7 @@
         "pwm",
         "output"
       ],
+      "fixed_modes": true,
       "labels": [
         "CH0",
         "CH1",

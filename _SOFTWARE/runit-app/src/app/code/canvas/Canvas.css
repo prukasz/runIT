@@ -13,6 +13,7 @@
 .canvas-zoom { position: absolute; right: 10px; bottom: 8px; display: flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--divider); border-radius: 7px; background: var(--panel); box-shadow: 0 2px 8px var(--shadow); cursor: default; }
 .canvas-zoom button { width: 28px; height: 28px; }
 .canvas-zoom svg { width: 15px; height: 15px; }
+.canvas-surface.is-selecting { cursor: crosshair; }
 .canvas-zoom .canvas-zoom-value { width: 46px; color: var(--active); font-size: 11px; font-variant-numeric: tabular-nums; }
 
 .cat-flow { --cat: var(--category-flow); }
@@ -65,9 +66,11 @@
 /* An expression block's formula in its body, under the pins: the output and the inputs as chips with a real 1 px border, so the
    outline is whole at any zoom. */
 .canvas-block-summary { display: flex; align-items: center; flex: none; min-width: 0; height: 30px; padding: 0 10px; border-top: 1px solid var(--divider); overflow: hidden; color: var(--muted); font: 11px/16px ui-monospace, SFMono-Regular, Consolas, monospace; }
-.canvas-block-summary.is-formula { color: var(--active); }
+.canvas-block-summary.is-formula { height: auto; min-height: 30px; padding-top: 5px; padding-bottom: 5px; box-sizing: border-box; color: var(--active); }
+.canvas-block-summary.is-device { color: var(--muted); font-family: inherit; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-block-summary.is-device.is-missing { color: var(--error); font-style: italic; }
 .canvas-block-summary .is-unwired { font-style: italic; color: var(--muted); }
-.canvas-formula-line { display: flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; white-space: nowrap; }
+.canvas-formula-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 5px; min-width: 0; white-space: nowrap; }
 .canvas-formula-op { color: var(--muted); font-weight: 600; }
 .canvas-formula-tok { color: var(--active); }
 .canvas-block-summary .expr-target { display: inline-flex; align-items: center; flex: none; max-width: 100%; height: 18px; padding: 0 6px; box-sizing: border-box; border: 1px solid color-mix(in srgb, var(--color-blue-bright) 45%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--color-blue-bright) 16%, transparent); box-shadow: none; color: var(--active); font-family: inherit; font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
@@ -75,6 +78,15 @@
 .canvas-block-summary .expr-target.is-unwired { border: 1px dashed var(--divider); background: transparent; color: var(--muted); font-style: italic; outline: 0; }
 
 /* Wires */
+/* A scope: what runs under a branch or in a loop body (CanvasScopes.tsx) */
+.canvas-scope { --scope: var(--color-teal); position: absolute; border-radius: 14px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--scope) 35%, transparent); background: color-mix(in srgb, var(--scope) 9%, transparent); pointer-events: none; }
+.canvas-scope.hue-1 { --scope: var(--color-purple); }
+.canvas-scope.hue-2 { --scope: var(--color-blue); }
+.canvas-scope.hue-3 { --scope: var(--color-amber); }
+.canvas-scope.hue-4 { --scope: var(--color-green); }
+.canvas-scope.hue-5 { --scope: var(--color-red); }
+.canvas-scope-label { position: absolute; left: 12px; top: 4px; max-width: calc(100% - 24px); overflow: hidden; color: color-mix(in srgb, var(--scope) 75%, var(--active)); font-size: 11px; font-weight: 600; letter-spacing: 0.2px; text-overflow: ellipsis; white-space: nowrap; }
+
 .canvas-wires { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
 .canvas-wire-line { fill: none; stroke: var(--active); stroke-opacity: 0.85; stroke-width: 3; }
 .canvas-wire.is-gate .canvas-wire-line { stroke: var(--color-red); stroke-dasharray: 6 4; }
@@ -103,6 +115,7 @@
 /* The variables a block runs on, on its Run when strip */
 .canvas-block-en-chips { position: absolute; z-index: 3; top: 9px; right: calc(100% + 4px); display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
 .canvas-chip.is-docked.is-en { --chip: var(--color-red); position: relative; top: auto; transform: none; border-radius: 3px 0 0 3px; }
+.canvas-chip.is-docked.is-constant { --chip: var(--muted); border-style: dashed; color: var(--active); cursor: inherit; }
 .canvas-chip.is-docked.is-selected { outline: 1.5px solid var(--accent); outline-offset: -1px; }
 /* A variable pulled off its pin: a label of its own on the canvas, with a dot to wire from */
 .canvas-chip.is-free { position: absolute; z-index: 2; justify-content: space-between; height: 24px; font-size: 11px; }
@@ -140,3 +153,20 @@
 @media (max-width: 600px) {
   .canvas-hint { white-space: normal; width: 80%; text-align: center; }
 }
+
+/* Live: a program watched on the board (run/live.ts). A block lights while it acts and for the hold time after; its wires and the values they carry with it. */
+.canvas-block.is-pulse { border-color: var(--status-ok); box-shadow: 0 0 0 2px var(--status-ok), 0 0 14px color-mix(in srgb, var(--status-ok) 55%, transparent); }
+.canvas-block.is-pulse .canvas-block-header { background: color-mix(in srgb, var(--status-ok) 26%, var(--panel)); }
+.canvas-block.is-watched { transition: box-shadow 220ms ease, border-color 220ms ease; }
+.canvas-block.is-pulse .canvas-block-enable.is-eno { background: var(--status-ok); box-shadow: 0 0 8px var(--status-ok); }
+.canvas-wire.is-live .canvas-wire-line { stroke: var(--status-ok); stroke-opacity: 1; stroke-width: 4.5; filter: drop-shadow(0 0 3px var(--status-ok)); }
+.canvas-wire.is-live .canvas-ribbon { --ribbon: var(--status-ok); fill-opacity: 0.55; }
+.canvas-block-side.is-out .canvas-pin-live { position: absolute; z-index: 2; left: calc(100% + 12px); top: 50%; max-width: 120px; padding: 1px 6px; overflow: hidden; transform: translateY(-50%); border: 1px solid var(--divider); border-radius: 4px; background: var(--panel); box-shadow: 0 1px 3px var(--shadow); color: var(--active); font: 11px/16px ui-monospace, SFMono-Regular, Consolas, monospace; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; transition: background 250ms ease; }
+.canvas-pin-live.is-changed { border-color: var(--status-ok); background: color-mix(in srgb, var(--status-ok) 30%, var(--panel)); }
+/* Stepping by block: the block the board is parked before, the one that runs on the next Next block. */
+.canvas-block.is-next { outline: 2px dashed var(--accent); outline-offset: 3px; }
+/* A boolean the board holds colours its wire like the lead of the pin: green while true, red while false (a selected wire keeps its colour). */
+.canvas-wire.is-true:not(.is-selected) .canvas-wire-line { stroke: var(--status-ok); stroke-opacity: 1; }
+.canvas-wire.is-false:not(.is-selected) .canvas-wire-line { stroke: var(--status-lost); stroke-opacity: 1; }
+.canvas-wire.is-true:not(.is-selected) .canvas-ribbon { --ribbon: var(--status-ok); }
+.canvas-wire.is-false:not(.is-selected) .canvas-ribbon { --ribbon: var(--status-lost); }

@@ -200,6 +200,7 @@ static bool block_gate(uint16_t id) {
 
   wd_leave();
   const uint64_t wait_t0 = vm_clock_us();
+  bool sampled = false;
   for (;;) {
     portENTER_CRITICAL(&s_program_mux);
     bool hold = s_mode == VM_RUN_FROZEN || s_mode == VM_RUN_SCAN || s_mode == VM_RUN_BLOCK;
@@ -215,6 +216,12 @@ static bool block_gate(uint16_t id) {
     s_waiting = true;
     s_next_block = id;
     portEXIT_CRITICAL(&s_program_mux);
+    /* Block mode: the operator is stepping, so what the block before this one did is sent now, once per stop, rather than at the end
+       of the pass (the pass sample sends only what changed since). This task is the pass: sampling here does not run beside it. */
+    if (!sampled && s_selected == VM_RUN_BLOCK && s_sample_hook) {
+      sampled = true;
+      s_sample_hook();
+    }
     vTaskDelay(1);
   }
 }
@@ -336,7 +343,7 @@ void vm_exec_pass(void) {
   s_pass_task = pass_task;
   portEXIT_CRITICAL(&s_program_mux);
   const uint64_t t0 = vm_clock_us();
-  vm_clock_pass_start(t0);
+  vm_clock_pass_start(t0, s_selected != VM_RUN_RUNNING);
   vm_stats_pass_begin(t0);
 
   /* Events, like the clock, are latched once for the whole pass: what this

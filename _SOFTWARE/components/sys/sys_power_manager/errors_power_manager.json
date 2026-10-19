@@ -7,11 +7,19 @@
     },
     "ERR_PWRM_BUDGET_EXCEEDED": {
       "message": "{id} needs {requested_mW}; only {available_mW} is available",
-      "hint": "Lower the load, switch off another rail, or use a stronger supply."
+      "hint": "Lower the load, switch off another rail, or use a stronger supply.",
+      "fields": {
+        "requested_mW": { "unit": "mW" },
+        "available_mW": { "unit": "mW" }
+      }
     },
     "ERR_PWRM_BELOW_ALLOCATION": {
-      "message": "The power budget fell to {limit_mW}, below the {allocated_mW} in use",
-      "hint": "The supply gives less than before: lower the load or use a stronger supply."
+      "message": "The power budget fell to {limit_mW}, below the {allocated_mW} the outputs use",
+      "hint": "The supply gives less than before: lower the load or use a stronger supply.",
+      "fields": {
+        "limit_mW": { "unit": "mW" },
+        "allocated_mW": { "unit": "mW" }
+      }
     },
     "ERR_PWRM_FAULT": {
       "message": "{kind} on {channel} of {source} ({value}): {response}",

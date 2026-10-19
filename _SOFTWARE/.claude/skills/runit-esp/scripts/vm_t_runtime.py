@@ -132,13 +132,13 @@ def t_modes(vm: Vm) -> None:
 
 @test("exec/STATUS reads the run")
 def t_status(vm: Vm) -> None:
-    """VM STATUS (0x0A) answers vm_wire_status_t: mode, load state, ready, the fault latch, slow-down, passes, arena."""
+    """VM STATUS (0x0A) answers vm_wire_status_t: mode, load state, ready, the fault latch, slow-down, passes, arena, next block."""
     def status(what: str):
         r = vm.op(OP_STATUS)
-        if not (ok(r) and len(r.data) == 24):
-            check(f"STATUS answers 24 bytes ({what})", False, str(r))
+        if not (ok(r) and len(r.data) == 26):
+            check(f"STATUS answers 26 bytes ({what})", False, str(r))
             return None
-        return struct.unpack("<BBBBHHIIII", r.data)
+        return struct.unpack("<BBBBHHIIIIH", r.data)
 
     vm.reset()
     s = status("empty")
@@ -157,6 +157,7 @@ def t_status(vm: Vm) -> None:
     b = status("running later")
     check("running: mode RUNNING and the pass count grows", a is not None and b is not None and a[0] == 1 and b[7] > a[7], f"{a and a[7]} -> {b and b[7]}")
     check("the arena in use is reported", a is not None and a[9] > 0, str(a and a[9]))
+    check("running: no next block (0xFFFF)", a is not None and a[10] == 0xFFFF, str(a and a[10]))
     vm.exec(X_PAUSE)
     time.sleep(0.2)
     s = status("paused")
@@ -202,16 +203,30 @@ def t_stepping(vm: Vm) -> None:
     check("block mode: nothing runs until NEXT", n == 0, f"{n} frames")
     r = vm.exec(X_ONCE)
     check("ONCE in block mode -> ERR_VM_EXEC_CONTROL", cause(r) == "ERR_VM_EXEC_CONTROL", str(r))
+    def next_of() -> int | None:
+        """The block STATUS says the VM is parked before (None: the answer is not there)."""
+        r = vm.op(OP_STATUS)
+        return struct.unpack("<BBBBHHIIIIH", r.data)[10] if ok(r) and len(r.data) == 26 else None
+
+    time.sleep(0.2)
+    check("block mode, no pass started: STATUS next_block is 0 (the first block)", next_of() == 0, str(next_of()))
     t = vm.link.mark()
     check("NEXT (1/3)", ok(next_block(vm)))
-    time.sleep(0.4)
-    check("... one block ran, the pass is not over: no telemetry yet", len(tele_frames(vm.link, t)) == 0)
-    check("NEXT (2/3)", ok(next_block(vm)))
-    time.sleep(0.4)
-    check("... still no telemetry", len(tele_frames(vm.link, t)) == 0)
-    check("NEXT (3/3)", ok(next_block(vm)))
     got = vm.collect(t, cs, 2.0)
-    check("the last block ends the pass: the telemetry shows all three counters at 1", [vm.vals(got, x) for x in cs] == [1.0, 1.0, 1.0], str(got))
+    check("... one block ran and its result is sent at once, the pass is not over: the first counter is 1, the others still 0",
+          [vm.vals(got, x) for x in cs] == [1.0, 0.0, 0.0], str(got))
+    check("... STATUS next_block is 1", next_of() == 1, str(next_of()))
+    t = vm.link.mark()
+    check("NEXT (2/3)", ok(next_block(vm)))
+    got = vm.collect(t, [cs[1]], 2.0)
+    check("... the second counter is 1 (only what changed is sent)", vm.vals(got, cs[1]) == 1.0 and cs[0] not in got, str(got))
+    check("... STATUS next_block is 2", next_of() == 2, str(next_of()))
+    t = vm.link.mark()
+    check("NEXT (3/3)", ok(next_block(vm)))
+    got = vm.collect(t, [cs[2]], 2.0)
+    check("the last block ends the pass: the third counter is 1", vm.vals(got, cs[2]) == 1.0, str(got))
+    time.sleep(0.2)
+    check("... and between two passes the next block is the first one again (0)", next_of() == 0, str(next_of()))
     t = vm.link.mark()
     for _ in range(3):
         next_block(vm)
@@ -219,6 +234,31 @@ def t_stepping(vm: Vm) -> None:
     check("a second round of three NEXT: 2, 2, 2", [vm.vals(got, x) for x in cs] == [2.0, 2.0, 2.0], str(got))
     r = vm.exec(X_NORMAL)
     check("block -> normal", ok(r), str(r))
+    vm.reset()
+
+
+@test("exec/stepping moves program time")
+def t_step_time(vm: Vm) -> None:
+    """Between two requests no time passes for the program, so a stepped timing block would never fire: each pass asked for adds
+    SPEED's step_ms of program time instead."""
+    p = Prog()
+    q = p.b()
+    p.block("PERIODIC", eno=q, state=struct.pack("<IBBHQ", 100, 0, 0, 0, 0))  # a tick every 100 ms of program time
+    if not loaded(vm, p, X_SCAN):
+        return
+    r = vm.op(OP_SPEED, struct.pack("<HH", 1, 0))
+    check("SPEED with the factor and a step of 0 ms", ok(r), str(r))
+    got = [bool(vm.vals(vm.step([q], kick=(i == 0)), q)) for i in range(4)]
+    check("step 0: time stands still, the periodic block ticks on the first pass only", got == [True, False, False, False], str(got))
+    r = vm.op(OP_SPEED, struct.pack("<HH", 1, 100))
+    check("SPEED with a step of 100 ms", ok(r), str(r))
+    got = [bool(vm.vals(vm.step([q]), q)) for _ in range(4)]
+    check("step 100 ms: every pass asked for is one period, the block ticks on every one", got == [True] * 4, str(got))
+    r = vm.op(OP_SPEED, struct.pack("<HH", 1, 60001))
+    check("a step past 60000 ms is refused", cause(r) == "ERR_VM_BAD_ARG", str(r))
+    r = vm.op(OP_SPEED, struct.pack("<H", 1))
+    check("the factor alone (2 bytes) is still taken", ok(r), str(r))
+    vm.op(OP_SPEED, struct.pack("<HH", 1, 10))
     vm.reset()
 
 

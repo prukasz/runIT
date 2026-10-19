@@ -159,6 +159,8 @@ export const sentBy = (ctx: Pick<BlockContext, 'catalog' | 'project'>, source: S
   }
   const resolved = resolvePath(ctx.project.variables, source.path)
   if (!resolved.ok) return 'number'
+  // Below a run-time folder the board decides what it is: it fits a value pin.
+  if (resolved.target.unchecked) return 'number'
   const { variable, element } = resolved.target
   if (variable.kind !== 'value') return 'object'
   if (element === null && variable.count > 1) return 'object'
@@ -238,12 +240,14 @@ export const formulaText = (ctx: BlockContext, block: BlockInstance): string | u
 /**
  * The header of a block: the descriptor's subtitle (`Every {period} {time_base}`, the variant's own when it has one) with each
  * `{…}` filled in: a field's value (or what its wire reads), a pin's source or target, the variant, the device, the formula.
+ * `operation`: a device block is headed by its type's subtitle (`{variant} {pin}`: the operation and what it acts on), not the
+ * variant's (`{pin} = {level}`), whose values the canvas shows on the pins already.
  */
-export const headline = (ctx: BlockContext, block: BlockInstance): HeadPart[] => {
+export const headline = (ctx: BlockContext, block: BlockInstance, operation = false): HeadPart[] => {
   const type = ctx.catalog.get(block.type)
   if (!type) return [{ text: `Unknown ${block.type}` }]
   const variant = variantFor(type, block)
-  const template = variant?.header?.subtitle ?? type.header.subtitle
+  const template = operation && type.integration !== 'core' ? type.header.subtitle ?? variant?.header?.subtitle : variant?.header?.subtitle ?? type.header.subtitle
   if (!template) return [{ text: variant ? `${variant.alias}` : type.alias }]
   const pins = concretePins(type, block)
   const fields = [...type.fields, ...(variant?.fields ?? [])]
@@ -279,6 +283,13 @@ export const headline = (ctx: BlockContext, block: BlockInstance): HeadPart[] =>
 }
 
 export const headlineText = (parts: readonly HeadPart[]): string => parts.map((p) => p.text).join('')
+
+/** The device line under a device block's pins on the canvas (its device's name), unless its header names the device already. */
+export const deviceLine = (ctx: BlockContext, block: BlockInstance): string | undefined => {
+  const type = ctx.catalog.get(block.type)
+  if (!type || type.integration === 'core' || type.header.subtitle?.includes('{device}')) return undefined
+  return block.device === undefined || block.device === null ? 'No device' : ctx.deviceName(block.device) ?? `Device ${block.device}`
+}
 
 /* ---- the formula line ---- */
 

@@ -3,7 +3,8 @@ import { createEngine, newBlock } from '@engine'
 import type { BlockInstance, Project, Variable } from '@engine'
 import { blockName, chipLabel, connect, copyBlocks, disconnect, fits, formulaText, groupCount, headline, headlineText, newBlockId, pinsOf, removeBlocks, sentBy, sourceLabel, wiresOf, withGroupCount } from '../../src/app/code/blocks'
 import type { BlockContext } from '../../src/app/code/blocks'
-import { blockShape, FORMULA_ROW, freeSpot, GRID, HEADER, pinAnchor, positionOf, readLayout, screenToCanvas, zoomAt } from '../../src/app/code/canvas/layout'
+import { scopesOf } from '../../src/app/code/canvas/scopes'
+import { blockShape, collides, FORMULA_ROW, freeSpot, nearestFreeSpot, GRID, HEADER, pinAnchor, positionOf, readLayout, screenToCanvas, zoomAt } from '../../src/app/code/canvas/layout'
 
 const engine = createEngine()
 const variables: Variable[] = [
@@ -173,5 +174,39 @@ describe('canvas layout', () => {
     const blocks = [newBlock('a', 'if'), newBlock('b', 'if'), newBlock('c', 'if')]
     const layout = readLayout({ blocks: { b: { x: 300, y: 300 } }, chips: [] })
     expect(blocks.map((b) => positionOf(layout, blocks, b.id))).toEqual([{ x: 0, y: 0 }, { x: 300, y: 300 }, { x: 0, y: 8 * GRID }])
+  })
+})
+
+describe('canvas scopes and collisions', () => {
+  const box = (x: number, y: number) => ({ x, y, width: 100, height: 60 })
+  const at: Record<string, { x: number; y: number }> = { if1: { x: 0, y: 0 }, a: { x: 200, y: 0 }, b: { x: 400, y: 0 }, c: { x: 200, y: 200 }, for1: { x: 200, y: 400 }, d: { x: 400, y: 400 } }
+  const rectOf = (b: BlockInstance) => box(at[b.id]!.x, at[b.id]!.y)
+
+  it('a branch holds what its pin runs and what those run on and on; a loop body is a scope inside it', () => {
+    const blocks = [
+      newBlock('if1', 'if'),
+      newBlock('a', 'periodic', { enables: [{ kind: 'output', block: 'if1', pin: 0 }] }),
+      newBlock('b', 'periodic', { enables: [{ kind: 'eno', block: 'a' }] }),
+      newBlock('c', 'periodic', { enables: [{ kind: 'output', block: 'if1', pin: 1 }] }),
+      newBlock('for1', 'for', { enables: [{ kind: 'eno', block: 'c' }] }),
+      newBlock('d', 'periodic', { enables: [{ kind: 'eno', block: 'for1' }] }),
+    ]
+    const scopes = scopesOf(engine.catalog, blocks, rectOf)
+    const of = (key: string) => scopes.find((s) => s.key === key)!
+    expect([...of('if1:0').members].sort()).toEqual(['a', 'b'])
+    expect([...of('if1:1').members].sort()).toEqual(['c', 'd', 'for1'])
+    expect(of('for1:eno').members).toEqual(['d'])
+    expect(of('for1:eno').depth).toBe(1)
+    const outer = of('if1:1').rect
+    const inner = of('for1:eno').rect
+    expect(outer.x < inner.x && outer.y < inner.y && outer.x + outer.width > inner.x + inner.width && outer.y + outer.height > inner.y + inner.height).toBe(true)
+    expect(of('if1:0').label).toMatch(/^If · /)
+  })
+
+  it('a dropped block settles at the nearest spot that covers no other', () => {
+    const taken = [{ x: 0, y: 0, width: 200, height: 100 }]
+    const spot = nearestFreeSpot({ x: 20, y: 20 }, { width: 100, height: 60 }, taken)
+    expect(collides([{ ...spot, width: 100, height: 60 }], taken)).toBe(false)
+    expect(nearestFreeSpot({ x: 400, y: 0 }, { width: 100, height: 60 }, taken)).toEqual({ x: 400, y: 0 })
   })
 })

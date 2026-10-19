@@ -40,7 +40,7 @@ Rules everything else follows:
 - **`cfg.on_error`**: `STOP` drops ENO after a failed call (everything below it skips), `CONTINUE` leaves the flow; both report the error. Outputs are never retracted. A failure is the block's per-call bit `VM_BLK_RT_FAULT`; errors go out through `BLOCK_CALL` / `vm_block_report_error`, tagged with the block.
 - **Everything from the wire is untrusted**: IDs, counts and lengths are checked before anything is stored. An ID that was never bound reads NULL; ID `0xFFFF` is refused (`ERR_VM_REG_OOB`), and an accessor cannot take a reference step to itself.
 - **Block watchdog**: a block that runs longer than `CONFIG_VM_EXEC_BLOCK_WD_MS` is reported once.
-- **Run modes** (`vm_run_mode_e`, set by `EXEC`): normal (passes back to back), scan (one pass per `ONCE`), block (one block per `NEXT`), pause / resume, reset to start. Time spent not running passes does not count for the program clock (`vm_clock.h`).
+- **Run modes** (`vm_run_mode_e`, set by `EXEC`): normal (passes back to back), scan (one pass per `ONCE`), block (one block per `NEXT`), pause / resume, reset to start. In block mode the supervisor parks before each block, and at each stop it sends what the block before changed (the telemetry sample, once per stop) instead of waiting for the end of the pass; `STATUS` says which block the next `NEXT` runs (`next_block`: the one it is parked before, 0 between two passes). Time spent not running passes does not count for the program clock (`vm_clock.h`); so that stepping does not stop the timing blocks, each pass asked for (scan `ONCE`, a whole pass of `NEXT`s) adds `step_ms` of program time (SPEED, default 10 ms; 0 stands time still).
 
 ## Remote (`ROUTER_KEY_VM` = 0x0B, `vm_router.h`)
 
@@ -56,8 +56,8 @@ Ops never renumber.
 | `0x06` ADD_BLOCK | `vm_wire_block_t`, pins, state | One block per frame, in execution order |
 | `0x07` SUBSCRIBE | `u8 n`, n × `vm_wire_sub_t` | Telemetry for those objects; 0 clears |
 | `0x08` EXEC | `vm_wire_exec_t` | `vm_exec_command_e` (scan, once, block, next, rewind, normal, pause, resume, reset, ack fault, forget retained) |
-| `0x09` SPEED | `vm_wire_speed_t` | Slow motion (debugging aid) |
-| `0x0A` STATUS | – | Answers `vm_wire_status_t`: run mode (`vm_run_mode_e`), load state, `ready` (loaded and complete: EXEC can start it), the latched fault (device and root tag, meaningful only while latched), slow-down, pass count, last pass time, arena bytes used. Reads only, at any time |
+| `0x09` SPEED | `vm_wire_speed_t` | Slow motion (debugging aid): `factor`, and the `step_ms` of stepping (a 2-byte body is the factor alone) |
+| `0x0A` STATUS | – | Answers `vm_wire_status_t`: run mode (`vm_run_mode_e`), load state, `ready` (loaded and complete: EXEC can start it), the latched fault (device and root tag, meaningful only while latched), slow-down, pass count, last pass time, arena bytes used, `next_block` (the block the next `NEXT` runs in block mode, `0xFFFF` otherwise). Reads only, at any time |
 
 **Load order**: RESET or OPEN, ADD_OBJECTS, SET_DATA (initial values, PTR links), ADD_ACCESSORS, ADD_BLOCK one by one, then EXEC. The first start checks the program is complete (`vm_loader_verify_complete`).
 
@@ -78,7 +78,7 @@ heap objects  [0x0B][0x03 ADD_OBJECTS][u8 count] count × (vm_wire_obj_t, name)
 
 So the board writes values out in the format the app writes them in: a telemetry frame can be sent back as a command (it sets the same values), recorded into a record (SYS_ACTIONS.MD), and the app parses both directions with one decoder. The record structs are shared (`vm_wire.h`), the key and ops are the same constants (`ROUTER_KEY_VM`, `VM_OP_*`).
 
-Sending: only objects whose value changed since last sent (value hash), everything once after a subscribe; an object larger than a frame is split by `start_idx`, and one larger than the connector queue continues where the last sample stopped (`resume`; it starts over if the value changed meanwhile). A heap object is described before any value that refers to it. Limits: `CONFIG_VM_SUB_MAX_SUBSCRIBERS`, `CONFIG_VM_SUB_MAX_TRACKED` (subscribed objects plus everything reachable through their PTR children; past it `ERR_VM_SUB_TRACK_FULL`), `CONFIG_VM_SUB_MAX_FRAME_LEN`.
+Sending: only objects whose value changed since last sent (value hash), everything once after a subscribe; sampled at the end of every pass, and in block mode also at every stop before a block (`block_gate` in `vm_exec.c`, once per stop), so a stepped program shows what each block did; an object larger than a frame is split by `start_idx`, and one larger than the connector queue continues where the last sample stopped (`resume`; it starts over if the value changed meanwhile). A heap object is described before any value that refers to it. Limits: `CONFIG_VM_SUB_MAX_SUBSCRIBERS`, `CONFIG_VM_SUB_MAX_TRACKED` (subscribed objects plus everything reachable through their PTR children; past it `ERR_VM_SUB_TRACK_FULL`), `CONFIG_VM_SUB_MAX_FRAME_LEN`.
 
 ## Integration
 

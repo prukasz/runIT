@@ -5,6 +5,7 @@ import { arrange } from '../graph/arrange'
 import type { Diagnostic } from '../model/program/diagnostics'
 import { hasErrors } from '../model/program/diagnostics'
 import { layoutVariables } from '../model/variables/layout'
+import { flattenVariables } from '../model/variables/variables'
 import type { ObjectPath, Target } from '../model/paths/paths'
 import { resolvePath } from '../model/paths/paths'
 import { concretePins } from '../model/program/pins'
@@ -184,8 +185,8 @@ export const compile = (ctx: CompileContext, project: Project, options: CompileO
     if (usedEno.has(id) || options.allEnableOuts) outputs.set(`${id}:eno`, newObject('bool'))
   }
 
-  /* cells a block may re-link: no path is folded through their folder */
-  const live = new Set<string>()
+  /* cells a block may re-link, and what the user marks as known only at run time: no path is folded through them */
+  const live = new Set<string>(flattenVariables(tree).filter((v) => (v.kind === 'folder' || v.kind === 'reference') && v.dynamic).map((v) => v.id))
   for (const r of resolved.values()) {
     r.instance.inputs.forEach((source, i) => {
       if (source?.kind !== 'variable' || r.pins.inputs[i]?.pin.value !== 'cell') return

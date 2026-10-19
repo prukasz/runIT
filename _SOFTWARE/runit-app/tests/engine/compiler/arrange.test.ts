@@ -42,6 +42,21 @@ describe('loops', () => {
     expect(arrangement.diagnostics).toEqual([])
   })
 
+  it('a block with a Run when from outside the loop runs after the loop, though it reads what the body writes', () => {
+    const p = project([flag('cond'), ...vars()], [
+      blk('for1', 'for'),
+      copy('s1', 'a', 'b', [eno('for1')]),
+      blk('if1', 'if', { inputs: [read('cond')] }),
+      copy('gated', 'b', 'c', [out('if1', 0)]),
+      copy('after', 'c', 'd'),
+    ])
+    const arrangement = engine.arrange(p)
+    expect(arrangement.spans.get('for1')).toEqual({ start: 1, end: 2 })
+    expect(arrangement.order.indexOf('gated')).toBeGreaterThan(arrangement.order.indexOf('s1'))
+    expect(arrangement.order.indexOf('after')).toBeGreaterThan(arrangement.order.indexOf('gated'))
+    expect(arrangement.diagnostics).toEqual([])
+  })
+
   it('what the body reads from outside is placed before the loop block', () => {
     const p = project(vars(), [blk('for1', 'for'), copy('late', 'd', 'a'), copy('s1', 'a', 'b', [eno('for1')])])
     const arrangement = engine.arrange(p)

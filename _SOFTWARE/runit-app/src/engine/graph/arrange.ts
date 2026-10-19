@@ -12,8 +12,10 @@ import type { VmLimits } from '../wire/load/limits'
  * every block that writes a variable it reads. Among blocks the wiring does not order, the user's order stands.
  *
  * A loop block (`span` in its descriptor: for) owns the run of blocks right below it. Its body is every block gated by its
- * enable-out, and everything that depends on those: the board loops the body inside the pass (`vm_exec_run_range`), so the
- * body must be contiguous and directly follow the loop block, with everything it reads placed before the loop block.
+ * enable-out, and everything that depends on those, except a block whose Run when comes from outside the loop (and what
+ * depends on the loop only through it): that one runs after the loop, when its own gate fires. The board loops the body
+ * inside the pass (`vm_exec_run_range`), so the body must be contiguous and directly follow the loop block, with everything
+ * it reads placed before the loop block.
  */
 
 export interface Arrangement {
@@ -77,17 +79,29 @@ export const arrange = (catalog: Catalog, project: Project, limits: VmLimits = D
     for (const writer of who) for (const reader of readers.get(variable) ?? []) link(writer, reader)
   }
 
-  /* Loop bodies: what the loop's enable-out gates, and everything downstream of that. */
+  /* Loop bodies: what the loop's enable-out gates, and everything downstream of that, but for a block with a Run when of
+     its own from outside the loop (a branch, a tick, a variable): it runs when that fires, after the loop, and so does
+     what is downstream only through it. Repeated until no such block is left in the body. */
+  const byId = new Map(blocks.map((b) => [b.id, b]))
   const bodies = new Map<string, Set<string>>()
   for (const instance of blocks) {
     if (!loopTypes.has(instance.type)) continue
-    const body = new Set<string>()
-    const queue = blocks.filter((b) => b.enables.some((s) => s.kind === 'eno' && s.block === instance.id)).map((b) => b.id)
-    while (queue.length) {
-      const id = queue.pop()!
-      if (body.has(id)) continue
-      body.add(id)
-      for (const next of successors.get(id) ?? []) queue.push(next)
+    const seeds = blocks.filter((b) => b.enables.some((s) => s.kind === 'eno' && s.block === instance.id)).map((b) => b.id)
+    const outside = new Set<string>()
+    let body = new Set<string>()
+    for (;;) {
+      body = new Set<string>()
+      const queue = seeds.filter((id) => !outside.has(id))
+      while (queue.length) {
+        const id = queue.pop()!
+        if (body.has(id) || outside.has(id)) continue
+        body.add(id)
+        for (const next of successors.get(id) ?? []) queue.push(next)
+      }
+      const gatedElsewhere = [...body].filter((id) =>
+        present(byId.get(id)!.enables).some((s) => s.kind === 'variable' || (s.block !== instance.id && !body.has(s.block))))
+      if (gatedElsewhere.length === 0) break
+      for (const id of gatedElsewhere) outside.add(id)
     }
     if (body.has(instance.id)) {
       diagnostics.push(block(instance.id, 'error', 'loop-feeds-itself', 'The loop is fed by its own body: something inside the loop is read by the loop block.'))

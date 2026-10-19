@@ -29,6 +29,11 @@ MUST_USE err_h runit_start(void);
 void runit_enter_safe_state(void);
 
 /**
+ * @brief The power manager's safe state: entered through the router, which notes the reason (Power fault) for SYS SAFE_GET.
+ */
+void runit_power_safe_state(void);
+
+/**
  * @brief Runs `steps` in order, all of them; failures are counted in `failed` (may be NULL).
  * @return The first failure (owned, not reported), or NULL. The others are reported.
  */

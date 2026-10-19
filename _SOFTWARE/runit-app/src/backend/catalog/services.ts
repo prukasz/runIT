@@ -55,6 +55,8 @@ export interface DevicePins {
   readonly modes: readonly string[]
   /** The mode its pins are in after a reset, with no SET_MODE (`default_mode`); none: a pin has no mode until SET_MODE gives it one. */
   readonly defaultMode?: string
+  /** Its pins have their modes for good: the device has no SET_MODE (`fixed_modes`: the PCA9685's channels are PWM / output). */
+  readonly fixedModes?: boolean
 }
 
 /** A named set of config values of a device type (`presets` of its descriptor: a common part, a mode). */
@@ -216,7 +218,7 @@ export class ServiceCatalog {
       contracts: arr(json.contracts).filter((c): c is string => typeof c === 'string'),
       ...(kind === 'device' && configJson ? { config: this.layout(configJson, `config`, problem, num(configJson.size)) } : {}),
       ...(kind === 'device' && pinCount !== undefined
-        ? { pins: { count: pinCount, ...(pinLabels.length > 0 ? { labels: pinLabels } : {}), modes: arr(pinsJson?.modes).filter((m): m is string => typeof m === 'string'), ...(typeof pinsJson?.default_mode === 'string' ? { defaultMode: pinsJson.default_mode } : {}) } }
+        ? { pins: { count: pinCount, ...(pinLabels.length > 0 ? { labels: pinLabels } : {}), modes: arr(pinsJson?.modes).filter((m): m is string => typeof m === 'string'), ...(typeof pinsJson?.default_mode === 'string' ? { defaultMode: pinsJson.default_mode } : {}), ...(pinsJson?.fixed_modes === true ? { fixedModes: true } : {}) } }
         : {}),
       ...(kind === 'device' && arr(json.presets).length > 0
         ? {

@@ -10,6 +10,8 @@ import type { Recovered } from './recover'
 import { parseProgram } from './wire/format/parse'
 import type { ParsedProgram, WireFrame } from './wire/format/parse'
 import { loadFrames } from './wire/load/frames'
+import { watchPlan } from './compiler/watch'
+import type { WatchDetail, WatchPlan } from './compiler/watch'
 import { variableTelemetryReader, variableWriteFrames } from './compiler/runtime'
 import type { VariableWrite } from './compiler/runtime'
 import { expressionLanguage } from './expression'
@@ -128,6 +130,11 @@ export class Engine {
     return variableTelemetryReader(this.wire, result)
   }
 
+  /** What to subscribe to for a live view (`flow`) or a debug view (`full`), within the board's limits (`watchPlan`). */
+  watch(result: CompileResult, detail: WatchDetail): WatchPlan {
+    return watchPlan(result, detail, this.limits)
+  }
+
   reset(): LoadFrame {
     return resetFrame(this.wire)
   }
@@ -136,8 +143,9 @@ export class Engine {
     return execFrame(this.wire, command)
   }
 
-  speed(factor: number): LoadFrame {
-    return speedFrame(this.wire, factor)
+  /** Slow motion, and the program time a stepped pass adds (`speedFrame`). */
+  speed(factor: number, stepMs?: number): LoadFrame {
+    return speedFrame(this.wire, factor, stepMs)
   }
 
   /** Telemetry for these objects (the ids `compile` returns); none clears. */

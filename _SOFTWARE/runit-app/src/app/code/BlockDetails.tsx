@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { Minus, Plus, X } from 'lucide-react'
-import { draftForVariable, toPath, variantOf } from '@engine'
+import { Link2, Minus, Plus, X } from 'lucide-react'
+import { draftForVariable, flattenVariables, toPath, variantOf } from '@engine'
 import type { BlockInstance, BlockType, Field, FieldValue, ObjectPath, Source } from '@engine'
 import { onboardActions } from '@backend'
 import { Button, Card, CardStack, ChoiceField, FieldError, FormRow, NumberField, PanelHeader, SegmentedSwitch, Switch, TextField, TypeLead } from '@ui/components'
 import type { Choice } from '@ui/components'
 import { ErrorsCard } from '../console/ErrorView'
+import { pinChoiceLabel, pinHint } from '../devices/devices'
 import { blockDiagnostics, connect, disconnect, groupCount, isBlockTarget, pinsOf, sourceLabel, withGroupCount } from './blocks'
 import type { PinTarget } from './blocks'
 import { ExpressionEditor } from './ExpressionEditor'
+import type { FormulaVariable } from './ExpressionEditor'
+import { pathOf } from './variables'
 import { PathEditor, pinLead } from './PathEditor'
-import { deviceChoicesFor } from './useBlocks'
+import { blockPinChoices, deviceChoicesFor } from './useBlocks'
 import type { BlocksState } from './useBlocks'
 import type { CodeState } from './useCode'
 import { VARIABLE_DRAG_TYPE } from './VariablesExplorer'
@@ -53,9 +56,13 @@ function FieldInput({ field, block, blocks, onChange }: { field: Field; block: B
     case 'pin': {
       const device = deviceOf()
       const info = device === undefined ? undefined : devices.devices.find((d) => d.id === device)
-      const count = info?.type?.pins?.count
-      if (count === undefined) break
-      return choose([...anyChoice, ...Array.from({ length: count }, (_, pin) => ({ value: String(pin), label: devices.pinName(info!.id, pin) }))])
+      if (info?.type?.pins?.count === undefined) break
+      // The pins this block's command may take on that device, as the device's test panel offers them.
+      const offered = field.deviceField ? Array.from({ length: info.type.pins.count }, (_, pin) => pin) : blockPinChoices(devices, blocks.catalog.get(block.type)!, block.variant, field.id, info)
+      return choose([...anyChoice, ...offered.map((pin) => {
+        const hint = pinHint(info.type, pin)
+        return { value: String(pin), label: pinChoiceLabel(devices.devices, info.id, pin), ...(hint ? { description: hint } : {}) }
+      })])
     }
     case 'event': {
       const device = deviceOf()
@@ -135,10 +142,15 @@ export function BlockDetails({ blocks, code }: { blocks: BlocksState; code: Code
   const pinProblem = (side: 'in' | 'out' | 'en', index: number) => diagnostics.filter((d) => d.where.pin?.side === side && d.where.pin.index === index && d.code !== 'pin-unwired').map((d) => d.message).join(' ')
   const missing = (index: number) => diagnostics.find((d) => d.code === 'pin-unwired' && d.where.pin?.side === 'in' && d.where.pin.index === index)?.message
   const general = diagnostics.filter((d) => !d.where.field && !d.where.pin && !(type.integration !== 'core' && d.code.startsWith('device')))
+  // A setting that has an input pin is edited on that pin's row (Pins): the choice is the input's constant until a variable is wired.
   const fields = settingFields(type, block)
+  // The variables a name typed in the formula can find: every one but the folders, by its own name and its path.
+  const formulaVariables: FormulaVariable[] = language ? flattenVariables(tree).filter((v) => v.kind !== 'folder').map((v) => ({ id: v.id, name: v.name, label: pathOf(tree, v.id) ?? v.name })) : []
+  const onPin = (field: Field) => pins.inputs.some((p) => p.pin.field === field.id)
+  const settingsOnly = fields.filter((f) => !onPin(f))
   const inputGroup = groupCount(type, block, 'inputs')
   const outputGroup = groupCount(type, block, 'outputs')
-  const devices = type.integration === 'core' ? [] : deviceChoicesFor(type, blocks.devices.devices)
+  const devices = type.integration === 'core' ? [] : deviceChoicesFor(blocks.devices, type, block.variant)
   const wiredField = (id: string) => {
     const pin = pins.inputs.find((p) => p.pin.field === id)
     const source = pin ? block.inputs[pin.index] : undefined
@@ -169,7 +181,7 @@ export function BlockDetails({ blocks, code }: { blocks: BlocksState; code: Code
         <ErrorsCard match={(target) => isBlockTarget(target, block.id)} />
         {general.length > 0 && <Card title="To fix">{general.map((d, i) => <FieldError key={i}>{d.message}</FieldError>)}</Card>}
 
-        {(type.variants.length > 0 || type.integration !== 'core' || fields.length > 0) && (
+        {(type.variants.length > 0 || type.integration !== 'core' || settingsOnly.length > 0) && (
           <Card title="Settings">
             <div className="block-fields">
               {type.variants.length > 0 && (
@@ -179,13 +191,13 @@ export function BlockDetails({ blocks, code }: { blocks: BlocksState; code: Code
                 </FormRow>
               )}
               {type.integration !== 'core' && (
-                <FormRow label="Device" hint={devices.length === 0 ? `No device of the project can do this: add one in Devices.` : undefined}>
+                <FormRow label="Device" hint={devices.length === 0 ? (deviceChoicesFor(blocks.devices, type).length > 0 ? "No device has a pin ready for this: set the pin's mode in its start commands (Devices) first." : 'No device of the project can do this: add one in Devices.') : undefined}>
                   <ChoiceField<number> aria-label="Device" value={block.device ?? undefined} placeholder="Choose the device" choices={devices.map((d) => ({ value: d.id, label: d.name, description: d.type?.label }))}
                     unavailableLabel={() => 'A device not in the project'} onChange={(id) => change((b) => ({ ...b, device: id ?? null }))} />
                   <FieldError>{diagnostics.filter((d) => d.code.startsWith('device')).map((d) => d.message).join(' ')}</FieldError>
                 </FormRow>
               )}
-              {fields.map((field) => {
+              {settingsOnly.map((field) => {
                 const wired = wiredField(field.id)
                 return (
                   <FormRow key={field.id} label={field.alias} note={field.description} hint={wired ? `Read from ${wired} while wired.` : field.hints.find((h) => h.text)?.text}>
@@ -218,7 +230,20 @@ export function BlockDetails({ blocks, code }: { blocks: BlocksState; code: Code
                   const grown = withGroupCount(type, b, 'inputs', Math.max(needed, groupCount(type, b, 'inputs')?.count ?? 0))
                   return connect({ ...grown, ...(text !== undefined ? { editor: { text } } : {}) }, { block: b.id, side: 'in', index: pin }, { kind: 'variable', path })
                 })
-              }} />
+                // The tree's pick is used up, as on the canvas: the next click in the formula edits it.
+                if (!dropped) code.select(undefined)
+              }}
+              variables={formulaVariables}
+              onLinkVariables={(links, text, needed) => change((b) => {
+                let next = withGroupCount(type, b, 'inputs', Math.max(needed, groupCount(type, b, 'inputs')?.count ?? 0))
+                if (text !== undefined) next = { ...next, editor: { text } }
+                for (const link of links) {
+                  const draft = draftForVariable(tree, link.id)
+                  const path = draft && toPath(draft)
+                  if (path) next = connect(next, { block: b.id, side: 'in', index: link.pin }, { kind: 'variable', path })
+                }
+                return next
+              })} />
           </Card>
         )}
 
@@ -247,6 +272,34 @@ export function BlockDetails({ blocks, code }: { blocks: BlocksState; code: Code
                 const source = block.inputs[p.index]
                 const target: PinTarget = { block: block.id, side: 'in', index: p.index }
                 const open = active?.side === 'in' && active.index === p.index
+                const setting = p.pin.field === undefined ? undefined : fields.find((f) => f.id === p.pin.field)
+                const dropVariable = {
+                  onDragOver: (event: React.DragEvent) => { if (event.dataTransfer.types.includes(VARIABLE_DRAG_TYPE)) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy' } },
+                  onDrop: (event: React.DragEvent) => {
+                    const draft = draftForVariable(tree, event.dataTransfer.getData(VARIABLE_DRAG_TYPE))
+                    const path = draft && toPath(draft)
+                    if (!path) return
+                    event.preventDefault()
+                    setPin(target, { kind: 'variable', path })
+                  },
+                }
+                // Unwired, a setting's input is its choice itself; the link button wires a variable instead (the one picked in the tree at once).
+                if (setting && !source) {
+                  return (
+                    <div key={`in${p.index}`} className={`block-pin has-setting ${open ? 'is-editing' : ''}`}>
+                      <span className="block-pin-name" title={setting.description ?? p.pin.description}><TypeLead kind={pinLead(p.pin.value)} title={p.pin.value} />{p.pin.alias}</span>
+                      <span className="block-pin-setting" {...dropVariable}>
+                        <FieldInput field={setting} block={block} blocks={blocks} onChange={(v) => setValue(setting.id, v)} />
+                      </span>
+                      <Button size="icon-sm" aria-label={`Read ${p.pin.alias} from a variable`} title={chosen ? `Read it from ${chosenName}` : 'Read it from a variable instead'}
+                        onClick={() => { if (chosen) setPin(target, { kind: 'variable', path: chosen }); else setActive(open ? undefined : target) }}>
+                        <Link2 aria-hidden="true" />
+                      </Button>
+                      <FieldError>{[fieldProblem(setting.id), pinProblem('in', p.index)].filter(Boolean).join(' ')}</FieldError>
+                      {open && pathEditor(target, p.pin.alias, p.pin.value, undefined)}
+                    </div>
+                  )
+                }
                 return (
                   <div key={`in${p.index}`} className={`block-pin ${open ? 'is-editing' : ''}`}>
                     <span className="block-pin-name" title={p.pin.description}><TypeLead kind={pinLead(p.pin.value)} title={p.pin.value} />{p.pin.alias}</span>
@@ -321,7 +374,6 @@ export function BlockDetails({ blocks, code }: { blocks: BlocksState; code: Code
           <FormRow label="On a fault" note="Both report the error. Skip what follows: after a failed call its When done is off, so the blocks that run on it skip that pass.">
             <SegmentedSwitch label="On a fault" value={block.onError ?? 'continue'} options={[['continue', 'Go on'], ['stop', 'Skip what follows']] as const} onChange={(onError) => change((b) => ({ ...b, onError }))} />
           </FormRow>
-          <Button variant="danger" size="sm" onClick={() => blocks.remove([block.id])}>Remove the block</Button>
         </Card>
       </CardStack>
     </div>

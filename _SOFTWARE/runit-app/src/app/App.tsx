@@ -1,4 +1,4 @@
-import { Bluetooth, BluetoothConnected, BluetoothOff, CircleHelp, Code2, Cpu, FolderOpen, HardDriveDownload, HardDriveUpload, Moon, OctagonX, PanelLeft, PanelRight, Pencil, Play, Redo2, ScrollText, SlidersHorizontal, Square, Sun, Trash2, Undo2, Workflow } from 'lucide-react'
+import { Bluetooth, BluetoothConnected, BluetoothOff, CircleHelp, ClipboardPaste, Code2, Copy, Cpu, FolderOpen, HardDriveDownload, HardDriveUpload, Moon, OctagonX, PanelLeft, PanelRight, Bug, Eye, Pencil, Play, Redo2, ScrollText, SlidersHorizontal, Square, SquareDashedMousePointer, Sun, Trash2, Undo2, Workflow } from 'lucide-react'
 import type { LinkState } from '@backend'
 import { Badge, HelpOverlay, PanelHeader, SegmentedSwitch } from '@ui/components'
 import { usePersistedChoice, usePersistedFlag } from '@ui/hooks/useStorage'
@@ -7,17 +7,20 @@ import { usePanels } from '@ui/layout/usePanels'
 import { ConnectionPanel } from './ConnectionPanel'
 import { useLink } from './useLink'
 import { useVm } from './useVm'
+import { DebugPanel } from './run/DebugPanel'
+import { useRunSettings } from './run/useRunSettings'
+import { LiveContext } from './run/live'
 import { ProjectScreen } from './project/ProjectScreen'
 import { projectCounts } from './project/projectFile'
 import { useProject } from './project/useProject'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { DevicesExplorer } from './devices/DevicesExplorer'
 import { DevicesScreen } from './devices/DevicesScreen'
 import { DeviceTestPanel, PinPanel } from './devices/DeviceTestPanel'
 import { useDevices } from './devices/useDevices'
 import { useBoardSettings } from './settings/useBoardSettings'
 import { SettingsScreen } from './settings/SettingsScreen'
-import { PROJECT_TAB, SettingsTabs, tabSections } from './settings/SettingsTabs'
+import { POWER_TAB, PROJECT_TAB, SettingsTabs, tabSections } from './settings/SettingsTabs'
 import { CONSOLE_SHOWS, ConsoleExplorer, ConsoleScreen } from './console/ConsoleScreen'
 import type { ConsoleShow } from './console/ConsoleScreen'
 import { ConsoleContext, useConsole } from './console/useConsole'
@@ -32,6 +35,10 @@ import { BlockPalette } from './code/BlockPalette'
 import { BlockDetails } from './code/BlockDetails'
 import { BlocksList } from './code/BlocksList'
 import { CanvasSurface } from './code/canvas/CanvasSurface'
+import { PowerLive } from './power/PowerLive'
+import { SafeStateButton, SafeStateNotice } from './SafeState'
+import { PowerDisplayScreen } from './power/PowerDisplayScreen'
+import { defaultReadings } from './power/powerDisplay'
 import type { CodeState } from './code/useCode'
 
 /** The screens, as tabs along the top of the left panel (the Console's on the right). */
@@ -102,15 +109,19 @@ const LINK_VIEW: Record<LinkState, { tone: string; Icon: typeof Bluetooth; title
 export function App() {
   const [auto, setAuto] = usePersistedFlag('runit.autoReconnect', true)
   const { link, state, reason, device, available, scan, choose, cancelScan, connect, disconnect, forget } = useLink(auto)
-  const vm = useVm(link, state)
   const panels = usePanels()
   const project = useProject()
+  const runSettings = useRunSettings()
+  const vm = useVm(link, state, project.project.program, runSettings.holdMs)
   const code = useCode(project)
   const [theme, setTheme] = usePersistedChoice('runit.theme', ['dark', 'light'] as const, 'dark')
   const [view, setView] = usePersistedChoice<ViewName>('runit.shell.view', ['Project', 'Code', 'Devices', 'Console'], 'Project')
   const [codeMode, setCodeMode] = usePersistedChoice<ScreenMode>('runit.code.mode', SCREEN_MODES, 'details')
   const [devicesMode, setDevicesMode] = usePersistedChoice<ScreenMode>('runit.devices.mode', SCREEN_MODES, 'details')
   const [connectionOpen, setConnectionOpen] = useState(false)
+  // The bug button's panel (debug) takes the right panel the way the connection does; one covers the other.
+  const [debugOpen, setDebugOpen] = useState(false)
+  const covered = connectionOpen || debugOpen
   // Help mode for this session: numbered notes over the fields and buttons of the screen (HelpOverlay).
   const [help, setHelp] = useState(false)
   const [autoSync, setAutoSync] = usePersistedFlag('runit.autoSync', true)
@@ -125,8 +136,10 @@ export function App() {
   // The board's settings, read as soon as the link is up (the Project screen shows them).
   const boardSettings = useBoardSettings(link, state === 'connected', project)
   const settingTabs = tabSections(boardSettings.sections, link.defs.keys.project)
-  const [projectTab, setProjectTab] = usePersistedChoice<string>('runit.project.tab', [PROJECT_TAB, ...settingTabs.map((s) => s.service.id)], PROJECT_TAB)
+  const [projectTab, setProjectTab] = usePersistedChoice<string>('runit.project.tab', [PROJECT_TAB, POWER_TAB, ...settingTabs.map((s) => s.service.id)], PROJECT_TAB)
   const tabSection = settingTabs.find((s) => s.service.id === projectTab)
+  // What the Live power display reads: the project's, else the board's default.
+  const powerReadings = useMemo(() => project.project.powerDisplay ?? defaultReadings(devices.board), [project.project.powerDisplay, devices.board])
   // The board's logs and errors (Console view); the errors are also shown on what they are about (devices, pins, settings tabs).
   const board = useConsole(link, state, devices.interpreter)
   const [consoleShow, setConsoleShow] = usePersistedChoice<ConsoleShow>('runit.console.show', CONSOLE_SHOWS, 'all')
@@ -178,19 +191,19 @@ export function App() {
   const detailsKey = testId !== undefined ? `device:${testId}` : codeBlock !== undefined ? `block:${codeBlock}` : codeVariable !== undefined ? `variable:${codeVariable}` : undefined
   // The details panel is open while it has something to show: a device or a variable chosen opens its panel (in place of the
   // connection panel), nothing left to show closes it.
-  const showsNothing = !connectionOpen && detailsKey === undefined
+  const showsNothing = !covered && detailsKey === undefined
   // On the canvas of Code a selection opens nothing (the panel would cover the blocks being linked): the panel follows the
   // selection while it is open, and a double-click on a block or the toolbar's pencil opens it, or hides it when it already shows
   // that block (`toggleDetails`).
   const onCodeCanvas = view === 'Code' && codeMode === 'canvas'
   const toggleDetails = (block?: string) => {
-    const showing = panels.rightOpen && !connectionOpen && detailsKey !== undefined && (block === undefined || codeBlock === block)
-    setConnectionOpen(false)
+    const showing = panels.rightOpen && !covered && detailsKey !== undefined && (block === undefined || codeBlock === block)
+    setConnectionOpen(false); setDebugOpen(false)
     panels.setRightOpen(!showing)
   }
   useEffect(() => {
     if (detailsKey === undefined || onCodeCanvas) return
-    setConnectionOpen(false)
+    setConnectionOpen(false); setDebugOpen(false)
     panels.setRightOpen(true)
   }, [detailsKey])
   useEffect(() => {
@@ -200,13 +213,22 @@ export function App() {
   const { tone, Icon: LinkIcon, title: linkTitle } = available ? LINK_VIEW[state] : { tone: 'status-warn', Icon: BluetoothOff, title: 'This browser has no Web Bluetooth' }
   // The details panel is open only while it has something to show (so far the connection panel); closing that collapses it.
   const closeDetails = () => {
-    setConnectionOpen(false)
+    setConnectionOpen(false); setDebugOpen(false)
     panels.setRightOpen(false)
   }
   const openConnection = () => {
     // Open over the test panel: closing it goes back to the test panel.
     if (connectionOpen && panels.rightOpen) return detailsKey !== undefined ? setConnectionOpen(false) : closeDetails()
+    setDebugOpen(false)
     setConnectionOpen(true)
+    panels.setRightOpen(true)
+    panels.widenRight()
+  }
+  // The bug button: its panel opens in the right panel (a second press closes it, back to what was there).
+  const openDebug = () => {
+    if (debugOpen && panels.rightOpen) return detailsKey !== undefined ? setDebugOpen(false) : closeDetails()
+    setConnectionOpen(false)
+    setDebugOpen(true)
     panels.setRightOpen(true)
     panels.widenRight()
   }
@@ -219,8 +241,17 @@ export function App() {
   // with the connection on top of them while the safe stop has its corner.
   const runButtons = (
     <>
-      <button className={vm.canRun ? 'status-ok' : ''} aria-label="Run" data-help="Runs the program on the board." title={vm.running ? 'The program is running' : !vm.canRun ? 'Connect the board to run the program' : vm.real ? 'Run the program on the board' : 'Run (a simulation: the board has no program loaded)'} disabled={!vm.canRun} onClick={() => void vm.run()}>
+      <button className={vm.canRun ? 'status-ok' : ''} aria-label="Run" data-help="Loads the program into the board and runs it." disabled={!vm.canRun}
+        title={vm.stale ? 'The program changed: load it again and run it' : vm.running ? 'The program is running' : !vm.canRun ? 'Connect the board to run the program' : 'Load the program into the board and run it'} onClick={() => void vm.run('run')}>
         <Play aria-hidden="true" />
+      </button>
+      <button className={vm.live.mode === 'live' ? 'selected' : ''} aria-label="Live view" aria-pressed={vm.live.mode === 'live'} data-help="Runs the program and shows which blocks act and what the variables hold, as it happens." disabled={!vm.canWatch}
+        title={vm.live.mode === 'live' && !vm.stale ? 'Watching the program live (press to load it again)' : !vm.canWatch ? 'Connect the board to watch the program' : 'Run the program and watch the flow and the variables live'} onClick={() => void vm.run('live')}>
+        <Eye aria-hidden="true" />
+      </button>
+      <button className={vm.live.mode === 'debug' || (debugOpen && panels.rightOpen) ? 'selected' : ''} aria-label="Debug" aria-pressed={debugOpen && panels.rightOpen} data-help="Debug: step by step or loop by loop, in slow motion, with every block's output."
+        title="Debug: stepping, slow motion and every block's output" onClick={openDebug}>
+        <Bug aria-hidden="true" />
       </button>
       <button className={vm.canStop ? 'status-lost' : ''} aria-label="Stop" data-help="Pauses the program on the board." title={!vm.canStop ? 'The program is not running' : vm.real ? 'Pause the program on the board' : 'Stop (a simulation)'} disabled={!vm.canStop} onClick={() => void vm.stop()}>
         <Square aria-hidden="true" />
@@ -244,6 +275,7 @@ export function App() {
 
   return (
     <ConsoleContext.Provider value={{ console: board, jumps }}>
+    <LiveContext.Provider value={vm.live}>
     <WorkspaceShell className={`theme-${theme} ${panels.resizing ? 'is-resizing' : ''}`}>
       <ExplorerPanel open={panels.leftOpen} width={panels.left}>
         <div className="side-panel-header left-strip">
@@ -314,9 +346,27 @@ export function App() {
                   )}
                 </>
               )}
+              {view === 'Code' && mode === 'canvas' && (
+                <button aria-label="Select" data-help="The select tool: a drag on the canvas draws a box round blocks, as with Shift, instead of moving the canvas. Click again to move the canvas." title={blocks.selecting ? 'Select: drag a box round blocks (click to move the canvas again)' : 'Select: drag a box round blocks (or hold Shift)'}
+                  className={blocks.selecting ? 'selected' : undefined} aria-pressed={blocks.selecting} onClick={() => blocks.setSelecting(!blocks.selecting)}>
+                  <SquareDashedMousePointer aria-hidden="true" />
+                </button>
+              )}
+              {view === 'Code' && (
+                <button aria-label="Copy the selected blocks" data-help="Copies the selected blocks (Ctrl+C on the canvas does the same)." title="Copy the selected blocks (Ctrl+C)"
+                  disabled={blocks.selectedIds.length === 0} onClick={blocks.copy}>
+                  <Copy aria-hidden="true" />
+                </button>
+              )}
+              {view === 'Code' && (
+                <button aria-label="Paste the copied blocks" data-help="Pastes the copied blocks, a little further down and right each time (Ctrl+V on the canvas does the same)." title="Paste the copied blocks (Ctrl+V)"
+                  disabled={!blocks.canPaste} onClick={blocks.paste}>
+                  <ClipboardPaste aria-hidden="true" />
+                </button>
+              )}
               {view === 'Code' && (
                 <button aria-label="Edit the selected block" data-help="Opens the details of the selected block (or variable) in the right panel, or hides them; a double-click on a block does the same." title="Edit: show or hide the details of the selection (double-click a block)"
-                  className={panels.rightOpen && !connectionOpen && detailsKey !== undefined ? 'selected' : undefined} aria-pressed={panels.rightOpen && !connectionOpen && detailsKey !== undefined} disabled={detailsKey === undefined} onClick={() => toggleDetails()}>
+                  className={panels.rightOpen && !covered && detailsKey !== undefined ? 'selected' : undefined} aria-pressed={panels.rightOpen && !covered && detailsKey !== undefined} disabled={detailsKey === undefined} onClick={() => toggleDetails()}>
                   <Pencil aria-hidden="true" />
                 </button>
               )}
@@ -329,6 +379,7 @@ export function App() {
               <span className="toolbar-spacer" />
               {(view === 'Devices' || view === 'Project') && devices.busy && <span className="bar-note" role="status">{devices.busy.step}… {devices.busy.done}/{devices.busy.total}</span>}
               {(view === 'Devices' || view === 'Project') && !devices.busy && devices.note && <span className={`bar-note ${devices.note.tone === 'error' ? 'is-error' : ''}`} role="status" title={devices.note.text} onClick={devices.clearNote}>{devices.note.text}</span>}
+              {vm.progress && <span className="bar-note" role="status">{vm.progress}</span>}
               {vm.error && <span className="bar-note is-error" role="status" title={vm.error}>{vm.error}</span>}
               <button className={`help-toggle ${help ? 'selected' : ''}`.trim()} aria-label="Help" aria-pressed={help} title={help ? 'Hide the help' : 'Help: outlines on the fields and buttons of this screen, a click shows what each does'} onClick={() => setHelp(!help)}>
                 <CircleHelp aria-hidden="true" />
@@ -350,7 +401,9 @@ export function App() {
             : screens
             ? <div className={`view-placeholder ${mode === 'canvas' ? 'canvas-empty' : ''}`}><h2>{current.title} · {mode === 'canvas' ? 'Canvas' : 'Details'}</h2><p>{screens[mode]}</p></div>
             : view === 'Project'
-              ? (tabSection
+              ? (projectTab === POWER_TAB
+                ? <PowerDisplayScreen project={project} services={devices.services} board={devices.board} devices={devices.devices} connected={state === 'connected'} />
+                : tabSection
                 ? <SettingsScreen section={tabSection} state={boardSettings} context={pinContext} nameOf={nameOf} />
                 : <ProjectScreen project={project} link={link} connected={state === 'connected'} run={vm.board} settings={boardSettings} context={pinContext} nameOf={nameOf} />)
               : <div className="view-placeholder"><h2>{current.title}</h2><p>Nothing here yet.</p></div>}
@@ -361,7 +414,7 @@ export function App() {
         <ResizeHandle side="right" label="Resize right panel" width={panels.right} onStart={() => panels.setResizing(true)} onEnd={() => panels.setResizing(false)} onResize={panels.dragRight} />
       )}
 
-      <DetailsPanel open={panels.rightOpen} style={panels.rightOpen ? { width: panels.right } : undefined}>
+      <DetailsPanel open={panels.rightOpen} className={vm.safe ? 'is-safe-state' : undefined} style={panels.rightOpen ? { width: panels.right } : undefined}>
         <div className="side-panel-header right-header">
           {panels.rightOpen
             ? (
@@ -377,18 +430,28 @@ export function App() {
         {panels.rightOpen
           ? (
             <div className="side-panel-body">
-              {!connectionOpen && testDevice && (devices.pinSelection?.device === testDevice.id
+              {vm.safe && (
+                <SafeStateNotice safe={vm.safe} faultLatched={vm.board?.faultLatched ?? false} faultDevice={vm.board?.faultDevice === undefined ? undefined : devices.nameOf(vm.board.faultDevice)}
+                  busy={!vm.canSafeStop} programReady={vm.real} onLeave={() => void vm.leaveSafe()} onAckFault={() => void vm.ackFault()} />
+              )}
+              <PowerLive layout="row" services={devices.services} board={devices.board} devices={devices.devices} readings={powerReadings} connected={state === 'connected'} />
+              {!covered && testDevice && (devices.pinSelection?.device === testDevice.id
                 ? <PinPanel key={`${testDevice.id}/${devices.pinSelection.pin}`} device={testDevice} pin={devices.pinSelection.pin} state={devices} />
                 : <DeviceTestPanel key={testDevice.id} device={testDevice} state={devices} />)}
-              {!connectionOpen && codeBlock !== undefined && <BlockDetails key={codeBlock} blocks={blocks} code={code} />}
-              {!connectionOpen && codeVariable !== undefined && <VariableDetails code={code} />}
+              {!covered && codeBlock !== undefined && <BlockDetails key={codeBlock} blocks={blocks} code={code} />}
+              {!covered && codeVariable !== undefined && <VariableDetails code={code} />}
+              {debugOpen && !connectionOpen && <DebugPanel settings={runSettings} canStart={vm.canWatch} stale={vm.stale} running={vm.running} stepping={vm.stepping} watching={vm.live.mode === 'debug'} {...(vm.progress ? { progress: vm.progress } : {})}
+                {...(state !== 'connected' ? { why: 'Connect the board to debug the program.' } : {})}
+                onStart={() => void vm.run('debug', runSettings.slow, runSettings.stepping, runSettings.stepMs)} onStepping={(how) => void vm.control(how === 'continuous' ? 'normal' : how === 'loop' ? 'scan' : 'block')}
+                onNext={() => void vm.control(vm.stepping === 'step' ? 'next' : 'once')} onRewind={() => void vm.control('restart')} onSlow={(f) => void vm.slowTo(f, runSettings.stepMs)} onStepMs={(ms) => void vm.slowTo(runSettings.slow, ms)} />}
               {connectionOpen && <ConnectionPanel state={state} device={device} reason={reason} available={available} scan={scan} onChoose={choose} onCancelScan={cancelScan} auto={auto} onAuto={setAuto} sync={autoSync} onSync={setAutoSync} onConnect={() => void connect()} onDisconnect={() => void disconnect()} onForget={() => void forget()} />}
             </div>
           )
-          : <div className="side-panel-icons">{vm.running && linkButton}{runButtons}{consoleButton}</div>}
+          : <div className="side-panel-icons">{vm.safe && <SafeStateButton safe={vm.safe} onOpen={() => { setDebugOpen(false); setConnectionOpen(true); panels.setRightOpen(true) }} />}{vm.running && linkButton}{runButtons}{consoleButton}<PowerLive layout="column" services={devices.services} board={devices.board} devices={devices.devices} readings={powerReadings} connected={state === 'connected'} /></div>}
       </DetailsPanel>
       <HelpOverlay on={help} />
     </WorkspaceShell>
+    </LiveContext.Provider>
     </ConsoleContext.Provider>
   )
 }

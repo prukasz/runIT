@@ -37,10 +37,19 @@ void runit_enter_safe_state(void) {
   err_report(sys_device_suspend_all());
 }
 
-// The router's safe state (STOP, dead-man, link lost).
+// The router's safe state (STOP, dead-man, link lost, a power fault): the router notes why, for SYS SAFE_GET.
 static void router_safe_state(router_safe_reason_e reason) {
   ESP_LOGW(TAG, "safe state (reason %d)", (int)reason);
   runit_enter_safe_state();
+}
+
+// SYS SAFE_LEAVE: the way out is the way in, reversed; the program is started again by the client (VM EXEC).
+static err_h router_safe_leave(void) {
+  return sys_device_resume_all();
+}
+
+void runit_power_safe_state(void) {
+  router_enter_safe_state(ROUTER_SAFE_POWER);
 }
 
 // The devices created so far are the board's own.
@@ -72,6 +81,7 @@ static err_h router_setup(void) {
   ERR_TRY(router_register(ROUTER_KEY_PROJECT, sys_project_router));
   router_set_tap(&g_sys_actions_tap);
   router_set_safe_state(router_safe_state);
+  router_set_safe_leave(router_safe_leave);
   return router_init();
 }
 

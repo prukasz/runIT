@@ -1,8 +1,10 @@
 /* The Code view: the variables' tree (left), every variable to edit (centre), the selected one's details (right). */
 .code-explorer { display: flex; flex-direction: column; gap: 8px; min-height: 100%; padding: 10px 10px 16px; }
-/* The search and the three adds (a value, a folder, a reference) in one row. */
-.code-explorer-bar { display: flex; align-items: center; gap: 4px; }
-.code-explorer-bar > .palette-search { flex: 1; min-width: 0; }
+/* The search across the panel, the three adds (a value, a folder, a reference) in a row under it. */
+.code-explorer-bar { display: flex; flex-direction: column; gap: 6px; }
+.code-explorer-bar > .palette-search { margin: 0; }
+.code-explorer-adds { display: flex; gap: 6px; }
+.code-explorer-adds > button { flex: 1; min-width: 0; }
 /* The tree takes the rest of the panel: a drop on its empty space moves the variable to the top level. */
 .code-tree { display: flex; flex: 1; flex-direction: column; gap: 2px; min-height: 80px; }
 .code-hint { margin: 4px 0; color: var(--muted); font-size: 12px; }
@@ -43,3 +45,7 @@
 .code-place > .listable-field-wrap { flex: 1 1 auto; min-width: 0; }
 .code-refs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .code-details .form-row .code-refs { margin-top: 0; }
+
+/* A variable's value as the board holds it (run/live.ts); lit for the hold time after it changed. */
+.badge.live-value { max-width: 140px; overflow: hidden; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; transition: background 250ms ease; }
+.badge.live-value.is-changed { background: color-mix(in srgb, var(--status-ok) 40%, transparent); }

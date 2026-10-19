@@ -1,4 +1,6 @@
+import { doneKey, outputKey } from '@engine'
 import type { BlockInstance, ObjectPath, Source } from '@engine'
+import { useLive } from '../../run/live'
 import { sameTarget, wiresOf } from '../blocks'
 import type { BlockPin, PinTarget, Wire } from '../blocks'
 import { CHIP_HEIGHT, CHIP_WIDTH, chipFor, curve, pinAnchor, ribbon } from './layout'
@@ -61,6 +63,7 @@ export function CanvasWires({ blocks, layout, place, shapeOf, selected, draft, c
   onSelect: (wire: Wire) => void
   onSelectPin: (target: PinTarget) => void
 }) {
+  const live = useLive()
   const byId = new Map(blocks.map((b) => [b.id, b]))
   const selectedKey = selected && wireKey(selected)
   const draftBlock = draft && byId.get(draft.from.block)
@@ -85,20 +88,25 @@ export function CanvasWires({ blocks, layout, place, shapeOf, selected, draft, c
           onSelect(wire)
         }
         const key = wireKey(wire)
+        // Lit while the block it comes from acts (When done), or just after the value it carries changed; a Run when from a pin while it is true.
+        const lit = wire.from.pin === 'eno' ? live.active(doneKey(wire.from.block)) : wire.to.side === 'en' ? live.active(outputKey(wire.from.block, wire.from.pin)) : live.changed(outputKey(wire.from.block, wire.from.pin))
+        // A boolean the board holds: the wire is green while it is true, red while it is false (the same as the lead of the pin).
+        const held = live.flag(wire.from.pin === 'eno' ? doneKey(wire.from.block) : outputKey(wire.from.block, wire.from.pin))
+        const level = held === undefined ? '' : held ? 'is-true' : 'is-false'
         if (wire.to.side === 'en') {
           const fromSpan: RibbonSpan = wire.from.pin === 'eno'
             ? { x: sourceAt.x + sourceShape.width, top: sourceAt.y + 1, bottom: sourceAt.y + sourceShape.height - 1 }
             : { x: from.x, top: from.y - 2.5, bottom: from.y + 2.5 }
           const toSpan: RibbonSpan = { x: targetAt.x, top: targetAt.y + 1, bottom: targetAt.y + targetShape.height - 1 }
           return (
-            <g key={key} className={`canvas-wire is-ribbon ${wireClass(wire)} ${selectedKey === key ? 'is-selected' : ''}`}>
-              <path className="canvas-ribbon" d={ribbon(fromSpan, toSpan, pinAnchor(targetAt, targetShape, 'en').y)} onPointerDown={select} />
+            <g key={key} className={`canvas-wire is-ribbon ${wireClass(wire)} ${selectedKey === key ? 'is-selected' : ''} ${lit ? 'is-live' : ''} ${level}`}>
+              <path className="canvas-ribbon" d={ribbon(fromSpan, toSpan, pinAnchor(targetAt, targetShape, 'en').y, wire.from.pin === 'eno')} onPointerDown={select} />
             </g>
           )
         }
         const d = curve(from, pinAnchor(targetAt, targetShape, { side: 'in', index: wire.to.index }))
         return (
-          <g key={key} className={`canvas-wire ${wireClass(wire)} ${selectedKey === key ? 'is-selected' : ''}`}>
+          <g key={key} className={`canvas-wire ${wireClass(wire)} ${selectedKey === key ? 'is-selected' : ''} ${lit ? 'is-live' : ''} ${level}`}>
             <path className="canvas-wire-hit" d={d} onPointerDown={select} />
             <path className="canvas-wire-line" d={d} markerEnd="url(#canvas-arrow)" />
           </g>

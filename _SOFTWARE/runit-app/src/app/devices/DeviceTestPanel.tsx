@@ -25,7 +25,7 @@ function CommandTester({ device, entry, command, state }: { device: DeviceInfo; 
   // state its descriptor wants (`pin_state`), so none is refused. A device without SET_MODE has its pins fixed.
   const io = state.catalog.contracts.get('IO')
   const setModeDef = io?.commands.get('SET_MODE')
-  const hasSetMode = !setModeDef || !state.ops || state.ops.has(deviceOp(state.catalog, io!, setModeDef))
+  const hasSetMode = !device.type?.pins?.fixedModes && (!setModeDef || !state.ops || state.ops.has(deviceOp(state.catalog, io!, setModeDef)))
   const pinField = command.args?.fields.find((f) => f.type === 'pin' && f.pinState)
   const chosen = pinField ? args[pinField.id] : undefined
   const stateNow = (pin: number) => pinStateOf(device, state.board, pin, hasSetMode, state.pinKinds)

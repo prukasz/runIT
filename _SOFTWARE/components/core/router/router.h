@@ -332,14 +332,32 @@ typedef enum {
   ROUTER_SAFE_STOP = 1,  //@alias Stop @description sys STOP command
   ROUTER_SAFE_DEADMAN = 2,  //@alias Deadman @description No frame within the dead-man timeout
   ROUTER_SAFE_LINK_LOST = 3,  //@alias Link lost @description router_link_lost with on_link_lost set
+  ROUTER_SAFE_POWER = 4,  //@alias Power fault @description The power manager's response to a power fault (its response matrix: safe state)
 } router_safe_reason_e;
 
 typedef void (*router_safe_state_f)(router_safe_reason_e reason);
+typedef err_h (*router_safe_leave_f)(void);
 
 /**
  * @brief Sets the safe-state handler. Boot only. NULL = only logged.
  */
 void router_set_safe_state(router_safe_state_f fn);
+
+/**
+ * @brief Sets what leaving the safe state does (SYS SAFE_LEAVE): the devices resumed. Boot only. NULL: SAFE_LEAVE only clears the note.
+ */
+void router_set_safe_leave(router_safe_leave_f fn);
+
+/**
+ * @brief Enters the safe state for `reason`: the handler runs and the router notes the reason and the time (SYS SAFE_GET) until
+ *        SYS SAFE_LEAVE. The router's own reasons call it; a module of a later layer (the power manager) through the application.
+ */
+void router_enter_safe_state(router_safe_reason_e reason);
+
+/**
+ * @brief The safe state as noted: the reason of the last entry (0 = not in it) and how long ago, in ms.
+ */
+void router_safe_state_get(uint8_t* reason, uint32_t* for_ms);
 
 /**
  * @brief Runtime dead-man. `timeout_ms` 0 = off. While on, the safe state is

@@ -1,4 +1,5 @@
 import { checkVariables, flattenVariables } from '@engine'
+import type { PowerReading } from '../power/powerDisplay'
 import type { Project } from '@engine'
 import type { FieldValues } from '@backend'
 import { EMPTY_LAYOUT, readLayout } from '../code/canvas/layout'
@@ -126,6 +127,8 @@ export interface ProjectFile {
   readonly settings: ProjectSettings
   /** Where the blocks and the free chips sit on the canvas. */
   readonly canvas: CanvasLayout
+  /** What the Live power display reads (`power/powerDisplay.ts`); unset: the board's default. The app's own, like the canvas. */
+  readonly powerDisplay?: readonly PowerReading[]
 }
 
 export const emptyProject = (name = 'Untitled'): ProjectFile => ({ name, program: { variables: [], blocks: [] }, devices: [], boardDefaults: [], actions: [], pinAliases: [], settings: emptySettings(), canvas: EMPTY_LAYOUT })
@@ -184,6 +187,8 @@ export const parseProject = (text: string): ParseResult => {
     pinAliases: pinAliases as unknown as PinAlias[],
     settings: { values: {}, tables: {}, ...(settings as unknown as Partial<ProjectSettings>) },
     canvas: readLayout(data.canvas),
+    // A display that is not readable is left out: the board's default stands in.
+    ...(Array.isArray(data.powerDisplay) && data.powerDisplay.every((r) => isObject(r) && typeof r.name === 'string' && isObject(r.read)) ? { powerDisplay: data.powerDisplay as unknown as PowerReading[] } : {}),
   }
   return { ok: true, project, problems: checkVariables(project.program.variables).map((problem) => problem.message) }
 }

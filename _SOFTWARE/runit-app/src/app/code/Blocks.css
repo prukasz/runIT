@@ -75,6 +75,7 @@
 .block-pin-target em { font-style: italic; }
 .block-pin-arrow { flex: none; font-weight: 700; }
 .block-pin-target.is-wired .block-pin-arrow { color: var(--color-orange); }
+.block-pin-setting { min-width: 0; }
 .block-pin-clear { width: 24px; height: 24px; }
 .block-pin-clear svg { width: 13px; height: 13px; }
 .block-gates { display: flex; flex-direction: column; gap: 4px; margin: 0 0 8px; padding: 0; list-style: none; font-size: 12px; }

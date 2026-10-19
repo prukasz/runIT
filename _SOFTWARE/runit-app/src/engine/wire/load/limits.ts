@@ -15,6 +15,8 @@ export interface VmLimits {
   readonly accessorMaxDepth: number
   /** `CONFIG_VM_SUB_MAX_SUBSCRIBERS`: object ids one SUBSCRIBE may carry. */
   readonly subscribeMax: number
+  /** `CONFIG_VM_SUB_MAX_TRACKED`: objects telemetry follows (the subscribed ones and what their PTR children reach). */
+  readonly subscribeTracked: number
   /** `CONFIG_VM_EXEC_MAX_SPAN_DEPTH`: nested loops. */
   readonly spanDepthMax: number
   /** `CONFIG_VM_RETAIN_MAX_BYTES`: the stored record of retained values (`2 + 4 + name + value` per object). */
@@ -63,6 +65,7 @@ export const LIMIT_SYMBOLS = {
   storeMaxPool: 'VM_STORE_MAX_POOL',
   accessorMaxDepth: 'VM_ACCESSOR_MAX_DEPTH',
   subscribeMax: 'VM_SUB_MAX_SUBSCRIBERS',
+  subscribeTracked: 'VM_SUB_MAX_TRACKED',
   spanDepthMax: 'VM_EXEC_MAX_SPAN_DEPTH',
   retainMaxBytes: 'VM_RETAIN_MAX_BYTES',
   frameMax: 'ROUTER_FRAME_MAX',
@@ -75,6 +78,7 @@ export const DEFAULT_LIMITS: VmLimits = {
   storeMaxPool: 131072,
   accessorMaxDepth: 8,
   subscribeMax: 128,
+  subscribeTracked: 256,
   spanDepthMax: 4,
   retainMaxBytes: 1024,
   frameMax: 512,

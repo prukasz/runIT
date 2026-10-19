@@ -48,7 +48,7 @@ Run with `06 01 <id u32>`, or name the ID in a device's error policy. Hard reset
 
 ## Safe state
 
-`runit_enter_safe_state()`: the VM stopped (`vm_exec_stop`, retained values saved), then every device suspended (`sys_device_suspend_all`). The router calls it on STOP, dead-man and link lost.
+`runit_enter_safe_state()`: the VM stopped (`vm_exec_stop`, retained values saved), then every device suspended (`sys_device_suspend_all`). The router calls it on STOP, dead-man and link lost; the power manager's response "safe state" goes through the router too (`runit_power_safe_state` → `router_enter_safe_state(ROUTER_SAFE_POWER)`), so every entry is noted with its reason for SYS `SAFE_GET`. The way out is SYS `SAFE_LEAVE`: `router_safe_leave` resumes every device (`sys_device_resume_all`, oldest first); the client starts the program again (VM EXEC).
 
 ## Error policy wiring
 

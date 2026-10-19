@@ -65,6 +65,7 @@
       "op": 3,
       "symbol": "SYS_ACTIONS_OP_RECORD_STOP",
       "label": "Stop recording",
+      "invasive": true,
       "description": "Stops the recording in progress, closes the action record and returns what was stored.",
       "returns": {
         "struct": "sys_actions_info_t",

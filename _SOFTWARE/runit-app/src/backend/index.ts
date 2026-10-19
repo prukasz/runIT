@@ -9,7 +9,7 @@
  *   session       the commands, the link that keeps itself connected, sending a list in order, the catalog's commands
  */
 export { bundledBlockTypes, bundledBoard, bundledEnums, onboardActionIds, onboardActions, bundledLinkDefinitions, bundledServiceCatalog, errorCatalog, errorIdKinds, errorSeverities, linkDefinitions } from './definitions'
-export type { BoardDescriptor, BoardDevice, BoardPin, ErrorField, ErrorInfo, IdKindInfo, LinkDefinitions } from './definitions'
+export type { BoardDescriptor, BoardDevice, BoardPin, BoardPower, PowerProbe, ErrorField, ErrorInfo, IdKindInfo, LinkDefinitions } from './definitions'
 export { decodeFields, encodeFields, PayloadError, PIN_REF_SIZE, RAW_TYPES, rawWidth, readValue } from './catalog/codec'
 export type { Choice, FieldInput, FieldRecord, FieldValue, FieldValues, Layout, PinRef, RawType, WireField } from './catalog/codec'
 export { ServiceCatalog } from './catalog/services'

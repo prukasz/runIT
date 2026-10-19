@@ -14,6 +14,9 @@ import type { Variable } from '../variables/variables'
  *               a fixed position, a child by name, a child by name that needs quotes, a position read from another path
  *
  * `root` is a variable id (a rename must not break a path); text uses names.
+ *
+ * Below a folder or reference marked `dynamic` (what it holds is known only at run time) a step the project cannot follow is no
+ * error: the path is `unchecked`, its type unknown, and the board finds the child by its tag (`VM_IDX_NAME`) or position.
  */
 
 export type PathStep =
@@ -40,6 +43,8 @@ export interface Target {
   readonly count: number
   /** A position on the way is read at run time, so the exact object is not known before. */
   readonly dynamic: boolean
+  /** The path goes below a dynamic folder or reference into what the project does not hold: `variable` is that container, the board checks the rest. */
+  readonly unchecked?: boolean
 }
 
 export type Resolution =
@@ -81,12 +86,18 @@ export const resolvePath = (tree: readonly Variable[], path: ObjectPath): Resolu
   /** Where the walk may be: one variable, or every entry a run-time position could pick. */
   let at: readonly Variable[] = [root]
   let dynamic = false
+  /** The last dynamic container passed: from it on, a step the project cannot follow is the board's to check. */
+  let open: Variable | undefined
+  const unchecked = (): Resolution => ({ ok: true, target: { variable: open!, element: null, type: null, count: 1, dynamic: true, unchecked: true } })
+  const isOpen = (v: Variable): boolean => (v.kind === 'folder' || v.kind === 'reference') && v.dynamic === true
+  if (isOpen(root)) open = root
 
   for (let i = 0; i < path.steps.length; i++) {
     const step = path.steps[i]!
     const last = i === path.steps.length - 1
     const label = at.length === 1 ? `'${at[0]!.name}'` : 'the entries'
 
+    if (step.kind === 'dynamic' && open && !at.every((v) => v.kind === 'folder' || v.kind === 'reference')) return unchecked()
     if (step.kind === 'dynamic') {
       const inner = resolvePath(tree, step.path)
       if (!inner.ok) return fail(inner.code, `Step ${i + 1}: ${inner.message}`, i)
@@ -97,6 +108,7 @@ export const resolvePath = (tree: readonly Variable[], path: ObjectPath): Resolu
     // Value arrays: the path ends here with one of their elements.
     if (at.every((v) => v.kind === 'value')) {
       const arrays = at as readonly Extract<Variable, { kind: 'value' }>[]
+      if (open && (!last || step.kind === 'name')) return unchecked()
       if (!last) return fail('ERR_VM_OBJ_NOT_PTR', `${label} is not a folder: nothing can be read inside it.`, i)
       if (step.kind === 'name') return fail('ERR_VM_OBJ_NOT_PTR', `${label} has no named children.`, i)
       if (step.kind === 'index') {
@@ -113,17 +125,22 @@ export const resolvePath = (tree: readonly Variable[], path: ObjectPath): Resolu
       if (step.kind === 'index') {
         const entry = entries[step.index]
         if (entry) next.push(entry)
+        else if (open) return unchecked()
         else if (at.length === 1) return fail('ERR_VM_ACCESSOR_OOB', `Position ${step.index} is outside ${label} (${entries.length} entries).`, i)
       } else if (step.kind === 'name') {
         const entry = entries.find((e) => e.name === step.name)
         if (entry) next.push(entry)
+        else if (open) return unchecked()
         else if (at.length === 1) return fail('ERR_VM_ACCESSOR_NAME_NOT_FOUND', `${label} has nothing called '${step.name}'.`, i)
       } else {
         next.push(...entries)
       }
     }
+    if (next.length === 0 && open) return unchecked()
     if (next.length === 0) return fail(step.kind === 'name' ? 'ERR_VM_ACCESSOR_NAME_NOT_FOUND' : 'ERR_VM_ACCESSOR_OOB', `Nothing to pick in ${label}.`, i)
     at = [...new Set(next)]
+    const opened = at.find(isOpen)
+    if (opened) open = opened
   }
 
   const first = at[0]!

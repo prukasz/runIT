@@ -1,0 +1,22 @@
+/* The Live power display (PowerLive.tsx): narrow at the foot of the collapsed right panel, a row at the top of the open one; the same look. */
+.power-live { display: flex; align-items: center; gap: 2px; color: var(--active); font: 600 10px/14px ui-monospace, SFMono-Regular, Consolas, monospace; font-variant-numeric: tabular-nums; }
+.power-live.is-column { flex-direction: column; width: 100%; margin-top: auto; padding: 8px 0 4px; border-top: 1px solid var(--divider); }
+.power-live.is-row { flex-wrap: wrap; gap: 4px 12px; padding: 6px 12px; border-bottom: 1px solid var(--divider); }
+.power-live-icon { flex: none; width: 14px; height: 14px; color: var(--color-amber); }
+.power-live.is-column .power-live-icon { margin-bottom: 2px; }
+.power-live-group { display: flex; align-items: center; gap: 6px; }
+.power-live.is-column .power-live-group { flex-direction: column; gap: 0; margin-top: 4px; }
+.power-live-name { max-width: 100%; overflow: hidden; color: var(--muted); font-family: inherit; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.power-live-value { white-space: nowrap; }
+.shell .power-live .power-live-more { width: 28px; height: 22px; color: var(--muted); }
+.power-live.is-column .power-live-more { margin-top: 4px; }
+.power-live-more svg { width: 14px; height: 14px; }
+
+/* The Project view's Live power display tab (PowerDisplayScreen.tsx). */
+.power-display-screen { display: flex; flex-direction: column; gap: 10px; }
+.power-display-screen > .power-display-intro, .power-display-screen > .power-display-actions { max-width: 760px; }
+.power-display-screen > * { flex: none; }
+.power-display-intro { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.power-display-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.power-display-row-actions { display: inline-flex; align-items: center; gap: 4px; }
+.power-display-now { margin-right: 6px; color: var(--color-amber); font: 600 12px ui-monospace, SFMono-Regular, Consolas, monospace; font-variant-numeric: tabular-nums; }

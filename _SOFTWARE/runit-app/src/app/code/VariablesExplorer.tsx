@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import type { DragEvent } from 'react'
 import { FolderPlus, Link2, Plus } from 'lucide-react'
-import { NAME_MAX } from '@engine'
+import { NAME_MAX, variableKey } from '@engine'
 import type { Variable } from '@engine'
-import { Button, InlineRename, PaletteSearch, TreeAction, TreeChildren, TreeDisclosure, TreeSlab, matchesSearch } from '@ui/components'
+import { Badge, Button, InlineRename, PaletteSearch, TreeAction, TreeChildren, TreeDisclosure, TreeSlab, matchesSearch } from '@ui/components'
 import type { CodeState } from './useCode'
 import { TargetPill, VariableLead, useVariableErrors } from './VariableRow'
 import { dropPlace } from './variables'
+import { useLive } from '../run/live'
 import './Code.css'
 
 type DropMode = 'into' | 'before' | 'after'
@@ -33,6 +34,7 @@ export function VariablesExplorer({ code }: { code: CodeState }) {
   const [dragged, setDragged] = useState<string>()
   const [drop, setDrop] = useState<{ id: string; mode: DropMode }>()
   const boardErrors = useVariableErrors()
+  const live = useLive()
   const searching = query.trim() !== ''
   const matches = (v: Variable): boolean => matchesSearch(v.name, query)
   const holdsMatch = (v: Variable): boolean => v.kind === 'folder' && v.children.some((c) => matches(c) || holdsMatch(c))
@@ -61,6 +63,7 @@ export function VariablesExplorer({ code }: { code: CodeState }) {
               }}
               onCancel={() => setRenaming(undefined)} />
           ) : undefined}
+          badges={v.kind === 'value' && live.text(variableKey(v.id)) !== undefined ? <Badge size="compact" tone="success" className={`live-value ${live.changed(variableKey(v.id)) ? 'is-changed' : ''}`} title="What the board holds now">{live.text(variableKey(v.id))}</Badge> : undefined}
           refSlot={v.kind === 'reference' ? <TargetPill variable={v} code={code} /> : undefined}
           disclosure={folder ? <TreeDisclosure open={open} onToggle={() => code.toggle(v.id)} /> : undefined}
           actions={<TreeAction label={`Delete ${v.name}`} onClick={() => code.remove(v.id)} />}
@@ -116,9 +119,11 @@ export function VariablesExplorer({ code }: { code: CodeState }) {
     <div className="code-explorer">
       <div className="code-explorer-bar">
         <PaletteSearch value={query} onChange={setQuery} placeholder="Search" label="Search variables" />
-        <Button size="sm" title="Add a value" aria-label="Add a value" onClick={() => code.add('value')}><Plus aria-hidden="true" /></Button>
-        <Button size="sm" title="Add a folder" aria-label="Add a folder" onClick={() => code.add('folder')}><FolderPlus aria-hidden="true" /></Button>
-        <Button size="sm" title="Add a reference to another variable" aria-label="Add a reference" onClick={() => code.add('reference')}><Link2 aria-hidden="true" /></Button>
+        <div className="code-explorer-adds">
+          <Button title="Add a value" aria-label="Add a value" onClick={() => code.add('value')}><Plus aria-hidden="true" /></Button>
+          <Button title="Add a folder" aria-label="Add a folder" onClick={() => code.add('folder')}><FolderPlus aria-hidden="true" /></Button>
+          <Button title="Add a reference to another variable" aria-label="Add a reference" onClick={() => code.add('reference')}><Link2 aria-hidden="true" /></Button>
+        </div>
       </div>
       <div className="code-tree" role="group" aria-label="Variables"
         onDragOver={(event) => {

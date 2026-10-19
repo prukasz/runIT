@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { checkProgram, Engine, ID_NONE, loadGeneratedInput, loadWireDefinitions } from '@engine'
-import type { BlockCodec } from '@engine'
+import type { BlockCodec, Variable } from '@engine'
 import { blk, build, eno, engine, flag, folder, num, out, project, read } from '../helpers'
 
 const view = (bytes: Uint8Array) => new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
@@ -269,5 +269,34 @@ describe('the program that comes out', () => {
     expect(r.ids.variables.get('cond')).toBe(0)
     expect(r.ids.blocks.get('if1')).toBe(0)
     expect(r.ids.blocks.get('s')).toBe(1)
+  })
+})
+
+describe('a folder known at run time', () => {
+  const inbox = (): Variable[] => [
+    { kind: 'folder', id: 'inbox', name: 'inbox', dynamic: true, children: [num('seen')] },
+    { kind: 'reference', id: 'msg', name: 'msg', target: null, dynamic: true },
+    num('b'),
+  ]
+
+  it('a name the project does not hold is found on the board by its tag, the folder not folded', () => {
+    const r = build(project(inbox(), [blk('s', 'set', { inputs: [read('inbox', { kind: 'name', name: 'temp' }), read('b')] })]))
+    expect(r.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+    const accessor = r.ir!.accessors[r.ir!.blocks[0]!.inputs[0]!]!
+    expect(accessor).toMatchObject({ root: r.ids.variables.get('inbox'), steps: [{ kind: 'name', name: 'temp' }] })
+    const known = build(project(inbox(), [blk('s', 'set', { inputs: [read('inbox', { kind: 'name', name: 'seen' }), read('b')] })]))
+    expect(known.ir!.accessors[known.ir!.blocks[0]!.inputs[0]!]).toMatchObject({ root: known.ids.variables.get('inbox'), steps: [{ kind: 'name', name: 'seen' }] }) // what it holds may be re-linked: found by its tag too
+  })
+
+  it('below an unset reference built at run time: its target, then a name in it', () => {
+    const r = build(project(inbox(), [blk('s', 'set', { inputs: [read('msg', { kind: 'index', index: 0 }, { kind: 'name', name: 'temp' }), read('b')] })]))
+    expect(r.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+    expect(r.ir!.accessors[r.ir!.blocks[0]!.inputs[0]!]).toMatchObject({ root: r.ids.variables.get('msg'), steps: [{ kind: 'literal', value: 0 }, { kind: 'name', name: 'temp' }] })
+  })
+
+  it('a folder not marked so still refuses a name it does not hold', () => {
+    const tree = inbox().map((v) => (v.kind === 'folder' ? { ...v, dynamic: undefined } : v))
+    const r = engine.compile(project(tree, [blk('s', 'set', { inputs: [read('inbox', { kind: 'name', name: 'temp' }), read('b')] })]))
+    expect(r.diagnostics.some((d) => d.code === 'ERR_VM_ACCESSOR_NAME_NOT_FOUND')).toBe(true)
   })
 })

@@ -225,11 +225,11 @@ describe('answers', () => {
     expect(decodeAnswer(serviceCall(catalog, 'SYS', 'DEADMAN_GET'), Uint8Array.of(0xf4, 1, 0, 0, 1))).toEqual({ timeout_ms: 500, on_link_lost: true })
   })
 
-  it('VM STATUS: the run of the program, from the bytes the board answers (vm_wire_status_t, 24 bytes)', () => {
-    // running, loaded, ready, no fault, slow-down 1, 1096 passes, last pass 19 us, 12 B of arena (captured on a board)
-    const bytes = Uint8Array.of(1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0x48, 0x04, 0, 0, 19, 0, 0, 0, 12, 0, 0, 0)
+  it('VM STATUS: the run of the program, from the bytes the board answers (vm_wire_status_t, 26 bytes)', () => {
+    // running, loaded, ready, no fault, slow-down 1, 1096 passes, last pass 19 us, 12 B of arena, parked before block 3 (a board answer, `next_block` added at the end)
+    const bytes = Uint8Array.of(1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0x48, 0x04, 0, 0, 19, 0, 0, 0, 12, 0, 0, 0, 3, 0)
     const value = decodeAnswer(serviceCall(catalog, 'VM', 'STATUS'), bytes) as Record<string, unknown>
-    expect(value).toMatchObject({ load_state: 1, ready: true, fault_latched: false, slowdown: 1, pass_count: 1096, last_pass_us: 19, arena_used: 12 })
+    expect(value).toMatchObject({ load_state: 1, ready: true, fault_latched: false, slowdown: 1, pass_count: 1096, last_pass_us: 19, arena_used: 12, next_block: 3 })
     expect(value.mode).toBe(1)
   })
 

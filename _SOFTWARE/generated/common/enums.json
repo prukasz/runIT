@@ -518,6 +518,12 @@
           "value": 3,
           "alias": "Link lost",
           "description": "router_link_lost with on_link_lost set"
+        },
+        {
+          "name": "ROUTER_SAFE_POWER",
+          "value": 4,
+          "alias": "Power fault",
+          "description": "The power manager's response to a power fault (its response matrix: safe state)"
         }
       ]
     },
@@ -2064,6 +2070,7 @@
     "ROUTER_KEY_VM": "router_key",
     "ROUTER_SAFE_DEADMAN": "router_safe_reason_e",
     "ROUTER_SAFE_LINK_LOST": "router_safe_reason_e",
+    "ROUTER_SAFE_POWER": "router_safe_reason_e",
     "ROUTER_SAFE_STOP": "router_safe_reason_e",
     "ROUTER_STATUS_ERROR": "router_status_e",
     "ROUTER_STATUS_OK": "router_status_e",

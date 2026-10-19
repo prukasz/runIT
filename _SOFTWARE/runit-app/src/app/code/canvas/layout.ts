@@ -1,5 +1,5 @@
 import type { BlockInstance, ConcretePin, ObjectPath, ValueKind } from '@engine'
-import { formulaText, headline, headlineText, pinsOf } from '../blocks'
+import { deviceLine, formulaParts, formulaText, headline, headlineText, pinsOf, sourceLabel } from '../blocks'
 import type { BlockContext } from '../blocks'
 
 /*
@@ -105,7 +105,8 @@ export const measureText: Measure = (text, font, perChar) => {
     }
   }
   if (!measuring) return text.length * perChar
-  measuring.font = `${font} ${family()}`
+  // A font that names its own family (the formula's monospace) keeps it; the rest is in the app's family.
+  measuring.font = font.includes(',') ? font : `${font} ${family()}`
   return measuring.measureText(text).width
 }
 
@@ -132,23 +133,73 @@ export const pinViews = (ctx: BlockContext, block: BlockInstance): { readonly in
   })
   return {
     inputs: (pins?.inputs ?? []).map(view((i) => !!block.inputs[i])),
-    outputs: (pins?.outputs ?? []).map(view((i) => !!block.outputs[i] || ctx.project.blocks.some((b) => b.inputs.some((s) => s?.kind === 'output' && s.block === block.id && s.pin === i) || b.enables.some((s) => s.kind === 'output' && s.block === block.id && s.pin === i)))),
+    // An output is named by the variable docked on it; a wire to another block names nothing, so the pin keeps its own name.
+    outputs: (pins?.outputs ?? []).map(view((i) => !!block.outputs[i])),
   }
+}
+
+/** The widest a formula makes its block: a longer one wraps onto more lines under it. */
+const FORMULA_MAX_WIDTH = 2 * MIN_WIDTH
+/** One character of the formula (11px monospace), its chips' padding and border, the gaps between its pieces and lines, a line's height and the line's padding (Canvas.css). */
+const MONO_CHAR = 6.4
+const MONO_FONT = '500 11px ui-monospace, SFMono-Regular, Consolas, monospace'
+const CHIP_EXTRA = 14
+const FORMULA_GAP = 5
+const FORMULA_LINE = 22
+const FORMULA_PAD = 20 + 4
+
+/** The pieces of the formula as the canvas draws them, each its width: the output chip, `=`, then each input as a chip and each other token as text. */
+const formulaPieces = (ctx: BlockContext, block: BlockInstance, result: string, measure: Measure): number[] => {
+  const mono = (text: string) => measure(text, MONO_FONT, MONO_CHAR)
+  const parts = formulaParts(ctx, block)
+  if (!parts || parts.state !== 'ok') return [mono('Set a formula')]
+  const output = block.outputs[0]
+  return [
+    mono(output ? sourceLabel(ctx, { kind: 'variable', path: output.path }) : result) + CHIP_EXTRA,
+    mono('='),
+    ...parts.parts.flatMap((part) => {
+      if (part.kind === 'in') {
+        const source = block.inputs[part.pin]
+        return [mono(source ? sourceLabel(ctx, source) : '?') + CHIP_EXTRA]
+      }
+      const text = part.text.trim()
+      return text ? [mono(text)] : []
+    }),
+  ]
+}
+
+/** How many lines the pieces take in `width` (the line's inside), wrapped between pieces as the flex line wraps them. */
+const formulaLines = (pieces: readonly number[], width: number): number => {
+  let lines = 1
+  let used = 0
+  for (const piece of pieces) {
+    const next = used === 0 ? piece : used + FORMULA_GAP + piece
+    if (next > width && used > 0) {
+      lines++
+      used = piece
+    } else used = next
+  }
+  return lines
 }
 
 /** The block's size, the least that holds what it shows, on the grid. Its header follows the names of what it reads, not ids. */
 export const blockShape = (ctx: BlockContext, block: BlockInstance, measure: Measure = measureText): BlockShape => {
   const { inputs, outputs } = pinViews(ctx, block)
   const rows = Math.max(1, inputs.length, outputs.length)
-  const title = block.name?.trim() || headlineText(headline(ctx, block))
-  const header = measure(title, '600 12px', 6.8) + 24 + 8
-  // An expression block shows its formula under the pins (at most three widths of the smallest block; longer is cut).
+  // An expression block shows its formula under the pins (at most three widths of the smallest block; longer is cut), and its type in the header.
   const formula = formulaText(ctx, block)
-  const output = block.outputs[0]
-  const line = formula === undefined ? undefined : `${output ? 'x' : outputs[0]?.title ?? 'Result'} = ${formula || 'Set a formula'}`
-  const formulaWidth = line === undefined ? 0 : Math.min(3 * MIN_WIDTH, measure(line, '500 11px', 7) + 24 + line.split(' ').length * 4)
-  const width = Math.max(MIN_WIDTH, Math.ceil(Math.max(header, pinsWidth(inputs, outputs, measure), formulaWidth) / GRID) * GRID)
-  return { width, height: HEADER + rows * ROW + (formula === undefined ? 0 : FORMULA_ROW), inputs, outputs, row: ROW, formula: formula !== undefined }
+  const title = block.name?.trim() || (formula !== undefined ? ctx.catalog.get(block.type)?.alias ?? block.type : headlineText(headline(ctx, block, true)))
+  const header = measure(title, '600 12px', 6.8) + 24 + 8
+  const pieces = formula === undefined ? [] : formulaPieces(ctx, block, outputs[0]?.title ?? 'Result', measure)
+  const formulaWidth = formula === undefined ? 0 : Math.min(FORMULA_MAX_WIDTH, pieces.reduce((sum, w) => sum + w, 0) + (pieces.length - 1) * FORMULA_GAP + FORMULA_PAD)
+  // A device block names its device on a line under the pins.
+  const device = deviceLine(ctx, block)
+  const deviceWidth = device === undefined ? 0 : measure(device, '500 11px', 7) + 24
+  const width = Math.max(MIN_WIDTH, Math.ceil(Math.max(header, pinsWidth(inputs, outputs, measure), formulaWidth, deviceWidth) / GRID) * GRID)
+  const lines = (formula === undefined ? 0 : 1) + (device === undefined ? 0 : 1)
+  // A long formula wraps: each line more under the first makes the block taller.
+  const wrapped = formula === undefined ? 0 : formulaLines(pieces, width - FORMULA_PAD) - 1
+  return { width, height: HEADER + rows * ROW + lines * FORMULA_ROW + wrapped * FORMULA_LINE, inputs, outputs, row: ROW, formula: formula !== undefined }
 }
 
 /** Where a wire meets a block, in canvas units: inputs on the left edge, outputs on the right, Run when / When done at header height. */
@@ -165,6 +216,9 @@ export const pinAnchor = (at: Point, shape: BlockShape, end: { readonly side: 'i
 const ARROW_LENGTH = 22
 const ARROW_HALF = 15
 const BAND_HALF = 6
+const WHOLE_HALF = 12
+const WHOLE_HEAD_HALF = 24
+const WHOLE_HEAD_LENGTH = 30
 
 /** A wire reaches forward by half the gap (at least 40); running back it swings out and under both ends. */
 const reach = (from: number, to: number): { readonly dx: number; readonly back: boolean } =>
@@ -183,10 +237,22 @@ export interface RibbonSpan {
   readonly bottom: number
 }
 
-/** A Run when link: a band, narrow where it leaves its source and as tall as the block where it arrives, with an arrow head at `at`. */
-export const ribbon = (from: RibbonSpan, to: RibbonSpan, at: number): string => {
+/**
+ * A Run when link: a band, narrow where it leaves its source pin and as tall as the block where it arrives, with an arrow head at `at`;
+ * `whole` (a block's When done) is a thick band of even width with a broad head, from the middle of the source block.
+ */
+export const ribbon = (from: RibbonSpan, to: RibbonSpan, at: number, whole = false): string => {
   const { dx, back } = reach(from.x, to.x)
   const end = to.x - ARROW_LENGTH
+  if (whole) {
+    // block to block: a thick band of even width from the middle of the source block, with a broad arrow head
+    const y0 = (from.top + from.bottom) / 2
+    const headEnd = to.x - WHOLE_HEAD_LENGTH
+    const head = `L ${headEnd} ${at - WHOLE_HEAD_HALF} L ${to.x} ${at} L ${headEnd} ${at + WHOLE_HEAD_HALF} L ${headEnd} ${at + WHOLE_HALF}`
+    if (!back) return `M ${from.x} ${y0 - WHOLE_HALF} C ${from.x + dx} ${y0 - WHOLE_HALF}, ${headEnd - dx} ${at - WHOLE_HALF}, ${headEnd} ${at - WHOLE_HALF} ${head} C ${headEnd - dx} ${at + WHOLE_HALF}, ${from.x + dx} ${y0 + WHOLE_HALF}, ${from.x} ${y0 + WHOLE_HALF} Z`
+    const low = Math.max(y0, at + WHOLE_HEAD_HALF) + 60
+    return `M ${from.x} ${y0 - WHOLE_HALF} C ${from.x + dx} ${low}, ${headEnd - dx} ${low}, ${headEnd} ${at - WHOLE_HALF} ${head} C ${headEnd - dx} ${low + 2 * WHOLE_HALF}, ${from.x + dx} ${low + 2 * WHOLE_HALF}, ${from.x} ${y0 + WHOLE_HALF} Z`
+  }
   const head = `L ${end} ${at - ARROW_HALF} L ${to.x} ${at} L ${end} ${at + ARROW_HALF} L ${end} ${at + BAND_HALF}`
   if (!back) return `M ${from.x} ${from.top} C ${from.x + dx} ${from.top}, ${end - dx} ${at - BAND_HALF}, ${end} ${at - BAND_HALF} ${head} C ${end - dx} ${at + BAND_HALF}, ${from.x + dx} ${from.bottom}, ${from.x} ${from.bottom} Z`
   const low = Math.max(from.bottom, at + ARROW_HALF) + 40
@@ -236,6 +302,25 @@ export const freeSpot = (wanted: Point, size: { readonly width: number; readonly
     spot = { x: spot.x, y: snap(hit.y + hit.height + GRID) }
   }
   return spot
+}
+
+/** Whether any of `moved` covers any of `taken`. */
+export const collides = (moved: readonly Rect[], taken: readonly Rect[]): boolean => moved.some((a) => taken.some((b) => overlaps(a, b)))
+
+/** The free spot nearest to `wanted` for a block of this size: beside, above or below what it would cover, a grid step clear of it. */
+export const nearestFreeSpot = (wanted: Point, size: { readonly width: number; readonly height: number }, taken: readonly Rect[]): Point => {
+  const start = snapPoint(wanted)
+  const free = (p: Point): boolean => !taken.some((rect) => overlaps({ ...p, ...size }, rect))
+  if (free(start)) return start
+  const xs = [start.x, ...taken.flatMap((r) => [snap(r.x - size.width - GRID), snap(r.x + r.width + GRID)])]
+  const ys = [start.y, ...taken.flatMap((r) => [snap(r.y - size.height - GRID), snap(r.y + r.height + GRID)])]
+  let best: Point | undefined
+  let bestDistance = Infinity
+  for (const x of xs) for (const y of ys) {
+    const distance = (x - start.x) ** 2 + (y - start.y) ** 2
+    if (distance < bestDistance && free({ x, y })) { best = { x, y }; bestDistance = distance }
+  }
+  return best ?? start
 }
 
 /** The layout without these blocks. */

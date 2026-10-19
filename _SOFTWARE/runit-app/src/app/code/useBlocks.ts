@@ -1,7 +1,9 @@
 import { useMemo, useRef, useState } from 'react'
-import { newBlock } from '@engine'
+import { newBlock, variantOf } from '@engine'
 import type { BlockInstance, BlockType, Engine, ObjectPath } from '@engine'
 import { onboardActions } from '@backend'
+import { changesPin, isReserved, pinReady, pinStateOf, usedBy } from '../devices/devices'
+import type { DeviceInfo } from '../devices/devices'
 import type { DevicesState } from '../devices/useDevices'
 import type { ProjectFile } from '../project/projectFile'
 import type { useProject } from '../project/useProject'
@@ -22,9 +24,30 @@ export const decodePlacement = (text: string): Placement => {
   return variant ? { type, variant } : { type }
 }
 
-/** The devices a device block can work on: those that implement its contract, or are of its device type. */
-export const deviceChoicesFor = (type: BlockType, devices: DevicesState['devices']) =>
-  devices.filter((d) => (type.device?.contract ? d.type?.contracts.includes(type.device.contract) : type.device?.deviceType ? d.type?.id === type.device.deviceType : false))
+/**
+ * The pins a pin setting of a device block may take on `device`, as the device's test panel offers them for the same command: not a pin
+ * the board keeps for itself, not one another device manages when the command changes the pin, and only a pin in the state the command
+ * wants (`pin_state`) when the project starts, so the board does not refuse it. A block that runs no known command is offered every pin.
+ */
+export const blockPinChoices = (state: Pick<DevicesState, 'catalog' | 'board' | 'devices'>, type: BlockType, variant: string | undefined, field: string, device: DeviceInfo): number[] => {
+  const count = device.type?.pins?.count ?? 0
+  const operation = variantOf(type, variant)?.operation
+  const command = operation && (operation.source === 'contract' ? state.catalog.contracts.get(operation.of) : device.type)?.commands.get(operation.command)
+  const wants = command?.args?.fields.find((f) => f.id === field)?.pinState
+  const users = usedBy(state.devices, device.id)
+  return Array.from({ length: count }, (_, pin) => pin)
+    .filter((pin) => !isReserved(state.board, device.id, pin))
+    .filter((pin) => !command || !changesPin(command) || !users.some((u) => u.use.pin.pin === pin))
+    .filter((pin) => pinReady(pinStateOf(device, state.board, pin, !device.type?.pins?.fixedModes), wants))
+}
+
+/** The devices a device block can work on: those that implement its contract, or are of its device type, and have a pin it may take when it takes one. */
+export const deviceChoicesFor = (state: Pick<DevicesState, 'catalog' | 'board' | 'devices'>, type: BlockType, variant?: string) => {
+  const pinField = variantOf(type, variant)?.fields.find((f) => f.type === 'pin' && !f.deviceField)
+  return state.devices
+    .filter((d) => (type.device?.contract ? d.type?.contracts.includes(type.device.contract) : type.device?.deviceType ? d.type?.id === type.device.deviceType : false))
+    .filter((d) => !pinField || blockPinChoices(state, type, variant, pinField.id, d).length > 0)
+}
 
 /**
  * The Code view's blocks: the project's blocks and where they sit on the canvas, the selected ones, what the compiler says of them,
@@ -44,6 +67,8 @@ export function useBlocks(project: ReturnType<typeof useProject>, engine: Engine
   const [armed, setArmed] = useState<Placement | undefined>()
   const [clipboard, setClipboard] = useState<readonly BlockInstance[]>([])
   const pasted = useRef(0)
+  /** The select tool (the toolbar): a drag on the canvas background draws a box, as with Shift, instead of panning. */
+  const [selecting, setSelecting] = useState(false)
 
   const compiled = useMemo(() => engine.compile(program), [engine, program])
 
@@ -90,7 +115,7 @@ export function useBlocks(project: ReturnType<typeof useProject>, engine: Engine
     const type = catalog.get(placement.type)
     if (!type) return
     const id = newBlockId(program.blocks, type.id)
-    const fitting = type.integration === 'core' ? [] : deviceChoicesFor(type, devices.devices)
+    const fitting = type.integration === 'core' ? [] : deviceChoicesFor(devices, type, placement.variant)
     const block = newBlock(id, type.id, {
       ...(placement.variant ? { variant: placement.variant } : {}),
       ...(type.integration !== 'core' ? { device: fitting.length === 1 ? fitting[0]!.id : null } : {}),
@@ -156,6 +181,7 @@ export function useBlocks(project: ReturnType<typeof useProject>, engine: Engine
     selectedIds, selected, select, toggle, selectMany,
     viewport, setViewport, surfaceSize, paletteDrag,
     armed, arm: setArmed,
+    selecting, setSelecting,
     add, update, updateMany, remove, moveTo, moveBy,
     copy, paste, canPaste: clipboard.length > 0,
     addChip, moveChip, removeChip,

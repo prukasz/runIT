@@ -1,0 +1,5 @@
+.debug-panel { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+.debug-panel .ui-card { display: flex; flex-direction: column; gap: 10px; }
+.debug-panel-note { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.debug-panel-actions { display: flex; gap: 8px; }
+.debug-panel-actions > * { flex: 1; }

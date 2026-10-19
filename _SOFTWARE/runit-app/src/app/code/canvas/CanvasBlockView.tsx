@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { TriangleAlert } from 'lucide-react'
+import { doneKey, outputKey, variableKey, variantOf } from '@engine'
 import type { BlockInstance, ObjectPath, Source } from '@engine'
 import { TypeLead } from '@ui/components'
-import { chipLabel, formulaParts, headline, sourceLabel } from '../blocks'
+import { chipLabel, deviceLine, fieldText, formulaParts, headline, pinsOf, sourceLabel } from '../blocks'
 import type { BlockContext, BlockPin, PinTarget } from '../blocks'
 import { pinLead } from '../PathEditor'
+import { useLive } from '../../run/live'
 import { snapPoint } from './layout'
 import type { BlockShape, PinView, Point } from './layout'
 
@@ -51,14 +53,26 @@ const isVariable = (s: Source | null | undefined): s is Extract<Source, { kind: 
 
 export function CanvasBlockView({ block, ctx, category, at: place, shape, selected, failed, problem, zoom, onSelect, onMove, onTap, onDrag, offset, onWireStart, isFree, onChipPress, selectedChip, onOpen }: Props) {
   const [drag, setDrag] = useState<{ start: Point; origin: Point; at: Point }>()
+  // While the program is watched on the board: this block lit while it acts, and what its outputs hold.
+  const live = useLive()
+  const pulsing = live.active(doneKey(block.id))
   const type = ctx.catalog.get(block.type)
   const title = type?.alias ?? `Unknown ${block.type}`
-  const head = headline(ctx, block)
+  const head = headline(ctx, block, true)
+  const device = deviceLine(ctx, block)
   const formula = formulaParts(ctx, block)
   const outputLabel = block.outputs[0] ? sourceLabel(ctx, { kind: 'variable', path: block.outputs[0].path }) : shape.outputs[0]?.title ?? 'Result'
   const at = drag?.at ?? (offset ? { x: place.x + offset.x, y: place.y + offset.y } : place)
   const enables = block.enables
   const enChips = enables.flatMap((s, index) => (isVariable(s) && !isFree(s.path) ? [{ index, path: s.path }] : []))
+  // An input that stands for a setting shows the setting's value on it while nothing is wired (`#1`, `Low`).
+  const concrete = pinsOf(ctx.catalog, block)
+  const settings = type ? [...type.fields, ...(variantOf(type, block.variant)?.fields ?? [])] : []
+  const constantOf = (index: number): string | undefined => {
+    const id = concrete?.inputs[index]?.pin.field
+    const field = id === undefined ? undefined : settings.find((f) => f.id === id)
+    return field && (field.fixed ?? block.values?.[field.id] ?? field.default) !== undefined ? fieldText(ctx, block, field) : undefined
+  }
 
   const wireFrom = (pin: BlockPin) => (event: React.PointerEvent) => {
     if (event.button !== 0 || !onWireStart) return
@@ -87,22 +101,37 @@ export function CanvasBlockView({ block, ctx, category, at: place, shape, select
     const path = output ? written?.path : isVariable(source) ? source.path : undefined
     const connected = output ? !!written : !!source
     const text = source ? sourceLabel(ctx, source) : written ? sourceLabel(ctx, { kind: 'variable', path: written.path }) : output ? 'The block\'s own output' : 'Unwired'
-    const docked = path && !isFree(path) ? chip({ block: block.id, side: output ? 'out' : 'in', index: pin.index } as PinTarget, path, output ? 'out' : 'in') : undefined
+    const constant = !output && !source ? constantOf(pin.index) : undefined
+    const docked = path && !isFree(path)
+      ? chip({ block: block.id, side: output ? 'out' : 'in', index: pin.index } as PinTarget, path, output ? 'out' : 'in')
+      : constant !== undefined
+      ? <span className="canvas-chip is-docked is-in is-constant" title={`${pin.title}: ${constant} (its setting; wire a variable to read it instead)`}><span className="canvas-chip-text">{constant}</span></span>
+      : undefined
+    // What the pin holds on the board now (a watched program): a boolean's lead goes green when true, red when false.
+    const liveKey = output ? outputKey(block.id, pin.index)
+      : source?.kind === 'variable' && source.path.steps.length === 0 ? variableKey(source.path.root)
+      : source?.kind === 'output' ? outputKey(source.block, source.pin)
+      : source?.kind === 'eno' ? doneKey(source.block) : undefined
+    const level = liveKey === undefined ? undefined : live.flag(liveKey)
+    const held = level !== undefined ? String(level) : liveKey === undefined ? undefined : live.text(liveKey)
+    const flag = pin.value === 'bool' || pin.value === 'flow' ? level : undefined
+    const now = output ? held : undefined
     return (
       <div key={pin.index} data-block={block.id} data-pin-kind={output ? 'out' : 'in'} data-pin-index={pin.index}
         className={`canvas-block-pin ${docked ? 'has-docked-chip' : ''} ${pin.required && !connected ? 'is-required' : ''} ${connected ? 'is-connected' : ''}`}
         title={`${pin.title} (${pin.value})${pin.required ? ', required' : ''} · ${text}`}>
         {docked}
+        {now !== undefined && <span className={`canvas-pin-live ${live.changed(outputKey(block.id, pin.index)) ? 'is-changed' : ''}`} title={`${pin.title} now: ${now}`}>{now}</span>}
         {!output ? (
           <div className="canvas-pin-slab is-in">
-            <span className="canvas-block-type"><TypeLead kind={pinLead(pin.value)} /></span>
+            <span className="canvas-block-type"><TypeLead kind={pinLead(pin.value)} {...(flag === undefined ? {} : { value: flag })} /></span>
             {!pin.quiet && <span className="canvas-block-pin-name">{pin.title}</span>}
           </div>
         ) : (
           <div className="canvas-pin-slab is-out">
             {!pin.quiet && <span className="canvas-block-pin-name">{pin.title}</span>}
             <span aria-hidden="true" className="canvas-block-type canvas-wire-start" title={`Drag to wire ${pin.title}`} onPointerDown={wireFrom(pin.index)}>
-              <TypeLead kind={pinLead(pin.value)} />
+              <TypeLead kind={pinLead(pin.value)} {...(flag === undefined ? {} : { value: flag })} />
             </span>
           </div>
         )}
@@ -112,7 +141,7 @@ export function CanvasBlockView({ block, ctx, category, at: place, shape, select
 
   return (
     <div
-      className={['canvas-block', `cat-${category}`, selected && 'selected', drag && 'is-dragging', failed && 'has-errors'].filter(Boolean).join(' ')}
+      className={['canvas-block', `cat-${category}`, selected && 'selected', drag && 'is-dragging', failed && 'has-errors', live.mode && 'is-watched', pulsing && 'is-pulse', live.next === block.id && 'is-next'].filter(Boolean).join(' ')}
       role="group"
       tabIndex={0}
       data-key={`block:${block.id}`}
@@ -156,7 +185,7 @@ export function CanvasBlockView({ block, ctx, category, at: place, shape, select
         {problem && <span className="canvas-block-problem" title={problem}><TriangleAlert aria-label="To fix" /></span>}
         <span className="canvas-block-heading">
           <span className="canvas-block-title" title={`${title}: double-click to show or hide its details`}>
-            {block.name?.trim() || head.map((part, i) => (part.value ? <span key={i} className="canvas-block-value">{part.text}</span> : <span key={i}>{part.text}</span>))}
+            {block.name?.trim() || (formula ? title : head.map((part, i) => (part.value ? <span key={i} className="canvas-block-value">{part.text}</span> : <span key={i}>{part.text}</span>)))}
           </span>
         </span>
       </div>
@@ -164,6 +193,7 @@ export function CanvasBlockView({ block, ctx, category, at: place, shape, select
         <div className="canvas-block-side is-in">{shape.inputs.map((pin) => pinView(pin, false))}</div>
         <div className="canvas-block-side is-out">{shape.outputs.map((pin) => pinView(pin, true))}</div>
       </div>
+      {device !== undefined && <div className={`canvas-block-summary is-device ${block.device === null || block.device === undefined ? 'is-missing' : ''}`} title={`Device: ${device}`}>{device}</div>}
       {formula && (
         <div className="canvas-block-summary is-formula">
           {formula.state !== 'ok' ? (
@@ -175,7 +205,7 @@ export function CanvasBlockView({ block, ctx, category, at: place, shape, select
               {formula.parts.map((part, i) => {
                 if (part.kind === 'in') {
                   const source = block.inputs[part.pin]
-                  return <span key={i} className={`expr-target ${source ? '' : 'is-unwired'}`} title={`${part.text}${source ? `: ${sourceLabel(ctx, source)}` : ': not wired'}`}>{source ? sourceLabel(ctx, source) : part.text}</span>
+                  return <span key={i} className={`expr-target ${source ? '' : 'is-unwired'}`} title={source ? sourceLabel(ctx, source) : 'Not wired'}>{source ? sourceLabel(ctx, source) : '?'}</span>
                 }
                 return part.text.trim() ? <span key={i} className="canvas-formula-tok">{part.text.trim()}</span> : null
               })}

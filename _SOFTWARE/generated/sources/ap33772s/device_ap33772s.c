@@ -54,17 +54,16 @@ typedef struct {
 
 /* ---- Chip access ---- */
 
-// Code of a PDO current range: 0 = below 1.25 A, n = 1.00 + 0.25n A.
+// Code of a PDO current range: 0 = below 1.25 A, n = 1.00 + 0.25n A up to the next code, 15 = the top range (4 bits).
 static unsigned current_code(uint32_t mA) {
-  return mA < 1250 ? 0u : ((mA - 1250) / 250) + 1;
+  const unsigned code = mA < 1250 ? 0u : ((mA - 1250) / 250) + 1;
+  return code > 15u ? 15u : code;
 }
 
-// Upper end of a PDO current range code (14 = 4.50 A, 15 = 5.00 A and above).
+// The most a request may ask of a PDO whose current range code is `code`: the top of that range (code 9, 3.25-3.49 A: 3499 mA),
+// so that current_code() of it is `code` again; 15, the top range, up to MAX_CURRENT_MA.
 static uint16_t pdo_max_mA(unsigned code) {
-  if (code >= 15) {
-    return 5000;
-  }
-  return code == 14 ? 4500 : (uint16_t)(code * 250 + 1250);
+  return code >= 15 ? (uint16_t)MAX_CURRENT_MA : (uint16_t)(code * 250 + 1249);
 }
 
 static err_h send_request(ap_t* c, unsigned voltage_sel, unsigned current_sel, unsigned slot) {

@@ -123,6 +123,19 @@ export interface BoardDescriptor {
   /** The pins the boot sets up: their `sys_io_mode_e` member name and what they are for. */
   readonly pinSetup: readonly (BoardPin & { readonly label: string; readonly mode: string; readonly description?: string })[]
   readonly reservedPins: readonly (BoardPin & { readonly label: string; readonly reason?: string })[]
+  /** Where the board's power is measured (`power` of board.json): the whole input and each regulator rail, by a power monitor's channel. */
+  readonly power: BoardPower
+}
+
+/** A power monitor's channel (`POWER_MONITOR` commands take the channel). */
+export interface PowerProbe {
+  readonly device: number
+  readonly channel: number
+}
+
+export interface BoardPower {
+  readonly input?: PowerProbe & { readonly description?: string }
+  readonly rails: readonly { readonly id: string; readonly name: string; readonly regulator: number; readonly monitor?: PowerProbe; readonly description?: string }[]
 }
 
 /** The bundled board (generated/common/board.json). */
@@ -133,6 +146,10 @@ export const bundledBoard = (): BoardDescriptor => {
     i2c_buses?: { bus: number; name: string; description?: string }[]
     pin_setup?: { device: number; pin: number; mode: string; label: string; description?: string }[]
     reserved_pins?: { device: number; pin: number; label: string; reason?: string }[]
+    power?: {
+      input_monitor?: { device: number; channel: number; description?: string }
+      rails?: { id: string; name: string; vreg_device: number; monitor?: { device: number; channel: number }; description?: string }[]
+    }
   }
   return {
     name: json.name,
@@ -140,6 +157,10 @@ export const bundledBoard = (): BoardDescriptor => {
     i2cBuses: json.i2c_buses ?? [],
     pinSetup: json.pin_setup ?? [],
     reservedPins: json.reserved_pins ?? [],
+    power: {
+      ...(json.power?.input_monitor ? { input: json.power.input_monitor } : {}),
+      rails: (json.power?.rails ?? []).map((r) => ({ id: r.id, name: r.name, regulator: r.vreg_device, ...(r.monitor ? { monitor: r.monitor } : {}), ...(r.description ? { description: r.description } : {}) })),
+    },
   }
 }
 

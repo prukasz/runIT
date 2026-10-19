@@ -2602,13 +2602,15 @@
               "name": "requested_mW",
               "type": "u32",
               "offset": 2,
-              "size": 4
+              "size": 4,
+              "unit": "mW"
             },
             {
               "name": "available_mW",
               "type": "u32",
               "offset": 6,
-              "size": 4
+              "size": 4,
+              "unit": "mW"
             }
           ],
           "description": "a rail change that doesn't fit",
@@ -2626,17 +2628,19 @@
               "name": "allocated_mW",
               "type": "u32",
               "offset": 0,
-              "size": 4
+              "size": 4,
+              "unit": "mW"
             },
             {
               "name": "limit_mW",
               "type": "u32",
               "offset": 4,
-              "size": 4
+              "size": 4,
+              "unit": "mW"
             }
           ],
           "description": "the budget shrank under what's committed",
-          "message": "The power budget fell to {limit_mW}, below the {allocated_mW} in use",
+          "message": "The power budget fell to {limit_mW}, below the {allocated_mW} the outputs use",
           "hint": "The supply gives less than before: lower the load or use a stronger supply."
         },
         {

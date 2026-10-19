@@ -9,6 +9,7 @@ import {
   execFrame,
   ID_NONE,
   loadFrames,
+  speedFrame,
   subscribeFrame,
   toHex,
 } from '@engine/wire'
@@ -229,6 +230,11 @@ describe('load checks', () => {
 
 describe('control frames', () => {
   it('EXEC carries the command number', () => expect(execFrame(defs, 'once')).toEqual({ op: 8, payload: Uint8Array.of(1) }))
+
+  it('SPEED is the slow-motion factor, and with a step the program time a stepped pass adds (little endian)', () => {
+    expect(speedFrame(defs, 20)).toEqual({ op: 9, payload: Uint8Array.of(20, 0) })
+    expect(speedFrame(defs, 5, 1000)).toEqual({ op: 9, payload: Uint8Array.of(5, 0, 0xe8, 0x03) })
+  })
 
   it('SUBSCRIBE lists the ids and refuses more than the board takes', () => {
     expect(toHex(subscribeFrame(defs, [3, 258]).payload)).toBe('02' + '0300' + '0201')

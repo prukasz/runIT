@@ -72,7 +72,7 @@ static const sys_power_board_t k_power_board = {
 };
 
 err_h runit_board_power_init(void) {
-  return sys_power_manager_init(&k_power_board, runit_enter_safe_state);
+  return sys_power_manager_init(&k_power_board, runit_power_safe_state);
 }
 
 /* ---- Onboard devices ---- */

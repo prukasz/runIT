@@ -63,15 +63,40 @@ static uint8_t s_resp_urgent[CONFIG_ROUTER_FRAME_MAX];
  * Safe state and dead-man
  * ------------------------------------------------------------------------- */
 
+// The safe state as noted for SAFE_GET: the reason of the last entry (0 = not in it) and its tick. Written by whoever enters it (the
+// router's task, the dead-man timer, the power manager), read by SAFE_GET: single words, a torn pair only skews the age by one entry.
+static volatile uint8_t s_safe_reason;
+static volatile TickType_t s_safe_since;
+static router_safe_leave_f s_safe_leave;
+
 void router_set_safe_state(router_safe_state_f fn) {
   s_safe_state = fn;
 }
 
+void router_set_safe_leave(router_safe_leave_f fn) {
+  s_safe_leave = fn;
+}
+
 void router_enter_safe_state(router_safe_reason_e reason) {
   ESP_LOGW(TAG, "safe state (reason %d)", (int)reason);
+  s_safe_since = xTaskGetTickCount();
+  s_safe_reason = (uint8_t)reason;
   if (s_safe_state != NULL) {
     s_safe_state(reason);
   }
+}
+
+void router_safe_state_get(uint8_t* reason, uint32_t* for_ms) {
+  *reason = s_safe_reason;
+  *for_ms = *reason == 0 ? 0u : (uint32_t)pdTICKS_TO_MS(xTaskGetTickCount() - s_safe_since);
+}
+
+err_h router_leave_safe_state(void) {
+  if (s_safe_leave != NULL) {
+    ERR_TRY(s_safe_leave());
+  }
+  s_safe_reason = 0;
+  return NULL;
 }
 
 static void notify_urgent(uint32_t bits) {

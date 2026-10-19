@@ -65,8 +65,8 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
   const pinName = useMemo(() => pinNamer(devices), [devices])
 
   // What the board holds, as the project was at the last write or read: a difference is something to write (the toolbar's Write).
-  // The canvas is the app's own: moving a block is nothing to write.
-  const snapshot = useMemo(() => serializeProject({ ...project.project, canvas: EMPTY_LAYOUT }), [project.project])
+  // The canvas and the power display are the app's own: moving a block or changing what the display reads is nothing to write.
+  const snapshot = useMemo(() => serializeProject({ ...project.project, canvas: EMPTY_LAYOUT, powerDisplay: undefined }), [project.project])
   const [synced, setSynced] = useState<string | undefined>()
   useEffect(() => { setSynced((s) => s ?? snapshot) }, [snapshot])
   const pending = synced !== undefined && synced !== snapshot

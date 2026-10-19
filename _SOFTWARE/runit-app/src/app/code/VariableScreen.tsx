@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { ArrowDown, ArrowUp, Boxes, Link2 } from 'lucide-react'
-import { NAME_MAX, VALUE_TYPES, findVariable } from '@engine'
+import { NAME_MAX, VALUE_TYPES, findVariable, variableKey } from '@engine'
 import type { ReferenceVariable, ValueType, ValueVariable, Variable } from '@engine'
-import { Button, Card, CardStack, ChoiceField, FieldError, FormRow, NumberField, PanelHeader, RefPill, Switch, TextField, TreeAction, TreeDisclosure } from '@ui/components'
+import { Badge, Button, Card, CardStack, ChoiceField, FieldError, FormRow, NumberField, PanelHeader, RefPill, Switch, TextField, TreeAction, TreeDisclosure } from '@ui/components'
 import { ErrorsCard } from '../console/ErrorView'
+import { useLive } from '../run/live'
 import type { CodeState } from './useCode'
 import { TargetPill, VariableLead, useVariableErrors } from './VariableRow'
 import { TYPE_LABEL, blockUses, folderChoices, initialText, isVariableTarget, maxCount, parseInitial, pathOf, retype, targetChoices } from './variables'
@@ -55,6 +56,7 @@ function TargetField({ variable, code }: { variable: ReferenceVariable; code: Co
  */
 export function VariablesEditor({ code }: { code: CodeState }) {
   const boardErrors = useVariableErrors()
+  const live = useLive()
   const entries = (list: readonly Variable[]): ReactNode => list.map((v) => {
     const open = v.kind === 'folder' && !code.closed.has(v.id)
     const problems = code.problems.filter((p) => p.id === v.id)
@@ -71,6 +73,7 @@ export function VariablesEditor({ code }: { code: CodeState }) {
                 <ChoiceField<ValueType> aria-label={`Type of ${v.name}`} value={v.type} choices={TYPE_CHOICES} onChange={(type) => type && type !== v.type && code.update(v.id, retype(v, type))} />
               </span>
             )}
+            {v.kind === 'value' && live.text(variableKey(v.id)) !== undefined && <Badge tone="success" className={`live-value ${live.changed(variableKey(v.id)) ? 'is-changed' : ''}`} title="What the board holds now">{live.text(variableKey(v.id))}</Badge>}
             {v.kind === 'reference' && <span className="code-entry-target"><TargetField variable={v} code={code} /></span>}
             <span className="code-entry-delete"><TreeAction label={`Delete ${v.name}`} onClick={() => code.remove(v.id)} /></span>
           </div>
@@ -135,6 +138,15 @@ export function VariableDetails({ code }: { code: CodeState }) {
           <Card title="Points to">
             <TargetField variable={variable} code={code} />
             {variable.target !== null && <div className="code-refs"><TargetPill variable={variable} code={code} /></div>}
+          </Card>
+        )}
+        {(variable.kind === 'folder' || variable.kind === 'reference') && (
+          <Card title="Contents">
+            <FormRow label="Known at run time" note={variable.kind === 'folder'
+              ? 'What it holds is built while the program runs (a block re-links its entries, a parsed message): a path below it may name what the project does not hold, and the board looks it up by name or position.'
+              : 'What it points to is built while the program runs (a clone of a message): a path below it may name what the project does not hold, and the board looks it up; [0] is what it points to.'}>
+              <Switch checked={variable.dynamic ?? false} label={variable.dynamic ? 'Checked on the board' : 'Checked here'} onChange={(dynamic) => code.update(variable.id, { dynamic: dynamic || undefined })} />
+            </FormRow>
           </Card>
         )}
         <Card title="Place">

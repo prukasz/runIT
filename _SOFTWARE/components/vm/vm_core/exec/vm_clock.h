@@ -12,6 +12,10 @@
  * report dropped ticks when it resumes, and a program slowed down x times keeps its timers x
  * times slower.
  *
+ * Stepping would stop the timing blocks for good (no time passes between two requests), so each pass the operator
+ * asks for (scan mode ONCE, block mode NEXT through the whole pass) moves program time by a fixed step instead
+ * (vm_clock_set_step_ms).
+ *
  * Written only by the supervisor (vm_exec.c) and, for the factor, the SPEED op; blocks only read.
  */
 
@@ -42,8 +46,8 @@ void vm_clock_hold_end(void);
 /** @brief Time spent waiting inside a pass (block mode waiting for the operator) doesn't count either. */
 void vm_clock_hold_add(uint64_t us);
 
-/** @brief Top of a pass: advance program time and latch g_vm_pass_ms. @p now_us is vm_clock_us(). */
-void vm_clock_pass_start(uint64_t now_us);
+/** @brief Top of a pass: advance program time and latch g_vm_pass_ms. @p now_us is vm_clock_us(). @p stepped: the operator asked for this pass, time moves by the step. */
+void vm_clock_pass_start(uint64_t now_us, bool stepped);
 
 /**
  * @brief Slow-motion for debugging: the program runs @p factor times slower.
@@ -57,3 +61,12 @@ MUST_USE err_h vm_clock_set_slowdown(uint16_t factor);
 
 /** @brief Current slow-motion factor (1 = normal speed). */
 uint16_t vm_clock_slowdown(void);
+
+/** @brief Largest step per stepped pass, ms. */
+#define VM_CLOCK_STEP_MS_MAX 60000
+
+/** @brief Program time a stepped pass adds, ms: 0 stands time still while stepping. Default 10 (a pass at full speed). @return ERR_VM_BAD_ARG past VM_CLOCK_STEP_MS_MAX. */
+MUST_USE err_h vm_clock_set_step_ms(uint16_t ms);
+
+/** @brief Current step per stepped pass, ms. */
+uint16_t vm_clock_step_ms(void);

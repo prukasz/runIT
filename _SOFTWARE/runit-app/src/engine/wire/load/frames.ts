@@ -78,8 +78,15 @@ export const resetFrame = (defs: WireDefinitions): LoadFrame => ({ op: defs.ops.
 /** EXEC: run control (`vm_exec_command_e`). */
 export const execFrame = (defs: WireDefinitions, command: ExecCommand): LoadFrame => ({ op: defs.ops.exec, payload: Uint8Array.of(defs.exec[command]) })
 
-/** SPEED: slow motion; 1 is normal speed. */
-export const speedFrame = (defs: WireDefinitions, factor: number): LoadFrame => ({ op: defs.ops.speed, payload: new ByteWriter().u16(factor).finish() })
+/**
+ * SPEED: slow motion (1 is normal speed) and, when given, the program time each pass asked for adds while the VM is stepped (scan or
+ * block mode), ms: 0 stands time still, the board's own is 10. Without `stepMs` the body is the factor alone and the step stays.
+ */
+export const speedFrame = (defs: WireDefinitions, factor: number, stepMs?: number): LoadFrame => {
+  const body = new ByteWriter().u16(factor)
+  if (stepMs !== undefined) body.u16(stepMs)
+  return { op: defs.ops.speed, payload: body.finish() }
+}
 
 /** SUBSCRIBE: telemetry for these objects; none clears the subscription. The board refuses more than `subscribeMax` (`CONFIG_VM_SUB_MAX_SUBSCRIBERS`). */
 export const subscribeFrame = (defs: WireDefinitions, ids: readonly number[], limits: VmLimits = DEFAULT_LIMITS): LoadFrame => {

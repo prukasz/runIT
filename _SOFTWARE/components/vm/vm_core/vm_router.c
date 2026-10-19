@@ -217,12 +217,15 @@ VM_OP_FN(op_exec) {
 }
 
 VM_OP_FN(op_speed) {
-  vm_wire_speed_t rec;
-  if (len != sizeof(rec)) {
+  // The factor alone (2 bytes) or with the step (4); nothing is changed unless the whole body is valid.
+  vm_wire_speed_t rec = {.factor = 0, .step_ms = vm_clock_step_ms()};
+  if (len != sizeof(rec.factor) && len != sizeof(rec)) {
     return ERR_NEW(ERR_VM_LOAD_SHORT_RECORD, .packet = VM_OP_SPEED, .need = sizeof(rec), .got = (uint16_t)len);
   }
-  memcpy(&rec, body, sizeof(rec));
-  return vm_clock_set_slowdown(rec.factor);
+  memcpy(&rec, body, len);
+  ERR_CHECK(rec.step_ms <= VM_CLOCK_STEP_MS_MAX, ERR_VM_BAD_ARG);
+  ERR_TRY(vm_clock_set_slowdown(rec.factor));
+  return vm_clock_set_step_ms(rec.step_ms);
 }
 
 // Reads only: never changes the program or the run, so it is safe at any time (also while a pass runs).
@@ -245,6 +248,8 @@ static err_h op_status(CMD_F_PARAMS) {
       .pass_count = vm_exec_pass_count(),
       .last_pass_us = vm_exec_last_pass_us(),
       .arena_used = vm_loader_used(),
+      // Parked before a block: that one. In block mode between two passes no pass has started: the next NEXT runs block 0.
+      .next_block = run.waiting ? run.next_block : (run.mode == VM_RUN_BLOCK && !run.scan_active) ? 0 : UINT16_MAX,
   };
   if (incomplete) err_free(incomplete);
   return cmd_reply(out, out_cap, out_len, &r, sizeof(r));

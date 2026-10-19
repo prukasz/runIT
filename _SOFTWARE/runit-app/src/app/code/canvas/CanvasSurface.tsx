@@ -13,11 +13,13 @@ import { decodePlacement } from '../useBlocks'
 import { VARIABLE_DRAG_TYPE } from '../VariablesExplorer'
 import { CanvasBlockView } from './CanvasBlockView'
 import { pinLead } from '../PathEditor'
+import { CanvasScopes } from './CanvasScopes'
 import { CanvasWires } from './CanvasWires'
 import { FreeChip } from './FreeChip'
-import { blockShape, canvasToScreen, CHIP_HEIGHT, CHIP_WIDTH, chipFor, GRID, positionOf, screenToCanvas, snapPoint, zoomAt } from './layout'
+import { blockShape, canvasToScreen, CHIP_HEIGHT, CHIP_WIDTH, chipFor, collides, GRID, nearestFreeSpot, positionOf, screenToCanvas, snapPoint, zoomAt } from './layout'
 import type { BlockShape, Point, Viewport } from './layout'
 import { LinkWindows } from './LinkWindows'
+import { scopesOf } from './scopes'
 import type { PickerRow, SourceChoice } from './LinkWindows'
 import './Canvas.css'
 
@@ -107,6 +109,7 @@ export function CanvasSurface({ blocks, picked, onPickedUsed, onBackgroundClick,
   const shapes = useMemo(() => new Map(list.map((b) => [b.id, blockShape(ctx, b)])), [list, ctx])
   const shapeOf = (b: BlockInstance) => shapes.get(b.id) ?? blockShape(ctx, b)
   const place = (id: string) => positionOf(layout, list, id)
+  const scopes = useMemo(() => scopesOf(ctx.catalog, list, (b) => ({ ...positionOf(layout, list, b.id), ...shapes.get(b.id)! })), [ctx.catalog, list, layout, shapes])
   // The selected block, for the resize observer (it reads it when a panel opens, after this render).
   const latest = useRef<{ selected?: { at: Point; width: number } }>({})
   const selectedBlock = selectedIds.length === 1 ? list.find((b) => b.id === selectedIds[0]) : undefined
@@ -322,8 +325,8 @@ export function CanvasSurface({ blocks, picked, onPickedUsed, onBackgroundClick,
     const point = local(event.clientX, event.clientY)
     pointers.current.set(event.pointerId, point)
     pressAt.current = pointers.current.size === 1 ? point : undefined
-    // Shift: one finger draws a box instead of panning; a second finger still pinches.
-    if (pointers.current.size === 1 && event.shiftKey) setMarquee({ from: point, to: point })
+    // Shift or the select tool: one finger draws a box instead of panning; a second finger still pinches.
+    if (pointers.current.size === 1 && (event.shiftKey || blocks.selecting)) setMarquee({ from: point, to: point })
     else setPanning(true)
   }
 
@@ -559,7 +562,7 @@ export function CanvasSurface({ blocks, picked, onPickedUsed, onBackgroundClick,
   return (
     <div
       ref={surfaceRef}
-      className={`canvas-surface ${panning ? 'is-panning' : ''} ${blocks.armed ? 'is-placing' : ''}`}
+      className={`canvas-surface ${panning ? 'is-panning' : ''} ${blocks.armed ? 'is-placing' : ''} ${blocks.selecting && !panning ? 'is-selecting' : ''}`}
       style={gridStyle}
       aria-label="Canvas"
       onPointerDown={onPointerDown}
@@ -602,6 +605,7 @@ export function CanvasSurface({ blocks, picked, onPickedUsed, onBackgroundClick,
     >
       <div className="canvas-world" style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})` }}>
         <div className="canvas-origin" aria-hidden="true" />
+        <CanvasScopes scopes={scopes} />
         <CanvasWires
           blocks={list}
           layout={layout}
@@ -652,9 +656,18 @@ export function CanvasSurface({ blocks, picked, onPickedUsed, onBackgroundClick,
               if (tapAction.current?.kind === 'link') blocks.select(block.id)
               tapAction.current = undefined
               // A block of a selected group takes the whole group along, as one undo step.
+              // Blocks never land on one another: a single block settles at the nearest free spot, a group that would cover another block stays where it was.
               const at = place(block.id)
-              if (selectedIds.length > 1 && selectedIds.includes(block.id)) blocks.moveBy(selectedIds, { x: to.x - at.x, y: to.y - at.y })
-              else blocks.moveTo({ [block.id]: to })
+              const rectOf = (b: BlockInstance, p: Point) => ({ ...p, ...shapeOf(b) })
+              if (selectedIds.length > 1 && selectedIds.includes(block.id)) {
+                const by = { x: to.x - at.x, y: to.y - at.y }
+                const moved = list.filter((b) => selectedIds.includes(b.id)).map((b) => { const p = place(b.id); return rectOf(b, snapPoint({ x: p.x + by.x, y: p.y + by.y })) })
+                const others = list.filter((b) => !selectedIds.includes(b.id)).map((b) => rectOf(b, place(b.id)))
+                if (!collides(moved, others)) blocks.moveBy(selectedIds, by)
+              } else {
+                const others = list.filter((b) => b.id !== block.id).map((b) => rectOf(b, place(b.id)))
+                blocks.moveTo({ [block.id]: nearestFreeSpot(to, shapeOf(block), others) })
+              }
             }}
             onDrag={(by) => setGroupDrag(by && selectedIds.length > 1 && selectedIds.includes(block.id) ? { from: block.id, by } : undefined)}
             offset={groupDrag && groupDrag.from !== block.id && selectedIds.includes(block.id) ? groupDrag.by : undefined}

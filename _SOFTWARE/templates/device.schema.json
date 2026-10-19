@@ -440,6 +440,11 @@
           "enum": ["input", "input_pullup", "input_pulldown", "output", "output_od", "pwm", "adc", "dac"],
           "description": "Tryb, w którym piny są zaraz po resecie układu, bez SET_MODE (TCA6424A: input, ADS7128: adc). Bez tego pola pin nie ma trybu, dopóki SET_MODE go nie ustawi (GPIO ESP). Aplikacja z tego wie, w jakim stanie jest pin i które polecenia dla niego oferować."
         },
+        "fixed_modes": {
+          "type": "boolean",
+          "default": false,
+          "description": "Piny mają tryby z 'modes' na stałe: układ nie ma SET_MODE (PCA9685: każdy kanał jest PWM / wyjściem). Aplikacja traktuje pin jako gotowy do każdego z tych trybów bez poleceń startowych."
+        },
         "labels": {
           "type": "array",
           "description": "Opcjonalne etykiety poszczególnych pinów (np. ['CH0', 'CH1', ...]).",

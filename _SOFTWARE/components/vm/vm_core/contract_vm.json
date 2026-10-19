@@ -238,6 +238,18 @@
             "size": 2,
             "offset": 0,
             "description": "1 = normal speed, more than 1 = slow motion"
+          },
+          {
+            "id": "step_ms",
+            "label": "Time per step",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 2,
+            "unit": "ms",
+            "max": 60000,
+            "default": 10,
+            "description": "Program time each pass you ask for adds while the VM is stepped (scan or block mode), so TIMER, PERIODIC and Every go on; 0 stands time still"
           }
         ]
       }
@@ -342,6 +354,15 @@
             "size": 4,
             "offset": 20,
             "unit": "B"
+          },
+          {
+            "id": "next_block",
+            "label": "Next block",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 24,
+            "description": "The block the next Next runs while the VM is stepped by block: the one it is parked before, or 0 between two passes (0xFFFF otherwise)"
           }
         ]
       }

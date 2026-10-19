@@ -161,9 +161,10 @@ typedef struct __packed {
 _Static_assert(sizeof(vm_wire_exec_t) == 1, "EXEC body");
 
 typedef struct __packed {
-  uint16_t factor;  /**< Slow-motion factor (1 is normal speed) */
+  uint16_t factor;   /**< Slow-motion factor (1 is normal speed) */
+  uint16_t step_ms;  /**< Program time a stepped pass adds, ms (0: time stands still while stepping); a 2-byte body (the factor only) leaves it as it is */
 } vm_wire_speed_t;
-_Static_assert(sizeof(vm_wire_speed_t) == 2, "SPEED body");
+_Static_assert(sizeof(vm_wire_speed_t) == 4, "SPEED body");
 
 /* The answer of STATUS: what the VM is doing and what it holds. */
 typedef struct __packed {
@@ -177,5 +178,6 @@ typedef struct __packed {
   uint32_t pass_count;      /**< passes completed since the statistics were last reset */
   uint32_t last_pass_us;    /**< duration of the last pass */
   uint32_t arena_used;      /**< bytes of the program arena in use */
+  uint16_t next_block;      /**< the block the next NEXT runs (block mode: the one the VM is parked before, or 0 between two passes); 0xFFFF otherwise */
 } vm_wire_status_t;
-_Static_assert(sizeof(vm_wire_status_t) == 24, "STATUS answer");
+_Static_assert(sizeof(vm_wire_status_t) == 26, "STATUS answer");

@@ -1,4 +1,4 @@
-import { Bluetooth, FolderOpen, SlidersHorizontal, Waypoints } from 'lucide-react'
+import { Bluetooth, FolderOpen, SlidersHorizontal, Waypoints, Zap } from 'lucide-react'
 import { Badge, DeviceTile, TreeSlab } from '@ui/components'
 import type { SettingSection } from './settings'
 import type { BoardSettingsState } from './useBoardSettings'
@@ -11,6 +11,8 @@ import { useErrors } from '../console/useConsole'
 
 /** The tab id of the project itself. */
 export const PROJECT_TAB = 'project'
+/** The tab of the Live power display: what the right panel shows of the board's power (power/PowerDisplayScreen.tsx). */
+export const POWER_TAB = 'live-power'
 
 /** The sections that have a tab of their own: every one but the project service's (shown on the Project tab). */
 export const tabSections = (sections: readonly SettingSection[], projectKey: number | undefined): SettingSection[] =>
@@ -32,6 +34,7 @@ export function SettingsTabs({ sections, state, tab, onTab }: { sections: readon
   return (
     <div className="settings-tabs">
       <TreeSlab icon={<DeviceTile size="small" icon={FolderOpen} />} label="Project" selected={tab === PROJECT_TAB} onClick={() => onTab(PROJECT_TAB)} />
+      <TreeSlab icon={<DeviceTile size="small" icon={Zap} />} label="Live power display" title="What the right panel shows of the board's power, and how it reads it" selected={tab === POWER_TAB} onClick={() => onTab(POWER_TAB)} />
       {sections.map((s) => (
         <TreeSlab key={s.service.id} icon={<DeviceTile size="small" icon={iconOf(s)} />} label={s.title} title={s.service.description} selected={tab === s.service.id}
           isError={unread(s.service.key) > 0}

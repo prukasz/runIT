@@ -40,12 +40,16 @@ export interface ValueVariable extends VariableBase {
 export interface FolderVariable extends VariableBase {
   readonly kind: 'folder'
   readonly children: readonly Variable[]
+  /** What it holds is known only at run time (a block re-links its entries, a parsed message): a path below it is checked on the board. */
+  readonly dynamic?: boolean
 }
 
 export interface ReferenceVariable extends VariableBase {
   readonly kind: 'reference'
   /** The id of the variable it points to, or null while unset. */
   readonly target: string | null
+  /** What it points to is built at run time (a clone of a message): a path below it is checked on the board, the target may stay unset. */
+  readonly dynamic?: boolean
 }
 
 export type Variable = ValueVariable | FolderVariable | ReferenceVariable
@@ -131,7 +135,7 @@ export const removeVariable = (tree: readonly Variable[], id: string): Variable[
 export const updateVariable = (
   tree: readonly Variable[],
   id: string,
-  patch: Partial<Omit<ValueVariable, 'kind' | 'id'>> | Partial<Omit<ReferenceVariable, 'kind' | 'id'>> | Partial<Pick<FolderVariable, 'name' | 'description' | 'subscribed'>>,
+  patch: Partial<Omit<ValueVariable, 'kind' | 'id'>> | Partial<Omit<ReferenceVariable, 'kind' | 'id'>> | Partial<Pick<FolderVariable, 'name' | 'description' | 'subscribed' | 'dynamic'>>,
 ): Variable[] => mapTree(tree, (v) => (v.id === id ? ({ ...v, ...patch } as Variable) : v))
 
 export const renameVariable = (tree: readonly Variable[], id: string, name: string): Variable[] => updateVariable(tree, id, { name })

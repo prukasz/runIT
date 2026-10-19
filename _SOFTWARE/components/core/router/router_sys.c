@@ -6,7 +6,7 @@
 
 #define TAG __FILE_NAME__
 
-/* sys router (ROUTER_KEY_SYS): link check, stop, restart, dead-man, bye, time.
+/* sys router (ROUTER_KEY_SYS): link check, stop, restart, dead-man, bye, time, the safe state.
  *
  *   key  op              request              response
  *   0x01 PING            -                    { u32 uptime_ms }
@@ -17,6 +17,8 @@
  *   0x06 BYE             -                    -        the client leaves on purpose: the dead-man is disarmed
  *   0x07 TIME_SET        sys_time_set_t       -        the board's wall clock (UTC), set by the client
  *   0x08 TIME_GET        -                    sys_time_t
+ *   0x09 SAFE_GET        -                    sys_safe_t      the safe state: why it was entered (0 = not in it) and how long ago
+ *   0x0A SAFE_LEAVE      -                    -        every device resumed (the application's leave), the note cleared
  *
  * Whether a command runs urgent is the client's choice (ROUTER_FLAG_URGENT). */
 
@@ -28,6 +30,8 @@
 #define OP_BYE 0x06u
 #define OP_TIME_SET 0x07u
 #define OP_TIME_GET 0x08u
+#define OP_SAFE_GET 0x09u
+#define OP_SAFE_LEAVE 0x0Au
 
 #define RESTART_DELAY_MS 100u  // lets the answer leave before the restart
 
@@ -45,6 +49,11 @@ typedef struct __attribute__((packed)) {
   uint8_t synced;    /**< 1 = the clock holds a date (a client set it; it survives a software restart, not a loss of power) */
   uint32_t uptime_ms;  /**< The board's time since the start, the base of the log lines (`I (854) tag`) */
 } sys_time_t;
+
+typedef struct __attribute__((packed)) {
+  uint8_t reason;   /**< router_safe_reason_e of the last entry; 0 = not in the safe state */
+  uint32_t for_ms;  /**< Time since that entry */
+} sys_safe_t;
 
 // No battery clock: the time is a client's gift, kept over a software restart (the RTC counter runs on) and lost with the power. The
 // system clock is kept (settimeofday), so every consumer that reads it (an error record, a block) sees one time. A clock that was never set
@@ -109,6 +118,18 @@ ROUTER_OP_NOARGS(op_time_get) {
   return cmd_reply(out, out_cap, out_len, &r, sizeof(r));
 }
 
+ROUTER_OP_NOARGS(op_safe_get) {
+  uint8_t reason;
+  uint32_t for_ms;
+  router_safe_state_get(&reason, &for_ms);
+  const sys_safe_t r = {.reason = reason, .for_ms = for_ms};
+  return cmd_reply(out, out_cap, out_len, &r, sizeof(r));
+}
+
+ROUTER_OP_NOARGS(op_safe_leave) {
+  return router_leave_safe_state();
+}
+
 static const router_entry_t k_ops[] = {
     {OP_PING, op_ping},
     {OP_STOP, op_stop},
@@ -118,6 +139,8 @@ static const router_entry_t k_ops[] = {
     {OP_BYE, op_bye},
     {OP_TIME_SET, op_time_set},
     {OP_TIME_GET, op_time_get},
+    {OP_SAFE_GET, op_safe_get},
+    {OP_SAFE_LEAVE, op_safe_leave},
 };
 
 static ROUTER_MODULE(sys_router, k_ops)

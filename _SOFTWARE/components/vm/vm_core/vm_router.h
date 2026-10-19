@@ -26,7 +26,7 @@ extern "C" {
 #define VM_OP_ADD_BLOCK 0x06u    // vm_wire_block_t, pins, state   one block per frame, in execution order
 #define VM_OP_SUBSCRIBE 0x07u    // u8 n, n x vm_wire_sub_t        n = 0 clears
 #define VM_OP_EXEC 0x08u         // vm_wire_exec_t                 vm_exec_command_e
-#define VM_OP_SPEED 0x09u        // vm_wire_speed_t                slow motion (debugging aid)
+#define VM_OP_SPEED 0x09u        // vm_wire_speed_t                slow motion (debugging aid) and the program time per stepped pass
 #define VM_OP_STATUS 0x0Au       // -  ->  vm_wire_status_t        run mode, load state, fault latch, pass stats
 
 ROUTER_MODULE_DECLARE(vm_router);

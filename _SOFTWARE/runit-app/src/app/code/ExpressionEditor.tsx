@@ -8,8 +8,20 @@ import './ExpressionEditor.css'
  * with the block's own language (the engine's: the opcodes of that block's machine); applied on Enter and on leaving the field,
  * and only when it is valid. What the block keeps is the text with its inputs as `in0`, `in1` …; the field writes a wired input
  * as what it reads (a variable's path, another block's output), so the user reads names. A variable dropped on the field, or
- * the one selected in the tree, takes a free input (or a new one) and lands in the formula at the caret.
+ * the one selected in the tree (its button, or a click in the field), takes a free input (or a new one) and lands in the formula
+ * at the caret. A variable's name typed in the formula is found: the variables that fit the word at the caret are offered under
+ * the field, and a name left in the formula becomes an input of that variable when the formula is applied.
  */
+
+/** A variable the formula can name: its id, its own name (what is typed) and its path (what is shown). */
+export interface FormulaVariable {
+  readonly id: string
+  readonly name: string
+  readonly label: string
+}
+
+const WORD_BEFORE = /[\p{L}_][\p{L}\p{N}_]*$/u
+const MAX_SUGGESTIONS = 6
 
 type CharClass = 'input' | 'number' | 'fn' | 'op' | 'paren' | 'bad' | 'plain'
 
@@ -53,15 +65,21 @@ export interface ExpressionEditorProps {
   readonly onLink?: (pin: number, text: string | undefined, inputsNeeded: number, dropped?: DataTransfer) => void
   /** Whether a drag carries a variable the field can take. */
   readonly accepts?: (data: DataTransfer) => boolean
+  /** The variables a typed name can find. */
+  readonly variables?: readonly FormulaVariable[]
+  /** Wire these inputs to these variables (found by name); `text` is the formula that now uses them (kept when valid). */
+  readonly onLinkVariables?: (links: readonly { readonly pin: number; readonly id: string }[], text: string | undefined, inputsNeeded: number) => void
 }
 
-export function ExpressionEditor({ language, text: stored, inputCount, maxInputs, inputLabel, onApply, selectedName, onLink, accepts }: ExpressionEditorProps) {
+export function ExpressionEditor({ language, text: stored, inputCount, maxInputs, inputLabel, onApply, selectedName, onLink, accepts, variables = [], onLinkVariables }: ExpressionEditorProps) {
   const [draft, setDraft] = useState(stored)
   const [editing, setEditing] = useState(false)
   const [over, setOver] = useState(false)
   const [note, setNote] = useState('')
   const [pad, setPad] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches)
   const [showAll, setShowAll] = useState(false)
+  /** Where the caret is in the shown text: the word before it is what the suggestions fit. */
+  const [caret, setCaret] = useState(0)
   const field = useRef<HTMLTextAreaElement>(null)
   useEffect(() => { if (!editing) setDraft(stored) }, [stored, editing])
 
@@ -88,6 +106,8 @@ export function ExpressionEditor({ language, text: stored, inputCount, maxInputs
   const tokens = useMemo(() => language.tokenize(draft), [draft, language])
   const inputsNeeded = result?.ok ? Math.max(-1, ...result.formula.inputs) + 1 : 0
   const unused = result?.ok ? Array.from({ length: Math.max(inputCount, inputsNeeded) }, (_, pin) => pin).filter((pin) => !result.formula.inputs.includes(pin)) : []
+  // Only a variable the block reads counts: an unwired input not in the text is no one's.
+  const wiredUnused = unused.filter((pin) => inputLabel(pin) !== undefined)
 
   const classOf = (kind: string, text: string): CharClass => {
     if (kind === 'input') return 'input'
@@ -97,7 +117,55 @@ export function ExpressionEditor({ language, text: stored, inputCount, maxInputs
     return 'op'
   }
 
+  /** `count` inputs for new variables: the free ones first (unwired, not in `text`), then new ones; fewer when the block is full. */
+  const freePins = (text: string, count: number): number[] => {
+    const used = new Set(language.tokenize(text).tokens.filter((t) => t.kind === 'input').map((t) => inputOf(t.text)))
+    const span = Math.max(inputCount, inputsNeeded, ...[...used].map((p) => p + 1))
+    const free = Array.from({ length: inputCount }, (_, i) => i).filter((i) => inputLabel(i) === undefined && !used.has(i))
+    for (let pin = span; free.length < count && pin < maxInputs; pin++) free.push(pin)
+    return free.slice(0, count)
+  }
+  const neededBy = (text: string, at = 0): number => {
+    const compiled = text.trim() ? language.compile(text, maxInputs) : undefined
+    return Math.max(at, inputCount, compiled?.ok ? Math.max(-1, ...compiled.formula.inputs) + 1 : 0)
+  }
+  /** The variable a typed word names: by its path, else by its own name when only one variable has it. */
+  const variableNamed = (word: string): FormulaVariable | undefined => {
+    const lower = word.toLowerCase()
+    const byLabel = variables.find((v) => v.label.toLowerCase() === lower)
+    if (byLabel) return byLabel
+    const byName = variables.filter((v) => v.name.toLowerCase() === lower)
+    return byName.length === 1 ? byName[0] : undefined
+  }
+  /** The names in the formula that are variables, not functions or constants (draft positions). */
+  const namedVariables = (text: string) => language.tokenize(text).tokens.flatMap((t) => {
+    if (t.kind !== 'name' || functionNames.has(t.text.toLowerCase()) || t.text.toLowerCase() in language.constants) return []
+    const variable = variableNamed(t.text)
+    return variable ? [{ from: t.from, to: t.to, variable }] : []
+  })
+
   const apply = () => {
+    // Variables named in the formula become its inputs first: one input per variable, an input it is wired to already reused.
+    const found = onLinkVariables ? namedVariables(draft) : []
+    if (found.length) {
+      const wired = new Map<string, number>()
+      for (let pin = 0; pin < inputCount; pin++) {
+        const label = inputLabel(pin)
+        const variable = label === undefined ? undefined : variables.find((v) => v.label === label)
+        if (variable && !wired.has(variable.id)) wired.set(variable.id, pin)
+      }
+      const fresh = [...new Set(found.map((f) => f.variable.id))].filter((id) => !wired.has(id))
+      const pins = freePins(draft, fresh.length)
+      if (pins.length < fresh.length) return setNote(`All ${maxInputs} inputs are in use: take one off to add another variable.`)
+      const links = fresh.map((id, i) => ({ pin: pins[i]!, id }))
+      for (const l of links) wired.set(l.id, l.pin)
+      let next = draft
+      for (const f of [...found].sort((a, b) => b.from - a.from)) next = `${next.slice(0, f.from)}in${wired.get(f.variable.id)}${next.slice(f.to)}`
+      setDraft(next)
+      const compiled = language.compile(next, maxInputs)
+      onLinkVariables!(links, compiled.ok ? next : undefined, neededBy(next, Math.max(0, ...links.map((l) => l.pin + 1))))
+      return
+    }
     if (!result?.ok || draft.trim() === stored.trim()) return
     onApply(draft, Math.max(inputCount, inputsNeeded))
   }
@@ -127,10 +195,13 @@ export function ExpressionEditor({ language, text: stored, inputCount, maxInputs
   const link = (dropped?: DataTransfer) => {
     if (!onLink) return
     setNote('')
-    const used = new Set(tokens.tokens.filter((t) => t.kind === 'input').map((t) => inputOf(t.text)))
-    let pin: number | undefined = Array.from({ length: inputCount }, (_, i) => i).find((i) => inputLabel(i) === undefined && !used.has(i))
-    const span = Math.max(inputCount, inputsNeeded)
-    if (pin === undefined && span < maxInputs) pin = span
+    // An input the formula uses but nothing is wired to (a variable taken off it) is a hole: the variable fills it, the text stays.
+    const hole = tokens.tokens.filter((t) => t.kind === 'input').map((t) => inputOf(t.text)).find((p) => inputLabel(p) === undefined)
+    if (hole !== undefined) {
+      onLink(hole, result?.ok ? draft : undefined, neededBy(draft, hole + 1), dropped)
+      return
+    }
+    const pin: number | undefined = freePins(draft, 1)[0]
     if (pin === undefined) {
       setNote(`All ${maxInputs} inputs are in use: take one off to add another variable.`)
       return
@@ -142,8 +213,40 @@ export function ExpressionEditor({ language, text: stored, inputCount, maxInputs
     const next = fromNamed(before) + piece + fromNamed(after)
     setDraft(next)
     const compiled = next.trim() ? language.compile(next, maxInputs) : undefined
-    onLink(pin, compiled?.ok ? next : undefined, Math.max(pin + 1, inputCount, compiled?.ok ? Math.max(-1, ...compiled.formula.inputs) + 1 : 0), dropped)
+    onLink(pin, compiled?.ok ? next : undefined, neededBy(next, pin + 1), dropped)
   }
+
+  // The variables that fit the word before the caret (by name or path, the start first); none when it names one exactly.
+  const fragment = editing ? WORD_BEFORE.exec(shown.slice(0, caret))?.[0] ?? '' : ''
+  const lowerFragment = fragment.toLowerCase()
+  const suggestions = !fragment || !onLinkVariables || /^in\d+$/i.test(fragment) || [...aliases.values()].includes(fragment) ? [] : variables
+    .filter((v) => v.label.toLowerCase().includes(lowerFragment) || v.name.toLowerCase().includes(lowerFragment))
+    .filter((v) => v.name.toLowerCase() !== lowerFragment || variables.filter((o) => o.name === v.name).length > 1)
+    .sort((a, b) => Number(!a.name.toLowerCase().startsWith(lowerFragment)) - Number(!b.name.toLowerCase().startsWith(lowerFragment)) || a.label.localeCompare(b.label))
+    .slice(0, MAX_SUGGESTIONS)
+  /** The word before the caret becomes the chosen variable, as an input (its own, when one reads it already). */
+  const choose = (variable: FormulaVariable) => {
+    const before = shown.slice(0, caret - fragment.length)
+    const after = shown.slice(caret)
+    const wiredPin = Array.from({ length: inputCount }, (_, i) => i).find((i) => inputLabel(i) === variable.label)
+    const pin = wiredPin ?? freePins(fromNamed(before + after), 1)[0]
+    if (pin === undefined) return setNote(`All ${maxInputs} inputs are in use: take one off to add another variable.`)
+    const next = `${fromNamed(before)}in${pin}${fromNamed(after)}`
+    setDraft(next)
+    const at = before.length + variable.label.length
+    setCaret(at)
+    requestAnimationFrame(() => {
+      field.current?.focus()
+      field.current?.setSelectionRange(at, at)
+    })
+    if (wiredPin === undefined) {
+      const compiled = language.compile(next, maxInputs)
+      onLinkVariables!([{ pin, id: variable.id }], compiled.ok ? next : undefined, neededBy(next, pin + 1))
+    }
+  }
+  // A name the formula does not know but that is a variable: applying makes it an input, so it is no error to show.
+  const pending = onLinkVariables ? namedVariables(draft) : []
+  const pendingOnly = !!error && pending.some((p) => error.from >= p.from && error.from < p.to)
   const dropHandlers = {
     onDragOver: (event: React.DragEvent) => {
       if (!onLink || !accepts?.(event.dataTransfer)) return
@@ -220,7 +323,7 @@ export function ExpressionEditor({ language, text: stored, inputCount, maxInputs
 
       {!editing ? (
         <div role="button" tabIndex={0} className={`expr-field expr-targets ${over ? 'is-over' : ''}`} title="Click to edit the formula"
-          onClick={() => setEditing(true)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setEditing(true) } }} {...dropHandlers}>
+          onClick={() => { if (selectedName && onLink) link(); setEditing(true) }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setEditing(true) } }} {...dropHandlers}>
           {tokens.tokens.length === 0 && <span className="expr-placeholder">{onLink ? 'Type a formula, or drop variables here' : 'No formula'}</span>}
           {(() => {
             const out: React.ReactNode[] = []
@@ -230,7 +333,7 @@ export function ExpressionEditor({ language, text: stored, inputCount, maxInputs
               if (token.kind === 'input') {
                 const pin = inputOf(token.text)
                 const label = inputLabel(pin)
-                out.push(<span key={token.from} className={`expr-target ${label ? '' : 'is-unwired'}`} title={`in${pin}${label ? `: ${label}` : ': not wired'}`}>{label ?? `in${pin} ?`}</span>)
+                out.push(<span key={token.from} className={`expr-target ${label ? '' : 'is-unwired'}`} title={label ? `in${pin}: ${label}` : 'Not wired: drop a variable here, or pick one in the tree and click'}>{label ?? '?'}</span>)
               } else out.push(<span key={token.from} className={`expr-tok-${classOf(token.kind, token.text)}`}>{token.text}</span>)
               at = token.to
             }
@@ -247,12 +350,17 @@ export function ExpressionEditor({ language, text: stored, inputCount, maxInputs
           {/* ui-raw: the transparent text layer over the coloured one; no kit field draws a highlight under its text */}
           <textarea ref={field} className="expr-input" value={shown} rows={1} spellCheck={false} autoCapitalize="off" autoCorrect="off" autoFocus inputMode={pad ? 'none' : 'text'}
             aria-label="Formula" aria-invalid={!!error} placeholder={language.flavor === 'float' ? '(speed + 2) * angle' : '(flags << 4) | mask'}
-            onChange={(event) => setDraft(fromNamed(event.target.value.replace(/\n/g, ' ')))}
+            onChange={(event) => { setDraft(fromNamed(event.target.value.replace(/\n/g, ' '))); setCaret(event.target.selectionStart ?? 0) }}
+            onSelect={(event) => setCaret(event.currentTarget.selectionStart ?? 0)}
+            onClick={() => { if (selectedName && onLink) link() }}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') {
+              if ((event.key === 'Tab' || event.key === 'Enter') && suggestions.length > 0) {
+                event.preventDefault()
+                choose(suggestions[0]!)
+              } else if (event.key === 'Enter') {
                 event.preventDefault()
                 apply()
-                if (!draft.trim() || result?.ok) setEditing(false)
+                if (!draft.trim() || (result?.ok && !pending.length)) setEditing(false)
               } else if (event.key === 'Escape') {
                 setDraft(stored)
                 setEditing(false)
@@ -261,27 +369,37 @@ export function ExpressionEditor({ language, text: stored, inputCount, maxInputs
             onBlur={(event) => {
               if (event.currentTarget.closest('.expr-editor')?.contains(event.relatedTarget as Node | null)) return
               apply()
-              // Back to the names once the formula stands; a broken one stays open with its error marked.
-              if (!draft.trim() || result?.ok) setEditing(false)
+              // Back to the names once the formula stands (or its names became inputs); a broken one stays open with its error marked.
+              if (!draft.trim() || result?.ok || pending.length) setEditing(false)
             }} />
         </div>
       )}
-      <div className={`expr-status ${error ? 'is-error' : ''}`} role="status">
-        {error && <><AlertCircle aria-hidden="true" /><span>{named(error.message)}</span></>}
-        {!draft.trim() && <span className="expr-muted">Use variables, inputs (in0, in1 …) and numbers{onLink ? '; drop a variable from the tree to add it as an input.' : '.'}</span>}
+      {suggestions.length > 0 && (
+        <div className="expr-suggestions" role="listbox" aria-label="Variables" onPointerDown={(event) => event.preventDefault()}>
+          {suggestions.map((v, i) => (
+            // ui-raw: a dashed chip that holds a variable's name, the formula's own look
+            <button key={v.id} type="button" role="option" aria-selected={i === 0} className={`expr-suggestion ${i === 0 ? 'is-first' : ''}`} title={i === 0 ? `${v.label} (Tab or Enter)` : v.label} onClick={() => choose(v)}>{v.label}</button>
+          ))}
+        </div>
+      )}
+      <div className={`expr-status ${error && !pendingOnly ? 'is-error' : ''}`} role="status">
+        {error && !pendingOnly && <><AlertCircle aria-hidden="true" /><span>{named(error.message)}</span></>}
+        {pendingOnly && <span className="expr-muted">{[...new Set(pending.map((p) => p.variable.label))].join(', ')}: {pending.length > 1 ? 'variables, they become inputs' : 'a variable, it becomes an input'} on Enter or when you leave the field.</span>}
+        {!draft.trim() && <span className="expr-muted">Type variables by their names, numbers and functions{onLink ? '; or drop a variable from the tree, or pick it there and click here.' : '.'}</span>}
       </div>
       {note && <p className="expr-note is-warning">{note}</p>}
-      {result?.ok && inputsNeeded > inputCount && <p className="expr-note">Applying adds input{inputsNeeded - inputCount > 1 ? 's' : ''} {Array.from({ length: inputsNeeded - inputCount }, (_, i) => aliasOf(inputCount + i)).join(', ')}.</p>}
-      {result?.ok && unused.length > 0 && <p className="expr-note">{unused.map(aliasOf).join(', ')} not in the formula: {unused.length > 1 ? 'they only trigger' : 'it only triggers'} the block.</p>}
+      {result?.ok && wiredUnused.length > 0 && <p className="expr-note">{wiredUnused.map(aliasOf).join(', ')} not in the formula: {wiredUnused.length > 1 ? 'they only trigger' : 'it only triggers'} the block.</p>}
 
       {pad && (
         <div className="expr-pad" onPointerDown={(event) => { if ((event.target as HTMLElement).closest('button')) event.preventDefault() }}>
-          <div className="expr-pad-row is-inputs">
-            {Array.from({ length: inputCount }, (_, pin) => (
-              <button key={pin} type="button" className="expr-key is-input" title={inputLabel(pin) ?? `in${pin}: not wired`} onClick={() => insert(aliasOf(pin))}>{aliasOf(pin)}</button>
-            ))}
-            {inputCount < maxInputs && <button type="button" className="expr-key is-input is-new" title="A new input" onClick={() => insert(`in${Math.max(inputCount, inputsNeeded)}`)}>+ input</button>}
-          </div>
+          {/* The variables the formula reads already, to use again; a new one comes by its name, a drop or a pick in the tree. */}
+          {Array.from({ length: inputCount }, (_, pin) => pin).some((pin) => inputLabel(pin) !== undefined) && (
+            <div className="expr-pad-row is-inputs">
+              {Array.from({ length: inputCount }, (_, pin) => pin).filter((pin) => inputLabel(pin) !== undefined).map((pin) => (
+                <button key={pin} type="button" className="expr-key is-input" title={inputLabel(pin)} onClick={() => insert(aliasOf(pin))}>{aliasOf(pin)}</button>
+              ))}
+            </div>
+          )}
           <div className="expr-pad-grid">
             {rows.map((row, r) => row.map((key) => (
               <button key={`${r}-${key}`} type="button" className={`expr-key ${/^[0-9A-F.]$/.test(key) ? 'is-digit' : ''} ${['⌫', 'CLR', '←', '→'].includes(key) ? 'is-edit' : ''}`} aria-label={key === '⌫' ? 'Delete' : key === 'CLR' ? 'Clear' : undefined} onClick={() => press(key)}>

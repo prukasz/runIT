@@ -82,8 +82,24 @@ export function PathEditor({ tree, title, value, path, selected, onChange, onCre
 }) {
   const [text, setText] = useState(path ? formatDraft(tree, draftOf(path)) : '')
   const [by, setBy] = useState<'name' | 'index'>('name')
+  // A name being typed into a folder (`folder1.`, `folder1.va`, `folder1["va`): the path before it, and its start, to find the child by.
+  const partial = useMemo(() => {
+    const match = /^(.+?)(?:\.|\[")([^.["\]]*)$/u.exec(text)
+    if (!match) return undefined
+    const base = parseDraft(tree, match[1]!)
+    if (base.problem || base.draft.root === null) return undefined
+    const steps = nextSteps(tree, base.draft)
+    if (steps.kind !== 'children') return undefined
+    const start = match[2]!.toLowerCase()
+    // A name typed in full is a step, not a search.
+    if (start && steps.children.some((c) => c.variable.name.toLowerCase() === start) && !parseDraft(tree, text).problem) return undefined
+    const fits = steps.children.filter((c) => c.variable.name.toLowerCase().includes(start))
+    // Below a run-time folder a name the project does not hold is the board's to find: a step, not a search.
+    if (start && fits.length === 0 && inspectDraft(tree, parseDraft(tree, text).draft).resolution?.ok) return undefined
+    return { base: base.draft, start, children: [...fits].sort((a, b) => Number(!a.variable.name.toLowerCase().startsWith(start)) - Number(!b.variable.name.toLowerCase().startsWith(start))) }
+  }, [tree, text])
   const read = useMemo(() => parseDraft(tree, text), [tree, text])
-  const draft: PathDraft = read.draft
+  const draft: PathDraft = partial?.base ?? read.draft
   const view = useMemo(() => inspectDraft(tree, draft), [tree, draft])
   const next = useMemo(() => nextSteps(tree, draft), [tree, draft])
   const typed = text.trim()
@@ -109,7 +125,9 @@ export function PathEditor({ tree, title, value, path, selected, onChange, onCre
   const newType = typeForPin(value)
   const rootName = typed.split(/[.[]/)[0] ?? ''
   const canCreate = !!onCreate && !!newType && draft.root === null && isName(rootName) && !tree.some((v) => v.name === rootName)
-  const choosingRoot = draft.root === null || (draft.steps.length === 0 && !tree.some((v) => v.name === typed))
+  // The variables to start at, only while the start is what is being typed.
+  const choosingRoot = !partial && !/[.[]/.test(typed) && (draft.root === null || (draft.steps.length === 0 && !tree.some((v) => v.name === typed)))
+  const problem = partial ? undefined : read.problem?.message ?? (resolution && !resolution.ok ? resolution.message : undefined)
 
   return (
     <div className="path-editor" onMouseDown={(event) => {
@@ -131,8 +149,15 @@ export function PathEditor({ tree, title, value, path, selected, onChange, onCre
       )}
 
       <TextField className="path-editor-text" value={text} placeholder="A variable: motor.gains[2], table[position]" aria-label={`What ${title} reads`} autoFocus
-        aria-invalid={!!read.problem || (resolution !== undefined && !resolution.ok)} onChange={(event) => type(event.target.value)} />
-      <FieldError>{read.problem?.message ?? (resolution && !resolution.ok ? resolution.message : undefined)}</FieldError>
+        aria-invalid={!!problem} onChange={(event) => type(event.target.value)}
+        onKeyDown={(event) => {
+          const first = partial?.children[0]
+          if ((event.key === 'Enter' || event.key === 'Tab') && first) {
+            event.preventDefault()
+            apply(appendStep(partial.base, first.byName))
+          }
+        }} />
+      <FieldError>{problem}</FieldError>
 
       {draft.root !== null && (
         <div className="path-chain">
@@ -149,13 +174,27 @@ export function PathEditor({ tree, title, value, path, selected, onChange, onCre
             <span className="path-facts">
               {reached.type && reached.type !== 'ptr' && <TypeBadge type={reached.type} count={reached.count > 1 ? reached.count : undefined} />}
               {reached.element !== null && <Badge tone="success">element</Badge>}
-              {reached.dynamic && <Badge tone="info">read at run time</Badge>}
+              {reached.unchecked ? <Badge tone="info" title="Below a folder known at run time: the board finds it by name or position">checked on the board</Badge> : reached.dynamic && <Badge tone="info">read at run time</Badge>}
             </span>
           )}
         </div>
       )}
 
-      {next.kind === 'children' && (
+      {partial && (
+        <div className="path-section">
+          <div className="path-label"><span>In <strong>{pathOf(tree, partial.base.root!) ?? ''}</strong>{partial.start ? <> by name “{partial.start}”</> : null}{partial.children.length ? ' (Enter takes the first):' : ':'}</span></div>
+          <div className="path-chips">
+            {partial.children.slice(0, MAX_CHILDREN).map((c, i) => (
+              <Button key={c.variable.id} size="sm" variant={i === 0 ? 'primary' : undefined} title={`.${c.variable.name}`} onClick={() => apply(appendStep(partial.base, c.byName))}>
+                {c.variable.kind === 'folder' && <Folder aria-hidden="true" />}
+                {c.variable.name}
+              </Button>
+            ))}
+            {partial.children.length === 0 && <span className="path-more">Nothing in it is called like that.</span>}
+          </div>
+        </div>
+      )}
+      {!partial && next.kind === 'children' && (
         <div className="path-section">
           <div className="path-label">
             <span><strong>{next.of.name}</strong> holds {next.children.length}:</span>
@@ -194,7 +233,7 @@ export function PathEditor({ tree, title, value, path, selected, onChange, onCre
           </div>
         </div>
       )}
-      {next.kind !== 'none' && (
+      {!partial && next.kind !== 'none' && (
         <div className="path-add">
           <Button variant="dashed" size="sm" title="A position read at run time from a variable" onClick={() => apply(appendStep(draft, { kind: 'dynamic', path: selected ?? null }))}><Plus aria-hidden="true" />[variable]</Button>
         </div>

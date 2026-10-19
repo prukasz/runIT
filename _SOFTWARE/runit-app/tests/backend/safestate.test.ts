@@ -22,34 +22,33 @@ describe('leaving the safe state', () => {
     expect(catalog.allDevices).toBe(0xffff) // SYS_DEVICE_ID_NONE, sys_device.h
   })
 
-  it('resumes every device ([05][FF FF][03 00], SYS_DEVICE.MD), then starts the program with the EXEC given', async () => {
+  it('leaves by SYS SAFE_LEAVE (every device resumed, the note cleared), then starts the program with the EXEC given', async () => {
     const board = new FakeBoard()
     board.respond = (frame, send) => send(answer(frame[0]!))
     const link = await linkTo(board)
     const start = engine.exec('normal')
     await leaveSafeState(link, { start })
-    expect(board.requests.map(body)).toEqual([hex(Uint8Array.of(defs.keys.device!, 0xff, 0xff, 0x03, 0x00)), hex(Uint8Array.of(defs.keys.vm!, start.op, ...start.payload))])
+    expect(board.requests.map(body)).toEqual([hex(Uint8Array.of(defs.keys.sys!, 0x0a)), hex(Uint8Array.of(defs.keys.vm!, start.op, ...start.payload))])
     await link.close()
   })
 
-  it('without a start the VM stays stopped: only RESUME', async () => {
+  it('a firmware without SAFE_LEAVE gets the RESUME sweep ([05][FF FF][03 00], SYS_DEVICE.MD); without a start the VM stays stopped', async () => {
     const board = new FakeBoard()
-    board.respond = (frame, send) => send(answer(frame[0]!))
+    board.respond = (frame, send) => send(answer(frame[0]!, [], frame[2] !== defs.keys.sys))
     const link = await linkTo(board)
     await leaveSafeState(link)
-    expect(board.requests).toHaveLength(1)
-    expect(board.requests[0]![2]).toBe(defs.keys.device)
+    expect(board.requests.map(body)).toEqual([hex(Uint8Array.of(defs.keys.sys!, 0x0a)), hex(Uint8Array.of(defs.keys.device!, 0xff, 0xff, 0x03, 0x00))])
     await link.close()
   })
 
-  it('a failed RESUME is thrown as it is and the program is not started', async () => {
+  it('a failed resume is thrown as it is and the program is not started', async () => {
     const board = new FakeBoard()
-    board.respond = (frame, send) => send(answer(frame[0]!, [], frame[2] !== defs.keys.device))
+    board.respond = (frame, send) => send(answer(frame[0]!, [], false))
     const link = await linkTo(board)
     const error = await leaveSafeState(link, { start: engine.exec('normal') }).catch((e: unknown) => e)
     expect(error).toBeInstanceOf(CommandError)
     expect((error as CommandError).code).toBe('device-error')
-    expect(board.requests).toHaveLength(1)
+    expect(board.requests).toHaveLength(2)
     await link.close()
   })
 

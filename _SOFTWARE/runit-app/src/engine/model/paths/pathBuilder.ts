@@ -212,8 +212,8 @@ export type NextSteps =
 export const nextSteps = (tree: readonly Variable[], draft: PathDraft): NextSteps => {
   const view = inspectDraft(tree, draft)
   if (!view.resolution?.ok) return { kind: 'none' }
-  const { variable, element } = view.resolution.target
-  if (element !== null) return { kind: 'none' }
+  const { variable, element, unchecked } = view.resolution.target
+  if (element !== null || unchecked) return { kind: 'none' }
   if (variable.kind === 'value') return variable.count > 1 && variable.type !== 'str' ? { kind: 'elements', of: variable, count: variable.count } : { kind: 'none' }
   const dimensions = dimensionsOf(tree, variable)
   return {

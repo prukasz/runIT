@@ -86,3 +86,18 @@
 .console-error { margin: 6px 0; }
 .console-errors { display: flex; flex-direction: column; gap: 8px; }
 .console-card-actions { display: flex; gap: 6px; }
+
+/* The board's safe state (SafeState.tsx): the right panel's edge blinks red while it lasts; its notice at the top of the open panel. */
+@keyframes safe-state-blink { 0%, 100% { border-color: var(--color-red); box-shadow: 0 0 0 2px var(--color-red), 0 0 18px color-mix(in srgb, var(--color-red) 55%, transparent); } 50% { border-color: color-mix(in srgb, var(--color-red) 40%, var(--divider)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-red) 20%, transparent); } }
+.right-panel.is-safe-state { animation: safe-state-blink 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .right-panel.is-safe-state { animation: none; border-color: var(--color-red); box-shadow: 0 0 0 2px var(--color-red); } }
+.safe-state { display: flex; flex-direction: column; gap: 6px; margin: 8px 10px; padding: 10px 12px; border: 1px solid var(--color-red); border-radius: 8px; background: color-mix(in srgb, var(--color-red) 14%, var(--panel)); color: var(--active); font-size: 12px; }
+.safe-state-head { display: flex; align-items: center; gap: 8px; color: var(--color-red); font-size: 13px; }
+.safe-state-head svg { width: 16px; height: 16px; }
+.safe-state-since { margin-left: auto; color: var(--muted); font: 500 11px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.safe-state-reason, .safe-state-fault { margin: 0; line-height: 1.45; }
+.safe-state-fault { color: var(--color-amber); }
+.safe-state-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.shell .side-panel-icons .safe-state-button { color: var(--color-red); background: color-mix(in srgb, var(--color-red) 18%, transparent); animation: safe-state-pulse 1.2s ease-in-out infinite; }
+@keyframes safe-state-pulse { 50% { background: transparent; } }
+.safe-state-button svg { width: 18px; height: 18px; }

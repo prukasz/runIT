@@ -32,6 +32,9 @@
 .expr-muted { color: var(--muted); font-size: 11px; }
 .expr-use-selected { gap: 4px; width: auto; max-width: 45%; height: 28px; padding: 0 8px; overflow: hidden; border: 1px dashed var(--accent); border-radius: 6px; color: var(--active); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .expr-use-selected svg { flex: none; width: 13px; height: 13px; }
+.expr-suggestions { display: flex; flex-wrap: wrap; gap: 4px; }
+.expr-suggestion { width: auto; max-width: 100%; height: 26px; padding: 0 8px; overflow: hidden; border: 1px dashed var(--divider); border-radius: 5px; background: transparent; color: var(--active); font: 12px ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.expr-suggestion:hover, .expr-suggestion.is-first { border-style: solid; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
 
 /* Keypad */
 .expr-pad { display: flex; flex-direction: column; gap: 5px; padding: 6px; border: 1px solid var(--divider); border-radius: 8px; background: color-mix(in srgb, var(--active) 3%, var(--panel)); user-select: none; touch-action: manipulation; }

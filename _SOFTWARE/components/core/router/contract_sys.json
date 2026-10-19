@@ -118,6 +118,47 @@
       }
     },
     {
+      "id": "SAFE_GET",
+      "op": 9,
+      "symbol": "OP_SAFE_GET",
+      "label": "Read the safe state",
+      "description": "Whether the board is in its safe state (the VM stopped, every device output off and suspended), why it entered it and how long ago. A reason of 0: not in it.",
+      "returns": {
+        "struct": "sys_safe_t",
+        "description": "The safe state",
+        "fields": [
+          {
+            "id": "reason",
+            "label": "Reason",
+            "type": "enum",
+            "enum": "router_safe_reason_e",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "Why it entered the safe state last; 0 = not in the safe state"
+          },
+          {
+            "id": "for_ms",
+            "label": "For",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 1,
+            "unit": "ms",
+            "description": "Time since it entered it"
+          }
+        ]
+      }
+    },
+    {
+      "id": "SAFE_LEAVE",
+      "op": 10,
+      "symbol": "OP_SAFE_LEAVE",
+      "label": "Leave the safe state",
+      "invasive": true,
+      "description": "Resumes every device (oldest first) and clears the safe state. The program stays stopped: start it with VM EXEC. Motors move again when the devices resume."
+    },
+    {
       "id": "DEADMAN_SET",
       "read_by": "DEADMAN_GET",
       "op": 4,
@@ -183,4 +224,3 @@
     }
   ]
 }
-
