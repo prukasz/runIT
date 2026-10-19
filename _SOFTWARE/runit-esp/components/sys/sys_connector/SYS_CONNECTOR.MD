@@ -71,7 +71,7 @@ Register it at boot with `sys_connector_register_provider(TRANSPORT_…, &provid
 
 ## Errors stream
 
-`runit_error_wiring_init()` (`runit_error_policy.c`) registers `error_sink` with `err_set_sink`. Every `err_report` / `err_report_ex` chain goes first to the device error policy, then becomes a **router error record** (`router_err_record(origin, chain)`, ROUTER.MD) on connector 1. A response from the policy is logged and sent as a second record. A full queue drops the record. So command errors (src 1, with link / seq / request) and internal errors (src 0) share one stream — the error history. A client also gets its own command errors in the response; it can skip stream records with its own link + seq.
+`runit_error_wiring_init()` (`runit_error_policy.c`) registers `error_sink` with `err_set_sink`. Every `err_report` / `err_report_ex` chain goes first to the device error policy, then becomes an **error record** (`err_record(cmd, chain)`, ERRORS.MD "Error record") on connector 1. A response from the policy is logged and sent as a second record. A full queue drops the record. So command errors (src 1, with link / seq / request) and internal errors (src 0) share one stream — the error history. A client also gets its own command errors in the response; it can skip stream records with its own link + seq.
 
 The errors stream does not suppress repeats: every record is sent.
 

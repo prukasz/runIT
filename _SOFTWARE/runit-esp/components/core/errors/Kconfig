@@ -41,7 +41,7 @@ menu "Errors"
         default 32
         range 16 128
         help
-          Size of one block = node header (13 B with info, 9 B without) +
+          Size of one block = node header (12 B with info, 8 B without) +
           largest payload. Must be a multiple of 4.
 
     config ERRORS_LOG_LINE_LEN
@@ -51,6 +51,14 @@ menu "Errors"
         help
           Size of the stack buffer err_log() formats one chain node into.
           Longer lines are cut.
+
+    config ERRORS_RECORD_REQ_MAX
+        int "Request bytes kept in an error record"
+        default 32
+        range 0 127
+        help
+          How much of the failing request (keys + payload) an error record
+          repeats. Longer requests are cut and marked.
 
     config ERRORS_MAX_MODULES
         int "Maximum error modules"

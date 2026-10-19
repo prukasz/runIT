@@ -79,7 +79,7 @@ Tags in `ERR_SYS_I2C_MAP` (`sys_i2c.h`). Transfer and probe errors carry `bus` a
 | `ERR_I2C_REMOTE_DENIED` | MEDIUM | remote scan / reset / raw on a bus other than `CONFIG_SYS_I2C_REMOTE_BUS` |
 | `ERR_I2C_REG` | NONE | context wrapper `{reg, write}` from the register helpers; NONE so it never raises the chain's severity |
 
-A caller that knows the real cost overrides the severity when it wraps (`ERR_WRAP_SEV`): an optional user-bus sensor lowers a `NO_ACK` to LOW.
+A caller that expects a failure handles it instead of reporting it: an optional user-bus sensor that does not answer frees its `NO_ACK`.
 
 ## Remote (`sys_i2c_router`, root key `ROUTER_KEY_I2C` = 0x02)
 

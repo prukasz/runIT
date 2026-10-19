@@ -90,14 +90,9 @@ Symptoms that you forgot to reconfigure: `'CONFIG_XXX' undeclared` for a newly a
 
 **The ESP-IDF extension** takes a workspace folder as its project and has no setting for a project in a subfolder. Open `runit.code-workspace` (in `_SOFTWARE`): the repo as the first folder and `runit-esp` as its own folder. Then run `ESP-IDF: Pick a Workspace Folder` once and pick `runit-esp (ESP-IDF)`; build, flash and menuconfig work on it, in `runit-esp/build` like `idf.py -C`. The extension's settings (`idf.currentSetup`, `idf.port`, `idf.flashType`) go to `runit-esp/.vscode/settings.json`, which is gitignored.
 
+**clangd** settings are window-wide, so in the workspace only `runit.code-workspace` sets them (a folder's `.vscode/settings.json` is ignored there): `clangd.path` (the EIM's esp-clangd) and `clangd.arguments` with `--query-driver=C:/Espressif/tools/**`. The compile commands come from `runit-esp/.clangd` (`CompilationDatabase: build`). Opening `runit-esp` alone instead, put the same two settings in its `.vscode/settings.json`. Check a file from the shell: `clangd.exe --query-driver="C:/Espressif/tools/**" --check=<file>` in `runit-esp` (`All checks completed, 0 errors`).
 
-`.clangd` is tracked, but `.vscode/` is gitignored. Add this once in VS Code user/workspace settings:
-
-```json
-{ "clangd.arguments": ["--query-driver=C:/Espressif/tools/**"] }
-```
-
-Without it, clangd parses headers for the host (MSVC) target instead of `xtensa-esp32s3-elf-gcc`. That produces fake errors such as `Unknown type name '__always_inline'` or undeclared `uint8_t`. Reload clangd afterwards.
+Without the driver, clangd parses headers for the host (MSVC) target instead of `xtensa-esp32s3-elf-gcc`. That produces fake errors such as `Unknown type name '__always_inline'` or undeclared `uint8_t`. Reload clangd afterwards.
 
 ## 6. Tests
 

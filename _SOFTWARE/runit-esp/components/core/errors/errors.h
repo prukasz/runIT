@@ -35,12 +35,10 @@ typedef err_t* err_h;
 
 /**
  * @brief One error in a chain. `next` points to the cause (the deeper error),
- * NULL at the root cause. `tag` is ERR_TAG(module, code). `sev` is the
- * severity set where the node was created, or ERR_SEV_DEFAULT to use the
- * tag's own (see err_sev / err_chain_sev). `data` is the tag's payload, stored
- * right after the node.
+ * NULL at the root cause. `tag` is ERR_TAG(module, code); its severity is the
+ * tag's (err_sev). `data` is the tag's payload, stored right after the node.
  *
- * Packed - no padding anywhere, `data` starts right after `sev`. aligned(4)
+ * Packed - no padding anywhere, `data` starts right after `tag`. aligned(4)
  * keeps the node itself 4-aligned, so the compiler still uses plain 32-bit
  * loads for the pointer and tag fields (packed alone would make every field
  * access byte-wise). Payload types are packed too, so `data` needs no
@@ -52,18 +50,14 @@ struct __attribute__((packed, aligned(4))) err {
 #endif
   err_h next;
   uint32_t tag;
-  uint8_t sev;  // err_sev_e
   uint8_t data[];
 };
 
 _Static_assert(offsetof(err_t, data) == ERR_HDR_LEN, "err_t header has padding - data must follow sev directly");
 
 /**
- * @brief Severity. Each tag has a default - its weight without context. The
- * place that creates a node may set another one (ERR_NEW_SEV / ERR_WRAP_SEV):
- * only it knows what the failure costs there (a failed malloc drops one log
- * line in the logger, but kills a device in its create). How a device reacts
- * is decided by policy later.
+ * @brief Severity: each tag has one, in its module's map. How a device reacts
+ * to it is decided by its error policy (SYS_DEVICE.MD).
  */
 //#ref-enum @alias Error Severity
 typedef enum {
@@ -72,7 +66,6 @@ typedef enum {
   ERR_SEV_MEDIUM = 2,  //@alias Medium @description Something failed and a feature may not work
   ERR_SEV_HIGH = 3,  //@alias High @description A significant failure; the board may need attention
   ERR_SEV_CRITICAL = 4,  //@alias Critical @description The board must be made safe
-  ERR_SEV_DEFAULT = 0xFF,  //@alias Tag default @description The severity the error's tag declares
 } err_sev_e;
 
 typedef struct {
@@ -95,31 +88,12 @@ typedef struct {
 void err_register_module(const err_module_t* module);
 
 /**
- * @brief Looks a tag up in the registered tables.
- * @return Its info, or NULL for an unknown tag.
- */
-const err_tag_info_t* err_tag_info(uint32_t tag);
-
-/**
- * @brief Registered module by ID, or NULL.
- */
-const err_module_t* err_module(uint16_t id);
-
-/**
- * @brief Severity of one node: the one set at its creation, else its tag's
- * default (ERR_SEV_NONE for an unknown tag). NULL gives ERR_SEV_NONE.
+ * @brief Severity of one node: its tag's (ERR_SEV_NONE for an unknown tag or NULL).
  */
 uint8_t err_sev(err_h e);
 
 /**
- * @brief Severity of a whole chain. Walks from the outermost node: nodes
- * without a set severity add their tag default (highest wins); the first node
- * with a set severity adds that and ends the walk - it is that level's verdict
- * on everything beneath it, so it can raise or lower its causes. Nodes above
- * it still count, they did not reconsider it. NULL gives ERR_SEV_NONE.
- * @usage
- *   ERR_WRAP_SEV(e, ERR_DEV_CREATE, ERR_SEV_LOW, ...) over a HIGH i2c error -> LOW
- *   ERR_WRAP(e, ERR_DEV_CREATE, ...) (default HIGH) over a LOW node          -> HIGH
+ * @brief Severity of a whole chain: the highest of its nodes. NULL gives ERR_SEV_NONE.
  */
 uint8_t err_chain_sev(err_h chain);
 
@@ -142,15 +116,13 @@ ERR_TAGS_DECLARE(ERR_CORE_MAP)
  * @brief Creates a node. Use the ERR_NEW / ERR_WRAP macros instead.
  * @param info  Call-site info (static, see ERR__NEW).
  * @param tag   ERR_TAG(module, code).
- * @param sev   err_sev_e, or ERR_SEV_DEFAULT for the tag's own.
  * @param data  Payload, copied into the node. May be NULL when len == 0.
  * @param len   Payload length, at most ERR_DATA_MAX (longer is cut).
  * @param cause Deeper error; ownership passes to the new node. NULL for none.
  */
-MUST_USE err_h err_new(const err_info_t* info, uint32_t tag, uint8_t sev, const void* data, uint32_t len,
-                       err_h cause);
+MUST_USE err_h err_new(const err_info_t* info, uint32_t tag, const void* data, uint32_t len, err_h cause);
 #else
-MUST_USE err_h err_new(uint32_t tag, uint8_t sev, const void* data, uint32_t len, err_h cause);
+MUST_USE err_h err_new(uint32_t tag, const void* data, uint32_t len, err_h cause);
 #endif
 
 /**
@@ -160,8 +132,8 @@ void err_free(err_h chain);
 
 /**
  * @brief Prints a chain to the log, outermost node first, one line per node:
- * tag name, module.code, severity (with the tag default when it was set at
- * creation), payload in hex, and file:line func() where the info is enabled.
+ * tag name, module.code, severity, payload in hex, and file:line func() where
+ * the info is enabled.
  * The whole chain uses one log level, from err_chain_sev (HIGH/CRITICAL -
  * error, MEDIUM - warning, else info). Does not free the chain. Task context
  * only (uses ESP_LOG). NULL is ignored.
@@ -169,16 +141,23 @@ void err_free(err_h chain);
 void err_log(err_h chain);
 
 /**
- * @brief Switches the log lines of chains (err_log, err_log_ctx, so also err_report) on or off; on at boot. A chain
+ * @brief Switches the log lines of chains (err_log, so also err_report) on or off; on at boot. A chain
  * still reaches the sink and is freed: only the text stops. The level of the lines is ESP_LOG's own.
  */
 void err_log_enable(bool on);
 
-/**
- * @brief err_log with a context line first (e.g. the command that failed),
- * at the same log level as the chain. `context` NULL = plain err_log.
- */
-void err_log_ctx(err_h chain, const char* context);
+/* ----------------------------------------------------------------------------
+ * The command an error belongs to
+ * ------------------------------------------------------------------------- */
+
+/** A command as it came in: its link, seq, flags and request (keys + payload, no seq / flags). The router fills it. */
+typedef struct {
+  const uint8_t* req;  // may be NULL when req_len is 0
+  uint32_t req_len;
+  uint8_t link;
+  uint8_t seq;
+  uint8_t flags;
+} err_cmd_t;
 
 /* ----------------------------------------------------------------------------
  * Reporting: the end of a chain nobody returns any more
@@ -186,10 +165,10 @@ void err_log_ctx(err_h chain, const char* context);
 
 /**
  * @brief Where reported chains go besides the log (the app sends them to the
- * errors stream). `origin` is what the reporter passed (the router passes its
- * router_cmd_t), NULL for an internal error. Must not report errors itself.
+ * errors stream). `cmd` is the command the chain belongs to, NULL for an
+ * internal error. Must not report errors itself.
  */
-typedef void (*err_sink_f)(err_h chain, const void* origin);
+typedef void (*err_sink_f)(err_h chain, const err_cmd_t* cmd);
 
 /**
  * @brief Sets the sink. Boot only. NULL = log only.
@@ -198,22 +177,36 @@ void err_set_sink(err_sink_f fn);
 
 /**
  * @brief Ends a chain: logs it (with `log_ctx` first, may be NULL), passes it
- * to the sink with `origin`, frees it. NULL is ignored. Task context only.
+ * to the sink with `cmd` (may be NULL), frees it. NULL is ignored. Task context only.
  * @usage err_report(sys_i2c_probe(bus, addr));   // nobody to return it to
  */
-void err_report_ex(err_h chain, const char* log_ctx, const void* origin);
+void err_report_ex(err_h chain, const char* log_ctx, const err_cmd_t* cmd);
 void err_report(err_h chain);
 
+/* ----------------------------------------------------------------------------
+ * Error record (ERRORS.MD "Error record"): a chain with what caused it, the
+ * same bytes in an ERROR answer, on the errors stream and in the history.
+ * ------------------------------------------------------------------------- */
+
+//#ref-enum @alias Error Record Source
+typedef enum {
+  ERR_RECORD_SRC_INTERNAL = 0,  //@alias Internal @description No request (task, timer, boot); later device ID/task may follow
+  ERR_RECORD_SRC_COMMAND = 1,  //@alias Command @description Raised while running a command
+} err_record_src_e;
+
+//#ref-defines err_record_flag @alias Error Record Flags @prefix ERR_RECORD_
+#define ERR_RECORD_REQ_CUT 0x80u  //@alias Request cut @description Bit 7 of request length: request was cut to fit, more was sent
+#define ERR_RECORD_STAMP_BYTES 8u  //@alias Time stamp bytes @description The u64 LE UTC time in ms (the board's clock) right after the source byte; counts from the start while no client has set the clock (before 2020: not a date)
+
 /**
- * @brief Encodes a chain for the wire, outermost node first:
- *   [count u8 (bit 7 = truncated)] then per node
- *   [tag u32 LE][sev u8 (err_sev)][len u8][payload, len bytes]
- * Payload is the packed err_data_<TAG>_t as is (len = its size, 0 for an
- * unknown tag). Nodes that do not fit `cap` are left out and the truncated bit
- * is set. Does not free the chain.
- * @return Bytes written (0 only when cap == 0).
+ * @brief Encodes an error record into `buf`: [src][stamp] (+ [link][seq][flags][req_len][request] for a command), then
+ * the chain, outermost node first: [count u8, bit 7 = cut] and per node [tag u32 LE][len u8][payload]
+ * (the packed err_data_<TAG>_t; len 0 for an unknown tag). The request is cut to CONFIG_ERRORS_RECORD_REQ_MAX and
+ * further when `cap` is small; nodes that don't fit are left out and bit 7 is set. Does not free the chain.
+ * @param cmd The command, or NULL for an internal error.
+ * @return Bytes written (0 only when cap is too small for the header).
  */
-uint32_t err_encode(err_h chain, uint8_t* buf, uint32_t cap);
+uint32_t err_record(const err_cmd_t* cmd, err_h chain, uint8_t* buf, uint32_t cap);
 
 #ifdef __cplusplus
 }

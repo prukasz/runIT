@@ -6,7 +6,7 @@
 
 #define TAG __FILE_NAME__
 
-#define WALK_MAX (CONFIG_ERRORS_POOL_BLOCKS + 1u)  // cycle guard, like err_log / err_encode
+#define WALK_MAX (CONFIG_ERRORS_POOL_BLOCKS + 1u)  // cycle guard, like err_log / err_record
 #define HANDLED_MAX 16u                            // distinct devices handled per chain
 
 static sys_device_action_runner_f s_run_action;

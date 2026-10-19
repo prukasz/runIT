@@ -71,7 +71,7 @@ void sys_log_get(sys_log_cfg_t* out);
 /** @brief send_errors in force: the error sink asks before it sends a record. */
 bool sys_log_send_errors(void);
 
-/** @brief The largest error record kept (and sent on the errors stream): longer ones are cut by router_err_record to this. */
+/** @brief The largest error record kept (and sent on the errors stream): longer ones are cut by err_record to this. */
 #define SYS_LOG_RECORD_MAX 192u
 
 /**

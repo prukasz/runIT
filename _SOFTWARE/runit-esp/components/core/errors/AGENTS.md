@@ -18,13 +18,12 @@ Spec: `ERRORS.MD` (this folder).
 - Pool exhaustion behavior:
   - `ERR_NEW` returns the static `ERR_POOL_EMPTY` node when the pool is exhausted.
   - `ERR_WRAP` returns `cause` unchanged when the pool is exhausted.
-  - Therefore, node severity is passed into the constructor and never mutated on the returned node.
-- Severity calculation:
-  - `err_chain_sev(chain)` walks from the outermost node inward. Nodes with default severity contribute their tag's default severity (highest wins).
-  - The first node encountered with an explicitly set severity contributes that severity and stops the walk, acting as that level's final verdict on deeper causes.
+- Severity:
+  - A tag has one severity, in its map; a node stores none. `err_chain_sev(chain)` is the highest of the chain's nodes. A severity that must differ is a different tag.
+  - The error record does not send severities: the app reads them from `errors.json`.
 - Reporting and Sinks:
   - `err_report` / `err_report_ex` logs the chain, forwards it to the registered `err_sink_f` (set at boot by the application), and frees the chain.
   - Code on the reporting path (connector task, logging capture) must never call `err_report` (to avoid recursion loops); use `err_log` and `err_free` instead.
-- Wire serialization:
-  - `err_encode` formats a chain as: `[count u8, bit 7 = truncated]` followed by per-node `[tag u32 LE][sev u8][len u8][payload len B]`.
-
+- Error record:
+  - `err_record` (ERRORS.MD "Error record") is wire format: the router's ERROR answer, the errors stream and the kept history. `ERR_RECORD_*`, `err_record_src_e` and the header layout are published (`enums.json`); a change needs `sh templates/sync.sh` and the app's decoder (`runit-app/src/backend/protocol/errors.ts`) and `router_link.py` in step.
+  - `errors` has no dependency beyond `utils` and libc: `err_cmd_t` is the command as plain bytes, filled by the router; nothing here includes a router or transport header.

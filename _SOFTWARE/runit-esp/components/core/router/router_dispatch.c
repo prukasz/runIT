@@ -17,7 +17,7 @@ _Static_assert(CONFIG_ROUTER_URGENT_QUEUE_SIZE % 4 == 0, "ROUTER_URGENT_QUEUE_SI
 
 // What a router task is routing: the command, its link and that task's response buffer (router_answer_part).
 typedef struct {
-  const router_cmd_t* cmd;
+  const err_cmd_t* cmd;
   const router_link_t* link;
   uint8_t* resp;
 } route_t;
@@ -72,8 +72,8 @@ static uint32_t link_cap(const router_link_t* link, uint32_t buf_size) {
  * ------------------------------------------------------------------------- */
 
 // The command a frame of `len` bytes describes; short frames give what they have.
-static router_cmd_t frame_cmd(uint8_t link_id, const uint8_t* frame, uint32_t len) {
-  return (router_cmd_t){
+static err_cmd_t frame_cmd(uint8_t link_id, const uint8_t* frame, uint32_t len) {
+  return (err_cmd_t){
       .req = len > REQ_HDR_BYTES ? frame + REQ_HDR_BYTES : NULL,
       .req_len = len > REQ_HDR_BYTES ? len - REQ_HDR_BYTES : 0,
       .link = link_id,
@@ -84,11 +84,11 @@ static router_cmd_t frame_cmd(uint8_t link_id, const uint8_t* frame, uint32_t le
 
 /* Ends a command's chain: logged with the command ("cmd uart seq 7 flags 00
  * req 02 02 00") and handed to the error sink with the command as origin. */
-static void report_cmd_error(const router_link_t* link, const router_cmd_t* cmd, err_h err) {
-  char ctx[48 + 3 * CONFIG_ROUTER_ERR_REQ_MAX + 4];
+static void report_cmd_error(const router_link_t* link, const err_cmd_t* cmd, err_h err) {
+  char ctx[48 + 3 * CONFIG_ERRORS_RECORD_REQ_MAX + 4];
   int pos = snprintf(ctx, sizeof(ctx), "cmd %s seq %u flags %02x req", link->name != NULL ? link->name : "?",
                      cmd->seq, cmd->flags);
-  uint32_t shown = cmd->req_len < CONFIG_ROUTER_ERR_REQ_MAX ? cmd->req_len : CONFIG_ROUTER_ERR_REQ_MAX;
+  uint32_t shown = cmd->req_len < CONFIG_ERRORS_RECORD_REQ_MAX ? cmd->req_len : CONFIG_ERRORS_RECORD_REQ_MAX;
   for (uint32_t i = 0; i < shown && pos > 0 && (size_t)pos < sizeof(ctx); i++) {
     pos += snprintf(ctx + pos, sizeof(ctx) - pos, " %02x", cmd->req[i]);
   }
@@ -100,13 +100,13 @@ static void report_cmd_error(const router_link_t* link, const router_cmd_t* cmd,
 
 /* Builds [stream][seq][status][data] in `resp` (data already after the header
  * when OK; the error record when `err`), sends it and reports `err`. */
-static void answer(const router_link_t* link, const router_cmd_t* cmd, err_h err, uint8_t* resp, uint32_t cap,
+static void answer(const router_link_t* link, const err_cmd_t* cmd, err_h err, uint8_t* resp, uint32_t cap,
                    uint32_t data_len) {
   resp[0] = CONFIG_ROUTER_RESPONSE_STREAM;
   resp[1] = cmd->seq;
   resp[2] = err != NULL ? ROUTER_STATUS_ERROR : ROUTER_STATUS_OK;
   if (err != NULL) {
-    data_len = router_err_record(cmd, err, resp + RESP_HDR_BYTES, cap - RESP_HDR_BYTES);
+    data_len = err_record(cmd, err, resp + RESP_HDR_BYTES, cap - RESP_HDR_BYTES);
   }
   if (link->send != NULL) {
     err_report(link->send(resp, RESP_HDR_BYTES + data_len));
@@ -150,7 +150,7 @@ static bool enqueue(bool urgent, uint8_t link_id, const uint8_t* head, uint32_t 
 /* A frame that was not queued: answered when it has a seq to answer to, and
  * reported with its command. */
 static void reject(const router_link_t* link, uint8_t link_id, const uint8_t* frame, uint32_t len, err_h err) {
-  const router_cmd_t cmd = frame_cmd(link_id, frame, len);
+  const err_cmd_t cmd = frame_cmd(link_id, frame, len);
   if (len == 0) {
     report_cmd_error(link, &cmd, err);
     return;
@@ -200,7 +200,7 @@ void router_set_tap(const router_tap_t* tap) {
   s_tap = tap;
 }
 
-const router_cmd_t* router_origin(void) {
+const err_cmd_t* router_origin(void) {
   return s_route != NULL ? s_route->cmd : NULL;
 }
 
@@ -237,7 +237,7 @@ static void process(const uint8_t* item, size_t size, uint8_t* resp) {
   uint32_t len = (uint32_t)(size - 1);
   const router_link_t* link = link_get(link_id);  // links are never removed
 
-  const router_cmd_t cmd = frame_cmd(link_id, frame, len);
+  const err_cmd_t cmd = frame_cmd(link_id, frame, len);
   uint32_t cap = link_cap(link, CONFIG_ROUTER_FRAME_MAX);
   uint32_t data_len = 0;
   err_h err = NULL;

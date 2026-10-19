@@ -219,7 +219,7 @@ err_h sys_actions_request(uint32_t id, bool urgent) {
  * ------------------------------------------------------------------------- */
 
 // Frames a recording keeps: not the sys key, not the actions ops other than RUN / RUN_ALL.
-static bool recordable(const router_cmd_t* cmd) {
+static bool recordable(const err_cmd_t* cmd) {
   uint8_t key = cmd->req[0];  // the dispatcher routes only frames with a root key
   if (key == ROUTER_KEY_SYS) {
     return false;
@@ -249,7 +249,7 @@ static void record_append(const uint8_t* req, uint32_t len) {
 }
 
 // Keeps the frame when it comes from the client being recorded and the recording is in mode `execute`.
-static bool record_frame(const router_cmd_t* cmd, bool execute) {
+static bool record_frame(const err_cmd_t* cmd, bool execute) {
   LOCK();
   const bool mine = s_session.kind == SESSION_RECORD && s_session.execute == execute && s_session.link == cmd->link;
   if (mine) {
@@ -260,12 +260,12 @@ static bool record_frame(const router_cmd_t* cmd, bool execute) {
 }
 
 // Recording without execute: the client's frames are kept and answered OK, not run.
-static bool tap_take(const router_cmd_t* cmd) {
+static bool tap_take(const err_cmd_t* cmd) {
   return s_recording && recordable(cmd) && record_frame(cmd, false);
 }
 
 // Recording with execute: the client's frames that succeeded are kept.
-static void tap_seen(const router_cmd_t* cmd, err_h result) {
+static void tap_seen(const err_cmd_t* cmd, err_h result) {
   if (s_recording && result == NULL && recordable(cmd)) {
     (void)record_frame(cmd, true);
   }

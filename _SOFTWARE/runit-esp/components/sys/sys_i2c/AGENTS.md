@@ -7,6 +7,6 @@ Spec: `SYS_I2C.MD` (this folder).
 - Changing an op, a layout, the error map, an enum or `contract_i2c.json` requires an update in `templates/`: run `sh templates/sync.sh` (regenerates `enums.json` / `errors.json`, refreshes `runit-app/generated/`, validates). Commit with `--check` green. Every `struct` name in the descriptor must be a C type of `sys_i2c_router.h` or `sys_i2c.h`.
 - The remote ops touch a bus only through `check_remote_bus` (INFO reports every bus and is exempt). Scan, reset and raw use `CONFIG_SYS_I2C_REMOTE_BUS` only.
 - Raw access never reaches a chip a driver owns: it goes through a temporary device, so `dev_add` must keep refusing an address that is already added.
-- Errors carry `bus` and `addr`; the owner adds its own context on top. Change a severity only where the caller wraps (`ERR_WRAP_SEV`).
+- Errors carry `bus` and `addr`; the owner adds its own context on top. A severity is the tag's; a caller that expects a failure frees it instead of reporting it.
 - The bus layer takes no lock of its own across transfers. Serialisation of a chip's sequence is the device registry's (SYS_DEVICE.MD "Concurrency").
 - Nothing resets a bus automatically. A new caller of `sys_i2c_bus_reset` says where it runs and why.

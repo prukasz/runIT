@@ -1,4 +1,4 @@
-#include "err_pool.h"
+#include "err_internal.h"
 
 #include "utils.h"
 

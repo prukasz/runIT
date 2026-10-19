@@ -148,7 +148,7 @@ Unread errors also mark what they are about where it is listed: a device row in 
 | Variables: the six element types, array / retained / protected / constant, folders, references, the name limit, what the engine refuses | `@engine` `Variable`, `VALUE_TYPES`, `NAME_MAX`, `checkVariables` |
 | Devices: the catalog (label, tags, contracts, config fields, pin labels and modes), the project's devices with an id, a name, system and suspended | `bundledServiceCatalog()` and `generated/devices` |
 | Blocks: instances and their input / enable / output pins | the compile result and `bundledBlockTypes()` |
-| Errors: message, where, the chain, what each ref points at (device, pin, block pin, variable) | records captured from a board (`design/board-errors.json`) read by `ErrorInterpreter` with `programRefs` and `deviceRefs` |
+| Errors: message, where, the chain, what each ref points at (device, pin, block pin, variable) | records captured from a board (`design/board-errors.json`, by `tests/hardware/kit-capture.hw.test.ts`; `tests/backend/errors.test.ts` holds them to the current record format) read by `ErrorInterpreter` with `programRefs` and `deviceRefs` |
 | Link, dead-man, safe state | `LinkState`, `DeadMan`, `leaveSafeState` (BACKEND.md) |
 
 `npm run kit` rebuilds `design/kit-data.js` from those (`design/build-kit.mjs`; the sample project is `design/sample.ts`). The captured records are made again from a board with `KIT_CAPTURE=1 npm run test:hw` (`tests/hardware/kit-capture.hw.test.ts`). A part's tile carries the key of what it shows (`device:1/pin:22`, `block:e/input:1`, `variable:x`), the same key an error's ref has (`refKey`): that is how an error marks the tiles it is about.

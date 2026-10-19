@@ -1,12 +1,12 @@
 import type { ErrorField, ErrorInfo, LinkDefinitions } from '../definitions'
 
 /*
- * The error record of an ERROR answer, and of every record on the errors stream (ROUTER.MD "Error record"):
+ * The error record of an ERROR answer, and of every record on the errors stream (ERRORS.MD "Error record"):
  *
  *   [src u8]   0 internal (no request), 1 command
  *   [time u64 LE]  the board's clock (UTC ms) when it was reported; before 2020 the clock was never set: a time since the start
  *   src 1: [link u8][seq u8][flags u8][req_len u8: bits 0-6 length, bit 7 cut][request]
- *   [chain]    [count u8: bits 0-6, bit 7 cut] then per node [tag u32][severity u8][len u8][payload]
+ *   [chain]    [count u8: bits 0-6, bit 7 cut] then per node [tag u32][len u8][payload]; a node's severity is its tag's (errors.json)
  *
  * The chain starts with the route (one `ERR_ROUTER_KEY` per level) and ends with the root cause.
  */
@@ -85,15 +85,15 @@ export const decodeErrorRecord = (defs: LinkDefinitions, data: Uint8Array, catal
   const countByte = data[at++]!
   const chain: ErrorNode[] = []
   for (let i = 0; i < (countByte & 0x7f); i++) {
-    if (data.length < at + 6) return undefined
+    if (data.length < at + 5) return undefined
     const tag = view.getUint32(at, true)
-    const severity = data[at + 4]!
-    const length = data[at + 5]!
-    at += 6
+    const length = data[at + 4]!
+    at += 5
     if (data.length < at + length) return undefined
     const payload = data.slice(at, at + length)
     at += length
     const info = catalog?.get(tag)
+    const severity = info?.severity ?? 0
     chain.push({ tag, severity, payload, ...(info ? { info, fields: fieldsOf(info, payload) } : {}) })
   }
   const cause = chain.at(-1)

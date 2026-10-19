@@ -9,8 +9,9 @@
 extern "C" {
 #endif
 
-/* Remote commands: links, the dispatcher and the tree of module routers. Wire format, error record, dispatcher and
- * watch: ROUTER.MD. The handler type, cmd_reply and ERR_CMD_* are cmd.h's. */
+/* Remote commands: links, the dispatcher and the tree of module routers. Wire format, dispatcher and watch:
+ * ROUTER.MD. The handler type, cmd_reply and ERR_CMD_* are cmd.h's; a command as an error names it (err_cmd_t) and
+ * the error record are errors.h's. */
 
 //#ref-defines router_flag @alias Request Flags @prefix ROUTER_FLAG_
 #define ROUTER_FLAG_URGENT 0x01u  //@alias Urgent @description Run on the urgent task, next to (not behind) normal frames
@@ -38,36 +39,6 @@ typedef enum {
 // clang-format on
 
 ERR_TAGS_DECLARE(ERR_ROUTER_MAP)
-
-/* ----------------------------------------------------------------------------
- * Error record (ROUTER.MD "Error record")
- * ------------------------------------------------------------------------- */
-
-//#ref-enum @alias Error Record Source
-typedef enum {
-  ROUTER_ERR_SRC_INTERNAL = 0,  //@alias Internal @description No request (task, timer, boot); later device ID/task may follow
-  ROUTER_ERR_SRC_COMMAND = 1,  //@alias Command @description Raised while running a command
-} router_err_src_e;
-
-//#ref-defines router_err_flag @alias Error Record Flags @prefix ROUTER_ERR_
-#define ROUTER_ERR_REQ_CUT 0x80u  //@alias Request cut @description Bit 7 of request length: request was cut to fit, more was sent
-#define ROUTER_ERR_STAMP_BYTES 8u  //@alias Time stamp bytes @description The u64 LE UTC time in ms (the board's clock) right after the source byte; counts from the start while no client has set the clock (before 2020: not a date)
-
-/** The command an error belongs to. */
-typedef struct {
-  const uint8_t* req;  // keys + payload (frame without seq / flags), may be NULL when req_len is 0
-  uint32_t req_len;
-  uint8_t link;
-  uint8_t seq;
-  uint8_t flags;
-} router_cmd_t;
-
-/**
- * @brief Encodes an error record into `buf`.
- * @param cmd The command, or NULL for an internal error (src INTERNAL).
- * @return Bytes written (0 only when cap is too small for the header).
- */
-uint32_t router_err_record(const router_cmd_t* cmd, err_h err, uint8_t* buf, uint32_t cap);
 
 /* ----------------------------------------------------------------------------
  * Routing
@@ -193,16 +164,16 @@ MUST_USE err_h router_inject(const uint8_t* req, uint32_t len, bool urgent);
 /** Sees every frame the dispatcher routes (every link, also the internal one), on the routing task. */
 typedef struct {
   /** Before routing. true = taken: answered OK with no data and not routed. */
-  bool (*take)(const router_cmd_t* cmd);
+  bool (*take)(const err_cmd_t* cmd);
   /** After routing a frame that wasn't taken. `result` is borrowed. */
-  void (*seen)(const router_cmd_t* cmd, err_h result);
+  void (*seen)(const err_cmd_t* cmd, err_h result);
 } router_tap_t;
 
 /** @brief Sets the tap (one; NULL removes it). Boot only. */
 void router_set_tap(const router_tap_t* tap);
 
 /** @brief The command the calling task is routing; NULL outside the router tasks. Inside a replay: the outer one. */
-const router_cmd_t* router_origin(void);
+const err_cmd_t* router_origin(void);
 
 /**
  * @brief Sends the first `len` bytes of the calling op's `out` as an extra OK answer (same seq and link) before the

@@ -75,7 +75,7 @@ function PolicyCard({ device, state }: { device: DeviceInfo; state: DevicesState
   const policy = policyOf(device, state)
   const enums = bundledEnums()
   const importance = (enums.sys_device_importance_e?.members ?? []).map((m): Choice<number> => ({ value: m.value, label: m.alias ?? m.name, ...(m.description ? { description: m.description } : {}) }))
-  // The four levels a policy answers: LOW to CRITICAL (`ERR_SEV_DEFAULT` is a tag of an error, not a level).
+  // The four levels a policy answers: LOW to CRITICAL (NONE marks a context node, not a failure).
   const severities = (enums.err_sev_e?.members ?? []).filter((m) => /^ERR_SEV_(LOW|MEDIUM|HIGH|CRITICAL)$/.test(m.name))
   const admitted = admittedSeverities(policy.importance, severities)
   // The actions a severity can run: the project's, and the firmware's own (suspend all, reset all, ...), each under its origin.

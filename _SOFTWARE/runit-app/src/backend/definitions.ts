@@ -27,7 +27,7 @@ export interface LinkDefinitions {
   readonly flags: { readonly urgent: number }
   readonly gatt: { readonly service: number; readonly tx: number; readonly rx: number; readonly logs: number; readonly status: number }
   readonly frag: { readonly last: number; readonly first: number; readonly countMask: number }
-  /** The error record's header (ROUTER.MD "Error record"). */
+  /** The error record's header (ERRORS.MD "Error record"). */
   readonly errorRecord: { readonly srcInternal: number; readonly srcCommand: number; readonly requestCut: number; readonly stampBytes: number }
   /** The ops of the `actions` and `project` routers by command id (`RUN`, `BEGIN`, ...): `generated/services/contract_*.json`. */
   readonly ops: { readonly actions: Readonly<Record<string, number>>; readonly project: Readonly<Record<string, number>> }
@@ -82,10 +82,10 @@ export const linkDefinitions = (
       countMask: value(enums, 'ble_frag', 'SYS_BLE_FRAG_COUNT_MASK'),
     },
     errorRecord: {
-      srcInternal: value(enums, 'router_err_src_e', 'ROUTER_ERR_SRC_INTERNAL'),
-      srcCommand: value(enums, 'router_err_src_e', 'ROUTER_ERR_SRC_COMMAND'),
-      requestCut: value(enums, 'router_err_flag', 'ROUTER_ERR_REQ_CUT'),
-      stampBytes: value(enums, 'router_err_flag', 'ROUTER_ERR_STAMP_BYTES'),
+      srcInternal: value(enums, 'err_record_src_e', 'ERR_RECORD_SRC_INTERNAL'),
+      srcCommand: value(enums, 'err_record_src_e', 'ERR_RECORD_SRC_COMMAND'),
+      requestCut: value(enums, 'err_record_flag', 'ERR_RECORD_REQ_CUT'),
+      stampBytes: value(enums, 'err_record_flag', 'ERR_RECORD_STAMP_BYTES'),
     },
     ops: { actions: opsOf(contracts.actions), project: opsOf(contracts.project) },
     frameMax,

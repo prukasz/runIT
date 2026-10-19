@@ -25,14 +25,14 @@ const payload = (name: string, values: Record<string, number> = {}): number[] =>
   return out
 }
 
-/** An error record (ROUTER.MD "Error record"): a command's when `request` is given, else an internal one. */
+/** An error record (ERRORS.MD "Error record"): a command's when `request` is given, else an internal one. */
 const record = (nodes: [string, Record<string, number>?][], request?: number[], seq = 7, time = 0): Uint8Array => {
   const stamp = [...u32(time), ...u32(0)]  // u64 LE
   const head = request ? [defs.errorRecord.srcCommand, ...stamp, 1, seq, 0, request.length, ...request] : [defs.errorRecord.srcInternal, ...stamp]
   const chain = nodes.flatMap(([name, values]) => {
     const info = catalog.get(tagOf(name))!
     const p = payload(name, values)
-    return [...u32(info.tag), info.severity, p.length, ...p]
+    return [...u32(info.tag), p.length, ...p]
   })
   return Uint8Array.from([...head, nodes.length, ...chain])
 }
@@ -103,7 +103,7 @@ describe('reading an error', () => {
   })
 
   it('a tag errors.json does not have keeps its number', () => {
-    const report = interpreter.read(Uint8Array.from([defs.errorRecord.srcInternal, ...u32(0), ...u32(0), 1, ...u32(0x7fff0001), 3, 0]))!
+    const report = interpreter.read(Uint8Array.from([defs.errorRecord.srcInternal, ...u32(0), ...u32(0), 1, ...u32(0x7fff0001), 0]))!
     expect(report.cause).toMatchObject({ known: false, name: '0x7FFF0001', message: 'Error 0x7FFF0001' })
   })
 })
@@ -226,3 +226,16 @@ describe('the error log', () => {
 // the report is plain data an app can keep
 const _typed: (r: ErrorReport) => string = (r) => r.message
 void _typed
+
+describe('the UI kit\'s errors (design/board-errors.json)', () => {
+  it('are records in the board\'s format: every one is read whole, each node a tag errors.json has', async () => {
+    const { readFileSync } = await import('node:fs')
+    const samples = JSON.parse(readFileSync(new URL('../../design/board-errors.json', import.meta.url), 'utf8')) as { id: string; hex: string }[]
+    const interpreter = new ErrorInterpreter({})
+    for (const s of samples) {
+      const report = interpreter.read(Uint8Array.from(Buffer.from(s.hex, 'hex')))
+      expect(report, s.id).toBeDefined()
+      expect(report!.chain.every((n) => n.known), s.id).toBe(true)
+    }
+  })
+})

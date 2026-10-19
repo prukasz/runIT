@@ -1,6 +1,6 @@
 
 
-#include "errors.h"
+#include "err_internal.h"
 #include "esp_log.h"
 
 #define TAG __FILE_NAME__
@@ -36,15 +36,10 @@ static void format_node(char* line, uint32_t index, err_h e) {
 
   append(line, &pos, "[%lu] ", (unsigned long)index);
   if (info != NULL) {
-    append(line, &pos, "%s (%s.%u) %s", info->name, module->name, ERR_CODE(e->tag), sev_name(err_sev(e)));
+    append(line, &pos, "%s (%s.%u) %s", info->name, module->name, ERR_CODE(e->tag), sev_name(info->sev));
   } else {
-    append(line, &pos, "unknown tag 0x%08lx %s", (unsigned long)e->tag, sev_name(err_sev(e)));
+    append(line, &pos, "unknown tag 0x%08lx", (unsigned long)e->tag);
   }
-  // Severity set at creation: show what the tag alone would have been.
-  if (e->sev != ERR_SEV_DEFAULT) {
-    append(line, &pos, " (default %s)", info != NULL ? sev_name(info->sev) : "?");
-  }
-
   // Payload: core ESP-IDF errors by name, everything else in hex.
   if (e->tag == ERR_ESP_ERR) {
     esp_err_t code = ERR_DATA(e, ERR_ESP_ERR)->code;

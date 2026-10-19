@@ -10,7 +10,6 @@ Component `components/core/router/`. Every remote command (phone, test host, int
 | `router_ids.h` | Root keys (`ROUTER_KEY_*`) |
 | `router.c` | Root table, `router_route`, `router_call` / `router_args` / `router_args_tail` (op macros in `router.h`) |
 | `router_dispatch.c` | Links, `router_submit`, urgent + work tasks, responses, tap, watch |
-| `router_err.c` | `router_err_record` — error record (request + chain) |
 | `Kconfig` | Frame size, response stream byte, table sizes, queues, task prio/stack |
 | `AGENTS.md` | Rules for changing this folder |
 
@@ -23,41 +22,8 @@ response  [0x05][seq][status][data]        (CONFIG_ROUTER_RESPONSE_STREAM)
 
 - `seq`: client's counter, echoed; the client matches answers by it (answers may come out of order — urgent frames overtake).
 - `flags` bit 0 `ROUTER_FLAG_URGENT`: the app decides what is urgent; the firmware has no fixed list.
-- `status` 0 OK: `data` = router output (may be empty). 1 error: `data` = the **error record** (below): the request and its error chain together, so a captured or stored error is self-contained.
+- `status` 0 OK: `data` = router output (may be empty). 1 error: `data` = the **error record** (ERRORS.MD "Error record"): the request and its error chain together, so a captured or stored error is self-contained. Its command header is the frame's `err_cmd_t` (`errors.h`), which the dispatcher fills.
 - Payloads are packed little-endian structs, size checked exactly (`router_args`).
-
-## Error record
-
-`router_err_record(cmd, err, buf, cap)` (`router_err.c`). Used for every error response and, through the error sink in `runit` (RUNIT.MD), for every record on the errors stream (SYS_CONNECTOR.MD).
-
-```
-[src u8]                                    0 internal (no request), 1 command
-[unix_ms u64 LE]                            the board's clock when it was reported (ROUTER_ERR_STAMP_BYTES); before 2020: not a date, a time since the start
-src 1: [link u8][seq u8][flags u8]               (after the stamp)
-       [req_len u8]  bits 0-6 = request bytes that follow, bit 7 = request cut
-       [request]     keys + payload as received (no seq / flags)
-[chain]                                     err_encode(): [count|bit7 cut] then [tag u32][sev][len][payload] per node
-```
-
-- The request is cut to `CONFIG_ROUTER_ERR_REQ_MAX` (32) bytes, and further when the link's frame is small; the chain gets the rest (its own truncated bit).
-- The chain starts with the route (`ERR_ROUTER_KEY{key}` per level, NONE severity) and ends with the root cause, so it shows how far routing got; the request shows what was asked.
-- Command errors end in `err_report_ex(err, ctx_line, &cmd)`: the log gets a context line before the chain (`cmd uart seq 7 flags 00 req 02 02 00`) and the sink gets the command as origin, so the errors stream carries the same record as the response.
-- `src 0` (internal: device task, timer, boot) has no command header.
-
-Example — scan of bus 0 (only bus 1 is open):
-
-```
-request   07 00 | 02 02 00                           seq 7, normal, i2c SCAN bus 0
-response  05 07 01                                   stream, seq, ERROR
-          01 | 00 00 00 00 00 00 00 00                   command; clock not set (time since the start, here 0)
-          01 | 07 | 00                                UART, seq 7, flags 0
-          03 | 02 02 00                               request: 3 B
-          03                                          chain: 3 nodes
-          01 00 02 00 00 01 02                        ERR_ROUTER_KEY        NONE  key 02 (i2c)
-          01 00 02 00 00 01 02                        ERR_ROUTER_KEY        NONE  key 02 (SCAN)
-          10 00 01 00 02 01 00                        ERR_I2C_REMOTE_DENIED MEDIUM bus 0
-UART      #R:0507010100000000000000000107000302020003010002000001020100020000010210000100020100
-```
 
 ## Routing
 
@@ -143,7 +109,6 @@ Payload errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG` belong to `ERR_MOD_CMD
 - `CONFIG_ROUTER_MAX_KEYS` (default 16): maximum registered root keys.
 - `CONFIG_ROUTER_MAX_LINKS` (default 4): maximum registered transport links (IDs 1..4).
 - Inbound ring buffers: `CONFIG_ROUTER_WORK_QUEUE_SIZE` (default 4 KB) and `CONFIG_ROUTER_URGENT_QUEUE_SIZE` (default 1 KB).
-- Error request truncation: `CONFIG_ROUTER_ERR_REQ_MAX` (default 32 bytes).
 - Concurrency: urgent task (priority 15) and work task (priority 5) run concurrently; module routers must be thread-safe.
 
 ## Tests

@@ -469,6 +469,12 @@ window.KIT = {
       "label": "Reversed shunts",
       "rawType": "u8",
       "pin": false
+     },
+     {
+      "id": "shunt_mohm",
+      "label": "Shunt resistance",
+      "rawType": "u16",
+      "pin": false
      }
     ]
    },

@@ -1,6 +1,6 @@
 
 
-#include "errors.h"
+#include "err_internal.h"
 
 // Filled by the ERR_MODULE_DEFINE constructors before app_main, read-only
 // after that - no lock needed.

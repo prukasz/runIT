@@ -171,7 +171,7 @@
       "returns": {
         "type": "bytes",
         "label": "Record",
-        "description": "u8 total kept, then the error record (ROUTER.MD \"Error record\"); only the total for an index past the end."
+        "description": "u8 total kept, then the error record (ERRORS.MD \"Error record\"); only the total for an index past the end."
       }
     }
   ]

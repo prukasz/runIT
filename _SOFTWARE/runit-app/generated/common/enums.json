@@ -292,6 +292,45 @@
         }
       ]
     },
+    "err_record_flag": {
+      "alias": "Error Record Flags",
+      "kind": "defines",
+      "prefix": "ERR_RECORD_",
+      "source_file": "runit-esp/components/core/errors/errors.h",
+      "members": [
+        {
+          "name": "ERR_RECORD_REQ_CUT",
+          "value": 128,
+          "alias": "Request cut",
+          "description": "Bit 7 of request length: request was cut to fit, more was sent"
+        },
+        {
+          "name": "ERR_RECORD_STAMP_BYTES",
+          "value": 8,
+          "alias": "Time stamp bytes",
+          "description": "The u64 LE UTC time in ms (the board's clock) right after the source byte; counts from the start while no client has set the clock (before 2020: not a date)"
+        }
+      ]
+    },
+    "err_record_src_e": {
+      "alias": "Error Record Source",
+      "kind": "enum",
+      "source_file": "runit-esp/components/core/errors/errors.h",
+      "members": [
+        {
+          "name": "ERR_RECORD_SRC_INTERNAL",
+          "value": 0,
+          "alias": "Internal",
+          "description": "No request (task, timer, boot); later device ID/task may follow"
+        },
+        {
+          "name": "ERR_RECORD_SRC_COMMAND",
+          "value": 1,
+          "alias": "Command",
+          "description": "Raised while running a command"
+        }
+      ]
+    },
     "err_sev_e": {
       "alias": "Error Severity",
       "kind": "enum",
@@ -326,12 +365,6 @@
           "value": 4,
           "alias": "Critical",
           "description": "The board must be made safe"
-        },
-        {
-          "name": "ERR_SEV_DEFAULT",
-          "value": 255,
-          "alias": "Tag default",
-          "description": "The severity the error's tag declares"
         }
       ]
     },
@@ -366,45 +399,6 @@
           "value": 255,
           "alias": "Pin",
           "description": "The pin index of an unused pin"
-        }
-      ]
-    },
-    "router_err_flag": {
-      "alias": "Error Record Flags",
-      "kind": "defines",
-      "prefix": "ROUTER_ERR_",
-      "source_file": "runit-esp/components/core/router/router.h",
-      "members": [
-        {
-          "name": "ROUTER_ERR_REQ_CUT",
-          "value": 128,
-          "alias": "Request cut",
-          "description": "Bit 7 of request length: request was cut to fit, more was sent"
-        },
-        {
-          "name": "ROUTER_ERR_STAMP_BYTES",
-          "value": 8,
-          "alias": "Time stamp bytes",
-          "description": "The u64 LE UTC time in ms (the board's clock) right after the source byte; counts from the start while no client has set the clock (before 2020: not a date)"
-        }
-      ]
-    },
-    "router_err_src_e": {
-      "alias": "Error Record Source",
-      "kind": "enum",
-      "source_file": "runit-esp/components/core/router/router.h",
-      "members": [
-        {
-          "name": "ROUTER_ERR_SRC_INTERNAL",
-          "value": 0,
-          "alias": "Internal",
-          "description": "No request (task, timer, boot); later device ID/task may follow"
-        },
-        {
-          "name": "ROUTER_ERR_SRC_COMMAND",
-          "value": 1,
-          "alias": "Command",
-          "description": "Raised while running a command"
         }
       ]
     },
@@ -2046,16 +2040,15 @@
     "DEVICE_ID_TPS55289_2": "board_device",
     "DRV8962_TOPOLOGY_2_FULL_BRIDGES": "drv8962_topology_e",
     "DRV8962_TOPOLOGY_4_HALF_BRIDGES": "drv8962_topology_e",
+    "ERR_RECORD_REQ_CUT": "err_record_flag",
+    "ERR_RECORD_SRC_COMMAND": "err_record_src_e",
+    "ERR_RECORD_SRC_INTERNAL": "err_record_src_e",
+    "ERR_RECORD_STAMP_BYTES": "err_record_flag",
     "ERR_SEV_CRITICAL": "err_sev_e",
-    "ERR_SEV_DEFAULT": "err_sev_e",
     "ERR_SEV_HIGH": "err_sev_e",
     "ERR_SEV_LOW": "err_sev_e",
     "ERR_SEV_MEDIUM": "err_sev_e",
     "ERR_SEV_NONE": "err_sev_e",
-    "ROUTER_ERR_REQ_CUT": "router_err_flag",
-    "ROUTER_ERR_SRC_COMMAND": "router_err_src_e",
-    "ROUTER_ERR_SRC_INTERNAL": "router_err_src_e",
-    "ROUTER_ERR_STAMP_BYTES": "router_err_flag",
     "ROUTER_FLAG_URGENT": "router_flag",
     "ROUTER_KEY_ACTIONS": "router_key",
     "ROUTER_KEY_BLE": "router_key",

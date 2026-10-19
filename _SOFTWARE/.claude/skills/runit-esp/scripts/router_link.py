@@ -36,17 +36,17 @@ TRANSPORT_UART, TRANSPORT_BLE = 1, 2
 SEV_NAMES = ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
 
 
-def load_tags() -> dict[int, str]:
-    """tag value -> name, from err_modules.h and every ERR_*_MAP in runit-esp/components/."""
+def load_tags() -> dict[int, tuple[str, int]]:
+    """tag value -> (name, severity), from err_modules.h and every ERR_*_MAP in runit-esp/components/."""
     mods = {}
     for m in re.finditer(r"#define\s+(ERR_MOD_\w+)\s+(\d+)u", (ESP / "components/core/errors/err_modules.h").read_text()):
         mods[m.group(1)] = int(m.group(2))
     tags = {}
-    pat = re.compile(r"X\(\s*(ERR_\w+)\s*,\s*ERR_TAG\(\s*(ERR_MOD_\w+)\s*,\s*(\d+)\s*\)")
+    pat = re.compile(r"X\(\s*(ERR_\w+)\s*,\s*ERR_TAG\(\s*(ERR_MOD_\w+)\s*,\s*(\d+)\s*\)\s*,\s*ERR_SEV_(\w+)")
     for h in (ESP / "components").rglob("*.h"):
         for m in pat.finditer(h.read_text(errors="ignore")):
             if m.group(2) in mods:
-                tags[(mods[m.group(2)] << 16) | int(m.group(3))] = m.group(1)
+                tags[(mods[m.group(2)] << 16) | int(m.group(3))] = (m.group(1), SEV_NAMES.index(m.group(4)))
     return tags
 
 
@@ -56,21 +56,24 @@ TAGS = load_tags()
 @dataclass
 class Node:
     tag: int
-    sev: int
     data: bytes
 
     @property
     def name(self) -> str:
-        return TAGS.get(self.tag, f"0x{self.tag:08x}")
+        return TAGS[self.tag][0] if self.tag in TAGS else f"0x{self.tag:08x}"
+
+    @property
+    def sev(self) -> int:
+        """The tag's severity (its ERR_*_MAP); NONE for an unknown tag."""
+        return TAGS[self.tag][1] if self.tag in TAGS else 0
 
     def __str__(self) -> str:
-        sev = SEV_NAMES[self.sev] if self.sev < len(SEV_NAMES) else str(self.sev)
-        return f"{self.name} {sev} {self.data.hex(' ')}".rstrip()
+        return f"{self.name} {SEV_NAMES[self.sev]} {self.data.hex(' ')}".rstrip()
 
 
 @dataclass
 class Record:
-    """router_err_record(): request (if any) + error chain."""
+    """err_record(): request (if any) + error chain."""
 
     src: int
     time_ms: int = 0  # the board's clock when it reported (UTC; before 2020: since the start)
@@ -105,9 +108,9 @@ def decode_chain(b: bytes) -> tuple[list[Node], bool]:
     count, cut = b[0] & 0x7F, bool(b[0] & 0x80)
     nodes, pos = [], 1
     for _ in range(count):
-        tag, sev, ln = struct.unpack_from("<IBB", b, pos)
-        pos += 6
-        nodes.append(Node(tag, sev, b[pos : pos + ln]))
+        tag, ln = struct.unpack_from("<IB", b, pos)
+        pos += 5
+        nodes.append(Node(tag, b[pos : pos + ln]))
         pos += ln
     return nodes, cut
 

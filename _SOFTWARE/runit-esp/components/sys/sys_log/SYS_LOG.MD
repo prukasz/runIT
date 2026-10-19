@@ -44,7 +44,7 @@ Defaults after a reset: level `CONFIG_LOG_DEFAULT_LEVEL` (INFO), mirror on, trac
 |---|---|---|
 | `0x01` SET | `sys_log_cfg_t`: `{u8 level, mirror_serial, trace_errors, send_errors, send_logs}` (the four flags 0 / 1, else `ERR_CMD_BAD_ARG`) | – (applied at once; nothing is stored) |
 | `0x02` GET | – | `sys_log_cfg_t`: the options in force |
-| `0x03` ERRORS | `u8 index` (0 = the oldest kept) | `u8 total` kept, then that error record (ROUTER.MD "Error record"); only `total` for an index past the end |
+| `0x03` ERRORS | `u8 index` (0 = the oldest kept) | `u8 total` kept, then that error record (ERRORS.MD "Error record"); only `total` for an index past the end |
 
 Example, level 0 with the console and both connector streams on: the command `[08][01][00][01][01][01][01]` (key, op, then the five bytes). The link adds its own frame header (ROUTER.MD).
 

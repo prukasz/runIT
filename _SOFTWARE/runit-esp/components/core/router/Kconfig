@@ -75,12 +75,4 @@ menu "router"
           Runs urgent frames and the watch (router_set_watch: the safe-state
           handler on a dead-man or a lost link).
 
-    config ROUTER_ERR_REQ_MAX
-        int "Request bytes kept in an error record"
-        default 32
-        range 0 127
-        help
-          How much of the failing request (keys + payload) an error record
-          repeats. Longer requests are cut and marked.
-
 endmenu

@@ -24,11 +24,11 @@
 #define ERR_MODULE(tag) ((uint16_t)((uint32_t)(tag) >> 16))
 #define ERR_CODE(tag) ((uint16_t)(tag))
 
-// Node header: [info*] next tag sev, no padding (checked in errors.h).
+// Node header: [info*] next tag, no padding (checked in errors.h).
 #if CONFIG_ERRORS_INFO
-#define ERR_HDR_LEN 13u
+#define ERR_HDR_LEN 12u
 #else
-#define ERR_HDR_LEN 9u
+#define ERR_HDR_LEN 8u
 #endif
 
 /**
@@ -47,8 +47,9 @@
  *   ERR_TAGS_DECLARE(ERR_I2C_MAP)
  *
  * X(tag, id, severity, { payload fields }) - the payload is the last argument,
- * so field lists may contain commas. ERR_TAGS_DECLARE makes the tag enum and
- * the packed err_data_<TAG>_t types. Then, in the module's main .c file:
+ * so field lists may contain commas. The severity is the tag's wherever it is
+ * raised (err_sev). ERR_TAGS_DECLARE makes the tag enum and the packed
+ * err_data_<TAG>_t types. Then, in the module's main .c file:
  *
  *   ERR_MODULE_DEFINE(ERR_MOD_I2C, "i2c", ERR_I2C_MAP)
  *
@@ -107,17 +108,11 @@
  *
  * Every tag has a payload type named err_data_<TAG>_t (packed - it goes on the
  * wire as is; an empty struct for tags without data). The macros fill it from
- * designated initializers and check at compile time that it fits a node.
- *
- * The _SEV variants set the node's severity (err_sev_e, may be a runtime
- * value); the others leave ERR_SEV_DEFAULT. Severity is passed in, never set on
- * a returned node: with an empty pool that node is the cause or the shared
- * ERR_POOL_EMPTY one, not a new one.
+ * designated initializers; ERR_MODULE_DEFINE checks that it fits a node.
  *
  * Never return NULL for a failure: NULL means success. When the pool is empty:
  * ERR_NEW returns a static ERR_POOL_EMPTY node, ERR_WRAP returns `cause`
- * unchanged (the deeper error is kept, only this level - and its severity -
- * is lost).
+ * unchanged (the deeper error is kept, only this level is lost).
  * ------------------------------------------------------------------------- */
 
 #if CONFIG_ERRORS_INFO_FILE
@@ -144,46 +139,27 @@
 #define ERR__INFO_STORAGE static
 #endif
 #if CONFIG_ERRORS_INFO
-#define ERR__NEW(tag, sev, data, len, cause)                                                                \
-  err_new(&(ERR__INFO_STORAGE const err_info_t){ERR__INFO_FILE ERR__INFO_FUNC ERR__INFO_LINE}, (tag), (sev), (data), \
-          (len), (cause))
+#define ERR__NEW(tag, data, len, cause) \
+  err_new(&(ERR__INFO_STORAGE const err_info_t){ERR__INFO_FILE ERR__INFO_FUNC ERR__INFO_LINE}, (tag), (data), (len), (cause))
 #else
-#define ERR__NEW(tag, sev, data, len, cause) err_new((tag), (sev), (data), (len), (cause))
+#define ERR__NEW(tag, data, len, cause) err_new((tag), (data), (len), (cause))
 #endif
-
-/**
- * @brief New error wrapping `cause` (takes ownership of it), with severity
- * `sev` instead of the tag's default.
- * @usage return ERR_WRAP_SEV(err, ERR_DEV_CREATE, critical ? ERR_SEV_CRITICAL : ERR_SEV_LOW, .type = t);
- */
-#define ERR_WRAP_SEV(cause, tag, sev, ...)                                                               \
-  ({                                                                                                     \
-    _Static_assert(sizeof(err_data_##tag##_t) <= ERR_DATA_MAX, #tag " data does not fit an error node"); \
-    const err_data_##tag##_t _err_data_ = {__VA_ARGS__};                                                 \
-    ERR__NEW((tag), (sev), &_err_data_, sizeof(_err_data_), (cause));                                    \
-  })
 
 /**
  * @brief New error wrapping `cause` (takes ownership of it).
  * @usage return ERR_WRAP(err, ERR_TPS_RAIL, .rail = 1, .want_mv = mv);
  */
-#define ERR_WRAP(cause, tag, ...) ERR_WRAP_SEV(cause, tag, ERR_SEV_DEFAULT, __VA_ARGS__)
+#define ERR_WRAP(cause, tag, ...)                              \
+  ({                                                           \
+    const err_data_##tag##_t _err_data_ = {__VA_ARGS__};       \
+    ERR__NEW((tag), &_err_data_, sizeof(_err_data_), (cause)); \
+  })
 
 /**
  * @brief New root error (no cause).
  * @usage return ERR_NEW(ERR_I2C_NACK, .addr = addr, .reg = reg);
- *        return ERR_NEW_SEV(ERR_NO_MEM, ERR_SEV_CRITICAL, .size = n);
  */
-#define ERR_NEW(tag, ...) ERR_WRAP_SEV(NULL, tag, ERR_SEV_DEFAULT, __VA_ARGS__)
-#define ERR_NEW_SEV(tag, sev, ...) ERR_WRAP_SEV(NULL, tag, sev, __VA_ARGS__)
-
-/**
- * @brief Same as ERR_WRAP / ERR_NEW, with an untyped payload.
- */
-#define ERR_WRAP_RAW(cause, tag, data, len) ERR__NEW((tag), ERR_SEV_DEFAULT, (data), (len), (cause))
-#define ERR_NEW_RAW(tag, data, len) ERR__NEW((tag), ERR_SEV_DEFAULT, (data), (len), NULL)
-#define ERR_WRAP_RAW_SEV(cause, tag, sev, data, len) ERR__NEW((tag), (sev), (data), (len), (cause))
-#define ERR_NEW_RAW_SEV(tag, sev, data, len) ERR__NEW((tag), (sev), (data), (len), NULL)
+#define ERR_NEW(tag, ...) ERR_WRAP(NULL, tag, __VA_ARGS__)
 
 /**
  * @brief Typed view of a node's payload. The caller checks e->tag first.
@@ -210,49 +186,29 @@
   } while (0)
 
 /**
- * @brief Like ERR_TRY, but wraps the error with this level's node first.
- * The _SEV variant sets that node's severity.
- * @usage ERR_TRY_WRAP(set_rail(c, mv), ERR_TPS_RAIL, .rail = 1, .want_mv = mv);
- */
-#define ERR_TRY_WRAP_SEV(call, tag, sev, ...)                  \
-  do {                                                         \
-    err_h _err_try_ = (call);                                  \
-    if (_err_try_ != NULL) {                                   \
-      return ERR_WRAP_SEV(_err_try_, tag, sev, __VA_ARGS__);   \
-    }                                                          \
-  } while (0)
-#define ERR_TRY_WRAP(call, tag, ...) ERR_TRY_WRAP_SEV(call, tag, ERR_SEV_DEFAULT, __VA_ARGS__)
-
-/**
  * @brief Returns a new error from the current function when `cond` is false.
- * The _SEV variant sets its severity.
  * @usage ERR_CHECK(ch < 8, ERR_ADC_BAD_CHANNEL, .ch = ch);
  */
-#define ERR_CHECK_SEV(cond, tag, sev, ...)          \
-  do {                                              \
-    if (!(cond)) {                                  \
-      return ERR_NEW_SEV(tag, sev, __VA_ARGS__);    \
-    }                                               \
+#define ERR_CHECK(cond, tag, ...)       \
+  do {                                  \
+    if (!(cond)) {                      \
+      return ERR_NEW(tag, __VA_ARGS__); \
+    }                                   \
   } while (0)
-#define ERR_CHECK(cond, tag, ...) ERR_CHECK_SEV(cond, tag, ERR_SEV_DEFAULT, __VA_ARGS__)
 
 /**
  * @brief Converts an ESP-IDF call result: NULL on ESP_OK, otherwise a new
- * ERR_ESP_ERR node with the esp_err_t code. The _SEV variant sets its
- * severity.
+ * ERR_ESP_ERR node with the esp_err_t code.
  * @usage err_h e = ERR_ESP(gpio_set_level(pin, 1));
  */
-#define ERR_ESP_SEV(esp_call, sev)                                                       \
-  ({                                                                                     \
-    esp_err_t _err_esp_rc_ = (esp_call);                                                 \
-    _err_esp_rc_ == ESP_OK ? NULL : ERR_NEW_SEV(ERR_ESP_ERR, (sev), .code = _err_esp_rc_); \
+#define ERR_ESP(esp_call)                                                       \
+  ({                                                                            \
+    esp_err_t _err_esp_rc_ = (esp_call);                                        \
+    _err_esp_rc_ == ESP_OK ? NULL : ERR_NEW(ERR_ESP_ERR, .code = _err_esp_rc_); \
   })
-#define ERR_ESP(esp_call) ERR_ESP_SEV(esp_call, ERR_SEV_DEFAULT)
 
 /**
  * @brief ERR_TRY for an ESP-IDF call.
  * @usage ERR_TRY_ESP(i2c_master_transmit(h, buf, len, MSEC(10)));
- *        ERR_TRY_ESP_SEV(nvs_commit(h), ERR_SEV_LOW);
  */
-#define ERR_TRY_ESP_SEV(esp_call, sev) ERR_TRY(ERR_ESP_SEV(esp_call, sev))
-#define ERR_TRY_ESP(esp_call) ERR_TRY_ESP_SEV(esp_call, ERR_SEV_DEFAULT)
+#define ERR_TRY_ESP(esp_call) ERR_TRY(ERR_ESP(esp_call))
