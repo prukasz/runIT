@@ -208,7 +208,7 @@ ERR_TAGS_DECLARE(ERR_SYS_POWER_MANAGER_MAP)
  * API
  * ------------------------------------------------------------------------- */
 
-/** @brief The app's safe state (SAFE_STATE response). Without one: sys_device_suspend_all. */
+/** @brief The app's safe state (SAFE_STATE response). Without one: sys_device_sweep(SYS_DEVICE_OP_SUSPEND). */
 typedef void (*sys_power_safe_state_f)(void);
 
 /**

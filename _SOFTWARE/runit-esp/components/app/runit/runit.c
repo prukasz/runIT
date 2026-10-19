@@ -36,7 +36,7 @@ void runit_enter_safe_state(void) {
   ESP_LOGW(TAG, "safe state: stopping the VM, suspending devices");
   err_report(vm_exec_stop());  // the program stops writing to the devices; its retained values are saved
   vm_retain_save_stopped();
-  err_report(sys_device_suspend_all());
+  err_report(sys_device_sweep(SYS_DEVICE_OP_SUSPEND));
 }
 
 // The safe state of sys_system (STOP, dead-man, link lost, a power fault): sys_system notes why, for SYS SAFE_GET.
@@ -55,7 +55,7 @@ static void ble_conn(bool connected, int32_t reason) {
 
 // SYS SAFE_LEAVE: the way out is the way in, reversed; the program is started again by the client (VM EXEC).
 static err_h safe_leave(void) {
-  return sys_device_resume_all();
+  return sys_device_sweep(SYS_DEVICE_OP_RESUME);
 }
 
 void runit_power_safe_state(void) {
@@ -136,7 +136,7 @@ err_h runit_start(void) {
 #if !CONFIG_RUNIT_BOARD_BARE
       {"devices", runit_board_devices_init},
 #endif
-      {"system devices", mark_system_devices},  // whatever exists now is the board's: remove_all leaves it
+      {"system devices", mark_system_devices},  // whatever exists now is the board's: the REMOVE sweep leaves it
 #if CONFIG_RUNIT_BLE_START
       {"ble", sys_ble_start},
 #endif

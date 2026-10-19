@@ -28,7 +28,7 @@ In order; a failing step is logged and the boot goes on (one missing piece, such
 | stream bindings | `runit_board_connector_bindings_init` |
 | i2c | `sys_i2c_init` |
 | devices | `runit_board_devices_init`, by `CONFIG_RUNIT_BOARD`: a devkit (`RUNIT_BOARD_DEVKIT`) gets only the ESP GPIO (ID 0); no devices (`RUNIT_BOARD_BARE`) skips the step. The PCB (`RUNIT_BOARD_PCB`): CREATE of the ESP GPIO (ID 0) and the TCA6424A (ID 1, 0x23, INT ESP 9, RST ESP 8), then TCA pins 22 and 23 as push-pull outputs and **pin 23 high: the status LED is lit once the boot got this far**. Pin 22 must be an output too (left low): as an input it floats and toggles at ~25 kHz, every toggle is an INT edge and the event queue overflows (measured on the PCB 2026-10-11). Then every other onboard chip in dependency order (`runit_board_defs.h` has the IDs and TCA pins): the two power muxes (7, 8; both switches off), ADS7128 (2, ALERT ESP 42, full scale 20000 mV), PCA9685 (3, OE TCA 0), TPS55289 rails A / B (10 / 11), INA3221 (12, all shunts reversed, 10 mOhm shunts), AP33772S (13), DAC53202 (4), DRV8962 #1 (5, ESP pins, 20 kHz) and #2 (6, PCA9685 CH 8..15, 1 kHz); every channel braked with a 2 A limit (`RUNIT_BOARD_DRV8962_LIMIT_MA`, an assumption: the legacy value is not recorded). A chip that fails is logged (`onboard device <name> failed`) and the rest are still created; only the GPIO or the expander failing stops the step. The power manager is initialised earlier and picks the rails and the INA3221 up when they appear |
-| system devices | `sys_device_mark_system`: whatever the "devices" step created is the board's own; `sys_device_remove_all` leaves it |
+| system devices | `sys_device_mark_system`: whatever the "devices" step created is the board's own; the REMOVE sweep (`sys_device_sweep`) leaves it |
 | ble | `sys_ble_start` (if `RUNIT_BLE_START`) |
 | project | `sys_project_init` (after `actions`: the options namespace) and, as the last step, `sys_project_boot`: the stored project runs on a router task when its autostart is on (SYS_PROJECT.MD) |
 
@@ -49,7 +49,7 @@ Run with `06 01 <id u32>`, or name the ID in a device's error policy. Hard reset
 
 ## Safe state
 
-`runit_enter_safe_state()`: the VM stopped (`vm_exec_stop`, retained values saved), then every device suspended (`sys_device_suspend_all`). `sys_system` calls it on STOP, dead-man and link lost (SYS_SYSTEM.MD); the power manager's response "safe state" goes through it too (`runit_power_safe_state` → `sys_system_enter_safe_state(SYS_SAFE_POWER)`), so every entry is noted with its reason for SYS `SAFE_GET`. The way out is SYS `SAFE_LEAVE`: `safe_leave` resumes every device (`sys_device_resume_all`, oldest first); the client starts the program again (VM EXEC).
+`runit_enter_safe_state()`: the VM stopped (`vm_exec_stop`, retained values saved), then every device suspended (`sys_device_sweep(SUSPEND)`). `sys_system` calls it on STOP, dead-man and link lost (SYS_SYSTEM.MD); the power manager's response "safe state" goes through it too (`runit_power_safe_state` → `sys_system_enter_safe_state(SYS_SAFE_POWER)`), so every entry is noted with its reason for SYS `SAFE_GET`. The way out is SYS `SAFE_LEAVE`: `safe_leave` resumes every device (`sys_device_sweep(RESUME)`, oldest first); the client starts the program again (VM EXEC).
 
 ## Error policy wiring
 

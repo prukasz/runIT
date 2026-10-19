@@ -7,5 +7,4 @@ Spec: `SYS_LOG.MD` (this folder).
 - Changing the ops, `sys_log_cfg_t`, the error map or `contract_log.json` requires an update in `templates/`: run `sh templates/sync.sh` (regenerates `enums.json` / `errors.json`, refreshes `runit-app/generated/`, validates). Commit with `--check` green.
 - The hook never sends a line from an ISR, before the scheduler runs, or from the connector task. Those three conditions stay: each one prevents a loop or a crash.
 - The hook sends with `sys_connector_send` and drops a line on a full queue. It never reports an error: a report would log, and logging is the hook.
-- A new level or flag is checked in `sys_log_set` (the one place that applies options), and in the router's SET where it is a flag.
-- The module is `WHOLE_ARCHIVE`: its error tag is registered by a constructor. Keep the flag in `CMakeLists.txt`.
+- A new level or flag is checked in `sys_log_set`, the one place that checks and applies options.

@@ -565,7 +565,7 @@ def test_device(link: Link) -> None:
     none = struct.pack("<HB", 0xFFFF, 0xFF)
 
     def create_ina(bus: int, addr: int, mask: int = 0, crit: bytes = none, warn: bytes = none):
-        return dev(link, 4, OP_CREATE, struct.pack("<H", INA_TYPE) + bytes([bus, addr]) + crit + warn + bytes([mask]))
+        return dev(link, 4, OP_CREATE, struct.pack("<H", INA_TYPE) + bytes([bus, addr]) + crit + warn + bytes([mask]) + struct.pack("<H", 10))
 
     r = create_ina(7, 0x40)
     check("INA3221 CREATE bad bus -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))

@@ -9,18 +9,20 @@
 #define WALK_MAX (CONFIG_ERRORS_POOL_BLOCKS + 1u)  // cycle guard, like err_log / err_record
 #define HANDLED_MAX 16u                            // distinct devices handled per chain
 
-static sys_device_action_runner_f s_run_action;
-static sys_device_vm_stop_f s_vm_stop;
+static struct {
+  sys_device_action_runner_f run_action;
+  sys_device_vm_stop_f vm_stop;
+} s_hooks;
 
 // Per task: a response that reports an error (a sweep's second failure) must not run the policy again.
 static __thread bool s_in_handler;
 
 void sys_device_set_vm_stop(sys_device_vm_stop_f fn) {
-  s_vm_stop = fn;
+  s_hooks.vm_stop = fn;
 }
 
 void sys_device_set_action_runner(sys_device_action_runner_f fn) {
-  s_run_action = fn;
+  s_hooks.run_action = fn;
 }
 
 // LOW lets CRITICAL through, MEDIUM also HIGH, HIGH also MEDIUM, CRITICAL also LOW. NONE nothing.
@@ -35,14 +37,14 @@ static bool admitted(uint8_t importance, uint8_t sev) {
 static err_h system_fault(uint16_t id) {
   ESP_LOGE(TAG, "critical error (device %u): stopping the VM, suspending every device", (unsigned)id);
   err_h response = NULL;
-  if (s_vm_stop != NULL) {
-    err_h stop = s_vm_stop(id);
+  if (s_hooks.vm_stop != NULL) {
+    err_h stop = s_hooks.vm_stop(id);
     if (stop != NULL) {
       response = ERR_WRAP(stop, ERR_DEV_FAULT_RESPONSE, .id = id, .sev = ERR_SEV_CRITICAL,
                           .stage = SYS_DEVICE_FAULT_STAGE_VM_STOP, .action = 0u);
     }
   }
-  err_h err = sys_device_suspend_all();
+  err_h err = sys_device_sweep(SYS_DEVICE_OP_SUSPEND);
   if (err != NULL) {
     err = ERR_WRAP(err, ERR_DEV_FAULT_RESPONSE, .id = id, .sev = ERR_SEV_CRITICAL,
                    .stage = SYS_DEVICE_FAULT_STAGE_SUSPEND, .action = 0u);
@@ -54,10 +56,10 @@ static err_h system_fault(uint16_t id) {
 // An admitted error of device `id`: the system response first, then its action for that severity.
 static err_h device_fault(uint16_t id, uint8_t sev, uint32_t action, err_h chain) {
   err_h response = sev == ERR_SEV_CRITICAL ? system_fault(id) : NULL;
-  if (action == 0 || s_run_action == NULL) {
+  if (action == 0 || s_hooks.run_action == NULL) {
     return response;
   }
-  err_h err = s_run_action(action, chain);
+  err_h err = s_hooks.run_action(action, chain);
   if (err != NULL) {
     err = ERR_WRAP(err, ERR_DEV_FAULT_RESPONSE, .id = id, .sev = sev, .stage = SYS_DEVICE_FAULT_STAGE_ACTION,
                    .action = action);

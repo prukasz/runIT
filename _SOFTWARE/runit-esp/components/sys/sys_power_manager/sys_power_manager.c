@@ -130,7 +130,7 @@ static void apply_response(uint8_t kind, int target) {
     if (s_safe_state != NULL) {
       s_safe_state();
     } else {
-      err_report(sys_device_suspend_all());
+      err_report(sys_device_sweep(SYS_DEVICE_OP_SUSPEND));
     }
     return;
   }

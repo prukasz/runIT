@@ -30,15 +30,17 @@ U_TASK_DEFINE(router_urgent_task_h, CONFIG_ROUTER_URGENT_TASK_STACK);
 // Link 0: frames from the board itself (router_inject). No send: answers go nowhere.
 static const router_link_t k_internal_link = {.name = "internal"};
 
-static const router_link_t* s_links[CONFIG_ROUTER_MAX_LINKS + 1];  // index = link ID, 0 unused; written at boot
-static const router_tap_t* s_tap;
-static const router_watch_t* s_watch;
-static __thread const route_t* s_route;  // per router task: what it is routing, NULL between frames
-static uint8_t s_inject_seq;              // seq of injected frames (diagnostics only)
+static struct {
+  const router_link_t* links[CONFIG_ROUTER_MAX_LINKS + 1];  // index = link ID, 0 unused; written at boot
+  const router_tap_t* tap;
+  const router_watch_t* watch;
+  uint8_t inject_seq;  // seq of injected frames (diagnostics only)
+  // One response buffer per task: the two tasks build answers at the same time.
+  uint8_t resp_work[CONFIG_ROUTER_FRAME_MAX];
+  uint8_t resp_urgent[CONFIG_ROUTER_FRAME_MAX];
+} s_dispatch;
 
-// One response buffer per task: the two tasks build answers at the same time.
-static uint8_t s_resp_work[CONFIG_ROUTER_FRAME_MAX];
-static uint8_t s_resp_urgent[CONFIG_ROUTER_FRAME_MAX];
+static __thread const route_t* s_route;  // per router task: what it is routing, NULL between frames
 
 /* ----------------------------------------------------------------------------
  * Links
@@ -47,8 +49,8 @@ static uint8_t s_resp_urgent[CONFIG_ROUTER_FRAME_MAX];
 err_h router_link_register(uint8_t link_id, const router_link_t* link) {
   ERR_CHECK(link != NULL && link->send != NULL, ERR_CMD_BAD_ARG);
   ERR_CHECK(link_id > 0 && link_id <= CONFIG_ROUTER_MAX_LINKS, ERR_ROUTER_BAD_LINK, .link = link_id);
-  ERR_CHECK(s_links[link_id] == NULL, ERR_ROUTER_BAD_LINK, .link = link_id);
-  s_links[link_id] = link;
+  ERR_CHECK(s_dispatch.links[link_id] == NULL, ERR_ROUTER_BAD_LINK, .link = link_id);
+  s_dispatch.links[link_id] = link;
   return NULL;
 }
 
@@ -57,7 +59,7 @@ static const router_link_t* link_get(uint8_t link_id) {
   if (link_id == ROUTER_LINK_INTERNAL) {
     return &k_internal_link;
   }
-  return link_id <= CONFIG_ROUTER_MAX_LINKS ? s_links[link_id] : NULL;
+  return link_id <= CONFIG_ROUTER_MAX_LINKS ? s_dispatch.links[link_id] : NULL;
 }
 
 // Response frame size the link carries right now, at most `buf_size`.
@@ -169,7 +171,7 @@ err_h router_submit(uint8_t link_id, const uint8_t* frame, uint32_t len) {
            ERR_NEW(ERR_ROUTER_FRAME_LEN, .link = link_id, .len = (uint16_t)len, .max = CONFIG_ROUTER_FRAME_MAX));
     return NULL;
   }
-  const router_watch_t* w = s_watch;
+  const router_watch_t* w = s_dispatch.watch;
   if (w != NULL && w->frame != NULL) {
     w->frame();
   }
@@ -185,7 +187,7 @@ err_h router_inject(const uint8_t* req, uint32_t len, bool urgent) {
   ERR_CHECK(req != NULL && len > 0, ERR_CMD_BAD_ARG);
   ERR_CHECK(len <= CONFIG_ROUTER_FRAME_MAX - REQ_HDR_BYTES, ERR_ROUTER_FRAME_LEN, .link = ROUTER_LINK_INTERNAL,
             .len = (uint16_t)(len + REQ_HDR_BYTES), .max = CONFIG_ROUTER_FRAME_MAX);
-  const uint8_t head[REQ_HDR_BYTES] = {__atomic_fetch_add(&s_inject_seq, 1, __ATOMIC_RELAXED),
+  const uint8_t head[REQ_HDR_BYTES] = {__atomic_fetch_add(&s_dispatch.inject_seq, 1, __ATOMIC_RELAXED),
                                        urgent ? ROUTER_FLAG_URGENT : 0};
   ERR_CHECK(enqueue(urgent, ROUTER_LINK_INTERNAL, head, REQ_HDR_BYTES, req, len), ERR_ROUTER_QUEUE_FULL,
             .link = ROUTER_LINK_INTERNAL, .urgent = urgent);
@@ -197,7 +199,7 @@ err_h router_inject(const uint8_t* req, uint32_t len, bool urgent) {
  * ------------------------------------------------------------------------- */
 
 void router_set_tap(const router_tap_t* tap) {
-  s_tap = tap;
+  s_dispatch.tap = tap;
 }
 
 const err_cmd_t* router_origin(void) {
@@ -219,7 +221,7 @@ err_h router_answer_part(const uint8_t* out, uint32_t len) {
  * ------------------------------------------------------------------------- */
 
 void router_set_watch(const router_watch_t* watch) {
-  s_watch = watch;
+  s_dispatch.watch = watch;
 }
 
 void router_wake_urgent(void) {
@@ -241,7 +243,7 @@ static void process(const uint8_t* item, size_t size, uint8_t* resp) {
   uint32_t cap = link_cap(link, CONFIG_ROUTER_FRAME_MAX);
   uint32_t data_len = 0;
   err_h err = NULL;
-  const router_tap_t* tap = s_tap;
+  const router_tap_t* tap = s_dispatch.tap;
   if (tap == NULL || tap->take == NULL || !tap->take(&cmd)) {
     const route_t route = {.cmd = &cmd, .link = link, .resp = resp};
     s_route = &route;
@@ -260,7 +262,7 @@ static void work_task(void* arg) {
     size_t size = 0;
     uint8_t* item = xRingbufferReceive(router_work_rb, &size, WAIT_FOREVER);
     if (item != NULL) {
-      process(item, size, s_resp_work);
+      process(item, size, s_dispatch.resp_work);
       vRingbufferReturnItem(router_work_rb, item);
     }
   }
@@ -273,13 +275,13 @@ static void urgent_task(void* arg) {
     size_t size = 0;
     uint8_t* item;
     while ((item = xRingbufferReceive(router_urgent_rb, &size, NO_WAIT)) != NULL) {
-      process(item, size, s_resp_urgent);
+      process(item, size, s_dispatch.resp_urgent);
       vRingbufferReturnItem(router_urgent_rb, item);
     }
 
     uint32_t bits = 0;
     U_NOTIFY_AWAIT(WAIT_FOREVER, &bits);
-    const router_watch_t* w = s_watch;
+    const router_watch_t* w = s_dispatch.watch;
     if ((bits & NOTIFY_WATCH) && w != NULL && w->urgent != NULL) {
       w->urgent();
     }

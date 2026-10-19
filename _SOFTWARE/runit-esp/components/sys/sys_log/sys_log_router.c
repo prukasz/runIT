@@ -1,9 +1,8 @@
 #include "sys_log_router.h"
 #include "sys_log.h"
 
-// The options and where they go: stored, applied at once.
+// The options, applied at once (not stored).
 ROUTER_OP(op_set, sys_log_cfg_t) {
-  ERR_CHECK(args->mirror_serial <= 1 && args->trace_errors <= 1 && args->send_errors <= 1 && args->send_logs <= 1, ERR_CMD_BAD_ARG);
   return sys_log_set(args);
 }
 

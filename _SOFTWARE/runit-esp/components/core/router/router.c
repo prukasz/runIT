@@ -3,8 +3,10 @@
 ERR_MODULE_DEFINE(ERR_MOD_ROUTER, "router", ERR_ROUTER_MAP)
 
 // Filled at boot (router_register), read-only after router_init.
-static router_entry_t s_root[CONFIG_ROUTER_MAX_KEYS];
-static uint32_t s_root_count;
+static struct {
+  router_entry_t root[CONFIG_ROUTER_MAX_KEYS];
+  uint32_t root_count;
+} s_router;
 
 err_h router_call(const router_entry_t* table, uint32_t count, void* ctx, const uint8_t* in, uint32_t in_len,
                   uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
@@ -42,17 +44,17 @@ err_h router_args_tail(const uint8_t* in, uint32_t in_len, void* hdr, uint32_t s
 
 err_h router_register(uint8_t key, cmd_f fn) {
   ERR_CHECK(key != 0 && fn != NULL, ERR_CMD_BAD_ARG);
-  for (uint32_t i = 0; i < s_root_count; i++) {
-    ERR_CHECK(s_root[i].key != key, ERR_ROUTER_KEY_TAKEN, .key = key);
+  for (uint32_t i = 0; i < s_router.root_count; i++) {
+    ERR_CHECK(s_router.root[i].key != key, ERR_ROUTER_KEY_TAKEN, .key = key);
   }
-  ERR_CHECK(s_root_count < CONFIG_ROUTER_MAX_KEYS, ERR_ROUTER_TABLE_FULL, .key = key);
-  s_root[s_root_count++] = (router_entry_t){.key = key, .fn = fn};
+  ERR_CHECK(s_router.root_count < CONFIG_ROUTER_MAX_KEYS, ERR_ROUTER_TABLE_FULL, .key = key);
+  s_router.root[s_router.root_count++] = (router_entry_t){.key = key, .fn = fn};
   return NULL;
 }
 
 err_h router_route(const uint8_t* in, uint32_t in_len, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
   *out_len = 0;
-  err_h err = router_call(s_root, s_root_count, NULL, in, in_len, out, out_cap, out_len);
+  err_h err = router_call(s_router.root, s_router.root_count, NULL, in, in_len, out, out_cap, out_len);
   if (err != NULL) {
     *out_len = 0;
   }

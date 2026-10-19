@@ -6,15 +6,12 @@
 #include <esp_log.h>
 #include "sdkconfig.h"
 #include "sys_actions.h"
-#include "sys_connector.h"
 #include "sys_device.h"
 #include "sys_event.h"
 #include "sys_log.h"
 #include "vm_router.h"
 
 #define TAG __FILE_NAME__
-
-#define ERR_RECORD_MAX SYS_LOG_RECORD_MAX  // one error record on the errors stream (built on the reporter's stack)
 
 // The action already failed in this chain: running it again would answer its own failure forever.
 static bool action_failed_in(err_h chain, uint32_t action) {
@@ -36,14 +33,10 @@ static err_h run_action(uint32_t action, err_h chain) {
   return sys_actions_request(action, false);
 }
 
+// The record is built on the reporter's stack; sys_log keeps it and sends it.
 static void send_record(err_h chain, const err_cmd_t* cmd) {
-  uint8_t rec[ERR_RECORD_MAX];
-  uint32_t len = err_record(cmd, chain, rec, sizeof(rec));
-  sys_log_error_keep(rec, len);  // the history the app reads later, whatever send_errors says
-  if (!sys_log_send_errors()) {
-    return;
-  }
-  err_free(sys_connector_send(SYS_CONNECTOR_ERRORS, rec, len));
+  uint8_t rec[SYS_LOG_RECORD_MAX];
+  sys_log_error(rec, err_record(cmd, chain, rec, sizeof(rec)));
 }
 
 /* Every reported chain: the device policy (whatever send_errors says), then an error record on the errors stream;

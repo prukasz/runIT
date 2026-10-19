@@ -276,17 +276,16 @@ MUST_USE err_h sys_device_call_direct(uint16_t id, uint16_t op, const void* args
                                       uint32_t out_cap, uint32_t* out_len);
 
 /**
- * @brief Fault safe state: SUSPEND to every instance, newest first (a device
- * before the devices it uses). Best effort: all are tried, the first error is
- * returned (wrapped in ERR_DEV_ID), the others go to err_report().
+ * @brief Runs SUSPEND, RESUME, RESET or REMOVE (`op`, else ERR_DEV_UNKNOWN_OP) on every instance: newest first (a
+ * device before the devices it uses), RESUME oldest first; REMOVE leaves the board's own devices
+ * (sys_device_mark_system). SUSPEND of every device is the fault safe state. Best effort: all are tried, the first
+ * error is returned (wrapped in ERR_DEV_ID), the others go to err_report().
+ * @usage err_report(sys_device_sweep(SYS_DEVICE_OP_SUSPEND));
  */
-MUST_USE err_h sys_device_suspend_all(void);
-MUST_USE err_h sys_device_resume_all(void);  // oldest first: the used devices before their users
-MUST_USE err_h sys_device_reset_all(void);   // RESET of every instance, newest first (as suspend); the driver's own reset
-MUST_USE err_h sys_device_remove_all(void);  // newest first; leaves the board's own devices (sys_device_mark_system)
+MUST_USE err_h sys_device_sweep(uint16_t op);
 
 /**
- * @brief Marks every device registered now as the board's own (created by the system at boot): sys_device_remove_all
+ * @brief Marks every device registered now as the board's own (created by the system at boot): the REMOVE sweep
  * leaves them, so changing the project removes only the devices it created. An explicit REMOVE of one still works.
  * Boot step, after the onboard devices are created.
  */

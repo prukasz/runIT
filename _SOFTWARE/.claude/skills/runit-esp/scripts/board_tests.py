@@ -461,7 +461,7 @@ def test_tca(link: Link) -> None:
 def test_power_chips(link: Link) -> None:
     """TPS55289 x2, INA3221, AP33772S and the two power muxes on the board. Nothing is switched on: the rails stay
     disabled (EN low) and the muxes keep both LM73100 switches off."""
-    r = create(link, INA_ID, INA_TYPE, bytes([0, 0x40]) + pin(TCA_ID, 6) + pin(TCA_ID, 5) + bytes([0x07]))
+    r = create(link, INA_ID, INA_TYPE, bytes([0, 0x40]) + pin(TCA_ID, 6) + pin(TCA_ID, 5) + bytes([0x07]) + struct.pack("<H", 10))
     check("CREATE INA3221 12 (0x40, CRIT TCA 6, WARN TCA 5, shunts reversed)", r is not None and r.ok, str(r))
     for name, dev_id, addr, intr, en in (("TPS55289 rail A", TPS_A_ID, 0x74, 1, 17), ("TPS55289 rail B", TPS_B_ID, 0x75, 2, 16)):
         r = create(link, dev_id, TPS_TYPE, bytes([0, addr]) + pin(TCA_ID, intr) + pin(TCA_ID, en))

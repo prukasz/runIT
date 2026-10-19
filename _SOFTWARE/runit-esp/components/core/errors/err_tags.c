@@ -4,8 +4,10 @@
 
 // Filled by the ERR_MODULE_DEFINE constructors before app_main, read-only
 // after that - no lock needed.
-static const err_module_t* s_modules[CONFIG_ERRORS_MAX_MODULES];
-static uint32_t s_module_count;
+static struct {
+  const err_module_t* modules[CONFIG_ERRORS_MAX_MODULES];
+  uint32_t module_count;
+} s_tags;
 
 void err_register_module(const err_module_t* module) {
   assert(module != NULL);
@@ -14,17 +16,17 @@ void err_register_module(const err_module_t* module) {
     assert(ERR_MODULE(module->tags[i].tag) == module->id && "tag ID outside its module");
   }
 
-  if (s_module_count >= CONFIG_ERRORS_MAX_MODULES) {
+  if (s_tags.module_count >= CONFIG_ERRORS_MAX_MODULES) {
     assert(!"more error modules than ERRORS_MAX_MODULES");
     return;
   }
-  s_modules[s_module_count++] = module;
+  s_tags.modules[s_tags.module_count++] = module;
 }
 
 const err_module_t* err_module(uint16_t id) {
-  for (uint32_t i = 0; i < s_module_count; i++) {
-    if (s_modules[i]->id == id) {
-      return s_modules[i];
+  for (uint32_t i = 0; i < s_tags.module_count; i++) {
+    if (s_tags.modules[i]->id == id) {
+      return s_tags.modules[i];
     }
   }
   return NULL;

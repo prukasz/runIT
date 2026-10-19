@@ -5,7 +5,7 @@ Component `components/sys/sys_log/`. Owns the ESP_LOG hook and the log options: 
 | File | Contents |
 |---|---|
 | `sys_log.h` | `sys_log_cfg_t`, `ERR_SYS_LOG_MAP`, API |
-| `sys_log.c` | The `vprintf` hook, apply, defaults. `ERR_MOD_SYS_LOG` = 13. Linked `WHOLE_ARCHIVE`: the error tag is registered by a constructor |
+| `sys_log.c` | The `vprintf` hook, the options and their defaults, the error history and its sending. `ERR_MOD_SYS_LOG` = 13 |
 | `sys_log_router.c/.h` | Remote interface, root key `ROUTER_KEY_LOG` = 0x08 |
 | `contract_log.json` | The router's descriptor (SET, GET, ERRORS and the options) |
 | `Kconfig` | `SYS_LOG_LINE_MAX` (160): the line buffer of the hook |
@@ -17,7 +17,7 @@ Component `components/sys/sys_log/`. Owns the ESP_LOG hook and the log options: 
 |---|---|---|
 | `level` | 0 .. `CONFIG_LOG_MAXIMUM_LEVEL` (3 = INFO here) | `esp_log_level_set("*", level)`. **0 blocks every ESP_LOG line**, console and logs connector. Above the compile-time ceiling: `ERR_LOG_BAD_LEVEL{level, max}`, since a level IDF compiled out would silently do nothing |
 | `mirror_serial` | 0 / 1 | 1: a line goes to the console (UART / USB-Serial-JTAG). 0: not to the console; a line still reaches the logs connector if `send_logs` is 1 |
-| `send_errors` | 0 / 1 | 1: a reported error chain is sent as a record on the errors stream (ERRORS.MD). 0: no record is sent; `sys_log_send_errors()` gates the error sink in `runit_error_policy.c` |
+| `send_errors` | 0 / 1 | 1: a reported error chain is sent as a record on the errors stream (ERRORS.MD). 0: no record is sent (`sys_log_error` checks it) |
 | `send_logs` | 0 / 1 | 1: every log line is also sent as text to the logs connector (BLE, or any connector bound to it). 0: no line is sent to a connector |
 | `trace_errors` | 0 / 1 | 1: a reported error chain is also printed as log lines (`err_log`). 0: no chain lines (`err_log_enable(false)`). Independent of `send_errors` |
 
@@ -52,7 +52,7 @@ SET applies the options at once and stores nothing. The app keeps the SET frame 
 
 ## The error history
 
-Every reported chain is also kept as its record (the one the errors stream carries, with the time stamp: the board's clock, ROUTER.MD) in a ring of the latest `CONFIG_SYS_LOG_ERRORS_KEPT` (16), whatever `send_errors` says. The app reads it with ERRORS when it connects, so it sees what happened before: an error of the start, one while no client was there. RAM only: a restart empties it. `sys_log_error_keep` (any task, a critical section around a copy, never reports) is called by the error sink in `runit`.
+Every reported chain is also kept as its record (the one the errors stream carries, with the time stamp: the board's clock, ROUTER.MD) in a ring of the latest `CONFIG_SYS_LOG_ERRORS_KEPT` (16), whatever `send_errors` says. The app reads it with ERRORS when it connects, so it sees what happened before: an error of the start, one while no client was there. RAM only: a restart empties it. `sys_log_error(record, len)` (any task, a critical section around a copy, never reports) keeps the record and, with `send_errors` on, sends it on the errors stream; the error sink in `runit` calls it for every chain.
 
 ## Errors (`ERR_MOD_SYS_LOG` = 13)
 
