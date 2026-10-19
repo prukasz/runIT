@@ -1,4 +1,4 @@
-Required Notice: Copyright (c) 2026 prukasz (https://github.com/prukasz/runIT)
+Required Notice: Copyright (c) 2026 Łukasz Gójski (https://github.com/prukasz/runIT)
 
 # PolyForm Noncommercial License 1.0.0
 

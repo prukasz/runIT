@@ -142,4 +142,4 @@ Całość na popularnym mikrokontrolerze ESP32-S3.
 
 Całe repozytorium (firmware, aplikacja, deskryptory, projekt płytki i dokumentacja) jest udostępnione na licencji [PolyForm Noncommercial 1.0.0](LICENSE.md). Możesz używać, zmieniać i udostępniać runIT do celów niekomercyjnych (hobby, nauka, badania). Użycie komercyjne, w tym sprzedaż płytek, produktów lub usług opartych na runIT, wymaga osobnej zgody autora.
 
-Copyright (c) 2026 prukasz
+Copyright (c) 2026 Łukasz Gójski
