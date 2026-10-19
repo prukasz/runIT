@@ -18,6 +18,7 @@ ERR_MODULE_DEFINE(ERR_MOD_SYS_POWER_MANAGER, "power_manager", ERR_SYS_POWER_MANA
 
 #define LIPO_FULL_CELL_MV 4200
 #define BOARD_TARGET      (-1)  // a response for every rail
+#define NO_TARGET         (-2)  // an event of a device that isn't ours
 
 /* A rail as set through POWER_VREG (the guard sees every set). */
 typedef struct {
@@ -31,37 +32,41 @@ static const sys_power_manager_cfg_t k_cfg_default = {
     .enabled = 1, .strict = 1, .soft_margin_pct = 20, .source_pin = SYS_IO_PIN_NONE, .battery_level = 1,
     .pd_max_auto = 1, .ext_input = SYS_POWER_EXT_BENCH};
 
-static const sys_power_board_t* s_board;
-static sys_power_safe_state_f s_safe_state;
-static rail_t s_rails[CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS];
-static sys_power_manager_cfg_t s_cfg = k_cfg_default;
-static sys_power_psu_t s_psu;
-static sys_power_battery_t s_battery;
-/* The response matrix: row 0 the board, row 1 + i rail i. Stored as rows 0 .. consumer_count. */
-static uint8_t s_responses[1 + CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS][SYS_POWER_KIND_COUNT];
-static sys_power_status_t s_status = {.battery_pct = SYS_POWER_PCT_UNKNOWN};
-static uint32_t s_alert_mA;  // input alert as programmed, 0 = none programmed
-static bool s_recompute;     // a setting changed: recompute the budget on the next tick
-static bool s_pin_ready;
-static uint32_t s_pd_req_mV, s_pd_req_mA;  // what the manager last asked the charger for (0 = nothing yet)
-static bool s_input_seen;
-static bool s_input_error_reported;
-static bool s_ovp_latched;
-static bool s_low_latched;
-static bool s_critical_latched;
-static bool s_over_latched;
+static sys_power_manager_cfg_t s_cfg = k_cfg_default;  // read before init (GET_CONFIG): starts at the defaults
+
+/* Everything else, under the mutex. Zero until init. */
+static struct {
+  const sys_power_board_t* board;  // NULL until init
+  sys_power_safe_state_f safe_state;
+  rail_t rails[CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS];
+  /* The response matrix: row 0 the board, row 1 + i rail i. Stored as rows 0 .. consumer_count. */
+  uint8_t responses[1 + CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS][SYS_POWER_KIND_COUNT];
+  sys_power_psu_t psu;
+  sys_power_battery_t battery;
+  sys_power_status_t status;
+  uint32_t alert_mA;               // input alert as programmed, 0 = none programmed
+  bool recompute;                  // a setting changed: recompute the budget on the next tick
+  bool starved;                    // the last rebalance left an automatic rail nothing
+  bool pin_ready;                  // the source pin is set up as an input
+  bool input_seen;                 // the input monitor answered at least once
+  bool input_error_reported;       // a failing input read is reported once, until it works again
+  /* What the manager last asked the charger for (0 = nothing yet). */
+  struct { uint32_t mV, mA; } pd_req;
+  /* Each raised once, re-armed when its condition clears. */
+  struct { bool ovp, low, critical, over; } latched;
+} s_pm;
 
 U_RECURSIVE_MUTEX_DEFINE(sys_pwrm_mutex);
 U_TASK_DEFINE(sys_pwrm_task_h, CONFIG_SYS_POWER_MANAGER_TASK_STACK);
 
-#define LOCK() U_RECURSIVE_MUTEX_LOCK(sys_pwrm_mutex, WAIT_FOREVER)
+#define LOCK()   U_RECURSIVE_MUTEX_LOCK(sys_pwrm_mutex, WAIT_FOREVER)
 #define UNLOCK() U_RECURSIVE_MUTEX_UNLOCK(sys_pwrm_mutex)
 
 /* ---- Helpers ---- */
 
 static int consumer_index(uint16_t id) {
-  for (uint8_t i = 0; i < s_board->consumer_count; i++) {
-    if (s_board->consumers[i].vreg == id) {
+  for (uint8_t i = 0; i < s_pm.board->consumer_count; i++) {
+    if (s_pm.board->consumers[i].vreg == id) {
       return i;
     }
   }
@@ -74,7 +79,7 @@ static bool same_channel(sys_power_channel_t c, uint16_t device, uint8_t channel
 
 // Input power a rail draws at mV / mA output.
 static uint32_t rail_input_mW(uint32_t mV, uint32_t mA) {
-  return (uint32_t)(((uint64_t)mV * mA / 1000u) * 100u / s_board->vreg_efficiency_pct);
+  return (uint32_t)(((uint64_t)mV * mA / 1000u) * 100u / s_pm.board->vreg_efficiency_pct);
 }
 
 static bool is_auto(const rail_t* r) {
@@ -87,9 +92,9 @@ static bool is_fixed(const rail_t* r) {
 
 static uint32_t fixed_mW(void) {
   uint32_t sum = 0;
-  for (uint8_t i = 0; i < s_board->consumer_count; i++) {
-    if (is_fixed(&s_rails[i])) {
-      sum += rail_input_mW(s_rails[i].set_mV, s_rails[i].user_mA);
+  for (uint8_t i = 0; i < s_pm.board->consumer_count; i++) {
+    if (is_fixed(&s_pm.rails[i])) {
+      sum += rail_input_mW(s_pm.rails[i].set_mV, s_pm.rails[i].user_mA);
     }
   }
   return sum;
@@ -112,15 +117,15 @@ static err_h vreg_direct(uint16_t id, uint16_t op, uint32_t value) {
 
 // The response to `kind` for a rail index or BOARD_TARGET (its own row). Disabled: notify only.
 static uint8_t response_of(uint8_t kind, int target) {
-  return s_cfg.enabled ? s_responses[target == BOARD_TARGET ? 0 : 1 + target][kind] : SYS_POWER_RESPONSE_NOTIFY;
+  return s_cfg.enabled ? s_pm.responses[target == BOARD_TARGET ? 0 : 1 + target][kind] : SYS_POWER_RESPONSE_NOTIFY;
 }
 
 // `target`: a rail index, or BOARD_TARGET for every rail.
 static void apply_response(uint8_t kind, int target) {
   const uint8_t response = response_of(kind, target);
   if (response == SYS_POWER_RESPONSE_SAFE_STATE) {
-    if (s_safe_state != NULL) {
-      s_safe_state();
+    if (s_pm.safe_state != NULL) {
+      s_pm.safe_state();
     } else {
       err_report(sys_device_sweep(SYS_DEVICE_OP_SUSPEND));
     }
@@ -130,11 +135,11 @@ static void apply_response(uint8_t kind, int target) {
     return;
   }
   const uint16_t op = response == SYS_POWER_RESPONSE_DISABLE ? SYS_DEVICE_OP_SUSPEND : SYS_DEVICE_OP_RESET;
-  for (uint8_t i = 0; i < s_board->consumer_count; i++) {
+  for (uint8_t i = 0; i < s_pm.board->consumer_count; i++) {
     if (target != BOARD_TARGET && target != i) {
       continue;
     }
-    err_h err = sys_device_call(s_board->consumers[i].vreg, op, NULL, 0, NULL, 0, NULL);
+    err_h err = sys_device_call(s_pm.board->consumers[i].vreg, op, NULL, 0, NULL, 0, NULL);
     if (err_root_tag(err) == ERR_DEV_NOT_FOUND) {
       err_free(err);  // the rail isn't created: nothing to stop
     } else {
@@ -177,20 +182,18 @@ static err_h on_event(const sys_event_t* ev, void* ctx) {
     return NULL;
   }
   LOCK();
-  int target = -2;  // not ours
+  int target = NO_TARGET;
   const int rail = consumer_index(ev->source);
   if (rail >= 0) {
     target = rail;
-  } else if (same_channel(s_board->input, ev->source, ev->channel)) {
+  } else if (same_channel(s_pm.board->input, ev->source, ev->channel)) {
     target = BOARD_TARGET;
   } else {
-    for (uint8_t i = 0; i < s_board->consumer_count; i++) {
-      if (same_channel(s_board->consumers[i].monitor, ev->source, ev->channel)) {
-        target = i;
-      }
+    for (uint8_t i = 0; i < s_pm.board->consumer_count && target == NO_TARGET; i++) {
+      if (same_channel(s_pm.board->consumers[i].monitor, ev->source, ev->channel)) target = i;
     }
   }
-  if (target != -2) {
+  if (target != NO_TARGET) {
     err_report(ERR_NEW(ERR_PWRM_FAULT, .source = ev->source, .channel = ev->channel, .kind = kind,
                        .response = response_of(kind, target), .value = ev->value));
     apply_response(kind, target);
@@ -202,42 +205,42 @@ static err_h on_event(const sys_event_t* ev, void* ctx) {
 /* ---- Budget ---- */
 
 /* Programs every automatic rail with its share of what the reserve and the fixed rails leave under the limit.
- * Disabled: every automatic rail gets the board's max. Sets *starved when a share rounds down to nothing. */
-static err_h rebalance(bool* starved) {
-  *starved = false;
-  const uint32_t limit = limit_of(s_status.budget_mW);
-  const uint32_t used = s_board->reserve_mW + fixed_mW();
+ * Disabled: every automatic rail gets the board's max. Sets s_pm.starved when a share rounds down to nothing. */
+static err_h rebalance(void) {
+  s_pm.starved = false;
+  const uint32_t limit = limit_of(s_pm.status.budget_mW);
+  const uint32_t used = s_pm.board->reserve_mW + fixed_mW();
   const uint32_t pool = limit > used ? limit - used : 0;
   uint32_t auto_count = 0;
-  for (uint8_t i = 0; i < s_board->consumer_count; i++) {
-    auto_count += is_auto(&s_rails[i]) ? 1u : 0u;
+  for (uint8_t i = 0; i < s_pm.board->consumer_count; i++) {
+    auto_count += is_auto(&s_pm.rails[i]) ? 1u : 0u;
   }
   err_h err = NULL;
   uint32_t allocated = used;
-  for (uint8_t i = 0; i < s_board->consumer_count; i++) {
-    rail_t* r = &s_rails[i];
+  for (uint8_t i = 0; i < s_pm.board->consumer_count; i++) {
+    rail_t* r = &s_pm.rails[i];
     if (!is_auto(r)) {
       continue;
     }
     const uint32_t share_mW = pool / auto_count;
-    uint32_t cap_mA = s_cfg.enabled ? (uint32_t)((uint64_t)share_mW * s_board->vreg_efficiency_pct / 100u * 1000u /
+    uint32_t cap_mA = s_cfg.enabled ? (uint32_t)((uint64_t)share_mW * s_pm.board->vreg_efficiency_pct / 100u * 1000u /
                                                  r->set_mV)
-                                    : s_board->max_mA;
-    cap_mA = cap_mA > s_board->max_mA ? s_board->max_mA : cap_mA;
+                                    : s_pm.board->max_mA;
+    cap_mA = cap_mA > s_pm.board->max_mA ? s_pm.board->max_mA : cap_mA;
     if (cap_mA == 0) {
-      *starved = true;
+      s_pm.starved = true;
       continue;
     }
-    if (cap_mA < s_board->consumers[i].min_mA) {
+    if (cap_mA < s_pm.board->consumers[i].min_mA) {
       // The regulator can't limit this low: the limit doesn't cover the rail at this voltage. The old limit stays.
-      ERR_KEEP_FIRST(err, ERR_NEW(ERR_PWRM_BUDGET_EXCEEDED, .id = s_board->consumers[i].vreg,
-                                         .requested_mW = rail_input_mW(r->set_mV, s_board->consumers[i].min_mA),
+      ERR_KEEP_FIRST(err, ERR_NEW(ERR_PWRM_BUDGET_EXCEEDED, .id = s_pm.board->consumers[i].vreg,
+                                         .requested_mW = rail_input_mW(r->set_mV, s_pm.board->consumers[i].min_mA),
                                          .available_mW = share_mW));
       allocated += rail_input_mW(r->set_mV, r->applied_mA);
       continue;
     }
     if (cap_mA != r->applied_mA) {
-      err_h set_err = vreg_direct(s_board->consumers[i].vreg, VREG_OP_SET_CURRENT, cap_mA);
+      err_h set_err = vreg_direct(s_pm.board->consumers[i].vreg, VREG_OP_SET_CURRENT, cap_mA);
       const uint32_t root = err_root_tag(set_err);
       if (root == ERR_DEV_SUSPENDED || root == ERR_DEV_NOT_FOUND) {
         err_free(set_err);  // off (a fault) or gone: it gets its share when it is back
@@ -249,7 +252,7 @@ static err_h rebalance(bool* starved) {
     }
     allocated += rail_input_mW(r->set_mV, r->applied_mA);
   }
-  s_status.allocated_mW = allocated;
+  s_pm.status.allocated_mW = allocated;
   return err;
 }
 
@@ -259,9 +262,9 @@ static err_h check_budget(uint16_t id, const rail_t* next, const rail_t* prev) {
   if (!s_cfg.enabled || (!is_fixed(next) && !is_auto(next))) {
     return NULL;
   }
-  const uint32_t limit = limit_of(s_status.budget_mW);
+  const uint32_t limit = limit_of(s_pm.status.budget_mW);
   const uint32_t others = fixed_mW() - (is_fixed(prev) ? rail_input_mW(prev->set_mV, prev->user_mA) : 0);
-  const uint32_t used = s_board->reserve_mW + others;
+  const uint32_t used = s_pm.board->reserve_mW + others;
   const uint32_t requested = is_fixed(next) ? rail_input_mW(next->set_mV, next->user_mA) : 1u;
   ERR_CHECK(used + requested <= limit, ERR_PWRM_BUDGET_EXCEEDED, .id = id, .requested_mW = requested,
             .available_mW = limit > used ? limit - used : 0);
@@ -271,20 +274,19 @@ static err_h check_budget(uint16_t id, const rail_t* next, const rail_t* prev) {
 /* One rail change: the budget check, then the hardware in an order that never exceeds the limit in between (the other
  * automatic rails lowered first when this one grows), then the rebalance. Rolled back on a failure. */
 static err_h change_rail(int i, rail_t next, uint16_t op, uint32_t value) {
-  const uint16_t id = s_board->consumers[i].vreg;
-  const rail_t prev = s_rails[i];
+  const uint16_t id = s_pm.board->consumers[i].vreg;
+  const rail_t prev = s_pm.rails[i];
   ERR_TRY(check_budget(id, &next, &prev));
-  bool starved = false;
   const bool grows = next.set_mV > prev.set_mV || (next.enabled && !prev.enabled) || next.user_mA > prev.applied_mA;
-  s_rails[i] = next;
-  err_h err = grows ? rebalance(&starved) : NULL;
+  s_pm.rails[i] = next;
+  err_h err = grows ? rebalance() : NULL;
   if (err == NULL) {
     err = vreg_direct(id, op, value);
   }
   if (err != NULL) {
-    s_rails[i] = prev;
+    s_pm.rails[i] = prev;
   }
-  ERR_KEEP_FIRST(err, rebalance(&starved));
+  ERR_KEEP_FIRST(err, rebalance());
   return err;
 }
 
@@ -304,29 +306,28 @@ static err_h vreg_guard(uint16_t id, uint16_t op, const uint8_t* args, uint32_t 
   memcpy(&value, args, need);
   err_h err = NULL;
   LOCK();
-  rail_t next = s_rails[i];
+  rail_t next = s_pm.rails[i];
   if (op == VREG_OP_SET_ENABLE) {
     next.enabled = value != 0;
     err = change_rail(i, next, op, value);
   } else if (op == VREG_OP_SET_VOLTAGE) {
-    if (value > s_board->max_mV) {
-      err = ERR_NEW(ERR_DEV_RANGE, .id = id, .value = (int32_t)value, .min = 0, .max = (int32_t)s_board->max_mV);
+    if (value > s_pm.board->max_mV) {
+      err = ERR_NEW(ERR_DEV_RANGE, .id = id, .value = (int32_t)value, .min = 0, .max = (int32_t)s_pm.board->max_mV);
     } else {
       next.set_mV = value;
       err = change_rail(i, next, op, value);
     }
-  } else if (value > s_board->max_mA) {
-    err = ERR_NEW(ERR_DEV_RANGE, .id = id, .value = (int32_t)value, .min = 0, .max = (int32_t)s_board->max_mA);
+  } else if (value > s_pm.board->max_mA) {
+    err = ERR_NEW(ERR_DEV_RANGE, .id = id, .value = (int32_t)value, .min = 0, .max = (int32_t)s_pm.board->max_mA);
   } else if (value == 0) {
-    bool starved = false;
     next.user_mA = 0;
-    s_rails[i] = next;
-    err = rebalance(&starved);
+    s_pm.rails[i] = next;
+    err = rebalance();
   } else {
     next.user_mA = value;
     err = change_rail(i, next, op, value);
     if (err == NULL) {
-      s_rails[i].applied_mA = value;
+      s_pm.rails[i].applied_mA = value;
     }
   }
   UNLOCK();
@@ -337,12 +338,12 @@ static err_h vreg_guard(uint16_t id, uint16_t op, const uint8_t* args, uint32_t 
 
 static sys_power_source_e detect_source(void) {
   if (sys_io_pin_valid(s_cfg.source_pin)) {
-    if (!s_pin_ready) {
+    if (!s_pm.pin_ready) {
       err_h err = sys_io_set_mode(s_cfg.source_pin, SYS_IO_MODE_INPUT);
       const uint32_t root = err_root_tag(err);
-      s_pin_ready = err == NULL || root == ERR_IO_PIN_IN_USE;  // already configured: read it as it is
+      s_pm.pin_ready = err == NULL || root == ERR_IO_PIN_IN_USE;  // already configured: read it as it is
       err_free(err);  // its device may not exist yet: retried next tick
-      if (!s_pin_ready) {
+      if (!s_pm.pin_ready) {
         return SYS_POWER_SOURCE_UNKNOWN;
       }
     }
@@ -355,11 +356,11 @@ static sys_power_source_e detect_source(void) {
     return level == (s_cfg.battery_level != 0) ? SYS_POWER_SOURCE_BATTERY : SYS_POWER_SOURCE_USB;
   }
   // The board's eFuse power-good pins: the external input wins (the board's mux prefers it), then USB-C.
-  if (s_board->source_pins != NULL) {
+  if (s_pm.board->source_pins != NULL) {
     bool ext = false, usb = false;
-    err_h err = sys_io_get_level(s_board->source_pins->ext_ok, &ext);
+    err_h err = sys_io_get_level(s_pm.board->source_pins->ext_ok, &ext);
     err_free(err);  // its device may not exist yet: the other ways below
-    err = sys_io_get_level(s_board->source_pins->usb_ok, &usb);
+    err = sys_io_get_level(s_pm.board->source_pins->usb_ok, &usb);
     err_free(err);
     if (ext) {
       // The eFuse cannot tell a battery from a bench supply: the configuration says which is on the external input.
@@ -370,26 +371,26 @@ static sys_power_source_e detect_source(void) {
     }
   }
   // No source pin: an entered PSU, then a configured battery.
-  if (s_psu.max_mA > 0) {
+  if (s_pm.psu.max_mA > 0) {
     return SYS_POWER_SOURCE_PSU;
   }
-  return s_battery.chemistry != SYS_POWER_BATTERY_NONE ? SYS_POWER_SOURCE_BATTERY : SYS_POWER_SOURCE_UNKNOWN;
+  return s_pm.battery.chemistry != SYS_POWER_BATTERY_NONE ? SYS_POWER_SOURCE_BATTERY : SYS_POWER_SOURCE_UNKNOWN;
 }
 
 /* The charger's highest offer, capped by the board. false: no sink, not created yet, or nothing offered. */
 static bool highest_offer(uint32_t* mV, uint32_t* mA) {
-  if (s_board->usb_pd == SYS_DEVICE_ID_NONE) {
+  if (s_pm.board->usb_pd == SYS_DEVICE_ID_NONE) {
     return false;
   }
   int32_t offered_mV = 0, offered_mA = 0;
-  err_h err = sys_power_usb_pd_get_limits(s_board->usb_pd, &offered_mV, &offered_mA);
+  err_h err = sys_power_usb_pd_get_limits(s_pm.board->usb_pd, &offered_mV, &offered_mA);
   const bool ok = err == NULL && offered_mV > 0 && offered_mA > 0;
   err_free(err);
   if (!ok) {
     return false;
   }
-  *mV = (uint32_t)offered_mV > s_board->max_mV ? s_board->max_mV : (uint32_t)offered_mV;
-  *mA = (uint32_t)offered_mA > s_board->max_mA ? s_board->max_mA : (uint32_t)offered_mA;
+  *mV = (uint32_t)offered_mV > s_pm.board->max_mV ? s_pm.board->max_mV : (uint32_t)offered_mV;
+  *mA = (uint32_t)offered_mA > s_pm.board->max_mA ? s_pm.board->max_mA : (uint32_t)offered_mA;
   return true;
 }
 
@@ -397,38 +398,30 @@ static bool highest_offer(uint32_t* mV, uint32_t* mA) {
 static void auto_negotiate(void) {
   uint32_t mV = 0, mA = 0;
   if (!highest_offer(&mV, &mA)) {
-    s_pd_req_mV = s_pd_req_mA = 0;  // a new charger is asked again
+    s_pm.pd_req.mV = s_pm.pd_req.mA = 0;  // a new charger is asked again
     return;
   }
-  if (mV == s_pd_req_mV && mA == s_pd_req_mA) {
+  if (mV == s_pm.pd_req.mV && mA == s_pm.pd_req.mA) {
     return;
   }
-  s_pd_req_mV = mV;  // recorded first: a refusal is reported once, not every tick
-  s_pd_req_mA = mA;
-  err_report(sys_power_usb_pd_set_settings(s_board->usb_pd, mV, mA));
+  s_pm.pd_req.mV = mV;  // recorded first: a refusal is reported once, not every tick
+  s_pm.pd_req.mA = mA;
+  err_report(sys_power_usb_pd_set_settings(s_pm.board->usb_pd, mV, mA));
 }
 
 // The source's current limit before the board cap.
 static uint32_t source_current_mA(sys_power_source_e source) {
   switch (source) {
     case SYS_POWER_SOURCE_PSU:
-      return s_psu.max_mA > 0 ? s_psu.max_mA : s_board->max_mA;  // not entered: the board's own limit (its eFuse)
+      return s_pm.psu.max_mA > 0 ? s_pm.psu.max_mA : s_pm.board->max_mA;  // not entered: the board's eFuse limit
     case SYS_POWER_SOURCE_BATTERY:
-      return s_board->max_mA;  // a battery isn't current-limited, the board is
+      return s_pm.board->max_mA;  // a battery isn't current-limited, the board is
     case SYS_POWER_SOURCE_USB: {
-      if (s_board->usb_pd != SYS_DEVICE_ID_NONE) {
-        int32_t mV = 0, mA = 0;
-        err_h err = sys_power_usb_pd_get_limits(s_board->usb_pd, &mV, &mA);
-        const bool offered = err == NULL && mA > 0;
-        err_free(err);  // not created yet, or nothing offered: the assumed current
-        if (offered) {
-          return (uint32_t)mA;
-        }
-      }
-      return s_board->unknown_source_mA;
+      uint32_t mV = 0, mA = 0;  // no sink, not created yet, or nothing offered: the assumed current
+      return highest_offer(&mV, &mA) ? mA : s_pm.board->unknown_source_mA;
     }
     default:
-      return s_board->unknown_source_mA;
+      return s_pm.board->unknown_source_mA;
   }
 }
 
@@ -460,38 +453,36 @@ static uint8_t lipo_pct(int32_t cell_mV) {
   return 0;
 }
 
+// A battery threshold: true once at or below it (raise the event), re-armed HYSTERESIS_PCT above it.
+static bool battery_crossed(bool* latched, uint8_t pct, uint8_t threshold) {
+  if (!*latched && pct <= threshold) return *latched = true;
+  if (*latched && pct >= threshold + CONFIG_SYS_POWER_MANAGER_BATTERY_HYSTERESIS_PCT) *latched = false;
+  return false;
+}
+
 static void update_battery(bool have_input) {
-  if (s_status.source != SYS_POWER_SOURCE_BATTERY || s_battery.chemistry == SYS_POWER_BATTERY_NONE ||
-      s_battery.cells == 0 || !have_input) {
-    s_status.battery_pct = SYS_POWER_PCT_UNKNOWN;
+  if (s_pm.status.source != SYS_POWER_SOURCE_BATTERY || s_pm.battery.chemistry == SYS_POWER_BATTERY_NONE ||
+      s_pm.battery.cells == 0 || !have_input) {
+    s_pm.status.battery_pct = SYS_POWER_PCT_UNKNOWN;
     return;
   }
-  const uint8_t pct = lipo_pct(s_status.input_mV / s_battery.cells);
-  s_status.battery_pct = pct;
-  // Raised once at or below the threshold, re-armed CONFIG_SYS_POWER_MANAGER_BATTERY_HYSTERESIS_PCT above it.
-  if (!s_critical_latched && pct <= s_battery.critical_pct) {
-    s_critical_latched = true;
+  const uint8_t pct = lipo_pct(s_pm.status.input_mV / s_pm.battery.cells);
+  s_pm.status.battery_pct = pct;
+  if (battery_crossed(&s_pm.latched.critical, pct, s_pm.battery.critical_pct)) {
     EMIT(BATTERY_CRITICAL, BATTERY_CRITICAL, pct);
-  } else if (s_critical_latched && pct >= s_battery.critical_pct + CONFIG_SYS_POWER_MANAGER_BATTERY_HYSTERESIS_PCT) {
-    s_critical_latched = false;
   }
-  if (!s_low_latched && pct <= s_battery.low_pct) {
-    s_low_latched = true;
-    EMIT(BATTERY_LOW, BATTERY_LOW, pct);
-  } else if (s_low_latched && pct >= s_battery.low_pct + CONFIG_SYS_POWER_MANAGER_BATTERY_HYSTERESIS_PCT) {
-    s_low_latched = false;
-  }
+  if (battery_crossed(&s_pm.latched.low, pct, s_pm.battery.low_pct)) EMIT(BATTERY_LOW, BATTERY_LOW, pct);
 }
 
 /* ---- The task ---- */
 
 // A rail whose device is gone (REMOVE, or not created yet) counts as off: a new one starts from scratch.
 static void forget_removed_rails(void) {
-  for (uint8_t i = 0; i < s_board->consumer_count; i++) {
+  for (uint8_t i = 0; i < s_pm.board->consumer_count; i++) {
     sys_device_info_t info;
-    err_h err = sys_device_call(s_board->consumers[i].vreg, SYS_DEVICE_OP_INFO, NULL, 0, &info, sizeof(info), NULL);
+    err_h err = sys_device_call(s_pm.board->consumers[i].vreg, SYS_DEVICE_OP_INFO, NULL, 0, &info, sizeof(info), NULL);
     if (err_root_tag(err) == ERR_DEV_NOT_FOUND) {
-      s_rails[i] = (rail_t){0};
+      s_pm.rails[i] = (rail_t){0};
     }
     err_free(err);
   }
@@ -499,17 +490,14 @@ static void forget_removed_rails(void) {
 
 // The input's hardware trip: critical at the limit's current, warning below it. Disabled: left as it is.
 static void program_input_alerts(uint32_t limit_mA) {
-  if (!s_cfg.enabled || s_board->input.device == SYS_DEVICE_ID_NONE || limit_mA == 0 || limit_mA == s_alert_mA) {
-    return;
-  }
+  const sys_power_channel_t in = s_pm.board->input;
+  if (!s_cfg.enabled || in.device == SYS_DEVICE_ID_NONE || limit_mA == 0 || limit_mA == s_pm.alert_mA) return;
   const uint32_t warn_mA = limit_mA * CONFIG_SYS_POWER_MANAGER_INPUT_WARNING_PCT / 100u;
-  err_h err = sys_power_monitor_set_alert(s_board->input.device, s_board->input.channel, SYS_POWER_ALERT_OCP_CRITICAL,
-                                          (int32_t)limit_mA);
-  ERR_KEEP_FIRST(err, sys_power_monitor_set_alert(s_board->input.device, s_board->input.channel,
-                                                         SYS_POWER_ALERT_OCP_WARNING, (int32_t)warn_mA));
+  err_h err = sys_power_monitor_set_alert(in.device, in.channel, SYS_POWER_ALERT_OCP_CRITICAL, (int32_t)limit_mA);
+  ERR_KEEP_FIRST(err, sys_power_monitor_set_alert(in.device, in.channel, SYS_POWER_ALERT_OCP_WARNING, (int32_t)warn_mA));
   if (err == NULL) {
-    s_alert_mA = limit_mA;
-  } else if (s_alert_mA == 0 && err_root_tag(err) == ERR_DEV_NOT_FOUND) {
+    s_pm.alert_mA = limit_mA;
+  } else if (s_pm.alert_mA == 0 && err_root_tag(err) == ERR_DEV_NOT_FOUND) {
     err_free(err);  // the monitor isn't created yet
   } else {
     err_report(err);
@@ -519,74 +507,72 @@ static void program_input_alerts(uint32_t limit_mA) {
 // Input measurement. false: skip this tick (the monitor is suspended, or not created yet and never seen).
 static bool read_input(bool* have_input) {
   *have_input = false;
-  if (s_board->input.device == SYS_DEVICE_ID_NONE) {
+  if (s_pm.board->input.device == SYS_DEVICE_ID_NONE) {
     return true;
   }
   int32_t mV = 0, mA = 0;
-  err_h err = sys_power_monitor_get_voltage(s_board->input.device, s_board->input.channel, &mV);
+  err_h err = sys_power_monitor_get_voltage(s_pm.board->input.device, s_pm.board->input.channel, &mV);
   if (err == NULL) {
-    err = sys_power_monitor_get_current(s_board->input.device, s_board->input.channel, &mA);
+    err = sys_power_monitor_get_current(s_pm.board->input.device, s_pm.board->input.channel, &mA);
   }
   const uint32_t root = err_root_tag(err);
-  if (root == ERR_DEV_SUSPENDED || (root == ERR_DEV_NOT_FOUND && !s_input_seen)) {
+  if (root == ERR_DEV_SUSPENDED || (root == ERR_DEV_NOT_FOUND && !s_pm.input_seen)) {
     err_free(err);  // can't be read now: keep the last status, recompute nothing
     return false;
   }
   if (err == NULL) {
-    s_input_seen = true;
-    s_input_error_reported = false;
-  } else if (!s_input_error_reported) {
-    s_input_error_reported = true;  // reported once, until it works again
+    s_pm.input_seen = true;
+    s_pm.input_error_reported = false;
+  } else if (!s_pm.input_error_reported) {
+    s_pm.input_error_reported = true;  // reported once, until it works again
     err_report(err);
   } else {
     err_free(err);
   }
   *have_input = err == NULL && mV > 0;
-  s_status.input_mV = *have_input ? mV : 0;
-  s_status.input_mA = *have_input ? mA : 0;
+  s_pm.status.input_mV = *have_input ? mV : 0;
+  s_pm.status.input_mA = *have_input ? mA : 0;
   return true;
 }
 
 // Over-voltage, budget, rebalance and the over-budget check, from a fresh input reading.
 static void update_budget(sys_power_source_e source, bool have_input) {
   // Over-voltage on the input, latched until it drops back under the board's max.
-  if (have_input && (uint32_t)s_status.input_mV > s_board->max_mV) {
-    if (!s_ovp_latched) {
-      s_ovp_latched = true;
-      EMIT(OVP, INPUT_OVP, s_status.input_mV);
+  if (have_input && (uint32_t)s_pm.status.input_mV > s_pm.board->max_mV) {
+    if (!s_pm.latched.ovp) {
+      s_pm.latched.ovp = true;
+      EMIT(OVP, INPUT_OVP, s_pm.status.input_mV);
     }
   } else {
-    s_ovp_latched = false;
+    s_pm.latched.ovp = false;
   }
 
   // Budget = measured input voltage x the source's current, both capped by the board.
-  uint32_t mV = have_input ? (uint32_t)s_status.input_mV : 0;
-  mV = mV > s_board->max_mV ? s_board->max_mV : mV;
+  uint32_t mV = have_input ? (uint32_t)s_pm.status.input_mV : 0;
+  mV = mV > s_pm.board->max_mV ? s_pm.board->max_mV : mV;
   uint32_t mA = source_current_mA(source);
-  mA = mA > s_board->max_mA ? s_board->max_mA : mA;
+  mA = mA > s_pm.board->max_mA ? s_pm.board->max_mA : mA;
   const uint32_t budget = (uint32_t)((uint64_t)mV * mA / 1000u);
-  s_status.source_mV = mV;
-  s_status.source_mA = mA;
-  const uint32_t limit_mA = limit_of(mA) > s_board->max_mA ? s_board->max_mA : limit_of(mA);
+  s_pm.status.source_mV = mV;
+  s_pm.status.source_mA = mA;
+  const uint32_t limit_mA = limit_of(mA) > s_pm.board->max_mA ? s_pm.board->max_mA : limit_of(mA);
   program_input_alerts(limit_mA);
 
-  const uint32_t delta = budget > s_status.budget_mW ? budget - s_status.budget_mW : s_status.budget_mW - budget;
-  if (!s_recompute && delta < CONFIG_SYS_POWER_MANAGER_BUDGET_STEP_MW && (budget == 0) == (s_status.budget_mW == 0)) {
-    return;
-  }
-  s_recompute = false;
-  s_status.budget_mW = budget;
-  s_status.limit_mW = limit_of(budget);
-  bool starved = false;
-  err_report(rebalance(&starved));
-  const uint32_t committed = s_board->reserve_mW + fixed_mW();
-  const bool over = s_cfg.enabled && (committed > s_status.limit_mW || starved);
-  if (over && !s_over_latched) {
-    s_over_latched = true;
-    err_report(ERR_NEW(ERR_PWRM_BELOW_ALLOCATION, .allocated_mW = committed, .limit_mW = s_status.limit_mW));
-    EMIT(BUDGET_EXCEEDED, BUDGET_EXCEEDED, (int32_t)s_status.limit_mW);
+  const uint32_t old = s_pm.status.budget_mW;
+  const uint32_t delta = budget > old ? budget - old : old - budget;
+  if (!s_pm.recompute && delta < CONFIG_SYS_POWER_MANAGER_BUDGET_STEP_MW && (budget == 0) == (old == 0)) return;
+  s_pm.recompute = false;
+  s_pm.status.budget_mW = budget;
+  s_pm.status.limit_mW = limit_of(budget);
+  err_report(rebalance());
+  const uint32_t committed = s_pm.board->reserve_mW + fixed_mW();
+  const bool over = s_cfg.enabled && (committed > s_pm.status.limit_mW || s_pm.starved);
+  if (over && !s_pm.latched.over) {
+    s_pm.latched.over = true;
+    err_report(ERR_NEW(ERR_PWRM_BELOW_ALLOCATION, .allocated_mW = committed, .limit_mW = s_pm.status.limit_mW));
+    EMIT(BUDGET_EXCEEDED, BUDGET_EXCEEDED, (int32_t)s_pm.status.limit_mW);
   } else if (!over) {
-    s_over_latched = false;
+    s_pm.latched.over = false;
   }
 }
 
@@ -596,22 +582,23 @@ static void tick(void) {
   bool have_input;
   const bool readable = read_input(&have_input);  // false: the budget and the battery estimate wait for the input
   const sys_power_source_e source = detect_source();
-  if (source != (sys_power_source_e)s_status.source) {
-    s_status.source = (uint8_t)source;
+  if (source != (sys_power_source_e)s_pm.status.source) {
+    s_pm.status.source = (uint8_t)source;
     EMIT(SOURCE_CHANGED, SOURCE_CHANGED, source);
   }
   if (source == SYS_POWER_SOURCE_USB && s_cfg.pd_max_auto) {
     auto_negotiate();
   } else {
-    s_pd_req_mV = s_pd_req_mA = 0;
+    s_pm.pd_req.mV = s_pm.pd_req.mA = 0;
   }
   if (readable) {
     update_budget(source, have_input);
     update_battery(have_input);
   }
-  s_status.flags = (uint8_t)((s_cfg.enabled ? SYS_POWER_FLAG_ENABLED : 0) | (s_cfg.strict ? SYS_POWER_FLAG_STRICT : 0) |
-                             (s_over_latched ? SYS_POWER_FLAG_OVER_BUDGET : 0) |
-                             (s_input_seen ? SYS_POWER_FLAG_INPUT_SEEN : 0));
+  s_pm.status.flags = (uint8_t)((s_cfg.enabled ? SYS_POWER_FLAG_ENABLED : 0) |
+                                (s_cfg.strict ? SYS_POWER_FLAG_STRICT : 0) |
+                                (s_pm.latched.over ? SYS_POWER_FLAG_OVER_BUDGET : 0) |
+                                (s_pm.input_seen ? SYS_POWER_FLAG_INPUT_SEEN : 0));
   UNLOCK();
 }
 
@@ -624,7 +611,7 @@ static void power_task(void* arg) {
 }
 
 static void wake(void) {
-  s_recompute = true;
+  s_pm.recompute = true;
   if (sys_pwrm_task_h != NULL) {
     xTaskNotifyGive(sys_pwrm_task_h);
   }
@@ -638,7 +625,7 @@ static err_h check_range(int32_t value, int32_t min, int32_t max) {
 }
 
 err_h sys_power_manager_set_config(const sys_power_manager_cfg_t* cfg) {
-  ERR_CHECK(s_board != NULL, ERR_PWRM_NOT_READY);
+  ERR_CHECK(s_pm.board != NULL, ERR_PWRM_NOT_READY);
   ERR_TRY(check_range(cfg->enabled, 0, 1));
   ERR_TRY(check_range(cfg->strict, 0, 1));
   ERR_TRY(check_range(cfg->soft_margin_pct, 0, 100));
@@ -648,27 +635,25 @@ err_h sys_power_manager_set_config(const sys_power_manager_cfg_t* cfg) {
   LOCK();
   const bool pin_changed = memcmp(&cfg->source_pin, &s_cfg.source_pin, sizeof(cfg->source_pin)) != 0;
   s_cfg = *cfg;
-  if (pin_changed) {
-    s_pin_ready = false;
-  }
-  s_alert_mA = 0;  // reprogram the input alerts for the new limit
-  s_pd_req_mV = s_pd_req_mA = 0;  // pd_max_auto: ask again
+  if (pin_changed) s_pm.pin_ready = false;
+  s_pm.alert_mA = 0;  // reprogram the input alerts for the new limit
+  s_pm.pd_req.mV = s_pm.pd_req.mA = 0;  // pd_max_auto: ask again
   UNLOCK();
   wake();
   return NULL;
 }
 
 err_h sys_power_manager_negotiate_max(void) {
-  ERR_CHECK(s_board != NULL, ERR_PWRM_NOT_READY);
+  ERR_CHECK(s_pm.board != NULL, ERR_PWRM_NOT_READY);
   uint32_t mV = 0, mA = 0;
   LOCK();
   const bool offered = highest_offer(&mV, &mA);
   UNLOCK();
   ERR_CHECK(offered, ERR_PWRM_NO_OFFER);
-  ERR_TRY(sys_power_usb_pd_set_settings(s_board->usb_pd, mV, mA));
+  ERR_TRY(sys_power_usb_pd_set_settings(s_pm.board->usb_pd, mV, mA));
   LOCK();
-  s_pd_req_mV = mV;
-  s_pd_req_mA = mA;
+  s_pm.pd_req.mV = mV;
+  s_pm.pd_req.mA = mA;
   UNLOCK();
   wake();
   return NULL;
@@ -681,32 +666,32 @@ void sys_power_manager_get_config(sys_power_manager_cfg_t* out) {
 }
 
 err_h sys_power_manager_set_psu(const sys_power_psu_t* psu) {
-  ERR_CHECK(s_board != NULL, ERR_PWRM_NOT_READY);
+  ERR_CHECK(s_pm.board != NULL, ERR_PWRM_NOT_READY);
   if (psu->max_mV != 0 || psu->max_mA != 0) {  // 0 / 0 removes the supply
     ERR_TRY(check_range((int32_t)psu->max_mV, 1, INT32_MAX));
     ERR_TRY(check_range((int32_t)psu->max_mA, 1, INT32_MAX));
   }
   LOCK();
-  s_psu = *psu;
+  s_pm.psu = *psu;
   UNLOCK();
   wake();
   return NULL;
 }
 
 err_h sys_power_manager_set_battery(const sys_power_battery_t* battery) {
-  ERR_CHECK(s_board != NULL, ERR_PWRM_NOT_READY);
+  ERR_CHECK(s_pm.board != NULL, ERR_PWRM_NOT_READY);
   ERR_TRY(check_range(battery->chemistry, SYS_POWER_BATTERY_NONE, SYS_POWER_BATTERY_LIPO));
   sys_power_battery_t b = {0};
   if (battery->chemistry != SYS_POWER_BATTERY_NONE) {
-    ERR_TRY(check_range(battery->cells, 1, (int32_t)(s_board->max_mV / LIPO_FULL_CELL_MV)));
+    ERR_TRY(check_range(battery->cells, 1, (int32_t)(s_pm.board->max_mV / LIPO_FULL_CELL_MV)));
     ERR_TRY(check_range(battery->low_pct, 2, 100));
     ERR_TRY(check_range(battery->critical_pct, 1, battery->low_pct - 1));
     b = *battery;
   }
   LOCK();
-  s_battery = b;
-  s_low_latched = false;
-  s_critical_latched = false;
+  s_pm.battery = b;
+  s_pm.latched.low = false;
+  s_pm.latched.critical = false;
   UNLOCK();
   wake();
   return NULL;
@@ -714,19 +699,19 @@ err_h sys_power_manager_set_battery(const sys_power_battery_t* battery) {
 
 void sys_power_manager_get_psu(sys_power_psu_t* out) {
   LOCK();
-  *out = s_psu;
+  *out = s_pm.psu;
   UNLOCK();
 }
 
 void sys_power_manager_get_battery(sys_power_battery_t* out) {
   LOCK();
-  *out = s_battery;
+  *out = s_pm.battery;
   UNLOCK();
 }
 
 // The matrix row of a target: 0 for the board, 1 + i for rail i.
 static err_h row_of(uint16_t target, uint8_t* row) {
-  ERR_CHECK(s_board != NULL, ERR_PWRM_NOT_READY);
+  ERR_CHECK(s_pm.board != NULL, ERR_PWRM_NOT_READY);
   if (target == SYS_POWER_TARGET_BOARD) {
     *row = 0;
     return NULL;
@@ -738,7 +723,7 @@ static err_h row_of(uint16_t target, uint8_t* row) {
 }
 
 static size_t matrix_size(void) {
-  return (size_t)(1 + s_board->consumer_count) * SYS_POWER_KIND_COUNT;
+  return (size_t)(1 + s_pm.board->consumer_count) * SYS_POWER_KIND_COUNT;
 }
 
 err_h sys_power_manager_set_response(uint16_t target, uint8_t kind, uint8_t response) {
@@ -747,19 +732,19 @@ err_h sys_power_manager_set_response(uint16_t target, uint8_t kind, uint8_t resp
   ERR_TRY(check_range(kind, SYS_POWER_KIND_OVP, SYS_POWER_KIND_COUNT - 1));
   ERR_TRY(check_range(response, SYS_POWER_RESPONSE_NOTIFY, SYS_POWER_RESPONSE_SAFE_STATE));
   LOCK();
-  s_responses[row][kind] = response;
+  s_pm.responses[row][kind] = response;
   UNLOCK();
   return NULL;
 }
 
 err_h sys_power_manager_set_responses(const uint8_t* matrix, size_t len) {
-  ERR_CHECK(s_board != NULL, ERR_PWRM_NOT_READY);
+  ERR_CHECK(s_pm.board != NULL, ERR_PWRM_NOT_READY);
   ERR_CHECK(len == matrix_size(), ERR_CMD_BAD_LEN, .got = (uint16_t)len, .need = (uint16_t)matrix_size());
   for (size_t i = 0; i < len; i++) {
     ERR_TRY(check_range(matrix[i], SYS_POWER_RESPONSE_NOTIFY, SYS_POWER_RESPONSE_SAFE_STATE));
   }
   LOCK();
-  memcpy(s_responses, matrix, len);
+  memcpy(s_pm.responses, matrix, len);
   UNLOCK();
   return NULL;
 }
@@ -768,19 +753,19 @@ err_h sys_power_manager_get_responses(uint16_t target, uint8_t out[SYS_POWER_KIN
   uint8_t row;
   ERR_TRY(row_of(target, &row));
   LOCK();
-  memcpy(out, s_responses[row], SYS_POWER_KIND_COUNT);
+  memcpy(out, s_pm.responses[row], SYS_POWER_KIND_COUNT);
   UNLOCK();
   return NULL;
 }
 
 err_h sys_power_manager_get_matrix(sys_power_response_row_t* rows, uint8_t cap, uint8_t* count) {
-  ERR_CHECK(s_board != NULL, ERR_PWRM_NOT_READY);
-  const uint8_t n = (uint8_t)(1 + s_board->consumer_count);
+  ERR_CHECK(s_pm.board != NULL, ERR_PWRM_NOT_READY);
+  const uint8_t n = (uint8_t)(1 + s_pm.board->consumer_count);
   ERR_CHECK(cap >= n, ERR_CMD_BAD_LEN, .got = cap, .need = n);
   LOCK();
   for (uint8_t i = 0; i < n; i++) {
-    rows[i].target = i == 0 ? SYS_POWER_TARGET_BOARD : s_board->consumers[i - 1].vreg;
-    memcpy(rows[i].responses, s_responses[i], SYS_POWER_KIND_COUNT);
+    rows[i].target = i == 0 ? SYS_POWER_TARGET_BOARD : s_pm.board->consumers[i - 1].vreg;
+    memcpy(rows[i].responses, s_pm.responses[i], SYS_POWER_KIND_COUNT);
   }
   UNLOCK();
   *count = n;
@@ -788,9 +773,9 @@ err_h sys_power_manager_get_matrix(sys_power_response_row_t* rows, uint8_t cap, 
 }
 
 err_h sys_power_manager_get_status(sys_power_status_t* out) {
-  ERR_CHECK(s_board != NULL, ERR_PWRM_NOT_READY);
+  ERR_CHECK(s_pm.board != NULL, ERR_PWRM_NOT_READY);
   LOCK();
-  *out = s_status;
+  *out = s_pm.status;
   UNLOCK();
   return NULL;
 }
@@ -798,26 +783,21 @@ err_h sys_power_manager_get_status(sys_power_status_t* out) {
 /* ---- Init ---- */
 
 err_h sys_power_manager_init(const sys_power_board_t* board, sys_power_safe_state_f safe_state) {
-  ERR_CHECK(board != NULL && s_board == NULL, ERR_PWRM_BAD_ARG, .value = 0, .min = 0, .max = 0);
+  ERR_CHECK(board != NULL && s_pm.board == NULL, ERR_PWRM_BAD_ARG, .value = 0, .min = 0, .max = 0);
   ERR_TRY(check_range(board->consumer_count, 0, CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS));
   ERR_TRY(check_range(board->vreg_efficiency_pct, 1, 100));
   ERR_CHECK(board->consumer_count == 0 || board->consumers != NULL, ERR_PWRM_BAD_ARG, .value = 0, .min = 1, .max = 1);
-  s_safe_state = safe_state;
   s_cfg = k_cfg_default;  // the stored records (SYS_ACTIONS_ID_POWER_*) are run by whoever starts the project
-  s_psu = (sys_power_psu_t){0};
-  s_battery = (sys_power_battery_t){0};
-  s_board = board;
+  s_pm.safe_state = safe_state;
+  s_pm.status.battery_pct = SYS_POWER_PCT_UNKNOWN;
 
-  // Responses: the board-config defaults (a rail without its own takes the board's).
-  uint8_t defaults[1 + CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS][SYS_POWER_KIND_COUNT] = {{0}};
-  if (board->responses != NULL) {
-    memcpy(defaults[0], board->responses, SYS_POWER_KIND_COUNT);
-  }
+  // Responses: the board-config defaults (a rail without its own takes the board's; none = Notify, 0).
+  if (board->responses != NULL) memcpy(s_pm.responses[0], board->responses, SYS_POWER_KIND_COUNT);
   for (uint8_t i = 0; i < board->consumer_count; i++) {
-    memcpy(defaults[1 + i], board->consumers[i].responses != NULL ? board->consumers[i].responses : defaults[0],
-           SYS_POWER_KIND_COUNT);
+    const uint8_t* own = board->consumers[i].responses;
+    memcpy(s_pm.responses[1 + i], own != NULL ? own : s_pm.responses[0], SYS_POWER_KIND_COUNT);
   }
-  memcpy(s_responses, defaults, matrix_size());
+  s_pm.board = board;  // last: the API answers ERR_PWRM_NOT_READY until here
 
   ERR_TRY(sys_device_set_guard(SYS_DEVICE_CONTRACT_POWER_VREG, vreg_guard));
   // Every event of the two contracts, queued (the event task): filtered in on_event.
@@ -832,7 +812,7 @@ err_h sys_power_manager_init(const sys_power_board_t* board, sys_power_safe_stat
   pmon.event = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_MONITOR, SYS_EVENT_ANY_IN);
   ERR_TRY(sys_event_subscribe(&pmon, &handle));
 
-  s_recompute = true;
+  s_pm.recompute = true;
   U_TASK_START(sys_pwrm_task_h, power_task, NULL, CONFIG_SYS_POWER_MANAGER_TASK_PRIO);
   ERR_CHECK(sys_pwrm_task_h != NULL, ERR_PWRM_NOT_READY);
   return NULL;

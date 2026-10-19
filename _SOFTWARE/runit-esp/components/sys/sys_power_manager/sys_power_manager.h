@@ -24,8 +24,8 @@ extern "C" {
 //#ref-enum @alias Power Source
 typedef enum {
   SYS_POWER_SOURCE_UNKNOWN = 0,  //@alias Unknown @description Source unknown
-  SYS_POWER_SOURCE_USB = 1,  //@alias Usb @description USB source
-  SYS_POWER_SOURCE_PSU = 2,  //@alias Power Supply @description External power supply
+  SYS_POWER_SOURCE_USB = 1,      //@alias Usb @description USB source
+  SYS_POWER_SOURCE_PSU = 2,      //@alias Power Supply @description External power supply
   SYS_POWER_SOURCE_BATTERY = 3,  //@alias Battery @description Battery source
 } sys_power_source_e;
 
@@ -34,25 +34,25 @@ typedef enum {
  * UVP and OTP have no source yet (kept for the wire). */
 //#ref-enum @alias Power Event
 typedef enum {
-  SYS_POWER_KIND_NONE = 0,  //@alias None @description No event
-  SYS_POWER_KIND_OVP = 1,  //@alias Over-voltage @description Overvoltage event
-  SYS_POWER_KIND_UVP = 2,  //@alias Under-voltage @description Undervoltage event
-  SYS_POWER_KIND_SPC = 3,  //@alias Short circuit @description Short circuit event
-  SYS_POWER_KIND_OCP_WARNING = 4,  //@alias Over-current warning @description Overcurrent warning
-  SYS_POWER_KIND_OCP_CRITICAL = 5,  //@alias Over-current critical @description Overcurrent critical
-  SYS_POWER_KIND_OTP = 6,  //@alias Over-temperature @description Overtemperature event
-  SYS_POWER_KIND_BATTERY_LOW = 7,  //@alias Battery low @description Battery low
+  SYS_POWER_KIND_NONE = 0,              //@alias None @description No event
+  SYS_POWER_KIND_OVP = 1,               //@alias Over-voltage @description Overvoltage event
+  SYS_POWER_KIND_UVP = 2,               //@alias Under-voltage @description Undervoltage event
+  SYS_POWER_KIND_SPC = 3,               //@alias Short circuit @description Short circuit event
+  SYS_POWER_KIND_OCP_WARNING = 4,       //@alias Over-current warning @description Overcurrent warning
+  SYS_POWER_KIND_OCP_CRITICAL = 5,      //@alias Over-current critical @description Overcurrent critical
+  SYS_POWER_KIND_OTP = 6,               //@alias Over-temperature @description Overtemperature event
+  SYS_POWER_KIND_BATTERY_LOW = 7,       //@alias Battery low @description Battery low
   SYS_POWER_KIND_BATTERY_CRITICAL = 8,  //@alias Battery critical @description Battery critical
-  SYS_POWER_KIND_BUDGET_EXCEEDED = 9,  //@alias Power budget exceeded @description Power budget exceeded
-  SYS_POWER_KIND_SOURCE_CHANGED = 10,  //@alias Power source changed @description Power source changed
+  SYS_POWER_KIND_BUDGET_EXCEEDED = 9,   //@alias Power budget exceeded @description Power budget exceeded
+  SYS_POWER_KIND_SOURCE_CHANGED = 10,   //@alias Power source changed @description Power source changed
   SYS_POWER_KIND_COUNT,
 } sys_power_kind_e;
 
 //#ref-enum @alias Power Event Response
 typedef enum {
-  SYS_POWER_RESPONSE_NOTIFY = 0,  //@alias Notify @description Raise event only
-  SYS_POWER_RESPONSE_DISABLE = 1,  //@alias Disable @description Suspend affected output
-  SYS_POWER_RESPONSE_RESET = 2,  //@alias Reset @description Reset affected device
+  SYS_POWER_RESPONSE_NOTIFY = 0,      //@alias Notify @description Raise event only
+  SYS_POWER_RESPONSE_DISABLE = 1,     //@alias Disable @description Suspend affected output
+  SYS_POWER_RESPONSE_RESET = 2,       //@alias Reset @description Reset affected device
   SYS_POWER_RESPONSE_SAFE_STATE = 3,  //@alias Safe State @description Stop program and enter safe state
 } sys_power_response_e;
 
@@ -74,12 +74,12 @@ typedef enum {
  * The device events it answers (VREG, monitor) are the devices' own.
  * ------------------------------------------------------------------------- */
 
-#define SYS_POWER_MANAGER_EVENTS(X) \
-  X(SOURCE_CHANGED, 0x00, SYS_EVENT_NOTIFY) \
-  X(BATTERY_LOW, 0x01, SYS_EVENT_NOTIFY) \
+#define SYS_POWER_MANAGER_EVENTS(X)           \
+  X(SOURCE_CHANGED,   0x00, SYS_EVENT_NOTIFY) \
+  X(BATTERY_LOW,      0x01, SYS_EVENT_NOTIFY) \
   X(BATTERY_CRITICAL, 0x02, SYS_EVENT_NOTIFY) \
-  X(BUDGET_EXCEEDED, 0x03, SYS_EVENT_NOTIFY) \
-  X(INPUT_OVP, 0x04, SYS_EVENT_NOTIFY)
+  X(BUDGET_EXCEEDED,  0x03, SYS_EVENT_NOTIFY) \
+  X(INPUT_OVP,        0x04, SYS_EVENT_NOTIFY)
 
 #define SYS_POWER_MANAGER__EV(name, n, flags) \
   PWRM_EV_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_MANAGER, n), PWRM_EV_##name##_FLAGS = (flags),
@@ -189,13 +189,13 @@ typedef struct __attribute__((packed)) {
  * Errors (module ERR_MOD_SYS_POWER_MANAGER)
  * ------------------------------------------------------------------------- */
 
-#define ERR_SYS_POWER_MANAGER_MAP(X)                                                                                                 \
-  X(ERR_PWRM_NOT_READY,              ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 1), ERR_SEV_HIGH,   {})                                     /* before sys_power_manager_init */ \
-  X(ERR_PWRM_BUDGET_EXCEEDED,        ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 2), ERR_SEV_MEDIUM, { uint16_t id; uint32_t requested_mW; uint32_t available_mW; }) /* a rail change that doesn't fit */ \
-  X(ERR_PWRM_BELOW_ALLOCATION,       ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 3), ERR_SEV_MEDIUM, { uint32_t allocated_mW; uint32_t limit_mW; })              /* the budget shrank under what's committed */ \
+#define ERR_SYS_POWER_MANAGER_MAP(X)                                                                                                                                                                                            \
+  X(ERR_PWRM_NOT_READY,              ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 1), ERR_SEV_HIGH,   {})                                     /* before sys_power_manager_init */                                                         \
+  X(ERR_PWRM_BUDGET_EXCEEDED,        ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 2), ERR_SEV_MEDIUM, { uint16_t id; uint32_t requested_mW; uint32_t available_mW; }) /* a rail change that doesn't fit */                                \
+  X(ERR_PWRM_BELOW_ALLOCATION,       ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 3), ERR_SEV_MEDIUM, { uint32_t allocated_mW; uint32_t limit_mW; })              /* the budget shrank under what's committed */                          \
   X(ERR_PWRM_FAULT,                  ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 4), ERR_SEV_MEDIUM, { uint16_t source; uint8_t channel; uint8_t kind; uint8_t response; int32_t value; }) /* a hardware fault and the response taken */ \
-  X(ERR_PWRM_BAD_ARG,                ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 5), ERR_SEV_HIGH,   { int32_t value; int32_t min; int32_t max; })              /* a setting out of range */ \
-  X(ERR_PWRM_NOT_RAIL,               ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 6), ERR_SEV_HIGH,   { uint16_t id; })                                      /* a response target that is neither the board nor a rail of it */ \
+  X(ERR_PWRM_BAD_ARG,                ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 5), ERR_SEV_HIGH,   { int32_t value; int32_t min; int32_t max; })              /* a setting out of range */                                             \
+  X(ERR_PWRM_NOT_RAIL,               ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 6), ERR_SEV_HIGH,   { uint16_t id; })                                      /* a response target that is neither the board nor a rail of it */           \
   X(ERR_PWRM_NO_OFFER,               ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 7), ERR_SEV_MEDIUM, {})                                     /* no USB-PD sink on the board, or the charger offers nothing */
 
 ERR_TAGS_DECLARE(ERR_SYS_POWER_MANAGER_MAP)

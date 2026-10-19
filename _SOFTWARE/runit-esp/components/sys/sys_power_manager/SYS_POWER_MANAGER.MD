@@ -63,7 +63,7 @@ The source is one of UNKNOWN, USB, PSU or BATTERY. Its current limit caps the bu
 - **The eFuse pins** (`source_pins`): the external input wins when it is live, and becomes PSU, or BATTERY when `ext_input` says a battery is on it (the eFuse only says the input is live). Otherwise USB-C live → USB. If neither is live, or the pins cannot be read (the expander not created yet), the next rule applies. This rule comes after `source_pin`, which stays a user override.
 - **No pin and no eFuse pins**: an entered PSU → PSU, else a configured battery → BATTERY, else UNKNOWN. USB is never detected this way.
 
-Source current: PSU → its entered `max_mA`, or the board's `max_mA` when none is entered (the board's eFuse limits an external supply; enter the real limit with SET_PSU). BATTERY → the board's `max_mA`. USB → the current of the highest offer of the USB-PD sink (`GET_LIMITS`), or `unknown_source_mA` while the sink is not created or offers nothing. UNKNOWN → `unknown_source_mA`. A change publishes `SOURCE_CHANGED`.
+Source current: PSU → its entered `max_mA`, or the board's `max_mA` when none is entered (the board's eFuse limits an external supply; enter the real limit with SET_PSU). BATTERY → the board's `max_mA`. USB → the current of the USB-PD sink's highest offer (`GET_LIMITS`, the same read as "Negotiating the highest offer"), or `unknown_source_mA` while the sink is not created or offers nothing. UNKNOWN → `unknown_source_mA`. A change publishes `SOURCE_CHANGED`.
 
 ## Budget and rails
 
